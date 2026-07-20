@@ -1026,38 +1026,65 @@ a {
 }
 
 .log-entry-input-grid {
-  display: grid;
-  grid-template-columns:
-    minmax(120px, 0.55fr)
-    minmax(160px, 0.75fr)
-    minmax(320px, 1.7fr);
-  gap: 12px;
-  align-items: end;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+}
+
+.log-entry-field--time {
+  flex: 0 0 112px;
+}
+
+.log-entry-field--category {
+  flex: 0 0 150px;
+}
+
+.log-entry-field--tag {
+  flex: 0 0 330px;
 }
 
 .log-entry-content-field {
-  margin-top: 14px;
+  flex: 1 1 520px;
+  min-width: 340px;
+  margin-top: 0;
 }
 
 .log-entry-content-field textarea {
-  min-height: 96px;
+  height: 41px;
+  min-height: 41px;
+  max-height: 96px;
+  padding: 9px 11px;
   resize: vertical;
+  overflow-y: auto;
 }
 
 .log-entry-input-actions {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 14px;
+  gap: 7px;
+  margin-top: 0;
 }
 
 .log-entry-input-actions .add-entry-button {
-  min-width: 106px;
+  min-width: 92px;
+  height: 41px;
 }
 
 #cancelLogEntryEditButton {
-  min-width: 92px;
+  min-width: 64px;
+  height: 41px;
+}
+
+@media (max-width: 1180px) {
+  .log-entry-input-grid {
+    flex-wrap: wrap;
+  }
+
+  .log-entry-content-field {
+    flex: 1 1 500px;
+  }
 }
 
 
@@ -1176,41 +1203,16 @@ a {
   background: #fbfcfe;
 }
 
-.log-entry-table__time {
-  width: 90px;
-}
-
-.log-entry-table__category {
-  width: 120px;
-}
-
-.log-entry-table__tag {
-  width: 190px;
-}
-
-.log-entry-table__content {
-  width: auto;
-}
-
-.log-entry-table__actions {
-  width: 122px;
-}
-
 .log-entry-table td:nth-child(1),
 .log-entry-table td:nth-child(2),
-.log-entry-table td:nth-child(5) {
+.log-entry-table td:nth-child(4) {
   text-align: center;
 }
 
 .log-entry-table td:nth-child(3) {
-  color: #245b96;
-  font-family:
-    Consolas,
-    "Courier New",
-    monospace;
-  font-size: 12px;
-  font-weight: 700;
-  word-break: break-all;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .log-entry-table td:nth-child(4) {
@@ -1226,6 +1228,46 @@ a {
   text-align: center !important;
 }
 
+
+.log-entry-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+}
+
+.log-entry-content__tag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-family:
+    Consolas,
+    "Courier New",
+    monospace;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.log-entry-content__tag:hover {
+  background: #dceafa;
+  text-decoration: underline;
+}
+
+.log-entry-content__text {
+  min-width: 0;
+  color: #35445a;
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 /* 수정 · 삭제 버튼 */
 

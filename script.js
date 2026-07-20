@@ -638,7 +638,7 @@ function renderLogEntryTable() {
   if (!entries.length) {
     elements.logEntryTableBody.innerHTML = `
       <tr class="log-entry-empty-row">
-        <td colspan="5">
+        <td colspan="4">
           등록된 작업 내역이 없습니다.
         </td>
       </tr>
@@ -651,6 +651,20 @@ function renderLogEntryTable() {
     .map((entry, index) => {
       const isEditing =
         index === appState.editingEntryIndex;
+
+      const tagHtml = entry.tag
+        ? `
+          <button
+            type="button"
+            class="log-entry-content__tag"
+            data-entry-action="navigator"
+            data-entry-index="${index}"
+            title="Facility Navigator에서 설비 보기"
+          >
+            [${escapeHtml(entry.tag)}]
+          </button>
+        `
+        : "";
 
       return `
         <tr
@@ -666,24 +680,13 @@ function renderLogEntryTable() {
           </td>
 
           <td>
-            ${
-              entry.tag
-                ? `
-                  <button
-                    type="button"
-                    class="detail-tag-button"
-                    data-entry-action="navigator"
-                    data-entry-index="${index}"
-                  >
-                    ${escapeHtml(entry.tag)}
-                  </button>
-                `
-                : "-"
-            }
-          </td>
+            <div class="log-entry-content">
+              ${tagHtml}
 
-          <td>
-            ${escapeHtml(entry.content || "-")}
+              <span class="log-entry-content__text">
+                ${escapeHtml(entry.content || "-")}
+              </span>
+            </div>
           </td>
 
           <td>
@@ -712,7 +715,6 @@ function renderLogEntryTable() {
     })
     .join("");
 }
-
 
 function handleLogEntryTableClick(event) {
   const actionButton = event.target.closest(

@@ -830,76 +830,73 @@
   </div>
 
 
-  <!-- 단일 입력 영역 -->
-  <div class="log-entry-input-panel">
+<!-- 단일 입력 영역 -->
+<div class="log-entry-input-panel">
 
-    <div class="log-entry-input-grid">
+  <div class="log-entry-input-grid">
 
-      <label class="form-field">
-        <span class="form-field__label">시간</span>
+    <label class="form-field log-entry-field--time">
+      <span class="form-field__label">시간</span>
 
-<input
-  type="text"
-  id="logEntryTime"
-  inputmode="numeric"
-  maxlength="5"
-  placeholder="예: 09:30"
-  autocomplete="off"
-/>
-
-
-      <label class="form-field">
-        <span class="form-field__label">구분</span>
-
-        <select id="logEntryCategory">
-          <option value="인계사항">인계사항</option>
-          <option value="TM 작업">TM 작업</option>
-          <option value="TM 발행">TM 발행</option>
-          <option value="TM 종결">TM 종결</option>
-
-          <option value="BM 작업">BM 작업</option>
-          <option value="BM 발행">BM 발행</option>
-          <option value="BM 종결">BM 종결</option>
-
-          <option value="CM 작업">CM 작업</option>
-          <option value="CM 발행">CM 발행</option>
-          <option value="CM 종결">CM 종결</option>
-
-          <option value="운전조작">운전조작</option>
-          <option value="점검">점검</option>
-          
-          <option value="비고">비고</option>
-        </select>
-      </label>
+      <input
+        type="text"
+        id="logEntryTime"
+        inputmode="numeric"
+        maxlength="5"
+        placeholder="예: 09:30"
+        autocomplete="off"
+      />
+    </label>
 
 
-      <div
- 
-      class="form-field form-field--tag"
+    <label class="form-field log-entry-field--category">
+      <span class="form-field__label">구분</span>
+
+      <select id="logEntryCategory">
+        <option value="인계사항" selected>인계사항</option>
+
+        <option value="TM 작업">TM 작업</option>
+        <option value="TM 발행">TM 발행</option>
+        <option value="TM 종결">TM 종결</option>
+
+        <option value="BM 작업">BM 작업</option>
+        <option value="BM 발행">BM 발행</option>
+        <option value="BM 종결">BM 종결</option>
+
+        <option value="CM 작업">CM 작업</option>
+        <option value="CM 발행">CM 발행</option>
+        <option value="CM 종결">CM 종결</option>
+
+        <option value="운전조작">운전조작</option>
+        <option value="점검">점검</option>
+        <option value="비고">비고</option>
+      </select>
+    </label>
+
+
+    <div
+      class="form-field log-entry-field--tag"
       id="logEntryTagField"
-      >
+      hidden
+    >
+      <span class="form-field__label">TAG</span>
 
-        <span class="form-field__label">TAG</span>
+      <div class="tag-input-group">
+        <input
+          type="text"
+          id="logEntryTag"
+          placeholder="예: 10HFB10AF001"
+          autocomplete="off"
+        />
 
-        <div class="tag-input-group">
-          <input
-            type="text"
-            id="logEntryTag"
-            placeholder="예: 10HFB10AF001"
-            autocomplete="off"
-          />
-
-          <button
-            type="button"
-            class="navigator-button"
-            id="logEntryNavigatorButton"
-            title="Facility Navigator에서 TAG 열기"
-          >
-            설비보기
-          </button>
-        </div>
+        <button
+          type="button"
+          class="navigator-button"
+          id="logEntryNavigatorButton"
+        >
+          설비보기
+        </button>
       </div>
-
     </div>
 
 
@@ -908,7 +905,7 @@
 
       <textarea
         id="logEntryContent"
-        rows="4"
+        rows="1"
         placeholder="작업, 정비 또는 인계 내용을 입력하세요."
       ></textarea>
     </label>
@@ -922,7 +919,7 @@
         id="cancelLogEntryEditButton"
         hidden
       >
-        수정 취소
+        취소
       </button>
 
       <button
@@ -936,6 +933,8 @@
     </div>
 
   </div>
+
+</div>
 
 
   <!-- 누적 목록 -->
@@ -958,33 +957,31 @@
 
       <table class="log-entry-table">
 
-        <colgroup>
-          <col class="log-entry-table__time" />
-          <col class="log-entry-table__category" />
-          <col class="log-entry-table__tag" />
-          <col class="log-entry-table__content" />
-          <col class="log-entry-table__actions" />
-        </colgroup>
+<colgroup>
+  <col class="log-entry-table__time" />
+  <col class="log-entry-table__category" />
+  <col class="log-entry-table__content" />
+  <col class="log-entry-table__actions" />
+</colgroup>
 
-        <thead>
-          <tr>
-            <th scope="col">시간</th>
-            <th scope="col">구분</th>
-            <th scope="col">TAG</th>
-            <th scope="col">내용</th>
-            <th scope="col">관리</th>
-          </tr>
-        </thead>
+<thead>
+  <tr>
+    <th scope="col">시간</th>
+    <th scope="col">구분</th>
+    <th scope="col">내용</th>
+    <th scope="col">관리</th>
+  </tr>
+</thead>
 
-        <tbody id="logEntryTableBody">
+<tbody id="logEntryTableBody">
 
-          <tr class="log-entry-empty-row">
-            <td colspan="5">
-              등록된 작업 내역이 없습니다.
-            </td>
-          </tr>
+  <tr class="log-entry-empty-row">
+    <td colspan="4">
+      등록된 작업 내역이 없습니다.
+    </td>
+  </tr>
 
-        </tbody>
+</tbody>
 
       </table>
 
