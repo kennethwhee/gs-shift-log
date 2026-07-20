@@ -43,6 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setEditorDateFromSelectedDate();
 
   resetLogEntryInput();
+  updateTagFieldVisibility();
   renderLogEntryTable();
 });
 
@@ -90,6 +91,8 @@ function cacheElements() {
     logEntryNavigatorButton: document.getElementById(
       "logEntryNavigatorButton"
     ),
+
+    logEntryTagField: document.getElementById("logEntryTagField"),
 
     logEntryInputPanel: document.querySelector(".log-entry-input-panel"),
     logEntryTableBody: document.getElementById("logEntryTableBody"),
@@ -172,6 +175,10 @@ function bindEvents() {
     }
   });
 
+elements.logEntryCategory.addEventListener(
+    "change",
+    updateTagFieldVisibility
+);
 
   /* 작업 내역 추가 */
 
@@ -191,6 +198,27 @@ function bindEvents() {
     "click",
     handleLogEntryTableClick
   );
+
+
+  elements.logEntryTime.addEventListener("blur", () => {
+  normalizeLogEntryTime();
+});
+
+elements.logEntryTime.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") {
+    return;
+  }
+
+  event.preventDefault();
+
+  const normalizedTime = normalizeLogEntryTime();
+
+  if (!normalizedTime) {
+    return;
+  }
+
+  elements.logEntryCategory.focus();
+});
 
   elements.logEntryContent.addEventListener("keydown", (event) => {
     if (
@@ -465,6 +493,8 @@ function resetLogEditor() {
 
   elements.logAttachments.value = "";
   elements.attachmentList.innerHTML = "";
+
+  updateTagFieldVisibility();
 }
 
 
@@ -546,20 +576,20 @@ function resetLogEntryInput(options = {}) {
 
 
 function addOrUpdateLogEntry() {
-  const entry = {
-    time: elements.logEntryTime.value,
-    category: elements.logEntryCategory.value,
-    tag: elements.logEntryTag.value
-      .trim()
-      .toUpperCase(),
-    content: elements.logEntryContent.value.trim()
-  };
+const normalizedTime = normalizeLogEntryTime();
 
-  if (!entry.time) {
-    showToast("시간을 입력해 주세요.");
-    elements.logEntryTime.focus();
-    return;
-  }
+if (!normalizedTime) {
+  return;
+}
+
+const entry = {
+  time: normalizedTime,
+  category: elements.logEntryCategory.value,
+  tag: elements.logEntryTag.value
+    .trim()
+    .toUpperCase(),
+  content: elements.logEntryContent.value.trim()
+};
 
   if (!entry.category) {
     showToast("구분을 선택해 주세요.");
@@ -759,6 +789,7 @@ function startLogEntryEdit(entryIndex) {
   });
 
   elements.logEntryContent.focus();
+  updateTagFieldVisibility();
 }
 
 
@@ -808,6 +839,86 @@ function deleteLogEntry(entryIndex) {
 
   renderLogEntryTable();
   showToast("작업 내역을 삭제했습니다.");
+}
+
+function normalizeLogEntryTime() {
+  const rawValue = String(elements.logEntryTime.value || "").trim();
+
+  if (!rawValue) {
+    return "";
+  }
+
+  const normalizedValue = rawValue
+    .replace(/[.\s]/g, ":")
+    .replace(/[^0-9:]/g, "");
+
+  let hour = "";
+  let minute = "";
+
+  if (normalizedValue.includes(":")) {
+    const parts = normalizedValue.split(":");
+
+    hour = parts[0] || "";
+    minute = parts[1] || "";
+  } else {
+    const digits = normalizedValue.replace(/\D/g, "");
+
+    if (digits.length <= 2) {
+      hour = digits;
+      minute = "00";
+    } else if (digits.length === 3) {
+      hour = digits.slice(0, 1);
+      minute = digits.slice(1);
+    } else {
+      hour = digits.slice(0, 2);
+      minute = digits.slice(2, 4);
+    }
+  }
+
+  const hourNumber = Number(hour);
+  const minuteNumber = Number(minute);
+
+  if (
+    !Number.isInteger(hourNumber) ||
+    !Number.isInteger(minuteNumber) ||
+    hourNumber < 0 ||
+    hourNumber > 23 ||
+    minuteNumber < 0 ||
+    minuteNumber > 59
+  ) {
+    showToast("시간을 00:00부터 23:59 사이로 입력해 주세요.");
+    elements.logEntryTime.focus();
+    elements.logEntryTime.select();
+    return "";
+  }
+
+  const formattedTime = [
+    String(hourNumber).padStart(2, "0"),
+    String(minuteNumber).padStart(2, "0")
+  ].join(":");
+
+  elements.logEntryTime.value = formattedTime;
+
+  return formattedTime;
+}
+
+function updateTagFieldVisibility() {
+
+    const value =
+        elements.logEntryCategory.value;
+
+    const needTag =
+        value.startsWith("TM") ||
+        value.startsWith("BM") ||
+        value.startsWith("CM");
+
+    elements.logEntryTagField.hidden =
+        !needTag;
+
+    if (!needTag) {
+        elements.logEntryTag.value = "";
+    }
+
 }
 
 function getCurrentTimeValue() {

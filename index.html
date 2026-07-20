@@ -838,18 +838,21 @@
       <label class="form-field">
         <span class="form-field__label">시간</span>
 
-        <input
-          type="time"
-          id="logEntryTime"
-          value="09:00"
-        />
-      </label>
+<input
+  type="text"
+  id="logEntryTime"
+  inputmode="numeric"
+  maxlength="5"
+  placeholder="예: 09:30"
+  autocomplete="off"
+/>
 
 
       <label class="form-field">
         <span class="form-field__label">구분</span>
 
         <select id="logEntryCategory">
+          <option value="인계사항">인계사항</option>
           <option value="TM 작업">TM 작업</option>
           <option value="TM 발행">TM 발행</option>
           <option value="TM 종결">TM 종결</option>
@@ -864,13 +867,18 @@
 
           <option value="운전조작">운전조작</option>
           <option value="점검">점검</option>
-          <option value="인계사항">인계사항</option>
+          
           <option value="비고">비고</option>
         </select>
       </label>
 
 
-      <div class="form-field form-field--tag">
+      <div
+ 
+      class="form-field form-field--tag"
+      id="logEntryTagField"
+      >
+
         <span class="form-field__label">TAG</span>
 
         <div class="tag-input-group">
