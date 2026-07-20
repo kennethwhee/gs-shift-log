@@ -80,6 +80,9 @@ function cacheElements() {
     logNote: document.getElementById("logNote"),
 
     logEntryTime: document.getElementById("logEntryTime"),
+    useCurrentTimeCheckbox: document.getElementById(
+  "useCurrentTimeCheckbox"
+),
     logEntryCategory: document.getElementById("logEntryCategory"),
     logEntryTag: document.getElementById("logEntryTag"),
     logEntryContent: document.getElementById("logEntryContent"),
@@ -175,60 +178,114 @@ function bindEvents() {
     }
   });
 
-elements.logEntryCategory.addEventListener(
-    "change",
-    updateTagFieldVisibility
-);
 
-  /* 작업 내역 추가 */
+  /* 구분 변경 */
+
+  elements.logEntryCategory.addEventListener("change", () => {
+    updateTagFieldVisibility();
+  });
+
+
+  /* 현재시간 체크 */
+
+  elements.useCurrentTimeCheckbox.addEventListener(
+    "change",
+    () => {
+      if (!elements.useCurrentTimeCheckbox.checked) {
+        return;
+      }
+
+      elements.logEntryTime.value = getCurrentTimeValue();
+
+      elements.logEntryTime.classList.add(
+        "is-current-time-applied"
+      );
+
+      window.setTimeout(() => {
+        elements.logEntryTime.classList.remove(
+          "is-current-time-applied"
+        );
+      }, 500);
+
+      elements.logEntryContent.focus();
+    }
+  );
+
+
+  /* 시간 직접 입력 */
+
+  elements.logEntryTime.addEventListener("input", () => {
+    /*
+      사용자가 시간을 직접 수정하면
+      현재시간 체크 상태를 자동 해제한다.
+    */
+    if (elements.useCurrentTimeCheckbox.checked) {
+      elements.useCurrentTimeCheckbox.checked = false;
+    }
+  });
+
+  elements.logEntryTime.addEventListener("blur", () => {
+    if (!elements.logEntryTime.value.trim()) {
+      return;
+    }
+
+    normalizeLogEntryTime();
+  });
+
+  elements.logEntryTime.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+
+    const normalizedTime = normalizeLogEntryTime();
+
+    if (!normalizedTime) {
+      return;
+    }
+
+    elements.logEntryCategory.focus();
+  });
+
+
+  /* 작업 내역 추가 및 수정 */
 
   elements.addLogEntryButton.addEventListener("click", () => {
     addOrUpdateLogEntry();
   });
 
-  elements.cancelLogEntryEditButton.addEventListener("click", () => {
-    cancelLogEntryEdit();
-  });
+  elements.cancelLogEntryEditButton.addEventListener(
+    "click",
+    () => {
+      cancelLogEntryEdit();
+    }
+  );
 
-  elements.logEntryNavigatorButton.addEventListener("click", () => {
-    openFacilityNavigator(elements.logEntryTag.value);
-  });
+  elements.logEntryNavigatorButton.addEventListener(
+    "click",
+    () => {
+      openFacilityNavigator(elements.logEntryTag.value);
+    }
+  );
 
   elements.logEntryTableBody.addEventListener(
     "click",
     handleLogEntryTableClick
   );
 
-
-  elements.logEntryTime.addEventListener("blur", () => {
-  normalizeLogEntryTime();
-});
-
-elements.logEntryTime.addEventListener("keydown", (event) => {
-  if (event.key !== "Enter") {
-    return;
-  }
-
-  event.preventDefault();
-
-  const normalizedTime = normalizeLogEntryTime();
-
-  if (!normalizedTime) {
-    return;
-  }
-
-  elements.logEntryCategory.focus();
-});
-
-  elements.logEntryContent.addEventListener("keydown", (event) => {
-    if (
-      event.key === "Enter" &&
-      (event.ctrlKey || event.metaKey)
-    ) {
-      event.preventDefault();
-      addOrUpdateLogEntry();
+  elements.logEntryContent.addEventListener(
+    "keydown",
+    (event) => {
+      if (
+        event.key === "Enter" &&
+        (event.ctrlKey || event.metaKey)
+      ) {
+        event.preventDefault();
+        addOrUpdateLogEntry();
+      }
     }
-  });
+  );
 
 
   /* 첨부파일 */
@@ -238,44 +295,65 @@ elements.logEntryTime.addEventListener("keydown", (event) => {
     renderAttachmentList
   );
 
-  elements.fileDropzone.addEventListener("dragover", (event) => {
-    event.preventDefault();
-    elements.fileDropzone.classList.add("is-dragging");
-  });
+  elements.fileDropzone.addEventListener(
+    "dragover",
+    (event) => {
+      event.preventDefault();
+      elements.fileDropzone.classList.add("is-dragging");
+    }
+  );
 
-  elements.fileDropzone.addEventListener("dragleave", () => {
-    elements.fileDropzone.classList.remove("is-dragging");
-  });
+  elements.fileDropzone.addEventListener(
+    "dragleave",
+    () => {
+      elements.fileDropzone.classList.remove("is-dragging");
+    }
+  );
 
   elements.fileDropzone.addEventListener("drop", (event) => {
     event.preventDefault();
+
     elements.fileDropzone.classList.remove("is-dragging");
 
     if (!event.dataTransfer.files.length) {
       return;
     }
 
-    elements.logAttachments.files = event.dataTransfer.files;
+    elements.logAttachments.files =
+      event.dataTransfer.files;
+
     renderAttachmentList();
   });
 
 
   /* 업무일지 저장 */
 
-  elements.logEditorForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    saveCurrentLog("저장완료");
-  });
+  elements.logEditorForm.addEventListener(
+    "submit",
+    (event) => {
+      event.preventDefault();
+      saveCurrentLog("저장완료");
+    }
+  );
 
-  elements.saveDraftButton.addEventListener("click", saveDraft);
+  elements.saveDraftButton.addEventListener(
+    "click",
+    saveDraft
+  );
 
-  elements.printLogButton.addEventListener("click", () => {
-    window.print();
-  });
+  elements.printLogButton.addEventListener(
+    "click",
+    () => {
+      window.print();
+    }
+  );
 
-  elements.requestApprovalButton.addEventListener("click", () => {
-    saveCurrentLog("결재요청");
-  });
+  elements.requestApprovalButton.addEventListener(
+    "click",
+    () => {
+      saveCurrentLog("결재요청");
+    }
+  );
 
 
   /* 업무일지 목록 */
@@ -295,32 +373,42 @@ elements.logEntryTime.addEventListener("keydown", (event) => {
     closeLogDetail
   );
 
-  elements.logDetailModal.addEventListener("click", (event) => {
-    if (event.target === elements.logDetailModal) {
+  elements.logDetailModal.addEventListener(
+    "click",
+    (event) => {
+      if (event.target === elements.logDetailModal) {
+        closeLogDetail();
+      }
+    }
+  );
+
+  elements.editFromDetailButton.addEventListener(
+    "click",
+    () => {
+      const log = appState.logs.find(
+        (item) =>
+          item.id === appState.currentDetailLogId
+      );
+
+      if (!log) {
+        return;
+      }
+
       closeLogDetail();
+      openLogEditor(log);
     }
-  });
-
-  elements.editFromDetailButton.addEventListener("click", () => {
-    const log = appState.logs.find(
-      (item) => item.id === appState.currentDetailLogId
-    );
-
-    if (!log) {
-      return;
-    }
-
-    closeLogDetail();
-    openLogEditor(log);
-  });
+  );
 
 
   /* 조회 */
 
-  elements.searchForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    runSearch();
-  });
+  elements.searchForm.addEventListener(
+    "submit",
+    (event) => {
+      event.preventDefault();
+      runSearch();
+    }
+  );
 
   elements.searchForm.addEventListener("reset", () => {
     window.setTimeout(() => {
@@ -340,7 +428,7 @@ elements.logEntryTime.addEventListener("keydown", (event) => {
   });
 
 
-  /* ESC 닫기 */
+  /* ESC 키 */
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") {
@@ -352,17 +440,24 @@ elements.logEntryTime.addEventListener("keydown", (event) => {
       return;
     }
 
-    if (elements.logEditorModal.classList.contains("is-open")) {
+    if (
+      elements.logEditorModal.classList.contains(
+        "is-open"
+      )
+    ) {
       closeLogEditor();
       return;
     }
 
-    if (elements.logDetailModal.classList.contains("is-open")) {
+    if (
+      elements.logDetailModal.classList.contains(
+        "is-open"
+      )
+    ) {
       closeLogDetail();
     }
   });
 }
-
 
 /* =========================================================
   화면 탭
@@ -488,13 +583,15 @@ function resetLogEditor() {
   appState.editorEntries = [];
   appState.editingEntryIndex = -1;
 
-  resetLogEntryInput();
+  resetLogEntryInput({
+    keepCategory: false,
+    keepTag: false
+  });
+
   renderLogEntryTable();
 
   elements.logAttachments.value = "";
   elements.attachmentList.innerHTML = "";
-
-  updateTagFieldVisibility();
 }
 
 
@@ -528,6 +625,7 @@ function fillLogEditor(log) {
   renderLogEntryTable();
 
   renderSavedAttachments(log.attachments || []);
+
 }
 
 
@@ -543,16 +641,28 @@ function resetLogEntryInput(options = {}) {
   } = options;
 
   const previousCategory =
-    elements.logEntryCategory?.value || "TM 작업";
+    elements.logEntryCategory?.value || "인계사항";
 
   const previousTag =
     elements.logEntryTag?.value || "";
 
-  elements.logEntryTime.value = getCurrentTimeValue();
+  /*
+    시간은 기본적으로 비워둔다.
+    현재시간 체크박스를 누르면 현재 시간이 입력된다.
+  */
+  elements.logEntryTime.value = "";
 
+  if (elements.useCurrentTimeCheckbox) {
+    elements.useCurrentTimeCheckbox.checked = false;
+  }
+
+  /*
+    새 입력을 시작할 때는 인계사항이 기본이다.
+    수정 취소 등 일부 상황에서만 기존 구분을 유지한다.
+  */
   elements.logEntryCategory.value = keepCategory
     ? previousCategory
-    : "TM 작업";
+    : "인계사항";
 
   elements.logEntryTag.value = keepTag
     ? previousTag
@@ -565,43 +675,76 @@ function resetLogEntryInput(options = {}) {
   elements.addLogEntryButton.textContent = "＋ 추가";
   elements.cancelLogEntryEditButton.hidden = true;
 
-  elements.logEntryInputPanel.classList.remove("is-editing");
+  elements.logEntryInputPanel.classList.remove(
+    "is-editing"
+  );
 
   elements.logEntryTableBody
     .querySelectorAll("tr.is-editing")
     .forEach((row) => {
       row.classList.remove("is-editing");
     });
+
+  updateTagFieldVisibility();
 }
 
 
 function addOrUpdateLogEntry() {
-const normalizedTime = normalizeLogEntryTime();
+  const normalizedTime = normalizeLogEntryTime();
 
-if (!normalizedTime) {
-  return;
-}
+  if (!normalizedTime) {
+    showToast(
+      "시간을 직접 입력하거나 현재시간을 체크해 주세요."
+    );
 
-const entry = {
-  time: normalizedTime,
-  category: elements.logEntryCategory.value,
-  tag: elements.logEntryTag.value
-    .trim()
-    .toUpperCase(),
-  content: elements.logEntryContent.value.trim()
-};
+    elements.logEntryTime.focus();
+    return;
+  }
 
-  if (!entry.category) {
+  const category =
+    elements.logEntryCategory.value || "인계사항";
+
+  const needsTag =
+    category.startsWith("TM") ||
+    category.startsWith("BM") ||
+    category.startsWith("CM");
+
+  const tag = needsTag
+    ? elements.logEntryTag.value
+        .trim()
+        .toUpperCase()
+    : "";
+
+  const content =
+    elements.logEntryContent.value.trim();
+
+  if (!category) {
     showToast("구분을 선택해 주세요.");
     elements.logEntryCategory.focus();
     return;
   }
 
-  if (!entry.content) {
+  if (needsTag && !tag) {
+    showToast(
+      `${category} 내역은 TAG를 입력해 주세요.`
+    );
+
+    elements.logEntryTag.focus();
+    return;
+  }
+
+  if (!content) {
     showToast("작업 내용을 입력해 주세요.");
     elements.logEntryContent.focus();
     return;
   }
+
+  const entry = {
+    time: normalizedTime,
+    category,
+    tag,
+    content
+  };
 
   if (appState.editingEntryIndex >= 0) {
     appState.editorEntries.splice(
@@ -613,13 +756,22 @@ const entry = {
     showToast("작업 내역을 수정했습니다.");
   } else {
     appState.editorEntries.push(entry);
+    showToast("작업 내역을 추가했습니다.");
   }
 
   renderLogEntryTable();
 
+  /*
+    추가 또는 수정 완료 후:
+    시간 비움
+    현재시간 체크 해제
+    구분 인계사항
+    TAG 비움 및 숨김
+    내용 비움
+  */
   resetLogEntryInput({
-    keepCategory: true,
-    keepTag: true
+    keepCategory: false,
+    keepTag: false
   });
 
   elements.logEntryContent.focus();
@@ -767,10 +919,14 @@ function startLogEntryEdit(entryIndex) {
   appState.editingEntryIndex = entryIndex;
 
   elements.logEntryTime.value =
-    entry.time || getCurrentTimeValue();
+    entry.time || "";
+
+  if (elements.useCurrentTimeCheckbox) {
+    elements.useCurrentTimeCheckbox.checked = false;
+  }
 
   elements.logEntryCategory.value =
-    entry.category || "TM 작업";
+    entry.category || "인계사항";
 
   elements.logEntryTag.value =
     entry.tag || "";
@@ -778,11 +934,16 @@ function startLogEntryEdit(entryIndex) {
   elements.logEntryContent.value =
     entry.content || "";
 
-  elements.addLogEntryButton.textContent = "수정 완료";
+  elements.addLogEntryButton.textContent =
+    "수정 완료";
+
   elements.cancelLogEntryEditButton.hidden = false;
 
-  elements.logEntryInputPanel.classList.add("is-editing");
+  elements.logEntryInputPanel.classList.add(
+    "is-editing"
+  );
 
+  updateTagFieldVisibility();
   renderLogEntryTable();
 
   elements.logEntryInputPanel.scrollIntoView({
@@ -791,14 +952,13 @@ function startLogEntryEdit(entryIndex) {
   });
 
   elements.logEntryContent.focus();
-  updateTagFieldVisibility();
 }
 
 
 function cancelLogEntryEdit() {
   resetLogEntryInput({
-    keepCategory: true,
-    keepTag: true
+    keepCategory: false,
+    keepTag: false
   });
 
   renderLogEntryTable();
@@ -1194,85 +1354,150 @@ function createLogRowHtml(log) {
   if (log.operationStatus) {
     previewGroups.push({
       title: "운전현황",
-      text: firstMeaningfulLine(log.operationStatus)
+      text: firstMeaningfulLine(log.operationStatus),
+      categoryClass: "is-operation"
     });
   }
 
-  const firstEntry = log.entries?.find((entry) => entry.content);
+  const firstEntry = log.entries?.find(
+    (entry) => entry.content
+  );
 
   if (firstEntry) {
+    const mainCategory = getMainCategory(
+      firstEntry.category
+    );
+
+    const tagText = firstEntry.tag
+      ? `[${firstEntry.tag}]`
+      : "";
+
     previewGroups.push({
-      title: getMainCategory(firstEntry.category),
-      text: `${firstEntry.time || ""} ${
-        firstEntry.tag ? `${firstEntry.tag} ` : ""
-      }${firstEntry.content}`.trim()
+      title: mainCategory,
+      tag: tagText,
+      text: firstMeaningfulLine(firstEntry.content),
+      categoryClass:
+        mainCategory === "인계사항"
+          ? "is-handover"
+          : "is-maintenance"
     });
   }
 
   if (log.note && previewGroups.length < 3) {
     previewGroups.push({
       title: "비고",
-      text: firstMeaningfulLine(log.note)
+      text: firstMeaningfulLine(log.note),
+      categoryClass: "is-note"
     });
   }
+
+  const attachmentCount = Array.isArray(log.attachments)
+    ? log.attachments.length
+    : 0;
 
   return `
     <tr class="log-row">
       <td class="log-row__role">
-        ${escapeHtml(log.role)}
+        ${escapeHtml(log.role || "-")}
       </td>
 
-      <td>
+      <td class="log-row__author-cell">
         <strong class="log-row__author">
-          ${escapeHtml(log.author)}
+          ${escapeHtml(log.author || "-")}
         </strong>
       </td>
 
-      <td>
-        <span class="status-badge ${getStatusClass(log.status)}">
-          ${escapeHtml(log.status)}
+      <td class="log-row__status-cell">
+        <span
+          class="status-badge ${getStatusClass(log.status)}"
+        >
+          ${escapeHtml(log.status || "-")}
         </span>
       </td>
 
-      <td>
+      <td class="log-row__attachment-cell">
         ${
-          log.attachments.length
+          attachmentCount > 0
             ? `
-              <button
-                type="button"
-                class="attachment-count"
-                aria-label="첨부파일 ${log.attachments.length}개"
+              <span
+                class="attachment-indicator"
+                title="첨부파일 ${attachmentCount}개"
+                aria-label="첨부파일 ${attachmentCount}개"
               >
-                ${log.attachments.length}
-              </button>
+                📎
+              </span>
             `
             : `
-              <span class="attachment-count is-empty">0</span>
+              <span
+                class="attachment-indicator is-empty"
+                aria-label="첨부파일 없음"
+              >
+                -
+              </span>
             `
         }
       </td>
 
-      <td>
+      <td class="log-row__preview-cell">
         <button
           type="button"
           class="log-preview"
           data-action="view"
           data-log-id="${escapeHtml(log.id)}"
+          aria-label="${escapeHtml(log.author || "")} 업무일지 상세보기"
         >
-          ${previewGroups
-            .map((group) => {
-              return `
-                <span class="log-preview__group">
-                  <strong>${escapeHtml(group.title)}</strong>
-                  <span>${escapeHtml(group.text)}</span>
+          ${
+            previewGroups.length
+              ? previewGroups
+                  .map((group) => {
+                    return `
+                      <span
+                        class="
+                          log-preview__group
+                          ${group.categoryClass}
+                        "
+                      >
+                        <strong
+                          class="log-preview__title"
+                        >
+                          ${escapeHtml(group.title)}
+                        </strong>
+
+                        <span
+                          class="log-preview__content"
+                        >
+                          ${
+                            group.tag
+                              ? `
+                                <span
+                                  class="log-preview__tag"
+                                >
+                                  ${escapeHtml(group.tag)}
+                                </span>
+                              `
+                              : ""
+                          }
+
+                          <span
+                            class="log-preview__text"
+                          >
+                            ${escapeHtml(group.text || "-")}
+                          </span>
+                        </span>
+                      </span>
+                    `;
+                  })
+                  .join("")
+              : `
+                <span class="log-preview__empty">
+                  등록된 업무 내용이 없습니다.
                 </span>
-              `;
-            })
-            .join("")}
+              `
+          }
         </button>
       </td>
 
-      <td>
+      <td class="log-row__actions-cell">
         <div class="row-actions">
           <button
             type="button"
@@ -1340,16 +1565,63 @@ function getStatusClass(status) {
   상세보기
 ========================================================= */
 function openLogDetail(log) {
+  if (!log) {
+    showToast("업무일지를 찾을 수 없습니다.");
+    return;
+  }
+
   appState.currentDetailLogId = log.id;
 
-  const entriesHtml = log.entries?.length
+  const entries = Array.isArray(log.entries)
     ? log.entries
-        .map((entry) => {
+    : [];
+
+  const attachments = Array.isArray(log.attachments)
+    ? log.attachments
+    : [];
+
+  const entriesHtml = entries.length
+    ? entries
+        .map((entry, index) => {
+          const category =
+            entry.category || "기타";
+
+          const mainCategory =
+            getMainCategory(category);
+
+          const categoryClass =
+            mainCategory === "인계사항"
+              ? "is-handover"
+              : mainCategory === "TM"
+                ? "is-tm"
+                : mainCategory === "BM"
+                  ? "is-bm"
+                  : mainCategory === "CM"
+                    ? "is-cm"
+                    : "is-general";
+
           return `
-            <article class="detail-entry">
-              <div class="detail-entry__meta">
-                <strong>${escapeHtml(entry.category)}</strong>
-                <span>${escapeHtml(entry.time || "-")}</span>
+            <article class="detail-entry-card">
+              <div class="detail-entry-card__header">
+                <div class="detail-entry-card__meta">
+                  <span class="detail-entry-card__number">
+                    ${index + 1}
+                  </span>
+
+                  <span
+                    class="
+                      detail-entry-card__category
+                      ${categoryClass}
+                    "
+                  >
+                    ${escapeHtml(category)}
+                  </span>
+
+                  <span class="detail-entry-card__time">
+                    ${escapeHtml(entry.time || "-")}
+                  </span>
+                </div>
+
                 ${
                   entry.tag
                     ? `
@@ -1357,6 +1629,7 @@ function openLogDetail(log) {
                         type="button"
                         class="detail-tag-button"
                         data-detail-tag="${escapeHtml(entry.tag)}"
+                        title="Facility Navigator에서 설비 보기"
                       >
                         ${escapeHtml(entry.tag)}
                       </button>
@@ -1365,92 +1638,215 @@ function openLogDetail(log) {
                 }
               </div>
 
-              <p>${escapeHtml(entry.content || "-")}</p>
+              <div class="detail-entry-card__content">
+                ${escapeHtml(
+                  entry.content ||
+                    "등록된 내용이 없습니다."
+                )}
+              </div>
             </article>
           `;
         })
         .join("")
-    : `<p class="detail-empty">등록된 작업 내역이 없습니다.</p>`;
+    : `
+      <div class="detail-empty-card">
+        등록된 작업 내역이 없습니다.
+      </div>
+    `;
+
+  const attachmentsHtml = attachments.length
+    ? attachments
+        .map((fileName, index) => {
+          return `
+            <span class="detail-attachment-chip">
+              <span
+                class="detail-attachment-chip__icon"
+                aria-hidden="true"
+              >
+                📎
+              </span>
+
+              <span class="detail-attachment-chip__name">
+                ${escapeHtml(fileName)}
+              </span>
+
+              <span class="detail-attachment-chip__number">
+                ${index + 1}
+              </span>
+            </span>
+          `;
+        })
+        .join("")
+    : `
+      <div class="detail-empty-card">
+        첨부파일이 없습니다.
+      </div>
+    `;
 
   elements.logDetailContent.innerHTML = `
-    <section class="detail-summary-grid">
-      <div>
-        <span>작성일</span>
-        <strong>${escapeHtml(log.date)}</strong>
-      </div>
+    <div class="log-detail-layout">
 
-      <div>
-        <span>근무</span>
-        <strong>${escapeHtml(log.shift)}</strong>
-      </div>
+      <section class="log-detail-summary-card">
+        <div class="log-detail-summary-card__heading">
+          <div>
+            <span class="log-detail-section-label">
+              SUMMARY
+            </span>
 
-      <div>
-        <span>근무조</span>
-        <strong>${escapeHtml(log.team)}</strong>
-      </div>
+            <h3>업무일지 요약</h3>
+          </div>
 
-      <div>
-        <span>보직</span>
-        <strong>${escapeHtml(log.role)}</strong>
-      </div>
+          <span
+            class="
+              status-badge
+              ${getStatusClass(log.status)}
+            "
+          >
+            ${escapeHtml(log.status || "-")}
+          </span>
+        </div>
 
-      <div>
-        <span>작성자</span>
-        <strong>${escapeHtml(log.author)}</strong>
-      </div>
+        <div class="detail-summary-grid">
+          <div class="detail-summary-item">
+            <span>작성일</span>
+            <strong>
+              ${escapeHtml(log.date || "-")}
+            </strong>
+          </div>
 
-      <div>
-        <span>상태</span>
-        <strong>${escapeHtml(log.status)}</strong>
-      </div>
-    </section>
+          <div class="detail-summary-item">
+            <span>근무</span>
+            <strong>
+              ${escapeHtml(log.shift || "-")}
+            </strong>
+          </div>
 
-    <section class="detail-section">
-      <h3>운전 현황</h3>
-      <p class="detail-multiline">
-        ${escapeHtml(log.operationStatus || "등록된 내용이 없습니다.")}
-      </p>
-    </section>
+          <div class="detail-summary-item">
+            <span>근무조</span>
+            <strong>
+              ${escapeHtml(log.team || "-")}
+            </strong>
+          </div>
 
-    <section class="detail-section">
-      <h3>작업 · 정비 · 인계 내역</h3>
-      <div class="detail-entry-list">
-        ${entriesHtml}
-      </div>
-    </section>
+          <div class="detail-summary-item">
+            <span>보직</span>
+            <strong>
+              ${escapeHtml(log.role || "-")}
+            </strong>
+          </div>
 
-    <section class="detail-section">
-      <h3>비고</h3>
-      <p class="detail-multiline">
-        ${escapeHtml(log.note || "등록된 내용이 없습니다.")}
-      </p>
-    </section>
+          <div class="detail-summary-item">
+            <span>작성자</span>
+            <strong>
+              ${escapeHtml(log.author || "-")}
+            </strong>
+          </div>
 
-    <section class="detail-section">
-      <h3>첨부파일</h3>
-      <div class="attachment-list">
-        ${
-          log.attachments.length
-            ? log.attachments
-                .map((fileName) => {
-                  return `
-                    <span class="attachment-chip">
-                      ${escapeHtml(fileName)}
-                    </span>
-                  `;
-                })
-                .join("")
-            : `<span class="detail-empty">첨부파일 없음</span>`
-        }
-      </div>
-    </section>
+          <div class="detail-summary-item">
+            <span>첨부</span>
+            <strong>
+              ${
+                attachments.length
+                  ? `📎 ${attachments.length}개`
+                  : "-"
+              }
+            </strong>
+          </div>
+        </div>
+      </section>
+
+
+      <section class="log-detail-card">
+        <div class="log-detail-card__heading">
+          <div>
+            <span class="log-detail-section-label">
+              OPERATION
+            </span>
+
+            <h3>운전 현황</h3>
+          </div>
+        </div>
+
+        <div class="log-detail-card__content detail-multiline">
+          ${escapeHtml(
+            log.operationStatus ||
+              "등록된 운전 현황이 없습니다."
+          )}
+        </div>
+      </section>
+
+
+      <section class="log-detail-card">
+        <div class="log-detail-card__heading">
+          <div>
+            <span class="log-detail-section-label">
+              WORK HISTORY
+            </span>
+
+            <h3>작업 · 정비 · 인계 내역</h3>
+          </div>
+
+          <span class="log-detail-count">
+            총 ${entries.length}건
+          </span>
+        </div>
+
+        <div class="detail-entry-list">
+          ${entriesHtml}
+        </div>
+      </section>
+
+
+      <section class="log-detail-card">
+        <div class="log-detail-card__heading">
+          <div>
+            <span class="log-detail-section-label">
+              NOTE
+            </span>
+
+            <h3>비고</h3>
+          </div>
+        </div>
+
+        <div class="log-detail-card__content detail-multiline">
+          ${escapeHtml(
+            log.note ||
+              "등록된 비고가 없습니다."
+          )}
+        </div>
+      </section>
+
+
+      <section class="log-detail-card">
+        <div class="log-detail-card__heading">
+          <div>
+            <span class="log-detail-section-label">
+              ATTACHMENTS
+            </span>
+
+            <h3>첨부파일</h3>
+          </div>
+
+          <span class="log-detail-count">
+            총 ${attachments.length}개
+          </span>
+        </div>
+
+        <div class="detail-attachment-list">
+          ${attachmentsHtml}
+        </div>
+      </section>
+
+    </div>
   `;
 
   elements.logDetailContent
     .querySelectorAll("[data-detail-tag]")
     .forEach((button) => {
       button.addEventListener("click", () => {
-        openFacilityNavigator(button.dataset.detailTag);
+        openFacilityNavigator(
+          button.dataset.detailTag
+        );
       });
     });
 

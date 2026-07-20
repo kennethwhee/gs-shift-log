@@ -663,23 +663,55 @@ a {
   color: var(--primary);
 }
 
-.attachment-count {
-  display: inline-grid;
-  place-items: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: #eaf1f8;
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 900;
+/* =========================================================
+   업무일지 메인 목록
+   첨부 표시 + 업무내용 미리보기
+========================================================= */
+
+
+/* 메인 목록 셀 정렬 */
+
+.log-row__author-cell,
+.log-row__status-cell,
+.log-row__attachment-cell,
+.log-row__actions-cell {
+  text-align: center;
 }
 
-.attachment-count.is-empty {
-  background: #f1f3f5;
-  color: #9aa3ad;
+.log-row__preview-cell {
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  text-align: left;
 }
+
+
+/* 첨부파일 표시 */
+
+.attachment-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0 7px;
+  border: 1px solid #cddaea;
+  border-radius: 8px;
+  background: #edf4fb;
+  color: var(--primary);
+  font-size: 16px;
+  line-height: 1;
+  cursor: default;
+}
+
+.attachment-indicator.is-empty {
+  border-color: transparent;
+  background: transparent;
+  color: #a7b0bc;
+  font-size: 13px;
+}
+
+
+/* 업무내용 전체 버튼 */
 
 .log-preview {
   width: 100%;
@@ -687,28 +719,130 @@ a {
   flex-direction: column;
   gap: 8px;
   padding: 0;
+  border: 0;
   background: transparent;
   color: inherit;
   text-align: left;
+  cursor: pointer;
 }
+
+.log-preview:hover .log-preview__text {
+  color: var(--primary);
+}
+
+
+/* 업무내용 한 줄 */
 
 .log-preview__group {
+  width: 100%;
   display: grid;
   grid-template-columns: 76px minmax(0, 1fr);
-  gap: 10px;
   align-items: start;
+  gap: 10px;
+  min-width: 0;
 }
 
-.log-preview__group strong {
-  color: #31506f;
-  font-size: 12px;
-}
 
-.log-preview__group span {
-  overflow: hidden;
-  color: #3e4d61;
+/* 운전현황·TM·인계사항·비고 제목 */
+
+.log-preview__title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #edf2f7;
+  color: #42536a;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.35;
   white-space: nowrap;
+}
+
+.log-preview__group.is-operation .log-preview__title {
+  background: #eaf2fb;
+  color: var(--primary);
+}
+
+.log-preview__group.is-maintenance .log-preview__title {
+  background: #e7f6f0;
+  color: var(--success);
+}
+
+.log-preview__group.is-handover .log-preview__title {
+  background: #fff4df;
+  color: var(--warning);
+}
+
+.log-preview__group.is-note .log-preview__title {
+  background: #f1f3f5;
+  color: #667181;
+}
+
+
+/* 제목 오른쪽의 실제 업무내용 */
+
+.log-preview__content {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding-top: 2px;
+  color: #34445a;
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: left;
+}
+
+
+/* TAG 표시 */
+
+.log-preview__tag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-family:
+    Consolas,
+    "Courier New",
+    monospace;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+
+/* 업무내용 글씨 */
+
+.log-preview__text {
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  color: #34445a;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  text-align: left;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.16s ease;
+}
+
+
+/* 표시할 내용이 없을 때 */
+
+.log-preview__empty {
+  display: block;
+  padding: 5px 0;
+  color: var(--text-faint);
+  font-size: 12px;
+  text-align: left;
 }
 
 .row-actions {
@@ -1521,3 +1655,240 @@ body.modal-open {
   }
 }
 
+/* 현재시간 체크 */
+
+.log-entry-time-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-entry-time-group #logEntryTime {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.current-time-check {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 41px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.current-time-check:hover {
+  border-color: #9db5cf;
+  background: var(--surface-soft);
+}
+
+.current-time-check:has(input:checked) {
+  border-color: #8bb1dc;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.current-time-check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+/* =========================================================
+   업무일지 상세보기
+========================================================= */
+
+.log-detail-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.log-detail-summary-card,
+.log-detail-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(15,23,42,.05);
+  overflow: hidden;
+}
+
+.log-detail-summary-card__heading,
+.log-detail-card__heading{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:16px 20px;
+  border-bottom:1px solid var(--line);
+  background:#f8fafc;
+}
+
+.log-detail-section-label{
+  display:block;
+  margin-bottom:3px;
+  color:var(--primary);
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+
+.log-detail-summary-card h3,
+.log-detail-card h3{
+  margin:0;
+  font-size:18px;
+  color:#22324c;
+}
+
+.detail-summary-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+  padding:18px;
+}
+
+.detail-summary-item{
+  padding:12px;
+  border-radius:10px;
+  background:#f8fafc;
+}
+
+.detail-summary-item span{
+  display:block;
+  margin-bottom:4px;
+  color:#7b8797;
+  font-size:11px;
+  font-weight:700;
+}
+
+.detail-summary-item strong{
+  color:#22324c;
+  font-size:14px;
+}
+
+.log-detail-card__content{
+  padding:18px 20px;
+}
+
+.detail-multiline{
+  white-space:pre-wrap;
+  line-height:1.75;
+}
+
+.detail-entry-list{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  padding:18px;
+}
+
+.detail-entry-card{
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+}
+
+.detail-entry-card__header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  padding:12px 14px;
+  border-bottom:1px solid var(--line);
+  background:#fafbfd;
+}
+
+.detail-entry-card__meta{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.detail-entry-card__number{
+  width:24px;
+  height:24px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  background:var(--primary);
+  color:#fff;
+  font-size:11px;
+  font-weight:900;
+}
+
+.detail-entry-card__category{
+  padding:3px 8px;
+  border-radius:6px;
+  background:#edf2f7;
+  font-size:11px;
+  font-weight:900;
+}
+
+.detail-entry-card__time{
+  color:#6b7686;
+  font-size:12px;
+  font-weight:700;
+}
+
+.detail-entry-card__content{
+  padding:16px;
+  white-space:pre-wrap;
+  line-height:1.7;
+}
+
+.detail-tag-button{
+  padding:4px 8px;
+  border:0;
+  border-radius:6px;
+  background:var(--primary-soft);
+  color:var(--primary);
+  font-family:Consolas,"Courier New",monospace;
+  font-size:11px;
+  font-weight:800;
+}
+
+.detail-tag-button:hover{
+  background:#dbeafb;
+}
+
+.detail-attachment-list{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  padding:18px;
+}
+
+.detail-attachment-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-radius:999px;
+  background:#eef5fc;
+  color:#23466d;
+  font-size:13px;
+}
+
+.detail-empty-card{
+  padding:30px;
+  color:#8a94a3;
+  text-align:center;
+}
+
+.log-detail-count{
+  color:#6f7d90;
+  font-size:12px;
+  font-weight:800;
+}

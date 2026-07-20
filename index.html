@@ -835,18 +835,32 @@
 
   <div class="log-entry-input-grid">
 
-    <label class="form-field log-entry-field--time">
-      <span class="form-field__label">시간</span>
+<div class="form-field log-entry-field--time">
+  <span class="form-field__label">시간</span>
 
+  <div class="log-entry-time-group">
+    <input
+      type="text"
+      id="logEntryTime"
+      inputmode="numeric"
+      maxlength="5"
+      placeholder="예: 09:30"
+      autocomplete="off"
+    />
+
+    <label
+      class="current-time-check"
+      title="체크하면 현재 시간이 입력됩니다."
+    >
       <input
-        type="text"
-        id="logEntryTime"
-        inputmode="numeric"
-        maxlength="5"
-        placeholder="예: 09:30"
-        autocomplete="off"
+        type="checkbox"
+        id="useCurrentTimeCheckbox"
       />
+
+      <span>현재시간</span>
     </label>
+  </div>
+</div>
 
 
     <label class="form-field log-entry-field--category">
