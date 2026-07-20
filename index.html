@@ -1,2499 +1,1181 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-  >
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta
     name="description"
-    content="GS 포천그린에너지 업무일지 및 인수인계 관리 시스템"
-  >
-
-  <meta
-    name="theme-color"
-    content="#0f2747"
-  >
-
+    content="GS 포천그린에너지 교대근무 업무일지 시스템"
+  />
   <title>GS Shift Log</title>
 
-  <link
-    rel="stylesheet"
-    href="./style.css"
-  >
+  <link rel="stylesheet" href="style.css" />
+  <script src="script.js" defer></script>
 </head>
 
 <body>
+  <div class="app-shell">
 
-  <!-- =========================================================
-       앱 전체
-  ========================================================== -->
-  <div
-    id="app"
-    class="app-shell"
-  >
+    <!-- =========================================================
+      상단 헤더
+    ========================================================== -->
+    <header class="app-header">
+      <div class="app-header__inner">
 
-    <!-- =======================================================
-         모바일 배경 가림막
-    ======================================================== -->
-    <button
-      id="sidebarBackdrop"
-      class="sidebar-backdrop"
-      type="button"
-      aria-label="메뉴 닫기"
-      hidden
-    ></button>
+        <a href="#" class="brand" aria-label="GS Shift Log 홈">
+          <span class="brand__mark">GS</span>
+
+          <span class="brand__text">
+            <strong>SHIFT LOG</strong>
+            <small>GS 포천그린에너지</small>
+          </span>
+        </a>
+
+        <div class="header-actions">
+          <button
+            type="button"
+            class="header-action"
+            id="noticeButton"
+          >
+            공지
+          </button>
+
+          <button
+            type="button"
+            class="header-action"
+            id="adminButton"
+          >
+            관리자
+          </button>
+
+          <div class="header-user">
+            <span class="header-user__name" id="headerUserName">
+              이휘근
+            </span>
+
+            <button
+              type="button"
+              class="header-action header-action--logout"
+              id="logoutButton"
+            >
+              로그아웃
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </header>
 
 
-    <!-- =======================================================
-         왼쪽 사이드바
-    ======================================================== -->
-    <aside
-      id="appSidebar"
-      class="app-sidebar"
-      aria-label="주 메뉴"
-    >
+    <!-- =========================================================
+      상단 탭
+    ========================================================== -->
+    <nav class="top-tabs" aria-label="주요 메뉴">
+      <div class="top-tabs__inner">
 
-      <div class="sidebar-header">
-
-        <a
-          class="brand"
-          href="#dashboard"
-          aria-label="GS Shift Log 홈"
+        <button
+          type="button"
+          class="top-tab is-active"
+          data-view="status"
+          aria-selected="true"
         >
+          현황
+        </button>
+
+        <button
+          type="button"
+          class="top-tab"
+          data-view="search"
+          aria-selected="false"
+        >
+          조회
+        </button>
+
+      </div>
+    </nav>
+
+
+    <!-- =========================================================
+      메인
+    ========================================================== -->
+    <main class="app-main">
+
+      <!-- =======================================================
+        현황 화면
+      ======================================================== -->
+      <section
+        class="page-view is-active"
+        id="statusView"
+        data-page-view="status"
+      >
+
+        <!-- 근무자 현황 -->
+        <section class="content-section shift-status-section">
+          <div class="section-heading">
+            <div>
+              <p class="section-heading__eyebrow">CURRENT SHIFT</p>
+              <h1 class="section-heading__title">근무자 현황</h1>
+            </div>
+
+            <div class="shift-summary">
+              <span class="shift-summary__label">현재 근무</span>
+              <strong class="shift-summary__value" id="currentShiftLabel">
+                2026년 07월 20일 월요일 NS
+              </strong>
+            </div>
+          </div>
+
+          <div class="shift-member-grid" id="shiftMemberGrid">
+
+            <article class="shift-member-card" data-role="파트장">
+              <div class="shift-member-card__role">파트장</div>
+
+              <div class="shift-member-card__body">
+                <strong class="shift-member-card__name">홍길동</strong>
+                <span class="shift-member-card__team">3조</span>
+              </div>
+
+              <div class="shift-member-card__status is-complete">
+                작성완료
+              </div>
+            </article>
+
+            <article class="shift-member-card" data-role="TGO">
+              <div class="shift-member-card__role">TGO</div>
+
+              <div class="shift-member-card__body">
+                <strong class="shift-member-card__name">김철수</strong>
+                <span class="shift-member-card__team">3조</span>
+              </div>
+
+              <div class="shift-member-card__status is-writing">
+                작성중
+              </div>
+            </article>
+
+            <article class="shift-member-card" data-role="BCO1">
+              <div class="shift-member-card__role">BCO1</div>
+
+              <div class="shift-member-card__body">
+                <strong class="shift-member-card__name">이영희</strong>
+                <span class="shift-member-card__team">3조</span>
+              </div>
+
+              <div class="shift-member-card__status is-complete">
+                작성완료
+              </div>
+            </article>
+
+            <article class="shift-member-card" data-role="BCO2">
+              <div class="shift-member-card__role">BCO2</div>
+
+              <div class="shift-member-card__body">
+                <strong class="shift-member-card__name">박민수</strong>
+                <span class="shift-member-card__team">3조</span>
+              </div>
+
+              <div class="shift-member-card__status is-empty">
+                미작성
+              </div>
+            </article>
+
+            <article class="shift-member-card" data-role="TO1">
+              <div class="shift-member-card__role">TO1</div>
+
+              <div class="shift-member-card__body">
+                <strong class="shift-member-card__name">정다은</strong>
+                <span class="shift-member-card__team">3조</span>
+              </div>
+
+              <div class="shift-member-card__status is-complete">
+                작성완료
+              </div>
+            </article>
+
+            <article class="shift-member-card" data-role="TO2">
+              <div class="shift-member-card__role">TO2</div>
+
+              <div class="shift-member-card__body">
+                <strong class="shift-member-card__name">최현우</strong>
+                <span class="shift-member-card__team">3조</span>
+              </div>
+
+              <div class="shift-member-card__status is-empty">
+                미작성
+              </div>
+            </article>
+
+          </div>
+        </section>
+
+
+        <!-- 날짜 이동 -->
+        <section class="date-navigation-section">
+          <button
+            type="button"
+            class="date-nav-button"
+            id="previousDateButton"
+            aria-label="이전 날짜"
+          >
+            ‹
+          </button>
+
+          <div class="date-navigation__center">
+            <p class="date-navigation__label">업무일지 기준일</p>
+
+            <button
+              type="button"
+              class="date-navigation__date"
+              id="selectedDateButton"
+            >
+              <strong id="selectedDateText">
+                2026년 07월 20일 월요일
+              </strong>
+
+              <span class="shift-badge" id="selectedShiftBadge">
+                NS
+              </span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            class="date-nav-button"
+            id="nextDateButton"
+            aria-label="다음 날짜"
+          >
+            ›
+          </button>
+
+          <button
+            type="button"
+            class="today-button"
+            id="todayButton"
+          >
+            오늘
+          </button>
+        </section>
+
+
+        <!-- 업무일지 목록 -->
+        <section class="content-section log-list-section">
+
+          <div class="section-heading section-heading--with-action">
+            <div>
+              <p class="section-heading__eyebrow">DAILY LOG</p>
+              <h2 class="section-heading__title">업무일지</h2>
+            </div>
+
+            <button
+              type="button"
+              class="primary-button"
+              id="openLogEditorButton"
+            >
+              <span aria-hidden="true">＋</span>
+              업무일지 작성
+            </button>
+          </div>
+
+
+          <div class="log-table-wrap">
+            <table class="log-table">
+              <thead>
+                <tr>
+                  <th scope="col">보직</th>
+                  <th scope="col">작성자</th>
+                  <th scope="col">상태</th>
+                  <th scope="col">첨부</th>
+                  <th scope="col">업무 내용</th>
+                  <th scope="col">관리</th>
+                </tr>
+              </thead>
+
+              <tbody id="logTableBody">
+
+                <tr class="log-row">
+                  <td class="log-row__role">파트장</td>
+
+                  <td>
+                    <strong class="log-row__author">홍길동</strong>
+                  </td>
+
+                  <td>
+                    <span class="status-badge is-approved">
+                      결재완료
+                    </span>
+                  </td>
+
+                  <td>
+                    <button
+                      type="button"
+                      class="attachment-count"
+                      aria-label="첨부파일 2개"
+                    >
+                      2
+                    </button>
+                  </td>
+
+                  <td>
+                    <button
+                      type="button"
+                      class="log-preview"
+                      data-log-id="sample-1"
+                    >
+                      <span class="log-preview__group">
+                        <strong>운전현황</strong>
+                        <span>#1, #2 주보일러 정상 운전</span>
+                      </span>
+
+                      <span class="log-preview__group">
+                        <strong>TM</strong>
+                        <span>
+                          09:50 Bio Rotary Feeder Bearing 점검
+                        </span>
+                      </span>
+
+                      <span class="log-preview__group">
+                        <strong>인계</strong>
+                        <span>
+                          주간근무 시 #1 석회석 공급계통 확인
+                        </span>
+                      </span>
+                    </button>
+                  </td>
+
+                  <td>
+                    <div class="row-actions">
+                      <button
+                        type="button"
+                        class="table-action-button"
+                        data-action="view"
+                        data-log-id="sample-1"
+                      >
+                        보기
+                      </button>
+
+                      <button
+                        type="button"
+                        class="table-action-button"
+                        data-action="edit"
+                        data-log-id="sample-1"
+                      >
+                        수정
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+
+
+                <tr class="log-row">
+                  <td class="log-row__role">TGO</td>
+
+                  <td>
+                    <strong class="log-row__author">김철수</strong>
+                  </td>
+
+                  <td>
+                    <span class="status-badge is-writing">
+                      작성중
+                    </span>
+                  </td>
+
+                  <td>
+                    <span class="attachment-count is-empty">0</span>
+                  </td>
+
+                  <td>
+                    <button
+                      type="button"
+                      class="log-preview"
+                      data-log-id="sample-2"
+                    >
+                      <span class="log-preview__group">
+                        <strong>운전현황</strong>
+                        <span>GT/ST 정상 운전</span>
+                      </span>
+
+                      <span class="log-preview__group">
+                        <strong>BM</strong>
+                        <span>
+                          11:20 Main Steam TCV 동작 상태 확인
+                        </span>
+                      </span>
+                    </button>
+                  </td>
+
+                  <td>
+                    <div class="row-actions">
+                      <button
+                        type="button"
+                        class="table-action-button"
+                        data-action="edit"
+                        data-log-id="sample-2"
+                      >
+                        이어쓰기
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+
+
+                <tr class="log-row">
+                  <td class="log-row__role">BCO1</td>
+
+                  <td>
+                    <strong class="log-row__author">이영희</strong>
+                  </td>
+
+                  <td>
+                    <span class="status-badge is-saved">
+                      저장완료
+                    </span>
+                  </td>
+
+                  <td>
+                    <button
+                      type="button"
+                      class="attachment-count"
+                      aria-label="첨부파일 1개"
+                    >
+                      1
+                    </button>
+                  </td>
+
+                  <td>
+                    <button
+                      type="button"
+                      class="log-preview"
+                      data-log-id="sample-3"
+                    >
+                      <span class="log-preview__group">
+                        <strong>CM</strong>
+                        <span>
+                          14:10 10HFB10AF001 진동 상태 확인
+                        </span>
+                      </span>
+
+                      <span class="log-preview__group">
+                        <strong>비고</strong>
+                        <span>특이사항 없음</span>
+                      </span>
+                    </button>
+                  </td>
+
+                  <td>
+                    <div class="row-actions">
+                      <button
+                        type="button"
+                        class="table-action-button"
+                        data-action="view"
+                        data-log-id="sample-3"
+                      >
+                        보기
+                      </button>
+
+                      <button
+                        type="button"
+                        class="table-action-button"
+                        data-action="edit"
+                        data-log-id="sample-3"
+                      >
+                        수정
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+
+              </tbody>
+            </table>
+          </div>
+
 
           <div
-            class="brand-mark"
-            aria-hidden="true"
+            class="empty-state"
+            id="logEmptyState"
+            hidden
           >
-            GS
-          </div>
-
-          <div class="brand-text">
-
-            <strong class="brand-title">
-              SHIFT LOG
-            </strong>
-
-            <span class="brand-subtitle">
-              업무일지 · 인수인계
-            </span>
-
-          </div>
-
-        </a>
-
-        <button
-          id="sidebarCloseButton"
-          class="sidebar-close-button"
-          type="button"
-          aria-label="메뉴 닫기"
-        >
-          ×
-        </button>
-
-      </div>
-
-
-      <nav class="sidebar-nav">
-
-        <p class="sidebar-nav-title">
-          업무관리
-        </p>
-
-        <button
-          class="sidebar-nav-button is-active"
-          type="button"
-          data-view-target="dashboard"
-        >
-          <span
-            class="sidebar-nav-icon"
-            aria-hidden="true"
-          >
-            ◫
-          </span>
-
-          <span>현황</span>
-        </button>
-
-        <button
-          class="sidebar-nav-button"
-          type="button"
-          data-view-target="daily-log"
-        >
-          <span
-            class="sidebar-nav-icon"
-            aria-hidden="true"
-          >
-            ✎
-          </span>
-
-          <span>업무일지 작성</span>
-        </button>
-
-        <button
-          class="sidebar-nav-button"
-          type="button"
-          data-view-target="log-search"
-        >
-          <span
-            class="sidebar-nav-icon"
-            aria-hidden="true"
-          >
-            ⌕
-          </span>
-
-          <span>업무일지 조회</span>
-        </button>
-
-        <button
-          class="sidebar-nav-button"
-          type="button"
-          data-view-target="work-orders"
-        >
-          <span
-            class="sidebar-nav-icon"
-            aria-hidden="true"
-          >
-            ⚙
-          </span>
-
-          <span>TM · BM · CM</span>
-        </button>
-
-        <button
-          class="sidebar-nav-button"
-          type="button"
-          data-view-target="handover"
-        >
-          <span
-            class="sidebar-nav-icon"
-            aria-hidden="true"
-          >
-            ⇄
-          </span>
-
-          <span>인수인계</span>
-        </button>
-
-
-        <p class="sidebar-nav-title">
-          관리
-        </p>
-
-        <button
-          class="sidebar-nav-button"
-          type="button"
-          data-view-target="approval"
-        >
-          <span
-            class="sidebar-nav-icon"
-            aria-hidden="true"
-          >
-            ✓
-          </span>
-
-          <span>결재관리</span>
-        </button>
-
-        <button
-          class="sidebar-nav-button"
-          type="button"
-          data-view-target="statistics"
-        >
-          <span
-            class="sidebar-nav-icon"
-            aria-hidden="true"
-          >
-            ▥
-          </span>
-
-          <span>통계</span>
-        </button>
-
-        <button
-          class="sidebar-nav-button"
-          type="button"
-          data-view-target="admin"
-        >
-          <span
-            class="sidebar-nav-icon"
-            aria-hidden="true"
-          >
-            ⚙
-          </span>
-
-          <span>관리자</span>
-        </button>
-
-      </nav>
-
-
-      <div class="sidebar-footer">
-
-        <a
-          id="navigatorLink"
-          class="navigator-link"
-          href="https://gs-facility-navigator-2mg.pages.dev/"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <span aria-hidden="true">
-            ↗
-          </span>
-
-          <span>
-            Facility Navigator
-          </span>
-        </a>
-
-        <p class="sidebar-version">
-          GS Shift Log v0.1.0
-        </p>
-
-      </div>
-
-    </aside>
-
-
-    <!-- =======================================================
-         오른쪽 앱 영역
-    ======================================================== -->
-    <div class="app-main">
-
-      <!-- =====================================================
-           상단 헤더
-      ====================================================== -->
-      <header class="app-header">
-
-        <div class="app-header-left">
-
-          <button
-            id="sidebarOpenButton"
-            class="header-menu-button"
-            type="button"
-            aria-label="메뉴 열기"
-          >
-            ☰
-          </button>
-
-          <div class="header-page-title">
-
-            <span class="header-page-eyebrow">
-              GS 포천그린에너지
-            </span>
-
-            <h1 id="currentPageTitle">
-              현황
-            </h1>
-
-          </div>
-
-        </div>
-
-
-        <div class="app-header-right">
-
-          <div class="header-date-info">
-
-            <strong id="headerCurrentDate">
-              2026년 07월 20일
-            </strong>
-
-            <span id="headerCurrentShift">
-              근무정보 확인 중
-            </span>
-
-          </div>
-
-          <button
-            id="notificationButton"
-            class="header-icon-button"
-            type="button"
-            aria-label="알림"
-          >
-            ♢
-
-            <span
-              id="notificationBadge"
-              class="notification-badge"
-              hidden
-            >
-              0
-            </span>
-          </button>
-
-          <button
-            id="userMenuButton"
-            class="header-user-button"
-            type="button"
-            aria-haspopup="menu"
-            aria-expanded="false"
-          >
-
-            <span
-              id="headerUserAvatar"
-              class="header-user-avatar"
-              aria-hidden="true"
-            >
-              이
-            </span>
-
-            <span class="header-user-info">
-
-              <strong id="headerUserName">
-                이휘근
-              </strong>
-
-              <small id="headerUserRole">
-                최고관리자
-              </small>
-
-            </span>
-
-            <span aria-hidden="true">
-              ▾
-            </span>
-
-          </button>
-
-        </div>
-
-      </header>
-
-
-      <!-- =====================================================
-           사용자 메뉴
-      ====================================================== -->
-      <div
-        id="userDropdown"
-        class="user-dropdown"
-        role="menu"
-        hidden
-      >
-
-        <button
-          type="button"
-          role="menuitem"
-          data-user-action="profile"
-        >
-          내 정보
-        </button>
-
-        <button
-          type="button"
-          role="menuitem"
-          data-user-action="settings"
-        >
-          환경설정
-        </button>
-
-        <button
-          type="button"
-          role="menuitem"
-          data-user-action="logout"
-        >
-          로그아웃
-        </button>
-
-      </div>
-
-
-      <!-- =====================================================
-           콘텐츠
-      ====================================================== -->
-      <main
-        id="appContent"
-        class="app-content"
-      >
-
-        <!-- ===================================================
-             1. 현황
-        ==================================================== -->
-        <section
-          id="dashboardView"
-          class="app-view is-active"
-          data-view="dashboard"
-          aria-labelledby="dashboardTitle"
-        >
-
-          <div class="view-heading">
-
-            <div>
-
-              <p class="view-eyebrow">
-                OPERATIONS OVERVIEW
-              </p>
-
-              <h2 id="dashboardTitle">
-                근무 현황
-              </h2>
-
-              <p class="view-description">
-                현재 근무조와 업무일지 작성 현황을 확인합니다.
-              </p>
-
-            </div>
-
-            <div class="view-heading-actions">
-
-              <button
-                id="openTodayLogButton"
-                class="button button-primary"
-                type="button"
-                data-view-target="daily-log"
-              >
-                오늘 업무일지 작성
-              </button>
-
-            </div>
-
-          </div>
-
-
-          <div class="summary-card-grid">
-
-            <article class="summary-card">
-
-              <span class="summary-card-label">
-                현재 근무
-              </span>
-
-              <strong
-                id="dashboardCurrentShift"
-                class="summary-card-value"
-              >
-                NS
-              </strong>
-
-              <small id="dashboardCurrentTeam">
-                2파트
-              </small>
-
-            </article>
-
-            <article class="summary-card">
-
-              <span class="summary-card-label">
-                작성 중
-              </span>
-
-              <strong
-                id="dashboardDraftCount"
-                class="summary-card-value"
-              >
-                0
-              </strong>
-
-              <small>
-                임시저장 일지
-              </small>
-
-            </article>
-
-            <article class="summary-card">
-
-              <span class="summary-card-label">
-                결재 대기
-              </span>
-
-              <strong
-                id="dashboardApprovalCount"
-                class="summary-card-value"
-              >
-                0
-              </strong>
-
-              <small>
-                확인 필요
-              </small>
-
-            </article>
-
-            <article class="summary-card">
-
-              <span class="summary-card-label">
-                진행 작업
-              </span>
-
-              <strong
-                id="dashboardOpenWorkCount"
-                class="summary-card-value"
-              >
-                0
-              </strong>
-
-              <small>
-                TM · BM · CM
-              </small>
-
-            </article>
-
-          </div>
-
-
-          <div class="dashboard-layout">
-
-            <section class="panel-card">
-
-              <div class="panel-card-header">
-
-                <div>
-
-                  <h3>
-                    근무조 작성 현황
-                  </h3>
-
-                  <p>
-                    보직별 업무일지 상태
-                  </p>
-
-                </div>
-
-                <button
-                  class="button button-ghost button-small"
-                  type="button"
-                  data-view-target="log-search"
-                >
-                  전체 조회
-                </button>
-
-              </div>
-
-              <div
-                id="shiftStatusGrid"
-                class="shift-status-grid"
-              >
-
-                <article class="shift-status-card">
-
-                  <strong>파트장</strong>
-
-                  <span class="shift-status-user">
-                    -
-                  </span>
-
-                  <span class="status-badge status-empty">
-                    미작성
-                  </span>
-
-                </article>
-
-                <article class="shift-status-card">
-
-                  <strong>TGO</strong>
-
-                  <span class="shift-status-user">
-                    -
-                  </span>
-
-                  <span class="status-badge status-empty">
-                    미작성
-                  </span>
-
-                </article>
-
-                <article class="shift-status-card">
-
-                  <strong>BCO1</strong>
-
-                  <span class="shift-status-user">
-                    -
-                  </span>
-
-                  <span class="status-badge status-empty">
-                    미작성
-                  </span>
-
-                </article>
-
-                <article class="shift-status-card">
-
-                  <strong>BCO2</strong>
-
-                  <span class="shift-status-user">
-                    -
-                  </span>
-
-                  <span class="status-badge status-empty">
-                    미작성
-                  </span>
-
-                </article>
-
-                <article class="shift-status-card">
-
-                  <strong>TO</strong>
-
-                  <span class="shift-status-user">
-                    -
-                  </span>
-
-                  <span class="status-badge status-empty">
-                    미작성
-                  </span>
-
-                </article>
-
-                <article class="shift-status-card">
-
-                  <strong>BO1</strong>
-
-                  <span class="shift-status-user">
-                    -
-                  </span>
-
-                  <span class="status-badge status-empty">
-                    미작성
-                  </span>
-
-                </article>
-
-                <article class="shift-status-card">
-
-                  <strong>BO2</strong>
-
-                  <span class="shift-status-user">
-                    -
-                  </span>
-
-                  <span class="status-badge status-empty">
-                    미작성
-                  </span>
-
-                </article>
-
-              </div>
-
-            </section>
-
-
-            <section class="panel-card">
-
-              <div class="panel-card-header">
-
-                <div>
-
-                  <h3>
-                    최근 인수인계
-                  </h3>
-
-                  <p>
-                    최근 등록된 주요 전달사항
-                  </p>
-
-                </div>
-
-                <button
-                  class="button button-ghost button-small"
-                  type="button"
-                  data-view-target="handover"
-                >
-                  전체 보기
-                </button>
-
-              </div>
-
-              <div
-                id="recentHandoverList"
-                class="empty-state"
-              >
-
-                <strong>
-                  등록된 인수인계가 없습니다.
-                </strong>
-
-                <p>
-                  업무일지 작성 화면에서 인계사항을 추가할 수 있습니다.
-                </p>
-
-              </div>
-
-            </section>
-
+            <strong>작성된 업무일지가 없습니다.</strong>
+            <p>업무일지 작성 버튼을 눌러 새 일지를 작성하세요.</p>
           </div>
 
         </section>
 
+      </section>
 
-        <!-- ===================================================
-             2. 업무일지 작성
-        ==================================================== -->
-        <section
-          id="dailyLogView"
-          class="app-view"
-          data-view="daily-log"
-          aria-labelledby="dailyLogTitle"
-          hidden
-        >
 
-          <div class="view-heading">
+      <!-- =======================================================
+        조회 화면
+      ======================================================== -->
+      <section
+        class="page-view"
+        id="searchView"
+        data-page-view="search"
+        hidden
+      >
 
+        <section class="content-section search-section">
+
+          <div class="section-heading">
             <div>
-
-              <p class="view-eyebrow">
-                DAILY SHIFT LOG
-              </p>
-
-              <h2 id="dailyLogTitle">
-                업무일지 작성
-              </h2>
-
-              <p class="view-description">
-                운전 현황과 작업·인계 내역을 항목별로 작성합니다.
-              </p>
-
+              <p class="section-heading__eyebrow">SEARCH</p>
+              <h1 class="section-heading__title">업무일지 조회</h1>
             </div>
-
-            <div class="view-heading-actions">
-
-              <span
-                id="autosaveStatus"
-                class="autosave-status"
-              >
-                저장 전
-              </span>
-
-              <button
-                id="loadPreviousLogButton"
-                class="button button-secondary"
-                type="button"
-              >
-                이전 일지 불러오기
-              </button>
-
-              <button
-                id="copyLogButton"
-                class="button button-secondary"
-                type="button"
-              >
-                보고용 복사
-              </button>
-
-              <button
-                id="printLogButton"
-                class="button button-secondary"
-                type="button"
-              >
-                인쇄
-              </button>
-
-            </div>
-
           </div>
 
 
-          <form
-            id="dailyLogForm"
-            class="daily-log-form"
-            novalidate
-          >
+          <form class="search-form" id="searchForm">
 
-            <!-- 일지 기본정보 -->
-            <section class="panel-card">
-
-              <div class="panel-card-header">
-
-                <div>
-
-                  <h3>
-                    일지 기본정보
-                  </h3>
-
-                  <p>
-                    근무일, 시프트, 근무조 및 작성자 정보
-                  </p>
-
-                </div>
-
-              </div>
-
-              <div class="form-grid form-grid-five">
-
-                <label class="form-field">
-
-                  <span class="form-label">
-                    작성일
-                  </span>
-
-                  <input
-                    id="logDate"
-                    name="logDate"
-                    type="date"
-                    required
-                  >
-
-                </label>
-
-                <label class="form-field">
-
-                  <span class="form-label">
-                    시프트
-                  </span>
-
-                  <select
-                    id="logShift"
-                    name="logShift"
-                    required
-                  >
-                    <option value="">
-                      선택
-                    </option>
-
-                    <option value="DS">
-                      DS
-                    </option>
-
-                    <option value="NS">
-                      NS
-                    </option>
-                  </select>
-
-                </label>
-
-                <label class="form-field">
-
-                  <span class="form-label">
-                    근무조
-                  </span>
-
-                  <select
-                    id="logTeam"
-                    name="logTeam"
-                    required
-                  >
-                    <option value="">
-                      선택
-                    </option>
-
-                    <option value="1파트">
-                      1파트
-                    </option>
-
-                    <option value="2파트">
-                      2파트
-                    </option>
-
-                    <option value="3파트">
-                      3파트
-                    </option>
-
-                    <option value="4파트">
-                      4파트
-                    </option>
-                  </select>
-
-                </label>
-
-                <label class="form-field">
-
-                  <span class="form-label">
-                    보직
-                  </span>
-
-                  <select
-                    id="logPosition"
-                    name="logPosition"
-                    required
-                  >
-                    <option value="">
-                      선택
-                    </option>
-
-                    <option value="파트장">
-                      파트장
-                    </option>
-
-                    <option value="TGO">
-                      TGO
-                    </option>
-
-                    <option value="BCO1">
-                      BCO1
-                    </option>
-
-                    <option value="BCO2">
-                      BCO2
-                    </option>
-
-                    <option value="TO">
-                      TO
-                    </option>
-
-                    <option value="BO1">
-                      BO1
-                    </option>
-
-                    <option value="BO2">
-                      BO2
-                    </option>
-                  </select>
-
-                </label>
-
-                <label class="form-field">
-
-                  <span class="form-label">
-                    작성자
-                  </span>
-
-                  <input
-                    id="logAuthor"
-                    name="logAuthor"
-                    type="text"
-                    autocomplete="off"
-                    required
-                  >
-
-                </label>
-
-              </div>
-
-            </section>
-
-
-            <!-- 운전 현황 -->
-            <section class="panel-card">
-
-              <div class="panel-card-header">
-
-                <div>
-
-                  <h3>
-                    운전 현황
-                  </h3>
-
-                  <p>
-                    첫 번째 항목은 반드시 운전상태를 선택합니다.
-                  </p>
-
-                </div>
-
-                <button
-                  id="addOperationEntryButton"
-                  class="button button-primary button-small"
-                  type="button"
-                >
-                  항목 추가
-                </button>
-
-              </div>
-
-              <div
-                id="operationEntryList"
-                class="entry-list"
-              >
-
-                <article
-                  class="entry-editor operation-entry"
-                  data-entry-index="0"
-                >
-
-                  <div class="entry-editor-grid operation-entry-grid">
-
-                    <label class="form-field">
-
-                      <span class="form-label">
-                        운전상태
-                      </span>
-
-                      <select
-                        name="operationStatus"
-                        required
-                      >
-                        <option value="">
-                          상태 선택
-                        </option>
-
-                        <option value="정상운전">
-                          정상운전
-                        </option>
-
-                        <option value="점검중">
-                          점검 중
-                        </option>
-
-                        <option value="계획정비">
-                          계획정비
-                        </option>
-
-                        <option value="정지">
-                          정지
-                        </option>
-
-                        <option value="비상운전">
-                          비상운전
-                        </option>
-                      </select>
-
-                    </label>
-
-                    <label class="form-field">
-
-                      <span class="form-label">
-                        시간
-                      </span>
-
-                      <input
-                        name="operationTime"
-                        type="time"
-                      >
-
-                    </label>
-
-                    <label class="form-field form-field-grow">
-
-                      <span class="form-label">
-                        내용
-                      </span>
-
-                      <textarea
-                        name="operationContent"
-                        rows="2"
-                        placeholder="예: #1 BLR 정상운전 중"
-                        required
-                      ></textarea>
-
-                    </label>
-
-                  </div>
-
-                </article>
-
-              </div>
-
-            </section>
-
-
-            <!-- 작업 및 인계 기록 -->
-            <section class="panel-card">
-
-              <div class="panel-card-header">
-
-                <div>
-
-                  <h3>
-                    작업 · 인계 기록
-                  </h3>
-
-                  <p>
-                    시간, 구분, 내용과 관련 TAG를 등록합니다.
-                  </p>
-
-                </div>
-
-              </div>
-
-
-              <div class="work-entry-composer">
-
-                <div class="work-entry-composer-grid">
-
-                  <label class="form-field">
-
-                    <span class="form-label">
-                      시간
-                    </span>
-
-                    <div class="time-input-group">
-
-                      <input
-                        id="workEntryTime"
-                        type="time"
-                      >
-
-                      <button
-                        id="setCurrentTimeButton"
-                        class="button button-ghost button-small"
-                        type="button"
-                      >
-                        현재
-                      </button>
-
-                    </div>
-
-                  </label>
-
-
-                  <label class="form-field">
-
-                    <span class="form-label">
-                      구분
-                    </span>
-
-                    <select id="workEntryType">
-
-                      <option value="">
-                        구분 선택
-                      </option>
-
-                      <option value="TM_ISSUE">
-                        TM 발행
-                      </option>
-
-                      <option value="TM_WORK">
-                        TM 작업
-                      </option>
-
-                      <option value="TM_CLOSE">
-                        TM 종결
-                      </option>
-
-                      <option value="BM_ISSUE">
-                        BM 발행
-                      </option>
-
-                      <option value="BM_CLOSE">
-                        BM 종결
-                      </option>
-
-                      <option value="CM_ISSUE">
-                        CM 발행
-                      </option>
-
-                      <option value="HANDOVER">
-                        인계사항
-                      </option>
-
-                      <option value="NOTE">
-                        비고
-                      </option>
-
-                    </select>
-
-                  </label>
-
-
-                  <label class="form-field form-field-tag">
-
-                    <span class="form-label">
-                      설비 TAG
-                    </span>
-
-                    <div class="tag-input-group">
-
-                      <input
-                        id="workEntryTag"
-                        type="text"
-                        autocomplete="off"
-                        placeholder="TAG 번호 입력"
-                      >
-
-                      <button
-                        id="searchNavigatorTagButton"
-                        class="button button-secondary button-small"
-                        type="button"
-                        title="네비게이터에서 TAG 찾기"
-                      >
-                        네비게이터
-                      </button>
-
-                    </div>
-
-                    <small class="form-help">
-                      등록된 TAG는 클릭 시 Facility Navigator로 연결됩니다.
-                    </small>
-
-                  </label>
-
-
-                  <label class="form-field form-field-grow">
-
-                    <span class="form-label">
-                      내용
-                    </span>
-
-                    <textarea
-                      id="workEntryContent"
-                      rows="3"
-                      placeholder="작업 또는 인계 내용을 입력하세요."
-                    ></textarea>
-
-                  </label>
-
-
-                  <div class="form-field work-entry-add-field">
-
-                    <span class="form-label">
-                      등록
-                    </span>
-
-                    <button
-                      id="addWorkEntryButton"
-                      class="button button-primary"
-                      type="button"
-                    >
-                      기록 추가
-                    </button>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-
-              <div
-                id="workEntryList"
-                class="work-entry-list"
-              >
-
-                <div class="empty-state">
-
-                  <strong>
-                    등록된 작업·인계 기록이 없습니다.
-                  </strong>
-
-                  <p>
-                    위 입력창에서 시간, 구분과 내용을 입력해 주세요.
-                  </p>
-
-                </div>
-
-              </div>
-
-            </section>
-
-
-            <!-- 붙여넣기 -->
-            <section class="panel-card">
-
-              <div class="panel-card-header">
-
-                <div>
-
-                  <h3>
-                    일괄 붙여넣기
-                  </h3>
-
-                  <p>
-                    기존 업무일지나 메모의 내용을 여러 줄로 붙여넣습니다.
-                  </p>
-
-                </div>
-
-              </div>
+            <div class="search-form__grid">
 
               <label class="form-field">
-
-                <span class="form-label">
-                  붙여넣을 내용
-                </span>
-
-                <textarea
-                  id="bulkPasteInput"
-                  rows="7"
-                  placeholder="기존 일지 내용을 여기에 붙여넣으세요."
-                ></textarea>
-
-              </label>
-
-              <div class="panel-inline-actions">
-
-                <button
-                  id="previewBulkPasteButton"
-                  class="button button-secondary"
-                  type="button"
-                >
-                  붙여넣기 미리보기
-                </button>
-
-                <button
-                  id="clearBulkPasteButton"
-                  class="button button-ghost"
-                  type="button"
-                >
-                  내용 지우기
-                </button>
-
-              </div>
-
-            </section>
-
-
-            <!-- 첨부파일 -->
-            <section class="panel-card">
-
-              <div class="panel-card-header">
-
-                <div>
-
-                  <h3>
-                    첨부파일
-                  </h3>
-
-                  <p>
-                    사진, PDF, 문서 파일을 첨부할 수 있습니다.
-                  </p>
-
-                </div>
-
-              </div>
-
-              <label
-                id="attachmentDropzone"
-                class="attachment-dropzone"
-                for="attachmentInput"
-              >
+                <span class="form-field__label">시작일</span>
 
                 <input
-                  id="attachmentInput"
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf,.xlsx,.xls,.doc,.docx,.txt"
-                  hidden
-                >
-
-                <strong>
-                  파일을 선택하거나 이곳에 끌어다 놓으세요.
-                </strong>
-
-                <span>
-                  사진은 업로드 시 자동으로 최적화할 예정입니다.
-                </span>
-
+                  type="date"
+                  id="searchStartDate"
+                  name="startDate"
+                />
               </label>
 
-              <div
-                id="attachmentList"
-                class="attachment-list"
-              ></div>
+              <label class="form-field">
+                <span class="form-field__label">종료일</span>
 
-            </section>
+                <input
+                  type="date"
+                  id="searchEndDate"
+                  name="endDate"
+                />
+              </label>
+
+              <label class="form-field">
+                <span class="form-field__label">근무조</span>
+
+                <select id="searchShift" name="shift">
+                  <option value="">전체</option>
+                  <option value="DS">DS</option>
+                  <option value="NS">NS</option>
+                </select>
+              </label>
+
+              <label class="form-field">
+                <span class="form-field__label">보직</span>
+
+                <select id="searchRole" name="role">
+                  <option value="">전체</option>
+                  <option value="파트장">파트장</option>
+                  <option value="TGO">TGO</option>
+                  <option value="BCO1">BCO1</option>
+                  <option value="BCO2">BCO2</option>
+                  <option value="TO1">TO1</option>
+                  <option value="TO2">TO2</option>
+                </select>
+              </label>
+
+              <label class="form-field">
+                <span class="form-field__label">구분</span>
+
+                <select id="searchCategory" name="category">
+                  <option value="">전체</option>
+                  <option value="operation">운전현황</option>
+                  <option value="tm">TM</option>
+                  <option value="bm">BM</option>
+                  <option value="cm">CM</option>
+                  <option value="handover">인계사항</option>
+                  <option value="note">비고</option>
+                </select>
+              </label>
+
+              <label class="form-field form-field--wide">
+                <span class="form-field__label">TAG 또는 내용</span>
+
+                <input
+                  type="search"
+                  id="searchKeyword"
+                  name="keyword"
+                  placeholder="예: 10HFB10AF001, Rotary Feeder, Bearing"
+                />
+              </label>
+
+            </div>
 
 
-            <!-- 저장 버튼 -->
-            <div class="daily-log-actions">
+            <div class="search-form__actions">
+              <button
+                type="reset"
+                class="secondary-button"
+                id="resetSearchButton"
+              >
+                초기화
+              </button>
 
-              <div class="daily-log-actions-left">
-
-                <button
-                  id="deleteDraftButton"
-                  class="button button-danger-outline"
-                  type="button"
-                >
-                  임시 일지 삭제
-                </button>
-
-              </div>
-
-              <div class="daily-log-actions-right">
-
-                <button
-                  id="saveDraftButton"
-                  class="button button-secondary"
-                  type="button"
-                >
-                  임시저장
-                </button>
-
-                <button
-                  id="saveLogButton"
-                  class="button button-primary"
-                  type="submit"
-                >
-                  업무일지 저장
-                </button>
-
-                <button
-                  id="requestApprovalButton"
-                  class="button button-accent"
-                  type="button"
-                >
-                  결재 요청
-                </button>
-
-              </div>
-
+              <button
+                type="submit"
+                class="primary-button"
+              >
+                조회
+              </button>
             </div>
 
           </form>
 
+
+          <div class="search-result-header">
+            <strong>
+              조회 결과
+              <span id="searchResultCount">0</span>건
+            </strong>
+          </div>
+
+
+          <div class="log-table-wrap">
+            <table class="log-table search-result-table">
+              <thead>
+                <tr>
+                  <th scope="col">일자</th>
+                  <th scope="col">근무</th>
+                  <th scope="col">보직</th>
+                  <th scope="col">작성자</th>
+                  <th scope="col">구분</th>
+                  <th scope="col">TAG</th>
+                  <th scope="col">내용</th>
+                  <th scope="col">보기</th>
+                </tr>
+              </thead>
+
+              <tbody id="searchResultBody">
+              </tbody>
+            </table>
+          </div>
+
+
+          <div class="empty-state" id="searchEmptyState">
+            <strong>조회 조건을 선택해 주세요.</strong>
+            <p>기간, TAG 또는 업무 내용을 기준으로 검색할 수 있습니다.</p>
+          </div>
+
         </section>
 
+      </section>
 
-        <!-- ===================================================
-             3. 업무일지 조회
-        ==================================================== -->
-        <section
-          id="logSearchView"
-          class="app-view"
-          data-view="log-search"
-          aria-labelledby="logSearchTitle"
-          hidden
+    </main>
+  </div>
+
+
+  <!-- =========================================================
+    업무일지 작성 모달
+  ========================================================== -->
+  <div
+    class="modal-backdrop"
+    id="logEditorModal"
+    aria-hidden="true"
+  >
+    <section
+      class="modal-panel log-editor-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="logEditorTitle"
+    >
+
+      <header class="modal-header">
+        <div>
+          <p class="modal-header__eyebrow">DAILY SHIFT LOG</p>
+          <h2 class="modal-header__title" id="logEditorTitle">
+            업무일지 작성
+          </h2>
+        </div>
+
+        <button
+          type="button"
+          class="modal-close-button"
+          id="closeLogEditorButton"
+          aria-label="업무일지 작성창 닫기"
         >
+          ×
+        </button>
+      </header>
 
-          <div class="view-heading">
 
-            <div>
+      <div class="modal-body">
 
-              <p class="view-eyebrow">
-                SHIFT LOG SEARCH
-              </p>
+        <form id="logEditorForm">
 
-              <h2 id="logSearchTitle">
-                업무일지 조회
-              </h2>
-
-              <p class="view-description">
-                날짜, 시프트, 근무조, 보직, 작성자 및 키워드로 검색합니다.
-              </p>
-
+          <!-- 기본 정보 -->
+          <section class="editor-section editor-section--basic">
+            <div class="editor-section__heading">
+              <h3>기본 정보</h3>
             </div>
 
-            <div class="view-heading-actions">
+            <div class="basic-info-grid">
+
+              <label class="form-field">
+                <span class="form-field__label">작성일</span>
+
+                <input
+                  type="date"
+                  id="logDate"
+                  name="logDate"
+                  required
+                />
+              </label>
+
+              <label class="form-field">
+                <span class="form-field__label">근무</span>
+
+                <select
+                  id="logShift"
+                  name="logShift"
+                  required
+                >
+                  <option value="DS">DS</option>
+                  <option value="NS" selected>NS</option>
+                </select>
+              </label>
+
+              <label class="form-field">
+                <span class="form-field__label">근무조</span>
+
+                <select
+                  id="logTeam"
+                  name="logTeam"
+                  required
+                >
+                  <option value="1조">1조</option>
+                  <option value="2조">2조</option>
+                  <option value="3조" selected>3조</option>
+                  <option value="4조">4조</option>
+                </select>
+              </label>
+
+              <label class="form-field">
+                <span class="form-field__label">보직</span>
+
+                <select
+                  id="logRole"
+                  name="logRole"
+                  required
+                >
+                  <option value="파트장">파트장</option>
+                  <option value="TGO">TGO</option>
+                  <option value="BCO1">BCO1</option>
+                  <option value="BCO2">BCO2</option>
+                  <option value="TO1">TO1</option>
+                  <option value="TO2">TO2</option>
+                </select>
+              </label>
+
+              <label class="form-field">
+                <span class="form-field__label">작성자</span>
+
+                <input
+                  type="text"
+                  id="logAuthor"
+                  name="logAuthor"
+                  value="이휘근"
+                  required
+                />
+              </label>
+
+            </div>
+          </section>
+
+
+          <!-- 운전 현황 -->
+          <section class="editor-section">
+            <div class="editor-section__heading">
+              <div>
+                <h3>운전 현황</h3>
+                <p>주요 설비 및 계통의 현재 운전 상태를 작성합니다.</p>
+              </div>
+            </div>
+
+            <textarea
+              class="large-textarea"
+              id="operationStatus"
+              name="operationStatus"
+              rows="7"
+              placeholder="#1 주보일러 정상운전&#10;#2 주보일러 정상운전&#10;GT / ST 정상운전"
+            ></textarea>
+          </section>
+
+
+          <!-- 작업 / 정비 / 인계 내역 -->
+          <section class="editor-section">
+            <div class="editor-section__heading editor-section__heading--with-action">
+              <div>
+                <h3>작업 · 정비 · 인계 내역</h3>
+                <p>
+                  TM, BM, CM, 인계사항을 한곳에서 추가합니다.
+                </p>
+              </div>
 
               <button
-                id="printSearchResultsButton"
-                class="button button-secondary"
                 type="button"
+                class="add-entry-button"
+                id="addWorkEntryButton"
               >
-                조회결과 인쇄
+                ＋ 항목 추가
               </button>
-
             </div>
 
-          </div>
+
+            <div class="work-entry-list" id="workEntryList">
+
+              <article class="work-entry-card" data-entry-index="0">
+
+                <div class="work-entry-card__header">
+                  <strong>내역 1</strong>
+
+                  <button
+                    type="button"
+                    class="remove-entry-button"
+                    data-remove-entry
+                    aria-label="내역 삭제"
+                  >
+                    삭제
+                  </button>
+                </div>
 
 
-          <section class="panel-card">
+                <div class="work-entry-grid">
 
-            <form
-              id="logSearchForm"
-              class="search-filter-grid"
-            >
+                  <label class="form-field">
+                    <span class="form-field__label">시간</span>
 
-              <label class="form-field">
+                    <input
+                      type="time"
+                      name="entryTime[]"
+                      value="09:00"
+                    />
+                  </label>
 
-                <span class="form-label">
-                  시작일
-                </span>
 
-                <input
-                  id="searchStartDate"
-                  type="date"
-                >
+                  <label class="form-field">
+                    <span class="form-field__label">구분</span>
 
-              </label>
+                    <select name="entryCategory[]">
+                      <option value="TM 작업">TM 작업</option>
+                      <option value="TM 발행">TM 발행</option>
+                      <option value="TM 종결">TM 종결</option>
+                      <option value="BM 작업">BM 작업</option>
+                      <option value="BM 발행">BM 발행</option>
+                      <option value="BM 종결">BM 종결</option>
+                      <option value="CM 작업">CM 작업</option>
+                      <option value="CM 발행">CM 발행</option>
+                      <option value="CM 종결">CM 종결</option>
+                      <option value="인계사항">인계사항</option>
+                      <option value="비고">비고</option>
+                    </select>
+                  </label>
 
-              <label class="form-field">
 
-                <span class="form-label">
-                  종료일
-                </span>
+                  <div class="form-field form-field--tag">
+                    <span class="form-field__label">TAG</span>
 
-                <input
-                  id="searchEndDate"
-                  type="date"
-                >
+                    <div class="tag-input-group">
+                      <input
+                        type="text"
+                        name="entryTag[]"
+                        placeholder="예: 10HFB10AF001"
+                        autocomplete="off"
+                      />
 
-              </label>
+                      <button
+                        type="button"
+                        class="navigator-button"
+                        data-open-navigator
+                        title="Facility Navigator에서 TAG 열기"
+                      >
+                        설비보기
+                      </button>
+                    </div>
+                  </div>
 
-              <label class="form-field">
 
-                <span class="form-label">
-                  시프트
-                </span>
+                  <label class="form-field form-field--content">
+                    <span class="form-field__label">내용</span>
 
-                <select id="searchShift">
+                    <textarea
+                      name="entryContent[]"
+                      rows="3"
+                      placeholder="작업 또는 인계 내용을 입력하세요."
+                    ></textarea>
+                  </label>
 
-                  <option value="">
-                    전체
-                  </option>
+                </div>
+              </article>
 
-                  <option value="DS">
-                    DS
-                  </option>
-
-                  <option value="NS">
-                    NS
-                  </option>
-
-                </select>
-
-              </label>
-
-              <label class="form-field">
-
-                <span class="form-label">
-                  근무조
-                </span>
-
-                <select id="searchTeam">
-
-                  <option value="">
-                    전체
-                  </option>
-
-                  <option value="1파트">
-                    1파트
-                  </option>
-
-                  <option value="2파트">
-                    2파트
-                  </option>
-
-                  <option value="3파트">
-                    3파트
-                  </option>
-
-                  <option value="4파트">
-                    4파트
-                  </option>
-
-                </select>
-
-              </label>
-
-              <label class="form-field">
-
-                <span class="form-label">
-                  보직
-                </span>
-
-                <select id="searchPosition">
-
-                  <option value="">
-                    전체
-                  </option>
-
-                  <option value="파트장">
-                    파트장
-                  </option>
-
-                  <option value="TGO">
-                    TGO
-                  </option>
-
-                  <option value="BCO1">
-                    BCO1
-                  </option>
-
-                  <option value="BCO2">
-                    BCO2
-                  </option>
-
-                  <option value="TO">
-                    TO
-                  </option>
-
-                  <option value="BO1">
-                    BO1
-                  </option>
-
-                  <option value="BO2">
-                    BO2
-                  </option>
-
-                </select>
-
-              </label>
-
-              <label class="form-field">
-
-                <span class="form-label">
-                  작성자
-                </span>
-
-                <input
-                  id="searchAuthor"
-                  type="text"
-                  placeholder="작성자"
-                >
-
-              </label>
-
-              <label class="form-field search-keyword-field">
-
-                <span class="form-label">
-                  검색어
-                </span>
-
-                <input
-                  id="searchKeyword"
-                  type="search"
-                  placeholder="내용 또는 TAG 검색"
-                >
-
-              </label>
-
-              <div class="search-action-field">
-
-                <button
-                  class="button button-primary"
-                  type="submit"
-                >
-                  검색
-                </button>
-
-                <button
-                  id="resetSearchButton"
-                  class="button button-ghost"
-                  type="button"
-                >
-                  초기화
-                </button>
-
-              </div>
-
-            </form>
-
+            </div>
           </section>
 
 
-          <section class="panel-card">
+          <!-- 비고 -->
+          <section class="editor-section">
+            <div class="editor-section__heading">
+              <h3>비고</h3>
+            </div>
 
-            <div class="panel-card-header">
+            <textarea
+              id="logNote"
+              name="logNote"
+              rows="4"
+              placeholder="그 밖의 특이사항을 입력하세요."
+            ></textarea>
+          </section>
 
+
+          <!-- 첨부파일 -->
+          <section class="editor-section">
+            <div class="editor-section__heading">
               <div>
-
-                <h3>
-                  조회 결과
-                </h3>
-
-                <p>
-                  총
-                  <strong id="searchResultCount">
-                    0
-                  </strong>
-                  건
-                </p>
-
+                <h3>첨부파일</h3>
+                <p>사진, 문서 및 작업 관련 파일을 첨부할 수 있습니다.</p>
               </div>
-
             </div>
 
-            <div class="table-wrapper">
+            <label class="file-dropzone" id="fileDropzone">
+              <input
+                type="file"
+                id="logAttachments"
+                name="attachments"
+                multiple
+                hidden
+              />
 
-              <table class="data-table">
+              <span class="file-dropzone__icon">＋</span>
 
-                <thead>
+              <strong>파일 선택 또는 드래그</strong>
 
-                  <tr>
+              <small>
+                여러 개의 파일을 한 번에 첨부할 수 있습니다.
+              </small>
+            </label>
 
-                    <th scope="col">
-                      작성일
-                    </th>
-
-                    <th scope="col">
-                      시프트
-                    </th>
-
-                    <th scope="col">
-                      근무조
-                    </th>
-
-                    <th scope="col">
-                      보직
-                    </th>
-
-                    <th scope="col">
-                      작성자
-                    </th>
-
-                    <th scope="col">
-                      상태
-                    </th>
-
-                    <th scope="col">
-                      주요 내용
-                    </th>
-
-                    <th scope="col">
-                      관리
-                    </th>
-
-                  </tr>
-
-                </thead>
-
-                <tbody id="searchResultBody">
-
-                  <tr>
-
-                    <td
-                      colspan="8"
-                      class="table-empty"
-                    >
-                      조회된 업무일지가 없습니다.
-                    </td>
-
-                  </tr>
-
-                </tbody>
-
-              </table>
-
+            <div class="attachment-list" id="attachmentList">
             </div>
-
           </section>
 
-        </section>
-
-
-        <!-- ===================================================
-             4. TM · BM · CM
-        ==================================================== -->
-        <section
-          id="workOrdersView"
-          class="app-view"
-          data-view="work-orders"
-          aria-labelledby="workOrdersTitle"
-          hidden
-        >
-
-          <div class="view-heading">
-
-            <div>
-
-              <p class="view-eyebrow">
-                WORK ORDER MANAGEMENT
-              </p>
-
-              <h2 id="workOrdersTitle">
-                TM · BM · CM 관리
-              </h2>
-
-              <p class="view-description">
-                업무일지에서 등록된 작업의 발행·진행·종결 상태를 관리합니다.
-              </p>
-
-            </div>
-
-          </div>
-
-          <section class="panel-card">
-
-            <div
-              id="workOrderList"
-              class="empty-state"
-            >
-
-              <strong>
-                등록된 작업이 없습니다.
-              </strong>
-
-              <p>
-                업무일지에서 TM·BM·CM 발행 항목을 등록하면 이곳에 표시됩니다.
-              </p>
-
-            </div>
-
-          </section>
-
-        </section>
-
-
-        <!-- ===================================================
-             5. 인수인계
-        ==================================================== -->
-        <section
-          id="handoverView"
-          class="app-view"
-          data-view="handover"
-          aria-labelledby="handoverTitle"
-          hidden
-        >
-
-          <div class="view-heading">
-
-            <div>
-
-              <p class="view-eyebrow">
-                SHIFT HANDOVER
-              </p>
-
-              <h2 id="handoverTitle">
-                인수인계
-              </h2>
-
-              <p class="view-description">
-                이전 근무조의 미완료 작업과 전달사항을 확인합니다.
-              </p>
-
-            </div>
-
-          </div>
-
-          <section class="panel-card">
-
-            <div
-              id="handoverList"
-              class="empty-state"
-            >
-
-              <strong>
-                등록된 인수인계가 없습니다.
-              </strong>
-
-              <p>
-                업무일지의 인계사항 항목이 이곳에 표시됩니다.
-              </p>
-
-            </div>
-
-          </section>
-
-        </section>
-
-
-        <!-- ===================================================
-             6. 결재관리
-        ==================================================== -->
-        <section
-          id="approvalView"
-          class="app-view"
-          data-view="approval"
-          aria-labelledby="approvalTitle"
-          hidden
-        >
-
-          <div class="view-heading">
-
-            <div>
-
-              <p class="view-eyebrow">
-                APPROVAL MANAGEMENT
-              </p>
-
-              <h2 id="approvalTitle">
-                결재관리
-              </h2>
-
-              <p class="view-description">
-                결재 요청된 업무일지를 검토하고 승인합니다.
-              </p>
-
-            </div>
-
-          </div>
-
-          <section class="panel-card">
-
-            <div
-              id="approvalList"
-              class="empty-state"
-            >
-
-              <strong>
-                결재 대기 중인 업무일지가 없습니다.
-              </strong>
-
-            </div>
-
-          </section>
-
-        </section>
-
-
-        <!-- ===================================================
-             7. 통계
-        ==================================================== -->
-        <section
-          id="statisticsView"
-          class="app-view"
-          data-view="statistics"
-          aria-labelledby="statisticsTitle"
-          hidden
-        >
-
-          <div class="view-heading">
-
-            <div>
-
-              <p class="view-eyebrow">
-                OPERATION STATISTICS
-              </p>
-
-              <h2 id="statisticsTitle">
-                통계
-              </h2>
-
-              <p class="view-description">
-                일지 작성률과 작업 유형별 현황을 확인합니다.
-              </p>
-
-            </div>
-
-          </div>
-
-          <section class="panel-card">
-
-            <div class="empty-state">
-
-              <strong>
-                통계 데이터가 아직 없습니다.
-              </strong>
-
-              <p>
-                업무일지가 저장되면 기간별 통계가 생성됩니다.
-              </p>
-
-            </div>
-
-          </section>
-
-        </section>
-
-
-        <!-- ===================================================
-             8. 관리자
-        ==================================================== -->
-        <section
-          id="adminView"
-          class="app-view"
-          data-view="admin"
-          aria-labelledby="adminTitle"
-          hidden
-        >
-
-          <div class="view-heading">
-
-            <div>
-
-              <p class="view-eyebrow">
-                SYSTEM ADMINISTRATION
-              </p>
-
-              <h2 id="adminTitle">
-                관리자
-              </h2>
-
-              <p class="view-description">
-                사용자, 근무조, 카테고리와 시스템 설정을 관리합니다.
-              </p>
-
-            </div>
-
-          </div>
-
-          <div class="admin-card-grid">
-
-            <button
-              class="admin-menu-card"
-              type="button"
-              data-admin-target="users"
-            >
-
-              <strong>
-                사용자 관리
-              </strong>
-
-              <span>
-                사용자와 권한을 관리합니다.
-              </span>
-
-            </button>
-
-            <button
-              class="admin-menu-card"
-              type="button"
-              data-admin-target="shift"
-            >
-
-              <strong>
-                근무조 관리
-              </strong>
-
-              <span>
-                근무조와 보직 정보를 관리합니다.
-              </span>
-
-            </button>
-
-            <button
-              class="admin-menu-card"
-              type="button"
-              data-admin-target="categories"
-            >
-
-              <strong>
-                항목 관리
-              </strong>
-
-              <span>
-                TM·BM·CM 및 일지 항목을 관리합니다.
-              </span>
-
-            </button>
-
-            <button
-              class="admin-menu-card"
-              type="button"
-              data-admin-target="navigator"
-            >
-
-              <strong>
-                Navigator 연동
-              </strong>
-
-              <span>
-                TAG 연결 주소와 연동 설정을 관리합니다.
-              </span>
-
-            </button>
-
-            <button
-              class="admin-menu-card"
-              type="button"
-              data-admin-target="backup"
-            >
-
-              <strong>
-                백업 관리
-              </strong>
-
-              <span>
-                데이터 백업과 복원을 관리합니다.
-              </span>
-
-            </button>
-
-            <button
-              class="admin-menu-card"
-              type="button"
-              data-admin-target="audit"
-            >
-
-              <strong>
-                변경 이력
-              </strong>
-
-              <span>
-                저장·수정·삭제 이력을 확인합니다.
-              </span>
-
-            </button>
-
-          </div>
-
-        </section>
-
-      </main>
-
-
-      <!-- =====================================================
-           푸터
-      ====================================================== -->
-      <footer class="app-footer">
-
-        <span>
-          GS 포천그린에너지 업무일지 시스템
-        </span>
-
-        <span>
-          Facility Navigator 연동 준비
-        </span>
-
+        </form>
+      </div>
+
+
+      <footer class="modal-footer">
+        <div class="modal-footer__left">
+
+          <button
+            type="button"
+            class="secondary-button"
+            id="printLogButton"
+          >
+            인쇄
+          </button>
+
+          <button
+            type="button"
+            class="secondary-button"
+            id="saveDraftButton"
+          >
+            임시저장
+          </button>
+
+        </div>
+
+        <div class="modal-footer__right">
+
+          <button
+            type="button"
+            class="secondary-button"
+            id="cancelLogButton"
+          >
+            닫기
+          </button>
+
+          <button
+            type="submit"
+            class="primary-button"
+            form="logEditorForm"
+            id="saveLogButton"
+          >
+            저장
+          </button>
+
+          <button
+            type="button"
+            class="approval-button"
+            id="requestApprovalButton"
+          >
+            결재요청
+          </button>
+
+        </div>
       </footer>
 
-    </div>
-
+    </section>
   </div>
 
 
   <!-- =========================================================
-       이전 일지 불러오기 모달
+    일지 상세보기 모달
   ========================================================== -->
   <div
-    id="previousLogModal"
-    class="modal"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="previousLogModalTitle"
-    hidden
+    class="modal-backdrop"
+    id="logDetailModal"
+    aria-hidden="true"
   >
+    <section
+      class="modal-panel log-detail-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="logDetailTitle"
+    >
 
-    <div
-      class="modal-backdrop"
-      data-modal-close="previousLogModal"
-    ></div>
-
-    <div class="modal-dialog modal-dialog-large">
-
-      <div class="modal-header">
-
+      <header class="modal-header">
         <div>
-
-          <h2 id="previousLogModalTitle">
-            이전 일지 불러오기
+          <p class="modal-header__eyebrow">SHIFT LOG DETAIL</p>
+          <h2 class="modal-header__title" id="logDetailTitle">
+            업무일지 상세
           </h2>
-
-          <p>
-            가져올 항목을 선택해 현재 일지에 복사합니다.
-          </p>
-
         </div>
 
         <button
-          class="modal-close-button"
           type="button"
-          data-modal-close="previousLogModal"
-          aria-label="닫기"
+          class="modal-close-button"
+          id="closeLogDetailButton"
+          aria-label="업무일지 상세창 닫기"
         >
           ×
         </button>
+      </header>
 
+      <div class="modal-body" id="logDetailContent">
       </div>
 
-      <div class="modal-body">
+      <footer class="modal-footer">
+        <div></div>
 
-        <div class="previous-log-source">
+        <div class="modal-footer__right">
+          <button
+            type="button"
+            class="secondary-button"
+            id="closeLogDetailFooterButton"
+          >
+            닫기
+          </button>
 
-          <label class="form-field">
-
-            <span class="form-label">
-              불러올 일지
-            </span>
-
-            <select id="previousLogSelect">
-
-              <option value="">
-                이전 근무자의 최근 일지
-              </option>
-
-            </select>
-
-          </label>
-
+          <button
+            type="button"
+            class="primary-button"
+            id="editFromDetailButton"
+          >
+            수정
+          </button>
         </div>
+      </footer>
 
-        <fieldset class="check-card-group">
-
-          <legend>
-            가져올 항목
-          </legend>
-
-          <label class="check-card">
-
-            <input
-              type="checkbox"
-              name="previousLogSection"
-              value="operation"
-              checked
-            >
-
-            <span>
-
-              <strong>
-                운전 현황
-              </strong>
-
-              <small>
-                설비 운전상태 및 운전 내용
-              </small>
-
-            </span>
-
-          </label>
-
-          <label class="check-card">
-
-            <input
-              type="checkbox"
-              name="previousLogSection"
-              value="openWork"
-              checked
-            >
-
-            <span>
-
-              <strong>
-                진행 중 작업
-              </strong>
-
-              <small>
-                아직 종결되지 않은 TM·BM·CM
-              </small>
-
-            </span>
-
-          </label>
-
-          <label class="check-card">
-
-            <input
-              type="checkbox"
-              name="previousLogSection"
-              value="handover"
-              checked
-            >
-
-            <span>
-
-              <strong>
-                인계사항
-              </strong>
-
-              <small>
-                다음 근무자에게 전달할 사항
-              </small>
-
-            </span>
-
-          </label>
-
-          <label class="check-card">
-
-            <input
-              type="checkbox"
-              name="previousLogSection"
-              value="closedWork"
-            >
-
-            <span>
-
-              <strong>
-                종결된 작업
-              </strong>
-
-              <small>
-                완료된 TM·BM·CM 내역
-              </small>
-
-            </span>
-
-          </label>
-
-          <label class="check-card">
-
-            <input
-              type="checkbox"
-              name="previousLogSection"
-              value="note"
-            >
-
-            <span>
-
-              <strong>
-                비고
-              </strong>
-
-              <small>
-                기타 메모 및 참고사항
-              </small>
-
-            </span>
-
-          </label>
-
-        </fieldset>
-
-        <div
-          id="previousLogPreview"
-          class="previous-log-preview"
-        >
-
-          <div class="empty-state">
-
-            <strong>
-              불러올 이전 일지를 선택해 주세요.
-            </strong>
-
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="modal-footer">
-
-        <button
-          class="button button-ghost"
-          type="button"
-          data-modal-close="previousLogModal"
-        >
-          취소
-        </button>
-
-        <button
-          id="applyPreviousLogButton"
-          class="button button-primary"
-          type="button"
-        >
-          선택 항목 불러오기
-        </button>
-
-      </div>
-
-    </div>
-
+    </section>
   </div>
 
 
   <!-- =========================================================
-       붙여넣기 미리보기 모달
+    공통 알림
   ========================================================== -->
   <div
-    id="bulkPasteModal"
-    class="modal"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="bulkPasteModalTitle"
-    hidden
-  >
-
-    <div
-      class="modal-backdrop"
-      data-modal-close="bulkPasteModal"
-    ></div>
-
-    <div class="modal-dialog modal-dialog-large">
-
-      <div class="modal-header">
-
-        <div>
-
-          <h2 id="bulkPasteModalTitle">
-            붙여넣기 미리보기
-          </h2>
-
-          <p>
-            자동 분류 결과를 확인하고 수정한 뒤 등록합니다.
-          </p>
-
-        </div>
-
-        <button
-          class="modal-close-button"
-          type="button"
-          data-modal-close="bulkPasteModal"
-          aria-label="닫기"
-        >
-          ×
-        </button>
-
-      </div>
-
-      <div class="modal-body">
-
-        <div
-          id="bulkPastePreviewList"
-          class="bulk-paste-preview-list"
-        ></div>
-
-      </div>
-
-      <div class="modal-footer">
-
-        <button
-          class="button button-ghost"
-          type="button"
-          data-modal-close="bulkPasteModal"
-        >
-          취소
-        </button>
-
-        <button
-          id="applyBulkPasteButton"
-          class="button button-primary"
-          type="button"
-        >
-          확인 항목 등록
-        </button>
-
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <!-- =========================================================
-       공통 확인 모달
-  ========================================================== -->
-  <div
-    id="confirmModal"
-    class="modal"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="confirmModalTitle"
-    hidden
-  >
-
-    <div
-      class="modal-backdrop"
-      data-modal-close="confirmModal"
-    ></div>
-
-    <div class="modal-dialog modal-dialog-small">
-
-      <div class="modal-header">
-
-        <div>
-
-          <h2 id="confirmModalTitle">
-            확인
-          </h2>
-
-        </div>
-
-        <button
-          class="modal-close-button"
-          type="button"
-          data-modal-close="confirmModal"
-          aria-label="닫기"
-        >
-          ×
-        </button>
-
-      </div>
-
-      <div class="modal-body">
-
-        <p id="confirmModalMessage">
-          계속 진행하시겠습니까?
-        </p>
-
-      </div>
-
-      <div class="modal-footer">
-
-        <button
-          id="confirmModalCancelButton"
-          class="button button-ghost"
-          type="button"
-          data-modal-close="confirmModal"
-        >
-          취소
-        </button>
-
-        <button
-          id="confirmModalConfirmButton"
-          class="button button-primary"
-          type="button"
-        >
-          확인
-        </button>
-
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <!-- =========================================================
-       알림 메시지
-  ========================================================== -->
-  <div
-    id="toastContainer"
-    class="toast-container"
+    class="toast"
+    id="appToast"
+    role="status"
     aria-live="polite"
-    aria-atomic="true"
-  ></div>
+  >
+  </div>
 
 
   <!-- =========================================================
-       스크립트
+    작업 항목 복제용 템플릿
   ========================================================== -->
-  <script
-    src="./script.js"
-    defer
-  ></script>
+  <template id="workEntryTemplate">
+
+    <article class="work-entry-card">
+
+      <div class="work-entry-card__header">
+        <strong class="work-entry-number">내역</strong>
+
+        <button
+          type="button"
+          class="remove-entry-button"
+          data-remove-entry
+          aria-label="내역 삭제"
+        >
+          삭제
+        </button>
+      </div>
+
+
+      <div class="work-entry-grid">
+
+        <label class="form-field">
+          <span class="form-field__label">시간</span>
+
+          <input
+            type="time"
+            name="entryTime[]"
+          />
+        </label>
+
+
+        <label class="form-field">
+          <span class="form-field__label">구분</span>
+
+          <select name="entryCategory[]">
+            <option value="TM 작업">TM 작업</option>
+            <option value="TM 발행">TM 발행</option>
+            <option value="TM 종결">TM 종결</option>
+            <option value="BM 작업">BM 작업</option>
+            <option value="BM 발행">BM 발행</option>
+            <option value="BM 종결">BM 종결</option>
+            <option value="CM 작업">CM 작업</option>
+            <option value="CM 발행">CM 발행</option>
+            <option value="CM 종결">CM 종결</option>
+            <option value="인계사항">인계사항</option>
+            <option value="비고">비고</option>
+          </select>
+        </label>
+
+
+        <div class="form-field form-field--tag">
+          <span class="form-field__label">TAG</span>
+
+          <div class="tag-input-group">
+            <input
+              type="text"
+              name="entryTag[]"
+              placeholder="예: 10HFB10AF001"
+              autocomplete="off"
+            />
+
+            <button
+              type="button"
+              class="navigator-button"
+              data-open-navigator
+              title="Facility Navigator에서 TAG 열기"
+            >
+              설비보기
+            </button>
+          </div>
+        </div>
+
+
+        <label class="form-field form-field--content">
+          <span class="form-field__label">내용</span>
+
+          <textarea
+            name="entryContent[]"
+            rows="3"
+            placeholder="작업 또는 인계 내용을 입력하세요."
+          ></textarea>
+        </label>
+
+      </div>
+    </article>
+
+  </template>
 
 </body>
 </html>
