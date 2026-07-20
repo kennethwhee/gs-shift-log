@@ -37,18 +37,11 @@ const appState = {
 document.addEventListener("DOMContentLoaded", () => {
   cacheElements();
 
-  /*
-    근무자 카드는 다른 기능에서 오류가 발생하더라도
-    클릭할 수 있도록 가장 먼저 연결한다.
-  */
   bindShiftMemberCards();
-
-  loadOperationStatus();
   loadLogs();
   bindEvents();
 
   renderSelectedDate();
-  renderOperationStatusCard();
   renderLogTable();
   updateShiftMemberCardStates();
 
