@@ -1141,6 +1141,300 @@ a {
 }
 
 /* =========================================================
+   현재 운전현황 v2
+========================================================= */
+
+.operation-status-section {
+  overflow: visible;
+}
+
+
+/* =========================================================
+   상단 제목과 수정 버튼
+========================================================= */
+
+.operation-status-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.operation-status-heading > div {
+  min-width: 0;
+}
+
+.operation-status-edit-button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid #b8cbe0;
+  border-radius: 9px;
+  background: #eef5fc;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.operation-status-edit-button:hover {
+  border-color: #8eafd2;
+  background: #e2eef9;
+}
+
+.operation-status-edit-button.is-active {
+  border-color: #d3a249;
+  background: #fff4dc;
+  color: #92610e;
+}
+
+
+/* =========================================================
+   현재 적용 중인 운전현황 카드
+========================================================= */
+
+.operation-status-current-card {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  border: 1px solid #c9d9e9;
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      135deg,
+      #f7fbff 0%,
+      #ffffff 65%
+    );
+}
+
+.operation-status-current-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 4px;
+  background: var(--primary);
+}
+
+.operation-status-current-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 13px;
+}
+
+.operation-status-current-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.operation-status-current-title strong {
+  color: #263750;
+  font-size: 13px;
+}
+
+.operation-status-live-dot {
+  position: relative;
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow:
+    0 0 0 4px rgba(23, 134, 95, 0.12);
+}
+
+.operation-status-live-dot::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 1px solid rgba(23, 134, 95, 0.35);
+  border-radius: 50%;
+}
+
+
+/* =========================================================
+   상태 배지
+========================================================= */
+
+.operation-status-state-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 27px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.operation-status-state-badge.is-normal {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.operation-status-state-badge.is-planned {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.operation-status-state-badge.is-emergency,
+.operation-status-state-badge.is-stopped {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.operation-status-state-badge.is-other {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+
+/* =========================================================
+   현재 운전현황 본문
+========================================================= */
+
+.operation-status-current-content {
+  min-height: 74px;
+  padding: 13px 14px;
+  border: 1px solid #dae5ef;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #2f4057;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+
+/* =========================================================
+   마지막 수정 정보
+========================================================= */
+
+.operation-status-current-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 11px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.operation-status-current-meta strong {
+  color: #5b6879;
+  font-size: 11px;
+}
+
+.operation-status-meta-divider {
+  color: #abb4bf;
+}
+
+
+/* =========================================================
+   운전현황 수정 영역
+========================================================= */
+
+.operation-status-editor {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid #d5dee8;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.operation-status-editor[hidden] {
+  display: none !important;
+}
+
+.operation-status-editor-grid {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.operation-status-editor-content textarea {
+  min-height: 132px;
+  max-height: 260px;
+  resize: vertical;
+}
+
+.operation-status-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+
+/* =========================================================
+   수정 중 상태
+========================================================= */
+
+.operation-status-section.is-editing
+.operation-status-current-card {
+  border-color: #e0b765;
+  background: #fffdf8;
+}
+
+.operation-status-section.is-editing
+.operation-status-current-card::before {
+  background: #d59a2c;
+}
+
+
+/* =========================================================
+   반응형
+========================================================= */
+
+@media (max-width: 760px) {
+  .operation-status-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .operation-status-edit-button {
+    align-self: flex-end;
+  }
+
+  .operation-status-current-card {
+    padding: 15px;
+  }
+
+  .operation-status-current-header {
+    align-items: flex-start;
+  }
+
+  .operation-status-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .operation-status-editor-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .operation-status-editor-actions button {
+    width: 100%;
+  }
+}
+
+/* =========================================================
    작업 · 정비 · 인계 내역 v2
 ========================================================= */
 
