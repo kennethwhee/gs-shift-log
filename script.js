@@ -36,17 +36,22 @@ const appState = {
 ========================================================= */
 document.addEventListener("DOMContentLoaded", () => {
   cacheElements();
+  loadOperationStatus();
   bindEvents();
+  bindShiftMemberCards();
   loadLogs();
+
   renderSelectedDate();
+  renderOperationStatusCard();
   renderLogTable();
+  updateShiftMemberCardStates();
+
   setEditorDateFromSelectedDate();
 
   resetLogEntryInput();
   updateTagFieldVisibility();
   renderLogEntryTable();
 });
-
 
 let elements = {};
 
@@ -547,18 +552,212 @@ function formatInputDate(date) {
 /* =========================================================
   업무일지 모달
 ========================================================= */
-function openLogEditor(log = null) {
+function openLogEditor(log = null, preset = null) {
   resetLogEditor();
 
   if (log) {
     fillLogEditor(log);
-    elements.logEditorTitle.textContent = "업무일지 수정";
+
+    elements.logEditorTitle.textContent =
+      `${log.role || ""} 업무일지 수정`;
+
+    openModal(elements.logEditorModal);
+    return;
+  }
+
+  if (preset) {
+    if (preset.role) {
+      elements.logRole.value = preset.role;
+    }
+
+    if (preset.author) {
+      elements.logAuthor.value = preset.author;
+    }
+
+    if (preset.team) {
+      elements.logTeam.value = preset.team;
+    }
+
+    elements.logEditorTitle.textContent =
+      `${preset.role || ""} 업무일지 작성`;
   } else {
-    elements.logEditorTitle.textContent = "업무일지 작성";
+    elements.logEditorTitle.textContent =
+      "업무일지 작성";
+
     restoreDraftIfAvailable();
   }
 
   openModal(elements.logEditorModal);
+}
+
+/* =========================================================
+  근무자 카드 → 업무일지 작성·수정
+========================================================= */
+
+function bindShiftMemberCards() {
+  const shiftMemberCards = [
+    ...document.querySelectorAll(".shift-member-card")
+  ];
+
+  shiftMemberCards.forEach((card) => {
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", "0");
+
+    const role =
+      card.dataset.role || "해당 보직";
+
+    card.setAttribute(
+      "aria-label",
+      `${role} 업무일지 작성 또는 수정`
+    );
+
+    card.addEventListener("click", () => {
+      openShiftMemberLogFromCard(card);
+    });
+
+    card.addEventListener("keydown", (event) => {
+      if (
+        event.key !== "Enter" &&
+        event.key !== " "
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      openShiftMemberLogFromCard(card);
+    });
+  });
+}
+
+
+function openShiftMemberLogFromCard(card) {
+  const role =
+    String(card.dataset.role || "").trim();
+
+  const author =
+    String(
+      card.querySelector(
+        ".shift-member-card__name"
+      )?.textContent || ""
+    ).trim();
+
+  const team =
+    String(
+      card.querySelector(
+        ".shift-member-card__team"
+      )?.textContent || ""
+    ).trim();
+
+  if (!role) {
+    showToast(
+      "선택한 근무자의 보직을 확인할 수 없습니다."
+    );
+
+    return;
+  }
+
+  const selectedDate =
+    formatInputDate(appState.selectedDate);
+
+  const existingLog =
+    appState.logs.find((log) => {
+      return (
+        log.date === selectedDate &&
+        log.shift === appState.selectedShift &&
+        log.role === role
+      );
+    });
+
+  if (existingLog) {
+    openLogEditor(existingLog);
+    return;
+  }
+
+  openLogEditor(null, {
+    role,
+    author,
+    team
+  });
+}
+
+
+function updateShiftMemberCardStates() {
+  const selectedDate =
+    formatInputDate(appState.selectedDate);
+
+  const shiftMemberCards = [
+    ...document.querySelectorAll(".shift-member-card")
+  ];
+
+  shiftMemberCards.forEach((card) => {
+    const role =
+      String(card.dataset.role || "").trim();
+
+    const statusElement =
+      card.querySelector(
+        ".shift-member-card__status"
+      );
+
+    const existingLog =
+      appState.logs.find((log) => {
+        return (
+          log.date === selectedDate &&
+          log.shift === appState.selectedShift &&
+          log.role === role
+        );
+      });
+
+    if (!existingLog) {
+      card.dataset.logState = "empty";
+
+      if (statusElement) {
+        statusElement.textContent = "미작성";
+
+        statusElement.className =
+          "shift-member-card__status is-empty";
+      }
+
+      return;
+    }
+
+    card.dataset.logState = "existing";
+
+    if (!statusElement) {
+      return;
+    }
+
+    if (
+      existingLog.status === "결재완료" ||
+      existingLog.status === "결재요청"
+    ) {
+      statusElement.textContent =
+        existingLog.status === "결재완료"
+          ? "작성완료"
+          : "결재요청";
+
+      statusElement.className =
+        "shift-member-card__status is-complete";
+
+      return;
+    }
+
+    if (
+      existingLog.status === "임시저장" ||
+      existingLog.status === "작성중"
+    ) {
+      statusElement.textContent = "작성중";
+
+      statusElement.className =
+        "shift-member-card__status is-writing";
+
+      return;
+    }
+
+    statusElement.textContent = "작성완료";
+
+    statusElement.className =
+      "shift-member-card__status is-complete";
+  });
 }
 
 
@@ -1322,20 +1521,24 @@ function loadLogs() {
   업무일지 목록
 ========================================================= */
 function renderLogTable() {
-  const selectedDateText = formatInputDate(appState.selectedDate);
+  const selectedDateText =
+    formatInputDate(appState.selectedDate);
 
-  const filteredLogs = appState.logs.filter((log) => {
-    return (
-      log.date === selectedDateText &&
-      log.shift === appState.selectedShift
-    );
-  });
+  const filteredLogs =
+    appState.logs.filter((log) => {
+      return (
+        log.date === selectedDateText &&
+        log.shift === appState.selectedShift
+      );
+    });
 
   elements.logTableBody.innerHTML = "";
 
-  elements.logEmptyState.hidden = filteredLogs.length > 0;
+  elements.logEmptyState.hidden =
+    filteredLogs.length > 0;
 
   if (!filteredLogs.length) {
+    updateShiftMemberCardStates();
     return;
   }
 
@@ -1345,6 +1548,8 @@ function renderLogTable() {
       createLogRowHtml(log)
     );
   });
+
+  updateShiftMemberCardStates();
 }
 
 
@@ -1565,63 +1770,16 @@ function getStatusClass(status) {
   상세보기
 ========================================================= */
 function openLogDetail(log) {
-  if (!log) {
-    showToast("업무일지를 찾을 수 없습니다.");
-    return;
-  }
-
   appState.currentDetailLogId = log.id;
 
-  const entries = Array.isArray(log.entries)
+  const entriesHtml = log.entries?.length
     ? log.entries
-    : [];
-
-  const attachments = Array.isArray(log.attachments)
-    ? log.attachments
-    : [];
-
-  const entriesHtml = entries.length
-    ? entries
-        .map((entry, index) => {
-          const category =
-            entry.category || "기타";
-
-          const mainCategory =
-            getMainCategory(category);
-
-          const categoryClass =
-            mainCategory === "인계사항"
-              ? "is-handover"
-              : mainCategory === "TM"
-                ? "is-tm"
-                : mainCategory === "BM"
-                  ? "is-bm"
-                  : mainCategory === "CM"
-                    ? "is-cm"
-                    : "is-general";
-
+        .map((entry) => {
           return `
-            <article class="detail-entry-card">
-              <div class="detail-entry-card__header">
-                <div class="detail-entry-card__meta">
-                  <span class="detail-entry-card__number">
-                    ${index + 1}
-                  </span>
-
-                  <span
-                    class="
-                      detail-entry-card__category
-                      ${categoryClass}
-                    "
-                  >
-                    ${escapeHtml(category)}
-                  </span>
-
-                  <span class="detail-entry-card__time">
-                    ${escapeHtml(entry.time || "-")}
-                  </span>
-                </div>
-
+            <article class="detail-entry">
+              <div class="detail-entry__meta">
+                <strong>${escapeHtml(entry.category)}</strong>
+                <span>${escapeHtml(entry.time || "-")}</span>
                 ${
                   entry.tag
                     ? `
@@ -1629,7 +1787,6 @@ function openLogDetail(log) {
                         type="button"
                         class="detail-tag-button"
                         data-detail-tag="${escapeHtml(entry.tag)}"
-                        title="Facility Navigator에서 설비 보기"
                       >
                         ${escapeHtml(entry.tag)}
                       </button>
@@ -1638,215 +1795,92 @@ function openLogDetail(log) {
                 }
               </div>
 
-              <div class="detail-entry-card__content">
-                ${escapeHtml(
-                  entry.content ||
-                    "등록된 내용이 없습니다."
-                )}
-              </div>
+              <p>${escapeHtml(entry.content || "-")}</p>
             </article>
           `;
         })
         .join("")
-    : `
-      <div class="detail-empty-card">
-        등록된 작업 내역이 없습니다.
-      </div>
-    `;
-
-  const attachmentsHtml = attachments.length
-    ? attachments
-        .map((fileName, index) => {
-          return `
-            <span class="detail-attachment-chip">
-              <span
-                class="detail-attachment-chip__icon"
-                aria-hidden="true"
-              >
-                📎
-              </span>
-
-              <span class="detail-attachment-chip__name">
-                ${escapeHtml(fileName)}
-              </span>
-
-              <span class="detail-attachment-chip__number">
-                ${index + 1}
-              </span>
-            </span>
-          `;
-        })
-        .join("")
-    : `
-      <div class="detail-empty-card">
-        첨부파일이 없습니다.
-      </div>
-    `;
+    : `<p class="detail-empty">등록된 작업 내역이 없습니다.</p>`;
 
   elements.logDetailContent.innerHTML = `
-    <div class="log-detail-layout">
+    <section class="detail-summary-grid">
+      <div>
+        <span>작성일</span>
+        <strong>${escapeHtml(log.date)}</strong>
+      </div>
 
-      <section class="log-detail-summary-card">
-        <div class="log-detail-summary-card__heading">
-          <div>
-            <span class="log-detail-section-label">
-              SUMMARY
-            </span>
+      <div>
+        <span>근무</span>
+        <strong>${escapeHtml(log.shift)}</strong>
+      </div>
 
-            <h3>업무일지 요약</h3>
-          </div>
+      <div>
+        <span>근무조</span>
+        <strong>${escapeHtml(log.team)}</strong>
+      </div>
 
-          <span
-            class="
-              status-badge
-              ${getStatusClass(log.status)}
-            "
-          >
-            ${escapeHtml(log.status || "-")}
-          </span>
-        </div>
+      <div>
+        <span>보직</span>
+        <strong>${escapeHtml(log.role)}</strong>
+      </div>
 
-        <div class="detail-summary-grid">
-          <div class="detail-summary-item">
-            <span>작성일</span>
-            <strong>
-              ${escapeHtml(log.date || "-")}
-            </strong>
-          </div>
+      <div>
+        <span>작성자</span>
+        <strong>${escapeHtml(log.author)}</strong>
+      </div>
 
-          <div class="detail-summary-item">
-            <span>근무</span>
-            <strong>
-              ${escapeHtml(log.shift || "-")}
-            </strong>
-          </div>
+      <div>
+        <span>상태</span>
+        <strong>${escapeHtml(log.status)}</strong>
+      </div>
+    </section>
 
-          <div class="detail-summary-item">
-            <span>근무조</span>
-            <strong>
-              ${escapeHtml(log.team || "-")}
-            </strong>
-          </div>
+    <section class="detail-section">
+      <h3>운전 현황</h3>
+      <p class="detail-multiline">
+        ${escapeHtml(log.operationStatus || "등록된 내용이 없습니다.")}
+      </p>
+    </section>
 
-          <div class="detail-summary-item">
-            <span>보직</span>
-            <strong>
-              ${escapeHtml(log.role || "-")}
-            </strong>
-          </div>
+    <section class="detail-section">
+      <h3>작업 · 정비 · 인계 내역</h3>
+      <div class="detail-entry-list">
+        ${entriesHtml}
+      </div>
+    </section>
 
-          <div class="detail-summary-item">
-            <span>작성자</span>
-            <strong>
-              ${escapeHtml(log.author || "-")}
-            </strong>
-          </div>
+    <section class="detail-section">
+      <h3>비고</h3>
+      <p class="detail-multiline">
+        ${escapeHtml(log.note || "등록된 내용이 없습니다.")}
+      </p>
+    </section>
 
-          <div class="detail-summary-item">
-            <span>첨부</span>
-            <strong>
-              ${
-                attachments.length
-                  ? `📎 ${attachments.length}개`
-                  : "-"
-              }
-            </strong>
-          </div>
-        </div>
-      </section>
-
-
-      <section class="log-detail-card">
-        <div class="log-detail-card__heading">
-          <div>
-            <span class="log-detail-section-label">
-              OPERATION
-            </span>
-
-            <h3>운전 현황</h3>
-          </div>
-        </div>
-
-        <div class="log-detail-card__content detail-multiline">
-          ${escapeHtml(
-            log.operationStatus ||
-              "등록된 운전 현황이 없습니다."
-          )}
-        </div>
-      </section>
-
-
-      <section class="log-detail-card">
-        <div class="log-detail-card__heading">
-          <div>
-            <span class="log-detail-section-label">
-              WORK HISTORY
-            </span>
-
-            <h3>작업 · 정비 · 인계 내역</h3>
-          </div>
-
-          <span class="log-detail-count">
-            총 ${entries.length}건
-          </span>
-        </div>
-
-        <div class="detail-entry-list">
-          ${entriesHtml}
-        </div>
-      </section>
-
-
-      <section class="log-detail-card">
-        <div class="log-detail-card__heading">
-          <div>
-            <span class="log-detail-section-label">
-              NOTE
-            </span>
-
-            <h3>비고</h3>
-          </div>
-        </div>
-
-        <div class="log-detail-card__content detail-multiline">
-          ${escapeHtml(
-            log.note ||
-              "등록된 비고가 없습니다."
-          )}
-        </div>
-      </section>
-
-
-      <section class="log-detail-card">
-        <div class="log-detail-card__heading">
-          <div>
-            <span class="log-detail-section-label">
-              ATTACHMENTS
-            </span>
-
-            <h3>첨부파일</h3>
-          </div>
-
-          <span class="log-detail-count">
-            총 ${attachments.length}개
-          </span>
-        </div>
-
-        <div class="detail-attachment-list">
-          ${attachmentsHtml}
-        </div>
-      </section>
-
-    </div>
+    <section class="detail-section">
+      <h3>첨부파일</h3>
+      <div class="attachment-list">
+        ${
+          log.attachments.length
+            ? log.attachments
+                .map((fileName) => {
+                  return `
+                    <span class="attachment-chip">
+                      ${escapeHtml(fileName)}
+                    </span>
+                  `;
+                })
+                .join("")
+            : `<span class="detail-empty">첨부파일 없음</span>`
+        }
+      </div>
+    </section>
   `;
 
   elements.logDetailContent
     .querySelectorAll("[data-detail-tag]")
     .forEach((button) => {
       button.addEventListener("click", () => {
-        openFacilityNavigator(
-          button.dataset.detailTag
-        );
+        openFacilityNavigator(button.dataset.detailTag);
       });
     });
 

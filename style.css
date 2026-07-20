@@ -2299,3 +2299,69 @@ body.modal-open {
   font-size:12px;
   font-weight:800;
 }
+
+/* =========================================================
+   근무자 카드 업무일지 작성 기능
+========================================================= */
+
+#openLogEditorButton {
+  display: none;
+}
+
+.shift-member-card {
+  position: relative;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease,
+    background 0.16s ease;
+}
+
+.shift-member-card:hover {
+  border-color: #8db2da;
+  background: #f8fbff;
+  box-shadow: 0 7px 18px rgba(31, 93, 163, 0.1);
+  transform: translateY(-2px);
+}
+
+.shift-member-card:focus-visible {
+  outline: 3px solid rgba(31, 111, 198, 0.2);
+  outline-offset: 3px;
+}
+
+.shift-member-card::after {
+  content: "업무일지";
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  opacity: 0;
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 900;
+  transition: opacity 0.16s ease;
+}
+
+.shift-member-card:hover::after,
+.shift-member-card:focus-visible::after {
+  opacity: 1;
+}
+
+.shift-member-card[data-log-state="existing"] {
+  border-color: #b9d8ca;
+}
+
+.shift-member-card[data-log-state="existing"]:hover {
+  border-color: #68ad8d;
+  background: #f5fcf8;
+}
+
+@media (max-width: 760px) {
+  .shift-member-card::after {
+    display: none;
+  }
+
+  .shift-member-card:hover {
+    transform: none;
+  }
+}
