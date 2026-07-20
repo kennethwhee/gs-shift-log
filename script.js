@@ -36,10 +36,16 @@ const appState = {
 ========================================================= */
 document.addEventListener("DOMContentLoaded", () => {
   cacheElements();
-  loadOperationStatus();
-  bindEvents();
+
+  /*
+    근무자 카드는 다른 기능에서 오류가 발생하더라도
+    클릭할 수 있도록 가장 먼저 연결한다.
+  */
   bindShiftMemberCards();
+
+  loadOperationStatus();
   loadLogs();
+  bindEvents();
 
   renderSelectedDate();
   renderOperationStatusCard();
@@ -566,16 +572,31 @@ function openLogEditor(log = null, preset = null) {
   }
 
   if (preset) {
-    if (preset.role) {
-      elements.logRole.value = preset.role;
+    if (
+      preset.role &&
+      [...elements.logRole.options].some(
+        (option) =>
+          option.value === preset.role
+      )
+    ) {
+      elements.logRole.value =
+        preset.role;
     }
 
     if (preset.author) {
-      elements.logAuthor.value = preset.author;
+      elements.logAuthor.value =
+        preset.author;
     }
 
-    if (preset.team) {
-      elements.logTeam.value = preset.team;
+    if (
+      preset.team &&
+      [...elements.logTeam.options].some(
+        (option) =>
+          option.value === preset.team
+      )
+    ) {
+      elements.logTeam.value =
+        preset.team;
     }
 
     elements.logEditorTitle.textContent =
@@ -595,8 +616,21 @@ function openLogEditor(log = null, preset = null) {
 ========================================================= */
 
 function bindShiftMemberCards() {
+  const shiftMemberGrid =
+    document.getElementById("shiftMemberGrid");
+
+  if (!shiftMemberGrid) {
+    console.error(
+      "shiftMemberGrid 요소를 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
   const shiftMemberCards = [
-    ...document.querySelectorAll(".shift-member-card")
+    ...shiftMemberGrid.querySelectorAll(
+      ".shift-member-card"
+    )
   ];
 
   shiftMemberCards.forEach((card) => {
@@ -604,18 +638,35 @@ function bindShiftMemberCards() {
     card.setAttribute("tabindex", "0");
 
     const role =
-      card.dataset.role || "해당 보직";
+      card.dataset.role || "근무자";
 
     card.setAttribute(
       "aria-label",
       `${role} 업무일지 작성 또는 수정`
     );
+  });
 
-    card.addEventListener("click", () => {
+  shiftMemberGrid.addEventListener(
+    "click",
+    (event) => {
+      const card = event.target.closest(
+        ".shift-member-card"
+      );
+
+      if (
+        !card ||
+        !shiftMemberGrid.contains(card)
+      ) {
+        return;
+      }
+
       openShiftMemberLogFromCard(card);
-    });
+    }
+  );
 
-    card.addEventListener("keydown", (event) => {
+  shiftMemberGrid.addEventListener(
+    "keydown",
+    (event) => {
       if (
         event.key !== "Enter" &&
         event.key !== " "
@@ -623,30 +674,49 @@ function bindShiftMemberCards() {
         return;
       }
 
+      const card = event.target.closest(
+        ".shift-member-card"
+      );
+
+      if (
+        !card ||
+        !shiftMemberGrid.contains(card)
+      ) {
+        return;
+      }
+
       event.preventDefault();
+
       openShiftMemberLogFromCard(card);
-    });
-  });
+    }
+  );
 }
 
 
 function openShiftMemberLogFromCard(card) {
-  const role =
-    String(card.dataset.role || "").trim();
+  if (!card) {
+    showToast(
+      "선택한 근무자 정보를 확인할 수 없습니다."
+    );
 
-  const author =
-    String(
-      card.querySelector(
-        ".shift-member-card__name"
-      )?.textContent || ""
-    ).trim();
+    return;
+  }
 
-  const team =
-    String(
-      card.querySelector(
-        ".shift-member-card__team"
-      )?.textContent || ""
-    ).trim();
+  const role = String(
+    card.dataset.role || ""
+  ).trim();
+
+  const author = String(
+    card.querySelector(
+      ".shift-member-card__name"
+    )?.textContent || ""
+  ).trim();
+
+  const team = String(
+    card.querySelector(
+      ".shift-member-card__team"
+    )?.textContent || ""
+  ).trim();
 
   if (!role) {
     showToast(
