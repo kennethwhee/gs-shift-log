@@ -1141,8 +1141,7 @@ a {
 }
 
 /* =========================================================
-   작업 · 정비 · 인계 내역
-   단일 입력창 + 누적 테이블
+   작업 · 정비 · 인계 내역 v2
 ========================================================= */
 
 .log-entry-section {
@@ -1150,79 +1149,90 @@ a {
 }
 
 
-/* 입력 패널 */
+/* =========================================================
+   입력 패널
+========================================================= */
 
 .log-entry-input-panel {
   padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #f8fafc;
+  border: 1px solid #d7e0e9;
+  border-radius: 13px;
+  background: #f7f9fc;
 }
 
-.log-entry-input-grid {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
+.log-entry-input-top-row {
+  display: grid;
+  grid-template-columns:
+    210px
+    170px
+    minmax(280px, 1fr)
+    auto;
+  align-items: end;
+  gap: 12px;
   width: 100%;
 }
 
-.log-entry-field--time {
-  flex: 0 0 112px;
-}
-
-.log-entry-field--category {
-  flex: 0 0 150px;
-}
-
+.log-entry-field--time,
+.log-entry-field--category,
 .log-entry-field--tag {
-  flex: 0 0 330px;
+  min-width: 0;
 }
 
-.log-entry-content-field {
-  flex: 1 1 520px;
-  min-width: 340px;
-  margin-top: 0;
-}
 
-.log-entry-content-field textarea {
-  height: 41px;
-  min-height: 41px;
-  max-height: 96px;
-  padding: 9px 11px;
-  resize: vertical;
-  overflow-y: auto;
-}
+/* =========================================================
+   시간 입력
+========================================================= */
 
-.log-entry-input-actions {
-  flex: 0 0 auto;
-  display: flex;
+.log-entry-time-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 7px;
-  margin-top: 0;
+  gap: 8px;
 }
 
-.log-entry-input-actions .add-entry-button {
-  min-width: 92px;
-  height: 41px;
+.log-entry-time-group input {
+  width: 100%;
+  min-width: 0;
 }
 
-#cancelLogEntryEditButton {
-  min-width: 64px;
-  height: 41px;
+.current-time-check {
+  min-height: 41px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #c8d4e1;
+  border-radius: 9px;
+  background: #fff;
+  color: #536276;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
 }
 
-@media (max-width: 1180px) {
-  .log-entry-input-grid {
-    flex-wrap: wrap;
-  }
+.current-time-check:hover {
+  border-color: #9eb8d3;
+  background: #f2f7fc;
+}
 
-  .log-entry-content-field {
-    flex: 1 1 500px;
-  }
+.current-time-check input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--primary);
 }
 
 
-/* TAG 입력 */
+/* =========================================================
+   TAG 입력
+========================================================= */
+
+.log-entry-field--tag[hidden] {
+  display: none !important;
+}
 
 .tag-input-group {
   display: grid;
@@ -1230,9 +1240,14 @@ a {
   gap: 7px;
 }
 
+.tag-input-group input {
+  width: 100%;
+  min-width: 0;
+}
+
 .navigator-button {
   min-height: 41px;
-  padding: 0 12px;
+  padding: 0 13px;
   border: 1px solid #b8cbe0;
   border-radius: 9px;
   background: #eef5fc;
@@ -1251,7 +1266,73 @@ a {
 }
 
 
-/* 누적 목록 헤더 */
+/* =========================================================
+   내용 입력
+========================================================= */
+
+.log-entry-content-field {
+  display: block;
+  margin-top: 14px;
+}
+
+.log-entry-content-field textarea {
+  width: 100%;
+  min-height: 88px;
+  max-height: 180px;
+  padding: 11px 12px;
+  line-height: 1.6;
+  resize: vertical;
+  overflow-y: auto;
+}
+
+
+/* =========================================================
+   입력 버튼
+========================================================= */
+
+.log-entry-input-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.log-entry-input-actions button {
+  min-height: 41px;
+}
+
+.log-entry-input-actions .add-entry-button {
+  min-width: 92px;
+  padding: 0 17px;
+}
+
+#cancelLogEntryEditButton {
+  min-width: 64px;
+  padding: 0 13px;
+}
+
+.add-entry-button {
+  border: 1px solid #9eb9d7;
+  border-radius: 9px;
+  background: #eaf3fc;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 900;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.add-entry-button:hover {
+  border-color: #7fa4ca;
+  background: #dcebf9;
+}
+
+
+/* =========================================================
+   누적 목록
+========================================================= */
 
 .log-entry-table-panel {
   margin-top: 20px;
@@ -1289,7 +1370,9 @@ a {
 }
 
 
-/* 누적 목록 테이블 */
+/* =========================================================
+   누적 테이블
+========================================================= */
 
 .log-entry-table-wrap {
   overflow-x: auto;
@@ -1301,9 +1384,25 @@ a {
 
 .log-entry-table {
   width: 100%;
-  min-width: 850px;
+  min-width: 720px;
   border-collapse: collapse;
   table-layout: fixed;
+}
+
+.log-entry-table__time {
+  width: 92px;
+}
+
+.log-entry-table__category {
+  width: 130px;
+}
+
+.log-entry-table__content {
+  width: auto;
+}
+
+.log-entry-table__actions {
+  width: 118px;
 }
 
 .log-entry-table th,
@@ -1315,26 +1414,26 @@ a {
 .log-entry-table th {
   height: 43px;
   padding: 0 12px;
-  background: #f0f4f8;
-  color: #4d5d72;
-  font-size: 12px;
+  background: #f3f6f9;
+  color: #627083;
+  font-size: 11px;
   font-weight: 900;
   text-align: center;
 }
 
 .log-entry-table td {
-  padding: 11px 12px;
+  min-height: 54px;
+  padding: 10px 12px;
   color: #35445a;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 12px;
 }
 
 .log-entry-table tbody tr:last-child td {
   border-bottom: 0;
 }
 
-.log-entry-table tbody tr:not(.log-entry-empty-row):hover {
-  background: #fbfcfe;
+.log-entry-table tbody tr:hover {
+  background: #f9fbfd;
 }
 
 .log-entry-table td:nth-child(1),
@@ -1343,41 +1442,33 @@ a {
   text-align: center;
 }
 
-.log-entry-table td:nth-child(3) {
-  text-align: left;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.log-entry-table td:nth-child(4) {
-  text-align: left;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
 .log-entry-empty-row td {
-  height: 110px;
-  padding: 24px;
-  color: var(--text-faint);
+  height: 74px;
+  color: #8a96a5;
   text-align: center !important;
 }
 
 
+/* =========================================================
+   내용 표시
+========================================================= */
+
 .log-entry-content {
   display: flex;
   align-items: flex-start;
-  gap: 7px;
+  gap: 8px;
   min-width: 0;
+  text-align: left;
 }
 
 .log-entry-content__tag {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  padding: 1px 6px;
-  border: 0;
-  border-radius: 5px;
-  background: var(--primary-soft);
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: 7px;
+  background: #eaf3fc;
   color: var(--primary);
   font-family:
     Consolas,
@@ -1385,7 +1476,7 @@ a {
     monospace;
   font-size: 11px;
   font-weight: 800;
-  line-height: 1.6;
+  line-height: 1.4;
   white-space: nowrap;
 }
 
@@ -1403,7 +1494,10 @@ a {
   word-break: break-word;
 }
 
-/* 수정 · 삭제 버튼 */
+
+/* =========================================================
+   수정 · 삭제 버튼
+========================================================= */
 
 .log-entry-row-actions {
   display: flex;
@@ -1446,7 +1540,9 @@ a {
 }
 
 
-/* 수정 중 표시 */
+/* =========================================================
+   수정 중 표시
+========================================================= */
 
 .log-entry-table tr.is-editing {
   background: #fff8e8;
@@ -1468,11 +1564,20 @@ a {
 }
 
 
-/* 반응형 */
+/* =========================================================
+   반응형
+========================================================= */
 
 @media (max-width: 1100px) {
-  .log-entry-input-grid {
-    grid-template-columns: 120px 170px minmax(260px, 1fr);
+  .log-entry-input-top-row {
+    grid-template-columns:
+      minmax(190px, 1fr)
+      minmax(150px, 0.8fr)
+      minmax(260px, 1.4fr);
+  }
+
+  .log-entry-input-actions {
+    grid-column: 1 / -1;
   }
 }
 
@@ -1481,17 +1586,25 @@ a {
     padding: 14px;
   }
 
-  .log-entry-input-grid {
+  .log-entry-input-top-row {
     grid-template-columns: 1fr;
   }
 
   .log-entry-input-actions {
-    flex-wrap: wrap;
+    grid-column: auto;
   }
 
   .log-entry-input-actions .secondary-button,
   .log-entry-input-actions .add-entry-button {
-    flex: 1 1 auto;
+    flex: 1 1 0;
+  }
+
+  .log-entry-time-group {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .log-entry-content-field textarea {
+    min-height: 104px;
   }
 }
 
