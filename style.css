@@ -305,70 +305,122 @@ a {
   font-size: 14px;
 }
 
+/* =========================================================
+   근무자 현황
+========================================================= */
+
 .shift-member-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(150px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
 }
 
 .shift-member-card {
-  overflow: hidden;
+  position: relative;
   min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: #fff;
+  padding: 14px 12px 12px;
+  border: 1px solid #d9dee7;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
 }
 
 .shift-member-card__role {
-  padding: 9px 12px;
-  background: #edf3f9;
-  color: #34506f;
-  border-bottom: 1px solid var(--line);
-  font-size: 12px;
-  font-weight: 900;
-  text-align: center;
+  margin-bottom: 10px;
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
 .shift-member-card__body {
-  min-height: 78px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 12px;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: 12px;
 }
 
 .shift-member-card__name {
-  font-size: 16px;
+  min-width: 0;
+  overflow: hidden;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .shift-member-card__team {
-  color: var(--text-faint);
-  font-size: 12px;
+  flex: 0 0 auto;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .shift-member-card__status {
-  padding: 8px 10px;
-  border-top: 1px solid var(--line);
-  font-size: 12px;
-  font-weight: 900;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .shift-member-card__status.is-complete {
-  background: var(--success-soft);
-  color: var(--success);
+  color: #166534;
+  background: #dcfce7;
 }
 
 .shift-member-card__status.is-writing {
-  background: var(--warning-soft);
-  color: var(--warning);
+  color: #1d4ed8;
+  background: #dbeafe;
 }
 
 .shift-member-card__status.is-empty {
-  background: #f5f7f9;
-  color: #8994a3;
+  color: #6b7280;
+  background: #f3f4f6;
+}
+
+@media (max-width: 1200px) {
+  .shift-member-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .shift-member-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .shift-member-card {
+    padding: 12px 10px 10px;
+  }
+
+  .shift-member-card__role {
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+
+  .shift-member-card__name {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 420px) {
+  .shift-member-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .date-navigation-section {
@@ -954,59 +1006,62 @@ a {
   background: #e3eef9;
 }
 
-.work-entry-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* =========================================================
+   작업 · 정비 · 인계 내역
+   단일 입력창 + 누적 테이블
+========================================================= */
+
+.log-entry-section {
+  overflow: visible;
 }
 
-.work-entry-card {
-  overflow: hidden;
+
+/* 입력 패널 */
+
+.log-entry-input-panel {
+  padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 11px;
-  background: #fbfcfd;
+  border-radius: 12px;
+  background: #f8fafc;
 }
 
-.work-entry-card__header {
-  min-height: 42px;
+.log-entry-input-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(120px, 0.55fr)
+    minmax(160px, 0.75fr)
+    minmax(320px, 1.7fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.log-entry-content-field {
+  margin-top: 14px;
+}
+
+.log-entry-content-field textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.log-entry-input-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--line);
-  background: #f0f4f8;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
 }
 
-.work-entry-card__header strong {
-  color: #3a4a60;
-  font-size: 13px;
+.log-entry-input-actions .add-entry-button {
+  min-width: 106px;
 }
 
-.remove-entry-button {
-  min-height: 30px;
-  padding: 0 9px;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--danger);
-  font-size: 12px;
-  font-weight: 900;
+#cancelLogEntryEditButton {
+  min-width: 92px;
 }
 
-.remove-entry-button:hover {
-  background: var(--danger-soft);
-}
 
-.work-entry-grid {
-  display: grid;
-  grid-template-columns: 110px 150px 240px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-  padding: 14px;
-}
-
-.form-field--content textarea {
-  min-height: 77px;
-}
+/* TAG 입력 */
 
 .tag-input-group {
   display: grid;
@@ -1016,7 +1071,7 @@ a {
 
 .navigator-button {
   min-height: 41px;
-  padding: 0 11px;
+  padding: 0 12px;
   border: 1px solid #b8cbe0;
   border-radius: 9px;
   background: #eef5fc;
@@ -1024,10 +1079,244 @@ a {
   font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease;
 }
 
 .navigator-button:hover {
+  border-color: #91afd0;
   background: #e1edf9;
+}
+
+
+/* 누적 목록 헤더 */
+
+.log-entry-table-panel {
+  margin-top: 20px;
+}
+
+.log-entry-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.log-entry-table-header > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.log-entry-table-header strong {
+  color: #2c3b52;
+  font-size: 14px;
+}
+
+#logEntryCount {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+/* 누적 목록 테이블 */
+
+.log-entry-table-wrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+}
+
+.log-entry-table {
+  width: 100%;
+  min-width: 850px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.log-entry-table th,
+.log-entry-table td {
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.log-entry-table th {
+  height: 43px;
+  padding: 0 12px;
+  background: #f0f4f8;
+  color: #4d5d72;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.log-entry-table td {
+  padding: 11px 12px;
+  color: #35445a;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.log-entry-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.log-entry-table tbody tr:not(.log-entry-empty-row):hover {
+  background: #fbfcfe;
+}
+
+.log-entry-table__time {
+  width: 90px;
+}
+
+.log-entry-table__category {
+  width: 120px;
+}
+
+.log-entry-table__tag {
+  width: 190px;
+}
+
+.log-entry-table__content {
+  width: auto;
+}
+
+.log-entry-table__actions {
+  width: 122px;
+}
+
+.log-entry-table td:nth-child(1),
+.log-entry-table td:nth-child(2),
+.log-entry-table td:nth-child(5) {
+  text-align: center;
+}
+
+.log-entry-table td:nth-child(3) {
+  color: #245b96;
+  font-family:
+    Consolas,
+    "Courier New",
+    monospace;
+  font-size: 12px;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.log-entry-table td:nth-child(4) {
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-entry-empty-row td {
+  height: 110px;
+  padding: 24px;
+  color: var(--text-faint);
+  text-align: center !important;
+}
+
+
+/* 수정 · 삭제 버튼 */
+
+.log-entry-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.log-entry-edit-button,
+.log-entry-delete-button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.log-entry-edit-button {
+  color: var(--primary);
+}
+
+.log-entry-edit-button:hover {
+  border-color: #9eb9d7;
+  background: var(--primary-soft);
+}
+
+.log-entry-delete-button {
+  color: var(--danger);
+}
+
+.log-entry-delete-button:hover {
+  border-color: #e5b6b6;
+  background: var(--danger-soft);
+}
+
+
+/* 수정 중 표시 */
+
+.log-entry-table tr.is-editing {
+  background: #fff8e8;
+}
+
+.log-entry-table tr.is-editing:hover {
+  background: #fff8e8;
+}
+
+.log-entry-input-panel.is-editing {
+  border-color: #e3b560;
+  background: #fffbf2;
+}
+
+.log-entry-input-panel.is-editing .add-entry-button {
+  border-color: #dca745;
+  background: #fff0ce;
+  color: #95600b;
+}
+
+
+/* 반응형 */
+
+@media (max-width: 1100px) {
+  .log-entry-input-grid {
+    grid-template-columns: 120px 170px minmax(260px, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .log-entry-input-panel {
+    padding: 14px;
+  }
+
+  .log-entry-input-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .log-entry-input-actions {
+    flex-wrap: wrap;
+  }
+
+  .log-entry-input-actions .secondary-button,
+  .log-entry-input-actions .add-entry-button {
+    flex: 1 1 auto;
+  }
 }
 
 .file-dropzone {
@@ -1141,9 +1430,6 @@ body.modal-open {
     grid-column: span 2;
   }
 
-  .work-entry-grid {
-    grid-template-columns: 110px 150px minmax(220px, 0.9fr) minmax(320px, 1.6fr);
-  }
 }
 
 @media print {
@@ -1192,3 +1478,4 @@ body.modal-open {
     background: #fff;
   }
 }
+

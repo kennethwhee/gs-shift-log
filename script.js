@@ -24,7 +24,10 @@ const appState = {
   selectedDate: new Date(2026, 6, 20),
   selectedShift: "NS",
   currentDetailLogId: null,
-  logs: []
+  logs: [],
+
+  editorEntries: [],
+  editingEntryIndex: -1
 };
 
 
@@ -38,7 +41,9 @@ document.addEventListener("DOMContentLoaded", () => {
   renderSelectedDate();
   renderLogTable();
   setEditorDateFromSelectedDate();
-  updateWorkEntryNumbers();
+
+  resetLogEntryInput();
+  renderLogEntryTable();
 });
 
 
@@ -73,9 +78,23 @@ function cacheElements() {
     operationStatus: document.getElementById("operationStatus"),
     logNote: document.getElementById("logNote"),
 
-    workEntryList: document.getElementById("workEntryList"),
-    workEntryTemplate: document.getElementById("workEntryTemplate"),
-    addWorkEntryButton: document.getElementById("addWorkEntryButton"),
+    logEntryTime: document.getElementById("logEntryTime"),
+    logEntryCategory: document.getElementById("logEntryCategory"),
+    logEntryTag: document.getElementById("logEntryTag"),
+    logEntryContent: document.getElementById("logEntryContent"),
+
+    addLogEntryButton: document.getElementById("addLogEntryButton"),
+    cancelLogEntryEditButton: document.getElementById(
+      "cancelLogEntryEditButton"
+    ),
+    logEntryNavigatorButton: document.getElementById(
+      "logEntryNavigatorButton"
+    ),
+
+    logEntryInputPanel: document.querySelector(".log-entry-input-panel"),
+    logEntryTableBody: document.getElementById("logEntryTableBody"),
+    logEntryCount: document.getElementById("logEntryCount"),
+    logEntriesJson: document.getElementById("logEntriesJson"),
 
     logAttachments: document.getElementById("logAttachments"),
     fileDropzone: document.getElementById("fileDropzone"),
@@ -83,18 +102,24 @@ function cacheElements() {
 
     saveDraftButton: document.getElementById("saveDraftButton"),
     printLogButton: document.getElementById("printLogButton"),
-    requestApprovalButton: document.getElementById("requestApprovalButton"),
+    requestApprovalButton: document.getElementById(
+      "requestApprovalButton"
+    ),
 
     logTableBody: document.getElementById("logTableBody"),
     logEmptyState: document.getElementById("logEmptyState"),
 
     logDetailModal: document.getElementById("logDetailModal"),
-    closeLogDetailButton: document.getElementById("closeLogDetailButton"),
+    closeLogDetailButton: document.getElementById(
+      "closeLogDetailButton"
+    ),
     closeLogDetailFooterButton: document.getElementById(
       "closeLogDetailFooterButton"
     ),
     logDetailContent: document.getElementById("logDetailContent"),
-    editFromDetailButton: document.getElementById("editFromDetailButton"),
+    editFromDetailButton: document.getElementById(
+      "editFromDetailButton"
+    ),
 
     searchForm: document.getElementById("searchForm"),
     searchResultBody: document.getElementById("searchResultBody"),
@@ -131,8 +156,15 @@ function bindEvents() {
     openLogEditor();
   });
 
-  elements.closeLogEditorButton.addEventListener("click", closeLogEditor);
-  elements.cancelLogButton.addEventListener("click", closeLogEditor);
+  elements.closeLogEditorButton.addEventListener(
+    "click",
+    closeLogEditor
+  );
+
+  elements.cancelLogButton.addEventListener(
+    "click",
+    closeLogEditor
+  );
 
   elements.logEditorModal.addEventListener("click", (event) => {
     if (event.target === elements.logEditorModal) {
@@ -140,13 +172,43 @@ function bindEvents() {
     }
   });
 
-  elements.addWorkEntryButton.addEventListener("click", () => {
-    addWorkEntry();
+
+  /* 작업 내역 추가 */
+
+  elements.addLogEntryButton.addEventListener("click", () => {
+    addOrUpdateLogEntry();
   });
 
-  elements.workEntryList.addEventListener("click", handleWorkEntryClick);
+  elements.cancelLogEntryEditButton.addEventListener("click", () => {
+    cancelLogEntryEdit();
+  });
 
-  elements.logAttachments.addEventListener("change", renderAttachmentList);
+  elements.logEntryNavigatorButton.addEventListener("click", () => {
+    openFacilityNavigator(elements.logEntryTag.value);
+  });
+
+  elements.logEntryTableBody.addEventListener(
+    "click",
+    handleLogEntryTableClick
+  );
+
+  elements.logEntryContent.addEventListener("keydown", (event) => {
+    if (
+      event.key === "Enter" &&
+      (event.ctrlKey || event.metaKey)
+    ) {
+      event.preventDefault();
+      addOrUpdateLogEntry();
+    }
+  });
+
+
+  /* 첨부파일 */
+
+  elements.logAttachments.addEventListener(
+    "change",
+    renderAttachmentList
+  );
 
   elements.fileDropzone.addEventListener("dragover", (event) => {
     event.preventDefault();
@@ -169,6 +231,9 @@ function bindEvents() {
     renderAttachmentList();
   });
 
+
+  /* 업무일지 저장 */
+
   elements.logEditorForm.addEventListener("submit", (event) => {
     event.preventDefault();
     saveCurrentLog("저장완료");
@@ -184,9 +249,19 @@ function bindEvents() {
     saveCurrentLog("결재요청");
   });
 
-  elements.logTableBody.addEventListener("click", handleLogTableClick);
 
-  elements.closeLogDetailButton.addEventListener("click", closeLogDetail);
+  /* 업무일지 목록 */
+
+  elements.logTableBody.addEventListener(
+    "click",
+    handleLogTableClick
+  );
+
+  elements.closeLogDetailButton.addEventListener(
+    "click",
+    closeLogDetail
+  );
+
   elements.closeLogDetailFooterButton.addEventListener(
     "click",
     closeLogDetail
@@ -211,6 +286,9 @@ function bindEvents() {
     openLogEditor(log);
   });
 
+
+  /* 조회 */
+
   elements.searchForm.addEventListener("submit", (event) => {
     event.preventDefault();
     runSearch();
@@ -221,15 +299,28 @@ function bindEvents() {
       elements.searchResultBody.innerHTML = "";
       elements.searchResultCount.textContent = "0";
       elements.searchEmptyState.hidden = false;
-      elements.searchEmptyState.querySelector("strong").textContent =
-        "조회 조건을 선택해 주세요.";
-      elements.searchEmptyState.querySelector("p").textContent =
+
+      elements.searchEmptyState.querySelector(
+        "strong"
+      ).textContent = "조회 조건을 선택해 주세요.";
+
+      elements.searchEmptyState.querySelector(
+        "p"
+      ).textContent =
         "기간, TAG 또는 업무 내용을 기준으로 검색할 수 있습니다.";
     }, 0);
   });
 
+
+  /* ESC 닫기 */
+
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") {
+      return;
+    }
+
+    if (appState.editingEntryIndex >= 0) {
+      cancelLogEntryEdit();
       return;
     }
 
@@ -363,15 +454,14 @@ function resetLogEditor() {
   elements.logShift.value = appState.selectedShift;
   elements.operationStatus.value = "";
   elements.logNote.value = "";
+
   elements.logEditorForm.dataset.editingId = "";
 
-  elements.workEntryList.innerHTML = "";
-  addWorkEntry({
-    time: "09:00",
-    category: "TM 작업",
-    tag: "",
-    content: ""
-  });
+  appState.editorEntries = [];
+  appState.editingEntryIndex = -1;
+
+  resetLogEntryInput();
+  renderLogEntryTable();
 
   elements.logAttachments.value = "";
   elements.attachmentList.innerHTML = "";
@@ -380,93 +470,345 @@ function resetLogEditor() {
 
 function fillLogEditor(log) {
   elements.logEditorForm.dataset.editingId = log.id;
+
   elements.logDate.value = log.date;
   elements.logShift.value = log.shift;
   elements.logTeam.value = log.team;
   elements.logRole.value = log.role;
   elements.logAuthor.value = log.author;
-  elements.operationStatus.value = log.operationStatus || "";
+  elements.operationStatus.value =
+    log.operationStatus || "";
+
   elements.logNote.value = log.note || "";
 
-  elements.workEntryList.innerHTML = "";
+  appState.editorEntries = Array.isArray(log.entries)
+    ? log.entries.map((entry) => {
+        return {
+          time: entry.time || "",
+          category: entry.category || "TM 작업",
+          tag: String(entry.tag || "").toUpperCase(),
+          content: entry.content || ""
+        };
+      })
+    : [];
 
-  if (Array.isArray(log.entries) && log.entries.length) {
-    log.entries.forEach((entry) => addWorkEntry(entry));
-  } else {
-    addWorkEntry();
-  }
+  appState.editingEntryIndex = -1;
+
+  resetLogEntryInput();
+  renderLogEntryTable();
 
   renderSavedAttachments(log.attachments || []);
 }
 
 
-function addWorkEntry(entryData = {}) {
-  const templateContent = elements.workEntryTemplate.content.cloneNode(true);
-  const card = templateContent.querySelector(".work-entry-card");
+/* =========================================================
+  작업 · 정비 · 인계 내역
+  단일 입력창 + 누적 테이블
+========================================================= */
 
-  const timeInput = card.querySelector('input[name="entryTime[]"]');
-  const categorySelect = card.querySelector(
-    'select[name="entryCategory[]"]'
-  );
-  const tagInput = card.querySelector('input[name="entryTag[]"]');
-  const contentTextarea = card.querySelector(
-    'textarea[name="entryContent[]"]'
-  );
+function resetLogEntryInput(options = {}) {
+  const {
+    keepCategory = false,
+    keepTag = false
+  } = options;
 
-  timeInput.value = entryData.time || getCurrentTimeValue();
-  categorySelect.value = entryData.category || "TM 작업";
-  tagInput.value = entryData.tag || "";
-  contentTextarea.value = entryData.content || "";
+  const previousCategory =
+    elements.logEntryCategory?.value || "TM 작업";
 
-  elements.workEntryList.appendChild(card);
-  updateWorkEntryNumbers();
+  const previousTag =
+    elements.logEntryTag?.value || "";
+
+  elements.logEntryTime.value = getCurrentTimeValue();
+
+  elements.logEntryCategory.value = keepCategory
+    ? previousCategory
+    : "TM 작업";
+
+  elements.logEntryTag.value = keepTag
+    ? previousTag
+    : "";
+
+  elements.logEntryContent.value = "";
+
+  appState.editingEntryIndex = -1;
+
+  elements.addLogEntryButton.textContent = "＋ 추가";
+  elements.cancelLogEntryEditButton.hidden = true;
+
+  elements.logEntryInputPanel.classList.remove("is-editing");
+
+  elements.logEntryTableBody
+    .querySelectorAll("tr.is-editing")
+    .forEach((row) => {
+      row.classList.remove("is-editing");
+    });
 }
 
 
-function handleWorkEntryClick(event) {
-  const removeButton = event.target.closest("[data-remove-entry]");
+function addOrUpdateLogEntry() {
+  const entry = {
+    time: elements.logEntryTime.value,
+    category: elements.logEntryCategory.value,
+    tag: elements.logEntryTag.value
+      .trim()
+      .toUpperCase(),
+    content: elements.logEntryContent.value.trim()
+  };
 
-  if (removeButton) {
-    const cards = elements.workEntryList.querySelectorAll(".work-entry-card");
-
-    if (cards.length === 1) {
-      showToast("작업 내역은 최소 1개 이상 필요합니다.");
-      return;
-    }
-
-    removeButton.closest(".work-entry-card").remove();
-    updateWorkEntryNumbers();
+  if (!entry.time) {
+    showToast("시간을 입력해 주세요.");
+    elements.logEntryTime.focus();
     return;
   }
 
-  const navigatorButton = event.target.closest("[data-open-navigator]");
+  if (!entry.category) {
+    showToast("구분을 선택해 주세요.");
+    elements.logEntryCategory.focus();
+    return;
+  }
 
-  if (navigatorButton) {
-    const card = navigatorButton.closest(".work-entry-card");
-    const tagInput = card.querySelector('input[name="entryTag[]"]');
-    openFacilityNavigator(tagInput.value);
+  if (!entry.content) {
+    showToast("작업 내용을 입력해 주세요.");
+    elements.logEntryContent.focus();
+    return;
+  }
+
+  if (appState.editingEntryIndex >= 0) {
+    appState.editorEntries.splice(
+      appState.editingEntryIndex,
+      1,
+      entry
+    );
+
+    showToast("작업 내역을 수정했습니다.");
+  } else {
+    appState.editorEntries.push(entry);
+  }
+
+  renderLogEntryTable();
+
+  resetLogEntryInput({
+    keepCategory: true,
+    keepTag: true
+  });
+
+  elements.logEntryContent.focus();
+}
+
+
+function renderLogEntryTable() {
+  const entries = appState.editorEntries;
+
+  elements.logEntryCount.textContent =
+    `총 ${entries.length}건`;
+
+  elements.logEntriesJson.value =
+    JSON.stringify(entries);
+
+  if (!entries.length) {
+    elements.logEntryTableBody.innerHTML = `
+      <tr class="log-entry-empty-row">
+        <td colspan="5">
+          등록된 작업 내역이 없습니다.
+        </td>
+      </tr>
+    `;
+
+    return;
+  }
+
+  elements.logEntryTableBody.innerHTML = entries
+    .map((entry, index) => {
+      const isEditing =
+        index === appState.editingEntryIndex;
+
+      return `
+        <tr
+          data-entry-index="${index}"
+          class="${isEditing ? "is-editing" : ""}"
+        >
+          <td>
+            ${escapeHtml(entry.time || "-")}
+          </td>
+
+          <td>
+            ${escapeHtml(entry.category || "-")}
+          </td>
+
+          <td>
+            ${
+              entry.tag
+                ? `
+                  <button
+                    type="button"
+                    class="detail-tag-button"
+                    data-entry-action="navigator"
+                    data-entry-index="${index}"
+                  >
+                    ${escapeHtml(entry.tag)}
+                  </button>
+                `
+                : "-"
+            }
+          </td>
+
+          <td>
+            ${escapeHtml(entry.content || "-")}
+          </td>
+
+          <td>
+            <div class="log-entry-row-actions">
+              <button
+                type="button"
+                class="log-entry-edit-button"
+                data-entry-action="edit"
+                data-entry-index="${index}"
+              >
+                수정
+              </button>
+
+              <button
+                type="button"
+                class="log-entry-delete-button"
+                data-entry-action="delete"
+                data-entry-index="${index}"
+              >
+                삭제
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+
+function handleLogEntryTableClick(event) {
+  const actionButton = event.target.closest(
+    "[data-entry-action]"
+  );
+
+  if (!actionButton) {
+    return;
+  }
+
+  const entryIndex = Number(
+    actionButton.dataset.entryIndex
+  );
+
+  if (
+    !Number.isInteger(entryIndex) ||
+    !appState.editorEntries[entryIndex]
+  ) {
+    showToast("작업 내역을 찾을 수 없습니다.");
+    return;
+  }
+
+  const action = actionButton.dataset.entryAction;
+
+  if (action === "edit") {
+    startLogEntryEdit(entryIndex);
+    return;
+  }
+
+  if (action === "delete") {
+    deleteLogEntry(entryIndex);
+    return;
+  }
+
+  if (action === "navigator") {
+    openFacilityNavigator(
+      appState.editorEntries[entryIndex].tag
+    );
   }
 }
 
 
-function updateWorkEntryNumbers() {
-  const cards = [
-    ...elements.workEntryList.querySelectorAll(".work-entry-card")
-  ];
+function startLogEntryEdit(entryIndex) {
+  const entry = appState.editorEntries[entryIndex];
 
-  cards.forEach((card, index) => {
-    card.dataset.entryIndex = String(index);
+  if (!entry) {
+    return;
+  }
 
-    const numberElement =
-      card.querySelector(".work-entry-number") ||
-      card.querySelector(".work-entry-card__header strong");
+  appState.editingEntryIndex = entryIndex;
 
-    if (numberElement) {
-      numberElement.textContent = `내역 ${index + 1}`;
-    }
+  elements.logEntryTime.value =
+    entry.time || getCurrentTimeValue();
+
+  elements.logEntryCategory.value =
+    entry.category || "TM 작업";
+
+  elements.logEntryTag.value =
+    entry.tag || "";
+
+  elements.logEntryContent.value =
+    entry.content || "";
+
+  elements.addLogEntryButton.textContent = "수정 완료";
+  elements.cancelLogEntryEditButton.hidden = false;
+
+  elements.logEntryInputPanel.classList.add("is-editing");
+
+  renderLogEntryTable();
+
+  elements.logEntryInputPanel.scrollIntoView({
+    behavior: "smooth",
+    block: "center"
   });
+
+  elements.logEntryContent.focus();
 }
 
+
+function cancelLogEntryEdit() {
+  resetLogEntryInput({
+    keepCategory: true,
+    keepTag: true
+  });
+
+  renderLogEntryTable();
+}
+
+
+function deleteLogEntry(entryIndex) {
+  const entry = appState.editorEntries[entryIndex];
+
+  if (!entry) {
+    return;
+  }
+
+  const shouldDelete = window.confirm(
+    [
+      "이 작업 내역을 삭제하시겠습니까?",
+      "",
+      `${entry.time || "-"} / ${entry.category || "-"}`,
+      entry.tag || "",
+      entry.content || ""
+    ]
+      .filter(Boolean)
+      .join("\n")
+  );
+
+  if (!shouldDelete) {
+    return;
+  }
+
+  appState.editorEntries.splice(entryIndex, 1);
+
+  if (appState.editingEntryIndex === entryIndex) {
+    resetLogEntryInput({
+      keepCategory: true,
+      keepTag: true
+    });
+  } else if (appState.editingEntryIndex > entryIndex) {
+    appState.editingEntryIndex -= 1;
+  }
+
+  renderLogEntryTable();
+  showToast("작업 내역을 삭제했습니다.");
+}
 
 function getCurrentTimeValue() {
   const now = new Date();
@@ -541,41 +883,36 @@ function renderSavedAttachments(attachments) {
   저장
 ========================================================= */
 function collectEditorData(status) {
-  const entries = [
-    ...elements.workEntryList.querySelectorAll(".work-entry-card")
-  ]
-    .map((card) => {
-      return {
-        time: card.querySelector('input[name="entryTime[]"]').value,
-        category: card.querySelector(
-          'select[name="entryCategory[]"]'
-        ).value,
-        tag: card
-          .querySelector('input[name="entryTag[]"]')
-          .value.trim()
-          .toUpperCase(),
-        content: card
-          .querySelector('textarea[name="entryContent[]"]')
-          .value.trim()
-      };
-    })
-    .filter((entry) => {
-      return entry.time || entry.tag || entry.content;
-    });
+  const entries = appState.editorEntries.map((entry) => {
+    return {
+      time: entry.time || "",
+      category: entry.category || "",
+      tag: String(entry.tag || "")
+        .trim()
+        .toUpperCase(),
+      content: String(entry.content || "").trim()
+    };
+  });
 
   const newAttachmentNames = [
     ...elements.logAttachments.files
   ].map((file) => file.name);
 
   const savedAttachmentNames = [
-    ...elements.attachmentList.querySelectorAll(".attachment-chip")
+    ...elements.attachmentList.querySelectorAll(
+      ".attachment-chip"
+    )
   ].map((chip) => chip.textContent.trim());
 
   const attachmentNames = [
-    ...new Set([...savedAttachmentNames, ...newAttachmentNames])
+    ...new Set([
+      ...savedAttachmentNames,
+      ...newAttachmentNames
+    ])
   ];
 
-  const editingId = elements.logEditorForm.dataset.editingId;
+  const editingId =
+    elements.logEditorForm.dataset.editingId;
 
   return {
     id: editingId || createId(),
@@ -584,7 +921,8 @@ function collectEditorData(status) {
     team: elements.logTeam.value,
     role: elements.logRole.value,
     author: elements.logAuthor.value.trim(),
-    operationStatus: elements.operationStatus.value.trim(),
+    operationStatus:
+      elements.operationStatus.value.trim(),
     entries,
     note: elements.logNote.value.trim(),
     attachments: attachmentNames,
