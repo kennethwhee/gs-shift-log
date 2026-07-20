@@ -149,64 +149,158 @@ function cacheElements() {
 
 
 function bindEvents() {
+  /*
+    요소가 존재할 때만 이벤트를 연결한다.
+    일부 HTML 요소가 없더라도 나머지 기능이 중단되지 않는다.
+  */
+  const bindClick = (element, handler) => {
+    if (!element) {
+      return;
+    }
+
+    element.addEventListener("click", handler);
+  };
+
+  const bindChange = (element, handler) => {
+    if (!element) {
+      return;
+    }
+
+    element.addEventListener("change", handler);
+  };
+
+  const bindInput = (element, handler) => {
+    if (!element) {
+      return;
+    }
+
+    element.addEventListener("input", handler);
+  };
+
+  const bindKeydown = (element, handler) => {
+    if (!element) {
+      return;
+    }
+
+    element.addEventListener("keydown", handler);
+  };
+
+
+  /* =======================================================
+    상단 탭
+  ======================================================== */
+
   elements.topTabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
+    bindClick(tab, () => {
       switchView(tab.dataset.view);
     });
   });
 
-  elements.previousDateButton.addEventListener("click", () => {
+
+  /* =======================================================
+    날짜 이동
+  ======================================================== */
+
+  bindClick(elements.previousDateButton, () => {
     moveSelectedDate(-1);
   });
 
-  elements.nextDateButton.addEventListener("click", () => {
+  bindClick(elements.nextDateButton, () => {
     moveSelectedDate(1);
   });
 
-  elements.todayButton.addEventListener("click", () => {
+  bindClick(elements.todayButton, () => {
     appState.selectedDate = new Date();
+
     renderSelectedDate();
     renderLogTable();
   });
 
-  elements.openLogEditorButton.addEventListener("click", () => {
+
+  /* =======================================================
+    업무일지 작성창
+  ======================================================== */
+
+  bindClick(elements.openLogEditorButton, () => {
     openLogEditor();
   });
 
-  elements.closeLogEditorButton.addEventListener(
-    "click",
+  bindClick(
+    elements.closeLogEditorButton,
     closeLogEditor
   );
 
-  elements.cancelLogButton.addEventListener(
-    "click",
+  bindClick(
+    elements.cancelLogButton,
     closeLogEditor
   );
 
-  elements.logEditorModal.addEventListener("click", (event) => {
-    if (event.target === elements.logEditorModal) {
-      closeLogEditor();
-    }
-  });
+  if (elements.logEditorModal) {
+    elements.logEditorModal.addEventListener(
+      "click",
+      (event) => {
+        if (event.target === elements.logEditorModal) {
+          closeLogEditor();
+        }
+      }
+    );
+  }
 
 
-  /* 구분 변경 */
+  /* =======================================================
+    현재 운전현황
+  ======================================================== */
 
-  elements.logEntryCategory.addEventListener("change", () => {
-    updateTagFieldVisibility();
-  });
+  bindClick(
+    elements.editOperationStatusButton,
+    openOperationStatusEditor
+  );
+
+  bindClick(
+    elements.cancelOperationStatusButton,
+    closeOperationStatusEditor
+  );
+
+  bindClick(
+    elements.saveOperationStatusButton,
+    saveOperationStatus
+  );
 
 
-  /* 현재시간 체크 */
+  /* =======================================================
+    작업 구분 및 TAG
+  ======================================================== */
 
-  elements.useCurrentTimeCheckbox.addEventListener(
-    "change",
+  bindChange(
+    elements.logEntryCategory,
+    updateTagFieldVisibility
+  );
+
+  bindClick(
+    elements.logEntryNavigatorButton,
     () => {
-      if (!elements.useCurrentTimeCheckbox.checked) {
+      openFacilityNavigator(
+        elements.logEntryTag?.value || ""
+      );
+    }
+  );
+
+
+  /* =======================================================
+    현재시간
+  ======================================================== */
+
+  bindChange(
+    elements.useCurrentTimeCheckbox,
+    () => {
+      if (
+        !elements.useCurrentTimeCheckbox.checked
+      ) {
         return;
       }
 
-      elements.logEntryTime.value = getCurrentTimeValue();
+      elements.logEntryTime.value =
+        getCurrentTimeValue();
 
       elements.logEntryTime.classList.add(
         "is-current-time-applied"
@@ -218,75 +312,79 @@ function bindEvents() {
         );
       }, 500);
 
-      elements.logEntryContent.focus();
+      elements.logEntryContent?.focus();
     }
   );
 
 
-  /* 시간 직접 입력 */
+  /* =======================================================
+    시간 자동 입력
+  ======================================================== */
 
-  elements.logEntryTime.addEventListener("input", () => {
-    /*
-      사용자가 시간을 직접 수정하면
-      현재시간 체크 상태를 자동 해제한다.
-    */
-    if (elements.useCurrentTimeCheckbox.checked) {
-      elements.useCurrentTimeCheckbox.checked = false;
-    }
-  });
+  bindInput(
+    elements.logEntryTime,
+    handleLogEntryTimeInput
+  );
 
-  elements.logEntryTime.addEventListener("blur", () => {
-    if (!elements.logEntryTime.value.trim()) {
-      return;
-    }
+  if (elements.logEntryTime) {
+    elements.logEntryTime.addEventListener(
+      "blur",
+      () => {
+        if (
+          !elements.logEntryTime.value.trim()
+        ) {
+          return;
+        }
 
-    normalizeLogEntryTime();
-  });
+        normalizeLogEntryTime();
+      }
+    );
+  }
 
-  elements.logEntryTime.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") {
-      return;
-    }
+  bindKeydown(
+    elements.logEntryTime,
+    (event) => {
+      if (event.key !== "Enter") {
+        return;
+      }
 
-    event.preventDefault();
+      event.preventDefault();
 
-    const normalizedTime = normalizeLogEntryTime();
+      const normalizedTime =
+        normalizeLogEntryTime();
 
-    if (!normalizedTime) {
-      return;
-    }
+      if (!normalizedTime) {
+        return;
+      }
 
-    elements.logEntryCategory.focus();
-  });
-
-
-  /* 작업 내역 추가 및 수정 */
-
-  elements.addLogEntryButton.addEventListener("click", () => {
-    addOrUpdateLogEntry();
-  });
-
-  elements.cancelLogEntryEditButton.addEventListener(
-    "click",
-    () => {
-      cancelLogEntryEdit();
+      elements.logEntryCategory?.focus();
     }
   );
 
-  elements.logEntryNavigatorButton.addEventListener(
-    "click",
-    () => {
-      openFacilityNavigator(elements.logEntryTag.value);
-    }
+
+  /* =======================================================
+    작업내역 추가·수정·삭제
+  ======================================================== */
+
+  bindClick(
+    elements.addLogEntryButton,
+    addOrUpdateLogEntry
   );
 
-  elements.logEntryTableBody.addEventListener(
-    "click",
-    handleLogEntryTableClick
+  bindClick(
+    elements.cancelLogEntryEditButton,
+    cancelLogEntryEdit
   );
 
-  elements.logEntryContent.addEventListener(
-    "keydown",
+  if (elements.logEntryTableBody) {
+    elements.logEntryTableBody.addEventListener(
+      "click",
+      handleLogEntryTableClick
+    );
+  }
+
+  bindKeydown(
+    elements.logEntryContent,
     (event) => {
       if (
         event.key === "Enter" &&
@@ -299,109 +397,151 @@ function bindEvents() {
   );
 
 
-  /* 첨부파일 */
+  /* =======================================================
+    첨부파일
+  ======================================================== */
 
-  elements.logAttachments.addEventListener(
-    "change",
+  bindChange(
+    elements.logAttachments,
     renderAttachmentList
   );
 
-  elements.fileDropzone.addEventListener(
-    "dragover",
-    (event) => {
-      event.preventDefault();
-      elements.fileDropzone.classList.add("is-dragging");
-    }
-  );
+  if (elements.fileDropzone) {
+    elements.fileDropzone.addEventListener(
+      "dragover",
+      (event) => {
+        event.preventDefault();
 
-  elements.fileDropzone.addEventListener(
-    "dragleave",
-    () => {
-      elements.fileDropzone.classList.remove("is-dragging");
-    }
-  );
+        elements.fileDropzone.classList.add(
+          "is-dragging"
+        );
+      }
+    );
 
-  elements.fileDropzone.addEventListener("drop", (event) => {
-    event.preventDefault();
+    elements.fileDropzone.addEventListener(
+      "dragleave",
+      () => {
+        elements.fileDropzone.classList.remove(
+          "is-dragging"
+        );
+      }
+    );
 
-    elements.fileDropzone.classList.remove("is-dragging");
+    elements.fileDropzone.addEventListener(
+      "drop",
+      (event) => {
+        event.preventDefault();
 
-    if (!event.dataTransfer.files.length) {
-      return;
-    }
+        elements.fileDropzone.classList.remove(
+          "is-dragging"
+        );
 
-    elements.logAttachments.files =
-      event.dataTransfer.files;
+        if (!event.dataTransfer.files.length) {
+          return;
+        }
 
-    renderAttachmentList();
-  });
+        try {
+          elements.logAttachments.files =
+            event.dataTransfer.files;
+        } catch {
+          showToast(
+            "파일을 직접 선택해 주세요."
+          );
+
+          return;
+        }
+
+        renderAttachmentList();
+      }
+    );
+  }
 
 
-  /* 업무일지 저장 */
+  /* =======================================================
+    업무일지 저장
+  ======================================================== */
 
-  elements.logEditorForm.addEventListener(
-    "submit",
-    (event) => {
-      event.preventDefault();
-      saveCurrentLog("저장완료");
-    }
-  );
+  if (elements.logEditorForm) {
+    elements.logEditorForm.addEventListener(
+      "submit",
+      (event) => {
+        event.preventDefault();
+        saveCurrentLog("저장완료");
+      }
+    );
+  }
 
-  elements.saveDraftButton.addEventListener(
-    "click",
+  bindClick(
+    elements.saveDraftButton,
     saveDraft
   );
 
-  elements.printLogButton.addEventListener(
-    "click",
+  bindClick(
+    elements.printLogButton,
     () => {
       window.print();
     }
   );
 
-  elements.requestApprovalButton.addEventListener(
-    "click",
+  bindClick(
+    elements.requestApprovalButton,
     () => {
       saveCurrentLog("결재요청");
     }
   );
 
 
-  /* 업무일지 목록 */
+  /* =======================================================
+    업무일지 목록
+  ======================================================== */
 
-  elements.logTableBody.addEventListener(
-    "click",
-    handleLogTableClick
-  );
+  if (elements.logTableBody) {
+    elements.logTableBody.addEventListener(
+      "click",
+      handleLogTableClick
+    );
+  }
 
-  elements.closeLogDetailButton.addEventListener(
-    "click",
+
+  /* =======================================================
+    상세보기
+  ======================================================== */
+
+  bindClick(
+    elements.closeLogDetailButton,
     closeLogDetail
   );
 
-  elements.closeLogDetailFooterButton.addEventListener(
-    "click",
+  bindClick(
+    elements.closeLogDetailFooterButton,
     closeLogDetail
   );
 
-  elements.logDetailModal.addEventListener(
-    "click",
-    (event) => {
-      if (event.target === elements.logDetailModal) {
-        closeLogDetail();
+  if (elements.logDetailModal) {
+    elements.logDetailModal.addEventListener(
+      "click",
+      (event) => {
+        if (event.target === elements.logDetailModal) {
+          closeLogDetail();
+        }
       }
-    }
-  );
+    );
+  }
 
-  elements.editFromDetailButton.addEventListener(
-    "click",
+  bindClick(
+    elements.editFromDetailButton,
     () => {
       const log = appState.logs.find(
         (item) =>
-          item.id === appState.currentDetailLogId
+          item.id ===
+          appState.currentDetailLogId
       );
 
       if (!log) {
+        showToast(
+          "업무일지를 찾을 수 없습니다."
+        );
+
         return;
       }
 
@@ -411,63 +551,104 @@ function bindEvents() {
   );
 
 
-  /* 조회 */
+  /* =======================================================
+    조회
+  ======================================================== */
 
-  elements.searchForm.addEventListener(
-    "submit",
+  if (elements.searchForm) {
+    elements.searchForm.addEventListener(
+      "submit",
+      (event) => {
+        event.preventDefault();
+        runSearch();
+      }
+    );
+
+    elements.searchForm.addEventListener(
+      "reset",
+      () => {
+        window.setTimeout(() => {
+          if (elements.searchResultBody) {
+            elements.searchResultBody.innerHTML = "";
+          }
+
+          if (elements.searchResultCount) {
+            elements.searchResultCount.textContent =
+              "0";
+          }
+
+          if (elements.searchEmptyState) {
+            elements.searchEmptyState.hidden =
+              false;
+
+            const title =
+              elements.searchEmptyState.querySelector(
+                "strong"
+              );
+
+            const description =
+              elements.searchEmptyState.querySelector(
+                "p"
+              );
+
+            if (title) {
+              title.textContent =
+                "조회 조건을 선택해 주세요.";
+            }
+
+            if (description) {
+              description.textContent =
+                "기간, TAG 또는 업무 내용을 기준으로 검색할 수 있습니다.";
+            }
+          }
+        }, 0);
+      }
+    );
+  }
+
+
+  /* =======================================================
+    ESC 키
+  ======================================================== */
+
+  document.addEventListener(
+    "keydown",
     (event) => {
-      event.preventDefault();
-      runSearch();
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      if (
+        elements.operationStatusEditor &&
+        !elements.operationStatusEditor.hidden
+      ) {
+        closeOperationStatusEditor();
+        return;
+      }
+
+      if (appState.editingEntryIndex >= 0) {
+        cancelLogEntryEdit();
+        return;
+      }
+
+      if (
+        elements.logDetailModal?.classList.contains(
+          "is-open"
+        )
+      ) {
+        closeLogDetail();
+        return;
+      }
+
+      if (
+        elements.logEditorModal?.classList.contains(
+          "is-open"
+        )
+      ) {
+        closeLogEditor();
+      }
     }
   );
-
-  elements.searchForm.addEventListener("reset", () => {
-    window.setTimeout(() => {
-      elements.searchResultBody.innerHTML = "";
-      elements.searchResultCount.textContent = "0";
-      elements.searchEmptyState.hidden = false;
-
-      elements.searchEmptyState.querySelector(
-        "strong"
-      ).textContent = "조회 조건을 선택해 주세요.";
-
-      elements.searchEmptyState.querySelector(
-        "p"
-      ).textContent =
-        "기간, TAG 또는 업무 내용을 기준으로 검색할 수 있습니다.";
-    }, 0);
-  });
-
-
-  /* ESC 키 */
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") {
-      return;
-    }
-
-    if (appState.editingEntryIndex >= 0) {
-      cancelLogEntryEdit();
-      return;
-    }
-
-    if (
-      elements.logEditorModal.classList.contains(
-        "is-open"
-      )
-    ) {
-      closeLogEditor();
-      return;
-    }
-
-    if (
-      elements.logDetailModal.classList.contains(
-        "is-open"
-      )
-    ) {
-      closeLogDetail();
-    }
-  });
 }
 
 /* =========================================================
