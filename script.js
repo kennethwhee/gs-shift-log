@@ -3468,15 +3468,15 @@ function createRoleGroupedEntriesHtml(
     `;
   }
 
-const roleOrder = [
-  "TGO",
-  "BCO1",
-  "BCO2",
-  "TO",
-  "BO1",
-  "BO2",
-  "파트장"
-];
+  const roleOrder = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2",
+    "파트장"
+  ];
 
   const groupedEntries = {};
 
@@ -3555,11 +3555,6 @@ function createGroupedEntryLineHtml(
   const timeText =
     String(entry.time || "").trim();
 
-  const categoryText =
-    String(
-      entry.category || ""
-    ).trim();
-
   const tagText =
     String(entry.tag || "")
       .trim()
@@ -3574,7 +3569,7 @@ function createGroupedEntryLineHtml(
     ? `
       <button
         type="button"
-        class="detail-tag-button"
+        class="detail-inline-tag"
         data-detail-tag="${escapeHtml(tagText)}"
       >
         [${escapeHtml(tagText)}]
@@ -3588,38 +3583,24 @@ function createGroupedEntryLineHtml(
         ${index + 1}.
       </span>
 
-      <div class="detail-grouped-entry-line__body">
-        ${
-          timeText
-            ? `
-              <span class="detail-grouped-entry-line__time">
-                ${escapeHtml(timeText)}
-              </span>
-            `
-            : ""
-        }
+      ${
+        timeText
+          ? `
+            <span class="detail-grouped-entry-line__time">
+              ${escapeHtml(timeText)}
+            </span>
+          `
+          : ""
+      }
 
-        ${tagHtml}
+      ${tagHtml}
 
-        <span class="detail-grouped-entry-line__content">
-          ${escapeHtml(contentText)}
-        </span>
-
-        ${
-          categoryText &&
-          categoryText !== "인계사항"
-            ? `
-              <span class="detail-grouped-entry-line__category">
-                ${escapeHtml(categoryText)}
-              </span>
-            `
-            : ""
-        }
-      </div>
+      <span class="detail-grouped-entry-line__content">
+        ${escapeHtml(contentText)}
+      </span>
     </div>
   `;
 }
-
 
 function createNormalDetailEntriesHtml(
   entries
@@ -3635,7 +3616,17 @@ function createNormalDetailEntriesHtml(
     `;
   }
 
-  return entries
+  const sortedEntries = [
+    ...entries
+  ].sort((entryA, entryB) => {
+    return String(
+      entryA.time || ""
+    ).localeCompare(
+      String(entryB.time || "")
+    );
+  });
+
+  return sortedEntries
     .map((entry, index) => {
       return createGroupedEntryLineHtml(
         entry,
@@ -3649,48 +3640,37 @@ function openLogDetail(log) {
   appState.currentDetailLogId = log.id;
 
   const isLeaderLog =
-    normalizeMemberLogRole(log.role) ===
-    "파트장";
+    normalizeMemberLogRole(
+      log.role
+    ) === "파트장";
+
+  const allEntries =
+    Array.isArray(log.entries)
+      ? log.entries
+      : [];
 
   const maintenanceEntries =
-    Array.isArray(log.entries)
-      ? log.entries.filter((entry) => {
-          const mainCategory =
-            getMainCategory(entry.category);
+    allEntries.filter((entry) => {
+      const mainCategory =
+        getMainCategory(
+          entry.category
+        );
 
-          return (
-            mainCategory === "TM" ||
-            mainCategory === "BM" ||
-            mainCategory === "CM"
-          );
-        })
-      : [];
+      return [
+        "TM",
+        "BM",
+        "CM"
+      ].includes(mainCategory);
+    });
 
   const handoverEntries =
-    Array.isArray(log.entries)
-      ? log.entries.filter((entry) => {
-          return (
-            getMainCategory(
-              entry.category
-            ) === "인계사항"
-          );
-        })
-      : [];
-
-  const otherEntries =
-    Array.isArray(log.entries)
-      ? log.entries.filter((entry) => {
-          const mainCategory =
-            getMainCategory(entry.category);
-
-          return ![
-            "TM",
-            "BM",
-            "CM",
-            "인계사항"
-          ].includes(mainCategory);
-        })
-      : [];
+    allEntries.filter((entry) => {
+      return (
+        getMainCategory(
+          entry.category
+        ) === "인계사항"
+      );
+    });
 
   const maintenanceHtml =
     isLeaderLog
@@ -3714,37 +3694,20 @@ function openLogDetail(log) {
           handoverEntries
         );
 
-  const otherEntriesHtml =
-    createNormalDetailEntriesHtml(
-      otherEntries
-    );
-
-  const operationStatusLines =
+  const operationStatusText =
     String(
-      log.operationStatus ||
-      "등록된 내용이 없습니다."
-    )
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
+      log.operationStatus || ""
+    ).trim();
 
   const operationStatusHtml =
-    operationStatusLines.length
-      ? operationStatusLines
-          .map((line, index) => {
-            return `
-              <div class="detail-numbered-line">
-                <span class="detail-numbered-line__number">
-                  ${index + 1}.
-                </span>
-
-                <span class="detail-numbered-line__content">
-                  ${escapeHtml(line)}
-                </span>
-              </div>
-            `;
-          })
-          .join("")
+    operationStatusText
+      ? `
+        <div class="detail-operation-status-text">
+          ${escapeHtml(
+            operationStatusText
+          )}
+        </div>
+      `
       : `
         <p class="detail-empty">
           등록된 내용이 없습니다.
@@ -3820,20 +3783,6 @@ function openLogDetail(log) {
       </div>
     </section>
 
-    ${
-      otherEntries.length
-        ? `
-          <section class="detail-section">
-            <h3>기타 내역</h3>
-
-            <div class="detail-role-entry-list">
-              ${otherEntriesHtml}
-            </div>
-          </section>
-        `
-        : ""
-    }
-
     <section class="detail-section">
       <h3>비고</h3>
 
@@ -3886,7 +3835,9 @@ function openLogDetail(log) {
       );
     });
 
-  openModal(elements.logDetailModal);
+  openModal(
+    elements.logDetailModal
+  );
 }
 
 
