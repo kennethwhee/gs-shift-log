@@ -701,6 +701,60 @@ async function loadLegacyLogsForSelectedDate() {
   }
 }
 
+/* =========================================================
+  기존 파트장 일지 body index → 담당 보직
+========================================================= */
+
+function convertLegacyBodyIndexToRole(
+  bodyIndex,
+  diaryRole
+) {
+  const normalizedDiaryRole =
+    normalizeMemberLogRole(
+      diaryRole
+    );
+
+  /*
+    일반 근무자 업무일지는
+    모든 항목을 해당 근무자의 업무로 처리한다.
+  */
+  if (
+    normalizedDiaryRole !==
+    "파트장"
+  ) {
+    return normalizedDiaryRole;
+  }
+
+  /*
+    기존 파트장 업무일지 구조
+
+    index 0 : 운전현황
+    index 1 : TM 발행 내역
+    index 2 : TGO 업무
+    index 3 : BCO1 업무
+    index 4 : BCO2 업무
+    index 5 : TO 업무
+    index 6 : BO1 업무
+    index 7 : BO2 업무
+    index 8 : 파트장 직접 작성 업무
+  */
+  const roleMap = {
+    2: "TGO",
+    3: "BCO1",
+    4: "BCO2",
+    5: "TO",
+    6: "BO1",
+    7: "BO2",
+    8: "파트장"
+  };
+
+  return (
+    roleMap[
+      Number(bodyIndex)
+    ] ||
+    "파트장"
+  );
+}
 
 /* =========================================================
   기존 업무일지 1건을 현재 구조로 변환
@@ -740,10 +794,6 @@ function convertLegacyDiaryToLog(
       "기존 업무일지"
     ).trim();
 
-  /*
-    body index 0:
-    기존 업무일지의 운전현황
-  */
   const operationStatus =
     getLegacyBodyContent(
       bodyEntries,
@@ -770,8 +820,8 @@ function convertLegacyDiaryToLog(
         );
 
       /*
-        내용이 없거나 운전현황(index 0)이면
-        작업 내역에서는 제외한다.
+        빈 내용과 운전현황은
+        작업 내역에서 제외한다.
       */
       if (
         !rawContent.trim() ||
@@ -784,6 +834,18 @@ function convertLegacyDiaryToLog(
         index === 1
           ? "TM 발행"
           : "인계사항";
+
+      /*
+        파트장 업무일지의 body index를
+        실제 담당 보직으로 변환한다.
+      */
+      const sourceRole =
+        index === 1
+          ? ""
+          : convertLegacyBodyIndexToRole(
+              index,
+              role
+            );
 
       const parsedLines =
         parseLegacyDiaryContentLines(
@@ -806,23 +868,32 @@ function convertLegacyDiaryToLog(
 
             category,
 
-            /*
-              문장 앞에 적힌 HH:MM을
-              현재 시간 칸으로 분리한다.
-            */
             time:
               parsedLine.time,
 
             tag: "",
 
-            /*
-              수기로 적힌 번호와 시간은 제거하고
-              실제 내용만 넣는다.
-            */
             content:
               parsedLine.content,
 
             attachmentName: "",
+
+            /*
+              파트장 일지에서 보직별 구분에 사용한다.
+            */
+            importedFromRole:
+              sourceRole,
+
+            importedFromAuthor: "",
+
+            importedFromLogId:
+              `legacy-${
+                legacyItem.diary_id ||
+                itemIndex
+              }`,
+
+            importedFromEntryIndex:
+              lineIndex,
 
             legacyBodyIndex:
               index,
