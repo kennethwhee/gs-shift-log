@@ -16,10 +16,17 @@ const FACILITY_NAVIGATOR_URL =
   "https://gs-facility-navigator-2mg.pages.dev/";
 
 const STORAGE_KEYS = {
-  logs: "gsShiftLog.logs",
-  draft: "gsShiftLog.draft",
+  logs:
+    "gsShiftLog.logs",
+
+  draft:
+    "gsShiftLog.draft",
+
   operationStatus:
-    "gsShiftLog.operationStatus"
+    "gsShiftLog.operationStatus",
+
+  memberWorkStatuses:
+    "gsShiftLog.memberWorkStatuses"
 };
 
 
@@ -102,14 +109,219 @@ const initialShiftContext =
   getCurrentShiftContext();
 
 const appState = {
-  selectedDate: initialShiftContext.date,
-  selectedShift: initialShiftContext.shift,
-  currentDetailLogId: null,
+  selectedDate:
+    initialShiftContext.date,
+
+  selectedShift:
+    initialShiftContext.shift,
+
+  currentDetailLogId:
+    null,
+
   logs: [],
 
   editorEntries: [],
-  editingEntryIndex: -1
+
+  editingEntryIndex:
+    -1,
+
+  /*
+    날짜·근무·보직별 근무 상태
+
+    예:
+    2026-07-21||DS||TGO : 출근
+    2026-07-21||DS||BCO1 : 휴가
+  */
+  memberWorkStatuses: {}
 };
+
+/* =========================================================
+  근무자 출근·부재 상태 관리
+
+  상태 종류:
+  - 출근
+  - 교육
+  - 휴가
+  - 출장
+  - 결원
+========================================================= */
+
+function getMemberWorkStatusKey(
+  date,
+  shift,
+  role
+) {
+  const normalizedDate =
+    String(
+      date || ""
+    ).trim();
+
+  const normalizedShift =
+    String(
+      shift || ""
+    )
+      .trim()
+      .toUpperCase();
+
+  const normalizedRole =
+    normalizeMemberLogRole(
+      role
+    );
+
+  return [
+    normalizedDate,
+    normalizedShift,
+    normalizedRole
+  ].join("||");
+}
+
+
+function loadMemberWorkStatuses() {
+  const savedStatuses =
+    localStorage.getItem(
+      STORAGE_KEYS.memberWorkStatuses
+    );
+
+  if (!savedStatuses) {
+    appState.memberWorkStatuses = {};
+    return;
+  }
+
+  try {
+    const parsedStatuses =
+      JSON.parse(
+        savedStatuses
+      );
+
+    appState.memberWorkStatuses =
+      parsedStatuses &&
+      typeof parsedStatuses ===
+        "object" &&
+      !Array.isArray(
+        parsedStatuses
+      )
+        ? parsedStatuses
+        : {};
+  } catch (error) {
+    console.error(
+      "근무자 상태 불러오기 실패:",
+      error
+    );
+
+    appState.memberWorkStatuses = {};
+
+    localStorage.removeItem(
+      STORAGE_KEYS.memberWorkStatuses
+    );
+  }
+}
+
+
+function persistMemberWorkStatuses() {
+  localStorage.setItem(
+    STORAGE_KEYS.memberWorkStatuses,
+    JSON.stringify(
+      appState.memberWorkStatuses
+    )
+  );
+}
+
+
+function getMemberWorkStatus(
+  date,
+  shift,
+  role
+) {
+  const statusKey =
+    getMemberWorkStatusKey(
+      date,
+      shift,
+      role
+    );
+
+  const savedStatus =
+    String(
+      appState
+        .memberWorkStatuses[
+          statusKey
+        ] ||
+      ""
+    ).trim();
+
+  const validStatuses = [
+    "출근",
+    "교육",
+    "휴가",
+    "출장",
+    "결원"
+  ];
+
+  return validStatuses.includes(
+    savedStatus
+  )
+    ? savedStatus
+    : "출근";
+}
+
+
+function setMemberWorkStatus(
+  date,
+  shift,
+  role,
+  status
+) {
+  const validStatuses = [
+    "출근",
+    "교육",
+    "휴가",
+    "출장",
+    "결원"
+  ];
+
+  const normalizedStatus =
+    String(
+      status || ""
+    ).trim();
+
+  if (
+    !validStatuses.includes(
+      normalizedStatus
+    )
+  ) {
+    return false;
+  }
+
+  const statusKey =
+    getMemberWorkStatusKey(
+      date,
+      shift,
+      role
+    );
+
+  /*
+    기본값인 출근은 저장소에서 제거하여
+    불필요한 데이터가 쌓이지 않게 한다.
+  */
+  if (
+    normalizedStatus ===
+    "출근"
+  ) {
+    delete appState
+      .memberWorkStatuses[
+        statusKey
+      ];
+  } else {
+    appState
+      .memberWorkStatuses[
+        statusKey
+      ] =
+      normalizedStatus;
+  }
+
+  persistMemberWorkStatuses();
+
+  return true;
+}
 
 /* =========================================================
   초기 실행
@@ -127,6 +339,8 @@ document.addEventListener(
       먼저 브라우저에 저장된 신규 업무일지를 불러온다.
     */
     loadLogs();
+
+    loadMemberWorkStatuses();
 
     bindEvents();
     bindMemberLogImportEvents();
@@ -285,6 +499,11 @@ function cacheElements() {
     logAuthor:
       document.getElementById(
         "logAuthor"
+      ),
+
+    logIsSubstitute:
+      document.getElementById(
+        "logIsSubstitute"
       ),
 
 
@@ -5184,13 +5403,31 @@ function resetLogEditor() {
 
   elements.logShift.value =
     appState.selectedShift;
-  elements.operationStatus.value = "";
-  elements.logNote.value = "";
 
-  elements.logEditorForm.dataset.editingId = "";
+  /*
+    새 업무일지 작성 시
+    대근 여부는 기본적으로 해제한다.
+  */
+  if (
+    elements.logIsSubstitute
+  ) {
+    elements.logIsSubstitute.checked =
+      false;
+  }
+
+  elements.operationStatus.value =
+    "";
+
+  elements.logNote.value =
+    "";
+
+  elements.logEditorForm.dataset.editingId =
+    "";
 
   appState.editorEntries = [];
-  appState.editingEntryIndex = -1;
+
+  appState.editingEntryIndex =
+    -1;
 
   resetLogEntryInput({
     keepCategory: false,
@@ -5199,8 +5436,11 @@ function resetLogEditor() {
 
   renderLogEntryTable();
 
-  elements.logAttachments.value = "";
-  elements.attachmentList.innerHTML = "";
+  elements.logAttachments.value =
+    "";
+
+  elements.attachmentList.innerHTML =
+    "";
 }
 
 
@@ -5213,7 +5453,9 @@ function fillLogEditor(log) {
   }
 
   elements.logEditorForm.dataset.editingId =
-    String(log.id || "").trim();
+    String(
+      log.id || ""
+    ).trim();
 
   elements.logDate.value =
     log.date || "";
@@ -5223,13 +5465,27 @@ function fillLogEditor(log) {
     appState.selectedShift;
 
   elements.logTeam.value =
-    normalizeTeamName(log.team || "3파트");
+    normalizeTeamName(
+      log.team || "3파트"
+    );
 
   elements.logRole.value =
     log.role || "";
 
   elements.logAuthor.value =
     log.author || "";
+
+  /*
+    저장된 대근 여부 복원
+  */
+  if (
+    elements.logIsSubstitute
+  ) {
+    elements.logIsSubstitute.checked =
+      Boolean(
+        log.isSubstitute
+      );
+  }
 
   elements.operationStatus.value =
     log.operationStatus || "";
@@ -5244,15 +5500,10 @@ function fillLogEditor(log) {
   elements.logNote.value =
     log.note || "";
 
-  /*
-    저장된 작업 내역을 편집기로 복원한다.
-
-    가져온 팀원 업무일지 항목은
-    원본 업무일지 ID와 원본 항목 번호까지
-    모두 유지해야 다시 가져올 때 중복되지 않는다.
-  */
   appState.editorEntries =
-    Array.isArray(log.entries)
+    Array.isArray(
+      log.entries
+    )
       ? log.entries.map(
           (entry) => {
             const rawSourceIndex =
@@ -5331,14 +5582,15 @@ function fillLogEditor(log) {
   renderLogEntryTable();
 
   renderSavedAttachments(
-    Array.isArray(log.attachments)
+    Array.isArray(
+      log.attachments
+    )
       ? log.attachments
       : []
   );
 
   updateMemberLogImportSection();
 }
-
 
 /* =========================================================
   작업 · 정비 · 인계 내역
@@ -7486,6 +7738,12 @@ function collectEditorData(status) {
       elements.logAuthor.value
         .trim(),
 
+    isSubstitute:
+      Boolean(
+        elements.logIsSubstitute
+          ?.checked
+      ),
+
     operationStatus:
       currentOperationStatus,
 
@@ -8295,6 +8553,19 @@ function createLogRowHtml(log) {
             log.author || "-"
           )}
         </strong>
+
+       ${
+        log.isSubstitute
+            ? `
+              <span class="substitute-work-badge">
+               대근
+             </span>
+           `
+          : ""
+         }
+
+        </div>
+
       </td>
 
       <td class="log-row__status-cell">

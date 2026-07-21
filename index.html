@@ -131,6 +131,7 @@
 
     <div class="shift-member-card__body">
       <strong class="shift-member-card__name">홍길동</strong>
+      <span class="shift-member-card__substitute">대근</span>
       <span class="shift-member-card__team">3파트</span>
     </div>
 
@@ -720,6 +721,9 @@
 <!-- =========================================================
   기본 정보
 ========================================================== -->
+<!-- =========================================================
+  기본 정보
+========================================================== -->
 <section class="editor-section editor-section--basic">
 
   <div class="editor-section__heading">
@@ -876,6 +880,37 @@
         autocomplete="name"
         required
       />
+
+    </label>
+
+
+    <!-- 대근 여부 -->
+    <label
+      class="form-field substitute-work-field"
+      for="logIsSubstitute"
+    >
+
+      <span class="form-field__label">
+        대근 여부
+      </span>
+
+      <span class="substitute-work-check">
+
+        <input
+          type="checkbox"
+          id="logIsSubstitute"
+          name="logIsSubstitute"
+        />
+
+        <span class="substitute-work-check__box">
+          ✓
+        </span>
+
+        <span class="substitute-work-check__text">
+          대근
+        </span>
+
+      </span>
 
     </label>
 

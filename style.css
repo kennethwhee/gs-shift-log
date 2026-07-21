@@ -281,11 +281,17 @@ a {
 }
 
 .section-heading__title {
-  margin: 0;
-  color: #1b2840;
-  font-size: 24px;
-  line-height: 1.2;
-  letter-spacing: -0.03em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  color: #111827;
+
+  font-size: 31px;
+  font-weight: 800;
+  line-height: 1.1;
+
+  letter-spacing: -0.04em;
 }
 
 .shift-summary {
@@ -319,20 +325,29 @@ a {
 .shift-member-card {
   position: relative;
   min-width: 0;
-  padding: 14px 12px 12px;
-  border: 1px solid #d9dee7;
+
+  padding: 11px 12px 10px;
+
+  border: 1px solid #4b5563;
   border-radius: 10px;
+
   background: #ffffff;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+
+  box-shadow:
+    0 2px 8px
+    rgba(15, 23, 42, 0.05);
+
   overflow: hidden;
 }
 
 .shift-member-card__role {
-  margin-bottom: 10px;
-  color: #1f2937;
-  font-size: 13px;
+  margin-bottom: 6px;
+
+  color: #4b5563;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1.2;
+
   letter-spacing: -0.02em;
 }
 
@@ -341,16 +356,26 @@ a {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  margin-bottom: 12px;
+
+  margin-bottom: 8px;
+  padding: 7px 8px;
+
+  border-radius: 7px;
+
+  background: #f8fafc;
 }
 
 .shift-member-card__name {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+
   color: #111827;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.3;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.25;
+
+  letter-spacing: -0.03em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -367,28 +392,53 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+
   min-height: 24px;
-  padding: 0 8px;
+  padding: 0 9px;
+
+  border: 1px solid transparent;
   border-radius: 999px;
+
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1;
+
   white-space: nowrap;
 }
 
+
+/*
+  상태 앞 공통 점
+*/
+.shift-member-card__status::before {
+  content: "";
+  display: inline-block;
+  flex: 0 0 auto;
+
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+  background: currentColor;
+}
+
 .shift-member-card__status.is-complete {
-  color: #166534;
-  background: #dcfce7;
+  border-color: #9fd4b6;
+  background: #e8f8ef;
+  color: #16804f;
 }
 
 .shift-member-card__status.is-writing {
-  color: #1d4ed8;
-  background: #dbeafe;
+  border-color: #a9c5ea;
+  background: #eaf2fd;
+  color: #1f5fae;
 }
 
 .shift-member-card__status.is-empty {
-  color: #6b7280;
-  background: #f3f4f6;
+  border-color: #d3d8df;
+  background: #f3f5f7;
+  color: #7a8491;
 }
 
 @media (max-width: 1200px) {
@@ -413,7 +463,7 @@ a {
   }
 
   .shift-member-card__name {
-    font-size: 13px;
+    font-size: 15px;
   }
 }
 
@@ -5128,13 +5178,21 @@ td {
 ========================================================= */
 
 .shift-section-part {
-  display: inline-block;
-  margin-left: 5px;
-  color: #1f5fae;
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: -0.03em;
-  vertical-align: baseline;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 3px 10px;
+
+  border-radius: 999px;
+
+  background: #eaf3ff;
+  color: #1d4ed8;
+
+  font-size: 16px;
+  font-weight: 800;
+
+  line-height: 1;
 }
 
 
@@ -5166,4 +5224,158 @@ td {
 
 .log-table thead th:nth-child(5) {
   border-left-color: #cbd8e5;
+}
+
+/* =========================================================
+  기본 정보 - 대근 체크
+========================================================= */
+
+.substitute-work-field {
+  min-width: 92px;
+}
+
+.substitute-work-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  min-height: 40px;
+  padding: 0 12px;
+
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+
+  background: #ffffff;
+
+  color: #374151;
+  font-size: 14px;
+  font-weight: 700;
+
+  cursor: pointer;
+  user-select: none;
+}
+
+.substitute-work-check input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  overflow: hidden;
+
+  opacity: 0;
+  pointer-events: none;
+}
+
+.substitute-work-check__box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 18px;
+  height: 18px;
+
+  border: 1px solid #9ca3af;
+  border-radius: 5px;
+
+  background: #ffffff;
+
+  color: transparent;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.substitute-work-check:has(input:checked) {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.substitute-work-check input:checked +
+.substitute-work-check__box {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.substitute-work-check:focus-within {
+  outline: 3px solid rgba(37, 99, 235, 0.16);
+  outline-offset: 1px;
+}
+
+@media (max-width: 768px) {
+  .substitute-work-field {
+    min-width: 0;
+  }
+
+  .substitute-work-check {
+    justify-content: flex-start;
+  }
+}
+
+/* =========================================================
+  업무일지 목록 - 대근 배지
+========================================================= */
+
+.log-row__author-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.substitute-work-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 20px;
+  padding: 2px 7px;
+
+  border: 1px solid #f59e0b;
+  border-radius: 999px;
+
+  background: #fffbeb;
+
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* =========================================================
+  근무자 현황 - 대근 표시
+========================================================= */
+
+.shift-member-card__name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.shift-member-card__substitute {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 2px 7px;
+
+  border: 1px solid #f59e0b;
+  border-radius: 999px;
+
+  background: #fffbeb;
+
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
 }
