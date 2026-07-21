@@ -669,7 +669,9 @@ a {
 ========================================================= */
 
 
-/* 메인 목록 셀 정렬 */
+/* =========================================================
+   메인 목록 셀 정렬
+========================================================= */
 
 .log-row__author-cell,
 .log-row__status-cell,
@@ -685,7 +687,9 @@ a {
 }
 
 
-/* 첨부파일 표시 */
+/* =========================================================
+   첨부파일 표시
+========================================================= */
 
 .attachment-indicator {
   display: inline-flex;
@@ -711,13 +715,17 @@ a {
 }
 
 
-/* 업무내용 전체 버튼 */
+/* =========================================================
+   업무내용 전체 버튼
+========================================================= */
 
 .log-preview {
-  width: 100%;
   display: flex;
+  width: 100%;
+  min-width: 0;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -730,25 +738,51 @@ a {
   color: var(--primary);
 }
 
-
-/* 업무내용 한 줄 */
-
-.log-preview__group {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  align-items: start;
-  gap: 10px;
-  min-width: 0;
+.log-preview:focus-visible {
+  outline: 2px solid rgba(31, 95, 174, 0.28);
+  outline-offset: 4px;
+  border-radius: 5px;
 }
 
 
-/* 운전현황·TM·인계사항·비고 제목 */
+/* =========================================================
+   업무내용 한 줄
+
+   첫 번째 열: 운전현황·TM·인계·비고
+   두 번째 열: TAG + 번호 + 시간 + 내용
+========================================================= */
+
+.log-preview__group {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 10px;
+}
+
+
+/*
+   같은 분류의 두 번째 항목부터는 제목 요소가 없다.
+
+   제목 배지는 출력하지 않으면서
+   내용은 기존 두 번째 열에 그대로 배치한다.
+*/
+.log-preview__group.has-no-title
+.log-preview__content {
+  grid-column: 2;
+}
+
+
+/* =========================================================
+   운전현황·TM·인계·비고 제목
+========================================================= */
 
 .log-preview__title {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 0;
   min-height: 24px;
   padding: 3px 8px;
   border-radius: 6px;
@@ -760,32 +794,38 @@ a {
   white-space: nowrap;
 }
 
-.log-preview__group.is-operation .log-preview__title {
+.log-preview__group.is-operation
+.log-preview__title {
   background: #eaf2fb;
   color: var(--primary);
 }
 
-.log-preview__group.is-maintenance .log-preview__title {
+.log-preview__group.is-maintenance
+.log-preview__title {
   background: #e7f6f0;
   color: var(--success);
 }
 
-.log-preview__group.is-handover .log-preview__title {
+.log-preview__group.is-handover
+.log-preview__title {
   background: #fff4df;
   color: var(--warning);
 }
 
-.log-preview__group.is-note .log-preview__title {
+.log-preview__group.is-note
+.log-preview__title {
   background: #f1f3f5;
   color: #667181;
 }
 
 
-/* 제목 오른쪽의 실제 업무내용 */
+/* =========================================================
+   제목 오른쪽의 TAG·번호·시간·내용
+========================================================= */
 
 .log-preview__content {
-  min-width: 0;
   display: flex;
+  min-width: 0;
   align-items: flex-start;
   gap: 7px;
   padding-top: 2px;
@@ -796,11 +836,13 @@ a {
 }
 
 
-/* TAG 표시 */
+/* =========================================================
+   TAG 표시
+========================================================= */
 
 .log-preview__tag {
-  flex: 0 0 auto;
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   min-height: 22px;
   padding: 1px 6px;
@@ -818,24 +860,29 @@ a {
 }
 
 
-/* 업무내용 글씨 */
+/* =========================================================
+   업무내용 글씨
+========================================================= */
 
 .log-preview__text {
-  min-width: 0;
   display: block;
-  overflow: hidden;
+  min-width: 0;
+  overflow: visible;
   color: #34445a;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.55;
   text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   transition: color 0.16s ease;
 }
 
 
-/* 표시할 내용이 없을 때 */
+/* =========================================================
+   표시할 내용이 없을 때
+========================================================= */
 
 .log-preview__empty {
   display: block;
