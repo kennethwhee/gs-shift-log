@@ -941,8 +941,8 @@
           rows="6"
           placeholder="현재 운전현황을 입력하세요."
         >#1 주보일러 정상운전
-#2 주보일러 정상운전
-GT / ST 정상운전</textarea>
+        #2 주보일러 정상운전
+        GT / ST 정상운전</textarea>
 
       </label>
 
@@ -981,6 +981,102 @@ GT / ST 정상운전</textarea>
 
 </section>
 
+<!-- =====================================================
+  파트장 업무일지 취합
+====================================================== -->
+<section
+  id="memberLogImportSection"
+  class="member-log-import-section"
+  hidden
+>
+  <div class="member-log-import-header">
+    <div>
+      <h3>팀원 업무일지 가져오기</h3>
+
+      <p>
+        같은 작성일과 근무의 팀원 업무일지에서
+        작업 · 정비 · 인계 내역을 가져옵니다.
+      </p>
+    </div>
+
+    <span
+      id="memberLogImportCount"
+      class="member-log-import-count"
+    >
+      가져온 내역 0건
+    </span>
+  </div>
+
+  <div class="member-log-import-buttons">
+    <button
+      type="button"
+      id="importTgoLogButton"
+      class="member-log-import-button"
+      data-import-role="TGO"
+    >
+      <span class="member-log-import-button__order">
+        1
+      </span>
+
+      <span class="member-log-import-button__content">
+        <strong>TGO 업무일지 가져오기</strong>
+        <small id="importTgoLogStatus">
+          업무일지 확인 전
+        </small>
+      </span>
+    </button>
+
+    <button
+      type="button"
+      id="importBco1LogButton"
+      class="member-log-import-button"
+      data-import-role="BCO1"
+    >
+      <span class="member-log-import-button__order">
+        2
+      </span>
+
+      <span class="member-log-import-button__content">
+        <strong>BCO1 업무일지 가져오기</strong>
+        <small id="importBco1LogStatus">
+          업무일지 확인 전
+        </small>
+      </span>
+    </button>
+
+    <button
+      type="button"
+      id="importBco2LogButton"
+      class="member-log-import-button"
+      data-import-role="BCO2"
+    >
+      <span class="member-log-import-button__order">
+        3
+      </span>
+
+      <span class="member-log-import-button__content">
+        <strong>BCO2 업무일지 가져오기</strong>
+        <small id="importBco2LogStatus">
+          업무일지 확인 전
+        </small>
+      </span>
+    </button>
+  </div>
+
+  <div class="member-log-import-footer">
+    <button
+      type="button"
+      id="importAllMemberLogsButton"
+      class="member-log-import-all-button"
+    >
+      TGO → BCO1 → BCO2 일괄 가져오기
+    </button>
+
+    <p class="member-log-import-help">
+      이미 가져온 동일한 내역은 중복으로 추가되지 않습니다.
+    </p>
+  </div>
+</section>
 
 <!-- =========================================================
   작업 · 정비 · 인계 내역
