@@ -2888,38 +2888,387 @@ body.modal-open {
   }
 }
 
-/* =========================================================
-  등록된 작업 내역 - TAG를 내용 앞에 표시
-========================================================= */
 
-.log-entry-inline-content {
+/* =====================================================
+  등록된 작업 내역
+===================================================== */
+
+.log-entry-table-panel {
+  margin-top: 20px;
+  overflow: hidden;
+  border: 1px solid #dfe5ec;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.log-entry-table-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 58px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e7ebf0;
+  background: #f8fafc;
+}
+
+.log-entry-table-header__summary {
+  display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 
-.log-entry-inline-tag {
+.log-entry-table-header__summary strong {
+  color: #172033;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+#logEntryCount {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #e9eef5;
+  color: #526074;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.selected-log-entry-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #e7f0ff;
+  color: #1763c5;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.selected-log-entry-count[hidden] {
+  display: none;
+}
+
+.delete-selected-log-entries-button {
   flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #efb4b4;
+  border-radius: 9px;
+  background: #fff5f5;
+  color: #c53333;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.delete-selected-log-entries-button:hover:not(:disabled) {
+  border-color: #dc6969;
+  background: #ffe8e8;
+  color: #a91f1f;
+}
+
+.delete-selected-log-entries-button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.log-entry-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.log-entry-table {
+  width: 100%;
+  min-width: 780px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.log-entry-table th {
+  height: 42px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #dfe5ec;
+  background: #f5f7fa;
+  color: #576477;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.log-entry-table td {
+  padding: 11px 10px;
+  border-bottom: 1px solid #edf0f4;
+  background: #ffffff;
+  color: #202b3d;
+  font-size: 13px;
+  line-height: 1.5;
+  vertical-align: middle;
+}
+
+.log-entry-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.log-entry-table tbody tr:hover td {
+  background: #fafcff;
+}
+
+.log-entry-table tbody tr.is-editing td {
+  background: #eef5ff;
+}
+
+.log-entry-table__select,
+.log-entry-select-cell {
+  width: 44px;
+  text-align: center !important;
+}
+
+.log-entry-table__time,
+.log-entry-time-cell {
+  width: 76px;
+  text-align: center !important;
+  white-space: nowrap;
+}
+
+.log-entry-table__category {
+  width: 132px;
+}
+
+.log-entry-table__content {
+  width: auto;
+}
+
+.log-entry-table__actions,
+.log-entry-actions-cell {
+  width: 116px;
+  text-align: center !important;
+}
+
+.log-entry-select-checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.log-entry-category-cell {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.log-entry-category-text {
+  color: #425069;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.log-entry-source-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border: 1px solid #cbd6e4;
+  border-radius: 6px;
+  background: #eef3f8;
+  color: #33445c;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.log-entry-source-badge.is-tgo {
+  border-color: #a8c8f2;
+  background: #e8f2ff;
+  color: #1d5fae;
+}
+
+.log-entry-source-badge.is-bco1,
+.log-entry-source-badge.is-bco2 {
+  border-color: #bad7c4;
+  background: #ecf8f0;
+  color: #277143;
+}
+
+.log-entry-source-badge.is-to {
+  border-color: #d5c2eb;
+  background: #f5edff;
+  color: #7544a8;
+}
+
+.log-entry-source-badge.is-bo1,
+.log-entry-source-badge.is-bo2 {
+  border-color: #edcfaa;
+  background: #fff4e5;
+  color: #9a5c16;
+}
+
+.log-entry-source-badge.is-leader {
+  border-color: #b9c0cc;
+  background: #e9edf2;
+  color: #354052;
+}
+
+.log-entry-inline-content {
+  display: block;
+  min-width: 0;
+  color: #1f2937;
+  line-height: 1.55;
+  text-align: left;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.log-entry-inline-tag {
+  display: inline;
+  margin: 0 4px 0 0;
   padding: 0;
   border: 0;
   background: transparent;
-  color: #1769c2;
-  font-size: 11px;
+  color: #1763c5;
+  font: inherit;
   font-weight: 800;
-  line-height: 1.5;
+  line-height: inherit;
+  vertical-align: baseline;
   cursor: pointer;
 }
 
 .log-entry-inline-tag:hover {
+  color: #0b4694;
   text-decoration: underline;
 }
 
 .log-entry-inline-content__text {
-  min-width: 0;
-  color: #34465c;
-  font-size: 12px;
-  line-height: 1.55;
-  word-break: break-word;
+  display: inline;
+  white-space: pre-wrap;
+}
+
+.log-entry-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.log-entry-edit-button,
+.log-entry-delete-button {
+  min-height: 29px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.log-entry-edit-button {
+  border: 1px solid #bdd0e8;
+  background: #f0f6fd;
+  color: #245a96;
+}
+
+.log-entry-edit-button:hover {
+  border-color: #7fa8d5;
+  background: #e2effd;
+}
+
+.log-entry-delete-button {
+  border: 1px solid #efc1c1;
+  background: #fff4f4;
+  color: #bb3434;
+}
+
+.log-entry-delete-button:hover {
+  border-color: #dc7777;
+  background: #ffe7e7;
+}
+
+.log-entry-empty-row td {
+  height: 100px;
+  color: #8792a3;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .log-entry-table-panel {
+    margin-top: 16px;
+    border-radius: 12px;
+  }
+
+  .log-entry-table-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .log-entry-table-header__summary {
+    width: 100%;
+  }
+
+  .delete-selected-log-entries-button {
+    width: 100%;
+  }
+
+  .log-entry-table {
+    min-width: 680px;
+  }
+
+  .log-entry-table th {
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+
+  .log-entry-table td {
+    padding: 9px 8px;
+    font-size: 12px;
+  }
+
+  .log-entry-table__select,
+  .log-entry-select-cell {
+    width: 40px;
+  }
+
+  .log-entry-table__time,
+  .log-entry-time-cell {
+    width: 68px;
+  }
+
+  .log-entry-table__category {
+    width: 112px;
+  }
+
+  .log-entry-table__actions,
+  .log-entry-actions-cell {
+    width: 104px;
+  }
+
+  .log-entry-row-actions {
+    gap: 4px;
+  }
+
+  .log-entry-edit-button,
+  .log-entry-delete-button {
+    min-height: 27px;
+    padding: 0 7px;
+    font-size: 10px;
+  }
 }

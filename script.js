@@ -68,11 +68,15 @@ function cacheElements() {
     ====================================================== */
 
     topTabs: [
-      ...document.querySelectorAll(".top-tab")
+      ...document.querySelectorAll(
+        ".top-tab"
+      )
     ],
 
     pageViews: [
-      ...document.querySelectorAll(".page-view")
+      ...document.querySelectorAll(
+        ".page-view"
+      )
     ],
 
 
@@ -81,25 +85,39 @@ function cacheElements() {
     ====================================================== */
 
     shiftMemberGrid:
-      document.getElementById("shiftMemberGrid"),
+      document.getElementById(
+        "shiftMemberGrid"
+      ),
 
     currentShiftLabel:
-      document.getElementById("currentShiftLabel"),
+      document.getElementById(
+        "currentShiftLabel"
+      ),
 
     selectedDateText:
-      document.getElementById("selectedDateText"),
+      document.getElementById(
+        "selectedDateText"
+      ),
 
     selectedShiftBadge:
-      document.getElementById("selectedShiftBadge"),
+      document.getElementById(
+        "selectedShiftBadge"
+      ),
 
     previousDateButton:
-      document.getElementById("previousDateButton"),
+      document.getElementById(
+        "previousDateButton"
+      ),
 
     nextDateButton:
-      document.getElementById("nextDateButton"),
+      document.getElementById(
+        "nextDateButton"
+      ),
 
     todayButton:
-      document.getElementById("todayButton"),
+      document.getElementById(
+        "todayButton"
+      ),
 
 
     /* =====================================================
@@ -107,22 +125,34 @@ function cacheElements() {
     ====================================================== */
 
     openLogEditorButton:
-      document.getElementById("openLogEditorButton"),
+      document.getElementById(
+        "openLogEditorButton"
+      ),
 
     closeLogEditorButton:
-      document.getElementById("closeLogEditorButton"),
+      document.getElementById(
+        "closeLogEditorButton"
+      ),
 
     cancelLogButton:
-      document.getElementById("cancelLogButton"),
+      document.getElementById(
+        "cancelLogButton"
+      ),
 
     logEditorModal:
-      document.getElementById("logEditorModal"),
+      document.getElementById(
+        "logEditorModal"
+      ),
 
     logEditorForm:
-      document.getElementById("logEditorForm"),
+      document.getElementById(
+        "logEditorForm"
+      ),
 
     logEditorTitle:
-      document.getElementById("logEditorTitle"),
+      document.getElementById(
+        "logEditorTitle"
+      ),
 
 
     /* =====================================================
@@ -130,19 +160,29 @@ function cacheElements() {
     ====================================================== */
 
     logDate:
-      document.getElementById("logDate"),
+      document.getElementById(
+        "logDate"
+      ),
 
     logShift:
-      document.getElementById("logShift"),
+      document.getElementById(
+        "logShift"
+      ),
 
     logTeam:
-      document.getElementById("logTeam"),
+      document.getElementById(
+        "logTeam"
+      ),
 
     logRole:
-      document.getElementById("logRole"),
+      document.getElementById(
+        "logRole"
+      ),
 
     logAuthor:
-      document.getElementById("logAuthor"),
+      document.getElementById(
+        "logAuthor"
+      ),
 
 
     /* =====================================================
@@ -269,6 +309,11 @@ function cacheElements() {
         "logEntryInputPanel"
       ),
 
+
+    /* =====================================================
+      등록된 작업 내역
+    ====================================================== */
+
     logEntryTableBody:
       document.getElementById(
         "logEntryTableBody"
@@ -284,13 +329,30 @@ function cacheElements() {
         "logEntriesJson"
       ),
 
+    selectAllLogEntriesCheckbox:
+      document.getElementById(
+        "selectAllLogEntriesCheckbox"
+      ),
+
+    selectedLogEntryCount:
+      document.getElementById(
+        "selectedLogEntryCount"
+      ),
+
+    deleteSelectedLogEntriesButton:
+      document.getElementById(
+        "deleteSelectedLogEntriesButton"
+      ),
+
 
     /* =====================================================
       비고와 첨부파일
     ====================================================== */
 
     logNote:
-      document.getElementById("logNote"),
+      document.getElementById(
+        "logNote"
+      ),
 
     logAttachments:
       document.getElementById(
@@ -413,6 +475,10 @@ function cacheElements() {
   파트장 업무일지 가져오기 요소
 ========================================================= */
 
+/* =========================================================
+  파트장 업무일지 가져오기 요소
+========================================================= */
+
 function cacheMemberLogImportElements() {
   elements.memberLogImportSection =
     document.getElementById(
@@ -424,6 +490,87 @@ function cacheMemberLogImportElements() {
       "memberLogImportCount"
     );
 
+  elements.importAllMemberLogsButton =
+    document.getElementById(
+      "importAllMemberLogsButton"
+    );
+
+  /*
+    HTML에 존재하는 버튼만 자동으로 연결한다.
+
+    현재 화면에 TGO, BCO1, BCO2만 있어도 작동하고,
+    추후 TO, BO1, BO2 버튼을 추가해도
+    script.js를 다시 수정할 필요가 없다.
+  */
+  const importDefinitions = [
+    {
+      role: "TGO",
+      buttonId:
+        "importTgoLogButton",
+      statusId:
+        "importTgoLogStatus"
+    },
+    {
+      role: "BCO1",
+      buttonId:
+        "importBco1LogButton",
+      statusId:
+        "importBco1LogStatus"
+    },
+    {
+      role: "BCO2",
+      buttonId:
+        "importBco2LogButton",
+      statusId:
+        "importBco2LogStatus"
+    },
+    {
+      role: "TO",
+      buttonId:
+        "importToLogButton",
+      statusId:
+        "importToLogStatus"
+    },
+    {
+      role: "BO1",
+      buttonId:
+        "importBo1LogButton",
+      statusId:
+        "importBo1LogStatus"
+    },
+    {
+      role: "BO2",
+      buttonId:
+        "importBo2LogButton",
+      statusId:
+        "importBo2LogStatus"
+    }
+  ];
+
+  elements.memberLogImportItems =
+    importDefinitions.map(
+      (definition) => {
+        return {
+          role:
+            definition.role,
+
+          button:
+            document.getElementById(
+              definition.buttonId
+            ),
+
+          status:
+            document.getElementById(
+              definition.statusId
+            )
+        };
+      }
+    );
+
+  /*
+    기존 코드나 다른 함수에서 직접 접근할 수 있도록
+    개별 요소 이름도 유지한다.
+  */
   elements.importTgoLogButton =
     document.getElementById(
       "importTgoLogButton"
@@ -439,9 +586,19 @@ function cacheMemberLogImportElements() {
       "importBco2LogButton"
     );
 
-  elements.importAllMemberLogsButton =
+  elements.importToLogButton =
     document.getElementById(
-      "importAllMemberLogsButton"
+      "importToLogButton"
+    );
+
+  elements.importBo1LogButton =
+    document.getElementById(
+      "importBo1LogButton"
+    );
+
+  elements.importBo2LogButton =
+    document.getElementById(
+      "importBo2LogButton"
     );
 
   elements.importTgoLogStatus =
@@ -458,10 +615,26 @@ function cacheMemberLogImportElements() {
     document.getElementById(
       "importBco2LogStatus"
     );
+
+  elements.importToLogStatus =
+    document.getElementById(
+      "importToLogStatus"
+    );
+
+  elements.importBo1LogStatus =
+    document.getElementById(
+      "importBo1LogStatus"
+    );
+
+  elements.importBo2LogStatus =
+    document.getElementById(
+      "importBo2LogStatus"
+    );
 }
 
+
 /* =========================================================
-  파트장 업무일지 가져오기 표시
+  파트장 업무일지 가져오기 이벤트
 ========================================================= */
 
 function bindMemberLogImportEvents() {
@@ -511,21 +684,31 @@ function bindMemberLogImportEvents() {
   if (
     elements.importAllMemberLogsButton
   ) {
-    elements.importAllMemberLogsButton.addEventListener(
-      "click",
-      importAllMemberLogs
-    );
+    elements
+      .importAllMemberLogsButton
+      .addEventListener(
+        "click",
+        importAllMemberLogs
+      );
   }
 }
 
 
+/* =========================================================
+  파트장 가져오기 영역 표시
+========================================================= */
+
 function updateMemberLogImportSection() {
-  if (!elements.memberLogImportSection) {
+  if (
+    !elements.memberLogImportSection
+  ) {
     return;
   }
 
   const selectedRole =
-    String(elements.logRole?.value || "").trim();
+    normalizeMemberLogRole(
+      elements.logRole?.value
+    );
 
   const isLeader =
     selectedRole === "파트장";
@@ -541,6 +724,10 @@ function updateMemberLogImportSection() {
 }
 
 
+/* =========================================================
+  각 보직 업무일지 가져오기 상태 표시
+========================================================= */
+
 function updateMemberLogImportStatus() {
   const importItems =
     Array.isArray(
@@ -550,10 +737,7 @@ function updateMemberLogImportStatus() {
       : [];
 
   importItems.forEach((item) => {
-    if (
-      !item.button ||
-      !item.status
-    ) {
+    if (!item.button) {
       return;
     }
 
@@ -564,7 +748,8 @@ function updateMemberLogImportStatus() {
 
     item.button.classList.remove(
       "is-imported",
-      "is-missing"
+      "is-missing",
+      "has-new-entries"
     );
 
     if (!memberLog) {
@@ -572,16 +757,21 @@ function updateMemberLogImportStatus() {
         "is-missing"
       );
 
-      item.status.textContent =
-        "작성된 업무일지 없음";
+      if (item.status) {
+        item.status.textContent =
+          "작성된 업무일지 없음";
+      }
+
+      item.button.disabled =
+        false;
 
       return;
     }
 
-    const entryCount =
+    const memberEntries =
       Array.isArray(memberLog.entries)
-        ? memberLog.entries.length
-        : 0;
+        ? memberLog.entries
+        : [];
 
     const author =
       String(
@@ -589,33 +779,72 @@ function updateMemberLogImportStatus() {
         item.role
       ).trim();
 
-    if (
-      hasImportedEntriesFromRole(
+    const syncStatus =
+      getMemberLogSyncStatus(
+        memberLog,
         item.role
-      )
+      );
+
+    if (
+      syncStatus.newEntryCount > 0
+    ) {
+      item.button.classList.add(
+        "has-new-entries"
+      );
+
+      if (item.status) {
+        item.status.textContent =
+          `${author} · 신규 ${syncStatus.newEntryCount}건`;
+      }
+
+      item.button.disabled =
+        false;
+
+      return;
+    }
+
+    if (
+      memberEntries.length > 0 &&
+      syncStatus.importedEntryCount > 0
     ) {
       item.button.classList.add(
         "is-imported"
       );
 
-      item.status.textContent =
-        `${author} · 가져오기 완료`;
+      if (item.status) {
+        item.status.textContent =
+          `${author} · 동기화 완료`;
+      }
+
+      item.button.disabled =
+        false;
 
       return;
     }
 
-    item.status.textContent =
-      `${author} · ${entryCount}건 확인`;
+    if (item.status) {
+      item.status.textContent =
+        `${author} · ${memberEntries.length}건 확인`;
+    }
+
+    item.button.disabled =
+      false;
   });
 
   updateMemberLogImportCount();
 }
 
 
+/* =========================================================
+  날짜·근무·보직에 맞는 업무일지 찾기
+========================================================= */
+
 function findMemberLogByRole(role) {
   const selectedDate =
     elements.logDate?.value ||
-    formatInputDate(appState.selectedDate);
+    formatInputDate(
+      appState.selectedDate
+    );
 
   const selectedShift =
     elements.logShift?.value ||
@@ -625,20 +854,17 @@ function findMemberLogByRole(role) {
   const targetRole =
     normalizeMemberLogRole(role);
 
-  /*
-    같은 날짜와 같은 근무에 작성된 업무일지 중에서
-    해당 보직의 업무일지를 찾는다.
-
-    BCO1과 BO1,
-    BCO2와 BO2는 같은 보직으로 인식한다.
-  */
   const matchedLogs =
     appState.logs.filter((log) => {
       const logDate =
-        String(log.date || "").trim();
+        String(
+          log.date || ""
+        ).trim();
 
       const logShift =
-        String(log.shift || "").trim();
+        String(
+          log.shift || ""
+        ).trim();
 
       const logRole =
         normalizeMemberLogRole(
@@ -657,21 +883,21 @@ function findMemberLogByRole(role) {
   }
 
   /*
-    같은 보직의 일지가 여러 개라면
+    과거 중복 저장 데이터가 존재하면
     가장 최근에 수정된 업무일지를 사용한다.
   */
-  matchedLogs.sort((a, b) => {
+  matchedLogs.sort((logA, logB) => {
     const timeA =
       new Date(
-        a.updatedAt ||
-        a.createdAt ||
+        logA.updatedAt ||
+        logA.createdAt ||
         0
       ).getTime();
 
     const timeB =
       new Date(
-        b.updatedAt ||
-        b.createdAt ||
+        logB.updatedAt ||
+        logB.createdAt ||
         0
       ).getTime();
 
@@ -681,10 +907,21 @@ function findMemberLogByRole(role) {
   return matchedLogs[0];
 }
 
+
+/* =========================================================
+  보직명 정규화
+========================================================= */
+
 function normalizeMemberLogRole(role) {
+  const rawRole =
+    String(role || "").trim();
+
+  if (rawRole === "파트장") {
+    return "파트장";
+  }
+
   const normalizedRole =
-    String(role || "")
-      .trim()
+    rawRole
       .toUpperCase()
       .replace(/\s+/g, "");
 
@@ -705,16 +942,227 @@ function normalizeMemberLogRole(role) {
     return normalizedRole;
   }
 
-  if (
-    String(role || "").trim() ===
-    "파트장"
-  ) {
-    return "파트장";
-  }
-
   return normalizedRole;
 }
 
+
+/* =========================================================
+  원본 항목 식별 키
+========================================================= */
+
+function createSourceEntryKey(
+  memberLog,
+  sourceRole,
+  entry,
+  entryIndex
+) {
+  const normalizedRole =
+    normalizeMemberLogRole(
+      sourceRole
+    );
+
+  const sourceLogId =
+    String(
+      memberLog?.id || ""
+    ).trim();
+
+  const sourceIndex =
+    Number.isInteger(entryIndex)
+      ? entryIndex
+      : Number(entryIndex);
+
+  /*
+    원본 업무일지 ID와 원본 항목 번호가 있으면
+    가장 우선적으로 사용한다.
+  */
+  if (
+    normalizedRole &&
+    sourceLogId &&
+    Number.isInteger(sourceIndex) &&
+    sourceIndex >= 0
+  ) {
+    return [
+      "SOURCE",
+      normalizedRole,
+      sourceLogId,
+      sourceIndex
+    ].join("||");
+  }
+
+  /*
+    과거 데이터 호환용 키
+  */
+  return [
+    "CONTENT",
+    normalizedRole,
+    createLogEntryImportKey(entry)
+  ].join("||");
+}
+
+
+/* =========================================================
+  현재 파트장 일지에 저장된 원본 식별 키
+========================================================= */
+
+function createImportedEntryUniqueKey(
+  entry
+) {
+  const sourceRole =
+    normalizeMemberLogRole(
+      entry.importedFromRole
+    );
+
+  const sourceLogId =
+    String(
+      entry.importedFromLogId || ""
+    ).trim();
+
+  const rawSourceIndex =
+    entry.importedFromEntryIndex;
+
+  const sourceIndex =
+    rawSourceIndex === "" ||
+    rawSourceIndex === null ||
+    rawSourceIndex === undefined
+      ? null
+      : Number(rawSourceIndex);
+
+  if (
+    sourceRole &&
+    sourceLogId &&
+    Number.isInteger(sourceIndex) &&
+    sourceIndex >= 0
+  ) {
+    return [
+      "SOURCE",
+      sourceRole,
+      sourceLogId,
+      sourceIndex
+    ].join("||");
+  }
+
+  return [
+    "CONTENT",
+    sourceRole,
+    createLogEntryImportKey(entry)
+  ].join("||");
+}
+
+
+/* =========================================================
+  일반 내용 비교 키
+========================================================= */
+
+function createLogEntryImportKey(entry) {
+  const time =
+    String(
+      entry?.time || ""
+    ).trim();
+
+  const category =
+    String(
+      entry?.category || ""
+    ).trim();
+
+  const tag =
+    String(
+      entry?.tag || ""
+    )
+      .trim()
+      .toUpperCase();
+
+  const content =
+    String(
+      entry?.content || ""
+    )
+      .trim()
+      .replace(/\s+/g, " ");
+
+  return [
+    time,
+    category,
+    tag,
+    content
+  ].join("||");
+}
+
+
+/* =========================================================
+  보직별 가져오기 동기화 상태 계산
+========================================================= */
+
+function getMemberLogSyncStatus(
+  memberLog,
+  requestedRole
+) {
+  const normalizedRole =
+    normalizeMemberLogRole(
+      requestedRole
+    );
+
+  const memberEntries =
+    Array.isArray(
+      memberLog?.entries
+    )
+      ? memberLog.entries
+      : [];
+
+  const currentImportedKeys =
+    new Set(
+      appState.editorEntries
+        .filter((entry) => {
+          return (
+            normalizeMemberLogRole(
+              entry.importedFromRole
+            ) === normalizedRole
+          );
+        })
+        .map((entry) => {
+          return createImportedEntryUniqueKey(
+            entry
+          );
+        })
+    );
+
+  let importedEntryCount = 0;
+  let newEntryCount = 0;
+
+  memberEntries.forEach(
+    (entry, entryIndex) => {
+      const sourceKey =
+        createSourceEntryKey(
+          memberLog,
+          normalizedRole,
+          entry,
+          entryIndex
+        );
+
+      if (
+        currentImportedKeys.has(
+          sourceKey
+        )
+      ) {
+        importedEntryCount += 1;
+      } else {
+        newEntryCount += 1;
+      }
+    }
+  );
+
+  return {
+    totalEntryCount:
+      memberEntries.length,
+
+    importedEntryCount,
+
+    newEntryCount
+  };
+}
+
+
+/* =========================================================
+  특정 보직의 가져온 내역 존재 여부
+========================================================= */
 
 function hasImportedEntriesFromRole(
   role
@@ -734,37 +1182,48 @@ function hasImportedEntriesFromRole(
 }
 
 
+/* =========================================================
+  가져온 전체 건수 표시
+========================================================= */
+
 function updateMemberLogImportCount() {
-  if (!elements.memberLogImportCount) {
+  if (
+    !elements.memberLogImportCount
+  ) {
     return;
   }
 
   const importedCount =
     appState.editorEntries.filter(
-      (entry) => entry.importedFromRole
+      (entry) => {
+        return Boolean(
+          entry.importedFromRole
+        );
+      }
     ).length;
 
   elements.memberLogImportCount.textContent =
     `가져온 내역 ${importedCount}건`;
 }
 
+
+/* =========================================================
+  보직별 신규 내역 가져오기
+========================================================= */
+
 function importMemberLogByRole(
   requestedRole,
   options = {}
 ) {
   const {
-    silent = false
+    silent = false,
+    deferRender = false
   } = options;
 
   const normalizedRole =
     normalizeMemberLogRole(
       requestedRole
     );
-
-  const displayRole =
-    normalizedRole === "BCO2"
-      ? "BCO2"
-      : normalizedRole;
 
   const memberLog =
     findMemberLogByRole(
@@ -774,15 +1233,25 @@ function importMemberLogByRole(
   if (!memberLog) {
     if (!silent) {
       showToast(
-        `${displayRole} 업무일지가 아직 작성되지 않았습니다.`
+        `${normalizedRole} 업무일지가 아직 작성되지 않았습니다.`
       );
     }
 
     return {
-      role: normalizedRole,
-      found: false,
-      addedCount: 0,
-      duplicateCount: 0
+      role:
+        normalizedRole,
+
+      found:
+        false,
+
+      totalCount:
+        0,
+
+      addedCount:
+        0,
+
+      skippedCount:
+        0
     };
   }
 
@@ -794,23 +1263,61 @@ function importMemberLogByRole(
   if (!memberEntries.length) {
     if (!silent) {
       showToast(
-        `${displayRole} 업무일지에 가져올 내역이 없습니다.`
+        `${normalizedRole} 업무일지에 가져올 내역이 없습니다.`
       );
     }
 
     return {
-      role: normalizedRole,
-      found: true,
-      addedCount: 0,
-      duplicateCount: 0
+      role:
+        normalizedRole,
+
+      found:
+        true,
+
+      totalCount:
+        0,
+
+      addedCount:
+        0,
+
+      skippedCount:
+        0
     };
   }
 
+  const existingKeys =
+    new Set(
+      appState.editorEntries.map(
+        (entry) => {
+          return createImportedEntryUniqueKey(
+            entry
+          );
+        }
+      )
+    );
+
   let addedCount = 0;
-  let duplicateCount = 0;
+  let skippedCount = 0;
 
   memberEntries.forEach(
     (entry, entryIndex) => {
+      const sourceKey =
+        createSourceEntryKey(
+          memberLog,
+          normalizedRole,
+          entry,
+          entryIndex
+        );
+
+      if (
+        existingKeys.has(
+          sourceKey
+        )
+      ) {
+        skippedCount += 1;
+        return;
+      }
+
       const importedEntry = {
         time:
           String(
@@ -824,7 +1331,9 @@ function importMemberLogByRole(
           ).trim(),
 
         tag:
-          String(entry.tag || "")
+          String(
+            entry.tag || ""
+          )
             .trim()
             .toUpperCase(),
 
@@ -833,10 +1342,6 @@ function importMemberLogByRole(
             entry.content || ""
           ).trim(),
 
-        /*
-          파트장 업무일지에서
-          어느 보직의 내역인지 구분하기 위한 정보
-        */
         importedFromRole:
           normalizedRole,
 
@@ -854,58 +1359,56 @@ function importMemberLogByRole(
           entryIndex
       };
 
-      const importKey =
-        createImportedEntryUniqueKey(
-          importedEntry
-        );
-
-      const alreadyImported =
-        appState.editorEntries.some(
-          (currentEntry) => {
-            return (
-              createImportedEntryUniqueKey(
-                currentEntry
-              ) === importKey
-            );
-          }
-        );
-
-      if (alreadyImported) {
-        duplicateCount += 1;
-        return;
-      }
-
       appState.editorEntries.push(
         importedEntry
+      );
+
+      existingKeys.add(
+        sourceKey
       );
 
       addedCount += 1;
     }
   );
 
-  sortImportedLogEntries();
-  renderLogEntryTable();
-  updateMemberLogImportStatus();
+  if (!deferRender) {
+    sortImportedLogEntries();
+    renderLogEntryTable();
+    updateMemberLogImportStatus();
+  }
 
   if (!silent) {
     if (addedCount > 0) {
       showToast(
-        `${displayRole} 업무일지에서 ${addedCount}건을 가져왔습니다.`
+        `${normalizedRole} 업무일지에서 신규 내역 ${addedCount}건을 가져왔습니다.`
       );
     } else {
       showToast(
-        `${displayRole} 업무일지는 이미 모두 가져온 상태입니다.`
+        `${normalizedRole} 업무일지의 신규 내역이 없습니다.`
       );
     }
   }
 
   return {
-    role: normalizedRole,
-    found: true,
+    role:
+      normalizedRole,
+
+    found:
+      true,
+
+    totalCount:
+      memberEntries.length,
+
     addedCount,
-    duplicateCount
+
+    skippedCount
   };
 }
+
+
+/* =========================================================
+  전체 보직 신규 내역 가져오기
+========================================================= */
 
 function importAllMemberLogs() {
   const importOrder = [
@@ -919,7 +1422,7 @@ function importAllMemberLogs() {
 
   let foundRoleCount = 0;
   let addedCount = 0;
-  let duplicateCount = 0;
+  let skippedCount = 0;
 
   const missingRoles = [];
 
@@ -928,28 +1431,36 @@ function importAllMemberLogs() {
       importMemberLogByRole(
         role,
         {
-          silent: true
+          silent:
+            true,
+
+          deferRender:
+            true
         }
       );
 
     if (result.found) {
       foundRoleCount += 1;
     } else {
-      missingRoles.push(role);
+      missingRoles.push(
+        role
+      );
     }
 
     addedCount +=
       result.addedCount;
 
-    duplicateCount +=
-      result.duplicateCount;
+    skippedCount +=
+      result.skippedCount;
   });
 
   sortImportedLogEntries();
   renderLogEntryTable();
   updateMemberLogImportStatus();
 
-  if (foundRoleCount === 0) {
+  if (
+    foundRoleCount === 0
+  ) {
     showToast(
       "같은 날짜와 근무에 작성된 팀원 업무일지가 없습니다."
     );
@@ -958,33 +1469,42 @@ function importAllMemberLogs() {
   }
 
   if (addedCount === 0) {
-    if (missingRoles.length) {
+    if (
+      missingRoles.length > 0
+    ) {
       showToast(
-        `작성된 업무일지는 이미 가져왔습니다. 미작성: ${missingRoles.join(", ")}`
+        `신규 내역이 없습니다. 미작성: ${missingRoles.join(", ")}`
       );
 
       return;
     }
 
     showToast(
-      "6개 보직 업무일지를 이미 모두 가져온 상태입니다."
+      "모든 팀원 업무일지가 이미 최신 상태입니다."
     );
 
     return;
   }
 
-  if (missingRoles.length) {
+  if (
+    missingRoles.length > 0
+  ) {
     showToast(
-      `총 ${addedCount}건을 가져왔습니다. 미작성: ${missingRoles.join(", ")}`
+      `신규 내역 ${addedCount}건을 가져왔습니다. 미작성: ${missingRoles.join(", ")}`
     );
 
     return;
   }
 
   showToast(
-    `6개 보직 업무일지에서 총 ${addedCount}건을 가져왔습니다.`
+    `팀원 업무일지에서 신규 내역 총 ${addedCount}건을 가져왔습니다.`
   );
 }
+
+
+/* =========================================================
+  가져온 내역 정렬
+========================================================= */
 
 function sortImportedLogEntries() {
   const roleOrder = {
@@ -1013,106 +1533,45 @@ function sortImportedLogEntries() {
 
       const roleDifference =
         (
-          roleOrder[roleA] || 99
+          roleOrder[roleA] ||
+          99
         ) -
         (
-          roleOrder[roleB] || 99
+          roleOrder[roleB] ||
+          99
         );
 
-      if (roleDifference !== 0) {
+      if (
+        roleDifference !== 0
+      ) {
         return roleDifference;
       }
 
+      const timeDifference =
+        String(
+          entryA.time || ""
+        ).localeCompare(
+          String(
+            entryB.time || ""
+          )
+        );
+
+      if (
+        timeDifference !== 0
+      ) {
+        return timeDifference;
+      }
+
       return String(
-        entryA.time || ""
+        entryA.content || ""
       ).localeCompare(
-        String(entryB.time || "")
+        String(
+          entryB.content || ""
+        )
       );
     }
   );
 }
-
-function createLogEntryImportKey(entry) {
-  const time =
-    String(entry.time || "")
-      .trim();
-
-  const category =
-    String(entry.category || "")
-      .trim();
-
-  const tag =
-    String(entry.tag || "")
-      .trim()
-      .toUpperCase();
-
-  const content =
-    String(entry.content || "")
-      .trim()
-      .replace(/\s+/g, " ");
-
-  return [
-    time,
-    category,
-    tag,
-    content
-  ].join("||");
-}
-
-function createImportedEntryUniqueKey(
-  entry
-) {
-  const sourceRole =
-    normalizeMemberLogRole(
-      entry.importedFromRole || ""
-    );
-
-  const sourceLogId =
-    String(
-      entry.importedFromLogId || ""
-    ).trim();
-
-  const sourceEntryIndex =
-    String(
-      entry.importedFromEntryIndex ?? ""
-    );
-
-  /*
-    가져온 내역은 원본 업무일지 ID와
-    원본 항목 위치를 이용해 중복을 판단한다.
-  */
-  if (
-    sourceRole &&
-    sourceLogId &&
-    sourceEntryIndex !== ""
-  ) {
-    return [
-      "IMPORTED",
-      sourceRole,
-      sourceLogId,
-      sourceEntryIndex
-    ].join("||");
-  }
-
-  /*
-    과거에 저장된 데이터처럼
-    원본 항목 번호가 없는 경우에는
-    시간·구분·TAG·내용으로 비교한다.
-  */
-  return [
-    "CONTENT",
-    sourceRole,
-    String(entry.time || "").trim(),
-    String(entry.category || "").trim(),
-    String(entry.tag || "")
-      .trim()
-      .toUpperCase(),
-    String(entry.content || "")
-      .trim()
-      .replace(/\s+/g, " ")
-  ].join("||");
-}
-
 /* =========================================================
    운전현황 관리
 ========================================================= */
@@ -1279,79 +1738,212 @@ function saveOperationStatus() {
 function bindEvents() {
   /*
     요소가 존재할 때만 이벤트를 연결한다.
-    일부 HTML 요소가 없더라도 나머지 기능이 중단되지 않는다.
+    일부 HTML 요소가 없더라도
+    나머지 기능이 중단되지 않도록 한다.
   */
-  const bindClick = (element, handler) => {
+
+  const bindClick = (
+    element,
+    handler
+  ) => {
     if (!element) {
       return;
     }
 
-    element.addEventListener("click", handler);
+    element.addEventListener(
+      "click",
+      handler
+    );
   };
 
-  const bindChange = (element, handler) => {
+  const bindChange = (
+    element,
+    handler
+  ) => {
     if (!element) {
       return;
     }
 
-    element.addEventListener("change", handler);
+    element.addEventListener(
+      "change",
+      handler
+    );
   };
 
-  const bindInput = (element, handler) => {
+  const bindInput = (
+    element,
+    handler
+  ) => {
     if (!element) {
       return;
     }
 
-    element.addEventListener("input", handler);
+    element.addEventListener(
+      "input",
+      handler
+    );
   };
 
-  const bindKeydown = (element, handler) => {
+  const bindKeydown = (
+    element,
+    handler
+  ) => {
     if (!element) {
       return;
     }
 
-    element.addEventListener("keydown", handler);
+    element.addEventListener(
+      "keydown",
+      handler
+    );
   };
+
+
+  /* =======================================================
+    선택된 작업 내역 상태 갱신
+  ======================================================== */
+
+  const updateSelectedEntryControls =
+    () => {
+      if (
+        !elements.logEntryTableBody
+      ) {
+        return;
+      }
+
+      const checkboxes = [
+        ...elements.logEntryTableBody
+          .querySelectorAll(
+            ".log-entry-select-checkbox"
+          )
+      ];
+
+      const selectedCheckboxes =
+        checkboxes.filter(
+          (checkbox) =>
+            checkbox.checked
+        );
+
+      const selectedCount =
+        selectedCheckboxes.length;
+
+      if (
+        elements.selectedLogEntryCount
+      ) {
+        elements
+          .selectedLogEntryCount
+          .textContent =
+          `선택 ${selectedCount}건`;
+
+        elements
+          .selectedLogEntryCount
+          .hidden =
+          selectedCount === 0;
+      }
+
+      if (
+        elements
+          .deleteSelectedLogEntriesButton
+      ) {
+        elements
+          .deleteSelectedLogEntriesButton
+          .disabled =
+          selectedCount === 0;
+      }
+
+      if (
+        elements
+          .selectAllLogEntriesCheckbox
+      ) {
+        const hasEntries =
+          checkboxes.length > 0;
+
+        const isAllSelected =
+          hasEntries &&
+          selectedCount ===
+            checkboxes.length;
+
+        const isPartiallySelected =
+          selectedCount > 0 &&
+          selectedCount <
+            checkboxes.length;
+
+        elements
+          .selectAllLogEntriesCheckbox
+          .checked =
+          isAllSelected;
+
+        elements
+          .selectAllLogEntriesCheckbox
+          .indeterminate =
+          isPartiallySelected;
+
+        elements
+          .selectAllLogEntriesCheckbox
+          .disabled =
+          !hasEntries;
+      }
+    };
 
 
   /* =======================================================
     상단 탭
   ======================================================== */
 
-  elements.topTabs.forEach((tab) => {
-    bindClick(tab, () => {
-      switchView(tab.dataset.view);
-    });
-  });
+  elements.topTabs.forEach(
+    (tab) => {
+      bindClick(
+        tab,
+        () => {
+          switchView(
+            tab.dataset.view
+          );
+        }
+      );
+    }
+  );
 
 
   /* =======================================================
     날짜 이동
   ======================================================== */
 
-  bindClick(elements.previousDateButton, () => {
-    moveSelectedDate(-1);
-  });
+  bindClick(
+    elements.previousDateButton,
+    () => {
+      moveSelectedDate(-1);
+    }
+  );
 
-  bindClick(elements.nextDateButton, () => {
-    moveSelectedDate(1);
-  });
+  bindClick(
+    elements.nextDateButton,
+    () => {
+      moveSelectedDate(1);
+    }
+  );
 
-  bindClick(elements.todayButton, () => {
-    appState.selectedDate = new Date();
+  bindClick(
+    elements.todayButton,
+    () => {
+      appState.selectedDate =
+        new Date();
 
-    renderSelectedDate();
-    renderLogTable();
-  });
+      renderSelectedDate();
+      renderLogTable();
+    }
+  );
 
 
   /* =======================================================
     업무일지 작성창
   ======================================================== */
 
-  bindClick(elements.openLogEditorButton, () => {
-    openLogEditor();
-  });
+  bindClick(
+    elements.openLogEditorButton,
+    () => {
+      openLogEditor();
+    }
+  );
 
   bindClick(
     elements.closeLogEditorButton,
@@ -1364,14 +1956,18 @@ function bindEvents() {
   );
 
   if (elements.logEditorModal) {
-    elements.logEditorModal.addEventListener(
-      "click",
-      (event) => {
-        if (event.target === elements.logEditorModal) {
-          closeLogEditor();
+    elements.logEditorModal
+      .addEventListener(
+        "click",
+        (event) => {
+          if (
+            event.target ===
+            elements.logEditorModal
+          ) {
+            closeLogEditor();
+          }
         }
-      }
-    );
+      );
   }
 
 
@@ -1408,7 +2004,8 @@ function bindEvents() {
     elements.logEntryNavigatorButton,
     () => {
       openFacilityNavigator(
-        elements.logEntryTag?.value || ""
+        elements.logEntryTag
+          ?.value || ""
       );
     }
   );
@@ -1422,7 +2019,9 @@ function bindEvents() {
     elements.useCurrentTimeCheckbox,
     () => {
       if (
-        !elements.useCurrentTimeCheckbox.checked
+        !elements
+          .useCurrentTimeCheckbox
+          .checked
       ) {
         return;
       }
@@ -1430,17 +2029,23 @@ function bindEvents() {
       elements.logEntryTime.value =
         getCurrentTimeValue();
 
-      elements.logEntryTime.classList.add(
-        "is-current-time-applied"
-      );
-
-      window.setTimeout(() => {
-        elements.logEntryTime.classList.remove(
+      elements.logEntryTime
+        .classList.add(
           "is-current-time-applied"
         );
-      }, 500);
 
-      elements.logEntryContent?.focus();
+      window.setTimeout(
+        () => {
+          elements.logEntryTime
+            .classList.remove(
+              "is-current-time-applied"
+            );
+        },
+        500
+      );
+
+      elements.logEntryContent
+        ?.focus();
     }
   );
 
@@ -1455,24 +2060,29 @@ function bindEvents() {
   );
 
   if (elements.logEntryTime) {
-    elements.logEntryTime.addEventListener(
-      "blur",
-      () => {
-        if (
-          !elements.logEntryTime.value.trim()
-        ) {
-          return;
-        }
+    elements.logEntryTime
+      .addEventListener(
+        "blur",
+        () => {
+          if (
+            !elements.logEntryTime
+              .value
+              .trim()
+          ) {
+            return;
+          }
 
-        normalizeLogEntryTime();
-      }
-    );
+          normalizeLogEntryTime();
+        }
+      );
   }
 
   bindKeydown(
     elements.logEntryTime,
     (event) => {
-      if (event.key !== "Enter") {
+      if (
+        event.key !== "Enter"
+      ) {
         return;
       }
 
@@ -1485,7 +2095,8 @@ function bindEvents() {
         return;
       }
 
-      elements.logEntryCategory?.focus();
+      elements.logEntryCategory
+        ?.focus();
     }
   );
 
@@ -1504,11 +2115,37 @@ function bindEvents() {
     cancelLogEntryEdit
   );
 
-  if (elements.logEntryTableBody) {
-    elements.logEntryTableBody.addEventListener(
-      "click",
-      handleLogEntryTableClick
-    );
+  if (
+    elements.logEntryTableBody
+  ) {
+    /*
+      수정·삭제·TAG 이동 버튼
+    */
+    elements.logEntryTableBody
+      .addEventListener(
+        "click",
+        handleLogEntryTableClick
+      );
+
+    /*
+      개별 작업 내역 체크
+    */
+    elements.logEntryTableBody
+      .addEventListener(
+        "change",
+        (event) => {
+          const checkbox =
+            event.target.closest(
+              ".log-entry-select-checkbox"
+            );
+
+          if (!checkbox) {
+            return;
+          }
+
+          updateSelectedEntryControls();
+        }
+      );
   }
 
   bindKeydown(
@@ -1516,11 +2153,143 @@ function bindEvents() {
     (event) => {
       if (
         event.key === "Enter" &&
-        (event.ctrlKey || event.metaKey)
+        (
+          event.ctrlKey ||
+          event.metaKey
+        )
       ) {
         event.preventDefault();
+
         addOrUpdateLogEntry();
       }
+    }
+  );
+
+
+  /* =======================================================
+    전체 작업 내역 선택
+  ======================================================== */
+
+  bindChange(
+    elements
+      .selectAllLogEntriesCheckbox,
+    () => {
+      if (
+        !elements
+          .logEntryTableBody ||
+        !elements
+          .selectAllLogEntriesCheckbox
+      ) {
+        return;
+      }
+
+      const shouldSelectAll =
+        elements
+          .selectAllLogEntriesCheckbox
+          .checked;
+
+      elements.logEntryTableBody
+        .querySelectorAll(
+          ".log-entry-select-checkbox"
+        )
+        .forEach(
+          (checkbox) => {
+            checkbox.checked =
+              shouldSelectAll;
+          }
+        );
+
+      updateSelectedEntryControls();
+    }
+  );
+
+
+  /* =======================================================
+    선택한 작업 내역 일괄 삭제
+  ======================================================== */
+
+  bindClick(
+    elements
+      .deleteSelectedLogEntriesButton,
+    () => {
+      if (
+        !elements
+          .logEntryTableBody
+      ) {
+        return;
+      }
+
+      const selectedIndexes = [
+        ...elements.logEntryTableBody
+          .querySelectorAll(
+            ".log-entry-select-checkbox:checked"
+          )
+      ]
+        .map((checkbox) => {
+          return Number(
+            checkbox.dataset
+              .entrySelectIndex
+          );
+        })
+        .filter((index) => {
+          return (
+            Number.isInteger(index) &&
+            appState.editorEntries[
+              index
+            ]
+          );
+        });
+
+      if (
+        !selectedIndexes.length
+      ) {
+        showToast(
+          "삭제할 작업 내역을 선택해 주세요."
+        );
+
+        return;
+      }
+
+      const shouldDelete =
+        window.confirm(
+          `선택한 작업 내역 ${selectedIndexes.length}건을 삭제하시겠습니까?`
+        );
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      /*
+        큰 인덱스부터 삭제해야
+        앞 항목의 인덱스가 변하지 않는다.
+      */
+      selectedIndexes
+        .sort(
+          (indexA, indexB) =>
+            indexB - indexA
+        )
+        .forEach((index) => {
+          appState.editorEntries
+            .splice(
+              index,
+              1
+            );
+        });
+
+      appState.editingEntryIndex =
+        -1;
+
+      resetLogEntryInput({
+        keepCategory: false,
+        keepTag: false
+      });
+
+      renderLogEntryTable();
+      updateMemberLogImportStatus();
+
+      showToast(
+        `작업 내역 ${selectedIndexes.length}건을 삭제했습니다.`
+      );
     }
   );
 
@@ -1535,53 +2304,65 @@ function bindEvents() {
   );
 
   if (elements.fileDropzone) {
-    elements.fileDropzone.addEventListener(
-      "dragover",
-      (event) => {
-        event.preventDefault();
+    elements.fileDropzone
+      .addEventListener(
+        "dragover",
+        (event) => {
+          event.preventDefault();
 
-        elements.fileDropzone.classList.add(
-          "is-dragging"
-        );
-      }
-    );
-
-    elements.fileDropzone.addEventListener(
-      "dragleave",
-      () => {
-        elements.fileDropzone.classList.remove(
-          "is-dragging"
-        );
-      }
-    );
-
-    elements.fileDropzone.addEventListener(
-      "drop",
-      (event) => {
-        event.preventDefault();
-
-        elements.fileDropzone.classList.remove(
-          "is-dragging"
-        );
-
-        if (!event.dataTransfer.files.length) {
-          return;
+          elements.fileDropzone
+            .classList.add(
+              "is-dragging"
+            );
         }
+      );
 
-        try {
-          elements.logAttachments.files =
-            event.dataTransfer.files;
-        } catch {
-          showToast(
-            "파일을 직접 선택해 주세요."
-          );
-
-          return;
+    elements.fileDropzone
+      .addEventListener(
+        "dragleave",
+        () => {
+          elements.fileDropzone
+            .classList.remove(
+              "is-dragging"
+            );
         }
+      );
 
-        renderAttachmentList();
-      }
-    );
+    elements.fileDropzone
+      .addEventListener(
+        "drop",
+        (event) => {
+          event.preventDefault();
+
+          elements.fileDropzone
+            .classList.remove(
+              "is-dragging"
+            );
+
+          if (
+            !event.dataTransfer
+              .files.length
+          ) {
+            return;
+          }
+
+          try {
+            elements
+              .logAttachments
+              .files =
+              event.dataTransfer
+                .files;
+          } catch {
+            showToast(
+              "파일을 직접 선택해 주세요."
+            );
+
+            return;
+          }
+
+          renderAttachmentList();
+        }
+      );
   }
 
 
@@ -1590,13 +2371,17 @@ function bindEvents() {
   ======================================================== */
 
   if (elements.logEditorForm) {
-    elements.logEditorForm.addEventListener(
-      "submit",
-      (event) => {
-        event.preventDefault();
-        saveCurrentLog("저장완료");
-      }
-    );
+    elements.logEditorForm
+      .addEventListener(
+        "submit",
+        (event) => {
+          event.preventDefault();
+
+          saveCurrentLog(
+            "저장완료"
+          );
+        }
+      );
   }
 
   bindClick(
@@ -1614,7 +2399,9 @@ function bindEvents() {
   bindClick(
     elements.requestApprovalButton,
     () => {
-      saveCurrentLog("결재요청");
+      saveCurrentLog(
+        "결재요청"
+      );
     }
   );
 
@@ -1624,10 +2411,11 @@ function bindEvents() {
   ======================================================== */
 
   if (elements.logTableBody) {
-    elements.logTableBody.addEventListener(
-      "click",
-      handleLogTableClick
-    );
+    elements.logTableBody
+      .addEventListener(
+        "click",
+        handleLogTableClick
+      );
   }
 
 
@@ -1641,29 +2429,39 @@ function bindEvents() {
   );
 
   bindClick(
-    elements.closeLogDetailFooterButton,
+    elements
+      .closeLogDetailFooterButton,
     closeLogDetail
   );
 
   if (elements.logDetailModal) {
-    elements.logDetailModal.addEventListener(
-      "click",
-      (event) => {
-        if (event.target === elements.logDetailModal) {
-          closeLogDetail();
+    elements.logDetailModal
+      .addEventListener(
+        "click",
+        (event) => {
+          if (
+            event.target ===
+            elements.logDetailModal
+          ) {
+            closeLogDetail();
+          }
         }
-      }
-    );
+      );
   }
 
   bindClick(
     elements.editFromDetailButton,
     () => {
-      const log = appState.logs.find(
-        (item) =>
-          item.id ===
-          appState.currentDetailLogId
-      );
+      const log =
+        appState.logs.find(
+          (item) => {
+            return (
+              item.id ===
+              appState
+                .currentDetailLogId
+            );
+          }
+        );
 
       if (!log) {
         showToast(
@@ -1684,54 +2482,79 @@ function bindEvents() {
   ======================================================== */
 
   if (elements.searchForm) {
-    elements.searchForm.addEventListener(
-      "submit",
-      (event) => {
-        event.preventDefault();
-        runSearch();
-      }
-    );
+    elements.searchForm
+      .addEventListener(
+        "submit",
+        (event) => {
+          event.preventDefault();
+          runSearch();
+        }
+      );
 
-    elements.searchForm.addEventListener(
-      "reset",
-      () => {
-        window.setTimeout(() => {
-          if (elements.searchResultBody) {
-            elements.searchResultBody.innerHTML = "";
-          }
+    elements.searchForm
+      .addEventListener(
+        "reset",
+        () => {
+          window.setTimeout(
+            () => {
+              if (
+                elements
+                  .searchResultBody
+              ) {
+                elements
+                  .searchResultBody
+                  .innerHTML = "";
+              }
 
-          if (elements.searchResultCount) {
-            elements.searchResultCount.textContent =
-              "0";
-          }
+              if (
+                elements
+                  .searchResultCount
+              ) {
+                elements
+                  .searchResultCount
+                  .textContent =
+                  "0";
+              }
 
-          if (elements.searchEmptyState) {
-            elements.searchEmptyState.hidden =
-              false;
+              if (
+                elements
+                  .searchEmptyState
+              ) {
+                elements
+                  .searchEmptyState
+                  .hidden =
+                  false;
 
-            const title =
-              elements.searchEmptyState.querySelector(
-                "strong"
-              );
+                const title =
+                  elements
+                    .searchEmptyState
+                    .querySelector(
+                      "strong"
+                    );
 
-            const description =
-              elements.searchEmptyState.querySelector(
-                "p"
-              );
+                const description =
+                  elements
+                    .searchEmptyState
+                    .querySelector(
+                      "p"
+                    );
 
-            if (title) {
-              title.textContent =
-                "조회 조건을 선택해 주세요.";
-            }
+                if (title) {
+                  title.textContent =
+                    "조회 조건을 선택해 주세요.";
+                }
 
-            if (description) {
-              description.textContent =
-                "기간, TAG 또는 업무 내용을 기준으로 검색할 수 있습니다.";
-            }
-          }
-        }, 0);
-      }
-    );
+                if (description) {
+                  description
+                    .textContent =
+                    "기간, TAG 또는 업무 내용을 기준으로 검색할 수 있습니다.";
+                }
+              }
+            },
+            0
+          );
+        }
+      );
   }
 
 
@@ -1742,36 +2565,46 @@ function bindEvents() {
   document.addEventListener(
     "keydown",
     (event) => {
-      if (event.key !== "Escape") {
+      if (
+        event.key !== "Escape"
+      ) {
         return;
       }
 
       if (
-        elements.operationStatusEditor &&
-        !elements.operationStatusEditor.hidden
+        elements
+          .operationStatusEditor &&
+        !elements
+          .operationStatusEditor
+          .hidden
       ) {
         closeOperationStatusEditor();
         return;
       }
 
-      if (appState.editingEntryIndex >= 0) {
+      if (
+        appState
+          .editingEntryIndex >= 0
+      ) {
         cancelLogEntryEdit();
         return;
       }
 
       if (
-        elements.logDetailModal?.classList.contains(
-          "is-open"
-        )
+        elements.logDetailModal
+          ?.classList.contains(
+            "is-open"
+          )
       ) {
         closeLogDetail();
         return;
       }
 
       if (
-        elements.logEditorModal?.classList.contains(
-          "is-open"
-        )
+        elements.logEditorModal
+          ?.classList.contains(
+            "is-open"
+          )
       ) {
         closeLogEditor();
       }
@@ -2178,14 +3011,22 @@ function resetLogEditor() {
 
 
 function fillLogEditor(log) {
+  if (
+    !log ||
+    !elements.logEditorForm
+  ) {
+    return;
+  }
+
   elements.logEditorForm.dataset.editingId =
-    log.id || "";
+    String(log.id || "").trim();
 
   elements.logDate.value =
     log.date || "";
 
   elements.logShift.value =
-    log.shift || appState.selectedShift;
+    log.shift ||
+    appState.selectedShift;
 
   elements.logTeam.value =
     log.team || "3조";
@@ -2199,7 +3040,9 @@ function fillLogEditor(log) {
   elements.operationStatus.value =
     log.operationStatus || "";
 
-  if (elements.operationStatusSnapshot) {
+  if (
+    elements.operationStatusSnapshot
+  ) {
     elements.operationStatusSnapshot.value =
       log.operationStatus || "";
   }
@@ -2207,41 +3050,84 @@ function fillLogEditor(log) {
   elements.logNote.value =
     log.note || "";
 
+  /*
+    저장된 작업 내역을 편집기로 복원한다.
+
+    가져온 팀원 업무일지 항목은
+    원본 업무일지 ID와 원본 항목 번호까지
+    모두 유지해야 다시 가져올 때 중복되지 않는다.
+  */
   appState.editorEntries =
     Array.isArray(log.entries)
-      ? log.entries.map((entry) => {
-          return {
-            time:
-              entry.time || "",
+      ? log.entries.map(
+          (entry) => {
+            const rawSourceIndex =
+              entry.importedFromEntryIndex;
 
-            category:
-              entry.category ||
-              "인계사항",
+            const sourceIndex =
+              rawSourceIndex === "" ||
+              rawSourceIndex === null ||
+              rawSourceIndex === undefined
+                ? ""
+                : Number(
+                    rawSourceIndex
+                  );
 
-            tag:
-              String(entry.tag || "")
-                .trim()
-                .toUpperCase(),
+            return {
+              time:
+                String(
+                  entry.time || ""
+                ).trim(),
 
-            content:
-              entry.content || "",
+              category:
+                String(
+                  entry.category ||
+                  "인계사항"
+                ).trim(),
 
-            importedFromRole:
-              entry.importedFromRole ||
-              "",
+              tag:
+                String(
+                  entry.tag || ""
+                )
+                  .trim()
+                  .toUpperCase(),
 
-            importedFromAuthor:
-              entry.importedFromAuthor ||
-              "",
+              content:
+                String(
+                  entry.content || ""
+                ).trim(),
 
-            importedFromLogId:
-              entry.importedFromLogId ||
-              ""
-          };
-        })
+              importedFromRole:
+                String(
+                  entry.importedFromRole ||
+                  ""
+                ).trim(),
+
+              importedFromAuthor:
+                String(
+                  entry.importedFromAuthor ||
+                  ""
+                ).trim(),
+
+              importedFromLogId:
+                String(
+                  entry.importedFromLogId ||
+                  ""
+                ).trim(),
+
+              importedFromEntryIndex:
+                Number.isInteger(
+                  sourceIndex
+                )
+                  ? sourceIndex
+                  : ""
+            };
+          }
+        )
       : [];
 
-  appState.editingEntryIndex = -1;
+  appState.editingEntryIndex =
+    -1;
 
   resetLogEntryInput({
     keepCategory: false,
@@ -2249,8 +3135,11 @@ function fillLogEditor(log) {
   });
 
   renderLogEntryTable();
+
   renderSavedAttachments(
-    log.attachments || []
+    Array.isArray(log.attachments)
+      ? log.attachments
+      : []
   );
 
   updateMemberLogImportSection();
@@ -2339,25 +3228,33 @@ function addOrUpdateLogEntry() {
     category.startsWith("BM") ||
     category.startsWith("CM");
 
-  const tag = needsTag
-    ? elements.logEntryTag.value
-        .trim()
-        .toUpperCase()
-    : "";
+  const tag =
+    needsTag
+      ? elements.logEntryTag.value
+          .trim()
+          .toUpperCase()
+      : "";
 
   const content =
-    elements.logEntryContent.value.trim();
+    elements.logEntryContent.value
+      .trim();
 
   if (!category) {
     showToast(
       "구분을 선택해 주세요."
     );
 
-    elements.logEntryCategory.focus();
+    elements
+      .logEntryCategory
+      .focus();
+
     return;
   }
 
-  if (needsTag && !tag) {
+  if (
+    needsTag &&
+    !tag
+  ) {
     showToast(
       `${category} 내역은 TAG를 입력해 주세요.`
     );
@@ -2371,16 +3268,34 @@ function addOrUpdateLogEntry() {
       "작업 내용을 입력해 주세요."
     );
 
-    elements.logEntryContent.focus();
+    elements
+      .logEntryContent
+      .focus();
+
     return;
   }
 
+  const isEditing =
+    appState.editingEntryIndex >= 0;
+
   const previousEntry =
-    appState.editingEntryIndex >= 0
+    isEditing
       ? appState.editorEntries[
-          appState.editingEntryIndex
+          appState
+            .editingEntryIndex
         ]
       : null;
+
+  const rawSourceIndex =
+    previousEntry
+      ?.importedFromEntryIndex;
+
+  const importedFromEntryIndex =
+    rawSourceIndex === "" ||
+    rawSourceIndex === null ||
+    rawSourceIndex === undefined
+      ? null
+      : Number(rawSourceIndex);
 
   const entry = {
     time:
@@ -2393,21 +3308,36 @@ function addOrUpdateLogEntry() {
     content,
 
     importedFromRole:
-      previousEntry
-        ?.importedFromRole || "",
+      String(
+        previousEntry
+          ?.importedFromRole ||
+        ""
+      ).trim(),
 
     importedFromAuthor:
-      previousEntry
-        ?.importedFromAuthor || "",
+      String(
+        previousEntry
+          ?.importedFromAuthor ||
+        ""
+      ).trim(),
 
     importedFromLogId:
-      previousEntry
-        ?.importedFromLogId || ""
+      String(
+        previousEntry
+          ?.importedFromLogId ||
+        ""
+      ).trim(),
+
+    importedFromEntryIndex:
+      Number.isInteger(
+        importedFromEntryIndex
+      ) &&
+      importedFromEntryIndex >= 0
+        ? importedFromEntryIndex
+        : null
   };
 
-  if (
-    appState.editingEntryIndex >= 0
-  ) {
+  if (isEditing) {
     appState.editorEntries.splice(
       appState.editingEntryIndex,
       1,
@@ -2427,6 +3357,7 @@ function addOrUpdateLogEntry() {
     );
   }
 
+  sortImportedLogEntries();
   renderLogEntryTable();
 
   resetLogEntryInput({
@@ -2436,12 +3367,18 @@ function addOrUpdateLogEntry() {
 
   updateMemberLogImportStatus();
 
-  elements.logEntryContent.focus();
+  elements.logEntryContent
+    .focus();
 }
 
 
 function renderLogEntryTable() {
-  const entries = appState.editorEntries;
+  const entries =
+    Array.isArray(
+      appState.editorEntries
+    )
+      ? appState.editorEntries
+      : [];
 
   if (elements.logEntryCount) {
     elements.logEntryCount.textContent =
@@ -2457,10 +3394,56 @@ function renderLogEntryTable() {
     return;
   }
 
+  /*
+    다시 렌더링할 때 선택 상태 초기화
+  */
+  if (
+    elements.selectAllLogEntriesCheckbox
+  ) {
+    elements
+      .selectAllLogEntriesCheckbox
+      .checked =
+      false;
+
+    elements
+      .selectAllLogEntriesCheckbox
+      .indeterminate =
+      false;
+
+    elements
+      .selectAllLogEntriesCheckbox
+      .disabled =
+      entries.length === 0;
+  }
+
+  if (
+    elements.selectedLogEntryCount
+  ) {
+    elements
+      .selectedLogEntryCount
+      .textContent =
+      "선택 0건";
+
+    elements
+      .selectedLogEntryCount
+      .hidden =
+      true;
+  }
+
+  if (
+    elements
+      .deleteSelectedLogEntriesButton
+  ) {
+    elements
+      .deleteSelectedLogEntriesButton
+      .disabled =
+      true;
+  }
+
   if (!entries.length) {
     elements.logEntryTableBody.innerHTML = `
       <tr class="log-entry-empty-row">
-        <td colspan="4">
+        <td colspan="5">
           등록된 작업 내역이 없습니다.
         </td>
       </tr>
@@ -2470,115 +3453,157 @@ function renderLogEntryTable() {
     return;
   }
 
-  elements.logEntryTableBody.innerHTML = entries
-    .map((entry, index) => {
-      const isEditing =
-        index === appState.editingEntryIndex;
+  elements.logEntryTableBody.innerHTML =
+    entries
+      .map((entry, index) => {
+        const isEditing =
+          index ===
+          appState.editingEntryIndex;
 
-      const sourceRole =
-        String(
-          entry.importedFromRole ||
-          (
-            elements.logRole?.value === "파트장"
-              ? "파트장"
-              : elements.logRole?.value || ""
+        const sourceRole =
+          String(
+            entry.importedFromRole ||
+            (
+              elements.logRole
+                ?.value ===
+              "파트장"
+                ? "파트장"
+                : elements.logRole
+                    ?.value ||
+                  ""
+            )
+          ).trim();
+
+        const sourceAuthor =
+          String(
+            entry.importedFromAuthor ||
+            ""
+          ).trim();
+
+        const sourceClass =
+          getLogEntrySourceClass(
+            sourceRole
+          );
+
+        const sourceTitle =
+          sourceAuthor
+            ? `${sourceRole} · ${sourceAuthor}`
+            : sourceRole;
+
+        const sourceBadgeHtml =
+          sourceRole
+            ? `
+              <span
+                class="
+                  log-entry-source-badge
+                  ${sourceClass}
+                "
+                title="${escapeHtml(
+                  sourceTitle
+                )}"
+              >
+                ${escapeHtml(
+                  sourceRole
+                )}
+              </span>
+            `
+            : "";
+
+        const tagText =
+          String(
+            entry.tag || ""
           )
-        ).trim();
+            .trim()
+            .toUpperCase();
 
-      const sourceAuthor =
-        String(
-          entry.importedFromAuthor || ""
-        ).trim();
+        const tagHtml =
+          tagText
+            ? `
+              <button
+                type="button"
+                class="log-entry-inline-tag"
+                data-entry-action="navigator"
+                data-entry-index="${index}"
+                title="Facility Navigator에서 설비 보기"
+              >[${escapeHtml(
+                tagText
+              )}]</button>
+            `
+            : "";
 
-      const sourceClass =
-        getLogEntrySourceClass(sourceRole);
-
-      const sourceTitle = sourceAuthor
-        ? `${sourceRole} · ${sourceAuthor}`
-        : sourceRole;
-
-      const sourceBadgeHtml = sourceRole
-        ? `
-          <span
-            class="
-              log-entry-source-badge
-              ${sourceClass}
-            "
-            title="${escapeHtml(sourceTitle)}"
-          >
-            ${escapeHtml(sourceRole)}
-          </span>
-        `
-        : "";
-
-      const tagHtml = entry.tag
-        ? `
-          <button
-            type="button"
-            class="log-entry-inline-tag"
-            data-entry-action="navigator"
+        return `
+          <tr
             data-entry-index="${index}"
-            title="Facility Navigator에서 설비 보기"
+            class="${
+              isEditing
+                ? "is-editing"
+                : ""
+            }"
           >
-            [${escapeHtml(entry.tag)}]
-          </button>
-        `
-        : "";
+            <td class="log-entry-select-cell">
+              <input
+                type="checkbox"
+                class="log-entry-select-checkbox"
+                data-entry-select-index="${index}"
+                aria-label="${index + 1}번 작업 내역 선택"
+              />
+            </td>
 
-      return `
-        <tr
-          data-entry-index="${index}"
-          class="${isEditing ? "is-editing" : ""}"
-        >
-          <td>
-            ${escapeHtml(entry.time || "-")}
-          </td>
+            <td class="log-entry-time-cell">
+              ${escapeHtml(
+                entry.time || "-"
+              )}
+            </td>
 
-          <td>
-            <div class="log-entry-category-cell">
-              ${sourceBadgeHtml}
+            <td class="log-entry-category-cell-wrap">
+              <div class="log-entry-category-cell">
+                ${sourceBadgeHtml}
 
-              <span class="log-entry-category-text">
-                ${escapeHtml(entry.category || "-")}
-              </span>
-            </div>
-          </td>
+                <span class="log-entry-category-text">
+                  ${escapeHtml(
+                    entry.category || "-"
+                  )}
+                </span>
+              </div>
+            </td>
 
-          <td>
-            <div class="log-entry-inline-content">
-              ${tagHtml}
+            <td class="log-entry-content-cell">
+              <div class="log-entry-inline-content">
+                ${
+                  tagHtml
+                    ? `${tagHtml} `
+                    : ""
+                }<span class="log-entry-inline-content__text">${escapeHtml(
+                  entry.content || "-"
+                )}</span>
+              </div>
+            </td>
 
-              <span class="log-entry-inline-content__text">
-                ${escapeHtml(entry.content || "-")}
-              </span>
-            </div>
-          </td>
+            <td class="log-entry-actions-cell">
+              <div class="log-entry-row-actions">
+                <button
+                  type="button"
+                  class="log-entry-edit-button"
+                  data-entry-action="edit"
+                  data-entry-index="${index}"
+                >
+                  수정
+                </button>
 
-          <td>
-            <div class="log-entry-row-actions">
-              <button
-                type="button"
-                class="log-entry-edit-button"
-                data-entry-action="edit"
-                data-entry-index="${index}"
-              >
-                수정
-              </button>
-
-              <button
-                type="button"
-                class="log-entry-delete-button"
-                data-entry-action="delete"
-                data-entry-index="${index}"
-              >
-                삭제
-              </button>
-            </div>
-          </td>
-        </tr>
-      `;
-    })
-    .join("");
+                <button
+                  type="button"
+                  class="log-entry-delete-button"
+                  data-entry-action="delete"
+                  data-entry-index="${index}"
+                >
+                  삭제
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
 
   updateMemberLogImportCount();
 }
@@ -2982,33 +4007,70 @@ function collectEditorData(status) {
   const entries =
     appState.editorEntries.map(
       (entry) => {
+        const rawSourceIndex =
+          entry
+            .importedFromEntryIndex;
+
+        const importedFromEntryIndex =
+          rawSourceIndex === "" ||
+          rawSourceIndex === null ||
+          rawSourceIndex === undefined
+            ? null
+            : Number(
+                rawSourceIndex
+              );
+
         return {
           time:
-            entry.time || "",
+            String(
+              entry.time || ""
+            ).trim(),
 
           category:
-            entry.category || "",
+            String(
+              entry.category || ""
+            ).trim(),
 
           tag:
-            String(entry.tag || "")
+            String(
+              entry.tag || ""
+            )
               .trim()
               .toUpperCase(),
 
           content:
-            String(entry.content || "")
-              .trim(),
+            String(
+              entry.content || ""
+            ).trim(),
 
           importedFromRole:
-            entry.importedFromRole ||
-            "",
+            String(
+              entry
+                .importedFromRole ||
+              ""
+            ).trim(),
 
           importedFromAuthor:
-            entry.importedFromAuthor ||
-            "",
+            String(
+              entry
+                .importedFromAuthor ||
+              ""
+            ).trim(),
 
           importedFromLogId:
-            entry.importedFromLogId ||
-            ""
+            String(
+              entry
+                .importedFromLogId ||
+              ""
+            ).trim(),
+
+          importedFromEntryIndex:
+            Number.isInteger(
+              importedFromEntryIndex
+            ) &&
+            importedFromEntryIndex >= 0
+              ? importedFromEntryIndex
+              : null
         };
       }
     );
@@ -3016,44 +4078,72 @@ function collectEditorData(status) {
   const newAttachmentNames =
     elements.logAttachments
       ? [
-          ...elements.logAttachments.files
-        ].map((file) => file.name)
+          ...elements
+            .logAttachments
+            .files
+        ].map(
+          (file) => {
+            return file.name;
+          }
+        )
       : [];
 
   const savedAttachmentNames =
     elements.attachmentList
       ? [
-          ...elements.attachmentList.querySelectorAll(
-            ".attachment-chip"
-          )
-        ].map((chip) =>
-          chip.textContent.trim()
+          ...elements
+            .attachmentList
+            .querySelectorAll(
+              ".attachment-chip"
+            )
+        ].map(
+          (chip) => {
+            return chip
+              .textContent
+              .trim();
+          }
         )
       : [];
 
   const attachmentNames = [
-    ...new Set([
-      ...savedAttachmentNames,
-      ...newAttachmentNames
-    ])
+    ...new Set(
+      [
+        ...savedAttachmentNames,
+        ...newAttachmentNames
+      ].filter(Boolean)
+    )
   ];
 
   const editingId =
-    elements.logEditorForm
-      .dataset.editingId;
+    String(
+      elements
+        .logEditorForm
+        .dataset
+        .editingId ||
+      ""
+    ).trim();
 
   const currentOperationStatus =
-    elements.operationStatusSnapshot
-      ?.value?.trim() ||
-    elements.operationStatus
-      ?.value?.trim() ||
-    appState.currentOperationStatus
+    elements
+      .operationStatusSnapshot
+      ?.value
+      ?.trim() ||
+    elements
+      .operationStatus
+      ?.value
+      ?.trim() ||
+    appState
+      .currentOperationStatus
       ?.content ||
     "";
 
+  const now =
+    new Date().toISOString();
+
   return {
     id:
-      editingId || createId(),
+      editingId ||
+      createId(),
 
     date:
       elements.logDate.value,
@@ -3068,7 +4158,8 @@ function collectEditorData(status) {
       elements.logRole.value,
 
     author:
-      elements.logAuthor.value.trim(),
+      elements.logAuthor.value
+        .trim(),
 
     operationStatus:
       currentOperationStatus,
@@ -3076,7 +4167,8 @@ function collectEditorData(status) {
     entries,
 
     note:
-      elements.logNote.value.trim(),
+      elements.logNote.value
+        .trim(),
 
     attachments:
       attachmentNames,
@@ -3084,49 +4176,203 @@ function collectEditorData(status) {
     status,
 
     createdAt:
-      new Date().toISOString(),
+      now,
 
     updatedAt:
-      new Date().toISOString()
+      now
   };
 }
 
 
 function saveCurrentLog(status) {
-  if (!elements.logEditorForm.reportValidity()) {
+  if (
+    !elements
+      .logEditorForm
+      .reportValidity()
+  ) {
     return;
   }
 
-  const log = collectEditorData(status);
+  const log =
+    collectEditorData(status);
+
+  const hasEntryContent =
+    log.entries.some(
+      (entry) => {
+        return Boolean(
+          String(
+            entry.content || ""
+          ).trim()
+        );
+      }
+    );
 
   if (
     !log.operationStatus &&
-    !log.entries.some((entry) => entry.content) &&
+    !hasEntryContent &&
     !log.note
   ) {
-    showToast("운전 현황 또는 업무 내용을 입력해 주세요.");
+    showToast(
+      "운전 현황 또는 업무 내용을 입력해 주세요."
+    );
+
     return;
   }
 
-  const existingIndex = appState.logs.findIndex(
-    (item) => item.id === log.id
-  );
+  /*
+    1순위:
+    현재 수정 중인 업무일지 ID로 찾는다.
+  */
+  let existingIndex =
+    appState.logs.findIndex(
+      (item) => {
+        return (
+          String(item.id || "") ===
+          String(log.id || "")
+        );
+      }
+    );
+
+  /*
+    2순위:
+    편집 ID가 사라진 경우에도
+    같은 날짜·근무·보직의 업무일지를 찾는다.
+
+    동일 보직의 업무일지는
+    날짜와 근무별로 하나만 유지한다.
+  */
+  if (existingIndex < 0) {
+    const normalizedRole =
+      normalizeMemberLogRole(
+        log.role
+      );
+
+    const matchingIndexes =
+      appState.logs
+        .map(
+          (item, index) => {
+            return {
+              item,
+              index
+            };
+          }
+        )
+        .filter(
+          ({ item }) => {
+            return (
+              String(
+                item.date || ""
+              ).trim() ===
+                String(
+                  log.date || ""
+                ).trim() &&
+              String(
+                item.shift || ""
+              ).trim() ===
+                String(
+                  log.shift || ""
+                ).trim() &&
+              normalizeMemberLogRole(
+                item.role
+              ) === normalizedRole
+            );
+          }
+        )
+        .sort(
+          (
+            resultA,
+            resultB
+          ) => {
+            const timeA =
+              new Date(
+                resultA.item
+                  .updatedAt ||
+                resultA.item
+                  .createdAt ||
+                0
+              ).getTime();
+
+            const timeB =
+              new Date(
+                resultB.item
+                  .updatedAt ||
+                resultB.item
+                  .createdAt ||
+                0
+              ).getTime();
+
+            return timeB - timeA;
+          }
+        );
+
+    if (
+      matchingIndexes.length
+    ) {
+      existingIndex =
+        matchingIndexes[0]
+          .index;
+    }
+  }
 
   if (existingIndex >= 0) {
-    log.createdAt = appState.logs[existingIndex].createdAt;
-    appState.logs.splice(existingIndex, 1, log);
+    const existingLog =
+      appState.logs[
+        existingIndex
+      ];
+
+    log.id =
+      existingLog.id;
+
+    log.createdAt =
+      existingLog.createdAt ||
+      log.createdAt;
+
+    log.updatedAt =
+      new Date()
+        .toISOString();
+
+    appState.logs.splice(
+      existingIndex,
+      1,
+      log
+    );
   } else {
-    appState.logs.unshift(log);
+    log.createdAt =
+      new Date()
+        .toISOString();
+
+    log.updatedAt =
+      log.createdAt;
+
+    appState.logs.unshift(
+      log
+    );
   }
 
   persistLogs();
-  localStorage.removeItem(STORAGE_KEYS.draft);
 
-  appState.selectedDate = new Date(`${log.date}T00:00:00`);
-  appState.selectedShift = log.shift;
+  localStorage.removeItem(
+    STORAGE_KEYS.draft
+  );
+
+  elements
+    .logEditorForm
+    .dataset
+    .editingId =
+    log.id;
+
+  appState.selectedDate =
+    new Date(
+      `${log.date}T00:00:00`
+    );
+
+  appState.selectedShift =
+    log.shift;
 
   renderSelectedDate();
   renderLogTable();
+  updateShiftMemberCardStates();
+
   closeLogEditor();
 
   showToast(

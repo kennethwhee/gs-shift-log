@@ -1159,8 +1159,8 @@
             type="text"
             id="logEntryTime"
             inputmode="numeric"
-            maxlength="5"
-            placeholder="예: 09:30"
+            maxlength="4"
+            placeholder="예: 0930"
             autocomplete="off"
           />
 
@@ -1326,57 +1326,87 @@
   </div>
 
 
-  <!-- 누적 목록 -->
-  <div class="log-entry-table-panel">
+<!-- =====================================================
+  등록된 작업 내역
+====================================================== -->
+<div class="log-entry-table-panel">
+  <div class="log-entry-table-header">
+    <div class="log-entry-table-header__summary">
+      <strong>
+        등록된 작업 내역
+      </strong>
 
-    <div class="log-entry-table-header">
+      <span id="logEntryCount">
+        총 0건
+      </span>
 
-      <div>
-        <strong>등록된 작업 내역</strong>
-
-        <span id="logEntryCount">
-          총 0건
-        </span>
-      </div>
-
+      <span
+        id="selectedLogEntryCount"
+        class="selected-log-entry-count"
+        hidden
+      >
+        선택 0건
+      </span>
     </div>
 
-
-    <div class="log-entry-table-wrap">
-
-      <table class="log-entry-table">
-
-        <colgroup>
-          <col class="log-entry-table__time" />
-          <col class="log-entry-table__category" />
-          <col class="log-entry-table__content" />
-          <col class="log-entry-table__actions" />
-        </colgroup>
-
-        <thead>
-          <tr>
-            <th scope="col">시간</th>
-            <th scope="col">구분</th>
-            <th scope="col">내용</th>
-            <th scope="col">관리</th>
-          </tr>
-        </thead>
-
-        <tbody id="logEntryTableBody">
-
-          <tr class="log-entry-empty-row">
-            <td colspan="4">
-              등록된 작업 내역이 없습니다.
-            </td>
-          </tr>
-
-        </tbody>
-
-      </table>
-
-    </div>
-
+    <button
+      type="button"
+      id="deleteSelectedLogEntriesButton"
+      class="delete-selected-log-entries-button"
+      disabled
+    >
+      선택 항목 삭제
+    </button>
   </div>
+
+  <div class="log-entry-table-wrap">
+    <table class="log-entry-table">
+      <thead>
+        <tr>
+          <th class="log-entry-table__select">
+            <input
+              id="selectAllLogEntriesCheckbox"
+              class="log-entry-select-checkbox"
+              type="checkbox"
+              aria-label="등록된 작업 내역 전체 선택"
+            />
+          </th>
+
+          <th class="log-entry-table__time">
+            시간
+          </th>
+
+          <th class="log-entry-table__category">
+            구분
+          </th>
+
+          <th class="log-entry-table__content">
+            내용
+          </th>
+
+          <th class="log-entry-table__actions">
+            관리
+          </th>
+        </tr>
+      </thead>
+
+      <tbody id="logEntryTableBody">
+        <tr class="log-entry-empty-row">
+          <td colspan="5">
+            등록된 작업 내역이 없습니다.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <input
+    id="logEntriesJson"
+    type="hidden"
+    name="entries"
+    value="[]"
+  />
+</div>
 
 
   <!-- 저장용 숨김 필드 -->
