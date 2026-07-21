@@ -4707,7 +4707,14 @@ function renderLogTable() {
 function createLogRowHtml(log) {
   const previewGroups = [];
 
-  if (log.operationStatus) {
+  /*
+    운전현황
+  */
+  if (
+    String(
+      log.operationStatus || ""
+    ).trim()
+  ) {
     previewGroups.push({
       title:
         "운전현황",
@@ -4717,96 +4724,97 @@ function createLogRowHtml(log) {
           log.operationStatus
         ),
 
+      tag:
+        "",
+
       categoryClass:
         "is-operation"
     });
   }
 
+  /*
+    등록된 업무내역 전체를 시간순으로 정렬한다.
+
+    시간이 있는 항목:
+    오래된 시간부터 표시
+
+    시간이 없는 항목:
+    시간이 있는 항목 뒤에 등록된 순서대로 표시
+  */
   const entries =
     Array.isArray(log.entries)
-      ? log.entries
+      ? sortDetailEntriesByTime(
+          log.entries
+        )
       : [];
 
-  const tmIssueEntry =
-    entries.find((entry) => {
-      return (
+  entries.forEach(
+    (entry, index) => {
+      const category =
         String(
           entry.category || ""
-        ).trim() ===
-        "TM 발행"
-      );
-    });
+        ).trim();
 
-  if (tmIssueEntry) {
-    const tagText =
-      String(
-        tmIssueEntry.tag || ""
-      )
-        .trim()
-        .toUpperCase();
-
-    previewGroups.push({
-      title:
-        "TM",
-
-      tag:
-        tagText
-          ? `[${tagText}]`
-          : "",
-
-      text:
-        firstMeaningfulLine(
-          tmIssueEntry.content
-        ),
-
-      categoryClass:
-        "is-maintenance"
-    });
-  }
-
-  const handoverEntry =
-    entries.find((entry) => {
-      return (
+      const tagText =
         String(
-          entry.category || ""
-        ).trim() !==
-        "TM 발행"
-      );
-    });
+          entry.tag || ""
+        )
+          .trim()
+          .toUpperCase();
 
-  if (
-    handoverEntry &&
-    previewGroups.length < 3
-  ) {
-    const tagText =
-      String(
-        handoverEntry.tag || ""
-      )
-        .trim()
-        .toUpperCase();
+      const timeText =
+        String(
+          entry.time || ""
+        ).trim();
 
-    previewGroups.push({
-      title:
-        "인계",
-
-      tag:
-        tagText
-          ? `[${tagText}]`
-          : "",
-
-      text:
+      const contentText =
         firstMeaningfulLine(
-          handoverEntry.content
-        ),
+          entry.content
+        );
 
-      categoryClass:
-        "is-handover"
-    });
-  }
+      const isTmIssue =
+        category === "TM 발행";
 
+      const displayTitle =
+        isTmIssue
+          ? "TM"
+          : "인계";
+
+      const displayText = [
+        `${index + 1}.`,
+        timeText,
+        contentText || "-"
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      previewGroups.push({
+        title:
+          displayTitle,
+
+        tag:
+          tagText
+            ? `[${tagText}]`
+            : "",
+
+        text:
+          displayText,
+
+        categoryClass:
+          isTmIssue
+            ? "is-maintenance"
+            : "is-handover"
+      });
+    }
+  );
+
+  /*
+    비고
+  */
   if (
-    log.note &&
-    previewGroups.length < 3
+    String(
+      log.note || ""
+    ).trim()
   ) {
     previewGroups.push({
       title:
@@ -4816,6 +4824,9 @@ function createLogRowHtml(log) {
         firstMeaningfulLine(
           log.note
         ),
+
+      tag:
+        "",
 
       categoryClass:
         "is-note"
@@ -4831,21 +4842,27 @@ function createLogRowHtml(log) {
 
   return `
     <tr class="log-row">
+
       <td class="log-row__role">
         ${escapeHtml(
           log.role || "-"
         )}
       </td>
 
+
       <td class="log-row__author-cell">
+
         <strong class="log-row__author">
           ${escapeHtml(
             log.author || "-"
           )}
         </strong>
+
       </td>
 
+
       <td class="log-row__status-cell">
+
         <span
           class="status-badge ${getStatusClass(
             log.status
@@ -4855,9 +4872,12 @@ function createLogRowHtml(log) {
             log.status || "-"
           )}
         </span>
+
       </td>
 
+
       <td class="log-row__attachment-cell">
+
         ${
           attachmentCount > 0
             ? `
@@ -4878,9 +4898,12 @@ function createLogRowHtml(log) {
               </span>
             `
         }
+
       </td>
 
+
       <td class="log-row__preview-cell">
+
         <button
           type="button"
           class="log-preview"
@@ -4893,6 +4916,7 @@ function createLogRowHtml(log) {
             log.author || ""
           )} 업무일지 상세보기"
         >
+
           ${
             previewGroups.length
               ? previewGroups
@@ -4904,6 +4928,7 @@ function createLogRowHtml(log) {
                           ${group.categoryClass}
                         "
                       >
+
                         <strong
                           class="log-preview__title"
                         >
@@ -4915,6 +4940,7 @@ function createLogRowHtml(log) {
                         <span
                           class="log-preview__content"
                         >
+
                           ${
                             group.tag
                               ? `
@@ -4932,7 +4958,9 @@ function createLogRowHtml(log) {
                               group.text || "-"
                             )}
                           </span>
+
                         </span>
+
                       </span>
                     `;
                   })
@@ -4943,11 +4971,16 @@ function createLogRowHtml(log) {
                 </span>
               `
           }
+
         </button>
+
       </td>
 
+
       <td class="log-row__actions-cell">
+
         <div class="row-actions">
+
           <button
             type="button"
             class="table-action-button"
@@ -4963,8 +4996,11 @@ function createLogRowHtml(log) {
                 : "수정"
             }
           </button>
+
         </div>
+
       </td>
+
     </tr>
   `;
 }
