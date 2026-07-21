@@ -4471,28 +4471,30 @@ async function moveSelectedDate(
       appState.selectedDate
     );
 
-  /*
-    다음 업무일지 이동 순서
 
-    17일 N/S
-    → 17일 D/S
-    → 18일 N/S
+  /* =====================================================
+    다음 이동 순서
+
+    17일 D/S
+    → 17일 N/S
     → 18일 D/S
-  */
+    → 18일 N/S
+  ====================================================== */
+
   if (direction > 0) {
     if (
       appState.selectedShift ===
-      "NS"
+      "DS"
     ) {
       /*
-        같은 날짜의 N/S 다음은 D/S
+        같은 날짜의 D/S 다음은 N/S
       */
       appState.selectedShift =
-        "DS";
+        "NS";
     } else {
       /*
-        같은 날짜의 D/S 다음은
-        다음 날짜 N/S
+        같은 날짜의 N/S 다음은
+        다음 날짜 D/S
       */
       const nextDate =
         new Date(
@@ -4507,33 +4509,34 @@ async function moveSelectedDate(
         nextDate;
 
       appState.selectedShift =
-        "NS";
+        "DS";
     }
   }
 
 
-  /*
-    이전 업무일지 이동 순서
+  /* =====================================================
+    이전 이동 순서
 
-    18일 D/S
-    → 18일 N/S
-    → 17일 D/S
+    18일 N/S
+    → 18일 D/S
     → 17일 N/S
-  */
+    → 17일 D/S
+  ====================================================== */
+
   if (direction < 0) {
     if (
       appState.selectedShift ===
-      "DS"
+      "NS"
     ) {
       /*
-        같은 날짜의 D/S 이전은 N/S
+        같은 날짜의 N/S 이전은 D/S
       */
       appState.selectedShift =
-        "NS";
+        "DS";
     } else {
       /*
-        같은 날짜의 N/S 이전은
-        이전 날짜 D/S
+        같은 날짜의 D/S 이전은
+        이전 날짜 N/S
       */
       const previousDate =
         new Date(
@@ -4548,7 +4551,7 @@ async function moveSelectedDate(
         previousDate;
 
       appState.selectedShift =
-        "DS";
+        "NS";
     }
   }
 
@@ -4561,11 +4564,12 @@ async function moveSelectedDate(
       appState.selectedDate
     );
 
+
   /*
     날짜가 바뀐 경우에만
     해당 날짜의 D/S와 N/S를 다시 불러온다.
 
-    같은 날짜에서 N/S와 D/S만 전환되면
+    같은 날짜에서 D/S와 N/S만 전환되면
     이미 불러온 데이터를 바로 표시한다.
   */
   if (
@@ -4574,6 +4578,7 @@ async function moveSelectedDate(
   ) {
     await loadLegacyLogsForSelectedDate();
   }
+
 
   renderLogTable();
   updateShiftMemberCardStates();
