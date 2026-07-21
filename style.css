@@ -4849,3 +4849,61 @@ td {
 }
 
 }
+
+/* =========================================================
+  파트장 업무일지 보직별 구분
+========================================================= */
+
+.log-preview__role-divider {
+  display: block;
+  width: 100%;
+  margin: 12px 0 6px;
+  padding: 7px 10px;
+
+  border: 1px solid #d7e3f4;
+  border-radius: 8px;
+
+  background: #f7faff;
+
+  color: #173b6c;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: left;
+}
+
+.log-preview__role-divider:first-child {
+  margin-top: 0;
+}
+
+.log-preview__role-divider.is-tgo {
+  border-color: #cfe8ff;
+  background: #eef7ff;
+  color: #0f5f9f;
+}
+
+.log-preview__role-divider.is-bco1 {
+  border-color: #d9e6ff;
+  background: #f3f7ff;
+  color: #325ea8;
+}
+
+.log-preview__role-divider.is-bco2 {
+  border-color: #e4ddff;
+  background: #f7f4ff;
+  color: #684bb0;
+}
+
+.log-preview__role-divider.is-leader {
+  border-color: #cfe9dc;
+  background: #f1faf5;
+  color: #26734d;
+}
+
+.log-preview__group.has-no-title {
+  padding-left: 12px;
+}
+
+.log-preview__role-divider + .log-preview__group {
+  margin-top: 2px;
+}

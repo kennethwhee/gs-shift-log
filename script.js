@@ -6496,6 +6496,16 @@ function renderLogTable() {
 function createLogRowHtml(log) {
   const previewGroups = [];
 
+  const normalizedLogRole =
+    normalizeMemberLogRole(
+      log.role
+    );
+
+  const isLeaderLog =
+    normalizedLogRole ===
+    "파트장";
+
+
   /*
     1. 운전현황
   */
@@ -6505,7 +6515,11 @@ function createLogRowHtml(log) {
     ).trim()
   ) {
     previewGroups.push({
-      title: "운전현황",
+      type:
+        "normal",
+
+      title:
+        "운전현황",
 
       text:
         firstMeaningfulLine(
@@ -6520,11 +6534,10 @@ function createLogRowHtml(log) {
   }
 
 
-  /*
-    전체 작업 내역
-  */
   const entries =
-    Array.isArray(log.entries)
+    Array.isArray(
+      log.entries
+    )
       ? log.entries
       : [];
 
@@ -6532,8 +6545,8 @@ function createLogRowHtml(log) {
   /*
     2. TM 발행 내역
 
-    모든 보직의 TM 내역을 하나로 모아서
-    번호를 연속으로 표시한다.
+    파트장 업무일지에서는 모든 보직의
+    TM 발행 내용을 하나로 합쳐 표시한다.
   */
   const tmEntries =
     sortDetailEntriesByTime(
@@ -6546,6 +6559,19 @@ function createLogRowHtml(log) {
         );
       })
     );
+
+  if (tmEntries.length) {
+    previewGroups.push({
+      type:
+        "section",
+
+      title:
+        "TM 발행 내역",
+
+      categoryClass:
+        "is-maintenance"
+    });
+  }
 
   tmEntries.forEach(
     (
@@ -6565,10 +6591,10 @@ function createLogRowHtml(log) {
         ) || "-";
 
       previewGroups.push({
-        title:
-          index === 0
-            ? "TM"
-            : "",
+        type:
+          "normal",
+
+        title: "",
 
         tag:
           tagText
@@ -6598,10 +6624,6 @@ function createLogRowHtml(log) {
       );
     });
 
-
-  /*
-    보직 표시 순서
-  */
   const roleOrder = [
     "TGO",
     "BCO1",
@@ -6612,10 +6634,6 @@ function createLogRowHtml(log) {
     "파트장"
   ];
 
-
-  /*
-    보직별 내역 묶기
-  */
   const groupedEntries = {};
 
   handoverEntries.forEach(
@@ -6643,10 +6661,6 @@ function createLogRowHtml(log) {
     }
   );
 
-
-  /*
-    표시할 보직 순서
-  */
   const orderedRoles = [
     ...roleOrder.filter(
       (role) => {
@@ -6670,9 +6684,6 @@ function createLogRowHtml(log) {
   ];
 
 
-  /*
-    보직별 번호를 1번부터 다시 시작
-  */
   orderedRoles.forEach(
     (role) => {
       const roleEntries =
@@ -6681,6 +6692,28 @@ function createLogRowHtml(log) {
             role
           ]
         );
+
+      /*
+        파트장 업무일지에만
+        보직별 구분 제목을 추가한다.
+      */
+      if (
+        isLeaderLog &&
+        roleEntries.length
+      ) {
+        previewGroups.push({
+          type:
+            "section",
+
+          title:
+            `${role} 업무일지`,
+
+          categoryClass:
+            `is-handover ${getLogEntrySourceClass(
+              role
+            )}`
+        });
+      }
 
       roleEntries.forEach(
         (
@@ -6713,9 +6746,17 @@ function createLogRowHtml(log) {
             .join(" ");
 
           previewGroups.push({
+            type:
+              "normal",
+
+            /*
+              일반 보직 업무일지는
+              기존처럼 첫 줄에만 인계 표시
+            */
             title:
+              !isLeaderLog &&
               index === 0
-                ? role
+                ? "인계"
                 : "",
 
             tag:
@@ -6727,7 +6768,9 @@ function createLogRowHtml(log) {
               displayText,
 
             categoryClass:
-              "is-handover"
+              `is-handover ${getLogEntrySourceClass(
+                role
+              )}`
           });
         }
       );
@@ -6744,7 +6787,11 @@ function createLogRowHtml(log) {
     ).trim()
   ) {
     previewGroups.push({
-      title: "비고",
+      type:
+        "normal",
+
+      title:
+        "비고",
 
       text:
         firstMeaningfulLine(
@@ -6828,14 +6875,32 @@ function createLogRowHtml(log) {
             log.id
           )}"
           title="업무일지 상세보기"
-          aria-label="${escapeHtml(
-            log.author || ""
-          )} 업무일지 상세보기"
         >
           ${
             previewGroups.length
               ? previewGroups
                   .map((group) => {
+                    /*
+                      보직별 구분 제목
+                    */
+                    if (
+                      group.type ===
+                      "section"
+                    ) {
+                      return `
+                        <span
+                          class="
+                            log-preview__role-divider
+                            ${group.categoryClass}
+                          "
+                        >
+                          ${escapeHtml(
+                            group.title
+                          )}
+                        </span>
+                      `;
+                    }
+
                     return `
                       <span
                         class="
