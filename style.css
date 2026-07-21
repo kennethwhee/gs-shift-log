@@ -5060,10 +5060,10 @@ td {
 }
 
 /* =========================================================
-   업무일지 미리보기 최종 정리
-   - 번호·내용 왼쪽 정렬
-   - TM 발행 제목 크기 통일
-   - 운전현황·TM·인계 경계선 추가
+   업무일지 미리보기 최종 정리 v2
+   - 각 줄별 박스 제거
+   - 구역 단위 경계선만 적용
+   - 번호와 내용 왼쪽 정렬
 ========================================================= */
 
 
@@ -5077,7 +5077,7 @@ td {
   min-width: 0;
   flex-direction: column;
   align-items: stretch;
-  gap: 5px;
+  gap: 0;
   margin: 0;
   padding: 0;
   text-align: left;
@@ -5085,9 +5085,9 @@ td {
 
 
 /* =========================================================
-   공통 한 줄 구조
+   각 업무 한 줄
 
-   제목 84px | 실제 업무 내용
+   줄마다 테두리와 배경을 넣지 않는다.
 ========================================================= */
 
 .log-preview__group {
@@ -5098,26 +5098,25 @@ td {
     84px
     minmax(0, 1fr);
   align-items: start;
-  gap: 0 10px;
+  column-gap: 10px;
   margin: 0;
-  padding: 4px 6px;
-  border: 1px solid transparent;
-  border-radius: 7px;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   text-align: left;
 }
 
 
 /* =========================================================
-   2번 이후 항목 정렬
-
-   기존 padding-left와 가상 빈 칸을 제거한다.
+   두 번째 항목부터 왼쪽 정렬 유지
 ========================================================= */
 
 .log-preview__group.has-no-title {
   grid-template-columns:
     84px
     minmax(0, 1fr);
-  padding-left: 6px;
+  padding-left: 10px;
 }
 
 .log-preview__group.has-no-title::before {
@@ -5134,17 +5133,17 @@ td {
 
 
 /* =========================================================
-   제목 배지 공통 크기
+   제목 배지 공통
 ========================================================= */
 
 .log-preview__title {
   display: inline-flex;
   width: 84px;
   min-width: 84px;
-  min-height: 24px;
+  min-height: 23px;
   align-items: center;
   justify-content: center;
-  padding: 3px 7px;
+  padding: 2px 7px;
   border: 1px solid transparent;
   border-radius: 6px;
   font-size: 11px;
@@ -5167,7 +5166,7 @@ td {
   flex-wrap: wrap;
   gap: 4px;
   margin: 0;
-  padding: 3px 0 0;
+  padding: 2px 0 0;
   color: #34445a;
   font-size: 13px;
   line-height: 1.55;
@@ -5192,13 +5191,21 @@ td {
 
 
 /* =========================================================
-   운전현황 경계선
+   줄별 박스 완전 제거
 ========================================================= */
 
-.log-preview__group.is-operation {
-  border-color: #d6e4f3;
-  background: #fbfdff;
+.log-preview__group.is-operation,
+.log-preview__group.is-maintenance,
+.log-preview__group.is-handover,
+.log-preview__group.is-note {
+  border: 0;
+  background: transparent;
 }
+
+
+/* =========================================================
+   운전현황 제목
+========================================================= */
 
 .log-preview__group.is-operation
 .log-preview__title {
@@ -5209,13 +5216,8 @@ td {
 
 
 /* =========================================================
-   TM 발행 내역 경계선
+   TM 발행 제목
 ========================================================= */
-
-.log-preview__group.is-maintenance {
-  border-color: #d8e9e1;
-  background: #fbfefc;
-}
 
 .log-preview__group.is-maintenance
 .log-preview__title {
@@ -5225,20 +5227,35 @@ td {
 }
 
 
-/*
-   기존 가로 전체 길이의 TM 발행 내역 제목을
-   운전현황·인계 배지와 같은 크기로 변경한다.
-*/
+/* =========================================================
+   인계 제목
+========================================================= */
+
+.log-preview__group.is-handover
+.log-preview__title {
+  border-color: #ead6ad;
+  background: #fff4df;
+  color: #a3680d;
+}
+
+
+/* =========================================================
+   TM 발행 내역 구역 제목
+
+   전체 폭으로 늘어나지 않고
+   제목 배지만 작게 표시한다.
+========================================================= */
+
 .log-preview__role-divider.is-maintenance {
   display: inline-flex;
   width: 84px;
   min-width: 84px;
-  min-height: 24px;
+  min-height: 23px;
   align-items: center;
   justify-content: center;
   align-self: flex-start;
-  margin: 5px 0 1px 6px;
-  padding: 3px 7px;
+  margin: 9px 0 4px 10px;
+  padding: 2px 7px;
   border: 1px solid #c9e3d7;
   border-radius: 6px;
   background: #e7f6f0;
@@ -5252,45 +5269,71 @@ td {
 
 
 /* =========================================================
-   인계사항 경계선
-========================================================= */
+   보직별 구역 경계선
 
-.log-preview__group.is-handover {
-  border-color: #eadfca;
-  background: #fffdf9;
-}
-
-.log-preview__group.is-handover
-.log-preview__title {
-  border-color: #ead6ad;
-  background: #fff4df;
-  color: #a3680d;
-}
-
-
-/* =========================================================
-   보직별 업무일지 구분
-
-   TGO 업무일지, BCO1 업무일지 등의 구분선은
-   전체 폭을 사용하되 높이를 컴팩트하게 유지한다.
+   TGO 업무일지, BCO1 업무일지 등
+   구역 전체만 연한 선으로 감싼다.
 ========================================================= */
 
 .log-preview__role-divider:not(.is-maintenance) {
   display: block;
   width: 100%;
-  margin: 8px 0 2px;
-  padding: 5px 9px;
-  border-width: 1px;
-  border-style: solid;
-  border-radius: 6px;
+  margin: 10px 0 4px;
+  padding: 6px 10px;
+  border: 1px solid #d8e2ec;
+  border-radius: 7px;
+  background: #fafcff;
+  color: #33465d;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 900;
   line-height: 1.25;
   text-align: left;
 }
 
-.log-preview__role-divider:first-child {
-  margin-top: 0;
+
+/* =========================================================
+   같은 보직 구역의 실제 항목
+
+   각 줄에는 테두리를 넣지 않는다.
+========================================================= */
+
+.log-preview__role-divider:not(.is-maintenance)
++ .log-preview__group {
+  padding-top: 5px;
+}
+
+.log-preview__group.is-handover
++ .log-preview__group.is-handover {
+  border-top: 0;
+}
+
+
+/* =========================================================
+   구역 사이 연한 구분선
+========================================================= */
+
+.log-preview__role-divider:not(.is-maintenance) {
+  border-color: #d9e3ed;
+}
+
+.log-preview__role-divider.is-tgo {
+  border-color: #cfe0f3;
+  background: #fbfdff;
+}
+
+.log-preview__role-divider.is-bco1 {
+  border-color: #d2e8db;
+  background: #fbfefc;
+}
+
+.log-preview__role-divider.is-bco2 {
+  border-color: #e0d5ed;
+  background: #fdfbff;
+}
+
+.log-preview__role-divider.is-leader {
+  border-color: #eadfca;
+  background: #fffdf9;
 }
 
 
