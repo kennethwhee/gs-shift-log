@@ -120,7 +120,7 @@
             <div class="shift-summary">
               <span class="shift-summary__label">현재 근무</span>
               <strong class="shift-summary__value" id="currentShiftLabel">
-                2026년 07월 20일 월요일 NS
+                2026년 07월 20일 월요일 N/S
               </strong>
             </div>
           </div>
@@ -131,7 +131,7 @@
 
     <div class="shift-member-card__body">
       <strong class="shift-member-card__name">홍길동</strong>
-      <span class="shift-member-card__team">3조</span>
+      <span class="shift-member-card__team">3파트</span>
     </div>
 
     <div class="shift-member-card__status is-complete">
@@ -145,7 +145,7 @@
 
     <div class="shift-member-card__body">
       <strong class="shift-member-card__name">김철수</strong>
-      <span class="shift-member-card__team">3조</span>
+      <span class="shift-member-card__team">3파트</span>
     </div>
 
     <div class="shift-member-card__status is-writing">
@@ -159,7 +159,7 @@
 
     <div class="shift-member-card__body">
       <strong class="shift-member-card__name">이영희</strong>
-      <span class="shift-member-card__team">3조</span>
+      <span class="shift-member-card__team">3파트</span>
     </div>
 
     <div class="shift-member-card__status is-complete">
@@ -173,7 +173,7 @@
 
     <div class="shift-member-card__body">
       <strong class="shift-member-card__name">박민수</strong>
-      <span class="shift-member-card__team">3조</span>
+      <span class="shift-member-card__team">3파트</span>
     </div>
 
     <div class="shift-member-card__status is-empty">
@@ -187,7 +187,7 @@
 
     <div class="shift-member-card__body">
       <strong class="shift-member-card__name">정다은</strong>
-      <span class="shift-member-card__team">3조</span>
+      <span class="shift-member-card__team">3파트</span>
     </div>
 
     <div class="shift-member-card__status is-complete">
@@ -201,7 +201,7 @@
 
     <div class="shift-member-card__body">
       <strong class="shift-member-card__name">최현우</strong>
-      <span class="shift-member-card__team">3조</span>
+      <span class="shift-member-card__team">3파트</span>
     </div>
 
     <div class="shift-member-card__status is-empty">
@@ -215,7 +215,7 @@
 
     <div class="shift-member-card__body">
       <strong class="shift-member-card__name">강수진</strong>
-      <span class="shift-member-card__team">3조</span>
+      <span class="shift-member-card__team">3파트</span>
     </div>
 
     <div class="shift-member-card__status is-empty">
@@ -566,12 +566,12 @@
               </label>
 
               <label class="form-field">
-                <span class="form-field__label">근무조</span>
+                <span class="form-field__label">근무구분</span>
 
                 <select id="searchShift" name="shift">
                   <option value="">전체</option>
                   <option value="DS">DS</option>
-                  <option value="NS">NS</option>
+                  <option value="NS">N/S</option>
                 </select>
               </label>
 
@@ -1082,8 +1082,8 @@
       <h3>팀원 업무일지 가져오기</h3>
 
       <p>
-        같은 작성일과 근무의 팀원 업무일지에서
-        TM 발행과 업무 내역을 가져옵니다.
+        TGO·BCO1·BCO2의 업무 내역과
+        모든 보직의 TM 발행 내역을 가져옵니다.
       </p>
     </div>
 
@@ -1271,14 +1271,14 @@
       id="importAllMemberLogsButton"
       class="member-log-import-all-button"
     >
-      6개 보직 업무일지 일괄 가져오기
+      파트장 업무일지 일괄 취합
     </button>
 
 
     <p class="member-log-import-help">
-      TGO → BCO1 → BCO2 → TO → BO1 → BO2 순서로
-      가져오며, 이미 가져온 동일 내역은 중복 추가되지
-      않습니다.
+      일반 업무는 TGO·BCO1·BCO2만 가져오고,
+      TM 발행 내역은 모든 보직에서 취합합니다.
+      동일 내역은 중복 추가되지 않습니다.
     </p>
 
   </div>

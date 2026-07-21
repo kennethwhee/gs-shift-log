@@ -22,9 +22,88 @@ const STORAGE_KEYS = {
     "gsShiftLog.operationStatus"
 };
 
+
+/* =========================================================
+  현재 근무일자·근무구분 계산
+
+  D/S : 07:00 ~ 19:00
+  N/S : 19:00 ~ 다음 날 07:00
+
+  00:00 ~ 06:59는 전날 N/S로 처리한다.
+========================================================= */
+
+function getCurrentShiftContext(now = new Date()) {
+  const currentDate =
+    new Date(now);
+
+  const hour =
+    currentDate.getHours();
+
+  if (hour >= 7 && hour < 19) {
+    return {
+      date:
+        new Date(
+          currentDate.getFullYear(),
+          currentDate.getMonth(),
+          currentDate.getDate()
+        ),
+
+      shift:
+        "DS"
+    };
+  }
+
+  if (hour < 7) {
+    currentDate.setDate(
+      currentDate.getDate() - 1
+    );
+  }
+
+  return {
+    date:
+      new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth(),
+        currentDate.getDate()
+      ),
+
+    shift:
+      "NS"
+  };
+}
+
+
+function getShiftDisplayName(shift) {
+  return (
+    String(shift || "")
+      .trim()
+      .toUpperCase() === "DS"
+      ? "D/S"
+      : "N/S"
+  );
+}
+
+
+async function toggleSelectedShift() {
+  appState.selectedShift =
+    appState.selectedShift === "DS"
+      ? "NS"
+      : "DS";
+
+  renderSelectedDate();
+
+  await loadLegacyLogsForSelectedDate();
+
+  renderLogTable();
+  updateShiftMemberCardStates();
+}
+
+const initialShiftContext =
+  getCurrentShiftContext();
+
 const appState = {
-  selectedDate: new Date(2026, 6, 20),
-  selectedShift: "NS",
+  selectedDate: initialShiftContext.date,
+  selectedShift: initialShiftContext.shift,
   currentDetailLogId: null,
   logs: [],
 
@@ -733,7 +812,21 @@ function rebuildLegacyLeaderLogFromMemberLogs(
     return;
   }
 
-  const memberRoleOrder = [
+  /*
+    파트장 일반 업무에 취합할 보직:
+    TGO, BCO1, BCO2
+
+    TM 발행 내역은:
+    TGO, BCO1, BCO2, TO, BO1, BO2
+    전 보직에서 취합한다.
+  */
+  const ordinaryWorkRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2"
+  ];
+
+  const tmSourceRoles = [
     "TGO",
     "BCO1",
     "BCO2",
@@ -742,9 +835,6 @@ function rebuildLegacyLeaderLogFromMemberLogs(
     "BO2"
   ];
 
-  /*
-    파트장 업무일지를 찾는다.
-  */
   const leaderLog =
     convertedLogs.find(
       (log) => {
@@ -762,14 +852,8 @@ function rebuildLegacyLeaderLogFromMemberLogs(
   }
 
   /*
-    기존 파트장 일지에서
-    명확하게 파트장 직접 업무로 확인되는 항목만 유지한다.
-
-    legacyBodyIndex 8:
-    이전 코드에서 파트장 직접 업무로 구분한 경우
-
-    importedFromRole 파트장:
-    이미 파트장 직접 업무로 분류된 경우
+    기존 파트장 일지에서 파트장이 직접 작성한
+    TM 이외의 항목만 유지한다.
   */
   const leaderOwnEntries =
     Array.isArray(
@@ -836,13 +920,10 @@ function rebuildLegacyLeaderLogFromMemberLogs(
           )
       : [];
 
-  const combinedMemberEntries = [];
+  const combinedMemberEntries =
+    [];
 
-  /*
-    TGO → BCO1 → BCO2 → TO → BO1 → BO2 순서로
-    각 업무일지의 내용을 그대로 복사한다.
-  */
-  memberRoleOrder.forEach(
+  tmSourceRoles.forEach(
     (memberRole) => {
       const memberLog =
         convertedLogs.find(
@@ -872,13 +953,34 @@ function rebuildLegacyLeaderLogFromMemberLogs(
           entry,
           entryIndex
         ) => {
+          const category =
+            String(
+              entry.category || ""
+            ).trim();
+
+          const isTmIssue =
+            category ===
+            "TM 발행";
+
+          const canImportOrdinaryWork =
+            ordinaryWorkRoles.includes(
+              memberRole
+            );
+
+          /*
+            모든 보직의 TM 발행은 취합한다.
+            일반 업무는 TGO, BCO1, BCO2만 취합한다.
+          */
+          if (
+            !isTmIssue &&
+            !canImportOrdinaryWork
+          ) {
+            return;
+          }
+
           combinedMemberEntries.push({
             ...entry,
 
-            /*
-              파트장 업무일지 화면에서
-              보직별로 구분하기 위한 정보다.
-            */
             importedFromRole:
               memberRole,
 
@@ -897,9 +999,6 @@ function rebuildLegacyLeaderLogFromMemberLogs(
             importedFromEntryIndex:
               entryIndex,
 
-            /*
-              원본 팀원 업무일지의 항목임을 표시한다.
-            */
             source:
               "legacy-member-copy"
           });
@@ -908,22 +1007,6 @@ function rebuildLegacyLeaderLogFromMemberLogs(
     }
   );
 
-  /*
-    팀원 업무를 먼저 배치하고
-    파트장 직접 업무는 마지막에 배치한다.
-
-    화면에서는:
-    - TM 발행 내역 전체 취합
-    - TGO 업무
-    - BCO1 업무
-    - BCO2 업무
-    - TO 업무
-    - BO1 업무
-    - BO2 업무
-    - 파트장 업무
-
-    순서로 표시된다.
-  */
   leaderLog.entries = [
     ...combinedMemberEntries,
     ...leaderOwnEntries
@@ -932,7 +1015,6 @@ function rebuildLegacyLeaderLogFromMemberLogs(
   leaderLog.legacyRebuiltFromMembers =
     true;
 }
-
 
 function calculateLegacyContentSimilarity(
   firstContent,
@@ -2147,10 +2229,11 @@ function updateMemberLogImportStatus() {
       return;
     }
 
-    const memberEntries =
-      Array.isArray(memberLog.entries)
-        ? memberLog.entries
-        : [];
+    const importableEntryCount =
+      getImportableMemberEntries(
+        memberLog,
+        item.role
+      ).length;
 
     const author =
       String(
@@ -2183,7 +2266,7 @@ function updateMemberLogImportStatus() {
     }
 
     if (
-      memberEntries.length > 0 &&
+      importableEntryCount > 0 &&
       syncStatus.importedEntryCount > 0
     ) {
       item.button.classList.add(
@@ -2203,7 +2286,7 @@ function updateMemberLogImportStatus() {
 
     if (item.status) {
       item.status.textContent =
-        `${author} · ${memberEntries.length}건 확인`;
+        `${author} · ${importableEntryCount}건 확인`;
     }
 
     item.button.disabled =
@@ -2467,10 +2550,17 @@ function createLogEntryImportKey(entry) {
 
 
 /* =========================================================
-  보직별 가져오기 동기화 상태 계산
+  파트장 일지로 가져올 수 있는 보직별 항목
+
+  TGO, BCO1, BCO2:
+  - 일반 업무
+  - TM 발행
+
+  TO, BO1, BO2:
+  - TM 발행만
 ========================================================= */
 
-function getMemberLogSyncStatus(
+function getImportableMemberEntries(
   memberLog,
   requestedRole
 ) {
@@ -2485,6 +2575,66 @@ function getMemberLogSyncStatus(
     )
       ? memberLog.entries
       : [];
+
+  const ordinaryWorkRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2"
+  ];
+
+  if (
+    ordinaryWorkRoles.includes(
+      normalizedRole
+    )
+  ) {
+    return memberEntries.map(
+      (entry, entryIndex) => {
+        return {
+          entry,
+          entryIndex
+        };
+      }
+    );
+  }
+
+  return memberEntries
+    .map(
+      (entry, entryIndex) => {
+        return {
+          entry,
+          entryIndex
+        };
+      }
+    )
+    .filter(({ entry }) => {
+      return (
+        String(
+          entry.category || ""
+        ).trim() ===
+        "TM 발행"
+      );
+    });
+}
+
+
+/* =========================================================
+  보직별 가져오기 동기화 상태 계산
+========================================================= */
+
+function getMemberLogSyncStatus(
+  memberLog,
+  requestedRole
+) {
+  const normalizedRole =
+    normalizeMemberLogRole(
+      requestedRole
+    );
+
+  const importableItems =
+    getImportableMemberEntries(
+      memberLog,
+      normalizedRole
+    );
 
   const currentImportedKeys =
     new Set(
@@ -2506,8 +2656,11 @@ function getMemberLogSyncStatus(
   let importedEntryCount = 0;
   let newEntryCount = 0;
 
-  memberEntries.forEach(
-    (entry, entryIndex) => {
+  importableItems.forEach(
+    ({
+      entry,
+      entryIndex
+    }) => {
       const sourceKey =
         createSourceEntryKey(
           memberLog,
@@ -2530,14 +2683,13 @@ function getMemberLogSyncStatus(
 
   return {
     totalEntryCount:
-      memberEntries.length,
+      importableItems.length,
 
     importedEntryCount,
 
     newEntryCount
   };
 }
-
 
 /* =========================================================
   특정 보직의 가져온 내역 존재 여부
@@ -2634,15 +2786,26 @@ function importMemberLogByRole(
     };
   }
 
-  const memberEntries =
-    Array.isArray(memberLog.entries)
-      ? memberLog.entries
-      : [];
+  const importableItems =
+    getImportableMemberEntries(
+      memberLog,
+      normalizedRole
+    );
 
-  if (!memberEntries.length) {
+  if (!importableItems.length) {
     if (!silent) {
+      const tmOnlyRoles = [
+        "TO",
+        "BO1",
+        "BO2"
+      ];
+
       showToast(
-        `${normalizedRole} 업무일지에 가져올 내역이 없습니다.`
+        tmOnlyRoles.includes(
+          normalizedRole
+        )
+          ? `${normalizedRole} 업무일지에 가져올 TM 발행 내역이 없습니다.`
+          : `${normalizedRole} 업무일지에 가져올 내역이 없습니다.`
       );
     }
 
@@ -2678,8 +2841,11 @@ function importMemberLogByRole(
   let addedCount = 0;
   let skippedCount = 0;
 
-  memberEntries.forEach(
-    (entry, entryIndex) => {
+  importableItems.forEach(
+    ({
+      entry,
+      entryIndex
+    }) => {
       const sourceKey =
         createSourceEntryKey(
           memberLog,
@@ -2758,8 +2924,18 @@ function importMemberLogByRole(
 
   if (!silent) {
     if (addedCount > 0) {
+      const tmOnlyRoles = [
+        "TO",
+        "BO1",
+        "BO2"
+      ];
+
       showToast(
-        `${normalizedRole} 업무일지에서 신규 내역 ${addedCount}건을 가져왔습니다.`
+        tmOnlyRoles.includes(
+          normalizedRole
+        )
+          ? `${normalizedRole} 업무일지에서 TM 발행 신규 내역 ${addedCount}건을 가져왔습니다.`
+          : `${normalizedRole} 업무일지에서 신규 내역 ${addedCount}건을 가져왔습니다.`
       );
     } else {
       showToast(
@@ -2776,14 +2952,13 @@ function importMemberLogByRole(
       true,
 
     totalCount:
-      memberEntries.length,
+      importableItems.length,
 
     addedCount,
 
     skippedCount
   };
 }
-
 
 /* =========================================================
   전체 보직 신규 내역 가져오기
@@ -3303,13 +3478,21 @@ function bindEvents() {
 
   bindClick(
     elements.todayButton,
-    () => {
-      appState.selectedDate =
-        new Date();
+    moveSelectedDateToToday
+  );
 
-      renderSelectedDate();
-      renderLogTable();
-    }
+  /*
+    날짜/근무 표시를 누르면
+    D/S와 N/S를 전환한다.
+  */
+  bindClick(
+    elements.selectedShiftBadge,
+    toggleSelectedShift
+  );
+
+  bindClick(
+    elements.currentShiftLabel,
+    toggleSelectedShift
   );
 
 
@@ -4038,8 +4221,14 @@ async function moveSelectedDate(
 
 
 async function moveSelectedDateToToday() {
+  const currentShiftContext =
+    getCurrentShiftContext();
+
   appState.selectedDate =
-    new Date();
+    currentShiftContext.date;
+
+  appState.selectedShift =
+    currentShiftContext.shift;
 
   renderSelectedDate();
 
@@ -4054,9 +4243,16 @@ function renderSelectedDate() {
   const dateText = formatKoreanDate(appState.selectedDate);
 
   elements.selectedDateText.textContent = dateText;
-  elements.selectedShiftBadge.textContent = appState.selectedShift;
+  const shiftDisplayName =
+    getShiftDisplayName(
+      appState.selectedShift
+    );
+
+  elements.selectedShiftBadge.textContent =
+    shiftDisplayName;
+
   elements.currentShiftLabel.textContent =
-    `${dateText} ${appState.selectedShift}`;
+    `${dateText} ${shiftDisplayName}`;
 
   setEditorDateFromSelectedDate();
 }
@@ -4102,6 +4298,34 @@ function formatInputDate(date) {
     String(date.getDate()).padStart(2, "0")
   ].join("-");
 }
+
+function normalizeTeamName(teamName) {
+  const rawTeamName =
+    String(teamName || "")
+      .trim();
+
+  if (!rawTeamName) {
+    return "";
+  }
+
+  /*
+    기존 저장 데이터의 과거 조 표기도
+    1파트~4파트로 자동 변환한다.
+  */
+  if (/^[1-4]조$/.test(rawTeamName)) {
+    return rawTeamName.replace(
+      /조$/,
+      "파트"
+    );
+  }
+
+  if (/^[1-4]$/.test(rawTeamName)) {
+    return `${rawTeamName}파트`;
+  }
+
+  return rawTeamName;
+}
+
 
 function formatDateTime(value) {
   if (!value) {
@@ -4359,7 +4583,7 @@ function updateShiftMemberCardStates() {
         );
 
       /*
-        HTML에 처음 적혀 있던 이름과 근무조를
+        HTML에 처음 적혀 있던 이름과 근무파트를
         기본값으로 한 번만 저장한다.
       */
       if (
@@ -4487,7 +4711,7 @@ function updateShiftMemberCardStates() {
       }
 
       /*
-        기존 일지의 근무조 정보가 있으면 적용한다.
+        기존 일지의 근무파트 정보가 있으면 적용한다.
       */
       const teamName =
         String(
@@ -4501,9 +4725,9 @@ function updateShiftMemberCardStates() {
         teamName
       ) {
         teamElement.textContent =
-          teamName.includes("조")
-            ? teamName
-            : `${teamName}조`;
+          normalizeTeamName(
+            teamName
+          );
       }
 
       card.dataset.logState =
@@ -4575,7 +4799,7 @@ function resetLogEditor() {
   setEditorDateFromSelectedDate();
 
   elements.logAuthor.value = "이휘근";
-  elements.logTeam.value = "3조";
+  elements.logTeam.value = "3파트";
   elements.logShift.value = appState.selectedShift;
   elements.operationStatus.value = "";
   elements.logNote.value = "";
@@ -4616,7 +4840,7 @@ function fillLogEditor(log) {
     appState.selectedShift;
 
   elements.logTeam.value =
-    log.team || "3조";
+    normalizeTeamName(log.team || "3파트");
 
   elements.logRole.value =
     log.role || "";
@@ -6868,7 +7092,9 @@ function collectEditorData(status) {
       elements.logShift.value,
 
     team:
-      elements.logTeam.value,
+      normalizeTeamName(
+        elements.logTeam.value
+      ),
 
     role:
       elements.logRole.value,
@@ -9084,7 +9310,7 @@ function openLogDetail(log) {
               log-report-summary__item
             "
           >
-            <span>근무조</span>
+            <span>근무파트</span>
             <strong>
               ${escapeHtml(
                 teamText
@@ -9671,7 +9897,7 @@ function createSampleLogs() {
       id: "sample-1",
       date: "2026-07-20",
       shift: "NS",
-      team: "3조",
+      team: "3파트",
       role: "파트장",
       author: "홍길동",
       operationStatus:
@@ -9703,7 +9929,7 @@ function createSampleLogs() {
       id: "sample-2",
       date: "2026-07-20",
       shift: "NS",
-      team: "3조",
+      team: "3파트",
       role: "TGO",
       author: "김철수",
       operationStatus: "GT / ST 정상운전",
@@ -9725,7 +9951,7 @@ function createSampleLogs() {
       id: "sample-3",
       date: "2026-07-20",
       shift: "NS",
-      team: "3조",
+      team: "3파트",
       role: "BCO1",
       author: "이영희",
       operationStatus: "#1, #2 보일러 정상운전",
