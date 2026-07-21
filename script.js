@@ -763,54 +763,78 @@ function convertLegacyDiaryToLog(
           bodyIndex
         );
 
-      const content =
+      const rawContent =
         String(
           bodyItem?.content ||
           ""
-        ).trim();
+        );
 
       /*
         내용이 없거나 운전현황(index 0)이면
         작업 내역에서는 제외한다.
       */
       if (
-        !content ||
+        !rawContent.trim() ||
         index === 0
       ) {
         return;
       }
 
-      entries.push({
-        id:
-          `legacy-entry-${legacyItem.diary_id || itemIndex}-${index}`,
+      const category =
+        index === 1
+          ? "TM 발행"
+          : "인계사항";
 
-        /*
-          Python 코드에서도 index 1을
-          TM 내역으로 사용하고 있다.
-        */
-        category:
-          index === 1
-            ? "TM 발행"
-            : "인계사항",
+      const parsedLines =
+        parseLegacyDiaryContentLines(
+          rawContent
+        );
 
-        time: "",
+      parsedLines.forEach(
+        (
+          parsedLine,
+          lineIndex
+        ) => {
+          entries.push({
+            id: [
+              "legacy-entry",
+              legacyItem.diary_id ||
+                itemIndex,
+              index,
+              lineIndex
+            ].join("-"),
 
-        tag: "",
+            category,
 
-        /*
-          기존 내용을 가공하거나 줄이지 않고
-          그대로 현재 업무일지에 넣는다.
-        */
-        content,
+            /*
+              문장 앞에 적힌 HH:MM을
+              현재 시간 칸으로 분리한다.
+            */
+            time:
+              parsedLine.time,
 
-        attachmentName: "",
+            tag: "",
 
-        legacyBodyIndex:
-          index,
+            /*
+              수기로 적힌 번호와 시간은 제거하고
+              실제 내용만 넣는다.
+            */
+            content:
+              parsedLine.content,
 
-        source:
-          "legacy"
-      });
+            attachmentName: "",
+
+            legacyBodyIndex:
+              index,
+
+            legacyLineIndex:
+              lineIndex,
+
+            source:
+              "legacy"
+          });
+        }
+      );
     }
   );
 
@@ -890,6 +914,144 @@ function convertLegacyDiaryToLog(
   };
 }
 
+function parseLegacyDiaryContentLines(
+  rawContent
+) {
+  const sourceLines =
+    String(
+      rawContent || ""
+    )
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n");
+
+  const parsedEntries = [];
+
+  sourceLines.forEach(
+    (sourceLine) => {
+      /*
+        줄 앞뒤의 불필요한 공백을 제거한다.
+
+        첫 번째 줄이 오른쪽으로 밀려 있던 문제도
+        여기서 함께 해결된다.
+      */
+      let line =
+        String(
+          sourceLine || ""
+        ).trim();
+
+      if (!line) {
+        return;
+      }
+
+      /*
+        사용자가 직접 입력한 번호를 제거한다.
+
+        예:
+        1. 내용
+        2) 내용
+        3 - 내용
+        ④ 내용
+      */
+      line = line.replace(
+        /^(?:\d+\s*[.)\-:]\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*)/,
+        ""
+      );
+
+      line = line.trim();
+
+      if (!line) {
+        return;
+      }
+
+      /*
+        줄의 맨 앞에 있는 시간을 찾는다.
+
+        예:
+        19:10 Spiess Valve 동작 Test
+        19:30 / 21:30 / 02:30 Bed Ash 배출
+      */
+      const timeMatch =
+        line.match(
+          /^([01]?\d|2[0-3]):([0-5]\d)\s*(.*)$/
+        );
+
+      if (timeMatch) {
+        const hour =
+          String(
+            Number(
+              timeMatch[1]
+            )
+          ).padStart(
+            2,
+            "0"
+          );
+
+        const minute =
+          timeMatch[2];
+
+        const content =
+          String(
+            timeMatch[3] ||
+            ""
+          ).trim();
+
+        if (!content) {
+          return;
+        }
+
+        parsedEntries.push({
+          time:
+            `${hour}:${minute}`,
+
+          content
+        });
+
+        return;
+      }
+
+      /*
+        시간 없이 시작하는 줄 중에서
+        -, ·, ※ 등으로 시작하는 보충 설명은
+        바로 위 항목에 이어 붙인다.
+      */
+      const isContinuationLine =
+        /^[-–—·※▶▷→]/.test(
+          line
+        );
+
+      if (
+        isContinuationLine &&
+        parsedEntries.length
+      ) {
+        const previousEntry =
+          parsedEntries[
+            parsedEntries.length - 1
+          ];
+
+        previousEntry.content = [
+          previousEntry.content,
+          line
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        return;
+      }
+
+      /*
+        시간 없는 일반 문장은
+        별도의 인계사항으로 등록한다.
+      */
+      parsedEntries.push({
+        time: "",
+        content: line
+      });
+    }
+  );
+
+  return parsedEntries;
+}
 
 /* =========================================================
   기존 body index 내용 가져오기
