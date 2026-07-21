@@ -7429,3 +7429,305 @@ tbody tr:last-child td {
     min-width: 680px !important;
   }
 }
+/* =========================================================
+   FINAL OVERRIDE — 인수인계 표 전체 폭 사용
+   2026-07-22
+
+   목적
+   - 표가 왼쪽 일부 폭만 사용하는 현상 제거
+   - 구분/시간은 고정 폭, 내용은 남은 폭 전체 사용
+   - 번호와 내용이 한 줄에서 시작
+   - 편집 모드의 선택/관리 열도 정상 유지
+========================================================= */
+
+/* 표를 감싸는 모든 상위 요소가 실제 가용 폭을 사용하도록 고정 */
+#logEditorModal .log-editor-modal,
+#logEditorModal .modal-body,
+#logEditorModal #logEditorForm,
+#logEditorModal .log-entry-section,
+#logEntryListPanel,
+#logEntryListPanel .handover-entry-group,
+#logEntryListPanel .log-entry-table-wrap {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+}
+
+#logEntryListPanel {
+  overflow: hidden !important;
+}
+
+#logEntryListPanel .log-entry-table-wrap {
+  display: block !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+/*
+  핵심: fixed 레이아웃을 해제한다.
+  기존 중복 규칙에서 생긴 열 너비 충돌을 브라우저가 다시 계산하게 한다.
+*/
+#logEntryListPanel table.log-entry-table {
+  display: table !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  table-layout: auto !important;
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+}
+
+#logEntryListPanel .log-entry-table thead {
+  display: table-header-group !important;
+}
+
+#logEntryListPanel .log-entry-table tbody {
+  display: table-row-group !important;
+  width: auto !important;
+}
+
+#logEntryListPanel .log-entry-table tr {
+  display: table-row !important;
+  width: auto !important;
+}
+
+#logEntryListPanel .log-entry-table th,
+#logEntryListPanel .log-entry-table td {
+  display: table-cell !important;
+  float: none !important;
+  box-sizing: border-box !important;
+  max-width: none !important;
+}
+
+/* hidden 열은 반드시 완전히 제거 */
+#logEntryListPanel .log-entry-edit-only-column[hidden],
+#logEntryListPanel .log-entry-edit-only-cell[hidden] {
+  display: none !important;
+}
+
+/* 편집 모드에서 hidden 속성이 제거되었을 때만 표시 */
+#logEntryListPanel .log-entry-edit-only-column:not([hidden]),
+#logEntryListPanel .log-entry-edit-only-cell:not([hidden]) {
+  display: table-cell !important;
+}
+
+/* 선택 열 */
+#logEntryListPanel .log-entry-table__select,
+#logEntryListPanel .log-entry-select-cell {
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  padding-right: 6px !important;
+  padding-left: 6px !important;
+  text-align: center !important;
+}
+
+/* 구분 열 */
+#logEntryListPanel .log-entry-table__category,
+#logEntryListPanel .log-entry-category-cell-wrap {
+  width: 104px !important;
+  min-width: 104px !important;
+  max-width: 104px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+/* 시간 열 — TM 표에는 해당 열이 없음 */
+#logEntryListPanel .log-entry-table__time,
+#logEntryListPanel .log-entry-time-cell {
+  width: 88px !important;
+  min-width: 88px !important;
+  max-width: 88px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+}
+
+/* 관리 열 */
+#logEntryListPanel .log-entry-table__actions,
+#logEntryListPanel .log-entry-actions-cell {
+  width: 116px !important;
+  min-width: 116px !important;
+  max-width: 116px !important;
+  text-align: center !important;
+}
+
+/* 내용 열이 나머지 폭을 전부 차지 */
+#logEntryListPanel .log-entry-table__content,
+#logEntryListPanel .log-entry-content-cell {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding: 10px 18px !important;
+  text-align: left !important;
+  vertical-align: middle !important;
+}
+
+/* 헤더 정렬 */
+#logEntryListPanel .log-entry-table thead th {
+  height: 40px !important;
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+  text-align: center !important;
+}
+
+/* 구분 내부 배지는 가운데 */
+#logEntryListPanel .log-entry-category-cell {
+  display: flex !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-wrap: nowrap !important;
+  gap: 0 !important;
+}
+
+#logEntryListPanel .log-entry-category-badge {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+}
+
+/* 시간 텍스트 */
+#logEntryListPanel .log-entry-time-group-label {
+  display: inline-block !important;
+  width: auto !important;
+  min-width: 0 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+/*
+  번호 | 내용 | TAG
+  한 줄에서 시작하고 내용만 남은 공간을 사용한다.
+*/
+#logEntryListPanel .log-entry-handover-line,
+#logEntryListPanel .log-entry-tm-line {
+  display: flex !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+}
+
+#logEntryListPanel .log-entry-handover-number,
+#logEntryListPanel .log-entry-tm-number {
+  display: block !important;
+  flex: 0 0 28px !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: #0b56a6 !important;
+  font-weight: 800 !important;
+  line-height: 1.55 !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+#logEntryListPanel .log-entry-handover-text,
+#logEntryListPanel .log-entry-tm-text {
+  display: block !important;
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: #172033 !important;
+  font-weight: 600 !important;
+  line-height: 1.55 !important;
+  text-align: left !important;
+  white-space: pre-wrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+#logEntryListPanel .log-entry-inline-tag {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  max-width: 240px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.55 !important;
+  white-space: nowrap !important;
+}
+
+/* 보직 구분 행은 표 전체 폭 */
+#logEntryListPanel .log-entry-role-divider-row > td {
+  width: auto !important;
+  max-width: none !important;
+  padding: 0 !important;
+}
+
+#logEntryListPanel .log-entry-role-divider {
+  display: flex !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  box-sizing: border-box !important;
+}
+
+/* 빈 행도 전체 폭의 중앙에 표시 */
+#logEntryListPanel .log-entry-empty-row td {
+  width: auto !important;
+  max-width: none !important;
+  text-align: center !important;
+}
+
+/* 긴 항목에서도 행 높이와 선이 표 끝까지 이어지도록 함 */
+#logEntryListPanel .log-entry-table tbody td {
+  border-bottom: 1px solid #dfe6ee !important;
+  background-clip: padding-box !important;
+}
+
+/* PC 모달 자체도 화면 폭을 충분히 활용 */
+@media (min-width: 769px) {
+  #logEditorModal .log-editor-modal {
+    width: min(1400px, calc(100vw - 32px)) !important;
+    max-width: 1400px !important;
+  }
+
+  #logEditorModal .modal-body {
+    padding-right: 18px !important;
+    padding-left: 18px !important;
+  }
+}
+
+/* 모바일은 가로 스크롤을 허용하되 내용 열을 넓게 유지 */
+@media (max-width: 768px) {
+  #logEntryListPanel table.log-entry-table {
+    width: 100% !important;
+    min-width: 720px !important;
+  }
+
+  #logEntryListPanel .log-entry-table__category,
+  #logEntryListPanel .log-entry-category-cell-wrap {
+    width: 96px !important;
+    min-width: 96px !important;
+    max-width: 96px !important;
+  }
+
+  #logEntryListPanel .log-entry-table__time,
+  #logEntryListPanel .log-entry-time-cell {
+    width: 76px !important;
+    min-width: 76px !important;
+    max-width: 76px !important;
+  }
+
+  #logEntryListPanel .log-entry-table__actions,
+  #logEntryListPanel .log-entry-actions-cell {
+    width: 104px !important;
+    min-width: 104px !important;
+    max-width: 104px !important;
+  }
+}
