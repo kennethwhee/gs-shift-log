@@ -5491,3 +5491,575 @@ td {
   line-height: 1.4;
   text-align: center;
 }
+
+/* =========================================================
+  업무일지 상세보기 - 문서형 최종 디자인
+========================================================= */
+
+.detail-document {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+
+/* =========================================================
+  공통 카드
+========================================================= */
+
+.detail-document-summary,
+.detail-document-section {
+  overflow: hidden;
+
+  border: 1px solid #dbe3ec;
+  border-radius: 14px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 3px 12px
+    rgba(15, 23, 42, 0.04);
+}
+
+
+/* =========================================================
+  기본 정보
+========================================================= */
+
+.detail-document-summary {
+  padding: 20px;
+}
+
+.detail-document-summary__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+
+  margin-bottom: 18px;
+}
+
+.detail-document-summary__header h2 {
+  margin: 0;
+
+  color: #1d2d45;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.25;
+
+  letter-spacing: -0.03em;
+}
+
+.detail-document-eyebrow {
+  display: block;
+
+  margin-bottom: 4px;
+
+  color: #1f5fae;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.2;
+
+  letter-spacing: 0.14em;
+}
+
+.detail-document-summary__grid {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detail-document-summary__item {
+  min-width: 0;
+  padding: 11px 12px;
+
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+
+  background: #f8fafc;
+}
+
+.detail-document-summary__item > span {
+  display: block;
+
+  margin-bottom: 4px;
+
+  color: #7a8798;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.detail-document-summary__item > strong {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  min-width: 0;
+
+  color: #26364b;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.45;
+}
+
+.detail-document-author {
+  justify-content: flex-start;
+}
+
+
+/* =========================================================
+  각 구역 제목
+========================================================= */
+
+.detail-document-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+
+  min-height: 64px;
+  padding: 13px 18px;
+
+  border-bottom: 1px solid #e4eaf1;
+
+  background: #f8fafc;
+}
+
+.detail-document-section__header h3 {
+  margin: 0;
+
+  color: #22324c;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.3;
+
+  letter-spacing: -0.02em;
+}
+
+.detail-document-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 42px;
+  min-height: 25px;
+  padding: 0 9px;
+
+  border-radius: 999px;
+
+  background: #eaf2fb;
+  color: #1f5fae;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+.detail-document-section__body {
+  padding: 16px 18px;
+}
+
+
+/* =========================================================
+  운전현황 및 비고
+========================================================= */
+
+.detail-document-text {
+  color: #2f4057;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.75;
+
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.detail-document-empty {
+  padding: 8px 0;
+
+  color: #8b96a5;
+  font-size: 12px;
+  line-height: 1.6;
+
+  text-align: left;
+}
+
+
+/* =========================================================
+  TM 및 업무 항목 공통 한 줄
+========================================================= */
+
+.detail-document-line {
+  display: grid;
+  grid-template-columns:
+    26px
+    minmax(0, 1fr);
+  align-items: start;
+
+  width: 100%;
+  min-width: 0;
+
+  padding: 5px 0;
+
+  color: #26364b;
+}
+
+.detail-document-line + .detail-document-line {
+  margin-top: 2px;
+}
+
+.detail-document-number {
+  display: block;
+
+  padding-top: 1px;
+
+  color: #1f5fae;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.55;
+
+  text-align: right;
+  white-space: nowrap;
+}
+
+.detail-document-line__content {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px;
+
+  min-width: 0;
+  padding-left: 7px;
+
+  color: #26364b;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+
+  text-align: left;
+}
+
+.detail-document-time {
+  flex: 0 0 auto;
+
+  color: #1f5fae;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: inherit;
+
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.detail-document-category {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 21px;
+  padding: 0 7px;
+
+  border: 1px solid #d2dbe6;
+  border-radius: 6px;
+
+  background: #f3f6f9;
+  color: #59697d;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+.detail-document-content-text {
+  min-width: 0;
+
+  color: #26364b;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: inherit;
+
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+  TAG 버튼
+========================================================= */
+
+.detail-document-tag {
+  display: inline;
+
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  background: transparent;
+
+  color: #1763c5;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: inherit;
+
+  vertical-align: baseline;
+  white-space: nowrap;
+
+  cursor: pointer;
+}
+
+.detail-document-tag:hover {
+  color: #0f4d9d;
+  text-decoration: underline;
+}
+
+
+/* =========================================================
+  파트장 보직별 업무 묶음
+========================================================= */
+
+.detail-role-section {
+  margin: 0;
+  padding: 0;
+}
+
+.detail-role-section + .detail-role-section {
+  margin-top: 14px;
+  padding-top: 14px;
+
+  border-top: 1px solid #d9e3ed;
+}
+
+.detail-role-section.is-first-role {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.detail-role-section__heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-bottom: 7px;
+}
+
+.detail-role-section__heading strong {
+  color: #2b3d55;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.detail-role-section__count {
+  color: #8490a0;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.detail-role-section__entries {
+  padding-left: 2px;
+}
+
+
+/* =========================================================
+  보직별 배지
+========================================================= */
+
+.detail-role-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 48px;
+  min-height: 22px;
+  padding: 0 7px;
+
+  border: 1px solid transparent;
+  border-radius: 6px;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+.detail-role-badge.is-tgo {
+  border-color: #a9c7ec;
+  background: #eaf3ff;
+  color: #1f5fae;
+}
+
+.detail-role-badge.is-bco1 {
+  border-color: #b6dbc6;
+  background: #edf8f2;
+  color: #247248;
+}
+
+.detail-role-badge.is-bco2 {
+  border-color: #d2bee8;
+  background: #f5effb;
+  color: #714297;
+}
+
+.detail-role-badge.is-leader {
+  border-color: #ddc69e;
+  background: #fff7e8;
+  color: #8d5e18;
+}
+
+.detail-role-badge.is-default {
+  border-color: #cfd8e3;
+  background: #f3f6f9;
+  color: #627083;
+}
+
+
+/* =========================================================
+  첨부파일
+========================================================= */
+
+.detail-document-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.detail-document-attachment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  min-width: 0;
+  padding: 9px 10px;
+
+  border: 1px solid #e0e7ef;
+  border-radius: 8px;
+
+  background: #f8fafc;
+}
+
+.detail-document-attachment__icon {
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+
+.detail-document-attachment__name {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: #34465c;
+  font-size: 12px;
+  font-weight: 700;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-document-attachment__number {
+  flex: 0 0 auto;
+
+  color: #8591a1;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+
+/* =========================================================
+  하단 비고 / 첨부파일
+========================================================= */
+
+.detail-document-bottom-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+
+/* =========================================================
+  기존 타임라인 디자인 숨김
+========================================================= */
+
+.log-report,
+.log-report-timeline,
+.log-report-entry-list,
+.log-report-summary,
+.log-report-section,
+.log-report-bottom-grid {
+  all: unset;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+  .detail-document {
+    gap: 12px;
+  }
+
+  .detail-document-summary {
+    padding: 16px;
+  }
+
+  .detail-document-summary__header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .detail-document-summary__header h2 {
+    font-size: 20px;
+  }
+
+  .detail-document-summary__grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .detail-document-section__header {
+    min-height: 58px;
+    padding: 12px 14px;
+  }
+
+  .detail-document-section__header h3 {
+    font-size: 15px;
+  }
+
+  .detail-document-section__body {
+    padding: 14px;
+  }
+
+  .detail-document-line {
+    grid-template-columns:
+      22px
+      minmax(0, 1fr);
+  }
+
+  .detail-document-number,
+  .detail-document-time {
+    font-size: 11px;
+  }
+
+  .detail-document-line__content,
+  .detail-document-content-text {
+    font-size: 12px;
+  }
+
+  .detail-document-bottom-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
