@@ -10657,97 +10657,233 @@ const operationStatusText =
     업무 항목 한 줄 생성
   ====================================================== */
 
-  const createDetailEntryLineHtml = (
-    entry,
-    index
-  ) => {
-    const timeText =
-      String(
-        entry.time || ""
-      ).trim();
+const createDetailEntryLineHtml = (
+  entry,
+  index
+) => {
+  const timeText =
+    String(
+      entry.time || ""
+    ).trim();
 
-    const categoryText =
-      String(
-        entry.category ||
-        "인계사항"
-      ).trim();
+  const categoryText =
+    String(
+      entry.category ||
+      "인계사항"
+    ).trim();
 
-    const contentText =
-      String(
-        entry.content || "-"
-      ).trim();
+  const contentText =
+    String(
+      entry.content || "-"
+    ).trim();
 
-    const tagText =
-      String(
-        entry.tag || ""
-      )
-        .trim()
-        .toUpperCase();
+  const tagText =
+    String(
+      entry.tag || ""
+    )
+      .trim()
+      .toUpperCase();
 
-    return `
-      <div class="detail-document-line">
 
-        <span class="detail-document-number">
-          ${index + 1}.
+  /*
+    시간 | 번호 | 내용
+
+    예:
+    02:44   1.   Bio Hopper Bin 청소 실시
+  */
+  return `
+    <div
+      class="detail-fixed-entry-line"
+      style="
+        display:grid !important;
+        width:100% !important;
+        min-width:0 !important;
+
+        grid-template-columns:
+          72px
+          28px
+          minmax(0, 1fr) !important;
+
+        align-items:start !important;
+        column-gap:8px !important;
+
+        margin:0 !important;
+        padding:5px 0 !important;
+
+        color:#26364b !important;
+        font-size:12px !important;
+        font-weight:600 !important;
+        line-height:1.55 !important;
+
+        text-align:left !important;
+      "
+    >
+
+      <!-- 시간 -->
+      <strong
+        class="detail-fixed-entry-time"
+        style="
+          display:block !important;
+
+          width:72px !important;
+          min-width:72px !important;
+
+          margin:0 !important;
+          padding:0 !important;
+
+          color:#1763c5 !important;
+          font-size:11px !important;
+          font-weight:900 !important;
+          line-height:1.55 !important;
+
+          text-align:right !important;
+          white-space:nowrap !important;
+
+          font-variant-numeric:
+            tabular-nums !important;
+        "
+      >
+        ${escapeHtml(
+          timeText ||
+          "시간 없음"
+        )}
+      </strong>
+
+
+      <!-- 번호 -->
+      <strong
+        class="detail-fixed-entry-number"
+        style="
+          display:block !important;
+
+          width:28px !important;
+          min-width:28px !important;
+
+          margin:0 !important;
+          padding:0 !important;
+
+          color:#1763c5 !important;
+          font-size:11px !important;
+          font-weight:900 !important;
+          line-height:1.55 !important;
+
+          text-align:right !important;
+          white-space:nowrap !important;
+        "
+      >
+        ${index + 1}.
+      </strong>
+
+
+      <!-- 내용 -->
+      <div
+        class="detail-fixed-entry-content"
+        style="
+          display:block !important;
+
+          width:100% !important;
+          min-width:0 !important;
+
+          margin:0 !important;
+          padding:0 !important;
+
+          color:#26364b !important;
+          font-size:12px !important;
+          font-weight:650 !important;
+          line-height:1.55 !important;
+
+          text-align:left !important;
+
+          white-space:pre-wrap !important;
+          word-break:keep-all !important;
+          overflow-wrap:anywhere !important;
+        "
+      >
+
+        ${
+          categoryText !==
+          "인계사항"
+            ? `
+              <span
+                class="detail-document-category"
+                style="
+                  display:inline-flex !important;
+                  margin:0 5px 0 0 !important;
+                  vertical-align:baseline !important;
+                "
+              >
+                ${escapeHtml(
+                  categoryText
+                )}
+              </span>
+            `
+            : ""
+        }
+
+        <span
+          class="detail-fixed-entry-content-text"
+          style="
+            display:inline !important;
+
+            margin:0 !important;
+            padding:0 !important;
+
+            color:inherit !important;
+            font:inherit !important;
+            line-height:inherit !important;
+
+            vertical-align:baseline !important;
+          "
+        >
+          ${escapeHtml(
+            contentText
+          )}
         </span>
 
-        <span class="detail-document-line__content">
+        ${
+          tagText
+            ? `
+              <button
+                type="button"
+                class="detail-document-tag"
+                data-detail-tag="${escapeHtml(
+                  tagText
+                )}"
+                title="Facility Navigator에서 설비 보기"
+                style="
+                  display:inline !important;
 
-          ${
-            timeText
-              ? `
-                <strong class="detail-document-time">
-                  ${escapeHtml(
-                    timeText
-                  )}
-                </strong>
-              `
-              : ""
-          }
+                  width:auto !important;
 
-          ${
-            categoryText !==
-            "인계사항"
-              ? `
-                <span class="detail-document-category">
-                  ${escapeHtml(
-                    categoryText
-                  )}
-                </span>
-              `
-              : ""
-          }
+                  margin:0 0 0 5px !important;
+                  padding:0 !important;
 
-          <span class="detail-document-content-text">
-            ${escapeHtml(
-              contentText
-            )}
-          </span>
+                  border:0 !important;
+                  background:transparent !important;
 
-          ${
-            tagText
-              ? `
-                <button
-                  type="button"
-                  class="detail-document-tag"
-                  data-detail-tag="${escapeHtml(
-                    tagText
-                  )}"
-                  title="Facility Navigator에서 설비 보기"
-                >
-                  [${escapeHtml(
-                    tagText
-                  )}]
-                </button>
-              `
-              : ""
-          }
+                  color:#1763c5 !important;
+                  font:inherit !important;
+                  font-size:10px !important;
+                  font-weight:900 !important;
+                  line-height:inherit !important;
 
-        </span>
+                  vertical-align:baseline !important;
+                  white-space:nowrap !important;
+                "
+              >
+                [${escapeHtml(
+                  tagText
+                )}]
+              </button>
+            `
+            : ""
+        }
 
       </div>
-    `;
-  };
+
+    </div>
+  `;
+};
 
 
   /* =====================================================
