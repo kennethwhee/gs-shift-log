@@ -1482,7 +1482,8 @@ a {
 }
 
 /* =========================================================
-   작업 · 정비 · 인계 내역 v2
+   작업 · 정비 · 인계 내역
+   컴팩트 입력 영역
 ========================================================= */
 
 .log-entry-section {
@@ -1495,60 +1496,93 @@ a {
 ========================================================= */
 
 .log-entry-input-panel {
-  padding: 18px;
+  padding: 14px 16px 15px;
   border: 1px solid #d7e0e9;
-  border-radius: 13px;
-  background: #f7f9fc;
+  border-radius: 12px;
+  background: #f8fafc;
 }
+
+
+/* =========================================================
+   상단 입력 한 줄
+========================================================= */
 
 .log-entry-input-top-row {
   display: grid;
   grid-template-columns:
     210px
-    170px
-    minmax(280px, 1fr)
+    190px
+    minmax(260px, 1fr)
     auto;
   align-items: end;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
 }
 
-.log-entry-field--time,
 .log-entry-field--category,
+.log-entry-field--time,
 .log-entry-field--tag {
   min-width: 0;
 }
 
+.log-entry-input-panel .form-field {
+  gap: 5px;
+}
+
+.log-entry-input-panel .form-field__label {
+  color: #44556c;
+  font-size: 11px;
+  font-weight: 900;
+}
+
 
 /* =========================================================
-   시간 입력
+   구분 선택
+========================================================= */
+
+.log-entry-field--category select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 11px;
+  border-radius: 8px;
+}
+
+
+/* =========================================================
+   시간 입력 + 현재시간
 ========================================================= */
 
 .log-entry-time-group {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
-.log-entry-time-group input {
+.log-entry-time-group #logEntryTime {
   width: 100%;
   min-width: 0;
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 8px;
 }
 
 .current-time-check {
-  min-height: 41px;
   display: inline-flex;
+  min-height: 38px;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   padding: 0 10px;
   border: 1px solid #c8d4e1;
-  border-radius: 9px;
-  background: #fff;
+  border-radius: 8px;
+  background: #ffffff;
   color: #536276;
   font-size: 11px;
   font-weight: 800;
+  line-height: 1;
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
@@ -1559,9 +1593,15 @@ a {
   background: #f2f7fc;
 }
 
+.current-time-check:has(input:checked) {
+  border-color: #8bb1dc;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
 .current-time-check input {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   margin: 0;
   accent-color: var(--primary);
 }
@@ -1577,28 +1617,31 @@ a {
 
 .tag-input-group {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 7px;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+  align-items: center;
+  gap: 6px;
 }
 
 .tag-input-group input {
   width: 100%;
   min-width: 0;
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 8px;
 }
 
 .navigator-button {
-  min-height: 41px;
-  padding: 0 13px;
+  min-height: 38px;
+  padding: 0 11px;
   border: 1px solid #b8cbe0;
-  border-radius: 9px;
+  border-radius: 8px;
   background: #eef5fc;
   color: var(--primary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
   white-space: nowrap;
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease;
 }
 
 .navigator-button:hover {
@@ -1608,66 +1651,126 @@ a {
 
 
 /* =========================================================
-   내용 입력
-========================================================= */
-
-.log-entry-content-field {
-  display: block;
-  margin-top: 14px;
-}
-
-.log-entry-content-field textarea {
-  width: 100%;
-  min-height: 88px;
-  max-height: 180px;
-  padding: 11px 12px;
-  line-height: 1.6;
-  resize: vertical;
-  overflow-y: auto;
-}
-
-
-/* =========================================================
-   입력 버튼
+   추가·취소 버튼
 ========================================================= */
 
 .log-entry-input-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 7px;
+  gap: 6px;
 }
 
 .log-entry-input-actions button {
-  min-height: 41px;
+  min-height: 38px;
 }
 
 .log-entry-input-actions .add-entry-button {
-  min-width: 92px;
-  padding: 0 17px;
+  min-width: 90px;
+  padding: 0 15px;
 }
 
 #cancelLogEntryEditButton {
-  min-width: 64px;
-  padding: 0 13px;
+  min-width: 58px;
+  padding: 0 11px;
 }
 
 .add-entry-button {
-  border: 1px solid #9eb9d7;
-  border-radius: 9px;
+  border: 1px solid #8eb1d8;
+  border-radius: 8px;
   background: #eaf3fc;
   color: var(--primary);
   font-size: 12px;
   font-weight: 900;
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
-    color 0.16s ease;
 }
 
 .add-entry-button:hover {
-  border-color: #7fa4ca;
+  border-color: #6f9bc9;
   background: #dcebf9;
+}
+
+
+/* =========================================================
+   내용 입력
+========================================================= */
+
+.log-entry-content-field {
+  display: block;
+  margin-top: 11px;
+}
+
+.log-entry-content-field .form-field__label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.log-entry-content-field textarea {
+  width: 100%;
+  min-height: 74px;
+  max-height: 150px;
+  padding: 10px 11px;
+  border-radius: 8px;
+  line-height: 1.55;
+  resize: vertical;
+  overflow-y: auto;
+}
+
+
+/* =========================================================
+   수정 중 표시
+========================================================= */
+
+.log-entry-input-panel.is-editing {
+  border-color: #e3b560;
+  background: #fffbf2;
+}
+
+.log-entry-input-panel.is-editing
+.add-entry-button {
+  border-color: #dca745;
+  background: #fff0ce;
+  color: #95600b;
+}
+
+
+/* =========================================================
+   반응형
+========================================================= */
+
+@media (max-width: 1100px) {
+  .log-entry-input-top-row {
+    grid-template-columns:
+      minmax(180px, 1fr)
+      minmax(180px, 1fr)
+      minmax(250px, 1.4fr);
+  }
+
+  .log-entry-input-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .log-entry-input-panel {
+    padding: 13px;
+  }
+
+  .log-entry-input-top-row {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .log-entry-input-actions {
+    grid-column: auto;
+  }
+
+  .log-entry-input-actions button {
+    flex: 1 1 0;
+  }
+
+  .log-entry-content-field textarea {
+    min-height: 92px;
+  }
 }
 
 
