@@ -4734,12 +4734,6 @@ function createLogRowHtml(log) {
 
   /*
     등록된 업무내역 전체를 시간순으로 정렬한다.
-
-    시간이 있는 항목:
-    오래된 시간부터 표시
-
-    시간이 없는 항목:
-    시간이 있는 항목 뒤에 등록된 순서대로 표시
   */
   const entries =
     Array.isArray(log.entries)
@@ -4747,6 +4741,8 @@ function createLogRowHtml(log) {
           log.entries
         )
       : [];
+
+  let previousDisplayTitle = "";
 
   entries.forEach(
     (entry, index) => {
@@ -4780,6 +4776,14 @@ function createLogRowHtml(log) {
           ? "TM"
           : "인계";
 
+      /*
+        같은 분류가 연속되면
+        첫 번째 줄에만 분류명을 표시한다.
+      */
+      const shouldShowTitle =
+        displayTitle !==
+        previousDisplayTitle;
+
       const displayText = [
         `${index + 1}.`,
         timeText,
@@ -4790,21 +4794,26 @@ function createLogRowHtml(log) {
 
       previewGroups.push({
         title:
-          displayTitle,
+          shouldShowTitle
+            ? displayTitle
+            : "",
+
+        text:
+          displayText,
 
         tag:
           tagText
             ? `[${tagText}]`
             : "",
 
-        text:
-          displayText,
-
         categoryClass:
           isTmIssue
             ? "is-maintenance"
             : "is-handover"
       });
+
+      previousDisplayTitle =
+        displayTitle;
     }
   );
 
@@ -4849,7 +4858,6 @@ function createLogRowHtml(log) {
         )}
       </td>
 
-
       <td class="log-row__author-cell">
 
         <strong class="log-row__author">
@@ -4859,7 +4867,6 @@ function createLogRowHtml(log) {
         </strong>
 
       </td>
-
 
       <td class="log-row__status-cell">
 
@@ -4874,7 +4881,6 @@ function createLogRowHtml(log) {
         </span>
 
       </td>
-
 
       <td class="log-row__attachment-cell">
 
@@ -4901,7 +4907,6 @@ function createLogRowHtml(log) {
 
       </td>
 
-
       <td class="log-row__preview-cell">
 
         <button
@@ -4926,15 +4931,29 @@ function createLogRowHtml(log) {
                         class="
                           log-preview__group
                           ${group.categoryClass}
+                          ${
+                            group.title
+                              ? ""
+                              : "has-empty-title"
+                          }
                         "
                       >
 
                         <strong
                           class="log-preview__title"
-                        >
-                          ${escapeHtml(
+                          aria-hidden="${
                             group.title
-                          )}
+                              ? "false"
+                              : "true"
+                          }"
+                        >
+                          ${
+                            group.title
+                              ? escapeHtml(
+                                  group.title
+                                )
+                              : ""
+                          }
                         </strong>
 
                         <span
@@ -4975,7 +4994,6 @@ function createLogRowHtml(log) {
         </button>
 
       </td>
-
 
       <td class="log-row__actions-cell">
 
