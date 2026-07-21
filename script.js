@@ -3483,37 +3483,40 @@ function renderLogEntryTable() {
       : [];
 
   /*
-    TM 발행만 별도 목록으로 분리한다.
+    원본 배열 번호를 유지해야
+    수정·삭제·TAG 이동 기능이 정상 작동한다.
   */
-  const tmIssueEntries =
-    entries
-      .map((entry, originalIndex) => {
+  const indexedEntries =
+    entries.map(
+      (entry, originalIndex) => {
         return {
           entry,
           originalIndex
         };
-      })
-      .filter(({ entry }) => {
+      }
+    );
+
+  /*
+    TM 발행 내역
+  */
+  const tmIssueEntries =
+    indexedEntries.filter(
+      ({ entry }) => {
         return (
           String(
             entry.category || ""
           ).trim() ===
           "TM 발행"
         );
-      });
+      }
+    );
 
   /*
-    TM 발행을 제외한 나머지는
-    모두 인계사항 목록으로 표시한다.
+    TM 발행을 제외한 모든 항목은
+    인계사항 영역에 표시한다.
   */
   const handoverEntries =
-    entries
-      .map((entry, originalIndex) => {
-        return {
-          entry,
-          originalIndex
-        };
-      })
+    indexedEntries
       .filter(({ entry }) => {
         return (
           String(
@@ -3533,29 +3536,23 @@ function renderLogEntryTable() {
             itemB.entry.time || ""
           ).trim();
 
-        const hasTimeA =
-          Boolean(timeA);
-
-        const hasTimeB =
-          Boolean(timeB);
-
         if (
-          hasTimeA &&
-          !hasTimeB
+          timeA &&
+          !timeB
         ) {
           return -1;
         }
 
         if (
-          !hasTimeA &&
-          hasTimeB
+          !timeA &&
+          timeB
         ) {
           return 1;
         }
 
         if (
-          hasTimeA &&
-          hasTimeB
+          timeA &&
+          timeB
         ) {
           const timeDifference =
             timeA.localeCompare(
@@ -3576,7 +3573,7 @@ function renderLogEntryTable() {
       });
 
   /*
-    같은 시간의 인계사항을 묶는다.
+    같은 시간끼리 묶는다.
   */
   const handoverTimeGroups = [];
 
@@ -3588,19 +3585,20 @@ function renderLogEntryTable() {
         ).trim();
 
       const groupKey =
-        timeText || "__NO_TIME__";
+        timeText ||
+        "__NO_TIME__";
 
-      const lastGroup =
+      const previousGroup =
         handoverTimeGroups[
           handoverTimeGroups.length - 1
         ];
 
       if (
-        lastGroup &&
-        lastGroup.groupKey ===
+        previousGroup &&
+        previousGroup.groupKey ===
           groupKey
       ) {
-        lastGroup.items.push(
+        previousGroup.items.push(
           item
         );
 
@@ -3609,18 +3607,14 @@ function renderLogEntryTable() {
 
       handoverTimeGroups.push({
         groupKey,
-
         timeText,
-
-        items: [
-          item
-        ]
+        items: [item]
       });
     }
   );
 
   /*
-    전체 및 구역별 건수
+    건수 표시
   */
   if (elements.logEntryCount) {
     elements.logEntryCount.textContent =
@@ -3637,13 +3631,16 @@ function renderLogEntryTable() {
       `${handoverEntries.length}건`;
   }
 
+  /*
+    저장용 JSON 갱신
+  */
   if (elements.logEntriesJson) {
     elements.logEntriesJson.value =
       JSON.stringify(entries);
   }
 
   /*
-    선택 상태 초기화
+    전체 선택 상태 초기화
   */
   if (
     elements.selectAllTmEntriesCheckbox
@@ -3717,28 +3714,11 @@ function renderLogEntryTable() {
 
 
   /*
-    항목 한 줄 HTML 생성
+    가져온 보직 배지 HTML
   */
-  const createEntryRowHtml = (
-    item,
-    options = {}
+  const createSourceBadgeHtml = (
+    entry
   ) => {
-    const {
-      showTimeColumn = true,
-      timeRowspan = 1,
-      displayNumber = null,
-      isGroupFirstRow = false
-    } = options;
-
-    const {
-      entry,
-      originalIndex
-    } = item;
-
-    const isEditing =
-      originalIndex ===
-      appState.editingEntryIndex;
-
     const importedRole =
       normalizeMemberLogRole(
         entry.importedFromRole || ""
@@ -3749,61 +3729,50 @@ function renderLogEntryTable() {
         entry.importedFromAuthor || ""
       ).trim();
 
-    /*
-      파트장이 팀원 일지를 가져온 경우에만
-      출처 보직을 표시한다.
-    */
     const shouldShowSourceBadge =
       isLeaderLog &&
       importedRole &&
       importedRole !== "파트장";
 
+    if (!shouldShowSourceBadge) {
+      return "";
+    }
+
     const sourceClass =
-      shouldShowSourceBadge
-        ? getLogEntrySourceClass(
-            importedRole
-          )
-        : "";
+      getLogEntrySourceClass(
+        importedRole
+      );
 
     const sourceTitle =
       importedAuthor
         ? `${importedRole} · ${importedAuthor}`
         : importedRole;
 
-    const sourceBadgeHtml =
-      shouldShowSourceBadge
-        ? `
-          <span
-            class="
-              log-entry-source-badge
-              ${sourceClass}
-            "
-            title="${escapeHtml(
-              sourceTitle
-            )}"
-          >
-            ${escapeHtml(
-              importedRole
-            )}
-          </span>
-        `
-        : "";
+    return `
+      <span
+        class="
+          log-entry-source-badge
+          ${sourceClass}
+        "
+        title="${escapeHtml(
+          sourceTitle
+        )}"
+      >
+        ${escapeHtml(
+          importedRole
+        )}
+      </span>
+    `;
+  };
 
-    const categoryText =
-      String(
-        entry.category || "-"
-      ).trim();
 
-    const timeText =
-      String(
-        entry.time || ""
-      ).trim();
-
-    const contentText =
-      String(
-        entry.content || "-"
-      ).trim();
-
+  /*
+    TAG 버튼 HTML
+  */
+  const createTagHtml = (
+    entry,
+    originalIndex
+  ) => {
     const tagText =
       String(
         entry.tag || ""
@@ -3811,202 +3780,103 @@ function renderLogEntryTable() {
         .trim()
         .toUpperCase();
 
-    const tagHtml =
-      tagText
-        ? `
-          <button
-            type="button"
-            class="log-entry-inline-tag"
-            data-entry-action="navigator"
-            data-entry-index="${originalIndex}"
-            title="Facility Navigator에서 설비 보기"
-          >
-            [${escapeHtml(
-              tagText
-            )}]
-          </button>
-        `
-        : "";
-
-    const rowNumberHtml =
-      Number.isInteger(
-        displayNumber
-      )
-        ? `
-          <strong
-            class="
-              log-entry-content-number
-            "
-          >
-            ${displayNumber}.
-          </strong>
-        `
-        : "";
-
-    const timeCellHtml =
-      showTimeColumn
-        ? `
-          <td
-            class="
-              log-entry-time-cell
-              log-entry-time-group-cell
-            "
-            rowspan="${timeRowspan}"
-          >
-            <span
-              class="
-                log-entry-time-group-label
-              "
-            >
-              ${escapeHtml(
-                timeText ||
-                "시간 없음"
-              )}
-            </span>
-          </td>
-        `
-        : "";
+    if (!tagText) {
+      return "";
+    }
 
     return `
-      <tr
+      <button
+        type="button"
+        class="log-entry-inline-tag"
+        data-entry-action="navigator"
         data-entry-index="${originalIndex}"
-        class="
-          ${
-            isEditing
-              ? "is-editing"
-              : ""
-          }
-
-          ${
-            isGroupFirstRow
-              ? "is-time-group-first-row"
-              : ""
-          }
-        "
+        title="Facility Navigator에서 설비 보기"
       >
+        [${escapeHtml(
+          tagText
+        )}]
+      </button>
+    `;
+  };
 
-        <td
-          class="
-            log-entry-select-cell
-            log-entry-edit-only-cell
-          "
-          hidden
+
+  /*
+    선택 체크박스
+  */
+  const createSelectCellHtml = (
+    entry,
+    originalIndex
+  ) => {
+    const categoryText =
+      String(
+        entry.category || "인계사항"
+      ).trim();
+
+    return `
+      <td
+        class="
+          log-entry-select-cell
+          log-entry-edit-only-cell
+        "
+        hidden
+      >
+        <input
+          type="checkbox"
+          class="log-entry-select-checkbox"
+          data-entry-select-index="${originalIndex}"
+          aria-label="${escapeHtml(
+            categoryText
+          )} 항목 선택"
+        />
+      </td>
+    `;
+  };
+
+
+  /*
+    수정·삭제 버튼
+  */
+  const createActionCellHtml = (
+    originalIndex
+  ) => {
+    return `
+      <td
+        class="
+          log-entry-actions-cell
+          log-entry-edit-only-cell
+        "
+        hidden
+      >
+        <div
+          class="log-entry-row-actions"
         >
-          <input
-            type="checkbox"
-            class="
-              log-entry-select-checkbox
-            "
-            data-entry-select-index="${originalIndex}"
-            aria-label="${escapeHtml(
-              categoryText
-            )} 항목 선택"
-          />
-        </td>
-
-
-        <td
-          class="
-            log-entry-category-cell-wrap
-          "
-        >
-          <div
-            class="
-              log-entry-category-cell
-            "
+          <button
+            type="button"
+            class="log-entry-edit-button"
+            data-entry-action="edit"
+            data-entry-index="${originalIndex}"
           >
-            ${sourceBadgeHtml}
+            수정
+          </button>
 
-            <span
-              class="
-                log-entry-category-text
-              "
-            >
-              ${escapeHtml(
-                categoryText
-              )}
-            </span>
-          </div>
-        </td>
-
-
-        ${timeCellHtml}
-
-
-        <td
-          class="
-            log-entry-content-cell
-          "
-        >
-          <span
-            class="
-              log-entry-inline-content
-            "
+          <button
+            type="button"
+            class="log-entry-delete-button"
+            data-entry-action="delete"
+            data-entry-index="${originalIndex}"
           >
-            ${rowNumberHtml}
-
-            <span
-              class="
-                log-entry-inline-content__text
-              "
-            >
-              ${escapeHtml(
-                contentText
-              )}
-            </span>
-
-            ${
-              tagHtml
-                ? ` ${tagHtml}`
-                : ""
-            }
-          </span>
-        </td>
-
-
-        <td
-          class="
-            log-entry-actions-cell
-            log-entry-edit-only-cell
-          "
-          hidden
-        >
-          <div
-            class="
-              log-entry-row-actions
-            "
-          >
-            <button
-              type="button"
-              class="
-                log-entry-edit-button
-              "
-              data-entry-action="edit"
-              data-entry-index="${originalIndex}"
-            >
-              수정
-            </button>
-
-            <button
-              type="button"
-              class="
-                log-entry-delete-button
-              "
-              data-entry-action="delete"
-              data-entry-index="${originalIndex}"
-            >
-              삭제
-            </button>
-          </div>
-        </td>
-
-      </tr>
+            삭제
+          </button>
+        </div>
+      </td>
     `;
   };
 
 
   /*
     TM 발행 내역 렌더링
+
+    TM 영역의 기존 표시 방식은 유지한다.
   */
   if (
     elements.tmIssueEntryTableBody
@@ -4016,9 +3886,7 @@ function renderLogEntryTable() {
         .tmIssueEntryTableBody
         .innerHTML = `
           <tr
-            class="
-              log-entry-empty-row
-            "
+            class="log-entry-empty-row"
           >
             <td colspan="2">
               등록된 TM 발행 내역이 없습니다.
@@ -4030,20 +3898,92 @@ function renderLogEntryTable() {
         .tmIssueEntryTableBody
         .innerHTML =
         tmIssueEntries
-          .map((item) => {
-            return createEntryRowHtml(
-              item,
-              {
-                showTimeColumn:
-                  false,
+          .map(({ entry, originalIndex }) => {
+            const isEditing =
+              originalIndex ===
+              appState.editingEntryIndex;
 
-                displayNumber:
-                  null,
+            const timeText =
+              String(
+                entry.time || "-"
+              ).trim();
 
-                isGroupFirstRow:
-                  false
-              }
-            );
+            const categoryText =
+              String(
+                entry.category ||
+                "TM 발행"
+              ).trim();
+
+            const contentText =
+              String(
+                entry.content || "-"
+              ).trim();
+
+            const tagHtml =
+              createTagHtml(
+                entry,
+                originalIndex
+              );
+
+            return `
+              <tr
+                data-entry-index="${originalIndex}"
+                class="${
+                  isEditing
+                    ? "is-editing"
+                    : ""
+                }"
+              >
+                ${createSelectCellHtml(
+                  entry,
+                  originalIndex
+                )}
+
+                <td
+                  class="log-entry-time-cell"
+                >
+                  ${escapeHtml(
+                    timeText
+                  )}
+                </td>
+
+                <td
+                  class="
+                    log-entry-category-cell-wrap
+                  "
+                >
+                  <div
+                    class="log-entry-category-cell"
+                  >
+                    <span
+                      class="log-entry-category-text"
+                    >
+                      ${escapeHtml(
+                        categoryText
+                      )}
+                    </span>
+                  </div>
+                </td>
+
+                <td
+                  class="log-entry-content-cell"
+                >
+                  <span
+                    class="log-entry-inline-content"
+                  >
+                    <span
+                      class="log-entry-inline-content__text"
+                    >${escapeHtml(
+                      contentText
+                    )}</span>${tagHtml}
+                  </span>
+                </td>
+
+                ${createActionCellHtml(
+                  originalIndex
+                )}
+              </tr>
+            `;
           })
           .join("");
     }
@@ -4051,9 +3991,12 @@ function renderLogEntryTable() {
 
 
   /*
-    인계사항 시간 그룹 렌더링
+    인계사항 렌더링
 
-    같은 시간은 하나의 시간 셀로 합친다.
+    번호·내용·TAG를 같은 문장 흐름으로 배치한다.
+
+    예:
+    1. Main Steam TCV 동작 상태 확인 [TAG]
   */
   if (
     elements.logEntryTableBody
@@ -4063,9 +4006,7 @@ function renderLogEntryTable() {
         .logEntryTableBody
         .innerHTML = `
           <tr
-            class="
-              log-entry-empty-row
-            "
+            class="log-entry-empty-row"
           >
             <td colspan="3">
               등록된 인계사항이 없습니다.
@@ -4088,21 +4029,113 @@ function renderLogEntryTable() {
                 ) => {
                   displayNumber += 1;
 
-                  return createEntryRowHtml(
-                    item,
-                    {
-                      showTimeColumn:
-                        groupItemIndex === 0,
+                  const {
+                    entry,
+                    originalIndex
+                  } = item;
 
-                      timeRowspan:
-                        group.items.length,
+                  const isEditing =
+                    originalIndex ===
+                    appState.editingEntryIndex;
 
-                      displayNumber,
+                  const sourceBadgeHtml =
+                    createSourceBadgeHtml(
+                      entry
+                    );
 
-                      isGroupFirstRow:
-                        groupItemIndex === 0
-                    }
-                  );
+                  const contentText =
+                    String(
+                      entry.content || "-"
+                    ).trim();
+
+                  const tagHtml =
+                    createTagHtml(
+                      entry,
+                      originalIndex
+                    );
+
+                  const timeCellHtml =
+                    groupItemIndex === 0
+                      ? `
+                        <td
+                          class="
+                            log-entry-time-cell
+                            log-entry-time-group-cell
+                          "
+                          rowspan="${group.items.length}"
+                        >
+                          <span
+                            class="log-entry-time-group-label"
+                          >
+                            ${escapeHtml(
+                              group.timeText ||
+                              "시간 없음"
+                            )}
+                          </span>
+                        </td>
+                      `
+                      : "";
+
+                  return `
+                    <tr
+                      data-entry-index="${originalIndex}"
+                      class="
+                        ${
+                          isEditing
+                            ? "is-editing"
+                            : ""
+                        }
+                        ${
+                          groupItemIndex === 0
+                            ? "is-time-group-first-row"
+                            : ""
+                        }
+                      "
+                    >
+                      ${createSelectCellHtml(
+                        entry,
+                        originalIndex
+                      )}
+
+                      <td
+                        class="
+                          log-entry-category-cell-wrap
+                        "
+                      >
+                        <div
+                          class="log-entry-category-cell"
+                        >
+                          ${sourceBadgeHtml}
+                        </div>
+                      </td>
+
+                      ${timeCellHtml}
+
+                      <td
+                        class="log-entry-content-cell"
+                      >
+                        <span
+                          class="
+                            log-entry-handover-line
+                          "
+                        ><strong
+                            class="
+                              log-entry-handover-number
+                            "
+                          >${displayNumber}.</strong><span
+                            class="
+                              log-entry-handover-text
+                            "
+                          >${escapeHtml(
+                            contentText
+                          )}</span>${tagHtml}</span>
+                      </td>
+
+                      ${createActionCellHtml(
+                        originalIndex
+                      )}
+                    </tr>
+                  `;
                 }
               )
               .join("");

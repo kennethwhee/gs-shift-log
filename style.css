@@ -4198,3 +4198,119 @@ body.modal-open {
     width: 100px;
   }
 }
+
+/* =========================================================
+   인계사항 한 줄 표시 최종 정렬
+========================================================= */
+
+.handover-entry-group--handover
+.log-entry-table td {
+  vertical-align: top;
+}
+
+.handover-entry-group--handover
+.log-entry-time-group-cell {
+  padding-top: 13px !important;
+  vertical-align: top !important;
+}
+
+.log-entry-time-group-label {
+  display: block;
+  color: #26364b;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.55;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   번호 + 내용 + TAG
+========================================================= */
+
+.log-entry-handover-line {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  color: #26364b;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  text-align: left;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.log-entry-handover-number {
+  display: inline;
+  margin: 0 6px 0 0;
+  padding: 0;
+  color: #1f5fae;
+  font-size: inherit;
+  font-weight: 900;
+  line-height: inherit;
+  white-space: nowrap;
+}
+
+.log-entry-handover-text {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.log-entry-handover-line
+.log-entry-inline-tag {
+  display: inline;
+  margin: 0 0 0 5px;
+  padding: 0;
+  vertical-align: baseline;
+}
+
+
+/* =========================================================
+   같은 시간의 두 번째 항목
+========================================================= */
+
+.handover-entry-group--handover
+.log-entry-table tbody tr:not(.is-time-group-first-row)
+td {
+  border-top: 0;
+}
+
+.handover-entry-group--handover
+.log-entry-content-cell {
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+
+
+/* =========================================================
+   모바일
+========================================================= */
+
+@media (max-width: 768px) {
+  .log-entry-time-group-label {
+    font-size: 11px;
+  }
+
+  .log-entry-handover-line {
+    font-size: 12px;
+  }
+
+  .log-entry-handover-number {
+    margin-right: 5px;
+  }
+
+  .log-entry-handover-line
+  .log-entry-inline-tag {
+    margin-left: 4px;
+  }
+}
