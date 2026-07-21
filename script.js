@@ -3483,10 +3483,9 @@ function renderLogEntryTable() {
       : [];
 
   /*
-    원본 배열 인덱스를 유지한다.
-
-    화면에서는 시간순으로 정렬되더라도
-    수정·삭제·TAG 이동은 원본 인덱스를 사용한다.
+    화면 정렬 후에도 수정·삭제 기능이
+    원본 배열 기준으로 작동하도록
+    originalIndex를 함께 보관한다.
   */
   const indexedEntries =
     entries.map(
@@ -3500,33 +3499,67 @@ function renderLogEntryTable() {
 
 
   /*
-    TM 발행 내역만 별도 분리
+    TM 발행 내역
   */
   const tmIssueEntries =
-    indexedEntries.filter(
-      ({ entry }) => {
+    indexedEntries
+      .filter(({ entry }) => {
         return (
           String(
             entry.category || ""
           ).trim() ===
           "TM 발행"
         );
-      }
-    );
+      })
+      .sort((itemA, itemB) => {
+        const timeA =
+          String(
+            itemA.entry.time || ""
+          ).trim();
+
+        const timeB =
+          String(
+            itemB.entry.time || ""
+          ).trim();
+
+        if (
+          timeA &&
+          !timeB
+        ) {
+          return -1;
+        }
+
+        if (
+          !timeA &&
+          timeB
+        ) {
+          return 1;
+        }
+
+        if (
+          timeA &&
+          timeB
+        ) {
+          const result =
+            timeA.localeCompare(
+              timeB
+            );
+
+          if (result !== 0) {
+            return result;
+          }
+        }
+
+        return (
+          itemA.originalIndex -
+          itemB.originalIndex
+        );
+      });
 
 
   /*
     TM 발행을 제외한 항목은
     인계사항 영역에 표시한다.
-
-    인계사항 영역 안에서도
-    구분 값은 그대로 유지한다.
-
-    예:
-    인계사항
-    TM 작업
-    BM 작업
-    CM 작업
   */
   const handoverEntries =
     indexedEntries
@@ -3549,39 +3582,31 @@ function renderLogEntryTable() {
             itemB.entry.time || ""
           ).trim();
 
-        const hasTimeA =
-          Boolean(timeA);
-
-        const hasTimeB =
-          Boolean(timeB);
-
         if (
-          hasTimeA &&
-          !hasTimeB
+          timeA &&
+          !timeB
         ) {
           return -1;
         }
 
         if (
-          !hasTimeA &&
-          hasTimeB
+          !timeA &&
+          timeB
         ) {
           return 1;
         }
 
         if (
-          hasTimeA &&
-          hasTimeB
+          timeA &&
+          timeB
         ) {
-          const timeDifference =
+          const result =
             timeA.localeCompare(
               timeB
             );
 
-          if (
-            timeDifference !== 0
-          ) {
-            return timeDifference;
+          if (result !== 0) {
+            return result;
           }
         }
 
@@ -3593,7 +3618,7 @@ function renderLogEntryTable() {
 
 
   /*
-    같은 시간의 인계사항을 묶는다.
+    인계사항은 같은 시간끼리 묶는다.
   */
   const handoverTimeGroups = [];
 
@@ -3635,7 +3660,7 @@ function renderLogEntryTable() {
 
 
   /*
-    전체 및 구역별 건수
+    건수 표시
   */
   if (elements.logEntryCount) {
     elements.logEntryCount.textContent =
@@ -3729,10 +3754,7 @@ function renderLogEntryTable() {
 
 
   /*
-    구분에 맞는 CSS 클래스 반환
-
-    보직은 사용하지 않고,
-    실제 category 값만 사용한다.
+    구분별 배지 클래스
   */
   const getCategoryBadgeClass = (
     category
@@ -3751,32 +3773,14 @@ function renderLogEntryTable() {
 
     if (
       categoryText ===
+        "TM 발행" ||
+      categoryText ===
         "TM 작업" ||
       categoryText.startsWith(
         "TM "
       )
     ) {
       return "is-tm-work";
-    }
-
-    if (
-      categoryText ===
-        "BM 작업" ||
-      categoryText.startsWith(
-        "BM "
-      )
-    ) {
-      return "is-inspection";
-    }
-
-    if (
-      categoryText ===
-        "CM 작업" ||
-      categoryText.startsWith(
-        "CM "
-      )
-    ) {
-      return "is-work";
     }
 
     if (
@@ -3800,13 +3804,7 @@ function renderLogEntryTable() {
 
 
   /*
-    구분 배지 HTML
-
-    예:
-    인계사항
-    TM 작업
-    BM 작업
-    CM 작업
+    구분 배지
   */
   const createCategoryBadgeHtml = (
     entry
@@ -3838,7 +3836,7 @@ function renderLogEntryTable() {
 
 
   /*
-    TAG 버튼 HTML
+    TAG 버튼
   */
   const createTagHtml = (
     entry,
@@ -3872,7 +3870,7 @@ function renderLogEntryTable() {
 
 
   /*
-    편집 모드 체크박스 셀
+    편집 모드 체크박스
   */
   const createSelectCellHtml = (
     entry,
@@ -3906,7 +3904,7 @@ function renderLogEntryTable() {
 
 
   /*
-    수정·삭제 버튼 셀
+    수정·삭제 버튼
   */
   const createActionCellHtml = (
     originalIndex
@@ -3947,6 +3945,12 @@ function renderLogEntryTable() {
 
   /*
     TM 발행 내역 렌더링
+
+    각 항목 앞에 독립적인 번호를 표시한다.
+
+    예:
+    1. TM 발행 내용
+    2. TM 발행 내용
   */
   if (
     elements.tmIssueEntryTableBody
@@ -3969,10 +3973,13 @@ function renderLogEntryTable() {
         .innerHTML =
         tmIssueEntries
           .map(
-            ({
-              entry,
-              originalIndex
-            }) => {
+            (
+              {
+                entry,
+                originalIndex
+              },
+              tmIndex
+            ) => {
               const isEditing =
                 originalIndex ===
                 appState.editingEntryIndex;
@@ -3987,6 +3994,9 @@ function renderLogEntryTable() {
                   entry,
                   originalIndex
                 );
+
+              const displayNumber =
+                tmIndex + 1;
 
               return `
                 <tr
@@ -4025,12 +4035,21 @@ function renderLogEntryTable() {
                   >
                     <span
                       class="
-                        log-entry-inline-content
+                        log-entry-handover-line
+                        log-entry-tm-line
                       "
                     >
+                      <strong
+                        class="
+                          log-entry-handover-number
+                          log-entry-tm-number
+                        "
+                      >${displayNumber}.</strong>
+
                       <span
                         class="
-                          log-entry-inline-content__text
+                          log-entry-handover-text
+                          log-entry-tm-text
                         "
                       >${escapeHtml(
                         contentText
@@ -4051,11 +4070,7 @@ function renderLogEntryTable() {
 
 
   /*
-    인계사항 영역 렌더링
-
-    화면 예:
-    인계사항 | 09:50 | 1. 내용
-    TM 작업  | 11:20 | 2. 내용 [TAG]
+    인계사항 렌더링
   */
   if (
     elements.logEntryTableBody
@@ -4108,10 +4123,6 @@ function renderLogEntryTable() {
                       originalIndex
                     );
 
-                  /*
-                    같은 시간 항목은
-                    첫 번째 행에만 시간 셀을 만든다.
-                  */
                   const timeCellHtml =
                     groupItemIndex === 0
                       ? `

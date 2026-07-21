@@ -4388,3 +4388,118 @@ td {
     width: 82px;
   }
 }
+
+/* =========================================================
+   구분·시간 가운데 정렬
+   TM 발행 번호 표시
+========================================================= */
+
+/*
+   구분 제목
+*/
+.handover-entry-group
+.log-entry-table th.log-entry-table__category {
+  text-align: center;
+}
+
+
+/*
+   구분 셀
+*/
+.handover-entry-group
+.log-entry-category-cell-wrap {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.handover-entry-group
+.log-entry-category-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+
+/*
+   시간 제목 및 시간 셀
+*/
+.handover-entry-group--handover
+.log-entry-table th.log-entry-table__time {
+  text-align: center;
+}
+
+.handover-entry-group--handover
+.log-entry-time-cell,
+.handover-entry-group--handover
+.log-entry-time-group-cell {
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.handover-entry-group--handover
+.log-entry-time-group-label {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+
+/*
+   TM 발행 번호 + 내용 + TAG
+*/
+.log-entry-tm-line {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  color: #26364b;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  text-align: left;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.log-entry-tm-number {
+  display: inline;
+  margin-right: 6px;
+  color: #b87412;
+  font-weight: 900;
+}
+
+.log-entry-tm-text {
+  display: inline;
+}
+
+
+/*
+   TM 구분 셀도 세로 가운데 정렬
+*/
+.handover-entry-group--tm
+.log-entry-category-cell-wrap {
+  vertical-align: middle !important;
+}
+
+
+/* 모바일 */
+@media (max-width: 768px) {
+  .log-entry-tm-line {
+    font-size: 12px;
+  }
+
+  .log-entry-tm-number {
+    margin-right: 5px;
+  }
+
+  .handover-entry-group--handover
+  .log-entry-time-cell,
+  .handover-entry-group--handover
+  .log-entry-time-group-cell {
+    padding-top: 9px !important;
+    padding-bottom: 9px !important;
+  }
+}
