@@ -464,6 +464,88 @@ function cacheElements() {
       ),
 
 
+    /* =====================================================
+      업무일지 목록
+    ====================================================== */
+
+    logTableBody:
+      document.getElementById(
+        "logTableBody"
+      ),
+
+    logEmptyState:
+      document.getElementById(
+        "logEmptyState"
+      ),
+
+
+    /* =====================================================
+      상세보기 모달
+    ====================================================== */
+
+    logDetailModal:
+      document.getElementById(
+        "logDetailModal"
+      ),
+
+    closeLogDetailButton:
+      document.getElementById(
+        "closeLogDetailButton"
+      ),
+
+    closeLogDetailFooterButton:
+      document.getElementById(
+        "closeLogDetailFooterButton"
+      ),
+
+    logDetailContent:
+      document.getElementById(
+        "logDetailContent"
+      ),
+
+    editFromDetailButton:
+      document.getElementById(
+        "editFromDetailButton"
+      ),
+
+
+    /* =====================================================
+      조회
+    ====================================================== */
+
+    searchForm:
+      document.getElementById(
+        "searchForm"
+      ),
+
+    searchResultBody:
+      document.getElementById(
+        "searchResultBody"
+      ),
+
+    searchResultCount:
+      document.getElementById(
+        "searchResultCount"
+      ),
+
+    searchEmptyState:
+      document.getElementById(
+        "searchEmptyState"
+      ),
+
+
+    /* =====================================================
+      공통 알림
+    ====================================================== */
+
+    appToast:
+      document.getElementById(
+        "appToast"
+      )
+  };
+}
+
+
 /* =========================================================
   기존 업무일지 불러오기
 ========================================================= */
@@ -931,86 +1013,6 @@ function convertLegacyDiaryStatus(
   );
 }
 
-    /* =====================================================
-      업무일지 목록
-    ====================================================== */
-
-    logTableBody:
-      document.getElementById(
-        "logTableBody"
-      ),
-
-    logEmptyState:
-      document.getElementById(
-        "logEmptyState"
-      ),
-
-
-    /* =====================================================
-      상세보기 모달
-    ====================================================== */
-
-    logDetailModal:
-      document.getElementById(
-        "logDetailModal"
-      ),
-
-    closeLogDetailButton:
-      document.getElementById(
-        "closeLogDetailButton"
-      ),
-
-    closeLogDetailFooterButton:
-      document.getElementById(
-        "closeLogDetailFooterButton"
-      ),
-
-    logDetailContent:
-      document.getElementById(
-        "logDetailContent"
-      ),
-
-    editFromDetailButton:
-      document.getElementById(
-        "editFromDetailButton"
-      ),
-
-
-    /* =====================================================
-      조회
-    ====================================================== */
-
-    searchForm:
-      document.getElementById(
-        "searchForm"
-      ),
-
-    searchResultBody:
-      document.getElementById(
-        "searchResultBody"
-      ),
-
-    searchResultCount:
-      document.getElementById(
-        "searchResultCount"
-      ),
-
-    searchEmptyState:
-      document.getElementById(
-        "searchEmptyState"
-      ),
-
-
-    /* =====================================================
-      공통 알림
-    ====================================================== */
-
-    appToast:
-      document.getElementById(
-        "appToast"
-      )
-  };
-}
 
 /* =========================================================
   파트장 업무일지 가져오기 요소
@@ -3170,13 +3172,41 @@ function switchView(viewName) {
 /* =========================================================
   날짜
 ========================================================= */
-function moveSelectedDate(dayOffset) {
-  const nextDate = new Date(appState.selectedDate);
-  nextDate.setDate(nextDate.getDate() + dayOffset);
+async function moveSelectedDate(
+  dayOffset
+) {
+  const nextDate =
+    new Date(
+      appState.selectedDate
+    );
 
-  appState.selectedDate = nextDate;
+  nextDate.setDate(
+    nextDate.getDate() +
+    dayOffset
+  );
+
+  appState.selectedDate =
+    nextDate;
+
   renderSelectedDate();
+
+  await loadLegacyLogsForSelectedDate();
+
   renderLogTable();
+  updateShiftMemberCardStates();
+}
+
+
+async function moveSelectedDateToToday() {
+  appState.selectedDate =
+    new Date();
+
+  renderSelectedDate();
+
+  await loadLegacyLogsForSelectedDate();
+
+  renderLogTable();
+  updateShiftMemberCardStates();
 }
 
 
