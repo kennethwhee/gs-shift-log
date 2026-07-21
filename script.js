@@ -6475,67 +6475,73 @@ function createNormalDetailEntriesHtml(
 }
 
 function openLogDetail(log) {
+  if (
+    !log ||
+    !elements.logDetailContent
+  ) {
+    showToast(
+      "업무일지 정보를 확인할 수 없습니다."
+    );
+
+    return;
+  }
+
   appState.currentDetailLogId =
     log.id;
 
-  const isLeaderLog =
-    normalizeMemberLogRole(
-      log.role
-    ) === "파트장";
 
-  const allEntries =
-    Array.isArray(log.entries)
-      ? log.entries
-      : [];
+  /* =====================================================
+    기본 정보
+  ====================================================== */
 
-  /*
-    TM 발행만 별도의 발행 내역에 표시한다.
-  */
-  const tmIssueEntries =
-    allEntries.filter((entry) => {
-      return (
-        String(
-          entry.category || ""
-        ).trim() ===
-        "TM 발행"
-      );
-    });
+  const dateText =
+    String(
+      log.date || "-"
+    ).trim();
 
-  /*
-    TM 발행을 제외한 모든 작업은
-    인계사항 영역에 표시한다.
-  */
-  const handoverEntries =
-    allEntries.filter((entry) => {
-      return (
-        String(
-          entry.category || ""
-        ).trim() !==
-        "TM 발행"
-      );
-    });
+  const shiftText =
+    String(
+      log.shift || "-"
+    ).trim();
 
-  const tmIssueHtml =
-    isLeaderLog
-      ? createRoleGroupedEntriesHtml(
-          tmIssueEntries,
-          log,
-          "TM 발행 내역"
-        )
-      : createNormalDetailEntriesHtml(
-          tmIssueEntries
-        );
+  const teamText =
+    String(
+      log.team || "-"
+    ).trim();
 
-  const handoverHtml =
-    isLeaderLog
-      ? createRoleGroupedEntriesHtml(
-          handoverEntries,
-          log,
-          "인계사항"
-        )
-      : createNormalDetailEntriesHtml(
-          handoverEntries
-        );
+  const roleText =
+    String(
+      log.role || "-"
+    ).trim();
+
+  const authorText =
+    String(
+      log.author || "-"
+    ).trim();
+
+  const statusText =
+    String(
+      log.status || "-"
+    ).trim();
+
+
+  /* =====================================================
+    상태 배지
+  ====================================================== */
+
+  const statusClass =
+    statusText === "결재완료" ||
+    statusText === "결재요청"
+      ? "is-complete"
+      : statusText === "임시저장" ||
+        statusText === "작성중"
+        ? "is-writing"
+        : "is-saved";
+
+
+  /* =====================================================
+    운전현황
+  ====================================================== */
 
   const operationStatusText =
     String(
@@ -6545,158 +6551,979 @@ function openLogDetail(log) {
   const operationStatusHtml =
     operationStatusText
       ? `
-        <div class="detail-operation-status-text">
+        <div
+          class="
+            log-report-operation-content
+          "
+        >
           ${escapeHtml(
             operationStatusText
           )}
         </div>
       `
       : `
-        <p class="detail-empty">
-          등록된 내용이 없습니다.
-        </p>
+        <div
+          class="
+            log-report-empty
+          "
+        >
+          등록된 운전현황이 없습니다.
+        </div>
       `;
 
-  elements.logDetailContent.innerHTML = `
-    <section class="detail-summary-grid">
 
-      <div>
-        <span>작성일</span>
-        <strong>
-          ${escapeHtml(
-            log.date || "-"
-          )}
-        </strong>
-      </div>
+  /* =====================================================
+    전체 작업 내역
+  ====================================================== */
 
-      <div>
-        <span>근무</span>
-        <strong>
-          ${escapeHtml(
-            log.shift || "-"
-          )}
-        </strong>
-      </div>
-
-      <div>
-        <span>근무조</span>
-        <strong>
-          ${escapeHtml(
-            log.team || "-"
-          )}
-        </strong>
-      </div>
-
-      <div>
-        <span>보직</span>
-        <strong>
-          ${escapeHtml(
-            log.role || "-"
-          )}
-        </strong>
-      </div>
-
-      <div>
-        <span>작성자</span>
-        <strong>
-          ${escapeHtml(
-            log.author || "-"
-          )}
-        </strong>
-      </div>
-
-      <div>
-        <span>상태</span>
-        <strong>
-          ${escapeHtml(
-            log.status || "-"
-          )}
-        </strong>
-      </div>
-
-    </section>
+  const allEntries =
+    Array.isArray(
+      log.entries
+    )
+      ? log.entries.map(
+          (
+            entry,
+            originalIndex
+          ) => {
+            return {
+              entry,
+              originalIndex
+            };
+          }
+        )
+      : [];
 
 
-    <section class="detail-section">
+  /* =====================================================
+    TM 발행 내역
+  ====================================================== */
 
-      <h3>운전 현황</h3>
-
-      <div class="detail-operation-status">
-        ${operationStatusHtml}
-      </div>
-
-    </section>
-
-
-    <section class="detail-section">
-
-      <h3>TM 발행 내역</h3>
-
-      <div class="detail-role-entry-list">
-        ${tmIssueHtml}
-      </div>
-
-    </section>
+  const tmIssueEntries =
+    allEntries.filter(
+      ({ entry }) => {
+        return (
+          String(
+            entry.category || ""
+          ).trim() ===
+          "TM 발행"
+        );
+      }
+    );
 
 
-    <section class="detail-section">
+  /* =====================================================
+    인계사항 영역
 
-      <h3>인계사항</h3>
+    TM 발행을 제외한 항목을 표시한다.
+    구분은 인계사항, TM 작업, BM 작업,
+    CM 작업 등의 실제 category를 사용한다.
+  ====================================================== */
 
-      <div class="detail-role-entry-list">
-        ${handoverHtml}
-      </div>
+  const handoverEntries =
+    allEntries
+      .filter(({ entry }) => {
+        return (
+          String(
+            entry.category || ""
+          ).trim() !==
+          "TM 발행"
+        );
+      })
+      .sort((itemA, itemB) => {
+        const timeA =
+          String(
+            itemA.entry.time || ""
+          ).trim();
 
-    </section>
+        const timeB =
+          String(
+            itemB.entry.time || ""
+          ).trim();
+
+        const hasTimeA =
+          Boolean(timeA);
+
+        const hasTimeB =
+          Boolean(timeB);
+
+        if (
+          hasTimeA &&
+          !hasTimeB
+        ) {
+          return -1;
+        }
+
+        if (
+          !hasTimeA &&
+          hasTimeB
+        ) {
+          return 1;
+        }
+
+        if (
+          hasTimeA &&
+          hasTimeB
+        ) {
+          const timeDifference =
+            timeA.localeCompare(
+              timeB
+            );
+
+          if (
+            timeDifference !== 0
+          ) {
+            return timeDifference;
+          }
+        }
+
+        return (
+          itemA.originalIndex -
+          itemB.originalIndex
+        );
+      });
 
 
-    <section class="detail-section">
+  /* =====================================================
+    구분 배지 클래스
+  ====================================================== */
 
-      <h3>비고</h3>
+  const getDetailCategoryClass = (
+    category
+  ) => {
+    const categoryText =
+      String(
+        category || ""
+      ).trim();
 
-      <p class="detail-multiline">
+    if (
+      categoryText ===
+      "인계사항"
+    ) {
+      return "is-handover";
+    }
+
+    if (
+      categoryText ===
+        "TM 발행" ||
+      categoryText ===
+        "TM 작업" ||
+      categoryText.startsWith(
+        "TM "
+      )
+    ) {
+      return "is-tm";
+    }
+
+    if (
+      categoryText.startsWith(
+        "BM"
+      ) ||
+      categoryText.includes(
+        "점검"
+      )
+    ) {
+      return "is-bm";
+    }
+
+    if (
+      categoryText.startsWith(
+        "CM"
+      ) ||
+      categoryText.includes(
+        "작업"
+      )
+    ) {
+      return "is-cm";
+    }
+
+    return "is-default";
+  };
+
+
+  /* =====================================================
+    TAG 버튼 생성
+  ====================================================== */
+
+  const createDetailTagHtml = (
+    entry
+  ) => {
+    const tagText =
+      String(
+        entry.tag || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    if (!tagText) {
+      return "";
+    }
+
+    return `
+      <button
+        type="button"
+        class="
+          log-report-tag
+        "
+        data-detail-tag="${escapeHtml(
+          tagText
+        )}"
+        title="Facility Navigator에서 설비 보기"
+      >
         ${escapeHtml(
-          log.note ||
-          "등록된 내용이 없습니다."
+          tagText
         )}
-      </p>
+      </button>
+    `;
+  };
 
-    </section>
+
+  /* =====================================================
+    TM 발행 목록 HTML
+  ====================================================== */
+
+  const tmIssueHtml =
+    tmIssueEntries.length
+      ? `
+        <div
+          class="
+            log-report-entry-list
+            log-report-entry-list--tm
+          "
+        >
+          ${tmIssueEntries
+            .map(
+              (
+                {
+                  entry
+                },
+                index
+              ) => {
+                const categoryText =
+                  String(
+                    entry.category ||
+                    "TM 발행"
+                  ).trim();
+
+                const contentText =
+                  String(
+                    entry.content || "-"
+                  ).trim();
+
+                const categoryClass =
+                  getDetailCategoryClass(
+                    categoryText
+                  );
+
+                const tagHtml =
+                  createDetailTagHtml(
+                    entry
+                  );
+
+                return `
+                  <article
+                    class="
+                      log-report-entry
+                      log-report-entry--tm
+                    "
+                  >
+                    <div
+                      class="
+                        log-report-entry__number
+                      "
+                    >
+                      ${index + 1}
+                    </div>
+
+                    <div
+                      class="
+                        log-report-entry__body
+                      "
+                    >
+                      <div
+                        class="
+                          log-report-entry__meta
+                        "
+                      >
+                        <span
+                          class="
+                            log-report-category
+                            ${categoryClass}
+                          "
+                        >
+                          ${escapeHtml(
+                            categoryText
+                          )}
+                        </span>
+                      </div>
+
+                      <div
+                        class="
+                          log-report-entry__content
+                        "
+                      >
+                        ${escapeHtml(
+                          contentText
+                        )}
+                      </div>
+
+                      ${
+                        tagHtml
+                          ? `
+                            <div
+                              class="
+                                log-report-entry__tags
+                              "
+                            >
+                              ${tagHtml}
+                            </div>
+                          `
+                          : ""
+                      }
+                    </div>
+                  </article>
+                `;
+              }
+            )
+            .join("")}
+        </div>
+      `
+      : `
+        <div
+          class="
+            log-report-empty
+          "
+        >
+          등록된 TM 발행 내역이 없습니다.
+        </div>
+      `;
 
 
-    <section class="detail-section">
+  /* =====================================================
+    인계사항 목록 HTML
+  ====================================================== */
 
-      <h3>첨부파일</h3>
+  const handoverHtml =
+    handoverEntries.length
+      ? `
+        <div
+          class="
+            log-report-timeline
+          "
+        >
+          ${handoverEntries
+            .map(
+              (
+                {
+                  entry
+                },
+                index
+              ) => {
+                const categoryText =
+                  String(
+                    entry.category ||
+                    "인계사항"
+                  ).trim();
 
-      <div class="attachment-list">
+                const timeText =
+                  String(
+                    entry.time || ""
+                  ).trim();
 
-        ${
-          Array.isArray(
-            log.attachments
-          ) &&
-          log.attachments.length
-            ? log.attachments
-                .map((fileName) => {
-                  return `
-                    <span class="attachment-chip">
+                const contentText =
+                  String(
+                    entry.content || "-"
+                  ).trim();
+
+                const categoryClass =
+                  getDetailCategoryClass(
+                    categoryText
+                  );
+
+                const tagHtml =
+                  createDetailTagHtml(
+                    entry
+                  );
+
+                return `
+                  <article
+                    class="
+                      log-report-timeline-item
+                    "
+                  >
+                    <div
+                      class="
+                        log-report-timeline-item__rail
+                      "
+                    >
+                      <span
+                        class="
+                          log-report-timeline-item__dot
+                        "
+                      ></span>
+                    </div>
+
+                    <div
+                      class="
+                        log-report-timeline-item__body
+                      "
+                    >
+                      <div
+                        class="
+                          log-report-timeline-item__header
+                        "
+                      >
+                        <div
+                          class="
+                            log-report-timeline-item__identity
+                          "
+                        >
+                          <span
+                            class="
+                              log-report-entry-index
+                            "
+                          >
+                            ${index + 1}.
+                          </span>
+
+                          <span
+                            class="
+                              log-report-entry-time
+                            "
+                          >
+                            ${escapeHtml(
+                              timeText ||
+                              "시간 없음"
+                            )}
+                          </span>
+
+                          <span
+                            class="
+                              log-report-category
+                              ${categoryClass}
+                            "
+                          >
+                            ${escapeHtml(
+                              categoryText
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div
+                        class="
+                          log-report-timeline-item__content
+                        "
+                      >
+                        ${escapeHtml(
+                          contentText
+                        )}
+                      </div>
+
+                      ${
+                        tagHtml
+                          ? `
+                            <div
+                              class="
+                                log-report-entry__tags
+                              "
+                            >
+                              ${tagHtml}
+                            </div>
+                          `
+                          : ""
+                      }
+                    </div>
+                  </article>
+                `;
+              }
+            )
+            .join("")}
+        </div>
+      `
+      : `
+        <div
+          class="
+            log-report-empty
+          "
+        >
+          등록된 인계사항이 없습니다.
+        </div>
+      `;
+
+
+  /* =====================================================
+    비고
+  ====================================================== */
+
+  const noteText =
+    String(
+      log.note || ""
+    ).trim();
+
+  const noteHtml =
+    noteText
+      ? `
+        <div
+          class="
+            log-report-note-content
+          "
+        >
+          ${escapeHtml(
+            noteText
+          )}
+        </div>
+      `
+      : `
+        <div
+          class="
+            log-report-empty
+          "
+        >
+          등록된 비고가 없습니다.
+        </div>
+      `;
+
+
+  /* =====================================================
+    첨부파일
+  ====================================================== */
+
+  const attachments =
+    Array.isArray(
+      log.attachments
+    )
+      ? log.attachments.filter(
+          Boolean
+        )
+      : [];
+
+  const attachmentHtml =
+    attachments.length
+      ? `
+        <div
+          class="
+            log-report-attachment-list
+          "
+        >
+          ${attachments
+            .map(
+              (
+                fileName,
+                index
+              ) => {
+                return `
+                  <div
+                    class="
+                      log-report-attachment
+                    "
+                  >
+                    <span
+                      class="
+                        log-report-attachment__icon
+                      "
+                      aria-hidden="true"
+                    >
+                      📎
+                    </span>
+
+                    <span
+                      class="
+                        log-report-attachment__name
+                      "
+                    >
                       ${escapeHtml(
                         fileName
                       )}
                     </span>
-                  `;
-                })
-                .join("")
-            : `
-              <span class="detail-empty">
-                첨부파일 없음
+
+                    <span
+                      class="
+                        log-report-attachment__number
+                      "
+                    >
+                      ${index + 1}
+                    </span>
+                  </div>
+                `;
+              }
+            )
+            .join("")}
+        </div>
+      `
+      : `
+        <div
+          class="
+            log-report-empty
+          "
+        >
+          첨부파일이 없습니다.
+        </div>
+      `;
+
+
+  /* =====================================================
+    상세화면 전체 렌더링
+  ====================================================== */
+
+  elements.logDetailContent.innerHTML = `
+    <div
+      class="
+        log-report
+      "
+    >
+
+      <section
+        class="
+          log-report-summary
+        "
+      >
+        <div
+          class="
+            log-report-summary__top
+          "
+        >
+          <div
+            class="
+              log-report-summary__heading
+            "
+          >
+            <span
+              class="
+                log-report-summary__eyebrow
+              "
+            >
+              SHIFT LOG REPORT
+            </span>
+
+            <h2>
+              ${escapeHtml(
+                dateText
+              )}
+              업무일지
+            </h2>
+          </div>
+
+          <span
+            class="
+              log-report-status
+              ${statusClass}
+            "
+          >
+            <span
+              class="
+                log-report-status__dot
+              "
+            ></span>
+
+            ${escapeHtml(
+              statusText
+            )}
+          </span>
+        </div>
+
+        <div
+          class="
+            log-report-summary__grid
+          "
+        >
+          <div
+            class="
+              log-report-summary__item
+            "
+          >
+            <span>작성일</span>
+            <strong>
+              ${escapeHtml(
+                dateText
+              )}
+            </strong>
+          </div>
+
+          <div
+            class="
+              log-report-summary__item
+            "
+          >
+            <span>근무</span>
+            <strong>
+              ${escapeHtml(
+                shiftText
+              )}
+            </strong>
+          </div>
+
+          <div
+            class="
+              log-report-summary__item
+            "
+          >
+            <span>근무조</span>
+            <strong>
+              ${escapeHtml(
+                teamText
+              )}
+            </strong>
+          </div>
+
+          <div
+            class="
+              log-report-summary__item
+            "
+          >
+            <span>보직</span>
+            <strong>
+              ${escapeHtml(
+                roleText
+              )}
+            </strong>
+          </div>
+
+          <div
+            class="
+              log-report-summary__item
+            "
+          >
+            <span>작성자</span>
+            <strong>
+              ${escapeHtml(
+                authorText
+              )}
+            </strong>
+          </div>
+
+          <div
+            class="
+              log-report-summary__item
+            "
+          >
+            <span>등록 내역</span>
+            <strong>
+              총 ${allEntries.length}건
+            </strong>
+          </div>
+        </div>
+      </section>
+
+
+      <section
+        class="
+          log-report-section
+          log-report-section--operation
+        "
+      >
+        <div
+          class="
+            log-report-section__header
+          "
+        >
+          <div>
+            <span
+              class="
+                log-report-section__eyebrow
+              "
+            >
+              OPERATION STATUS
+            </span>
+
+            <h3>운전 현황</h3>
+          </div>
+
+          <span
+            class="
+              log-report-section__count
+              is-operation
+            "
+          >
+            현재 상태
+          </span>
+        </div>
+
+        <div
+          class="
+            log-report-section__body
+          "
+        >
+          ${operationStatusHtml}
+        </div>
+      </section>
+
+
+      <section
+        class="
+          log-report-section
+          log-report-section--tm
+        "
+      >
+        <div
+          class="
+            log-report-section__header
+          "
+        >
+          <div>
+            <span
+              class="
+                log-report-section__eyebrow
+              "
+            >
+              TM ISSUE
+            </span>
+
+            <h3>TM 발행 내역</h3>
+          </div>
+
+          <span
+            class="
+              log-report-section__count
+              is-tm
+            "
+          >
+            ${tmIssueEntries.length}건
+          </span>
+        </div>
+
+        <div
+          class="
+            log-report-section__body
+          "
+        >
+          ${tmIssueHtml}
+        </div>
+      </section>
+
+
+      <section
+        class="
+          log-report-section
+          log-report-section--handover
+        "
+      >
+        <div
+          class="
+            log-report-section__header
+          "
+        >
+          <div>
+            <span
+              class="
+                log-report-section__eyebrow
+              "
+            >
+              HANDOVER
+            </span>
+
+            <h3>인계사항</h3>
+          </div>
+
+          <span
+            class="
+              log-report-section__count
+              is-handover
+            "
+          >
+            ${handoverEntries.length}건
+          </span>
+        </div>
+
+        <div
+          class="
+            log-report-section__body
+          "
+        >
+          ${handoverHtml}
+        </div>
+      </section>
+
+
+      <div
+        class="
+          log-report-bottom-grid
+        "
+      >
+
+        <section
+          class="
+            log-report-section
+            log-report-section--note
+          "
+        >
+          <div
+            class="
+              log-report-section__header
+            "
+          >
+            <div>
+              <span
+                class="
+                  log-report-section__eyebrow
+                "
+              >
+                NOTE
               </span>
-            `
-        }
+
+              <h3>비고</h3>
+            </div>
+          </div>
+
+          <div
+            class="
+              log-report-section__body
+            "
+          >
+            ${noteHtml}
+          </div>
+        </section>
+
+
+        <section
+          class="
+            log-report-section
+            log-report-section--attachment
+          "
+        >
+          <div
+            class="
+              log-report-section__header
+            "
+          >
+            <div>
+              <span
+                class="
+                  log-report-section__eyebrow
+                "
+              >
+                ATTACHMENT
+              </span>
+
+              <h3>첨부파일</h3>
+            </div>
+
+            <span
+              class="
+                log-report-section__count
+              "
+            >
+              ${attachments.length}개
+            </span>
+          </div>
+
+          <div
+            class="
+              log-report-section__body
+            "
+          >
+            ${attachmentHtml}
+          </div>
+        </section>
 
       </div>
 
-    </section>
+    </div>
   `;
+
+
+  /* =====================================================
+    TAG → Facility Navigator
+  ====================================================== */
 
   elements.logDetailContent
     .querySelectorAll(
@@ -6713,6 +7540,7 @@ function openLogDetail(log) {
         }
       );
     });
+
 
   openModal(
     elements.logDetailModal
