@@ -641,70 +641,99 @@ async function loadLegacyLogsForSelectedDate() {
       ""
     );
 
-  const legacyShift =
-    appState.selectedShift === "DS"
-      ? "DAY"
-      : "NIGHT";
+  /*
+    날짜를 선택하면 기존 서버의 주간·야간 업무일지를
+    모두 불러온다.
+
+    기존 시스템:
+    DAY   = D/S
+    NIGHT = N/S
+
+    이렇게 해야 처음 화면이 N/S로 열리더라도
+    같은 날짜의 D/S 업무일지도 함께 메모리에 저장되고,
+    근무 배지를 눌러 전환했을 때 즉시 표시된다.
+  */
+  const legacyShiftDefinitions = [
+    {
+      legacyShift: "DAY",
+      currentShift: "DS"
+    },
+    {
+      legacyShift: "NIGHT",
+      currentShift: "NS"
+    }
+  ];
 
   try {
-    const requestUrl =
-      new URL(
-        "/api/legacy-diaries",
-        window.location.origin
+    const requestResults =
+      await Promise.all(
+        legacyShiftDefinitions.map(
+          async (shiftDefinition) => {
+            const requestUrl =
+              new URL(
+                "/api/legacy-diaries",
+                window.location.origin
+              );
+
+            requestUrl.searchParams.set(
+              "date",
+              legacyDate
+            );
+
+            requestUrl.searchParams.set(
+              "shift",
+              shiftDefinition.legacyShift
+            );
+
+            const response =
+              await fetch(
+                requestUrl.toString(),
+                {
+                  method: "GET",
+
+                  headers: {
+                    Accept:
+                      "application/json"
+                  },
+
+                  cache:
+                    "no-store"
+                }
+              );
+
+            const result =
+              await response.json();
+
+            if (
+              !response.ok ||
+              !result.success
+            ) {
+              throw new Error(
+                result.message ||
+                `${shiftDefinition.legacyShift} 기존 업무일지를 불러오지 못했습니다.`
+              );
+            }
+
+            return {
+              currentShift:
+                shiftDefinition.currentShift,
+
+              items:
+                Array.isArray(
+                  result.items
+                )
+                  ? result.items
+                  : []
+            };
+          }
+        )
       );
-
-    requestUrl.searchParams.set(
-      "date",
-      legacyDate
-    );
-
-    requestUrl.searchParams.set(
-      "shift",
-      legacyShift
-    );
-
-    const response =
-      await fetch(
-        requestUrl.toString(),
-        {
-          method: "GET",
-
-          headers: {
-            Accept:
-              "application/json"
-          },
-
-          cache:
-            "no-store"
-        }
-      );
-
-    const result =
-      await response.json();
-
-    if (
-      !response.ok ||
-      !result.success
-    ) {
-      throw new Error(
-        result.message ||
-        "기존 업무일지를 불러오지 못했습니다."
-      );
-    }
-
-    const legacyItems =
-      Array.isArray(
-        result.items
-      )
-        ? result.items
-        : [];
 
     /*
-      현재 선택 날짜와 근무에서
-      기존 서버로부터 불러온 일지만 제거한다.
+      선택 날짜에 전에 불러온 기존 서버 일지를
+      D/S·N/S 모두 제거한 뒤 최신 응답으로 교체한다.
 
-      새 GS Shift Log에서 직접 작성한 일지는
-      삭제하지 않는다.
+      새 GS Shift Log에서 직접 작성한 일지는 유지한다.
     */
     appState.logs =
       appState.logs.filter(
@@ -715,11 +744,12 @@ async function loadLegacyLogsForSelectedDate() {
             ).trim() ===
             selectedDate;
 
-          const isSameShift =
-            String(
-              log.shift || ""
-            ).trim() ===
-            appState.selectedShift;
+          const isLegacyShift =
+            ["DS", "NS"].includes(
+              String(
+                log.shift || ""
+              ).trim()
+            );
 
           const isLegacyLog =
             log.source ===
@@ -727,56 +757,73 @@ async function loadLegacyLogsForSelectedDate() {
 
           return !(
             isSameDate &&
-            isSameShift &&
+            isLegacyShift &&
             isLegacyLog
           );
         }
       );
 
-    /*
-      기존 서버 업무일지를 모두
-      현재 GS Shift Log 구조로 변환한다.
-    */
-    const convertedLogs =
-      legacyItems
-        .map(
-          (
-            item,
-            itemIndex
-          ) => {
-            return convertLegacyDiaryToLog(
-              item,
-              itemIndex,
-              selectedDate,
-              appState.selectedShift
-            );
-          }
-        )
-        .filter(Boolean);
+    const convertedLogs = [];
 
-    /*
-      2026년 7월 21일까지의 파트장 일지는
-      유사도 비교를 사용하지 않는다.
+    requestResults.forEach(
+      (requestResult) => {
+        const convertedShiftLogs =
+          requestResult.items
+            .map(
+              (
+                item,
+                itemIndex
+              ) => {
+                return convertLegacyDiaryToLog(
+                  item,
+                  itemIndex,
+                  selectedDate,
+                  requestResult.currentShift
+                );
+              }
+            )
+            .filter(Boolean);
 
-      같은 날짜·근무의 팀원 일지를 그대로 복사하여
-      보직별로 구분된 파트장 일지를 만든다.
-    */
-    if (
-      selectedDate <=
-      "2026-07-21"
-    ) {
-      rebuildLegacyLeaderLogFromMemberLogs(
-        convertedLogs
-      );
-    }
+        /*
+          2026년 7월 21일까지의 과거 파트장 일지는
+          D/S와 N/S를 각각 분리하여 재구성한다.
+        */
+        if (
+          selectedDate <=
+          "2026-07-21"
+        ) {
+          rebuildLegacyLeaderLogFromMemberLogs(
+            convertedShiftLogs
+          );
+        }
+
+        convertedLogs.push(
+          ...convertedShiftLogs
+        );
+      }
+    );
 
     appState.logs = [
       ...convertedLogs,
       ...appState.logs
     ];
 
+    const dsCount =
+      convertedLogs.filter(
+        (log) => {
+          return log.shift === "DS";
+        }
+      ).length;
+
+    const nsCount =
+      convertedLogs.filter(
+        (log) => {
+          return log.shift === "NS";
+        }
+      ).length;
+
     console.log(
-      `기존 업무일지 ${convertedLogs.length}건을 불러왔습니다.`
+      `기존 업무일지 D/S ${dsCount}건, N/S ${nsCount}건을 불러왔습니다.`
     );
 
   } catch (error) {
