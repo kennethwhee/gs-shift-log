@@ -857,7 +857,7 @@ function classifyLegacyLeaderEntries(
             해당 팀원의 업무로 판단한다.
           */
           entry.importedFromRole =
-            bestSimilarity >= 0.8
+            bestSimilarity >= 0.65
               ? bestMatchRole
               : "파트장";
 
@@ -901,8 +901,7 @@ function calculateLegacyContentSimilarity(
   }
 
   /*
-    한쪽 문장이 다른 쪽을 완전히 포함하는 경우
-    짧은 추가 설명 때문에 불일치하지 않게 한다.
+    한쪽 문장이 다른 문장을 포함하는 경우
   */
   const shorterText =
     firstText.length <=
@@ -920,19 +919,207 @@ function calculateLegacyContentSimilarity(
     longerText.includes(
       shorterText
     )
-      ? shorterText.length /
-        longerText.length
+      ? Math.min(
+          1,
+          shorterText.length /
+          Math.max(
+            longerText.length,
+            1
+          ) +
+          0.2
+        )
       : 0;
 
+
+  /*
+    글자 두 개 단위 유사도
+  */
   const diceScore =
     calculateDiceSimilarity(
       firstText,
       secondText
     );
 
+
+  /*
+    단어 및 설비 핵심어 유사도
+
+    영문 설비명, TAG, 숫자, 한글 단어가
+    얼마나 겹치는지 추가로 비교한다.
+  */
+  const firstTokens =
+    createLegacyComparisonTokens(
+      firstContent
+    );
+
+  const secondTokens =
+    createLegacyComparisonTokens(
+      secondContent
+    );
+
+  const tokenScore =
+    calculateLegacyTokenSimilarity(
+      firstTokens,
+      secondTokens
+    );
+
+
+  /*
+    문장 길이가 다르더라도
+    주요 단어가 동일하면 높은 점수를 준다.
+  */
+  const combinedScore =
+    (
+      diceScore *
+      0.45
+    ) +
+    (
+      tokenScore *
+      0.55
+    );
+
   return Math.max(
     containmentScore,
-    diceScore
+    diceScore,
+    tokenScore,
+    combinedScore
+  );
+}
+
+function createLegacyComparisonTokens(
+  content
+) {
+  const ignoredTokens =
+    new Set([
+      "실시",
+      "확인",
+      "점검",
+      "운전",
+      "작업",
+      "완료",
+      "정상",
+      "양호",
+      "관련",
+      "및",
+      "후",
+      "중",
+      "전",
+      "업무",
+      "인계사항"
+    ]);
+
+  return String(
+    content || ""
+  )
+    .toLowerCase()
+
+    /*
+      수기 번호 제거
+    */
+    .replace(
+      /^\s*\d+\s*[.)\-:]\s*/,
+      ""
+    )
+
+    /*
+      시간 표현은 비교에서 제외
+    */
+    .replace(
+      /\b(?:[01]?\d|2[0-3]):[0-5]\d\b/g,
+      " "
+    )
+
+    /*
+      한글·영문·숫자만 남긴다.
+    */
+    .replace(
+      /[^a-z0-9가-힣]+/g,
+      " "
+    )
+    .trim()
+    .split(/\s+/)
+    .map((token) => {
+      return token.trim();
+    })
+    .filter((token) => {
+      return (
+        token.length >= 2 &&
+        !ignoredTokens.has(
+          token
+        )
+      );
+    });
+}
+
+
+function calculateLegacyTokenSimilarity(
+  firstTokens,
+  secondTokens
+) {
+  if (
+    !Array.isArray(
+      firstTokens
+    ) ||
+    !Array.isArray(
+      secondTokens
+    ) ||
+    !firstTokens.length ||
+    !secondTokens.length
+  ) {
+    return 0;
+  }
+
+  const firstSet =
+    new Set(
+      firstTokens
+    );
+
+  const secondSet =
+    new Set(
+      secondTokens
+    );
+
+  const matchedTokens = [
+    ...firstSet
+  ].filter((token) => {
+    return secondSet.has(
+      token
+    );
+  });
+
+  if (
+    !matchedTokens.length
+  ) {
+    return 0;
+  }
+
+  const smallerTokenCount =
+    Math.min(
+      firstSet.size,
+      secondSet.size
+    );
+
+  const largerTokenCount =
+    Math.max(
+      firstSet.size,
+      secondSet.size
+    );
+
+  const coverageScore =
+    matchedTokens.length /
+    smallerTokenCount;
+
+  const balanceScore =
+    matchedTokens.length /
+    largerTokenCount;
+
+  return (
+    coverageScore *
+    0.7
+  ) +
+  (
+    balanceScore *
+    0.3
   );
 }
 
