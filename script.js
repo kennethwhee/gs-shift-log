@@ -625,49 +625,6 @@ function cacheElements() {
 }
 
 
-
-/* =========================================================
-  기존 업무일지 API 응답 배열 추출
-
-  서버 버전에 따라 배열 이름이 달라도 처리한다.
-  지원 형식:
-  - result.items
-  - result.diaries
-  - result.data
-  - result.logs
-  - result.data.items
-  - result.data.diaries
-========================================================= */
-
-function extractLegacyDiaryItems(
-  result
-) {
-  const candidates = [
-    result?.items,
-    result?.diaries,
-    result?.logs,
-    result?.data,
-    result?.data?.items,
-    result?.data?.diaries,
-    result?.data?.logs
-  ];
-
-  const matchedItems =
-    candidates.find(
-      (candidate) => {
-        return Array.isArray(
-          candidate
-        );
-      }
-    );
-
-  return Array.isArray(
-    matchedItems
-  )
-    ? matchedItems
-    : [];
-}
-
 /* =========================================================
   기존 업무일지 불러오기
 ========================================================= */
@@ -762,32 +719,15 @@ async function loadLegacyLogsForSelectedDate() {
                 shiftDefinition.currentShift,
 
               items:
-                extractLegacyDiaryItems(
-                  result
-                ),
-
-              responseCount:
-                Number(
-                  result.count || 0
+                Array.isArray(
+                  result.items
                 )
+                  ? result.items
+                  : []
             };
           }
         )
       );
-
-    requestResults.forEach(
-      (requestResult) => {
-        if (
-          requestResult.responseCount > 0 &&
-          requestResult.items.length === 0
-        ) {
-          console.warn(
-            "기존 업무일지 응답 건수는 있지만 배열을 찾지 못했습니다.",
-            requestResult
-          );
-        }
-      }
-    );
 
     /*
       선택 날짜에 전에 불러온 기존 서버 일지를
@@ -882,26 +822,8 @@ async function loadLegacyLogsForSelectedDate() {
         }
       ).length;
 
-    const dsResponseCount =
-      requestResults.find(
-        (result) => {
-          return result.currentShift === "DS";
-        }
-      )?.responseCount || 0;
-
-    const nsResponseCount =
-      requestResults.find(
-        (result) => {
-          return result.currentShift === "NS";
-        }
-      )?.responseCount || 0;
-
     console.log(
-      [
-        `기존 업무일지 변환 완료:`,
-        `D/S ${dsCount}건 (서버 ${dsResponseCount}건),`,
-        `N/S ${nsCount}건 (서버 ${nsResponseCount}건)`
-      ].join(" ")
+      `기존 업무일지 D/S ${dsCount}건, N/S ${nsCount}건을 불러왔습니다.`
     );
 
   } catch (error) {
@@ -1723,22 +1645,16 @@ function convertLegacyDiaryToLog(
     }
   );
 
-  const legacyDiaryId =
+  const legacyId =
     String(
       legacyItem.diary_id ||
-      itemIndex
-    ).trim();
-
-  /*
-    기존 서버에서 DAY와 NIGHT가 같은 diary_id를
-    사용할 수 있으므로 날짜·근무를 ID에 포함한다.
-  */
-  const legacyId = [
-    selectedDate,
-    selectedShift,
-    legacyDiaryId,
-    role
-  ].join("-");
+      [
+        selectedDate,
+        selectedShift,
+        role,
+        itemIndex
+      ].join("-")
+    );
 
   return {
     id:
@@ -3590,7 +3506,9 @@ function bindEvents() {
 
 
   /* =======================================================
-    날짜 이동
+    업무일지 이전·다음 이동
+
+    날짜와 근무를 함께 이동한다.
   ======================================================== */
 
   bindClick(
@@ -3613,18 +3531,10 @@ function bindEvents() {
   );
 
   /*
-    날짜/근무 표시를 누르면
-    D/S와 N/S를 전환한다.
-  */
-  bindClick(
-    elements.selectedShiftBadge,
-    toggleSelectedShift
-  );
+    N/S·D/S 배지는 현재 근무 표시 전용이다.
 
-  bindClick(
-    elements.currentShiftLabel,
-    toggleSelectedShift
-  );
+    근무 전환은 좌우 화살표로만 처리한다.
+  */
 
 
   /* =======================================================
@@ -4327,24 +4237,105 @@ function switchView(viewName) {
   날짜
 ========================================================= */
 async function moveSelectedDate(
-  dayOffset
+  direction
 ) {
-  const nextDate =
-    new Date(
+  const previousDateText =
+    formatInputDate(
       appState.selectedDate
     );
 
-  nextDate.setDate(
-    nextDate.getDate() +
-    dayOffset
-  );
+  /*
+    업무일지 이동 순서
 
-  appState.selectedDate =
-    nextDate;
+    다음:
+    17일 N/S → 17일 D/S
+    → 18일 N/S → 18일 D/S
+
+    이전:
+    위 순서의 반대로 이동한다.
+  */
+  if (direction > 0) {
+    if (
+      appState.selectedShift ===
+      "NS"
+    ) {
+      /*
+        같은 날짜의 N/S 다음은 D/S
+      */
+      appState.selectedShift =
+        "DS";
+    } else {
+      /*
+        같은 날짜의 D/S 다음은
+        다음 날짜 N/S
+      */
+      const nextDate =
+        new Date(
+          appState.selectedDate
+        );
+
+      nextDate.setDate(
+        nextDate.getDate() + 1
+      );
+
+      appState.selectedDate =
+        nextDate;
+
+      appState.selectedShift =
+        "NS";
+    }
+  } else {
+    if (
+      appState.selectedShift ===
+      "DS"
+    ) {
+      /*
+        같은 날짜의 D/S 이전은 N/S
+      */
+      appState.selectedShift =
+        "NS";
+    } else {
+      /*
+        같은 날짜의 N/S 이전은
+        이전 날짜 D/S
+      */
+      const previousDate =
+        new Date(
+          appState.selectedDate
+        );
+
+      previousDate.setDate(
+        previousDate.getDate() - 1
+      );
+
+      appState.selectedDate =
+        previousDate;
+
+      appState.selectedShift =
+        "DS";
+    }
+  }
 
   renderSelectedDate();
 
-  await loadLegacyLogsForSelectedDate();
+  const nextDateText =
+    formatInputDate(
+      appState.selectedDate
+    );
+
+  /*
+    날짜가 바뀐 경우에만 서버에서
+    해당 날짜의 D/S·N/S 일지를 다시 불러온다.
+
+    같은 날짜에서 N/S↔D/S로 전환할 때는
+    이미 불러온 데이터를 바로 표시한다.
+  */
+  if (
+    previousDateText !==
+    nextDateText
+  ) {
+    await loadLegacyLogsForSelectedDate();
+  }
 
   renderLogTable();
   updateShiftMemberCardStates();
@@ -4381,6 +4372,16 @@ function renderSelectedDate() {
 
   elements.selectedShiftBadge.textContent =
     shiftDisplayName;
+
+  elements.selectedShiftBadge.setAttribute(
+    "title",
+    "현재 선택된 근무"
+  );
+
+  elements.selectedShiftBadge.setAttribute(
+    "aria-label",
+    `현재 근무 ${shiftDisplayName}`
+  );
 
   elements.currentShiftLabel.textContent =
     `${dateText} ${shiftDisplayName}`;
