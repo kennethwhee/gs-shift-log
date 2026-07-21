@@ -562,15 +562,6 @@ async function loadLegacyLogsForSelectedDate() {
       ""
     );
 
-  /*
-    기존 시스템:
-    DAY   = 주간
-    NIGHT = 야간
-
-    GS Shift Log:
-    DS = 주간
-    NS = 야간
-  */
   const legacyShift =
     appState.selectedShift === "DS"
       ? "DAY"
@@ -600,7 +591,7 @@ async function loadLegacyLogsForSelectedDate() {
           method: "GET",
 
           headers: {
-            "Accept":
+            Accept:
               "application/json"
           },
 
@@ -630,11 +621,8 @@ async function loadLegacyLogsForSelectedDate() {
         : [];
 
     /*
-      같은 날짜와 근무에서 전에 불러온
-      기존 업무일지만 메모리에서 제거한다.
-
-      사용자가 새 시스템에서 직접 작성한 일지는
-      삭제하지 않는다.
+      현재 날짜와 근무의 기존 일지만 제거한다.
+      새 시스템에서 작성한 일지는 유지한다.
     */
     appState.logs =
       appState.logs.filter(
@@ -662,6 +650,9 @@ async function loadLegacyLogsForSelectedDate() {
         }
       );
 
+    /*
+      모든 기존 업무일지를 먼저 변환한다.
+    */
     const convertedLogs =
       legacyItems
         .map(
@@ -679,6 +670,14 @@ async function loadLegacyLogsForSelectedDate() {
         )
         .filter(Boolean);
 
+    /*
+      모든 보직 업무일지가 준비된 다음
+      파트장 업무 내용을 팀원 업무와 비교한다.
+    */
+    classifyLegacyLeaderEntries(
+      convertedLogs
+    );
+
     appState.logs = [
       ...convertedLogs,
       ...appState.logs
@@ -693,12 +692,371 @@ async function loadLegacyLogsForSelectedDate() {
       "기존 업무일지 불러오기 실패:",
       error
     );
+  }
+}
+
+function classifyLegacyLeaderEntries(
+  convertedLogs
+) {
+  if (
+    !Array.isArray(
+      convertedLogs
+    )
+  ) {
+    return;
+  }
+
+  const memberRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+  /*
+    비교할 팀원 업무 목록을 만든다.
+  */
+  const memberEntryCandidates =
+    [];
+
+  convertedLogs.forEach(
+    (log) => {
+      const logRole =
+        normalizeMemberLogRole(
+          log.role
+        );
+
+      if (
+        !memberRoles.includes(
+          logRole
+        )
+      ) {
+        return;
+      }
+
+      const entries =
+        Array.isArray(
+          log.entries
+        )
+          ? log.entries
+          : [];
+
+      entries.forEach(
+        (entry) => {
+          /*
+            TM은 보직별 인계 분류에서 제외한다.
+          */
+          if (
+            String(
+              entry.category || ""
+            ).trim() ===
+            "TM 발행"
+          ) {
+            return;
+          }
+
+          const content =
+            String(
+              entry.content || ""
+            ).trim();
+
+          if (!content) {
+            return;
+          }
+
+          memberEntryCandidates.push({
+            role:
+              logRole,
+
+            content
+          });
+        }
+      );
+    }
+  );
+
+  /*
+    파트장 업무일지를 찾아
+    각 항목을 팀원 업무와 비교한다.
+  */
+  convertedLogs.forEach(
+    (log) => {
+      const logRole =
+        normalizeMemberLogRole(
+          log.role
+        );
+
+      if (
+        logRole !==
+        "파트장"
+      ) {
+        return;
+      }
+
+      const entries =
+        Array.isArray(
+          log.entries
+        )
+          ? log.entries
+          : [];
+
+      entries.forEach(
+        (entry) => {
+          /*
+            TM 발행 내역은 모든 보직을 합산하므로
+            보직 분류를 하지 않는다.
+          */
+          if (
+            String(
+              entry.category || ""
+            ).trim() ===
+            "TM 발행"
+          ) {
+            entry.importedFromRole =
+              "";
+
+            return;
+          }
+
+          const leaderContent =
+            String(
+              entry.content || ""
+            ).trim();
+
+          let bestMatchRole =
+            "파트장";
+
+          let bestSimilarity =
+            0;
+
+          memberEntryCandidates.forEach(
+            (candidate) => {
+              const similarity =
+                calculateLegacyContentSimilarity(
+                  leaderContent,
+                  candidate.content
+                );
+
+              if (
+                similarity >
+                bestSimilarity
+              ) {
+                bestSimilarity =
+                  similarity;
+
+                bestMatchRole =
+                  candidate.role;
+              }
+            }
+          );
+
+          /*
+            유사도 80% 이상일 때만
+            해당 팀원의 업무로 판단한다.
+          */
+          entry.importedFromRole =
+            bestSimilarity >= 0.8
+              ? bestMatchRole
+              : "파트장";
+
+          entry.legacyMatchSimilarity =
+            Math.round(
+              bestSimilarity *
+              100
+            );
+        }
+      );
+    }
+  );
+}
+
+function calculateLegacyContentSimilarity(
+  firstContent,
+  secondContent
+) {
+  const firstText =
+    normalizeLegacyContentForComparison(
+      firstContent
+    );
+
+  const secondText =
+    normalizeLegacyContentForComparison(
+      secondContent
+    );
+
+  if (
+    !firstText ||
+    !secondText
+  ) {
+    return 0;
+  }
+
+  if (
+    firstText ===
+    secondText
+  ) {
+    return 1;
+  }
+
+  /*
+    한쪽 문장이 다른 쪽을 완전히 포함하는 경우
+    짧은 추가 설명 때문에 불일치하지 않게 한다.
+  */
+  const shorterText =
+    firstText.length <=
+    secondText.length
+      ? firstText
+      : secondText;
+
+  const longerText =
+    firstText.length >
+    secondText.length
+      ? firstText
+      : secondText;
+
+  const containmentScore =
+    longerText.includes(
+      shorterText
+    )
+      ? shorterText.length /
+        longerText.length
+      : 0;
+
+  const diceScore =
+    calculateDiceSimilarity(
+      firstText,
+      secondText
+    );
+
+  return Math.max(
+    containmentScore,
+    diceScore
+  );
+}
+
+
+function normalizeLegacyContentForComparison(
+  content
+) {
+  return String(
+    content || ""
+  )
+    .toLowerCase()
 
     /*
-      기존 서버 연결에 실패해도
-      새 GS Shift Log 화면은 정상 작동하게 한다.
+      줄 앞의 수기 번호 제거
     */
+    .replace(
+      /^\s*\d+\s*[.)\-:]\s*/,
+      ""
+    )
+
+    /*
+      문장 앞 시간 제거
+    */
+    .replace(
+      /^\s*(?:[01]?\d|2[0-3]):[0-5]\d\s*/,
+      ""
+    )
+
+    /*
+      비교에 방해되는 기호와 공백 제거
+    */
+    .replace(
+      /[^a-z0-9가-힣]/g,
+      ""
+    )
+    .trim();
+}
+
+
+function calculateDiceSimilarity(
+  firstText,
+  secondText
+) {
+  if (
+    firstText.length < 2 ||
+    secondText.length < 2
+  ) {
+    return (
+      firstText ===
+      secondText
+        ? 1
+        : 0
+    );
   }
+
+  const firstBigrams =
+    [];
+
+  const secondBigrams =
+    [];
+
+  for (
+    let index = 0;
+    index <
+    firstText.length - 1;
+    index += 1
+  ) {
+    firstBigrams.push(
+      firstText.slice(
+        index,
+        index + 2
+      )
+    );
+  }
+
+  for (
+    let index = 0;
+    index <
+    secondText.length - 1;
+    index += 1
+  ) {
+    secondBigrams.push(
+      secondText.slice(
+        index,
+        index + 2
+      )
+    );
+  }
+
+  const remainingBigrams =
+    [...secondBigrams];
+
+  let matchCount = 0;
+
+  firstBigrams.forEach(
+    (bigram) => {
+      const matchedIndex =
+        remainingBigrams.indexOf(
+          bigram
+        );
+
+      if (
+        matchedIndex === -1
+      ) {
+        return;
+      }
+
+      matchCount += 1;
+
+      remainingBigrams.splice(
+        matchedIndex,
+        1
+      );
+    }
+  );
+
+  return (
+    2 *
+    matchCount /
+    (
+      firstBigrams.length +
+      secondBigrams.length
+    )
+  );
 }
 
 /* =========================================================
