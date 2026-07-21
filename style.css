@@ -6304,3 +6304,566 @@ td {
   background: #fff7e8;
   color: #8d5e18;
 }
+
+/* =========================================================
+  파트장 작성창 업무일지 표 - 최종 정돈
+
+  적용 대상
+  - TM 발행 내역
+  - TGO / BCO1 / BCO2 등 보직별 업무일지
+  - 번호 / 시간 / 내용 정렬
+========================================================= */
+
+
+/* =========================================================
+  표 전체
+========================================================= */
+
+#logEntryListPanel .log-entry-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+
+  border: 1px solid #d9e3ed;
+  border-radius: 9px;
+
+  background: #ffffff;
+}
+
+#logEntryListPanel .log-entry-table {
+  width: 100%;
+  min-width: 760px;
+
+  border-collapse: collapse;
+  table-layout: fixed;
+
+  background: #ffffff;
+}
+
+
+/* =========================================================
+  표 제목
+========================================================= */
+
+#logEntryListPanel .log-entry-table thead th {
+  height: 38px;
+  padding: 8px 10px;
+
+  border: 0;
+  border-bottom: 1px solid #d7e1eb;
+
+  background: #f4f7fa;
+
+  color: #526278;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.3;
+
+  text-align: center;
+  vertical-align: middle;
+}
+
+
+/* =========================================================
+  열 너비 고정
+
+  일반 업무:
+  구분 96px
+  시간 90px
+  내용 나머지 전체
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-table__category,
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-category-cell-wrap {
+  width: 96px !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-table__time,
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-time-cell {
+  width: 90px !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-table__content,
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-content-cell {
+  width: auto !important;
+}
+
+
+/* =========================================================
+  일반 업무 행
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+tbody tr:not(.log-entry-role-divider-row)
+td {
+  padding: 9px 10px !important;
+
+  border: 0;
+  border-bottom: 1px solid #e3e9f0;
+
+  background: #ffffff;
+
+  vertical-align: middle !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+
+/* =========================================================
+  구분 칸
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-category-cell-wrap {
+  padding-right: 8px !important;
+  padding-left: 8px !important;
+
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-category-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  min-width: 0;
+}
+
+
+/* =========================================================
+  시간 칸
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-time-cell {
+  padding-right: 8px !important;
+  padding-left: 8px !important;
+
+  color: #29425f;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+
+  text-align: center !important;
+  vertical-align: middle !important;
+
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-time-group-label {
+  display: block;
+
+  width: 100%;
+  margin: 0;
+  padding: 0;
+
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+
+  text-align: center;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  내용 칸
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-content-cell {
+  min-width: 0;
+  padding-right: 14px !important;
+  padding-left: 12px !important;
+
+  text-align: left !important;
+  vertical-align: middle !important;
+}
+
+
+/*
+  번호와 내용을 한 줄 구조로 고정한다.
+*/
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-line {
+  display: grid !important;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    28px
+    minmax(0, 1fr);
+
+  align-items: start;
+  column-gap: 7px;
+
+  margin: 0;
+  padding: 0;
+
+  color: #27384e;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.55;
+
+  text-align: left;
+}
+
+
+/*
+  번호
+*/
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-number {
+  display: block;
+
+  width: 28px;
+  min-width: 28px;
+
+  margin: 0;
+  padding: 0;
+
+  color: #1763c5;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.55;
+
+  text-align: right;
+  white-space: nowrap;
+}
+
+
+/*
+  실제 내용
+*/
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-text {
+  display: block;
+
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+
+  color: #27384e;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.55;
+
+  text-align: left;
+
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+  보직별 제목 행
+========================================================= */
+
+#logEntryListPanel
+.log-entry-role-divider-row td {
+  width: auto !important;
+  height: auto;
+
+  padding: 0 !important;
+
+  border: 0 !important;
+  border-top: 1px solid #cbd8e5 !important;
+  border-bottom: 1px solid #dce5ee !important;
+
+  background: #f7f9fc !important;
+}
+
+#logEntryListPanel
+.log-entry-role-divider-row.is-first-role td {
+  border-top: 0 !important;
+}
+
+#logEntryListPanel
+.log-entry-role-divider {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  width: 100%;
+  min-height: 40px;
+
+  margin: 0;
+  padding: 8px 12px;
+
+  border: 0;
+  border-radius: 0;
+
+  background: transparent;
+}
+
+#logEntryListPanel
+.log-entry-role-divider strong {
+  color: #26384f;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+#logEntryListPanel
+.log-entry-role-divider__count {
+  color: #8491a1;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  보직 배지
+========================================================= */
+
+#logEntryListPanel
+.log-entry-role-divider__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 46px;
+  min-height: 21px;
+  padding: 0 7px;
+
+  border: 1px solid #cbd6e1;
+  border-radius: 6px;
+
+  background: #f3f6f9;
+  color: #596b80;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+#logEntryListPanel
+.log-entry-role-divider__badge.is-tgo {
+  border-color: #a9c9ec;
+  background: #eaf3ff;
+  color: #1763c5;
+}
+
+#logEntryListPanel
+.log-entry-role-divider__badge.is-bco1 {
+  border-color: #acd8c1;
+  background: #ebf8f1;
+  color: #188451;
+}
+
+#logEntryListPanel
+.log-entry-role-divider__badge.is-bco2 {
+  border-color: #d2bee8;
+  background: #f5effb;
+  color: #74419c;
+}
+
+#logEntryListPanel
+.log-entry-role-divider__badge.is-leader {
+  border-color: #dfc99f;
+  background: #fff7e8;
+  color: #956115;
+}
+
+
+/* =========================================================
+  TM 발행 표
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-table__category,
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-category-cell-wrap {
+  width: 96px !important;
+}
+
+#logEntryListPanel
+.log-entry-table--tm
+tbody td {
+  padding: 10px !important;
+
+  border: 0;
+  border-bottom: 1px solid #e3e9f0;
+
+  vertical-align: middle !important;
+}
+
+#logEntryListPanel
+.log-entry-table--tm
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-content-cell {
+  min-width: 0;
+  padding-right: 14px !important;
+  padding-left: 12px !important;
+
+  text-align: left !important;
+}
+
+
+/*
+  TM 번호와 내용 정렬
+*/
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-tm-line {
+  display: grid !important;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    28px
+    minmax(0, 1fr);
+
+  align-items: start;
+  column-gap: 7px;
+
+  margin: 0;
+  padding: 0;
+
+  text-align: left;
+}
+
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-tm-number {
+  display: block;
+
+  width: 28px;
+  min-width: 28px;
+
+  margin: 0;
+  padding: 0;
+
+  color: #b26f0d;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.55;
+
+  text-align: right;
+  white-space: nowrap;
+}
+
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-tm-text {
+  display: block;
+
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+
+  color: #27384e;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.55;
+
+  text-align: left;
+
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+  TAG 버튼
+========================================================= */
+
+#logEntryListPanel
+.log-entry-inline-tag {
+  display: inline-flex;
+
+  margin: 3px 0 0 35px;
+  padding: 1px 5px;
+
+  border: 1px solid #bfd6ef;
+  border-radius: 5px;
+
+  background: #edf5ff;
+  color: #1763c5;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.4;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+  #logEntryListPanel .log-entry-table {
+    min-width: 680px;
+  }
+
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-table__category,
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-category-cell-wrap,
+  #logEntryListPanel
+  .log-entry-table--tm
+  .log-entry-table__category,
+  #logEntryListPanel
+  .log-entry-table--tm
+  .log-entry-category-cell-wrap {
+    width: 82px !important;
+  }
+
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-table__time,
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-time-cell {
+    width: 76px !important;
+  }
+}
