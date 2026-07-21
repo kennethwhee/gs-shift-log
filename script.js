@@ -9920,10 +9920,18 @@ function openLogDetail(log) {
     운전현황
   ====================================================== */
 
-  const operationStatusText =
-    String(
-      log.operationStatus || ""
-    ).trim();
+const operationStatusText =
+  String(
+    log.operationStatus || ""
+  )
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((line) => {
+      return line.trim();
+    })
+    .filter(Boolean)
+    .join("\n");
 
   const operationStatusHtml =
     operationStatusText

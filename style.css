@@ -6155,3 +6155,37 @@ td {
 .approval-confirm-button[hidden] {
   display: none !important;
 }
+
+/* =========================================================
+  업무일지 상세보기 모달 너비 확대
+========================================================= */
+
+.log-detail-modal {
+  width: min(1180px, calc(100vw - 48px));
+  max-width: 1180px;
+  height: min(92vh, 980px);
+}
+
+.log-detail-modal .modal-body {
+  padding: 16px;
+}
+
+@media (max-width: 768px) {
+  .log-detail-modal {
+    width: calc(100vw - 16px);
+    max-width: none;
+    height: calc(100vh - 16px);
+  }
+
+  .log-detail-modal .modal-body {
+    padding: 10px;
+  }
+}
+
+.detail-document-text {
+  margin: 0;
+  padding: 0;
+
+  text-align: left;
+  white-space: pre-line;
+}
