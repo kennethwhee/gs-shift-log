@@ -4738,25 +4738,17 @@ function createLogRowHtml(log) {
     ).trim()
   ) {
     previewGroups.push({
-      title:
-        "운전현황",
-
-      text:
-        firstMeaningfulLine(
-          log.operationStatus
-        ),
-
-      tag:
-        "",
-
-      categoryClass:
-        "is-operation"
+      title: "운전현황",
+      text: firstMeaningfulLine(
+        log.operationStatus
+      ),
+      tag: "",
+      categoryClass: "is-operation"
     });
   }
 
   /*
-    등록된 전체 업무내역을
-    시간순으로 정렬한다.
+    등록된 전체 업무내역을 시간순으로 정렬한다.
   */
   const entries =
     Array.isArray(log.entries)
@@ -4834,19 +4826,14 @@ function createLogRowHtml(log) {
       .join(" ");
 
     previewGroups.push({
-      title:
-        displayTitle,
-
-      keepTitleSpace:
-        true,
+      title: displayTitle,
 
       tag:
         tagText
           ? `[${tagText}]`
           : "",
 
-      text:
-        displayText,
+      text: displayText,
 
       categoryClass:
         isTmIssue
@@ -4864,22 +4851,12 @@ function createLogRowHtml(log) {
     ).trim()
   ) {
     previewGroups.push({
-      title:
-        "비고",
-
-      keepTitleSpace:
-        false,
-
-      tag:
-        "",
-
-      text:
-        firstMeaningfulLine(
-          log.note
-        ),
-
-      categoryClass:
-        "is-note"
+      title: "비고",
+      text: firstMeaningfulLine(
+        log.note
+      ),
+      tag: "",
+      categoryClass: "is-note"
     });
   }
 
@@ -4899,20 +4876,15 @@ function createLogRowHtml(log) {
         )}
       </td>
 
-
       <td class="log-row__author-cell">
-
         <strong class="log-row__author">
           ${escapeHtml(
             log.author || "-"
           )}
         </strong>
-
       </td>
 
-
       <td class="log-row__status-cell">
-
         <span
           class="status-badge ${getStatusClass(
             log.status
@@ -4922,12 +4894,9 @@ function createLogRowHtml(log) {
             log.status || "-"
           )}
         </span>
-
       </td>
 
-
       <td class="log-row__attachment-cell">
-
         ${
           attachmentCount > 0
             ? `
@@ -4948,12 +4917,9 @@ function createLogRowHtml(log) {
               </span>
             `
         }
-
       </td>
 
-
       <td class="log-row__preview-cell">
-
         <button
           type="button"
           class="log-preview"
@@ -4966,7 +4932,6 @@ function createLogRowHtml(log) {
             log.author || ""
           )} 업무일지 상세보기"
         >
-
           ${
             previewGroups.length
               ? previewGroups
@@ -4976,37 +4941,30 @@ function createLogRowHtml(log) {
                         class="
                           log-preview__group
                           ${group.categoryClass}
-                        "
-                      >
-
-                        <strong
-                          class="
-                            log-preview__title
-                            ${
-                              group.title
-                                ? ""
-                                : "is-placeholder"
-                            }
-                          "
-                          aria-hidden="${
-                            group.title
-                              ? "false"
-                              : "true"
-                          }"
-                        >
                           ${
                             group.title
-                              ? escapeHtml(
-                                  group.title
-                                )
-                              : "&nbsp;"
+                              ? ""
+                              : "has-no-title"
                           }
-                        </strong>
+                        "
+                      >
+                        ${
+                          group.title
+                            ? `
+                              <strong
+                                class="log-preview__title"
+                              >
+                                ${escapeHtml(
+                                  group.title
+                                )}
+                              </strong>
+                            `
+                            : ""
+                        }
 
                         <span
                           class="log-preview__content"
                         >
-
                           ${
                             group.tag
                               ? `
@@ -5028,9 +4986,7 @@ function createLogRowHtml(log) {
                               group.text || "-"
                             )}
                           </span>
-
                         </span>
-
                       </span>
                     `;
                   })
@@ -5041,16 +4997,11 @@ function createLogRowHtml(log) {
                 </span>
               `
           }
-
         </button>
-
       </td>
 
-
       <td class="log-row__actions-cell">
-
         <div class="row-actions">
-
           <button
             type="button"
             class="table-action-button"
@@ -5060,17 +5011,13 @@ function createLogRowHtml(log) {
             )}"
           >
             ${
-              log.status ===
-                "작성중" ||
-              log.status ===
-                "임시저장"
+              log.status === "작성중" ||
+              log.status === "임시저장"
                 ? "이어쓰기"
                 : "수정"
             }
           </button>
-
         </div>
-
       </td>
 
     </tr>
