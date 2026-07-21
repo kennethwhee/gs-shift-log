@@ -3413,15 +3413,12 @@ function renderLogEntryTable() {
       JSON.stringify(entries);
   }
 
-  if (
-    !elements.logEntryTableBody
-  ) {
+  if (!elements.logEntryTableBody) {
     return;
   }
 
   if (
-    elements
-      .selectAllLogEntriesCheckbox
+    elements.selectAllLogEntriesCheckbox
   ) {
     elements
       .selectAllLogEntriesCheckbox
@@ -3464,18 +3461,25 @@ function renderLogEntryTable() {
   }
 
   if (!entries.length) {
-    elements.logEntryTableBody
-      .innerHTML = `
-        <tr class="log-entry-empty-row">
-          <td colspan="5">
-            등록된 작업 내역이 없습니다.
-          </td>
-        </tr>
-      `;
+    elements.logEntryTableBody.innerHTML = `
+      <tr class="log-entry-empty-row">
+        <td colspan="5">
+          등록된 작업 내역이 없습니다.
+        </td>
+      </tr>
+    `;
 
     updateMemberLogImportCount();
     return;
   }
+
+  const currentRole =
+    normalizeMemberLogRole(
+      elements.logRole?.value || ""
+    );
+
+  const isLeaderLog =
+    currentRole === "파트장";
 
   elements.logEntryTableBody.innerHTML =
     entries
@@ -3484,38 +3488,42 @@ function renderLogEntryTable() {
           index ===
           appState.editingEntryIndex;
 
-        const sourceRole =
-          String(
-            entry.importedFromRole ||
-            (
-              elements.logRole
-                ?.value ===
-              "파트장"
-                ? "파트장"
-                : elements.logRole
-                    ?.value ||
-                  ""
-            )
-          ).trim();
-
-        const sourceAuthor =
-          String(
-            entry.importedFromAuthor ||
-            ""
-          ).trim();
-
-        const sourceClass =
-          getLogEntrySourceClass(
-            sourceRole
+        const importedRole =
+          normalizeMemberLogRole(
+            entry.importedFromRole || ""
           );
 
+        const importedAuthor =
+          String(
+            entry.importedFromAuthor || ""
+          ).trim();
+
+        /*
+          파트장이 팀원 일지를 가져온 항목에만
+          출처 보직 배지를 표시한다.
+
+          TGO 본인 일지, BCO1 본인 일지 등에는
+          보직 배지를 표시하지 않는다.
+        */
+        const shouldShowSourceBadge =
+          isLeaderLog &&
+          importedRole &&
+          importedRole !== "파트장";
+
+        const sourceClass =
+          shouldShowSourceBadge
+            ? getLogEntrySourceClass(
+                importedRole
+              )
+            : "";
+
         const sourceTitle =
-          sourceAuthor
-            ? `${sourceRole} · ${sourceAuthor}`
-            : sourceRole;
+          importedAuthor
+            ? `${importedRole} · ${importedAuthor}`
+            : importedRole;
 
         const sourceBadgeHtml =
-          sourceRole
+          shouldShowSourceBadge
             ? `
               <span
                 class="
@@ -3527,7 +3535,7 @@ function renderLogEntryTable() {
                 )}"
               >
                 ${escapeHtml(
-                  sourceRole
+                  importedRole
                 )}
               </span>
             `
@@ -3540,10 +3548,24 @@ function renderLogEntryTable() {
             .trim()
             .toUpperCase();
 
+        const timeText =
+          String(
+            entry.time || ""
+          ).trim();
+
+        const categoryText =
+          String(
+            entry.category || "-"
+          ).trim();
+
+        const contentText =
+          String(
+            entry.content || "-"
+          ).trim();
+
         const tagHtml =
           tagText
-            ? `
-              <button
+            ? `<button
                 type="button"
                 class="log-entry-inline-tag"
                 data-entry-action="navigator"
@@ -3551,14 +3573,8 @@ function renderLogEntryTable() {
                 title="Facility Navigator에서 설비 보기"
               >[${escapeHtml(
                 tagText
-              )}]</button>
-            `
+              )}]</button>`
             : "";
-
-        const timeText =
-          String(
-            entry.time || ""
-          ).trim();
 
         return `
           <tr
@@ -3569,7 +3585,6 @@ function renderLogEntryTable() {
                 : ""
             }"
           >
-
             <td class="log-entry-select-cell">
               <input
                 type="checkbox"
@@ -3579,23 +3594,17 @@ function renderLogEntryTable() {
               />
             </td>
 
-
             <td class="log-entry-category-cell-wrap">
-
               <div class="log-entry-category-cell">
-
                 ${sourceBadgeHtml}
 
                 <span class="log-entry-category-text">
                   ${escapeHtml(
-                    entry.category || "-"
+                    categoryText
                   )}
                 </span>
-
               </div>
-
             </td>
-
 
             <td class="log-entry-time-cell">
               ${escapeHtml(
@@ -3603,32 +3612,20 @@ function renderLogEntryTable() {
               )}
             </td>
 
-
             <td class="log-entry-content-cell">
-
-              <div class="log-entry-inline-content">
-
-                ${
+              <span class="log-entry-inline-content">
+                ${tagHtml}${
                   tagHtml
-                    ? `${tagHtml} `
+                    ? " "
                     : ""
-                }
-
-                <span class="log-entry-inline-content__text">
-                  ${escapeHtml(
-                    entry.content || "-"
-                  )}
-                </span>
-
-              </div>
-
+                }<span class="log-entry-inline-content__text">${escapeHtml(
+                  contentText
+                )}</span>
+              </span>
             </td>
 
-
             <td class="log-entry-actions-cell">
-
               <div class="log-entry-row-actions">
-
                 <button
                   type="button"
                   class="log-entry-edit-button"
@@ -3646,11 +3643,8 @@ function renderLogEntryTable() {
                 >
                   삭제
                 </button>
-
               </div>
-
             </td>
-
           </tr>
         `;
       })
@@ -4728,43 +4722,85 @@ function createLogRowHtml(log) {
     });
   }
 
-  const firstEntry =
-    log.entries?.find(
-      (entry) => {
-        return Boolean(
-          entry.content
-        );
-      }
-    );
+  const entries =
+    Array.isArray(log.entries)
+      ? log.entries
+      : [];
 
-  if (firstEntry) {
-    const mainCategory =
-      getMainCategory(
-        firstEntry.category
+  const tmIssueEntry =
+    entries.find((entry) => {
+      return (
+        String(
+          entry.category || ""
+        ).trim() ===
+        "TM 발행"
       );
+    });
 
+  if (tmIssueEntry) {
     const tagText =
-      firstEntry.tag
-        ? `[${firstEntry.tag}]`
-        : "";
+      String(
+        tmIssueEntry.tag || ""
+      )
+        .trim()
+        .toUpperCase();
 
     previewGroups.push({
       title:
-        mainCategory,
+        "TM",
 
       tag:
-        tagText,
+        tagText
+          ? `[${tagText}]`
+          : "",
 
       text:
         firstMeaningfulLine(
-          firstEntry.content
+          tmIssueEntry.content
         ),
 
       categoryClass:
-        mainCategory ===
-        "인계사항"
-          ? "is-handover"
-          : "is-maintenance"
+        "is-maintenance"
+    });
+  }
+
+  const handoverEntry =
+    entries.find((entry) => {
+      return (
+        String(
+          entry.category || ""
+        ).trim() !==
+        "TM 발행"
+      );
+    });
+
+  if (
+    handoverEntry &&
+    previewGroups.length < 3
+  ) {
+    const tagText =
+      String(
+        handoverEntry.tag || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    previewGroups.push({
+      title:
+        "인계",
+
+      tag:
+        tagText
+          ? `[${tagText}]`
+          : "",
+
+      text:
+        firstMeaningfulLine(
+          handoverEntry.content
+        ),
+
+      categoryClass:
+        "is-handover"
     });
   }
 
@@ -4830,7 +4866,7 @@ function createLogRowHtml(log) {
                 title="첨부파일 ${attachmentCount}개"
                 aria-label="첨부파일 ${attachmentCount}개"
               >
-                📎
+                ${attachmentCount}
               </span>
             `
             : `
@@ -4838,26 +4874,25 @@ function createLogRowHtml(log) {
                 class="attachment-indicator is-empty"
                 aria-label="첨부파일 없음"
               >
-                -
+                0
               </span>
             `
         }
       </td>
 
-      <td
-        class="log-row__preview-cell"
-        data-action="view"
-        data-log-id="${escapeHtml(
-          log.id
-        )}"
-        role="button"
-        tabindex="0"
-        title="업무내용 상세보기"
-        aria-label="${escapeHtml(
-          log.author || ""
-        )} 업무일지 상세보기"
-      >
-        <div class="log-preview">
+      <td class="log-row__preview-cell">
+        <button
+          type="button"
+          class="log-preview"
+          data-action="view"
+          data-log-id="${escapeHtml(
+            log.id
+          )}"
+          title="업무일지 상세보기"
+          aria-label="${escapeHtml(
+            log.author || ""
+          )} 업무일지 상세보기"
+        >
           ${
             previewGroups.length
               ? previewGroups
@@ -4883,9 +4918,7 @@ function createLogRowHtml(log) {
                           ${
                             group.tag
                               ? `
-                                <span
-                                  class="log-preview__tag"
-                                >
+                                <span class="log-preview__tag">
                                   ${escapeHtml(
                                     group.tag
                                   )}
@@ -4894,9 +4927,7 @@ function createLogRowHtml(log) {
                               : ""
                           }
 
-                          <span
-                            class="log-preview__text"
-                          >
+                          <span class="log-preview__text">
                             ${escapeHtml(
                               group.text || "-"
                             )}
@@ -4912,7 +4943,7 @@ function createLogRowHtml(log) {
                 </span>
               `
           }
-        </div>
+        </button>
       </td>
 
       <td class="log-row__actions-cell">
@@ -4925,7 +4956,12 @@ function createLogRowHtml(log) {
               log.id
             )}"
           >
-            수정
+            ${
+              log.status === "작성중" ||
+              log.status === "임시저장"
+                ? "이어쓰기"
+                : "수정"
+            }
           </button>
         </div>
       </td>
@@ -4935,27 +4971,64 @@ function createLogRowHtml(log) {
 
 
 function handleLogTableClick(event) {
-  const actionButton = event.target.closest("[data-action]");
+  const actionElement =
+    event.target.closest(
+      "[data-action][data-log-id]"
+    );
 
-  if (!actionButton) {
+  if (
+    !actionElement ||
+    !elements.logTableBody?.contains(
+      actionElement
+    )
+  ) {
     return;
   }
 
-  const log = appState.logs.find(
-    (item) => item.id === actionButton.dataset.logId
-  );
+  const logId =
+    String(
+      actionElement.dataset.logId ||
+      ""
+    ).trim();
+
+  const action =
+    String(
+      actionElement.dataset.action ||
+      ""
+    ).trim();
+
+  if (!logId) {
+    showToast(
+      "업무일지 정보를 확인할 수 없습니다."
+    );
+
+    return;
+  }
+
+  const log =
+    appState.logs.find((item) => {
+      return (
+        String(item.id || "") ===
+        logId
+      );
+    });
 
   if (!log) {
-    showToast("업무일지를 찾을 수 없습니다.");
+    showToast(
+      "업무일지를 찾을 수 없습니다."
+    );
+
     return;
   }
 
-  if (actionButton.dataset.action === "edit") {
+  if (action === "edit") {
     openLogEditor(log);
     return;
   }
 
-  openLogDetail(log);
+  if (action === "view") {
+    openLogDetail(log);
+  }
 }
 
 
