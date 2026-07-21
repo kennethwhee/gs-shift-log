@@ -1593,6 +1593,17 @@ function convertLegacyDiaryToLog(
           parsedLine,
           lineIndex
         ) => {
+          const separatedTmContent =
+            category === "TM 발행"
+              ? extractLegacyTagFromContent(
+                  parsedLine.content
+                )
+              : {
+                  tag: "",
+                  content:
+                    parsedLine.content
+                };
+
           entries.push({
             id: [
               "legacy-entry",
@@ -1607,10 +1618,11 @@ function convertLegacyDiaryToLog(
             time:
               parsedLine.time,
 
-            tag: "",
+            tag:
+              separatedTmContent.tag,
 
             content:
-              parsedLine.content,
+              separatedTmContent.content,
 
             attachmentName: "",
 
@@ -1676,11 +1688,16 @@ function convertLegacyDiaryToLog(
         ""
       ).trim(),
 
-    group:
-      String(
-        legacyItem.group ||
-        ""
-      ).trim(),
+    team:
+      getScheduledPart(
+        selectedDate,
+        selectedShift
+      ),
+
+    /*
+      기존 GROUP_1, GROUP_2 값은 화면에서 사용하지 않는다.
+    */
+    group: "",
 
     operationStatus,
 
@@ -3506,9 +3523,7 @@ function bindEvents() {
 
 
   /* =======================================================
-    업무일지 이전·다음 이동
-
-    날짜와 근무를 함께 이동한다.
+    날짜 이동
   ======================================================== */
 
   bindClick(
@@ -3531,10 +3546,18 @@ function bindEvents() {
   );
 
   /*
-    N/S·D/S 배지는 현재 근무 표시 전용이다.
-
-    근무 전환은 좌우 화살표로만 처리한다.
+    날짜/근무 표시를 누르면
+    D/S와 N/S를 전환한다.
   */
+  bindClick(
+    elements.selectedShiftBadge,
+    toggleSelectedShift
+  );
+
+  bindClick(
+    elements.currentShiftLabel,
+    toggleSelectedShift
+  );
 
 
   /* =======================================================
@@ -4237,105 +4260,24 @@ function switchView(viewName) {
   날짜
 ========================================================= */
 async function moveSelectedDate(
-  direction
+  dayOffset
 ) {
-  const previousDateText =
-    formatInputDate(
+  const nextDate =
+    new Date(
       appState.selectedDate
     );
 
-  /*
-    업무일지 이동 순서
+  nextDate.setDate(
+    nextDate.getDate() +
+    dayOffset
+  );
 
-    다음:
-    17일 N/S → 17일 D/S
-    → 18일 N/S → 18일 D/S
-
-    이전:
-    위 순서의 반대로 이동한다.
-  */
-  if (direction > 0) {
-    if (
-      appState.selectedShift ===
-      "NS"
-    ) {
-      /*
-        같은 날짜의 N/S 다음은 D/S
-      */
-      appState.selectedShift =
-        "DS";
-    } else {
-      /*
-        같은 날짜의 D/S 다음은
-        다음 날짜 N/S
-      */
-      const nextDate =
-        new Date(
-          appState.selectedDate
-        );
-
-      nextDate.setDate(
-        nextDate.getDate() + 1
-      );
-
-      appState.selectedDate =
-        nextDate;
-
-      appState.selectedShift =
-        "NS";
-    }
-  } else {
-    if (
-      appState.selectedShift ===
-      "DS"
-    ) {
-      /*
-        같은 날짜의 D/S 이전은 N/S
-      */
-      appState.selectedShift =
-        "NS";
-    } else {
-      /*
-        같은 날짜의 N/S 이전은
-        이전 날짜 D/S
-      */
-      const previousDate =
-        new Date(
-          appState.selectedDate
-        );
-
-      previousDate.setDate(
-        previousDate.getDate() - 1
-      );
-
-      appState.selectedDate =
-        previousDate;
-
-      appState.selectedShift =
-        "DS";
-    }
-  }
+  appState.selectedDate =
+    nextDate;
 
   renderSelectedDate();
 
-  const nextDateText =
-    formatInputDate(
-      appState.selectedDate
-    );
-
-  /*
-    날짜가 바뀐 경우에만 서버에서
-    해당 날짜의 D/S·N/S 일지를 다시 불러온다.
-
-    같은 날짜에서 N/S↔D/S로 전환할 때는
-    이미 불러온 데이터를 바로 표시한다.
-  */
-  if (
-    previousDateText !==
-    nextDateText
-  ) {
-    await loadLegacyLogsForSelectedDate();
-  }
+  await loadLegacyLogsForSelectedDate();
 
   renderLogTable();
   updateShiftMemberCardStates();
@@ -4373,18 +4315,20 @@ function renderSelectedDate() {
   elements.selectedShiftBadge.textContent =
     shiftDisplayName;
 
-  elements.selectedShiftBadge.setAttribute(
-    "title",
-    "현재 선택된 근무"
-  );
-
-  elements.selectedShiftBadge.setAttribute(
-    "aria-label",
-    `현재 근무 ${shiftDisplayName}`
-  );
+  const scheduledPart =
+    getScheduledPart(
+      appState.selectedDate,
+      appState.selectedShift
+    );
 
   elements.currentShiftLabel.textContent =
-    `${dateText} ${shiftDisplayName}`;
+    [
+      dateText,
+      shiftDisplayName,
+      scheduledPart
+    ]
+      .filter(Boolean)
+      .join(" · ");
 
   setEditorDateFromSelectedDate();
 }
@@ -4395,8 +4339,35 @@ function setEditorDateFromSelectedDate() {
     return;
   }
 
-  elements.logDate.value = formatInputDate(appState.selectedDate);
-  elements.logShift.value = appState.selectedShift;
+  elements.logDate.value =
+    formatInputDate(
+      appState.selectedDate
+    );
+
+  elements.logShift.value =
+    appState.selectedShift;
+
+  const scheduledPart =
+    getScheduledPart(
+      appState.selectedDate,
+      appState.selectedShift
+    );
+
+  if (
+    scheduledPart &&
+    elements.logTeam &&
+    [
+      ...elements.logTeam.options
+    ].some((option) => {
+      return (
+        option.value ===
+        scheduledPart
+      );
+    })
+  ) {
+    elements.logTeam.value =
+      scheduledPart;
+  }
 }
 
 
@@ -4429,6 +4400,161 @@ function formatInputDate(date) {
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0")
   ].join("-");
+}
+
+/* =========================================================
+  4파트 교대근무표 계산
+
+  기준 근무표:
+  2026-07-15
+  - D/S : 2파트
+  - N/S : 1파트
+
+  8일 주기로 반복:
+  1~2일  : D/S 2파트, N/S 1파트
+  3~4일  : D/S 3파트, N/S 4파트
+  5~6일  : D/S 1파트, N/S 2파트
+  7~8일  : D/S 4파트, N/S 3파트
+========================================================= */
+
+function getScheduledPart(
+  date,
+  shift
+) {
+  const targetDate =
+    date instanceof Date
+      ? new Date(
+          date.getFullYear(),
+          date.getMonth(),
+          date.getDate()
+        )
+      : new Date(
+          `${String(date || "")}T00:00:00`
+        );
+
+  if (
+    Number.isNaN(
+      targetDate.getTime()
+    )
+  ) {
+    return "";
+  }
+
+  const anchorDate =
+    new Date(
+      2026,
+      6,
+      15
+    );
+
+  const dayDifference =
+    Math.round(
+      (
+        targetDate.getTime() -
+        anchorDate.getTime()
+      ) /
+      86400000
+    );
+
+  const cycleDay =
+    (
+      (
+        dayDifference %
+        8
+      ) +
+      8
+    ) %
+    8;
+
+  const cycleIndex =
+    Math.floor(
+      cycleDay / 2
+    );
+
+  const normalizedShift =
+    String(
+      shift || ""
+    )
+      .trim()
+      .toUpperCase();
+
+  const scheduleMap = {
+    DS: [
+      "2파트",
+      "3파트",
+      "1파트",
+      "4파트"
+    ],
+
+    NS: [
+      "1파트",
+      "4파트",
+      "2파트",
+      "3파트"
+    ]
+  };
+
+  return (
+    scheduleMap[
+      normalizedShift
+    ]?.[
+      cycleIndex
+    ] ||
+    ""
+  );
+}
+
+
+/* =========================================================
+  기존 TM 내용에서 TAG 분리
+
+  예:
+  [10HFB10AF001] Bio Rotary Feeder 점검
+  → tag     : 10HFB10AF001
+  → content : Bio Rotary Feeder 점검
+========================================================= */
+
+function extractLegacyTagFromContent(
+  rawContent
+) {
+  const sourceText =
+    String(
+      rawContent || ""
+    ).trim();
+
+  if (!sourceText) {
+    return {
+      tag: "",
+      content: ""
+    };
+  }
+
+  const tagMatch =
+    sourceText.match(
+      /^\s*[\[【]\s*([A-Za-z0-9_.\-\/]+)\s*[\]】]\s*(.*)$/
+    );
+
+  if (!tagMatch) {
+    return {
+      tag: "",
+      content:
+        sourceText
+    };
+  }
+
+  return {
+    tag:
+      String(
+        tagMatch[1] || ""
+      )
+        .trim()
+        .toUpperCase(),
+
+    content:
+      String(
+        tagMatch[2] || ""
+      ).trim()
+  };
 }
 
 function normalizeTeamName(teamName) {
@@ -4686,6 +4812,12 @@ function updateShiftMemberCardStates() {
       appState.selectedDate
     );
 
+  const scheduledPart =
+    getScheduledPart(
+      appState.selectedDate,
+      appState.selectedShift
+    );
+
   const shiftMemberCards = [
     ...document.querySelectorAll(
       ".shift-member-card"
@@ -4729,15 +4861,12 @@ function updateShiftMemberCardStates() {
           ).trim();
       }
 
-      if (
-        teamElement &&
-        !card.dataset.defaultTeam
-      ) {
-        card.dataset.defaultTeam =
-          String(
-            teamElement.textContent ||
-            ""
-          ).trim();
+      if (teamElement) {
+        teamElement.textContent =
+          scheduledPart || "";
+
+        teamElement.hidden =
+          !scheduledPart;
       }
 
       /*
@@ -4806,8 +4935,10 @@ function updateShiftMemberCardStates() {
 
         if (teamElement) {
           teamElement.textContent =
-            card.dataset.defaultTeam ||
-            "";
+            scheduledPart || "";
+
+          teamElement.hidden =
+            !scheduledPart;
         }
 
         card.dataset.logState =
@@ -4843,23 +4974,15 @@ function updateShiftMemberCardStates() {
       }
 
       /*
-        기존 일지의 근무파트 정보가 있으면 적용한다.
+        근무자 카드에는 기존 GROUP_1, GROUP_2 대신
+        근무표에서 계산된 파트만 표시한다.
       */
-      const teamName =
-        String(
-          existingLog.team ||
-          existingLog.group ||
-          ""
-        ).trim();
-
-      if (
-        teamElement &&
-        teamName
-      ) {
+      if (teamElement) {
         teamElement.textContent =
-          normalizeTeamName(
-            teamName
-          );
+          scheduledPart || "";
+
+        teamElement.hidden =
+          !scheduledPart;
       }
 
       card.dataset.logState =
@@ -4930,9 +5053,21 @@ function resetLogEditor() {
 
   setEditorDateFromSelectedDate();
 
-  elements.logAuthor.value = "이휘근";
-  elements.logTeam.value = "3파트";
-  elements.logShift.value = appState.selectedShift;
+  elements.logAuthor.value =
+    "이휘근";
+
+  const scheduledPart =
+    getScheduledPart(
+      appState.selectedDate,
+      appState.selectedShift
+    );
+
+  elements.logTeam.value =
+    scheduledPart ||
+    "3파트";
+
+  elements.logShift.value =
+    appState.selectedShift;
   elements.operationStatus.value = "";
   elements.logNote.value = "";
 
