@@ -232,7 +232,7 @@ async function requestShiftLogLogin(
 
   if (
     !response.ok ||
-    !result.success
+    !result.ok
   ) {
     throw new Error(
       result.message ||
