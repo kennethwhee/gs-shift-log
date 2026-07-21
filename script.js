@@ -5267,57 +5267,81 @@ function createRoleGroupedEntriesHtml(
     .join("");
 }
 
-
 function createGroupedEntryLineHtml(
   entry,
   index
 ) {
   const timeText =
-    String(entry.time || "").trim();
+    String(
+      entry.time || ""
+    ).trim();
 
   const tagText =
-    String(entry.tag || "")
+    String(
+      entry.tag || ""
+    )
       .trim()
       .toUpperCase();
 
   const contentText =
-    String(entry.content || "-")
-      .trim();
+    String(
+      entry.content || "-"
+    ).trim();
 
   return `
     <div class="detail-grouped-entry-line">
-      <span class="detail-grouped-entry-line__number">
+
+      <span
+        class="detail-grouped-entry-line__number"
+      >
         ${index + 1}.
       </span>
 
       ${
         timeText
           ? `
-            <span class="detail-grouped-entry-line__time">
-              ${escapeHtml(timeText)}
+            <span
+              class="detail-grouped-entry-line__time"
+            >
+              ${escapeHtml(
+                timeText
+              )}
             </span>
           `
           : ""
       }
 
-      <span class="detail-grouped-entry-line__content">
+      <span
+        class="detail-grouped-entry-line__content"
+      >
+        <span
+          class="detail-grouped-entry-line__content-text"
+        >
+          ${escapeHtml(
+            contentText
+          )}
+        </span>
+
         ${
           tagText
             ? `
               <button
                 type="button"
                 class="detail-inline-tag"
-                data-detail-tag="${escapeHtml(tagText)}"
+                data-detail-tag="${escapeHtml(
+                  tagText
+                )}"
                 title="Facility Navigator에서 설비 보기"
-              >[${escapeHtml(tagText)}]</button>
+              >
+                [${escapeHtml(
+                  tagText
+                )}]
+              </button>
             `
             : ""
-        }${
-          tagText
-            ? " "
-            : ""
-        }<span class="detail-grouped-entry-line__content-text">${escapeHtml(contentText)}</span>
+        }
       </span>
+
     </div>
   `;
 }
