@@ -933,182 +933,6 @@ function rebuildLegacyLeaderLogFromMemberLogs(
     true;
 }
 
-function classifyLegacyLeaderEntries(
-  convertedLogs
-) {
-  if (
-    !Array.isArray(
-      convertedLogs
-    )
-  ) {
-    return;
-  }
-
-  const memberRoles = [
-    "TGO",
-    "BCO1",
-    "BCO2",
-    "TO",
-    "BO1",
-    "BO2"
-  ];
-
-  /*
-    비교할 팀원 업무 목록을 만든다.
-  */
-  const memberEntryCandidates =
-    [];
-
-  convertedLogs.forEach(
-    (log) => {
-      const logRole =
-        normalizeMemberLogRole(
-          log.role
-        );
-
-      if (
-        !memberRoles.includes(
-          logRole
-        )
-      ) {
-        return;
-      }
-
-      const entries =
-        Array.isArray(
-          log.entries
-        )
-          ? log.entries
-          : [];
-
-      entries.forEach(
-        (entry) => {
-          /*
-            TM은 보직별 인계 분류에서 제외한다.
-          */
-          if (
-            String(
-              entry.category || ""
-            ).trim() ===
-            "TM 발행"
-          ) {
-            return;
-          }
-
-          const content =
-            String(
-              entry.content || ""
-            ).trim();
-
-          if (!content) {
-            return;
-          }
-
-          memberEntryCandidates.push({
-            role:
-              logRole,
-
-            content
-          });
-        }
-      );
-    }
-  );
-
-  /*
-    파트장 업무일지를 찾아
-    각 항목을 팀원 업무와 비교한다.
-  */
-  convertedLogs.forEach(
-    (log) => {
-      const logRole =
-        normalizeMemberLogRole(
-          log.role
-        );
-
-      if (
-        logRole !==
-        "파트장"
-      ) {
-        return;
-      }
-
-      const entries =
-        Array.isArray(
-          log.entries
-        )
-          ? log.entries
-          : [];
-
-      entries.forEach(
-        (entry) => {
-          /*
-            TM 발행 내역은 모든 보직을 합산하므로
-            보직 분류를 하지 않는다.
-          */
-          if (
-            String(
-              entry.category || ""
-            ).trim() ===
-            "TM 발행"
-          ) {
-            entry.importedFromRole =
-              "";
-
-            return;
-          }
-
-          const leaderContent =
-            String(
-              entry.content || ""
-            ).trim();
-
-          let bestMatchRole =
-            "파트장";
-
-          let bestSimilarity =
-            0;
-
-          memberEntryCandidates.forEach(
-            (candidate) => {
-              const similarity =
-                calculateLegacyContentSimilarity(
-                  leaderContent,
-                  candidate.content
-                );
-
-              if (
-                similarity >
-                bestSimilarity
-              ) {
-                bestSimilarity =
-                  similarity;
-
-                bestMatchRole =
-                  candidate.role;
-              }
-            }
-          );
-
-          /*
-            유사도 80% 이상일 때만
-            해당 팀원의 업무로 판단한다.
-          */
-          entry.importedFromRole =
-            bestSimilarity >= 0.65
-              ? bestMatchRole
-              : "파트장";
-
-          entry.legacyMatchSimilarity =
-            Math.round(
-              bestSimilarity *
-              100
-            );
-        }
-      );
-    }
-  );
-}
 
 function calculateLegacyContentSimilarity(
   firstContent,
@@ -4502,81 +4326,241 @@ function openShiftMemberLogFromCard(card) {
 
 function updateShiftMemberCardStates() {
   const selectedDate =
-    formatInputDate(appState.selectedDate);
+    formatInputDate(
+      appState.selectedDate
+    );
 
   const shiftMemberCards = [
-    ...document.querySelectorAll(".shift-member-card")
+    ...document.querySelectorAll(
+      ".shift-member-card"
+    )
   ];
 
-  shiftMemberCards.forEach((card) => {
-    const role =
-      String(card.dataset.role || "").trim();
-
-    const statusElement =
-      card.querySelector(
-        ".shift-member-card__status"
-      );
-
-    const existingLog =
-      appState.logs.find((log) => {
-        return (
-          log.date === selectedDate &&
-          log.shift === appState.selectedShift &&
-          log.role === role
+  shiftMemberCards.forEach(
+    (card) => {
+      const role =
+        normalizeMemberLogRole(
+          card.dataset.role
         );
-      });
 
-    if (!existingLog) {
-      card.dataset.logState = "empty";
+      const nameElement =
+        card.querySelector(
+          ".shift-member-card__name"
+        );
 
-      if (statusElement) {
-        statusElement.textContent = "미작성";
+      const teamElement =
+        card.querySelector(
+          ".shift-member-card__team"
+        );
 
-        statusElement.className =
-          "shift-member-card__status is-empty";
+      const statusElement =
+        card.querySelector(
+          ".shift-member-card__status"
+        );
+
+      /*
+        HTML에 처음 적혀 있던 이름과 근무조를
+        기본값으로 한 번만 저장한다.
+      */
+      if (
+        nameElement &&
+        !card.dataset.defaultName
+      ) {
+        card.dataset.defaultName =
+          String(
+            nameElement.textContent ||
+            ""
+          ).trim();
       }
 
-      return;
-    }
+      if (
+        teamElement &&
+        !card.dataset.defaultTeam
+      ) {
+        card.dataset.defaultTeam =
+          String(
+            teamElement.textContent ||
+            ""
+          ).trim();
+      }
 
-    card.dataset.logState = "existing";
+      /*
+        선택한 날짜·근무·보직과 일치하는
+        업무일지를 찾는다.
+      */
+      const matchedLogs =
+        appState.logs
+          .filter((log) => {
+            return (
+              String(
+                log.date || ""
+              ).trim() ===
+                selectedDate &&
 
-    if (!statusElement) {
-      return;
-    }
+              String(
+                log.shift || ""
+              ).trim() ===
+                String(
+                  appState.selectedShift ||
+                  ""
+                ).trim() &&
 
-    if (
-      existingLog.status === "결재완료" ||
-      existingLog.status === "결재요청"
-    ) {
+              normalizeMemberLogRole(
+                log.role
+              ) === role
+            );
+          })
+          .sort(
+            (
+              logA,
+              logB
+            ) => {
+              const timeA =
+                new Date(
+                  logA.updatedAt ||
+                  logA.createdAt ||
+                  0
+                ).getTime();
+
+              const timeB =
+                new Date(
+                  logB.updatedAt ||
+                  logB.createdAt ||
+                  0
+                ).getTime();
+
+              return timeB - timeA;
+            }
+          );
+
+      const existingLog =
+        matchedLogs[0] ||
+        null;
+
+      /*
+        해당 날짜에 업무일지가 없으면
+        카드 이름을 원래 기본값으로 되돌린다.
+      */
+      if (!existingLog) {
+        if (nameElement) {
+          nameElement.textContent =
+            card.dataset.defaultName ||
+            "";
+        }
+
+        if (teamElement) {
+          teamElement.textContent =
+            card.dataset.defaultTeam ||
+            "";
+        }
+
+        card.dataset.logState =
+          "empty";
+
+        if (statusElement) {
+          statusElement.textContent =
+            "미작성";
+
+          statusElement.className =
+            "shift-member-card__status is-empty";
+        }
+
+        return;
+      }
+
+      /*
+        기존 업무일지 작성자 이름을
+        근무자 카드에 표시한다.
+      */
+      const authorName =
+        String(
+          existingLog.author ||
+          ""
+        ).trim();
+
+      if (
+        nameElement &&
+        authorName
+      ) {
+        nameElement.textContent =
+          authorName;
+      }
+
+      /*
+        기존 일지의 근무조 정보가 있으면 적용한다.
+      */
+      const teamName =
+        String(
+          existingLog.team ||
+          existingLog.group ||
+          ""
+        ).trim();
+
+      if (
+        teamElement &&
+        teamName
+      ) {
+        teamElement.textContent =
+          teamName.includes("조")
+            ? teamName
+            : `${teamName}조`;
+      }
+
+      card.dataset.logState =
+        "existing";
+
+
+      /*
+        업무일지 상태 표시
+      */
+      if (!statusElement) {
+        return;
+      }
+
+      if (
+        existingLog.status ===
+          "결재완료" ||
+        existingLog.status ===
+          "결재요청" ||
+        existingLog.status ===
+          "작성완료" ||
+        existingLog.status ===
+          "저장완료"
+      ) {
+        statusElement.textContent =
+          existingLog.status ===
+          "결재요청"
+            ? "결재요청"
+            : "작성완료";
+
+        statusElement.className =
+          "shift-member-card__status is-complete";
+
+        return;
+      }
+
+      if (
+        existingLog.status ===
+          "임시저장" ||
+        existingLog.status ===
+          "작성중"
+      ) {
+        statusElement.textContent =
+          "작성중";
+
+        statusElement.className =
+          "shift-member-card__status is-writing";
+
+        return;
+      }
+
       statusElement.textContent =
-        existingLog.status === "결재완료"
-          ? "작성완료"
-          : "결재요청";
+        "작성완료";
 
       statusElement.className =
         "shift-member-card__status is-complete";
-
-      return;
     }
-
-    if (
-      existingLog.status === "임시저장" ||
-      existingLog.status === "작성중"
-    ) {
-      statusElement.textContent = "작성중";
-
-      statusElement.className =
-        "shift-member-card__status is-writing";
-
-      return;
-    }
-
-    statusElement.textContent = "작성완료";
-
-    statusElement.className =
-      "shift-member-card__status is-complete";
-  });
+  );
 }
 
 

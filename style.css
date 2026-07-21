@@ -4965,3 +4965,96 @@ td {
 .log-preview__role-divider + .log-preview__group {
   margin-top: 2px;
 }
+
+/* =========================================================
+  업무일지 미리보기 정렬 통일
+========================================================= */
+
+.log-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+}
+
+.log-preview__group {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: start;
+  width: 100%;
+  column-gap: 10px;
+}
+
+.log-preview__group.has-no-title {
+  grid-template-columns: 84px minmax(0, 1fr);
+}
+
+.log-preview__group.has-no-title::before {
+  content: "";
+  display: block;
+  width: 84px;
+}
+
+.log-preview__title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 84px;
+  min-width: 84px;
+  min-height: 24px;
+  padding: 4px 8px;
+
+  border-radius: 6px;
+
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.log-preview__content {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+  padding-top: 3px;
+}
+
+.log-preview__text {
+  min-width: 0;
+  line-height: 1.55;
+  text-align: left;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.log-preview__tag {
+  flex-shrink: 0;
+}
+
+.log-preview__role-divider {
+  display: block;
+  width: 100%;
+  margin: 10px 0 5px;
+  padding: 7px 10px;
+
+  border: 1px solid #d7e3f4;
+  border-radius: 7px;
+
+  background: #f7faff;
+
+  color: #173b6c;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: left;
+}
+
+.log-preview__role-divider:first-child {
+  margin-top: 0;
+}
