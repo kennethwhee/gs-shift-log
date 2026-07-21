@@ -4725,13 +4725,9 @@ function renderLogTable() {
   updateShiftMemberCardStates();
 }
 
-
 function createLogRowHtml(log) {
   const previewGroups = [];
 
-  /*
-    운전현황
-  */
   if (
     String(
       log.operationStatus || ""
@@ -4747,9 +4743,6 @@ function createLogRowHtml(log) {
     });
   }
 
-  /*
-    등록된 전체 업무내역을 시간순으로 정렬한다.
-  */
   const entries =
     Array.isArray(log.entries)
       ? sortDetailEntriesByTime(
@@ -4842,9 +4835,6 @@ function createLogRowHtml(log) {
     });
   });
 
-  /*
-    비고
-  */
   if (
     String(
       log.note || ""
@@ -4965,6 +4955,14 @@ function createLogRowHtml(log) {
                         <span
                           class="log-preview__content"
                         >
+                          <span
+                            class="log-preview__text"
+                          >
+                            ${escapeHtml(
+                              group.text || "-"
+                            )}
+                          </span>
+
                           ${
                             group.tag
                               ? `
@@ -4978,14 +4976,6 @@ function createLogRowHtml(log) {
                               `
                               : ""
                           }
-
-                          <span
-                            class="log-preview__text"
-                          >
-                            ${escapeHtml(
-                              group.text || "-"
-                            )}
-                          </span>
                         </span>
                       </span>
                     `;
@@ -5023,7 +5013,6 @@ function createLogRowHtml(log) {
     </tr>
   `;
 }
-
 
 function handleLogTableClick(event) {
   const actionElement =
