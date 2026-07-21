@@ -213,7 +213,7 @@ async function requestShiftLogLogin(
 
         body:
           JSON.stringify({
-            employeeId,
+            employeeNo: employeeId,
             password
           })
       }
