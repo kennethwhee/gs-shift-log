@@ -4197,15 +4197,13 @@ function saveCurrentLog(status) {
     collectEditorData(status);
 
   const hasEntryContent =
-    log.entries.some(
-      (entry) => {
-        return Boolean(
-          String(
-            entry.content || ""
-          ).trim()
-        );
-      }
-    );
+    log.entries.some((entry) => {
+      return Boolean(
+        String(
+          entry.content || ""
+        ).trim()
+      );
+    });
 
   if (
     !log.operationStatus &&
@@ -4219,135 +4217,151 @@ function saveCurrentLog(status) {
     return;
   }
 
-  /*
-    1순위:
-    현재 수정 중인 업무일지 ID로 찾는다.
-  */
-  let existingIndex =
-    appState.logs.findIndex(
-      (item) => {
-        return (
-          String(item.id || "") ===
-          String(log.id || "")
-        );
-      }
+  const normalizedRole =
+    normalizeMemberLogRole(
+      log.role
     );
 
   /*
-    2순위:
-    편집 ID가 사라진 경우에도
-    같은 날짜·근무·보직의 업무일지를 찾는다.
-
-    동일 보직의 업무일지는
-    날짜와 근무별로 하나만 유지한다.
+    현재 저장하려는 업무일지와 같은
+    날짜·근무·보직의 기존 업무일지를 모두 찾는다.
   */
-  if (existingIndex < 0) {
-    const normalizedRole =
-      normalizeMemberLogRole(
-        log.role
+  const matchingLogs =
+    appState.logs
+      .map((item, index) => {
+        return {
+          item,
+          index
+        };
+      })
+      .filter(({ item }) => {
+        return (
+          String(
+            item.date || ""
+          ).trim() ===
+            String(
+              log.date || ""
+            ).trim() &&
+
+          String(
+            item.shift || ""
+          ).trim() ===
+            String(
+              log.shift || ""
+            ).trim() &&
+
+          normalizeMemberLogRole(
+            item.role
+          ) === normalizedRole
+        );
+      })
+      .sort(
+        (
+          resultA,
+          resultB
+        ) => {
+          const timeA =
+            new Date(
+              resultA.item
+                .updatedAt ||
+              resultA.item
+                .createdAt ||
+              0
+            ).getTime();
+
+          const timeB =
+            new Date(
+              resultB.item
+                .updatedAt ||
+              resultB.item
+                .createdAt ||
+              0
+            ).getTime();
+
+          return timeB - timeA;
+        }
       );
 
-    const matchingIndexes =
-      appState.logs
-        .map(
-          (item, index) => {
-            return {
-              item,
-              index
-            };
-          }
-        )
-        .filter(
-          ({ item }) => {
-            return (
-              String(
-                item.date || ""
-              ).trim() ===
-                String(
-                  log.date || ""
-                ).trim() &&
-              String(
-                item.shift || ""
-              ).trim() ===
-                String(
-                  log.shift || ""
-                ).trim() &&
-              normalizeMemberLogRole(
-                item.role
-              ) === normalizedRole
-            );
-          }
-        )
-        .sort(
-          (
-            resultA,
-            resultB
-          ) => {
-            const timeA =
-              new Date(
-                resultA.item
-                  .updatedAt ||
-                resultA.item
-                  .createdAt ||
-                0
-              ).getTime();
+  /*
+    편집 중인 업무일지 ID가 있으면
+    해당 일지를 우선 기준으로 삼는다.
+  */
+  const editingId =
+    String(
+      elements
+        .logEditorForm
+        .dataset
+        .editingId ||
+      ""
+    ).trim();
 
-            const timeB =
-              new Date(
-                resultB.item
-                  .updatedAt ||
-                resultB.item
-                  .createdAt ||
-                0
-              ).getTime();
-
-            return timeB - timeA;
-          }
+  let baseLog =
+    matchingLogs.find(
+      ({ item }) => {
+        return (
+          String(
+            item.id || ""
+          ).trim() ===
+          editingId
         );
+      }
+    )?.item || null;
 
-    if (
-      matchingIndexes.length
-    ) {
-      existingIndex =
-        matchingIndexes[0]
-          .index;
-    }
+  /*
+    편집 ID를 찾지 못하면
+    가장 최근에 수정된 업무일지를 기준으로 삼는다.
+  */
+  if (
+    !baseLog &&
+    matchingLogs.length
+  ) {
+    baseLog =
+      matchingLogs[0].item;
   }
 
-  if (existingIndex >= 0) {
-    const existingLog =
-      appState.logs[
-        existingIndex
-      ];
-
+  if (baseLog) {
     log.id =
-      existingLog.id;
+      baseLog.id;
 
     log.createdAt =
-      existingLog.createdAt ||
+      baseLog.createdAt ||
       log.createdAt;
-
-    log.updatedAt =
-      new Date()
-        .toISOString();
-
-    appState.logs.splice(
-      existingIndex,
-      1,
-      log
-    );
-  } else {
-    log.createdAt =
-      new Date()
-        .toISOString();
-
-    log.updatedAt =
-      log.createdAt;
-
-    appState.logs.unshift(
-      log
-    );
   }
+
+  log.updatedAt =
+    new Date().toISOString();
+
+  /*
+    같은 날짜·근무·보직의 기존 일지를
+    모두 제거한 후 새 일지 하나만 저장한다.
+  */
+  appState.logs =
+    appState.logs.filter((item) => {
+      const isSameLogGroup =
+        String(
+          item.date || ""
+        ).trim() ===
+          String(
+            log.date || ""
+          ).trim() &&
+
+        String(
+          item.shift || ""
+        ).trim() ===
+          String(
+            log.shift || ""
+          ).trim() &&
+
+        normalizeMemberLogRole(
+          item.role
+        ) === normalizedRole;
+
+      return !isSameLogGroup;
+    });
+
+  appState.logs.unshift(
+    log
+  );
 
   persistLogs();
 
@@ -4434,18 +4448,134 @@ function persistLogs() {
 
 
 function loadLogs() {
-  const savedLogs = localStorage.getItem(STORAGE_KEYS.logs);
+  const savedLogs =
+    localStorage.getItem(
+      STORAGE_KEYS.logs
+    );
+
+  let loadedLogs = [];
 
   if (savedLogs) {
     try {
-      appState.logs = JSON.parse(savedLogs);
-      return;
+      const parsedLogs =
+        JSON.parse(savedLogs);
+
+      loadedLogs =
+        Array.isArray(parsedLogs)
+          ? parsedLogs
+          : [];
     } catch {
-      localStorage.removeItem(STORAGE_KEYS.logs);
+      localStorage.removeItem(
+        STORAGE_KEYS.logs
+      );
+
+      loadedLogs = [];
     }
   }
 
-  appState.logs = createSampleLogs();
+  if (!loadedLogs.length) {
+    loadedLogs =
+      createSampleLogs();
+  }
+
+  /*
+    같은 날짜·근무·보직의 업무일지가
+    여러 개 존재하는 경우 가장 최근 일지 하나만 남긴다.
+  */
+  const sortedLogs = [
+    ...loadedLogs
+  ].sort((logA, logB) => {
+    const timeA =
+      new Date(
+        logA.updatedAt ||
+        logA.createdAt ||
+        0
+      ).getTime();
+
+    const timeB =
+      new Date(
+        logB.updatedAt ||
+        logB.createdAt ||
+        0
+      ).getTime();
+
+    return timeB - timeA;
+  });
+
+  const uniqueLogMap =
+    new Map();
+
+  sortedLogs.forEach((log) => {
+    const date =
+      String(
+        log.date || ""
+      ).trim();
+
+    const shift =
+      String(
+        log.shift || ""
+      ).trim();
+
+    const role =
+      normalizeMemberLogRole(
+        log.role
+      );
+
+    const uniqueKey = [
+      date,
+      shift,
+      role
+    ].join("||");
+
+    /*
+      최신순으로 정렬했기 때문에
+      가장 먼저 들어온 업무일지가 최신본이다.
+    */
+    if (
+      !uniqueLogMap.has(
+        uniqueKey
+      )
+    ) {
+      uniqueLogMap.set(
+        uniqueKey,
+        log
+      );
+    }
+  });
+
+  appState.logs = [
+    ...uniqueLogMap.values()
+  ].sort((logA, logB) => {
+    const dateDifference =
+      String(
+        logB.date || ""
+      ).localeCompare(
+        String(
+          logA.date || ""
+        )
+      );
+
+    if (dateDifference !== 0) {
+      return dateDifference;
+    }
+
+    const timeA =
+      new Date(
+        logA.updatedAt ||
+        logA.createdAt ||
+        0
+      ).getTime();
+
+    const timeB =
+      new Date(
+        logB.updatedAt ||
+        logB.createdAt ||
+        0
+      ).getTime();
+
+    return timeB - timeA;
+  });
+
   persistLogs();
 }
 
@@ -4491,65 +4621,109 @@ function createLogRowHtml(log) {
 
   if (log.operationStatus) {
     previewGroups.push({
-      title: "운전현황",
-      text: firstMeaningfulLine(log.operationStatus),
-      categoryClass: "is-operation"
+      title:
+        "운전현황",
+
+      text:
+        firstMeaningfulLine(
+          log.operationStatus
+        ),
+
+      categoryClass:
+        "is-operation"
     });
   }
 
-  const firstEntry = log.entries?.find(
-    (entry) => entry.content
-  );
-
-  if (firstEntry) {
-    const mainCategory = getMainCategory(
-      firstEntry.category
+  const firstEntry =
+    log.entries?.find(
+      (entry) => {
+        return Boolean(
+          entry.content
+        );
+      }
     );
 
-    const tagText = firstEntry.tag
-      ? `[${firstEntry.tag}]`
-      : "";
+  if (firstEntry) {
+    const mainCategory =
+      getMainCategory(
+        firstEntry.category
+      );
+
+    const tagText =
+      firstEntry.tag
+        ? `[${firstEntry.tag}]`
+        : "";
 
     previewGroups.push({
-      title: mainCategory,
-      tag: tagText,
-      text: firstMeaningfulLine(firstEntry.content),
+      title:
+        mainCategory,
+
+      tag:
+        tagText,
+
+      text:
+        firstMeaningfulLine(
+          firstEntry.content
+        ),
+
       categoryClass:
-        mainCategory === "인계사항"
+        mainCategory ===
+        "인계사항"
           ? "is-handover"
           : "is-maintenance"
     });
   }
 
-  if (log.note && previewGroups.length < 3) {
+  if (
+    log.note &&
+    previewGroups.length < 3
+  ) {
     previewGroups.push({
-      title: "비고",
-      text: firstMeaningfulLine(log.note),
-      categoryClass: "is-note"
+      title:
+        "비고",
+
+      text:
+        firstMeaningfulLine(
+          log.note
+        ),
+
+      categoryClass:
+        "is-note"
     });
   }
 
-  const attachmentCount = Array.isArray(log.attachments)
-    ? log.attachments.length
-    : 0;
+  const attachmentCount =
+    Array.isArray(
+      log.attachments
+    )
+      ? log.attachments.length
+      : 0;
 
   return `
     <tr class="log-row">
       <td class="log-row__role">
-        ${escapeHtml(log.role || "-")}
+        ${escapeHtml(
+          log.role || "-"
+        )}
       </td>
 
       <td class="log-row__author-cell">
         <strong class="log-row__author">
-          ${escapeHtml(log.author || "-")}
+          ${escapeHtml(
+            log.author || "-"
+          )}
         </strong>
       </td>
 
       <td class="log-row__status-cell">
         <span
-          class="status-badge ${getStatusClass(log.status)}"
+          class="status-badge ${getStatusClass(
+            log.status
+          )}"
         >
-          ${escapeHtml(log.status || "-")}
+          ${escapeHtml(
+            log.status || "-"
+          )}
         </span>
       </td>
 
@@ -4576,14 +4750,20 @@ function createLogRowHtml(log) {
         }
       </td>
 
-      <td class="log-row__preview-cell">
-        <button
-          type="button"
-          class="log-preview"
-          data-action="view"
-          data-log-id="${escapeHtml(log.id)}"
-          aria-label="${escapeHtml(log.author || "")} 업무일지 상세보기"
-        >
+      <td
+        class="log-row__preview-cell"
+        data-action="view"
+        data-log-id="${escapeHtml(
+          log.id
+        )}"
+        role="button"
+        tabindex="0"
+        title="업무내용 상세보기"
+        aria-label="${escapeHtml(
+          log.author || ""
+        )} 업무일지 상세보기"
+      >
+        <div class="log-preview">
           ${
             previewGroups.length
               ? previewGroups
@@ -4598,7 +4778,9 @@ function createLogRowHtml(log) {
                         <strong
                           class="log-preview__title"
                         >
-                          ${escapeHtml(group.title)}
+                          ${escapeHtml(
+                            group.title
+                          )}
                         </strong>
 
                         <span
@@ -4610,7 +4792,9 @@ function createLogRowHtml(log) {
                                 <span
                                   class="log-preview__tag"
                                 >
-                                  ${escapeHtml(group.tag)}
+                                  ${escapeHtml(
+                                    group.tag
+                                  )}
                                 </span>
                               `
                               : ""
@@ -4619,7 +4803,9 @@ function createLogRowHtml(log) {
                           <span
                             class="log-preview__text"
                           >
-                            ${escapeHtml(group.text || "-")}
+                            ${escapeHtml(
+                              group.text || "-"
+                            )}
                           </span>
                         </span>
                       </span>
@@ -4632,7 +4818,7 @@ function createLogRowHtml(log) {
                 </span>
               `
           }
-        </button>
+        </div>
       </td>
 
       <td class="log-row__actions-cell">
@@ -4640,17 +4826,10 @@ function createLogRowHtml(log) {
           <button
             type="button"
             class="table-action-button"
-            data-action="view"
-            data-log-id="${escapeHtml(log.id)}"
-          >
-            보기
-          </button>
-
-          <button
-            type="button"
-            class="table-action-button"
             data-action="edit"
-            data-log-id="${escapeHtml(log.id)}"
+            data-log-id="${escapeHtml(
+              log.id
+            )}"
           >
             수정
           </button>
