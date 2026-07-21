@@ -3474,7 +3474,6 @@ function addOrUpdateLogEntry() {
     ?.focus();
 }
 
-
 function renderLogEntryTable() {
   const entries =
     Array.isArray(
@@ -3577,6 +3576,50 @@ function renderLogEntryTable() {
       });
 
   /*
+    같은 시간의 인계사항을 묶는다.
+  */
+  const handoverTimeGroups = [];
+
+  handoverEntries.forEach(
+    (item) => {
+      const timeText =
+        String(
+          item.entry.time || ""
+        ).trim();
+
+      const groupKey =
+        timeText || "__NO_TIME__";
+
+      const lastGroup =
+        handoverTimeGroups[
+          handoverTimeGroups.length - 1
+        ];
+
+      if (
+        lastGroup &&
+        lastGroup.groupKey ===
+          groupKey
+      ) {
+        lastGroup.items.push(
+          item
+        );
+
+        return;
+      }
+
+      handoverTimeGroups.push({
+        groupKey,
+
+        timeText,
+
+        items: [
+          item
+        ]
+      });
+    }
+  );
+
+  /*
     전체 및 구역별 건수
   */
   if (elements.logEntryCount) {
@@ -3655,7 +3698,8 @@ function renderLogEntryTable() {
   }
 
   if (
-    elements.deleteSelectedLogEntriesButton
+    elements
+      .deleteSelectedLogEntriesButton
   ) {
     elements
       .deleteSelectedLogEntriesButton
@@ -3680,7 +3724,10 @@ function renderLogEntryTable() {
     options = {}
   ) => {
     const {
-      showTimeColumn = true
+      showTimeColumn = true,
+      timeRowspan = 1,
+      displayNumber = null,
+      isGroupFirstRow = false
     } = options;
 
     const {
@@ -3781,14 +3828,61 @@ function renderLogEntryTable() {
         `
         : "";
 
+    const rowNumberHtml =
+      Number.isInteger(
+        displayNumber
+      )
+        ? `
+          <strong
+            class="
+              log-entry-content-number
+            "
+          >
+            ${displayNumber}.
+          </strong>
+        `
+        : "";
+
+    const timeCellHtml =
+      showTimeColumn
+        ? `
+          <td
+            class="
+              log-entry-time-cell
+              log-entry-time-group-cell
+            "
+            rowspan="${timeRowspan}"
+          >
+            <span
+              class="
+                log-entry-time-group-label
+              "
+            >
+              ${escapeHtml(
+                timeText ||
+                "시간 없음"
+              )}
+            </span>
+          </td>
+        `
+        : "";
+
     return `
       <tr
         data-entry-index="${originalIndex}"
-        class="${
-          isEditing
-            ? "is-editing"
-            : ""
-        }"
+        class="
+          ${
+            isEditing
+              ? "is-editing"
+              : ""
+          }
+
+          ${
+            isGroupFirstRow
+              ? "is-time-group-first-row"
+              : ""
+          }
+        "
       >
 
         <td
@@ -3800,7 +3894,9 @@ function renderLogEntryTable() {
         >
           <input
             type="checkbox"
-            class="log-entry-select-checkbox"
+            class="
+              log-entry-select-checkbox
+            "
             data-entry-select-index="${originalIndex}"
             aria-label="${escapeHtml(
               categoryText
@@ -3809,41 +3905,51 @@ function renderLogEntryTable() {
         </td>
 
 
-        <td class="log-entry-category-cell-wrap">
-
-          <div class="log-entry-category-cell">
-
+        <td
+          class="
+            log-entry-category-cell-wrap
+          "
+        >
+          <div
+            class="
+              log-entry-category-cell
+            "
+          >
             ${sourceBadgeHtml}
 
-            <span class="log-entry-category-text">
+            <span
+              class="
+                log-entry-category-text
+              "
+            >
               ${escapeHtml(
                 categoryText
               )}
             </span>
-
           </div>
-
         </td>
 
 
-        ${
-          showTimeColumn
-            ? `
-              <td class="log-entry-time-cell">
-                ${escapeHtml(
-                  timeText || "-"
-                )}
-              </td>
-            `
-            : ""
-        }
+        ${timeCellHtml}
 
 
-        <td class="log-entry-content-cell">
+        <td
+          class="
+            log-entry-content-cell
+          "
+        >
+          <span
+            class="
+              log-entry-inline-content
+            "
+          >
+            ${rowNumberHtml}
 
-          <span class="log-entry-inline-content">
-
-            <span class="log-entry-inline-content__text">
+            <span
+              class="
+                log-entry-inline-content__text
+              "
+            >
               ${escapeHtml(
                 contentText
               )}
@@ -3854,9 +3960,7 @@ function renderLogEntryTable() {
                 ? ` ${tagHtml}`
                 : ""
             }
-
           </span>
-
         </td>
 
 
@@ -3867,12 +3971,16 @@ function renderLogEntryTable() {
           "
           hidden
         >
-
-          <div class="log-entry-row-actions">
-
+          <div
+            class="
+              log-entry-row-actions
+            "
+          >
             <button
               type="button"
-              class="log-entry-edit-button"
+              class="
+                log-entry-edit-button
+              "
               data-entry-action="edit"
               data-entry-index="${originalIndex}"
             >
@@ -3881,15 +3989,15 @@ function renderLogEntryTable() {
 
             <button
               type="button"
-              class="log-entry-delete-button"
+              class="
+                log-entry-delete-button
+              "
               data-entry-action="delete"
               data-entry-index="${originalIndex}"
             >
               삭제
             </button>
-
           </div>
-
         </td>
 
       </tr>
@@ -3907,7 +4015,11 @@ function renderLogEntryTable() {
       elements
         .tmIssueEntryTableBody
         .innerHTML = `
-          <tr class="log-entry-empty-row">
+          <tr
+            class="
+              log-entry-empty-row
+            "
+          >
             <td colspan="2">
               등록된 TM 발행 내역이 없습니다.
             </td>
@@ -3923,6 +4035,12 @@ function renderLogEntryTable() {
               item,
               {
                 showTimeColumn:
+                  false,
+
+                displayNumber:
+                  null,
+
+                isGroupFirstRow:
                   false
               }
             );
@@ -3933,7 +4051,9 @@ function renderLogEntryTable() {
 
 
   /*
-    인계사항 렌더링
+    인계사항 시간 그룹 렌더링
+
+    같은 시간은 하나의 시간 셀로 합친다.
   */
   if (
     elements.logEntryTableBody
@@ -3942,25 +4062,50 @@ function renderLogEntryTable() {
       elements
         .logEntryTableBody
         .innerHTML = `
-          <tr class="log-entry-empty-row">
+          <tr
+            class="
+              log-entry-empty-row
+            "
+          >
             <td colspan="3">
               등록된 인계사항이 없습니다.
             </td>
           </tr>
         `;
     } else {
+      let displayNumber = 0;
+
       elements
         .logEntryTableBody
         .innerHTML =
-        handoverEntries
-          .map((item) => {
-            return createEntryRowHtml(
-              item,
-              {
-                showTimeColumn:
-                  true
-              }
-            );
+        handoverTimeGroups
+          .map((group) => {
+            return group.items
+              .map(
+                (
+                  item,
+                  groupItemIndex
+                ) => {
+                  displayNumber += 1;
+
+                  return createEntryRowHtml(
+                    item,
+                    {
+                      showTimeColumn:
+                        groupItemIndex === 0,
+
+                      timeRowspan:
+                        group.items.length,
+
+                      displayNumber,
+
+                      isGroupFirstRow:
+                        groupItemIndex === 0
+                    }
+                  );
+                }
+              )
+              .join("");
           })
           .join("");
     }

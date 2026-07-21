@@ -3719,3 +3719,482 @@ body.modal-open {
     margin-right: 7px;
   }
 }
+
+/* =========================================================
+   인계사항 번호 + 시간 표시
+========================================================= */
+
+.log-entry-time-cell {
+  width: 112px;
+  padding-right: 12px !important;
+  padding-left: 12px !important;
+  text-align: left !important;
+}
+
+.log-entry-time-display {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.log-entry-row-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 22px;
+  min-width: 22px;
+  color: #1f5fae;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  text-align: right;
+}
+
+.log-entry-time-text {
+  display: inline-block;
+  color: #394a60;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.log-entry-content-cell {
+  text-align: left;
+}
+
+.log-entry-inline-content {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+}
+
+.log-entry-inline-content__text {
+  min-width: 0;
+  color: #26364b;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.log-entry-inline-tag {
+  display: inline;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #1f5fae;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.log-entry-inline-tag:hover {
+  color: #164b8a;
+  text-decoration: underline;
+}
+
+
+/* =========================================================
+   모바일
+========================================================= */
+
+@media (max-width: 768px) {
+  .log-entry-time-cell {
+    width: 100px;
+    padding-right: 8px !important;
+    padding-left: 8px !important;
+  }
+
+  .log-entry-time-display {
+    gap: 5px;
+  }
+
+  .log-entry-row-number {
+    flex-basis: 19px;
+    min-width: 19px;
+    font-size: 11px;
+  }
+
+  .log-entry-time-text {
+    font-size: 11px;
+  }
+
+  .log-entry-inline-content__text {
+    font-size: 12px;
+  }
+
+  .log-entry-inline-tag {
+    font-size: 10px;
+  }
+}
+
+/* =========================================================
+   인수인계사항 편집 모드
+========================================================= */
+
+/*
+   편집 버튼을 누른 전체 패널
+*/
+#logEntryListPanel.is-edit-mode {
+  border-color: #9bbce1;
+  box-shadow:
+    0 0 0 3px rgba(31, 95, 174, 0.08),
+    0 8px 22px rgba(31, 95, 174, 0.08);
+}
+
+
+/* =========================================================
+   편집 모드 상단 상태
+========================================================= */
+
+#logEntryListPanel.is-edit-mode
+.log-entry-table-header {
+  background: #f4f8fd;
+}
+
+#logEntryListPanel.is-edit-mode
+.log-entry-table-header::before {
+  content: "편집 중";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  margin-right: auto;
+  padding: 0 8px;
+  border: 1px solid #aac7e8;
+  border-radius: 999px;
+  background: #eaf2fb;
+  color: #1f5fae;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   체크박스 칸
+========================================================= */
+
+.log-entry-select-cell {
+  width: 42px;
+  padding-right: 8px !important;
+  padding-left: 8px !important;
+  text-align: center;
+}
+
+.log-entry-select-checkbox {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 0 auto;
+  accent-color: #1f5fae;
+  cursor: pointer;
+}
+
+
+/* =========================================================
+   편집 중인 행
+========================================================= */
+
+.log-entry-table tbody tr.is-editing {
+  background: #eef5fd;
+}
+
+.log-entry-table tbody tr.is-editing td {
+  border-top: 1px solid #9bbce1;
+  border-bottom: 1px solid #9bbce1;
+}
+
+.log-entry-table tbody tr.is-editing td:first-child {
+  box-shadow: inset 4px 0 0 #1f5fae;
+}
+
+
+/* =========================================================
+   행 관리 버튼
+========================================================= */
+
+.log-entry-actions-cell {
+  width: 118px;
+  padding-right: 8px !important;
+  padding-left: 8px !important;
+  text-align: center;
+}
+
+.log-entry-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.log-entry-edit-button,
+.log-entry-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.log-entry-edit-button {
+  border-color: #b9cce3;
+  background: #ffffff;
+  color: #315f95;
+}
+
+.log-entry-edit-button:hover {
+  border-color: #6f9ed3;
+  background: #edf5ff;
+  color: #174f91;
+}
+
+.log-entry-delete-button {
+  border-color: #efc1c1;
+  background: #fff7f7;
+  color: #b54545;
+}
+
+.log-entry-delete-button:hover {
+  border-color: #dd8f8f;
+  background: #fdecec;
+  color: #9e3030;
+}
+
+
+/* =========================================================
+   선택 건수와 선택 삭제 버튼
+========================================================= */
+
+#selectedLogEntryCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 25px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #eaf2fb;
+  color: #1f5fae;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+#deleteSelectedLogEntriesButton {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid #e1a7a7;
+  border-radius: 7px;
+  background: #fff5f5;
+  color: #b33f3f;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+#deleteSelectedLogEntriesButton:hover:not(:disabled) {
+  border-color: #d47575;
+  background: #fdecec;
+}
+
+#deleteSelectedLogEntriesButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+
+/* =========================================================
+   편집 취소 버튼
+========================================================= */
+
+#cancelLogEntryEditModeButton {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #59687b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+#cancelLogEntryEditModeButton:hover {
+  border-color: #9aabbf;
+  background: #f5f7fa;
+}
+
+
+/* =========================================================
+   모바일
+========================================================= */
+
+@media (max-width: 768px) {
+  .log-entry-select-cell {
+    width: 34px;
+    padding-right: 5px !important;
+    padding-left: 5px !important;
+  }
+
+  .log-entry-select-checkbox {
+    width: 15px;
+    height: 15px;
+  }
+
+  .log-entry-actions-cell {
+    width: 96px;
+    padding-right: 5px !important;
+    padding-left: 5px !important;
+  }
+
+  .log-entry-row-actions {
+    gap: 3px;
+  }
+
+  .log-entry-edit-button,
+  .log-entry-delete-button {
+    min-width: 38px;
+    min-height: 26px;
+    padding: 0 6px;
+    font-size: 10px;
+  }
+
+  #logEntryListPanel.is-edit-mode
+  .log-entry-table-header::before {
+    display: none;
+  }
+}
+
+/* =========================================================
+   인계사항 반복 구분명 정리
+========================================================= */
+
+/*
+   인계사항 목록에서는 모든 행에 반복되는
+   "인계사항" 글자를 표시하지 않는다.
+
+   파트장이 가져온 항목의
+   TGO·BCO1·BCO2 보직 배지는 그대로 유지한다.
+*/
+.handover-entry-group--handover
+.log-entry-category-text {
+  display: none;
+}
+
+
+/* =========================================================
+   인계사항 보직 칸
+========================================================= */
+
+.handover-entry-group--handover
+.log-entry-table__category {
+  width: 92px;
+}
+
+.handover-entry-group--handover
+.log-entry-category-cell-wrap {
+  width: 92px;
+  padding-right: 8px;
+  padding-left: 8px;
+  text-align: center;
+}
+
+.handover-entry-group--handover
+.log-entry-category-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+}
+
+
+/*
+   직접 작성한 항목은 보직 배지가 없으므로
+   비어 있는 칸의 폭만 유지한다.
+*/
+.handover-entry-group--handover
+.log-entry-category-cell:empty {
+  min-height: 22px;
+}
+
+
+/* =========================================================
+   보직 배지 크기 정돈
+========================================================= */
+
+.handover-entry-group--handover
+.log-entry-source-badge {
+  min-width: 48px;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 10px;
+}
+
+
+/* =========================================================
+   인계사항 시간·내용 영역 확장
+========================================================= */
+
+.handover-entry-group--handover
+.log-entry-time-cell {
+  width: 112px;
+}
+
+.handover-entry-group--handover
+.log-entry-content-cell {
+  padding-left: 8px;
+}
+
+
+/* =========================================================
+   모바일
+========================================================= */
+
+@media (max-width: 768px) {
+  .handover-entry-group--handover
+  .log-entry-table__category,
+  .handover-entry-group--handover
+  .log-entry-category-cell-wrap {
+    width: 72px;
+  }
+
+  .handover-entry-group--handover
+  .log-entry-category-cell-wrap {
+    padding-right: 5px;
+    padding-left: 5px;
+  }
+
+  .handover-entry-group--handover
+  .log-entry-source-badge {
+    min-width: 42px;
+    min-height: 20px;
+    padding: 0 6px;
+    font-size: 9px;
+  }
+
+  .handover-entry-group--handover
+  .log-entry-time-cell {
+    width: 100px;
+  }
+}
