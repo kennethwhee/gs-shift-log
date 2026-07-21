@@ -7731,3 +7731,541 @@ tbody tr:last-child td {
     max-width: 104px !important;
   }
 }
+
+/* =========================================================
+  업무일지 수정창 - 팀원 업무일지 컴팩트 최종형
+
+  목표
+  - 일반 업무일지 요약 화면과 같은 느낌
+  - 구분 배지 반복 제거
+  - 번호 / 시간 / 내용을 한 줄로 표시
+  - 오른쪽 끝까지 전체 폭 사용
+========================================================= */
+
+
+/* =========================================================
+  수정 모달을 넓게 사용
+========================================================= */
+
+#logEditorModal .log-editor-modal {
+  width: min(
+    1440px,
+    calc(100vw - 40px)
+  ) !important;
+
+  max-width: none !important;
+}
+
+
+/* =========================================================
+  인수인계사항 전체 패널
+========================================================= */
+
+#logEntryListPanel {
+  width: 100%;
+
+  overflow: hidden;
+
+  border: 1px solid #d7e1ec;
+  border-radius: 11px;
+
+  background: #ffffff;
+}
+
+
+/* 위쪽 인수인계사항 제목 */
+#logEntryListPanel
+.log-entry-table-header {
+  min-height: 54px;
+  margin: 0;
+  padding: 11px 14px;
+
+  border-bottom: 1px solid #dce5ee;
+
+  background: #f8fafc;
+}
+
+
+/* =========================================================
+  TM / 인계사항 구역
+========================================================= */
+
+#logEntryListPanel
+.handover-entry-group {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  background: #ffffff;
+}
+
+#logEntryListPanel
+.handover-entry-group
++ .handover-entry-group {
+  border-top: 1px solid #dce5ee;
+}
+
+
+/* TM 발행 내역 / 인계사항 소제목 */
+#logEntryListPanel
+.handover-entry-group__header {
+  min-height: 42px;
+  margin: 0;
+  padding: 10px 14px;
+
+  border: 0;
+  border-bottom: 1px solid #e1e8f0;
+
+  background: #ffffff;
+}
+
+
+/* =========================================================
+  표 외곽 제거
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table-wrap {
+  width: 100%;
+
+  overflow: visible !important;
+
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  background: #ffffff;
+}
+
+#logEntryListPanel
+.log-entry-table {
+  width: 100% !important;
+  min-width: 0 !important;
+
+  border-collapse: collapse;
+  table-layout: fixed !important;
+
+  background: #ffffff;
+}
+
+
+/* =========================================================
+  인계사항 표 제목 제거
+
+  위쪽의 보직별 업무일지와 동일하게
+  구분 / 시간 / 내용 헤더를 반복 표시하지 않는다.
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+thead {
+  display: none !important;
+}
+
+
+/* =========================================================
+  반복되는 인계사항 구분 칸 제거
+
+  각 줄마다 보이던 '인계사항' 배지를 숨긴다.
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-table__category,
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-category-cell-wrap {
+  display: none !important;
+}
+
+
+/* =========================================================
+  기본 행
+
+  시간 78px
+  내용 나머지 전체
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+tbody tr:not(.log-entry-role-divider-row) {
+  display: grid !important;
+
+  width: 100%;
+
+  grid-template-columns:
+    78px
+    minmax(0, 1fr);
+
+  align-items: start;
+
+  border-bottom: 0;
+
+  background: #ffffff;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+tbody tr:not(.log-entry-role-divider-row)
+td {
+  display: block;
+
+  width: auto !important;
+  min-width: 0;
+
+  border: 0 !important;
+
+  background: transparent !important;
+}
+
+
+/* 항목과 항목 사이 얇은 선 */
+#logEntryListPanel
+.log-entry-table--handover
+tbody tr:not(.log-entry-role-divider-row)
++ tr:not(.log-entry-role-divider-row) {
+  border-top: 1px solid #edf1f5;
+}
+
+
+/* hover 제거 또는 약하게 */
+#logEntryListPanel
+.log-entry-table--handover
+tbody tr:not(.log-entry-role-divider-row):hover {
+  background: #fbfdff;
+}
+
+
+/* =========================================================
+  시간
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-time-cell {
+  grid-column: 1;
+
+  width: 78px !important;
+
+  padding: 9px 6px 9px 14px !important;
+
+  color: #174a7c;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.6;
+
+  text-align: left !important;
+  vertical-align: top !important;
+
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-time-group-label {
+  display: block;
+
+  width: 100%;
+
+  color: inherit;
+  font: inherit;
+
+  text-align: left !important;
+}
+
+
+/* =========================================================
+  내용
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-content-cell {
+  grid-column: 2;
+
+  width: auto !important;
+  min-width: 0;
+
+  padding: 9px 18px 9px 0 !important;
+
+  text-align: left !important;
+  vertical-align: top !important;
+}
+
+
+/* 번호 + 내용 */
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-line {
+  display: grid !important;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    25px
+    minmax(0, 1fr);
+
+  align-items: start;
+  column-gap: 7px;
+
+  margin: 0;
+  padding: 0;
+
+  color: #203249;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+
+  text-align: left;
+}
+
+
+/* 번호 */
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-number {
+  display: block;
+
+  width: 25px !important;
+  min-width: 25px !important;
+
+  margin: 0;
+  padding: 0;
+
+  color: #1763c5;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.6;
+
+  text-align: left !important;
+  white-space: nowrap;
+}
+
+
+/* 내용 */
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-text {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+
+  margin: 0;
+  padding: 0;
+
+  color: #203249;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+
+  text-align: left;
+
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+  보직 제목 행
+
+  TGO 업무일지 1건
+  BCO1 업무일지 5건
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-role-divider-row {
+  display: table-row !important;
+
+  width: 100%;
+
+  border: 0 !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-role-divider-row td {
+  display: table-cell !important;
+
+  width: 100% !important;
+
+  padding: 0 !important;
+
+  border: 0 !important;
+  border-top: 1px solid #d8e2ec !important;
+  border-bottom: 0 !important;
+
+  background: #ffffff !important;
+}
+
+
+/* 첫 번째 보직은 위쪽 선 제거 */
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-role-divider-row.is-first-role
+td {
+  border-top: 0 !important;
+}
+
+
+/* 보직 제목 내부 */
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-role-divider {
+  display: flex;
+
+  width: 100%;
+  min-height: 37px;
+
+  align-items: center;
+  gap: 7px;
+
+  margin: 0;
+  padding: 8px 14px;
+
+  border: 0;
+  border-radius: 0;
+
+  background: #ffffff;
+}
+
+
+/* 보직 제목 */
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-role-divider strong {
+  color: #203249;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+
+/* 건수 */
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-role-divider__count {
+  color: #8492a3;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+
+/* 보직 배지 */
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-role-divider__badge {
+  min-width: 38px;
+  min-height: 18px;
+
+  padding: 0 6px;
+
+  border-radius: 5px;
+
+  font-size: 8px;
+  font-weight: 900;
+}
+
+
+/* =========================================================
+  편집 모드
+
+  선택 / 관리 열이 나타나는 경우에는
+  기존 표 형태를 잠시 복원한다.
+========================================================= */
+
+#logEntryListPanel.is-edit-mode
+.log-entry-table--handover
+thead {
+  display: table-header-group !important;
+}
+
+#logEntryListPanel.is-edit-mode
+.log-entry-table--handover
+.log-entry-table__category,
+#logEntryListPanel.is-edit-mode
+.log-entry-table--handover
+.log-entry-category-cell-wrap {
+  display: table-cell !important;
+}
+
+#logEntryListPanel.is-edit-mode
+.log-entry-table--handover
+tbody tr:not(.log-entry-role-divider-row) {
+  display: table-row !important;
+}
+
+#logEntryListPanel.is-edit-mode
+.log-entry-table--handover
+tbody tr:not(.log-entry-role-divider-row)
+td {
+  display: table-cell !important;
+}
+
+
+/* =========================================================
+  관리 열 숨김 상태
+========================================================= */
+
+#logEntryListPanel
+.log-entry-edit-only-column[hidden] {
+  display: none !important;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+  #logEditorModal .log-editor-modal {
+    width: calc(100vw - 16px) !important;
+  }
+
+  #logEntryListPanel
+  .log-entry-table--handover {
+    min-width: 0 !important;
+  }
+
+  #logEntryListPanel
+  .log-entry-table--handover
+  tbody tr:not(.log-entry-role-divider-row) {
+    grid-template-columns:
+      62px
+      minmax(0, 1fr);
+  }
+
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-time-cell {
+    width: 62px !important;
+    padding-left: 10px !important;
+  }
+
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-content-cell {
+    padding-right: 10px !important;
+  }
+
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-handover-line {
+    grid-template-columns:
+      21px
+      minmax(0, 1fr);
+
+    column-gap: 5px;
+  }
+
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-handover-number {
+    width: 21px !important;
+    min-width: 21px !important;
+  }
+}
