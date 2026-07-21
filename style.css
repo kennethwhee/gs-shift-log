@@ -5514,19 +5514,19 @@ td {
 
 /* =========================================================
    보직별 업무일지 구분
-
-   박스가 아니라 위쪽 가로선만 표시
+   - 운전현황 / TM 발행 내역과 같은 시작점
+   - 제목 칸 90px 기준 정렬
 ========================================================= */
 
 .log-preview__role-divider {
   display: block;
-  width: 100%;
-  margin: 8px 0 2px;
-  padding: 8px 8px 3px;
-  border: 0;
-  border-top: 1px solid #cbd8e5;
-  border-radius: 0;
-  background: transparent;
+  width: auto;
+  min-width: 0;
+  margin: 8px 8px 3px;
+  padding: 5px 8px;
+  border: 1px solid #d7e2ed;
+  border-radius: 6px;
+  background: #fbfdff;
   color: #33506d;
   font-size: 11px;
   font-weight: 900;
@@ -5534,26 +5534,54 @@ td {
   text-align: left;
 }
 
+
+/*
+   운전현황·TM·인계의 제목 시작 위치와 맞춘다.
+*/
+.log-preview__role-divider {
+  margin-left: 8px;
+}
+
+
+/*
+   제목 박스 오른쪽 끝도
+   본문 폭 안에서 동일하게 맞춘다.
+*/
+.log-preview__role-divider {
+  box-sizing: border-box;
+}
+
+
+/* TGO */
 .log-preview__role-divider.is-tgo {
-  border-top-color: #b9d3ed;
+  border-color: #bfd5ed;
+  background: #f8fbff;
   color: #1f5fae;
 }
 
+
+/* BCO1 */
 .log-preview__role-divider.is-bco1 {
-  border-top-color: #c1dfce;
+  border-color: #c5dfcf;
+  background: #f9fdfb;
   color: #26784b;
 }
 
+
+/* BCO2 */
 .log-preview__role-divider.is-bco2 {
-  border-top-color: #d5c7e6;
+  border-color: #d8c9e8;
+  background: #fcf9ff;
   color: #74419c;
 }
 
+
+/* 파트장 */
 .log-preview__role-divider.is-leader {
-  border-top-color: #dfcfb5;
+  border-color: #dfcfb5;
+  background: #fffdf8;
   color: #8c601d;
 }
-
 
 /* =========================================================
    TAG
@@ -5636,4 +5664,25 @@ td {
 
 .log-table thead th:nth-child(5) {
   border-left-color: #cbd8e5;
+}
+
+/* =========================================================
+   TM 발행 내역 아래 가로 경계선
+========================================================= */
+
+.log-preview__group.is-maintenance {
+  position: relative;
+}
+
+
+/*
+   마지막 TM 항목 뒤에만 선을 표시한다.
+*/
+.log-preview__group.is-maintenance
++ .log-preview__role-divider,
+.log-preview__group.is-maintenance
++ .log-preview__group.is-handover {
+  border-top: 1px solid #cbd8e5;
+  margin-top: 8px;
+  padding-top: 8px;
 }
