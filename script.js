@@ -4742,7 +4742,8 @@ function createLogRowHtml(log) {
         )
       : [];
 
-  let previousDisplayTitle = "";
+  let hasShownTmTitle = false;
+  let hasShownHandoverTitle = false;
 
   entries.forEach(
     (entry, index) => {
@@ -4771,18 +4772,23 @@ function createLogRowHtml(log) {
       const isTmIssue =
         category === "TM 발행";
 
-      const displayTitle =
-        isTmIssue
-          ? "TM"
-          : "인계";
+      let displayTitle = "";
 
       /*
-        같은 분류가 연속되면
-        첫 번째 줄에만 분류명을 표시한다.
+        TM과 인계 표시는
+        각각 첫 번째 항목에서만 표시한다.
       */
-      const shouldShowTitle =
-        displayTitle !==
-        previousDisplayTitle;
+      if (isTmIssue) {
+        if (!hasShownTmTitle) {
+          displayTitle = "TM";
+          hasShownTmTitle = true;
+        }
+      } else {
+        if (!hasShownHandoverTitle) {
+          displayTitle = "인계";
+          hasShownHandoverTitle = true;
+        }
+      }
 
       const displayText = [
         `${index + 1}.`,
@@ -4794,26 +4800,21 @@ function createLogRowHtml(log) {
 
       previewGroups.push({
         title:
-          shouldShowTitle
-            ? displayTitle
-            : "",
-
-        text:
-          displayText,
+          displayTitle,
 
         tag:
           tagText
             ? `[${tagText}]`
             : "",
 
+        text:
+          displayText,
+
         categoryClass:
           isTmIssue
             ? "is-maintenance"
             : "is-handover"
       });
-
-      previousDisplayTitle =
-        displayTitle;
     }
   );
 
@@ -4858,6 +4859,7 @@ function createLogRowHtml(log) {
         )}
       </td>
 
+
       <td class="log-row__author-cell">
 
         <strong class="log-row__author">
@@ -4867,6 +4869,7 @@ function createLogRowHtml(log) {
         </strong>
 
       </td>
+
 
       <td class="log-row__status-cell">
 
@@ -4881,6 +4884,7 @@ function createLogRowHtml(log) {
         </span>
 
       </td>
+
 
       <td class="log-row__attachment-cell">
 
@@ -4907,6 +4911,7 @@ function createLogRowHtml(log) {
 
       </td>
 
+
       <td class="log-row__preview-cell">
 
         <button
@@ -4931,30 +4936,26 @@ function createLogRowHtml(log) {
                         class="
                           log-preview__group
                           ${group.categoryClass}
-                          ${
-                            group.title
-                              ? ""
-                              : "has-empty-title"
-                          }
                         "
                       >
 
-                        <strong
-                          class="log-preview__title"
-                          aria-hidden="${
-                            group.title
-                              ? "false"
-                              : "true"
-                          }"
-                        >
-                          ${
-                            group.title
-                              ? escapeHtml(
+                        ${
+                          group.title
+                            ? `
+                              <strong
+                                class="log-preview__title"
+                              >
+                                ${escapeHtml(
                                   group.title
-                                )
-                              : ""
-                          }
-                        </strong>
+                                )}
+                              </strong>
+                            `
+                            : `
+                              <span
+                                aria-hidden="true"
+                              ></span>
+                            `
+                        }
 
                         <span
                           class="log-preview__content"
@@ -4994,6 +4995,7 @@ function createLogRowHtml(log) {
         </button>
 
       </td>
+
 
       <td class="log-row__actions-cell">
 
