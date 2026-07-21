@@ -2685,90 +2685,188 @@ body.modal-open {
   업무일지 상세보기 보직별 묶음
 ========================================================= */
 
+/* 운전 현황 및 내역 박스 */
 .detail-operation-status,
 .detail-role-entry-list {
-  min-height: 72px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
   padding: 12px 14px;
   border: 1px solid #d8e0e9;
   border-radius: 9px;
   background: #ffffff;
 }
 
+/* 운전 현황 원문 */
 .detail-operation-status-text {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
   color: #3f4e61;
   font-size: 13px;
   line-height: 1.7;
-  white-space: pre-wrap;
+  text-align: left;
+  text-indent: 0;
+  white-space: pre-line;
   word-break: break-word;
 }
 
-.detail-role-group + .detail-role-group {
-  margin-top: 18px;
+/* 보직별 그룹 */
+.detail-role-group {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
+.detail-role-group + .detail-role-group {
+  margin-top: 16px;
+}
+
+/* TGO, BCO1 등의 그룹 제목 */
 .detail-role-group__title {
-  margin: 0 0 7px;
+  display: block;
+  width: 100%;
+  margin: 0 0 6px;
+  padding: 0;
   color: #33465d;
   font-size: 13px;
   font-weight: 800;
   line-height: 1.5;
+  text-align: left;
 }
 
+/* 그룹 안의 업무 목록 */
 .detail-role-group__entries {
   display: flex;
+  width: 100%;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
 }
 
+/*
+  한 항목의 구조
+
+  번호 | 시간 | [TAG] 내용
+*/
 .detail-grouped-entry-line {
   display: grid;
   grid-template-columns:
-    auto
-    auto
-    auto
+    max-content
+    max-content
     minmax(0, 1fr);
   align-items: baseline;
-  column-gap: 6px;
+  width: 100%;
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  column-gap: 6px;
   color: #405064;
   font-size: 13px;
   line-height: 1.6;
+  text-align: left;
 }
 
+/* 번호 */
 .detail-grouped-entry-line__number {
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.detail-grouped-entry-line__time {
+  display: block;
+  width: auto;
+  margin: 0;
+  padding: 0;
   color: #334a66;
   font-weight: 700;
   white-space: nowrap;
 }
 
+/* 시간 */
+.detail-grouped-entry-line__time {
+  display: block;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  color: #334a66;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/*
+  TAG와 내용을 같은 영역 안에 배치한다.
+
+  TAG가 있으면:
+  [TAG번호] 작업 내용
+
+  TAG가 없으면:
+  작업 내용
+*/
+.detail-grouped-entry-line__content {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  color: #405064;
+  line-height: inherit;
+  text-align: left;
+  text-indent: 0;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* 내용 앞 TAG */
 .detail-inline-tag {
+  display: inline;
+  width: auto;
+  min-width: 0;
+  margin: 0 4px 0 0;
   padding: 0;
   border: 0;
+  border-radius: 0;
   background: transparent;
   color: #1769c2;
-  font-size: inherit;
+  font: inherit;
   font-weight: 800;
   line-height: inherit;
+  text-align: left;
+  vertical-align: baseline;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .detail-inline-tag:hover {
+  background: transparent;
   text-decoration: underline;
 }
 
-.detail-grouped-entry-line__content {
-  min-width: 0;
-  color: #405064;
-  white-space: pre-wrap;
+/* 실제 작업 내용 */
+.detail-grouped-entry-line__content-text {
+  display: inline;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+  white-space: normal;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
+/* 빈 내역 */
+.detail-role-entry-list > .detail-empty,
+.detail-operation-status > .detail-empty {
+  display: block;
+  margin: 0;
+  padding: 0;
+  color: #8a96a5;
+  text-align: left;
+}
+
+/* 모바일 */
 @media (max-width: 600px) {
   .detail-operation-status,
   .detail-role-entry-list {
@@ -2776,24 +2874,20 @@ body.modal-open {
   }
 
   .detail-role-group + .detail-role-group {
-    margin-top: 16px;
+    margin-top: 14px;
   }
 
+  .detail-role-group__title,
   .detail-operation-status-text,
-  .detail-grouped-entry-line,
-  .detail-role-group__title {
+  .detail-grouped-entry-line {
     font-size: 12px;
   }
 
   .detail-grouped-entry-line {
-    grid-template-columns:
-      auto
-      auto
-      auto
-      minmax(0, 1fr);
     column-gap: 5px;
   }
 }
+
 /* =========================================================
   등록된 작업 내역 - TAG를 내용 앞에 표시
 ========================================================= */
