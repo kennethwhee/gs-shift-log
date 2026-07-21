@@ -6867,3 +6867,171 @@ tbody tr:last-child td {
     width: 76px !important;
   }
 }
+
+/* =========================================================
+  업무일지 상세 - 가로 공간 최대 활용
+========================================================= */
+
+/* 상세 모달 폭 확대 */
+#logDetailModal .modal-panel {
+  width: min(1180px, calc(100vw - 32px));
+  max-width: 1180px;
+}
+
+/* 상세 내용 전체 폭 사용 */
+#logDetailContent {
+  width: 100%;
+}
+
+.log-report-section {
+  width: 100%;
+}
+
+/* 항목 목록 */
+.log-report-entry-list {
+  display: block;
+  width: 100%;
+}
+
+/* 항목 한 줄 */
+.log-report-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #dbe5f0;
+  box-sizing: border-box;
+}
+
+/* 기존에 따로 떨어져 있던 번호 숨김 */
+.log-report-entry__number {
+  display: none;
+}
+
+/* 본문 전체 폭 사용 */
+.log-report-entry__body {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+/* 구분 배지가 있던 줄은 숨김 */
+.log-report-entry__meta {
+  display: none;
+}
+
+/* 실제 내용 */
+.log-report-entry__content {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  color: #172033;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.55;
+  text-align: left;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 시간과 내용을 한 줄로 정렬할 신규 구조 */
+.log-report-line {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  width: 100%;
+}
+
+.log-report-line__time {
+  color: #253858;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.55;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.log-report-line__main {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+}
+
+.log-report-line__number {
+  flex: 0 0 auto;
+  color: #0b56a6;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.log-report-line__text {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: #172033;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.55;
+  text-align: left;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* TAG는 내용 뒤에 자연스럽게 붙음 */
+.log-report-tag {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0868d7;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+/* 업무 구분 헤더 */
+.log-report-group-title {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #ccd8e6;
+  background: #f4f7fb;
+  color: #172033;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* 모바일 */
+@media (max-width: 768px) {
+  #logDetailModal .modal-panel {
+    width: calc(100vw - 16px);
+  }
+
+  .log-report-entry {
+    padding: 9px 8px;
+  }
+
+  .log-report-line {
+    grid-template-columns: 50px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .log-report-line__time,
+  .log-report-line__number {
+    font-size: 12px;
+  }
+
+  .log-report-line__text {
+    font-size: 13px;
+  }
+}

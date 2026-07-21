@@ -13,8 +13,114 @@
   <script src="script.js" defer></script>
 </head>
 
+<!-- =========================================================
+  로그인 화면
+========================================================== -->
+<div
+  class="login-screen"
+  id="loginScreen"
+>
+  <section
+    class="login-card"
+    aria-labelledby="loginTitle"
+  >
+
+    <div class="login-card__brand">
+
+      <span class="login-card__company">
+        GS 포천그린에너지
+      </span>
+
+      <h1 id="loginTitle">
+        GS Shift Log
+      </h1>
+
+      <p>
+        교대근무 업무일지 시스템
+      </p>
+
+    </div>
+
+
+    <form
+      class="login-form"
+      id="loginForm"
+      autocomplete="off"
+    >
+
+      <label class="login-field">
+
+        <span>
+          사번
+        </span>
+
+        <input
+          type="text"
+          id="loginEmployeeId"
+          inputmode="numeric"
+          maxlength="7"
+          placeholder="사번을 입력하세요"
+          autocomplete="username"
+          required
+        />
+
+      </label>
+
+
+      <label class="login-field">
+
+        <span>
+          비밀번호
+        </span>
+
+        <input
+          type="password"
+          id="loginPassword"
+          maxlength="30"
+          placeholder="비밀번호를 입력하세요"
+          autocomplete="current-password"
+          required
+        />
+
+      </label>
+
+
+      <p
+        class="login-error"
+        id="loginError"
+        role="alert"
+        hidden
+      >
+      </p>
+
+
+      <button
+        type="submit"
+        class="login-submit-button"
+      >
+        로그인
+      </button>
+
+    </form>
+
+
+    <div class="login-card__help">
+
+      <span>
+        초기 비밀번호는 사번과 동일합니다.
+      </span>
+
+    </div>
+
+  </section>
+</div>
+
 <body>
-  <div class="app-shell">
+  <div
+  class="app-shell"
+  id="appShell"
+  hidden
+>
 
     <!-- =========================================================
       상단 헤더
