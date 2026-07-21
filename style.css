@@ -5058,3 +5058,259 @@ td {
 .log-preview__role-divider:first-child {
   margin-top: 0;
 }
+
+/* =========================================================
+   업무일지 미리보기 최종 정리
+   - 번호·내용 왼쪽 정렬
+   - TM 발행 제목 크기 통일
+   - 운전현황·TM·인계 경계선 추가
+========================================================= */
+
+
+/* =========================================================
+   업무내용 전체 영역
+========================================================= */
+
+.log-preview {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+
+/* =========================================================
+   공통 한 줄 구조
+
+   제목 84px | 실제 업무 내용
+========================================================= */
+
+.log-preview__group {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns:
+    84px
+    minmax(0, 1fr);
+  align-items: start;
+  gap: 0 10px;
+  margin: 0;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  text-align: left;
+}
+
+
+/* =========================================================
+   2번 이후 항목 정렬
+
+   기존 padding-left와 가상 빈 칸을 제거한다.
+========================================================= */
+
+.log-preview__group.has-no-title {
+  grid-template-columns:
+    84px
+    minmax(0, 1fr);
+  padding-left: 6px;
+}
+
+.log-preview__group.has-no-title::before {
+  content: none !important;
+  display: none !important;
+}
+
+.log-preview__group.has-no-title
+.log-preview__content {
+  grid-column: 2;
+  margin: 0;
+  padding-left: 0;
+}
+
+
+/* =========================================================
+   제목 배지 공통 크기
+========================================================= */
+
+.log-preview__title {
+  display: inline-flex;
+  width: 84px;
+  min-width: 84px;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   실제 업무 내용
+========================================================= */
+
+.log-preview__content {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 3px 0 0;
+  color: #34445a;
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: left;
+}
+
+.log-preview__text {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  color: #26364b;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  text-align: left;
+  text-indent: 0;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+   운전현황 경계선
+========================================================= */
+
+.log-preview__group.is-operation {
+  border-color: #d6e4f3;
+  background: #fbfdff;
+}
+
+.log-preview__group.is-operation
+.log-preview__title {
+  border-color: #c9def3;
+  background: #eaf2fb;
+  color: #1f5fae;
+}
+
+
+/* =========================================================
+   TM 발행 내역 경계선
+========================================================= */
+
+.log-preview__group.is-maintenance {
+  border-color: #d8e9e1;
+  background: #fbfefc;
+}
+
+.log-preview__group.is-maintenance
+.log-preview__title {
+  border-color: #c9e3d7;
+  background: #e7f6f0;
+  color: #17865f;
+}
+
+
+/*
+   기존 가로 전체 길이의 TM 발행 내역 제목을
+   운전현황·인계 배지와 같은 크기로 변경한다.
+*/
+.log-preview__role-divider.is-maintenance {
+  display: inline-flex;
+  width: 84px;
+  min-width: 84px;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  margin: 5px 0 1px 6px;
+  padding: 3px 7px;
+  border: 1px solid #c9e3d7;
+  border-radius: 6px;
+  background: #e7f6f0;
+  color: #17865f;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   인계사항 경계선
+========================================================= */
+
+.log-preview__group.is-handover {
+  border-color: #eadfca;
+  background: #fffdf9;
+}
+
+.log-preview__group.is-handover
+.log-preview__title {
+  border-color: #ead6ad;
+  background: #fff4df;
+  color: #a3680d;
+}
+
+
+/* =========================================================
+   보직별 업무일지 구분
+
+   TGO 업무일지, BCO1 업무일지 등의 구분선은
+   전체 폭을 사용하되 높이를 컴팩트하게 유지한다.
+========================================================= */
+
+.log-preview__role-divider:not(.is-maintenance) {
+  display: block;
+  width: 100%;
+  margin: 8px 0 2px;
+  padding: 5px 9px;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.log-preview__role-divider:first-child {
+  margin-top: 0;
+}
+
+
+/* =========================================================
+   TAG
+========================================================= */
+
+.log-preview__tag {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 20px;
+  margin: 0;
+  padding: 0 5px;
+  border: 1px solid #c9dcf3;
+  border-radius: 5px;
+  background: #edf5ff;
+  color: #1f5fae;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.4;
+  white-space: nowrap;
+}

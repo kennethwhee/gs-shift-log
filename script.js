@@ -4805,17 +4805,10 @@ function openShiftMemberLogFromCard(card) {
   });
 }
 
-
 function updateShiftMemberCardStates() {
   const selectedDate =
     formatInputDate(
       appState.selectedDate
-    );
-
-  const scheduledPart =
-    getScheduledPart(
-      appState.selectedDate,
-      appState.selectedShift
     );
 
   const shiftMemberCards = [
@@ -4847,8 +4840,8 @@ function updateShiftMemberCardStates() {
         );
 
       /*
-        HTML에 처음 적혀 있던 이름과 근무파트를
-        기본값으로 한 번만 저장한다.
+        HTML에 처음 입력된 이름을
+        카드 기본 이름으로 저장한다.
       */
       if (
         nameElement &&
@@ -4861,17 +4854,23 @@ function updateShiftMemberCardStates() {
           ).trim();
       }
 
+      /*
+        근무파트는 Current Shift에만 표시한다.
+
+        근무자 카드에서 GROUP_1, GROUP_2,
+        1파트~4파트 등의 문구는 전부 숨긴다.
+      */
       if (teamElement) {
         teamElement.textContent =
-          scheduledPart || "";
+          "";
 
         teamElement.hidden =
-          !scheduledPart;
+          true;
       }
 
       /*
-        선택한 날짜·근무·보직과 일치하는
-        업무일지를 찾는다.
+        선택 날짜·근무·보직에 맞는
+        가장 최근 업무일지를 찾는다.
       */
       const matchedLogs =
         appState.logs
@@ -4923,22 +4922,14 @@ function updateShiftMemberCardStates() {
         null;
 
       /*
-        해당 날짜에 업무일지가 없으면
-        카드 이름을 원래 기본값으로 되돌린다.
+        업무일지가 없으면
+        기본 이름과 미작성 상태로 표시한다.
       */
       if (!existingLog) {
         if (nameElement) {
           nameElement.textContent =
             card.dataset.defaultName ||
             "";
-        }
-
-        if (teamElement) {
-          teamElement.textContent =
-            scheduledPart || "";
-
-          teamElement.hidden =
-            !scheduledPart;
         }
 
         card.dataset.logState =
@@ -4956,8 +4947,7 @@ function updateShiftMemberCardStates() {
       }
 
       /*
-        기존 업무일지 작성자 이름을
-        근무자 카드에 표시한다.
+        업무일지 작성자 이름 표시
       */
       const authorName =
         String(
@@ -4965,37 +4955,23 @@ function updateShiftMemberCardStates() {
           ""
         ).trim();
 
-      if (
-        nameElement &&
-        authorName
-      ) {
+      if (nameElement) {
         nameElement.textContent =
-          authorName;
-      }
-
-      /*
-        근무자 카드에는 기존 GROUP_1, GROUP_2 대신
-        근무표에서 계산된 파트만 표시한다.
-      */
-      if (teamElement) {
-        teamElement.textContent =
-          scheduledPart || "";
-
-        teamElement.hidden =
-          !scheduledPart;
+          authorName ||
+          card.dataset.defaultName ||
+          "";
       }
 
       card.dataset.logState =
         "existing";
 
-
-      /*
-        업무일지 상태 표시
-      */
       if (!statusElement) {
         return;
       }
 
+      /*
+        업무일지 상태 표시
+      */
       if (
         existingLog.status ===
           "결재완료" ||
