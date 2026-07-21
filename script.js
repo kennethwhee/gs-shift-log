@@ -17,7 +17,9 @@ const FACILITY_NAVIGATOR_URL =
 
 const STORAGE_KEYS = {
   logs: "gsShiftLog.logs",
-  draft: "gsShiftLog.draft"
+  draft: "gsShiftLog.draft",
+  operationStatus:
+    "gsShiftLog.operationStatus"
 };
 
 const appState = {
@@ -2696,6 +2698,26 @@ function formatInputDate(date) {
   ].join("-");
 }
 
+function formatDateTime(value) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hour}:${minute}`;
+}
+
 
 /* =========================================================
   업무일지 모달
@@ -4733,7 +4755,8 @@ function createLogRowHtml(log) {
   }
 
   /*
-    등록된 업무내역 전체를 시간순으로 정렬한다.
+    등록된 전체 업무내역을
+    시간순으로 정렬한다.
   */
   const entries =
     Array.isArray(log.entries)
@@ -4742,81 +4765,95 @@ function createLogRowHtml(log) {
         )
       : [];
 
-  let hasShownTmTitle = false;
-  let hasShownHandoverTitle = false;
+  let handoverNumber = 0;
+  let tmNumber = 0;
 
-  entries.forEach(
-    (entry, index) => {
-      const category =
-        String(
-          entry.category || ""
-        ).trim();
+  let hasShownHandoverTitle =
+    false;
 
-      const tagText =
-        String(
-          entry.tag || ""
-        )
-          .trim()
-          .toUpperCase();
+  let hasShownTmTitle =
+    false;
 
-      const timeText =
-        String(
-          entry.time || ""
-        ).trim();
+  entries.forEach((entry) => {
+    const category =
+      String(
+        entry.category || ""
+      ).trim();
 
-      const contentText =
-        firstMeaningfulLine(
-          entry.content
-        );
+    const isTmIssue =
+      category === "TM 발행";
 
-      const isTmIssue =
-        category === "TM 발행";
+    const tagText =
+      String(
+        entry.tag || ""
+      )
+        .trim()
+        .toUpperCase();
 
-      let displayTitle = "";
+    const timeText =
+      String(
+        entry.time || ""
+      ).trim();
 
-      /*
-        TM과 인계 표시는
-        각각 첫 번째 항목에서만 표시한다.
-      */
-      if (isTmIssue) {
-        if (!hasShownTmTitle) {
-          displayTitle = "TM";
-          hasShownTmTitle = true;
-        }
-      } else {
-        if (!hasShownHandoverTitle) {
-          displayTitle = "인계";
-          hasShownHandoverTitle = true;
-        }
+    const contentText =
+      firstMeaningfulLine(
+        entry.content
+      ) || "-";
+
+    let displayTitle = "";
+    let entryNumber = 0;
+
+    if (isTmIssue) {
+      tmNumber += 1;
+      entryNumber = tmNumber;
+
+      if (!hasShownTmTitle) {
+        displayTitle = "TM";
+        hasShownTmTitle = true;
       }
+    } else {
+      handoverNumber += 1;
+      entryNumber =
+        handoverNumber;
 
-      const displayText = [
-        `${index + 1}.`,
-        timeText,
-        contentText || "-"
-      ]
-        .filter(Boolean)
-        .join(" ");
-
-      previewGroups.push({
-        title:
-          displayTitle,
-
-        tag:
-          tagText
-            ? `[${tagText}]`
-            : "",
-
-        text:
-          displayText,
-
-        categoryClass:
-          isTmIssue
-            ? "is-maintenance"
-            : "is-handover"
-      });
+      if (
+        !hasShownHandoverTitle
+      ) {
+        displayTitle = "인계";
+        hasShownHandoverTitle =
+          true;
+      }
     }
-  );
+
+    const displayText = [
+      `${entryNumber}.`,
+      timeText,
+      contentText
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    previewGroups.push({
+      title:
+        displayTitle,
+
+      keepTitleSpace:
+        true,
+
+      tag:
+        tagText
+          ? `[${tagText}]`
+          : "",
+
+      text:
+        displayText,
+
+      categoryClass:
+        isTmIssue
+          ? "is-maintenance"
+          : "is-handover"
+    });
+  });
 
   /*
     비고
@@ -4830,13 +4867,16 @@ function createLogRowHtml(log) {
       title:
         "비고",
 
+      keepTitleSpace:
+        false,
+
+      tag:
+        "",
+
       text:
         firstMeaningfulLine(
           log.note
         ),
-
-      tag:
-        "",
 
       categoryClass:
         "is-note"
@@ -4896,7 +4936,7 @@ function createLogRowHtml(log) {
                 title="첨부파일 ${attachmentCount}개"
                 aria-label="첨부파일 ${attachmentCount}개"
               >
-                ${attachmentCount}
+                📎
               </span>
             `
             : `
@@ -4904,7 +4944,7 @@ function createLogRowHtml(log) {
                 class="attachment-indicator is-empty"
                 aria-label="첨부파일 없음"
               >
-                0
+                -
               </span>
             `
         }
@@ -4939,23 +4979,29 @@ function createLogRowHtml(log) {
                         "
                       >
 
-                        ${
-                          group.title
-                            ? `
-                              <strong
-                                class="log-preview__title"
-                              >
-                                ${escapeHtml(
+                        <strong
+                          class="
+                            log-preview__title
+                            ${
+                              group.title
+                                ? ""
+                                : "is-placeholder"
+                            }
+                          "
+                          aria-hidden="${
+                            group.title
+                              ? "false"
+                              : "true"
+                          }"
+                        >
+                          ${
+                            group.title
+                              ? escapeHtml(
                                   group.title
-                                )}
-                              </strong>
-                            `
-                            : `
-                              <span
-                                aria-hidden="true"
-                              ></span>
-                            `
-                        }
+                                )
+                              : "&nbsp;"
+                          }
+                        </strong>
 
                         <span
                           class="log-preview__content"
@@ -4964,7 +5010,9 @@ function createLogRowHtml(log) {
                           ${
                             group.tag
                               ? `
-                                <span class="log-preview__tag">
+                                <span
+                                  class="log-preview__tag"
+                                >
                                   ${escapeHtml(
                                     group.tag
                                   )}
@@ -4973,7 +5021,9 @@ function createLogRowHtml(log) {
                               : ""
                           }
 
-                          <span class="log-preview__text">
+                          <span
+                            class="log-preview__text"
+                          >
                             ${escapeHtml(
                               group.text || "-"
                             )}
@@ -5010,8 +5060,10 @@ function createLogRowHtml(log) {
             )}"
           >
             ${
-              log.status === "작성중" ||
-              log.status === "임시저장"
+              log.status ===
+                "작성중" ||
+              log.status ===
+                "임시저장"
                 ? "이어쓰기"
                 : "수정"
             }
