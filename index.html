@@ -1330,58 +1330,218 @@
   </div>
 
 
-  <!-- =====================================================
-    등록된 작업 내역
-  ====================================================== -->
-  <div class="log-entry-table-panel">
+<!-- =====================================================
+  인수인계사항
+====================================================== -->
+<div
+  class="log-entry-table-panel"
+  id="logEntryListPanel"
+>
 
-    <div class="log-entry-table-header">
+  <!-- 전체 제목 -->
+  <div class="log-entry-table-header">
 
-      <div class="log-entry-table-header__summary">
+    <div class="log-entry-table-header__summary">
 
-        <strong>
-          등록된 작업 내역
-        </strong>
+      <strong>
+        인수인계사항
+      </strong>
 
-        <span id="logEntryCount">
-          총 0건
-        </span>
+      <span id="logEntryCount">
+        총 0건
+      </span>
 
-        <span
-          id="selectedLogEntryCount"
-          class="selected-log-entry-count"
-          hidden
-        >
-          선택 0건
-        </span>
+      <span
+        id="selectedLogEntryCount"
+        class="selected-log-entry-count"
+        hidden
+      >
+        선택 0건
+      </span>
 
-      </div>
+    </div>
+
+
+    <div class="log-entry-list-header-actions">
+
+      <!-- 평상시 표시 -->
+      <button
+        type="button"
+        id="openLogEntryEditModeButton"
+        class="log-entry-edit-mode-button"
+      >
+        편집
+      </button>
+
+
+      <!-- 편집 모드에서만 표시 -->
+      <button
+        type="button"
+        id="cancelLogEntryEditModeButton"
+        class="log-entry-edit-mode-cancel-button"
+        hidden
+      >
+        편집 종료
+      </button>
+
 
       <button
         type="button"
         id="deleteSelectedLogEntriesButton"
         class="delete-selected-log-entries-button"
         disabled
+        hidden
       >
         선택 항목 삭제
       </button>
 
     </div>
 
+  </div>
+
+
+  <!-- ===================================================
+    TM 발행 내역
+  ==================================================== -->
+  <section
+    class="handover-entry-group
+           handover-entry-group--tm"
+  >
+
+    <div class="handover-entry-group__header">
+
+      <div>
+        <strong>
+          TM 발행 내역
+        </strong>
+
+        <span
+          id="tmIssueEntryCount"
+          class="handover-entry-group__count"
+        >
+          0건
+        </span>
+      </div>
+
+    </div>
+
 
     <div class="log-entry-table-wrap">
 
-      <table class="log-entry-table">
+      <table
+        class="log-entry-table
+               log-entry-table--tm"
+      >
 
         <thead>
           <tr>
 
-            <th class="log-entry-table__select">
+            <th
+              class="
+                log-entry-table__select
+                log-entry-edit-only-column
+              "
+              hidden
+            >
+              <input
+                id="selectAllTmEntriesCheckbox"
+                class="log-entry-select-checkbox"
+                type="checkbox"
+                aria-label="TM 발행 내역 전체 선택"
+              />
+            </th>
+
+            <th class="log-entry-table__category">
+              구분
+            </th>
+
+            <th class="log-entry-table__content">
+              내용
+            </th>
+
+            <th
+              class="
+                log-entry-table__actions
+                log-entry-edit-only-column
+              "
+              hidden
+            >
+              관리
+            </th>
+
+          </tr>
+        </thead>
+
+
+        <tbody id="tmIssueEntryTableBody">
+
+          <tr class="log-entry-empty-row">
+            <td colspan="2">
+              등록된 TM 발행 내역이 없습니다.
+            </td>
+          </tr>
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  </section>
+
+
+  <!-- ===================================================
+    인계사항
+  ==================================================== -->
+  <section
+    class="handover-entry-group
+           handover-entry-group--handover"
+  >
+
+    <div class="handover-entry-group__header">
+
+      <div>
+        <strong>
+          인계사항
+        </strong>
+
+        <span
+          id="handoverEntryCount"
+          class="handover-entry-group__count"
+        >
+          0건
+        </span>
+      </div>
+
+    </div>
+
+
+    <div class="log-entry-table-wrap">
+
+      <table
+        class="log-entry-table
+               log-entry-table--handover"
+      >
+
+        <thead>
+          <tr>
+
+            <th
+              class="
+                log-entry-table__select
+                log-entry-edit-only-column
+              "
+              hidden
+            >
+              <!--
+                기존 JavaScript와 연결되는
+                전체 선택 체크박스 ID는 유지한다.
+              -->
               <input
                 id="selectAllLogEntriesCheckbox"
                 class="log-entry-select-checkbox"
                 type="checkbox"
-                aria-label="등록된 작업 내역 전체 선택"
+                aria-label="인계사항 전체 선택"
               />
             </th>
 
@@ -1397,18 +1557,29 @@
               내용
             </th>
 
-            <th class="log-entry-table__actions">
+            <th
+              class="
+                log-entry-table__actions
+                log-entry-edit-only-column
+              "
+              hidden
+            >
               관리
             </th>
 
           </tr>
         </thead>
 
+
+        <!--
+          기존 JavaScript가 사용하는 ID를 유지한다.
+          다음 단계에서 TM과 인계사항을 각각 분리해 렌더링한다.
+        -->
         <tbody id="logEntryTableBody">
 
           <tr class="log-entry-empty-row">
-            <td colspan="5">
-              등록된 작업 내역이 없습니다.
+            <td colspan="3">
+              등록된 인계사항이 없습니다.
             </td>
           </tr>
 
@@ -1418,16 +1589,18 @@
 
     </div>
 
+  </section>
 
-    <!-- 저장용 숨김 필드: 하나만 유지 -->
-    <input
-      id="logEntriesJson"
-      type="hidden"
-      name="logEntriesJson"
-      value="[]"
-    />
 
-  </div>
+  <!-- 실제 저장용 -->
+  <input
+    id="logEntriesJson"
+    type="hidden"
+    name="logEntriesJson"
+    value="[]"
+  />
+
+</div>
 
 </section>
 

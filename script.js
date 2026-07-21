@@ -36,30 +36,42 @@ const appState = {
 /* =========================================================
   초기 실행
 ========================================================= */
-document.addEventListener("DOMContentLoaded", () => {
-  cacheElements();
-  cacheMemberLogImportElements();
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+    cacheElements();
+    cacheMemberLogImportElements();
 
-  bindShiftMemberCards();
-  loadLogs();
-  bindEvents();
-  bindMemberLogImportEvents();
+    bindShiftMemberCards();
+    loadLogs();
 
-  loadOperationStatus();
-  renderOperationStatusCard();
+    bindEvents();
+    bindMemberLogImportEvents();
+    bindLogEntryEditModeEvents();
 
-  renderSelectedDate();
-  renderLogTable();
-  updateShiftMemberCardStates();
+    loadOperationStatus();
+    renderOperationStatusCard();
 
-  setEditorDateFromSelectedDate();
+    renderSelectedDate();
+    renderLogTable();
+    updateShiftMemberCardStates();
 
-  resetLogEntryInput();
-  updateTagFieldVisibility();
-  renderLogEntryTable();
+    setEditorDateFromSelectedDate();
 
-  updateMemberLogImportSection();
-});
+    resetLogEntryInput();
+    updateTagFieldVisibility();
+    renderLogEntryTable();
+
+    /*
+      최초에는 편집 모드를 끈 상태로 시작한다.
+    */
+    setLogEntryEditMode(
+      false
+    );
+
+    updateMemberLogImportSection();
+  }
+);
 
 let elements = {};
 
@@ -313,12 +325,12 @@ function cacheElements() {
 
 
     /* =====================================================
-      등록된 작업 내역
+      인수인계사항 전체 패널
     ====================================================== */
 
-    logEntryTableBody:
+    logEntryListPanel:
       document.getElementById(
-        "logEntryTableBody"
+        "logEntryListPanel"
       ),
 
     logEntryCount:
@@ -331,9 +343,59 @@ function cacheElements() {
         "logEntriesJson"
       ),
 
+
+    /* =====================================================
+      TM 발행 내역
+    ====================================================== */
+
+    tmIssueEntryTableBody:
+      document.getElementById(
+        "tmIssueEntryTableBody"
+      ),
+
+    tmIssueEntryCount:
+      document.getElementById(
+        "tmIssueEntryCount"
+      ),
+
+    selectAllTmEntriesCheckbox:
+      document.getElementById(
+        "selectAllTmEntriesCheckbox"
+      ),
+
+
+    /* =====================================================
+      인계사항 내역
+    ====================================================== */
+
+    logEntryTableBody:
+      document.getElementById(
+        "logEntryTableBody"
+      ),
+
+    handoverEntryCount:
+      document.getElementById(
+        "handoverEntryCount"
+      ),
+
     selectAllLogEntriesCheckbox:
       document.getElementById(
         "selectAllLogEntriesCheckbox"
+      ),
+
+
+    /* =====================================================
+      인수인계사항 편집 모드
+    ====================================================== */
+
+    openLogEntryEditModeButton:
+      document.getElementById(
+        "openLogEntryEditModeButton"
+      ),
+
+    cancelLogEntryEditModeButton:
+      document.getElementById(
+        "cancelLogEntryEditModeButton"
       ),
 
     selectedLogEntryCount:
@@ -472,10 +534,6 @@ function cacheElements() {
       )
   };
 }
-
-/* =========================================================
-  파트장 업무일지 가져오기 요소
-========================================================= */
 
 /* =========================================================
   파트장 업무일지 가져오기 요소
@@ -3425,9 +3483,115 @@ function renderLogEntryTable() {
       ? appState.editorEntries
       : [];
 
+  /*
+    TM 발행만 별도 목록으로 분리한다.
+  */
+  const tmIssueEntries =
+    entries
+      .map((entry, originalIndex) => {
+        return {
+          entry,
+          originalIndex
+        };
+      })
+      .filter(({ entry }) => {
+        return (
+          String(
+            entry.category || ""
+          ).trim() ===
+          "TM 발행"
+        );
+      });
+
+  /*
+    TM 발행을 제외한 나머지는
+    모두 인계사항 목록으로 표시한다.
+  */
+  const handoverEntries =
+    entries
+      .map((entry, originalIndex) => {
+        return {
+          entry,
+          originalIndex
+        };
+      })
+      .filter(({ entry }) => {
+        return (
+          String(
+            entry.category || ""
+          ).trim() !==
+          "TM 발행"
+        );
+      })
+      .sort((itemA, itemB) => {
+        const timeA =
+          String(
+            itemA.entry.time || ""
+          ).trim();
+
+        const timeB =
+          String(
+            itemB.entry.time || ""
+          ).trim();
+
+        const hasTimeA =
+          Boolean(timeA);
+
+        const hasTimeB =
+          Boolean(timeB);
+
+        if (
+          hasTimeA &&
+          !hasTimeB
+        ) {
+          return -1;
+        }
+
+        if (
+          !hasTimeA &&
+          hasTimeB
+        ) {
+          return 1;
+        }
+
+        if (
+          hasTimeA &&
+          hasTimeB
+        ) {
+          const timeDifference =
+            timeA.localeCompare(
+              timeB
+            );
+
+          if (
+            timeDifference !== 0
+          ) {
+            return timeDifference;
+          }
+        }
+
+        return (
+          itemA.originalIndex -
+          itemB.originalIndex
+        );
+      });
+
+  /*
+    전체 및 구역별 건수
+  */
   if (elements.logEntryCount) {
     elements.logEntryCount.textContent =
       `총 ${entries.length}건`;
+  }
+
+  if (elements.tmIssueEntryCount) {
+    elements.tmIssueEntryCount.textContent =
+      `${tmIssueEntries.length}건`;
+  }
+
+  if (elements.handoverEntryCount) {
+    elements.handoverEntryCount.textContent =
+      `${handoverEntries.length}건`;
   }
 
   if (elements.logEntriesJson) {
@@ -3435,8 +3599,26 @@ function renderLogEntryTable() {
       JSON.stringify(entries);
   }
 
-  if (!elements.logEntryTableBody) {
-    return;
+  /*
+    선택 상태 초기화
+  */
+  if (
+    elements.selectAllTmEntriesCheckbox
+  ) {
+    elements
+      .selectAllTmEntriesCheckbox
+      .checked =
+      false;
+
+    elements
+      .selectAllTmEntriesCheckbox
+      .indeterminate =
+      false;
+
+    elements
+      .selectAllTmEntriesCheckbox
+      .disabled =
+      tmIssueEntries.length === 0;
   }
 
   if (
@@ -3455,7 +3637,7 @@ function renderLogEntryTable() {
     elements
       .selectAllLogEntriesCheckbox
       .disabled =
-      entries.length === 0;
+      handoverEntries.length === 0;
   }
 
   if (
@@ -3473,26 +3655,12 @@ function renderLogEntryTable() {
   }
 
   if (
-    elements
-      .deleteSelectedLogEntriesButton
+    elements.deleteSelectedLogEntriesButton
   ) {
     elements
       .deleteSelectedLogEntriesButton
       .disabled =
       true;
-  }
-
-  if (!entries.length) {
-    elements.logEntryTableBody.innerHTML = `
-      <tr class="log-entry-empty-row">
-        <td colspan="5">
-          등록된 작업 내역이 없습니다.
-        </td>
-      </tr>
-    `;
-
-    updateMemberLogImportCount();
-    return;
   }
 
   const currentRole =
@@ -3503,176 +3671,847 @@ function renderLogEntryTable() {
   const isLeaderLog =
     currentRole === "파트장";
 
-  elements.logEntryTableBody.innerHTML =
-    entries
-      .map((entry, index) => {
-        const isEditing =
-          index ===
-          appState.editingEntryIndex;
 
-        const importedRole =
-          normalizeMemberLogRole(
-            entry.importedFromRole || ""
-          );
+  /*
+    항목 한 줄 HTML 생성
+  */
+  const createEntryRowHtml = (
+    item,
+    options = {}
+  ) => {
+    const {
+      showTimeColumn = true
+    } = options;
 
-        const importedAuthor =
-          String(
-            entry.importedFromAuthor || ""
-          ).trim();
+    const {
+      entry,
+      originalIndex
+    } = item;
 
-        /*
-          파트장이 팀원 일지를 가져온 항목에만
-          출처 보직 배지를 표시한다.
+    const isEditing =
+      originalIndex ===
+      appState.editingEntryIndex;
 
-          TGO 본인 일지, BCO1 본인 일지 등에는
-          보직 배지를 표시하지 않는다.
-        */
-        const shouldShowSourceBadge =
-          isLeaderLog &&
-          importedRole &&
-          importedRole !== "파트장";
+    const importedRole =
+      normalizeMemberLogRole(
+        entry.importedFromRole || ""
+      );
 
-        const sourceClass =
-          shouldShowSourceBadge
-            ? getLogEntrySourceClass(
-                importedRole
-              )
-            : "";
+    const importedAuthor =
+      String(
+        entry.importedFromAuthor || ""
+      ).trim();
 
-        const sourceTitle =
-          importedAuthor
-            ? `${importedRole} · ${importedAuthor}`
-            : importedRole;
+    /*
+      파트장이 팀원 일지를 가져온 경우에만
+      출처 보직을 표시한다.
+    */
+    const shouldShowSourceBadge =
+      isLeaderLog &&
+      importedRole &&
+      importedRole !== "파트장";
 
-        const sourceBadgeHtml =
-          shouldShowSourceBadge
-            ? `
-              <span
-                class="
-                  log-entry-source-badge
-                  ${sourceClass}
-                "
-                title="${escapeHtml(
-                  sourceTitle
-                )}"
-              >
-                ${escapeHtml(
-                  importedRole
-                )}
-              </span>
-            `
-            : "";
-
-        const tagText =
-          String(
-            entry.tag || ""
+    const sourceClass =
+      shouldShowSourceBadge
+        ? getLogEntrySourceClass(
+            importedRole
           )
-            .trim()
-            .toUpperCase();
+        : "";
 
-        const timeText =
-          String(
-            entry.time || ""
-          ).trim();
+    const sourceTitle =
+      importedAuthor
+        ? `${importedRole} · ${importedAuthor}`
+        : importedRole;
 
-        const categoryText =
-          String(
-            entry.category || "-"
-          ).trim();
-
-        const contentText =
-          String(
-            entry.content || "-"
-          ).trim();
-
-        const tagHtml =
-          tagText
-            ? `<button
-                type="button"
-                class="log-entry-inline-tag"
-                data-entry-action="navigator"
-                data-entry-index="${index}"
-                title="Facility Navigator에서 설비 보기"
-              >[${escapeHtml(
-                tagText
-              )}]</button>`
-            : "";
-
-        return `
-          <tr
-            data-entry-index="${index}"
-            class="${
-              isEditing
-                ? "is-editing"
-                : ""
-            }"
+    const sourceBadgeHtml =
+      shouldShowSourceBadge
+        ? `
+          <span
+            class="
+              log-entry-source-badge
+              ${sourceClass}
+            "
+            title="${escapeHtml(
+              sourceTitle
+            )}"
           >
-            <td class="log-entry-select-cell">
-              <input
-                type="checkbox"
-                class="log-entry-select-checkbox"
-                data-entry-select-index="${index}"
-                aria-label="${index + 1}번 작업 내역 선택"
-              />
-            </td>
+            ${escapeHtml(
+              importedRole
+            )}
+          </span>
+        `
+        : "";
 
-            <td class="log-entry-category-cell-wrap">
-              <div class="log-entry-category-cell">
-                ${sourceBadgeHtml}
+    const categoryText =
+      String(
+        entry.category || "-"
+      ).trim();
 
-                <span class="log-entry-category-text">
-                  ${escapeHtml(
-                    categoryText
-                  )}
-                </span>
-              </div>
-            </td>
+    const timeText =
+      String(
+        entry.time || ""
+      ).trim();
 
-            <td class="log-entry-time-cell">
+    const contentText =
+      String(
+        entry.content || "-"
+      ).trim();
+
+    const tagText =
+      String(
+        entry.tag || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const tagHtml =
+      tagText
+        ? `
+          <button
+            type="button"
+            class="log-entry-inline-tag"
+            data-entry-action="navigator"
+            data-entry-index="${originalIndex}"
+            title="Facility Navigator에서 설비 보기"
+          >
+            [${escapeHtml(
+              tagText
+            )}]
+          </button>
+        `
+        : "";
+
+    return `
+      <tr
+        data-entry-index="${originalIndex}"
+        class="${
+          isEditing
+            ? "is-editing"
+            : ""
+        }"
+      >
+
+        <td
+          class="
+            log-entry-select-cell
+            log-entry-edit-only-cell
+          "
+          hidden
+        >
+          <input
+            type="checkbox"
+            class="log-entry-select-checkbox"
+            data-entry-select-index="${originalIndex}"
+            aria-label="${escapeHtml(
+              categoryText
+            )} 항목 선택"
+          />
+        </td>
+
+
+        <td class="log-entry-category-cell-wrap">
+
+          <div class="log-entry-category-cell">
+
+            ${sourceBadgeHtml}
+
+            <span class="log-entry-category-text">
               ${escapeHtml(
-                timeText || "-"
+                categoryText
               )}
-            </td>
+            </span>
 
-            <td class="log-entry-content-cell">
-              <span class="log-entry-inline-content">
-                ${tagHtml}${
-                  tagHtml
-                    ? " "
-                    : ""
-                }<span class="log-entry-inline-content__text">${escapeHtml(
-                  contentText
-                )}</span>
-              </span>
-            </td>
+          </div>
 
-            <td class="log-entry-actions-cell">
-              <div class="log-entry-row-actions">
-                <button
-                  type="button"
-                  class="log-entry-edit-button"
-                  data-entry-action="edit"
-                  data-entry-index="${index}"
-                >
-                  수정
-                </button>
+        </td>
 
-                <button
-                  type="button"
-                  class="log-entry-delete-button"
-                  data-entry-action="delete"
-                  data-entry-index="${index}"
-                >
-                  삭제
-                </button>
-              </div>
+
+        ${
+          showTimeColumn
+            ? `
+              <td class="log-entry-time-cell">
+                ${escapeHtml(
+                  timeText || "-"
+                )}
+              </td>
+            `
+            : ""
+        }
+
+
+        <td class="log-entry-content-cell">
+
+          <span class="log-entry-inline-content">
+
+            <span class="log-entry-inline-content__text">
+              ${escapeHtml(
+                contentText
+              )}
+            </span>
+
+            ${
+              tagHtml
+                ? ` ${tagHtml}`
+                : ""
+            }
+
+          </span>
+
+        </td>
+
+
+        <td
+          class="
+            log-entry-actions-cell
+            log-entry-edit-only-cell
+          "
+          hidden
+        >
+
+          <div class="log-entry-row-actions">
+
+            <button
+              type="button"
+              class="log-entry-edit-button"
+              data-entry-action="edit"
+              data-entry-index="${originalIndex}"
+            >
+              수정
+            </button>
+
+            <button
+              type="button"
+              class="log-entry-delete-button"
+              data-entry-action="delete"
+              data-entry-index="${originalIndex}"
+            >
+              삭제
+            </button>
+
+          </div>
+
+        </td>
+
+      </tr>
+    `;
+  };
+
+
+  /*
+    TM 발행 내역 렌더링
+  */
+  if (
+    elements.tmIssueEntryTableBody
+  ) {
+    if (!tmIssueEntries.length) {
+      elements
+        .tmIssueEntryTableBody
+        .innerHTML = `
+          <tr class="log-entry-empty-row">
+            <td colspan="2">
+              등록된 TM 발행 내역이 없습니다.
             </td>
           </tr>
         `;
-      })
-      .join("");
+    } else {
+      elements
+        .tmIssueEntryTableBody
+        .innerHTML =
+        tmIssueEntries
+          .map((item) => {
+            return createEntryRowHtml(
+              item,
+              {
+                showTimeColumn:
+                  false
+              }
+            );
+          })
+          .join("");
+    }
+  }
+
+
+  /*
+    인계사항 렌더링
+  */
+  if (
+    elements.logEntryTableBody
+  ) {
+    if (!handoverEntries.length) {
+      elements
+        .logEntryTableBody
+        .innerHTML = `
+          <tr class="log-entry-empty-row">
+            <td colspan="3">
+              등록된 인계사항이 없습니다.
+            </td>
+          </tr>
+        `;
+    } else {
+      elements
+        .logEntryTableBody
+        .innerHTML =
+        handoverEntries
+          .map((item) => {
+            return createEntryRowHtml(
+              item,
+              {
+                showTimeColumn:
+                  true
+              }
+            );
+          })
+          .join("");
+    }
+  }
 
   updateMemberLogImportCount();
+}
+
+/* =========================================================
+  인수인계사항 편집 모드
+========================================================= */
+
+function setLogEntryEditMode(
+  isEditing
+) {
+  if (
+    elements.logEntryListPanel
+  ) {
+    elements.logEntryListPanel
+      .classList.toggle(
+        "is-edit-mode",
+        isEditing
+      );
+  }
+
+  if (
+    elements.openLogEntryEditModeButton
+  ) {
+    elements
+      .openLogEntryEditModeButton
+      .hidden =
+      isEditing;
+  }
+
+  if (
+    elements.cancelLogEntryEditModeButton
+  ) {
+    elements
+      .cancelLogEntryEditModeButton
+      .hidden =
+      !isEditing;
+  }
+
+  if (
+    elements.deleteSelectedLogEntriesButton
+  ) {
+    elements
+      .deleteSelectedLogEntriesButton
+      .hidden =
+      !isEditing;
+
+    elements
+      .deleteSelectedLogEntriesButton
+      .disabled =
+      true;
+  }
+
+  document
+    .querySelectorAll(
+      ".log-entry-edit-only-column"
+    )
+    .forEach((element) => {
+      element.hidden =
+        !isEditing;
+    });
+
+  document
+    .querySelectorAll(
+      ".log-entry-edit-only-cell"
+    )
+    .forEach((element) => {
+      element.hidden =
+        !isEditing;
+    });
+
+  if (!isEditing) {
+    clearLogEntrySelections();
+
+    if (
+      appState.editingEntryIndex >= 0
+    ) {
+      cancelLogEntryEdit();
+    }
+  }
+}
+
+
+/* =========================================================
+  선택 상태 초기화
+========================================================= */
+
+function clearLogEntrySelections() {
+  document
+    .querySelectorAll(
+      ".log-entry-select-checkbox"
+    )
+    .forEach((checkbox) => {
+      checkbox.checked =
+        false;
+
+      checkbox.indeterminate =
+        false;
+    });
+
+  if (
+    elements.selectedLogEntryCount
+  ) {
+    elements
+      .selectedLogEntryCount
+      .textContent =
+      "선택 0건";
+
+    elements
+      .selectedLogEntryCount
+      .hidden =
+      true;
+  }
+
+  if (
+    elements.deleteSelectedLogEntriesButton
+  ) {
+    elements
+      .deleteSelectedLogEntriesButton
+      .disabled =
+      true;
+  }
+}
+
+
+/* =========================================================
+  선택된 인수인계 항목 상태 갱신
+========================================================= */
+
+function updateLogEntrySelectionState() {
+  const itemCheckboxes = [
+    ...document.querySelectorAll(
+      [
+        "#tmIssueEntryTableBody",
+        "#logEntryTableBody"
+      ].join(" ") +
+      " .log-entry-select-checkbox"
+    )
+  ];
+
+  const selectedCheckboxes =
+    itemCheckboxes.filter(
+      (checkbox) => {
+        return checkbox.checked;
+      }
+    );
+
+  const selectedCount =
+    selectedCheckboxes.length;
+
+  if (
+    elements.selectedLogEntryCount
+  ) {
+    elements
+      .selectedLogEntryCount
+      .textContent =
+      `선택 ${selectedCount}건`;
+
+    elements
+      .selectedLogEntryCount
+      .hidden =
+      selectedCount === 0;
+  }
+
+  if (
+    elements.deleteSelectedLogEntriesButton
+  ) {
+    elements
+      .deleteSelectedLogEntriesButton
+      .disabled =
+      selectedCount === 0;
+  }
+
+
+  /*
+    TM 발행 내역 전체 선택 상태
+  */
+  const tmCheckboxes = [
+    ...document.querySelectorAll(
+      "#tmIssueEntryTableBody " +
+      ".log-entry-select-checkbox"
+    )
+  ];
+
+  const selectedTmCount =
+    tmCheckboxes.filter(
+      (checkbox) => {
+        return checkbox.checked;
+      }
+    ).length;
+
+  if (
+    elements.selectAllTmEntriesCheckbox
+  ) {
+    elements
+      .selectAllTmEntriesCheckbox
+      .checked =
+      tmCheckboxes.length > 0 &&
+      selectedTmCount ===
+        tmCheckboxes.length;
+
+    elements
+      .selectAllTmEntriesCheckbox
+      .indeterminate =
+      selectedTmCount > 0 &&
+      selectedTmCount <
+        tmCheckboxes.length;
+
+    elements
+      .selectAllTmEntriesCheckbox
+      .disabled =
+      tmCheckboxes.length === 0;
+  }
+
+
+  /*
+    인계사항 전체 선택 상태
+  */
+  const handoverCheckboxes = [
+    ...document.querySelectorAll(
+      "#logEntryTableBody " +
+      ".log-entry-select-checkbox"
+    )
+  ];
+
+  const selectedHandoverCount =
+    handoverCheckboxes.filter(
+      (checkbox) => {
+        return checkbox.checked;
+      }
+    ).length;
+
+  if (
+    elements.selectAllLogEntriesCheckbox
+  ) {
+    elements
+      .selectAllLogEntriesCheckbox
+      .checked =
+      handoverCheckboxes.length > 0 &&
+      selectedHandoverCount ===
+        handoverCheckboxes.length;
+
+    elements
+      .selectAllLogEntriesCheckbox
+      .indeterminate =
+      selectedHandoverCount > 0 &&
+      selectedHandoverCount <
+        handoverCheckboxes.length;
+
+    elements
+      .selectAllLogEntriesCheckbox
+      .disabled =
+      handoverCheckboxes.length === 0;
+  }
+}
+
+/* =========================================================
+  인수인계사항 편집 모드 이벤트
+========================================================= */
+
+function bindLogEntryEditModeEvents() {
+  /*
+    편집 모드 시작
+  */
+  if (
+    elements.openLogEntryEditModeButton
+  ) {
+    elements
+      .openLogEntryEditModeButton
+      .addEventListener(
+        "click",
+        () => {
+          setLogEntryEditMode(
+            true
+          );
+        }
+      );
+  }
+
+
+  /*
+    편집 모드 종료
+  */
+  if (
+    elements.cancelLogEntryEditModeButton
+  ) {
+    elements
+      .cancelLogEntryEditModeButton
+      .addEventListener(
+        "click",
+        () => {
+          setLogEntryEditMode(
+            false
+          );
+        }
+      );
+  }
+
+
+  /*
+    TM 발행 목록의
+    수정·삭제·TAG 이동
+  */
+  if (
+    elements.tmIssueEntryTableBody
+  ) {
+    elements
+      .tmIssueEntryTableBody
+      .addEventListener(
+        "click",
+        handleLogEntryTableClick
+      );
+
+    elements
+      .tmIssueEntryTableBody
+      .addEventListener(
+        "change",
+        (event) => {
+          const checkbox =
+            event.target.closest(
+              ".log-entry-select-checkbox"
+            );
+
+          if (!checkbox) {
+            return;
+          }
+
+          updateLogEntrySelectionState();
+        }
+      );
+  }
+
+
+  /*
+    인계사항 개별 체크 상태
+
+    기존 bindEvents()에서 선택 상태를 먼저 처리하므로,
+    해당 처리가 끝난 직후 전체 목록 기준으로 다시 계산한다.
+  */
+  if (
+    elements.logEntryTableBody
+  ) {
+    elements
+      .logEntryTableBody
+      .addEventListener(
+        "change",
+        (event) => {
+          const checkbox =
+            event.target.closest(
+              ".log-entry-select-checkbox"
+            );
+
+          if (!checkbox) {
+            return;
+          }
+
+          window.setTimeout(
+            updateLogEntrySelectionState,
+            0
+          );
+        }
+      );
+  }
+
+
+  /*
+    TM 발행 내역 전체 선택
+  */
+  if (
+    elements.selectAllTmEntriesCheckbox
+  ) {
+    elements
+      .selectAllTmEntriesCheckbox
+      .addEventListener(
+        "change",
+        () => {
+          const shouldSelect =
+            elements
+              .selectAllTmEntriesCheckbox
+              .checked;
+
+          elements
+            .tmIssueEntryTableBody
+            ?.querySelectorAll(
+              ".log-entry-select-checkbox"
+            )
+            .forEach(
+              (checkbox) => {
+                checkbox.checked =
+                  shouldSelect;
+              }
+            );
+
+          updateLogEntrySelectionState();
+        }
+      );
+  }
+
+
+  /*
+    인계사항 전체 선택 후
+    TM 목록까지 포함하여 선택 건수를 다시 계산한다.
+  */
+  if (
+    elements.selectAllLogEntriesCheckbox
+  ) {
+    elements
+      .selectAllLogEntriesCheckbox
+      .addEventListener(
+        "change",
+        () => {
+          window.setTimeout(
+            updateLogEntrySelectionState,
+            0
+          );
+        }
+      );
+  }
+
+
+  /*
+    TM 발행과 인계사항에서 선택한 항목을
+    한 번에 삭제한다.
+
+    capture 단계에서 실행하여
+    이전 선택 삭제 이벤트와 충돌하지 않도록 한다.
+  */
+  if (
+    elements.deleteSelectedLogEntriesButton
+  ) {
+    elements
+      .deleteSelectedLogEntriesButton
+      .addEventListener(
+        "click",
+        (event) => {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+
+          const selectedIndexes = [
+            ...document.querySelectorAll(
+              [
+                "#tmIssueEntryTableBody",
+                "#logEntryTableBody"
+              ].join(
+                " .log-entry-select-checkbox:checked, "
+              ) +
+              " .log-entry-select-checkbox:checked"
+            )
+          ]
+            .map((checkbox) => {
+              return Number(
+                checkbox.dataset
+                  .entrySelectIndex
+              );
+            })
+            .filter((index) => {
+              return (
+                Number.isInteger(
+                  index
+                ) &&
+                Boolean(
+                  appState
+                    .editorEntries[
+                      index
+                    ]
+                )
+              );
+            });
+
+          const uniqueIndexes = [
+            ...new Set(
+              selectedIndexes
+            )
+          ];
+
+          if (!uniqueIndexes.length) {
+            showToast(
+              "삭제할 인수인계사항을 선택해 주세요."
+            );
+
+            return;
+          }
+
+          const shouldDelete =
+            window.confirm(
+              `선택한 인수인계사항 ${uniqueIndexes.length}건을 삭제하시겠습니까?`
+            );
+
+          if (!shouldDelete) {
+            return;
+          }
+
+          /*
+            큰 인덱스부터 삭제해야
+            나머지 항목 인덱스가 바뀌지 않는다.
+          */
+          uniqueIndexes
+            .sort(
+              (
+                indexA,
+                indexB
+              ) => {
+                return (
+                  indexB -
+                  indexA
+                );
+              }
+            )
+            .forEach((index) => {
+              appState
+                .editorEntries
+                .splice(
+                  index,
+                  1
+                );
+            });
+
+          appState.editingEntryIndex =
+            -1;
+
+          resetLogEntryInput({
+            keepCategory:
+              false,
+
+            keepTag:
+              false
+          });
+
+          renderLogEntryTable();
+
+          /*
+            목록을 다시 그리면 편집 전용 칸이
+            hidden 상태로 생성되므로 편집 모드를 다시 적용한다.
+          */
+          setLogEntryEditMode(
+            true
+          );
+
+          updateMemberLogImportStatus();
+
+          showToast(
+            `인수인계사항 ${uniqueIndexes.length}건을 삭제했습니다.`
+          );
+        },
+        true
+      );
+  }
 }
 
 function getLogEntrySourceClass(role) {
