@@ -625,6 +625,49 @@ function cacheElements() {
 }
 
 
+
+/* =========================================================
+  기존 업무일지 API 응답 배열 추출
+
+  서버 버전에 따라 배열 이름이 달라도 처리한다.
+  지원 형식:
+  - result.items
+  - result.diaries
+  - result.data
+  - result.logs
+  - result.data.items
+  - result.data.diaries
+========================================================= */
+
+function extractLegacyDiaryItems(
+  result
+) {
+  const candidates = [
+    result?.items,
+    result?.diaries,
+    result?.logs,
+    result?.data,
+    result?.data?.items,
+    result?.data?.diaries,
+    result?.data?.logs
+  ];
+
+  const matchedItems =
+    candidates.find(
+      (candidate) => {
+        return Array.isArray(
+          candidate
+        );
+      }
+    );
+
+  return Array.isArray(
+    matchedItems
+  )
+    ? matchedItems
+    : [];
+}
+
 /* =========================================================
   기존 업무일지 불러오기
 ========================================================= */
@@ -719,15 +762,32 @@ async function loadLegacyLogsForSelectedDate() {
                 shiftDefinition.currentShift,
 
               items:
-                Array.isArray(
-                  result.items
+                extractLegacyDiaryItems(
+                  result
+                ),
+
+              responseCount:
+                Number(
+                  result.count || 0
                 )
-                  ? result.items
-                  : []
             };
           }
         )
       );
+
+    requestResults.forEach(
+      (requestResult) => {
+        if (
+          requestResult.responseCount > 0 &&
+          requestResult.items.length === 0
+        ) {
+          console.warn(
+            "기존 업무일지 응답 건수는 있지만 배열을 찾지 못했습니다.",
+            requestResult
+          );
+        }
+      }
+    );
 
     /*
       선택 날짜에 전에 불러온 기존 서버 일지를
@@ -822,8 +882,26 @@ async function loadLegacyLogsForSelectedDate() {
         }
       ).length;
 
+    const dsResponseCount =
+      requestResults.find(
+        (result) => {
+          return result.currentShift === "DS";
+        }
+      )?.responseCount || 0;
+
+    const nsResponseCount =
+      requestResults.find(
+        (result) => {
+          return result.currentShift === "NS";
+        }
+      )?.responseCount || 0;
+
     console.log(
-      `기존 업무일지 D/S ${dsCount}건, N/S ${nsCount}건을 불러왔습니다.`
+      [
+        `기존 업무일지 변환 완료:`,
+        `D/S ${dsCount}건 (서버 ${dsResponseCount}건),`,
+        `N/S ${nsCount}건 (서버 ${nsResponseCount}건)`
+      ].join(" ")
     );
 
   } catch (error) {
@@ -1645,16 +1723,22 @@ function convertLegacyDiaryToLog(
     }
   );
 
-  const legacyId =
+  const legacyDiaryId =
     String(
       legacyItem.diary_id ||
-      [
-        selectedDate,
-        selectedShift,
-        role,
-        itemIndex
-      ].join("-")
-    );
+      itemIndex
+    ).trim();
+
+  /*
+    기존 서버에서 DAY와 NIGHT가 같은 diary_id를
+    사용할 수 있으므로 날짜·근무를 ID에 포함한다.
+  */
+  const legacyId = [
+    selectedDate,
+    selectedShift,
+    legacyDiaryId,
+    role
+  ].join("-");
 
   return {
     id:
