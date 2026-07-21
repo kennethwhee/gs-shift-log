@@ -2475,13 +2475,6 @@ function renderLogEntryTable() {
       const isEditing =
         index === appState.editingEntryIndex;
 
-      /*
-        팀원 업무일지에서 가져온 항목이면
-        TGO / BCO1 / BCO2를 표시한다.
-
-        파트장이 직접 작성한 항목이면
-        파트장으로 표시한다.
-      */
       const sourceRole =
         String(
           entry.importedFromRole ||
@@ -2522,7 +2515,7 @@ function renderLogEntryTable() {
         ? `
           <button
             type="button"
-            class="log-entry-content__tag"
+            class="log-entry-inline-tag"
             data-entry-action="navigator"
             data-entry-index="${index}"
             title="Facility Navigator에서 설비 보기"
@@ -2552,10 +2545,10 @@ function renderLogEntryTable() {
           </td>
 
           <td>
-            <div class="log-entry-content">
+            <div class="log-entry-inline-content">
               ${tagHtml}
 
-              <span class="log-entry-content__text">
+              <span class="log-entry-inline-content__text">
                 ${escapeHtml(entry.content || "-")}
               </span>
             </div>

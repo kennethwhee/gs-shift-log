@@ -2818,3 +2818,39 @@ body.modal-open {
     font-size: 12px;
   }
 }
+
+/* =========================================================
+  등록된 작업 내역 - TAG를 내용 앞에 표시
+========================================================= */
+
+.log-entry-inline-content {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.log-entry-inline-tag {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #1769c2;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.log-entry-inline-tag:hover {
+  text-decoration: underline;
+}
+
+.log-entry-inline-content__text {
+  min-width: 0;
+  color: #34465c;
+  font-size: 12px;
+  line-height: 1.55;
+  word-break: break-word;
+}
