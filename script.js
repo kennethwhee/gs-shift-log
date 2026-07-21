@@ -3545,21 +3545,6 @@ function bindEvents() {
     moveSelectedDateToToday
   );
 
-  /*
-    날짜/근무 표시를 누르면
-    D/S와 N/S를 전환한다.
-  */
-  bindClick(
-    elements.selectedShiftBadge,
-    toggleSelectedShift
-  );
-
-  bindClick(
-    elements.currentShiftLabel,
-    toggleSelectedShift
-  );
-
-
   /* =======================================================
     업무일지 작성창
   ======================================================== */
@@ -4260,29 +4245,120 @@ function switchView(viewName) {
   날짜
 ========================================================= */
 async function moveSelectedDate(
-  dayOffset
+  direction
 ) {
-  const nextDate =
-    new Date(
+  const previousDateText =
+    formatInputDate(
       appState.selectedDate
     );
 
-  nextDate.setDate(
-    nextDate.getDate() +
-    dayOffset
-  );
+  /*
+    다음 업무일지 이동 순서
 
-  appState.selectedDate =
-    nextDate;
+    17일 N/S
+    → 17일 D/S
+    → 18일 N/S
+    → 18일 D/S
+  */
+  if (direction > 0) {
+    if (
+      appState.selectedShift ===
+      "NS"
+    ) {
+      /*
+        같은 날짜의 N/S 다음은 D/S
+      */
+      appState.selectedShift =
+        "DS";
+    } else {
+      /*
+        같은 날짜의 D/S 다음은
+        다음 날짜 N/S
+      */
+      const nextDate =
+        new Date(
+          appState.selectedDate
+        );
+
+      nextDate.setDate(
+        nextDate.getDate() + 1
+      );
+
+      appState.selectedDate =
+        nextDate;
+
+      appState.selectedShift =
+        "NS";
+    }
+  }
+
+
+  /*
+    이전 업무일지 이동 순서
+
+    18일 D/S
+    → 18일 N/S
+    → 17일 D/S
+    → 17일 N/S
+  */
+  if (direction < 0) {
+    if (
+      appState.selectedShift ===
+      "DS"
+    ) {
+      /*
+        같은 날짜의 D/S 이전은 N/S
+      */
+      appState.selectedShift =
+        "NS";
+    } else {
+      /*
+        같은 날짜의 N/S 이전은
+        이전 날짜 D/S
+      */
+      const previousDate =
+        new Date(
+          appState.selectedDate
+        );
+
+      previousDate.setDate(
+        previousDate.getDate() - 1
+      );
+
+      appState.selectedDate =
+        previousDate;
+
+      appState.selectedShift =
+        "DS";
+    }
+  }
+
 
   renderSelectedDate();
 
-  await loadLegacyLogsForSelectedDate();
+
+  const nextDateText =
+    formatInputDate(
+      appState.selectedDate
+    );
+
+  /*
+    날짜가 바뀐 경우에만
+    해당 날짜의 D/S와 N/S를 다시 불러온다.
+
+    같은 날짜에서 N/S와 D/S만 전환되면
+    이미 불러온 데이터를 바로 표시한다.
+  */
+  if (
+    previousDateText !==
+    nextDateText
+  ) {
+    await loadLegacyLogsForSelectedDate();
+  }
 
   renderLogTable();
   updateShiftMemberCardStates();
 }
-
 
 async function moveSelectedDateToToday() {
   const currentShiftContext =
