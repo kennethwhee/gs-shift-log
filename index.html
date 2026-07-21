@@ -1014,12 +1014,10 @@
       class="member-log-import-button"
       data-import-role="TGO"
     >
-      <span class="member-log-import-button__order">
-        1
-      </span>
+      <span class="member-log-import-button__order">1</span>
 
       <span class="member-log-import-button__content">
-        <strong>TGO 업무일지 가져오기</strong>
+        <strong>TGO 가져오기</strong>
         <small id="importTgoLogStatus">
           업무일지 확인 전
         </small>
@@ -1032,12 +1030,10 @@
       class="member-log-import-button"
       data-import-role="BCO1"
     >
-      <span class="member-log-import-button__order">
-        2
-      </span>
+      <span class="member-log-import-button__order">2</span>
 
       <span class="member-log-import-button__content">
-        <strong>BCO1 업무일지 가져오기</strong>
+        <strong>BCO1 가져오기</strong>
         <small id="importBco1LogStatus">
           업무일지 확인 전
         </small>
@@ -1050,13 +1046,59 @@
       class="member-log-import-button"
       data-import-role="BCO2"
     >
-      <span class="member-log-import-button__order">
-        3
-      </span>
+      <span class="member-log-import-button__order">3</span>
 
       <span class="member-log-import-button__content">
-        <strong>BCO2 업무일지 가져오기</strong>
+        <strong>BCO2 가져오기</strong>
         <small id="importBco2LogStatus">
+          업무일지 확인 전
+        </small>
+      </span>
+    </button>
+
+    <button
+      type="button"
+      id="importToLogButton"
+      class="member-log-import-button"
+      data-import-role="TO"
+    >
+      <span class="member-log-import-button__order">4</span>
+
+      <span class="member-log-import-button__content">
+        <strong>TO 가져오기</strong>
+        <small id="importToLogStatus">
+          업무일지 확인 전
+        </small>
+      </span>
+    </button>
+
+    <button
+      type="button"
+      id="importBo1LogButton"
+      class="member-log-import-button"
+      data-import-role="BO1"
+    >
+      <span class="member-log-import-button__order">5</span>
+
+      <span class="member-log-import-button__content">
+        <strong>BO1 가져오기</strong>
+        <small id="importBo1LogStatus">
+          업무일지 확인 전
+        </small>
+      </span>
+    </button>
+
+    <button
+      type="button"
+      id="importBo2LogButton"
+      class="member-log-import-button"
+      data-import-role="BO2"
+    >
+      <span class="member-log-import-button__order">6</span>
+
+      <span class="member-log-import-button__content">
+        <strong>BO2 가져오기</strong>
+        <small id="importBo2LogStatus">
           업무일지 확인 전
         </small>
       </span>
@@ -1069,11 +1111,12 @@
       id="importAllMemberLogsButton"
       class="member-log-import-all-button"
     >
-      TGO → BCO1 → BCO2 일괄 가져오기
+      6개 보직 업무일지 일괄 가져오기
     </button>
 
     <p class="member-log-import-help">
-      이미 가져온 동일한 내역은 중복으로 추가되지 않습니다.
+      TGO → BCO1 → BCO2 → TO → BO1 → BO2 순서로 가져오며,
+      이미 가져온 동일 내역은 중복 추가되지 않습니다.
     </p>
   </div>
 </section>

@@ -486,34 +486,31 @@ function bindMemberLogImportEvents() {
     );
   }
 
-  if (elements.importTgoLogButton) {
-    elements.importTgoLogButton.addEventListener(
+  const importItems =
+    Array.isArray(
+      elements.memberLogImportItems
+    )
+      ? elements.memberLogImportItems
+      : [];
+
+  importItems.forEach((item) => {
+    if (!item.button) {
+      return;
+    }
+
+    item.button.addEventListener(
       "click",
       () => {
-        importMemberLogByRole("TGO");
+        importMemberLogByRole(
+          item.role
+        );
       }
     );
-  }
+  });
 
-  if (elements.importBco1LogButton) {
-    elements.importBco1LogButton.addEventListener(
-      "click",
-      () => {
-        importMemberLogByRole("BCO1");
-      }
-    );
-  }
-
-  if (elements.importBco2LogButton) {
-    elements.importBco2LogButton.addEventListener(
-      "click",
-      () => {
-        importMemberLogByRole("BCO2");
-      }
-    );
-  }
-
-  if (elements.importAllMemberLogsButton) {
+  if (
+    elements.importAllMemberLogsButton
+  ) {
     elements.importAllMemberLogsButton.addEventListener(
       "click",
       importAllMemberLogs
@@ -545,31 +542,25 @@ function updateMemberLogImportSection() {
 
 
 function updateMemberLogImportStatus() {
-  const roles = [
-    {
-      role: "TGO",
-      button: elements.importTgoLogButton,
-      status: elements.importTgoLogStatus
-    },
-    {
-      role: "BCO1",
-      button: elements.importBco1LogButton,
-      status: elements.importBco1LogStatus
-    },
-    {
-      role: "BCO2",
-      button: elements.importBco2LogButton,
-      status: elements.importBco2LogStatus
-    }
-  ];
+  const importItems =
+    Array.isArray(
+      elements.memberLogImportItems
+    )
+      ? elements.memberLogImportItems
+      : [];
 
-  roles.forEach((item) => {
-    const memberLog =
-      findMemberLogByRole(item.role);
-
-    if (!item.button || !item.status) {
+  importItems.forEach((item) => {
+    if (
+      !item.button ||
+      !item.status
+    ) {
       return;
     }
+
+    const memberLog =
+      findMemberLogByRole(
+        item.role
+      );
 
     item.button.classList.remove(
       "is-imported",
@@ -592,8 +583,11 @@ function updateMemberLogImportStatus() {
         ? memberLog.entries.length
         : 0;
 
-    item.status.textContent =
-      `${memberLog.author || item.role} · ${entryCount}건 확인`;
+    const author =
+      String(
+        memberLog.author ||
+        item.role
+      ).trim();
 
     if (
       hasImportedEntriesFromRole(
@@ -605,8 +599,13 @@ function updateMemberLogImportStatus() {
       );
 
       item.status.textContent =
-        `${memberLog.author || item.role} · 가져오기 완료`;
+        `${author} · 가져오기 완료`;
+
+      return;
     }
+
+    item.status.textContent =
+      `${author} · ${entryCount}건 확인`;
   });
 
   updateMemberLogImportCount();
@@ -689,28 +688,26 @@ function normalizeMemberLogRole(role) {
       .toUpperCase()
       .replace(/\s+/g, "");
 
+  const validRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
   if (
-    normalizedRole === "TGO"
+    validRoles.includes(
+      normalizedRole
+    )
   ) {
-    return "TGO";
+    return normalizedRole;
   }
 
   if (
-    normalizedRole === "BCO1" ||
-    normalizedRole === "BO1"
-  ) {
-    return "BCO1";
-  }
-
-  if (
-    normalizedRole === "BCO2" ||
-    normalizedRole === "BO2"
-  ) {
-    return "BCO2";
-  }
-
-  if (
-    normalizedRole === "파트장"
+    String(role || "").trim() ===
+    "파트장"
   ) {
     return "파트장";
   }
@@ -719,10 +716,19 @@ function normalizeMemberLogRole(role) {
 }
 
 
-function hasImportedEntriesFromRole(role) {
+function hasImportedEntriesFromRole(
+  role
+) {
+  const targetRole =
+    normalizeMemberLogRole(role);
+
   return appState.editorEntries.some(
     (entry) => {
-      return entry.importedFromRole === role;
+      return (
+        normalizeMemberLogRole(
+          entry.importedFromRole
+        ) === targetRole
+      );
     }
   );
 }
@@ -901,18 +907,14 @@ function importMemberLogByRole(
   };
 }
 
-
 function importAllMemberLogs() {
-  /*
-    파트장 업무일지에 들어가는 순서
-    1. TGO
-    2. BCO1 또는 BO1
-    3. BCO2 또는 BO2
-  */
   const importOrder = [
     "TGO",
     "BCO1",
-    "BCO2"
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
   ];
 
   let foundRoleCount = 0;
@@ -923,9 +925,12 @@ function importAllMemberLogs() {
 
   importOrder.forEach((role) => {
     const result =
-      importMemberLogByRole(role, {
-        silent: true
-      });
+      importMemberLogByRole(
+        role,
+        {
+          silent: true
+        }
+      );
 
     if (result.found) {
       foundRoleCount += 1;
@@ -948,6 +953,7 @@ function importAllMemberLogs() {
     showToast(
       "같은 날짜와 근무에 작성된 팀원 업무일지가 없습니다."
     );
+
     return;
   }
 
@@ -956,12 +962,14 @@ function importAllMemberLogs() {
       showToast(
         `작성된 업무일지는 이미 가져왔습니다. 미작성: ${missingRoles.join(", ")}`
       );
+
       return;
     }
 
     showToast(
-      "TGO부터 BCO2까지 이미 모두 가져온 상태입니다."
+      "6개 보직 업무일지를 이미 모두 가져온 상태입니다."
     );
+
     return;
   }
 
@@ -969,11 +977,12 @@ function importAllMemberLogs() {
     showToast(
       `총 ${addedCount}건을 가져왔습니다. 미작성: ${missingRoles.join(", ")}`
     );
+
     return;
   }
 
   showToast(
-    `TGO부터 BCO2까지 총 ${addedCount}건을 가져왔습니다.`
+    `6개 보직 업무일지에서 총 ${addedCount}건을 가져왔습니다.`
   );
 }
 
@@ -982,7 +991,10 @@ function sortImportedLogEntries() {
     TGO: 1,
     BCO1: 2,
     BCO2: 3,
-    파트장: 4
+    TO: 4,
+    BO1: 5,
+    BO2: 6,
+    파트장: 7
   };
 
   appState.editorEntries.sort(
@@ -3447,101 +3459,405 @@ function getStatusClass(status) {
   return "is-saved";
 }
 
+function createRoleGroupedEntriesHtml(
+  entries,
+  log,
+  groupTitle
+) {
+  if (
+    !Array.isArray(entries) ||
+    !entries.length
+  ) {
+    return `
+      <p class="detail-empty">
+        등록된 내역이 없습니다.
+      </p>
+    `;
+  }
 
-/* =========================================================
-  상세보기
-========================================================= */
+const roleOrder = [
+  "TGO",
+  "BCO1",
+  "BCO2",
+  "TO",
+  "BO1",
+  "BO2",
+  "파트장"
+];
+
+  const groupedEntries = {};
+
+  entries.forEach((entry) => {
+    const role =
+      normalizeMemberLogRole(
+        entry.importedFromRole ||
+        log.role ||
+        "파트장"
+      );
+
+    if (!groupedEntries[role]) {
+      groupedEntries[role] = [];
+    }
+
+    groupedEntries[role].push(entry);
+  });
+
+  Object.values(
+    groupedEntries
+  ).forEach((roleEntries) => {
+    roleEntries.sort((entryA, entryB) => {
+      return String(
+        entryA.time || ""
+      ).localeCompare(
+        String(entryB.time || "")
+      );
+    });
+  });
+
+  const orderedRoles = [
+    ...roleOrder.filter(
+      (role) =>
+        groupedEntries[role]?.length
+    ),
+
+    ...Object.keys(groupedEntries).filter(
+      (role) =>
+        !roleOrder.includes(role)
+    )
+  ];
+
+  return orderedRoles
+    .map((role) => {
+      const roleEntries =
+        groupedEntries[role];
+
+      return `
+        <section class="detail-role-group">
+          <h4 class="detail-role-group__title">
+            ※ ${escapeHtml(role)}
+            ${escapeHtml(groupTitle)}
+          </h4>
+
+          <div class="detail-role-group__entries">
+            ${roleEntries
+              .map((entry, index) => {
+                return createGroupedEntryLineHtml(
+                  entry,
+                  index
+                );
+              })
+              .join("")}
+          </div>
+        </section>
+      `;
+    })
+    .join("");
+}
+
+
+function createGroupedEntryLineHtml(
+  entry,
+  index
+) {
+  const timeText =
+    String(entry.time || "").trim();
+
+  const categoryText =
+    String(
+      entry.category || ""
+    ).trim();
+
+  const tagText =
+    String(entry.tag || "")
+      .trim()
+      .toUpperCase();
+
+  const contentText =
+    String(
+      entry.content || "-"
+    ).trim();
+
+  const tagHtml = tagText
+    ? `
+      <button
+        type="button"
+        class="detail-tag-button"
+        data-detail-tag="${escapeHtml(tagText)}"
+      >
+        [${escapeHtml(tagText)}]
+      </button>
+    `
+    : "";
+
+  return `
+    <div class="detail-grouped-entry-line">
+      <span class="detail-grouped-entry-line__number">
+        ${index + 1}.
+      </span>
+
+      <div class="detail-grouped-entry-line__body">
+        ${
+          timeText
+            ? `
+              <span class="detail-grouped-entry-line__time">
+                ${escapeHtml(timeText)}
+              </span>
+            `
+            : ""
+        }
+
+        ${tagHtml}
+
+        <span class="detail-grouped-entry-line__content">
+          ${escapeHtml(contentText)}
+        </span>
+
+        ${
+          categoryText &&
+          categoryText !== "인계사항"
+            ? `
+              <span class="detail-grouped-entry-line__category">
+                ${escapeHtml(categoryText)}
+              </span>
+            `
+            : ""
+        }
+      </div>
+    </div>
+  `;
+}
+
+
+function createNormalDetailEntriesHtml(
+  entries
+) {
+  if (
+    !Array.isArray(entries) ||
+    !entries.length
+  ) {
+    return `
+      <p class="detail-empty">
+        등록된 내역이 없습니다.
+      </p>
+    `;
+  }
+
+  return entries
+    .map((entry, index) => {
+      return createGroupedEntryLineHtml(
+        entry,
+        index
+      );
+    })
+    .join("");
+}
+
 function openLogDetail(log) {
   appState.currentDetailLogId = log.id;
 
-  const entriesHtml = log.entries?.length
-    ? log.entries
-        .map((entry) => {
-          return `
-            <article class="detail-entry">
-              <div class="detail-entry__meta">
-                <strong>${escapeHtml(entry.category)}</strong>
-                <span>${escapeHtml(entry.time || "-")}</span>
-                ${
-                  entry.tag
-                    ? `
-                      <button
-                        type="button"
-                        class="detail-tag-button"
-                        data-detail-tag="${escapeHtml(entry.tag)}"
-                      >
-                        ${escapeHtml(entry.tag)}
-                      </button>
-                    `
-                    : ""
-                }
-              </div>
+  const isLeaderLog =
+    normalizeMemberLogRole(log.role) ===
+    "파트장";
 
-              <p>${escapeHtml(entry.content || "-")}</p>
-            </article>
-          `;
+  const maintenanceEntries =
+    Array.isArray(log.entries)
+      ? log.entries.filter((entry) => {
+          const mainCategory =
+            getMainCategory(entry.category);
+
+          return (
+            mainCategory === "TM" ||
+            mainCategory === "BM" ||
+            mainCategory === "CM"
+          );
         })
-        .join("")
-    : `<p class="detail-empty">등록된 작업 내역이 없습니다.</p>`;
+      : [];
+
+  const handoverEntries =
+    Array.isArray(log.entries)
+      ? log.entries.filter((entry) => {
+          return (
+            getMainCategory(
+              entry.category
+            ) === "인계사항"
+          );
+        })
+      : [];
+
+  const otherEntries =
+    Array.isArray(log.entries)
+      ? log.entries.filter((entry) => {
+          const mainCategory =
+            getMainCategory(entry.category);
+
+          return ![
+            "TM",
+            "BM",
+            "CM",
+            "인계사항"
+          ].includes(mainCategory);
+        })
+      : [];
+
+  const maintenanceHtml =
+    isLeaderLog
+      ? createRoleGroupedEntriesHtml(
+          maintenanceEntries,
+          log,
+          "정비 및 작업사항"
+        )
+      : createNormalDetailEntriesHtml(
+          maintenanceEntries
+        );
+
+  const handoverHtml =
+    isLeaderLog
+      ? createRoleGroupedEntriesHtml(
+          handoverEntries,
+          log,
+          "운전 및 작업사항"
+        )
+      : createNormalDetailEntriesHtml(
+          handoverEntries
+        );
+
+  const otherEntriesHtml =
+    createNormalDetailEntriesHtml(
+      otherEntries
+    );
+
+  const operationStatusLines =
+    String(
+      log.operationStatus ||
+      "등록된 내용이 없습니다."
+    )
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+  const operationStatusHtml =
+    operationStatusLines.length
+      ? operationStatusLines
+          .map((line, index) => {
+            return `
+              <div class="detail-numbered-line">
+                <span class="detail-numbered-line__number">
+                  ${index + 1}.
+                </span>
+
+                <span class="detail-numbered-line__content">
+                  ${escapeHtml(line)}
+                </span>
+              </div>
+            `;
+          })
+          .join("")
+      : `
+        <p class="detail-empty">
+          등록된 내용이 없습니다.
+        </p>
+      `;
 
   elements.logDetailContent.innerHTML = `
     <section class="detail-summary-grid">
       <div>
         <span>작성일</span>
-        <strong>${escapeHtml(log.date)}</strong>
+        <strong>
+          ${escapeHtml(log.date || "-")}
+        </strong>
       </div>
 
       <div>
         <span>근무</span>
-        <strong>${escapeHtml(log.shift)}</strong>
+        <strong>
+          ${escapeHtml(log.shift || "-")}
+        </strong>
       </div>
 
       <div>
         <span>근무조</span>
-        <strong>${escapeHtml(log.team)}</strong>
+        <strong>
+          ${escapeHtml(log.team || "-")}
+        </strong>
       </div>
 
       <div>
         <span>보직</span>
-        <strong>${escapeHtml(log.role)}</strong>
+        <strong>
+          ${escapeHtml(log.role || "-")}
+        </strong>
       </div>
 
       <div>
         <span>작성자</span>
-        <strong>${escapeHtml(log.author)}</strong>
+        <strong>
+          ${escapeHtml(log.author || "-")}
+        </strong>
       </div>
 
       <div>
         <span>상태</span>
-        <strong>${escapeHtml(log.status)}</strong>
+        <strong>
+          ${escapeHtml(log.status || "-")}
+        </strong>
       </div>
     </section>
 
     <section class="detail-section">
       <h3>운전 현황</h3>
-      <p class="detail-multiline">
-        ${escapeHtml(log.operationStatus || "등록된 내용이 없습니다.")}
-      </p>
-    </section>
 
-    <section class="detail-section">
-      <h3>작업 · 정비 · 인계 내역</h3>
-      <div class="detail-entry-list">
-        ${entriesHtml}
+      <div class="detail-operation-status">
+        ${operationStatusHtml}
       </div>
     </section>
 
     <section class="detail-section">
+      <h3>TM 내역</h3>
+
+      <div class="detail-role-entry-list">
+        ${maintenanceHtml}
+      </div>
+    </section>
+
+    <section class="detail-section">
+      <h3>인계사항</h3>
+
+      <div class="detail-role-entry-list">
+        ${handoverHtml}
+      </div>
+    </section>
+
+    ${
+      otherEntries.length
+        ? `
+          <section class="detail-section">
+            <h3>기타 내역</h3>
+
+            <div class="detail-role-entry-list">
+              ${otherEntriesHtml}
+            </div>
+          </section>
+        `
+        : ""
+    }
+
+    <section class="detail-section">
       <h3>비고</h3>
+
       <p class="detail-multiline">
-        ${escapeHtml(log.note || "등록된 내용이 없습니다.")}
+        ${escapeHtml(
+          log.note ||
+          "등록된 내용이 없습니다."
+        )}
       </p>
     </section>
 
     <section class="detail-section">
       <h3>첨부파일</h3>
+
       <div class="attachment-list">
         ${
+          Array.isArray(log.attachments) &&
           log.attachments.length
             ? log.attachments
                 .map((fileName) => {
@@ -3552,18 +3868,29 @@ function openLogDetail(log) {
                   `;
                 })
                 .join("")
-            : `<span class="detail-empty">첨부파일 없음</span>`
+            : `
+              <span class="detail-empty">
+                첨부파일 없음
+              </span>
+            `
         }
       </div>
     </section>
   `;
 
   elements.logDetailContent
-    .querySelectorAll("[data-detail-tag]")
+    .querySelectorAll(
+      "[data-detail-tag]"
+    )
     .forEach((button) => {
-      button.addEventListener("click", () => {
-        openFacilityNavigator(button.dataset.detailTag);
-      });
+      button.addEventListener(
+        "click",
+        () => {
+          openFacilityNavigator(
+            button.dataset.detailTag
+          );
+        }
+      );
     });
 
   openModal(elements.logDetailModal);

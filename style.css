@@ -2680,3 +2680,141 @@ body.modal-open {
     font-size: 9px;
   }
 }
+
+/* =========================================================
+  업무일지 상세보기 보직별 묶음
+========================================================= */
+
+.detail-operation-status {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 70px;
+  padding: 12px 14px;
+  border: 1px solid #d9e0e8;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.detail-numbered-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: #3f4e61;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.detail-numbered-line__number {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.detail-numbered-line__content {
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.detail-role-entry-list {
+  min-height: 70px;
+  padding: 12px 14px;
+  border: 1px solid #d9e0e8;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.detail-role-group + .detail-role-group {
+  margin-top: 22px;
+}
+
+.detail-role-group__title {
+  margin: 0 0 8px;
+  color: #34465c;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.detail-role-group__entries {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.detail-grouped-entry-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  color: #405064;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.detail-grouped-entry-line__number {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.detail-grouped-entry-line__body {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.detail-grouped-entry-line__time {
+  flex: 0 0 auto;
+  color: #334a66;
+  font-weight: 700;
+}
+
+.detail-grouped-entry-line__content {
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.detail-grouped-entry-line__category {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #edf3fa;
+  color: #54708f;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.detail-role-group .detail-tag-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2769b0;
+  font-size: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.detail-role-group .detail-tag-button:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 600px) {
+  .detail-operation-status,
+  .detail-role-entry-list {
+    padding: 11px;
+  }
+
+  .detail-role-group + .detail-role-group {
+    margin-top: 18px;
+  }
+
+  .detail-numbered-line,
+  .detail-grouped-entry-line {
+    font-size: 12px;
+  }
+}
