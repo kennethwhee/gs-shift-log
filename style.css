@@ -1496,15 +1496,17 @@ a {
 ========================================================= */
 
 .log-entry-input-panel {
-  padding: 14px 16px 15px;
+  padding: 13px 16px 14px;
   border: 1px solid #d7e0e9;
-  border-radius: 12px;
+  border-radius: 11px;
   background: #f8fafc;
 }
 
 
 /* =========================================================
-   상단 입력 한 줄
+   상단 입력 영역
+
+   구분 | 시간 + 현재시간 | TAG | 추가
 ========================================================= */
 
 .log-entry-input-top-row {
@@ -1512,45 +1514,75 @@ a {
   grid-template-columns:
     210px
     190px
-    minmax(260px, 1fr)
+    minmax(240px, 1fr)
     auto;
   align-items: end;
-  gap: 10px;
+  gap: 9px;
   width: 100%;
-}
-
-.log-entry-field--category,
-.log-entry-field--time,
-.log-entry-field--tag {
-  min-width: 0;
 }
 
 .log-entry-input-panel .form-field {
-  gap: 5px;
+  min-width: 0;
+  gap: 4px;
 }
 
 .log-entry-input-panel .form-field__label {
-  color: #44556c;
-  font-size: 11px;
+  color: #48586e;
+  font-size: 10px;
   font-weight: 900;
+  line-height: 1.25;
 }
 
 
 /* =========================================================
-   구분 선택
+   상단 공통 입력칸
 ========================================================= */
+
+.log-entry-input-panel
+.form-field input,
+.log-entry-input-panel
+.form-field select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #c8d4e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #26364c;
+  font-size: 12px;
+}
+
+.log-entry-input-panel
+.form-field input:focus,
+.log-entry-input-panel
+.form-field select:focus {
+  border-color: #78a3d1;
+  box-shadow:
+    0 0 0 3px
+    rgba(31, 95, 174, 0.09);
+}
+
+
+/* =========================================================
+   구분
+========================================================= */
+
+.log-entry-field--category {
+  min-width: 0;
+}
 
 .log-entry-field--category select {
-  width: 100%;
-  min-height: 38px;
-  padding: 0 11px;
-  border-radius: 8px;
+  font-weight: 700;
 }
 
 
 /* =========================================================
-   시간 입력 + 현재시간
+   시간 + 현재시간
 ========================================================= */
+
+.log-entry-field--time {
+  min-width: 0;
+}
 
 .log-entry-time-group {
   display: grid;
@@ -1561,55 +1593,67 @@ a {
   gap: 6px;
 }
 
-.log-entry-time-group #logEntryTime {
+.log-entry-time-group
+#logEntryTime {
   width: 100%;
   min-width: 0;
-  min-height: 38px;
-  padding: 0 10px;
-  border-radius: 8px;
+  min-height: 36px;
+  padding: 0 9px;
+  border-radius: 7px;
 }
 
 .current-time-check {
   display: inline-flex;
-  min-height: 38px;
+  flex: 0 0 auto;
+  min-height: 36px;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 0 10px;
+  gap: 4px;
+  padding: 0 9px;
   border: 1px solid #c8d4e1;
-  border-radius: 8px;
+  border-radius: 7px;
   background: #ffffff;
-  color: #536276;
-  font-size: 11px;
+  color: #5c697b;
+  font-size: 10px;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
 }
 
 .current-time-check:hover {
   border-color: #9eb8d3;
-  background: #f2f7fc;
+  background: #f3f7fb;
 }
 
-.current-time-check:has(input:checked) {
+.current-time-check:has(
+  input:checked
+) {
   border-color: #8bb1dc;
-  background: var(--primary-soft);
-  color: var(--primary);
+  background: #eaf2fb;
+  color: #1f5fae;
 }
 
 .current-time-check input {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   margin: 0;
-  accent-color: var(--primary);
+  accent-color: #1f5fae;
 }
 
 
 /* =========================================================
-   TAG 입력
+   TAG
 ========================================================= */
+
+.log-entry-field--tag {
+  min-width: 0;
+}
 
 .log-entry-field--tag[hidden] {
   display: none !important;
@@ -1627,19 +1671,19 @@ a {
 .tag-input-group input {
   width: 100%;
   min-width: 0;
-  min-height: 38px;
-  padding: 0 10px;
-  border-radius: 8px;
+  min-height: 36px;
+  padding: 0 9px;
+  border-radius: 7px;
 }
 
 .navigator-button {
-  min-height: 38px;
-  padding: 0 11px;
+  min-height: 36px;
+  padding: 0 10px;
   border: 1px solid #b8cbe0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: #eef5fc;
-  color: var(--primary);
-  font-size: 11px;
+  color: #1f5fae;
+  font-size: 10px;
   font-weight: 900;
   white-space: nowrap;
 }
@@ -1662,57 +1706,77 @@ a {
 }
 
 .log-entry-input-actions button {
-  min-height: 38px;
+  min-height: 36px;
+  border-radius: 7px;
+  font-size: 11px;
 }
 
-.log-entry-input-actions .add-entry-button {
-  min-width: 90px;
-  padding: 0 15px;
-}
-
-#cancelLogEntryEditButton {
-  min-width: 58px;
-  padding: 0 11px;
-}
-
+.log-entry-input-actions
 .add-entry-button {
+  min-width: 88px;
+  padding: 0 14px;
   border: 1px solid #8eb1d8;
-  border-radius: 8px;
   background: #eaf3fc;
-  color: var(--primary);
-  font-size: 12px;
+  color: #1f5fae;
   font-weight: 900;
 }
 
+.log-entry-input-actions
 .add-entry-button:hover {
   border-color: #6f9bc9;
   background: #dcebf9;
 }
 
+#cancelLogEntryEditButton {
+  min-width: 58px;
+  padding: 0 10px;
+}
+
 
 /* =========================================================
-   내용 입력
+   아래쪽 내용 입력창
 ========================================================= */
 
 .log-entry-content-field {
   display: block;
-  margin-top: 11px;
+  margin-top: 9px;
 }
 
-.log-entry-content-field .form-field__label {
+.log-entry-content-field
+.form-field__label {
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
+  color: #48586e;
+  font-size: 10px;
+  font-weight: 900;
 }
 
 .log-entry-content-field textarea {
   width: 100%;
-  min-height: 74px;
-  max-height: 150px;
-  padding: 10px 11px;
-  border-radius: 8px;
+  min-height: 78px;
+  max-height: 160px;
+  padding: 9px 10px;
+  border: 1px solid #c8d4e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #26364c;
+  font-size: 12px;
   line-height: 1.55;
   resize: vertical;
   overflow-y: auto;
+}
+
+.log-entry-content-field
+textarea::placeholder {
+  color: #929cab;
+}
+
+.log-entry-content-field
+textarea:focus {
+  border-color: #78a3d1;
+  box-shadow:
+    0 0 0 3px
+    rgba(31, 95, 174, 0.09);
 }
 
 
@@ -1740,9 +1804,9 @@ a {
 @media (max-width: 1100px) {
   .log-entry-input-top-row {
     grid-template-columns:
-      minmax(180px, 1fr)
-      minmax(180px, 1fr)
-      minmax(250px, 1.4fr);
+      minmax(170px, 1fr)
+      minmax(175px, 1fr)
+      minmax(230px, 1.3fr);
   }
 
   .log-entry-input-actions {
@@ -1752,12 +1816,12 @@ a {
 
 @media (max-width: 760px) {
   .log-entry-input-panel {
-    padding: 13px;
+    padding: 12px;
   }
 
   .log-entry-input-top-row {
     grid-template-columns: 1fr;
-    gap: 9px;
+    gap: 8px;
   }
 
   .log-entry-input-actions {
@@ -1769,11 +1833,9 @@ a {
   }
 
   .log-entry-content-field textarea {
-    min-height: 92px;
+    min-height: 96px;
   }
 }
-
-
 /* =========================================================
    누적 목록
 ========================================================= */
@@ -2210,55 +2272,6 @@ body.modal-open {
     overflow: visible;
     background: #fff;
   }
-}
-
-/* 현재시간 체크 */
-
-.log-entry-time-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.log-entry-time-group #logEntryTime {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.current-time-check {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 41px;
-  padding: 0 9px;
-  border: 1px solid var(--line-strong);
-  border-radius: 9px;
-  background: #fff;
-  color: var(--text-soft);
-  font-size: 11px;
-  font-weight: 800;
-  white-space: nowrap;
-  cursor: pointer;
-  user-select: none;
-}
-
-.current-time-check:hover {
-  border-color: #9db5cf;
-  background: var(--surface-soft);
-}
-
-.current-time-check:has(input:checked) {
-  border-color: #8bb1dc;
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.current-time-check input {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  accent-color: var(--primary);
 }
 
 /* =========================================================
