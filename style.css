@@ -5686,3 +5686,79 @@ td {
   margin-top: 8px;
   padding-top: 8px;
 }
+
+/* =========================================================
+   파트장 보직별 업무일지 박스 최종 정렬
+   TGO / BCO1 / BCO2
+========================================================= */
+
+.log-preview__role-divider {
+  box-sizing: border-box;
+
+  /*
+    운전현황·TM 줄의 좌우 여백과 동일하게 맞춤
+  */
+  width: calc(100% - 16px);
+
+  margin-top: 9px;
+  margin-right: 8px;
+  margin-bottom: 5px;
+  margin-left: 8px;
+
+  padding: 5px 8px;
+
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 6px;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.3;
+  text-align: left;
+}
+
+
+/* 첫 번째 보직 박스도 위쪽 간격 유지 */
+.log-preview__role-divider:first-child {
+  margin-top: 9px;
+}
+
+
+/* 보직 박스 다음 첫 번째 내용 */
+.log-preview__role-divider
++ .log-preview__group {
+  margin-top: 0;
+  padding-top: 4px;
+}
+
+
+/* TGO */
+.log-preview__role-divider.is-tgo {
+  border-color: #bed7ef;
+  background: #f8fbff;
+  color: #1f5fae;
+}
+
+
+/* BCO1 */
+.log-preview__role-divider.is-bco1 {
+  border-color: #bddfce;
+  background: #f9fdfb;
+  color: #17865f;
+}
+
+
+/* BCO2 */
+.log-preview__role-divider.is-bco2 {
+  border-color: #d5c7e6;
+  background: #fcf9ff;
+  color: #74419c;
+}
+
+
+/* 파트장 직접 작성 */
+.log-preview__role-divider.is-leader {
+  border-color: #dfcfb5;
+  background: #fffdf9;
+  color: #8c601d;
+}
