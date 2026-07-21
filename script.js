@@ -621,8 +621,11 @@ async function loadLegacyLogsForSelectedDate() {
         : [];
 
     /*
-      현재 날짜와 근무의 기존 일지만 제거한다.
-      새 시스템에서 작성한 일지는 유지한다.
+      현재 선택 날짜와 근무에서
+      기존 서버로부터 불러온 일지만 제거한다.
+
+      새 GS Shift Log에서 직접 작성한 일지는
+      삭제하지 않는다.
     */
     appState.logs =
       appState.logs.filter(
@@ -630,12 +633,13 @@ async function loadLegacyLogsForSelectedDate() {
           const isSameDate =
             String(
               log.date || ""
-            ) === selectedDate;
+            ).trim() ===
+            selectedDate;
 
           const isSameShift =
             String(
               log.shift || ""
-            ) ===
+            ).trim() ===
             appState.selectedShift;
 
           const isLegacyLog =
@@ -651,7 +655,8 @@ async function loadLegacyLogsForSelectedDate() {
       );
 
     /*
-      모든 기존 업무일지를 먼저 변환한다.
+      기존 서버 업무일지를 모두
+      현재 GS Shift Log 구조로 변환한다.
     */
     const convertedLogs =
       legacyItems
@@ -671,12 +676,20 @@ async function loadLegacyLogsForSelectedDate() {
         .filter(Boolean);
 
     /*
-      모든 보직 업무일지가 준비된 다음
-      파트장 업무 내용을 팀원 업무와 비교한다.
+      2026년 7월 21일까지의 파트장 일지는
+      유사도 비교를 사용하지 않는다.
+
+      같은 날짜·근무의 팀원 일지를 그대로 복사하여
+      보직별로 구분된 파트장 일지를 만든다.
     */
-    classifyLegacyLeaderEntries(
-      convertedLogs
-    );
+    if (
+      selectedDate <=
+      "2026-07-21"
+    ) {
+      rebuildLegacyLeaderLogFromMemberLogs(
+        convertedLogs
+      );
+    }
 
     appState.logs = [
       ...convertedLogs,
@@ -692,7 +705,232 @@ async function loadLegacyLogsForSelectedDate() {
       "기존 업무일지 불러오기 실패:",
       error
     );
+
+    /*
+      기존 서버 연결에 실패해도
+      새 GS Shift Log 기능은 계속 작동한다.
+    */
   }
+}
+
+/* =========================================================
+  과거 파트장 업무일지 재구성
+
+  2026-07-21까지는
+  같은 날짜·근무의 팀원 업무일지를
+  파트장 업무일지에 그대로 취합한다.
+========================================================= */
+
+function rebuildLegacyLeaderLogFromMemberLogs(
+  convertedLogs
+) {
+  if (
+    !Array.isArray(
+      convertedLogs
+    ) ||
+    !convertedLogs.length
+  ) {
+    return;
+  }
+
+  const memberRoleOrder = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+  /*
+    파트장 업무일지를 찾는다.
+  */
+  const leaderLog =
+    convertedLogs.find(
+      (log) => {
+        return (
+          normalizeMemberLogRole(
+            log.role
+          ) ===
+          "파트장"
+        );
+      }
+    );
+
+  if (!leaderLog) {
+    return;
+  }
+
+  /*
+    기존 파트장 일지에서
+    명확하게 파트장 직접 업무로 확인되는 항목만 유지한다.
+
+    legacyBodyIndex 8:
+    이전 코드에서 파트장 직접 업무로 구분한 경우
+
+    importedFromRole 파트장:
+    이미 파트장 직접 업무로 분류된 경우
+  */
+  const leaderOwnEntries =
+    Array.isArray(
+      leaderLog.entries
+    )
+      ? leaderLog.entries
+          .filter(
+            (entry) => {
+              const sourceRole =
+                normalizeMemberLogRole(
+                  entry.importedFromRole
+                );
+
+              const legacyBodyIndex =
+                Number(
+                  entry.legacyBodyIndex
+                );
+
+              const isTmIssue =
+                String(
+                  entry.category || ""
+                ).trim() ===
+                "TM 발행";
+
+              if (isTmIssue) {
+                return false;
+              }
+
+              return (
+                sourceRole ===
+                  "파트장" ||
+                legacyBodyIndex ===
+                  8
+              );
+            }
+          )
+          .map(
+            (
+              entry,
+              entryIndex
+            ) => {
+              return {
+                ...entry,
+
+                importedFromRole:
+                  "파트장",
+
+                importedFromAuthor:
+                  String(
+                    leaderLog.author ||
+                    ""
+                  ).trim(),
+
+                importedFromLogId:
+                  String(
+                    leaderLog.id ||
+                    ""
+                  ).trim(),
+
+                importedFromEntryIndex:
+                  entryIndex
+              };
+            }
+          )
+      : [];
+
+  const combinedMemberEntries = [];
+
+  /*
+    TGO → BCO1 → BCO2 → TO → BO1 → BO2 순서로
+    각 업무일지의 내용을 그대로 복사한다.
+  */
+  memberRoleOrder.forEach(
+    (memberRole) => {
+      const memberLog =
+        convertedLogs.find(
+          (log) => {
+            return (
+              normalizeMemberLogRole(
+                log.role
+              ) ===
+              memberRole
+            );
+          }
+        );
+
+      if (!memberLog) {
+        return;
+      }
+
+      const memberEntries =
+        Array.isArray(
+          memberLog.entries
+        )
+          ? memberLog.entries
+          : [];
+
+      memberEntries.forEach(
+        (
+          entry,
+          entryIndex
+        ) => {
+          combinedMemberEntries.push({
+            ...entry,
+
+            /*
+              파트장 업무일지 화면에서
+              보직별로 구분하기 위한 정보다.
+            */
+            importedFromRole:
+              memberRole,
+
+            importedFromAuthor:
+              String(
+                memberLog.author ||
+                ""
+              ).trim(),
+
+            importedFromLogId:
+              String(
+                memberLog.id ||
+                ""
+              ).trim(),
+
+            importedFromEntryIndex:
+              entryIndex,
+
+            /*
+              원본 팀원 업무일지의 항목임을 표시한다.
+            */
+            source:
+              "legacy-member-copy"
+          });
+        }
+      );
+    }
+  );
+
+  /*
+    팀원 업무를 먼저 배치하고
+    파트장 직접 업무는 마지막에 배치한다.
+
+    화면에서는:
+    - TM 발행 내역 전체 취합
+    - TGO 업무
+    - BCO1 업무
+    - BCO2 업무
+    - TO 업무
+    - BO1 업무
+    - BO2 업무
+    - 파트장 업무
+
+    순서로 표시된다.
+  */
+  leaderLog.entries = [
+    ...combinedMemberEntries,
+    ...leaderOwnEntries
+  ];
+
+  leaderLog.legacyRebuiltFromMembers =
+    true;
 }
 
 function classifyLegacyLeaderEntries(
