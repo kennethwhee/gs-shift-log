@@ -8649,3 +8649,516 @@ tbody td {
     padding-right: 10px !important;
   }
 }
+
+/* =========================================================
+  인수인계사항 표 최종 안정화
+  일반 모드 + 편집 모드 공통
+========================================================= */
+
+#logEntryListPanel
+.handover-entry-group--handover
+.log-entry-table-wrap {
+  width: 100% !important;
+  overflow-x: hidden !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover {
+  display: table !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+
+/* =========================================================
+  표 행·셀 구조 복원
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+thead {
+  display: table-header-group !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+tbody {
+  display: table-row-group !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+tr {
+  display: table-row !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+th,
+#logEntryListPanel
+.log-entry-table--handover
+td {
+  display: table-cell !important;
+  float: none !important;
+
+  box-sizing: border-box !important;
+
+  height: auto !important;
+  min-height: 0 !important;
+
+  border-right: 0 !important;
+  border-left: 0 !important;
+
+  vertical-align: middle !important;
+}
+
+
+/* =========================================================
+  헤더
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+thead th {
+  height: 30px !important;
+  padding: 5px 6px !important;
+
+  border-bottom: 1px solid #d9e2ec !important;
+
+  background: #f5f8fb !important;
+  color: #5c6c80 !important;
+
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+
+  text-align: center !important;
+}
+
+
+/* =========================================================
+  실제 항목 행
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+tbody tr:not(.log-entry-role-divider-row)
+td {
+  height: 42px !important;
+  padding: 7px 6px !important;
+
+  border-bottom: 1px solid #e6ebf1 !important;
+
+  background: #ffffff !important;
+
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+tbody tr:not(.log-entry-role-divider-row):hover
+td {
+  background: #fbfdff !important;
+}
+
+
+/* =========================================================
+  선택 열
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-table__select,
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-select-cell {
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+
+  padding-right: 3px !important;
+  padding-left: 3px !important;
+
+  text-align: center !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-select-checkbox {
+  width: 13px !important;
+  height: 13px !important;
+
+  margin: 0 !important;
+
+  vertical-align: middle !important;
+}
+
+
+/* =========================================================
+  구분 열
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-table__category,
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-category-cell-wrap {
+  width: 72px !important;
+  min-width: 72px !important;
+  max-width: 72px !important;
+
+  padding-right: 4px !important;
+  padding-left: 4px !important;
+
+  text-align: center !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-category-cell {
+  display: flex !important;
+
+  width: 100% !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-category-text {
+  display: none !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-source-badge {
+  min-width: 46px !important;
+  min-height: 20px !important;
+
+  padding: 0 6px !important;
+
+  border-radius: 5px !important;
+
+  font-size: 9px !important;
+  line-height: 18px !important;
+}
+
+
+/* =========================================================
+  시간 열
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-table__time,
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-time-cell {
+  width: 68px !important;
+  min-width: 68px !important;
+  max-width: 68px !important;
+
+  padding-right: 5px !important;
+  padding-left: 5px !important;
+
+  color: #173f6c !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-time-group-label {
+  display: block !important;
+
+  width: 100% !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: inherit !important;
+  font: inherit !important;
+
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+
+/* =========================================================
+  내용 열
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-table__content,
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-content-cell {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+
+  padding: 7px 10px !important;
+
+  text-align: left !important;
+}
+
+
+/* 번호 + 내용 한 줄 */
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-line {
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  grid-template-columns:
+    26px
+    minmax(0, 1fr) !important;
+
+  align-items: start !important;
+  column-gap: 7px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+
+  text-align: left !important;
+}
+
+
+/* 번호 */
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-number {
+  display: block !important;
+
+  width: 26px !important;
+  min-width: 26px !important;
+  max-width: 26px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #1763c5 !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1.45 !important;
+
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+
+/* 내용 */
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-text {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #223249 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1.45 !important;
+
+  text-align: left !important;
+
+  white-space: pre-wrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+
+/* =========================================================
+  관리 열
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-table__actions,
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-actions-cell {
+  width: 72px !important;
+  min-width: 72px !important;
+  max-width: 72px !important;
+
+  padding-right: 4px !important;
+  padding-left: 4px !important;
+
+  text-align: center !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-row-actions {
+  display: flex !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+
+  margin: 0 !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-edit-button,
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-delete-button {
+  min-width: 30px !important;
+  min-height: 24px !important;
+
+  padding: 0 5px !important;
+
+  border-radius: 5px !important;
+
+  font-size: 9px !important;
+  line-height: 22px !important;
+}
+
+
+/* =========================================================
+  보직 구분행
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-role-divider-row {
+  display: table-row !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-role-divider-row td {
+  display: table-cell !important;
+
+  width: auto !important;
+  height: 31px !important;
+
+  padding: 0 !important;
+
+  border-top: 1px solid #ced9e5 !important;
+  border-bottom: 1px solid #dce4ed !important;
+
+  background: #f5f8fb !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-role-divider {
+  display: flex !important;
+
+  width: 100% !important;
+  min-height: 31px !important;
+
+  align-items: center !important;
+  gap: 6px !important;
+
+  margin: 0 !important;
+  padding: 5px 8px !important;
+
+  background: transparent !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-role-divider strong {
+  color: #223249 !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-role-divider__count {
+  color: #8190a2 !important;
+  font-size: 9px !important;
+  font-weight: 800 !important;
+}
+
+
+/* =========================================================
+  숨겨진 편집 열
+========================================================= */
+
+#logEntryListPanel
+.log-entry-edit-only-column[hidden],
+#logEntryListPanel
+.log-entry-select-cell[hidden],
+#logEntryListPanel
+.log-entry-actions-cell[hidden] {
+  display: none !important;
+}
+
+
+/* =========================================================
+  일반 모드에서는 헤더를 컴팩트하게 감춤
+========================================================= */
+
+#logEntryListPanel:not(.is-edit-mode)
+.log-entry-table--handover
+thead {
+  display: none !important;
+}
+
+
+/* 일반 모드에서는 구분 배지도 반복 표시하지 않음 */
+#logEntryListPanel:not(.is-edit-mode)
+.log-entry-table--handover
+.log-entry-category-cell-wrap {
+  display: none !important;
+}
+
+
+/* 일반 모드 시간 폭 */
+#logEntryListPanel:not(.is-edit-mode)
+.log-entry-table--handover
+.log-entry-time-cell {
+  width: 68px !important;
+  min-width: 68px !important;
+  max-width: 68px !important;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+  #logEntryListPanel
+  .handover-entry-group--handover
+  .log-entry-table-wrap {
+    overflow-x: auto !important;
+  }
+
+  #logEntryListPanel
+  .log-entry-table--handover {
+    min-width: 620px !important;
+  }
+}
