@@ -6189,3 +6189,31 @@ td {
   text-align: left;
   white-space: pre-line;
 }
+
+/* =========================================================
+   업무일지 작성 모달 확대
+========================================================= */
+
+.log-editor-modal {
+  width: min(1450px, calc(100vw - 40px));
+  max-width: 1450px;
+  height: min(94vh, 1080px);
+}
+
+.log-editor-modal .modal-body{
+  padding:18px;
+}
+
+@media (max-width:768px){
+
+  .log-editor-modal{
+    width:calc(100vw - 14px);
+    height:calc(100vh - 14px);
+    max-width:none;
+  }
+
+  .log-editor-modal .modal-body{
+    padding:12px;
+  }
+
+}
