@@ -3561,21 +3561,33 @@ function createGroupedEntryLineHtml(
       .toUpperCase();
 
   const contentText =
-    String(
-      entry.content || "-"
-    ).trim();
+    String(entry.content || "-")
+      .trim();
 
-  const tagHtml = tagText
-    ? `
-      <button
-        type="button"
-        class="detail-inline-tag"
-        data-detail-tag="${escapeHtml(tagText)}"
-      >
-        [${escapeHtml(tagText)}]
-      </button>
-    `
-    : "";
+  /*
+    TAG와 작업 내용을 하나의 내용 영역 안에 넣는다.
+    따라서 항상 [TAG] 바로 뒤에 작업 내용이 붙는다.
+  */
+  const combinedContentHtml = `
+    ${
+      tagText
+        ? `
+          <button
+            type="button"
+            class="detail-inline-tag"
+            data-detail-tag="${escapeHtml(tagText)}"
+            title="Facility Navigator에서 설비 보기"
+          >
+            [${escapeHtml(tagText)}]
+          </button>
+        `
+        : ""
+    }
+
+    <span class="detail-grouped-entry-line__content-text">
+      ${escapeHtml(contentText)}
+    </span>
+  `;
 
   return `
     <div class="detail-grouped-entry-line">
@@ -3593,10 +3605,8 @@ function createGroupedEntryLineHtml(
           : ""
       }
 
-      ${tagHtml}
-
       <span class="detail-grouped-entry-line__content">
-        ${escapeHtml(contentText)}
+        ${combinedContentHtml}
       </span>
     </div>
   `;
