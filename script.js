@@ -56,90 +56,511 @@ let elements = {};
 
 function cacheElements() {
   elements = {
-    topTabs: [...document.querySelectorAll(".top-tab")],
-    pageViews: [...document.querySelectorAll(".page-view")],
+    /* =====================================================
+      상단 탭과 화면
+    ====================================================== */
 
-    currentShiftLabel: document.getElementById("currentShiftLabel"),
-    selectedDateText: document.getElementById("selectedDateText"),
-    selectedShiftBadge: document.getElementById("selectedShiftBadge"),
+    topTabs: [
+      ...document.querySelectorAll(".top-tab")
+    ],
 
-    previousDateButton: document.getElementById("previousDateButton"),
-    nextDateButton: document.getElementById("nextDateButton"),
-    todayButton: document.getElementById("todayButton"),
+    pageViews: [
+      ...document.querySelectorAll(".page-view")
+    ],
 
-    openLogEditorButton: document.getElementById("openLogEditorButton"),
-    closeLogEditorButton: document.getElementById("closeLogEditorButton"),
-    cancelLogButton: document.getElementById("cancelLogButton"),
 
-    logEditorModal: document.getElementById("logEditorModal"),
-    logEditorForm: document.getElementById("logEditorForm"),
-    logEditorTitle: document.getElementById("logEditorTitle"),
+    /* =====================================================
+      근무 현황과 날짜
+    ====================================================== */
 
-    logDate: document.getElementById("logDate"),
-    logShift: document.getElementById("logShift"),
-    logTeam: document.getElementById("logTeam"),
-    logRole: document.getElementById("logRole"),
-    logAuthor: document.getElementById("logAuthor"),
-    operationStatus: document.getElementById("operationStatus"),
-    logNote: document.getElementById("logNote"),
+    shiftMemberGrid:
+      document.getElementById("shiftMemberGrid"),
 
-    logEntryTime: document.getElementById("logEntryTime"),
-    useCurrentTimeCheckbox: document.getElementById(
-  "useCurrentTimeCheckbox"
-),
-    logEntryCategory: document.getElementById("logEntryCategory"),
-    logEntryTag: document.getElementById("logEntryTag"),
-    logEntryContent: document.getElementById("logEntryContent"),
+    currentShiftLabel:
+      document.getElementById("currentShiftLabel"),
 
-    addLogEntryButton: document.getElementById("addLogEntryButton"),
-    cancelLogEntryEditButton: document.getElementById(
-      "cancelLogEntryEditButton"
-    ),
-    logEntryNavigatorButton: document.getElementById(
-      "logEntryNavigatorButton"
-    ),
+    selectedDateText:
+      document.getElementById("selectedDateText"),
 
-    logEntryTagField: document.getElementById("logEntryTagField"),
+    selectedShiftBadge:
+      document.getElementById("selectedShiftBadge"),
 
-    logEntryInputPanel: document.querySelector(".log-entry-input-panel"),
-    logEntryTableBody: document.getElementById("logEntryTableBody"),
-    logEntryCount: document.getElementById("logEntryCount"),
-    logEntriesJson: document.getElementById("logEntriesJson"),
+    previousDateButton:
+      document.getElementById("previousDateButton"),
 
-    logAttachments: document.getElementById("logAttachments"),
-    fileDropzone: document.getElementById("fileDropzone"),
-    attachmentList: document.getElementById("attachmentList"),
+    nextDateButton:
+      document.getElementById("nextDateButton"),
 
-    saveDraftButton: document.getElementById("saveDraftButton"),
-    printLogButton: document.getElementById("printLogButton"),
-    requestApprovalButton: document.getElementById(
-      "requestApprovalButton"
-    ),
+    todayButton:
+      document.getElementById("todayButton"),
 
-    logTableBody: document.getElementById("logTableBody"),
-    logEmptyState: document.getElementById("logEmptyState"),
 
-    logDetailModal: document.getElementById("logDetailModal"),
-    closeLogDetailButton: document.getElementById(
-      "closeLogDetailButton"
-    ),
-    closeLogDetailFooterButton: document.getElementById(
-      "closeLogDetailFooterButton"
-    ),
-    logDetailContent: document.getElementById("logDetailContent"),
-    editFromDetailButton: document.getElementById(
-      "editFromDetailButton"
-    ),
+    /* =====================================================
+      업무일지 작성 모달
+    ====================================================== */
 
-    searchForm: document.getElementById("searchForm"),
-    searchResultBody: document.getElementById("searchResultBody"),
-    searchResultCount: document.getElementById("searchResultCount"),
-    searchEmptyState: document.getElementById("searchEmptyState"),
+    openLogEditorButton:
+      document.getElementById("openLogEditorButton"),
 
-    appToast: document.getElementById("appToast")
+    closeLogEditorButton:
+      document.getElementById("closeLogEditorButton"),
+
+    cancelLogButton:
+      document.getElementById("cancelLogButton"),
+
+    logEditorModal:
+      document.getElementById("logEditorModal"),
+
+    logEditorForm:
+      document.getElementById("logEditorForm"),
+
+    logEditorTitle:
+      document.getElementById("logEditorTitle"),
+
+
+    /* =====================================================
+      기본 정보
+    ====================================================== */
+
+    logDate:
+      document.getElementById("logDate"),
+
+    logShift:
+      document.getElementById("logShift"),
+
+    logTeam:
+      document.getElementById("logTeam"),
+
+    logRole:
+      document.getElementById("logRole"),
+
+    logAuthor:
+      document.getElementById("logAuthor"),
+
+
+    /* =====================================================
+      현재 운전현황
+    ====================================================== */
+
+    operationStatusSection:
+      document.querySelector(
+        ".operation-status-section"
+      ),
+
+    operationStatus:
+      document.getElementById(
+        "operationStatus"
+      ),
+
+    operationStatusSnapshot:
+      document.getElementById(
+        "operationStatusSnapshot"
+      ),
+
+    operationStatusCurrentCard:
+      document.getElementById(
+        "operationStatusCurrentCard"
+      ),
+
+    operationStatusCurrentContent:
+      document.getElementById(
+        "operationStatusCurrentContent"
+      ),
+
+    operationStatusStateBadge:
+      document.getElementById(
+        "operationStatusStateBadge"
+      ),
+
+    operationStatusUpdatedAt:
+      document.getElementById(
+        "operationStatusUpdatedAt"
+      ),
+
+    operationStatusUpdatedBy:
+      document.getElementById(
+        "operationStatusUpdatedBy"
+      ),
+
+    operationStatusEditor:
+      document.getElementById(
+        "operationStatusEditor"
+      ),
+
+    operationStatusType:
+      document.getElementById(
+        "operationStatusType"
+      ),
+
+    editOperationStatusButton:
+      document.getElementById(
+        "editOperationStatusButton"
+      ),
+
+    cancelOperationStatusButton:
+      document.getElementById(
+        "cancelOperationStatusButton"
+      ),
+
+    saveOperationStatusButton:
+      document.getElementById(
+        "saveOperationStatusButton"
+      ),
+
+
+    /* =====================================================
+      작업 · 정비 · 인계 입력
+    ====================================================== */
+
+    logEntryTime:
+      document.getElementById(
+        "logEntryTime"
+      ),
+
+    useCurrentTimeCheckbox:
+      document.getElementById(
+        "useCurrentTimeCheckbox"
+      ),
+
+    logEntryCategory:
+      document.getElementById(
+        "logEntryCategory"
+      ),
+
+    logEntryTag:
+      document.getElementById(
+        "logEntryTag"
+      ),
+
+    logEntryContent:
+      document.getElementById(
+        "logEntryContent"
+      ),
+
+    addLogEntryButton:
+      document.getElementById(
+        "addLogEntryButton"
+      ),
+
+    cancelLogEntryEditButton:
+      document.getElementById(
+        "cancelLogEntryEditButton"
+      ),
+
+    logEntryNavigatorButton:
+      document.getElementById(
+        "logEntryNavigatorButton"
+      ),
+
+    logEntryTagField:
+      document.getElementById(
+        "logEntryTagField"
+      ),
+
+    logEntryInputPanel:
+      document.getElementById(
+        "logEntryInputPanel"
+      ),
+
+    logEntryTableBody:
+      document.getElementById(
+        "logEntryTableBody"
+      ),
+
+    logEntryCount:
+      document.getElementById(
+        "logEntryCount"
+      ),
+
+    logEntriesJson:
+      document.getElementById(
+        "logEntriesJson"
+      ),
+
+
+    /* =====================================================
+      비고와 첨부파일
+    ====================================================== */
+
+    logNote:
+      document.getElementById("logNote"),
+
+    logAttachments:
+      document.getElementById(
+        "logAttachments"
+      ),
+
+    fileDropzone:
+      document.getElementById(
+        "fileDropzone"
+      ),
+
+    attachmentList:
+      document.getElementById(
+        "attachmentList"
+      ),
+
+
+    /* =====================================================
+      하단 버튼
+    ====================================================== */
+
+    saveDraftButton:
+      document.getElementById(
+        "saveDraftButton"
+      ),
+
+    printLogButton:
+      document.getElementById(
+        "printLogButton"
+      ),
+
+    requestApprovalButton:
+      document.getElementById(
+        "requestApprovalButton"
+      ),
+
+
+    /* =====================================================
+      업무일지 목록
+    ====================================================== */
+
+    logTableBody:
+      document.getElementById(
+        "logTableBody"
+      ),
+
+    logEmptyState:
+      document.getElementById(
+        "logEmptyState"
+      ),
+
+
+    /* =====================================================
+      상세보기 모달
+    ====================================================== */
+
+    logDetailModal:
+      document.getElementById(
+        "logDetailModal"
+      ),
+
+    closeLogDetailButton:
+      document.getElementById(
+        "closeLogDetailButton"
+      ),
+
+    closeLogDetailFooterButton:
+      document.getElementById(
+        "closeLogDetailFooterButton"
+      ),
+
+    logDetailContent:
+      document.getElementById(
+        "logDetailContent"
+      ),
+
+    editFromDetailButton:
+      document.getElementById(
+        "editFromDetailButton"
+      ),
+
+
+    /* =====================================================
+      조회
+    ====================================================== */
+
+    searchForm:
+      document.getElementById(
+        "searchForm"
+      ),
+
+    searchResultBody:
+      document.getElementById(
+        "searchResultBody"
+      ),
+
+    searchResultCount:
+      document.getElementById(
+        "searchResultCount"
+      ),
+
+    searchEmptyState:
+      document.getElementById(
+        "searchEmptyState"
+      ),
+
+
+    /* =====================================================
+      공통 알림
+    ====================================================== */
+
+    appToast:
+      document.getElementById(
+        "appToast"
+      )
   };
 }
 
+/* =========================================================
+   운전현황 관리
+========================================================= */
+
+function createDefaultOperationStatus() {
+  return {
+    type: "normal",
+    content:
+      "#1 주보일러 정상운전\n" +
+      "#2 주보일러 정상운전\n" +
+      "GT / ST 정상운전",
+    updatedAt: new Date().toISOString(),
+    updatedBy: ""
+  };
+}
+
+function loadOperationStatus() {
+  const saved = localStorage.getItem(
+    STORAGE_KEYS.operationStatus
+  );
+
+  if (!saved) {
+    appState.currentOperationStatus =
+      createDefaultOperationStatus();
+    return;
+  }
+
+  try {
+    appState.currentOperationStatus =
+      JSON.parse(saved);
+  } catch (e) {
+    appState.currentOperationStatus =
+      createDefaultOperationStatus();
+  }
+}
+
+function saveOperationStatusToStorage() {
+  localStorage.setItem(
+    STORAGE_KEYS.operationStatus,
+    JSON.stringify(
+      appState.currentOperationStatus
+    )
+  );
+}
+
+function renderOperationStatusCard() {
+  if (
+    !elements.operationStatusCurrentContent
+  ) {
+    return;
+  }
+
+  const status =
+    appState.currentOperationStatus ||
+    createDefaultOperationStatus();
+
+  elements.operationStatusCurrentContent.textContent =
+    status.content;
+
+  if (elements.operationStatus.value !== undefined) {
+    elements.operationStatus.value =
+      status.content;
+  }
+
+  if (elements.operationStatusSnapshot) {
+    elements.operationStatusSnapshot.value =
+      status.content;
+  }
+
+  if (elements.operationStatusType) {
+    elements.operationStatusType.value =
+      status.type;
+  }
+
+  if (elements.operationStatusUpdatedAt) {
+    elements.operationStatusUpdatedAt.textContent =
+      formatDateTime(
+        status.updatedAt
+      );
+  }
+
+  if (elements.operationStatusUpdatedBy) {
+    elements.operationStatusUpdatedBy.textContent =
+      status.updatedBy || "-";
+  }
+}
+
+function openOperationStatusEditor() {
+  if (
+    !elements.operationStatusEditor
+  ) {
+    return;
+  }
+
+  elements.operationStatusEditor.hidden =
+    false;
+
+  elements.operationStatusSection?.classList.add(
+    "is-editing"
+  );
+
+  elements.operationStatus?.focus();
+}
+
+function closeOperationStatusEditor() {
+  if (
+    !elements.operationStatusEditor
+  ) {
+    return;
+  }
+
+  elements.operationStatusEditor.hidden =
+    true;
+
+  elements.operationStatusSection?.classList.remove(
+    "is-editing"
+  );
+}
+
+function saveOperationStatus() {
+  if (!elements.operationStatus) {
+    return;
+  }
+
+  const content =
+    elements.operationStatus.value.trim();
+
+  if (!content) {
+    showToast(
+      "운전현황을 입력하세요."
+    );
+    return;
+  }
+
+  appState.currentOperationStatus = {
+    type:
+      elements.operationStatusType?.value ||
+      "normal",
+
+    content,
+
+    updatedAt:
+      new Date().toISOString(),
+
+    updatedBy:
+      elements.logAuthor?.value ||
+      ""
+  };
+
+  saveOperationStatusToStorage();
+
+  renderOperationStatusCard();
+
+  closeOperationStatusEditor();
+
+  showToast(
+    "운전현황이 저장되었습니다."
+  );
+}
 
 function bindEvents() {
   /*
@@ -1444,6 +1865,84 @@ function deleteLogEntry(entryIndex) {
 
   renderLogEntryTable();
   showToast("작업 내역을 삭제했습니다.");
+}
+
+/* =========================================================
+  작업 시간 자동 입력
+========================================================= */
+
+function handleLogEntryTimeInput(event) {
+  const input = event?.target || elements.logEntryTime;
+
+  if (!input) {
+    return;
+  }
+
+  const cursorPosition =
+    typeof input.selectionStart === "number"
+      ? input.selectionStart
+      : 0;
+
+  const previousValue = input.value;
+
+  let digits = previousValue.replace(/\D/g, "");
+
+  /*
+    HHMM까지만 입력 가능
+  */
+  digits = digits.slice(0, 4);
+
+  let formattedValue = "";
+
+  if (digits.length <= 2) {
+    formattedValue = digits;
+  } else {
+    formattedValue =
+      `${digits.slice(0, 2)}:${digits.slice(2)}`;
+  }
+
+  input.value = formattedValue;
+
+  /*
+    현재시간 체크 후 사용자가 직접 수정하면
+    체크 상태를 해제한다.
+  */
+  if (
+    elements.useCurrentTimeCheckbox &&
+    elements.useCurrentTimeCheckbox.checked
+  ) {
+    elements.useCurrentTimeCheckbox.checked = false;
+  }
+
+  /*
+    입력 도중 커서가 어색하게 이동하지 않도록 처리
+  */
+  if (
+    document.activeElement === input &&
+    typeof input.setSelectionRange === "function"
+  ) {
+    let nextCursorPosition = cursorPosition;
+
+    if (
+      previousValue.length < formattedValue.length &&
+      formattedValue.includes(":") &&
+      cursorPosition >= 2
+    ) {
+      nextCursorPosition = cursorPosition + 1;
+    }
+
+    window.requestAnimationFrame(() => {
+      const safeCursorPosition = Math.min(
+        nextCursorPosition,
+        input.value.length
+      );
+
+      input.setSelectionRange(
+        safeCursorPosition,
+        safeCursorPosition
+      );
+    });
+  }
 }
 
 function normalizeLogEntryTime() {
