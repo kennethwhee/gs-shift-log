@@ -5357,3 +5357,220 @@ td {
   line-height: 1.4;
   white-space: nowrap;
 }
+
+/* =========================================================
+   업무일지 미리보기 최종 디자인
+   - 구역 시작 가로 경계선
+   - 줄별 박스 제거
+   - TM 제목과 내용 같은 줄
+========================================================= */
+
+.log-preview {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+
+/* =========================================================
+   업무 한 줄
+========================================================= */
+
+.log-preview__group {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns:
+    90px
+    minmax(0, 1fr);
+  align-items: start;
+  column-gap: 10px;
+  margin: 0;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+}
+
+
+/*
+   운전현황·TM·인계 구역 시작 지점에만
+   가로 경계선을 표시한다.
+*/
+.log-preview__group.is-section-start {
+  margin-top: 7px;
+  padding-top: 9px;
+  border-top: 1px solid #cbd8e5;
+}
+
+.log-preview__group.is-section-start:first-child {
+  margin-top: 0;
+  padding-top: 4px;
+  border-top: 0;
+}
+
+
+/* =========================================================
+   제목 없는 두 번째 항목부터
+========================================================= */
+
+.log-preview__group.has-no-title {
+  grid-template-columns:
+    90px
+    minmax(0, 1fr);
+}
+
+.log-preview__group.has-no-title::before {
+  content: "";
+  display: block;
+  width: 90px;
+}
+
+.log-preview__group.has-no-title
+.log-preview__content {
+  grid-column: 2;
+}
+
+
+/* =========================================================
+   운전현황·TM 발행 내역·인계 제목
+========================================================= */
+
+.log-preview__title {
+  display: inline-flex;
+  width: 90px;
+  min-width: 90px;
+  min-height: 23px;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.log-preview__group.is-operation
+.log-preview__title {
+  border-color: #bed7ef;
+  background: #eaf2fb;
+  color: #1f5fae;
+}
+
+.log-preview__group.is-maintenance
+.log-preview__title {
+  border-color: #bddfce;
+  background: #e7f6f0;
+  color: #17865f;
+}
+
+.log-preview__group.is-handover
+.log-preview__title {
+  border-color: #ead1a5;
+  background: #fff4df;
+  color: #a3680d;
+}
+
+
+/* =========================================================
+   실제 내용
+========================================================= */
+
+.log-preview__content {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0;
+  padding: 2px 0 0;
+  text-align: left;
+}
+
+.log-preview__text {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  color: #26364b;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  text-align: left;
+  text-indent: 0;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+   보직별 업무일지 구분
+
+   박스가 아니라 위쪽 가로선만 표시
+========================================================= */
+
+.log-preview__role-divider {
+  display: block;
+  width: 100%;
+  margin: 8px 0 2px;
+  padding: 8px 8px 3px;
+  border: 0;
+  border-top: 1px solid #cbd8e5;
+  border-radius: 0;
+  background: transparent;
+  color: #33506d;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.3;
+  text-align: left;
+}
+
+.log-preview__role-divider.is-tgo {
+  border-top-color: #b9d3ed;
+  color: #1f5fae;
+}
+
+.log-preview__role-divider.is-bco1 {
+  border-top-color: #c1dfce;
+  color: #26784b;
+}
+
+.log-preview__role-divider.is-bco2 {
+  border-top-color: #d5c7e6;
+  color: #74419c;
+}
+
+.log-preview__role-divider.is-leader {
+  border-top-color: #dfcfb5;
+  color: #8c601d;
+}
+
+
+/* =========================================================
+   TAG
+========================================================= */
+
+.log-preview__tag {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 5px;
+  border: 1px solid #c9dcf3;
+  border-radius: 5px;
+  background: #edf5ff;
+  color: #1f5fae;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.4;
+  white-space: nowrap;
+}

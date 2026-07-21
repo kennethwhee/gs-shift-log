@@ -7836,7 +7836,7 @@ function createLogRowHtml(log) {
       tag: "",
 
       categoryClass:
-        "is-operation"
+        "is-operation is-section-start"
     });
   }
 
@@ -7852,8 +7852,8 @@ function createLogRowHtml(log) {
   /*
     2. TM 발행 내역
 
-    파트장 업무일지에서는 모든 보직의
-    TM 발행 내용을 하나로 합쳐 표시한다.
+    첫 번째 TM 내용은
+    TM 발행 내역 제목과 같은 줄에 표시한다.
   */
   const tmEntries =
     sortDetailEntriesByTime(
@@ -7866,19 +7866,6 @@ function createLogRowHtml(log) {
         );
       })
     );
-
-  if (tmEntries.length) {
-    previewGroups.push({
-      type:
-        "section",
-
-      title:
-        "TM 발행 내역",
-
-      categoryClass:
-        "is-maintenance"
-    });
-  }
 
   tmEntries.forEach(
     (
@@ -7901,7 +7888,13 @@ function createLogRowHtml(log) {
         type:
           "normal",
 
-        title: "",
+        /*
+          첫 번째 TM만 제목 표시
+        */
+        title:
+          index === 0
+            ? "TM 발행 내역"
+            : "",
 
         tag:
           tagText
@@ -7911,8 +7904,15 @@ function createLogRowHtml(log) {
         text:
           `${index + 1}. ${contentText}`,
 
-        categoryClass:
-          "is-maintenance"
+        categoryClass: [
+          "is-maintenance",
+
+          index === 0
+            ? "is-section-start"
+            : ""
+        ]
+          .filter(Boolean)
+          .join(" ")
       });
     }
   );
@@ -7992,7 +7992,10 @@ function createLogRowHtml(log) {
 
 
   orderedRoles.forEach(
-    (role) => {
+    (
+      role,
+      roleIndex
+    ) => {
       const roleEntries =
         sortDetailEntriesByTime(
           groupedEntries[
@@ -8001,8 +8004,10 @@ function createLogRowHtml(log) {
         );
 
       /*
-        파트장 업무일지에만
-        보직별 구분 제목을 추가한다.
+        파트장 일지는 보직별 제목을 표시한다.
+
+        제목은 박스가 아니라
+        가로 경계선 아래의 작은 구분 제목이다.
       */
       if (
         isLeaderLog &&
@@ -8015,10 +8020,13 @@ function createLogRowHtml(log) {
           title:
             `${role} 업무일지`,
 
-          categoryClass:
-            `is-handover ${getLogEntrySourceClass(
+          categoryClass: [
+            "is-handover",
+            getLogEntrySourceClass(
               role
-            )}`
+            ),
+            "is-section-divider"
+          ].join(" ")
         });
       }
 
@@ -8058,7 +8066,7 @@ function createLogRowHtml(log) {
 
             /*
               일반 보직 업무일지는
-              기존처럼 첫 줄에만 인계 표시
+              첫 번째 내용 옆에 인계 표시
             */
             title:
               !isLeaderLog &&
@@ -8074,10 +8082,21 @@ function createLogRowHtml(log) {
             text:
               displayText,
 
-            categoryClass:
-              `is-handover ${getLogEntrySourceClass(
+            categoryClass: [
+              "is-handover",
+
+              getLogEntrySourceClass(
                 role
-              )}`
+              ),
+
+              !isLeaderLog &&
+              roleIndex === 0 &&
+              index === 0
+                ? "is-section-start"
+                : ""
+            ]
+              .filter(Boolean)
+              .join(" ")
           });
         }
       );
@@ -8108,7 +8127,7 @@ function createLogRowHtml(log) {
       tag: "",
 
       categoryClass:
-        "is-note"
+        "is-note is-section-start"
     });
   }
 
@@ -8174,6 +8193,7 @@ function createLogRowHtml(log) {
       </td>
 
       <td class="log-row__preview-cell">
+
         <button
           type="button"
           class="log-preview"
@@ -8183,12 +8203,13 @@ function createLogRowHtml(log) {
           )}"
           title="업무일지 상세보기"
         >
+
           ${
             previewGroups.length
               ? previewGroups
                   .map((group) => {
                     /*
-                      보직별 구분 제목
+                      보직별 업무일지 구분
                     */
                     if (
                       group.type ===
@@ -8220,6 +8241,7 @@ function createLogRowHtml(log) {
                           }
                         "
                       >
+
                         ${
                           group.title
                             ? `
@@ -8237,6 +8259,7 @@ function createLogRowHtml(log) {
                         <span
                           class="log-preview__content"
                         >
+
                           <span
                             class="log-preview__text"
                           >
@@ -8258,7 +8281,9 @@ function createLogRowHtml(log) {
                               `
                               : ""
                           }
+
                         </span>
+
                       </span>
                     `;
                   })
@@ -8269,10 +8294,13 @@ function createLogRowHtml(log) {
                 </span>
               `
           }
+
         </button>
+
       </td>
 
       <td class="log-row__actions-cell">
+
         <div class="row-actions">
 
           <button
@@ -8306,12 +8334,12 @@ function createLogRowHtml(log) {
           </button>
 
         </div>
+
       </td>
 
     </tr>
   `;
 }
-
 function handleLogTableClick(
   event
 ) {
