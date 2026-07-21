@@ -3207,46 +3207,67 @@ function resetLogEntryInput(options = {}) {
 
 
 function addOrUpdateLogEntry() {
-  const normalizedTime =
-    normalizeLogEntryTime();
-
-  if (!normalizedTime) {
-    showToast(
-      "시간을 직접 입력하거나 현재시간을 체크해 주세요."
-    );
-
-    elements.logEntryTime.focus();
-    return;
-  }
-
   const category =
-    elements.logEntryCategory.value ||
-    "인계사항";
+    String(
+      elements.logEntryCategory
+        ?.value ||
+      "인계사항"
+    ).trim();
+
+  const isHandover =
+    category === "인계사항";
 
   const needsTag =
     category.startsWith("TM") ||
     category.startsWith("BM") ||
     category.startsWith("CM");
 
+  let normalizedTime = "";
+
+  /*
+    시간은 인계사항에서만 입력하고 검사한다.
+  */
+  if (isHandover) {
+    normalizedTime =
+      normalizeLogEntryTime();
+
+    if (!normalizedTime) {
+      showToast(
+        "인계사항 시간을 직접 입력하거나 현재시간을 체크해 주세요."
+      );
+
+      elements.logEntryTime
+        ?.focus();
+
+      return;
+    }
+  }
+
   const tag =
     needsTag
-      ? elements.logEntryTag.value
+      ? String(
+          elements.logEntryTag
+            ?.value ||
+          ""
+        )
           .trim()
           .toUpperCase()
       : "";
 
   const content =
-    elements.logEntryContent.value
-      .trim();
+    String(
+      elements.logEntryContent
+        ?.value ||
+      ""
+    ).trim();
 
   if (!category) {
     showToast(
       "구분을 선택해 주세요."
     );
 
-    elements
-      .logEntryCategory
-      .focus();
+    elements.logEntryCategory
+      ?.focus();
 
     return;
   }
@@ -3259,7 +3280,9 @@ function addOrUpdateLogEntry() {
       `${category} 내역은 TAG를 입력해 주세요.`
     );
 
-    elements.logEntryTag.focus();
+    elements.logEntryTag
+      ?.focus();
+
     return;
   }
 
@@ -3268,9 +3291,8 @@ function addOrUpdateLogEntry() {
       "작업 내용을 입력해 주세요."
     );
 
-    elements
-      .logEntryContent
-      .focus();
+    elements.logEntryContent
+      ?.focus();
 
     return;
   }
@@ -3281,8 +3303,7 @@ function addOrUpdateLogEntry() {
   const previousEntry =
     isEditing
       ? appState.editorEntries[
-          appState
-            .editingEntryIndex
+          appState.editingEntryIndex
         ]
       : null;
 
@@ -3299,7 +3320,9 @@ function addOrUpdateLogEntry() {
 
   const entry = {
     time:
-      normalizedTime,
+      isHandover
+        ? normalizedTime
+        : "",
 
     category,
 
@@ -3368,7 +3391,7 @@ function addOrUpdateLogEntry() {
   updateMemberLogImportStatus();
 
   elements.logEntryContent
-    .focus();
+    ?.focus();
 }
 
 
@@ -3390,15 +3413,15 @@ function renderLogEntryTable() {
       JSON.stringify(entries);
   }
 
-  if (!elements.logEntryTableBody) {
+  if (
+    !elements.logEntryTableBody
+  ) {
     return;
   }
 
-  /*
-    다시 렌더링할 때 선택 상태 초기화
-  */
   if (
-    elements.selectAllLogEntriesCheckbox
+    elements
+      .selectAllLogEntriesCheckbox
   ) {
     elements
       .selectAllLogEntriesCheckbox
@@ -3441,13 +3464,14 @@ function renderLogEntryTable() {
   }
 
   if (!entries.length) {
-    elements.logEntryTableBody.innerHTML = `
-      <tr class="log-entry-empty-row">
-        <td colspan="5">
-          등록된 작업 내역이 없습니다.
-        </td>
-      </tr>
-    `;
+    elements.logEntryTableBody
+      .innerHTML = `
+        <tr class="log-entry-empty-row">
+          <td colspan="5">
+            등록된 작업 내역이 없습니다.
+          </td>
+        </tr>
+      `;
 
     updateMemberLogImportCount();
     return;
@@ -3531,6 +3555,11 @@ function renderLogEntryTable() {
             `
             : "";
 
+        const timeText =
+          String(
+            entry.time || ""
+          ).trim();
+
         return `
           <tr
             data-entry-index="${index}"
@@ -3540,6 +3569,7 @@ function renderLogEntryTable() {
                 : ""
             }"
           >
+
             <td class="log-entry-select-cell">
               <input
                 type="checkbox"
@@ -3549,14 +3579,11 @@ function renderLogEntryTable() {
               />
             </td>
 
-            <td class="log-entry-time-cell">
-              ${escapeHtml(
-                entry.time || "-"
-              )}
-            </td>
 
             <td class="log-entry-category-cell-wrap">
+
               <div class="log-entry-category-cell">
+
                 ${sourceBadgeHtml}
 
                 <span class="log-entry-category-text">
@@ -3564,23 +3591,44 @@ function renderLogEntryTable() {
                     entry.category || "-"
                   )}
                 </span>
+
               </div>
+
             </td>
 
+
+            <td class="log-entry-time-cell">
+              ${escapeHtml(
+                timeText || "-"
+              )}
+            </td>
+
+
             <td class="log-entry-content-cell">
+
               <div class="log-entry-inline-content">
+
                 ${
                   tagHtml
                     ? `${tagHtml} `
                     : ""
-                }<span class="log-entry-inline-content__text">${escapeHtml(
-                  entry.content || "-"
-                )}</span>
+                }
+
+                <span class="log-entry-inline-content__text">
+                  ${escapeHtml(
+                    entry.content || "-"
+                  )}
+                </span>
+
               </div>
+
             </td>
 
+
             <td class="log-entry-actions-cell">
+
               <div class="log-entry-row-actions">
+
                 <button
                   type="button"
                   class="log-entry-edit-button"
@@ -3598,8 +3646,11 @@ function renderLogEntryTable() {
                 >
                   삭제
                 </button>
+
               </div>
+
             </td>
+
           </tr>
         `;
       })
@@ -3913,22 +3964,65 @@ function normalizeLogEntryTime() {
 }
 
 function updateTagFieldVisibility() {
+  const category =
+    String(
+      elements.logEntryCategory?.value ||
+      "인계사항"
+    ).trim();
 
-    const value =
-        elements.logEntryCategory.value;
+  const isHandover =
+    category === "인계사항";
 
-    const needTag =
-        value.startsWith("TM") ||
-        value.startsWith("BM") ||
-        value.startsWith("CM");
+  const needsTag =
+    category.startsWith("TM") ||
+    category.startsWith("BM") ||
+    category.startsWith("CM");
 
-    elements.logEntryTagField.hidden =
-        !needTag;
+  const timeField =
+    document.getElementById(
+      "logEntryTimeField"
+    );
 
-    if (!needTag) {
-        elements.logEntryTag.value = "";
+  /*
+    시간은 인계사항에서만 입력한다.
+  */
+  if (timeField) {
+    timeField.hidden =
+      !isHandover;
+  }
+
+  if (!isHandover) {
+    if (elements.logEntryTime) {
+      elements.logEntryTime.value =
+        "";
     }
 
+    if (
+      elements.useCurrentTimeCheckbox
+    ) {
+      elements
+        .useCurrentTimeCheckbox
+        .checked =
+        false;
+    }
+  }
+
+  /*
+    TM·BM·CM 관련 구분에서는
+    TAG 입력창을 표시한다.
+  */
+  if (elements.logEntryTagField) {
+    elements.logEntryTagField.hidden =
+      !needsTag;
+  }
+
+  if (
+    !needsTag &&
+    elements.logEntryTag
+  ) {
+    elements.logEntryTag.value =
+      "";
+  }
 }
 
 function getCurrentTimeValue() {
@@ -4877,6 +4971,73 @@ function getStatusClass(status) {
   return "is-saved";
 }
 
+function sortDetailEntriesByTime(
+  entries
+) {
+  return [...entries].sort(
+    (entryA, entryB) => {
+      const timeA =
+        String(
+          entryA.time || ""
+        ).trim();
+
+      const timeB =
+        String(
+          entryB.time || ""
+        ).trim();
+
+      const hasTimeA =
+        Boolean(timeA);
+
+      const hasTimeB =
+        Boolean(timeB);
+
+      /*
+        시간이 있는 항목을 먼저 배치한다.
+      */
+      if (
+        hasTimeA &&
+        !hasTimeB
+      ) {
+        return -1;
+      }
+
+      if (
+        !hasTimeA &&
+        hasTimeB
+      ) {
+        return 1;
+      }
+
+      /*
+        둘 다 시간이 있으면
+        오래된 시간부터 정렬한다.
+      */
+      if (
+        hasTimeA &&
+        hasTimeB
+      ) {
+        const timeDifference =
+          timeA.localeCompare(
+            timeB
+          );
+
+        if (
+          timeDifference !== 0
+        ) {
+          return timeDifference;
+        }
+      }
+
+      /*
+        시간이 없거나 같은 시간이면
+        원래 등록 순서를 유지한다.
+      */
+      return 0;
+    }
+  );
+}
+
 function createRoleGroupedEntriesHtml(
   entries,
   log,
@@ -4917,31 +5078,39 @@ function createRoleGroupedEntriesHtml(
       groupedEntries[role] = [];
     }
 
-    groupedEntries[role].push(entry);
+    groupedEntries[role].push(
+      entry
+    );
   });
 
-  Object.values(
+  Object.keys(
     groupedEntries
-  ).forEach((roleEntries) => {
-    roleEntries.sort((entryA, entryB) => {
-      return String(
-        entryA.time || ""
-      ).localeCompare(
-        String(entryB.time || "")
+  ).forEach((role) => {
+    groupedEntries[role] =
+      sortDetailEntriesByTime(
+        groupedEntries[role]
       );
-    });
   });
 
   const orderedRoles = [
     ...roleOrder.filter(
-      (role) =>
-        groupedEntries[role]?.length
+      (role) => {
+        return Boolean(
+          groupedEntries[role]
+            ?.length
+        );
+      }
     ),
 
-    ...Object.keys(groupedEntries).filter(
-      (role) =>
-        !roleOrder.includes(role)
-    )
+    ...Object.keys(
+      groupedEntries
+    ).filter((role) => {
+      return (
+        !roleOrder.includes(
+          role
+        )
+      );
+    })
   ];
 
   return orderedRoles
@@ -4951,21 +5120,30 @@ function createRoleGroupedEntriesHtml(
 
       return `
         <section class="detail-role-group">
+
           <h4 class="detail-role-group__title">
             ※ ${escapeHtml(role)}
             ${escapeHtml(groupTitle)}
           </h4>
 
           <div class="detail-role-group__entries">
+
             ${roleEntries
-              .map((entry, index) => {
-                return createGroupedEntryLineHtml(
+              .map(
+                (
                   entry,
                   index
-                );
-              })
+                ) => {
+                  return createGroupedEntryLineHtml(
+                    entry,
+                    index
+                  );
+                }
+              )
               .join("")}
+
           </div>
+
         </section>
       `;
     })
@@ -5041,15 +5219,10 @@ function createNormalDetailEntriesHtml(
     `;
   }
 
-  const sortedEntries = [
-    ...entries
-  ].sort((entryA, entryB) => {
-    return String(
-      entryA.time || ""
-    ).localeCompare(
-      String(entryB.time || "")
+  const sortedEntries =
+    sortDetailEntriesByTime(
+      entries
     );
-  });
 
   return sortedEntries
     .map((entry, index) => {
@@ -5062,7 +5235,8 @@ function createNormalDetailEntriesHtml(
 }
 
 function openLogDetail(log) {
-  appState.currentDetailLogId = log.id;
+  appState.currentDetailLogId =
+    log.id;
 
   const isLeaderLog =
     normalizeMemberLogRole(
@@ -5074,38 +5248,42 @@ function openLogDetail(log) {
       ? log.entries
       : [];
 
-  const maintenanceEntries =
-    allEntries.filter((entry) => {
-      const mainCategory =
-        getMainCategory(
-          entry.category
-        );
-
-      return [
-        "TM",
-        "BM",
-        "CM"
-      ].includes(mainCategory);
-    });
-
-  const handoverEntries =
+  /*
+    TM 발행만 별도의 발행 내역에 표시한다.
+  */
+  const tmIssueEntries =
     allEntries.filter((entry) => {
       return (
-        getMainCategory(
-          entry.category
-        ) === "인계사항"
+        String(
+          entry.category || ""
+        ).trim() ===
+        "TM 발행"
       );
     });
 
-  const maintenanceHtml =
+  /*
+    TM 발행을 제외한 모든 작업은
+    인계사항 영역에 표시한다.
+  */
+  const handoverEntries =
+    allEntries.filter((entry) => {
+      return (
+        String(
+          entry.category || ""
+        ).trim() !==
+        "TM 발행"
+      );
+    });
+
+  const tmIssueHtml =
     isLeaderLog
       ? createRoleGroupedEntriesHtml(
-          maintenanceEntries,
+          tmIssueEntries,
           log,
-          "정비 및 작업사항"
+          "TM 발행 내역"
         )
       : createNormalDetailEntriesHtml(
-          maintenanceEntries
+          tmIssueEntries
         );
 
   const handoverHtml =
@@ -5113,7 +5291,7 @@ function openLogDetail(log) {
       ? createRoleGroupedEntriesHtml(
           handoverEntries,
           log,
-          "운전 및 작업사항"
+          "인계사항"
         )
       : createNormalDetailEntriesHtml(
           handoverEntries
@@ -5141,74 +5319,99 @@ function openLogDetail(log) {
 
   elements.logDetailContent.innerHTML = `
     <section class="detail-summary-grid">
+
       <div>
         <span>작성일</span>
         <strong>
-          ${escapeHtml(log.date || "-")}
+          ${escapeHtml(
+            log.date || "-"
+          )}
         </strong>
       </div>
 
       <div>
         <span>근무</span>
         <strong>
-          ${escapeHtml(log.shift || "-")}
+          ${escapeHtml(
+            log.shift || "-"
+          )}
         </strong>
       </div>
 
       <div>
         <span>근무조</span>
         <strong>
-          ${escapeHtml(log.team || "-")}
+          ${escapeHtml(
+            log.team || "-"
+          )}
         </strong>
       </div>
 
       <div>
         <span>보직</span>
         <strong>
-          ${escapeHtml(log.role || "-")}
+          ${escapeHtml(
+            log.role || "-"
+          )}
         </strong>
       </div>
 
       <div>
         <span>작성자</span>
         <strong>
-          ${escapeHtml(log.author || "-")}
+          ${escapeHtml(
+            log.author || "-"
+          )}
         </strong>
       </div>
 
       <div>
         <span>상태</span>
         <strong>
-          ${escapeHtml(log.status || "-")}
+          ${escapeHtml(
+            log.status || "-"
+          )}
         </strong>
       </div>
+
     </section>
 
+
     <section class="detail-section">
+
       <h3>운전 현황</h3>
 
       <div class="detail-operation-status">
         ${operationStatusHtml}
       </div>
+
     </section>
 
+
     <section class="detail-section">
-      <h3>TM 내역</h3>
+
+      <h3>TM 발행 내역</h3>
 
       <div class="detail-role-entry-list">
-        ${maintenanceHtml}
+        ${tmIssueHtml}
       </div>
+
     </section>
 
+
     <section class="detail-section">
+
       <h3>인계사항</h3>
 
       <div class="detail-role-entry-list">
         ${handoverHtml}
       </div>
+
     </section>
 
+
     <section class="detail-section">
+
       <h3>비고</h3>
 
       <p class="detail-multiline">
@@ -5217,20 +5420,28 @@ function openLogDetail(log) {
           "등록된 내용이 없습니다."
         )}
       </p>
+
     </section>
 
+
     <section class="detail-section">
+
       <h3>첨부파일</h3>
 
       <div class="attachment-list">
+
         ${
-          Array.isArray(log.attachments) &&
+          Array.isArray(
+            log.attachments
+          ) &&
           log.attachments.length
             ? log.attachments
                 .map((fileName) => {
                   return `
                     <span class="attachment-chip">
-                      ${escapeHtml(fileName)}
+                      ${escapeHtml(
+                        fileName
+                      )}
                     </span>
                   `;
                 })
@@ -5241,7 +5452,9 @@ function openLogDetail(log) {
               </span>
             `
         }
+
       </div>
+
     </section>
   `;
 
@@ -5254,7 +5467,8 @@ function openLogDetail(log) {
         "click",
         () => {
           openFacilityNavigator(
-            button.dataset.detailTag
+            button.dataset
+              .detailTag
           );
         }
       );

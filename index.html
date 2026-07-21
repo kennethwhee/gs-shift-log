@@ -1131,7 +1131,8 @@
       <h3>작업 · 정비 · 인계 내역</h3>
 
       <p>
-        작업 내용을 한 건씩 추가하면 아래 목록에 누적됩니다.
+        구분을 선택하고 내용을 한 건씩 추가하면
+        아래 목록에 누적됩니다.
       </p>
     </div>
   </div>
@@ -1145,41 +1146,6 @@
 
     <!-- 첫 번째 줄 -->
     <div class="log-entry-input-top-row">
-
-      <!-- 시간 -->
-      <div class="form-field log-entry-field--time">
-
-        <span class="form-field__label">
-          시간
-        </span>
-
-        <div class="log-entry-time-group">
-
-          <input
-            type="text"
-            id="logEntryTime"
-            inputmode="numeric"
-            maxlength="4"
-            placeholder="예: 0930"
-            autocomplete="off"
-          />
-
-          <label
-            class="current-time-check"
-            title="체크하면 현재 시간이 입력됩니다."
-          >
-            <input
-              type="checkbox"
-              id="useCurrentTimeCheckbox"
-            />
-
-            <span>현재시간</span>
-          </label>
-
-        </div>
-
-      </div>
-
 
       <!-- 구분 -->
       <label class="form-field log-entry-field--category">
@@ -1197,12 +1163,20 @@
             인계사항
           </option>
 
-          <option value="TM 작업">
-            TM 작업
-          </option>
-
           <option value="TM 발행">
             TM 발행
+          </option>
+
+          <option value="BM 발행">
+            BM 발행
+          </option>
+
+          <option value="CM 발행">
+            CM 발행
+          </option>
+
+          <option value="TM 작업">
+            TM 작업
           </option>
 
           <option value="TM 종결">
@@ -1213,20 +1187,12 @@
             BM 작업
           </option>
 
-          <option value="BM 발행">
-            BM 발행
-          </option>
-
           <option value="BM 종결">
             BM 종결
           </option>
 
           <option value="CM 작업">
             CM 작업
-          </option>
-
-          <option value="CM 발행">
-            CM 발행
           </option>
 
           <option value="CM 종결">
@@ -1248,6 +1214,44 @@
         </select>
 
       </label>
+
+
+      <!-- 시간: 인계사항 선택 시에만 표시 -->
+      <div
+        class="form-field log-entry-field--time"
+        id="logEntryTimeField"
+      >
+
+        <span class="form-field__label">
+          시간
+        </span>
+
+        <div class="log-entry-time-group">
+
+          <input
+            type="text"
+            id="logEntryTime"
+            inputmode="numeric"
+            maxlength="5"
+            placeholder="예: 0930"
+            autocomplete="off"
+          />
+
+          <label
+            class="current-time-check"
+            title="체크하면 현재 시간이 입력됩니다."
+          >
+            <input
+              type="checkbox"
+              id="useCurrentTimeCheckbox"
+            />
+
+            <span>현재시간</span>
+          </label>
+
+        </div>
+
+      </div>
 
 
       <!-- TAG -->
@@ -1308,7 +1312,7 @@
     </div>
 
 
-    <!-- 두 번째 줄: 내용 -->
+    <!-- 두 번째 줄 -->
     <label class="form-field log-entry-content-field">
 
       <span class="form-field__label">
@@ -1326,96 +1330,104 @@
   </div>
 
 
-<!-- =====================================================
-  등록된 작업 내역
-====================================================== -->
-<div class="log-entry-table-panel">
-  <div class="log-entry-table-header">
-    <div class="log-entry-table-header__summary">
-      <strong>
-        등록된 작업 내역
-      </strong>
+  <!-- =====================================================
+    등록된 작업 내역
+  ====================================================== -->
+  <div class="log-entry-table-panel">
 
-      <span id="logEntryCount">
-        총 0건
-      </span>
+    <div class="log-entry-table-header">
 
-      <span
-        id="selectedLogEntryCount"
-        class="selected-log-entry-count"
-        hidden
+      <div class="log-entry-table-header__summary">
+
+        <strong>
+          등록된 작업 내역
+        </strong>
+
+        <span id="logEntryCount">
+          총 0건
+        </span>
+
+        <span
+          id="selectedLogEntryCount"
+          class="selected-log-entry-count"
+          hidden
+        >
+          선택 0건
+        </span>
+
+      </div>
+
+      <button
+        type="button"
+        id="deleteSelectedLogEntriesButton"
+        class="delete-selected-log-entries-button"
+        disabled
       >
-        선택 0건
-      </span>
+        선택 항목 삭제
+      </button>
+
     </div>
 
-    <button
-      type="button"
-      id="deleteSelectedLogEntriesButton"
-      class="delete-selected-log-entries-button"
-      disabled
-    >
-      선택 항목 삭제
-    </button>
+
+    <div class="log-entry-table-wrap">
+
+      <table class="log-entry-table">
+
+        <thead>
+          <tr>
+
+            <th class="log-entry-table__select">
+              <input
+                id="selectAllLogEntriesCheckbox"
+                class="log-entry-select-checkbox"
+                type="checkbox"
+                aria-label="등록된 작업 내역 전체 선택"
+              />
+            </th>
+
+            <th class="log-entry-table__category">
+              구분
+            </th>
+
+            <th class="log-entry-table__time">
+              시간
+            </th>
+
+            <th class="log-entry-table__content">
+              내용
+            </th>
+
+            <th class="log-entry-table__actions">
+              관리
+            </th>
+
+          </tr>
+        </thead>
+
+        <tbody id="logEntryTableBody">
+
+          <tr class="log-entry-empty-row">
+            <td colspan="5">
+              등록된 작업 내역이 없습니다.
+            </td>
+          </tr>
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+
+    <!-- 저장용 숨김 필드: 하나만 유지 -->
+    <input
+      id="logEntriesJson"
+      type="hidden"
+      name="logEntriesJson"
+      value="[]"
+    />
+
   </div>
-
-  <div class="log-entry-table-wrap">
-    <table class="log-entry-table">
-      <thead>
-        <tr>
-          <th class="log-entry-table__select">
-            <input
-              id="selectAllLogEntriesCheckbox"
-              class="log-entry-select-checkbox"
-              type="checkbox"
-              aria-label="등록된 작업 내역 전체 선택"
-            />
-          </th>
-
-          <th class="log-entry-table__time">
-            시간
-          </th>
-
-          <th class="log-entry-table__category">
-            구분
-          </th>
-
-          <th class="log-entry-table__content">
-            내용
-          </th>
-
-          <th class="log-entry-table__actions">
-            관리
-          </th>
-        </tr>
-      </thead>
-
-      <tbody id="logEntryTableBody">
-        <tr class="log-entry-empty-row">
-          <td colspan="5">
-            등록된 작업 내역이 없습니다.
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <input
-    id="logEntriesJson"
-    type="hidden"
-    name="entries"
-    value="[]"
-  />
-</div>
-
-
-  <!-- 저장용 숨김 필드 -->
-  <input
-    type="hidden"
-    id="logEntriesJson"
-    name="logEntriesJson"
-    value="[]"
-  />
 
 </section>
 
