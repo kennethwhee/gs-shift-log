@@ -679,6 +679,9 @@ a {
 .log-row__role,
 .log-row__author {
   text-align: center;
+  font-size: 15px;
+  font-weight: 800;
+  color: #22324c;
 }
 
 .log-row__role {
@@ -5378,4 +5381,113 @@ td {
   font-size: 11px;
   font-weight: 800;
   line-height: 1;
+}
+
+/* =========================================================
+   파트장 업무일지 구분선
+========================================================= */
+
+.log-preview__role-divider {
+  position: relative;
+  margin-top: 14px;
+  padding-top: 12px;
+}
+
+.log-preview__role-divider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+
+  height: 1px;
+
+  background: #d7e2ec;
+}
+
+/* 첫 번째(TGO)는 위 여백 없이 시작 */
+.log-preview__role-divider:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.log-preview__role-divider:first-of-type::before {
+  display: none;
+}
+
+/* =========================================================
+  업무일지 목록 최종 보완
+
+  1. 첫 번째 팀원 업무일지(TGO) 위 경계선
+  2. 보직 및 작성자 글씨 확대
+========================================================= */
+
+
+/* =========================================================
+  파트장 팀원 업무일지 구분 영역
+========================================================= */
+
+.log-preview__role-section {
+  display: block;
+  width: 100%;
+  margin: 8px 0 3px;
+  padding: 0 8px;
+}
+
+
+/*
+  첫 번째 보직 업무일지 위에만
+  전체 너비 경계선을 표시한다.
+
+  현재 보직 순서상 첫 번째는 TGO이다.
+*/
+.log-preview__role-section.is-first-role {
+  margin-top: 10px;
+  padding-top: 11px;
+  border-top: 1px solid #cbd8e5;
+}
+
+
+/*
+  기존 보직 제목 디자인은 유지하면서
+  wrapper 안에서는 바깥 여백을 제거한다.
+*/
+.log-preview__role-section
+.log-preview__role-divider {
+  margin: 0;
+}
+
+
+/* =========================================================
+  왼쪽 보직 글씨
+========================================================= */
+
+.log-row__role {
+  color: #22324c;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.4;
+  text-align: center;
+}
+
+
+/* =========================================================
+  왼쪽 작성자 글씨
+========================================================= */
+
+.log-row__author-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.log-row__author {
+  color: #22324c;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.4;
+  text-align: center;
 }

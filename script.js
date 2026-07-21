@@ -8211,9 +8211,10 @@ function createLogRowHtml(log) {
     "파트장";
 
 
-  /*
+  /* =====================================================
     1. 운전현황
-  */
+  ====================================================== */
+
   if (
     String(
       log.operationStatus || ""
@@ -8231,7 +8232,8 @@ function createLogRowHtml(log) {
           log.operationStatus
         ),
 
-      tag: "",
+      tag:
+        "",
 
       categoryClass:
         "is-operation is-section-start"
@@ -8247,12 +8249,10 @@ function createLogRowHtml(log) {
       : [];
 
 
-  /*
+  /* =====================================================
     2. TM 발행 내역
+  ====================================================== */
 
-    첫 번째 TM 내용은
-    TM 발행 내역 제목과 같은 줄에 표시한다.
-  */
   const tmEntries =
     sortDetailEntriesByTime(
       entries.filter((entry) => {
@@ -8286,9 +8286,6 @@ function createLogRowHtml(log) {
         type:
           "normal",
 
-        /*
-          첫 번째 TM만 제목 표시
-        */
         title:
           index === 0
             ? "TM 발행 내역"
@@ -8316,9 +8313,10 @@ function createLogRowHtml(log) {
   );
 
 
-  /*
-    3. 인계사항
-  */
+  /* =====================================================
+    3. 인계사항 및 보직별 업무
+  ====================================================== */
+
   const handoverEntries =
     entries.filter((entry) => {
       return (
@@ -8362,7 +8360,9 @@ function createLogRowHtml(log) {
 
       groupedEntries[
         sourceRole
-      ].push(entry);
+      ].push(
+        entry
+      );
     }
   );
 
@@ -8401,11 +8401,13 @@ function createLogRowHtml(log) {
           ]
         );
 
-      /*
-        파트장 일지는 보직별 제목을 표시한다.
 
-        제목은 박스가 아니라
-        가로 경계선 아래의 작은 구분 제목이다.
+      /*
+        파트장 업무일지에서는
+        TGO부터 보직별 제목을 표시한다.
+
+        첫 번째 보직 제목에는
+        파트장 업무 시작 경계선 클래스를 추가한다.
       */
       if (
         isLeaderLog &&
@@ -8413,20 +8415,26 @@ function createLogRowHtml(log) {
       ) {
         previewGroups.push({
           type:
-            "section",
+            "role-section",
 
           title:
             `${role} 업무일지`,
 
+          isFirstRole:
+            roleIndex === 0,
+
           categoryClass: [
             "is-handover",
+
             getLogEntrySourceClass(
               role
-            ),
-            "is-section-divider"
-          ].join(" ")
+            )
+          ]
+            .filter(Boolean)
+            .join(" ")
         });
       }
+
 
       roleEntries.forEach(
         (
@@ -8462,10 +8470,6 @@ function createLogRowHtml(log) {
             type:
               "normal",
 
-            /*
-              일반 보직 업무일지는
-              첫 번째 내용 옆에 인계 표시
-            */
             title:
               !isLeaderLog &&
               index === 0
@@ -8502,9 +8506,10 @@ function createLogRowHtml(log) {
   );
 
 
-  /*
+  /* =====================================================
     4. 비고
-  */
+  ====================================================== */
+
   if (
     String(
       log.note || ""
@@ -8522,7 +8527,8 @@ function createLogRowHtml(log) {
           log.note
         ),
 
-      tag: "",
+      tag:
+        "",
 
       categoryClass:
         "is-note is-section-start"
@@ -8547,28 +8553,34 @@ function createLogRowHtml(log) {
         )}
       </td>
 
-      <td class="log-row__author-cell">
-        <strong class="log-row__author">
-          ${escapeHtml(
-            log.author || "-"
-          )}
-        </strong>
 
-       ${
-        log.isSubstitute
-            ? `
-              <span class="substitute-work-badge">
-               대근
-             </span>
-           `
-          : ""
-         }
+      <td class="log-row__author-cell">
+
+        <div class="log-row__author-wrap">
+
+          <strong class="log-row__author">
+            ${escapeHtml(
+              log.author || "-"
+            )}
+          </strong>
+
+          ${
+            log.isSubstitute === true
+              ? `
+                <span class="substitute-work-badge">
+                  대근
+                </span>
+              `
+              : ""
+          }
 
         </div>
 
       </td>
 
+
       <td class="log-row__status-cell">
+
         <span
           class="status-badge ${getStatusClass(
             log.status
@@ -8578,9 +8590,12 @@ function createLogRowHtml(log) {
             log.status || "-"
           )}
         </span>
+
       </td>
 
+
       <td class="log-row__attachment-cell">
+
         ${
           attachmentCount > 0
             ? `
@@ -8601,7 +8616,9 @@ function createLogRowHtml(log) {
               </span>
             `
         }
+
       </td>
+
 
       <td class="log-row__preview-cell">
 
@@ -8619,32 +8636,49 @@ function createLogRowHtml(log) {
             previewGroups.length
               ? previewGroups
                   .map((group) => {
+
                     /*
-                      보직별 업무일지 구분
+                      파트장 보직별 업무 구분 제목
                     */
                     if (
                       group.type ===
-                      "section"
+                      "role-section"
                     ) {
                       return `
                         <span
                           class="
-                            log-preview__role-divider
-                            ${group.categoryClass}
+                            log-preview__role-section
+                            ${
+                              group.isFirstRole
+                                ? "is-first-role"
+                                : ""
+                            }
                           "
                         >
-                          ${escapeHtml(
-                            group.title
-                          )}
+                          <span
+                            class="
+                              log-preview__role-divider
+                              ${group.categoryClass}
+                            "
+                          >
+                            ${escapeHtml(
+                              group.title
+                            )}
+                          </span>
                         </span>
                       `;
                     }
 
+
+                    /*
+                      일반 업무 내용
+                    */
                     return `
                       <span
                         class="
                           log-preview__group
                           ${group.categoryClass}
+
                           ${
                             group.title
                               ? ""
@@ -8710,6 +8744,7 @@ function createLogRowHtml(log) {
 
       </td>
 
+
       <td class="log-row__actions-cell">
 
         <div class="row-actions">
@@ -8723,8 +8758,10 @@ function createLogRowHtml(log) {
             )}"
           >
             ${
-              log.status === "작성중" ||
-              log.status === "임시저장"
+              log.status ===
+                "작성중" ||
+              log.status ===
+                "임시저장"
                 ? "이어쓰기"
                 : "수정"
             }
@@ -8751,6 +8788,7 @@ function createLogRowHtml(log) {
     </tr>
   `;
 }
+
 function handleLogTableClick(
   event
 ) {
