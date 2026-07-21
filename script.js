@@ -3483,8 +3483,10 @@ function renderLogEntryTable() {
       : [];
 
   /*
-    원본 배열 번호를 유지해야
-    수정·삭제·TAG 이동 기능이 정상 작동한다.
+    원본 배열 인덱스를 유지한다.
+
+    화면에서는 시간순으로 정렬되더라도
+    수정·삭제·TAG 이동은 원본 인덱스를 사용한다.
   */
   const indexedEntries =
     entries.map(
@@ -3496,8 +3498,9 @@ function renderLogEntryTable() {
       }
     );
 
+
   /*
-    TM 발행 내역
+    TM 발행 내역만 별도 분리
   */
   const tmIssueEntries =
     indexedEntries.filter(
@@ -3511,9 +3514,19 @@ function renderLogEntryTable() {
       }
     );
 
+
   /*
-    TM 발행을 제외한 모든 항목은
+    TM 발행을 제외한 항목은
     인계사항 영역에 표시한다.
+
+    인계사항 영역 안에서도
+    구분 값은 그대로 유지한다.
+
+    예:
+    인계사항
+    TM 작업
+    BM 작업
+    CM 작업
   */
   const handoverEntries =
     indexedEntries
@@ -3536,23 +3549,29 @@ function renderLogEntryTable() {
             itemB.entry.time || ""
           ).trim();
 
+        const hasTimeA =
+          Boolean(timeA);
+
+        const hasTimeB =
+          Boolean(timeB);
+
         if (
-          timeA &&
-          !timeB
+          hasTimeA &&
+          !hasTimeB
         ) {
           return -1;
         }
 
         if (
-          !timeA &&
-          timeB
+          !hasTimeA &&
+          hasTimeB
         ) {
           return 1;
         }
 
         if (
-          timeA &&
-          timeB
+          hasTimeA &&
+          hasTimeB
         ) {
           const timeDifference =
             timeA.localeCompare(
@@ -3572,8 +3591,9 @@ function renderLogEntryTable() {
         );
       });
 
+
   /*
-    같은 시간끼리 묶는다.
+    같은 시간의 인계사항을 묶는다.
   */
   const handoverTimeGroups = [];
 
@@ -3613,8 +3633,9 @@ function renderLogEntryTable() {
     }
   );
 
+
   /*
-    건수 표시
+    전체 및 구역별 건수
   */
   if (elements.logEntryCount) {
     elements.logEntryCount.textContent =
@@ -3631,6 +3652,7 @@ function renderLogEntryTable() {
       `${handoverEntries.length}건`;
   }
 
+
   /*
     저장용 JSON 갱신
   */
@@ -3638,6 +3660,7 @@ function renderLogEntryTable() {
     elements.logEntriesJson.value =
       JSON.stringify(entries);
   }
+
 
   /*
     전체 선택 상태 초기화
@@ -3704,123 +3727,114 @@ function renderLogEntryTable() {
       true;
   }
 
-  const currentRole =
-    normalizeMemberLogRole(
-      elements.logRole?.value || ""
-    );
 
-  const isLeaderLog =
-    currentRole === "파트장";
+  /*
+    구분에 맞는 CSS 클래스 반환
+
+    보직은 사용하지 않고,
+    실제 category 값만 사용한다.
+  */
+  const getCategoryBadgeClass = (
+    category
+  ) => {
+    const categoryText =
+      String(
+        category || ""
+      ).trim();
+
+    if (
+      categoryText ===
+      "인계사항"
+    ) {
+      return "is-handover";
+    }
+
+    if (
+      categoryText ===
+        "TM 작업" ||
+      categoryText.startsWith(
+        "TM "
+      )
+    ) {
+      return "is-tm-work";
+    }
+
+    if (
+      categoryText ===
+        "BM 작업" ||
+      categoryText.startsWith(
+        "BM "
+      )
+    ) {
+      return "is-inspection";
+    }
+
+    if (
+      categoryText ===
+        "CM 작업" ||
+      categoryText.startsWith(
+        "CM "
+      )
+    ) {
+      return "is-work";
+    }
+
+    if (
+      categoryText.includes(
+        "점검"
+      )
+    ) {
+      return "is-inspection";
+    }
+
+    if (
+      categoryText.includes(
+        "작업"
+      )
+    ) {
+      return "is-work";
+    }
+
+    return "is-default";
+  };
 
 
   /*
-    가져온 보직 배지 HTML
-  */
-const createSourceBadgeHtml = (
-  entry
-) => {
-  const importedRole =
-    normalizeMemberLogRole(
-      entry.importedFromRole || ""
-    );
+    구분 배지 HTML
 
-  const importedAuthor =
-    String(
-      entry.importedFromAuthor || ""
-    ).trim();
-
-  /*
-    파트장 업무일지에서
-    팀원 일지를 가져온 항목은
-    원래 보직을 표시한다.
+    예:
+    인계사항
+    TM 작업
+    BM 작업
+    CM 작업
   */
-  if (
-    isLeaderLog &&
-    importedRole &&
-    importedRole !== "파트장"
-  ) {
-    const sourceClass =
-      getLogEntrySourceClass(
-        importedRole
+  const createCategoryBadgeHtml = (
+    entry
+  ) => {
+    const categoryText =
+      String(
+        entry.category ||
+        "인계사항"
+      ).trim();
+
+    const categoryClass =
+      getCategoryBadgeClass(
+        categoryText
       );
-
-    const sourceTitle =
-      importedAuthor
-        ? `${importedRole} · ${importedAuthor}`
-        : importedRole;
 
     return `
       <span
         class="
-          log-entry-source-badge
-          ${sourceClass}
+          log-entry-category-badge
+          ${categoryClass}
         "
-        title="${escapeHtml(
-          sourceTitle
-        )}"
       >
         ${escapeHtml(
-          importedRole
+          categoryText
         )}
       </span>
     `;
-  }
-
-  /*
-    파트장이 직접 작성한 인계사항
-  */
-  if (isLeaderLog) {
-    return `
-      <span
-        class="
-          log-entry-source-badge
-          is-leader
-        "
-        title="파트장 직접 작성"
-      >
-        파트장
-      </span>
-    `;
-  }
-
-  /*
-    일반 근무자가 직접 작성한 경우
-    현재 작성 보직을 표시한다.
-  */
-  if (currentRole) {
-    const roleClass =
-      getLogEntrySourceClass(
-        currentRole
-      );
-
-    return `
-      <span
-        class="
-          log-entry-source-badge
-          ${roleClass}
-        "
-        title="${escapeHtml(
-          currentRole
-        )} 직접 작성"
-      >
-        ${escapeHtml(
-          currentRole
-        )}
-      </span>
-    `;
-  }
-
-  return `
-    <span
-      class="
-        log-entry-source-badge
-        is-default
-      "
-    >
-      직접작성
-    </span>
-  `;
-};
+  };
 
 
   /*
@@ -3858,7 +3872,7 @@ const createSourceBadgeHtml = (
 
 
   /*
-    선택 체크박스
+    편집 모드 체크박스 셀
   */
   const createSelectCellHtml = (
     entry,
@@ -3866,7 +3880,8 @@ const createSourceBadgeHtml = (
   ) => {
     const categoryText =
       String(
-        entry.category || "인계사항"
+        entry.category ||
+        "인계사항"
       ).trim();
 
     return `
@@ -3891,7 +3906,7 @@ const createSourceBadgeHtml = (
 
 
   /*
-    수정·삭제 버튼
+    수정·삭제 버튼 셀
   */
   const createActionCellHtml = (
     originalIndex
@@ -3932,8 +3947,6 @@ const createSourceBadgeHtml = (
 
   /*
     TM 발행 내역 렌더링
-
-    TM 영역의 기존 표시 방식은 유지한다.
   */
   if (
     elements.tmIssueEntryTableBody
@@ -3955,105 +3968,94 @@ const createSourceBadgeHtml = (
         .tmIssueEntryTableBody
         .innerHTML =
         tmIssueEntries
-          .map(({ entry, originalIndex }) => {
-            const isEditing =
-              originalIndex ===
-              appState.editingEntryIndex;
+          .map(
+            ({
+              entry,
+              originalIndex
+            }) => {
+              const isEditing =
+                originalIndex ===
+                appState.editingEntryIndex;
 
-            const timeText =
-              String(
-                entry.time || "-"
-              ).trim();
+              const contentText =
+                String(
+                  entry.content || "-"
+                ).trim();
 
-            const categoryText =
-              String(
-                entry.category ||
-                "TM 발행"
-              ).trim();
-
-            const contentText =
-              String(
-                entry.content || "-"
-              ).trim();
-
-            const tagHtml =
-              createTagHtml(
-                entry,
-                originalIndex
-              );
-
-            return `
-              <tr
-                data-entry-index="${originalIndex}"
-                class="${
-                  isEditing
-                    ? "is-editing"
-                    : ""
-                }"
-              >
-                ${createSelectCellHtml(
+              const tagHtml =
+                createTagHtml(
                   entry,
                   originalIndex
-                )}
+                );
 
-                <td
-                  class="log-entry-time-cell"
+              return `
+                <tr
+                  data-entry-index="${originalIndex}"
+                  class="${
+                    isEditing
+                      ? "is-editing"
+                      : ""
+                  }"
                 >
-                  ${escapeHtml(
-                    timeText
+                  ${createSelectCellHtml(
+                    entry,
+                    originalIndex
                   )}
-                </td>
 
-                <td
-                  class="
-                    log-entry-category-cell-wrap
-                  "
-                >
-                  <div
-                    class="log-entry-category-cell"
+                  <td
+                    class="
+                      log-entry-category-cell-wrap
+                    "
                   >
-                    <span
-                      class="log-entry-category-text"
+                    <div
+                      class="
+                        log-entry-category-cell
+                      "
                     >
-                      ${escapeHtml(
-                        categoryText
+                      ${createCategoryBadgeHtml(
+                        entry
                       )}
-                    </span>
-                  </div>
-                </td>
+                    </div>
+                  </td>
 
-                <td
-                  class="log-entry-content-cell"
-                >
-                  <span
-                    class="log-entry-inline-content"
+                  <td
+                    class="
+                      log-entry-content-cell
+                    "
                   >
                     <span
-                      class="log-entry-inline-content__text"
-                    >${escapeHtml(
-                      contentText
-                    )}</span>${tagHtml}
-                  </span>
-                </td>
+                      class="
+                        log-entry-inline-content
+                      "
+                    >
+                      <span
+                        class="
+                          log-entry-inline-content__text
+                        "
+                      >${escapeHtml(
+                        contentText
+                      )}</span>${tagHtml}
+                    </span>
+                  </td>
 
-                ${createActionCellHtml(
-                  originalIndex
-                )}
-              </tr>
-            `;
-          })
+                  ${createActionCellHtml(
+                    originalIndex
+                  )}
+                </tr>
+              `;
+            }
+          )
           .join("");
     }
   }
 
 
   /*
-    인계사항 렌더링
+    인계사항 영역 렌더링
 
-    번호·내용·TAG를 같은 문장 흐름으로 배치한다.
-
-    예:
-    1. Main Steam TCV 동작 상태 확인 [TAG]
+    화면 예:
+    인계사항 | 09:50 | 1. 내용
+    TM 작업  | 11:20 | 2. 내용 [TAG]
   */
   if (
     elements.logEntryTableBody
@@ -4095,11 +4097,6 @@ const createSourceBadgeHtml = (
                     originalIndex ===
                     appState.editingEntryIndex;
 
-                  const sourceBadgeHtml =
-                    createSourceBadgeHtml(
-                      entry
-                    );
-
                   const contentText =
                     String(
                       entry.content || "-"
@@ -4111,6 +4108,10 @@ const createSourceBadgeHtml = (
                       originalIndex
                     );
 
+                  /*
+                    같은 시간 항목은
+                    첫 번째 행에만 시간 셀을 만든다.
+                  */
                   const timeCellHtml =
                     groupItemIndex === 0
                       ? `
@@ -4122,7 +4123,9 @@ const createSourceBadgeHtml = (
                           rowspan="${group.items.length}"
                         >
                           <span
-                            class="log-entry-time-group-label"
+                            class="
+                              log-entry-time-group-label
+                            "
                           >
                             ${escapeHtml(
                               group.timeText ||
@@ -4142,6 +4145,7 @@ const createSourceBadgeHtml = (
                             ? "is-editing"
                             : ""
                         }
+
                         ${
                           groupItemIndex === 0
                             ? "is-time-group-first-row"
@@ -4160,32 +4164,42 @@ const createSourceBadgeHtml = (
                         "
                       >
                         <div
-                          class="log-entry-category-cell"
+                          class="
+                            log-entry-category-cell
+                          "
                         >
-                          ${sourceBadgeHtml}
+                          ${createCategoryBadgeHtml(
+                            entry
+                          )}
                         </div>
                       </td>
 
                       ${timeCellHtml}
 
                       <td
-                        class="log-entry-content-cell"
+                        class="
+                          log-entry-content-cell
+                        "
                       >
                         <span
                           class="
                             log-entry-handover-line
                           "
-                        ><strong
+                        >
+                          <strong
                             class="
                               log-entry-handover-number
                             "
-                          >${displayNumber}.</strong><span
+                          >${displayNumber}.</strong>
+
+                          <span
                             class="
                               log-entry-handover-text
                             "
                           >${escapeHtml(
                             contentText
-                          )}</span>${tagHtml}</span>
+                          )}</span>${tagHtml}
+                        </span>
                       </td>
 
                       ${createActionCellHtml(
