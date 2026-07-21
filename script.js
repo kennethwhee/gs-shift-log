@@ -32,17 +32,21 @@ const appState = {
   editingEntryIndex: -1
 };
 
-
 /* =========================================================
   초기 실행
 ========================================================= */
+
 document.addEventListener(
   "DOMContentLoaded",
-  () => {
+  async () => {
     cacheElements();
     cacheMemberLogImportElements();
 
     bindShiftMemberCards();
+
+    /*
+      먼저 브라우저에 저장된 신규 업무일지를 불러온다.
+    */
     loadLogs();
 
     bindEvents();
@@ -51,6 +55,12 @@ document.addEventListener(
 
     loadOperationStatus();
     renderOperationStatusCard();
+
+    /*
+      기존 업무일지 서버의 현재 선택 날짜 데이터를
+      appState.logs 형식으로 변환하여 합친다.
+    */
+    await loadLegacyLogsForSelectedDate();
 
     renderSelectedDate();
     renderLogTable();
@@ -453,6 +463,473 @@ function cacheElements() {
         "requestApprovalButton"
       ),
 
+
+/* =========================================================
+  기존 업무일지 불러오기
+========================================================= */
+
+async function loadLegacyLogsForSelectedDate() {
+  const selectedDate =
+    formatInputDate(
+      appState.selectedDate
+    );
+
+  const legacyDate =
+    selectedDate.replace(
+      /-/g,
+      ""
+    );
+
+  /*
+    기존 시스템:
+    DAY   = 주간
+    NIGHT = 야간
+
+    GS Shift Log:
+    DS = 주간
+    NS = 야간
+  */
+  const legacyShift =
+    appState.selectedShift === "DS"
+      ? "DAY"
+      : "NIGHT";
+
+  try {
+    const requestUrl =
+      new URL(
+        "/api/legacy-diaries",
+        window.location.origin
+      );
+
+    requestUrl.searchParams.set(
+      "date",
+      legacyDate
+    );
+
+    requestUrl.searchParams.set(
+      "shift",
+      legacyShift
+    );
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method: "GET",
+
+          headers: {
+            "Accept":
+              "application/json"
+          },
+
+          cache:
+            "no-store"
+        }
+      );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.success
+    ) {
+      throw new Error(
+        result.message ||
+        "기존 업무일지를 불러오지 못했습니다."
+      );
+    }
+
+    const legacyItems =
+      Array.isArray(
+        result.items
+      )
+        ? result.items
+        : [];
+
+    /*
+      같은 날짜와 근무에서 전에 불러온
+      기존 업무일지만 메모리에서 제거한다.
+
+      사용자가 새 시스템에서 직접 작성한 일지는
+      삭제하지 않는다.
+    */
+    appState.logs =
+      appState.logs.filter(
+        (log) => {
+          const isSameDate =
+            String(
+              log.date || ""
+            ) === selectedDate;
+
+          const isSameShift =
+            String(
+              log.shift || ""
+            ) ===
+            appState.selectedShift;
+
+          const isLegacyLog =
+            log.source ===
+            "legacy";
+
+          return !(
+            isSameDate &&
+            isSameShift &&
+            isLegacyLog
+          );
+        }
+      );
+
+    const convertedLogs =
+      legacyItems
+        .map(
+          (
+            item,
+            itemIndex
+          ) => {
+            return convertLegacyDiaryToLog(
+              item,
+              itemIndex,
+              selectedDate,
+              appState.selectedShift
+            );
+          }
+        )
+        .filter(Boolean);
+
+    appState.logs = [
+      ...convertedLogs,
+      ...appState.logs
+    ];
+
+    console.log(
+      `기존 업무일지 ${convertedLogs.length}건을 불러왔습니다.`
+    );
+
+  } catch (error) {
+    console.error(
+      "기존 업무일지 불러오기 실패:",
+      error
+    );
+
+    /*
+      기존 서버 연결에 실패해도
+      새 GS Shift Log 화면은 정상 작동하게 한다.
+    */
+  }
+}
+
+
+/* =========================================================
+  기존 업무일지 1건을 현재 구조로 변환
+========================================================= */
+
+function convertLegacyDiaryToLog(
+  legacyItem,
+  itemIndex,
+  selectedDate,
+  selectedShift
+) {
+  if (
+    !legacyItem ||
+    typeof legacyItem !==
+      "object"
+  ) {
+    return null;
+  }
+
+  const bodyEntries =
+    Array.isArray(
+      legacyItem.body
+    )
+      ? legacyItem.body
+      : [];
+
+  const role =
+    convertLegacyPositionToRole(
+      legacyItem.position
+    );
+
+  const author =
+    String(
+      legacyItem.writer_name ||
+      legacyItem.writerName ||
+      legacyItem.writer_id ||
+      "기존 업무일지"
+    ).trim();
+
+  /*
+    body index 0:
+    기존 업무일지의 운전현황
+  */
+  const operationStatus =
+    getLegacyBodyContent(
+      bodyEntries,
+      0
+    );
+
+  const entries = [];
+
+  bodyEntries.forEach(
+    (
+      bodyItem,
+      bodyIndex
+    ) => {
+      const index =
+        Number(
+          bodyItem?.index ??
+          bodyIndex
+        );
+
+      const content =
+        String(
+          bodyItem?.content ||
+          ""
+        ).trim();
+
+      /*
+        내용이 없거나 운전현황(index 0)이면
+        작업 내역에서는 제외한다.
+      */
+      if (
+        !content ||
+        index === 0
+      ) {
+        return;
+      }
+
+      entries.push({
+        id:
+          `legacy-entry-${legacyItem.diary_id || itemIndex}-${index}`,
+
+        /*
+          Python 코드에서도 index 1을
+          TM 내역으로 사용하고 있다.
+        */
+        category:
+          index === 1
+            ? "TM 발행"
+            : "인계사항",
+
+        time: "",
+
+        tag: "",
+
+        /*
+          기존 내용을 가공하거나 줄이지 않고
+          그대로 현재 업무일지에 넣는다.
+        */
+        content,
+
+        attachmentName: "",
+
+        legacyBodyIndex:
+          index,
+
+        source:
+          "legacy"
+      });
+    }
+  );
+
+  const legacyId =
+    String(
+      legacyItem.diary_id ||
+      [
+        selectedDate,
+        selectedShift,
+        role,
+        itemIndex
+      ].join("-")
+    );
+
+  return {
+    id:
+      `legacy-${legacyId}`,
+
+    date:
+      selectedDate,
+
+    shift:
+      selectedShift,
+
+    role,
+
+    author,
+
+    writerId:
+      String(
+        legacyItem.writer_id ||
+        ""
+      ).trim(),
+
+    group:
+      String(
+        legacyItem.group ||
+        ""
+      ).trim(),
+
+    operationStatus,
+
+    entries,
+
+    status:
+      convertLegacyDiaryStatus(
+        legacyItem.diary_status
+      ),
+
+    source:
+      "legacy",
+
+    legacyDiaryId:
+      String(
+        legacyItem.diary_id ||
+        ""
+      ),
+
+    legacyPosition:
+      String(
+        legacyItem.position ||
+        ""
+      ),
+
+    legacyVersion:
+      legacyItem.version ?? 0,
+
+    createdAt:
+      legacyItem.created_at ||
+      legacyItem.createdAt ||
+      `${selectedDate}T00:00:00`,
+
+    updatedAt:
+      legacyItem.updated_at ||
+      legacyItem.updatedAt ||
+      `${selectedDate}T00:00:00`
+  };
+}
+
+
+/* =========================================================
+  기존 body index 내용 가져오기
+========================================================= */
+
+function getLegacyBodyContent(
+  bodyEntries,
+  targetIndex
+) {
+  const target =
+    bodyEntries.find(
+      (
+        bodyItem,
+        bodyIndex
+      ) => {
+        return (
+          Number(
+            bodyItem?.index ??
+            bodyIndex
+          ) ===
+          Number(
+            targetIndex
+          )
+        );
+      }
+    );
+
+  return String(
+    target?.content ||
+    ""
+  ).trim();
+}
+
+
+/* =========================================================
+  기존 보직명을 현재 보직명으로 변환
+========================================================= */
+
+function convertLegacyPositionToRole(
+  position
+) {
+  const normalizedPosition =
+    String(
+      position || ""
+    )
+      .trim()
+      .toUpperCase();
+
+  const roleMap = {
+    GROUP_LEADER:
+      "파트장",
+
+    TGO:
+      "TGO",
+
+    BCO1:
+      "BCO1",
+
+    BCO2:
+      "BCO2",
+
+    TO:
+      "TO",
+
+    BO1:
+      "BO1",
+
+    BO2:
+      "BO2"
+  };
+
+  return (
+    roleMap[
+      normalizedPosition
+    ] ||
+    normalizedPosition ||
+    "미지정"
+  );
+}
+
+
+/* =========================================================
+  기존 결재 상태를 현재 상태로 변환
+========================================================= */
+
+function convertLegacyDiaryStatus(
+  legacyStatus
+) {
+  const normalizedStatus =
+    String(
+      legacyStatus || ""
+    )
+      .trim()
+      .toUpperCase();
+
+  const statusMap = {
+    APPROVED:
+      "작성완료",
+
+    SUBMITTED:
+      "결재요청",
+
+    REQUESTED:
+      "결재요청",
+
+    DRAFT:
+      "임시저장",
+
+    WRITING:
+      "작성중",
+
+    REJECTED:
+      "반려"
+  };
+
+  return (
+    statusMap[
+      normalizedStatus
+    ] ||
+    "작성완료"
+  );
+}
 
     /* =====================================================
       업무일지 목록
