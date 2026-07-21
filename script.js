@@ -5193,6 +5193,11 @@ function updateShiftMemberCardStates() {
           ".shift-member-card__name"
         );
 
+      const nameWrapElement =
+        card.querySelector(
+          ".shift-member-card__name-wrap"
+        );
+
       const teamElement =
         card.querySelector(
           ".shift-member-card__team"
@@ -5203,26 +5208,9 @@ function updateShiftMemberCardStates() {
           ".shift-member-card__status"
         );
 
-      /*
-        HTML에 처음 입력된 이름을
-        카드 기본 이름으로 저장한다.
-      */
-      if (
-        nameElement &&
-        !card.dataset.defaultName
-      ) {
-        card.dataset.defaultName =
-          String(
-            nameElement.textContent ||
-            ""
-          ).trim();
-      }
 
       /*
-        근무파트는 Current Shift에만 표시한다.
-
-        근무자 카드에서 GROUP_1, GROUP_2,
-        1파트~4파트 등의 문구는 전부 숨긴다.
+        근무파트는 카드에서 표시하지 않는다.
       */
       if (teamElement) {
         teamElement.textContent =
@@ -5231,6 +5219,22 @@ function updateShiftMemberCardStates() {
         teamElement.hidden =
           true;
       }
+
+
+      /*
+        이전에 표시된 대근 배지가 있으면
+        먼저 제거한다.
+      */
+      card
+        .querySelectorAll(
+          ".shift-member-card__substitute"
+        )
+        .forEach(
+          (badge) => {
+            badge.remove();
+          }
+        );
+
 
       /*
         선택 날짜·근무·보직에 맞는
@@ -5285,14 +5289,14 @@ function updateShiftMemberCardStates() {
         matchedLogs[0] ||
         null;
 
+
       /*
         업무일지가 없으면
-        기본 이름과 미작성 상태로 표시한다.
+        이름을 비우고 미작성으로 표시한다.
       */
       if (!existingLog) {
         if (nameElement) {
           nameElement.textContent =
-            card.dataset.defaultName ||
             "";
         }
 
@@ -5310,8 +5314,10 @@ function updateShiftMemberCardStates() {
         return;
       }
 
+
       /*
-        업무일지 작성자 이름 표시
+        업무일지가 있으면
+        실제 작성자 이름을 표시한다.
       */
       const authorName =
         String(
@@ -5321,17 +5327,53 @@ function updateShiftMemberCardStates() {
 
       if (nameElement) {
         nameElement.textContent =
-          authorName ||
-          card.dataset.defaultName ||
-          "";
+          authorName;
       }
+
+
+      /*
+        대근 체크된 업무일지만
+        이름 옆에 대근 배지를 표시한다.
+      */
+      if (
+        existingLog.isSubstitute ===
+        true
+      ) {
+        const substituteBadge =
+          document.createElement(
+            "span"
+          );
+
+        substituteBadge.className =
+          "shift-member-card__substitute";
+
+        substituteBadge.textContent =
+          "대근";
+
+        if (nameWrapElement) {
+          nameWrapElement.appendChild(
+            substituteBadge
+          );
+        } else if (
+          nameElement?.parentElement
+        ) {
+          nameElement
+            .parentElement
+            .appendChild(
+              substituteBadge
+            );
+        }
+      }
+
 
       card.dataset.logState =
         "existing";
 
+
       if (!statusElement) {
         return;
       }
+
 
       /*
         업무일지 상태 표시
@@ -5358,6 +5400,7 @@ function updateShiftMemberCardStates() {
         return;
       }
 
+
       if (
         existingLog.status ===
           "임시저장" ||
@@ -5372,6 +5415,7 @@ function updateShiftMemberCardStates() {
 
         return;
       }
+
 
       statusElement.textContent =
         "작성완료";
