@@ -1078,22 +1078,31 @@ function rebuildLegacyLeaderLogFromMemberLogs(
     return;
   }
 
+
   /*
-    이전 데이터의 파트장 업무일지는
-    아래 상위 보직 3명의 업무일지만 취합한다.
-
-    - TGO
-    - BCO1
-    - BCO2
-
-    TO, BO1, BO2 업무일지는
-    이전 파트장 업무일지에 자동 반영하지 않는다.
+    일반 업무 자동 취합 대상
   */
-  const automaticSourceRoles = [
+  const ordinaryWorkRoles = [
     "TGO",
     "BCO1",
     "BCO2"
   ];
+
+
+  /*
+    TM 발행 내역 취합 대상
+
+    TM은 모든 보직에서 가져온다.
+  */
+  const tmSourceRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
 
   const leaderLog =
     convertedLogs.find(
@@ -1111,12 +1120,13 @@ function rebuildLegacyLeaderLogFromMemberLogs(
     return;
   }
 
-  /*
-    기존 파트장 일지에서
-    파트장이 직접 작성한 업무만 유지한다.
 
-    TM 발행 내역은 팀원 업무일지에서
-    다시 취합하므로 기존 파트장 TM은 제거한다.
+  /*
+    기존 파트장 업무일지에서
+    파트장이 직접 작성한 TM 이외 업무만 유지한다.
+
+    TM 발행 내역은 모든 팀원 일지에서
+    다시 취합하여 중복을 정리한다.
   */
   const leaderOwnEntries =
     Array.isArray(
@@ -1183,19 +1193,22 @@ function rebuildLegacyLeaderLogFromMemberLogs(
           )
       : [];
 
+
   const combinedMemberEntries =
     [];
 
-  /*
-    이전 데이터는 TGO·BCO1·BCO2만 취합한다.
 
-    각 보직의:
+  /*
+    모든 팀원 업무일지를 순회한다.
+
+    TGO·BCO1·BCO2:
     - 일반 업무
     - TM 발행 내역
 
-    모두 가져온다.
+    TO·BO1·BO2:
+    - TM 발행 내역만
   */
-  automaticSourceRoles.forEach(
+  tmSourceRoles.forEach(
     (memberRole) => {
       const memberLog =
         convertedLogs.find(
@@ -1225,6 +1238,34 @@ function rebuildLegacyLeaderLogFromMemberLogs(
           entry,
           entryIndex
         ) => {
+          const category =
+            String(
+              entry.category || ""
+            ).trim();
+
+          const isTmIssue =
+            category ===
+            "TM 발행";
+
+          const canImportOrdinaryWork =
+            ordinaryWorkRoles.includes(
+              memberRole
+            );
+
+
+          /*
+            TM 발행은 모든 보직에서 가져온다.
+
+            TM이 아닌 일반 업무는
+            TGO·BCO1·BCO2만 가져온다.
+          */
+          if (
+            !isTmIssue &&
+            !canImportOrdinaryWork
+          ) {
+            return;
+          }
+
           combinedMemberEntries.push({
             ...entry,
 
@@ -1254,36 +1295,29 @@ function rebuildLegacyLeaderLogFromMemberLogs(
     }
   );
 
+
   /*
-    같은 상위 보직 내부에서
-    완전히 중복된 항목이 있을 경우를 대비해
-    원본 식별 키 기준으로 한 번만 유지한다.
+    상위·하위 보직 TM 중복 정리
+
+    TGO  ↔ TO
+    BCO1 ↔ BO1
+    BCO2 ↔ BO2
+
+    문장 유사도 70% 이상:
+    - 상위 보직 TM 유지
+    - 하위 보직 TM 제외
+
+    문장 유사도 70% 미만:
+    - 상위·하위 TM 모두 유지
   */
-  const uniqueEntryMap =
-    new Map();
+  const filteredMemberEntries =
+    filterLeaderTmEntriesByRoleHierarchy(
+      combinedMemberEntries
+    );
 
-  combinedMemberEntries.forEach(
-    (entry) => {
-      const uniqueKey =
-        createImportedEntryUniqueKey(
-          entry
-        );
-
-      if (
-        !uniqueEntryMap.has(
-          uniqueKey
-        )
-      ) {
-        uniqueEntryMap.set(
-          uniqueKey,
-          entry
-        );
-      }
-    }
-  );
 
   leaderLog.entries = [
-    ...uniqueEntryMap.values(),
+    ...filteredMemberEntries,
     ...leaderOwnEntries
   ];
 
@@ -3477,29 +3511,63 @@ function importMemberLogByRole(
 
 function importAllMemberLogs() {
   /*
-    파트장 업무일지 일괄 취합의 기본 대상
+    파트장 업무일지 일괄 취합 규칙
 
-    - TGO
-    - BCO1
-    - BCO2
+    TGO, BCO1, BCO2
+    - 일반 업무
+    - TM 발행 내역
 
-    TO, BO1, BO2는 일괄 취합하지 않는다.
-    필요한 경우 각 보직 가져오기 버튼으로
-    사용자가 선택하여 추가한다.
+    TO, BO1, BO2
+    - TM 발행 내역만
+
+    상위·하위 보직 TM이 70% 이상 유사하면
+    상위 보직 TM만 유지한다.
   */
-  const automaticImportRoles = [
+  const importOrder = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+  const upperRoles = [
     "TGO",
     "BCO1",
     "BCO2"
+  ];
+
+  const lowerRoles = [
+    "TO",
+    "BO1",
+    "BO2"
   ];
 
   let foundRoleCount = 0;
   let addedCount = 0;
   let skippedCount = 0;
 
-  const missingRoles = [];
+  const missingUpperRoles = [];
+  const missingLowerRoles = [];
 
-  automaticImportRoles.forEach(
+
+  /*
+    중복 정리 전 항목 수를 기록한다.
+  */
+  const entryCountBeforeImport =
+    appState.editorEntries.length;
+
+
+  /*
+    6개 보직을 모두 확인한다.
+
+    importMemberLogByRole()의 기존 규칙에 따라:
+
+    TGO·BCO1·BCO2는 전체 내역,
+    TO·BO1·BO2는 TM 발행 내역만 가져온다.
+  */
+  importOrder.forEach(
     (role) => {
       const result =
         importMemberLogByRole(
@@ -3515,8 +3583,20 @@ function importAllMemberLogs() {
 
       if (result.found) {
         foundRoleCount += 1;
-      } else {
-        missingRoles.push(
+      } else if (
+        upperRoles.includes(
+          role
+        )
+      ) {
+        missingUpperRoles.push(
+          role
+        );
+      } else if (
+        lowerRoles.includes(
+          role
+        )
+      ) {
+        missingLowerRoles.push(
           role
         );
       }
@@ -3529,50 +3609,144 @@ function importAllMemberLogs() {
     }
   );
 
+
+  /*
+    TM 중복 정리
+
+    TGO  ↔ TO
+    BCO1 ↔ BO1
+    BCO2 ↔ BO2
+
+    70% 이상 유사:
+    - 상위 보직 TM 유지
+    - 하위 보직 TM 제거
+
+    70% 미만:
+    - 두 항목 모두 유지
+  */
+  appState.editorEntries =
+    filterLeaderTmEntriesByRoleHierarchy(
+      appState.editorEntries
+    );
+
+
+  /*
+    최종 순서 정렬
+  */
   sortImportedLogEntries();
+
+
+  /*
+    화면 갱신
+  */
   renderLogEntryTable();
   updateMemberLogImportStatus();
 
+
+  /*
+    중복 정리로 제외된 항목 수
+  */
+  const entryCountAfterImport =
+    appState.editorEntries.length;
+
+  const actualAddedCount =
+    Math.max(
+      0,
+      entryCountAfterImport -
+      entryCountBeforeImport
+    );
+
+  const duplicateRemovedCount =
+    Math.max(
+      0,
+      addedCount -
+      actualAddedCount
+    );
+
+
+  /*
+    같은 날짜·근무에
+    팀원 업무일지가 하나도 없는 경우
+  */
   if (
     foundRoleCount === 0
   ) {
     showToast(
-      "같은 날짜와 근무에 작성된 TGO·BCO1·BCO2 업무일지가 없습니다."
+      "같은 날짜와 근무에 작성된 팀원 업무일지가 없습니다."
     );
 
     return;
   }
 
-  if (addedCount === 0) {
+
+  /*
+    실제 추가된 신규 내역이 없는 경우
+  */
+  if (
+    actualAddedCount === 0
+  ) {
     if (
-      missingRoles.length > 0
+      duplicateRemovedCount > 0
     ) {
       showToast(
-        `신규 내역이 없습니다. 미작성: ${missingRoles.join(", ")}`
+        `신규 TM ${duplicateRemovedCount}건이 상위 보직 내역과 중복되어 제외되었습니다.`
+      );
+
+      return;
+    }
+
+    if (
+      missingUpperRoles.length > 0
+    ) {
+      showToast(
+        `신규 내역이 없습니다. 미작성: ${missingUpperRoles.join(", ")}`
       );
 
       return;
     }
 
     showToast(
-      "TGO·BCO1·BCO2 업무일지가 이미 최신 상태입니다."
+      "가져올 신규 업무일지가 없습니다."
     );
 
     return;
   }
 
+
+  /*
+    상위 보직 미작성 안내
+  */
   if (
-    missingRoles.length > 0
+    missingUpperRoles.length > 0
+  ) {
+    const duplicateMessage =
+      duplicateRemovedCount > 0
+        ? ` 중복 TM ${duplicateRemovedCount}건 제외.`
+        : "";
+
+    showToast(
+      `신규 내역 ${actualAddedCount}건을 가져왔습니다. 미작성: ${missingUpperRoles.join(", ")}.${duplicateMessage}`
+    );
+
+    return;
+  }
+
+
+  /*
+    정상 완료 안내
+  */
+  if (
+    duplicateRemovedCount > 0
   ) {
     showToast(
-      `TGO·BCO1·BCO2에서 신규 내역 ${addedCount}건을 가져왔습니다. 미작성: ${missingRoles.join(", ")}`
+      `신규 내역 ${actualAddedCount}건을 가져왔습니다. 중복 TM ${duplicateRemovedCount}건은 제외했습니다.`
     );
 
     return;
   }
 
   showToast(
-    `TGO·BCO1·BCO2 업무일지에서 신규 내역 총 ${addedCount}건을 가져왔습니다.`
+    `팀원 업무일지에서 신규 내역 총 ${actualAddedCount}건을 가져왔습니다.`
   );
 }
 
