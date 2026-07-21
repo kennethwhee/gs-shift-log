@@ -1,6 +1,394 @@
 "use strict";
 
 /* =========================================================
+  로그인 시스템
+========================================================= */
+
+const AUTH_STORAGE_KEY =
+  "gsShiftLog.currentUser";
+
+
+function getLoginElements() {
+  return {
+    loginScreen:
+      document.getElementById(
+        "loginScreen"
+      ),
+
+    appShell:
+      document.getElementById(
+        "appShell"
+      ),
+
+    loginForm:
+      document.getElementById(
+        "loginForm"
+      ),
+
+    loginEmployeeId:
+      document.getElementById(
+        "loginEmployeeId"
+      ),
+
+    loginPassword:
+      document.getElementById(
+        "loginPassword"
+      ),
+
+    loginError:
+      document.getElementById(
+        "loginError"
+      ),
+
+    headerUserName:
+      document.getElementById(
+        "headerUserName"
+      ),
+
+    logoutButton:
+      document.getElementById(
+        "logoutButton"
+      )
+  };
+}
+
+
+function showLoginError(message) {
+  const {
+    loginError
+  } =
+    getLoginElements();
+
+  if (!loginError) {
+    return;
+  }
+
+  loginError.textContent =
+    String(
+      message ||
+      "로그인에 실패했습니다."
+    );
+
+  loginError.hidden =
+    false;
+}
+
+
+function hideLoginError() {
+  const {
+    loginError
+  } =
+    getLoginElements();
+
+  if (!loginError) {
+    return;
+  }
+
+  loginError.textContent =
+    "";
+
+  loginError.hidden =
+    true;
+}
+
+
+function saveCurrentUser(user) {
+  localStorage.setItem(
+    AUTH_STORAGE_KEY,
+    JSON.stringify(user)
+  );
+}
+
+
+function loadCurrentUser() {
+  const savedUser =
+    localStorage.getItem(
+      AUTH_STORAGE_KEY
+    );
+
+  if (!savedUser) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(
+      savedUser
+    );
+  } catch (error) {
+    localStorage.removeItem(
+      AUTH_STORAGE_KEY
+    );
+
+    return null;
+  }
+}
+
+
+function clearCurrentUser() {
+  localStorage.removeItem(
+    AUTH_STORAGE_KEY
+  );
+}
+
+
+function openShiftLogApp(user) {
+  const {
+    loginScreen,
+    appShell,
+    headerUserName
+  } =
+    getLoginElements();
+
+  if (loginScreen) {
+    loginScreen.hidden =
+      true;
+  }
+
+  if (appShell) {
+    appShell.hidden =
+      false;
+  }
+
+  if (headerUserName) {
+    headerUserName.textContent =
+      user?.name ||
+      user?.employeeName ||
+      user?.employeeId ||
+      "사용자";
+  }
+}
+
+
+function openLoginScreen() {
+  const {
+    loginScreen,
+    appShell,
+    loginEmployeeId,
+    loginPassword
+  } =
+    getLoginElements();
+
+  if (loginScreen) {
+    loginScreen.hidden =
+      false;
+  }
+
+  if (appShell) {
+    appShell.hidden =
+      true;
+  }
+
+  if (loginPassword) {
+    loginPassword.value =
+      "";
+  }
+
+  window.setTimeout(
+    () => {
+      loginEmployeeId?.focus();
+    },
+    0
+  );
+}
+
+
+async function requestShiftLogLogin(
+  employeeId,
+  password
+) {
+  const response =
+    await fetch(
+      "/api/login",
+      {
+        method:
+          "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          Accept:
+            "application/json"
+        },
+
+        body:
+          JSON.stringify({
+            employeeId,
+            password
+          })
+      }
+    );
+
+  let result = {};
+
+  try {
+    result =
+      await response.json();
+  } catch (error) {
+    throw new Error(
+      "로그인 서버 응답을 확인할 수 없습니다."
+    );
+  }
+
+  if (
+    !response.ok ||
+    !result.success
+  ) {
+    throw new Error(
+      result.message ||
+      "사번 또는 비밀번호를 확인해 주세요."
+    );
+  }
+
+  return (
+    result.user ||
+    result.member ||
+    result.data ||
+    {
+      employeeId
+    }
+  );
+}
+
+
+async function handleShiftLogLogin(
+  event
+) {
+  event.preventDefault();
+
+  const {
+    loginEmployeeId,
+    loginPassword,
+    loginForm
+  } =
+    getLoginElements();
+
+  const employeeId =
+    String(
+      loginEmployeeId?.value ||
+      ""
+    ).trim();
+
+  const password =
+    String(
+      loginPassword?.value ||
+      ""
+    );
+
+  hideLoginError();
+
+  if (!employeeId) {
+    showLoginError(
+      "사번을 입력해 주세요."
+    );
+
+    loginEmployeeId?.focus();
+
+    return;
+  }
+
+  if (!password) {
+    showLoginError(
+      "비밀번호를 입력해 주세요."
+    );
+
+    loginPassword?.focus();
+
+    return;
+  }
+
+  const submitButton =
+    loginForm?.querySelector(
+      'button[type="submit"]'
+    );
+
+  if (submitButton) {
+    submitButton.disabled =
+      true;
+
+    submitButton.textContent =
+      "로그인 중...";
+  }
+
+  try {
+    const user =
+      await requestShiftLogLogin(
+        employeeId,
+        password
+      );
+
+    saveCurrentUser(user);
+
+    openShiftLogApp(user);
+
+  } catch (error) {
+    console.error(
+      "로그인 실패:",
+      error
+    );
+
+    showLoginError(
+      error.message ||
+      "로그인에 실패했습니다."
+    );
+
+  } finally {
+    if (submitButton) {
+      submitButton.disabled =
+        false;
+
+      submitButton.textContent =
+        "로그인";
+    }
+  }
+}
+
+
+function handleShiftLogLogout() {
+  clearCurrentUser();
+
+  openLoginScreen();
+}
+
+
+function initializeShiftLogLogin() {
+  const {
+    loginForm,
+    logoutButton
+  } =
+    getLoginElements();
+
+  loginForm?.addEventListener(
+    "submit",
+    handleShiftLogLogin
+  );
+
+  logoutButton?.addEventListener(
+    "click",
+    handleShiftLogLogout
+  );
+
+  const currentUser =
+    loadCurrentUser();
+
+  if (currentUser) {
+    openShiftLogApp(
+      currentUser
+    );
+
+    return;
+  }
+
+  openLoginScreen();
+}
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  initializeShiftLogLogin
+);
+
+/* =========================================================
   GS Shift Log
   - 현황 / 조회 탭
   - 날짜 이동

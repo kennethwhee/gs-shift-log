@@ -7035,3 +7035,201 @@ tbody tr:last-child td {
     font-size: 13px;
   }
 }
+
+/* =========================================================
+  GS Shift Log 로그인 화면
+========================================================= */
+
+.login-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 100vh;
+  padding: 24px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(15, 42, 74, 0.96),
+      rgba(31, 95, 174, 0.9)
+    );
+}
+
+.login-card {
+  width: min(420px, 100%);
+
+  padding: 38px 36px 30px;
+
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 22px;
+
+  background: rgba(255, 255, 255, 0.98);
+
+  box-shadow:
+    0 28px 80px
+    rgba(5, 20, 40, 0.32);
+}
+
+.login-card__brand {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.login-card__company {
+  display: block;
+
+  margin-bottom: 10px;
+
+  color: #1f5fae;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.login-card__brand h1 {
+  margin: 0;
+
+  color: #172033;
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.login-card__brand p {
+  margin: 8px 0 0;
+
+  color: #6b7788;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.login-field > span {
+  color: #3d4b60;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.login-field input {
+  width: 100%;
+  height: 48px;
+
+  padding: 0 14px;
+
+  border: 1px solid #cbd6e2;
+  border-radius: 10px;
+
+  background: #ffffff;
+  color: #172033;
+
+  font-size: 14px;
+  outline: none;
+
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.login-field input:focus {
+  border-color: #568ccc;
+
+  box-shadow:
+    0 0 0 4px
+    rgba(31, 95, 174, 0.11);
+}
+
+.login-field input::placeholder {
+  color: #9ba5b3;
+}
+
+.login-submit-button {
+  width: 100%;
+  height: 50px;
+
+  margin-top: 4px;
+
+  border: 0;
+  border-radius: 10px;
+
+  background: #1f5fae;
+  color: #ffffff;
+
+  font-size: 14px;
+  font-weight: 900;
+
+  cursor: pointer;
+
+  transition:
+    background 0.16s ease,
+    transform 0.12s ease;
+}
+
+.login-submit-button:hover {
+  background: #194f91;
+}
+
+.login-submit-button:active {
+  transform: translateY(1px);
+}
+
+.login-submit-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.login-error {
+  margin: -4px 0 0;
+  padding: 10px 12px;
+
+  border: 1px solid #efb6b6;
+  border-radius: 8px;
+
+  background: #fff1f1;
+  color: #b93636;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.login-card__help {
+  margin-top: 20px;
+
+  color: #7c8796;
+  font-size: 11px;
+  text-align: center;
+}
+
+.login-screen[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 520px) {
+  .login-screen {
+    padding: 16px;
+  }
+
+  .login-card {
+    padding: 30px 22px 24px;
+    border-radius: 18px;
+  }
+
+  .login-card__brand h1 {
+    font-size: 28px;
+  }
+}
