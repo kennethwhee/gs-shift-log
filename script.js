@@ -3716,28 +3716,29 @@ function renderLogEntryTable() {
   /*
     가져온 보직 배지 HTML
   */
-  const createSourceBadgeHtml = (
-    entry
-  ) => {
-    const importedRole =
-      normalizeMemberLogRole(
-        entry.importedFromRole || ""
-      );
+const createSourceBadgeHtml = (
+  entry
+) => {
+  const importedRole =
+    normalizeMemberLogRole(
+      entry.importedFromRole || ""
+    );
 
-    const importedAuthor =
-      String(
-        entry.importedFromAuthor || ""
-      ).trim();
+  const importedAuthor =
+    String(
+      entry.importedFromAuthor || ""
+    ).trim();
 
-    const shouldShowSourceBadge =
-      isLeaderLog &&
-      importedRole &&
-      importedRole !== "파트장";
-
-    if (!shouldShowSourceBadge) {
-      return "";
-    }
-
+  /*
+    파트장 업무일지에서
+    팀원 일지를 가져온 항목은
+    원래 보직을 표시한다.
+  */
+  if (
+    isLeaderLog &&
+    importedRole &&
+    importedRole !== "파트장"
+  ) {
     const sourceClass =
       getLogEntrySourceClass(
         importedRole
@@ -3763,7 +3764,63 @@ function renderLogEntryTable() {
         )}
       </span>
     `;
-  };
+  }
+
+  /*
+    파트장이 직접 작성한 인계사항
+  */
+  if (isLeaderLog) {
+    return `
+      <span
+        class="
+          log-entry-source-badge
+          is-leader
+        "
+        title="파트장 직접 작성"
+      >
+        파트장
+      </span>
+    `;
+  }
+
+  /*
+    일반 근무자가 직접 작성한 경우
+    현재 작성 보직을 표시한다.
+  */
+  if (currentRole) {
+    const roleClass =
+      getLogEntrySourceClass(
+        currentRole
+      );
+
+    return `
+      <span
+        class="
+          log-entry-source-badge
+          ${roleClass}
+        "
+        title="${escapeHtml(
+          currentRole
+        )} 직접 작성"
+      >
+        ${escapeHtml(
+          currentRole
+        )}
+      </span>
+    `;
+  }
+
+  return `
+    <span
+      class="
+        log-entry-source-badge
+        is-default
+      "
+    >
+      직접작성
+    </span>
+  `;
+};
 
 
   /*
