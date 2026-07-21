@@ -717,85 +717,171 @@
 
         <form id="logEditorForm">
 
-          <!-- 기본 정보 -->
-          <section class="editor-section editor-section--basic">
-            <div class="editor-section__heading">
-              <h3>기본 정보</h3>
-            </div>
+<!-- =========================================================
+  기본 정보
+========================================================== -->
+<section class="editor-section editor-section--basic">
 
-            <div class="basic-info-grid">
+  <div class="editor-section__heading">
+    <div>
+      <h3>기본 정보</h3>
 
-              <label class="form-field">
-                <span class="form-field__label">작성일</span>
+      <p>
+        작성일, 근무시간, 근무파트와 보직을 확인해 주세요.
+      </p>
+    </div>
+  </div>
 
-                <input
-                  type="date"
-                  id="logDate"
-                  name="logDate"
-                  required
-                />
-              </label>
 
-              <label class="form-field">
-                <span class="form-field__label">근무</span>
+  <div class="basic-info-grid">
 
-                <select
-                  id="logShift"
-                  name="logShift"
-                  required
-                >
-                  <option value="DS">DS</option>
-                  <option value="NS" selected>NS</option>
-                </select>
-              </label>
+    <!-- 작성일 -->
+    <label class="form-field">
 
-              <label class="form-field">
-                <span class="form-field__label">근무조</span>
+      <span class="form-field__label">
+        작성일
+      </span>
 
-                <select
-                  id="logTeam"
-                  name="logTeam"
-                  required
-                >
-                  <option value="1조">1조</option>
-                  <option value="2조">2조</option>
-                  <option value="3조" selected>3조</option>
-                  <option value="4조">4조</option>
-                </select>
-              </label>
+      <input
+        type="date"
+        id="logDate"
+        name="logDate"
+        required
+      />
 
-              <label class="form-field">
-                <span class="form-field__label">보직</span>
+    </label>
 
-                <select
-                  id="logRole"
-                  name="logRole"
-                  required
-                >
-                  <option value="파트장">파트장</option>
-                  <option value="TGO">TGO</option>
-                  <option value="BCO1">BCO1</option>
-                  <option value="BCO2">BCO2</option>
-                  <option value="TO1">TO1</option>
-                  <option value="BO1">BO1</option>
-                  <option value="BO2">BO2</option>
-                </select>
-              </label>
 
-              <label class="form-field">
-                <span class="form-field__label">작성자</span>
+    <!-- 근무 -->
+    <label class="form-field">
 
-                <input
-                  type="text"
-                  id="logAuthor"
-                  name="logAuthor"
-                  value="이휘근"
-                  required
-                />
-              </label>
+      <span class="form-field__label">
+        근무
+      </span>
 
-            </div>
-          </section>
+      <select
+        id="logShift"
+        name="logShift"
+        required
+      >
+
+        <option value="DS">
+          D/S (07:00 ~ 19:00)
+        </option>
+
+        <option value="NS">
+          N/S (19:00 ~ 07:00)
+        </option>
+
+      </select>
+
+    </label>
+
+
+    <!-- 근무파트 -->
+    <label class="form-field">
+
+      <span class="form-field__label">
+        근무파트
+      </span>
+
+      <select
+        id="logTeam"
+        name="logTeam"
+        required
+      >
+
+        <option value="1파트">
+          1파트
+        </option>
+
+        <option value="2파트">
+          2파트
+        </option>
+
+        <option
+          value="3파트"
+          selected
+        >
+          3파트
+        </option>
+
+        <option value="4파트">
+          4파트
+        </option>
+
+      </select>
+
+    </label>
+
+
+    <!-- 보직 -->
+    <label class="form-field">
+
+      <span class="form-field__label">
+        보직
+      </span>
+
+      <select
+        id="logRole"
+        name="logRole"
+        required
+      >
+
+        <option value="파트장">
+          파트장
+        </option>
+
+        <option value="TGO">
+          TGO
+        </option>
+
+        <option value="BCO1">
+          BCO1
+        </option>
+
+        <option value="BCO2">
+          BCO2
+        </option>
+
+        <option value="TO">
+          TO
+        </option>
+
+        <option value="BO1">
+          BO1
+        </option>
+
+        <option value="BO2">
+          BO2
+        </option>
+
+      </select>
+
+    </label>
+
+
+    <!-- 작성자 -->
+    <label class="form-field">
+
+      <span class="form-field__label">
+        작성자
+      </span>
+
+      <input
+        type="text"
+        id="logAuthor"
+        name="logAuthor"
+        value="이휘근"
+        autocomplete="name"
+        required
+      />
+
+    </label>
+
+  </div>
+
+</section>
 
 
 <!-- =========================================================
@@ -989,15 +1075,18 @@
   class="member-log-import-section"
   hidden
 >
+
   <div class="member-log-import-header">
+
     <div>
       <h3>팀원 업무일지 가져오기</h3>
 
       <p>
         같은 작성일과 근무의 팀원 업무일지에서
-        작업 · 정비 · 인계 내역을 가져옵니다.
+        TM 발행과 업무 내역을 가져옵니다.
       </p>
     </div>
+
 
     <span
       id="memberLogImportCount"
@@ -1005,107 +1094,178 @@
     >
       가져온 내역 0건
     </span>
+
   </div>
 
+
   <div class="member-log-import-buttons">
+
+    <!-- TGO -->
     <button
       type="button"
       id="importTgoLogButton"
       class="member-log-import-button"
       data-import-role="TGO"
     >
-      <span class="member-log-import-button__order">1</span>
+
+      <span class="member-log-import-button__order">
+        1
+      </span>
 
       <span class="member-log-import-button__content">
-        <strong>TGO 가져오기</strong>
+
+        <strong>
+          TGO 가져오기
+        </strong>
+
         <small id="importTgoLogStatus">
           업무일지 확인 전
         </small>
+
       </span>
+
     </button>
 
+
+    <!-- BCO1 -->
     <button
       type="button"
       id="importBco1LogButton"
       class="member-log-import-button"
       data-import-role="BCO1"
     >
-      <span class="member-log-import-button__order">2</span>
+
+      <span class="member-log-import-button__order">
+        2
+      </span>
 
       <span class="member-log-import-button__content">
-        <strong>BCO1 가져오기</strong>
+
+        <strong>
+          BCO1 가져오기
+        </strong>
+
         <small id="importBco1LogStatus">
           업무일지 확인 전
         </small>
+
       </span>
+
     </button>
 
+
+    <!-- BCO2 -->
     <button
       type="button"
       id="importBco2LogButton"
       class="member-log-import-button"
       data-import-role="BCO2"
     >
-      <span class="member-log-import-button__order">3</span>
+
+      <span class="member-log-import-button__order">
+        3
+      </span>
 
       <span class="member-log-import-button__content">
-        <strong>BCO2 가져오기</strong>
+
+        <strong>
+          BCO2 가져오기
+        </strong>
+
         <small id="importBco2LogStatus">
           업무일지 확인 전
         </small>
+
       </span>
+
     </button>
 
+
+    <!-- TO -->
     <button
       type="button"
       id="importToLogButton"
       class="member-log-import-button"
       data-import-role="TO"
     >
-      <span class="member-log-import-button__order">4</span>
+
+      <span class="member-log-import-button__order">
+        4
+      </span>
 
       <span class="member-log-import-button__content">
-        <strong>TO 가져오기</strong>
+
+        <strong>
+          TO 가져오기
+        </strong>
+
         <small id="importToLogStatus">
           업무일지 확인 전
         </small>
+
       </span>
+
     </button>
 
+
+    <!-- BO1 -->
     <button
       type="button"
       id="importBo1LogButton"
       class="member-log-import-button"
       data-import-role="BO1"
     >
-      <span class="member-log-import-button__order">5</span>
+
+      <span class="member-log-import-button__order">
+        5
+      </span>
 
       <span class="member-log-import-button__content">
-        <strong>BO1 가져오기</strong>
+
+        <strong>
+          BO1 가져오기
+        </strong>
+
         <small id="importBo1LogStatus">
           업무일지 확인 전
         </small>
+
       </span>
+
     </button>
 
+
+    <!-- BO2 -->
     <button
       type="button"
       id="importBo2LogButton"
       class="member-log-import-button"
       data-import-role="BO2"
     >
-      <span class="member-log-import-button__order">6</span>
+
+      <span class="member-log-import-button__order">
+        6
+      </span>
 
       <span class="member-log-import-button__content">
-        <strong>BO2 가져오기</strong>
+
+        <strong>
+          BO2 가져오기
+        </strong>
+
         <small id="importBo2LogStatus">
           업무일지 확인 전
         </small>
+
       </span>
+
     </button>
+
   </div>
 
+
   <div class="member-log-import-footer">
+
     <button
       type="button"
       id="importAllMemberLogsButton"
@@ -1114,11 +1274,15 @@
       6개 보직 업무일지 일괄 가져오기
     </button>
 
+
     <p class="member-log-import-help">
-      TGO → BCO1 → BCO2 → TO → BO1 → BO2 순서로 가져오며,
-      이미 가져온 동일 내역은 중복 추가되지 않습니다.
+      TGO → BCO1 → BCO2 → TO → BO1 → BO2 순서로
+      가져오며, 이미 가져온 동일 내역은 중복 추가되지
+      않습니다.
     </p>
+
   </div>
+
 </section>
 
 <!-- =========================================================
