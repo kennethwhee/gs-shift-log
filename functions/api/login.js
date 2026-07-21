@@ -331,7 +331,7 @@ export async function onRequestPost(context) {
     }
 
     if (
-      password.length < 8 ||
+      password.length < 4 ||
       password.length > MAX_PASSWORD_LENGTH
     ) {
       return jsonResponse(
