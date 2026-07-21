@@ -23,30 +23,13 @@ const STORAGE_KEYS = {
 };
 
 const appState = {
-  selectedDate:
-    new Date(),
-
-  /*
-    현재 시각을 기준으로 근무를 자동 선택한다.
-
-    07:00 이상 19:00 미만:
-    D/S (Day Shift)
-
-    19:00 이상 또는 07:00 미만:
-    N/S (Night Shift)
-  */
-  selectedShift:
-    getCurrentShiftByTime(),
-
-  currentDetailLogId:
-    null,
-
+  selectedDate: new Date(2026, 6, 20),
+  selectedShift: "NS",
+  currentDetailLogId: null,
   logs: [],
 
   editorEntries: [],
-
-  editingEntryIndex:
-    -1
+  editingEntryIndex: -1
 };
 
 /* =========================================================
@@ -754,6 +737,9 @@ function rebuildLegacyLeaderLogFromMemberLogs(
     "TGO",
     "BCO1",
     "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
   ];
 
   /*
@@ -4588,29 +4574,16 @@ function resetLogEditor() {
 
   setEditorDateFromSelectedDate();
 
-  elements.logAuthor.value =
-    "이휘근";
+  elements.logAuthor.value = "이휘근";
+  elements.logTeam.value = "3조";
+  elements.logShift.value = appState.selectedShift;
+  elements.operationStatus.value = "";
+  elements.logNote.value = "";
 
-  elements.logTeam.value =
-    "3파트";
+  elements.logEditorForm.dataset.editingId = "";
 
-  elements.logShift.value =
-    appState.selectedShift;
-
-  elements.operationStatus.value =
-    "";
-
-  elements.logNote.value =
-    "";
-
-  elements.logEditorForm.dataset.editingId =
-    "";
-
-  appState.editorEntries =
-    [];
-
-  appState.editingEntryIndex =
-    -1;
+  appState.editorEntries = [];
+  appState.editingEntryIndex = -1;
 
   resetLogEntryInput({
     keepCategory: false,
@@ -4619,11 +4592,8 @@ function resetLogEditor() {
 
   renderLogEntryTable();
 
-  elements.logAttachments.value =
-    "";
-
-  elements.attachmentList.innerHTML =
-    "";
+  elements.logAttachments.value = "";
+  elements.attachmentList.innerHTML = "";
 }
 
 
