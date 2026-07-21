@@ -6063,3 +6063,95 @@ td {
     gap: 12px;
   }
 }
+
+/* =========================================================
+  업무일지 진행 상태 색상 통일
+
+  미작성   : 회색
+  작성중   : 주황색
+  작성완료 : 파란색
+  결재완료 : 초록색
+========================================================= */
+
+
+/* 미작성 */
+.status-badge.is-empty,
+.shift-member-card__status.is-empty {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+
+/* 작성중 */
+.status-badge.is-writing,
+.shift-member-card__status.is-writing {
+  border-color: #f4c77c;
+  background: #fff7e8;
+  color: #a15c08;
+}
+
+
+/* 작성완료 */
+.status-badge.is-saved,
+.shift-member-card__status.is-complete {
+  border-color: #b9d4f5;
+  background: #eaf3ff;
+  color: #1763c5;
+}
+
+
+/* 결재완료 */
+.status-badge.is-approved,
+.shift-member-card__status.is-approved {
+  border-color: #a9dcc1;
+  background: #eaf8f0;
+  color: #188451;
+}
+
+/* =========================================================
+  업무일지 상세보기 - 결재확인 버튼
+========================================================= */
+
+.approval-confirm-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 40px;
+  padding: 0 18px;
+
+  border: 1px solid #15945b;
+  border-radius: 8px;
+
+  background: #168b58;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 4px 10px
+    rgba(22, 139, 88, 0.16);
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.approval-confirm-button:hover {
+  border-color: #107347;
+  background: #107347;
+}
+
+.approval-confirm-button:active {
+  transform: translateY(1px);
+}
+
+.approval-confirm-button[hidden] {
+  display: none !important;
+}

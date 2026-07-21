@@ -806,6 +806,10 @@ function cacheElements() {
         "editFromDetailButton"
       ),
 
+      approveFromDetailButton:
+      document.getElementById(
+        "approveFromDetailButton"
+      ),
 
     /* =====================================================
       조회
@@ -2453,30 +2457,42 @@ function convertLegacyDiaryStatus(
       .toUpperCase();
 
   const statusMap = {
+    /*
+      파트장이 이미 승인한 과거 업무일지
+    */
     APPROVED:
+      "결재완료",
+
+    /*
+      결재 요청까지 마친 업무일지
+    */
+    SUBMITTED:
       "작성완료",
 
-    SUBMITTED:
-      "결재요청",
-
     REQUESTED:
-      "결재요청",
+      "작성완료",
 
+    /*
+      저장만 한 업무일지
+    */
     DRAFT:
-      "임시저장",
+      "작성중",
 
     WRITING:
       "작성중",
 
+    /*
+      반려된 경우 다시 작성 중으로 처리
+    */
     REJECTED:
-      "반려"
+      "작성중"
   };
 
   return (
     statusMap[
       normalizedStatus
     ] ||
-    "작성완료"
+    "작성중"
   );
 }
 
@@ -4620,7 +4636,7 @@ function bindEvents() {
           event.preventDefault();
 
           saveCurrentLog(
-            "저장완료"
+            "작성중"
           );
         }
       );
@@ -4642,7 +4658,7 @@ function bindEvents() {
     elements.requestApprovalButton,
     () => {
       saveCurrentLog(
-        "결재요청"
+        "작성완료"
       );
     }
   );
@@ -4690,6 +4706,11 @@ function bindEvents() {
         }
       );
   }
+
+  bindClick(
+    elements.approveFromDetailButton,
+    approveCurrentDetailLog
+  );
 
   bindClick(
     elements.editFromDetailButton,
@@ -5622,7 +5643,8 @@ function updateShiftMemberCardStates() {
 
 
       /*
-        근무파트는 카드에서 표시하지 않는다.
+        근무자 카드에서는
+        근무파트를 표시하지 않는다.
       */
       if (teamElement) {
         teamElement.textContent =
@@ -5634,8 +5656,8 @@ function updateShiftMemberCardStates() {
 
 
       /*
-        이전에 표시된 대근 배지가 있으면
-        먼저 제거한다.
+        이전 렌더링에서 생성된
+        대근 배지를 먼저 제거한다.
       */
       card
         .querySelectorAll(
@@ -5649,31 +5671,34 @@ function updateShiftMemberCardStates() {
 
 
       /*
-        선택 날짜·근무·보직에 맞는
+        현재 날짜·근무·보직에 해당하는
         가장 최근 업무일지를 찾는다.
       */
       const matchedLogs =
         appState.logs
-          .filter((log) => {
-            return (
-              String(
-                log.date || ""
-              ).trim() ===
-                selectedDate &&
-
-              String(
-                log.shift || ""
-              ).trim() ===
+          .filter(
+            (log) => {
+              return (
                 String(
-                  appState.selectedShift ||
-                  ""
-                ).trim() &&
+                  log.date || ""
+                ).trim() ===
+                  selectedDate &&
 
-              normalizeMemberLogRole(
-                log.role
-              ) === role
-            );
-          })
+                String(
+                  log.shift || ""
+                ).trim() ===
+                  String(
+                    appState.selectedShift ||
+                    ""
+                  ).trim() &&
+
+                normalizeMemberLogRole(
+                  log.role
+                ) ===
+                  role
+              );
+            }
+          )
           .sort(
             (
               logA,
@@ -5704,7 +5729,7 @@ function updateShiftMemberCardStates() {
 
       /*
         업무일지가 없으면
-        이름을 비우고 미작성으로 표시한다.
+        이름을 비우고 미작성 표시
       */
       if (!existingLog) {
         if (nameElement) {
@@ -5729,7 +5754,7 @@ function updateShiftMemberCardStates() {
 
       /*
         업무일지가 있으면
-        실제 작성자 이름을 표시한다.
+        실제 작성자를 표시한다.
       */
       const authorName =
         String(
@@ -5745,7 +5770,7 @@ function updateShiftMemberCardStates() {
 
       /*
         대근 체크된 업무일지만
-        이름 옆에 대근 배지를 표시한다.
+        대근 배지를 표시한다.
       */
       if (
         existingLog.isSubstitute ===
@@ -5781,30 +5806,37 @@ function updateShiftMemberCardStates() {
       card.dataset.logState =
         "existing";
 
-
       if (!statusElement) {
         return;
       }
 
 
       /*
-        업무일지 상태 표시
+        결재완료
       */
       if (
         existingLog.status ===
-          "결재완료" ||
-        existingLog.status ===
-          "결재요청" ||
-        existingLog.status ===
-          "작성완료" ||
-        existingLog.status ===
-          "저장완료"
+        "결재완료"
       ) {
         statusElement.textContent =
-          existingLog.status ===
-          "결재요청"
-            ? "결재요청"
-            : "작성완료";
+          "결재완료";
+
+        statusElement.className =
+          "shift-member-card__status is-approved";
+
+        return;
+      }
+
+
+      /*
+        결재요청까지 완료한 상태
+      */
+      if (
+        existingLog.status ===
+        "작성완료"
+      ) {
+        statusElement.textContent =
+          "작성완료";
 
         statusElement.className =
           "shift-member-card__status is-complete";
@@ -5813,27 +5845,14 @@ function updateShiftMemberCardStates() {
       }
 
 
-      if (
-        existingLog.status ===
-          "임시저장" ||
-        existingLog.status ===
-          "작성중"
-      ) {
-        statusElement.textContent =
-          "작성중";
-
-        statusElement.className =
-          "shift-member-card__status is-writing";
-
-        return;
-      }
-
-
+      /*
+        저장만 한 상태
+      */
       statusElement.textContent =
-        "작성완료";
+        "작성중";
 
       statusElement.className =
-        "shift-member-card__status is-complete";
+        "shift-member-card__status is-writing";
     }
   );
 }
@@ -8434,9 +8453,9 @@ function saveCurrentLog(status) {
   closeLogEditor();
 
   showToast(
-    status === "결재요청"
-      ? "업무일지를 저장하고 결재를 요청했습니다."
-      : "업무일지를 저장했습니다."
+    status === "작성완료"
+      ? "업무일지 작성을 완료하고 결재를 요청했습니다."
+      : "업무일지를 작성 중 상태로 저장했습니다."
   );
 }
 
@@ -9409,16 +9428,29 @@ function deleteLogById(
   );
 }
 
-function getStatusClass(status) {
-  if (status === "결재완료" || status === "결재요청") {
+function getStatusClass(
+  status
+) {
+  const normalizedStatus =
+    String(
+      status || ""
+    ).trim();
+
+  if (
+    normalizedStatus ===
+    "결재완료"
+  ) {
     return "is-approved";
   }
 
-  if (status === "작성중" || status === "임시저장") {
-    return "is-writing";
+  if (
+    normalizedStatus ===
+    "작성완료"
+  ) {
+    return "is-saved";
   }
 
-  return "is-saved";
+  return "is-writing";
 }
 
 function sortDetailEntriesByTime(
@@ -9706,6 +9738,119 @@ function createNormalDetailEntriesHtml(
       );
     })
     .join("");
+}
+
+/* =========================================================
+  업무일지 결재 확인
+
+  작성완료 상태의 업무일지를
+  파트장이 확인하면 결재완료로 변경한다.
+========================================================= */
+
+function approveCurrentDetailLog() {
+  const currentLogId =
+    String(
+      appState.currentDetailLogId ||
+      ""
+    ).trim();
+
+  if (!currentLogId) {
+    showToast(
+      "결재할 업무일지를 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+  const targetLog =
+    appState.logs.find(
+      (log) => {
+        return (
+          String(
+            log.id || ""
+          ).trim() ===
+          currentLogId
+        );
+      }
+    );
+
+  if (!targetLog) {
+    showToast(
+      "결재할 업무일지를 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+  /*
+    작성완료 상태에서만 결재할 수 있다.
+  */
+  if (
+    targetLog.status !==
+    "작성완료"
+  ) {
+    showToast(
+      targetLog.status ===
+        "결재완료"
+        ? "이미 결재가 완료된 업무일지입니다."
+        : "작성완료 상태의 업무일지만 결재할 수 있습니다."
+    );
+
+    return;
+  }
+
+  const shouldApprove =
+    window.confirm(
+      [
+        "이 업무일지를 결재완료 처리하시겠습니까?",
+        "",
+        `작성일: ${targetLog.date || "-"}`,
+        `근무: ${getShiftDisplayName(targetLog.shift)}`,
+        `보직: ${targetLog.role || "-"}`,
+        `작성자: ${targetLog.author || "-"}`
+      ].join("\n")
+    );
+
+  if (!shouldApprove) {
+    return;
+  }
+
+  targetLog.status =
+    "결재완료";
+
+  targetLog.approvedAt =
+    new Date().toISOString();
+
+  /*
+    현재는 로그인 권한 연결 전이므로
+    화면의 로그인 사용자 이름을 결재자로 저장한다.
+  */
+  targetLog.approvedBy =
+    String(
+      document.getElementById(
+        "headerUserName"
+      )?.textContent ||
+      ""
+    ).trim();
+
+  targetLog.updatedAt =
+    new Date().toISOString();
+
+  persistLogs();
+
+  renderLogTable();
+  updateShiftMemberCardStates();
+
+  /*
+    변경된 상태를 상세화면에 즉시 다시 표시한다.
+  */
+  openLogDetail(
+    targetLog
+  );
+
+  showToast(
+    "업무일지 결재가 완료되었습니다."
+  );
 }
 
 function openLogDetail(log) {
@@ -10554,8 +10699,41 @@ function openLogDetail(log) {
     );
 
 
-  openModal(
-    elements.logDetailModal
+/*
+  작성완료 상태에서만
+  결재확인 버튼을 표시한다.
+*/
+if (
+  elements.approveFromDetailButton
+) {
+  const canApprove =
+    statusText ===
+    "작성완료";
+
+  elements
+    .approveFromDetailButton
+    .hidden =
+    !canApprove;
+}
+
+
+/*
+  결재완료된 업무일지는
+  수정하지 못하도록 수정 버튼을 숨긴다.
+*/
+if (
+  elements.editFromDetailButton
+) {
+  elements
+    .editFromDetailButton
+    .hidden =
+    statusText ===
+    "결재완료";
+}
+
+
+openModal(
+  elements.logDetailModal
   );
 }
 
