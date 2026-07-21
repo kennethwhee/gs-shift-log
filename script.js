@@ -614,21 +614,108 @@ function updateMemberLogImportStatus() {
 
 
 function findMemberLogByRole(role) {
-  const date =
+  const selectedDate =
     elements.logDate?.value ||
     formatInputDate(appState.selectedDate);
 
-  const shift =
+  const selectedShift =
     elements.logShift?.value ||
-    appState.selectedShift;
+    appState.selectedShift ||
+    "";
 
-  return appState.logs.find((log) => {
-    return (
-      log.date === date &&
-      log.shift === shift &&
-      log.role === role
-    );
-  }) || null;
+  const targetRole =
+    normalizeMemberLogRole(role);
+
+  /*
+    같은 날짜와 같은 근무에 작성된 업무일지 중에서
+    해당 보직의 업무일지를 찾는다.
+
+    BCO1과 BO1,
+    BCO2와 BO2는 같은 보직으로 인식한다.
+  */
+  const matchedLogs =
+    appState.logs.filter((log) => {
+      const logDate =
+        String(log.date || "").trim();
+
+      const logShift =
+        String(log.shift || "").trim();
+
+      const logRole =
+        normalizeMemberLogRole(
+          log.role
+        );
+
+      return (
+        logDate === selectedDate &&
+        logShift === selectedShift &&
+        logRole === targetRole
+      );
+    });
+
+  if (!matchedLogs.length) {
+    return null;
+  }
+
+  /*
+    같은 보직의 일지가 여러 개라면
+    가장 최근에 수정된 업무일지를 사용한다.
+  */
+  matchedLogs.sort((a, b) => {
+    const timeA =
+      new Date(
+        a.updatedAt ||
+        a.createdAt ||
+        0
+      ).getTime();
+
+    const timeB =
+      new Date(
+        b.updatedAt ||
+        b.createdAt ||
+        0
+      ).getTime();
+
+    return timeB - timeA;
+  });
+
+  return matchedLogs[0];
+}
+
+function normalizeMemberLogRole(role) {
+  const normalizedRole =
+    String(role || "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, "");
+
+  if (
+    normalizedRole === "TGO"
+  ) {
+    return "TGO";
+  }
+
+  if (
+    normalizedRole === "BCO1" ||
+    normalizedRole === "BO1"
+  ) {
+    return "BCO1";
+  }
+
+  if (
+    normalizedRole === "BCO2" ||
+    normalizedRole === "BO2"
+  ) {
+    return "BCO2";
+  }
+
+  if (
+    normalizedRole === "파트장"
+  ) {
+    return "파트장";
+  }
+
+  return normalizedRole;
 }
 
 
@@ -655,23 +742,38 @@ function updateMemberLogImportCount() {
     `가져온 내역 ${importedCount}건`;
 }
 
-function importMemberLogByRole(role, options = {}) {
+function importMemberLogByRole(
+  requestedRole,
+  options = {}
+) {
   const {
     silent = false
   } = options;
 
+  const normalizedRole =
+    normalizeMemberLogRole(
+      requestedRole
+    );
+
+  const displayRole =
+    normalizedRole === "BCO2"
+      ? "BCO2"
+      : normalizedRole;
+
   const memberLog =
-    findMemberLogByRole(role);
+    findMemberLogByRole(
+      normalizedRole
+    );
 
   if (!memberLog) {
     if (!silent) {
       showToast(
-        `${role} 업무일지가 아직 작성되지 않았습니다.`
+        `${displayRole} 업무일지가 아직 작성되지 않았습니다.`
       );
     }
 
     return {
-      role,
+      role: normalizedRole,
       found: false,
       addedCount: 0,
       duplicateCount: 0
@@ -686,12 +788,12 @@ function importMemberLogByRole(role, options = {}) {
   if (!memberEntries.length) {
     if (!silent) {
       showToast(
-        `${role} 업무일지에 가져올 작업 내역이 없습니다.`
+        `${displayRole} 업무일지에 가져올 내역이 없습니다.`
       );
     }
 
     return {
-      role,
+      role: normalizedRole,
       found: true,
       addedCount: 0,
       duplicateCount: 0
@@ -701,69 +803,98 @@ function importMemberLogByRole(role, options = {}) {
   let addedCount = 0;
   let duplicateCount = 0;
 
-  memberEntries.forEach((entry) => {
-    const importedEntry = {
-      time: entry.time || "",
-      category:
-        entry.category || "인계사항",
-      tag: String(entry.tag || "")
-        .trim()
-        .toUpperCase(),
-      content:
-        String(entry.content || "").trim(),
+  memberEntries.forEach(
+    (entry, entryIndex) => {
+      const importedEntry = {
+        time:
+          String(
+            entry.time || ""
+          ).trim(),
 
-      importedFromRole: role,
-      importedFromAuthor:
-        memberLog.author || "",
-      importedFromLogId:
-        memberLog.id || ""
-    };
+        category:
+          String(
+            entry.category ||
+            "인계사항"
+          ).trim(),
 
-    const importedKey =
-      createLogEntryImportKey(
+        tag:
+          String(entry.tag || "")
+            .trim()
+            .toUpperCase(),
+
+        content:
+          String(
+            entry.content || ""
+          ).trim(),
+
+        /*
+          파트장 업무일지에서
+          어느 보직의 내역인지 구분하기 위한 정보
+        */
+        importedFromRole:
+          normalizedRole,
+
+        importedFromAuthor:
+          String(
+            memberLog.author || ""
+          ).trim(),
+
+        importedFromLogId:
+          String(
+            memberLog.id || ""
+          ).trim(),
+
+        importedFromEntryIndex:
+          entryIndex
+      };
+
+      const importKey =
+        createImportedEntryUniqueKey(
+          importedEntry
+        );
+
+      const alreadyImported =
+        appState.editorEntries.some(
+          (currentEntry) => {
+            return (
+              createImportedEntryUniqueKey(
+                currentEntry
+              ) === importKey
+            );
+          }
+        );
+
+      if (alreadyImported) {
+        duplicateCount += 1;
+        return;
+      }
+
+      appState.editorEntries.push(
         importedEntry
       );
 
-    const alreadyExists =
-      appState.editorEntries.some(
-        (currentEntry) => {
-          return (
-            createLogEntryImportKey(
-              currentEntry
-            ) === importedKey
-          );
-        }
-      );
-
-    if (alreadyExists) {
-      duplicateCount += 1;
-      return;
+      addedCount += 1;
     }
+  );
 
-    appState.editorEntries.push(
-      importedEntry
-    );
-
-    addedCount += 1;
-  });
-
+  sortImportedLogEntries();
   renderLogEntryTable();
   updateMemberLogImportStatus();
 
   if (!silent) {
     if (addedCount > 0) {
       showToast(
-        `${role} 업무일지에서 ${addedCount}건을 가져왔습니다.`
+        `${displayRole} 업무일지에서 ${addedCount}건을 가져왔습니다.`
       );
     } else {
       showToast(
-        `${role} 업무일지의 내역은 이미 모두 가져온 상태입니다.`
+        `${displayRole} 업무일지는 이미 모두 가져온 상태입니다.`
       );
     }
   }
 
   return {
-    role,
+    role: normalizedRole,
     found: true,
     addedCount,
     duplicateCount
@@ -772,6 +903,12 @@ function importMemberLogByRole(role, options = {}) {
 
 
 function importAllMemberLogs() {
+  /*
+    파트장 업무일지에 들어가는 순서
+    1. TGO
+    2. BCO1 또는 BO1
+    3. BCO2 또는 BO2
+  */
   const importOrder = [
     "TGO",
     "BCO1",
@@ -782,6 +919,8 @@ function importAllMemberLogs() {
   let addedCount = 0;
   let duplicateCount = 0;
 
+  const missingRoles = [];
+
   importOrder.forEach((role) => {
     const result =
       importMemberLogByRole(role, {
@@ -790,6 +929,8 @@ function importAllMemberLogs() {
 
     if (result.found) {
       foundRoleCount += 1;
+    } else {
+      missingRoles.push(role);
     }
 
     addedCount +=
@@ -799,25 +940,83 @@ function importAllMemberLogs() {
       result.duplicateCount;
   });
 
+  sortImportedLogEntries();
   renderLogEntryTable();
   updateMemberLogImportStatus();
 
   if (foundRoleCount === 0) {
     showToast(
-      "가져올 팀원 업무일지가 없습니다."
+      "같은 날짜와 근무에 작성된 팀원 업무일지가 없습니다."
     );
     return;
   }
 
   if (addedCount === 0) {
+    if (missingRoles.length) {
+      showToast(
+        `작성된 업무일지는 이미 가져왔습니다. 미작성: ${missingRoles.join(", ")}`
+      );
+      return;
+    }
+
     showToast(
-      "팀원 업무일지의 내역은 이미 모두 가져온 상태입니다."
+      "TGO부터 BCO2까지 이미 모두 가져온 상태입니다."
+    );
+    return;
+  }
+
+  if (missingRoles.length) {
+    showToast(
+      `총 ${addedCount}건을 가져왔습니다. 미작성: ${missingRoles.join(", ")}`
     );
     return;
   }
 
   showToast(
-    `팀원 업무일지에서 총 ${addedCount}건을 가져왔습니다.`
+    `TGO부터 BCO2까지 총 ${addedCount}건을 가져왔습니다.`
+  );
+}
+
+function sortImportedLogEntries() {
+  const roleOrder = {
+    TGO: 1,
+    BCO1: 2,
+    BCO2: 3,
+    파트장: 4
+  };
+
+  appState.editorEntries.sort(
+    (entryA, entryB) => {
+      const roleA =
+        normalizeMemberLogRole(
+          entryA.importedFromRole ||
+          "파트장"
+        );
+
+      const roleB =
+        normalizeMemberLogRole(
+          entryB.importedFromRole ||
+          "파트장"
+        );
+
+      const roleDifference =
+        (
+          roleOrder[roleA] || 99
+        ) -
+        (
+          roleOrder[roleB] || 99
+        );
+
+      if (roleDifference !== 0) {
+        return roleDifference;
+      }
+
+      return String(
+        entryA.time || ""
+      ).localeCompare(
+        String(entryB.time || "")
+      );
+    }
   );
 }
 
@@ -845,6 +1044,60 @@ function createLogEntryImportKey(entry) {
     category,
     tag,
     content
+  ].join("||");
+}
+
+function createImportedEntryUniqueKey(
+  entry
+) {
+  const sourceRole =
+    normalizeMemberLogRole(
+      entry.importedFromRole || ""
+    );
+
+  const sourceLogId =
+    String(
+      entry.importedFromLogId || ""
+    ).trim();
+
+  const sourceEntryIndex =
+    String(
+      entry.importedFromEntryIndex ?? ""
+    );
+
+  /*
+    가져온 내역은 원본 업무일지 ID와
+    원본 항목 위치를 이용해 중복을 판단한다.
+  */
+  if (
+    sourceRole &&
+    sourceLogId &&
+    sourceEntryIndex !== ""
+  ) {
+    return [
+      "IMPORTED",
+      sourceRole,
+      sourceLogId,
+      sourceEntryIndex
+    ].join("||");
+  }
+
+  /*
+    과거에 저장된 데이터처럼
+    원본 항목 번호가 없는 경우에는
+    시간·구분·TAG·내용으로 비교한다.
+  */
+  return [
+    "CONTENT",
+    sourceRole,
+    String(entry.time || "").trim(),
+    String(entry.category || "").trim(),
+    String(entry.tag || "")
+      .trim()
+      .toUpperCase(),
+    String(entry.content || "")
+      .trim()
+      .replace(/\s+/g, " ")
   ].join("||");
 }
 
@@ -2178,11 +2431,19 @@ function addOrUpdateLogEntry() {
 function renderLogEntryTable() {
   const entries = appState.editorEntries;
 
-  elements.logEntryCount.textContent =
-    `총 ${entries.length}건`;
+  if (elements.logEntryCount) {
+    elements.logEntryCount.textContent =
+      `총 ${entries.length}건`;
+  }
 
-  elements.logEntriesJson.value =
-    JSON.stringify(entries);
+  if (elements.logEntriesJson) {
+    elements.logEntriesJson.value =
+      JSON.stringify(entries);
+  }
+
+  if (!elements.logEntryTableBody) {
+    return;
+  }
 
   if (!entries.length) {
     elements.logEntryTableBody.innerHTML = `
@@ -2193,6 +2454,7 @@ function renderLogEntryTable() {
       </tr>
     `;
 
+    updateMemberLogImportCount();
     return;
   }
 
@@ -2200,6 +2462,49 @@ function renderLogEntryTable() {
     .map((entry, index) => {
       const isEditing =
         index === appState.editingEntryIndex;
+
+      /*
+        팀원 업무일지에서 가져온 항목이면
+        TGO / BCO1 / BCO2를 표시한다.
+
+        파트장이 직접 작성한 항목이면
+        파트장으로 표시한다.
+      */
+      const sourceRole =
+        String(
+          entry.importedFromRole ||
+          (
+            elements.logRole?.value === "파트장"
+              ? "파트장"
+              : elements.logRole?.value || ""
+          )
+        ).trim();
+
+      const sourceAuthor =
+        String(
+          entry.importedFromAuthor || ""
+        ).trim();
+
+      const sourceClass =
+        getLogEntrySourceClass(sourceRole);
+
+      const sourceTitle = sourceAuthor
+        ? `${sourceRole} · ${sourceAuthor}`
+        : sourceRole;
+
+      const sourceBadgeHtml = sourceRole
+        ? `
+          <span
+            class="
+              log-entry-source-badge
+              ${sourceClass}
+            "
+            title="${escapeHtml(sourceTitle)}"
+          >
+            ${escapeHtml(sourceRole)}
+          </span>
+        `
+        : "";
 
       const tagHtml = entry.tag
         ? `
@@ -2225,7 +2530,13 @@ function renderLogEntryTable() {
           </td>
 
           <td>
-            ${escapeHtml(entry.category || "-")}
+            <div class="log-entry-category-cell">
+              ${sourceBadgeHtml}
+
+              <span class="log-entry-category-text">
+                ${escapeHtml(entry.category || "-")}
+              </span>
+            </div>
           </td>
 
           <td>
@@ -2263,6 +2574,38 @@ function renderLogEntryTable() {
       `;
     })
     .join("");
+
+  updateMemberLogImportCount();
+}
+
+function getLogEntrySourceClass(role) {
+  const normalizedRole =
+    String(role || "")
+      .trim()
+      .toUpperCase();
+
+  if (normalizedRole === "TGO") {
+    return "is-tgo";
+  }
+
+  if (normalizedRole === "BCO1") {
+    return "is-bco1";
+  }
+
+  if (
+    normalizedRole === "BCO2" ||
+    normalizedRole === "BO2"
+  ) {
+    return "is-bco2";
+  }
+
+  if (
+    normalizedRole === "파트장"
+  ) {
+    return "is-leader";
+  }
+
+  return "is-default";
 }
 
 function handleLogEntryTableClick(event) {

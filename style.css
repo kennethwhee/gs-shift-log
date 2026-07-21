@@ -2593,3 +2593,90 @@ body.modal-open {
     align-self: flex-start;
   }
 }
+
+/* =========================================================
+  업무일지 작성 보직 표시
+========================================================= */
+
+.log-entry-category-cell {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.log-entry-category-text {
+  min-width: 0;
+  overflow: hidden;
+  color: #34465c;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-entry-source-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 23px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* TGO */
+.log-entry-source-badge.is-tgo {
+  border-color: #9fc3ef;
+  background: #eaf3ff;
+  color: #2265ac;
+}
+
+/* BCO1 */
+.log-entry-source-badge.is-bco1 {
+  border-color: #a8d9bd;
+  background: #edf9f2;
+  color: #26784b;
+}
+
+/* BCO2 */
+.log-entry-source-badge.is-bco2 {
+  border-color: #d5b9ed;
+  background: #f6effc;
+  color: #74419c;
+}
+
+/* 파트장 직접 작성 */
+.log-entry-source-badge.is-leader {
+  border-color: #e4c48c;
+  background: #fff7e8;
+  color: #97641d;
+}
+
+.log-entry-source-badge.is-default {
+  border-color: #ced7e2;
+  background: #f3f6f9;
+  color: #66778a;
+}
+
+@media (max-width: 600px) {
+  .log-entry-category-cell {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .log-entry-source-badge {
+    min-width: 40px;
+    min-height: 20px;
+    padding: 3px 7px;
+    font-size: 9px;
+  }
+}
