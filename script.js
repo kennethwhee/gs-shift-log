@@ -4302,18 +4302,16 @@ async function moveSelectedDateToToday() {
   updateShiftMemberCardStates();
 }
 
-
 function renderSelectedDate() {
-  const dateText = formatKoreanDate(appState.selectedDate);
+  const dateText =
+    formatKoreanDate(
+      appState.selectedDate
+    );
 
-  elements.selectedDateText.textContent = dateText;
   const shiftDisplayName =
     getShiftDisplayName(
       appState.selectedShift
     );
-
-  elements.selectedShiftBadge.textContent =
-    shiftDisplayName;
 
   const scheduledPart =
     getScheduledPart(
@@ -4321,14 +4319,80 @@ function renderSelectedDate() {
       appState.selectedShift
     );
 
-  elements.currentShiftLabel.textContent =
-    [
-      dateText,
-      shiftDisplayName,
-      scheduledPart
-    ]
-      .filter(Boolean)
-      .join(" · ");
+
+  /*
+    날짜 이동 영역
+  */
+  if (
+    elements.selectedDateText
+  ) {
+    elements.selectedDateText.textContent =
+      dateText;
+  }
+
+  if (
+    elements.selectedShiftBadge
+  ) {
+    elements.selectedShiftBadge.textContent =
+      shiftDisplayName;
+  }
+
+
+  /*
+    오른쪽 현재 근무 표시
+  */
+  if (
+    elements.currentShiftLabel
+  ) {
+    elements.currentShiftLabel.textContent =
+      [
+        dateText,
+        shiftDisplayName,
+        scheduledPart
+      ]
+        .filter(Boolean)
+        .join(" · ");
+  }
+
+
+  /*
+    근무자 현황 제목 옆에
+    현재 파트를 표시한다.
+
+    예:
+    근무자 현황 (2파트)
+  */
+  const shiftSectionTitle =
+    document.querySelector(
+      ".shift-member-grid"
+    )
+      ?.closest(
+        ".content-section"
+      )
+      ?.querySelector(
+        ".section-heading__title"
+      );
+
+  if (shiftSectionTitle) {
+    shiftSectionTitle.innerHTML = `
+      근무자 현황
+
+      ${
+        scheduledPart
+          ? `
+            <span
+              class="shift-section-part"
+            >
+              (${escapeHtml(
+                scheduledPart
+              )})
+            </span>
+          `
+          : ""
+      }
+    `;
+  }
+
 
   setEditorDateFromSelectedDate();
 }

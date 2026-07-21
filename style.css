@@ -5574,3 +5574,101 @@ td {
   line-height: 1.4;
   white-space: nowrap;
 }
+
+/* =========================================================
+   근무자 현황 파트 표시
+========================================================= */
+
+.shift-section-part {
+  display: inline-block;
+  margin-left: 5px;
+  color: #1f5fae;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  vertical-align: baseline;
+}
+
+
+/* =========================================================
+   업무일지 표 세로 경계선
+
+   보직 | 작성자 | 상태 | 첨부 | 업무 내용 | 관리
+========================================================= */
+
+.log-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+
+/*
+   모든 제목 셀과 내용 셀의 오른쪽에
+   연한 세로선을 표시한다.
+*/
+.log-table th,
+.log-table td {
+  border-right: 1px solid #d9e3ed;
+}
+
+
+/*
+   마지막 관리 열에는 오른쪽 선을 넣지 않는다.
+*/
+.log-table th:last-child,
+.log-table td:last-child {
+  border-right: 0;
+}
+
+
+/*
+   기존 가로 경계선도 동일한 톤으로 정리한다.
+*/
+.log-table th,
+.log-table td {
+  border-bottom-color: #d9e3ed;
+}
+
+
+/*
+   헤더 경계선을 조금 더 선명하게 표시한다.
+*/
+.log-table thead th {
+  border-right-color: #cedae6;
+  border-bottom: 1px solid #cbd8e5;
+}
+
+
+/*
+   업무내용 셀 안의 운전현황·TM·인계 구역선은
+   이전에 적용한 가로선 형태를 유지한다.
+*/
+.log-row__preview-cell {
+  position: relative;
+  text-align: left;
+}
+
+
+/* =========================================================
+   첫 열과 마지막 열 모서리 유지
+========================================================= */
+
+.log-table thead th:first-child {
+  border-top-left-radius: 11px;
+}
+
+.log-table thead th:last-child {
+  border-top-right-radius: 11px;
+}
+
+
+/* =========================================================
+   모바일
+========================================================= */
+
+@media (max-width: 760px) {
+  .shift-section-part {
+    margin-left: 3px;
+    font-size: 18px;
+  }
+}
