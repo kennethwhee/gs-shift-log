@@ -6496,6 +6496,9 @@ function renderLogTable() {
 function createLogRowHtml(log) {
   const previewGroups = [];
 
+  /*
+    1. 운전현황
+  */
   if (
     String(
       log.operationStatus || ""
@@ -6503,106 +6506,238 @@ function createLogRowHtml(log) {
   ) {
     previewGroups.push({
       title: "운전현황",
-      text: firstMeaningfulLine(
-        log.operationStatus
-      ),
+
+      text:
+        firstMeaningfulLine(
+          log.operationStatus
+        ),
+
       tag: "",
-      categoryClass: "is-operation"
+
+      categoryClass:
+        "is-operation"
     });
   }
 
+
+  /*
+    전체 작업 내역
+  */
   const entries =
     Array.isArray(log.entries)
-      ? sortDetailEntriesByTime(
-          log.entries
-        )
+      ? log.entries
       : [];
 
-  let handoverNumber = 0;
-  let tmNumber = 0;
 
-  let hasShownHandoverTitle =
-    false;
+  /*
+    2. TM 발행 내역
 
-  let hasShownTmTitle =
-    false;
+    모든 보직의 TM 내역을 하나로 모아서
+    번호를 연속으로 표시한다.
+  */
+  const tmEntries =
+    sortDetailEntriesByTime(
+      entries.filter((entry) => {
+        return (
+          String(
+            entry.category || ""
+          ).trim() ===
+          "TM 발행"
+        );
+      })
+    );
 
-  entries.forEach((entry) => {
-    const category =
-      String(
-        entry.category || ""
-      ).trim();
+  tmEntries.forEach(
+    (
+      entry,
+      index
+    ) => {
+      const tagText =
+        String(
+          entry.tag || ""
+        )
+          .trim()
+          .toUpperCase();
 
-    const isTmIssue =
-      category === "TM 발행";
+      const contentText =
+        firstMeaningfulLine(
+          entry.content
+        ) || "-";
 
-    const tagText =
-      String(
-        entry.tag || ""
-      )
-        .trim()
-        .toUpperCase();
+      previewGroups.push({
+        title:
+          index === 0
+            ? "TM"
+            : "",
 
-    const timeText =
-      String(
-        entry.time || ""
-      ).trim();
+        tag:
+          tagText
+            ? `[${tagText}]`
+            : "",
 
-    const contentText =
-      firstMeaningfulLine(
-        entry.content
-      ) || "-";
+        text:
+          `${index + 1}. ${contentText}`,
 
-    let displayTitle = "";
-    let entryNumber = 0;
+        categoryClass:
+          "is-maintenance"
+      });
+    }
+  );
 
-    if (isTmIssue) {
-      tmNumber += 1;
-      entryNumber = tmNumber;
 
-      if (!hasShownTmTitle) {
-        displayTitle = "TM";
-        hasShownTmTitle = true;
-      }
-    } else {
-      handoverNumber += 1;
-      entryNumber =
-        handoverNumber;
+  /*
+    3. 인계사항
+  */
+  const handoverEntries =
+    entries.filter((entry) => {
+      return (
+        String(
+          entry.category || ""
+        ).trim() !==
+        "TM 발행"
+      );
+    });
+
+
+  /*
+    보직 표시 순서
+  */
+  const roleOrder = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2",
+    "파트장"
+  ];
+
+
+  /*
+    보직별 내역 묶기
+  */
+  const groupedEntries = {};
+
+  handoverEntries.forEach(
+    (entry) => {
+      const sourceRole =
+        normalizeMemberLogRole(
+          entry.importedFromRole ||
+          log.role ||
+          "파트장"
+        );
 
       if (
-        !hasShownHandoverTitle
+        !groupedEntries[
+          sourceRole
+        ]
       ) {
-        displayTitle = "인계";
-        hasShownHandoverTitle =
-          true;
+        groupedEntries[
+          sourceRole
+        ] = [];
       }
+
+      groupedEntries[
+        sourceRole
+      ].push(entry);
     }
+  );
 
-    const displayText = [
-      `${entryNumber}.`,
-      timeText,
-      contentText
-    ]
-      .filter(Boolean)
-      .join(" ");
 
-    previewGroups.push({
-      title: displayTitle,
+  /*
+    표시할 보직 순서
+  */
+  const orderedRoles = [
+    ...roleOrder.filter(
+      (role) => {
+        return Boolean(
+          groupedEntries[
+            role
+          ]?.length
+        );
+      }
+    ),
 
-      tag:
-        tagText
-          ? `[${tagText}]`
-          : "",
+    ...Object.keys(
+      groupedEntries
+    ).filter((role) => {
+      return (
+        !roleOrder.includes(
+          role
+        )
+      );
+    })
+  ];
 
-      text: displayText,
 
-      categoryClass:
-        isTmIssue
-          ? "is-maintenance"
-          : "is-handover"
-    });
-  });
+  /*
+    보직별 번호를 1번부터 다시 시작
+  */
+  orderedRoles.forEach(
+    (role) => {
+      const roleEntries =
+        sortDetailEntriesByTime(
+          groupedEntries[
+            role
+          ]
+        );
 
+      roleEntries.forEach(
+        (
+          entry,
+          index
+        ) => {
+          const tagText =
+            String(
+              entry.tag || ""
+            )
+              .trim()
+              .toUpperCase();
+
+          const timeText =
+            String(
+              entry.time || ""
+            ).trim();
+
+          const contentText =
+            firstMeaningfulLine(
+              entry.content
+            ) || "-";
+
+          const displayText = [
+            `${index + 1}.`,
+            timeText,
+            contentText
+          ]
+            .filter(Boolean)
+            .join(" ");
+
+          previewGroups.push({
+            title:
+              index === 0
+                ? role
+                : "",
+
+            tag:
+              tagText
+                ? `[${tagText}]`
+                : "",
+
+            text:
+              displayText,
+
+            categoryClass:
+              "is-handover"
+          });
+        }
+      );
+    }
+  );
+
+
+  /*
+    4. 비고
+  */
   if (
     String(
       log.note || ""
@@ -6610,13 +6745,19 @@ function createLogRowHtml(log) {
   ) {
     previewGroups.push({
       title: "비고",
-      text: firstMeaningfulLine(
-        log.note
-      ),
+
+      text:
+        firstMeaningfulLine(
+          log.note
+        ),
+
       tag: "",
-      categoryClass: "is-note"
+
+      categoryClass:
+        "is-note"
     });
   }
+
 
   const attachmentCount =
     Array.isArray(
@@ -6624,6 +6765,7 @@ function createLogRowHtml(log) {
     )
       ? log.attachments.length
       : 0;
+
 
   return `
     <tr class="log-row">
@@ -6760,6 +6902,7 @@ function createLogRowHtml(log) {
 
       <td class="log-row__actions-cell">
         <div class="row-actions">
+
           <button
             type="button"
             class="table-action-button"
@@ -6775,6 +6918,21 @@ function createLogRowHtml(log) {
                 : "수정"
             }
           </button>
+
+          <button
+            type="button"
+            class="
+              table-action-button
+              is-delete
+            "
+            data-action="delete"
+            data-log-id="${escapeHtml(
+              log.id
+            )}"
+          >
+            삭제
+          </button>
+
         </div>
       </td>
 
@@ -6782,7 +6940,9 @@ function createLogRowHtml(log) {
   `;
 }
 
-function handleLogTableClick(event) {
+function handleLogTableClick(
+  event
+) {
   const actionElement =
     event.target.closest(
       "[data-action][data-log-id]"
@@ -6818,12 +6978,15 @@ function handleLogTableClick(event) {
   }
 
   const log =
-    appState.logs.find((item) => {
-      return (
-        String(item.id || "") ===
-        logId
-      );
-    });
+    appState.logs.find(
+      (item) => {
+        return (
+          String(
+            item.id || ""
+          ) === logId
+        );
+      }
+    );
 
   if (!log) {
     showToast(
@@ -6833,16 +6996,108 @@ function handleLogTableClick(event) {
     return;
   }
 
+
+  /*
+    수정
+  */
   if (action === "edit") {
     openLogEditor(log);
     return;
   }
 
+
+  /*
+    상세보기
+  */
   if (action === "view") {
     openLogDetail(log);
+    return;
+  }
+
+
+  /*
+    삭제
+  */
+  if (action === "delete") {
+    deleteLogById(
+      log.id
+    );
   }
 }
 
+function deleteLogById(
+  logId
+) {
+  const targetLog =
+    appState.logs.find(
+      (log) => {
+        return (
+          String(
+            log.id || ""
+          ) ===
+          String(
+            logId || ""
+          )
+        );
+      }
+    );
+
+  if (!targetLog) {
+    showToast(
+      "삭제할 업무일지를 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+  const shouldDelete =
+    window.confirm(
+      [
+        "이 업무일지를 삭제하시겠습니까?",
+        "",
+        `날짜: ${targetLog.date || "-"}`,
+        `근무: ${targetLog.shift || "-"}`,
+        `보직: ${targetLog.role || "-"}`,
+        `작성자: ${targetLog.author || "-"}`
+      ].join("\n")
+    );
+
+  if (!shouldDelete) {
+    return;
+  }
+
+  appState.logs =
+    appState.logs.filter(
+      (log) => {
+        return (
+          String(
+            log.id || ""
+          ) !==
+          String(
+            logId || ""
+          )
+        );
+      }
+    );
+
+
+  /*
+    새 시스템에서 작성한 업무일지만
+    브라우저 저장소에 반영한다.
+
+    기존 서버에서 불러온 업무일지는
+    새로고침하거나 날짜를 다시 열면
+    서버에서 다시 나타난다.
+  */
+  persistLogs();
+
+  renderLogTable();
+  updateShiftMemberCardStates();
+
+  showToast(
+    "업무일지를 삭제했습니다."
+  );
+}
 
 function getStatusClass(status) {
   if (status === "결재완료" || status === "결재요청") {
