@@ -13900,3 +13900,605 @@ tbody tr:hover td {
 
   background: transparent !important;
 }
+
+/* =========================================================
+   조회 목록 업무내용 전용 최종 디자인
+
+   해결 항목:
+   1. TM 번호·시간·TAG·내용을 같은 줄에서 시작
+   2. 긴 내용만 본문 시작 위치에서 줄바꿈
+   3. 보직 업무일지 제목 박스 제거
+   4. TGO·BCO1·BCO2·TO·BO1·BO2 글자색 유지
+   5. 메인 목록 log-preview__* 스타일과 완전 분리
+========================================================= */
+
+
+/* =========================================================
+   조회 업무내용 전체
+========================================================= */
+
+.search-preview-document {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0;
+
+  margin: 0;
+  padding: 0;
+
+  color: #26364b;
+  text-align: left;
+}
+
+
+/* =========================================================
+   운전현황 · TM · 인계 · 비고
+
+   왼쪽 제목 | 오른쪽 내용
+========================================================= */
+
+.search-preview-section {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    88px
+    minmax(0, 1fr);
+
+  align-items: start;
+  column-gap: 10px;
+
+  margin: 0;
+  padding: 4px 2px;
+
+  border: 0;
+  background: transparent;
+}
+
+
+.search-preview-section
++
+.search-preview-section,
+.search-preview-role-section
++
+.search-preview-section,
+.search-preview-section
++
+.search-preview-role-section {
+  margin-top: 5px;
+  padding-top: 8px;
+  border-top: 1px solid #d5e0ea;
+}
+
+
+/* =========================================================
+   왼쪽 제목
+========================================================= */
+
+.search-preview-section__title {
+  display: block;
+
+  width: 88px;
+  min-width: 88px;
+
+  margin: 0;
+  padding: 1px 0;
+
+  border: 0;
+  border-radius: 0;
+
+  background: transparent;
+  box-shadow: none;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.55;
+
+  text-align: left;
+  white-space: nowrap;
+}
+
+
+/* 운전현황 */
+
+.search-preview-section.is-operation
+.search-preview-section__title {
+  color: #1f5fae;
+}
+
+
+/* TM */
+
+.search-preview-section.is-tm
+.search-preview-section__title {
+  color: #17865f;
+}
+
+
+/* 인계 */
+
+.search-preview-section.is-handover
+.search-preview-section__title {
+  color: #b87412;
+}
+
+
+/* 비고 */
+
+.search-preview-section.is-note
+.search-preview-section__title {
+  color: #667181;
+}
+
+
+/* =========================================================
+   오른쪽 내용 영역
+========================================================= */
+
+.search-preview-section__content {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+
+  flex-direction: column;
+  gap: 2px;
+
+  margin: 0;
+  padding: 0;
+}
+
+
+/* =========================================================
+   개별 업무 항목
+
+   번호 | 시간 + TAG + 내용
+========================================================= */
+
+.search-preview-entry {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    24px
+    minmax(0, 1fr);
+
+  align-items: baseline;
+  column-gap: 6px;
+
+  margin: 0;
+  padding: 1px 0;
+
+  color: #26364b;
+  font-size: 12px;
+  line-height: 1.55;
+
+  text-align: left;
+}
+
+
+/* =========================================================
+   번호
+========================================================= */
+
+.search-preview-entry__number {
+  display: block;
+
+  width: 24px;
+  min-width: 24px;
+
+  margin: 0;
+  padding: 0;
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: inherit;
+
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* TM 번호 */
+
+.search-preview-entry.is-tm
+.search-preview-entry__number {
+  color: #b87412;
+}
+
+
+/* 인계 및 일반 업무 번호 */
+
+.search-preview-entry.is-handover
+.search-preview-entry__number {
+  color: #1f5fae;
+}
+
+
+/* =========================================================
+   시간·TAG·내용 본문
+
+   세 요소 모두 같은 문장 흐름으로 표시한다.
+========================================================= */
+
+.search-preview-entry__body {
+  display: block;
+  width: 100%;
+  min-width: 0;
+
+  margin: 0;
+  padding: 0;
+
+  color: #26364b;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: inherit;
+
+  text-align: left;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+   시간
+
+   예:
+   08:37~09:46
+   09:06, 14:19, 16:15
+========================================================= */
+
+.search-preview-entry__time {
+  display: inline;
+
+  margin: 0 5px 0 0;
+  padding: 0;
+
+  color: #1f5fae;
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: inherit;
+
+  vertical-align: baseline;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* =========================================================
+   TAG
+
+   박스 없이 내용과 같은 줄
+========================================================= */
+
+.search-preview-entry__tag {
+  display: inline;
+
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+
+  margin: 0 5px 0 0;
+  padding: 0;
+
+  border: 0;
+  border-radius: 0;
+
+  background: transparent;
+  box-shadow: none;
+
+  color: #1763c5;
+
+  font-family:
+    Consolas,
+    "Courier New",
+    monospace;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: inherit;
+
+  vertical-align: baseline;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+
+.search-preview-entry__tag:hover {
+  color: #0b4694;
+  text-decoration: underline;
+}
+
+
+/* =========================================================
+   실제 업무내용
+========================================================= */
+
+.search-preview-entry__text {
+  display: inline;
+
+  min-width: 0;
+
+  margin: 0;
+  padding: 0;
+
+  color: #26364b;
+
+  font-size: 12px;
+  font-weight: 650;
+  line-height: inherit;
+
+  vertical-align: baseline;
+
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+   보직별 업무일지 영역
+========================================================= */
+
+.search-preview-role-section {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    88px
+    minmax(0, 1fr);
+
+  align-items: start;
+  column-gap: 10px;
+
+  margin: 5px 0 0;
+  padding: 8px 2px 4px;
+
+  border-top: 1px solid #d5e0ea;
+  background: transparent;
+}
+
+
+/*
+   첫 번째 보직 영역은
+   바로 앞 TM 구역과 선을 공유한다.
+*/
+
+.search-preview-section.is-tm
++
+.search-preview-role-section {
+  margin-top: 5px;
+}
+
+
+/* =========================================================
+   보직 제목
+
+   테두리·배경·둥근 박스 없이 글자만 표시
+========================================================= */
+
+.search-preview-role-title {
+  display: block;
+
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+
+  margin: 0;
+  padding: 1px 0;
+
+  border: 0;
+  border-radius: 0;
+
+  background: transparent;
+  box-shadow: none;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.55;
+
+  text-align: left;
+  white-space: nowrap;
+}
+
+
+/* TGO */
+
+.search-preview-role-title.is-tgo {
+  color: #1f5fae;
+}
+
+
+/* BCO1 */
+
+.search-preview-role-title.is-bco1 {
+  color: #17865f;
+}
+
+
+/* BCO2 */
+
+.search-preview-role-title.is-bco2 {
+  color: #74419c;
+}
+
+
+/* TO */
+
+.search-preview-role-title.is-to {
+  color: #70439a;
+}
+
+
+/* BO1 */
+
+.search-preview-role-title.is-bo1 {
+  color: #925612;
+}
+
+
+/* BO2 */
+
+.search-preview-role-title.is-bo2 {
+  color: #925612;
+}
+
+
+/* 파트장 직접 작성 */
+
+.search-preview-role-title.is-leader {
+  color: #8c601d;
+}
+
+
+/* 기타 보직 */
+
+.search-preview-role-title.is-default {
+  color: #596b80;
+}
+
+
+/* =========================================================
+   보직별 업무내용
+========================================================= */
+
+.search-preview-role-content {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+
+  flex-direction: column;
+  gap: 2px;
+
+  margin: 0;
+  padding: 0;
+}
+
+
+/* =========================================================
+   운전현황·비고
+========================================================= */
+
+.search-preview-operation,
+.search-preview-note {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+
+  margin: 0;
+  padding: 1px 0;
+
+  color: #26364b;
+
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.55;
+
+  text-align: left;
+
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+   내용 없음
+========================================================= */
+
+.search-preview-empty {
+  display: block;
+
+  margin: 0;
+  padding: 5px 0;
+
+  color: #8994a3;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  text-align: left;
+}
+
+
+/* =========================================================
+   조회 결과 표 안에서 폭 확보
+========================================================= */
+
+.search-log-preview {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  background: transparent;
+
+  text-align: left;
+}
+
+
+.search-log-preview-cell {
+  min-width: 0;
+
+  padding:
+    10px
+    14px !important;
+
+  text-align: left !important;
+  vertical-align: top !important;
+}
+
+
+/* =========================================================
+   좁은 PC 화면
+========================================================= */
+
+@media (max-width: 1200px) {
+  .search-preview-section,
+  .search-preview-role-section {
+    grid-template-columns:
+      80px
+      minmax(0, 1fr);
+
+    column-gap: 8px;
+  }
+
+
+  .search-preview-section__title {
+    width: 80px;
+    min-width: 80px;
+
+    font-size: 10px;
+  }
+
+
+  .search-preview-role-title {
+    font-size: 10px;
+  }
+
+
+  .search-preview-entry {
+    grid-template-columns:
+      22px
+      minmax(0, 1fr);
+
+    column-gap: 5px;
+  }
+
+
+  .search-preview-entry__number {
+    width: 22px;
+    min-width: 22px;
+  }
+}
