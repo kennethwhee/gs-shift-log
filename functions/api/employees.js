@@ -206,7 +206,141 @@ export async function onRequestGet(
   context
 ) {
   try {
-    const employees =
+    const requestUrl =
+      new URL(
+        context.request.url
+      );
+
+
+    const requestType =
+      normalizeText(
+        requestUrl.searchParams.get(
+          "type"
+        )
+      )
+        .toLowerCase();
+
+
+    /* ==================================================
+      가입 완료 로그인 계정 조회
+
+      GET /api/employees?type=users
+    ================================================== */
+
+    if (
+      requestType ===
+      "users"
+    ) {
+      const userQueryResult =
+        await context.env.DB
+          .prepare(`
+            SELECT
+              id,
+              employee_no,
+              name,
+              role,
+              is_active,
+              approved_at,
+              approved_by,
+              last_login_at,
+              created_at
+            FROM users
+            ORDER BY
+              name COLLATE NOCASE ASC,
+              employee_no ASC
+          `)
+          .all();
+
+
+      const users =
+        Array.isArray(
+          userQueryResult.results
+        )
+          ? userQueryResult.results
+          : [];
+
+
+      const approvedUsers =
+        users.map(
+          user => {
+            return {
+              id:
+                Number(
+                  user.id
+                ),
+
+              employeeNo:
+                String(
+                  user.employee_no ||
+                  ""
+                ),
+
+              name:
+                String(
+                  user.name ||
+                  ""
+                ),
+
+              role:
+                String(
+                  user.role ||
+                  "user"
+                ),
+
+              isActive:
+                Number(
+                  user.is_active
+                ) === 1,
+
+              approvedAt:
+                user.approved_at ||
+                "",
+
+              approvedBy:
+                user.approved_by ||
+                "",
+
+              lastLoginAt:
+                user.last_login_at ||
+                "",
+
+              createdAt:
+                user.created_at ||
+                ""
+            };
+          }
+        );
+
+
+      return jsonResponse({
+        ok:
+          true,
+
+        success:
+          true,
+
+        type:
+          "users",
+
+        approvedUsers,
+
+        users:
+          approvedUsers,
+
+        totalCount:
+          approvedUsers.length
+      });
+    }
+
+
+    /* ==================================================
+      직원 명단 조회
+
+      GET /api/employees
+      GET /api/employees?type=employees
+    ================================================== */
+
+    const employeeQueryResult =
       await context.env.DB
         .prepare(`
           SELECT
@@ -222,20 +356,18 @@ export async function onRequestGet(
         .all();
 
 
-    const results =
+    const employees =
       Array.isArray(
-        employees.results
+        employeeQueryResult.results
       )
-        ? employees.results
+        ? employeeQueryResult.results
         : [];
 
 
-    return jsonResponse({
-      ok: true,
-
-      employees:
-        results.map(
-          employee => ({
+    const normalizedEmployees =
+      employees.map(
+        employee => {
+          return {
             employeeNo:
               String(
                 employee.employee_no ||
@@ -258,22 +390,47 @@ export async function onRequestGet(
               Number(
                 employee.is_allowed
               ) === 1
-          })
-        )
+          };
+        }
+      );
+
+
+    return jsonResponse({
+      ok:
+        true,
+
+      success:
+        true,
+
+      type:
+        "employees",
+
+      employees:
+        normalizedEmployees,
+
+      totalCount:
+        normalizedEmployees.length
     });
 
   } catch (error) {
     console.error(
-      "직원 명단 조회 오류:",
+      "직원 및 계정 목록 조회 오류:",
       error
     );
 
+
     return jsonResponse(
       {
-        ok: false,
+        ok:
+          false,
+
+        success:
+          false,
 
         message:
-          "직원 명단을 불러오는 중 오류가 발생했습니다.",
+          error instanceof Error
+            ? error.message
+            : String(error),
 
         error:
           error instanceof Error
