@@ -2611,6 +2611,16 @@ function convertLegacyDiaryToLog(
   };
 }
 
+/* =========================================================
+  기존 업무일지 내용 줄 분석
+
+  신규 업무 입력과 동일하게 지원:
+
+  09:06, 14:19, 16:15 내용
+  08:37~09:46 내용
+  0837~0946 내용
+========================================================= */
+
 function parseLegacyDiaryContentLines(
   rawContent
 ) {
@@ -2618,104 +2628,67 @@ function parseLegacyDiaryContentLines(
     String(
       rawContent || ""
     )
-      .replace(/\r\n/g, "\n")
-      .replace(/\r/g, "\n")
-      .split("\n");
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .split(
+        "\n"
+      );
+
 
   const parsedEntries = [];
 
+
   sourceLines.forEach(
     (sourceLine) => {
-      /*
-        줄 앞뒤의 불필요한 공백을 제거한다.
-
-        첫 번째 줄이 오른쪽으로 밀려 있던 문제도
-        여기서 함께 해결된다.
-      */
       let line =
         String(
           sourceLine || ""
         ).trim();
 
+
       if (!line) {
         return;
       }
 
-      /*
-        사용자가 직접 입력한 번호를 제거한다.
 
-        예:
+      /*
+        사용자가 직접 입력한 줄 번호 제거
+
         1. 내용
         2) 내용
         3 - 내용
         ④ 내용
       */
-      line = line.replace(
-        /^(?:\d+\s*[.)\-:]\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*)/,
-        ""
-      );
+      line =
+        line.replace(
+          /^(?:\d+\s*[.)\-:]\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*)/,
+          ""
+        )
+        .trim();
 
-      line = line.trim();
 
       if (!line) {
         return;
       }
 
-      /*
-        줄의 맨 앞에 있는 시간을 찾는다.
-
-        예:
-        19:10 Spiess Valve 동작 Test
-        19:30 / 21:30 / 02:30 Bed Ash 배출
-      */
-      const timeMatch =
-        line.match(
-          /^([01]?\d|2[0-3]):([0-5]\d)\s*(.*)$/
-        );
-
-      if (timeMatch) {
-        const hour =
-          String(
-            Number(
-              timeMatch[1]
-            )
-          ).padStart(
-            2,
-            "0"
-          );
-
-        const minute =
-          timeMatch[2];
-
-        const content =
-          String(
-            timeMatch[3] ||
-            ""
-          ).trim();
-
-        if (!content) {
-          return;
-        }
-
-        parsedEntries.push({
-          time:
-            `${hour}:${minute}`,
-
-          content
-        });
-
-        return;
-      }
 
       /*
-        시간 없이 시작하는 줄 중에서
-        -, ·, ※ 등으로 시작하는 보충 설명은
-        바로 위 항목에 이어 붙인다.
+        시간 없는 보충 설명인지 먼저 확인한다.
+
+        - 현장 확인 후 재기동
+        → 바로 위 업무 내용에 이어 붙임
       */
       const isContinuationLine =
-        /^[-–—·※▶▷→]/.test(
+        /^[-–—·※▶▷→>]/.test(
           line
         );
+
 
       if (
         isContinuationLine &&
@@ -2726,6 +2699,7 @@ function parseLegacyDiaryContentLines(
             parsedEntries.length - 1
           ];
 
+
         previousEntry.content = [
           previousEntry.content,
           line
@@ -2733,23 +2707,66 @@ function parseLegacyDiaryContentLines(
           .filter(Boolean)
           .join("\n");
 
+
         return;
       }
 
+
       /*
-        시간 없는 일반 문장은
-        별도의 인계사항으로 등록한다.
+        신규 업무 입력과 같은 공통 분석 함수 사용
+      */
+      const parsedTimeExpression =
+        parseLeadingLogTimeExpression(
+          line
+        );
+
+
+      /*
+        시간과 실제 내용이 모두 있는 경우
+      */
+      if (
+        parsedTimeExpression.timeText &&
+        parsedTimeExpression.content
+      ) {
+        parsedEntries.push({
+          time:
+            parsedTimeExpression.timeText,
+
+          content:
+            parsedTimeExpression.content
+        });
+
+
+        return;
+      }
+
+
+      /*
+        시간만 있고 내용이 없는 줄은
+        독립 업무로 등록하지 않는다.
+      */
+      if (
+        parsedTimeExpression.timeText &&
+        !parsedTimeExpression.content
+      ) {
+        return;
+      }
+
+
+      /*
+        시간 없는 일반 문장
       */
       parsedEntries.push({
         time: "",
-        content: line
+        content:
+          line
       });
     }
   );
 
+
   return parsedEntries;
 }
-
 /* =========================================================
   기존 body index 내용 가져오기
 ========================================================= */
@@ -7854,17 +7871,31 @@ function normalizeContentTimeToken(
 }
 
 
-/*
-  내용 맨 앞에서 연속된 시간 표현을 찾는다.
+/* =========================================================
+  문장 맨 앞의 시간 표현 공통 분석
 
-  반환값:
-  {
-    times: ["08:00", "10:00"],
-    timeText: "08:00, 10:00",
-    content: "설비 점검"
-  }
-*/
-function extractTimesFromLogEntryContent(
+  지원 형식:
+
+  단일 시간
+  08:00 작업
+
+  여러 시간
+  08:00, 10:00, 13:00 작업
+  08:00 / 10:00 / 13:00 작업
+  08:00 10:00 13:00 작업
+  0800, 1000, 1300 작업
+
+  시간 범위
+  08:00~09:30 작업
+  08:00 ~ 09:30 작업
+  0800~0930 작업
+  08:00-09:30 작업
+
+  혼합
+  08:00~09:30, 13:00 작업
+========================================================= */
+
+function parseLeadingLogTimeExpression(
   rawContent
 ) {
   const originalContent =
@@ -7877,50 +7908,74 @@ function extractTimesFromLogEntryContent(
     return {
       times: [],
       timeText: "",
-      content: ""
+      content: "",
+      matchedText: ""
     };
   }
 
 
   /*
-    내용 시작 부분에서만 시간을 찾는다.
+    한 개의 시간 토큰
 
-    지원:
     08:00
+    8:00
     0800
-    08:00, 10:00
-    0800 1000
-    08:00 / 10:00
-    08:00·10:00
+    800
   */
-  const timePrefixMatch =
-    originalContent.match(
-      /^(?:(?:[01]?\d|2[0-3]):[0-5]\d|\d{3,4})(?:(?:\s*[,/·]\s*|\s+)(?:(?:[01]?\d|2[0-3]):[0-5]\d|\d{3,4}))*/
+  const timeTokenPattern =
+    "(?:(?:[01]?\\d|2[0-3]):[0-5]\\d|\\d{3,4})";
+
+
+  /*
+    시간 사이 구분자
+
+    목록:
+    쉼표, 슬래시, 가운데점, 공백
+
+    범위:
+    ~, ～, -, –, —
+  */
+  const timeSeparatorPattern =
+    "(?:\\s*(?:,|\\/|·|~|～|-|–|—)\\s*|\\s+)";
+
+
+  const leadingTimePattern =
+    new RegExp(
+      "^(" +
+      timeTokenPattern +
+      "(?:" +
+      timeSeparatorPattern +
+      timeTokenPattern +
+      ")*)"
     );
 
 
-  if (!timePrefixMatch) {
+  const prefixMatch =
+    originalContent.match(
+      leadingTimePattern
+    );
+
+
+  if (!prefixMatch) {
     return {
       times: [],
       timeText: "",
       content:
-        originalContent
+        originalContent,
+      matchedText: ""
     };
   }
 
 
-  const rawTimePrefix =
+  const rawTimeExpression =
     String(
-      timePrefixMatch[0] ||
+      prefixMatch[1] ||
       ""
     ).trim();
 
 
-  /*
-    시간 표현을 각각 분리한다.
-  */
   const rawTimeTokens =
-    rawTimePrefix.match(
+    rawTimeExpression.match(
       /(?:[01]?\d|2[0-3]):[0-5]\d|\d{3,4}/g
     ) || [];
 
@@ -7938,53 +7993,133 @@ function extractTimesFromLogEntryContent(
       times: [],
       timeText: "",
       content:
-        originalContent
+        originalContent,
+      matchedText: ""
     };
   }
 
 
   /*
-    같은 시간이 두 번 입력된 경우 한 번만 유지한다.
+    원래 입력한 시간 연결 방식은 유지하면서
+    각각의 시간만 HH:MM으로 정규화한다.
   */
-  const uniqueTimes = [
-    ...new Set(
-      normalizedTimes
-    )
-  ];
+  let normalizedExpression =
+    rawTimeExpression.replace(
+      /(?:[01]?\d|2[0-3]):[0-5]\d|\d{3,4}/g,
+      (rawTime) => {
+        return (
+          normalizeContentTimeToken(
+            rawTime
+          ) ||
+          rawTime
+        );
+      }
+    );
 
 
   /*
-    앞쪽 시간과 구분기호를 내용에서 제거한다.
+    범위 구분자는 모두 ~로 통일
 
-    예:
-    08:00, 10:00 설비 점검
-    → 설비 점검
+    08:00 - 09:00
+    08:00～09:00
+    → 08:00~09:00
+  */
+  normalizedExpression =
+    normalizedExpression.replace(
+      /\s*(?:~|～|-|–|—)\s*/g,
+      "~"
+    );
+
+
+  /*
+    목록 구분자는 쉼표+공백으로 통일
+
+    08:00 / 09:00
+    08:00·09:00
+    → 08:00, 09:00
+  */
+  normalizedExpression =
+    normalizedExpression.replace(
+      /\s*(?:,|\/|·)\s*/g,
+      ", "
+    );
+
+
+  /*
+    시간 사이를 공백으로만 작성한 경우
+
+    08:00 09:00 10:00
+    → 08:00, 09:00, 10:00
+  */
+  normalizedExpression =
+    normalizedExpression.replace(
+      /(\d{2}:\d{2})\s+(?=\d{2}:\d{2})/g,
+      "$1, "
+    );
+
+
+  /*
+    중복 공백 및 쉼표 정리
+  */
+  normalizedExpression =
+    normalizedExpression
+      .replace(
+        /\s*,\s*/g,
+        ", "
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+
+
+  /*
+    시간 표현을 제외한 실제 내용
   */
   const remainingContent =
     originalContent
       .slice(
-        timePrefixMatch[0]
-          .length
+        prefixMatch[0].length
       )
       .replace(
-        /^[\s,./·:\-]+/,
+        /^[\s,./·:~～\-–—]+/,
         ""
       )
       .trim();
 
 
   return {
-    times:
-      uniqueTimes,
+    times: [
+      ...new Set(
+        normalizedTimes
+      )
+    ],
 
     timeText:
-      uniqueTimes.join(
-        ", "
-      ),
+      normalizedExpression,
 
     content:
-      remainingContent
+      remainingContent,
+
+    matchedText:
+      prefixMatch[0]
   };
+}
+
+/* =========================================================
+  신규 업무 내용 앞 시간 분석
+
+  공통 시간 분석 함수를 사용하여
+  다중 시간과 시간 범위를 모두 지원한다.
+========================================================= */
+
+function extractTimesFromLogEntryContent(
+  rawContent
+) {
+  return parseLeadingLogTimeExpression(
+    rawContent
+  );
 }
 
 
