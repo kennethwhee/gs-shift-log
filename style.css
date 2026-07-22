@@ -11216,3 +11216,241 @@ tbody tr:first-child td {
     font-size: 13px;
   }
 }
+
+/* =========================================================
+  파트장 보직별 운전현황
+========================================================= */
+
+#operationStatusSection.is-leader-operation-status
+.operation-status-current-content {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+
+/* =========================================================
+  보직별 상태 카드
+========================================================= */
+
+#operationStatusSection
+.leader-operation-status-item {
+  position: relative;
+  padding: 13px 14px 11px;
+  border: 1px solid #d4dde7;
+  border-left-width: 4px;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+
+/* 정상운전 */
+#operationStatusSection
+.leader-operation-status-item.is-type-normal {
+  border-left-color: #1ca06c;
+  background: #fbfefd;
+}
+
+
+/* 기동 */
+#operationStatusSection
+.leader-operation-status-item.is-type-starting {
+  border-left-color: #2d79c7;
+  background: #fbfdff;
+}
+
+
+/* 정지 */
+#operationStatusSection
+.leader-operation-status-item.is-type-stopped {
+  border-left-color: #727e8c;
+  background: #fcfcfd;
+}
+
+
+/* 이상 */
+#operationStatusSection
+.leader-operation-status-item.is-type-abnormal {
+  border-left-color: #d28a13;
+  background: #fffdf8;
+}
+
+
+/* 비상 */
+#operationStatusSection
+.leader-operation-status-item.is-type-emergency {
+  border-left-color: #d74444;
+  background: #fffafa;
+}
+
+
+/* =========================================================
+  보직별 카드 헤더
+========================================================= */
+
+#operationStatusSection
+.leader-operation-status-item__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+
+#operationStatusSection
+.leader-operation-status-item__role {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+
+#operationStatusSection
+.leader-operation-status-item__role strong {
+  color: #1f3046;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+
+#operationStatusSection
+.leader-operation-status-item__dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #1ca06c;
+}
+
+
+#operationStatusSection
+.is-type-starting
+.leader-operation-status-item__dot {
+  background: #2d79c7;
+}
+
+
+#operationStatusSection
+.is-type-stopped
+.leader-operation-status-item__dot {
+  background: #727e8c;
+}
+
+
+#operationStatusSection
+.is-type-abnormal
+.leader-operation-status-item__dot {
+  background: #d28a13;
+}
+
+
+#operationStatusSection
+.is-type-emergency
+.leader-operation-status-item__dot {
+  background: #d74444;
+}
+
+
+/* =========================================================
+  상태 배지
+========================================================= */
+
+#operationStatusSection
+.leader-operation-status-item__badge {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+
+#operationStatusSection
+.leader-operation-status-item__badge.is-normal {
+  background: #e4f6ed;
+  color: #18845a;
+}
+
+
+#operationStatusSection
+.leader-operation-status-item__badge.is-starting {
+  background: #e7f1fc;
+  color: #2168af;
+}
+
+
+#operationStatusSection
+.leader-operation-status-item__badge.is-stopped {
+  background: #edf0f3;
+  color: #56616f;
+}
+
+
+#operationStatusSection
+.leader-operation-status-item__badge.is-abnormal {
+  background: #fff1d7;
+  color: #9b610b;
+}
+
+
+#operationStatusSection
+.leader-operation-status-item__badge.is-emergency {
+  background: #fde7e7;
+  color: #bd3434;
+}
+
+
+/* =========================================================
+  상태 내용
+========================================================= */
+
+#operationStatusSection
+.leader-operation-status-item__content {
+  margin-top: 9px;
+  color: #27384e;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+
+#operationStatusSection
+.leader-operation-status-item__meta {
+  margin-top: 7px;
+  color: #8b96a4;
+  font-size: 9px;
+  text-align: right;
+}
+
+
+/* =========================================================
+  파트장 카드에서는 공통 배지 줄 제거
+========================================================= */
+
+#operationStatusSection.is-leader-operation-status
+.operation-status-summary-row {
+  display: none;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 600px) {
+  #operationStatusSection
+  .leader-operation-status-item {
+    padding: 11px 12px 10px;
+  }
+
+  #operationStatusSection
+  .leader-operation-status-item__content {
+    font-size: 12px;
+  }
+}

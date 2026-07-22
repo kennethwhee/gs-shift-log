@@ -5620,18 +5620,21 @@ function saveOperationStatusByRole(
   return safeStatus;
 }
 
-
 /* =========================================================
-  파트장 운전현황 자동 취합
+  파트장 운전현황 자동 취합 최종본
 
-  반드시 아래 순서로 표시:
-  1. TGO
-  2. BCO1
-  3. BCO2
+  TGO → BCO1 → BCO2 순서 유지
+
+  각 보직별로 다음 정보를 모두 저장한다.
+  - 보직
+  - 운전 상태
+  - 운전현황 내용
+  - 마지막 수정시간
+  - 작성자
 ========================================================= */
 
 function createLeaderCombinedOperationStatus() {
-  const combinedContents =
+  const memberStatuses =
     OPERATION_STATUS_MEMBER_ROLES
       .map(
         (role) => {
@@ -5640,46 +5643,75 @@ function createLeaderCombinedOperationStatus() {
               role,
               {
                 allowLegacyFallback:
-                  false
+                  role === "TGO"
               }
             );
 
-          const content =
-            String(
-              memberStatus.content ||
-              ""
-            ).trim();
 
-          if (
-            !content ||
-            content ===
-              "등록된 운전현황이 없습니다."
-          ) {
-            return "";
-          }
+          return {
+            role,
 
+            type:
+              normalizeOperationStatusType(
+                memberStatus.type
+              ),
+
+            content:
+              String(
+                memberStatus.content ||
+                "등록된 운전현황이 없습니다."
+              ).trim(),
+
+            updatedAt:
+              String(
+                memberStatus.updatedAt ||
+                ""
+              ),
+
+            updatedBy:
+              String(
+                memberStatus.updatedBy ||
+                ""
+              ).trim()
+          };
+        }
+      );
+
+
+  /*
+    업무일지 저장용 문자열
+
+    기존 상세보기와 업무일지 저장 구조는
+    그대로 유지하기 위해 문자열도 함께 만든다.
+  */
+  const combinedContent =
+    memberStatuses
+      .map(
+        (memberStatus) => {
           return [
-            `[${role}]`,
-            content
+            `[${memberStatus.role}]`,
+            memberStatus.content
           ].join("\n");
         }
       )
-      .filter(Boolean);
+      .join("\n\n");
 
 
   return {
     role:
       "파트장",
 
+    /*
+      파트장 전체 상태는 별도로 판단하지 않고
+      화면에서 각 보직 상태를 개별 표시한다.
+    */
     type:
       "normal",
 
     content:
-      combinedContents.length
-        ? combinedContents.join(
-            "\n\n"
-          )
-        : "취합할 운전현황이 없습니다.",
+      combinedContent,
+
+    memberStatuses,
 
     updatedAt:
       "",
@@ -5941,7 +5973,13 @@ function renderOperationStatusBadge(
 
 
 /* =========================================================
-  운전현황 카드 렌더링
+  운전현황 카드 렌더링 최종본
+
+  일반 보직:
+  기존 단일 상태 카드 표시
+
+  파트장:
+  TGO·BCO1·BCO2 상태를 각각 별도 카드로 표시
 ========================================================= */
 
 function renderOperationStatusCard() {
@@ -5951,8 +5989,10 @@ function renderOperationStatusCard() {
     return;
   }
 
+
   const currentRole =
     getCurrentOperationStatusRole();
+
 
   const status =
     appState.currentOperationStatus ||
@@ -5960,10 +6000,12 @@ function renderOperationStatusCard() {
       currentRole
     );
 
+
   const selectedType =
     normalizeOperationStatusType(
       status.type
     );
+
 
   const content =
     String(
@@ -5975,6 +6017,310 @@ function renderOperationStatusCard() {
   updateOperationStatusRoleTitles();
 
 
+  /* =====================================================
+    파트장 운전현황
+
+    TGO·BCO1·BCO2 상태와 내용을
+    각각 독립적으로 표시한다.
+  ====================================================== */
+
+  if (
+    currentRole ===
+    "파트장"
+  ) {
+    const memberStatuses =
+      Array.isArray(
+        status.memberStatuses
+      )
+        ? status.memberStatuses
+        : OPERATION_STATUS_MEMBER_ROLES.map(
+            (role) => {
+              const memberStatus =
+                loadOperationStatusByRole(
+                  role,
+                  {
+                    allowLegacyFallback:
+                      role === "TGO"
+                  }
+                );
+
+              return {
+                role,
+
+                type:
+                  normalizeOperationStatusType(
+                    memberStatus.type
+                  ),
+
+                content:
+                  String(
+                    memberStatus.content ||
+                    "등록된 운전현황이 없습니다."
+                  ).trim(),
+
+                updatedAt:
+                  String(
+                    memberStatus.updatedAt ||
+                    ""
+                  ),
+
+                updatedBy:
+                  String(
+                    memberStatus.updatedBy ||
+                    ""
+                  ).trim()
+              };
+            }
+          );
+
+
+    elements.operationStatusCurrentContent.innerHTML =
+      memberStatuses
+        .map(
+          (memberStatus) => {
+            const role =
+              normalizeMemberLogRole(
+                memberStatus.role
+              );
+
+
+            const type =
+              normalizeOperationStatusType(
+                memberStatus.type
+              );
+
+
+            const typeLabel =
+              getOperationStatusLabel(
+                type
+              );
+
+
+            const statusContent =
+              String(
+                memberStatus.content ||
+                "등록된 운전현황이 없습니다."
+              ).trim();
+
+
+            const updatedAtText =
+              memberStatus.updatedAt
+                ? `${formatDateTime(
+                    memberStatus.updatedAt
+                  )} 수정`
+                : "";
+
+
+            return `
+              <section
+                class="
+                  leader-operation-status-item
+                  is-type-${escapeHtml(
+                    type
+                  )}
+                "
+                data-operation-role="${escapeHtml(
+                  role
+                )}"
+              >
+
+                <div
+                  class="
+                    leader-operation-status-item__header
+                  "
+                >
+
+                  <div
+                    class="
+                      leader-operation-status-item__role
+                    "
+                  >
+
+                    <span
+                      class="
+                        leader-operation-status-item__dot
+                      "
+                      aria-hidden="true"
+                    ></span>
+
+                    <strong>
+                      ${escapeHtml(
+                        role
+                      )}
+                    </strong>
+
+                  </div>
+
+
+                  <span
+                    class="
+                      leader-operation-status-item__badge
+                      is-${escapeHtml(
+                        type
+                      )}
+                    "
+                  >
+                    ${escapeHtml(
+                      typeLabel
+                    )}
+                  </span>
+
+                </div>
+
+
+                <div
+                  class="
+                    leader-operation-status-item__content
+                  "
+                >
+                  ${escapeHtml(
+                    statusContent
+                  )}
+                </div>
+
+
+                ${
+                  updatedAtText
+                    ? `
+                      <div
+                        class="
+                          leader-operation-status-item__meta
+                        "
+                      >
+                        ${escapeHtml(
+                          updatedAtText
+                        )}
+                      </div>
+                    `
+                    : ""
+                }
+
+              </section>
+            `;
+          }
+        )
+        .join("");
+
+
+    /*
+      파트장 카드 상단의 공통 상태 배지는 숨긴다.
+
+      각 보직별 카드 안에서 상태를 따로 보여주기 때문이다.
+    */
+    if (
+      elements.operationStatusStateBadge
+    ) {
+      elements.operationStatusStateBadge.hidden =
+        true;
+    }
+
+
+    /*
+      파트장이 수정 버튼을 눌렀을 때 사용할
+      통합 텍스트를 입력창과 스냅샷에 유지한다.
+    */
+    if (
+      elements.operationStatus
+    ) {
+      elements.operationStatus.value =
+        content;
+    }
+
+
+    if (
+      elements.operationStatusSnapshot
+    ) {
+      elements.operationStatusSnapshot.value =
+        content;
+    }
+
+
+    if (
+      elements.operationStatusType
+    ) {
+      elements.operationStatusType.value =
+        "normal";
+    }
+
+
+    if (
+      elements.operationStatusUpdatedAt
+    ) {
+      elements.operationStatusUpdatedAt.textContent =
+        "";
+    }
+
+
+    if (
+      elements.operationStatusUpdatedBy
+    ) {
+      elements.operationStatusUpdatedBy.textContent =
+        "";
+
+      elements.operationStatusUpdatedBy.hidden =
+        true;
+    }
+
+
+    if (
+      elements.operationStatusEditorTime
+    ) {
+      elements.operationStatusEditorTime.textContent =
+        "";
+    }
+
+
+    /*
+      파트장 전체 카드 테두리는
+      특정 보직 상태색을 사용하지 않는다.
+    */
+    OPERATION_STATUS_TYPES.forEach(
+      (type) => {
+        elements.operationStatusSection
+          ?.classList.remove(
+            `is-type-${type}`
+          );
+
+        elements.operationStatusCurrentCard
+          ?.classList.remove(
+            `is-type-${type}`
+          );
+      }
+    );
+
+
+    elements.operationStatusSection
+      ?.classList.add(
+        "is-leader-operation-status"
+      );
+
+
+    return;
+  }
+
+
+  /* =====================================================
+    일반 보직 운전현황
+  ====================================================== */
+
+  elements.operationStatusSection
+    ?.classList.remove(
+      "is-leader-operation-status"
+    );
+
+
+  if (
+    elements.operationStatusStateBadge
+  ) {
+    elements.operationStatusStateBadge.hidden =
+      false;
+  }
+
+
+  /*
+    파트장 화면에서 innerHTML을 사용했으므로
+    일반 보직으로 돌아왔을 때는 textContent로 초기화한다.
+  */
   elements.operationStatusCurrentContent.textContent =
     content;
 
@@ -6042,9 +6388,11 @@ function renderOperationStatusCard() {
     selectedType
   );
 
+
   renderOperationStatusTypeButtons(
     selectedType
   );
+
 
   applyOperationStatusTheme(
     selectedType
@@ -6066,9 +6414,11 @@ function refreshOperationStatusForCurrentRole() {
   updateOperationStatusRoleTitles();
 }
 
-
 /* =========================================================
-  운전현황 편집창 열기
+  운전현황 편집창 열기 최종본
+
+  파트장은 수정창을 열기 직전에
+  TGO·BCO1·BCO2 최신 운전현황을 다시 취합한다.
 ========================================================= */
 
 function openOperationStatusEditor() {
@@ -6080,12 +6430,27 @@ function openOperationStatusEditor() {
   }
 
 
-  /*
-    수정 버튼을 누르는 순간
-    현재 업무일지 보직을 다시 확인한다.
-  */
   const currentRole =
     getCurrentOperationStatusRole();
+
+
+  /*
+    파트장은 수정창을 열기 직전에
+    최신 팀원 상태를 다시 취합한다.
+
+    단, 파트장이 이미 직접 저장한 운전현황이 있으면
+    저장한 수정본을 우선한다.
+  */
+  if (
+    currentRole ===
+    "파트장"
+  ) {
+    appState.currentOperationStatus =
+      loadLeaderOperationStatus();
+
+    renderOperationStatusCard();
+  }
+
 
   const status =
     appState.currentOperationStatus ||
@@ -6146,7 +6511,6 @@ function openOperationStatusEditor() {
     0
   );
 }
-
 
 /* =========================================================
   운전현황 편집창 닫기
