@@ -9722,3 +9722,402 @@ label.log-entry-role-select {
 
   opacity: 0.45;
 }
+
+/* =========================================================
+  인수인계 편집 화면 최종 정렬 보정
+
+  공통 열:
+  선택 32px | 내용 전체 | 관리 78px
+========================================================= */
+
+
+/* =========================================================
+  테이블 전체 배경 통일
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table {
+  width: 100% !important;
+
+  table-layout: fixed !important;
+
+  background: #ffffff !important;
+}
+
+
+#logEntryListPanel
+.log-entry-table thead,
+
+#logEntryListPanel
+.log-entry-table thead tr,
+
+#logEntryListPanel
+.log-entry-table thead th {
+  background: #f3f7fb !important;
+}
+
+
+/*
+  헤더 셀 일부만 색이 칠해지는 문제 방지
+*/
+#logEntryListPanel
+.log-entry-table thead tr {
+  display: table-row !important;
+
+  width: 100% !important;
+}
+
+
+#logEntryListPanel
+.log-entry-table thead th {
+  height: 34px !important;
+
+  padding: 0 8px !important;
+
+  border-bottom: 1px solid #d9e3ee !important;
+
+  color: #4d5d72 !important;
+
+  font-size: 10px !important;
+  font-weight: 850 !important;
+
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+
+/* =========================================================
+  편집모드 헤더 열 폭 고정
+========================================================= */
+
+#logEntryListPanel.is-edit-mode
+.log-entry-table thead th:first-child {
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+}
+
+
+#logEntryListPanel.is-edit-mode
+.log-entry-table thead th:last-child {
+  width: 78px !important;
+  min-width: 78px !important;
+  max-width: 78px !important;
+}
+
+
+/*
+  내용 헤더는 남은 공간 전체를 사용한다.
+*/
+#logEntryListPanel.is-edit-mode
+.log-entry-table thead th:not(:first-child):not(:last-child) {
+  width: auto !important;
+
+  text-align: center !important;
+
+  background: #f3f7fb !important;
+}
+
+
+/* =========================================================
+  일반 업무 행
+========================================================= */
+
+#logEntryListPanel
+.log-entry-unified-cell {
+  width: 100% !important;
+
+  padding: 0 !important;
+
+  background: #ffffff !important;
+}
+
+
+#logEntryListPanel
+.log-entry-row-shell {
+  width: 100% !important;
+  min-width: 0 !important;
+
+  background: #ffffff !important;
+}
+
+
+/*
+  평상시:
+  내용만 한 칸
+*/
+#logEntryListPanel:not(.is-edit-mode)
+.log-entry-row-shell {
+  grid-template-columns:
+    minmax(0, 1fr) !important;
+}
+
+
+/*
+  편집모드:
+  체크 | 내용 | 관리
+*/
+#logEntryListPanel.is-edit-mode
+.log-entry-row-shell {
+  grid-template-columns:
+    32px
+    minmax(0, 1fr)
+    78px !important;
+
+  column-gap: 6px !important;
+}
+
+
+/* =========================================================
+  내용 정렬
+========================================================= */
+
+#logEntryListPanel
+.log-entry-row-content {
+  width: 100% !important;
+  min-width: 0 !important;
+
+  display: flex !important;
+
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+
+  text-align: left !important;
+}
+
+
+#logEntryListPanel
+.log-entry-document-line {
+  width: 100% !important;
+  min-width: 0 !important;
+
+  display: grid !important;
+
+  grid-template-columns:
+    26px
+    minmax(0, 1fr) !important;
+
+  align-items: start !important;
+
+  margin: 0 !important;
+
+  text-align: left !important;
+}
+
+
+#logEntryListPanel
+.log-entry-document-body {
+  width: 100% !important;
+  min-width: 0 !important;
+
+  text-align: left !important;
+}
+
+
+/* =========================================================
+  체크박스 열
+========================================================= */
+
+#logEntryListPanel
+.log-entry-row-select {
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+
+  display: flex !important;
+
+  align-items: flex-start !important;
+  justify-content: center !important;
+
+  padding-top: 1px !important;
+}
+
+
+#logEntryListPanel
+.log-entry-row-select input {
+  width: 14px !important;
+  height: 14px !important;
+
+  margin: 0 !important;
+}
+
+
+/* =========================================================
+  관리 버튼 열
+========================================================= */
+
+#logEntryListPanel
+.log-entry-row-actions {
+  width: 78px !important;
+  min-width: 78px !important;
+  max-width: 78px !important;
+
+  align-items: flex-start !important;
+  justify-content: flex-end !important;
+
+  padding-top: 0 !important;
+}
+
+
+/* =========================================================
+  보직 구분행
+
+  체크박스를 일반 항목 체크박스와
+  정확히 같은 32px 열에 배치한다.
+========================================================= */
+
+#logEntryListPanel
+.log-entry-role-divider {
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  grid-template-columns:
+    32px
+    minmax(0, 1fr)
+    78px !important;
+
+  align-items: center !important;
+
+  column-gap: 6px !important;
+
+  padding: 7px 10px !important;
+
+  background: #ffffff !important;
+}
+
+
+/*
+  보직 전체 선택 체크박스
+*/
+#logEntryListPanel
+.log-entry-role-select {
+  grid-column: 1 !important;
+
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+
+  display: flex !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+#logEntryListPanel
+.log-entry-role-select input {
+  width: 14px !important;
+  height: 14px !important;
+
+  margin: 0 !important;
+}
+
+
+/*
+  보직 배지와 건수는 가운데 내용 열에 배치
+*/
+#logEntryListPanel
+.log-entry-role-divider__badge {
+  grid-column: 2 !important;
+
+  justify-self: start !important;
+
+  margin: 0 !important;
+}
+
+
+#logEntryListPanel
+.log-entry-role-divider__count {
+  grid-column: 2 !important;
+
+  justify-self: start !important;
+
+  margin-left: 92px !important;
+}
+
+
+/*
+  편집이 아닐 때는 체크 열이 없으므로
+  보직 배지를 맨 왼쪽에서 시작
+*/
+#logEntryListPanel:not(.is-edit-mode)
+.log-entry-role-divider {
+  grid-template-columns:
+    minmax(0, 1fr) !important;
+}
+
+
+#logEntryListPanel:not(.is-edit-mode)
+.log-entry-role-divider__badge {
+  grid-column: 1 !important;
+}
+
+
+#logEntryListPanel:not(.is-edit-mode)
+.log-entry-role-divider__count {
+  grid-column: 1 !important;
+
+  margin-left: 92px !important;
+}
+
+
+/* =========================================================
+  TM / 인계 섹션 헤더 전체 배경 통일
+========================================================= */
+
+#logEntryListPanel
+.log-entry-section-header,
+
+#logEntryListPanel
+.log-entry-subsection-header,
+
+#logEntryListPanel
+.log-entry-table-header {
+  width: 100% !important;
+
+  background: #f3f7fb !important;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+  #logEntryListPanel.is-edit-mode
+  .log-entry-row-shell,
+
+  #logEntryListPanel
+  .log-entry-role-divider {
+    grid-template-columns:
+      28px
+      minmax(0, 1fr)
+      68px !important;
+
+    column-gap: 4px !important;
+  }
+
+
+  #logEntryListPanel
+  .log-entry-row-select,
+
+  #logEntryListPanel
+  .log-entry-role-select {
+    width: 28px !important;
+    min-width: 28px !important;
+    max-width: 28px !important;
+  }
+
+
+  #logEntryListPanel
+  .log-entry-row-actions {
+    width: 68px !important;
+    min-width: 68px !important;
+    max-width: 68px !important;
+  }
+}
