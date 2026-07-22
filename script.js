@@ -1317,6 +1317,349 @@ saveOperationStatusButton:
   };
 }
 
+/* =========================================================
+  조회 전용 과거 업무일지 1일 불러오기
+
+  조회 화면에서 지정한 날짜의
+  D/S와 N/S 기존 업무일지를 모두 가져온다.
+
+  기존 현황 화면의 appState.logs는 직접 변경하지 않고
+  조회용 배열만 반환한다.
+========================================================= */
+
+async function loadLegacyLogsForSearchDate(
+  searchDate
+) {
+  const normalizedDate =
+    String(
+      searchDate || ""
+    ).trim();
+
+
+  if (!normalizedDate) {
+    return [];
+  }
+
+
+  const legacyDate =
+    normalizedDate.replace(
+      /-/g,
+      ""
+    );
+
+
+  const shiftDefinitions = [
+    {
+      legacyShift:
+        "DAY",
+
+      currentShift:
+        "DS"
+    },
+
+    {
+      legacyShift:
+        "NIGHT",
+
+      currentShift:
+        "NS"
+    }
+  ];
+
+
+  const requestResults =
+    await Promise.all(
+      shiftDefinitions.map(
+        async (
+          shiftDefinition
+        ) => {
+          const requestUrl =
+            new URL(
+              "/api/legacy-diaries",
+              window.location.origin
+            );
+
+
+          requestUrl.searchParams.set(
+            "date",
+            legacyDate
+          );
+
+
+          requestUrl.searchParams.set(
+            "shift",
+            shiftDefinition
+              .legacyShift
+          );
+
+
+          const response =
+            await fetch(
+              requestUrl.toString(),
+              {
+                method:
+                  "GET",
+
+                headers: {
+                  Accept:
+                    "application/json"
+                },
+
+                cache:
+                  "no-store"
+              }
+            );
+
+
+          let result = {};
+
+
+          try {
+            result =
+              await response.json();
+          } catch (error) {
+            throw new Error(
+              `${normalizedDate} 과거 업무일지 응답을 읽을 수 없습니다.`
+            );
+          }
+
+
+          if (
+            !response.ok ||
+            !result.success
+          ) {
+            throw new Error(
+              result.message ||
+              `${normalizedDate} ${shiftDefinition.legacyShift} 업무일지를 불러오지 못했습니다.`
+            );
+          }
+
+
+          return {
+            currentShift:
+              shiftDefinition
+                .currentShift,
+
+            items:
+              Array.isArray(
+                result.items
+              )
+                ? result.items
+                : []
+          };
+        }
+      )
+    );
+
+
+  const convertedLogs = [];
+
+
+  requestResults.forEach(
+    (
+      requestResult
+    ) => {
+      const convertedShiftLogs =
+        requestResult.items
+          .map(
+            (
+              legacyItem,
+              itemIndex
+            ) => {
+              return convertLegacyDiaryToLog(
+                legacyItem,
+                itemIndex,
+                normalizedDate,
+                requestResult.currentShift
+              );
+            }
+          )
+          .filter(Boolean);
+
+
+      /*
+        2026년 7월 21일까지의 과거 데이터는
+        기존 파트장 취합 구조를 동일하게 적용한다.
+      */
+      if (
+        normalizedDate <=
+        "2026-07-21"
+      ) {
+        rebuildLegacyLeaderLogFromMemberLogs(
+          convertedShiftLogs
+        );
+      }
+
+
+      convertedLogs.push(
+        ...convertedShiftLogs
+      );
+    }
+  );
+
+
+  return convertedLogs;
+}
+
+/* =========================================================
+  시작일 ~ 종료일 날짜 배열 생성
+
+  예:
+  2026-07-20 ~ 2026-07-22
+
+  결과:
+  [
+    "2026-07-20",
+    "2026-07-21",
+    "2026-07-22"
+  ]
+========================================================= */
+
+function createSearchDateRange(
+  startDate,
+  endDate
+) {
+  const normalizedStartDate =
+    String(
+      startDate || ""
+    ).trim();
+
+
+  const normalizedEndDate =
+    String(
+      endDate || ""
+    ).trim();
+
+
+  if (
+    !normalizedStartDate ||
+    !normalizedEndDate
+  ) {
+    return [];
+  }
+
+
+  const start =
+    new Date(
+      `${normalizedStartDate}T00:00:00`
+    );
+
+
+  const end =
+    new Date(
+      `${normalizedEndDate}T00:00:00`
+    );
+
+
+  if (
+    Number.isNaN(
+      start.getTime()
+    ) ||
+    Number.isNaN(
+      end.getTime()
+    ) ||
+    start > end
+  ) {
+    return [];
+  }
+
+
+  const dateList = [];
+
+  const currentDate =
+    new Date(start);
+
+
+  while (
+    currentDate <= end
+  ) {
+    dateList.push(
+      formatInputDate(
+        currentDate
+      )
+    );
+
+
+    currentDate.setDate(
+      currentDate.getDate() + 1
+    );
+  }
+
+
+  return dateList;
+}
+
+
+/* =========================================================
+  조회 기간 전체의 과거 업무일지 불러오기
+
+  각 날짜마다:
+  - D/S
+  - N/S
+
+  과거 업무일지를 불러온 뒤
+  하나의 배열로 합쳐서 반환한다.
+========================================================= */
+
+async function loadLegacyLogsForSearchRange(
+  startDate,
+  endDate
+) {
+  const searchDates =
+    createSearchDateRange(
+      startDate,
+      endDate
+    );
+
+
+  if (!searchDates.length) {
+    return [];
+  }
+
+
+  /*
+    한 번에 너무 많은 서버 요청을 보내지 않도록
+    날짜별로 순서대로 불러온다.
+
+    날짜 1개당:
+    DAY 1회
+    NIGHT 1회
+  */
+  const allLegacyLogs = [];
+
+
+  for (
+    const searchDate
+    of searchDates
+  ) {
+    try {
+      const dateLogs =
+        await loadLegacyLogsForSearchDate(
+          searchDate
+        );
+
+
+      allLegacyLogs.push(
+        ...dateLogs
+      );
+
+    } catch (error) {
+      console.error(
+        `${searchDate} 조회용 과거 업무일지 불러오기 실패:`,
+        error
+      );
+
+
+      /*
+        특정 날짜를 불러오지 못하더라도
+        나머지 날짜 조회는 계속 진행한다.
+      */
+    }
+  }
+
+
+  return allLegacyLogs;
+}
 
 /* =========================================================
   기존 업무일지 불러오기
@@ -15495,100 +15838,786 @@ function closeLogDetail() {
   closeModal(elements.logDetailModal);
 }
 
+/* =========================================================
+  조회용 업무일지 중복 제거
+
+  우선순위:
+  1. 업무일지 고유 ID
+  2. 날짜 + 근무 + 보직 + 작성자 + 출처
+
+  조회 기간의 과거 데이터를 다시 불러오더라도
+  같은 업무일지가 두 번 표시되지 않게 한다.
+========================================================= */
+
+function removeDuplicateSearchLogs(
+  logs
+) {
+  const sourceLogs =
+    Array.isArray(
+      logs
+    )
+      ? logs
+      : [];
+
+
+  const uniqueLogMap =
+    new Map();
+
+
+  sourceLogs.forEach(
+    (
+      log,
+      logIndex
+    ) => {
+      if (
+        !log ||
+        typeof log !==
+          "object"
+      ) {
+        return;
+      }
+
+
+      const logId =
+        String(
+          log.id ||
+          ""
+        ).trim();
+
+
+      const uniqueKey =
+        logId
+          ? `ID||${logId}`
+          : [
+              "LOG",
+              String(
+                log.date ||
+                ""
+              ).trim(),
+              String(
+                log.shift ||
+                ""
+              ).trim(),
+              normalizeMemberLogRole(
+                log.role
+              ),
+              String(
+                log.author ||
+                ""
+              ).trim(),
+              String(
+                log.source ||
+                ""
+              ).trim(),
+              logIndex
+            ].join("||");
+
+
+      /*
+        동일한 ID가 다시 들어오면
+        마지막으로 불러온 데이터를 사용한다.
+      */
+      uniqueLogMap.set(
+        uniqueKey,
+        log
+      );
+    }
+  );
+
+
+  return [
+    ...uniqueLogMap.values()
+  ];
+}
+
 
 /* =========================================================
-  조회
+  업무일지 조회 최종 실행
+
+  조회 대상:
+  - 신규 GS Shift Log 업무일지
+  - 현재 화면에서 불러온 과거 업무일지
+  - 조회 기간 전체의 과거 업무일지
 ========================================================= */
-function runSearch() {
-  const formData = new FormData(elements.searchForm);
 
-  const startDate = String(formData.get("startDate") || "");
-  const endDate = String(formData.get("endDate") || "");
-  const shift = String(formData.get("shift") || "");
-  const role = String(formData.get("role") || "");
-  const category = String(formData.get("category") || "");
-  const keyword = String(formData.get("keyword") || "")
-    .trim()
-    .toLowerCase();
+async function runSearch() {
+  if (
+    !elements.searchForm
+  ) {
+    return;
+  }
 
-  const results = [];
 
-  appState.logs.forEach((log) => {
-    if (startDate && log.date < startDate) {
-      return;
-    }
+  const formData =
+    new FormData(
+      elements.searchForm
+    );
 
-    if (endDate && log.date > endDate) {
-      return;
-    }
 
-    if (shift && log.shift !== shift) {
-      return;
-    }
+  const startDate =
+    String(
+      formData.get(
+        "startDate"
+      ) ||
+      ""
+    ).trim();
 
-    if (role && log.role !== role) {
-      return;
-    }
+
+  const endDate =
+    String(
+      formData.get(
+        "endDate"
+      ) ||
+      ""
+    ).trim();
+
+
+  const shift =
+    String(
+      formData.get(
+        "shift"
+      ) ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  const role =
+    normalizeMemberLogRole(
+      formData.get(
+        "role"
+      )
+    );
+
+
+  const category =
+    String(
+      formData.get(
+        "category"
+      ) ||
+      ""
+    ).trim();
+
+
+  const keyword =
+    String(
+      formData.get(
+        "keyword"
+      ) ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  /* =====================================================
+    날짜 조건 확인
+  ====================================================== */
+
+  if (
+    !startDate ||
+    !endDate
+  ) {
+    showToast(
+      "조회 시작일과 종료일을 모두 선택해 주세요."
+    );
+
+    return;
+  }
+
+
+  if (
+    startDate >
+    endDate
+  ) {
+    showToast(
+      "종료일은 시작일보다 빠를 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  const searchDates =
+    createSearchDateRange(
+      startDate,
+      endDate
+    );
+
+
+  if (
+    !searchDates.length
+  ) {
+    showToast(
+      "조회 기간을 확인해 주세요."
+    );
+
+    return;
+  }
+
+
+  /* =====================================================
+    너무 긴 기간 조회 방지
+
+    현재는 날짜마다 D/S와 N/S를 각각 요청하므로
+    우선 최대 31일로 제한한다.
+  ====================================================== */
+
+  if (
+    searchDates.length >
+    31
+  ) {
+    showToast(
+      "조회 기간은 최대 31일까지 선택할 수 있습니다."
+    );
+
+    return;
+  }
+
+
+  const submitButton =
+    elements.searchForm
+      .querySelector(
+        'button[type="submit"]'
+      );
+
+
+  const originalButtonText =
+    submitButton
+      ? submitButton.textContent
+      : "";
+
+
+  if (
+    submitButton
+  ) {
+    submitButton.disabled =
+      true;
+
+    submitButton.textContent =
+      "조회 중...";
+  }
+
+
+  if (
+    elements.searchResultBody
+  ) {
+    elements.searchResultBody
+      .innerHTML =
+      "";
+  }
+
+
+  if (
+    elements.searchResultCount
+  ) {
+    elements.searchResultCount
+      .textContent =
+      "0";
+  }
+
+
+  if (
+    elements.searchEmptyState
+  ) {
+    elements.searchEmptyState.hidden =
+      false;
+
+
+    const loadingTitle =
+      elements.searchEmptyState
+        .querySelector(
+          "strong"
+        );
+
+
+    const loadingDescription =
+      elements.searchEmptyState
+        .querySelector(
+          "p"
+        );
+
 
     if (
-      !category ||
-      category === "operation" ||
-      category === "note"
+      loadingTitle
     ) {
-      if (
-        (!category || category === "operation") &&
-        matchesKeyword(log.operationStatus, keyword)
-      ) {
-        results.push({
-          log,
-          category: "운전현황",
-          tag: "",
-          content: log.operationStatus
-        });
+      loadingTitle.textContent =
+        "과거 업무일지를 불러오는 중입니다.";
+    }
+
+
+    if (
+      loadingDescription
+    ) {
+      loadingDescription.textContent =
+        "선택한 기간의 D/S·N/S 업무일지를 확인하고 있습니다.";
+    }
+  }
+
+
+  try {
+    /* ===================================================
+      조회 기간 전체 과거 업무일지 불러오기
+    ==================================================== */
+
+    const legacySearchLogs =
+      await loadLegacyLogsForSearchRange(
+        startDate,
+        endDate
+      );
+
+
+    /* ===================================================
+      신규 업무일지와 과거 업무일지 합치기
+    ==================================================== */
+
+    const combinedLogs =
+      removeDuplicateSearchLogs([
+        ...appState.logs,
+        ...legacySearchLogs
+      ]);
+
+
+    const results =
+      [];
+
+
+    combinedLogs.forEach(
+      (
+        log
+      ) => {
+        const logDate =
+          String(
+            log.date ||
+            ""
+          ).trim();
+
+
+        const logShift =
+          String(
+            log.shift ||
+            ""
+          )
+            .trim()
+            .toUpperCase();
+
+
+        const logRole =
+          normalizeMemberLogRole(
+            log.role
+          );
+
+
+        /*
+          기간 조건
+        */
+        if (
+          logDate <
+            startDate ||
+          logDate >
+            endDate
+        ) {
+          return;
+        }
+
+
+        /*
+          근무 조건
+        */
+        if (
+          shift &&
+          logShift !==
+            shift
+        ) {
+          return;
+        }
+
+
+        /*
+          보직 조건
+        */
+        if (
+          role &&
+          logRole !==
+            role
+        ) {
+          return;
+        }
+
+
+        /* =================================================
+          운전현황
+        ================================================== */
+
+        if (
+          !category ||
+          category ===
+            "operation"
+        ) {
+          const operationStatus =
+            String(
+              log.operationStatus ||
+              ""
+            ).trim();
+
+
+          if (
+            operationStatus &&
+            matchesKeyword(
+              operationStatus,
+              keyword
+            )
+          ) {
+            results.push({
+              log,
+
+              category:
+                "운전현황",
+
+              tag:
+                "",
+
+              content:
+                operationStatus
+            });
+          }
+        }
+
+
+        /* =================================================
+          비고
+        ================================================== */
+
+        if (
+          !category ||
+          category ===
+            "note"
+        ) {
+          const note =
+            String(
+              log.note ||
+              ""
+            ).trim();
+
+
+          if (
+            note &&
+            matchesKeyword(
+              note,
+              keyword
+            )
+          ) {
+            results.push({
+              log,
+
+              category:
+                "비고",
+
+              tag:
+                "",
+
+              content:
+                note
+            });
+          }
+        }
+
+
+        /* =================================================
+          TM·BM·CM·인계사항
+        ================================================== */
+
+        const logEntries =
+          Array.isArray(
+            log.entries
+          )
+            ? log.entries
+            : [];
+
+
+        logEntries.forEach(
+          (
+            entry
+          ) => {
+            const entryCategory =
+              String(
+                entry.category ||
+                ""
+              ).trim();
+
+
+            const mainCategory =
+              getMainCategory(
+                entryCategory
+              );
+
+
+            const categoryMap = {
+              "TM 발행":
+                "tm",
+
+              TM:
+                "tm",
+
+              BM:
+                "bm",
+
+              CM:
+                "cm",
+
+              "인계사항":
+                "handover",
+
+              인계:
+                "handover",
+
+              비고:
+                "note"
+            };
+
+
+            const entryCategoryValue =
+              categoryMap[
+                entryCategory
+              ] ||
+              categoryMap[
+                mainCategory
+              ] ||
+              String(
+                mainCategory ||
+                entryCategory
+              )
+                .trim()
+                .toLowerCase();
+
+
+            /*
+              선택한 구분과 다르면 제외
+            */
+            if (
+              category &&
+              category !==
+                entryCategoryValue
+            ) {
+              return;
+            }
+
+
+            const entryTag =
+              String(
+                entry.tag ||
+                ""
+              ).trim();
+
+
+            const entryContent =
+              String(
+                entry.content ||
+                ""
+              ).trim();
+
+
+            const combinedText = [
+              entryTag,
+              entryContent,
+              entryCategory,
+              mainCategory
+            ]
+              .join(" ")
+              .toLowerCase();
+
+
+            if (
+              keyword &&
+              !combinedText.includes(
+                keyword
+              )
+            ) {
+              return;
+            }
+
+
+            /*
+              내용이 없는 빈 항목은 제외
+            */
+            if (
+              !entryTag &&
+              !entryContent
+            ) {
+              return;
+            }
+
+
+            results.push({
+              log,
+
+              category:
+                entryCategory ||
+                mainCategory ||
+                "인계사항",
+
+              tag:
+                entryTag,
+
+              content:
+                entryContent
+            });
+          }
+        );
       }
+    );
+
+
+    /* ===================================================
+      최신 날짜 → 근무 → 보직 순으로 정렬
+    ==================================================== */
+
+    results.sort(
+      (
+        resultA,
+        resultB
+      ) => {
+        const dateDifference =
+          String(
+            resultB.log.date ||
+            ""
+          ).localeCompare(
+            String(
+              resultA.log.date ||
+              ""
+            )
+          );
+
+
+        if (
+          dateDifference !==
+          0
+        ) {
+          return dateDifference;
+        }
+
+
+        const shiftDifference =
+          String(
+            resultA.log.shift ||
+            ""
+          ).localeCompare(
+            String(
+              resultB.log.shift ||
+              ""
+            )
+          );
+
+
+        if (
+          shiftDifference !==
+          0
+        ) {
+          return shiftDifference;
+        }
+
+
+        return String(
+          resultA.log.role ||
+          ""
+        ).localeCompare(
+          String(
+            resultB.log.role ||
+            ""
+          )
+        );
+      }
+    );
+
+
+    renderSearchResults(
+      results
+    );
+
+
+  } catch (error) {
+    console.error(
+      "업무일지 조회 실패:",
+      error
+    );
+
+
+    if (
+      elements.searchResultBody
+    ) {
+      elements.searchResultBody
+        .innerHTML =
+        "";
+    }
+
+
+    if (
+      elements.searchResultCount
+    ) {
+      elements.searchResultCount
+        .textContent =
+        "0";
+    }
+
+
+    if (
+      elements.searchEmptyState
+    ) {
+      elements.searchEmptyState.hidden =
+        false;
+
+
+      const errorTitle =
+        elements.searchEmptyState
+          .querySelector(
+            "strong"
+          );
+
+
+      const errorDescription =
+        elements.searchEmptyState
+          .querySelector(
+            "p"
+          );
+
 
       if (
-        (!category || category === "note") &&
-        matchesKeyword(log.note, keyword)
+        errorTitle
       ) {
-        results.push({
-          log,
-          category: "비고",
-          tag: "",
-          content: log.note
-        });
+        errorTitle.textContent =
+          "업무일지를 불러오지 못했습니다.";
+      }
+
+
+      if (
+        errorDescription
+      ) {
+        errorDescription.textContent =
+          error.message ||
+          "잠시 후 다시 조회해 주세요.";
       }
     }
 
-    log.entries.forEach((entry) => {
-      const mainCategory = getMainCategory(entry.category);
-      const normalizedCategory = mainCategory.toLowerCase();
 
-      if (
-        category &&
-        category !== normalizedCategory &&
-        !(category === "handover" && mainCategory === "인계사항")
-      ) {
-        return;
-      }
+    showToast(
+      error.message ||
+      "업무일지 조회 중 오류가 발생했습니다."
+    );
 
-      const combinedText =
-        `${entry.tag} ${entry.content} ${entry.category}`.toLowerCase();
 
-      if (keyword && !combinedText.includes(keyword)) {
-        return;
-      }
+  } finally {
+    if (
+      submitButton
+    ) {
+      submitButton.disabled =
+        false;
 
-      results.push({
-        log,
-        category: entry.category,
-        tag: entry.tag,
-        content: entry.content
-      });
-    });
-  });
-
-  renderSearchResults(results);
+      submitButton.textContent =
+        originalButtonText ||
+        "조회";
+    }
+  }
 }
 
 
