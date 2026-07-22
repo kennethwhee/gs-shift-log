@@ -13744,3 +13744,317 @@ tbody tr:hover td {
     min-width: 20px;
   }
 }
+
+/* =========================================================
+   조회 화면 업무내용 전용 스타일
+
+   script.js의 search-work-* 전용 구조와 연결
+========================================================= */
+
+.search-work-preview {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+
+/* =========================================================
+   구분별 한 줄 구조
+
+   제목 | 내용
+========================================================= */
+
+.search-work-section {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns:
+    88px
+    minmax(0, 1fr);
+  align-items: start;
+  column-gap: 8px;
+  margin: 0;
+  padding: 3px 0;
+}
+
+
+.search-work-section + .search-work-section {
+  margin-top: 3px;
+  padding-top: 6px;
+  border-top: 1px solid #e1e7ee;
+}
+
+
+/* =========================================================
+   왼쪽 구분 제목
+
+   박스 없이 글자만 표시
+========================================================= */
+
+.search-work-section__label {
+  display: block;
+  width: 88px;
+  min-width: 88px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.55;
+  text-align: left;
+  white-space: nowrap;
+}
+
+
+.search-work-section.is-operation
+.search-work-section__label {
+  color: #1763b6;
+}
+
+
+.search-work-section.is-tm
+.search-work-section__label {
+  color: #16845b;
+}
+
+
+.search-work-section.is-handover
+.search-work-section__label {
+  color: #b56a00;
+}
+
+
+.search-work-section.is-note
+.search-work-section__label {
+  color: #687487;
+}
+
+
+/* =========================================================
+   오른쪽 전체 내용
+========================================================= */
+
+.search-work-section__content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+}
+
+
+/* =========================================================
+   TM·인계 개별 항목
+
+   번호 | 본문
+========================================================= */
+
+.search-work-entry {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns:
+    22px
+    minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 6px;
+  margin: 0;
+  padding: 0;
+  color: #26364b;
+  font-size: 12px;
+  line-height: 1.55;
+  text-align: left;
+}
+
+
+/* =========================================================
+   번호
+========================================================= */
+
+.search-work-entry__number {
+  display: block;
+  width: 22px;
+  min-width: 22px;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: inherit;
+  text-align: right;
+  white-space: nowrap;
+}
+
+
+.search-work-entry.is-tm
+.search-work-entry__number {
+  color: #b87412;
+}
+
+
+.search-work-entry.is-handover
+.search-work-entry__number {
+  color: #1f5fae;
+}
+
+
+/* =========================================================
+   시간·TAG·내용 묶음
+
+   모두 같은 문장 흐름으로 표시
+========================================================= */
+
+.search-work-entry__body {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  color: #26364b;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: inherit;
+  text-align: left;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/* 시간 */
+
+.search-work-entry__time {
+  display: inline;
+  margin: 0 5px 0 0;
+  padding: 0;
+  color: #2456a6;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: inherit;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+
+/* TAG */
+
+.search-work-entry__tag {
+  display: inline;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 5px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #1763c5;
+  font-family:
+    Consolas,
+    "Courier New",
+    monospace;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: inherit;
+  vertical-align: baseline;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+
+.search-work-entry__tag:hover {
+  color: #0b4694;
+  text-decoration: underline;
+}
+
+
+/* 내용 */
+
+.search-work-entry__text {
+  display: inline;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  color: #26364b;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: inherit;
+  vertical-align: baseline;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+   운전현황·비고
+========================================================= */
+
+.search-work-operation,
+.search-work-note {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  color: #26364b;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+  text-align: left;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+   빈 내용
+========================================================= */
+
+.search-work-empty {
+  display: block;
+  margin: 0;
+  padding: 3px 0;
+  color: #8a95a4;
+  font-size: 12px;
+  text-align: left;
+}
+
+
+/* =========================================================
+   좁은 화면
+========================================================= */
+
+@media (max-width: 1200px) {
+  .search-work-section {
+    grid-template-columns:
+      78px
+      minmax(0, 1fr);
+    column-gap: 7px;
+  }
+
+  .search-work-section__label {
+    width: 78px;
+    min-width: 78px;
+    font-size: 10px;
+  }
+
+  .search-work-entry {
+    grid-template-columns:
+      20px
+      minmax(0, 1fr);
+    column-gap: 5px;
+  }
+
+  .search-work-entry__number {
+    width: 20px;
+    min-width: 20px;
+  }
+}
