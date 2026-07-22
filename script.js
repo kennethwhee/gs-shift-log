@@ -6341,8 +6341,14 @@ function formatDateTime(value) {
 /* =========================================================
   업무일지 작성·수정창 열기
 
-  목록 렌더링 중 오류가 발생하더라도
-  모달 자체가 열리지 않는 문제를 방지한다.
+  중요:
+  데이터를 모두 준비한 후 마지막에 모달을 연다.
+
+  기존 업무일지 수정:
+  reset → fillLogEditor → 모달 열기
+
+  신규 업무일지:
+  reset → 기본 정보 적용 → 모달 열기
 ========================================================= */
 
 function openLogEditor(
@@ -6350,164 +6356,162 @@ function openLogEditor(
   preset = null
 ) {
   /*
-    먼저 모달을 연다.
-
-    이전에는 resetLogEditor() 또는
-    renderLogEntryTable()에서 오류가 발생하면
-    openModal()까지 도달하지 못했다.
+    이전 입력창 상태를 먼저 초기화한다.
   */
-  openModal(
-    elements.logEditorModal
-  );
+  resetLogEditor();
 
 
-  try {
-    resetLogEditor();
+  /*
+    기존 업무일지 수정
+  */
+  if (log) {
+    fillLogEditor(
+      log
+    );
 
 
-    /*
-      기존 업무일지 수정
-    */
-    if (log) {
-      fillLogEditor(
-        log
-      );
-
-
-      if (
-        elements.logEditorTitle
-      ) {
-        elements
-          .logEditorTitle
-          .textContent =
-          `${log.role || ""} 업무일지 수정`;
-      }
-
-
-      updateMemberLogImportSection();
-
-      return;
-    }
-
-
-    /*
-      근무자 카드에서 새 업무일지 작성
-    */
-    if (preset) {
-      const presetRole =
-        String(
-          preset.role || ""
-        ).trim();
-
-
-      const presetAuthor =
-        String(
-          preset.author || ""
-        ).trim();
-
-
-      const presetTeam =
-        String(
-          preset.team || ""
-        ).trim();
-
-
-      if (
-        presetRole &&
-        elements.logRole &&
-        [
-          ...elements.logRole.options
-        ].some(
-          (option) => {
-            return (
-              option.value ===
-              presetRole
-            );
-          }
-        )
-      ) {
-        elements.logRole.value =
-          presetRole;
-      }
-
-
-      if (
-        presetAuthor &&
-        elements.logAuthor
-      ) {
-        elements.logAuthor.value =
-          presetAuthor;
-      }
-
-
-      if (
-        presetTeam &&
-        elements.logTeam &&
-        [
-          ...elements.logTeam.options
-        ].some(
-          (option) => {
-            return (
-              option.value ===
-              presetTeam
-            );
-          }
-        )
-      ) {
-        elements.logTeam.value =
-          presetTeam;
-      }
-
-
-      if (
-        elements.logEditorTitle
-      ) {
-        elements
-          .logEditorTitle
-          .textContent =
-          `${presetRole || ""} 업무일지 작성`;
-      }
-
-
-      updateMemberLogImportSection();
-
-      return;
-    }
-
-
-    /*
-      상단 업무일지 작성 버튼
-    */
     if (
       elements.logEditorTitle
     ) {
       elements
         .logEditorTitle
         .textContent =
-        "업무일지 작성";
+        `${log.role || ""} 업무일지 수정`;
     }
 
 
-    restoreDraftIfAvailable();
-
     updateMemberLogImportSection();
-
-  } catch (error) {
-    console.error(
-      "업무일지 작성·수정창 열기 실패:",
-      error
-    );
 
 
     /*
-      오류가 있어도 창은 닫지 않는다.
-      어느 함수에서 문제가 났는지
-      개발자도구 콘솔에서 확인할 수 있다.
+      모든 데이터 입력이 끝난 뒤
+      마지막에 모달을 연다.
     */
-    showToast(
-      "업무일지 창은 열렸지만 일부 내역을 표시하지 못했습니다."
+    openModal(
+      elements.logEditorModal
     );
+
+
+    return;
   }
+
+
+  /*
+    근무자 카드에서 신규 작성
+  */
+  if (preset) {
+    const presetRole =
+      normalizeMemberLogRole(
+        preset.role
+      );
+
+
+    const presetAuthor =
+      String(
+        preset.author || ""
+      ).trim();
+
+
+    const presetTeam =
+      normalizeTeamName(
+        preset.team
+      );
+
+
+    if (
+      presetRole &&
+      elements.logRole &&
+      [
+        ...elements.logRole.options
+      ].some(
+        (option) => {
+          return (
+            normalizeMemberLogRole(
+              option.value
+            ) ===
+            presetRole
+          );
+        }
+      )
+    ) {
+      elements.logRole.value =
+        presetRole;
+    }
+
+
+    if (
+      presetAuthor &&
+      elements.logAuthor
+    ) {
+      elements.logAuthor.value =
+        presetAuthor;
+    }
+
+
+    if (
+      presetTeam &&
+      elements.logTeam &&
+      [
+        ...elements.logTeam.options
+      ].some(
+        (option) => {
+          return (
+            normalizeTeamName(
+              option.value
+            ) ===
+            presetTeam
+          );
+        }
+      )
+    ) {
+      elements.logTeam.value =
+        presetTeam;
+    }
+
+
+    if (
+      elements.logEditorTitle
+    ) {
+      elements
+        .logEditorTitle
+        .textContent =
+        `${presetRole || ""} 업무일지 작성`;
+    }
+
+
+    updateMemberLogImportSection();
+
+
+    openModal(
+      elements.logEditorModal
+    );
+
+
+    return;
+  }
+
+
+  /*
+    일반 신규 업무일지 작성
+  */
+  if (
+    elements.logEditorTitle
+  ) {
+    elements
+      .logEditorTitle
+      .textContent =
+      "업무일지 작성";
+  }
+
+
+  restoreDraftIfAvailable();
+
+  updateMemberLogImportSection();
+
+
+  openModal(
+    elements.logEditorModal
+  );
 }
 
 /* =========================================================
