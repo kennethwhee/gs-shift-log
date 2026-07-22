@@ -17270,155 +17270,157 @@ function renderSearchResults(
   }
 
 
-  resultLogs.forEach(
-    (
-      log,
-      resultIndex
-    ) => {
-      const attachmentCount =
-        getSearchLogAttachmentCount(
-          log
-        );
+resultLogs.forEach(
+  (
+    log,
+    resultIndex
+  ) => {
+    const attachmentCount =
+      getSearchLogAttachmentCount(
+        log
+      );
 
 
-      const status =
-        String(
-          log.status ||
-          "작성중"
-        ).trim();
+    const status =
+      String(
+        log.status ||
+        "작성중"
+      ).trim();
 
 
-      elements.searchResultBody
-        .insertAdjacentHTML(
-          "beforeend",
-          `
-            <tr
-              class="search-log-row"
-              data-search-result-index="${resultIndex}"
-            >
+    elements.searchResultBody
+      .insertAdjacentHTML(
+        "beforeend",
+        `
+          <tr
+            class="search-log-row"
+            data-search-result-index="${resultIndex}"
+          >
 
-              <td class="search-log-date-cell">
+            <td class="search-log-date-cell">
+              ${escapeHtml(
+                log.date ||
+                "-"
+              )}
+            </td>
+
+
+            <td class="search-log-shift-cell">
+              ${escapeHtml(
+                getShiftDisplayName(
+                  log.shift
+                )
+              )}
+            </td>
+
+
+            <td class="search-log-role-cell">
+              ${escapeHtml(
+                log.role ||
+                "-"
+              )}
+            </td>
+
+
+            <td class="search-log-author-cell">
+              <strong>
                 ${escapeHtml(
-                  log.date ||
+                  log.author ||
                   "-"
                 )}
-              </td>
+              </strong>
+            </td>
 
 
-              <td class="search-log-shift-cell">
-                ${escapeHtml(
-                  getShiftDisplayName(
-                    log.shift
-                  )
-                )}
-              </td>
+            <td class="search-log-status-cell">
 
-
-              <td class="search-log-role-cell">
-                ${escapeHtml(
-                  log.role ||
-                  "-"
-                )}
-              </td>
-
-
-              <td class="search-log-author-cell">
-                <strong>
-                  ${escapeHtml(
-                    log.author ||
-                    "-"
-                  )}
-                </strong>
-              </td>
-
-
-              <td class="search-log-status-cell">
-
-                <span
-                  class="
-                    status-badge
-                    ${getSearchLogStatusClass(
-                      status
-                    )}
-                  "
-                >
-                  ${escapeHtml(
+              <span
+                class="
+                  status-badge
+                  ${getSearchLogStatusClass(
                     status
                   )}
-                </span>
+                "
+              >
+                ${escapeHtml(
+                  status
+                )}
+              </span>
 
-              </td>
-
-
-              <td class="search-log-attachment-cell">
-
-                ${
-                  attachmentCount >
-                  0
-                    ? `
-                      <span
-                        class="attachment-indicator"
-                        title="첨부파일 ${attachmentCount}개"
-                      >
-                        ${attachmentCount}
-                      </span>
-                    `
-                    : `
-                      <span
-                        class="
-                          attachment-indicator
-                          is-empty
-                        "
-                      >
-                        -
-                      </span>
-                    `
-                }
-
-              </td>
+            </td>
 
 
-              <td class="search-log-preview-cell">
+            <td class="search-log-preview-cell">
 
-                <button
-                  type="button"
-                  class="
-                    log-preview
-                    search-log-preview
-                  "
-                  data-search-view-index="${resultIndex}"
-                  aria-label="${escapeHtml(
-                    log.author ||
-                    ""
-                  )} 업무일지 상세보기"
-                >
+              <button
+                type="button"
+                class="
+                  log-preview
+                  search-log-preview
+                "
+                data-search-view-index="${resultIndex}"
+                aria-label="${escapeHtml(
+                  log.author ||
+                  ""
+                )} 업무일지 상세보기"
+              >
 
-                  ${createSearchLogPreviewHtml(
-                    log
-                  )}
+                ${createSearchLogPreviewHtml(
+                  log
+                )}
 
-                </button>
+              </button>
 
-              </td>
+            </td>
 
 
-              <td class="search-log-view-cell">
+            <td class="search-log-view-cell">
 
-                <button
-                  type="button"
-                  class="table-action-button"
-                  data-search-view-index="${resultIndex}"
-                >
-                  보기
-                </button>
+              <button
+                type="button"
+                class="table-action-button"
+                data-search-view-index="${resultIndex}"
+              >
+                보기
+              </button>
 
-              </td>
+            </td>
 
-            </tr>
-          `
-        );
-    }
-  );
+
+            <td class="search-log-attachment-cell">
+
+              ${
+                attachmentCount >
+                0
+                  ? `
+                    <span
+                      class="attachment-indicator"
+                      title="첨부파일 ${attachmentCount}개"
+                      aria-label="첨부파일 ${attachmentCount}개"
+                    >
+                      ${attachmentCount}
+                    </span>
+                  `
+                  : `
+                    <span
+                      class="
+                        attachment-indicator
+                        is-empty
+                      "
+                      aria-label="첨부파일 없음"
+                    >
+                      -
+                    </span>
+                  `
+              }
+
+            </td>
+
+          </tr>
+        `
+      );
+  }
+);
 
 
   /*

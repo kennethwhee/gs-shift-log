@@ -11886,12 +11886,18 @@ tbody tr:first-child td {
 }
 
 /* =========================================================
-   업무일지 조회 결과 최종 디자인
+   조회 결과 최종 정리
 
-   구조:
+   1. 운전현황·TM 발행 내역·인계 박스 제거
+   2. 구분별 글자 색상 유지
+   3. 첨부 칸을 맨 끝으로 이동
+   4. 첨부 칸 최소 너비 적용
+
+   열 순서:
    일자 | 근무 | 보직 | 작성자
-   상태 | 첨부 | 업무 내용 | 보기
+   상태 | 업무 내용 | 보기 | 첨부
 ========================================================= */
+
 
 /* =========================================================
    조회 결과 표 전체
@@ -11910,7 +11916,7 @@ tbody tr:first-child td {
 
 .search-result-table {
   width: 100%;
-  min-width: 1120px;
+  min-width: 1080px;
 
   table-layout: fixed;
   border-collapse: collapse;
@@ -11921,44 +11927,61 @@ tbody tr:first-child td {
    열 너비
 ========================================================= */
 
+/* 일자 */
 .search-result-table
 .search-result-table__date {
-  width: 105px;
+  width: 100px;
 }
 
+
+/* 근무 */
 .search-result-table
 .search-result-table__shift {
-  width: 66px;
+  width: 64px;
 }
 
+
+/* 보직 */
 .search-result-table
 .search-result-table__role {
-  width: 82px;
+  width: 72px;
 }
 
+
+/* 작성자 */
 .search-result-table
 .search-result-table__author {
   width: 92px;
 }
 
+
+/* 상태 */
 .search-result-table
 .search-result-table__status {
-  width: 94px;
+  width: 90px;
 }
 
-.search-result-table
-.search-result-table__attachment {
-  width: 62px;
-}
 
+/* 업무 내용 */
 .search-result-table
 .search-result-table__content {
   width: auto;
 }
 
+
+/* 보기 */
 .search-result-table
 .search-result-table__view {
-  width: 76px;
+  width: 68px;
+}
+
+
+/* 첨부 */
+.search-result-table
+.search-result-table__attachment {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
 }
 
 
@@ -11967,8 +11990,8 @@ tbody tr:first-child td {
 ========================================================= */
 
 .search-result-table th {
-  height: 44px;
-  padding: 0 10px;
+  height: 42px;
+  padding: 0 8px;
 
   border-bottom: 1px solid #d7e0ea;
 
@@ -11983,7 +12006,7 @@ tbody tr:first-child td {
 }
 
 .search-result-table td {
-  padding: 12px 10px;
+  padding: 11px 8px;
 
   border-bottom: 1px solid #dce4ed;
 
@@ -12036,47 +12059,24 @@ tbody tr:hover td {
 
 .search-log-author-cell strong {
   color: #1f3048;
-  font-size: 13px;
+
+  font-size: 12px;
   font-weight: 900;
 }
 
 
 /* =========================================================
-   상태·첨부·보기
+   상태
 ========================================================= */
 
-.search-log-status-cell,
-.search-log-attachment-cell,
-.search-log-view-cell {
+.search-log-status-cell {
   text-align: center;
 }
 
 .search-log-status-cell
 .status-badge {
-  min-width: 68px;
-  min-height: 25px;
-
-  padding: 0 9px;
-
-  font-size: 10px;
-}
-
-.search-log-attachment-cell
-.attachment-indicator {
-  min-width: 27px;
-  min-height: 27px;
-
-  padding: 0 6px;
-
-  font-size: 12px;
-}
-
-.search-log-view-cell
-.table-action-button {
-  width: 58px;
-  min-width: 58px;
-  height: 29px;
-  min-height: 29px;
+  min-width: 66px;
+  min-height: 24px;
 
   padding: 0 8px;
 
@@ -12089,8 +12089,9 @@ tbody tr:hover td {
 ========================================================= */
 
 .search-log-preview-cell {
-  padding-top: 10px !important;
-  padding-bottom: 10px !important;
+  min-width: 0;
+
+  padding: 9px 16px !important;
 
   text-align: left;
   vertical-align: top !important;
@@ -12103,7 +12104,7 @@ tbody tr:hover td {
   min-width: 0;
 
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
 
   margin: 0;
   padding: 0;
@@ -12121,7 +12122,7 @@ tbody tr:hover td {
 /* =========================================================
    업무 내용 한 줄
 
-   제목 | 번호·시간·TAG·내용
+   구분 글자 | 실제 내용
 ========================================================= */
 
 .search-log-preview
@@ -12135,11 +12136,11 @@ tbody tr:hover td {
     82px
     minmax(0, 1fr);
 
-  align-items: start;
-  column-gap: 9px;
+  align-items: baseline;
+  column-gap: 10px;
 
   margin: 0;
-  padding: 0;
+  padding: 3px 0;
 }
 
 .search-log-preview
@@ -12150,65 +12151,94 @@ tbody tr:hover td {
 
 
 /* =========================================================
-   운전현황·TM·인계·비고 배지
+   구분 제목
+
+   네모 박스 제거
+   색상만 유지
 ========================================================= */
 
 .search-log-preview
 .log-preview__title {
   display: inline-flex;
 
-  min-width: 0;
-  min-height: 23px;
+  width: 82px;
+  min-width: 82px;
+  min-height: 0;
 
-  align-items: center;
-  justify-content: center;
+  align-items: baseline;
+  justify-content: flex-start;
 
-  padding: 2px 7px;
+  margin: 0;
+  padding: 0;
 
-  border-radius: 6px;
+  border: 0 !important;
+  border-radius: 0 !important;
 
-  font-size: 10px;
+  background: transparent !important;
+  box-shadow: none !important;
+
+  font-size: 11px;
   font-weight: 900;
-  line-height: 1.35;
+  line-height: 1.5;
 
   white-space: nowrap;
 }
 
+
+/* 운전현황 */
 .search-log-preview
 .log-preview__group.is-operation
 .log-preview__title {
-  border: 1px solid #b9d4f1;
-  background: #eaf3fc;
-  color: #1f5fae;
+  color: #1763b6 !important;
 }
 
+
+/* TM 발행 내역 */
 .search-log-preview
 .log-preview__group.is-maintenance
 .log-preview__title {
-  border: 1px solid #b9dec9;
-  background: #eaf8f0;
-  color: #19764b;
+  color: #16845b !important;
 }
 
+
+/* 인계 */
 .search-log-preview
 .log-preview__group.is-handover
 .log-preview__title {
-  border: 1px solid #efd09c;
-  background: #fff5e4;
-  color: #a2670d;
+  color: #b56a00 !important;
 }
 
+
+/* 비고 */
 .search-log-preview
 .log-preview__group.is-note
 .log-preview__title {
-  border: 1px solid #d5dce5;
-  background: #f2f5f8;
-  color: #657184;
+  color: #667386 !important;
+}
+
+
+/* 혹시 기존 클래스명이 다를 경우까지 대응 */
+.search-log-preview
+.log-preview__group.is-tm
+.log-preview__title {
+  color: #16845b !important;
+}
+
+.search-log-preview
+.log-preview__group.is-operation-status
+.log-preview__title {
+  color: #1763b6 !important;
+}
+
+.search-log-preview
+.log-preview__group.is-handover-entry
+.log-preview__title {
+  color: #b56a00 !important;
 }
 
 
 /* =========================================================
-   번호·시간·TAG·내용 영역
+   번호·시간·TAG·내용
 ========================================================= */
 
 .search-log-preview
@@ -12219,14 +12249,14 @@ tbody tr:hover td {
 
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 
-  padding-top: 2px;
+  padding: 0;
 
   color: #2d3d53;
 
   font-size: 12px;
-  line-height: 1.55;
+  line-height: 1.5;
 
   text-align: left;
 }
@@ -12264,7 +12294,7 @@ tbody tr:hover td {
   display: inline-block;
   flex: 0 0 auto;
 
-  color: #30455f;
+  color: #2456a6;
 
   font-size: 12px;
   font-weight: 900;
@@ -12295,7 +12325,7 @@ tbody tr:hover td {
     "Courier New",
     monospace;
 
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 900;
   line-height: inherit;
 
@@ -12333,27 +12363,106 @@ tbody tr:hover td {
 
 
 /* =========================================================
-   구역 사이 구분선
+   구분 사이의 선
 ========================================================= */
 
 .search-log-preview
 .log-preview__group.is-section-start {
-  margin-top: 3px;
-  padding-top: 6px;
+  margin-top: 2px;
+  padding-top: 5px;
 
-  border-top: 1px solid #e1e7ee;
+  border-top: 1px solid #dce4ed;
+}
+
+.search-log-preview
+.log-preview__group.has-no-title {
+  border-top: 0;
 }
 
 
 /* =========================================================
-   내용이 없을 때
+   보기 칸
+========================================================= */
+
+.search-log-view-cell {
+  width: 68px;
+
+  padding-left: 5px !important;
+  padding-right: 5px !important;
+
+  text-align: center;
+}
+
+.search-log-view-cell
+.table-action-button {
+  width: 52px;
+  min-width: 52px;
+  height: 28px;
+  min-height: 28px;
+
+  padding: 0 6px;
+
+  font-size: 10px;
+}
+
+
+/* =========================================================
+   첨부 칸
+========================================================= */
+
+.search-log-attachment-cell {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+
+  padding: 0 3px !important;
+
+  text-align: center;
+  vertical-align: middle;
+}
+
+.search-log-attachment-cell
+.attachment-indicator {
+  display: inline-flex;
+
+  width: 21px;
+  min-width: 21px;
+  height: 21px;
+  min-height: 21px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  border-radius: 5px;
+
+  background: #edf4fc;
+  color: #1763b6;
+
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.search-log-attachment-cell
+.attachment-indicator.is-empty {
+  background: transparent;
+  color: #9ba7b5;
+}
+
+
+/* =========================================================
+   내용 없음
 ========================================================= */
 
 .search-log-preview
 .log-preview__empty {
   display: block;
 
-  padding: 5px 0;
+  padding: 4px 0;
 
   color: #8994a3;
   font-size: 12px;
@@ -12363,7 +12472,7 @@ tbody tr:hover td {
 
 
 /* =========================================================
-   마우스·키보드 선택
+   선택 효과
 ========================================================= */
 
 .search-log-preview:hover
@@ -12373,9 +12482,9 @@ tbody tr:hover td {
 
 .search-log-preview:focus-visible {
   outline: 2px solid rgba(31, 95, 174, 0.26);
-  outline-offset: 4px;
+  outline-offset: 3px;
 
-  border-radius: 6px;
+  border-radius: 5px;
 }
 
 
@@ -12384,20 +12493,26 @@ tbody tr:hover td {
 ========================================================= */
 
 @media (max-width: 900px) {
+
   .search-result-table {
-    min-width: 1040px;
+    min-width: 1000px;
   }
 
   .search-log-preview
   .log-preview__group {
     grid-template-columns:
-      74px
+      72px
       minmax(0, 1fr);
+
+    column-gap: 8px;
   }
 
   .search-log-preview
   .log-preview__title {
-    font-size: 9px;
+    width: 72px;
+    min-width: 72px;
+
+    font-size: 10px;
   }
 
   .search-log-preview
@@ -12413,8 +12528,15 @@ tbody tr:hover td {
 
   .search-log-preview
   .log-preview__tag {
-    font-size: 10px;
+    font-size: 9px;
   }
+
+  .search-log-attachment-cell {
+    width: 36px;
+    min-width: 36px;
+    max-width: 36px;
+  }
+
 }
 
 /* =========================================================
@@ -12769,3 +12891,5 @@ tbody tr:hover td {
   }
 
 }
+
+
