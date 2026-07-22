@@ -16239,13 +16239,14 @@ function doesLogMatchSearchCategory(
 }
 
 /* =========================================================
-  조회 목록 업무내용 미리보기 전용
+  조회 목록 업무내용 미리보기
 
-  핵심:
-  1. 메인 목록의 log-preview__* 클래스와 완전히 분리
-  2. TM 번호·시간·TAG·내용을 하나의 가로 흐름으로 표시
-  3. 보직 제목은 박스 없이 글자색만 표시
-  4. 긴 내용만 본문 시작 위치에서 줄바꿈
+  출력 규칙
+  1. 번호 → 시간 → 내용 → TAG
+  2. TAG는 내용 뒤에 한 번만 표시
+  3. 과거 데이터 content 앞에 포함된 중복 TAG 제거
+  4. 조회 행 안에 button을 중첩하지 않음
+  5. 파트장 일지는 보직별로 분리
 ========================================================= */
 
 function createSearchLogPreviewHtml(
@@ -16278,6 +16279,69 @@ function createSearchLogPreviewHtml(
   const ordinaryEntries = [];
 
 
+  /*
+    content 앞에 이미 들어 있는 TAG 제거
+
+    예:
+    [00E6LAB40AA101] Feed Water Heater 점검
+
+    결과:
+    Feed Water Heater 점검
+  */
+  const removeLeadingDuplicateTag = (
+    content,
+    tag
+  ) => {
+    let normalizedContent =
+      String(
+        content ||
+        ""
+      ).trim();
+
+
+    const normalizedTag =
+      String(
+        tag ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    if (
+      !normalizedContent ||
+      !normalizedTag
+    ) {
+      return normalizedContent;
+    }
+
+
+    const escapedTag =
+      normalizedTag.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      );
+
+
+    const leadingTagPattern =
+      new RegExp(
+        `^\\s*[\\[【]\\s*${escapedTag}\\s*[\\]】]\\s*`,
+        "i"
+      );
+
+
+    return normalizedContent
+      .replace(
+        leadingTagPattern,
+        ""
+      )
+      .trim();
+  };
+
+
+  /*
+    원본 항목 정리
+  */
   entries.forEach(
     (
       entry,
@@ -16296,87 +16360,43 @@ function createSearchLogPreviewHtml(
       }
 
 
-/*
-  TAG와 내용을 각각 정리한다.
-
-  일부 과거 데이터는 다음처럼
-  content 안에도 TAG가 포함되어 있다.
-
-  tag:
-  00E6LAB40AA101
-
-  content:
-  [00E6LAB40AA101] Feed Water Heater 점검
-
-  이 경우 content 앞의 중복 TAG만 제거하고,
-  화면에는 별도 TAG 버튼을 내용 뒤에 한 번만 표시한다.
-*/
-
-const normalizedTag =
-  String(
-    entry?.tag ||
-    ""
-  )
-    .trim()
-    .toUpperCase();
+      const normalizedTag =
+        String(
+          entry?.tag ||
+          ""
+        )
+          .trim()
+          .toUpperCase();
 
 
-let normalizedContent =
-  String(
-    entry?.content ||
-    ""
-  ).trim();
+      const normalizedContent =
+        removeLeadingDuplicateTag(
+          entry?.content,
+          normalizedTag
+        );
 
 
-if (
-  normalizedTag &&
-  normalizedContent
-) {
-  const escapedTag =
-    normalizedTag.replace(
-      /[.*+?^${}()|[\]\\]/g,
-      "\\$&"
-    );
+      const normalizedEntry = {
+        originalIndex,
 
+        time:
+          String(
+            entry?.time ||
+            ""
+          ).trim(),
 
-  const leadingTagPattern =
-    new RegExp(
-      `^\\s*[\\[【]\\s*${escapedTag}\\s*[\\]】]\\s*`,
-      "i"
-    );
+        tag:
+          normalizedTag,
 
+        content:
+          normalizedContent,
 
-  normalizedContent =
-    normalizedContent
-      .replace(
-        leadingTagPattern,
-        ""
-      )
-      .trim();
-}
-
-
-const normalizedEntry = {
-  originalIndex,
-
-  time:
-    String(
-      entry?.time ||
-      ""
-    ).trim(),
-
-  tag:
-    normalizedTag,
-
-  content:
-    normalizedContent,
-
-  importedFromRole:
-    normalizeMemberLogRole(
-      entry?.importedFromRole ||
-      ""
-    )
-};
+        importedFromRole:
+          normalizeMemberLogRole(
+            entry?.importedFromRole ||
+            ""
+          )
+      };
 
 
       if (
@@ -16416,114 +16436,84 @@ const normalizedEntry = {
 
 
   /*
-    조회 목록용 TAG 버튼
+    조회 목록 한 항목
+
+    번호 → 시간 → 내용 → TAG
+
+    TAG는 button이 아니라 span으로 만든다.
+    조회 행 전체가 이미 클릭 가능한 요소이기 때문에
+    button을 중첩하면 브라우저가 TAG를 다음 줄로 밀어낸다.
   */
-  const createSearchTagHtml = (
-    entry
+  const createSearchEntryHtml = (
+    entry,
+    displayNumber,
+    type
   ) => {
-    if (
-      !entry.tag
-    ) {
-      return "";
-    }
+    const numberClass =
+      type === "tm"
+        ? "is-tm"
+        : "is-handover";
+
+
+    const timeHtml =
+      entry.time
+        ? `<strong class="search-preview-entry__time">${escapeHtml(
+            entry.time
+          )}</strong>`
+        : "";
+
+
+    const contentHtml =
+      `<span class="search-preview-entry__text">${escapeHtml(
+        entry.content ||
+        "-"
+      )}</span>`;
+
+
+    const tagHtml =
+      entry.tag
+        ? `<span
+            class="search-preview-entry__tag"
+            data-search-preview-tag="${escapeHtml(
+              entry.tag
+            )}"
+            role="button"
+            tabindex="0"
+            title="Facility Navigator에서 설비 보기"
+          >[${escapeHtml(
+            entry.tag
+          )}]</span>`
+        : "";
+
+
+    /*
+      요소 사이에 불필요한 줄바꿈 공백이 생기지 않도록
+      하나의 문자열로 연결한다.
+    */
+    const bodyHtml =
+      `${timeHtml}${contentHtml}${tagHtml}`;
 
 
     return `
-      <button
-        type="button"
-        class="search-preview-entry__tag"
-        data-search-preview-tag="${escapeHtml(
-          entry.tag
-        )}"
-        title="Facility Navigator에서 설비 보기"
+      <span
+        class="
+          search-preview-entry
+          ${numberClass}
+        "
       >
-        [${escapeHtml(
-          entry.tag
-        )}]
-      </button>
+        <strong
+          class="search-preview-entry__number"
+        >
+          ${displayNumber}.
+        </strong>
+
+        <span
+          class="search-preview-entry__body"
+        >${bodyHtml}</span>
+      </span>
     `;
   };
 
-
-/*
-  조회 목록 한 항목
-
-  출력 순서:
-  번호 → 시간 → 내용 → TAG
-
-  내용과 TAG를 하나의 연속된 HTML 문자열로 만들어
-  TAG가 있는 항목만 다음 줄로 내려가는 현상을 방지한다.
-*/
-const createSearchEntryHtml = (
-  entry,
-  displayNumber,
-  type
-) => {
-  const numberClass =
-    type === "tm"
-      ? "is-tm"
-      : "is-handover";
-
-
-  const timeHtml =
-    entry.time
-      ? `<strong class="search-preview-entry__time">${escapeHtml(
-          entry.time
-        )}</strong>`
-      : "";
-
-
-  const contentHtml =
-    `<span class="search-preview-entry__text">${escapeHtml(
-      entry.content ||
-      "-"
-    )}</span>`;
-
-
-  const tagHtml =
-    entry.tag
-      ? `<button
-          type="button"
-          class="search-preview-entry__tag"
-          data-search-preview-tag="${escapeHtml(
-            entry.tag
-          )}"
-          title="Facility Navigator에서 설비 보기"
-        >[${escapeHtml(
-          entry.tag
-        )}]</button>`
-      : "";
-
-
-  /*
-    줄바꿈과 들여쓰기 공백이 요소 사이에 들어가지 않도록
-    한 문자열로 직접 결합한다.
-  */
-  const bodyHtml =
-    `${timeHtml}${contentHtml}${tagHtml}`;
-
-
-  return `
-    <span
-      class="
-        search-preview-entry
-        ${numberClass}
-      "
-    >
-
-      <strong
-        class="search-preview-entry__number"
-      >
-        ${displayNumber}.
-      </strong>
-
-      <span
-        class="search-preview-entry__body"
-      >${bodyHtml}</span>
-
-    </span>
-  `;
-};
 
   /*
     보직별 일반 업무 묶기
@@ -16638,7 +16628,6 @@ const createSearchEntryHtml = (
           is-operation
         "
       >
-
         <strong
           class="search-preview-section__title"
         >
@@ -16658,7 +16647,6 @@ const createSearchEntryHtml = (
             )}
           </span>
         </span>
-
       </span>
     `);
   }
@@ -16677,7 +16665,6 @@ const createSearchEntryHtml = (
           is-tm
         "
       >
-
         <strong
           class="search-preview-section__title"
         >
@@ -16702,25 +16689,25 @@ const createSearchEntryHtml = (
             )
             .join("")}
         </span>
-
       </span>
     `);
   }
 
 
   /*
-    일반 업무
-
-    파트장 일지는 보직별 제목을 표시하고,
-    일반 보직 일지는 별도 보직 제목 없이 인계로 표시한다.
+    파트장 업무일지 여부
   */
   const isLeaderLog =
     normalizeMemberLogRole(
-      log?.role
+      log?.role ||
+      ""
     ) ===
     "파트장";
 
 
+  /*
+    일반 업무
+  */
   if (
     ordinaryEntries.length
   ) {
@@ -16742,7 +16729,6 @@ const createSearchEntryHtml = (
                 ${roleClassMap[role] || "is-default"}
               "
             >
-
               <strong
                 class="
                   search-preview-role-title
@@ -16772,12 +16758,10 @@ const createSearchEntryHtml = (
                   )
                   .join("")}
               </span>
-
             </span>
           `);
         }
       );
-
     } else {
       sections.push(`
         <span
@@ -16786,7 +16770,6 @@ const createSearchEntryHtml = (
             is-handover
           "
         >
-
           <strong
             class="search-preview-section__title"
           >
@@ -16811,7 +16794,6 @@ const createSearchEntryHtml = (
               )
               .join("")}
           </span>
-
         </span>
       `);
     }
@@ -16831,7 +16813,6 @@ const createSearchEntryHtml = (
           is-note
         "
       >
-
         <strong
           class="search-preview-section__title"
         >
@@ -16851,12 +16832,14 @@ const createSearchEntryHtml = (
             )}
           </span>
         </span>
-
       </span>
     `);
   }
 
 
+  /*
+    내용 없음
+  */
   if (
     !sections.length
   ) {
