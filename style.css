@@ -14506,8 +14506,10 @@ tbody tr:hover td {
 /* =========================================================
    조회 목록 TM 최종 정렬
 
-   번호 → 내용 → TAG
-   모두 같은 줄에서 시작
+   번호 | 내용 | TAG
+
+   TAG가 존재하더라도 절대 별도 줄의 시작점으로
+   이동하지 않도록 본문을 한 개의 flex 행으로 고정한다.
 ========================================================= */
 
 .search-preview-section.is-tm
@@ -14537,6 +14539,7 @@ tbody tr:hover td {
 
   width: 24px !important;
   min-width: 24px !important;
+  max-width: 24px !important;
 
   margin: 0 !important;
   padding: 0 !important;
@@ -14552,14 +14555,24 @@ tbody tr:hover td {
 }
 
 
-/* 내용 + TAG 본문 */
+/* =========================================================
+   내용과 TAG를 하나의 가로 행으로 고정
+========================================================= */
 
 .search-preview-section.is-tm
 .search-preview-entry__body {
-  display: block !important;
+  display: flex !important;
 
   width: 100% !important;
   min-width: 0 !important;
+
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+
+  align-items: baseline !important;
+  justify-content: flex-start !important;
+
+  gap: 6px !important;
 
   margin: 0 !important;
   padding: 0 !important;
@@ -14571,18 +14584,40 @@ tbody tr:hover td {
   line-height: 1.55 !important;
 
   text-align: left !important;
-
-  white-space: normal !important;
-  word-break: keep-all !important;
-  overflow-wrap: anywhere !important;
 }
 
 
-/* 내용 */
+/* 시간 */
+
+.search-preview-section.is-tm
+.search-preview-entry__time {
+  display: inline-block !important;
+
+  flex: 0 0 auto !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #1f5fae !important;
+
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: inherit !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* 실제 내용 */
 
 .search-preview-section.is-tm
 .search-preview-entry__text {
-  display: inline !important;
+  display: block !important;
+
+  flex: 0 1 auto !important;
+
+  width: auto !important;
+  min-width: 0 !important;
 
   margin: 0 !important;
   padding: 0 !important;
@@ -14593,7 +14628,7 @@ tbody tr:hover td {
   font-weight: 650 !important;
   line-height: inherit !important;
 
-  vertical-align: baseline !important;
+  text-align: left !important;
 
   white-space: normal !important;
   word-break: keep-all !important;
@@ -14605,13 +14640,21 @@ tbody tr:hover td {
 
 .search-preview-section.is-tm
 .search-preview-entry__tag {
-  display: inline !important;
+  position: static !important;
+
+  display: inline-flex !important;
+
+  flex: 0 0 auto !important;
 
   width: auto !important;
   min-width: 0 !important;
+  max-width: none !important;
   min-height: 0 !important;
 
-  margin: 0 0 0 6px !important;
+  align-items: baseline !important;
+  justify-content: flex-start !important;
+
+  margin: 0 !important;
   padding: 0 !important;
 
   border: 0 !important;
@@ -14633,6 +14676,7 @@ tbody tr:hover td {
 
   vertical-align: baseline !important;
   white-space: nowrap !important;
+
   cursor: pointer;
 }
 
