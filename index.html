@@ -1678,7 +1678,7 @@
     ></textarea>
 
     <small class="log-entry-content-help">
-      예: 08:00 설비 점검 / 0800 설비 점검 / 08:00, 10:00 설비 점검
+      내용 입력 후에 ENTER 키를 누르시면 항목 추가가 됩니다.
     </small>
 
   </label>
@@ -1976,116 +1976,159 @@
           </section>
 
 
-          <!-- 첨부파일 -->
-          <section class="editor-section">
-            <div class="editor-section__heading">
-              <div>
-                <h3>첨부파일</h3>
-                <p>사진, 문서 및 작업 관련 파일을 첨부할 수 있습니다.</p>
-              </div>
-            </div>
+<!-- =====================================================
+  첨부파일
+====================================================== -->
 
-            <label class="file-dropzone" id="fileDropzone">
-              <input
-                type="file"
-                id="logAttachments"
-                name="attachments"
-                multiple
-                hidden
-              />
+<section class="editor-section">
 
-              <span class="file-dropzone__icon">＋</span>
+  <div class="editor-section__heading">
 
-              <strong>파일 선택 또는 드래그</strong>
+    <div>
+      <h3>첨부파일</h3>
 
-              <small>
-                여러 개의 파일을 한 번에 첨부할 수 있습니다.
-              </small>
-            </label>
+      <p>
+        사진, 문서 및 작업 관련 파일을 첨부할 수 있습니다.
+      </p>
+    </div>
 
-            <div class="attachment-list" id="attachmentList">
-            </div>
-          </section>
-
-        </form>
-      </div>
-
-
-        </form>
-      </div>
-
-
-      <!-- =====================================================
-        업무일지 작성·수정창 하단 버튼
-
-        왼쪽:
-        - 인쇄
-
-        오른쪽:
-        - 임시저장
-        - 결재완료
-      ====================================================== -->
-      <footer class="modal-footer log-editor-footer">
-
-        <!-- 왼쪽 버튼 -->
-        <div
-          class="
-            modal-footer__left
-            log-editor-footer__left
-          "
-        >
-
-          <button
-            type="button"
-            class="
-              secondary-button
-              log-editor-print-button
-            "
-            id="printLogButton"
-          >
-            인쇄
-          </button>
-
-        </div>
-
-
-        <!-- 오른쪽 버튼 -->
-        <div
-          class="
-            modal-footer__right
-            log-editor-footer__right
-          "
-        >
-
-          <button
-            type="button"
-            class="
-              secondary-button
-              log-editor-draft-button
-            "
-            id="saveDraftButton"
-          >
-            임시저장
-          </button>
-
-
-          <button
-            type="button"
-            class="
-              approval-button
-              log-editor-complete-button
-            "
-            id="requestApprovalButton"
-          >
-            결재완료
-          </button>
-
-        </div>
-
-      </footer>
-
-    </section>
   </div>
+
+
+  <label
+    class="file-dropzone"
+    id="fileDropzone"
+  >
+
+    <input
+      type="file"
+      id="logAttachments"
+      name="attachments"
+      multiple
+      hidden
+    />
+
+
+    <span class="file-dropzone__icon">
+      ＋
+    </span>
+
+
+    <strong>
+      파일 선택 또는 드래그
+    </strong>
+
+
+    <small>
+      여러 개의 파일을 한 번에 첨부할 수 있습니다.
+    </small>
+
+  </label>
+
+
+  <div
+    class="attachment-list"
+    id="attachmentList"
+  >
+  </div>
+
+</section>
+
+
+<!-- 업무일지 입력 폼 종료 -->
+</form>
+
+
+<!-- 스크롤 영역 종료 -->
+</div>
+
+
+<!-- =====================================================
+  업무일지 작성·수정창 하단 버튼
+
+  왼쪽:
+  인쇄
+
+  오른쪽:
+  임시저장 | 결재요청 | 닫기
+====================================================== -->
+
+<footer class="modal-footer log-editor-footer">
+
+  <div
+    class="
+      modal-footer__left
+      log-editor-footer__left
+    "
+  >
+
+    <button
+      type="button"
+      class="
+        secondary-button
+        log-editor-print-button
+      "
+      id="printLogButton"
+    >
+      인쇄
+    </button>
+
+  </div>
+
+
+  <div
+    class="
+      modal-footer__right
+      log-editor-footer__right
+    "
+  >
+
+    <button
+      type="button"
+      class="
+        secondary-button
+        log-editor-draft-button
+      "
+      id="saveDraftButton"
+    >
+      임시저장
+    </button>
+
+
+    <button
+      type="button"
+      class="
+        approval-button
+        log-editor-complete-button
+      "
+      id="requestApprovalButton"
+    >
+      결재요청
+    </button>
+
+
+    <button
+      type="button"
+      class="
+        secondary-button
+        log-editor-close-button
+      "
+      id="cancelLogButton"
+    >
+      닫기
+    </button>
+
+  </div>
+
+</footer>
+
+
+<!-- modal-panel 종료 -->
+</section>
+
+
+<!-- modal-backdrop 종료 -->
+</div>
 
 
   <!-- =========================================================
