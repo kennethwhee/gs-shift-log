@@ -16454,7 +16454,10 @@ function createSearchLogPreviewHtml(
               "-"
             )}
           </span>
-
+          
+          ${createSearchTagHtml(
+            entry
+          )}
         </span>
 
       </span>

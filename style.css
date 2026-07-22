@@ -14502,3 +14502,143 @@ tbody tr:hover td {
     min-width: 22px;
   }
 }
+
+/* =========================================================
+   조회 목록 TM 최종 정렬
+
+   번호 → 내용 → TAG
+   모두 같은 줄에서 시작
+========================================================= */
+
+.search-preview-section.is-tm
+.search-preview-entry {
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  grid-template-columns:
+    24px
+    minmax(0, 1fr) !important;
+
+  align-items: baseline !important;
+  column-gap: 6px !important;
+
+  margin: 0 !important;
+  padding: 1px 0 !important;
+}
+
+
+/* TM 번호 */
+
+.search-preview-section.is-tm
+.search-preview-entry__number {
+  display: block !important;
+
+  width: 24px !important;
+  min-width: 24px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #b87412 !important;
+
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.55 !important;
+
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+
+/* 내용 + TAG 본문 */
+
+.search-preview-section.is-tm
+.search-preview-entry__body {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #26364b !important;
+
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  line-height: 1.55 !important;
+
+  text-align: left !important;
+
+  white-space: normal !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+
+/* 내용 */
+
+.search-preview-section.is-tm
+.search-preview-entry__text {
+  display: inline !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #26364b !important;
+
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  line-height: inherit !important;
+
+  vertical-align: baseline !important;
+
+  white-space: normal !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+
+/* 내용 뒤 TAG */
+
+.search-preview-section.is-tm
+.search-preview-entry__tag {
+  display: inline !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+
+  margin: 0 0 0 6px !important;
+  padding: 0 !important;
+
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+
+  color: #1763c5 !important;
+
+  font-family:
+    Consolas,
+    "Courier New",
+    monospace;
+
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: inherit !important;
+
+  vertical-align: baseline !important;
+  white-space: nowrap !important;
+  cursor: pointer;
+}
+
+
+.search-preview-section.is-tm
+.search-preview-entry__tag:hover {
+  color: #0b4694 !important;
+  text-decoration: underline;
+}
