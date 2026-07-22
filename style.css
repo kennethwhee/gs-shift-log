@@ -8081,7 +8081,7 @@ thead {
 
   text-align: left !important;
 
-  white-space: pre-wrap !important;
+  white-space: normal !important;
   word-break: keep-all !important;
   overflow-wrap: anywhere !important;
 }
@@ -8914,5 +8914,309 @@ textarea:focus {
     flex: 1 1 0;
     min-width: 0;
     padding: 0 10px;
+  }
+}
+
+/* =========================================================
+  인수인계사항 최종 한 줄 정렬
+
+  번호 | 시간 내용
+
+  예:
+  1. 07:15 Bio Rotary Feeder 점검
+  2. 07:15, 10:55 Bio Rotary Feeder 점검
+
+  TM:
+  1. TM 내용
+========================================================= */
+
+
+/* =========================================================
+  출력 셀 초기화
+========================================================= */
+
+#logEntryListPanel
+.log-entry-fixed-content-cell {
+  width: auto !important;
+  min-width: 0 !important;
+
+  padding: 6px 14px !important;
+
+  text-align: left !important;
+  vertical-align: top !important;
+
+  white-space: normal !important;
+
+  background: #ffffff !important;
+}
+
+
+/* 기존 출력 클래스 영향 제거 */
+#logEntryListPanel
+.log-entry-fixed-compact-wrapper,
+
+#logEntryListPanel
+.log-entry-fixed-compact-line,
+
+#logEntryListPanel
+.log-entry-fixed-content {
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  white-space: normal !important;
+}
+
+
+/* =========================================================
+  한 항목 전체
+
+  번호 | 본문
+========================================================= */
+
+#logEntryListPanel
+.log-entry-document-line {
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  grid-template-columns:
+    25px
+    minmax(0, 1fr) !important;
+
+  align-items: baseline !important;
+
+  column-gap: 5px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #26364b !important;
+
+  font-size: 11px !important;
+  font-weight: 650 !important;
+  line-height: 1.55 !important;
+
+  text-align: left !important;
+  white-space: normal !important;
+}
+
+
+/* =========================================================
+  번호
+========================================================= */
+
+#logEntryListPanel
+.log-entry-document-number {
+  display: block !important;
+
+  width: 25px !important;
+  min-width: 25px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #1763c5 !important;
+
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1.55 !important;
+
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+
+/* TM 번호는 주황색 */
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-document-number {
+  color: #b87412 !important;
+}
+
+
+/* =========================================================
+  시간 + 내용 본문
+
+  시간과 내용은 같은 문장 흐름으로 표시한다.
+========================================================= */
+
+#logEntryListPanel
+.log-entry-document-body {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #26364b !important;
+
+  font-size: 11px !important;
+  font-weight: 650 !important;
+  line-height: 1.55 !important;
+
+  text-align: left !important;
+
+  white-space: normal !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+
+/* =========================================================
+  시간
+========================================================= */
+
+#logEntryListPanel
+.log-entry-document-time {
+  display: inline !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+
+  margin: 0 5px 0 0 !important;
+  padding: 0 !important;
+
+  color: #1763c5 !important;
+
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: inherit !important;
+
+  text-align: left !important;
+  vertical-align: baseline !important;
+
+  white-space: nowrap !important;
+
+  font-variant-numeric:
+    tabular-nums !important;
+}
+
+
+/* =========================================================
+  실제 내용
+========================================================= */
+
+#logEntryListPanel
+.log-entry-document-content-text {
+  display: inline !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: inherit !important;
+
+  font: inherit !important;
+  line-height: inherit !important;
+
+  text-align: left !important;
+  vertical-align: baseline !important;
+
+  white-space: pre-line !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+
+/* =========================================================
+  TAG 버튼
+========================================================= */
+
+#logEntryListPanel
+.log-entry-document-body
+.log-entry-inline-tag {
+  display: inline !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+
+  margin: 0 0 0 5px !important;
+  padding: 0 !important;
+
+  border: 0 !important;
+  background: transparent !important;
+
+  color: #1763c5 !important;
+
+  font: inherit !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: inherit !important;
+
+  text-align: left !important;
+  vertical-align: baseline !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* =========================================================
+  불필요한 행 높이 제거
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table tbody tr:not(
+  .log-entry-role-divider-row
+) td {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+
+#logEntryListPanel
+.log-entry-table tbody tr:not(
+  .log-entry-role-divider-row
+) {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+  #logEntryListPanel
+  .log-entry-fixed-content-cell {
+    padding: 6px 9px !important;
+  }
+
+
+  #logEntryListPanel
+  .log-entry-document-line {
+    grid-template-columns:
+      22px
+      minmax(0, 1fr) !important;
+
+    column-gap: 4px !important;
+
+    font-size: 10px !important;
+  }
+
+
+  #logEntryListPanel
+  .log-entry-document-number {
+    width: 22px !important;
+    min-width: 22px !important;
+
+    font-size: 9px !important;
+  }
+
+
+  #logEntryListPanel
+  .log-entry-document-time {
+    margin-right: 4px !important;
+
+    font-size: 9px !important;
   }
 }
