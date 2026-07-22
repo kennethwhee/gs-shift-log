@@ -11830,66 +11830,58 @@ tbody tr:first-child td {
 
 /* =========================================================
    업무일지 수정창
-   인수인계사항 글씨 크기 최종본 (18px)
+   인수인계사항 글씨 크기 최종본 (16px)
 ========================================================= */
 
-/* 한 줄 */
-#logEntryListPanel
-.log-entry-document-line{
+#logEntryListPanel .log-entry-document-line{
     display:grid !important;
-    grid-template-columns:34px minmax(0,1fr) !important;
+    grid-template-columns:30px minmax(0,1fr) !important;
     align-items:start;
     column-gap:8px;
 }
 
 /* 번호 */
-#logEntryListPanel
-.log-entry-document-number{
-    width:34px !important;
-    min-width:34px !important;
-
+#logEntryListPanel .log-entry-document-number{
+    width:30px !important;
+    min-width:30px !important;
+    text-align:right;
     color:#1f5fae;
 
-    font-size:18px !important;
+    font-size:16px !important;
     font-weight:900;
     line-height:1.6;
-
-    text-align:right;
 }
 
-/* 내용 영역 */
-#logEntryListPanel
-.log-entry-document-body{
-    font-size:18px !important;
+/* 내용 전체 */
+#logEntryListPanel .log-entry-document-body{
+    color:#172033;
+    font-size:16px !important;
     font-weight:700;
     line-height:1.6;
-    color:#172033;
 }
 
 /* 시간 */
-#logEntryListPanel
-.log-entry-document-time{
+#logEntryListPanel .log-entry-document-time{
     display:inline;
     margin-right:8px;
 
     color:#26364b;
 
-    font-size:18px !important;
+    font-size:16px !important;
     font-weight:900;
 
     font-variant-numeric:tabular-nums;
 }
 
 /* 실제 업무내용 */
-#logEntryListPanel
-.log-entry-document-content-text{
+#logEntryListPanel .log-entry-document-content-text{
     display:inline;
 
-    font-size:18px !important;
+    color:#172033;
+
+    font-size:16px !important;
     font-weight:700;
     line-height:inherit;
-
-    color:#172033;
 
     white-space:pre-wrap;
     word-break:keep-all;
@@ -11897,15 +11889,14 @@ tbody tr:first-child td {
 }
 
 /* TAG */
-#logEntryListPanel
-.log-entry-inline-tag{
+#logEntryListPanel .log-entry-inline-tag{
     display:inline;
 
     margin-right:6px;
 
     color:#1763c5;
 
-    font-size:16px !important;
+    font-size:14px !important;
     font-weight:900;
 
     background:none;
@@ -11914,43 +11905,34 @@ tbody tr:first-child td {
 }
 
 /* 행 간격 */
-#logEntryListPanel
-.log-entry-row-shell{
-    padding-top:10px !important;
-    padding-bottom:10px !important;
+#logEntryListPanel .log-entry-row-shell{
+    padding:8px 0 !important;
 }
 
-/* 보직 제목 */
-#logEntryListPanel
-.log-entry-role-divider__badge{
-    min-height:30px;
+/* 보직 배지 */
+#logEntryListPanel .log-entry-role-divider__badge{
+    min-height:28px;
     padding:0 10px;
 
-    font-size:14px;
+    font-size:13px;
     font-weight:900;
 }
 
 /* 모바일 */
 @media (max-width:768px){
 
-    #logEntryListPanel
-    .log-entry-document-line{
-        grid-template-columns:30px minmax(0,1fr) !important;
+    #logEntryListPanel .log-entry-document-line{
+        grid-template-columns:28px minmax(0,1fr) !important;
     }
 
-    #logEntryListPanel
-    .log-entry-document-number,
-    #logEntryListPanel
-    .log-entry-document-time,
-    #logEntryListPanel
-    .log-entry-document-body,
-    #logEntryListPanel
-    .log-entry-document-content-text{
-        font-size:18px !important;
+    #logEntryListPanel .log-entry-document-number,
+    #logEntryListPanel .log-entry-document-body,
+    #logEntryListPanel .log-entry-document-time,
+    #logEntryListPanel .log-entry-document-content-text{
+        font-size:16px !important;
     }
 
-    #logEntryListPanel
-    .log-entry-inline-tag{
-        font-size:15px !important;
+    #logEntryListPanel .log-entry-inline-tag{
+        font-size:13px !important;
     }
 }
