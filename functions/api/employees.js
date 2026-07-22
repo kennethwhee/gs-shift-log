@@ -1,41 +1,48 @@
-"use strict";
+/* ==================================================
+   GS Shift Log 직원 명단 관리 API
 
-/* =========================================================
-  GS Shift Log 직원 계정 관리 API
+   GET    /api/employees
+   POST   /api/employees
+   DELETE /api/employees
 
-  GET  /api/employees
-  POST /api/employees
+   POST 지원 형식
 
-  POST 기능:
-  - 직원 1명 등록
-  - 엑셀 직원 여러 명 일괄 등록
-  - 신규 직원 초기 비밀번호는 사번과 동일
-  - 기존 사용자의 비밀번호는 유지
-  - 기존 사번은 이름과 권한만 갱신
-========================================================= */
+   1명 저장:
+   {
+     employeeNo,
+     name,
+     defaultRole,
+     isAllowed
+   }
+
+   여러 명 저장:
+   {
+     employees: [
+       {
+         employeeNo,
+         name,
+         defaultRole,
+         isAllowed
+       }
+     ]
+   }
+================================================== */
 
 
-/* =========================================================
-  JSON 응답
-========================================================= */
+/* =========================
+   공통 JSON 응답
+========================= */
 
-function createJsonResponse(
+function jsonResponse(
   data,
   status = 200
 ) {
-  return new Response(
-    JSON.stringify(
-      data,
-      null,
-      2
-    ),
+  return Response.json(
+    data,
     {
       status,
 
       headers: {
-        "Content-Type":
-          "application/json; charset=UTF-8",
-
         "Cache-Control":
           "no-store"
       }
@@ -44,22 +51,9 @@ function createJsonResponse(
 }
 
 
-/* =========================================================
-  DB 확인
-========================================================= */
-
-function validateDatabase(env) {
-  if (!env.DB) {
-    throw new Error(
-      "D1 바인딩 DB가 등록되지 않았습니다."
-    );
-  }
-}
-
-
-/* =========================================================
-  문자열 정리
-========================================================= */
+/* =========================
+   공통 문자열 정리
+========================= */
 
 function normalizeText(value) {
   return String(
@@ -68,61 +62,67 @@ function normalizeText(value) {
 }
 
 
-/* =========================================================
-  사번 정리
-========================================================= */
-
-function normalizeEmployeeId(value) {
-  return normalizeText(
-    value
-  ).replace(
-    /[^0-9]/g,
-    ""
-  );
-}
-
-
-/* =========================================================
-  권한 정리
-
-  프런트에서 파트장을 admin으로 보내고 있으므로
-  DB에는 leader로 변환하여 저장한다.
-========================================================= */
+/* =========================
+   권한값 정리
+========================= */
 
 function normalizeRole(value) {
   const role =
-    normalizeText(
-      value
-    )
+    normalizeText(value)
       .toLowerCase()
-      .replace(
-        /\s+/g,
-        "_"
-      );
+      .replace(/\s+/g, "_");
 
   if (
+    role === "admin" ||
     role === "leader" ||
-    role === "admin"
+    role === "super_admin"
   ) {
-    return "leader";
-  }
-
-  if (
-    role === "super_admin" ||
-    role === "superadmin"
-  ) {
-    return "super_admin";
+    return role === "admin"
+      ? "leader"
+      : role;
   }
 
   return "user";
 }
 
 
-/* =========================================================
-  엑셀 직원 데이터 정리
-========================================================= */
+/* =========================
+   가입 허용값 정리
+========================= */
 
-function normalizeEmployee(employee) {
+function normalizeAllowed(value) {
+  if (
+    value === true ||
+    value === 1 ||
+    value === "1"
+  ) {
+    return 1;
+  }
+
+  const text =
+    normalizeText(value)
+      .toUpperCase();
+
+  if (
+    text === "Y" ||
+    text === "YES" ||
+    text === "TRUE" ||
+    text === "허용"
+  ) {
+    return 1;
+  }
+
+  return 0;
+}
+
+
+/* =========================
+   직원 데이터 정리
+========================= */
+
+function normalizeEmployee(
+  employee
+) {
   const source =
     employee &&
     typeof employee === "object"
@@ -130,41 +130,46 @@ function normalizeEmployee(employee) {
       : {};
 
   return {
-    employeeId:
-      normalizeEmployeeId(
-        source.employeeNo ??
-        source.employeeId
-      ),
-
-    employeeName:
+    employeeNo:
       normalizeText(
-        source.name ??
-        source.employeeName
+        source.employeeNo
+      ).replace(
+        /[^0-9]/g,
+        ""
       ),
 
-    role:
+    name:
+      normalizeText(
+        source.name
+      ),
+
+    defaultRole:
       normalizeRole(
-        source.defaultRole ??
-        source.role
+        source.defaultRole
+      ),
+
+    isAllowed:
+      normalizeAllowed(
+        source.isAllowed
       )
   };
 }
 
 
-/* =========================================================
-  직원 데이터 검사
-========================================================= */
+/* =========================
+   직원 데이터 검사
+========================= */
 
 function validateEmployee(
   employee,
-  rowNumber
+  rowNumber = null
 ) {
   const rowText =
     rowNumber
-      ? `${rowNumber}번째 직원: `
+      ? `${rowNumber}행: `
       : "";
 
-  if (!employee.employeeId) {
+  if (!employee.employeeNo) {
     return (
       rowText +
       "사번이 없습니다."
@@ -173,7 +178,7 @@ function validateEmployee(
 
   if (
     !/^\d{6,10}$/.test(
-      employee.employeeId
+      employee.employeeNo
     )
   ) {
     return (
@@ -182,7 +187,7 @@ function validateEmployee(
     );
   }
 
-  if (!employee.employeeName) {
+  if (!employee.name) {
     return (
       rowText +
       "직원 이름이 없습니다."
@@ -193,418 +198,82 @@ function validateEmployee(
 }
 
 
-/* =========================================================
-  Uint8Array → Base64
-========================================================= */
-
-function bytesToBase64(bytes) {
-  let binaryText = "";
-
-  bytes.forEach(
-    byte => {
-      binaryText +=
-        String.fromCharCode(
-          byte
-        );
-    }
-  );
-
-  return btoa(
-    binaryText
-  );
-}
-
-
-/* =========================================================
-  랜덤 Salt 생성
-========================================================= */
-
-function createPasswordSalt() {
-  const saltBytes =
-    crypto.getRandomValues(
-      new Uint8Array(16)
-    );
-
-  return bytesToBase64(
-    saltBytes
-  );
-}
-
-
-/* =========================================================
-  문자열 인코딩
-========================================================= */
-
-function encodeText(value) {
-  return new TextEncoder()
-    .encode(
-      String(
-        value ?? ""
-      )
-    );
-}
-
-
-/* =========================================================
-  PBKDF2 비밀번호 해시
-========================================================= */
-
-async function hashPassword(
-  password,
-  salt
-) {
-  const keyMaterial =
-    await crypto.subtle.importKey(
-      "raw",
-      encodeText(
-        password
-      ),
-      {
-        name:
-          "PBKDF2"
-      },
-      false,
-      [
-        "deriveBits"
-      ]
-    );
-
-  const derivedBits =
-    await crypto.subtle.deriveBits(
-      {
-        name:
-          "PBKDF2",
-
-        salt:
-          encodeText(
-            salt
-          ),
-
-        iterations:
-          210000,
-
-        hash:
-          "SHA-256"
-      },
-      keyMaterial,
-      256
-    );
-
-  return bytesToBase64(
-    new Uint8Array(
-      derivedBits
-    )
-  );
-}
-
-
-/* =========================================================
-  직원 정보 등록 또는 수정
-========================================================= */
-
-async function upsertEmployee(
-  database,
-  employee
-) {
-  const existingEmployee =
-    await database
-      .prepare(
-        `
-          SELECT
-            employee_id
-          FROM employees
-          WHERE employee_id = ?1
-          LIMIT 1
-        `
-      )
-      .bind(
-        employee.employeeId
-      )
-      .first();
-
-
-  if (existingEmployee) {
-    await database
-      .prepare(
-        `
-          UPDATE employees
-          SET
-            employee_name = ?1,
-            role = ?2,
-            is_active = 1,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE employee_id = ?3
-        `
-      )
-      .bind(
-        employee.employeeName,
-        employee.role,
-        employee.employeeId
-      )
-      .run();
-
-    return {
-      action:
-        "updated",
-
-      employeeId:
-        employee.employeeId
-    };
-  }
-
-
-  await database
-    .prepare(
-      `
-        INSERT INTO employees (
-          employee_id,
-          employee_name,
-          role,
-          is_active,
-          created_at,
-          updated_at
-        )
-        VALUES (
-          ?1,
-          ?2,
-          ?3,
-          1,
-          CURRENT_TIMESTAMP,
-          CURRENT_TIMESTAMP
-        )
-      `
-    )
-    .bind(
-      employee.employeeId,
-      employee.employeeName,
-      employee.role
-    )
-    .run();
-
-
-  return {
-    action:
-      "created",
-
-    employeeId:
-      employee.employeeId
-  };
-}
-
-
-/* =========================================================
-  신규 로그인 계정 생성
-
-  기존 계정은 비밀번호를 절대 변경하지 않는다.
-========================================================= */
-
-async function createInitialUser(
-  database,
-  employeeId
-) {
-  const existingUser =
-    await database
-      .prepare(
-        `
-          SELECT
-            employee_id
-          FROM users
-          WHERE employee_id = ?1
-          LIMIT 1
-        `
-      )
-      .bind(
-        employeeId
-      )
-      .first();
-
-
-  if (existingUser) {
-    return {
-      created:
-        false
-    };
-  }
-
-
-  const passwordSalt =
-    createPasswordSalt();
-
-
-  const passwordHash =
-    await hashPassword(
-      employeeId,
-      passwordSalt
-    );
-
-
-  await database
-    .prepare(
-      `
-        INSERT INTO users (
-          employee_id,
-          password_hash,
-          password_salt,
-          must_change_password,
-          failed_login_count,
-          created_at,
-          updated_at
-        )
-        VALUES (
-          ?1,
-          ?2,
-          ?3,
-          1,
-          0,
-          CURRENT_TIMESTAMP,
-          CURRENT_TIMESTAMP
-        )
-      `
-    )
-    .bind(
-      employeeId,
-      passwordHash,
-      passwordSalt
-    )
-    .run();
-
-
-  return {
-    created:
-      true
-  };
-}
-
-
-/* =========================================================
-  GET /api/employees
-
-  직원 계정 목록 조회
-========================================================= */
+/* ==================================================
+   GET /api/employees
+================================================== */
 
 export async function onRequestGet(
   context
 ) {
   try {
-    validateDatabase(
-      context.env
-    );
-
-
-    const queryResult =
+    const employees =
       await context.env.DB
-        .prepare(
-          `
-            SELECT
-              employee_id,
-              employee_name,
-              role,
-              is_active,
-              created_at,
-              updated_at
-            FROM employees
-            ORDER BY
-              employee_name ASC,
-              employee_id ASC
-          `
-        )
+        .prepare(`
+          SELECT
+            employee_no,
+            name,
+            default_role,
+            is_allowed
+          FROM employees
+          ORDER BY
+            name COLLATE NOCASE ASC,
+            employee_no ASC
+        `)
         .all();
 
 
-    const employees =
+    const results =
       Array.isArray(
-        queryResult.results
+        employees.results
       )
-        ? queryResult.results
+        ? employees.results
         : [];
 
 
-    return createJsonResponse({
-      ok:
-        true,
-
-      success:
-        true,
+    return jsonResponse({
+      ok: true,
 
       employees:
-        employees.map(
-          employee => {
-            return {
-              employeeNo:
-                String(
-                  employee.employee_id ||
-                  ""
-                ),
-
-              employeeId:
-                String(
-                  employee.employee_id ||
-                  ""
-                ),
-
-              name:
-                String(
-                  employee.employee_name ||
-                  ""
-                ),
-
-              employeeName:
-                String(
-                  employee.employee_name ||
-                  ""
-                ),
-
-              role:
-                String(
-                  employee.role ||
-                  "user"
-                ),
-
-              defaultRole:
-                String(
-                  employee.role ||
-                  "user"
-                ),
-
-              isActive:
-                Number(
-                  employee.is_active
-                ) === 1,
-
-              isAllowed:
-                Number(
-                  employee.is_active
-                ) === 1,
-
-              createdAt:
-                employee.created_at ||
-                "",
-
-              updatedAt:
-                employee.updated_at ||
+        results.map(
+          employee => ({
+            employeeNo:
+              String(
+                employee.employee_no ||
                 ""
-            };
-          }
+              ),
+
+            name:
+              String(
+                employee.name ||
+                ""
+              ),
+
+            defaultRole:
+              String(
+                employee.default_role ||
+                "user"
+              ),
+
+            isAllowed:
+              Number(
+                employee.is_allowed
+              ) === 1
+          })
         )
     });
 
   } catch (error) {
     console.error(
-      "직원 목록 조회 오류:",
+      "직원 명단 조회 오류:",
       error
     );
 
-
-    return createJsonResponse(
+    return jsonResponse(
       {
-        ok:
-          false,
-
-        success:
-          false,
+        ok: false,
 
         message:
-          "직원 목록을 불러오는 중 오류가 발생했습니다.",
+          "직원 명단을 불러오는 중 오류가 발생했습니다.",
 
         error:
           error instanceof Error
@@ -617,45 +286,112 @@ export async function onRequestGet(
 }
 
 
-/* =========================================================
-  POST /api/employees
+/* ==================================================
+   직원 1명 저장
 
-  직원 1명 또는 여러 명 저장
-========================================================= */
+   같은 사번이 없으면 INSERT
+   같은 사번이 있으면 UPDATE
+================================================== */
+
+async function saveEmployee(
+  database,
+  employee
+) {
+  const existingEmployee =
+    await database
+      .prepare(`
+        SELECT
+          employee_no
+        FROM employees
+        WHERE employee_no = ?
+        LIMIT 1
+      `)
+      .bind(
+        employee.employeeNo
+      )
+      .first();
+
+
+  /*
+    기존 직원 수정
+  */
+  if (existingEmployee) {
+    await database
+      .prepare(`
+        UPDATE employees
+        SET
+          name = ?,
+          default_role = ?,
+          is_allowed = ?
+        WHERE employee_no = ?
+      `)
+      .bind(
+        employee.name,
+        employee.defaultRole,
+        employee.isAllowed,
+        employee.employeeNo
+      )
+      .run();
+
+    return "updated";
+  }
+
+
+  /*
+    신규 직원 등록
+  */
+  await database
+    .prepare(`
+      INSERT INTO employees (
+        employee_no,
+        name,
+        default_role,
+        is_allowed
+      )
+      VALUES (?, ?, ?, ?)
+    `)
+    .bind(
+      employee.employeeNo,
+      employee.name,
+      employee.defaultRole,
+      employee.isAllowed
+    )
+    .run();
+
+  return "created";
+}
+
+
+/* ==================================================
+   POST /api/employees
+================================================== */
 
 export async function onRequestPost(
   context
 ) {
   try {
-    validateDatabase(
-      context.env
-    );
-
-
     const body =
       await context.request.json();
 
 
-    const sourceEmployees =
+    const isBulkRequest =
       Array.isArray(
-        body?.employees
-      )
+        body.employees
+      );
+
+
+    const sourceEmployees =
+      isBulkRequest
         ? body.employees
-        : [
-            body
-          ];
+        : [body];
 
 
     if (
       sourceEmployees.length === 0
     ) {
-      return createJsonResponse(
+      return jsonResponse(
         {
-          ok:
-            false,
-
-          success:
-            false,
+          ok: false,
 
           message:
             "저장할 직원 정보가 없습니다."
@@ -665,231 +401,336 @@ export async function onRequestPost(
     }
 
 
-    const employees =
-      sourceEmployees.map(
-        normalizeEmployee
-      );
-
-
-    const validationErrors =
-      employees
-        .map(
-          (
-            employee,
-            index
-          ) => {
-            return validateEmployee(
-              employee,
-              index + 1
-            );
-          }
-        )
-        .filter(Boolean);
-
-
     if (
-      validationErrors.length >
-      0
+      sourceEmployees.length > 1000
     ) {
-      return createJsonResponse(
+      return jsonResponse(
         {
-          ok:
-            false,
-
-          success:
-            false,
+          ok: false,
 
           message:
-            validationErrors[0],
-
-          errors:
-            validationErrors
+            "한 번에 최대 1,000명까지 등록할 수 있습니다."
         },
         400
       );
     }
 
 
-    const employeeMap =
-      new Map();
+    const employees = [];
+    const errors = [];
+
+    const employeeNoSet =
+      new Set();
 
 
-    employees.forEach(
-      employee => {
-        employeeMap.set(
-          employee.employeeId,
+    sourceEmployees.forEach(
+      (
+        sourceEmployee,
+        index
+      ) => {
+        const employee =
+          normalizeEmployee(
+            sourceEmployee
+          );
+
+        const rowNumber =
+          isBulkRequest
+            ? index + 2
+            : null;
+
+        const validationError =
+          validateEmployee(
+            employee,
+            rowNumber
+          );
+
+
+        if (validationError) {
+          errors.push(
+            validationError
+          );
+
+          return;
+        }
+
+
+        if (
+          employeeNoSet.has(
+            employee.employeeNo
+          )
+        ) {
+          errors.push(
+            `${
+              rowNumber ||
+              "입력값"
+            }: 중복된 사번입니다. ` +
+            `(${employee.employeeNo})`
+          );
+
+          return;
+        }
+
+
+        employeeNoSet.add(
+          employee.employeeNo
+        );
+
+        employees.push(
           employee
         );
       }
     );
 
 
-    const uniqueEmployees =
-      Array.from(
-        employeeMap.values()
+    if (errors.length > 0) {
+      return jsonResponse(
+        {
+          ok: false,
+
+          message:
+            "직원 정보에 오류가 있습니다.",
+
+          errors
+        },
+        400
       );
+    }
 
 
-    let createdEmployeeCount =
-      0;
-
-
-    let updatedEmployeeCount =
-      0;
-
-
-    let createdUserCount =
-      0;
-
-
-    let existingUserCount =
-      0;
+    let createdCount = 0;
+    let updatedCount = 0;
 
 
     for (
-      const employee of
-      uniqueEmployees
+      const employee of employees
     ) {
-      const employeeResult =
-        await upsertEmployee(
+      const result =
+        await saveEmployee(
           context.env.DB,
           employee
         );
 
 
       if (
-        employeeResult.action ===
-        "created"
+        result === "created"
       ) {
-        createdEmployeeCount +=
-          1;
-      } else {
-        updatedEmployeeCount +=
-          1;
+        createdCount += 1;
       }
 
 
-      const userResult =
-        await createInitialUser(
-          context.env.DB,
-          employee.employeeId
-        );
-
-
       if (
-        userResult.created
+        result === "updated"
       ) {
-        createdUserCount +=
-          1;
-      } else {
-        existingUserCount +=
-          1;
+        updatedCount += 1;
       }
     }
 
 
-    const leaderCount =
-      uniqueEmployees.filter(
-        employee => {
-          return (
-            employee.role ===
-            "leader"
-          );
-        }
-      ).length;
+    return jsonResponse(
+      {
+        ok: true,
+
+        success: true,
+
+        message:
+          isBulkRequest
+            ? (
+                `직원 명단 저장이 완료되었습니다. ` +
+                `신규 ${createdCount}명 / ` +
+                `수정 ${updatedCount}명`
+              )
+            : (
+                createdCount > 0
+                  ? "직원이 등록되었습니다."
+                  : "직원 정보가 수정되었습니다."
+              ),
+
+        createdCount,
+
+        updatedCount,
+
+        totalCount:
+          employees.length
+      },
+      isBulkRequest
+        ? 200
+        : createdCount > 0
+          ? 201
+          : 200
+    );
+
+  } catch (error) {
+    console.error(
+      "직원 저장 오류:",
+      error
+    );
 
 
-    return createJsonResponse({
-      ok:
-        true,
+    if (
+      error instanceof SyntaxError
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
 
-      success:
-        true,
+          success: false,
+
+          message:
+            "요청 데이터 형식이 올바르지 않습니다."
+        },
+        400
+      );
+    }
+
+
+    return jsonResponse(
+      {
+        ok: false,
+
+        success: false,
+
+        message:
+          error instanceof Error
+            ? error.message
+            : String(error),
+
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error)
+      },
+      500
+    );
+  }
+}
+
+
+/* ==================================================
+   DELETE /api/employees
+
+   직원 명단에서 직원 삭제
+================================================== */
+
+export async function onRequestDelete(
+  context
+) {
+  try {
+    const url =
+      new URL(
+        context.request.url
+      );
+
+    const employeeNo =
+      normalizeText(
+        url.searchParams.get(
+          "employeeNo"
+        )
+      ).replace(
+        /[^0-9]/g,
+        ""
+      );
+
+
+    if (!employeeNo) {
+      return jsonResponse(
+        {
+          ok: false,
+
+          message:
+            "삭제할 직원의 사번이 없습니다."
+        },
+        400
+      );
+    }
+
+
+    const existingEmployee =
+      await context.env.DB
+        .prepare(`
+          SELECT
+            employee_no,
+            name
+          FROM employees
+          WHERE employee_no = ?
+          LIMIT 1
+        `)
+        .bind(
+          employeeNo
+        )
+        .first();
+
+
+    if (!existingEmployee) {
+      return jsonResponse(
+        {
+          ok: false,
+
+          message:
+            "삭제할 직원을 찾을 수 없습니다."
+        },
+        404
+      );
+    }
+
+
+    await context.env.DB
+      .prepare(`
+        DELETE FROM employees
+        WHERE employee_no = ?
+      `)
+      .bind(
+        employeeNo
+      )
+      .run();
+
+
+    return jsonResponse({
+      ok: true,
+
+      success: true,
 
       message:
-        [
-          `직원 ${uniqueEmployees.length}명 저장 완료`,
-          `신규 ${createdEmployeeCount}명`,
-          `수정 ${updatedEmployeeCount}명`,
-          `신규 로그인 계정 ${createdUserCount}명`
-        ].join(" / "),
+        `${existingEmployee.name} 직원이 명단에서 삭제되었습니다.`,
 
-      totalEmployeeCount:
-        uniqueEmployees.length,
+      employee: {
+        employeeNo:
+          String(
+            existingEmployee.employee_no ||
+            ""
+          ),
 
-      createdEmployeeCount,
-
-      updatedEmployeeCount,
-
-      createdUserCount,
-
-      existingUserCount,
-
-      leaderCount,
-
-      initialPasswordNotice:
-        "신규 계정의 초기 비밀번호는 사번과 동일합니다."
+        name:
+          String(
+            existingEmployee.name ||
+            ""
+          )
+      }
     });
 
   } catch (error) {
-
-  console.error(error);
-
-  return createJsonResponse(
-    {
-      ok: false,
-      success: false,
-
-      message:
-        error instanceof Error
-          ? error.message
-          : String(error),
-
-      stack:
-        error instanceof Error
-          ? error.stack
-          : null
-    },
-    500
-  );
-
-}
-}
+    console.error(
+      "직원 명단 삭제 오류:",
+      error
+    );
 
 
-/* =========================================================
-  허용하지 않는 요청
-========================================================= */
+    return jsonResponse(
+      {
+        ok: false,
 
-export function onRequestPut() {
-  return createJsonResponse(
-    {
-      ok:
-        false,
+        success: false,
 
-      success:
-        false,
+        message:
+          error instanceof Error
+            ? error.message
+            : String(error),
 
-      message:
-        "PUT 요청은 지원하지 않습니다."
-    },
-    405
-  );
-}
-
-
-export function onRequestDelete() {
-  return createJsonResponse(
-    {
-      ok:
-        false,
-
-      success:
-        false,
-
-      message:
-        "DELETE 요청은 아직 지원하지 않습니다."
-    },
-    405
-  );
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error)
+      },
+      500
+    );
+  }
 }
