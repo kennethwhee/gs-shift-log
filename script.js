@@ -6339,63 +6339,175 @@ function formatDateTime(value) {
 
 
 /* =========================================================
-  업무일지 모달
+  업무일지 작성·수정창 열기
+
+  목록 렌더링 중 오류가 발생하더라도
+  모달 자체가 열리지 않는 문제를 방지한다.
 ========================================================= */
-function openLogEditor(log = null, preset = null) {
-  resetLogEditor();
 
-  if (log) {
-    fillLogEditor(log);
+function openLogEditor(
+  log = null,
+  preset = null
+) {
+  /*
+    먼저 모달을 연다.
 
-    elements.logEditorTitle.textContent =
-      `${log.role || ""} 업무일지 수정`;
+    이전에는 resetLogEditor() 또는
+    renderLogEntryTable()에서 오류가 발생하면
+    openModal()까지 도달하지 못했다.
+  */
+  openModal(
+    elements.logEditorModal
+  );
+
+
+  try {
+    resetLogEditor();
+
+
+    /*
+      기존 업무일지 수정
+    */
+    if (log) {
+      fillLogEditor(
+        log
+      );
+
+
+      if (
+        elements.logEditorTitle
+      ) {
+        elements
+          .logEditorTitle
+          .textContent =
+          `${log.role || ""} 업무일지 수정`;
+      }
+
+
+      updateMemberLogImportSection();
+
+      return;
+    }
+
+
+    /*
+      근무자 카드에서 새 업무일지 작성
+    */
+    if (preset) {
+      const presetRole =
+        String(
+          preset.role || ""
+        ).trim();
+
+
+      const presetAuthor =
+        String(
+          preset.author || ""
+        ).trim();
+
+
+      const presetTeam =
+        String(
+          preset.team || ""
+        ).trim();
+
+
+      if (
+        presetRole &&
+        elements.logRole &&
+        [
+          ...elements.logRole.options
+        ].some(
+          (option) => {
+            return (
+              option.value ===
+              presetRole
+            );
+          }
+        )
+      ) {
+        elements.logRole.value =
+          presetRole;
+      }
+
+
+      if (
+        presetAuthor &&
+        elements.logAuthor
+      ) {
+        elements.logAuthor.value =
+          presetAuthor;
+      }
+
+
+      if (
+        presetTeam &&
+        elements.logTeam &&
+        [
+          ...elements.logTeam.options
+        ].some(
+          (option) => {
+            return (
+              option.value ===
+              presetTeam
+            );
+          }
+        )
+      ) {
+        elements.logTeam.value =
+          presetTeam;
+      }
+
+
+      if (
+        elements.logEditorTitle
+      ) {
+        elements
+          .logEditorTitle
+          .textContent =
+          `${presetRole || ""} 업무일지 작성`;
+      }
+
+
+      updateMemberLogImportSection();
+
+      return;
+    }
+
+
+    /*
+      상단 업무일지 작성 버튼
+    */
+    if (
+      elements.logEditorTitle
+    ) {
+      elements
+        .logEditorTitle
+        .textContent =
+        "업무일지 작성";
+    }
+
+
+    restoreDraftIfAvailable();
 
     updateMemberLogImportSection();
 
-    openModal(elements.logEditorModal);
-    return;
+  } catch (error) {
+    console.error(
+      "업무일지 작성·수정창 열기 실패:",
+      error
+    );
+
+
+    /*
+      오류가 있어도 창은 닫지 않는다.
+      어느 함수에서 문제가 났는지
+      개발자도구 콘솔에서 확인할 수 있다.
+    */
+    showToast(
+      "업무일지 창은 열렸지만 일부 내역을 표시하지 못했습니다."
+    );
   }
-
-  if (preset) {
-    if (
-      preset.role &&
-      [...elements.logRole.options].some(
-        (option) =>
-          option.value === preset.role
-      )
-    ) {
-      elements.logRole.value =
-        preset.role;
-    }
-
-    if (preset.author) {
-      elements.logAuthor.value =
-        preset.author;
-    }
-
-    if (
-      preset.team &&
-      [...elements.logTeam.options].some(
-        (option) =>
-          option.value === preset.team
-      )
-    ) {
-      elements.logTeam.value =
-        preset.team;
-    }
-
-    elements.logEditorTitle.textContent =
-      `${preset.role || ""} 업무일지 작성`;
-  } else {
-    elements.logEditorTitle.textContent =
-      "업무일지 작성";
-
-    restoreDraftIfAvailable();
-  }
-
-  updateMemberLogImportSection();
-
-  openModal(elements.logEditorModal);
 }
 
 /* =========================================================
@@ -6479,8 +6591,16 @@ function bindShiftMemberCards() {
   );
 }
 
+/* =========================================================
+  근무자 카드 → 업무일지 작성·수정
 
-function openShiftMemberLogFromCard(card) {
+  날짜·근무·보직이 같은 가장 최근 업무일지를 찾아
+  있으면 수정창, 없으면 작성창을 연다.
+========================================================= */
+
+function openShiftMemberLogFromCard(
+  card
+) {
   if (!card) {
     showToast(
       "선택한 근무자 정보를 확인할 수 없습니다."
@@ -6489,21 +6609,12 @@ function openShiftMemberLogFromCard(card) {
     return;
   }
 
-  const role = String(
-    card.dataset.role || ""
-  ).trim();
 
-  const author = String(
-    card.querySelector(
-      ".shift-member-card__name"
-    )?.textContent || ""
-  ).trim();
+  const role =
+    normalizeMemberLogRole(
+      card.dataset.role
+    );
 
-  const team = String(
-    card.querySelector(
-      ".shift-member-card__team"
-    )?.textContent || ""
-  ).trim();
 
   if (!role) {
     showToast(
@@ -6513,28 +6624,115 @@ function openShiftMemberLogFromCard(card) {
     return;
   }
 
+
+  const author =
+    String(
+      card.querySelector(
+        ".shift-member-card__name"
+      )?.textContent ||
+      ""
+    ).trim();
+
+
+  const team =
+    getScheduledPart(
+      appState.selectedDate,
+      appState.selectedShift
+    );
+
+
   const selectedDate =
-    formatInputDate(appState.selectedDate);
+    formatInputDate(
+      appState.selectedDate
+    );
+
+
+  /*
+    날짜·근무·보직이 일치하는 업무일지를 찾고,
+    중복 데이터가 있으면 가장 최근 수정본을 사용한다.
+  */
+  const matchedLogs =
+    appState.logs
+      .filter(
+        (log) => {
+          return (
+            String(
+              log.date || ""
+            ).trim() ===
+              selectedDate &&
+
+            String(
+              log.shift || ""
+            ).trim() ===
+              String(
+                appState.selectedShift ||
+                ""
+              ).trim() &&
+
+            normalizeMemberLogRole(
+              log.role
+            ) ===
+              role
+          );
+        }
+      )
+      .sort(
+        (
+          logA,
+          logB
+        ) => {
+          const timeA =
+            new Date(
+              logA.updatedAt ||
+              logA.createdAt ||
+              0
+            ).getTime();
+
+
+          const timeB =
+            new Date(
+              logB.updatedAt ||
+              logB.createdAt ||
+              0
+            ).getTime();
+
+
+          return (
+            timeB -
+            timeA
+          );
+        }
+      );
+
 
   const existingLog =
-    appState.logs.find((log) => {
-      return (
-        log.date === selectedDate &&
-        log.shift === appState.selectedShift &&
-        log.role === role
-      );
-    });
+    matchedLogs[0] ||
+    null;
 
+
+  /*
+    작성된 업무일지가 있으면 수정창
+  */
   if (existingLog) {
-    openLogEditor(existingLog);
+    openLogEditor(
+      existingLog
+    );
+
     return;
   }
 
-  openLogEditor(null, {
-    role,
-    author,
-    team
-  });
+
+  /*
+    업무일지가 없으면 새 작성창
+  */
+  openLogEditor(
+    null,
+    {
+      role,
+      author,
+      team
+    }
+  );
 }
 
 function updateShiftMemberCardStates() {
