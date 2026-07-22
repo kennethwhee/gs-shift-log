@@ -466,17 +466,463 @@ function isCurrentUserSuperAdmin() {
   );
 }
 
+/* =========================================================
+  가입 완료 직원 목록 원본
+========================================================= */
+
+let employeeManagementUsers = [];
+
+
+/* =========================================================
+  HTML 특수문자 처리
+========================================================= */
+
+function escapeEmployeeManagementHtml(
+  value
+) {
+  return String(
+    value ?? ""
+  )
+    .replaceAll(
+      "&",
+      "&amp;"
+    )
+    .replaceAll(
+      "<",
+      "&lt;"
+    )
+    .replaceAll(
+      ">",
+      "&gt;"
+    )
+    .replaceAll(
+      '"',
+      "&quot;"
+    )
+    .replaceAll(
+      "'",
+      "&#039;"
+    );
+}
+
+
+/* =========================================================
+  직원 권한 표시 이름
+========================================================= */
+
+function getEmployeeManagementRoleLabel(
+  role
+) {
+  const normalizedRole =
+    String(
+      role || ""
+    )
+      .trim()
+      .toLowerCase();
+
+  if (
+    normalizedRole ===
+      "super_admin" ||
+    normalizedRole ===
+      "superadmin"
+  ) {
+    return "최고관리자";
+  }
+
+  if (
+    normalizedRole ===
+      "admin" ||
+    normalizedRole ===
+      "leader"
+  ) {
+    return "파트장";
+  }
+
+  return "일반";
+}
+
+
+/* =========================================================
+  가입 완료 직원 목록 화면 출력
+========================================================= */
+
+function renderEmployeeManagementUsers(
+  users
+) {
+  const list =
+    document.getElementById(
+      "employeeManagementList"
+    );
+
+  const count =
+    document.getElementById(
+      "employeeManagementCount"
+    );
+
+  if (!list) {
+    console.error(
+      "가입 완료 직원 목록 영역을 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+  const safeUsers =
+    Array.isArray(
+      users
+    )
+      ? users
+      : [];
+
+  if (count) {
+    count.textContent =
+      `${safeUsers.length}명`;
+  }
+
+  if (
+    safeUsers.length === 0
+  ) {
+    list.innerHTML = `
+      <div class="employee-management-empty">
+        가입 완료 직원이 없습니다.
+      </div>
+    `;
+
+    return;
+  }
+
+  list.innerHTML =
+    safeUsers
+      .map(
+        user => {
+          const employeeNo =
+            escapeEmployeeManagementHtml(
+              user.employeeNo ||
+              user.employee_no ||
+              ""
+            );
+
+          const name =
+            escapeEmployeeManagementHtml(
+              user.name ||
+              ""
+            );
+
+          const role =
+            String(
+              user.role ||
+              "user"
+            )
+              .trim()
+              .toLowerCase();
+
+          const roleLabel =
+            escapeEmployeeManagementHtml(
+              getEmployeeManagementRoleLabel(
+                role
+              )
+            );
+
+          const isActive =
+            user.isActive === true ||
+            Number(
+              user.isActive ??
+              user.is_active
+            ) === 1;
+
+          return `
+            <article
+              class="employee-management-item"
+              data-employee-no="${employeeNo}"
+            >
+
+              <div class="employee-management-item__person">
+
+                <strong>
+                  ${name}
+                </strong>
+
+                <span>
+                  ${employeeNo}
+                </span>
+
+              </div>
+
+
+              <span
+                class="
+                  employee-management-role-badge
+                  is-${escapeEmployeeManagementHtml(
+                    role
+                  )}
+                "
+              >
+                ${roleLabel}
+              </span>
+
+
+              <span
+                class="
+                  employee-management-status-badge
+                  ${
+                    isActive
+                      ? "is-active"
+                      : "is-inactive"
+                  }
+                "
+              >
+                ${
+                  isActive
+                    ? "사용중"
+                    : "중지"
+                }
+              </span>
+
+            </article>
+          `;
+        }
+      )
+      .join("");
+}
+
+
+/* =========================================================
+  가입 완료 직원 검색
+========================================================= */
+
+function filterEmployeeManagementUsers() {
+  const searchInput =
+    document.getElementById(
+      "employeeManagementSearch"
+    );
+
+  const keyword =
+    String(
+      searchInput?.value ||
+      ""
+    )
+      .trim()
+      .replace(
+        /\s+/g,
+        ""
+      )
+      .toLowerCase();
+
+  if (!keyword) {
+    renderEmployeeManagementUsers(
+      employeeManagementUsers
+    );
+
+    return;
+  }
+
+  const filteredUsers =
+    employeeManagementUsers.filter(
+      user => {
+        const employeeNo =
+          String(
+            user.employeeNo ||
+            user.employee_no ||
+            ""
+          )
+            .replace(
+              /\s+/g,
+              ""
+            )
+            .toLowerCase();
+
+        const name =
+          String(
+            user.name ||
+            ""
+          )
+            .replace(
+              /\s+/g,
+              ""
+            )
+            .toLowerCase();
+
+        return (
+          employeeNo.includes(
+            keyword
+          ) ||
+          name.includes(
+            keyword
+          )
+        );
+      }
+    );
+
+  renderEmployeeManagementUsers(
+    filteredUsers
+  );
+}
+
+
+/* =========================================================
+  가입 완료 직원 목록 불러오기
+========================================================= */
+
+async function loadEmployeeManagement() {
+  const list =
+    document.getElementById(
+      "employeeManagementList"
+    );
+
+  const count =
+    document.getElementById(
+      "employeeManagementCount"
+    );
+
+  if (!list) {
+    return;
+  }
+
+  list.innerHTML = `
+    <div class="employee-management-empty">
+      가입 완료 직원 목록을 불러오는 중입니다.
+    </div>
+  `;
+
+  if (count) {
+    count.textContent =
+      "0명";
+  }
+
+  try {
+    const response =
+      await fetch(
+        "/api/users",
+        {
+          method:
+            "GET",
+
+          headers: {
+            Accept:
+              "application/json"
+          },
+
+          cache:
+            "no-store"
+        }
+      );
+
+    const responseText =
+      await response.text();
+
+    let result = {};
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "가입 완료 직원 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+    if (
+      !response.ok ||
+      result.ok === false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        `가입 완료 직원 조회 실패 (HTTP ${response.status})`
+      );
+    }
+
+    const approvedUsers =
+      Array.isArray(
+        result.approvedUsers
+      )
+        ? result.approvedUsers
+        : [];
+
+    employeeManagementUsers =
+      approvedUsers.map(
+        user => {
+          return {
+            employeeNo:
+              String(
+                user.employeeNo ||
+                user.employee_no ||
+                ""
+              ),
+
+            name:
+              String(
+                user.name ||
+                ""
+              ),
+
+            role:
+              String(
+                user.role ||
+                "user"
+              ),
+
+            isActive:
+              Number(
+                user.isActive ??
+                user.is_active
+              ) === 1,
+
+            createdAt:
+              user.createdAt ||
+              user.created_at ||
+              ""
+          };
+        }
+      );
+
+    filterEmployeeManagementUsers();
+
+    console.log(
+      `가입 완료 직원 ${employeeManagementUsers.length}명을 불러왔습니다.`
+    );
+
+  } catch (error) {
+    console.error(
+      "가입 완료 직원 조회 오류:",
+      error
+    );
+
+    employeeManagementUsers =
+      [];
+
+    list.innerHTML = `
+      <div class="employee-management-empty">
+        ${escapeEmployeeManagementHtml(
+          error.message ||
+          "가입 완료 직원 목록을 불러오지 못했습니다."
+        )}
+      </div>
+    `;
+
+    if (count) {
+      count.textContent =
+        "0명";
+    }
+  }
+}
 
 /* =========================================================
   직원관리 모달 열기
 ========================================================= */
 
-function openEmployeeManagementModal() {
+async function openEmployeeManagementModal() {
   const {
     employeeManagementModal
   } =
     getLoginElements();
-
 
   if (
     !isCurrentUserSuperAdmin()
@@ -488,7 +934,6 @@ function openEmployeeManagementModal() {
     return;
   }
 
-
   if (
     !employeeManagementModal
   ) {
@@ -499,13 +944,11 @@ function openEmployeeManagementModal() {
     return;
   }
 
-
   employeeManagementModal
     .classList
     .add(
       "is-open"
     );
-
 
   employeeManagementModal
     .setAttribute(
@@ -513,10 +956,14 @@ function openEmployeeManagementModal() {
       "false"
     );
 
-
   document.body.classList.add(
     "modal-open"
   );
+
+  /*
+    모달을 열 때마다 최신 가입 완료 직원 조회
+  */
+  await loadEmployeeManagement();
 }
 
 
@@ -564,14 +1011,26 @@ function closeEmployeeManagementModal() {
 
 function initializeShiftLogLogin() {
   const {
-    loginForm,
-    logoutButton,
-    adminButton,
-    employeeManagementModal,
-    closeEmployeeManagementButton,
-    closeEmployeeManagementFooterButton
+  loginForm,
+  logoutButton,
+  adminButton,
+  employeeManagementModal,
+  closeEmployeeManagementButton,
+  closeEmployeeManagementFooterButton
   } =
-    getLoginElements();
+  getLoginElements();
+
+  const refreshEmployeeManagementButton =
+  document.getElementById(
+    "refreshEmployeeManagementButton"
+  );
+
+  const employeeManagementSearch =
+  document.getElementById(
+    "employeeManagementSearch"
+  );
+
+
 
 
   /*
@@ -620,6 +1079,15 @@ function initializeShiftLogLogin() {
       closeEmployeeManagementModal
     );
 
+refreshEmployeeManagementButton?.addEventListener(
+  "click",
+  loadEmployeeManagement
+);
+
+employeeManagementSearch?.addEventListener(
+  "input",
+  filterEmployeeManagementUsers
+);
 
   /*
     모달 바깥 배경을 누르면 닫기
