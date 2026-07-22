@@ -10121,3 +10121,94 @@ label.log-entry-role-select {
     max-width: 68px !important;
   }
 }
+
+/* =========================================================
+  편집 모드 체크박스 표시 최종 제어
+
+  평상시:
+  - 개별 체크박스 숨김
+  - 보직 전체 체크박스 숨김
+  - 관리 버튼 숨김
+
+  편집 모드:
+  - 체크박스 표시
+  - 관리 버튼 표시
+========================================================= */
+
+
+/* 평상시 개별 선택 영역 숨김 */
+#logEntryListPanel:not(.is-edit-mode)
+.log-entry-row-select {
+  display: none !important;
+}
+
+
+/* 평상시 보직 전체 선택 숨김 */
+#logEntryListPanel:not(.is-edit-mode)
+.log-entry-role-select {
+  display: none !important;
+}
+
+
+/* 평상시 수정·삭제 영역 숨김 */
+#logEntryListPanel:not(.is-edit-mode)
+.log-entry-row-actions {
+  display: none !important;
+}
+
+
+/* 평상시 행은 내용 한 칸만 사용 */
+#logEntryListPanel:not(.is-edit-mode)
+.log-entry-row-shell {
+  grid-template-columns:
+    minmax(0, 1fr) !important;
+}
+
+
+/* 편집 모드 개별 선택 영역 표시 */
+#logEntryListPanel.is-edit-mode
+.log-entry-row-select {
+  display: flex !important;
+}
+
+
+/* 편집 모드 보직 전체 선택 표시 */
+#logEntryListPanel.is-edit-mode
+.log-entry-role-select {
+  display: inline-flex !important;
+}
+
+
+/* 편집 모드 수정·삭제 영역 표시 */
+#logEntryListPanel.is-edit-mode
+.log-entry-row-actions {
+  display: flex !important;
+}
+
+
+/* 편집 모드 행 구조 */
+#logEntryListPanel.is-edit-mode
+.log-entry-row-shell {
+  grid-template-columns:
+    32px
+    minmax(0, 1fr)
+    78px !important;
+}
+
+
+/* 편집 모드가 아닐 때 보직 구분행 체크 열 제거 */
+#logEntryListPanel:not(.is-edit-mode)
+.log-entry-role-divider {
+  grid-template-columns:
+    minmax(0, 1fr) !important;
+}
+
+
+/* 편집 모드일 때 보직 구분행 체크 열 복원 */
+#logEntryListPanel.is-edit-mode
+.log-entry-role-divider {
+  grid-template-columns:
+    32px
+    minmax(0, 1fr)
+    78px !important;
+}
