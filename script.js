@@ -16296,35 +16296,87 @@ function createSearchLogPreviewHtml(
       }
 
 
-      const normalizedEntry = {
-        originalIndex,
+/*
+  TAG와 내용을 각각 정리한다.
 
-        time:
-          String(
-            entry?.time ||
-            ""
-          ).trim(),
+  일부 과거 데이터는 다음처럼
+  content 안에도 TAG가 포함되어 있다.
 
-        tag:
-          String(
-            entry?.tag ||
-            ""
-          )
-            .trim()
-            .toUpperCase(),
+  tag:
+  00E6LAB40AA101
 
-        content:
-          String(
-            entry?.content ||
-            ""
-          ).trim(),
+  content:
+  [00E6LAB40AA101] Feed Water Heater 점검
 
-        importedFromRole:
-          normalizeMemberLogRole(
-            entry?.importedFromRole ||
-            ""
-          )
-      };
+  이 경우 content 앞의 중복 TAG만 제거하고,
+  화면에는 별도 TAG 버튼을 내용 뒤에 한 번만 표시한다.
+*/
+
+const normalizedTag =
+  String(
+    entry?.tag ||
+    ""
+  )
+    .trim()
+    .toUpperCase();
+
+
+let normalizedContent =
+  String(
+    entry?.content ||
+    ""
+  ).trim();
+
+
+if (
+  normalizedTag &&
+  normalizedContent
+) {
+  const escapedTag =
+    normalizedTag.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&"
+    );
+
+
+  const leadingTagPattern =
+    new RegExp(
+      `^\\s*[\\[【]\\s*${escapedTag}\\s*[\\]】]\\s*`,
+      "i"
+    );
+
+
+  normalizedContent =
+    normalizedContent
+      .replace(
+        leadingTagPattern,
+        ""
+      )
+      .trim();
+}
+
+
+const normalizedEntry = {
+  originalIndex,
+
+  time:
+    String(
+      entry?.time ||
+      ""
+    ).trim(),
+
+  tag:
+    normalizedTag,
+
+  content:
+    normalizedContent,
+
+  importedFromRole:
+    normalizeMemberLogRole(
+      entry?.importedFromRole ||
+      ""
+    )
+};
 
 
       if (
@@ -16393,77 +16445,85 @@ function createSearchLogPreviewHtml(
   };
 
 
+/*
+  조회 목록 한 항목
+
+  출력 순서:
+  번호 → 시간 → 내용 → TAG
+
+  내용과 TAG를 하나의 연속된 HTML 문자열로 만들어
+  TAG가 있는 항목만 다음 줄로 내려가는 현상을 방지한다.
+*/
+const createSearchEntryHtml = (
+  entry,
+  displayNumber,
+  type
+) => {
+  const numberClass =
+    type === "tm"
+      ? "is-tm"
+      : "is-handover";
+
+
+  const timeHtml =
+    entry.time
+      ? `<strong class="search-preview-entry__time">${escapeHtml(
+          entry.time
+        )}</strong>`
+      : "";
+
+
+  const contentHtml =
+    `<span class="search-preview-entry__text">${escapeHtml(
+      entry.content ||
+      "-"
+    )}</span>`;
+
+
+  const tagHtml =
+    entry.tag
+      ? `<button
+          type="button"
+          class="search-preview-entry__tag"
+          data-search-preview-tag="${escapeHtml(
+            entry.tag
+          )}"
+          title="Facility Navigator에서 설비 보기"
+        >[${escapeHtml(
+          entry.tag
+        )}]</button>`
+      : "";
+
+
   /*
-    조회 목록용 한 항목
-
-    번호 | 시간 + TAG + 내용
+    줄바꿈과 들여쓰기 공백이 요소 사이에 들어가지 않도록
+    한 문자열로 직접 결합한다.
   */
-  const createSearchEntryHtml = (
-    entry,
-    displayNumber,
-    type
-  ) => {
-    const numberClass =
-      type === "tm"
-        ? "is-tm"
-        : "is-handover";
+  const bodyHtml =
+    `${timeHtml}${contentHtml}${tagHtml}`;
 
 
-    return `
-      <span
-        class="
-          search-preview-entry
-          ${numberClass}
-        "
+  return `
+    <span
+      class="
+        search-preview-entry
+        ${numberClass}
+      "
+    >
+
+      <strong
+        class="search-preview-entry__number"
       >
+        ${displayNumber}.
+      </strong>
 
-        <strong
-          class="search-preview-entry__number"
-        >
-          ${displayNumber}.
-        </strong>
+      <span
+        class="search-preview-entry__body"
+      >${bodyHtml}</span>
 
-
-        <span
-          class="search-preview-entry__body"
-        >
-
-          ${
-            entry.time
-              ? `
-                <strong
-                  class="search-preview-entry__time"
-                >
-                  ${escapeHtml(
-                    entry.time
-                  )}
-                </strong>
-              `
-              : ""
-          }
-
-          ${createSearchTagHtml(
-            entry
-          )}
-
-          <span
-            class="search-preview-entry__text"
-          >
-            ${escapeHtml(
-              entry.content ||
-              "-"
-            )}
-          </span>
-          
-          ${createSearchTagHtml(
-            entry
-          )}
-        </span>
-
-      </span>
-    `;
-  };
-
+    </span>
+  `;
+};
 
   /*
     보직별 일반 업무 묶기
