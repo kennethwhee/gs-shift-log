@@ -822,7 +822,9 @@ export async function onRequestPost(
       );
     }
 
+
     let body = {};
+
 
     try {
       body =
@@ -841,10 +843,24 @@ export async function onRequestPost(
       );
     }
 
-    const date =
+
+    const singleDate =
       normalizeText(
         body.date
       );
+
+
+    const startDate =
+      normalizeText(
+        body.startDate
+      );
+
+
+    const endDate =
+      normalizeText(
+        body.endDate
+      );
+
 
     const requestedShift =
       normalizeText(
@@ -852,30 +868,6 @@ export async function onRequestPost(
         "ALL"
       ).toUpperCase();
 
-    if (
-      !isValidLegacyDate(
-        date
-      )
-    ) {
-      return createJsonResponse(
-        {
-          success:
-            false,
-
-          message:
-            "date는 YYYYMMDD 형식의 실제 날짜여야 합니다.",
-
-          example: {
-            date:
-              "20260721",
-
-            shift:
-              "ALL"
-          }
-        },
-        400
-      );
-    }
 
     if (
       ![
@@ -898,6 +890,201 @@ export async function onRequestPost(
       );
     }
 
+
+    /* =====================================================
+      날짜 목록 생성
+
+      단일:
+      {
+        date: "20260721"
+      }
+
+      기간:
+      {
+        startDate: "20260701",
+        endDate: "20260721"
+      }
+    ====================================================== */
+
+    let importDates = [];
+
+
+    if (
+      singleDate
+    ) {
+      if (
+        !isValidLegacyDate(
+          singleDate
+        )
+      ) {
+        return createJsonResponse(
+          {
+            success:
+              false,
+
+            message:
+              "date는 YYYYMMDD 형식의 실제 날짜여야 합니다."
+          },
+          400
+        );
+      }
+
+
+      importDates = [
+        singleDate
+      ];
+
+    } else {
+      if (
+        !isValidLegacyDate(
+          startDate
+        ) ||
+        !isValidLegacyDate(
+          endDate
+        )
+      ) {
+        return createJsonResponse(
+          {
+            success:
+              false,
+
+            message:
+              "startDate와 endDate는 YYYYMMDD 형식의 실제 날짜여야 합니다."
+          },
+          400
+        );
+      }
+
+
+      const start =
+        new Date(
+          Number(
+            startDate.slice(
+              0,
+              4
+            )
+          ),
+          Number(
+            startDate.slice(
+              4,
+              6
+            )
+          ) - 1,
+          Number(
+            startDate.slice(
+              6,
+              8
+            )
+          )
+        );
+
+
+      const end =
+        new Date(
+          Number(
+            endDate.slice(
+              0,
+              4
+            )
+          ),
+          Number(
+            endDate.slice(
+              4,
+              6
+            )
+          ) - 1,
+          Number(
+            endDate.slice(
+              6,
+              8
+            )
+          )
+        );
+
+
+      if (
+        start >
+        end
+      ) {
+        return createJsonResponse(
+          {
+            success:
+              false,
+
+            message:
+              "시작일은 종료일보다 늦을 수 없습니다."
+          },
+          400
+        );
+      }
+
+
+      const currentDate =
+        new Date(
+          start
+        );
+
+
+      while (
+        currentDate <=
+        end
+      ) {
+        importDates.push(
+          [
+            currentDate
+              .getFullYear(),
+
+            String(
+              currentDate
+                .getMonth() +
+              1
+            ).padStart(
+              2,
+              "0"
+            ),
+
+            String(
+              currentDate
+                .getDate()
+            ).padStart(
+              2,
+              "0"
+            )
+          ].join("")
+        );
+
+
+        currentDate.setDate(
+          currentDate.getDate() +
+          1
+        );
+      }
+    }
+
+
+    /*
+      Cloudflare 실행시간과 과도한 요청 방지
+    */
+    if (
+      importDates.length >
+      31
+    ) {
+      return createJsonResponse(
+        {
+          success:
+            false,
+
+          message:
+            "한 번에 최대 31일까지 동기화할 수 있습니다.",
+
+          requestedDateCount:
+            importDates.length
+        },
+        400
+      );
+    }
+
+
     const importShifts =
       requestedShift ===
       "ALL"
@@ -909,65 +1096,156 @@ export async function onRequestPost(
             requestedShift
           ];
 
-    const shiftResults = [];
+
+    const dateResults = [];
+
+
+    let totalFetchedCount =
+      0;
+
+
+    let totalCreatedCount =
+      0;
+
+
+    let totalUpdatedCount =
+      0;
+
+
+    let failedDateCount =
+      0;
+
+
+    /* =====================================================
+      날짜별 순차 동기화
+
+      특정 날짜가 실패해도
+      다음 날짜는 계속 진행한다.
+    ====================================================== */
 
     for (
-      const legacyShift of
-      importShifts
+      const importDate of
+      importDates
     ) {
-      const shiftResult =
-        await importLegacyShift(
-          context,
-          date,
-          legacyShift
-        );
+      const shiftResults = [];
 
-      shiftResults.push(
-        shiftResult
-      );
+
+      let dateFetchedCount =
+        0;
+
+
+      let dateCreatedCount =
+        0;
+
+
+      let dateUpdatedCount =
+        0;
+
+
+      const errors = [];
+
+
+      for (
+        const legacyShift of
+        importShifts
+      ) {
+        try {
+          const shiftResult =
+            await importLegacyShift(
+              context,
+              importDate,
+              legacyShift
+            );
+
+
+          shiftResults.push(
+            shiftResult
+          );
+
+
+          dateFetchedCount +=
+            shiftResult
+              .fetchedCount;
+
+
+          dateCreatedCount +=
+            shiftResult
+              .createdCount;
+
+
+          dateUpdatedCount +=
+            shiftResult
+              .updatedCount;
+
+        } catch (error) {
+          console.error(
+            `${importDate} ${legacyShift} 동기화 실패:`,
+            error
+          );
+
+
+          errors.push({
+            shift:
+              legacyShift,
+
+            message:
+              error instanceof Error
+                ? error.message
+                : String(error)
+          });
+        }
+      }
+
+
+      if (
+        errors.length >
+        0
+      ) {
+        failedDateCount +=
+          1;
+      }
+
+
+      totalFetchedCount +=
+        dateFetchedCount;
+
+
+      totalCreatedCount +=
+        dateCreatedCount;
+
+
+      totalUpdatedCount +=
+        dateUpdatedCount;
+
+
+      dateResults.push({
+        date:
+          importDate,
+
+        workDate:
+          convertLegacyDateToIso(
+            importDate
+          ),
+
+        fetchedCount:
+          dateFetchedCount,
+
+        createdCount:
+          dateCreatedCount,
+
+        updatedCount:
+          dateUpdatedCount,
+
+        success:
+          errors.length ===
+          0,
+
+        errors,
+
+        shiftResults
+      });
     }
 
-    const fetchedCount =
-      shiftResults.reduce(
-        (
-          total,
-          result
-        ) => {
-          return (
-            total +
-            result.fetchedCount
-          );
-        },
-        0
-      );
-
-    const createdCount =
-      shiftResults.reduce(
-        (
-          total,
-          result
-        ) => {
-          return (
-            total +
-            result.createdCount
-          );
-        },
-        0
-      );
-
-    const updatedCount =
-      shiftResults.reduce(
-        (
-          total,
-          result
-        ) => {
-          return (
-            total +
-            result.updatedCount
-          );
-        },
-        0
-      );
 
     return createJsonResponse({
       success:
@@ -975,40 +1253,51 @@ export async function onRequestPost(
 
       message:
         [
-          `${convertLegacyDateToIso(
-            date
-          )} 과거 업무일지 저장 완료`,
+          `과거 업무일지 ${importDates.length}일 동기화 완료`,
 
-          `조회 ${fetchedCount}건`,
+          `조회 ${totalFetchedCount}건`,
 
-          `신규 ${createdCount}건`,
+          `신규 ${totalCreatedCount}건`,
 
-          `갱신 ${updatedCount}건`
+          `갱신 ${totalUpdatedCount}건`,
+
+          `실패 날짜 ${failedDateCount}일`
         ].join(" / "),
 
-      date,
+      startDate:
+        importDates[0],
 
-      workDate:
-        convertLegacyDateToIso(
-          date
-        ),
+      endDate:
+        importDates[
+          importDates.length -
+          1
+        ],
 
       requestedShift,
 
-      fetchedCount,
+      requestedDateCount:
+        importDates.length,
 
-      createdCount,
+      fetchedCount:
+        totalFetchedCount,
 
-      updatedCount,
+      createdCount:
+        totalCreatedCount,
 
-      shiftResults
+      updatedCount:
+        totalUpdatedCount,
+
+      failedDateCount,
+
+      dateResults
     });
 
   } catch (error) {
     console.error(
-      "과거 업무일지 가져오기 오류:",
+      "과거 업무일지 기간 동기화 오류:",
       error
     );
+
 
     return createJsonResponse(
       {
