@@ -9006,6 +9006,154 @@ function resetLogEditor() {
     "";
 }
 
+/* =========================================================
+  기존 저장 업무내역 시간 재분석
+
+  지원 형식:
+  08:00 내용
+  08:00, 09:00, 10:00 내용
+  08:00~09:30 내용
+  08:00 ~ 09:30 내용
+  0800~0930 내용
+
+  기존 entry.time 값이 있더라도
+  content 앞에 시간이 다시 들어 있으면 제거하고 정리한다.
+========================================================= */
+
+function normalizeExistingLogEntryTime(
+  entry
+) {
+  const sourceEntry =
+    entry &&
+    typeof entry ===
+      "object"
+      ? entry
+      : {};
+
+
+  const originalTime =
+    String(
+      sourceEntry.time ||
+      ""
+    ).trim();
+
+
+  const originalContent =
+    String(
+      sourceEntry.content ||
+      ""
+    )
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .trim();
+
+
+  /*
+    내용이 없으면 기존 값을 그대로 유지한다.
+  */
+  if (!originalContent) {
+    return {
+      ...sourceEntry,
+
+      time:
+        originalTime,
+
+      content:
+        ""
+    };
+  }
+
+
+  /*
+    내용 맨 앞에 입력된 시간 표현을 분석한다.
+  */
+  const parsedTime =
+    parseLeadingLogTimeExpression(
+      originalContent
+    );
+
+
+  /*
+    내용 앞에서 시간 표현을 찾은 경우
+
+    예:
+    content = "08:37~09:46 작업"
+    →
+    time    = "08:37~09:46"
+    content = "작업"
+  */
+  if (
+    parsedTime.timeText &&
+    parsedTime.content
+  ) {
+    return {
+      ...sourceEntry,
+
+      /*
+        내용에 적혀 있던 시간을 우선한다.
+
+        과거 데이터의 time 값이 비어 있거나
+        잘못 들어 있어도 새로 분석한 값으로 교체한다.
+      */
+      time:
+        parsedTime.timeText,
+
+      content:
+        parsedTime.content
+    };
+  }
+
+
+  /*
+    시간만 있고 실제 내용이 없는 경우에는
+    데이터 유실을 막기 위해 원문을 유지한다.
+  */
+  return {
+    ...sourceEntry,
+
+    time:
+      originalTime,
+
+    content:
+      originalContent
+  };
+}
+
+
+/* =========================================================
+  기존 업무일지의 전체 항목 시간 재분석
+========================================================= */
+
+function normalizeExistingLogEntries(
+  entries
+) {
+  const sourceEntries =
+    Array.isArray(
+      entries
+    )
+      ? entries
+      : [];
+
+
+  return sourceEntries.map(
+    (entry) => {
+      return normalizeExistingLogEntryTime(
+        entry
+      );
+    }
+  );
+}
+
+/* =========================================================
+  기존 업무일지 수정창 채우기 최종본
+
+  기존에 입력된 내용도 다시 분석하여
+
+  08:00, 09:00 작업
+  08:00~09:00 작업
+
+  형식의 시간을 시간 영역으로 분리한다.
+========================================================= */
 
 function fillLogEditor(log) {
   if (
@@ -9015,28 +9163,40 @@ function fillLogEditor(log) {
     return;
   }
 
+
   elements.logEditorForm.dataset.editingId =
     String(
-      log.id || ""
+      log.id ||
+      ""
     ).trim();
 
+
   elements.logDate.value =
-    log.date || "";
+    log.date ||
+    "";
+
 
   elements.logShift.value =
     log.shift ||
     appState.selectedShift;
 
+
   elements.logTeam.value =
     normalizeTeamName(
-      log.team || "3파트"
+      log.team ||
+      "3파트"
     );
 
+
   elements.logRole.value =
-    log.role || "";
+    log.role ||
+    "";
+
 
   elements.logAuthor.value =
-    log.author || "";
+    log.author ||
+    "";
+
 
   /*
     저장된 대근 여부 복원
@@ -9050,99 +9210,164 @@ function fillLogEditor(log) {
       );
   }
 
+
   elements.operationStatus.value =
-    log.operationStatus || "";
+    log.operationStatus ||
+    "";
+
 
   if (
     elements.operationStatusSnapshot
   ) {
     elements.operationStatusSnapshot.value =
-      log.operationStatus || "";
+      log.operationStatus ||
+      "";
   }
 
+
   elements.logNote.value =
-    log.note || "";
+    log.note ||
+    "";
+
+
+  /*
+    기존 저장 항목 전체를 먼저 시간 재분석한다.
+  */
+  const normalizedEntries =
+    normalizeExistingLogEntries(
+      log.entries
+    );
+
 
   appState.editorEntries =
-    Array.isArray(
-      log.entries
-    )
-      ? log.entries.map(
-          (entry) => {
-            const rawSourceIndex =
-              entry.importedFromEntryIndex;
+    normalizedEntries.map(
+      (entry) => {
+        const rawSourceIndex =
+          entry.importedFromEntryIndex;
 
-            const sourceIndex =
-              rawSourceIndex === "" ||
-              rawSourceIndex === null ||
-              rawSourceIndex === undefined
-                ? ""
-                : Number(
-                    rawSourceIndex
-                  );
 
-            return {
-              time:
-                String(
-                  entry.time || ""
-                ).trim(),
+        const sourceIndex =
+          rawSourceIndex === "" ||
+          rawSourceIndex === null ||
+          rawSourceIndex === undefined
+            ? ""
+            : Number(
+                rawSourceIndex
+              );
 
-              category:
-                String(
-                  entry.category ||
-                  "인계사항"
-                ).trim(),
 
-              tag:
-                String(
-                  entry.tag || ""
-                )
-                  .trim()
-                  .toUpperCase(),
+        return {
+          id:
+            String(
+              entry.id ||
+              ""
+            ).trim(),
 
-              content:
-                String(
-                  entry.content || ""
-                ).trim(),
+          time:
+            String(
+              entry.time ||
+              ""
+            ).trim(),
 
-              importedFromRole:
-                String(
-                  entry.importedFromRole ||
-                  ""
-                ).trim(),
+          category:
+            String(
+              entry.category ||
+              "인계사항"
+            ).trim(),
 
-              importedFromAuthor:
-                String(
-                  entry.importedFromAuthor ||
-                  ""
-                ).trim(),
+          tag:
+            String(
+              entry.tag ||
+              ""
+            )
+              .trim()
+              .toUpperCase(),
 
-              importedFromLogId:
-                String(
-                  entry.importedFromLogId ||
-                  ""
-                ).trim(),
+          content:
+            String(
+              entry.content ||
+              ""
+            ).trim(),
 
-              importedFromEntryIndex:
-                Number.isInteger(
-                  sourceIndex
-                )
-                  ? sourceIndex
-                  : ""
-            };
-          }
-        )
-      : [];
+          attachmentName:
+            String(
+              entry.attachmentName ||
+              ""
+            ).trim(),
+
+          importedFromRole:
+            String(
+              entry.importedFromRole ||
+              ""
+            ).trim(),
+
+          importedFromAuthor:
+            String(
+              entry.importedFromAuthor ||
+              ""
+            ).trim(),
+
+          importedFromLogId:
+            String(
+              entry.importedFromLogId ||
+              ""
+            ).trim(),
+
+          importedFromEntryIndex:
+            Number.isInteger(
+              sourceIndex
+            )
+              ? sourceIndex
+              : "",
+
+          legacyBodyIndex:
+            entry.legacyBodyIndex,
+
+          legacyLineIndex:
+            entry.legacyLineIndex,
+
+          source:
+            String(
+              entry.source ||
+              ""
+            ).trim()
+        };
+      }
+    );
+
+
+  /*
+    메모리의 현재 업무일지 데이터에도
+    정리된 값을 반영한다.
+
+    수정창에서 다시 저장하지 않아도
+    현재 화면과 상세보기에서 즉시 사용할 수 있다.
+  */
+  log.entries =
+    appState.editorEntries.map(
+      (entry) => {
+        return {
+          ...entry
+        };
+      }
+    );
+
 
   appState.editingEntryIndex =
     -1;
 
+
   resetLogEntryInput({
-    keepCategory: false,
-    keepTag: false
+    keepCategory:
+      false,
+
+    keepTag:
+      false
   });
 
+
   renderLogEntryTable();
+
 
   renderSavedAttachments(
     Array.isArray(
@@ -9151,8 +9376,6 @@ function fillLogEditor(log) {
       ? log.attachments
       : []
   );
-
-  updateMemberLogImportSection();
 }
 
 /* =========================================================
@@ -14232,12 +14455,24 @@ const operationStatusText =
     전체 작업 내역
   ====================================================== */
 
-  const entries =
-    Array.isArray(
-      log.entries
-    )
-      ? log.entries
-      : [];
+const entries =
+  normalizeExistingLogEntries(
+    log.entries
+  );
+
+
+/*
+  상세보기에서 정리된 시간 정보를
+  현재 업무일지 객체에도 즉시 반영한다.
+*/
+log.entries =
+  entries.map(
+    (entry) => {
+      return {
+        ...entry
+      };
+    }
+  );
 
 
   /* =====================================================
