@@ -7870,29 +7870,32 @@ function normalizeContentTimeToken(
   ].join(":");
 }
 
-
 /* =========================================================
-  문장 맨 앞의 시간 표현 공통 분석
+  내용 앞 시간 표현 분석 최종본
 
-  지원 형식:
+  지원 형식
 
   단일 시간
   08:00 작업
+  800 작업
+  0800 작업
 
   여러 시간
   08:00, 10:00, 13:00 작업
   08:00 / 10:00 / 13:00 작업
+  08:00 · 10:00 · 13:00 작업
   08:00 10:00 13:00 작업
   0800, 1000, 1300 작업
 
   시간 범위
   08:00~09:30 작업
   08:00 ~ 09:30 작업
-  0800~0930 작업
   08:00-09:30 작업
+  0800~0930 작업
 
-  혼합
-  08:00~09:30, 13:00 작업
+  여러 범위 및 혼합
+  08:00~09:30, 13:00~14:00 작업
+  08:00, 10:00~11:00, 13:00 작업
 ========================================================= */
 
 function parseLeadingLogTimeExpression(
@@ -7901,21 +7904,31 @@ function parseLeadingLogTimeExpression(
   const originalContent =
     String(
       rawContent || ""
-    ).trim();
+    )
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .trim();
+
+
+  const emptyResult = {
+    times: [],
+    timeText: "",
+    content:
+      originalContent,
+    matchedText: ""
+  };
 
 
   if (!originalContent) {
     return {
-      times: [],
-      timeText: "",
-      content: "",
-      matchedText: ""
+      ...emptyResult,
+      content: ""
     };
   }
 
 
   /*
-    한 개의 시간 토큰
+    시간 토큰
 
     08:00
     8:00
@@ -7927,7 +7940,7 @@ function parseLeadingLogTimeExpression(
 
 
   /*
-    시간 사이 구분자
+    시간 사이에서 허용할 구분자
 
     목록:
     쉼표, 슬래시, 가운데점, 공백
@@ -7935,16 +7948,23 @@ function parseLeadingLogTimeExpression(
     범위:
     ~, ～, -, –, —
   */
-  const timeSeparatorPattern =
+  const separatorPattern =
     "(?:\\s*(?:,|\\/|·|~|～|-|–|—)\\s*|\\s+)";
 
 
+  /*
+    문장 맨 앞의 시간 표현 전체를 추출한다.
+
+    예:
+    08:00, 09:00, 10:00 내용
+    08:00~09:00 내용
+  */
   const leadingTimePattern =
     new RegExp(
       "^(" +
       timeTokenPattern +
       "(?:" +
-      timeSeparatorPattern +
+      separatorPattern +
       timeTokenPattern +
       ")*)"
     );
@@ -7957,23 +7977,19 @@ function parseLeadingLogTimeExpression(
 
 
   if (!prefixMatch) {
-    return {
-      times: [],
-      timeText: "",
-      content:
-        originalContent,
-      matchedText: ""
-    };
+    return emptyResult;
   }
 
 
   const rawTimeExpression =
     String(
-      prefixMatch[1] ||
-      ""
+      prefixMatch[1] || ""
     ).trim();
 
 
+  /*
+    시간 표현 안의 실제 시간 토큰 추출
+  */
   const rawTimeTokens =
     rawTimeExpression.match(
       /(?:[01]?\d|2[0-3]):[0-5]\d|\d{3,4}/g
@@ -7988,41 +8004,65 @@ function parseLeadingLogTimeExpression(
       .filter(Boolean);
 
 
+  /*
+    앞부분이 숫자처럼 보였지만
+    유효한 시간이 아니면 일반 내용으로 유지한다.
+  */
   if (!normalizedTimes.length) {
-    return {
-      times: [],
-      timeText: "",
-      content:
-        originalContent,
-      matchedText: ""
-    };
+    return emptyResult;
   }
 
 
   /*
-    원래 입력한 시간 연결 방식은 유지하면서
-    각각의 시간만 HH:MM으로 정규화한다.
+    유효하지 않은 시간이 하나라도 있으면
+    잘못 잘라내지 않고 일반 내용으로 유지한다.
+
+    예:
+    25:70 설비 점검
+  */
+  if (
+    normalizedTimes.length !==
+    rawTimeTokens.length
+  ) {
+    return emptyResult;
+  }
+
+
+  let tokenIndex = 0;
+
+
+  /*
+    각 시간 토큰을 HH:MM 형식으로 변환한다.
+
+    800  → 08:00
+    0800 → 08:00
   */
   let normalizedExpression =
     rawTimeExpression.replace(
       /(?:[01]?\d|2[0-3]):[0-5]\d|\d{3,4}/g,
-      (rawTime) => {
-        return (
-          normalizeContentTimeToken(
-            rawTime
-          ) ||
-          rawTime
-        );
+      () => {
+        const normalizedTime =
+          normalizedTimes[
+            tokenIndex
+          ] || "";
+
+        tokenIndex += 1;
+
+        return normalizedTime;
       }
     );
 
 
   /*
-    범위 구분자는 모두 ~로 통일
+    모든 시간 범위 기호를 ~로 통일한다.
 
     08:00 - 09:00
+    08:00–09:00
     08:00～09:00
-    → 08:00~09:00
+
+    모두
+
+    08:00~09:00
   */
   normalizedExpression =
     normalizedExpression.replace(
@@ -8032,11 +8072,14 @@ function parseLeadingLogTimeExpression(
 
 
   /*
-    목록 구분자는 쉼표+공백으로 통일
+    시간 목록 구분자는 쉼표+공백으로 통일한다.
 
     08:00 / 09:00
-    08:00·09:00
-    → 08:00, 09:00
+    08:00 · 09:00
+
+    모두
+
+    08:00, 09:00
   */
   normalizedExpression =
     normalizedExpression.replace(
@@ -8046,10 +8089,13 @@ function parseLeadingLogTimeExpression(
 
 
   /*
-    시간 사이를 공백으로만 작성한 경우
+    시간을 공백으로만 나열한 경우
 
     08:00 09:00 10:00
-    → 08:00, 09:00, 10:00
+
+    →
+
+    08:00, 09:00, 10:00
   */
   normalizedExpression =
     normalizedExpression.replace(
@@ -8059,13 +8105,17 @@ function parseLeadingLogTimeExpression(
 
 
   /*
-    중복 공백 및 쉼표 정리
+    중복 쉼표와 불필요한 공백 정리
   */
   normalizedExpression =
     normalizedExpression
       .replace(
         /\s*,\s*/g,
         ", "
+      )
+      .replace(
+        /\s*~\s*/g,
+        "~"
       )
       .replace(
         /\s+/g,
@@ -8075,7 +8125,7 @@ function parseLeadingLogTimeExpression(
 
 
   /*
-    시간 표현을 제외한 실제 내용
+    시간 표현을 제외한 실제 업무내용
   */
   const remainingContent =
     originalContent
@@ -8083,7 +8133,7 @@ function parseLeadingLogTimeExpression(
         prefixMatch[0].length
       )
       .replace(
-        /^[\s,./·:~～\-–—]+/,
+        /^[\s,/·:~～\-–—]+/,
         ""
       )
       .trim();

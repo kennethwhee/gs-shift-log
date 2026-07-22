@@ -10929,3 +10929,290 @@ tbody tr:first-child td {
     font-size: 10px;
   }
 }
+
+/* =========================================================
+  업무일지 가독성 개선 최종본
+
+  적용 대상
+  - 업무일지 상세보기
+  - 운전현황
+  - TM 발행 내역
+  - 보직별 인계사항
+  - 작성·수정창의 등록된 내역
+========================================================= */
+
+
+/* =========================================================
+  상세보기 기본 정보
+========================================================= */
+
+.log-detail-modal
+.detail-document-summary__item > span {
+  font-size: 12px;
+}
+
+.log-detail-modal
+.detail-document-summary__item > strong {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+
+/* =========================================================
+  상세보기 구역 제목
+========================================================= */
+
+.log-detail-modal
+.detail-document-section__header h3 {
+  font-size: 19px;
+}
+
+.log-detail-modal
+.detail-document-count {
+  min-height: 27px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+
+/* =========================================================
+  운전현황 및 비고
+========================================================= */
+
+.log-detail-modal
+.detail-document-text,
+.log-detail-modal
+.detail-operation-status-text {
+  color: #27384e;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.85;
+}
+
+
+/* =========================================================
+  TM 및 인계사항 항목
+
+  번호 | 시간 | TAG | 내용
+========================================================= */
+
+.log-detail-modal
+.detail-document-line {
+  grid-template-columns:
+    31px
+    minmax(0, 1fr);
+
+  padding: 7px 0;
+}
+
+.log-detail-modal
+.detail-document-number {
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.log-detail-modal
+.detail-document-time {
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.65;
+}
+
+.log-detail-modal
+.detail-document-line__content,
+.log-detail-modal
+.detail-document-content-text {
+  color: #27384e;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.65;
+}
+
+
+/* =========================================================
+  보직별 제목
+
+  TGO 업무일지
+  BCO1 업무일지
+  BCO2 업무일지
+========================================================= */
+
+.log-detail-modal
+.detail-role-group__title {
+  margin-bottom: 8px;
+  color: #253950;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.55;
+}
+
+
+/* =========================================================
+  보직별 세부 업무내용
+========================================================= */
+
+.log-detail-modal
+.detail-grouped-entry-line {
+  grid-template-columns:
+    max-content
+    max-content
+    minmax(0, 1fr);
+
+  column-gap: 8px;
+  padding: 3px 0;
+
+  color: #27384e;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.log-detail-modal
+.detail-grouped-entry-line__number,
+.log-detail-modal
+.detail-grouped-entry-line__time {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.log-detail-modal
+.detail-grouped-entry-line__content,
+.log-detail-modal
+.detail-grouped-entry-line__content-text,
+.log-detail-modal
+.detail-inline-tag {
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+
+/* =========================================================
+  작성·수정창 인수인계사항 목록
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-time-cell,
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-time-group-label {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-line {
+  grid-template-columns:
+    31px
+    minmax(0, 1fr);
+
+  column-gap: 9px;
+
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-number {
+  width: 31px;
+  min-width: 31px;
+
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-text {
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+#logEntryListPanel
+.log-entry-role-divider strong {
+  font-size: 14px;
+}
+
+#logEntryListPanel
+.log-entry-role-divider__count {
+  font-size: 11px;
+}
+
+#logEntryListPanel
+.log-entry-category-text {
+  font-size: 13px;
+}
+
+
+/* =========================================================
+  TM 발행 내역
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-document-number,
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-document-time,
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-document-content-text {
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+
+/* =========================================================
+  모바일에서도 너무 작아지지 않게 유지
+========================================================= */
+
+@media (max-width: 600px) {
+  .log-detail-modal
+  .detail-document-text,
+  .log-detail-modal
+  .detail-operation-status-text {
+    font-size: 14px;
+  }
+
+  .log-detail-modal
+  .detail-document-number,
+  .log-detail-modal
+  .detail-document-time,
+  .log-detail-modal
+  .detail-document-line__content,
+  .log-detail-modal
+  .detail-document-content-text,
+  .log-detail-modal
+  .detail-grouped-entry-line,
+  .log-detail-modal
+  .detail-grouped-entry-line__number,
+  .log-detail-modal
+  .detail-grouped-entry-line__time,
+  .log-detail-modal
+  .detail-grouped-entry-line__content,
+  .log-detail-modal
+  .detail-grouped-entry-line__content-text,
+  .log-detail-modal
+  .detail-inline-tag {
+    font-size: 13px;
+  }
+
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-time-cell,
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-time-group-label,
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-handover-line,
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-handover-number,
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-handover-text {
+    font-size: 13px;
+  }
+}
