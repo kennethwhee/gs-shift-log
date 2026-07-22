@@ -865,9 +865,6 @@
 <!-- =========================================================
   기본 정보
 ========================================================== -->
-<!-- =========================================================
-  기본 정보
-========================================================== -->
 <section class="editor-section editor-section--basic">
 
   <div class="editor-section__heading">
@@ -875,7 +872,7 @@
       <h3>기본 정보</h3>
 
       <p>
-        작성일, 근무시간, 근무파트와 보직을 확인해 주세요.
+        작성일, 근무시간, 보직과 작성자를 확인해 주세요.
       </p>
     </div>
   </div>
@@ -884,7 +881,7 @@
   <div class="basic-info-grid">
 
     <!-- 작성일 -->
-    <label class="form-field">
+    <label class="form-field basic-info-field--date">
 
       <span class="form-field__label">
         작성일
@@ -901,7 +898,7 @@
 
 
     <!-- 근무 -->
-    <label class="form-field">
+    <label class="form-field basic-info-field--shift">
 
       <span class="form-field__label">
         근무
@@ -926,45 +923,45 @@
     </label>
 
 
-    <!-- 근무파트 -->
-    <label class="form-field">
+    <!--
+      근무파트는 화면에 표시하지 않는다.
 
-      <span class="form-field__label">
-        근무파트
-      </span>
+      기존 스크립트가 날짜와 근무를 기준으로
+      자동 계산한 값을 저장할 때 사용하므로
+      요소 자체는 숨겨서 유지한다.
+    -->
+    <select
+      id="logTeam"
+      name="logTeam"
+      class="basic-info-hidden-team"
+      aria-hidden="true"
+      tabindex="-1"
+    >
 
-      <select
-        id="logTeam"
-        name="logTeam"
-        required
+      <option value="1파트">
+        1파트
+      </option>
+
+      <option value="2파트">
+        2파트
+      </option>
+
+      <option
+        value="3파트"
+        selected
       >
+        3파트
+      </option>
 
-        <option value="1파트">
-          1파트
-        </option>
+      <option value="4파트">
+        4파트
+      </option>
 
-        <option value="2파트">
-          2파트
-        </option>
-
-        <option
-          value="3파트"
-          selected
-        >
-          3파트
-        </option>
-
-        <option value="4파트">
-          4파트
-        </option>
-
-      </select>
-
-    </label>
+    </select>
 
 
     <!-- 보직 -->
-    <label class="form-field">
+    <label class="form-field basic-info-field--role">
 
       <span class="form-field__label">
         보직
@@ -1010,7 +1007,7 @@
 
 
     <!-- 작성자 -->
-    <label class="form-field">
+    <label class="form-field basic-info-field--author">
 
       <span class="form-field__label">
         작성자
@@ -1028,14 +1025,14 @@
     </label>
 
 
-    <!-- 대근 여부 -->
+    <!-- 대근 -->
     <label
       class="form-field substitute-work-field"
       for="logIsSubstitute"
     >
 
       <span class="form-field__label">
-        대근 여부
+        대근
       </span>
 
       <span class="substitute-work-check">
@@ -1481,173 +1478,158 @@
   </div>
 
 
-  <!-- 단일 입력 영역 -->
-  <div
-    class="log-entry-input-panel"
-    id="logEntryInputPanel"
-  >
+<!-- =====================================================
+  작업내역 단일 입력 영역
+====================================================== -->
+<div
+  class="log-entry-input-panel"
+  id="logEntryInputPanel"
+>
 
-    <!-- 첫 번째 줄 -->
-    <div class="log-entry-input-top-row">
+  <!-- ===================================================
+    상단 입력 줄
+    구분 | 현재시간 | TAG | 추가
+  ==================================================== -->
+  <div class="log-entry-input-top-row">
 
-      <!-- 구분 -->
-      <label class="form-field log-entry-field--category">
+    <!-- 구분 -->
+    <label class="form-field log-entry-field--category">
 
-        <span class="form-field__label">
-          구분
+      <span class="form-field__label">
+        구분
+      </span>
+
+      <select id="logEntryCategory">
+
+        <option
+          value="인계사항"
+          selected
+        >
+          인계사항
+        </option>
+
+        <option value="TM 발행">
+          TM 발행
+        </option>
+
+        <option value="BM 발행">
+          BM 발행
+        </option>
+
+        <option value="CM 발행">
+          CM 발행
+        </option>
+
+        <option value="TM 작업">
+          TM 작업
+        </option>
+
+        <option value="TM 종결">
+          TM 종결
+        </option>
+
+        <option value="BM 작업">
+          BM 작업
+        </option>
+
+        <option value="BM 종결">
+          BM 종결
+        </option>
+
+        <option value="CM 작업">
+          CM 작업
+        </option>
+
+        <option value="CM 종결">
+          CM 종결
+        </option>
+
+        <option value="운전조작">
+          운전조작
+        </option>
+
+        <option value="점검">
+          점검
+        </option>
+
+        <option value="비고">
+          비고
+        </option>
+
+      </select>
+
+    </label>
+
+
+    <!--
+      기존 스크립트 호환용 시간값
+
+      화면에서는 보이지 않지만,
+      현재시간 체크 및 저장 데이터의 time 값으로 사용한다.
+    -->
+    <input
+      type="hidden"
+      id="logEntryTime"
+      value=""
+    />
+
+
+    <!-- 현재시간 -->
+    <div class="form-field log-entry-current-time-field">
+
+      <span class="form-field__label">
+        시간
+      </span>
+
+      <label
+        class="current-time-check"
+        title="체크하면 현재 시간이 적용됩니다."
+      >
+
+        <input
+          type="checkbox"
+          id="useCurrentTimeCheckbox"
+        />
+
+        <span class="current-time-check__box">
+          ✓
         </span>
 
-        <select id="logEntryCategory">
-
-          <option
-            value="인계사항"
-            selected
-          >
-            인계사항
-          </option>
-
-          <option value="TM 발행">
-            TM 발행
-          </option>
-
-          <option value="BM 발행">
-            BM 발행
-          </option>
-
-          <option value="CM 발행">
-            CM 발행
-          </option>
-
-          <option value="TM 작업">
-            TM 작업
-          </option>
-
-          <option value="TM 종결">
-            TM 종결
-          </option>
-
-          <option value="BM 작업">
-            BM 작업
-          </option>
-
-          <option value="BM 종결">
-            BM 종결
-          </option>
-
-          <option value="CM 작업">
-            CM 작업
-          </option>
-
-          <option value="CM 종결">
-            CM 종결
-          </option>
-
-          <option value="운전조작">
-            운전조작
-          </option>
-
-          <option value="점검">
-            점검
-          </option>
-
-          <option value="비고">
-            비고
-          </option>
-
-        </select>
+        <span class="current-time-check__text">
+          현재시간
+        </span>
 
       </label>
 
-
-      <!-- 시간: 인계사항 선택 시에만 표시 -->
-      <div
-        class="form-field log-entry-field--time"
-        id="logEntryTimeField"
-      >
-
-        <span class="form-field__label">
-          시간
-        </span>
-
-        <div class="log-entry-time-group">
-
-          <input
-            type="text"
-            id="logEntryTime"
-            inputmode="numeric"
-            maxlength="5"
-            placeholder="예: 0930"
-            autocomplete="off"
-          />
-
-          <label
-            class="current-time-check"
-            title="체크하면 현재 시간이 입력됩니다."
-          >
-            <input
-              type="checkbox"
-              id="useCurrentTimeCheckbox"
-            />
-
-            <span>현재시간</span>
-          </label>
-
-        </div>
-
-      </div>
+    </div>
 
 
-      <!-- TAG -->
-      <div
-        class="form-field log-entry-field--tag"
-        id="logEntryTagField"
-        hidden
-      >
+    <!-- TAG: TM·BM·CM 선택 시 표시 -->
+    <div
+      class="form-field log-entry-field--tag"
+      id="logEntryTagField"
+      hidden
+    >
 
-        <span class="form-field__label">
-          TAG
-        </span>
+      <span class="form-field__label">
+        TAG
+      </span>
 
-        <div class="tag-input-group">
+      <div class="tag-input-group">
 
-          <input
-            type="text"
-            id="logEntryTag"
-            placeholder="예: 10HFB10AF001"
-            autocomplete="off"
-          />
-
-          <button
-            type="button"
-            class="navigator-button"
-            id="logEntryNavigatorButton"
-          >
-            설비보기
-          </button>
-
-        </div>
-
-      </div>
-
-
-      <!-- 우측 버튼 -->
-      <div class="log-entry-input-actions">
+        <input
+          type="text"
+          id="logEntryTag"
+          placeholder="예: 10HFB10AF001"
+          autocomplete="off"
+        />
 
         <button
           type="button"
-          class="secondary-button"
-          id="cancelLogEntryEditButton"
-          hidden
+          class="navigator-button"
+          id="logEntryNavigatorButton"
         >
-          취소
-        </button>
-
-        <button
-          type="button"
-          class="add-entry-button"
-          id="addLogEntryButton"
-        >
-          ＋ 추가
+          설비보기
         </button>
 
       </div>
@@ -1655,22 +1637,53 @@
     </div>
 
 
-    <!-- 두 번째 줄 -->
-    <label class="form-field log-entry-content-field">
+    <!-- 우측 추가·취소 버튼 -->
+    <div class="log-entry-input-actions">
 
-      <span class="form-field__label">
-        내용
-      </span>
+      <button
+        type="button"
+        class="secondary-button"
+        id="cancelLogEntryEditButton"
+        hidden
+      >
+        취소
+      </button>
 
-      <textarea
-        id="logEntryContent"
-        rows="3"
-        placeholder="작업, 정비 또는 인계 내용을 입력하세요."
-      ></textarea>
+      <button
+        type="button"
+        class="add-entry-button"
+        id="addLogEntryButton"
+      >
+        ＋ 추가
+      </button>
 
-    </label>
+    </div>
 
   </div>
+
+
+  <!-- ===================================================
+    내용 입력
+  ==================================================== -->
+  <label class="form-field log-entry-content-field">
+
+    <span class="form-field__label">
+      내용
+    </span>
+
+    <textarea
+      id="logEntryContent"
+      rows="3"
+      placeholder="08:00 또는 0800이라고 입력하시면 시간이 적용됩니다. 여러 시간대도 입력할 수 있습니다."
+    ></textarea>
+
+    <small class="log-entry-content-help">
+      예: 08:00 설비 점검 / 0800 설비 점검 / 08:00, 10:00 설비 점검
+    </small>
+
+  </label>
+
+</div>
 
 
 <!-- =====================================================
@@ -1998,43 +2011,78 @@
       </div>
 
 
-<footer class="modal-footer log-detail-footer">
-
-  <div class="modal-footer__left">
-
-    <button
-      type="button"
-      class="approval-confirm-button"
-      id="approveFromDetailButton"
-      hidden
-    >
-      결재확인
-    </button>
-
-  </div>
+        </form>
+      </div>
 
 
-  <div class="modal-footer__right">
+      <!-- =====================================================
+        업무일지 작성·수정창 하단 버튼
 
-    <button
-      type="button"
-      class="secondary-button"
-      id="closeLogDetailFooterButton"
-    >
-      닫기
-    </button>
+        왼쪽:
+        - 인쇄
 
-    <button
-      type="button"
-      class="primary-button"
-      id="editFromDetailButton"
-    >
-      수정
-    </button>
+        오른쪽:
+        - 임시저장
+        - 결재완료
+      ====================================================== -->
+      <footer class="modal-footer log-editor-footer">
 
-  </div>
+        <!-- 왼쪽 버튼 -->
+        <div
+          class="
+            modal-footer__left
+            log-editor-footer__left
+          "
+        >
 
-</footer>
+          <button
+            type="button"
+            class="
+              secondary-button
+              log-editor-print-button
+            "
+            id="printLogButton"
+          >
+            인쇄
+          </button>
+
+        </div>
+
+
+        <!-- 오른쪽 버튼 -->
+        <div
+          class="
+            modal-footer__right
+            log-editor-footer__right
+          "
+        >
+
+          <button
+            type="button"
+            class="
+              secondary-button
+              log-editor-draft-button
+            "
+            id="saveDraftButton"
+          >
+            임시저장
+          </button>
+
+
+          <button
+            type="button"
+            class="
+              approval-button
+              log-editor-complete-button
+            "
+            id="requestApprovalButton"
+          >
+            결재완료
+          </button>
+
+        </div>
+
+      </footer>
 
     </section>
   </div>

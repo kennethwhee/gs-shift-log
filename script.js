@@ -4409,6 +4409,7 @@ function bindEvents() {
     );
   };
 
+
   const bindChange = (
     element,
     handler
@@ -4423,6 +4424,7 @@ function bindEvents() {
     );
   };
 
+
   const bindInput = (
     element,
     handler
@@ -4436,6 +4438,7 @@ function bindEvents() {
       handler
     );
   };
+
 
   const bindKeydown = (
     element,
@@ -4471,14 +4474,17 @@ function bindEvents() {
           )
       ];
 
+
       const selectedCheckboxes =
         checkboxes.filter(
           (checkbox) =>
             checkbox.checked
         );
 
+
       const selectedCount =
         selectedCheckboxes.length;
+
 
       if (
         elements.selectedLogEntryCount
@@ -4494,6 +4500,7 @@ function bindEvents() {
           selectedCount === 0;
       }
 
+
       if (
         elements
           .deleteSelectedLogEntriesButton
@@ -4503,6 +4510,7 @@ function bindEvents() {
           .disabled =
           selectedCount === 0;
       }
+
 
       if (
         elements
@@ -4520,6 +4528,7 @@ function bindEvents() {
           selectedCount > 0 &&
           selectedCount <
             checkboxes.length;
+
 
         elements
           .selectAllLogEntriesCheckbox
@@ -4568,6 +4577,7 @@ function bindEvents() {
     }
   );
 
+
   bindClick(
     elements.nextDateButton,
     () => {
@@ -4575,10 +4585,12 @@ function bindEvents() {
     }
   );
 
+
   bindClick(
     elements.todayButton,
     moveSelectedDateToToday
   );
+
 
   /* =======================================================
     업무일지 작성창
@@ -4591,17 +4603,22 @@ function bindEvents() {
     }
   );
 
+
   bindClick(
     elements.closeLogEditorButton,
     closeLogEditor
   );
+
 
   bindClick(
     elements.cancelLogButton,
     closeLogEditor
   );
 
-  if (elements.logEditorModal) {
+
+  if (
+    elements.logEditorModal
+  ) {
     elements.logEditorModal
       .addEventListener(
         "click",
@@ -4626,10 +4643,12 @@ function bindEvents() {
     openOperationStatusEditor
   );
 
+
   bindClick(
     elements.cancelOperationStatusButton,
     closeOperationStatusEditor
   );
+
 
   bindClick(
     elements.saveOperationStatusButton,
@@ -4645,6 +4664,7 @@ function bindEvents() {
     elements.logEntryCategory,
     updateTagFieldVisibility
   );
+
 
   bindClick(
     elements.logEntryNavigatorButton,
@@ -4669,26 +4689,44 @@ function bindEvents() {
           .useCurrentTimeCheckbox
           .checked
       ) {
+        /*
+          현재시간 체크를 해제하면
+          숨겨진 시간값도 초기화한다.
+        */
+        if (
+          elements.logEntryTime
+        ) {
+          elements.logEntryTime
+            .value = "";
+        }
+
         return;
       }
 
-      elements.logEntryTime.value =
-        getCurrentTimeValue();
 
-      elements.logEntryTime
-        .classList.add(
-          "is-current-time-applied"
+      if (
+        elements.logEntryTime
+      ) {
+        elements.logEntryTime.value =
+          getCurrentTimeValue();
+
+        elements.logEntryTime
+          .classList.add(
+            "is-current-time-applied"
+          );
+
+
+        window.setTimeout(
+          () => {
+            elements.logEntryTime
+              ?.classList.remove(
+                "is-current-time-applied"
+              );
+          },
+          500
         );
+      }
 
-      window.setTimeout(
-        () => {
-          elements.logEntryTime
-            .classList.remove(
-              "is-current-time-applied"
-            );
-        },
-        500
-      );
 
       elements.logEntryContent
         ?.focus();
@@ -4697,7 +4735,10 @@ function bindEvents() {
 
 
   /* =======================================================
-    시간 자동 입력
+    숨겨진 시간값 자동 정리
+
+    기존 스크립트 호환을 위해 유지한다.
+    시간 입력칸이 hidden이어도 오류 없이 동작한다.
   ======================================================== */
 
   bindInput(
@@ -4705,7 +4746,10 @@ function bindEvents() {
     handleLogEntryTimeInput
   );
 
-  if (elements.logEntryTime) {
+
+  if (
+    elements.logEntryTime
+  ) {
     elements.logEntryTime
       .addEventListener(
         "blur",
@@ -4723,29 +4767,6 @@ function bindEvents() {
       );
   }
 
-  bindKeydown(
-    elements.logEntryTime,
-    (event) => {
-      if (
-        event.key !== "Enter"
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-
-      const normalizedTime =
-        normalizeLogEntryTime();
-
-      if (!normalizedTime) {
-        return;
-      }
-
-      elements.logEntryCategory
-        ?.focus();
-    }
-  );
-
 
   /* =======================================================
     작업내역 추가·수정·삭제
@@ -4756,10 +4777,12 @@ function bindEvents() {
     addOrUpdateLogEntry
   );
 
+
   bindClick(
     elements.cancelLogEntryEditButton,
     cancelLogEntryEdit
   );
+
 
   if (
     elements.logEntryTableBody
@@ -4773,6 +4796,7 @@ function bindEvents() {
         handleLogEntryTableClick
       );
 
+
     /*
       개별 작업 내역 체크
     */
@@ -4785,29 +4809,74 @@ function bindEvents() {
               ".log-entry-select-checkbox"
             );
 
+
           if (!checkbox) {
             return;
           }
+
 
           updateSelectedEntryControls();
         }
       );
   }
 
+
+  /* =======================================================
+    내용 입력창 Enter 동작
+
+    Enter:
+    추가 또는 수정 확인창
+
+    Shift + Enter:
+    줄바꿈
+
+    한글 조합 중 Enter:
+    글자 확정만 처리
+  ======================================================== */
+
   bindKeydown(
     elements.logEntryContent,
     (event) => {
       if (
-        event.key === "Enter" &&
-        (
-          event.ctrlKey ||
-          event.metaKey
-        )
+        event.key !== "Enter"
       ) {
-        event.preventDefault();
-
-        addOrUpdateLogEntry();
+        return;
       }
+
+
+      /*
+        한글 조합 중 Enter는
+        추가 동작으로 처리하지 않는다.
+      */
+      if (
+        event.isComposing ||
+        event.keyCode === 229
+      ) {
+        return;
+      }
+
+
+      /*
+        Shift + Enter는
+        내용 입력창 줄바꿈으로 유지한다.
+      */
+      if (
+        event.shiftKey
+      ) {
+        return;
+      }
+
+
+      /*
+        일반 Enter,
+        Ctrl + Enter,
+        Cmd + Enter 모두
+        확인창을 거쳐 추가한다.
+      */
+      event.preventDefault();
+
+
+      confirmAndAddLogEntry();
     }
   );
 
@@ -4829,10 +4898,12 @@ function bindEvents() {
         return;
       }
 
+
       const shouldSelectAll =
         elements
           .selectAllLogEntriesCheckbox
           .checked;
+
 
       elements.logEntryTableBody
         .querySelectorAll(
@@ -4844,6 +4915,7 @@ function bindEvents() {
               shouldSelectAll;
           }
         );
+
 
       updateSelectedEntryControls();
     }
@@ -4865,26 +4937,34 @@ function bindEvents() {
         return;
       }
 
+
       const selectedIndexes = [
         ...elements.logEntryTableBody
           .querySelectorAll(
             ".log-entry-select-checkbox:checked"
           )
       ]
-        .map((checkbox) => {
-          return Number(
-            checkbox.dataset
-              .entrySelectIndex
-          );
-        })
-        .filter((index) => {
-          return (
-            Number.isInteger(index) &&
-            appState.editorEntries[
-              index
-            ]
-          );
-        });
+        .map(
+          (checkbox) => {
+            return Number(
+              checkbox.dataset
+                .entrySelectIndex
+            );
+          }
+        )
+        .filter(
+          (index) => {
+            return (
+              Number.isInteger(
+                index
+              ) &&
+              appState.editorEntries[
+                index
+              ]
+            );
+          }
+        );
+
 
       if (
         !selectedIndexes.length
@@ -4896,14 +4976,17 @@ function bindEvents() {
         return;
       }
 
+
       const shouldDelete =
         window.confirm(
           `선택한 작업 내역 ${selectedIndexes.length}건을 삭제하시겠습니까?`
         );
 
+
       if (!shouldDelete) {
         return;
       }
+
 
       /*
         큰 인덱스부터 삭제해야
@@ -4911,27 +4994,37 @@ function bindEvents() {
       */
       selectedIndexes
         .sort(
-          (indexA, indexB) =>
+          (
+            indexA,
+            indexB
+          ) =>
             indexB - indexA
         )
-        .forEach((index) => {
-          appState.editorEntries
-            .splice(
-              index,
-              1
-            );
-        });
+        .forEach(
+          (index) => {
+            appState.editorEntries
+              .splice(
+                index,
+                1
+              );
+          }
+        );
+
 
       appState.editingEntryIndex =
         -1;
+
 
       resetLogEntryInput({
         keepCategory: false,
         keepTag: false
       });
 
+
       renderLogEntryTable();
+
       updateMemberLogImportStatus();
+
 
       showToast(
         `작업 내역 ${selectedIndexes.length}건을 삭제했습니다.`
@@ -4949,12 +5042,16 @@ function bindEvents() {
     renderAttachmentList
   );
 
-  if (elements.fileDropzone) {
+
+  if (
+    elements.fileDropzone
+  ) {
     elements.fileDropzone
       .addEventListener(
         "dragover",
         (event) => {
           event.preventDefault();
+
 
           elements.fileDropzone
             .classList.add(
@@ -4962,6 +5059,7 @@ function bindEvents() {
             );
         }
       );
+
 
     elements.fileDropzone
       .addEventListener(
@@ -4974,16 +5072,19 @@ function bindEvents() {
         }
       );
 
+
     elements.fileDropzone
       .addEventListener(
         "drop",
         (event) => {
           event.preventDefault();
 
+
           elements.fileDropzone
             .classList.remove(
               "is-dragging"
             );
+
 
           if (
             !event.dataTransfer
@@ -4992,12 +5093,14 @@ function bindEvents() {
             return;
           }
 
+
           try {
             elements
               .logAttachments
               .files =
               event.dataTransfer
                 .files;
+
           } catch {
             showToast(
               "파일을 직접 선택해 주세요."
@@ -5005,6 +5108,7 @@ function bindEvents() {
 
             return;
           }
+
 
           renderAttachmentList();
         }
@@ -5016,12 +5120,15 @@ function bindEvents() {
     업무일지 저장
   ======================================================== */
 
-  if (elements.logEditorForm) {
+  if (
+    elements.logEditorForm
+  ) {
     elements.logEditorForm
       .addEventListener(
         "submit",
         (event) => {
           event.preventDefault();
+
 
           saveCurrentLog(
             "작성중"
@@ -5030,10 +5137,12 @@ function bindEvents() {
       );
   }
 
+
   bindClick(
     elements.saveDraftButton,
     saveDraft
   );
+
 
   bindClick(
     elements.printLogButton,
@@ -5041,6 +5150,7 @@ function bindEvents() {
       window.print();
     }
   );
+
 
   bindClick(
     elements.requestApprovalButton,
@@ -5056,7 +5166,9 @@ function bindEvents() {
     업무일지 목록
   ======================================================== */
 
-  if (elements.logTableBody) {
+  if (
+    elements.logTableBody
+  ) {
     elements.logTableBody
       .addEventListener(
         "click",
@@ -5074,13 +5186,17 @@ function bindEvents() {
     closeLogDetail
   );
 
+
   bindClick(
     elements
       .closeLogDetailFooterButton,
     closeLogDetail
   );
 
-  if (elements.logDetailModal) {
+
+  if (
+    elements.logDetailModal
+  ) {
     elements.logDetailModal
       .addEventListener(
         "click",
@@ -5095,10 +5211,12 @@ function bindEvents() {
       );
   }
 
+
   bindClick(
     elements.approveFromDetailButton,
     approveCurrentDetailLog
   );
+
 
   bindClick(
     elements.editFromDetailButton,
@@ -5114,6 +5232,7 @@ function bindEvents() {
           }
         );
 
+
       if (!log) {
         showToast(
           "업무일지를 찾을 수 없습니다."
@@ -5122,8 +5241,12 @@ function bindEvents() {
         return;
       }
 
+
       closeLogDetail();
-      openLogEditor(log);
+
+      openLogEditor(
+        log
+      );
     }
   );
 
@@ -5132,15 +5255,19 @@ function bindEvents() {
     조회
   ======================================================== */
 
-  if (elements.searchForm) {
+  if (
+    elements.searchForm
+  ) {
     elements.searchForm
       .addEventListener(
         "submit",
         (event) => {
           event.preventDefault();
+
           runSearch();
         }
       );
+
 
     elements.searchForm
       .addEventListener(
@@ -5157,6 +5284,7 @@ function bindEvents() {
                   .innerHTML = "";
               }
 
+
               if (
                 elements
                   .searchResultCount
@@ -5167,6 +5295,7 @@ function bindEvents() {
                   "0";
               }
 
+
               if (
                 elements
                   .searchEmptyState
@@ -5176,12 +5305,14 @@ function bindEvents() {
                   .hidden =
                   false;
 
+
                 const title =
                   elements
                     .searchEmptyState
                     .querySelector(
                       "strong"
                     );
+
 
                 const description =
                   elements
@@ -5190,12 +5321,18 @@ function bindEvents() {
                       "p"
                     );
 
-                if (title) {
+
+                if (
+                  title
+                ) {
                   title.textContent =
                     "조회 조건을 선택해 주세요.";
                 }
 
-                if (description) {
+
+                if (
+                  description
+                ) {
                   description
                     .textContent =
                     "기간, TAG 또는 업무 내용을 기준으로 검색할 수 있습니다.";
@@ -5222,6 +5359,7 @@ function bindEvents() {
         return;
       }
 
+
       if (
         elements
           .operationStatusEditor &&
@@ -5230,16 +5368,20 @@ function bindEvents() {
           .hidden
       ) {
         closeOperationStatusEditor();
+
         return;
       }
+
 
       if (
         appState
           .editingEntryIndex >= 0
       ) {
         cancelLogEntryEdit();
+
         return;
       }
+
 
       if (
         elements.logDetailModal
@@ -5248,8 +5390,10 @@ function bindEvents() {
           )
       ) {
         closeLogDetail();
+
         return;
       }
+
 
       if (
         elements.logEditorModal
@@ -6519,6 +6663,442 @@ function resetLogEntryInput(options = {}) {
   updateTagFieldVisibility();
 }
 
+/* =========================================================
+  작업내역 내용 앞 시간 자동 분석
+
+  지원 예시:
+  08:00 설비 점검
+  0800 설비 점검
+  08:00, 10:00 설비 점검
+  0800 1000 설비 점검
+  08:00 / 10:00 설비 점검
+========================================================= */
+
+
+/*
+  시간 하나를 HH:MM 형식으로 변환한다.
+
+  입력 예:
+  0800  → 08:00
+  800   → 08:00
+  08:00 → 08:00
+*/
+function normalizeContentTimeToken(
+  rawTime
+) {
+  const source =
+    String(
+      rawTime || ""
+    )
+      .trim()
+      .replace(
+        /[^0-9:]/g,
+        ""
+      );
+
+  if (!source) {
+    return "";
+  }
+
+
+  let hourText = "";
+  let minuteText = "";
+
+
+  /*
+    08:00 형식
+  */
+  if (
+    source.includes(":")
+  ) {
+    const parts =
+      source.split(":");
+
+    hourText =
+      String(
+        parts[0] || ""
+      );
+
+    minuteText =
+      String(
+        parts[1] || ""
+      );
+
+  } else {
+    /*
+      숫자만 입력한 형식
+
+      0800 → 08:00
+      800  → 08:00
+    */
+    const digits =
+      source.replace(
+        /\D/g,
+        ""
+      );
+
+    if (
+      digits.length === 3
+    ) {
+      hourText =
+        digits.slice(
+          0,
+          1
+        );
+
+      minuteText =
+        digits.slice(
+          1,
+          3
+        );
+
+    } else if (
+      digits.length === 4
+    ) {
+      hourText =
+        digits.slice(
+          0,
+          2
+        );
+
+      minuteText =
+        digits.slice(
+          2,
+          4
+        );
+
+    } else {
+      return "";
+    }
+  }
+
+
+  const hour =
+    Number(
+      hourText
+    );
+
+  const minute =
+    Number(
+      minuteText
+    );
+
+
+  if (
+    !Number.isInteger(
+      hour
+    ) ||
+    !Number.isInteger(
+      minute
+    ) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return "";
+  }
+
+
+  return [
+    String(
+      hour
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    String(
+      minute
+    ).padStart(
+      2,
+      "0"
+    )
+  ].join(":");
+}
+
+
+/*
+  내용 맨 앞에서 연속된 시간 표현을 찾는다.
+
+  반환값:
+  {
+    times: ["08:00", "10:00"],
+    timeText: "08:00, 10:00",
+    content: "설비 점검"
+  }
+*/
+function extractTimesFromLogEntryContent(
+  rawContent
+) {
+  const originalContent =
+    String(
+      rawContent || ""
+    ).trim();
+
+
+  if (!originalContent) {
+    return {
+      times: [],
+      timeText: "",
+      content: ""
+    };
+  }
+
+
+  /*
+    내용 시작 부분에서만 시간을 찾는다.
+
+    지원:
+    08:00
+    0800
+    08:00, 10:00
+    0800 1000
+    08:00 / 10:00
+    08:00·10:00
+  */
+  const timePrefixMatch =
+    originalContent.match(
+      /^(?:(?:[01]?\d|2[0-3]):[0-5]\d|\d{3,4})(?:(?:\s*[,/·]\s*|\s+)(?:(?:[01]?\d|2[0-3]):[0-5]\d|\d{3,4}))*/
+    );
+
+
+  if (!timePrefixMatch) {
+    return {
+      times: [],
+      timeText: "",
+      content:
+        originalContent
+    };
+  }
+
+
+  const rawTimePrefix =
+    String(
+      timePrefixMatch[0] ||
+      ""
+    ).trim();
+
+
+  /*
+    시간 표현을 각각 분리한다.
+  */
+  const rawTimeTokens =
+    rawTimePrefix.match(
+      /(?:[01]?\d|2[0-3]):[0-5]\d|\d{3,4}/g
+    ) || [];
+
+
+  const normalizedTimes =
+    rawTimeTokens
+      .map(
+        normalizeContentTimeToken
+      )
+      .filter(Boolean);
+
+
+  if (!normalizedTimes.length) {
+    return {
+      times: [],
+      timeText: "",
+      content:
+        originalContent
+    };
+  }
+
+
+  /*
+    같은 시간이 두 번 입력된 경우 한 번만 유지한다.
+  */
+  const uniqueTimes = [
+    ...new Set(
+      normalizedTimes
+    )
+  ];
+
+
+  /*
+    앞쪽 시간과 구분기호를 내용에서 제거한다.
+
+    예:
+    08:00, 10:00 설비 점검
+    → 설비 점검
+  */
+  const remainingContent =
+    originalContent
+      .slice(
+        timePrefixMatch[0]
+          .length
+      )
+      .replace(
+        /^[\s,./·:\-]+/,
+        ""
+      )
+      .trim();
+
+
+  return {
+    times:
+      uniqueTimes,
+
+    timeText:
+      uniqueTimes.join(
+        ", "
+      ),
+
+    content:
+      remainingContent
+  };
+}
+
+
+/*
+  현재시간 체크 또는 내용 앞 시간을 기준으로
+  최종 저장 시간과 내용을 결정한다.
+*/
+function resolveLogEntryTimeAndContent() {
+  const rawContent =
+    String(
+      elements.logEntryContent
+        ?.value ||
+      ""
+    ).trim();
+
+
+  const parsedContent =
+    extractTimesFromLogEntryContent(
+      rawContent
+    );
+
+
+  const currentTimeValue =
+    String(
+      elements.logEntryTime
+        ?.value ||
+      ""
+    ).trim();
+
+
+  /*
+    내용 앞에 시간이 있다면
+    내용에 적은 시간을 가장 우선한다.
+  */
+  if (
+    parsedContent.timeText
+  ) {
+    if (
+      elements.logEntryTime
+    ) {
+      elements.logEntryTime.value =
+        parsedContent.timeText;
+    }
+
+    if (
+      elements
+        .useCurrentTimeCheckbox
+    ) {
+      elements
+        .useCurrentTimeCheckbox
+        .checked =
+        false;
+    }
+
+    return {
+      time:
+        parsedContent.timeText,
+
+      content:
+        parsedContent.content
+    };
+  }
+
+
+  /*
+    내용 앞 시간은 없고
+    현재시간 체크만 한 경우
+  */
+  if (
+    currentTimeValue
+  ) {
+    return {
+      time:
+        currentTimeValue,
+
+      content:
+        rawContent
+    };
+  }
+
+
+  /*
+    시간 없이 저장하는 경우
+  */
+  return {
+    time: "",
+    content:
+      rawContent
+  };
+}
+
+/* =========================================================
+  작업내역 Enter 추가 확인
+
+  내용 입력창에서 Enter를 누르면:
+  1. 기본 줄바꿈을 막는다.
+  2. 추가 여부를 확인한다.
+  3. 확인을 누르면 작업내역을 추가한다.
+
+  Shift + Enter:
+  줄바꿈 입력
+========================================================= */
+
+function confirmAndAddLogEntry() {
+  const rawContent =
+    String(
+      elements.logEntryContent
+        ?.value ||
+      ""
+    ).trim();
+
+
+  if (!rawContent) {
+    showToast(
+      "작업 내용을 입력해 주세요."
+    );
+
+    elements.logEntryContent
+      ?.focus();
+
+    return;
+  }
+
+
+  const isEditing =
+    appState.editingEntryIndex >= 0;
+
+
+  const confirmMessage =
+    isEditing
+      ? "내역을 수정하시겠습니까?"
+      : "내역을 추가하시겠습니까?";
+
+
+  const shouldContinue =
+    window.confirm(
+      confirmMessage
+    );
+
+
+  if (!shouldContinue) {
+    elements.logEntryContent
+      ?.focus();
+
+    return;
+  }
+
+
+  addOrUpdateLogEntry();
+}
 
 function addOrUpdateLogEntry() {
   const category =
@@ -6528,34 +7108,18 @@ function addOrUpdateLogEntry() {
       "인계사항"
     ).trim();
 
-  const isHandover =
-    category === "인계사항";
 
   const needsTag =
-    category.startsWith("TM") ||
-    category.startsWith("BM") ||
-    category.startsWith("CM");
+    category.startsWith(
+      "TM"
+    ) ||
+    category.startsWith(
+      "BM"
+    ) ||
+    category.startsWith(
+      "CM"
+    );
 
-  let normalizedTime = "";
-
-  /*
-    시간은 인계사항에서만 입력하고 검사한다.
-  */
-  if (isHandover) {
-    normalizedTime =
-      normalizeLogEntryTime();
-
-    if (!normalizedTime) {
-      showToast(
-        "인계사항 시간을 직접 입력하거나 현재시간을 체크해 주세요."
-      );
-
-      elements.logEntryTime
-        ?.focus();
-
-      return;
-    }
-  }
 
   const tag =
     needsTag
@@ -6568,12 +7132,36 @@ function addOrUpdateLogEntry() {
           .toUpperCase()
       : "";
 
-  const content =
+
+  /*
+    내용 앞의 시간을 자동 분석한다.
+
+    예:
+    08:00 설비 점검
+    → time: 08:00
+    → content: 설비 점검
+
+    0800 1000 설비 점검
+    → time: 08:00, 10:00
+    → content: 설비 점검
+  */
+  const resolvedInput =
+    resolveLogEntryTimeAndContent();
+
+
+  const normalizedTime =
     String(
-      elements.logEntryContent
-        ?.value ||
+      resolvedInput.time ||
       ""
     ).trim();
+
+
+  const content =
+    String(
+      resolvedInput.content ||
+      ""
+    ).trim();
+
 
   if (!category) {
     showToast(
@@ -6585,6 +7173,7 @@ function addOrUpdateLogEntry() {
 
     return;
   }
+
 
   if (
     needsTag &&
@@ -6600,10 +7189,22 @@ function addOrUpdateLogEntry() {
     return;
   }
 
+
   if (!content) {
-    showToast(
-      "작업 내용을 입력해 주세요."
-    );
+    /*
+      시간만 입력하고 실제 내용이 없는 경우
+    */
+    if (
+      normalizedTime
+    ) {
+      showToast(
+        "시간 뒤에 작업 내용을 입력해 주세요."
+      );
+    } else {
+      showToast(
+        "작업 내용을 입력해 주세요."
+      );
+    }
 
     elements.logEntryContent
       ?.focus();
@@ -6611,8 +7212,10 @@ function addOrUpdateLogEntry() {
     return;
   }
 
+
   const isEditing =
     appState.editingEntryIndex >= 0;
+
 
   const previousEntry =
     isEditing
@@ -6621,22 +7224,31 @@ function addOrUpdateLogEntry() {
         ]
       : null;
 
+
   const rawSourceIndex =
     previousEntry
       ?.importedFromEntryIndex;
+
 
   const importedFromEntryIndex =
     rawSourceIndex === "" ||
     rawSourceIndex === null ||
     rawSourceIndex === undefined
       ? null
-      : Number(rawSourceIndex);
+      : Number(
+          rawSourceIndex
+        );
 
+
+  /*
+    기존 가져오기 출처 데이터를 유지한다.
+
+    파트장이 팀원 업무일지를 가져온 뒤
+    항목을 수정해도 출처 보직 정보가 사라지지 않는다.
+  */
   const entry = {
     time:
-      isHandover
-        ? normalizedTime
-        : "",
+      normalizedTime,
 
     category,
 
@@ -6674,6 +7286,7 @@ function addOrUpdateLogEntry() {
         : null
   };
 
+
   if (isEditing) {
     appState.editorEntries.splice(
       appState.editingEntryIndex,
@@ -6684,25 +7297,36 @@ function addOrUpdateLogEntry() {
     showToast(
       "작업 내역을 수정했습니다."
     );
+
   } else {
     appState.editorEntries.push(
       entry
     );
 
     showToast(
-      "작업 내역을 추가했습니다."
+      normalizedTime
+        ? `${normalizedTime} 작업 내역을 추가했습니다.`
+        : "시간 없이 작업 내역을 추가했습니다."
     );
   }
 
+
   sortImportedLogEntries();
+
   renderLogEntryTable();
 
+
   resetLogEntryInput({
-    keepCategory: false,
-    keepTag: false
+    keepCategory:
+      false,
+
+    keepTag:
+      false
   });
 
+
   updateMemberLogImportStatus();
+
 
   elements.logEntryContent
     ?.focus();
@@ -7162,11 +7786,13 @@ function renderLogEntryTable() {
 
 
   /*
-    시간 · 번호 · 내용을 반드시 한 행에 출력한다.
+    시간 · 번호 · 내용을 한 줄로 출력한다.
 
-    기존처럼 시간을 별도 td로 만들지 않고,
-    하나의 셀 안에서 3열 grid로 고정한다.
-    따라서 기존 CSS의 열 너비 충돌 영향을 받지 않는다.
+    인수인계 목록은 내용 전체를 무조건 가로로 늘리지 않고,
+    실제 내용 길이에 맞는 compact 영역을 가운데 배치한다.
+
+    구조:
+    [시간] [번호] [내용]
   */
   const createCompactLineHtml = (
     entry,
@@ -7178,117 +7804,135 @@ function renderLogEntryTable() {
       showTime = true
     } = options;
 
+
     const timeText =
       String(
         entry.time || ""
       ).trim();
+
 
     const contentText =
       String(
         entry.content || "-"
       ).trim();
 
+
     return `
       <div
-        class="log-entry-fixed-compact-line"
+        class="log-entry-fixed-compact-wrapper"
         style="
-          display:grid !important;
+          display:flex !important;
           width:100% !important;
           min-width:0 !important;
-          grid-template-columns:
-            ${showTime ? "72px" : "0"}
-            28px
-            minmax(0, 1fr) !important;
-          align-items:start !important;
-          column-gap:8px !important;
+          align-items:flex-start !important;
+          justify-content:center !important;
           margin:0 !important;
           padding:0 !important;
-          color:#26364b !important;
-          font-size:11px !important;
-          font-weight:650 !important;
-          line-height:1.55 !important;
-          text-align:left !important;
         "
       >
-        ${
-          showTime
-            ? `
-              <strong
-                class="log-entry-fixed-time"
-                style="
-                  display:block !important;
-                  width:72px !important;
-                  margin:0 !important;
-                  padding:0 !important;
-                  color:#1763c5 !important;
-                  font-size:10px !important;
-                  font-weight:900 !important;
-                  line-height:1.55 !important;
-                  text-align:right !important;
-                  white-space:nowrap !important;
-                "
-              >
-                ${escapeHtml(
-                  timeText ||
-                  "시간 없음"
-                )}
-              </strong>
-            `
-            : `
-              <span
-                aria-hidden="true"
-                style="
-                  display:block !important;
-                  width:0 !important;
-                  overflow:hidden !important;
-                "
-              ></span>
-            `
-        }
-
-        <strong
-          class="log-entry-fixed-number"
+        <div
+          class="log-entry-fixed-compact-line"
           style="
-            display:block !important;
-            width:28px !important;
-            margin:0 !important;
-            padding:0 !important;
-            color:#1763c5 !important;
-            font-size:10px !important;
-            font-weight:900 !important;
-            line-height:1.55 !important;
-            text-align:right !important;
-            white-space:nowrap !important;
-          "
-        >
-          ${displayNumber}.
-        </strong>
-
-        <span
-          class="log-entry-fixed-content"
-          style="
-            display:block !important;
-            width:100% !important;
+            display:grid !important;
+            width:max-content !important;
+            max-width:100% !important;
             min-width:0 !important;
-            margin:0 !important;
+            grid-template-columns:
+              ${showTime ? "74px" : "0"}
+              26px
+              minmax(180px, auto) !important;
+            align-items:start !important;
+            column-gap:7px !important;
+            margin:0 auto !important;
             padding:0 !important;
             color:#26364b !important;
             font-size:11px !important;
             font-weight:650 !important;
             line-height:1.55 !important;
             text-align:left !important;
-            white-space:pre-wrap !important;
-            word-break:keep-all !important;
-            overflow-wrap:anywhere !important;
           "
         >
-          ${escapeHtml(
-            contentText
-          )}${createTagHtml(
-            entry,
-            originalIndex
-          )}
-        </span>
+          ${
+            showTime
+              ? `
+                <strong
+                  class="log-entry-fixed-time"
+                  style="
+                    display:block !important;
+                    width:74px !important;
+                    margin:0 !important;
+                    padding:0 !important;
+                    color:#1763c5 !important;
+                    font-size:10px !important;
+                    font-weight:900 !important;
+                    line-height:1.55 !important;
+                    text-align:center !important;
+                    white-space:nowrap !important;
+                  "
+                >
+                  ${escapeHtml(
+                    timeText ||
+                    "시간 없음"
+                  )}
+                </strong>
+              `
+              : `
+                <span
+                  aria-hidden="true"
+                  style="
+                    display:block !important;
+                    width:0 !important;
+                    overflow:hidden !important;
+                  "
+                ></span>
+              `
+          }
+
+          <strong
+            class="log-entry-fixed-number"
+            style="
+              display:block !important;
+              width:26px !important;
+              margin:0 !important;
+              padding:0 !important;
+              color:#1763c5 !important;
+              font-size:10px !important;
+              font-weight:900 !important;
+              line-height:1.55 !important;
+              text-align:center !important;
+              white-space:nowrap !important;
+            "
+          >
+            ${displayNumber}.
+          </strong>
+
+          <span
+            class="log-entry-fixed-content"
+            style="
+              display:block !important;
+              width:auto !important;
+              max-width:min(760px, 68vw) !important;
+              min-width:180px !important;
+              margin:0 !important;
+              padding:0 !important;
+              color:#26364b !important;
+              font-size:11px !important;
+              font-weight:650 !important;
+              line-height:1.55 !important;
+              text-align:left !important;
+              white-space:pre-wrap !important;
+              word-break:keep-all !important;
+              overflow-wrap:anywhere !important;
+            "
+          >
+            ${escapeHtml(
+              contentText
+            )}${createTagHtml(
+              entry,
+              originalIndex
+            )}
+          </span>
+        </div>
       </div>
     `;
   };
@@ -7596,6 +8240,7 @@ function renderLogEntryTable() {
 
   updateMemberLogImportCount();
 }
+
 /* =========================================================
   인수인계사항 편집 모드
 ========================================================= */
