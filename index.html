@@ -1061,33 +1061,37 @@
 
 
 <!-- =========================================================
-  현재 운전 현황
+  보직별 현재 운전현황
 ========================================================== -->
-<section class="editor-section operation-status-section">
+<section
+  class="editor-section operation-status-section"
+  id="operationStatusSection"
+>
 
-  <div class="editor-section__heading operation-status-heading">
+  <!-- 상단 제목 -->
+  <div
+    class="
+      editor-section__heading
+      operation-status-heading
+    "
+  >
 
     <div>
-      <h3>현재 운전 현황</h3>
+      <h3 id="operationStatusSectionTitle">
+        현재 운전현황
+      </h3>
 
-      <p>
-        최근 등록된 운전현황을 자동으로 불러옵니다.
-        변경이 있을 때만 수정해 주세요.
+      <p id="operationStatusSectionDescription">
+        해당 날짜·근무·보직의 운전현황입니다.
       </p>
     </div>
-
-    <button
-      type="button"
-      class="operation-status-edit-button"
-      id="editOperationStatusButton"
-    >
-      운전현황 수정
-    </button>
 
   </div>
 
 
-  <!-- 현재 적용 중인 운전현황 -->
+  <!-- =====================================================
+    평상시 표시 카드
+  ====================================================== -->
   <div
     class="operation-status-current-card"
     id="operationStatusCurrentCard"
@@ -1096,18 +1100,40 @@
     <div class="operation-status-current-header">
 
       <div class="operation-status-current-title">
-        <span class="operation-status-live-dot"></span>
 
-        <strong>
-          현재 적용 중
+        <span
+          class="operation-status-live-dot"
+          aria-hidden="true"
+        ></span>
+
+        <strong id="operationStatusRoleTitle">
+          TGO 운전현황
         </strong>
+
       </div>
 
+
+      <button
+        type="button"
+        class="operation-status-edit-button"
+        id="editOperationStatusButton"
+      >
+        수정
+      </button>
+
+    </div>
+
+
+    <div class="operation-status-summary-row">
+
       <span
-        class="operation-status-state-badge"
+        class="
+          operation-status-state-badge
+          is-normal
+        "
         id="operationStatusStateBadge"
       >
-        정상 운전
+        정상운전
       </span>
 
     </div>
@@ -1117,28 +1143,21 @@
       class="operation-status-current-content"
       id="operationStatusCurrentContent"
     >
-      #1 주보일러 정상운전<br />
-      #2 주보일러 정상운전<br />
-      GT / ST 정상운전
+      등록된 운전현황이 없습니다.
     </div>
 
 
     <div class="operation-status-current-meta">
 
-      <span>
-        마지막 수정
+      <span
+        id="operationStatusUpdatedAt"
+      >
       </span>
 
-      <strong id="operationStatusUpdatedAt">
-        2026-07-20 01:48
-      </strong>
-
-      <span class="operation-status-meta-divider">
-        ·
-      </span>
-
-      <strong id="operationStatusUpdatedBy">
-        이휘근
+      <strong
+        id="operationStatusUpdatedBy"
+        hidden
+      >
       </strong>
 
     </div>
@@ -1146,87 +1165,177 @@
   </div>
 
 
-  <!-- 수정 영역 -->
+  <!-- =====================================================
+    수정 화면
+  ====================================================== -->
   <div
     class="operation-status-editor"
     id="operationStatusEditor"
     hidden
   >
 
-    <div class="operation-status-editor-grid">
+    <div class="operation-status-editor-header">
 
-      <label class="form-field">
+      <strong id="operationStatusEditorTitle">
+        운전현황 수정
+      </strong>
 
-        <span class="form-field__label">
-          운전 상태
-        </span>
-
-        <select id="operationStatusType">
-
-          <option
-            value="normal"
-            selected
-          >
-            정상 운전
-          </option>
-
-          <option value="planned">
-            계획정비
-          </option>
-
-          <option value="emergency">
-            비상정비
-          </option>
-
-          <option value="stopped">
-            설비 정지
-          </option>
-
-          <option value="other">
-            기타
-          </option>
-
-        </select>
-
-      </label>
-
-
-      <label class="form-field operation-status-editor-content">
-
-        <span class="form-field__label">
-          운전현황 내용
-        </span>
-
-        <textarea
-          id="operationStatus"
-          name="operationStatus"
-          rows="6"
-          placeholder="현재 운전현황을 입력하세요."
-        >#1 주보일러 정상운전
-        #2 주보일러 정상운전
-        GT / ST 정상운전</textarea>
-
-      </label>
+      <button
+        type="button"
+        class="operation-status-editor-close"
+        id="cancelOperationStatusButton"
+        aria-label="운전현황 수정 닫기"
+      >
+        ×
+      </button>
 
     </div>
 
 
-    <div class="operation-status-editor-actions">
+    <!-- 운전 상태 빠른 선택 -->
+    <div class="operation-status-field">
 
-      <button
-        type="button"
-        class="secondary-button"
-        id="cancelOperationStatusButton"
+      <span class="operation-status-field__label">
+        운전 상태
+      </span>
+
+
+      <div
+        class="operation-status-type-buttons"
+        id="operationStatusTypeButtons"
+        role="group"
+        aria-label="운전 상태 선택"
       >
-        취소
-      </button>
+
+        <button
+          type="button"
+          class="
+            operation-status-type-button
+            is-selected
+            is-normal
+          "
+          data-operation-status-type="normal"
+        >
+          정상운전
+        </button>
+
+
+        <button
+          type="button"
+          class="
+            operation-status-type-button
+            is-starting
+          "
+          data-operation-status-type="starting"
+        >
+          기동
+        </button>
+
+
+        <button
+          type="button"
+          class="
+            operation-status-type-button
+            is-stopped
+          "
+          data-operation-status-type="stopped"
+        >
+          정지
+        </button>
+
+
+        <button
+          type="button"
+          class="
+            operation-status-type-button
+            is-abnormal
+          "
+          data-operation-status-type="abnormal"
+        >
+          이상
+        </button>
+
+
+        <button
+          type="button"
+          class="
+            operation-status-type-button
+            is-emergency
+          "
+          data-operation-status-type="emergency"
+        >
+          비상
+        </button>
+
+      </div>
+
+
+      <!-- 기존 스크립트 및 저장 호환용 -->
+      <select
+        id="operationStatusType"
+        name="operationStatusType"
+        hidden
+      >
+
+        <option
+          value="normal"
+          selected
+        >
+          정상운전
+        </option>
+
+        <option value="starting">
+          기동
+        </option>
+
+        <option value="stopped">
+          정지
+        </option>
+
+        <option value="abnormal">
+          이상
+        </option>
+
+        <option value="emergency">
+          비상
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <!-- 운전현황 내용 -->
+    <label class="operation-status-field">
+
+      <span class="operation-status-field__label">
+        운전현황 내용
+      </span>
+
+      <textarea
+        id="operationStatus"
+        name="operationStatus"
+        rows="7"
+        placeholder="현재 운전현황을 입력하세요."
+      ></textarea>
+
+    </label>
+
+
+    <div class="operation-status-editor-footer">
+
+      <span
+        class="operation-status-editor-time"
+        id="operationStatusEditorTime"
+      >
+      </span>
 
       <button
         type="button"
-        class="primary-button"
+        class="operation-status-save-button"
         id="saveOperationStatusButton"
       >
-        현재 운전현황으로 적용
+        저장
       </button>
 
     </div>
@@ -1234,11 +1343,19 @@
   </div>
 
 
-  <!-- 업무일지 저장용 -->
+  <!-- 업무일지에 저장될 운전현황 원문 -->
   <input
     type="hidden"
     id="operationStatusSnapshot"
     name="operationStatusSnapshot"
+  />
+
+
+  <!-- 현재 화면의 실제 운전현황 보직 -->
+  <input
+    type="hidden"
+    id="operationStatusRole"
+    name="operationStatusRole"
   />
 
 </section>

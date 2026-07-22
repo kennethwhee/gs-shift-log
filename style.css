@@ -10469,3 +10469,463 @@ tbody tr:first-child td {
     padding-left: 12px;
   }
 }
+
+/* =========================================================
+  보직별 운전현황 최종 디자인
+========================================================= */
+
+#operationStatusSection {
+  padding: 18px;
+  overflow: visible;
+}
+
+
+/* =========================================================
+  제목
+========================================================= */
+
+#operationStatusSection
+.operation-status-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+#operationStatusSection
+.operation-status-heading h3 {
+  margin: 0;
+  color: #24344c;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+#operationStatusSection
+.operation-status-heading p {
+  margin: 4px 0 0;
+  color: #7c8999;
+  font-size: 11px;
+}
+
+
+/* =========================================================
+  평상시 운전현황 카드
+========================================================= */
+
+#operationStatusSection
+.operation-status-current-card {
+  position: relative;
+  display: block;
+  padding: 17px 18px 14px;
+  overflow: hidden;
+  border: 1px solid #d3dde7;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+#operationStatusSection
+.operation-status-current-card::before {
+  display: none;
+}
+
+#operationStatusSection
+.operation-status-current-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0;
+}
+
+#operationStatusSection
+.operation-status-current-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+#operationStatusSection
+.operation-status-current-title strong {
+  overflow: hidden;
+  color: #1f2937;
+  font-size: 16px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#operationStatusSection
+.operation-status-live-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #18a06b;
+  box-shadow: none;
+}
+
+#operationStatusSection
+.operation-status-live-dot::after {
+  display: none;
+}
+
+
+/* =========================================================
+  수정 버튼
+========================================================= */
+
+#operationStatusSection
+.operation-status-edit-button {
+  min-width: 58px;
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid #9aa7b6;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #2c3a4e;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+#operationStatusSection
+.operation-status-edit-button:hover {
+  border-color: #567493;
+  background: #f7f9fb;
+  color: #1f5fae;
+}
+
+
+/* =========================================================
+  상태 배지
+========================================================= */
+
+#operationStatusSection
+.operation-status-summary-row {
+  margin-top: 13px;
+}
+
+#operationStatusSection
+.operation-status-state-badge {
+  display: inline-flex;
+  min-height: 27px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+#operationStatusSection
+.operation-status-state-badge.is-normal {
+  background: #e4f6ed;
+  color: #18845a;
+}
+
+#operationStatusSection
+.operation-status-state-badge.is-starting {
+  background: #eaf2fb;
+  color: #1f5fae;
+}
+
+#operationStatusSection
+.operation-status-state-badge.is-stopped {
+  background: #f1f3f5;
+  color: #596474;
+}
+
+#operationStatusSection
+.operation-status-state-badge.is-abnormal {
+  background: #fff2dc;
+  color: #a4660e;
+}
+
+#operationStatusSection
+.operation-status-state-badge.is-emergency {
+  background: #fde9e9;
+  color: #c33f3f;
+}
+
+
+/* =========================================================
+  운전현황 내용
+========================================================= */
+
+#operationStatusSection
+.operation-status-current-content {
+  min-height: 0;
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #26364b;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#operationStatusSection
+.operation-status-current-meta {
+  display: flex;
+  min-height: 17px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 9px;
+  color: #8b96a4;
+  font-size: 10px;
+}
+
+
+/* =========================================================
+  편집 화면
+========================================================= */
+
+#operationStatusSection
+.operation-status-editor {
+  margin-top: 14px;
+  padding: 16px 17px;
+  border: 1px solid #74b994;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+#operationStatusSection
+.operation-status-editor[hidden] {
+  display: none !important;
+}
+
+#operationStatusSection
+.operation-status-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+#operationStatusSection
+.operation-status-editor-header strong {
+  color: #25364b;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+#operationStatusSection
+.operation-status-editor-close {
+  display: inline-flex;
+  width: 31px;
+  height: 31px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: transparent;
+  color: #3f4c5e;
+  font-size: 22px;
+  line-height: 1;
+}
+
+#operationStatusSection
+.operation-status-editor-close:hover {
+  background: #f1f4f7;
+}
+
+
+/* =========================================================
+  입력 필드
+========================================================= */
+
+#operationStatusSection
+.operation-status-field {
+  display: block;
+  margin: 0 0 15px;
+}
+
+#operationStatusSection
+.operation-status-field__label {
+  display: block;
+  margin-bottom: 7px;
+  color: #405067;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+/* =========================================================
+  상태 선택 버튼
+========================================================= */
+
+#operationStatusSection
+.operation-status-type-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+#operationStatusSection
+.operation-status-type-button {
+  min-width: 72px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #f0f2f5;
+  color: #5d6877;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+#operationStatusSection
+.operation-status-type-button:hover {
+  background: #e8ecf1;
+}
+
+#operationStatusSection
+.operation-status-type-button.is-selected {
+  border-color: #37a474;
+  background: #e8f7ef;
+  color: #168058;
+}
+
+#operationStatusSection
+.operation-status-type-button.is-selected.is-starting {
+  border-color: #6e9dce;
+  background: #eaf2fb;
+  color: #1f5fae;
+}
+
+#operationStatusSection
+.operation-status-type-button.is-selected.is-stopped {
+  border-color: #a7b0bb;
+  background: #eef1f4;
+  color: #4f5b6b;
+}
+
+#operationStatusSection
+.operation-status-type-button.is-selected.is-abnormal {
+  border-color: #d6a348;
+  background: #fff2dc;
+  color: #9a610f;
+}
+
+#operationStatusSection
+.operation-status-type-button.is-selected.is-emergency {
+  border-color: #d66e6e;
+  background: #fde9e9;
+  color: #bf3838;
+}
+
+
+/* =========================================================
+  내용 입력창
+========================================================= */
+
+#operationStatusSection
+#operationStatus {
+  width: 100%;
+  min-height: 132px;
+  max-height: 300px;
+  padding: 12px 13px;
+  border: 1px solid #cdd7e2;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #26364b;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.7;
+  resize: vertical;
+  outline: none;
+}
+
+#operationStatusSection
+#operationStatus:focus {
+  border-color: #6ba588;
+  box-shadow: 0 0 0 3px rgba(23, 134, 95, 0.1);
+}
+
+
+/* =========================================================
+  편집 하단
+========================================================= */
+
+#operationStatusSection
+.operation-status-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+#operationStatusSection
+.operation-status-editor-time {
+  color: #8692a2;
+  font-size: 11px;
+}
+
+#operationStatusSection
+.operation-status-save-button {
+  min-width: 70px;
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  background: #13875b;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+#operationStatusSection
+.operation-status-save-button:hover {
+  background: #0f714c;
+}
+
+
+/* =========================================================
+  수정 중에는 현재 카드 숨김
+========================================================= */
+
+#operationStatusSection.is-editing
+.operation-status-current-card {
+  display: none;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 700px) {
+  #operationStatusSection {
+    padding: 14px;
+  }
+
+  #operationStatusSection
+  .operation-status-current-title strong {
+    font-size: 14px;
+  }
+
+  #operationStatusSection
+  .operation-status-current-content {
+    font-size: 13px;
+  }
+
+  #operationStatusSection
+  .operation-status-type-buttons {
+    display: grid;
+    grid-template-columns:
+      repeat(5, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  #operationStatusSection
+  .operation-status-type-button {
+    min-width: 0;
+    padding: 0 5px;
+    font-size: 10px;
+  }
+}
