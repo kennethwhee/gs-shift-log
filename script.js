@@ -13745,103 +13745,106 @@ function createLogRowHtml(log) {
                       }
 
 
-                      /*
-                        일반 업무내용
-                      */
-                      return `
-                        <span
-                          class="
-                            log-preview__group
-                            ${group.categoryClass}
+/*
+  일반 업무내용
 
-                            ${
-                              group.title
-                                ? ""
-                                : "has-no-title"
-                            }
-                          "
-                        >
+  표시 순서:
+  번호 → 시간 → 내용 → TAG
+*/
+return `
+  <span
+    class="
+      log-preview__group
+      ${group.categoryClass}
 
-                          ${
-                            group.title
-                              ? `
-                                <strong
-                                  class="log-preview__title"
-                                >
-                                  ${escapeHtml(
-                                    group.title
-                                  )}
-                                </strong>
-                              `
-                              : ""
-                          }
+      ${
+        group.title
+          ? ""
+          : "has-no-title"
+      }
+    "
+  >
 
-
-                          <span
-                            class="log-preview__content"
-                          >
-
-                            ${
-                              group.number
-                                ? `
-                                  <span
-                                    class="
-                                      log-preview__entry-number
-                                      ${group.numberClass || ""}
-                                    "
-                                  >
-                                    ${escapeHtml(
-                                      group.number
-                                    )}
-                                  </span>
-                                `
-                                : ""
-                            }
+    ${
+      group.title
+        ? `
+          <strong
+            class="log-preview__title"
+          >
+            ${escapeHtml(
+              group.title
+            )}
+          </strong>
+        `
+        : ""
+    }
 
 
-                            ${
-                              group.time
-                                ? `
-                                  <span
-                                    class="log-preview__entry-time"
-                                  >
-                                    ${escapeHtml(
-                                      group.time
-                                    )}
-                                  </span>
-                                `
-                                : ""
-                            }
+    <span
+      class="log-preview__content"
+    >
+
+      ${
+        group.number
+          ? `
+            <span
+              class="
+                log-preview__entry-number
+                ${group.numberClass || ""}
+              "
+            >
+              ${escapeHtml(
+                group.number
+              )}
+            </span>
+          `
+          : ""
+      }
 
 
-                            ${
-                              group.tag
-                                ? `
-                                  <span
-                                    class="log-preview__tag"
-                                  >
-                                    ${escapeHtml(
-                                      group.tag
-                                    )}
-                                  </span>
-                                `
-                                : ""
-                            }
+      ${
+        group.time
+          ? `
+            <span
+              class="log-preview__entry-time"
+            >
+              ${escapeHtml(
+                group.time
+              )}
+            </span>
+          `
+          : ""
+      }
 
 
-                            <span
-                              class="log-preview__text"
-                            >
-                              ${escapeHtml(
-                                group.content ||
-                                "-"
-                              )}
-                            </span>
+      <span
+        class="log-preview__text"
+      >
+        ${escapeHtml(
+          group.content ||
+          "-"
+        )}
+      </span>
 
-                          </span>
 
-                        </span>
-                      `;
+      ${
+        group.tag
+          ? `
+            <span
+              class="log-preview__tag"
+            >
+              ${escapeHtml(
+                group.tag
+              )}
+            </span>
+          `
+          : ""
+      }
+
+    </span>
+
+  </span>
+`;
                     }
                   )
                   .join("")
