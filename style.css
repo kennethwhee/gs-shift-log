@@ -12416,3 +12416,356 @@ tbody tr:hover td {
     font-size: 10px;
   }
 }
+
+/* =========================================================
+   업무일지 목록 최종 정리
+
+   1. 업무 구분 네모 박스 제거
+   2. 구분별 글자 색상 유지
+   3. 첨부 칸을 맨 끝으로 이동
+   4. 첨부 칸 최소 너비 적용
+========================================================= */
+
+
+/* =========================================================
+   업무일지 표 열 너비
+
+   순서:
+   보직 | 작성자 | 상태 | 업무 내용 | 관리 | 첨부
+========================================================= */
+
+.log-list-section .log-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+
+/* 보직 */
+.log-list-section .log-table th:nth-child(1),
+.log-list-section .log-table td:nth-child(1) {
+  width: 80px;
+}
+
+
+/* 작성자 */
+.log-list-section .log-table th:nth-child(2),
+.log-list-section .log-table td:nth-child(2) {
+  width: 105px;
+}
+
+
+/* 상태 */
+.log-list-section .log-table th:nth-child(3),
+.log-list-section .log-table td:nth-child(3) {
+  width: 100px;
+}
+
+
+/* 업무 내용 */
+.log-list-section .log-table th:nth-child(4),
+.log-list-section .log-table td:nth-child(4) {
+  width: auto;
+}
+
+
+/* 관리 */
+.log-list-section .log-table th:nth-child(5),
+.log-list-section .log-table td:nth-child(5) {
+  width: 88px;
+}
+
+
+/* 첨부 */
+.log-list-section .log-table th:nth-child(6),
+.log-list-section .log-table td:nth-child(6) {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+
+  padding-left: 4px;
+  padding-right: 4px;
+
+  text-align: center;
+}
+
+
+/* =========================================================
+   업무 내용 칸 확보
+========================================================= */
+
+.log-list-section
+.log-row__preview-cell {
+  width: auto;
+  min-width: 0;
+
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+
+/* =========================================================
+   업무 구분 제목
+
+   네모 박스는 모두 제거하고
+   글자 색상만 유지한다.
+========================================================= */
+
+.log-list-section
+.log-preview__title {
+  display: inline-flex;
+
+  min-width: 76px;
+  width: 76px;
+  min-height: 0;
+
+  align-items: baseline;
+  justify-content: flex-start;
+
+  margin: 0;
+  padding: 0;
+
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.5;
+
+  white-space: nowrap;
+}
+
+
+/* 운전현황 */
+.log-list-section
+.log-preview__group.is-operation
+.log-preview__title {
+  color: #1763b6 !important;
+}
+
+
+/* TM 발행 내역 */
+.log-list-section
+.log-preview__group.is-maintenance
+.log-preview__title {
+  color: #16845b !important;
+}
+
+
+/* 인계사항 */
+.log-list-section
+.log-preview__group.is-handover
+.log-preview__title {
+  color: #b56a00 !important;
+}
+
+
+/* 비고 */
+.log-list-section
+.log-preview__group.is-note
+.log-preview__title {
+  color: #667386 !important;
+}
+
+
+/* 혹시 category 클래스 이름이 다른 경우까지 대응 */
+.log-list-section
+.log-preview__group.is-operation-status
+.log-preview__title {
+  color: #1763b6 !important;
+}
+
+.log-list-section
+.log-preview__group.is-tm
+.log-preview__title {
+  color: #16845b !important;
+}
+
+.log-list-section
+.log-preview__group.is-handover-entry
+.log-preview__title {
+  color: #b56a00 !important;
+}
+
+
+/* =========================================================
+   업무 내용 행 정렬
+========================================================= */
+
+.log-list-section
+.log-preview__group {
+  display: grid;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    76px
+    minmax(0, 1fr);
+
+  align-items: baseline;
+  column-gap: 14px;
+
+  margin: 0;
+  padding: 4px 0;
+}
+
+
+.log-list-section
+.log-preview__group.has-no-title
+.log-preview__content {
+  grid-column: 2;
+}
+
+
+/* 업무 구분 사이의 얇은 선은 유지 */
+.log-list-section
+.log-preview__group + .log-preview__group {
+  border-top: 1px solid #d6e0ec;
+}
+
+
+/* 같은 구분의 두 번째 항목은 선 제거 */
+.log-list-section
+.log-preview__group.has-no-title {
+  border-top: 0;
+  padding-top: 1px;
+}
+
+
+/* =========================================================
+   관리 칸
+========================================================= */
+
+.log-list-section
+.log-row__actions-cell {
+  width: 88px;
+
+  padding-left: 6px;
+  padding-right: 6px;
+
+  text-align: center;
+}
+
+
+.log-list-section
+.row-actions {
+  display: flex;
+
+  width: 100%;
+
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+
+.log-list-section
+.row-actions
+.table-action-button {
+  width: 68px;
+  min-width: 68px;
+}
+
+
+/* =========================================================
+   첨부 칸
+
+   맨 끝에서 최대한 작게 표시한다.
+========================================================= */
+
+.log-list-section
+.log-row__attachment-cell {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+
+  padding: 0 4px;
+
+  text-align: center;
+  vertical-align: middle;
+}
+
+
+.log-list-section
+.log-row__attachment-cell
+.attachment-indicator {
+  display: inline-flex;
+
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  min-height: 22px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  border-radius: 5px;
+
+  background: #edf4fc;
+  color: #1763b6;
+
+  font-size: 11px;
+  line-height: 1;
+}
+
+
+.log-list-section
+.log-row__attachment-cell
+.attachment-indicator.is-empty {
+  background: transparent;
+  color: #9ba7b5;
+}
+
+
+/* =========================================================
+   작은 화면
+========================================================= */
+
+@media (max-width: 900px) {
+
+  .log-list-section .log-table {
+    min-width: 920px;
+  }
+
+  .log-list-section
+  .log-table th:nth-child(5),
+  .log-list-section
+  .log-table td:nth-child(5) {
+    width: 82px;
+  }
+
+  .log-list-section
+  .log-table th:nth-child(6),
+  .log-list-section
+  .log-table td:nth-child(6) {
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
+  }
+
+  .log-list-section
+  .log-preview__group {
+    grid-template-columns:
+      70px
+      minmax(0, 1fr);
+
+    column-gap: 10px;
+  }
+
+  .log-list-section
+  .log-preview__title {
+    width: 70px;
+    min-width: 70px;
+
+    font-size: 11px;
+  }
+
+}

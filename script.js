@@ -14074,34 +14074,6 @@ function createLogRowHtml(log) {
 
       </td>
 
-
-      <td class="log-row__attachment-cell">
-
-        ${
-          attachmentCount >
-          0
-            ? `
-              <span
-                class="attachment-indicator"
-                title="첨부파일 ${attachmentCount}개"
-                aria-label="첨부파일 ${attachmentCount}개"
-              >
-                📎
-              </span>
-            `
-            : `
-              <span
-                class="attachment-indicator is-empty"
-                aria-label="첨부파일 없음"
-              >
-                -
-              </span>
-            `
-        }
-
-      </td>
-
-
       <td class="log-row__preview-cell">
 
         <button
@@ -14309,6 +14281,32 @@ return `
           </button>
 
         </div>
+
+      </td>
+
+      <td class="log-row__attachment-cell">
+
+        ${
+          attachmentCount >
+          0
+            ? `
+              <span
+                class="attachment-indicator"
+                title="첨부파일 ${attachmentCount}개"
+                aria-label="첨부파일 ${attachmentCount}개"
+              >
+                📎
+              </span>
+            `
+            : `
+              <span
+                class="attachment-indicator is-empty"
+                aria-label="첨부파일 없음"
+              >
+                -
+              </span>
+            `
+        }
 
       </td>
 
