@@ -945,27 +945,147 @@ a {
   text-align: left;
 }
 
+/* =========================================================
+  업무일지 목록 관리 버튼 최종본
+
+  위:
+  이어쓰기 또는 수정
+
+  아래:
+  삭제
+========================================================= */
+
+
+/* =========================================================
+  관리 열
+========================================================= */
+
+.log-table th:nth-child(6),
+.log-table td:nth-child(6) {
+  width: 92px;
+}
+
+
+.log-row__actions-cell {
+  padding-right: 8px !important;
+  padding-left: 8px !important;
+  text-align: center;
+  vertical-align: top !important;
+}
+
+
+/* =========================================================
+  버튼 세로 배치
+========================================================= */
+
 .row-actions {
   display: flex;
+  width: 100%;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
+  justify-content: flex-start;
+  gap: 5px;
+
+  margin: 0;
+  padding: 0;
 }
+
+
+/* =========================================================
+  공통 버튼
+========================================================= */
 
 .table-action-button {
-  min-height: 31px;
-  padding: 0 10px;
-  border: 1px solid var(--line);
+  display: inline-flex;
+  width: 74px;
+  min-width: 74px;
+  height: 29px;
+  min-height: 29px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0 8px;
+
+  border: 1px solid #abc2dd;
   border-radius: 7px;
-  background: #fff;
-  color: #506076;
-  font-size: 12px;
-  font-weight: 800;
+
+  background: #ffffff;
+  color: #245f9e;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+
+  text-align: center;
+  white-space: nowrap;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
 }
 
+
 .table-action-button:hover {
-  border-color: #aebdce;
-  color: var(--primary);
+  border-color: #6e9dce;
+  background: #eef5fc;
+  color: #174f8c;
+}
+
+
+.table-action-button:active {
+  transform: translateY(1px);
+}
+
+
+/* =========================================================
+  삭제 버튼
+========================================================= */
+
+.table-action-button.is-delete {
+  border-color: #e5bcbc;
+  background: #fffafa;
+  color: #bb3f3f;
+}
+
+
+.table-action-button.is-delete:hover {
+  border-color: #d37878;
+  background: #fff0f0;
+  color: #a72f2f;
+}
+
+
+/* =========================================================
+  버튼 키보드 선택
+========================================================= */
+
+.table-action-button:focus-visible {
+  outline: 2px solid rgba(31, 95, 174, 0.25);
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+  작은 화면
+========================================================= */
+
+@media (max-width: 760px) {
+  .log-table th:nth-child(6),
+  .log-table td:nth-child(6) {
+    width: 82px;
+  }
+
+  .table-action-button {
+    width: 66px;
+    min-width: 66px;
+    height: 28px;
+    min-height: 28px;
+    font-size: 10px;
+  }
 }
 
 .empty-state {
