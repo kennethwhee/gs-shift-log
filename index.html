@@ -789,80 +789,73 @@
             </strong>
           </div>
 
-
 <!-- =====================================================
   업무일지 조회 결과
 
-  업무 항목 1개당 한 줄이 아니라
   업무일지 1건당 한 줄로 표시한다.
+
+  열 순서:
+  일자 | 근무 | 보직 | 작성자 | 업무 내용 | 보기 | 첨부
 ====================================================== -->
 
 <div class="log-table-wrap search-log-table-wrap">
 
   <table class="log-table search-result-table">
 
-<thead>
-  <tr>
+    <thead>
+      <tr>
 
-    <th
-      scope="col"
-      class="search-result-table__date"
-    >
-      일자
-    </th>
+        <th
+          scope="col"
+          class="search-result-table__date"
+        >
+          일자
+        </th>
 
-    <th
-      scope="col"
-      class="search-result-table__shift"
-    >
-      근무
-    </th>
+        <th
+          scope="col"
+          class="search-result-table__shift"
+        >
+          근무
+        </th>
 
-    <th
-      scope="col"
-      class="search-result-table__role"
-    >
-      보직
-    </th>
+        <th
+          scope="col"
+          class="search-result-table__role"
+        >
+          보직
+        </th>
 
-    <th
-      scope="col"
-      class="search-result-table__author"
-    >
-      작성자
-    </th>
+        <th
+          scope="col"
+          class="search-result-table__author"
+        >
+          작성자
+        </th>
 
-    <th
-      scope="col"
-      class="search-result-table__status"
-    >
-      상태
-    </th>
+        <th
+          scope="col"
+          class="search-result-table__content"
+        >
+          업무 내용
+        </th>
 
-    <th
-      scope="col"
-      class="search-result-table__content"
-    >
-      업무 내용
-    </th>
+        <th
+          scope="col"
+          class="search-result-table__view"
+        >
+          보기
+        </th>
 
-    <th
-      scope="col"
-      class="search-result-table__view"
-    >
-      보기
-    </th>
+        <th
+          scope="col"
+          class="search-result-table__attachment"
+        >
+          첨부
+        </th>
 
-    <th
-      scope="col"
-      class="search-result-table__attachment"
-    >
-      첨부
-    </th>
-
-  </tr>
-</thead>
-
+      </tr>
+    </thead>
 
     <tbody id="searchResultBody">
     </tbody>

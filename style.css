@@ -1145,36 +1145,341 @@ a {
   color: var(--primary);
 }
 
+/* =========================================================
+  업무일지 조회 결과 최종 디자인
+
+  열 순서:
+  일자 | 근무 | 보직 | 작성자 | 업무 내용 | 보기 | 첨부
+
+  업무 내용 열이 남은 공간을 전부 사용한다.
+========================================================= */
+
+.search-log-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+
+/* =========================================================
+  표 전체
+========================================================= */
+
+.search-result-table {
+  width: 100%;
+  min-width: 1080px;
+  table-layout: fixed;
+}
+
+
+/* =========================================================
+  열 너비
+
+  고정 열을 제외한 남은 공간은
+  다섯 번째 업무 내용 열이 전부 사용한다.
+========================================================= */
+
 .search-result-table th:nth-child(1),
 .search-result-table td:nth-child(1) {
-  width: 110px;
-}
-
-.search-result-table th:nth-child(2),
-.search-result-table td:nth-child(2) {
-  width: 70px;
-}
-
-.search-result-table th:nth-child(3),
-.search-result-table td:nth-child(3),
-.search-result-table th:nth-child(4),
-.search-result-table td:nth-child(4) {
-  width: 90px;
-}
-
-.search-result-table th:nth-child(5),
-.search-result-table td:nth-child(5) {
   width: 100px;
 }
 
-.search-result-table th:nth-child(6),
-.search-result-table td:nth-child(6) {
-  width: 150px;
+
+.search-result-table th:nth-child(2),
+.search-result-table td:nth-child(2) {
+  width: 64px;
 }
 
-.search-result-table th:nth-child(8),
-.search-result-table td:nth-child(8) {
+
+.search-result-table th:nth-child(3),
+.search-result-table td:nth-child(3) {
   width: 76px;
+}
+
+
+.search-result-table th:nth-child(4),
+.search-result-table td:nth-child(4) {
+  width: 92px;
+}
+
+
+.search-result-table th:nth-child(5),
+.search-result-table td:nth-child(5) {
+  width: auto;
+}
+
+
+.search-result-table th:nth-child(6),
+.search-result-table td:nth-child(6) {
+  width: 78px;
+}
+
+
+.search-result-table th:nth-child(7),
+.search-result-table td:nth-child(7) {
+  width: 52px;
+}
+
+
+/* =========================================================
+  기본 셀 정렬
+========================================================= */
+
+.search-result-table th {
+  padding-right: 10px;
+  padding-left: 10px;
+  text-align: center;
+}
+
+
+.search-result-table td {
+  padding: 12px 10px;
+  vertical-align: middle;
+}
+
+
+.search-log-date-cell,
+.search-log-shift-cell,
+.search-log-role-cell,
+.search-log-author-cell,
+.search-log-view-cell,
+.search-log-attachment-cell {
+  text-align: center;
+}
+
+
+.search-log-date-cell,
+.search-log-shift-cell {
+  color: #526177;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+
+.search-log-role-cell {
+  color: #22324c;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+
+.search-log-author-cell strong {
+  display: block;
+  overflow: hidden;
+  color: #22324c;
+  font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  업무 내용 열
+
+  남은 가로 공간을 모두 사용한다.
+========================================================= */
+
+.search-log-preview-cell {
+  min-width: 0;
+  padding: 10px 14px !important;
+  text-align: left !important;
+  vertical-align: top !important;
+}
+
+
+.search-log-preview {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+
+/*
+  조회 화면에서는 메인 업무일지와 같은 구조를 사용하되,
+  분류 제목 너비를 조금 줄여 업무 내용을 더 넓게 표시한다.
+*/
+.search-log-preview .log-preview__group {
+  grid-template-columns:
+    82px
+    minmax(0, 1fr);
+  column-gap: 9px;
+  padding-right: 2px;
+  padding-left: 2px;
+}
+
+
+.search-log-preview
+.log-preview__group.has-no-title {
+  grid-template-columns:
+    82px
+    minmax(0, 1fr);
+}
+
+
+.search-log-preview
+.log-preview__group.has-no-title::before {
+  width: 82px;
+}
+
+
+.search-log-preview .log-preview__title {
+  width: 82px;
+  min-width: 82px;
+}
+
+
+.search-log-preview .log-preview__role-section {
+  padding-right: 2px;
+  padding-left: 2px;
+}
+
+
+.search-log-preview .log-preview__role-divider {
+  width: 82px;
+  min-width: 82px;
+  margin-left: 0;
+}
+
+
+/* =========================================================
+  업무 내용 글씨
+========================================================= */
+
+.search-log-preview .log-preview__content {
+  min-width: 0;
+}
+
+
+.search-log-preview .log-preview__text {
+  min-width: 0;
+  color: #26364b;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+  text-align: left;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+  보기 버튼
+========================================================= */
+
+.search-log-view-cell {
+  padding-right: 6px !important;
+  padding-left: 6px !important;
+}
+
+
+.search-log-view-cell .table-action-button {
+  width: 60px;
+  min-width: 60px;
+  height: 29px;
+  min-height: 29px;
+  padding: 0 6px;
+}
+
+
+/* =========================================================
+  첨부
+========================================================= */
+
+.search-log-attachment-cell {
+  padding-right: 5px !important;
+  padding-left: 5px !important;
+}
+
+
+.search-log-attachment-cell
+.attachment-indicator {
+  min-width: 27px;
+  min-height: 27px;
+  padding: 0 5px;
+  font-size: 12px;
+}
+
+
+/* =========================================================
+  조회 표 전용 세로 구분선
+
+  작성자와 업무 내용 사이,
+  업무 내용과 보기 사이만 표시한다.
+========================================================= */
+
+.search-result-table th,
+.search-result-table td {
+  border-right: 0 !important;
+  border-left: 0 !important;
+}
+
+
+.search-result-table th:nth-child(5),
+.search-result-table td:nth-child(5) {
+  border-right: 1px solid #d9e3ed !important;
+  border-left: 1px solid #d9e3ed !important;
+}
+
+
+/* =========================================================
+  행 효과
+========================================================= */
+
+.search-result-table
+tbody tr:hover td {
+  background: #f8fbff;
+}
+
+
+/* =========================================================
+  좁은 화면
+========================================================= */
+
+@media (max-width: 1200px) {
+  .search-result-table {
+    min-width: 1040px;
+  }
+
+
+  .search-result-table th:nth-child(1),
+  .search-result-table td:nth-child(1) {
+    width: 94px;
+  }
+
+
+  .search-result-table th:nth-child(4),
+  .search-result-table td:nth-child(4) {
+    width: 84px;
+  }
+
+
+  .search-log-preview .log-preview__group,
+  .search-log-preview
+  .log-preview__group.has-no-title {
+    grid-template-columns:
+      76px
+      minmax(0, 1fr);
+  }
+
+
+  .search-log-preview
+  .log-preview__group.has-no-title::before,
+  .search-log-preview .log-preview__title,
+  .search-log-preview .log-preview__role-divider {
+    width: 76px;
+    min-width: 76px;
+  }
 }
 
 .form-field {
