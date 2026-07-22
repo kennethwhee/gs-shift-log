@@ -7557,6 +7557,7 @@ function renderLogEntryTable() {
       ? appState.editorEntries
       : [];
 
+
   const isLeaderLog =
     normalizeMemberLogRole(
       elements.logRole?.value
@@ -7565,8 +7566,8 @@ function renderLogEntryTable() {
 
 
   /*
-    화면 정렬과 관계없이
-    수정·삭제에는 실제 배열 인덱스를 사용한다.
+    화면에 정렬해서 표시하더라도
+    수정·삭제에는 원본 배열 인덱스를 사용한다.
   */
   const indexedEntries =
     entries.map(
@@ -7582,68 +7583,88 @@ function renderLogEntryTable() {
     );
 
 
-  /*
-    시간 정렬 공통 함수
-  */
-  const sortIndexedEntries =
-    (
-      itemA,
-      itemB
-    ) => {
-      const timeA =
-        String(
-          itemA.entry.time || ""
-        ).trim();
+  /* =====================================================
+    시간순 정렬
+  ====================================================== */
 
-      const timeB =
-        String(
-          itemB.entry.time || ""
-        ).trim();
+  const sortIndexedEntries = (
+    itemA,
+    itemB
+  ) => {
+    const timeA =
+      String(
+        itemA.entry.time || ""
+      ).trim();
+
+    const timeB =
+      String(
+        itemB.entry.time || ""
+      ).trim();
+
+
+    /*
+      시간이 있는 항목을 먼저 표시한다.
+    */
+    if (
+      timeA &&
+      !timeB
+    ) {
+      return -1;
+    }
+
+
+    if (
+      !timeA &&
+      timeB
+    ) {
+      return 1;
+    }
+
+
+    /*
+      둘 다 시간이 있으면
+      빠른 시간부터 표시한다.
+    */
+    if (
+      timeA &&
+      timeB
+    ) {
+      const timeDifference =
+        timeA.localeCompare(
+          timeB
+        );
+
 
       if (
-        timeA &&
-        !timeB
+        timeDifference !==
+        0
       ) {
-        return -1;
+        return timeDifference;
       }
-
-      if (
-        !timeA &&
-        timeB
-      ) {
-        return 1;
-      }
-
-      if (
-        timeA &&
-        timeB
-      ) {
-        const timeDifference =
-          timeA.localeCompare(
-            timeB
-          );
-
-        if (
-          timeDifference !== 0
-        ) {
-          return timeDifference;
-        }
-      }
-
-      return (
-        itemA.originalIndex -
-        itemB.originalIndex
-      );
-    };
+    }
 
 
-  /*
+    /*
+      시간이 같거나 없으면
+      기존 등록 순서를 유지한다.
+    */
+    return (
+      itemA.originalIndex -
+      itemB.originalIndex
+    );
+  };
+
+
+  /* =====================================================
     TM 발행 내역
-  */
+  ====================================================== */
+
   const tmIssueEntries =
     indexedEntries
       .filter(
-        ({ entry }) => {
+        ({
+          entry
+        }) => {
           return (
             String(
               entry.category || ""
@@ -7657,26 +7678,29 @@ function renderLogEntryTable() {
       );
 
 
-  /*
-    TM을 제외한 인계 및 일반 업무
-  */
+  /* =====================================================
+    TM을 제외한 인계·일반업무
+  ====================================================== */
+
   const ordinaryEntries =
-    indexedEntries
-      .filter(
-        ({ entry }) => {
-          return (
-            String(
-              entry.category || ""
-            ).trim() !==
-            "TM 발행"
-          );
-        }
-      );
+    indexedEntries.filter(
+      ({
+        entry
+      }) => {
+        return (
+          String(
+            entry.category || ""
+          ).trim() !==
+          "TM 발행"
+        );
+      }
+    );
 
 
-  /*
+  /* =====================================================
     파트장 업무일지 보직 순서
-  */
+  ====================================================== */
+
   const roleOrder = [
     "TGO",
     "BCO1",
@@ -7687,7 +7711,10 @@ function renderLogEntryTable() {
     "파트장"
   ];
 
-  const groupedEntries = {};
+
+  const groupedEntries =
+    {};
+
 
   ordinaryEntries.forEach(
     (item) => {
@@ -7699,6 +7726,7 @@ function renderLogEntryTable() {
           "파트장"
         );
 
+
       if (
         !groupedEntries[
           sourceRole
@@ -7709,6 +7737,7 @@ function renderLogEntryTable() {
         ] = [];
       }
 
+
       groupedEntries[
         sourceRole
       ].push(
@@ -7716,6 +7745,7 @@ function renderLogEntryTable() {
       );
     }
   );
+
 
   Object.keys(
     groupedEntries
@@ -7728,6 +7758,7 @@ function renderLogEntryTable() {
       );
     }
   );
+
 
   const orderedRoles = [
     ...roleOrder.filter(
@@ -7754,9 +7785,10 @@ function renderLogEntryTable() {
   ];
 
 
-  /*
+  /* =====================================================
     건수 표시
-  */
+  ====================================================== */
+
   if (
     elements.logEntryCount
   ) {
@@ -7764,12 +7796,14 @@ function renderLogEntryTable() {
       `총 ${entries.length}건`;
   }
 
+
   if (
     elements.tmIssueEntryCount
   ) {
     elements.tmIssueEntryCount.textContent =
       `${tmIssueEntries.length}건`;
   }
+
 
   if (
     elements.handoverEntryCount
@@ -7779,9 +7813,10 @@ function renderLogEntryTable() {
   }
 
 
-  /*
+  /* =====================================================
     저장용 JSON
-  */
+  ====================================================== */
+
   if (
     elements.logEntriesJson
   ) {
@@ -7792,9 +7827,10 @@ function renderLogEntryTable() {
   }
 
 
-  /*
+  /* =====================================================
     선택 상태 초기화
-  */
+  ====================================================== */
+
   if (
     elements.selectAllTmEntriesCheckbox
   ) {
@@ -7814,6 +7850,7 @@ function renderLogEntryTable() {
       tmIssueEntries.length ===
       0;
   }
+
 
   if (
     elements.selectAllLogEntriesCheckbox
@@ -7835,6 +7872,7 @@ function renderLogEntryTable() {
       0;
   }
 
+
   if (
     elements.selectedLogEntryCount
   ) {
@@ -7849,6 +7887,7 @@ function renderLogEntryTable() {
       true;
   }
 
+
   if (
     elements
       .deleteSelectedLogEntriesButton
@@ -7860,9 +7899,10 @@ function renderLogEntryTable() {
   }
 
 
-  /*
+  /* =====================================================
     TAG 버튼
-  */
+  ====================================================== */
+
   const createTagHtml = (
     entry,
     originalIndex
@@ -7874,9 +7914,13 @@ function renderLogEntryTable() {
         .trim()
         .toUpperCase();
 
-    if (!tagText) {
+
+    if (
+      !tagText
+    ) {
       return "";
     }
+
 
     return `
       <button
@@ -7888,13 +7932,21 @@ function renderLogEntryTable() {
         style="
           display:inline !important;
           width:auto !important;
-          margin:0 0 0 5px !important;
+
+          margin:0 0 0 6px !important;
           padding:0 !important;
+
           border:0 !important;
           background:transparent !important;
+
           color:#1763c5 !important;
+
           font:inherit !important;
+          font-size:10px !important;
           font-weight:900 !important;
+          line-height:inherit !important;
+
+          vertical-align:baseline !important;
           white-space:nowrap !important;
         "
       >
@@ -7906,9 +7958,10 @@ function renderLogEntryTable() {
   };
 
 
-  /*
+  /* =====================================================
     편집 모드 선택 셀
-  */
+  ====================================================== */
+
   const createSelectCellHtml = (
     entry,
     originalIndex
@@ -7918,6 +7971,7 @@ function renderLogEntryTable() {
         entry.category ||
         "인계사항"
       ).trim();
+
 
     return `
       <td
@@ -7930,7 +7984,9 @@ function renderLogEntryTable() {
           width:34px !important;
           min-width:34px !important;
           max-width:34px !important;
+
           padding:5px !important;
+
           text-align:center !important;
           vertical-align:middle !important;
         "
@@ -7948,9 +8004,10 @@ function renderLogEntryTable() {
   };
 
 
-  /*
-    편집 모드 관리 셀
-  */
+  /* =====================================================
+    편집 모드 수정·삭제 셀
+  ====================================================== */
+
   const createActionCellHtml = (
     originalIndex
   ) => {
@@ -7965,7 +8022,9 @@ function renderLogEntryTable() {
           width:76px !important;
           min-width:76px !important;
           max-width:76px !important;
+
           padding:5px !important;
+
           text-align:center !important;
           vertical-align:middle !important;
         "
@@ -7974,8 +8033,10 @@ function renderLogEntryTable() {
           class="log-entry-row-actions"
           style="
             display:flex !important;
+
             align-items:center !important;
             justify-content:center !important;
+
             gap:4px !important;
           "
         >
@@ -8002,15 +8063,19 @@ function renderLogEntryTable() {
   };
 
 
-  /*
-    시간 · 번호 · 내용을 한 줄로 출력한다.
+  /* =====================================================
+    번호 → 시간 → 내용 한 줄 출력
 
-    인수인계 목록은 내용 전체를 무조건 가로로 늘리지 않고,
-    실제 내용 길이에 맞는 compact 영역을 가운데 배치한다.
+    인계사항:
+    1. 07:15 내용
 
-    구조:
-    [시간] [번호] [내용]
-  */
+    시간 없는 인계사항:
+    1. 내용
+
+    TM 발행:
+    1. 내용
+  ====================================================== */
+
   const createCompactLineHtml = (
     entry,
     originalIndex,
@@ -8034,109 +8099,156 @@ function renderLogEntryTable() {
       ).trim();
 
 
+    const hasTime =
+      showTime &&
+      Boolean(
+        timeText
+      );
+
+
+    /*
+      시간 존재:
+      번호 | 시간 | 내용
+
+      시간 없음 또는 TM:
+      번호 | 내용
+    */
+    const gridColumns =
+      hasTime
+        ? "30px 88px minmax(0, 1fr)"
+        : "30px minmax(0, 1fr)";
+
+
     return `
       <div
         class="log-entry-fixed-compact-wrapper"
         style="
-          display:flex !important;
+          display:block !important;
+
           width:100% !important;
           min-width:0 !important;
-          align-items:flex-start !important;
-          justify-content:center !important;
+
           margin:0 !important;
           padding:0 !important;
+
+          text-align:left !important;
         "
       >
         <div
           class="log-entry-fixed-compact-line"
           style="
             display:grid !important;
-            width:max-content !important;
+
+            width:100% !important;
             max-width:100% !important;
             min-width:0 !important;
+
             grid-template-columns:
-              ${showTime ? "74px" : "0"}
-              26px
-              minmax(180px, auto) !important;
+              ${gridColumns} !important;
+
             align-items:start !important;
             column-gap:7px !important;
-            margin:0 auto !important;
+
+            margin:0 !important;
             padding:0 !important;
+
             color:#26364b !important;
+
             font-size:11px !important;
             font-weight:650 !important;
             line-height:1.55 !important;
+
             text-align:left !important;
           "
         >
-          ${
-            showTime
-              ? `
-                <strong
-                  class="log-entry-fixed-time"
-                  style="
-                    display:block !important;
-                    width:74px !important;
-                    margin:0 !important;
-                    padding:0 !important;
-                    color:#1763c5 !important;
-                    font-size:10px !important;
-                    font-weight:900 !important;
-                    line-height:1.55 !important;
-                    text-align:center !important;
-                    white-space:nowrap !important;
-                  "
-                >
-                  ${escapeHtml(
-                    timeText ||
-                    "시간 없음"
-                  )}
-                </strong>
-              `
-              : `
-                <span
-                  aria-hidden="true"
-                  style="
-                    display:block !important;
-                    width:0 !important;
-                    overflow:hidden !important;
-                  "
-                ></span>
-              `
-          }
 
+          <!-- 번호 -->
           <strong
             class="log-entry-fixed-number"
             style="
               display:block !important;
-              width:26px !important;
+
+              width:30px !important;
+              min-width:30px !important;
+
               margin:0 !important;
               padding:0 !important;
+
               color:#1763c5 !important;
+
               font-size:10px !important;
               font-weight:900 !important;
               line-height:1.55 !important;
-              text-align:center !important;
+
+              text-align:right !important;
               white-space:nowrap !important;
             "
           >
             ${displayNumber}.
           </strong>
 
+
+          ${
+            hasTime
+              ? `
+                <!-- 시간 -->
+                <strong
+                  class="log-entry-fixed-time"
+                  style="
+                    display:block !important;
+
+                    width:88px !important;
+                    min-width:88px !important;
+
+                    margin:0 !important;
+                    padding:0 !important;
+
+                    color:#536b89 !important;
+
+                    font-size:10px !important;
+                    font-weight:850 !important;
+                    line-height:1.55 !important;
+
+                    text-align:left !important;
+                    white-space:normal !important;
+
+                    font-variant-numeric:
+                      tabular-nums !important;
+
+                    word-break:keep-all !important;
+                    overflow-wrap:anywhere !important;
+                  "
+                >
+                  ${escapeHtml(
+                    timeText
+                  )}
+                </strong>
+              `
+              : ""
+          }
+
+
+          <!-- 내용 -->
           <span
             class="log-entry-fixed-content"
             style="
               display:block !important;
-              width:auto !important;
-              max-width:min(760px, 68vw) !important;
-              min-width:180px !important;
+
+              width:100% !important;
+              max-width:100% !important;
+              min-width:0 !important;
+
               margin:0 !important;
               padding:0 !important;
+
               color:#26364b !important;
+
               font-size:11px !important;
               font-weight:650 !important;
               line-height:1.55 !important;
+
               text-align:left !important;
+
               white-space:pre-wrap !important;
               word-break:keep-all !important;
               overflow-wrap:anywhere !important;
@@ -8149,18 +8261,17 @@ function renderLogEntryTable() {
               originalIndex
             )}
           </span>
+
         </div>
       </div>
     `;
   };
 
 
-  /*
+  /* =====================================================
     TM 발행 내역 출력
+  ====================================================== */
 
-    표의 기존 4열 중
-    구분 + 내용을 하나의 colspan=2 셀로 합친다.
-  */
   if (
     elements.tmIssueEntryTableBody
   ) {
@@ -8176,6 +8287,7 @@ function renderLogEntryTable() {
             </td>
           </tr>
         `;
+
     } else {
       elements
         .tmIssueEntryTableBody
@@ -8193,6 +8305,7 @@ function renderLogEntryTable() {
                 originalIndex ===
                 appState
                   .editingEntryIndex;
+
 
               return `
                 <tr
@@ -8217,9 +8330,12 @@ function renderLogEntryTable() {
                     style="
                       width:auto !important;
                       min-width:0 !important;
+
                       padding:7px 14px !important;
+
                       text-align:left !important;
                       vertical-align:top !important;
+
                       background:#ffffff !important;
                     "
                   >
@@ -8246,13 +8362,13 @@ function renderLogEntryTable() {
   }
 
 
-  /*
-    일반 업무 행 생성
+  /* =====================================================
+    일반 인계사항 행 생성
+  ====================================================== */
 
-    기존 5열 중
-    구분 + 시간 + 내용을 colspan=3 셀 하나로 합친다.
-  */
-  let overallNumber = 0;
+  let overallNumber =
+    0;
+
 
   const createEntryRowHtml = (
     item,
@@ -8263,17 +8379,29 @@ function renderLogEntryTable() {
       originalIndex
     } = item;
 
-    overallNumber += 1;
+
+    overallNumber +=
+      1;
+
 
     const isEditing =
       originalIndex ===
         appState
           .editingEntryIndex;
 
+
+    /*
+      파트장 업무일지는
+      각 보직마다 1번부터 다시 시작한다.
+
+      일반 업무일지는
+      전체 목록 기준으로 번호를 부여한다.
+    */
     const displayNumber =
       isLeaderLog
         ? roleNumber
         : overallNumber;
+
 
     return `
       <tr
@@ -8298,10 +8426,14 @@ function renderLogEntryTable() {
           style="
             width:auto !important;
             min-width:0 !important;
+
             padding:7px 14px !important;
+
             border-bottom:0 !important;
+
             text-align:left !important;
             vertical-align:top !important;
+
             background:#ffffff !important;
           "
         >
@@ -8324,9 +8456,10 @@ function renderLogEntryTable() {
   };
 
 
-  /*
-    일반 업무 출력
-  */
+  /* =====================================================
+    일반 인계사항 출력
+  ====================================================== */
+
   if (
     elements.logEntryTableBody
   ) {
@@ -8342,12 +8475,16 @@ function renderLogEntryTable() {
             </td>
           </tr>
         `;
+
     } else if (
       isLeaderLog
     ) {
       /*
-        파트장 업무일지:
-        보직별 제목 + 해당 보직 항목
+        파트장 업무일지
+
+        보직 제목
+        1. 시간 내용
+        2. 시간 내용
       */
       elements
         .logEntryTableBody
@@ -8363,10 +8500,12 @@ function renderLogEntryTable() {
                   role
                 ];
 
+
               const roleClass =
                 getLogEntrySourceClass(
                   role
                 );
+
 
               return `
                 <tr
@@ -8424,16 +8563,19 @@ function renderLogEntryTable() {
             }
           )
           .join("");
+
     } else {
       /*
-        파트원 업무일지:
-        시간순 한 줄 목록
+        일반 파트원 업무일지
+
+        번호 → 시간 → 내용
       */
-      const sortedEntries =
-        [...ordinaryEntries]
-          .sort(
-            sortIndexedEntries
-          );
+      const sortedEntries = [
+        ...ordinaryEntries
+      ].sort(
+        sortIndexedEntries
+      );
+
 
       elements
         .logEntryTableBody
@@ -8457,7 +8599,6 @@ function renderLogEntryTable() {
 
   updateMemberLogImportCount();
 }
-
 /* =========================================================
   인수인계사항 편집 모드
 ========================================================= */
