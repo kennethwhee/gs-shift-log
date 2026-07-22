@@ -13970,7 +13970,7 @@ function createLogRowHtml(log) {
             title:
               !isLeaderLog &&
               index === 0
-                ? "인계"
+                ? "인계 사항"
                 : "",
 
             /*
@@ -16169,7 +16169,7 @@ function getSearchEntryCategoryValue(
     category ===
       "인계사항" ||
     category ===
-      "인계"
+      "인계 사항"
   ) {
     return "handover";
   }
@@ -16888,7 +16888,7 @@ function createSearchLogPreviewHtml(
           <strong
             class="search-preview-section__title"
           >
-            인계
+            인계 사항
           </strong>
 
           <span
