@@ -5976,10 +5976,10 @@ function renderOperationStatusBadge(
   운전현황 카드 렌더링 최종본
 
   일반 보직:
-  기존 단일 상태 카드 표시
+  기존 단일 운전현황 표시
 
   파트장:
-  TGO·BCO1·BCO2 상태를 각각 별도 카드로 표시
+  TGO·BCO1·BCO2를 작은 한 줄 형태로 표시
 ========================================================= */
 
 function renderOperationStatusCard() {
@@ -6018,10 +6018,7 @@ function renderOperationStatusCard() {
 
 
   /* =====================================================
-    파트장 운전현황
-
-    TGO·BCO1·BCO2 상태와 내용을
-    각각 독립적으로 표시한다.
+    파트장 화면
   ====================================================== */
 
   if (
@@ -6029,49 +6026,40 @@ function renderOperationStatusCard() {
     "파트장"
   ) {
     const memberStatuses =
-      Array.isArray(
-        status.memberStatuses
-      )
-        ? status.memberStatuses
-        : OPERATION_STATUS_MEMBER_ROLES.map(
-            (role) => {
-              const memberStatus =
-                loadOperationStatusByRole(
-                  role,
-                  {
-                    allowLegacyFallback:
-                      role === "TGO"
-                  }
-                );
+      OPERATION_STATUS_MEMBER_ROLES.map(
+        (role) => {
+          const memberStatus =
+            loadOperationStatusByRole(
+              role,
+              {
+                allowLegacyFallback:
+                  role === "TGO"
+              }
+            );
 
-              return {
-                role,
 
-                type:
-                  normalizeOperationStatusType(
-                    memberStatus.type
-                  ),
+          return {
+            role,
 
-                content:
-                  String(
-                    memberStatus.content ||
-                    "등록된 운전현황이 없습니다."
-                  ).trim(),
+            type:
+              normalizeOperationStatusType(
+                memberStatus.type
+              ),
 
-                updatedAt:
-                  String(
-                    memberStatus.updatedAt ||
-                    ""
-                  ),
+            content:
+              String(
+                memberStatus.content ||
+                "등록된 운전현황이 없습니다."
+              ).trim(),
 
-                updatedBy:
-                  String(
-                    memberStatus.updatedBy ||
-                    ""
-                  ).trim()
-              };
-            }
-          );
+            updatedAt:
+              String(
+                memberStatus.updatedAt ||
+                ""
+              )
+          };
+        }
+      );
 
 
     elements.operationStatusCurrentContent.innerHTML =
@@ -6090,7 +6078,7 @@ function renderOperationStatusCard() {
               );
 
 
-            const typeLabel =
+            const label =
               getOperationStatusLabel(
                 type
               );
@@ -6099,103 +6087,56 @@ function renderOperationStatusCard() {
             const statusContent =
               String(
                 memberStatus.content ||
-                "등록된 운전현황이 없습니다."
+                "-"
               ).trim();
 
 
-            const updatedAtText =
-              memberStatus.updatedAt
-                ? `${formatDateTime(
-                    memberStatus.updatedAt
-                  )} 수정`
-                : "";
-
-
             return `
-              <section
+              <div
                 class="
-                  leader-operation-status-item
-                  is-type-${escapeHtml(
+                  leader-operation-summary-row
+                  is-${escapeHtml(
                     type
                   )}
                 "
-                data-operation-role="${escapeHtml(
-                  role
-                )}"
               >
 
-                <div
+                <strong
                   class="
-                    leader-operation-status-item__header
+                    leader-operation-summary-role
                   "
                 >
-
-                  <div
-                    class="
-                      leader-operation-status-item__role
-                    "
-                  >
-
-                    <span
-                      class="
-                        leader-operation-status-item__dot
-                      "
-                      aria-hidden="true"
-                    ></span>
-
-                    <strong>
-                      ${escapeHtml(
-                        role
-                      )}
-                    </strong>
-
-                  </div>
+                  ${escapeHtml(
+                    role
+                  )}
+                </strong>
 
 
-                  <span
-                    class="
-                      leader-operation-status-item__badge
-                      is-${escapeHtml(
-                        type
-                      )}
-                    "
-                  >
-                    ${escapeHtml(
-                      typeLabel
-                    )}
-                  </span>
-
-                </div>
-
-
-                <div
+                <span
                   class="
-                    leader-operation-status-item__content
+                    leader-operation-summary-badge
+                    is-${escapeHtml(
+                      type
+                    )}
+                  "
+                >
+                  ${escapeHtml(
+                    label
+                  )}
+                </span>
+
+
+                <span
+                  class="
+                    leader-operation-summary-content
                   "
                 >
                   ${escapeHtml(
                     statusContent
                   )}
-                </div>
+                </span>
 
-
-                ${
-                  updatedAtText
-                    ? `
-                      <div
-                        class="
-                          leader-operation-status-item__meta
-                        "
-                      >
-                        ${escapeHtml(
-                          updatedAtText
-                        )}
-                      </div>
-                    `
-                    : ""
-                }
-
-              </section>
+              </div>
             `;
           }
         )
@@ -6203,9 +6144,7 @@ function renderOperationStatusCard() {
 
 
     /*
-      파트장 카드 상단의 공통 상태 배지는 숨긴다.
-
-      각 보직별 카드 안에서 상태를 따로 보여주기 때문이다.
+      파트장 공통 상태 배지는 숨긴다.
     */
     if (
       elements.operationStatusStateBadge
@@ -6216,8 +6155,7 @@ function renderOperationStatusCard() {
 
 
     /*
-      파트장이 수정 버튼을 눌렀을 때 사용할
-      통합 텍스트를 입력창과 스냅샷에 유지한다.
+      업무일지 저장용 통합 문자열은 유지한다.
     */
     if (
       elements.operationStatus
@@ -6254,39 +6192,9 @@ function renderOperationStatusCard() {
     if (
       elements.operationStatusUpdatedBy
     ) {
-      elements.operationStatusUpdatedBy.textContent =
-        "";
-
       elements.operationStatusUpdatedBy.hidden =
         true;
     }
-
-
-    if (
-      elements.operationStatusEditorTime
-    ) {
-      elements.operationStatusEditorTime.textContent =
-        "";
-    }
-
-
-    /*
-      파트장 전체 카드 테두리는
-      특정 보직 상태색을 사용하지 않는다.
-    */
-    OPERATION_STATUS_TYPES.forEach(
-      (type) => {
-        elements.operationStatusSection
-          ?.classList.remove(
-            `is-type-${type}`
-          );
-
-        elements.operationStatusCurrentCard
-          ?.classList.remove(
-            `is-type-${type}`
-          );
-      }
-    );
 
 
     elements.operationStatusSection
@@ -6300,7 +6208,7 @@ function renderOperationStatusCard() {
 
 
   /* =====================================================
-    일반 보직 운전현황
+    일반 보직 화면
   ====================================================== */
 
   elements.operationStatusSection
@@ -6317,10 +6225,6 @@ function renderOperationStatusCard() {
   }
 
 
-  /*
-    파트장 화면에서 innerHTML을 사용했으므로
-    일반 보직으로 돌아왔을 때는 textContent로 초기화한다.
-  */
   elements.operationStatusCurrentContent.textContent =
     content;
 
@@ -6364,23 +6268,8 @@ function renderOperationStatusCard() {
   if (
     elements.operationStatusUpdatedBy
   ) {
-    elements.operationStatusUpdatedBy.textContent =
-      "";
-
     elements.operationStatusUpdatedBy.hidden =
       true;
-  }
-
-
-  if (
-    elements.operationStatusEditorTime
-  ) {
-    elements.operationStatusEditorTime.textContent =
-      status.updatedAt
-        ? `${formatDateTime(
-            status.updatedAt
-          )} 수정`
-        : "";
   }
 
 
