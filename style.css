@@ -6082,12 +6082,33 @@ td {
   padding-bottom: 7px;
 }
 
+/* =========================================================
+  상세보기 운전현황 및 업무내용 최종본
+
+  표시 기준
+
+  운전현황:
+  1. #1 주보일러 : 정상운전 중
+
+  TM 발행:
+  1. 내용
+
+  인계사항:
+  1. 08:37~09:46 내용
+
+  번호·시간·내용을 칸으로 나누지 않고
+  왼쪽부터 한 줄로 연속 표시한다.
+========================================================= */
+
 
 /* =========================================================
   운전현황
 ========================================================= */
 
 .detail-operation-content {
+  display: block;
+  width: 100%;
+
   margin: 0;
   padding: 0;
 
@@ -6098,32 +6119,45 @@ td {
   line-height: 1.7;
 
   text-align: left;
+  text-indent: 0;
 
-  white-space: pre-wrap;
+  white-space: pre-line;
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+
+
+/*
+  운전현황 안의 첫 줄에도
+  불필요한 위·왼쪽 여백이 생기지 않도록 한다.
+*/
+.shift-log-detail-section__body
+.detail-operation-content {
+  margin: 0;
+  padding: 0;
 }
 
 
 /* =========================================================
   업무 한 줄
 
-  번호 | 시간 | TAG + 내용
+  TM:
+  1. 내용
+
+  인계:
+  1. 08:37~09:46 내용
 ========================================================= */
 
 .detail-work-line {
-  display: grid;
+  display: flex;
   width: 100%;
   min-width: 0;
 
-  grid-template-columns:
-    28px
-    max-content
-    minmax(0, 1fr);
-
   align-items: baseline;
+  justify-content: flex-start;
+  flex-wrap: wrap;
 
-  column-gap: 7px;
+  gap: 0;
 
   margin: 0;
   padding: 5px 0;
@@ -6137,6 +6171,9 @@ td {
 }
 
 
+/*
+  항목 사이의 연한 구분선
+*/
 .detail-work-line
 +
 .detail-work-line {
@@ -6149,16 +6186,20 @@ td {
 ========================================================= */
 
 .detail-work-line__number {
-  display: block;
+  display: inline;
+  flex: 0 0 auto;
 
-  margin: 0;
+  width: auto;
+  min-width: 0;
+
+  margin: 0 6px 0 0;
   padding: 0;
 
   font-size: 13px;
   font-weight: 900;
-  line-height: 1.6;
+  line-height: inherit;
 
-  text-align: right;
+  text-align: left;
 
   white-space: nowrap;
 }
@@ -6185,51 +6226,47 @@ td {
 ========================================================= */
 
 .detail-work-line__time {
-  display: block;
+  display: inline;
+  flex: 0 0 auto;
 
+  width: auto;
   min-width: 0;
-  margin: 0;
+
+  margin: 0 6px 0 0;
   padding: 0;
 
   color: #1f5fae;
 
   font-size: 13px;
   font-weight: 900;
-  line-height: 1.6;
+  line-height: inherit;
 
-  font-variant-numeric:
-    tabular-nums;
+  font-variant-numeric: tabular-nums;
+
+  text-align: left;
 
   white-space: nowrap;
 }
 
 
 /*
-  시간이 없는 항목은
-  별도의 문구 없이 빈 공간으로 처리한다.
+  TM처럼 시간이 없는 항목은
+  시간 칸 자체를 완전히 제거한다.
 */
 .detail-work-line__time:empty {
   display: none;
-}
-
-
-/*
-  시간이 없으면 내용이 시간 칸부터 시작한다.
-*/
-.detail-work-line__time:empty
-+
-.detail-work-line__content {
-  grid-column: 2 / -1;
+  margin: 0;
 }
 
 
 /* =========================================================
-  내용
+  TAG 및 실제 내용
 ========================================================= */
 
 .detail-work-line__content {
-  display: block;
+  display: inline;
   min-width: 0;
+  flex: 0 1 auto;
 
   margin: 0;
   padding: 0;
@@ -6238,9 +6275,10 @@ td {
 
   font-size: 13px;
   font-weight: 650;
-  line-height: 1.6;
+  line-height: inherit;
 
   text-align: left;
+  text-indent: 0;
 
   white-space: normal;
   word-break: break-word;
@@ -6251,14 +6289,21 @@ td {
 .detail-work-line__content-text {
   display: inline;
 
+  width: auto;
   margin: 0;
   padding: 0;
 
   color: inherit;
+
   font: inherit;
   line-height: inherit;
 
+  text-align: left;
+  text-indent: 0;
+
   white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 
@@ -6285,6 +6330,7 @@ td {
   font-weight: 900;
   line-height: inherit;
 
+  text-align: left;
   vertical-align: baseline;
 
   white-space: nowrap;
@@ -6300,6 +6346,55 @@ td {
 }
 
 
+/* =========================================================
+  여러 줄 내용
+
+  첫 줄:
+  1. 08:37~09:46 Bio Rotary Feeder #B Trip
+
+  다음 줄:
+  → Bio Screw Feeder 후단 막힘...
+========================================================= */
+
+.detail-work-line__content-text br {
+  display: block;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 600px) {
+  .detail-operation-content {
+    font-size: 13px;
+  }
+
+
+  .detail-work-line {
+    padding: 5px 0;
+
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+
+  .detail-work-line__number,
+  .detail-work-line__time,
+  .detail-work-line__content {
+    font-size: 12px;
+  }
+
+
+  .detail-work-line__number {
+    margin-right: 5px;
+  }
+
+
+  .detail-work-line__time {
+    margin-right: 5px;
+  }
+}
 /* =========================================================
   파트장 보직별 업무 구역
 ========================================================= */
