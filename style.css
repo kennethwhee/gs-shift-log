@@ -14686,3 +14686,24 @@ tbody tr:hover td {
   text-decoration: underline;
 }
 
+/* =========================================================
+   표 구분선 추가
+========================================================= */
+
+/* 업무일지 : 관리 | 첨부 */
+.log-list-section .log-table th:nth-child(5),
+.log-list-section .log-table td:nth-child(5) {
+  border-right: 1px solid #dbe5f0;
+}
+
+/* 조회목록 : 일자 | 근무 */
+.search-result-table th:nth-child(1),
+.search-result-table td:nth-child(1) {
+  border-right: 1px solid #dbe5f0;
+}
+
+/* 조회목록 : 보기 | 첨부 */
+.search-result-table th:nth-child(6),
+.search-result-table td:nth-child(6) {
+  border-right: 1px solid #dbe5f0;
+}
