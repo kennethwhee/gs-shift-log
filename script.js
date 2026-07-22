@@ -18428,10 +18428,6 @@ async function handleEmployeeExcelUpload(event) {
         }
       );
 
-    /*
-      현재 엑셀에는 직원명단 시트와 작성안내 시트가 있으므로
-      반드시 직원명단 시트를 우선 사용한다.
-    */
     const sheetName =
       workbook.SheetNames.includes(
         "직원명단"
@@ -18440,7 +18436,9 @@ async function handleEmployeeExcelUpload(event) {
         : workbook.SheetNames[0];
 
     const worksheet =
-      workbook.Sheets[sheetName];
+      workbook.Sheets[
+        sheetName
+      ];
 
     if (!worksheet) {
       throw new Error(
@@ -18457,56 +18455,66 @@ async function handleEmployeeExcelUpload(event) {
         }
       );
 
-    /*
-      엑셀 열 구조
-
-      사번 | 이름 | 파트장 | 비고
-    */
     const parsedEmployees =
       rawRows
-        .map((row, index) => {
-          const employeeNo =
-            String(
-              row["사번"] ?? ""
-            ).trim();
+        .map(
+          (
+            row,
+            index
+          ) => {
+            const employeeNo =
+              String(
+                row["사번"] ?? ""
+              )
+                .trim()
+                .replace(
+                  /[^0-9]/g,
+                  ""
+                );
 
-          const name =
-            String(
-              row["이름"] ?? ""
-            ).trim();
+            const name =
+              String(
+                row["이름"] ?? ""
+              ).trim();
 
-          const leaderValue =
-            String(
-              row["파트장"] ?? ""
-            ).trim();
+            const leaderValue =
+              String(
+                row["파트장"] ?? ""
+              ).trim();
 
-          const note =
-            String(
-              row["비고"] ?? ""
-            ).trim();
+            const note =
+              String(
+                row["비고"] ?? ""
+              ).trim();
 
-          return {
-            rowNumber: index + 2,
-            employeeNo,
-            name,
-            isLeader:
-              leaderValue === "파트장",
-            note
-          };
-        })
-        .filter((employee) => {
-          return (
-            employee.employeeNo ||
-            employee.name
-          );
-        });
+            return {
+              rowNumber:
+                index + 2,
 
-    /*
-      사번 또는 이름이 비어 있는 행
-    */
+              employeeNo,
+
+              name,
+
+              isLeader:
+                leaderValue ===
+                "파트장",
+
+              note
+            };
+          }
+        )
+        .filter(
+          employee => {
+            return (
+              employee.employeeNo ||
+              employee.name
+            );
+          }
+        );
+
     const invalidEmployees =
       parsedEmployees.filter(
-        (employee) => {
+        employee => {
           return (
             !employee.employeeNo ||
             !employee.name
@@ -18515,12 +18523,13 @@ async function handleEmployeeExcelUpload(event) {
       );
 
     if (
-      invalidEmployees.length > 0
+      invalidEmployees.length >
+      0
     ) {
       const invalidRows =
         invalidEmployees
           .map(
-            (employee) =>
+            employee =>
               employee.rowNumber
           )
           .join(", ");
@@ -18530,12 +18539,6 @@ async function handleEmployeeExcelUpload(event) {
       );
     }
 
-    /*
-      사번 중복 제거
-
-      같은 사번이 여러 번 있으면
-      첫 번째 항목만 유지한다.
-    */
     const employeeMap =
       new Map();
 
@@ -18543,7 +18546,7 @@ async function handleEmployeeExcelUpload(event) {
       [];
 
     parsedEmployees.forEach(
-      (employee) => {
+      employee => {
         if (
           employeeMap.has(
             employee.employeeNo
@@ -18566,21 +18569,32 @@ async function handleEmployeeExcelUpload(event) {
     const employees =
       Array.from(
         employeeMap.values()
-      ).map((employee) => {
-        return {
-          employeeNo:
-            employee.employeeNo,
+      ).map(
+        employee => {
+          return {
+            employeeNo:
+              employee.employeeNo,
 
-          name:
-            employee.name,
+            name:
+              employee.name,
 
-          isLeader:
-            employee.isLeader,
+            /*
+              파트장은 관리자 권한으로 저장한다.
+              추후 leader 권한을 만들면 여기만 변경하면 된다.
+            */
+            defaultRole:
+              employee.isLeader
+                ? "admin"
+                : "user",
 
-          note:
-            employee.note
-        };
-      });
+            /*
+              엑셀 등록 직원은 모두 가입 허용
+            */
+            isAllowed:
+              true
+          };
+        }
+      );
 
     if (
       employees.length === 0
@@ -18592,62 +18606,138 @@ async function handleEmployeeExcelUpload(event) {
 
     const leaderCount =
       employees.filter(
-        (employee) =>
-          employee.isLeader
+        employee => {
+          return (
+            employee.defaultRole ===
+            "admin"
+          );
+        }
       ).length;
 
-    console.log(
-      "직원 엑셀 원본:",
-      rawRows
+    const shouldSave =
+      window.confirm(
+        [
+          `직원 ${employees.length}명을 저장하시겠습니까?`,
+          "",
+          `파트장 ${leaderCount}명`,
+          "기존 사번은 이름과 권한만 갱신됩니다."
+        ].join("\n")
+      );
+
+    if (!shouldSave) {
+      showEmployeeUploadMessage(
+        "직원 명단 저장을 취소했습니다."
+      );
+
+      return;
+    }
+
+    showEmployeeUploadMessage(
+      "직원 명단을 저장하고 있습니다."
     );
 
+    const response =
+      await fetch(
+        "/api/employees",
+        {
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            Accept:
+              "application/json"
+          },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              employees
+            })
+        }
+      );
+
+    let result = {};
+
+    try {
+      result =
+        await response.json();
+    } catch (error) {
+      throw new Error(
+        "직원 저장 서버의 응답을 확인할 수 없습니다."
+      );
+    }
+
+    if (
+      !response.ok ||
+      !result.ok
+    ) {
+      throw new Error(
+        result.message ||
+        "직원 명단 저장에 실패했습니다."
+      );
+    }
+
+    window.pendingEmployeeExcelData =
+      [];
+
+    const successMessage =
+      result.message ||
+      `직원 ${employees.length}명 저장을 완료했습니다.`;
+
+    showEmployeeUploadMessage(
+      successMessage
+    );
+
+    /*
+      최신 직원 목록 다시 불러오기
+    */
+    if (
+      typeof loadEmployeeManagement ===
+      "function"
+    ) {
+      await loadEmployeeManagement();
+    }
+
+    if (
+      typeof loadEmployeeDirectory ===
+      "function"
+    ) {
+      await loadEmployeeDirectory();
+    }
+
     console.log(
-      "변환된 직원명단:",
-      employees
+      "직원 엑셀 저장 완료:",
+      result
     );
 
     if (
-      duplicateEmployeeNumbers.length > 0
+      duplicateEmployeeNumbers.length >
+      0
     ) {
       console.warn(
-        "중복 사번:",
+        "엑셀 내부 중복으로 제외된 사번:",
         duplicateEmployeeNumbers
       );
     }
 
-    /*
-      다음 단계에서 서버로 보낼 수 있도록
-      임시 전역 변수에 보관
-    */
-    window.pendingEmployeeExcelData =
-      employees;
-
-    let resultMessage =
-      `직원 ${employees.length}명, 파트장 ${leaderCount}명을 읽었습니다.`;
-
-    if (
-      duplicateEmployeeNumbers.length > 0
-    ) {
-      resultMessage +=
-        ` 중복 사번 ${duplicateEmployeeNumbers.length}건은 제외했습니다.`;
-    }
-
-    showEmployeeUploadMessage(
-      resultMessage
-    );
-
   } catch (error) {
     console.error(
-      "직원 엑셀 읽기 오류:",
+      "직원 엑셀 업로드 오류:",
       error
     );
 
     showEmployeeUploadMessage(
       error.message ||
-      "엑셀 파일을 읽지 못했습니다."
+      "직원 엑셀 파일을 처리하지 못했습니다."
     );
 
   } finally {
-    event.target.value = "";
+    event.target.value =
+      "";
   }
 }
