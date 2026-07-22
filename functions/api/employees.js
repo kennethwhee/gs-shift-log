@@ -832,31 +832,28 @@ export async function onRequestPost(
     });
 
   } catch (error) {
-    console.error(
-      "직원 저장 오류:",
-      error
-    );
 
+  console.error(error);
 
-    return createJsonResponse(
-      {
-        ok:
-          false,
+  return createJsonResponse(
+    {
+      ok: false,
+      success: false,
 
-        success:
-          false,
+      message:
+        error instanceof Error
+          ? error.message
+          : String(error),
 
-        message:
-          "직원 저장 중 오류가 발생했습니다.",
+      stack:
+        error instanceof Error
+          ? error.stack
+          : null
+    },
+    500
+  );
 
-        error:
-          error instanceof Error
-            ? error.message
-            : String(error)
-      },
-      500
-    );
-  }
+}
 }
 
 
