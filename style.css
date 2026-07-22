@@ -15430,3 +15430,139 @@ tbody tr:hover td {
     display: none;
   }
 }
+
+/* =========================================================
+  업무일지 메인 목록 왼쪽 정렬 보정
+
+  적용 대상:
+  - 운전현황
+  - TM 발행 내역
+  - 인계사항
+  - TGO 업무일지
+  - BCO1 업무일지
+  - BCO2 업무일지
+========================================================= */
+
+
+/* 업무 내용 셀 전체 왼쪽 정렬 */
+#logTableBody
+.log-row__preview-cell {
+  text-align: left !important;
+}
+
+
+/* 구분 제목 + 내용 구조 */
+#logTableBody
+.log-preview__group {
+  display: grid !important;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    90px
+    minmax(0, 1fr) !important;
+
+  align-items: baseline;
+
+  column-gap: 10px;
+
+  margin: 0;
+  padding-right: 0;
+  padding-left: 0;
+
+  text-align: left !important;
+}
+
+
+/* 운전현황 · TM 발행 내역 · 인계사항 제목 */
+#logTableBody
+.log-preview__title {
+  display: block !important;
+
+  width: 90px !important;
+  min-width: 90px !important;
+  min-height: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+
+  align-items: initial !important;
+  justify-content: initial !important;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.55;
+
+  text-align: left !important;
+
+  white-space: nowrap;
+}
+
+
+/* 제목이 없는 두 번째 이후 항목도 내용 시작점 통일 */
+#logTableBody
+.log-preview__group.has-no-title {
+  grid-template-columns:
+    90px
+    minmax(0, 1fr) !important;
+}
+
+
+#logTableBody
+.log-preview__group.has-no-title::before {
+  content: "";
+
+  display: block;
+
+  width: 90px;
+  min-width: 90px;
+}
+
+
+/* 실제 업무 내용 */
+#logTableBody
+.log-preview__content {
+  min-width: 0;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  text-align: left !important;
+}
+
+
+/* TGO 업무일지 · BCO1 업무일지 등의 제목 줄 */
+#logTableBody
+.log-preview__role-section {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  margin: 10px 0 4px !important;
+  padding: 0 !important;
+
+  text-align: left !important;
+}
+
+
+/* 보직 업무일지 제목 */
+#logTableBody
+.log-preview__role-divider {
+  display: block !important;
+
+  width: 90px !important;
+  min-width: 90px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  text-align: left !important;
+}
