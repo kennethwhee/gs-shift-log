@@ -285,6 +285,255 @@ export async function onRequestGet(
   }
 }
 
+/* ==================================================
+   바이트 배열 → Base64
+================================================== */
+
+function bytesToBase64(bytes) {
+  let binaryText = "";
+
+  bytes.forEach(
+    byte => {
+      binaryText +=
+        String.fromCharCode(
+          byte
+        );
+    }
+  );
+
+  return btoa(
+    binaryText
+  );
+}
+
+
+/* ==================================================
+   초기 비밀번호 해시 생성
+
+   저장 형식:
+   pbkdf2$210000$salt$passwordHash
+
+   초기 비밀번호:
+   사번과 동일
+================================================== */
+
+async function createInitialPasswordHash(
+  employeeNo
+) {
+  const iterations =
+    210000;
+
+  const salt =
+    crypto.getRandomValues(
+      new Uint8Array(16)
+    );
+
+  const encoder =
+    new TextEncoder();
+
+  const passwordKey =
+    await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(
+        employeeNo
+      ),
+      {
+        name:
+          "PBKDF2"
+      },
+      false,
+      [
+        "deriveBits"
+      ]
+    );
+
+  const derivedBits =
+    await crypto.subtle.deriveBits(
+      {
+        name:
+          "PBKDF2",
+
+        salt,
+
+        iterations,
+
+        hash:
+          "SHA-256"
+      },
+      passwordKey,
+      256
+    );
+
+  const passwordHash =
+    new Uint8Array(
+      derivedBits
+    );
+
+  return [
+    "pbkdf2",
+    iterations,
+    bytesToBase64(
+      salt
+    ),
+    bytesToBase64(
+      passwordHash
+    )
+  ].join("$");
+}
+
+
+/* ==================================================
+   직원 권한 → 로그인 권한 변환
+
+   employees:
+   - user
+   - leader
+   - super_admin
+
+   users:
+   - user
+   - admin
+   - super_admin
+================================================== */
+
+function convertEmployeeRoleToUserRole(
+  defaultRole
+) {
+  const role =
+    normalizeText(
+      defaultRole
+    )
+      .toLowerCase()
+      .replace(
+        /\s+/g,
+        "_"
+      );
+
+  if (
+    role ===
+    "super_admin"
+  ) {
+    return "super_admin";
+  }
+
+  if (
+    role ===
+    "leader" ||
+    role ===
+    "admin"
+  ) {
+    return "admin";
+  }
+
+  return "user";
+}
+
+
+/* ==================================================
+   신규 로그인 계정 생성
+
+   기존 계정이 있으면:
+   - 비밀번호 유지
+   - 이름과 권한만 갱신
+
+   신규 계정이면:
+   - 초기 비밀번호 = 사번
+================================================== */
+
+async function saveUserAccount(
+  database,
+  employee
+) {
+  const existingUser =
+    await database
+      .prepare(`
+        SELECT
+          id,
+          employee_no
+        FROM users
+        WHERE employee_no = ?
+        LIMIT 1
+      `)
+      .bind(
+        employee.employeeNo
+      )
+      .first();
+
+
+  const userRole =
+    convertEmployeeRoleToUserRole(
+      employee.defaultRole
+    );
+
+
+  /*
+    기존 사용자:
+    비밀번호는 절대 변경하지 않는다.
+  */
+  if (existingUser) {
+    await database
+      .prepare(`
+        UPDATE users
+        SET
+          name = ?,
+          role = ?,
+          is_active = 1
+        WHERE employee_no = ?
+      `)
+      .bind(
+        employee.name,
+        userRole,
+        employee.employeeNo
+      )
+      .run();
+
+    return "existing";
+  }
+
+
+  /*
+    신규 사용자:
+    초기 비밀번호는 사번과 동일
+  */
+  const passwordHash =
+    await createInitialPasswordHash(
+      employee.employeeNo
+    );
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  await database
+    .prepare(`
+      INSERT INTO users (
+        employee_no,
+        name,
+        password_hash,
+        role,
+        is_active,
+        approved_at,
+        approved_by,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+    `)
+    .bind(
+      employee.employeeNo,
+      employee.name,
+      passwordHash,
+      userRole,
+      now,
+      "excel-import",
+      now
+    )
+    .run();
+
+
+  return "created";
+}
 
 /* ==================================================
    직원 1명 저장
@@ -500,30 +749,64 @@ export async function onRequestPost(
     let createdCount = 0;
     let updatedCount = 0;
 
-
-    for (
-      const employee of employees
-    ) {
-      const result =
-        await saveEmployee(
-          context.env.DB,
-          employee
-        );
+    let createdUserCount = 0;
+    let existingUserCount = 0;
 
 
-      if (
-        result === "created"
-      ) {
-        createdCount += 1;
-      }
+for (
+  const employee of employees
+) {
+  /*
+    직원 명단 저장
+  */
+  const employeeResult =
+    await saveEmployee(
+      context.env.DB,
+      employee
+    );
 
 
-      if (
-        result === "updated"
-      ) {
-        updatedCount += 1;
-      }
-    }
+  if (
+    employeeResult ===
+    "created"
+  ) {
+    createdCount += 1;
+  }
+
+
+  if (
+    employeeResult ===
+    "updated"
+  ) {
+    updatedCount += 1;
+  }
+
+
+  /*
+    로그인 계정 생성 또는 갱신
+  */
+  const userResult =
+    await saveUserAccount(
+      context.env.DB,
+      employee
+    );
+
+
+  if (
+    userResult ===
+    "created"
+  ) {
+    createdUserCount += 1;
+  }
+
+
+  if (
+    userResult ===
+    "existing"
+  ) {
+    existingUserCount += 1;
+  }
+}
 
 
     return jsonResponse(
@@ -538,6 +821,8 @@ export async function onRequestPost(
                 `직원 명단 저장이 완료되었습니다. ` +
                 `신규 ${createdCount}명 / ` +
                 `수정 ${updatedCount}명`
+                `로그인 계정 신규 ${createdUserCount}명 / ` +
+                `기존 계정 유지 ${existingUserCount}명`
               )
             : (
                 createdCount > 0
@@ -548,6 +833,10 @@ export async function onRequestPost(
         createdCount,
 
         updatedCount,
+
+        createdUserCount,
+
+        existingUserCount,
 
         totalCount:
           employees.length
