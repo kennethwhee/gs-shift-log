@@ -9,8 +9,14 @@
   />
   <title>GS Shift Log</title>
 
-  <link rel="stylesheet" href="style.css" />
-  <script src="script.js" defer></script>
+<link rel="stylesheet" href="style.css" />
+
+<!-- 엑셀 파일 읽기용 SheetJS -->
+<script
+  src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"
+></script>
+
+<script src="script.js" defer></script>
 </head>
 
 <!-- =========================================================
@@ -2542,26 +2548,54 @@
         </label>
 
 
-        <div class="employee-management-toolbar__actions">
+<div class="employee-management-toolbar__actions">
 
-          <button
-            type="button"
-            class="secondary-button"
-            id="refreshEmployeeManagementButton"
-          >
-            새로고침
-          </button>
+  <!-- 직원 목록 다시 불러오기 -->
+  <button
+    type="button"
+    class="secondary-button"
+    id="refreshEmployeeManagementButton"
+  >
+    새로고침
+  </button>
 
 
-          <button
-            type="button"
-            class="primary-button"
-            id="openEmployeeAddButton"
-          >
-            ＋ 직원 추가
-          </button>
+  <!-- 엑셀 파일 선택 -->
+  <button
+    type="button"
+    class="secondary-button"
+    id="openEmployeeExcelUploadButton"
+    onclick="openEmployeeExcelUpload()"
+  >
+    엑셀 업로드
+  </button>
 
-        </div>
+
+  <!-- 직원 한 명 직접 추가 -->
+  <button
+    type="button"
+    class="primary-button"
+    id="openEmployeeAddButton"
+    onchange="handleEmployeeExcelUpload(event)"
+  >
+    ＋ 직원 추가
+  </button>
+
+
+  <!--
+    실제 엑셀 파일 선택창
+
+    버튼을 누르면 JavaScript에서 이 input을 연다.
+    화면에는 표시하지 않는다.
+  -->
+  <input
+    type="file"
+    id="employeeExcelFileInput"
+    accept=".xlsx,.xls"
+    hidden
+  />
+
+</div>
 
       </section>
 

@@ -18332,3 +18332,322 @@ function createSampleLogs() {
     }
   ];
 }
+
+/* =========================================================
+  직원 엑셀 업로드 알림
+========================================================= */
+
+function showEmployeeUploadMessage(message) {
+  if (
+    typeof showToast === "function"
+  ) {
+    showToast(message);
+    return;
+  }
+
+  alert(message);
+}
+
+
+/* =========================================================
+  직원 엑셀 파일 선택창 열기
+========================================================= */
+
+function openEmployeeExcelUpload() {
+  const fileInput =
+    document.getElementById(
+      "employeeExcelFileInput"
+    );
+
+  if (!fileInput) {
+    console.error(
+      "employeeExcelFileInput 요소를 찾을 수 없습니다."
+    );
+
+    showEmployeeUploadMessage(
+      "엑셀 파일 선택창을 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+  /*
+    같은 파일을 연속으로 선택해도
+    change 이벤트가 다시 실행되도록 초기화
+  */
+  fileInput.value = "";
+
+  fileInput.click();
+}
+
+
+/* =========================================================
+  직원 엑셀 파일 읽기
+
+  현재 단계:
+  - 직원명단 시트 읽기
+  - 사번 / 이름 / 파트장 / 비고 변환
+  - 유효하지 않은 행 제거
+  - 중복 사번 제거
+  - 아직 서버에는 저장하지 않음
+========================================================= */
+
+async function handleEmployeeExcelUpload(event) {
+  const file =
+    event.target.files?.[0];
+
+  if (!file) {
+    return;
+  }
+
+  if (
+    typeof XLSX === "undefined"
+  ) {
+    console.error(
+      "SheetJS XLSX 라이브러리가 연결되지 않았습니다."
+    );
+
+    showEmployeeUploadMessage(
+      "엑셀 라이브러리를 불러오지 못했습니다."
+    );
+
+    event.target.value = "";
+
+    return;
+  }
+
+  try {
+    const arrayBuffer =
+      await file.arrayBuffer();
+
+    const workbook =
+      XLSX.read(
+        arrayBuffer,
+        {
+          type: "array"
+        }
+      );
+
+    /*
+      현재 엑셀에는 직원명단 시트와 작성안내 시트가 있으므로
+      반드시 직원명단 시트를 우선 사용한다.
+    */
+    const sheetName =
+      workbook.SheetNames.includes(
+        "직원명단"
+      )
+        ? "직원명단"
+        : workbook.SheetNames[0];
+
+    const worksheet =
+      workbook.Sheets[sheetName];
+
+    if (!worksheet) {
+      throw new Error(
+        "직원명단 시트를 찾을 수 없습니다."
+      );
+    }
+
+    const rawRows =
+      XLSX.utils.sheet_to_json(
+        worksheet,
+        {
+          defval: "",
+          raw: false
+        }
+      );
+
+    /*
+      엑셀 열 구조
+
+      사번 | 이름 | 파트장 | 비고
+    */
+    const parsedEmployees =
+      rawRows
+        .map((row, index) => {
+          const employeeNo =
+            String(
+              row["사번"] ?? ""
+            ).trim();
+
+          const name =
+            String(
+              row["이름"] ?? ""
+            ).trim();
+
+          const leaderValue =
+            String(
+              row["파트장"] ?? ""
+            ).trim();
+
+          const note =
+            String(
+              row["비고"] ?? ""
+            ).trim();
+
+          return {
+            rowNumber: index + 2,
+            employeeNo,
+            name,
+            isLeader:
+              leaderValue === "파트장",
+            note
+          };
+        })
+        .filter((employee) => {
+          return (
+            employee.employeeNo ||
+            employee.name
+          );
+        });
+
+    /*
+      사번 또는 이름이 비어 있는 행
+    */
+    const invalidEmployees =
+      parsedEmployees.filter(
+        (employee) => {
+          return (
+            !employee.employeeNo ||
+            !employee.name
+          );
+        }
+      );
+
+    if (
+      invalidEmployees.length > 0
+    ) {
+      const invalidRows =
+        invalidEmployees
+          .map(
+            (employee) =>
+              employee.rowNumber
+          )
+          .join(", ");
+
+      throw new Error(
+        `사번 또는 이름이 비어 있는 행이 있습니다. 행 번호: ${invalidRows}`
+      );
+    }
+
+    /*
+      사번 중복 제거
+
+      같은 사번이 여러 번 있으면
+      첫 번째 항목만 유지한다.
+    */
+    const employeeMap =
+      new Map();
+
+    const duplicateEmployeeNumbers =
+      [];
+
+    parsedEmployees.forEach(
+      (employee) => {
+        if (
+          employeeMap.has(
+            employee.employeeNo
+          )
+        ) {
+          duplicateEmployeeNumbers.push(
+            employee.employeeNo
+          );
+
+          return;
+        }
+
+        employeeMap.set(
+          employee.employeeNo,
+          employee
+        );
+      }
+    );
+
+    const employees =
+      Array.from(
+        employeeMap.values()
+      ).map((employee) => {
+        return {
+          employeeNo:
+            employee.employeeNo,
+
+          name:
+            employee.name,
+
+          isLeader:
+            employee.isLeader,
+
+          note:
+            employee.note
+        };
+      });
+
+    if (
+      employees.length === 0
+    ) {
+      throw new Error(
+        "등록할 직원 정보가 없습니다."
+      );
+    }
+
+    const leaderCount =
+      employees.filter(
+        (employee) =>
+          employee.isLeader
+      ).length;
+
+    console.log(
+      "직원 엑셀 원본:",
+      rawRows
+    );
+
+    console.log(
+      "변환된 직원명단:",
+      employees
+    );
+
+    if (
+      duplicateEmployeeNumbers.length > 0
+    ) {
+      console.warn(
+        "중복 사번:",
+        duplicateEmployeeNumbers
+      );
+    }
+
+    /*
+      다음 단계에서 서버로 보낼 수 있도록
+      임시 전역 변수에 보관
+    */
+    window.pendingEmployeeExcelData =
+      employees;
+
+    let resultMessage =
+      `직원 ${employees.length}명, 파트장 ${leaderCount}명을 읽었습니다.`;
+
+    if (
+      duplicateEmployeeNumbers.length > 0
+    ) {
+      resultMessage +=
+        ` 중복 사번 ${duplicateEmployeeNumbers.length}건은 제외했습니다.`;
+    }
+
+    showEmployeeUploadMessage(
+      resultMessage
+    );
+
+  } catch (error) {
+    console.error(
+      "직원 엑셀 읽기 오류:",
+      error
+    );
+
+    showEmployeeUploadMessage(
+      error.message ||
+      "엑셀 파일을 읽지 못했습니다."
+    );
+
+  } finally {
+    event.target.value = "";
+  }
+}
