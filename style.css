@@ -13198,6 +13198,7 @@ tbody tr:hover td {
 }
 
 
+
 /* =========================================================
   메인 업무일지 목록
 
@@ -13212,13 +13213,13 @@ tbody tr:hover td {
 #logTableBody > tr > td {
   border-bottom:
     2px solid
-    #9fb3c8 !important;
+    #b8c7d8 !important;
 }
 
 #logTableBody > tr:not(:last-child) > td {
   box-shadow:
-    inset 0 -4px 0
-    rgba(46, 92, 145, 0.07);
+    inset 0 -3px 0
+    rgba(31, 95, 174, 0.035);
 }
 
 #logTableBody > tr:last-child > td {
@@ -13230,8 +13231,8 @@ tbody tr:hover td {
    두 번째 사람부터 위쪽에 여백감 추가 */
 #logTableBody > tr + tr > td {
   border-top:
-    6px solid
-    #dde7f2 !important;
+    5px solid
+    #edf2f7 !important;
 }
 
 
@@ -13249,13 +13250,13 @@ tbody tr:hover td {
 #searchResultBody > tr > td {
   border-bottom:
     2px solid
-    #9fb3c8 !important;
+    #b8c7d8 !important;
 }
 
 #searchResultBody > tr:not(:last-child) > td {
   box-shadow:
-    inset 0 -4px 0
-    rgba(46, 92, 145, 0.07);
+    inset 0 -3px 0
+    rgba(31, 95, 174, 0.035);
 }
 
 #searchResultBody > tr:last-child > td {
@@ -13266,8 +13267,8 @@ tbody tr:hover td {
 /* 사람과 사람 사이에 얇은 여백 띠 추가 */
 #searchResultBody > tr + tr > td {
   border-top:
-    6px solid
-    #dde7f2 !important;
+    5px solid
+    #edf2f7 !important;
 }
 
 
@@ -13284,7 +13285,7 @@ tbody tr:hover td {
 #logTableBody > tr > td:nth-child(-n + 4),
 #searchResultBody > tr > td:nth-child(-n + 4) {
   border-bottom-color:
-    #8ea7c0 !important;
+    #9fb2c7 !important;
 }
 
 
@@ -13295,7 +13296,7 @@ tbody tr:hover td {
 #logTableBody > tr > td.log-row__preview-cell,
 #searchResultBody > tr > td.search-log-preview-cell {
   border-bottom-color:
-    #98afc7 !important;
+    #aebfd1 !important;
 }
 
 
@@ -13306,7 +13307,7 @@ tbody tr:hover td {
 #logTableBody > tr:hover > td,
 #searchResultBody > tr:hover > td {
   background:
-    #eef6ff !important;
+    #f6faff !important;
 }
 
 
@@ -13320,7 +13321,7 @@ tbody tr:hover td {
   #logTableBody > tr + tr > td,
   #searchResultBody > tr + tr > td {
     border-top-width:
-      4px !important;
+      3px !important;
   }
 
   #logTableBody > tr > td,
