@@ -13332,47 +13332,180 @@ tbody tr:hover td {
 }
 
 /* =========================================================
-   조회목록 업무내용 최종 정렬
+   조회 화면 업무내용 최종 통합본
 
-   번호 | 시간 | TAG + 내용
+   구조:
+   제목 | 번호 | 시간 | TAG + 내용
 
-   적용 대상:
-   조회 탭의 업무 내용 미리보기만
+   목표:
+   - TM 첫 항목도 한 줄
+   - 같은 분류의 2번 이후도 동일한 시작 위치
+   - 인계 제목 박스 제거
+   - 제목은 색상 글자만 표시
 ========================================================= */
 
 
-/* =========================================================
-   번호·시간·본문 전체 행
-========================================================= */
+/* 전체 미리보기 */
 
-.search-log-preview
-.log-preview__content {
-  display: grid;
+.search-log-preview {
+  display: flex !important;
 
   width: 100%;
   min-width: 0;
 
-  grid-template-columns:
-    24px
-    max-content
-    minmax(0, 1fr);
+  flex-direction: column;
+  align-items: stretch;
 
-  align-items: baseline;
-
-  column-gap: 7px;
+  gap: 0 !important;
 
   margin: 0;
-  padding: 2px 0;
+  padding: 0;
 
-  color: #26364b;
+  border: 0;
+  background: transparent;
 
   text-align: left;
 }
 
 
-/* =========================================================
-   번호가 없는 운전현황·비고
-========================================================= */
+/* 항목 한 줄
+
+   제목 86px
+   나머지 전체는 내용
+*/
+
+.search-log-preview
+.log-preview__group {
+  display: grid !important;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    86px
+    minmax(0, 1fr) !important;
+
+  align-items: baseline;
+
+  column-gap: 8px;
+
+  margin: 0;
+  padding: 3px 0;
+}
+
+
+/* 첫 항목 이후 제목이 없는 줄 */
+
+.search-log-preview
+.log-preview__group.has-no-title
+.log-preview__content {
+  grid-column: 2 !important;
+}
+
+
+/* 기존 가상 제목 공간 제거 */
+
+.search-log-preview
+.log-preview__group.has-no-title::before {
+  display: none !important;
+  content: none !important;
+}
+
+
+/* 제목 공통
+   배경·테두리·둥근 박스 완전 제거
+*/
+
+.search-log-preview
+.log-preview__title {
+  display: block !important;
+
+  width: 86px !important;
+  min-width: 86px !important;
+  min-height: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1.55 !important;
+
+  text-align: left !important;
+
+  white-space: nowrap;
+}
+
+
+/* 제목 색상 */
+
+.search-log-preview
+.log-preview__group.is-operation
+.log-preview__title {
+  color: #1763b6 !important;
+}
+
+.search-log-preview
+.log-preview__group.is-maintenance
+.log-preview__title {
+  color: #16845b !important;
+}
+
+.search-log-preview
+.log-preview__group.is-handover
+.log-preview__title {
+  color: #b56a00 !important;
+}
+
+.search-log-preview
+.log-preview__group.is-note
+.log-preview__title {
+  color: #667386 !important;
+}
+
+
+/* 번호·시간·본문 한 줄
+
+   번호 22px
+   시간은 내용에 따라 자동
+   본문은 남은 공간 전체
+*/
+
+.search-log-preview
+.log-preview__content {
+  display: grid !important;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    22px
+    max-content
+    minmax(0, 1fr);
+
+  align-items: baseline;
+
+  column-gap: 6px;
+
+  margin: 0;
+  padding: 0 !important;
+
+  color: #26364b;
+
+  font-size: 12px;
+  line-height: 1.55;
+
+  text-align: left;
+}
+
+
+/* 운전현황·비고는 번호와 시간이 없음 */
 
 .search-log-preview
 .log-preview__group.is-operation
@@ -13386,23 +13519,23 @@ tbody tr:hover td {
 }
 
 
-/* =========================================================
-   번호
-========================================================= */
+/* 번호 */
 
 .search-log-preview
 .log-preview__entry-number {
-  display: block;
+  display: block !important;
 
-  width: 24px;
-  min-width: 24px;
+  grid-column: 1;
+
+  width: 22px;
+  min-width: 22px;
 
   margin: 0;
   padding: 0;
 
   font-size: 12px;
   font-weight: 900;
-  line-height: 1.55;
+  line-height: inherit;
 
   text-align: right;
 
@@ -13410,43 +13543,38 @@ tbody tr:hover td {
 }
 
 
-/*
-  TM 번호
-*/
+/* TM 번호 */
+
 .search-log-preview
 .log-preview__entry-number.is-tm-number {
-  color: #b87412;
+  color: #b87412 !important;
 }
 
 
-/*
-  인계사항 번호
-*/
+/* 인계 번호 */
+
 .search-log-preview
 .log-preview__entry-number.is-handover-number {
-  color: #1f5fae;
+  color: #1f5fae !important;
 }
 
 
-/* =========================================================
-   시간
-========================================================= */
+/* 시간 */
 
 .search-log-preview
 .log-preview__entry-time {
-  display: block;
+  display: block !important;
 
-  width: auto;
-  min-width: 0;
+  grid-column: 2;
 
   margin: 0;
   padding: 0;
 
-  color: #1f5fae;
+  color: #2456a6;
 
   font-size: 12px;
   font-weight: 900;
-  line-height: 1.55;
+  line-height: inherit;
 
   font-variant-numeric: tabular-nums;
 
@@ -13454,13 +13582,13 @@ tbody tr:hover td {
 }
 
 
-/* =========================================================
-   TAG와 내용 묶음
-========================================================= */
+/* TAG와 내용 묶음 */
 
 .search-log-preview
 .log-preview__body {
-  display: block;
+  display: block !important;
+
+  grid-column: 3;
 
   min-width: 0;
 
@@ -13471,66 +13599,6 @@ tbody tr:hover td {
 
   font-size: 12px;
   font-weight: 600;
-  line-height: 1.55;
-
-  text-align: left;
-
-  white-space: normal;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-
-
-/* =========================================================
-   TAG
-========================================================= */
-
-.search-log-preview
-.log-preview__body
-.log-preview__tag {
-  display: inline;
-
-  width: auto;
-  min-width: 0;
-  min-height: 0;
-
-  margin: 0 5px 0 0;
-  padding: 0;
-
-  border: 0;
-  border-radius: 0;
-
-  background: transparent;
-  color: #1763c5;
-
-  font: inherit;
-  font-size: 11px;
-  font-weight: 900;
-  line-height: inherit;
-
-  vertical-align: baseline;
-
-  white-space: nowrap;
-}
-
-
-/* =========================================================
-   실제 내용
-========================================================= */
-
-.search-log-preview
-.log-preview__body
-.log-preview__text {
-  display: inline;
-
-  min-width: 0;
-
-  margin: 0;
-  padding: 0;
-
-  color: #26364b;
-
-  font: inherit;
   line-height: inherit;
 
   text-align: left;
@@ -13541,23 +13609,20 @@ tbody tr:hover td {
 }
 
 
-/* =========================================================
-   시간이 없는 항목
+/* 시간이 없는 TM·인계
 
-   번호 | 내용
-========================================================= */
+   번호 | 본문
+*/
 
 .search-log-preview
 .log-preview__entry-number
 +
 .log-preview__body {
-  grid-column: 2 / 4;
+  grid-column: 2 / 4 !important;
 }
 
 
-/* =========================================================
-   운전현황·비고 내용
-========================================================= */
+/* 운전현황·비고 본문 */
 
 .search-log-preview
 .log-preview__group.is-operation
@@ -13566,19 +13631,107 @@ tbody tr:hover td {
 .search-log-preview
 .log-preview__group.is-note
 .log-preview__body {
-  grid-column: 1;
+  grid-column: 1 !important;
 }
 
 
-/* =========================================================
-   좁은 화면
-========================================================= */
+/* TAG */
+
+.search-log-preview
+.log-preview__body
+.log-preview__tag {
+  display: inline !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+
+  margin: 0 5px 0 0 !important;
+  padding: 0 !important;
+
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  background: transparent !important;
+  color: #1763c5 !important;
+
+  font-family:
+    Consolas,
+    "Courier New",
+    monospace;
+
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: inherit !important;
+
+  vertical-align: baseline;
+
+  white-space: nowrap;
+}
+
+
+/* 실제 내용 */
+
+.search-log-preview
+.log-preview__body
+.log-preview__text {
+  display: inline !important;
+
+  width: auto !important;
+  min-width: 0;
+
+  margin: 0;
+  padding: 0;
+
+  color: #26364b;
+
+  font-size: 12px;
+  font-weight: 600;
+  line-height: inherit;
+
+  vertical-align: baseline;
+
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/* 분류가 바뀌는 지점만 구분선 */
+
+.search-log-preview
+.log-preview__group.is-section-start {
+  margin-top: 3px;
+  padding-top: 6px;
+
+  border-top: 1px solid #dfe7ef;
+}
+
+
+/* 좁은 화면 */
 
 @media (max-width: 1200px) {
   .search-log-preview
+  .log-preview__group {
+    grid-template-columns:
+      78px
+      minmax(0, 1fr) !important;
+
+    column-gap: 7px;
+  }
+
+  .search-log-preview
+  .log-preview__title {
+    width: 78px !important;
+    min-width: 78px !important;
+
+    font-size: 10px !important;
+  }
+
+  .search-log-preview
   .log-preview__content {
     grid-template-columns:
-      22px
+      20px
       max-content
       minmax(0, 1fr);
 
@@ -13587,128 +13740,7 @@ tbody tr:hover td {
 
   .search-log-preview
   .log-preview__entry-number {
-    width: 22px;
-    min-width: 22px;
-
-    font-size: 11px;
+    width: 20px;
+    min-width: 20px;
   }
-
-  .search-log-preview
-  .log-preview__entry-time,
-  .search-log-preview
-  .log-preview__body {
-    font-size: 11px;
-  }
-
-  .search-log-preview
-  .log-preview__body
-  .log-preview__tag {
-    font-size: 10px;
-  }
-}
-
-/* =========================================================
-   조회 화면 TM 항목 깨짐 긴급 수정
-
-   번호 | TAG 내용
-   한 줄 유지
-========================================================= */
-
-.search-log-preview
-.log-preview__group.is-maintenance
-.log-preview__content {
-  display: grid !important;
-
-  width: 100%;
-  min-width: 0;
-
-  grid-template-columns:
-    26px
-    minmax(0, 1fr) !important;
-
-  align-items: baseline;
-
-  column-gap: 7px;
-}
-
-
-/* TM 번호 */
-
-.search-log-preview
-.log-preview__group.is-maintenance
-.log-preview__entry-number {
-  grid-column: 1;
-
-  width: 26px;
-  min-width: 26px;
-
-  text-align: right;
-}
-
-
-/* TM 본문 */
-
-.search-log-preview
-.log-preview__group.is-maintenance
-.log-preview__body {
-  display: block !important;
-
-  grid-column: 2 !important;
-
-  width: 100%;
-  min-width: 0;
-
-  margin: 0;
-  padding: 0;
-
-  text-align: left;
-}
-
-
-/* TAG와 내용은 같은 문장 흐름 */
-
-.search-log-preview
-.log-preview__group.is-maintenance
-.log-preview__body
-.log-preview__tag {
-  display: inline !important;
-
-  width: auto;
-  min-width: 0;
-  min-height: 0;
-
-  margin: 0 5px 0 0;
-  padding: 0;
-
-  border: 0;
-  background: transparent;
-
-  vertical-align: baseline;
-}
-
-
-.search-log-preview
-.log-preview__group.is-maintenance
-.log-preview__body
-.log-preview__text {
-  display: inline !important;
-
-  width: auto;
-  min-width: 0;
-
-  margin: 0;
-  padding: 0;
-
-  vertical-align: baseline;
-}
-
-
-/* 기존 시간 없는 항목 강제 확장 무효화 */
-
-.search-log-preview
-.log-preview__group.is-maintenance
-.log-preview__entry-number
-+
-.log-preview__body {
-  grid-column: 2 !important;
 }
