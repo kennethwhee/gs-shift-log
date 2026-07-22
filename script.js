@@ -4017,9 +4017,113 @@ function updateMemberLogImportCount() {
     `가져온 내역 ${importedCount}건`;
 }
 
+/* =========================================================
+  특정 팀원 업무일지의 기존 가져오기 항목 제거
+
+  같은 원본 업무일지에서 가져온 항목을 먼저 제거한 뒤
+  최신 원본을 다시 가져와 보직 오분류를 바로잡는다.
+
+  파트장이 직접 입력한 항목과
+  다른 보직에서 가져온 항목은 유지한다.
+========================================================= */
+
+function removeImportedEntriesForMemberLog(
+  memberLog,
+  requestedRole
+) {
+  const normalizedRole =
+    normalizeMemberLogRole(
+      requestedRole
+    );
+
+
+  const sourceLogId =
+    String(
+      memberLog?.id ||
+      ""
+    ).trim();
+
+
+  const previousCount =
+    appState.editorEntries.length;
+
+
+  appState.editorEntries =
+    appState.editorEntries.filter(
+      (currentEntry) => {
+        const currentSourceRole =
+          normalizeMemberLogRole(
+            currentEntry
+              .importedFromRole
+          );
+
+
+        const currentSourceLogId =
+          String(
+            currentEntry
+              .importedFromLogId ||
+            ""
+          ).trim();
+
+
+        /*
+          파트장이 직접 입력한 내역은 유지한다.
+        */
+        if (
+          !currentSourceRole &&
+          !currentSourceLogId
+        ) {
+          return true;
+        }
+
+
+        /*
+          같은 원본 업무일지 ID에서 가져온 항목은 제거한다.
+
+          기존에 importedFromRole이 잘못 저장됐더라도
+          원본 ID 기준으로 찾아서 제거할 수 있다.
+        */
+        if (
+          sourceLogId &&
+          currentSourceLogId ===
+            sourceLogId
+        ) {
+          return false;
+        }
+
+
+        /*
+          과거 데이터 중 원본 업무일지 ID가 없었던 경우에는
+          보직 정보로 제거한다.
+        */
+        if (
+          !currentSourceLogId &&
+          currentSourceRole ===
+            normalizedRole
+        ) {
+          return false;
+        }
+
+
+        return true;
+      }
+    );
+
+
+  return (
+    previousCount -
+    appState.editorEntries.length
+  );
+}
 
 /* =========================================================
-  보직별 신규 내역 가져오기
+  보직별 업무일지 동기화 가져오기
+
+  기존 가져오기 항목을 원본 업무일지 기준으로 제거한 뒤
+  최신 원본 항목을 다시 등록한다.
+
+  따라서 과거에 TGO·BCO1·BCO2가 잘못 분류된 경우에도
+  다시 가져오면 올바른 보직으로 복구된다.
 ========================================================= */
 
 function importMemberLogByRole(
@@ -4070,6 +4174,9 @@ function importMemberLogByRole(
       addedCount:
         0,
 
+      removedCount:
+        0,
+
       skippedCount:
         0
     };
@@ -4086,9 +4193,34 @@ function importMemberLogByRole(
     );
 
 
+  /*
+    기존에 이 원본 업무일지에서 가져온 항목을
+    먼저 제거하고 최신 원본으로 다시 구성한다.
+
+    importedFromRole이 잘못 저장됐더라도
+    importedFromLogId가 같으면 제거된다.
+  */
+  const removedCount =
+    removeImportedEntriesForMemberLog(
+      memberLog,
+      normalizedRole
+    );
+
+
   if (
     !importableItems.length
   ) {
+    if (
+      !deferRender
+    ) {
+      sortImportedLogEntries();
+
+      renderLogEntryTable();
+
+      updateMemberLogImportStatus();
+    }
+
+
     if (
       !silent
     ) {
@@ -4112,6 +4244,8 @@ function importMemberLogByRole(
 
       addedCount:
         0,
+
+      removedCount,
 
       skippedCount:
         0
@@ -4141,23 +4275,30 @@ function importMemberLogByRole(
 
 
       /*
-        같은 원본 항목이 이미 존재하는지 확인
-      */
-      const isSameSource =
-        hasImportedMemberSourceEntry(
-          memberLog,
-          normalizedRole,
-          entry,
-          entryIndex
-        );
+        동일 보직 안에서만 중복을 검사한다.
 
-
-      /*
-        동일 내용 또는 90% 이상 유사한 내용 확인
+        이전에는 다른 보직에 같은 내용이 있어도
+        중복으로 판단하여 BCO1·BCO2 업무가
+        누락되거나 TGO로 묶일 수 있었다.
       */
       const isSameContent =
         appState.editorEntries.some(
           (currentEntry) => {
+            const currentRole =
+              normalizeMemberLogRole(
+                currentEntry
+                  .importedFromRole
+              );
+
+
+            if (
+              currentRole !==
+              normalizedRole
+            ) {
+              return false;
+            }
+
+
             return isSameOrSimilarMemberEntry(
               currentEntry,
               importedEntry,
@@ -4168,7 +4309,6 @@ function importMemberLogByRole(
 
 
       if (
-        isSameSource ||
         isSameContent
       ) {
         skippedCount +=
@@ -4178,9 +4318,25 @@ function importMemberLogByRole(
       }
 
 
-      appState.editorEntries.push(
-        importedEntry
-      );
+      appState.editorEntries.push({
+        ...importedEntry,
+
+        /*
+          현재 요청한 보직을 다시 명시하여
+          잘못된 출처 보직이 복사되지 않게 한다.
+        */
+        importedFromRole:
+          normalizedRole,
+
+        importedFromLogId:
+          String(
+            memberLog.id ||
+            ""
+          ).trim(),
+
+        importedFromEntryIndex:
+          entryIndex
+      });
 
 
       addedCount +=
@@ -4190,12 +4346,14 @@ function importMemberLogByRole(
 
 
   /*
-    일괄 취합 시에는
-    상위·하위 TM 중복을 즉시 정리한다.
+    일괄 취합에서는 TM 상·하위 보직 중복을 정리한다.
+
+    TGO > TO
+    BCO1 > BO1
+    BCO2 > BO2
   */
   if (
-    mode ===
-    "all"
+    mode === "all"
   ) {
     appState.editorEntries =
       filterLeaderTmEntriesByRoleHierarchy(
@@ -4223,12 +4381,20 @@ function importMemberLogByRole(
       0
     ) {
       showToast(
-        `${normalizedRole} 업무일지에서 신규 내역 ${addedCount}건을 가져왔습니다.`
+        `${normalizedRole} 업무일지 ${addedCount}건을 최신 내용으로 동기화했습니다.`
+      );
+
+    } else if (
+      removedCount >
+      0
+    ) {
+      showToast(
+        `${normalizedRole} 업무일지의 가져온 내역을 최신 상태로 정리했습니다.`
       );
 
     } else {
       showToast(
-        `${normalizedRole} 업무일지의 신규 내역이 없어 가져올 수 없습니다.`
+        `${normalizedRole} 업무일지에 가져올 내역이 없습니다.`
       );
     }
   }
@@ -4246,24 +4412,26 @@ function importMemberLogByRole(
 
     addedCount,
 
+    removedCount,
+
     skippedCount
   };
 }
 
 /* =========================================================
-  전체 보직 신규 내역 가져오기
+  파트장 업무일지 일괄 재동기화
+
+  TGO·BCO1·BCO2:
+  전체 업무
+
+  TO·BO1·BO2:
+  TM 발행 내역만
+
+  기존 잘못된 분류를 원본 업무일지 ID 기준으로 제거하고
+  각 보직의 최신 업무일지를 다시 취합한다.
 ========================================================= */
 
 function importAllMemberLogs() {
-  /*
-    일괄 취합 기본 규칙
-
-    TGO, BCO1, BCO2:
-    전체 업무
-
-    TO, BO1, BO2:
-    TM 발행만
-  */
   const importRoles = [
     "TGO",
     "BCO1",
@@ -4275,6 +4443,9 @@ function importAllMemberLogs() {
 
 
   let totalAddedCount =
+    0;
+
+  let totalRemovedCount =
     0;
 
   let totalSkippedCount =
@@ -4311,24 +4482,37 @@ function importAllMemberLogs() {
 
 
       totalAddedCount +=
-        result.addedCount;
+        Number(
+          result.addedCount ||
+          0
+        );
+
+
+      totalRemovedCount +=
+        Number(
+          result.removedCount ||
+          0
+        );
 
 
       totalSkippedCount +=
-        result.skippedCount;
+        Number(
+          result.skippedCount ||
+          0
+        );
     }
   );
 
 
   /*
-    최종 TM 우선순위 정리
+    최종 TM 중복 정리
 
     TGO > TO
     BCO1 > BO1
     BCO2 > BO2
 
-    유사도 70% 이상인 경우
-    하위 보직 TM을 제거한다.
+    유사도 70% 이상이면
+    상위 보직 TM만 유지한다.
   */
   appState.editorEntries =
     filterLeaderTmEntriesByRoleHierarchy(
@@ -4357,10 +4541,12 @@ function importAllMemberLogs() {
 
   if (
     totalAddedCount ===
-    0
+      0 &&
+    totalRemovedCount ===
+      0
   ) {
     showToast(
-      "신규 내역이 없어 가져올 수 없습니다."
+      "동기화할 팀원 업무일지 내역이 없습니다."
     );
 
     return;
@@ -4368,7 +4554,7 @@ function importAllMemberLogs() {
 
 
   showToast(
-    `파트장 업무일지에 신규 내역 ${totalAddedCount}건을 취합했습니다.`
+    `팀원 업무일지 ${totalAddedCount}건을 보직별로 다시 동기화했습니다.`
   );
 }
 
