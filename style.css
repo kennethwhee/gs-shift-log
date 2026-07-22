@@ -11936,3 +11936,535 @@ tbody tr:first-child td {
         font-size:13px !important;
     }
 }
+
+/* =========================================================
+   업무일지 조회 결과 최종 디자인
+
+   구조:
+   일자 | 근무 | 보직 | 작성자
+   상태 | 첨부 | 업무 내용 | 보기
+========================================================= */
+
+/* =========================================================
+   조회 결과 표 전체
+========================================================= */
+
+.search-log-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  border: 1px solid #d7e0ea;
+  border-radius: 12px;
+
+  background: #ffffff;
+}
+
+.search-result-table {
+  width: 100%;
+  min-width: 1120px;
+
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+
+/* =========================================================
+   열 너비
+========================================================= */
+
+.search-result-table
+.search-result-table__date {
+  width: 105px;
+}
+
+.search-result-table
+.search-result-table__shift {
+  width: 66px;
+}
+
+.search-result-table
+.search-result-table__role {
+  width: 82px;
+}
+
+.search-result-table
+.search-result-table__author {
+  width: 92px;
+}
+
+.search-result-table
+.search-result-table__status {
+  width: 94px;
+}
+
+.search-result-table
+.search-result-table__attachment {
+  width: 62px;
+}
+
+.search-result-table
+.search-result-table__content {
+  width: auto;
+}
+
+.search-result-table
+.search-result-table__view {
+  width: 76px;
+}
+
+
+/* =========================================================
+   공통 셀
+========================================================= */
+
+.search-result-table th {
+  height: 44px;
+  padding: 0 10px;
+
+  border-bottom: 1px solid #d7e0ea;
+
+  background: #f1f5f9;
+  color: #4c5c72;
+
+  font-size: 11px;
+  font-weight: 900;
+
+  text-align: center;
+  vertical-align: middle;
+}
+
+.search-result-table td {
+  padding: 12px 10px;
+
+  border-bottom: 1px solid #dce4ed;
+
+  background: #ffffff;
+  color: #304158;
+
+  font-size: 12px;
+  line-height: 1.5;
+
+  vertical-align: middle;
+}
+
+.search-result-table
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.search-result-table
+tbody tr:hover td {
+  background: #fbfdff;
+}
+
+
+/* =========================================================
+   일자·근무·보직·작성자
+========================================================= */
+
+.search-log-date-cell,
+.search-log-shift-cell,
+.search-log-role-cell,
+.search-log-author-cell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.search-log-date-cell {
+  color: #334967;
+  font-variant-numeric: tabular-nums;
+}
+
+.search-log-shift-cell {
+  color: #35516f;
+  font-weight: 800;
+}
+
+.search-log-role-cell {
+  color: #253b58;
+  font-weight: 900;
+}
+
+.search-log-author-cell strong {
+  color: #1f3048;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+
+/* =========================================================
+   상태·첨부·보기
+========================================================= */
+
+.search-log-status-cell,
+.search-log-attachment-cell,
+.search-log-view-cell {
+  text-align: center;
+}
+
+.search-log-status-cell
+.status-badge {
+  min-width: 68px;
+  min-height: 25px;
+
+  padding: 0 9px;
+
+  font-size: 10px;
+}
+
+.search-log-attachment-cell
+.attachment-indicator {
+  min-width: 27px;
+  min-height: 27px;
+
+  padding: 0 6px;
+
+  font-size: 12px;
+}
+
+.search-log-view-cell
+.table-action-button {
+  width: 58px;
+  min-width: 58px;
+  height: 29px;
+  min-height: 29px;
+
+  padding: 0 8px;
+
+  font-size: 10px;
+}
+
+
+/* =========================================================
+   업무 내용 셀
+========================================================= */
+
+.search-log-preview-cell {
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+
+  text-align: left;
+  vertical-align: top !important;
+}
+
+.search-log-preview {
+  display: flex;
+
+  width: 100%;
+  min-width: 0;
+
+  flex-direction: column;
+  gap: 5px;
+
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  background: transparent;
+
+  color: inherit;
+  text-align: left;
+
+  cursor: pointer;
+}
+
+
+/* =========================================================
+   업무 내용 한 줄
+
+   제목 | 번호·시간·TAG·내용
+========================================================= */
+
+.search-log-preview
+.log-preview__group {
+  display: grid;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    82px
+    minmax(0, 1fr);
+
+  align-items: start;
+  column-gap: 9px;
+
+  margin: 0;
+  padding: 0;
+}
+
+.search-log-preview
+.log-preview__group.has-no-title
+.log-preview__content {
+  grid-column: 2;
+}
+
+
+/* =========================================================
+   운전현황·TM·인계·비고 배지
+========================================================= */
+
+.search-log-preview
+.log-preview__title {
+  display: inline-flex;
+
+  min-width: 0;
+  min-height: 23px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 2px 7px;
+
+  border-radius: 6px;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.35;
+
+  white-space: nowrap;
+}
+
+.search-log-preview
+.log-preview__group.is-operation
+.log-preview__title {
+  border: 1px solid #b9d4f1;
+  background: #eaf3fc;
+  color: #1f5fae;
+}
+
+.search-log-preview
+.log-preview__group.is-maintenance
+.log-preview__title {
+  border: 1px solid #b9dec9;
+  background: #eaf8f0;
+  color: #19764b;
+}
+
+.search-log-preview
+.log-preview__group.is-handover
+.log-preview__title {
+  border: 1px solid #efd09c;
+  background: #fff5e4;
+  color: #a2670d;
+}
+
+.search-log-preview
+.log-preview__group.is-note
+.log-preview__title {
+  border: 1px solid #d5dce5;
+  background: #f2f5f8;
+  color: #657184;
+}
+
+
+/* =========================================================
+   번호·시간·TAG·내용 영역
+========================================================= */
+
+.search-log-preview
+.log-preview__content {
+  display: flex;
+
+  min-width: 0;
+
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  padding-top: 2px;
+
+  color: #2d3d53;
+
+  font-size: 12px;
+  line-height: 1.55;
+
+  text-align: left;
+}
+
+
+/* 번호 */
+.search-log-preview
+.log-preview__entry-number {
+  display: inline-block;
+  flex: 0 0 auto;
+
+  color: #1f5fae;
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: inherit;
+
+  white-space: nowrap;
+}
+
+.search-log-preview
+.log-preview__entry-number.is-tm-number {
+  color: #14815a;
+}
+
+.search-log-preview
+.log-preview__entry-number.is-handover-number {
+  color: #1f5fae;
+}
+
+
+/* 시간 */
+.search-log-preview
+.log-preview__entry-time {
+  display: inline-block;
+  flex: 0 0 auto;
+
+  color: #30455f;
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: inherit;
+
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+
+/* TAG */
+.search-log-preview
+.log-preview__tag {
+  display: inline;
+
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  border-radius: 0;
+
+  background: transparent;
+  color: #1763c5;
+
+  font-family:
+    Consolas,
+    "Courier New",
+    monospace;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: inherit;
+
+  white-space: nowrap;
+}
+
+.search-log-preview
+.log-preview__tag:hover {
+  background: transparent;
+  color: #0c4c9d;
+  text-decoration: underline;
+}
+
+
+/* 실제 내용 */
+.search-log-preview
+.log-preview__text {
+  display: inline;
+  flex: 1 1 240px;
+
+  min-width: 0;
+
+  color: #26364b;
+
+  font-size: 12px;
+  font-weight: 650;
+  line-height: inherit;
+
+  text-align: left;
+
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+   구역 사이 구분선
+========================================================= */
+
+.search-log-preview
+.log-preview__group.is-section-start {
+  margin-top: 3px;
+  padding-top: 6px;
+
+  border-top: 1px solid #e1e7ee;
+}
+
+
+/* =========================================================
+   내용이 없을 때
+========================================================= */
+
+.search-log-preview
+.log-preview__empty {
+  display: block;
+
+  padding: 5px 0;
+
+  color: #8994a3;
+  font-size: 12px;
+
+  text-align: left;
+}
+
+
+/* =========================================================
+   마우스·키보드 선택
+========================================================= */
+
+.search-log-preview:hover
+.log-preview__text {
+  color: #1f5fae;
+}
+
+.search-log-preview:focus-visible {
+  outline: 2px solid rgba(31, 95, 174, 0.26);
+  outline-offset: 4px;
+
+  border-radius: 6px;
+}
+
+
+/* =========================================================
+   작은 화면
+========================================================= */
+
+@media (max-width: 900px) {
+  .search-result-table {
+    min-width: 1040px;
+  }
+
+  .search-log-preview
+  .log-preview__group {
+    grid-template-columns:
+      74px
+      minmax(0, 1fr);
+  }
+
+  .search-log-preview
+  .log-preview__title {
+    font-size: 9px;
+  }
+
+  .search-log-preview
+  .log-preview__content,
+  .search-log-preview
+  .log-preview__entry-number,
+  .search-log-preview
+  .log-preview__entry-time,
+  .search-log-preview
+  .log-preview__text {
+    font-size: 11px;
+  }
+
+  .search-log-preview
+  .log-preview__tag {
+    font-size: 10px;
+  }
+}
