@@ -2576,23 +2576,18 @@
     type="button"
     class="primary-button"
     id="openEmployeeAddButton"
-    onchange="handleEmployeeExcelUpload(event)"
   >
     ＋ 직원 추가
   </button>
 
 
-  <!--
-    실제 엑셀 파일 선택창
-
-    버튼을 누르면 JavaScript에서 이 input을 연다.
-    화면에는 표시하지 않는다.
-  -->
+  <!-- 실제 엑셀 파일 선택창 -->
   <input
     type="file"
     id="employeeExcelFileInput"
     accept=".xlsx,.xls"
     hidden
+    onchange="handleEmployeeExcelUpload(event)"
   />
 
 </div>
