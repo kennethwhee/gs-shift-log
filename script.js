@@ -792,7 +792,7 @@ async function loadEmployeeManagement() {
   try {
     const response =
       await fetch(
-        "/api/users",
+        "/api/employees?type=users",
         {
           method:
             "GET",
