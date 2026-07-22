@@ -11829,96 +11829,104 @@ tbody tr:first-child td {
 }
 
 /* =========================================================
-   업무일지 상세보기
-   인수인계사항 업무내용 글씨 2배 확대
+   업무일지 수정창
+   인수인계사항 추가 업무내용 글씨 확대 최종본
+
+   적용 대상:
+   - TM 발행 내역
+   - 인계사항
+   - 번호
+   - 시간
+   - 실제 업무내용
 ========================================================= */
 
-/*
-  인계사항 한 항목 전체
+/* =========================================================
+   업무내용 한 줄 전체
+========================================================= */
 
-  번호 / 시간 / TAG / 업무내용을
-  기존 약 13px에서 26px로 확대한다.
-*/
-#logDetailContent
-.detail-work-row--handover {
-  gap: 10px !important;
-  padding: 10px 0 !important;
+#logEntryListPanel
+.log-entry-document-line {
+  display: grid !important;
+  grid-template-columns:
+    42px
+    minmax(0, 1fr) !important;
 
-  color: #1f2f44 !important;
+  align-items: start !important;
 
-  font-size: 26px !important;
-  font-weight: 700 !important;
-  line-height: 1.65 !important;
-
-  text-align: left !important;
-}
-
-
-/*
-  인계사항 번호
-
-  예:
-  1.
-  2.
-*/
-#logDetailContent
-.detail-work-row--handover
-.detail-work-row__number {
-  flex: 0 0 auto !important;
-
-  margin: 0 !important;
-  padding: 0 !important;
-
-  color: #1f5fae !important;
-
-  font-size: 26px !important;
-  font-weight: 900 !important;
-  line-height: 1.65 !important;
-
-  white-space: nowrap !important;
-}
-
-
-/*
-  시간·TAG·업무내용이 들어가는 영역
-*/
-#logDetailContent
-.detail-work-row--handover
-.detail-work-row__main {
-  display: block !important;
-  flex: 1 1 auto !important;
+  width: 100% !important;
   min-width: 0 !important;
 
   margin: 0 !important;
   padding: 0 !important;
 
-  color: #1f2f44 !important;
+  text-align: left !important;
+}
+
+
+/* =========================================================
+   번호
+========================================================= */
+
+#logEntryListPanel
+.log-entry-document-number {
+  display: block !important;
+
+  width: 42px !important;
+  min-width: 42px !important;
+
+  margin: 0 !important;
+  padding: 0 10px 0 0 !important;
+
+  color: #1f5fae !important;
+
+  font-size: 26px !important;
+  font-weight: 900 !important;
+  line-height: 1.55 !important;
+
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+
+/* =========================================================
+   시간 + 실제 내용 영역
+========================================================= */
+
+#logEntryListPanel
+.log-entry-document-body {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #172033 !important;
 
   font-size: 26px !important;
   font-weight: 700 !important;
-  line-height: 1.65 !important;
+  line-height: 1.55 !important;
 
   text-align: left !important;
-  word-break: break-word !important;
+  white-space: normal !important;
+  word-break: keep-all !important;
   overflow-wrap: anywhere !important;
 }
 
 
-/*
-  시간
+/* =========================================================
+   시간
+========================================================= */
 
-  예:
-  08:30
-  08:30~09:40
-*/
-#logDetailContent
-.detail-work-row--handover
-.detail-work-row__time {
+#logEntryListPanel
+.log-entry-document-time {
   display: inline !important;
 
-  margin: 0 8px 0 0 !important;
+  margin: 0 12px 0 0 !important;
+  padding: 0 !important;
 
-  color: #1f5fae !important;
+  color: #26364b !important;
 
   font-size: 26px !important;
   font-weight: 900 !important;
@@ -11929,68 +11937,48 @@ tbody tr:first-child td {
 }
 
 
-/*
-  실제 업무내용
-*/
-#logDetailContent
-.detail-work-row--handover
-.detail-work-row__text {
+/* =========================================================
+   실제 추가된 업무내용
+========================================================= */
+
+#logEntryListPanel
+.log-entry-document-content-text {
   display: inline !important;
 
   margin: 0 !important;
   padding: 0 !important;
 
-  color: #1f2f44 !important;
+  color: #172033 !important;
 
   font-size: 26px !important;
   font-weight: 700 !important;
   line-height: inherit !important;
 
   text-align: left !important;
-  white-space: normal !important;
-  word-break: break-word !important;
+  white-space: pre-wrap !important;
+  word-break: keep-all !important;
   overflow-wrap: anywhere !important;
 }
 
 
-/*
-  두 번째 줄부터 이어지는 보충 내용
-*/
-#logDetailContent
-.detail-work-row--handover
-.detail-work-row__continuation {
-  display: block !important;
+/* =========================================================
+   TAG 글씨도 확대된 본문과 균형 맞추기
+========================================================= */
 
-  margin: 3px 0 0 !important;
-  padding: 0 !important;
-
-  color: #34475e !important;
-
-  font-size: 26px !important;
-  font-weight: 650 !important;
-  line-height: 1.6 !important;
-
-  text-align: left !important;
-}
-
-
-/*
-  인계사항 안의 TAG
-*/
-#logDetailContent
-.detail-work-row--handover
-.detail-work-row__tag {
+#logEntryListPanel
+.log-entry-document-body
+.log-entry-inline-tag {
   display: inline !important;
 
-  width: auto !important;
-  margin: 0 8px 0 0 !important;
+  margin: 0 0 0 8px !important;
   padding: 0 !important;
 
   border: 0 !important;
   background: transparent !important;
-  color: #1769c2 !important;
 
-  font-size: 26px !important;
+  color: #1763c5 !important;
+
+  font-size: 22px !important;
   font-weight: 900 !important;
   line-height: inherit !important;
 
@@ -11999,41 +11987,80 @@ tbody tr:first-child td {
 }
 
 
-/*
-  항목 사이 구분선
-*/
-#logDetailContent
-.detail-work-row--handover
-+
-.detail-work-row--handover {
-  border-top: 1px solid #e5ebf2 !important;
+/* =========================================================
+   업무 행 위아래 여백
+========================================================= */
+
+#logEntryListPanel
+.log-entry-row-shell {
+  padding-top: 13px !important;
+  padding-bottom: 13px !important;
 }
 
 
-/*
-  화면 폭이 좁을 때는 너무 커지지 않도록 조정
-*/
-@media (max-width: 760px) {
-  #logDetailContent
-  .detail-work-row--handover,
-  #logDetailContent
-  .detail-work-row--handover
-  .detail-work-row__number,
-  #logDetailContent
-  .detail-work-row--handover
-  .detail-work-row__main,
-  #logDetailContent
-  .detail-work-row--handover
-  .detail-work-row__time,
-  #logDetailContent
-  .detail-work-row--handover
-  .detail-work-row__text,
-  #logDetailContent
-  .detail-work-row--handover
-  .detail-work-row__continuation,
-  #logDetailContent
-  .detail-work-row--handover
-  .detail-work-row__tag {
+/* =========================================================
+   보직별 제목도 본문 크기에 맞게 확대
+========================================================= */
+
+#logEntryListPanel
+.log-entry-role-divider__badge {
+  min-height: 34px !important;
+  padding: 0 12px !important;
+
+  font-size: 17px !important;
+  font-weight: 900 !important;
+}
+
+
+/* =========================================================
+   모바일
+========================================================= */
+
+@media (max-width: 768px) {
+  #logEntryListPanel
+  .log-entry-document-line {
+    grid-template-columns:
+      34px
+      minmax(0, 1fr) !important;
+  }
+
+  #logEntryListPanel
+  .log-entry-document-number {
+    width: 34px !important;
+    min-width: 34px !important;
+
+    padding-right: 7px !important;
+
     font-size: 20px !important;
+  }
+
+  #logEntryListPanel
+  .log-entry-document-body,
+  #logEntryListPanel
+  .log-entry-document-time,
+  #logEntryListPanel
+  .log-entry-document-content-text {
+    font-size: 20px !important;
+  }
+
+  #logEntryListPanel
+  .log-entry-document-body
+  .log-entry-inline-tag {
+    margin-left: 6px !important;
+    font-size: 18px !important;
+  }
+
+  #logEntryListPanel
+  .log-entry-row-shell {
+    padding-top: 11px !important;
+    padding-bottom: 11px !important;
+  }
+
+  #logEntryListPanel
+  .log-entry-role-divider__badge {
+    min-height: 30px !important;
+    padding: 0 10px !important;
+
+    font-size: 15px !important;
   }
 }
