@@ -13197,15 +13197,6 @@ tbody tr:hover td {
 
 }
 
-/* =========================================================
-  업무일지 · 조회목록
-  사람별 경계선 명확하게 구분
-
-  적용 대상:
-  1. 메인 업무일지 목록
-  2. 조회 결과 목록
-========================================================= */
-
 
 /* =========================================================
   메인 업무일지 목록
@@ -13221,13 +13212,13 @@ tbody tr:hover td {
 #logTableBody > tr > td {
   border-bottom:
     2px solid
-    #b8c7d8 !important;
+    #9fb3c8 !important;
 }
 
 #logTableBody > tr:not(:last-child) > td {
   box-shadow:
-    inset 0 -3px 0
-    rgba(31, 95, 174, 0.035);
+    inset 0 -4px 0
+    rgba(46, 92, 145, 0.07);
 }
 
 #logTableBody > tr:last-child > td {
@@ -13239,8 +13230,8 @@ tbody tr:hover td {
    두 번째 사람부터 위쪽에 여백감 추가 */
 #logTableBody > tr + tr > td {
   border-top:
-    5px solid
-    #edf2f7 !important;
+    6px solid
+    #dde7f2 !important;
 }
 
 
@@ -13258,13 +13249,13 @@ tbody tr:hover td {
 #searchResultBody > tr > td {
   border-bottom:
     2px solid
-    #b8c7d8 !important;
+    #9fb3c8 !important;
 }
 
 #searchResultBody > tr:not(:last-child) > td {
   box-shadow:
-    inset 0 -3px 0
-    rgba(31, 95, 174, 0.035);
+    inset 0 -4px 0
+    rgba(46, 92, 145, 0.07);
 }
 
 #searchResultBody > tr:last-child > td {
@@ -13275,8 +13266,8 @@ tbody tr:hover td {
 /* 사람과 사람 사이에 얇은 여백 띠 추가 */
 #searchResultBody > tr + tr > td {
   border-top:
-    5px solid
-    #edf2f7 !important;
+    6px solid
+    #dde7f2 !important;
 }
 
 
@@ -13293,7 +13284,7 @@ tbody tr:hover td {
 #logTableBody > tr > td:nth-child(-n + 4),
 #searchResultBody > tr > td:nth-child(-n + 4) {
   border-bottom-color:
-    #9fb2c7 !important;
+    #8ea7c0 !important;
 }
 
 
@@ -13304,7 +13295,7 @@ tbody tr:hover td {
 #logTableBody > tr > td.log-row__preview-cell,
 #searchResultBody > tr > td.search-log-preview-cell {
   border-bottom-color:
-    #aebfd1 !important;
+    #98afc7 !important;
 }
 
 
@@ -13315,7 +13306,7 @@ tbody tr:hover td {
 #logTableBody > tr:hover > td,
 #searchResultBody > tr:hover > td {
   background:
-    #f6faff !important;
+    #eef6ff !important;
 }
 
 
@@ -13329,7 +13320,7 @@ tbody tr:hover td {
   #logTableBody > tr + tr > td,
   #searchResultBody > tr + tr > td {
     border-top-width:
-      3px !important;
+      4px !important;
   }
 
   #logTableBody > tr > td,
