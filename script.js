@@ -8540,14 +8540,16 @@ function createTagHtml(
 }
 
 /* =========================================================
-  인수인계사항 목록 렌더링 최종본
+  인수인계사항 목록 렌더링 최종 디자인
 
-  핵심 변경:
-  1. 보직 표시는 [TGO 업무일지] 한 개만 표시
-  2. 데이터 행은 항상 TD 한 개만 생성
-  3. 선택·내용·관리 버튼은 TD 내부 GRID로 배치
-  4. 편집 전후 테이블 열 구조가 변하지 않음
-  5. 보직별 전체 선택 유지
+  평상시:
+  번호 | 시간 | 내용
+
+  편집 모드:
+  체크 | 번호·시간·내용 | 수정·삭제
+
+  파트장:
+  보직별 구분 및 보직 전체 선택 지원
 ========================================================= */
 
 function renderLogEntryTable() {
@@ -8594,15 +8596,15 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    현재 테이블의 실제 열 개수 확인
+    실제 테이블 열 개수
 
-    HTML에서 열 개수가 달라져도
-    데이터 행은 전체 열을 정확히 합친다.
+    HTML 헤더가 변경되어도
+    항목 행은 전체 폭을 사용한다.
   ====================================================== */
 
-  const getTableColumnCount = (
+  const getColumnCount = (
     tableBody,
-    defaultCount = 4
+    fallbackCount = 4
   ) => {
     const table =
       tableBody?.closest(
@@ -8610,41 +8612,40 @@ function renderLogEntryTable() {
       );
 
 
-    const headerCells =
-      table?.querySelectorAll(
-        "thead tr:last-child th"
-      );
+    const headerCount =
+      table
+        ?.querySelectorAll(
+          "thead tr:last-child th"
+        )
+        .length ||
+      0;
 
 
-    const count =
-      Number(
-        headerCells?.length ||
-        0
-      );
-
-
-    return count > 0
-      ? count
-      : defaultCount;
+    return (
+      headerCount >
+      0
+        ? headerCount
+        : fallbackCount
+    );
   };
 
 
   const tmColumnCount =
-    getTableColumnCount(
+    getColumnCount(
       elements.tmIssueEntryTableBody,
       4
     );
 
 
   const handoverColumnCount =
-    getTableColumnCount(
+    getColumnCount(
       elements.logEntryTableBody,
       4
     );
 
 
   /* =====================================================
-    시간순 정렬
+    시간 정렬
   ====================================================== */
 
   const sortEntries = (
@@ -8685,17 +8686,17 @@ function renderLogEntryTable() {
       timeA &&
       timeB
     ) {
-      const timeDifference =
+      const difference =
         timeA.localeCompare(
           timeB
         );
 
 
       if (
-        timeDifference !==
+        difference !==
         0
       ) {
-        return timeDifference;
+        return difference;
       }
     }
 
@@ -8748,7 +8749,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    건수 및 저장용 값
+    건수 표시 및 저장값
   ====================================================== */
 
   if (
@@ -8786,12 +8787,12 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    한 항목 행 생성
+    업무 항목 한 줄 생성
 
-    실제 테이블에는 TD 하나만 생성한다.
+    실제 TD는 항상 한 개다.
 
-    TD 내부:
-    체크박스 | 내용 | 수정·삭제
+    내부 구조:
+    선택 | 내용 | 관리
   ====================================================== */
 
   const createEntryRowHtml = (
@@ -8814,7 +8815,9 @@ function renderLogEntryTable() {
 
     const normalizedSourceRole =
       normalizeMemberLogRole(
-        sourceRole
+        sourceRole ||
+        currentRole ||
+        "파트장"
       );
 
 
@@ -8823,72 +8826,65 @@ function renderLogEntryTable() {
       appState.editingEntryIndex;
 
 
+    const timeText =
+      String(
+        entry?.time ||
+        ""
+      )
+        .trim()
+        .replace(
+          /\s*,\s*/g,
+          ", "
+        )
+        .replace(
+          /\s*~\s*/g,
+          " ~ "
+        );
+
+
+    const contentText =
+      String(
+        entry?.content ||
+        "-"
+      ).trim();
+
+
+    const tagText =
+      String(
+        entry?.tag ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
     return `
       <tr
+        class="
+          log-entry-modern-row
+          ${
+            isEditingEntry
+              ? "is-editing"
+              : ""
+          }
+        "
         data-entry-index="${originalIndex}"
         data-entry-source-role="${escapeHtml(
           normalizedSourceRole
         )}"
-        class="${
-          isEditingEntry
-            ? "is-editing"
-            : ""
-        }"
       >
 
         <td
           colspan="${columnCount}"
-          class="log-entry-unified-cell"
-          style="
-            width:100% !important;
-            min-width:0 !important;
-
-            padding:0 !important;
-
-            text-align:left !important;
-            vertical-align:top !important;
-          "
+          class="log-entry-modern-cell"
         >
 
-          <div
-            class="log-entry-row-shell"
-            data-entry-row-shell
-            style="
-              display:grid !important;
+          <div class="log-entry-modern-shell">
 
-              width:100% !important;
-              min-width:0 !important;
-
-              grid-template-columns:${
-                isEditMode
-                  ? "32px minmax(0, 1fr) 78px"
-                  : "minmax(0, 1fr)"
-              } !important;
-
-              align-items:start !important;
-
-              column-gap:6px !important;
-
-              margin:0 !important;
-              padding:7px 10px !important;
-            "
-          >
-
-            <div
-              class="log-entry-row-select"
-              ${
-                isEditMode
-                  ? ""
-                  : "hidden"
-              }
-              style="
-                width:32px !important;
-                min-width:32px !important;
-
-                padding-top:1px !important;
-
-                text-align:center !important;
-              "
+            <!-- 개별 선택 -->
+            <label
+              class="log-entry-modern-select"
+              aria-label="업무 항목 선택"
             >
               <input
                 type="checkbox"
@@ -8897,53 +8893,67 @@ function renderLogEntryTable() {
                 data-source-role="${escapeHtml(
                   normalizedSourceRole
                 )}"
-                aria-label="업무 항목 선택"
               />
-            </div>
+            </label>
 
 
-            <div
-              class="log-entry-row-content"
-              style="
-                width:100% !important;
-                min-width:0 !important;
+            <!-- 번호·시간·내용 -->
+            <div class="log-entry-modern-main">
 
-                margin:0 !important;
-                padding:0 !important;
+              <strong class="log-entry-modern-number">
+                ${displayNumber}.
+              </strong>
 
-                text-align:left !important;
-              "
-            >
-              ${createCompactLineHtml(
-                entry,
-                originalIndex,
-                displayNumber,
-                {
-                  showTime
+
+              <div class="log-entry-modern-body">
+
+                ${
+                  showTime &&
+                  timeText
+                    ? `
+                      <strong class="log-entry-modern-time">
+                        ${escapeHtml(
+                          timeText
+                        )}
+                      </strong>
+                    `
+                    : ""
                 }
-              )}
+
+
+                <span class="log-entry-modern-content">
+                  ${escapeHtml(
+                    contentText
+                  )}
+                </span>
+
+
+                ${
+                  tagText
+                    ? `
+                      <button
+                        type="button"
+                        class="log-entry-modern-tag"
+                        data-entry-action="navigator"
+                        data-entry-index="${originalIndex}"
+                        title="Facility Navigator에서 설비 보기"
+                      >
+                        [${escapeHtml(
+                          tagText
+                        )}]
+                      </button>
+                    `
+                    : ""
+                }
+
+              </div>
+
             </div>
 
 
-            <div
-              class="log-entry-row-actions"
-              ${
-                isEditMode
-                  ? ""
-                  : "hidden"
-              }
-              style="
-                display:flex;
+            <!-- 수정·삭제 -->
+            <div class="log-entry-modern-actions">
 
-                width:78px !important;
-                min-width:78px !important;
-
-                align-items:center !important;
-                justify-content:flex-end !important;
-
-                gap:4px !important;
-              "
-            >
               <button
                 type="button"
                 class="log-entry-edit-button"
@@ -8953,6 +8963,7 @@ function renderLogEntryTable() {
                 수정
               </button>
 
+
               <button
                 type="button"
                 class="log-entry-delete-button"
@@ -8961,6 +8972,7 @@ function renderLogEntryTable() {
               >
                 삭제
               </button>
+
             </div>
 
           </div>
@@ -8973,7 +8985,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    TM 발행 내역 출력
+    TM 발행 내역
   ====================================================== */
 
   if (
@@ -8982,20 +8994,16 @@ function renderLogEntryTable() {
     if (
       !tmEntries.length
     ) {
-      elements
-        .tmIssueEntryTableBody
-        .innerHTML = `
-          <tr class="log-entry-empty-row">
-            <td colspan="${tmColumnCount}">
-              등록된 TM 발행 내역이 없습니다.
-            </td>
-          </tr>
-        `;
+      elements.tmIssueEntryTableBody.innerHTML = `
+        <tr class="log-entry-empty-row">
+          <td colspan="${tmColumnCount}">
+            등록된 TM 발행 내역이 없습니다.
+          </td>
+        </tr>
+      `;
 
     } else {
-      elements
-        .tmIssueEntryTableBody
-        .innerHTML =
+      elements.tmIssueEntryTableBody.innerHTML =
         tmEntries
           .map(
             (
@@ -9119,7 +9127,90 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    인계사항 출력
+    보직 구분행 생성
+
+    편집 모드:
+    체크박스 + [보직 업무일지] + 건수
+
+    평상시:
+    [보직 업무일지] + 건수
+  ====================================================== */
+
+  const createRoleDividerHtml = (
+    role,
+    roleEntries,
+    roleIndex
+  ) => {
+    return `
+      <tr
+        class="
+          log-entry-modern-role-row
+          ${
+            roleIndex === 0
+              ? "is-first-role"
+              : ""
+          }
+        "
+        data-role-group="${escapeHtml(
+          role
+        )}"
+      >
+
+        <td
+          colspan="${handoverColumnCount}"
+          class="log-entry-modern-role-cell"
+        >
+
+          <div class="log-entry-modern-role-shell">
+
+            <label
+              class="log-entry-role-select"
+              title="${escapeHtml(
+                role
+              )} 업무 전체 선택"
+            >
+              <input
+                type="checkbox"
+                class="log-entry-role-select-checkbox"
+                data-role-select="${escapeHtml(
+                  role
+                )}"
+                aria-label="${escapeHtml(
+                  role
+                )} 업무 전체 선택"
+              />
+            </label>
+
+
+            <span
+              class="
+                log-entry-modern-role-badge
+                ${getLogEntrySourceClass(
+                  role
+                )}
+              "
+            >
+              ${escapeHtml(
+                role
+              )} 업무일지
+            </span>
+
+
+            <span class="log-entry-modern-role-count">
+              ${roleEntries.length}건
+            </span>
+
+          </div>
+
+        </td>
+
+      </tr>
+    `;
+  };
+
+
+  /* =====================================================
+    인계사항 내역
   ====================================================== */
 
   if (
@@ -9128,22 +9219,18 @@ function renderLogEntryTable() {
     if (
       !ordinaryEntries.length
     ) {
-      elements
-        .logEntryTableBody
-        .innerHTML = `
-          <tr class="log-entry-empty-row">
-            <td colspan="${handoverColumnCount}">
-              등록된 인계사항이 없습니다.
-            </td>
-          </tr>
-        `;
+      elements.logEntryTableBody.innerHTML = `
+        <tr class="log-entry-empty-row">
+          <td colspan="${handoverColumnCount}">
+            등록된 인계사항이 없습니다.
+          </td>
+        </tr>
+      `;
 
     } else if (
       isLeaderLog
     ) {
-      elements
-        .logEntryTableBody
-        .innerHTML =
+      elements.logEntryTableBody.innerHTML =
         orderedRoles
           .map(
             (
@@ -9157,110 +9244,11 @@ function renderLogEntryTable() {
 
 
               return `
-                <tr
-                  class="
-                    log-entry-role-divider-row
-                    ${
-                      roleIndex === 0
-                        ? "is-first-role"
-                        : ""
-                    }
-                  "
-                  data-role-group="${escapeHtml(
-                    role
-                  )}"
-                >
-                  <td
-                    colspan="${handoverColumnCount}"
-                    style="
-                      width:100% !important;
-                      padding:0 !important;
-                    "
-                  >
-
-                    <div
-                      class="log-entry-role-divider"
-                      style="
-                        display:flex !important;
-
-                        width:100% !important;
-
-                        align-items:center !important;
-
-                        gap:6px !important;
-
-                        padding:7px 10px !important;
-                      "
-                    >
-
-                      <label
-                        class="log-entry-role-select"
-                        ${
-                          isEditMode
-                            ? ""
-                            : "hidden"
-                        }
-                        title="${escapeHtml(
-                          role
-                        )} 업무 전체 선택"
-                        style="
-                          display:${
-                            isEditMode
-                              ? "inline-flex"
-                              : "none"
-                          } !important;
-
-                          width:18px !important;
-                          height:18px !important;
-
-                          align-items:center !important;
-                          justify-content:center !important;
-                        "
-                      >
-                        <input
-                          type="checkbox"
-                          class="log-entry-role-select-checkbox"
-                          data-role-select="${escapeHtml(
-                            role
-                          )}"
-                          aria-label="${escapeHtml(
-                            role
-                          )} 업무 전체 선택"
-                        />
-                      </label>
-
-
-                      <!--
-                        보직명과 업무일지를 하나의 배지로 표시
-
-                        기존:
-                        [TGO] TGO 업무일지
-
-                        변경:
-                        [TGO 업무일지]
-                      -->
-                      <span
-                        class="
-                          log-entry-role-divider__badge
-                          ${getLogEntrySourceClass(
-                            role
-                          )}
-                        "
-                      >
-                        ${escapeHtml(
-                          role
-                        )} 업무일지
-                      </span>
-
-
-                      <span class="log-entry-role-divider__count">
-                        ${roleEntries.length}건
-                      </span>
-
-                    </div>
-
-                  </td>
-                </tr>
+                ${createRoleDividerHtml(
+                  role,
+                  roleEntries,
+                  roleIndex
+                )}
 
                 ${roleEntries
                   .map(
@@ -9298,9 +9286,7 @@ function renderLogEntryTable() {
       );
 
 
-      elements
-        .logEntryTableBody
-        .innerHTML =
+      elements.logEntryTableBody.innerHTML =
         sortedEntries
           .map(
             (
@@ -9328,76 +9314,15 @@ function renderLogEntryTable() {
   }
 
 
-  /* =====================================================
-    전체 선택 초기 상태
-  ====================================================== */
-
-  if (
-    elements.selectAllTmEntriesCheckbox
-  ) {
-    elements
-      .selectAllTmEntriesCheckbox
-      .checked =
-      false;
-
-    elements
-      .selectAllTmEntriesCheckbox
-      .indeterminate =
-      false;
-
-    elements
-      .selectAllTmEntriesCheckbox
-      .disabled =
-      tmEntries.length ===
-      0;
-  }
+  /*
+    다시 그린 뒤 현재 모드를 유지한다.
+  */
+  setLogEntryEditMode(
+    isEditMode
+  );
 
 
-  if (
-    elements.selectAllLogEntriesCheckbox
-  ) {
-    elements
-      .selectAllLogEntriesCheckbox
-      .checked =
-      false;
-
-    elements
-      .selectAllLogEntriesCheckbox
-      .indeterminate =
-      false;
-
-    elements
-      .selectAllLogEntriesCheckbox
-      .disabled =
-      ordinaryEntries.length ===
-      0;
-  }
-
-
-  if (
-    elements.selectedLogEntryCount
-  ) {
-    elements
-      .selectedLogEntryCount
-      .textContent =
-      "선택 0건";
-
-    elements
-      .selectedLogEntryCount
-      .hidden =
-      true;
-  }
-
-
-  if (
-    elements.deleteSelectedLogEntriesButton
-  ) {
-    elements
-      .deleteSelectedLogEntriesButton
-      .disabled =
-      true;
-  }
-
+  updateLogEntrySelectionState();
 
   updateMemberLogImportCount();
 }
@@ -9501,17 +9426,14 @@ const createCompactLineHtml = (
 };
 
 /* =========================================================
-  인수인계사항 편집 모드 최종본
+  인수인계 편집 모드 표시
 
-  테이블 TD를 숨기거나 다시 표시하지 않는다.
+  편집 버튼을 누른 경우에만:
+  - 개별 체크박스
+  - 보직 전체 선택
+  - 수정·삭제 버튼
 
-  각 행 내부 GRID만 변경한다.
-
-  일반:
-  내용
-
-  편집:
-  체크 | 내용 | 수정·삭제
+  을 표시한다.
 ========================================================= */
 
 function setLogEntryEditMode(
@@ -9521,14 +9443,10 @@ function setLogEntryEditMode(
     elements.logEntryListPanel;
 
 
-  if (
-    panel
-  ) {
-    panel.classList.toggle(
-      "is-edit-mode",
-      isEditing
-    );
-  }
+  panel?.classList.toggle(
+    "is-edit-mode",
+    isEditing
+  );
 
 
   if (
@@ -9569,97 +9487,6 @@ function setLogEntryEditMode(
         true;
     }
   }
-
-
-  /* =====================================================
-    각 업무 행 내부 구조만 변경
-  ====================================================== */
-
-  panel
-    ?.querySelectorAll(
-      ".log-entry-row-shell"
-    )
-    .forEach(
-      (rowShell) => {
-        rowShell.style
-          .setProperty(
-            "grid-template-columns",
-
-            isEditing
-              ? "32px minmax(0, 1fr) 78px"
-              : "minmax(0, 1fr)",
-
-            "important"
-          );
-
-
-        const selectArea =
-          rowShell.querySelector(
-            ".log-entry-row-select"
-          );
-
-
-        const actionArea =
-          rowShell.querySelector(
-            ".log-entry-row-actions"
-          );
-
-
-        if (
-          selectArea
-        ) {
-          selectArea.hidden =
-            !isEditing;
-        }
-
-
-        if (
-          actionArea
-        ) {
-          actionArea.hidden =
-            !isEditing;
-
-          actionArea.style
-            .setProperty(
-              "display",
-
-              isEditing
-                ? "flex"
-                : "none",
-
-              "important"
-            );
-        }
-      }
-    );
-
-
-  /* =====================================================
-    보직별 전체 체크박스 표시
-  ====================================================== */
-
-  panel
-    ?.querySelectorAll(
-      ".log-entry-role-select"
-    )
-    .forEach(
-      (roleSelect) => {
-        roleSelect.hidden =
-          !isEditing;
-
-
-        roleSelect.style
-          .setProperty(
-            "display",
-
-            isEditing
-              ? "inline-flex"
-              : "none",
-
-            "important"
-          );
-      }
-    );
 
 
   if (
