@@ -13746,315 +13746,157 @@ tbody tr:hover td {
 }
 
 /* =========================================================
-   조회 화면 업무내용 전용 스타일
+   업무일지 목록 보직 제목 최종 통일
 
-   script.js의 search-work-* 전용 구조와 연결
+   TGO 업무일지
+   BCO1 업무일지
+   BCO2 업무일지
+   TO 업무일지
+   BO1 업무일지
+   BO2 업무일지
+
+   박스 제거 + 보직별 글자색만 유지
 ========================================================= */
 
-.search-work-preview {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0;
-  margin: 0;
-  padding: 0;
-  text-align: left;
+.log-preview__role-section {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  margin: 9px 0 3px !important;
+  padding: 0 8px !important;
+
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  background: transparent !important;
 }
 
 
-/* =========================================================
-   구분별 한 줄 구조
+/*
+  첫 번째 보직 업무일지 위 구분선
+*/
+.log-preview__role-section.is-first-role {
+  margin-top: 10px !important;
+  padding-top: 10px !important;
 
-   제목 | 내용
-========================================================= */
-
-.search-work-section {
-  display: grid;
-  width: 100%;
-  min-width: 0;
-  grid-template-columns:
-    88px
-    minmax(0, 1fr);
-  align-items: start;
-  column-gap: 8px;
-  margin: 0;
-  padding: 3px 0;
+  border-top: 1px solid #cbd8e5 !important;
 }
 
 
-.search-work-section + .search-work-section {
-  margin-top: 3px;
-  padding-top: 6px;
-  border-top: 1px solid #e1e7ee;
+/*
+  보직 제목 공통
+
+  박스와 배경을 모두 제거한다.
+*/
+.log-preview__role-divider {
+  position: static !important;
+
+  display: block !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1.45 !important;
+
+  text-align: left !important;
+  white-space: nowrap !important;
 }
 
 
-/* =========================================================
-   왼쪽 구분 제목
-
-   박스 없이 글자만 표시
-========================================================= */
-
-.search-work-section__label {
-  display: block;
-  width: 88px;
-  min-width: 88px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  font-size: 11px;
-  font-weight: 900;
-  line-height: 1.55;
-  text-align: left;
-  white-space: nowrap;
+/*
+  예전 가로선 가상 요소 제거
+*/
+.log-preview__role-divider::before,
+.log-preview__role-divider::after {
+  display: none !important;
+  content: none !important;
 }
 
 
-.search-work-section.is-operation
-.search-work-section__label {
-  color: #1763b6;
+/* TGO */
+.log-preview__role-divider.is-tgo {
+  border: 0 !important;
+  background: transparent !important;
+  color: #1f5fae !important;
 }
 
 
-.search-work-section.is-tm
-.search-work-section__label {
-  color: #16845b;
+/* BCO1 */
+.log-preview__role-divider.is-bco1 {
+  border: 0 !important;
+  background: transparent !important;
+  color: #17865f !important;
 }
 
 
-.search-work-section.is-handover
-.search-work-section__label {
-  color: #b56a00;
+/* BCO2 */
+.log-preview__role-divider.is-bco2 {
+  border: 0 !important;
+  background: transparent !important;
+  color: #74419c !important;
 }
 
 
-.search-work-section.is-note
-.search-work-section__label {
-  color: #687487;
+/* TO */
+.log-preview__role-divider.is-to {
+  border: 0 !important;
+  background: transparent !important;
+  color: #70439a !important;
 }
 
 
-/* =========================================================
-   오른쪽 전체 내용
-========================================================= */
-
-.search-work-section__content {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
+/* BO1 */
+.log-preview__role-divider.is-bo1 {
+  border: 0 !important;
+  background: transparent !important;
+  color: #925612 !important;
 }
 
 
-/* =========================================================
-   TM·인계 개별 항목
-
-   번호 | 본문
-========================================================= */
-
-.search-work-entry {
-  display: grid;
-  width: 100%;
-  min-width: 0;
-  grid-template-columns:
-    22px
-    minmax(0, 1fr);
-  align-items: baseline;
-  column-gap: 6px;
-  margin: 0;
-  padding: 0;
-  color: #26364b;
-  font-size: 12px;
-  line-height: 1.55;
-  text-align: left;
+/* BO2 */
+.log-preview__role-divider.is-bo2 {
+  border: 0 !important;
+  background: transparent !important;
+  color: #925612 !important;
 }
 
 
-/* =========================================================
-   번호
-========================================================= */
-
-.search-work-entry__number {
-  display: block;
-  width: 22px;
-  min-width: 22px;
-  margin: 0;
-  padding: 0;
-  font-size: 12px;
-  font-weight: 900;
-  line-height: inherit;
-  text-align: right;
-  white-space: nowrap;
+/* 파트장 직접 작성 */
+.log-preview__role-divider.is-leader {
+  border: 0 !important;
+  background: transparent !important;
+  color: #8c601d !important;
 }
 
 
-.search-work-entry.is-tm
-.search-work-entry__number {
-  color: #b87412;
-}
+/*
+  조회 화면에서도 동일하게 적용
+*/
+.search-log-preview
+.log-preview__role-divider {
+  width: auto !important;
+  min-width: 0 !important;
 
+  margin: 0 !important;
+  padding: 0 !important;
 
-.search-work-entry.is-handover
-.search-work-entry__number {
-  color: #1f5fae;
-}
+  border: 0 !important;
+  border-radius: 0 !important;
 
-
-/* =========================================================
-   시간·TAG·내용 묶음
-
-   모두 같은 문장 흐름으로 표시
-========================================================= */
-
-.search-work-entry__body {
-  display: block;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  color: #26364b;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: inherit;
-  text-align: left;
-  white-space: normal;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-
-
-/* 시간 */
-
-.search-work-entry__time {
-  display: inline;
-  margin: 0 5px 0 0;
-  padding: 0;
-  color: #2456a6;
-  font-size: 12px;
-  font-weight: 900;
-  line-height: inherit;
-  vertical-align: baseline;
-  white-space: nowrap;
-}
-
-
-/* TAG */
-
-.search-work-entry__tag {
-  display: inline;
-  width: auto;
-  min-width: 0;
-  min-height: 0;
-  margin: 0 5px 0 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: #1763c5;
-  font-family:
-    Consolas,
-    "Courier New",
-    monospace;
-  font-size: 10px;
-  font-weight: 900;
-  line-height: inherit;
-  vertical-align: baseline;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-
-.search-work-entry__tag:hover {
-  color: #0b4694;
-  text-decoration: underline;
-}
-
-
-/* 내용 */
-
-.search-work-entry__text {
-  display: inline;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  color: #26364b;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: inherit;
-  vertical-align: baseline;
-  white-space: normal;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-
-
-/* =========================================================
-   운전현황·비고
-========================================================= */
-
-.search-work-operation,
-.search-work-note {
-  display: block;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  color: #26364b;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.55;
-  text-align: left;
-  white-space: normal;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-
-
-/* =========================================================
-   빈 내용
-========================================================= */
-
-.search-work-empty {
-  display: block;
-  margin: 0;
-  padding: 3px 0;
-  color: #8a95a4;
-  font-size: 12px;
-  text-align: left;
-}
-
-
-/* =========================================================
-   좁은 화면
-========================================================= */
-
-@media (max-width: 1200px) {
-  .search-work-section {
-    grid-template-columns:
-      78px
-      minmax(0, 1fr);
-    column-gap: 7px;
-  }
-
-  .search-work-section__label {
-    width: 78px;
-    min-width: 78px;
-    font-size: 10px;
-  }
-
-  .search-work-entry {
-    grid-template-columns:
-      20px
-      minmax(0, 1fr);
-    column-gap: 5px;
-  }
-
-  .search-work-entry__number {
-    width: 20px;
-    min-width: 20px;
-  }
+  background: transparent !important;
 }

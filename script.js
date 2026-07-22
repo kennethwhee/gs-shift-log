@@ -16239,28 +16239,57 @@ function doesLogMatchSearchCategory(
 }
 
 /* =========================================================
-  조회 결과 미리보기 전용 출력
+  조회 결과 미리보기 항목 생성 최종본
 
-  중요:
-  기존 메인 업무일지의 log-preview 클래스와
-  완전히 분리된 search-work 전용 클래스만 사용한다.
+  표시 구조:
+  구분 제목 | 번호 | 시간 | TAG + 내용
 
-  표시:
-  운전현황      내용
-  TM 발행 내역  1. [TAG] 내용
-                2. 내용
-  인계          1. 시간 내용
-                2. 내용
+  핵심:
+  - 번호는 고정된 별도 칸
+  - 시간은 고정된 별도 칸
+  - TAG와 내용은 하나의 본문 칸
+  - 긴 내용만 자연스럽게 줄바꿈
+  - 번호와 TAG가 서로 다른 줄로 분리되지 않음
 ========================================================= */
 
 function createSearchLogPreviewHtml(
   log
 ) {
+  const previewItems = [];
+
+
   const operationStatus =
     String(
       log?.operationStatus ||
       ""
     ).trim();
+
+
+  if (
+    operationStatus
+  ) {
+    previewItems.push({
+      type:
+        "operation",
+
+      title:
+        "운전현황",
+
+      number:
+        "",
+
+      time:
+        "",
+
+      tag:
+        "",
+
+      content:
+        firstMeaningfulLine(
+          operationStatus
+        )
+    });
+  }
 
 
   const entries =
@@ -16271,38 +16300,125 @@ function createSearchLogPreviewHtml(
       : [];
 
 
-  const tmEntries =
-    entries.filter(
-      (entry) => {
-        return (
-          getSearchEntryCategoryValue(
-            entry
-          ) ===
-          "tm"
+  let tmNumber =
+    0;
+
+  let handoverNumber =
+    0;
+
+
+  entries.forEach(
+    (entry) => {
+      const categoryValue =
+        getSearchEntryCategoryValue(
+          entry
         );
+
+
+      if (
+        !categoryValue
+      ) {
+        return;
       }
-    );
 
 
-  const handoverEntries =
-    entries.filter(
-      (entry) => {
-        const category =
-          getSearchEntryCategoryValue(
-            entry
-          );
+      const content =
+        String(
+          entry?.content ||
+          ""
+        ).trim();
 
 
-        return (
-          category ===
-            "handover" ||
-          category ===
-            "bm" ||
-          category ===
-            "cm"
-        );
+      const tag =
+        String(
+          entry?.tag ||
+          ""
+        )
+          .trim()
+          .toUpperCase();
+
+
+      if (
+        !content &&
+        !tag
+      ) {
+        return;
       }
-    );
+
+
+      if (
+        categoryValue ===
+        "tm"
+      ) {
+        tmNumber +=
+          1;
+
+
+        previewItems.push({
+          type:
+            "tm",
+
+          title:
+            tmNumber === 1
+              ? "TM 발행 내역"
+              : "",
+
+          number:
+            `${tmNumber}.`,
+
+          time:
+            String(
+              entry?.time ||
+              ""
+            ).trim(),
+
+          tag,
+
+          content
+        });
+
+
+        return;
+      }
+
+
+      if (
+        categoryValue ===
+          "handover" ||
+        categoryValue ===
+          "bm" ||
+        categoryValue ===
+          "cm"
+      ) {
+        handoverNumber +=
+          1;
+
+
+        previewItems.push({
+          type:
+            "handover",
+
+          title:
+            handoverNumber === 1
+              ? "인계"
+              : "",
+
+          number:
+            `${handoverNumber}.`,
+
+          time:
+            String(
+              entry?.time ||
+              ""
+            ).trim(),
+
+          tag,
+
+          content
+        });
+      }
+    }
+  );
 
 
   const note =
@@ -16312,303 +16428,182 @@ function createSearchLogPreviewHtml(
     ).trim();
 
 
-  const createEntryLineHtml = (
-    entry,
-    displayNumber,
-    type
-  ) => {
-    const time =
-      String(
-        entry?.time ||
-        ""
-      ).trim();
-
-
-    const tag =
-      String(
-        entry?.tag ||
-        ""
-      )
-        .trim()
-        .toUpperCase();
-
-
-    const content =
-      String(
-        entry?.content ||
-        ""
-      ).trim();
-
-
-    const tagHtml =
-      tag
-        ? `
-          <button
-            type="button"
-            class="search-work-entry__tag"
-            data-search-preview-tag="${escapeHtml(
-              tag
-            )}"
-            title="Facility Navigator에서 설비 보기"
-          >
-            [${escapeHtml(
-              tag
-            )}]
-          </button>
-        `
-        : "";
-
-
-    const timeHtml =
-      time
-        ? `
-          <strong
-            class="search-work-entry__time"
-          >
-            ${escapeHtml(
-              time
-            )}
-          </strong>
-        `
-        : "";
-
-
-    return `
-      <div
-        class="
-          search-work-entry
-          ${
-            type === "tm"
-              ? "is-tm"
-              : "is-handover"
-          }
-        "
-      >
-
-        <strong
-          class="search-work-entry__number"
-        >
-          ${displayNumber}.
-        </strong>
-
-
-        <div
-          class="search-work-entry__body"
-        >
-          ${timeHtml}
-
-          ${tagHtml}
-
-          <span
-            class="search-work-entry__text"
-          >
-            ${escapeHtml(
-              content ||
-              "-"
-            )}
-          </span>
-        </div>
-
-      </div>
-    `;
-  };
-
-
-  const sections = [];
-
-
-  /* =====================================================
-    운전현황
-  ====================================================== */
-
-  if (
-    operationStatus
-  ) {
-    sections.push(`
-      <section
-        class="
-          search-work-section
-          is-operation
-        "
-      >
-
-        <strong
-          class="search-work-section__label"
-        >
-          운전현황
-        </strong>
-
-
-        <div
-          class="search-work-section__content"
-        >
-          <div
-            class="search-work-operation"
-          >
-            ${escapeHtml(
-              firstMeaningfulLine(
-                operationStatus
-              )
-            )}
-          </div>
-        </div>
-
-      </section>
-    `);
-  }
-
-
-  /* =====================================================
-    TM 발행 내역
-  ====================================================== */
-
-  if (
-    tmEntries.length
-  ) {
-    sections.push(`
-      <section
-        class="
-          search-work-section
-          is-tm
-        "
-      >
-
-        <strong
-          class="search-work-section__label"
-        >
-          TM 발행 내역
-        </strong>
-
-
-        <div
-          class="search-work-section__content"
-        >
-          ${tmEntries
-            .map(
-              (
-                entry,
-                index
-              ) => {
-                return createEntryLineHtml(
-                  entry,
-                  index + 1,
-                  "tm"
-                );
-              }
-            )
-            .join("")}
-        </div>
-
-      </section>
-    `);
-  }
-
-
-  /* =====================================================
-    인계
-  ====================================================== */
-
-  if (
-    handoverEntries.length
-  ) {
-    sections.push(`
-      <section
-        class="
-          search-work-section
-          is-handover
-        "
-      >
-
-        <strong
-          class="search-work-section__label"
-        >
-          인계
-        </strong>
-
-
-        <div
-          class="search-work-section__content"
-        >
-          ${handoverEntries
-            .map(
-              (
-                entry,
-                index
-              ) => {
-                return createEntryLineHtml(
-                  entry,
-                  index + 1,
-                  "handover"
-                );
-              }
-            )
-            .join("")}
-        </div>
-
-      </section>
-    `);
-  }
-
-
-  /* =====================================================
-    비고
-  ====================================================== */
-
   if (
     note
   ) {
-    sections.push(`
-      <section
-        class="
-          search-work-section
-          is-note
-        "
-      >
+    previewItems.push({
+      type:
+        "note",
 
-        <strong
-          class="search-work-section__label"
-        >
-          비고
-        </strong>
+      title:
+        "비고",
 
+      number:
+        "",
 
-        <div
-          class="search-work-section__content"
-        >
-          <div
-            class="search-work-note"
-          >
-            ${escapeHtml(
-              firstMeaningfulLine(
-                note
-              )
-            )}
-          </div>
-        </div>
+      time:
+        "",
 
-      </section>
-    `);
+      tag:
+        "",
+
+      content:
+        firstMeaningfulLine(
+          note
+        )
+    });
   }
 
 
   if (
-    !sections.length
+    !previewItems.length
   ) {
     return `
-      <span
-        class="search-work-empty"
-      >
+      <span class="log-preview__empty">
         등록된 업무 내용이 없습니다.
       </span>
     `;
   }
 
 
-  return `
-    <div class="search-work-preview">
-      ${sections.join("")}
-    </div>
-  `;
+  return previewItems
+    .map(
+      (
+        item,
+        itemIndex
+      ) => {
+        const typeClassMap = {
+          operation:
+            "is-operation",
+
+          tm:
+            "is-maintenance",
+
+          handover:
+            "is-handover",
+
+          note:
+            "is-note"
+        };
+
+
+        const numberClass =
+          item.type ===
+            "tm"
+            ? "is-tm-number"
+            : "is-handover-number";
+
+
+        const tagHtml =
+          item.tag
+            ? `
+              <button
+                type="button"
+                class="
+                  log-preview__tag
+                  search-preview-tag
+                "
+                data-search-preview-tag="${escapeHtml(
+                  item.tag
+                )}"
+              >
+                [${escapeHtml(
+                  item.tag
+                )}]
+              </button>
+            `
+            : "";
+
+
+        return `
+          <span
+            class="
+              log-preview__group
+              ${typeClassMap[item.type] || ""}
+              ${item.title ? "" : "has-no-title"}
+              ${
+                itemIndex > 0 &&
+                item.title
+                  ? "is-section-start"
+                  : ""
+              }
+            "
+          >
+
+            ${
+              item.title
+                ? `
+                  <strong
+                    class="log-preview__title"
+                  >
+                    ${escapeHtml(
+                      item.title
+                    )}
+                  </strong>
+                `
+                : ""
+            }
+
+
+            <span
+              class="log-preview__content"
+            >
+
+              ${
+                item.number
+                  ? `
+                    <span
+                      class="
+                        log-preview__entry-number
+                        ${numberClass}
+                      "
+                    >
+                      ${escapeHtml(
+                        item.number
+                      )}
+                    </span>
+                  `
+                  : ""
+              }
+
+
+              ${
+                item.time
+                  ? `
+                    <span
+                      class="log-preview__entry-time"
+                    >
+                      ${escapeHtml(
+                        item.time
+                      )}
+                    </span>
+                  `
+                  : ""
+              }
+
+
+              <span
+                class="log-preview__body"
+              >
+                ${tagHtml}
+
+                <span
+                  class="log-preview__text"
+                >
+                  ${escapeHtml(
+                    item.content ||
+                    "-"
+                  )}
+                </span>
+              </span>
+
+            </span>
+
+          </span>
+        `;
+      }
+    )
+    .join("");
 }
 
 
