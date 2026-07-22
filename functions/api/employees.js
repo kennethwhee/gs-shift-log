@@ -321,7 +321,7 @@ async function createInitialPasswordHash(
   employeeNo
 ) {
   const iterations =
-    210000;
+    100000;
 
   const salt =
     crypto.getRandomValues(
