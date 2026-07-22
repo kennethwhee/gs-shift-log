@@ -11454,3 +11454,154 @@ tbody tr:first-child td {
     font-size: 12px;
   }
 }
+
+/* =========================================================
+  파트장 운전현황 크기 긴급 교정
+========================================================= */
+
+#operationStatusSection.is-leader-operation-status
+.operation-status-current-content {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+
+  margin: 12px 0 0 !important;
+  padding: 0 !important;
+
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+}
+
+
+/* 보직별 카드가 세로로 늘어나지 않도록 강제 */
+#operationStatusSection.is-leader-operation-status
+.leader-operation-status-item {
+  display: block !important;
+
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+
+  margin: 0 !important;
+  padding: 11px 13px !important;
+
+  flex: 0 0 auto !important;
+
+  border-width: 1px !important;
+  border-left-width: 4px !important;
+  border-radius: 8px !important;
+}
+
+
+/* 카드 상단 */
+#operationStatusSection
+.leader-operation-status-item__header {
+  display: flex !important;
+  min-height: 0 !important;
+
+  align-items: center !important;
+  justify-content: space-between !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+/* 보직명 */
+#operationStatusSection
+.leader-operation-status-item__role {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#operationStatusSection
+.leader-operation-status-item__role strong {
+  margin: 0 !important;
+  padding: 0 !important;
+
+  font-size: 13px !important;
+  line-height: 1.3 !important;
+}
+
+
+/* 상태 점 */
+#operationStatusSection
+.leader-operation-status-item__dot {
+  width: 7px !important;
+  height: 7px !important;
+}
+
+
+/* 상태 배지 */
+#operationStatusSection
+.leader-operation-status-item__badge {
+  min-width: 52px !important;
+  min-height: 23px !important;
+
+  padding: 0 9px !important;
+
+  font-size: 10px !important;
+  line-height: 1 !important;
+}
+
+
+/* 운전현황 내용 */
+#operationStatusSection
+.leader-operation-status-item__content {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+
+  margin: 7px 0 0 !important;
+  padding: 0 !important;
+
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+
+  white-space: pre-wrap !important;
+}
+
+
+/* 수정시간 */
+#operationStatusSection
+.leader-operation-status-item__meta {
+  height: auto !important;
+  min-height: 0 !important;
+
+  margin: 5px 0 0 !important;
+  padding: 0 !important;
+
+  font-size: 9px !important;
+  line-height: 1.2 !important;
+}
+
+
+/* 파트장 전체 카드 자체도 자동 높이 */
+#operationStatusSection.is-leader-operation-status
+.operation-status-current-card {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+
+  padding: 15px 16px !important;
+}
+
+
+/* 공통 상태 배지 영역 완전히 제거 */
+#operationStatusSection.is-leader-operation-status
+.operation-status-summary-row {
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
