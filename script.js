@@ -10236,7 +10236,14 @@ function collectEditorData(status) {
 }
 
 
-function saveCurrentLog(status) {
+function saveCurrentLog(
+  status,
+  options = {}
+) {
+  const {
+    closeAfterSave = true
+  } = options;
+
   if (
     !elements
       .logEditorForm
@@ -10439,7 +10446,11 @@ function saveCurrentLog(status) {
   renderLogTable();
   updateShiftMemberCardStates();
 
-  closeLogEditor();
+  if (
+   closeAfterSave
+  ) {
+   closeLogEditor();
+  }
 
   showToast(
     status === "작성완료"
@@ -10449,15 +10460,77 @@ function saveCurrentLog(status) {
 }
 
 
+/* =========================================================
+  업무일지 임시저장
+
+  저장만 수행하고 수정창은 닫지 않는다.
+========================================================= */
+
 function saveDraft() {
-  const draft = collectEditorData("임시저장");
+  if (
+    !elements.logEditorForm ||
+    !elements.logEditorForm.reportValidity()
+  ) {
+    return;
+  }
 
-  localStorage.setItem(
-    STORAGE_KEYS.draft,
-    JSON.stringify(draft)
+
+  const hasEntryContent =
+    appState.editorEntries.some(
+      (entry) => {
+        return Boolean(
+          String(
+            entry.content || ""
+          ).trim()
+        );
+      }
+    );
+
+
+  const hasOperationStatus =
+    Boolean(
+      String(
+        elements.operationStatusSnapshot
+          ?.value ||
+        elements.operationStatus
+          ?.value ||
+        appState.currentOperationStatus
+          ?.content ||
+        ""
+      ).trim()
+    );
+
+
+  const hasNote =
+    Boolean(
+      String(
+        elements.logNote
+          ?.value ||
+        ""
+      ).trim()
+    );
+
+
+  if (
+    !hasEntryContent &&
+    !hasOperationStatus &&
+    !hasNote
+  ) {
+    showToast(
+      "운전 현황 또는 업무 내용을 입력해 주세요."
+    );
+
+    return;
+  }
+
+
+  saveCurrentLog(
+    "작성중",
+    {
+      closeAfterSave:
+        false
+    }
   );
-
-  showToast("작성 중인 업무일지를 임시저장했습니다.");
 }
 
 
