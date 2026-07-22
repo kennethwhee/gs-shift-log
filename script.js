@@ -915,6 +915,872 @@ async function loadEmployeeManagement() {
 }
 
 /* =========================================================
+  과거 업무일지 동기화 관리
+========================================================= */
+
+const LEGACY_SYNC_STORAGE_KEY =
+  "gsShiftLog.legacySyncLastResult";
+
+
+/* =========================================================
+  날짜 입력값 → YYYYMMDD
+========================================================= */
+
+function convertLegacySyncDateToApiFormat(
+  dateValue
+) {
+  return String(
+    dateValue || ""
+  ).replace(
+    /-/g,
+    ""
+  );
+}
+
+
+/* =========================================================
+  날짜를 YYYY-MM-DD 형식으로 반환
+========================================================= */
+
+function formatLegacySyncDate(
+  date
+) {
+  return [
+    date.getFullYear(),
+
+    String(
+      date.getMonth() + 1
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    String(
+      date.getDate()
+    ).padStart(
+      2,
+      "0"
+    )
+  ].join("-");
+}
+
+
+/* =========================================================
+  기간을 최대 31일 단위로 나누기
+========================================================= */
+
+function createLegacySyncDateChunks(
+  startDateValue,
+  endDateValue
+) {
+  const startDate =
+    new Date(
+      `${startDateValue}T00:00:00`
+    );
+
+  const endDate =
+    new Date(
+      `${endDateValue}T00:00:00`
+    );
+
+
+  if (
+    Number.isNaN(
+      startDate.getTime()
+    ) ||
+    Number.isNaN(
+      endDate.getTime()
+    ) ||
+    startDate > endDate
+  ) {
+    return [];
+  }
+
+
+  const chunks = [];
+
+  const currentStart =
+    new Date(
+      startDate
+    );
+
+
+  while (
+    currentStart <= endDate
+  ) {
+    const currentEnd =
+      new Date(
+        currentStart
+      );
+
+
+    /*
+      시작일 포함 최대 31일
+    */
+    currentEnd.setDate(
+      currentEnd.getDate() + 30
+    );
+
+
+    if (
+      currentEnd > endDate
+    ) {
+      currentEnd.setTime(
+        endDate.getTime()
+      );
+    }
+
+
+    chunks.push({
+      startDate:
+        formatLegacySyncDate(
+          currentStart
+        ),
+
+      endDate:
+        formatLegacySyncDate(
+          currentEnd
+        )
+    });
+
+
+    currentStart.setTime(
+      currentEnd.getTime()
+    );
+
+
+    currentStart.setDate(
+      currentStart.getDate() + 1
+    );
+  }
+
+
+  return chunks;
+}
+
+
+/* =========================================================
+  동기화 메시지 표시
+========================================================= */
+
+function showLegacySyncMessage(
+  message,
+  type = "info"
+) {
+  const messageElement =
+    document.getElementById(
+      "legacySyncMessage"
+    );
+
+
+  if (!messageElement) {
+    return;
+  }
+
+
+  messageElement.textContent =
+    String(
+      message || ""
+    );
+
+
+  messageElement.hidden =
+    !message;
+
+
+  messageElement.dataset.type =
+    type;
+}
+
+
+/* =========================================================
+  동기화 상태 표시
+========================================================= */
+
+function setLegacySyncStatus(
+  status,
+  label
+) {
+  const statusBadge =
+    document.getElementById(
+      "legacySyncStatusBadge"
+    );
+
+
+  if (!statusBadge) {
+    return;
+  }
+
+
+  statusBadge.textContent =
+    label;
+
+
+  statusBadge.dataset.status =
+    status;
+}
+
+
+/* =========================================================
+  동기화 진행률 표시
+========================================================= */
+
+function updateLegacySyncProgress(
+  current,
+  total,
+  text
+) {
+  const progressElement =
+    document.getElementById(
+      "legacySyncProgress"
+    );
+
+  const progressBar =
+    document.getElementById(
+      "legacySyncProgressBar"
+    );
+
+  const progressText =
+    document.getElementById(
+      "legacySyncProgressText"
+    );
+
+  const progressPercent =
+    document.getElementById(
+      "legacySyncProgressPercent"
+    );
+
+
+  const safeTotal =
+    Math.max(
+      Number(total) || 1,
+      1
+    );
+
+
+  const safeCurrent =
+    Math.min(
+      Math.max(
+        Number(current) || 0,
+        0
+      ),
+      safeTotal
+    );
+
+
+  const percent =
+    Math.round(
+      (
+        safeCurrent /
+        safeTotal
+      ) *
+      100
+    );
+
+
+  if (progressElement) {
+    progressElement.hidden =
+      false;
+  }
+
+
+  if (progressBar) {
+    progressBar.style.width =
+      `${percent}%`;
+  }
+
+
+  if (progressText) {
+    progressText.textContent =
+      String(
+        text ||
+        "동기화 중입니다."
+      );
+  }
+
+
+  if (progressPercent) {
+    progressPercent.textContent =
+      `${percent}%`;
+  }
+}
+
+
+/* =========================================================
+  마지막 동기화 결과 저장
+========================================================= */
+
+function saveLegacySyncLastResult(
+  syncResult
+) {
+  localStorage.setItem(
+    LEGACY_SYNC_STORAGE_KEY,
+    JSON.stringify(
+      syncResult
+    )
+  );
+}
+
+
+/* =========================================================
+  마지막 동기화 결과 화면 표시
+========================================================= */
+
+function renderLegacySyncLastResult(
+  syncResult = null
+) {
+  const lastRunElement =
+    document.getElementById(
+      "legacySyncLastRun"
+    );
+
+  const lastRangeElement =
+    document.getElementById(
+      "legacySyncLastRange"
+    );
+
+  const lastResultElement =
+    document.getElementById(
+      "legacySyncLastResult"
+    );
+
+
+  let result =
+    syncResult;
+
+
+  if (!result) {
+    const savedResult =
+      localStorage.getItem(
+        LEGACY_SYNC_STORAGE_KEY
+      );
+
+
+    if (savedResult) {
+      try {
+        result =
+          JSON.parse(
+            savedResult
+          );
+      } catch {
+        localStorage.removeItem(
+          LEGACY_SYNC_STORAGE_KEY
+        );
+      }
+    }
+  }
+
+
+  if (!result) {
+    if (lastRunElement) {
+      lastRunElement.textContent =
+        "기록 없음";
+    }
+
+    if (lastRangeElement) {
+      lastRangeElement.textContent =
+        "-";
+    }
+
+    if (lastResultElement) {
+      lastResultElement.textContent =
+        "-";
+    }
+
+    return;
+  }
+
+
+  if (lastRunElement) {
+    lastRunElement.textContent =
+      formatDateTime(
+        result.completedAt
+      );
+  }
+
+
+  if (lastRangeElement) {
+    lastRangeElement.textContent =
+      `${result.startDate} ~ ${result.endDate}`;
+  }
+
+
+  if (lastResultElement) {
+    lastResultElement.textContent =
+      [
+        `조회 ${result.fetchedCount}건`,
+        `신규 ${result.createdCount}건`,
+        `갱신 ${result.updatedCount}건`,
+        `실패 ${result.failedDateCount}일`
+      ].join(" / ");
+  }
+}
+
+
+/* =========================================================
+  동기화 기간 기본값
+
+  시작일:
+  오늘 기준 30일 전
+
+  종료일:
+  오늘
+========================================================= */
+
+function setDefaultLegacySyncDateRange() {
+  const startDateInput =
+    document.getElementById(
+      "legacySyncStartDate"
+    );
+
+  const endDateInput =
+    document.getElementById(
+      "legacySyncEndDate"
+    );
+
+
+  if (
+    !startDateInput ||
+    !endDateInput
+  ) {
+    return;
+  }
+
+
+  const today =
+    new Date();
+
+
+  const thirtyDaysAgo =
+    new Date(
+      today
+    );
+
+
+  thirtyDaysAgo.setDate(
+    thirtyDaysAgo.getDate() - 30
+  );
+
+
+  if (
+    !startDateInput.value
+  ) {
+    startDateInput.value =
+      formatLegacySyncDate(
+        thirtyDaysAgo
+      );
+  }
+
+
+  if (
+    !endDateInput.value
+  ) {
+    endDateInput.value =
+      formatLegacySyncDate(
+        today
+      );
+  }
+}
+
+
+/* =========================================================
+  과거 업무일지 동기화 실행
+========================================================= */
+
+async function runLegacyLogSync() {
+  const startDateInput =
+    document.getElementById(
+      "legacySyncStartDate"
+    );
+
+  const endDateInput =
+    document.getElementById(
+      "legacySyncEndDate"
+    );
+
+  const runButton =
+    document.getElementById(
+      "runLegacySyncButton"
+    );
+
+
+  const startDate =
+    String(
+      startDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const endDate =
+    String(
+      endDateInput?.value ||
+      ""
+    ).trim();
+
+
+  if (
+    !startDate ||
+    !endDate
+  ) {
+    showLegacySyncMessage(
+      "시작일과 종료일을 선택해 주세요.",
+      "error"
+    );
+
+    return;
+  }
+
+
+  const chunks =
+    createLegacySyncDateChunks(
+      startDate,
+      endDate
+    );
+
+
+  if (
+    !chunks.length
+  ) {
+    showLegacySyncMessage(
+      "동기화 기간을 확인해 주세요.",
+      "error"
+    );
+
+    return;
+  }
+
+
+  const shouldRun =
+    window.confirm(
+      [
+        "과거 업무일지를 동기화하시겠습니까?",
+        "",
+        `${startDate} ~ ${endDate}`,
+        `총 ${chunks.length}회로 나누어 처리합니다.`,
+        "",
+        "이미 저장된 자료는 최신 내용으로 갱신됩니다."
+      ].join("\n")
+    );
+
+
+  if (!shouldRun) {
+    return;
+  }
+
+
+  if (runButton) {
+    runButton.disabled =
+      true;
+
+    runButton.textContent =
+      "동기화 중...";
+  }
+
+
+  setLegacySyncStatus(
+    "running",
+    "진행 중"
+  );
+
+
+  showLegacySyncMessage(
+    "과거 업무일지를 동기화하고 있습니다.",
+    "info"
+  );
+
+
+  updateLegacySyncProgress(
+    0,
+    chunks.length,
+    "동기화를 준비하고 있습니다."
+  );
+
+
+  let fetchedCount = 0;
+
+  let createdCount = 0;
+
+  let updatedCount = 0;
+
+  let failedDateCount = 0;
+
+
+  try {
+    for (
+      let chunkIndex = 0;
+      chunkIndex <
+        chunks.length;
+      chunkIndex += 1
+    ) {
+      const chunk =
+        chunks[
+          chunkIndex
+        ];
+
+
+      updateLegacySyncProgress(
+        chunkIndex,
+        chunks.length,
+        `${chunk.startDate} ~ ${chunk.endDate} 동기화 중`
+      );
+
+
+      const response =
+        await fetch(
+          "/api/legacy-import",
+          {
+            method:
+              "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+
+              Accept:
+                "application/json"
+            },
+
+            cache:
+              "no-store",
+
+            body:
+              JSON.stringify({
+                startDate:
+                  convertLegacySyncDateToApiFormat(
+                    chunk.startDate
+                  ),
+
+                endDate:
+                  convertLegacySyncDateToApiFormat(
+                    chunk.endDate
+                  ),
+
+                shift:
+                  "ALL"
+              })
+          }
+        );
+
+
+      const responseText =
+        await response.text();
+
+
+      let result = {};
+
+
+      try {
+        result =
+          responseText
+            ? JSON.parse(
+                responseText
+              )
+            : {};
+
+      } catch {
+        throw new Error(
+          `${chunk.startDate} ~ ${chunk.endDate} 서버 응답을 확인할 수 없습니다.`
+        );
+      }
+
+
+      if (
+        !response.ok ||
+        !result.success
+      ) {
+        throw new Error(
+          result.message ||
+          `${chunk.startDate} ~ ${chunk.endDate} 동기화에 실패했습니다.`
+        );
+      }
+
+
+      fetchedCount +=
+        Number(
+          result.fetchedCount ||
+          0
+        );
+
+
+      createdCount +=
+        Number(
+          result.createdCount ||
+          0
+        );
+
+
+      updatedCount +=
+        Number(
+          result.updatedCount ||
+          0
+        );
+
+
+      failedDateCount +=
+        Number(
+          result.failedDateCount ||
+          0
+        );
+
+
+      updateLegacySyncProgress(
+        chunkIndex + 1,
+        chunks.length,
+        `${chunk.startDate} ~ ${chunk.endDate} 완료`
+      );
+    }
+
+
+    const completedAt =
+      new Date()
+        .toISOString();
+
+
+    const finalResult = {
+      startDate,
+
+      endDate,
+
+      fetchedCount,
+
+      createdCount,
+
+      updatedCount,
+
+      failedDateCount,
+
+      completedAt
+    };
+
+
+    saveLegacySyncLastResult(
+      finalResult
+    );
+
+
+    renderLegacySyncLastResult(
+      finalResult
+    );
+
+
+    setLegacySyncStatus(
+      failedDateCount > 0
+        ? "warning"
+        : "complete",
+
+      failedDateCount > 0
+        ? "일부 완료"
+        : "완료"
+    );
+
+
+    showLegacySyncMessage(
+      [
+        "과거 업무일지 동기화가 완료되었습니다.",
+        `조회 ${fetchedCount}건`,
+        `신규 ${createdCount}건`,
+        `갱신 ${updatedCount}건`,
+        `실패 날짜 ${failedDateCount}일`
+      ].join(" / "),
+      failedDateCount > 0
+        ? "warning"
+        : "success"
+    );
+
+
+    updateLegacySyncProgress(
+      chunks.length,
+      chunks.length,
+      "모든 동기화 작업이 완료되었습니다."
+    );
+
+
+    /*
+      현재 화면의 선택 날짜 자료를 다시 불러온다.
+    */
+    if (
+      typeof loadLegacyLogsForSelectedDate ===
+      "function"
+    ) {
+      await loadLegacyLogsForSelectedDate();
+
+      renderLogTable();
+
+      updateShiftMemberCardStates();
+    }
+
+  } catch (error) {
+    console.error(
+      "과거 업무일지 동기화 오류:",
+      error
+    );
+
+
+    setLegacySyncStatus(
+      "error",
+      "실패"
+    );
+
+
+    showLegacySyncMessage(
+      error.message ||
+      "과거 업무일지 동기화에 실패했습니다.",
+      "error"
+    );
+
+  } finally {
+    if (runButton) {
+      runButton.disabled =
+        false;
+
+      runButton.textContent =
+        "과거 업무일지 동기화";
+    }
+  }
+}
+
+
+/* =========================================================
+  과거 업무일지 동기화 초기화
+========================================================= */
+
+function initializeLegacySyncPanel() {
+  const runButton =
+    document.getElementById(
+      "runLegacySyncButton"
+    );
+
+
+  if (!runButton) {
+    return;
+  }
+
+
+  setDefaultLegacySyncDateRange();
+
+
+  renderLegacySyncLastResult();
+
+
+  setLegacySyncStatus(
+    "ready",
+    "대기"
+  );
+
+
+  runButton.addEventListener(
+    "click",
+    runLegacyLogSync
+  );
+}
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  initializeLegacySyncPanel
+);
+
+/* =========================================================
   직원관리 모달 열기
 ========================================================= */
 

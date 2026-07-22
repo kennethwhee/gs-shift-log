@@ -2594,6 +2594,163 @@
 
       </section>
 
+      <!-- ===================================================
+  과거 업무일지 동기화
+==================================================== -->
+<section
+  class="legacy-sync-panel"
+  id="legacySyncPanel"
+>
+
+  <div class="legacy-sync-panel__header">
+
+    <div>
+
+      <strong>
+        과거 업무일지 동기화
+      </strong>
+
+      <p>
+        과거 업무일지를 GS Shift Log 데이터베이스에 저장합니다.
+      </p>
+
+    </div>
+
+
+    <span
+      class="legacy-sync-status-badge"
+      id="legacySyncStatusBadge"
+    >
+      대기
+    </span>
+
+  </div>
+
+
+  <div class="legacy-sync-form">
+
+    <label class="form-field">
+
+      <span class="form-field__label">
+        시작일
+      </span>
+
+      <input
+        type="date"
+        id="legacySyncStartDate"
+      />
+
+    </label>
+
+
+    <label class="form-field">
+
+      <span class="form-field__label">
+        종료일
+      </span>
+
+      <input
+        type="date"
+        id="legacySyncEndDate"
+      />
+
+    </label>
+
+
+    <button
+      type="button"
+      class="primary-button legacy-sync-button"
+      id="runLegacySyncButton"
+    >
+      과거 업무일지 동기화
+    </button>
+
+  </div>
+
+
+  <div
+    class="legacy-sync-progress"
+    id="legacySyncProgress"
+    hidden
+  >
+
+    <div class="legacy-sync-progress__track">
+
+      <span
+        class="legacy-sync-progress__bar"
+        id="legacySyncProgressBar"
+      >
+      </span>
+
+    </div>
+
+
+    <div class="legacy-sync-progress__text">
+
+      <strong id="legacySyncProgressText">
+        동기화를 준비하고 있습니다.
+      </strong>
+
+      <span id="legacySyncProgressPercent">
+        0%
+      </span>
+
+    </div>
+
+  </div>
+
+
+  <p
+    class="employee-management-message legacy-sync-message"
+    id="legacySyncMessage"
+    hidden
+  >
+  </p>
+
+
+  <div class="legacy-sync-summary">
+
+    <div>
+
+      <span>
+        마지막 동기화
+      </span>
+
+      <strong id="legacySyncLastRun">
+        기록 없음
+      </strong>
+
+    </div>
+
+
+    <div>
+
+      <span>
+        동기화 기간
+      </span>
+
+      <strong id="legacySyncLastRange">
+        -
+      </strong>
+
+    </div>
+
+
+    <div>
+
+      <span>
+        처리 결과
+      </span>
+
+      <strong id="legacySyncLastResult">
+        -
+      </strong>
+
+    </div>
+
+  </div>
+
+</section>
 
       <!-- ===================================================
         직원 추가 입력
