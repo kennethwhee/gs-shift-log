@@ -5209,35 +5209,166 @@ td {
 
 
 /* =========================================================
-   실제 내용
+   실제 내용 최종본
+
+   TM 발행:
+   주황 번호 | 파란 시간 | 내용
+
+   인계사항:
+   파란 번호 | 파란 시간 | 내용
+========================================================= */
+
+
+/* =========================================================
+   번호·시간·TAG·내용 묶음
 ========================================================= */
 
 .log-preview__content {
   display: flex;
   min-width: 0;
+
   align-items: baseline;
   flex-wrap: wrap;
+
   gap: 5px;
+
   margin: 0;
   padding: 2px 0 0;
+
+  color: #26364b;
   text-align: left;
 }
+
+
+/* =========================================================
+   번호 공통
+========================================================= */
+
+.log-preview__entry-number {
+  display: inline-block;
+  flex: 0 0 auto;
+
+  margin: 0;
+  padding: 0;
+
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.55;
+
+  font-variant-numeric:
+    tabular-nums;
+
+  white-space: nowrap;
+}
+
+
+/*
+  TM 발행 내역 번호
+*/
+.log-preview__entry-number.is-tm-number {
+  color: #b87412;
+}
+
+
+/*
+  인계사항 번호
+*/
+.log-preview__entry-number.is-handover-number {
+  color: #1f5fae;
+}
+
+
+/* =========================================================
+   시간
+
+   단일 시간:
+   09:05
+
+   여러 시간:
+   09:06, 14:19, 16:15
+
+   시간 범위:
+   08:37~09:46
+========================================================= */
+
+.log-preview__entry-time {
+  display: inline-block;
+  flex: 0 0 auto;
+
+  margin: 0;
+  padding: 0;
+
+  color: #1f5fae;
+
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.55;
+
+  font-variant-numeric:
+    tabular-nums;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   실제 업무내용
+========================================================= */
 
 .log-preview__text {
   display: block;
   min-width: 0;
+  flex: 0 1 auto;
+
   margin: 0;
   padding: 0;
+
   color: #26364b;
+
   font-size: 13px;
   font-weight: 600;
   line-height: 1.55;
+
   text-align: left;
+
   white-space: normal;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 
+
+/* =========================================================
+   TAG
+
+   기존 스타일을 유지하면서
+   번호·시간과 기준선을 맞춘다.
+========================================================= */
+
+.log-preview__content
+.log-preview__tag {
+  flex: 0 0 auto;
+  align-self: baseline;
+}
+
+
+/* =========================================================
+   긴 내용 줄바꿈
+
+   번호와 시간은 고정하고
+   실제 내용만 자연스럽게 다음 줄로 이동한다.
+========================================================= */
+
+@media (max-width: 900px) {
+  .log-preview__content {
+    gap: 4px;
+  }
+
+  .log-preview__entry-number,
+  .log-preview__entry-time,
+  .log-preview__text {
+    font-size: 12px;
+  }
+}
 
 /* =========================================================
    TGO · BCO1 · BCO2 업무일지 제목

@@ -13180,13 +13180,25 @@ function renderLogTable() {
   updateShiftMemberCardStates();
 }
 
+/* =========================================================
+  업무일지 메인 목록 한 행 생성 최종본
+
+  색상 기준:
+  - TM 발행 번호: 주황색
+  - 인계사항 번호: 파란색
+  - 모든 시간: 파란색
+  - 실제 내용: 기존 진한 본문색
+========================================================= */
+
 function createLogRowHtml(log) {
   const previewGroups = [];
+
 
   const normalizedLogRole =
     normalizeMemberLogRole(
       log.role
     );
+
 
   const isLeaderLog =
     normalizedLogRole ===
@@ -13199,7 +13211,8 @@ function createLogRowHtml(log) {
 
   if (
     String(
-      log.operationStatus || ""
+      log.operationStatus ||
+      ""
     ).trim()
   ) {
     previewGroups.push({
@@ -13209,12 +13222,21 @@ function createLogRowHtml(log) {
       title:
         "운전현황",
 
-      text:
+      number:
+        "",
+
+      time:
+        "",
+
+      content:
         firstMeaningfulLine(
           log.operationStatus
         ),
 
       tag:
+        "",
+
+      numberClass:
         "",
 
       categoryClass:
@@ -13237,15 +13259,19 @@ function createLogRowHtml(log) {
 
   const tmEntries =
     sortDetailEntriesByTime(
-      entries.filter((entry) => {
-        return (
-          String(
-            entry.category || ""
-          ).trim() ===
-          "TM 발행"
-        );
-      })
+      entries.filter(
+        (entry) => {
+          return (
+            String(
+              entry.category ||
+              ""
+            ).trim() ===
+            "TM 발행"
+          );
+        }
+      )
     );
+
 
   tmEntries.forEach(
     (
@@ -13254,15 +13280,26 @@ function createLogRowHtml(log) {
     ) => {
       const tagText =
         String(
-          entry.tag || ""
+          entry.tag ||
+          ""
         )
           .trim()
           .toUpperCase();
 
+
+      const timeText =
+        String(
+          entry.time ||
+          ""
+        ).trim();
+
+
       const contentText =
         firstMeaningfulLine(
           entry.content
-        ) || "-";
+        ) ||
+        "-";
+
 
       previewGroups.push({
         type:
@@ -13273,13 +13310,28 @@ function createLogRowHtml(log) {
             ? "TM 발행 내역"
             : "",
 
+        /*
+          TM 번호는 주황색
+        */
+        number:
+          `${index + 1}.`,
+
+        numberClass:
+          "is-tm-number",
+
+        /*
+          시간이 있는 TM은 파란색 시간으로 표시
+        */
+        time:
+          timeText,
+
+        content:
+          contentText,
+
         tag:
           tagText
             ? `[${tagText}]`
             : "",
-
-        text:
-          `${index + 1}. ${contentText}`,
 
         categoryClass: [
           "is-maintenance",
@@ -13300,14 +13352,18 @@ function createLogRowHtml(log) {
   ====================================================== */
 
   const handoverEntries =
-    entries.filter((entry) => {
-      return (
-        String(
-          entry.category || ""
-        ).trim() !==
-        "TM 발행"
-      );
-    });
+    entries.filter(
+      (entry) => {
+        return (
+          String(
+            entry.category ||
+            ""
+          ).trim() !==
+          "TM 발행"
+        );
+      }
+    );
+
 
   const roleOrder = [
     "TGO",
@@ -13319,7 +13375,9 @@ function createLogRowHtml(log) {
     "파트장"
   ];
 
+
   const groupedEntries = {};
+
 
   handoverEntries.forEach(
     (entry) => {
@@ -13329,6 +13387,7 @@ function createLogRowHtml(log) {
           log.role ||
           "파트장"
         );
+
 
       if (
         !groupedEntries[
@@ -13340,6 +13399,7 @@ function createLogRowHtml(log) {
         ] = [];
       }
 
+
       groupedEntries[
         sourceRole
       ].push(
@@ -13347,6 +13407,7 @@ function createLogRowHtml(log) {
       );
     }
   );
+
 
   const orderedRoles = [
     ...roleOrder.filter(
@@ -13361,13 +13422,15 @@ function createLogRowHtml(log) {
 
     ...Object.keys(
       groupedEntries
-    ).filter((role) => {
-      return (
-        !roleOrder.includes(
-          role
-        )
-      );
-    })
+    ).filter(
+      (role) => {
+        return (
+          !roleOrder.includes(
+            role
+          )
+        );
+      }
+    )
   ];
 
 
@@ -13385,11 +13448,9 @@ function createLogRowHtml(log) {
 
 
       /*
-        파트장 업무일지에서는
-        TGO부터 보직별 제목을 표시한다.
-
-        첫 번째 보직 제목에는
-        파트장 업무 시작 경계선 클래스를 추가한다.
+        파트장 업무일지는
+        TGO → BCO1 → BCO2 순서로
+        보직 제목을 표시한다.
       */
       if (
         isLeaderLog &&
@@ -13425,28 +13486,26 @@ function createLogRowHtml(log) {
         ) => {
           const tagText =
             String(
-              entry.tag || ""
+              entry.tag ||
+              ""
             )
               .trim()
               .toUpperCase();
 
+
           const timeText =
             String(
-              entry.time || ""
+              entry.time ||
+              ""
             ).trim();
+
 
           const contentText =
             firstMeaningfulLine(
               entry.content
-            ) || "-";
+            ) ||
+            "-";
 
-          const displayText = [
-            `${index + 1}.`,
-            timeText,
-            contentText
-          ]
-            .filter(Boolean)
-            .join(" ");
 
           previewGroups.push({
             type:
@@ -13458,13 +13517,28 @@ function createLogRowHtml(log) {
                 ? "인계"
                 : "",
 
+            /*
+              인계 번호는 파란색
+            */
+            number:
+              `${index + 1}.`,
+
+            numberClass:
+              "is-handover-number",
+
+            /*
+              시간도 파란색
+            */
+            time:
+              timeText,
+
+            content:
+              contentText,
+
             tag:
               tagText
                 ? `[${tagText}]`
                 : "",
-
-            text:
-              displayText,
 
             categoryClass: [
               "is-handover",
@@ -13494,7 +13568,8 @@ function createLogRowHtml(log) {
 
   if (
     String(
-      log.note || ""
+      log.note ||
+      ""
     ).trim()
   ) {
     previewGroups.push({
@@ -13504,7 +13579,16 @@ function createLogRowHtml(log) {
       title:
         "비고",
 
-      text:
+      number:
+        "",
+
+      numberClass:
+        "",
+
+      time:
+        "",
+
+      content:
         firstMeaningfulLine(
           log.note
         ),
@@ -13531,7 +13615,8 @@ function createLogRowHtml(log) {
 
       <td class="log-row__role">
         ${escapeHtml(
-          log.role || "-"
+          log.role ||
+          "-"
         )}
       </td>
 
@@ -13542,12 +13627,14 @@ function createLogRowHtml(log) {
 
           <strong class="log-row__author">
             ${escapeHtml(
-              log.author || "-"
+              log.author ||
+              "-"
             )}
           </strong>
 
           ${
-            log.isSubstitute === true
+            log.isSubstitute ===
+            true
               ? `
                 <span class="substitute-work-badge">
                   대근
@@ -13569,7 +13656,8 @@ function createLogRowHtml(log) {
           )}"
         >
           ${escapeHtml(
-            log.status || "-"
+            log.status ||
+            "-"
           )}
         </span>
 
@@ -13579,7 +13667,8 @@ function createLogRowHtml(log) {
       <td class="log-row__attachment-cell">
 
         ${
-          attachmentCount > 0
+          attachmentCount >
+          0
             ? `
               <span
                 class="attachment-indicator"
@@ -13617,103 +13706,144 @@ function createLogRowHtml(log) {
           ${
             previewGroups.length
               ? previewGroups
-                  .map((group) => {
+                  .map(
+                    (group) => {
 
-                    /*
-                      파트장 보직별 업무 구분 제목
-                    */
-                    if (
-                      group.type ===
-                      "role-section"
-                    ) {
+                      /*
+                        파트장 보직별 제목
+                      */
+                      if (
+                        group.type ===
+                        "role-section"
+                      ) {
+                        return `
+                          <span
+                            class="
+                              log-preview__role-section
+
+                              ${
+                                group.isFirstRole
+                                  ? "is-first-role"
+                                  : ""
+                              }
+                            "
+                          >
+
+                            <span
+                              class="
+                                log-preview__role-divider
+                                ${group.categoryClass}
+                              "
+                            >
+                              ${escapeHtml(
+                                group.title
+                              )}
+                            </span>
+
+                          </span>
+                        `;
+                      }
+
+
+                      /*
+                        일반 업무내용
+                      */
                       return `
                         <span
                           class="
-                            log-preview__role-section
+                            log-preview__group
+                            ${group.categoryClass}
+
                             ${
-                              group.isFirstRole
-                                ? "is-first-role"
-                                : ""
+                              group.title
+                                ? ""
+                                : "has-no-title"
                             }
                           "
                         >
-                          <span
-                            class="
-                              log-preview__role-divider
-                              ${group.categoryClass}
-                            "
-                          >
-                            ${escapeHtml(
-                              group.title
-                            )}
-                          </span>
-                        </span>
-                      `;
-                    }
-
-
-                    /*
-                      일반 업무 내용
-                    */
-                    return `
-                      <span
-                        class="
-                          log-preview__group
-                          ${group.categoryClass}
 
                           ${
                             group.title
-                              ? ""
-                              : "has-no-title"
-                          }
-                        "
-                      >
-
-                        ${
-                          group.title
-                            ? `
-                              <strong
-                                class="log-preview__title"
-                              >
-                                ${escapeHtml(
-                                  group.title
-                                )}
-                              </strong>
-                            `
-                            : ""
-                        }
-
-                        <span
-                          class="log-preview__content"
-                        >
-
-                          <span
-                            class="log-preview__text"
-                          >
-                            ${escapeHtml(
-                              group.text || "-"
-                            )}
-                          </span>
-
-                          ${
-                            group.tag
                               ? `
-                                <span
-                                  class="log-preview__tag"
+                                <strong
+                                  class="log-preview__title"
                                 >
                                   ${escapeHtml(
-                                    group.tag
+                                    group.title
                                   )}
-                                </span>
+                                </strong>
                               `
                               : ""
                           }
 
-                        </span>
 
-                      </span>
-                    `;
-                  })
+                          <span
+                            class="log-preview__content"
+                          >
+
+                            ${
+                              group.number
+                                ? `
+                                  <span
+                                    class="
+                                      log-preview__entry-number
+                                      ${group.numberClass || ""}
+                                    "
+                                  >
+                                    ${escapeHtml(
+                                      group.number
+                                    )}
+                                  </span>
+                                `
+                                : ""
+                            }
+
+
+                            ${
+                              group.time
+                                ? `
+                                  <span
+                                    class="log-preview__entry-time"
+                                  >
+                                    ${escapeHtml(
+                                      group.time
+                                    )}
+                                  </span>
+                                `
+                                : ""
+                            }
+
+
+                            ${
+                              group.tag
+                                ? `
+                                  <span
+                                    class="log-preview__tag"
+                                  >
+                                    ${escapeHtml(
+                                      group.tag
+                                    )}
+                                  </span>
+                                `
+                                : ""
+                            }
+
+
+                            <span
+                              class="log-preview__text"
+                            >
+                              ${escapeHtml(
+                                group.content ||
+                                "-"
+                              )}
+                            </span>
+
+                          </span>
+
+                        </span>
+                      `;
+                    }
+                  )
                   .join("")
               : `
                 <span class="log-preview__empty">
@@ -13748,6 +13878,7 @@ function createLogRowHtml(log) {
                 : "수정"
             }
           </button>
+
 
           <button
             type="button"
@@ -14455,24 +14586,12 @@ const operationStatusText =
     전체 작업 내역
   ====================================================== */
 
-const entries =
-  normalizeExistingLogEntries(
-    log.entries
-  );
-
-
-/*
-  상세보기에서 정리된 시간 정보를
-  현재 업무일지 객체에도 즉시 반영한다.
-*/
-log.entries =
-  entries.map(
-    (entry) => {
-      return {
-        ...entry
-      };
-    }
-  );
+  const entries =
+    Array.isArray(
+      log.entries
+    )
+      ? log.entries
+      : [];
 
 
   /* =====================================================
