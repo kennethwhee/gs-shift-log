@@ -7937,6 +7937,733 @@ function addOrUpdateLogEntry() {
     ?.focus();
 }
 
+/* =========================================================
+  업무 항목 TAG 버튼 생성
+========================================================= */
+
+function createTagHtml(
+  entry,
+  originalIndex
+) {
+  const tagText =
+    String(
+      entry?.tag || ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  if (!tagText) {
+    return "";
+  }
+
+
+  return `
+    <button
+      type="button"
+      class="log-entry-inline-tag"
+      data-entry-action="navigator"
+      data-entry-index="${originalIndex}"
+      title="Facility Navigator에서 설비 보기"
+    >
+      [${escapeHtml(
+        tagText
+      )}]
+    </button>
+  `;
+}
+
+/* =========================================================
+  인수인계사항 목록 렌더링
+
+  TM 발행:
+  1. 내용
+
+  인계사항:
+  1. 07:15 내용
+
+  파트장:
+  TGO·BCO1·BCO2 등 보직별로 구분
+========================================================= */
+
+function renderLogEntryTable() {
+  const entries =
+    Array.isArray(
+      appState.editorEntries
+    )
+      ? appState.editorEntries
+      : [];
+
+
+  const currentRole =
+    normalizeMemberLogRole(
+      elements.logRole?.value
+    );
+
+
+  const isLeaderLog =
+    currentRole ===
+    "파트장";
+
+
+  /*
+    원본 배열 인덱스를 유지한다.
+
+    화면에서 정렬하더라도
+    수정·삭제는 원본 인덱스로 처리한다.
+  */
+  const indexedEntries =
+    entries.map(
+      (
+        entry,
+        originalIndex
+      ) => {
+        return {
+          entry,
+          originalIndex
+        };
+      }
+    );
+
+
+  /* =====================================================
+    시간 정렬
+  ====================================================== */
+
+  const sortEntries = (
+    itemA,
+    itemB
+  ) => {
+    const timeA =
+      String(
+        itemA.entry?.time || ""
+      ).trim();
+
+
+    const timeB =
+      String(
+        itemB.entry?.time || ""
+      ).trim();
+
+
+    if (
+      timeA &&
+      !timeB
+    ) {
+      return -1;
+    }
+
+
+    if (
+      !timeA &&
+      timeB
+    ) {
+      return 1;
+    }
+
+
+    if (
+      timeA &&
+      timeB
+    ) {
+      const timeDifference =
+        timeA.localeCompare(
+          timeB
+        );
+
+
+      if (
+        timeDifference !==
+        0
+      ) {
+        return timeDifference;
+      }
+    }
+
+
+    return (
+      itemA.originalIndex -
+      itemB.originalIndex
+    );
+  };
+
+
+  /* =====================================================
+    TM / 일반 업무 분리
+  ====================================================== */
+
+  const tmEntries =
+    indexedEntries
+      .filter(
+        ({
+          entry
+        }) => {
+          return (
+            String(
+              entry?.category || ""
+            ).trim() ===
+            "TM 발행"
+          );
+        }
+      )
+      .sort(
+        sortEntries
+      );
+
+
+  const ordinaryEntries =
+    indexedEntries.filter(
+      ({
+        entry
+      }) => {
+        return (
+          String(
+            entry?.category || ""
+          ).trim() !==
+          "TM 발행"
+        );
+      }
+    );
+
+
+  /* =====================================================
+    건수 및 저장용 값
+  ====================================================== */
+
+  if (
+    elements.logEntryCount
+  ) {
+    elements.logEntryCount.textContent =
+      `총 ${entries.length}건`;
+  }
+
+
+  if (
+    elements.tmIssueEntryCount
+  ) {
+    elements.tmIssueEntryCount.textContent =
+      `${tmEntries.length}건`;
+  }
+
+
+  if (
+    elements.handoverEntryCount
+  ) {
+    elements.handoverEntryCount.textContent =
+      `${ordinaryEntries.length}건`;
+  }
+
+
+  if (
+    elements.logEntriesJson
+  ) {
+    elements.logEntriesJson.value =
+      JSON.stringify(
+        entries
+      );
+  }
+
+
+  /* =====================================================
+    편집용 체크박스
+  ====================================================== */
+
+  const createSelectCellHtml = (
+    entry,
+    originalIndex
+  ) => {
+    const categoryText =
+      String(
+        entry?.category ||
+        "인계사항"
+      ).trim();
+
+
+    return `
+      <td
+        class="
+          log-entry-select-cell
+          log-entry-edit-only-cell
+        "
+        hidden
+      >
+        <input
+          type="checkbox"
+          class="log-entry-select-checkbox"
+          data-entry-select-index="${originalIndex}"
+          aria-label="${escapeHtml(
+            categoryText
+          )} 항목 선택"
+        />
+      </td>
+    `;
+  };
+
+
+  /* =====================================================
+    편집용 수정·삭제 버튼
+  ====================================================== */
+
+  const createActionCellHtml = (
+    originalIndex
+  ) => {
+    return `
+      <td
+        class="
+          log-entry-actions-cell
+          log-entry-edit-only-cell
+        "
+        hidden
+      >
+        <div class="log-entry-row-actions">
+
+          <button
+            type="button"
+            class="log-entry-edit-button"
+            data-entry-action="edit"
+            data-entry-index="${originalIndex}"
+          >
+            수정
+          </button>
+
+          <button
+            type="button"
+            class="log-entry-delete-button"
+            data-entry-action="delete"
+            data-entry-index="${originalIndex}"
+          >
+            삭제
+          </button>
+
+        </div>
+      </td>
+    `;
+  };
+
+
+  /* =====================================================
+    TM 발행 내역
+  ====================================================== */
+
+  if (
+    elements.tmIssueEntryTableBody
+  ) {
+    if (
+      !tmEntries.length
+    ) {
+      elements
+        .tmIssueEntryTableBody
+        .innerHTML = `
+          <tr class="log-entry-empty-row">
+            <td colspan="4">
+              등록된 TM 발행 내역이 없습니다.
+            </td>
+          </tr>
+        `;
+
+    } else {
+      elements
+        .tmIssueEntryTableBody
+        .innerHTML =
+        tmEntries
+          .map(
+            (
+              {
+                entry,
+                originalIndex
+              },
+              index
+            ) => {
+              const isEditing =
+                originalIndex ===
+                appState.editingEntryIndex;
+
+
+              return `
+                <tr
+                  data-entry-index="${originalIndex}"
+                  class="${
+                    isEditing
+                      ? "is-editing"
+                      : ""
+                  }"
+                >
+                  ${createSelectCellHtml(
+                    entry,
+                    originalIndex
+                  )}
+
+                  <td
+                    class="
+                      log-entry-content-cell
+                      log-entry-fixed-content-cell
+                    "
+                    colspan="2"
+                  >
+                    ${createCompactLineHtml(
+                      entry,
+                      originalIndex,
+                      index + 1,
+                      {
+                        showTime:
+                          false
+                      }
+                    )}
+                  </td>
+
+                  ${createActionCellHtml(
+                    originalIndex
+                  )}
+                </tr>
+              `;
+            }
+          )
+          .join("");
+    }
+  }
+
+
+  /* =====================================================
+    파트장 보직별 업무 묶기
+  ====================================================== */
+
+  const roleOrder = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2",
+    "파트장"
+  ];
+
+
+  const groupedEntries = {};
+
+
+  ordinaryEntries.forEach(
+    (item) => {
+      const sourceRole =
+        normalizeMemberLogRole(
+          item.entry
+            ?.importedFromRole ||
+          currentRole ||
+          "파트장"
+        );
+
+
+      if (
+        !groupedEntries[
+          sourceRole
+        ]
+      ) {
+        groupedEntries[
+          sourceRole
+        ] = [];
+      }
+
+
+      groupedEntries[
+        sourceRole
+      ].push(
+        item
+      );
+    }
+  );
+
+
+  Object.keys(
+    groupedEntries
+  ).forEach(
+    (role) => {
+      groupedEntries[
+        role
+      ].sort(
+        sortEntries
+      );
+    }
+  );
+
+
+  const orderedRoles = [
+    ...roleOrder.filter(
+      (role) => {
+        return Boolean(
+          groupedEntries[
+            role
+          ]?.length
+        );
+      }
+    ),
+
+    ...Object.keys(
+      groupedEntries
+    ).filter(
+      (role) => {
+        return (
+          !roleOrder.includes(
+            role
+          )
+        );
+      }
+    )
+  ];
+
+
+  const createOrdinaryRowHtml = (
+    item,
+    displayNumber
+  ) => {
+    const {
+      entry,
+      originalIndex
+    } = item;
+
+
+    const isEditing =
+      originalIndex ===
+        appState.editingEntryIndex;
+
+
+    return `
+      <tr
+        data-entry-index="${originalIndex}"
+        class="${
+          isEditing
+            ? "is-editing"
+            : ""
+        }"
+      >
+        ${createSelectCellHtml(
+          entry,
+          originalIndex
+        )}
+
+        <td
+          class="
+            log-entry-content-cell
+            log-entry-fixed-content-cell
+          "
+          colspan="3"
+        >
+          ${createCompactLineHtml(
+            entry,
+            originalIndex,
+            displayNumber,
+            {
+              showTime:
+                true
+            }
+          )}
+        </td>
+
+        ${createActionCellHtml(
+          originalIndex
+        )}
+      </tr>
+    `;
+  };
+
+
+  /* =====================================================
+    인계사항 출력
+  ====================================================== */
+
+  if (
+    elements.logEntryTableBody
+  ) {
+    if (
+      !ordinaryEntries.length
+    ) {
+      elements
+        .logEntryTableBody
+        .innerHTML = `
+          <tr class="log-entry-empty-row">
+            <td colspan="5">
+              등록된 인계사항이 없습니다.
+            </td>
+          </tr>
+        `;
+
+    } else if (
+      isLeaderLog
+    ) {
+      elements
+        .logEntryTableBody
+        .innerHTML =
+        orderedRoles
+          .map(
+            (
+              role,
+              roleIndex
+            ) => {
+              const roleEntries =
+                groupedEntries[
+                  role
+                ];
+
+
+              return `
+                <tr
+                  class="
+                    log-entry-role-divider-row
+                    ${
+                      roleIndex === 0
+                        ? "is-first-role"
+                        : ""
+                    }
+                  "
+                >
+                  <td colspan="5">
+
+                    <div class="log-entry-role-divider">
+
+                      <span
+                        class="
+                          log-entry-role-divider__badge
+                          ${getLogEntrySourceClass(
+                            role
+                          )}
+                        "
+                      >
+                        ${escapeHtml(
+                          role
+                        )}
+                      </span>
+
+                      <strong>
+                        ${escapeHtml(
+                          role
+                        )} 업무일지
+                      </strong>
+
+                      <span class="log-entry-role-divider__count">
+                        ${roleEntries.length}건
+                      </span>
+
+                    </div>
+
+                  </td>
+                </tr>
+
+                ${roleEntries
+                  .map(
+                    (
+                      item,
+                      index
+                    ) => {
+                      return createOrdinaryRowHtml(
+                        item,
+                        index + 1
+                      );
+                    }
+                  )
+                  .join("")}
+              `;
+            }
+          )
+          .join("");
+
+    } else {
+      const sortedEntries = [
+        ...ordinaryEntries
+      ].sort(
+        sortEntries
+      );
+
+
+      elements
+        .logEntryTableBody
+        .innerHTML =
+        sortedEntries
+          .map(
+            (
+              item,
+              index
+            ) => {
+              return createOrdinaryRowHtml(
+                item,
+                index + 1
+              );
+            }
+          )
+          .join("");
+    }
+  }
+
+
+  /* =====================================================
+    선택 상태 초기화
+  ====================================================== */
+
+  if (
+    elements.selectAllTmEntriesCheckbox
+  ) {
+    elements
+      .selectAllTmEntriesCheckbox
+      .checked =
+      false;
+
+    elements
+      .selectAllTmEntriesCheckbox
+      .indeterminate =
+      false;
+
+    elements
+      .selectAllTmEntriesCheckbox
+      .disabled =
+      tmEntries.length === 0;
+  }
+
+
+  if (
+    elements.selectAllLogEntriesCheckbox
+  ) {
+    elements
+      .selectAllLogEntriesCheckbox
+      .checked =
+      false;
+
+    elements
+      .selectAllLogEntriesCheckbox
+      .indeterminate =
+      false;
+
+    elements
+      .selectAllLogEntriesCheckbox
+      .disabled =
+      ordinaryEntries.length === 0;
+  }
+
+
+  if (
+    elements.selectedLogEntryCount
+  ) {
+    elements
+      .selectedLogEntryCount
+      .textContent =
+      "선택 0건";
+
+    elements
+      .selectedLogEntryCount
+      .hidden =
+      true;
+  }
+
+
+  if (
+    elements.deleteSelectedLogEntriesButton
+  ) {
+    elements
+      .deleteSelectedLogEntriesButton
+      .disabled =
+      true;
+  }
+
+
+  updateMemberLogImportCount();
+}
+
 /* =====================================================
   인수인계 한 줄 출력
 
