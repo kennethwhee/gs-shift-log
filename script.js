@@ -2135,13 +2135,12 @@ saveOperationStatusButton:
 }
 
 /* =========================================================
-  조회 전용 과거 업무일지 1일 불러오기
+  D1에 보관된 과거 업무일지 1일 불러오기
 
   조회 화면에서 지정한 날짜의
-  D/S와 N/S 기존 업무일지를 모두 가져온다.
+  D/S와 N/S 저장 자료를 모두 가져온다.
 
-  기존 현황 화면의 appState.logs는 직접 변경하지 않고
-  조회용 배열만 반환한다.
+  과거 서버는 호출하지 않는다.
 ========================================================= */
 
 async function loadLegacyLogsForSearchDate(
@@ -2158,161 +2157,168 @@ async function loadLegacyLogsForSearchDate(
   }
 
 
-  const legacyDate =
-    normalizedDate.replace(
-      /-/g,
-      ""
+  const requestUrl =
+    new URL(
+      "/api/legacy-logs",
+      window.location.origin
     );
 
 
-  const shiftDefinitions = [
-    {
-      legacyShift:
-        "DAY",
-
-      currentShift:
-        "DS"
-    },
-
-    {
-      legacyShift:
-        "NIGHT",
-
-      currentShift:
-        "NS"
-    }
-  ];
+  /*
+    shift를 지정하지 않으면
+    해당 날짜의 D/S와 N/S를 모두 반환한다.
+  */
+  requestUrl.searchParams.set(
+    "date",
+    normalizedDate
+  );
 
 
-  const requestResults =
-    await Promise.all(
-      shiftDefinitions.map(
-        async (
-          shiftDefinition
+  const response =
+    await fetch(
+      requestUrl.toString(),
+      {
+        method:
+          "GET",
+
+        headers: {
+          Accept:
+            "application/json"
+        },
+
+        cache:
+          "no-store"
+      }
+    );
+
+
+  let result = {};
+
+
+  try {
+    result =
+      await response.json();
+
+  } catch (error) {
+    throw new Error(
+      `${normalizedDate} D1 과거 업무일지 응답을 읽을 수 없습니다.`
+    );
+  }
+
+
+  if (
+    !response.ok ||
+    !result.success
+  ) {
+    throw new Error(
+      result.message ||
+      `${normalizedDate} 저장된 과거 업무일지를 불러오지 못했습니다.`
+    );
+  }
+
+
+  const storedItems =
+    Array.isArray(
+      result.items
+    )
+      ? result.items
+      : [];
+
+
+  /*
+    D1에는 화면용 정보와 함께
+    과거 서버 원본이 original에 보관되어 있다.
+
+    기존 변환 함수가 원본 구조를 사용하므로
+    original을 다시 전달한다.
+  */
+  const convertedLogs =
+    storedItems
+      .map(
+        (
+          storedItem,
+          itemIndex
         ) => {
-          const requestUrl =
-            new URL(
-              "/api/legacy-diaries",
-              window.location.origin
+          const originalItem =
+            storedItem?.original &&
+            typeof storedItem.original ===
+              "object"
+              ? storedItem.original
+              : null;
+
+
+          if (!originalItem) {
+            console.warn(
+              "과거 업무일지 원본이 없어 제외했습니다.",
+              storedItem
             );
 
-
-          requestUrl.searchParams.set(
-            "date",
-            legacyDate
-          );
-
-
-          requestUrl.searchParams.set(
-            "shift",
-            shiftDefinition
-              .legacyShift
-          );
-
-
-          const response =
-            await fetch(
-              requestUrl.toString(),
-              {
-                method:
-                  "GET",
-
-                headers: {
-                  Accept:
-                    "application/json"
-                },
-
-                cache:
-                  "no-store"
-              }
-            );
-
-
-          let result = {};
-
-
-          try {
-            result =
-              await response.json();
-          } catch (error) {
-            throw new Error(
-              `${normalizedDate} 과거 업무일지 응답을 읽을 수 없습니다.`
-            );
+            return null;
           }
 
 
-          if (
-            !response.ok ||
-            !result.success
-          ) {
-            throw new Error(
-              result.message ||
-              `${normalizedDate} ${shiftDefinition.legacyShift} 업무일지를 불러오지 못했습니다.`
-            );
-          }
+          const storedShift =
+            String(
+              storedItem.shift ||
+              ""
+            )
+              .trim()
+              .toUpperCase();
 
 
-          return {
-            currentShift:
-              shiftDefinition
-                .currentShift,
-
-            items:
-              Array.isArray(
-                result.items
-              )
-                ? result.items
-                : []
-          };
+          return convertLegacyDiaryToLog(
+            originalItem,
+            itemIndex,
+            normalizedDate,
+            storedShift
+          );
         }
       )
+      .filter(Boolean);
+
+
+  /*
+    2026-07-21까지의 과거 자료는
+    기존 파트장 취합 구조를 동일하게 적용한다.
+
+    D/S와 N/S가 섞이지 않도록
+    근무별로 따로 재구성한다.
+  */
+  if (
+    normalizedDate <=
+    "2026-07-21"
+  ) {
+    const dsLogs =
+      convertedLogs.filter(
+        log => {
+          return (
+            log.shift ===
+            "DS"
+          );
+        }
+      );
+
+
+    const nsLogs =
+      convertedLogs.filter(
+        log => {
+          return (
+            log.shift ===
+            "NS"
+          );
+        }
+      );
+
+
+    rebuildLegacyLeaderLogFromMemberLogs(
+      dsLogs
     );
 
 
-  const convertedLogs = [];
-
-
-  requestResults.forEach(
-    (
-      requestResult
-    ) => {
-      const convertedShiftLogs =
-        requestResult.items
-          .map(
-            (
-              legacyItem,
-              itemIndex
-            ) => {
-              return convertLegacyDiaryToLog(
-                legacyItem,
-                itemIndex,
-                normalizedDate,
-                requestResult.currentShift
-              );
-            }
-          )
-          .filter(Boolean);
-
-
-      /*
-        2026년 7월 21일까지의 과거 데이터는
-        기존 파트장 취합 구조를 동일하게 적용한다.
-      */
-      if (
-        normalizedDate <=
-        "2026-07-21"
-      ) {
-        rebuildLegacyLeaderLogFromMemberLogs(
-          convertedShiftLogs
-        );
-      }
-
-
-      convertedLogs.push(
-        ...convertedShiftLogs
-      );
-    }
-  );
+    rebuildLegacyLeaderLogFromMemberLogs(
+      nsLogs
+    );
+  }
 
 
   return convertedLogs;
@@ -2479,7 +2485,10 @@ async function loadLegacyLogsForSearchRange(
 }
 
 /* =========================================================
-  기존 업무일지 불러오기
+  선택 날짜의 D1 과거 업무일지 불러오기
+
+  과거 서버를 직접 호출하지 않고
+  legacy_logs 테이블에 보관된 자료만 사용한다.
 ========================================================= */
 
 async function loadLegacyLogsForSelectedDate() {
@@ -2488,206 +2497,240 @@ async function loadLegacyLogsForSelectedDate() {
       appState.selectedDate
     );
 
-  const legacyDate =
-    selectedDate.replace(
-      /-/g,
-      ""
-    );
-
-  /*
-    날짜를 선택하면 기존 서버의 주간·야간 업무일지를
-    모두 불러온다.
-
-    기존 시스템:
-    DAY   = D/S
-    NIGHT = N/S
-
-    이렇게 해야 처음 화면이 N/S로 열리더라도
-    같은 날짜의 D/S 업무일지도 함께 메모리에 저장되고,
-    근무 배지를 눌러 전환했을 때 즉시 표시된다.
-  */
-  const legacyShiftDefinitions = [
-    {
-      legacyShift: "DAY",
-      currentShift: "DS"
-    },
-    {
-      legacyShift: "NIGHT",
-      currentShift: "NS"
-    }
-  ];
 
   try {
-    const requestResults =
-      await Promise.all(
-        legacyShiftDefinitions.map(
-          async (shiftDefinition) => {
-            const requestUrl =
-              new URL(
-                "/api/legacy-diaries",
-                window.location.origin
-              );
-
-            requestUrl.searchParams.set(
-              "date",
-              legacyDate
-            );
-
-            requestUrl.searchParams.set(
-              "shift",
-              shiftDefinition.legacyShift
-            );
-
-            const response =
-              await fetch(
-                requestUrl.toString(),
-                {
-                  method: "GET",
-
-                  headers: {
-                    Accept:
-                      "application/json"
-                  },
-
-                  cache:
-                    "no-store"
-                }
-              );
-
-            const result =
-              await response.json();
-
-            if (
-              !response.ok ||
-              !result.success
-            ) {
-              throw new Error(
-                result.message ||
-                `${shiftDefinition.legacyShift} 기존 업무일지를 불러오지 못했습니다.`
-              );
-            }
-
-            return {
-              currentShift:
-                shiftDefinition.currentShift,
-
-              items:
-                Array.isArray(
-                  result.items
-                )
-                  ? result.items
-                  : []
-            };
-          }
-        )
+    const requestUrl =
+      new URL(
+        "/api/legacy-logs",
+        window.location.origin
       );
 
-    /*
-      선택 날짜에 전에 불러온 기존 서버 일지를
-      D/S·N/S 모두 제거한 뒤 최신 응답으로 교체한다.
 
-      새 GS Shift Log에서 직접 작성한 일지는 유지한다.
+    /*
+      근무값을 지정하지 않아
+      선택 날짜의 D/S와 N/S를 한 번에 불러온다.
+    */
+    requestUrl.searchParams.set(
+      "date",
+      selectedDate
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers: {
+            Accept:
+              "application/json"
+          },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    let result = {};
+
+
+    try {
+      result =
+        await response.json();
+
+    } catch (error) {
+      throw new Error(
+        "D1 과거 업무일지 응답을 읽을 수 없습니다."
+      );
+    }
+
+
+    if (
+      !response.ok ||
+      !result.success
+    ) {
+      throw new Error(
+        result.message ||
+        "저장된 과거 업무일지를 불러오지 못했습니다."
+      );
+    }
+
+
+    /*
+      이전에 메모리에 불러온 같은 날짜의
+      과거 자료만 제거한다.
+
+      GS Shift Log에서 직접 작성한 신규 업무일지는 유지한다.
     */
     appState.logs =
       appState.logs.filter(
-        (log) => {
+        log => {
           const isSameDate =
             String(
               log.date || ""
             ).trim() ===
             selectedDate;
 
-          const isLegacyShift =
-            ["DS", "NS"].includes(
-              String(
-                log.shift || ""
-              ).trim()
-            );
 
           const isLegacyLog =
-            log.source ===
-            "legacy";
+            String(
+              log.source || ""
+            ).startsWith(
+              "legacy"
+            );
+
 
           return !(
             isSameDate &&
-            isLegacyShift &&
             isLegacyLog
           );
         }
       );
 
-    const convertedLogs = [];
 
-    requestResults.forEach(
-      (requestResult) => {
-        const convertedShiftLogs =
-          requestResult.items
-            .map(
-              (
-                item,
-                itemIndex
-              ) => {
-                return convertLegacyDiaryToLog(
-                  item,
-                  itemIndex,
-                  selectedDate,
-                  requestResult.currentShift
-                );
-              }
-            )
-            .filter(Boolean);
+    const storedItems =
+      Array.isArray(
+        result.items
+      )
+        ? result.items
+        : [];
 
-        /*
-          2026년 7월 21일까지의 과거 파트장 일지는
-          D/S와 N/S를 각각 분리하여 재구성한다.
-        */
-        if (
-          selectedDate <=
-          "2026-07-21"
-        ) {
-          rebuildLegacyLeaderLogFromMemberLogs(
-            convertedShiftLogs
-          );
-        }
 
-        convertedLogs.push(
-          ...convertedShiftLogs
+    const convertedLogs =
+      storedItems
+        .map(
+          (
+            storedItem,
+            itemIndex
+          ) => {
+            const originalItem =
+              storedItem?.original &&
+              typeof storedItem.original ===
+                "object"
+                ? storedItem.original
+                : null;
+
+
+            if (!originalItem) {
+              console.warn(
+                "과거 업무일지 원본이 없어 제외했습니다.",
+                storedItem
+              );
+
+              return null;
+            }
+
+
+            const storedShift =
+              String(
+                storedItem.shift ||
+                ""
+              )
+                .trim()
+                .toUpperCase();
+
+
+            return convertLegacyDiaryToLog(
+              originalItem,
+              itemIndex,
+              selectedDate,
+              storedShift
+            );
+          }
+        )
+        .filter(Boolean);
+
+
+    /*
+      과거 파트장 업무일지는
+      D/S와 N/S별로 분리하여 재구성한다.
+    */
+    if (
+      selectedDate <=
+      "2026-07-21"
+    ) {
+      const dsLogs =
+        convertedLogs.filter(
+          log => {
+            return (
+              log.shift ===
+              "DS"
+            );
+          }
         );
-      }
-    );
 
+
+      const nsLogs =
+        convertedLogs.filter(
+          log => {
+            return (
+              log.shift ===
+              "NS"
+            );
+          }
+        );
+
+
+      rebuildLegacyLeaderLogFromMemberLogs(
+        dsLogs
+      );
+
+
+      rebuildLegacyLeaderLogFromMemberLogs(
+        nsLogs
+      );
+    }
+
+
+    /*
+      D1 과거 자료를 먼저 넣고
+      신규 GS Shift Log 자료는 그대로 유지한다.
+    */
     appState.logs = [
       ...convertedLogs,
       ...appState.logs
     ];
 
+
     const dsCount =
       convertedLogs.filter(
-        (log) => {
-          return log.shift === "DS";
+        log => {
+          return (
+            log.shift ===
+            "DS"
+          );
         }
       ).length;
+
 
     const nsCount =
       convertedLogs.filter(
-        (log) => {
-          return log.shift === "NS";
+        log => {
+          return (
+            log.shift ===
+            "NS"
+          );
         }
       ).length;
 
+
     console.log(
-      `기존 업무일지 D/S ${dsCount}건, N/S ${nsCount}건을 불러왔습니다.`
+      `D1 과거 업무일지 D/S ${dsCount}건, N/S ${nsCount}건을 불러왔습니다.`
     );
 
   } catch (error) {
     console.error(
-      "기존 업무일지 불러오기 실패:",
+      "D1 과거 업무일지 불러오기 실패:",
       error
     );
 
+
     /*
-      기존 서버 연결에 실패해도
-      새 GS Shift Log 기능은 계속 작동한다.
+      D1 조회에 실패해도
+      신규 GS Shift Log 기능은 계속 작동한다.
     */
   }
 }
