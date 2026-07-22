@@ -2280,67 +2280,140 @@
 </div>
 
 
-  <!-- =========================================================
-    일지 상세보기 모달
-  ========================================================== -->
-  <div
-    class="modal-backdrop"
-    id="logDetailModal"
-    aria-hidden="true"
+<!-- =========================================================
+  업무일지 상세보기 모달
+========================================================== -->
+<div
+  class="modal-backdrop"
+  id="logDetailModal"
+  aria-hidden="true"
+>
+  <section
+    class="
+      modal-panel
+      log-detail-modal
+    "
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="logDetailTitle"
   >
-    <section
-      class="modal-panel log-detail-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="logDetailTitle"
+
+    <!-- =====================================================
+      상단
+    ====================================================== -->
+    <header
+      class="
+        modal-header
+        log-detail-modal__header
+      "
     >
 
-      <header class="modal-header">
-        <div>
-          <p class="modal-header__eyebrow">SHIFT LOG DETAIL</p>
-          <h2 class="modal-header__title" id="logDetailTitle">
-            업무일지 상세
-          </h2>
-        </div>
+      <div>
+        <p class="modal-header__eyebrow">
+          SHIFT LOG DETAIL
+        </p>
+
+        <h2
+          class="modal-header__title"
+          id="logDetailTitle"
+        >
+          업무일지 상세
+        </h2>
+      </div>
+
+
+      <button
+        type="button"
+        class="modal-close-button"
+        id="closeLogDetailButton"
+        aria-label="업무일지 상세창 닫기"
+      >
+        ×
+      </button>
+
+    </header>
+
+
+    <!-- =====================================================
+      상세 내용
+
+      JavaScript에서 아래 순서로 생성한다.
+
+      1. 기본정보
+      2. 현재 운전현황
+      3. TM 발행 내역
+      4. 인계 및 작업 내역
+      5. 비고·첨부파일
+    ====================================================== -->
+    <div
+      class="
+        modal-body
+        log-detail-modal__body
+      "
+      id="logDetailContent"
+    >
+    </div>
+
+
+    <!-- =====================================================
+      하단 버튼
+    ====================================================== -->
+    <footer
+      class="
+        modal-footer
+        log-detail-modal__footer
+      "
+    >
+
+      <div
+        class="
+          modal-footer__left
+          log-detail-footer__left
+        "
+      >
 
         <button
           type="button"
-          class="modal-close-button"
-          id="closeLogDetailButton"
-          aria-label="업무일지 상세창 닫기"
+          class="approval-confirm-button"
+          id="approveFromDetailButton"
+          hidden
         >
-          ×
+          결재확인
         </button>
-      </header>
 
-      <div class="modal-body" id="logDetailContent">
       </div>
 
-      <footer class="modal-footer">
-        <div></div>
 
-        <div class="modal-footer__right">
-          <button
-            type="button"
-            class="secondary-button"
-            id="closeLogDetailFooterButton"
-          >
-            닫기
-          </button>
+      <div
+        class="
+          modal-footer__right
+          log-detail-footer__right
+        "
+      >
 
-          <button
-            type="button"
-            class="primary-button"
-            id="editFromDetailButton"
-          >
-            수정
-          </button>
-        </div>
-      </footer>
+        <button
+          type="button"
+          class="secondary-button"
+          id="closeLogDetailFooterButton"
+        >
+          닫기
+        </button>
 
-    </section>
-  </div>
 
+        <button
+          type="button"
+          class="primary-button"
+          id="editFromDetailButton"
+        >
+          수정
+        </button>
+
+      </div>
+
+    </footer>
+
+  </section>
+</div>
 
   <!-- =========================================================
     공통 알림

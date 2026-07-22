@@ -14486,7 +14486,26 @@ function approveCurrentDetailLog() {
   );
 }
 
-function openLogDetail(log) {
+/* =========================================================
+  업무일지 상세보기 최종 렌더링
+
+  표시 순서:
+  1. 기본정보
+  2. 운전현황
+  3. TM 발행 내역
+  4. 보직별 인계 및 작업 내역
+  5. 비고 / 첨부파일
+
+  표시 규칙:
+  - TM 번호: 주황색
+  - 인계 번호: 파란색
+  - 시간: 파란색
+  - 내용: 진한 본문색
+========================================================= */
+
+function openLogDetail(
+  log
+) {
   if (
     !log ||
     !elements.logDetailContent
@@ -14498,8 +14517,12 @@ function openLogDetail(log) {
     return;
   }
 
+
   appState.currentDetailLogId =
-    log.id;
+    String(
+      log.id ||
+      ""
+    ).trim();
 
 
   /* =====================================================
@@ -14508,41 +14531,55 @@ function openLogDetail(log) {
 
   const dateText =
     String(
-      log.date || "-"
+      log.date ||
+      "-"
     ).trim();
+
 
   const shiftText =
     getShiftDisplayName(
       log.shift
     );
 
+
   const teamText =
     normalizeTeamName(
-      log.team || "-"
+      log.team ||
+      "-"
     );
+
 
   const roleText =
     String(
-      log.role || "-"
+      log.role ||
+      "-"
     ).trim();
+
 
   const authorText =
     String(
-      log.author || "-"
+      log.author ||
+      "-"
     ).trim();
+
 
   const statusText =
     String(
-      log.status || "-"
+      log.status ||
+      "-"
     ).trim();
 
+
   const isSubstitute =
-    log.isSubstitute === true;
+    log.isSubstitute ===
+    true;
+
 
   const normalizedRole =
     normalizeMemberLogRole(
       log.role
     );
+
 
   const isLeaderLog =
     normalizedRole ===
@@ -14550,48 +14587,91 @@ function openLogDetail(log) {
 
 
   /* =====================================================
+    기존 업무내역 시간 재분석
+
+    과거 입력:
+    08:37~09:46 내용
+    09:06, 14:19, 16:15 내용
+
+    위 형식도 상세보기에서 시간과 내용으로 분리한다.
+  ====================================================== */
+
+  const entries =
+    normalizeExistingLogEntries(
+      Array.isArray(
+        log.entries
+      )
+        ? log.entries
+        : []
+    );
+
+
+  /*
+    현재 업무일지 객체에도 정리된 값을 반영한다.
+  */
+  log.entries =
+    entries.map(
+      (entry) => {
+        return {
+          ...entry
+        };
+      }
+    );
+
+
+  /* =====================================================
+    상태 배지
+  ====================================================== */
+
+  const detailStatusClass =
+    getStatusClass(
+      statusText
+    );
+
+
+  /* =====================================================
     운전현황
   ====================================================== */
 
-const operationStatusText =
-  String(
-    log.operationStatus || ""
-  )
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((line) => {
-      return line.trim();
-    })
-    .filter(Boolean)
-    .join("\n");
+  const operationStatusText =
+    String(
+      log.operationStatus ||
+      ""
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .split(
+        "\n"
+      )
+      .map(
+        (line) => {
+          return line.trim();
+        }
+      )
+      .filter(Boolean)
+      .join("\n");
+
 
   const operationStatusHtml =
     operationStatusText
       ? `
-        <div class="detail-document-text">
+        <div class="detail-operation-content">
           ${escapeHtml(
             operationStatusText
           )}
         </div>
       `
       : `
-        <div class="detail-document-empty">
+        <div class="detail-empty-message">
           등록된 운전현황이 없습니다.
         </div>
       `;
-
-
-  /* =====================================================
-    전체 작업 내역
-  ====================================================== */
-
-  const entries =
-    Array.isArray(
-      log.entries
-    )
-      ? log.entries
-      : [];
 
 
   /* =====================================================
@@ -14604,13 +14684,15 @@ const operationStatusText =
         (entry) => {
           return (
             String(
-              entry.category || ""
+              entry.category ||
+              ""
             ).trim() ===
             "TM 발행"
           );
         }
       )
     );
+
 
   const tmHtml =
     tmEntries.length
@@ -14620,43 +14702,64 @@ const operationStatusText =
               entry,
               index
             ) => {
-              const contentText =
+              const timeText =
                 String(
-                  entry.content || "-"
+                  entry.time ||
+                  ""
                 ).trim();
+
 
               const tagText =
                 String(
-                  entry.tag || ""
+                  entry.tag ||
+                  ""
                 )
                   .trim()
                   .toUpperCase();
 
-              return `
-                <div class="detail-document-line">
 
-                  <span class="detail-document-number">
+              const contentText =
+                String(
+                  entry.content ||
+                  "-"
+                ).trim();
+
+
+              return `
+                <div class="detail-work-line detail-work-line--tm">
+
+                  <span
+                    class="
+                      detail-work-line__number
+                      is-tm-number
+                    "
+                  >
                     ${index + 1}.
                   </span>
 
-                  <span class="detail-document-line__content">
 
-                    <span class="detail-document-content-text">
-                      ${escapeHtml(
-                        contentText
-                      )}
-                    </span>
+                  <span
+                    class="detail-work-line__time"
+                  >
+                    ${escapeHtml(
+                      timeText
+                    )}
+                  </span>
+
+
+                  <span
+                    class="detail-work-line__content"
+                  >
 
                     ${
                       tagText
                         ? `
                           <button
                             type="button"
-                            class="detail-document-tag"
+                            class="detail-inline-tag"
                             data-detail-tag="${escapeHtml(
                               tagText
                             )}"
-                            title="Facility Navigator에서 설비 보기"
                           >
                             [${escapeHtml(
                               tagText
@@ -14666,6 +14769,15 @@ const operationStatusText =
                         : ""
                     }
 
+
+                    <span
+                      class="detail-work-line__content-text"
+                    >
+                      ${escapeHtml(
+                        contentText
+                      )}
+                    </span>
+
                   </span>
 
                 </div>
@@ -14674,14 +14786,14 @@ const operationStatusText =
           )
           .join("")
       : `
-        <div class="detail-document-empty">
+        <div class="detail-empty-message">
           등록된 TM 발행 내역이 없습니다.
         </div>
       `;
 
 
   /* =====================================================
-    TM 발행을 제외한 업무 내역
+    인계 및 작업 내역
   ====================================================== */
 
   const ordinaryEntries =
@@ -14689,7 +14801,8 @@ const operationStatusText =
       (entry) => {
         return (
           String(
-            entry.category || ""
+            entry.category ||
+            ""
           ).trim() !==
           "TM 발행"
         );
@@ -14697,11 +14810,7 @@ const operationStatusText =
     );
 
 
-  /* =====================================================
-    보직별 업무 묶기
-  ====================================================== */
-
-  const roleOrder = [
+  const detailRoleOrder = [
     "TGO",
     "BCO1",
     "BCO2",
@@ -14711,7 +14820,9 @@ const operationStatusText =
     "파트장"
   ];
 
+
   const groupedEntries = {};
+
 
   ordinaryEntries.forEach(
     (entry) => {
@@ -14721,6 +14832,7 @@ const operationStatusText =
           log.role ||
           "파트장"
         );
+
 
       if (
         !groupedEntries[
@@ -14732,6 +14844,7 @@ const operationStatusText =
         ] = [];
       }
 
+
       groupedEntries[
         sourceRole
       ].push(
@@ -14740,8 +14853,9 @@ const operationStatusText =
     }
   );
 
+
   const orderedRoles = [
-    ...roleOrder.filter(
+    ...detailRoleOrder.filter(
       (role) => {
         return Boolean(
           groupedEntries[
@@ -14756,7 +14870,7 @@ const operationStatusText =
     ).filter(
       (role) => {
         return (
-          !roleOrder.includes(
+          !detailRoleOrder.includes(
             role
           )
         );
@@ -14765,353 +14879,169 @@ const operationStatusText =
   ];
 
 
-  /* =====================================================
-    업무 항목 한 줄 생성
-  ====================================================== */
-
-const createDetailEntryLineHtml = (
-  entry,
-  index
-) => {
-  const timeText =
-    String(
-      entry.time || ""
-    ).trim();
-
-  const categoryText =
-    String(
-      entry.category ||
-      "인계사항"
-    ).trim();
-
-  const contentText =
-    String(
-      entry.content || "-"
-    ).trim();
-
-  const tagText =
-    String(
-      entry.tag || ""
-    )
-      .trim()
-      .toUpperCase();
+  const ordinaryEntriesHtml =
+    orderedRoles.length
+      ? orderedRoles
+          .map(
+            (role) => {
+              const roleEntries =
+                sortDetailEntriesByTime(
+                  groupedEntries[
+                    role
+                  ]
+                );
 
 
-  /*
-    시간 | 번호 | 내용
-
-    예:
-    02:44   1.   Bio Hopper Bin 청소 실시
-  */
-  return `
-    <div
-      class="detail-fixed-entry-line"
-      style="
-        display:grid !important;
-        width:100% !important;
-        min-width:0 !important;
-
-        grid-template-columns:
-          72px
-          28px
-          minmax(0, 1fr) !important;
-
-        align-items:start !important;
-        column-gap:8px !important;
-
-        margin:0 !important;
-        padding:5px 0 !important;
-
-        color:#26364b !important;
-        font-size:12px !important;
-        font-weight:600 !important;
-        line-height:1.55 !important;
-
-        text-align:left !important;
-      "
-    >
-
-      <!-- 시간 -->
-      <strong
-        class="detail-fixed-entry-time"
-        style="
-          display:block !important;
-
-          width:72px !important;
-          min-width:72px !important;
-
-          margin:0 !important;
-          padding:0 !important;
-
-          color:#1763c5 !important;
-          font-size:11px !important;
-          font-weight:900 !important;
-          line-height:1.55 !important;
-
-          text-align:right !important;
-          white-space:nowrap !important;
-
-          font-variant-numeric:
-            tabular-nums !important;
-        "
-      >
-        ${escapeHtml(
-          timeText ||
-          "시간 없음"
-        )}
-      </strong>
+              const roleTitle =
+                isLeaderLog
+                  ? `${role} 업무일지`
+                  : "인계사항";
 
 
-      <!-- 번호 -->
-      <strong
-        class="detail-fixed-entry-number"
-        style="
-          display:block !important;
-
-          width:28px !important;
-          min-width:28px !important;
-
-          margin:0 !important;
-          padding:0 !important;
-
-          color:#1763c5 !important;
-          font-size:11px !important;
-          font-weight:900 !important;
-          line-height:1.55 !important;
-
-          text-align:right !important;
-          white-space:nowrap !important;
-        "
-      >
-        ${index + 1}.
-      </strong>
-
-
-      <!-- 내용 -->
-      <div
-        class="detail-fixed-entry-content"
-        style="
-          display:block !important;
-
-          width:100% !important;
-          min-width:0 !important;
-
-          margin:0 !important;
-          padding:0 !important;
-
-          color:#26364b !important;
-          font-size:12px !important;
-          font-weight:650 !important;
-          line-height:1.55 !important;
-
-          text-align:left !important;
-
-          white-space:pre-wrap !important;
-          word-break:keep-all !important;
-          overflow-wrap:anywhere !important;
-        "
-      >
-
-        ${
-          categoryText !==
-          "인계사항"
-            ? `
-              <span
-                class="detail-document-category"
-                style="
-                  display:inline-flex !important;
-                  margin:0 5px 0 0 !important;
-                  vertical-align:baseline !important;
-                "
-              >
-                ${escapeHtml(
-                  categoryText
-                )}
-              </span>
-            `
-            : ""
-        }
-
-        <span
-          class="detail-fixed-entry-content-text"
-          style="
-            display:inline !important;
-
-            margin:0 !important;
-            padding:0 !important;
-
-            color:inherit !important;
-            font:inherit !important;
-            line-height:inherit !important;
-
-            vertical-align:baseline !important;
-          "
-        >
-          ${escapeHtml(
-            contentText
-          )}
-        </span>
-
-        ${
-          tagText
-            ? `
-              <button
-                type="button"
-                class="detail-document-tag"
-                data-detail-tag="${escapeHtml(
-                  tagText
-                )}"
-                title="Facility Navigator에서 설비 보기"
-                style="
-                  display:inline !important;
-
-                  width:auto !important;
-
-                  margin:0 0 0 5px !important;
-                  padding:0 !important;
-
-                  border:0 !important;
-                  background:transparent !important;
-
-                  color:#1763c5 !important;
-                  font:inherit !important;
-                  font-size:10px !important;
-                  font-weight:900 !important;
-                  line-height:inherit !important;
-
-                  vertical-align:baseline !important;
-                  white-space:nowrap !important;
-                "
-              >
-                [${escapeHtml(
-                  tagText
-                )}]
-              </button>
-            `
-            : ""
-        }
-
-      </div>
-
-    </div>
-  `;
-};
-
-
-  /* =====================================================
-    업무 내역 HTML
-  ====================================================== */
-
-  let ordinaryEntriesHtml = "";
-
-  if (
-    !ordinaryEntries.length
-  ) {
-    ordinaryEntriesHtml = `
-      <div class="detail-document-empty">
-        등록된 인계 및 작업 내역이 없습니다.
-      </div>
-    `;
-  } else if (
-    isLeaderLog
-  ) {
-    ordinaryEntriesHtml =
-      orderedRoles
-        .map(
-          (
-            role,
-            roleIndex
-          ) => {
-            const roleEntries =
-              sortDetailEntriesByTime(
-                groupedEntries[
+              const roleClass =
+                getLogEntrySourceClass(
                   role
-                ]
-              );
+                );
 
-            return `
-              <section
-                class="
-                  detail-role-section
-                  ${
-                    roleIndex === 0
-                      ? "is-first-role"
-                      : ""
-                  }
-                "
-              >
 
-                <div class="detail-role-section__heading">
+              const roleRows =
+                roleEntries
+                  .map(
+                    (
+                      entry,
+                      index
+                    ) => {
+                      const timeText =
+                        String(
+                          entry.time ||
+                          ""
+                        ).trim();
 
-                  <span
-                    class="
-                      detail-role-badge
-                      ${getLogEntrySourceClass(
-                        role
+
+                      const tagText =
+                        String(
+                          entry.tag ||
+                          ""
+                        )
+                          .trim()
+                          .toUpperCase();
+
+
+                      const contentText =
+                        String(
+                          entry.content ||
+                          "-"
+                        ).trim();
+
+
+                      return `
+                        <div class="detail-work-line detail-work-line--handover">
+
+                          <span
+                            class="
+                              detail-work-line__number
+                              is-handover-number
+                            "
+                          >
+                            ${index + 1}.
+                          </span>
+
+
+                          <span
+                            class="detail-work-line__time"
+                          >
+                            ${
+                              timeText
+                                ? escapeHtml(
+                                    timeText
+                                  )
+                                : ""
+                            }
+                          </span>
+
+
+                          <span
+                            class="detail-work-line__content"
+                          >
+
+                            ${
+                              tagText
+                                ? `
+                                  <button
+                                    type="button"
+                                    class="detail-inline-tag"
+                                    data-detail-tag="${escapeHtml(
+                                      tagText
+                                    )}"
+                                  >
+                                    [${escapeHtml(
+                                      tagText
+                                    )}]
+                                  </button>
+                                `
+                                : ""
+                            }
+
+
+                            <span
+                              class="detail-work-line__content-text"
+                            >
+                              ${escapeHtml(
+                                contentText
+                              )}
+                            </span>
+
+                          </span>
+
+                        </div>
+                      `;
+                    }
+                  )
+                  .join("");
+
+
+              return `
+                <section class="detail-role-block">
+
+                  <div class="detail-role-block__heading">
+
+                    <span
+                      class="
+                        detail-role-block__badge
+                        ${escapeHtml(
+                          roleClass
+                        )}
+                      "
+                    >
+                      ${escapeHtml(
+                        roleTitle
                       )}
-                    "
-                  >
-                    ${escapeHtml(
-                      role
-                    )}
-                  </span>
+                    </span>
 
-                  <strong>
-                    ${escapeHtml(
-                      role
-                    )} 업무일지
-                  </strong>
 
-                  <span class="detail-role-section__count">
-                    ${roleEntries.length}건
-                  </span>
+                    <span
+                      class="detail-role-block__count"
+                    >
+                      ${roleEntries.length}건
+                    </span>
 
-                </div>
+                  </div>
 
-                <div class="detail-role-section__entries">
 
-                  ${roleEntries
-                    .map(
-                      (
-                        entry,
-                        index
-                      ) => {
-                        return createDetailEntryLineHtml(
-                          entry,
-                          index
-                        );
-                      }
-                    )
-                    .join("")}
+                  <div class="detail-role-block__body">
+                    ${roleRows}
+                  </div>
 
-                </div>
-
-              </section>
-            `;
-          }
-        )
-        .join("");
-  } else {
-    const sortedEntries =
-      sortDetailEntriesByTime(
-        ordinaryEntries
-      );
-
-    ordinaryEntriesHtml =
-      sortedEntries
-        .map(
-          (
-            entry,
-            index
-          ) => {
-            return createDetailEntryLineHtml(
-              entry,
-              index
-            );
-          }
-        )
-        .join("");
-  }
+                </section>
+              `;
+            }
+          )
+          .join("")
+      : `
+        <div class="detail-empty-message">
+          등록된 인계 및 작업 내역이 없습니다.
+        </div>
+      `;
 
 
   /* =====================================================
@@ -15120,20 +15050,22 @@ const createDetailEntryLineHtml = (
 
   const noteText =
     String(
-      log.note || ""
+      log.note ||
+      ""
     ).trim();
+
 
   const noteHtml =
     noteText
       ? `
-        <div class="detail-document-text">
+        <div class="detail-note-content">
           ${escapeHtml(
             noteText
           )}
         </div>
       `
       : `
-        <div class="detail-document-empty">
+        <div class="detail-empty-message">
           등록된 비고가 없습니다.
         </div>
       `;
@@ -15147,40 +15079,41 @@ const createDetailEntryLineHtml = (
     Array.isArray(
       log.attachments
     )
-      ? log.attachments.filter(
-          Boolean
-        )
+      ? log.attachments
       : [];
+
 
   const attachmentHtml =
     attachments.length
       ? `
-        <div class="detail-document-attachments">
+        <div class="detail-attachment-list">
 
           ${attachments
             .map(
               (
-                fileName,
+                attachment,
                 index
               ) => {
-                return `
-                  <div class="detail-document-attachment">
+                const fileName =
+                  typeof attachment ===
+                  "string"
+                    ? attachment
+                    : String(
+                        attachment?.name ||
+                        `첨부파일 ${index + 1}`
+                      );
 
-                    <span class="detail-document-attachment__icon">
+
+                return `
+                  <span class="detail-attachment-chip">
+                    <span aria-hidden="true">
                       📎
                     </span>
 
-                    <span class="detail-document-attachment__name">
-                      ${escapeHtml(
-                        fileName
-                      )}
-                    </span>
-
-                    <span class="detail-document-attachment__number">
-                      ${index + 1}
-                    </span>
-
-                  </div>
+                    ${escapeHtml(
+                      fileName
+                    )}
+                  </span>
                 `;
               }
             )
@@ -15189,268 +15122,288 @@ const createDetailEntryLineHtml = (
         </div>
       `
       : `
-        <div class="detail-document-empty">
+        <div class="detail-empty-message">
           첨부파일이 없습니다.
         </div>
       `;
 
 
   /* =====================================================
-    상세보기 전체 출력
+    최종 상세보기 HTML
   ====================================================== */
 
-  elements.logDetailContent.innerHTML = `
-    <div class="detail-document">
+  elements.logDetailContent.innerHTML =
+    `
+      <div class="shift-log-detail-document">
+
+        <!-- =================================================
+          기본 정보
+        ================================================== -->
+        <section class="shift-log-detail-summary">
+
+          <div class="shift-log-detail-summary__header">
+
+            <div>
+              <span class="shift-log-detail-eyebrow">
+                SHIFT LOG DETAIL
+              </span>
+
+              <h3>
+                ${escapeHtml(
+                  dateText
+                )} 업무일지
+              </h3>
+            </div>
 
 
-      <!-- 기본 정보 -->
-      <section class="detail-document-summary">
-
-        <div class="detail-document-summary__header">
-
-          <div>
-            <span class="detail-document-eyebrow">
-              SHIFT LOG DETAIL
-            </span>
-
-            <h2>
+            <span
+              class="
+                status-badge
+                ${escapeHtml(
+                  detailStatusClass
+                )}
+              "
+            >
               ${escapeHtml(
-                dateText
-              )} 업무일지
-            </h2>
-          </div>
-
-          <span
-            class="
-              status-badge
-              ${getStatusClass(
                 statusText
               )}
+            </span>
+
+          </div>
+
+
+          <div class="shift-log-detail-summary__grid">
+
+            <div class="shift-log-detail-summary__item">
+              <span>작성일</span>
+              <strong>
+                ${escapeHtml(
+                  dateText
+                )}
+              </strong>
+            </div>
+
+
+            <div class="shift-log-detail-summary__item">
+              <span>근무</span>
+              <strong>
+                ${escapeHtml(
+                  shiftText
+                )}
+              </strong>
+            </div>
+
+
+            <div class="shift-log-detail-summary__item">
+              <span>근무파트</span>
+              <strong>
+                ${escapeHtml(
+                  teamText
+                )}
+              </strong>
+            </div>
+
+
+            <div class="shift-log-detail-summary__item">
+              <span>보직</span>
+
+              <strong>
+                ${escapeHtml(
+                  roleText
+                )}
+
+                ${
+                  isSubstitute
+                    ? `
+                      <span class="detail-substitute-badge">
+                        대근
+                      </span>
+                    `
+                    : ""
+                }
+              </strong>
+            </div>
+
+
+            <div class="shift-log-detail-summary__item">
+              <span>작성자</span>
+              <strong>
+                ${escapeHtml(
+                  authorText
+                )}
+              </strong>
+            </div>
+
+
+            <div class="shift-log-detail-summary__item">
+              <span>등록 내역</span>
+              <strong>
+                총 ${entries.length}건
+              </strong>
+            </div>
+
+          </div>
+
+        </section>
+
+
+        <!-- =================================================
+          운전현황
+        ================================================== -->
+        <section class="shift-log-detail-section">
+
+          <div class="shift-log-detail-section__header">
+
+            <div>
+              <span class="shift-log-detail-eyebrow">
+                OPERATION STATUS
+              </span>
+
+              <h3>
+                운전현황
+              </h3>
+            </div>
+
+          </div>
+
+
+          <div class="shift-log-detail-section__body">
+            ${operationStatusHtml}
+          </div>
+
+        </section>
+
+
+        <!-- =================================================
+          TM 발행 내역
+        ================================================== -->
+        <section class="shift-log-detail-section">
+
+          <div class="shift-log-detail-section__header">
+
+            <div>
+              <span class="shift-log-detail-eyebrow">
+                TM ISSUE
+              </span>
+
+              <h3>
+                TM 발행 내역
+              </h3>
+            </div>
+
+
+            <span class="shift-log-detail-count">
+              ${tmEntries.length}건
+            </span>
+
+          </div>
+
+
+          <div class="shift-log-detail-section__body">
+            ${tmHtml}
+          </div>
+
+        </section>
+
+
+        <!-- =================================================
+          인계 및 작업 내역
+        ================================================== -->
+        <section class="shift-log-detail-section">
+
+          <div class="shift-log-detail-section__header">
+
+            <div>
+              <span class="shift-log-detail-eyebrow">
+                HANDOVER
+              </span>
+
+              <h3>
+                인계 및 작업 내역
+              </h3>
+            </div>
+
+
+            <span class="shift-log-detail-count">
+              ${ordinaryEntries.length}건
+            </span>
+
+          </div>
+
+
+          <div
+            class="
+              shift-log-detail-section__body
+              shift-log-detail-section__body--roles
             "
           >
-            ${escapeHtml(
-              statusText
-            )}
-          </span>
-
-        </div>
-
-
-        <div class="detail-document-summary__grid">
-
-          <div class="detail-document-summary__item">
-            <span>작성일</span>
-
-            <strong>
-              ${escapeHtml(
-                dateText
-              )}
-            </strong>
-          </div>
-
-
-          <div class="detail-document-summary__item">
-            <span>근무</span>
-
-            <strong>
-              ${escapeHtml(
-                shiftText
-              )}
-            </strong>
-          </div>
-
-
-          <div class="detail-document-summary__item">
-            <span>근무파트</span>
-
-            <strong>
-              ${escapeHtml(
-                teamText
-              )}
-            </strong>
-          </div>
-
-
-          <div class="detail-document-summary__item">
-            <span>보직</span>
-
-            <strong>
-              ${escapeHtml(
-                roleText
-              )}
-            </strong>
-          </div>
-
-
-          <div class="detail-document-summary__item">
-            <span>작성자</span>
-
-            <strong class="detail-document-author">
-
-              ${escapeHtml(
-                authorText
-              )}
-
-              ${
-                isSubstitute
-                  ? `
-                    <span class="substitute-work-badge">
-                      대근
-                    </span>
-                  `
-                  : ""
-              }
-
-            </strong>
-          </div>
-
-
-          <div class="detail-document-summary__item">
-            <span>등록 내역</span>
-
-            <strong>
-              총 ${entries.length}건
-            </strong>
-          </div>
-
-        </div>
-
-      </section>
-
-
-      <!-- 운전현황 -->
-      <section class="detail-document-section">
-
-        <div class="detail-document-section__header">
-
-          <div>
-            <span class="detail-document-eyebrow">
-              OPERATION STATUS
-            </span>
-
-            <h3>운전현황</h3>
-          </div>
-
-        </div>
-
-        <div class="detail-document-section__body">
-          ${operationStatusHtml}
-        </div>
-
-      </section>
-
-
-      <!-- TM 발행 내역 -->
-      <section class="detail-document-section">
-
-        <div class="detail-document-section__header">
-
-          <div>
-            <span class="detail-document-eyebrow">
-              TM ISSUE
-            </span>
-
-            <h3>TM 발행 내역</h3>
-          </div>
-
-          <span class="detail-document-count">
-            ${tmEntries.length}건
-          </span>
-
-        </div>
-
-        <div class="detail-document-section__body">
-          ${tmHtml}
-        </div>
-
-      </section>
-
-
-      <!-- 인계 및 작업 내역 -->
-      <section class="detail-document-section">
-
-        <div class="detail-document-section__header">
-
-          <div>
-            <span class="detail-document-eyebrow">
-              HANDOVER
-            </span>
-
-            <h3>
-              ${
-                isLeaderLog
-                  ? "팀원 업무일지"
-                  : "인계 및 작업 내역"
-              }
-            </h3>
-          </div>
-
-          <span class="detail-document-count">
-            ${ordinaryEntries.length}건
-          </span>
-
-        </div>
-
-        <div class="detail-document-section__body">
-          ${ordinaryEntriesHtml}
-        </div>
-
-      </section>
-
-
-      <!-- 비고 및 첨부 -->
-      <div class="detail-document-bottom-grid">
-
-        <section class="detail-document-section">
-
-          <div class="detail-document-section__header">
-
-            <div>
-              <span class="detail-document-eyebrow">
-                NOTE
-              </span>
-
-              <h3>비고</h3>
-            </div>
-
-          </div>
-
-          <div class="detail-document-section__body">
-            ${noteHtml}
+            ${ordinaryEntriesHtml}
           </div>
 
         </section>
 
 
-        <section class="detail-document-section">
+        <!-- =================================================
+          비고 / 첨부파일
+        ================================================== -->
+        <div class="shift-log-detail-bottom-grid">
 
-          <div class="detail-document-section__header">
+          <section class="shift-log-detail-section">
 
-            <div>
-              <span class="detail-document-eyebrow">
-                ATTACHMENT
-              </span>
+            <div class="shift-log-detail-section__header">
 
-              <h3>첨부파일</h3>
+              <div>
+                <span class="shift-log-detail-eyebrow">
+                  NOTE
+                </span>
+
+                <h3>
+                  비고
+                </h3>
+              </div>
+
             </div>
 
-            <span class="detail-document-count">
-              ${attachments.length}개
-            </span>
 
-          </div>
+            <div class="shift-log-detail-section__body">
+              ${noteHtml}
+            </div>
 
-          <div class="detail-document-section__body">
-            ${attachmentHtml}
-          </div>
+          </section>
 
-        </section>
+
+          <section class="shift-log-detail-section">
+
+            <div class="shift-log-detail-section__header">
+
+              <div>
+                <span class="shift-log-detail-eyebrow">
+                  ATTACHMENT
+                </span>
+
+                <h3>
+                  첨부파일
+                </h3>
+              </div>
+
+
+              <span class="shift-log-detail-count">
+                ${attachments.length}개
+              </span>
+
+            </div>
+
+
+            <div class="shift-log-detail-section__body">
+              ${attachmentHtml}
+            </div>
+
+          </section>
+
+        </div>
 
       </div>
-
-
-    </div>
-  `;
+    `;
 
 
   /* =====================================================
@@ -15476,41 +15429,38 @@ const createDetailEntryLineHtml = (
     );
 
 
-/*
-  작성완료 상태에서만
-  결재확인 버튼을 표시한다.
-*/
-if (
-  elements.approveFromDetailButton
-) {
-  const canApprove =
-    statusText ===
-    "작성완료";
+  /* =====================================================
+    결재확인 버튼
 
-  elements
-    .approveFromDetailButton
-    .hidden =
-    !canApprove;
-}
+    작성완료 상태에서만 표시
+  ====================================================== */
+
+  if (
+    elements.approveFromDetailButton
+  ) {
+    elements.approveFromDetailButton.hidden =
+      statusText !==
+      "작성완료";
+  }
 
 
-/*
-  결재완료된 업무일지는
-  수정하지 못하도록 수정 버튼을 숨긴다.
-*/
-if (
-  elements.editFromDetailButton
-) {
-  elements
-    .editFromDetailButton
-    .hidden =
-    statusText ===
-    "결재완료";
-}
+  /* =====================================================
+    수정 버튼
+
+    결재완료 상태에서는 숨김
+  ====================================================== */
+
+  if (
+    elements.editFromDetailButton
+  ) {
+    elements.editFromDetailButton.hidden =
+      statusText ===
+      "결재완료";
+  }
 
 
-openModal(
-  elements.logDetailModal
+  openModal(
+    elements.logDetailModal
   );
 }
 
