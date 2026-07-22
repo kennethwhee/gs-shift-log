@@ -8008,7 +8008,7 @@ function bindEvents() {
             () => {
 
               setDefaultSearchDateRange();
-              
+
               if (
                 elements
                   .searchResultBody
@@ -15998,14 +15998,670 @@ function removeDuplicateSearchLogs(
   ];
 }
 
+/* =========================================================
+  조회 결과에 표시 중인 업무일지
+
+  과거 조회 데이터는 appState.logs에 없을 수 있으므로
+  조회 결과 배열 자체를 별도로 보관한다.
+========================================================= */
+
+let currentSearchResultLogs = [];
+
 
 /* =========================================================
-  업무일지 조회 최종 실행
+  업무일지 전체 검색 문자열 생성
 
-  조회 대상:
-  - 신규 GS Shift Log 업무일지
-  - 현재 화면에서 불러온 과거 업무일지
-  - 조회 기간 전체의 과거 업무일지
+  검색 대상:
+  - 날짜
+  - 근무
+  - 보직
+  - 작성자
+  - 운전현황
+  - TM·인계사항의 구분
+  - 시간
+  - TAG
+  - 업무내용
+  - 비고
+========================================================= */
+
+function createSearchLogText(
+  log
+) {
+  const entries =
+    Array.isArray(
+      log?.entries
+    )
+      ? log.entries
+      : [];
+
+
+  const entryText =
+    entries
+      .map(
+        (entry) => {
+          return [
+            entry?.category,
+            entry?.time,
+            entry?.tag,
+            entry?.content
+          ]
+            .filter(Boolean)
+            .join(" ");
+        }
+      )
+      .join(" ");
+
+
+  return [
+    log?.date,
+    log?.shift,
+    log?.team,
+    log?.role,
+    log?.author,
+    log?.status,
+    log?.operationStatus,
+    entryText,
+    log?.note
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+
+/* =========================================================
+  조회 구분 정규화
+
+  HTML select 값:
+  operation
+  tm
+  bm
+  cm
+  handover
+  note
+========================================================= */
+
+function getSearchEntryCategoryValue(
+  entry
+) {
+  const category =
+    String(
+      entry?.category ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  if (
+    category.startsWith(
+      "TM"
+    )
+  ) {
+    return "tm";
+  }
+
+
+  if (
+    category.startsWith(
+      "BM"
+    )
+  ) {
+    return "bm";
+  }
+
+
+  if (
+    category.startsWith(
+      "CM"
+    )
+  ) {
+    return "cm";
+  }
+
+
+  if (
+    category ===
+      "인계사항" ||
+    category ===
+      "인계"
+  ) {
+    return "handover";
+  }
+
+
+  if (
+    category ===
+    "비고"
+  ) {
+    return "note";
+  }
+
+
+  return "";
+}
+
+
+/* =========================================================
+  선택한 구분이 업무일지에 존재하는지 확인
+========================================================= */
+
+function doesLogMatchSearchCategory(
+  log,
+  selectedCategory
+) {
+  const category =
+    String(
+      selectedCategory ||
+      ""
+    ).trim();
+
+
+  /*
+    전체
+  */
+  if (!category) {
+    return true;
+  }
+
+
+  /*
+    운전현황
+  */
+  if (
+    category ===
+    "operation"
+  ) {
+    return Boolean(
+      String(
+        log?.operationStatus ||
+        ""
+      ).trim()
+    );
+  }
+
+
+  /*
+    비고
+  */
+  if (
+    category ===
+    "note"
+  ) {
+    const hasLogNote =
+      Boolean(
+        String(
+          log?.note ||
+          ""
+        ).trim()
+      );
+
+
+    const hasNoteEntry =
+      Array.isArray(
+        log?.entries
+      ) &&
+      log.entries.some(
+        (entry) => {
+          return (
+            getSearchEntryCategoryValue(
+              entry
+            ) ===
+            "note"
+          );
+        }
+      );
+
+
+    return (
+      hasLogNote ||
+      hasNoteEntry
+    );
+  }
+
+
+  const entries =
+    Array.isArray(
+      log?.entries
+    )
+      ? log.entries
+      : [];
+
+
+  return entries.some(
+    (entry) => {
+      return (
+        getSearchEntryCategoryValue(
+          entry
+        ) ===
+        category
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+  조회 결과 미리보기 항목 생성
+
+  업무일지 목록과 비슷하게:
+  - 운전현황
+  - TM 발행 내역
+  - 인계사항
+  - 비고
+
+  한 업무일지의 전체 내용을 한 행 안에 표시한다.
+========================================================= */
+
+function createSearchLogPreviewHtml(
+  log
+) {
+  const previewItems = [];
+
+
+  const operationStatus =
+    String(
+      log?.operationStatus ||
+      ""
+    ).trim();
+
+
+  if (
+    operationStatus
+  ) {
+    previewItems.push({
+      type:
+        "operation",
+
+      title:
+        "운전현황",
+
+      number:
+        "",
+
+      time:
+        "",
+
+      tag:
+        "",
+
+      content:
+        firstMeaningfulLine(
+          operationStatus
+        )
+    });
+  }
+
+
+  const entries =
+    Array.isArray(
+      log?.entries
+    )
+      ? log.entries
+      : [];
+
+
+  let tmNumber =
+    0;
+
+  let handoverNumber =
+    0;
+
+
+  entries.forEach(
+    (entry) => {
+      const categoryValue =
+        getSearchEntryCategoryValue(
+          entry
+        );
+
+
+      if (
+        !categoryValue
+      ) {
+        return;
+      }
+
+
+      const content =
+        String(
+          entry?.content ||
+          ""
+        ).trim();
+
+
+      const tag =
+        String(
+          entry?.tag ||
+          ""
+        ).trim();
+
+
+      if (
+        !content &&
+        !tag
+      ) {
+        return;
+      }
+
+
+      if (
+        categoryValue ===
+        "tm"
+      ) {
+        tmNumber +=
+          1;
+
+
+        previewItems.push({
+          type:
+            "tm",
+
+          title:
+            tmNumber === 1
+              ? "TM 발행 내역"
+              : "",
+
+          number:
+            `${tmNumber}.`,
+
+          time:
+            String(
+              entry?.time ||
+              ""
+            ).trim(),
+
+          tag,
+
+          content
+        });
+
+
+        return;
+      }
+
+
+      if (
+        categoryValue ===
+        "handover" ||
+        categoryValue ===
+        "bm" ||
+        categoryValue ===
+        "cm"
+      ) {
+        handoverNumber +=
+          1;
+
+
+        previewItems.push({
+          type:
+            "handover",
+
+          title:
+            handoverNumber === 1
+              ? "인계"
+              : "",
+
+          number:
+            `${handoverNumber}.`,
+
+          time:
+            String(
+              entry?.time ||
+              ""
+            ).trim(),
+
+          tag,
+
+          content
+        });
+      }
+    }
+  );
+
+
+  const note =
+    String(
+      log?.note ||
+      ""
+    ).trim();
+
+
+  if (
+    note
+  ) {
+    previewItems.push({
+      type:
+        "note",
+
+      title:
+        "비고",
+
+      number:
+        "",
+
+      time:
+        "",
+
+      tag:
+        "",
+
+      content:
+        firstMeaningfulLine(
+          note
+        )
+    });
+  }
+
+
+  if (
+    !previewItems.length
+  ) {
+    return `
+      <span class="log-preview__empty">
+        등록된 업무 내용이 없습니다.
+      </span>
+    `;
+  }
+
+
+  return previewItems
+    .map(
+      (
+        item,
+        itemIndex
+      ) => {
+        const typeClassMap = {
+          operation:
+            "is-operation",
+
+          tm:
+            "is-maintenance",
+
+          handover:
+            "is-handover",
+
+          note:
+            "is-note"
+        };
+
+
+        const numberClass =
+          item.type ===
+            "tm"
+            ? "is-tm-number"
+            : "is-handover-number";
+
+
+        return `
+          <span
+            class="
+              log-preview__group
+              ${typeClassMap[item.type] || ""}
+              ${item.title ? "" : "has-no-title"}
+              ${itemIndex > 0 && item.title
+                ? "is-section-start"
+                : ""}
+            "
+          >
+
+            ${
+              item.title
+                ? `
+                  <strong
+                    class="log-preview__title"
+                  >
+                    ${escapeHtml(
+                      item.title
+                    )}
+                  </strong>
+                `
+                : ""
+            }
+
+
+            <span
+              class="log-preview__content"
+            >
+
+              ${
+                item.number
+                  ? `
+                    <span
+                      class="
+                        log-preview__entry-number
+                        ${numberClass}
+                      "
+                    >
+                      ${escapeHtml(
+                        item.number
+                      )}
+                    </span>
+                  `
+                  : ""
+              }
+
+
+              ${
+                item.time
+                  ? `
+                    <span
+                      class="log-preview__entry-time"
+                    >
+                      ${escapeHtml(
+                        item.time
+                      )}
+                    </span>
+                  `
+                  : ""
+              }
+
+
+              ${
+                item.tag
+                  ? `
+                    <button
+                      type="button"
+                      class="
+                        log-preview__tag
+                        search-preview-tag
+                      "
+                      data-search-preview-tag="${escapeHtml(
+                        item.tag
+                      )}"
+                    >
+                      ${escapeHtml(
+                        item.tag
+                      )}
+                    </button>
+                  `
+                  : ""
+              }
+
+
+              <span
+                class="log-preview__text"
+              >
+                ${escapeHtml(
+                  item.content ||
+                  "-"
+                )}
+              </span>
+
+            </span>
+
+          </span>
+        `;
+      }
+    )
+    .join("");
+}
+
+
+/* =========================================================
+  첨부파일 개수
+========================================================= */
+
+function getSearchLogAttachmentCount(
+  log
+) {
+  if (
+    Array.isArray(
+      log?.attachments
+    )
+  ) {
+    return log.attachments.length;
+  }
+
+
+  return 0;
+}
+
+
+/* =========================================================
+  상태 배지 클래스
+========================================================= */
+
+function getSearchLogStatusClass(
+  status
+) {
+  const normalizedStatus =
+    String(
+      status ||
+      ""
+    ).trim();
+
+
+  if (
+    normalizedStatus ===
+      "결재완료" ||
+    normalizedStatus ===
+      "승인완료"
+  ) {
+    return "is-approved";
+  }
+
+
+  if (
+    normalizedStatus ===
+      "작성완료" ||
+    normalizedStatus ===
+      "저장완료"
+  ) {
+    return "is-saved";
+  }
+
+
+  return "is-writing";
+}
+
+
+/* =========================================================
+  업무일지 조회 실행
+
+  결과 단위:
+  업무 항목 1건이 아니라
+  업무일지 1건
 ========================================================= */
 
 async function runSearch() {
@@ -16079,16 +16735,12 @@ async function runSearch() {
       .toLowerCase();
 
 
-  /* =====================================================
-    날짜 조건 확인
-  ====================================================== */
-
   if (
     !startDate ||
     !endDate
   ) {
     showToast(
-      "조회 시작일과 종료일을 모두 선택해 주세요."
+      "조회 시작일과 종료일을 선택해 주세요."
     );
 
     return;
@@ -16125,13 +16777,6 @@ async function runSearch() {
   }
 
 
-  /* =====================================================
-    너무 긴 기간 조회 방지
-
-    현재는 날짜마다 D/S와 N/S를 각각 요청하므로
-    우선 최대 31일로 제한한다.
-  ====================================================== */
-
   if (
     searchDates.length >
     31
@@ -16152,9 +16797,8 @@ async function runSearch() {
 
 
   const originalButtonText =
-    submitButton
-      ? submitButton.textContent
-      : "";
+    submitButton?.textContent ||
+    "조회";
 
 
   if (
@@ -16219,16 +16863,15 @@ async function runSearch() {
       loadingDescription
     ) {
       loadingDescription.textContent =
-        "선택한 기간의 D/S·N/S 업무일지를 확인하고 있습니다.";
+        "선택한 기간의 업무일지를 확인하고 있습니다.";
     }
   }
 
 
   try {
-    /* ===================================================
-      조회 기간 전체 과거 업무일지 불러오기
-    ==================================================== */
-
+    /*
+      조회 기간의 과거 업무일지를 모두 불러온다.
+    */
     const legacySearchLogs =
       await loadLegacyLogsForSearchRange(
         startDate,
@@ -16236,10 +16879,9 @@ async function runSearch() {
       );
 
 
-    /* ===================================================
-      신규 업무일지와 과거 업무일지 합치기
-    ==================================================== */
-
+    /*
+      신규 업무일지와 과거 업무일지를 합친다.
+    */
     const combinedLogs =
       removeDuplicateSearchLogs([
         ...appState.logs,
@@ -16247,312 +16889,156 @@ async function runSearch() {
       ]);
 
 
-    const results =
-      [];
-
-
-    combinedLogs.forEach(
-      (
-        log
-      ) => {
-        const logDate =
-          String(
-            log.date ||
-            ""
-          ).trim();
-
-
-        const logShift =
-          String(
-            log.shift ||
-            ""
-          )
-            .trim()
-            .toUpperCase();
-
-
-        const logRole =
-          normalizeMemberLogRole(
-            log.role
-          );
-
-
-        /*
-          기간 조건
-        */
-        if (
-          logDate <
-            startDate ||
-          logDate >
-            endDate
-        ) {
-          return;
-        }
-
-
-        /*
-          근무 조건
-        */
-        if (
-          shift &&
-          logShift !==
-            shift
-        ) {
-          return;
-        }
-
-
-        /*
-          보직 조건
-        */
-        if (
-          role &&
-          logRole !==
-            role
-        ) {
-          return;
-        }
-
-
-        /* =================================================
-          운전현황
-        ================================================== */
-
-        if (
-          !category ||
-          category ===
-            "operation"
-        ) {
-          const operationStatus =
+    const matchedLogs =
+      combinedLogs.filter(
+        (log) => {
+          const logDate =
             String(
-              log.operationStatus ||
+              log?.date ||
               ""
             ).trim();
 
 
-          if (
-            operationStatus &&
-            matchesKeyword(
-              operationStatus,
-              keyword
-            )
-          ) {
-            results.push({
-              log,
-
-              category:
-                "운전현황",
-
-              tag:
-                "",
-
-              content:
-                operationStatus
-            });
-          }
-        }
-
-
-        /* =================================================
-          비고
-        ================================================== */
-
-        if (
-          !category ||
-          category ===
-            "note"
-        ) {
-          const note =
+          const logShift =
             String(
-              log.note ||
+              log?.shift ||
               ""
-            ).trim();
+            )
+              .trim()
+              .toUpperCase();
 
 
+          const logRole =
+            normalizeMemberLogRole(
+              log?.role
+            );
+
+
+          /*
+            날짜
+          */
           if (
-            note &&
-            matchesKeyword(
-              note,
-              keyword
+            logDate <
+              startDate ||
+            logDate >
+              endDate
+          ) {
+            return false;
+          }
+
+
+          /*
+            근무
+          */
+          if (
+            shift &&
+            logShift !==
+              shift
+          ) {
+            return false;
+          }
+
+
+          /*
+            보직
+          */
+          if (
+            role &&
+            logRole !==
+              role
+          ) {
+            return false;
+          }
+
+
+          /*
+            구분
+          */
+          if (
+            !doesLogMatchSearchCategory(
+              log,
+              category
             )
           ) {
-            results.push({
-              log,
-
-              category:
-                "비고",
-
-              tag:
-                "",
-
-              content:
-                note
-            });
+            return false;
           }
-        }
 
 
-        /* =================================================
-          TM·BM·CM·인계사항
-        ================================================== */
+          /*
+            검색어
 
-        const logEntries =
-          Array.isArray(
-            log.entries
-          )
-            ? log.entries
-            : [];
-
-
-        logEntries.forEach(
-          (
-            entry
-          ) => {
-            const entryCategory =
-              String(
-                entry.category ||
-                ""
-              ).trim();
-
-
-            const mainCategory =
-              getMainCategory(
-                entryCategory
+            검색어와 일치하는 항목이 하나라도 있으면
+            업무일지 전체를 결과에 표시한다.
+          */
+          if (
+            keyword
+          ) {
+            const searchableText =
+              createSearchLogText(
+                log
               );
 
 
-            const categoryMap = {
-              "TM 발행":
-                "tm",
-
-              TM:
-                "tm",
-
-              BM:
-                "bm",
-
-              CM:
-                "cm",
-
-              "인계사항":
-                "handover",
-
-              인계:
-                "handover",
-
-              비고:
-                "note"
-            };
-
-
-            const entryCategoryValue =
-              categoryMap[
-                entryCategory
-              ] ||
-              categoryMap[
-                mainCategory
-              ] ||
-              String(
-                mainCategory ||
-                entryCategory
-              )
-                .trim()
-                .toLowerCase();
-
-
-            /*
-              선택한 구분과 다르면 제외
-            */
             if (
-              category &&
-              category !==
-                entryCategoryValue
-            ) {
-              return;
-            }
-
-
-            const entryTag =
-              String(
-                entry.tag ||
-                ""
-              ).trim();
-
-
-            const entryContent =
-              String(
-                entry.content ||
-                ""
-              ).trim();
-
-
-            const combinedText = [
-              entryTag,
-              entryContent,
-              entryCategory,
-              mainCategory
-            ]
-              .join(" ")
-              .toLowerCase();
-
-
-            if (
-              keyword &&
-              !combinedText.includes(
+              !searchableText.includes(
                 keyword
               )
             ) {
-              return;
+              return false;
             }
-
-
-            /*
-              내용이 없는 빈 항목은 제외
-            */
-            if (
-              !entryTag &&
-              !entryContent
-            ) {
-              return;
-            }
-
-
-            results.push({
-              log,
-
-              category:
-                entryCategory ||
-                mainCategory ||
-                "인계사항",
-
-              tag:
-                entryTag,
-
-              content:
-                entryContent
-            });
           }
-        );
-      }
-    );
 
 
-    /* ===================================================
-      최신 날짜 → 근무 → 보직 순으로 정렬
-    ==================================================== */
+          return true;
+        }
+      );
 
-    results.sort(
+
+    /*
+      최신 날짜 우선
+
+      같은 날짜:
+      D/S → N/S
+
+      같은 근무:
+      파트장 → TGO → BCO1 → BCO2 → TO → BO1 → BO2
+    */
+    const roleOrder = {
+      파트장:
+        1,
+
+      TGO:
+        2,
+
+      BCO1:
+        3,
+
+      BCO2:
+        4,
+
+      TO:
+        5,
+
+      BO1:
+        6,
+
+      BO2:
+        7
+    };
+
+
+    matchedLogs.sort(
       (
-        resultA,
-        resultB
+        logA,
+        logB
       ) => {
         const dateDifference =
           String(
-            resultB.log.date ||
+            logB.date ||
             ""
           ).localeCompare(
             String(
-              resultA.log.date ||
+              logA.date ||
               ""
             )
           );
@@ -16566,15 +17052,33 @@ async function runSearch() {
         }
 
 
+        const shiftOrder = {
+          DS:
+            1,
+
+          NS:
+            2
+        };
+
+
         const shiftDifference =
-          String(
-            resultA.log.shift ||
-            ""
-          ).localeCompare(
-            String(
-              resultB.log.shift ||
-              ""
-            )
+          (
+            shiftOrder[
+              String(
+                logA.shift ||
+                ""
+              ).toUpperCase()
+            ] ||
+            99
+          ) -
+          (
+            shiftOrder[
+              String(
+                logB.shift ||
+                ""
+              ).toUpperCase()
+            ] ||
+            99
           );
 
 
@@ -16586,29 +17090,39 @@ async function runSearch() {
         }
 
 
-        return String(
-          resultA.log.role ||
-          ""
-        ).localeCompare(
-          String(
-            resultB.log.role ||
-            ""
-          )
+        return (
+          roleOrder[
+            normalizeMemberLogRole(
+              logA.role
+            )
+          ] ||
+          99
+        ) -
+        (
+          roleOrder[
+            normalizeMemberLogRole(
+              logB.role
+            )
+          ] ||
+          99
         );
       }
     );
 
 
     renderSearchResults(
-      results
+      matchedLogs
     );
-
 
   } catch (error) {
     console.error(
       "업무일지 조회 실패:",
       error
     );
+
+
+    currentSearchResultLogs =
+      [];
 
 
     if (
@@ -16673,7 +17187,6 @@ async function runSearch() {
       "업무일지 조회 중 오류가 발생했습니다."
     );
 
-
   } finally {
     if (
       submitButton
@@ -16682,91 +17195,316 @@ async function runSearch() {
         false;
 
       submitButton.textContent =
-        originalButtonText ||
-        "조회";
+        originalButtonText;
     }
   }
 }
 
 
-function renderSearchResults(results) {
-  elements.searchResultBody.innerHTML = "";
-  elements.searchResultCount.textContent = String(results.length);
-  elements.searchEmptyState.hidden = results.length > 0;
+/* =========================================================
+  업무일지 1건당 조회 결과 1줄 출력
+========================================================= */
 
-  if (!results.length) {
-    elements.searchEmptyState.querySelector("strong").textContent =
-      "조회 결과가 없습니다.";
-    elements.searchEmptyState.querySelector("p").textContent =
-      "검색 조건을 변경하여 다시 조회해 주세요.";
+function renderSearchResults(
+  logs
+) {
+  const resultLogs =
+    Array.isArray(
+      logs
+    )
+      ? logs
+      : [];
+
+
+  currentSearchResultLogs =
+    resultLogs;
+
+
+  elements.searchResultBody.innerHTML =
+    "";
+
+
+  elements.searchResultCount.textContent =
+    String(
+      resultLogs.length
+    );
+
+
+  elements.searchEmptyState.hidden =
+    resultLogs.length >
+    0;
+
+
+  if (
+    !resultLogs.length
+  ) {
+    const emptyTitle =
+      elements.searchEmptyState
+        .querySelector(
+          "strong"
+        );
+
+
+    const emptyDescription =
+      elements.searchEmptyState
+        .querySelector(
+          "p"
+        );
+
+
+    if (
+      emptyTitle
+    ) {
+      emptyTitle.textContent =
+        "조회 결과가 없습니다.";
+    }
+
+
+    if (
+      emptyDescription
+    ) {
+      emptyDescription.textContent =
+        "검색 조건을 변경하여 다시 조회해 주세요.";
+    }
+
+
     return;
   }
 
-  results.forEach((result) => {
-    const { log } = result;
 
-    elements.searchResultBody.insertAdjacentHTML(
-      "beforeend",
-      `
-        <tr>
-          <td>${escapeHtml(log.date)}</td>
-          <td>${escapeHtml(log.shift)}</td>
-          <td>${escapeHtml(log.role)}</td>
-          <td>${escapeHtml(log.author)}</td>
-          <td>${escapeHtml(result.category)}</td>
-          <td>
-            ${
-              result.tag
-                ? `
-                  <button
-                    type="button"
-                    class="detail-tag-button"
-                    data-search-tag="${escapeHtml(result.tag)}"
-                  >
-                    ${escapeHtml(result.tag)}
-                  </button>
-                `
-                : "-"
-            }
-          </td>
-          <td>${escapeHtml(firstMeaningfulLine(result.content || "-"))}</td>
-          <td>
-            <button
-              type="button"
-              class="table-action-button"
-              data-search-view="${escapeHtml(log.id)}"
-            >
-              보기
-            </button>
-          </td>
-        </tr>
-      `
-    );
-  });
-
-  elements.searchResultBody
-    .querySelectorAll("[data-search-tag]")
-    .forEach((button) => {
-      button.addEventListener("click", () => {
-        openFacilityNavigator(button.dataset.searchTag);
-      });
-    });
-
-  elements.searchResultBody
-    .querySelectorAll("[data-search-view]")
-    .forEach((button) => {
-      button.addEventListener("click", () => {
-        const log = appState.logs.find(
-          (item) => item.id === button.dataset.searchView
+  resultLogs.forEach(
+    (
+      log,
+      resultIndex
+    ) => {
+      const attachmentCount =
+        getSearchLogAttachmentCount(
+          log
         );
 
-        if (log) {
-          openLogDetail(log);
-        }
-      });
-    });
-}
 
+      const status =
+        String(
+          log.status ||
+          "작성중"
+        ).trim();
+
+
+      elements.searchResultBody
+        .insertAdjacentHTML(
+          "beforeend",
+          `
+            <tr
+              class="search-log-row"
+              data-search-result-index="${resultIndex}"
+            >
+
+              <td class="search-log-date-cell">
+                ${escapeHtml(
+                  log.date ||
+                  "-"
+                )}
+              </td>
+
+
+              <td class="search-log-shift-cell">
+                ${escapeHtml(
+                  getShiftDisplayName(
+                    log.shift
+                  )
+                )}
+              </td>
+
+
+              <td class="search-log-role-cell">
+                ${escapeHtml(
+                  log.role ||
+                  "-"
+                )}
+              </td>
+
+
+              <td class="search-log-author-cell">
+                <strong>
+                  ${escapeHtml(
+                    log.author ||
+                    "-"
+                  )}
+                </strong>
+              </td>
+
+
+              <td class="search-log-status-cell">
+
+                <span
+                  class="
+                    status-badge
+                    ${getSearchLogStatusClass(
+                      status
+                    )}
+                  "
+                >
+                  ${escapeHtml(
+                    status
+                  )}
+                </span>
+
+              </td>
+
+
+              <td class="search-log-attachment-cell">
+
+                ${
+                  attachmentCount >
+                  0
+                    ? `
+                      <span
+                        class="attachment-indicator"
+                        title="첨부파일 ${attachmentCount}개"
+                      >
+                        ${attachmentCount}
+                      </span>
+                    `
+                    : `
+                      <span
+                        class="
+                          attachment-indicator
+                          is-empty
+                        "
+                      >
+                        -
+                      </span>
+                    `
+                }
+
+              </td>
+
+
+              <td class="search-log-preview-cell">
+
+                <button
+                  type="button"
+                  class="
+                    log-preview
+                    search-log-preview
+                  "
+                  data-search-view-index="${resultIndex}"
+                  aria-label="${escapeHtml(
+                    log.author ||
+                    ""
+                  )} 업무일지 상세보기"
+                >
+
+                  ${createSearchLogPreviewHtml(
+                    log
+                  )}
+
+                </button>
+
+              </td>
+
+
+              <td class="search-log-view-cell">
+
+                <button
+                  type="button"
+                  class="table-action-button"
+                  data-search-view-index="${resultIndex}"
+                >
+                  보기
+                </button>
+
+              </td>
+
+            </tr>
+          `
+        );
+    }
+  );
+
+
+  /*
+    TAG 클릭:
+    상세창 대신 설비 네비게이터 이동
+  */
+  elements.searchResultBody
+    .querySelectorAll(
+      "[data-search-preview-tag]"
+    )
+    .forEach(
+      (tagButton) => {
+        tagButton.addEventListener(
+          "click",
+          (event) => {
+            event.stopPropagation();
+
+
+            const tag =
+              String(
+                tagButton.dataset
+                  .searchPreviewTag ||
+                ""
+              ).trim();
+
+
+            if (
+              tag
+            ) {
+              openFacilityNavigator(
+                tag
+              );
+            }
+          }
+        );
+      }
+    );
+
+
+  /*
+    업무내용 또는 보기 버튼 클릭:
+    해당 업무일지 상세창 열기
+  */
+  elements.searchResultBody
+    .querySelectorAll(
+      "[data-search-view-index]"
+    )
+    .forEach(
+      (button) => {
+        button.addEventListener(
+          "click",
+          () => {
+            const resultIndex =
+              Number(
+                button.dataset
+                  .searchViewIndex
+              );
+
+
+            const log =
+              currentSearchResultLogs[
+                resultIndex
+              ];
+
+
+            if (
+              !log
+            ) {
+              showToast(
+                "업무일지를 찾을 수 없습니다."
+              );
+
+              return;
+            }
+
+
+            openLogDetail(
+              log
+            );
+          }
+        );
+      }
+    );
+}
 
 function matchesKeyword(text, keyword) {
   if (!text) {
