@@ -712,6 +712,66 @@ function setMemberWorkStatus(
 }
 
 /* =========================================================
+  조회 기본 기간 설정
+
+  종료일:
+  오늘
+
+  시작일:
+  오늘 기준 7일 전
+
+  예:
+  오늘이 2026-07-23이면
+  시작일 2026-07-16
+  종료일 2026-07-23
+========================================================= */
+
+function setDefaultSearchDateRange() {
+  const searchStartDate =
+    document.getElementById(
+      "searchStartDate"
+    );
+
+  const searchEndDate =
+    document.getElementById(
+      "searchEndDate"
+    );
+
+
+  if (
+    !searchStartDate ||
+    !searchEndDate
+  ) {
+    return;
+  }
+
+
+  const today =
+    new Date();
+
+
+  const sevenDaysAgo =
+    new Date(today);
+
+
+  sevenDaysAgo.setDate(
+    sevenDaysAgo.getDate() - 7
+  );
+
+
+  searchStartDate.value =
+    formatInputDate(
+      sevenDaysAgo
+    );
+
+
+  searchEndDate.value =
+    formatInputDate(
+      today
+    );
+}
+
+/* =========================================================
   초기 실행
 ========================================================= */
 
@@ -725,6 +785,11 @@ document.addEventListener(
 
     cacheMemberLogImportElements();
 
+    /*
+  조회 화면 기본 기간:
+  오늘부터 이전 7일까지
+*/
+    setDefaultSearchDateRange();
 
     /*
       근무자 카드 이벤트
@@ -7941,6 +8006,9 @@ function bindEvents() {
         () => {
           window.setTimeout(
             () => {
+
+              setDefaultSearchDateRange();
+              
               if (
                 elements
                   .searchResultBody
