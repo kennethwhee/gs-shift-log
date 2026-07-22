@@ -4419,23 +4419,22 @@ function importMemberLogByRole(
 }
 
 /* =========================================================
-  파트장 업무일지 일괄 취합
+  파트장 업무일지 일괄 취합 최종본
 
-  기존 팀원 취합 내역을 모두 제거한 뒤
-  원본 업무일지를 기준으로 완전히 다시 구성한다.
+  기존 취합 내역을 깨끗하게 비운 후
+  원본 업무일지 기준으로 다시 구성한다.
 
-  취합 순서:
-  1. TGO  전체 업무
-  2. BCO1 전체 업무
-  3. BCO2 전체 업무
-  4. TO   TM 발행만
-  5. BO1  TM 발행만
-  6. BO2  TM 발행만
+  일괄 취합 범위:
+  - TGO  : 전체 업무
+  - BCO1 : 전체 업무
+  - BCO2 : 전체 업무
+  - TO   : TM 발행만
+  - BO1  : TM 발행만
+  - BO2  : TM 발행만
 
-  일반 업무 표시:
-  TGO  업무일지 1번부터
-  BCO1 업무일지 1번부터
-  BCO2 업무일지 1번부터
+  중요:
+  기존 TM은 출처 보직이 없어도 모두 제거한다.
+  그래야 과거 TM과 새 TM이 중복되지 않는다.
 ========================================================= */
 
 function importAllMemberLogs() {
@@ -4460,24 +4459,53 @@ function importAllMemberLogs() {
 
 
   /* =====================================================
-    1. 파트장이 직접 작성한 내역만 보존
+    1. 파트장 직접 작성 일반 업무만 보존
 
-    기존 팀원 취합 내역은 출처 ID가 잘못되어 있어도
-    importedFromRole 기준으로 전부 제거한다.
+    제거 대상:
+    - 기존 TM 발행 내역 전체
+    - TGO·BCO1·BCO2·TO·BO1·BO2 취합 내역
+    - 출처 ID가 있는 과거 취합 내역
+
+    유지 대상:
+    - 파트장이 직접 입력한 TM 이외 일반 업무
   ====================================================== */
 
   const leaderOwnEntries =
     appState.editorEntries.filter(
       (entry) => {
+        const category =
+          String(
+            entry.category || ""
+          ).trim();
+
+
         const sourceRole =
           normalizeMemberLogRole(
             entry.importedFromRole
           );
 
 
+        const sourceLogId =
+          String(
+            entry.importedFromLogId ||
+            ""
+          ).trim();
+
+
         /*
-          TGO·BCO1·BCO2·TO·BO1·BO2에서
-          가져온 항목은 모두 제거한다.
+          기존 TM은 출처 보직과 상관없이
+          전부 제거한 뒤 원본에서 다시 취합한다.
+        */
+        if (
+          category ===
+          "TM 발행"
+        ) {
+          return false;
+        }
+
+
+        /*
+          팀원 보직에서 가져온 일반 업무는 제거한다.
         */
         if (
           allMemberRoles.includes(
@@ -4489,26 +4517,42 @@ function importAllMemberLogs() {
 
 
         /*
-          출처가 파트장이거나 출처 정보가 없는 항목은
-          파트장이 직접 입력한 것으로 보고 유지한다.
+          원본 업무일지 ID가 존재하는 항목은
+          과거 취합 항목일 가능성이 높으므로 제거한다.
+
+          단, 파트장 직접 작성으로 명확히 저장된 것은 유지한다.
+        */
+        if (
+          sourceLogId &&
+          sourceRole !==
+            "파트장"
+        ) {
+          return false;
+        }
+
+
+        /*
+          출처가 없거나 파트장으로 표시된
+          TM 이외 항목은 파트장 직접 업무로 유지한다.
         */
         return true;
       }
     );
 
 
-  const rebuiltImportedEntries = [];
+  const rebuiltImportedEntries =
+    [];
 
 
   let foundLogCount =
     0;
 
-  let sourceEntryCount =
+  let rawImportedCount =
     0;
 
 
   /* =====================================================
-    2. 특정 보직의 원본 업무일지를 다시 가져오기
+    2. 보직별 원본 업무일지 가져오기
   ====================================================== */
 
   const appendMemberLogEntries = (
@@ -4544,6 +4588,11 @@ function importAllMemberLogs() {
         : [];
 
 
+    /*
+      TGO·BCO1·BCO2는 전체 업무
+
+      TO·BO1·BO2는 TM 발행만
+    */
     const importableEntries =
       importMode ===
       "full"
@@ -4566,6 +4615,29 @@ function importAllMemberLogs() {
         sourceEntry,
         sourceIndex
       ) => {
+        const category =
+          String(
+            sourceEntry.category ||
+            "인계사항"
+          ).trim();
+
+
+        /*
+          일괄 취합 범위 재확인
+
+          하위 보직은 혹시 데이터가 잘못 들어 있어도
+          TM 발행 이외 항목을 절대로 가져오지 않는다.
+        */
+        if (
+          importMode ===
+            "tm-only" &&
+          category !==
+            "TM 발행"
+        ) {
+          return;
+        }
+
+
         const importedEntry =
           createMemberImportedEntry(
             memberLog,
@@ -4575,10 +4647,6 @@ function importAllMemberLogs() {
           );
 
 
-        /*
-          원본 데이터에 잘못된 보직 정보가 있더라도
-          현재 취합 중인 보직을 강제로 기록한다.
-        */
         importedEntry.importedFromRole =
           normalizedRole;
 
@@ -4602,10 +4670,10 @@ function importAllMemberLogs() {
 
 
         /*
-          같은 보직 내부에서만 중복 검사한다.
+          같은 보직 안에서만 중복 검사한다.
 
-          TGO와 BCO1에 같은 문장이 있어도
-          서로 다른 보직 업무이므로 둘 다 유지한다.
+          다른 보직에 같은 업무 문장이 있어도
+          서로 다른 업무이므로 유지한다.
         */
         const isDuplicate =
           rebuiltImportedEntries.some(
@@ -4640,10 +4708,6 @@ function importAllMemberLogs() {
                 );
 
 
-              /*
-                원본 일지 ID와 원본 항목 번호가 같으면
-                확실한 중복이다.
-              */
               if (
                 currentSourceLogId &&
                 currentSourceLogId ===
@@ -4659,9 +4723,6 @@ function importAllMemberLogs() {
               }
 
 
-              /*
-                과거 데이터 호환용 내용 유사도 검사
-              */
               return isSameOrSimilarMemberEntry(
                 currentEntry,
                 importedEntry,
@@ -4683,7 +4744,7 @@ function importAllMemberLogs() {
         );
 
 
-        sourceEntryCount +=
+        rawImportedCount +=
           1;
       }
     );
@@ -4691,7 +4752,7 @@ function importAllMemberLogs() {
 
 
   /* =====================================================
-    3. 반드시 정해진 보직 순서대로 취합
+    3. 정해진 순서로 취합
   ====================================================== */
 
   fullImportRoles.forEach(
@@ -4715,14 +4776,13 @@ function importAllMemberLogs() {
 
 
   /* =====================================================
-    4. TM 상·하위 보직 중복 정리
+    4. TM 상·하위 보직 중복 제거
 
     TGO  > TO
     BCO1 > BO1
     BCO2 > BO2
 
-    70% 이상 유사하면 상위 보직 TM만 유지한다.
-    일반 인계사항에는 적용하지 않는다.
+    유사도 70% 이상이면 상위 보직 TM만 유지한다.
   ====================================================== */
 
   const filteredImportedEntries =
@@ -4732,7 +4792,7 @@ function importAllMemberLogs() {
 
 
   /* =====================================================
-    5. 파트장 직접 작성 내역 + 재구성된 취합 내역
+    5. 파트장 직접 업무와 새 취합 결과 결합
   ====================================================== */
 
   appState.editorEntries = [
@@ -4741,11 +4801,7 @@ function importAllMemberLogs() {
   ];
 
 
-  /*
-    보직 순서와 시간 순서로 최종 정렬한다.
-  */
   sortImportedLogEntries();
-
 
   renderLogEntryTable();
 
@@ -4753,7 +4809,7 @@ function importAllMemberLogs() {
 
 
   /* =====================================================
-    6. 결과 알림
+    6. 결과 안내
   ====================================================== */
 
   if (
@@ -4769,7 +4825,7 @@ function importAllMemberLogs() {
 
 
   if (
-    sourceEntryCount ===
+    rawImportedCount ===
     0
   ) {
     showToast(
@@ -4780,8 +4836,27 @@ function importAllMemberLogs() {
   }
 
 
+  const finalTmCount =
+    filteredImportedEntries.filter(
+      (entry) => {
+        return (
+          String(
+            entry.category ||
+            ""
+          ).trim() ===
+          "TM 발행"
+        );
+      }
+    ).length;
+
+
+  const finalOrdinaryCount =
+    filteredImportedEntries.length -
+    finalTmCount;
+
+
   showToast(
-    `팀원 업무일지 ${filteredImportedEntries.length}건을 보직별로 다시 취합했습니다.`
+    `TM ${finalTmCount}건, 업무 ${finalOrdinaryCount}건을 보직별로 다시 취합했습니다.`
   );
 }
 
