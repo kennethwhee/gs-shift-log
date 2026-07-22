@@ -8304,20 +8304,54 @@ thead {
 }
 
 /* =========================================================
-  작업내역 입력부 개편
-  구분 | 현재시간 | TAG | 추가
+  작업내역 입력부 최종 정렬
+
+  구분 | 현재시간 | TAG + 설비보기 | 추가
 ========================================================= */
 
 .log-entry-input-top-row {
   display: grid;
+
   grid-template-columns:
-    minmax(180px, 220px)
-    minmax(120px, 145px)
-    minmax(0, 1fr)
-    auto;
+    175px
+    116px
+    minmax(260px, 1fr)
+    72px;
+
   align-items: end;
-  gap: 10px;
+
+  gap: 8px;
+
   width: 100%;
+  min-width: 0;
+}
+
+
+/* =========================================================
+  입력줄의 모든 필드 공통
+========================================================= */
+
+.log-entry-input-top-row
+.form-field {
+  min-width: 0;
+
+  gap: 5px;
+}
+
+
+.log-entry-input-top-row
+.form-field__label {
+  min-height: 15px;
+
+  margin: 0;
+
+  color: #526177;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.3;
+
+  white-space: nowrap;
 }
 
 
@@ -8331,23 +8365,61 @@ thead {
 
 
 /* =========================================================
-  현재시간 체크 영역
+  구분
 ========================================================= */
 
-.log-entry-current-time-field {
+.log-entry-field--category {
+  width: 175px;
   min-width: 0;
 }
 
-.log-entry-current-time-field .current-time-check {
+
+.log-entry-field--category
+select {
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+
+  padding: 0 32px 0 11px;
+
+  border: 1px solid #c8d4e1;
+  border-radius: 7px;
+
+  background-color: #ffffff;
+  color: #26364c;
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+
+/* =========================================================
+  현재시간
+========================================================= */
+
+.log-entry-current-time-field {
+  width: 116px;
+  min-width: 0;
+}
+
+
+.log-entry-current-time-field
+.current-time-check {
   position: relative;
+
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
 
   width: 100%;
-  min-height: 36px;
-  padding: 0 12px;
+  height: 40px;
+  min-height: 40px;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  margin: 0;
+  padding: 0 10px;
 
   border: 1px solid #c8d4e1;
   border-radius: 7px;
@@ -8355,11 +8427,12 @@ thead {
   background: #ffffff;
   color: #536174;
 
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 900;
   line-height: 1;
 
   white-space: nowrap;
+
   cursor: pointer;
   user-select: none;
 
@@ -8369,40 +8442,51 @@ thead {
     color 0.16s ease;
 }
 
-.log-entry-current-time-field .current-time-check:hover {
+
+.log-entry-current-time-field
+.current-time-check:hover {
   border-color: #94afd0;
+
   background: #f4f8fc;
 }
 
 
-/*
-  실제 체크박스는 화면 밖으로 숨긴다.
-  label 클릭 기능은 그대로 유지된다.
-*/
+.log-entry-current-time-field
+.current-time-check:has(
+  input:checked
+) {
+  border-color: #83aad5;
+
+  background: #eaf2fb;
+  color: #1f5fae;
+}
+
+
 .log-entry-current-time-field
 .current-time-check input {
   position: absolute;
+
   width: 1px;
   height: 1px;
-  margin: 0;
+
   overflow: hidden;
+
   opacity: 0;
+
   pointer-events: none;
 }
 
 
-/* =========================================================
-  현재시간 사용자 정의 체크박스
-========================================================= */
-
 .current-time-check__box {
   display: inline-flex;
+
   flex: 0 0 16px;
-  align-items: center;
-  justify-content: center;
 
   width: 16px;
   height: 16px;
+
+  align-items: center;
+  justify-content: center;
 
   border: 1px solid #aebbc9;
   border-radius: 4px;
@@ -8413,226 +8497,389 @@ thead {
   font-size: 10px;
   font-weight: 900;
   line-height: 1;
-
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
-    color 0.16s ease;
 }
 
 
-/*
-  HTML 구조:
-  input + .current-time-check__box
-
-  체크되면 바로 뒤의 체크박스 모양을 변경한다.
-*/
-.current-time-check input:checked
-+ .current-time-check__box {
+.current-time-check
+input:checked +
+.current-time-check__box {
   border-color: #1f5fae;
+
   background: #1f5fae;
   color: #ffffff;
 }
 
 
-/*
-  체크된 상태에서 전체 버튼도 파란색으로 표시한다.
-*/
-.current-time-check:has(input:checked) {
-  border-color: #75a2d2;
-  background: #eaf3fc;
-  color: #1f5fae;
-}
-
-.current-time-check:focus-within {
-  border-color: #75a2d2;
-  box-shadow:
-    0 0 0 3px
-    rgba(31, 95, 174, 0.1);
+/* 체크 표시가 HTML에 없는 경우에도 표시 */
+.current-time-check
+input:checked +
+.current-time-check__box::before {
+  content: "✓";
 }
 
 
 /* =========================================================
-  TAG 입력 영역
+  TAG 필드
 ========================================================= */
 
 .log-entry-field--tag {
+  width: 100%;
   min-width: 0;
 }
+
 
 .log-entry-field--tag[hidden] {
   display: none !important;
 }
 
 
-/* =========================================================
-  추가 버튼을 오른쪽 끝에 배치
-========================================================= */
-
-.log-entry-input-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-
-  min-width: max-content;
-  margin-left: auto;
-}
-
-.log-entry-input-actions button {
-  min-height: 36px;
-}
-
-.log-entry-input-actions .add-entry-button {
-  min-width: 88px;
-}
-
-
 /*
-  TAG 영역이 숨겨진 경우에도 추가 버튼은
-  네 번째 열인 오른쪽 끝에 그대로 위치한다.
+  TAG가 숨겨질 때 남는 공간은
+  그리드 구조를 유지한다.
 */
-.log-entry-input-top-row
-> .log-entry-input-actions {
+.log-entry-field--tag[hidden] +
+.log-entry-input-actions {
   grid-column: 4;
 }
 
 
 /* =========================================================
-  내용 입력 안내 문구
+  TAG 입력 + 설비보기
 ========================================================= */
 
-.log-entry-content-help {
-  display: block;
-  margin-top: 6px;
+.tag-input-group {
+  display: grid;
 
-  color: #7d8998;
-  font-size: 10px;
+  grid-template-columns:
+    minmax(0, 1fr)
+    72px;
+
+  align-items: center;
+
+  gap: 6px;
+
+  width: 100%;
+  min-width: 0;
+}
+
+
+.tag-input-group
+input {
+  width: 100%;
+  height: 40px;
+  min-width: 0;
+  min-height: 40px;
+
+  padding: 0 10px;
+
+  border: 1px solid #c8d4e1;
+  border-radius: 7px;
+
+  background: #ffffff;
+  color: #26364c;
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+
+.tag-input-group
+input::placeholder {
+  color: #9aa5b3;
+
   font-weight: 600;
-  line-height: 1.45;
+}
+
+
+.navigator-button {
+  width: 72px;
+  height: 40px;
+  min-width: 72px;
+  min-height: 40px;
+
+  padding: 0 6px;
+
+  border: 1px solid #b8cbe0;
+  border-radius: 7px;
+
+  background: #eef5fc;
+  color: #1f5fae;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+
+.navigator-button:hover {
+  border-color: #91afd0;
+
+  background: #e1edf9;
 }
 
 
 /* =========================================================
-  화면 너비별 정렬
+  추가·취소 버튼
 ========================================================= */
 
-@media (max-width: 1100px) {
+.log-entry-input-actions {
+  display: flex;
+
+  width: 72px;
+  min-width: 72px;
+
+  align-items: flex-end;
+  justify-content: flex-end;
+
+  gap: 6px;
+}
+
+
+.log-entry-input-actions
+button {
+  height: 40px;
+  min-height: 40px;
+
+  border-radius: 7px;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+
+.log-entry-input-actions
+.add-entry-button {
+  width: 72px;
+  min-width: 72px;
+
+  padding: 0 7px;
+
+  border: 1px solid #8eb1d8;
+
+  background: #eaf3fc;
+  color: #1f5fae;
+}
+
+
+.log-entry-input-actions
+.add-entry-button:hover {
+  border-color: #6f9bc9;
+
+  background: #dcebf9;
+}
+
+
+#cancelLogEntryEditButton {
+  position: absolute;
+
+  width: auto;
+  min-width: 58px;
+
+  margin-top: 48px;
+  padding: 0 10px;
+
+  border: 1px solid #c9d3de;
+
+  background: #ffffff;
+  color: #657386;
+}
+
+
+/* =========================================================
+  내용 입력창
+========================================================= */
+
+.log-entry-content-field {
+  display: block;
+
+  width: 100%;
+
+  margin-top: 9px;
+}
+
+
+.log-entry-content-field
+.form-field__label {
+  display: block;
+
+  margin-bottom: 4px;
+
+  color: #48586e;
+
+  font-size: 10px;
+  font-weight: 900;
+}
+
+
+.log-entry-content-field
+textarea {
+  width: 100%;
+  min-height: 78px;
+  max-height: 160px;
+
+  padding: 9px 10px;
+
+  border: 1px solid #c8d4e1;
+  border-radius: 7px;
+
+  background: #ffffff;
+  color: #26364c;
+
+  font-size: 12px;
+  line-height: 1.6;
+
+  resize: vertical;
+}
+
+
+/* =========================================================
+  포커스
+========================================================= */
+
+.log-entry-input-top-row
+select:focus,
+
+.log-entry-input-top-row
+input:focus,
+
+.log-entry-content-field
+textarea:focus {
+  border-color: #6b9bcf;
+
+  outline: none;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(31, 95, 174, 0.09);
+}
+
+
+/* =========================================================
+  좁은 PC 화면
+========================================================= */
+
+@media (max-width: 1180px) {
   .log-entry-input-top-row {
     grid-template-columns:
-      minmax(170px, 1fr)
-      minmax(130px, 0.7fr)
-      minmax(220px, 1.4fr)
-      auto;
+      155px
+      110px
+      minmax(220px, 1fr)
+      68px;
+
+    gap: 7px;
+  }
+
+
+  .log-entry-field--category {
+    width: 155px;
+  }
+
+
+  .log-entry-current-time-field {
+    width: 110px;
+  }
+
+
+  .log-entry-input-actions,
+  .log-entry-input-actions
+  .add-entry-button {
+    width: 68px;
+    min-width: 68px;
   }
 }
 
 
-@media (max-width: 760px) {
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
   .log-entry-input-top-row {
-    grid-template-columns: 1fr;
+    grid-template-columns:
+      minmax(0, 1fr)
+      112px;
+
+    align-items: end;
+
     gap: 8px;
   }
 
-  .log-entry-input-top-row
-  > .log-entry-input-actions {
-    grid-column: auto;
+
+  /*
+    첫째 줄
+    구분 | 현재시간
+  */
+  .log-entry-field--category {
+    grid-column: 1;
+
     width: 100%;
-    margin-left: 0;
   }
 
-  .log-entry-input-actions button {
-    flex: 1 1 0;
+
+  .log-entry-current-time-field {
+    grid-column: 2;
+
+    width: 112px;
   }
 
-  .log-entry-current-time-field
-  .current-time-check {
-    justify-content: flex-start;
+
+  /*
+    둘째 줄
+    TAG + 설비보기 | 추가
+  */
+  .log-entry-field--tag {
+    grid-column: 1;
+
+    width: 100%;
+  }
+
+
+  .log-entry-input-actions {
+    grid-column: 2;
+
+    width: 112px;
+    min-width: 112px;
+  }
+
+
+  .log-entry-input-actions
+  .add-entry-button {
+    width: 112px;
+    min-width: 112px;
+  }
+
+
+  .tag-input-group {
+    grid-template-columns:
+      minmax(0, 1fr)
+      72px;
+  }
+
+
+  /*
+    TAG가 필요 없는 인계사항도
+    추가 버튼을 오른쪽에 유지
+  */
+  .log-entry-field--tag[hidden] +
+  .log-entry-input-actions {
+    grid-column: 2;
+  }
+
+
+  #cancelLogEntryEditButton {
+    position: static;
+
+    width: 100%;
+    min-width: 0;
+
+    margin: 6px 0 0;
   }
 }
-/* =========================================================
-   업무일지 작성·수정창 하단 버튼
-========================================================= */
-
-.log-editor-footer {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 70px;
-  padding: 14px 22px;
-  border-top: 1px solid #dce4ed;
-  background: #ffffff;
-}
-
-
-.log-editor-footer__left,
-.log-editor-footer__right {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-
-.log-editor-footer__right {
-  justify-content: flex-end;
-  margin-left: auto;
-}
-
-
-.log-editor-print-button,
-.log-editor-draft-button,
-.log-editor-complete-button {
-  min-width: 96px;
-  min-height: 40px;
-  padding: 0 18px;
-  border-radius: 9px;
-  font-size: 13px;
-  font-weight: 850;
-}
-
-
-.log-editor-print-button {
-  border: 1px solid #c9d4e0;
-  background: #ffffff;
-  color: #45566d;
-}
-
-
-.log-editor-print-button:hover {
-  border-color: #aebdcd;
-  background: #f6f8fa;
-}
-
-
-.log-editor-draft-button {
-  border: 1px solid #b9c9dc;
-  background: #eef3f8;
-  color: #344b68;
-}
-
-
-.log-editor-draft-button:hover {
-  background: #e4ebf3;
-}
-
-
-.log-editor-complete-button {
-  border: 1px solid #1256a2;
-  background: #1763c5;
-  color: #ffffff;
-  box-shadow:
-    0 4px 10px
-    rgba(23, 99, 197, 0.18);
-}
-
-
-.log-editor-complete-button:hover {
-  background: #1058ad;
-}
-
-
 /* =========================================================
    모바일 하단 버튼
 ========================================================= */

@@ -3146,101 +3146,177 @@ function updateMemberLogImportStatus() {
       ? elements.memberLogImportItems
       : [];
 
-  importItems.forEach((item) => {
-    if (!item.button) {
-      return;
-    }
 
-    const memberLog =
-      findMemberLogByRole(
-        item.role
-      );
-
-    item.button.classList.remove(
-      "is-imported",
-      "is-missing",
-      "has-new-entries"
-    );
-
-    if (!memberLog) {
-      item.button.classList.add(
-        "is-missing"
-      );
-
-      if (item.status) {
-        item.status.textContent =
-          "작성된 업무일지 없음";
+  importItems.forEach(
+    (item) => {
+      if (
+        !item.button
+      ) {
+        return;
       }
 
-      item.button.disabled =
-        false;
 
-      return;
-    }
+      const normalizedRole =
+        normalizeMemberLogRole(
+          item.role
+        );
 
-    const importableEntryCount =
-      getImportableMemberEntries(
-        memberLog,
-        item.role
-      ).length;
 
-    const author =
-      String(
-        memberLog.author ||
-        item.role
-      ).trim();
+      const memberLog =
+        findMemberLogByRole(
+          normalizedRole
+        );
 
-    const syncStatus =
-      getMemberLogSyncStatus(
-        memberLog,
-        item.role
-      );
 
-    if (
-      syncStatus.newEntryCount > 0
-    ) {
-      item.button.classList.add(
+      item.button.classList.remove(
+        "is-imported",
+        "is-missing",
         "has-new-entries"
       );
 
-      if (item.status) {
-        item.status.textContent =
-          `${author} · 신규 ${syncStatus.newEntryCount}건`;
+
+      /*
+        해당 보직 업무일지가 없는 경우
+      */
+      if (
+        !memberLog
+      ) {
+        item.button.classList.add(
+          "is-missing"
+        );
+
+
+        if (
+          item.status
+        ) {
+          item.status.textContent =
+            "작성된 업무일지 없음";
+        }
+
+
+        item.button.disabled =
+          false;
+
+        return;
       }
+
+
+      /*
+        개별 버튼은 모든 보직의 전체 업무를 대상으로 한다.
+      */
+      const syncStatus =
+        getMemberLogSyncStatus(
+          memberLog,
+          normalizedRole,
+          {
+            mode:
+              "individual"
+          }
+        );
+
+
+      const author =
+        String(
+          memberLog.author ||
+          normalizedRole
+        ).trim();
+
+
+      /*
+        신규 내역이 생긴 경우
+      */
+      if (
+        syncStatus.newEntryCount >
+        0
+      ) {
+        item.button.classList.add(
+          "has-new-entries"
+        );
+
+
+        if (
+          item.status
+        ) {
+          item.status.textContent =
+            `${author} · 신규 ${syncStatus.newEntryCount}건`;
+        }
+
+
+        item.button.disabled =
+          false;
+
+        return;
+      }
+
+
+      /*
+        가져올 대상이 있고
+        전부 가져온 경우
+      */
+      if (
+        syncStatus.totalEntryCount >
+          0 &&
+        syncStatus.importedEntryCount ===
+          syncStatus.totalEntryCount
+      ) {
+        item.button.classList.add(
+          "is-imported"
+        );
+
+
+        if (
+          item.status
+        ) {
+          item.status.textContent =
+            `${author} · 동기화 완료`;
+        }
+
+
+        item.button.disabled =
+          false;
+
+        return;
+      }
+
+
+      /*
+        작성된 항목이 없는 경우
+      */
+      if (
+        syncStatus.totalEntryCount ===
+        0
+      ) {
+        if (
+          item.status
+        ) {
+          item.status.textContent =
+            `${author} · 등록된 내역 없음`;
+        }
+
+
+        item.button.disabled =
+          false;
+
+        return;
+      }
+
+
+      /*
+        아직 한 번도 가져오지 않은 경우
+      */
+      if (
+        item.status
+      ) {
+        item.status.textContent =
+          `${author} · 가져오기 가능 ${syncStatus.totalEntryCount}건`;
+      }
+
 
       item.button.disabled =
         false;
-
-      return;
     }
+  );
 
-    if (
-      importableEntryCount > 0 &&
-      syncStatus.importedEntryCount > 0
-    ) {
-      item.button.classList.add(
-        "is-imported"
-      );
-
-      if (item.status) {
-        item.status.textContent =
-          `${author} · 동기화 완료`;
-      }
-
-      item.button.disabled =
-        false;
-
-      return;
-    }
-
-    if (item.status) {
-      item.status.textContent =
-        `${author} · ${importableEntryCount}건 확인`;
-    }
-
-    item.button.disabled =
-      false;
-  });
 
   updateMemberLogImportCount();
 }
@@ -3497,26 +3573,223 @@ function createLogEntryImportKey(entry) {
   ].join("||");
 }
 
+/* =========================================================
+  가져오기용 내용 정규화
+========================================================= */
+
+function normalizeMemberImportContent(
+  content
+) {
+  return String(
+    content || ""
+  )
+    .toLowerCase()
+    .replace(
+      /^\s*\d+\s*[.)\-:]\s*/,
+      ""
+    )
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .replace(
+      /[()[\]{}<>.,!?'"`~:;_|/\\-]/g,
+      ""
+    )
+    .trim();
+}
+
 
 /* =========================================================
-  파트장 일지로 가져올 수 있는 보직별 항목
+  동일·유사 항목 판정
 
-  TGO, BCO1, BCO2:
-  - 일반 업무
-  - TM 발행
-
-  TO, BO1, BO2:
-  - TM 발행만
+  90% 이상 유사하면 같은 업무로 판단한다.
 ========================================================= */
+
+function isSameOrSimilarMemberEntry(
+  firstEntry,
+  secondEntry,
+  threshold = 0.9
+) {
+  const firstCategory =
+    String(
+      firstEntry?.category ||
+      ""
+    ).trim();
+
+
+  const secondCategory =
+    String(
+      secondEntry?.category ||
+      ""
+    ).trim();
+
+
+  /*
+    서로 구분이 다르면
+    동일 항목으로 처리하지 않는다.
+  */
+  if (
+    firstCategory !==
+    secondCategory
+  ) {
+    return false;
+  }
+
+
+  const firstContent =
+    normalizeMemberImportContent(
+      firstEntry?.content
+    );
+
+
+  const secondContent =
+    normalizeMemberImportContent(
+      secondEntry?.content
+    );
+
+
+  if (
+    !firstContent ||
+    !secondContent
+  ) {
+    return false;
+  }
+
+
+  if (
+    firstContent ===
+    secondContent
+  ) {
+    return true;
+  }
+
+
+  const similarity =
+    calculateLegacyContentSimilarity(
+      firstEntry?.content,
+      secondEntry?.content
+    );
+
+
+  return (
+    similarity >=
+    threshold
+  );
+}
+
+
+/* =========================================================
+  원본 항목이 이미 가져와졌는지 확인
+========================================================= */
+
+function hasImportedMemberSourceEntry(
+  memberLog,
+  role,
+  entry,
+  entryIndex
+) {
+  const sourceKey =
+    createSourceEntryKey(
+      memberLog,
+      role,
+      entry,
+      entryIndex
+    );
+
+
+  return appState.editorEntries.some(
+    (currentEntry) => {
+      return (
+        createImportedEntryUniqueKey(
+          currentEntry
+        ) ===
+        sourceKey
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+  가져오기용 항목 생성
+========================================================= */
+
+function createMemberImportedEntry(
+  memberLog,
+  role,
+  entry,
+  entryIndex
+) {
+  const normalizedRole =
+    normalizeMemberLogRole(
+      role
+    );
+
+
+  return {
+    time:
+      String(
+        entry?.time ||
+        ""
+      ).trim(),
+
+    category:
+      String(
+        entry?.category ||
+        "인계사항"
+      ).trim(),
+
+    tag:
+      String(
+        entry?.tag ||
+        ""
+      )
+        .trim()
+        .toUpperCase(),
+
+    content:
+      String(
+        entry?.content ||
+        ""
+      ).trim(),
+
+    importedFromRole:
+      normalizedRole,
+
+    importedFromAuthor:
+      String(
+        memberLog?.author ||
+        ""
+      ).trim(),
+
+    importedFromLogId:
+      String(
+        memberLog?.id ||
+        ""
+      ).trim(),
+
+    importedFromEntryIndex:
+      entryIndex
+  };
+}
 
 function getImportableMemberEntries(
   memberLog,
-  requestedRole
+  requestedRole,
+  options = {}
 ) {
+  const {
+    mode =
+      "individual"
+  } = options;
+
+
   const normalizedRole =
     normalizeMemberLogRole(
       requestedRole
     );
+
 
   const memberEntries =
     Array.isArray(
@@ -3525,44 +3798,74 @@ function getImportableMemberEntries(
       ? memberLog.entries
       : [];
 
-  const ordinaryWorkRoles = [
-    "TGO",
-    "BCO1",
-    "BCO2"
-  ];
 
-  if (
-    ordinaryWorkRoles.includes(
-      normalizedRole
-    )
-  ) {
-    return memberEntries.map(
-      (entry, entryIndex) => {
+  const mappedEntries =
+    memberEntries.map(
+      (
+        entry,
+        entryIndex
+      ) => {
         return {
           entry,
           entryIndex
         };
       }
     );
+
+
+  /*
+    개별 버튼
+
+    TGO, BCO1, BCO2,
+    TO, BO1, BO2 모두
+    해당 보직의 전체 업무를 가져온다.
+  */
+  if (
+    mode ===
+    "individual"
+  ) {
+    return mappedEntries;
   }
 
-  return memberEntries
-    .map(
-      (entry, entryIndex) => {
-        return {
-          entry,
-          entryIndex
-        };
-      }
+
+  /*
+    일괄 취합
+
+    TGO, BCO1, BCO2:
+    전체 업무
+
+    TO, BO1, BO2:
+    TM 발행만
+  */
+  const fullImportRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2"
+  ];
+
+
+  if (
+    fullImportRoles.includes(
+      normalizedRole
     )
-    .filter(({ entry }) => {
+  ) {
+    return mappedEntries;
+  }
+
+
+  return mappedEntries.filter(
+    ({
+      entry
+    }) => {
       return (
         String(
-          entry.category || ""
+          entry.category ||
+          ""
         ).trim() ===
         "TM 발행"
       );
-    });
+    }
+  );
 }
 
 
@@ -3572,63 +3875,91 @@ function getImportableMemberEntries(
 
 function getMemberLogSyncStatus(
   memberLog,
-  requestedRole
+  requestedRole,
+  options = {}
 ) {
+  const {
+    mode =
+      "individual"
+  } = options;
+
+
   const normalizedRole =
     normalizeMemberLogRole(
       requestedRole
     );
 
+
   const importableItems =
     getImportableMemberEntries(
       memberLog,
-      normalizedRole
+      normalizedRole,
+      {
+        mode
+      }
     );
 
-  const currentImportedKeys =
-    new Set(
-      appState.editorEntries
-        .filter((entry) => {
-          return (
-            normalizeMemberLogRole(
-              entry.importedFromRole
-            ) === normalizedRole
-          );
-        })
-        .map((entry) => {
-          return createImportedEntryUniqueKey(
-            entry
-          );
-        })
-    );
 
-  let importedEntryCount = 0;
-  let newEntryCount = 0;
+  let importedEntryCount =
+    0;
+
+  let newEntryCount =
+    0;
+
 
   importableItems.forEach(
     ({
       entry,
       entryIndex
     }) => {
-      const sourceKey =
-        createSourceEntryKey(
+      const isImportedBySource =
+        hasImportedMemberSourceEntry(
           memberLog,
           normalizedRole,
           entry,
           entryIndex
         );
 
+
+      /*
+        원본 식별자가 없던 과거 데이터는
+        내용 유사도까지 함께 확인한다.
+      */
+      const isImportedByContent =
+        appState.editorEntries.some(
+          (currentEntry) => {
+            return (
+              normalizeMemberLogRole(
+                currentEntry
+                  .importedFromRole
+              ) ===
+                normalizedRole &&
+              isSameOrSimilarMemberEntry(
+                currentEntry,
+                entry,
+                0.9
+              )
+            );
+          }
+        );
+
+
       if (
-        currentImportedKeys.has(
-          sourceKey
-        )
+        isImportedBySource ||
+        isImportedByContent
       ) {
-        importedEntryCount += 1;
-      } else {
-        newEntryCount += 1;
+        importedEntryCount +=
+          1;
+
+        return;
       }
+
+
+      newEntryCount +=
+        1;
     }
   );
+
 
   return {
     totalEntryCount:
@@ -3697,25 +4028,34 @@ function importMemberLogByRole(
 ) {
   const {
     silent = false,
-    deferRender = false
+    deferRender = false,
+    mode = "individual"
   } = options;
+
 
   const normalizedRole =
     normalizeMemberLogRole(
       requestedRole
     );
 
+
   const memberLog =
     findMemberLogByRole(
       normalizedRole
     );
 
-  if (!memberLog) {
-    if (!silent) {
+
+  if (
+    !memberLog
+  ) {
+    if (
+      !silent
+    ) {
       showToast(
         `${normalizedRole} 업무일지가 아직 작성되지 않았습니다.`
       );
     }
+
 
     return {
       role:
@@ -3735,28 +4075,30 @@ function importMemberLogByRole(
     };
   }
 
+
   const importableItems =
     getImportableMemberEntries(
       memberLog,
-      normalizedRole
+      normalizedRole,
+      {
+        mode
+      }
     );
 
-  if (!importableItems.length) {
-    if (!silent) {
-      const tmOnlyRoles = [
-        "TO",
-        "BO1",
-        "BO2"
-      ];
 
+  if (
+    !importableItems.length
+  ) {
+    if (
+      !silent
+    ) {
       showToast(
-        tmOnlyRoles.includes(
-          normalizedRole
-        )
-          ? `${normalizedRole} 업무일지에 가져올 TM 발행 내역이 없습니다.`
+        mode === "all"
+          ? `${normalizedRole} 업무일지에 일괄 취합할 내역이 없습니다.`
           : `${normalizedRole} 업무일지에 가져올 내역이 없습니다.`
       );
     }
+
 
     return {
       role:
@@ -3776,122 +4118,121 @@ function importMemberLogByRole(
     };
   }
 
-  const existingKeys =
-    new Set(
-      appState.editorEntries.map(
-        (entry) => {
-          return createImportedEntryUniqueKey(
-            entry
-          );
-        }
-      )
-    );
 
-  let addedCount = 0;
-  let skippedCount = 0;
+  let addedCount =
+    0;
+
+  let skippedCount =
+    0;
+
 
   importableItems.forEach(
     ({
       entry,
       entryIndex
     }) => {
-      const sourceKey =
-        createSourceEntryKey(
+      const importedEntry =
+        createMemberImportedEntry(
           memberLog,
           normalizedRole,
           entry,
           entryIndex
         );
 
+
+      /*
+        같은 원본 항목이 이미 존재하는지 확인
+      */
+      const isSameSource =
+        hasImportedMemberSourceEntry(
+          memberLog,
+          normalizedRole,
+          entry,
+          entryIndex
+        );
+
+
+      /*
+        동일 내용 또는 90% 이상 유사한 내용 확인
+      */
+      const isSameContent =
+        appState.editorEntries.some(
+          (currentEntry) => {
+            return isSameOrSimilarMemberEntry(
+              currentEntry,
+              importedEntry,
+              0.9
+            );
+          }
+        );
+
+
       if (
-        existingKeys.has(
-          sourceKey
-        )
+        isSameSource ||
+        isSameContent
       ) {
-        skippedCount += 1;
+        skippedCount +=
+          1;
+
         return;
       }
 
-      const importedEntry = {
-        time:
-          String(
-            entry.time || ""
-          ).trim(),
-
-        category:
-          String(
-            entry.category ||
-            "인계사항"
-          ).trim(),
-
-        tag:
-          String(
-            entry.tag || ""
-          )
-            .trim()
-            .toUpperCase(),
-
-        content:
-          String(
-            entry.content || ""
-          ).trim(),
-
-        importedFromRole:
-          normalizedRole,
-
-        importedFromAuthor:
-          String(
-            memberLog.author || ""
-          ).trim(),
-
-        importedFromLogId:
-          String(
-            memberLog.id || ""
-          ).trim(),
-
-        importedFromEntryIndex:
-          entryIndex
-      };
 
       appState.editorEntries.push(
         importedEntry
       );
 
-      existingKeys.add(
-        sourceKey
-      );
 
-      addedCount += 1;
+      addedCount +=
+        1;
     }
   );
 
-  if (!deferRender) {
+
+  /*
+    일괄 취합 시에는
+    상위·하위 TM 중복을 즉시 정리한다.
+  */
+  if (
+    mode ===
+    "all"
+  ) {
+    appState.editorEntries =
+      filterLeaderTmEntriesByRoleHierarchy(
+        appState.editorEntries
+      );
+  }
+
+
+  if (
+    !deferRender
+  ) {
     sortImportedLogEntries();
+
     renderLogEntryTable();
+
     updateMemberLogImportStatus();
   }
 
-  if (!silent) {
-    if (addedCount > 0) {
-      const tmOnlyRoles = [
-        "TO",
-        "BO1",
-        "BO2"
-      ];
 
+  if (
+    !silent
+  ) {
+    if (
+      addedCount >
+      0
+    ) {
       showToast(
-        tmOnlyRoles.includes(
-          normalizedRole
-        )
-          ? `${normalizedRole} 업무일지에서 TM 발행 신규 내역 ${addedCount}건을 가져왔습니다.`
-          : `${normalizedRole} 업무일지에서 신규 내역 ${addedCount}건을 가져왔습니다.`
+        `${normalizedRole} 업무일지에서 신규 내역 ${addedCount}건을 가져왔습니다.`
       );
+
     } else {
       showToast(
-        `${normalizedRole} 업무일지의 신규 내역이 없습니다.`
+        `${normalizedRole} 업무일지의 신규 내역이 없어 가져올 수 없습니다.`
       );
     }
   }
+
 
   return {
     role:
@@ -3915,19 +4256,15 @@ function importMemberLogByRole(
 
 function importAllMemberLogs() {
   /*
-    파트장 업무일지 일괄 취합 규칙
+    일괄 취합 기본 규칙
 
-    TGO, BCO1, BCO2
-    - 일반 업무
-    - TM 발행 내역
+    TGO, BCO1, BCO2:
+    전체 업무
 
-    TO, BO1, BO2
-    - TM 발행 내역만
-
-    상위·하위 보직 TM이 70% 이상 유사하면
-    상위 보직 TM만 유지한다.
+    TO, BO1, BO2:
+    TM 발행만
   */
-  const importOrder = [
+  const importRoles = [
     "TGO",
     "BCO1",
     "BCO2",
@@ -3936,42 +4273,18 @@ function importAllMemberLogs() {
     "BO2"
   ];
 
-  const upperRoles = [
-    "TGO",
-    "BCO1",
-    "BCO2"
-  ];
 
-  const lowerRoles = [
-    "TO",
-    "BO1",
-    "BO2"
-  ];
+  let totalAddedCount =
+    0;
 
-  let foundRoleCount = 0;
-  let addedCount = 0;
-  let skippedCount = 0;
+  let totalSkippedCount =
+    0;
 
-  const missingUpperRoles = [];
-  const missingLowerRoles = [];
+  let foundLogCount =
+    0;
 
 
-  /*
-    중복 정리 전 항목 수를 기록한다.
-  */
-  const entryCountBeforeImport =
-    appState.editorEntries.length;
-
-
-  /*
-    6개 보직을 모두 확인한다.
-
-    importMemberLogByRole()의 기존 규칙에 따라:
-
-    TGO·BCO1·BCO2는 전체 내역,
-    TO·BO1·BO2는 TM 발행 내역만 가져온다.
-  */
-  importOrder.forEach(
+  importRoles.forEach(
     (role) => {
       const result =
         importMemberLogByRole(
@@ -3981,52 +4294,41 @@ function importAllMemberLogs() {
               true,
 
             deferRender:
-              true
+              true,
+
+            mode:
+              "all"
           }
         );
 
-      if (result.found) {
-        foundRoleCount += 1;
-      } else if (
-        upperRoles.includes(
-          role
-        )
+
+      if (
+        result.found
       ) {
-        missingUpperRoles.push(
-          role
-        );
-      } else if (
-        lowerRoles.includes(
-          role
-        )
-      ) {
-        missingLowerRoles.push(
-          role
-        );
+        foundLogCount +=
+          1;
       }
 
-      addedCount +=
+
+      totalAddedCount +=
         result.addedCount;
 
-      skippedCount +=
+
+      totalSkippedCount +=
         result.skippedCount;
     }
   );
 
 
   /*
-    TM 중복 정리
+    최종 TM 우선순위 정리
 
-    TGO  ↔ TO
-    BCO1 ↔ BO1
-    BCO2 ↔ BO2
+    TGO > TO
+    BCO1 > BO1
+    BCO2 > BO2
 
-    70% 이상 유사:
-    - 상위 보직 TM 유지
-    - 하위 보직 TM 제거
-
-    70% 미만:
-    - 두 항목 모두 유지
+    유사도 70% 이상인 경우
+    하위 보직 TM을 제거한다.
   */
   appState.editorEntries =
     filterLeaderTmEntriesByRoleHierarchy(
@@ -4034,126 +4336,41 @@ function importAllMemberLogs() {
     );
 
 
-  /*
-    최종 순서 정렬
-  */
   sortImportedLogEntries();
 
-
-  /*
-    화면 갱신
-  */
   renderLogEntryTable();
+
   updateMemberLogImportStatus();
 
 
-  /*
-    중복 정리로 제외된 항목 수
-  */
-  const entryCountAfterImport =
-    appState.editorEntries.length;
-
-  const actualAddedCount =
-    Math.max(
-      0,
-      entryCountAfterImport -
-      entryCountBeforeImport
-    );
-
-  const duplicateRemovedCount =
-    Math.max(
-      0,
-      addedCount -
-      actualAddedCount
-    );
-
-
-  /*
-    같은 날짜·근무에
-    팀원 업무일지가 하나도 없는 경우
-  */
   if (
-    foundRoleCount === 0
+    foundLogCount ===
+    0
   ) {
     showToast(
-      "같은 날짜와 근무에 작성된 팀원 업무일지가 없습니다."
+      "취합할 팀원 업무일지가 아직 작성되지 않았습니다."
     );
 
     return;
   }
 
 
-  /*
-    실제 추가된 신규 내역이 없는 경우
-  */
   if (
-    actualAddedCount === 0
+    totalAddedCount ===
+    0
   ) {
-    if (
-      duplicateRemovedCount > 0
-    ) {
-      showToast(
-        `신규 TM ${duplicateRemovedCount}건이 상위 보직 내역과 중복되어 제외되었습니다.`
-      );
-
-      return;
-    }
-
-    if (
-      missingUpperRoles.length > 0
-    ) {
-      showToast(
-        `신규 내역이 없습니다. 미작성: ${missingUpperRoles.join(", ")}`
-      );
-
-      return;
-    }
-
     showToast(
-      "가져올 신규 업무일지가 없습니다."
+      "신규 내역이 없어 가져올 수 없습니다."
     );
 
     return;
   }
 
-
-  /*
-    상위 보직 미작성 안내
-  */
-  if (
-    missingUpperRoles.length > 0
-  ) {
-    const duplicateMessage =
-      duplicateRemovedCount > 0
-        ? ` 중복 TM ${duplicateRemovedCount}건 제외.`
-        : "";
-
-    showToast(
-      `신규 내역 ${actualAddedCount}건을 가져왔습니다. 미작성: ${missingUpperRoles.join(", ")}.${duplicateMessage}`
-    );
-
-    return;
-  }
-
-
-  /*
-    정상 완료 안내
-  */
-  if (
-    duplicateRemovedCount > 0
-  ) {
-    showToast(
-      `신규 내역 ${actualAddedCount}건을 가져왔습니다. 중복 TM ${duplicateRemovedCount}건은 제외했습니다.`
-    );
-
-    return;
-  }
 
   showToast(
-    `팀원 업무일지에서 신규 내역 총 ${actualAddedCount}건을 가져왔습니다.`
+    `파트장 업무일지에 신규 내역 ${totalAddedCount}건을 취합했습니다.`
   );
 }
-
 
 /* =========================================================
   가져온 내역 정렬
