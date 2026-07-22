@@ -13618,41 +13618,86 @@ function createLogRowHtml(log) {
 
   /* =====================================================
     1. 운전현황
+
+    일반 보직:
+    TGO·BCO1·BCO2·TO·BO1·BO2는
+    업무일지 목록에서 운전현황을 표시하지 않는다.
+
+    파트장:
+    저장된 운전현황 전체 내용을
+    줄별로 모두 표시한다.
   ====================================================== */
 
   if (
-    String(
-      log.operationStatus ||
-      ""
-    ).trim()
+    isLeaderLog
   ) {
-    previewGroups.push({
-      type:
-        "normal",
+    const operationStatusLines =
+      String(
+        log.operationStatus ||
+        ""
+      )
+        .replace(
+          /\r\n/g,
+          "\n"
+        )
+        .replace(
+          /\r/g,
+          "\n"
+        )
+        .split(
+          "\n"
+        )
+        .map(
+          (line) => {
+            return String(
+              line || ""
+            ).trim();
+          }
+        )
+        .filter(Boolean);
 
-      title:
-        "운전현황",
 
-      number:
-        "",
+    operationStatusLines.forEach(
+      (
+        line,
+        index
+      ) => {
+        previewGroups.push({
+          type:
+            "normal",
 
-      time:
-        "",
+          title:
+            index === 0
+              ? "운전현황"
+              : "",
 
-      content:
-        firstMeaningfulLine(
-          log.operationStatus
-        ),
+          number:
+            `${index + 1}.`,
 
-      tag:
-        "",
+          time:
+            "",
 
-      numberClass:
-        "",
+          content:
+            line,
 
-      categoryClass:
-        "is-operation is-section-start"
-    });
+          tag:
+            "",
+
+          numberClass:
+            "is-handover-number",
+
+          categoryClass: [
+            "is-operation",
+
+            index === 0
+              ? "is-section-start"
+              : ""
+          ]
+            .filter(Boolean)
+            .join(" ")
+        });
+      }
+    );
   }
 
 
@@ -14074,6 +14119,7 @@ function createLogRowHtml(log) {
 
       </td>
 
+
       <td class="log-row__preview-cell">
 
         <button
@@ -14128,106 +14174,106 @@ function createLogRowHtml(log) {
                       }
 
 
-/*
-  일반 업무내용
+                      /*
+                        일반 업무내용
 
-  표시 순서:
-  번호 → 시간 → 내용 → TAG
-*/
-return `
-  <span
-    class="
-      log-preview__group
-      ${group.categoryClass}
+                        표시 순서:
+                        번호 → 시간 → 내용 → TAG
+                      */
+                      return `
+                        <span
+                          class="
+                            log-preview__group
+                            ${group.categoryClass}
 
-      ${
-        group.title
-          ? ""
-          : "has-no-title"
-      }
-    "
-  >
+                            ${
+                              group.title
+                                ? ""
+                                : "has-no-title"
+                            }
+                          "
+                        >
 
-    ${
-      group.title
-        ? `
-          <strong
-            class="log-preview__title"
-          >
-            ${escapeHtml(
-              group.title
-            )}
-          </strong>
-        `
-        : ""
-    }
-
-
-    <span
-      class="log-preview__content"
-    >
-
-      ${
-        group.number
-          ? `
-            <span
-              class="
-                log-preview__entry-number
-                ${group.numberClass || ""}
-              "
-            >
-              ${escapeHtml(
-                group.number
-              )}
-            </span>
-          `
-          : ""
-      }
+                          ${
+                            group.title
+                              ? `
+                                <strong
+                                  class="log-preview__title"
+                                >
+                                  ${escapeHtml(
+                                    group.title
+                                  )}
+                                </strong>
+                              `
+                              : ""
+                          }
 
 
-      ${
-        group.time
-          ? `
-            <span
-              class="log-preview__entry-time"
-            >
-              ${escapeHtml(
-                group.time
-              )}
-            </span>
-          `
-          : ""
-      }
+                          <span
+                            class="log-preview__content"
+                          >
+
+                            ${
+                              group.number
+                                ? `
+                                  <span
+                                    class="
+                                      log-preview__entry-number
+                                      ${group.numberClass || ""}
+                                    "
+                                  >
+                                    ${escapeHtml(
+                                      group.number
+                                    )}
+                                  </span>
+                                `
+                                : ""
+                            }
 
 
-      <span
-        class="log-preview__text"
-      >
-        ${escapeHtml(
-          group.content ||
-          "-"
-        )}
-      </span>
+                            ${
+                              group.time
+                                ? `
+                                  <span
+                                    class="log-preview__entry-time"
+                                  >
+                                    ${escapeHtml(
+                                      group.time
+                                    )}
+                                  </span>
+                                `
+                                : ""
+                            }
 
 
-      ${
-        group.tag
-          ? `
-            <span
-              class="log-preview__tag"
-            >
-              ${escapeHtml(
-                group.tag
-              )}
-            </span>
-          `
-          : ""
-      }
+                            <span
+                              class="log-preview__text"
+                            >
+                              ${escapeHtml(
+                                group.content ||
+                                "-"
+                              )}
+                            </span>
 
-    </span>
 
-  </span>
-`;
+                            ${
+                              group.tag
+                                ? `
+                                  <span
+                                    class="log-preview__tag"
+                                  >
+                                    ${escapeHtml(
+                                      group.tag
+                                    )}
+                                  </span>
+                                `
+                                : ""
+                            }
+
+                          </span>
+
+                        </span>
+                      `;
                     }
                   )
                   .join("")
@@ -14283,6 +14329,7 @@ return `
         </div>
 
       </td>
+
 
       <td class="log-row__attachment-cell">
 
@@ -16242,16 +16289,30 @@ function doesLogMatchSearchCategory(
   조회 목록 업무내용 미리보기
 
   출력 규칙
-  1. 번호 → 시간 → 내용 → TAG
-  2. TAG는 내용 뒤에 한 번만 표시
-  3. 과거 데이터 content 앞에 포함된 중복 TAG 제거
-  4. 조회 행 안에 button을 중첩하지 않음
-  5. 파트장 일지는 보직별로 분리
+  1. 일반 보직은 운전현황을 표시하지 않음
+  2. 파트장은 운전현황 전체 줄 표시
+  3. 번호 → 시간 → 내용 → TAG
+  4. TAG는 내용 뒤에 한 번만 표시
+  5. 과거 content 앞의 중복 TAG 제거
+  6. 조회 버튼 안에 button을 중첩하지 않음
+  7. 파트장 일지는 보직별로 분리
 ========================================================= */
 
 function createSearchLogPreviewHtml(
   log
 ) {
+  const normalizedLogRole =
+    normalizeMemberLogRole(
+      log?.role ||
+      ""
+    );
+
+
+  const isLeaderLog =
+    normalizedLogRole ===
+    "파트장";
+
+
   const operationStatus =
     String(
       log?.operationStatus ||
@@ -16280,7 +16341,7 @@ function createSearchLogPreviewHtml(
 
 
   /*
-    content 앞에 이미 들어 있는 TAG 제거
+    content 앞에 이미 포함된 TAG 제거
 
     예:
     [00E6LAB40AA101] Feed Water Heater 점검
@@ -16440,9 +16501,7 @@ function createSearchLogPreviewHtml(
 
     번호 → 시간 → 내용 → TAG
 
-    TAG는 button이 아니라 span으로 만든다.
-    조회 행 전체가 이미 클릭 가능한 요소이기 때문에
-    button을 중첩하면 브라우저가 TAG를 다음 줄로 밀어낸다.
+    TAG는 span으로 출력한다.
   */
   const createSearchEntryHtml = (
     entry,
@@ -16486,10 +16545,6 @@ function createSearchLogPreviewHtml(
         : "";
 
 
-    /*
-      요소 사이에 불필요한 줄바꿈 공백이 생기지 않도록
-      하나의 문자열로 연결한다.
-    */
     const bodyHtml =
       `${timeHtml}${contentHtml}${tagHtml}`;
 
@@ -16536,10 +16591,7 @@ function createSearchLogPreviewHtml(
     (entry) => {
       const sourceRole =
         entry.importedFromRole ||
-        normalizeMemberLogRole(
-          log?.role ||
-          ""
-        ) ||
+        normalizedLogRole ||
         "파트장";
 
 
@@ -16615,46 +16667,110 @@ function createSearchLogPreviewHtml(
   const sections = [];
 
 
-  /*
+  /* =====================================================
     운전현황
-  */
+
+    일반 보직:
+    조회 목록에서 표시하지 않음
+
+    파트장:
+    저장된 전체 운전현황을 줄별로 모두 표시
+  ====================================================== */
+
   if (
+    isLeaderLog &&
     operationStatus
   ) {
-    sections.push(`
-      <span
-        class="
-          search-preview-section
-          is-operation
-        "
-      >
-        <strong
-          class="search-preview-section__title"
-        >
-          운전현황
-        </strong>
+    const operationStatusLines =
+      operationStatus
+        .replace(
+          /\r\n/g,
+          "\n"
+        )
+        .replace(
+          /\r/g,
+          "\n"
+        )
+        .split(
+          "\n"
+        )
+        .map(
+          (line) => {
+            return String(
+              line ||
+              ""
+            ).trim();
+          }
+        )
+        .filter(Boolean);
 
+
+    if (
+      operationStatusLines.length
+    ) {
+      sections.push(`
         <span
-          class="search-preview-section__content"
+          class="
+            search-preview-section
+            is-operation
+          "
         >
-          <span
-            class="search-preview-operation"
+          <strong
+            class="search-preview-section__title"
           >
-            ${escapeHtml(
-              firstMeaningfulLine(
-                operationStatus
+            운전현황
+          </strong>
+
+          <span
+            class="search-preview-section__content"
+          >
+            ${operationStatusLines
+              .map(
+                (
+                  line,
+                  index
+                ) => {
+                  return `
+                    <span
+                      class="
+                        search-preview-entry
+                        is-handover
+                        is-operation
+                      "
+                    >
+                      <strong
+                        class="search-preview-entry__number"
+                      >
+                        ${index + 1}.
+                      </strong>
+
+                      <span
+                        class="search-preview-entry__body"
+                      >
+                        <span
+                          class="search-preview-entry__text"
+                        >
+                          ${escapeHtml(
+                            line
+                          )}
+                        </span>
+                      </span>
+                    </span>
+                  `;
+                }
               )
-            )}
+              .join("")}
           </span>
         </span>
-      </span>
-    `);
+      `);
+    }
   }
 
 
-  /*
+  /* =====================================================
     TM 발행 내역
-  */
+  ====================================================== */
+
   if (
     tmEntries.length
   ) {
@@ -16694,23 +16810,17 @@ function createSearchLogPreviewHtml(
   }
 
 
-  /*
-    파트장 업무일지 여부
-  */
-  const isLeaderLog =
-    normalizeMemberLogRole(
-      log?.role ||
-      ""
-    ) ===
-    "파트장";
-
-
-  /*
+  /* =====================================================
     일반 업무
-  */
+  ====================================================== */
+
   if (
     ordinaryEntries.length
   ) {
+    /*
+      파트장:
+      보직별 업무일지 제목 표시
+    */
     if (
       isLeaderLog
     ) {
@@ -16762,7 +16872,12 @@ function createSearchLogPreviewHtml(
           `);
         }
       );
+
     } else {
+      /*
+        일반 보직:
+        인계 제목 한 개만 표시
+      */
       sections.push(`
         <span
           class="
@@ -16800,9 +16915,10 @@ function createSearchLogPreviewHtml(
   }
 
 
-  /*
+  /* =====================================================
     비고
-  */
+  ====================================================== */
+
   if (
     note
   ) {
@@ -16838,7 +16954,7 @@ function createSearchLogPreviewHtml(
 
 
   /*
-    내용 없음
+    표시할 내용 없음
   */
   if (
     !sections.length
