@@ -557,6 +557,116 @@ function closeEmployeeManagementModal() {
   );
 }
 
+
+/* =========================================================
+  로그인 및 관리자 기능 초기화
+========================================================= */
+
+function initializeShiftLogLogin() {
+  const {
+    loginForm,
+    logoutButton,
+    adminButton,
+    employeeManagementModal,
+    closeEmployeeManagementButton,
+    closeEmployeeManagementFooterButton
+  } =
+    getLoginElements();
+
+
+  /*
+    로그인 폼
+  */
+  loginForm?.addEventListener(
+    "submit",
+    handleShiftLogLogin
+  );
+
+
+  /*
+    로그아웃
+  */
+  logoutButton?.addEventListener(
+    "click",
+    handleShiftLogLogout
+  );
+
+
+  /*
+    최고관리자 직원관리 열기
+  */
+  adminButton?.addEventListener(
+    "click",
+    openEmployeeManagementModal
+  );
+
+
+  /*
+    직원관리 상단 닫기
+  */
+  closeEmployeeManagementButton
+    ?.addEventListener(
+      "click",
+      closeEmployeeManagementModal
+    );
+
+
+  /*
+    직원관리 하단 닫기
+  */
+  closeEmployeeManagementFooterButton
+    ?.addEventListener(
+      "click",
+      closeEmployeeManagementModal
+    );
+
+
+  /*
+    모달 바깥 배경을 누르면 닫기
+  */
+  employeeManagementModal
+    ?.addEventListener(
+      "click",
+      (
+        event
+      ) => {
+        if (
+          event.target ===
+          employeeManagementModal
+        ) {
+          closeEmployeeManagementModal();
+        }
+      }
+    );
+
+
+  /*
+    저장된 로그인 사용자 복원
+  */
+  const currentUser =
+    loadCurrentUser();
+
+
+  if (
+    currentUser
+  ) {
+    openShiftLogApp(
+      currentUser
+    );
+
+    return;
+  }
+
+
+  openLoginScreen();
+}
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  initializeShiftLogLogin
+);
+
 document.addEventListener(
   "DOMContentLoaded",
   initializeShiftLogLogin
