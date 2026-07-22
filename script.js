@@ -942,9 +942,6 @@ function cacheElements() {
 operationStatusSection:
   document.getElementById(
     "operationStatusSection"
-  ) ||
-  document.querySelector(
-    ".operation-status-section"
   ),
 
 operationStatus:
@@ -982,6 +979,14 @@ operationStatusCurrentCard:
     "operationStatusCurrentCard"
   ),
 
+/*
+  일반 보직 표시 전체 영역
+*/
+operationStatusSingleView:
+  document.getElementById(
+    "operationStatusSingleView"
+  ),
+
 operationStatusCurrentContent:
   document.getElementById(
     "operationStatusCurrentContent"
@@ -1000,6 +1005,14 @@ operationStatusUpdatedAt:
 operationStatusUpdatedBy:
   document.getElementById(
     "operationStatusUpdatedBy"
+  ),
+
+/*
+  파트장 전용 간단 표시 영역
+*/
+leaderOperationStatusList:
+  document.getElementById(
+    "leaderOperationStatusList"
   ),
 
 operationStatusEditor:
@@ -5971,25 +5984,117 @@ function renderOperationStatusBadge(
     ].join(" ");
 }
 
+/* =========================================================
+  파트장 보직별 운전현황 한 줄 생성
+
+  표시:
+  TGO  정상운전  |  #1 TBN 정상 운전 중  수정시간
+========================================================= */
+
+function createLeaderOperationStatusRowHtml(
+  memberStatus
+) {
+  const role =
+    normalizeMemberLogRole(
+      memberStatus?.role
+    );
+
+
+  const type =
+    normalizeOperationStatusType(
+      memberStatus?.type
+    );
+
+
+  const typeLabel =
+    getOperationStatusLabel(
+      type
+    );
+
+
+  const content =
+    String(
+      memberStatus?.content ||
+      "등록된 운전현황이 없습니다."
+    ).trim();
+
+
+  const updatedAt =
+    String(
+      memberStatus?.updatedAt ||
+      ""
+    ).trim();
+
+
+  const updatedAtText =
+    updatedAt
+      ? `${formatDateTime(
+          updatedAt
+        )} 수정`
+      : "";
+
+
+  return `
+    <div
+      class="
+        leader-operation-line
+        is-${escapeHtml(type)}
+      "
+    >
+
+      <strong
+        class="leader-operation-line__role"
+      >
+        ${escapeHtml(role)}
+      </strong>
+
+
+      <span
+        class="
+          leader-operation-line__status
+          is-${escapeHtml(type)}
+        "
+      >
+        ${escapeHtml(typeLabel)}
+      </span>
+
+
+      <span
+        class="leader-operation-line__divider"
+        aria-hidden="true"
+      >
+        |
+      </span>
+
+
+      <span
+        class="leader-operation-line__content"
+      >
+        ${escapeHtml(content)}
+      </span>
+
+
+      <span
+        class="leader-operation-line__time"
+      >
+        ${escapeHtml(updatedAtText)}
+      </span>
+
+    </div>
+  `;
+}
 
 /* =========================================================
   운전현황 카드 렌더링 최종본
 
   일반 보직:
-  기존 단일 운전현황 표시
+  상태 배지 + 내용 + 수정시간
 
   파트장:
-  TGO·BCO1·BCO2를 작은 한 줄 형태로 표시
+  TGO·BCO1·BCO2를 카드 없이 세 줄로 표시
 ========================================================= */
 
 function renderOperationStatusCard() {
-  if (
-    !elements.operationStatusCurrentContent
-  ) {
-    return;
-  }
-
-
   const currentRole =
     getCurrentOperationStatusRole();
 
@@ -6018,13 +6123,17 @@ function renderOperationStatusCard() {
 
 
   /* =====================================================
-    파트장 화면
+    파트장 표시
   ====================================================== */
 
   if (
     currentRole ===
     "파트장"
   ) {
+    /*
+      파트장 화면은 항상 저장소에서
+      TGO·BCO1·BCO2 최신 상태를 다시 읽는다.
+    */
     const memberStatuses =
       OPERATION_STATUS_MEMBER_ROLES.map(
         (role) => {
@@ -6056,112 +6165,67 @@ function renderOperationStatusCard() {
               String(
                 memberStatus.updatedAt ||
                 ""
+              ),
+
+            updatedBy:
+              String(
+                memberStatus.updatedBy ||
+                ""
               )
           };
         }
       );
 
 
-    elements.operationStatusCurrentContent.innerHTML =
-      memberStatuses
-        .map(
-          (memberStatus) => {
-            const role =
-              normalizeMemberLogRole(
-                memberStatus.role
-              );
-
-
-            const type =
-              normalizeOperationStatusType(
-                memberStatus.type
-              );
-
-
-            const label =
-              getOperationStatusLabel(
-                type
-              );
-
-
-            const statusContent =
-              String(
-                memberStatus.content ||
-                "-"
-              ).trim();
-
-
-            return `
-              <div
-                class="
-                  leader-operation-summary-row
-                  is-${escapeHtml(
-                    type
-                  )}
-                "
-              >
-
-                <strong
-                  class="
-                    leader-operation-summary-role
-                  "
-                >
-                  ${escapeHtml(
-                    role
-                  )}
-                </strong>
-
-
-                <span
-                  class="
-                    leader-operation-summary-badge
-                    is-${escapeHtml(
-                      type
-                    )}
-                  "
-                >
-                  ${escapeHtml(
-                    label
-                  )}
-                </span>
-
-
-                <span
-                  class="
-                    leader-operation-summary-content
-                  "
-                >
-                  ${escapeHtml(
-                    statusContent
-                  )}
-                </span>
-
-              </div>
-            `;
-          }
-        )
-        .join("");
-
-
     /*
-      파트장 공통 상태 배지는 숨긴다.
+      일반 보직 표시 영역을 숨기고
+      파트장 전용 영역만 표시한다.
     */
     if (
-      elements.operationStatusStateBadge
+      elements.operationStatusSingleView
     ) {
-      elements.operationStatusStateBadge.hidden =
+      elements.operationStatusSingleView.hidden =
         true;
     }
 
 
+    if (
+      elements.leaderOperationStatusList
+    ) {
+      elements.leaderOperationStatusList.hidden =
+        false;
+
+
+      elements.leaderOperationStatusList.innerHTML =
+        memberStatuses
+          .map(
+            createLeaderOperationStatusRowHtml
+          )
+          .join("");
+    }
+
+
     /*
-      업무일지 저장용 통합 문자열은 유지한다.
+      업무일지에 저장할 통합 운전현황 원문
     */
+    const combinedContent =
+      memberStatuses
+        .map(
+          (memberStatus) => {
+            return [
+              `[${memberStatus.role}]`,
+              memberStatus.content
+            ].join("\n");
+          }
+        )
+        .join("\n\n");
+
+
     if (
       elements.operationStatus
     ) {
       elements.operationStatus.value =
-        content;
+        combinedContent;
     }
 
 
@@ -6169,7 +6233,7 @@ function renderOperationStatusCard() {
       elements.operationStatusSnapshot
     ) {
       elements.operationStatusSnapshot.value =
-        content;
+        combinedContent;
     }
 
 
@@ -6181,26 +6245,30 @@ function renderOperationStatusCard() {
     }
 
 
-    if (
-      elements.operationStatusUpdatedAt
-    ) {
-      elements.operationStatusUpdatedAt.textContent =
-        "";
-    }
-
-
-    if (
-      elements.operationStatusUpdatedBy
-    ) {
-      elements.operationStatusUpdatedBy.hidden =
-        true;
-    }
-
-
     elements.operationStatusSection
       ?.classList.add(
         "is-leader-operation-status"
       );
+
+
+    /*
+      파트장 전체 카드에는 한 가지 상태색을
+      강제로 적용하지 않는다.
+    */
+    OPERATION_STATUS_TYPES.forEach(
+      (type) => {
+        elements.operationStatusSection
+          ?.classList.remove(
+            `is-type-${type}`
+          );
+
+
+        elements.operationStatusCurrentCard
+          ?.classList.remove(
+            `is-type-${type}`
+          );
+      }
+    );
 
 
     return;
@@ -6208,7 +6276,7 @@ function renderOperationStatusCard() {
 
 
   /* =====================================================
-    일반 보직 화면
+    일반 보직 표시
   ====================================================== */
 
   elements.operationStatusSection
@@ -6218,15 +6286,30 @@ function renderOperationStatusCard() {
 
 
   if (
-    elements.operationStatusStateBadge
+    elements.leaderOperationStatusList
   ) {
-    elements.operationStatusStateBadge.hidden =
+    elements.leaderOperationStatusList.hidden =
+      true;
+
+    elements.leaderOperationStatusList.innerHTML =
+      "";
+  }
+
+
+  if (
+    elements.operationStatusSingleView
+  ) {
+    elements.operationStatusSingleView.hidden =
       false;
   }
 
 
-  elements.operationStatusCurrentContent.textContent =
-    content;
+  if (
+    elements.operationStatusCurrentContent
+  ) {
+    elements.operationStatusCurrentContent.textContent =
+      content;
+  }
 
 
   if (
@@ -6268,8 +6351,23 @@ function renderOperationStatusCard() {
   if (
     elements.operationStatusUpdatedBy
   ) {
+    elements.operationStatusUpdatedBy.textContent =
+      "";
+
     elements.operationStatusUpdatedBy.hidden =
       true;
+  }
+
+
+  if (
+    elements.operationStatusEditorTime
+  ) {
+    elements.operationStatusEditorTime.textContent =
+      status.updatedAt
+        ? `${formatDateTime(
+            status.updatedAt
+          )} 수정`
+        : "";
   }
 
 

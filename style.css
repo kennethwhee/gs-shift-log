@@ -11218,240 +11218,250 @@ tbody tr:first-child td {
 }
 
 /* =========================================================
-  파트장 보직별 운전현황
+  파트장 운전현황 최종본
+
+  카드 구분 없음
+  보직 | 상태 | 내용 | 수정시간
 ========================================================= */
 
 #operationStatusSection.is-leader-operation-status
-.operation-status-current-content {
-  display: grid;
-  gap: 10px;
-  margin-top: 14px;
+.operation-status-current-card {
+  height: auto;
+  min-height: 0;
+  padding: 15px 17px 13px;
+}
+
+
+/*
+  파트장에서는 카드 왼쪽의 공통 상태색 선을
+  사용하지 않는다.
+*/
+#operationStatusSection.is-leader-operation-status
+.operation-status-current-card::before {
+  display: none;
 }
 
 
 /* =========================================================
-  보직별 상태 카드
+  파트장 목록
 ========================================================= */
 
 #operationStatusSection
-.leader-operation-status-item {
-  position: relative;
-  padding: 13px 14px 11px;
-  border: 1px solid #d4dde7;
-  border-left-width: 4px;
-  border-radius: 9px;
-  background: #ffffff;
+.leader-operation-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  margin-top: 10px;
+}
+
+
+#operationStatusSection
+.leader-operation-status-list[hidden] {
+  display: none !important;
+}
+
+
+/* =========================================================
+  한 줄
+
+  TGO | 정상운전 | 내용 | 수정시간
+========================================================= */
+
+#operationStatusSection
+.leader-operation-line {
+  display: grid;
+  grid-template-columns:
+    48px
+    72px
+    10px
+    minmax(0, 1fr)
+    max-content;
+  align-items: center;
+  gap: 7px;
+
+  min-height: 34px;
+  padding: 5px 0;
+
+  color: #26364b;
+}
+
+
+/*
+  줄 사이에는 아주 연한 구분선만 사용한다.
+  별도 카드나 테두리는 만들지 않는다.
+*/
+#operationStatusSection
+.leader-operation-line
++
+.leader-operation-line {
+  border-top: 1px solid #edf1f5;
+}
+
+
+/* =========================================================
+  보직
+========================================================= */
+
+#operationStatusSection
+.leader-operation-line__role {
+  color: #203148;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  상태
+========================================================= */
+
+#operationStatusSection
+.leader-operation-line__status {
+  display: inline-flex;
+  width: fit-content;
+  min-width: 56px;
+  min-height: 23px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 
 /* 정상운전 */
 #operationStatusSection
-.leader-operation-status-item.is-type-normal {
-  border-left-color: #1ca06c;
-  background: #fbfefd;
+.leader-operation-line__status.is-normal {
+  background: #e5f6ee;
+  color: #18835a;
 }
 
 
 /* 기동 */
 #operationStatusSection
-.leader-operation-status-item.is-type-starting {
-  border-left-color: #2d79c7;
-  background: #fbfdff;
+.leader-operation-line__status.is-starting {
+  background: #e7f1fc;
+  color: #2168ae;
 }
 
 
 /* 정지 */
 #operationStatusSection
-.leader-operation-status-item.is-type-stopped {
-  border-left-color: #727e8c;
-  background: #fcfcfd;
+.leader-operation-line__status.is-stopped {
+  background: #edf0f3;
+  color: #596471;
 }
 
 
 /* 이상 */
 #operationStatusSection
-.leader-operation-status-item.is-type-abnormal {
-  border-left-color: #d28a13;
-  background: #fffdf8;
+.leader-operation-line__status.is-abnormal {
+  background: #fff1d8;
+  color: #99600d;
 }
 
 
 /* 비상 */
 #operationStatusSection
-.leader-operation-status-item.is-type-emergency {
-  border-left-color: #d74444;
-  background: #fffafa;
-}
-
-
-/* =========================================================
-  보직별 카드 헤더
-========================================================= */
-
-#operationStatusSection
-.leader-operation-status-item__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-
-#operationStatusSection
-.leader-operation-status-item__role {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-}
-
-
-#operationStatusSection
-.leader-operation-status-item__role strong {
-  color: #1f3046;
-  font-size: 14px;
-  font-weight: 900;
-}
-
-
-#operationStatusSection
-.leader-operation-status-item__dot {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: #1ca06c;
-}
-
-
-#operationStatusSection
-.is-type-starting
-.leader-operation-status-item__dot {
-  background: #2d79c7;
-}
-
-
-#operationStatusSection
-.is-type-stopped
-.leader-operation-status-item__dot {
-  background: #727e8c;
-}
-
-
-#operationStatusSection
-.is-type-abnormal
-.leader-operation-status-item__dot {
-  background: #d28a13;
-}
-
-
-#operationStatusSection
-.is-type-emergency
-.leader-operation-status-item__dot {
-  background: #d74444;
-}
-
-
-/* =========================================================
-  상태 배지
-========================================================= */
-
-#operationStatusSection
-.leader-operation-status-item__badge {
-  display: inline-flex;
-  min-height: 25px;
-  align-items: center;
-  justify-content: center;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 900;
-}
-
-
-#operationStatusSection
-.leader-operation-status-item__badge.is-normal {
-  background: #e4f6ed;
-  color: #18845a;
-}
-
-
-#operationStatusSection
-.leader-operation-status-item__badge.is-starting {
-  background: #e7f1fc;
-  color: #2168af;
-}
-
-
-#operationStatusSection
-.leader-operation-status-item__badge.is-stopped {
-  background: #edf0f3;
-  color: #56616f;
-}
-
-
-#operationStatusSection
-.leader-operation-status-item__badge.is-abnormal {
-  background: #fff1d7;
-  color: #9b610b;
-}
-
-
-#operationStatusSection
-.leader-operation-status-item__badge.is-emergency {
+.leader-operation-line__status.is-emergency {
   background: #fde7e7;
   color: #bd3434;
 }
 
 
 /* =========================================================
-  상태 내용
+  구분 기호
 ========================================================= */
 
 #operationStatusSection
-.leader-operation-status-item__content {
-  margin-top: 9px;
-  color: #27384e;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-
-#operationStatusSection
-.leader-operation-status-item__meta {
-  margin-top: 7px;
-  color: #8b96a4;
-  font-size: 9px;
-  text-align: right;
+.leader-operation-line__divider {
+  color: #a3acb8;
+  font-size: 11px;
+  text-align: center;
 }
 
 
 /* =========================================================
-  파트장 카드에서는 공통 배지 줄 제거
+  운전현황 내용
+========================================================= */
+
+#operationStatusSection
+.leader-operation-line__content {
+  min-width: 0;
+  overflow: hidden;
+  color: #27384e;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  수정시간
+========================================================= */
+
+#operationStatusSection
+.leader-operation-line__time {
+  color: #8a95a4;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  파트장 카드 상단
 ========================================================= */
 
 #operationStatusSection.is-leader-operation-status
-.operation-status-summary-row {
-  display: none;
+.operation-status-current-header {
+  margin-bottom: 0;
 }
 
 
 /* =========================================================
-  모바일
+  작은 화면
 ========================================================= */
 
-@media (max-width: 600px) {
+@media (max-width: 760px) {
   #operationStatusSection
-  .leader-operation-status-item {
-    padding: 11px 12px 10px;
+  .leader-operation-line {
+    grid-template-columns:
+      42px
+      60px
+      8px
+      minmax(0, 1fr);
+
+    gap: 5px;
+    min-height: 32px;
   }
 
+
   #operationStatusSection
-  .leader-operation-status-item__content {
-    font-size: 12px;
+  .leader-operation-line__time {
+    display: none;
+  }
+
+
+  #operationStatusSection
+  .leader-operation-line__status {
+    min-width: 52px;
+    padding: 0 7px;
+    font-size: 9px;
+  }
+
+
+  #operationStatusSection
+  .leader-operation-line__content {
+    font-size: 11px;
   }
 }
 

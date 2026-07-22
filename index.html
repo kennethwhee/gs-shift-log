@@ -1089,40 +1089,59 @@
   </div>
 
 
-  <!-- =====================================================
-    평상시 표시 카드
-  ====================================================== -->
-  <div
-    class="operation-status-current-card"
-    id="operationStatusCurrentCard"
-  >
+<!-- =====================================================
+  평상시 표시 카드
+====================================================== -->
+<div
+  class="operation-status-current-card"
+  id="operationStatusCurrentCard"
+>
 
-    <div class="operation-status-current-header">
+  <!-- ===================================================
+    카드 상단
 
-      <div class="operation-status-current-title">
+    일반 보직:
+    BCO1 운전현황
 
-        <span
-          class="operation-status-live-dot"
-          aria-hidden="true"
-        ></span>
+    파트장:
+    파트장 운전현황
+  ==================================================== -->
+  <div class="operation-status-current-header">
 
-        <strong id="operationStatusRoleTitle">
-          TGO 운전현황
-        </strong>
+    <div class="operation-status-current-title">
 
-      </div>
+      <span
+        class="operation-status-live-dot"
+        aria-hidden="true"
+      ></span>
 
-
-      <button
-        type="button"
-        class="operation-status-edit-button"
-        id="editOperationStatusButton"
-      >
-        수정
-      </button>
+      <strong id="operationStatusRoleTitle">
+        TGO 운전현황
+      </strong>
 
     </div>
 
+
+    <button
+      type="button"
+      class="operation-status-edit-button"
+      id="editOperationStatusButton"
+    >
+      수정
+    </button>
+
+  </div>
+
+
+  <!-- ===================================================
+    일반 보직 표시
+
+    TGO·BCO1·BCO2·TO·BO1·BO2에서 사용
+  ==================================================== -->
+  <div
+    class="operation-status-single-view"
+    id="operationStatusSingleView"
+  >
 
     <div class="operation-status-summary-row">
 
@@ -1149,9 +1168,7 @@
 
     <div class="operation-status-current-meta">
 
-      <span
-        id="operationStatusUpdatedAt"
-      >
+      <span id="operationStatusUpdatedAt">
       </span>
 
       <strong
@@ -1164,6 +1181,21 @@
 
   </div>
 
+
+  <!-- ===================================================
+    파트장 전용 표시
+
+    카드나 칸으로 나누지 않고
+    TGO·BCO1·BCO2를 간단한 세 줄로 표시
+  ==================================================== -->
+  <div
+    class="leader-operation-status-list"
+    id="leaderOperationStatusList"
+    hidden
+  >
+  </div>
+
+</div>
 
   <!-- =====================================================
     수정 화면
