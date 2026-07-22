@@ -818,9 +818,9 @@ for (
         message:
           isBulkRequest
             ? (
-                `직원 명단 저장이 완료되었습니다. ` +
-                `신규 ${createdCount}명 / ` +
-                `수정 ${updatedCount}명`
+                `직원 명단 저장 완료 / ` +
+                `직원 신규 ${createdCount}명 / ` +
+                `직원 수정 ${updatedCount}명 / ` +
                 `로그인 계정 신규 ${createdUserCount}명 / ` +
                 `기존 계정 유지 ${existingUserCount}명`
               )
