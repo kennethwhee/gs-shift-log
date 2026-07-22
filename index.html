@@ -2469,16 +2469,305 @@
   </section>
 </div>
 
-  <!-- =========================================================
-    공통 알림
-  ========================================================== -->
-  <div
-    class="toast"
-    id="appToast"
-    role="status"
-    aria-live="polite"
+<!-- =========================================================
+  직원 관리 모달
+  최고관리자 전용
+========================================================== -->
+<div
+  class="modal-backdrop employee-management-modal"
+  id="employeeManagementModal"
+  aria-hidden="true"
+>
+  <section
+    class="modal-panel employee-management-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="employeeManagementTitle"
   >
-  </div>
+
+    <!-- =====================================================
+      상단
+    ====================================================== -->
+    <header class="modal-header">
+
+      <div>
+        <p class="modal-header__eyebrow">
+          SUPER ADMIN
+        </p>
+
+        <h2
+          class="modal-header__title"
+          id="employeeManagementTitle"
+        >
+          직원 관리
+        </h2>
+      </div>
+
+
+      <button
+        type="button"
+        class="modal-close-button"
+        id="closeEmployeeManagementButton"
+        aria-label="직원 관리창 닫기"
+      >
+        ×
+      </button>
+
+    </header>
+
+
+    <!-- =====================================================
+      본문
+    ====================================================== -->
+    <div class="modal-body employee-management-body">
+
+      <!-- ===================================================
+        검색 및 직원 추가
+      ==================================================== -->
+      <section class="employee-management-toolbar">
+
+        <label class="employee-management-search">
+
+          <span>
+            직원 검색
+          </span>
+
+          <input
+            type="search"
+            id="employeeManagementSearch"
+            placeholder="사번 또는 이름 검색"
+            autocomplete="off"
+          />
+
+        </label>
+
+
+        <div class="employee-management-toolbar__actions">
+
+          <button
+            type="button"
+            class="secondary-button"
+            id="refreshEmployeeManagementButton"
+          >
+            새로고침
+          </button>
+
+
+          <button
+            type="button"
+            class="primary-button"
+            id="openEmployeeAddButton"
+          >
+            ＋ 직원 추가
+          </button>
+
+        </div>
+
+      </section>
+
+
+      <!-- ===================================================
+        직원 추가 입력
+      ==================================================== -->
+      <section
+        class="employee-add-panel"
+        id="employeeAddPanel"
+        hidden
+      >
+
+        <div class="employee-add-panel__header">
+
+          <div>
+            <strong>
+              직원 계정 추가
+            </strong>
+
+            <p>
+              초기 비밀번호는 입력한 사번과 동일하게 설정됩니다.
+            </p>
+          </div>
+
+
+          <button
+            type="button"
+            class="employee-add-panel__close"
+            id="closeEmployeeAddButton"
+            aria-label="직원 추가 닫기"
+          >
+            ×
+          </button>
+
+        </div>
+
+
+        <div class="employee-add-form">
+
+          <label class="form-field">
+
+            <span class="form-field__label">
+              사번
+            </span>
+
+            <input
+              type="text"
+              id="employeeAddEmployeeNo"
+              inputmode="numeric"
+              maxlength="10"
+              placeholder="사번 입력"
+              autocomplete="off"
+            />
+
+          </label>
+
+
+          <label class="form-field">
+
+            <span class="form-field__label">
+              이름
+            </span>
+
+            <input
+              type="text"
+              id="employeeAddName"
+              maxlength="30"
+              placeholder="직원 이름 입력"
+              autocomplete="off"
+            />
+
+          </label>
+
+
+          <label class="form-field">
+
+            <span class="form-field__label">
+              권한
+            </span>
+
+            <select id="employeeAddRole">
+
+              <option
+                value="user"
+                selected
+              >
+                일반
+              </option>
+
+              <option value="super_admin">
+                최고관리자
+              </option>
+
+            </select>
+
+          </label>
+
+
+          <button
+            type="button"
+            class="primary-button employee-add-save-button"
+            id="saveEmployeeAddButton"
+          >
+            등록
+          </button>
+
+        </div>
+
+
+        <p
+          class="employee-management-message"
+          id="employeeAddMessage"
+          hidden
+        >
+        </p>
+
+      </section>
+
+
+      <!-- ===================================================
+        직원 목록 정보
+      ==================================================== -->
+      <section class="employee-management-list-section">
+
+        <div class="employee-management-list-header">
+
+          <div>
+            <strong>
+              가입 완료 직원
+            </strong>
+
+            <span id="employeeManagementCount">
+              0명
+            </span>
+          </div>
+
+
+          <small>
+            일반·최고관리자 계정 관리
+          </small>
+
+        </div>
+
+
+        <!-- =================================================
+          직원 목록
+        ================================================== -->
+        <div
+          class="employee-management-list"
+          id="employeeManagementList"
+        >
+
+          <div class="employee-management-empty">
+            직원 목록을 불러오세요.
+          </div>
+
+        </div>
+
+      </section>
+
+    </div>
+
+
+    <!-- =====================================================
+      하단
+    ====================================================== -->
+    <footer class="modal-footer">
+
+      <div class="modal-footer__left">
+
+        <span class="employee-management-footer-help">
+          계정을 중지하면 해당 직원은 로그인할 수 없습니다.
+        </span>
+
+      </div>
+
+
+      <div class="modal-footer__right">
+
+        <button
+          type="button"
+          class="secondary-button"
+          id="closeEmployeeManagementFooterButton"
+        >
+          닫기
+        </button>
+
+      </div>
+
+    </footer>
+
+  </section>
+</div>
+
+
+<!-- =========================================================
+  공통 알림
+========================================================== -->
+<div
+  class="toast"
+  id="appToast"
+  role="status"
+  aria-live="polite"
+>
+</div>
 
 </body>
 </html>

@@ -14701,3 +14701,732 @@ tbody tr:hover td {
 #searchResultBody .search-log-view-cell {
   border-right: 1px solid #dbe5f0 !important;
 }
+
+/* =========================================================
+   직원 관리 모달
+   최고관리자 전용
+========================================================= */
+
+.employee-management-modal {
+  z-index: 260;
+}
+
+
+.employee-management-panel {
+  width: min(
+    980px,
+    calc(100vw - 56px)
+  );
+}
+
+
+/* =========================================================
+   본문
+========================================================= */
+
+.employee-management-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  padding: 20px 22px 24px;
+
+  background: #f5f7fa;
+}
+
+
+/* =========================================================
+   검색 및 상단 버튼
+========================================================= */
+
+.employee-management-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  padding: 16px;
+
+  border: 1px solid var(--line);
+  border-radius: 12px;
+
+  background: #ffffff;
+}
+
+
+.employee-management-search {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+
+  gap: 7px;
+}
+
+
+.employee-management-search > span {
+  color: #4f5f74;
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+
+.employee-management-search input {
+  width: 100%;
+  min-height: 41px;
+
+  padding: 0 12px;
+
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+
+  background: #ffffff;
+  color: var(--text);
+
+  outline: none;
+
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+
+.employee-management-search input:focus {
+  border-color: #6b9bcf;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(31, 95, 174, 0.1);
+}
+
+
+.employee-management-toolbar__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+
+  gap: 8px;
+}
+
+
+/* =========================================================
+   직원 추가 패널
+========================================================= */
+
+.employee-add-panel {
+  padding: 16px;
+
+  border: 1px solid #c9d9e9;
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f7fbff 0%,
+      #ffffff 70%
+    );
+}
+
+
+.employee-add-panel[hidden] {
+  display: none !important;
+}
+
+
+.employee-add-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 16px;
+
+  margin-bottom: 14px;
+}
+
+
+.employee-add-panel__header strong {
+  color: #22324c;
+
+  font-size: 15px;
+  font-weight: 900;
+}
+
+
+.employee-add-panel__header p {
+  margin: 4px 0 0;
+
+  color: var(--text-faint);
+
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+
+.employee-add-panel__close {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 8px;
+
+  background: #edf1f5;
+  color: #627083;
+
+  font-size: 20px;
+  line-height: 1;
+}
+
+
+.employee-add-panel__close:hover {
+  background: #fdecec;
+  color: var(--danger);
+}
+
+
+/* =========================================================
+   직원 추가 입력칸
+========================================================= */
+
+.employee-add-form {
+  display: grid;
+
+  grid-template-columns:
+    minmax(170px, 0.9fr)
+    minmax(180px, 1fr)
+    minmax(150px, 0.8fr)
+    auto;
+
+  align-items: end;
+
+  gap: 10px;
+}
+
+
+.employee-add-save-button {
+  min-width: 88px;
+}
+
+
+/* =========================================================
+   메시지
+========================================================= */
+
+.employee-management-message {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+
+  border: 1px solid #c7d9eb;
+  border-radius: 8px;
+
+  background: #eef5fc;
+  color: #245f9e;
+
+  font-size: 12px;
+  font-weight: 800;
+}
+
+
+.employee-management-message.is-error {
+  border-color: #efc1c1;
+
+  background: #fff3f3;
+  color: #bb3434;
+}
+
+
+.employee-management-message.is-success {
+  border-color: #b7dcc8;
+
+  background: #edf9f2;
+  color: #24744a;
+}
+
+
+/* =========================================================
+   직원 목록 영역
+========================================================= */
+
+.employee-management-list-section {
+  overflow: hidden;
+
+  border: 1px solid var(--line);
+  border-radius: 12px;
+
+  background: #ffffff;
+}
+
+
+.employee-management-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  min-height: 54px;
+  padding: 11px 16px;
+
+  border-bottom: 1px solid var(--line);
+
+  background: #f8fafc;
+}
+
+
+.employee-management-list-header > div {
+  display: flex;
+  align-items: center;
+
+  gap: 9px;
+}
+
+
+.employee-management-list-header strong {
+  color: #25364d;
+
+  font-size: 14px;
+  font-weight: 900;
+}
+
+
+#employeeManagementCount {
+  display: inline-flex;
+  min-height: 24px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 9px;
+
+  border-radius: 999px;
+
+  background: var(--primary-soft);
+  color: var(--primary);
+
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+.employee-management-list-header small {
+  color: var(--text-faint);
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+
+/* =========================================================
+   직원 목록
+========================================================= */
+
+.employee-management-list {
+  max-height: 430px;
+
+  overflow-y: auto;
+
+  padding: 10px;
+}
+
+
+.employee-management-empty {
+  padding: 52px 20px;
+
+  color: #8792a3;
+
+  font-size: 13px;
+  font-weight: 800;
+
+  text-align: center;
+}
+
+
+/* =========================================================
+   직원 한 줄
+========================================================= */
+
+.employee-management-item {
+  display: grid;
+
+  grid-template-columns:
+    105px
+    minmax(120px, 1fr)
+    120px
+    95px
+    auto;
+
+  align-items: center;
+
+  gap: 10px;
+
+  min-height: 62px;
+  padding: 10px 12px;
+
+  border: 1px solid transparent;
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease;
+}
+
+
+.employee-management-item + .employee-management-item {
+  margin-top: 6px;
+}
+
+
+.employee-management-item:hover {
+  border-color: #cbd9e8;
+
+  background: #f8fbff;
+}
+
+
+.employee-management-item.is-inactive {
+  background: #f8f9fb;
+
+  opacity: 0.72;
+}
+
+
+/* =========================================================
+   사번
+========================================================= */
+
+.employee-management-item__employee-no {
+  color: #3b4d64;
+
+  font-family:
+    Consolas,
+    "Courier New",
+    monospace;
+
+  font-size: 12px;
+  font-weight: 900;
+
+  text-align: center;
+}
+
+
+/* =========================================================
+   이름
+========================================================= */
+
+.employee-management-item__name {
+  overflow: hidden;
+
+  color: #1f2f45;
+
+  font-size: 14px;
+  font-weight: 900;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   권한
+========================================================= */
+
+.employee-management-role {
+  display: inline-flex;
+  min-height: 27px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 9px;
+
+  border: 1px solid #cdd8e5;
+  border-radius: 999px;
+
+  background: #f3f6f9;
+  color: #59697d;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+.employee-management-role.is-super-admin {
+  border-color: #afc8e5;
+
+  background: #eaf2fb;
+  color: var(--primary);
+}
+
+
+/* =========================================================
+   사용 상태
+========================================================= */
+
+.employee-management-status {
+  display: inline-flex;
+  min-height: 27px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 9px;
+
+  border-radius: 999px;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+.employee-management-status.is-active {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+
+.employee-management-status.is-inactive {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+
+/* =========================================================
+   관리 버튼
+========================================================= */
+
+.employee-management-item__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 5px;
+}
+
+
+.employee-management-action-button {
+  display: inline-flex;
+  min-width: 54px;
+  height: 29px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 8px;
+
+  border: 1px solid #bfd0e2;
+  border-radius: 7px;
+
+  background: #ffffff;
+  color: #245f9e;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  white-space: nowrap;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+
+.employee-management-action-button:hover {
+  border-color: #7fa6cf;
+
+  background: #eef5fc;
+  color: #174f8c;
+}
+
+
+.employee-management-action-button.is-danger {
+  border-color: #efc1c1;
+
+  background: #fff7f7;
+  color: #bb3434;
+}
+
+
+.employee-management-action-button.is-danger:hover {
+  border-color: #dc7777;
+
+  background: #ffeaea;
+  color: #a72f2f;
+}
+
+
+.employee-management-action-button.is-success {
+  border-color: #b3d9c3;
+
+  background: #f2fbf6;
+  color: #26734a;
+}
+
+
+.employee-management-action-button.is-success:hover {
+  border-color: #79bb95;
+
+  background: #e7f6ed;
+}
+
+
+/* =========================================================
+   최고관리자 본인 보호
+========================================================= */
+
+.employee-management-item.is-protected {
+  border-color: #d4dfeb;
+
+  background: #f9fbfd;
+}
+
+
+.employee-management-item__protected-label {
+  display: inline-flex;
+  min-height: 25px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 8px;
+
+  border: 1px solid #c7d4e3;
+  border-radius: 7px;
+
+  background: #edf2f7;
+  color: #596a7e;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+   하단 안내
+========================================================= */
+
+.employee-management-footer-help {
+  color: var(--text-faint);
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+
+/* =========================================================
+   반응형
+========================================================= */
+
+@media (max-width: 900px) {
+  .employee-add-form {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+
+  .employee-add-save-button {
+    width: 100%;
+  }
+
+
+  .employee-management-item {
+    grid-template-columns:
+      90px
+      minmax(110px, 1fr)
+      110px
+      85px
+      auto;
+  }
+}
+
+
+@media (max-width: 680px) {
+  .employee-management-panel {
+    width: calc(100vw - 24px);
+  }
+
+
+  .employee-management-body {
+    padding: 14px;
+  }
+
+
+  .employee-management-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+
+  .employee-management-toolbar__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+
+  .employee-management-toolbar__actions button {
+    width: 100%;
+  }
+
+
+  .employee-add-form {
+    grid-template-columns: 1fr;
+  }
+
+
+  .employee-management-list {
+    max-height: 52vh;
+  }
+
+
+  .employee-management-item {
+    grid-template-columns:
+      80px
+      minmax(100px, 1fr)
+      auto;
+
+    gap: 7px;
+  }
+
+
+  .employee-management-role,
+  .employee-management-status {
+    justify-self: start;
+  }
+
+
+  .employee-management-item__actions {
+    grid-column: 1 / -1;
+
+    justify-content: flex-end;
+
+    padding-top: 5px;
+
+    border-top: 1px solid #edf0f4;
+  }
+
+
+  .employee-management-list-header {
+    align-items: flex-start;
+    flex-direction: column;
+
+    gap: 4px;
+  }
+
+
+  .employee-management-footer-help {
+    display: none;
+  }
+}

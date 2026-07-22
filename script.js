@@ -45,13 +45,32 @@ function getLoginElements() {
         "headerUserName"
       ),
 
+    adminButton:
+      document.getElementById(
+        "adminButton"
+      ),
+
     logoutButton:
       document.getElementById(
         "logoutButton"
+      ),
+
+    employeeManagementModal:
+      document.getElementById(
+        "employeeManagementModal"
+      ),
+
+    closeEmployeeManagementButton:
+      document.getElementById(
+        "closeEmployeeManagementButton"
+      ),
+
+    closeEmployeeManagementFooterButton:
+      document.getElementById(
+        "closeEmployeeManagementFooterButton"
       )
   };
 }
-
 
 function showLoginError(message) {
   const {
@@ -130,58 +149,130 @@ function clearCurrentUser() {
   );
 }
 
-
 function openShiftLogApp(user) {
   const {
     loginScreen,
     appShell,
-    headerUserName
+    headerUserName,
+    adminButton
   } =
     getLoginElements();
+
 
   if (loginScreen) {
     loginScreen.hidden =
       true;
   }
 
+
   if (appShell) {
     appShell.hidden =
       false;
   }
+
 
   if (headerUserName) {
     headerUserName.textContent =
       user?.name ||
       user?.employeeName ||
       user?.employeeId ||
+      user?.employeeNo ||
       "사용자";
   }
-}
 
+
+  /*
+    최고관리자만 관리자 버튼 표시
+
+    허용 권한:
+    super_admin
+
+    과거 계정 호환:
+    superadmin
+  */
+  const userRole =
+    String(
+      user?.role ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const isSuperAdmin =
+    userRole ===
+      "super_admin" ||
+    userRole ===
+      "superadmin";
+
+
+  if (adminButton) {
+    adminButton.hidden =
+      !isSuperAdmin;
+
+    adminButton.disabled =
+      !isSuperAdmin;
+  }
+}
 
 function openLoginScreen() {
   const {
     loginScreen,
     appShell,
     loginEmployeeId,
-    loginPassword
+    loginPassword,
+    adminButton,
+    employeeManagementModal
   } =
     getLoginElements();
+
 
   if (loginScreen) {
     loginScreen.hidden =
       false;
   }
 
+
   if (appShell) {
     appShell.hidden =
       true;
   }
 
+
+  if (adminButton) {
+    adminButton.hidden =
+      true;
+
+    adminButton.disabled =
+      true;
+  }
+
+
+  if (employeeManagementModal) {
+    employeeManagementModal
+      .classList
+      .remove(
+        "is-open"
+      );
+
+    employeeManagementModal
+      .setAttribute(
+        "aria-hidden",
+        "true"
+      );
+  }
+
+
+  document.body.classList.remove(
+    "modal-open"
+  );
+
+
   if (loginPassword) {
     loginPassword.value =
       "";
   }
+
 
   window.setTimeout(
     () => {
@@ -190,7 +281,6 @@ function openLoginScreen() {
     0
   );
 }
-
 
 async function requestShiftLogLogin(
   employeeId,
@@ -350,38 +440,122 @@ function handleShiftLogLogout() {
   openLoginScreen();
 }
 
+/* =========================================================
+  최고관리자 권한 확인
+========================================================= */
 
-function initializeShiftLogLogin() {
-  const {
-    loginForm,
-    logoutButton
-  } =
-    getLoginElements();
-
-  loginForm?.addEventListener(
-    "submit",
-    handleShiftLogLogin
-  );
-
-  logoutButton?.addEventListener(
-    "click",
-    handleShiftLogLogout
-  );
-
+function isCurrentUserSuperAdmin() {
   const currentUser =
     loadCurrentUser();
 
-  if (currentUser) {
-    openShiftLogApp(
-      currentUser
+
+  const currentRole =
+    String(
+      currentUser?.role ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  return (
+    currentRole ===
+      "super_admin" ||
+    currentRole ===
+      "superadmin"
+  );
+}
+
+
+/* =========================================================
+  직원관리 모달 열기
+========================================================= */
+
+function openEmployeeManagementModal() {
+  const {
+    employeeManagementModal
+  } =
+    getLoginElements();
+
+
+  if (
+    !isCurrentUserSuperAdmin()
+  ) {
+    showToast(
+      "최고관리자만 사용할 수 있습니다."
     );
 
     return;
   }
 
-  openLoginScreen();
+
+  if (
+    !employeeManagementModal
+  ) {
+    console.error(
+      "직원관리 모달을 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  employeeManagementModal
+    .classList
+    .add(
+      "is-open"
+    );
+
+
+  employeeManagementModal
+    .setAttribute(
+      "aria-hidden",
+      "false"
+    );
+
+
+  document.body.classList.add(
+    "modal-open"
+  );
 }
 
+
+/* =========================================================
+  직원관리 모달 닫기
+========================================================= */
+
+function closeEmployeeManagementModal() {
+  const {
+    employeeManagementModal
+  } =
+    getLoginElements();
+
+
+  if (
+    !employeeManagementModal
+  ) {
+    return;
+  }
+
+
+  employeeManagementModal
+    .classList
+    .remove(
+      "is-open"
+    );
+
+
+  employeeManagementModal
+    .setAttribute(
+      "aria-hidden",
+      "true"
+    );
+
+
+  document.body.classList.remove(
+    "modal-open"
+  );
+}
 
 document.addEventListener(
   "DOMContentLoaded",
