@@ -16238,17 +16238,18 @@ function doesLogMatchSearchCategory(
   );
 }
 
-
 /* =========================================================
-  조회 결과 미리보기 항목 생성
+  조회 결과 미리보기 항목 생성 최종본
 
-  업무일지 목록과 비슷하게:
-  - 운전현황
-  - TM 발행 내역
-  - 인계사항
-  - 비고
+  표시 구조:
+  구분 제목 | 번호 | 시간 | TAG + 내용
 
-  한 업무일지의 전체 내용을 한 행 안에 표시한다.
+  핵심:
+  - 번호는 고정된 별도 칸
+  - 시간은 고정된 별도 칸
+  - TAG와 내용은 하나의 본문 칸
+  - 긴 내용만 자연스럽게 줄바꿈
+  - 번호와 TAG가 서로 다른 줄로 분리되지 않음
 ========================================================= */
 
 function createSearchLogPreviewHtml(
@@ -16332,7 +16333,9 @@ function createSearchLogPreviewHtml(
         String(
           entry?.tag ||
           ""
-        ).trim();
+        )
+          .trim()
+          .toUpperCase();
 
 
       if (
@@ -16381,11 +16384,11 @@ function createSearchLogPreviewHtml(
 
       if (
         categoryValue ===
-        "handover" ||
+          "handover" ||
         categoryValue ===
-        "bm" ||
+          "bm" ||
         categoryValue ===
-        "cm"
+          "cm"
       ) {
         handoverNumber +=
           1;
@@ -16491,15 +16494,39 @@ function createSearchLogPreviewHtml(
             : "is-handover-number";
 
 
+        const tagHtml =
+          item.tag
+            ? `
+              <button
+                type="button"
+                class="
+                  log-preview__tag
+                  search-preview-tag
+                "
+                data-search-preview-tag="${escapeHtml(
+                  item.tag
+                )}"
+              >
+                [${escapeHtml(
+                  item.tag
+                )}]
+              </button>
+            `
+            : "";
+
+
         return `
           <span
             class="
               log-preview__group
               ${typeClassMap[item.type] || ""}
               ${item.title ? "" : "has-no-title"}
-              ${itemIndex > 0 && item.title
-                ? "is-section-start"
-                : ""}
+              ${
+                itemIndex > 0 &&
+                item.title
+                  ? "is-section-start"
+                  : ""
+              }
             "
           >
 
@@ -16555,35 +16582,19 @@ function createSearchLogPreviewHtml(
               }
 
 
-              ${
-                item.tag
-                  ? `
-                    <button
-                      type="button"
-                      class="
-                        log-preview__tag
-                        search-preview-tag
-                      "
-                      data-search-preview-tag="${escapeHtml(
-                        item.tag
-                      )}"
-                    >
-                      ${escapeHtml(
-                        item.tag
-                      )}
-                    </button>
-                  `
-                  : ""
-              }
-
-
               <span
-                class="log-preview__text"
+                class="log-preview__body"
               >
-                ${escapeHtml(
-                  item.content ||
-                  "-"
-                )}
+                ${tagHtml}
+
+                <span
+                  class="log-preview__text"
+                >
+                  ${escapeHtml(
+                    item.content ||
+                    "-"
+                  )}
+                </span>
               </span>
 
             </span>
