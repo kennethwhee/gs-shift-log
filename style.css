@@ -9586,3 +9586,139 @@ textarea {
     width: 100% !important;
   }
 }
+
+/* =========================================================
+  인수인계 편집 모드 최종 고정
+
+  열 구조:
+  선택 34px | 내용 나머지 | 관리 74px
+========================================================= */
+
+#logEntryListPanel
+.log-entry-table {
+  width: 100% !important;
+
+  table-layout: fixed !important;
+}
+
+
+/* 선택 열 */
+#logEntryListPanel
+.log-entry-select-cell,
+
+#logEntryListPanel
+.log-entry-table__select {
+  width: 34px !important;
+  min-width: 34px !important;
+  max-width: 34px !important;
+
+  padding: 5px !important;
+
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+
+/* 내용 열 */
+#logEntryListPanel
+.log-entry-fixed-content-cell {
+  width: auto !important;
+  min-width: 0 !important;
+
+  padding: 7px 12px !important;
+
+  text-align: left !important;
+  vertical-align: top !important;
+}
+
+
+/* 관리 열 */
+#logEntryListPanel
+.log-entry-actions-cell,
+
+#logEntryListPanel
+.log-entry-table__actions {
+  width: 74px !important;
+  min-width: 74px !important;
+  max-width: 74px !important;
+
+  padding: 5px !important;
+
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+
+/* 보직 전체 선택 */
+#logEntryListPanel
+.log-entry-role-select {
+  display: inline-flex;
+
+  flex: 0 0 16px;
+
+  width: 16px;
+  height: 16px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0 2px 0 0;
+  padding: 0;
+}
+
+
+#logEntryListPanel
+.log-entry-role-select input {
+  width: 14px;
+  height: 14px;
+
+  margin: 0;
+
+  cursor: pointer;
+}
+
+
+/* 평상시에는 선택·관리 칸 숨김 */
+#logEntryListPanel:not(.is-edit-mode)
+.log-entry-edit-only-cell {
+  display: none !important;
+}
+
+
+/* 편집 모드에서는 테이블 셀 복원 */
+#logEntryListPanel.is-edit-mode
+td.log-entry-edit-only-cell {
+  display: table-cell !important;
+}
+
+
+/* 보직 제목 안 체크박스는 inline-flex */
+#logEntryListPanel.is-edit-mode
+label.log-entry-role-select {
+  display: inline-flex !important;
+}
+
+
+/* 편집 여부와 관계없이 본문 시작 위치 유지 */
+#logEntryListPanel
+.log-entry-document-line {
+  width: 100% !important;
+  min-width: 0 !important;
+
+  margin: 0 !important;
+}
+
+
+/* 선택 삭제 버튼 활성 상태 */
+#deleteSelectedLogEntriesButton:not(:disabled) {
+  cursor: pointer;
+
+  opacity: 1;
+}
+
+
+#deleteSelectedLogEntriesButton:disabled {
+  cursor: not-allowed;
+
+  opacity: 0.45;
+}

@@ -8407,14 +8407,16 @@ function createTagHtml(
 /* =========================================================
   인수인계사항 목록 렌더링
 
-  TM 발행:
-  1. 내용
+  고정 열 구조:
+  선택 | 내용 | 관리
 
-  인계사항:
-  1. 07:15 내용
+  평상시:
+  선택·관리 열만 숨김
 
-  파트장:
-  TGO·BCO1·BCO2 등 보직별로 구분
+  편집 시:
+  같은 열을 다시 표시
+
+  따라서 편집 전후 표의 기본 구조가 바뀌지 않는다.
 ========================================================= */
 
 function renderLogEntryTable() {
@@ -8424,6 +8426,19 @@ function renderLogEntryTable() {
     )
       ? appState.editorEntries
       : [];
+
+
+  /*
+    목록을 다시 그리기 전
+    현재 편집 모드 여부를 기억한다.
+  */
+  const wasEditMode =
+    Boolean(
+      elements.logEntryListPanel
+        ?.classList.contains(
+          "is-edit-mode"
+        )
+    );
 
 
   const currentRole =
@@ -8437,12 +8452,6 @@ function renderLogEntryTable() {
     "파트장";
 
 
-  /*
-    원본 배열 인덱스를 유지한다.
-
-    화면에서 정렬하더라도
-    수정·삭제는 원본 인덱스로 처리한다.
-  */
   const indexedEntries =
     entries.map(
       (
@@ -8458,7 +8467,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    시간 정렬
+    시간순 정렬
   ====================================================== */
 
   const sortEntries = (
@@ -8497,17 +8506,17 @@ function renderLogEntryTable() {
       timeA &&
       timeB
     ) {
-      const timeDifference =
+      const difference =
         timeA.localeCompare(
           timeB
         );
 
 
       if (
-        timeDifference !==
+        difference !==
         0
       ) {
-        return timeDifference;
+        return difference;
       }
     }
 
@@ -8558,7 +8567,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    건수 및 저장용 값
+    건수 표시 및 저장값
   ====================================================== */
 
   if (
@@ -8596,12 +8605,16 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    편집용 체크박스
+    항목 선택 셀
+
+    data-source-role:
+    보직별 전체 선택에 사용한다.
   ====================================================== */
 
   const createSelectCellHtml = (
     entry,
-    originalIndex
+    originalIndex,
+    sourceRole
   ) => {
     const categoryText =
       String(
@@ -8622,6 +8635,9 @@ function renderLogEntryTable() {
           type="checkbox"
           class="log-entry-select-checkbox"
           data-entry-select-index="${originalIndex}"
+          data-source-role="${escapeHtml(
+            sourceRole
+          )}"
           aria-label="${escapeHtml(
             categoryText
           )} 항목 선택"
@@ -8632,7 +8648,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    편집용 수정·삭제 버튼
+    수정·삭제 셀
   ====================================================== */
 
   const createActionCellHtml = (
@@ -8673,7 +8689,84 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    TM 발행 내역
+    업무 행 생성
+
+    항상 3개의 TD를 생성한다.
+
+    선택 | 내용 | 관리
+
+    colspan을 사용하지 않으므로
+    편집 모드에서도 표 틀이 바뀌지 않는다.
+  ====================================================== */
+
+  const createEntryRowHtml = (
+    item,
+    displayNumber,
+    options = {}
+  ) => {
+    const {
+      showTime = true,
+      sourceRole = ""
+    } = options;
+
+
+    const {
+      entry,
+      originalIndex
+    } = item;
+
+
+    const isEditing =
+      originalIndex ===
+        appState.editingEntryIndex;
+
+
+    return `
+      <tr
+        data-entry-index="${originalIndex}"
+        data-entry-source-role="${escapeHtml(
+          sourceRole
+        )}"
+        class="${
+          isEditing
+            ? "is-editing"
+            : ""
+        }"
+      >
+
+        ${createSelectCellHtml(
+          entry,
+          originalIndex,
+          sourceRole
+        )}
+
+        <td
+          class="
+            log-entry-content-cell
+            log-entry-fixed-content-cell
+          "
+        >
+          ${createCompactLineHtml(
+            entry,
+            originalIndex,
+            displayNumber,
+            {
+              showTime
+            }
+          )}
+        </td>
+
+        ${createActionCellHtml(
+          originalIndex
+        )}
+
+      </tr>
+    `;
+  };
+
+
+  /* =====================================================
+    TM 발행 목록
   ====================================================== */
 
   if (
@@ -8686,7 +8779,7 @@ function renderLogEntryTable() {
         .tmIssueEntryTableBody
         .innerHTML = `
           <tr class="log-entry-empty-row">
-            <td colspan="4">
+            <td colspan="3">
               등록된 TM 발행 내역이 없습니다.
             </td>
           </tr>
@@ -8699,54 +8792,28 @@ function renderLogEntryTable() {
         tmEntries
           .map(
             (
-              {
-                entry,
-                originalIndex
-              },
+              item,
               index
             ) => {
-              const isEditing =
-                originalIndex ===
-                appState.editingEntryIndex;
+              const sourceRole =
+                normalizeMemberLogRole(
+                  item.entry
+                    ?.importedFromRole ||
+                  currentRole ||
+                  "파트장"
+                );
 
 
-              return `
-                <tr
-                  data-entry-index="${originalIndex}"
-                  class="${
-                    isEditing
-                      ? "is-editing"
-                      : ""
-                  }"
-                >
-                  ${createSelectCellHtml(
-                    entry,
-                    originalIndex
-                  )}
+              return createEntryRowHtml(
+                item,
+                index + 1,
+                {
+                  showTime:
+                    false,
 
-                  <td
-                    class="
-                      log-entry-content-cell
-                      log-entry-fixed-content-cell
-                    "
-                    colspan="2"
-                  >
-                    ${createCompactLineHtml(
-                      entry,
-                      originalIndex,
-                      index + 1,
-                      {
-                        showTime:
-                          false
-                      }
-                    )}
-                  </td>
-
-                  ${createActionCellHtml(
-                    originalIndex
-                  )}
-                </tr>
-              `;
+                  sourceRole
+                }
+              );
             }
           )
           .join("");
@@ -8755,7 +8822,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    파트장 보직별 업무 묶기
+    일반 업무 보직별 묶기
   ====================================================== */
 
   const roleOrder = [
@@ -8841,63 +8908,8 @@ function renderLogEntryTable() {
   ];
 
 
-  const createOrdinaryRowHtml = (
-    item,
-    displayNumber
-  ) => {
-    const {
-      entry,
-      originalIndex
-    } = item;
-
-
-    const isEditing =
-      originalIndex ===
-        appState.editingEntryIndex;
-
-
-    return `
-      <tr
-        data-entry-index="${originalIndex}"
-        class="${
-          isEditing
-            ? "is-editing"
-            : ""
-        }"
-      >
-        ${createSelectCellHtml(
-          entry,
-          originalIndex
-        )}
-
-        <td
-          class="
-            log-entry-content-cell
-            log-entry-fixed-content-cell
-          "
-          colspan="3"
-        >
-          ${createCompactLineHtml(
-            entry,
-            originalIndex,
-            displayNumber,
-            {
-              showTime:
-                true
-            }
-          )}
-        </td>
-
-        ${createActionCellHtml(
-          originalIndex
-        )}
-      </tr>
-    `;
-  };
-
-
   /* =====================================================
-    인계사항 출력
+    인계사항 목록
   ====================================================== */
 
   if (
@@ -8910,7 +8922,7 @@ function renderLogEntryTable() {
         .logEntryTableBody
         .innerHTML = `
           <tr class="log-entry-empty-row">
-            <td colspan="5">
+            <td colspan="3">
               등록된 인계사항이 없습니다.
             </td>
           </tr>
@@ -8944,10 +8956,35 @@ function renderLogEntryTable() {
                         : ""
                     }
                   "
+                  data-role-group="${escapeHtml(
+                    role
+                  )}"
                 >
-                  <td colspan="5">
+                  <td colspan="3">
 
                     <div class="log-entry-role-divider">
+
+                      <label
+                        class="
+                          log-entry-role-select
+                          log-entry-edit-only-cell
+                        "
+                        hidden
+                        title="${escapeHtml(
+                          role
+                        )} 업무 전체 선택"
+                      >
+                        <input
+                          type="checkbox"
+                          class="log-entry-role-select-checkbox"
+                          data-role-select="${escapeHtml(
+                            role
+                          )}"
+                          aria-label="${escapeHtml(
+                            role
+                          )} 업무 전체 선택"
+                        />
+                      </label>
 
                       <span
                         class="
@@ -8983,9 +9020,16 @@ function renderLogEntryTable() {
                       item,
                       index
                     ) => {
-                      return createOrdinaryRowHtml(
+                      return createEntryRowHtml(
                         item,
-                        index + 1
+                        index + 1,
+                        {
+                          showTime:
+                            true,
+
+                          sourceRole:
+                            role
+                        }
                       );
                     }
                   )
@@ -9012,9 +9056,16 @@ function renderLogEntryTable() {
               item,
               index
             ) => {
-              return createOrdinaryRowHtml(
+              return createEntryRowHtml(
                 item,
-                index + 1
+                index + 1,
+                {
+                  showTime:
+                    true,
+
+                  sourceRole:
+                    currentRole
+                }
               );
             }
           )
@@ -9023,74 +9074,19 @@ function renderLogEntryTable() {
   }
 
 
-  /* =====================================================
-    선택 상태 초기화
-  ====================================================== */
-
-  if (
-    elements.selectAllTmEntriesCheckbox
-  ) {
-    elements
-      .selectAllTmEntriesCheckbox
-      .checked =
-      false;
-
-    elements
-      .selectAllTmEntriesCheckbox
-      .indeterminate =
-      false;
-
-    elements
-      .selectAllTmEntriesCheckbox
-      .disabled =
-      tmEntries.length === 0;
-  }
+  /*
+    다시 그린 뒤 기존 편집 모드를 복원한다.
+  */
+  setLogEntryEditMode(
+    wasEditMode,
+    {
+      preserveSelections:
+        false
+    }
+  );
 
 
-  if (
-    elements.selectAllLogEntriesCheckbox
-  ) {
-    elements
-      .selectAllLogEntriesCheckbox
-      .checked =
-      false;
-
-    elements
-      .selectAllLogEntriesCheckbox
-      .indeterminate =
-      false;
-
-    elements
-      .selectAllLogEntriesCheckbox
-      .disabled =
-      ordinaryEntries.length === 0;
-  }
-
-
-  if (
-    elements.selectedLogEntryCount
-  ) {
-    elements
-      .selectedLogEntryCount
-      .textContent =
-      "선택 0건";
-
-    elements
-      .selectedLogEntryCount
-      .hidden =
-      true;
-  }
-
-
-  if (
-    elements.deleteSelectedLogEntriesButton
-  ) {
-    elements
-      .deleteSelectedLogEntriesButton
-      .disabled =
-      true;
-  }
-
+  updateLogEntrySelectionState();
 
   updateMemberLogImportCount();
 }
@@ -9195,20 +9191,31 @@ const createCompactLineHtml = (
 
 /* =========================================================
   인수인계사항 편집 모드
+
+  표 구조는 유지하고
+  선택·관리 칸의 표시 여부만 변경한다.
 ========================================================= */
 
 function setLogEntryEditMode(
-  isEditing
+  isEditing,
+  options = {}
 ) {
-  if (
-    elements.logEntryListPanel
-  ) {
-    elements.logEntryListPanel
-      .classList.toggle(
-        "is-edit-mode",
-        isEditing
-      );
+  const {
+    preserveSelections = false
+  } = options;
+
+
+  const panel =
+    elements.logEntryListPanel;
+
+
+  if (panel) {
+    panel.classList.toggle(
+      "is-edit-mode",
+      isEditing
+    );
   }
+
 
   if (
     elements.openLogEntryEditModeButton
@@ -9219,6 +9226,7 @@ function setLogEntryEditMode(
       isEditing;
   }
 
+
   if (
     elements.cancelLogEntryEditModeButton
   ) {
@@ -9228,6 +9236,7 @@ function setLogEntryEditMode(
       !isEditing;
   }
 
+
   if (
     elements.deleteSelectedLogEntriesButton
   ) {
@@ -9235,42 +9244,54 @@ function setLogEntryEditMode(
       .deleteSelectedLogEntriesButton
       .hidden =
       !isEditing;
-
-    elements
-      .deleteSelectedLogEntriesButton
-      .disabled =
-      true;
   }
 
-  document
-    .querySelectorAll(
+
+  /*
+    반드시 현재 패널 내부 요소만 변경한다.
+  */
+  panel
+    ?.querySelectorAll(
       ".log-entry-edit-only-column"
     )
-    .forEach((element) => {
-      element.hidden =
-        !isEditing;
-    });
+    .forEach(
+      (element) => {
+        element.hidden =
+          !isEditing;
+      }
+    );
 
-  document
-    .querySelectorAll(
+
+  panel
+    ?.querySelectorAll(
       ".log-entry-edit-only-cell"
     )
-    .forEach((element) => {
-      element.hidden =
-        !isEditing;
-    });
+    .forEach(
+      (element) => {
+        element.hidden =
+          !isEditing;
+      }
+    );
 
-  if (!isEditing) {
+
+  if (
+    !isEditing &&
+    !preserveSelections
+  ) {
     clearLogEntrySelections();
 
+
     if (
-      appState.editingEntryIndex >= 0
+      appState.editingEntryIndex >=
+      0
     ) {
       cancelLogEntryEdit();
     }
   }
-}
 
+
+  updateLogEntrySelectionState();
+}
 
 /* =========================================================
   선택 상태 초기화
@@ -9313,21 +9334,27 @@ function clearLogEntrySelections() {
   }
 }
 
-
 /* =========================================================
-  선택된 인수인계 항목 상태 갱신
+  선택 상태 갱신
+
+  - TM 전체 선택
+  - 인계사항 전체 선택
+  - 보직별 전체 선택
+  - 선택 건수
+  - 선택 항목 삭제 버튼
 ========================================================= */
 
 function updateLogEntrySelectionState() {
   const itemCheckboxes = [
     ...document.querySelectorAll(
-      [
-        "#tmIssueEntryTableBody",
-        "#logEntryTableBody"
-      ].join(" ") +
-      " .log-entry-select-checkbox"
+      "#tmIssueEntryTableBody " +
+      ".log-entry-select-checkbox, " +
+
+      "#logEntryTableBody " +
+      ".log-entry-select-checkbox"
     )
   ];
+
 
   const selectedCheckboxes =
     itemCheckboxes.filter(
@@ -9336,8 +9363,14 @@ function updateLogEntrySelectionState() {
       }
     );
 
+
   const selectedCount =
     selectedCheckboxes.length;
+
+
+  /* =====================================================
+    선택 건수 및 삭제 버튼
+  ====================================================== */
 
   if (
     elements.selectedLogEntryCount
@@ -9353,6 +9386,7 @@ function updateLogEntrySelectionState() {
       selectedCount === 0;
   }
 
+
   if (
     elements.deleteSelectedLogEntriesButton
   ) {
@@ -9363,15 +9397,18 @@ function updateLogEntrySelectionState() {
   }
 
 
-  /*
-    TM 발행 내역 전체 선택 상태
-  */
+  /* =====================================================
+    TM 전체 선택 상태
+  ====================================================== */
+
   const tmCheckboxes = [
-    ...document.querySelectorAll(
-      "#tmIssueEntryTableBody " +
-      ".log-entry-select-checkbox"
-    )
+    ...elements.tmIssueEntryTableBody
+      ?.querySelectorAll(
+        ".log-entry-select-checkbox"
+      ) ||
+    []
   ];
+
 
   const selectedTmCount =
     tmCheckboxes.filter(
@@ -9379,6 +9416,7 @@ function updateLogEntrySelectionState() {
         return checkbox.checked;
       }
     ).length;
+
 
   if (
     elements.selectAllTmEntriesCheckbox
@@ -9404,15 +9442,18 @@ function updateLogEntrySelectionState() {
   }
 
 
-  /*
+  /* =====================================================
     인계사항 전체 선택 상태
-  */
+  ====================================================== */
+
   const handoverCheckboxes = [
-    ...document.querySelectorAll(
-      "#logEntryTableBody " +
-      ".log-entry-select-checkbox"
-    )
+    ...elements.logEntryTableBody
+      ?.querySelectorAll(
+        ".log-entry-select-checkbox"
+      ) ||
+    []
   ];
+
 
   const selectedHandoverCount =
     handoverCheckboxes.filter(
@@ -9421,28 +9462,96 @@ function updateLogEntrySelectionState() {
       }
     ).length;
 
+
   if (
     elements.selectAllLogEntriesCheckbox
   ) {
     elements
       .selectAllLogEntriesCheckbox
       .checked =
-      handoverCheckboxes.length > 0 &&
+      handoverCheckboxes.length >
+        0 &&
       selectedHandoverCount ===
         handoverCheckboxes.length;
 
     elements
       .selectAllLogEntriesCheckbox
       .indeterminate =
-      selectedHandoverCount > 0 &&
+      selectedHandoverCount >
+        0 &&
       selectedHandoverCount <
         handoverCheckboxes.length;
 
     elements
       .selectAllLogEntriesCheckbox
       .disabled =
-      handoverCheckboxes.length === 0;
+      handoverCheckboxes.length ===
+      0;
   }
+
+
+  /* =====================================================
+    보직별 전체 선택 상태
+  ====================================================== */
+
+  elements.logEntryTableBody
+    ?.querySelectorAll(
+      ".log-entry-role-select-checkbox"
+    )
+    .forEach(
+      (roleCheckbox) => {
+        const role =
+          normalizeMemberLogRole(
+            roleCheckbox.dataset
+              .roleSelect
+          );
+
+
+        const roleItemCheckboxes = [
+          ...elements.logEntryTableBody
+            .querySelectorAll(
+              ".log-entry-select-checkbox"
+            )
+        ].filter(
+          (checkbox) => {
+            return (
+              normalizeMemberLogRole(
+                checkbox.dataset
+                  .sourceRole
+              ) ===
+              role
+            );
+          }
+        );
+
+
+        const selectedRoleCount =
+          roleItemCheckboxes.filter(
+            (checkbox) => {
+              return checkbox.checked;
+            }
+          ).length;
+
+
+        roleCheckbox.checked =
+          roleItemCheckboxes.length >
+            0 &&
+          selectedRoleCount ===
+            roleItemCheckboxes.length;
+
+
+        roleCheckbox.indeterminate =
+          selectedRoleCount >
+            0 &&
+          selectedRoleCount <
+            roleItemCheckboxes.length;
+
+
+        roleCheckbox.disabled =
+          roleItemCheckboxes.length ===
+          0;
+      }
+    );
 }
 
 /* =========================================================
@@ -9450,292 +9559,336 @@ function updateLogEntrySelectionState() {
 ========================================================= */
 
 function bindLogEntryEditModeEvents() {
-  /*
-    편집 모드 시작
-  */
-  if (
-    elements.openLogEntryEditModeButton
-  ) {
-    elements
-      .openLogEntryEditModeButton
-      .addEventListener(
-        "click",
-        () => {
-          setLogEntryEditMode(
-            true
-          );
+  /* =====================================================
+    편집 모드 시작·종료
+  ====================================================== */
+
+  elements.openLogEntryEditModeButton
+    ?.addEventListener(
+      "click",
+      () => {
+        setLogEntryEditMode(
+          true
+        );
+      }
+    );
+
+
+  elements.cancelLogEntryEditModeButton
+    ?.addEventListener(
+      "click",
+      () => {
+        setLogEntryEditMode(
+          false
+        );
+      }
+    );
+
+
+  /* =====================================================
+    TM 목록 버튼 및 개별 체크
+  ====================================================== */
+
+  elements.tmIssueEntryTableBody
+    ?.addEventListener(
+      "click",
+      handleLogEntryTableClick
+    );
+
+
+  elements.tmIssueEntryTableBody
+    ?.addEventListener(
+      "change",
+      (event) => {
+        if (
+          !event.target.closest(
+            ".log-entry-select-checkbox"
+          )
+        ) {
+          return;
         }
-      );
-  }
 
 
-  /*
-    편집 모드 종료
-  */
-  if (
-    elements.cancelLogEntryEditModeButton
-  ) {
-    elements
-      .cancelLogEntryEditModeButton
-      .addEventListener(
-        "click",
-        () => {
-          setLogEntryEditMode(
-            false
+        updateLogEntrySelectionState();
+      }
+    );
+
+
+  /* =====================================================
+    인계사항 개별 체크 및 보직별 전체 체크
+  ====================================================== */
+
+  elements.logEntryTableBody
+    ?.addEventListener(
+      "change",
+      (event) => {
+        const roleCheckbox =
+          event.target.closest(
+            ".log-entry-role-select-checkbox"
           );
-        }
-      );
-  }
 
 
-  /*
-    TM 발행 목록의
-    수정·삭제·TAG 이동
-  */
-  if (
-    elements.tmIssueEntryTableBody
-  ) {
-    elements
-      .tmIssueEntryTableBody
-      .addEventListener(
-        "click",
-        handleLogEntryTableClick
-      );
-
-    elements
-      .tmIssueEntryTableBody
-      .addEventListener(
-        "change",
-        (event) => {
-          const checkbox =
-            event.target.closest(
-              ".log-entry-select-checkbox"
+        /*
+          보직 전체 체크
+        */
+        if (
+          roleCheckbox
+        ) {
+          const role =
+            normalizeMemberLogRole(
+              roleCheckbox.dataset
+                .roleSelect
             );
 
-          if (!checkbox) {
-            return;
-          }
 
-          updateLogEntrySelectionState();
-        }
-      );
-  }
-
-
-  /*
-    인계사항 개별 체크 상태
-
-    기존 bindEvents()에서 선택 상태를 먼저 처리하므로,
-    해당 처리가 끝난 직후 전체 목록 기준으로 다시 계산한다.
-  */
-  if (
-    elements.logEntryTableBody
-  ) {
-    elements
-      .logEntryTableBody
-      .addEventListener(
-        "change",
-        (event) => {
-          const checkbox =
-            event.target.closest(
-              ".log-entry-select-checkbox"
-            );
-
-          if (!checkbox) {
-            return;
-          }
-
-          window.setTimeout(
-            updateLogEntrySelectionState,
-            0
-          );
-        }
-      );
-  }
-
-
-  /*
-    TM 발행 내역 전체 선택
-  */
-  if (
-    elements.selectAllTmEntriesCheckbox
-  ) {
-    elements
-      .selectAllTmEntriesCheckbox
-      .addEventListener(
-        "change",
-        () => {
           const shouldSelect =
-            elements
-              .selectAllTmEntriesCheckbox
-              .checked;
+            roleCheckbox.checked;
 
-          elements
-            .tmIssueEntryTableBody
-            ?.querySelectorAll(
+
+          elements.logEntryTableBody
+            .querySelectorAll(
               ".log-entry-select-checkbox"
             )
             .forEach(
               (checkbox) => {
+                if (
+                  normalizeMemberLogRole(
+                    checkbox.dataset
+                      .sourceRole
+                  ) !==
+                  role
+                ) {
+                  return;
+                }
+
+
                 checkbox.checked =
                   shouldSelect;
               }
             );
 
+
+          updateLogEntrySelectionState();
+
+          return;
+        }
+
+
+        /*
+          개별 항목 체크
+        */
+        if (
+          event.target.closest(
+            ".log-entry-select-checkbox"
+          )
+        ) {
           updateLogEntrySelectionState();
         }
-      );
-  }
+      }
+    );
 
 
-  /*
-    인계사항 전체 선택 후
-    TM 목록까지 포함하여 선택 건수를 다시 계산한다.
-  */
-  if (
-    elements.selectAllLogEntriesCheckbox
-  ) {
-    elements
-      .selectAllLogEntriesCheckbox
-      .addEventListener(
-        "change",
-        () => {
-          window.setTimeout(
-            updateLogEntrySelectionState,
-            0
+  /* =====================================================
+    TM 전체 선택
+  ====================================================== */
+
+  elements.selectAllTmEntriesCheckbox
+    ?.addEventListener(
+      "change",
+      () => {
+        const shouldSelect =
+          elements
+            .selectAllTmEntriesCheckbox
+            .checked;
+
+
+        elements.tmIssueEntryTableBody
+          ?.querySelectorAll(
+            ".log-entry-select-checkbox"
+          )
+          .forEach(
+            (checkbox) => {
+              checkbox.checked =
+                shouldSelect;
+            }
           );
-        }
-      );
-  }
 
 
-  /*
-    TM 발행과 인계사항에서 선택한 항목을
-    한 번에 삭제한다.
+        updateLogEntrySelectionState();
+      }
+    );
 
-    capture 단계에서 실행하여
-    이전 선택 삭제 이벤트와 충돌하지 않도록 한다.
-  */
-  if (
-    elements.deleteSelectedLogEntriesButton
-  ) {
-    elements
-      .deleteSelectedLogEntriesButton
-      .addEventListener(
-        "click",
-        (event) => {
-          event.preventDefault();
-          event.stopImmediatePropagation();
 
-          const selectedIndexes = [
-            ...document.querySelectorAll(
-              [
-                "#tmIssueEntryTableBody",
-                "#logEntryTableBody"
-              ].join(
-                " .log-entry-select-checkbox:checked, "
-              ) +
-              " .log-entry-select-checkbox:checked"
-            )
-          ]
-            .map((checkbox) => {
+  /* =====================================================
+    인계사항 전체 선택
+  ====================================================== */
+
+  elements.selectAllLogEntriesCheckbox
+    ?.addEventListener(
+      "change",
+      () => {
+        const shouldSelect =
+          elements
+            .selectAllLogEntriesCheckbox
+            .checked;
+
+
+        elements.logEntryTableBody
+          ?.querySelectorAll(
+            ".log-entry-select-checkbox"
+          )
+          .forEach(
+            (checkbox) => {
+              checkbox.checked =
+                shouldSelect;
+            }
+          );
+
+
+        updateLogEntrySelectionState();
+      }
+    );
+
+
+  /* =====================================================
+    선택 항목 일괄 삭제
+
+    기존 bindEvents()의 삭제 이벤트보다 먼저 실행해서
+    중복 처리를 차단한다.
+  ====================================================== */
+
+  elements.deleteSelectedLogEntriesButton
+    ?.addEventListener(
+      "click",
+      (event) => {
+        event.preventDefault();
+
+        event.stopImmediatePropagation();
+
+
+        const selectedIndexes = [
+          ...document.querySelectorAll(
+            "#tmIssueEntryTableBody " +
+            ".log-entry-select-checkbox:checked, " +
+
+            "#logEntryTableBody " +
+            ".log-entry-select-checkbox:checked"
+          )
+        ]
+          .map(
+            (checkbox) => {
               return Number(
                 checkbox.dataset
                   .entrySelectIndex
               );
-            })
-            .filter((index) => {
+            }
+          )
+          .filter(
+            (index) => {
               return (
                 Number.isInteger(
                   index
                 ) &&
                 Boolean(
-                  appState
-                    .editorEntries[
-                      index
-                    ]
+                  appState.editorEntries[
+                    index
+                  ]
                 )
               );
-            });
+            }
+          );
 
-          const uniqueIndexes = [
-            ...new Set(
-              selectedIndexes
-            )
-          ];
 
-          if (!uniqueIndexes.length) {
-            showToast(
-              "삭제할 인수인계사항을 선택해 주세요."
-            );
+        const uniqueIndexes = [
+          ...new Set(
+            selectedIndexes
+          )
+        ];
 
-            return;
-          }
 
-          const shouldDelete =
-            window.confirm(
-              `선택한 인수인계사항 ${uniqueIndexes.length}건을 삭제하시겠습니까?`
-            );
+        if (
+          !uniqueIndexes.length
+        ) {
+          showToast(
+            "삭제할 항목을 선택해 주세요."
+          );
 
-          if (!shouldDelete) {
-            return;
-          }
+          return;
+        }
 
-          /*
-            큰 인덱스부터 삭제해야
-            나머지 항목 인덱스가 바뀌지 않는다.
-          */
-          uniqueIndexes
-            .sort(
-              (
-                indexA,
-                indexB
-              ) => {
-                return (
-                  indexB -
-                  indexA
-                );
-              }
-            )
-            .forEach((index) => {
-              appState
-                .editorEntries
+
+        const shouldDelete =
+          window.confirm(
+            `선택한 항목 ${uniqueIndexes.length}건을 삭제하시겠습니까?`
+          );
+
+
+        if (
+          !shouldDelete
+        ) {
+          return;
+        }
+
+
+        /*
+          큰 인덱스부터 삭제한다.
+        */
+        uniqueIndexes
+          .sort(
+            (
+              indexA,
+              indexB
+            ) => {
+              return (
+                indexB -
+                indexA
+              );
+            }
+          )
+          .forEach(
+            (index) => {
+              appState.editorEntries
                 .splice(
                   index,
                   1
                 );
-            });
-
-          appState.editingEntryIndex =
-            -1;
-
-          resetLogEntryInput({
-            keepCategory:
-              false,
-
-            keepTag:
-              false
-          });
-
-          renderLogEntryTable();
-
-          /*
-            목록을 다시 그리면 편집 전용 칸이
-            hidden 상태로 생성되므로 편집 모드를 다시 적용한다.
-          */
-          setLogEntryEditMode(
-            true
+            }
           );
 
-          updateMemberLogImportStatus();
 
-          showToast(
-            `인수인계사항 ${uniqueIndexes.length}건을 삭제했습니다.`
-          );
-        },
-        true
-      );
-  }
+        appState.editingEntryIndex =
+          -1;
+
+
+        resetLogEntryInput({
+          keepCategory:
+            false,
+
+          keepTag:
+            false
+        });
+
+
+        renderLogEntryTable();
+
+
+        /*
+          삭제 후에도 편집 모드 유지
+        */
+        setLogEntryEditMode(
+          true
+        );
+
+
+        updateMemberLogImportStatus();
+
+
+        showToast(
+          `선택한 항목 ${uniqueIndexes.length}건을 삭제했습니다.`
+        );
+      },
+      true
+    );
 }
 
 function getLogEntrySourceClass(role) {
