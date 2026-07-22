@@ -8249,91 +8249,135 @@ function renderLogEntryTable() {
   };
 
 
-  /* =====================================================
-    번호 → 시간 → 내용 한 줄 출력
+/* =====================================================
+  번호 → 시간 → 내용을 한 흐름으로 출력
 
-    인계사항:
-    1. 07:15 내용
+  인계사항:
+  1. 07:15 내용
+  2. 07:15, 10:55 내용
 
-    시간 없는 인계사항:
-    1. 내용
+  시간 없는 인계사항:
+  1. 내용
 
-    TM 발행:
-    1. 내용
-  ====================================================== */
+  TM 발행:
+  1. 내용
 
-  const createCompactLineHtml = (
-    entry,
-    originalIndex,
-    displayNumber,
-    options = {}
-  ) => {
-    const {
-      showTime = true
-    } = options;
+  번호만 고정 폭으로 두고,
+  시간과 내용은 같은 문장 흐름에 배치한다.
+===================================================== */
 
-
-    const timeText =
-      String(
-        entry.time || ""
-      ).trim();
+const createCompactLineHtml = (
+  entry,
+  originalIndex,
+  displayNumber,
+  options = {}
+) => {
+  const {
+    showTime = true
+  } = options;
 
 
-    const contentText =
-      String(
-        entry.content || "-"
-      ).trim();
-
-
-    const hasTime =
-      showTime &&
-      Boolean(
-        timeText
+  const timeText =
+    String(
+      entry.time || ""
+    )
+      .trim()
+      .replace(
+        /\s*,\s*/g,
+        ", "
       );
 
 
-    /*
-      시간 존재:
-      번호 | 시간 | 내용
-
-      시간 없음 또는 TM:
-      번호 | 내용
-    */
-    const gridColumns =
-      hasTime
-        ? "30px 88px minmax(0, 1fr)"
-        : "30px minmax(0, 1fr)";
+  const contentText =
+    String(
+      entry.content || "-"
+    ).trim();
 
 
-    return `
+  const hasTime =
+    showTime &&
+    Boolean(
+      timeText
+    );
+
+
+  return `
+    <div
+      class="log-entry-fixed-compact-wrapper"
+      style="
+        display:block !important;
+
+        width:100% !important;
+        min-width:0 !important;
+
+        margin:0 !important;
+        padding:0 !important;
+
+        text-align:left !important;
+      "
+    >
       <div
-        class="log-entry-fixed-compact-wrapper"
+        class="log-entry-fixed-compact-line"
         style="
-          display:block !important;
+          display:grid !important;
 
           width:100% !important;
           min-width:0 !important;
 
+          grid-template-columns:
+            26px
+            minmax(0, 1fr) !important;
+
+          align-items:start !important;
+          column-gap:5px !important;
+
           margin:0 !important;
           padding:0 !important;
+
+          color:#26364b !important;
+
+          font-size:11px !important;
+          font-weight:650 !important;
+          line-height:1.6 !important;
 
           text-align:left !important;
         "
       >
-        <div
-          class="log-entry-fixed-compact-line"
+
+        <!-- 번호 -->
+        <strong
+          class="log-entry-fixed-number"
           style="
-            display:grid !important;
+            display:block !important;
+
+            width:26px !important;
+            min-width:26px !important;
+
+            margin:0 !important;
+            padding:0 !important;
+
+            color:#1763c5 !important;
+
+            font-size:10px !important;
+            font-weight:900 !important;
+            line-height:1.6 !important;
+
+            text-align:right !important;
+            white-space:nowrap !important;
+          "
+        >
+          ${displayNumber}.
+        </strong>
+
+
+        <!-- 시간과 내용을 같은 줄 흐름으로 출력 -->
+        <div
+          class="log-entry-fixed-content"
+          style="
+            display:block !important;
 
             width:100% !important;
-            max-width:100% !important;
             min-width:0 !important;
-
-            grid-template-columns:
-              ${gridColumns} !important;
-
-            align-items:start !important;
-            column-gap:7px !important;
 
             margin:0 !important;
             padding:0 !important;
@@ -8342,67 +8386,43 @@ function renderLogEntryTable() {
 
             font-size:11px !important;
             font-weight:650 !important;
-            line-height:1.55 !important;
+            line-height:1.6 !important;
 
             text-align:left !important;
+
+            white-space:pre-wrap !important;
+            word-break:keep-all !important;
+            overflow-wrap:anywhere !important;
           "
         >
-
-          <!-- 번호 -->
-          <strong
-            class="log-entry-fixed-number"
-            style="
-              display:block !important;
-
-              width:30px !important;
-              min-width:30px !important;
-
-              margin:0 !important;
-              padding:0 !important;
-
-              color:#1763c5 !important;
-
-              font-size:10px !important;
-              font-weight:900 !important;
-              line-height:1.55 !important;
-
-              text-align:right !important;
-              white-space:nowrap !important;
-            "
-          >
-            ${displayNumber}.
-          </strong>
-
 
           ${
             hasTime
               ? `
-                <!-- 시간 -->
                 <strong
                   class="log-entry-fixed-time"
                   style="
-                    display:block !important;
+                    display:inline !important;
 
-                    width:88px !important;
-                    min-width:88px !important;
+                    width:auto !important;
+                    min-width:0 !important;
 
-                    margin:0 !important;
+                    margin:0 5px 0 0 !important;
                     padding:0 !important;
 
-                    color:#536b89 !important;
+                    color:#1763c5 !important;
 
                     font-size:10px !important;
-                    font-weight:850 !important;
-                    line-height:1.55 !important;
+                    font-weight:900 !important;
+                    line-height:inherit !important;
 
                     text-align:left !important;
-                    white-space:normal !important;
+                    white-space:nowrap !important;
 
                     font-variant-numeric:
                       tabular-nums !important;
 
-                    word-break:keep-all !important;
-                    overflow-wrap:anywhere !important;
+                    vertical-align:baseline !important;
                   "
                 >
                   ${escapeHtml(
@@ -8413,45 +8433,41 @@ function renderLogEntryTable() {
               : ""
           }
 
-
-          <!-- 내용 -->
           <span
-            class="log-entry-fixed-content"
+            class="log-entry-fixed-content-text"
             style="
-              display:block !important;
+              display:inline !important;
 
-              width:100% !important;
-              max-width:100% !important;
-              min-width:0 !important;
+              width:auto !important;
 
               margin:0 !important;
               padding:0 !important;
 
-              color:#26364b !important;
+              color:inherit !important;
 
-              font-size:11px !important;
-              font-weight:650 !important;
-              line-height:1.55 !important;
+              font:inherit !important;
+              line-height:inherit !important;
 
               text-align:left !important;
+              vertical-align:baseline !important;
 
               white-space:pre-wrap !important;
               word-break:keep-all !important;
               overflow-wrap:anywhere !important;
             "
-          >
-            ${escapeHtml(
-              contentText
-            )}${createTagHtml(
-              entry,
-              originalIndex
-            )}
-          </span>
+          >${escapeHtml(
+            contentText
+          )}</span>${createTagHtml(
+            entry,
+            originalIndex
+          )}
 
         </div>
+
       </div>
-    `;
-  };
+    </div>
+  `;
+};
 
 
   /* =====================================================
