@@ -13197,4 +13197,144 @@ tbody tr:hover td {
 
 }
 
+/* =========================================================
+  업무일지 · 조회목록
+  사람별 경계선 명확하게 구분
 
+  적용 대상:
+  1. 메인 업무일지 목록
+  2. 조회 결과 목록
+========================================================= */
+
+
+/* =========================================================
+  메인 업무일지 목록
+
+  각 사람의 업무일지 마지막에
+  굵은 경계선과 약한 그림자를 추가한다.
+========================================================= */
+
+#logTableBody > tr {
+  position: relative;
+}
+
+#logTableBody > tr > td {
+  border-bottom:
+    2px solid
+    #b8c7d8 !important;
+}
+
+#logTableBody > tr:not(:last-child) > td {
+  box-shadow:
+    inset 0 -3px 0
+    rgba(31, 95, 174, 0.035);
+}
+
+#logTableBody > tr:last-child > td {
+  border-bottom: 0 !important;
+}
+
+
+/* 사람별 구분을 더 명확히 하기 위해
+   두 번째 사람부터 위쪽에 여백감 추가 */
+#logTableBody > tr + tr > td {
+  border-top:
+    5px solid
+    #edf2f7 !important;
+}
+
+
+/* =========================================================
+  조회 결과 목록
+
+  날짜·근무·보직·작성자가 바뀌는 지점을
+  한 덩어리처럼 보이도록 구분한다.
+========================================================= */
+
+#searchResultBody > tr {
+  position: relative;
+}
+
+#searchResultBody > tr > td {
+  border-bottom:
+    2px solid
+    #b8c7d8 !important;
+}
+
+#searchResultBody > tr:not(:last-child) > td {
+  box-shadow:
+    inset 0 -3px 0
+    rgba(31, 95, 174, 0.035);
+}
+
+#searchResultBody > tr:last-child > td {
+  border-bottom: 0 !important;
+}
+
+
+/* 사람과 사람 사이에 얇은 여백 띠 추가 */
+#searchResultBody > tr + tr > td {
+  border-top:
+    5px solid
+    #edf2f7 !important;
+}
+
+
+/* =========================================================
+  왼쪽 기본정보 영역은 경계선을 조금 더 진하게
+
+  메인 목록:
+  보직 | 작성자 | 상태
+
+  조회 목록:
+  일자 | 근무 | 보직 | 작성자
+========================================================= */
+
+#logTableBody > tr > td:nth-child(-n + 4),
+#searchResultBody > tr > td:nth-child(-n + 4) {
+  border-bottom-color:
+    #9fb2c7 !important;
+}
+
+
+/* =========================================================
+  업무내용 칸 경계도 자연스럽게 연결
+========================================================= */
+
+#logTableBody > tr > td.log-row__preview-cell,
+#searchResultBody > tr > td.search-log-preview-cell {
+  border-bottom-color:
+    #aebfd1 !important;
+}
+
+
+/* =========================================================
+  마우스를 올렸을 때 현재 사람 행 강조
+========================================================= */
+
+#logTableBody > tr:hover > td,
+#searchResultBody > tr:hover > td {
+  background:
+    #f6faff !important;
+}
+
+
+/* =========================================================
+  모바일·좁은 화면
+
+  구분선은 유지하되 여백 띠만 조금 줄인다.
+========================================================= */
+
+@media (max-width: 768px) {
+  #logTableBody > tr + tr > td,
+  #searchResultBody > tr + tr > td {
+    border-top-width:
+      3px !important;
+  }
+
+  #logTableBody > tr > td,
+  #searchResultBody > tr > td {
+    border-bottom-width:
+      2px !important;
+  }
+}
