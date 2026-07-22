@@ -14487,20 +14487,21 @@ function approveCurrentDetailLog() {
 }
 
 /* =========================================================
-  업무일지 상세보기 최종 렌더링
+  업무일지 상세보기 최종본
 
-  표시 순서:
-  1. 기본정보
-  2. 운전현황
-  3. TM 발행 내역
-  4. 보직별 인계 및 작업 내역
-  5. 비고 / 첨부파일
+  핵심 구조
 
-  표시 규칙:
-  - TM 번호: 주황색
-  - 인계 번호: 파란색
-  - 시간: 파란색
-  - 내용: 진한 본문색
+  운전현황
+  1. #1 주보일러 : 정상운전 중
+
+  TM 발행
+  1. TM 내용
+
+  인계사항
+  1. 08:37~09:46 업무 내용
+
+  번호·시간·내용을 별도 칸으로 나누지 않고
+  하나의 문장 줄 안에 연속해서 표시한다.
 ========================================================= */
 
 function openLogDetail(
@@ -14586,14 +14587,14 @@ function openLogDetail(
     "파트장";
 
 
+  const detailStatusClass =
+    getStatusClass(
+      statusText
+    );
+
+
   /* =====================================================
     기존 업무내역 시간 재분석
-
-    과거 입력:
-    08:37~09:46 내용
-    09:06, 14:19, 16:15 내용
-
-    위 형식도 상세보기에서 시간과 내용으로 분리한다.
   ====================================================== */
 
   const entries =
@@ -14606,9 +14607,6 @@ function openLogDetail(
     );
 
 
-  /*
-    현재 업무일지 객체에도 정리된 값을 반영한다.
-  */
   log.entries =
     entries.map(
       (entry) => {
@@ -14620,20 +14618,181 @@ function openLogDetail(
 
 
   /* =====================================================
-    상태 배지
+    상세 업무 한 줄 생성
+
+    결과 예시
+
+    1. TM 내용
+    1. 08:37~09:46 업무 내용
   ====================================================== */
 
-  const detailStatusClass =
-    getStatusClass(
-      statusText
-    );
+  function createDetailWorkRowHtml(
+    entry,
+    index,
+    options = {}
+  ) {
+    const {
+      numberType =
+        "handover"
+    } = options;
+
+
+    const timeText =
+      String(
+        entry?.time ||
+        ""
+      ).trim();
+
+
+    const tagText =
+      String(
+        entry?.tag ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    const contentText =
+      String(
+        entry?.content ||
+        "-"
+      )
+        .replace(
+          /\r\n/g,
+          "\n"
+        )
+        .replace(
+          /\r/g,
+          "\n"
+        )
+        .trim();
+
+
+    const contentLines =
+      contentText
+        .split(
+          "\n"
+        )
+        .map(
+          (line) => {
+            return line.trim();
+          }
+        )
+        .filter(Boolean);
+
+
+    const firstLine =
+      contentLines.shift() ||
+      "-";
+
+
+    const continuationHtml =
+      contentLines.length
+        ? `
+          <span
+            class="detail-work-row__continuation"
+          >
+            ${contentLines
+              .map(
+                (line) => {
+                  return escapeHtml(
+                    line
+                  );
+                }
+              )
+              .join("<br>")}
+          </span>
+        `
+        : "";
+
+
+    return `
+      <div
+        class="
+          detail-work-row
+          detail-work-row--${escapeHtml(
+            numberType
+          )}
+        "
+      >
+
+        <span
+          class="
+            detail-work-row__number
+            is-${escapeHtml(
+              numberType
+            )}
+          "
+        >
+          ${index + 1}.
+        </span>
+
+
+        <span
+          class="detail-work-row__main"
+        >
+
+          ${
+            timeText
+              ? `
+                <span
+                  class="detail-work-row__time"
+                >
+                  ${escapeHtml(
+                    timeText
+                  )}
+                </span>
+              `
+              : ""
+          }
+
+
+          ${
+            tagText
+              ? `
+                <button
+                  type="button"
+                  class="detail-work-row__tag"
+                  data-detail-tag="${escapeHtml(
+                    tagText
+                  )}"
+                >
+                  [${escapeHtml(
+                    tagText
+                  )}]
+                </button>
+              `
+              : ""
+          }
+
+
+          <span
+            class="detail-work-row__text"
+          >
+            ${escapeHtml(
+              firstLine
+            )}
+          </span>
+
+
+          ${continuationHtml}
+
+        </span>
+
+      </div>
+    `;
+  }
 
 
   /* =====================================================
     운전현황
+
+    각 줄의 앞뒤 공백과 기존 수기 번호를 정리하고
+    1번부터 다시 번호를 표시한다.
   ====================================================== */
 
-  const operationStatusText =
+  const operationStatusLines =
     String(
       log.operationStatus ||
       ""
@@ -14651,20 +14810,54 @@ function openLogDetail(
       )
       .map(
         (line) => {
-          return line.trim();
+          return String(
+            line || ""
+          )
+            .trim()
+            .replace(
+              /^(?:\d+\s*[.)\-:]\s*)/,
+              ""
+            )
+            .trim();
         }
       )
-      .filter(Boolean)
-      .join("\n");
+      .filter(Boolean);
 
 
   const operationStatusHtml =
-    operationStatusText
+    operationStatusLines.length
       ? `
-        <div class="detail-operation-content">
-          ${escapeHtml(
-            operationStatusText
-          )}
+        <div class="detail-operation-list">
+
+          ${operationStatusLines
+            .map(
+              (
+                line,
+                index
+              ) => {
+                return `
+                  <div class="detail-operation-row">
+
+                    <span
+                      class="detail-operation-row__number"
+                    >
+                      ${index + 1}.
+                    </span>
+
+                    <span
+                      class="detail-operation-row__text"
+                    >
+                      ${escapeHtml(
+                        line
+                      )}
+                    </span>
+
+                  </div>
+                `;
+              }
+            )
+            .join("")}
+
         </div>
       `
       : `
@@ -14696,95 +14889,29 @@ function openLogDetail(
 
   const tmHtml =
     tmEntries.length
-      ? tmEntries
-          .map(
-            (
-              entry,
-              index
-            ) => {
-              const timeText =
-                String(
-                  entry.time ||
-                  ""
-                ).trim();
+      ? `
+        <div class="detail-work-list">
 
+          ${tmEntries
+            .map(
+              (
+                entry,
+                index
+              ) => {
+                return createDetailWorkRowHtml(
+                  entry,
+                  index,
+                  {
+                    numberType:
+                      "tm"
+                  }
+                );
+              }
+            )
+            .join("")}
 
-              const tagText =
-                String(
-                  entry.tag ||
-                  ""
-                )
-                  .trim()
-                  .toUpperCase();
-
-
-              const contentText =
-                String(
-                  entry.content ||
-                  "-"
-                ).trim();
-
-
-              return `
-                <div class="detail-work-line detail-work-line--tm">
-
-                  <span
-                    class="
-                      detail-work-line__number
-                      is-tm-number
-                    "
-                  >
-                    ${index + 1}.
-                  </span>
-
-
-                  <span
-                    class="detail-work-line__time"
-                  >
-                    ${escapeHtml(
-                      timeText
-                    )}
-                  </span>
-
-
-                  <span
-                    class="detail-work-line__content"
-                  >
-
-                    ${
-                      tagText
-                        ? `
-                          <button
-                            type="button"
-                            class="detail-inline-tag"
-                            data-detail-tag="${escapeHtml(
-                              tagText
-                            )}"
-                          >
-                            [${escapeHtml(
-                              tagText
-                            )}]
-                          </button>
-                        `
-                        : ""
-                    }
-
-
-                    <span
-                      class="detail-work-line__content-text"
-                    >
-                      ${escapeHtml(
-                        contentText
-                      )}
-                    </span>
-
-                  </span>
-
-                </div>
-              `;
-            }
-          )
-          .join("")
+        </div>
+      `
       : `
         <div class="detail-empty-message">
           등록된 TM 발행 내역이 없습니다.
@@ -14904,106 +15031,12 @@ function openLogDetail(
                 );
 
 
-              const roleRows =
-                roleEntries
-                  .map(
-                    (
-                      entry,
-                      index
-                    ) => {
-                      const timeText =
-                        String(
-                          entry.time ||
-                          ""
-                        ).trim();
-
-
-                      const tagText =
-                        String(
-                          entry.tag ||
-                          ""
-                        )
-                          .trim()
-                          .toUpperCase();
-
-
-                      const contentText =
-                        String(
-                          entry.content ||
-                          "-"
-                        ).trim();
-
-
-                      return `
-                        <div class="detail-work-line detail-work-line--handover">
-
-                          <span
-                            class="
-                              detail-work-line__number
-                              is-handover-number
-                            "
-                          >
-                            ${index + 1}.
-                          </span>
-
-
-                          <span
-                            class="detail-work-line__time"
-                          >
-                            ${
-                              timeText
-                                ? escapeHtml(
-                                    timeText
-                                  )
-                                : ""
-                            }
-                          </span>
-
-
-                          <span
-                            class="detail-work-line__content"
-                          >
-
-                            ${
-                              tagText
-                                ? `
-                                  <button
-                                    type="button"
-                                    class="detail-inline-tag"
-                                    data-detail-tag="${escapeHtml(
-                                      tagText
-                                    )}"
-                                  >
-                                    [${escapeHtml(
-                                      tagText
-                                    )}]
-                                  </button>
-                                `
-                                : ""
-                            }
-
-
-                            <span
-                              class="detail-work-line__content-text"
-                            >
-                              ${escapeHtml(
-                                contentText
-                              )}
-                            </span>
-
-                          </span>
-
-                        </div>
-                      `;
-                    }
-                  )
-                  .join("");
-
-
               return `
                 <section class="detail-role-block">
 
-                  <div class="detail-role-block__heading">
+                  <div
+                    class="detail-role-block__heading"
+                  >
 
                     <span
                       class="
@@ -15028,8 +15061,26 @@ function openLogDetail(
                   </div>
 
 
-                  <div class="detail-role-block__body">
-                    ${roleRows}
+                  <div class="detail-work-list">
+
+                    ${roleEntries
+                      .map(
+                        (
+                          entry,
+                          index
+                        ) => {
+                          return createDetailWorkRowHtml(
+                            entry,
+                            index,
+                            {
+                              numberType:
+                                "handover"
+                            }
+                          );
+                        }
+                      )
+                      .join("")}
+
                   </div>
 
                 </section>
@@ -15129,16 +15180,13 @@ function openLogDetail(
 
 
   /* =====================================================
-    최종 상세보기 HTML
+    최종 상세 HTML
   ====================================================== */
 
   elements.logDetailContent.innerHTML =
     `
       <div class="shift-log-detail-document">
 
-        <!-- =================================================
-          기본 정보
-        ================================================== -->
         <section class="shift-log-detail-summary">
 
           <div class="shift-log-detail-summary__header">
@@ -15247,9 +15295,6 @@ function openLogDetail(
         </section>
 
 
-        <!-- =================================================
-          운전현황
-        ================================================== -->
         <section class="shift-log-detail-section">
 
           <div class="shift-log-detail-section__header">
@@ -15259,9 +15304,7 @@ function openLogDetail(
                 OPERATION STATUS
               </span>
 
-              <h3>
-                운전현황
-              </h3>
+              <h3>운전현황</h3>
             </div>
 
           </div>
@@ -15274,9 +15317,6 @@ function openLogDetail(
         </section>
 
 
-        <!-- =================================================
-          TM 발행 내역
-        ================================================== -->
         <section class="shift-log-detail-section">
 
           <div class="shift-log-detail-section__header">
@@ -15286,9 +15326,7 @@ function openLogDetail(
                 TM ISSUE
               </span>
 
-              <h3>
-                TM 발행 내역
-              </h3>
+              <h3>TM 발행 내역</h3>
             </div>
 
 
@@ -15306,9 +15344,6 @@ function openLogDetail(
         </section>
 
 
-        <!-- =================================================
-          인계 및 작업 내역
-        ================================================== -->
         <section class="shift-log-detail-section">
 
           <div class="shift-log-detail-section__header">
@@ -15318,9 +15353,7 @@ function openLogDetail(
                 HANDOVER
               </span>
 
-              <h3>
-                인계 및 작업 내역
-              </h3>
+              <h3>인계 및 작업 내역</h3>
             </div>
 
 
@@ -15343,9 +15376,6 @@ function openLogDetail(
         </section>
 
 
-        <!-- =================================================
-          비고 / 첨부파일
-        ================================================== -->
         <div class="shift-log-detail-bottom-grid">
 
           <section class="shift-log-detail-section">
@@ -15357,9 +15387,7 @@ function openLogDetail(
                   NOTE
                 </span>
 
-                <h3>
-                  비고
-                </h3>
+                <h3>비고</h3>
               </div>
 
             </div>
@@ -15381,9 +15409,7 @@ function openLogDetail(
                   ATTACHMENT
                 </span>
 
-                <h3>
-                  첨부파일
-                </h3>
+                <h3>첨부파일</h3>
               </div>
 
 
@@ -15407,7 +15433,7 @@ function openLogDetail(
 
 
   /* =====================================================
-    TAG 버튼 이벤트
+    TAG 이동 이벤트
   ====================================================== */
 
   elements.logDetailContent
@@ -15431,8 +15457,6 @@ function openLogDetail(
 
   /* =====================================================
     결재확인 버튼
-
-    작성완료 상태에서만 표시
   ====================================================== */
 
   if (
@@ -15446,8 +15470,6 @@ function openLogDetail(
 
   /* =====================================================
     수정 버튼
-
-    결재완료 상태에서는 숨김
   ====================================================== */
 
   if (

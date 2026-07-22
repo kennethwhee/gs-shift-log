@@ -5801,48 +5801,23 @@ td {
 
 /* =========================================================
   업무일지 상세보기 최종 디자인
-
-  표시 구조
-  1. 기본정보
-  2. 운전현황
-  3. TM 발행 내역
-  4. 인계 및 작업 내역
-  5. 비고 / 첨부파일
-
-  색상 기준
-  - TM 번호: 주황색
-  - 업무 번호: 파란색
-  - 시간: 파란색
-  - 내용: 진한 본문색
-========================================================= */
-
-
-/* =========================================================
-  상세보기 모달
 ========================================================= */
 
 .log-detail-modal {
-  width: min(
-    1180px,
-    calc(100vw - 48px)
-  );
-
+  width: min(1180px, calc(100vw - 48px));
   max-width: 1180px;
   height: min(92vh, 980px);
 }
-
 
 .log-detail-modal__header {
   min-height: 66px;
   padding: 13px 20px;
 }
 
-
 .log-detail-modal__body {
   padding: 14px 16px 18px;
   background: #f5f7fa;
 }
-
 
 .log-detail-modal__footer {
   min-height: 62px;
@@ -5850,9 +5825,7 @@ td {
 }
 
 
-/* =========================================================
-  상세보기 전체 문서
-========================================================= */
+/* 전체 문서 */
 
 .shift-log-detail-document {
   display: flex;
@@ -5862,551 +5835,305 @@ td {
 }
 
 
-/* =========================================================
-  공통 카드
-========================================================= */
+/* 공통 카드 */
 
 .shift-log-detail-summary,
 .shift-log-detail-section {
   overflow: hidden;
-
   border: 1px solid #d8e1eb;
   border-radius: 12px;
-
   background: #ffffff;
-
   box-shadow:
     0 2px 8px
     rgba(15, 23, 42, 0.035);
 }
 
 
-/* =========================================================
-  영문 소제목
-========================================================= */
+/* 영문 제목 */
 
 .shift-log-detail-eyebrow {
   display: block;
-
   margin: 0 0 3px;
-
   color: #1f5fae;
-
   font-size: 9px;
   font-weight: 900;
   line-height: 1.2;
-
   letter-spacing: 0.13em;
 }
 
 
-/* =========================================================
-  기본정보 카드
-========================================================= */
+/* 기본정보 */
 
 .shift-log-detail-summary {
   padding: 16px;
 }
-
 
 .shift-log-detail-summary__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
-
   margin-bottom: 13px;
 }
 
-
 .shift-log-detail-summary__header h3 {
   margin: 0;
-
   color: #1d2d45;
-
   font-size: 21px;
   font-weight: 900;
   line-height: 1.25;
-
-  letter-spacing: -0.035em;
 }
-
 
 .shift-log-detail-summary__grid {
   display: grid;
-
   grid-template-columns:
     repeat(3, minmax(0, 1fr));
-
   gap: 8px;
 }
-
 
 .shift-log-detail-summary__item {
   min-width: 0;
   padding: 9px 10px;
-
   border: 1px solid #e0e7ef;
   border-radius: 8px;
-
   background: #f8fafc;
 }
 
-
 .shift-log-detail-summary__item > span {
   display: block;
-
   margin-bottom: 3px;
-
   color: #758296;
-
   font-size: 10px;
   font-weight: 800;
-  line-height: 1.3;
 }
-
 
 .shift-log-detail-summary__item > strong {
   display: flex;
-  min-width: 0;
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-
-  overflow: hidden;
-
   color: #203149;
-
   font-size: 14px;
   font-weight: 900;
-  line-height: 1.45;
-
-  text-overflow: ellipsis;
 }
 
 
-/* =========================================================
-  대근 표시
-========================================================= */
+/* 대근 */
 
 .detail-substitute-badge {
   display: inline-flex;
   min-height: 21px;
   align-items: center;
-  justify-content: center;
-
   padding: 0 7px;
-
   border-radius: 999px;
-
   background: #fff2d8;
   color: #a7640c;
-
   font-size: 9px;
   font-weight: 900;
-  line-height: 1;
 }
 
 
-/* =========================================================
-  일반 구역 헤더
-========================================================= */
+/* 구역 헤더 */
 
 .shift-log-detail-section__header {
   display: flex;
   min-height: 55px;
-
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-
   padding: 10px 15px;
-
   border-bottom: 1px solid #e1e7ee;
-
   background: #f8fafc;
 }
 
-
 .shift-log-detail-section__header h3 {
   margin: 0;
-
   color: #203149;
-
   font-size: 16px;
   font-weight: 900;
-  line-height: 1.3;
-
-  letter-spacing: -0.025em;
 }
-
-
-/* =========================================================
-  건수 배지
-========================================================= */
 
 .shift-log-detail-count {
   display: inline-flex;
   min-width: 38px;
   min-height: 24px;
-
   align-items: center;
   justify-content: center;
-
   padding: 0 9px;
-
   border-radius: 999px;
-
   background: #eaf2fb;
   color: #1f5fae;
-
   font-size: 10px;
   font-weight: 900;
-  line-height: 1;
-
-  white-space: nowrap;
 }
-
-
-/* =========================================================
-  구역 본문
-========================================================= */
 
 .shift-log-detail-section__body {
-  padding: 12px 15px;
+  padding: 11px 15px;
 }
-
 
 .shift-log-detail-section__body--roles {
-  padding-top: 5px;
-  padding-bottom: 7px;
+  padding-top: 4px;
+  padding-bottom: 6px;
 }
-
-/* =========================================================
-  상세보기 운전현황 및 업무내용 최종본
-
-  표시 기준
-
-  운전현황:
-  1. #1 주보일러 : 정상운전 중
-
-  TM 발행:
-  1. 내용
-
-  인계사항:
-  1. 08:37~09:46 내용
-
-  번호·시간·내용을 칸으로 나누지 않고
-  왼쪽부터 한 줄로 연속 표시한다.
-========================================================= */
 
 
 /* =========================================================
   운전현황
+
+  번호와 내용이 같은 줄
 ========================================================= */
 
-.detail-operation-content {
-  display: block;
-  width: 100%;
-
-  margin: 0;
-  padding: 0;
-
-  color: #26384f;
-
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.7;
-
-  text-align: left;
-  text-indent: 0;
-
-  white-space: pre-line;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+.detail-operation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
-
-/*
-  운전현황 안의 첫 줄에도
-  불필요한 위·왼쪽 여백이 생기지 않도록 한다.
-*/
-.shift-log-detail-section__body
-.detail-operation-content {
+.detail-operation-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
   margin: 0;
-  padding: 0;
+  padding: 2px 0;
+  color: #26384f;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.detail-operation-row__number {
+  flex: 0 0 auto;
+  color: #1f5fae;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.detail-operation-row__text {
+  min-width: 0;
+  color: #26384f;
+  font-weight: 700;
+  white-space: normal;
+  word-break: break-word;
 }
 
 
 /* =========================================================
-  업무 한 줄
+  TM 및 인계 업무
 
-  TM:
-  1. 내용
-
-  인계:
-  1. 08:37~09:46 내용
+  1. 08:00 내용
 ========================================================= */
 
-.detail-work-line {
+.detail-work-list {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+}
+
+.detail-work-row {
   display: flex;
   width: 100%;
   min-width: 0;
-
-  align-items: baseline;
-  justify-content: flex-start;
-  flex-wrap: wrap;
-
-  gap: 0;
-
+  align-items: flex-start;
+  gap: 6px;
   margin: 0;
-  padding: 5px 0;
-
+  padding: 6px 0;
   color: #26384f;
-
   font-size: 13px;
   line-height: 1.6;
-
   text-align: left;
 }
 
-
-/*
-  항목 사이의 연한 구분선
-*/
-.detail-work-line
+.detail-work-row
 +
-.detail-work-line {
-  border-top: 1px solid #f0f3f6;
+.detail-work-row {
+  border-top: 1px solid #edf1f5;
 }
 
-
-/* =========================================================
-  번호
-========================================================= */
-
-.detail-work-line__number {
-  display: inline;
+.detail-work-row__number {
   flex: 0 0 auto;
-
-  width: auto;
-  min-width: 0;
-
-  margin: 0 6px 0 0;
+  margin: 0;
   padding: 0;
-
   font-size: 13px;
   font-weight: 900;
-  line-height: inherit;
-
-  text-align: left;
-
+  line-height: 1.6;
   white-space: nowrap;
 }
 
-
-/*
-  TM 번호
-*/
-.detail-work-line__number.is-tm-number {
+.detail-work-row__number.is-tm {
   color: #b87412;
 }
 
-
-/*
-  인계 및 작업 번호
-*/
-.detail-work-line__number.is-handover-number {
+.detail-work-row__number.is-handover {
   color: #1f5fae;
 }
 
-
-/* =========================================================
-  시간
-========================================================= */
-
-.detail-work-line__time {
-  display: inline;
-  flex: 0 0 auto;
-
-  width: auto;
+.detail-work-row__main {
+  display: block;
   min-width: 0;
-
-  margin: 0 6px 0 0;
-  padding: 0;
-
-  color: #1f5fae;
-
-  font-size: 13px;
-  font-weight: 900;
-  line-height: inherit;
-
-  font-variant-numeric: tabular-nums;
-
-  text-align: left;
-
-  white-space: nowrap;
-}
-
-
-/*
-  TM처럼 시간이 없는 항목은
-  시간 칸 자체를 완전히 제거한다.
-*/
-.detail-work-line__time:empty {
-  display: none;
-  margin: 0;
-}
-
-
-/* =========================================================
-  TAG 및 실제 내용
-========================================================= */
-
-.detail-work-line__content {
-  display: inline;
-  min-width: 0;
-  flex: 0 1 auto;
-
+  flex: 1 1 auto;
   margin: 0;
   padding: 0;
-
   color: #26384f;
-
   font-size: 13px;
   font-weight: 650;
-  line-height: inherit;
-
+  line-height: 1.6;
   text-align: left;
-  text-indent: 0;
-
-  white-space: normal;
   word-break: break-word;
-  overflow-wrap: anywhere;
 }
 
-
-.detail-work-line__content-text {
+.detail-work-row__time {
   display: inline;
-
-  width: auto;
-  margin: 0;
-  padding: 0;
-
-  color: inherit;
-
-  font: inherit;
-  line-height: inherit;
-
-  text-align: left;
-  text-indent: 0;
-
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  margin-right: 6px;
+  color: #1f5fae;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-
-/* =========================================================
-  상세보기 TAG
-========================================================= */
-
-.detail-inline-tag {
+.detail-work-row__tag {
   display: inline;
-
   width: auto;
-  min-width: 0;
-
   margin: 0 5px 0 0;
   padding: 0;
-
   border: 0;
-  border-radius: 0;
-
   background: transparent;
   color: #1769c2;
-
   font: inherit;
   font-weight: 900;
   line-height: inherit;
-
-  text-align: left;
   vertical-align: baseline;
-
-  white-space: nowrap;
-
   cursor: pointer;
 }
 
-
-.detail-inline-tag:hover {
-  background: transparent;
+.detail-work-row__tag:hover {
   color: #0d4e96;
   text-decoration: underline;
 }
 
+.detail-work-row__text {
+  display: inline;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+}
 
-/* =========================================================
-  여러 줄 내용
-
-  첫 줄:
-  1. 08:37~09:46 Bio Rotary Feeder #B Trip
-
-  다음 줄:
-  → Bio Screw Feeder 후단 막힘...
-========================================================= */
-
-.detail-work-line__content-text br {
+.detail-work-row__continuation {
   display: block;
+  margin-top: 1px;
+  color: #35465c;
+  font: inherit;
+  line-height: 1.55;
 }
 
 
-/* =========================================================
-  모바일
-========================================================= */
-
-@media (max-width: 600px) {
-  .detail-operation-content {
-    font-size: 13px;
-  }
-
-
-  .detail-work-line {
-    padding: 5px 0;
-
-    font-size: 12px;
-    line-height: 1.6;
-  }
-
-
-  .detail-work-line__number,
-  .detail-work-line__time,
-  .detail-work-line__content {
-    font-size: 12px;
-  }
-
-
-  .detail-work-line__number {
-    margin-right: 5px;
-  }
-
-
-  .detail-work-line__time {
-    margin-right: 5px;
-  }
-}
-/* =========================================================
-  파트장 보직별 업무 구역
-========================================================= */
+/* 보직별 구역 */
 
 .detail-role-block {
-  display: block;
   width: 100%;
-
   margin: 0;
-  padding: 9px 0;
+  padding: 8px 0;
 }
-
 
 .detail-role-block
 +
@@ -6414,77 +6141,52 @@ td {
   border-top: 1px solid #d9e2eb;
 }
 
-
 .detail-role-block__heading {
   display: flex;
-
+  min-height: 27px;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-
-  min-height: 27px;
-
-  margin: 0 0 3px;
-  padding: 0;
+  margin-bottom: 2px;
 }
-
 
 .detail-role-block__badge {
   display: inline-flex;
   min-height: 22px;
-
   align-items: center;
-  justify-content: center;
-
   padding: 0 8px;
-
   border: 1px solid #c9d7e6;
   border-radius: 5px;
-
   background: #f1f5f9;
   color: #41536a;
-
   font-size: 10px;
   font-weight: 900;
-  line-height: 1;
-
-  white-space: nowrap;
 }
 
-
-/* TGO */
 .detail-role-block__badge.is-tgo {
   border-color: #a8c8f2;
   background: #eaf3ff;
   color: #1d5fae;
 }
 
-
-/* BCO1 */
 .detail-role-block__badge.is-bco1 {
   border-color: #a8d9bd;
   background: #edf9f2;
   color: #26784b;
 }
 
-
-/* BCO2 */
 .detail-role-block__badge.is-bco2 {
   border-color: #d5b9ed;
   background: #f6effc;
   color: #74419c;
 }
 
-
-/* TO */
 .detail-role-block__badge.is-to {
   border-color: #d8c4ed;
   background: #f6effc;
   color: #70439a;
 }
 
-
-/* BO1 · BO2 */
 .detail-role-block__badge.is-bo1,
 .detail-role-block__badge.is-bo2 {
   border-color: #edcfaa;
@@ -6492,168 +6194,71 @@ td {
   color: #925612;
 }
 
-
-/* 파트장 */
 .detail-role-block__badge.is-leader {
   border-color: #d9bf8e;
   background: #fff7e8;
   color: #94611c;
 }
 
-
 .detail-role-block__count {
   color: #8591a0;
-
   font-size: 9px;
   font-weight: 800;
-  line-height: 1;
-
-  white-space: nowrap;
 }
 
 
-.detail-role-block__body {
-  display: block;
-  width: 100%;
-}
-
-
-/* =========================================================
-  빈 내용
-========================================================= */
+/* 빈 내용 */
 
 .detail-empty-message {
   margin: 0;
   padding: 4px 0;
-
   color: #8a96a5;
-
   font-size: 12px;
   font-weight: 600;
-  line-height: 1.55;
-
-  text-align: left;
 }
 
 
-/* =========================================================
-  비고 / 첨부파일
-========================================================= */
+/* 비고와 첨부 */
 
 .shift-log-detail-bottom-grid {
   display: grid;
-
   grid-template-columns:
     repeat(2, minmax(0, 1fr));
-
   gap: 12px;
 }
 
-
-.shift-log-detail-bottom-grid
-.shift-log-detail-section {
-  min-width: 0;
-}
-
-
 .detail-note-content {
   color: #324258;
-
   font-size: 13px;
   font-weight: 650;
   line-height: 1.65;
-
   white-space: pre-wrap;
   word-break: break-word;
 }
-
-
-/* =========================================================
-  첨부파일
-========================================================= */
 
 .detail-attachment-list {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-
-  margin: 0;
-  padding: 0;
 }
-
 
 .detail-attachment-chip {
   display: inline-flex;
   max-width: 100%;
   min-height: 30px;
-
   align-items: center;
   gap: 6px;
-
-  overflow: hidden;
-
   padding: 0 10px;
-
   border: 1px solid #cddaea;
   border-radius: 7px;
-
   background: #eef5fc;
   color: #294b72;
-
   font-size: 11px;
   font-weight: 750;
-  line-height: 1;
-
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 
-/* =========================================================
-  결재확인 버튼
-========================================================= */
-
-.approval-confirm-button {
-  display: inline-flex;
-  min-height: 38px;
-
-  align-items: center;
-  justify-content: center;
-
-  padding: 0 16px;
-
-  border: 1px solid #15945b;
-  border-radius: 8px;
-
-  background: #168b58;
-  color: #ffffff;
-
-  font-size: 12px;
-  font-weight: 900;
-  line-height: 1;
-
-  cursor: pointer;
-
-  box-shadow:
-    0 4px 10px
-    rgba(22, 139, 88, 0.14);
-}
-
-
-.approval-confirm-button:hover {
-  border-color: #107347;
-  background: #107347;
-}
-
-
-.approval-confirm-button[hidden] {
-  display: none !important;
-}
-
-
-/* =========================================================
-  태블릿
-========================================================= */
+/* 모바일 */
 
 @media (max-width: 900px) {
   .shift-log-detail-summary__grid {
@@ -6661,153 +6266,31 @@ td {
       repeat(2, minmax(0, 1fr));
   }
 
-
-  .detail-work-line {
-    grid-template-columns:
-      25px
-      max-content
-      minmax(0, 1fr);
-
-    column-gap: 6px;
-  }
-
-
   .shift-log-detail-bottom-grid {
     grid-template-columns: 1fr;
   }
 }
-
-
-/* =========================================================
-  모바일
-========================================================= */
 
 @media (max-width: 600px) {
   .log-detail-modal {
     width: calc(100vw - 12px);
     max-width: none;
     height: calc(100vh - 12px);
-
-    border-radius: 13px;
   }
-
-
-  .log-detail-modal__header {
-    min-height: 58px;
-    padding: 10px 13px;
-  }
-
 
   .log-detail-modal__body {
     padding: 9px;
   }
 
-
-  .log-detail-modal__footer {
-    min-height: 56px;
-    padding: 8px 10px;
-  }
-
-
-  .shift-log-detail-document {
-    gap: 9px;
-  }
-
-
-  .shift-log-detail-summary {
-    padding: 12px;
-  }
-
-
-  .shift-log-detail-summary__header {
-    margin-bottom: 10px;
-  }
-
-
-  .shift-log-detail-summary__header h3 {
-    font-size: 18px;
-  }
-
-
   .shift-log-detail-summary__grid {
     grid-template-columns: 1fr;
-    gap: 6px;
   }
 
-
-  .shift-log-detail-summary__item {
-    padding: 8px 9px;
-  }
-
-
-  .shift-log-detail-section__header {
-    min-height: 49px;
-    padding: 8px 11px;
-  }
-
-
-  .shift-log-detail-section__header h3 {
-    font-size: 14px;
-  }
-
-
-  .shift-log-detail-section__body {
-    padding: 9px 11px;
-  }
-
-
-  .detail-operation-content {
-    font-size: 13px;
-  }
-
-
-  .detail-work-line {
-    grid-template-columns:
-      23px
-      minmax(0, 1fr);
-
-    column-gap: 5px;
-    padding: 5px 0;
-  }
-
-
-  .detail-work-line__number {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-
-  .detail-work-line__time {
-    grid-column: 2;
-    grid-row: 1;
-
+  .detail-operation-row,
+  .detail-work-row,
+  .detail-work-row__number,
+  .detail-work-row__main {
     font-size: 12px;
-  }
-
-
-  .detail-work-line__content {
-    grid-column: 2;
-    grid-row: 2;
-
-    font-size: 12px;
-  }
-
-
-  .detail-work-line__time:empty
-  +
-  .detail-work-line__content {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-
-  .detail-role-block {
-    padding: 7px 0;
-  }
-
-
-  .detail-role-block__heading {
-    margin-bottom: 2px;
   }
 }
 /* =========================================================
