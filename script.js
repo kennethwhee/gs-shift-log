@@ -4687,6 +4687,42 @@ function convertLegacyBodyIndexToRole(
   기존 업무일지 1건을 현재 구조로 변환
 ========================================================= */
 
+/* =========================================================
+  기존 업무일지 1건을 현재 구조로 변환 최종본
+
+  이전 시스템 원본 body index 기준
+
+  일반 보직:
+  index 0 : 운전현황
+  index 1 : TM 발행 내역
+  index 2 : 인계 및 작업 내역
+  index 3 : 비고
+
+  현재 파트장 통합 구조:
+  index 0 : 운전현황
+  index 1 : TM 발행 내역
+  index 2 : 통합 인계 및 작업 내역
+  index 4 : 비고
+
+  과거 파트장 보직별 구조:
+  index 2 : TGO
+  index 3 : BCO1
+  index 4 : BCO2
+  index 5 : TO
+  index 6 : BO1
+  index 7 : BO2
+  index 8 : 파트장
+
+  기존 호환:
+  - entries 단일 배열 유지
+  - note 문자열 유지
+
+  주의:
+  과거 파트장 재구성 함수와 충돌하지 않도록
+  legacy 변환 단계에서는 분리 배열을 직접 만들지 않고
+  entries의 category로 정확히 구분한다.
+========================================================= */
+
 function convertLegacyDiaryToLog(
   legacyItem,
   itemIndex,
@@ -4701,6 +4737,7 @@ function convertLegacyDiaryToLog(
     return null;
   }
 
+
   const bodyEntries =
     Array.isArray(
       legacyItem.body
@@ -4708,10 +4745,18 @@ function convertLegacyDiaryToLog(
       ? legacyItem.body
       : [];
 
+
   const role =
     convertLegacyPositionToRole(
       legacyItem.position
     );
+
+
+  const normalizedRole =
+    normalizeMemberLogRole(
+      role
+    );
+
 
   const author =
     String(
@@ -4721,132 +4766,13 @@ function convertLegacyDiaryToLog(
       "기존 업무일지"
     ).trim();
 
+
   const operationStatus =
     getLegacyBodyContent(
       bodyEntries,
       0
     );
 
-  const entries = [];
-
-  bodyEntries.forEach(
-    (
-      bodyItem,
-      bodyIndex
-    ) => {
-      const index =
-        Number(
-          bodyItem?.index ??
-          bodyIndex
-        );
-
-      const rawContent =
-        String(
-          bodyItem?.content ||
-          ""
-        );
-
-      /*
-        빈 내용과 운전현황은
-        작업 내역에서 제외한다.
-      */
-      if (
-        !rawContent.trim() ||
-        index === 0
-      ) {
-        return;
-      }
-
-      const category =
-        index === 1
-          ? "TM 발행"
-          : "인계사항";
-
-      /*
-        파트장 업무일지의 body index를
-        실제 담당 보직으로 변환한다.
-      */
-      const sourceRole =
-        index === 1
-          ? ""
-          : convertLegacyBodyIndexToRole(
-              index,
-              role
-            );
-
-      const parsedLines =
-        parseLegacyDiaryContentLines(
-          rawContent
-        );
-
-      parsedLines.forEach(
-        (
-          parsedLine,
-          lineIndex
-        ) => {
-          const separatedTmContent =
-            category === "TM 발행"
-              ? extractLegacyTagFromContent(
-                  parsedLine.content
-                )
-              : {
-                  tag: "",
-                  content:
-                    parsedLine.content
-                };
-
-          entries.push({
-            id: [
-              "legacy-entry",
-              legacyItem.diary_id ||
-                itemIndex,
-              index,
-              lineIndex
-            ].join("-"),
-
-            category,
-
-            time:
-              parsedLine.time,
-
-            tag:
-              separatedTmContent.tag,
-
-            content:
-              separatedTmContent.content,
-
-            attachmentName: "",
-
-            /*
-              파트장 일지에서 보직별 구분에 사용한다.
-            */
-            importedFromRole:
-              sourceRole,
-
-            importedFromAuthor: "",
-
-            importedFromLogId:
-              `legacy-${
-                legacyItem.diary_id ||
-                itemIndex
-              }`,
-
-            importedFromEntryIndex:
-              lineIndex,
-
-            legacyBodyIndex:
-              index,
-
-            legacyLineIndex:
-              lineIndex,
-
-            source:
-              "legacy"
-          });
-        }
-      );
-    }
-  );
 
   const legacyId =
     String(
@@ -4859,15 +4785,506 @@ function convertLegacyDiaryToLog(
       ].join("-")
     );
 
+
+  const importedFromLogId =
+    `legacy-${legacyId}`;
+
+
+  /* =====================================================
+    body index별 원문 확인
+  ====================================================== */
+
+  const getBodyContent = (
+    targetIndex
+  ) => {
+    return getLegacyBodyContent(
+      bodyEntries,
+      targetIndex
+    );
+  };
+
+
+  const index2Content =
+    getBodyContent(
+      2
+    );
+
+
+  const index3Content =
+    getBodyContent(
+      3
+    );
+
+
+  const index4Content =
+    getBodyContent(
+      4
+    );
+
+
+  const index5Content =
+    getBodyContent(
+      5
+    );
+
+
+  const index6Content =
+    getBodyContent(
+      6
+    );
+
+
+  const index7Content =
+    getBodyContent(
+      7
+    );
+
+
+  const index8Content =
+    getBodyContent(
+      8
+    );
+
+
+  const index9Content =
+    getBodyContent(
+      9
+    );
+
+
+  /* =====================================================
+    파트장 자료 구조 판별
+
+    현재 통합 구조 예:
+    index 2 : 전체 운전 및 작업사항
+    index 3 : 빈칸
+    index 4 : 비고
+    index 5~9 : 빈칸
+
+    과거 보직별 구조 예:
+    index 2~8에 각 보직별 업무가 저장됨
+  ====================================================== */
+
+  const hasLeaderRoleSeparatedContent =
+    normalizedRole ===
+      "파트장" &&
+    Boolean(
+      index3Content ||
+      index5Content ||
+      index6Content ||
+      index7Content ||
+      index8Content
+    );
+
+
+  const isLeaderCombinedStructure =
+    normalizedRole ===
+      "파트장" &&
+    !hasLeaderRoleSeparatedContent &&
+    Boolean(
+      index2Content ||
+      index4Content
+    );
+
+
+  /* =====================================================
+    body index → category 판정
+  ====================================================== */
+
+  const getLegacyCategory = (
+    bodyIndex
+  ) => {
+    const index =
+      Number(
+        bodyIndex
+      );
+
+
+    /*
+      운전현황
+    */
+    if (
+      index ===
+      0
+    ) {
+      return "";
+    }
+
+
+    /*
+      TM 발행 내역
+    */
+    if (
+      index ===
+      1
+    ) {
+      return "TM 발행";
+    }
+
+
+    /*
+      일반 보직
+
+      index 2 : 인계사항
+      index 3 : 비고
+    */
+    if (
+      normalizedRole !==
+      "파트장"
+    ) {
+      if (
+        index ===
+        3
+      ) {
+        return "비고";
+      }
+
+
+      if (
+        index ===
+        2
+      ) {
+        return "인계사항";
+      }
+
+
+      /*
+        예상하지 못한 추가 영역은
+        데이터 유실 방지를 위해 인계사항으로 유지한다.
+      */
+      return "인계사항";
+    }
+
+
+    /*
+      현재 파트장 통합 구조
+
+      index 2 : 인계 및 작업 내역
+      index 4 : 비고
+    */
+    if (
+      isLeaderCombinedStructure
+    ) {
+      if (
+        index ===
+        4
+      ) {
+        return "비고";
+      }
+
+
+      if (
+        index ===
+        2
+      ) {
+        return "인계사항";
+      }
+
+
+      return "인계사항";
+    }
+
+
+    /*
+      과거 파트장 보직별 구조
+
+      index 2~8 : 보직별 업무
+      index 9   : 비고가 존재하는 자료 호환
+    */
+    if (
+      index ===
+      9
+    ) {
+      return "비고";
+    }
+
+
+    return "인계사항";
+  };
+
+
+  /* =====================================================
+    항목의 출처 보직 판정
+  ====================================================== */
+
+  const getLegacySourceRole = (
+    bodyIndex,
+    category
+  ) => {
+    const index =
+      Number(
+        bodyIndex
+      );
+
+
+    if (
+      category ===
+      "TM 발행"
+    ) {
+      return "";
+    }
+
+
+    if (
+      category ===
+      "비고"
+    ) {
+      return normalizedRole;
+    }
+
+
+    /*
+      일반 보직의 업무는 본인 보직
+    */
+    if (
+      normalizedRole !==
+      "파트장"
+    ) {
+      return normalizedRole;
+    }
+
+
+    /*
+      현재 파트장 통합 구조는
+      파트장 업무일지 본문으로 처리한다.
+    */
+    if (
+      isLeaderCombinedStructure
+    ) {
+      return "파트장";
+    }
+
+
+    /*
+      과거 파트장 보직별 구조
+    */
+    return convertLegacyBodyIndexToRole(
+      index,
+      normalizedRole
+    );
+  };
+
+
+  /* =====================================================
+    변환 결과
+  ====================================================== */
+
+  const entries = [];
+
+
+  bodyEntries.forEach(
+    (
+      bodyItem,
+      bodyArrayIndex
+    ) => {
+      const bodyIndex =
+        Number(
+          bodyItem?.index ??
+          bodyArrayIndex
+        );
+
+
+      const rawContent =
+        String(
+          bodyItem?.content ||
+          ""
+        );
+
+
+      /*
+        빈 영역과 운전현황 제외
+      */
+      if (
+        !rawContent.trim() ||
+        bodyIndex ===
+        0
+      ) {
+        return;
+      }
+
+
+      const category =
+        getLegacyCategory(
+          bodyIndex
+        );
+
+
+      if (
+        !category
+      ) {
+        return;
+      }
+
+
+      const sourceRole =
+        getLegacySourceRole(
+          bodyIndex,
+          category
+        );
+
+
+      const parsedLines =
+        parseLegacyDiaryContentLines(
+          rawContent
+        );
+
+
+      parsedLines.forEach(
+        (
+          parsedLine,
+          lineIndex
+        ) => {
+          const parsedContent =
+            category ===
+            "TM 발행"
+              ? extractLegacyTagFromContent(
+                  parsedLine.content
+                )
+              : {
+                  tag:
+                    "",
+
+                  content:
+                    parsedLine.content
+                };
+
+
+          const content =
+            String(
+              parsedContent.content ||
+              ""
+            ).trim();
+
+
+          if (
+            !content
+          ) {
+            return;
+          }
+
+
+          entries.push({
+            id: [
+              "legacy-entry",
+              legacyId,
+              bodyIndex,
+              lineIndex
+            ].join("-"),
+
+            category,
+
+            time:
+              String(
+                parsedLine.time ||
+                ""
+              ).trim(),
+
+            tag:
+              String(
+                parsedContent.tag ||
+                ""
+              )
+                .trim()
+                .toUpperCase(),
+
+            content,
+
+            attachmentName:
+              "",
+
+            /*
+              파트장 취합 및 상세보기의
+              보직별 구분에 사용한다.
+            */
+            importedFromRole:
+              sourceRole,
+
+            importedFromAuthor:
+              author,
+
+            importedFromLogId,
+
+            importedFromEntryIndex:
+              lineIndex,
+
+            legacyBodyIndex:
+              bodyIndex,
+
+            legacyLineIndex:
+              lineIndex,
+
+            source:
+              category ===
+                "비고"
+                ? "legacy-remark"
+                : "legacy"
+          });
+        }
+      );
+    }
+  );
+
+
+  /* =====================================================
+    기존 note 문자열 호환
+
+    비고 항목을 줄 단위 문자열로도 보관한다.
+    새 화면에서는 entries의 category === 비고를 사용한다.
+  ====================================================== */
+
+  const remarkEntries =
+    entries.filter(
+      (
+        entry
+      ) => {
+        return (
+          String(
+            entry.category ||
+            ""
+          ).trim() ===
+          "비고"
+        );
+      }
+    );
+
+
+  const note =
+    remarkEntries
+      .map(
+        (
+          entry,
+          remarkIndex
+        ) => {
+          const content =
+            String(
+              entry.content ||
+              ""
+            ).trim();
+
+
+          return content
+            ? `${remarkIndex + 1}. ${content}`
+            : "";
+        }
+      )
+      .filter(Boolean)
+      .join("\n");
+
+
   return {
     id:
-      `legacy-${legacyId}`,
+      importedFromLogId,
 
     date:
       selectedDate,
 
     shift:
-      selectedShift,
+      String(
+        selectedShift ||
+        ""
+      )
+        .trim()
+        .toUpperCase(),
 
     role,
 
@@ -4886,13 +5303,28 @@ function convertLegacyDiaryToLog(
       ),
 
     /*
-      기존 GROUP_1, GROUP_2 값은 화면에서 사용하지 않는다.
+      기존 GROUP_1, GROUP_2 값은
+      현재 화면에서 사용하지 않는다.
     */
-    group: "",
+    group:
+      "",
 
     operationStatus,
 
+    /*
+      기존 호환 단일 배열
+
+      category 값으로 다음을 구분한다.
+      - TM 발행
+      - 인계사항
+      - 비고
+    */
     entries,
+
+    /*
+      기존 note 필드 호환
+    */
+    note,
 
     status:
       convertLegacyDiaryStatus(
@@ -4915,7 +5347,18 @@ function convertLegacyDiaryToLog(
       ),
 
     legacyVersion:
-      legacyItem.version ?? 0,
+      legacyItem.version ??
+      0,
+
+    legacyStructure:
+      normalizedRole !==
+        "파트장"
+        ? "member"
+        : (
+            isLeaderCombinedStructure
+              ? "leader-combined"
+              : "leader-role-separated"
+          ),
 
     createdAt:
       legacyItem.created_at ||
