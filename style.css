@@ -17603,3 +17603,393 @@ table:has(#noteEntryTableBody) {
     padding-bottom: 3px;
   }
 }
+
+/* =========================================================
+  설비별 운전현황 컴팩트 최종 디자인
+========================================================= */
+
+.operation-status-items-editor {
+  margin-top: 8px;
+}
+
+.operation-status-items-editor__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.operation-status-items-editor__header > div {
+  min-width: 0;
+}
+
+.operation-status-items-editor__header strong {
+  color: #14233b;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.operation-status-items-editor__header p {
+  margin: 3px 0 0;
+  color: #8490a2;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.operation-status-item-add-button {
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #34435a;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.operation-status-item-add-button:hover {
+  border-color: #13946b;
+  color: #087b58;
+}
+
+
+/* 각 설비를 한 줄로 표시 */
+
+.operation-status-items-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.operation-status-item-editor {
+  display: grid;
+  grid-template-columns:
+    24px
+    minmax(130px, 190px)
+    auto
+    minmax(180px, 1fr)
+    46px;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.operation-status-item-editor
+  + .operation-status-item-editor {
+  border-top: 1px solid #e7ecf2;
+}
+
+.operation-status-item-editor__number {
+  color: #24344d;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+
+/* 설비명 */
+
+.operation-status-item-name-input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #d3dbe6;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #14233b;
+  font-size: 12px;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+.operation-status-item-name-input:focus {
+  border-color: #15966c;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(21, 150, 108, 0.12);
+}
+
+
+/* 상태 버튼 */
+
+.operation-status-item-type-buttons {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  margin: 0;
+}
+
+.operation-status-item-type-button {
+  min-width: 46px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #d6dee8;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #637086;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.operation-status-item-type-button:hover {
+  border-color: #a8b5c5;
+  background: #f6f8fb;
+}
+
+
+/* 선택 상태 */
+
+.operation-status-item-type-button.is-normal.is-selected {
+  border-color: #15966c;
+  background: #15966c;
+  color: #ffffff;
+}
+
+.operation-status-item-type-button.is-starting.is-selected {
+  border-color: #2d6cdf;
+  background: #2d6cdf;
+  color: #ffffff;
+}
+
+.operation-status-item-type-button.is-stopped.is-selected {
+  border-color: #708096;
+  background: #708096;
+  color: #ffffff;
+}
+
+.operation-status-item-type-button.is-abnormal.is-selected {
+  border-color: #9b6a32;
+  background: #9b6a32;
+  color: #ffffff;
+}
+
+.operation-status-item-type-button.is-emergency.is-selected {
+  border-color: #d64545;
+  background: #d64545;
+  color: #ffffff;
+}
+
+
+/* 내용 */
+
+.operation-status-item-content-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  min-height: 30px;
+  max-height: 64px;
+  padding: 6px 8px;
+  border: 1px solid #d3dbe6;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #14233b;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.operation-status-item-content-input:focus {
+  border-color: #15966c;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(21, 150, 108, 0.12);
+}
+
+
+/* 삭제 */
+
+.operation-status-item-delete-button {
+  width: 46px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #e1e6ed;
+  border-radius: 6px;
+  background: #f8f9fb;
+  color: #68758a;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.operation-status-item-delete-button:hover {
+  border-color: #e3a5a5;
+  background: #fff1f1;
+  color: #c23b3b;
+}
+
+
+/* =========================================================
+  현재 운전현황 한 줄 컴팩트 표시
+========================================================= */
+
+.operation-status-display-row {
+  display: grid;
+  grid-template-columns:
+    24px
+    minmax(120px, 180px)
+    62px
+    1px
+    minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 4px 0;
+}
+
+.operation-status-display-row
+  + .operation-status-display-row {
+  border-top: 1px solid #e8edf3;
+}
+
+.operation-status-display-row__number {
+  color: #20324d;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.operation-status-display-row__name {
+  color: #13233c;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.operation-status-display-row__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  min-width: 62px;
+  height: 23px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.operation-status-display-row__divider {
+  width: 1px;
+  height: 14px;
+  overflow: hidden;
+  background: #d8dfe8;
+  color: transparent;
+}
+
+.operation-status-display-row__content {
+  min-width: 0;
+  color: #24344c;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+
+/* 상태 배지 */
+
+.operation-status-display-row__badge.is-normal {
+  background: #e2f6ed;
+  color: #07815b;
+}
+
+.operation-status-display-row__badge.is-starting {
+  background: #e6efff;
+  color: #2864c8;
+}
+
+.operation-status-display-row__badge.is-stopped {
+  background: #e9edf2;
+  color: #536378;
+}
+
+.operation-status-display-row__badge.is-abnormal {
+  background: #f3eadf;
+  color: #845525;
+}
+
+.operation-status-display-row__badge.is-emergency {
+  background: #ffe5e5;
+  color: #c93434;
+}
+
+
+/* 기존처럼 행이 과도하게 커지는 현상 방지 */
+
+.operation-status-current-card,
+.operation-status-current-content,
+.operation-status-single-view {
+  min-height: 0 !important;
+}
+
+.operation-status-current-content {
+  display: block;
+  padding: 2px 0;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 900px) {
+  .operation-status-item-editor {
+    grid-template-columns:
+      22px
+      minmax(110px, 1fr)
+      44px;
+    gap: 6px;
+    padding: 8px 0;
+  }
+
+  .operation-status-item-type-buttons {
+    grid-column: 2 / -1;
+    flex-wrap: wrap;
+  }
+
+  .operation-status-item-content-input {
+    grid-column: 2 / -1;
+  }
+
+  .operation-status-item-delete-button {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .operation-status-items-editor__header {
+    align-items: flex-start;
+  }
+
+  .operation-status-display-row {
+    grid-template-columns:
+      20px
+      minmax(0, 1fr)
+      58px;
+    gap: 5px 7px;
+  }
+
+  .operation-status-display-row__divider {
+    display: none;
+  }
+
+  .operation-status-display-row__content {
+    grid-column: 2 / -1;
+    padding-bottom: 3px;
+  }
+}

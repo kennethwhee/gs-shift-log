@@ -8166,7 +8166,10 @@ function normalizeOperationStatusType(
 
 
 /* =========================================================
-  상태 이름
+  운전현황 상태 표시 이름
+
+  내부 저장값 abnormal은 기존 자료 호환을 위해 유지하고,
+  화면에는 "보존"으로 표시한다.
 ========================================================= */
 
 function getOperationStatusLabel(
@@ -8183,15 +8186,18 @@ function getOperationStatusLabel(
       "정지",
 
     abnormal:
-      "이상",
+      "보존",
 
     emergency:
       "비상"
   };
 
+
   return (
     labelMap[
-      String(type || "")
+      normalizeOperationStatusType(
+        type
+      )
     ] ||
     "정상운전"
   );
