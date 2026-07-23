@@ -16397,16 +16397,39 @@ function createLogRowHtml(log) {
 function handleLogTableClick(
   event
 ) {
+  if (
+    !elements.logTableBody
+  ) {
+    return;
+  }
+
+
+  /*
+    클릭한 위치에서 다음 대상을 모두 찾는다.
+
+    1. 수정·삭제·첨부 버튼
+    2. 업무 내용 미리보기
+    3. 업무일지 행
+  */
   const actionElement =
     event.target.closest(
       "[data-action][data-log-id]"
     );
 
+  const previewElement =
+    event.target.closest(
+      ".log-preview[data-log-id]"
+    );
+
+  const clickedElement =
+    actionElement ||
+    previewElement;
+
 
   if (
-    !actionElement ||
-    !elements.logTableBody?.contains(
-      actionElement
+    !clickedElement ||
+    !elements.logTableBody.contains(
+      clickedElement
     )
   ) {
     return;
@@ -16415,14 +16438,7 @@ function handleLogTableClick(
 
   const logId =
     String(
-      actionElement.dataset.logId ||
-      ""
-    ).trim();
-
-
-  const action =
-    String(
-      actionElement.dataset.action ||
+      clickedElement.dataset.logId ||
       ""
     ).trim();
 
@@ -16441,7 +16457,7 @@ function handleLogTableClick(
       (item) => {
         return (
           String(
-            item.id ||
+            item?.id ||
             ""
           ).trim() ===
           logId
@@ -16460,18 +16476,28 @@ function handleLogTableClick(
 
 
   /*
+    data-action이 없는 업무 내용 미리보기는
+    상세보기로 처리한다.
+  */
+  const action =
+    String(
+      actionElement?.dataset
+        .action ||
+      "view"
+    ).trim();
+
+
+  /*
     첨부파일 보기
-
-    첨부파일 1개:
-    바로 미리보기
-
-    첨부파일 2개 이상:
-    첨부파일 선택 팝업
   */
   if (
     action ===
     "attachment"
   ) {
+    event.preventDefault();
+    event.stopPropagation();
+
+
     const attachments =
       Array.isArray(
         log.attachments
@@ -16503,12 +16529,15 @@ function handleLogTableClick(
 
 
   /*
-    수정 또는 이어쓰기
+    업무일지 수정
   */
   if (
     action ===
     "edit"
   ) {
+    event.preventDefault();
+    event.stopPropagation();
+
     openLogEditor(
       log
     );
@@ -16518,14 +16547,17 @@ function handleLogTableClick(
 
 
   /*
-    업무일지 상세보기
+    업무일지 삭제
   */
   if (
     action ===
-    "view"
+    "delete"
   ) {
-    openLogDetail(
-      log
+    event.preventDefault();
+    event.stopPropagation();
+
+    deleteLogById(
+      log.id
     );
 
     return;
@@ -16533,16 +16565,15 @@ function handleLogTableClick(
 
 
   /*
-    삭제
+    업무 내용 클릭 또는 보기 버튼 클릭
+    → 업무일지 상세보기
   */
-  if (
-    action ===
-    "delete"
-  ) {
-    deleteLogById(
-      log.id
-    );
-  }
+  event.preventDefault();
+  event.stopPropagation();
+
+  openLogDetail(
+    log
+  );
 }
 
 function deleteLogById(
