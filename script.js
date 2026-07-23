@@ -16860,116 +16860,392 @@ function ensureAttachmentPreviewModal() {
     "attachmentPreviewModal";
 
 
-  modal.className =
-    "attachment-preview-modal";
-
-
   modal.setAttribute(
     "aria-hidden",
     "true"
   );
 
 
+  /*
+    CSS 파일과 관계없이
+    팝업이 반드시 화면 중앙에 표시되도록
+    기본 스타일을 직접 적용한다.
+  */
+  Object.assign(
+    modal.style,
+    {
+      position:
+        "fixed",
+
+      inset:
+        "0",
+
+      zIndex:
+        "99999",
+
+      display:
+        "none",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      padding:
+        "24px",
+
+      background:
+        "rgba(9, 18, 32, 0.82)",
+
+      boxSizing:
+        "border-box"
+    }
+  );
+
+
   modal.innerHTML = `
     <div
-      class="attachment-preview-modal__backdrop"
       data-attachment-preview-close
+      style="
+        position:absolute;
+        inset:0;
+        cursor:zoom-out;
+      "
     ></div>
 
+
     <section
-      class="attachment-preview-modal__panel"
       role="dialog"
       aria-modal="true"
       aria-label="첨부 이미지 보기"
+      style="
+        position:relative;
+        z-index:1;
+
+        display:flex;
+        flex-direction:column;
+
+        width:min(1100px, 94vw);
+        height:min(850px, 90vh);
+
+        overflow:hidden;
+
+        background:#111827;
+        border:1px solid rgba(255,255,255,0.18);
+        border-radius:18px;
+
+        box-shadow:
+          0 30px 90px
+          rgba(0,0,0,0.55);
+      "
     >
 
       <header
-        class="attachment-preview-modal__header"
+        style="
+          display:flex;
+          flex:0 0 auto;
+
+          align-items:center;
+          justify-content:space-between;
+
+          min-height:58px;
+          padding:0 18px;
+
+          color:#ffffff;
+          background:#172033;
+
+          border-bottom:
+            1px solid
+            rgba(255,255,255,0.12);
+        "
       >
+
         <div
-          class="attachment-preview-modal__title-wrap"
+          style="
+            display:flex;
+            min-width:0;
+
+            align-items:center;
+            gap:10px;
+          "
         >
+
           <strong
             id="attachmentPreviewTitle"
-            class="attachment-preview-modal__title"
+            style="
+              overflow:hidden;
+
+              font-size:15px;
+              line-height:1.4;
+
+              text-overflow:ellipsis;
+              white-space:nowrap;
+            "
           >
             첨부 이미지
           </strong>
 
+
           <span
             id="attachmentPreviewCounter"
-            class="attachment-preview-modal__counter"
+            style="
+              flex:0 0 auto;
+
+              padding:4px 9px;
+
+              color:#dbeafe;
+              background:#263552;
+
+              border-radius:999px;
+
+              font-size:12px;
+              font-weight:800;
+            "
           >
           </span>
+
         </div>
+
 
         <button
           type="button"
-          class="attachment-preview-modal__close"
           data-attachment-preview-close
           aria-label="첨부 이미지 닫기"
+          style="
+            display:flex;
+
+            width:36px;
+            height:36px;
+
+            align-items:center;
+            justify-content:center;
+
+            padding:0;
+
+            color:#ffffff;
+            background:rgba(255,255,255,0.08);
+
+            border:1px solid
+              rgba(255,255,255,0.14);
+            border-radius:10px;
+
+            font-size:26px;
+            line-height:1;
+
+            cursor:pointer;
+          "
         >
           ×
         </button>
+
       </header>
 
 
       <div
-        class="attachment-preview-modal__body"
+        style="
+          position:relative;
+
+          display:flex;
+          flex:1 1 auto;
+
+          min-width:0;
+          min-height:0;
+
+          align-items:center;
+          justify-content:center;
+
+          overflow:hidden;
+
+          background:#0b0f17;
+        "
       >
+
         <button
           type="button"
-          class="
-            attachment-preview-modal__nav
-            is-previous
-          "
           id="attachmentPreviewPreviousButton"
           aria-label="이전 이미지"
+          style="
+            position:absolute;
+            left:16px;
+            top:50%;
+            z-index:3;
+
+            display:flex;
+
+            width:48px;
+            height:64px;
+
+            align-items:center;
+            justify-content:center;
+
+            padding:0;
+
+            color:#ffffff;
+            background:rgba(15,23,42,0.76);
+
+            border:1px solid
+              rgba(255,255,255,0.18);
+            border-radius:14px;
+
+            font-size:40px;
+            line-height:1;
+
+            cursor:pointer;
+
+            transform:translateY(-50%);
+          "
         >
           ‹
         </button>
 
 
         <div
-          class="attachment-preview-modal__image-stage"
+          style="
+            position:relative;
+
+            display:flex;
+
+            width:100%;
+            height:100%;
+
+            min-width:0;
+            min-height:0;
+
+            align-items:center;
+            justify-content:center;
+
+            padding:24px 80px;
+
+            box-sizing:border-box;
+          "
         >
+
           <img
             id="attachmentPreviewImage"
-            class="attachment-preview-modal__image"
             alt=""
+            style="
+              display:block;
+
+              max-width:100%;
+              max-height:100%;
+
+              width:auto;
+              height:auto;
+
+              object-fit:contain;
+
+              border-radius:8px;
+
+              box-shadow:
+                0 10px 35px
+                rgba(0,0,0,0.4);
+            "
           >
+
 
           <div
             id="attachmentPreviewLoading"
-            class="attachment-preview-modal__loading"
+            style="
+              position:absolute;
+              left:50%;
+              top:50%;
+
+              color:#ffffff;
+
+              font-size:14px;
+              font-weight:700;
+
+              transform:
+                translate(-50%, -50%);
+            "
           >
             이미지를 불러오는 중입니다.
           </div>
+
         </div>
 
 
         <button
           type="button"
-          class="
-            attachment-preview-modal__nav
-            is-next
-          "
           id="attachmentPreviewNextButton"
           aria-label="다음 이미지"
+          style="
+            position:absolute;
+            right:16px;
+            top:50%;
+            z-index:3;
+
+            display:flex;
+
+            width:48px;
+            height:64px;
+
+            align-items:center;
+            justify-content:center;
+
+            padding:0;
+
+            color:#ffffff;
+            background:rgba(15,23,42,0.76);
+
+            border:1px solid
+              rgba(255,255,255,0.18);
+            border-radius:14px;
+
+            font-size:40px;
+            line-height:1;
+
+            cursor:pointer;
+
+            transform:translateY(-50%);
+          "
         >
           ›
         </button>
+
       </div>
 
 
       <footer
-        class="attachment-preview-modal__footer"
+        style="
+          display:flex;
+          flex:0 0 auto;
+
+          min-height:48px;
+
+          align-items:center;
+          justify-content:center;
+
+          padding:0 18px;
+
+          color:#d9e4f4;
+          background:#172033;
+
+          border-top:
+            1px solid
+            rgba(255,255,255,0.12);
+
+          font-size:13px;
+          font-weight:700;
+        "
       >
+
         <span
           id="attachmentPreviewFileName"
-          class="attachment-preview-modal__file-name"
+          style="
+            display:block;
+
+            max-width:100%;
+
+            overflow:hidden;
+
+            text-overflow:ellipsis;
+            white-space:nowrap;
+          "
         >
         </span>
+
       </footer>
 
     </section>
@@ -17001,7 +17277,9 @@ function ensureAttachmentPreviewModal() {
     )
     ?.addEventListener(
       "click",
-      () => {
+      event => {
+        event.stopPropagation();
+
         moveAttachmentPreview(
           -1
         );
@@ -17015,7 +17293,9 @@ function ensureAttachmentPreviewModal() {
     )
     ?.addEventListener(
       "click",
-      () => {
+      event => {
+        event.stopPropagation();
+
         moveAttachmentPreview(
           1
         );
@@ -17041,13 +17321,13 @@ function ensureAttachmentPreviewModal() {
       if (
         loadingElement
       ) {
-        loadingElement.hidden =
-          true;
+        loadingElement.style.display =
+          "none";
       }
 
 
-      previewImage.hidden =
-        false;
+      previewImage.style.display =
+        "block";
     }
   );
 
@@ -17064,16 +17344,16 @@ function ensureAttachmentPreviewModal() {
       if (
         loadingElement
       ) {
-        loadingElement.hidden =
-          false;
+        loadingElement.style.display =
+          "block";
 
         loadingElement.textContent =
           "이미지를 불러오지 못했습니다.";
       }
 
 
-      previewImage.hidden =
-        true;
+      previewImage.style.display =
+        "none";
     }
   );
 
