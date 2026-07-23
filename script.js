@@ -18796,6 +18796,76 @@ document.addEventListener(
 );
 
 /* =========================================================
+  업무일지 상세 첨부파일 클릭 이벤트
+========================================================= */
+
+function bindDetailAttachmentPreviewEvents(
+  log,
+  normalizedAttachments
+) {
+  if (
+    !elements.logDetailContent
+  ) {
+    return;
+  }
+
+
+  const attachments =
+    Array.isArray(
+      normalizedAttachments
+    )
+      ? normalizedAttachments
+      : [];
+
+
+  elements.logDetailContent
+    .querySelectorAll(
+      "[data-detail-attachment-index]"
+    )
+    .forEach(
+      button => {
+        button.addEventListener(
+          "click",
+          event => {
+            event.preventDefault();
+
+            event.stopPropagation();
+
+
+            const attachmentIndex =
+              Number(
+                button.dataset
+                  .detailAttachmentIndex
+              );
+
+
+            if (
+              !Number.isInteger(
+                attachmentIndex
+              ) ||
+              !attachments[
+                attachmentIndex
+              ]
+            ) {
+              showToast(
+                "첨부파일 정보를 확인할 수 없습니다."
+              );
+
+              return;
+            }
+
+
+            openAttachmentPreview(
+              attachments,
+              attachmentIndex
+            );
+          }
+        );
+      }
+    );
+}
+
+/* =========================================================
   업무일지 상세보기 최종본
 
   핵심 구조
