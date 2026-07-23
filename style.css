@@ -16211,3 +16211,248 @@ button.diary-attachment-button:focus-visible {
 
   border-top: 0 !important;
 }
+
+/* =========================================================
+  비고 목록 최종 디자인
+
+  기본 화면:
+  번호 | 내용
+
+  편집 화면:
+  선택 | 번호 + 내용 | 수정·삭제
+========================================================= */
+
+/*
+  비고는 시간·내용 테이블이 아니라
+  번호형 문서 목록으로 표시한다.
+*/
+#noteEntryTableBody {
+  width: 100%;
+}
+
+
+/*
+  기존 시간·내용 헤더 제거
+
+  비고에는 시간 칸이 필요하지 않다.
+*/
+#noteEntryTableBody
+  :is(td, th) {
+  text-align: left;
+}
+
+
+/*
+  비고 tbody가 들어 있는 테이블의
+  기존 머리글을 숨긴다.
+*/
+table:has(#noteEntryTableBody) thead {
+  display: none;
+}
+
+
+/*
+  비고 테이블 전체
+*/
+table:has(#noteEntryTableBody) {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border: 1px solid #d8e0ea;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+
+/*
+  비고 항목 사이 구분선
+*/
+#noteEntryTableBody tr:not(:last-child)
+  .log-entry-unified-cell {
+  border-bottom: 1px solid #e7ecf2;
+}
+
+
+/*
+  비고 한 행
+*/
+#noteEntryTableBody
+  .log-entry-row-shell {
+  min-height: 48px;
+  padding: 11px 14px !important;
+  background: #ffffff;
+}
+
+
+/*
+  마우스를 올렸을 때만 아주 옅게 강조
+*/
+#noteEntryTableBody tr:hover
+  .log-entry-row-shell {
+  background: #f8fafc;
+}
+
+
+/*
+  비고 번호 + 내용 정렬
+*/
+#noteEntryTableBody
+  .log-entry-document-line.is-remark-line {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+
+/*
+  비고 번호
+*/
+#noteEntryTableBody
+  .log-entry-document-number {
+  display: block;
+  width: 30px;
+  min-width: 30px;
+  margin: 0;
+  padding: 0;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.65;
+  text-align: right;
+}
+
+
+/*
+  비고 본문 전체 영역
+*/
+#noteEntryTableBody
+  .log-entry-document-body {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+
+/*
+  비고 내용
+
+  저장된 줄바꿈은 유지하고,
+  긴 문장은 영역 끝에서 자연스럽게 내려간다.
+*/
+#noteEntryTableBody
+  .log-entry-document-content-text.is-remark-content {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  color: #263548;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.65;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/*
+  비고에는 시간 영역을 표시하지 않는다.
+*/
+#noteEntryTableBody
+  .log-entry-document-time {
+  display: none !important;
+}
+
+
+/*
+  평상시에는 체크박스와 관리 버튼을 숨긴다.
+*/
+.log-entry-list-panel:not(.is-edit-mode)
+  #noteEntryTableBody
+  .log-entry-row-select,
+.log-entry-list-panel:not(.is-edit-mode)
+  #noteEntryTableBody
+  .log-entry-row-actions {
+  display: none !important;
+}
+
+
+/*
+  편집 모드
+  체크박스 | 내용 | 관리 버튼
+*/
+.log-entry-list-panel.is-edit-mode
+  #noteEntryTableBody
+  .log-entry-row-shell {
+  grid-template-columns:
+    32px minmax(0, 1fr) 78px !important;
+  column-gap: 8px !important;
+}
+
+
+/*
+  비고 빈 화면
+*/
+#noteEntryTableBody
+  .log-entry-empty-row td {
+  padding: 24px 16px;
+  color: #7a8797;
+  font-size: 13px;
+  text-align: center !important;
+  background: #fbfcfe;
+}
+
+
+/* =========================================================
+  모바일 비고 목록
+========================================================= */
+
+@media (
+  max-width: 768px
+) {
+  #noteEntryTableBody
+    .log-entry-row-shell {
+    padding: 10px 11px !important;
+  }
+
+
+  #noteEntryTableBody
+    .log-entry-document-line.is-remark-line {
+    grid-template-columns:
+      25px minmax(0, 1fr);
+    gap: 5px;
+  }
+
+
+  #noteEntryTableBody
+    .log-entry-document-number {
+    width: 25px;
+    min-width: 25px;
+    font-size: 13px;
+  }
+
+
+  #noteEntryTableBody
+    .log-entry-document-content-text.is-remark-content {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+
+  .log-entry-list-panel.is-edit-mode
+    #noteEntryTableBody
+    .log-entry-row-shell {
+    grid-template-columns:
+      28px minmax(0, 1fr) 72px !important;
+    column-gap: 5px !important;
+  }
+}

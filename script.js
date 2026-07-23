@@ -5378,20 +5378,20 @@ function convertLegacyDiaryToLog(
   핵심 규칙:
   - 번호가 있는 줄만 새로운 항목으로 시작한다.
   - 번호가 없는 줄은 바로 위 항목의 후속 내용으로 붙인다.
-  - 후속 줄 앞에 시간이 있어도 별도 항목으로 분리하지 않는다.
-  - 원본 줄바꿈을 유지한다.
+  - 14:10, 17:52 같은 시간은 번호로 인식하지 않는다.
+  - 원본에 저장된 항목 순서를 그대로 유지한다.
 
-  예:
+  지원 번호:
+  1. 내용
+  2) 내용
+  3 - 내용
+  ① 내용
 
-  10. 14:15 Bio Screw Feeder 점검
-      17:52 Screw측 이물질 제거
+  지원하지 않는 번호:
+  14: 내용
 
-  결과:
-  {
-    time: "14:15",
-    content:
-      "Bio Screw Feeder 점검\n17:52 Screw측 이물질 제거"
-  }
+  이유:
+  14:10 같은 시간을 항목 번호로 잘못 판단할 수 있기 때문이다.
 ========================================================= */
 
 function parseLegacyDiaryContentLines(
@@ -5418,17 +5418,16 @@ function parseLegacyDiaryContentLines(
 
 
   /*
-    새 항목을 시작하는 번호 형식
+    숫자 뒤에는 다음 기호만 번호로 인정한다.
 
-    지원:
-    1. 내용
-    2) 내용
-    3 - 내용
-    4: 내용
-    ① 내용
+    .
+    )
+    -
+
+    콜론(:)은 절대 포함하지 않는다.
   */
   const numberedLinePattern =
-    /^\s*(?:(\d+)\s*[.)\-:]\s*|([①②③④⑤⑥⑦⑧⑨⑩])\s*)(.*)$/;
+    /^\s*(?:\d+\s*(?:[.)]|-\s+)\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*)(.*)$/;
 
 
   sourceLines.forEach(
@@ -5447,7 +5446,7 @@ function parseLegacyDiaryContentLines(
 
 
       /*
-        빈 줄은 항목으로 생성하지 않는다.
+        빈 줄은 건너뛴다.
       */
       if (
         !originalLine
@@ -5465,7 +5464,7 @@ function parseLegacyDiaryContentLines(
       /* ===================================================
         번호가 있는 줄
 
-        새로운 업무 항목을 시작한다.
+        새로운 항목 시작
       ==================================================== */
 
       if (
@@ -5473,7 +5472,7 @@ function parseLegacyDiaryContentLines(
       ) {
         const numberedContent =
           String(
-            numberedMatch[3] ||
+            numberedMatch[1] ||
             ""
           ).trim();
 
@@ -5493,6 +5492,8 @@ function parseLegacyDiaryContentLines(
 
         /*
           번호 다음에 시간과 내용이 모두 있는 경우
+
+          4. 08:30 작업 내용
         */
         if (
           parsedTimeExpression.timeText &&
@@ -5518,8 +5519,7 @@ function parseLegacyDiaryContentLines(
 
 
         /*
-          시간만 있고 내용이 없는 경우에도
-          원문 유실을 방지하기 위해 내용으로 유지한다.
+          시간 표현이 없는 번호 항목
         */
         parsedEntries.push({
           time:
@@ -5537,11 +5537,14 @@ function parseLegacyDiaryContentLines(
       /* ===================================================
         번호가 없는 줄
 
-        바로 위 항목의 후속 설명으로 붙인다.
+        무조건 바로 위 항목의 후속 내용으로 연결한다.
 
-        중요:
-        줄 앞에 17:52 같은 시간이 있어도
-        새로운 항목으로 만들지 않는다.
+        예:
+        4. 08:30 하역 라인 막힘 발생
+           14:10 Booster Air Line 점검
+
+        결과:
+        하나의 4번 항목으로 유지
       ==================================================== */
 
       if (
@@ -5571,9 +5574,9 @@ function parseLegacyDiaryContentLines(
 
 
       /* ===================================================
-        첫 줄부터 번호가 없는 예외 자료
+        첫 번째 줄부터 번호가 없는 예외 자료
 
-        첫 번째 항목으로 생성한다.
+        데이터 유실 방지를 위해 첫 항목으로 생성한다.
       ==================================================== */
 
       const parsedTimeExpression =
@@ -14541,21 +14544,22 @@ function renderLogEntryTable() {
 }
 
 /* =====================================================
-  인수인계 한 줄 출력
+  업무일지 한 줄 출력 최종본
+
+  TM 발행:
+  1. 내용
 
   인계사항:
   1. 07:15 내용
   2. 07:15, 10:55 내용
 
-  시간 없는 인계사항:
+  비고:
   1. 내용
 
-  TM 발행:
-  1. 내용
+  비고는 시간값이 저장되어 있더라도
+  화면에는 시간을 별도 칸으로 표시하지 않는다.
 
-  중요:
-  템플릿 문자열 내부 공백이 화면에 출력되지 않도록
-  시간과 내용을 하나의 연속된 HTML 문자열로 만든다.
+  여러 줄 내용은 같은 번호 안에서 줄바꿈을 유지한다.
 ===================================================== */
 
 const createCompactLineHtml = (
@@ -14569,9 +14573,22 @@ const createCompactLineHtml = (
   } = options;
 
 
+  const category =
+    String(
+      entry?.category ||
+      ""
+    ).trim();
+
+
+  const isRemark =
+    category ===
+    "비고";
+
+
   const timeText =
     String(
-      entry.time || ""
+      entry?.time ||
+      ""
     )
       .trim()
       .replace(
@@ -14582,11 +14599,25 @@ const createCompactLineHtml = (
 
   const contentText =
     String(
-      entry.content || "-"
-    ).trim();
+      entry?.content ||
+      "-"
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .trim();
 
 
+  /*
+    비고에는 시간 표시를 사용하지 않는다.
+  */
   const hasTime =
+    !isRemark &&
     showTime &&
     Boolean(
       timeText
@@ -14595,44 +14626,68 @@ const createCompactLineHtml = (
 
   const timeHtml =
     hasTime
-      ? `<strong class="log-entry-document-time">${escapeHtml(
+      ? `
+        <strong
+          class="log-entry-document-time"
+        >${escapeHtml(
           timeText
-        )}</strong>`
+        )}</strong>
+      `
       : "";
 
 
-  const contentHtml =
-    `<span class="log-entry-document-content-text">${escapeHtml(
+  const contentHtml = `
+    <span
+      class="
+        log-entry-document-content-text
+        ${
+          isRemark
+            ? "is-remark-content"
+            : ""
+        }
+      "
+    >${escapeHtml(
       contentText
-    )}</span>`;
-
-
-  const tagHtml =
-    createTagHtml(
-      entry,
-      originalIndex
-    );
+    )}</span>
+  `;
 
 
   /*
-    timeHtml + contentHtml 사이에는
-    CSS margin으로만 간격을 준다.
-
-    템플릿 문자열의 줄바꿈·들여쓰기를
-    실제 출력 공백으로 사용하지 않는다.
+    비고에서는 TAG를 출력하지 않는다.
   */
-  const bodyHtml =
-    `${timeHtml}${contentHtml}${tagHtml}`;
+  const tagHtml =
+    isRemark
+      ? ""
+      : createTagHtml(
+          entry,
+          originalIndex
+        );
 
 
   return `
-    <div class="log-entry-document-line">
+    <div
+      class="
+        log-entry-document-line
+        ${
+          isRemark
+            ? "is-remark-line"
+            : ""
+        }
+      "
+    >
 
-      <strong class="log-entry-document-number">
+      <strong
+        class="log-entry-document-number"
+      >
         ${displayNumber}.
       </strong>
 
-      <div class="log-entry-document-body">${bodyHtml}</div>
+
+      <div
+        class="log-entry-document-body"
+      >
+        ${timeHtml}${contentHtml}${tagHtml}
+      </div>
 
     </div>
   `;
