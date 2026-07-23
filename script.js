@@ -11203,7 +11203,7 @@ let editingOperationStatusItems = [];
 
 
 /* =========================================================
-  운전현황 편집 UI 요소 생성
+  운전현황 편집 UI 요소 생성 최종본
 ========================================================= */
 
 function ensureOperationStatusItemsEditor() {
@@ -11251,7 +11251,7 @@ function ensureOperationStatusItemsEditor() {
         </strong>
 
         <p>
-          설비마다 운전 상태와 내용을 각각 설정할 수 있습니다.
+          설비를 선택하고 현재 운전 상태를 입력하세요.
         </p>
       </div>
 
@@ -11260,7 +11260,7 @@ function ensureOperationStatusItemsEditor() {
         id="addOperationStatusItemButton"
         class="operation-status-item-add-button"
       >
-        ＋ 상태 추가
+        ＋ 설비 추가
       </button>
     </div>
 
@@ -11272,9 +11272,6 @@ function ensureOperationStatusItemsEditor() {
   `;
 
 
-  /*
-    기존 상태 버튼과 textarea 앞에 삽입한다.
-  */
   const firstEditableElement =
     elements.operationStatusEditor
       .querySelector(
@@ -11307,8 +11304,7 @@ function ensureOperationStatusItemsEditor() {
 
 
   /*
-    기존 공통 상태 UI와 textarea는
-    호환용 값 보관 용도로만 사용한다.
+    기존 공통 상태 UI는 숨김 처리한다.
   */
   if (
     elements.operationStatusType
@@ -11348,9 +11344,6 @@ function ensureOperationStatusItemsEditor() {
   }
 
 
-  /*
-    설비 추가
-  */
   editorContainer
     .querySelector(
       "#addOperationStatusItemButton"
@@ -11362,7 +11355,7 @@ function ensureOperationStatusItemsEditor() {
 
 
   /*
-    상태 변경·입력·삭제 이벤트
+    상태 버튼·삭제
   */
   editorContainer.addEventListener(
     "click",
@@ -11370,9 +11363,21 @@ function ensureOperationStatusItemsEditor() {
   );
 
 
+  /*
+    내용 입력
+  */
   editorContainer.addEventListener(
     "input",
     handleOperationStatusItemsEditorInput
+  );
+
+
+  /*
+    설비 선택 변경
+  */
+  editorContainer.addEventListener(
+    "change",
+    handleOperationStatusItemsEditorChange
   );
 
 
@@ -11380,24 +11385,134 @@ function ensureOperationStatusItemsEditor() {
 }
 
 /* =========================================================
+  보직별 운전현황 설비 선택 목록
+
+  TGO:
+  - 터빈
+  - 3호기 보조보일러
+  - 4호기 보조보일러
+  - 직접입력
+
+  BCO1:
+  - 1호기 주보일러
+  - 직접입력
+
+  BCO2:
+  - 2호기 주보일러
+  - 직접입력
+========================================================= */
+
+function getOperationStatusEquipmentOptions(
+  role
+) {
+  const normalizedRole =
+    normalizeMemberLogRole(
+      role
+    );
+
+
+  const equipmentMap = {
+    TGO: [
+      "터빈",
+      "3호기 보조보일러",
+      "4호기 보조보일러"
+    ],
+
+    BCO1: [
+      "1호기 주보일러"
+    ],
+
+    BCO2: [
+      "2호기 주보일러"
+    ]
+  };
+
+
+  return (
+    equipmentMap[
+      normalizedRole
+    ] ||
+    []
+  );
+}
+
+/* =========================================================
+  직접입력 설비 항목 여부
+
+  직접입력 항목은:
+  - 상태 선택 버튼을 표시하지 않는다.
+  - 자유입력 내용만 사용한다.
+========================================================= */
+
+function isCustomOperationStatusItem(
+  item
+) {
+  return (
+    item?.isCustom === true ||
+    String(
+      item?.equipmentMode ||
+      ""
+    ).trim() ===
+      "custom"
+  );
+}
+
+/* =========================================================
   설비별 운전현황 편집 행 최종본
 
-  PC 한 줄 구조:
-  번호 | 설비명 | 상태 선택 | 운전현황 내용 | 삭제
+  고정 설비:
+  설비 선택 | 상태 선택 | 운전현황 내용 | 삭제
 
-  내부 저장값 abnormal은 유지하지만
-  화면에는 "보존"으로 표시한다.
+  직접입력:
+  설비 선택 | 자유 내용 | 삭제
+  - 상태 버튼 없음
+  - 별도 설비명 입력칸 없음
 ========================================================= */
 
 function createOperationStatusEditorItemHtml(
   item,
   itemIndex
 ) {
+  const currentRole =
+    getCurrentOperationStatusRole();
+
+
   const normalizedItem =
     normalizeOperationStatusItem(
-      item,
+      {
+        ...item,
+
+        role:
+          item?.role ||
+          currentRole,
+
+        sourceRole:
+          item?.sourceRole ||
+          currentRole
+      },
       itemIndex
     );
+
+
+  const equipmentOptions =
+    getOperationStatusEquipmentOptions(
+      currentRole
+    );
+
+
+  const currentName =
+    String(
+      item?.name ||
+      normalizedItem.name ||
+      ""
+    ).trim();
+
+
+  const isCustom =
+    currentName ===
+      "직접입력" ||
+    item?.equipmentMode ===
+      "custom";
 
 
   const statusTypes = [
@@ -11446,6 +11561,11 @@ function createOperationStatusEditorItemHtml(
         is-${escapeHtml(
           normalizedItem.type
         )}
+        ${
+          isCustom
+            ? "is-custom-entry"
+            : ""
+        }
       "
       data-operation-item-index="${itemIndex}"
     >
@@ -11470,78 +11590,116 @@ function createOperationStatusEditorItemHtml(
           설비명
         </span>
 
-        <input
-          type="text"
-          class="operation-status-item-name-input"
-          value="${escapeHtml(
-            normalizedItem.name
-          )}"
-          placeholder="설비명 입력"
+
+        <select
+          class="operation-status-item-equipment-select"
           data-operation-item-index="${itemIndex}"
-          aria-label="${itemIndex + 1}번 설비명"
+          aria-label="${itemIndex + 1}번 설비 선택"
         >
-      </label>
-
-
-      <div
-        class="
-          operation-status-item-field
-          operation-status-item-field--status
-        "
-      >
-        <span
-          class="operation-status-item-field__label"
-        >
-          운전 상태
-        </span>
-
-        <div
-          class="operation-status-item-type-buttons"
-          role="group"
-          aria-label="${itemIndex + 1}번 운전 상태"
-        >
-          ${statusTypes
+          ${equipmentOptions
             .map(
-              (
-                statusOption
-              ) => {
-                const isSelected =
-                  normalizedItem.type ===
-                  statusOption.type;
-
-
+              equipmentName => {
                 return `
-                  <button
-                    type="button"
-                    class="
-                      operation-status-item-type-button
-                      is-${escapeHtml(
-                        statusOption.type
-                      )}
-                      ${
-                        isSelected
-                          ? "is-selected"
-                          : ""
-                      }
-                    "
-                    data-operation-item-type="${escapeHtml(
-                      statusOption.type
+                  <option
+                    value="${escapeHtml(
+                      equipmentName
                     )}"
-                    data-operation-item-index="${itemIndex}"
-                    aria-pressed="${String(
-                      isSelected
-                    )}"
+                    ${
+                      !isCustom &&
+                      currentName ===
+                        equipmentName
+                        ? "selected"
+                        : ""
+                    }
                   >
                     ${escapeHtml(
-                      statusOption.label
+                      equipmentName
                     )}
-                  </button>
+                  </option>
                 `;
               }
             )
             .join("")}
-        </div>
-      </div>
+
+
+          <option
+            value="직접입력"
+            ${
+              isCustom
+                ? "selected"
+                : ""
+            }
+          >
+            직접입력
+          </option>
+        </select>
+      </label>
+
+
+      ${
+        isCustom
+          ? ""
+          : `
+            <div
+              class="
+                operation-status-item-field
+                operation-status-item-field--status
+              "
+            >
+              <span
+                class="operation-status-item-field__label"
+              >
+                운전 상태
+              </span>
+
+
+              <div
+                class="operation-status-item-type-buttons"
+                role="group"
+                aria-label="${itemIndex + 1}번 운전 상태"
+              >
+                ${statusTypes
+                  .map(
+                    statusOption => {
+                      const isSelected =
+                        normalizedItem.type ===
+                        statusOption.type;
+
+
+                      return `
+                        <button
+                          type="button"
+                          class="
+                            operation-status-item-type-button
+                            is-${escapeHtml(
+                              statusOption.type
+                            )}
+                            ${
+                              isSelected
+                                ? "is-selected"
+                                : ""
+                            }
+                          "
+                          data-operation-item-type="${escapeHtml(
+                            statusOption.type
+                          )}"
+                          data-operation-item-index="${itemIndex}"
+                          aria-pressed="${String(
+                            isSelected
+                          )}"
+                        >
+                          ${escapeHtml(
+                            statusOption.label
+                          )}
+                        </button>
+                      `;
+                    }
+                  )
+                  .join("")}
+              </div>
+            </div>
+          `
+      }
 
 
       <label
@@ -11553,17 +11711,29 @@ function createOperationStatusEditorItemHtml(
         <span
           class="operation-status-item-field__label"
         >
-          운전현황 내용
+          ${
+            isCustom
+              ? "직접 입력"
+              : "운전현황 내용"
+          }
         </span>
+
 
         <textarea
           class="operation-status-item-content-input"
           rows="1"
-          placeholder="현재 설비 상태 입력"
+          placeholder="${
+            isCustom
+              ? "내용을 자유롭게 입력하세요."
+              : "현재 설비 상태 입력"
+          }"
           data-operation-item-index="${itemIndex}"
           aria-label="${itemIndex + 1}번 운전현황 내용"
         >${escapeHtml(
-          normalizedItem.content
+          normalizedItem.content ===
+            "상태 내용 없음"
+            ? ""
+            : normalizedItem.content
         )}</textarea>
       </label>
 
@@ -11572,7 +11742,7 @@ function createOperationStatusEditorItemHtml(
         type="button"
         class="operation-status-item-delete-button"
         data-operation-item-delete="${itemIndex}"
-        aria-label="${itemIndex + 1}번 설비 삭제"
+        aria-label="${itemIndex + 1}번 항목 삭제"
       >
         삭제
       </button>
@@ -11635,18 +11805,105 @@ function renderOperationStatusItemsEditor() {
       .join("");
 }
 
+/* =========================================================
+  다음 추가 설비 자동 추천
+
+  TGO:
+  터빈 → 3호기 보조보일러 → 4호기 보조보일러 → 직접입력
+
+  BCO1:
+  1호기 주보일러 → 직접입력
+
+  BCO2:
+  2호기 주보일러 → 직접입력
+========================================================= */
+
+function getNextOperationStatusEquipmentName(
+  role
+) {
+  const normalizedRole =
+    normalizeMemberLogRole(
+      role
+    );
+
+
+  const equipmentOptions =
+    getOperationStatusEquipmentOptions(
+      normalizedRole
+    );
+
+
+  const usedEquipmentNames =
+    editingOperationStatusItems
+      .map(
+        item => {
+          return String(
+            item?.name ||
+            ""
+          ).trim();
+        }
+      );
+
+
+  const nextEquipmentName =
+    equipmentOptions.find(
+      equipmentName => {
+        return !usedEquipmentNames.includes(
+          equipmentName
+        );
+      }
+    );
+
+
+  /*
+    지정된 설비를 모두 사용했으면
+    직접입력 항목으로 추가한다.
+  */
+  return (
+    nextEquipmentName ||
+    "직접입력"
+  );
+}
 
 /* =========================================================
   설비 운전현황 항목 추가
+
+  사용하지 않은 다음 설비를 자동 선택한다.
 ========================================================= */
 
 function addOperationStatusEditorItem() {
+  const currentRole =
+    getCurrentOperationStatusRole();
+
+
+  const nextEquipmentName =
+    getNextOperationStatusEquipmentName(
+      currentRole
+    );
+
+
+  const isCustom =
+    nextEquipmentName ===
+    "직접입력";
+
+
   editingOperationStatusItems.push({
     id:
       createOperationStatusItemId(),
 
+    role:
+      currentRole,
+
+    sourceRole:
+      currentRole,
+
     name:
-      "",
+      nextEquipmentName,
+
+    equipmentMode:
+      isCustom
+        ? "custom"
+        : "equipment",
 
     type:
       "normal",
@@ -11672,8 +11929,19 @@ function addOperationStatusEditorItem() {
 
   window.setTimeout(
     () => {
+      if (
+        isCustom
+      ) {
+        document.querySelector(
+          `.operation-status-item-content-input[data-operation-item-index="${newItemIndex}"]`
+        )?.focus();
+
+        return;
+      }
+
+
       document.querySelector(
-        `.operation-status-item-name-input[data-operation-item-index="${newItemIndex}"]`
+        `.operation-status-item-equipment-select[data-operation-item-index="${newItemIndex}"]`
       )?.focus();
     },
     0
@@ -11904,9 +12172,115 @@ function handleOperationStatusItemsEditorClick(
   );
 }
 
+/* =========================================================
+  설비 선택 변경 처리
+
+  직접입력 선택:
+  - 상태 버튼 제거
+  - 내용 입력칸만 표시
+
+  고정 설비 선택:
+  - 상태 버튼 표시
+========================================================= */
+
+function handleOperationStatusItemsEditorChange(
+  event
+) {
+  const select =
+    event.target.closest(
+      ".operation-status-item-equipment-select"
+    );
+
+
+  if (
+    !select
+  ) {
+    return;
+  }
+
+
+  const itemIndex =
+    Number(
+      select.dataset
+        .operationItemIndex
+    );
+
+
+  if (
+    !Number.isInteger(
+      itemIndex
+    ) ||
+    !editingOperationStatusItems[
+      itemIndex
+    ]
+  ) {
+    return;
+  }
+
+
+  const selectedEquipmentName =
+    String(
+      select.value ||
+      ""
+    ).trim();
+
+
+  const isCustom =
+    selectedEquipmentName ===
+    "직접입력";
+
+
+  editingOperationStatusItems[
+    itemIndex
+  ] = {
+    ...editingOperationStatusItems[
+      itemIndex
+    ],
+
+    name:
+      selectedEquipmentName,
+
+    equipmentMode:
+      isCustom
+        ? "custom"
+        : "equipment",
+
+    /*
+      직접입력은 운전 상태를 사용하지 않지만
+      기존 대표 상태 계산 오류 방지를 위해 normal로 저장한다.
+    */
+    type:
+      isCustom
+        ? "normal"
+        : normalizeOperationStatusType(
+            editingOperationStatusItems[
+              itemIndex
+            ].type
+          )
+  };
+
+
+  /*
+    해당 행의 상태 영역을 즉시 바꾸기 위해
+    목록 전체를 다시 그린다.
+  */
+  renderOperationStatusItemsEditor();
+
+
+  window.setTimeout(
+    () => {
+      document.querySelector(
+        `.operation-status-item-content-input[data-operation-item-index="${itemIndex}"]`
+      )?.focus();
+    },
+    0
+  );
+}
 
 /* =========================================================
-  설비명·내용 입력 동기화
+  운전현황 내용 입력 동기화
+
+  설비명은 select change 이벤트에서 처리한다.
 ========================================================= */
 
 function handleOperationStatusItemsEditorInput(
@@ -11931,20 +12305,6 @@ function handleOperationStatusItemsEditorInput(
       itemIndex
     ]
   ) {
-    return;
-  }
-
-
-  if (
-    input.classList.contains(
-      "operation-status-item-name-input"
-    )
-  ) {
-    editingOperationStatusItems[
-      itemIndex
-    ].name =
-      input.value;
-
     return;
   }
 
