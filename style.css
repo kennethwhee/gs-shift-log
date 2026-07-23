@@ -17392,3 +17392,101 @@ table:has(#noteEntryTableBody) {
     font-size: 8.5px;
   }
 }
+
+/* =========================================================
+  설비별 운전현황 상태 버튼
+========================================================= */
+
+.operation-status-item-type-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.operation-status-item-type-button {
+  min-width: 66px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid #d7dde5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #596579;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.operation-status-item-type-button:hover {
+  border-color: #9aa8ba;
+  background: #f7f9fc;
+}
+
+.operation-status-item-type-button:active {
+  transform: translateY(1px);
+}
+
+
+/* 정상운전 선택 */
+
+.operation-status-item-type-button.is-normal.is-selected {
+  border-color: #16875f;
+  background: #16875f;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(22, 135, 95, 0.2);
+}
+
+
+/* 기동 선택 */
+
+.operation-status-item-type-button.is-starting.is-selected {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
+}
+
+
+/* 정지 선택 */
+
+.operation-status-item-type-button.is-stopped.is-selected {
+  border-color: #64748b;
+  background: #64748b;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(100, 116, 139, 0.2);
+}
+
+
+/* 이상 선택 */
+
+.operation-status-item-type-button.is-abnormal.is-selected {
+  border-color: #d97706;
+  background: #d97706;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(217, 119, 6, 0.2);
+}
+
+
+/* 비상 선택 */
+
+.operation-status-item-type-button.is-emergency.is-selected {
+  border-color: #dc2626;
+  background: #dc2626;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(220, 38, 38, 0.2);
+}
+
+
+/* 키보드 포커스 */
+
+.operation-status-item-type-button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.22);
+  outline-offset: 2px;
+}
