@@ -9891,6 +9891,107 @@ function createLeaderOperationStatusRowHtml(
 }
 
 /* =========================================================
+  현재 운전현황 설비별 한 줄 생성
+
+  표시:
+  상태 | 설비명 : 내용
+========================================================= */
+
+function createOperationStatusDisplayRowHtml(
+  item,
+  itemIndex
+) {
+  const normalizedItem =
+    normalizeOperationStatusItem(
+      item,
+      itemIndex
+    );
+
+
+  const itemType =
+    normalizeOperationStatusType(
+      normalizedItem.type
+    );
+
+
+  const itemName =
+    String(
+      normalizedItem.name ||
+      `설비 ${itemIndex + 1}`
+    ).trim();
+
+
+  const itemContent =
+    String(
+      normalizedItem.content ||
+      "등록된 내용 없음"
+    ).trim();
+
+
+  return `
+    <div
+      class="
+        operation-status-compact-line
+        is-${escapeHtml(
+          itemType
+        )}
+      "
+    >
+
+      <span
+        class="
+          operation-status-compact-line__badge
+          is-${escapeHtml(
+            itemType
+          )}
+        "
+      >
+        ${escapeHtml(
+          getOperationStatusLabel(
+            itemType
+          )
+        )}
+      </span>
+
+
+      <span
+        class="operation-status-compact-line__divider"
+        aria-hidden="true"
+      >
+        |
+      </span>
+
+
+      <strong
+        class="operation-status-compact-line__name"
+      >
+        ${escapeHtml(
+          itemName
+        )}
+      </strong>
+
+
+      <span
+        class="operation-status-compact-line__colon"
+        aria-hidden="true"
+      >
+        :
+      </span>
+
+
+      <span
+        class="operation-status-compact-line__content"
+      >
+        ${escapeHtml(
+          itemContent
+        )}
+      </span>
+
+    </div>
+  `;
+}
+
+/* =========================================================
   운전현황 카드 렌더링 최종본
 
   일반 보직:
