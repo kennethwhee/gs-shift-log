@@ -5373,13 +5373,25 @@ function convertLegacyDiaryToLog(
 }
 
 /* =========================================================
-  기존 업무일지 내용 줄 분석
+  기존 업무일지 내용 줄 분석 최종본
 
-  신규 업무 입력과 동일하게 지원:
+  핵심 규칙:
+  - 번호가 있는 줄만 새로운 항목으로 시작한다.
+  - 번호가 없는 줄은 바로 위 항목의 후속 내용으로 붙인다.
+  - 후속 줄 앞에 시간이 있어도 별도 항목으로 분리하지 않는다.
+  - 원본 줄바꿈을 유지한다.
 
-  09:06, 14:19, 16:15 내용
-  08:37~09:46 내용
-  0837~0946 내용
+  예:
+
+  10. 14:15 Bio Screw Feeder 점검
+      17:52 Screw측 이물질 제거
+
+  결과:
+  {
+    time: "14:15",
+    content:
+      "Bio Screw Feeder 점검\n17:52 Screw측 이물질 제거"
+  }
 ========================================================= */
 
 function parseLegacyDiaryContentLines(
@@ -5405,55 +5417,136 @@ function parseLegacyDiaryContentLines(
   const parsedEntries = [];
 
 
+  /*
+    새 항목을 시작하는 번호 형식
+
+    지원:
+    1. 내용
+    2) 내용
+    3 - 내용
+    4: 내용
+    ① 내용
+  */
+  const numberedLinePattern =
+    /^\s*(?:(\d+)\s*[.)\-:]\s*|([①②③④⑤⑥⑦⑧⑨⑩])\s*)(.*)$/;
+
+
   sourceLines.forEach(
-    (sourceLine) => {
-      let line =
+    (
+      sourceLine
+    ) => {
+      const originalLine =
         String(
           sourceLine || ""
-        ).trim();
-
-
-      if (!line) {
-        return;
-      }
-
-
-      /*
-        사용자가 직접 입력한 줄 번호 제거
-
-        1. 내용
-        2) 내용
-        3 - 내용
-        ④ 내용
-      */
-      line =
-        line.replace(
-          /^(?:\d+\s*[.)\-:]\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*)/,
-          ""
         )
-        .trim();
+          .replace(
+            /\t/g,
+            " "
+          )
+          .trim();
 
 
-      if (!line) {
+      /*
+        빈 줄은 항목으로 생성하지 않는다.
+      */
+      if (
+        !originalLine
+      ) {
         return;
       }
 
 
-      /*
-        시간 없는 보충 설명인지 먼저 확인한다.
-
-        - 현장 확인 후 재기동
-        → 바로 위 업무 내용에 이어 붙임
-      */
-      const isContinuationLine =
-        /^[-–—·※▶▷→>]/.test(
-          line
+      const numberedMatch =
+        originalLine.match(
+          numberedLinePattern
         );
 
 
+      /* ===================================================
+        번호가 있는 줄
+
+        새로운 업무 항목을 시작한다.
+      ==================================================== */
+
       if (
-        isContinuationLine &&
-        parsedEntries.length
+        numberedMatch
+      ) {
+        const numberedContent =
+          String(
+            numberedMatch[3] ||
+            ""
+          ).trim();
+
+
+        if (
+          !numberedContent
+        ) {
+          return;
+        }
+
+
+        const parsedTimeExpression =
+          parseLeadingLogTimeExpression(
+            numberedContent
+          );
+
+
+        /*
+          번호 다음에 시간과 내용이 모두 있는 경우
+        */
+        if (
+          parsedTimeExpression.timeText &&
+          parsedTimeExpression.content
+        ) {
+          parsedEntries.push({
+            time:
+              String(
+                parsedTimeExpression.timeText ||
+                ""
+              ).trim(),
+
+            content:
+              String(
+                parsedTimeExpression.content ||
+                ""
+              ).trim()
+          });
+
+
+          return;
+        }
+
+
+        /*
+          시간만 있고 내용이 없는 경우에도
+          원문 유실을 방지하기 위해 내용으로 유지한다.
+        */
+        parsedEntries.push({
+          time:
+            "",
+
+          content:
+            numberedContent
+        });
+
+
+        return;
+      }
+
+
+      /* ===================================================
+        번호가 없는 줄
+
+        바로 위 항목의 후속 설명으로 붙인다.
+
+        중요:
+        줄 앞에 17:52 같은 시간이 있어도
+        새로운 항목으로 만들지 않는다.
+      ==================================================== */
+
+      if (
+        parsedEntries.length >
+        0
       ) {
         const previousEntry =
           parsedEntries[
@@ -5462,8 +5555,12 @@ function parseLegacyDiaryContentLines(
 
 
         previousEntry.content = [
-          previousEntry.content,
-          line
+          String(
+            previousEntry.content ||
+            ""
+          ).trim(),
+
+          originalLine
         ]
           .filter(Boolean)
           .join("\n");
@@ -5473,28 +5570,34 @@ function parseLegacyDiaryContentLines(
       }
 
 
-      /*
-        신규 업무 입력과 같은 공통 분석 함수 사용
-      */
+      /* ===================================================
+        첫 줄부터 번호가 없는 예외 자료
+
+        첫 번째 항목으로 생성한다.
+      ==================================================== */
+
       const parsedTimeExpression =
         parseLeadingLogTimeExpression(
-          line
+          originalLine
         );
 
 
-      /*
-        시간과 실제 내용이 모두 있는 경우
-      */
       if (
         parsedTimeExpression.timeText &&
         parsedTimeExpression.content
       ) {
         parsedEntries.push({
           time:
-            parsedTimeExpression.timeText,
+            String(
+              parsedTimeExpression.timeText ||
+              ""
+            ).trim(),
 
           content:
-            parsedTimeExpression.content
+            String(
+              parsedTimeExpression.content ||
+              ""
+            ).trim()
         });
 
 
@@ -5502,32 +5605,31 @@ function parseLegacyDiaryContentLines(
       }
 
 
-      /*
-        시간만 있고 내용이 없는 줄은
-        독립 업무로 등록하지 않는다.
-      */
-      if (
-        parsedTimeExpression.timeText &&
-        !parsedTimeExpression.content
-      ) {
-        return;
-      }
-
-
-      /*
-        시간 없는 일반 문장
-      */
       parsedEntries.push({
-        time: "",
+        time:
+          "",
+
         content:
-          line
+          originalLine
       });
     }
   );
 
 
-  return parsedEntries;
+  return parsedEntries.filter(
+    (
+      entry
+    ) => {
+      return Boolean(
+        String(
+          entry.content ||
+          ""
+        ).trim()
+      );
+    }
+  );
 }
+
 /* =========================================================
   기존 body index 내용 가져오기
 ========================================================= */
