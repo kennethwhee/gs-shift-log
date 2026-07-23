@@ -20343,6 +20343,304 @@ function bindDetailAttachmentPreviewEvents(
 }
 
 /* =========================================================
+  저장된 운전현황 → 보직별 행 분석
+
+  저장 원문 예:
+
+  [TGO]
+  #1 TBN 정상 운전 중
+
+  [BCO1]
+  #1 BLR 정상 운전 중
+
+  [BCO2]
+  #2 BLR 정상 운전 중
+
+  결과:
+
+  [
+    {
+      role: "TGO",
+      type: "normal",
+      content: "#1 TBN 정상 운전 중"
+    },
+    ...
+  ]
+========================================================= */
+
+function parseOperationStatusRowsForDisplay(
+  log
+) {
+  const sourceText =
+    String(
+      log?.operationStatus ||
+      ""
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .trim();
+
+
+  if (
+    !sourceText
+  ) {
+    return [];
+  }
+
+
+  const sourceLines =
+    sourceText
+      .split(
+        "\n"
+      )
+      .map(
+        (
+          line
+        ) => {
+          return String(
+            line ||
+            ""
+          ).trim();
+        }
+      )
+      .filter(Boolean);
+
+
+  const rows = [];
+
+  let currentRole =
+    "";
+
+
+  sourceLines.forEach(
+    (
+      sourceLine
+    ) => {
+      /*
+        [TGO]
+        [BCO1]
+        [BCO2]
+
+        보직 줄 확인
+      */
+      const roleMatch =
+        sourceLine.match(
+          /^\[\s*(TGO|BCO1|BCO2|TO|BO1|BO2|파트장)\s*\]$/i
+        );
+
+
+      if (
+        roleMatch
+      ) {
+        currentRole =
+          normalizeMemberLogRole(
+            roleMatch[1]
+          );
+
+        return;
+      }
+
+
+      /*
+        이전 코드가 생성한 수기 번호 제거
+
+        1. 내용
+        2) 내용
+      */
+      const content =
+        sourceLine
+          .replace(
+            /^\s*\d+\s*[.)\-]\s*/,
+            ""
+          )
+          .trim();
+
+
+      if (
+        !content
+      ) {
+        return;
+      }
+
+
+      /*
+        보직명이 앞에서 확인된 경우
+        해당 보직의 내용으로 등록한다.
+      */
+      if (
+        currentRole
+      ) {
+        rows.push({
+          role:
+            currentRole,
+
+          type:
+            getSavedOperationStatusTypeForDisplay(
+              log,
+              currentRole
+            ),
+
+          content
+        });
+
+
+        currentRole =
+          "";
+
+        return;
+      }
+
+
+      /*
+        일반 보직 업무일지처럼
+        [보직] 표시가 없는 운전현황
+      */
+      rows.push({
+        role:
+          normalizeMemberLogRole(
+            log?.role ||
+            ""
+          ),
+
+        type:
+          getSavedOperationStatusTypeForDisplay(
+            log,
+            log?.role
+          ),
+
+        content
+      });
+    }
+  );
+
+
+  /*
+    [TGO]처럼 보직만 있고
+    실제 내용이 없는 예외 자료
+  */
+  if (
+    currentRole
+  ) {
+    rows.push({
+      role:
+        currentRole,
+
+      type:
+        getSavedOperationStatusTypeForDisplay(
+          log,
+          currentRole
+        ),
+
+      content:
+        "등록된 운전현황이 없습니다."
+    });
+  }
+
+
+  return rows;
+}
+
+
+/* =========================================================
+  표시용 운전 상태 확인
+
+  저장된 보직별 상태가 있으면 우선 사용한다.
+  없으면 정상운전으로 표시한다.
+========================================================= */
+
+function getSavedOperationStatusTypeForDisplay(
+  log,
+  role
+) {
+  const normalizedRole =
+    normalizeMemberLogRole(
+      role
+    );
+
+
+  /*
+    업무일지 안에 보직별 운전현황 배열이
+    함께 저장된 경우
+  */
+  const memberStatuses =
+    Array.isArray(
+      log?.operationStatusMembers
+    )
+      ? log.operationStatusMembers
+      : (
+          Array.isArray(
+            log?.memberOperationStatuses
+          )
+            ? log.memberOperationStatuses
+            : []
+        );
+
+
+  const matchedStatus =
+    memberStatuses.find(
+      (
+        item
+      ) => {
+        return (
+          normalizeMemberLogRole(
+            item?.role
+          ) ===
+          normalizedRole
+        );
+      }
+    );
+
+
+  if (
+    matchedStatus
+  ) {
+    return normalizeOperationStatusType(
+      matchedStatus.type
+    );
+  }
+
+
+  /*
+    일반 보직 업무일지의 단일 상태
+  */
+  if (
+    normalizeMemberLogRole(
+      log?.role
+    ) ===
+    normalizedRole
+  ) {
+    return normalizeOperationStatusType(
+      log?.operationStatusType ||
+      "normal"
+    );
+  }
+
+
+  return "normal";
+}
+
+
+/* =========================================================
+  운전 상태 배지 이름
+========================================================= */
+
+function getOperationStatusDisplayLabel(
+  type
+) {
+  return getOperationStatusLabel(
+    normalizeOperationStatusType(
+      type
+    )
+  );
+}
+
+/* =========================================================
   업무일지 상세보기 최종본
 
   핵심 구조
@@ -20980,78 +21278,126 @@ function openLogDetail(
   }
 
 
-  /* =====================================================
+   /* =====================================================
     운전현황
+
+    업무일지 수정창과 동일한 구조:
+
+    보직 | 상태 배지 | 구분선 | 운전현황
   ====================================================== */
 
-  const operationStatusLines =
-    String(
-      log.operationStatus ||
-      ""
-    )
-      .replace(
-        /\r\n/g,
-        "\n"
-      )
-      .replace(
-        /\r/g,
-        "\n"
-      )
-      .split(
-        "\n"
-      )
-      .map(
-        (
-          line
-        ) => {
-          return String(
-            line ||
-            ""
-          )
-            .trim()
-            .replace(
-              /^(?:\d+\s*[.)\-:]\s*)/,
-              ""
-            )
-            .trim();
-        }
-      )
-      .filter(Boolean);
+  const operationStatusRows =
+    parseOperationStatusRowsForDisplay(
+      log
+    );
 
 
   const operationStatusHtml =
-    operationStatusLines.length
+    operationStatusRows.length
       ? `
-        <div class="detail-operation-list">
+        <div
+          class="detail-operation-dashboard"
+        >
 
-          ${operationStatusLines
-            .map(
-              (
-                line,
-                index
-              ) => {
-                return `
-                  <div class="detail-operation-row">
+          <div
+            class="detail-operation-dashboard__heading"
+          >
+            <span
+              class="detail-operation-dashboard__dot"
+              aria-hidden="true"
+            ></span>
 
-                    <span
-                      class="detail-operation-row__number"
+            <strong>
+              ${escapeHtml(
+                normalizeMemberLogRole(
+                  log.role
+                ) ===
+                "파트장"
+                  ? "파트장 운전현황"
+                  : `${normalizeMemberLogRole(
+                      log.role
+                    )} 운전현황`
+              )}
+            </strong>
+          </div>
+
+
+          <div
+            class="detail-operation-dashboard__list"
+          >
+
+            ${operationStatusRows
+              .map(
+                (
+                  statusRow
+                ) => {
+                  const statusType =
+                    normalizeOperationStatusType(
+                      statusRow.type
+                    );
+
+
+                  return `
+                    <div
+                      class="
+                        detail-operation-dashboard__row
+                        is-${escapeHtml(
+                          statusType
+                        )}
+                      "
                     >
-                      ${index + 1}.
-                    </span>
 
-                    <span
-                      class="detail-operation-row__text"
-                    >
-                      ${escapeHtml(
-                        line
-                      )}
-                    </span>
+                      <strong
+                        class="detail-operation-dashboard__role"
+                      >
+                        ${escapeHtml(
+                          statusRow.role ||
+                          log.role ||
+                          "-"
+                        )}
+                      </strong>
 
-                  </div>
-                `;
-              }
-            )
-            .join("")}
+
+                      <span
+                        class="
+                          detail-operation-dashboard__badge
+                          is-${escapeHtml(
+                            statusType
+                          )}
+                        "
+                      >
+                        ${escapeHtml(
+                          getOperationStatusDisplayLabel(
+                            statusType
+                          )
+                        )}
+                      </span>
+
+
+                      <span
+                        class="detail-operation-dashboard__divider"
+                        aria-hidden="true"
+                      >
+                        |
+                      </span>
+
+
+                      <span
+                        class="detail-operation-dashboard__content"
+                      >
+                        ${escapeHtml(
+                          statusRow.content ||
+                          "등록된 운전현황이 없습니다."
+                        )}
+                      </span>
+
+                    </div>
+                  `;
+                }
+              )
+              .join("")}
+
+          </div>
 
         </div>
       `
@@ -21060,7 +21406,6 @@ function openLogDetail(
           등록된 운전현황이 없습니다.
         </div>
       `;
-
 
   /* =====================================================
     TM 발행 HTML
@@ -22465,100 +22810,121 @@ function createSearchLogPreviewHtml(
   const sections = [];
 
 
-  /* =====================================================
-    운전현황
+    /* =====================================================
+    파트장 운전현황 미리보기
 
-    일반 보직:
-    조회 목록에서 표시하지 않음
+    업무일지 수정창과 동일하게:
 
-    파트장:
-    저장된 전체 운전현황을 줄별로 모두 표시
+    보직 | 상태 | 운전현황
+
+    구조로 표시한다.
   ====================================================== */
 
   if (
     isLeaderLog &&
     operationStatus
   ) {
-    const operationStatusLines =
-      operationStatus
-        .replace(
-          /\r\n/g,
-          "\n"
-        )
-        .replace(
-          /\r/g,
-          "\n"
-        )
-        .split(
-          "\n"
-        )
-        .map(
-          (line) => {
-            return String(
-              line ||
-              ""
-            ).trim();
-          }
-        )
-        .filter(Boolean);
+    const operationStatusRows =
+      parseOperationStatusRowsForDisplay(
+        log
+      );
 
 
     if (
-      operationStatusLines.length
+      operationStatusRows.length
     ) {
       sections.push(`
         <span
           class="
             search-preview-section
             is-operation
+            is-operation-dashboard
           "
         >
+
           <strong
             class="search-preview-section__title"
           >
             운전현황
           </strong>
 
+
           <span
-            class="search-preview-section__content"
+            class="search-preview-operation-list"
           >
-            ${operationStatusLines
+
+            ${operationStatusRows
               .map(
                 (
-                  line,
-                  index
+                  statusRow
                 ) => {
+                  const statusType =
+                    normalizeOperationStatusType(
+                      statusRow.type
+                    );
+
+
                   return `
                     <span
                       class="
-                        search-preview-entry
-                        is-handover
-                        is-operation
+                        search-preview-operation-row
+                        is-${escapeHtml(
+                          statusType
+                        )}
                       "
                     >
+
                       <strong
-                        class="search-preview-entry__number"
+                        class="search-preview-operation-role"
                       >
-                        ${index + 1}.
+                        ${escapeHtml(
+                          statusRow.role ||
+                          "-"
+                        )}
                       </strong>
 
+
                       <span
-                        class="search-preview-entry__body"
-                      >
-                        <span
-                          class="search-preview-entry__text"
-                        >
-                          ${escapeHtml(
-                            line
+                        class="
+                          search-preview-operation-badge
+                          is-${escapeHtml(
+                            statusType
                           )}
-                        </span>
+                        "
+                      >
+                        ${escapeHtml(
+                          getOperationStatusDisplayLabel(
+                            statusType
+                          )
+                        )}
                       </span>
+
+
+                      <span
+                        class="search-preview-operation-divider"
+                        aria-hidden="true"
+                      >
+                        |
+                      </span>
+
+
+                      <span
+                        class="search-preview-operation-content"
+                      >
+                        ${escapeHtml(
+                          statusRow.content ||
+                          "등록된 운전현황이 없습니다."
+                        )}
+                      </span>
+
                     </span>
                   `;
                 }
               )
               .join("")}
+
           </span>
+
         </span>
       `);
     }
