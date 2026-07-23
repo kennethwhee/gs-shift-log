@@ -185,7 +185,8 @@ function parseJsonValue(
 ========================================================= */
 
 function convertRowToLegacyLog(
-  row
+  row,
+  attachments = []
 ) {
   const entries =
     parseJsonValue(
@@ -198,6 +199,13 @@ function convertRowToLegacyLog(
       row.original_json,
       {}
     );
+
+  const safeAttachments =
+    Array.isArray(
+      attachments
+    )
+      ? attachments
+      : [];
 
   return {
     id:
@@ -297,11 +305,223 @@ function convertRowToLegacyLog(
         ""
       ),
 
+    attachments:
+      safeAttachments.map(
+        attachment => {
+          const attachmentId =
+            Number(
+              attachment.id ||
+              0
+            );
+
+          return {
+            id:
+              attachmentId,
+
+            name:
+              String(
+                attachment.file_name ||
+                ""
+              ),
+
+            fileName:
+              String(
+                attachment.file_name ||
+                ""
+              ),
+
+            mimeType:
+              String(
+                attachment.mime_type ||
+                ""
+              ),
+
+            fileSize:
+              Number(
+                attachment.file_size ||
+                0
+              ),
+
+            r2Key:
+              String(
+                attachment.r2_key ||
+                ""
+              ),
+
+            originalUrl:
+              String(
+                attachment.original_url ||
+                ""
+              ),
+
+            uploadedAt:
+              String(
+                attachment.uploaded_at ||
+                ""
+              ),
+
+            url:
+              attachmentId
+                ? `/api/legacy-attachment?id=${encodeURIComponent(
+                    attachmentId
+                  )}`
+                : ""
+          };
+        }
+      ),
+
     source:
       "legacy-d1"
   };
 }
 
+/* =========================================================
+  업무일지별 첨부파일 조회
+
+  반환 형태:
+
+  {
+    "POCHEON#20260721#DAY#TO": [
+      {
+        id,
+        file_name,
+        r2_key,
+        mime_type,
+        file_size
+      }
+    ]
+  }
+========================================================= */
+
+async function loadLegacyAttachmentsByDiaryIds(
+  database,
+  legacyDiaryIds
+) {
+  const normalizedDiaryIds = [
+    ...new Set(
+      (
+        Array.isArray(
+          legacyDiaryIds
+        )
+          ? legacyDiaryIds
+          : []
+      )
+        .map(
+          legacyDiaryId =>
+            normalizeText(
+              legacyDiaryId
+            )
+        )
+        .filter(Boolean)
+    )
+  ];
+
+
+  if (
+    normalizedDiaryIds.length ===
+    0
+  ) {
+    return {};
+  }
+
+
+  /*
+    D1 바인딩 자리표시자 생성
+
+    예:
+    ?1, ?2, ?3
+  */
+  const placeholders =
+    normalizedDiaryIds
+      .map(
+        (
+          _legacyDiaryId,
+          index
+        ) => {
+          return `?${index + 1}`;
+        }
+      )
+      .join(", ");
+
+
+  const queryResult =
+    await database
+      .prepare(
+        `
+          SELECT
+            id,
+            legacy_diary_id,
+            file_name,
+            original_url,
+            r2_key,
+            mime_type,
+            file_size,
+            uploaded_at
+          FROM legacy_attachments
+          WHERE legacy_diary_id IN (
+            ${placeholders}
+          )
+          ORDER BY
+            legacy_diary_id ASC,
+            id ASC
+        `
+      )
+      .bind(
+        ...normalizedDiaryIds
+      )
+      .all();
+
+
+  const attachmentRows =
+    Array.isArray(
+      queryResult.results
+    )
+      ? queryResult.results
+      : [];
+
+
+  return attachmentRows.reduce(
+    (
+      attachmentMap,
+      attachmentRow
+    ) => {
+      const legacyDiaryId =
+        normalizeText(
+          attachmentRow
+            .legacy_diary_id
+        );
+
+
+      if (!legacyDiaryId) {
+        return attachmentMap;
+      }
+
+
+      if (
+        !Array.isArray(
+          attachmentMap[
+            legacyDiaryId
+          ]
+        )
+      ) {
+        attachmentMap[
+          legacyDiaryId
+        ] = [];
+      }
+
+
+      attachmentMap[
+        legacyDiaryId
+      ].push(
+        attachmentRow
+      );
+
+
+      return attachmentMap;
+    },
+    {}
+  );
+}
 
 /* =========================================================
   GET /api/legacy-logs
