@@ -19320,3 +19320,291 @@ tbody tr:not(.log-entry-empty-row) td {
   grid-column: 4;
   align-self: end;
 }
+
+/* =========================================================
+   TGO · BCO1 · BCO2 현재 운전현황
+   파트장 화면과 동일한 한 줄형 최종 덮어쓰기
+
+   표시:
+   [상태] | 설비명 : 운전현황 내용
+========================================================= */
+
+#operationStatusCurrentContent,
+.operation-status-current-content {
+  display: flex !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  white-space: normal !important;
+}
+
+
+/* 한 건당 한 줄 */
+
+#operationStatusCurrentContent
+.operation-status-compact-line,
+.operation-status-current-content
+.operation-status-compact-line {
+  position: static !important;
+  display: grid !important;
+
+  grid-template-columns:
+    64px
+    1px
+    minmax(120px, 180px)
+    8px
+    minmax(0, 1fr) !important;
+
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 34px !important;
+
+  gap: 8px !important;
+  margin: 0 !important;
+  padding: 6px 0 !important;
+
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+
+  transform: none !important;
+}
+
+
+/* 행 구분선 */
+
+#operationStatusCurrentContent
+.operation-status-compact-line
++ .operation-status-compact-line {
+  border-top: 1px solid #e4eaf1 !important;
+}
+
+
+/* 상태 배지 */
+
+.operation-status-compact-line__badge {
+  position: static !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: 64px !important;
+  min-width: 64px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+
+  margin: 0 !important;
+  padding: 0 7px !important;
+
+  border: 0 !important;
+  border-radius: 999px !important;
+
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+
+  transform: none !important;
+}
+
+
+/* 정상운전 */
+
+.operation-status-compact-line__badge.is-normal {
+  background: #e5f7ef !important;
+  color: #087a57 !important;
+}
+
+
+/* 기동 */
+
+.operation-status-compact-line__badge.is-starting {
+  background: #e8f0fc !important;
+  color: #2b63aa !important;
+}
+
+
+/* 정지 */
+
+.operation-status-compact-line__badge.is-stopped {
+  background: #e9edf2 !important;
+  color: #526277 !important;
+}
+
+
+/* 보존 */
+
+.operation-status-compact-line__badge.is-abnormal {
+  background: #f5eadb !important;
+  color: #85571f !important;
+}
+
+
+/* 비상 */
+
+.operation-status-compact-line__badge.is-emergency {
+  background: #fde8e8 !important;
+  color: #b73737 !important;
+}
+
+
+/* 상태와 설비명 사이 구분선 */
+
+.operation-status-compact-line__divider {
+  position: static !important;
+  display: block !important;
+
+  width: 1px !important;
+  height: 14px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: hidden !important;
+  border: 0 !important;
+  background: #d5dde7 !important;
+  color: transparent !important;
+
+  transform: none !important;
+}
+
+
+/* 설비명 */
+
+.operation-status-compact-line__name {
+  position: static !important;
+  display: block !important;
+
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: hidden !important;
+
+  color: #17283f !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 1.35 !important;
+
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+
+  transform: none !important;
+}
+
+
+/* 콜론 */
+
+.operation-status-compact-line__colon {
+  position: static !important;
+  display: block !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #8a96a6 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+
+  transform: none !important;
+}
+
+
+/* 운전현황 내용 */
+
+.operation-status-compact-line__content {
+  position: static !important;
+  display: block !important;
+
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: hidden !important;
+
+  color: #34465d !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+
+  transform: none !important;
+}
+
+
+/* 기존 설비별 출력 구조가 남아 있으면 숨김 */
+
+#operationStatusCurrentContent
+.operation-status-display-row,
+.operation-status-current-content
+.operation-status-display-row {
+  display: none !important;
+}
+
+
+/* 카드 높이 컴팩트하게 */
+
+#operationStatusCurrentCard,
+.operation-status-current-card {
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 10px 12px !important;
+}
+
+
+/* 하단 수정시간 */
+
+.operation-status-current-meta {
+  min-height: 0 !important;
+  margin-top: 5px !important;
+  padding: 0 !important;
+  font-size: 9px !important;
+  line-height: 1.2 !important;
+}
+
+
+/* =========================================================
+   작은 화면
+========================================================= */
+
+@media (max-width: 640px) {
+  #operationStatusCurrentContent
+  .operation-status-compact-line,
+  .operation-status-current-content
+  .operation-status-compact-line {
+    grid-template-columns:
+      58px
+      1px
+      minmax(90px, 130px)
+      7px
+      minmax(0, 1fr) !important;
+
+    gap: 6px !important;
+    min-height: 32px !important;
+    padding: 5px 0 !important;
+  }
+
+
+  .operation-status-compact-line__badge {
+    width: 58px !important;
+    min-width: 58px !important;
+    font-size: 9px !important;
+  }
+
+
+  .operation-status-compact-line__name,
+  .operation-status-compact-line__content {
+    font-size: 11px !important;
+  }
+}
