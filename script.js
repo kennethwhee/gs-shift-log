@@ -3369,6 +3369,397 @@ async function loadLegacyLogsForSearchRange(
 }
 
 /* =========================================================
+  TO · BO1 · BO2 전 근무자 운전현황 가져오기
+  1단계
+
+  현재 근무 기준 직전 근무:
+  DS → 전날 NS
+  NS → 같은 날 DS
+========================================================= */
+
+
+/* =========================================================
+  전 근무 날짜·근무 계산
+========================================================= */
+
+function getPreviousShiftContext(
+  dateValue,
+  shiftValue
+) {
+  const normalizedDate =
+    String(
+      dateValue ||
+      ""
+    ).trim();
+
+
+  const normalizedShift =
+    String(
+      shiftValue ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  const currentDate =
+    new Date(
+      `${normalizedDate}T00:00:00`
+    );
+
+
+  if (
+    Number.isNaN(
+      currentDate.getTime()
+    )
+  ) {
+    return null;
+  }
+
+
+  /*
+    현재 N/S 작성 중이면
+    바로 전 근무는 같은 날짜 D/S
+  */
+  if (
+    normalizedShift ===
+    "NS"
+  ) {
+    return {
+      date:
+        formatInputDate(
+          currentDate
+        ),
+
+      shift:
+        "DS"
+    };
+  }
+
+
+  /*
+    현재 D/S 작성 중이면
+    바로 전 근무는 전날 N/S
+  */
+  if (
+    normalizedShift ===
+    "DS"
+  ) {
+    currentDate.setDate(
+      currentDate.getDate() - 1
+    );
+
+
+    return {
+      date:
+        formatInputDate(
+          currentDate
+        ),
+
+      shift:
+        "NS"
+    };
+  }
+
+
+  return null;
+}
+
+
+/* =========================================================
+  지정 날짜의 D1 업무일지 조회
+========================================================= */
+
+async function loadLegacyLogsForOperationStatusDate(
+  dateValue
+) {
+  const normalizedDate =
+    String(
+      dateValue ||
+      ""
+    ).trim();
+
+
+  if (!normalizedDate) {
+    return [];
+  }
+
+
+  const requestUrl =
+    new URL(
+      "/api/legacy-logs",
+      window.location.origin
+    );
+
+
+  requestUrl.searchParams.set(
+    "date",
+    normalizedDate
+  );
+
+
+  requestUrl.searchParams.set(
+    "_",
+    String(
+      Date.now()
+    )
+  );
+
+
+  const response =
+    await fetch(
+      requestUrl.toString(),
+      {
+        method:
+          "GET",
+
+        headers: {
+          Accept:
+            "application/json"
+        },
+
+        cache:
+          "no-store"
+      }
+    );
+
+
+  let result = {};
+
+
+  try {
+    result =
+      await response.json();
+
+  } catch {
+    throw new Error(
+      "전 근무자 업무일지 응답을 읽을 수 없습니다."
+    );
+  }
+
+
+  if (
+    !response.ok ||
+    !result.success
+  ) {
+    throw new Error(
+      result.message ||
+      "전 근무자 업무일지를 불러오지 못했습니다."
+    );
+  }
+
+
+  const storedItems =
+    Array.isArray(
+      result.items
+    )
+      ? result.items
+      : [];
+
+
+  return storedItems
+    .map(
+      (
+        storedItem,
+        itemIndex
+      ) => {
+        const originalItem =
+          storedItem?.original &&
+          typeof storedItem.original ===
+            "object"
+            ? storedItem.original
+            : null;
+
+
+        if (!originalItem) {
+          return null;
+        }
+
+
+        const storedShift =
+          String(
+            storedItem.shift ||
+            ""
+          )
+            .trim()
+            .toUpperCase();
+
+
+        return convertLegacyDiaryToLog(
+          originalItem,
+          itemIndex,
+          normalizedDate,
+          storedShift
+        );
+      }
+    )
+    .filter(
+      Boolean
+    );
+}
+
+
+/* =========================================================
+  같은 보직의 전 근무자 업무일지 찾기
+========================================================= */
+
+async function getPreviousShiftOperationStatus(
+  roleValue,
+  dateValue,
+  shiftValue
+) {
+  const normalizedRole =
+    normalizeMemberLogRole(
+      roleValue
+    );
+
+
+  /*
+    수기 운전현황 보직만 허용
+  */
+  const allowedRoles = [
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  if (
+    !allowedRoles.includes(
+      normalizedRole
+    )
+  ) {
+    return null;
+  }
+
+
+  const previousContext =
+    getPreviousShiftContext(
+      dateValue,
+      shiftValue
+    );
+
+
+  if (!previousContext) {
+    return null;
+  }
+
+
+  const previousLogs =
+    await loadLegacyLogsForOperationStatusDate(
+      previousContext.date
+    );
+
+
+  const matchedLogs =
+    previousLogs
+      .filter(
+        log => {
+          const logRole =
+            normalizeMemberLogRole(
+              log?.role
+            );
+
+
+          const logShift =
+            String(
+              log?.shift ||
+              ""
+            )
+              .trim()
+              .toUpperCase();
+
+
+          const operationStatus =
+            String(
+              log?.operationStatus ||
+              ""
+            ).trim();
+
+
+          return (
+            logRole ===
+              normalizedRole &&
+            logShift ===
+              previousContext.shift &&
+            Boolean(
+              operationStatus
+            )
+          );
+        }
+      )
+      .sort(
+        (
+          firstLog,
+          secondLog
+        ) => {
+          const firstTime =
+            new Date(
+              firstLog?.updatedAt ||
+              firstLog?.createdAt ||
+              0
+            ).getTime();
+
+
+          const secondTime =
+            new Date(
+              secondLog?.updatedAt ||
+              secondLog?.createdAt ||
+              0
+            ).getTime();
+
+
+          return (
+            secondTime -
+            firstTime
+          );
+        }
+      );
+
+
+  const previousLog =
+    matchedLogs[0];
+
+
+  if (!previousLog) {
+    return null;
+  }
+
+
+  return {
+    role:
+      normalizedRole,
+
+    date:
+      previousContext.date,
+
+    shift:
+      previousContext.shift,
+
+    author:
+      String(
+        previousLog.author ||
+        ""
+      ).trim(),
+
+    content:
+      String(
+        previousLog.operationStatus ||
+        ""
+      ).trim(),
+
+    type:
+      normalizeOperationStatusType(
+        previousLog.operationStatusType ||
+        "normal"
+      ),
+
+    sourceLog:
+      previousLog
+  };
+}
+
+/* =========================================================
   선택 날짜의 D1 과거 업무일지 불러오기
 
   과거 서버를 직접 호출하지 않고
@@ -12464,6 +12855,37 @@ function openOperationStatusEditor() {
     getCurrentOperationStatusRole();
 
 
+  /*
+    TO · BO1 · BO2만
+    전 근무자 운전현황 가져오기 버튼 표시
+  */
+  const previousOperationStatusWrap =
+    document.getElementById(
+      "previousOperationStatusWrap"
+    );
+
+
+  const canLoadPreviousStatus =
+    [
+      "TO",
+      "BO1",
+      "BO2"
+    ].includes(
+      currentRole
+    );
+
+
+  if (
+    previousOperationStatusWrap
+  ) {
+    previousOperationStatusWrap.hidden =
+      !canLoadPreviousStatus;
+  }
+
+
+  /*
+    파트장은 직접 수정하지 않는다.
+  */
   if (
     currentRole ===
     "파트장"
@@ -12508,7 +12930,7 @@ function openOperationStatusEditor() {
 
 
   /* =====================================================
-    TGO·BCO1·BCO2 설비별 편집
+    TGO · BCO1 · BCO2 설비별 편집
   ====================================================== */
 
   if (
@@ -12516,12 +12938,6 @@ function openOperationStatusEditor() {
       currentRole
     )
   ) {
-    /*
-      동적 설비 편집기를 생성한다.
-
-      이 함수는 기존 공통 상태 필드와 textarea를
-      호환용으로 숨긴다.
-    */
     const editorContainer =
       ensureOperationStatusItemsEditor();
 
@@ -12576,8 +12992,8 @@ function openOperationStatusEditor() {
 
 
     /*
-      저장자료와 기존 문자열 모두 없는 경우
-      보직별 기본 설비 한 건을 생성한다.
+      저장된 자료가 없으면
+      보직별 기본 설비 한 건 생성
     */
     if (
       !editingOperationStatusItems.length
@@ -12644,7 +13060,7 @@ function openOperationStatusEditor() {
     window.setTimeout(
       () => {
         document.querySelector(
-          '.operation-status-item-name-input[data-operation-item-index="0"]'
+          '.operation-status-item-content-input[data-operation-item-index="0"]'
         )?.focus();
       },
       0
@@ -12652,7 +13068,7 @@ function openOperationStatusEditor() {
 
   } else {
     /* ===================================================
-      TO·BO1·BO2 기존 자유 텍스트 편집
+      TO · BO1 · BO2 자유 텍스트 편집
     ==================================================== */
 
     if (
@@ -12663,10 +13079,6 @@ function openOperationStatusEditor() {
     }
 
 
-    /*
-      자유입력에서는 대표 상태 버튼도 필요 없으므로
-      상태 선택 영역은 숨기고 textarea만 표시한다.
-    */
     if (
       typeField
     ) {
@@ -12700,6 +13112,9 @@ function openOperationStatusEditor() {
   }
 
 
+  /*
+    운전현황 편집창 열기
+  */
   elements.operationStatusEditor.hidden =
     false;
 
@@ -13288,15 +13703,24 @@ function bindEvents() {
   );
 
 
-  bindClick(
-    elements.saveOperationStatusButton,
-    saveOperationStatus
-  );
+bindClick(
+  elements.saveOperationStatusButton,
+  saveOperationStatus
+);
 
+/*
+  전 근무자 운전현황 가져오기
+*/
+bindClick(
+  document.getElementById(
+    "loadPreviousOperationStatusBtn"
+  ),
+  handleLoadPreviousOperationStatus
+);
 
-  /* =======================================================
-    작업 구분 및 TAG
-  ======================================================== */
+/* =======================================================
+  작업 구분 및 TAG
+======================================================= */
 
   bindChange(
     elements.logEntryCategory,
@@ -28251,5 +28675,207 @@ async function handleEmployeeExcelUpload(event) {
   } finally {
     event.target.value =
       "";
+  }
+}
+
+/* =========================================================
+  전 근무자 운전현황 가져오기
+========================================================= */
+
+async function handleLoadPreviousOperationStatus() {
+  const loadButton =
+    document.getElementById(
+      "loadPreviousOperationStatusBtn"
+    );
+
+
+  const currentRole =
+    normalizeMemberLogRole(
+      elements.logRole?.value ||
+      ""
+    );
+
+
+  /*
+    TO · BO1 · BO2만 사용 가능
+  */
+  const allowedRoles = [
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  if (
+    !allowedRoles.includes(
+      currentRole
+    )
+  ) {
+    showToast(
+      "TO·BO1·BO2 업무일지에서만 사용할 수 있습니다."
+    );
+
+    return;
+  }
+
+
+  if (
+    !elements.operationStatus
+  ) {
+    showToast(
+      "운전현황 입력창을 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  const currentDate =
+    String(
+      elements.logDate?.value ||
+      ""
+    ).trim();
+
+
+  const currentShift =
+    String(
+      elements.logShift?.value ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  if (
+    !currentDate ||
+    !currentShift
+  ) {
+    showToast(
+      "업무일지 날짜와 근무를 확인해 주세요."
+    );
+
+    return;
+  }
+
+
+  /*
+    현재 입력된 내용이 있으면
+    조회 전에 덮어쓰기 여부 확인
+  */
+  const currentContent =
+    String(
+      elements.operationStatus.value ||
+      ""
+    ).trim();
+
+
+  if (currentContent) {
+    const shouldOverwrite =
+      window.confirm(
+        [
+          "현재 작성된 운전현황이 있습니다.",
+          "",
+          "전 근무자 운전현황으로 덮어쓰시겠습니까?",
+          "",
+          "아직 업무일지는 저장되지 않습니다."
+        ].join("\n")
+      );
+
+
+    if (!shouldOverwrite) {
+      return;
+    }
+  }
+
+
+  if (loadButton) {
+    loadButton.disabled =
+      true;
+
+    loadButton.textContent =
+      "불러오는 중...";
+  }
+
+
+  try {
+    const previousStatus =
+      await getPreviousShiftOperationStatus(
+        currentRole,
+        currentDate,
+        currentShift
+      );
+
+
+    if (
+      !previousStatus ||
+      !previousStatus.content
+    ) {
+      showToast(
+        "같은 보직의 전 근무자 운전현황을 찾을 수 없습니다."
+      );
+
+      return;
+    }
+
+
+    /*
+      입력창에만 적용한다.
+      저장 버튼을 누르기 전까지
+      업무일지에는 저장되지 않는다.
+    */
+    elements.operationStatus.value =
+      previousStatus.content;
+
+
+    elements.operationStatus
+      .dispatchEvent(
+        new Event(
+          "input",
+          {
+            bubbles: true
+          }
+        )
+      );
+
+
+    elements.operationStatus
+      .focus();
+
+
+    const previousShiftName =
+      getShiftDisplayName(
+        previousStatus.shift
+      );
+
+
+    showToast(
+      [
+        previousStatus.date,
+        previousShiftName,
+        currentRole,
+        "운전현황을 가져왔습니다."
+      ].join(" ")
+    );
+
+  } catch (error) {
+    console.error(
+      "전 근무자 운전현황 조회 오류:",
+      error
+    );
+
+
+    showToast(
+      error.message ||
+      "전 근무자 운전현황을 불러오지 못했습니다."
+    );
+
+  } finally {
+    if (loadButton) {
+      loadButton.disabled =
+        false;
+
+      loadButton.textContent =
+        "전 근무자 운전현황 가져오기";
+    }
   }
 }

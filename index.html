@@ -1397,24 +1397,42 @@
     </div>
 
 
-    <!-- 운전현황 내용 -->
-    <label class="operation-status-field">
+<!-- 운전현황 내용 -->
+<label class="operation-status-field">
 
-      <span class="operation-status-field__label">
-        운전현황 내용
-      </span>
+  <span class="operation-status-field__label">
+    운전현황 내용
+  </span>
 
-      <textarea
-        id="operationStatus"
-        name="operationStatus"
-        rows="7"
-        placeholder="현재 운전현황을 입력하세요."
-      ></textarea>
+  <textarea
+    id="operationStatus"
+    name="operationStatus"
+    rows="7"
+    placeholder="현재 운전현황을 입력하세요."
+  ></textarea>
 
-    </label>
+</label>
 
 
-    <div class="operation-status-editor-footer">
+<!-- TO · BO1 · BO2 전 근무자 운전현황 가져오기 -->
+<div
+  id="previousOperationStatusWrap"
+  class="previous-operation-status-wrap"
+  hidden
+>
+
+  <button
+    type="button"
+    id="loadPreviousOperationStatusBtn"
+    class="previous-operation-status-button"
+  >
+    전 근무자 운전현황 가져오기
+  </button>
+
+</div>
+
+
+<div class="operation-status-editor-footer">
 
       <span
         class="operation-status-editor-time"
