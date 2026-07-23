@@ -10116,6 +10116,117 @@ function renderOperationStatusBadge(
 }
 
 /* =========================================================
+  파트장 운전현황 설비 고정 순서
+
+  항상 다음 순서로 표시한다.
+
+  1. 터빈
+  2. 1호기 주보일러
+  3. 2호기 주보일러
+  4. 3호기 보조보일러
+  5. 4호기 보조보일러
+========================================================= */
+
+function getLeaderOperationEquipmentOrder(
+  equipmentName
+) {
+  const normalizedName =
+    String(
+      equipmentName || ""
+    )
+      .trim()
+      .toLowerCase()
+      .replace(
+        /\s+/g,
+        ""
+      )
+      .replace(
+        /#/g,
+        ""
+      );
+
+
+  if (
+    normalizedName ===
+      "터빈" ||
+    normalizedName.includes(
+      "tbn"
+    ) ||
+    normalizedName.includes(
+      "turbine"
+    )
+  ) {
+    return 1;
+  }
+
+
+  if (
+    normalizedName.includes(
+      "1호기주보일러"
+    ) ||
+    normalizedName.includes(
+      "1주보일러"
+    ) ||
+    normalizedName.includes(
+      "1blr"
+    )
+  ) {
+    return 2;
+  }
+
+
+  if (
+    normalizedName.includes(
+      "2호기주보일러"
+    ) ||
+    normalizedName.includes(
+      "2주보일러"
+    ) ||
+    normalizedName.includes(
+      "2blr"
+    )
+  ) {
+    return 3;
+  }
+
+
+  if (
+    normalizedName.includes(
+      "3호기보조보일러"
+    ) ||
+    normalizedName.includes(
+      "3보조보일러"
+    ) ||
+    normalizedName.includes(
+      "3aux"
+    )
+  ) {
+    return 4;
+  }
+
+
+  if (
+    normalizedName.includes(
+      "4호기보조보일러"
+    ) ||
+    normalizedName.includes(
+      "4보조보일러"
+    ) ||
+    normalizedName.includes(
+      "4aux"
+    )
+  ) {
+    return 5;
+  }
+
+
+  /*
+    미지정 설비는 고정 설비 다음에 표시
+  */
+  return 99;
+}
+
+/* =========================================================
   파트장 설비별 운전현황 생성
 
   TGO·BCO1·BCO2의 운전현황을
@@ -10538,18 +10649,113 @@ function renderOperationStatusCard() {
         false;
 
 
-      elements.leaderOperationStatusList.innerHTML =
-        orderedStatuses
-          .map(
-            (
-              memberStatus
-            ) => {
-              return createLeaderOperationStatusRowHtml(
-                memberStatus
-              );
-            }
-          )
-          .join("");
+/* =====================================================
+  모든 보직의 설비를 하나의 배열로 합친 후
+  설비 고정 순서로 정렬한다.
+===================================================== */
+
+const leaderOperationItems =
+  orderedStatuses
+    .flatMap(
+      (
+        memberStatus
+      ) => {
+        const memberRole =
+          normalizeMemberLogRole(
+            memberStatus?.role
+          );
+
+
+        return getOperationStatusItems(
+          memberStatus
+        ).map(
+          (
+            item,
+            itemIndex
+          ) => {
+            return normalizeOperationStatusItem(
+              {
+                ...item,
+
+                role:
+                  memberRole,
+
+                sourceRole:
+                  memberRole
+              },
+              itemIndex
+            );
+          }
+        );
+      }
+    )
+    .sort(
+      (
+        itemA,
+        itemB
+      ) => {
+        const orderDifference =
+          getLeaderOperationEquipmentOrder(
+            itemA.name
+          ) -
+          getLeaderOperationEquipmentOrder(
+            itemB.name
+          );
+
+
+        if (
+          orderDifference !==
+          0
+        ) {
+          return orderDifference;
+        }
+
+
+        /*
+          고정 순서에 없는 추가 설비는
+          설비명 가나다순으로 표시한다.
+        */
+        return String(
+          itemA.name || ""
+        ).localeCompare(
+          String(
+            itemB.name || ""
+          ),
+          "ko"
+        );
+      }
+    );
+
+
+elements.leaderOperationStatusList.innerHTML =
+  leaderOperationItems
+    .map(
+      (
+        item
+      ) => {
+        return createLeaderOperationStatusRowHtml({
+          role:
+            item.sourceRole ||
+            item.role ||
+            "",
+
+          type:
+            item.type,
+
+          content:
+            item.content,
+
+          operationItems: [
+            item
+          ],
+
+          items: [
+            item
+          ]
+        });
+      }
+    )
+    .join("");
     }
 
 
