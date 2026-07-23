@@ -9887,19 +9887,19 @@ function createLeaderOperationStatusRowHtml(
 /* =========================================================
   운전현황 카드 렌더링 최종본
 
-  신규 작성:
-  - 현재 날짜·근무·보직의 최신 운전현황 표시
-
-  기존 업무일지 수정:
-  - 해당 업무일지에 저장된 운전현황 스냅샷 표시
-  - localStorage 최신값으로 덮어쓰지 않음
-
   일반 보직:
-  - 상태 배지 + 내용 + 수정시간
+  - 설비별 상태 배지 표시
+  - 설비명, 상태, 내용을 각각 한 줄로 표시
+  - 기존 대표 상태 배지는 숨김
 
   파트장:
-  - TGO·BCO1·BCO2 또는 과거 저장 원문을
-    보직별 한 줄 구조로 표시
+  - TGO·BCO1·BCO2 보직별 운전현황 표시
+
+  기존 업무일지 수정:
+  - 저장 당시 운전현황 스냅샷 사용
+
+  신규 업무일지:
+  - 현재 날짜·근무·보직의 최신 운전현황 사용
 ========================================================= */
 
 function renderOperationStatusCard() {
@@ -9952,20 +9952,12 @@ function renderOperationStatusCard() {
     let memberStatuses = [];
 
 
-    /* ===================================================
+    /*
       기존 업무일지 수정
-
-      해당 일지에 저장된 운전현황 원문을 사용한다.
-      현재 localStorage 운전현황은 읽지 않는다.
-    ==================================================== */
-
+    */
     if (
       isEditingSavedLog
     ) {
-      /*
-        저장 당시 memberStatuses 배열이 있으면
-        그것을 가장 우선 사용한다.
-      */
       if (
         Array.isArray(
           status.memberStatuses
@@ -10010,12 +10002,6 @@ function renderOperationStatusCard() {
           );
 
       } else {
-        /*
-          과거 업무일지는 memberStatuses 배열 없이
-          operationStatus 문자열만 저장된 경우가 있다.
-
-          저장 원문을 보직별 행으로 분석한다.
-        */
         const editingLogId =
           String(
             elements.logEditorForm
@@ -10094,10 +10080,6 @@ function renderOperationStatusCard() {
       }
 
 
-      /*
-        파싱 결과가 없는 예외 자료는
-        전체 저장 원문을 하나의 파트장 항목으로 표시한다.
-      */
       if (
         !memberStatuses.length &&
         content
@@ -10128,12 +10110,9 @@ function renderOperationStatusCard() {
       }
 
     } else {
-      /* =================================================
-        신규 업무일지 작성
-
-        현재 TGO·BCO1·BCO2 최신 운전현황을 사용한다.
-      ================================================== */
-
+      /*
+        신규 파트장 업무일지
+      */
       memberStatuses =
         OPERATION_STATUS_MEMBER_ROLES.map(
           (
@@ -10181,9 +10160,6 @@ function renderOperationStatusCard() {
     }
 
 
-    /*
-      일반 보직 표시 영역 숨김
-    */
     if (
       elements.operationStatusSingleView
     ) {
@@ -10192,9 +10168,6 @@ function renderOperationStatusCard() {
     }
 
 
-    /*
-      파트장 보직별 목록 표시
-    */
     if (
       elements.leaderOperationStatusList
     ) {
@@ -10211,12 +10184,6 @@ function renderOperationStatusCard() {
     }
 
 
-    /*
-      저장용 통합 원문
-
-      기존 업무일지 수정 중에는
-      원래 저장된 content를 우선 유지한다.
-    */
     const combinedContent =
       isEditingSavedLog &&
       content
@@ -10259,10 +10226,6 @@ function renderOperationStatusCard() {
     }
 
 
-    /*
-      현재 화면 상태에도
-      같은 스냅샷을 유지한다.
-    */
     appState.currentOperationStatus = {
       ...status,
 
@@ -10285,10 +10248,6 @@ function renderOperationStatusCard() {
       );
 
 
-    /*
-      파트장 카드에는
-      하나의 공통 상태색을 적용하지 않는다.
-    */
     OPERATION_STATUS_TYPES.forEach(
       (
         type
@@ -10312,7 +10271,7 @@ function renderOperationStatusCard() {
 
 
   /* =====================================================
-    일반 보직 표시
+    일반 보직 설비별 표시
   ====================================================== */
 
   elements.operationStatusSection
@@ -10340,19 +10299,171 @@ function renderOperationStatusCard() {
   }
 
 
+  /*
+    신규 배열 또는 기존 문자열을
+    설비별 항목으로 변환한다.
+  */
+  const operationItems =
+    getOperationStatusItems(
+      status
+    );
+
+
+  /*
+    설비별 상태가 존재하면
+    기존 대표 상태 배지는 숨긴다.
+  */
+  if (
+    elements.operationStatusStateBadge
+  ) {
+    elements.operationStatusStateBadge.hidden =
+      operationItems.length >
+      0;
+  }
+
+
+  /*
+    설비별 한 줄 목록 표시
+  */
   if (
     elements.operationStatusCurrentContent
   ) {
-    elements.operationStatusCurrentContent.textContent =
-      content;
+    if (
+      operationItems.length
+    ) {
+      elements.operationStatusCurrentContent.innerHTML =
+        operationItems
+          .map(
+            (
+              item,
+              itemIndex
+            ) => {
+              const itemType =
+                normalizeOperationStatusType(
+                  item.type
+                );
+
+
+              const itemName =
+                String(
+                  item.name ||
+                  `설비 ${itemIndex + 1}`
+                ).trim();
+
+
+              const itemContent =
+                String(
+                  item.content ||
+                  "상태 내용 없음"
+                ).trim();
+
+
+              return `
+                <div
+                  class="
+                    operation-status-display-row
+                    is-${escapeHtml(
+                      itemType
+                    )}
+                  "
+                >
+
+                  <span
+                    class="operation-status-display-row__number"
+                  >
+                    ${itemIndex + 1}.
+                  </span>
+
+
+                  <strong
+                    class="operation-status-display-row__name"
+                  >
+                    ${escapeHtml(
+                      itemName
+                    )}
+                  </strong>
+
+
+                  <span
+                    class="
+                      operation-status-display-row__badge
+                      is-${escapeHtml(
+                        itemType
+                      )}
+                    "
+                  >
+                    ${escapeHtml(
+                      getOperationStatusLabel(
+                        itemType
+                      )
+                    )}
+                  </span>
+
+
+                  <span
+                    class="operation-status-display-row__divider"
+                    aria-hidden="true"
+                  >
+                    |
+                  </span>
+
+
+                  <span
+                    class="operation-status-display-row__content"
+                  >
+                    ${escapeHtml(
+                      itemContent
+                    )}
+                  </span>
+
+                </div>
+              `;
+            }
+          )
+          .join("");
+
+    } else {
+      /*
+        설비별 변환이 불가능한 예외 자료
+      */
+      elements.operationStatusCurrentContent.textContent =
+        content;
+
+
+      if (
+        elements.operationStatusStateBadge
+      ) {
+        elements.operationStatusStateBadge.hidden =
+          false;
+      }
+    }
   }
+
+
+  /*
+    기존 호환용 문자열과 대표 상태 유지
+  */
+  const serializedContent =
+    operationItems.length
+      ? serializeOperationStatusItems(
+          operationItems
+        )
+      : content;
+
+
+  const representativeType =
+    operationItems.length
+      ? getRepresentativeOperationStatusType(
+          operationItems
+        )
+      : selectedType;
 
 
   if (
     elements.operationStatus
   ) {
     elements.operationStatus.value =
-      content;
+      serializedContent;
   }
 
 
@@ -10360,7 +10471,7 @@ function renderOperationStatusCard() {
     elements.operationStatusSnapshot
   ) {
     elements.operationStatusSnapshot.value =
-      content;
+      serializedContent;
   }
 
 
@@ -10368,7 +10479,7 @@ function renderOperationStatusCard() {
     elements.operationStatusType
   ) {
     elements.operationStatusType.value =
-      selectedType;
+      representativeType;
   }
 
 
@@ -10407,19 +10518,45 @@ function renderOperationStatusCard() {
   }
 
 
-  renderOperationStatusBadge(
-    selectedType
-  );
+  if (
+    elements.operationStatusStateBadge
+  ) {
+    renderOperationStatusBadge(
+      representativeType
+    );
+  }
 
 
   renderOperationStatusTypeButtons(
-    selectedType
+    representativeType
   );
 
 
   applyOperationStatusTheme(
-    selectedType
+    representativeType
   );
+
+
+  /*
+    현재 화면 상태에도 설비별 배열 유지
+  */
+  appState.currentOperationStatus = {
+    ...status,
+
+    role:
+      currentRole,
+
+    type:
+      representativeType,
+
+    content:
+      serializedContent,
+
+    operationItems,
+
+    items:
+      operationItems
+  };
 }
 
 /* =========================================================

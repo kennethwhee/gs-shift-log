@@ -17490,3 +17490,116 @@ table:has(#noteEntryTableBody) {
   outline: 3px solid rgba(37, 99, 235, 0.22);
   outline-offset: 2px;
 }
+
+/* =========================================================
+  현재 운전현황 설비별 표시
+========================================================= */
+
+.operation-status-display-row {
+  display: grid;
+  grid-template-columns:
+    24px
+    minmax(150px, auto)
+    auto
+    10px
+    minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 6px 0;
+}
+
+.operation-status-display-row
+  + .operation-status-display-row {
+  border-top: 1px solid #edf1f5;
+}
+
+.operation-status-display-row__number {
+  color: #18263d;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.operation-status-display-row__name {
+  color: #17243a;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.operation-status-display-row__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.operation-status-display-row__badge.is-normal {
+  background: #e5f7ef;
+  color: #087855;
+}
+
+.operation-status-display-row__badge.is-starting {
+  background: #e8f0ff;
+  color: #245fc2;
+}
+
+.operation-status-display-row__badge.is-stopped {
+  background: #edf0f4;
+  color: #536277;
+}
+
+.operation-status-display-row__badge.is-abnormal {
+  background: #fff1d8;
+  color: #ad6200;
+}
+
+.operation-status-display-row__badge.is-emergency {
+  background: #ffe5e5;
+  color: #c52b2b;
+}
+
+.operation-status-display-row__divider {
+  color: #c0c8d2;
+  text-align: center;
+}
+
+.operation-status-display-row__content {
+  min-width: 0;
+  color: #17243a;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+
+/* 모바일 */
+
+@media (max-width: 760px) {
+  .operation-status-display-row {
+    grid-template-columns:
+      22px
+      minmax(0, 1fr)
+      auto;
+    gap: 6px 8px;
+  }
+
+  .operation-status-display-row__divider {
+    display: none;
+  }
+
+  .operation-status-display-row__content {
+    grid-column: 2 / -1;
+    padding-bottom: 3px;
+  }
+}
