@@ -29278,3 +29278,682 @@ async function handleLoadPreviousOperationStatus() {
     }
   }
 }
+
+/* =========================================================
+  로그인 사용자 → 업무일지 작성자 자동 연결
+
+  적용 규칙:
+  - 작성자는 현재 로그인한 사용자 이름
+  - 작성자 입력창 직접 수정 불가
+  - 임시저장 또는 기존 자료를 불러와도
+    현재 로그인 사용자 이름으로 다시 고정
+========================================================= */
+
+function getCurrentShiftLogUserIdentity() {
+  const currentUser =
+    loadCurrentUser();
+
+
+  if (
+    !currentUser
+  ) {
+    return {
+      employeeNo:
+        "",
+
+      name:
+        "",
+
+      role:
+        ""
+    };
+  }
+
+
+  const employeeNo =
+    String(
+      currentUser.employeeNo ||
+      currentUser.employee_no ||
+      currentUser.employeeId ||
+      currentUser.employee_id ||
+      ""
+    ).trim();
+
+
+  const name =
+    String(
+      currentUser.name ||
+      currentUser.employeeName ||
+      currentUser.employee_name ||
+      ""
+    ).trim();
+
+
+  const role =
+    String(
+      currentUser.role ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  return {
+    employeeNo,
+
+    name,
+
+    role
+  };
+}
+
+
+/* =========================================================
+  작성자 입력창 잠금
+========================================================= */
+
+function applyCurrentUserToLogAuthor() {
+  const authorInput =
+    document.getElementById(
+      "logAuthor"
+    );
+
+
+  if (
+    !authorInput
+  ) {
+    return;
+  }
+
+
+  const currentUser =
+    getCurrentShiftLogUserIdentity();
+
+
+  /*
+    로그인 사용자 이름이 정상적으로 있을 때만 적용
+  */
+  if (
+    currentUser.name
+  ) {
+    authorInput.value =
+      currentUser.name;
+  }
+
+
+  /*
+    작성자 직접 수정 금지
+  */
+  authorInput.readOnly =
+    true;
+
+
+  authorInput.setAttribute(
+    "aria-readonly",
+    "true"
+  );
+
+
+  authorInput.setAttribute(
+    "tabindex",
+    "-1"
+  );
+
+
+  authorInput.setAttribute(
+    "title",
+    "작성자는 현재 로그인한 사용자로 자동 지정됩니다."
+  );
+
+
+  /*
+    브라우저 자동완성 방지
+  */
+  authorInput.setAttribute(
+    "autocomplete",
+    "off"
+  );
+}
+
+
+/* =========================================================
+  업무일지 작성창이 열릴 때마다 작성자 재적용
+
+  fillLogEditor()
+  restoreDraftIfAvailable()
+  resetLogEditor()
+
+  위 함수들이 작성자 값을 바꾸더라도
+  모달이 열리는 순간 현재 로그인 사용자로 다시 고정한다.
+========================================================= */
+
+function initializeCurrentUserLogAuthorLock() {
+  const logEditorModal =
+    document.getElementById(
+      "logEditorModal"
+    );
+
+
+  /*
+    최초 한 번 적용
+  */
+  applyCurrentUserToLogAuthor();
+
+
+  if (
+    !logEditorModal
+  ) {
+    return;
+  }
+
+
+  const observer =
+    new MutationObserver(
+      () => {
+        const isOpen =
+          logEditorModal
+            .classList
+            .contains(
+              "is-open"
+            ) ||
+
+          logEditorModal.getAttribute(
+            "aria-hidden"
+          ) ===
+            "false";
+
+
+        if (
+          !isOpen
+        ) {
+          return;
+        }
+
+
+        /*
+          기존 함수들의 입력 처리가 끝난 다음
+          로그인 사용자 이름을 최종 적용한다.
+        */
+        window.requestAnimationFrame(
+          () => {
+            applyCurrentUserToLogAuthor();
+          }
+        );
+      }
+    );
+
+
+  observer.observe(
+    logEditorModal,
+    {
+      attributes:
+        true,
+
+      attributeFilter: [
+        "class",
+        "aria-hidden"
+      ]
+    }
+  );
+
+
+  /*
+    사용자가 개발자 도구 등으로 값을 변경하거나
+    브라우저 자동완성이 값을 덮어쓰는 경우도 방지한다.
+  */
+  const authorInput =
+    document.getElementById(
+      "logAuthor"
+    );
+
+
+  authorInput
+    ?.addEventListener(
+      "input",
+      () => {
+        const currentUser =
+          getCurrentShiftLogUserIdentity();
+
+
+        if (
+          currentUser.name &&
+          authorInput.value !==
+            currentUser.name
+        ) {
+          authorInput.value =
+            currentUser.name;
+        }
+      }
+    );
+}
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  initializeCurrentUserLogAuthorLock
+);
+
+/* =========================================================
+  업무일지 작성자 정보 로그인 계정 강제 연결
+
+  저장되는 값:
+  - author     : 로그인 사용자 이름
+  - authorId   : 로그인 사용자 사번
+  - authorRole : 로그인 사용자 권한
+
+  상태 기본 규칙:
+  - 파트장 본인 업무일지 → 저장완료
+  - 일반 파트원 업무일지 → 임시저장
+  - 결재요청은 요청된 경우 그대로 유지
+
+  기존 collectEditorData()의
+  TM·인계사항·비고·첨부파일 수집 구조는 그대로 유지한다.
+========================================================= */
+
+function normalizeShiftLogAccountRole(
+  role
+) {
+  return String(
+    role || ""
+  )
+    .trim()
+    .toLowerCase();
+}
+
+
+/* =========================================================
+  현재 로그인 사용자가 파트장인지 확인
+========================================================= */
+
+function isCurrentShiftLogLeader() {
+  const currentUser =
+    getCurrentShiftLogUserIdentity();
+
+
+  const accountRole =
+    normalizeShiftLogAccountRole(
+      currentUser.role
+    );
+
+
+  return (
+    accountRole ===
+      "admin" ||
+    accountRole ===
+      "leader"
+  );
+}
+
+
+/* =========================================================
+  저장 요청 상태 정규화
+========================================================= */
+
+function resolveShiftLogSaveStatus(
+  requestedStatus
+) {
+  const normalizedStatus =
+    String(
+      requestedStatus ||
+      ""
+    ).trim();
+
+
+  /*
+    파트장 본인 업무일지는
+    일반 저장 시 바로 저장완료
+  */
+  if (
+    isCurrentShiftLogLeader()
+  ) {
+    return "저장완료";
+  }
+
+
+  /*
+    파트원이 결재요청 버튼을 누른 경우
+  */
+  if (
+    normalizedStatus ===
+      "결재요청" ||
+    normalizedStatus ===
+      "작성완료"
+  ) {
+    return "결재요청";
+  }
+
+
+  /*
+    파트원 일반 저장은 임시저장
+  */
+  return "임시저장";
+}
+
+
+/* =========================================================
+  기존 업무일지 데이터 수집 함수 보존
+========================================================= */
+
+const collectEditorDataBeforeAccountLink =
+  collectEditorData;
+
+
+/* =========================================================
+  로그인 계정 연결이 적용된 최종 데이터 수집 함수
+========================================================= */
+
+collectEditorData =
+  function collectEditorData(
+    requestedStatus
+  ) {
+    const log =
+      collectEditorDataBeforeAccountLink(
+        requestedStatus
+      );
+
+
+    const currentUser =
+      getCurrentShiftLogUserIdentity();
+
+
+    if (
+      !currentUser.employeeNo ||
+      !currentUser.name
+    ) {
+      showToast(
+        "로그인 사용자 정보를 확인할 수 없습니다. 다시 로그인해 주세요."
+      );
+
+
+      return {
+        ...log,
+
+        author:
+          "",
+
+        authorId:
+          "",
+
+        authorRole:
+          "",
+
+        status:
+          "임시저장"
+      };
+    }
+
+
+    const resolvedStatus =
+      resolveShiftLogSaveStatus(
+        requestedStatus
+      );
+
+
+    /*
+      화면에 입력된 작성자 값은 사용하지 않고
+      로그인 사용자 정보로 강제 저장한다.
+    */
+    return {
+      ...log,
+
+      author:
+        currentUser.name,
+
+      authorId:
+        currentUser.employeeNo,
+
+      authorRole:
+        normalizeShiftLogAccountRole(
+          currentUser.role
+        ),
+
+      status:
+        resolvedStatus,
+
+      lastModifiedBy:
+        currentUser.name,
+
+      lastModifiedById:
+        currentUser.employeeNo,
+
+      updatedAt:
+        new Date()
+          .toISOString()
+    };
+  };
+
+  /* =========================================================
+  업무일지 작성창 버튼 권한 분리
+
+  파트장:
+  - 저장 버튼만 표시
+  - 저장 시 저장완료
+  - 임시저장 / 결재요청 숨김
+
+  파트원:
+  - 임시저장 표시
+  - 결재요청 표시
+  - 일반 저장 버튼 숨김
+========================================================= */
+
+function getShiftLogEditorSubmitButton() {
+  return (
+    elements.logEditorForm
+      ?.querySelector(
+        'button[type="submit"]'
+      ) ||
+    document.querySelector(
+      '#logEditorForm button[type="submit"]'
+    )
+  );
+}
+
+
+/* =========================================================
+  현재 로그인 사용자의 업무일지 권한 구분
+========================================================= */
+
+function getCurrentShiftLogPermissionType() {
+  const currentUser =
+    getCurrentShiftLogUserIdentity();
+
+
+  const accountRole =
+    String(
+      currentUser.role ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (
+    accountRole ===
+      "admin" ||
+    accountRole ===
+      "leader"
+  ) {
+    return "leader";
+  }
+
+
+  return "member";
+}
+
+
+/* =========================================================
+  작성창 하단 버튼 표시 갱신
+========================================================= */
+
+function updateLogEditorActionButtons() {
+  const permissionType =
+    getCurrentShiftLogPermissionType();
+
+
+  const submitButton =
+    getShiftLogEditorSubmitButton();
+
+
+  const saveDraftButton =
+    elements.saveDraftButton ||
+    document.getElementById(
+      "saveDraftButton"
+    );
+
+
+  const requestApprovalButton =
+    elements.requestApprovalButton ||
+    document.getElementById(
+      "requestApprovalButton"
+    );
+
+
+  const isLeader =
+    permissionType ===
+      "leader";
+
+
+  /*
+    파트장 저장 버튼
+  */
+  if (
+    submitButton
+  ) {
+    submitButton.hidden =
+      !isLeader;
+
+    submitButton.disabled =
+      !isLeader;
+
+    submitButton.textContent =
+      "저장";
+
+    submitButton.title =
+      isLeader
+        ? "파트장 업무일지를 저장완료 상태로 저장합니다."
+        : "";
+  }
+
+
+  /*
+    파트원 임시저장 버튼
+  */
+  if (
+    saveDraftButton
+  ) {
+    saveDraftButton.hidden =
+      isLeader;
+
+    saveDraftButton.disabled =
+      isLeader;
+
+    saveDraftButton.textContent =
+      "임시저장";
+  }
+
+
+  /*
+    파트원 결재요청 버튼
+  */
+  if (
+    requestApprovalButton
+  ) {
+    requestApprovalButton.hidden =
+      isLeader;
+
+    requestApprovalButton.disabled =
+      isLeader;
+
+    requestApprovalButton.textContent =
+      "결재요청";
+  }
+}
+
+
+/* =========================================================
+  작성창이 열릴 때마다 버튼 권한 적용
+========================================================= */
+
+function initializeLogEditorActionButtonPermissions() {
+  const logEditorModal =
+    elements.logEditorModal ||
+    document.getElementById(
+      "logEditorModal"
+    );
+
+
+  /*
+    최초 한 번 적용
+  */
+  updateLogEditorActionButtons();
+
+
+  if (
+    !logEditorModal
+  ) {
+    return;
+  }
+
+
+  const observer =
+    new MutationObserver(
+      () => {
+        const isOpen =
+          logEditorModal
+            .classList
+            .contains(
+              "is-open"
+            ) ||
+
+          logEditorModal.getAttribute(
+            "aria-hidden"
+          ) ===
+            "false";
+
+
+        if (
+          !isOpen
+        ) {
+          return;
+        }
+
+
+        window.requestAnimationFrame(
+          () => {
+            updateLogEditorActionButtons();
+          }
+        );
+      }
+    );
+
+
+  observer.observe(
+    logEditorModal,
+    {
+      attributes:
+        true,
+
+      attributeFilter: [
+        "class",
+        "aria-hidden"
+      ]
+    }
+  );
+
+
+  /*
+    보직값이 화면 처리 과정에서 변경되더라도
+    로그인 계정 권한 기준으로 버튼을 다시 맞춘다.
+  */
+  elements.logRole
+    ?.addEventListener(
+      "change",
+      updateLogEditorActionButtons
+    );
+}
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  initializeLogEditorActionButtonPermissions
+);
