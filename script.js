@@ -16756,6 +16756,796 @@ function approveCurrentDetailLog() {
 }
 
 /* =========================================================
+  첨부 이미지 팝업 상태
+========================================================= */
+
+const attachmentPreviewState = {
+  items: [],
+  currentIndex: 0
+};
+
+
+/* =========================================================
+  첨부파일 정보 정규화
+========================================================= */
+
+function normalizeDetailAttachment(
+  attachment,
+  index
+) {
+  if (
+    typeof attachment ===
+    "string"
+  ) {
+    return {
+      id: 0,
+
+      name:
+        attachment,
+
+      url:
+        ""
+    };
+  }
+
+
+  const attachmentId =
+    Number(
+      attachment?.id ||
+      0
+    );
+
+
+  const fileName =
+    String(
+      attachment?.fileName ||
+      attachment?.name ||
+      `첨부파일 ${index + 1}`
+    ).trim();
+
+
+  const url =
+    String(
+      attachment?.url ||
+      (
+        attachmentId
+          ? `/api/legacy-attachment?id=${encodeURIComponent(
+              attachmentId
+            )}`
+          : ""
+      )
+    ).trim();
+
+
+  return {
+    id:
+      attachmentId,
+
+    name:
+      fileName,
+
+    url
+  };
+}
+
+
+/* =========================================================
+  첨부 이미지 팝업 요소 생성
+
+  index.html을 수정하지 않고
+  최초 실행 시 JavaScript에서 한 번만 생성한다.
+========================================================= */
+
+function ensureAttachmentPreviewModal() {
+  const existingModal =
+    document.getElementById(
+      "attachmentPreviewModal"
+    );
+
+
+  if (
+    existingModal
+  ) {
+    return existingModal;
+  }
+
+
+  const modal =
+    document.createElement(
+      "div"
+    );
+
+
+  modal.id =
+    "attachmentPreviewModal";
+
+
+  modal.className =
+    "attachment-preview-modal";
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+
+  modal.innerHTML = `
+    <div
+      class="attachment-preview-modal__backdrop"
+      data-attachment-preview-close
+    ></div>
+
+    <section
+      class="attachment-preview-modal__panel"
+      role="dialog"
+      aria-modal="true"
+      aria-label="첨부 이미지 보기"
+    >
+
+      <header
+        class="attachment-preview-modal__header"
+      >
+        <div
+          class="attachment-preview-modal__title-wrap"
+        >
+          <strong
+            id="attachmentPreviewTitle"
+            class="attachment-preview-modal__title"
+          >
+            첨부 이미지
+          </strong>
+
+          <span
+            id="attachmentPreviewCounter"
+            class="attachment-preview-modal__counter"
+          >
+          </span>
+        </div>
+
+        <button
+          type="button"
+          class="attachment-preview-modal__close"
+          data-attachment-preview-close
+          aria-label="첨부 이미지 닫기"
+        >
+          ×
+        </button>
+      </header>
+
+
+      <div
+        class="attachment-preview-modal__body"
+      >
+        <button
+          type="button"
+          class="
+            attachment-preview-modal__nav
+            is-previous
+          "
+          id="attachmentPreviewPreviousButton"
+          aria-label="이전 이미지"
+        >
+          ‹
+        </button>
+
+
+        <div
+          class="attachment-preview-modal__image-stage"
+        >
+          <img
+            id="attachmentPreviewImage"
+            class="attachment-preview-modal__image"
+            alt=""
+          >
+
+          <div
+            id="attachmentPreviewLoading"
+            class="attachment-preview-modal__loading"
+          >
+            이미지를 불러오는 중입니다.
+          </div>
+        </div>
+
+
+        <button
+          type="button"
+          class="
+            attachment-preview-modal__nav
+            is-next
+          "
+          id="attachmentPreviewNextButton"
+          aria-label="다음 이미지"
+        >
+          ›
+        </button>
+      </div>
+
+
+      <footer
+        class="attachment-preview-modal__footer"
+      >
+        <span
+          id="attachmentPreviewFileName"
+          class="attachment-preview-modal__file-name"
+        >
+        </span>
+      </footer>
+
+    </section>
+  `;
+
+
+  document.body.appendChild(
+    modal
+  );
+
+
+  modal
+    .querySelectorAll(
+      "[data-attachment-preview-close]"
+    )
+    .forEach(
+      closeElement => {
+        closeElement.addEventListener(
+          "click",
+          closeAttachmentPreview
+        );
+      }
+    );
+
+
+  document
+    .getElementById(
+      "attachmentPreviewPreviousButton"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+        moveAttachmentPreview(
+          -1
+        );
+      }
+    );
+
+
+  document
+    .getElementById(
+      "attachmentPreviewNextButton"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+        moveAttachmentPreview(
+          1
+        );
+      }
+    );
+
+
+  const previewImage =
+    document.getElementById(
+      "attachmentPreviewImage"
+    );
+
+
+  previewImage?.addEventListener(
+    "load",
+    () => {
+      const loadingElement =
+        document.getElementById(
+          "attachmentPreviewLoading"
+        );
+
+
+      if (
+        loadingElement
+      ) {
+        loadingElement.hidden =
+          true;
+      }
+
+
+      previewImage.hidden =
+        false;
+    }
+  );
+
+
+  previewImage?.addEventListener(
+    "error",
+    () => {
+      const loadingElement =
+        document.getElementById(
+          "attachmentPreviewLoading"
+        );
+
+
+      if (
+        loadingElement
+      ) {
+        loadingElement.hidden =
+          false;
+
+        loadingElement.textContent =
+          "이미지를 불러오지 못했습니다.";
+      }
+
+
+      previewImage.hidden =
+        true;
+    }
+  );
+
+
+  return modal;
+}
+
+
+/* =========================================================
+  현재 첨부 이미지 표시
+========================================================= */
+
+function renderCurrentAttachmentPreview() {
+  const items =
+    Array.isArray(
+      attachmentPreviewState.items
+    )
+      ? attachmentPreviewState.items
+      : [];
+
+
+  if (
+    !items.length
+  ) {
+    return;
+  }
+
+
+  const safeIndex =
+    Math.min(
+      Math.max(
+        attachmentPreviewState.currentIndex,
+        0
+      ),
+      items.length - 1
+    );
+
+
+  attachmentPreviewState.currentIndex =
+    safeIndex;
+
+
+  const currentItem =
+    items[
+      safeIndex
+    ];
+
+
+  const previewImage =
+    document.getElementById(
+      "attachmentPreviewImage"
+    );
+
+
+  const titleElement =
+    document.getElementById(
+      "attachmentPreviewTitle"
+    );
+
+
+  const counterElement =
+    document.getElementById(
+      "attachmentPreviewCounter"
+    );
+
+
+  const fileNameElement =
+    document.getElementById(
+      "attachmentPreviewFileName"
+    );
+
+
+  const loadingElement =
+    document.getElementById(
+      "attachmentPreviewLoading"
+    );
+
+
+  const previousButton =
+    document.getElementById(
+      "attachmentPreviewPreviousButton"
+    );
+
+
+  const nextButton =
+    document.getElementById(
+      "attachmentPreviewNextButton"
+    );
+
+
+  if (
+    titleElement
+  ) {
+    titleElement.textContent =
+      "첨부 이미지";
+  }
+
+
+  if (
+    counterElement
+  ) {
+    counterElement.textContent =
+      `${safeIndex + 1} / ${items.length}`;
+  }
+
+
+  if (
+    fileNameElement
+  ) {
+    fileNameElement.textContent =
+      currentItem.name ||
+      `첨부파일 ${safeIndex + 1}`;
+  }
+
+
+  if (
+    loadingElement
+  ) {
+    loadingElement.hidden =
+      false;
+
+    loadingElement.textContent =
+      "이미지를 불러오는 중입니다.";
+  }
+
+
+  if (
+    previewImage
+  ) {
+    previewImage.hidden =
+      true;
+
+    previewImage.alt =
+      currentItem.name ||
+      "첨부 이미지";
+
+
+    /*
+      동일 사진을 다시 눌러도
+      이미지 로드 이벤트가 발생하도록 초기화한다.
+    */
+    previewImage.removeAttribute(
+      "src"
+    );
+
+
+    window.setTimeout(
+      () => {
+        previewImage.src =
+          currentItem.url;
+      },
+      0
+    );
+  }
+
+
+  const hasMultipleItems =
+    items.length >
+    1;
+
+
+  if (
+    previousButton
+  ) {
+    previousButton.hidden =
+      !hasMultipleItems;
+  }
+
+
+  if (
+    nextButton
+  ) {
+    nextButton.hidden =
+      !hasMultipleItems;
+  }
+}
+
+
+/* =========================================================
+  첨부 이미지 팝업 열기
+========================================================= */
+
+function openAttachmentPreview(
+  attachments,
+  startIndex = 0
+) {
+  const normalizedAttachments =
+    (
+      Array.isArray(
+        attachments
+      )
+        ? attachments
+        : []
+    )
+      .map(
+        normalizeDetailAttachment
+      )
+      .filter(
+        attachment => {
+          return Boolean(
+            attachment.url
+          );
+        }
+      );
+
+
+  if (
+    !normalizedAttachments.length
+  ) {
+    showToast(
+      "열 수 있는 첨부 이미지가 없습니다."
+    );
+
+    return;
+  }
+
+
+  attachmentPreviewState.items =
+    normalizedAttachments;
+
+
+  attachmentPreviewState.currentIndex =
+    Math.min(
+      Math.max(
+        Number(
+          startIndex
+        ) ||
+        0,
+        0
+      ),
+      normalizedAttachments.length -
+      1
+    );
+
+
+  const modal =
+    ensureAttachmentPreviewModal();
+
+
+  modal.classList.add(
+    "is-open"
+  );
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "false"
+  );
+
+
+  document.body.classList.add(
+    "modal-open"
+  );
+
+
+  renderCurrentAttachmentPreview();
+}
+
+
+/* =========================================================
+  첨부 이미지 이전·다음
+========================================================= */
+
+function moveAttachmentPreview(
+  direction
+) {
+  const itemCount =
+    attachmentPreviewState
+      .items
+      .length;
+
+
+  if (
+    itemCount <= 1
+  ) {
+    return;
+  }
+
+
+  attachmentPreviewState.currentIndex =
+    (
+      attachmentPreviewState.currentIndex +
+      direction +
+      itemCount
+    ) %
+    itemCount;
+
+
+  renderCurrentAttachmentPreview();
+}
+
+
+/* =========================================================
+  첨부 이미지 팝업 닫기
+========================================================= */
+
+function closeAttachmentPreview() {
+  const modal =
+    document.getElementById(
+      "attachmentPreviewModal"
+    );
+
+
+  if (
+    !modal
+  ) {
+    return;
+  }
+
+
+  modal.classList.remove(
+    "is-open"
+  );
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+
+  const previewImage =
+    document.getElementById(
+      "attachmentPreviewImage"
+    );
+
+
+  if (
+    previewImage
+  ) {
+    previewImage.removeAttribute(
+      "src"
+    );
+  }
+
+
+  attachmentPreviewState.items =
+    [];
+
+
+  attachmentPreviewState.currentIndex =
+    0;
+
+
+  /*
+    업무일지 상세 모달이 열려 있으면
+    body의 modal-open은 유지한다.
+  */
+  const hasOtherOpenModal =
+    document.querySelector(
+      ".modal-backdrop.is-open"
+    );
+
+
+  if (
+    !hasOtherOpenModal
+  ) {
+    document.body.classList.remove(
+      "modal-open"
+    );
+  }
+}
+
+
+/* =========================================================
+  첨부파일 버튼 클릭
+========================================================= */
+
+function bindDetailAttachmentPreviewEvents(
+  log,
+  attachments
+) {
+  if (
+    !elements.logDetailContent
+  ) {
+    return;
+  }
+
+
+  elements.logDetailContent
+    .querySelectorAll(
+      "[data-detail-attachment-index]"
+    )
+    .forEach(
+      button => {
+        button.addEventListener(
+          "click",
+          () => {
+            const attachmentIndex =
+              Number(
+                button.dataset
+                  .detailAttachmentIndex
+              );
+
+
+            openAttachmentPreview(
+              attachments,
+              Number.isInteger(
+                attachmentIndex
+              )
+                ? attachmentIndex
+                : 0
+            );
+          }
+        );
+      }
+    );
+}
+
+
+/* =========================================================
+  첨부 이미지 키보드 제어
+========================================================= */
+
+document.addEventListener(
+  "keydown",
+  event => {
+    const modal =
+      document.getElementById(
+        "attachmentPreviewModal"
+      );
+
+
+    if (
+      !modal?.classList.contains(
+        "is-open"
+      )
+    ) {
+      return;
+    }
+
+
+    if (
+      event.key ===
+      "Escape"
+    ) {
+      event.preventDefault();
+
+      closeAttachmentPreview();
+
+      return;
+    }
+
+
+    if (
+      event.key ===
+      "ArrowLeft"
+    ) {
+      event.preventDefault();
+
+      moveAttachmentPreview(
+        -1
+      );
+
+      return;
+    }
+
+
+    if (
+      event.key ===
+      "ArrowRight"
+    ) {
+      event.preventDefault();
+
+      moveAttachmentPreview(
+        1
+      );
+    }
+  }
+);
+
+/* =========================================================
   업무일지 상세보기 최종본
 
   핵심 구조
@@ -17395,58 +18185,84 @@ function openLogDetail(
     첨부파일
   ====================================================== */
 
-  const attachments =
-    Array.isArray(
-      log.attachments
-    )
-      ? log.attachments
-      : [];
+const attachments =
+  Array.isArray(
+    log.attachments
+  )
+    ? log.attachments
+    : [];
 
 
-  const attachmentHtml =
-    attachments.length
-      ? `
-        <div class="detail-attachment-list">
-
-          ${attachments
-            .map(
-              (
-                attachment,
-                index
-              ) => {
-                const fileName =
-                  typeof attachment ===
-                  "string"
-                    ? attachment
-                    : String(
-                        attachment?.name ||
-                        `첨부파일 ${index + 1}`
-                      );
+const normalizedAttachments =
+  attachments.map(
+    normalizeDetailAttachment
+  );
 
 
-                return `
-                  <span class="detail-attachment-chip">
-                    <span aria-hidden="true">
-                      📎
-                    </span>
+const attachmentHtml =
+  normalizedAttachments.length
+    ? `
+      <div class="detail-attachment-list">
 
+        ${normalizedAttachments
+          .map(
+            (
+              attachment,
+              index
+            ) => {
+              const canOpen =
+                Boolean(
+                  attachment.url
+                );
+
+
+              return `
+                <button
+                  type="button"
+                  class="
+                    detail-attachment-chip
+                    ${
+                      canOpen
+                        ? "is-clickable"
+                        : "is-disabled"
+                    }
+                  "
+                  data-detail-attachment-index="${index}"
+                  ${
+                    canOpen
+                      ? ""
+                      : "disabled"
+                  }
+                  title="${
+                    canOpen
+                      ? "첨부 이미지 보기"
+                      : "열 수 없는 첨부파일"
+                  }"
+                >
+                  <span
+                    aria-hidden="true"
+                  >
+                    📎
+                  </span>
+
+                  <span>
                     ${escapeHtml(
-                      fileName
+                      attachment.name
                     )}
                   </span>
-                `;
-              }
-            )
-            .join("")}
+                </button>
+              `;
+            }
+          )
+          .join("")}
 
-        </div>
-      `
-      : `
-        <div class="detail-empty-message">
-          첨부파일이 없습니다.
-        </div>
-      `;
-
+      </div>
+    `
+    : `
+      <div class="detail-empty-message">
+        첨부파일이 없습니다.
+      </div>
+    `;
 
   /* =====================================================
     최종 상세 HTML
@@ -17722,6 +18538,14 @@ function openLogDetail(
         );
       }
     );
+
+    /*
+  첨부파일 버튼 클릭 이벤트 연결
+*/
+bindDetailAttachmentPreviewEvents(
+  log,
+  normalizedAttachments
+);
 
 
   /* =====================================================
