@@ -18456,3 +18456,394 @@ table:has(#noteEntryTableBody) {
     font-size: 9px;
   }
 }
+
+/* =========================================================
+  현재 운전현황 표시
+  컴팩트 최종 덮어쓰기
+
+  구조:
+  번호 | 설비명 | 상태 | 구분선 | 내용
+========================================================= */
+
+
+/* =========================================================
+  현재 운전현황 카드 전체
+========================================================= */
+
+#operationStatusCurrentCard,
+.operation-status-current-card {
+  min-height: 0 !important;
+  padding: 12px 14px !important;
+  overflow: visible;
+  border-radius: 10px;
+}
+
+
+/*
+  기존 왼쪽 강조선이 너무 두껍게 보이지 않도록 조정
+*/
+.operation-status-current-card::before {
+  width: 3px;
+}
+
+
+/* =========================================================
+  카드 제목 영역
+========================================================= */
+
+.operation-status-current-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 30px;
+  margin: 0 0 7px !important;
+}
+
+.operation-status-current-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.operation-status-current-title strong {
+  color: #1e3048;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.operation-status-live-dot {
+  width: 7px;
+  height: 7px;
+  box-shadow: none;
+}
+
+.operation-status-live-dot::after {
+  display: none;
+}
+
+
+/* =========================================================
+  수정 버튼
+========================================================= */
+
+.operation-status-edit-button {
+  min-width: 54px;
+  min-height: 29px;
+  height: 29px;
+  padding: 0 10px;
+  border-radius: 7px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+
+/* =========================================================
+  일반 보직 표시 영역
+========================================================= */
+
+#operationStatusSingleView,
+.operation-status-single-view {
+  min-height: 0 !important;
+  margin: 0;
+  padding: 0;
+}
+
+
+/* =========================================================
+  설비별 목록 바깥 영역
+
+  기존 최소 높이와 큰 내부 여백 제거
+========================================================= */
+
+#operationStatusCurrentContent,
+.operation-status-current-content {
+  display: block !important;
+  width: 100%;
+  min-height: 0 !important;
+  height: auto !important;
+  margin: 0;
+  padding: 0 !important;
+  overflow: visible;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+}
+
+
+/* =========================================================
+  설비 한 줄
+
+  번호 | 설비명 | 상태 | 구분선 | 내용
+========================================================= */
+
+.operation-status-display-row {
+  display: grid !important;
+  grid-template-columns:
+    24px
+    minmax(145px, 190px)
+    62px
+    1px
+    minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 31px !important;
+  height: auto !important;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 2px !important;
+  border: 0;
+  background: transparent;
+}
+
+
+/*
+  항목 사이 구분선
+*/
+.operation-status-display-row
+  + .operation-status-display-row {
+  border-top: 1px solid #e8edf3;
+}
+
+
+/* =========================================================
+  번호
+========================================================= */
+
+.operation-status-display-row__number {
+  display: block;
+  width: 24px;
+  margin: 0;
+  padding: 0;
+  color: #2b3d56;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  설비명
+========================================================= */
+
+.operation-status-display-row__name {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #182a43;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  상태 배지
+========================================================= */
+
+.operation-status-display-row__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  min-width: 62px;
+  height: 22px;
+  min-height: 22px;
+  margin: 0;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+
+/* 정상운전 */
+
+.operation-status-display-row__badge.is-normal {
+  background: #e4f6ee;
+  color: #087c58;
+}
+
+
+/* 기동 */
+
+.operation-status-display-row__badge.is-starting {
+  background: #e7effc;
+  color: #2862ad;
+}
+
+
+/* 정지 */
+
+.operation-status-display-row__badge.is-stopped {
+  background: #e9edf2;
+  color: #546276;
+}
+
+
+/* 보존 */
+
+.operation-status-display-row__badge.is-abnormal {
+  background: #f5ecdf;
+  color: #875820;
+}
+
+
+/* 비상 */
+
+.operation-status-display-row__badge.is-emergency {
+  background: #fde8e8;
+  color: #b83838;
+}
+
+
+/* =========================================================
+  세로 구분선
+========================================================= */
+
+.operation-status-display-row__divider {
+  display: block;
+  width: 1px;
+  height: 13px;
+  margin: 0;
+  overflow: hidden;
+  background: #d7dee7;
+  color: transparent;
+}
+
+
+/* =========================================================
+  내용
+========================================================= */
+
+.operation-status-display-row__content {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  color: #2c3d54;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  하단 수정시간
+========================================================= */
+
+.operation-status-current-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 16px;
+  margin: 6px 0 0 !important;
+  padding: 0;
+  color: #929cab;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.operation-status-current-meta strong,
+#operationStatusUpdatedAt,
+#operationStatusUpdatedBy {
+  font-size: 9px;
+  line-height: 1;
+}
+
+
+/* 작성자 영역이 비어 있으면 공간도 제거 */
+
+#operationStatusUpdatedBy:empty,
+.operation-status-current-meta [hidden] {
+  display: none !important;
+}
+
+
+/* =========================================================
+  기존 대표 상태 배지가 숨겨진 경우
+  불필요한 공간 제거
+========================================================= */
+
+#operationStatusStateBadge[hidden],
+.operation-status-state-badge[hidden] {
+  display: none !important;
+}
+
+
+/* =========================================================
+  카드가 수정 중일 때도 높이 유지
+========================================================= */
+
+.operation-status-section.is-editing
+.operation-status-current-card {
+  min-height: 0 !important;
+}
+
+
+/* =========================================================
+  작은 화면
+========================================================= */
+
+@media (max-width: 900px) {
+  .operation-status-display-row {
+    grid-template-columns:
+      22px
+      minmax(120px, 170px)
+      58px
+      1px
+      minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .operation-status-display-row__badge {
+    width: 58px;
+    min-width: 58px;
+  }
+}
+
+
+@media (max-width: 640px) {
+  .operation-status-current-card {
+    padding: 11px !important;
+  }
+
+  .operation-status-display-row {
+    grid-template-columns:
+      20px
+      minmax(0, 1fr)
+      56px;
+    gap: 5px 7px;
+    padding: 6px 0 !important;
+  }
+
+  .operation-status-display-row__divider {
+    display: none;
+  }
+
+  .operation-status-display-row__content {
+    grid-column: 2 / -1;
+    overflow: visible;
+    padding-bottom: 1px;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .operation-status-display-row__badge {
+    width: 56px;
+    min-width: 56px;
+  }
+}
