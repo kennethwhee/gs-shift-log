@@ -9440,73 +9440,136 @@ function saveOperationStatusByRole(
 }
 
 /* =========================================================
-  파트장 운전현황 자동 취합 최종본
+  파트장 운전현황 최신 자동 취합
 
-  TGO → BCO1 → BCO2 순서 유지
+  TGO → BCO1 → BCO2 순서로 불러오며
+  각 설비의 상태 배열을 그대로 보존한다.
 
-  각 보직별로 다음 정보를 모두 저장한다.
-  - 보직
-  - 운전 상태
-  - 운전현황 내용
-  - 마지막 수정시간
-  - 작성자
+  파트장 취합 결과의 updatedAt은
+  팀원 운전현황 중 가장 최근 수정시간으로 설정한다.
 ========================================================= */
 
 function createLeaderCombinedOperationStatus() {
   const memberStatuses =
-    OPERATION_STATUS_MEMBER_ROLES
-      .map(
-        (role) => {
-          const memberStatus =
-            loadOperationStatusByRole(
-              role,
-              {
-                allowLegacyFallback:
-                  role === "TGO"
-              }
-            );
-
-
-          return {
+    OPERATION_STATUS_MEMBER_ROLES.map(
+      (
+        role
+      ) => {
+        const memberStatus =
+          loadOperationStatusByRole(
             role,
+            {
+              allowLegacyFallback:
+                role === "TGO"
+            }
+          );
 
-            type:
-              normalizeOperationStatusType(
-                memberStatus.type
-              ),
 
-            content:
-              String(
-                memberStatus.content ||
+        const operationItems =
+          getOperationStatusItems(
+            memberStatus
+          ).map(
+            (
+              item,
+              itemIndex
+            ) => {
+              return normalizeOperationStatusItem(
+                item,
+                itemIndex
+              );
+            }
+          );
+
+
+        const content =
+          operationItems.length
+            ? serializeOperationStatusItems(
+                operationItems
+              )
+            : String(
+                memberStatus?.content ||
                 "등록된 운전현황이 없습니다."
-              ).trim(),
+              ).trim();
 
-            updatedAt:
-              String(
-                memberStatus.updatedAt ||
-                ""
-              ),
 
-            updatedBy:
-              String(
-                memberStatus.updatedBy ||
-                ""
-              ).trim()
-          };
-        }
-      );
+        const representativeType =
+          operationItems.length
+            ? getRepresentativeOperationStatusType(
+                operationItems
+              )
+            : normalizeOperationStatusType(
+                memberStatus?.type
+              );
+
+
+        return {
+          role,
+
+          type:
+            representativeType,
+
+          content,
+
+          operationItems,
+
+          items:
+            operationItems,
+
+          updatedAt:
+            String(
+              memberStatus?.updatedAt ||
+              ""
+            ),
+
+          updatedBy:
+            String(
+              memberStatus?.updatedBy ||
+              ""
+            ).trim()
+        };
+      }
+    );
 
 
   /*
-    업무일지 저장용 문자열
+    파트장 전체 설비 배열
 
-    기존 상세보기와 업무일지 저장 구조는
-    그대로 유지하기 위해 문자열도 함께 만든다.
+    TGO·BCO1·BCO2 설비를 순서대로 합친다.
+  */
+  const combinedOperationItems =
+    memberStatuses.flatMap(
+      (
+        memberStatus
+      ) => {
+        return memberStatus.operationItems.map(
+          (
+            item,
+            itemIndex
+          ) => {
+            return {
+              ...normalizeOperationStatusItem(
+                item,
+                itemIndex
+              ),
+
+              sourceRole:
+                memberStatus.role
+            };
+          }
+        );
+      }
+    );
+
+
+  /*
+    기존 업무일지 및 상세보기 호환용 문자열
   */
   const combinedContent =
     memberStatuses
       .map(
-        (memberStatus) => {
+        (
+          memberStatus
+        ) => {
           return [
             `[${memberStatus.role}]`,
             memberStatus.content
@@ -9516,27 +9579,85 @@ function createLeaderCombinedOperationStatus() {
       .join("\n\n");
 
 
+  /*
+    팀원 운전현황 중 가장 최근 수정시간
+  */
+  const latestUpdatedAt =
+    memberStatuses
+      .map(
+        (
+          memberStatus
+        ) => {
+          return String(
+            memberStatus.updatedAt ||
+            ""
+          );
+        }
+      )
+      .filter(
+        Boolean
+      )
+      .sort(
+        (
+          valueA,
+          valueB
+        ) => {
+          return (
+            new Date(
+              valueB
+            ).getTime() -
+            new Date(
+              valueA
+            ).getTime()
+          );
+        }
+      )[0] ||
+    "";
+
+
+  const latestMemberStatus =
+    memberStatuses.find(
+      (
+        memberStatus
+      ) => {
+        return (
+          memberStatus.updatedAt ===
+          latestUpdatedAt
+        );
+      }
+    );
+
+
   return {
     role:
       "파트장",
 
-    /*
-      파트장 전체 상태는 별도로 판단하지 않고
-      화면에서 각 보직 상태를 개별 표시한다.
-    */
     type:
-      "normal",
+      combinedOperationItems.length
+        ? getRepresentativeOperationStatusType(
+            combinedOperationItems
+          )
+        : "normal",
 
     content:
       combinedContent,
 
+    operationItems:
+      combinedOperationItems,
+
+    items:
+      combinedOperationItems,
+
     memberStatuses,
 
     updatedAt:
-      "",
+      latestUpdatedAt,
 
     updatedBy:
-      ""
+      String(
+        latestMemberStatus?.updatedBy ||
+        ""
+      ).trim()
   };
 }
 
