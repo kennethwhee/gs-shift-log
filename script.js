@@ -10914,6 +10914,15 @@ function addOperationStatusEditorItem() {
 
 /* =========================================================
   설비별 상태 버튼 및 삭제 처리
+
+  상태 선택:
+  - 전체 목록을 다시 그리지 않는다.
+  - 현재 행의 버튼과 색상만 즉시 변경한다.
+  - 포커스 삭제로 발생하던 접근성 경고를 방지한다.
+
+  삭제:
+  - 확인 후 배열에서 제거
+  - 삭제할 때만 목록을 다시 그린다.
 ========================================================= */
 
 function handleOperationStatusItemsEditorClick(
@@ -10925,9 +10934,16 @@ function handleOperationStatusItemsEditorClick(
     );
 
 
+  /* =====================================================
+    설비별 운전 상태 선택
+  ====================================================== */
+
   if (
     typeButton
   ) {
+    event.preventDefault();
+
+
     const itemIndex =
       Number(
         typeButton.dataset
@@ -10954,18 +10970,96 @@ function handleOperationStatusItemsEditorClick(
     }
 
 
+    /*
+      편집 데이터 변경
+    */
     editingOperationStatusItems[
       itemIndex
     ].type =
       selectedType;
 
 
-    renderOperationStatusItemsEditor();
+    /*
+      해당 설비 편집 행 찾기
+    */
+    const editorItem =
+      typeButton.closest(
+        ".operation-status-item-editor"
+      );
+
+
+    if (
+      !editorItem
+    ) {
+      return;
+    }
+
+
+    /*
+      행 전체 상태색 변경
+    */
+    OPERATION_STATUS_TYPES.forEach(
+      (
+        statusType
+      ) => {
+        editorItem.classList.remove(
+          `is-${statusType}`
+        );
+      }
+    );
+
+
+    editorItem.classList.add(
+      `is-${selectedType}`
+    );
+
+
+    /*
+      같은 행의 상태 버튼 선택 표시 변경
+    */
+    editorItem
+      .querySelectorAll(
+        "[data-operation-item-type]"
+      )
+      .forEach(
+        (
+          button
+        ) => {
+          const buttonType =
+            normalizeOperationStatusType(
+              button.dataset
+                .operationItemType
+            );
+
+
+          const isSelected =
+            buttonType ===
+            selectedType;
+
+
+          button.classList.toggle(
+            "is-selected",
+            isSelected
+          );
+
+
+          button.setAttribute(
+            "aria-pressed",
+            String(
+              isSelected
+            )
+          );
+        }
+      );
 
 
     return;
   }
 
+
+  /* =====================================================
+    설비별 운전현황 삭제
+  ====================================================== */
 
   const deleteButton =
     event.target.closest(
@@ -10978,6 +11072,9 @@ function handleOperationStatusItemsEditorClick(
   ) {
     return;
   }
+
+
+  event.preventDefault();
 
 
   const itemIndex =
@@ -11027,7 +11124,15 @@ function handleOperationStatusItemsEditorClick(
   );
 
 
+  /*
+    삭제한 경우에만 목록을 다시 그린다.
+  */
   renderOperationStatusItemsEditor();
+
+
+  showToast(
+    `${itemName} 운전현황을 삭제했습니다.`
+  );
 }
 
 
