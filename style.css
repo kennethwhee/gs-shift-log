@@ -16121,4 +16121,93 @@ button.diary-attachment-button:focus-visible {
   margin-top: 14px !important;
 }
 
+/* =========================================================
+  파트장 보직별 업무일지 제목 최종 정렬
 
+  TGO 업무일지 | 1. 업무내용
+  BCO1 업무일지 | 1. 업무내용
+  BCO2 업무일지 | 1. 업무내용
+
+  보직 제목을 별도 줄로 만들지 않고
+  첫 번째 업무내용 줄과 같은 높이에 배치한다.
+========================================================= */
+
+#logTableBody
+.log-preview__role-section {
+  position: relative !important;
+
+  display: block !important;
+
+  width: 100% !important;
+  height: 12px !important;
+  min-height: 12px !important;
+
+  margin: 14px 0 0 !important;
+  padding: 12px 0 0 !important;
+
+  border-top: 1px solid #cbd8e5 !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/*
+  첫 번째 TGO 업무일지도
+  다른 보직과 동일하게 적용
+*/
+#logTableBody
+.log-preview__role-section.is-first-role {
+  height: 12px !important;
+  min-height: 12px !important;
+
+  margin: 14px 0 0 !important;
+  padding: 12px 0 0 !important;
+
+  border-top: 1px solid #cbd8e5 !important;
+}
+
+
+/*
+  TGO 업무일지, BCO1 업무일지 등의 제목을
+  다음 첫 번째 업무 줄의 왼쪽 칸에 겹쳐 배치
+*/
+#logTableBody
+.log-preview__role-section
+.log-preview__role-divider {
+  position: absolute !important;
+
+  top: 12px !important;
+  left: 0 !important;
+
+  display: block !important;
+
+  width: 90px !important;
+  min-width: 90px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: inherit;
+
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1.55 !important;
+
+  text-align: left !important;
+  white-space: nowrap !important;
+}
+
+
+/*
+  보직 제목 다음의 첫 번째 업무내용을
+  제목과 같은 높이에서 시작
+*/
+#logTableBody
+.log-preview__role-section
++
+.log-preview__group {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+
+  border-top: 0 !important;
+}
