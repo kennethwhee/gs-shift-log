@@ -16579,3 +16579,313 @@ table:has(#noteEntryTableBody) thead {
     column-gap: 5px;
   }
 }
+
+/* =========================================================
+  비고 섹션 최종 보정
+
+  목표:
+  - 인계사항과 동일한 구조감
+  - 제목 + 건수 배지 일체형
+  - 본문 폰트·간격 통일
+  - 색상만 보라 계열로 구분
+========================================================= */
+
+
+/* =========================================================
+  비고 제목 영역
+
+  "비고 2건"을 하나의 섹션 헤더처럼 정리
+========================================================= */
+
+/*
+  비고 영역의 제목을 포함한 부모 요소를 정리한다.
+  noteEntryCount가 들어 있는 제목 줄 기준
+*/
+#noteEntryCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 28px;
+  height: 18px;
+
+  margin-left: 5px;
+  padding: 0 7px;
+
+  border: 1px solid #d8d2ee;
+  border-radius: 999px;
+
+  background: #eeeafb;
+  color: #675f91;
+
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+
+/*
+  비고 제목이 들어 있는 헤더 줄
+*/
+#noteEntryCount
+  :is(
+    *,
+    span
+  ) {
+  font-size: inherit;
+}
+
+
+/*
+  noteEntryCount가 속한 제목 영역
+*/
+:has(> #noteEntryCount) {
+  display: flex;
+  align-items: center;
+
+  min-height: 38px;
+  margin: 0;
+  padding: 0 13px;
+
+  border-left: 3px solid #8c82bd;
+  border-top: 1px solid #ded9ef;
+  border-right: 1px solid #ded9ef;
+  border-bottom: 1px solid #ded9ef;
+  border-radius: 9px 9px 0 0;
+
+  background: #f4f1fb;
+
+  color: #342f4d;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+
+/* =========================================================
+  비고 목록 외곽
+
+  제목 바로 아래 붙도록 정리
+========================================================= */
+
+table:has(#noteEntryTableBody) {
+  margin-top: -1px;
+
+  border: 1px solid #ded9ef;
+  border-radius: 0 0 9px 9px;
+
+  background: #ffffff;
+  box-shadow: none;
+}
+
+
+/* =========================================================
+  비고 행 높이와 간격
+
+  인계사항처럼 컴팩트하게 정리
+========================================================= */
+
+#noteEntryTableBody
+  .log-entry-row-shell {
+  min-height: 0;
+
+  padding: 9px 14px 9px 12px;
+
+  background: #ffffff;
+}
+
+
+/*
+  짝수행 배경도 거의 흰색으로 유지
+  현재처럼 줄마다 진한 배경 차이를 없앤다.
+*/
+#noteEntryTableBody tr:nth-child(even)
+  .log-entry-row-shell {
+  background: #fcfbfe;
+}
+
+
+#noteEntryTableBody tr:hover
+  .log-entry-row-shell {
+  background: #f7f5fc;
+}
+
+
+/*
+  행 사이 구분선
+*/
+#noteEntryTableBody tr:not(:last-child)
+  .log-entry-unified-cell {
+  border-bottom: 1px solid #ece9f4;
+}
+
+
+/*
+  기존 굵은 왼쪽 보라선 제거
+  제목 헤더에만 포인트선을 사용한다.
+*/
+#noteEntryTableBody
+  .log-entry-unified-cell {
+  border-left: 0;
+}
+
+
+/* =========================================================
+  번호 + 내용 정렬
+
+  인계사항과 같은 비율
+========================================================= */
+
+#noteEntryTableBody
+  .log-entry-document-line.is-remark-line {
+  display: grid;
+
+  grid-template-columns:
+    26px
+    minmax(0, 1fr);
+
+  align-items: start;
+
+  width: 100%;
+  gap: 6px;
+}
+
+
+/*
+  번호
+*/
+#noteEntryTableBody
+  .log-entry-document-number {
+  width: 26px;
+  min-width: 26px;
+
+  color: #514a78;
+
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.55;
+
+  text-align: right;
+}
+
+
+/*
+  본문
+*/
+#noteEntryTableBody
+  .log-entry-document-content-text.is-remark-content {
+  color: #273248;
+
+  font-family:
+    inherit;
+
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/*
+  줄바꿈된 두 번째 줄도
+  내용 시작 위치에 맞춰 정렬된다.
+*/
+#noteEntryTableBody
+  .log-entry-document-body {
+  min-width: 0;
+  padding: 0;
+}
+
+
+/* =========================================================
+  비고 내부 불필요 요소 제거
+========================================================= */
+
+#noteEntryTableBody
+  .log-entry-document-time,
+
+#noteEntryTableBody
+  .log-entry-document-tag,
+
+#noteEntryTableBody
+  .log-entry-tag-button {
+  display: none !important;
+}
+
+
+/* =========================================================
+  편집 모드
+========================================================= */
+
+.log-entry-list-panel.is-edit-mode
+  #noteEntryTableBody
+  .log-entry-row-shell {
+  grid-template-columns:
+    28px
+    minmax(0, 1fr)
+    auto;
+
+  align-items: start;
+  gap: 7px;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width: 768px
+) {
+  :has(> #noteEntryCount) {
+    min-height: 34px;
+    padding: 0 10px;
+
+    font-size: 12px;
+  }
+
+
+  #noteEntryCount {
+    height: 17px;
+    padding: 0 6px;
+
+    font-size: 9px;
+  }
+
+
+  #noteEntryTableBody
+    .log-entry-row-shell {
+    padding: 8px 10px;
+  }
+
+
+  #noteEntryTableBody
+    .log-entry-document-line.is-remark-line {
+    grid-template-columns:
+      23px
+      minmax(0, 1fr);
+
+    gap: 5px;
+  }
+
+
+  #noteEntryTableBody
+    .log-entry-document-number {
+    width: 23px;
+    min-width: 23px;
+
+    font-size: 10px;
+  }
+
+
+  #noteEntryTableBody
+    .log-entry-document-content-text.is-remark-content {
+    font-size: 10.5px;
+    line-height: 1.55;
+  }
+}
