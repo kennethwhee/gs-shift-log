@@ -10771,9 +10771,14 @@ function ensureOperationStatusItemsEditor() {
   return editorContainer;
 }
 
-
 /* =========================================================
-  설비별 운전현황 편집 행 HTML
+  설비별 운전현황 편집 행 최종본
+
+  PC 한 줄 구조:
+  번호 | 설비명 | 상태 선택 | 운전현황 내용 | 삭제
+
+  내부 저장값 abnormal은 유지하지만
+  화면에는 "보존"으로 표시한다.
 ========================================================= */
 
 function createOperationStatusEditorItemHtml(
@@ -10814,7 +10819,7 @@ function createOperationStatusEditorItemHtml(
         "abnormal",
 
       label:
-        "이상"
+        "보존"
     },
     {
       type:
@@ -10837,58 +10842,55 @@ function createOperationStatusEditorItemHtml(
       data-operation-item-index="${itemIndex}"
     >
 
-      <div
-        class="operation-status-item-editor__top"
+      <span
+        class="operation-status-item-editor__number"
+        aria-hidden="true"
+      >
+        ${itemIndex + 1}.
+      </span>
+
+
+      <label
+        class="
+          operation-status-item-field
+          operation-status-item-field--name
+        "
       >
         <span
-          class="operation-status-item-editor__number"
+          class="operation-status-item-field__label"
         >
-          ${itemIndex + 1}
+          설비명
         </span>
 
-
-        <label
-          class="operation-status-item-editor__name-field"
+        <input
+          type="text"
+          class="operation-status-item-name-input"
+          value="${escapeHtml(
+            normalizedItem.name
+          )}"
+          placeholder="설비명 입력"
+          data-operation-item-index="${itemIndex}"
+          aria-label="${itemIndex + 1}번 설비명"
         >
-          <span>
-            설비명
-          </span>
-
-          <input
-            type="text"
-            class="operation-status-item-name-input"
-            value="${escapeHtml(
-              normalizedItem.name
-            )}"
-            placeholder="예: 터빈, #3 보조보일러"
-            data-operation-item-index="${itemIndex}"
-          >
-        </label>
-
-
-        <button
-          type="button"
-          class="operation-status-item-delete-button"
-          data-operation-item-delete="${itemIndex}"
-          aria-label="${itemIndex + 1}번 설비 삭제"
-        >
-          삭제
-        </button>
-      </div>
+      </label>
 
 
       <div
-        class="operation-status-item-editor__status"
+        class="
+          operation-status-item-field
+          operation-status-item-field--status
+        "
       >
         <span
-          class="operation-status-item-editor__label"
+          class="operation-status-item-field__label"
         >
           운전 상태
         </span>
 
-
         <div
           class="operation-status-item-type-buttons"
+          role="group"
+          aria-label="${itemIndex + 1}번 운전 상태"
         >
           ${statusTypes
             .map(
@@ -10935,21 +10937,37 @@ function createOperationStatusEditorItemHtml(
 
 
       <label
-        class="operation-status-item-editor__content-field"
+        class="
+          operation-status-item-field
+          operation-status-item-field--content
+        "
       >
-        <span>
+        <span
+          class="operation-status-item-field__label"
+        >
           운전현황 내용
         </span>
 
         <textarea
           class="operation-status-item-content-input"
-          rows="2"
-          placeholder="현재 설비 상태를 입력하세요."
+          rows="1"
+          placeholder="현재 설비 상태 입력"
           data-operation-item-index="${itemIndex}"
+          aria-label="${itemIndex + 1}번 운전현황 내용"
         >${escapeHtml(
           normalizedItem.content
         )}</textarea>
       </label>
+
+
+      <button
+        type="button"
+        class="operation-status-item-delete-button"
+        data-operation-item-delete="${itemIndex}"
+        aria-label="${itemIndex + 1}번 설비 삭제"
+      >
+        삭제
+      </button>
 
     </article>
   `;
