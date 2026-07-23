@@ -2955,5 +2955,112 @@
 >
 </div>
 
+<!-- ======================================================
+  첨부파일 선택 팝업
+
+  업무일지 목록의 첨부 개수 버튼을 누르면 열리고,
+  사진이 여러 장일 때 원하는 사진을 선택한다.
+
+  사진을 선택하면 script.js의 기존 이미지 뷰어로 연결한다.
+======================================================= -->
+
+<div
+  id="attachmentSelectorModal"
+  class="attachment-selector-modal"
+  aria-hidden="true"
+>
+  <div
+    class="attachment-selector-modal__backdrop"
+    data-attachment-selector-close
+  ></div>
+
+
+  <section
+    class="attachment-selector-modal__panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="attachmentSelectorTitle"
+  >
+
+    <!-- 상단 제목 -->
+    <header
+      class="attachment-selector-modal__header"
+    >
+      <div
+        class="attachment-selector-modal__heading"
+      >
+        <span
+          class="attachment-selector-modal__eyebrow"
+        >
+          ATTACHMENT
+        </span>
+
+        <div
+          class="attachment-selector-modal__title-row"
+        >
+          <h3
+            id="attachmentSelectorTitle"
+            class="attachment-selector-modal__title"
+          >
+            첨부파일
+          </h3>
+
+          <span
+            id="attachmentSelectorCount"
+            class="attachment-selector-modal__count"
+          >
+            0개
+          </span>
+        </div>
+      </div>
+
+
+      <button
+        type="button"
+        id="closeAttachmentSelectorButton"
+        class="attachment-selector-modal__close"
+        aria-label="첨부파일 선택창 닫기"
+        data-attachment-selector-close
+      >
+        ×
+      </button>
+    </header>
+
+
+    <!-- 첨부파일 목록 -->
+    <div
+      id="attachmentSelectorBody"
+      class="attachment-selector-modal__body"
+    >
+      <div
+        id="attachmentSelectorList"
+        class="attachment-selector-list"
+      >
+        <div
+          class="attachment-selector-empty"
+        >
+          첨부파일이 없습니다.
+        </div>
+      </div>
+    </div>
+
+
+    <!-- 하단 버튼 -->
+    <footer
+      class="attachment-selector-modal__footer"
+    >
+      <button
+        type="button"
+        id="closeAttachmentSelectorFooterButton"
+        class="attachment-selector-modal__footer-close"
+        data-attachment-selector-close
+      >
+        닫기
+      </button>
+    </footer>
+
+  </section>
+</div>
+
 </body>
 </html>

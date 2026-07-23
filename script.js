@@ -15367,36 +15367,194 @@ function loadLogs() {
 
 
 /* =========================================================
-  업무일지 목록
+  업무일지 목록 렌더링 최종본
+
+  첨부파일:
+  - 0개: -
+  - 1개 이상: 🖼 개수 버튼
+  - 버튼 클릭 시 openAttachmentSelector() 실행
 ========================================================= */
+
 function renderLogTable() {
   const selectedDateText =
-    formatInputDate(appState.selectedDate);
+    formatInputDate(
+      appState.selectedDate
+    );
+
 
   const filteredLogs =
-    appState.logs.filter((log) => {
-      return (
-        log.date === selectedDateText &&
-        log.shift === appState.selectedShift
-      );
-    });
+    appState.logs.filter(
+      (log) => {
+        return (
+          String(
+            log.date ||
+            ""
+          ).trim() ===
+            selectedDateText &&
 
-  elements.logTableBody.innerHTML = "";
+          String(
+            log.shift ||
+            ""
+          ).trim() ===
+            String(
+              appState.selectedShift ||
+              ""
+            ).trim()
+        );
+      }
+    );
+
+
+  if (
+    !elements.logTableBody ||
+    !elements.logEmptyState
+  ) {
+    return;
+  }
+
+
+  elements.logTableBody.innerHTML =
+    "";
+
 
   elements.logEmptyState.hidden =
     filteredLogs.length > 0;
 
-  if (!filteredLogs.length) {
+
+  if (
+    !filteredLogs.length
+  ) {
     updateShiftMemberCardStates();
+
     return;
   }
 
-  filteredLogs.forEach((log) => {
-    elements.logTableBody.insertAdjacentHTML(
-      "beforeend",
-      createLogRowHtml(log)
-    );
-  });
+
+  filteredLogs.forEach(
+    (log) => {
+      elements.logTableBody
+        .insertAdjacentHTML(
+          "beforeend",
+          createLogRowHtml(
+            log
+          )
+        );
+    }
+  );
+
+
+  /*
+    createLogRowHtml()에서 생성한 각 행과
+    filteredLogs의 순서가 동일하므로,
+    행별 첨부파일 셀을 안전하게 다시 구성한다.
+  */
+  const renderedRows = [
+    ...elements.logTableBody
+      .querySelectorAll(
+        ".log-row"
+      )
+  ];
+
+
+  renderedRows.forEach(
+    (
+      row,
+      rowIndex
+    ) => {
+      const log =
+        filteredLogs[
+          rowIndex
+        ];
+
+
+      const attachmentCell =
+        row.querySelector(
+          ".log-row__attachment-cell"
+        );
+
+
+      if (
+        !log ||
+        !attachmentCell
+      ) {
+        return;
+      }
+
+
+      const attachments =
+        Array.isArray(
+          log.attachments
+        )
+          ? log.attachments
+              .filter(
+                Boolean
+              )
+          : [];
+
+
+      const attachmentCount =
+        attachments.length;
+
+
+      /*
+        첨부파일 없음
+      */
+      if (
+        attachmentCount === 0
+      ) {
+        attachmentCell.innerHTML = `
+          <span
+            class="
+              attachment-indicator
+              is-empty
+            "
+            aria-label="첨부파일 없음"
+          >
+            -
+          </span>
+        `;
+
+        return;
+      }
+
+
+      /*
+        첨부파일 있음
+
+        클릭 이벤트는
+        handleLogTableClick()에서 처리한다.
+      */
+      attachmentCell.innerHTML = `
+        <button
+          type="button"
+          class="
+            attachment-indicator
+            diary-attachment-button
+          "
+          data-action="attachment"
+          data-log-id="${escapeHtml(
+            log.id
+          )}"
+          title="첨부파일 ${attachmentCount}개 보기"
+          aria-label="첨부파일 ${attachmentCount}개 보기"
+        >
+          <span
+            class="diary-attachment-button__icon"
+            aria-hidden="true"
+          >
+            🖼
+          </span>
+
+          <span
+            class="diary-attachment-button__count"
+          >
+            ${attachmentCount}
+          </span>
+        </button>
+      `;
+    }
+  );
+
 
   updateShiftMemberCardStates();
 }
@@ -16171,6 +16329,16 @@ function createLogRowHtml(log) {
   `;
 }
 
+/* =========================================================
+  업무일지 목록 클릭 처리 최종본
+
+  지원 동작:
+  - attachment: 첨부파일 선택 또는 바로 미리보기
+  - edit: 수정
+  - view: 상세보기
+  - delete: 삭제
+========================================================= */
+
 function handleLogTableClick(
   event
 ) {
@@ -16178,6 +16346,7 @@ function handleLogTableClick(
     event.target.closest(
       "[data-action][data-log-id]"
     );
+
 
   if (
     !actionElement ||
@@ -16188,19 +16357,26 @@ function handleLogTableClick(
     return;
   }
 
+
   const logId =
     String(
-      actionElement.dataset.logId ||
+      actionElement.dataset
+        .logId ||
       ""
     ).trim();
+
 
   const action =
     String(
-      actionElement.dataset.action ||
+      actionElement.dataset
+        .action ||
       ""
     ).trim();
 
-  if (!logId) {
+
+  if (
+    !logId
+  ) {
     showToast(
       "업무일지 정보를 확인할 수 없습니다."
     );
@@ -16208,18 +16384,24 @@ function handleLogTableClick(
     return;
   }
 
+
   const log =
     appState.logs.find(
       (item) => {
         return (
           String(
-            item.id || ""
-          ) === logId
+            item.id ||
+            ""
+          ).trim() ===
+          logId
         );
       }
     );
 
-  if (!log) {
+
+  if (
+    !log
+  ) {
     showToast(
       "업무일지를 찾을 수 없습니다."
     );
@@ -16228,28 +16410,108 @@ function handleLogTableClick(
   }
 
 
-  /*
+  /* =====================================================
+    첨부파일
+  ====================================================== */
+
+  if (
+    action ===
+    "attachment"
+  ) {
+    event.preventDefault();
+
+    event.stopPropagation();
+
+
+    const attachments =
+      Array.isArray(
+        log.attachments
+      )
+        ? log.attachments
+            .filter(
+              Boolean
+            )
+        : [];
+
+
+    if (
+      attachments.length === 0
+    ) {
+      showToast(
+        "등록된 첨부파일이 없습니다."
+      );
+
+      return;
+    }
+
+
+    if (
+      typeof openAttachmentSelector !==
+      "function"
+    ) {
+      console.error(
+        "openAttachmentSelector 함수를 찾을 수 없습니다."
+      );
+
+
+      showToast(
+        "첨부파일 선택 기능을 불러오지 못했습니다."
+      );
+
+      return;
+    }
+
+
+    openAttachmentSelector(
+      attachments,
+      log.id
+    );
+
+
+    return;
+  }
+
+
+  /* =====================================================
     수정
-  */
-  if (action === "edit") {
-    openLogEditor(log);
+  ====================================================== */
+
+  if (
+    action ===
+    "edit"
+  ) {
+    openLogEditor(
+      log
+    );
+
     return;
   }
 
 
-  /*
+  /* =====================================================
     상세보기
-  */
-  if (action === "view") {
-    openLogDetail(log);
+  ====================================================== */
+
+  if (
+    action ===
+    "view"
+  ) {
+    openLogDetail(
+      log
+    );
+
     return;
   }
 
 
-  /*
+  /* =====================================================
     삭제
-  */
-  if (action === "delete") {
+  ====================================================== */
+
+  if (
+    action ===
+    "delete"
+  ) {
     deleteLogById(
       log.id
     );
@@ -17586,6 +17848,7 @@ function renderCurrentAttachmentPreview() {
         : "none";
   }
 }
+
 /* =========================================================
   첨부 이미지 팝업 열기
 ========================================================= */
@@ -17803,50 +18066,615 @@ function closeAttachmentPreview() {
 }
 
 /* =========================================================
-  첨부파일 버튼 클릭
+  첨부파일 선택 팝업 상태
 ========================================================= */
 
-function bindDetailAttachmentPreviewEvents(
-  log,
-  attachments
+const attachmentSelectorState = {
+  items: [],
+  sourceLogId: null
+};
+
+
+/* =========================================================
+  첨부파일 이름 가져오기
+========================================================= */
+
+function getAttachmentSelectorFileName(
+  attachment,
+  index
 ) {
   if (
-    !elements.logDetailContent
+    typeof attachment ===
+    "string"
+  ) {
+    return (
+      attachment.trim() ||
+      `첨부파일 ${index + 1}`
+    );
+  }
+
+
+  return String(
+    attachment?.fileName ||
+    attachment?.file_name ||
+    attachment?.name ||
+    attachment?.originalName ||
+    attachment?.original_name ||
+    `첨부파일 ${index + 1}`
+  ).trim();
+}
+
+
+/* =========================================================
+  첨부파일 미리보기 주소 가져오기
+========================================================= */
+
+function getAttachmentSelectorPreviewUrl(
+  attachment
+) {
+  if (
+    !attachment
+  ) {
+    return "";
+  }
+
+
+  /*
+    과거 업무일지 첨부파일
+
+    D1의 첨부파일 ID를 이용해
+    R2 이미지 제공 API를 호출한다.
+  */
+  const attachmentId =
+    attachment?.id ||
+    attachment?.attachmentId ||
+    attachment?.attachment_id;
+
+
+  if (
+    attachmentId !== undefined &&
+    attachmentId !== null &&
+    String(
+      attachmentId
+    ).trim()
+  ) {
+    return (
+      `/api/legacy-attachment?id=` +
+      encodeURIComponent(
+        attachmentId
+      )
+    );
+  }
+
+
+  /*
+    이미 URL이 포함된 첨부파일
+  */
+  const directUrl =
+    attachment?.previewUrl ||
+    attachment?.preview_url ||
+    attachment?.url ||
+    attachment?.downloadUrl ||
+    attachment?.download_url ||
+    attachment?.originalUrl ||
+    attachment?.original_url;
+
+
+  if (
+    directUrl
+  ) {
+    return String(
+      directUrl
+    );
+  }
+
+
+  /*
+    문자열 자체가 URL인 경우
+  */
+  if (
+    typeof attachment ===
+      "string" &&
+    (
+      attachment.startsWith(
+        "http://"
+      ) ||
+      attachment.startsWith(
+        "https://"
+      ) ||
+      attachment.startsWith(
+        "/"
+      )
+    )
+  ) {
+    return attachment;
+  }
+
+
+  return "";
+}
+
+
+/* =========================================================
+  이미지 파일 여부 확인
+========================================================= */
+
+function isAttachmentSelectorImage(
+  attachment
+) {
+  const mimeType =
+    String(
+      attachment?.mimeType ||
+      attachment?.mime_type ||
+      attachment?.type ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (
+    mimeType.startsWith(
+      "image/"
+    )
+  ) {
+    return true;
+  }
+
+
+  const fileName =
+    getAttachmentSelectorFileName(
+      attachment,
+      0
+    )
+      .toLowerCase()
+      .split("?")[0]
+      .split("#")[0];
+
+
+  return (
+    /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)$/i
+      .test(
+        fileName
+      )
+  );
+}
+
+
+/* =========================================================
+  첨부파일 선택 목록 출력
+========================================================= */
+
+function renderAttachmentSelectorList() {
+  const list =
+    document.getElementById(
+      "attachmentSelectorList"
+    );
+
+  const count =
+    document.getElementById(
+      "attachmentSelectorCount"
+    );
+
+
+  if (
+    !list
   ) {
     return;
   }
 
 
-  elements.logDetailContent
-    .querySelectorAll(
-      "[data-detail-attachment-index]"
+  const attachments =
+    Array.isArray(
+      attachmentSelectorState.items
     )
-    .forEach(
-      button => {
-        button.addEventListener(
-          "click",
-          () => {
-            const attachmentIndex =
-              Number(
-                button.dataset
-                  .detailAttachmentIndex
-              );
+      ? attachmentSelectorState.items
+      : [];
 
 
-            openAttachmentPreview(
-              attachments,
-              Number.isInteger(
-                attachmentIndex
-              )
-                ? attachmentIndex
-                : 0
+  if (
+    count
+  ) {
+    count.textContent =
+      `${attachments.length}개`;
+  }
+
+
+  if (
+    attachments.length === 0
+  ) {
+    list.innerHTML = `
+      <div class="attachment-selector-empty">
+        첨부파일이 없습니다.
+      </div>
+    `;
+
+    return;
+  }
+
+
+  list.innerHTML =
+    attachments
+      .map(
+        (
+          attachment,
+          index
+        ) => {
+          const fileName =
+            getAttachmentSelectorFileName(
+              attachment,
+              index
             );
-          }
-        );
-      }
-    );
+
+          const previewUrl =
+            getAttachmentSelectorPreviewUrl(
+              attachment
+            );
+
+          const isImage =
+            isAttachmentSelectorImage(
+              attachment
+            );
+
+
+          return `
+            <button
+              type="button"
+              class="attachment-selector-card"
+              data-attachment-selector-index="${index}"
+              aria-label="${escapeHtml(
+                fileName
+              )} 미리보기"
+            >
+
+              ${
+                isImage &&
+                previewUrl
+                  ? `
+                    <img
+                      class="attachment-selector-thumbnail"
+                      src="${escapeHtml(
+                        previewUrl
+                      )}"
+                      alt=""
+                      loading="lazy"
+                    />
+                  `
+                  : `
+                    <span
+                      class="
+                        attachment-selector-thumbnail
+                        attachment-selector-thumbnail--file
+                      "
+                      aria-hidden="true"
+                    >
+                      📎
+                    </span>
+                  `
+              }
+
+
+              <span
+                class="attachment-selector-info"
+              >
+
+                <strong
+                  class="attachment-selector-name"
+                >
+                  ${escapeHtml(
+                    fileName
+                  )}
+                </strong>
+
+                <span
+                  class="attachment-selector-sub"
+                >
+                  ${
+                    isImage
+                      ? "이미지 미리보기"
+                      : "첨부파일 열기"
+                  }
+                </span>
+
+              </span>
+
+            </button>
+          `;
+        }
+      )
+      .join("");
 }
 
+
+/* =========================================================
+  첨부파일 선택 팝업 열기
+
+  첨부파일이 1개면:
+  선택창 없이 기존 이미지 뷰어를 바로 연다.
+
+  첨부파일이 2개 이상이면:
+  첨부파일 선택 팝업을 연다.
+========================================================= */
+
+function openAttachmentSelector(
+  attachments,
+  sourceLogId = null
+) {
+  const safeAttachments =
+    Array.isArray(
+      attachments
+    )
+      ? attachments.filter(
+          Boolean
+        )
+      : [];
+
+
+  if (
+    safeAttachments.length === 0
+  ) {
+    showToast(
+      "등록된 첨부파일이 없습니다."
+    );
+
+    return;
+  }
+
+
+  /*
+    첨부파일이 하나면 바로 큰 이미지 뷰어 실행
+  */
+  if (
+    safeAttachments.length === 1
+  ) {
+    openAttachmentPreview(
+      safeAttachments,
+      0
+    );
+
+    return;
+  }
+
+
+  const modal =
+    document.getElementById(
+      "attachmentSelectorModal"
+    );
+
+
+  if (
+    !modal
+  ) {
+    console.error(
+      "첨부파일 선택 팝업을 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  attachmentSelectorState.items =
+    safeAttachments;
+
+
+  attachmentSelectorState.sourceLogId =
+    sourceLogId;
+
+
+  renderAttachmentSelectorList();
+
+
+  modal.classList.add(
+    "is-open"
+  );
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "false"
+  );
+
+
+  document.body.classList.add(
+    "modal-open"
+  );
+}
+
+
+/* =========================================================
+  첨부파일 선택 팝업 닫기
+========================================================= */
+
+function closeAttachmentSelector() {
+  const modal =
+    document.getElementById(
+      "attachmentSelectorModal"
+    );
+
+
+  if (
+    !modal
+  ) {
+    return;
+  }
+
+
+  modal.classList.remove(
+    "is-open"
+  );
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+
+  attachmentSelectorState.items =
+    [];
+
+
+  attachmentSelectorState.sourceLogId =
+    null;
+
+
+  const hasOtherOpenModal =
+    document.querySelector(
+      [
+        ".modal-backdrop.is-open",
+        "#attachmentPreviewModal.is-open"
+      ].join(",")
+    );
+
+
+  if (
+    !hasOtherOpenModal
+  ) {
+    document.body.classList.remove(
+      "modal-open"
+    );
+  }
+}
+
+
+/* =========================================================
+  첨부파일 선택 처리
+========================================================= */
+
+function handleAttachmentSelectorClick(
+  event
+) {
+  const closeButton =
+    event.target.closest(
+      "[data-attachment-selector-close]"
+    );
+
+
+  if (
+    closeButton
+  ) {
+    closeAttachmentSelector();
+
+    return;
+  }
+
+
+  const attachmentButton =
+    event.target.closest(
+      "[data-attachment-selector-index]"
+    );
+
+
+  if (
+    !attachmentButton
+  ) {
+    return;
+  }
+
+
+  const attachmentIndex =
+    Number(
+      attachmentButton.dataset
+        .attachmentSelectorIndex
+    );
+
+
+  if (
+    !Number.isInteger(
+      attachmentIndex
+    ) ||
+    !attachmentSelectorState
+      .items[
+        attachmentIndex
+      ]
+  ) {
+    return;
+  }
+
+
+  const attachments =
+    [
+      ...attachmentSelectorState.items
+    ];
+
+
+  /*
+    선택창을 먼저 닫고,
+    선택한 위치부터 기존 이미지 뷰어를 연다.
+  */
+  closeAttachmentSelector();
+
+
+  openAttachmentPreview(
+    attachments,
+    attachmentIndex
+  );
+}
+
+
+/* =========================================================
+  첨부파일 선택 팝업 초기화
+========================================================= */
+
+function initializeAttachmentSelector() {
+  const modal =
+    document.getElementById(
+      "attachmentSelectorModal"
+    );
+
+
+  if (
+    !modal
+  ) {
+    return;
+  }
+
+
+  modal.addEventListener(
+    "click",
+    handleAttachmentSelectorClick
+  );
+}
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  initializeAttachmentSelector
+);
+
+
+/* =========================================================
+  첨부파일 선택창 키보드 제어
+========================================================= */
+
+document.addEventListener(
+  "keydown",
+  event => {
+    const modal =
+      document.getElementById(
+        "attachmentSelectorModal"
+      );
+
+
+    if (
+      !modal?.classList.contains(
+        "is-open"
+      )
+    ) {
+      return;
+    }
+
+
+    if (
+      event.key ===
+      "Escape"
+    ) {
+      event.preventDefault();
+
+      closeAttachmentSelector();
+    }
+  }
+);
 
 /* =========================================================
   첨부 이미지 키보드 제어
