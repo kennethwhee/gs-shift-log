@@ -10390,33 +10390,25 @@ function createOperationStatusDisplayRowHtml(
   운전현황 카드 렌더링 최종본
 
   TGO·BCO1·BCO2:
-  - 설비별 운전현황
-  - 대표 상태 배지 표시
+  - 설비별 운전현황 표시
 
   TO·BO1·BO2:
   - 자유 텍스트 표시
-  - 대표 상태 배지 숨김
 
   파트장:
-  - TGO·BCO1·BCO2 자동 취합
+  - 전용 컴팩트 영역 사용
+  - TGO·BCO1·BCO2 최신 운전현황 자동 취합
 ========================================================= */
 
 function renderOperationStatusCard() {
-  if (
-    !elements.operationStatusCurrentContent
-  ) {
-    return;
-  }
-
-
   const currentRole =
     getCurrentOperationStatusRole();
 
 
-  /*
-    화면을 다시 그릴 때 파트장은
-    항상 최신 TGO·BCO1·BCO2 자료를 재취합한다.
-  */
+  /* =====================================================
+    파트장 최신 자동 취합
+  ====================================================== */
+
   if (
     currentRole ===
     "파트장"
@@ -10460,12 +10452,8 @@ function renderOperationStatusCard() {
     ).trim();
 
 
-  const stateBadge =
-    elements.operationStatusStateBadge;
-
-
   /* =====================================================
-    파트장 자동 취합 표시
+    파트장 전용 컴팩트 표시
   ====================================================== */
 
   if (
@@ -10489,10 +10477,14 @@ function renderOperationStatusCard() {
 
     const orderedStatuses =
       orderedRoles.map(
-        role => {
-          const savedStatus =
+        (
+          role
+        ) => {
+          const matchedStatus =
             memberStatuses.find(
-              memberStatus => {
+              (
+                memberStatus
+              ) => {
                 return (
                   normalizeMemberLogRole(
                     memberStatus?.role
@@ -10503,90 +10495,89 @@ function renderOperationStatusCard() {
             );
 
 
-          if (
-            savedStatus
-          ) {
-            return savedStatus;
-          }
-
-
-          return createDefaultOperationStatus(
-            role
+          return (
+            matchedStatus ||
+            createDefaultOperationStatus(
+              role
+            )
           );
         }
       );
 
 
-    elements.operationStatusCurrentContent.innerHTML =
-      orderedStatuses
-        .map(
-          memberStatus => {
-            return createLeaderOperationStatusRowHtml(
-              memberStatus
-            );
-          }
-        )
-        .join("");
+    /*
+      파트장 전용 스타일 활성화
+    */
+    elements.operationStatusSection
+      ?.classList.add(
+        "is-leader-operation-status"
+      );
 
 
     /*
-      파트장은 각 보직별 상태를 따로 표시하므로
-      상단 공통 상태 배지는 숨긴다.
+      일반 보직 표시 영역은 숨긴다.
+
+      파트장 자료를 일반 영역에 넣으면
+      일반 카드의 큰 행 간격이 적용되어 높이가 넓어진다.
     */
     if (
-      stateBadge
+      elements.operationStatusSingleView
     ) {
-      stateBadge.hidden =
+      elements.operationStatusSingleView.hidden =
         true;
     }
 
 
+    /*
+      파트장 전용 컴팩트 목록 표시
+    */
     if (
-      elements.operationStatusUpdatedAt
+      elements.leaderOperationStatusList
     ) {
-      elements.operationStatusUpdatedAt.textContent =
-        "-";
+      elements.leaderOperationStatusList.hidden =
+        false;
+
+
+      elements.leaderOperationStatusList.innerHTML =
+        orderedStatuses
+          .map(
+            (
+              memberStatus
+            ) => {
+              return createLeaderOperationStatusRowHtml(
+                memberStatus
+              );
+            }
+          )
+          .join("");
     }
 
 
+    /*
+      이전 일반 보직 내용 제거
+    */
     if (
-      elements.operationStatusUpdatedBy
+      elements.operationStatusCurrentContent
     ) {
-      elements.operationStatusUpdatedBy.textContent =
-        "자동 취합";
+      elements.operationStatusCurrentContent.innerHTML =
+        "";
     }
 
 
+    /*
+      파트장은 공통 상태 배지를 사용하지 않는다.
+    */
     if (
-      elements.operationStatus
+      elements.operationStatusStateBadge
     ) {
-      elements.operationStatus.value =
-        String(
-          status.content ||
-          ""
-        );
+      elements.operationStatusStateBadge.hidden =
+        true;
     }
 
 
-    if (
-      elements.operationStatusSnapshot
-    ) {
-      elements.operationStatusSnapshot.value =
-        String(
-          status.content ||
-          ""
-        );
-    }
-
-
-    if (
-      elements.operationStatusType
-    ) {
-      elements.operationStatusType.value =
-        "normal";
-    }
-
-
+    /*
+      파트장 자동 취합이므로 수정 버튼 숨김
+    */
     if (
       elements.editOperationStatusButton
     ) {
@@ -10595,6 +10586,86 @@ function renderOperationStatusCard() {
 
       elements.editOperationStatusButton.disabled =
         true;
+
+      elements.editOperationStatusButton.textContent =
+        "수정";
+    }
+
+
+    /*
+      공통 상태색 제거
+
+      파트장 목록은 각 설비별 상태색을 사용한다.
+    */
+    OPERATION_STATUS_TYPES.forEach(
+      (
+        type
+      ) => {
+        elements.operationStatusSection
+          ?.classList.remove(
+            `is-type-${type}`
+          );
+
+
+        elements.operationStatusCurrentCard
+          ?.classList.remove(
+            `is-type-${type}`
+          );
+      }
+    );
+
+
+    /*
+      업무일지 저장용 값 유지
+    */
+    if (
+      elements.operationStatus
+    ) {
+      elements.operationStatus.value =
+        content;
+    }
+
+
+    if (
+      elements.operationStatusSnapshot
+    ) {
+      elements.operationStatusSnapshot.value =
+        content;
+    }
+
+
+    if (
+      elements.operationStatusType
+    ) {
+      elements.operationStatusType.value =
+        selectedType;
+    }
+
+
+    if (
+      elements.operationStatusUpdatedAt
+    ) {
+      elements.operationStatusUpdatedAt.textContent =
+        "";
+    }
+
+
+    if (
+      elements.operationStatusUpdatedBy
+    ) {
+      elements.operationStatusUpdatedBy.textContent =
+        "";
+
+      elements.operationStatusUpdatedBy.hidden =
+        true;
+    }
+
+
+    if (
+      elements.operationStatusEditorTime
+    ) {
+      elements.operationStatusEditorTime.textContent =
+        "";
     }
 
 
@@ -10603,8 +10674,33 @@ function renderOperationStatusCard() {
 
 
   /* =====================================================
-    일반 보직 수정 버튼 복원
+    일반 보직 화면 복원
   ====================================================== */
+
+  elements.operationStatusSection
+    ?.classList.remove(
+      "is-leader-operation-status"
+    );
+
+
+  if (
+    elements.leaderOperationStatusList
+  ) {
+    elements.leaderOperationStatusList.hidden =
+      true;
+
+    elements.leaderOperationStatusList.innerHTML =
+      "";
+  }
+
+
+  if (
+    elements.operationStatusSingleView
+  ) {
+    elements.operationStatusSingleView.hidden =
+      false;
+  }
+
 
   if (
     elements.editOperationStatusButton
@@ -10614,6 +10710,9 @@ function renderOperationStatusCard() {
 
     elements.editOperationStatusButton.disabled =
       false;
+
+    elements.editOperationStatusButton.textContent =
+      "수정";
   }
 
 
@@ -10626,53 +10725,29 @@ function renderOperationStatusCard() {
       currentRole
     )
   ) {
-    /*
-      기존 innerHTML이 남아 있을 수 있으므로
-      반드시 textContent로 초기화한다.
-    */
-    elements.operationStatusCurrentContent.textContent =
-      content;
-
-
-    elements.operationStatusCurrentContent.classList.add(
-      "is-plain-text"
-    );
-
-
-    elements.operationStatusCurrentContent.classList.remove(
-      "is-equipment-status"
-    );
-
-
-    /*
-      자유 텍스트 보직은 상태 배지를 사용하지 않는다.
-    */
     if (
-      stateBadge
+      elements.operationStatusCurrentContent
     ) {
-      stateBadge.hidden =
+      elements.operationStatusCurrentContent.textContent =
+        content;
+
+
+      elements.operationStatusCurrentContent.classList.add(
+        "is-plain-text"
+      );
+
+
+      elements.operationStatusCurrentContent.classList.remove(
+        "is-equipment-status"
+      );
+    }
+
+
+    if (
+      elements.operationStatusStateBadge
+    ) {
+      elements.operationStatusStateBadge.hidden =
         true;
-    }
-
-
-    if (
-      elements.operationStatusUpdatedAt
-    ) {
-      elements.operationStatusUpdatedAt.textContent =
-        updatedAt
-          ? formatDateTime(
-              updatedAt
-            )
-          : "-";
-    }
-
-
-    if (
-      elements.operationStatusUpdatedBy
-    ) {
-      elements.operationStatusUpdatedBy.textContent =
-        updatedBy ||
-        "-";
     }
 
 
@@ -10700,12 +10775,52 @@ function renderOperationStatusCard() {
     }
 
 
+    if (
+      elements.operationStatusUpdatedAt
+    ) {
+      elements.operationStatusUpdatedAt.textContent =
+        updatedAt
+          ? `${formatDateTime(
+              updatedAt
+            )} 수정`
+          : "";
+    }
+
+
+    if (
+      elements.operationStatusUpdatedBy
+    ) {
+      elements.operationStatusUpdatedBy.textContent =
+        "";
+
+      elements.operationStatusUpdatedBy.hidden =
+        true;
+    }
+
+
+    if (
+      elements.operationStatusEditorTime
+    ) {
+      elements.operationStatusEditorTime.textContent =
+        updatedAt
+          ? `${formatDateTime(
+              updatedAt
+            )} 수정`
+          : "";
+    }
+
+
+    applyOperationStatusTheme(
+      "normal"
+    );
+
+
     return;
   }
 
 
   /* =====================================================
-    TGO·BCO1·BCO2 설비별 운전현황 표시
+    TGO·BCO1·BCO2 설비별 표시
   ====================================================== */
 
   const operationItems =
@@ -10733,142 +10848,53 @@ function renderOperationStatusCard() {
     );
 
 
-  /*
-    설비별 배열이 없으면 기존 문자열을 그대로 표시한다.
-  */
   if (
-    !operationItems.length
+    elements.operationStatusCurrentContent
   ) {
-    elements.operationStatusCurrentContent.textContent =
-      content;
-  } else {
-    elements.operationStatusCurrentContent.innerHTML =
-      operationItems
-        .map(
-          (
-            item,
-            itemIndex
-          ) => {
-            const itemType =
-              normalizeOperationStatusType(
-                item.type
+    if (
+      operationItems.length
+    ) {
+      elements.operationStatusCurrentContent.innerHTML =
+        operationItems
+          .map(
+            (
+              item,
+              itemIndex
+            ) => {
+              return createOperationStatusDisplayRowHtml(
+                item,
+                itemIndex
               );
-
-
-            const itemTypeLabel =
-              getOperationStatusLabel(
-                itemType
-              );
-
-
-            return `
-              <div
-                class="
-                  operation-status-display-item
-                  is-${escapeHtml(
-                    itemType
-                  )}
-                "
-              >
-
-                <span
-                  class="operation-status-display-item__number"
-                >
-                  ${itemIndex + 1}.
-                </span>
-
-
-                <strong
-                  class="operation-status-display-item__name"
-                >
-                  ${escapeHtml(
-                    item.name
-                  )}
-                </strong>
-
-
-                <span
-                  class="
-                    operation-status-display-item__badge
-                    is-${escapeHtml(
-                      itemType
-                    )}
-                  "
-                >
-                  ${escapeHtml(
-                    itemTypeLabel
-                  )}
-                </span>
-
-
-                <span
-                  class="operation-status-display-item__content"
-                >
-                  ${escapeHtml(
-                    item.content
-                  )}
-                </span>
-
-              </div>
-            `;
-          }
-        )
-        .join("");
-  }
-
-
-  elements.operationStatusCurrentContent.classList.remove(
-    "is-plain-text"
-  );
-
-
-  elements.operationStatusCurrentContent.classList.add(
-    "is-equipment-status"
-  );
-
-
-  /*
-    설비별 보직은 대표 상태 배지를 표시한다.
-  */
-  if (
-    stateBadge
-  ) {
-    stateBadge.hidden =
-      false;
-
-
-    stateBadge.textContent =
-      getOperationStatusLabel(
-        selectedType
-      );
-
-
-    stateBadge.className =
-      [
-        "operation-status-state-badge",
-        `is-${selectedType}`
-      ].join(" ");
-  }
-
-
-  if (
-    elements.operationStatusUpdatedAt
-  ) {
-    elements.operationStatusUpdatedAt.textContent =
-      updatedAt
-        ? formatDateTime(
-            updatedAt
+            }
           )
-        : "-";
+          .join("");
+
+    } else {
+      elements.operationStatusCurrentContent.textContent =
+        content;
+    }
+
+
+    elements.operationStatusCurrentContent.classList.remove(
+      "is-plain-text"
+    );
+
+
+    elements.operationStatusCurrentContent.classList.add(
+      "is-equipment-status"
+    );
   }
 
 
+  /*
+    설비별 행 안에 상태 배지가 있으므로
+    카드 상단 공통 상태 배지는 숨긴다.
+  */
   if (
-    elements.operationStatusUpdatedBy
+    elements.operationStatusStateBadge
   ) {
-    elements.operationStatusUpdatedBy.textContent =
-      updatedBy ||
-      "-";
+    elements.operationStatusStateBadge.hidden =
+      true;
   }
 
 
@@ -10894,6 +10920,51 @@ function renderOperationStatusCard() {
     elements.operationStatusType.value =
       selectedType;
   }
+
+
+  if (
+    elements.operationStatusUpdatedAt
+  ) {
+    elements.operationStatusUpdatedAt.textContent =
+      updatedAt
+        ? `${formatDateTime(
+            updatedAt
+          )} 수정`
+        : "";
+  }
+
+
+  if (
+    elements.operationStatusUpdatedBy
+  ) {
+    elements.operationStatusUpdatedBy.textContent =
+      "";
+
+    elements.operationStatusUpdatedBy.hidden =
+      true;
+  }
+
+
+  if (
+    elements.operationStatusEditorTime
+  ) {
+    elements.operationStatusEditorTime.textContent =
+      updatedAt
+        ? `${formatDateTime(
+            updatedAt
+          )} 수정`
+        : "";
+  }
+
+
+  renderOperationStatusTypeButtons(
+    selectedType
+  );
+
+
+  applyOperationStatusTheme(
+    selectedType
+  );
 }
 
 /* =========================================================
