@@ -240,8 +240,7 @@ export async function onRequestGet(
     ) {
       return createJsonResponse(
         {
-          success:
-            false,
+          success: false,
 
           message:
             "올바른 첨부파일 id 값을 입력해야 합니다.",
@@ -286,8 +285,7 @@ export async function onRequestGet(
     ) {
       return createJsonResponse(
         {
-          success:
-            false,
+          success: false,
 
           message:
             "첨부파일 정보를 찾을 수 없습니다.",
@@ -311,8 +309,7 @@ export async function onRequestGet(
     ) {
       return createJsonResponse(
         {
-          success:
-            false,
+          success: false,
 
           message:
             "첨부파일의 R2 경로가 등록되지 않았습니다.",
@@ -339,8 +336,7 @@ export async function onRequestGet(
     ) {
       return createJsonResponse(
         {
-          success:
-            false,
+          success: false,
 
           message:
             "R2 버킷에서 첨부파일을 찾을 수 없습니다.",
@@ -362,58 +358,65 @@ export async function onRequestGet(
 
 
     /*
-      DB에 multipart/form-data가 잘못 저장된 경우
-      파일 확장자를 기준으로 MIME 타입을 다시 판단한다.
+      DB와 R2의 잘못된 MIME 정보를 사용하지 않고
+      파일 확장자로만 MIME 타입을 결정한다.
     */
-    const storedMimeType =
-      normalizeText(
-        attachment.mime_type
-      )
-        .toLowerCase();
+    const normalizedFileName =
+      fileName.toLowerCase();
 
 
-    const isInvalidStoredMimeType =
-      !storedMimeType ||
-      storedMimeType.includes(
-        "multipart/form-data"
-      ) ||
-      storedMimeType.includes(
-        "application/octet-stream"
-      ) ||
-      storedMimeType.includes(
-        "text/plain"
-      );
+    let contentType =
+      "application/octet-stream";
 
 
-    const contentType =
-      getMimeType(
-        fileName,
-        isInvalidStoredMimeType
-          ? ""
-          : storedMimeType
-      );
-
-
-    const headers =
-      new Headers();
-
-
-    /*
-      R2에 저장된 메타데이터를 먼저 반영한다.
-    */
     if (
-      object.httpMetadata
+      normalizedFileName.endsWith(".jpg") ||
+      normalizedFileName.endsWith(".jpeg")
     ) {
-      object.writeHttpMetadata(
-        headers
-      );
+      contentType =
+        "image/jpeg";
+
+    } else if (
+      normalizedFileName.endsWith(".png")
+    ) {
+      contentType =
+        "image/png";
+
+    } else if (
+      normalizedFileName.endsWith(".gif")
+    ) {
+      contentType =
+        "image/gif";
+
+    } else if (
+      normalizedFileName.endsWith(".webp")
+    ) {
+      contentType =
+        "image/webp";
+
+    } else if (
+      normalizedFileName.endsWith(".svg")
+    ) {
+      contentType =
+        "image/svg+xml";
+
+    } else if (
+      normalizedFileName.endsWith(".pdf")
+    ) {
+      contentType =
+        "application/pdf";
     }
 
 
     /*
-      잘못된 R2 메타데이터보다
-      파일 확장자 및 DB 값을 기준으로 마지막에 강제 지정한다.
+      R2 httpMetadata는 일부러 적용하지 않는다.
+      잘못 저장된 multipart/form-data가
+      응답 헤더를 덮어쓰는 것을 차단한다.
     */
+    const headers =
+      new Headers();
+
+
     headers.set(
       "Content-Type",
       contentType
@@ -428,13 +431,28 @@ export async function onRequestGet(
 
     headers.set(
       "Cache-Control",
-      "public, max-age=3600"
+      "no-store"
     );
 
 
     headers.set(
       "X-Content-Type-Options",
       "nosniff"
+    );
+
+
+    /*
+      새 코드 배포 확인용 헤더
+    */
+    headers.set(
+      "X-Legacy-Attachment-Version",
+      "2026-07-23-v2"
+    );
+
+
+    headers.set(
+      "X-Resolved-Content-Type",
+      contentType
     );
 
 
@@ -466,9 +484,7 @@ export async function onRequestGet(
     return new Response(
       object.body,
       {
-        status:
-          200,
-
+        status: 200,
         headers
       }
     );
@@ -482,8 +498,7 @@ export async function onRequestGet(
 
     return createJsonResponse(
       {
-        success:
-          false,
+        success: false,
 
         message:
           error instanceof Error
@@ -499,7 +514,6 @@ export async function onRequestGet(
     );
   }
 }
-
 
 /* =========================================================
   지원하지 않는 요청
