@@ -16889,3 +16889,506 @@ table:has(#noteEntryTableBody) {
     line-height: 1.55;
   }
 }
+
+/* =========================================================
+  업무일지 상세보기 · 미리보기 운전현황
+
+  업무일지 수정창의 운전현황과 동일한 구성:
+  보직 | 상태 배지 | 구분선 | 운전현황 내용
+========================================================= */
+
+
+/* =========================================================
+  상세보기 운전현황
+========================================================= */
+
+.detail-operation-dashboard {
+  width: 100%;
+  padding: 0;
+}
+
+
+/*
+  "파트장 운전현황" 제목 줄
+*/
+.detail-operation-dashboard__heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  min-height: 36px;
+  padding: 0 1px 9px;
+
+  color: #14243c;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+
+/*
+  제목 앞 초록 점
+*/
+.detail-operation-dashboard__dot {
+  display: block;
+  flex: 0 0 auto;
+
+  width: 8px;
+  height: 8px;
+
+  border-radius: 50%;
+  background: #18a36f;
+}
+
+
+/*
+  보직별 운전현황 목록
+*/
+.detail-operation-dashboard__list {
+  width: 100%;
+
+  border: 1px solid #d7e0eb;
+  border-radius: 10px;
+
+  overflow: hidden;
+  background: #ffffff;
+}
+
+
+/*
+  운전현황 한 줄
+*/
+.detail-operation-dashboard__row {
+  display: grid;
+
+  grid-template-columns:
+    42px
+    64px
+    9px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  min-height: 36px;
+  padding: 7px 14px;
+
+  column-gap: 8px;
+
+  color: #14233a;
+  background: #ffffff;
+}
+
+
+/*
+  행 사이 구분선
+*/
+.detail-operation-dashboard__row
+  + .detail-operation-dashboard__row {
+  border-top: 1px solid #e6ebf1;
+}
+
+
+/*
+  마우스 오버
+*/
+.detail-operation-dashboard__row:hover {
+  background: #f8fafc;
+}
+
+
+/*
+  보직명
+*/
+.detail-operation-dashboard__role {
+  color: #102a4b;
+
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+
+  white-space: nowrap;
+}
+
+
+/*
+  상태 배지 공통
+*/
+.detail-operation-dashboard__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 54px;
+  height: 22px;
+  padding: 0 8px;
+
+  border-radius: 999px;
+
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+
+/*
+  상태별 배지
+*/
+.detail-operation-dashboard__badge.is-normal {
+  background: #dff7ec;
+  color: #087b50;
+}
+
+
+.detail-operation-dashboard__badge.is-starting {
+  background: #fff3d6;
+  color: #a16600;
+}
+
+
+.detail-operation-dashboard__badge.is-stopped {
+  background: #eceff3;
+  color: #536174;
+}
+
+
+.detail-operation-dashboard__badge.is-abnormal {
+  background: #ffe8d8;
+  color: #b64a00;
+}
+
+
+.detail-operation-dashboard__badge.is-emergency {
+  background: #fee2e2;
+  color: #bb1e1e;
+}
+
+
+/*
+  세로 구분선
+*/
+.detail-operation-dashboard__divider {
+  color: #bac4d0;
+
+  font-size: 11px;
+  font-weight: 500;
+
+  text-align: center;
+}
+
+
+/*
+  운전현황 내용
+*/
+.detail-operation-dashboard__content {
+  min-width: 0;
+
+  color: #10233f;
+
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+  상세보기 기존 운전현황 영역 여백 정리
+========================================================= */
+
+/*
+  상세보기 운전현황 카드 안쪽 여백이 너무 크면
+  새 행 구조에 맞춰 간격을 줄인다.
+*/
+.log-detail-section:has(
+  .detail-operation-dashboard
+)
+.log-detail-section__body {
+  padding: 12px 14px 14px;
+}
+
+
+/*
+  기존 번호형 목록이 남아 있을 경우 숨김
+*/
+.log-detail-section:has(
+  .detail-operation-dashboard
+)
+.log-detail-numbered-list {
+  display: none !important;
+}
+
+
+/* =========================================================
+  업무일지 미리보기 운전현황
+========================================================= */
+
+.search-preview-section.is-operation-dashboard {
+  display: grid;
+
+  grid-template-columns:
+    78px
+    minmax(0, 1fr);
+
+  align-items: start;
+
+  width: 100%;
+  padding: 10px 0;
+
+  border-bottom: 1px solid #ccd8e6;
+}
+
+
+/*
+  미리보기 왼쪽 제목
+*/
+.search-preview-section.is-operation-dashboard
+  .search-preview-section__title {
+  padding-top: 3px;
+
+  color: #075eaa;
+
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.4;
+
+  white-space: nowrap;
+}
+
+
+/*
+  미리보기 운전현황 목록
+*/
+.search-preview-operation-list {
+  display: flex;
+  flex-direction: column;
+
+  width: 100%;
+  min-width: 0;
+}
+
+
+/*
+  미리보기 운전현황 한 줄
+*/
+.search-preview-operation-row {
+  display: grid;
+
+  grid-template-columns:
+    42px
+    57px
+    8px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  min-height: 27px;
+
+  column-gap: 6px;
+}
+
+
+/*
+  미리보기 행 사이 구분선
+*/
+.search-preview-operation-row
+  + .search-preview-operation-row {
+  border-top: 1px solid #e8edf3;
+}
+
+
+/*
+  미리보기 보직
+*/
+.search-preview-operation-role {
+  color: #102a4b;
+
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.3;
+
+  white-space: nowrap;
+}
+
+
+/*
+  미리보기 상태 배지
+*/
+.search-preview-operation-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 50px;
+  height: 18px;
+  padding: 0 6px;
+
+  border-radius: 999px;
+
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+
+.search-preview-operation-badge.is-normal {
+  background: #dff7ec;
+  color: #087b50;
+}
+
+
+.search-preview-operation-badge.is-starting {
+  background: #fff3d6;
+  color: #a16600;
+}
+
+
+.search-preview-operation-badge.is-stopped {
+  background: #eceff3;
+  color: #536174;
+}
+
+
+.search-preview-operation-badge.is-abnormal {
+  background: #ffe8d8;
+  color: #b64a00;
+}
+
+
+.search-preview-operation-badge.is-emergency {
+  background: #fee2e2;
+  color: #bb1e1e;
+}
+
+
+/*
+  미리보기 구분선
+*/
+.search-preview-operation-divider {
+  color: #bdc7d3;
+
+  font-size: 9px;
+  text-align: center;
+}
+
+
+/*
+  미리보기 운전현황 내용
+*/
+.search-preview-operation-content {
+  min-width: 0;
+
+  color: #10233f;
+
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+  상세보기 모바일
+========================================================= */
+
+@media (
+  max-width: 768px
+) {
+  .detail-operation-dashboard__heading {
+    min-height: 32px;
+    padding-bottom: 7px;
+
+    font-size: 12px;
+  }
+
+
+  .detail-operation-dashboard__row {
+    grid-template-columns:
+      37px
+      57px
+      7px
+      minmax(0, 1fr);
+
+    min-height: 34px;
+    padding: 7px 9px;
+
+    column-gap: 5px;
+  }
+
+
+  .detail-operation-dashboard__role {
+    font-size: 10px;
+  }
+
+
+  .detail-operation-dashboard__badge {
+    min-width: 50px;
+    height: 20px;
+    padding: 0 6px;
+
+    font-size: 9px;
+  }
+
+
+  .detail-operation-dashboard__divider {
+    font-size: 10px;
+  }
+
+
+  .detail-operation-dashboard__content {
+    font-size: 10px;
+    line-height: 1.4;
+  }
+}
+
+
+/* =========================================================
+  미리보기 좁은 화면
+========================================================= */
+
+@media (
+  max-width: 900px
+) {
+  .search-preview-section.is-operation-dashboard {
+    grid-template-columns:
+      66px
+      minmax(0, 1fr);
+  }
+
+
+  .search-preview-operation-row {
+    grid-template-columns:
+      37px
+      51px
+      7px
+      minmax(0, 1fr);
+
+    column-gap: 4px;
+  }
+
+
+  .search-preview-operation-role {
+    font-size: 8.5px;
+  }
+
+
+  .search-preview-operation-badge {
+    min-width: 46px;
+    padding: 0 5px;
+
+    font-size: 7.5px;
+  }
+
+
+  .search-preview-operation-content {
+    font-size: 8.5px;
+  }
+}
