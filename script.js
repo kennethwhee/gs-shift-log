@@ -31568,10 +31568,20 @@ function applyShiftMemberCardLogStatus(
 
 
 /* =========================================================
-  근무자 카드 상태 전체 갱신
+  근무자 카드 상태 전체 갱신 최종본
 
-  신규 결재 상태를 축약하지 않고
-  실제 상태명 그대로 표시한다.
+  표시 항목:
+  - 보직
+  - 작성자 이름
+  - 대근 배지
+  - 결재 상태
+
+  결재 상태:
+  - 미작성
+  - 임시저장
+  - 결재요청
+  - 결재완료
+  - 저장완료
 ========================================================= */
 
 updateShiftMemberCardStates =
@@ -31609,19 +31619,88 @@ updateShiftMemberCardStates =
           );
 
 
+        const roleElement =
+          card.querySelector(
+            ".shift-member-card__role"
+          );
+
+
+        const nameElement =
+          card.querySelector(
+            ".shift-member-card__name"
+          );
+
+
+        const nameWrapElement =
+          card.querySelector(
+            ".shift-member-card__name-wrap"
+          ) ||
+          nameElement?.parentElement ||
+          null;
+
+
+        const teamElement =
+          card.querySelector(
+            ".shift-member-card__team"
+          );
+
+
         const statusElement =
           card.querySelector(
             ".shift-member-card__status"
           );
 
 
+        /*
+          보직명 복원
+
+          HTML 내용이 비워졌거나 다른 코드에서
+          변경되어도 data-role 값을 기준으로 다시 표시한다.
+        */
         if (
-          !statusElement
+          roleElement
         ) {
-          return;
+          roleElement.textContent =
+            role;
         }
 
 
+        /*
+          근무파트는 카드 내부에서 표시하지 않는다.
+
+          현재 파트는 근무자 현황 제목 옆에서만 표시한다.
+        */
+        if (
+          teamElement
+        ) {
+          teamElement.textContent =
+            "";
+
+          teamElement.hidden =
+            true;
+        }
+
+
+        /*
+          이전 렌더링에서 생성한 대근 배지 제거
+        */
+        card
+          .querySelectorAll(
+            ".shift-member-card__substitute"
+          )
+          .forEach(
+            (
+              badge
+            ) => {
+              badge.remove();
+            }
+          );
+
+
+        /*
+          날짜·근무·보직이 같은
+          가장 최근 업무일지 찾기
+        */
         const existingLog =
           findLatestShiftMemberLog(
             selectedDate,
@@ -31630,10 +31709,139 @@ updateShiftMemberCardStates =
           );
 
 
-        applyShiftMemberCardLogStatus(
-          card,
-          statusElement,
-          existingLog
+        /*
+          작성된 업무일지가 없는 경우
+        */
+        if (
+          !existingLog
+        ) {
+          if (
+            nameElement
+          ) {
+            nameElement.textContent =
+              "";
+          }
+
+
+          card.dataset.logState =
+            "empty";
+
+
+          card.dataset.approvalStatus =
+            "empty";
+
+
+          if (
+            statusElement
+          ) {
+            statusElement.textContent =
+              "미작성";
+
+
+            statusElement.className =
+              "shift-member-card__status is-empty";
+          }
+
+
+          card.setAttribute(
+            "aria-label",
+            `${role} 업무일지 작성`
+          );
+
+
+          return;
+        }
+
+
+        /*
+          업무일지 작성자 이름 표시
+        */
+        const authorName =
+          String(
+            existingLog.author ||
+            existingLog.authorName ||
+            existingLog.writerName ||
+            existingLog.writer_name ||
+            ""
+          ).trim();
+
+
+        if (
+          nameElement
+        ) {
+          nameElement.textContent =
+            authorName;
+        }
+
+
+        /*
+          대근 업무일지 표시
+        */
+        const isSubstitute =
+          existingLog.isSubstitute ===
+            true ||
+          existingLog.isSubstitute ===
+            "true" ||
+          existingLog.is_substitute ===
+            true ||
+          Number(
+            existingLog.isSubstitute ??
+            existingLog.is_substitute ??
+            0
+          ) ===
+            1;
+
+
+        if (
+          isSubstitute &&
+          nameWrapElement
+        ) {
+          const substituteBadge =
+            document.createElement(
+              "span"
+            );
+
+
+          substituteBadge.className =
+            "shift-member-card__substitute";
+
+
+          substituteBadge.textContent =
+            "대근";
+
+
+          nameWrapElement.appendChild(
+            substituteBadge
+          );
+        }
+
+
+        /*
+          결재 상태 표시
+        */
+        if (
+          statusElement
+        ) {
+          applyShiftMemberCardLogStatus(
+            card,
+            statusElement,
+            existingLog
+          );
+        }
+
+
+        card.setAttribute(
+          "aria-label",
+          [
+            role,
+            authorName,
+            getShiftLogStatusDisplayName(
+              existingLog.status
+            ),
+            "업무일지 열기"
+          ]
+            .filter(Boolean)
+            .join(" ")
         );
       }
     );
