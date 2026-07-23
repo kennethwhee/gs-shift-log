@@ -9540,38 +9540,42 @@ function createLeaderCombinedOperationStatus() {
   };
 }
 
-
 /* =========================================================
-  파트장 저장 운전현황 확인
+  파트장 운전현황 불러오기 최종본
+
+  파트장 운전현황은 별도 저장본을 사용하지 않고
+  항상 TGO·BCO1·BCO2의 최신 운전현황을 취합한다.
+
+  따라서 팀원의 운전현황이 변경되면
+  파트장 업무일지를 다시 열었을 때 즉시 반영된다.
 ========================================================= */
 
 function loadLeaderOperationStatus() {
+  /*
+    과거에 저장된 파트장 전용 운전현황이 있으면
+    최신 팀원 상태를 막으므로 제거한다.
+  */
   const leaderStorageKey =
     getOperationStatusStorageKey(
       "파트장"
     );
 
-  const savedLeaderStatus =
+
+  if (
     localStorage.getItem(
       leaderStorageKey
-    );
-
-  /*
-    파트장이 직접 저장한 내용이 있으면
-    자동 취합보다 저장 내용을 우선한다.
-  */
-  if (
-    savedLeaderStatus
+    )
   ) {
-    return loadOperationStatusByRole(
-      "파트장",
-      {
-        allowLegacyFallback:
-          false
-      }
+    localStorage.removeItem(
+      leaderStorageKey
     );
   }
 
+
+  /*
+    TGO·BCO1·BCO2 최신 운전현황을
+    항상 새로 취합한다.
+  */
   return createLeaderCombinedOperationStatus();
 }
 
