@@ -17475,6 +17475,9 @@ function renderCurrentAttachmentPreview() {
     loadingElement.hidden =
       false;
 
+    loadingElement.style.display =
+      "block";
+
     loadingElement.textContent =
       "이미지를 불러오는 중입니다.";
   }
@@ -17484,17 +17487,61 @@ function renderCurrentAttachmentPreview() {
     previewImage
   ) {
     previewImage.hidden =
-      true;
+      false;
+
+    previewImage.style.display =
+      "none";
 
     previewImage.alt =
       currentItem.name ||
       "첨부 이미지";
 
 
-    /*
-      동일 사진을 다시 눌러도
-      이미지 로드 이벤트가 발생하도록 초기화한다.
-    */
+    previewImage.onload =
+      () => {
+        previewImage.hidden =
+          false;
+
+        previewImage.style.display =
+          "block";
+
+
+        if (
+          loadingElement
+        ) {
+          loadingElement.hidden =
+            true;
+
+          loadingElement.style.display =
+            "none";
+        }
+      };
+
+
+    previewImage.onerror =
+      () => {
+        previewImage.hidden =
+          true;
+
+        previewImage.style.display =
+          "none";
+
+
+        if (
+          loadingElement
+        ) {
+          loadingElement.hidden =
+            false;
+
+          loadingElement.style.display =
+            "block";
+
+          loadingElement.textContent =
+            "이미지를 불러오지 못했습니다.";
+        }
+      };
+
+
     previewImage.removeAttribute(
       "src"
     );
@@ -17511,8 +17558,7 @@ function renderCurrentAttachmentPreview() {
 
 
   const hasMultipleItems =
-    items.length >
-    1;
+    items.length > 1;
 
 
   if (
@@ -17520,6 +17566,11 @@ function renderCurrentAttachmentPreview() {
   ) {
     previousButton.hidden =
       !hasMultipleItems;
+
+    previousButton.style.display =
+      hasMultipleItems
+        ? "flex"
+        : "none";
   }
 
 
@@ -17528,10 +17579,13 @@ function renderCurrentAttachmentPreview() {
   ) {
     nextButton.hidden =
       !hasMultipleItems;
+
+    nextButton.style.display =
+      hasMultipleItems
+        ? "flex"
+        : "none";
   }
 }
-
-
 /* =========================================================
   첨부 이미지 팝업 열기
 ========================================================= */
@@ -17580,17 +17634,30 @@ function openAttachmentPreview(
       Math.max(
         Number(
           startIndex
-        ) ||
-        0,
+        ) || 0,
         0
       ),
-      normalizedAttachments.length -
-      1
+      normalizedAttachments.length - 1
     );
 
 
   const modal =
     ensureAttachmentPreviewModal();
+
+
+  /*
+    인라인 display:none을 반드시 해제한다.
+  */
+  modal.style.display =
+    "flex";
+
+
+  modal.style.visibility =
+    "visible";
+
+
+  modal.style.opacity =
+    "1";
 
 
   modal.classList.add(
@@ -17675,6 +17742,18 @@ function closeAttachmentPreview() {
   );
 
 
+  modal.style.display =
+    "none";
+
+
+  modal.style.visibility =
+    "hidden";
+
+
+  modal.style.opacity =
+    "0";
+
+
   const previewImage =
     document.getElementById(
       "attachmentPreviewImage"
@@ -17687,6 +17766,9 @@ function closeAttachmentPreview() {
     previewImage.removeAttribute(
       "src"
     );
+
+    previewImage.style.display =
+      "none";
   }
 
 
@@ -17698,13 +17780,16 @@ function closeAttachmentPreview() {
     0;
 
 
-  /*
-    업무일지 상세 모달이 열려 있으면
-    body의 modal-open은 유지한다.
-  */
   const hasOtherOpenModal =
-    document.querySelector(
-      ".modal-backdrop.is-open"
+    Boolean(
+      elements.logDetailModal
+        ?.classList.contains(
+          "is-open"
+        ) ||
+      elements.logEditorModal
+        ?.classList.contains(
+          "is-open"
+        )
     );
 
 
@@ -17716,7 +17801,6 @@ function closeAttachmentPreview() {
     );
   }
 }
-
 
 /* =========================================================
   첨부파일 버튼 클릭
