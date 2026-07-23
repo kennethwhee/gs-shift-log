@@ -19277,3 +19277,46 @@ tbody tr:not(.log-entry-empty-row) td {
 .leader-operation-line {
   border-top: 1px solid #edf1f5;
 }
+
+/* =========================================================
+   운전현황 직접입력 행
+
+   - 운전 상태 칸을 사용하지 않음
+   - 직접입력 내용란이 남은 영역 전체를 사용
+   - 삭제 버튼은 우측 끝에 유지
+========================================================= */
+
+.operation-status-item-editor.is-custom-entry {
+  grid-template-columns:
+    22px
+    minmax(150px, 180px)
+    minmax(0, 1fr)
+    auto;
+}
+
+.operation-status-item-editor.is-custom-entry
+.operation-status-item-field--name {
+  grid-column: 2;
+}
+
+.operation-status-item-editor.is-custom-entry
+.operation-status-item-field--content {
+  grid-column: 3;
+  width: 100%;
+  min-width: 0;
+}
+
+.operation-status-item-editor.is-custom-entry
+.operation-status-item-content-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.operation-status-item-editor.is-custom-entry
+.operation-status-item-delete-button {
+  grid-column: 4;
+  align-self: end;
+}
