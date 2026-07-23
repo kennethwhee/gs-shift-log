@@ -13470,19 +13470,39 @@ function selectOperationStatusType(
 
 
 /* =========================================================
-  설비별 운전현황 저장
+  운전현황 저장 최종본
+
+  TGO · BCO1 · BCO2:
+  - 설비별 운전현황 배열 저장
+  - 설비명·상태·내용 검증
+
+  TO · BO1 · BO2:
+  - 자유 텍스트 저장
+  - 설비별 항목 검증 사용하지 않음
+
+  파트장:
+  - 직접 저장하지 않음
+  - TGO·BCO1·BCO2 운전현황 자동 취합
 ========================================================= */
 
 function saveOperationStatus() {
-  if (
-    !validateOperationStatusEditorItems()
-  ) {
-    return;
-  }
-
-
   const currentRole =
     getCurrentOperationStatusRole();
+
+
+  /*
+    파트장은 운전현황을 직접 저장하지 않는다.
+  */
+  if (
+    currentRole ===
+    "파트장"
+  ) {
+    showToast(
+      "파트장 운전현황은 TGO·BCO1·BCO2 운전현황을 자동 취합합니다."
+    );
+
+    return;
+  }
 
 
   const author =
@@ -13497,53 +13517,198 @@ function saveOperationStatus() {
       .toISOString();
 
 
-  const normalizedItems =
-    editingOperationStatusItems.map(
-      (
-        item,
-        itemIndex
-      ) => {
-        const normalizedItem =
-          normalizeOperationStatusItem(
-            item,
-            itemIndex
-          );
+  /* =====================================================
+    TGO · BCO1 · BCO2 설비별 운전현황 저장
+  ====================================================== */
+
+  if (
+    usesEquipmentOperationStatusEditor(
+      currentRole
+    )
+  ) {
+    /*
+      설비별 편집 보직에서만
+      설비 항목 검증을 실행한다.
+    */
+    if (
+      !validateOperationStatusEditorItems()
+    ) {
+      return;
+    }
 
 
-        return {
-          ...normalizedItem,
+    const normalizedItems =
+      editingOperationStatusItems.map(
+        (
+          item,
+          itemIndex
+        ) => {
+          const normalizedItem =
+            normalizeOperationStatusItem(
+              {
+                ...item,
 
-          name:
-            String(
-              normalizedItem.name ||
-              ""
-            ).trim(),
+                role:
+                  currentRole,
 
-          content:
-            String(
-              normalizedItem.content ||
-              ""
-            ).trim(),
+                sourceRole:
+                  item?.sourceRole ||
+                  currentRole
+              },
+              itemIndex
+            );
 
-          updatedAt,
 
-          updatedBy:
-            author
-        };
-      }
+          return {
+            ...normalizedItem,
+
+            role:
+              currentRole,
+
+            sourceRole:
+              normalizedItem.sourceRole ||
+              currentRole,
+
+            name:
+              String(
+                normalizedItem.name ||
+                ""
+              ).trim(),
+
+            content:
+              String(
+                normalizedItem.content ||
+                ""
+              ).trim(),
+
+            updatedAt,
+
+            updatedBy:
+              author
+          };
+        }
+      );
+
+
+    const serializedContent =
+      serializeOperationStatusItems(
+        normalizedItems
+      );
+
+
+    const representativeType =
+      getRepresentativeOperationStatusType(
+        normalizedItems
+      );
+
+
+    appState.currentOperationStatus = {
+      role:
+        currentRole,
+
+      type:
+        representativeType,
+
+      content:
+        serializedContent,
+
+      operationItems:
+        normalizedItems,
+
+      items:
+        normalizedItems,
+
+      updatedAt,
+
+      updatedBy:
+        author
+    };
+
+
+    if (
+      elements.operationStatus
+    ) {
+      elements.operationStatus.value =
+        serializedContent;
+    }
+
+
+    if (
+      elements.operationStatusSnapshot
+    ) {
+      elements.operationStatusSnapshot.value =
+        serializedContent;
+    }
+
+
+    if (
+      elements.operationStatusType
+    ) {
+      elements.operationStatusType.value =
+        representativeType;
+    }
+
+
+    saveOperationStatusToStorage();
+
+
+    renderOperationStatusCard();
+
+
+    closeOperationStatusEditor();
+
+
+    showToast(
+      `${currentRole} 설비별 운전현황 ${normalizedItems.length}건을 저장했습니다.`
     );
 
 
-  const serializedContent =
-    serializeOperationStatusItems(
-      normalizedItems
+    return;
+  }
+
+
+  /* =====================================================
+    TO · BO1 · BO2 자유 텍스트 운전현황 저장
+  ====================================================== */
+
+  if (
+    ![
+      "TO",
+      "BO1",
+      "BO2"
+    ].includes(
+      currentRole
+    )
+  ) {
+    showToast(
+      "현재 보직의 운전현황 저장 방식을 확인할 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  const content =
+    String(
+      elements.operationStatus?.value ||
+      ""
+    ).trim();
+
+
+  if (
+    !content
+  ) {
+    showToast(
+      "현재 운전현황 내용을 입력해 주세요."
     );
 
 
-  const representativeType =
-    getRepresentativeOperationStatusType(
-      normalizedItems
-    );
+    elements.operationStatus
+      ?.focus();
+
+
+    return;
+  }
 
 
   appState.currentOperationStatus = {
@@ -13551,25 +13716,22 @@ function saveOperationStatus() {
       currentRole,
 
     /*
-      기존 코드 호환용 대표 상태
+      TO·BO1·BO2는 자유 텍스트 방식이므로
+      대표 상태를 normal로 유지한다.
     */
     type:
-      representativeType,
+      "normal",
+
+    content,
 
     /*
-      기존 상세보기·검색 호환 문자열
-    */
-    content:
-      serializedContent,
-
-    /*
-      새로운 설비별 상태 배열
+      설비별 항목 배열은 사용하지 않는다.
     */
     operationItems:
-      normalizedItems,
+      [],
 
     items:
-      normalizedItems,
+      [],
 
     updatedAt,
 
@@ -13578,14 +13740,11 @@ function saveOperationStatus() {
   };
 
 
-  /*
-    기존 hidden textarea 및 snapshot 동기화
-  */
   if (
     elements.operationStatus
   ) {
     elements.operationStatus.value =
-      serializedContent;
+      content;
   }
 
 
@@ -13593,7 +13752,7 @@ function saveOperationStatus() {
     elements.operationStatusSnapshot
   ) {
     elements.operationStatusSnapshot.value =
-      serializedContent;
+      content;
   }
 
 
@@ -13601,7 +13760,7 @@ function saveOperationStatus() {
     elements.operationStatusType
   ) {
     elements.operationStatusType.value =
-      representativeType;
+      "normal";
   }
 
 
@@ -13615,7 +13774,7 @@ function saveOperationStatus() {
 
 
   showToast(
-    `${currentRole} 설비별 운전현황 ${normalizedItems.length}건을 저장했습니다.`
+    `${currentRole} 운전현황을 저장했습니다.`
   );
 }
 
