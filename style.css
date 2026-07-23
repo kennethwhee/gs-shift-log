@@ -16317,3 +16317,263 @@ button.diary-attachment-button:focus-visible {
     font-size: 12px;
   }
 }
+
+/* =========================================================
+  업무일지 수정창 줄바꿈 정렬 최종본
+
+  원하는 표시:
+
+  1. 00:00 업무내용
+           - 부가설명
+========================================================= */
+
+.log-entry-document-line {
+  box-sizing: border-box;
+
+  display: grid !important;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    24px
+    max-content
+    minmax(0, 1fr) !important;
+
+  align-items: start !important;
+
+  column-gap: 6px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  text-align: left !important;
+}
+
+
+/* 번호 */
+
+.log-entry-document-number {
+  grid-column: 1 !important;
+
+  display: block !important;
+
+  width: 24px !important;
+  min-width: 24px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #1763b6;
+
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.55;
+
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+
+/* 시간 */
+
+.log-entry-document-time {
+  grid-column: 2 !important;
+
+  display: block !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #1763b6;
+
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.55;
+
+  font-variant-numeric: tabular-nums;
+
+  white-space: nowrap;
+}
+
+
+/* 내용 전체 영역 */
+
+.log-entry-document-content {
+  grid-column: 3 !important;
+
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #26364b;
+
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+
+  text-align: left !important;
+
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+
+/* 첫 번째 업무 내용 */
+
+.log-entry-document-main-line {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+
+  margin: 0;
+  padding: 0;
+
+  line-height: 1.55;
+}
+
+
+/* 둘째 줄 이후 부가설명 */
+
+.log-entry-document-continuations {
+  display: block;
+
+  width: 100%;
+
+  margin: 2px 0 0;
+  padding: 0;
+}
+
+
+.log-entry-document-continuation {
+  display: block;
+
+  width: 100%;
+
+  margin: 0;
+  padding: 0;
+
+  line-height: 1.55;
+}
+
+
+/*
+  시간이 없는 항목
+
+  번호 다음부터 바로 내용이 시작된다.
+*/
+
+.log-entry-document-line.has-no-entry-time {
+  grid-template-columns:
+    24px
+    minmax(0, 1fr) !important;
+}
+
+
+.log-entry-document-line.has-no-entry-time
+.log-entry-document-content {
+  grid-column: 2 !important;
+}
+
+
+/* =========================================================
+  메인 목록 보직명 + 첫 업무 같은 줄
+========================================================= */
+
+.log-preview__group.is-role-section-start {
+  margin-top: 14px !important;
+  padding-top: 12px !important;
+
+  border-top: 1px solid #cbd8e5 !important;
+}
+
+
+/*
+  보직 제목과 첫 업무가 동일한 행에서 시작한다.
+*/
+
+.log-preview__group.is-role-section-start {
+  grid-template-columns:
+    92px
+    minmax(0, 1fr) !important;
+
+  align-items: start !important;
+}
+
+
+.log-preview__group.is-role-section-start
+.log-preview__title {
+  align-self: start;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  line-height: 1.55 !important;
+}
+
+
+.log-preview__group.is-role-section-start
+.log-preview__content {
+  align-self: start;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  line-height: 1.55 !important;
+}
+
+
+/*
+  제목이 없는 두 번째 업무부터는
+  첫 번째 업무 내용과 같은 위치에서 시작한다.
+*/
+
+.log-preview__group.has-no-title.is-handover {
+  padding-left: 92px !important;
+}
+
+
+/* 모바일 */
+
+@media (max-width: 700px) {
+  .log-entry-document-line {
+    grid-template-columns:
+      21px
+      max-content
+      minmax(0, 1fr) !important;
+
+    column-gap: 4px !important;
+  }
+
+  .log-entry-document-line.has-no-entry-time {
+    grid-template-columns:
+      21px
+      minmax(0, 1fr) !important;
+  }
+
+  .log-entry-document-number {
+    width: 21px !important;
+    min-width: 21px !important;
+  }
+
+  .log-entry-document-number,
+  .log-entry-document-time,
+  .log-entry-document-content {
+    font-size: 12px;
+  }
+
+  .log-preview__group.is-role-section-start {
+    grid-template-columns:
+      82px
+      minmax(0, 1fr) !important;
+  }
+
+  .log-preview__group.has-no-title.is-handover {
+    padding-left: 82px !important;
+  }
+}

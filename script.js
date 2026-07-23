@@ -13395,19 +13395,20 @@ function renderLogEntryTable() {
 }
 
 /* =====================================================
-  업무일지 항목 한 줄 출력 최종본
+  업무일지 수정창 항목 출력 최종본
 
-  표시 예시:
+  시간 있음:
 
-  1. 09:48  첫 번째 내용
-             → Shift+Enter로 입력한 추가 내용
-             → 세 번째 내용
+  1. 00:00 업무내용
+           - 부가설명
+           - 추가설명
 
-  핵심:
-  - 번호는 별도 열
-  - 시간은 별도 열
-  - 실제 내용은 별도 열
-  - 둘째 줄부터는 내용 시작 위치에 자동 정렬
+  시간 없음:
+
+  1. 업무내용
+     - 부가설명
+
+  둘째 줄부터 첫 줄의 실제 내용 시작점에 맞춘다.
 ===================================================== */
 
 const createCompactLineHtml = (
@@ -13433,7 +13434,7 @@ const createCompactLineHtml = (
       );
 
 
-  const rawContentText =
+  const rawContent =
     String(
       entry?.content ||
       "-"
@@ -13449,25 +13450,50 @@ const createCompactLineHtml = (
       .trim();
 
 
+  const contentLines =
+    rawContent
+      .split(
+        "\n"
+      )
+      .map(
+        (line) => {
+          return String(
+            line || ""
+          ).trim();
+        }
+      )
+      .filter(
+        (
+          line,
+          index
+        ) => {
+          /*
+            중간의 빈 줄은 유지하지 않고,
+            실제 내용이 있는 줄만 출력한다.
+          */
+          return (
+            Boolean(line) ||
+            index === 0
+          );
+        }
+      );
+
+
+  const firstContentLine =
+    contentLines[0] ||
+    "-";
+
+
+  const continuationLines =
+    contentLines.slice(
+      1
+    );
+
+
   const hasTime =
     showTime &&
     Boolean(
       timeText
-    );
-
-
-  /*
-    줄바꿈을 유지하면서 HTML 문자는 안전하게 처리한다.
-
-    Shift + Enter로 입력한 줄바꿈:
-    \n → <br>
-  */
-  const multilineContentHtml =
-    escapeHtml(
-      rawContentText
-    ).replace(
-      /\n/g,
-      "<br>"
     );
 
 
@@ -13497,32 +13523,65 @@ const createCompactLineHtml = (
       </strong>
 
 
+      ${
+        hasTime
+          ? `
+            <strong
+              class="log-entry-document-time"
+            >
+              ${escapeHtml(
+                timeText
+              )}
+            </strong>
+          `
+          : ""
+      }
+
+
       <div
-        class="log-entry-document-body"
+        class="log-entry-document-content"
       >
 
-        ${
-          hasTime
-            ? `
-              <strong
-                class="log-entry-document-time"
-              >
-                ${escapeHtml(
-                  timeText
-                )}
-              </strong>
-            `
-            : ""
-        }
-
-
         <div
-          class="log-entry-document-content"
+          class="log-entry-document-main-line"
         >
           <span
             class="log-entry-document-content-text"
-          >${multilineContentHtml}</span>${tagHtml}
+          >
+            ${escapeHtml(
+              firstContentLine
+            )}
+          </span>
+
+          ${tagHtml}
         </div>
+
+
+        ${
+          continuationLines.length
+            ? `
+              <div
+                class="log-entry-document-continuations"
+              >
+                ${continuationLines
+                  .map(
+                    (line) => {
+                      return `
+                        <span
+                          class="log-entry-document-continuation"
+                        >
+                          ${escapeHtml(
+                            line
+                          )}
+                        </span>
+                      `;
+                    }
+                  )
+                  .join("")}
+              </div>
+            `
+            : ""
+        }
 
       </div>
 
@@ -15909,38 +15968,6 @@ function createLogRowHtml(log) {
         );
 
 
-      /*
-        파트장 업무일지는
-        TGO → BCO1 → BCO2 순서로
-        보직 제목을 표시한다.
-      */
-      if (
-        isLeaderLog &&
-        roleEntries.length
-      ) {
-        previewGroups.push({
-          type:
-            "role-section",
-
-          title:
-            `${role} 업무일지`,
-
-          isFirstRole:
-            roleIndex === 0,
-
-          categoryClass: [
-            "is-handover",
-
-            getLogEntrySourceClass(
-              role
-            )
-          ]
-            .filter(Boolean)
-            .join(" ")
-        });
-      }
-
-
       roleEntries.forEach(
         (
           entry,
@@ -15969,28 +15996,40 @@ function createLogRowHtml(log) {
             "-";
 
 
+          /*
+            파트장 목록:
+
+            TGO 업무일지    1. 06:55 내용
+                            2. 07:10 내용
+
+            일반 보직 목록:
+
+            인계 사항       1. 06:55 내용
+                            2. 07:10 내용
+          */
+          const groupTitle =
+            index === 0
+              ? (
+                  isLeaderLog
+                    ? `${role} 업무일지`
+                    : "인계 사항"
+                )
+              : "";
+
+
           previewGroups.push({
             type:
               "normal",
 
             title:
-              !isLeaderLog &&
-              index === 0
-                ? "인계 사항"
-                : "",
+              groupTitle,
 
-            /*
-              인계 번호는 파란색
-            */
             number:
               `${index + 1}.`,
 
             numberClass:
               "is-handover-number",
 
-            /*
-              시간도 파란색
-            */
             time:
               timeText,
 
@@ -16009,10 +16048,8 @@ function createLogRowHtml(log) {
                 role
               ),
 
-              !isLeaderLog &&
-              roleIndex === 0 &&
               index === 0
-                ? "is-section-start"
+                ? "is-section-start is-role-section-start"
                 : ""
             ]
               .filter(Boolean)
