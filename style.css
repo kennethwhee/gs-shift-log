@@ -15952,3 +15952,368 @@ button.diary-attachment-button:focus-visible {
   min-width: 10px;
   text-align: center;
 }
+
+/* =========================================================
+  업무일지 목록 구역 여백 최종 보정
+
+  대상:
+  - 운전현황 → TM 발행 내역
+  - TM 발행 내역 → TGO 업무일지
+  - TGO → BCO1 → BCO2 업무일지
+
+  실제 script.js HTML 구조에 맞춘
+  우선순위 높은 최종 덮어쓰기
+========================================================= */
+
+
+/* =========================================================
+  TM 발행 내역 등 일반 구역의 시작
+
+  경계선과 제목·내용 사이에
+  충분한 위쪽 여백을 확보한다.
+========================================================= */
+
+.log-list-section
+.log-row__preview-cell
+.log-preview
+.log-preview__group.is-section-start {
+  box-sizing: border-box;
+
+  width: 100%;
+
+  margin-top: 12px !important;
+  padding-top: 13px !important;
+
+  border-top: 1px solid #cbd8e5 !important;
+}
+
+
+/*
+  업무내용의 맨 첫 구역에는
+  불필요한 위쪽 경계선을 표시하지 않는다.
+*/
+.log-list-section
+.log-row__preview-cell
+.log-preview
+.log-preview__group.is-section-start:first-child {
+  margin-top: 0 !important;
+  padding-top: 4px !important;
+
+  border-top: 0 !important;
+}
+
+
+/* =========================================================
+  구역 제목
+
+  예:
+  운전현황
+  TM 발행 내역
+  인계 사항
+
+  제목과 같은 줄의 내용도
+  경계선에서 충분히 떨어뜨린다.
+========================================================= */
+
+.log-list-section
+.log-preview__group.is-section-start
+.log-preview__title {
+  padding-top: 1px !important;
+}
+
+
+/* =========================================================
+  파트장 보직별 업무일지 제목 전체 구역
+
+  예:
+  TGO 업무일지
+  BCO1 업무일지
+  BCO2 업무일지
+========================================================= */
+
+.log-list-section
+.log-row__preview-cell
+.log-preview
+.log-preview__role-section {
+  box-sizing: border-box;
+
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+
+  margin-top: 14px !important;
+  padding-top: 12px !important;
+  padding-bottom: 7px !important;
+
+  border-top: 1px solid #cbd8e5 !important;
+}
+
+
+/* =========================================================
+  첫 번째 보직 업무일지
+
+  TM 발행 내역 다음에 나오는
+  첫 보직도 동일한 여백을 적용한다.
+========================================================= */
+
+.log-list-section
+.log-row__preview-cell
+.log-preview
+.log-preview__role-section.is-first-role {
+  margin-top: 14px !important;
+  padding-top: 12px !important;
+
+  border-top: 1px solid #cbd8e5 !important;
+}
+
+
+/* =========================================================
+  보직 업무일지 제목
+
+  경계선 아래에서 독립된 제목처럼 보이게 한다.
+========================================================= */
+
+.log-list-section
+.log-preview__role-section
+.log-preview__role-divider {
+  box-sizing: border-box;
+
+  display: block;
+
+  width: 100%;
+
+  margin: 0 !important;
+  padding: 0 0 6px !important;
+
+  line-height: 1.45 !important;
+}
+
+
+/* =========================================================
+  보직 제목 바로 다음 첫 업무 항목
+
+  제목과 첫 번째 내용 사이의 여백을 확보한다.
+========================================================= */
+
+.log-list-section
+.log-preview__role-section
++
+.log-preview__group {
+  margin-top: 2px !important;
+}
+
+
+/* =========================================================
+  각 구역의 마지막 내용과
+  다음 경계선 사이 간격
+========================================================= */
+
+.log-list-section
+.log-preview__group:not(.is-section-start)
++
+.log-preview__role-section,
+
+.log-list-section
+.log-preview__group:not(.is-section-start)
++
+.log-preview__group.is-section-start {
+  margin-top: 14px !important;
+}
+
+/* =========================================================
+  업무일지 수정창 다중 줄 정렬 최종본
+
+  구조:
+  번호 | 시간 | 실제 내용
+
+  Shift+Enter 추가 문장은
+  시간 아래가 아니라 실제 내용 아래에서 시작한다.
+========================================================= */
+
+
+/* 번호와 본문 */
+
+.log-entry-document-line {
+  display: grid !important;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    24px
+    minmax(0, 1fr);
+
+  align-items: start;
+
+  column-gap: 5px;
+
+  margin: 0;
+  padding: 0;
+
+  text-align: left;
+}
+
+
+/* 번호 */
+
+.log-entry-document-number {
+  display: block;
+
+  width: 24px;
+  min-width: 24px;
+
+  margin: 0;
+  padding: 0;
+
+  color: #1763b6;
+
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.65;
+
+  text-align: right;
+  white-space: nowrap;
+}
+
+
+/* 시간과 내용을 분리하는 내부 GRID */
+
+.log-entry-document-body {
+  display: grid !important;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    max-content
+    minmax(0, 1fr);
+
+  align-items: start;
+
+  column-gap: 7px;
+
+  margin: 0;
+  padding: 0;
+
+  text-align: left;
+}
+
+
+/* 시간 */
+
+.log-entry-document-time {
+  display: block;
+
+  grid-column: 1;
+
+  margin: 0;
+  padding: 0;
+
+  color: #1763b6;
+
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.65;
+
+  font-variant-numeric:
+    tabular-nums;
+
+  white-space: nowrap;
+}
+
+
+/* 실제 내용 영역 */
+
+.log-entry-document-content {
+  display: block;
+
+  grid-column: 2;
+
+  width: 100%;
+  min-width: 0;
+
+  margin: 0;
+  padding: 0;
+
+  color: #26364b;
+
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.65;
+
+  text-align: left;
+
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+
+/* Shift+Enter로 입력한 줄바꿈 유지 */
+
+.log-entry-document-content-text {
+  display: inline;
+
+  margin: 0;
+  padding: 0;
+
+  white-space: normal;
+}
+
+
+/*
+  시간이 없는 항목은
+  내용이 내부 첫 번째 열부터 전체 폭을 사용한다.
+*/
+
+.log-entry-document-line.has-no-entry-time
+.log-entry-document-body {
+  grid-template-columns:
+    minmax(0, 1fr);
+}
+
+
+.log-entry-document-line.has-no-entry-time
+.log-entry-document-content {
+  grid-column: 1;
+}
+
+
+/* TAG 버튼이 내용 바로 뒤에 자연스럽게 배치 */
+
+.log-entry-document-content
+.log-entry-inline-tag {
+  display: inline-flex;
+
+  margin-left: 6px;
+
+  vertical-align: baseline;
+}
+
+
+/* 모바일 보정 */
+
+@media (max-width: 700px) {
+  .log-entry-document-line {
+    grid-template-columns:
+      21px
+      minmax(0, 1fr);
+
+    column-gap: 4px;
+  }
+
+  .log-entry-document-number {
+    width: 21px;
+    min-width: 21px;
+  }
+
+  .log-entry-document-body {
+    column-gap: 5px;
+  }
+
+  .log-entry-document-number,
+  .log-entry-document-time,
+  .log-entry-document-content {
+    font-size: 12px;
+  }
+}

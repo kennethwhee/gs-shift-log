@@ -13395,21 +13395,19 @@ function renderLogEntryTable() {
 }
 
 /* =====================================================
-  인수인계 한 줄 출력
+  업무일지 항목 한 줄 출력 최종본
 
-  인계사항:
-  1. 07:15 내용
-  2. 07:15, 10:55 내용
+  표시 예시:
 
-  시간 없는 인계사항:
-  1. 내용
+  1. 09:48  첫 번째 내용
+             → Shift+Enter로 입력한 추가 내용
+             → 세 번째 내용
 
-  TM 발행:
-  1. 내용
-
-  중요:
-  템플릿 문자열 내부 공백이 화면에 출력되지 않도록
-  시간과 내용을 하나의 연속된 HTML 문자열로 만든다.
+  핵심:
+  - 번호는 별도 열
+  - 시간은 별도 열
+  - 실제 내용은 별도 열
+  - 둘째 줄부터는 내용 시작 위치에 자동 정렬
 ===================================================== */
 
 const createCompactLineHtml = (
@@ -13425,7 +13423,8 @@ const createCompactLineHtml = (
 
   const timeText =
     String(
-      entry.time || ""
+      entry?.time ||
+      ""
     )
       .trim()
       .replace(
@@ -13434,10 +13433,20 @@ const createCompactLineHtml = (
       );
 
 
-  const contentText =
+  const rawContentText =
     String(
-      entry.content || "-"
-    ).trim();
+      entry?.content ||
+      "-"
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .trim();
 
 
   const hasTime =
@@ -13447,18 +13456,19 @@ const createCompactLineHtml = (
     );
 
 
-  const timeHtml =
-    hasTime
-      ? `<strong class="log-entry-document-time">${escapeHtml(
-          timeText
-        )}</strong>`
-      : "";
+  /*
+    줄바꿈을 유지하면서 HTML 문자는 안전하게 처리한다.
 
-
-  const contentHtml =
-    `<span class="log-entry-document-content-text">${escapeHtml(
-      contentText
-    )}</span>`;
+    Shift + Enter로 입력한 줄바꿈:
+    \n → <br>
+  */
+  const multilineContentHtml =
+    escapeHtml(
+      rawContentText
+    ).replace(
+      /\n/g,
+      "<br>"
+    );
 
 
   const tagHtml =
@@ -13468,25 +13478,53 @@ const createCompactLineHtml = (
     );
 
 
-  /*
-    timeHtml + contentHtml 사이에는
-    CSS margin으로만 간격을 준다.
-
-    템플릿 문자열의 줄바꿈·들여쓰기를
-    실제 출력 공백으로 사용하지 않는다.
-  */
-  const bodyHtml =
-    `${timeHtml}${contentHtml}${tagHtml}`;
-
-
   return `
-    <div class="log-entry-document-line">
+    <div
+      class="
+        log-entry-document-line
+        ${
+          hasTime
+            ? "has-entry-time"
+            : "has-no-entry-time"
+        }
+      "
+    >
 
-      <strong class="log-entry-document-number">
+      <strong
+        class="log-entry-document-number"
+      >
         ${displayNumber}.
       </strong>
 
-      <div class="log-entry-document-body">${bodyHtml}</div>
+
+      <div
+        class="log-entry-document-body"
+      >
+
+        ${
+          hasTime
+            ? `
+              <strong
+                class="log-entry-document-time"
+              >
+                ${escapeHtml(
+                  timeText
+                )}
+              </strong>
+            `
+            : ""
+        }
+
+
+        <div
+          class="log-entry-document-content"
+        >
+          <span
+            class="log-entry-document-content-text"
+          >${multilineContentHtml}</span>${tagHtml}
+        </div>
+
+      </div>
 
     </div>
   `;
