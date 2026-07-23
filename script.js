@@ -3382,6 +3382,17 @@ async function loadLegacyLogsForSelectedDate() {
     );
 
 
+    /*
+      이전 응답이나 브라우저 캐시를 피한다.
+    */
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
     const response =
       await fetch(
         requestUrl.toString(),
@@ -3407,7 +3418,7 @@ async function loadLegacyLogsForSelectedDate() {
       result =
         await response.json();
 
-    } catch (error) {
+    } catch {
       throw new Error(
         "D1 과거 업무일지 응답을 읽을 수 없습니다."
       );
@@ -3436,14 +3447,16 @@ async function loadLegacyLogsForSelectedDate() {
         log => {
           const isSameDate =
             String(
-              log.date || ""
+              log.date ||
+              ""
             ).trim() ===
             selectedDate;
 
 
           const isLegacyLog =
             String(
-              log.source || ""
+              log.source ||
+              ""
             ).startsWith(
               "legacy"
             );
@@ -3499,12 +3512,123 @@ async function loadLegacyLogsForSelectedDate() {
                 .toUpperCase();
 
 
-            return convertLegacyDiaryToLog(
-              originalItem,
-              itemIndex,
-              selectedDate,
-              storedShift
-            );
+            const convertedLog =
+              convertLegacyDiaryToLog(
+                originalItem,
+                itemIndex,
+                selectedDate,
+                storedShift
+              );
+
+
+            if (!convertedLog) {
+              return null;
+            }
+
+
+            /*
+              legacy-logs API에서 반환한 첨부파일을
+              변환된 업무일지에 그대로 연결한다.
+
+              기존 코드에서는 original만 넘기면서
+              storedItem.attachments가 유실되고 있었다.
+            */
+            convertedLog.attachments =
+              Array.isArray(
+                storedItem.attachments
+              )
+                ? storedItem.attachments
+                    .map(
+                      attachment => {
+                        const attachmentId =
+                          Number(
+                            attachment?.id ||
+                            0
+                          );
+
+
+                        const fileName =
+                          String(
+                            attachment?.fileName ||
+                            attachment?.name ||
+                            ""
+                          ).trim();
+
+
+                        const attachmentUrl =
+                          String(
+                            attachment?.url ||
+                            (
+                              attachmentId
+                                ? `/api/legacy-attachment?id=${encodeURIComponent(
+                                    attachmentId
+                                  )}`
+                                : ""
+                            )
+                          ).trim();
+
+
+                        return {
+                          id:
+                            attachmentId,
+
+                          name:
+                            fileName,
+
+                          fileName,
+
+                          mimeType:
+                            String(
+                              attachment?.mimeType ||
+                              ""
+                            ).trim(),
+
+                          fileSize:
+                            Number(
+                              attachment?.fileSize ||
+                              0
+                            ),
+
+                          r2Key:
+                            String(
+                              attachment?.r2Key ||
+                              ""
+                            ).trim(),
+
+                          originalUrl:
+                            String(
+                              attachment?.originalUrl ||
+                              ""
+                            ).trim(),
+
+                          uploadedAt:
+                            String(
+                              attachment?.uploadedAt ||
+                              ""
+                            ).trim(),
+
+                          url:
+                            attachmentUrl
+                        };
+                      }
+                    )
+                    .filter(
+                      attachment => {
+                        return Boolean(
+                          attachment.url
+                        );
+                      }
+                    )
+                : [];
+
+
+            convertedLog.legacyAttachmentCount =
+              convertedLog
+                .attachments
+                .length;
+
+
+            return convertedLog;
           }
         )
         .filter(Boolean);
@@ -3583,8 +3707,33 @@ async function loadLegacyLogsForSelectedDate() {
       ).length;
 
 
+    const attachmentCount =
+      convertedLogs.reduce(
+        (
+          total,
+          log
+        ) => {
+          return (
+            total +
+            (
+              Array.isArray(
+                log.attachments
+              )
+                ? log.attachments.length
+                : 0
+            )
+          );
+        },
+        0
+      );
+
+
     console.log(
-      `D1 과거 업무일지 D/S ${dsCount}건, N/S ${nsCount}건을 불러왔습니다.`
+      [
+        `D1 과거 업무일지 D/S ${dsCount}건`,
+        `N/S ${nsCount}건`,
+        `첨부파일 ${attachmentCount}건을 불러왔습니다.`
+      ].join(", ")
     );
 
   } catch (error) {
