@@ -5995,35 +5995,132 @@ td {
 }
 
 /* =========================================================
-   파트장 업무일지 구분선
+  업무일지 목록 구역 경계선 및 여백 최종본
+
+  적용 대상:
+  - 운전현황 → TM 발행 내역
+  - TM 발행 내역 → TGO 업무일지
+  - TGO → BCO1 → BCO2 업무일지
+
+  구조:
+  경계선
+  ↓ 충분한 여백
+  구역 제목
+  ↓ 적당한 여백
+  업무 내용
+========================================================= */
+
+
+/* =========================================================
+  각 구역 기본 구조
 ========================================================= */
 
 .log-preview__role-divider {
   position: relative;
+
+  display: block;
+  width: 100%;
+
+  margin: 0;
+  padding: 0;
+}
+
+
+/* =========================================================
+  보직별 업무일지 전체 영역
+========================================================= */
+
+.log-preview__role-section {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+
+  /*
+    이전 구역 내용과 다음 경계선 사이 여백
+  */
+  margin: 14px 0 0;
+
+  /*
+    경계선과 제목 사이 여백
+  */
+  padding: 13px 8px 5px;
+
+  border-top: 1px solid #cbd8e5;
+}
+
+
+/* =========================================================
+  첫 번째 보직 업무일지
+
+  첫 번째 보직도 TM 발행 내역과 구분되어야 하므로
+  경계선과 위쪽 여백을 동일하게 유지한다.
+========================================================= */
+
+.log-preview__role-section.is-first-role {
   margin-top: 14px;
-  padding-top: 12px;
+  padding-top: 13px;
+
+  border-top: 1px solid #cbd8e5;
 }
 
-.log-preview__role-divider::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
 
-  height: 1px;
+/* =========================================================
+  보직 제목
 
-  background: #d7e2ec;
+  예:
+  TGO 업무일지
+  BCO1 업무일지
+  BCO2 업무일지
+========================================================= */
+
+.log-preview__role-section .log-preview__title {
+  display: inline-flex;
+  align-items: center;
+
+  margin: 0 0 9px;
+  padding: 0;
+
+  line-height: 1.4;
 }
 
-/* 첫 번째(TGO)는 위 여백 없이 시작 */
-.log-preview__role-divider:first-of-type {
-  margin-top: 0;
-  padding-top: 0;
+
+/* =========================================================
+  보직별 실제 업무 내용
+========================================================= */
+
+.log-preview__role-section .log-preview__content {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+
+  margin: 0;
+  padding: 0;
 }
 
-.log-preview__role-divider:first-of-type::before {
-  display: none;
+
+/* =========================================================
+  일반 구역 간 구분선
+
+  운전현황 및 TM 발행 내역처럼
+  role-section 바깥에서 사용되는 구역
+========================================================= */
+
+.log-preview__group + .log-preview__group {
+  margin-top: 14px;
+  padding-top: 13px;
+
+  border-top: 1px solid #cbd8e5;
+}
+
+
+/* =========================================================
+  일반 구역 제목과 내용 사이 여백
+========================================================= */
+
+.log-preview__group > .log-preview__title {
+  margin-bottom: 9px;
 }
 
 /* =========================================================
