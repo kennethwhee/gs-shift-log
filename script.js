@@ -3600,7 +3600,20 @@ async function loadLegacyLogsForOperationStatusDate(
 
 
 /* =========================================================
-  같은 보직의 전 근무자 업무일지 찾기
+  TO · BO1 · BO2 이전 근무 운전현황 찾기
+
+  조회 순서:
+  1. 현재 화면에 불러온 신규 업무일지
+  2. D1에 저장된 과거 업무일지
+
+  대상:
+  - TO
+  - BO1
+  - BO2
+
+  이전 근무:
+  - 현재 N/S → 같은 날짜 D/S
+  - 현재 D/S → 전날 N/S
 ========================================================= */
 
 async function getPreviousShiftOperationStatus(
@@ -3614,9 +3627,6 @@ async function getPreviousShiftOperationStatus(
     );
 
 
-  /*
-    수기 운전현황 보직만 허용
-  */
   const allowedRoles = [
     "TO",
     "BO1",
@@ -3640,10 +3650,169 @@ async function getPreviousShiftOperationStatus(
     );
 
 
-  if (!previousContext) {
+  if (
+    !previousContext
+  ) {
     return null;
   }
 
+
+  /* =====================================================
+    업무일지 배열에서 조건에 맞는 최신 자료 찾기
+  ====================================================== */
+
+  const findLatestOperationStatus =
+    (
+      sourceLogs
+    ) => {
+      const safeLogs =
+        Array.isArray(
+          sourceLogs
+        )
+          ? sourceLogs
+          : [];
+
+
+      const matchedLogs =
+        safeLogs
+          .filter(
+            (
+              log
+            ) => {
+              const logDate =
+                String(
+                  log?.date ||
+                  ""
+                ).trim();
+
+
+              const logShift =
+                String(
+                  log?.shift ||
+                  ""
+                )
+                  .trim()
+                  .toUpperCase();
+
+
+              const logRole =
+                normalizeMemberLogRole(
+                  log?.role
+                );
+
+
+              const operationStatus =
+                String(
+                  log?.operationStatus ||
+                  ""
+                ).trim();
+
+
+              return (
+                logDate ===
+                  previousContext.date &&
+
+                logShift ===
+                  previousContext.shift &&
+
+                logRole ===
+                  normalizedRole &&
+
+                Boolean(
+                  operationStatus
+                )
+              );
+            }
+          )
+          .sort(
+            (
+              firstLog,
+              secondLog
+            ) => {
+              const firstTime =
+                new Date(
+                  firstLog?.updatedAt ||
+                  firstLog?.createdAt ||
+                  0
+                ).getTime();
+
+
+              const secondTime =
+                new Date(
+                  secondLog?.updatedAt ||
+                  secondLog?.createdAt ||
+                  0
+                ).getTime();
+
+
+              return (
+                secondTime -
+                firstTime
+              );
+            }
+          );
+
+
+      return (
+        matchedLogs[0] ||
+        null
+      );
+    };
+
+
+  /* =====================================================
+    1. 신규 GS Shift Log 자료 우선 확인
+  ====================================================== */
+
+  const currentAppLog =
+    findLatestOperationStatus(
+      appState.logs
+    );
+
+
+  if (
+    currentAppLog
+  ) {
+    return {
+      role:
+        normalizedRole,
+
+      date:
+        previousContext.date,
+
+      shift:
+        previousContext.shift,
+
+      author:
+        String(
+          currentAppLog.author ||
+          ""
+        ).trim(),
+
+      content:
+        String(
+          currentAppLog.operationStatus ||
+          ""
+        ).trim(),
+
+      type:
+        normalizeOperationStatusType(
+          currentAppLog.operationStatusType ||
+          "normal"
+        ),
+
+      source:
+        "current-log",
+
+      sourceLog:
+        currentAppLog
+    };
+  }
+
+
+  /* =====================================================
+    2. D1 과거 업무일지 확인
+  ====================================================== */
 
   const previousLogs =
     await loadLegacyLogsForOperationStatusDate(
@@ -3651,77 +3820,15 @@ async function getPreviousShiftOperationStatus(
     );
 
 
-  const matchedLogs =
-    previousLogs
-      .filter(
-        log => {
-          const logRole =
-            normalizeMemberLogRole(
-              log?.role
-            );
-
-
-          const logShift =
-            String(
-              log?.shift ||
-              ""
-            )
-              .trim()
-              .toUpperCase();
-
-
-          const operationStatus =
-            String(
-              log?.operationStatus ||
-              ""
-            ).trim();
-
-
-          return (
-            logRole ===
-              normalizedRole &&
-            logShift ===
-              previousContext.shift &&
-            Boolean(
-              operationStatus
-            )
-          );
-        }
-      )
-      .sort(
-        (
-          firstLog,
-          secondLog
-        ) => {
-          const firstTime =
-            new Date(
-              firstLog?.updatedAt ||
-              firstLog?.createdAt ||
-              0
-            ).getTime();
-
-
-          const secondTime =
-            new Date(
-              secondLog?.updatedAt ||
-              secondLog?.createdAt ||
-              0
-            ).getTime();
-
-
-          return (
-            secondTime -
-            firstTime
-          );
-        }
-      );
-
-
   const previousLog =
-    matchedLogs[0];
+    findLatestOperationStatus(
+      previousLogs
+    );
 
 
-  if (!previousLog) {
+  if (
+    !previousLog
+  ) {
     return null;
   }
 
@@ -3753,6 +3860,9 @@ async function getPreviousShiftOperationStatus(
         previousLog.operationStatusType ||
         "normal"
       ),
+
+    source:
+      "legacy-log",
 
     sourceLog:
       previousLog
@@ -12830,15 +12940,24 @@ function usesEquipmentOperationStatusEditor(
 
   TGO·BCO1·BCO2:
   - 설비별 상태 편집
+  - 자동 이어쓰기 사용 안 함
 
   TO·BO1·BO2:
-  - 기존 자유 텍스트 입력
+  - 자유 텍스트 입력
+  - 현재 근무에 저장된 운전현황이 없으면
+    같은 보직의 직전 근무 운전현황 자동 적용
+  - 사용자는 변경된 내용만 수정
 
   파트장:
   - 직접 수정하지 않고 자동 취합
+
+  중요:
+  - 자동 적용만 수행
+  - 업무일지는 자동 저장하지 않음
+  - 운전현황 저장 버튼을 눌러야 현재 작성창에 확정됨
 ========================================================= */
 
-function openOperationStatusEditor() {
+async function openOperationStatusEditor() {
   if (
     !elements.operationStatusEditor ||
     !elements.operationStatus
@@ -12855,23 +12974,13 @@ function openOperationStatusEditor() {
     getCurrentOperationStatusRole();
 
 
-  /*
-    TO · BO1 · BO2만
-    전 근무자 운전현황 가져오기 버튼 표시
-  */
+  /* =====================================================
+    기존 가져오기 버튼은 항상 숨긴다.
+  ====================================================== */
+
   const previousOperationStatusWrap =
     document.getElementById(
       "previousOperationStatusWrap"
-    );
-
-
-  const canLoadPreviousStatus =
-    [
-      "TO",
-      "BO1",
-      "BO2"
-    ].includes(
-      currentRole
     );
 
 
@@ -12879,13 +12988,14 @@ function openOperationStatusEditor() {
     previousOperationStatusWrap
   ) {
     previousOperationStatusWrap.hidden =
-      !canLoadPreviousStatus;
+      true;
   }
 
 
-  /*
+  /* =====================================================
     파트장은 직접 수정하지 않는다.
-  */
+  ====================================================== */
+
   if (
     currentRole ===
     "파트장"
@@ -12898,7 +13008,7 @@ function openOperationStatusEditor() {
   }
 
 
-  const currentStatus =
+  let currentStatus =
     appState.currentOperationStatus ||
     createDefaultOperationStatus(
       currentRole
@@ -12993,7 +13103,7 @@ function openOperationStatusEditor() {
 
     /*
       저장된 자료가 없으면
-      보직별 기본 설비 한 건 생성
+      보직별 기본 설비 한 건 생성한다.
     */
     if (
       !editingOperationStatusItems.length
@@ -13068,7 +13178,7 @@ function openOperationStatusEditor() {
 
   } else {
     /* ===================================================
-      TO · BO1 · BO2 자유 텍스트 편집
+      TO · BO1 · BO2 자유 텍스트 자동 이어쓰기
     ==================================================== */
 
     if (
@@ -13095,11 +13205,140 @@ function openOperationStatusEditor() {
     }
 
 
+    const automaticRoles = [
+      "TO",
+      "BO1",
+      "BO2"
+    ];
+
+
+    /*
+      updatedAt이 있으면 현재 날짜·근무에서
+      이미 수정 또는 저장된 운전현황이 있다는 뜻이다.
+
+      이 경우 전 근무 내용으로 다시 덮어쓰지 않는다.
+    */
+    const hasCurrentSavedStatus =
+      Boolean(
+        String(
+          currentStatus.updatedAt ||
+          ""
+        ).trim()
+      );
+
+
+    if (
+      automaticRoles.includes(
+        currentRole
+      ) &&
+      !hasCurrentSavedStatus
+    ) {
+      const currentDate =
+        String(
+          elements.logDate?.value ||
+          ""
+        ).trim();
+
+
+      const currentShift =
+        String(
+          elements.logShift?.value ||
+          ""
+        )
+          .trim()
+          .toUpperCase();
+
+
+      if (
+        currentDate &&
+        currentShift
+      ) {
+        try {
+          const previousStatus =
+            await getPreviousShiftOperationStatus(
+              currentRole,
+              currentDate,
+              currentShift
+            );
+
+
+          if (
+            previousStatus?.content
+          ) {
+            currentStatus = {
+              role:
+                currentRole,
+
+              type:
+                normalizeOperationStatusType(
+                  previousStatus.type ||
+                  "normal"
+                ),
+
+              content:
+                String(
+                  previousStatus.content ||
+                  ""
+                ).trim(),
+
+              /*
+                아직 현재 근무에서 저장한 것은 아니므로
+                수정시간은 비워둔다.
+              */
+              updatedAt:
+                "",
+
+              updatedBy:
+                "",
+
+              inheritedFromDate:
+                previousStatus.date,
+
+              inheritedFromShift:
+                previousStatus.shift,
+
+              inheritedFromAuthor:
+                previousStatus.author
+            };
+
+
+            /*
+              편집창에만 자동 적용한다.
+              이 시점에는 localStorage나 업무일지를 저장하지 않는다.
+            */
+            appState.currentOperationStatus =
+              currentStatus;
+          }
+
+        } catch (error) {
+          console.error(
+            `${currentRole} 이전 근무 운전현황 자동 적용 실패:`,
+            error
+          );
+
+
+          /*
+            이전 자료 조회 실패가 업무일지 작성을
+            막지 않도록 현재 기본 내용으로 계속 진행한다.
+          */
+        }
+      }
+    }
+
+
     elements.operationStatus.value =
       String(
         currentStatus.content ||
         ""
-      );
+      ).trim();
+
+
+    if (
+      elements.operationStatusType
+    ) {
+      elements.operationStatusType.value =
+        "normal";
+    }
 
 
     window.setTimeout(
@@ -13112,9 +13351,10 @@ function openOperationStatusEditor() {
   }
 
 
-  /*
+  /* =====================================================
     운전현황 편집창 열기
-  */
+  ====================================================== */
+
   elements.operationStatusEditor.hidden =
     false;
 
