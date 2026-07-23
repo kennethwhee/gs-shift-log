@@ -29957,3 +29957,2751 @@ document.addEventListener(
   "DOMContentLoaded",
   initializeLogEditorActionButtonPermissions
 );
+
+/* =========================================================
+  업무일지 수정 권한 및 결재 상태 잠금
+
+  파트원:
+  - 임시저장: 본인 수정 가능
+  - 결재요청: 수정 불가
+  - 결재완료: 수정 불가
+
+  파트장:
+  - 본인 저장완료 업무일지 수정 가능
+  - 다른 사람 업무일지 직접 수정 불가
+  - 결재는 상세보기의 결재 버튼으로만 처리
+
+  과거 업무일지:
+  - 수정 및 삭제 불가
+========================================================= */
+
+
+/* =========================================================
+  업무일지 상태 정규화
+
+  기존 상태값도 새 상태값으로 호환한다.
+========================================================= */
+
+function normalizeShiftLogApprovalStatus(
+  status
+) {
+  const normalizedStatus =
+    String(
+      status ||
+      ""
+    ).trim();
+
+
+  const statusMap = {
+    작성중:
+      "임시저장",
+
+    임시저장:
+      "임시저장",
+
+    작성완료:
+      "결재요청",
+
+    결재요청:
+      "결재요청",
+
+    결재완료:
+      "결재완료",
+
+    저장완료:
+      "저장완료"
+  };
+
+
+  return (
+    statusMap[
+      normalizedStatus
+    ] ||
+    normalizedStatus ||
+    "임시저장"
+  );
+}
+
+
+/* =========================================================
+  현재 로그인 사용자가 해당 업무일지 작성자인지 확인
+
+  신규 업무일지:
+  - authorId 사용
+
+  기존 신규 업무일지:
+  - writerId 사용
+
+  authorId가 없던 과거 저장자료:
+  - 작성자 이름으로 보조 비교
+========================================================= */
+
+function isCurrentUserShiftLogAuthor(
+  log
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    return false;
+  }
+
+
+  const currentUser =
+    getCurrentShiftLogUserIdentity();
+
+
+  const currentEmployeeNo =
+    String(
+      currentUser.employeeNo ||
+      ""
+    ).trim();
+
+
+  const currentUserName =
+    String(
+      currentUser.name ||
+      ""
+    ).trim();
+
+
+  const logAuthorId =
+    String(
+      log.authorId ||
+      log.writerId ||
+      log.employeeNo ||
+      ""
+    ).trim();
+
+
+  const logAuthorName =
+    String(
+      log.author ||
+      ""
+    ).trim();
+
+
+  /*
+    사번이 양쪽에 존재하면
+    반드시 사번으로 비교한다.
+  */
+  if (
+    currentEmployeeNo &&
+    logAuthorId
+  ) {
+    return (
+      currentEmployeeNo ===
+      logAuthorId
+    );
+  }
+
+
+  /*
+    authorId가 저장되기 전 자료만
+    이름을 보조 기준으로 사용한다.
+  */
+  if (
+    currentUserName &&
+    logAuthorName
+  ) {
+    return (
+      currentUserName ===
+      logAuthorName
+    );
+  }
+
+
+  return false;
+}
+
+
+/* =========================================================
+  과거 업무일지 여부 확인
+========================================================= */
+
+function isReadOnlyLegacyShiftLog(
+  log
+) {
+  const source =
+    String(
+      log?.source ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  return (
+    source ===
+      "legacy" ||
+    source.startsWith(
+      "legacy-"
+    )
+  );
+}
+
+
+/* =========================================================
+  업무일지 수정 가능 여부
+========================================================= */
+
+function canCurrentUserEditShiftLog(
+  log
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    return false;
+  }
+
+
+  /*
+    과거 시스템 업무일지는 조회 전용
+  */
+  if (
+    isReadOnlyLegacyShiftLog(
+      log
+    )
+  ) {
+    return false;
+  }
+
+
+  /*
+    다른 사람이 작성한 업무일지는
+    파트장이라도 직접 수정하지 않는다.
+  */
+  if (
+    !isCurrentUserShiftLogAuthor(
+      log
+    )
+  ) {
+    return false;
+  }
+
+
+  const normalizedStatus =
+    normalizeShiftLogApprovalStatus(
+      log.status
+    );
+
+
+  const isLeader =
+    isCurrentShiftLogLeader();
+
+
+  /*
+    파트장 본인 업무일지
+
+    저장완료 상태에서도
+    본인이 다시 열어 수정할 수 있다.
+  */
+  if (
+    isLeader &&
+    normalizeMemberLogRole(
+      log.role
+    ) ===
+      "파트장"
+  ) {
+    return [
+      "임시저장",
+      "저장완료"
+    ].includes(
+      normalizedStatus
+    );
+  }
+
+
+  /*
+    파트원 본인 업무일지
+
+    임시저장 상태에서만 수정 가능
+  */
+  return (
+    normalizedStatus ===
+    "임시저장"
+  );
+}
+
+
+/* =========================================================
+  수정 불가 사유 표시
+========================================================= */
+
+function showShiftLogEditDeniedMessage(
+  log
+) {
+  if (
+    isReadOnlyLegacyShiftLog(
+      log
+    )
+  ) {
+    showToast(
+      "과거 업무일지는 조회만 가능하며 수정할 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  if (
+    !isCurrentUserShiftLogAuthor(
+      log
+    )
+  ) {
+    showToast(
+      "본인이 작성한 업무일지만 수정할 수 있습니다."
+    );
+
+    return;
+  }
+
+
+  const normalizedStatus =
+    normalizeShiftLogApprovalStatus(
+      log?.status
+    );
+
+
+  if (
+    normalizedStatus ===
+      "결재요청"
+  ) {
+    showToast(
+      "결재요청 중인 업무일지입니다. 결재요청을 취소한 후 수정해 주세요."
+    );
+
+    return;
+  }
+
+
+  if (
+    normalizedStatus ===
+      "결재완료"
+  ) {
+    showToast(
+      "결재가 완료된 업무일지입니다. 파트장이 결재를 취소해야 다시 수정할 수 있습니다."
+    );
+
+    return;
+  }
+
+
+  showToast(
+    "현재 상태에서는 업무일지를 수정할 수 없습니다."
+  );
+}
+
+
+/* =========================================================
+  기존 업무일지 작성창 열기 함수 보존
+========================================================= */
+
+const openLogEditorBeforeApprovalLock =
+  openLogEditor;
+
+
+/* =========================================================
+  결재 잠금이 적용된 업무일지 작성창 열기
+
+  기존 업무일지 수정:
+  - 권한과 상태를 먼저 검사
+
+  신규 업무일지 작성:
+  - 기존 openLogEditor 기능 그대로 실행
+========================================================= */
+
+openLogEditor =
+  function openLogEditor(
+    log = null,
+    preset = null
+  ) {
+    /*
+      기존 업무일지 수정 요청일 때만
+      수정 권한을 검사한다.
+    */
+    if (
+      log &&
+      !canCurrentUserEditShiftLog(
+        log
+      )
+    ) {
+      showShiftLogEditDeniedMessage(
+        log
+      );
+
+      /*
+        수정창 대신 상세보기로 이동한다.
+      */
+      openLogDetail(
+        log
+      );
+
+      return;
+    }
+
+
+    openLogEditorBeforeApprovalLock(
+      log,
+      preset
+    );
+  };
+
+
+/* =========================================================
+  기존 업무일지 삭제 함수 보존
+========================================================= */
+
+const deleteLogByIdBeforeApprovalLock =
+  deleteLogById;
+
+
+/* =========================================================
+  결재 잠금이 적용된 업무일지 삭제
+========================================================= */
+
+deleteLogById =
+  function deleteLogById(
+    logId
+  ) {
+    const targetLog =
+      appState.logs.find(
+        (
+          log
+        ) => {
+          return (
+            String(
+              log?.id ||
+              ""
+            ).trim() ===
+            String(
+              logId ||
+              ""
+            ).trim()
+          );
+        }
+      );
+
+
+    if (
+      !targetLog
+    ) {
+      showToast(
+        "삭제할 업무일지를 찾을 수 없습니다."
+      );
+
+      return;
+    }
+
+
+    if (
+      !canCurrentUserEditShiftLog(
+        targetLog
+      )
+    ) {
+      showShiftLogEditDeniedMessage(
+        targetLog
+      );
+
+      return;
+    }
+
+
+    deleteLogByIdBeforeApprovalLock(
+      logId
+    );
+  };
+
+  /* =========================================================
+  상세보기 결재 버튼 권한 및 상태 제어
+
+  파트원 본인:
+  - 임시저장: 수정
+  - 결재요청: 결재취소
+  - 결재완료: 버튼 없음
+
+  파트장:
+  - 결재요청: 결재완료 + 결재취소
+  - 결재완료: 결재취소
+  - 파트장 본인 저장완료: 수정
+
+  과거 업무일지:
+  - 조회만 가능
+========================================================= */
+
+
+/* =========================================================
+  현재 상세보기 업무일지 찾기
+========================================================= */
+
+function getCurrentDetailShiftLog() {
+  const currentLogId =
+    String(
+      appState.currentDetailLogId ||
+      ""
+    ).trim();
+
+
+  if (
+    !currentLogId
+  ) {
+    return null;
+  }
+
+
+  return (
+    appState.logs.find(
+      (
+        log
+      ) => {
+        return (
+          String(
+            log?.id ||
+            ""
+          ).trim() ===
+          currentLogId
+        );
+      }
+    ) ||
+    null
+  );
+}
+
+
+/* =========================================================
+  결재취소 버튼 생성
+
+  HTML 수정 없이 기존 상세보기 하단에 자동으로 추가한다.
+========================================================= */
+
+function ensureCancelApprovalDetailButton() {
+  let cancelButton =
+    document.getElementById(
+      "cancelApprovalFromDetailButton"
+    );
+
+
+  if (
+    cancelButton
+  ) {
+    return cancelButton;
+  }
+
+
+  const approveButton =
+    elements.approveFromDetailButton ||
+    document.getElementById(
+      "approveFromDetailButton"
+    );
+
+
+  if (
+    !approveButton
+  ) {
+    return null;
+  }
+
+
+  cancelButton =
+    document.createElement(
+      "button"
+    );
+
+
+  cancelButton.type =
+    "button";
+
+
+  cancelButton.id =
+    "cancelApprovalFromDetailButton";
+
+
+  cancelButton.className =
+    "secondary-button";
+
+
+  cancelButton.textContent =
+    "결재취소";
+
+
+  cancelButton.hidden =
+    true;
+
+
+  approveButton.insertAdjacentElement(
+    "afterend",
+    cancelButton
+  );
+
+
+  return cancelButton;
+}
+
+
+/* =========================================================
+  상세보기 결재 버튼 표시 규칙
+========================================================= */
+
+function updateShiftLogDetailActionButtons(
+  log
+) {
+  const approveButton =
+    elements.approveFromDetailButton ||
+    document.getElementById(
+      "approveFromDetailButton"
+    );
+
+
+  const cancelApprovalButton =
+    ensureCancelApprovalDetailButton();
+
+
+  const editButton =
+    elements.editFromDetailButton ||
+    document.getElementById(
+      "editFromDetailButton"
+    );
+
+
+  /*
+    기본적으로 모든 작업 버튼을 숨긴다.
+  */
+  if (
+    approveButton
+  ) {
+    approveButton.hidden =
+      true;
+
+    approveButton.disabled =
+      true;
+
+    approveButton.textContent =
+      "결재완료";
+  }
+
+
+  if (
+    cancelApprovalButton
+  ) {
+    cancelApprovalButton.hidden =
+      true;
+
+    cancelApprovalButton.disabled =
+      true;
+
+    cancelApprovalButton.textContent =
+      "결재취소";
+  }
+
+
+  if (
+    editButton
+  ) {
+    editButton.hidden =
+      true;
+
+    editButton.disabled =
+      true;
+
+    editButton.textContent =
+      "수정";
+  }
+
+
+  if (
+    !log ||
+    isReadOnlyLegacyShiftLog(
+      log
+    )
+  ) {
+    return;
+  }
+
+
+  const normalizedStatus =
+    normalizeShiftLogApprovalStatus(
+      log.status
+    );
+
+
+  const isLeader =
+    isCurrentShiftLogLeader();
+
+
+  const isAuthor =
+    isCurrentUserShiftLogAuthor(
+      log
+    );
+
+
+  const isLeaderLog =
+    normalizeMemberLogRole(
+      log.role
+    ) ===
+      "파트장";
+
+
+  /* =====================================================
+    수정 버튼
+
+    앞 단계에서 만든 수정 가능 여부 함수를 그대로 사용한다.
+  ====================================================== */
+
+  if (
+    editButton &&
+    canCurrentUserEditShiftLog(
+      log
+    )
+  ) {
+    editButton.hidden =
+      false;
+
+    editButton.disabled =
+      false;
+  }
+
+
+  /* =====================================================
+    파트장 본인 업무일지
+
+    승인 대상이 아니므로 결재 버튼을 표시하지 않는다.
+  ====================================================== */
+
+  if (
+    isLeaderLog
+  ) {
+    return;
+  }
+
+
+  /* =====================================================
+    파트장 권한
+
+    결재요청:
+    - 결재완료
+    - 결재취소
+
+    결재완료:
+    - 결재취소
+  ====================================================== */
+
+  if (
+    isLeader
+  ) {
+    if (
+      normalizedStatus ===
+        "결재요청"
+    ) {
+      if (
+        approveButton
+      ) {
+        approveButton.hidden =
+          false;
+
+        approveButton.disabled =
+          false;
+      }
+
+
+      if (
+        cancelApprovalButton
+      ) {
+        cancelApprovalButton.hidden =
+          false;
+
+        cancelApprovalButton.disabled =
+          false;
+      }
+
+
+      return;
+    }
+
+
+    if (
+      normalizedStatus ===
+        "결재완료"
+    ) {
+      if (
+        cancelApprovalButton
+      ) {
+        cancelApprovalButton.hidden =
+          false;
+
+        cancelApprovalButton.disabled =
+          false;
+      }
+
+
+      return;
+    }
+
+
+    return;
+  }
+
+
+  /* =====================================================
+    파트원 본인
+
+    결재요청 상태에서만 결재취소 가능
+  ====================================================== */
+
+  if (
+    isAuthor &&
+    normalizedStatus ===
+      "결재요청"
+  ) {
+    if (
+      cancelApprovalButton
+    ) {
+      cancelApprovalButton.hidden =
+        false;
+
+      cancelApprovalButton.disabled =
+        false;
+    }
+  }
+}
+
+
+/* =========================================================
+  파트장 결재완료 처리
+========================================================= */
+
+function completeCurrentDetailShiftLogApproval() {
+  const targetLog =
+    getCurrentDetailShiftLog();
+
+
+  if (
+    !targetLog
+  ) {
+    showToast(
+      "결재할 업무일지를 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  if (
+    !isCurrentShiftLogLeader()
+  ) {
+    showToast(
+      "파트장만 업무일지를 결재할 수 있습니다."
+    );
+
+    return;
+  }
+
+
+  if (
+    isReadOnlyLegacyShiftLog(
+      targetLog
+    )
+  ) {
+    showToast(
+      "과거 업무일지는 결재 상태를 변경할 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  if (
+    normalizeMemberLogRole(
+      targetLog.role
+    ) ===
+      "파트장"
+  ) {
+    showToast(
+      "파트장 업무일지는 결재 대상이 아닙니다."
+    );
+
+    return;
+  }
+
+
+  const currentStatus =
+    normalizeShiftLogApprovalStatus(
+      targetLog.status
+    );
+
+
+  if (
+    currentStatus !==
+      "결재요청"
+  ) {
+    showToast(
+      currentStatus ===
+        "결재완료"
+        ? "이미 결재가 완료된 업무일지입니다."
+        : "결재요청 상태의 업무일지만 결재할 수 있습니다."
+    );
+
+    return;
+  }
+
+
+  const shouldApprove =
+    window.confirm(
+      [
+        "이 업무일지를 결재완료 처리하시겠습니까?",
+        "",
+        `작성일: ${targetLog.date || "-"}`,
+        `근무: ${getShiftDisplayName(
+          targetLog.shift
+        )}`,
+        `보직: ${targetLog.role || "-"}`,
+        `작성자: ${targetLog.author || "-"}`
+      ].join("\n")
+    );
+
+
+  if (
+    !shouldApprove
+  ) {
+    return;
+  }
+
+
+  const currentUser =
+    getCurrentShiftLogUserIdentity();
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  targetLog.status =
+    "결재완료";
+
+
+  targetLog.approvedAt =
+    now;
+
+
+  targetLog.approvedBy =
+    currentUser.name;
+
+
+  targetLog.approvedById =
+    currentUser.employeeNo;
+
+
+  targetLog.approvedByRole =
+    normalizeShiftLogAccountRole(
+      currentUser.role
+    );
+
+
+  targetLog.lastModifiedBy =
+    currentUser.name;
+
+
+  targetLog.lastModifiedById =
+    currentUser.employeeNo;
+
+
+  targetLog.updatedAt =
+    now;
+
+
+  persistLogs();
+
+
+  renderLogTable();
+
+  updateShiftMemberCardStates();
+
+
+  openLogDetail(
+    targetLog
+  );
+
+
+  showToast(
+    "업무일지 결재가 완료되었습니다."
+  );
+}
+
+
+/* =========================================================
+  결재취소 가능 여부
+
+  파트원:
+  - 본인의 결재요청 상태만 가능
+
+  파트장:
+  - 결재요청
+  - 결재완료
+========================================================= */
+
+function canCurrentUserCancelShiftLogApproval(
+  log
+) {
+  if (
+    !log ||
+    isReadOnlyLegacyShiftLog(
+      log
+    )
+  ) {
+    return false;
+  }
+
+
+  if (
+    normalizeMemberLogRole(
+      log.role
+    ) ===
+      "파트장"
+  ) {
+    return false;
+  }
+
+
+  const normalizedStatus =
+    normalizeShiftLogApprovalStatus(
+      log.status
+    );
+
+
+  if (
+    isCurrentShiftLogLeader()
+  ) {
+    return [
+      "결재요청",
+      "결재완료"
+    ].includes(
+      normalizedStatus
+    );
+  }
+
+
+  return (
+    isCurrentUserShiftLogAuthor(
+      log
+    ) &&
+    normalizedStatus ===
+      "결재요청"
+  );
+}
+
+
+/* =========================================================
+  결재취소 처리
+
+  결재요청 또는 결재완료
+  → 임시저장
+
+  다시 작성자 본인이 수정할 수 있게 된다.
+========================================================= */
+
+function cancelCurrentDetailShiftLogApproval() {
+  const targetLog =
+    getCurrentDetailShiftLog();
+
+
+  if (
+    !targetLog
+  ) {
+    showToast(
+      "결재취소할 업무일지를 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  if (
+    !canCurrentUserCancelShiftLogApproval(
+      targetLog
+    )
+  ) {
+    showToast(
+      "현재 계정으로는 이 업무일지의 결재를 취소할 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  const previousStatus =
+    normalizeShiftLogApprovalStatus(
+      targetLog.status
+    );
+
+
+  const shouldCancel =
+    window.confirm(
+      previousStatus ===
+        "결재완료"
+        ? [
+            "완료된 결재를 취소하시겠습니까?",
+            "",
+            "업무일지는 임시저장 상태로 돌아가며",
+            "작성자가 다시 수정할 수 있게 됩니다."
+          ].join("\n")
+        : [
+            "결재요청을 취소하시겠습니까?",
+            "",
+            "업무일지는 임시저장 상태로 돌아가며",
+            "작성자가 다시 수정할 수 있게 됩니다."
+          ].join("\n")
+    );
+
+
+  if (
+    !shouldCancel
+  ) {
+    return;
+  }
+
+
+  const currentUser =
+    getCurrentShiftLogUserIdentity();
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  targetLog.status =
+    "임시저장";
+
+
+  /*
+    기존 결재완료 정보 제거
+  */
+  delete targetLog.approvedAt;
+
+  delete targetLog.approvedBy;
+
+  delete targetLog.approvedById;
+
+  delete targetLog.approvedByRole;
+
+
+  /*
+    취소 이력 기록
+  */
+  targetLog.approvalCancelledAt =
+    now;
+
+
+  targetLog.approvalCancelledBy =
+    currentUser.name;
+
+
+  targetLog.approvalCancelledById =
+    currentUser.employeeNo;
+
+
+  targetLog.approvalCancelledFrom =
+    previousStatus;
+
+
+  targetLog.lastModifiedBy =
+    currentUser.name;
+
+
+  targetLog.lastModifiedById =
+    currentUser.employeeNo;
+
+
+  targetLog.updatedAt =
+    now;
+
+
+  persistLogs();
+
+
+  renderLogTable();
+
+  updateShiftMemberCardStates();
+
+
+  openLogDetail(
+    targetLog
+  );
+
+
+  showToast(
+    previousStatus ===
+      "결재완료"
+      ? "완료된 결재를 취소했습니다. 작성자가 다시 수정할 수 있습니다."
+      : "결재요청을 취소했습니다. 업무일지를 다시 수정할 수 있습니다."
+  );
+}
+
+
+/* =========================================================
+  기존 상세보기 함수 보존
+========================================================= */
+
+const openLogDetailBeforeApprovalActions =
+  openLogDetail;
+
+
+/* =========================================================
+  결재 버튼 표시가 적용된 상세보기
+========================================================= */
+
+openLogDetail =
+  function openLogDetail(
+    log
+  ) {
+    openLogDetailBeforeApprovalActions(
+      log
+    );
+
+
+    updateShiftLogDetailActionButtons(
+      log
+    );
+  };
+
+
+/* =========================================================
+  상세보기 결재 버튼 이벤트 초기화
+
+  기존 결재확인 버튼을 복제하여
+  이전 클릭 이벤트를 완전히 제거한 뒤 새 기능을 연결한다.
+========================================================= */
+
+function initializeShiftLogDetailApprovalActions() {
+  const oldApproveButton =
+    document.getElementById(
+      "approveFromDetailButton"
+    );
+
+
+  if (
+    !oldApproveButton
+  ) {
+    return;
+  }
+
+
+  /*
+    기존 approveCurrentDetailLog 이벤트 제거
+  */
+  const newApproveButton =
+    oldApproveButton.cloneNode(
+      true
+    );
+
+
+  oldApproveButton.replaceWith(
+    newApproveButton
+  );
+
+
+  /*
+    elements 참조도 새 버튼으로 갱신한다.
+  */
+  elements.approveFromDetailButton =
+    newApproveButton;
+
+
+  newApproveButton.textContent =
+    "결재완료";
+
+
+  newApproveButton.hidden =
+    true;
+
+
+  newApproveButton.disabled =
+    true;
+
+
+  newApproveButton.addEventListener(
+    "click",
+    completeCurrentDetailShiftLogApproval
+  );
+
+
+  const cancelApprovalButton =
+    ensureCancelApprovalDetailButton();
+
+
+  cancelApprovalButton
+    ?.addEventListener(
+      "click",
+      cancelCurrentDetailShiftLogApproval
+    );
+}
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  initializeShiftLogDetailApprovalActions
+);
+
+/* =========================================================
+  업무일지 상태 표시 통일
+
+  신규 상태:
+  - 임시저장
+  - 결재요청
+  - 결재완료
+  - 저장완료
+
+  기존 상태 호환:
+  - 작성중   → 임시저장
+  - 작성완료 → 결재요청
+========================================================= */
+
+
+/* =========================================================
+  화면에 표시할 상태명
+========================================================= */
+
+function getShiftLogStatusDisplayName(
+  status
+) {
+  const normalizedStatus =
+    normalizeShiftLogApprovalStatus(
+      status
+    );
+
+
+  const displayNameMap = {
+    임시저장:
+      "임시저장",
+
+    결재요청:
+      "결재요청",
+
+    결재완료:
+      "결재완료",
+
+    저장완료:
+      "저장완료"
+  };
+
+
+  return (
+    displayNameMap[
+      normalizedStatus
+    ] ||
+    normalizedStatus ||
+    "임시저장"
+  );
+}
+
+
+/* =========================================================
+  상태별 공통 CSS 클래스
+
+  기존 CSS 클래스 이름을 최대한 재사용한다.
+========================================================= */
+
+getStatusClass =
+  function getStatusClass(
+    status
+  ) {
+    const normalizedStatus =
+      normalizeShiftLogApprovalStatus(
+        status
+      );
+
+
+    const statusClassMap = {
+      임시저장:
+        "is-writing",
+
+      결재요청:
+        "is-requested",
+
+      결재완료:
+        "is-approved",
+
+      저장완료:
+        "is-complete"
+    };
+
+
+    return (
+      statusClassMap[
+        normalizedStatus
+      ] ||
+      "is-writing"
+    );
+  };
+
+
+/* =========================================================
+  기존 목록 행 생성 함수 보존
+========================================================= */
+
+const createLogRowHtmlBeforeStatusDisplay =
+  createLogRowHtml;
+
+
+/* =========================================================
+  목록 상태명을 통일한 행 생성 함수
+
+  실제 원본 데이터는 변경하지 않고
+  화면에 전달하는 복사본의 상태만 정규화한다.
+========================================================= */
+
+createLogRowHtml =
+  function createLogRowHtml(
+    log
+  ) {
+    const displayLog = {
+      ...log,
+
+      status:
+        getShiftLogStatusDisplayName(
+          log?.status
+        )
+    };
+
+
+    return createLogRowHtmlBeforeStatusDisplay(
+      displayLog
+    );
+  };
+
+
+/* =========================================================
+  같은 날짜·근무·보직의 최신 업무일지 찾기
+
+  과거 자료가 여러 건 존재해도
+  가장 최근 수정된 업무일지 한 건을 사용한다.
+========================================================= */
+
+function findLatestShiftMemberLog(
+  date,
+  shift,
+  role
+) {
+  const normalizedDate =
+    String(
+      date ||
+      ""
+    ).trim();
+
+
+  const normalizedShift =
+    String(
+      shift ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  const normalizedRole =
+    normalizeMemberLogRole(
+      role
+    );
+
+
+  const matchedLogs =
+    appState.logs
+      .filter(
+        (
+          log
+        ) => {
+          return (
+            String(
+              log?.date ||
+              ""
+            ).trim() ===
+              normalizedDate &&
+
+            String(
+              log?.shift ||
+              ""
+            )
+              .trim()
+              .toUpperCase() ===
+              normalizedShift &&
+
+            normalizeMemberLogRole(
+              log?.role
+            ) ===
+              normalizedRole
+          );
+        }
+      )
+      .sort(
+        (
+          firstLog,
+          secondLog
+        ) => {
+          const firstTime =
+            new Date(
+              firstLog?.updatedAt ||
+              firstLog?.createdAt ||
+              0
+            ).getTime();
+
+
+          const secondTime =
+            new Date(
+              secondLog?.updatedAt ||
+              secondLog?.createdAt ||
+              0
+            ).getTime();
+
+
+          return (
+            secondTime -
+            firstTime
+          );
+        }
+      );
+
+
+  return (
+    matchedLogs[0] ||
+    null
+  );
+}
+
+
+/* =========================================================
+  근무자 카드 상태 설정
+========================================================= */
+
+function applyShiftMemberCardLogStatus(
+  card,
+  statusElement,
+  log
+) {
+  if (
+    !card ||
+    !statusElement
+  ) {
+    return;
+  }
+
+
+  /*
+    작성된 업무일지가 없는 경우
+  */
+  if (
+    !log
+  ) {
+    card.dataset.logState =
+      "empty";
+
+
+    card.dataset.approvalStatus =
+      "empty";
+
+
+    statusElement.textContent =
+      "미작성";
+
+
+    statusElement.className =
+      "shift-member-card__status is-empty";
+
+
+    return;
+  }
+
+
+  const normalizedStatus =
+    normalizeShiftLogApprovalStatus(
+      log.status
+    );
+
+
+  const displayName =
+    getShiftLogStatusDisplayName(
+      normalizedStatus
+    );
+
+
+  card.dataset.logState =
+    "existing";
+
+
+  card.dataset.approvalStatus =
+    normalizedStatus;
+
+
+  statusElement.textContent =
+    displayName;
+
+
+  const statusClassMap = {
+    임시저장:
+      "is-writing",
+
+    결재요청:
+      "is-requested",
+
+    결재완료:
+      "is-approved",
+
+    저장완료:
+      "is-complete"
+  };
+
+
+  const statusClass =
+    statusClassMap[
+      normalizedStatus
+    ] ||
+    "is-writing";
+
+
+  statusElement.className = [
+    "shift-member-card__status",
+    statusClass
+  ].join(" ");
+}
+
+
+/* =========================================================
+  근무자 카드 상태 전체 갱신
+
+  신규 결재 상태를 축약하지 않고
+  실제 상태명 그대로 표시한다.
+========================================================= */
+
+updateShiftMemberCardStates =
+  function updateShiftMemberCardStates() {
+    const selectedDate =
+      formatInputDate(
+        appState.selectedDate
+      );
+
+
+    const selectedShift =
+      String(
+        appState.selectedShift ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    const shiftMemberCards = [
+      ...document.querySelectorAll(
+        ".shift-member-card"
+      )
+    ];
+
+
+    shiftMemberCards.forEach(
+      (
+        card
+      ) => {
+        const role =
+          normalizeMemberLogRole(
+            card.dataset.role ||
+            ""
+          );
+
+
+        const statusElement =
+          card.querySelector(
+            ".shift-member-card__status"
+          );
+
+
+        if (
+          !statusElement
+        ) {
+          return;
+        }
+
+
+        const existingLog =
+          findLatestShiftMemberLog(
+            selectedDate,
+            selectedShift,
+            role
+          );
+
+
+        applyShiftMemberCardLogStatus(
+          card,
+          statusElement,
+          existingLog
+        );
+      }
+    );
+  };
+
+
+/* =========================================================
+  현재 화면 상태 즉시 갱신
+========================================================= */
+
+function refreshShiftLogStatusDisplays() {
+  if (
+    typeof renderLogTable ===
+      "function"
+  ) {
+    renderLogTable();
+  }
+
+
+  updateShiftMemberCardStates();
+
+
+  const currentDetailLog =
+    typeof getCurrentDetailShiftLog ===
+      "function"
+      ? getCurrentDetailShiftLog()
+      : null;
+
+
+  if (
+    currentDetailLog &&
+    typeof updateShiftLogDetailActionButtons ===
+      "function"
+  ) {
+    updateShiftLogDetailActionButtons(
+      currentDetailLog
+    );
+  }
+}
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+    window.requestAnimationFrame(
+      refreshShiftLogStatusDisplays
+    );
+  }
+);
+
+/* =========================================================
+  업무일지 결재 이력
+
+  기록 대상:
+  - 임시저장
+  - 결재요청
+  - 저장완료
+  - 결재완료
+  - 결재취소
+
+  저장 위치:
+  log.approvalHistory
+========================================================= */
+
+
+/* =========================================================
+  결재 이력 배열 정규화
+========================================================= */
+
+function normalizeShiftLogApprovalHistory(
+  history
+) {
+  if (
+    !Array.isArray(
+      history
+    )
+  ) {
+    return [];
+  }
+
+
+  return history
+    .map(
+      (
+        historyItem
+      ) => {
+        if (
+          !historyItem ||
+          typeof historyItem !==
+            "object"
+        ) {
+          return null;
+        }
+
+
+        const action =
+          String(
+            historyItem.action ||
+            ""
+          ).trim();
+
+
+        const at =
+          String(
+            historyItem.at ||
+            historyItem.createdAt ||
+            ""
+          ).trim();
+
+
+        if (
+          !action
+        ) {
+          return null;
+        }
+
+
+        return {
+          id:
+            String(
+              historyItem.id ||
+              ""
+            ).trim() ||
+            [
+              "approval-history",
+              Date.now(),
+              Math.random()
+                .toString(36)
+                .slice(2, 9)
+            ].join("-"),
+
+          action,
+
+          previousStatus:
+            String(
+              historyItem.previousStatus ||
+              ""
+            ).trim(),
+
+          nextStatus:
+            String(
+              historyItem.nextStatus ||
+              ""
+            ).trim(),
+
+          userId:
+            String(
+              historyItem.userId ||
+              historyItem.employeeNo ||
+              ""
+            ).trim(),
+
+          userName:
+            String(
+              historyItem.userName ||
+              historyItem.name ||
+              ""
+            ).trim(),
+
+          accountRole:
+            String(
+              historyItem.accountRole ||
+              historyItem.role ||
+              ""
+            ).trim(),
+
+          at:
+            at ||
+            new Date()
+              .toISOString()
+        };
+      }
+    )
+    .filter(Boolean);
+}
+
+
+/* =========================================================
+  결재 이력 한 건 생성
+========================================================= */
+
+function createShiftLogApprovalHistoryItem(
+  action,
+  options = {}
+) {
+  const {
+    previousStatus = "",
+    nextStatus = ""
+  } = options;
+
+
+  const currentUser =
+    getCurrentShiftLogUserIdentity();
+
+
+  return {
+    id: [
+      "approval-history",
+      Date.now(),
+      Math.random()
+        .toString(36)
+        .slice(2, 9)
+    ].join("-"),
+
+    action:
+      String(
+        action ||
+        ""
+      ).trim(),
+
+    previousStatus:
+      previousStatus
+        ? normalizeShiftLogApprovalStatus(
+            previousStatus
+          )
+        : "",
+
+    nextStatus:
+      nextStatus
+        ? normalizeShiftLogApprovalStatus(
+            nextStatus
+          )
+        : "",
+
+    userId:
+      String(
+        currentUser.employeeNo ||
+        ""
+      ).trim(),
+
+    userName:
+      String(
+        currentUser.name ||
+        ""
+      ).trim(),
+
+    accountRole:
+      normalizeShiftLogAccountRole(
+        currentUser.role
+      ),
+
+    at:
+      new Date()
+        .toISOString()
+  };
+}
+
+
+/* =========================================================
+  중복 이력 방지
+
+  같은 사용자·행동·상태가 매우 짧은 시간 안에
+  반복 저장되면 한 건만 유지한다.
+========================================================= */
+
+function isDuplicateShiftLogApprovalHistory(
+  history,
+  newHistoryItem
+) {
+  const safeHistory =
+    normalizeShiftLogApprovalHistory(
+      history
+    );
+
+
+  const latestItem =
+    safeHistory[
+      safeHistory.length - 1
+    ];
+
+
+  if (
+    !latestItem
+  ) {
+    return false;
+  }
+
+
+  const latestTime =
+    new Date(
+      latestItem.at
+    ).getTime();
+
+
+  const newTime =
+    new Date(
+      newHistoryItem.at
+    ).getTime();
+
+
+  const timeDifference =
+    Math.abs(
+      newTime -
+      latestTime
+    );
+
+
+  return (
+    latestItem.action ===
+      newHistoryItem.action &&
+
+    latestItem.userId ===
+      newHistoryItem.userId &&
+
+    latestItem.previousStatus ===
+      newHistoryItem.previousStatus &&
+
+    latestItem.nextStatus ===
+      newHistoryItem.nextStatus &&
+
+    timeDifference <
+      2000
+  );
+}
+
+
+/* =========================================================
+  업무일지에 결재 이력 추가
+========================================================= */
+
+function appendShiftLogApprovalHistory(
+  log,
+  action,
+  options = {}
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    return log;
+  }
+
+
+  const previousHistory =
+    normalizeShiftLogApprovalHistory(
+      log.approvalHistory
+    );
+
+
+  const newHistoryItem =
+    createShiftLogApprovalHistoryItem(
+      action,
+      options
+    );
+
+
+  if (
+    isDuplicateShiftLogApprovalHistory(
+      previousHistory,
+      newHistoryItem
+    )
+  ) {
+    log.approvalHistory =
+      previousHistory;
+
+    return log;
+  }
+
+
+  log.approvalHistory = [
+    ...previousHistory,
+    newHistoryItem
+  ];
+
+
+  return log;
+}
+
+
+/* =========================================================
+  저장 직전 기존 업무일지 찾기
+========================================================= */
+
+function getEditingShiftLogBeforeSave() {
+  const editingId =
+    String(
+      elements.logEditorForm
+        ?.dataset
+        ?.editingId ||
+      ""
+    ).trim();
+
+
+  if (
+    !editingId
+  ) {
+    return null;
+  }
+
+
+  return (
+    appState.logs.find(
+      (
+        log
+      ) => {
+        return (
+          String(
+            log?.id ||
+            ""
+          ).trim() ===
+          editingId
+        );
+      }
+    ) ||
+    null
+  );
+}
+
+
+/* =========================================================
+  기존 최종 데이터 수집 함수 보존
+========================================================= */
+
+const collectEditorDataBeforeApprovalHistory =
+  collectEditorData;
+
+
+/* =========================================================
+  결재 이력이 적용된 최종 데이터 수집 함수
+
+  신규 작성:
+  첫 저장 행동을 기록한다.
+
+  기존 수정:
+  이전 이력을 그대로 유지하고,
+  상태가 변경된 경우에만 새 이력을 추가한다.
+========================================================= */
+
+collectEditorData =
+  function collectEditorData(
+    requestedStatus
+  ) {
+    const previousLog =
+      getEditingShiftLogBeforeSave();
+
+
+    const collectedLog =
+      collectEditorDataBeforeApprovalHistory(
+        requestedStatus
+      );
+
+
+    if (
+      !collectedLog ||
+      typeof collectedLog !==
+        "object"
+    ) {
+      return collectedLog;
+    }
+
+
+    const previousStatus =
+      previousLog
+        ? normalizeShiftLogApprovalStatus(
+            previousLog.status
+          )
+        : "";
+
+
+    const nextStatus =
+      normalizeShiftLogApprovalStatus(
+        collectedLog.status
+      );
+
+
+    collectedLog.approvalHistory =
+      normalizeShiftLogApprovalHistory(
+        previousLog?.approvalHistory ||
+        collectedLog.approvalHistory
+      );
+
+
+    /*
+      신규 업무일지
+
+      첫 저장 행동은 반드시 기록한다.
+    */
+    if (
+      !previousLog
+    ) {
+      appendShiftLogApprovalHistory(
+        collectedLog,
+        nextStatus,
+        {
+          previousStatus:
+            "",
+
+          nextStatus
+        }
+      );
+
+
+      return collectedLog;
+    }
+
+
+    /*
+      기존 업무일지 상태가 바뀐 경우
+    */
+    if (
+      previousStatus !==
+      nextStatus
+    ) {
+      appendShiftLogApprovalHistory(
+        collectedLog,
+        nextStatus,
+        {
+          previousStatus,
+
+          nextStatus
+        }
+      );
+
+
+      return collectedLog;
+    }
+
+
+    /*
+      같은 상태에서 내용만 수정한 경우
+
+      이력을 과도하게 늘리지 않도록
+      별도의 결재 이력은 추가하지 않는다.
+    */
+    return collectedLog;
+  };
+
+
+/* =========================================================
+  파트장 결재완료 함수 보존
+========================================================= */
+
+const completeCurrentDetailShiftLogApprovalBeforeHistory =
+  completeCurrentDetailShiftLogApproval;
+
+
+/* =========================================================
+  결재완료 이력 추가
+
+  기존 결재완료 함수 실행 후
+  실제 상태가 결재완료로 바뀐 경우에만 기록한다.
+========================================================= */
+
+completeCurrentDetailShiftLogApproval =
+  function completeCurrentDetailShiftLogApproval() {
+    const targetLogBefore =
+      getCurrentDetailShiftLog();
+
+
+    const previousStatus =
+      normalizeShiftLogApprovalStatus(
+        targetLogBefore?.status
+      );
+
+
+    completeCurrentDetailShiftLogApprovalBeforeHistory();
+
+
+    const targetLogAfter =
+      getCurrentDetailShiftLog();
+
+
+    if (
+      !targetLogAfter
+    ) {
+      return;
+    }
+
+
+    const nextStatus =
+      normalizeShiftLogApprovalStatus(
+        targetLogAfter.status
+      );
+
+
+    if (
+      previousStatus ===
+        nextStatus ||
+      nextStatus !==
+        "결재완료"
+    ) {
+      return;
+    }
+
+
+    appendShiftLogApprovalHistory(
+      targetLogAfter,
+      "결재완료",
+      {
+        previousStatus,
+
+        nextStatus
+      }
+    );
+
+
+    persistLogs();
+
+    renderLogTable();
+
+    updateShiftMemberCardStates();
+
+    openLogDetail(
+      targetLogAfter
+    );
+  };
+
+
+/* =========================================================
+  결재취소 함수 보존
+========================================================= */
+
+const cancelCurrentDetailShiftLogApprovalBeforeHistory =
+  cancelCurrentDetailShiftLogApproval;
+
+
+/* =========================================================
+  결재취소 이력 추가
+
+  결재취소 후 상태는 임시저장이지만
+  이력 action은 "결재취소"로 기록한다.
+========================================================= */
+
+cancelCurrentDetailShiftLogApproval =
+  function cancelCurrentDetailShiftLogApproval() {
+    const targetLogBefore =
+      getCurrentDetailShiftLog();
+
+
+    const previousStatus =
+      normalizeShiftLogApprovalStatus(
+        targetLogBefore?.status
+      );
+
+
+    cancelCurrentDetailShiftLogApprovalBeforeHistory();
+
+
+    const targetLogAfter =
+      getCurrentDetailShiftLog();
+
+
+    if (
+      !targetLogAfter
+    ) {
+      return;
+    }
+
+
+    const nextStatus =
+      normalizeShiftLogApprovalStatus(
+        targetLogAfter.status
+      );
+
+
+    if (
+      previousStatus ===
+        nextStatus ||
+      nextStatus !==
+        "임시저장"
+    ) {
+      return;
+    }
+
+
+    appendShiftLogApprovalHistory(
+      targetLogAfter,
+      "결재취소",
+      {
+        previousStatus,
+
+        nextStatus
+      }
+    );
+
+
+    persistLogs();
+
+    renderLogTable();
+
+    updateShiftMemberCardStates();
+
+    openLogDetail(
+      targetLogAfter
+    );
+  };
+
+
+/* =========================================================
+  결재 행동 표시 이름
+========================================================= */
+
+function getShiftLogApprovalHistoryActionLabel(
+  historyItem
+) {
+  const action =
+    String(
+      historyItem?.action ||
+      ""
+    ).trim();
+
+
+  if (
+    action ===
+      "결재취소"
+  ) {
+    const previousStatus =
+      normalizeShiftLogApprovalStatus(
+        historyItem.previousStatus
+      );
+
+
+    return (
+      previousStatus ===
+        "결재완료"
+        ? "완료된 결재 취소"
+        : "결재요청 취소"
+    );
+  }
+
+
+  return getShiftLogStatusDisplayName(
+    action
+  );
+}
+
+
+/* =========================================================
+  결재 이력 역할 표시
+========================================================= */
+
+function getShiftLogApprovalHistoryRoleLabel(
+  accountRole
+) {
+  const normalizedRole =
+    String(
+      accountRole ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (
+    normalizedRole ===
+      "leader" ||
+    normalizedRole ===
+      "admin"
+  ) {
+    return "파트장";
+  }
+
+
+  if (
+    normalizedRole ===
+      "super_admin" ||
+    normalizedRole ===
+      "superadmin"
+  ) {
+    return "최고관리자";
+  }
+
+
+  return "파트원";
+}
+
+
+/* =========================================================
+  상세보기 결재 이력 HTML
+========================================================= */
+
+function createShiftLogApprovalHistoryHtml(
+  log
+) {
+  const history =
+    normalizeShiftLogApprovalHistory(
+      log?.approvalHistory
+    );
+
+
+  /*
+    과거 업무일지 또는 아직 이력이 없는 기존 자료
+  */
+  if (
+    !history.length
+  ) {
+    return `
+      <section
+        class="detail-section shift-log-approval-history"
+        data-shift-log-approval-history
+      >
+        <div class="detail-section__header">
+          <h3>
+            결재 이력
+          </h3>
+
+          <span class="detail-count">
+            0건
+          </span>
+        </div>
+
+        <div class="shift-log-approval-history__empty">
+          저장된 결재 이력이 없습니다.
+        </div>
+      </section>
+    `;
+  }
+
+
+  const orderedHistory = [
+    ...history
+  ].sort(
+    (
+      firstItem,
+      secondItem
+    ) => {
+      return (
+        new Date(
+          secondItem.at
+        ).getTime() -
+        new Date(
+          firstItem.at
+        ).getTime()
+      );
+    }
+  );
+
+
+  return `
+    <section
+      class="detail-section shift-log-approval-history"
+      data-shift-log-approval-history
+    >
+      <div class="detail-section__header">
+        <h3>
+          결재 이력
+        </h3>
+
+        <span class="detail-count">
+          ${orderedHistory.length}건
+        </span>
+      </div>
+
+
+      <div class="shift-log-approval-history__list">
+        ${orderedHistory
+          .map(
+            (
+              historyItem
+            ) => {
+              const actionLabel =
+                getShiftLogApprovalHistoryActionLabel(
+                  historyItem
+                );
+
+
+              const userName =
+                String(
+                  historyItem.userName ||
+                  "사용자"
+                ).trim();
+
+
+              const userId =
+                String(
+                  historyItem.userId ||
+                  ""
+                ).trim();
+
+
+              const roleLabel =
+                getShiftLogApprovalHistoryRoleLabel(
+                  historyItem.accountRole
+                );
+
+
+              const userText =
+                userId
+                  ? `${userName} (${userId})`
+                  : userName;
+
+
+              return `
+                <article
+                  class="shift-log-approval-history__item"
+                >
+                  <div
+                    class="shift-log-approval-history__action"
+                  >
+                    ${escapeHtml(
+                      actionLabel
+                    )}
+                  </div>
+
+
+                  <div
+                    class="shift-log-approval-history__person"
+                  >
+                    <strong>
+                      ${escapeHtml(
+                        userText
+                      )}
+                    </strong>
+
+                    <span>
+                      ${escapeHtml(
+                        roleLabel
+                      )}
+                    </span>
+                  </div>
+
+
+                  <time
+                    class="shift-log-approval-history__time"
+                    datetime="${escapeHtml(
+                      historyItem.at
+                    )}"
+                  >
+                    ${escapeHtml(
+                      formatDateTime(
+                        historyItem.at
+                      )
+                    )}
+                  </time>
+                </article>
+              `;
+            }
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+
+/* =========================================================
+  상세보기 화면에 결재 이력 삽입
+========================================================= */
+
+function renderShiftLogApprovalHistoryInDetail(
+  log
+) {
+  const detailContent =
+    elements.logDetailContent ||
+    document.getElementById(
+      "logDetailContent"
+    );
+
+
+  if (
+    !detailContent
+  ) {
+    return;
+  }
+
+
+  /*
+    상세창을 다시 열었을 때
+    기존 이력이 중복 삽입되지 않게 제거한다.
+  */
+  detailContent
+    .querySelector(
+      "[data-shift-log-approval-history]"
+    )
+    ?.remove();
+
+
+  detailContent.insertAdjacentHTML(
+    "beforeend",
+    createShiftLogApprovalHistoryHtml(
+      log
+    )
+  );
+}
+
+
+/* =========================================================
+  기존 최종 상세보기 함수 보존
+========================================================= */
+
+const openLogDetailBeforeApprovalHistory =
+  openLogDetail;
+
+
+/* =========================================================
+  결재 이력이 포함된 최종 상세보기
+========================================================= */
+
+openLogDetail =
+  function openLogDetail(
+    log
+  ) {
+    openLogDetailBeforeApprovalHistory(
+      log
+    );
+
+
+    renderShiftLogApprovalHistoryInDetail(
+      log
+    );
+  };
+
+  /* =========================================================
+  결재 버튼 이벤트를 결재 이력 포함 함수로 재연결
+========================================================= */
+
+function reconnectShiftLogApprovalHistoryEvents() {
+  const oldApproveButton =
+    document.getElementById(
+      "approveFromDetailButton"
+    );
+
+
+  if (
+    oldApproveButton
+  ) {
+    const newApproveButton =
+      oldApproveButton.cloneNode(
+        true
+      );
+
+
+    oldApproveButton.replaceWith(
+      newApproveButton
+    );
+
+
+    elements.approveFromDetailButton =
+      newApproveButton;
+
+
+    newApproveButton.addEventListener(
+      "click",
+      completeCurrentDetailShiftLogApproval
+    );
+  }
+
+
+  const oldCancelButton =
+    document.getElementById(
+      "cancelApprovalFromDetailButton"
+    );
+
+
+  if (
+    oldCancelButton
+  ) {
+    const newCancelButton =
+      oldCancelButton.cloneNode(
+        true
+      );
+
+
+    oldCancelButton.replaceWith(
+      newCancelButton
+    );
+
+
+    newCancelButton.addEventListener(
+      "click",
+      cancelCurrentDetailShiftLogApproval
+    );
+  }
+}
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  reconnectShiftLogApprovalHistoryEvents
+);
