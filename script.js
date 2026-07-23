@@ -2844,6 +2844,24 @@ saveOperationStatusButton:
         "selectAllLogEntriesCheckbox"
       ),
 
+          /* =====================================================
+      비고 내역
+    ====================================================== */
+
+    noteEntryTableBody:
+      document.getElementById(
+        "noteEntryTableBody"
+      ),
+
+    noteEntryCount:
+      document.getElementById(
+        "noteEntryCount"
+      ),
+
+    selectAllNoteEntriesCheckbox:
+      document.getElementById(
+        "selectAllNoteEntriesCheckbox"
+      ),
 
     /* =====================================================
       인수인계사항 편집 모드
@@ -12586,10 +12604,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    현재 테이블의 실제 열 개수 확인
-
-    HTML에서 열 개수가 달라져도
-    데이터 행은 전체 열을 정확히 합친다.
+    테이블의 실제 열 개수
   ====================================================== */
 
   const getTableColumnCount = (
@@ -12631,6 +12646,13 @@ function renderLogEntryTable() {
   const handoverColumnCount =
     getTableColumnCount(
       elements.logEntryTableBody,
+      4
+    );
+
+
+  const noteColumnCount =
+    getTableColumnCount(
+      elements.noteEntryTableBody,
       4
     );
 
@@ -12700,7 +12722,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    TM / 일반 업무 분리
+    TM / 인계 및 일반 업무 / 비고 분리
   ====================================================== */
 
   const tmEntries =
@@ -12723,24 +12745,50 @@ function renderLogEntryTable() {
       );
 
 
+  const noteEntries =
+    indexedEntries
+      .filter(
+        ({
+          entry
+        }) => {
+          return (
+            String(
+              entry?.category ||
+              ""
+            ).trim() ===
+            "비고"
+          );
+        }
+      )
+      .sort(
+        sortEntries
+      );
+
+
   const ordinaryEntries =
     indexedEntries.filter(
       ({
         entry
       }) => {
-        return (
+        const category =
           String(
             entry?.category ||
             ""
-          ).trim() !==
-          "TM 발행"
+          ).trim();
+
+
+        return (
+          category !==
+            "TM 발행" &&
+          category !==
+            "비고"
         );
       }
     );
 
 
   /* =====================================================
-    건수 및 저장용 값
+    건수와 저장용 JSON
   ====================================================== */
 
   if (
@@ -12768,6 +12816,14 @@ function renderLogEntryTable() {
 
 
   if (
+    elements.noteEntryCount
+  ) {
+    elements.noteEntryCount.textContent =
+      `${noteEntries.length}건`;
+  }
+
+
+  if (
     elements.logEntriesJson
   ) {
     elements.logEntriesJson.value =
@@ -12777,13 +12833,34 @@ function renderLogEntryTable() {
   }
 
 
+  /*
+    기존 log.note 필드는 더 이상 직접 입력하지 않는다.
+
+    비고 항목 내용을 줄바꿈 문자열로도 동기화하여
+    이전 저장 방식과의 호환성을 유지한다.
+  */
+  if (
+    elements.logNote
+  ) {
+    elements.logNote.value =
+      noteEntries
+        .map(
+          ({
+            entry
+          }) => {
+            return String(
+              entry?.content ||
+              ""
+            ).trim();
+          }
+        )
+        .filter(Boolean)
+        .join("\n");
+  }
+
+
   /* =====================================================
-    한 항목 행 생성
-
-    실제 테이블에는 TD 하나만 생성한다.
-
-    TD 내부:
-    체크박스 | 내용 | 수정·삭제
+    공통 항목 행 생성
   ====================================================== */
 
   const createEntryRowHtml = (
@@ -12834,9 +12911,7 @@ function renderLogEntryTable() {
           style="
             width:100% !important;
             min-width:0 !important;
-
             padding:0 !important;
-
             text-align:left !important;
             vertical-align:top !important;
           "
@@ -12847,7 +12922,6 @@ function renderLogEntryTable() {
             data-entry-row-shell
             style="
               display:grid !important;
-
               width:100% !important;
               min-width:0 !important;
 
@@ -12858,7 +12932,6 @@ function renderLogEntryTable() {
               } !important;
 
               align-items:start !important;
-
               column-gap:6px !important;
 
               margin:0 !important;
@@ -12876,9 +12949,7 @@ function renderLogEntryTable() {
               style="
                 width:32px !important;
                 min-width:32px !important;
-
                 padding-top:1px !important;
-
                 text-align:center !important;
               "
             >
@@ -12899,10 +12970,8 @@ function renderLogEntryTable() {
               style="
                 width:100% !important;
                 min-width:0 !important;
-
                 margin:0 !important;
                 padding:0 !important;
-
                 text-align:left !important;
               "
             >
@@ -12925,7 +12994,11 @@ function renderLogEntryTable() {
                   : "hidden"
               }
               style="
-                display:flex;
+                display:${
+                  isEditMode
+                    ? "flex"
+                    : "none"
+                } !important;
 
                 width:78px !important;
                 min-width:78px !important;
@@ -12965,7 +13038,8 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    TM 발행 내역 출력
+    TM 발행 내역
+    번호는 TM 안에서 1부터 시작
   ====================================================== */
 
   if (
@@ -12974,20 +13048,16 @@ function renderLogEntryTable() {
     if (
       !tmEntries.length
     ) {
-      elements
-        .tmIssueEntryTableBody
-        .innerHTML = `
-          <tr class="log-entry-empty-row">
-            <td colspan="${tmColumnCount}">
-              등록된 TM 발행 내역이 없습니다.
-            </td>
-          </tr>
-        `;
+      elements.tmIssueEntryTableBody.innerHTML = `
+        <tr class="log-entry-empty-row">
+          <td colspan="${tmColumnCount}">
+            등록된 TM 발행 내역이 없습니다.
+          </td>
+        </tr>
+      `;
 
     } else {
-      elements
-        .tmIssueEntryTableBody
-        .innerHTML =
+      elements.tmIssueEntryTableBody.innerHTML =
         tmEntries
           .map(
             (
@@ -13024,7 +13094,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    일반 업무 보직별 묶기
+    인계 및 일반 업무를 보직별로 묶기
   ====================================================== */
 
   const roleOrder = [
@@ -13111,7 +13181,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    인계사항 출력
+    인계 및 일반 업무 출력
   ====================================================== */
 
   if (
@@ -13120,22 +13190,18 @@ function renderLogEntryTable() {
     if (
       !ordinaryEntries.length
     ) {
-      elements
-        .logEntryTableBody
-        .innerHTML = `
-          <tr class="log-entry-empty-row">
-            <td colspan="${handoverColumnCount}">
-              등록된 인계사항이 없습니다.
-            </td>
-          </tr>
-        `;
+      elements.logEntryTableBody.innerHTML = `
+        <tr class="log-entry-empty-row">
+          <td colspan="${handoverColumnCount}">
+            등록된 인계사항이 없습니다.
+          </td>
+        </tr>
+      `;
 
     } else if (
       isLeaderLog
     ) {
-      elements
-        .logEntryTableBody
-        .innerHTML =
+      elements.logEntryTableBody.innerHTML =
         orderedRoles
           .map(
             (
@@ -13174,13 +13240,9 @@ function renderLogEntryTable() {
                       class="log-entry-role-divider"
                       style="
                         display:flex !important;
-
                         width:100% !important;
-
                         align-items:center !important;
-
                         gap:6px !important;
-
                         padding:7px 10px !important;
                       "
                     >
@@ -13222,15 +13284,6 @@ function renderLogEntryTable() {
                       </label>
 
 
-                      <!--
-                        보직명과 업무일지를 하나의 배지로 표시
-
-                        기존:
-                        [TGO] TGO 업무일지
-
-                        변경:
-                        [TGO 업무일지]
-                      -->
                       <span
                         class="
                           log-entry-role-divider__badge
@@ -13290,9 +13343,7 @@ function renderLogEntryTable() {
       );
 
 
-      elements
-        .logEntryTableBody
-        .innerHTML =
+      elements.logEntryTableBody.innerHTML =
         sortedEntries
           .map(
             (
@@ -13321,25 +13372,67 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
+    비고 출력
+    인계사항과 분리하고 번호를 다시 1부터 시작
+  ====================================================== */
+
+  if (
+    elements.noteEntryTableBody
+  ) {
+    if (
+      !noteEntries.length
+    ) {
+      elements.noteEntryTableBody.innerHTML = `
+        <tr class="log-entry-empty-row">
+          <td colspan="${noteColumnCount}">
+            등록된 비고가 없습니다.
+          </td>
+        </tr>
+      `;
+
+    } else {
+      elements.noteEntryTableBody.innerHTML =
+        noteEntries
+          .map(
+            (
+              item,
+              index
+            ) => {
+              return createEntryRowHtml(
+                item,
+                index + 1,
+                {
+                  showTime:
+                    true,
+
+                  sourceRole:
+                    currentRole,
+
+                  columnCount:
+                    noteColumnCount
+                }
+              );
+            }
+          )
+          .join("");
+    }
+  }
+
+
+  /* =====================================================
     전체 선택 초기 상태
   ====================================================== */
 
   if (
     elements.selectAllTmEntriesCheckbox
   ) {
-    elements
-      .selectAllTmEntriesCheckbox
-      .checked =
+    elements.selectAllTmEntriesCheckbox.checked =
       false;
 
-    elements
-      .selectAllTmEntriesCheckbox
-      .indeterminate =
+    elements.selectAllTmEntriesCheckbox.indeterminate =
       false;
 
-    elements
-      .selectAllTmEntriesCheckbox
-      .disabled =
+    elements.selectAllTmEntriesCheckbox.disabled =
       tmEntries.length ===
       0;
   }
@@ -13348,20 +13441,29 @@ function renderLogEntryTable() {
   if (
     elements.selectAllLogEntriesCheckbox
   ) {
-    elements
-      .selectAllLogEntriesCheckbox
-      .checked =
+    elements.selectAllLogEntriesCheckbox.checked =
       false;
 
-    elements
-      .selectAllLogEntriesCheckbox
-      .indeterminate =
+    elements.selectAllLogEntriesCheckbox.indeterminate =
       false;
 
-    elements
-      .selectAllLogEntriesCheckbox
-      .disabled =
+    elements.selectAllLogEntriesCheckbox.disabled =
       ordinaryEntries.length ===
+      0;
+  }
+
+
+  if (
+    elements.selectAllNoteEntriesCheckbox
+  ) {
+    elements.selectAllNoteEntriesCheckbox.checked =
+      false;
+
+    elements.selectAllNoteEntriesCheckbox.indeterminate =
+      false;
+
+    elements.selectAllNoteEntriesCheckbox.disabled =
+      noteEntries.length ===
       0;
   }
 
@@ -13369,14 +13471,10 @@ function renderLogEntryTable() {
   if (
     elements.selectedLogEntryCount
   ) {
-    elements
-      .selectedLogEntryCount
-      .textContent =
+    elements.selectedLogEntryCount.textContent =
       "선택 0건";
 
-    elements
-      .selectedLogEntryCount
-      .hidden =
+    elements.selectedLogEntryCount.hidden =
       true;
   }
 
@@ -13384,9 +13482,7 @@ function renderLogEntryTable() {
   if (
     elements.deleteSelectedLogEntriesButton
   ) {
-    elements
-      .deleteSelectedLogEntriesButton
-      .disabled =
+    elements.deleteSelectedLogEntriesButton.disabled =
       true;
   }
 
