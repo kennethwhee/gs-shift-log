@@ -19059,6 +19059,35 @@ function collectEditorData(
         ""
       ).trim(),
 
+      operationItems:
+  getOperationStatusItems(
+    appState.currentOperationStatus
+  ).map(
+    (
+      item,
+      itemIndex
+    ) => {
+      return normalizeOperationStatusItem(
+        item,
+        itemIndex
+      );
+    }
+  ),
+
+operationStatusItems:
+  getOperationStatusItems(
+    appState.currentOperationStatus
+  ).map(
+    (
+      item,
+      itemIndex
+    ) => {
+      return normalizeOperationStatusItem(
+        item,
+        itemIndex
+      );
+    }
+  ),
 
     /* ===================================================
       새 분리 저장 구조
