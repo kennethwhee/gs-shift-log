@@ -19656,3 +19656,63 @@ td {
   text-align: center !important;
   vertical-align: middle !important;
 }
+
+/* =========================================================
+  현재 운전현황 줄바꿈 최종 분리
+
+  TGO · BCO1 · BCO2:
+  설비별 compact 행 유지
+
+  TO · BO1 · BO2:
+  저장된 줄바꿈 그대로 표시
+========================================================= */
+
+
+/*
+  compact 설비 행이 없는 일반 운전현황만
+  입력한 줄바꿈을 그대로 표시한다.
+*/
+#operationStatusCurrentContent:not(
+  :has(.operation-status-compact-line)
+),
+.operation-status-current-content:not(
+  :has(.operation-status-compact-line)
+) {
+  display: block !important;
+
+  width: 100% !important;
+  min-height: 0 !important;
+  height: auto !important;
+
+  margin: 0 !important;
+  padding: 6px 0 !important;
+
+  color: #26384f !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1.75 !important;
+
+  text-align: left !important;
+
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
+
+/*
+  TGO · BCO1 · BCO2 설비별 출력은
+  기존 compact 구조를 그대로 유지한다.
+*/
+#operationStatusCurrentContent:has(
+  .operation-status-compact-line
+),
+.operation-status-current-content:has(
+  .operation-status-compact-line
+) {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+
+  white-space: normal !important;
+}
