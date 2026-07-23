@@ -634,6 +634,7 @@ export async function onRequestGet(
         AND shift = ?2
       `;
 
+
       bindValues.push(
         shift
       );
@@ -656,35 +657,70 @@ export async function onRequestGet(
     `;
 
 
-    const statement =
-      context.env.DB
+    const queryResult =
+      await context.env.DB
         .prepare(
           queryText
-        );
-
-
-    const queryResult =
-      await statement
+        )
         .bind(
           ...bindValues
         )
         .all();
 
 
-    const rows =
-      Array.isArray(
-        queryResult.results
+const rows =
+  Array.isArray(
+    queryResult.results
+  )
+    ? queryResult.results
+    : [];
+
+/*
+  조회된 업무일지 ID 목록
+*/
+const legacyDiaryIds =
+  rows
+    .map(row =>
+      normalizeText(
+        row.legacy_diary_id
       )
-        ? queryResult.results
-        : [];
+    )
+    .filter(Boolean);
 
+/*
+  첨부파일 조회
+*/
+const attachmentMap =
+  await loadLegacyAttachmentsByDiaryIds(
+    context.env.DB,
+    legacyDiaryIds
+    );
 
-    const items =
-      rows.map(
-        convertRowToLegacyLog
+/*
+  업무일지 + 첨부파일 결합
+*/
+const items =
+  rows.map(row => {
+    const legacyDiaryId =
+      normalizeText(
+        row.legacy_diary_id
       );
 
+    return convertRowToLegacyLog(
+      row,
+      attachmentMap[
+        legacyDiaryId
+      ] || []
+    );
+  });
 
+const attachmentCount =
+  items.reduce(
+    (total, item) =>
+      total +
+      (item.attachments?.length || 0),
+    0
+  );
     return createJsonResponse({
       success:
         true,
@@ -692,10 +728,13 @@ export async function onRequestGet(
       date,
 
       shift:
-        shift || "ALL",
+        shift ||
+        "ALL",
 
       totalCount:
         items.length,
+
+      attachmentCount,
 
       items
     });
