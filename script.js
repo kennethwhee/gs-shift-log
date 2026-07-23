@@ -9791,103 +9791,173 @@ function renderOperationStatusBadge(
 }
 
 /* =========================================================
-  파트장 보직별 운전현황 한 줄 생성
+  파트장 설비별 운전현황 생성
+
+  TGO·BCO1·BCO2의 운전현황을
+  보직 단위가 아니라 설비 단위로 다시 분리한다.
 
   표시:
-  TGO  정상운전  |  #1 TBN 정상 운전 중  수정시간
+  상태 | 설비명 : 내용
+
+  화면에는 보직명을 표시하지 않는다.
 ========================================================= */
 
 function createLeaderOperationStatusRowHtml(
   memberStatus
 ) {
-  const role =
-    normalizeMemberLogRole(
-      memberStatus?.role
+  /*
+    신규 설비별 배열 우선,
+    없으면 기존 content 문자열을 자동 분석한다.
+  */
+  let operationItems =
+    getOperationStatusItems(
+      memberStatus
     );
 
 
-  const type =
-    normalizeOperationStatusType(
-      memberStatus?.type
-    );
+  /*
+    기존 자료를 설비별로 분석하지 못한 경우에만
+    하나의 예외 항목으로 표시한다.
+  */
+  if (
+    !operationItems.length
+  ) {
+    const fallbackContent =
+      String(
+        memberStatus?.content ||
+        "등록된 운전현황이 없습니다."
+      ).trim();
 
 
-  const typeLabel =
-    getOperationStatusLabel(
-      type
-    );
+    operationItems = [
+      {
+        name:
+          "",
+
+        type:
+          normalizeOperationStatusType(
+            memberStatus?.type
+          ),
+
+        content:
+          fallbackContent
+      }
+    ];
+  }
 
 
-  const content =
-    String(
-      memberStatus?.content ||
-      "등록된 운전현황이 없습니다."
-    ).trim();
+  return operationItems
+    .map(
+      (
+        item,
+        itemIndex
+      ) => {
+        const normalizedItem =
+          normalizeOperationStatusItem(
+            item,
+            itemIndex
+          );
 
 
-  const updatedAt =
-    String(
-      memberStatus?.updatedAt ||
-      ""
-    ).trim();
+        const itemType =
+          normalizeOperationStatusType(
+            normalizedItem.type
+          );
 
 
-  const updatedAtText =
-    updatedAt
-      ? `${formatDateTime(
-          updatedAt
-        )} 수정`
-      : "";
+        const typeLabel =
+          getOperationStatusLabel(
+            itemType
+          );
 
 
-  return `
-    <div
-      class="
-        leader-operation-line
-        is-${escapeHtml(type)}
-      "
-    >
-
-      <strong
-        class="leader-operation-line__role"
-      >
-        ${escapeHtml(role)}
-      </strong>
+        const itemName =
+          String(
+            normalizedItem.name ||
+            ""
+          ).trim();
 
 
-      <span
-        class="
-          leader-operation-line__status
-          is-${escapeHtml(type)}
-        "
-      >
-        ${escapeHtml(typeLabel)}
-      </span>
+        const itemContent =
+          String(
+            normalizedItem.content ||
+            "등록된 운전현황이 없습니다."
+          ).trim();
 
 
-      <span
-        class="leader-operation-line__divider"
-        aria-hidden="true"
-      >
-        |
-      </span>
+        /*
+          설비명이 없는 과거 자료는
+          내용만 표시한다.
+        */
+        const equipmentHtml =
+          itemName
+            ? `
+              <strong
+                class="leader-operation-line__name"
+              >
+                ${escapeHtml(
+                  itemName
+                )}
+              </strong>
+
+              <span
+                class="leader-operation-line__colon"
+                aria-hidden="true"
+              >
+                :
+              </span>
+            `
+            : "";
 
 
-      <span
-        class="leader-operation-line__content"
-      >
-        ${escapeHtml(content)}
-      </span>
+        return `
+          <div
+            class="
+              leader-operation-line
+              is-${escapeHtml(
+                itemType
+              )}
+            "
+          >
+
+            <span
+              class="
+                leader-operation-line__status
+                is-${escapeHtml(
+                  itemType
+                )}
+              "
+            >
+              ${escapeHtml(
+                typeLabel
+              )}
+            </span>
 
 
-      <span
-        class="leader-operation-line__time"
-      >
-        ${escapeHtml(updatedAtText)}
-      </span>
+            <span
+              class="leader-operation-line__divider"
+              aria-hidden="true"
+            >
+              |
+            </span>
 
-    </div>
-  `;
+
+            ${equipmentHtml}
+
+
+            <span
+              class="leader-operation-line__content"
+            >
+              ${escapeHtml(
+                itemContent
+              )}
+            </span>
+
+          </div>
+        `;
+      }
+    )
+    .join("");
 }
 
 /* =========================================================
