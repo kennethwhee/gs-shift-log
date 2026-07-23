@@ -19096,33 +19096,6 @@ table:has(#noteEntryTableBody) {
   background: #fbfcfd;
 }
 
-
-/* =========================================================
-  TM 발행 내역 빈 상태
-  약 3줄 높이
-========================================================= */
-
-#logEntryListPanel
-.handover-entry-group--tm
-.log-entry-empty-row td {
-  height: 84px !important;
-  min-height: 84px !important;
-}
-
-
-/* =========================================================
-  인계사항 빈 상태
-  약 5줄 높이
-========================================================= */
-
-#logEntryListPanel
-.handover-entry-group--handover
-.log-entry-empty-row td {
-  height: 132px !important;
-  min-height: 132px !important;
-}
-
-
 /* =========================================================
   실제 항목이 생긴 뒤에는
   행 높이를 강제로 키우지 않는다.
@@ -19607,4 +19580,79 @@ tbody tr:not(.log-entry-empty-row) td {
   .operation-status-compact-line__content {
     font-size: 11px !important;
   }
+}
+
+/* =========================================================
+  업무일지 수정창 빈 목록 높이 최종 강제 적용
+
+  TM 발행 내역 : 약 3줄
+  인계사항      : 약 5줄
+========================================================= */
+
+
+/* =========================================================
+  TM 발행 내역 빈 상태
+========================================================= */
+
+#logEntryListPanel
+.handover-entry-group--tm
+.log-entry-table--tm
+tbody
+tr.log-entry-empty-row {
+  height: 84px !important;
+}
+
+#logEntryListPanel
+.handover-entry-group--tm
+.log-entry-table--tm
+tbody
+tr.log-entry-empty-row
+td {
+  height: 84px !important;
+  min-height: 84px !important;
+
+  padding: 0 16px !important;
+
+  background: #fbfcfd !important;
+  color: #929cab !important;
+
+  font-size: 11px !important;
+  font-weight: 600 !important;
+
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+
+/* =========================================================
+  인계사항 빈 상태
+========================================================= */
+
+#logEntryListPanel
+.handover-entry-group--handover
+.log-entry-table--handover
+tbody
+tr.log-entry-empty-row {
+  height: 132px !important;
+}
+
+#logEntryListPanel
+.handover-entry-group--handover
+.log-entry-table--handover
+tbody
+tr.log-entry-empty-row
+td {
+  height: 132px !important;
+  min-height: 132px !important;
+
+  padding: 0 16px !important;
+
+  background: #fbfcfd !important;
+  color: #929cab !important;
+
+  font-size: 11px !important;
+  font-weight: 600 !important;
+
+  text-align: center !important;
+  vertical-align: middle !important;
 }
