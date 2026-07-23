@@ -8871,16 +8871,35 @@ function createLeaderOperationStatusRowHtml(
 /* =========================================================
   운전현황 카드 렌더링 최종본
 
+  신규 작성:
+  - 현재 날짜·근무·보직의 최신 운전현황 표시
+
+  기존 업무일지 수정:
+  - 해당 업무일지에 저장된 운전현황 스냅샷 표시
+  - localStorage 최신값으로 덮어쓰지 않음
+
   일반 보직:
-  상태 배지 + 내용 + 수정시간
+  - 상태 배지 + 내용 + 수정시간
 
   파트장:
-  TGO·BCO1·BCO2를 카드 없이 세 줄로 표시
+  - TGO·BCO1·BCO2 또는 과거 저장 원문을
+    보직별 한 줄 구조로 표시
 ========================================================= */
 
 function renderOperationStatusCard() {
   const currentRole =
     getCurrentOperationStatusRole();
+
+
+  const isEditingSavedLog =
+    Boolean(
+      String(
+        elements.logEditorForm
+          ?.dataset
+          ?.editingId ||
+        ""
+      ).trim()
+    );
 
 
   const status =
@@ -8914,56 +8933,240 @@ function renderOperationStatusCard() {
     currentRole ===
     "파트장"
   ) {
-    /*
-      파트장 화면은 항상 저장소에서
-      TGO·BCO1·BCO2 최신 상태를 다시 읽는다.
-    */
-    const memberStatuses =
-      OPERATION_STATUS_MEMBER_ROLES.map(
-        (role) => {
-          const memberStatus =
-            loadOperationStatusByRole(
-              role,
-              {
-                allowLegacyFallback:
-                  role === "TGO"
-              }
-            );
+    let memberStatuses = [];
 
 
-          return {
-            role,
+    /* ===================================================
+      기존 업무일지 수정
+
+      해당 일지에 저장된 운전현황 원문을 사용한다.
+      현재 localStorage 운전현황은 읽지 않는다.
+    ==================================================== */
+
+    if (
+      isEditingSavedLog
+    ) {
+      /*
+        저장 당시 memberStatuses 배열이 있으면
+        그것을 가장 우선 사용한다.
+      */
+      if (
+        Array.isArray(
+          status.memberStatuses
+        ) &&
+        status.memberStatuses.length
+      ) {
+        memberStatuses =
+          status.memberStatuses.map(
+            (
+              memberStatus
+            ) => {
+              return {
+                role:
+                  normalizeMemberLogRole(
+                    memberStatus.role
+                  ),
+
+                type:
+                  normalizeOperationStatusType(
+                    memberStatus.type
+                  ),
+
+                content:
+                  String(
+                    memberStatus.content ||
+                    "등록된 운전현황이 없습니다."
+                  ).trim(),
+
+                updatedAt:
+                  String(
+                    memberStatus.updatedAt ||
+                    ""
+                  ),
+
+                updatedBy:
+                  String(
+                    memberStatus.updatedBy ||
+                    ""
+                  ).trim()
+              };
+            }
+          );
+
+      } else {
+        /*
+          과거 업무일지는 memberStatuses 배열 없이
+          operationStatus 문자열만 저장된 경우가 있다.
+
+          저장 원문을 보직별 행으로 분석한다.
+        */
+        const editingLogId =
+          String(
+            elements.logEditorForm
+              ?.dataset
+              ?.editingId ||
+            ""
+          ).trim();
+
+
+        const editingLog =
+          appState.logs.find(
+            (
+              log
+            ) => {
+              return (
+                String(
+                  log.id ||
+                  ""
+                ).trim() ===
+                editingLogId
+              );
+            }
+          );
+
+
+        const parsedRows =
+          typeof parseOperationStatusRowsForDisplay ===
+            "function"
+            ? parseOperationStatusRowsForDisplay(
+                editingLog || {
+                  role:
+                    currentRole,
+
+                  operationStatus:
+                    content,
+
+                  operationStatusType:
+                    selectedType
+                }
+              )
+            : [];
+
+
+        memberStatuses =
+          parsedRows.map(
+            (
+              parsedRow
+            ) => {
+              return {
+                role:
+                  normalizeMemberLogRole(
+                    parsedRow.role ||
+                    "파트장"
+                  ),
+
+                type:
+                  normalizeOperationStatusType(
+                    parsedRow.type ||
+                    "normal"
+                  ),
+
+                content:
+                  String(
+                    parsedRow.content ||
+                    "등록된 운전현황이 없습니다."
+                  ).trim(),
+
+                updatedAt:
+                  "",
+
+                updatedBy:
+                  ""
+              };
+            }
+          );
+      }
+
+
+      /*
+        파싱 결과가 없는 예외 자료는
+        전체 저장 원문을 하나의 파트장 항목으로 표시한다.
+      */
+      if (
+        !memberStatuses.length &&
+        content
+      ) {
+        memberStatuses = [
+          {
+            role:
+              "파트장",
 
             type:
-              normalizeOperationStatusType(
-                memberStatus.type
-              ),
+              selectedType,
 
-            content:
-              String(
-                memberStatus.content ||
-                "등록된 운전현황이 없습니다."
-              ).trim(),
+            content,
 
             updatedAt:
               String(
-                memberStatus.updatedAt ||
+                status.updatedAt ||
                 ""
               ),
 
             updatedBy:
               String(
-                memberStatus.updatedBy ||
+                status.updatedBy ||
                 ""
-              )
-          };
-        }
-      );
+              ).trim()
+          }
+        ];
+      }
+
+    } else {
+      /* =================================================
+        신규 업무일지 작성
+
+        현재 TGO·BCO1·BCO2 최신 운전현황을 사용한다.
+      ================================================== */
+
+      memberStatuses =
+        OPERATION_STATUS_MEMBER_ROLES.map(
+          (
+            role
+          ) => {
+            const memberStatus =
+              loadOperationStatusByRole(
+                role,
+                {
+                  allowLegacyFallback:
+                    role ===
+                    "TGO"
+                }
+              );
+
+
+            return {
+              role,
+
+              type:
+                normalizeOperationStatusType(
+                  memberStatus.type
+                ),
+
+              content:
+                String(
+                  memberStatus.content ||
+                  "등록된 운전현황이 없습니다."
+                ).trim(),
+
+              updatedAt:
+                String(
+                  memberStatus.updatedAt ||
+                  ""
+                ),
+
+              updatedBy:
+                String(
+                  memberStatus.updatedBy ||
+                  ""
+                ).trim()
+            };
+          }
+        );
+    }
 
 
     /*
-      일반 보직 표시 영역을 숨기고
-      파트장 전용 영역만 표시한다.
+      일반 보직 표시 영역 숨김
     */
     if (
       elements.operationStatusSingleView
@@ -8973,6 +9176,9 @@ function renderOperationStatusCard() {
     }
 
 
+    /*
+      파트장 보직별 목록 표시
+    */
     if (
       elements.leaderOperationStatusList
     ) {
@@ -8990,19 +9196,27 @@ function renderOperationStatusCard() {
 
 
     /*
-      업무일지에 저장할 통합 운전현황 원문
+      저장용 통합 원문
+
+      기존 업무일지 수정 중에는
+      원래 저장된 content를 우선 유지한다.
     */
     const combinedContent =
-      memberStatuses
-        .map(
-          (memberStatus) => {
-            return [
-              `[${memberStatus.role}]`,
-              memberStatus.content
-            ].join("\n");
-          }
-        )
-        .join("\n\n");
+      isEditingSavedLog &&
+      content
+        ? content
+        : memberStatuses
+            .map(
+              (
+                memberStatus
+              ) => {
+                return [
+                  `[${memberStatus.role}]`,
+                  memberStatus.content
+                ].join("\n");
+              }
+            )
+            .join("\n\n");
 
 
     if (
@@ -9025,8 +9239,28 @@ function renderOperationStatusCard() {
       elements.operationStatusType
     ) {
       elements.operationStatusType.value =
-        "normal";
+        selectedType;
     }
+
+
+    /*
+      현재 화면 상태에도
+      같은 스냅샷을 유지한다.
+    */
+    appState.currentOperationStatus = {
+      ...status,
+
+      role:
+        "파트장",
+
+      type:
+        selectedType,
+
+      content:
+        combinedContent,
+
+      memberStatuses
+    };
 
 
     elements.operationStatusSection
@@ -9036,11 +9270,13 @@ function renderOperationStatusCard() {
 
 
     /*
-      파트장 전체 카드에는 한 가지 상태색을
-      강제로 적용하지 않는다.
+      파트장 카드에는
+      하나의 공통 상태색을 적용하지 않는다.
     */
     OPERATION_STATUS_TYPES.forEach(
-      (type) => {
+      (
+        type
+      ) => {
         elements.operationStatusSection
           ?.classList.remove(
             `is-type-${type}`
@@ -9169,7 +9405,6 @@ function renderOperationStatusCard() {
     selectedType
   );
 }
-
 
 /* =========================================================
   현재 보직 운전현황 새로고침
@@ -11048,9 +11283,12 @@ function formatDateTime(value) {
 /* =========================================================
   업무일지 작성·수정창 열기 최종본
 
-  핵심:
-  보직·날짜·근무값을 먼저 설정한 다음
-  마지막에 해당 보직 운전현황을 불러온다.
+  기존 업무일지 수정:
+  - 해당 일지에 저장된 운전현황 스냅샷 유지
+  - 현재 localStorage 운전현황으로 덮어쓰지 않음
+
+  신규 업무일지 작성:
+  - 현재 날짜·근무·보직의 최신 운전현황 사용
 ========================================================= */
 
 function openLogEditor(
@@ -11058,7 +11296,7 @@ function openLogEditor(
   preset = null
 ) {
   /*
-    이전 입력 상태를 먼저 초기화한다.
+    이전 입력 상태 초기화
   */
   resetLogEditor();
 
@@ -11070,6 +11308,10 @@ function openLogEditor(
   if (
     log
   ) {
+    /*
+      해당 업무일지에 저장된 값으로
+      날짜·근무·보직·운전현황·업무내역을 채운다.
+    */
     fillLogEditor(
       log
     );
@@ -11084,10 +11326,23 @@ function openLogEditor(
 
 
     /*
-      fillLogEditor()에서 날짜·근무·보직을 설정한 뒤
-      그 보직 전용 운전현황을 불러온다.
+      중요:
+
+      기존에는 여기서
+      refreshOperationStatusForCurrentRole()를 실행해
+      해당 일지의 운전현황을 현재 localStorage 값으로
+      덮어쓰고 있었다.
+
+      수정창에서는 과거 업무일지에 저장된
+      운전현황 스냅샷을 그대로 렌더링한다.
     */
-    refreshOperationStatusForCurrentRole();
+    renderOperationStatusCard();
+
+
+    updateOperationStatusRoleTitles();
+
+
+    closeOperationStatusEditor();
 
 
     updateMemberLogImportSection();
@@ -11103,7 +11358,7 @@ function openLogEditor(
 
 
   /* =====================================================
-    근무자 카드에서 새 업무일지 작성
+    근무자 카드에서 신규 업무일지 작성
   ====================================================== */
 
   if (
@@ -11137,7 +11392,9 @@ function openLogEditor(
       [
         ...elements.logRole.options
       ].some(
-        (option) => {
+        (
+          option
+        ) => {
           return (
             normalizeMemberLogRole(
               option.value
@@ -11173,7 +11430,9 @@ function openLogEditor(
       [
         ...elements.logTeam.options
       ].some(
-        (option) => {
+        (
+          option
+        ) => {
           return (
             normalizeTeamName(
               option.value
@@ -11197,10 +11456,8 @@ function openLogEditor(
 
 
     /*
-      BCO2 카드를 눌렀으면
-      여기에서 BCO2 운전현황을 불러온다.
-
-      TGO 운전현황이 남는 문제를 해결한다.
+      신규 작성은 현재 날짜·근무·보직의
+      최신 운전현황을 불러온다.
     */
     refreshOperationStatusForCurrentRole();
 
@@ -11234,7 +11491,7 @@ function openLogEditor(
 
   /*
     임시저장 복원 또는 기본 보직 기준으로
-    운전현황을 다시 불러온다.
+    현재 운전현황을 불러온다.
   */
   refreshOperationStatusForCurrentRole();
 
