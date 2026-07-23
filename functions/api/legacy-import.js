@@ -417,6 +417,668 @@ function createLegacyDiaryId(
   ].join("-");
 }
 
+/* =========================================================
+  과거 업무일지 첨부파일 S3 기본 주소
+========================================================= */
+
+const LEGACY_ATTACHMENT_BASE_URL =
+  "https://in-and-out-storage-enr-prod-pocheon.s3.ap-northeast-2.amazonaws.com";
+
+
+/* =========================================================
+  첨부파일명 정리
+
+  경로 조작이나 잘못된 파일명을 방지한다.
+========================================================= */
+
+function sanitizeLegacyAttachmentFileName(
+  fileName
+) {
+  const normalizedFileName =
+    normalizeText(
+      fileName
+    )
+      .replace(
+        /\\/g,
+        "/"
+      )
+      .split("/")
+      .pop()
+      .replace(
+        /[\u0000-\u001F\u007F]/g,
+        ""
+      );
+
+  if (
+    !normalizedFileName ||
+    normalizedFileName === "." ||
+    normalizedFileName === ".."
+  ) {
+    return "";
+  }
+
+  return normalizedFileName;
+}
+
+
+/* =========================================================
+  첨부파일 목록 가져오기
+========================================================= */
+
+function getLegacyAttachmentFileNames(
+  legacyItem
+) {
+  const fileUris =
+    Array.isArray(
+      legacyItem?.file_uris
+    )
+      ? legacyItem.file_uris
+      : Array.isArray(
+          legacyItem?.fileUris
+        )
+        ? legacyItem.fileUris
+        : [];
+
+  return [
+    ...new Set(
+      fileUris
+        .map(
+          fileName =>
+            sanitizeLegacyAttachmentFileName(
+              fileName
+            )
+        )
+        .filter(Boolean)
+    )
+  ];
+}
+
+
+/* =========================================================
+  과거 S3 첨부파일 URL 생성
+========================================================= */
+
+function createLegacyAttachmentSourceUrl(
+  legacyDiaryId,
+  fileName
+) {
+  const encodedDiaryId =
+    encodeURIComponent(
+      legacyDiaryId
+    );
+
+  const encodedFileName =
+    encodeURIComponent(
+      fileName
+    );
+
+  return [
+    LEGACY_ATTACHMENT_BASE_URL,
+    "diaries",
+    encodedDiaryId,
+    "attachments",
+    encodedFileName
+  ].join("/");
+}
+
+
+/* =========================================================
+  R2 저장 키 생성
+
+  예:
+  legacy/2026/07/21/POCHEON%2320260721%23DAY%23TO/
+  scaled_IMG_8704.jpeg
+========================================================= */
+
+function createLegacyAttachmentR2Key(
+  date,
+  legacyDiaryId,
+  fileName
+) {
+  const year =
+    date.slice(
+      0,
+      4
+    );
+
+  const month =
+    date.slice(
+      4,
+      6
+    );
+
+  const day =
+    date.slice(
+      6,
+      8
+    );
+
+  return [
+    "legacy",
+    year,
+    month,
+    day,
+    encodeURIComponent(
+      legacyDiaryId
+    ),
+    encodeURIComponent(
+      fileName
+    )
+  ].join("/");
+}
+
+
+/* =========================================================
+  Content-Type 결정
+
+  S3 응답에 Content-Type이 없을 때 사용한다.
+========================================================= */
+
+function detectAttachmentContentType(
+  fileName
+) {
+  const extension =
+    normalizeText(
+      fileName
+    )
+      .toLowerCase()
+      .split(".")
+      .pop();
+
+  const contentTypeMap = {
+    jpg:
+      "image/jpeg",
+
+    jpeg:
+      "image/jpeg",
+
+    png:
+      "image/png",
+
+    gif:
+      "image/gif",
+
+    webp:
+      "image/webp",
+
+    bmp:
+      "image/bmp",
+
+    heic:
+      "image/heic",
+
+    heif:
+      "image/heif",
+
+    pdf:
+      "application/pdf"
+  };
+
+  return (
+    contentTypeMap[
+      extension
+    ] ||
+    "application/octet-stream"
+  );
+}
+
+
+/* =========================================================
+  기존 첨부정보 조회
+========================================================= */
+
+async function findExistingLegacyAttachment(
+  database,
+  legacyDiaryId,
+  fileName
+) {
+  return database
+    .prepare(
+      `
+        SELECT
+          id,
+          r2_key,
+          file_size,
+          mime_type
+        FROM legacy_attachments
+        WHERE legacy_diary_id = ?1
+          AND file_name = ?2
+        LIMIT 1
+      `
+    )
+    .bind(
+      legacyDiaryId,
+      fileName
+    )
+    .first();
+}
+
+
+/* =========================================================
+  첨부정보 DB 저장 또는 갱신
+========================================================= */
+
+async function saveLegacyAttachmentRecord(
+  database,
+  attachment
+) {
+  await database
+    .prepare(
+      `
+        INSERT INTO legacy_attachments (
+          legacy_diary_id,
+          file_name,
+          original_url,
+          r2_key,
+          mime_type,
+          file_size,
+          uploaded_at
+        )
+        VALUES (
+          ?1,
+          ?2,
+          ?3,
+          ?4,
+          ?5,
+          ?6,
+          CURRENT_TIMESTAMP
+        )
+
+        ON CONFLICT (
+          legacy_diary_id,
+          file_name
+        )
+        DO UPDATE SET
+          original_url =
+            excluded.original_url,
+
+          r2_key =
+            excluded.r2_key,
+
+          mime_type =
+            excluded.mime_type,
+
+          file_size =
+            excluded.file_size,
+
+          uploaded_at =
+            CURRENT_TIMESTAMP
+      `
+    )
+    .bind(
+      attachment.legacyDiaryId,
+      attachment.fileName,
+      attachment.originalUrl,
+      attachment.r2Key,
+      attachment.mimeType,
+      attachment.fileSize
+    )
+    .run();
+}
+
+
+/* =========================================================
+  첨부파일 1개 다운로드 및 R2 저장
+========================================================= */
+
+async function importLegacyAttachment(
+  context,
+  {
+    legacyDiaryId,
+    date,
+    fileName
+  }
+) {
+  const safeFileName =
+    sanitizeLegacyAttachmentFileName(
+      fileName
+    );
+
+  if (!safeFileName) {
+    return {
+      success:
+        false,
+
+      skipped:
+        true,
+
+      fileName:
+        normalizeText(
+          fileName
+        ),
+
+      message:
+        "첨부파일명이 올바르지 않습니다."
+    };
+  }
+
+
+  const existingAttachment =
+    await findExistingLegacyAttachment(
+      context.env.DB,
+      legacyDiaryId,
+      safeFileName
+    );
+
+
+  /*
+    DB와 R2에 이미 모두 존재하면
+    다시 다운로드하지 않는다.
+  */
+  if (
+    existingAttachment?.r2_key
+  ) {
+    const existingR2Object =
+      await context.env.ATTACHMENTS.head(
+        existingAttachment.r2_key
+      );
+
+    if (existingR2Object) {
+      return {
+        success:
+          true,
+
+        skipped:
+          true,
+
+        action:
+          "existing",
+
+        fileName:
+          safeFileName,
+
+        r2Key:
+          existingAttachment.r2_key,
+
+        fileSize:
+          Number(
+            existingAttachment.file_size ||
+            existingR2Object.size ||
+            0
+          ),
+
+        mimeType:
+          normalizeText(
+            existingAttachment.mime_type
+          )
+      };
+    }
+  }
+
+
+  const originalUrl =
+    createLegacyAttachmentSourceUrl(
+      legacyDiaryId,
+      safeFileName
+    );
+
+
+  const r2Key =
+    createLegacyAttachmentR2Key(
+      date,
+      legacyDiaryId,
+      safeFileName
+    );
+
+
+  const response =
+    await fetch(
+      originalUrl,
+      {
+        method:
+          "GET",
+
+        headers: {
+          Accept:
+            "image/*,application/pdf,*/*"
+        },
+
+        cache:
+          "no-store"
+      }
+    );
+
+
+  if (!response.ok) {
+    throw new Error(
+      [
+        "첨부파일 다운로드 실패",
+        safeFileName,
+        `HTTP ${response.status}`
+      ].join(" / ")
+    );
+  }
+
+
+  const contentType =
+    normalizeText(
+      response.headers.get(
+        "content-type"
+      )
+    ) ||
+    detectAttachmentContentType(
+      safeFileName
+    );
+
+
+  const fileData =
+    await response.arrayBuffer();
+
+
+  const fileSize =
+    fileData.byteLength;
+
+
+  if (
+    fileSize <= 0
+  ) {
+    throw new Error(
+      `${safeFileName} 첨부파일의 크기가 0입니다.`
+    );
+  }
+
+
+  await context.env.ATTACHMENTS.put(
+    r2Key,
+    fileData,
+    {
+      httpMetadata: {
+        contentType,
+
+        contentDisposition:
+          `inline; filename="${safeFileName.replace(
+            /"/g,
+            ""
+          )}"`
+      },
+
+      customMetadata: {
+        legacyDiaryId,
+
+        originalFileName:
+          safeFileName,
+
+        originalUrl,
+
+        importedFrom:
+          "GS ENR legacy diary"
+      }
+    }
+  );
+
+
+  await saveLegacyAttachmentRecord(
+    context.env.DB,
+    {
+      legacyDiaryId,
+
+      fileName:
+        safeFileName,
+
+      originalUrl,
+
+      r2Key,
+
+      mimeType:
+        contentType,
+
+      fileSize
+    }
+  );
+
+
+  return {
+    success:
+      true,
+
+    skipped:
+      false,
+
+    action:
+      existingAttachment
+        ? "updated"
+        : "created",
+
+    fileName:
+      safeFileName,
+
+    originalUrl,
+
+    r2Key,
+
+    mimeType:
+      contentType,
+
+    fileSize
+  };
+}
+
+
+/* =========================================================
+  업무일지 1건의 첨부파일 전체 동기화
+
+  사진 한 장이 실패해도
+  나머지 파일은 계속 처리한다.
+========================================================= */
+
+async function importLegacyAttachments(
+  context,
+  legacyItem,
+  date,
+  legacyDiaryId
+) {
+  const fileNames =
+    getLegacyAttachmentFileNames(
+      legacyItem
+    );
+
+
+  const results = [];
+
+  let attachmentFetchedCount =
+    fileNames.length;
+
+  let attachmentCreatedCount =
+    0;
+
+  let attachmentUpdatedCount =
+    0;
+
+  let attachmentSkippedCount =
+    0;
+
+  let attachmentFailedCount =
+    0;
+
+
+  for (
+    const fileName of
+    fileNames
+  ) {
+    try {
+      const result =
+        await importLegacyAttachment(
+          context,
+          {
+            legacyDiaryId,
+
+            date,
+
+            fileName
+          }
+        );
+
+
+      results.push(
+        result
+      );
+
+
+      if (
+        result.skipped
+      ) {
+        attachmentSkippedCount +=
+          1;
+
+      } else if (
+        result.action ===
+        "created"
+      ) {
+        attachmentCreatedCount +=
+          1;
+
+      } else if (
+        result.action ===
+        "updated"
+      ) {
+        attachmentUpdatedCount +=
+          1;
+      }
+
+    } catch (error) {
+      attachmentFailedCount +=
+        1;
+
+
+      console.error(
+        `${legacyDiaryId} 첨부파일 동기화 실패:`,
+        fileName,
+        error
+      );
+
+
+      results.push({
+        success:
+          false,
+
+        skipped:
+          false,
+
+        fileName,
+
+        message:
+          error instanceof Error
+            ? error.message
+            : String(error)
+      });
+    }
+  }
+
+
+  return {
+    attachmentFetchedCount,
+
+    attachmentCreatedCount,
+
+    attachmentUpdatedCount,
+
+    attachmentSkippedCount,
+
+    attachmentFailedCount,
+
+    results
+  };
+}
 
 /* =========================================================
   현재 사이트의 기존 업무일지 API 호출
@@ -510,12 +1172,16 @@ async function fetchLegacyDiaries(
 ========================================================= */
 
 async function saveLegacyLog(
-  database,
+  context,
   legacyItem,
   date,
   legacyShift,
   itemIndex
 ) {
+  const database =
+    context.env.DB;
+
+
   const legacyDiaryId =
     createLegacyDiaryId(
       legacyItem,
@@ -524,20 +1190,24 @@ async function saveLegacyLog(
       itemIndex
     );
 
+
   const workDate =
     convertLegacyDateToIso(
       date
     );
+
 
   const currentShift =
     convertLegacyShift(
       legacyShift
     );
 
+
   const role =
     convertLegacyPositionToRole(
       legacyItem?.position
     );
+
 
   const author =
     normalizeText(
@@ -547,11 +1217,13 @@ async function saveLegacyLog(
       legacyItem?.writerId
     );
 
+
   const writerId =
     normalizeText(
       legacyItem?.writer_id ??
       legacyItem?.writerId
     );
+
 
   const status =
     convertLegacyStatus(
@@ -559,27 +1231,32 @@ async function saveLegacyLog(
       legacyItem?.diaryStatus
     );
 
+
   const operationStatus =
     getLegacyBodyContent(
       legacyItem?.body,
       0
     );
 
+
   const entries =
     createStoredEntries(
       legacyItem
     );
+
 
   const legacyPosition =
     normalizeText(
       legacyItem?.position
     );
 
+
   const legacyVersion =
     Number(
       legacyItem?.version ??
       0
     ) || 0;
+
 
   const sourceUpdatedAt =
     normalizeText(
@@ -589,15 +1266,22 @@ async function saveLegacyLog(
       legacyItem?.createdAt
     );
 
+
   const originalJson =
     JSON.stringify(
       legacyItem
     );
 
+
   const entriesJson =
     JSON.stringify(
       entries
     );
+
+
+  /* =====================================================
+    기존 업무일지 존재 여부 확인
+  ===================================================== */
 
   const existingLog =
     await database
@@ -614,6 +1298,11 @@ async function saveLegacyLog(
         legacyDiaryId
       )
       .first();
+
+
+  /* =====================================================
+    과거 업무일지 D1 저장 또는 갱신
+  ===================================================== */
 
   await database
     .prepare(
@@ -714,6 +1403,144 @@ async function saveLegacyLog(
     )
     .run();
 
+
+  /* =====================================================
+    첨부파일 동기화 기본 결과
+
+    첨부파일이 없거나 R2 바인딩이 없어도
+    업무일지 본문 저장은 정상 완료한다.
+  ===================================================== */
+
+  let attachmentResult = {
+    attachmentFetchedCount:
+      0,
+
+    attachmentCreatedCount:
+      0,
+
+    attachmentUpdatedCount:
+      0,
+
+    attachmentSkippedCount:
+      0,
+
+    attachmentFailedCount:
+      0,
+
+    results:
+      []
+  };
+
+
+  /* =====================================================
+    첨부파일 다운로드 및 R2 저장
+
+    사진 동기화에 실패하더라도
+    업무일지 본문 동기화는 실패시키지 않는다.
+  ===================================================== */
+
+  if (
+    context.env.ATTACHMENTS
+  ) {
+    try {
+      attachmentResult =
+        await importLegacyAttachments(
+          context,
+          legacyItem,
+          date,
+          legacyDiaryId
+        );
+
+    } catch (error) {
+      console.error(
+        `${legacyDiaryId} 첨부파일 전체 동기화 실패:`,
+        error
+      );
+
+
+      attachmentResult = {
+        attachmentFetchedCount:
+          getLegacyAttachmentFileNames(
+            legacyItem
+          ).length,
+
+        attachmentCreatedCount:
+          0,
+
+        attachmentUpdatedCount:
+          0,
+
+        attachmentSkippedCount:
+          0,
+
+        attachmentFailedCount:
+          getLegacyAttachmentFileNames(
+            legacyItem
+          ).length,
+
+        results: [
+          {
+            success:
+              false,
+
+            message:
+              error instanceof Error
+                ? error.message
+                : String(error)
+          }
+        ]
+      };
+    }
+
+  } else {
+    const attachmentFileNames =
+      getLegacyAttachmentFileNames(
+        legacyItem
+      );
+
+
+    /*
+      첨부파일이 존재하지만 R2 바인딩이 없다면
+      결과에 원인을 남긴다.
+    */
+    if (
+      attachmentFileNames.length >
+      0
+    ) {
+      attachmentResult = {
+        attachmentFetchedCount:
+          attachmentFileNames.length,
+
+        attachmentCreatedCount:
+          0,
+
+        attachmentUpdatedCount:
+          0,
+
+        attachmentSkippedCount:
+          0,
+
+        attachmentFailedCount:
+          attachmentFileNames.length,
+
+        results: [
+          {
+            success:
+              false,
+
+            message:
+              "R2 바인딩 ATTACHMENTS가 등록되지 않아 첨부파일을 저장하지 못했습니다."
+          }
+        ]
+      };
+    }
+  }
+
+
+  /* =====================================================
+    업무일지 및 첨부파일 처리 결과 반환
+  ===================================================== */
+
   return {
     action:
       existingLog
@@ -729,7 +1556,10 @@ async function saveLegacyLog(
 
     role,
 
-    author
+    author,
+
+    attachments:
+      attachmentResult
   };
 }
 
@@ -753,40 +1583,60 @@ async function importLegacyShift(
   let createdCount = 0;
   let updatedCount = 0;
 
+  let attachmentFetchedCount = 0;
+  let attachmentCreatedCount = 0;
+  let attachmentUpdatedCount = 0;
+  let attachmentSkippedCount = 0;
+  let attachmentFailedCount = 0;
+
   const savedLogs = [];
 
   for (
     let itemIndex = 0;
-    itemIndex <
-      legacyItems.length;
+    itemIndex < legacyItems.length;
     itemIndex += 1
   ) {
+
     const saveResult =
       await saveLegacyLog(
-        context.env.DB,
-        legacyItems[
-          itemIndex
-        ],
+        context,
+        legacyItems[itemIndex],
         date,
         legacyShift,
         itemIndex
       );
 
     if (
-      saveResult.action ===
-      "created"
+      saveResult.action === "created"
     ) {
-      createdCount += 1;
+      createdCount++;
     } else {
-      updatedCount += 1;
+      updatedCount++;
     }
 
-    savedLogs.push(
-      saveResult
-    );
+    if (saveResult.attachments) {
+
+      attachmentFetchedCount +=
+        saveResult.attachments.attachmentFetchedCount || 0;
+
+      attachmentCreatedCount +=
+        saveResult.attachments.attachmentCreatedCount || 0;
+
+      attachmentUpdatedCount +=
+        saveResult.attachments.attachmentUpdatedCount || 0;
+
+      attachmentSkippedCount +=
+        saveResult.attachments.attachmentSkippedCount || 0;
+
+      attachmentFailedCount +=
+        saveResult.attachments.attachmentFailedCount || 0;
+    }
+
+    savedLogs.push(saveResult);
   }
 
   return {
+
     legacyShift,
 
     currentShift:
@@ -801,7 +1651,18 @@ async function importLegacyShift(
 
     updatedCount,
 
+    attachmentFetchedCount,
+
+    attachmentCreatedCount,
+
+    attachmentUpdatedCount,
+
+    attachmentSkippedCount,
+
+    attachmentFailedCount,
+
     savedLogs
+
   };
 }
 
@@ -964,12 +1825,14 @@ export async function onRequestPost(
               4
             )
           ),
+
           Number(
             startDate.slice(
               4,
               6
             )
           ) - 1,
+
           Number(
             startDate.slice(
               6,
@@ -987,12 +1850,14 @@ export async function onRequestPost(
               4
             )
           ),
+
           Number(
             endDate.slice(
               4,
               6
             )
           ) - 1,
+
           Number(
             endDate.slice(
               6,
@@ -1063,7 +1928,8 @@ export async function onRequestPost(
 
 
     /*
-      Cloudflare 실행시간과 과도한 요청 방지
+      Cloudflare 실행시간과
+      과도한 요청 방지
     */
     if (
       importDates.length >
@@ -1097,8 +1963,13 @@ export async function onRequestPost(
           ];
 
 
-    const dateResults = [];
+    const dateResults =
+      [];
 
+
+    /* =====================================================
+      업무일지 전체 합계
+    ===================================================== */
 
     let totalFetchedCount =
       0;
@@ -1112,6 +1983,30 @@ export async function onRequestPost(
       0;
 
 
+    /* =====================================================
+      첨부파일 전체 합계
+    ===================================================== */
+
+    let totalAttachmentFetchedCount =
+      0;
+
+
+    let totalAttachmentCreatedCount =
+      0;
+
+
+    let totalAttachmentUpdatedCount =
+      0;
+
+
+    let totalAttachmentSkippedCount =
+      0;
+
+
+    let totalAttachmentFailedCount =
+      0;
+
+
     let failedDateCount =
       0;
 
@@ -1119,16 +2014,21 @@ export async function onRequestPost(
     /* =====================================================
       날짜별 순차 동기화
 
-      특정 날짜가 실패해도
-      다음 날짜는 계속 진행한다.
+      특정 날짜 또는 근무가 실패해도
+      다음 작업은 계속 진행한다.
     ====================================================== */
 
     for (
       const importDate of
       importDates
     ) {
-      const shiftResults = [];
+      const shiftResults =
+        [];
 
+
+      /* ===================================================
+        해당 날짜 업무일지 합계
+      =================================================== */
 
       let dateFetchedCount =
         0;
@@ -1142,7 +2042,32 @@ export async function onRequestPost(
         0;
 
 
-      const errors = [];
+      /* ===================================================
+        해당 날짜 첨부파일 합계
+      =================================================== */
+
+      let dateAttachmentFetchedCount =
+        0;
+
+
+      let dateAttachmentCreatedCount =
+        0;
+
+
+      let dateAttachmentUpdatedCount =
+        0;
+
+
+      let dateAttachmentSkippedCount =
+        0;
+
+
+      let dateAttachmentFailedCount =
+        0;
+
+
+      const errors =
+        [];
 
 
       for (
@@ -1163,19 +2088,76 @@ export async function onRequestPost(
           );
 
 
+          /* ===============================================
+            업무일지 합계
+          =============================================== */
+
           dateFetchedCount +=
-            shiftResult
-              .fetchedCount;
+            Number(
+              shiftResult
+                .fetchedCount ||
+              0
+            );
 
 
           dateCreatedCount +=
-            shiftResult
-              .createdCount;
+            Number(
+              shiftResult
+                .createdCount ||
+              0
+            );
 
 
           dateUpdatedCount +=
-            shiftResult
-              .updatedCount;
+            Number(
+              shiftResult
+                .updatedCount ||
+              0
+            );
+
+
+          /* ===============================================
+            첨부파일 합계
+          =============================================== */
+
+          dateAttachmentFetchedCount +=
+            Number(
+              shiftResult
+                .attachmentFetchedCount ||
+              0
+            );
+
+
+          dateAttachmentCreatedCount +=
+            Number(
+              shiftResult
+                .attachmentCreatedCount ||
+              0
+            );
+
+
+          dateAttachmentUpdatedCount +=
+            Number(
+              shiftResult
+                .attachmentUpdatedCount ||
+              0
+            );
+
+
+          dateAttachmentSkippedCount +=
+            Number(
+              shiftResult
+                .attachmentSkippedCount ||
+              0
+            );
+
+
+          dateAttachmentFailedCount +=
+            Number(
+              shiftResult
+                .attachmentFailedCount ||
+              0
+            );
 
         } catch (error) {
           console.error(
@@ -1206,6 +2188,10 @@ export async function onRequestPost(
       }
 
 
+      /* ===================================================
+        전체 업무일지 합산
+      =================================================== */
+
       totalFetchedCount +=
         dateFetchedCount;
 
@@ -1216,6 +2202,30 @@ export async function onRequestPost(
 
       totalUpdatedCount +=
         dateUpdatedCount;
+
+
+      /* ===================================================
+        전체 첨부파일 합산
+      =================================================== */
+
+      totalAttachmentFetchedCount +=
+        dateAttachmentFetchedCount;
+
+
+      totalAttachmentCreatedCount +=
+        dateAttachmentCreatedCount;
+
+
+      totalAttachmentUpdatedCount +=
+        dateAttachmentUpdatedCount;
+
+
+      totalAttachmentSkippedCount +=
+        dateAttachmentSkippedCount;
+
+
+      totalAttachmentFailedCount +=
+        dateAttachmentFailedCount;
 
 
       dateResults.push({
@@ -1236,6 +2246,21 @@ export async function onRequestPost(
         updatedCount:
           dateUpdatedCount,
 
+        attachmentFetchedCount:
+          dateAttachmentFetchedCount,
+
+        attachmentCreatedCount:
+          dateAttachmentCreatedCount,
+
+        attachmentUpdatedCount:
+          dateAttachmentUpdatedCount,
+
+        attachmentSkippedCount:
+          dateAttachmentSkippedCount,
+
+        attachmentFailedCount:
+          dateAttachmentFailedCount,
+
         success:
           errors.length ===
           0,
@@ -1247,6 +2272,10 @@ export async function onRequestPost(
     }
 
 
+    /* =====================================================
+      최종 응답
+    ====================================================== */
+
     return createJsonResponse({
       success:
         true,
@@ -1255,11 +2284,21 @@ export async function onRequestPost(
         [
           `과거 업무일지 ${importDates.length}일 동기화 완료`,
 
-          `조회 ${totalFetchedCount}건`,
+          `업무일지 조회 ${totalFetchedCount}건`,
 
-          `신규 ${totalCreatedCount}건`,
+          `업무일지 신규 ${totalCreatedCount}건`,
 
-          `갱신 ${totalUpdatedCount}건`,
+          `업무일지 갱신 ${totalUpdatedCount}건`,
+
+          `첨부파일 조회 ${totalAttachmentFetchedCount}개`,
+
+          `첨부파일 신규 ${totalAttachmentCreatedCount}개`,
+
+          `첨부파일 갱신 ${totalAttachmentUpdatedCount}개`,
+
+          `첨부파일 기존 ${totalAttachmentSkippedCount}개`,
+
+          `첨부파일 실패 ${totalAttachmentFailedCount}개`,
 
           `실패 날짜 ${failedDateCount}일`
         ].join(" / "),
@@ -1287,7 +2326,28 @@ export async function onRequestPost(
       updatedCount:
         totalUpdatedCount,
 
+      attachmentFetchedCount:
+        totalAttachmentFetchedCount,
+
+      attachmentCreatedCount:
+        totalAttachmentCreatedCount,
+
+      attachmentUpdatedCount:
+        totalAttachmentUpdatedCount,
+
+      attachmentSkippedCount:
+        totalAttachmentSkippedCount,
+
+      attachmentFailedCount:
+        totalAttachmentFailedCount,
+
       failedDateCount,
+
+      r2BindingAvailable:
+        Boolean(
+          context.env
+            .ATTACHMENTS
+        ),
 
       dateResults
     });
