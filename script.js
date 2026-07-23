@@ -11384,17 +11384,28 @@ function normalizeExistingLogEntries(
 }
 
 /* =========================================================
-  기존 업무일지 수정창 채우기 최종본
+  기존 업무일지 작성·수정창 데이터 채우기 최종본
 
-  기존에 입력된 내용도 다시 분석하여
+  지원 저장 구조:
+  1. 새 분리 구조
+     - tmEntries
+     - handoverEntries
+     - remarkEntries
 
-  08:00, 09:00 작업
-  08:00~09:00 작업
+  2. 기존 호환 구조
+     - entries
+     - note
 
-  형식의 시간을 시간 영역으로 분리한다.
+  처리 원칙:
+  - 새 분리 배열이 있으면 우선 사용
+  - 없으면 기존 entries 사용
+  - entries에도 비고가 없으면 기존 note를 비고 항목으로 변환
+  - TM / 인계사항 / 비고를 appState.editorEntries로 결합
 ========================================================= */
 
-function fillLogEditor(log) {
+function fillLogEditor(
+  log
+) {
   if (
     !log ||
     !elements.logEditorForm
@@ -11403,6 +11414,10 @@ function fillLogEditor(log) {
   }
 
 
+  /* =====================================================
+    기본 정보
+  ====================================================== */
+
   elements.logEditorForm.dataset.editingId =
     String(
       log.id ||
@@ -11410,36 +11425,111 @@ function fillLogEditor(log) {
     ).trim();
 
 
-  elements.logDate.value =
-    log.date ||
-    "";
+  if (
+    elements.logDate
+  ) {
+    elements.logDate.value =
+      String(
+        log.date ||
+        ""
+      ).trim();
+  }
 
 
-  elements.logShift.value =
-    log.shift ||
-    appState.selectedShift;
+  if (
+    elements.logShift
+  ) {
+    elements.logShift.value =
+      String(
+        log.shift ||
+        appState.selectedShift ||
+        "DS"
+      )
+        .trim()
+        .toUpperCase();
+  }
 
 
-  elements.logTeam.value =
-    normalizeTeamName(
-      log.team ||
-      "3파트"
+  if (
+    elements.logTeam
+  ) {
+    const normalizedTeam =
+      normalizeTeamName(
+        log.team ||
+        ""
+      );
+
+
+    const hasTeamOption = [
+      ...elements.logTeam.options
+    ].some(
+      (
+        option
+      ) => {
+        return (
+          normalizeTeamName(
+            option.value
+          ) ===
+          normalizedTeam
+        );
+      }
     );
 
 
-  elements.logRole.value =
-    log.role ||
-    "";
+    if (
+      hasTeamOption
+    ) {
+      elements.logTeam.value =
+        normalizedTeam;
+    }
+  }
 
 
-  elements.logAuthor.value =
-    log.author ||
-    "";
+  if (
+    elements.logRole
+  ) {
+    const normalizedRole =
+      normalizeMemberLogRole(
+        log.role
+      );
 
 
-  /*
-    저장된 대근 여부 복원
-  */
+    const matchedRoleOption = [
+      ...elements.logRole.options
+    ].find(
+      (
+        option
+      ) => {
+        return (
+          normalizeMemberLogRole(
+            option.value
+          ) ===
+          normalizedRole
+        );
+      }
+    );
+
+
+    if (
+      matchedRoleOption
+    ) {
+      elements.logRole.value =
+        matchedRoleOption.value;
+    }
+  }
+
+
+  if (
+    elements.logAuthor
+  ) {
+    elements.logAuthor.value =
+      String(
+        log.author ||
+        ""
+      ).trim();
+  }
+
+
   if (
     elements.logIsSubstitute
   ) {
@@ -11450,147 +11540,387 @@ function fillLogEditor(log) {
   }
 
 
-  elements.operationStatus.value =
-    log.operationStatus ||
-    "";
+  /* =====================================================
+    운전현황
+  ====================================================== */
+
+  const operationStatusContent =
+    String(
+      log.operationStatus ||
+      ""
+    ).trim();
+
+
+  if (
+    elements.operationStatus
+  ) {
+    elements.operationStatus.value =
+      operationStatusContent;
+  }
 
 
   if (
     elements.operationStatusSnapshot
   ) {
     elements.operationStatusSnapshot.value =
-      log.operationStatus ||
-      "";
+      operationStatusContent;
   }
 
 
-  elements.logNote.value =
-    log.note ||
-    "";
+  if (
+    elements.operationStatusRole
+  ) {
+    elements.operationStatusRole.value =
+      normalizeMemberLogRole(
+        log.role
+      );
+  }
 
 
-  /*
-    기존 저장 항목 전체를 먼저 시간 재분석한다.
-  */
-  const normalizedEntries =
-    normalizeExistingLogEntries(
-      log.entries
-    );
+  appState.currentOperationStatus = {
+    role:
+      normalizeMemberLogRole(
+        log.role
+      ),
+
+    type:
+      normalizeOperationStatusType(
+        log.operationStatusType ||
+        "normal"
+      ),
+
+    content:
+      operationStatusContent,
+
+    updatedAt:
+      String(
+        log.operationStatusUpdatedAt ||
+        log.updatedAt ||
+        ""
+      ),
+
+    updatedBy:
+      String(
+        log.operationStatusUpdatedBy ||
+        log.author ||
+        ""
+      ).trim()
+  };
 
 
-  appState.editorEntries =
-    normalizedEntries.map(
-      (entry) => {
-        const rawSourceIndex =
-          entry.importedFromEntryIndex;
+  /* =====================================================
+    항목 한 개 정규화
+  ====================================================== */
 
-
-        const sourceIndex =
-          rawSourceIndex === "" ||
-          rawSourceIndex === null ||
-          rawSourceIndex === undefined
-            ? ""
-            : Number(
-                rawSourceIndex
-              );
-
-
-        return {
-          id:
-            String(
-              entry.id ||
-              ""
-            ).trim(),
-
-          time:
-            String(
-              entry.time ||
-              ""
-            ).trim(),
+  const normalizeEditorEntry = (
+    entry,
+    fallbackCategory
+  ) => {
+    const normalizedEntry =
+      normalizeExistingLogEntryTime(
+        {
+          ...entry,
 
           category:
             String(
-              entry.category ||
+              entry?.category ||
+              fallbackCategory ||
               "인계사항"
-            ).trim(),
-
-          tag:
-            String(
-              entry.tag ||
-              ""
-            )
-              .trim()
-              .toUpperCase(),
-
-          content:
-            String(
-              entry.content ||
-              ""
-            ).trim(),
-
-          attachmentName:
-            String(
-              entry.attachmentName ||
-              ""
-            ).trim(),
-
-          importedFromRole:
-            String(
-              entry.importedFromRole ||
-              ""
-            ).trim(),
-
-          importedFromAuthor:
-            String(
-              entry.importedFromAuthor ||
-              ""
-            ).trim(),
-
-          importedFromLogId:
-            String(
-              entry.importedFromLogId ||
-              ""
-            ).trim(),
-
-          importedFromEntryIndex:
-            Number.isInteger(
-              sourceIndex
-            )
-              ? sourceIndex
-              : "",
-
-          legacyBodyIndex:
-            entry.legacyBodyIndex,
-
-          legacyLineIndex:
-            entry.legacyLineIndex,
-
-          source:
-            String(
-              entry.source ||
-              ""
             ).trim()
-        };
+        }
+      );
+
+
+    const rawImportedIndex =
+      normalizedEntry
+        ?.importedFromEntryIndex;
+
+
+    const importedFromEntryIndex =
+      rawImportedIndex === "" ||
+      rawImportedIndex === null ||
+      rawImportedIndex === undefined
+        ? null
+        : Number(
+            rawImportedIndex
+          );
+
+
+    return {
+      ...normalizedEntry,
+
+      id:
+        String(
+          normalizedEntry?.id ||
+          ""
+        ).trim(),
+
+      time:
+        String(
+          normalizedEntry?.time ||
+          ""
+        ).trim(),
+
+      category:
+        String(
+          normalizedEntry?.category ||
+          fallbackCategory ||
+          "인계사항"
+        ).trim(),
+
+      tag:
+        String(
+          normalizedEntry?.tag ||
+          ""
+        )
+          .trim()
+          .toUpperCase(),
+
+      content:
+        String(
+          normalizedEntry?.content ||
+          ""
+        ).trim(),
+
+      attachmentName:
+        String(
+          normalizedEntry
+            ?.attachmentName ||
+          ""
+        ).trim(),
+
+      importedFromRole:
+        String(
+          normalizedEntry
+            ?.importedFromRole ||
+          ""
+        ).trim(),
+
+      importedFromAuthor:
+        String(
+          normalizedEntry
+            ?.importedFromAuthor ||
+          ""
+        ).trim(),
+
+      importedFromLogId:
+        String(
+          normalizedEntry
+            ?.importedFromLogId ||
+          ""
+        ).trim(),
+
+      importedFromEntryIndex:
+        Number.isInteger(
+          importedFromEntryIndex
+        ) &&
+        importedFromEntryIndex >=
+          0
+          ? importedFromEntryIndex
+          : null,
+
+      legacyBodyIndex:
+        normalizedEntry
+          ?.legacyBodyIndex ??
+        null,
+
+      legacyLineIndex:
+        normalizedEntry
+          ?.legacyLineIndex ??
+        null,
+
+      source:
+        String(
+          normalizedEntry?.source ||
+          ""
+        ).trim()
+    };
+  };
+
+
+  /* =====================================================
+    새 분리 저장 구조 확인
+  ====================================================== */
+
+  const hasSeparatedEntryStructure =
+    Array.isArray(
+      log.tmEntries
+    ) ||
+    Array.isArray(
+      log.handoverEntries
+    ) ||
+    Array.isArray(
+      log.remarkEntries
+    );
+
+
+  let restoredEntries = [];
+
+
+  if (
+    hasSeparatedEntryStructure
+  ) {
+    const restoredTmEntries =
+      (
+        Array.isArray(
+          log.tmEntries
+        )
+          ? log.tmEntries
+          : []
+      ).map(
+        (
+          entry
+        ) => {
+          return normalizeEditorEntry(
+            entry,
+            "TM 발행"
+          );
+        }
+      );
+
+
+    const restoredHandoverEntries =
+      (
+        Array.isArray(
+          log.handoverEntries
+        )
+          ? log.handoverEntries
+          : []
+      ).map(
+        (
+          entry
+        ) => {
+          return normalizeEditorEntry(
+            entry,
+            "인계사항"
+          );
+        }
+      );
+
+
+    const restoredRemarkEntries =
+      (
+        Array.isArray(
+          log.remarkEntries
+        )
+          ? log.remarkEntries
+          : []
+      ).map(
+        (
+          entry
+        ) => {
+          return normalizeEditorEntry(
+            entry,
+            "비고"
+          );
+        }
+      );
+
+
+    restoredEntries = [
+      ...restoredTmEntries,
+      ...restoredHandoverEntries,
+      ...restoredRemarkEntries
+    ];
+
+  } else {
+    /*
+      이전 entries 단일 배열 구조
+    */
+    restoredEntries =
+      (
+        Array.isArray(
+          log.entries
+        )
+          ? log.entries
+          : []
+      ).map(
+        (
+          entry
+        ) => {
+          return normalizeEditorEntry(
+            entry,
+            "인계사항"
+          );
+        }
+      );
+  }
+
+
+  /* =====================================================
+    과거 note 문자열 호환
+
+    이미 비고 항목이 있으면 note를 다시 추가하지 않는다.
+  ====================================================== */
+
+  const hasRemarkEntries =
+    restoredEntries.some(
+      (
+        entry
+      ) => {
+        return (
+          String(
+            entry.category ||
+            ""
+          ).trim() ===
+          "비고"
+        );
       }
     );
 
 
-  /*
-    메모리의 현재 업무일지 데이터에도
-    정리된 값을 반영한다.
+  if (
+    !hasRemarkEntries
+  ) {
+    const convertedNoteEntries =
+      convertSavedNoteToEntries(
+        log.note,
+        log
+      );
 
-    수정창에서 다시 저장하지 않아도
-    현재 화면과 상세보기에서 즉시 사용할 수 있다.
-  */
-  log.entries =
-    appState.editorEntries.map(
-      (entry) => {
-        return {
-          ...entry
-        };
+
+    restoredEntries.push(
+      ...convertedNoteEntries
+    );
+  }
+
+
+  appState.editorEntries =
+    restoredEntries.filter(
+      (
+        entry
+      ) => {
+        return Boolean(
+          String(
+            entry.content ||
+            ""
+          ).trim()
+        );
       }
     );
 
+
+  /* =====================================================
+    기존 note 숨김 필드 동기화
+
+    실제 값은 renderLogEntryTable()에서
+    비고 목록 기준으로 다시 생성한다.
+  ====================================================== */
+
+  if (
+    elements.logNote
+  ) {
+    elements.logNote.value =
+      String(
+        log.note ||
+        ""
+      ).trim();
+  }
+
+
+  /* =====================================================
+    편집 상태 초기화 및 목록 출력
+  ====================================================== */
 
   appState.editingEntryIndex =
     -1;
@@ -11608,13 +11938,28 @@ function fillLogEditor(log) {
   renderLogEntryTable();
 
 
-  renderSavedAttachments(
-    Array.isArray(
-      log.attachments
-    )
-      ? log.attachments
-      : []
-  );
+  updateMemberLogImportSection();
+
+
+  updateMemberLogImportStatus();
+
+
+  /* =====================================================
+    저장된 첨부파일
+  ====================================================== */
+
+  if (
+    typeof renderSavedAttachments ===
+    "function"
+  ) {
+    renderSavedAttachments(
+      Array.isArray(
+        log.attachments
+      )
+        ? log.attachments
+        : []
+    );
+  }
 }
 
 /* =========================================================
@@ -14865,81 +15210,251 @@ function renderSavedAttachments(
       .join("");
 }
 
-
 /* =========================================================
-  저장
+  업무일지 작성 데이터 수집 최종본
+
+  저장 구조:
+  - tmEntries       : TM 발행 내역
+  - handoverEntries : 인계사항 및 일반 업무
+  - remarkEntries   : 비고
+
+  기존 기능 호환:
+  - entries 배열도 계속 저장
+  - note 문자열도 계속 저장
+
+  따라서 기존 목록·상세보기·과거 데이터 기능을
+  깨뜨리지 않고 새 분리 구조를 함께 사용할 수 있다.
 ========================================================= */
-function collectEditorData(status) {
-  const entries =
-    appState.editorEntries.map(
-      (entry) => {
-        const rawSourceIndex =
+
+function collectEditorData(
+  status
+) {
+  /* =====================================================
+    공통 업무 항목 정규화
+  ====================================================== */
+
+  const normalizedEntries =
+    (
+      Array.isArray(
+        appState.editorEntries
+      )
+        ? appState.editorEntries
+        : []
+    )
+      .map(
+        (
           entry
-            .importedFromEntryIndex;
+        ) => {
+          const rawImportedIndex =
+            entry
+              ?.importedFromEntryIndex;
 
-        const importedFromEntryIndex =
-          rawSourceIndex === "" ||
-          rawSourceIndex === null ||
-          rawSourceIndex === undefined
-            ? null
-            : Number(
-                rawSourceIndex
-              );
 
-        return {
-          time:
-            String(
-              entry.time || ""
-            ).trim(),
+          const importedFromEntryIndex =
+            rawImportedIndex === "" ||
+            rawImportedIndex === null ||
+            rawImportedIndex === undefined
+              ? null
+              : Number(
+                  rawImportedIndex
+                );
 
-          category:
-            String(
-              entry.category || ""
-            ).trim(),
 
-          tag:
-            String(
-              entry.tag || ""
-            )
-              .trim()
-              .toUpperCase(),
+          return {
+            /*
+              기존 항목 ID가 있으면 유지한다.
+            */
+            id:
+              String(
+                entry?.id ||
+                ""
+              ).trim(),
 
-          content:
-            String(
-              entry.content || ""
-            ).trim(),
+            time:
+              String(
+                entry?.time ||
+                ""
+              ).trim(),
 
-          importedFromRole:
-            String(
+            category:
+              String(
+                entry?.category ||
+                "인계사항"
+              ).trim(),
+
+            tag:
+              String(
+                entry?.tag ||
+                ""
+              )
+                .trim()
+                .toUpperCase(),
+
+            content:
+              String(
+                entry?.content ||
+                ""
+              ).trim(),
+
+            attachmentName:
+              String(
+                entry?.attachmentName ||
+                ""
+              ).trim(),
+
+            importedFromRole:
+              String(
+                entry
+                  ?.importedFromRole ||
+                ""
+              ).trim(),
+
+            importedFromAuthor:
+              String(
+                entry
+                  ?.importedFromAuthor ||
+                ""
+              ).trim(),
+
+            importedFromLogId:
+              String(
+                entry
+                  ?.importedFromLogId ||
+                ""
+              ).trim(),
+
+            importedFromEntryIndex:
+              Number.isInteger(
+                importedFromEntryIndex
+              ) &&
+              importedFromEntryIndex >=
+                0
+                ? importedFromEntryIndex
+                : null,
+
+            legacyBodyIndex:
               entry
-                .importedFromRole ||
-              ""
-            ).trim(),
+                ?.legacyBodyIndex ??
+              null,
 
-          importedFromAuthor:
-            String(
+            legacyLineIndex:
               entry
-                .importedFromAuthor ||
-              ""
-            ).trim(),
+                ?.legacyLineIndex ??
+              null,
 
-          importedFromLogId:
-            String(
-              entry
-                .importedFromLogId ||
-              ""
-            ).trim(),
+            source:
+              String(
+                entry?.source ||
+                ""
+              ).trim()
+          };
+        }
+      )
+      .filter(
+        (
+          entry
+        ) => {
+          /*
+            내용이 없는 빈 항목은 저장하지 않는다.
+          */
+          return Boolean(
+            entry.content
+          );
+        }
+      );
 
-          importedFromEntryIndex:
-            Number.isInteger(
-              importedFromEntryIndex
-            ) &&
-            importedFromEntryIndex >= 0
-              ? importedFromEntryIndex
-              : null
-        };
+
+  /* =====================================================
+    TM 발행 내역 분리
+  ====================================================== */
+
+  const tmEntries =
+    normalizedEntries.filter(
+      (
+        entry
+      ) => {
+        return (
+          entry.category ===
+          "TM 발행"
+        );
       }
     );
+
+
+  /* =====================================================
+    비고 내역 분리
+  ====================================================== */
+
+  const remarkEntries =
+    normalizedEntries.filter(
+      (
+        entry
+      ) => {
+        return (
+          entry.category ===
+          "비고"
+        );
+      }
+    );
+
+
+  /* =====================================================
+    인계사항 및 일반 업무 분리
+
+    TM과 비고를 제외한 나머지 모든 구분은
+    handoverEntries에 저장한다.
+
+    예:
+    인계사항
+    BM 작업
+    CM 작업
+    일반 업무
+  ====================================================== */
+
+  const handoverEntries =
+    normalizedEntries.filter(
+      (
+        entry
+      ) => {
+        return (
+          entry.category !==
+            "TM 발행" &&
+          entry.category !==
+            "비고"
+        );
+      }
+    );
+
+
+  /* =====================================================
+    기존 note 문자열 호환
+
+    새 비고 목록 내용을 줄바꿈 문자열로 저장한다.
+
+    예:
+    비고 1
+    비고 2
+  ====================================================== */
+
+  const noteText =
+    remarkEntries
+      .map(
+        (
+          entry
+        ) => {
+          return String(
+            entry.content ||
+            ""
+          ).trim();
+        }
+      )
+      .filter(Boolean)
+      .join("\n");
+
+
+  /* =====================================================
+    첨부파일
+  ====================================================== */
 
   const newAttachmentNames =
     elements.logAttachments
@@ -14947,12 +15462,20 @@ function collectEditorData(status) {
           ...elements
             .logAttachments
             .files
-        ].map(
-          (file) => {
-            return file.name;
-          }
-        )
+        ]
+          .map(
+            (
+              file
+            ) => {
+              return String(
+                file?.name ||
+                ""
+              ).trim();
+            }
+          )
+          .filter(Boolean)
       : [];
+
 
   const savedAttachmentNames =
     elements.attachmentList
@@ -14962,49 +15485,72 @@ function collectEditorData(status) {
             .querySelectorAll(
               ".attachment-chip"
             )
-        ].map(
-          (chip) => {
-            return chip
-              .textContent
-              .trim();
-          }
-        )
+        ]
+          .map(
+            (
+              chip
+            ) => {
+              return String(
+                chip.textContent ||
+                ""
+              ).trim();
+            }
+          )
+          .filter(Boolean)
       : [];
+
 
   const attachmentNames = [
     ...new Set(
       [
         ...savedAttachmentNames,
         ...newAttachmentNames
-      ].filter(Boolean)
+      ]
     )
   ];
+
+
+  /* =====================================================
+    기존 업무일지 ID
+  ====================================================== */
 
   const editingId =
     String(
       elements
         .logEditorForm
-        .dataset
-        .editingId ||
+        ?.dataset
+        ?.editingId ||
       ""
     ).trim();
 
+
+  /* =====================================================
+    운전현황
+  ====================================================== */
+
   const currentOperationStatus =
-    elements
-      .operationStatusSnapshot
-      ?.value
-      ?.trim() ||
-    elements
-      .operationStatus
-      ?.value
-      ?.trim() ||
-    appState
-      .currentOperationStatus
-      ?.content ||
-    "";
+    String(
+      elements
+        .operationStatusSnapshot
+        ?.value ||
+      elements
+        .operationStatus
+        ?.value ||
+      appState
+        .currentOperationStatus
+        ?.content ||
+      ""
+    ).trim();
+
 
   const now =
-    new Date().toISOString();
+    new Date()
+      .toISOString();
+
+
+  /* =====================================================
+    최종 저장 객체
+  ====================================================== */
 
   return {
     id:
@@ -15012,22 +15558,41 @@ function collectEditorData(status) {
       createId(),
 
     date:
-      elements.logDate.value,
+      String(
+        elements.logDate
+          ?.value ||
+        ""
+      ).trim(),
 
     shift:
-      elements.logShift.value,
+      String(
+        elements.logShift
+          ?.value ||
+        ""
+      )
+        .trim()
+        .toUpperCase(),
 
     team:
       normalizeTeamName(
-        elements.logTeam.value
+        elements.logTeam
+          ?.value ||
+        ""
       ),
 
     role:
-      elements.logRole.value,
+      normalizeMemberLogRole(
+        elements.logRole
+          ?.value ||
+        ""
+      ),
 
     author:
-      elements.logAuthor.value
-        .trim(),
+      String(
+        elements.logAuthor
+          ?.value ||
+        ""
+      ).trim(),
 
     isSubstitute:
       Boolean(
@@ -15035,14 +15600,70 @@ function collectEditorData(status) {
           ?.checked
       ),
 
+
+    /* ===================================================
+      운전현황
+    ==================================================== */
+
     operationStatus:
       currentOperationStatus,
 
-    entries,
+    operationStatusType:
+      String(
+        appState
+          .currentOperationStatus
+          ?.type ||
+        elements
+          .operationStatusType
+          ?.value ||
+        "normal"
+      ).trim(),
+
+    operationStatusUpdatedAt:
+      String(
+        appState
+          .currentOperationStatus
+          ?.updatedAt ||
+        ""
+      ).trim(),
+
+    operationStatusUpdatedBy:
+      String(
+        appState
+          .currentOperationStatus
+          ?.updatedBy ||
+        ""
+      ).trim(),
+
+
+    /* ===================================================
+      새 분리 저장 구조
+    ==================================================== */
+
+    tmEntries,
+
+    handoverEntries,
+
+    remarkEntries,
+
+
+    /* ===================================================
+      기존 구조 호환
+
+      현재 목록·조회·상세·가져오기 기능이
+      entries를 사용하므로 당장은 유지한다.
+    ==================================================== */
+
+    entries:
+      normalizedEntries,
 
     note:
-      elements.logNote.value
-        .trim(),
+      noteText,
+
+
+    /* ===================================================
+      첨부파일 및 상태
+    ==================================================== */
 
     attachments:
       attachmentNames,
@@ -18979,6 +19600,24 @@ function bindDetailAttachmentPreviewEvents(
   하나의 문장 줄 안에 연속해서 표시한다.
 ========================================================= */
 
+/* =========================================================
+  업무일지 상세보기 최종본
+
+  분리 구조:
+  - tmEntries
+  - handoverEntries
+  - remarkEntries
+
+  기존 호환:
+  - entries
+  - note
+
+  번호:
+  - TM 발행 내역 1번부터
+  - 인계사항 보직별 1번부터
+  - 비고 1번부터
+========================================================= */
+
 function openLogDetail(
   log
 ) {
@@ -19069,10 +19708,63 @@ function openLogDetail(
 
 
   /* =====================================================
-    기존 업무내역 시간 재분석
+    항목 한 개 정규화
   ====================================================== */
 
-  const entries =
+  const normalizeDetailEntry = (
+    entry,
+    fallbackCategory
+  ) => {
+    return normalizeExistingLogEntryTime({
+      ...entry,
+
+      category:
+        String(
+          entry?.category ||
+          fallbackCategory ||
+          "인계사항"
+        ).trim(),
+
+      time:
+        String(
+          entry?.time ||
+          ""
+        ).trim(),
+
+      tag:
+        String(
+          entry?.tag ||
+          ""
+        )
+          .trim()
+          .toUpperCase(),
+
+      content:
+        String(
+          entry?.content ||
+          ""
+        ).trim()
+    });
+  };
+
+
+  /* =====================================================
+    새 분리 구조 존재 여부
+  ====================================================== */
+
+  const hasSeparatedStructure =
+    Array.isArray(
+      log.tmEntries
+    ) ||
+    Array.isArray(
+      log.handoverEntries
+    ) ||
+    Array.isArray(
+      log.remarkEntries
+    );
+
+
+  const legacyEntries =
     normalizeExistingLogEntries(
       Array.isArray(
         log.entries
@@ -19082,9 +19774,264 @@ function openLogDetail(
     );
 
 
+  /* =====================================================
+    TM 발행 내역
+  ====================================================== */
+
+  const tmEntries =
+    sortDetailEntriesByTime(
+      (
+        hasSeparatedStructure
+          ? (
+              Array.isArray(
+                log.tmEntries
+              )
+                ? log.tmEntries
+                : []
+            )
+          : legacyEntries.filter(
+              (
+                entry
+              ) => {
+                return (
+                  String(
+                    entry.category ||
+                    ""
+                  ).trim() ===
+                  "TM 발행"
+                );
+              }
+            )
+      )
+        .map(
+          (
+            entry
+          ) => {
+            return normalizeDetailEntry(
+              entry,
+              "TM 발행"
+            );
+          }
+        )
+        .filter(
+          (
+            entry
+          ) => {
+            return Boolean(
+              String(
+                entry.content ||
+                ""
+              ).trim()
+            );
+          }
+        )
+    );
+
+
+  /* =====================================================
+    인계 및 일반 작업 내역
+  ====================================================== */
+
+  const handoverEntries =
+    (
+      hasSeparatedStructure
+        ? (
+            Array.isArray(
+              log.handoverEntries
+            )
+              ? log.handoverEntries
+              : []
+          )
+        : legacyEntries.filter(
+            (
+              entry
+            ) => {
+              const category =
+                String(
+                  entry.category ||
+                  ""
+                ).trim();
+
+              return (
+                category !==
+                  "TM 발행" &&
+                category !==
+                  "비고"
+              );
+            }
+          )
+    )
+      .map(
+        (
+          entry
+        ) => {
+          return normalizeDetailEntry(
+            entry,
+            "인계사항"
+          );
+        }
+      )
+      .filter(
+        (
+          entry
+        ) => {
+          return Boolean(
+            String(
+              entry.content ||
+              ""
+            ).trim()
+          );
+        }
+      );
+
+
+  /* =====================================================
+    비고 내역
+
+    우선순위:
+    1. remarkEntries
+    2. 기존 entries 중 category === 비고
+    3. 기존 note 문자열
+  ====================================================== */
+
+  let remarkEntries =
+    (
+      hasSeparatedStructure
+        ? (
+            Array.isArray(
+              log.remarkEntries
+            )
+              ? log.remarkEntries
+              : []
+          )
+        : legacyEntries.filter(
+            (
+              entry
+            ) => {
+              return (
+                String(
+                  entry.category ||
+                  ""
+                ).trim() ===
+                "비고"
+              );
+            }
+          )
+    )
+      .map(
+        (
+          entry
+        ) => {
+          return normalizeDetailEntry(
+            entry,
+            "비고"
+          );
+        }
+      )
+      .filter(
+        (
+          entry
+        ) => {
+          return Boolean(
+            String(
+              entry.content ||
+              ""
+            ).trim()
+          );
+        }
+      );
+
+
+  /*
+    비고 배열이 없을 때만
+    기존 note 문자열을 변환한다.
+  */
+  if (
+    remarkEntries.length ===
+    0
+  ) {
+    remarkEntries =
+      convertSavedNoteToEntries(
+        log.note,
+        log
+      )
+        .map(
+          (
+            entry
+          ) => {
+            return normalizeDetailEntry(
+              entry,
+              "비고"
+            );
+          }
+        )
+        .filter(
+          (
+            entry
+          ) => {
+            return Boolean(
+              String(
+                entry.content ||
+                ""
+              ).trim()
+            );
+          }
+        );
+  }
+
+
+  /*
+    상세보기와 이후 수정 기능의 호환을 위해
+    기존 entries에도 전체 내역을 동기화한다.
+  */
+  const combinedEntries = [
+    ...tmEntries,
+    ...handoverEntries,
+    ...remarkEntries
+  ];
+
+
   log.entries =
-    entries.map(
-      (entry) => {
+    combinedEntries.map(
+      (
+        entry
+      ) => {
+        return {
+          ...entry
+        };
+      }
+    );
+
+
+  log.tmEntries =
+    tmEntries.map(
+      (
+        entry
+      ) => {
+        return {
+          ...entry
+        };
+      }
+    );
+
+
+  log.handoverEntries =
+    handoverEntries.map(
+      (
+        entry
+      ) => {
+        return {
+          ...entry
+        };
+      }
+    );
+
+
+  log.remarkEntries =
+    remarkEntries.map(
+      (
+        entry
+      ) => {
         return {
           ...entry
         };
@@ -19095,10 +20042,8 @@ function openLogDetail(
   /* =====================================================
     상세 업무 한 줄 생성
 
-    결과 예시
-
-    1. TM 내용
-    1. 08:37~09:46 업무 내용
+    예:
+    1. 08:37~09:46 [TAG] 업무 내용
   ====================================================== */
 
   function createDetailWorkRowHtml(
@@ -19108,7 +20053,13 @@ function openLogDetail(
   ) {
     const {
       numberType =
-        "handover"
+        "handover",
+
+      showTime =
+        true,
+
+      showTag =
+        true
     } = options;
 
 
@@ -19150,8 +20101,13 @@ function openLogDetail(
           "\n"
         )
         .map(
-          (line) => {
-            return line.trim();
+          (
+            line
+          ) => {
+            return String(
+              line ||
+              ""
+            ).trim();
           }
         )
         .filter(Boolean);
@@ -19170,7 +20126,9 @@ function openLogDetail(
           >
             ${contentLines
               .map(
-                (line) => {
+                (
+                  line
+                ) => {
                   return escapeHtml(
                     line
                   );
@@ -19209,6 +20167,7 @@ function openLogDetail(
         >
 
           ${
+            showTime &&
             timeText
               ? `
                 <span
@@ -19224,6 +20183,7 @@ function openLogDetail(
 
 
           ${
+            showTag &&
             tagText
               ? `
                 <button
@@ -19262,9 +20222,6 @@ function openLogDetail(
 
   /* =====================================================
     운전현황
-
-    각 줄의 앞뒤 공백과 기존 수기 번호를 정리하고
-    1번부터 다시 번호를 표시한다.
   ====================================================== */
 
   const operationStatusLines =
@@ -19284,9 +20241,12 @@ function openLogDetail(
         "\n"
       )
       .map(
-        (line) => {
+        (
+          line
+        ) => {
           return String(
-            line || ""
+            line ||
+            ""
           )
             .trim()
             .replace(
@@ -19343,24 +20303,8 @@ function openLogDetail(
 
 
   /* =====================================================
-    TM 발행 내역
+    TM 발행 HTML
   ====================================================== */
-
-  const tmEntries =
-    sortDetailEntriesByTime(
-      entries.filter(
-        (entry) => {
-          return (
-            String(
-              entry.category ||
-              ""
-            ).trim() ===
-            "TM 발행"
-          );
-        }
-      )
-    );
-
 
   const tmHtml =
     tmEntries.length
@@ -19378,7 +20322,13 @@ function openLogDetail(
                   index,
                   {
                     numberType:
-                      "tm"
+                      "tm",
+
+                    showTime:
+                      true,
+
+                    showTag:
+                      true
                   }
                 );
               }
@@ -19395,22 +20345,8 @@ function openLogDetail(
 
 
   /* =====================================================
-    인계 및 작업 내역
+    인계사항 보직별 그룹
   ====================================================== */
-
-  const ordinaryEntries =
-    entries.filter(
-      (entry) => {
-        return (
-          String(
-            entry.category ||
-            ""
-          ).trim() !==
-          "TM 발행"
-        );
-      }
-    );
-
 
   const detailRoleOrder = [
     "TGO",
@@ -19423,11 +20359,13 @@ function openLogDetail(
   ];
 
 
-  const groupedEntries = {};
+  const groupedHandoverEntries = {};
 
 
-  ordinaryEntries.forEach(
-    (entry) => {
+  handoverEntries.forEach(
+    (
+      entry
+    ) => {
       const sourceRole =
         normalizeMemberLogRole(
           entry.importedFromRole ||
@@ -19436,19 +20374,25 @@ function openLogDetail(
         );
 
 
+      const safeRole =
+        sourceRole ||
+        normalizedRole ||
+        "파트장";
+
+
       if (
-        !groupedEntries[
-          sourceRole
+        !groupedHandoverEntries[
+          safeRole
         ]
       ) {
-        groupedEntries[
-          sourceRole
+        groupedHandoverEntries[
+          safeRole
         ] = [];
       }
 
 
-      groupedEntries[
-        sourceRole
+      groupedHandoverEntries[
+        safeRole
       ].push(
         entry
       );
@@ -19458,9 +20402,11 @@ function openLogDetail(
 
   const orderedRoles = [
     ...detailRoleOrder.filter(
-      (role) => {
+      (
+        role
+      ) => {
         return Boolean(
-          groupedEntries[
+          groupedHandoverEntries[
             role
           ]?.length
         );
@@ -19468,9 +20414,11 @@ function openLogDetail(
     ),
 
     ...Object.keys(
-      groupedEntries
+      groupedHandoverEntries
     ).filter(
-      (role) => {
+      (
+        role
+      ) => {
         return (
           !detailRoleOrder.includes(
             role
@@ -19481,14 +20429,16 @@ function openLogDetail(
   ];
 
 
-  const ordinaryEntriesHtml =
+  const handoverHtml =
     orderedRoles.length
       ? orderedRoles
           .map(
-            (role) => {
+            (
+              role
+            ) => {
               const roleEntries =
                 sortDetailEntriesByTime(
-                  groupedEntries[
+                  groupedHandoverEntries[
                     role
                   ]
                 );
@@ -19549,7 +20499,13 @@ function openLogDetail(
                             index,
                             {
                               numberType:
-                                "handover"
+                                "handover",
+
+                              showTime:
+                                true,
+
+                              showTag:
+                                true
                             }
                           );
                         }
@@ -19571,23 +20527,41 @@ function openLogDetail(
 
 
   /* =====================================================
-    비고
+    비고 HTML
+
+    인계사항과 섞지 않고
+    비고 영역에서 1번부터 다시 시작한다.
   ====================================================== */
 
-  const noteText =
-    String(
-      log.note ||
-      ""
-    ).trim();
-
-
-  const noteHtml =
-    noteText
+  const remarkHtml =
+    remarkEntries.length
       ? `
-        <div class="detail-note-content">
-          ${escapeHtml(
-            noteText
-          )}
+        <div class="detail-work-list detail-work-list--remark">
+
+          ${remarkEntries
+            .map(
+              (
+                entry,
+                index
+              ) => {
+                return createDetailWorkRowHtml(
+                  entry,
+                  index,
+                  {
+                    numberType:
+                      "remark",
+
+                    showTime:
+                      true,
+
+                    showTag:
+                      false
+                  }
+                );
+              }
+            )
+            .join("")}
+
         </div>
       `
       : `
@@ -19601,84 +20575,85 @@ function openLogDetail(
     첨부파일
   ====================================================== */
 
-const attachments =
-  Array.isArray(
-    log.attachments
-  )
-    ? log.attachments
-    : [];
+  const attachments =
+    Array.isArray(
+      log.attachments
+    )
+      ? log.attachments
+      : [];
 
 
-const normalizedAttachments =
-  attachments.map(
-    normalizeDetailAttachment
-  );
+  const normalizedAttachments =
+    attachments.map(
+      normalizeDetailAttachment
+    );
 
 
-const attachmentHtml =
-  normalizedAttachments.length
-    ? `
-      <div class="detail-attachment-list">
+  const attachmentHtml =
+    normalizedAttachments.length
+      ? `
+        <div class="detail-attachment-list">
 
-        ${normalizedAttachments
-          .map(
-            (
-              attachment,
-              index
-            ) => {
-              const canOpen =
-                Boolean(
-                  attachment.url
-                );
+          ${normalizedAttachments
+            .map(
+              (
+                attachment,
+                index
+              ) => {
+                const canOpen =
+                  Boolean(
+                    attachment.url
+                  );
 
 
-              return `
-                <button
-                  type="button"
-                  class="
-                    detail-attachment-chip
+                return `
+                  <button
+                    type="button"
+                    class="
+                      detail-attachment-chip
+                      ${
+                        canOpen
+                          ? "is-clickable"
+                          : "is-disabled"
+                      }
+                    "
+                    data-detail-attachment-index="${index}"
                     ${
                       canOpen
-                        ? "is-clickable"
-                        : "is-disabled"
+                        ? ""
+                        : "disabled"
                     }
-                  "
-                  data-detail-attachment-index="${index}"
-                  ${
-                    canOpen
-                      ? ""
-                      : "disabled"
-                  }
-                  title="${
-                    canOpen
-                      ? "첨부 이미지 보기"
-                      : "열 수 없는 첨부파일"
-                  }"
-                >
-                  <span
-                    aria-hidden="true"
+                    title="${
+                      canOpen
+                        ? "첨부 이미지 보기"
+                        : "열 수 없는 첨부파일"
+                    }"
                   >
-                    📎
-                  </span>
+                    <span
+                      aria-hidden="true"
+                    >
+                      📎
+                    </span>
 
-                  <span>
-                    ${escapeHtml(
-                      attachment.name
-                    )}
-                  </span>
-                </button>
-              `;
-            }
-          )
-          .join("")}
+                    <span>
+                      ${escapeHtml(
+                        attachment.name
+                      )}
+                    </span>
+                  </button>
+                `;
+              }
+            )
+            .join("")}
 
-      </div>
-    `
-    : `
-      <div class="detail-empty-message">
-        첨부파일이 없습니다.
-      </div>
-    `;
+        </div>
+      `
+      : `
+        <div class="detail-empty-message">
+          첨부파일이 없습니다.
+        </div>
+      `;
+
 
   /* =====================================================
     최종 상세 HTML
@@ -19725,6 +20700,7 @@ const attachmentHtml =
 
             <div class="shift-log-detail-summary__item">
               <span>작성일</span>
+
               <strong>
                 ${escapeHtml(
                   dateText
@@ -19735,6 +20711,7 @@ const attachmentHtml =
 
             <div class="shift-log-detail-summary__item">
               <span>근무</span>
+
               <strong>
                 ${escapeHtml(
                   shiftText
@@ -19745,6 +20722,7 @@ const attachmentHtml =
 
             <div class="shift-log-detail-summary__item">
               <span>근무파트</span>
+
               <strong>
                 ${escapeHtml(
                   teamText
@@ -19776,6 +20754,7 @@ const attachmentHtml =
 
             <div class="shift-log-detail-summary__item">
               <span>작성자</span>
+
               <strong>
                 ${escapeHtml(
                   authorText
@@ -19786,8 +20765,9 @@ const attachmentHtml =
 
             <div class="shift-log-detail-summary__item">
               <span>등록 내역</span>
+
               <strong>
-                총 ${entries.length}건
+                총 ${combinedEntries.length}건
               </strong>
             </div>
 
@@ -19859,7 +20839,7 @@ const attachmentHtml =
 
 
             <span class="shift-log-detail-count">
-              ${ordinaryEntries.length}건
+              ${handoverEntries.length}건
             </span>
 
           </div>
@@ -19871,7 +20851,7 @@ const attachmentHtml =
               shift-log-detail-section__body--roles
             "
           >
-            ${ordinaryEntriesHtml}
+            ${handoverHtml}
           </div>
 
         </section>
@@ -19891,11 +20871,16 @@ const attachmentHtml =
                 <h3>비고</h3>
               </div>
 
+
+              <span class="shift-log-detail-count">
+                ${remarkEntries.length}건
+              </span>
+
             </div>
 
 
             <div class="shift-log-detail-section__body">
-              ${noteHtml}
+              ${remarkHtml}
             </div>
 
           </section>
@@ -19942,7 +20927,9 @@ const attachmentHtml =
       "[data-detail-tag]"
     )
     .forEach(
-      (button) => {
+      (
+        button
+      ) => {
         button.addEventListener(
           "click",
           () => {
@@ -19955,17 +20942,19 @@ const attachmentHtml =
       }
     );
 
-    /*
-  첨부파일 버튼 클릭 이벤트 연결
-*/
-bindDetailAttachmentPreviewEvents(
-  log,
-  normalizedAttachments
-);
+
+  /* =====================================================
+    첨부파일 버튼 이벤트
+  ====================================================== */
+
+  bindDetailAttachmentPreviewEvents(
+    log,
+    normalizedAttachments
+  );
 
 
   /* =====================================================
-    결재확인 버튼
+    결재 버튼
   ====================================================== */
 
   if (
@@ -19994,7 +20983,6 @@ bindDetailAttachmentPreviewEvents(
     elements.logDetailModal
   );
 }
-
 
 function closeLogDetail() {
   appState.currentDetailLogId = null;
