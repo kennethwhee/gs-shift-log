@@ -11384,6 +11384,166 @@ function normalizeExistingLogEntries(
 }
 
 /* =========================================================
+  기존 비고 문자열 → 비고 항목 배열
+
+  지원 형식:
+
+  특이사항 없음
+
+  1. 첫 번째 비고
+  2. 두 번째 비고
+
+  첫 번째 비고
+  두 번째 비고
+
+  결과:
+  [
+    {
+      category: "비고",
+      content: "첫 번째 비고"
+    },
+    {
+      category: "비고",
+      content: "두 번째 비고"
+    }
+  ]
+========================================================= */
+
+function convertSavedNoteToEntries(
+  noteValue,
+  log = null
+) {
+  const normalizedNote =
+    String(
+      noteValue ||
+      ""
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .trim();
+
+
+  if (
+    !normalizedNote
+  ) {
+    return [];
+  }
+
+
+  const sourceLines =
+    normalizedNote
+      .split(
+        "\n"
+      )
+      .map(
+        (
+          line
+        ) => {
+          return String(
+            line ||
+            ""
+          ).trim();
+        }
+      )
+      .filter(Boolean);
+
+
+  const noteEntries = [];
+
+
+  sourceLines.forEach(
+    (
+      sourceLine,
+      lineIndex
+    ) => {
+      /*
+        기존 비고 앞 번호 제거
+
+        1. 내용
+        2) 내용
+        3 - 내용
+        ④ 내용
+      */
+      const content =
+        sourceLine
+          .replace(
+            /^(?:\d+\s*[.)\-:]\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*)/,
+            ""
+          )
+          .trim();
+
+
+      if (
+        !content
+      ) {
+        return;
+      }
+
+
+      noteEntries.push({
+        id: [
+          "note-entry",
+
+          String(
+            log?.id ||
+            "saved"
+          ),
+
+          lineIndex
+        ].join("-"),
+
+        time:
+          "",
+
+        category:
+          "비고",
+
+        tag:
+          "",
+
+        content,
+
+        attachmentName:
+          "",
+
+        importedFromRole:
+          String(
+            log?.role ||
+            ""
+          ).trim(),
+
+        importedFromAuthor:
+          String(
+            log?.author ||
+            ""
+          ).trim(),
+
+        importedFromLogId:
+          String(
+            log?.id ||
+            ""
+          ).trim(),
+
+        importedFromEntryIndex:
+          null,
+
+        source:
+          "saved-note"
+      });
+    }
+  );
+
+
+  return noteEntries;
+}
+
+/* =========================================================
   기존 업무일지 작성·수정창 데이터 채우기 최종본
 
   지원 저장 구조:
