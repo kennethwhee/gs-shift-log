@@ -13395,20 +13395,21 @@ function renderLogEntryTable() {
 }
 
 /* =====================================================
-  업무일지 수정창 항목 출력 최종본
+  인수인계 한 줄 출력
 
-  시간 있음:
+  인계사항:
+  1. 07:15 내용
+  2. 07:15, 10:55 내용
 
-  1. 00:00 업무내용
-           - 부가설명
-           - 추가설명
+  시간 없는 인계사항:
+  1. 내용
 
-  시간 없음:
+  TM 발행:
+  1. 내용
 
-  1. 업무내용
-     - 부가설명
-
-  둘째 줄부터 첫 줄의 실제 내용 시작점에 맞춘다.
+  중요:
+  템플릿 문자열 내부 공백이 화면에 출력되지 않도록
+  시간과 내용을 하나의 연속된 HTML 문자열로 만든다.
 ===================================================== */
 
 const createCompactLineHtml = (
@@ -13424,8 +13425,7 @@ const createCompactLineHtml = (
 
   const timeText =
     String(
-      entry?.time ||
-      ""
+      entry.time || ""
     )
       .trim()
       .replace(
@@ -13434,60 +13434,10 @@ const createCompactLineHtml = (
       );
 
 
-  const rawContent =
+  const contentText =
     String(
-      entry?.content ||
-      "-"
-    )
-      .replace(
-        /\r\n/g,
-        "\n"
-      )
-      .replace(
-        /\r/g,
-        "\n"
-      )
-      .trim();
-
-
-  const contentLines =
-    rawContent
-      .split(
-        "\n"
-      )
-      .map(
-        (line) => {
-          return String(
-            line || ""
-          ).trim();
-        }
-      )
-      .filter(
-        (
-          line,
-          index
-        ) => {
-          /*
-            중간의 빈 줄은 유지하지 않고,
-            실제 내용이 있는 줄만 출력한다.
-          */
-          return (
-            Boolean(line) ||
-            index === 0
-          );
-        }
-      );
-
-
-  const firstContentLine =
-    contentLines[0] ||
-    "-";
-
-
-  const continuationLines =
-    contentLines.slice(
-      1
-    );
+      entry.content || "-"
+    ).trim();
 
 
   const hasTime =
@@ -13497,6 +13447,20 @@ const createCompactLineHtml = (
     );
 
 
+  const timeHtml =
+    hasTime
+      ? `<strong class="log-entry-document-time">${escapeHtml(
+          timeText
+        )}</strong>`
+      : "";
+
+
+  const contentHtml =
+    `<span class="log-entry-document-content-text">${escapeHtml(
+      contentText
+    )}</span>`;
+
+
   const tagHtml =
     createTagHtml(
       entry,
@@ -13504,86 +13468,25 @@ const createCompactLineHtml = (
     );
 
 
-  return `
-    <div
-      class="
-        log-entry-document-line
-        ${
-          hasTime
-            ? "has-entry-time"
-            : "has-no-entry-time"
-        }
-      "
-    >
+  /*
+    timeHtml + contentHtml 사이에는
+    CSS margin으로만 간격을 준다.
 
-      <strong
-        class="log-entry-document-number"
-      >
+    템플릿 문자열의 줄바꿈·들여쓰기를
+    실제 출력 공백으로 사용하지 않는다.
+  */
+  const bodyHtml =
+    `${timeHtml}${contentHtml}${tagHtml}`;
+
+
+  return `
+    <div class="log-entry-document-line">
+
+      <strong class="log-entry-document-number">
         ${displayNumber}.
       </strong>
 
-
-      ${
-        hasTime
-          ? `
-            <strong
-              class="log-entry-document-time"
-            >
-              ${escapeHtml(
-                timeText
-              )}
-            </strong>
-          `
-          : ""
-      }
-
-
-      <div
-        class="log-entry-document-content"
-      >
-
-        <div
-          class="log-entry-document-main-line"
-        >
-          <span
-            class="log-entry-document-content-text"
-          >
-            ${escapeHtml(
-              firstContentLine
-            )}
-          </span>
-
-          ${tagHtml}
-        </div>
-
-
-        ${
-          continuationLines.length
-            ? `
-              <div
-                class="log-entry-document-continuations"
-              >
-                ${continuationLines
-                  .map(
-                    (line) => {
-                      return `
-                        <span
-                          class="log-entry-document-continuation"
-                        >
-                          ${escapeHtml(
-                            line
-                          )}
-                        </span>
-                      `;
-                    }
-                  )
-                  .join("")}
-              </div>
-            `
-            : ""
-        }
-
-      </div>
+      <div class="log-entry-document-body">${bodyHtml}</div>
 
     </div>
   `;
@@ -15968,6 +15871,38 @@ function createLogRowHtml(log) {
         );
 
 
+      /*
+        파트장 업무일지는
+        TGO → BCO1 → BCO2 순서로
+        보직 제목을 표시한다.
+      */
+      if (
+        isLeaderLog &&
+        roleEntries.length
+      ) {
+        previewGroups.push({
+          type:
+            "role-section",
+
+          title:
+            `${role} 업무일지`,
+
+          isFirstRole:
+            roleIndex === 0,
+
+          categoryClass: [
+            "is-handover",
+
+            getLogEntrySourceClass(
+              role
+            )
+          ]
+            .filter(Boolean)
+            .join(" ")
+        });
+      }
+
+
       roleEntries.forEach(
         (
           entry,
@@ -15996,40 +15931,28 @@ function createLogRowHtml(log) {
             "-";
 
 
-          /*
-            파트장 목록:
-
-            TGO 업무일지    1. 06:55 내용
-                            2. 07:10 내용
-
-            일반 보직 목록:
-
-            인계 사항       1. 06:55 내용
-                            2. 07:10 내용
-          */
-          const groupTitle =
-            index === 0
-              ? (
-                  isLeaderLog
-                    ? `${role} 업무일지`
-                    : "인계 사항"
-                )
-              : "";
-
-
           previewGroups.push({
             type:
               "normal",
 
             title:
-              groupTitle,
+              !isLeaderLog &&
+              index === 0
+                ? "인계 사항"
+                : "",
 
+            /*
+              인계 번호는 파란색
+            */
             number:
               `${index + 1}.`,
 
             numberClass:
               "is-handover-number",
 
+            /*
+              시간도 파란색
+            */
             time:
               timeText,
 
@@ -16048,8 +15971,10 @@ function createLogRowHtml(log) {
                 role
               ),
 
+              !isLeaderLog &&
+              roleIndex === 0 &&
               index === 0
-                ? "is-section-start is-role-section-start"
+                ? "is-section-start"
                 : ""
             ]
               .filter(Boolean)
@@ -16404,15 +16329,6 @@ function createLogRowHtml(log) {
   `;
 }
 
-/* =========================================================
-  업무일지 목록 클릭 처리 최종본
-
-  지원 동작:
-  - attachment: 첨부파일 선택 또는 바로 미리보기
-  - edit: 수정
-  - view: 상세보기
-  - delete: 삭제
-========================================================= */
 
 function handleLogTableClick(
   event
@@ -16421,7 +16337,6 @@ function handleLogTableClick(
     event.target.closest(
       "[data-action][data-log-id]"
     );
-
 
   if (
     !actionElement ||
@@ -16432,26 +16347,19 @@ function handleLogTableClick(
     return;
   }
 
-
   const logId =
     String(
-      actionElement.dataset
-        .logId ||
+      actionElement.dataset.logId ||
       ""
     ).trim();
-
 
   const action =
     String(
-      actionElement.dataset
-        .action ||
+      actionElement.dataset.action ||
       ""
     ).trim();
 
-
-  if (
-    !logId
-  ) {
+  if (!logId) {
     showToast(
       "업무일지 정보를 확인할 수 없습니다."
     );
@@ -16459,24 +16367,18 @@ function handleLogTableClick(
     return;
   }
 
-
   const log =
     appState.logs.find(
       (item) => {
         return (
           String(
-            item.id ||
-            ""
-          ).trim() ===
-          logId
+            item.id || ""
+          ) === logId
         );
       }
     );
 
-
-  if (
-    !log
-  ) {
+  if (!log) {
     showToast(
       "업무일지를 찾을 수 없습니다."
     );
@@ -16485,108 +16387,28 @@ function handleLogTableClick(
   }
 
 
-  /* =====================================================
-    첨부파일
-  ====================================================== */
-
-  if (
-    action ===
-    "attachment"
-  ) {
-    event.preventDefault();
-
-    event.stopPropagation();
-
-
-    const attachments =
-      Array.isArray(
-        log.attachments
-      )
-        ? log.attachments
-            .filter(
-              Boolean
-            )
-        : [];
-
-
-    if (
-      attachments.length === 0
-    ) {
-      showToast(
-        "등록된 첨부파일이 없습니다."
-      );
-
-      return;
-    }
-
-
-    if (
-      typeof openAttachmentSelector !==
-      "function"
-    ) {
-      console.error(
-        "openAttachmentSelector 함수를 찾을 수 없습니다."
-      );
-
-
-      showToast(
-        "첨부파일 선택 기능을 불러오지 못했습니다."
-      );
-
-      return;
-    }
-
-
-    openAttachmentSelector(
-      attachments,
-      log.id
-    );
-
-
-    return;
-  }
-
-
-  /* =====================================================
+  /*
     수정
-  ====================================================== */
-
-  if (
-    action ===
-    "edit"
-  ) {
-    openLogEditor(
-      log
-    );
-
+  */
+  if (action === "edit") {
+    openLogEditor(log);
     return;
   }
 
 
-  /* =====================================================
+  /*
     상세보기
-  ====================================================== */
-
-  if (
-    action ===
-    "view"
-  ) {
-    openLogDetail(
-      log
-    );
-
+  */
+  if (action === "view") {
+    openLogDetail(log);
     return;
   }
 
 
-  /* =====================================================
+  /*
     삭제
-  ====================================================== */
-
-  if (
-    action ===
-    "delete"
-  ) {
+  */
+  if (action === "delete") {
     deleteLogById(
       log.id
     );
