@@ -8899,7 +8899,12 @@ function getRepresentativeOperationStatusType(
 /* =========================================================
   보직별 기본 운전현황
 
-  새 보직 운전현황이 아직 저장되지 않았을 때만 표시
+  아직 저장된 운전현황이 없는 경우에만 사용한다.
+
+  설비별 기본 이름:
+  - TGO  : 터빈
+  - BCO1 : 1호기 주보일러
+  - BCO2 : 2호기 주보일러
 ========================================================= */
 
 function getDefaultOperationStatusContent(
@@ -8910,28 +8915,30 @@ function getDefaultOperationStatusContent(
       role
     );
 
+
   const defaultContentMap = {
     TGO:
-      "#1 TBN 정상 운전 중",
+      "터빈 : 정상 운전 중",
 
     BCO1:
-      "#1 BLR 정상 운전 중",
+      "1호기 주보일러 : 정상 운전 중",
 
     BCO2:
-      "#2 BLR 정상 운전 중",
+      "2호기 주보일러 : 정상 운전 중",
 
     TO:
       "TBN 보조설비 정상 운전 중",
 
     BO1:
-      "#1 BLR 보조설비 정상 운전 중",
+      "1호기 주보일러 보조설비 정상 운전 중",
 
     BO2:
-      "#2 BLR 보조설비 정상 운전 중",
+      "2호기 주보일러 보조설비 정상 운전 중",
 
     파트장:
       ""
   };
+
 
   return (
     defaultContentMap[
