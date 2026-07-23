@@ -361,10 +361,36 @@ export async function onRequestGet(
       );
 
 
+    /*
+      DB에 multipart/form-data가 잘못 저장된 경우
+      파일 확장자를 기준으로 MIME 타입을 다시 판단한다.
+    */
+    const storedMimeType =
+      normalizeText(
+        attachment.mime_type
+      )
+        .toLowerCase();
+
+
+    const isInvalidStoredMimeType =
+      !storedMimeType ||
+      storedMimeType.includes(
+        "multipart/form-data"
+      ) ||
+      storedMimeType.includes(
+        "application/octet-stream"
+      ) ||
+      storedMimeType.includes(
+        "text/plain"
+      );
+
+
     const contentType =
       getMimeType(
         fileName,
-        attachment.mime_type
+        isInvalidStoredMimeType
+          ? ""
+          : storedMimeType
       );
 
 
@@ -372,6 +398,22 @@ export async function onRequestGet(
       new Headers();
 
 
+    /*
+      R2에 저장된 메타데이터를 먼저 반영한다.
+    */
+    if (
+      object.httpMetadata
+    ) {
+      object.writeHttpMetadata(
+        headers
+      );
+    }
+
+
+    /*
+      잘못된 R2 메타데이터보다
+      파일 확장자 및 DB 값을 기준으로 마지막에 강제 지정한다.
+    */
     headers.set(
       "Content-Type",
       contentType
@@ -396,27 +438,17 @@ export async function onRequestGet(
     );
 
 
-    /*
-      R2에 저장된 HTTP 메타데이터가 있다면 반영
-    */
     if (
-      object.httpMetadata
+      object.size !==
+      undefined &&
+      object.size !==
+      null
     ) {
-      object.writeHttpMetadata(
-        headers
-      );
-
-      /*
-        DB의 mime_type을 우선 사용
-      */
       headers.set(
-        "Content-Type",
-        contentType
-      );
-
-      headers.set(
-        "Content-Disposition",
-        `inline; filename="${fileName}"`
+        "Content-Length",
+        String(
+          object.size
+        )
       );
     }
 
