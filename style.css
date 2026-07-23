@@ -19071,3 +19071,69 @@ table:has(#noteEntryTableBody) {
     font-size: 10px;
   }
 }
+
+/* =========================================================
+  업무일지 수정창 빈 목록 최소 높이
+
+  TM 발행 내역:
+  약 3줄 높이
+
+  인계사항:
+  약 5줄 높이
+========================================================= */
+
+
+/* 공통 빈 행 */
+
+#logEntryListPanel
+.log-entry-empty-row td {
+  padding: 0 16px !important;
+  vertical-align: middle !important;
+  text-align: center !important;
+  color: #929cab;
+  font-size: 11px;
+  font-weight: 600;
+  background: #fbfcfd;
+}
+
+
+/* =========================================================
+  TM 발행 내역 빈 상태
+  약 3줄 높이
+========================================================= */
+
+#logEntryListPanel
+.handover-entry-group--tm
+.log-entry-empty-row td {
+  height: 84px !important;
+  min-height: 84px !important;
+}
+
+
+/* =========================================================
+  인계사항 빈 상태
+  약 5줄 높이
+========================================================= */
+
+#logEntryListPanel
+.handover-entry-group--handover
+.log-entry-empty-row td {
+  height: 132px !important;
+  min-height: 132px !important;
+}
+
+
+/* =========================================================
+  실제 항목이 생긴 뒤에는
+  행 높이를 강제로 키우지 않는다.
+========================================================= */
+
+#logEntryListPanel
+.handover-entry-group--tm
+tbody tr:not(.log-entry-empty-row) td,
+#logEntryListPanel
+.handover-entry-group--handover
+tbody tr:not(.log-entry-empty-row) td {
+  height: auto !important;
+  min-height: 0 !important;
+}
