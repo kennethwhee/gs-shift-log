@@ -14706,23 +14706,18 @@ function convertSavedNoteToEntries(
 }
 
 /* =========================================================
-  기존 업무일지 작성·수정창 데이터 채우기 최종본
+  기존 업무일지 수정창 채우기 최종본
 
-  지원 저장 구조:
-  1. 새 분리 구조
-     - tmEntries
-     - handoverEntries
-     - remarkEntries
+  운전현황:
+  - 업무일지에 저장된 설비별 배열이 있으면 그대로 복원
+  - 배열이 없으면 기존 문자열을 설비별 항목으로 변환
+  - 현재 날짜·근무·보직 저장값이 더 최신이면 최신값 사용
 
-  2. 기존 호환 구조
-     - entries
-     - note
-
-  처리 원칙:
-  - 새 분리 배열이 있으면 우선 사용
-  - 없으면 기존 entries 사용
-  - entries에도 비고가 없으면 기존 note를 비고 항목으로 변환
-  - TM / 인계사항 / 비고를 appState.editorEntries로 결합
+  업무내역:
+  - tmEntries
+  - handoverEntries
+  - remarkEntries
+  - 기존 entries / note 호환
 ========================================================= */
 
 function fillLogEditor(
@@ -14782,9 +14777,9 @@ function fillLogEditor(
       );
 
 
-    const hasTeamOption = [
+    const matchedTeamOption = [
       ...elements.logTeam.options
-    ].some(
+    ].find(
       (
         option
       ) => {
@@ -14799,23 +14794,23 @@ function fillLogEditor(
 
 
     if (
-      hasTeamOption
+      matchedTeamOption
     ) {
       elements.logTeam.value =
-        normalizedTeam;
+        matchedTeamOption.value;
     }
   }
+
+
+  const normalizedRole =
+    normalizeMemberLogRole(
+      log.role
+    );
 
 
   if (
     elements.logRole
   ) {
-    const normalizedRole =
-      normalizeMemberLogRole(
-        log.role
-      );
-
-
     const matchedRoleOption = [
       ...elements.logRole.options
     ].find(
@@ -14864,55 +14859,72 @@ function fillLogEditor(
 
   /* =====================================================
     운전현황
+
+    업무일지 저장값과 보직별 최신 저장값 중
+    수정시간이 더 최신인 값을 사용한다.
   ====================================================== */
 
-  const operationStatusContent =
-    String(
-      log.operationStatus ||
-      ""
-    ).trim();
+  const logOperationItems =
+    getOperationStatusItems({
+      operationItems:
+        Array.isArray(
+          log.operationItems
+        )
+          ? log.operationItems
+          : (
+              Array.isArray(
+                log.operationStatusItems
+              )
+                ? log.operationStatusItems
+                : (
+                    Array.isArray(
+                      log.items
+                    )
+                      ? log.items
+                      : []
+                  )
+            ),
+
+      content:
+        String(
+          log.operationStatus ||
+          ""
+        ).trim(),
+
+      type:
+        log.operationStatusType
+    });
 
 
-  if (
-    elements.operationStatus
-  ) {
-    elements.operationStatus.value =
-      operationStatusContent;
-  }
-
-
-  if (
-    elements.operationStatusSnapshot
-  ) {
-    elements.operationStatusSnapshot.value =
-      operationStatusContent;
-  }
-
-
-  if (
-    elements.operationStatusRole
-  ) {
-    elements.operationStatusRole.value =
-      normalizeMemberLogRole(
-        log.role
-      );
-  }
-
-
-  appState.currentOperationStatus = {
+  const logOperationStatus = {
     role:
-      normalizeMemberLogRole(
-        log.role
-      ),
+      normalizedRole,
 
     type:
-      normalizeOperationStatusType(
-        log.operationStatusType ||
-        "normal"
-      ),
+      logOperationItems.length
+        ? getRepresentativeOperationStatusType(
+            logOperationItems
+          )
+        : normalizeOperationStatusType(
+            log.operationStatusType ||
+            "normal"
+          ),
 
     content:
-      operationStatusContent,
+      logOperationItems.length
+        ? serializeOperationStatusItems(
+            logOperationItems
+          )
+        : String(
+            log.operationStatus ||
+            ""
+          ).trim(),
+
+    operationItems:
+      logOperationItems,
+
+    items:
+      logOperationItems,
 
     updatedAt:
       String(
@@ -14930,8 +14942,120 @@ function fillLogEditor(
   };
 
 
+  const latestStoredStatus =
+    normalizedRole ===
+      "파트장"
+      ? loadLeaderOperationStatus()
+      : loadOperationStatusByRole(
+          normalizedRole,
+          {
+            allowLegacyFallback:
+              normalizedRole ===
+              "TGO"
+          }
+        );
+
+
+  const logStatusTime =
+    new Date(
+      logOperationStatus.updatedAt ||
+      0
+    ).getTime();
+
+
+  const latestStatusTime =
+    new Date(
+      latestStoredStatus?.updatedAt ||
+      0
+    ).getTime();
+
+
+  const shouldUseLatestStoredStatus =
+    latestStoredStatus &&
+    (
+      latestStatusTime >
+      logStatusTime
+    );
+
+
+  appState.currentOperationStatus =
+    shouldUseLatestStoredStatus
+      ? latestStoredStatus
+      : logOperationStatus;
+
+
+  const finalOperationItems =
+    getOperationStatusItems(
+      appState.currentOperationStatus
+    );
+
+
+  const finalOperationContent =
+    finalOperationItems.length
+      ? serializeOperationStatusItems(
+          finalOperationItems
+        )
+      : String(
+          appState.currentOperationStatus
+            ?.content ||
+          ""
+        ).trim();
+
+
+  appState.currentOperationStatus = {
+    ...appState.currentOperationStatus,
+
+    role:
+      normalizedRole,
+
+    content:
+      finalOperationContent,
+
+    operationItems:
+      finalOperationItems,
+
+    items:
+      finalOperationItems
+  };
+
+
+  if (
+    elements.operationStatus
+  ) {
+    elements.operationStatus.value =
+      finalOperationContent;
+  }
+
+
+  if (
+    elements.operationStatusSnapshot
+  ) {
+    elements.operationStatusSnapshot.value =
+      finalOperationContent;
+  }
+
+
+  if (
+    elements.operationStatusRole
+  ) {
+    elements.operationStatusRole.value =
+      normalizedRole;
+  }
+
+
+  if (
+    elements.operationStatusType
+  ) {
+    elements.operationStatusType.value =
+      appState.currentOperationStatus.type;
+  }
+
+
+  renderOperationStatusCard();
+
+
   /* =====================================================
-    항목 한 개 정규화
+    업무 항목 정규화
   ====================================================== */
 
   const normalizeEditorEntry = (
@@ -14939,18 +15063,16 @@ function fillLogEditor(
     fallbackCategory
   ) => {
     const normalizedEntry =
-      normalizeExistingLogEntryTime(
-        {
-          ...entry,
+      normalizeExistingLogEntryTime({
+        ...entry,
 
-          category:
-            String(
-              entry?.category ||
-              fallbackCategory ||
-              "인계사항"
-            ).trim()
-        }
-      );
+        category:
+          String(
+            entry?.category ||
+            fallbackCategory ||
+            "인계사항"
+          ).trim()
+      });
 
 
     const rawImportedIndex =
@@ -14958,19 +15080,17 @@ function fillLogEditor(
         ?.importedFromEntryIndex;
 
 
-    const importedFromEntryIndex =
+    const importedIndex =
       rawImportedIndex === "" ||
       rawImportedIndex === null ||
       rawImportedIndex === undefined
-        ? null
+        ? ""
         : Number(
             rawImportedIndex
           );
 
 
     return {
-      ...normalizedEntry,
-
       id:
         String(
           normalizedEntry?.id ||
@@ -15006,243 +15126,174 @@ function fillLogEditor(
 
       attachmentName:
         String(
-          normalizedEntry
-            ?.attachmentName ||
+          normalizedEntry?.attachmentName ||
           ""
         ).trim(),
 
       importedFromRole:
         String(
-          normalizedEntry
-            ?.importedFromRole ||
+          normalizedEntry?.importedFromRole ||
           ""
         ).trim(),
 
       importedFromAuthor:
         String(
-          normalizedEntry
-            ?.importedFromAuthor ||
+          normalizedEntry?.importedFromAuthor ||
           ""
         ).trim(),
 
       importedFromLogId:
         String(
-          normalizedEntry
-            ?.importedFromLogId ||
+          normalizedEntry?.importedFromLogId ||
           ""
         ).trim(),
 
       importedFromEntryIndex:
         Number.isInteger(
-          importedFromEntryIndex
-        ) &&
-        importedFromEntryIndex >=
-          0
-          ? importedFromEntryIndex
-          : null,
-
-      legacyBodyIndex:
-        normalizedEntry
-          ?.legacyBodyIndex ??
-        null,
-
-      legacyLineIndex:
-        normalizedEntry
-          ?.legacyLineIndex ??
-        null,
-
-      source:
-        String(
-          normalizedEntry?.source ||
-          ""
-        ).trim()
+          importedIndex
+        )
+          ? importedIndex
+          : ""
     };
   };
 
 
-  /* =====================================================
-    새 분리 저장 구조 확인
-  ====================================================== */
+  const legacyEntries =
+    Array.isArray(
+      log.entries
+    )
+      ? log.entries
+      : [];
 
-  const hasSeparatedEntryStructure =
+
+  const tmEntries =
     Array.isArray(
       log.tmEntries
-    ) ||
+    )
+      ? log.tmEntries
+      : legacyEntries.filter(
+          (
+            entry
+          ) => {
+            return (
+              String(
+                entry?.category ||
+                ""
+              ).trim() ===
+              "TM 발행"
+            );
+          }
+        );
+
+
+  const handoverEntries =
     Array.isArray(
       log.handoverEntries
-    ) ||
+    )
+      ? log.handoverEntries
+      : legacyEntries.filter(
+          (
+            entry
+          ) => {
+            const category =
+              String(
+                entry?.category ||
+                ""
+              ).trim();
+
+            return (
+              category !==
+                "TM 발행" &&
+              category !==
+                "비고"
+            );
+          }
+        );
+
+
+  let remarkEntries =
     Array.isArray(
       log.remarkEntries
-    );
-
-
-  let restoredEntries = [];
+    )
+      ? log.remarkEntries
+      : legacyEntries.filter(
+          (
+            entry
+          ) => {
+            return (
+              String(
+                entry?.category ||
+                ""
+              ).trim() ===
+              "비고"
+            );
+          }
+        );
 
 
   if (
-    hasSeparatedEntryStructure
+    !remarkEntries.length &&
+    String(
+      log.note ||
+      ""
+    ).trim()
   ) {
-    const restoredTmEntries =
-      (
-        Array.isArray(
-          log.tmEntries
-        )
-          ? log.tmEntries
-          : []
-      ).map(
-        (
-          entry
-        ) => {
-          return normalizeEditorEntry(
-            entry,
-            "TM 발행"
-          );
-        }
-      );
+    remarkEntries = [
+      {
+        time:
+          "",
 
+        category:
+          "비고",
 
-    const restoredHandoverEntries =
-      (
-        Array.isArray(
-          log.handoverEntries
-        )
-          ? log.handoverEntries
-          : []
-      ).map(
-        (
-          entry
-        ) => {
-          return normalizeEditorEntry(
-            entry,
-            "인계사항"
-          );
-        }
-      );
+        tag:
+          "",
 
-
-    const restoredRemarkEntries =
-      (
-        Array.isArray(
-          log.remarkEntries
-        )
-          ? log.remarkEntries
-          : []
-      ).map(
-        (
-          entry
-        ) => {
-          return normalizeEditorEntry(
-            entry,
-            "비고"
-          );
-        }
-      );
-
-
-    restoredEntries = [
-      ...restoredTmEntries,
-      ...restoredHandoverEntries,
-      ...restoredRemarkEntries
+        content:
+          String(
+            log.note ||
+            ""
+          ).trim()
+      }
     ];
-
-  } else {
-    /*
-      이전 entries 단일 배열 구조
-    */
-    restoredEntries =
-      (
-        Array.isArray(
-          log.entries
-        )
-          ? log.entries
-          : []
-      ).map(
-        (
-          entry
-        ) => {
-          return normalizeEditorEntry(
-            entry,
-            "인계사항"
-          );
-        }
-      );
   }
 
 
-  /* =====================================================
-    과거 note 문자열 호환
-
-    이미 비고 항목이 있으면 note를 다시 추가하지 않는다.
-  ====================================================== */
-
-  const hasRemarkEntries =
-    restoredEntries.some(
+  appState.editorEntries = [
+    ...tmEntries.map(
       (
         entry
       ) => {
-        return (
-          String(
-            entry.category ||
-            ""
-          ).trim() ===
+        return normalizeEditorEntry(
+          entry,
+          "TM 발행"
+        );
+      }
+    ),
+
+    ...handoverEntries.map(
+      (
+        entry
+      ) => {
+        return normalizeEditorEntry(
+          entry,
+          "인계사항"
+        );
+      }
+    ),
+
+    ...remarkEntries.map(
+      (
+        entry
+      ) => {
+        return normalizeEditorEntry(
+          entry,
           "비고"
         );
       }
-    );
+    )
+  ];
 
-
-  if (
-    !hasRemarkEntries
-  ) {
-    const convertedNoteEntries =
-      convertSavedNoteToEntries(
-        log.note,
-        log
-      );
-
-
-    restoredEntries.push(
-      ...convertedNoteEntries
-    );
-  }
-
-
-  appState.editorEntries =
-    restoredEntries.filter(
-      (
-        entry
-      ) => {
-        return Boolean(
-          String(
-            entry.content ||
-            ""
-          ).trim()
-        );
-      }
-    );
-
-
-  /* =====================================================
-    기존 note 숨김 필드 동기화
-
-    실제 값은 renderLogEntryTable()에서
-    비고 목록 기준으로 다시 생성한다.
-  ====================================================== */
-
-  if (
-    elements.logNote
-  ) {
-    elements.logNote.value =
-      String(
-        log.note ||
-        ""
-      ).trim();
-  }
-
-
-  /* =====================================================
-    편집 상태 초기화 및 목록 출력
-  ====================================================== */
 
   appState.editingEntryIndex =
     -1;
@@ -15260,28 +15311,27 @@ function fillLogEditor(
   renderLogEntryTable();
 
 
-  updateMemberLogImportSection();
-
-
-  updateMemberLogImportStatus();
-
-
-  /* =====================================================
-    저장된 첨부파일
-  ====================================================== */
-
   if (
-    typeof renderSavedAttachments ===
-    "function"
+    elements.logNote
   ) {
-    renderSavedAttachments(
-      Array.isArray(
-        log.attachments
-      )
-        ? log.attachments
-        : []
-    );
+    elements.logNote.value =
+      String(
+        log.note ||
+        ""
+      ).trim();
   }
+
+
+  renderSavedAttachments(
+    Array.isArray(
+      log.attachments
+    )
+      ? log.attachments
+      : []
+  );
+
+
+  updateMemberLogImportSection();
 }
 
 /* =========================================================
