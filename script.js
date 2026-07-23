@@ -14687,21 +14687,86 @@ function renderAttachmentList() {
 }
 
 
-function renderSavedAttachments(attachments) {
-  if (!attachments.length) {
-    elements.attachmentList.innerHTML = "";
+function renderSavedAttachments(
+  attachments
+) {
+  if (
+    !elements.attachmentList
+  ) {
     return;
   }
 
-  elements.attachmentList.innerHTML = attachments
-    .map((fileName) => {
-      return `
-        <span class="attachment-chip">
-          ${escapeHtml(fileName)}
-        </span>
-      `;
-    })
-    .join("");
+
+  const safeAttachments =
+    Array.isArray(
+      attachments
+    )
+      ? attachments.filter(
+          Boolean
+        )
+      : [];
+
+
+  if (
+    safeAttachments.length === 0
+  ) {
+    elements.attachmentList.innerHTML =
+      "";
+
+    return;
+  }
+
+
+  elements.attachmentList.innerHTML =
+    safeAttachments
+      .map(
+        (
+          attachment,
+          index
+        ) => {
+          /*
+            신규 업무일지:
+            첨부파일이 문자열로 저장될 수 있음
+
+            과거 업무일지:
+            {
+              id,
+              fileName,
+              name,
+              url,
+              mimeType
+            }
+            형태의 객체로 저장됨
+          */
+          const fileName =
+            typeof attachment ===
+              "string"
+              ? attachment.trim()
+              : String(
+                  attachment?.fileName ||
+                  attachment?.file_name ||
+                  attachment?.name ||
+                  attachment?.originalName ||
+                  attachment?.original_name ||
+                  `첨부파일 ${index + 1}`
+                ).trim();
+
+
+          return `
+            <span
+              class="attachment-chip"
+              title="${escapeHtml(
+                fileName
+              )}"
+            >
+              ${escapeHtml(
+                fileName
+              )}
+            </span>
+          `;
+        }
+      )
+      .join("");
 }
 
 
@@ -16329,7 +16394,6 @@ function createLogRowHtml(log) {
   `;
 }
 
-
 function handleLogTableClick(
   event
 ) {
@@ -16337,6 +16401,7 @@ function handleLogTableClick(
     event.target.closest(
       "[data-action][data-log-id]"
     );
+
 
   if (
     !actionElement ||
@@ -16347,17 +16412,20 @@ function handleLogTableClick(
     return;
   }
 
+
   const logId =
     String(
       actionElement.dataset.logId ||
       ""
     ).trim();
 
+
   const action =
     String(
       actionElement.dataset.action ||
       ""
     ).trim();
+
 
   if (!logId) {
     showToast(
@@ -16367,16 +16435,20 @@ function handleLogTableClick(
     return;
   }
 
+
   const log =
     appState.logs.find(
       (item) => {
         return (
           String(
-            item.id || ""
-          ) === logId
+            item.id ||
+            ""
+          ).trim() ===
+          logId
         );
       }
     );
+
 
   if (!log) {
     showToast(
@@ -16388,19 +16460,74 @@ function handleLogTableClick(
 
 
   /*
-    수정
+    첨부파일 보기
+
+    첨부파일 1개:
+    바로 미리보기
+
+    첨부파일 2개 이상:
+    첨부파일 선택 팝업
   */
-  if (action === "edit") {
-    openLogEditor(log);
+  if (
+    action ===
+    "attachment"
+  ) {
+    const attachments =
+      Array.isArray(
+        log.attachments
+      )
+        ? log.attachments.filter(
+            Boolean
+          )
+        : [];
+
+
+    if (
+      attachments.length === 0
+    ) {
+      showToast(
+        "등록된 첨부파일이 없습니다."
+      );
+
+      return;
+    }
+
+
+    openAttachmentSelector(
+      attachments,
+      log.id
+    );
+
     return;
   }
 
 
   /*
-    상세보기
+    수정 또는 이어쓰기
   */
-  if (action === "view") {
-    openLogDetail(log);
+  if (
+    action ===
+    "edit"
+  ) {
+    openLogEditor(
+      log
+    );
+
+    return;
+  }
+
+
+  /*
+    업무일지 상세보기
+  */
+  if (
+    action ===
+    "view"
+  ) {
+    openLogDetail(
+      log
+    );
+
     return;
   }
 
@@ -16408,7 +16535,10 @@ function handleLogTableClick(
   /*
     삭제
   */
-  if (action === "delete") {
+  if (
+    action ===
+    "delete"
+  ) {
     deleteLogById(
       log.id
     );
