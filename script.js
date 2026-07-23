@@ -7990,6 +7990,180 @@ function getCurrentOperationStatusRole() {
   return role || "TGO";
 }
 
+/* =========================================================
+  운전현황 상태값 정규화
+
+  지원 상태:
+  - normal
+  - starting
+  - stopped
+  - abnormal
+  - emergency
+
+  한글 상태명과 과거 저장값도
+  현재 영문 상태값으로 변환한다.
+========================================================= */
+
+function normalizeOperationStatusType(
+  type
+) {
+  const normalizedType =
+    String(
+      type || ""
+    )
+      .trim()
+      .toLowerCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  const typeMap = {
+    /*
+      정상운전
+    */
+    normal:
+      "normal",
+
+    정상:
+      "normal",
+
+    정상운전:
+      "normal",
+
+    running:
+      "normal",
+
+    run:
+      "normal",
+
+
+    /*
+      기동
+    */
+    starting:
+      "starting",
+
+    start:
+      "starting",
+
+    startup:
+      "starting",
+
+    기동:
+      "starting",
+
+    기동중:
+      "starting",
+
+
+    /*
+      정지
+    */
+    stopped:
+      "stopped",
+
+    stop:
+      "stopped",
+
+    shutdown:
+      "stopped",
+
+    정지:
+      "stopped",
+
+    정지중:
+      "stopped",
+
+    만수보존:
+      "stopped",
+
+    보존중:
+      "stopped",
+
+    대기:
+      "stopped",
+
+
+    /*
+      이상
+    */
+    abnormal:
+      "abnormal",
+
+    warning:
+      "abnormal",
+
+    이상:
+      "abnormal",
+
+    고장:
+      "abnormal",
+
+    불량:
+      "abnormal",
+
+
+    /*
+      비상
+    */
+    emergency:
+      "emergency",
+
+    trip:
+      "emergency",
+
+    비상:
+      "emergency",
+
+    트립:
+      "emergency",
+
+    긴급:
+      "emergency"
+  };
+
+
+  const convertedType =
+    typeMap[
+      normalizedType
+    ];
+
+
+  /*
+    정상적으로 변환된 상태값
+  */
+  if (
+    convertedType
+  ) {
+    return convertedType;
+  }
+
+
+  /*
+    이미 허용된 영문 상태라면 그대로 사용
+  */
+  if (
+    typeof OPERATION_STATUS_TYPES !==
+      "undefined" &&
+    Array.isArray(
+      OPERATION_STATUS_TYPES
+    ) &&
+    OPERATION_STATUS_TYPES.includes(
+      normalizedType
+    )
+  ) {
+    return normalizedType;
+  }
+
+
+  /*
+    알 수 없는 값은 정상운전으로 처리
+  */
+  return "normal";
+}
+
 
 /* =========================================================
   상태 이름
