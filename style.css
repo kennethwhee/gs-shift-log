@@ -19137,3 +19137,143 @@ tbody tr:not(.log-entry-empty-row) td {
   height: auto !important;
   min-height: 0 !important;
 }
+
+/* =========================================================
+  파트장 설비별 운전현황 최종 정렬
+
+  상태 | 설비명 : 내용
+========================================================= */
+
+#operationStatusSection
+.leader-operation-status-list {
+  margin-top: 5px;
+}
+
+
+#operationStatusSection
+.leader-operation-line {
+  display: grid;
+  grid-template-columns:
+    58px
+    1px
+    minmax(130px, 210px)
+    7px
+    minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+
+  width: 100%;
+  min-height: 29px;
+  margin: 0;
+  padding: 3px 0;
+}
+
+
+/* 기존 보직 칸은 더 이상 사용하지 않음 */
+
+#operationStatusSection
+.leader-operation-line__role,
+#operationStatusSection
+.leader-operation-line__time {
+  display: none !important;
+}
+
+
+/* 상태 */
+
+#operationStatusSection
+.leader-operation-line__status {
+  display: inline-flex;
+  width: 58px;
+  min-width: 58px;
+  min-height: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 6px;
+  border-radius: 999px;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+
+/* 구분선 */
+
+#operationStatusSection
+.leader-operation-line__divider {
+  display: block;
+  width: 1px;
+  height: 12px;
+  overflow: hidden;
+
+  background: #d7dee7;
+  color: transparent;
+}
+
+
+/* 설비명 */
+
+#operationStatusSection
+.leader-operation-line__name {
+  min-width: 0;
+  overflow: hidden;
+
+  color: #182a43;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.35;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* 콜론 */
+
+#operationStatusSection
+.leader-operation-line__colon {
+  color: #8c97a5;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+
+/* 내용 */
+
+#operationStatusSection
+.leader-operation-line__content {
+  min-width: 0;
+  overflow: hidden;
+
+  color: #304158;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* 설비명이 없는 과거 자료 예외 */
+
+#operationStatusSection
+.leader-operation-line__divider
++
+.leader-operation-line__content {
+  grid-column: 3 / -1;
+}
+
+
+/* 줄 구분 */
+
+#operationStatusSection
+.leader-operation-line
++
+.leader-operation-line {
+  border-top: 1px solid #edf1f5;
+}
