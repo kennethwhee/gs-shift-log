@@ -608,7 +608,6 @@ function getEmployeeManagementRoleLabel(
   return "일반";
 }
 
-
 /* =========================================================
   가입 완료 직원 목록 화면 출력
 ========================================================= */
@@ -745,6 +744,16 @@ function renderEmployeeManagementUsers(
                 }
               </span>
 
+
+              <button
+                type="button"
+                class="employee-management-edit-button"
+                data-employee-edit="${employeeNo}"
+                onclick="openEmployeeEditModal('${employeeNo}')"
+              >
+                수정
+              </button>
+
             </article>
           `;
         }
@@ -752,6 +761,49 @@ function renderEmployeeManagementUsers(
       .join("");
 }
 
+/* =========================================================
+  가입 완료 직원 수정 버튼 임시 동작
+
+  다음 단계에서 수정 모달을 연결한다.
+========================================================= */
+
+function openEmployeeEditModal(
+  employeeNo
+) {
+  const targetUser =
+    employeeManagementUsers.find(
+      user => {
+        return (
+          String(
+            user.employeeNo ||
+            user.employee_no ||
+            ""
+          ) ===
+          String(
+            employeeNo ||
+            ""
+          )
+        );
+      }
+    );
+
+  if (!targetUser) {
+    showToast(
+      "수정할 직원 정보를 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+  console.log(
+    "직원 수정 대상:",
+    targetUser
+  );
+
+  showToast(
+    `${targetUser.name} 직원 수정 기능은 다음 단계에서 연결합니다.`
+  );
+}
 
 /* =========================================================
   가입 완료 직원 검색

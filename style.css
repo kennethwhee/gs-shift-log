@@ -19716,3 +19716,32 @@ td {
 
   white-space: normal !important;
 }
+
+/* ==================================================
+   직원관리 수정 버튼
+================================================== */
+
+.employee-management-edit-button {
+  flex: 0 0 auto;
+  min-width: 48px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #b8c8dc;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #24548c;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.employee-management-edit-button:hover {
+  border-color: #2a69b8;
+  background: #edf5ff;
+  color: #174f91;
+}
+
+.employee-management-edit-button:active {
+  transform: translateY(1px);
+}
