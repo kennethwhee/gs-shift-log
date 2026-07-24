@@ -149,6 +149,174 @@ function clearCurrentUser() {
   );
 }
 
+/* =========================================================
+  로그인 사용자 권한 통합 판정
+
+  지원 필드:
+  - role
+  - userRole
+  - user_role
+  - defaultRole
+  - default_role
+  - permission
+  - authority
+  - accessRole
+  - access_role
+
+  최고관리자 표기:
+  - super_admin
+  - superadmin
+  - 최고관리자
+========================================================= */
+
+function getShiftLogUserAccountRole(
+  user
+) {
+  if (
+    !user ||
+    typeof user !==
+      "object"
+  ) {
+    return "";
+  }
+
+
+  /*
+    서버에서 boolean 형태로
+    최고관리자 여부를 보내는 경우
+  */
+  const hasSuperAdminFlag =
+    user.isSuperAdmin ===
+      true ||
+    user.is_super_admin ===
+      true ||
+    Number(
+      user.isSuperAdmin ??
+      user.is_super_admin ??
+      0
+    ) ===
+      1;
+
+
+  if (
+    hasSuperAdminFlag
+  ) {
+    return "super_admin";
+  }
+
+
+  /*
+    로그인 API 또는 직원 API마다
+    권한 필드명이 다를 수 있으므로
+    모든 후보값을 확인한다.
+  */
+  const roleCandidates = [
+    user.role,
+    user.userRole,
+    user.user_role,
+    user.defaultRole,
+    user.default_role,
+    user.permission,
+    user.authority,
+    user.accessRole,
+    user.access_role
+  ]
+    .map(
+      value => {
+        return String(
+          value ||
+          ""
+        )
+          .trim()
+          .toLowerCase()
+          .replace(
+            /[\s-]+/g,
+            "_"
+          );
+      }
+    )
+    .filter(Boolean);
+
+
+  /*
+    후보 중 하나라도 최고관리자이면
+    다른 필드가 user로 되어 있어도
+    최고관리자를 우선 적용한다.
+  */
+  if (
+    roleCandidates.some(
+      role => {
+        return [
+          "super_admin",
+          "superadmin",
+          "최고관리자"
+        ].includes(
+          role
+        );
+      }
+    )
+  ) {
+    return "super_admin";
+  }
+
+
+  /*
+    파트장 권한
+  */
+  if (
+    roleCandidates.some(
+      role => {
+        return [
+          "admin",
+          "leader",
+          "파트장"
+        ].includes(
+          role
+        );
+      }
+    )
+  ) {
+    return "admin";
+  }
+
+
+  if (
+    roleCandidates.includes(
+      "user"
+    )
+  ) {
+    return "user";
+  }
+
+
+  return (
+    roleCandidates[0] ||
+    ""
+  );
+}
+
+
+function isShiftLogSuperAdminUser(
+  user
+) {
+  return (
+    getShiftLogUserAccountRole(
+      user
+    ) ===
+    "super_admin"
+  );
+}
+
+/* =========================================================
+  로그인 완료 후 앱 열기 최종본
+
+  최고관리자:
+  관리자 메뉴 표시
+
+  일반·파트장:
+  관리자 메뉴 숨김
+========================================================= */
+
 function openShiftLogApp(
   user
 ) {
@@ -206,39 +374,44 @@ function openShiftLogApp(
   }
 
 
-  /*
-    로그인 API마다 권한 필드명이 다를 수 있으므로
-    지원 가능한 필드를 모두 확인한다.
-  */
-  const rawRole =
-    String(
-      user?.role ||
-      user?.userRole ||
-      user?.user_role ||
-      user?.permission ||
-      user?.authority ||
-      user?.accessRole ||
-      ""
-    )
-      .trim()
-      .toLowerCase()
-      .replace(
-        /\s+/g,
-        "_"
-      );
-
-
-  /*
-    최고관리자 권한 판정
-  */
-  const isSuperAdmin =
-    [
-      "super_admin",
-      "superadmin",
-      "최고관리자"
-    ].includes(
-      rawRole
+  const normalizedRole =
+    getShiftLogUserAccountRole(
+      user
     );
+
+
+  const isSuperAdmin =
+    normalizedRole ===
+    "super_admin";
+
+
+  /*
+    권한값을 현재 저장 구조로 통일해서
+    다음 새로고침에서도 동일하게 사용한다.
+  */
+  const normalizedUser = {
+    ...user,
+
+    employeeNo:
+      employeeNo ||
+      user?.employeeNo ||
+      "",
+
+    name:
+      employeeName ||
+      user?.name ||
+      "",
+
+    role:
+      normalizedRole ||
+      user?.role ||
+      ""
+  };
+
+
+  saveCurrentUser(
+    normalizedUser
+  );
 
 
   if (
@@ -249,15 +422,24 @@ function openShiftLogApp(
 
     adminButton.disabled =
       !isSuperAdmin;
+
+
+    /*
+      hidden 속성과 기존 CSS 상태를 함께 정리한다.
+    */
+    adminButton.style.display =
+      isSuperAdmin
+        ? ""
+        : "none";
   }
 
 
   console.log(
-    "로그인 사용자 확인:",
+    "로그인 사용자 권한 확인:",
     {
       employeeNo,
       employeeName,
-      rawRole,
+      normalizedRole,
       isSuperAdmin,
       originalUser:
         user
@@ -491,7 +673,7 @@ function handleShiftLogLogout() {
 }
 
 /* =========================================================
-  최고관리자 권한 확인
+  현재 로그인 사용자의 최고관리자 권한 확인
 ========================================================= */
 
 function isCurrentUserSuperAdmin() {
@@ -499,37 +681,8 @@ function isCurrentUserSuperAdmin() {
     loadCurrentUser();
 
 
-  if (
-    !currentUser
-  ) {
-    return false;
-  }
-
-
-  const currentRole =
-    String(
-      currentUser?.role ||
-      currentUser?.userRole ||
-      currentUser?.user_role ||
-      currentUser?.permission ||
-      currentUser?.authority ||
-      currentUser?.accessRole ||
-      ""
-    )
-      .trim()
-      .toLowerCase()
-      .replace(
-        /\s+/g,
-        "_"
-      );
-
-
-  return [
-    "super_admin",
-    "superadmin",
-    "최고관리자"
-  ].includes(
-    currentRole
+  return isShiftLogSuperAdminUser(
+    currentUser
   );
 }
 
