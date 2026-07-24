@@ -20878,24 +20878,48 @@ td {
 
 /* =========================================================
   TO · BO1 · BO2 운전현황
-  상태 배지 없이 텍스트만 넓게 표시
+  상태 배지 없이 가로 전체 사용
 ========================================================= */
 
 .detail-operation-dashboard__row.is-free-text {
+  display: grid !important;
+
   grid-template-columns:
     42px
-    minmax(0, 1fr);
+    minmax(0, 1fr) !important;
 
-  align-items: start;
-  column-gap: 12px;
+  align-items: start !important;
+  column-gap: 12px !important;
+
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+
+  box-sizing: border-box;
 }
 
+
+/* 보직명 */
 
 .detail-operation-dashboard__row.is-free-text
 .detail-operation-dashboard__role {
-  padding-top: 1px;
+  display: block !important;
+
+  grid-column: 1 !important;
+
+  width: 42px !important;
+  min-width: 42px !important;
+  max-width: 42px !important;
+
+  margin: 0 !important;
+  padding: 2px 0 0 !important;
+
+  text-align: center !important;
+  white-space: nowrap !important;
 }
 
+
+/* 상태 배지 및 구분선 제거 */
 
 .detail-operation-dashboard__row.is-free-text
 .detail-operation-dashboard__badge,
@@ -20906,30 +20930,52 @@ td {
 }
 
 
+/* 운전현황 내용 */
+
+.detail-operation-dashboard__row.is-free-text
+.detail-operation-dashboard__content,
+
 .detail-operation-dashboard__content.is-free-text {
-  display: block;
+  display: block !important;
 
-  width: 100%;
-  min-width: 0;
+  grid-column: 2 !important;
 
-  white-space: normal;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  flex: 1 1 auto !important;
+
+  text-align: left !important;
+  white-space: normal !important;
+
+  word-break: keep-all !important;
+  overflow-wrap: break-word !important;
+
+  line-height: 1.65 !important;
 }
 
 
 /* =========================================================
-  모바일 화면
+  모바일
 ========================================================= */
 
-@media (
-  max-width: 768px
-) {
+@media (max-width: 768px) {
   .detail-operation-dashboard__row.is-free-text {
     grid-template-columns:
-      37px
-      minmax(0, 1fr);
+      34px
+      minmax(0, 1fr) !important;
 
-    column-gap: 8px;
+    column-gap: 8px !important;
+  }
+
+  .detail-operation-dashboard__row.is-free-text
+  .detail-operation-dashboard__role {
+    width: 34px !important;
+    min-width: 34px !important;
+    max-width: 34px !important;
   }
 }
