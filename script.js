@@ -310,14 +310,15 @@ function isShiftLogSuperAdminUser(
 /* =========================================================
   로그인 완료 후 앱 열기 최종본
 
-  최고관리자:
-  관리자 메뉴 표시
+  권한 확인 순서:
+  1. 로그인 API가 반환한 권한
+  2. 저장된 boolean 관리자 권한
+  3. 직원 계정 API에서 현재 사용자 권한 재확인
 
-  일반·파트장:
-  관리자 메뉴 숨김
+  최고관리자이면 관리자 메뉴를 반드시 표시한다.
 ========================================================= */
 
-function openShiftLogApp(
+async function openShiftLogApp(
   user
 ) {
   const {
@@ -374,38 +375,254 @@ function openShiftLogApp(
   }
 
 
-  const normalizedRole =
-    getShiftLogUserAccountRole(
+  /* =====================================================
+    사용자 객체에서 권한 판정
+  ====================================================== */
+
+  const resolveUserRole =
+    (
+      sourceUser
+    ) => {
+      if (
+        !sourceUser ||
+        typeof sourceUser !==
+          "object"
+      ) {
+        return "";
+      }
+
+
+      const isSuperAdminFlag =
+        sourceUser.isSuperAdmin ===
+          true ||
+        sourceUser.is_super_admin ===
+          true ||
+        Number(
+          sourceUser.isSuperAdmin ??
+          sourceUser.is_super_admin ??
+          0
+        ) ===
+          1 ||
+        Number(
+          sourceUser.adminLevel ??
+          sourceUser.admin_level ??
+          0
+        ) ===
+          2;
+
+
+      if (
+        isSuperAdminFlag
+      ) {
+        return "super_admin";
+      }
+
+
+      const roleCandidates = [
+        sourceUser.role,
+        sourceUser.userRole,
+        sourceUser.user_role,
+        sourceUser.defaultRole,
+        sourceUser.default_role,
+        sourceUser.permission,
+        sourceUser.authority,
+        sourceUser.accessRole,
+        sourceUser.access_role
+      ]
+        .map(
+          (
+            value
+          ) => {
+            return String(
+              value ||
+              ""
+            )
+              .trim()
+              .toLowerCase()
+              .replace(
+                /[\s-]+/g,
+                "_"
+              );
+          }
+        )
+        .filter(Boolean);
+
+
+      if (
+        roleCandidates.some(
+          (
+            role
+          ) => {
+            return [
+              "super_admin",
+              "superadmin",
+              "최고관리자"
+            ].includes(
+              role
+            );
+          }
+        )
+      ) {
+        return "super_admin";
+      }
+
+
+      if (
+        roleCandidates.some(
+          (
+            role
+          ) => {
+            return [
+              "admin",
+              "leader",
+              "파트장"
+            ].includes(
+              role
+            );
+          }
+        )
+      ) {
+        return "admin";
+      }
+
+
+      return (
+        roleCandidates[0] ||
+        "user"
+      );
+    };
+
+
+  let resolvedRole =
+    resolveUserRole(
       user
     );
 
 
+  /* =====================================================
+    저장된 로그인 정보에서 최고관리자 권한이 확인되지 않으면
+    서버의 users 테이블을 다시 조회한다.
+  ====================================================== */
+
+  if (
+    resolvedRole !==
+      "super_admin" &&
+    employeeNo
+  ) {
+    try {
+      const response =
+        await fetch(
+          `/api/employees?type=users&_=${Date.now()}`,
+          {
+            method:
+              "GET",
+
+            headers: {
+              Accept:
+                "application/json"
+            },
+
+            cache:
+              "no-store"
+          }
+        );
+
+
+      const result =
+        await response.json();
+
+
+      const serverUsers =
+        Array.isArray(
+          result.approvedUsers
+        )
+          ? result.approvedUsers
+          : (
+              Array.isArray(
+                result.users
+              )
+                ? result.users
+                : []
+            );
+
+
+      const matchedUser =
+        serverUsers.find(
+          (
+            serverUser
+          ) => {
+            const serverEmployeeNo =
+              String(
+                serverUser?.employeeNo ||
+                serverUser?.employee_no ||
+                ""
+              ).trim();
+
+
+            return (
+              serverEmployeeNo ===
+              employeeNo
+            );
+          }
+        );
+
+
+      if (
+        matchedUser
+      ) {
+        resolvedRole =
+          resolveUserRole(
+            matchedUser
+          );
+      }
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "현재 사용자 권한 재조회 실패:",
+        error
+      );
+    }
+  }
+
+
   const isSuperAdmin =
-    normalizedRole ===
+    resolvedRole ===
     "super_admin";
 
 
-  /*
-    권한값을 현재 저장 구조로 통일해서
-    다음 새로고침에서도 동일하게 사용한다.
-  */
+  /* =====================================================
+    최신 권한을 로그인 정보에 다시 저장
+  ====================================================== */
+
   const normalizedUser = {
     ...user,
 
-    employeeNo:
-      employeeNo ||
-      user?.employeeNo ||
-      "",
+    employeeNo,
 
     name:
-      employeeName ||
-      user?.name ||
-      "",
+      employeeName,
 
     role:
-      normalizedRole ||
-      user?.role ||
-      ""
+      resolvedRole,
+
+    adminLevel:
+      isSuperAdmin
+        ? 2
+        : (
+            resolvedRole ===
+              "admin"
+              ? 1
+              : 0
+          ),
+
+    isAdmin:
+      isSuperAdmin ||
+      resolvedRole ===
+        "admin",
+
+    isSuperAdmin
   };
 
 
@@ -414,35 +631,51 @@ function openShiftLogApp(
   );
 
 
+  /* =====================================================
+    관리자 메뉴 표시
+  ====================================================== */
+
   if (
     adminButton
   ) {
-    adminButton.hidden =
-      !isSuperAdmin;
-
-    adminButton.disabled =
-      !isSuperAdmin;
-
-
-    /*
-      hidden 속성과 기존 CSS 상태를 함께 정리한다.
-    */
-    adminButton.style.display =
+    if (
       isSuperAdmin
-        ? ""
-        : "none";
+    ) {
+      adminButton.hidden =
+        false;
+
+      adminButton.disabled =
+        false;
+
+      adminButton.removeAttribute(
+        "hidden"
+      );
+
+      adminButton.style.removeProperty(
+        "display"
+      );
+
+    } else {
+      adminButton.hidden =
+        true;
+
+      adminButton.disabled =
+        true;
+
+      adminButton.style.display =
+        "none";
+    }
   }
 
 
   console.log(
-    "로그인 사용자 권한 확인:",
+    "최종 로그인 권한 확인:",
     {
       employeeNo,
       employeeName,
-      normalizedRole,
+      resolvedRole,
       isSuperAdmin,
-      originalUser:
-        user
+      normalizedUser
     }
   );
 }
@@ -673,7 +906,7 @@ function handleShiftLogLogout() {
 }
 
 /* =========================================================
-  현재 로그인 사용자의 최고관리자 권한 확인
+  현재 로그인 사용자 최고관리자 판정 최종본
 ========================================================= */
 
 function isCurrentUserSuperAdmin() {
@@ -681,8 +914,77 @@ function isCurrentUserSuperAdmin() {
     loadCurrentUser();
 
 
-  return isShiftLogSuperAdminUser(
-    currentUser
+  if (
+    !currentUser
+  ) {
+    return false;
+  }
+
+
+  if (
+    currentUser.isSuperAdmin ===
+      true ||
+    currentUser.is_super_admin ===
+      true ||
+    Number(
+      currentUser.isSuperAdmin ??
+      currentUser.is_super_admin ??
+      0
+    ) ===
+      1 ||
+    Number(
+      currentUser.adminLevel ??
+      currentUser.admin_level ??
+      0
+    ) ===
+      2
+  ) {
+    return true;
+  }
+
+
+  const roleCandidates = [
+    currentUser.role,
+    currentUser.userRole,
+    currentUser.user_role,
+    currentUser.defaultRole,
+    currentUser.default_role,
+    currentUser.permission,
+    currentUser.authority,
+    currentUser.accessRole,
+    currentUser.access_role
+  ]
+    .map(
+      (
+        value
+      ) => {
+        return String(
+          value ||
+          ""
+        )
+          .trim()
+          .toLowerCase()
+          .replace(
+            /[\s-]+/g,
+            "_"
+          );
+      }
+    )
+    .filter(Boolean);
+
+
+  return roleCandidates.some(
+    (
+      role
+    ) => {
+      return [
+        "super_admin",
+        "superadmin",
+        "최고관리자"
+      ].includes(
+        role
+      );
+    }
   );
 }
 
