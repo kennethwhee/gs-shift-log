@@ -7,6 +7,41 @@
 const AUTH_STORAGE_KEY =
   "gsShiftLog.currentUser";
 
+  /* =========================================================
+  고정 최고관리자 계정
+
+  사번 2014081은 서버의 role 값과 관계없이
+  GS Shift Log 최고관리자로 처리한다.
+========================================================= */
+
+const FORCED_SUPER_ADMIN_EMPLOYEE_NO =
+  "2014081";
+
+
+function getShiftLogUserEmployeeNo(
+  user
+) {
+  return String(
+    user?.employeeNo ||
+    user?.employee_no ||
+    user?.employeeId ||
+    user?.employee_id ||
+    user?.id ||
+    ""
+  ).trim();
+}
+
+
+function isForcedShiftLogSuperAdmin(
+  user
+) {
+  return (
+    getShiftLogUserEmployeeNo(
+      user
+    ) ===
+    FORCED_SUPER_ADMIN_EMPLOYEE_NO
+  );
+}
 
 function getLoginElements() {
   return {
@@ -111,10 +146,88 @@ function hideLoginError() {
 }
 
 
-function saveCurrentUser(user) {
+/* =========================================================
+  로그인 사용자 저장 최종본
+
+  사번 2014081:
+  - role을 무조건 super_admin으로 저장
+  - 최고관리자 플래그를 항상 유지
+========================================================= */
+
+function saveCurrentUser(
+  user
+) {
+  if (
+    !user ||
+    typeof user !==
+      "object"
+  ) {
+    return;
+  }
+
+
+  const employeeNo =
+    getShiftLogUserEmployeeNo(
+      user
+    );
+
+
+  const isForcedSuperAdmin =
+    employeeNo ===
+    FORCED_SUPER_ADMIN_EMPLOYEE_NO;
+
+
+  const normalizedUser = {
+    ...user,
+
+    employeeNo,
+
+    /*
+      2014081 계정은 서버에서 user 또는 admin으로 와도
+      브라우저에는 항상 최고관리자로 저장한다.
+    */
+    role:
+      isForcedSuperAdmin
+        ? "super_admin"
+        : String(
+            user.role ||
+            user.userRole ||
+            user.user_role ||
+            ""
+          ).trim(),
+
+    isAdmin:
+      isForcedSuperAdmin
+        ? true
+        : Boolean(
+            user.isAdmin ??
+            user.is_admin
+          ),
+
+    isSuperAdmin:
+      isForcedSuperAdmin
+        ? true
+        : Boolean(
+            user.isSuperAdmin ??
+            user.is_super_admin
+          ),
+
+    adminLevel:
+      isForcedSuperAdmin
+        ? 2
+        : Number(
+            user.adminLevel ??
+            user.admin_level ??
+            0
+          )
+  };
+
+
   localStorage.setItem(
     AUTH_STORAGE_KEY,
-    JSON.stringify(user)
+    JSON.stringify(
+      normalizedUser
+    )
   );
 }
 
@@ -310,15 +423,12 @@ function isShiftLogSuperAdminUser(
 /* =========================================================
   로그인 완료 후 앱 열기 최종본
 
-  권한 확인 순서:
-  1. 로그인 API가 반환한 권한
-  2. 저장된 boolean 관리자 권한
-  3. 직원 계정 API에서 현재 사용자 권한 재확인
-
-  최고관리자이면 관리자 메뉴를 반드시 표시한다.
+  사번 2014081:
+  - 관리자 메뉴 무조건 표시
+  - 서버 role 검사 결과로 다시 숨기지 않음
 ========================================================= */
 
-async function openShiftLogApp(
+function openShiftLogApp(
   user
 ) {
   const {
@@ -347,13 +457,9 @@ async function openShiftLogApp(
 
 
   const employeeNo =
-    String(
-      user?.employeeNo ||
-      user?.employee_no ||
-      user?.employeeId ||
-      user?.employee_id ||
-      ""
-    ).trim();
+    getShiftLogUserEmployeeNo(
+      user
+    );
 
 
   const employeeName =
@@ -375,254 +481,80 @@ async function openShiftLogApp(
   }
 
 
-  /* =====================================================
-    사용자 객체에서 권한 판정
-  ====================================================== */
-
-  const resolveUserRole =
-    (
-      sourceUser
-    ) => {
-      if (
-        !sourceUser ||
-        typeof sourceUser !==
-          "object"
-      ) {
-        return "";
-      }
-
-
-      const isSuperAdminFlag =
-        sourceUser.isSuperAdmin ===
-          true ||
-        sourceUser.is_super_admin ===
-          true ||
-        Number(
-          sourceUser.isSuperAdmin ??
-          sourceUser.is_super_admin ??
-          0
-        ) ===
-          1 ||
-        Number(
-          sourceUser.adminLevel ??
-          sourceUser.admin_level ??
-          0
-        ) ===
-          2;
-
-
-      if (
-        isSuperAdminFlag
-      ) {
-        return "super_admin";
-      }
-
-
-      const roleCandidates = [
-        sourceUser.role,
-        sourceUser.userRole,
-        sourceUser.user_role,
-        sourceUser.defaultRole,
-        sourceUser.default_role,
-        sourceUser.permission,
-        sourceUser.authority,
-        sourceUser.accessRole,
-        sourceUser.access_role
-      ]
-        .map(
-          (
-            value
-          ) => {
-            return String(
-              value ||
-              ""
-            )
-              .trim()
-              .toLowerCase()
-              .replace(
-                /[\s-]+/g,
-                "_"
-              );
-          }
-        )
-        .filter(Boolean);
-
-
-      if (
-        roleCandidates.some(
-          (
-            role
-          ) => {
-            return [
-              "super_admin",
-              "superadmin",
-              "최고관리자"
-            ].includes(
-              role
-            );
-          }
-        )
-      ) {
-        return "super_admin";
-      }
-
-
-      if (
-        roleCandidates.some(
-          (
-            role
-          ) => {
-            return [
-              "admin",
-              "leader",
-              "파트장"
-            ].includes(
-              role
-            );
-          }
-        )
-      ) {
-        return "admin";
-      }
-
-
-      return (
-        roleCandidates[0] ||
-        "user"
+  const rawRole =
+    String(
+      user?.role ||
+      user?.userRole ||
+      user?.user_role ||
+      user?.defaultRole ||
+      user?.default_role ||
+      user?.permission ||
+      user?.authority ||
+      user?.accessRole ||
+      ""
+    )
+      .trim()
+      .toLowerCase()
+      .replace(
+        /[\s-]+/g,
+        "_"
       );
-    };
 
 
-  let resolvedRole =
-    resolveUserRole(
-      user
+  const isForcedSuperAdmin =
+    employeeNo ===
+    FORCED_SUPER_ADMIN_EMPLOYEE_NO;
+
+
+  const isRoleSuperAdmin =
+    [
+      "super_admin",
+      "superadmin",
+      "최고관리자"
+    ].includes(
+      rawRole
     );
 
 
-  /* =====================================================
-    저장된 로그인 정보에서 최고관리자 권한이 확인되지 않으면
-    서버의 users 테이블을 다시 조회한다.
-  ====================================================== */
-
-  if (
-    resolvedRole !==
-      "super_admin" &&
-    employeeNo
-  ) {
-    try {
-      const response =
-        await fetch(
-          `/api/employees?type=users&_=${Date.now()}`,
-          {
-            method:
-              "GET",
-
-            headers: {
-              Accept:
-                "application/json"
-            },
-
-            cache:
-              "no-store"
-          }
-        );
-
-
-      const result =
-        await response.json();
-
-
-      const serverUsers =
-        Array.isArray(
-          result.approvedUsers
-        )
-          ? result.approvedUsers
-          : (
-              Array.isArray(
-                result.users
-              )
-                ? result.users
-                : []
-            );
-
-
-      const matchedUser =
-        serverUsers.find(
-          (
-            serverUser
-          ) => {
-            const serverEmployeeNo =
-              String(
-                serverUser?.employeeNo ||
-                serverUser?.employee_no ||
-                ""
-              ).trim();
-
-
-            return (
-              serverEmployeeNo ===
-              employeeNo
-            );
-          }
-        );
-
-
-      if (
-        matchedUser
-      ) {
-        resolvedRole =
-          resolveUserRole(
-            matchedUser
-          );
-      }
-
-    } catch (
-      error
-    ) {
-      console.warn(
-        "현재 사용자 권한 재조회 실패:",
-        error
-      );
-    }
-  }
-
-
   const isSuperAdmin =
-    resolvedRole ===
-    "super_admin";
+    isForcedSuperAdmin ||
+    isRoleSuperAdmin;
 
 
-  /* =====================================================
-    최신 권한을 로그인 정보에 다시 저장
-  ====================================================== */
+  /*
+    현재 로그인 정보를 최고관리자 상태로 다시 저장한다.
 
+    다른 함수가 나중에 localStorage를 읽더라도
+    2014081은 계속 super_admin으로 판정된다.
+  */
   const normalizedUser = {
     ...user,
 
     employeeNo,
 
     name:
-      employeeName,
+      employeeName ||
+      user?.name ||
+      "",
 
     role:
-      resolvedRole,
+      isSuperAdmin
+        ? "super_admin"
+        : rawRole,
+
+    isAdmin:
+      isSuperAdmin,
+
+    isSuperAdmin,
 
     adminLevel:
       isSuperAdmin
         ? 2
-        : (
-            resolvedRole ===
-              "admin"
-              ? 1
-              : 0
-          ),
-
-    isAdmin:
-      isSuperAdmin ||
-      resolvedRole ===
-        "admin",
-
-    isSuperAdmin
+        : Number(
+            user?.adminLevel ||
+            user?.admin_level ||
+            0
+          )
   };
 
 
@@ -631,16 +563,16 @@ async function openShiftLogApp(
   );
 
 
-  /* =====================================================
-    관리자 메뉴 표시
-  ====================================================== */
-
   if (
     adminButton
   ) {
     if (
       isSuperAdmin
     ) {
+      /*
+        hidden 속성, disabled, 인라인 display를
+        전부 해제하여 다시 숨지 않게 한다.
+      */
       adminButton.hidden =
         false;
 
@@ -655,6 +587,11 @@ async function openShiftLogApp(
         "display"
       );
 
+      adminButton.setAttribute(
+        "aria-hidden",
+        "false"
+      );
+
     } else {
       adminButton.hidden =
         true;
@@ -664,18 +601,23 @@ async function openShiftLogApp(
 
       adminButton.style.display =
         "none";
+
+      adminButton.setAttribute(
+        "aria-hidden",
+        "true"
+      );
     }
   }
 
 
   console.log(
-    "최종 로그인 권한 확인:",
+    "로그인 권한 최종 확인:",
     {
       employeeNo,
       employeeName,
-      resolvedRole,
-      isSuperAdmin,
-      normalizedUser
+      rawRole,
+      isForcedSuperAdmin,
+      isSuperAdmin
     }
   );
 }
@@ -907,6 +849,9 @@ function handleShiftLogLogout() {
 
 /* =========================================================
   현재 로그인 사용자 최고관리자 판정 최종본
+
+  사번 2014081은 다른 권한값과 관계없이
+  항상 최고관리자로 반환한다.
 ========================================================= */
 
 function isCurrentUserSuperAdmin() {
@@ -921,17 +866,26 @@ function isCurrentUserSuperAdmin() {
   }
 
 
+  /*
+    고정 최고관리자 사번 우선 확인
+  */
+  if (
+    isForcedShiftLogSuperAdmin(
+      currentUser
+    )
+  ) {
+    return true;
+  }
+
+
+  /*
+    boolean 및 관리자 단계 호환
+  */
   if (
     currentUser.isSuperAdmin ===
       true ||
     currentUser.is_super_admin ===
       true ||
-    Number(
-      currentUser.isSuperAdmin ??
-      currentUser.is_super_admin ??
-      0
-    ) ===
-      1 ||
     Number(
       currentUser.adminLevel ??
       currentUser.admin_level ??
@@ -943,48 +897,32 @@ function isCurrentUserSuperAdmin() {
   }
 
 
-  const roleCandidates = [
-    currentUser.role,
-    currentUser.userRole,
-    currentUser.user_role,
-    currentUser.defaultRole,
-    currentUser.default_role,
-    currentUser.permission,
-    currentUser.authority,
-    currentUser.accessRole,
-    currentUser.access_role
-  ]
-    .map(
-      (
-        value
-      ) => {
-        return String(
-          value ||
-          ""
-        )
-          .trim()
-          .toLowerCase()
-          .replace(
-            /[\s-]+/g,
-            "_"
-          );
-      }
+  const currentRole =
+    String(
+      currentUser.role ||
+      currentUser.userRole ||
+      currentUser.user_role ||
+      currentUser.defaultRole ||
+      currentUser.default_role ||
+      currentUser.permission ||
+      currentUser.authority ||
+      currentUser.accessRole ||
+      ""
     )
-    .filter(Boolean);
-
-
-  return roleCandidates.some(
-    (
-      role
-    ) => {
-      return [
-        "super_admin",
-        "superadmin",
-        "최고관리자"
-      ].includes(
-        role
+      .trim()
+      .toLowerCase()
+      .replace(
+        /[\s-]+/g,
+        "_"
       );
-    }
+
+
+  return [
+    "super_admin",
+    "superadmin",
+    "최고관리자"
+  ].includes(
+    currentRole
   );
 }
 
