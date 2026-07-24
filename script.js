@@ -32968,6 +32968,17 @@ const collectEditorDataBeforeAccountLink =
 
 /* =========================================================
   로그인 계정 연결이 적용된 최종 데이터 수집 함수
+
+  신규 작성:
+  - 현재 로그인 사용자를 작성자로 저장
+
+  임시저장 이어쓰기:
+  - 누가 작성했든 저장한 사람으로 작성자 변경
+  - 최초 작성자는 내부 기록으로 유지
+
+  최고관리자 일반 수정:
+  - 임시저장 이외 상태는 원 작성자 유지
+  - 최종 수정자만 최고관리자로 기록
 ========================================================= */
 
 collectEditorData =
@@ -32984,9 +32995,30 @@ collectEditorData =
       getCurrentShiftLogUserIdentity();
 
 
+    const currentEmployeeNo =
+      String(
+        currentUser?.employeeNo ||
+        ""
+      ).trim();
+
+
+    const currentUserName =
+      String(
+        currentUser?.name ||
+        ""
+      ).trim();
+
+
+    const currentAccountRole =
+      normalizeShiftLogAccountRole(
+        currentUser?.role ||
+        ""
+      );
+
+
     if (
-      !currentUser.employeeNo ||
-      !currentUser.name
+      !currentEmployeeNo ||
+      !currentUserName
     ) {
       showToast(
         "로그인 사용자 정보를 확인할 수 없습니다. 다시 로그인해 주세요."
@@ -33011,6 +33043,10 @@ collectEditorData =
     }
 
 
+    /* =====================================================
+      현재 수정 중인 기존 업무일지 확인
+    ====================================================== */
+
     const editingId =
       String(
         elements.logEditorForm
@@ -33022,17 +33058,22 @@ collectEditorData =
 
     const existingLog =
       editingId
-        ? appState.logs.find(
-            (currentLog) => {
-              return (
-                String(
-                  currentLog?.id ||
-                  ""
-                ).trim() ===
-                editingId
-              );
-            }
-          ) || null
+        ? (
+            appState.logs.find(
+              (
+                currentLog
+              ) => {
+                return (
+                  String(
+                    currentLog?.id ||
+                    ""
+                  ).trim() ===
+                  editingId
+                );
+              }
+            ) ||
+            null
+          )
         : null;
 
 
@@ -33041,60 +33082,48 @@ collectEditorData =
         .toISOString();
 
 
-    /*
-      최고관리자가 기존 업무일지를 수정할 때는
-      원 작성자와 결재 상태를 그대로 유지한다.
-    */
+    const resolvedStatus =
+      resolveShiftLogSaveStatus(
+        requestedStatus
+      );
+
+
+    /* =====================================================
+      1. 신규 업무일지
+
+      현재 로그인 사용자가 작성자
+    ====================================================== */
+
     if (
-      isCurrentUserSuperAdmin() &&
-      existingLog
+      !existingLog
     ) {
       return {
         ...log,
 
         author:
-          String(
-            existingLog.author ||
-            log.author ||
-            ""
-          ).trim(),
+          currentUserName,
 
         authorId:
-          String(
-            existingLog.authorId ||
-            existingLog.writerId ||
-            existingLog.employeeNo ||
-            log.authorId ||
-            ""
-          ).trim(),
+          currentEmployeeNo,
 
         authorRole:
-          String(
-            existingLog.authorRole ||
-            log.authorRole ||
-            ""
-          ).trim(),
+          currentAccountRole,
 
         status:
-          normalizeShiftLogApprovalStatus(
-            existingLog.status
-          ),
+          resolvedStatus,
 
         createdAt:
-          existingLog.createdAt ||
           log.createdAt ||
           now,
 
         lastModifiedBy:
-          currentUser.name,
+          currentUserName,
 
         lastModifiedById:
-          currentUser.employeeNo,
+          currentEmployeeNo,
 
         lastModifiedByRole:
-          normalizeShiftLogAccountRole(
-            currentUser.role
-          ),
+          currentAccountRole,
 
         updatedAt:
           now
@@ -33102,39 +33131,322 @@ collectEditorData =
     }
 
 
-    const resolvedStatus =
-      resolveShiftLogSaveStatus(
-        requestedStatus
+    const existingStatus =
+      normalizeShiftLogApprovalStatus(
+        existingLog.status
       );
 
+
+    const existingAuthor =
+      String(
+        existingLog.author ||
+        ""
+      ).trim();
+
+
+    const existingAuthorId =
+      String(
+        existingLog.authorId ||
+        existingLog.writerId ||
+        existingLog.employeeNo ||
+        ""
+      ).trim();
+
+
+    const existingAuthorRole =
+      String(
+        existingLog.authorRole ||
+        ""
+      ).trim();
+
+
+    const isDifferentAuthor =
+      existingAuthorId
+        ? (
+            existingAuthorId !==
+            currentEmployeeNo
+          )
+        : (
+            Boolean(
+              existingAuthor
+            ) &&
+            existingAuthor !==
+              currentUserName
+          );
+
+
+    /* =====================================================
+      2. 임시저장 업무일지 이어쓰기
+
+      최고관리자인지 관계없이
+      실제 저장한 로그인 사용자로 작성자 변경
+
+      열기만 하고 닫으면 이 함수가 저장되지 않으므로
+      기존 작성자가 그대로 유지된다.
+    ====================================================== */
+
+    if (
+      existingStatus ===
+      "임시저장"
+    ) {
+      return {
+        ...log,
+
+
+        /*
+          최초 작성자는 계속 보존한다.
+        */
+        originalAuthor:
+          String(
+            existingLog.originalAuthor ||
+            existingAuthor ||
+            ""
+          ).trim(),
+
+        originalAuthorId:
+          String(
+            existingLog.originalAuthorId ||
+            existingAuthorId ||
+            ""
+          ).trim(),
+
+        originalAuthorRole:
+          String(
+            existingLog.originalAuthorRole ||
+            existingAuthorRole ||
+            ""
+          ).trim(),
+
+
+        /*
+          작성자가 바뀌는 경우 직전 작성자 기록
+        */
+        previousAuthor:
+          isDifferentAuthor
+            ? existingAuthor
+            : String(
+                existingLog.previousAuthor ||
+                ""
+              ).trim(),
+
+        previousAuthorId:
+          isDifferentAuthor
+            ? existingAuthorId
+            : String(
+                existingLog.previousAuthorId ||
+                ""
+              ).trim(),
+
+        previousAuthorRole:
+          isDifferentAuthor
+            ? existingAuthorRole
+            : String(
+                existingLog.previousAuthorRole ||
+                ""
+              ).trim(),
+
+
+        /*
+          현재 저장한 사람이 새 작성자가 된다.
+        */
+        author:
+          currentUserName,
+
+        authorId:
+          currentEmployeeNo,
+
+        authorRole:
+          currentAccountRole,
+
+
+        /*
+          임시저장 또는 결재요청
+        */
+        status:
+          resolvedStatus,
+
+
+        /*
+          최초 생성시간 유지
+        */
+        createdAt:
+          existingLog.createdAt ||
+          log.createdAt ||
+          now,
+
+
+        /*
+          작성자 변경 이력
+        */
+        authorChanged:
+          Boolean(
+            existingLog.authorChanged ||
+            isDifferentAuthor
+          ),
+
+        authorChangedAt:
+          isDifferentAuthor
+            ? now
+            : String(
+                existingLog.authorChangedAt ||
+                ""
+              ),
+
+        authorChangedBy:
+          isDifferentAuthor
+            ? currentUserName
+            : String(
+                existingLog.authorChangedBy ||
+                ""
+              ).trim(),
+
+        authorChangedById:
+          isDifferentAuthor
+            ? currentEmployeeNo
+            : String(
+                existingLog.authorChangedById ||
+                ""
+              ).trim(),
+
+
+        /*
+          최종 수정자
+        */
+        lastModifiedBy:
+          currentUserName,
+
+        lastModifiedById:
+          currentEmployeeNo,
+
+        lastModifiedByRole:
+          currentAccountRole,
+
+        updatedAt:
+          now
+      };
+    }
+
+
+    /* =====================================================
+      3. 최고관리자가 임시저장 이외 상태 수정
+
+      결재요청·결재완료·저장완료는
+      관리자 수정만으로 작성자를 바꾸지 않는다.
+    ====================================================== */
+
+    if (
+      isCurrentUserSuperAdmin()
+    ) {
+      return {
+        ...log,
+
+        author:
+          existingAuthor ||
+          log.author ||
+          "",
+
+        authorId:
+          existingAuthorId ||
+          log.authorId ||
+          "",
+
+        authorRole:
+          existingAuthorRole ||
+          log.authorRole ||
+          "",
+
+        originalAuthor:
+          String(
+            existingLog.originalAuthor ||
+            ""
+          ).trim(),
+
+        originalAuthorId:
+          String(
+            existingLog.originalAuthorId ||
+            ""
+          ).trim(),
+
+        /*
+          관리자가 내용을 수정해도
+          기존 결재 상태는 유지한다.
+        */
+        status:
+          existingStatus,
+
+        createdAt:
+          existingLog.createdAt ||
+          log.createdAt ||
+          now,
+
+        lastModifiedBy:
+          currentUserName,
+
+        lastModifiedById:
+          currentEmployeeNo,
+
+        lastModifiedByRole:
+          currentAccountRole,
+
+        updatedAt:
+          now
+      };
+    }
+
+
+    /* =====================================================
+      4. 일반적인 본인 업무일지 수정
+    ====================================================== */
 
     return {
       ...log,
 
       author:
-        currentUser.name,
+        currentUserName,
 
       authorId:
-        currentUser.employeeNo,
+        currentEmployeeNo,
 
       authorRole:
-        normalizeShiftLogAccountRole(
-          currentUser.role
-        ),
+        currentAccountRole,
+
+      originalAuthor:
+        String(
+          existingLog.originalAuthor ||
+          existingAuthor ||
+          ""
+        ).trim(),
+
+      originalAuthorId:
+        String(
+          existingLog.originalAuthorId ||
+          existingAuthorId ||
+          ""
+        ).trim(),
+
+      originalAuthorRole:
+        String(
+          existingLog.originalAuthorRole ||
+          existingAuthorRole ||
+          ""
+        ).trim(),
 
       status:
         resolvedStatus,
 
+      createdAt:
+        existingLog.createdAt ||
+        log.createdAt ||
+        now,
+
       lastModifiedBy:
-        currentUser.name,
+        currentUserName,
 
       lastModifiedById:
-        currentUser.employeeNo,
+        currentEmployeeNo,
 
       lastModifiedByRole:
-        normalizeShiftLogAccountRole(
-          currentUser.role
-        ),
+        currentAccountRole,
 
       updatedAt:
         now
@@ -33560,9 +33872,23 @@ function isReadOnlyLegacyShiftLog(
   );
 }
 
-
 /* =========================================================
-  업무일지 수정 가능 여부
+  업무일지 수정·이어쓰기 가능 여부 최종본
+
+  공통:
+  - 과거 업무일지는 조회 전용
+
+  임시저장:
+  - 로그인한 직원 누구나 이어쓰기 가능
+  - 실제 저장 시 작성자가 현재 로그인 사용자로 변경
+
+  결재요청·결재완료:
+  - 일반 사용자는 수정 불가
+  - 최고관리자만 수정 가능
+
+  저장완료:
+  - 파트장 본인 업무일지는 수정 가능
+  - 최고관리자는 전체 수정 가능
 ========================================================= */
 
 function canCurrentUserEditShiftLog(
@@ -33578,7 +33904,8 @@ function canCurrentUserEditShiftLog(
 
 
   /*
-    과거 시스템 업무일지는 조회 전용
+    과거 D1 업무일지는
+    현재 저장 기능과 연결되지 않으므로 조회 전용
   */
   if (
     isReadOnlyLegacyShiftLog(
@@ -33589,25 +33916,31 @@ function canCurrentUserEditShiftLog(
   }
 
 
-  /*
-    최고관리자는 작성자와 결재 상태에 관계없이
-    모든 신규 업무일지를 수정·삭제할 수 있다.
-  */
-  if (
-    isCurrentUserSuperAdmin()
-  ) {
-    return true;
-  }
+  const currentUser =
+    getCurrentShiftLogUserIdentity();
+
+
+  const currentEmployeeNo =
+    String(
+      currentUser?.employeeNo ||
+      ""
+    ).trim();
+
+
+  const currentUserName =
+    String(
+      currentUser?.name ||
+      ""
+    ).trim();
 
 
   /*
-    다른 사람이 작성한 업무일지는
-    파트장이라도 직접 수정하지 않는다.
+    로그인 사용자 정보를 확인할 수 없으면
+    작성창을 열 수 없다.
   */
   if (
-    !isCurrentUserShiftLogAuthor(
-      log
-    )
+    !currentEmployeeNo ||
+    !currentUserName
   ) {
     return false;
   }
@@ -33619,51 +33952,99 @@ function canCurrentUserEditShiftLog(
     );
 
 
+  /* =====================================================
+    임시저장 업무일지
+
+    작성자가 누구인지 관계없이
+    로그인한 직원이면 이어쓰기 가능
+  ====================================================== */
+
+  if (
+    normalizedStatus ===
+    "임시저장"
+  ) {
+    return true;
+  }
+
+
+  /* =====================================================
+    최고관리자
+
+    과거 업무일지를 제외한 모든 상태 수정 가능
+  ====================================================== */
+
+  if (
+    isCurrentUserSuperAdmin()
+  ) {
+    return true;
+  }
+
+
+  /* =====================================================
+    임시저장이 아닌 업무일지는
+    원 작성자 여부를 확인한다.
+  ====================================================== */
+
+  if (
+    !isCurrentUserShiftLogAuthor(
+      log
+    )
+  ) {
+    return false;
+  }
+
+
   const isLeader =
     isCurrentShiftLogLeader();
 
 
-  /*
-    파트장 본인 업무일지
+  const logRole =
+    normalizeMemberLogRole(
+      log.role
+    );
 
-    저장완료 상태에서도
-    본인이 다시 열어 수정할 수 있다.
+
+  /*
+    파트장 본인의 저장완료 업무일지
   */
   if (
     isLeader &&
-    normalizeMemberLogRole(
-      log.role
-    ) ===
-      "파트장"
-  ) {
-    return [
-      "임시저장",
+    logRole ===
+      "파트장" &&
+    normalizedStatus ===
       "저장완료"
-    ].includes(
-      normalizedStatus
-    );
+  ) {
+    return true;
   }
 
 
-  /*
-    파트원 본인 업무일지
-
-    임시저장 상태에서만 수정 가능
-  */
-  return (
-    normalizedStatus ===
-    "임시저장"
-  );
+  return false;
 }
 
 
 /* =========================================================
-  수정 불가 사유 표시
+  업무일지 수정 불가 사유 안내 최종본
 ========================================================= */
 
 function showShiftLogEditDeniedMessage(
   log
 ) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    showToast(
+      "업무일지 정보를 확인할 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  /*
+    과거 업무일지
+  */
   if (
     isReadOnlyLegacyShiftLog(
       log
@@ -33677,13 +34058,22 @@ function showShiftLogEditDeniedMessage(
   }
 
 
+  const currentUser =
+    getCurrentShiftLogUserIdentity();
+
+
   if (
-    !isCurrentUserShiftLogAuthor(
-      log
-    )
+    !String(
+      currentUser?.employeeNo ||
+      ""
+    ).trim() ||
+    !String(
+      currentUser?.name ||
+      ""
+    ).trim()
   ) {
     showToast(
-      "본인이 작성한 업무일지만 수정할 수 있습니다."
+      "로그인 사용자 정보를 확인할 수 없습니다. 다시 로그인해 주세요."
     );
 
     return;
@@ -33692,13 +34082,29 @@ function showShiftLogEditDeniedMessage(
 
   const normalizedStatus =
     normalizeShiftLogApprovalStatus(
-      log?.status
+      log.status
     );
+
+
+  /*
+    임시저장은 누구나 이어쓸 수 있으므로
+    이 메시지까지 도달하면 비정상 상태다.
+  */
+  if (
+    normalizedStatus ===
+    "임시저장"
+  ) {
+    showToast(
+      "업무일지를 이어서 작성할 수 없습니다. 화면을 새로고침해 주세요."
+    );
+
+    return;
+  }
 
 
   if (
     normalizedStatus ===
-      "결재요청"
+    "결재요청"
   ) {
     showToast(
       "결재요청 중인 업무일지입니다. 결재요청을 취소한 후 수정해 주세요."
@@ -33710,10 +34116,22 @@ function showShiftLogEditDeniedMessage(
 
   if (
     normalizedStatus ===
-      "결재완료"
+    "결재완료"
   ) {
     showToast(
-      "결재가 완료된 업무일지입니다. 파트장이 결재를 취소해야 다시 수정할 수 있습니다."
+      "결재가 완료된 업무일지입니다. 결재취소 후 수정할 수 있습니다."
+    );
+
+    return;
+  }
+
+
+  if (
+    normalizedStatus ===
+    "저장완료"
+  ) {
+    showToast(
+      "저장완료된 파트장 업무일지는 작성자 또는 최고관리자만 수정할 수 있습니다."
     );
 
     return;
