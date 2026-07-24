@@ -20369,3 +20369,38 @@ td {
     font-size: 10px !important;
   }
 }
+
+/* =========================================================
+   업무일지 상세 하단 레이아웃 개선
+========================================================= */
+
+/* 비고는 전체 너비 */
+#logDetailModal
+.shift-log-detail-section--remark {
+  width: 100% !important;
+  margin-bottom: 10px !important;
+}
+
+/* 첨부파일도 전체 너비 + 맨 아래 */
+#logDetailModal
+.shift-log-detail-section--attachment {
+  width: 100% !important;
+}
+
+/* 비고/첨부파일 카드 높이 최소화 */
+#logDetailModal
+.shift-log-detail-section--remark
+.shift-log-detail-section__body,
+#logDetailModal
+.shift-log-detail-section--attachment
+.shift-log-detail-section__body {
+  min-height: 52px !important;
+  padding: 8px 12px !important;
+}
+
+/* 빈 내용일 때도 불필요한 높이 제거 */
+#logDetailModal
+.shift-log-detail-empty {
+  padding: 4px 0 !important;
+  min-height: 0 !important;
+}

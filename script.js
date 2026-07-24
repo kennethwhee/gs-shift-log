@@ -1382,7 +1382,7 @@ async function saveEmployeeEdit() {
         "저장";
     }
   }
-}
+} 
 
 /* =========================================================
   직원 수정 모달 바깥 영역 클릭 닫기
@@ -27368,63 +27368,69 @@ function openLogDetail(
 
         </section>
 
+        <!-- =================================================
+          비고
+        ================================================== -->
+        <section
+          class="
+            shift-log-detail-section
+            shift-log-detail-section--remark
+          "
+        >
 
-        <div class="shift-log-detail-bottom-grid">
+          <div class="shift-log-detail-section__header">
 
-          <section class="shift-log-detail-section">
-
-            <div class="shift-log-detail-section__header">
-
-              <div>
-                <span class="shift-log-detail-eyebrow">
-                  NOTE
-                </span>
-
-                <h3>비고</h3>
-              </div>
-
-
-              <span class="shift-log-detail-count">
-                ${remarkEntries.length}건
+            <div>
+              <span class="shift-log-detail-eyebrow">
+                NOTE
               </span>
 
+              <h3>비고</h3>
             </div>
 
-
-            <div class="shift-log-detail-section__body">
-              ${remarkHtml}
-            </div>
-
-          </section>
+          </div>
 
 
-          <section class="shift-log-detail-section">
+          <div class="shift-log-detail-section__body">
+            ${noteHtml}
+          </div>
 
-            <div class="shift-log-detail-section__header">
-
-              <div>
-                <span class="shift-log-detail-eyebrow">
-                  ATTACHMENT
-                </span>
-
-                <h3>첨부파일</h3>
-              </div>
+        </section>
 
 
-              <span class="shift-log-detail-count">
-                ${attachments.length}개
+        <!-- =================================================
+          첨부파일
+        ================================================== -->
+        <section
+          class="
+            shift-log-detail-section
+            shift-log-detail-section--attachment
+          "
+        >
+
+          <div class="shift-log-detail-section__header">
+
+            <div>
+              <span class="shift-log-detail-eyebrow">
+                ATTACHMENT
               </span>
 
+              <h3>첨부파일</h3>
             </div>
 
 
-            <div class="shift-log-detail-section__body">
-              ${attachmentHtml}
-            </div>
+            <span class="shift-log-detail-count">
+              ${attachments.length}개
+            </span>
 
-          </section>
+          </div>
 
-        </div>
+
+          <div class="shift-log-detail-section__body">
+            ${attachmentHtml}
+          </div>
+
+        </section>
 
       </div>
     `;
@@ -33731,7 +33737,11 @@ function createShiftLogApprovalHistoryHtml(
 
 
 /* =========================================================
-  상세보기 화면에 결재 이력 삽입
+  상세보기 결재 이력 숨김
+
+  결재 이력 데이터 저장과
+  결재 기능은 그대로 유지하고,
+  상세 화면에만 표시하지 않는다.
 ========================================================= */
 
 function renderShiftLogApprovalHistoryInDetail(
@@ -33744,30 +33754,20 @@ function renderShiftLogApprovalHistoryInDetail(
     );
 
 
-  if (
-    !detailContent
-  ) {
+  if (!detailContent) {
     return;
   }
 
 
-  /*
-    상세창을 다시 열었을 때
-    기존 이력이 중복 삽입되지 않게 제거한다.
-  */
   detailContent
-    .querySelector(
+    .querySelectorAll(
       "[data-shift-log-approval-history]"
     )
-    ?.remove();
-
-
-  detailContent.insertAdjacentHTML(
-    "beforeend",
-    createShiftLogApprovalHistoryHtml(
-      log
-    )
-  );
+    .forEach(
+      historyElement => {
+        historyElement.remove();
+      }
+    );
 }
 
 
