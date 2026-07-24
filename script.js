@@ -29221,18 +29221,82 @@ const normalizeDetailEntry = (
   }
 
 
-   /* =====================================================
+  /* =====================================================
     운전현황
 
-    업무일지 수정창과 동일한 구조:
+    TGO · BCO1 · BCO2:
+    보직 | 상태 배지 | 운전현황
 
-    보직 | 상태 배지 | 구분선 | 운전현황
+    TO · BO1 · BO2:
+    보직 | 운전현황 텍스트
   ====================================================== */
+
+  const detailOperationRole =
+    normalizeMemberLogRole(
+      log.role
+    );
+
+
+  const freeTextOperationRoles = [
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
 
   const operationStatusRows =
     parseOperationStatusRowsForDisplay(
       log
     );
+
+
+  /*
+    운전현황의 줄바꿈을 유지하면서
+    안전한 HTML로 변환한다.
+  */
+  const createOperationStatusContentHtml =
+    (
+      content
+    ) => {
+      const normalizedContent =
+        String(
+          content ||
+          "등록된 운전현황이 없습니다."
+        )
+          .replace(
+            /<br\s*\/?>/gi,
+            "\n"
+          )
+          .replace(
+            /\\n/g,
+            "\n"
+          )
+          .replace(
+            /\r\n/g,
+            "\n"
+          )
+          .replace(
+            /\r/g,
+            "\n"
+          )
+          .trim();
+
+
+      return normalizedContent
+        .split(
+          "\n"
+        )
+        .map(
+          line => {
+            return escapeHtml(
+              line
+            );
+          }
+        )
+        .join(
+          "<br>"
+        );
+    };
 
 
   const operationStatusHtml =
@@ -29252,14 +29316,10 @@ const normalizeDetailEntry = (
 
             <strong>
               ${escapeHtml(
-                normalizeMemberLogRole(
-                  log.role
-                ) ===
+                detailOperationRole ===
                 "파트장"
                   ? "파트장 운전현황"
-                  : `${normalizeMemberLogRole(
-                      log.role
-                    )} 운전현황`
+                  : `${detailOperationRole} 운전현황`
               )}
             </strong>
           </div>
@@ -29274,6 +29334,71 @@ const normalizeDetailEntry = (
                 (
                   statusRow
                 ) => {
+                  const statusRowRole =
+                    normalizeMemberLogRole(
+                      statusRow.role ||
+                      detailOperationRole
+                    );
+
+
+                  /*
+                    TO · BO1 · BO2는
+                    상태 배지를 표시하지 않는다.
+                  */
+                  const isFreeTextOperationRow =
+                    statusRow.isFreeText ===
+                      true ||
+                    freeTextOperationRoles.includes(
+                      statusRowRole
+                    );
+
+
+                  const statusContentHtml =
+                    createOperationStatusContentHtml(
+                      statusRow.content
+                    );
+
+
+                  if (
+                    isFreeTextOperationRow
+                  ) {
+                    return `
+                      <div
+                        class="
+                          detail-operation-dashboard__row
+                          is-free-text
+                        "
+                      >
+
+                        <strong
+                          class="detail-operation-dashboard__role"
+                        >
+                          ${escapeHtml(
+                            statusRowRole ||
+                            detailOperationRole ||
+                            "-"
+                          )}
+                        </strong>
+
+
+                        <span
+                          class="
+                            detail-operation-dashboard__content
+                            is-free-text
+                          "
+                        >
+                          ${statusContentHtml}
+                        </span>
+
+                      </div>
+                    `;
+                  }
+
+
+                  /*
+                    TGO · BCO1 · BCO2 및
+                    파트장 취합 운전현황
+                  */
                   const statusType =
                     normalizeOperationStatusType(
                       statusRow.type
@@ -29294,8 +29419,8 @@ const normalizeDetailEntry = (
                         class="detail-operation-dashboard__role"
                       >
                         ${escapeHtml(
-                          statusRow.role ||
-                          log.role ||
+                          statusRowRole ||
+                          detailOperationRole ||
                           "-"
                         )}
                       </strong>
@@ -29328,10 +29453,7 @@ const normalizeDetailEntry = (
                       <span
                         class="detail-operation-dashboard__content"
                       >
-                        ${escapeHtml(
-                          statusRow.content ||
-                          "등록된 운전현황이 없습니다."
-                        )}
+                        ${statusContentHtml}
                       </span>
 
                     </div>
@@ -29349,7 +29471,6 @@ const normalizeDetailEntry = (
           등록된 운전현황이 없습니다.
         </div>
       `;
-
   /* =====================================================
     TM 발행 HTML
   ====================================================== */
