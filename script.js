@@ -1043,42 +1043,95 @@ function closeEmployeeEditModal() {
   }
 }
 
-
 /* =========================================================
-  이번 단계 임시 확인 기능
+  직원 정보 실제 저장
 
-  아직 서버에는 저장하지 않는다.
+  저장 대상:
+  - employees.name
+  - employees.default_role
+  - employees.position
+  - employees.is_allowed
+
+  연동 대상:
+  - users.name
+  - users.role
+  - users.is_active
 ========================================================= */
 
-function previewEmployeeEdit() {
-  const employeeNo =
+async function saveEmployeeEdit() {
+  const employeeNoInput =
     document.getElementById(
       "employeeEditEmployeeNo"
-    )?.value.trim() ||
-    "";
+    );
 
-  const name =
+  const nameInput =
     document.getElementById(
       "employeeEditName"
-    )?.value.trim() ||
-    "";
+    );
 
-  const role =
+  const roleSelect =
     document.getElementById(
       "employeeEditRole"
-    )?.value ||
-    "user";
+    );
 
-  const position =
+  const positionSelect =
     document.getElementById(
       "employeeEditPosition"
-    )?.value ||
-    "";
+    );
 
   const message =
     document.getElementById(
       "employeeEditMessage"
     );
+
+  const saveButton =
+    document.getElementById(
+      "saveEmployeeEditButton"
+    );
+
+
+  const employeeNo =
+    String(
+      employeeNoInput?.value ||
+      ""
+    ).trim();
+
+  const name =
+    String(
+      nameInput?.value ||
+      ""
+    ).trim();
+
+  const selectedRole =
+    String(
+      roleSelect?.value ||
+      "user"
+    )
+      .trim()
+      .toLowerCase();
+
+  const position =
+    String(
+      positionSelect?.value ||
+      ""
+    ).trim();
+
+
+  /* ==================================================
+     입력값 검사
+  ================================================== */
+
+  if (!employeeNo) {
+    if (message) {
+      message.textContent =
+        "직원 사번을 확인할 수 없습니다.";
+
+      message.hidden =
+        false;
+    }
+
+    return;
+  }
 
 
   if (!name) {
@@ -1086,41 +1139,249 @@ function previewEmployeeEdit() {
       message.textContent =
         "직원 이름을 입력해 주세요.";
 
-      message.hidden = false;
+      message.hidden =
+        false;
     }
 
-    document.getElementById(
-      "employeeEditName"
-    )?.focus();
+    nameInput?.focus();
 
     return;
   }
 
 
-  const roleLabelMap = {
-    user:
-      "일반",
+  if (
+    name.length < 2 ||
+    name.length > 30
+  ) {
+    if (message) {
+      message.textContent =
+        "직원 이름은 2~30자로 입력해 주세요.";
 
-    admin:
-      "파트장",
+      message.hidden =
+        false;
+    }
 
-    super_admin:
-      "최고관리자"
-  };
+    nameInput?.focus();
+
+    return;
+  }
+
+
+  /* ==================================================
+     화면 권한 → employees.default_role 변환
+
+     화면:
+     user
+     admin
+     super_admin
+
+     employees:
+     user
+     leader
+     super_admin
+  ================================================== */
+
+  let defaultRole =
+    "user";
+
+
+  if (
+    selectedRole ===
+    "super_admin"
+  ) {
+    defaultRole =
+      "super_admin";
+
+  } else if (
+    selectedRole ===
+      "admin" ||
+    selectedRole ===
+      "leader"
+  ) {
+    defaultRole =
+      "leader";
+  }
+
+
+  const validPositions = [
+    "",
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2",
+    "파트장"
+  ];
+
+
+  if (
+    !validPositions.includes(
+      position
+    )
+  ) {
+    if (message) {
+      message.textContent =
+        "선택한 보직을 확인해 주세요.";
+
+      message.hidden =
+        false;
+    }
+
+    return;
+  }
 
 
   if (message) {
     message.textContent =
-      `${name} / ${employeeNo} / ` +
-      `${roleLabelMap[role] || "일반"} / ` +
-      `${position || "보직 미지정"}`;
+      "직원 정보를 저장하고 있습니다.";
 
-    message.hidden = false;
+    message.hidden =
+      false;
   }
 
-  showToast(
-    "직원 정보가 정상적으로 입력되었습니다. 아직 저장되지는 않았습니다."
-  );
+
+  if (saveButton) {
+    saveButton.disabled =
+      true;
+
+    saveButton.textContent =
+      "저장 중...";
+  }
+
+
+  try {
+    const response =
+      await fetch(
+        "/api/employees",
+        {
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            Accept:
+              "application/json"
+          },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              employeeNo,
+
+              name,
+
+              defaultRole,
+
+              position,
+
+              /*
+                가입 완료 계정이므로
+                활성 상태를 유지한다.
+              */
+              isAllowed:
+                true
+            })
+        }
+      );
+
+
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "직원 저장 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok === false ||
+      result.success === false
+    ) {
+      const detailErrors =
+        Array.isArray(
+          result.errors
+        )
+          ? result.errors.join(
+              "\n"
+            )
+          : "";
+
+
+      throw new Error(
+        detailErrors ||
+        result.message ||
+        result.error ||
+        `직원 정보 저장 실패 (HTTP ${response.status})`
+      );
+    }
+
+
+    /*
+      직원 목록을 서버에서 다시 조회한다.
+    */
+    await loadEmployeeManagement();
+
+
+    closeEmployeeEditModal();
+
+
+    showToast(
+      `${name} 직원 정보가 저장되었습니다.`
+    );
+
+  } catch (error) {
+    console.error(
+      "직원 정보 저장 오류:",
+      error
+    );
+
+
+    if (message) {
+      message.textContent =
+        error.message ||
+        "직원 정보를 저장하지 못했습니다.";
+
+      message.hidden =
+        false;
+    }
+
+
+    showToast(
+      error.message ||
+      "직원 정보를 저장하지 못했습니다."
+    );
+
+  } finally {
+    if (saveButton) {
+      saveButton.disabled =
+        false;
+
+      saveButton.textContent =
+        "저장";
+    }
+  }
 }
 
 /* =========================================================
