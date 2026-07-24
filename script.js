@@ -16454,10 +16454,14 @@ function bindShiftMemberCards() {
 }
 
 /* =========================================================
-  근무자 카드 → 업무일지 작성·수정
+  근무자 카드 → 업무일지 상세보기 또는 신규 작성
 
-  날짜·근무·보직이 같은 가장 최근 업무일지를 찾아
-  있으면 수정창, 없으면 작성창을 연다.
+  기존 업무일지가 있으면:
+  - 작성자·보직·권한과 관계없이 상세창을 연다.
+  - 수정 가능 여부는 상세창의 수정 버튼에서 따로 처리한다.
+
+  기존 업무일지가 없으면:
+  - 해당 보직의 신규 업무일지 작성창을 연다.
 ========================================================= */
 
 function openShiftMemberLogFromCard(
@@ -16474,7 +16478,8 @@ function openShiftMemberLogFromCard(
 
   const role =
     normalizeMemberLogRole(
-      card.dataset.role
+      card.dataset.role ||
+      ""
     );
 
 
@@ -16496,72 +16501,97 @@ function openShiftMemberLogFromCard(
     ).trim();
 
 
-  const team =
-    getScheduledPart(
-      appState.selectedDate,
-      appState.selectedShift
-    );
-
-
   const selectedDate =
     formatInputDate(
       appState.selectedDate
     );
 
 
-  /*
-    날짜·근무·보직이 일치하는 업무일지를 찾고,
-    중복 데이터가 있으면 가장 최근 수정본을 사용한다.
-  */
+  const selectedShift =
+    String(
+      appState.selectedShift ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  const team =
+    getScheduledPart(
+      appState.selectedDate,
+      selectedShift
+    );
+
+
+  /* =====================================================
+    날짜·근무·보직이 일치하는 업무일지 검색
+
+    같은 조건의 자료가 여러 개 있으면
+    가장 최근 수정된 일지를 사용한다.
+  ====================================================== */
+
   const matchedLogs =
     appState.logs
       .filter(
-        (log) => {
-          return (
+        log => {
+          const logDate =
             String(
-              log.date || ""
-            ).trim() ===
+              log?.date ||
+              ""
+            ).trim();
+
+
+          const logShift =
+            String(
+              log?.shift ||
+              ""
+            )
+              .trim()
+              .toUpperCase();
+
+
+          const logRole =
+            normalizeMemberLogRole(
+              log?.role
+            );
+
+
+          return (
+            logDate ===
               selectedDate &&
 
-            String(
-              log.shift || ""
-            ).trim() ===
-              String(
-                appState.selectedShift ||
-                ""
-              ).trim() &&
+            logShift ===
+              selectedShift &&
 
-            normalizeMemberLogRole(
-              log.role
-            ) ===
+            logRole ===
               role
           );
         }
       )
       .sort(
         (
-          logA,
-          logB
+          firstLog,
+          secondLog
         ) => {
-          const timeA =
+          const firstTime =
             new Date(
-              logA.updatedAt ||
-              logA.createdAt ||
+              firstLog?.updatedAt ||
+              firstLog?.createdAt ||
               0
             ).getTime();
 
 
-          const timeB =
+          const secondTime =
             new Date(
-              logB.updatedAt ||
-              logB.createdAt ||
+              secondLog?.updatedAt ||
+              secondLog?.createdAt ||
               0
             ).getTime();
 
 
           return (
-            timeB -
-            timeA
+            secondTime -
+            firstTime
           );
         }
       );
@@ -16572,11 +16602,17 @@ function openShiftMemberLogFromCard(
     null;
 
 
-  /*
-    작성된 업무일지가 있으면 수정창
-  */
-  if (existingLog) {
-    openLogEditor(
+  /* =====================================================
+    기존 업무일지가 있으면 무조건 상세보기
+
+    수정 가능 여부와 관계없이
+    모든 보직의 일지를 조회할 수 있다.
+  ====================================================== */
+
+  if (
+    existingLog
+  ) {
+    openLogDetail(
       existingLog
     );
 
@@ -16584,15 +16620,26 @@ function openShiftMemberLogFromCard(
   }
 
 
-  /*
-    업무일지가 없으면 새 작성창
-  */
+  /* =====================================================
+    기존 업무일지가 없으면 신규 작성
+
+    기존 신규 작성 기능을 그대로 사용한다.
+  ====================================================== */
+
   openLogEditor(
     null,
     {
       role,
+
       author,
-      team
+
+      team,
+
+      date:
+        selectedDate,
+
+      shift:
+        selectedShift
     }
   );
 }
@@ -23075,6 +23122,20 @@ function createLogRowHtml(log) {
   `;
 }
 
+/* =========================================================
+  업무일지 목록 클릭 처리 최종본
+
+  업무내용·행 클릭:
+  - 항상 상세보기
+
+  수정 버튼:
+  - 수정 가능하면 수정창
+  - 수정 불가능하면 상세보기
+
+  삭제 버튼:
+  - 기존 삭제 권한 검사 사용
+========================================================= */
+
 function handleLogTableClick(
   event
 ) {
@@ -23085,26 +23146,28 @@ function handleLogTableClick(
   }
 
 
-  /*
-    클릭한 위치에서 다음 대상을 모두 찾는다.
-
-    1. 수정·삭제·첨부 버튼
-    2. 업무 내용 미리보기
-    3. 업무일지 행
-  */
   const actionElement =
     event.target.closest(
       "[data-action][data-log-id]"
     );
+
 
   const previewElement =
     event.target.closest(
       ".log-preview[data-log-id]"
     );
 
+
+  const rowElement =
+    event.target.closest(
+      "tr[data-log-id]"
+    );
+
+
   const clickedElement =
     actionElement ||
-    previewElement;
+    previewElement ||
+    rowElement;
 
 
   if (
@@ -23120,6 +23183,7 @@ function handleLogTableClick(
   const logId =
     String(
       clickedElement.dataset.logId ||
+      rowElement?.dataset.logId ||
       ""
     ).trim();
 
@@ -23135,7 +23199,7 @@ function handleLogTableClick(
 
   const log =
     appState.logs.find(
-      (item) => {
+      item => {
         return (
           String(
             item?.id ||
@@ -23156,87 +23220,21 @@ function handleLogTableClick(
   }
 
 
-  /*
-    data-action이 없는 업무 내용 미리보기는
-    상세보기로 처리한다.
-  */
   const action =
     String(
-      actionElement?.dataset
-        .action ||
-      "view"
+      actionElement?.dataset.action ||
+      ""
     ).trim();
 
 
-  /*
-    첨부파일 보기
-  */
-  if (
-    action ===
-    "attachment"
-  ) {
-    event.preventDefault();
-    event.stopPropagation();
+  /* =====================================================
+    삭제
+  ====================================================== */
 
-
-    const attachments =
-      Array.isArray(
-        log.attachments
-      )
-        ? log.attachments.filter(
-            Boolean
-          )
-        : [];
-
-
-    if (
-      attachments.length === 0
-    ) {
-      showToast(
-        "등록된 첨부파일이 없습니다."
-      );
-
-      return;
-    }
-
-
-    openAttachmentSelector(
-      attachments,
-      log.id
-    );
-
-    return;
-  }
-
-
-  /*
-    업무일지 수정
-  */
-  if (
-    action ===
-    "edit"
-  ) {
-    event.preventDefault();
-    event.stopPropagation();
-
-    openLogEditor(
-      log
-    );
-
-    return;
-  }
-
-
-  /*
-    업무일지 삭제
-  */
   if (
     action ===
     "delete"
   ) {
-    event.preventDefault();
-    event.stopPropagation();
-
     deleteLogById(
       log.id
     );
@@ -23245,12 +23243,44 @@ function handleLogTableClick(
   }
 
 
-  /*
-    업무 내용 클릭 또는 보기 버튼 클릭
-    → 업무일지 상세보기
-  */
-  event.preventDefault();
-  event.stopPropagation();
+  /* =====================================================
+    수정
+
+    수정할 수 없으면 토스트만 띄우는 대신
+    상세창을 열어 조회할 수 있게 한다.
+  ====================================================== */
+
+  if (
+    action ===
+    "edit"
+  ) {
+    if (
+      canCurrentUserEditShiftLog(
+        log
+      )
+    ) {
+      openLogEditor(
+        log
+      );
+
+      return;
+    }
+
+
+    openLogDetail(
+      log
+    );
+
+    return;
+  }
+
+
+  /* =====================================================
+    업무내용·행·보기 클릭
+
+    권한이나 과거 자료 여부와 관계없이
+    무조건 상세창을 연다.
+  ====================================================== */
 
   openLogDetail(
     log

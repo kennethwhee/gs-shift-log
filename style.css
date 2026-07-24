@@ -20404,3 +20404,296 @@ td {
   padding: 4px 0 !important;
   min-height: 0 !important;
 }
+
+/* =========================================================
+   업무일지 상세 운전현황 초컴팩트 최종본
+
+   표시:
+   보직 | 상태 | 설비명 : 내용
+========================================================= */
+
+
+/* 운전현황 본문 여백 */
+#logDetailModal
+.detail-operation-dashboard {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+/* TGO 운전현황 같은 내부 제목 */
+#logDetailModal
+.detail-operation-dashboard__heading {
+  display: flex !important;
+  min-height: 27px !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin: 0 !important;
+  padding: 2px 0 5px !important;
+}
+
+#logDetailModal
+.detail-operation-dashboard__heading strong {
+  margin: 0 !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+}
+
+#logDetailModal
+.detail-operation-dashboard__dot {
+  width: 6px !important;
+  height: 6px !important;
+  flex: 0 0 6px !important;
+}
+
+
+/* 운전현황 목록 */
+#logDetailModal
+.detail-operation-dashboard__list {
+  display: flex !important;
+  width: 100% !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid #e1e7ee !important;
+  border-radius: 7px !important;
+  background: #ffffff !important;
+}
+
+
+/* 운전현황 한 줄 */
+#logDetailModal
+.detail-operation-dashboard__row {
+  display: grid !important;
+  grid-template-columns:
+    45px
+    58px
+    1px
+    minmax(105px, 165px)
+    minmax(0, 1fr) !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 31px !important;
+  height: auto !important;
+
+  align-items: center !important;
+  gap: 7px !important;
+
+  margin: 0 !important;
+  padding: 4px 9px !important;
+
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+
+  font-size: 11px !important;
+  line-height: 1.3 !important;
+}
+
+
+/* 행 사이 선 */
+#logDetailModal
+.detail-operation-dashboard__row
++
+.detail-operation-dashboard__row {
+  border-top: 1px solid #e8edf3 !important;
+}
+
+
+/* 보직 */
+#logDetailModal
+.detail-operation-dashboard__role {
+  min-width: 0 !important;
+  margin: 0 !important;
+  color: #283b55 !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+
+/* 상태 배지 */
+#logDetailModal
+.detail-operation-dashboard__badge {
+  display: inline-flex !important;
+  width: 58px !important;
+  min-width: 58px !important;
+  min-height: 20px !important;
+  height: 20px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 5px !important;
+
+  border-radius: 999px !important;
+
+  font-size: 9px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+
+/* 세로 구분선 */
+#logDetailModal
+.detail-operation-dashboard__divider {
+  display: block !important;
+  width: 1px !important;
+  height: 13px !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  background: #d7dee8 !important;
+  color: transparent !important;
+}
+
+
+/* 설비명 */
+#logDetailModal
+.detail-operation-dashboard__equipment,
+#logDetailModal
+.detail-operation-dashboard__name {
+  min-width: 0 !important;
+  margin: 0 !important;
+  color: #253a54 !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1.3 !important;
+  white-space: nowrap !important;
+}
+
+
+/* 내용 */
+#logDetailModal
+.detail-operation-dashboard__content,
+#logDetailModal
+.detail-operation-dashboard__text {
+  min-width: 0 !important;
+  margin: 0 !important;
+  color: #394b61 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
+
+/* 내부에 p나 div가 추가되어 있어도 기본 여백 제거 */
+#logDetailModal
+.detail-operation-dashboard__row p,
+#logDetailModal
+.detail-operation-dashboard__row div,
+#logDetailModal
+.detail-operation-dashboard__row span,
+#logDetailModal
+.detail-operation-dashboard__row strong {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+
+/* =========================================================
+   상세 TM·인계·비고 줄 높이 함께 축소
+========================================================= */
+
+#logDetailModal
+.detail-work-list,
+#logDetailModal
+.detail-operation-list {
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#logDetailModal
+.detail-work-row {
+  min-height: 29px !important;
+  gap: 5px !important;
+  margin: 0 !important;
+  padding: 4px 0 !important;
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+}
+
+#logDetailModal
+.detail-work-row
++
+.detail-work-row {
+  border-top: 1px solid #edf1f5 !important;
+}
+
+#logDetailModal
+.detail-operation-row {
+  min-height: 27px !important;
+  gap: 5px !important;
+  margin: 0 !important;
+  padding: 3px 0 !important;
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+}
+
+
+/* 상세 구역 본문 자체도 조금 더 축소 */
+#logDetailModal
+.shift-log-detail-section__body {
+  min-height: 0 !important;
+  padding: 7px 11px !important;
+}
+
+#logDetailModal
+.shift-log-detail-section__body--roles {
+  padding-top: 3px !important;
+  padding-bottom: 4px !important;
+}
+
+
+/* =========================================================
+   모바일
+========================================================= */
+
+@media (max-width: 700px) {
+
+  #logDetailModal
+  .detail-operation-dashboard__row {
+    grid-template-columns:
+      37px
+      52px
+      1px
+      minmax(85px, 115px)
+      minmax(0, 1fr) !important;
+
+    gap: 5px !important;
+    min-height: 30px !important;
+    padding: 4px 6px !important;
+  }
+
+  #logDetailModal
+  .detail-operation-dashboard__badge {
+    width: 52px !important;
+    min-width: 52px !important;
+    font-size: 8px !important;
+  }
+
+  #logDetailModal
+  .detail-operation-dashboard__role,
+  #logDetailModal
+  .detail-operation-dashboard__equipment,
+  #logDetailModal
+  .detail-operation-dashboard__name,
+  #logDetailModal
+  .detail-operation-dashboard__content,
+  #logDetailModal
+  .detail-operation-dashboard__text {
+    font-size: 9px !important;
+  }
+
+}
