@@ -26206,57 +26206,83 @@ function openLogDetail(
     항목 한 개 정규화
   ====================================================== */
 
-  const normalizeDetailEntry = (
-    entry,
-    fallbackCategory
-  ) => {
-    return normalizeExistingLogEntryTime({
-      ...entry,
+const normalizeDetailEntry = (
+  entry,
+  fallbackCategory
+) => {
+  const sourceEntry =
+    entry &&
+    typeof entry ===
+      "object" &&
+    !Array.isArray(
+      entry
+    )
+      ? entry
+      : {
+          content:
+            String(
+              entry ||
+              ""
+            ).trim()
+        };
 
-      category:
-        String(
-          entry?.category ||
-          fallbackCategory ||
-          "인계사항"
-        ).trim(),
 
-      time:
-        String(
-          entry?.time ||
-          ""
-        ).trim(),
+  return normalizeExistingLogEntryTime({
+    ...sourceEntry,
 
-      tag:
-        String(
-          entry?.tag ||
-          ""
-        )
-          .trim()
-          .toUpperCase(),
+    category:
+      String(
+        sourceEntry.category ||
+        fallbackCategory ||
+        "인계사항"
+      ).trim(),
 
-      content:
-        String(
-          entry?.content ||
-          ""
-        ).trim()
-    });
-  };
+    time:
+      String(
+        sourceEntry.time ||
+        ""
+      ).trim(),
+
+    tag:
+      String(
+        sourceEntry.tag ||
+        ""
+      )
+        .trim()
+        .toUpperCase(),
+
+    content:
+      String(
+        sourceEntry.content ||
+        ""
+      ).trim()
+  });
+};
 
 
   /* =====================================================
     새 분리 구조 존재 여부
   ====================================================== */
 
-  const hasSeparatedStructure =
+const hasSeparatedStructure =
+  (
     Array.isArray(
       log.tmEntries
-    ) ||
+    ) &&
+    log.tmEntries.length > 0
+  ) ||
+  (
     Array.isArray(
       log.handoverEntries
-    ) ||
+    ) &&
+    log.handoverEntries.length > 0
+  ) ||
+  (
     Array.isArray(
       log.remarkEntries
-    );
+    ) &&
+    log.remarkEntries.length > 0
+  );
 
 
   const legacyEntries =
@@ -26484,54 +26510,6 @@ function openLogDetail(
     ...handoverEntries,
     ...remarkEntries
   ];
-
-
-  log.entries =
-    combinedEntries.map(
-      (
-        entry
-      ) => {
-        return {
-          ...entry
-        };
-      }
-    );
-
-
-  log.tmEntries =
-    tmEntries.map(
-      (
-        entry
-      ) => {
-        return {
-          ...entry
-        };
-      }
-    );
-
-
-  log.handoverEntries =
-    handoverEntries.map(
-      (
-        entry
-      ) => {
-        return {
-          ...entry
-        };
-      }
-    );
-
-
-  log.remarkEntries =
-    remarkEntries.map(
-      (
-        entry
-      ) => {
-        return {
-          ...entry
-        };
-      }
-    );
 
 
   /* =====================================================
@@ -27422,7 +27400,7 @@ function openLogDetail(
 
 
           <div class="shift-log-detail-section__body">
-            ${noteHtml}
+            ${remarkHtml}
           </div>
 
         </section>
