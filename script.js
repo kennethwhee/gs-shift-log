@@ -11053,7 +11053,7 @@ function inferOperationStatusTypeFromText(
 
 
   /*
-    비상 상태를 가장 먼저 확인한다.
+    비상 상태
   */
   if (
     normalizedText.includes(
@@ -11070,6 +11070,24 @@ function inferOperationStatusTypeFromText(
     )
   ) {
     return "emergency";
+  }
+
+
+  /*
+    보존 상태
+
+    만수 보존은 정지가 아니라
+    화면의 "보존" 상태로 표시한다.
+  */
+  if (
+    normalizedText.includes(
+      "만수보존"
+    ) ||
+    normalizedText.includes(
+      "보존중"
+    )
+  ) {
+    return "abnormal";
   }
 
 
@@ -11095,18 +11113,9 @@ function inferOperationStatusTypeFromText(
 
 
   /*
-    정지 또는 보존 상태
-
-    만수보존은 실제 운전 중이 아니므로
-    정지 상태로 분류한다.
+    정지 상태
   */
   if (
-    normalizedText.includes(
-      "만수보존"
-    ) ||
-    normalizedText.includes(
-      "보존중"
-    ) ||
     normalizedText.includes(
       "정지"
     ) ||
@@ -11141,7 +11150,6 @@ function inferOperationStatusTypeFromText(
 
   return "normal";
 }
-
 /* =========================================================
   설비별 운전현황 항목 정규화 최종본
 
@@ -27330,25 +27338,6 @@ function bindDetailAttachmentPreviewEvents(
     );
 }
 
-/* =========================================================
-  저장된 운전현황 → 상세보기 행 분석 최종본
-
-  표시 규칙:
-
-  TGO · BCO1 · BCO2
-  - 설비별 운전현황
-  - 각 설비를 한 행씩 표시
-
-  파트장
-  - [TGO], [BCO1], [BCO2] 구분을 분석
-  - 설비별로 한 행씩 표시
-
-  TO · BO1 · BO2
-  - 자유 텍스트 운전현황
-  - 줄마다 분리하지 않음
-  - 전체 내용을 한 행으로 유지
-========================================================= */
-
 function parseOperationStatusRowsForDisplay(
   log
 ) {
@@ -27365,6 +27354,14 @@ function parseOperationStatusRowsForDisplay(
       ""
     )
       .replace(
+        /<br\s*\/?>/gi,
+        "\n"
+      )
+      .replace(
+        /\\n/g,
+        "\n"
+      )
+      .replace(
         /\r\n/g,
         "\n"
       )
@@ -27376,7 +27373,19 @@ function parseOperationStatusRowsForDisplay(
 
 
   if (
-    !sourceText
+    !sourceText &&
+    !(
+      Array.isArray(
+        log?.operationItems
+      ) &&
+      log.operationItems.length
+    ) &&
+    !(
+      Array.isArray(
+        log?.items
+      ) &&
+      log.items.length
+    )
   ) {
     return [];
   }
@@ -27389,14 +27398,10 @@ function parseOperationStatusRowsForDisplay(
   ];
 
 
-  /* =====================================================
-    TO · BO1 · BO2
-
-    자유 텍스트 전체를 하나의 행으로 표시한다.
-
-    기존처럼 줄 단위로 분리하지 않는다.
-  ====================================================== */
-
+  /*
+    TO · BO1 · BO2는
+    자유 텍스트 전체를 한 행으로 표시한다.
+  */
   if (
     freeTextRoles.includes(
       normalizedLogRole
@@ -27423,13 +27428,6 @@ function parseOperationStatusRowsForDisplay(
   }
 
 
-  /* =====================================================
-    신규 설비별 배열이 저장된 경우
-
-    TGO · BCO1 · BCO2 업무일지는
-    operationItems를 가장 우선 사용한다.
-  ====================================================== */
-
   const savedOperationItems =
     Array.isArray(
       log?.operationItems
@@ -27444,10 +27442,57 @@ function parseOperationStatusRowsForDisplay(
         );
 
 
+  /*
+    과거 원문에 실제 운전현황이
+    몇 줄 저장되어 있는지 확인한다.
+
+    operationItems에는 첫 줄만 남아 있고
+    원문에는 여러 줄이 남아 있는 과거 자료를
+    구분하기 위한 처리다.
+  */
+  const sourceOperationLineCount =
+    sourceText
+      .split(
+        "\n"
+      )
+      .map(
+        line => {
+          return String(
+            line ||
+            ""
+          ).trim();
+        }
+      )
+      .filter(
+        line => {
+          return (
+            Boolean(
+              line
+            ) &&
+            !/^\[\s*(?:TGO|BCO1|BCO2|TO|BO1|BO2|파트장)\s*\]$/i
+              .test(
+                line
+              )
+          );
+        }
+      )
+      .length;
+
+
+  /*
+    저장된 배열이 원문 줄 수 이상일 때만
+    operationItems를 우선 사용한다.
+
+    배열이 1개이고 원문이 여러 줄이면
+    아래 원문 분석 과정으로 내려가
+    모든 운전현황을 표시한다.
+  */
   if (
     savedOperationItems.length &&
     normalizedLogRole !==
-      "파트장"
+      "파트장" &&
+    savedOperationItems.length >=
+      sourceOperationLineCount
   ) {
     return savedOperationItems
       .map(
@@ -27501,8 +27546,11 @@ function parseOperationStatusRowsForDisplay(
               normalizedLogRole,
 
             type:
-              normalizeOperationStatusType(
-                normalizedItem.type
+              inferOperationStatusTypeFromText(
+                [
+                  equipmentName,
+                  operationContent
+                ].join(" ")
               ),
 
             content:
@@ -27518,9 +27566,7 @@ function parseOperationStatusRowsForDisplay(
         }
       )
       .filter(
-        (
-          row
-        ) => {
+        row => {
           return Boolean(
             String(
               row.content ||
@@ -27538,9 +27584,7 @@ function parseOperationStatusRowsForDisplay(
         "\n"
       )
       .map(
-        (
-          line
-        ) => {
+        line => {
           return String(
             line ||
             ""
@@ -27560,10 +27604,10 @@ function parseOperationStatusRowsForDisplay(
       : normalizedLogRole;
 
 
-  /* =====================================================
-    한 줄 내용을 설비명과 내용으로 구분
-  ====================================================== */
-
+  /*
+    한 줄의 운전현황을
+    설비명과 상태 내용으로 구분한다.
+  */
   const createOperationRow =
     (
       role,
@@ -27576,6 +27620,13 @@ function parseOperationStatusRowsForDisplay(
         );
 
 
+      /*
+        앞에 붙은 번호를 제거한다.
+
+        1. 내용
+        2) 내용
+        3 - 내용
+      */
       const contentWithoutNumber =
         String(
           rawLine ||
@@ -27595,6 +27646,14 @@ function parseOperationStatusRowsForDisplay(
       }
 
 
+      /*
+        설비명과 운전 내용을 구분한다.
+
+        지원 구분자:
+        :
+        ：
+        |
+      */
       const separatorMatch =
         contentWithoutNumber.match(
           /^(.+?)\s*(?:[:：|])\s*(.+)$/
@@ -27632,9 +27691,11 @@ function parseOperationStatusRowsForDisplay(
           normalizedRole,
 
         type:
-          getSavedOperationStatusTypeForDisplay(
-            log,
-            normalizedRole
+          inferOperationStatusTypeFromText(
+            [
+              equipmentName,
+              operationContent
+            ].join(" ")
           ),
 
         content:
@@ -27652,14 +27713,11 @@ function parseOperationStatusRowsForDisplay(
     };
 
 
-  /* =====================================================
-    파트장 및 기존 설비형 자료 분석
-  ====================================================== */
-
+  /*
+    파트장 및 기존 설비형 운전현황 분석
+  */
   sourceLines.forEach(
-    (
-      sourceLine
-    ) => {
+    sourceLine => {
       const roleMatch =
         sourceLine.match(
           /^\[\s*(TGO|BCO1|BCO2|TO|BO1|BO2|파트장)\s*\]$/i
@@ -27705,12 +27763,10 @@ function parseOperationStatusRowsForDisplay(
   );
 
 
-  /* =====================================================
-    분석 결과가 없는 예외 자료
-
-    원문 전체를 하나의 행으로 유지한다.
-  ====================================================== */
-
+  /*
+    분석 결과가 없는 예외 자료는
+    원문 전체를 한 행으로 유지한다.
+  */
   if (
     !rows.length
   ) {
@@ -27756,6 +27812,60 @@ function getSavedOperationStatusTypeForDisplay(
 
 
   /*
+    과거 일지에 저장된 상태값이
+    정상운전으로 잘못 남아 있더라도,
+    실제 운전현황 문구에 보존 내용이 있으면
+    보존 상태를 우선 적용한다.
+  */
+  const sourceText =
+    String(
+      log?.operationStatus ||
+      ""
+    )
+      .replace(
+        /<br\s*\/?>/gi,
+        "\n"
+      )
+      .replace(
+        /\\n/g,
+        "\n"
+      )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .trim();
+
+
+  const normalizedSourceText =
+    sourceText
+      .toLowerCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  if (
+    normalizedSourceText.includes(
+      "만수보존"
+    ) ||
+    normalizedSourceText.includes(
+      "보존중"
+    ) ||
+    normalizedSourceText.includes(
+      "보존상태"
+    )
+  ) {
+    return "abnormal";
+  }
+
+
+  /*
     업무일지 안에 보직별 운전현황 배열이
     함께 저장된 경우
   */
@@ -27775,9 +27885,7 @@ function getSavedOperationStatusTypeForDisplay(
 
   const matchedStatus =
     memberStatuses.find(
-      (
-        item
-      ) => {
+      item => {
         return (
           normalizeMemberLogRole(
             item?.role
@@ -27791,6 +27899,41 @@ function getSavedOperationStatusTypeForDisplay(
   if (
     matchedStatus
   ) {
+    /*
+      보직별 저장 내용에도
+      보존 문구가 있는지 한 번 더 확인한다.
+    */
+    const matchedStatusText =
+      [
+        matchedStatus?.name,
+        matchedStatus?.content,
+        matchedStatus?.text,
+        matchedStatus?.status
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .replace(
+          /\s+/g,
+          ""
+        );
+
+
+    if (
+      matchedStatusText.includes(
+        "만수보존"
+      ) ||
+      matchedStatusText.includes(
+        "보존중"
+      ) ||
+      matchedStatusText.includes(
+        "보존상태"
+      )
+    ) {
+      return "abnormal";
+    }
+
+
     return normalizeOperationStatusType(
       matchedStatus.type
     );
