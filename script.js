@@ -149,7 +149,9 @@ function clearCurrentUser() {
   );
 }
 
-function openShiftLogApp(user) {
+function openShiftLogApp(
+  user
+) {
   const {
     loginScreen,
     appShell,
@@ -159,60 +161,108 @@ function openShiftLogApp(user) {
     getLoginElements();
 
 
-  if (loginScreen) {
+  if (
+    loginScreen
+  ) {
     loginScreen.hidden =
       true;
   }
 
 
-  if (appShell) {
+  if (
+    appShell
+  ) {
     appShell.hidden =
       false;
   }
 
 
-  if (headerUserName) {
-    headerUserName.textContent =
+  const employeeNo =
+    String(
+      user?.employeeNo ||
+      user?.employee_no ||
+      user?.employeeId ||
+      user?.employee_id ||
+      ""
+    ).trim();
+
+
+  const employeeName =
+    String(
       user?.name ||
       user?.employeeName ||
-      user?.employeeId ||
-      user?.employeeNo ||
+      user?.employee_name ||
+      ""
+    ).trim();
+
+
+  if (
+    headerUserName
+  ) {
+    headerUserName.textContent =
+      employeeName ||
+      employeeNo ||
       "사용자";
   }
 
 
   /*
-    최고관리자만 관리자 버튼 표시
-
-    허용 권한:
-    super_admin
-
-    과거 계정 호환:
-    superadmin
+    로그인 API마다 권한 필드명이 다를 수 있으므로
+    지원 가능한 필드를 모두 확인한다.
   */
-  const userRole =
+  const rawRole =
     String(
       user?.role ||
+      user?.userRole ||
+      user?.user_role ||
+      user?.permission ||
+      user?.authority ||
+      user?.accessRole ||
       ""
     )
       .trim()
-      .toLowerCase();
+      .toLowerCase()
+      .replace(
+        /\s+/g,
+        "_"
+      );
 
 
+  /*
+    최고관리자 권한 판정
+  */
   const isSuperAdmin =
-    userRole ===
-      "super_admin" ||
-    userRole ===
-      "superadmin";
+    [
+      "super_admin",
+      "superadmin",
+      "최고관리자"
+    ].includes(
+      rawRole
+    );
 
 
-  if (adminButton) {
+  if (
+    adminButton
+  ) {
     adminButton.hidden =
       !isSuperAdmin;
 
     adminButton.disabled =
       !isSuperAdmin;
   }
+
+
+  console.log(
+    "로그인 사용자 확인:",
+    {
+      employeeNo,
+      employeeName,
+      rawRole,
+      isSuperAdmin,
+      originalUser:
+        user
+    }
+  );
 }
 
 function openLoginScreen() {
@@ -449,20 +499,37 @@ function isCurrentUserSuperAdmin() {
     loadCurrentUser();
 
 
+  if (
+    !currentUser
+  ) {
+    return false;
+  }
+
+
   const currentRole =
     String(
       currentUser?.role ||
+      currentUser?.userRole ||
+      currentUser?.user_role ||
+      currentUser?.permission ||
+      currentUser?.authority ||
+      currentUser?.accessRole ||
       ""
     )
       .trim()
-      .toLowerCase();
+      .toLowerCase()
+      .replace(
+        /\s+/g,
+        "_"
+      );
 
 
-  return (
-    currentRole ===
-      "super_admin" ||
-    currentRole ===
-      "superadmin"
+  return [
+    "super_admin",
+    "superadmin",
+    "최고관리자"
+  ].includes(
+    currentRole
   );
 }
 
@@ -1995,11 +2062,6 @@ employeeManagementSearch?.addEventListener(
   openLoginScreen();
 }
 
-
-document.addEventListener(
-  "DOMContentLoaded",
-  initializeShiftLogLogin
-);
 
 document.addEventListener(
   "DOMContentLoaded",
@@ -24798,34 +24860,34 @@ function bindDetailAttachmentPreviewEvents(
 }
 
 /* =========================================================
-  저장된 운전현황 → 보직별 행 분석
+  저장된 운전현황 → 상세보기 행 분석 최종본
 
-  저장 원문 예:
+  표시 규칙:
 
-  [TGO]
-  #1 TBN 정상 운전 중
+  TGO · BCO1 · BCO2
+  - 설비별 운전현황
+  - 각 설비를 한 행씩 표시
 
-  [BCO1]
-  #1 BLR 정상 운전 중
+  파트장
+  - [TGO], [BCO1], [BCO2] 구분을 분석
+  - 설비별로 한 행씩 표시
 
-  [BCO2]
-  #2 BLR 정상 운전 중
-
-  결과:
-
-  [
-    {
-      role: "TGO",
-      type: "normal",
-      content: "#1 TBN 정상 운전 중"
-    },
-    ...
-  ]
+  TO · BO1 · BO2
+  - 자유 텍스트 운전현황
+  - 줄마다 분리하지 않음
+  - 전체 내용을 한 행으로 유지
 ========================================================= */
 
 function parseOperationStatusRowsForDisplay(
   log
 ) {
+  const normalizedLogRole =
+    normalizeMemberLogRole(
+      log?.role ||
+      ""
+    );
+
+
   const sourceText =
     String(
       log?.operationStatus ||
@@ -24849,6 +24911,156 @@ function parseOperationStatusRowsForDisplay(
   }
 
 
+  const freeTextRoles = [
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  /* =====================================================
+    TO · BO1 · BO2
+
+    자유 텍스트 전체를 하나의 행으로 표시한다.
+
+    기존처럼 줄 단위로 분리하지 않는다.
+  ====================================================== */
+
+  if (
+    freeTextRoles.includes(
+      normalizedLogRole
+    )
+  ) {
+    return [
+      {
+        role:
+          normalizedLogRole,
+
+        type:
+          getSavedOperationStatusTypeForDisplay(
+            log,
+            normalizedLogRole
+          ),
+
+        content:
+          sourceText,
+
+        isFreeText:
+          true
+      }
+    ];
+  }
+
+
+  /* =====================================================
+    신규 설비별 배열이 저장된 경우
+
+    TGO · BCO1 · BCO2 업무일지는
+    operationItems를 가장 우선 사용한다.
+  ====================================================== */
+
+  const savedOperationItems =
+    Array.isArray(
+      log?.operationItems
+    )
+      ? log.operationItems
+      : (
+          Array.isArray(
+            log?.items
+          )
+            ? log.items
+            : []
+        );
+
+
+  if (
+    savedOperationItems.length &&
+    normalizedLogRole !==
+      "파트장"
+  ) {
+    return savedOperationItems
+      .map(
+        (
+          item,
+          itemIndex
+        ) => {
+          const normalizedItem =
+            normalizeOperationStatusItem(
+              {
+                ...item,
+
+                role:
+                  normalizedLogRole,
+
+                sourceRole:
+                  item?.sourceRole ||
+                  normalizedLogRole
+              },
+              itemIndex
+            );
+
+
+          const equipmentName =
+            String(
+              normalizedItem.name ||
+              ""
+            ).trim();
+
+
+          const operationContent =
+            String(
+              normalizedItem.content ||
+              ""
+            ).trim();
+
+
+          const combinedContent =
+            equipmentName
+              ? [
+                  equipmentName,
+                  operationContent
+                ]
+                  .filter(Boolean)
+                  .join(" : ")
+              : operationContent;
+
+
+          return {
+            role:
+              normalizedLogRole,
+
+            type:
+              normalizeOperationStatusType(
+                normalizedItem.type
+              ),
+
+            content:
+              combinedContent,
+
+            equipmentName,
+
+            operationContent,
+
+            isEquipment:
+              true
+          };
+        }
+      )
+      .filter(
+        (
+          row
+        ) => {
+          return Boolean(
+            String(
+              row.content ||
+              ""
+            ).trim()
+          );
+        }
+      );
+  }
+
+
   const sourceLines =
     sourceText
       .split(
@@ -24869,21 +25081,114 @@ function parseOperationStatusRowsForDisplay(
 
   const rows = [];
 
-  let currentRole =
-    "";
 
+  let currentRole =
+    normalizedLogRole ===
+      "파트장"
+      ? ""
+      : normalizedLogRole;
+
+
+  /* =====================================================
+    한 줄 내용을 설비명과 내용으로 구분
+  ====================================================== */
+
+  const createOperationRow =
+    (
+      role,
+      rawLine
+    ) => {
+      const normalizedRole =
+        normalizeMemberLogRole(
+          role ||
+          normalizedLogRole
+        );
+
+
+      const contentWithoutNumber =
+        String(
+          rawLine ||
+          ""
+        )
+          .replace(
+            /^\s*\d+\s*(?:[.)]|-\s+)\s*/,
+            ""
+          )
+          .trim();
+
+
+      if (
+        !contentWithoutNumber
+      ) {
+        return null;
+      }
+
+
+      const separatorMatch =
+        contentWithoutNumber.match(
+          /^(.+?)\s*(?:[:：|])\s*(.+)$/
+        );
+
+
+      let equipmentName =
+        "";
+
+
+      let operationContent =
+        contentWithoutNumber;
+
+
+      if (
+        separatorMatch
+      ) {
+        equipmentName =
+          String(
+            separatorMatch[1] ||
+            ""
+          ).trim();
+
+
+        operationContent =
+          String(
+            separatorMatch[2] ||
+            ""
+          ).trim();
+      }
+
+
+      return {
+        role:
+          normalizedRole,
+
+        type:
+          getSavedOperationStatusTypeForDisplay(
+            log,
+            normalizedRole
+          ),
+
+        content:
+          equipmentName
+            ? `${equipmentName} : ${operationContent}`
+            : operationContent,
+
+        equipmentName,
+
+        operationContent,
+
+        isEquipment:
+          true
+      };
+    };
+
+
+  /* =====================================================
+    파트장 및 기존 설비형 자료 분석
+  ====================================================== */
 
   sourceLines.forEach(
     (
       sourceLine
     ) => {
-      /*
-        [TGO]
-        [BCO1]
-        [BCO2]
-
-        보직 줄 확인
-      */
       const roleMatch =
         sourceLine.match(
           /^\[\s*(TGO|BCO1|BCO2|TO|BO1|BO2|파트장)\s*\]$/i
@@ -24898,109 +25203,69 @@ function parseOperationStatusRowsForDisplay(
             roleMatch[1]
           );
 
+
         return;
       }
 
 
-      /*
-        이전 코드가 생성한 수기 번호 제거
+      const targetRole =
+        currentRole ||
+        normalizedLogRole;
 
-        1. 내용
-        2) 내용
-      */
-      const content =
-        sourceLine
-          .replace(
-            /^\s*\d+\s*[.)\-]\s*/,
-            ""
-          )
-          .trim();
+
+      const createdRow =
+        createOperationRow(
+          targetRole,
+          sourceLine
+        );
 
 
       if (
-        !content
+        !createdRow
       ) {
         return;
       }
 
 
-      /*
-        보직명이 앞에서 확인된 경우
-        해당 보직의 내용으로 등록한다.
-      */
-      if (
-        currentRole
-      ) {
-        rows.push({
-          role:
-            currentRole,
-
-          type:
-            getSavedOperationStatusTypeForDisplay(
-              log,
-              currentRole
-            ),
-
-          content
-        });
-
-
-        currentRole =
-          "";
-
-        return;
-      }
-
-
-      /*
-        일반 보직 업무일지처럼
-        [보직] 표시가 없는 운전현황
-      */
-      rows.push({
-        role:
-          normalizeMemberLogRole(
-            log?.role ||
-            ""
-          ),
-
-        type:
-          getSavedOperationStatusTypeForDisplay(
-            log,
-            log?.role
-          ),
-
-        content
-      });
+      rows.push(
+        createdRow
+      );
     }
   );
 
 
-  /*
-    [TGO]처럼 보직만 있고
-    실제 내용이 없는 예외 자료
-  */
+  /* =====================================================
+    분석 결과가 없는 예외 자료
+
+    원문 전체를 하나의 행으로 유지한다.
+  ====================================================== */
+
   if (
-    currentRole
+    !rows.length
   ) {
-    rows.push({
-      role:
-        currentRole,
+    return [
+      {
+        role:
+          normalizedLogRole,
 
-      type:
-        getSavedOperationStatusTypeForDisplay(
-          log,
-          currentRole
-        ),
+        type:
+          getSavedOperationStatusTypeForDisplay(
+            log,
+            normalizedLogRole
+          ),
 
-      content:
-        "등록된 운전현황이 없습니다."
-    });
+        content:
+          sourceText,
+
+        isFreeText:
+          true
+      }
+    ];
   }
 
 
   return rows;
 }
-
 
 /* =========================================================
   표시용 운전 상태 확인
