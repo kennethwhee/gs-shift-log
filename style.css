@@ -19876,3 +19876,496 @@ td {
     flex: 1;
   }
 }
+
+/* =========================================================
+   업무일지 상세보기 컴팩트 최종본
+
+   적용 대상:
+   - 업무일지 상세 모달만
+   - 기본정보
+   - 운전현황
+   - TM 발행 내역
+   - 인계사항
+   - 비고
+   - 첨부파일
+========================================================= */
+
+
+/* =========================================================
+   상세 모달 전체 크기
+========================================================= */
+
+#logDetailModal
+.log-detail-modal {
+  width: min(920px, calc(100vw - 40px)) !important;
+  max-height: calc(100vh - 36px) !important;
+  border-radius: 14px !important;
+}
+
+
+/* =========================================================
+   상단 제목 영역 축소
+========================================================= */
+
+#logDetailModal
+.log-detail-modal__header {
+  min-height: 58px !important;
+  padding: 10px 15px !important;
+}
+
+#logDetailModal
+.log-detail-modal__header
+.modal-header__eyebrow {
+  margin-bottom: 1px !important;
+  font-size: 8px !important;
+  line-height: 1.1 !important;
+}
+
+#logDetailModal
+.log-detail-modal__header
+.modal-header__title {
+  font-size: 19px !important;
+  line-height: 1.2 !important;
+}
+
+#logDetailModal
+.log-detail-modal__header
+.modal-close-button {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  min-height: 34px !important;
+  border-radius: 8px !important;
+  font-size: 25px !important;
+}
+
+
+/* =========================================================
+   상세 본문 여백 축소
+========================================================= */
+
+#logDetailModal
+.log-detail-modal__body,
+#logDetailModal
+#logDetailContent {
+  gap: 9px !important;
+  padding: 10px 12px 13px !important;
+}
+
+
+/* 상세 본문 안의 직접 자식 간격 */
+#logDetailModal
+#logDetailContent {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+
+/* =========================================================
+   상세 최상단 업무일지 제목 카드
+========================================================= */
+
+#logDetailModal
+.detail-document {
+  gap: 9px !important;
+}
+
+#logDetailModal
+.detail-document-header,
+#logDetailModal
+.detail-document__header,
+#logDetailModal
+.detail-document-title-area {
+  padding: 10px 12px !important;
+}
+
+#logDetailModal
+.detail-document-header__eyebrow,
+#logDetailModal
+.detail-document__eyebrow {
+  margin-bottom: 1px !important;
+  font-size: 8px !important;
+  line-height: 1 !important;
+}
+
+#logDetailModal
+.detail-document-header h2,
+#logDetailModal
+.detail-document__title,
+#logDetailModal
+.detail-document-title {
+  margin: 0 !important;
+  font-size: 18px !important;
+  line-height: 1.25 !important;
+}
+
+
+/* =========================================================
+   기본정보 6칸 축소
+========================================================= */
+
+#logDetailModal
+.detail-document-summary,
+#logDetailModal
+.detail-summary-grid {
+  gap: 6px !important;
+  padding: 8px 10px 10px !important;
+}
+
+#logDetailModal
+.detail-document-summary__item,
+#logDetailModal
+.detail-summary-grid > div {
+  min-height: 43px !important;
+  padding: 6px 9px !important;
+  border-radius: 7px !important;
+}
+
+#logDetailModal
+.detail-document-summary__item > span,
+#logDetailModal
+.detail-summary-grid > div > span {
+  margin-bottom: 1px !important;
+  font-size: 9px !important;
+  line-height: 1.15 !important;
+}
+
+#logDetailModal
+.detail-document-summary__item > strong,
+#logDetailModal
+.detail-summary-grid > div > strong {
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+}
+
+
+/* =========================================================
+   각 구역 카드 높이 축소
+========================================================= */
+
+#logDetailModal
+.detail-document-section,
+#logDetailModal
+.detail-section {
+  margin: 0 !important;
+  border-radius: 9px !important;
+}
+
+
+/* 구역 상단 제목 */
+#logDetailModal
+.detail-document-section__header,
+#logDetailModal
+.detail-section > h3 {
+  min-height: 42px !important;
+  margin: 0 !important;
+  padding: 7px 11px !important;
+}
+
+#logDetailModal
+.detail-section > h3 {
+  display: flex !important;
+  align-items: center !important;
+  border-bottom: 1px solid #dbe3ec !important;
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+}
+
+#logDetailModal
+.detail-document-section__header h3 {
+  margin: 0 !important;
+  font-size: 14px !important;
+  line-height: 1.2 !important;
+}
+
+
+/* 영문 소제목 */
+#logDetailModal
+.detail-document-section__eyebrow {
+  margin-bottom: 1px !important;
+  font-size: 8px !important;
+  line-height: 1 !important;
+}
+
+
+/* 건수 배지 */
+#logDetailModal
+.detail-document-count {
+  min-width: 30px !important;
+  min-height: 21px !important;
+  padding: 0 7px !important;
+  font-size: 9px !important;
+}
+
+
+/* =========================================================
+   운전현황 전체 안쪽 여백 축소
+========================================================= */
+
+#logDetailModal
+.detail-operation-status,
+#logDetailModal
+.detail-document-section__body,
+#logDetailModal
+.detail-role-entry-list {
+  padding: 7px 11px !important;
+}
+
+
+/* 운전현황 제목 */
+#logDetailModal
+.detail-operation-status-title,
+#logDetailModal
+.detail-operation-role-title {
+  margin: 0 0 5px !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+}
+
+
+/* =========================================================
+   운전현황 항목 한 줄 높이 축소
+========================================================= */
+
+#logDetailModal
+.detail-operation-status-list,
+#logDetailModal
+.detail-operation-list {
+  gap: 0 !important;
+  margin: 0 !important;
+  border-radius: 7px !important;
+}
+
+#logDetailModal
+.detail-operation-status-row,
+#logDetailModal
+.detail-operation-row,
+#logDetailModal
+.detail-operation-item,
+#logDetailModal
+.detail-operation-status-item {
+  min-height: 35px !important;
+  padding: 5px 10px !important;
+  gap: 7px !important;
+}
+
+
+/* 첫 번째 사진처럼 줄마다 큰 높이가 생기는 것 방지 */
+#logDetailModal
+.detail-operation-status-row > *,
+#logDetailModal
+.detail-operation-row > *,
+#logDetailModal
+.detail-operation-item > *,
+#logDetailModal
+.detail-operation-status-item > * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+
+/* 보직 */
+#logDetailModal
+.detail-operation-role,
+#logDetailModal
+.detail-operation-status-role {
+  min-width: 38px !important;
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+}
+
+
+/* 상태 배지 */
+#logDetailModal
+.detail-operation-status-badge,
+#logDetailModal
+.detail-operation-type-badge {
+  min-width: 47px !important;
+  min-height: 20px !important;
+  padding: 0 7px !important;
+  font-size: 9px !important;
+  line-height: 1 !important;
+}
+
+
+/* 구분선 */
+#logDetailModal
+.detail-operation-divider {
+  height: 12px !important;
+}
+
+
+/* 내용 */
+#logDetailModal
+.detail-operation-content,
+#logDetailModal
+.detail-operation-status-content,
+#logDetailModal
+.detail-operation-status-text {
+  margin: 0 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1.4 !important;
+}
+
+
+/* =========================================================
+   TM·인계사항 줄 높이 축소
+========================================================= */
+
+#logDetailModal
+.detail-document-line,
+#logDetailModal
+.detail-grouped-entry-line {
+  min-height: 32px !important;
+  padding: 5px 0 !important;
+  line-height: 1.4 !important;
+}
+
+#logDetailModal
+.detail-document-number,
+#logDetailModal
+.detail-document-time,
+#logDetailModal
+.detail-document-line__content,
+#logDetailModal
+.detail-document-content-text,
+#logDetailModal
+.detail-grouped-entry-line,
+#logDetailModal
+.detail-grouped-entry-line__number,
+#logDetailModal
+.detail-grouped-entry-line__time,
+#logDetailModal
+.detail-grouped-entry-line__content,
+#logDetailModal
+.detail-grouped-entry-line__content-text,
+#logDetailModal
+.detail-inline-tag {
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+}
+
+
+/* =========================================================
+   비고 및 빈 내용
+========================================================= */
+
+#logDetailModal
+.detail-document-text,
+#logDetailModal
+.detail-multiline,
+#logDetailModal
+.detail-empty {
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 7px 11px !important;
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+}
+
+
+/* =========================================================
+   첨부파일
+========================================================= */
+
+#logDetailModal
+.attachment-list {
+  gap: 5px !important;
+  padding: 7px 11px !important;
+}
+
+#logDetailModal
+.attachment-chip,
+#logDetailModal
+.detail-attachment-button {
+  min-height: 25px !important;
+  padding: 0 8px !important;
+  border-radius: 6px !important;
+  font-size: 10px !important;
+}
+
+
+/* =========================================================
+   상세 하단 버튼 영역 축소
+========================================================= */
+
+#logDetailModal
+.log-detail-modal__footer {
+  min-height: 55px !important;
+  padding: 8px 13px !important;
+}
+
+#logDetailModal
+.log-detail-modal__footer button {
+  min-height: 34px !important;
+  padding: 0 13px !important;
+  font-size: 11px !important;
+}
+
+
+/* =========================================================
+   모바일
+========================================================= */
+
+@media (max-width: 700px) {
+
+  #logDetailModal
+  .log-detail-modal {
+    width: calc(100vw - 14px) !important;
+    max-height: calc(100vh - 14px) !important;
+  }
+
+  #logDetailModal
+  .log-detail-modal__header {
+    min-height: 52px !important;
+    padding: 8px 11px !important;
+  }
+
+  #logDetailModal
+  .log-detail-modal__body,
+  #logDetailModal
+  #logDetailContent {
+    gap: 7px !important;
+    padding: 8px !important;
+  }
+
+  #logDetailModal
+  .detail-document-summary,
+  #logDetailModal
+  .detail-summary-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+    padding: 7px !important;
+  }
+
+  #logDetailModal
+  .detail-document-summary__item,
+  #logDetailModal
+  .detail-summary-grid > div {
+    min-height: 40px !important;
+    padding: 5px 7px !important;
+  }
+
+  #logDetailModal
+  .detail-operation-status-row,
+  #logDetailModal
+  .detail-operation-row,
+  #logDetailModal
+  .detail-operation-item,
+  #logDetailModal
+  .detail-operation-status-item {
+    min-height: 33px !important;
+    padding: 5px 7px !important;
+  }
+
+  #logDetailModal
+  .detail-operation-content,
+  #logDetailModal
+  .detail-operation-status-content,
+  #logDetailModal
+  .detail-operation-status-text {
+    font-size: 10px !important;
+  }
+}
