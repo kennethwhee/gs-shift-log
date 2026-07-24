@@ -20697,3 +20697,167 @@ td {
   }
 
 }
+
+/* =========================================================
+  업무일지 메인 목록 긴급 복구 최종본
+
+  열 순서:
+  보직 | 작성자 | 상태 | 업무 내용 | 관리 | 첨부
+========================================================= */
+
+.log-list-section .log-table {
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+
+/* 보직 */
+.log-list-section .log-table th:nth-child(1),
+.log-list-section .log-table td:nth-child(1) {
+  width: 80px !important;
+}
+
+
+/* 작성자 */
+.log-list-section .log-table th:nth-child(2),
+.log-list-section .log-table td:nth-child(2) {
+  width: 105px !important;
+}
+
+
+/* 상태 */
+.log-list-section .log-table th:nth-child(3),
+.log-list-section .log-table td:nth-child(3) {
+  width: 100px !important;
+}
+
+
+/* 업무 내용 */
+.log-list-section .log-table th:nth-child(4),
+.log-list-section .log-table td:nth-child(4) {
+  width: auto !important;
+  min-width: 0 !important;
+}
+
+
+/* 관리 */
+.log-list-section .log-table th:nth-child(5),
+.log-list-section .log-table td:nth-child(5) {
+  width: 88px !important;
+  min-width: 88px !important;
+}
+
+
+/* 첨부 */
+.log-list-section .log-table th:nth-child(6),
+.log-list-section .log-table td:nth-child(6) {
+  width: 52px !important;
+  min-width: 52px !important;
+  max-width: 52px !important;
+}
+
+
+/* 업무 내용 셀 */
+#logTableBody > tr > td.log-row__preview-cell {
+  width: auto !important;
+  min-width: 0 !important;
+  padding: 12px 16px !important;
+  text-align: left !important;
+  vertical-align: top !important;
+}
+
+
+/* 미리보기 전체 */
+#logTableBody .log-preview {
+  display: flex !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 5px !important;
+}
+
+
+/* 제목 + 내용 한 줄 */
+#logTableBody .log-preview__group {
+  display: grid !important;
+  width: 100% !important;
+  min-width: 0 !important;
+
+  grid-template-columns:
+    90px
+    minmax(0, 1fr) !important;
+
+  align-items: baseline !important;
+  column-gap: 10px !important;
+}
+
+
+/* 제목 없는 후속 항목 */
+#logTableBody .log-preview__group.has-no-title {
+  grid-template-columns:
+    90px
+    minmax(0, 1fr) !important;
+}
+
+#logTableBody
+.log-preview__group.has-no-title::before {
+  content: "";
+  display: block;
+}
+
+
+/* 업무 내용 영역 */
+#logTableBody .log-preview__content {
+  display: flex !important;
+  min-width: 0 !important;
+  flex-wrap: wrap !important;
+  align-items: baseline !important;
+  gap: 5px !important;
+}
+
+
+/* 실제 문장 */
+#logTableBody .log-preview__text {
+  display: inline !important;
+  min-width: 0 !important;
+  flex: 1 1 240px !important;
+
+  white-space: normal !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed !important;
+}
+
+
+/* 제목·번호·시간·TAG 세로쓰기 방지 */
+#logTableBody .log-preview__title,
+#logTableBody .log-preview__entry-number,
+#logTableBody .log-preview__entry-time,
+#logTableBody .log-preview__tag,
+#logTableBody .log-preview__role-divider {
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed !important;
+  white-space: nowrap !important;
+}
+
+
+/* 관리 버튼 */
+#logTableBody .row-actions {
+  width: 100% !important;
+}
+
+#logTableBody .table-action-button {
+  width: 70px !important;
+  min-width: 70px !important;
+}
+
+
+/* 첨부 버튼 */
+#logTableBody .log-row__attachment-cell {
+  padding-right: 4px !important;
+  padding-left: 4px !important;
+  text-align: center !important;
+}
