@@ -15063,22 +15063,18 @@ function usesEquipmentOperationStatusEditor(
   운전현황 편집창 열기 최종본
 
   TGO·BCO1·BCO2:
-  - 설비별 상태 편집
-  - 자동 이어쓰기 사용 안 함
+  - 설비별 운전현황 수정
+  - 전 근무자 자동 가져오기 사용 안 함
 
   TO·BO1·BO2:
-  - 자유 텍스트 입력
-  - 현재 근무에 저장된 운전현황이 없으면
-    같은 보직의 직전 근무 운전현황 자동 적용
-  - 사용자는 변경된 내용만 수정
+  - 전 근무 같은 보직 운전현황 자동 적용
+  - 가져오기 버튼도 항상 표시
+  - 필요하면 내용을 직접 수정
+  - 저장 버튼을 눌러야 현재 근무에 확정
 
   파트장:
-  - 직접 수정하지 않고 자동 취합
-
-  중요:
-  - 자동 적용만 수행
-  - 업무일지는 자동 저장하지 않음
-  - 운전현황 저장 버튼을 눌러야 현재 작성창에 확정됨
+  - TGO·BCO1·BCO2 운전현황 자동 취합
+  - 직접 수정하지 않음
 ========================================================= */
 
 async function openOperationStatusEditor() {
@@ -15098,21 +15094,31 @@ async function openOperationStatusEditor() {
     getCurrentOperationStatusRole();
 
 
-  /* =====================================================
-    기존 가져오기 버튼은 항상 숨긴다.
-  ====================================================== */
-
   const previousOperationStatusWrap =
     document.getElementById(
       "previousOperationStatusWrap"
     );
 
 
+  const canLoadPreviousStatus = [
+    "TO",
+    "BO1",
+    "BO2"
+  ].includes(
+    currentRole
+  );
+
+
+  /* =====================================================
+    TO·BO1·BO2에서는
+    전 근무자 운전현황 가져오기 버튼을 표시한다.
+  ====================================================== */
+
   if (
     previousOperationStatusWrap
   ) {
     previousOperationStatusWrap.hidden =
-      true;
+      !canLoadPreviousStatus;
   }
 
 
@@ -15164,7 +15170,7 @@ async function openOperationStatusEditor() {
 
 
   /* =====================================================
-    TGO · BCO1 · BCO2 설비별 편집
+    TGO·BCO1·BCO2 설비별 편집
   ====================================================== */
 
   if (
@@ -15226,8 +15232,8 @@ async function openOperationStatusEditor() {
 
 
     /*
-      저장된 자료가 없으면
-      보직별 기본 설비 한 건 생성한다.
+      등록된 설비 운전현황이 없으면
+      보직별 기본 설비 한 건을 생성한다.
     */
     if (
       !editingOperationStatusItems.length
@@ -15302,7 +15308,7 @@ async function openOperationStatusEditor() {
 
   } else {
     /* ===================================================
-      TO · BO1 · BO2 자유 텍스트 자동 이어쓰기
+      TO·BO1·BO2 자유 텍스트 운전현황
     ==================================================== */
 
     if (
@@ -15329,18 +15335,12 @@ async function openOperationStatusEditor() {
     }
 
 
-    const automaticRoles = [
-      "TO",
-      "BO1",
-      "BO2"
-    ];
-
-
     /*
-      updatedAt이 있으면 현재 날짜·근무에서
-      이미 수정 또는 저장된 운전현황이 있다는 뜻이다.
+      현재 날짜·근무에서 운전현황을
+      이미 수정·저장했다면 그 내용을 유지한다.
 
-      이 경우 전 근무 내용으로 다시 덮어쓰지 않는다.
+      아직 저장하지 않았다면
+      전 근무 같은 보직의 내용을 자동으로 가져온다.
     */
     const hasCurrentSavedStatus =
       Boolean(
@@ -15352,9 +15352,7 @@ async function openOperationStatusEditor() {
 
 
     if (
-      automaticRoles.includes(
-        currentRole
-      ) &&
+      canLoadPreviousStatus &&
       !hasCurrentSavedStatus
     ) {
       const currentDate =
@@ -15406,7 +15404,7 @@ async function openOperationStatusEditor() {
                 ).trim(),
 
               /*
-                아직 현재 근무에서 저장한 것은 아니므로
+                아직 현재 근무에 저장한 것은 아니므로
                 수정시간은 비워둔다.
               */
               updatedAt:
@@ -15422,34 +15420,62 @@ async function openOperationStatusEditor() {
                 previousStatus.shift,
 
               inheritedFromAuthor:
-                previousStatus.author
+                previousStatus.author,
+
+              inheritedFromSource:
+                previousStatus.source ||
+                ""
             };
 
 
             /*
-              편집창에만 자동 적용한다.
-              이 시점에는 localStorage나 업무일지를 저장하지 않는다.
+              편집창에서만 임시 적용한다.
+
+              아래 저장 버튼을 누르기 전까지
+              현재 근무 운전현황으로 확정되지 않는다.
             */
             appState.currentOperationStatus =
               currentStatus;
+
+
+            const previousShiftName =
+              getShiftDisplayName(
+                previousStatus.shift
+              );
+
+
+            showToast(
+              [
+                previousStatus.date,
+                previousShiftName,
+                currentRole,
+                "전 근무자 운전현황을 가져왔습니다."
+              ].join(" ")
+            );
           }
 
-        } catch (error) {
+        } catch (
+          error
+        ) {
           console.error(
-            `${currentRole} 이전 근무 운전현황 자동 적용 실패:`,
+            `${currentRole} 전 근무 운전현황 자동 적용 실패:`,
             error
           );
 
 
           /*
-            이전 자료 조회 실패가 업무일지 작성을
-            막지 않도록 현재 기본 내용으로 계속 진행한다.
+            전 근무 조회 실패가
+            현재 업무일지 작성을 막지 않게 한다.
           */
         }
       }
     }
 
 
+    /*
+      자동으로 가져온 내용 또는
+      현재 근무에서 저장된 내용을 입력창에 표시한다.
+    */
     elements.operationStatus.value =
       String(
         currentStatus.content ||
@@ -15461,7 +15487,10 @@ async function openOperationStatusEditor() {
       elements.operationStatusType
     ) {
       elements.operationStatusType.value =
-        "normal";
+        normalizeOperationStatusType(
+          currentStatus.type ||
+          "normal"
+        );
     }
 
 
@@ -15469,6 +15498,15 @@ async function openOperationStatusEditor() {
       () => {
         elements.operationStatus
           ?.focus();
+
+        elements.operationStatus
+          ?.setSelectionRange(
+            elements.operationStatus
+              .value.length,
+
+            elements.operationStatus
+              .value.length
+          );
       },
       0
     );
@@ -15506,12 +15544,33 @@ async function openOperationStatusEditor() {
   if (
     elements.operationStatusEditorTime
   ) {
-    elements.operationStatusEditorTime.textContent =
+    if (
       currentStatus.updatedAt
-        ? `${formatDateTime(
-            currentStatus.updatedAt
-          )} 수정`
-        : "";
+    ) {
+      elements.operationStatusEditorTime.textContent =
+        `${formatDateTime(
+          currentStatus.updatedAt
+        )} 수정`;
+
+    } else if (
+      currentStatus.inheritedFromDate &&
+      currentStatus.inheritedFromShift
+    ) {
+      elements.operationStatusEditorTime.textContent =
+        [
+          currentStatus.inheritedFromDate,
+
+          getShiftDisplayName(
+            currentStatus.inheritedFromShift
+          ),
+
+          "전 근무 내용"
+        ].join(" ");
+
+    } else {
+      elements.operationStatusEditorTime.textContent =
+        "";
+    }
   }
 }
 
