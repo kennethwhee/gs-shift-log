@@ -2539,62 +2539,104 @@
     </div>
 
 
-    <!-- =====================================================
-      하단 버튼
-    ====================================================== -->
-    <footer
+<!-- =====================================================
+  업무일지 상세창 하단 버튼
+
+  왼쪽:
+  인쇄
+
+  오른쪽:
+  결재취소 | 결재확인 | 수정 | 닫기
+====================================================== -->
+<footer
+  class="
+    modal-footer
+    log-detail-modal__footer
+  "
+>
+
+  <!-- 왼쪽 버튼 -->
+  <div
+    class="
+      modal-footer__left
+      log-detail-footer__left
+    "
+  >
+
+    <button
+      type="button"
       class="
-        modal-footer
-        log-detail-modal__footer
+        secondary-button
+        log-detail-print-button
       "
+      id="printLogDetailButton"
     >
+      인쇄
+    </button>
 
-      <div
-        class="
-          modal-footer__left
-          log-detail-footer__left
-        "
-      >
-
-        <button
-          type="button"
-          class="approval-confirm-button"
-          id="approveFromDetailButton"
-          hidden
-        >
-          결재확인
-        </button>
-
-      </div>
+  </div>
 
 
-      <div
-        class="
-          modal-footer__right
-          log-detail-footer__right
-        "
-      >
+  <!-- 오른쪽 버튼 -->
+  <div
+    class="
+      modal-footer__right
+      log-detail-footer__right
+    "
+  >
 
-        <button
-          type="button"
-          class="secondary-button"
-          id="closeLogDetailFooterButton"
-        >
-          닫기
-        </button>
+    <button
+      type="button"
+      class="
+        approval-cancel-button
+        log-detail-approval-cancel-button
+      "
+      id="cancelApprovalFromDetailButton"
+      hidden
+    >
+      결재취소
+    </button>
 
 
-        <button
-          type="button"
-          class="primary-button"
-          id="editFromDetailButton"
-        >
-          수정
-        </button>
+    <button
+      type="button"
+      class="
+        approval-confirm-button
+        log-detail-approval-confirm-button
+      "
+      id="approveFromDetailButton"
+      hidden
+    >
+      결재확인
+    </button>
 
-      </div>
 
-    </footer>
+    <button
+      type="button"
+      class="
+        primary-button
+        log-detail-edit-button
+      "
+      id="editFromDetailButton"
+    >
+      수정
+    </button>
+
+
+    <button
+      type="button"
+      class="
+        secondary-button
+        log-detail-close-button
+      "
+      id="closeLogDetailFooterButton"
+    >
+      닫기
+    </button>
+
+  </div>
+
+</footer>
 
   </section>
 </div>
@@ -3247,7 +3289,7 @@
       <div class="modal-footer__left">
 
         <span class="employee-management-footer-help">
-          권한과 보직은 다음 단계에서 저장됩니다.
+          변경한 이름·권한·보직을 저장합니다.
         </span>
 
       </div>

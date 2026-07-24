@@ -3682,54 +3682,49 @@ saveOperationStatusButton:
       ),
 
 
-    /* =====================================================
-      업무일지 목록
-    ====================================================== */
+/* =====================================================
+  상세보기 모달
+===================================================== */
 
-    logTableBody:
-      document.getElementById(
-        "logTableBody"
-      ),
+logDetailModal:
+  document.getElementById(
+    "logDetailModal"
+  ),
 
-    logEmptyState:
-      document.getElementById(
-        "logEmptyState"
-      ),
+closeLogDetailButton:
+  document.getElementById(
+    "closeLogDetailButton"
+  ),
 
+closeLogDetailFooterButton:
+  document.getElementById(
+    "closeLogDetailFooterButton"
+  ),
 
-    /* =====================================================
-      상세보기 모달
-    ====================================================== */
+logDetailContent:
+  document.getElementById(
+    "logDetailContent"
+  ),
 
-    logDetailModal:
-      document.getElementById(
-        "logDetailModal"
-      ),
+printLogDetailButton:
+  document.getElementById(
+    "printLogDetailButton"
+  ),
 
-    closeLogDetailButton:
-      document.getElementById(
-        "closeLogDetailButton"
-      ),
+cancelApprovalFromDetailButton:
+  document.getElementById(
+    "cancelApprovalFromDetailButton"
+  ),
 
-    closeLogDetailFooterButton:
-      document.getElementById(
-        "closeLogDetailFooterButton"
-      ),
+approveFromDetailButton:
+  document.getElementById(
+    "approveFromDetailButton"
+  ),
 
-    logDetailContent:
-      document.getElementById(
-        "logDetailContent"
-      ),
-
-    editFromDetailButton:
-      document.getElementById(
-        "editFromDetailButton"
-      ),
-
-      approveFromDetailButton:
-      document.getElementById(
-        "approveFromDetailButton"
-      ),
+editFromDetailButton:
+  document.getElementById(
+    "editFromDetailButton"
+  ),
 
     /* =====================================================
       조회
@@ -15387,45 +15382,57 @@ bindClick(
   }
 
 
-  /* =======================================================
-    상세보기
-  ======================================================== */
+/* =======================================================
+  상세보기
+======================================================== */
 
-  bindClick(
-    elements.closeLogDetailButton,
-    closeLogDetail
-  );
-
-
-  bindClick(
-    elements
-      .closeLogDetailFooterButton,
-    closeLogDetail
-  );
+bindClick(
+  elements.closeLogDetailButton,
+  closeLogDetail
+);
 
 
-  if (
-    elements.logDetailModal
-  ) {
-    elements.logDetailModal
-      .addEventListener(
-        "click",
-        (event) => {
-          if (
-            event.target ===
-            elements.logDetailModal
-          ) {
-            closeLogDetail();
-          }
-        }
-      );
+bindClick(
+  elements.closeLogDetailFooterButton,
+  closeLogDetail
+);
+
+
+/*
+  상세 업무일지 인쇄
+*/
+bindClick(
+  elements.printLogDetailButton,
+  () => {
+    window.print();
   }
+);
 
 
-  bindClick(
-    elements.approveFromDetailButton,
-    approveCurrentDetailLog
-  );
+if (
+  elements.logDetailModal
+) {
+  elements.logDetailModal
+    .addEventListener(
+      "click",
+      (
+        event
+      ) => {
+        if (
+          event.target ===
+          elements.logDetailModal
+        ) {
+          closeLogDetail();
+        }
+      }
+    );
+}
+
+
+bindClick(
+  elements.approveFromDetailButton,
+  approveCurrentDetailLog
+);
 
 
   bindClick(
@@ -33991,29 +33998,23 @@ openLogDetail =
 ========================================================= */
 
 function reconnectShiftLogApprovalHistoryEvents() {
-  const oldApproveButton =
+
+  const approveButton =
     document.getElementById(
       "approveFromDetailButton"
     );
 
+  if (approveButton) {
 
-  if (
-    oldApproveButton
-  ) {
     const newApproveButton =
-      oldApproveButton.cloneNode(
-        true
-      );
+      approveButton.cloneNode(true);
 
-
-    oldApproveButton.replaceWith(
+    approveButton.replaceWith(
       newApproveButton
     );
 
-
     elements.approveFromDetailButton =
       newApproveButton;
-
 
     newApproveButton.addEventListener(
       "click",
@@ -34022,29 +34023,52 @@ function reconnectShiftLogApprovalHistoryEvents() {
   }
 
 
-  const oldCancelButton =
+  const cancelButton =
     document.getElementById(
       "cancelApprovalFromDetailButton"
     );
 
+  if (cancelButton) {
 
-  if (
-    oldCancelButton
-  ) {
     const newCancelButton =
-      oldCancelButton.cloneNode(
-        true
-      );
+      cancelButton.cloneNode(true);
 
-
-    oldCancelButton.replaceWith(
+    cancelButton.replaceWith(
       newCancelButton
     );
 
+    elements.cancelApprovalFromDetailButton =
+      newCancelButton;
 
     newCancelButton.addEventListener(
       "click",
       cancelCurrentDetailShiftLogApproval
+    );
+  }
+
+
+  const printButton =
+    document.getElementById(
+      "printLogDetailButton"
+    );
+
+  if (printButton) {
+
+    const newPrintButton =
+      printButton.cloneNode(true);
+
+    printButton.replaceWith(
+      newPrintButton
+    );
+
+    elements.printLogDetailButton =
+      newPrintButton;
+
+    newPrintButton.addEventListener(
+      "click",
+      () => {
+        window.print();
+      }
     );
   }
 }
