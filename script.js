@@ -22033,138 +22033,301 @@ function persistLogs() {
 }
 
 
+/* =========================================================
+  저장된 신규 업무일지 불러오기 최종본
+
+  처리 내용:
+  1. localStorage에 저장된 업무일지만 불러온다.
+  2. 홍길동·김철수·이영희 샘플 자료를 자동 제거한다.
+  3. 저장 자료가 없어도 샘플 데이터를 생성하지 않는다.
+  4. 같은 날짜·근무·보직의 중복 일지는 최신본만 유지한다.
+========================================================= */
+
 function loadLogs() {
   const savedLogs =
     localStorage.getItem(
       STORAGE_KEYS.logs
     );
 
+
   let loadedLogs = [];
 
-  if (savedLogs) {
+
+  /* =====================================================
+    1. 저장된 업무일지 읽기
+  ====================================================== */
+
+  if (
+    savedLogs
+  ) {
     try {
       const parsedLogs =
-        JSON.parse(savedLogs);
+        JSON.parse(
+          savedLogs
+        );
+
 
       loadedLogs =
-        Array.isArray(parsedLogs)
+        Array.isArray(
+          parsedLogs
+        )
           ? parsedLogs
           : [];
-    } catch {
+
+    } catch (error) {
+      console.error(
+        "저장된 업무일지 분석 실패:",
+        error
+      );
+
+
       localStorage.removeItem(
         STORAGE_KEYS.logs
       );
+
 
       loadedLogs = [];
     }
   }
 
-  if (!loadedLogs.length) {
-    loadedLogs =
-      createSampleLogs();
-  }
 
-  /*
-    같은 날짜·근무·보직의 업무일지가
-    여러 개 존재하는 경우 가장 최근 일지 하나만 남긴다.
-  */
+  /* =====================================================
+    2. 예전 테스트용 샘플 자료 제거
+
+    제거 대상:
+    - sample-1
+    - sample-2
+    - sample-3
+    - 홍길동
+    - 김철수
+    - 이영희
+
+    실제 업무일지와 이름이 우연히 같을 가능성을 고려해
+    sample ID를 가장 우선적으로 확인한다.
+  ====================================================== */
+
+  const sampleLogIds =
+    new Set([
+      "sample-1",
+      "sample-2",
+      "sample-3"
+    ]);
+
+
+  loadedLogs =
+    loadedLogs.filter(
+      (
+        log
+      ) => {
+        const logId =
+          String(
+            log?.id ||
+            ""
+          ).trim();
+
+
+        const logAuthor =
+          String(
+            log?.author ||
+            ""
+          ).trim();
+
+
+        const isSampleId =
+          sampleLogIds.has(
+            logId
+          );
+
+
+        const isOldSampleAuthor =
+          [
+            "홍길동",
+            "김철수",
+            "이영희"
+          ].includes(
+            logAuthor
+          ) &&
+          logId.startsWith(
+            "sample-"
+          );
+
+
+        return !(
+          isSampleId ||
+          isOldSampleAuthor
+        );
+      }
+    );
+
+
+  /* =====================================================
+    3. 같은 날짜·근무·보직 중복 정리
+
+    가장 최근 수정된 업무일지 하나만 유지한다.
+  ====================================================== */
+
   const sortedLogs = [
     ...loadedLogs
-  ].sort((logA, logB) => {
-    const timeA =
-      new Date(
-        logA.updatedAt ||
-        logA.createdAt ||
-        0
-      ).getTime();
+  ].sort(
+    (
+      logA,
+      logB
+    ) => {
+      const timeA =
+        new Date(
+          logA?.updatedAt ||
+          logA?.createdAt ||
+          0
+        ).getTime();
 
-    const timeB =
-      new Date(
-        logB.updatedAt ||
-        logB.createdAt ||
-        0
-      ).getTime();
 
-    return timeB - timeA;
-  });
+      const timeB =
+        new Date(
+          logB?.updatedAt ||
+          logB?.createdAt ||
+          0
+        ).getTime();
+
+
+      return (
+        timeB -
+        timeA
+      );
+    }
+  );
+
 
   const uniqueLogMap =
     new Map();
 
-  sortedLogs.forEach((log) => {
-    const date =
-      String(
-        log.date || ""
-      ).trim();
 
-    const shift =
-      String(
-        log.shift || ""
-      ).trim();
+  sortedLogs.forEach(
+    (
+      log
+    ) => {
+      const date =
+        String(
+          log?.date ||
+          ""
+        ).trim();
 
-    const role =
-      normalizeMemberLogRole(
-        log.role
+
+      const shift =
+        String(
+          log?.shift ||
+          ""
+        )
+          .trim()
+          .toUpperCase();
+
+
+      const role =
+        normalizeMemberLogRole(
+          log?.role
+        );
+
+
+      /*
+        날짜·근무·보직이 없는 손상 자료는 제외한다.
+      */
+      if (
+        !date ||
+        !shift ||
+        !role
+      ) {
+        return;
+      }
+
+
+      const uniqueKey = [
+        date,
+        shift,
+        role
+      ].join(
+        "||"
       );
 
-    const uniqueKey = [
-      date,
-      shift,
-      role
-    ].join("||");
 
-    /*
-      최신순으로 정렬했기 때문에
-      가장 먼저 들어온 업무일지가 최신본이다.
-    */
-    if (
-      !uniqueLogMap.has(
-        uniqueKey
-      )
-    ) {
-      uniqueLogMap.set(
-        uniqueKey,
-        log
-      );
+      if (
+        !uniqueLogMap.has(
+          uniqueKey
+        )
+      ) {
+        uniqueLogMap.set(
+          uniqueKey,
+          log
+        );
+      }
     }
-  });
+  );
+
+
+  /* =====================================================
+    4. 최종 업무일지 배열 저장
+  ====================================================== */
 
   appState.logs = [
     ...uniqueLogMap.values()
-  ].sort((logA, logB) => {
-    const dateDifference =
-      String(
-        logB.date || ""
-      ).localeCompare(
+  ].sort(
+    (
+      logA,
+      logB
+    ) => {
+      const dateDifference =
         String(
-          logA.date || ""
-        )
+          logB?.date ||
+          ""
+        ).localeCompare(
+          String(
+            logA?.date ||
+            ""
+          )
+        );
+
+
+      if (
+        dateDifference !==
+        0
+      ) {
+        return dateDifference;
+      }
+
+
+      const timeA =
+        new Date(
+          logA?.updatedAt ||
+          logA?.createdAt ||
+          0
+        ).getTime();
+
+
+      const timeB =
+        new Date(
+          logB?.updatedAt ||
+          logB?.createdAt ||
+          0
+        ).getTime();
+
+
+      return (
+        timeB -
+        timeA
       );
-
-    if (dateDifference !== 0) {
-      return dateDifference;
     }
+  );
 
-    const timeA =
-      new Date(
-        logA.updatedAt ||
-        logA.createdAt ||
-        0
-      ).getTime();
 
-    const timeB =
-      new Date(
-        logB.updatedAt ||
-        logB.createdAt ||
-        0
-      ).getTime();
-
-    return timeB - timeA;
-  });
-
+  /*
+    샘플 제거 및 중복 정리 결과를
+    localStorage에 다시 저장한다.
+  */
   persistLogs();
-}
 
+
+  console.log(
+    `저장된 신규 업무일지 ${appState.logs.length}건을 불러왔습니다.`
+  );
+}
 
 /* =========================================================
   업무일지 목록 렌더링 최종본
