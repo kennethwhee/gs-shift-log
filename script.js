@@ -29184,13 +29184,14 @@ async function runSearch() {
 }
 
 /* =========================================================
-  조회 결과 출력
+  조회 결과 출력 최종본
 
-  조회 결과 행 또는 업무내용 클릭:
-  - 수정 권한과 관계없이 항상 상세보기
-
-  TAG 클릭:
-  - 설비 네비게이터 이동
+  핵심:
+  - 조회 결과 전용 배열에 업무일지를 저장한다.
+  - 클릭 시 appState.logs가 아니라
+    currentSearchResultLogs에서 찾는다.
+  - 조회 결과 행 전체를 클릭할 수 있다.
+  - 과거 업무일지도 수정 권한과 관계없이 상세보기 가능
 ========================================================= */
 
 function renderSearchResults(
@@ -29209,8 +29210,29 @@ function renderSearchResults(
     Array.isArray(
       results
     )
-      ? results
+      ? results.filter(
+          log => {
+            return Boolean(
+              log &&
+              log.id
+            );
+          }
+        )
       : [];
+
+
+  /*
+    중요:
+
+    조회 기간에서 새로 불러온 과거 업무일지는
+    appState.logs에 없을 수 있다.
+
+    클릭할 때 찾을 수 있도록
+    조회 결과 전용 배열에 반드시 저장한다.
+  */
+  currentSearchResultLogs = [
+    ...safeResults
+  ];
 
 
   elements.searchResultBody.innerHTML =
@@ -29244,13 +29266,17 @@ function renderSearchResults(
         );
 
 
-    if (emptyTitle) {
+    if (
+      emptyTitle
+    ) {
       emptyTitle.textContent =
         "조회 결과가 없습니다.";
     }
 
 
-    if (emptyDescription) {
+    if (
+      emptyDescription
+    ) {
       emptyDescription.textContent =
         "검색 조건을 변경하여 다시 조회해 주세요.";
     }
@@ -29261,39 +29287,30 @@ function renderSearchResults(
 
 
   safeResults.forEach(
-    (result) => {
-      const log =
-        result?.log ||
-        result;
+    log => {
+      const previewText =
+        typeof createSearchLogPreviewText ===
+          "function"
+          ? createSearchLogPreviewText(
+              log
+            )
+          : firstMeaningfulLine(
+              createSearchLogText(
+                log
+              ) ||
+              "-"
+            );
 
 
-      if (
-        !log ||
-        !log.id
-      ) {
-        return;
-      }
-
-
-      const category =
-        String(
-          result?.category ||
-          ""
-        ).trim();
-
-
-      const tag =
-        String(
-          result?.tag ||
-          ""
-        ).trim();
-
-
-      const content =
-        String(
-          result?.content ||
-          ""
-        ).trim();
+      const attachmentCount =
+        Array.isArray(
+          log.attachments
+        )
+          ? log.attachments.length
+          : Number(
+              log.legacyAttachmentCount ||
+              0
+            );
 
 
       elements.searchResultBody
@@ -29305,72 +29322,105 @@ function renderSearchResults(
                 log.id
               )}"
               tabindex="0"
+              role="button"
               title="업무일지 상세보기"
             >
 
-              <td>
+              <td
+                class="search-result-table__date"
+              >
                 ${escapeHtml(
                   log.date ||
                   "-"
                 )}
               </td>
 
-              <td>
+
+              <td
+                class="search-result-table__shift"
+              >
                 ${escapeHtml(
                   getShiftDisplayName(
                     log.shift
-                  ) ||
-                  log.shift ||
-                  "-"
+                  )
                 )}
               </td>
 
-              <td>
+
+              <td
+                class="search-result-table__role"
+              >
                 ${escapeHtml(
                   log.role ||
                   "-"
                 )}
               </td>
 
-              <td>
+
+              <td
+                class="search-result-table__author"
+              >
                 ${escapeHtml(
                   log.author ||
                   "-"
                 )}
               </td>
 
+
               <td
-                class="search-result-content-cell"
+                class="
+                  search-result-table__content
+                  search-log-preview-cell
+                "
                 data-search-view="${escapeHtml(
                   log.id
                 )}"
               >
                 ${escapeHtml(
-                  firstMeaningfulLine(
-                    content ||
-                    category ||
-                    "-"
-                  )
+                  previewText ||
+                  "등록된 업무 내용이 없습니다."
                 )}
               </td>
 
-              <td>
+
+              <td
+                class="search-result-table__view"
+              >
+                <button
+                  type="button"
+                  class="table-action-button"
+                  data-search-view="${escapeHtml(
+                    log.id
+                  )}"
+                >
+                  보기
+                </button>
+              </td>
+
+
+              <td
+                class="search-result-table__attachment"
+              >
                 ${
-                  tag
+                  attachmentCount > 0
                     ? `
-                      <button
-                        type="button"
-                        class="detail-tag-button"
-                        data-search-tag="${escapeHtml(
-                          tag
-                        )}"
+                      <span
+                        class="attachment-count"
+                        title="첨부파일 ${attachmentCount}개"
                       >
-                        ${escapeHtml(
-                          tag
-                        )}
-                      </button>
+                        ${attachmentCount}
+                      </span>
                     `
-                    : "-"
+                    : `
+                      <span
+                        class="
+                          attachment-count
+                          is-empty
+                        "
+                      >
+                        0
+                      </span>
+                    `
                 }
               </td>
 
@@ -29381,11 +29431,12 @@ function renderSearchResults(
   );
 
 
-  /*
-    이벤트는 결과를 출력할 때마다
-    버튼마다 새로 연결하지 않고
-    조회 결과 영역 한 곳에서 처리한다.
-  */
+  /* =====================================================
+    조회 결과 클릭
+
+    행·업무 내용·보기 버튼 모두 상세창을 연다.
+  ====================================================== */
+
   elements.searchResultBody.onclick =
     function handleSearchResultClick(
       event
@@ -29402,6 +29453,8 @@ function renderSearchResults(
           tagButton
         )
       ) {
+        event.preventDefault();
+
         event.stopPropagation();
 
 
@@ -29414,16 +29467,19 @@ function renderSearchResults(
       }
 
 
-      const viewElement =
+      const clickedElement =
         event.target.closest(
-          "[data-search-view], tr[data-search-log-id]"
+          `
+            [data-search-view],
+            tr[data-search-log-id]
+          `
         );
 
 
       if (
-        !viewElement ||
+        !clickedElement ||
         !elements.searchResultBody.contains(
-          viewElement
+          clickedElement
         )
       ) {
         return;
@@ -29431,32 +29487,50 @@ function renderSearchResults(
 
 
       const row =
-        viewElement.closest(
+        clickedElement.closest(
           "tr[data-search-log-id]"
         );
 
 
       const logId =
         String(
-          viewElement.dataset.searchView ||
+          clickedElement.dataset.searchView ||
           row?.dataset.searchLogId ||
           ""
         ).trim();
 
 
-      if (!logId) {
+      if (
+        !logId
+      ) {
         showToast(
           "업무일지 정보를 확인할 수 없습니다."
         );
-
 
         return;
       }
 
 
+      /*
+        조회 결과 전용 배열에서 먼저 찾는다.
+
+        그래야 조회 기간에서 방금 불러온
+        과거 업무일지도 상세보기가 가능하다.
+      */
       const log =
+        currentSearchResultLogs.find(
+          item => {
+            return (
+              String(
+                item?.id ||
+                ""
+              ).trim() ===
+              logId
+            );
+          }
+        ) ||
         appState.logs.find(
-          (item) => {
+          item => {
             return (
               String(
                 item?.id ||
@@ -29468,26 +29542,28 @@ function renderSearchResults(
         );
 
 
-      if (!log) {
+      if (
+        !log
+      ) {
         showToast(
-          "업무일지를 찾을 수 없습니다."
+          "조회한 업무일지를 찾을 수 없습니다."
         );
-
 
         return;
       }
 
 
-      /*
-        중요:
-        조회 결과에서는 openLogEditor()를
-        절대 호출하지 않는다.
-      */
       openLogDetail(
         log
       );
     };
 
+
+  /* =====================================================
+    키보드 상세보기
+
+    Enter 또는 Space
+  ====================================================== */
 
   elements.searchResultBody.onkeydown =
     function handleSearchResultKeydown(
@@ -29530,8 +29606,19 @@ function renderSearchResults(
 
 
       const log =
+        currentSearchResultLogs.find(
+          item => {
+            return (
+              String(
+                item?.id ||
+                ""
+              ).trim() ===
+              logId
+            );
+          }
+        ) ||
         appState.logs.find(
-          (item) => {
+          item => {
             return (
               String(
                 item?.id ||
@@ -29543,11 +29630,12 @@ function renderSearchResults(
         );
 
 
-      if (!log) {
+      if (
+        !log
+      ) {
         showToast(
-          "업무일지를 찾을 수 없습니다."
+          "조회한 업무일지를 찾을 수 없습니다."
         );
-
 
         return;
       }
