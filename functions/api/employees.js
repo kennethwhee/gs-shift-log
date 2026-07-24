@@ -12,6 +12,7 @@
      employeeNo,
      name,
      defaultRole,
+     position,
      isAllowed
    }
 
@@ -22,6 +23,7 @@
          employeeNo,
          name,
          defaultRole,
+         position,
          isAllowed
        }
      ]
@@ -115,6 +117,63 @@ function normalizeAllowed(value) {
   return 0;
 }
 
+/* =========================
+   보직값 정리
+
+   허용 보직:
+   - TGO
+   - BCO1
+   - BCO2
+   - TO
+   - BO1
+   - BO2
+   - 파트장
+   - 빈 문자열
+========================= */
+
+function normalizePosition(
+  value
+) {
+  const position =
+    normalizeText(
+      value
+    )
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  const positionMap = {
+    TGO:
+      "TGO",
+
+    BCO1:
+      "BCO1",
+
+    BCO2:
+      "BCO2",
+
+    TO:
+      "TO",
+
+    BO1:
+      "BO1",
+
+    BO2:
+      "BO2",
+
+    파트장:
+      "파트장"
+  };
+
+
+  return (
+    positionMap[position] ||
+    ""
+  );
+}
 
 /* =========================
    직원 데이터 정리
@@ -129,32 +188,49 @@ function normalizeEmployee(
       ? employee
       : {};
 
+
   return {
     employeeNo:
       normalizeText(
-        source.employeeNo
+        source.employeeNo ??
+        source.employee_no
       ).replace(
         /[^0-9]/g,
         ""
       ),
+
 
     name:
       normalizeText(
         source.name
       ),
 
+
     defaultRole:
       normalizeRole(
-        source.defaultRole
+        source.defaultRole ??
+        source.default_role ??
+        source.role
       ),
+
+
+    position:
+      normalizePosition(
+        source.position ??
+        source.jobPosition ??
+        source.job_position ??
+        source.duty
+      ),
+
 
     isAllowed:
       normalizeAllowed(
-        source.isAllowed
+        source.isAllowed ??
+        source.is_allowed ??
+        true
       )
   };
 }
-
 
 /* =========================
    직원 데이터 검사
@@ -169,12 +245,14 @@ function validateEmployee(
       ? `${rowNumber}행: `
       : "";
 
+
   if (!employee.employeeNo) {
     return (
       rowText +
       "사번이 없습니다."
     );
   }
+
 
   if (
     !/^\d{6,10}$/.test(
@@ -187,12 +265,67 @@ function validateEmployee(
     );
   }
 
+
   if (!employee.name) {
     return (
       rowText +
       "직원 이름이 없습니다."
     );
   }
+
+
+  if (
+    employee.name.length > 30
+  ) {
+    return (
+      rowText +
+      "직원 이름은 30자 이하로 입력해야 합니다."
+    );
+  }
+
+
+  const validRoles = [
+    "user",
+    "leader",
+    "super_admin"
+  ];
+
+
+  if (
+    !validRoles.includes(
+      employee.defaultRole
+    )
+  ) {
+    return (
+      rowText +
+      "사용할 수 없는 권한입니다."
+    );
+  }
+
+
+  const validPositions = [
+    "",
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2",
+    "파트장"
+  ];
+
+
+  if (
+    !validPositions.includes(
+      employee.position
+    )
+  ) {
+    return (
+      rowText +
+      "사용할 수 없는 보직입니다."
+    );
+  }
+
 
   return "";
 }
@@ -340,20 +473,21 @@ export async function onRequestGet(
       GET /api/employees?type=employees
     ================================================== */
 
-    const employeeQueryResult =
-      await context.env.DB
-        .prepare(`
-          SELECT
-            employee_no,
-            name,
-            default_role,
-            is_allowed
-          FROM employees
-          ORDER BY
-            name COLLATE NOCASE ASC,
-            employee_no ASC
-        `)
-        .all();
+const employeeQueryResult =
+  await context.env.DB
+    .prepare(`
+      SELECT
+        employee_no,
+        name,
+        default_role,
+        position,
+        is_allowed
+      FROM employees
+      ORDER BY
+        name COLLATE NOCASE ASC,
+        employee_no ASC
+    `)
+    .all();
 
 
     const employees =
@@ -364,35 +498,45 @@ export async function onRequestGet(
         : [];
 
 
-    const normalizedEmployees =
-      employees.map(
-        employee => {
-          return {
-            employeeNo:
-              String(
-                employee.employee_no ||
-                ""
-              ),
+const normalizedEmployees =
+  employees.map(
+    employee => {
+      return {
+        employeeNo:
+          String(
+            employee.employee_no ||
+            ""
+          ),
 
-            name:
-              String(
-                employee.name ||
-                ""
-              ),
 
-            defaultRole:
-              String(
-                employee.default_role ||
-                "user"
-              ),
+        name:
+          String(
+            employee.name ||
+            ""
+          ),
 
-            isAllowed:
-              Number(
-                employee.is_allowed
-              ) === 1
-          };
-        }
-      );
+
+        defaultRole:
+          String(
+            employee.default_role ||
+            "user"
+          ),
+
+
+        position:
+          String(
+            employee.position ||
+            ""
+          ),
+
+
+        isAllowed:
+          Number(
+            employee.is_allowed
+          ) === 1
+      };
+    }
+  );
 
 
     return jsonResponse({
@@ -697,6 +841,12 @@ async function saveUserAccount(
 
    같은 사번이 없으면 INSERT
    같은 사번이 있으면 UPDATE
+
+   저장 항목:
+   - 이름
+   - 권한
+   - 보직
+   - 가입 허용 여부
 ================================================== */
 
 async function saveEmployee(
@@ -728,16 +878,19 @@ async function saveEmployee(
         SET
           name = ?,
           default_role = ?,
+          position = ?,
           is_allowed = ?
         WHERE employee_no = ?
       `)
       .bind(
         employee.name,
         employee.defaultRole,
+        employee.position,
         employee.isAllowed,
         employee.employeeNo
       )
       .run();
+
 
     return "updated";
   }
@@ -752,17 +905,20 @@ async function saveEmployee(
         employee_no,
         name,
         default_role,
+        position,
         is_allowed
       )
-      VALUES (?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?)
     `)
     .bind(
       employee.employeeNo,
       employee.name,
       employee.defaultRole,
+      employee.position,
       employee.isAllowed
     )
     .run();
+
 
   return "created";
 }
