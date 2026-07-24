@@ -19745,3 +19745,134 @@ td {
 .employee-management-edit-button:active {
   transform: translateY(1px);
 }
+
+/* ==================================================
+   직원 정보 수정 모달
+================================================== */
+
+.employee-edit-modal {
+  z-index: 1300;
+}
+
+.employee-edit-panel {
+  width: min(460px, calc(100vw - 28px));
+  max-height: min(720px, calc(100vh - 28px));
+}
+
+.employee-edit-body {
+  display: grid;
+  gap: 16px;
+}
+
+.employee-edit-field {
+  display: grid;
+  gap: 7px;
+}
+
+.employee-edit-field > span {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.employee-edit-field input,
+.employee-edit-field select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #c9d5e4;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1e293b;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+}
+
+.employee-edit-field input:focus,
+.employee-edit-field select:focus {
+  border-color: #2c6cbf;
+  box-shadow: 0 0 0 3px rgba(44, 108, 191, 0.12);
+}
+
+.employee-edit-field input[readonly] {
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.employee-edit-field small {
+  color: #8492a6;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.employee-edit-message {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #c7d8ed;
+  border-radius: 8px;
+  background: #f2f7fd;
+  color: #315b8a;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.employee-edit-message[hidden] {
+  display: none;
+}
+
+
+/* 모달 기본 열림 처리 보강 */
+#employeeEditModal {
+  display: none;
+}
+
+#employeeEditModal.is-open {
+  display: flex;
+}
+
+
+/* ==================================================
+   모바일 직원 수정 모달
+================================================== */
+
+@media (max-width: 640px) {
+
+  .employee-edit-panel {
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+  }
+
+  .employee-edit-body {
+    gap: 13px;
+    padding: 16px;
+  }
+
+  .employee-edit-field input,
+  .employee-edit-field select {
+    min-height: 40px;
+    font-size: 12px;
+  }
+
+  .employee-edit-panel .modal-footer {
+    gap: 8px;
+  }
+
+  .employee-edit-panel
+  .modal-footer__left {
+    display: none;
+  }
+
+  .employee-edit-panel
+  .modal-footer__right {
+    width: 100%;
+  }
+
+  .employee-edit-panel
+  .modal-footer__right button {
+    flex: 1;
+  }
+}

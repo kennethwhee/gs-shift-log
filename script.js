@@ -762,29 +762,106 @@ function renderEmployeeManagementUsers(
 }
 
 /* =========================================================
-  가입 완료 직원 수정 버튼 임시 동작
+  직원 수정 대상 찾기
+========================================================= */
 
-  다음 단계에서 수정 모달을 연결한다.
+function findEmployeeManagementUser(
+  employeeNo
+) {
+  const normalizedEmployeeNo =
+    String(
+      employeeNo ||
+      ""
+    ).trim();
+
+  const users =
+    Array.isArray(
+      employeeManagementUsers
+    )
+      ? employeeManagementUsers
+      : [];
+
+  return (
+    users.find(
+      user => {
+        const userEmployeeNo =
+          String(
+            user.employeeNo ||
+            user.employee_no ||
+            ""
+          ).trim();
+
+        return (
+          userEmployeeNo ===
+          normalizedEmployeeNo
+        );
+      }
+    ) ||
+    null
+  );
+}
+
+
+/* =========================================================
+  직원 권한값 정리
+========================================================= */
+
+function normalizeEmployeeEditRole(
+  value
+) {
+  const role =
+    String(
+      value ||
+      "user"
+    )
+      .trim()
+      .toLowerCase()
+      .replace(
+        /[\s-]+/g,
+        "_"
+      );
+
+  if (
+    role === "super_admin" ||
+    role === "superadmin"
+  ) {
+    return "super_admin";
+  }
+
+  if (
+    role === "admin" ||
+    role === "leader"
+  ) {
+    return "admin";
+  }
+
+  return "user";
+}
+
+
+/* =========================================================
+  직원 수정 모달 열기
 ========================================================= */
 
 function openEmployeeEditModal(
   employeeNo
 ) {
+  const modal =
+    document.getElementById(
+      "employeeEditModal"
+    );
+
+  if (!modal) {
+    showToast(
+      "직원 수정창을 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
   const targetUser =
-    employeeManagementUsers.find(
-      user => {
-        return (
-          String(
-            user.employeeNo ||
-            user.employee_no ||
-            ""
-          ) ===
-          String(
-            employeeNo ||
-            ""
-          )
-        );
-      }
+    findEmployeeManagementUser(
+      employeeNo
     );
 
   if (!targetUser) {
@@ -795,15 +872,312 @@ function openEmployeeEditModal(
     return;
   }
 
-  console.log(
-    "직원 수정 대상:",
-    targetUser
+  const originalEmployeeNoInput =
+    document.getElementById(
+      "employeeEditOriginalEmployeeNo"
+    );
+
+  const employeeNoInput =
+    document.getElementById(
+      "employeeEditEmployeeNo"
+    );
+
+  const nameInput =
+    document.getElementById(
+      "employeeEditName"
+    );
+
+  const roleSelect =
+    document.getElementById(
+      "employeeEditRole"
+    );
+
+  const positionSelect =
+    document.getElementById(
+      "employeeEditPosition"
+    );
+
+  const message =
+    document.getElementById(
+      "employeeEditMessage"
+    );
+
+
+  const targetEmployeeNo =
+    String(
+      targetUser.employeeNo ||
+      targetUser.employee_no ||
+      ""
+    ).trim();
+
+  const targetName =
+    String(
+      targetUser.name ||
+      ""
+    ).trim();
+
+  const targetRole =
+    normalizeEmployeeEditRole(
+      targetUser.role
+    );
+
+  const targetPosition =
+    String(
+      targetUser.position ||
+      targetUser.jobPosition ||
+      targetUser.job_position ||
+      targetUser.duty ||
+      ""
+    ).trim();
+
+
+  if (
+    originalEmployeeNoInput
+  ) {
+    originalEmployeeNoInput.value =
+      targetEmployeeNo;
+  }
+
+  if (employeeNoInput) {
+    employeeNoInput.value =
+      targetEmployeeNo;
+  }
+
+  if (nameInput) {
+    nameInput.value =
+      targetName;
+  }
+
+  if (roleSelect) {
+    roleSelect.value =
+      targetRole;
+  }
+
+  if (positionSelect) {
+    const positionExists =
+      Array.from(
+        positionSelect.options
+      ).some(
+        option => {
+          return (
+            option.value ===
+            targetPosition
+          );
+        }
+      );
+
+    positionSelect.value =
+      positionExists
+        ? targetPosition
+        : "";
+  }
+
+  if (message) {
+    message.hidden = true;
+    message.textContent = "";
+  }
+
+
+  modal.classList.add(
+    "is-open"
   );
 
-  showToast(
-    `${targetUser.name} 직원 수정 기능은 다음 단계에서 연결합니다.`
+  modal.setAttribute(
+    "aria-hidden",
+    "false"
+  );
+
+  document.body.classList.add(
+    "modal-open"
+  );
+
+  window.setTimeout(
+    () => {
+      nameInput?.focus();
+      nameInput?.select();
+    },
+    50
   );
 }
+
+
+/* =========================================================
+  직원 수정 모달 닫기
+========================================================= */
+
+function closeEmployeeEditModal() {
+  const modal =
+    document.getElementById(
+      "employeeEditModal"
+    );
+
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.remove(
+    "is-open"
+  );
+
+  modal.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+
+  const employeeManagementModal =
+    document.getElementById(
+      "employeeManagementModal"
+    );
+
+  const managementModalIsOpen =
+    employeeManagementModal &&
+    employeeManagementModal.classList.contains(
+      "is-open"
+    );
+
+  if (!managementModalIsOpen) {
+    document.body.classList.remove(
+      "modal-open"
+    );
+  }
+}
+
+
+/* =========================================================
+  이번 단계 임시 확인 기능
+
+  아직 서버에는 저장하지 않는다.
+========================================================= */
+
+function previewEmployeeEdit() {
+  const employeeNo =
+    document.getElementById(
+      "employeeEditEmployeeNo"
+    )?.value.trim() ||
+    "";
+
+  const name =
+    document.getElementById(
+      "employeeEditName"
+    )?.value.trim() ||
+    "";
+
+  const role =
+    document.getElementById(
+      "employeeEditRole"
+    )?.value ||
+    "user";
+
+  const position =
+    document.getElementById(
+      "employeeEditPosition"
+    )?.value ||
+    "";
+
+  const message =
+    document.getElementById(
+      "employeeEditMessage"
+    );
+
+
+  if (!name) {
+    if (message) {
+      message.textContent =
+        "직원 이름을 입력해 주세요.";
+
+      message.hidden = false;
+    }
+
+    document.getElementById(
+      "employeeEditName"
+    )?.focus();
+
+    return;
+  }
+
+
+  const roleLabelMap = {
+    user:
+      "일반",
+
+    admin:
+      "파트장",
+
+    super_admin:
+      "최고관리자"
+  };
+
+
+  if (message) {
+    message.textContent =
+      `${name} / ${employeeNo} / ` +
+      `${roleLabelMap[role] || "일반"} / ` +
+      `${position || "보직 미지정"}`;
+
+    message.hidden = false;
+  }
+
+  showToast(
+    "직원 정보가 정상적으로 입력되었습니다. 아직 저장되지는 않았습니다."
+  );
+}
+
+/* =========================================================
+  직원 수정 모달 바깥 영역 클릭 닫기
+========================================================= */
+
+document.addEventListener(
+  "click",
+  event => {
+    const modal =
+      event.target.closest(
+        "#employeeEditModal"
+      );
+
+    if (
+      !modal ||
+      event.target !== modal
+    ) {
+      return;
+    }
+
+    closeEmployeeEditModal();
+  }
+);
+
+
+/* =========================================================
+  ESC 키로 직원 수정 모달 닫기
+========================================================= */
+
+document.addEventListener(
+  "keydown",
+  event => {
+    if (
+      event.key !==
+      "Escape"
+    ) {
+      return;
+    }
+
+    const modal =
+      document.getElementById(
+        "employeeEditModal"
+      );
+
+    if (
+      !modal ||
+      !modal.classList.contains(
+        "is-open"
+      )
+    ) {
+      return;
+    }
+
+    closeEmployeeEditModal();
+  }
+);
 
 /* =========================================================
   가입 완료 직원 검색

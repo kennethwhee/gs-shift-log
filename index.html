@@ -3067,6 +3067,218 @@
   </section>
 </div>
 
+<!-- =========================================================
+  직원 정보 수정 모달
+  최고관리자 전용
+========================================================== -->
+<div
+  class="modal-backdrop employee-edit-modal"
+  id="employeeEditModal"
+  aria-hidden="true"
+>
+  <section
+    class="modal-panel employee-edit-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="employeeEditTitle"
+  >
+
+    <!-- 상단 -->
+    <header class="modal-header">
+
+      <div>
+        <p class="modal-header__eyebrow">
+          EMPLOYEE EDIT
+        </p>
+
+        <h2
+          class="modal-header__title"
+          id="employeeEditTitle"
+        >
+          직원 정보 수정
+        </h2>
+      </div>
+
+
+      <button
+        type="button"
+        class="modal-close-button"
+        id="closeEmployeeEditButton"
+        aria-label="직원 수정창 닫기"
+        onclick="closeEmployeeEditModal()"
+      >
+        ×
+      </button>
+
+    </header>
+
+
+    <!-- 본문 -->
+    <div class="modal-body employee-edit-body">
+
+      <input
+        type="hidden"
+        id="employeeEditOriginalEmployeeNo"
+      >
+
+
+      <label class="employee-edit-field">
+
+        <span>
+          사번
+        </span>
+
+        <input
+          type="text"
+          id="employeeEditEmployeeNo"
+          readonly
+        >
+
+        <small>
+          사번은 변경할 수 없습니다.
+        </small>
+
+      </label>
+
+
+      <label class="employee-edit-field">
+
+        <span>
+          이름
+        </span>
+
+        <input
+          type="text"
+          id="employeeEditName"
+          maxlength="30"
+          autocomplete="off"
+        >
+
+      </label>
+
+
+      <label class="employee-edit-field">
+
+        <span>
+          권한
+        </span>
+
+        <select id="employeeEditRole">
+
+          <option value="user">
+            일반
+          </option>
+
+          <option value="admin">
+            파트장
+          </option>
+
+          <option value="super_admin">
+            최고관리자
+          </option>
+
+        </select>
+
+      </label>
+
+
+      <label class="employee-edit-field">
+
+        <span>
+          보직
+        </span>
+
+        <select id="employeeEditPosition">
+
+          <option value="">
+            보직 미지정
+          </option>
+
+          <option value="TGO">
+            TGO
+          </option>
+
+          <option value="BCO1">
+            BCO1
+          </option>
+
+          <option value="BCO2">
+            BCO2
+          </option>
+
+          <option value="TO">
+            TO
+          </option>
+
+          <option value="BO1">
+            BO1
+          </option>
+
+          <option value="BO2">
+            BO2
+          </option>
+
+          <option value="파트장">
+            파트장
+          </option>
+
+        </select>
+
+        <small>
+          이번 단계에서는 화면에만 표시하며 저장은 다음 단계에서 연결합니다.
+        </small>
+
+      </label>
+
+
+      <p
+        class="employee-edit-message"
+        id="employeeEditMessage"
+        hidden
+      >
+      </p>
+
+    </div>
+
+
+    <!-- 하단 -->
+    <footer class="modal-footer">
+
+      <div class="modal-footer__left">
+
+        <span class="employee-management-footer-help">
+          권한과 보직은 다음 단계에서 저장됩니다.
+        </span>
+
+      </div>
+
+
+      <div class="modal-footer__right">
+
+        <button
+          type="button"
+          class="secondary-button"
+          onclick="closeEmployeeEditModal()"
+        >
+          취소
+        </button>
+
+
+        <button
+          type="button"
+          class="primary-button"
+          id="saveEmployeeEditButton"
+          onclick="previewEmployeeEdit()"
+        >
+          확인
+        </button>
+
+      </div>
+
+    </footer>
+
+  </section>
+</div>
 
 <!-- =========================================================
   공통 알림
