@@ -29228,7 +29228,7 @@ const normalizeDetailEntry = (
     보직 | 상태 배지 | 운전현황
 
     TO · BO1 · BO2:
-    보직 | 운전현황 텍스트
+    가로 전체를 사용하는 일반 텍스트
   ====================================================== */
 
   const detailOperationRole =
@@ -29251,150 +29251,168 @@ const normalizeDetailEntry = (
 
 
   /*
-    운전현황의 줄바꿈을 유지하면서
-    안전한 HTML로 변환한다.
+    과거 자료의 잘못된 중간 줄바꿈을 정리한다.
+
+    실제 항목 구분:
+    1. / 2. / 3.
+    ① / ② / ③
   */
-const createOperationStatusContentHtml =
-  (
-    content
-  ) => {
-    const normalizedLines =
-      String(
-        content ||
-        "등록된 운전현황이 없습니다."
-      )
-        .replace(
-          /<br\s*\/?>/gi,
-          "\n"
+  const createDetailOperationContentHtml =
+    (
+      content,
+      mergeLegacyWraps = false
+    ) => {
+      const sourceLines =
+        String(
+          content ||
+          "등록된 운전현황이 없습니다."
         )
-        .replace(
-          /\\n/g,
-          "\n"
-        )
-        .replace(
-          /\r\n/g,
-          "\n"
-        )
-        .replace(
-          /\r/g,
-          "\n"
-        )
-        .split(
-          "\n"
-        )
-        .map(
-          line => {
-            return String(
-              line ||
-              ""
-            )
+          .replace(
+            /<br\s*\/?>/gi,
+            "\n"
+          )
+          .replace(
+            /\\n/g,
+            "\n"
+          )
+          .replace(
+            /\r\n/g,
+            "\n"
+          )
+          .replace(
+            /\r/g,
+            "\n"
+          )
+          .split(
+            "\n"
+          )
+          .map(
+            line => {
+              return String(
+                line ||
+                ""
+              )
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .trim();
+            }
+          )
+          .filter(
+            line => {
+              return (
+                Boolean(
+                  line
+                ) &&
+                !/^\[\s*(?:TO|BO1|BO2)\s*\]$/i
+                  .test(
+                    line
+                  )
+              );
+            }
+          );
+
+
+      if (
+        !mergeLegacyWraps
+      ) {
+        return sourceLines
+          .map(
+            line => {
+              return escapeHtml(
+                line
+              );
+            }
+          )
+          .join(
+            "<br>"
+          );
+      }
+
+
+      const logicalLines = [];
+
+
+      sourceLines.forEach(
+        line => {
+          const startsNewItem =
+            /^(?:\d+\s*[.)]|[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳])\s*/
+              .test(
+                line
+              );
+
+
+          if (
+            !logicalLines.length ||
+            startsNewItem
+          ) {
+            logicalLines.push(
+              line
+            );
+
+            return;
+          }
+
+
+          const previousIndex =
+            logicalLines.length - 1;
+
+
+          const previousLine =
+            logicalLines[
+              previousIndex
+            ];
+
+
+          /*
+            과거 좁은 칸에서 한글이 잘린 경우 복원
+
+            정 + 상 운전 중
+            → 정상 운전 중
+          */
+          const previousHangulToken =
+            previousLine.match(
+              /([가-힣]+)$/
+            )?.[1] ||
+            "";
+
+
+          const joinWithoutSpace =
+            previousHangulToken.length ===
+              1 &&
+            /^[가-힣]/
+              .test(
+                line
+              );
+
+
+          logicalLines[
+            previousIndex
+          ] =
+            `${previousLine}${joinWithoutSpace ? "" : " "}${line}`
               .replace(
                 /\s+/g,
                 " "
               )
               .trim();
-          }
-        )
-        .filter(Boolean);
+        }
+      );
 
 
-    const logicalLines = [];
-
-
-    normalizedLines.forEach(
-      line => {
-        /*
-          실제 새 항목만 줄바꿈을 유지한다.
-
-          지원 예시:
-          1. 터빈
-          2) 보조 보일러
-          ① GST
-          ② UAT
-        */
-        const startsNewLogicalLine =
-          /^\d+\s*[.)]\s*/
-            .test(
-              line
-            ) ||
-          /^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]\s*/
-            .test(
+      return logicalLines
+        .map(
+          line => {
+            return escapeHtml(
               line
             );
+          }
+        )
+        .join(
+          "<br>"
+        );
+    };
 
-
-        if (
-          !logicalLines.length ||
-          startsNewLogicalLine
-        ) {
-          logicalLines.push(
-            line
-          );
-
-          return;
-        }
-
-
-        const previousIndex =
-          logicalLines.length - 1;
-
-
-        const previousLine =
-          logicalLines[
-            previousIndex
-          ];
-
-
-        /*
-          과거의 좁은 칸에서 한글 단어가
-          중간에 잘린 경우 다시 붙인다.
-
-          정 + 상 운전 중
-          → 정상 운전 중
-        */
-        const previousHangulToken =
-          previousLine.match(
-            /([가-힣]+)$/
-          )?.[1] ||
-          "";
-
-
-        const joinText =
-          previousHangulToken.length ===
-            1 &&
-          /^[가-힣]/
-            .test(
-              line
-            )
-            ? ""
-            : " ";
-
-
-        logicalLines[
-          previousIndex
-        ] =
-          `${previousLine}${joinText}${line}`
-            .replace(
-              /\s+/g,
-              " "
-            )
-            .trim();
-      }
-    );
-
-
-    return logicalLines
-      .map(
-        line => {
-          return escapeHtml(
-            line
-          );
-        }
-      )
-      .join(
-        "<br>"
-      );
-  };
 
   const operationStatusHtml =
     operationStatusRows.length
@@ -29428,9 +29446,7 @@ const createOperationStatusContentHtml =
 
             ${operationStatusRows
               .map(
-                (
-                  statusRow
-                ) => {
+                statusRow => {
                   const statusRowRole =
                     normalizeMemberLogRole(
                       statusRow.role ||
@@ -29438,10 +29454,6 @@ const createOperationStatusContentHtml =
                     );
 
 
-                  /*
-                    TO · BO1 · BO2는
-                    상태 배지를 표시하지 않는다.
-                  */
                   const isFreeTextOperationRow =
                     statusRow.isFreeText ===
                       true ||
@@ -29450,41 +29462,53 @@ const createOperationStatusContentHtml =
                     );
 
 
-                  const statusContentHtml =
-                    createOperationStatusContentHtml(
-                      statusRow.content
-                    );
+                  /*
+                    TO · BO1 · BO2
 
-
+                    기존 상태 배지용 Grid를 사용하지 않고
+                    가로 전체 텍스트 블록으로 출력한다.
+                  */
                   if (
                     isFreeTextOperationRow
                   ) {
                     return `
                       <div
-                        class="
-                          detail-operation-dashboard__row
-                          is-free-text
+                        class="detail-operation-dashboard__free-text"
+                        style="
+                          display: block !important;
+                          grid-column: 1 / -1 !important;
+                          width: 100% !important;
+                          min-width: 0 !important;
+                          max-width: none !important;
+                          margin: 0 !important;
+                          padding: 0 !important;
+                          box-sizing: border-box !important;
                         "
                       >
-
-                        <strong
-                          class="detail-operation-dashboard__role"
-                        >
-                          ${escapeHtml(
-                            statusRowRole ||
-                            detailOperationRole ||
-                            "-"
-                          )}
-                        </strong>
-
 
                         <span
                           class="
                             detail-operation-dashboard__content
                             is-free-text
                           "
+                          style="
+                            display: block !important;
+                            width: 100% !important;
+                            min-width: 0 !important;
+                            max-width: none !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            text-align: left !important;
+                            white-space: normal !important;
+                            word-break: keep-all !important;
+                            overflow-wrap: anywhere !important;
+                            line-height: 1.65 !important;
+                          "
                         >
-                          ${statusContentHtml}
+                          ${createDetailOperationContentHtml(
+                            statusRow.content,
+                            true
+                          )}
                         </span>
 
                       </div>
@@ -29550,7 +29574,9 @@ const createOperationStatusContentHtml =
                       <span
                         class="detail-operation-dashboard__content"
                       >
-                        ${statusContentHtml}
+                        ${createDetailOperationContentHtml(
+                          statusRow.content
+                        )}
                       </span>
 
                     </div>
@@ -29568,6 +29594,7 @@ const createOperationStatusContentHtml =
           등록된 운전현황이 없습니다.
         </div>
       `;
+      
   /* =====================================================
     TM 발행 HTML
   ====================================================== */
