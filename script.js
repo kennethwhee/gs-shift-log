@@ -18937,9 +18937,7 @@ function fillLogEditor(
     const matchedTeamOption = [
       ...elements.logTeam.options
     ].find(
-      (
-        option
-      ) => {
+      option => {
         return (
           normalizeTeamName(
             option.value
@@ -18971,9 +18969,7 @@ function fillLogEditor(
     const matchedRoleOption = [
       ...elements.logRole.options
     ].find(
-      (
-        option
-      ) => {
+      option => {
         return (
           normalizeMemberLogRole(
             option.value
@@ -19247,6 +19243,26 @@ function fillLogEditor(
           );
 
 
+    /*
+      과거 파트장 취합 항목의 출처 보직을
+      원본 팀원 업무일지와 비교하여 복구한다.
+    */
+    const resolvedImportedFromRole =
+      normalizedRole ===
+        "파트장"
+        ? resolveDetailEntrySourceRole(
+            normalizedEntry,
+            log
+          )
+        : (
+            normalizedRole ||
+            normalizeMemberLogRole(
+              normalizedEntry
+                ?.importedFromRole
+            )
+          );
+
+
     return {
       id:
         String(
@@ -19289,7 +19305,7 @@ function fillLogEditor(
 
       importedFromRole:
         String(
-          normalizedEntry?.importedFromRole ||
+          resolvedImportedFromRole ||
           ""
         ).trim(),
 
@@ -19315,112 +19331,67 @@ function fillLogEditor(
   };
 
 
-  const legacyEntries =
-    Array.isArray(
-      log.entries
-    )
-      ? log.entries
-      : [];
+  /*
+    1단계에서 추가한 정리 함수를 사용하여
+    과거·현재 저장 구조를 통합한다.
+  */
+  const collectedEntries =
+    collectLogEntriesForDisplay(
+      log
+    );
 
 
   const tmEntries =
-    Array.isArray(
-      log.tmEntries
-    )
-      ? log.tmEntries
-      : legacyEntries.filter(
-          (
-            entry
-          ) => {
-            return (
-              String(
-                entry?.category ||
-                ""
-              ).trim() ===
-              "TM 발행"
-            );
-          }
+    collectedEntries.filter(
+      entry => {
+        return (
+          String(
+            entry?.category ||
+            ""
+          ).trim() ===
+          "TM 발행"
         );
+      }
+    );
 
 
   const handoverEntries =
-    Array.isArray(
-      log.handoverEntries
-    )
-      ? log.handoverEntries
-      : legacyEntries.filter(
-          (
-            entry
-          ) => {
-            const category =
-              String(
-                entry?.category ||
-                ""
-              ).trim();
-
-            return (
-              category !==
-                "TM 발행" &&
-              category !==
-                "비고"
-            );
-          }
-        );
-
-
-  let remarkEntries =
-    Array.isArray(
-      log.remarkEntries
-    )
-      ? log.remarkEntries
-      : legacyEntries.filter(
-          (
-            entry
-          ) => {
-            return (
-              String(
-                entry?.category ||
-                ""
-              ).trim() ===
-              "비고"
-            );
-          }
-        );
-
-
-  if (
-    !remarkEntries.length &&
-    String(
-      log.note ||
-      ""
-    ).trim()
-  ) {
-    remarkEntries = [
-      {
-        time:
-          "",
-
-        category:
-          "비고",
-
-        tag:
-          "",
-
-        content:
+    collectedEntries.filter(
+      entry => {
+        const category =
           String(
-            log.note ||
+            entry?.category ||
             ""
-          ).trim()
+          ).trim();
+
+
+        return (
+          category !==
+            "TM 발행" &&
+          category !==
+            "비고"
+        );
       }
-    ];
-  }
+    );
+
+
+  const remarkEntries =
+    collectedEntries.filter(
+      entry => {
+        return (
+          String(
+            entry?.category ||
+            ""
+          ).trim() ===
+          "비고"
+        );
+      }
+    );
 
 
   appState.editorEntries = [
     ...tmEntries.map(
-      (
-        entry
-      ) => {
+      entry => {
         return normalizeEditorEntry(
           entry,
           "TM 발행"
@@ -19429,9 +19400,7 @@ function fillLogEditor(
     ),
 
     ...handoverEntries.map(
-      (
-        entry
-      ) => {
+      entry => {
         return normalizeEditorEntry(
           entry,
           "인계사항"
@@ -19440,9 +19409,7 @@ function fillLogEditor(
     ),
 
     ...remarkEntries.map(
-      (
-        entry
-      ) => {
+      entry => {
         return normalizeEditorEntry(
           entry,
           "비고"
@@ -19472,10 +19439,17 @@ function fillLogEditor(
     elements.logNote
   ) {
     elements.logNote.value =
-      String(
-        log.note ||
-        ""
-      ).trim();
+      remarkEntries
+        .map(
+          entry => {
+            return String(
+              entry?.content ||
+              ""
+            ).trim();
+          }
+        )
+        .filter(Boolean)
+        .join("\n");
   }
 
 
@@ -20463,6 +20437,91 @@ function renderLogEntryTable() {
     "파트장";
 
 
+  /*
+    수정 중인 파트장 업무일지의 날짜·근무를 확인한다.
+
+    과거 취합 항목의 importedFromRole이
+    비어 있거나 파트장으로 잘못 저장된 경우
+    원본 팀원 일지와 비교하여 복구한다.
+  */
+  const editingLogId =
+    String(
+      elements.logEditorForm
+        ?.dataset.editingId ||
+      ""
+    ).trim();
+
+
+  const editorContextLog =
+    (
+      editingLogId
+        ? appState.logs.find(
+            log => {
+              return (
+                String(
+                  log?.id ||
+                  ""
+                ).trim() ===
+                editingLogId
+              );
+            }
+          )
+        : null
+    ) ||
+    {
+      id:
+        editingLogId,
+
+      date:
+        String(
+          elements.logDate?.value ||
+          ""
+        ).trim(),
+
+      shift:
+        String(
+          elements.logShift?.value ||
+          appState.selectedShift ||
+          ""
+        )
+          .trim()
+          .toUpperCase(),
+
+      role:
+        currentRole
+    };
+
+
+  /*
+    파트장 수정창을 출력하기 전에
+    실제 출처 보직을 복구한다.
+
+    복구한 값은 editorEntries에도 반영되어
+    이후 저장할 때 유지된다.
+  */
+  if (
+    isLeaderLog
+  ) {
+    entries.forEach(
+      entry => {
+        const resolvedRole =
+          resolveDetailEntrySourceRole(
+            entry,
+            editorContextLog
+          );
+
+
+        if (
+          resolvedRole
+        ) {
+          entry.importedFromRole =
+            resolvedRole;
+        }
+      }
+    );
+  }
+
+
   const indexedEntries =
     entries.map(
       (
@@ -20478,7 +20537,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    테이블의 실제 열 개수
+    테이블 실제 열 개수
   ====================================================== */
 
   const getTableColumnCount = (
@@ -20596,7 +20655,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    TM / 인계 및 일반 업무 / 비고 분리
+    TM / 일반 업무 / 비고 분리
   ====================================================== */
 
   const tmEntries =
@@ -20662,7 +20721,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    건수와 저장용 JSON
+    건수 및 저장용 JSON
   ====================================================== */
 
   if (
@@ -20708,10 +20767,8 @@ function renderLogEntryTable() {
 
 
   /*
-    기존 log.note 필드는 더 이상 직접 입력하지 않는다.
-
-    비고 항목 내용을 줄바꿈 문자열로도 동기화하여
-    이전 저장 방식과의 호환성을 유지한다.
+    비고 내용을 이전 저장 방식의
+    log.note 문자열과도 동기화한다.
   */
   if (
     elements.logNote
@@ -20734,7 +20791,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    공통 항목 행 생성
+    공통 업무 항목 행 생성
   ====================================================== */
 
   const createEntryRowHtml = (
@@ -20807,7 +20864,6 @@ function renderLogEntryTable() {
 
               align-items:start !important;
               column-gap:6px !important;
-
               margin:0 !important;
               padding:7px 10px !important;
             "
@@ -20876,10 +20932,8 @@ function renderLogEntryTable() {
 
                 width:78px !important;
                 min-width:78px !important;
-
                 align-items:center !important;
                 justify-content:flex-end !important;
-
                 gap:4px !important;
               "
             >
@@ -20913,7 +20967,6 @@ function renderLogEntryTable() {
 
   /* =====================================================
     TM 발행 내역
-    번호는 TM 안에서 1부터 시작
   ====================================================== */
 
   if (
@@ -20968,7 +21021,7 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    인계 및 일반 업무를 보직별로 묶기
+    일반 업무를 출처 보직별로 묶기
   ====================================================== */
 
   const roleOrder = [
@@ -20986,7 +21039,7 @@ function renderLogEntryTable() {
 
 
   ordinaryEntries.forEach(
-    (item) => {
+    item => {
       const sourceRole =
         normalizeMemberLogRole(
           item.entry
@@ -21019,7 +21072,7 @@ function renderLogEntryTable() {
   Object.keys(
     groupedEntries
   ).forEach(
-    (role) => {
+    role => {
       groupedEntries[
         role
       ].sort(
@@ -21031,7 +21084,7 @@ function renderLogEntryTable() {
 
   const orderedRoles = [
     ...roleOrder.filter(
-      (role) => {
+      role => {
         return Boolean(
           groupedEntries[
             role
@@ -21043,7 +21096,7 @@ function renderLogEntryTable() {
     ...Object.keys(
       groupedEntries
     ).filter(
-      (role) => {
+      role => {
         return (
           !roleOrder.includes(
             role
@@ -21055,7 +21108,11 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    인계 및 일반 업무 출력
+    일반 업무 출력
+
+    파트장:
+    TGO → BCO1 → BCO2 순서로 분류
+    보직별 번호는 다시 1번부터 시작
   ====================================================== */
 
   if (
@@ -21140,7 +21197,6 @@ function renderLogEntryTable() {
 
                           width:18px !important;
                           height:18px !important;
-
                           align-items:center !important;
                           justify-content:center !important;
                         "
@@ -21247,7 +21303,9 @@ function renderLogEntryTable() {
 
   /* =====================================================
     비고 출력
-    인계사항과 분리하고 번호를 다시 1부터 시작
+
+    일반 업무와 분리하며
+    번호를 다시 1번부터 시작한다.
   ====================================================== */
 
   if (
@@ -24114,15 +24172,289 @@ function renderLogTable() {
   updateShiftMemberCardStates();
 }
 
-/* =========================================================
-  업무일지 메인 목록 한 행 생성 최종본
+function collectLogEntriesForDisplay(
+  log
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    return [];
+  }
 
-  색상 기준:
-  - TM 발행 번호: 주황색
-  - 인계사항 번호: 파란색
-  - 모든 시간: 파란색
-  - 실제 내용: 기존 진한 본문색
-========================================================= */
+
+  const candidates = [];
+
+
+  const appendEntries = (
+    entries,
+    fallbackCategory
+  ) => {
+    if (
+      !Array.isArray(
+        entries
+      )
+    ) {
+      return;
+    }
+
+
+    entries.forEach(
+      (
+        entry
+      ) => {
+        candidates.push({
+          entry,
+
+          fallbackCategory
+        });
+      }
+    );
+  };
+
+
+  /*
+    새 분리 저장 구조
+  */
+  appendEntries(
+    log.tmEntries,
+    "TM 발행"
+  );
+
+
+  appendEntries(
+    log.handoverEntries,
+    "인계사항"
+  );
+
+
+  appendEntries(
+    log.remarkEntries,
+    "비고"
+  );
+
+
+  /*
+    과거 단일 entries 저장 구조
+  */
+  appendEntries(
+    log.entries,
+    "인계사항"
+  );
+
+
+  /*
+    과거 비고 문자열 복원
+  */
+  if (
+    !Array.isArray(
+      log.remarkEntries
+    ) ||
+    log.remarkEntries.length ===
+      0
+  ) {
+    appendEntries(
+      convertSavedNoteToEntries(
+        log.note,
+        log
+      ),
+      "비고"
+    );
+  }
+
+
+  const uniqueEntryMap =
+    new Map();
+
+
+  candidates.forEach(
+    ({
+      entry,
+      fallbackCategory
+    }) => {
+      const sourceEntry =
+        entry &&
+        typeof entry ===
+          "object" &&
+        !Array.isArray(
+          entry
+        )
+          ? entry
+          : {
+              content:
+                String(
+                  entry ||
+                  ""
+                ).trim()
+            };
+
+
+      const normalizedEntry =
+        normalizeExistingLogEntryTime({
+          ...sourceEntry,
+
+          category:
+            String(
+              sourceEntry.category ||
+              fallbackCategory ||
+              "인계사항"
+            ).trim(),
+
+          time:
+            String(
+              sourceEntry.time ||
+              ""
+            ).trim(),
+
+          tag:
+            String(
+              sourceEntry.tag ||
+              ""
+            )
+              .trim()
+              .toUpperCase(),
+
+          content:
+            String(
+              sourceEntry.content ||
+              ""
+            ).trim()
+        });
+
+
+      const rawCategory =
+        String(
+          normalizedEntry.category ||
+          fallbackCategory ||
+          "인계사항"
+        ).trim();
+
+
+      if (
+        rawCategory ===
+          "비고" ||
+        rawCategory.includes(
+          "비고"
+        )
+      ) {
+        normalizedEntry.category =
+          "비고";
+
+        normalizedEntry.time =
+          "";
+
+        normalizedEntry.tag =
+          "";
+
+      } else if (
+        rawCategory ===
+          "TM 발행" ||
+        rawCategory
+          .toUpperCase()
+          .startsWith(
+            "TM"
+          )
+      ) {
+        normalizedEntry.category =
+          "TM 발행";
+
+      } else {
+        normalizedEntry.category =
+          rawCategory ||
+          "인계사항";
+      }
+
+
+      if (
+        !String(
+          normalizedEntry.content ||
+          ""
+        ).trim()
+      ) {
+        return;
+      }
+
+
+      /*
+        파트장으로 잘못 저장되거나
+        비어 있는 출처 보직 복구
+      */
+      normalizedEntry.importedFromRole =
+        resolveDetailEntrySourceRole(
+          normalizedEntry,
+          log
+        );
+
+
+      const uniqueKeyParts = [
+        normalizedEntry.category,
+
+        String(
+          normalizedEntry.time ||
+          ""
+        ).trim(),
+
+        String(
+          normalizedEntry.tag ||
+          ""
+        )
+          .trim()
+          .toUpperCase(),
+
+        String(
+          normalizedEntry.content ||
+          ""
+        )
+          .trim()
+          .replace(
+            /\s+/g,
+            " "
+          )
+      ];
+
+
+      /*
+        일반 업무와 TM은 보직별로 유지한다.
+        같은 비고 내용은 한 번만 표시한다.
+      */
+      if (
+        normalizedEntry.category !==
+        "비고"
+      ) {
+        uniqueKeyParts.push(
+          normalizeMemberLogRole(
+            normalizedEntry
+              .importedFromRole
+          )
+        );
+      }
+
+
+      const uniqueKey =
+        uniqueKeyParts.join(
+          "||"
+        );
+
+
+      if (
+        !uniqueEntryMap.has(
+          uniqueKey
+        )
+      ) {
+        uniqueEntryMap.set(
+          uniqueKey,
+          normalizedEntry
+        );
+      }
+    }
+  );
+
+
+  return [
+    ...uniqueEntryMap.values()
+  ];
+}
 
 function createLogRowHtml(log) {
   const previewGroups = [];
@@ -24140,15 +24472,7 @@ function createLogRowHtml(log) {
 
 
   /* =====================================================
-    1. 운전현황
-
-    일반 보직:
-    TGO·BCO1·BCO2·TO·BO1·BO2는
-    업무일지 목록에서 운전현황을 표시하지 않는다.
-
-    파트장:
-    저장된 운전현황 전체 내용을
-    줄별로 모두 표시한다.
+    1. 파트장 운전현황
   ====================================================== */
 
   if (
@@ -24171,9 +24495,10 @@ function createLogRowHtml(log) {
           "\n"
         )
         .map(
-          (line) => {
+          line => {
             return String(
-              line || ""
+              line ||
+              ""
             ).trim();
           }
         )
@@ -24197,6 +24522,9 @@ function createLogRowHtml(log) {
           number:
             `${index + 1}.`,
 
+          numberClass:
+            "is-handover-number",
+
           time:
             "",
 
@@ -24205,9 +24533,6 @@ function createLogRowHtml(log) {
 
           tag:
             "",
-
-          numberClass:
-            "is-handover-number",
 
           categoryClass: [
             "is-operation",
@@ -24224,12 +24549,15 @@ function createLogRowHtml(log) {
   }
 
 
+  /*
+    1단계에서 추가한 함수를 사용하여
+    TM·일반 업무·비고를 정리하고
+    출처 보직을 복구한다.
+  */
   const entries =
-    Array.isArray(
-      log.entries
-    )
-      ? log.entries
-      : [];
+    collectLogEntriesForDisplay(
+      log
+    );
 
 
   /* =====================================================
@@ -24239,7 +24567,7 @@ function createLogRowHtml(log) {
   const tmEntries =
     sortDetailEntriesByTime(
       entries.filter(
-        (entry) => {
+        entry => {
           return (
             String(
               entry.category ||
@@ -24266,20 +24594,6 @@ function createLogRowHtml(log) {
           .toUpperCase();
 
 
-      const timeText =
-        String(
-          entry.time ||
-          ""
-        ).trim();
-
-
-      const contentText =
-        firstMeaningfulLine(
-          entry.content
-        ) ||
-        "-";
-
-
       previewGroups.push({
         type:
           "normal",
@@ -24289,23 +24603,23 @@ function createLogRowHtml(log) {
             ? "TM 발행 내역"
             : "",
 
-        /*
-          TM 번호는 주황색
-        */
         number:
           `${index + 1}.`,
 
         numberClass:
           "is-tm-number",
 
-        /*
-          시간이 있는 TM은 파란색 시간으로 표시
-        */
         time:
-          timeText,
+          String(
+            entry.time ||
+            ""
+          ).trim(),
 
         content:
-          contentText,
+          firstMeaningfulLine(
+            entry.content
+          ) ||
+          "-",
 
         tag:
           tagText
@@ -24328,17 +24642,29 @@ function createLogRowHtml(log) {
 
   /* =====================================================
     3. 인계사항 및 보직별 업무
+
+    파트장:
+    TGO → BCO1 → BCO2 순서로 분류
+
+    TO·BO1·BO2를 개별적으로 가져온 경우에도
+    해당 보직으로 별도 분류한다.
   ====================================================== */
 
   const handoverEntries =
     entries.filter(
-      (entry) => {
-        return (
+      entry => {
+        const category =
           String(
             entry.category ||
             ""
-          ).trim() !==
-          "TM 발행"
+          ).trim();
+
+
+        return (
+          category !==
+            "TM 발행" &&
+          category !==
+            "비고"
         );
       }
     );
@@ -24359,13 +24685,17 @@ function createLogRowHtml(log) {
 
 
   handoverEntries.forEach(
-    (entry) => {
+    entry => {
       const sourceRole =
-        normalizeMemberLogRole(
-          entry.importedFromRole ||
-          log.role ||
-          "파트장"
-        );
+        isLeaderLog
+          ? resolveDetailEntrySourceRole(
+              entry,
+              log
+            )
+          : (
+              normalizedLogRole ||
+              "파트장"
+            );
 
 
       if (
@@ -24390,7 +24720,7 @@ function createLogRowHtml(log) {
 
   const orderedRoles = [
     ...roleOrder.filter(
-      (role) => {
+      role => {
         return Boolean(
           groupedEntries[
             role
@@ -24402,7 +24732,7 @@ function createLogRowHtml(log) {
     ...Object.keys(
       groupedEntries
     ).filter(
-      (role) => {
+      role => {
         return (
           !roleOrder.includes(
             role
@@ -24427,9 +24757,7 @@ function createLogRowHtml(log) {
 
 
       /*
-        파트장 업무일지는
-        TGO → BCO1 → BCO2 순서로
-        보직 제목을 표시한다.
+        파트장은 보직별 제목을 표시한다.
       */
       if (
         isLeaderLog &&
@@ -24458,6 +24786,10 @@ function createLogRowHtml(log) {
       }
 
 
+      /*
+        보직이 바뀔 때마다 번호를
+        다시 1번부터 시작한다.
+      */
       roleEntries.forEach(
         (
           entry,
@@ -24472,20 +24804,6 @@ function createLogRowHtml(log) {
               .toUpperCase();
 
 
-          const timeText =
-            String(
-              entry.time ||
-              ""
-            ).trim();
-
-
-          const contentText =
-            firstMeaningfulLine(
-              entry.content
-            ) ||
-            "-";
-
-
           previewGroups.push({
             type:
               "normal",
@@ -24496,23 +24814,23 @@ function createLogRowHtml(log) {
                 ? "인계 사항"
                 : "",
 
-            /*
-              인계 번호는 파란색
-            */
             number:
               `${index + 1}.`,
 
             numberClass:
               "is-handover-number",
 
-            /*
-              시간도 파란색
-            */
             time:
-              timeText,
+              String(
+                entry.time ||
+                ""
+              ).trim(),
 
             content:
-              contentText,
+              firstMeaningfulLine(
+                entry.content
+              ) ||
+              "-",
 
             tag:
               tagText
@@ -24542,43 +24860,67 @@ function createLogRowHtml(log) {
 
 
   /* =====================================================
-    4. 비고
+    4. 취합된 비고
   ====================================================== */
 
-  if (
-    String(
-      log.note ||
-      ""
-    ).trim()
-  ) {
-    previewGroups.push({
-      type:
-        "normal",
+  const remarkEntries =
+    entries.filter(
+      entry => {
+        return (
+          String(
+            entry.category ||
+            ""
+          ).trim() ===
+          "비고"
+        );
+      }
+    );
 
-      title:
-        "비고",
 
-      number:
-        "",
+  remarkEntries.forEach(
+    (
+      entry,
+      index
+    ) => {
+      previewGroups.push({
+        type:
+          "normal",
 
-      numberClass:
-        "",
+        title:
+          index === 0
+            ? "비고"
+            : "",
 
-      time:
-        "",
+        number:
+          `${index + 1}.`,
 
-      content:
-        firstMeaningfulLine(
-          log.note
-        ),
+        numberClass:
+          "is-handover-number",
 
-      tag:
-        "",
+        time:
+          "",
 
-      categoryClass:
-        "is-note is-section-start"
-    });
-  }
+        content:
+          firstMeaningfulLine(
+            entry.content
+          ) ||
+          "-",
+
+        tag:
+          "",
+
+        categoryClass: [
+          "is-note",
+
+          index === 0
+            ? "is-section-start"
+            : ""
+        ]
+          .filter(Boolean)
+          .join(" ")
+      });
+    }
+  );
 
 
   const attachmentCount =
@@ -24659,8 +25001,7 @@ function createLogRowHtml(log) {
             previewGroups.length
               ? previewGroups
                   .map(
-                    (group) => {
-
+                    group => {
                       /*
                         파트장 보직별 제목
                       */
@@ -24672,7 +25013,6 @@ function createLogRowHtml(log) {
                           <span
                             class="
                               log-preview__role-section
-
                               ${
                                 group.isFirstRole
                                   ? "is-first-role"
@@ -24698,9 +25038,6 @@ function createLogRowHtml(log) {
 
 
                       /*
-                        일반 업무내용
-
-                        표시 순서:
                         번호 → 시간 → 내용 → TAG
                       */
                       return `
@@ -24708,7 +25045,6 @@ function createLogRowHtml(log) {
                           class="
                             log-preview__group
                             ${group.categoryClass}
-
                             ${
                               group.title
                                 ? ""
@@ -29594,7 +29930,7 @@ const normalizeDetailEntry = (
           등록된 운전현황이 없습니다.
         </div>
       `;
-      
+
   /* =====================================================
     TM 발행 HTML
   ====================================================== */
