@@ -29254,50 +29254,147 @@ const normalizeDetailEntry = (
     운전현황의 줄바꿈을 유지하면서
     안전한 HTML로 변환한다.
   */
-  const createOperationStatusContentHtml =
-    (
-      content
-    ) => {
-      const normalizedContent =
-        String(
-          content ||
-          "등록된 운전현황이 없습니다."
+const createOperationStatusContentHtml =
+  (
+    content
+  ) => {
+    const normalizedLines =
+      String(
+        content ||
+        "등록된 운전현황이 없습니다."
+      )
+        .replace(
+          /<br\s*\/?>/gi,
+          "\n"
         )
-          .replace(
-            /<br\s*\/?>/gi,
-            "\n"
-          )
-          .replace(
-            /\\n/g,
-            "\n"
-          )
-          .replace(
-            /\r\n/g,
-            "\n"
-          )
-          .replace(
-            /\r/g,
-            "\n"
-          )
-          .trim();
-
-
-      return normalizedContent
+        .replace(
+          /\\n/g,
+          "\n"
+        )
+        .replace(
+          /\r\n/g,
+          "\n"
+        )
+        .replace(
+          /\r/g,
+          "\n"
+        )
         .split(
           "\n"
         )
         .map(
           line => {
-            return escapeHtml(
-              line
-            );
+            return String(
+              line ||
+              ""
+            )
+              .replace(
+                /\s+/g,
+                " "
+              )
+              .trim();
           }
         )
-        .join(
-          "<br>"
-        );
-    };
+        .filter(Boolean);
 
+
+    const logicalLines = [];
+
+
+    normalizedLines.forEach(
+      line => {
+        /*
+          실제 새 항목만 줄바꿈을 유지한다.
+
+          지원 예시:
+          1. 터빈
+          2) 보조 보일러
+          ① GST
+          ② UAT
+        */
+        const startsNewLogicalLine =
+          /^\d+\s*[.)]\s*/
+            .test(
+              line
+            ) ||
+          /^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]\s*/
+            .test(
+              line
+            );
+
+
+        if (
+          !logicalLines.length ||
+          startsNewLogicalLine
+        ) {
+          logicalLines.push(
+            line
+          );
+
+          return;
+        }
+
+
+        const previousIndex =
+          logicalLines.length - 1;
+
+
+        const previousLine =
+          logicalLines[
+            previousIndex
+          ];
+
+
+        /*
+          과거의 좁은 칸에서 한글 단어가
+          중간에 잘린 경우 다시 붙인다.
+
+          정 + 상 운전 중
+          → 정상 운전 중
+        */
+        const previousHangulToken =
+          previousLine.match(
+            /([가-힣]+)$/
+          )?.[1] ||
+          "";
+
+
+        const joinText =
+          previousHangulToken.length ===
+            1 &&
+          /^[가-힣]/
+            .test(
+              line
+            )
+            ? ""
+            : " ";
+
+
+        logicalLines[
+          previousIndex
+        ] =
+          `${previousLine}${joinText}${line}`
+            .replace(
+              /\s+/g,
+              " "
+            )
+            .trim();
+      }
+    );
+
+
+    return logicalLines
+      .map(
+        line => {
+          return escapeHtml(
+            line
+          );
+        }
+      )
+      .join(
+        "<br>"
+      );
+  };
 
   const operationStatusHtml =
     operationStatusRows.length
