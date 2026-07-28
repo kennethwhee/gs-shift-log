@@ -21122,3 +21122,77 @@ td {
 
   text-align: left !important;
 }
+
+/* =========================================================
+  비고 번호 시작점 정렬
+  다른 업무일지 항목과 동일한 기준 적용
+========================================================= */
+
+#logTableBody
+.log-preview__group.is-remark {
+  grid-template-columns:
+    90px
+    minmax(0, 1fr) !important;
+
+  column-gap: 10px !important;
+}
+
+
+#logTableBody
+.log-preview__group.is-remark
+> .log-preview__content {
+  grid-column: 2 !important;
+
+  display: flex !important;
+  align-items: baseline !important;
+  flex-wrap: nowrap !important;
+
+  width: 100%;
+  min-width: 0;
+
+  gap: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  text-align: left !important;
+}
+
+
+#logTableBody
+.log-preview__group.is-remark
+> .log-preview__content
+> .log-preview__entry-number {
+  display: block !important;
+
+  flex: 0 0 26px !important;
+
+  width: 26px !important;
+  min-width: 26px !important;
+
+  box-sizing: border-box;
+
+  margin: 0 !important;
+  padding: 0 6px 0 0 !important;
+
+  text-align: right !important;
+
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+
+#logTableBody
+.log-preview__group.is-remark
+> .log-preview__content
+> .log-preview__text {
+  display: block !important;
+
+  flex: 1 1 auto !important;
+  min-width: 0;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  text-align: left !important;
+}
