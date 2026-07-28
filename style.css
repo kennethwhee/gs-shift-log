@@ -20979,3 +20979,90 @@ td {
     max-width: 34px !important;
   }
 }
+
+/* =========================================================
+  업무일지 목록 번호·본문 시작점 최종 정렬
+
+  적용 대상:
+  - TM 발행 내역
+  - 인계 사항
+  - 보직별 업무일지
+========================================================= */
+
+#logTableBody
+.log-preview__content {
+  display: flex !important;
+  align-items: baseline !important;
+  flex-wrap: nowrap !important;
+
+  width: 100%;
+  min-width: 0;
+
+  gap: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+/*
+  1. 2. 3. 번호 영역의 폭을 고정해서
+  모든 내용의 시작점을 동일하게 맞춘다.
+*/
+#logTableBody
+.log-preview__entry-number {
+  display: block !important;
+
+  flex: 0 0 22px !important;
+
+  width: 22px !important;
+  min-width: 22px !important;
+
+  box-sizing: border-box;
+
+  margin: 0 !important;
+  padding: 0 5px 0 0 !important;
+
+  text-align: right !important;
+
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+
+/* 시간 뒤 간격 */
+#logTableBody
+.log-preview__entry-time {
+  flex: 0 0 auto;
+
+  margin: 0 5px 0 0 !important;
+
+  white-space: nowrap;
+}
+
+
+/* TAG 뒤 간격 */
+#logTableBody
+.log-preview__tag {
+  flex: 0 0 auto;
+
+  margin-right: 5px !important;
+
+  white-space: nowrap;
+}
+
+
+/* 실제 업무내용 */
+#logTableBody
+.log-preview__text {
+  display: block !important;
+
+  flex: 1 1 auto !important;
+
+  min-width: 0;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  text-align: left !important;
+}
