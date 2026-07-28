@@ -24356,17 +24356,53 @@ function collectLogEntriesForDisplay(
   }
 
 
-  const misrecognizedLegacyHeadings =
-    new Set([
-      "#1 BOILER 운전 및 작업사항",
-      "#2 BOILER 운전 및 작업사항",
-      "TBN & BOP 운전 및 작업사항"
-    ]);
+  const fullImportRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2"
+  ];
+
+
+  const tmOnlyRoles = [
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  const allMemberRoles = [
+    ...fullImportRoles,
+    ...tmOnlyRoles
+  ];
+
+
+  const normalizedLogRole =
+    normalizeMemberLogRole(
+      log.role ||
+      ""
+    );
+
+
+  const normalizeShift = (
+    shift
+  ) => {
+    return String(
+      shift ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /[^A-Z]/g,
+        ""
+      );
+  };
 
 
   const normalizeCategory = (
     category,
-    fallbackCategory
+    fallbackCategory =
+      "인계사항"
   ) => {
     const categoryText =
       String(
@@ -24377,8 +24413,6 @@ function collectLogEntriesForDisplay(
 
 
     if (
-      categoryText ===
-        "비고" ||
       categoryText.includes(
         "비고"
       )
@@ -24388,10 +24422,12 @@ function collectLogEntriesForDisplay(
 
 
     if (
-      categoryText ===
-        "TM 발행" ||
       categoryText
         .toUpperCase()
+        .replace(
+          /\s+/g,
+          ""
+        )
         .startsWith(
           "TM"
         )
@@ -24411,9 +24447,9 @@ function collectLogEntriesForDisplay(
     entry
   ) => {
     if (
-      entry?.category ===
+      entry.category ===
         "TM 발행" ||
-      entry?.category ===
+      entry.category ===
         "비고"
     ) {
       return false;
@@ -24422,7 +24458,7 @@ function collectLogEntriesForDisplay(
 
     const normalizedHeading =
       String(
-        entry?.content ||
+        entry.content ||
         ""
       )
         .trim()
@@ -24446,323 +24482,766 @@ function collectLogEntriesForDisplay(
         .toUpperCase();
 
 
-    return misrecognizedLegacyHeadings.has(
+    return new Set([
+      "#1 BOILER 운전 및 작업사항",
+      "#2 BOILER 운전 및 작업사항",
+      "TBN & BOP 운전 및 작업사항"
+    ]).has(
       normalizedHeading
     );
   };
 
 
-  const normalizeEntry = (
-    entry,
-    fallbackCategory,
-    forcedCategory = ""
-  ) => {
-    const sourceEntry =
-      entry &&
-      typeof entry ===
-        "object" &&
-      !Array.isArray(
-        entry
-      )
-        ? entry
-        : {
-            content:
-              String(
-                entry ||
-                ""
-              ).trim()
-          };
+  /*
+    업무일지 한 건의 모든 저장 구조를 합친다.
 
+    같은 항목이 분리 배열과 entries에
+    동시에 존재할 때만 완전 일치 기준으로 제거한다.
 
-    const initialCategory =
-      forcedCategory ||
-      sourceEntry.category ||
-      fallbackCategory ||
-      "인계사항";
-
-
-    const normalizedEntry =
-      normalizeExistingLogEntryTime({
-        ...sourceEntry,
-
-        category:
-          String(
-            initialCategory
-          ).trim(),
-
-        time:
-          String(
-            sourceEntry.time ||
-            ""
-          ).trim(),
-
-        tag:
-          String(
-            sourceEntry.tag ||
-            ""
-          )
-            .trim()
-            .toUpperCase(),
-
-        content:
-          String(
-            sourceEntry.content ||
-            ""
-          ).trim()
-      });
-
-
-    normalizedEntry.category =
-      normalizeCategory(
-        forcedCategory ||
-        normalizedEntry.category,
-        fallbackCategory
-      );
-
-
-    if (
-      normalizedEntry.category ===
-      "비고"
-    ) {
-      normalizedEntry.time =
-        "";
-
-      normalizedEntry.tag =
-        "";
-    }
-
-
-    return normalizedEntry;
-  };
-
-
-  const normalizeEntryArray = (
-    entries,
-    fallbackCategory,
-    forcedCategory = ""
+    유사도 비교는 사용하지 않는다.
+  */
+  const collectEntriesFromLog = (
+    sourceLog,
+    forcedRole =
+      ""
   ) => {
     if (
-      !Array.isArray(
-        entries
-      )
+      !sourceLog ||
+      typeof sourceLog !==
+        "object"
     ) {
       return [];
     }
 
 
-    return entries
-      .map(
-        entry => {
-          return normalizeEntry(
+    const candidates = [];
+
+
+    const appendEntries = (
+      entries,
+      fallbackCategory,
+      collectionName
+    ) => {
+      if (
+        !Array.isArray(
+          entries
+        )
+      ) {
+        return;
+      }
+
+
+      entries.forEach(
+        (
+          entry,
+          entryIndex
+        ) => {
+          candidates.push({
             entry,
+            entryIndex,
             fallbackCategory,
-            forcedCategory
-          );
-        }
-      )
-      .filter(
-        entry => {
-          if (
-            !String(
-              entry?.content ||
-              ""
-            ).trim()
-          ) {
-            return false;
-          }
-
-
-          return !isMisrecognizedLegacyHeading(
-            entry
-          );
+            collectionName
+          });
         }
       );
-  };
+    };
 
 
-  const getCategoryGroup = (
-    entry
-  ) => {
-    if (
-      entry?.category ===
-      "TM 발행"
-    ) {
-      return "tm";
-    }
-
-
-    if (
-      entry?.category ===
-      "비고"
-    ) {
-      return "remark";
-    }
-
-
-    return "work";
-  };
-
-
-  /* =====================================================
-    새 분리 저장 구조
-
-    tmEntries와 remarkEntries는
-    배열 자체의 용도를 최우선으로 적용한다.
-
-    handoverEntries 안에 과거 비고가 섞여 있다면
-    실제 category에 따라 다시 분류한다.
-  ====================================================== */
-
-  const separatedEntries = [
-    ...normalizeEntryArray(
-      log.tmEntries,
+    appendEntries(
+      sourceLog.tmEntries,
       "TM 발행",
-      "TM 발행"
-    ),
-
-    ...normalizeEntryArray(
-      log.handoverEntries,
-      "인계사항"
-    ),
-
-    ...normalizeEntryArray(
-      log.remarkEntries,
-      "비고",
-      "비고"
-    )
-  ];
-
-
-  /*
-    과거 호환용 전체 배열
-  */
-  const legacyEntries =
-    normalizeEntryArray(
-      log.entries,
-      "인계사항"
+      "tmEntries"
     );
 
 
-  /*
-    과거 비고 문자열
-  */
-  const savedNoteEntries =
-    normalizeEntryArray(
+    appendEntries(
+      sourceLog.handoverEntries,
+      "인계사항",
+      "handoverEntries"
+    );
+
+
+    appendEntries(
+      sourceLog.remarkEntries,
+      "비고",
+      "remarkEntries"
+    );
+
+
+    appendEntries(
+      sourceLog.entries,
+      "인계사항",
+      "entries"
+    );
+
+
+    /*
+      과거 note 비고도 함께 확인한다.
+      remarkEntries와 같은 내용이면 아래 완전 중복 제거에서
+      한 번만 남는다.
+    */
+    appendEntries(
       convertSavedNoteToEntries(
-        log.note,
-        log
+        sourceLog.note,
+        sourceLog
       ),
       "비고",
-      "비고"
+      "note"
     );
 
 
-  /* =====================================================
-    종류별 저장 구조 선택
-
-    해당 종류의 분리 배열이 있으면
-    entries의 동일 항목을 다시 가져오지 않는다.
-
-    분리 배열에 해당 종류가 없을 때만
-    기존 entries에서 보충한다.
-  ====================================================== */
-
-  const selectedEntries = [];
+    const uniqueEntryMap =
+      new Map();
 
 
-  [
-    "tm",
-    "work",
-    "remark"
-  ].forEach(
-    categoryGroup => {
-      const separatedGroupEntries =
-        separatedEntries.filter(
-          entry => {
-            return (
-              getCategoryGroup(
-                entry
-              ) ===
-              categoryGroup
-            );
-          }
+    candidates.forEach(
+      ({
+        entry,
+        entryIndex,
+        fallbackCategory,
+        collectionName
+      }) => {
+        const sourceEntry =
+          entry &&
+          typeof entry ===
+            "object" &&
+          !Array.isArray(
+            entry
+          )
+            ? entry
+            : {
+                content:
+                  String(
+                    entry ||
+                    ""
+                  ).trim()
+              };
+
+
+        const category =
+          normalizeCategory(
+            sourceEntry.category,
+            fallbackCategory
+          );
+
+
+        const normalizedEntry =
+          normalizeExistingLogEntryTime({
+            ...sourceEntry,
+
+            category,
+
+            time:
+              category ===
+                "비고"
+                ? ""
+                : String(
+                    sourceEntry.time ||
+                    ""
+                  ).trim(),
+
+            tag:
+              category ===
+                "비고"
+                ? ""
+                : String(
+                    sourceEntry.tag ||
+                    ""
+                  )
+                    .trim()
+                    .toUpperCase(),
+
+            content:
+              String(
+                sourceEntry.content ||
+                ""
+              ).trim()
+          });
+
+
+        normalizedEntry.category =
+          category;
+
+
+        if (
+          category ===
+          "비고"
+        ) {
+          normalizedEntry.time =
+            "";
+
+          normalizedEntry.tag =
+            "";
+        }
+
+
+        if (
+          !String(
+            normalizedEntry.content ||
+            ""
+          ).trim() ||
+          isMisrecognizedLegacyHeading(
+            normalizedEntry
+          )
+        ) {
+          return;
+        }
+
+
+        const sourceRole =
+          forcedRole
+            ? normalizeMemberLogRole(
+                forcedRole
+              )
+            : normalizeMemberLogRole(
+                sourceEntry
+                  .importedFromRole ||
+                sourceLog.role ||
+                ""
+              );
+
+
+        normalizedEntry.importedFromRole =
+          sourceRole;
+
+
+        if (
+          forcedRole
+        ) {
+          normalizedEntry.importedFromAuthor =
+            String(
+              sourceLog.author ||
+              ""
+            ).trim();
+
+
+          normalizedEntry.importedFromLogId =
+            String(
+              sourceLog.id ||
+              ""
+            ).trim();
+
+
+          normalizedEntry.importedFromEntryIndex =
+            entryIndex;
+
+
+          normalizedEntry.source =
+            "detail-member-source";
+        }
+
+
+        const uniqueKey = [
+          normalizedEntry.category,
+
+          String(
+            normalizedEntry.time ||
+            ""
+          ).trim(),
+
+          String(
+            normalizedEntry.tag ||
+            ""
+          )
+            .trim()
+            .toUpperCase(),
+
+          String(
+            normalizedEntry.content ||
+            ""
+          )
+            .trim()
+            .replace(
+              /\s+/g,
+              " "
+            )
+        ].join(
+          "||"
+        );
+
+
+        /*
+          같은 로그 안에서 완전히 같은 항목만 제거한다.
+          서로 다른 Limestone 입고 내역처럼
+          내용이 비슷한 항목은 절대 합치지 않는다.
+        */
+        if (
+          !uniqueEntryMap.has(
+            uniqueKey
+          )
+        ) {
+          uniqueEntryMap.set(
+            uniqueKey,
+            {
+              ...normalizedEntry,
+
+              displaySourceCollection:
+                collectionName
+            }
+          );
+        }
+      }
+    );
+
+
+    return [
+      ...uniqueEntryMap.values()
+    ];
+  };
+
+
+  /*
+    일반 보직 일지는 자신의 저장 내용만 표시한다.
+  */
+  if (
+    normalizedLogRole !==
+    "파트장"
+  ) {
+    return collectEntriesFromLog(
+      log,
+      normalizedLogRole
+    );
+  }
+
+
+  const detailDate =
+    String(
+      log.date ||
+      ""
+    ).trim();
+
+
+  const detailShift =
+    normalizeShift(
+      log.shift
+    );
+
+
+  const getLogModifiedTime = (
+    sourceLog
+  ) => {
+    const parsedTime =
+      new Date(
+        sourceLog?.updatedAt ||
+        sourceLog?.createdAt ||
+        0
+      ).getTime();
+
+
+    return Number.isFinite(
+      parsedTime
+    )
+      ? parsedTime
+      : 0;
+  };
+
+
+  /*
+    같은 날짜·근무의 팀원 원본을 보직별로 한 건씩 찾는다.
+    같은 보직의 중복 로그가 있으면 가장 최근 로그를 사용한다.
+  */
+  const memberLogMap =
+    new Map();
+
+
+  (
+    Array.isArray(
+      appState.logs
+    )
+      ? appState.logs
+      : []
+  ).forEach(
+    (
+      sourceLog
+    ) => {
+      const sourceRole =
+        normalizeMemberLogRole(
+          sourceLog?.role ||
+          ""
         );
 
 
       if (
-        separatedGroupEntries.length
+        !allMemberRoles.includes(
+          sourceRole
+        ) ||
+        String(
+          sourceLog?.date ||
+          ""
+        ).trim() !==
+          detailDate ||
+        normalizeShift(
+          sourceLog?.shift
+        ) !==
+          detailShift
       ) {
-        selectedEntries.push(
-          ...separatedGroupEntries
-        );
-
         return;
       }
 
 
-      const legacyGroupEntries =
-        legacyEntries.filter(
-          entry => {
-            return (
-              getCategoryGroup(
-                entry
-              ) ===
-              categoryGroup
-            );
-          }
+      const previousLog =
+        memberLogMap.get(
+          sourceRole
         );
 
 
       if (
-        legacyGroupEntries.length
+        !previousLog ||
+        getLogModifiedTime(
+          sourceLog
+        ) >=
+          getLogModifiedTime(
+            previousLog
+          )
       ) {
-        selectedEntries.push(
-          ...legacyGroupEntries
-        );
-
-        return;
-      }
-
-
-      /*
-        분리 배열과 entries 양쪽에 비고가 없을 때만
-        기존 note 문자열을 사용한다.
-      */
-      if (
-        categoryGroup ===
-        "remark"
-      ) {
-        selectedEntries.push(
-          ...savedNoteEntries
+        memberLogMap.set(
+          sourceRole,
+          sourceLog
         );
       }
     }
   );
 
 
-  /* =====================================================
-    출처 보직 복구 및 최종 중복 제거
-  ====================================================== */
+  /*
+    모든 팀원 원본:
+    기존 파트장 저장본에 섞인 복사 항목을 판별할 때 사용한다.
+  */
+  const allMemberSourceEntries =
+    allMemberRoles.flatMap(
+      (
+        sourceRole
+      ) => {
+        const sourceLog =
+          memberLogMap.get(
+            sourceRole
+          );
 
-  const uniqueEntryMap =
+
+        return sourceLog
+          ? collectEntriesFromLog(
+              sourceLog,
+              sourceRole
+            )
+          : [];
+      }
+    );
+
+
+  /*
+    실제 화면에 표시할 팀원 원본:
+
+    TGO·BCO1·BCO2는 전체 업무,
+    TO·BO1·BO2는 TM 발행만 사용한다.
+  */
+  const memberDisplayEntries =
+    allMemberSourceEntries.filter(
+      (
+        entry
+      ) => {
+        const sourceRole =
+          normalizeMemberLogRole(
+            entry.importedFromRole
+          );
+
+
+        if (
+          fullImportRoles.includes(
+            sourceRole
+          )
+        ) {
+          return true;
+        }
+
+
+        return (
+          tmOnlyRoles.includes(
+            sourceRole
+          ) &&
+          entry.category ===
+            "TM 발행"
+        );
+      }
+    );
+
+
+  const memberLogIds =
+    new Set(
+      [
+        ...memberLogMap.values()
+      ]
+        .map(
+          (
+            sourceLog
+          ) => {
+            return String(
+              sourceLog?.id ||
+              ""
+            ).trim();
+          }
+        )
+        .filter(Boolean)
+    );
+
+
+  const getComparableContentKeys = (
+    content
+  ) => {
+    const normalizedContent =
+      String(
+        content ||
+        ""
+      )
+        .normalize(
+          "NFKC"
+        )
+        .replace(
+          /[\u200B-\u200D\u2060\uFEFF]/g,
+          ""
+        )
+        .trim();
+
+
+    const fullKey =
+      normalizeMemberImportContent(
+        normalizedContent
+      );
+
+
+    /*
+      과거 자료에서 한쪽에만 붙은
+      [TM작업], [BM작업], [CM작업] 표기도 제거해
+      완전히 같은 본문인지 확인한다.
+    */
+    const withoutWorkPrefix =
+      fullKey
+        .replace(
+          /^(?:tm|bm|cm)(?=\s|작업|발행)(?:\s*(?:발행(?:내역)?|작업))?\s*/i,
+          ""
+        )
+        .trim();
+
+
+    return [
+      ...new Set(
+        [
+          fullKey,
+          withoutWorkPrefix
+        ].filter(Boolean)
+      )
+    ];
+  };
+
+
+  const hasSameComparableContent = (
+    firstEntry,
+    secondEntry
+  ) => {
+    const firstTag =
+      String(
+        firstEntry?.tag ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    const secondTag =
+      String(
+        secondEntry?.tag ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    if (
+      firstTag &&
+      secondTag &&
+      firstTag !==
+        secondTag
+    ) {
+      return false;
+    }
+
+
+    const firstKeys =
+      getComparableContentKeys(
+        firstEntry?.content
+      );
+
+
+    const secondKeys =
+      getComparableContentKeys(
+        secondEntry?.content
+      );
+
+
+    return firstKeys.some(
+      (
+        firstKey
+      ) => {
+        return secondKeys.includes(
+          firstKey
+        );
+      }
+    );
+  };
+
+
+  /*
+    기존 파트장 저장본은 팀원 복사본이 섞여 있을 수 있다.
+
+    팀원 출처가 저장돼 있거나,
+    팀원 원본과 본문이 완전히 같은 항목은 제외한다.
+
+    유사도 비교를 하지 않으므로
+    29.76 ton과 30.61 ton처럼 비슷하지만 다른 업무는
+    서로 제거하지 않는다.
+  */
+  const leaderOwnEntries =
+    collectEntriesFromLog(
+      log
+    )
+      .filter(
+        (
+          entry
+        ) => {
+          const sourceRole =
+            normalizeMemberLogRole(
+              entry.importedFromRole ||
+              ""
+            );
+
+
+          const sourceLogId =
+            String(
+              entry.importedFromLogId ||
+              ""
+            ).trim();
+
+
+          if (
+            allMemberRoles.includes(
+              sourceRole
+            ) ||
+            (
+              sourceLogId &&
+              memberLogIds.has(
+                sourceLogId
+              )
+            )
+          ) {
+            return false;
+          }
+
+
+          return !allMemberSourceEntries.some(
+            (
+              memberEntry
+            ) => {
+              return hasSameComparableContent(
+                entry,
+                memberEntry
+              );
+            }
+          );
+        }
+      )
+      .map(
+        (
+          entry,
+          entryIndex
+        ) => {
+          return {
+            ...entry,
+
+            importedFromRole:
+              "파트장",
+
+            importedFromAuthor:
+              String(
+                entry.importedFromAuthor ||
+                log.author ||
+                ""
+              ).trim(),
+
+            importedFromLogId:
+              String(
+                entry.importedFromLogId ||
+                log.id ||
+                ""
+              ).trim(),
+
+            importedFromEntryIndex:
+              entry
+                .importedFromEntryIndex ??
+              entryIndex,
+
+            source:
+              String(
+                entry.source ||
+                "leader-direct"
+              ).trim()
+          };
+        }
+      );
+
+
+  /*
+    TM에만 상·하위 보직 중복 규칙을 적용한다.
+    일반 업무와 비고에는 유사도 중복 제거를 적용하지 않는다.
+  */
+  const hierarchyFilteredEntries =
+    filterLeaderTmEntriesByRoleHierarchy([
+      ...memberDisplayEntries,
+      ...leaderOwnEntries
+    ]);
+
+
+  const finalEntryMap =
     new Map();
 
 
-  selectedEntries.forEach(
-    normalizedEntry => {
-      normalizedEntry.importedFromRole =
-        resolveDetailEntrySourceRole(
-          normalizedEntry,
-          log
+  hierarchyFilteredEntries.forEach(
+    (
+      entry
+    ) => {
+      const sourceRole =
+        normalizeMemberLogRole(
+          entry.importedFromRole ||
+          ""
         );
 
 
-      const contentKey =
-        normalizeMemberImportContent(
-          normalizedEntry.content
-        ) ||
+      const uniqueKey = [
+        entry.category,
+
+        /*
+          같은 비고가 여러 배열이나 보직에
+          중복 저장된 경우에만 한 번 표시한다.
+
+          일반 업무와 TM은 보직별로 유지한다.
+        */
+        entry.category ===
+          "비고"
+          ? ""
+          : sourceRole,
+
         String(
-          normalizedEntry.content ||
+          entry.time ||
+          ""
+        ).trim(),
+
+        String(
+          entry.tag ||
+          ""
+        )
+          .trim()
+          .toUpperCase(),
+
+        String(
+          entry.content ||
           ""
         )
           .trim()
@@ -24770,53 +25249,24 @@ function collectLogEntriesForDisplay(
             /\s+/g,
             " "
           )
-          .toLowerCase();
-
-
-      /*
-        비고:
-        보직이 달라도 같은 내용이면 한 번만 유지한다.
-
-        TM·일반 업무:
-        같은 내용이어도 보직이 다르면 각각 유지한다.
-      */
-      const uniqueKey = [
-        normalizedEntry.category,
-
-        normalizedEntry.category ===
-          "비고"
-          ? ""
-          : normalizeMemberLogRole(
-              normalizedEntry
-                .importedFromRole
-            ),
-
-        String(
-          normalizedEntry.time ||
-          ""
-        ).trim(),
-
-        String(
-          normalizedEntry.tag ||
-          ""
-        )
-          .trim()
-          .toUpperCase(),
-
-        contentKey
       ].join(
         "||"
       );
 
 
       if (
-        !uniqueEntryMap.has(
+        !finalEntryMap.has(
           uniqueKey
         )
       ) {
-        uniqueEntryMap.set(
+        finalEntryMap.set(
           uniqueKey,
-          normalizedEntry
+          {
+            ...entry,
+
+            importedFromRole:
+              sourceRole
+          }
         );
       }
     }
@@ -24824,7 +25274,7 @@ function collectLogEntriesForDisplay(
 
 
   return [
-    ...uniqueEntryMap.values()
+    ...finalEntryMap.values()
   ];
 }
 
@@ -29685,7 +30135,7 @@ function resolveDetailEntrySourceRole(entry, detailLog) {
     파트장 직접 작성 내용으로 유지한다.
   */
   return "파트장";
-}
+} 
 
 /* =========================================================
   업무일지 상세보기 최종본
