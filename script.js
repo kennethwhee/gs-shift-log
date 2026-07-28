@@ -33673,9 +33673,7 @@ async function runSearch() {
   - 과거 업무일지도 수정 권한과 관계없이 상세보기 가능
 ========================================================= */
 
-function renderSearchResults(
-  results
-) {
+function renderSearchResults(results) {
   if (
     !elements.searchResultBody ||
     !elements.searchResultCount ||
@@ -33684,247 +33682,210 @@ function renderSearchResults(
     return;
   }
 
-
-  const safeResults =
-    Array.isArray(
-      results
-    )
-      ? results.filter(
-          log => {
-            return Boolean(
-              log &&
-              log.id
-            );
-          }
-        )
-      : [];
-
+  const safeResults = Array.isArray(results)
+    ? results.filter((log) => Boolean(log && log.id))
+    : [];
 
   /*
-    중요:
-
     조회 기간에서 새로 불러온 과거 업무일지는
-    appState.logs에 없을 수 있다.
-
-    클릭할 때 찾을 수 있도록
-    조회 결과 전용 배열에 반드시 저장한다.
+    appState.logs에 없을 수 있으므로 별도로 보관한다.
   */
-  currentSearchResultLogs = [
-    ...safeResults
-  ];
+  currentSearchResultLogs = [...safeResults];
 
+  elements.searchResultBody.innerHTML = "";
+  elements.searchResultCount.textContent = String(safeResults.length);
+  elements.searchEmptyState.hidden = safeResults.length > 0;
 
-  elements.searchResultBody.innerHTML =
-    "";
-
-
-  elements.searchResultCount.textContent =
-    String(
-      safeResults.length
-    );
-
-
-  elements.searchEmptyState.hidden =
-    safeResults.length > 0;
-
-
-  if (
-    !safeResults.length
-  ) {
+  if (!safeResults.length) {
     const emptyTitle =
-      elements.searchEmptyState
-        .querySelector(
-          "strong"
-        );
-
+      elements.searchEmptyState.querySelector("strong");
 
     const emptyDescription =
-      elements.searchEmptyState
-        .querySelector(
-          "p"
-        );
+      elements.searchEmptyState.querySelector("p");
 
-
-    if (
-      emptyTitle
-    ) {
+    if (emptyTitle) {
       emptyTitle.textContent =
         "조회 결과가 없습니다.";
     }
 
-
-    if (
-      emptyDescription
-    ) {
+    if (emptyDescription) {
       emptyDescription.textContent =
         "검색 조건을 변경하여 다시 조회해 주세요.";
     }
 
-
     return;
   }
 
+  /*
+    조회 결과 또는 현재 화면 자료에서
+    업무일지 1건을 찾는다.
+  */
+  const findSearchLogById = (logId) => {
+    const normalizedLogId =
+      String(logId || "").trim();
 
-  safeResults.forEach(
-    log => {
-      const previewText =
-        typeof createSearchLogPreviewText ===
-          "function"
-          ? createSearchLogPreviewText(
-              log
-            )
-          : firstMeaningfulLine(
-              createSearchLogText(
-                log
-              ) ||
-              "-"
-            );
-
-
-      const attachmentCount =
-        Array.isArray(
-          log.attachments
-        )
-          ? log.attachments.length
-          : Number(
-              log.legacyAttachmentCount ||
-              0
-            );
-
-
-      elements.searchResultBody
-        .insertAdjacentHTML(
-          "beforeend",
-          `
-            <tr
-              data-search-log-id="${escapeHtml(
-                log.id
-              )}"
-              tabindex="0"
-              role="button"
-              title="업무일지 상세보기"
-            >
-
-              <td
-                class="search-result-table__date"
-              >
-                ${escapeHtml(
-                  log.date ||
-                  "-"
-                )}
-              </td>
-
-
-              <td
-                class="search-result-table__shift"
-              >
-                ${escapeHtml(
-                  getShiftDisplayName(
-                    log.shift
-                  )
-                )}
-              </td>
-
-
-              <td
-                class="search-result-table__role"
-              >
-                ${escapeHtml(
-                  log.role ||
-                  "-"
-                )}
-              </td>
-
-
-              <td
-                class="search-result-table__author"
-              >
-                ${escapeHtml(
-                  log.author ||
-                  "-"
-                )}
-              </td>
-
-
-              <td
-                class="
-                  search-result-table__content
-                  search-log-preview-cell
-                "
-                data-search-view="${escapeHtml(
-                  log.id
-                )}"
-              >
-                ${escapeHtml(
-                  previewText ||
-                  "등록된 업무 내용이 없습니다."
-                )}
-              </td>
-
-
-              <td
-                class="search-result-table__view"
-              >
-                <button
-                  type="button"
-                  class="table-action-button"
-                  data-search-view="${escapeHtml(
-                    log.id
-                  )}"
-                >
-                  보기
-                </button>
-              </td>
-
-
-              <td
-                class="search-result-table__attachment"
-              >
-                ${
-                  attachmentCount > 0
-                    ? `
-                      <span
-                        class="attachment-count"
-                        title="첨부파일 ${attachmentCount}개"
-                      >
-                        ${attachmentCount}
-                      </span>
-                    `
-                    : `
-                      <span
-                        class="
-                          attachment-count
-                          is-empty
-                        "
-                      >
-                        0
-                      </span>
-                    `
-                }
-              </td>
-
-            </tr>
-          `
-        );
+    if (!normalizedLogId) {
+      return null;
     }
-  );
 
+    return (
+      currentSearchResultLogs.find(
+        (item) =>
+          String(item?.id || "").trim() ===
+          normalizedLogId
+      ) ||
+      appState.logs.find(
+        (item) =>
+          String(item?.id || "").trim() ===
+          normalizedLogId
+      ) ||
+      null
+    );
+  };
+
+  /*
+    조회 결과의 업무일지 상세보기
+  */
+  const openSearchLogDetailById = (logId) => {
+    const normalizedLogId =
+      String(logId || "").trim();
+
+    if (!normalizedLogId) {
+      showToast(
+        "업무일지 정보를 확인할 수 없습니다."
+      );
+
+      return;
+    }
+
+    const log =
+      findSearchLogById(normalizedLogId);
+
+    if (!log) {
+      showToast(
+        "조회한 업무일지를 찾을 수 없습니다."
+      );
+
+      return;
+    }
+
+    openLogDetail(log);
+  };
+
+  safeResults.forEach((log) => {
+    const previewHtml =
+      typeof createSearchLogPreviewHtml ===
+      "function"
+        ? createSearchLogPreviewHtml(log)
+        : `
+            <span class="search-preview-empty">
+              ${escapeHtml(
+                firstMeaningfulLine(
+                  createSearchLogText(log) ||
+                    "등록된 업무 내용이 없습니다."
+                )
+              )}
+            </span>
+          `;
+
+    const attachmentCount =
+      Array.isArray(log.attachments)
+        ? log.attachments.length
+        : Number(
+            log.legacyAttachmentCount || 0
+          );
+
+    elements.searchResultBody.insertAdjacentHTML(
+      "beforeend",
+      `
+        <tr
+          data-search-log-id="${escapeHtml(log.id)}"
+          tabindex="0"
+          role="button"
+          title="업무일지 상세보기"
+        >
+          <td class="search-result-table__date">
+            ${escapeHtml(log.date || "-")}
+          </td>
+
+          <td class="search-result-table__shift">
+            ${escapeHtml(
+              getShiftDisplayName(log.shift)
+            )}
+          </td>
+
+          <td class="search-result-table__role">
+            ${escapeHtml(log.role || "-")}
+          </td>
+
+          <td class="search-result-table__author">
+            ${escapeHtml(log.author || "-")}
+          </td>
+
+          <td
+            class="
+              search-result-table__content
+              search-log-preview-cell
+            "
+            data-search-view="${escapeHtml(log.id)}"
+          >
+            <div
+              class="search-log-preview"
+              aria-label="업무일지 미리보기. 누르면 상세보기가 열립니다."
+            >
+              ${previewHtml}
+            </div>
+          </td>
+
+          <td class="search-result-table__view">
+            <button
+              type="button"
+              class="table-action-button"
+              data-search-view="${escapeHtml(log.id)}"
+            >
+              보기
+            </button>
+          </td>
+
+          <td class="search-result-table__attachment">
+            ${
+              attachmentCount > 0
+                ? `
+                    <span
+                      class="attachment-count"
+                      title="첨부파일 ${attachmentCount}개"
+                    >
+                      ${attachmentCount}
+                    </span>
+                  `
+                : `
+                    <span class="attachment-count is-empty">
+                      0
+                    </span>
+                  `
+            }
+          </td>
+        </tr>
+      `
+    );
+  });
 
   /* =====================================================
     조회 결과 클릭
 
-    행·업무 내용·보기 버튼 모두 상세창을 연다.
+    TAG 클릭: Facility Navigator 이동
+    행·업무 내용·보기 버튼 클릭: 상세보기
   ====================================================== */
 
   elements.searchResultBody.onclick =
-    function handleSearchResultClick(
-      event
-    ) {
+    function handleSearchResultClick(event) {
       const tagButton =
         event.target.closest(
-          "[data-search-tag]"
+          `
+            [data-search-tag],
+            [data-search-preview-tag]
+          `
         );
-
 
       if (
         tagButton &&
@@ -33933,18 +33894,21 @@ function renderSearchResults(
         )
       ) {
         event.preventDefault();
-
         event.stopPropagation();
 
+        const tag =
+          String(
+            tagButton.dataset.searchTag ||
+              tagButton.dataset.searchPreviewTag ||
+              ""
+          ).trim();
 
-        openFacilityNavigator(
-          tagButton.dataset.searchTag
-        );
-
+        if (tag) {
+          openFacilityNavigator(tag);
+        }
 
         return;
       }
-
 
       const clickedElement =
         event.target.closest(
@@ -33953,7 +33917,6 @@ function renderSearchResults(
             tr[data-search-log-id]
           `
         );
-
 
       if (
         !clickedElement ||
@@ -33964,164 +33927,80 @@ function renderSearchResults(
         return;
       }
 
-
       const row =
         clickedElement.closest(
           "tr[data-search-log-id]"
         );
 
-
-      const logId =
-        String(
-          clickedElement.dataset.searchView ||
+      openSearchLogDetailById(
+        clickedElement.dataset.searchView ||
           row?.dataset.searchLogId ||
           ""
-        ).trim();
-
-
-      if (
-        !logId
-      ) {
-        showToast(
-          "업무일지 정보를 확인할 수 없습니다."
-        );
-
-        return;
-      }
-
-
-      /*
-        조회 결과 전용 배열에서 먼저 찾는다.
-
-        그래야 조회 기간에서 방금 불러온
-        과거 업무일지도 상세보기가 가능하다.
-      */
-      const log =
-        currentSearchResultLogs.find(
-          item => {
-            return (
-              String(
-                item?.id ||
-                ""
-              ).trim() ===
-              logId
-            );
-          }
-        ) ||
-        appState.logs.find(
-          item => {
-            return (
-              String(
-                item?.id ||
-                ""
-              ).trim() ===
-              logId
-            );
-          }
-        );
-
-
-      if (
-        !log
-      ) {
-        showToast(
-          "조회한 업무일지를 찾을 수 없습니다."
-        );
-
-        return;
-      }
-
-
-      openLogDetail(
-        log
       );
     };
 
-
   /* =====================================================
-    키보드 상세보기
+    키보드 동작
 
     Enter 또는 Space
   ====================================================== */
 
   elements.searchResultBody.onkeydown =
-    function handleSearchResultKeydown(
-      event
-    ) {
+    function handleSearchResultKeydown(event) {
       if (
-        event.key !==
-          "Enter" &&
-        event.key !==
-          " "
+        event.key !== "Enter" &&
+        event.key !== " "
       ) {
         return;
       }
 
+      const tagButton =
+        event.target.closest(
+          `
+            [data-search-tag],
+            [data-search-preview-tag]
+          `
+        );
+
+      if (
+        tagButton &&
+        elements.searchResultBody.contains(
+          tagButton
+        )
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const tag =
+          String(
+            tagButton.dataset.searchTag ||
+              tagButton.dataset.searchPreviewTag ||
+              ""
+          ).trim();
+
+        if (tag) {
+          openFacilityNavigator(tag);
+        }
+
+        return;
+      }
 
       const row =
         event.target.closest(
           "tr[data-search-log-id]"
         );
 
-
       if (
         !row ||
-        !elements.searchResultBody.contains(
-          row
-        )
+        !elements.searchResultBody.contains(row)
       ) {
         return;
       }
-
 
       event.preventDefault();
 
-
-      const logId =
-        String(
-          row.dataset.searchLogId ||
-          ""
-        ).trim();
-
-
-      const log =
-        currentSearchResultLogs.find(
-          item => {
-            return (
-              String(
-                item?.id ||
-                ""
-              ).trim() ===
-              logId
-            );
-          }
-        ) ||
-        appState.logs.find(
-          item => {
-            return (
-              String(
-                item?.id ||
-                ""
-              ).trim() ===
-              logId
-            );
-          }
-        );
-
-
-      if (
-        !log
-      ) {
-        showToast(
-          "조회한 업무일지를 찾을 수 없습니다."
-        );
-
-        return;
-      }
-
-
-      openLogDetail(
-        log
+      openSearchLogDetailById(
+        row.dataset.searchLogId || ""
       );
     };
 }
