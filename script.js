@@ -31213,47 +31213,46 @@ function openLogDetail(
       `;
 
 
-  /* =====================================================
-    비고 HTML
-  ====================================================== */
+/* =====================================================
+  비고 HTML
+====================================================== */
 
-  const remarkHtml =
-    remarkEntries.length
-      ? `
-        <div class="detail-work-list detail-work-list--remark">
+const remarkHtml =
+  remarkEntries.length
+    ? `
+      <div class="detail-work-list detail-work-list--remark">
 
-          ${remarkEntries
-            .map(
-              (
+        ${remarkEntries
+          .map(
+            (
+              entry,
+              index
+            ) => {
+              return createDetailWorkRowHtml(
                 entry,
-                index
-              ) => => {
-                return createDetailWorkRowHtml(
-                  entry,
-                  index,
-                  {
-                    numberType:
-                      "remark",
+                index,
+                {
+                  numberType:
+                    "remark",
 
-                    showTime:
-                      true,
+                  showTime:
+                    true,
 
-                    showTag:
-                      false
-                  }
-                );
-              }
-            )
-            .join("")}
+                  showTag:
+                    false
+                }
+              );
+            }
+          )
+          .join("")}
 
-        </div>
-      `
-      : `
-        <div class="detail-empty-message">
-          등록된 비고가 없습니다.
-        </div>
-      `;
-
+      </div>
+    `
+    : `
+      <div class="detail-empty-message">
+        등록된 비고가 없습니다.
+      </div>
+    `;
 
   /* =====================================================
     첨부파일
