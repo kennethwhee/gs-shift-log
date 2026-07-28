@@ -28710,7 +28710,6 @@ function resolveDetailEntrySourceRole(
     "BO2"
   ];
 
-
   const roleOrder = [
     "TGO",
     "BCO1",
@@ -28720,18 +28719,12 @@ function resolveDetailEntrySourceRole(
     "BO2"
   ];
 
-
   const detailRole =
     normalizeMemberLogRole(
       detailLog?.role ||
       ""
     );
 
-
-  /*
-    일반 보직 업무일지는
-    자신의 보직으로 표시한다.
-  */
   if (
     detailRole !==
     "파트장"
@@ -28742,20 +28735,17 @@ function resolveDetailEntrySourceRole(
     );
   }
 
-
   const directRole =
     normalizeMemberLogRole(
       entry?.importedFromRole ||
       ""
     );
 
-
   const detailDate =
     String(
       detailLog?.date ||
       ""
     ).trim();
-
 
   const detailShift =
     String(
@@ -28765,10 +28755,6 @@ function resolveDetailEntrySourceRole(
       .trim()
       .toUpperCase();
 
-
-  /*
-    같은 날짜·근무의 팀원 업무일지만 비교한다.
-  */
   const sourceLogs =
     appState.logs.filter(
       sourceLog => {
@@ -28777,7 +28763,6 @@ function resolveDetailEntrySourceRole(
             sourceLog?.role ||
             ""
           );
-
 
         return (
           String(
@@ -28801,11 +28786,6 @@ function resolveDetailEntrySourceRole(
       }
     );
 
-
-  /*
-    원본 팀원 일지가 없으면
-    현재 저장된 보직을 유지한다.
-  */
   if (
     !sourceLogs.length
   ) {
@@ -28816,19 +28796,13 @@ function resolveDetailEntrySourceRole(
       : "파트장";
   }
 
-
-  /* =====================================================
-    원본 업무일지 ID 판정
-
-    저장된 보직보다 원본 업무일지 ID를 우선한다.
-  ====================================================== */
+  /* 원본 업무일지 ID 판정 */
 
   const importedFromLogId =
     String(
       entry?.importedFromLogId ||
       ""
     ).trim();
-
 
   if (
     importedFromLogId
@@ -28846,7 +28820,6 @@ function resolveDetailEntrySourceRole(
         }
       );
 
-
     if (
       idMatchedLog
     ) {
@@ -28856,17 +28829,13 @@ function resolveDetailEntrySourceRole(
     }
   }
 
-
-  /* =====================================================
-    원본 작성자 판정
-  ====================================================== */
+  /* 원본 작성자 판정 */
 
   const importedFromAuthor =
     String(
       entry?.importedFromAuthor ||
       ""
     ).trim();
-
 
   if (
     importedFromAuthor
@@ -28895,7 +28864,6 @@ function resolveDetailEntrySourceRole(
       )
     ];
 
-
     if (
       authorMatchedRoles.length ===
       1
@@ -28904,24 +28872,23 @@ function resolveDetailEntrySourceRole(
     }
   }
 
+  /*
+    과거 데이터에서는 한 항목이
+    분리 배열 또는 entries 한쪽에만
+    남아 있을 수 있다.
 
-  /* =====================================================
-    원본 팀원 업무일지 항목 수집
-
-    분리 배열이 있으면 분리 배열만 사용하고,
-    없을 때만 기존 entries를 사용한다.
-  ====================================================== */
+    출처 판정에서는 양쪽을 모두 조사한다.
+  */
 
   const collectSourceEntries = (
     sourceLog
   ) => {
-    const separatedEntries = [];
-
+    const candidates = [];
 
     const appendEntries = (
-      target,
       entries,
-      fallbackCategory
+      fallbackCategory,
+      sourceCollection
     ) => {
       if (
         !Array.isArray(
@@ -28931,103 +28898,108 @@ function resolveDetailEntrySourceRole(
         return;
       }
 
-
       entries.forEach(
         (
           sourceEntry,
           sourceIndex
         ) => {
-          const category =
-            String(
-              sourceEntry?.category ||
-              fallbackCategory ||
-              "인계사항"
-            ).trim();
+          const rawEntry =
+            sourceEntry &&
+            typeof sourceEntry ===
+              "object" &&
+            !Array.isArray(
+              sourceEntry
+            )
+              ? sourceEntry
+              : {
+                  content:
+                    String(
+                      sourceEntry ||
+                      ""
+                    ).trim()
+                };
 
+          const normalizedEntry =
+            normalizeExistingLogEntryTime({
+              ...rawEntry,
 
-          target.push({
-            ...sourceEntry,
+              category:
+                String(
+                  rawEntry?.category ||
+                  fallbackCategory ||
+                  "인계사항"
+                ).trim(),
 
-            category,
+              time:
+                String(
+                  rawEntry?.time ||
+                  ""
+                ).trim(),
 
-            sourceIndex
+              tag:
+                String(
+                  rawEntry?.tag ||
+                  ""
+                )
+                  .trim()
+                  .toUpperCase(),
+
+              content:
+                String(
+                  rawEntry?.content ||
+                  ""
+                ).trim()
+            });
+
+          if (
+            !String(
+              normalizedEntry?.content ||
+              ""
+            ).trim()
+          ) {
+            return;
+          }
+
+          candidates.push({
+            ...normalizedEntry,
+
+            sourceIndex,
+
+            sourceCollection
           });
         }
       );
     };
 
-
     appendEntries(
-      separatedEntries,
       sourceLog?.tmEntries,
-      "TM 발행"
+      "TM 발행",
+      "tmEntries"
     );
 
-
     appendEntries(
-      separatedEntries,
       sourceLog?.handoverEntries,
-      "인계사항"
+      "인계사항",
+      "handoverEntries"
     );
-
 
     appendEntries(
-      separatedEntries,
       sourceLog?.remarkEntries,
-      "비고"
+      "비고",
+      "remarkEntries"
     );
 
-
-    const hasSeparatedEntries =
-      separatedEntries.some(
-        sourceEntry => {
-          return Boolean(
-            String(
-              sourceEntry?.content ||
-              ""
-            ).trim()
-          );
-        }
-      );
-
-
-    const candidates =
-      hasSeparatedEntries
-        ? separatedEntries
-        : [];
-
-
-    if (
-      !hasSeparatedEntries
-    ) {
-      appendEntries(
-        candidates,
-        sourceLog?.entries,
-        "인계사항"
-      );
-    }
-
+    appendEntries(
+      sourceLog?.entries,
+      "인계사항",
+      "entries"
+    );
 
     const uniqueEntryMap =
       new Map();
 
-
     candidates.forEach(
       sourceEntry => {
-        const content =
-          String(
-            sourceEntry?.content ||
-            ""
-          ).trim();
-
-
-        if (
-          !content
-        ) {
-          return;
-        }
-
-
         const uniqueKey = [
           String(
             sourceEntry?.id ||
@@ -29051,12 +29023,16 @@ function resolveDetailEntrySourceRole(
             .trim()
             .toUpperCase(),
 
-          content.replace(
-            /\s+/g,
-            " "
+          String(
+            sourceEntry?.content ||
+            ""
           )
+            .trim()
+            .replace(
+              /\s+/g,
+              " "
+            )
         ].join("||");
-
 
         if (
           !uniqueEntryMap.has(
@@ -29071,24 +29047,18 @@ function resolveDetailEntrySourceRole(
       }
     );
 
-
     return [
       ...uniqueEntryMap.values()
     ];
   };
 
-
-  /* =====================================================
-    원본 항목 ID가 정확히 일치하면
-    해당 업무일지의 보직으로 확정한다.
-  ====================================================== */
+  /* 원본 항목 ID 판정 */
 
   const entryId =
     String(
       entry?.id ||
       ""
     ).trim();
-
 
   if (
     entryId
@@ -29120,13 +29090,11 @@ function resolveDetailEntrySourceRole(
           }
         );
 
-
     const uniqueIdMatchedRoles = [
       ...new Set(
         idMatchedRoles
       )
     ];
-
 
     if (
       uniqueIdMatchedRoles.length ===
@@ -29136,17 +29104,12 @@ function resolveDetailEntrySourceRole(
     }
   }
 
-
-  /* =====================================================
-    과거 보직별 파트장 일지는
-    body index로 보직을 확정한다.
-  ====================================================== */
+  /* 과거 보직별 본문 위치 판정 */
 
   const legacyBodyIndex =
     Number(
       entry?.legacyBodyIndex
     );
-
 
   if (
     detailLog?.legacyStructure ===
@@ -29161,7 +29124,6 @@ function resolveDetailEntrySourceRole(
         "파트장"
       );
 
-
     if (
       memberRoles.includes(
         legacyRole
@@ -29171,64 +29133,17 @@ function resolveDetailEntrySourceRole(
     }
   }
 
-
-  /* =====================================================
-    카테고리 대분류
-  ====================================================== */
-
-  const getCategoryGroup = (
-    category
-  ) => {
-    const categoryText =
-      String(
-        category ||
-        ""
-      ).trim();
-
-
-    if (
-      categoryText.includes(
-        "비고"
-      )
-    ) {
-      return "remark";
-    }
-
-
-    if (
-      categoryText
-        .toUpperCase()
-        .startsWith(
-          "TM"
-        )
-    ) {
-      return "tm";
-    }
-
-
-    return "work";
-  };
-
-
-  const entryCategoryGroup =
-    getCategoryGroup(
-      entry?.category
-    );
-
-
   const entryContent =
     String(
       entry?.content ||
       ""
     ).trim();
 
-
   const entryTime =
     String(
       entry?.time ||
       ""
     ).trim();
-
 
   const entryTag =
     String(
@@ -29237,21 +29152,6 @@ function resolveDetailEntrySourceRole(
     )
       .trim()
       .toUpperCase();
-
-
-  const rawImportedIndex =
-    entry?.importedFromEntryIndex;
-
-
-  const importedEntryIndex =
-    rawImportedIndex === "" ||
-    rawImportedIndex === null ||
-    rawImportedIndex === undefined
-      ? null
-      : Number(
-          rawImportedIndex
-        );
-
 
   if (
     !entryContent
@@ -29263,24 +29163,192 @@ function resolveDetailEntrySourceRole(
       : "파트장";
   }
 
+  /*
+    전각문자와 보이지 않는 문자를 제거한다.
+
+    [TM작업], [BM작업], [CM작업] 표시가
+    한쪽 데이터에서 사라진 경우도 비교할 수 있도록
+    접두어 제거 키를 함께 생성한다.
+  */
+
+  const getRecoveryContentKeys = (
+    content
+  ) => {
+    const cleanedContent =
+      String(
+        content ||
+        ""
+      )
+        .normalize(
+          "NFKC"
+        )
+        .replace(
+          /[\u200B-\u200D\u2060\uFEFF]/g,
+          ""
+        )
+        .trim();
+
+    const fullKey =
+      normalizeMemberImportContent(
+        cleanedContent
+      );
+
+    const withoutWorkPrefix =
+      fullKey
+        .replace(
+          /^(?:tm|bm|cm)(?=\s|작업|발행)(?:\s*(?:발행(?:내역)?|작업))?\s*/i,
+          ""
+        )
+        .trim();
+
+    return [
+      ...new Set(
+        [
+          fullKey,
+          withoutWorkPrefix
+        ].filter(
+          contentKey => {
+            return (
+              contentKey.length >=
+              6
+            );
+          }
+        )
+      )
+    ];
+  };
+
+  const hasRecoveryContentMatch = (
+    firstContentKeys,
+    secondContentKeys
+  ) => {
+    return firstContentKeys.some(
+      contentKey => {
+        return secondContentKeys.includes(
+          contentKey
+        );
+      }
+    );
+  };
+
+  const entryRecoveryKeys =
+    getRecoveryContentKeys(
+      entryContent
+    );
+
+  /*
+    카테고리가 달라졌더라도 같은 문장이
+    한 보직에서만 발견되면 해당 보직으로 확정한다.
+
+    여러 보직에 같은 문장이 있으면
+    시간·TAG 비교 단계로 넘긴다.
+  */
+
+  if (
+    entryRecoveryKeys.length
+  ) {
+    const exactContentMatchedRoles = [
+      ...new Set(
+        sourceLogs
+          .filter(
+            sourceLog => {
+              return collectSourceEntries(
+                sourceLog
+              ).some(
+                sourceEntry => {
+                  return hasRecoveryContentMatch(
+                    entryRecoveryKeys,
+                    getRecoveryContentKeys(
+                      sourceEntry?.content
+                    )
+                  );
+                }
+              );
+            }
+          )
+          .map(
+            sourceLog => {
+              return normalizeMemberLogRole(
+                sourceLog.role
+              );
+            }
+          )
+      )
+    ];
+
+    if (
+      exactContentMatchedRoles.length ===
+      1
+    ) {
+      return exactContentMatchedRoles[0];
+    }
+  }
+
+  const getCategoryGroup = (
+    category
+  ) => {
+    const categoryText =
+      String(
+        category ||
+        ""
+      ).trim();
+
+    const compactCategory =
+      categoryText
+        .replace(
+          /\s+/g,
+          ""
+        )
+        .toUpperCase();
+
+    if (
+      categoryText.includes(
+        "비고"
+      )
+    ) {
+      return "remark";
+    }
+
+    /*
+      TM 작업은 일반 작업이고
+      실제 TM 발행만 TM 발행 내역으로 판단한다.
+    */
+
+    if (
+      compactCategory ===
+        "TM발행" ||
+      compactCategory ===
+        "TM발행내역"
+    ) {
+      return "tm";
+    }
+
+    return "work";
+  };
+
+  const entryCategoryGroup =
+    getCategoryGroup(
+      entry?.category
+    );
 
   const normalizedEntryContent =
     normalizeMemberImportContent(
       entryContent
     );
 
+  const rawImportedIndex =
+    entry?.importedFromEntryIndex;
 
-  /* =====================================================
-    원본 업무와 비교
-
-    내용이 같더라도 보직이 다를 수 있으므로
-    시간·TAG·원본 항목 번호를 추가로 비교한다.
-
-    기존 코드처럼 점수를 1로 제한하지 않는다.
-  ====================================================== */
+  const importedEntryIndex =
+    rawImportedIndex === "" ||
+    rawImportedIndex === null ||
+    rawImportedIndex === undefined
+      ? null
+      : Number(
+          rawImportedIndex
+        );
 
   const roleResults = [];
-
 
   sourceLogs.forEach(
     sourceLog => {
@@ -29289,35 +29357,21 @@ function resolveDetailEntrySourceRole(
           sourceLog.role
         );
 
-
       const sourceEntries =
         collectSourceEntries(
           sourceLog
         );
 
-
       let bestResult =
         null;
 
-
       sourceEntries.forEach(
         sourceEntry => {
-          if (
-            getCategoryGroup(
-              sourceEntry?.category
-            ) !==
-            entryCategoryGroup
-          ) {
-            return;
-          }
-
-
           const sourceContent =
             String(
               sourceEntry?.content ||
               ""
             ).trim();
-
 
           if (
             !sourceContent
@@ -29325,6 +29379,36 @@ function resolveDetailEntrySourceRole(
             return;
           }
 
+          const sourceRecoveryKeys =
+            getRecoveryContentKeys(
+              sourceContent
+            );
+
+          const isExactRecoveryContent =
+            entryRecoveryKeys.length >
+              0 &&
+            hasRecoveryContentMatch(
+              entryRecoveryKeys,
+              sourceRecoveryKeys
+            );
+
+          const isSameCategoryGroup =
+            getCategoryGroup(
+              sourceEntry?.category
+            ) ===
+            entryCategoryGroup;
+
+          /*
+            카테고리가 다르면
+            정확한 문장일 때만 비교한다.
+          */
+
+          if (
+            !isSameCategoryGroup &&
+            !isExactRecoveryContent
+          ) {
+            return;
+          }
 
           const sourceTag =
             String(
@@ -29334,11 +29418,6 @@ function resolveDetailEntrySourceRole(
               .trim()
               .toUpperCase();
 
-
-          /*
-            양쪽 TAG가 모두 있는데 서로 다르면
-            다른 업무로 판단한다.
-          */
           if (
             entryTag &&
             sourceTag &&
@@ -29348,14 +29427,12 @@ function resolveDetailEntrySourceRole(
             return;
           }
 
-
           const normalizedSourceContent =
             normalizeMemberImportContent(
               sourceContent
             );
 
-
-          const contentScore =
+          let contentScore =
             normalizedEntryContent &&
             normalizedEntryContent ===
               normalizedSourceContent
@@ -29365,11 +29442,16 @@ function resolveDetailEntrySourceRole(
                   sourceContent
                 );
 
+          if (
+            isExactRecoveryContent
+          ) {
+            contentScore =
+              Math.max(
+                contentScore,
+                1
+              );
+          }
 
-          /*
-            유사도가 낮은 문장은
-            출처 판단에 사용하지 않는다.
-          */
           if (
             contentScore <
             0.82
@@ -29377,13 +29459,16 @@ function resolveDetailEntrySourceRole(
             return;
           }
 
-
           const sourceTime =
             String(
               sourceEntry?.time ||
               ""
             ).trim();
 
+          const sourceIndex =
+            Number(
+              sourceEntry?.sourceIndex
+            );
 
           const isExactTag =
             Boolean(
@@ -29393,7 +29478,6 @@ function resolveDetailEntrySourceRole(
                 sourceTag
             );
 
-
           const isExactTime =
             Boolean(
               entryTime &&
@@ -29401,13 +29485,6 @@ function resolveDetailEntrySourceRole(
               entryTime ===
                 sourceTime
             );
-
-
-          const sourceIndex =
-            Number(
-              sourceEntry?.sourceIndex
-            );
-
 
           const isExactIndex =
             Number.isInteger(
@@ -29419,16 +29496,15 @@ function resolveDetailEntrySourceRole(
             importedEntryIndex ===
               sourceIndex;
 
-
-          /*
-            내용 점수에 시간·TAG·원본 번호 가점을 더한다.
-
-            1점으로 다시 제한하지 않으므로
-            동일 문장인 BCO1·BCO2도 시간을 통해 구분된다.
-          */
           let totalScore =
             contentScore;
 
+          if (
+            isSameCategoryGroup
+          ) {
+            totalScore +=
+              0.02;
+          }
 
           if (
             isExactTag
@@ -29437,14 +29513,12 @@ function resolveDetailEntrySourceRole(
               0.12;
           }
 
-
           if (
             isExactTime
           ) {
             totalScore +=
               0.08;
           }
-
 
           if (
             isExactIndex
@@ -29453,11 +29527,6 @@ function resolveDetailEntrySourceRole(
               0.04;
           }
 
-
-          /*
-            모든 조건이 동일할 때만
-            현재 저장된 보직을 마지막 참고값으로 사용한다.
-          */
           if (
             sourceRole ===
             directRole
@@ -29465,7 +29534,6 @@ function resolveDetailEntrySourceRole(
             totalScore +=
               0.005;
           }
-
 
           const result = {
             role:
@@ -29475,13 +29543,14 @@ function resolveDetailEntrySourceRole(
 
             contentScore,
 
+            isExactRecoveryContent,
+
             isExactTag,
 
             isExactTime,
 
             isExactIndex
           };
-
 
           if (
             !bestResult ||
@@ -29494,7 +29563,6 @@ function resolveDetailEntrySourceRole(
         }
       );
 
-
       if (
         bestResult
       ) {
@@ -29505,7 +29573,6 @@ function resolveDetailEntrySourceRole(
     }
   );
 
-
   roleResults.sort(
     (
       firstResult,
@@ -29515,7 +29582,6 @@ function resolveDetailEntrySourceRole(
         secondResult.totalScore -
         firstResult.totalScore;
 
-
       if (
         Math.abs(
           scoreDifference
@@ -29524,7 +29590,6 @@ function resolveDetailEntrySourceRole(
       ) {
         return scoreDifference;
       }
-
 
       return (
         roleOrder.indexOf(
@@ -29537,22 +29602,15 @@ function resolveDetailEntrySourceRole(
     }
   );
 
-
   if (
     roleResults.length
   ) {
     const bestResult =
       roleResults[0];
 
-
     const secondResult =
       roleResults[1];
 
-
-    /*
-      최고 점수가 분명하면
-      원본 팀원 보직으로 확정한다.
-    */
     if (
       !secondResult ||
       bestResult.totalScore >
@@ -29562,11 +29620,6 @@ function resolveDetailEntrySourceRole(
       return bestResult.role;
     }
 
-
-    /*
-      완전히 동점인 경우에는
-      저장된 보직이 후보 안에 있을 때만 유지한다.
-    */
     if (
       memberRoles.includes(
         directRole
@@ -29589,11 +29642,6 @@ function resolveDetailEntrySourceRole(
     }
   }
 
-
-  /*
-    원본에서 확정하지 못했을 때만
-    기존 저장 보직을 사용한다.
-  */
   if (
     memberRoles.includes(
       directRole
@@ -29601,7 +29649,6 @@ function resolveDetailEntrySourceRole(
   ) {
     return directRole;
   }
-
 
   return "파트장";
 }
