@@ -3753,6 +3753,16 @@ function setDefaultSearchDateRange() {
 
 /* =========================================================
   초기 실행
+
+  실행 순서:
+  1. HTML 요소 및 이벤트 연결
+  2. D1 공용 업무일지 로딩 완료
+  3. legacy 업무일지 로딩 및 D1 자동 이전
+  4. 최종 화면 렌더링
+
+  D1 로딩과 legacy 로딩을 동시에 실행하면
+  자동 이전된 일지가 legacy 자료로 다시 덮일 수 있으므로
+  반드시 순서대로 기다린다.
 ========================================================= */
 
 document.addEventListener(
@@ -3765,24 +3775,18 @@ document.addEventListener(
 
     cacheMemberLogImportElements();
 
+
     /*
-  조회 화면 기본 기간:
-  오늘부터 이전 7일까지
-*/
+      조회 화면 기본 기간:
+      오늘부터 이전 7일까지
+    */
     setDefaultSearchDateRange();
+
 
     /*
       근무자 카드 이벤트
     */
     bindShiftMemberCards();
-
-
-    /*
-      저장된 신규 업무일지 및 근무 상태
-    */
-    loadLogs();
-
-    loadMemberWorkStatuses();
 
 
     /*
@@ -3797,29 +3801,45 @@ document.addEventListener(
 
     /*
       보직별 운전현황 이벤트
-
-      상태 버튼 및 날짜·근무·보직 변경 이벤트를
-      여기에서 연결한다.
     */
     bindOperationStatusEvents();
 
 
     /*
-      최초 운전현황 표시
+      저장된 근무 상태
+    */
+    loadMemberWorkStatuses();
 
-      현재 logRole 값을 기준으로
-      해당 보직의 운전현황을 불러온다.
+
+    /*
+      최초 운전현황 표시
     */
     refreshOperationStatusForCurrentRole();
 
 
     /*
-      기존 업무일지 서버의 현재 선택 날짜 데이터를
-      appState.logs 형식으로 변환하여 합친다.
+      D1 공용 업무일지를 먼저 끝까지 불러온다.
+
+      이 await가 빠지면 아래의 legacy 로딩과 동시에 실행되어
+      D1 자동 이전 결과가 다시 덮일 수 있다.
+    */
+    await loadLogs();
+
+
+    /*
+      legacy 업무일지를 불러온다.
+
+      2026-07-22 이후 legacy 자료는
+      migrateEditableLegacyLogsForSelectedDate()를 통해
+      공용 D1 업무일지로 자동 이전된다.
     */
     await loadLegacyLogsForSelectedDate();
 
 
+    /*
+      모든 로딩과 이전이 끝난 뒤
+      최종 화면을 한 번만 렌더링한다.
+    */
     renderSelectedDate();
 
     renderLogTable();
