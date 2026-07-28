@@ -1031,33 +1031,44 @@ function isCurrentUserSuperAdmin() {
 
 
   if (
-    !currentUser
+    !currentUser ||
+    typeof currentUser !==
+      "object"
   ) {
     return false;
   }
 
 
+  const employeeNo =
+    String(
+      currentUser.employeeNo ||
+      currentUser.employee_no ||
+      currentUser.employeeId ||
+      currentUser.employee_id ||
+      ""
+    ).trim();
+
+
   /*
-    고정 최고관리자 사번 우선 확인
+    이휘근 최고관리자 계정
   */
   if (
-    isForcedShiftLogSuperAdmin(
-      currentUser
-    )
+    employeeNo ===
+    FORCED_SUPER_ADMIN_EMPLOYEE_NO
   ) {
     return true;
   }
 
 
   /*
-    기존 저장 자료의 관리자 단계 호환
+    관리자 단계 확인
   */
   if (
     Number(
       currentUser.adminLevel ??
       currentUser.admin_level ??
       0
-    ) ===
+    ) >=
       2
   ) {
     return true;
@@ -1065,15 +1076,73 @@ function isCurrentUserSuperAdmin() {
 
 
   /*
-    role이 user로 먼저 들어와 있어도
-    default_role, permission 등 다른 권한 필드에
-    최고관리자가 있으면 최고관리자로 판정한다.
+    최고관리자 boolean 값 확인
   */
-  return (
-    getShiftLogUserAccountRole(
-      currentUser
+  const superAdminFlag =
+    currentUser.isSuperAdmin ??
+    currentUser.is_super_admin ??
+    false;
+
+
+  if (
+    superAdminFlag ===
+      true ||
+    Number(
+      superAdminFlag
     ) ===
-      "super_admin"
+      1 ||
+    String(
+      superAdminFlag
+    )
+      .trim()
+      .toLowerCase() ===
+      "true"
+  ) {
+    return true;
+  }
+
+
+  /*
+    모든 권한 필드를 확인한다.
+  */
+  const roleCandidates = [
+    currentUser.role,
+    currentUser.userRole,
+    currentUser.user_role,
+    currentUser.defaultRole,
+    currentUser.default_role,
+    currentUser.permission,
+    currentUser.authority,
+    currentUser.accessRole,
+    currentUser.access_role
+  ]
+    .map(
+      value => {
+        return String(
+          value ||
+          ""
+        )
+          .trim()
+          .toLowerCase()
+          .replace(
+            /[\s-]+/g,
+            "_"
+          );
+      }
+    )
+    .filter(Boolean);
+
+
+  return roleCandidates.some(
+    role => {
+      return [
+        "super_admin",
+        "superadmin",
+        "최고관리자"
+      ].includes(
+        role
+      );
+    }
   );
 }
 
@@ -41207,9 +41276,27 @@ canCurrentUserEditShiftLog =
     }
 
 
+    const isSuperAdmin =
+      isCurrentUserSuperAdmin();
+
+
     /*
-      과거 연동 업무일지는
-      최고관리자도 조회만 가능
+      공용 D1 업무일지는 최고관리자가
+      작성자·보직·결재 상태와 관계없이 수정 가능
+    */
+    if (
+      isSuperAdmin &&
+      isSharedD1ShiftLog(
+        log
+      )
+    ) {
+      return true;
+    }
+
+
+    /*
+      7월 21일까지의 과거 연동 업무일지는
+      조회 전용
     */
     if (
       isReadOnlyLegacyShiftLog(
@@ -41221,13 +41308,11 @@ canCurrentUserEditShiftLog =
 
 
     /*
-      최고관리자를 가장 먼저 판정한다.
-
-      작성자 사번·이름·보직·결재 상태와 관계없이
-      모든 D1 업무일지를 수정할 수 있다.
+      공용 D1 판정값이 없는 신규 업무일지도
+      최고관리자는 수정 가능
     */
     if (
-      isCurrentUserSuperAdmin()
+      isSuperAdmin
     ) {
       return true;
     }
@@ -41244,12 +41329,20 @@ canCurrentUserEditShiftLog =
       ).trim();
 
 
-    /*
-      로그인 사용자 정보를 확인할 수 없으면
-      수정할 수 없다.
-    */
     if (
       !currentEmployeeNo
+    ) {
+      return false;
+    }
+
+
+    /*
+      일반 사용자는 본인 업무일지만 수정 가능
+    */
+    if (
+      !isCurrentUserShiftLogAuthor(
+        log
+      )
     ) {
       return false;
     }
@@ -41261,10 +41354,6 @@ canCurrentUserEditShiftLog =
       );
 
 
-    /*
-      임시저장 상태는 로그인한 직원이
-      이어서 작성할 수 있다.
-    */
     if (
       normalizedStatus ===
         "임시저장"
@@ -41273,23 +41362,6 @@ canCurrentUserEditShiftLog =
     }
 
 
-    /*
-      임시저장이 아닌 경우
-      원래 작성자 여부를 확인한다.
-    */
-    if (
-      !isCurrentUserShiftLogAuthor(
-        log
-      )
-    ) {
-      return false;
-    }
-
-
-    /*
-      파트장은 본인이 작성한 파트장 업무일지가
-      저장완료 상태일 때 수정할 수 있다.
-    */
     return (
       isCurrentShiftLogLeader() &&
       normalizeMemberLogRole(
