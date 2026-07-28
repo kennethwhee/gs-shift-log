@@ -24612,18 +24612,71 @@ function collectLogEntriesForDisplay(
 
 
     /*
-      과거 note 비고도 함께 확인한다.
-      remarkEntries와 같은 내용이면 아래 완전 중복 제거에서
-      한 번만 남는다.
+      구조화된 비고가 있으면
+      remarkEntries 또는 entries의 비고만 사용한다.
+
+      구조화된 비고가 없고 note만 있는
+      과거 업무일지에서만 note를 변환한다.
+
+      한 개의 여러 줄 비고가 줄 단위로 나뉘어
+      여러 항목으로 중복 표시되는 것을 방지한다.
     */
-    appendEntries(
-      convertSavedNoteToEntries(
-        sourceLog.note,
-        sourceLog
-      ),
-      "비고",
-      "note"
-    );
+    const hasStructuredRemarkEntries =
+      candidates.some(
+        ({
+          entry,
+          fallbackCategory
+        }) => {
+          const sourceEntry =
+            entry &&
+            typeof entry ===
+              "object" &&
+            !Array.isArray(
+              entry
+            )
+              ? entry
+              : {
+                  content:
+                    String(
+                      entry ||
+                      ""
+                    ).trim()
+                };
+
+
+          const category =
+            normalizeCategory(
+              sourceEntry.category,
+              fallbackCategory
+            );
+
+
+          return (
+            category ===
+              "비고" &&
+            Boolean(
+              String(
+                sourceEntry.content ||
+                ""
+              ).trim()
+            )
+          );
+        }
+      );
+
+
+    if (
+      !hasStructuredRemarkEntries
+    ) {
+      appendEntries(
+        convertSavedNoteToEntries(
+          sourceLog.note,
+          sourceLog
+        ),
+        "비고",
+        "note"
+      );
+    }
 
 
     const uniqueEntryMap =
@@ -24801,7 +24854,7 @@ function collectLogEntriesForDisplay(
         /*
           같은 로그 안에서 완전히 같은 항목만 제거한다.
           서로 다른 Limestone 입고 내역처럼
-          내용이 비슷한 항목은 절대 합치지 않는다.
+          내용이 비슷한 항목은 합치지 않는다.
         */
         if (
           !uniqueEntryMap.has(
@@ -25178,7 +25231,7 @@ function collectLogEntriesForDisplay(
             과거 파트장 저장본에 출처 없이 남은 TM 복사본은
             팀원 TM 원본과 70% 이상 유사할 때만 제외한다.
 
-            일반 업무에는 유사도 비교를 절대 적용하지 않는다.
+            일반 업무에는 유사도 비교를 적용하지 않는다.
           */
           if (
             getCategoryGroup(
