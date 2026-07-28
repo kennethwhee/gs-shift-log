@@ -17645,14 +17645,20 @@ function getScheduledPart(
   );
 }
 
-
 /* =========================================================
-  기존 TM 내용에서 TAG 분리
+  기존 TM·BM·CM 내용에서 TAG 분리
 
-  예:
+  한 줄:
   [10HFB10AF001] Bio Rotary Feeder 점검
-  → tag     : 10HFB10AF001
-  → content : Bio Rotary Feeder 점검
+
+  여러 줄:
+  [QEA30AH001] Plant Comp...
+  - Loading중...
+
+  결과:
+  tag     : QEA30AH001
+  content : Plant Comp...
+            - Loading중...
 ========================================================= */
 
 function extractLegacyTagFromContent(
@@ -17661,27 +17667,52 @@ function extractLegacyTagFromContent(
   const sourceText =
     String(
       rawContent || ""
-    ).trim();
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .trim();
 
-  if (!sourceText) {
+
+  if (
+    !sourceText
+  ) {
     return {
       tag: "",
       content: ""
     };
   }
 
+
+  /*
+    [TAG] 뒤에 줄바꿈이 있어도
+    나머지 전체 내용을 함께 가져온다.
+
+    기존의 (.*)는 줄바꿈을 포함하지 못했지만
+    ([\s\S]*)는 여러 줄 전체를 포함한다.
+  */
   const tagMatch =
     sourceText.match(
-      /^\s*[\[【]\s*([A-Za-z0-9_.\-\/]+)\s*[\]】]\s*(.*)$/
+      /^\s*[\[【]\s*([A-Za-z0-9_.\-\/]+)\s*[\]】]\s*([\s\S]*)$/
     );
 
-  if (!tagMatch) {
+
+  if (
+    !tagMatch
+  ) {
     return {
       tag: "",
+
       content:
         sourceText
     };
   }
+
 
   return {
     tag:
@@ -18565,17 +18596,26 @@ function resetLogEditor() {
 }
 
 /* =========================================================
-  기존 저장 업무내역 시간 재분석
+  기존 저장 업무내역 시간·TAG 재분석
 
   지원 형식:
+
+  [TAG] 내용
+  [TAG] 여러 줄 내용
+
+  08:00 [TAG] 내용
+  [TAG] 08:00 내용
+
   08:00 내용
   08:00, 09:00, 10:00 내용
   08:00~09:30 내용
-  08:00 ~ 09:30 내용
-  0800~0930 내용
 
-  기존 entry.time 값이 있더라도
-  content 앞에 시간이 다시 들어 있으면 제거하고 정리한다.
+  핵심 규칙:
+
+  - TM·BM·CM만 content 앞 TAG를 복구한다.
+  - 기존 tag 값이 있으면 기존 값을 우선한다.
+  - 기존 tag와 같은 중복 [TAG]는 content에서 제거한다.
+  - 여러 줄 내용은 그대로 유지한다.
 ========================================================= */
 
 function normalizeExistingLogEntryTime(
@@ -18596,25 +18636,84 @@ function normalizeExistingLogEntryTime(
     ).trim();
 
 
-  const originalContent =
+  const originalTag =
+    String(
+      sourceEntry.tag ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  const categoryText =
+    String(
+      sourceEntry.category ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  /*
+    TAG 입력이 필요한 작업 구분만
+    content 안의 [TAG]를 자동 복구한다.
+
+    인계사항의 [주의], [참고] 같은 일반 문구는
+    TAG로 잘못 분류하지 않는다.
+  */
+  const shouldRecoverTag =
+    [
+      "TM",
+      "BM",
+      "CM"
+    ].some(
+      prefix => {
+        return categoryText.startsWith(
+          prefix
+        );
+      }
+    );
+
+
+  let resolvedTime =
+    originalTime;
+
+
+  let resolvedTag =
+    originalTag;
+
+
+  let resolvedContent =
     String(
       sourceEntry.content ||
       ""
     )
-      .replace(/\r\n/g, "\n")
-      .replace(/\r/g, "\n")
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
       .trim();
 
 
-  /*
-    내용이 없으면 기존 값을 그대로 유지한다.
-  */
-  if (!originalContent) {
+  if (
+    !resolvedContent
+  ) {
     return {
       ...sourceEntry,
 
       time:
-        originalTime,
+        resolvedTime,
+
+      tag:
+        resolvedTag,
 
       content:
         ""
@@ -18623,60 +18722,119 @@ function normalizeExistingLogEntryTime(
 
 
   /*
-    내용 맨 앞에 입력된 시간 표현을 분석한다.
+    content 맨 앞의 [TAG]를 복구한다.
+
+    기존 tag가 없는 경우:
+    content의 [TAG]를 tag 필드로 이동한다.
+
+    기존 tag와 동일한 경우:
+    content에 중복된 [TAG]만 제거한다.
+
+    기존 tag와 다른 경우:
+    데이터 유실 방지를 위해 원문을 유지한다.
   */
-  const parsedTime =
-    parseLeadingLogTimeExpression(
-      originalContent
-    );
+  const recoverLeadingTag =
+    () => {
+      if (
+        !shouldRecoverTag ||
+        !resolvedContent
+      ) {
+        return;
+      }
+
+
+      const parsedTag =
+        extractLegacyTagFromContent(
+          resolvedContent
+        );
+
+
+      const parsedTagText =
+        String(
+          parsedTag.tag ||
+          ""
+        )
+          .trim()
+          .toUpperCase();
+
+
+      if (
+        !parsedTagText
+      ) {
+        return;
+      }
+
+
+      if (
+        !resolvedTag ||
+        resolvedTag ===
+          parsedTagText
+      ) {
+        resolvedTag =
+          resolvedTag ||
+          parsedTagText;
+
+        resolvedContent =
+          String(
+            parsedTag.content ||
+            ""
+          ).trim();
+      }
+    };
 
 
   /*
-    내용 앞에서 시간 표현을 찾은 경우
-
-    예:
-    content = "08:37~09:46 작업"
-    →
-    time    = "08:37~09:46"
-    content = "작업"
+    [TAG] 08:00 내용 형식 처리
   */
+  recoverLeadingTag();
+
+
+  /*
+    내용 맨 앞에 입력된 시간 표현 분석
+  */
+  const parsedTime =
+    parseLeadingLogTimeExpression(
+      resolvedContent
+    );
+
+
   if (
     parsedTime.timeText &&
     parsedTime.content
   ) {
-    return {
-      ...sourceEntry,
+    resolvedTime =
+      String(
+        parsedTime.timeText ||
+        ""
+      ).trim();
 
-      /*
-        내용에 적혀 있던 시간을 우선한다.
-
-        과거 데이터의 time 값이 비어 있거나
-        잘못 들어 있어도 새로 분석한 값으로 교체한다.
-      */
-      time:
-        parsedTime.timeText,
-
-      content:
-        parsedTime.content
-    };
+    resolvedContent =
+      String(
+        parsedTime.content ||
+        ""
+      ).trim();
   }
 
 
   /*
-    시간만 있고 실제 내용이 없는 경우에는
-    데이터 유실을 막기 위해 원문을 유지한다.
+    08:00 [TAG] 내용 형식 처리
   */
+  recoverLeadingTag();
+
+
   return {
     ...sourceEntry,
 
     time:
-      originalTime,
+      resolvedTime,
+
+    tag:
+      resolvedTag,
 
     content:
-      originalContent
+      resolvedContent
   };
 }
-
 
 /* =========================================================
   기존 업무일지의 전체 항목 시간 재분석
