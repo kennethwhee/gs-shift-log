@@ -42326,3 +42326,482 @@ loadLegacyLogsForSelectedDate =
 
     return legacyLogs;
   };
+
+  /* =========================================================
+  최고관리자 legacy 업무일지 수정·삭제 최종 연결
+
+  - 2026-07-21까지: 조회 전용
+  - 2026-07-22 이후: 최고관리자 수정·삭제 가능
+  - 버튼 클릭 시 해당 일지를 D1으로 전환
+========================================================= */
+
+function isSuperAdminManageableLegacyLog(
+  log
+) {
+  return (
+    isReadOnlyLegacyShiftLog(
+      log
+    ) &&
+
+    String(
+      log?.date ||
+      ""
+    ).trim() >
+      "2026-07-21"
+  );
+}
+
+
+/* =========================================================
+  legacy 업무일지 1건을 D1으로 전환
+========================================================= */
+
+async function convertLegacyLogForSuperAdminManagement(
+  log
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    throw new Error(
+      "업무일지 정보를 확인할 수 없습니다."
+    );
+  }
+
+
+  if (
+    !isReadOnlyLegacyShiftLog(
+      log
+    )
+  ) {
+    return log;
+  }
+
+
+  if (
+    !isCurrentUserSuperAdmin()
+  ) {
+    throw new Error(
+      "최고관리자만 이 업무일지를 수정할 수 있습니다."
+    );
+  }
+
+
+  if (
+    !isSuperAdminManageableLegacyLog(
+      log
+    )
+  ) {
+    throw new Error(
+      "2026년 7월 21일까지의 과거 업무일지는 조회만 가능합니다."
+    );
+  }
+
+
+  const migrationLog = {
+    ...log,
+
+    author:
+      String(
+        log.author ||
+        log.authorName ||
+        log.writerName ||
+        ""
+      ).trim(),
+
+    authorId:
+      String(
+        log.authorId ||
+        log.writerId ||
+        log.writer_id ||
+        ""
+      ).trim(),
+
+    authorRole:
+      String(
+        log.authorRole ||
+        log.writerRole ||
+        log.writer_role ||
+        ""
+      ).trim(),
+
+    status:
+      normalizeShiftLogApprovalStatus(
+        log.status
+      )
+  };
+
+
+  let sharedLog =
+    null;
+
+
+  try {
+    sharedLog =
+      await saveShiftLogToServer(
+        migrationLog,
+        {
+          action:
+            "migrate",
+
+          expectedRevision:
+            0
+        }
+      );
+
+  } catch (
+    error
+  ) {
+    /*
+      이미 같은 날짜·근무·보직의 D1 일지가 있으면
+      서버의 현재 자료를 사용한다.
+    */
+    if (
+      error instanceof
+        ShiftLogApiError &&
+
+      error.isConflict &&
+
+      error.currentLog
+    ) {
+      sharedLog =
+        normalizeSharedShiftLog(
+          error.currentLog
+        );
+
+    } else {
+      throw error;
+    }
+  }
+
+
+  if (
+    !sharedLog
+  ) {
+    throw new Error(
+      "업무일지를 수정 가능한 자료로 전환하지 못했습니다."
+    );
+  }
+
+
+  const groupKey =
+    getShiftLogGroupKey(
+      sharedLog
+    );
+
+
+  /*
+    전환된 일지와 같은 legacy 중복 행 제거
+  */
+  appState.logs =
+    appState.logs.filter(
+      currentLog => {
+        return !(
+          isReadOnlyLegacyShiftLog(
+            currentLog
+          ) &&
+
+          getShiftLogGroupKey(
+            currentLog
+          ) ===
+            groupKey
+        );
+      }
+    );
+
+
+  const normalizedSharedLog =
+    replaceSharedShiftLogInState(
+      sharedLog
+    );
+
+
+  renderLogTable();
+
+  updateShiftMemberCardStates();
+
+
+  return (
+    normalizedSharedLog ||
+    sharedLog
+  );
+}
+
+
+/* =========================================================
+  수정·삭제 버튼 표시 최종 권한
+========================================================= */
+
+canCurrentUserEditShiftLog =
+  function canCurrentUserEditShiftLog(
+    log
+  ) {
+    if (
+      !log ||
+      typeof log !==
+        "object"
+    ) {
+      return false;
+    }
+
+
+    /*
+      최고관리자
+    */
+    if (
+      isCurrentUserSuperAdmin()
+    ) {
+      /*
+        legacy 자료는 2026-07-22 이후만 허용
+      */
+      if (
+        isReadOnlyLegacyShiftLog(
+          log
+        )
+      ) {
+        return isSuperAdminManageableLegacyLog(
+          log
+        );
+      }
+
+
+      /*
+        신규 D1 업무일지는 상태·작성자와 관계없이 허용
+      */
+      return true;
+    }
+
+
+    /*
+      일반 사용자는 legacy 수정 불가
+    */
+    if (
+      isReadOnlyLegacyShiftLog(
+        log
+      )
+    ) {
+      return false;
+    }
+
+
+    const currentUser =
+      getCurrentShiftLogUserIdentity();
+
+
+    if (
+      !String(
+        currentUser?.employeeNo ||
+        ""
+      ).trim()
+    ) {
+      return false;
+    }
+
+
+    /*
+      일반 사용자는 본인 일지만 수정 가능
+    */
+    if (
+      !isCurrentUserShiftLogAuthor(
+        log
+      )
+    ) {
+      return false;
+    }
+
+
+    const normalizedStatus =
+      normalizeShiftLogApprovalStatus(
+        log.status
+      );
+
+
+    if (
+      normalizedStatus ===
+        "임시저장"
+    ) {
+      return true;
+    }
+
+
+    return (
+      isCurrentShiftLogLeader() &&
+
+      normalizeMemberLogRole(
+        log.role
+      ) ===
+        "파트장" &&
+
+      normalizedStatus ===
+        "저장완료"
+    );
+  };
+
+
+/* =========================================================
+  수정 클릭 시 legacy → D1 전환
+========================================================= */
+
+const openLogEditorBeforeLegacyManagement =
+  openLogEditor;
+
+
+openLogEditor =
+  async function openLogEditor(
+    log = null,
+    preset = null
+  ) {
+    /*
+      신규 작성 또는 이미 D1인 일지
+    */
+    if (
+      !log ||
+
+      !isReadOnlyLegacyShiftLog(
+        log
+      )
+    ) {
+      return openLogEditorBeforeLegacyManagement(
+        log,
+        preset
+      );
+    }
+
+
+    /*
+      수정 권한이 없는 legacy 자료
+    */
+    if (
+      !canCurrentUserEditShiftLog(
+        log
+      )
+    ) {
+      return openLogEditorBeforeLegacyManagement(
+        log,
+        preset
+      );
+    }
+
+
+    try {
+      const sharedLog =
+        await convertLegacyLogForSuperAdminManagement(
+          log
+        );
+
+
+      return openLogEditorBeforeLegacyManagement(
+        sharedLog,
+        preset
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "업무일지 수정 준비 실패:",
+        error
+      );
+
+
+      showToast(
+        error.message ||
+        "업무일지를 수정 가능한 상태로 전환하지 못했습니다."
+      );
+
+
+      return null;
+    }
+  };
+
+
+/* =========================================================
+  삭제 클릭 시 legacy → D1 전환
+========================================================= */
+
+const deleteLogByIdBeforeLegacyManagement =
+  deleteLogById;
+
+
+deleteLogById =
+  async function deleteLogById(
+    logId
+  ) {
+    const targetLog =
+      appState.logs.find(
+        log => {
+          return (
+            String(
+              log?.id ||
+              ""
+            ) ===
+
+            String(
+              logId ||
+              ""
+            )
+          );
+        }
+      );
+
+
+    /*
+      이미 D1인 업무일지는 기존 삭제 기능 사용
+    */
+    if (
+      !targetLog ||
+
+      !isReadOnlyLegacyShiftLog(
+        targetLog
+      )
+    ) {
+      return deleteLogByIdBeforeLegacyManagement(
+        logId
+      );
+    }
+
+
+    if (
+      !canCurrentUserEditShiftLog(
+        targetLog
+      )
+    ) {
+      showShiftLogEditDeniedMessage(
+        targetLog
+      );
+
+
+      return null;
+    }
+
+
+    try {
+      const sharedLog =
+        await convertLegacyLogForSuperAdminManagement(
+          targetLog
+        );
+
+
+      return deleteLogByIdBeforeLegacyManagement(
+        sharedLog.id
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "업무일지 삭제 준비 실패:",
+        error
+      );
+
+
+      showToast(
+        error.message ||
+        "업무일지를 삭제 가능한 상태로 전환하지 못했습니다."
+      );
+
+
+      return null;
+    }
+  };
