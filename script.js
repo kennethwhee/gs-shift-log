@@ -25710,149 +25710,153 @@ function createLogRowHtml(log) {
   );
 
 
-  const renderPreviewGroup =
-    group => {
-      if (
-        group.type ===
-        "role-section"
-      ) {
-        return `
-          <span
-            class="
-              log-preview__role-section
-              ${
-                group.isFirstRole
-                  ? "is-first-role"
-                  : ""
-              }
-            "
-          >
-            <span
-              class="
-                log-preview__role-divider
-                ${group.categoryClass}
-              "
+const renderPreviewGroup = group => {
+  if (
+    group.type ===
+    "role-section"
+  ) {
+    return `
+      <span
+        class="
+          log-preview__role-section
+          ${
+            group.isFirstRole
+              ? "is-first-role"
+              : ""
+          }
+        "
+      >
+        <span
+          class="
+            log-preview__role-divider
+            ${group.categoryClass}
+          "
+        >
+          ${escapeHtml(
+            group.title
+          )}
+        </span>
+      </span>
+    `;
+  }
+
+
+  const contentLines =
+    Array.isArray(
+      group.contentLines
+    ) &&
+    group.contentLines.length
+      ? group.contentLines
+      : [
+          "-"
+        ];
+
+
+  const contentHtml =
+    contentLines
+      .map(
+        (
+          line,
+          index
+        ) => {
+          return `${
+            index === 0
+              ? ""
+              : "<br>"
+          }${escapeHtml(
+            line
+          )}`;
+        }
+      )
+      .join("");
+
+
+  return `
+    <span
+      class="
+        log-preview__group
+        ${group.categoryClass}
+        ${
+          group.title
+            ? ""
+            : "has-no-title"
+        }
+      "
+    >
+      ${
+        group.title
+          ? `
+            <strong
+              class="log-preview__title"
             >
               ${escapeHtml(
                 group.title
               )}
-            </span>
-          </span>
-        `;
+            </strong>
+          `
+          : ""
       }
 
 
-      const contentLines =
-        Array.isArray(
-          group.contentLines
-        ) &&
-        group.contentLines.length
-          ? group.contentLines
-          : ["-"];
+      <span
+        class="log-preview__content"
+      >
+        ${
+          group.number
+            ? `
+              <span
+                class="
+                  log-preview__entry-number
+                  ${group.numberClass || ""}
+                "
+              >
+                ${escapeHtml(
+                  group.number
+                )}
+              </span>
+            `
+            : ""
+        }
 
 
-      const contentHtml =
-        contentLines
-          .map(
-            (
-              line,
-              index
-            ) => {
-              return `${
-                index === 0
-                  ? ""
-                  : "<br>"
-              }${escapeHtml(
-                line
-              )}`;
-            }
-          )
-          .join("");
+        ${
+          group.time
+            ? `
+              <span
+                class="log-preview__entry-time"
+              >
+                ${escapeHtml(
+                  group.time
+                )}
+              </span>
+            `
+            : ""
+        }
 
 
-      return `
         <span
-          class="
-            log-preview__group
-            ${group.categoryClass}
-            ${
-              group.title
-                ? ""
-                : "has-no-title"
-            }
-          "
+          class="log-preview__text"
         >
+          ${contentHtml}
+
           ${
-            group.title
+            group.tag
               ? `
-                <strong
-                  class="log-preview__title"
+                <span
+                  class="log-preview__tag"
                 >
                   ${escapeHtml(
-                    group.title
+                    group.tag
                   )}
-                </strong>
+                </span>
               `
               : ""
           }
-
-          <span
-            class="log-preview__content"
-          >
-            ${
-              group.number
-                ? `
-                  <span
-                    class="
-                      log-preview__entry-number
-                      ${group.numberClass || ""}
-                    "
-                  >
-                    ${escapeHtml(
-                      group.number
-                    )}
-                  </span>
-                `
-                : ""
-            }
-
-            ${
-              group.time
-                ? `
-                  <span
-                    class="log-preview__entry-time"
-                  >
-                    ${escapeHtml(
-                      group.time
-                    )}
-                  </span>
-                `
-                : ""
-            }
-
-            ${
-              group.tag
-                ? `
-                  <span
-                    class="log-preview__tag"
-                  >
-                    ${escapeHtml(
-                      group.tag
-                    )}
-                  </span>
-                `
-                : ""
-            }
-
-            <span
-              class="log-preview__text"
-            >
-              ${contentHtml}
-            </span>
-          </span>
         </span>
-      `;
-    };
+      </span>
+    </span>
+  `;
+};
 
 
   const attachmentCount =
