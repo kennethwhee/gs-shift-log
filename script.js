@@ -35282,9 +35282,13 @@ function isCurrentShiftLogLeader() {
   );
 }
 
-
 /* =========================================================
   저장 요청 상태 정규화
+
+  최고관리자:
+  - 신규 파트장 일지: 저장완료
+  - 신규 다른 보직 일지: 임시저장 또는 결재요청
+  - 기존 일지 수정: 기존 결재 상태 유지
 ========================================================= */
 
 function resolveShiftLogSaveStatus(
@@ -35297,20 +35301,70 @@ function resolveShiftLogSaveStatus(
     ).trim();
 
 
+  const currentEditorRole =
+    normalizeMemberLogRole(
+      elements.logRole?.value ||
+      ""
+    );
+
+
+  const editingId =
+    String(
+      elements.logEditorForm
+        ?.dataset.editingId ||
+      ""
+    ).trim();
+
+
+  const existingLog =
+    editingId
+      ? (
+          appState.logs.find(
+            log => {
+              return (
+                String(
+                  log?.id ||
+                  ""
+                ).trim() ===
+                editingId
+              );
+            }
+          ) ||
+          null
+        )
+      : null;
+
+
   /*
-    파트장 본인 업무일지는
-    일반 저장 시 바로 저장완료
+    최고관리자가 기존 일지를 수정할 때는
+    수정만으로 결재 상태를 바꾸지 않는다.
   */
   if (
+    isCurrentUserSuperAdmin() &&
+    existingLog
+  ) {
+    return normalizeShiftLogApprovalStatus(
+      existingLog.status
+    );
+  }
+
+
+  /*
+    최고관리자의 신규 파트장 업무일지 또는
+    실제 파트장의 업무일지는 저장완료
+  */
+  if (
+    (
+      isCurrentUserSuperAdmin() &&
+      currentEditorRole ===
+        "파트장"
+    ) ||
     isCurrentShiftLogLeader()
   ) {
     return "저장완료";
   }
 
 
-  /*
-    파트원이 결재요청 버튼을 누른 경우
-  */
   if (
     normalizedStatus ===
       "결재요청" ||
@@ -35321,10 +35375,299 @@ function resolveShiftLogSaveStatus(
   }
 
 
-  /*
-    파트원 일반 저장은 임시저장
-  */
   return "임시저장";
+}
+
+
+/* =========================================================
+  현재 업무일지 작성창 권한 구분
+========================================================= */
+
+function getCurrentShiftLogPermissionType() {
+  const currentEditorRole =
+    normalizeMemberLogRole(
+      elements.logRole?.value ||
+      ""
+    );
+
+
+  const editingId =
+    String(
+      elements.logEditorForm
+        ?.dataset.editingId ||
+      ""
+    ).trim();
+
+
+  /*
+    최고관리자가 기존 일지를 수정하면
+    어느 보직이든 관리자 수정 모드
+  */
+  if (
+    isCurrentUserSuperAdmin() &&
+    editingId
+  ) {
+    return "super_admin_edit";
+  }
+
+
+  /*
+    최고관리자의 신규 업무일지
+
+    파트장:
+    - 저장 버튼
+    - 저장완료
+
+    다른 보직:
+    - 임시저장
+    - 결재요청
+  */
+  if (
+    isCurrentUserSuperAdmin()
+  ) {
+    return currentEditorRole ===
+      "파트장"
+        ? "leader"
+        : "member";
+  }
+
+
+  if (
+    isCurrentShiftLogLeader()
+  ) {
+    return "leader";
+  }
+
+
+  return "member";
+}
+
+
+/* =========================================================
+  작성·수정창 하단 버튼 표시
+========================================================= */
+
+function updateLogEditorActionButtons() {
+  const permissionType =
+    getCurrentShiftLogPermissionType();
+
+
+  const submitButton =
+    getShiftLogEditorSubmitButton();
+
+
+  const saveDraftButton =
+    elements.saveDraftButton ||
+    document.getElementById(
+      "saveDraftButton"
+    );
+
+
+  const requestApprovalButton =
+    elements.requestApprovalButton ||
+    document.getElementById(
+      "requestApprovalButton"
+    );
+
+
+  const isLeaderMode =
+    permissionType ===
+      "leader";
+
+
+  const isSuperAdminEditMode =
+    permissionType ===
+      "super_admin_edit";
+
+
+  const showSubmitButton =
+    isLeaderMode ||
+    isSuperAdminEditMode;
+
+
+  /*
+    파트장 신규 저장 또는
+    최고관리자 기존 일지 수정 저장
+  */
+  if (
+    submitButton
+  ) {
+    submitButton.hidden =
+      !showSubmitButton;
+
+    submitButton.disabled =
+      !showSubmitButton;
+
+    submitButton.textContent =
+      isSuperAdminEditMode
+        ? "수정 저장"
+        : "저장";
+
+    submitButton.title =
+      isSuperAdminEditMode
+        ? "기존 작성자와 결재 상태를 유지하고 수정 내용을 저장합니다."
+        : (
+            isLeaderMode
+              ? "파트장 업무일지를 저장완료 상태로 저장합니다."
+              : ""
+          );
+  }
+
+
+  /*
+    파트원 보직 신규 작성 시 임시저장
+  */
+  if (
+    saveDraftButton
+  ) {
+    saveDraftButton.hidden =
+      showSubmitButton;
+
+    saveDraftButton.disabled =
+      showSubmitButton;
+
+    saveDraftButton.textContent =
+      "임시저장";
+  }
+
+
+  /*
+    파트원 보직 신규 작성 시 결재요청
+  */
+  if (
+    requestApprovalButton
+  ) {
+    requestApprovalButton.hidden =
+      showSubmitButton;
+
+    requestApprovalButton.disabled =
+      showSubmitButton;
+
+    requestApprovalButton.textContent =
+      "결재요청";
+  }
+}
+
+
+/* =========================================================
+  업무일지 수정·이어쓰기 가능 여부
+
+  최고관리자:
+  - 파트장 포함 모든 보직 수정 가능
+  - 결재 상태와 관계없이 수정 가능
+  - 과거 연동 업무일지는 수정 불가
+========================================================= */
+
+function canCurrentUserEditShiftLog(
+  log
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    return false;
+  }
+
+
+  /*
+    과거 연동 업무일지는
+    기존대로 조회만 허용
+  */
+  if (
+    isReadOnlyLegacyShiftLog(
+      log
+    )
+  ) {
+    return false;
+  }
+
+
+  const currentUser =
+    getCurrentShiftLogUserIdentity();
+
+
+  const currentEmployeeNo =
+    String(
+      currentUser?.employeeNo ||
+      ""
+    ).trim();
+
+
+  const currentUserName =
+    String(
+      currentUser?.name ||
+      ""
+    ).trim();
+
+
+  if (
+    !currentEmployeeNo ||
+    !currentUserName
+  ) {
+    return false;
+  }
+
+
+  /*
+    최고관리자는 파트장·TGO·BCO1·BCO2·
+    TO·BO1·BO2 업무일지를 모두 수정할 수 있다.
+  */
+  if (
+    isCurrentUserSuperAdmin()
+  ) {
+    return true;
+  }
+
+
+  const normalizedStatus =
+    normalizeShiftLogApprovalStatus(
+      log.status
+    );
+
+
+  /*
+    임시저장은 기존 규칙대로
+    로그인한 직원이 이어쓸 수 있다.
+  */
+  if (
+    normalizedStatus ===
+      "임시저장"
+  ) {
+    return true;
+  }
+
+
+  if (
+    !isCurrentUserShiftLogAuthor(
+      log
+    )
+  ) {
+    return false;
+  }
+
+
+  const logRole =
+    normalizeMemberLogRole(
+      log.role
+    );
+
+
+  /*
+    파트장 본인의 저장완료 업무일지
+  */
+  if (
+    isCurrentShiftLogLeader() &&
+    logRole ===
+      "파트장" &&
+    normalizedStatus ===
+      "저장완료"
+  ) {
+    return true;
+  }
+
+
+  return false;
 }
 
 
