@@ -32363,76 +32363,27 @@ function doesLogMatchSearchCategory(
   7. 파트장 일지는 보직별로 분리
 ========================================================= */
 
-function createSearchLogPreviewHtml(
-  log
-) {
-  const normalizedLogRole =
-    normalizeMemberLogRole(
-      log?.role ||
-      ""
-    );
-
+function createSearchLogPreviewHtml(log) {
+  const logRole = normalizeMemberLogRole(
+    log?.role || ""
+  );
 
   const isLeaderLog =
-    normalizedLogRole ===
-    "파트장";
+    logRole === "파트장";
 
-
-  const operationStatus =
-    String(
-      log?.operationStatus ||
-      ""
-    ).trim();
-
-
-  const entries =
-    Array.isArray(
-      log?.entries
-    )
-      ? log.entries
-      : [];
-
-
-  const note =
-    String(
-      log?.note ||
-      ""
-    ).trim();
-
-
-  const tmEntries = [];
-
-  const ordinaryEntries = [];
-
-
-  /*
-    content 앞에 이미 포함된 TAG 제거
-
-    예:
-    [00E6LAB40AA101] Feed Water Heater 점검
-
-    결과:
-    Feed Water Heater 점검
-  */
-  const removeLeadingDuplicateTag = (
+  const stripDuplicateTag = (
     content,
     tag
   ) => {
-    let normalizedContent =
-      String(
-        content ||
-        ""
-      ).trim();
+    const normalizedTag = String(
+      tag || ""
+    )
+      .trim()
+      .toUpperCase();
 
-
-    const normalizedTag =
-      String(
-        tag ||
-        ""
-      )
-        .trim()
-        .toUpperCase();
-
+    const normalizedContent = String(
+      content || ""
+    ).trim();
 
     if (
       !normalizedContent ||
@@ -32441,623 +32392,425 @@ function createSearchLogPreviewHtml(
       return normalizedContent;
     }
 
-
     const escapedTag =
       normalizedTag.replace(
         /[.*+?^${}()|[\]\\]/g,
         "\\$&"
       );
 
-
-    const leadingTagPattern =
-      new RegExp(
-        `^\\s*[\\[【]\\s*${escapedTag}\\s*[\\]】]\\s*`,
-        "i"
-      );
-
-
     return normalizedContent
       .replace(
-        leadingTagPattern,
+        new RegExp(
+          `^\\s*[\\[【]\\s*${escapedTag}\\s*[\\]】]\\s*`,
+          "i"
+        ),
         ""
       )
       .trim();
   };
 
-
-  /*
-    원본 항목 정리
-  */
-  entries.forEach(
-    (
-      entry,
-      originalIndex
-    ) => {
-      const categoryValue =
-        getSearchEntryCategoryValue(
-          entry
-        );
-
-
-      if (
-        !categoryValue
-      ) {
-        return;
-      }
-
-
-      const normalizedTag =
-        String(
-          entry?.tag ||
-          ""
-        )
-          .trim()
-          .toUpperCase();
-
-
-      const normalizedContent =
-        removeLeadingDuplicateTag(
-          entry?.content,
-          normalizedTag
-        );
-
-
-      const normalizedEntry = {
-        originalIndex,
-
-        time:
-          String(
-            entry?.time ||
-            ""
-          ).trim(),
-
-        tag:
-          normalizedTag,
-
-        content:
-          normalizedContent,
-
-        importedFromRole:
-          normalizeMemberLogRole(
-            entry?.importedFromRole ||
-            ""
+  const separatedEntries = [
+    ...(
+      Array.isArray(log?.tmEntries)
+        ? log.tmEntries.map(
+            (entry) => ({
+              ...entry,
+              category: "TM 발행"
+            })
           )
-      };
-
-
-      if (
-        !normalizedEntry.content &&
-        !normalizedEntry.tag
-      ) {
-        return;
-      }
-
-
-      if (
-        categoryValue ===
-        "tm"
-      ) {
-        tmEntries.push(
-          normalizedEntry
-        );
-
-        return;
-      }
-
-
-      if (
-        categoryValue ===
-          "handover" ||
-        categoryValue ===
-          "bm" ||
-        categoryValue ===
-          "cm"
-      ) {
-        ordinaryEntries.push(
-          normalizedEntry
-        );
-      }
-    }
-  );
-
-
-  /*
-    조회 목록 한 항목
-
-    번호 → 시간 → 내용 → TAG
-
-    TAG는 span으로 출력한다.
-  */
-  const createSearchEntryHtml = (
-    entry,
-    displayNumber,
-    type
-  ) => {
-    const numberClass =
-      type === "tm"
-        ? "is-tm"
-        : "is-handover";
-
-
-    const timeHtml =
-      entry.time
-        ? `<strong class="search-preview-entry__time">${escapeHtml(
-            entry.time
-          )}</strong>`
-        : "";
-
-
-    const contentHtml =
-      `<span class="search-preview-entry__text">${escapeHtml(
-        entry.content ||
-        "-"
-      )}</span>`;
-
-
-    const tagHtml =
-      entry.tag
-        ? `<span
-            class="search-preview-entry__tag"
-            data-search-preview-tag="${escapeHtml(
-              entry.tag
-            )}"
-            role="button"
-            tabindex="0"
-            title="Facility Navigator에서 설비 보기"
-          >[${escapeHtml(
-            entry.tag
-          )}]</span>`
-        : "";
-
-
-    const bodyHtml =
-      `${timeHtml}${contentHtml}${tagHtml}`;
-
-
-    return `
-      <span
-        class="
-          search-preview-entry
-          ${numberClass}
-        "
-      >
-        <strong
-          class="search-preview-entry__number"
-        >
-          ${displayNumber}.
-        </strong>
-
-        <span
-          class="search-preview-entry__body"
-        >${bodyHtml}</span>
-      </span>
-    `;
-  };
-
-
-  /*
-    보직별 일반 업무 묶기
-  */
-  const roleOrder = [
-    "TGO",
-    "BCO1",
-    "BCO2",
-    "TO",
-    "BO1",
-    "BO2",
-    "파트장"
-  ];
-
-
-  const groupedOrdinaryEntries = {};
-
-
-  ordinaryEntries.forEach(
-    (entry) => {
-      const sourceRole =
-        entry.importedFromRole ||
-        normalizedLogRole ||
-        "파트장";
-
-
-      if (
-        !groupedOrdinaryEntries[
-          sourceRole
-        ]
-      ) {
-        groupedOrdinaryEntries[
-          sourceRole
-        ] = [];
-      }
-
-
-      groupedOrdinaryEntries[
-        sourceRole
-      ].push(
-        entry
-      );
-    }
-  );
-
-
-  const orderedRoles = [
-    ...roleOrder.filter(
-      (role) => {
-        return Boolean(
-          groupedOrdinaryEntries[
-            role
-          ]?.length
-        );
-      }
+        : []
     ),
 
-    ...Object.keys(
-      groupedOrdinaryEntries
-    ).filter(
-      (role) => {
-        return (
-          !roleOrder.includes(
-            role
+    ...(
+      Array.isArray(
+        log?.handoverEntries
+      )
+        ? log.handoverEntries
+        : []
+    ),
+
+    ...(
+      Array.isArray(
+        log?.remarkEntries
+      )
+        ? log.remarkEntries.map(
+            (entry) => ({
+              ...entry,
+              category: "비고",
+              time: "",
+              tag: ""
+            })
           )
-        );
-      }
+        : []
     )
   ];
 
+  const fallbackEntries =
+    separatedEntries.length
+      ? separatedEntries
+      : (
+          Array.isArray(log?.entries)
+            ? log.entries
+            : []
+        );
 
-  const roleClassMap = {
-    TGO:
-      "is-tgo",
+  const collectedEntries =
+    typeof collectLogEntriesForDisplay ===
+    "function"
+      ? collectLogEntriesForDisplay(log)
+      : [];
 
-    BCO1:
-      "is-bco1",
+  const sourceEntries =
+    collectedEntries.length
+      ? collectedEntries
+      : fallbackEntries;
 
-    BCO2:
-      "is-bco2",
+  const getPreviewCategory = (
+    entry
+  ) => {
+    const category = String(
+      entry?.category || ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, "");
 
-    TO:
-      "is-to",
+    if (
+      category.startsWith("TM")
+    ) {
+      return "tm";
+    }
 
-    BO1:
-      "is-bo1",
+    if (
+      category.includes("비고")
+    ) {
+      return "note";
+    }
 
-    BO2:
-      "is-bo2",
-
-    파트장:
-      "is-leader"
+    return "handover";
   };
 
+  const entries = sourceEntries
+    .map((entry) => {
+      const tag = String(
+        entry?.tag || ""
+      )
+        .trim()
+        .toUpperCase();
+
+      return {
+        category:
+          getPreviewCategory(entry),
+
+        time:
+          String(
+            entry?.time || ""
+          ).trim(),
+
+        tag,
+
+        content:
+          firstMeaningfulLine(
+            stripDuplicateTag(
+              entry?.content,
+              tag
+            )
+          ),
+
+        sourceRole:
+          normalizeMemberLogRole(
+            entry?.importedFromRole ||
+            entry?.role ||
+            logRole ||
+            ""
+          )
+      };
+    })
+    .filter((entry) => {
+      return Boolean(
+        entry.category &&
+        (
+          entry.content ||
+          entry.tag
+        )
+      );
+    });
+
+  const tmEntries =
+    entries.filter(
+      (entry) => {
+        return (
+          entry.category === "tm"
+        );
+      }
+    );
+
+  const handoverEntries =
+    entries.filter(
+      (entry) => {
+        return (
+          entry.category !== "tm" &&
+          entry.category !== "note"
+        );
+      }
+    );
+
+  const remarkEntries =
+    entries.filter(
+      (entry) => {
+        return (
+          entry.category === "note"
+        );
+      }
+    );
+
+  if (
+    !remarkEntries.length &&
+    String(log?.note || "").trim()
+  ) {
+    remarkEntries.push({
+      category: "note",
+      time: "",
+      tag: "",
+      content:
+        firstMeaningfulLine(
+          log.note
+        ),
+      sourceRole: logRole
+    });
+  }
+
+  const createTagHtml = (
+    tag
+  ) => {
+    if (!tag) {
+      return "";
+    }
+
+    return `
+      <span
+        class="shift-search-preview__tag"
+        data-search-preview-tag="${escapeHtml(
+          tag
+        )}"
+        role="button"
+        tabindex="0"
+        title="Facility Navigator에서 설비 보기"
+      >[${escapeHtml(tag)}]</span>
+    `;
+  };
+
+  const createEntryLineHtml = (
+    entry,
+    remainingCount
+  ) => {
+    return `
+      <span class="shift-search-preview__line">
+        <strong class="shift-search-preview__number">
+          1.
+        </strong>
+
+        ${
+          entry.time
+            ? `
+                <strong class="shift-search-preview__time">
+                  ${escapeHtml(
+                    entry.time
+                  )}
+                </strong>
+              `
+            : ""
+        }
+
+        <span class="shift-search-preview__text">
+          ${escapeHtml(
+            entry.content || "-"
+          )}
+        </span>
+
+        ${createTagHtml(entry.tag)}
+
+        ${
+          remainingCount > 0
+            ? `
+                <span class="shift-search-preview__more">
+                  외 ${remainingCount}건
+                </span>
+              `
+            : ""
+        }
+      </span>
+    `;
+  };
 
   const sections = [];
 
-
-    /* =====================================================
-    파트장 운전현황 미리보기
-
-    업무일지 수정창과 동일하게:
-
-    보직 | 상태 | 운전현황
-
-    구조로 표시한다.
-  ====================================================== */
-
-  if (
+  const operationRows =
     isLeaderLog &&
-    operationStatus
-  ) {
-    const operationStatusRows =
-      parseOperationStatusRowsForDisplay(
-        log
+    typeof parseOperationStatusRowsForDisplay ===
+      "function"
+      ? parseOperationStatusRowsForDisplay(
+          log
+        )
+      : [];
+
+  if (operationRows.length) {
+    const firstOperation =
+      operationRows[0];
+
+    const statusType =
+      normalizeOperationStatusType(
+        firstOperation.type
       );
 
-
-    if (
-      operationStatusRows.length
-    ) {
-      sections.push(`
-        <span
-          class="
-            search-preview-section
-            is-operation
-            is-operation-dashboard
-          "
-        >
-
-          <strong
-            class="search-preview-section__title"
-          >
-            운전현황
-          </strong>
-
-
-          <span
-            class="search-preview-operation-list"
-          >
-
-            ${operationStatusRows
-              .map(
-                (
-                  statusRow
-                ) => {
-                  const statusType =
-                    normalizeOperationStatusType(
-                      statusRow.type
-                    );
-
-
-                  return `
-                    <span
-                      class="
-                        search-preview-operation-row
-                        is-${escapeHtml(
-                          statusType
-                        )}
-                      "
-                    >
-
-                      <strong
-                        class="search-preview-operation-role"
-                      >
-                        ${escapeHtml(
-                          statusRow.role ||
-                          "-"
-                        )}
-                      </strong>
-
-
-                      <span
-                        class="
-                          search-preview-operation-badge
-                          is-${escapeHtml(
-                            statusType
-                          )}
-                        "
-                      >
-                        ${escapeHtml(
-                          getOperationStatusDisplayLabel(
-                            statusType
-                          )
-                        )}
-                      </span>
-
-
-                      <span
-                        class="search-preview-operation-divider"
-                        aria-hidden="true"
-                      >
-                        |
-                      </span>
-
-
-                      <span
-                        class="search-preview-operation-content"
-                      >
-                        ${escapeHtml(
-                          statusRow.content ||
-                          "등록된 운전현황이 없습니다."
-                        )}
-                      </span>
-
-                    </span>
-                  `;
-                }
-              )
-              .join("")}
-
-          </span>
-
-        </span>
-      `);
-    }
-  }
-
-
-  /* =====================================================
-    TM 발행 내역
-  ====================================================== */
-
-  if (
-    tmEntries.length
-  ) {
     sections.push(`
       <span
         class="
-          search-preview-section
-          is-tm
+          shift-search-preview__section
+          shift-search-preview__section--operation
         "
       >
-        <strong
-          class="search-preview-section__title"
-        >
-          TM 발행 내역
+        <strong class="shift-search-preview__label">
+          운전현황
         </strong>
 
-        <span
-          class="search-preview-section__content"
-        >
-          ${tmEntries
-            .map(
-              (
-                entry,
-                index
-              ) => {
-                return createSearchEntryHtml(
-                  entry,
-                  index + 1,
-                  "tm"
-                );
-              }
-            )
-            .join("")}
-        </span>
-      </span>
-    `);
-  }
-
-
-  /* =====================================================
-    일반 업무
-  ====================================================== */
-
-  if (
-    ordinaryEntries.length
-  ) {
-    /*
-      파트장:
-      보직별 업무일지 제목 표시
-    */
-    if (
-      isLeaderLog
-    ) {
-      orderedRoles.forEach(
-        (role) => {
-          const roleEntries =
-            groupedOrdinaryEntries[
-              role
-            ] || [];
-
-
-          sections.push(`
-            <span
-              class="
-                search-preview-role-section
-                ${roleClassMap[role] || "is-default"}
-              "
-            >
-              <strong
-                class="
-                  search-preview-role-title
-                  ${roleClassMap[role] || "is-default"}
-                "
-              >
-                ${escapeHtml(
-                  role
-                )} 업무일지
-              </strong>
-
-              <span
-                class="search-preview-role-content"
-              >
-                ${roleEntries
-                  .map(
-                    (
-                      entry,
-                      index
-                    ) => {
-                      return createSearchEntryHtml(
-                        entry,
-                        index + 1,
-                        "handover"
-                      );
-                    }
-                  )
-                  .join("")}
-              </span>
-            </span>
-          `);
-        }
-      );
-
-    } else {
-      /*
-        일반 보직:
-        인계 제목 한 개만 표시
-      */
-      sections.push(`
-        <span
-          class="
-            search-preview-section
-            is-handover
-          "
-        >
-          <strong
-            class="search-preview-section__title"
-          >
-            인계 사항
+        <span class="shift-search-preview__line">
+          <strong class="shift-search-preview__role">
+            ${escapeHtml(
+              firstOperation.role || "-"
+            )}
           </strong>
 
           <span
-            class="search-preview-section__content"
-          >
-            ${ordinaryEntries
-              .map(
-                (
-                  entry,
-                  index
-                ) => {
-                  return createSearchEntryHtml(
-                    entry,
-                    index + 1,
-                    "handover"
-                  );
-                }
-              )
-              .join("")}
-          </span>
-        </span>
-      `);
-    }
-  }
-
-
-  /* =====================================================
-    비고
-  ====================================================== */
-
-  if (
-    note
-  ) {
-    sections.push(`
-      <span
-        class="
-          search-preview-section
-          is-note
-        "
-      >
-        <strong
-          class="search-preview-section__title"
-        >
-          비고
-        </strong>
-
-        <span
-          class="search-preview-section__content"
-        >
-          <span
-            class="search-preview-note"
+            class="
+              shift-search-preview__status
+              is-${escapeHtml(statusType)}
+            "
           >
             ${escapeHtml(
-              firstMeaningfulLine(
-                note
+              getOperationStatusDisplayLabel(
+                statusType
               )
             )}
           </span>
+
+          <span class="shift-search-preview__text">
+            ${escapeHtml(
+              firstMeaningfulLine(
+                firstOperation.content ||
+                "등록된 운전현황이 없습니다."
+              )
+            )}
+          </span>
+
+          ${
+            operationRows.length > 1
+              ? `
+                  <span class="shift-search-preview__more">
+                    외 ${operationRows.length - 1}줄
+                  </span>
+                `
+              : ""
+          }
         </span>
       </span>
     `);
   }
 
+  if (tmEntries.length) {
+    sections.push(`
+      <span
+        class="
+          shift-search-preview__section
+          shift-search-preview__section--tm
+        "
+      >
+        <strong class="shift-search-preview__label">
+          TM 발행내역
+        </strong>
 
-  /*
-    표시할 내용 없음
-  */
-  if (
-    !sections.length
-  ) {
-    return `
-      <span class="search-preview-empty">
-        등록된 업무 내용이 없습니다.
+        ${createEntryLineHtml(
+          tmEntries[0],
+          tmEntries.length - 1
+        )}
       </span>
-    `;
+    `);
   }
 
+  if (handoverEntries.length) {
+    const firstEntry =
+      handoverEntries[0];
 
-  return `
-    <span class="search-preview-document">
-      ${sections.join("")}
-    </span>
-  `;
+    const label =
+      isLeaderLog &&
+      firstEntry.sourceRole
+        ? `${firstEntry.sourceRole} 업무일지`
+        : "인계사항";
+
+    sections.push(`
+      <span
+        class="
+          shift-search-preview__section
+          shift-search-preview__section--handover
+        "
+      >
+        <strong class="shift-search-preview__label">
+          ${escapeHtml(label)}
+        </strong>
+
+        ${createEntryLineHtml(
+          firstEntry,
+          handoverEntries.length - 1
+        )}
+      </span>
+    `);
+  }
+
+  if (remarkEntries.length) {
+    sections.push(`
+      <span
+        class="
+          shift-search-preview__section
+          shift-search-preview__section--remark
+        "
+      >
+        <strong class="shift-search-preview__label">
+          비고
+        </strong>
+
+        <span class="shift-search-preview__line">
+          <span class="shift-search-preview__text">
+            ${escapeHtml(
+              remarkEntries[0].content ||
+              "-"
+            )}
+          </span>
+
+          ${
+            remarkEntries.length > 1
+              ? `
+                  <span class="shift-search-preview__more">
+                    외 ${remarkEntries.length - 1}건
+                  </span>
+                `
+              : ""
+          }
+        </span>
+      </span>
+    `);
+  }
+
+  return sections.length
+    ? `
+        <span class="shift-search-preview__document">
+          ${sections.join("")}
+        </span>
+      `
+    : `
+        <span class="shift-search-preview__empty">
+          등록된 업무 내용이 없습니다.
+        </span>
+      `;
 }
 
 /* =========================================================
@@ -33673,7 +33426,9 @@ async function runSearch() {
   - 과거 업무일지도 수정 권한과 관계없이 상세보기 가능
 ========================================================= */
 
-function renderSearchResults(results) {
+function renderSearchResults(
+  results
+) {
   if (
     !elements.searchResultBody ||
     !elements.searchResultCount ||
@@ -33682,26 +33437,45 @@ function renderSearchResults(results) {
     return;
   }
 
-  const safeResults = Array.isArray(results)
-    ? results.filter((log) => Boolean(log && log.id))
-    : [];
+  const safeResults =
+    Array.isArray(results)
+      ? results.filter(
+          (log) => {
+            return Boolean(
+              log &&
+              log.id
+            );
+          }
+        )
+      : [];
 
-  /*
-    조회 기간에서 새로 불러온 과거 업무일지는
-    appState.logs에 없을 수 있으므로 별도로 보관한다.
-  */
-  currentSearchResultLogs = [...safeResults];
+  currentSearchResultLogs = [
+    ...safeResults
+  ];
 
-  elements.searchResultBody.innerHTML = "";
-  elements.searchResultCount.textContent = String(safeResults.length);
-  elements.searchEmptyState.hidden = safeResults.length > 0;
+  elements.searchResultBody.innerHTML =
+    "";
+
+  elements.searchResultCount.textContent =
+    String(
+      safeResults.length
+    );
+
+  elements.searchEmptyState.hidden =
+    safeResults.length > 0;
 
   if (!safeResults.length) {
     const emptyTitle =
-      elements.searchEmptyState.querySelector("strong");
+      elements.searchEmptyState
+        .querySelector(
+          "strong"
+        );
 
     const emptyDescription =
-      elements.searchEmptyState.querySelector("p");
+      elements.searchEmptyState
+        .querySelector(
+          "p"
+        );
 
     if (emptyTitle) {
       emptyTitle.textContent =
@@ -33716,41 +33490,50 @@ function renderSearchResults(results) {
     return;
   }
 
-  /*
-    조회 결과 또는 현재 화면 자료에서
-    업무일지 1건을 찾는다.
-  */
-  const findSearchLogById = (logId) => {
-    const normalizedLogId =
-      String(logId || "").trim();
+  const findSearchLogById = (
+    logId
+  ) => {
+    const id = String(
+      logId || ""
+    ).trim();
 
-    if (!normalizedLogId) {
+    if (!id) {
       return null;
     }
 
     return (
       currentSearchResultLogs.find(
-        (item) =>
-          String(item?.id || "").trim() ===
-          normalizedLogId
+        (item) => {
+          return (
+            String(
+              item?.id || ""
+            ).trim() === id
+          );
+        }
       ) ||
+
       appState.logs.find(
-        (item) =>
-          String(item?.id || "").trim() ===
-          normalizedLogId
+        (item) => {
+          return (
+            String(
+              item?.id || ""
+            ).trim() === id
+          );
+        }
       ) ||
+
       null
     );
   };
 
-  /*
-    조회 결과의 업무일지 상세보기
-  */
-  const openSearchLogDetailById = (logId) => {
-    const normalizedLogId =
-      String(logId || "").trim();
+  const openSearchLogDetailById = (
+    logId
+  ) => {
+    const id = String(
+      logId || ""
+    ).trim();
 
-    if (!normalizedLogId) {
+    if (!id) {
       showToast(
         "업무일지 정보를 확인할 수 없습니다."
       );
@@ -33759,7 +33542,7 @@ function renderSearchResults(results) {
     }
 
     const log =
-      findSearchLogById(normalizedLogId);
+      findSearchLogById(id);
 
     if (!log) {
       showToast(
@@ -33772,145 +33555,201 @@ function renderSearchResults(results) {
     openLogDetail(log);
   };
 
-  safeResults.forEach((log) => {
-    const previewHtml =
-      typeof createSearchLogPreviewHtml ===
-      "function"
-        ? createSearchLogPreviewHtml(log)
-        : `
-            <span class="search-preview-empty">
-              ${escapeHtml(
-                firstMeaningfulLine(
-                  createSearchLogText(log) ||
-                    "등록된 업무 내용이 없습니다."
-                )
-              )}
-            </span>
-          `;
+  safeResults.forEach(
+    (log) => {
+      const directAttachmentCount =
+        typeof getSearchLogAttachmentCount ===
+        "function"
+          ? getSearchLogAttachmentCount(
+              log
+            )
+          : (
+              Array.isArray(
+                log?.attachments
+              )
+                ? log.attachments.length
+                : 0
+            );
 
-    const attachmentCount =
-      Array.isArray(log.attachments)
-        ? log.attachments.length
-        : Number(
-            log.legacyAttachmentCount || 0
-          );
+      const savedAttachmentCount =
+        Number(
+          log?.legacyAttachmentCount ||
+          log?.attachmentCount ||
+          0
+        );
 
-    elements.searchResultBody.insertAdjacentHTML(
-      "beforeend",
-      `
-        <tr
-          data-search-log-id="${escapeHtml(log.id)}"
-          tabindex="0"
-          role="button"
-          title="업무일지 상세보기"
-        >
-          <td class="search-result-table__date">
-            ${escapeHtml(log.date || "-")}
-          </td>
+      const attachmentCount =
+        Math.max(
+          directAttachmentCount,
 
-          <td class="search-result-table__shift">
-            ${escapeHtml(
-              getShiftDisplayName(log.shift)
-            )}
-          </td>
+          Number.isFinite(
+            savedAttachmentCount
+          )
+            ? savedAttachmentCount
+            : 0
+        );
 
-          <td class="search-result-table__role">
-            ${escapeHtml(log.role || "-")}
-          </td>
-
-          <td class="search-result-table__author">
-            ${escapeHtml(log.author || "-")}
-          </td>
-
-          <td
-            class="
-              search-result-table__content
-              search-log-preview-cell
-            "
-            data-search-view="${escapeHtml(log.id)}"
-          >
-            <div
-              class="search-log-preview"
-              aria-label="업무일지 미리보기. 누르면 상세보기가 열립니다."
+      elements.searchResultBody
+        .insertAdjacentHTML(
+          "beforeend",
+          `
+            <tr
+              class="shift-search-table__row"
+              data-search-log-id="${escapeHtml(
+                log.id
+              )}"
+              tabindex="0"
+              role="button"
+              title="업무일지 상세보기"
             >
-              ${previewHtml}
-            </div>
-          </td>
+              <td
+                class="
+                  shift-search-table__cell
+                  shift-search-table__cell--date
+                "
+              >
+                ${escapeHtml(
+                  log.date || "-"
+                )}
+              </td>
 
-          <td class="search-result-table__view">
-            <button
-              type="button"
-              class="table-action-button"
-              data-search-view="${escapeHtml(log.id)}"
-            >
-              보기
-            </button>
-          </td>
+              <td
+                class="
+                  shift-search-table__cell
+                  shift-search-table__cell--shift
+                "
+              >
+                ${escapeHtml(
+                  getShiftDisplayName(
+                    log.shift
+                  )
+                )}
+              </td>
 
-          <td class="search-result-table__attachment">
-            ${
-              attachmentCount > 0
-                ? `
-                    <span
-                      class="attachment-count"
-                      title="첨부파일 ${attachmentCount}개"
-                    >
-                      ${attachmentCount}
-                    </span>
-                  `
-                : `
-                    <span class="attachment-count is-empty">
-                      0
-                    </span>
-                  `
-            }
-          </td>
-        </tr>
-      `
-    );
-  });
+              <td
+                class="
+                  shift-search-table__cell
+                  shift-search-table__cell--role
+                "
+              >
+                ${escapeHtml(
+                  log.role || "-"
+                )}
+              </td>
 
-  /* =====================================================
-    조회 결과 클릭
+              <td
+                class="
+                  shift-search-table__cell
+                  shift-search-table__cell--author
+                "
+              >
+                ${escapeHtml(
+                  log.author || "-"
+                )}
+              </td>
 
-    TAG 클릭: Facility Navigator 이동
-    행·업무 내용·보기 버튼 클릭: 상세보기
-  ====================================================== */
+              <td
+                class="
+                  shift-search-table__cell
+                  shift-search-table__cell--content
+                "
+              >
+                <div
+                  class="shift-search-preview"
+                  data-search-view="${escapeHtml(
+                    log.id
+                  )}"
+                  aria-label="업무일지 미리보기. 누르면 상세보기가 열립니다."
+                >
+                  ${createSearchLogPreviewHtml(
+                    log
+                  )}
+                </div>
+              </td>
+
+              <td
+                class="
+                  shift-search-table__cell
+                  shift-search-table__cell--view
+                "
+              >
+                <button
+                  type="button"
+                  class="shift-search-table__view-button"
+                  data-search-view="${escapeHtml(
+                    log.id
+                  )}"
+                >
+                  보기
+                </button>
+              </td>
+
+              <td
+                class="
+                  shift-search-table__cell
+                  shift-search-table__cell--attachment
+                "
+              >
+                <span
+                  class="
+                    shift-search-table__attachment-count
+                    ${
+                      attachmentCount > 0
+                        ? "has-files"
+                        : "is-empty"
+                    }
+                  "
+                  title="첨부파일 ${attachmentCount}개"
+                >
+                  ${
+                    attachmentCount > 0
+                      ? attachmentCount
+                      : "-"
+                  }
+                </span>
+              </td>
+            </tr>
+          `
+        );
+    }
+  );
 
   elements.searchResultBody.onclick =
-    function handleSearchResultClick(event) {
-      const tagButton =
+    function handleSearchResultClick(
+      event
+    ) {
+      const tagElement =
         event.target.closest(
-          `
-            [data-search-tag],
-            [data-search-preview-tag]
-          `
+          "[data-search-preview-tag]"
         );
 
       if (
-        tagButton &&
-        elements.searchResultBody.contains(
-          tagButton
-        )
+        tagElement &&
+        elements.searchResultBody
+          .contains(
+            tagElement
+          )
       ) {
         event.preventDefault();
         event.stopPropagation();
 
-        const tag =
-          String(
-            tagButton.dataset.searchTag ||
-              tagButton.dataset.searchPreviewTag ||
-              ""
-          ).trim();
+        const tag = String(
+          tagElement
+            .dataset
+            .searchPreviewTag ||
+          ""
+        ).trim();
 
         if (tag) {
-          openFacilityNavigator(tag);
+          openFacilityNavigator(
+            tag
+          );
         }
 
         return;
       }
 
-      const clickedElement =
+      const target =
         event.target.closest(
           `
             [data-search-view],
@@ -33919,34 +33758,31 @@ function renderSearchResults(results) {
         );
 
       if (
-        !clickedElement ||
-        !elements.searchResultBody.contains(
-          clickedElement
-        )
+        !target ||
+        !elements.searchResultBody
+          .contains(
+            target
+          )
       ) {
         return;
       }
 
       const row =
-        clickedElement.closest(
+        target.closest(
           "tr[data-search-log-id]"
         );
 
       openSearchLogDetailById(
-        clickedElement.dataset.searchView ||
-          row?.dataset.searchLogId ||
-          ""
+        target.dataset.searchView ||
+        row?.dataset.searchLogId ||
+        ""
       );
     };
 
-  /* =====================================================
-    키보드 동작
-
-    Enter 또는 Space
-  ====================================================== */
-
   elements.searchResultBody.onkeydown =
-    function handleSearchResultKeydown(event) {
+    function handleSearchResultKeydown(
+      event
+    ) {
       if (
         event.key !== "Enter" &&
         event.key !== " "
@@ -33954,53 +33790,66 @@ function renderSearchResults(results) {
         return;
       }
 
-      const tagButton =
+      const tagElement =
         event.target.closest(
-          `
-            [data-search-tag],
-            [data-search-preview-tag]
-          `
+          "[data-search-preview-tag]"
         );
 
       if (
-        tagButton &&
-        elements.searchResultBody.contains(
-          tagButton
-        )
+        tagElement &&
+        elements.searchResultBody
+          .contains(
+            tagElement
+          )
       ) {
         event.preventDefault();
         event.stopPropagation();
 
-        const tag =
-          String(
-            tagButton.dataset.searchTag ||
-              tagButton.dataset.searchPreviewTag ||
-              ""
-          ).trim();
+        const tag = String(
+          tagElement
+            .dataset
+            .searchPreviewTag ||
+          ""
+        ).trim();
 
         if (tag) {
-          openFacilityNavigator(tag);
+          openFacilityNavigator(
+            tag
+          );
         }
 
         return;
       }
 
-      const row =
+      const target =
         event.target.closest(
-          "tr[data-search-log-id]"
+          `
+            [data-search-view],
+            tr[data-search-log-id]
+          `
         );
 
       if (
-        !row ||
-        !elements.searchResultBody.contains(row)
+        !target ||
+        !elements.searchResultBody
+          .contains(
+            target
+          )
       ) {
         return;
       }
 
       event.preventDefault();
 
+      const row =
+        target.closest(
+          "tr[data-search-log-id]"
+        );
+
       openSearchLogDetailById(
-        row.dataset.searchLogId || ""
+        target.dataset.searchView ||
+        row?.dataset.searchLogId ||
+        ""
       );
     };
 }
