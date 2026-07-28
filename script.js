@@ -30386,24 +30386,27 @@ function openLogDetail(
   /* =====================================================
     상세보기 항목 통합
 
-    목록·수정창과 동일하게
-    collectLogEntriesForDisplay()에서 정리된 항목만 사용한다.
+    업무일지 미리보기와 동일하게
+    collectLogEntriesForDisplay()의 최종 결과만 사용한다.
 
-    따라서 분리 배열과 기존 entries를
-    상세보기에서 다시 중복 수집하지 않는다.
+    상세보기에서 tmEntries, handoverEntries,
+    remarkEntries, entries, note를 다시 합치지 않는다.
   ====================================================== */
 
   const normalizedDetailEntries =
     collectLogEntriesForDisplay(
       log
+    ).map(
+      entry => {
+        return {
+          ...entry
+        };
+      }
     );
 
 
   /* =====================================================
     TM 발행 내역
-
-    모든 보직의 TM을 하나의 영역에 표시하고
-    시간순으로 정렬한다.
   ====================================================== */
 
   const tmEntries =
@@ -30424,9 +30427,6 @@ function openLogDetail(
 
   /* =====================================================
     인계 및 일반 작업
-
-    파트장 업무일지는 각 항목에 복구된
-    importedFromRole을 기준으로 보직별 분류한다.
   ====================================================== */
 
   const handoverEntries =
@@ -30451,9 +30451,6 @@ function openLogDetail(
 
   /* =====================================================
     비고
-
-    TM·일반 업무와 섞지 않고
-    별도 영역에 표시한다.
   ====================================================== */
 
   const remarkEntries =
@@ -30470,14 +30467,12 @@ function openLogDetail(
     );
 
 
-  /*
-    상세보기 전체 건수 계산에 사용한다.
-  */
   const combinedEntries = [
     ...tmEntries,
     ...handoverEntries,
     ...remarkEntries
   ];
+
 
   /* =====================================================
     상세 업무 한 줄 생성
@@ -30541,9 +30536,7 @@ function openLogDetail(
           "\n"
         )
         .map(
-          (
-            line
-          ) => {
+          line => {
             return String(
               line ||
               ""
@@ -30566,9 +30559,7 @@ function openLogDetail(
           >
             ${contentLines
               .map(
-                (
-                  line
-                ) => {
+                line => {
                   return escapeHtml(
                     line
                   );
@@ -30662,12 +30653,6 @@ function openLogDetail(
 
   /* =====================================================
     운전현황
-
-    TGO · BCO1 · BCO2:
-    보직 | 상태 배지 | 운전현황
-
-    TO · BO1 · BO2:
-    가로 전체를 사용하는 일반 텍스트
   ====================================================== */
 
   const detailOperationRole =
@@ -30689,13 +30674,6 @@ function openLogDetail(
     );
 
 
-  /*
-    과거 자료의 잘못된 중간 줄바꿈을 정리한다.
-
-    실제 항목 구분:
-    1. / 2. / 3.
-    ① / ② / ③
-  */
   const createDetailOperationContentHtml =
     (
       content,
@@ -30804,12 +30782,6 @@ function openLogDetail(
             ];
 
 
-          /*
-            과거 좁은 칸에서 한글이 잘린 경우 복원
-
-            정 + 상 운전 중
-            → 정상 운전 중
-          */
           const previousHangulToken =
             previousLine.match(
               /([가-힣]+)$/
@@ -30901,12 +30873,6 @@ function openLogDetail(
                     );
 
 
-                  /*
-                    TO · BO1 · BO2
-
-                    기존 상태 배지용 Grid를 사용하지 않고
-                    가로 전체 텍스트 블록으로 출력한다.
-                  */
                   if (
                     isFreeTextOperationRow
                   ) {
@@ -30955,10 +30921,6 @@ function openLogDetail(
                   }
 
 
-                  /*
-                    TGO · BCO1 · BCO2 및
-                    파트장 취합 운전현황
-                  */
                   const statusType =
                     normalizeOperationStatusType(
                       statusRow.type
@@ -31034,6 +30996,7 @@ function openLogDetail(
         </div>
       `;
 
+
   /* =====================================================
     TM 발행 HTML
   ====================================================== */
@@ -31095,9 +31058,7 @@ function openLogDetail(
 
 
   handoverEntries.forEach(
-    (
-      entry
-    ) => {
+    entry => {
       const sourceRole =
         normalizeMemberLogRole(
           entry.importedFromRole ||
@@ -31134,9 +31095,7 @@ function openLogDetail(
 
   const orderedRoles = [
     ...detailRoleOrder.filter(
-      (
-        role
-      ) => {
+      role => {
         return Boolean(
           groupedHandoverEntries[
             role
@@ -31148,9 +31107,7 @@ function openLogDetail(
     ...Object.keys(
       groupedHandoverEntries
     ).filter(
-      (
-        role
-      ) => {
+      role => {
         return (
           !detailRoleOrder.includes(
             role
@@ -31165,9 +31122,7 @@ function openLogDetail(
     orderedRoles.length
       ? orderedRoles
           .map(
-            (
-              role
-            ) => {
+            role => {
               const roleEntries =
                 sortDetailEntriesByTime(
                   groupedHandoverEntries[
@@ -31260,9 +31215,6 @@ function openLogDetail(
 
   /* =====================================================
     비고 HTML
-
-    인계사항과 섞지 않고
-    비고 영역에서 1번부터 다시 시작한다.
   ====================================================== */
 
   const remarkHtml =
@@ -31275,7 +31227,7 @@ function openLogDetail(
               (
                 entry,
                 index
-              ) => {
+              ) => => {
                 return createDetailWorkRowHtml(
                   entry,
                   index,
@@ -31588,9 +31540,7 @@ function openLogDetail(
 
         </section>
 
-        <!-- =================================================
-          비고
-        ================================================== -->
+
         <section
           class="
             shift-log-detail-section
@@ -31618,9 +31568,6 @@ function openLogDetail(
         </section>
 
 
-        <!-- =================================================
-          첨부파일
-        ================================================== -->
         <section
           class="
             shift-log-detail-section
@@ -31665,9 +31612,7 @@ function openLogDetail(
       "[data-detail-tag]"
     )
     .forEach(
-      (
-        button
-      ) => {
+      button => {
         button.addEventListener(
           "click",
           () => {
