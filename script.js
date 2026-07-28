@@ -38988,31 +38988,138 @@ function renderShiftLogApprovalHistoryInDetail(
 
 
 /* =========================================================
-  기존 최종 상세보기 함수 보존
-========================================================= */
+  업무일지 상세보기 단일 실행 최종본
 
-const openLogDetailBeforeApprovalHistory =
-  openLogDetail;
-
-
-/* =========================================================
-  결재 이력이 포함된 최종 상세보기
+  - 중복 openLogDetail 래퍼 제거
+  - 상세 내용부터 안전하게 표시
+  - 최고관리자 버튼 오류가 나도 상세창 유지
+  - 상세 생성 실패 시 화면 잠금 자동 해제
 ========================================================= */
 
 openLogDetail =
   function openLogDetail(
     log
   ) {
-    openLogDetailBeforeApprovalHistory(
-      log
-    );
+    if (
+      !log ||
+      typeof log !==
+        "object"
+    ) {
+      showToast(
+        "업무일지 정보를 확인할 수 없습니다."
+      );
+
+      return;
+    }
 
 
-    renderShiftLogApprovalHistoryInDetail(
-      log
-    );
+    /*
+      최초 상세보기 함수를 직접 실행한다.
+
+      기존 중간 래퍼를 다시 호출하지 않아
+      상세보기 함수가 중복 실행되지 않게 한다.
+    */
+    try {
+      openLogDetailBeforeApprovalActions(
+        log
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "업무일지 상세보기 열기 실패:",
+        error
+      );
+
+
+      appState.currentDetailLogId =
+        null;
+
+
+      const detailModal =
+        elements.logDetailModal ||
+        document.getElementById(
+          "logDetailModal"
+        );
+
+
+      if (
+        detailModal
+      ) {
+        detailModal.classList.remove(
+          "is-open"
+        );
+
+        detailModal.setAttribute(
+          "aria-hidden",
+          "true"
+        );
+      }
+
+
+      const otherOpenModal =
+        document.querySelector(
+          ".modal-backdrop.is-open"
+        );
+
+
+      if (
+        !otherOpenModal
+      ) {
+        document.body.classList.remove(
+          "modal-open"
+        );
+      }
+
+
+      showToast(
+        "상세보기를 열지 못했습니다. 다시 시도해 주세요."
+      );
+
+      return;
+    }
+
+
+    /*
+      최고관리자·파트장·작성자별 버튼 설정.
+
+      버튼 처리에서 오류가 발생해도
+      이미 열린 상세창은 그대로 사용할 수 있다.
+    */
+    try {
+      updateShiftLogDetailActionButtons(
+        log
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "상세보기 작업 버튼 설정 실패:",
+        error
+      );
+    }
+
+
+    /*
+      상세화면에서는 결재 이력을 표시하지 않는다.
+    */
+    try {
+      renderShiftLogApprovalHistoryInDetail(
+        log
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "상세보기 결재 이력 정리 실패:",
+        error
+      );
+    }
   };
-
+  
   /* =========================================================
   결재 버튼 이벤트를 결재 이력 포함 함수로 재연결
 ========================================================= */
