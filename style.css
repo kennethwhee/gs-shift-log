@@ -14892,160 +14892,430 @@ tbody tr:hover td {
 }
 
 /* =========================================================
-   조회 목록 미리보기 높이·열 너비·세로 구분선 최종본
+  조회 결과 기본정보 · 보기 버튼 최종 디자인
+
+  열 순서:
+  일자 | 근무 | 보직 | 작성자 | 업무 내용 | 보기 | 첨부
+
+  - 기본정보 글씨 굵기 보강
+  - 보기 열 52px
+  - 보기 버튼 42 × 22px
+  - 기존 업무내용 미리보기 디자인 유지
 ========================================================= */
+
+
+/* 표 전체 */
 
 .search-result-table {
   width: 100% !important;
   min-width: 1080px !important;
+
   table-layout: fixed !important;
 }
 
-.search-result-table__date {
+
+/* =========================================================
+  열 너비
+========================================================= */
+
+
+/* 일자 */
+
+.search-result-table
+th:nth-child(1),
+
+.search-result-table
+td:nth-child(1) {
   width: 100px !important;
 }
 
-.search-result-table__shift {
+
+/* 근무 */
+
+.search-result-table
+th:nth-child(2),
+
+.search-result-table
+td:nth-child(2) {
   width: 64px !important;
 }
 
-.search-result-table__role {
+
+/* 보직 */
+
+.search-result-table
+th:nth-child(3),
+
+.search-result-table
+td:nth-child(3) {
   width: 72px !important;
 }
 
-.search-result-table__author {
+
+/* 작성자 */
+
+.search-result-table
+th:nth-child(4),
+
+.search-result-table
+td:nth-child(4) {
   width: 92px !important;
 }
 
-.search-result-table__content {
+
+/* 업무 내용 */
+
+.search-result-table
+th:nth-child(5),
+
+.search-result-table
+td:nth-child(5) {
   width: auto !important;
 }
 
-.search-result-table__view {
-  width: 68px !important;
+
+/* 보기 */
+
+.search-result-table
+th:nth-child(6),
+
+.search-result-table
+td:nth-child(6) {
+  width: 52px !important;
+  min-width: 52px !important;
+  max-width: 52px !important;
 }
 
-.search-result-table__attachment {
+
+/* 첨부 */
+
+.search-result-table
+th:nth-child(7),
+
+.search-result-table
+td:nth-child(7) {
   width: 40px !important;
   min-width: 40px !important;
   max-width: 40px !important;
 }
 
-#searchResultBody > tr {
+
+/* =========================================================
+  행 기본 설정
+========================================================= */
+
+#searchResultBody
+> tr {
   cursor: pointer;
 }
 
-#searchResultBody > tr > td {
-  height: auto !important;
-  vertical-align: middle !important;
-}
 
 #searchResultBody
 > tr
-> td.search-log-preview-cell {
-  overflow: hidden;
+> td {
+  height: auto !important;
+
+  vertical-align: middle !important;
+}
+
+
+/* =========================================================
+  일자 · 근무 · 보직 · 작성자
+
+  크기는 유지하고 굵기만 조금 높인다.
+========================================================= */
+
+#searchResultBody
+> tr
+> td:is(
+  .search-result-table__date,
+  .search-result-table__shift,
+  .search-result-table__role,
+  .search-result-table__author
+) {
+  color: #2d425e !important;
+
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1.45 !important;
+
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+
+#searchResultBody
+.search-result-table__date {
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* 보직과 작성자는 살짝 진하게 */
+
+#searchResultBody
+.search-result-table__role,
+
+#searchResultBody
+.search-result-table__author {
+  color: #243954 !important;
+}
+
+
+/* =========================================================
+  보기 칸
+========================================================= */
+
+.search-result-table
+th:nth-child(6) {
+  padding-right: 4px !important;
+  padding-left: 4px !important;
+
+  text-align: center !important;
+}
+
+
+#searchResultBody
+> tr
+> td.search-result-table__view {
+  box-sizing: border-box !important;
 
   padding:
-    10px
-    14px !important;
+    0
+    5px !important;
 
-  text-align: left !important;
-  vertical-align: top !important;
+  text-align: center !important;
+  vertical-align: middle !important;
 }
 
-.search-log-preview {
-  position: relative;
 
-  display: block !important;
+/* 보기 버튼 */
 
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
+#searchResultBody
+.search-result-table__view
+.table-action-button {
+  display: inline-flex !important;
 
-  margin: 0 !important;
-  padding: 0 0 22px !important;
+  width: 42px !important;
+  min-width: 42px !important;
+  max-width: 42px !important;
 
-  overflow: hidden !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  max-height: 22px !important;
 
-  border: 0 !important;
+  box-sizing: border-box !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 auto !important;
+  padding: 0 !important;
+
+  border-radius: 5px !important;
+
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+
+/* =========================================================
+  첨부 칸
+
+  - 첨부 없음: 연한 -
+  - 첨부 있음: 숫자 배지
+========================================================= */
+
+#searchResultBody
+> tr
+> td.search-result-table__attachment {
+  box-sizing: border-box !important;
+
+  padding: 0 3px !important;
+
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+
+/* 첨부파일 개수 */
+
+#searchResultBody
+.search-result-table__attachment
+.attachment-count {
+  display: inline-flex !important;
+
+  width: 22px !important;
+  min-width: 22px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+
+  box-sizing: border-box !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 auto !important;
+  padding: 0 !important;
+
+  border: 1px solid #b9d0e9 !important;
+  border-radius: 6px !important;
+
+  background: #f3f8fe !important;
+  color: #1763a9 !important;
+
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+
+  text-align: center !important;
+  font-variant-numeric: tabular-nums;
+
+  cursor: pointer;
+}
+
+
+/* 첨부파일 없음: 0 대신 - 표시 */
+
+#searchResultBody
+.search-result-table__attachment
+.attachment-count.is-empty {
+  border-color: transparent !important;
+
   background: transparent !important;
+  color: transparent !important;
 
-  text-align: left !important;
-}
+  font-size: 0 !important;
 
-.search-log-preview
-.search-preview-document {
-  display: flex;
-
-  width: 100%;
-  min-width: 0;
-  max-height: 128px;
-
-  flex-direction: column;
-
-  overflow: hidden;
-}
-
-.search-log-preview::after {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-
-  content: "눌러서 전체 보기";
-
-  color: #2f6fb8;
-
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 18px;
-
-  white-space: nowrap;
-}
-
-#searchResultBody > tr:hover > td {
-  background: #f6faff !important;
+  cursor: default;
 }
 
 #searchResultBody
-> tr:hover
-.search-log-preview::after {
-  color: #0f4f9f;
-  text-decoration: underline;
+.search-result-table__attachment
+.attachment-count.is-empty::after {
+  content: "-";
+
+  color: #a3afbc;
+
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
-#searchResultBody > tr:focus-visible {
-  outline: 2px solid rgba(31, 95, 174, 0.34);
-  outline-offset: -2px;
-}
+/* =========================================================
+  필요한 세로 구분선
+========================================================= */
+
 
 /* 일자 | 근무 */
 
-.search-result-table__date,
-#searchResultBody
-.search-result-table__date {
+.search-result-table
+th:nth-child(1),
+
+.search-result-table
+td:nth-child(1) {
   border-right:
     1px solid
     #dbe5f0 !important;
 }
+
+
+/* 업무 내용 양옆 */
+
+.search-result-table
+th:nth-child(5),
+
+.search-result-table
+td:nth-child(5) {
+  border-right:
+    1px solid
+    #dbe5f0 !important;
+
+  border-left:
+    1px solid
+    #dbe5f0 !important;
+}
+
 
 /* 보기 | 첨부 */
 
-.search-result-table__view,
-#searchResultBody
-.search-result-table__view {
+.search-result-table
+th:nth-child(6),
+
+.search-result-table
+td:nth-child(6) {
   border-right:
     1px solid
     #dbe5f0 !important;
 }
+
+
+/* =========================================================
+  행 효과
+========================================================= */
+
+#searchResultBody
+> tr:hover
+> td {
+  background:
+    #f6faff !important;
+}
+
+
+#searchResultBody
+> tr:focus-visible {
+  outline:
+    2px solid
+    rgba(
+      31,
+      95,
+      174,
+      0.34
+    );
+
+  outline-offset: -2px;
+}
+
+
+/* =========================================================
+  좁은 화면
+========================================================= */
 
 @media (max-width: 1200px) {
   .search-result-table {
     min-width: 1040px !important;
   }
 
-  .search-log-preview
-  .search-preview-document {
-    max-height: 116px;
+
+  .search-result-table
+  th:nth-child(1),
+
+  .search-result-table
+  td:nth-child(1) {
+    width: 94px !important;
+  }
+
+
+  .search-result-table
+  th:nth-child(6),
+
+  .search-result-table
+  td:nth-child(6) {
+    width: 50px !important;
+    min-width: 50px !important;
+    max-width: 50px !important;
+  }
+
+
+  #searchResultBody
+  .search-result-table__view
+  .table-action-button {
+    width: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
   }
 }
 
