@@ -20981,16 +20981,38 @@ td {
 }
 
 /* =========================================================
-  업무일지 목록 번호·본문 시작점 최종 정렬
-
-  적용 대상:
-  - TM 발행 내역
-  - 인계 사항
-  - 보직별 업무일지
+  운전현황 · TM 발행 내역 · 인계사항
+  번호와 본문 시작점 최종 통일
 ========================================================= */
 
+
+/*
+  제목이 있는 첫 항목과
+  제목이 없는 두 번째 이후 항목의 기준 열 통일
+*/
 #logTableBody
-.log-preview__content {
+.log-preview__group:is(
+  .is-operation,
+  .is-maintenance,
+  .is-handover
+) {
+  grid-template-columns:
+    90px
+    minmax(0, 1fr) !important;
+
+  column-gap: 10px !important;
+}
+
+
+#logTableBody
+.log-preview__group:is(
+  .is-operation,
+  .is-maintenance,
+  .is-handover
+)
+> .log-preview__content {
+  grid-column: 2 !important;
+
   display: flex !important;
   align-items: baseline !important;
   flex-wrap: nowrap !important;
@@ -21002,26 +21024,41 @@ td {
 
   margin: 0 !important;
   padding: 0 !important;
+
+  text-align: left !important;
 }
 
 
 /*
-  1. 2. 3. 번호 영역의 폭을 고정해서
-  모든 내용의 시작점을 동일하게 맞춘다.
+  번호 영역을 26px로 고정한다.
+
+  1.
+  2.
+  10.
+  11.
+
+  번호 자릿수와 관계없이
+  뒤의 업무내용은 같은 위치에서 시작한다.
 */
 #logTableBody
-.log-preview__entry-number {
+.log-preview__group:is(
+  .is-operation,
+  .is-maintenance,
+  .is-handover
+)
+> .log-preview__content
+> .log-preview__entry-number {
   display: block !important;
 
-  flex: 0 0 22px !important;
+  flex: 0 0 26px !important;
 
-  width: 22px !important;
-  min-width: 22px !important;
+  width: 26px !important;
+  min-width: 26px !important;
 
   box-sizing: border-box;
 
   margin: 0 !important;
-  padding: 0 5px 0 0 !important;
+  padding: 0 6px 0 0 !important;
 
   text-align: right !important;
 
@@ -21030,23 +21067,36 @@ td {
 }
 
 
-/* 시간 뒤 간격 */
+/* 시간이 있을 때 뒤쪽 간격 */
 #logTableBody
-.log-preview__entry-time {
-  flex: 0 0 auto;
+.log-preview__group:is(
+  .is-operation,
+  .is-maintenance,
+  .is-handover
+)
+> .log-preview__content
+> .log-preview__entry-time {
+  flex: 0 0 auto !important;
 
-  margin: 0 5px 0 0 !important;
+  margin: 0 6px 0 0 !important;
+  padding: 0 !important;
 
   white-space: nowrap;
 }
 
 
-/* TAG 뒤 간격 */
+/* TAG가 있을 때 뒤쪽 간격 */
 #logTableBody
-.log-preview__tag {
-  flex: 0 0 auto;
+.log-preview__group:is(
+  .is-operation,
+  .is-maintenance,
+  .is-handover
+)
+> .log-preview__content
+> .log-preview__tag {
+  flex: 0 0 auto !important;
 
-  margin-right: 5px !important;
+  margin: 0 6px 0 0 !important;
 
   white-space: nowrap;
 }
@@ -21054,7 +21104,13 @@ td {
 
 /* 실제 업무내용 */
 #logTableBody
-.log-preview__text {
+.log-preview__group:is(
+  .is-operation,
+  .is-maintenance,
+  .is-handover
+)
+> .log-preview__content
+> .log-preview__text {
   display: block !important;
 
   flex: 1 1 auto !important;
