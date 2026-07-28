@@ -24375,6 +24375,58 @@ function collectLogEntriesForDisplay(
         return;
       }
 
+      /*
+  과거 업무일지의 구분 제목이
+  실제 업무로 잘못 변환된 경우만 제외한다.
+
+  제목과 완전히 일치할 때만 제외하므로
+  정상 업무 문장에는 영향을 주지 않는다.
+*/
+const normalizedLegacyHeading =
+  String(
+    normalizedEntry.content ||
+    ""
+  )
+    .trim()
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .replace(
+      /^[※●■◆◇▶▷▣□•·*\-\s]+/u,
+      ""
+    )
+    .replace(
+      /\s*&\s*/g,
+      " & "
+    )
+    .replace(
+      /[※:：\s]+$/u,
+      ""
+    )
+    .trim()
+    .toUpperCase();
+
+
+const misrecognizedLegacyHeadings =
+  new Set([
+    "#1 BOILER 운전 및 작업사항",
+    "#2 BOILER 운전 및 작업사항",
+    "TBN & BOP 운전 및 작업사항"
+  ]);
+
+
+if (
+  normalizedEntry.category !==
+    "TM 발행" &&
+  normalizedEntry.category !==
+    "비고" &&
+  misrecognizedLegacyHeadings.has(
+    normalizedLegacyHeading
+  )
+) {
+  return;
+}
 
       /*
         파트장으로 잘못 저장되거나
