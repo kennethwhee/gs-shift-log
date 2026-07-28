@@ -13428,96 +13428,157 @@ tbody tr:hover td {
 }
 
 /* =========================================================
-   조회 화면 업무내용 최종 통합본
+  조회 결과 업무내용
+  메인 업무일지 미리보기 디자인 통일 최종본
 
-   구조:
-   제목 | 번호 | 시간 | TAG + 내용
-
-   목표:
-   - TM 첫 항목도 한 줄
-   - 같은 분류의 2번 이후도 동일한 시작 위치
-   - 인계 제목 박스 제거
-   - 제목은 색상 글자만 표시
+  - 제목 칸 90px
+  - 번호 칸 26px
+  - 시간·내용·TAG 한 줄
+  - 비고 번호 시작점 통일
+  - 보직명과 첫 업무를 같은 줄에 표시
 ========================================================= */
 
 
-/* 전체 미리보기 */
+/* 업무내용 셀 */
 
-.search-log-preview {
-  display: flex !important;
+.search-result-table
+#searchResultBody
+> tr
+> td.search-log-preview-cell {
+  min-width: 0 !important;
 
-  width: 100%;
-  min-width: 0;
+  padding:
+    12px
+    14px !important;
 
-  flex-direction: column;
-  align-items: stretch;
-
-  gap: 0 !important;
-
-  margin: 0;
-  padding: 0;
-
-  border: 0;
-  background: transparent;
-
-  text-align: left;
+  text-align: left !important;
+  vertical-align: top !important;
 }
 
 
-/* 항목 한 줄
+/* 기존 조회 전용 하단 안내 제거 */
 
-   제목 86px
-   나머지 전체는 내용
-*/
+#searchResultBody
+> tr
+> td.search-log-preview-cell
+> .search-log-preview {
+  position: static !important;
 
-.search-log-preview
-.log-preview__group {
-  display: grid !important;
+  display: block !important;
 
-  width: 100%;
-  min-width: 0;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
 
-  grid-template-columns:
-    86px
-    minmax(0, 1fr) !important;
+  margin: 0 !important;
+  padding: 0 !important;
 
-  align-items: baseline;
+  overflow: visible !important;
 
-  column-gap: 8px;
+  border: 0 !important;
+  background: transparent !important;
 
-  margin: 0;
-  padding: 3px 0;
+  text-align: left !important;
+  cursor: pointer;
 }
 
-
-/* 첫 항목 이후 제목이 없는 줄 */
-
-.search-log-preview
-.log-preview__group.has-no-title
-.log-preview__content {
-  grid-column: 2 !important;
-}
-
-
-/* 기존 가상 제목 공간 제거 */
-
-.search-log-preview
-.log-preview__group.has-no-title::before {
+#searchResultBody
+> tr
+> td.search-log-preview-cell
+> .search-log-preview::after {
   display: none !important;
   content: none !important;
 }
 
 
-/* 제목 공통
-   배경·테두리·둥근 박스 완전 제거
-*/
+/* 전체 미리보기 */
 
-.search-log-preview
+#searchResultBody
+.search-result-log-preview {
+  display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  flex-direction: column !important;
+  align-items: stretch !important;
+
+  gap: 5px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  border: 0 !important;
+  background: transparent !important;
+
+  color: #26364b;
+  text-align: left !important;
+}
+
+
+/* 제목 | 실제 내용 */
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__group {
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  grid-template-columns:
+    90px
+    minmax(0, 1fr) !important;
+
+  align-items: baseline !important;
+  column-gap: 10px !important;
+
+  margin: 0 !important;
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+
+  text-align: left !important;
+}
+
+
+/* 제목 없는 두 번째 이후 항목 */
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__group.has-no-title {
+  grid-template-columns:
+    90px
+    minmax(0, 1fr) !important;
+}
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__group.has-no-title::before {
+  display: block !important;
+
+  width: 90px !important;
+  min-width: 90px !important;
+
+  content: "" !important;
+}
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__group.has-no-title
+> .log-preview__content {
+  grid-column: 2 !important;
+}
+
+
+/* 구역 제목 */
+
+#searchResultBody
+.search-result-log-preview
 .log-preview__title {
   display: block !important;
 
-  width: 86px !important;
-  min-width: 86px !important;
+  width: 90px !important;
+  min-width: 90px !important;
   min-height: 0 !important;
 
   margin: 0 !important;
@@ -13534,122 +13595,103 @@ tbody tr:hover td {
   line-height: 1.55 !important;
 
   text-align: left !important;
-
-  white-space: nowrap;
+  white-space: nowrap !important;
 }
 
 
 /* 제목 색상 */
 
-.search-log-preview
+#searchResultBody
+.search-result-log-preview
 .log-preview__group.is-operation
 .log-preview__title {
   color: #1763b6 !important;
 }
 
-.search-log-preview
+#searchResultBody
+.search-result-log-preview
 .log-preview__group.is-maintenance
 .log-preview__title {
   color: #16845b !important;
 }
 
-.search-log-preview
+#searchResultBody
+.search-result-log-preview
 .log-preview__group.is-handover
 .log-preview__title {
   color: #b56a00 !important;
 }
 
-.search-log-preview
-.log-preview__group.is-note
+#searchResultBody
+.search-result-log-preview
+.log-preview__group:is(
+  .is-note,
+  .is-remark
+)
 .log-preview__title {
   color: #667386 !important;
 }
 
 
-/* 번호·시간·본문 한 줄
+/* 번호 | 시간 | 내용 */
 
-   번호 22px
-   시간은 내용에 따라 자동
-   본문은 남은 공간 전체
-*/
-
-.search-log-preview
+#searchResultBody
+.search-result-log-preview
 .log-preview__content {
-  display: grid !important;
+  display: flex !important;
 
-  width: 100%;
-  min-width: 0;
+  grid-column: 2 !important;
 
-  grid-template-columns:
-    22px
-    max-content
-    minmax(0, 1fr);
+  width: 100% !important;
+  min-width: 0 !important;
 
-  align-items: baseline;
+  align-items: baseline !important;
+  flex-wrap: nowrap !important;
 
-  column-gap: 6px;
+  gap: 0 !important;
 
-  margin: 0;
+  margin: 0 !important;
   padding: 0 !important;
 
   color: #26364b;
-
-  font-size: 12px;
-  line-height: 1.55;
-
-  text-align: left;
+  text-align: left !important;
 }
 
 
-/* 운전현황·비고는 번호와 시간이 없음 */
+/* 번호 전용 칸 */
 
-.search-log-preview
-.log-preview__group.is-operation
-.log-preview__content,
-
-.search-log-preview
-.log-preview__group.is-note
-.log-preview__content {
-  grid-template-columns:
-    minmax(0, 1fr);
-}
-
-
-/* 번호 */
-
-.search-log-preview
+#searchResultBody
+.search-result-log-preview
 .log-preview__entry-number {
   display: block !important;
+  flex: 0 0 26px !important;
 
-  grid-column: 1;
+  width: 26px !important;
+  min-width: 26px !important;
 
-  width: 22px;
-  min-width: 22px;
+  box-sizing: border-box;
 
-  margin: 0;
-  padding: 0;
+  margin: 0 !important;
+  padding: 0 6px 0 0 !important;
 
-  font-size: 12px;
-  font-weight: 900;
-  line-height: inherit;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.55 !important;
 
-  text-align: right;
+  text-align: right !important;
+  white-space: nowrap !important;
 
-  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-
-/* TM 번호 */
-
-.search-log-preview
+#searchResultBody
+.search-result-log-preview
 .log-preview__entry-number.is-tm-number {
   color: #b87412 !important;
 }
 
-
-/* 인계 번호 */
-
-.search-log-preview
+#searchResultBody
+.search-result-log-preview
 .log-preview__entry-number.is-handover-number {
   color: #1f5fae !important;
 }
@@ -13657,84 +13699,75 @@ tbody tr:hover td {
 
 /* 시간 */
 
-.search-log-preview
+#searchResultBody
+.search-result-log-preview
 .log-preview__entry-time {
   display: block !important;
+  flex: 0 0 auto !important;
 
-  grid-column: 2;
+  margin: 0 6px 0 0 !important;
+  padding: 0 !important;
 
-  margin: 0;
-  padding: 0;
+  color: #2456a6 !important;
 
-  color: #2456a6;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.55 !important;
 
-  font-size: 12px;
-  font-weight: 900;
-  line-height: inherit;
-
+  white-space: nowrap !important;
   font-variant-numeric: tabular-nums;
-
-  white-space: nowrap;
 }
 
 
-/* TAG와 내용 묶음 */
+/* 운전현황 상태 배지 */
 
-.search-log-preview
-.log-preview__body {
+#searchResultBody
+.search-result-log-preview
+.log-preview__operation-badge {
+  flex: 0 0 auto !important;
+  align-self: center !important;
+
+  min-width: 54px !important;
+  height: 22px !important;
+
+  margin: 0 7px 0 0 !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* 실제 업무내용 */
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__text {
   display: block !important;
+  flex: 1 1 auto !important;
 
-  grid-column: 3;
+  min-width: 0 !important;
 
-  min-width: 0;
+  margin: 0 !important;
+  padding: 0 !important;
 
-  margin: 0;
-  padding: 0;
+  color: #26364b !important;
 
-  color: #26364b;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.55 !important;
 
-  font-size: 12px;
-  font-weight: 600;
-  line-height: inherit;
+  text-align: left !important;
+  writing-mode: horizontal-tb !important;
 
-  text-align: left;
-
-  white-space: normal;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-
-
-/* 시간이 없는 TM·인계
-
-   번호 | 본문
-*/
-
-.search-log-preview
-.log-preview__entry-number
-+
-.log-preview__body {
-  grid-column: 2 / 4 !important;
-}
-
-
-/* 운전현황·비고 본문 */
-
-.search-log-preview
-.log-preview__group.is-operation
-.log-preview__body,
-
-.search-log-preview
-.log-preview__group.is-note
-.log-preview__body {
-  grid-column: 1 !important;
+  white-space: normal !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
 }
 
 
 /* TAG */
 
-.search-log-preview
-.log-preview__body
+#searchResultBody
+.search-result-log-preview
 .log-preview__tag {
   display: inline !important;
 
@@ -13742,13 +13775,15 @@ tbody tr:hover td {
   min-width: 0 !important;
   min-height: 0 !important;
 
-  margin: 0 5px 0 0 !important;
+  margin: 0 0 0 5px !important;
   padding: 0 !important;
 
   border: 0 !important;
   border-radius: 0 !important;
 
   background: transparent !important;
+  box-shadow: none !important;
+
   color: #1763c5 !important;
 
   font-family:
@@ -13760,87 +13795,160 @@ tbody tr:hover td {
   font-weight: 900 !important;
   line-height: inherit !important;
 
-  vertical-align: baseline;
+  vertical-align: baseline !important;
+  white-space: nowrap !important;
 
-  white-space: nowrap;
+  cursor: pointer;
+}
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__tag:hover {
+  color: #0b4694 !important;
+  text-decoration: underline;
 }
 
 
-/* 실제 내용 */
+/* 구역 시작선 */
 
-.search-log-preview
-.log-preview__body
-.log-preview__text {
-  display: inline !important;
+#searchResultBody
+.search-result-log-preview
+.log-preview__group.is-section-start {
+  box-sizing: border-box;
 
-  width: auto !important;
-  min-width: 0;
+  margin-top: 12px !important;
+  padding-top: 13px !important;
+
+  border-top:
+    1px solid
+    #cbd8e5 !important;
+}
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__group.is-section-start:first-child {
+  margin-top: 0 !important;
+  padding-top: 4px !important;
+
+  border-top: 0 !important;
+}
+
+
+/* 보직 업무일지 제목 영역 */
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__role-section {
+  position: relative !important;
+
+  display: block !important;
+
+  width: 100% !important;
+  height: 12px !important;
+  min-height: 12px !important;
+
+  box-sizing: border-box !important;
+
+  margin: 14px 0 0 !important;
+  padding: 12px 0 0 !important;
+
+  border-top:
+    1px solid
+    #cbd8e5 !important;
+
+  background: transparent !important;
+}
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__role-section.is-first-role {
+  height: 12px !important;
+  min-height: 12px !important;
+
+  margin: 14px 0 0 !important;
+  padding: 12px 0 0 !important;
+
+  border-top:
+    1px solid
+    #cbd8e5 !important;
+}
+
+
+/* 보직명 */
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__role-divider {
+  position: absolute !important;
+
+  top: 12px !important;
+  left: 0 !important;
+
+  display: block !important;
+
+  width: 90px !important;
+  min-width: 90px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1.55 !important;
+
+  text-align: left !important;
+  white-space: nowrap !important;
+}
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__role-divider::before,
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__role-divider::after {
+  display: none !important;
+  content: none !important;
+}
+
+
+/* 보직명과 첫 업무를 같은 줄에 배치 */
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__role-section
++
+.log-preview__group {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+
+  border-top: 0 !important;
+}
+
+
+/* 내용 없음 */
+
+#searchResultBody
+.search-result-log-preview
+.log-preview__empty {
+  display: block;
 
   margin: 0;
-  padding: 0;
+  padding: 4px 0;
 
-  color: #26364b;
+  color: #8994a3;
 
   font-size: 12px;
   font-weight: 600;
-  line-height: inherit;
 
-  vertical-align: baseline;
-
-  white-space: normal;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
+  text-align: left;
 }
-
-
-/* 분류가 바뀌는 지점만 구분선 */
-
-.search-log-preview
-.log-preview__group.is-section-start {
-  margin-top: 3px;
-  padding-top: 6px;
-
-  border-top: 1px solid #dfe7ef;
-}
-
-
-/* 좁은 화면 */
-
-@media (max-width: 1200px) {
-  .search-log-preview
-  .log-preview__group {
-    grid-template-columns:
-      78px
-      minmax(0, 1fr) !important;
-
-    column-gap: 7px;
-  }
-
-  .search-log-preview
-  .log-preview__title {
-    width: 78px !important;
-    min-width: 78px !important;
-
-    font-size: 10px !important;
-  }
-
-  .search-log-preview
-  .log-preview__content {
-    grid-template-columns:
-      20px
-      max-content
-      minmax(0, 1fr);
-
-    column-gap: 5px;
-  }
-
-  .search-log-preview
-  .log-preview__entry-number {
-    width: 20px;
-    min-width: 20px;
-  }
-}
-
 /* =========================================================
    업무일지 목록 보직 제목 최종 통일
 
