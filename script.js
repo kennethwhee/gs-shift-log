@@ -24443,6 +24443,42 @@ function collectLogEntriesForDisplay(
   };
 
 
+  /*
+    같은 일반 업무가 저장 위치에 따라
+    인계사항·BM 작업·CM 작업 등 서로 다른 구분명으로
+    중복 저장되어도 한 건으로 비교한다.
+
+    TM과 비고는 일반 업무와 섞이지 않게 별도로 유지한다.
+  */
+  const getCategoryGroup = (
+    category
+  ) => {
+    const normalizedCategory =
+      normalizeCategory(
+        category
+      );
+
+
+    if (
+      normalizedCategory ===
+      "TM 발행"
+    ) {
+      return "tm";
+    }
+
+
+    if (
+      normalizedCategory ===
+      "비고"
+    ) {
+      return "remark";
+    }
+
+
+    return "work";
+  };
+
+
   const isMisrecognizedLegacyHeading = (
     entry
   ) => {
@@ -24732,7 +24768,9 @@ function collectLogEntriesForDisplay(
 
 
         const uniqueKey = [
-          normalizedEntry.category,
+          getCategoryGroup(
+            normalizedEntry.category
+          ),
 
           String(
             normalizedEntry.time ||
@@ -25136,6 +25174,87 @@ function collectLogEntriesForDisplay(
           }
 
 
+          /*
+            과거 파트장 저장본에 출처 없이 남은 TM 복사본은
+            팀원 TM 원본과 70% 이상 유사할 때만 제외한다.
+
+            일반 업무에는 유사도 비교를 절대 적용하지 않는다.
+          */
+          if (
+            getCategoryGroup(
+              entry.category
+            ) ===
+            "tm"
+          ) {
+            const hasSimilarMemberTm =
+              allMemberSourceEntries.some(
+                (
+                  memberEntry
+                ) => {
+                  if (
+                    getCategoryGroup(
+                      memberEntry.category
+                    ) !==
+                    "tm"
+                  ) {
+                    return false;
+                  }
+
+
+                  const entryTag =
+                    String(
+                      entry.tag ||
+                      ""
+                    )
+                      .trim()
+                      .toUpperCase();
+
+
+                  const memberTag =
+                    String(
+                      memberEntry.tag ||
+                      ""
+                    )
+                      .trim()
+                      .toUpperCase();
+
+
+                  if (
+                    entryTag &&
+                    memberTag &&
+                    entryTag !==
+                      memberTag
+                  ) {
+                    return false;
+                  }
+
+
+                  return (
+                    calculateLegacyContentSimilarity(
+                      String(
+                        entry.content ||
+                        ""
+                      ).trim(),
+
+                      String(
+                        memberEntry.content ||
+                        ""
+                      ).trim()
+                    ) >=
+                    0.7
+                  );
+                }
+              );
+
+
+            if (
+              hasSimilarMemberTm
+            ) {
+              return false;
+            }
+          }
+
+
           return !allMemberSourceEntries.some(
             (
               memberEntry
@@ -25215,7 +25334,9 @@ function collectLogEntriesForDisplay(
 
 
       const uniqueKey = [
-        entry.category,
+        getCategoryGroup(
+          entry.category
+        ),
 
         /*
           같은 비고가 여러 배열이나 보직에
