@@ -41986,3 +41986,323 @@ runSearch =
 
     return runSearchBeforeSharedSync();
   };
+
+  /* =========================================================
+  2026-07-22 이후 기존 업무일지 D1 자동 이전
+
+  - 2026-07-21까지는 조회 전용 유지
+  - 이후 legacy 일지는 공용 D1으로 자동 이전
+  - 기존 작성자 유지
+  - 이전 완료 후 최고관리자 수정 가능
+========================================================= */
+
+async function migrateEditableLegacyLogsForSelectedDate() {
+  const selectedDate =
+    formatInputDate(
+      appState.selectedDate
+    );
+
+
+  /*
+    2026-07-21까지는 확정된 과거 이력이므로
+    기존대로 조회 전용으로 유지한다.
+  */
+  if (
+    selectedDate <=
+    "2026-07-21"
+  ) {
+    return [];
+  }
+
+
+  const currentUser =
+    loadCurrentUser();
+
+
+  const currentEmployeeNo =
+    getShiftLogUserEmployeeNo(
+      currentUser
+    );
+
+
+  if (
+    !currentEmployeeNo ||
+    !getShiftLogSessionToken()
+  ) {
+    return [];
+  }
+
+
+  const legacyLogs =
+    appState.logs.filter(
+      log => {
+        return (
+          String(
+            log?.date ||
+            ""
+          ).trim() ===
+            selectedDate &&
+
+          isReadOnlyLegacyShiftLog(
+            log
+          )
+        );
+      }
+    );
+
+
+  if (
+    legacyLogs.length ===
+    0
+  ) {
+    return [];
+  }
+
+
+  const sharedGroupKeys =
+    new Set(
+      appState.logs
+        .filter(
+          isSharedD1ShiftLog
+        )
+        .map(
+          getShiftLogGroupKey
+        )
+    );
+
+
+  const migratedLogs = [];
+
+
+  for (
+    const legacyLog of
+    legacyLogs
+  ) {
+    const groupKey =
+      getShiftLogGroupKey(
+        legacyLog
+      );
+
+
+    /*
+      같은 날짜·근무·보직의 D1 일지가
+      이미 존재하면 다시 이전하지 않는다.
+    */
+    if (
+      sharedGroupKeys.has(
+        groupKey
+      )
+    ) {
+      continue;
+    }
+
+
+    const canMigrateLog =
+      currentEmployeeNo ===
+        FORCED_SUPER_ADMIN_EMPLOYEE_NO ||
+
+      isCurrentUserSuperAdmin() ||
+
+      isCurrentUserShiftLogAuthor(
+        legacyLog
+      );
+
+
+    if (
+      !canMigrateLog
+    ) {
+      continue;
+    }
+
+
+    /*
+      기존 작성자와 상태를 유지한 채
+      D1 이전용 자료를 만든다.
+    */
+    const migrationLog = {
+      ...legacyLog,
+
+      author:
+        String(
+          legacyLog.author ||
+          ""
+        ).trim(),
+
+      authorId:
+        String(
+          legacyLog.authorId ||
+          legacyLog.writerId ||
+          ""
+        ).trim(),
+
+      authorRole:
+        String(
+          legacyLog.authorRole ||
+          ""
+        ).trim(),
+
+      status:
+        normalizeShiftLogApprovalStatus(
+          legacyLog.status
+        )
+    };
+
+
+    try {
+      const migratedLog =
+        await saveShiftLogToServer(
+          migrationLog,
+          {
+            action:
+              "migrate",
+
+            expectedRevision:
+              0
+          }
+        );
+
+
+      if (
+        migratedLog
+      ) {
+        replaceSharedShiftLogInState(
+          migratedLog
+        );
+
+
+        sharedGroupKeys.add(
+          groupKey
+        );
+
+
+        migratedLogs.push(
+          migratedLog
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      /*
+        다른 PC에서 먼저 이전했다면
+        서버의 최신 D1 일지를 사용한다.
+      */
+      if (
+        error instanceof
+          ShiftLogApiError &&
+
+        error.isConflict &&
+
+        error.currentLog
+      ) {
+        const currentLog =
+          normalizeSharedShiftLog(
+            error.currentLog
+          );
+
+
+        if (
+          currentLog
+        ) {
+          replaceSharedShiftLogInState(
+            currentLog
+          );
+
+
+          sharedGroupKeys.add(
+            groupKey
+          );
+
+
+          migratedLogs.push(
+            currentLog
+          );
+        }
+
+
+        continue;
+      }
+
+
+      console.error(
+        "현재 날짜 기존 업무일지 D1 이전 실패:",
+        error
+      );
+    }
+  }
+
+
+  /*
+    D1 일지가 준비된 보직의
+    legacy 중복 행만 목록에서 제거한다.
+
+    이전에 실패한 자료는 조회용으로 남긴다.
+  */
+  appState.logs =
+    appState.logs.filter(
+      log => {
+        const isSameDateLegacy =
+          String(
+            log?.date ||
+            ""
+          ).trim() ===
+            selectedDate &&
+
+          isReadOnlyLegacyShiftLog(
+            log
+          );
+
+
+        if (
+          !isSameDateLegacy
+        ) {
+          return true;
+        }
+
+
+        return !sharedGroupKeys.has(
+          getShiftLogGroupKey(
+            log
+          )
+        );
+      }
+    );
+
+
+  if (
+    migratedLogs.length >
+    0
+  ) {
+    renderLogTable();
+
+
+    updateShiftMemberCardStates();
+  }
+
+
+  return migratedLogs;
+}
+
+
+/*
+  기존 legacy 조회 함수 보존
+*/
+const loadLegacyLogsForSelectedDateBeforeEditableMigration =
+  loadLegacyLogsForSelectedDate;
+
+
+/*
+  legacy 조회가 끝난 뒤
+  수정 가능한 날짜의 자료를 D1으로 자동 이전한다.
+*/
+loadLegacyLogsForSelectedDate =
+  async function loadLegacyLogsForSelectedDate() {
+    const legacyLogs =
+      await loadLegacyLogsForSelectedDateBeforeEditableMigration();
+
+
+    await migrateEditableLegacyLogsForSelectedDate();
+
+
+    return legacyLogs;
+  };
