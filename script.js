@@ -41201,12 +41201,35 @@ canCurrentUserEditShiftLog =
     if (
       !log ||
       typeof log !==
-        "object" ||
+        "object"
+    ) {
+      return false;
+    }
+
+
+    /*
+      과거 연동 업무일지는
+      최고관리자도 조회만 가능
+    */
+    if (
       isReadOnlyLegacyShiftLog(
         log
       )
     ) {
       return false;
+    }
+
+
+    /*
+      최고관리자를 가장 먼저 판정한다.
+
+      작성자 사번·이름·보직·결재 상태와 관계없이
+      모든 D1 업무일지를 수정할 수 있다.
+    */
+    if (
+      isCurrentUserSuperAdmin()
+    ) {
+      return true;
     }
 
 
@@ -41221,24 +41244,12 @@ canCurrentUserEditShiftLog =
       ).trim();
 
 
+    /*
+      로그인 사용자 정보를 확인할 수 없으면
+      수정할 수 없다.
+    */
     if (
       !currentEmployeeNo
-    ) {
-      return false;
-    }
-
-
-    if (
-      isCurrentUserSuperAdmin()
-    ) {
-      return true;
-    }
-
-
-    if (
-      !isCurrentUserShiftLogAuthor(
-        log
-      )
     ) {
       return false;
     }
@@ -41250,6 +41261,10 @@ canCurrentUserEditShiftLog =
       );
 
 
+    /*
+      임시저장 상태는 로그인한 직원이
+      이어서 작성할 수 있다.
+    */
     if (
       normalizedStatus ===
         "임시저장"
@@ -41258,6 +41273,23 @@ canCurrentUserEditShiftLog =
     }
 
 
+    /*
+      임시저장이 아닌 경우
+      원래 작성자 여부를 확인한다.
+    */
+    if (
+      !isCurrentUserShiftLogAuthor(
+        log
+      )
+    ) {
+      return false;
+    }
+
+
+    /*
+      파트장은 본인이 작성한 파트장 업무일지가
+      저장완료 상태일 때 수정할 수 있다.
+    */
     return (
       isCurrentShiftLogLeader() &&
       normalizeMemberLogRole(
@@ -41268,7 +41300,6 @@ canCurrentUserEditShiftLog =
         "저장완료"
     );
   };
-
 
 /* =========================================================
   업무일지 편집창 권한 유형
