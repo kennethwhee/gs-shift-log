@@ -28697,10 +28697,7 @@ function getOperationStatusDisplayLabel(
   과거 잘못 취합된 항목일 수 있으므로 원본과 다시 비교한다.
 ========================================================= */
 
-function resolveDetailEntrySourceRole(
-  entry,
-  detailLog
-) {
+function resolveDetailEntrySourceRole(entry, detailLog) {
   const memberRoles = [
     "TGO",
     "BCO1",
@@ -28786,109 +28783,113 @@ function resolveDetailEntrySourceRole(
       }
     );
 
-  if (
-    !sourceLogs.length
-  ) {
-    return memberRoles.includes(
-      directRole
-    )
-      ? directRole
-      : "파트장";
-  }
+  const getCategoryGroup = (
+    category
+  ) => {
+    const text =
+      String(
+        category ||
+        ""
+      ).trim();
 
-  /* 원본 업무일지 ID 판정 */
-
-  const importedFromLogId =
-    String(
-      entry?.importedFromLogId ||
-      ""
-    ).trim();
-
-  if (
-    importedFromLogId
-  ) {
-    const idMatchedLog =
-      sourceLogs.find(
-        sourceLog => {
-          return (
-            String(
-              sourceLog?.id ||
-              ""
-            ).trim() ===
-            importedFromLogId
-          );
-        }
-      );
+    const compact =
+      text
+        .replace(
+          /\s+/g,
+          ""
+        )
+        .toUpperCase();
 
     if (
-      idMatchedLog
-    ) {
-      return normalizeMemberLogRole(
-        idMatchedLog.role
-      );
-    }
-  }
-
-  /* 원본 작성자 판정 */
-
-  const importedFromAuthor =
-    String(
-      entry?.importedFromAuthor ||
-      ""
-    ).trim();
-
-  if (
-    importedFromAuthor
-  ) {
-    const authorMatchedRoles = [
-      ...new Set(
-        sourceLogs
-          .filter(
-            sourceLog => {
-              return (
-                String(
-                  sourceLog?.author ||
-                  ""
-                ).trim() ===
-                importedFromAuthor
-              );
-            }
-          )
-          .map(
-            sourceLog => {
-              return normalizeMemberLogRole(
-                sourceLog.role
-              );
-            }
-          )
+      text.includes(
+        "비고"
       )
-    ];
+    ) {
+      return "remark";
+    }
 
     if (
-      authorMatchedRoles.length ===
-      1
+      compact ===
+        "TM발행" ||
+      compact ===
+        "TM발행내역"
     ) {
-      return authorMatchedRoles[0];
+      return "tm";
     }
-  }
+
+    return "work";
+  };
 
   /*
-    과거 데이터에서는 한 항목이
-    분리 배열 또는 entries 한쪽에만
-    남아 있을 수 있다.
+    원본에서 확인된 구분을
+    현재 상세 항목에도 반영한다.
 
-    출처 판정에서는 양쪽을 모두 조사한다.
+    BCO2의 note 항목이 파트장 인계사항으로
+    표시되는 문제도 여기서 비고로 복구한다.
   */
+  const repairEntryCategory = (
+    sourceEntry
+  ) => {
+    if (
+      !entry ||
+      typeof entry !==
+        "object" ||
+      !sourceEntry
+    ) {
+      return;
+    }
+
+    const sourceGroup =
+      getCategoryGroup(
+        sourceEntry.category
+      );
+
+    if (
+      sourceGroup ===
+      "remark"
+    ) {
+      entry.category =
+        "비고";
+
+      entry.time =
+        "";
+
+      return;
+    }
+
+    if (
+      sourceGroup ===
+      "tm"
+    ) {
+      entry.category =
+        "TM 발행";
+
+      return;
+    }
+
+    entry.category =
+      String(
+        sourceEntry.category ||
+        "인계사항"
+      ).trim() ||
+      "인계사항";
+  };
 
   const collectSourceEntries = (
     sourceLog
   ) => {
-    const candidates = [];
+    const sourceRole =
+      normalizeMemberLogRole(
+        sourceLog?.role ||
+        ""
+      );
 
-    const appendEntries = (
+    const collected = [];
+
+    const append = (
       entries,
       fallbackCategory,
-      sourceCollection
+      collection
     ) => {
       if (
         !Array.isArray(
@@ -28925,20 +28926,20 @@ function resolveDetailEntrySourceRole(
 
               category:
                 String(
-                  rawEntry?.category ||
+                  rawEntry.category ||
                   fallbackCategory ||
                   "인계사항"
                 ).trim(),
 
               time:
                 String(
-                  rawEntry?.time ||
+                  rawEntry.time ||
                   ""
                 ).trim(),
 
               tag:
                 String(
-                  rawEntry?.tag ||
+                  rawEntry.tag ||
                   ""
                 )
                   .trim()
@@ -28946,7 +28947,7 @@ function resolveDetailEntrySourceRole(
 
               content:
                 String(
-                  rawEntry?.content ||
+                  rawEntry.content ||
                   ""
                 ).trim()
             });
@@ -28960,87 +28961,114 @@ function resolveDetailEntrySourceRole(
             return;
           }
 
-          candidates.push({
+          collected.push({
             ...normalizedEntry,
+
+            sourceRole,
+
+            sourceLogId:
+              String(
+                sourceLog?.id ||
+                ""
+              ).trim(),
 
             sourceIndex,
 
-            sourceCollection
+            collection
           });
         }
       );
     };
 
-    appendEntries(
+    append(
       sourceLog?.tmEntries,
       "TM 발행",
       "tmEntries"
     );
 
-    appendEntries(
+    append(
       sourceLog?.handoverEntries,
       "인계사항",
       "handoverEntries"
     );
 
-    appendEntries(
+    append(
       sourceLog?.remarkEntries,
       "비고",
       "remarkEntries"
     );
 
-    appendEntries(
+    /*
+      과거 업무일지는 비고가
+      remarkEntries가 아니라 note에만
+      저장되어 있을 수 있다.
+    */
+    append(
+      convertSavedNoteToEntries(
+        sourceLog?.note,
+        sourceLog
+      ),
+      "비고",
+      "note"
+    );
+
+    append(
       sourceLog?.entries,
       "인계사항",
       "entries"
     );
 
-    const uniqueEntryMap =
+    const uniqueMap =
       new Map();
 
-    candidates.forEach(
+    collected.forEach(
       sourceEntry => {
-        const uniqueKey = [
+        const key = [
           String(
-            sourceEntry?.id ||
+            sourceEntry.id ||
             ""
           ).trim(),
 
           String(
-            sourceEntry?.category ||
+            sourceEntry.category ||
             ""
           ).trim(),
 
           String(
-            sourceEntry?.time ||
+            sourceEntry.time ||
             ""
           ).trim(),
 
           String(
-            sourceEntry?.tag ||
+            sourceEntry.tag ||
             ""
           )
             .trim()
             .toUpperCase(),
 
           String(
-            sourceEntry?.content ||
+            sourceEntry.content ||
             ""
           )
             .trim()
             .replace(
               /\s+/g,
               " "
-            )
+            ),
+
+          String(
+            sourceEntry.collection ||
+            ""
+          ).trim()
         ].join("||");
 
         if (
-          !uniqueEntryMap.has(
-            uniqueKey
+          !uniqueMap.has(
+            key
           )
         ) {
-          uniqueEntryMap.set(
-            uniqueKey,
+          uniqueMap.set(
+            key,
             sourceEntry
           );
         }
@@ -29048,11 +29076,109 @@ function resolveDetailEntrySourceRole(
     );
 
     return [
-      ...uniqueEntryMap.values()
+      ...uniqueMap.values()
     ];
   };
 
-  /* 원본 항목 ID 판정 */
+  const sourceEntries =
+    sourceLogs.flatMap(
+      collectSourceEntries
+    );
+
+  const getContentKeys = (
+    content
+  ) => {
+    const cleaned =
+      String(
+        content ||
+        ""
+      )
+        .normalize(
+          "NFKC"
+        )
+        .replace(
+          /[\u200B-\u200D\u2060\uFEFF]/g,
+          ""
+        )
+        .trim();
+
+    const fullKey =
+      normalizeMemberImportContent(
+        cleaned
+      );
+
+    /*
+      [TM작업], [BM작업], [CM작업]이
+      한쪽에만 붙은 경우도 같은 내용으로 비교한다.
+    */
+    const withoutWorkPrefix =
+      fullKey
+        .replace(
+          /^(?:tm|bm|cm)(?=\s|작업|발행)(?:\s*(?:발행(?:내역)?|작업))?\s*/i,
+          ""
+        )
+        .trim();
+
+    return [
+      ...new Set(
+        [
+          fullKey,
+          withoutWorkPrefix
+        ].filter(
+          key => {
+            return (
+              key.length >=
+              6
+            );
+          }
+        )
+      )
+    ];
+  };
+
+  const contentKeysMatch = (
+    firstKeys,
+    secondKeys
+  ) => {
+    return firstKeys.some(
+      key => {
+        return secondKeys.includes(
+          key
+        );
+      }
+    );
+  };
+
+  const entryContent =
+    String(
+      entry?.content ||
+      ""
+    ).trim();
+
+  const entryTime =
+    String(
+      entry?.time ||
+      ""
+    ).trim();
+
+  const entryTag =
+    String(
+      entry?.tag ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+  const entryKeys =
+    getContentKeys(
+      entryContent
+    );
+
+  const importedFromLogId =
+    String(
+      entry?.importedFromLogId ||
+      ""
+    ).trim();
 
   const entryId =
     String(
@@ -29060,56 +29186,241 @@ function resolveDetailEntrySourceRole(
       ""
     ).trim();
 
-  if (
-    entryId
-  ) {
-    const idMatchedRoles =
-      sourceLogs
-        .filter(
-          sourceLog => {
-            return collectSourceEntries(
-              sourceLog
-            ).some(
-              sourceEntry => {
-                return (
-                  String(
-                    sourceEntry?.id ||
-                    ""
-                  ).trim() ===
-                  entryId
-                );
-              }
-            );
-          }
-        )
-        .map(
-          sourceLog => {
-            return normalizeMemberLogRole(
-              sourceLog.role
+  const chooseMatchedEntry = (
+    matches
+  ) => {
+    if (
+      !matches.length
+    ) {
+      return null;
+    }
+
+    if (
+      importedFromLogId
+    ) {
+      const logIdMatch =
+        matches.find(
+          sourceEntry => {
+            return (
+              sourceEntry.sourceLogId ===
+              importedFromLogId
             );
           }
         );
 
-    const uniqueIdMatchedRoles = [
+      if (
+        logIdMatch
+      ) {
+        return logIdMatch;
+      }
+    }
+
+    if (
+      memberRoles.includes(
+        directRole
+      )
+    ) {
+      const directRoleMatch =
+        matches.find(
+          sourceEntry => {
+            return (
+              sourceEntry.sourceRole ===
+              directRole
+            );
+          }
+        );
+
+      if (
+        directRoleMatch
+      ) {
+        return directRoleMatch;
+      }
+    }
+
+    const matchedRoles = [
       ...new Set(
-        idMatchedRoles
+        matches.map(
+          sourceEntry => {
+            return sourceEntry.sourceRole;
+          }
+        )
       )
     ];
 
     if (
-      uniqueIdMatchedRoles.length ===
+      matchedRoles.length ===
       1
     ) {
-      return uniqueIdMatchedRoles[0];
+      const sameRoleMatches =
+        matches.filter(
+          sourceEntry => {
+            return (
+              sourceEntry.sourceRole ===
+              matchedRoles[0]
+            );
+          }
+        );
+
+      const remarkMatch =
+        sameRoleMatches.find(
+          sourceEntry => {
+            return (
+              getCategoryGroup(
+                sourceEntry.category
+              ) ===
+              "remark"
+            );
+          }
+        );
+
+      const nonRemarkMatch =
+        sameRoleMatches.find(
+          sourceEntry => {
+            return (
+              getCategoryGroup(
+                sourceEntry.category
+              ) !==
+              "remark"
+            );
+          }
+        );
+
+      return (
+        remarkMatch &&
+        !nonRemarkMatch
+          ? remarkMatch
+          : sameRoleMatches[0]
+      );
+    }
+
+    return null;
+  };
+
+  /*
+    가장 먼저 원본과 완전히 같은 내용을 찾는다.
+  */
+  if (
+    entryKeys.length
+  ) {
+    const exactMatches =
+      sourceEntries.filter(
+        sourceEntry => {
+          const sourceTag =
+            String(
+              sourceEntry.tag ||
+              ""
+            )
+              .trim()
+              .toUpperCase();
+
+          if (
+            entryTag &&
+            sourceTag &&
+            entryTag !==
+              sourceTag
+          ) {
+            return false;
+          }
+
+          return contentKeysMatch(
+            entryKeys,
+            getContentKeys(
+              sourceEntry.content
+            )
+          );
+        }
+      );
+
+    const exactMatch =
+      chooseMatchedEntry(
+        exactMatches
+      );
+
+    if (
+      exactMatch
+    ) {
+      repairEntryCategory(
+        exactMatch
+      );
+
+      return exactMatch.sourceRole;
     }
   }
 
-  /* 과거 보직별 본문 위치 판정 */
+  /*
+    항목 ID로 원본을 찾는다.
+  */
+  if (
+    entryId
+  ) {
+    const idMatch =
+      chooseMatchedEntry(
+        sourceEntries.filter(
+          sourceEntry => {
+            return (
+              String(
+                sourceEntry.id ||
+                ""
+              ).trim() ===
+              entryId
+            );
+          }
+        )
+      );
+
+    if (
+      idMatch
+    ) {
+      repairEntryCategory(
+        idMatch
+      );
+
+      return idMatch.sourceRole;
+    }
+  }
+
+  /*
+    원본 업무일지 ID로 찾는다.
+  */
+  if (
+    importedFromLogId
+  ) {
+    const sourceLog =
+      sourceLogs.find(
+        candidateLog => {
+          return (
+            String(
+              candidateLog?.id ||
+              ""
+            ).trim() ===
+            importedFromLogId
+          );
+        }
+      );
+
+    if (
+      sourceLog
+    ) {
+      return normalizeMemberLogRole(
+        sourceLog.role
+      );
+    }
+  }
+
+  /*
+    과거 보직별 본문 위치로 찾는다.
+  */
+  const rawLegacyBodyIndex =
+    entry?.legacyBodyIndex;
 
   const legacyBodyIndex =
-    Number(
-      entry?.legacyBodyIndex
-    );
+    rawLegacyBodyIndex === "" ||
+    rawLegacyBodyIndex === null ||
+    rawLegacyBodyIndex === undefined
+      ? null
+      : Number(
+          rawLegacyBodyIndex
+        );
 
   if (
     detailLog?.legacyStructure ===
@@ -29133,136 +29444,213 @@ function resolveDetailEntrySourceRole(
     }
   }
 
-  const entryContent =
-    String(
-      entry?.content ||
-      ""
-    ).trim();
-
-  const entryTime =
-    String(
-      entry?.time ||
-      ""
-    ).trim();
-
-  const entryTag =
-    String(
-      entry?.tag ||
-      ""
-    )
-      .trim()
-      .toUpperCase();
-
+  /*
+    완전 일치하지 않으면 유사도를 비교한다.
+  */
   if (
-    !entryContent
+    entryContent
   ) {
-    return memberRoles.includes(
-      directRole
-    )
-      ? directRole
-      : "파트장";
+    const entryCategoryGroup =
+      getCategoryGroup(
+        entry?.category
+      );
+
+    const rawImportedIndex =
+      entry?.importedFromEntryIndex;
+
+    const importedIndex =
+      rawImportedIndex === "" ||
+      rawImportedIndex === null ||
+      rawImportedIndex === undefined
+        ? null
+        : Number(
+            rawImportedIndex
+          );
+
+    const scoredMatches =
+      sourceEntries
+        .map(
+          sourceEntry => {
+            const sourceTag =
+              String(
+                sourceEntry.tag ||
+                ""
+              )
+                .trim()
+                .toUpperCase();
+
+            if (
+              entryTag &&
+              sourceTag &&
+              entryTag !==
+                sourceTag
+            ) {
+              return null;
+            }
+
+            const sourceCategoryGroup =
+              getCategoryGroup(
+                sourceEntry.category
+              );
+
+            if (
+              sourceCategoryGroup !==
+              entryCategoryGroup
+            ) {
+              return null;
+            }
+
+            const contentScore =
+              calculateLegacyContentSimilarity(
+                entryContent,
+                String(
+                  sourceEntry.content ||
+                  ""
+                ).trim()
+              );
+
+            if (
+              contentScore <
+              0.82
+            ) {
+              return null;
+            }
+
+            let totalScore =
+              contentScore;
+
+            if (
+              entryTag &&
+              sourceTag &&
+              entryTag ===
+                sourceTag
+            ) {
+              totalScore +=
+                0.12;
+            }
+
+            if (
+              entryTime &&
+              sourceEntry.time &&
+              entryTime ===
+                String(
+                  sourceEntry.time
+                ).trim()
+            ) {
+              totalScore +=
+                0.08;
+            }
+
+            if (
+              Number.isInteger(
+                importedIndex
+              ) &&
+              importedIndex ===
+                Number(
+                  sourceEntry.sourceIndex
+                )
+            ) {
+              totalScore +=
+                0.04;
+            }
+
+            if (
+              sourceEntry.sourceRole ===
+              directRole
+            ) {
+              totalScore +=
+                0.005;
+            }
+
+            return {
+              sourceEntry,
+              totalScore
+            };
+          }
+        )
+        .filter(
+          Boolean
+        )
+        .sort(
+          (
+            first,
+            second
+          ) => {
+            const scoreDifference =
+              second.totalScore -
+              first.totalScore;
+
+            if (
+              Math.abs(
+                scoreDifference
+              ) >
+              0.001
+            ) {
+              return scoreDifference;
+            }
+
+            return (
+              roleOrder.indexOf(
+                first
+                  .sourceEntry
+                  .sourceRole
+              ) -
+              roleOrder.indexOf(
+                second
+                  .sourceEntry
+                  .sourceRole
+              )
+            );
+          }
+        );
+
+    if (
+      scoredMatches.length
+    ) {
+      const best =
+        scoredMatches[0];
+
+      const second =
+        scoredMatches[1];
+
+      if (
+        !second ||
+        best.totalScore >
+          second.totalScore +
+          0.001
+      ) {
+        repairEntryCategory(
+          best.sourceEntry
+        );
+
+        return best.sourceEntry.sourceRole;
+      }
+    }
   }
 
   /*
-    전각문자와 보이지 않는 문자를 제거한다.
-
-    [TM작업], [BM작업], [CM작업] 표시가
-    한쪽 데이터에서 사라진 경우도 비교할 수 있도록
-    접두어 제거 키를 함께 생성한다.
+    작성자로 최종 확인한다.
   */
-
-  const getRecoveryContentKeys = (
-    content
-  ) => {
-    const cleanedContent =
-      String(
-        content ||
-        ""
-      )
-        .normalize(
-          "NFKC"
-        )
-        .replace(
-          /[\u200B-\u200D\u2060\uFEFF]/g,
-          ""
-        )
-        .trim();
-
-    const fullKey =
-      normalizeMemberImportContent(
-        cleanedContent
-      );
-
-    const withoutWorkPrefix =
-      fullKey
-        .replace(
-          /^(?:tm|bm|cm)(?=\s|작업|발행)(?:\s*(?:발행(?:내역)?|작업))?\s*/i,
-          ""
-        )
-        .trim();
-
-    return [
-      ...new Set(
-        [
-          fullKey,
-          withoutWorkPrefix
-        ].filter(
-          contentKey => {
-            return (
-              contentKey.length >=
-              6
-            );
-          }
-        )
-      )
-    ];
-  };
-
-  const hasRecoveryContentMatch = (
-    firstContentKeys,
-    secondContentKeys
-  ) => {
-    return firstContentKeys.some(
-      contentKey => {
-        return secondContentKeys.includes(
-          contentKey
-        );
-      }
-    );
-  };
-
-  const entryRecoveryKeys =
-    getRecoveryContentKeys(
-      entryContent
-    );
-
-  /*
-    카테고리가 달라졌더라도 같은 문장이
-    한 보직에서만 발견되면 해당 보직으로 확정한다.
-
-    여러 보직에 같은 문장이 있으면
-    시간·TAG 비교 단계로 넘긴다.
-  */
+  const importedFromAuthor =
+    String(
+      entry?.importedFromAuthor ||
+      ""
+    ).trim();
 
   if (
-    entryRecoveryKeys.length
+    importedFromAuthor
   ) {
-    const exactContentMatchedRoles = [
+    const authorRoles = [
       ...new Set(
         sourceLogs
           .filter(
             sourceLog => {
-              return collectSourceEntries(
-                sourceLog
-              ).some(
-                sourceEntry => {
-                  return hasRecoveryContentMatch(
-                    entryRecoveryKeys,
-                    getRecoveryContentKeys(
-                      sourceEntry?.content
-                    )
-                  );
-                }
+              return (
+                String(
+                  sourceLog?.author ||
+                  ""
+                ).trim() ===
+                importedFromAuthor
               );
             }
           )
@@ -29277,368 +29665,10 @@ function resolveDetailEntrySourceRole(
     ];
 
     if (
-      exactContentMatchedRoles.length ===
+      authorRoles.length ===
       1
     ) {
-      return exactContentMatchedRoles[0];
-    }
-  }
-
-  const getCategoryGroup = (
-    category
-  ) => {
-    const categoryText =
-      String(
-        category ||
-        ""
-      ).trim();
-
-    const compactCategory =
-      categoryText
-        .replace(
-          /\s+/g,
-          ""
-        )
-        .toUpperCase();
-
-    if (
-      categoryText.includes(
-        "비고"
-      )
-    ) {
-      return "remark";
-    }
-
-    /*
-      TM 작업은 일반 작업이고
-      실제 TM 발행만 TM 발행 내역으로 판단한다.
-    */
-
-    if (
-      compactCategory ===
-        "TM발행" ||
-      compactCategory ===
-        "TM발행내역"
-    ) {
-      return "tm";
-    }
-
-    return "work";
-  };
-
-  const entryCategoryGroup =
-    getCategoryGroup(
-      entry?.category
-    );
-
-  const normalizedEntryContent =
-    normalizeMemberImportContent(
-      entryContent
-    );
-
-  const rawImportedIndex =
-    entry?.importedFromEntryIndex;
-
-  const importedEntryIndex =
-    rawImportedIndex === "" ||
-    rawImportedIndex === null ||
-    rawImportedIndex === undefined
-      ? null
-      : Number(
-          rawImportedIndex
-        );
-
-  const roleResults = [];
-
-  sourceLogs.forEach(
-    sourceLog => {
-      const sourceRole =
-        normalizeMemberLogRole(
-          sourceLog.role
-        );
-
-      const sourceEntries =
-        collectSourceEntries(
-          sourceLog
-        );
-
-      let bestResult =
-        null;
-
-      sourceEntries.forEach(
-        sourceEntry => {
-          const sourceContent =
-            String(
-              sourceEntry?.content ||
-              ""
-            ).trim();
-
-          if (
-            !sourceContent
-          ) {
-            return;
-          }
-
-          const sourceRecoveryKeys =
-            getRecoveryContentKeys(
-              sourceContent
-            );
-
-          const isExactRecoveryContent =
-            entryRecoveryKeys.length >
-              0 &&
-            hasRecoveryContentMatch(
-              entryRecoveryKeys,
-              sourceRecoveryKeys
-            );
-
-          const isSameCategoryGroup =
-            getCategoryGroup(
-              sourceEntry?.category
-            ) ===
-            entryCategoryGroup;
-
-          /*
-            카테고리가 다르면
-            정확한 문장일 때만 비교한다.
-          */
-
-          if (
-            !isSameCategoryGroup &&
-            !isExactRecoveryContent
-          ) {
-            return;
-          }
-
-          const sourceTag =
-            String(
-              sourceEntry?.tag ||
-              ""
-            )
-              .trim()
-              .toUpperCase();
-
-          if (
-            entryTag &&
-            sourceTag &&
-            entryTag !==
-              sourceTag
-          ) {
-            return;
-          }
-
-          const normalizedSourceContent =
-            normalizeMemberImportContent(
-              sourceContent
-            );
-
-          let contentScore =
-            normalizedEntryContent &&
-            normalizedEntryContent ===
-              normalizedSourceContent
-              ? 1
-              : calculateLegacyContentSimilarity(
-                  entryContent,
-                  sourceContent
-                );
-
-          if (
-            isExactRecoveryContent
-          ) {
-            contentScore =
-              Math.max(
-                contentScore,
-                1
-              );
-          }
-
-          if (
-            contentScore <
-            0.82
-          ) {
-            return;
-          }
-
-          const sourceTime =
-            String(
-              sourceEntry?.time ||
-              ""
-            ).trim();
-
-          const sourceIndex =
-            Number(
-              sourceEntry?.sourceIndex
-            );
-
-          const isExactTag =
-            Boolean(
-              entryTag &&
-              sourceTag &&
-              entryTag ===
-                sourceTag
-            );
-
-          const isExactTime =
-            Boolean(
-              entryTime &&
-              sourceTime &&
-              entryTime ===
-                sourceTime
-            );
-
-          const isExactIndex =
-            Number.isInteger(
-              importedEntryIndex
-            ) &&
-            Number.isInteger(
-              sourceIndex
-            ) &&
-            importedEntryIndex ===
-              sourceIndex;
-
-          let totalScore =
-            contentScore;
-
-          if (
-            isSameCategoryGroup
-          ) {
-            totalScore +=
-              0.02;
-          }
-
-          if (
-            isExactTag
-          ) {
-            totalScore +=
-              0.12;
-          }
-
-          if (
-            isExactTime
-          ) {
-            totalScore +=
-              0.08;
-          }
-
-          if (
-            isExactIndex
-          ) {
-            totalScore +=
-              0.04;
-          }
-
-          if (
-            sourceRole ===
-            directRole
-          ) {
-            totalScore +=
-              0.005;
-          }
-
-          const result = {
-            role:
-              sourceRole,
-
-            totalScore,
-
-            contentScore,
-
-            isExactRecoveryContent,
-
-            isExactTag,
-
-            isExactTime,
-
-            isExactIndex
-          };
-
-          if (
-            !bestResult ||
-            result.totalScore >
-              bestResult.totalScore
-          ) {
-            bestResult =
-              result;
-          }
-        }
-      );
-
-      if (
-        bestResult
-      ) {
-        roleResults.push(
-          bestResult
-        );
-      }
-    }
-  );
-
-  roleResults.sort(
-    (
-      firstResult,
-      secondResult
-    ) => {
-      const scoreDifference =
-        secondResult.totalScore -
-        firstResult.totalScore;
-
-      if (
-        Math.abs(
-          scoreDifference
-        ) >
-        0.0001
-      ) {
-        return scoreDifference;
-      }
-
-      return (
-        roleOrder.indexOf(
-          firstResult.role
-        ) -
-        roleOrder.indexOf(
-          secondResult.role
-        )
-      );
-    }
-  );
-
-  if (
-    roleResults.length
-  ) {
-    const bestResult =
-      roleResults[0];
-
-    const secondResult =
-      roleResults[1];
-
-    if (
-      !secondResult ||
-      bestResult.totalScore >
-        secondResult.totalScore +
-        0.001
-    ) {
-      return bestResult.role;
-    }
-
-    if (
-      memberRoles.includes(
-        directRole
-      ) &&
-      roleResults.some(
-        result => {
-          return (
-            result.role ===
-              directRole &&
-            Math.abs(
-              result.totalScore -
-              bestResult.totalScore
-            ) <=
-              0.001
-          );
-        }
-      )
-    ) {
-      return directRole;
+      return authorRoles[0];
     }
   }
 
@@ -29650,6 +29680,10 @@ function resolveDetailEntrySourceRole(
     return directRole;
   }
 
+  /*
+    어느 팀원 원본과도 일치하지 않을 때만
+    파트장 직접 작성 내용으로 유지한다.
+  */
   return "파트장";
 }
 
