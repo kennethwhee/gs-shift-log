@@ -25457,13 +25457,11 @@ function createLogRowHtml(log) {
 
   const normalizedLogRole =
     normalizeMemberLogRole(
-      log?.role ||
-      ""
+      log?.role || ""
     );
 
   const isLeaderLog =
-    normalizedLogRole ===
-    "파트장";
+    normalizedLogRole === "파트장";
 
 
   /*
@@ -25474,8 +25472,7 @@ function createLogRowHtml(log) {
   ) => {
     const lines =
       String(
-        content ||
-        "-"
+        content || "-"
       )
         .replace(
           /\r\n/g,
@@ -25485,14 +25482,11 @@ function createLogRowHtml(log) {
           /\r/g,
           "\n"
         )
-        .split(
-          "\n"
-        )
+        .split("\n")
         .map(
           line => {
             return String(
-              line ||
-              ""
+              line || ""
             ).trim();
           }
         )
@@ -25501,9 +25495,7 @@ function createLogRowHtml(log) {
 
     return lines.length
       ? lines
-      : [
-          "-"
-        ];
+      : ["-"];
   };
 
 
@@ -25519,16 +25511,14 @@ function createLogRowHtml(log) {
   }) => {
     const tagText =
       String(
-        entry?.tag ||
-        ""
+        entry?.tag || ""
       )
         .trim()
         .toUpperCase();
 
 
     previewGroups.push({
-      type:
-        "normal",
+      type: "normal",
 
       title,
 
@@ -25540,8 +25530,7 @@ function createLogRowHtml(log) {
       time:
         showTime
           ? String(
-              entry?.time ||
-              ""
+              entry?.time || ""
             ).trim()
           : "",
 
@@ -25568,9 +25557,7 @@ function createLogRowHtml(log) {
     저장 원문의 번호가 중복되지 않는다.
   ====================================================== */
 
-  if (
-    isLeaderLog
-  ) {
+  if (isLeaderLog) {
     parseOperationStatusRowsForDisplay(
       log
     ).forEach(
@@ -25592,11 +25579,9 @@ function createLogRowHtml(log) {
 
           index,
 
-          showTime:
-            false,
+          showTime: false,
 
-          showTag:
-            false,
+          showTag: false,
 
           categoryClass: [
             "is-operation",
@@ -25632,8 +25617,7 @@ function createLogRowHtml(log) {
         entry => {
           return (
             String(
-              entry?.category ||
-              ""
+              entry?.category || ""
             ).trim() ===
             "TM 발행"
           );
@@ -25686,8 +25670,7 @@ function createLogRowHtml(log) {
       entry => {
         const category =
           String(
-            entry?.category ||
-            ""
+            entry?.category || ""
           ).trim();
 
 
@@ -25868,8 +25851,7 @@ function createLogRowHtml(log) {
       entry => {
         return (
           String(
-            entry?.category ||
-            ""
+            entry?.category || ""
           ).trim() ===
           "비고"
         );
@@ -25892,11 +25874,9 @@ function createLogRowHtml(log) {
 
         index,
 
-        showTime:
-          false,
+        showTime: false,
 
-        showTag:
-          false,
+        showTag: false,
 
         categoryClass: [
           "is-note",
@@ -25912,27 +25892,317 @@ function createLogRowHtml(log) {
   );
 
 
-  const renderPreviewGroup = (
-    group
-  ) => {
-    if (
-      group.type ===
-      "role-section"
-    ) {
+  const renderPreviewGroup =
+    group => {
+      if (
+        group.type ===
+        "role-section"
+      ) {
+        return `
+          <span
+            class="
+              log-preview__role-section
+              ${
+                group.isFirstRole
+                  ? "is-first-role"
+                  : ""
+              }
+            "
+          >
+            <span
+              class="
+                log-preview__role-divider
+                ${group.categoryClass}
+              "
+            >
+              ${escapeHtml(
+                group.title
+              )}
+            </span>
+          </span>
+        `;
+      }
+
+
+      const contentLines =
+        Array.isArray(
+          group.contentLines
+        ) &&
+        group.contentLines.length
+          ? group.contentLines
+          : ["-"];
+
+
+      const contentHtml =
+        contentLines
+          .map(
+            (
+              line,
+              index
+            ) => {
+              return `${
+                index === 0
+                  ? ""
+                  : "<br>"
+              }${escapeHtml(
+                line
+              )}`;
+            }
+          )
+          .join("");
+
+
       return `
         <span
           class="
-            log-preview__role-section
+            log-preview__group
+            ${group.categoryClass}
             ${
-              group.isFirstRole
-                ? "is-first-role"
-                : ""
+              group.title
+                ? ""
+                : "has-no-title"
             }
           "
         >
+          ${
+            group.title
+              ? `
+                <strong
+                  class="log-preview__title"
+                >
+                  ${escapeHtml(
+                    group.title
+                  )}
+                </strong>
+              `
+              : ""
+          }
+
           <span
+            class="log-preview__content"
+          >
+            ${
+              group.number
+                ? `
+                  <span
+                    class="
+                      log-preview__entry-number
+                      ${group.numberClass || ""}
+                    "
+                  >
+                    ${escapeHtml(
+                      group.number
+                    )}
+                  </span>
+                `
+                : ""
+            }
+
+            ${
+              group.time
+                ? `
+                  <span
+                    class="log-preview__entry-time"
+                  >
+                    ${escapeHtml(
+                      group.time
+                    )}
+                  </span>
+                `
+                : ""
+            }
+
+            ${
+              group.tag
+                ? `
+                  <span
+                    class="log-preview__tag"
+                  >
+                    ${escapeHtml(
+                      group.tag
+                    )}
+                  </span>
+                `
+                : ""
+            }
+
+            <span
+              class="log-preview__text"
+            >
+              ${contentHtml}
+            </span>
+          </span>
+        </span>
+      `;
+    };
+
+
+  const attachmentCount =
+    Array.isArray(
+      log?.attachments
+    )
+      ? log.attachments.length
+      : 0;
+
+
+  return `
+    <tr
+      class="log-row"
+      data-log-id="${escapeHtml(
+        log?.id
+      )}"
+    >
+      <td class="log-row__role">
+        ${escapeHtml(
+          log?.role || "-"
+        )}
+      </td>
+
+      <td
+        class="log-row__author-cell"
+      >
+        <div
+          class="log-row__author-wrap"
+        >
+          <strong
+            class="log-row__author"
+          >
+            ${escapeHtml(
+              log?.author || "-"
+            )}
+          </strong>
+
+          ${
+            log?.isSubstitute ===
+            true
+              ? `
+                <span
+                  class="substitute-work-badge"
+                >
+                  대근
+                </span>
+              `
+              : ""
+          }
+        </div>
+      </td>
+
+      <td
+        class="log-row__status-cell"
+      >
+        <span
+          class="
+            status-badge
+            ${getStatusClass(
+              log?.status
+            )}
+          "
+        >
+          ${escapeHtml(
+            log?.status || "-"
+          )}
+        </span>
+      </td>
+
+      <td
+        class="log-row__preview-cell"
+      >
+        <button
+          type="button"
+          class="log-preview"
+          data-action="view"
+          data-log-id="${escapeHtml(
+            log?.id
+          )}"
+          title="업무일지 상세보기"
+        >
+          ${
+            previewGroups.length
+              ? previewGroups
+                  .map(
+                    renderPreviewGroup
+                  )
+                  .join("")
+              : `
+                <span
+                  class="log-preview__empty"
+                >
+                  등록된 업무 내용이 없습니다.
+                </span>
+              `
+          }
+        </button>
+      </td>
+
+      <td
+        class="log-row__actions-cell"
+      >
+        <div class="row-actions">
+          <button
+            type="button"
+            class="table-action-button"
+            data-action="edit"
+            data-log-id="${escapeHtml(
+              log?.id
+            )}"
+          >
+            ${
+              log?.status ===
+                "작성중" ||
+              log?.status ===
+                "임시저장"
+                ? "이어쓰기"
+                : "수정"
+            }
+          </button>
+
+          <button
+            type="button"
             class="
-              log-preview__role
+              table-action-button
+              is-delete
+            "
+            data-action="delete"
+            data-log-id="${escapeHtml(
+              log?.id
+            )}"
+          >
+            삭제
+          </button>
+        </div>
+      </td>
+
+      <td
+        class="log-row__attachment-cell"
+      >
+        ${
+          attachmentCount > 0
+            ? `
+              <span
+                class="attachment-indicator"
+                title="첨부파일 ${attachmentCount}개"
+                aria-label="첨부파일 ${attachmentCount}개"
+              >
+                📎
+              </span>
+            `
+            : `
+              <span
+                class="
+                  attachment-indicator
+                  is-empty
+                "
+                aria-label="첨부파일 없음"
+              >
+                -
+              </span>
+            `
+        }
+      </td>
+    </tr>
+  `;
+}
+
 /* =========================================================
   업무일지 목록 클릭 처리 최종본
 
