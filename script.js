@@ -220,43 +220,54 @@ function saveCurrentUser(
     FORCED_SUPER_ADMIN_EMPLOYEE_NO;
 
 
+  /*
+    role이 user이고 default_role이 super_admin처럼
+    권한 필드가 여러 개 내려오는 경우에도
+    최고관리자 권한을 우선 적용한다.
+  */
+  const accountRole =
+    isForcedSuperAdmin
+      ? "super_admin"
+      : getShiftLogUserAccountRole(
+          user
+        );
+
+
+  const isSuperAdmin =
+    accountRole ===
+      "super_admin";
+
+
+  const isAdmin =
+    isSuperAdmin ||
+    accountRole ===
+      "admin";
+
+
   const normalizedUser = {
     ...user,
 
     employeeNo,
 
-    /*
-      2014081 계정은 서버에서 user 또는 admin으로 와도
-      브라우저에는 항상 최고관리자로 저장한다.
-    */
     role:
-      isForcedSuperAdmin
-        ? "super_admin"
-        : String(
-            user.role ||
-            user.userRole ||
-            user.user_role ||
-            ""
-          ).trim(),
+      accountRole ||
+      (
+        isForcedSuperAdmin
+          ? "super_admin"
+          : String(
+              user.role ||
+              user.userRole ||
+              user.user_role ||
+              ""
+            ).trim()
+      ),
 
-    isAdmin:
-      isForcedSuperAdmin
-        ? true
-        : Boolean(
-            user.isAdmin ??
-            user.is_admin
-          ),
+    isAdmin,
 
-    isSuperAdmin:
-      isForcedSuperAdmin
-        ? true
-        : Boolean(
-            user.isSuperAdmin ??
-            user.is_super_admin
-          ),
+    isSuperAdmin,
 
     adminLevel:
-      isForcedSuperAdmin
+      isSuperAdmin
         ? 2
         : Number(
             user.adminLevel ??
@@ -1039,13 +1050,9 @@ function isCurrentUserSuperAdmin() {
 
 
   /*
-    boolean 및 관리자 단계 호환
+    기존 저장 자료의 관리자 단계 호환
   */
   if (
-    currentUser.isSuperAdmin ===
-      true ||
-    currentUser.is_super_admin ===
-      true ||
     Number(
       currentUser.adminLevel ??
       currentUser.admin_level ??
@@ -1057,32 +1064,16 @@ function isCurrentUserSuperAdmin() {
   }
 
 
-  const currentRole =
-    String(
-      currentUser.role ||
-      currentUser.userRole ||
-      currentUser.user_role ||
-      currentUser.defaultRole ||
-      currentUser.default_role ||
-      currentUser.permission ||
-      currentUser.authority ||
-      currentUser.accessRole ||
-      ""
-    )
-      .trim()
-      .toLowerCase()
-      .replace(
-        /[\s-]+/g,
-        "_"
-      );
-
-
-  return [
-    "super_admin",
-    "superadmin",
-    "최고관리자"
-  ].includes(
-    currentRole
+  /*
+    role이 user로 먼저 들어와 있어도
+    default_role, permission 등 다른 권한 필드에
+    최고관리자가 있으면 최고관리자로 판정한다.
+  */
+  return (
+    getShiftLogUserAccountRole(
+      currentUser
+    ) ===
+      "super_admin"
   );
 }
 
@@ -25591,10 +25582,22 @@ function collectLogEntriesForDisplay(log) {
 function createLogRowHtml(log) {
   const previewGroups = [];
 
+
+  /*
+    실제 수정 권한이 있는 계정에만
+    수정·삭제 버튼을 표시한다.
+  */
+  const canEditLog =
+    canCurrentUserEditShiftLog(
+      log
+    );
+
+
   const normalizedLogRole =
     normalizeMemberLogRole(
       log?.role || ""
     );
+
 
   const isLeaderLog =
     normalizedLogRole ===
@@ -25700,9 +25703,6 @@ function createLogRowHtml(log) {
 
   /* =====================================================
     1. 파트장 운전현황
-
-    상세보기와 동일한 운전현황 분석 함수를 사용하고
-    정상운전·기동·정지·보존·비상 상태를 표시한다.
   ====================================================== */
 
   if (
@@ -25767,9 +25767,6 @@ function createLogRowHtml(log) {
   }
 
 
-  /*
-    상세보기와 동일한 최종 업무 항목 사용
-  */
   const entries =
     collectLogEntriesForDisplay(
       log
@@ -25942,10 +25939,6 @@ function createLogRowHtml(log) {
         );
 
 
-      /*
-        파트장 목록에서만
-        TGO·BCO1·BCO2 업무일지 제목 표시
-      */
       if (
         isLeaderLog &&
         roleEntries.length
@@ -26347,37 +26340,50 @@ function createLogRowHtml(log) {
         <div
           class="row-actions"
         >
-          <button
-            type="button"
-            class="table-action-button"
-            data-action="edit"
-            data-log-id="${escapeHtml(
-              log?.id
-            )}"
-          >
-            ${
-              log?.status ===
-                "작성중" ||
-              log?.status ===
-                "임시저장"
-                ? "이어쓰기"
-                : "수정"
-            }
-          </button>
+          ${
+            canEditLog
+              ? `
+                <button
+                  type="button"
+                  class="table-action-button"
+                  data-action="edit"
+                  data-log-id="${escapeHtml(
+                    log?.id
+                  )}"
+                >
+                  ${
+                    log?.status ===
+                      "작성중" ||
+                    log?.status ===
+                      "임시저장"
+                      ? "이어쓰기"
+                      : "수정"
+                  }
+                </button>
 
-          <button
-            type="button"
-            class="
-              table-action-button
-              is-delete
-            "
-            data-action="delete"
-            data-log-id="${escapeHtml(
-              log?.id
-            )}"
-          >
-            삭제
-          </button>
+                <button
+                  type="button"
+                  class="
+                    table-action-button
+                    is-delete
+                  "
+                  data-action="delete"
+                  data-log-id="${escapeHtml(
+                    log?.id
+                  )}"
+                >
+                  삭제
+                </button>
+              `
+              : `
+                <span
+                  class="row-actions__empty"
+                  aria-label="수정 권한 없음"
+                >
+                  -
+                </span>
+              `
+          }
         </div>
       </td>
 
