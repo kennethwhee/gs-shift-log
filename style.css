@@ -21196,3 +21196,21 @@ td {
 
   text-align: left !important;
 }
+
+/* =========================================================
+  파트장 업무일지 미리보기
+  운전현황 상태 배지
+========================================================= */
+
+#logTableBody
+.log-preview__operation-badge {
+  flex: 0 0 auto !important;
+  align-self: center !important;
+
+  min-width: 54px !important;
+  height: 22px !important;
+
+  margin: 0 7px 0 0 !important;
+
+  white-space: nowrap !important;
+}

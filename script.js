@@ -25437,11 +25437,13 @@ function createLogRowHtml(log) {
     );
 
   const isLeaderLog =
-    normalizedLogRole === "파트장";
+    normalizedLogRole ===
+    "파트장";
 
 
   /*
-    상세보기처럼 첫 줄과 하위 줄을 모두 유지한다.
+    여러 줄로 저장된 업무 내용을
+    상세보기처럼 모두 유지한다.
   */
   const getContentLines = (
     content
@@ -25475,6 +25477,9 @@ function createLogRowHtml(log) {
   };
 
 
+  /*
+    목록 미리보기 항목 추가
+  */
   const pushEntryGroup = ({
     title = "",
     entry = {},
@@ -25483,7 +25488,9 @@ function createLogRowHtml(log) {
       "is-handover-number",
     categoryClass = "",
     showTime = true,
-    showTag = true
+    showTag = true,
+    operationStatusType = "",
+    operationStatusLabel = ""
   }) => {
     const tagText =
       String(
@@ -25494,7 +25501,8 @@ function createLogRowHtml(log) {
 
 
     previewGroups.push({
-      type: "normal",
+      type:
+        "normal",
 
       title,
 
@@ -25510,16 +25518,20 @@ function createLogRowHtml(log) {
             ).trim()
           : "",
 
+      contentLines:
+        getContentLines(
+          entry?.content
+        ),
+
       tag:
         showTag &&
         tagText
           ? `[${tagText}]`
           : "",
 
-      contentLines:
-        getContentLines(
-          entry?.content
-        ),
+      operationStatusType,
+
+      operationStatusLabel,
 
       categoryClass
     });
@@ -25529,18 +25541,30 @@ function createLogRowHtml(log) {
   /* =====================================================
     1. 파트장 운전현황
 
-    상세보기와 같은 파서를 사용하므로
-    저장 원문의 번호가 중복되지 않는다.
+    상세보기와 동일한 운전현황 분석 함수를 사용하고
+    정상운전·기동·정지·보존·비상 상태를 표시한다.
   ====================================================== */
 
-  if (isLeaderLog) {
-    parseOperationStatusRowsForDisplay(
-      log
-    ).forEach(
+  if (
+    isLeaderLog
+  ) {
+    const operationStatusRows =
+      parseOperationStatusRowsForDisplay(
+        log
+      );
+
+
+    operationStatusRows.forEach(
       (
         statusRow,
         index
       ) => {
+        const operationStatusType =
+          normalizeOperationStatusType(
+            statusRow?.type
+          );
+
+
         pushEntryGroup({
           title:
             index === 0
@@ -25555,9 +25579,18 @@ function createLogRowHtml(log) {
 
           index,
 
-          showTime: false,
+          showTime:
+            false,
 
-          showTag: false,
+          showTag:
+            false,
+
+          operationStatusType,
+
+          operationStatusLabel:
+            getOperationStatusDisplayLabel(
+              operationStatusType
+            ),
 
           categoryClass: [
             "is-operation",
@@ -25575,7 +25608,7 @@ function createLogRowHtml(log) {
 
 
   /*
-    상세보기와 동일한 최종 항목만 사용한다.
+    상세보기와 동일한 최종 업무 항목 사용
   */
   const entries =
     collectLogEntriesForDisplay(
@@ -25635,10 +25668,7 @@ function createLogRowHtml(log) {
 
 
   /* =====================================================
-    3. 인계사항 및 보직별 업무
-
-    확정된 importedFromRole을 그대로 사용한다.
-    미리보기에서 출처 보직을 다시 판정하지 않는다.
+    3. 인계사항 및 보직별 업무일지
   ====================================================== */
 
   const handoverEntries =
@@ -25679,8 +25709,7 @@ function createLogRowHtml(log) {
       const sourceRole =
         isLeaderLog
           ? normalizeMemberLogRole(
-              entry
-                ?.importedFromRole ||
+              entry?.importedFromRole ||
               "파트장"
             )
           : normalizedLogRole;
@@ -25753,6 +25782,10 @@ function createLogRowHtml(log) {
         );
 
 
+      /*
+        파트장 목록에서만
+        TGO·BCO1·BCO2 업무일지 제목 표시
+      */
       if (
         isLeaderLog &&
         roleEntries.length
@@ -25850,9 +25883,11 @@ function createLogRowHtml(log) {
 
         index,
 
-        showTime: false,
+        showTime:
+          false,
 
-        showTag: false,
+        showTag:
+          false,
 
         categoryClass: [
           "is-note",
@@ -25868,153 +25903,179 @@ function createLogRowHtml(log) {
   );
 
 
-const renderPreviewGroup = group => {
-  if (
-    group.type ===
-    "role-section"
-  ) {
+  /* =====================================================
+    미리보기 항목 HTML 생성
+  ====================================================== */
+
+  const renderPreviewGroup = (
+    group
+  ) => {
+    if (
+      group.type ===
+      "role-section"
+    ) {
+      return `
+        <span
+          class="
+            log-preview__role-section
+            ${
+              group.isFirstRole
+                ? "is-first-role"
+                : ""
+            }
+          "
+        >
+          <span
+            class="
+              log-preview__role-divider
+              ${group.categoryClass}
+            "
+          >
+            ${escapeHtml(
+              group.title
+            )}
+          </span>
+        </span>
+      `;
+    }
+
+
+    const contentLines =
+      Array.isArray(
+        group.contentLines
+      ) &&
+      group.contentLines.length
+        ? group.contentLines
+        : ["-"];
+
+
+    const contentHtml =
+      contentLines
+        .map(
+          (
+            line,
+            index
+          ) => {
+            return `${
+              index === 0
+                ? ""
+                : "<br>"
+            }${escapeHtml(
+              line
+            )}`;
+          }
+        )
+        .join("");
+
+
     return `
       <span
         class="
-          log-preview__role-section
+          log-preview__group
+          ${group.categoryClass}
           ${
-            group.isFirstRole
-              ? "is-first-role"
-              : ""
+            group.title
+              ? ""
+              : "has-no-title"
           }
         "
       >
-        <span
-          class="
-            log-preview__role-divider
-            ${group.categoryClass}
-          "
-        >
-          ${escapeHtml(
-            group.title
-          )}
-        </span>
-      </span>
-    `;
-  }
-
-
-  const contentLines =
-    Array.isArray(
-      group.contentLines
-    ) &&
-    group.contentLines.length
-      ? group.contentLines
-      : [
-          "-"
-        ];
-
-
-  const contentHtml =
-    contentLines
-      .map(
-        (
-          line,
-          index
-        ) => {
-          return `${
-            index === 0
-              ? ""
-              : "<br>"
-          }${escapeHtml(
-            line
-          )}`;
-        }
-      )
-      .join("");
-
-
-  return `
-    <span
-      class="
-        log-preview__group
-        ${group.categoryClass}
         ${
           group.title
-            ? ""
-            : "has-no-title"
-        }
-      "
-    >
-      ${
-        group.title
-          ? `
-            <strong
-              class="log-preview__title"
-            >
-              ${escapeHtml(
-                group.title
-              )}
-            </strong>
-          `
-          : ""
-      }
-
-
-      <span
-        class="log-preview__content"
-      >
-        ${
-          group.number
             ? `
-              <span
-                class="
-                  log-preview__entry-number
-                  ${group.numberClass || ""}
-                "
+              <strong
+                class="log-preview__title"
               >
                 ${escapeHtml(
-                  group.number
+                  group.title
                 )}
-              </span>
-            `
-            : ""
-        }
-
-
-        ${
-          group.time
-            ? `
-              <span
-                class="log-preview__entry-time"
-              >
-                ${escapeHtml(
-                  group.time
-                )}
-              </span>
+              </strong>
             `
             : ""
         }
 
 
         <span
-          class="log-preview__text"
+          class="log-preview__content"
         >
-          ${contentHtml}
-
           ${
-            group.tag
+            group.number
               ? `
                 <span
-                  class="log-preview__tag"
+                  class="
+                    log-preview__entry-number
+                    ${group.numberClass || ""}
+                  "
                 >
                   ${escapeHtml(
-                    group.tag
+                    group.number
                   )}
                 </span>
               `
               : ""
           }
+
+
+          ${
+            group.time
+              ? `
+                <span
+                  class="log-preview__entry-time"
+                >
+                  ${escapeHtml(
+                    group.time
+                  )}
+                </span>
+              `
+              : ""
+          }
+
+
+          ${
+            group.operationStatusLabel
+              ? `
+                <span
+                  class="
+                    detail-operation-dashboard__badge
+                    log-preview__operation-badge
+                    is-${escapeHtml(
+                      group.operationStatusType ||
+                      "normal"
+                    )}
+                  "
+                >
+                  ${escapeHtml(
+                    group.operationStatusLabel
+                  )}
+                </span>
+              `
+              : ""
+          }
+
+
+          <span
+            class="log-preview__text"
+          >
+            ${contentHtml}
+
+            ${
+              group.tag
+                ? `
+                  <span
+                    class="log-preview__tag"
+                  >
+                    ${escapeHtml(
+                      group.tag
+                    )}
+                  </span>
+                `
+                : ""
+            }
+          </span>
         </span>
       </span>
-    </span>
-  `;
-};
+    `;
+  };
 
 
   const attachmentCount =
@@ -26032,11 +26093,14 @@ const renderPreviewGroup = group => {
         log?.id
       )}"
     >
-      <td class="log-row__role">
+      <td
+        class="log-row__role"
+      >
         ${escapeHtml(
           log?.role || "-"
         )}
       </td>
+
 
       <td
         class="log-row__author-cell"
@@ -26067,6 +26131,7 @@ const renderPreviewGroup = group => {
         </div>
       </td>
 
+
       <td
         class="log-row__status-cell"
       >
@@ -26083,6 +26148,7 @@ const renderPreviewGroup = group => {
           )}
         </span>
       </td>
+
 
       <td
         class="log-row__preview-cell"
@@ -26114,10 +26180,13 @@ const renderPreviewGroup = group => {
         </button>
       </td>
 
+
       <td
         class="log-row__actions-cell"
       >
-        <div class="row-actions">
+        <div
+          class="row-actions"
+        >
           <button
             type="button"
             class="table-action-button"
@@ -26151,6 +26220,7 @@ const renderPreviewGroup = group => {
           </button>
         </div>
       </td>
+
 
       <td
         class="log-row__attachment-cell"
