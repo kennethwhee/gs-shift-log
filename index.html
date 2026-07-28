@@ -788,121 +788,98 @@
           </form>
 
 
+<div class="search-result-header">
+  <strong>
+    조회 결과
+    <span id="searchResultCount">0</span>건
+  </strong>
+</div>
+
 <!-- =====================================================
-  업무일지 조회 결과 시작
+  업무일지 조회 결과
 
   열 순서:
   일자 | 근무 | 보직 | 작성자 | 업무 내용 | 보기 | 첨부
 ====================================================== -->
 
-<section
-  class="shift-search-results"
-  aria-labelledby="shiftSearchResultsTitle"
+<div class="log-table-wrap search-log-table-wrap">
+
+  <table class="log-table search-result-table">
+
+    <thead>
+      <tr>
+
+        <th
+          scope="col"
+          class="search-result-table__date"
+        >
+          일자
+        </th>
+
+        <th
+          scope="col"
+          class="search-result-table__shift"
+        >
+          근무
+        </th>
+
+        <th
+          scope="col"
+          class="search-result-table__role"
+        >
+          보직
+        </th>
+
+        <th
+          scope="col"
+          class="search-result-table__author"
+        >
+          작성자
+        </th>
+
+        <th
+          scope="col"
+          class="search-result-table__content"
+        >
+          업무 내용
+        </th>
+
+        <th
+          scope="col"
+          class="search-result-table__view"
+        >
+          보기
+        </th>
+
+        <th
+          scope="col"
+          class="search-result-table__attachment"
+        >
+          첨부
+        </th>
+
+      </tr>
+    </thead>
+
+    <tbody id="searchResultBody">
+    </tbody>
+
+  </table>
+
+</div>
+
+<div
+  class="empty-state"
+  id="searchEmptyState"
 >
-  <header class="shift-search-results__header">
-    <h2
-      class="shift-search-results__title"
-      id="shiftSearchResultsTitle"
-    >
-      조회 결과
+  <strong>
+    조회 조건을 선택해 주세요.
+  </strong>
 
-      <span class="shift-search-results__count">
-        <span id="searchResultCount">0</span>건
-      </span>
-    </h2>
-  </header>
-
-  <div class="shift-search-results__scroll">
-    <table
-      class="shift-search-table"
-      aria-label="업무일지 조회 결과"
-    >
-      <colgroup>
-        <col class="shift-search-table__col--date" />
-        <col class="shift-search-table__col--shift" />
-        <col class="shift-search-table__col--role" />
-        <col class="shift-search-table__col--author" />
-        <col class="shift-search-table__col--content" />
-        <col class="shift-search-table__col--view" />
-        <col class="shift-search-table__col--attachment" />
-      </colgroup>
-
-      <thead class="shift-search-table__head">
-        <tr>
-          <th
-            scope="col"
-            class="shift-search-table__heading shift-search-table__heading--date"
-          >
-            일자
-          </th>
-
-          <th
-            scope="col"
-            class="shift-search-table__heading shift-search-table__heading--shift"
-          >
-            근무
-          </th>
-
-          <th
-            scope="col"
-            class="shift-search-table__heading shift-search-table__heading--role"
-          >
-            보직
-          </th>
-
-          <th
-            scope="col"
-            class="shift-search-table__heading shift-search-table__heading--author"
-          >
-            작성자
-          </th>
-
-          <th
-            scope="col"
-            class="shift-search-table__heading shift-search-table__heading--content"
-          >
-            업무 내용
-          </th>
-
-          <th
-            scope="col"
-            class="shift-search-table__heading shift-search-table__heading--view"
-          >
-            보기
-          </th>
-
-          <th
-            scope="col"
-            class="shift-search-table__heading shift-search-table__heading--attachment"
-          >
-            첨부
-          </th>
-        </tr>
-      </thead>
-
-      <tbody
-        class="shift-search-table__body"
-        id="searchResultBody"
-      >
-      </tbody>
-    </table>
-  </div>
-
-  <div
-    class="empty-state shift-search-results__empty"
-    id="searchEmptyState"
-  >
-    <strong>조회 조건을 선택해 주세요.</strong>
-
-    <p>
-      기간, TAG 또는 업무 내용을 기준으로 검색할 수 있습니다.
-    </p>
-  </div>
-</section>
-
-<!-- =====================================================
-  업무일지 조회 결과 끝
-====================================================== -->
+  <p>
+    기간, TAG 또는 업무 내용을 기준으로 검색할 수 있습니다.
+  </p>
+</div>
 
   <!-- =========================================================
     업무일지 작성 모달

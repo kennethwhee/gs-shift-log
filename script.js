@@ -32363,27 +32363,49 @@ function doesLogMatchSearchCategory(
   7. 파트장 일지는 보직별로 분리
 ========================================================= */
 
-function createSearchLogPreviewHtml(log) {
-  const logRole = normalizeMemberLogRole(
-    log?.role || ""
-  );
+function createSearchLogPreviewHtml(
+  log
+) {
+  const normalizedLogRole =
+    normalizeMemberLogRole(
+      log?.role || ""
+    );
 
   const isLeaderLog =
-    logRole === "파트장";
+    normalizedLogRole === "파트장";
 
-  const stripDuplicateTag = (
+  const operationStatus =
+    String(
+      log?.operationStatus || ""
+    ).trim();
+
+  const entries =
+    Array.isArray(log?.entries)
+      ? log.entries
+      : [];
+
+  const note =
+    String(
+      log?.note || ""
+    ).trim();
+
+  const tmEntries = [];
+  const ordinaryEntries = [];
+
+  /*
+    내용 앞에 중복으로 들어간 TAG 제거
+  */
+  const removeLeadingDuplicateTag = (
     content,
     tag
   ) => {
-    const normalizedTag = String(
-      tag || ""
-    )
-      .trim()
-      .toUpperCase();
+    const normalizedContent =
+      String(content || "").trim();
 
-    const normalizedContent = String(
-      content || ""
-    ).trim();
+    const normalizedTag =
+      String(tag || "")
+        .trim()
+        .toUpperCase();
 
     if (
       !normalizedContent ||
@@ -32409,408 +32431,460 @@ function createSearchLogPreviewHtml(log) {
       .trim();
   };
 
-  const separatedEntries = [
-    ...(
-      Array.isArray(log?.tmEntries)
-        ? log.tmEntries.map(
-            (entry) => ({
-              ...entry,
-              category: "TM 발행"
-            })
-          )
-        : []
-    ),
-
-    ...(
-      Array.isArray(
-        log?.handoverEntries
-      )
-        ? log.handoverEntries
-        : []
-    ),
-
-    ...(
-      Array.isArray(
-        log?.remarkEntries
-      )
-        ? log.remarkEntries.map(
-            (entry) => ({
-              ...entry,
-              category: "비고",
-              time: "",
-              tag: ""
-            })
-          )
-        : []
-    )
-  ];
-
-  const fallbackEntries =
-    separatedEntries.length
-      ? separatedEntries
-      : (
-          Array.isArray(log?.entries)
-            ? log.entries
-            : []
+  /*
+    업무일지 항목 분류
+  */
+  entries.forEach(
+    (entry, originalIndex) => {
+      const categoryValue =
+        getSearchEntryCategoryValue(
+          entry
         );
 
-  const collectedEntries =
-    typeof collectLogEntriesForDisplay ===
-    "function"
-      ? collectLogEntriesForDisplay(log)
-      : [];
+      if (!categoryValue) {
+        return;
+      }
 
-  const sourceEntries =
-    collectedEntries.length
-      ? collectedEntries
-      : fallbackEntries;
+      const normalizedTag =
+        String(entry?.tag || "")
+          .trim()
+          .toUpperCase();
 
-  const getPreviewCategory = (
-    entry
-  ) => {
-    const category = String(
-      entry?.category || ""
-    )
-      .trim()
-      .toUpperCase()
-      .replace(/\s+/g, "");
+      const normalizedContent =
+        removeLeadingDuplicateTag(
+          entry?.content,
+          normalizedTag
+        );
 
-    if (
-      category.startsWith("TM")
-    ) {
-      return "tm";
-    }
-
-    if (
-      category.includes("비고")
-    ) {
-      return "note";
-    }
-
-    return "handover";
-  };
-
-  const entries = sourceEntries
-    .map((entry) => {
-      const tag = String(
-        entry?.tag || ""
-      )
-        .trim()
-        .toUpperCase();
-
-      return {
-        category:
-          getPreviewCategory(entry),
+      const normalizedEntry = {
+        originalIndex,
 
         time:
           String(
             entry?.time || ""
           ).trim(),
 
-        tag,
+        tag:
+          normalizedTag,
 
         content:
-          firstMeaningfulLine(
-            stripDuplicateTag(
-              entry?.content,
-              tag
-            )
-          ),
+          normalizedContent,
 
-        sourceRole:
+        importedFromRole:
           normalizeMemberLogRole(
             entry?.importedFromRole ||
-            entry?.role ||
-            logRole ||
             ""
           )
       };
-    })
-    .filter((entry) => {
-      return Boolean(
-        entry.category &&
-        (
-          entry.content ||
-          entry.tag
-        )
-      );
-    });
 
-  const tmEntries =
-    entries.filter(
-      (entry) => {
-        return (
-          entry.category === "tm"
+      if (
+        !normalizedEntry.content &&
+        !normalizedEntry.tag
+      ) {
+        return;
+      }
+
+      if (categoryValue === "tm") {
+        tmEntries.push(
+          normalizedEntry
+        );
+
+        return;
+      }
+
+      if (
+        categoryValue === "handover" ||
+        categoryValue === "bm" ||
+        categoryValue === "cm"
+      ) {
+        ordinaryEntries.push(
+          normalizedEntry
         );
       }
-    );
-
-  const handoverEntries =
-    entries.filter(
-      (entry) => {
-        return (
-          entry.category !== "tm" &&
-          entry.category !== "note"
-        );
-      }
-    );
-
-  const remarkEntries =
-    entries.filter(
-      (entry) => {
-        return (
-          entry.category === "note"
-        );
-      }
-    );
-
-  if (
-    !remarkEntries.length &&
-    String(log?.note || "").trim()
-  ) {
-    remarkEntries.push({
-      category: "note",
-      time: "",
-      tag: "",
-      content:
-        firstMeaningfulLine(
-          log.note
-        ),
-      sourceRole: logRole
-    });
-  }
-
-  const createTagHtml = (
-    tag
-  ) => {
-    if (!tag) {
-      return "";
     }
+  );
+
+  /*
+    업무일지 항목 한 줄 생성
+
+    번호 → 시간 → 내용 → TAG
+  */
+  const createSearchEntryHtml = (
+    entry,
+    displayNumber,
+    type
+  ) => {
+    const numberClass =
+      type === "tm"
+        ? "is-tm"
+        : "is-handover";
+
+    const timeHtml =
+      entry.time
+        ? `
+            <strong class="search-preview-entry__time">
+              ${escapeHtml(entry.time)}
+            </strong>
+          `
+        : "";
+
+    const contentHtml = `
+      <span class="search-preview-entry__text">
+        ${escapeHtml(
+          entry.content || "-"
+        )}
+      </span>
+    `;
+
+    const tagHtml =
+      entry.tag
+        ? `
+            <span
+              class="search-preview-entry__tag"
+              data-search-preview-tag="${escapeHtml(
+                entry.tag
+              )}"
+              role="button"
+              tabindex="0"
+              title="Facility Navigator에서 설비 보기"
+            >[${escapeHtml(entry.tag)}]</span>
+          `
+        : "";
 
     return `
       <span
-        class="shift-search-preview__tag"
-        data-search-preview-tag="${escapeHtml(
-          tag
-        )}"
-        role="button"
-        tabindex="0"
-        title="Facility Navigator에서 설비 보기"
-      >[${escapeHtml(tag)}]</span>
+        class="
+          search-preview-entry
+          ${numberClass}
+        "
+      >
+        <strong class="search-preview-entry__number">
+          ${displayNumber}.
+        </strong>
+
+        <span class="search-preview-entry__body">
+          ${timeHtml}
+          ${contentHtml}
+          ${tagHtml}
+        </span>
+      </span>
     `;
   };
 
-  const createEntryLineHtml = (
-    entry,
-    remainingCount
-  ) => {
-    return `
-      <span class="shift-search-preview__line">
-        <strong class="shift-search-preview__number">
-          1.
-        </strong>
+  /*
+    파트장 업무일지의 일반 항목을
+    가져온 보직별로 분류
+  */
+  const roleOrder = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2",
+    "파트장"
+  ];
 
-        ${
-          entry.time
-            ? `
-                <strong class="shift-search-preview__time">
-                  ${escapeHtml(
-                    entry.time
-                  )}
-                </strong>
-              `
-            : ""
-        }
+  const groupedOrdinaryEntries = {};
 
-        <span class="shift-search-preview__text">
-          ${escapeHtml(
-            entry.content || "-"
-          )}
-        </span>
+  ordinaryEntries.forEach(
+    (entry) => {
+      const sourceRole =
+        entry.importedFromRole ||
+        normalizedLogRole ||
+        "파트장";
 
-        ${createTagHtml(entry.tag)}
+      if (
+        !groupedOrdinaryEntries[
+          sourceRole
+        ]
+      ) {
+        groupedOrdinaryEntries[
+          sourceRole
+        ] = [];
+      }
 
-        ${
-          remainingCount > 0
-            ? `
-                <span class="shift-search-preview__more">
-                  외 ${remainingCount}건
-                </span>
-              `
-            : ""
-        }
-      </span>
-    `;
+      groupedOrdinaryEntries[
+        sourceRole
+      ].push(entry);
+    }
+  );
+
+  const orderedRoles = [
+    ...roleOrder.filter(
+      (role) => {
+        return Boolean(
+          groupedOrdinaryEntries[
+            role
+          ]?.length
+        );
+      }
+    ),
+
+    ...Object.keys(
+      groupedOrdinaryEntries
+    ).filter(
+      (role) => {
+        return !roleOrder.includes(
+          role
+        );
+      }
+    )
+  ];
+
+  const roleClassMap = {
+    TGO: "is-tgo",
+    BCO1: "is-bco1",
+    BCO2: "is-bco2",
+    TO: "is-to",
+    BO1: "is-bo1",
+    BO2: "is-bo2",
+    파트장: "is-leader"
   };
 
   const sections = [];
 
-  const operationRows =
+  /*
+    파트장 운전현황 미리보기
+  */
+  if (
     isLeaderLog &&
-    typeof parseOperationStatusRowsForDisplay ===
-      "function"
-      ? parseOperationStatusRowsForDisplay(
-          log
-        )
-      : [];
-
-  if (operationRows.length) {
-    const firstOperation =
-      operationRows[0];
-
-    const statusType =
-      normalizeOperationStatusType(
-        firstOperation.type
+    operationStatus
+  ) {
+    const operationStatusRows =
+      parseOperationStatusRowsForDisplay(
+        log
       );
 
-    sections.push(`
-      <span
-        class="
-          shift-search-preview__section
-          shift-search-preview__section--operation
-        "
-      >
-        <strong class="shift-search-preview__label">
-          운전현황
-        </strong>
-
-        <span class="shift-search-preview__line">
-          <strong class="shift-search-preview__role">
-            ${escapeHtml(
-              firstOperation.role || "-"
-            )}
+    if (operationStatusRows.length) {
+      sections.push(`
+        <span
+          class="
+            search-preview-section
+            is-operation
+            is-operation-dashboard
+          "
+        >
+          <strong class="search-preview-section__title">
+            운전현황
           </strong>
 
-          <span
-            class="
-              shift-search-preview__status
-              is-${escapeHtml(statusType)}
-            "
-          >
-            ${escapeHtml(
-              getOperationStatusDisplayLabel(
-                statusType
-              )
-            )}
-          </span>
+          <span class="search-preview-operation-list">
+            ${operationStatusRows
+              .map(
+                (statusRow) => {
+                  const statusType =
+                    normalizeOperationStatusType(
+                      statusRow.type
+                    );
 
-          <span class="shift-search-preview__text">
-            ${escapeHtml(
-              firstMeaningfulLine(
-                firstOperation.content ||
-                "등록된 운전현황이 없습니다."
-              )
-            )}
-          </span>
+                  return `
+                    <span
+                      class="
+                        search-preview-operation-row
+                        is-${escapeHtml(
+                          statusType
+                        )}
+                      "
+                    >
+                      <strong class="search-preview-operation-role">
+                        ${escapeHtml(
+                          statusRow.role || "-"
+                        )}
+                      </strong>
 
-          ${
-            operationRows.length > 1
-              ? `
-                  <span class="shift-search-preview__more">
-                    외 ${operationRows.length - 1}줄
-                  </span>
-                `
-              : ""
-          }
+                      <span
+                        class="
+                          search-preview-operation-badge
+                          is-${escapeHtml(
+                            statusType
+                          )}
+                        "
+                      >
+                        ${escapeHtml(
+                          getOperationStatusDisplayLabel(
+                            statusType
+                          )
+                        )}
+                      </span>
+
+                      <span
+                        class="search-preview-operation-divider"
+                        aria-hidden="true"
+                      >
+                        |
+                      </span>
+
+                      <span class="search-preview-operation-content">
+                        ${escapeHtml(
+                          statusRow.content ||
+                          "등록된 운전현황이 없습니다."
+                        )}
+                      </span>
+                    </span>
+                  `;
+                }
+              )
+              .join("")}
+          </span>
         </span>
-      </span>
-    `);
+      `);
+    }
   }
 
+  /*
+    TM 발행 내역
+  */
   if (tmEntries.length) {
     sections.push(`
       <span
         class="
-          shift-search-preview__section
-          shift-search-preview__section--tm
+          search-preview-section
+          is-tm
         "
       >
-        <strong class="shift-search-preview__label">
-          TM 발행내역
+        <strong class="search-preview-section__title">
+          TM 발행 내역
         </strong>
 
-        ${createEntryLineHtml(
-          tmEntries[0],
-          tmEntries.length - 1
-        )}
+        <span class="search-preview-section__content">
+          ${tmEntries
+            .map(
+              (entry, index) => {
+                return createSearchEntryHtml(
+                  entry,
+                  index + 1,
+                  "tm"
+                );
+              }
+            )
+            .join("")}
+        </span>
       </span>
     `);
   }
 
-  if (handoverEntries.length) {
-    const firstEntry =
-      handoverEntries[0];
+  /*
+    일반 업무 및 인계사항
+  */
+  if (ordinaryEntries.length) {
+    if (isLeaderLog) {
+      orderedRoles.forEach(
+        (role) => {
+          const roleEntries =
+            groupedOrdinaryEntries[
+              role
+            ] || [];
 
-    const label =
-      isLeaderLog &&
-      firstEntry.sourceRole
-        ? `${firstEntry.sourceRole} 업무일지`
-        : "인계사항";
+          const roleClass =
+            roleClassMap[role] ||
+            "is-default";
 
-    sections.push(`
-      <span
-        class="
-          shift-search-preview__section
-          shift-search-preview__section--handover
-        "
-      >
-        <strong class="shift-search-preview__label">
-          ${escapeHtml(label)}
-        </strong>
+          sections.push(`
+            <span
+              class="
+                search-preview-role-section
+                ${roleClass}
+              "
+            >
+              <strong
+                class="
+                  search-preview-role-title
+                  ${roleClass}
+                "
+              >
+                ${escapeHtml(role)} 업무일지
+              </strong>
 
-        ${createEntryLineHtml(
-          firstEntry,
-          handoverEntries.length - 1
-        )}
-      </span>
-    `);
+              <span class="search-preview-role-content">
+                ${roleEntries
+                  .map(
+                    (entry, index) => {
+                      return createSearchEntryHtml(
+                        entry,
+                        index + 1,
+                        "handover"
+                      );
+                    }
+                  )
+                  .join("")}
+              </span>
+            </span>
+          `);
+        }
+      );
+    } else {
+      sections.push(`
+        <span
+          class="
+            search-preview-section
+            is-handover
+          "
+        >
+          <strong class="search-preview-section__title">
+            인계 사항
+          </strong>
+
+          <span class="search-preview-section__content">
+            ${ordinaryEntries
+              .map(
+                (entry, index) => {
+                  return createSearchEntryHtml(
+                    entry,
+                    index + 1,
+                    "handover"
+                  );
+                }
+              )
+              .join("")}
+          </span>
+        </span>
+      `);
+    }
   }
 
-  if (remarkEntries.length) {
+  /*
+    비고
+  */
+  if (note) {
     sections.push(`
       <span
         class="
-          shift-search-preview__section
-          shift-search-preview__section--remark
+          search-preview-section
+          is-note
         "
       >
-        <strong class="shift-search-preview__label">
+        <strong class="search-preview-section__title">
           비고
         </strong>
 
-        <span class="shift-search-preview__line">
-          <span class="shift-search-preview__text">
+        <span class="search-preview-section__content">
+          <span class="search-preview-note">
             ${escapeHtml(
-              remarkEntries[0].content ||
-              "-"
+              firstMeaningfulLine(note)
             )}
           </span>
-
-          ${
-            remarkEntries.length > 1
-              ? `
-                  <span class="shift-search-preview__more">
-                    외 ${remarkEntries.length - 1}건
-                  </span>
-                `
-              : ""
-          }
         </span>
       </span>
     `);
   }
 
-  return sections.length
-    ? `
-        <span class="shift-search-preview__document">
-          ${sections.join("")}
-        </span>
-      `
-    : `
-        <span class="shift-search-preview__empty">
-          등록된 업무 내용이 없습니다.
-        </span>
-      `;
+  /*
+    표시할 업무 내용이 없는 경우
+  */
+  if (!sections.length) {
+    return `
+      <span class="search-preview-empty">
+        등록된 업무 내용이 없습니다.
+      </span>
+    `;
+  }
+
+  return `
+    <span class="search-preview-document">
+      ${sections.join("")}
+    </span>
+  `;
 }
 
 /* =========================================================
@@ -33426,9 +33500,7 @@ async function runSearch() {
   - 과거 업무일지도 수정 권한과 관계없이 상세보기 가능
 ========================================================= */
 
-function renderSearchResults(
-  results
-) {
+function renderSearchResults(results) {
   if (
     !elements.searchResultBody ||
     !elements.searchResultCount ||
@@ -33437,45 +33509,34 @@ function renderSearchResults(
     return;
   }
 
-  const safeResults =
-    Array.isArray(results)
-      ? results.filter(
-          (log) => {
-            return Boolean(
-              log &&
-              log.id
-            );
-          }
-        )
-      : [];
+  const safeResults = Array.isArray(results)
+    ? results.filter((log) => Boolean(log && log.id))
+    : [];
 
-  currentSearchResultLogs = [
-    ...safeResults
-  ];
+  /*
+    조회로 불러온 과거 업무일지는
+    appState.logs에 없을 수 있으므로 별도로 보관
+  */
+  currentSearchResultLogs = [...safeResults];
 
-  elements.searchResultBody.innerHTML =
-    "";
-
-  elements.searchResultCount.textContent =
-    String(
-      safeResults.length
-    );
+  elements.searchResultBody.innerHTML = "";
+  elements.searchResultCount.textContent = String(
+    safeResults.length
+  );
 
   elements.searchEmptyState.hidden =
     safeResults.length > 0;
 
   if (!safeResults.length) {
     const emptyTitle =
-      elements.searchEmptyState
-        .querySelector(
-          "strong"
-        );
+      elements.searchEmptyState.querySelector(
+        "strong"
+      );
 
     const emptyDescription =
-      elements.searchEmptyState
-        .querySelector(
-          "p"
-        );
+      elements.searchEmptyState.querySelector(
+        "p"
+      );
 
     if (emptyTitle) {
       emptyTitle.textContent =
@@ -33490,50 +33551,45 @@ function renderSearchResults(
     return;
   }
 
-  const findSearchLogById = (
-    logId
-  ) => {
-    const id = String(
+  /*
+    조회 결과 또는 현재 화면 자료에서
+    업무일지 1건 찾기
+  */
+  const findSearchLogById = (logId) => {
+    const normalizedLogId = String(
       logId || ""
     ).trim();
 
-    if (!id) {
+    if (!normalizedLogId) {
       return null;
     }
 
     return (
-      currentSearchResultLogs.find(
-        (item) => {
-          return (
-            String(
-              item?.id || ""
-            ).trim() === id
-          );
-        }
-      ) ||
-
-      appState.logs.find(
-        (item) => {
-          return (
-            String(
-              item?.id || ""
-            ).trim() === id
-          );
-        }
-      ) ||
-
+      currentSearchResultLogs.find((item) => {
+        return (
+          String(item?.id || "").trim() ===
+          normalizedLogId
+        );
+      }) ||
+      appState.logs.find((item) => {
+        return (
+          String(item?.id || "").trim() ===
+          normalizedLogId
+        );
+      }) ||
       null
     );
   };
 
-  const openSearchLogDetailById = (
-    logId
-  ) => {
-    const id = String(
+  /*
+    상세보기 열기
+  */
+  const openSearchLogDetailById = (logId) => {
+    const normalizedLogId = String(
       logId || ""
     ).trim();
 
-    if (!id) {
+    if (!normalizedLogId) {
       showToast(
         "업무일지 정보를 확인할 수 없습니다."
       );
@@ -33541,8 +33597,9 @@ function renderSearchResults(
       return;
     }
 
-    const log =
-      findSearchLogById(id);
+    const log = findSearchLogById(
+      normalizedLogId
+    );
 
     if (!log) {
       showToast(
@@ -33555,201 +33612,181 @@ function renderSearchResults(
     openLogDetail(log);
   };
 
-  safeResults.forEach(
-    (log) => {
-      const directAttachmentCount =
-        typeof getSearchLogAttachmentCount ===
-        "function"
-          ? getSearchLogAttachmentCount(
-              log
-            )
-          : (
-              Array.isArray(
-                log?.attachments
-              )
-                ? log.attachments.length
-                : 0
-            );
+  /*
+    조회 결과 행 생성
+  */
+  safeResults.forEach((log) => {
+    const previewHtml =
+      typeof createSearchLogPreviewHtml ===
+      "function"
+        ? createSearchLogPreviewHtml(log)
+        : `
+            <span class="search-preview-empty">
+              ${escapeHtml(
+                firstMeaningfulLine(
+                  createSearchLogText(log) ||
+                    "등록된 업무 내용이 없습니다."
+                )
+              )}
+            </span>
+          `;
 
-      const savedAttachmentCount =
-        Number(
-          log?.legacyAttachmentCount ||
-          log?.attachmentCount ||
-          0
-        );
-
-      const attachmentCount =
-        Math.max(
-          directAttachmentCount,
-
-          Number.isFinite(
-            savedAttachmentCount
+    const directAttachmentCount =
+      typeof getSearchLogAttachmentCount ===
+      "function"
+        ? Number(
+            getSearchLogAttachmentCount(log)
           )
-            ? savedAttachmentCount
-            : 0
-        );
+        : Array.isArray(log?.attachments)
+          ? log.attachments.length
+          : 0;
 
-      elements.searchResultBody
-        .insertAdjacentHTML(
-          "beforeend",
-          `
-            <tr
-              class="shift-search-table__row"
-              data-search-log-id="${escapeHtml(
+    const savedAttachmentCount = Number(
+      log?.legacyAttachmentCount ||
+        log?.attachmentCount ||
+        0
+    );
+
+    const attachmentCount = Math.max(
+      Number.isFinite(directAttachmentCount)
+        ? directAttachmentCount
+        : 0,
+      Number.isFinite(savedAttachmentCount)
+        ? savedAttachmentCount
+        : 0
+    );
+
+    elements.searchResultBody.insertAdjacentHTML(
+      "beforeend",
+      `
+        <tr
+          data-search-log-id="${escapeHtml(
+            log.id
+          )}"
+          tabindex="0"
+          role="button"
+          title="업무일지 상세보기"
+        >
+          <td class="search-result-table__date">
+            ${escapeHtml(log.date || "-")}
+          </td>
+
+          <td class="search-result-table__shift">
+            ${escapeHtml(
+              getShiftDisplayName(log.shift)
+            )}
+          </td>
+
+          <td class="search-result-table__role">
+            ${escapeHtml(log.role || "-")}
+          </td>
+
+          <td class="search-result-table__author">
+            ${escapeHtml(log.author || "-")}
+          </td>
+
+          <td
+            class="
+              search-result-table__content
+              search-log-preview-cell
+            "
+            data-search-view="${escapeHtml(
+              log.id
+            )}"
+          >
+            <div
+              class="search-log-preview"
+              aria-label="업무일지 미리보기. 누르면 상세보기가 열립니다."
+            >
+              ${previewHtml}
+            </div>
+          </td>
+
+          <td class="search-result-table__view">
+            <button
+              type="button"
+              class="table-action-button"
+              data-search-view="${escapeHtml(
                 log.id
               )}"
-              tabindex="0"
-              role="button"
-              title="업무일지 상세보기"
             >
-              <td
-                class="
-                  shift-search-table__cell
-                  shift-search-table__cell--date
-                "
-              >
-                ${escapeHtml(
-                  log.date || "-"
-                )}
-              </td>
+              보기
+            </button>
+          </td>
 
-              <td
-                class="
-                  shift-search-table__cell
-                  shift-search-table__cell--shift
-                "
-              >
-                ${escapeHtml(
-                  getShiftDisplayName(
-                    log.shift
-                  )
-                )}
-              </td>
+          <td
+            class="search-result-table__attachment"
+          >
+            ${
+              attachmentCount > 0
+                ? `
+                    <span
+                      class="attachment-count"
+                      title="첨부파일 ${attachmentCount}개"
+                    >
+                      ${attachmentCount}
+                    </span>
+                  `
+                : `
+                    <span
+                      class="
+                        attachment-count
+                        is-empty
+                      "
+                    >
+                      0
+                    </span>
+                  `
+            }
+          </td>
+        </tr>
+      `
+    );
+  });
 
-              <td
-                class="
-                  shift-search-table__cell
-                  shift-search-table__cell--role
-                "
-              >
-                ${escapeHtml(
-                  log.role || "-"
-                )}
-              </td>
+  /* =====================================================
+    마우스 클릭
 
-              <td
-                class="
-                  shift-search-table__cell
-                  shift-search-table__cell--author
-                "
-              >
-                ${escapeHtml(
-                  log.author || "-"
-                )}
-              </td>
+    TAG 클릭:
+    Facility Navigator 이동
 
-              <td
-                class="
-                  shift-search-table__cell
-                  shift-search-table__cell--content
-                "
-              >
-                <div
-                  class="shift-search-preview"
-                  data-search-view="${escapeHtml(
-                    log.id
-                  )}"
-                  aria-label="업무일지 미리보기. 누르면 상세보기가 열립니다."
-                >
-                  ${createSearchLogPreviewHtml(
-                    log
-                  )}
-                </div>
-              </td>
-
-              <td
-                class="
-                  shift-search-table__cell
-                  shift-search-table__cell--view
-                "
-              >
-                <button
-                  type="button"
-                  class="shift-search-table__view-button"
-                  data-search-view="${escapeHtml(
-                    log.id
-                  )}"
-                >
-                  보기
-                </button>
-              </td>
-
-              <td
-                class="
-                  shift-search-table__cell
-                  shift-search-table__cell--attachment
-                "
-              >
-                <span
-                  class="
-                    shift-search-table__attachment-count
-                    ${
-                      attachmentCount > 0
-                        ? "has-files"
-                        : "is-empty"
-                    }
-                  "
-                  title="첨부파일 ${attachmentCount}개"
-                >
-                  ${
-                    attachmentCount > 0
-                      ? attachmentCount
-                      : "-"
-                  }
-                </span>
-              </td>
-            </tr>
-          `
-        );
-    }
-  );
+    행·미리보기·보기 버튼 클릭:
+    업무일지 상세보기
+  ====================================================== */
 
   elements.searchResultBody.onclick =
-    function handleSearchResultClick(
-      event
-    ) {
-      const tagElement =
-        event.target.closest(
-          "[data-search-preview-tag]"
-        );
+    function handleSearchResultClick(event) {
+      const tagButton = event.target.closest(
+        `
+          [data-search-tag],
+          [data-search-preview-tag]
+        `
+      );
 
       if (
-        tagElement &&
-        elements.searchResultBody
-          .contains(
-            tagElement
-          )
+        tagButton &&
+        elements.searchResultBody.contains(
+          tagButton
+        )
       ) {
         event.preventDefault();
         event.stopPropagation();
 
         const tag = String(
-          tagElement
-            .dataset
-            .searchPreviewTag ||
-          ""
+          tagButton.dataset.searchTag ||
+            tagButton.dataset
+              .searchPreviewTag ||
+            ""
         ).trim();
 
         if (tag) {
-          openFacilityNavigator(
-            tag
-          );
+          openFacilityNavigator(tag);
         }
 
         return;
       }
 
-      const target =
+      const clickedElement =
         event.target.closest(
           `
             [data-search-view],
@@ -33758,26 +33795,30 @@ function renderSearchResults(
         );
 
       if (
-        !target ||
-        !elements.searchResultBody
-          .contains(
-            target
-          )
+        !clickedElement ||
+        !elements.searchResultBody.contains(
+          clickedElement
+        )
       ) {
         return;
       }
 
-      const row =
-        target.closest(
-          "tr[data-search-log-id]"
-        );
+      const row = clickedElement.closest(
+        "tr[data-search-log-id]"
+      );
 
       openSearchLogDetailById(
-        target.dataset.searchView ||
-        row?.dataset.searchLogId ||
-        ""
+        clickedElement.dataset.searchView ||
+          row?.dataset.searchLogId ||
+          ""
       );
     };
+
+  /* =====================================================
+    키보드 동작
+
+    Enter 또는 Space
+  ====================================================== */
 
   elements.searchResultBody.onkeydown =
     function handleSearchResultKeydown(
@@ -33790,66 +33831,51 @@ function renderSearchResults(
         return;
       }
 
-      const tagElement =
-        event.target.closest(
-          "[data-search-preview-tag]"
-        );
+      const tagButton = event.target.closest(
+        `
+          [data-search-tag],
+          [data-search-preview-tag]
+        `
+      );
 
       if (
-        tagElement &&
-        elements.searchResultBody
-          .contains(
-            tagElement
-          )
+        tagButton &&
+        elements.searchResultBody.contains(
+          tagButton
+        )
       ) {
         event.preventDefault();
         event.stopPropagation();
 
         const tag = String(
-          tagElement
-            .dataset
-            .searchPreviewTag ||
-          ""
+          tagButton.dataset.searchTag ||
+            tagButton.dataset
+              .searchPreviewTag ||
+            ""
         ).trim();
 
         if (tag) {
-          openFacilityNavigator(
-            tag
-          );
+          openFacilityNavigator(tag);
         }
 
         return;
       }
 
-      const target =
-        event.target.closest(
-          `
-            [data-search-view],
-            tr[data-search-log-id]
-          `
-        );
+      const row = event.target.closest(
+        "tr[data-search-log-id]"
+      );
 
       if (
-        !target ||
-        !elements.searchResultBody
-          .contains(
-            target
-          )
+        !row ||
+        !elements.searchResultBody.contains(row)
       ) {
         return;
       }
 
       event.preventDefault();
 
-      const row =
-        target.closest(
-          "tr[data-search-log-id]"
-        );
-
       openSearchLogDetailById(
-        target.dataset.searchView ||
-        row?.dataset.searchLogId ||
-        ""
+        row.dataset.searchLogId || ""
       );
     };
 }
