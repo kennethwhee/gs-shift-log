@@ -25455,29 +25455,27 @@ function collectLogEntriesForDisplay(
 function createLogRowHtml(log) {
   const previewGroups = [];
 
-
   const normalizedLogRole =
     normalizeMemberLogRole(
-      log.role
+      log?.role ||
+      ""
     );
-
 
   const isLeaderLog =
     normalizedLogRole ===
     "파트장";
 
 
-  /* =====================================================
-    1. 파트장 운전현황
-  ====================================================== */
-
-  if (
-    isLeaderLog
-  ) {
-    const operationStatusLines =
+  /*
+    상세보기처럼 첫 줄과 하위 줄을 모두 유지한다.
+  */
+  const getContentLines = (
+    content
+  ) => {
+    const lines =
       String(
-        log.operationStatus ||
-        ""
+        content ||
+        "-"
       )
         .replace(
           /\r\n/g,
@@ -25501,34 +25499,104 @@ function createLogRowHtml(log) {
         .filter(Boolean);
 
 
-    operationStatusLines.forEach(
+    return lines.length
+      ? lines
+      : [
+          "-"
+        ];
+  };
+
+
+  const pushEntryGroup = ({
+    title = "",
+    entry = {},
+    index = 0,
+    numberClass =
+      "is-handover-number",
+    categoryClass = "",
+    showTime = true,
+    showTag = true
+  }) => {
+    const tagText =
+      String(
+        entry?.tag ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    previewGroups.push({
+      type:
+        "normal",
+
+      title,
+
+      number:
+        `${index + 1}.`,
+
+      numberClass,
+
+      time:
+        showTime
+          ? String(
+              entry?.time ||
+              ""
+            ).trim()
+          : "",
+
+      tag:
+        showTag &&
+        tagText
+          ? `[${tagText}]`
+          : "",
+
+      contentLines:
+        getContentLines(
+          entry?.content
+        ),
+
+      categoryClass
+    });
+  };
+
+
+  /* =====================================================
+    1. 파트장 운전현황
+
+    상세보기와 같은 파서를 사용하므로
+    저장 원문의 번호가 중복되지 않는다.
+  ====================================================== */
+
+  if (
+    isLeaderLog
+  ) {
+    parseOperationStatusRowsForDisplay(
+      log
+    ).forEach(
       (
-        line,
+        statusRow,
         index
       ) => {
-        previewGroups.push({
-          type:
-            "normal",
-
+        pushEntryGroup({
           title:
             index === 0
               ? "운전현황"
               : "",
 
-          number:
-            `${index + 1}.`,
+          entry: {
+            content:
+              statusRow?.content ||
+              "-"
+          },
 
-          numberClass:
-            "is-handover-number",
+          index,
 
-          time:
-            "",
+          showTime:
+            false,
 
-          content:
-            line,
-
-          tag:
-            "",
+          showTag:
+            false,
 
           categoryClass: [
             "is-operation",
@@ -25546,9 +25614,7 @@ function createLogRowHtml(log) {
 
 
   /*
-    1단계에서 추가한 함수를 사용하여
-    TM·일반 업무·비고를 정리하고
-    출처 보직을 복구한다.
+    상세보기와 동일한 최종 항목만 사용한다.
   */
   const entries =
     collectLogEntriesForDisplay(
@@ -25566,7 +25632,7 @@ function createLogRowHtml(log) {
         entry => {
           return (
             String(
-              entry.category ||
+              entry?.category ||
               ""
             ).trim() ===
             "TM 발행"
@@ -25581,46 +25647,18 @@ function createLogRowHtml(log) {
       entry,
       index
     ) => {
-      const tagText =
-        String(
-          entry.tag ||
-          ""
-        )
-          .trim()
-          .toUpperCase();
-
-
-      previewGroups.push({
-        type:
-          "normal",
-
+      pushEntryGroup({
         title:
           index === 0
             ? "TM 발행 내역"
             : "",
 
-        number:
-          `${index + 1}.`,
+        entry,
+
+        index,
 
         numberClass:
           "is-tm-number",
-
-        time:
-          String(
-            entry.time ||
-            ""
-          ).trim(),
-
-        content:
-          firstMeaningfulLine(
-            entry.content
-          ) ||
-          "-",
-
-        tag:
-          tagText
-            ? `[${tagText}]`
-            : "",
 
         categoryClass: [
           "is-maintenance",
@@ -25639,11 +25677,8 @@ function createLogRowHtml(log) {
   /* =====================================================
     3. 인계사항 및 보직별 업무
 
-    파트장:
-    TGO → BCO1 → BCO2 순서로 분류
-
-    TO·BO1·BO2를 개별적으로 가져온 경우에도
-    해당 보직으로 별도 분류한다.
+    확정된 importedFromRole을 그대로 사용한다.
+    미리보기에서 출처 보직을 다시 판정하지 않는다.
   ====================================================== */
 
   const handoverEntries =
@@ -25651,7 +25686,7 @@ function createLogRowHtml(log) {
       entry => {
         const category =
           String(
-            entry.category ||
+            entry?.category ||
             ""
           ).trim();
 
@@ -25684,29 +25719,36 @@ function createLogRowHtml(log) {
     entry => {
       const sourceRole =
         isLeaderLog
-          ? resolveDetailEntrySourceRole(
-              entry,
-              log
-            )
-          : (
-              normalizedLogRole ||
+          ? normalizeMemberLogRole(
+              entry
+                ?.importedFromRole ||
               "파트장"
-            );
+            )
+          : normalizedLogRole;
+
+
+      const safeRole =
+        sourceRole ||
+        (
+          isLeaderLog
+            ? "파트장"
+            : "미지정"
+        );
 
 
       if (
         !groupedEntries[
-          sourceRole
+          safeRole
         ]
       ) {
         groupedEntries[
-          sourceRole
+          safeRole
         ] = [];
       }
 
 
       groupedEntries[
-        sourceRole
+        safeRole
       ].push(
         entry
       );
@@ -25752,9 +25794,6 @@ function createLogRowHtml(log) {
         );
 
 
-      /*
-        파트장은 보직별 제목을 표시한다.
-      */
       if (
         isLeaderLog &&
         roleEntries.length
@@ -25782,56 +25821,21 @@ function createLogRowHtml(log) {
       }
 
 
-      /*
-        보직이 바뀔 때마다 번호를
-        다시 1번부터 시작한다.
-      */
       roleEntries.forEach(
         (
           entry,
           index
         ) => {
-          const tagText =
-            String(
-              entry.tag ||
-              ""
-            )
-              .trim()
-              .toUpperCase();
-
-
-          previewGroups.push({
-            type:
-              "normal",
-
+          pushEntryGroup({
             title:
               !isLeaderLog &&
               index === 0
                 ? "인계 사항"
                 : "",
 
-            number:
-              `${index + 1}.`,
+            entry,
 
-            numberClass:
-              "is-handover-number",
-
-            time:
-              String(
-                entry.time ||
-                ""
-              ).trim(),
-
-            content:
-              firstMeaningfulLine(
-                entry.content
-              ) ||
-              "-",
-
-            tag:
-              tagText
-                ? `[${tagText}]`
-                : "",
+            index,
 
             categoryClass: [
               "is-handover",
@@ -25856,7 +25860,7 @@ function createLogRowHtml(log) {
 
 
   /* =====================================================
-    4. 취합된 비고
+    4. 비고
   ====================================================== */
 
   const remarkEntries =
@@ -25864,7 +25868,7 @@ function createLogRowHtml(log) {
       entry => {
         return (
           String(
-            entry.category ||
+            entry?.category ||
             ""
           ).trim() ===
           "비고"
@@ -25878,32 +25882,21 @@ function createLogRowHtml(log) {
       entry,
       index
     ) => {
-      previewGroups.push({
-        type:
-          "normal",
-
+      pushEntryGroup({
         title:
           index === 0
             ? "비고"
             : "",
 
-        number:
-          `${index + 1}.`,
+        entry,
 
-        numberClass:
-          "is-handover-number",
+        index,
 
-        time:
-          "",
+        showTime:
+          false,
 
-        content:
-          firstMeaningfulLine(
-            entry.content
-          ) ||
-          "-",
-
-        tag:
-          "",
+        showTag:
+          false,
 
         categoryClass: [
           "is-note",
@@ -25919,303 +25912,27 @@ function createLogRowHtml(log) {
   );
 
 
-  const attachmentCount =
-    Array.isArray(
-      log.attachments
-    )
-      ? log.attachments.length
-      : 0;
-
-
-  return `
-    <tr class="log-row">
-
-      <td class="log-row__role">
-        ${escapeHtml(
-          log.role ||
-          "-"
-        )}
-      </td>
-
-
-      <td class="log-row__author-cell">
-
-        <div class="log-row__author-wrap">
-
-          <strong class="log-row__author">
-            ${escapeHtml(
-              log.author ||
-              "-"
-            )}
-          </strong>
-
-          ${
-            log.isSubstitute ===
-            true
-              ? `
-                <span class="substitute-work-badge">
-                  대근
-                </span>
-              `
-              : ""
-          }
-
-        </div>
-
-      </td>
-
-
-      <td class="log-row__status-cell">
-
+  const renderPreviewGroup = (
+    group
+  ) => {
+    if (
+      group.type ===
+      "role-section"
+    ) {
+      return `
         <span
-          class="status-badge ${getStatusClass(
-            log.status
-          )}"
-        >
-          ${escapeHtml(
-            log.status ||
-            "-"
-          )}
-        </span>
-
-      </td>
-
-
-      <td class="log-row__preview-cell">
-
-        <button
-          type="button"
-          class="log-preview"
-          data-action="view"
-          data-log-id="${escapeHtml(
-            log.id
-          )}"
-          title="업무일지 상세보기"
-        >
-
-          ${
-            previewGroups.length
-              ? previewGroups
-                  .map(
-                    group => {
-                      /*
-                        파트장 보직별 제목
-                      */
-                      if (
-                        group.type ===
-                        "role-section"
-                      ) {
-                        return `
-                          <span
-                            class="
-                              log-preview__role-section
-                              ${
-                                group.isFirstRole
-                                  ? "is-first-role"
-                                  : ""
-                              }
-                            "
-                          >
-
-                            <span
-                              class="
-                                log-preview__role-divider
-                                ${group.categoryClass}
-                              "
-                            >
-                              ${escapeHtml(
-                                group.title
-                              )}
-                            </span>
-
-                          </span>
-                        `;
-                      }
-
-
-                      /*
-                        번호 → 시간 → 내용 → TAG
-                      */
-                      return `
-                        <span
-                          class="
-                            log-preview__group
-                            ${group.categoryClass}
-                            ${
-                              group.title
-                                ? ""
-                                : "has-no-title"
-                            }
-                          "
-                        >
-
-                          ${
-                            group.title
-                              ? `
-                                <strong
-                                  class="log-preview__title"
-                                >
-                                  ${escapeHtml(
-                                    group.title
-                                  )}
-                                </strong>
-                              `
-                              : ""
-                          }
-
-
-                          <span
-                            class="log-preview__content"
-                          >
-
-                            ${
-                              group.number
-                                ? `
-                                  <span
-                                    class="
-                                      log-preview__entry-number
-                                      ${group.numberClass || ""}
-                                    "
-                                  >
-                                    ${escapeHtml(
-                                      group.number
-                                    )}
-                                  </span>
-                                `
-                                : ""
-                            }
-
-
-                            ${
-                              group.time
-                                ? `
-                                  <span
-                                    class="log-preview__entry-time"
-                                  >
-                                    ${escapeHtml(
-                                      group.time
-                                    )}
-                                  </span>
-                                `
-                                : ""
-                            }
-
-
-                            <span
-                              class="log-preview__text"
-                            >
-                              ${escapeHtml(
-                                group.content ||
-                                "-"
-                              )}
-                            </span>
-
-
-                            ${
-                              group.tag
-                                ? `
-                                  <span
-                                    class="log-preview__tag"
-                                  >
-                                    ${escapeHtml(
-                                      group.tag
-                                    )}
-                                  </span>
-                                `
-                                : ""
-                            }
-
-                          </span>
-
-                        </span>
-                      `;
-                    }
-                  )
-                  .join("")
-              : `
-                <span class="log-preview__empty">
-                  등록된 업무 내용이 없습니다.
-                </span>
-              `
-          }
-
-        </button>
-
-      </td>
-
-
-      <td class="log-row__actions-cell">
-
-        <div class="row-actions">
-
-          <button
-            type="button"
-            class="table-action-button"
-            data-action="edit"
-            data-log-id="${escapeHtml(
-              log.id
-            )}"
-          >
+          class="
+            log-preview__role-section
             ${
-              log.status ===
-                "작성중" ||
-              log.status ===
-                "임시저장"
-                ? "이어쓰기"
-                : "수정"
+              group.isFirstRole
+                ? "is-first-role"
+                : ""
             }
-          </button>
-
-
-          <button
-            type="button"
+          "
+        >
+          <span
             class="
-              table-action-button
-              is-delete
-            "
-            data-action="delete"
-            data-log-id="${escapeHtml(
-              log.id
-            )}"
-          >
-            삭제
-          </button>
-
-        </div>
-
-      </td>
-
-
-      <td class="log-row__attachment-cell">
-
-        ${
-          attachmentCount >
-          0
-            ? `
-              <span
-                class="attachment-indicator"
-                title="첨부파일 ${attachmentCount}개"
-                aria-label="첨부파일 ${attachmentCount}개"
-              >
-                📎
-              </span>
-            `
-            : `
-              <span
-                class="attachment-indicator is-empty"
-                aria-label="첨부파일 없음"
-              >
-                -
-              </span>
-            `
-        }
-
-      </td>
-
-    </tr>
-  `;
-}
-
+              log-preview__role
 /* =========================================================
   업무일지 목록 클릭 처리 최종본
 
