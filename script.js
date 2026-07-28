@@ -7,6 +7,49 @@
 const AUTH_STORAGE_KEY =
   "gsShiftLog.currentUser";
 
+
+const SHIFT_LOGS_API_URL =
+  "/api/shift-logs";
+
+
+function getShiftLogSessionToken() {
+  const currentUser =
+    loadCurrentUser();
+
+
+  return String(
+    currentUser?.sessionToken ||
+    currentUser?.session_token ||
+    ""
+  ).trim();
+}
+
+
+function getShiftLogAuthHeaders(
+  extraHeaders = {}
+) {
+  const sessionToken =
+    getShiftLogSessionToken();
+
+
+  return {
+    Accept:
+      "application/json",
+
+
+    ...extraHeaders,
+
+
+    ...(
+      sessionToken
+        ? {
+            Authorization:
+              `Bearer ${sessionToken}`
+          }
+        : {}
+    )
+  };
+}
   /* =========================================================
   고정 최고관리자 계정
 
@@ -747,11 +790,11 @@ async function requestShiftLogLogin(
   );
 }
 
-
 async function handleShiftLogLogin(
   event
 ) {
   event.preventDefault();
+
 
   const {
     loginEmployeeId,
@@ -760,11 +803,13 @@ async function handleShiftLogLogin(
   } =
     getLoginElements();
 
+
   const employeeId =
     String(
       loginEmployeeId?.value ||
       ""
     ).trim();
+
 
   const password =
     String(
@@ -772,40 +817,57 @@ async function handleShiftLogLogin(
       ""
     );
 
+
   hideLoginError();
 
-  if (!employeeId) {
+
+  if (
+    !employeeId
+  ) {
     showLoginError(
       "사번을 입력해 주세요."
     );
 
+
     loginEmployeeId?.focus();
+
 
     return;
   }
 
-  if (!password) {
+
+  if (
+    !password
+  ) {
     showLoginError(
       "비밀번호를 입력해 주세요."
     );
 
+
     loginPassword?.focus();
+
 
     return;
   }
+
 
   const submitButton =
     loginForm?.querySelector(
       'button[type="submit"]'
     );
 
-  if (submitButton) {
+
+  if (
+    submitButton
+  ) {
     submitButton.disabled =
       true;
+
 
     submitButton.textContent =
       "로그인 중...";
   }
+
 
   try {
     const user =
@@ -814,15 +876,71 @@ async function handleShiftLogLogin(
         password
       );
 
-    saveCurrentUser(user);
 
-    openShiftLogApp(user);
+    /*
+      로그인 API에서 받은 사용자 정보와
+      D1 접속용 세션 토큰을 함께 저장한다.
+    */
+    saveCurrentUser(
+      user
+    );
 
-  } catch (error) {
+
+    openShiftLogApp(
+      user
+    );
+
+
+    /*
+      로그인 직후 D1 공용 업무일지를 다시 불러온다.
+
+      로그인 전에는 세션 토큰이 없으므로
+      최초 화면 초기화에서 서버 자료를
+      불러올 수 없다.
+    */
+    if (
+      typeof loadLogs ===
+        "function"
+    ) {
+      await loadLogs();
+    }
+
+
+    /*
+      기존 과거 업무일지 불러오기 기능은
+      그대로 유지한다.
+    */
+    if (
+      typeof loadLegacyLogsForSelectedDate ===
+        "function"
+    ) {
+      await loadLegacyLogsForSelectedDate();
+    }
+
+
+    if (
+      typeof renderLogTable ===
+        "function"
+    ) {
+      renderLogTable();
+    }
+
+
+    if (
+      typeof updateShiftMemberCardStates ===
+        "function"
+    ) {
+      updateShiftMemberCardStates();
+    }
+
+  } catch (
+    error
+  ) {
     console.error(
       "로그인 실패:",
       error
     );
+
 
     showLoginError(
       error.message ||
@@ -830,9 +948,12 @@ async function handleShiftLogLogin(
     );
 
   } finally {
-    if (submitButton) {
+    if (
+      submitButton
+    ) {
       submitButton.disabled =
         false;
+
 
       submitButton.textContent =
         "로그인";
@@ -840,11 +961,50 @@ async function handleShiftLogLogin(
   }
 }
 
+async function handleShiftLogLogout() {
+  const sessionToken =
+    getShiftLogSessionToken();
 
-function handleShiftLogLogout() {
-  clearCurrentUser();
 
-  openLoginScreen();
+  try {
+    /*
+      서버에 저장된 현재 로그인 세션도
+      함께 삭제한다.
+    */
+    if (
+      sessionToken
+    ) {
+      await fetch(
+        "/api/login",
+        {
+          method:
+            "DELETE",
+
+
+          headers:
+            getShiftLogAuthHeaders()
+        }
+      );
+    }
+
+  } catch (
+    error
+  ) {
+    /*
+      서버 로그아웃에 실패하더라도
+      브라우저 로그아웃은 정상 진행한다.
+    */
+    console.warn(
+      "서버 로그아웃 처리 실패:",
+      error
+    );
+
+  } finally {
+    clearCurrentUser();
+
+
+    openLoginScreen();
+  }
 }
 
 /* =========================================================
@@ -39490,3 +39650,2230 @@ document.addEventListener(
   "DOMContentLoaded",
   reconnectShiftLogApprovalHistoryEvents
 );
+
+/* =========================================================
+  D1 공용 업무일지 최종 연결
+
+  기존 화면·과거 일지 변환 함수는 유지하고
+  신규 업무일지만 D1 공용 저장소에 연결한다.
+========================================================= */
+
+class ShiftLogApiError extends Error {
+  constructor(
+    message,
+    options = {}
+  ) {
+    super(
+      message
+    );
+
+
+    this.name =
+      "ShiftLogApiError";
+
+
+    this.status =
+      Number(
+        options.status ||
+        0
+      );
+
+
+    this.currentLog =
+      options.currentLog ||
+      null;
+
+
+    this.isConflict =
+      this.status ===
+        409 ||
+      options.isConflict ===
+        true;
+  }
+}
+
+
+/* =========================================================
+  D1 업무일지 API 공통 요청
+========================================================= */
+
+async function requestShiftLogApi(
+  path = "",
+  options = {}
+) {
+  const method =
+    String(
+      options.method ||
+      "GET"
+    ).toUpperCase();
+
+
+  const requestOptions = {
+    method,
+
+
+    headers:
+      getShiftLogAuthHeaders(
+        options.body
+          ? {
+              "Content-Type":
+                "application/json"
+            }
+          : {}
+      )
+  };
+
+
+  if (
+    options.body
+  ) {
+    requestOptions.body =
+      JSON.stringify(
+        options.body
+      );
+  }
+
+
+  const response =
+    await fetch(
+      `${SHIFT_LOGS_API_URL}${path}`,
+      requestOptions
+    );
+
+
+  let result = {};
+
+
+  try {
+    result =
+      await response.json();
+
+  } catch {
+    throw new ShiftLogApiError(
+      "업무일지 서버 응답을 확인할 수 없습니다.",
+      {
+        status:
+          response.status
+      }
+    );
+  }
+
+
+  /*
+    세션이 만료되었으면
+    로그인 화면으로 이동한다.
+  */
+  if (
+    response.status ===
+      401
+  ) {
+    clearCurrentUser();
+
+
+    openLoginScreen();
+  }
+
+
+  if (
+    !response.ok ||
+    result.ok ===
+      false
+  ) {
+    throw new ShiftLogApiError(
+      result.message ||
+      "업무일지 서버 요청에 실패했습니다.",
+      {
+        status:
+          response.status,
+
+
+        currentLog:
+          result.currentLog ||
+          null,
+
+
+        isConflict:
+          result.conflict ===
+          true
+      }
+    );
+  }
+
+
+  return result;
+}
+
+
+/* =========================================================
+  날짜·근무·보직 기준 업무일지 고유 그룹 키
+========================================================= */
+
+function getShiftLogGroupKey(
+  log
+) {
+  return [
+    String(
+      log?.date ||
+      ""
+    ).trim(),
+
+
+    String(
+      log?.shift ||
+      ""
+    )
+      .trim()
+      .toUpperCase(),
+
+
+    normalizeMemberLogRole(
+      log?.role
+    )
+  ].join(
+    "||"
+  );
+}
+
+
+/* =========================================================
+  D1 공용 업무일지 여부
+========================================================= */
+
+function isSharedD1ShiftLog(
+  log
+) {
+  return (
+    String(
+      log?.source ||
+      ""
+    )
+      .trim()
+      .toLowerCase() ===
+      "shared-d1" ||
+
+
+    Number.isInteger(
+      Number(
+        log?.serverRevision
+      )
+    )
+  );
+}
+
+
+/* =========================================================
+  D1 업무일지 데이터 정규화
+========================================================= */
+
+function normalizeSharedShiftLog(
+  log
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    return null;
+  }
+
+
+  const normalizedLog = {
+    ...log,
+
+
+    id:
+      String(
+        log.id ||
+        ""
+      ).trim(),
+
+
+    date:
+      String(
+        log.date ||
+        ""
+      ).trim(),
+
+
+    shift:
+      String(
+        log.shift ||
+        ""
+      )
+        .trim()
+        .toUpperCase(),
+
+
+    role:
+      normalizeMemberLogRole(
+        log.role
+      ),
+
+
+    status:
+      normalizeShiftLogApprovalStatus(
+        log.status
+      ),
+
+
+    serverRevision:
+      Number(
+        log.serverRevision
+      ) ||
+      1,
+
+
+    source:
+      "shared-d1"
+  };
+
+
+  if (
+    !normalizedLog.id ||
+    !normalizedLog.date ||
+    !normalizedLog.shift ||
+    !normalizedLog.role
+  ) {
+    return null;
+  }
+
+
+  return normalizedLog;
+}
+
+
+/* =========================================================
+  저장된 D1 업무일지를 현재 화면 상태에 반영
+========================================================= */
+
+function replaceSharedShiftLogInState(
+  savedLog
+) {
+  const normalizedLog =
+    normalizeSharedShiftLog(
+      savedLog
+    );
+
+
+  if (
+    !normalizedLog
+  ) {
+    return null;
+  }
+
+
+  const savedId =
+    String(
+      normalizedLog.id
+    );
+
+
+  const savedGroupKey =
+    getShiftLogGroupKey(
+      normalizedLog
+    );
+
+
+  appState.logs =
+    appState.logs.filter(
+      currentLog => {
+        /*
+          과거 연동 업무일지는 유지한다.
+        */
+        if (
+          isReadOnlyLegacyShiftLog(
+            currentLog
+          )
+        ) {
+          return true;
+        }
+
+
+        const isSameId =
+          String(
+            currentLog?.id ||
+            ""
+          ) ===
+            savedId;
+
+
+        const isSameGroup =
+          getShiftLogGroupKey(
+            currentLog
+          ) ===
+            savedGroupKey;
+
+
+        return !(
+          isSameId ||
+          isSameGroup
+        );
+      }
+    );
+
+
+  appState.logs.unshift(
+    normalizedLog
+  );
+
+
+  return normalizedLog;
+}
+
+
+/* =========================================================
+  삭제된 D1 업무일지를 현재 화면 상태에서 제거
+========================================================= */
+
+function removeSharedShiftLogFromState(
+  logId
+) {
+  const normalizedId =
+    String(
+      logId ||
+      ""
+    ).trim();
+
+
+  appState.logs =
+    appState.logs.filter(
+      log => {
+        return (
+          String(
+            log?.id ||
+            ""
+          ).trim() !==
+          normalizedId
+        );
+      }
+    );
+}
+
+
+/* =========================================================
+  D1 공용 업무일지 불러오기
+========================================================= */
+
+async function loadSharedShiftLogsFromServer(
+  query = ""
+) {
+  if (
+    !getShiftLogSessionToken()
+  ) {
+    return [];
+  }
+
+
+  const result =
+    await requestShiftLogApi(
+      query
+    );
+
+
+  return (
+    Array.isArray(
+      result.logs
+    )
+      ? result.logs
+      : []
+  )
+    .map(
+      normalizeSharedShiftLog
+    )
+    .filter(Boolean);
+}
+
+
+/* =========================================================
+  D1 공용 업무일지 저장·수정
+========================================================= */
+
+async function saveShiftLogToServer(
+  log,
+  options = {}
+) {
+  const result =
+    await requestShiftLogApi(
+      "",
+      {
+        method:
+          "POST",
+
+
+        body: {
+          action:
+            options.action ||
+            "save",
+
+
+          expectedRevision:
+            Number(
+              options.expectedRevision ??
+              log?.serverRevision ??
+              0
+            ),
+
+
+          log
+        }
+      }
+    );
+
+
+  return normalizeSharedShiftLog(
+    result.log
+  );
+}
+
+/* =========================================================
+  브라우저에 저장된 신규 업무일지 이전 자료 정리
+
+  - 과거 연동 업무일지 제외
+  - 예시 업무일지 제외
+  - 같은 날짜·근무·보직은 최신 자료 1건만 유지
+========================================================= */
+
+function readLocalShiftLogsForMigration() {
+  const savedLogs =
+    localStorage.getItem(
+      STORAGE_KEYS.logs
+    );
+
+
+  if (
+    !savedLogs
+  ) {
+    return [];
+  }
+
+
+  try {
+    const parsedLogs =
+      JSON.parse(
+        savedLogs
+      );
+
+
+    if (
+      !Array.isArray(
+        parsedLogs
+      )
+    ) {
+      return [];
+    }
+
+
+    const sampleLogIds =
+      new Set([
+        "sample-1",
+        "sample-2",
+        "sample-3"
+      ]);
+
+
+    const latestLogMap =
+      new Map();
+
+
+    [
+      ...parsedLogs
+    ]
+      .filter(
+        log => {
+          return (
+            log &&
+            typeof log ===
+              "object" &&
+
+
+            !isReadOnlyLegacyShiftLog(
+              log
+            ) &&
+
+
+            !sampleLogIds.has(
+              String(
+                log.id ||
+                ""
+              )
+            )
+          );
+        }
+      )
+      .sort(
+        (
+          firstLog,
+          secondLog
+        ) => {
+          const firstTime =
+            new Date(
+              firstLog.updatedAt ||
+              firstLog.createdAt ||
+              0
+            ).getTime();
+
+
+          const secondTime =
+            new Date(
+              secondLog.updatedAt ||
+              secondLog.createdAt ||
+              0
+            ).getTime();
+
+
+          return (
+            secondTime -
+            firstTime
+          );
+        }
+      )
+      .forEach(
+        log => {
+          const groupKey =
+            getShiftLogGroupKey(
+              log
+            );
+
+
+          if (
+            groupKey !==
+              "||||" &&
+
+
+            !latestLogMap.has(
+              groupKey
+            )
+          ) {
+            latestLogMap.set(
+              groupKey,
+              log
+            );
+          }
+        }
+      );
+
+
+    return [
+      ...latestLogMap.values()
+    ];
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "브라우저 업무일지 이전 자료 분석 실패:",
+      error
+    );
+
+
+    return [];
+  }
+}
+
+
+/* =========================================================
+  기존 브라우저 업무일지를 D1으로 이전
+========================================================= */
+
+async function migrateLocalShiftLogsToServer(
+  serverLogs
+) {
+  const localLogs =
+    readLocalShiftLogsForMigration();
+
+
+  /*
+    브라우저에 이전할 업무일지가 없으면
+    서버 자료만 그대로 사용한다.
+  */
+  if (
+    localLogs.length ===
+      0
+  ) {
+    return {
+      logs:
+        serverLogs,
+
+
+      completed:
+        true
+    };
+  }
+
+
+  const serverLogMap =
+    new Map(
+      serverLogs.map(
+        log => {
+          return [
+            getShiftLogGroupKey(
+              log
+            ),
+
+
+            log
+          ];
+        }
+      )
+    );
+
+
+  let migrationCompleted =
+    true;
+
+
+  for (
+    const localLog of
+    localLogs
+  ) {
+    const groupKey =
+      getShiftLogGroupKey(
+        localLog
+      );
+
+
+    /*
+      같은 날짜·근무·보직 일지가
+      이미 D1에 있으면 서버 자료를 유지한다.
+    */
+    if (
+      serverLogMap.has(
+        groupKey
+      )
+    ) {
+      continue;
+    }
+
+
+    try {
+      const migratedLog =
+        await saveShiftLogToServer(
+          localLog,
+          {
+            action:
+              "migrate",
+
+
+            expectedRevision:
+              0
+          }
+        );
+
+
+      if (
+        migratedLog
+      ) {
+        serverLogMap.set(
+          groupKey,
+          migratedLog
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      /*
+        다른 사용자가 먼저 같은 업무일지를
+        서버에 저장했다면 최신 서버 자료를 사용한다.
+      */
+      if (
+        error instanceof
+          ShiftLogApiError &&
+
+
+        error.isConflict &&
+
+
+        error.currentLog
+      ) {
+        const currentLog =
+          normalizeSharedShiftLog(
+            error.currentLog
+          );
+
+
+        if (
+          currentLog
+        ) {
+          serverLogMap.set(
+            groupKey,
+            currentLog
+          );
+
+
+          continue;
+        }
+      }
+
+
+      migrationCompleted =
+        false;
+
+
+      console.error(
+        "브라우저 업무일지 D1 이전 실패:",
+        error
+      );
+    }
+  }
+
+
+  /*
+    모든 이전 작업이 성공한 경우에만
+    브라우저의 기존 업무일지를 삭제한다.
+
+    실패 자료가 있으면 다음 로그인 때
+    다시 이전할 수 있도록 그대로 남긴다.
+  */
+  if (
+    migrationCompleted
+  ) {
+    localStorage.removeItem(
+      STORAGE_KEYS.logs
+    );
+  }
+
+
+  return {
+    logs: [
+      ...serverLogMap.values()
+    ],
+
+
+    completed:
+      migrationCompleted
+  };
+}
+
+
+/* =========================================================
+  D1 업무일지 최신 상태 다시 불러오기
+========================================================= */
+
+async function refreshSharedShiftLogsInState(
+  options = {}
+) {
+  if (
+    !getShiftLogSessionToken()
+  ) {
+    return [];
+  }
+
+
+  /*
+    기존 과거 연동 업무일지는 유지한다.
+  */
+  const preservedLegacyLogs =
+    appState.logs.filter(
+      isReadOnlyLegacyShiftLog
+    );
+
+
+  const serverLogs =
+    await loadSharedShiftLogsFromServer(
+      options.query ||
+      ""
+    );
+
+
+  appState.logs = [
+    ...serverLogs,
+    ...preservedLegacyLogs
+  ];
+
+
+  return serverLogs;
+}
+
+
+/* =========================================================
+  기존 localStorage 업무일지 저장 중지
+
+  기존 코드에 persistLogs() 호출이 남아 있어도
+  신규 업무일지를 localStorage에 다시 저장하지 않는다.
+========================================================= */
+
+persistLogs =
+  function persistLogs() {
+    return false;
+  };
+
+
+/* =========================================================
+  D1 공용 업무일지 불러오기
+
+  최초 로그인:
+  - D1 업무일지 불러오기
+  - 기존 브라우저 업무일지 D1 이전
+  - 과거 연동 업무일지 유지
+
+  이후 로그인:
+  - D1 공용 업무일지만 불러오기
+========================================================= */
+
+loadLogs =
+  async function loadLogs() {
+    if (
+      !getShiftLogSessionToken()
+    ) {
+      appState.logs = [];
+
+
+      return [];
+    }
+
+
+    try {
+      const serverLogs =
+        await loadSharedShiftLogsFromServer();
+
+
+      const migrationResult =
+        await migrateLocalShiftLogsToServer(
+          serverLogs
+        );
+
+
+      /*
+        기존 과거 연동 업무일지는
+        appState에 그대로 유지한다.
+      */
+      const preservedLegacyLogs =
+        appState.logs.filter(
+          isReadOnlyLegacyShiftLog
+        );
+
+
+      appState.logs = [
+        ...migrationResult.logs,
+        ...preservedLegacyLogs
+      ];
+
+
+      console.log(
+        `D1 공용 신규 업무일지 ${migrationResult.logs.length}건을 불러왔습니다.`
+      );
+
+
+      return migrationResult.logs;
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "D1 공용 업무일지 불러오기 실패:",
+        error
+      );
+
+
+      if (
+        error instanceof
+          ShiftLogApiError &&
+
+
+        error.status ===
+          401
+      ) {
+        showToast(
+          "로그인 세션이 만료되었습니다. 다시 로그인해 주세요."
+        );
+
+      } else {
+        showToast(
+          error.message ||
+          "공용 업무일지를 불러오지 못했습니다."
+        );
+      }
+
+
+      return [];
+    }
+  };
+
+  /* =========================================================
+  D1 업무일지 저장·수정·삭제·권한 연결
+========================================================= */
+
+function setShiftLogSavingState(
+  isSaving
+) {
+  if (
+    !elements.logEditorForm
+  ) {
+    return;
+  }
+
+
+  elements.logEditorForm
+    .setAttribute(
+      "aria-busy",
+      isSaving
+        ? "true"
+        : "false"
+    );
+
+
+  [
+    getShiftLogEditorSubmitButton(),
+    elements.saveDraftButton,
+    elements.requestApprovalButton
+  ]
+    .filter(Boolean)
+    .forEach(
+      button => {
+        button.disabled =
+          isSaving;
+      }
+    );
+
+
+  if (
+    !isSaving
+  ) {
+    updateLogEditorActionButtons();
+  }
+}
+
+
+/* =========================================================
+  다른 사용자가 먼저 수정한 경우 충돌 처리
+========================================================= */
+
+function handleShiftLogConflict(
+  error
+) {
+  if (
+    error?.currentLog
+  ) {
+    replaceSharedShiftLogInState(
+      error.currentLog
+    );
+
+
+    renderLogTable();
+
+
+    updateShiftMemberCardStates();
+  }
+
+
+  showToast(
+    error?.message ||
+    "다른 사용자가 먼저 수정했습니다. 최신 내용을 다시 확인해 주세요."
+  );
+}
+
+
+/* =========================================================
+  현재 업무일지 D1 저장·수정
+========================================================= */
+
+saveCurrentLog =
+  async function saveCurrentLog(
+    requestedStatus,
+    options = {}
+  ) {
+    const {
+      closeAfterSave = true
+    } = options;
+
+
+    if (
+      elements.logEditorForm
+        ?.getAttribute(
+          "aria-busy"
+        ) ===
+        "true"
+    ) {
+      return null;
+    }
+
+
+    if (
+      !elements.logEditorForm ||
+      !elements.logEditorForm
+        .reportValidity()
+    ) {
+      return null;
+    }
+
+
+    const log =
+      collectEditorData(
+        requestedStatus
+      );
+
+
+    const hasEntryContent =
+      Array.isArray(
+        log.entries
+      ) &&
+      log.entries.some(
+        entry => {
+          return Boolean(
+            String(
+              entry?.content ||
+              ""
+            ).trim()
+          );
+        }
+      );
+
+
+    if (
+      !String(
+        log.operationStatus ||
+        ""
+      ).trim() &&
+      !hasEntryContent &&
+      !String(
+        log.note ||
+        ""
+      ).trim()
+    ) {
+      showToast(
+        "운전 현황 또는 업무 내용을 입력해 주세요."
+      );
+
+
+      return null;
+    }
+
+
+    const editingId =
+      String(
+        elements.logEditorForm
+          .dataset.editingId ||
+        ""
+      ).trim();
+
+
+    const normalizedRole =
+      normalizeMemberLogRole(
+        log.role
+      );
+
+
+    const baseLog =
+      appState.logs
+        .filter(
+          currentLog => {
+            if (
+              isReadOnlyLegacyShiftLog(
+                currentLog
+              )
+            ) {
+              return false;
+            }
+
+
+            if (
+              editingId &&
+              String(
+                currentLog?.id ||
+                ""
+              ) ===
+                editingId
+            ) {
+              return true;
+            }
+
+
+            return (
+              String(
+                currentLog?.date ||
+                ""
+              ).trim() ===
+                String(
+                  log.date ||
+                  ""
+                ).trim() &&
+
+
+              String(
+                currentLog?.shift ||
+                ""
+              )
+                .trim()
+                .toUpperCase() ===
+                String(
+                  log.shift ||
+                  ""
+                )
+                  .trim()
+                  .toUpperCase() &&
+
+
+              normalizeMemberLogRole(
+                currentLog?.role
+              ) ===
+                normalizedRole
+            );
+          }
+        )
+        .sort(
+          (
+            firstLog,
+            secondLog
+          ) => {
+            return (
+              Number(
+                secondLog.serverRevision ||
+                0
+              ) -
+              Number(
+                firstLog.serverRevision ||
+                0
+              )
+            );
+          }
+        )[0] ||
+      null;
+
+
+    if (
+      baseLog
+    ) {
+      log.id =
+        baseLog.id;
+
+
+      log.createdAt =
+        baseLog.createdAt ||
+        log.createdAt;
+
+
+      log.serverRevision =
+        Number(
+          baseLog.serverRevision
+        ) ||
+        0;
+    }
+
+
+    setShiftLogSavingState(
+      true
+    );
+
+
+    try {
+      const savedLog =
+        await saveShiftLogToServer(
+          log,
+          {
+            action:
+              "save",
+
+
+            expectedRevision:
+              Number(
+                baseLog?.serverRevision ||
+                0
+              )
+          }
+        );
+
+
+      if (
+        !savedLog
+      ) {
+        throw new Error(
+          "저장된 업무일지를 확인할 수 없습니다."
+        );
+      }
+
+
+      replaceSharedShiftLogInState(
+        savedLog
+      );
+
+
+      localStorage.removeItem(
+        STORAGE_KEYS.draft
+      );
+
+
+      elements.logEditorForm
+        .dataset.editingId =
+        savedLog.id;
+
+
+      appState.selectedDate =
+        new Date(
+          `${savedLog.date}T00:00:00`
+        );
+
+
+      appState.selectedShift =
+        savedLog.shift;
+
+
+      renderSelectedDate();
+
+
+      renderLogTable();
+
+
+      updateShiftMemberCardStates();
+
+
+      if (
+        closeAfterSave
+      ) {
+        closeLogEditor();
+      }
+
+
+      const savedStatus =
+        normalizeShiftLogApprovalStatus(
+          savedLog.status
+        );
+
+
+      showToast(
+        savedStatus ===
+          "결재요청"
+          ? "업무일지를 저장하고 결재를 요청했습니다."
+          : (
+              savedStatus ===
+                "저장완료"
+                ? "파트장 업무일지를 저장했습니다."
+                : "업무일지를 임시저장했습니다."
+            )
+      );
+
+
+      return savedLog;
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "공용 업무일지 저장 실패:",
+        error
+      );
+
+
+      if (
+        error instanceof
+          ShiftLogApiError &&
+        error.isConflict
+      ) {
+        handleShiftLogConflict(
+          error
+        );
+
+      } else {
+        showToast(
+          error.message ||
+          "업무일지를 저장하지 못했습니다."
+        );
+      }
+
+
+      return null;
+
+    } finally {
+      setShiftLogSavingState(
+        false
+      );
+    }
+  };
+
+
+/* =========================================================
+  임시저장 D1 연결
+========================================================= */
+
+saveDraft =
+  async function saveDraft() {
+    if (
+      !elements.logEditorForm ||
+      !elements.logEditorForm
+        .reportValidity()
+    ) {
+      return null;
+    }
+
+
+    const hasEntryContent =
+      appState.editorEntries.some(
+        entry => {
+          return Boolean(
+            String(
+              entry?.content ||
+              ""
+            ).trim()
+          );
+        }
+      );
+
+
+    const hasOperationStatus =
+      Boolean(
+        String(
+          elements.operationStatusSnapshot
+            ?.value ||
+          elements.operationStatus
+            ?.value ||
+          appState.currentOperationStatus
+            ?.content ||
+          ""
+        ).trim()
+      );
+
+
+    const hasNote =
+      Boolean(
+        String(
+          elements.logNote
+            ?.value ||
+          ""
+        ).trim()
+      );
+
+
+    if (
+      !hasEntryContent &&
+      !hasOperationStatus &&
+      !hasNote
+    ) {
+      showToast(
+        "운전 현황 또는 업무 내용을 입력해 주세요."
+      );
+
+
+      return null;
+    }
+
+
+    return saveCurrentLog(
+      "작성중",
+      {
+        closeAfterSave:
+          false
+      }
+    );
+  };
+
+
+/* =========================================================
+  업무일지 D1 삭제
+========================================================= */
+
+deleteLogById =
+  async function deleteLogById(
+    logId
+  ) {
+    const targetLog =
+      appState.logs.find(
+        log => {
+          return (
+            String(
+              log?.id ||
+              ""
+            ) ===
+            String(
+              logId ||
+              ""
+            )
+          );
+        }
+      );
+
+
+    if (
+      !targetLog
+    ) {
+      showToast(
+        "삭제할 업무일지를 찾을 수 없습니다."
+      );
+
+
+      return;
+    }
+
+
+    if (
+      isReadOnlyLegacyShiftLog(
+        targetLog
+      )
+    ) {
+      showToast(
+        "과거 업무일지는 삭제할 수 없습니다."
+      );
+
+
+      return;
+    }
+
+
+    const shouldDelete =
+      window.confirm(
+        [
+          "이 업무일지를 삭제하시겠습니까?",
+          "",
+          `날짜: ${targetLog.date || "-"}`,
+          `근무: ${targetLog.shift || "-"}`,
+          `보직: ${targetLog.role || "-"}`,
+          `작성자: ${targetLog.author || "-"}`
+        ].join(
+          "\n"
+        )
+      );
+
+
+    if (
+      !shouldDelete
+    ) {
+      return;
+    }
+
+
+    try {
+      await deleteShiftLogFromServer(
+        targetLog
+      );
+
+
+      removeSharedShiftLogFromState(
+        targetLog.id
+      );
+
+
+      renderLogTable();
+
+
+      updateShiftMemberCardStates();
+
+
+      showToast(
+        "업무일지를 삭제했습니다."
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "공용 업무일지 삭제 실패:",
+        error
+      );
+
+
+      if (
+        error instanceof
+          ShiftLogApiError &&
+        error.isConflict
+      ) {
+        handleShiftLogConflict(
+          error
+        );
+
+      } else {
+        showToast(
+          error.message ||
+          "업무일지를 삭제하지 못했습니다."
+        );
+      }
+    }
+  };
+
+
+/* =========================================================
+  업무일지 수정 권한
+
+  - 최고관리자: 모든 보직과 상태 수정 가능
+  - 일반 사용자: 본인이 작성한 임시저장 일지만 가능
+  - 파트장: 본인의 저장완료 일지 수정 가능
+  - 과거 연동 일지: 수정 불가
+========================================================= */
+
+canCurrentUserEditShiftLog =
+  function canCurrentUserEditShiftLog(
+    log
+  ) {
+    if (
+      !log ||
+      typeof log !==
+        "object" ||
+      isReadOnlyLegacyShiftLog(
+        log
+      )
+    ) {
+      return false;
+    }
+
+
+    const currentUser =
+      getCurrentShiftLogUserIdentity();
+
+
+    const currentEmployeeNo =
+      String(
+        currentUser?.employeeNo ||
+        ""
+      ).trim();
+
+
+    if (
+      !currentEmployeeNo
+    ) {
+      return false;
+    }
+
+
+    if (
+      isCurrentUserSuperAdmin()
+    ) {
+      return true;
+    }
+
+
+    if (
+      !isCurrentUserShiftLogAuthor(
+        log
+      )
+    ) {
+      return false;
+    }
+
+
+    const normalizedStatus =
+      normalizeShiftLogApprovalStatus(
+        log.status
+      );
+
+
+    if (
+      normalizedStatus ===
+        "임시저장"
+    ) {
+      return true;
+    }
+
+
+    return (
+      isCurrentShiftLogLeader() &&
+      normalizeMemberLogRole(
+        log.role
+      ) ===
+        "파트장" &&
+      normalizedStatus ===
+        "저장완료"
+    );
+  };
+
+
+/* =========================================================
+  업무일지 편집창 권한 유형
+========================================================= */
+
+getCurrentShiftLogPermissionType =
+  function getCurrentShiftLogPermissionType() {
+    const currentEditorRole =
+      normalizeMemberLogRole(
+        elements.logRole
+          ?.value ||
+        ""
+      );
+
+
+    const editingId =
+      String(
+        elements.logEditorForm
+          ?.dataset.editingId ||
+        ""
+      ).trim();
+
+
+    if (
+      isCurrentUserSuperAdmin() &&
+      editingId
+    ) {
+      return "super_admin_edit";
+    }
+
+
+    if (
+      isCurrentUserSuperAdmin()
+    ) {
+      return currentEditorRole ===
+        "파트장"
+          ? "leader"
+          : "member";
+    }
+
+
+    if (
+      isCurrentShiftLogLeader()
+    ) {
+      return "leader";
+    }
+
+
+    return "member";
+  };
+
+
+/* =========================================================
+  편집창 저장 버튼 권한별 표시
+========================================================= */
+
+updateLogEditorActionButtons =
+  function updateLogEditorActionButtons() {
+    const permissionType =
+      getCurrentShiftLogPermissionType();
+
+
+    const submitButton =
+      getShiftLogEditorSubmitButton();
+
+
+    const saveDraftButton =
+      elements.saveDraftButton ||
+      document.getElementById(
+        "saveDraftButton"
+      );
+
+
+    const requestApprovalButton =
+      elements.requestApprovalButton ||
+      document.getElementById(
+        "requestApprovalButton"
+      );
+
+
+    const isLeaderMode =
+      permissionType ===
+        "leader";
+
+
+    const isSuperAdminEditMode =
+      permissionType ===
+        "super_admin_edit";
+
+
+    const showSubmitButton =
+      isLeaderMode ||
+      isSuperAdminEditMode;
+
+
+    if (
+      submitButton
+    ) {
+      submitButton.hidden =
+        !showSubmitButton;
+
+
+      submitButton.disabled =
+        !showSubmitButton;
+
+
+      submitButton.textContent =
+        isSuperAdminEditMode
+          ? "수정 저장"
+          : "저장";
+
+
+      submitButton.title =
+        isSuperAdminEditMode
+          ? "원 작성자와 결재 상태를 유지하고 수정 내용을 저장합니다."
+          : (
+              isLeaderMode
+                ? "파트장 업무일지를 저장완료 상태로 저장합니다."
+                : ""
+            );
+    }
+
+
+    if (
+      saveDraftButton
+    ) {
+      saveDraftButton.hidden =
+        showSubmitButton;
+
+
+      saveDraftButton.disabled =
+        showSubmitButton;
+
+
+      saveDraftButton.textContent =
+        "임시저장";
+    }
+
+
+    if (
+      requestApprovalButton
+    ) {
+      requestApprovalButton.hidden =
+        showSubmitButton;
+
+
+      requestApprovalButton.disabled =
+        showSubmitButton;
+
+
+      requestApprovalButton.textContent =
+        "결재요청";
+    }
+  };
+
+  /* =========================================================
+  D1 업무일지 결재·결재취소 연결
+========================================================= */
+
+async function changeShiftLogApprovalOnServer(
+  targetLog,
+  action
+) {
+  const savedLog =
+    await saveShiftLogToServer(
+      targetLog,
+      {
+        action,
+
+
+        expectedRevision:
+          Number(
+            targetLog.serverRevision
+          ) ||
+          0
+      }
+    );
+
+
+  if (
+    savedLog
+  ) {
+    replaceSharedShiftLogInState(
+      savedLog
+    );
+  }
+
+
+  return savedLog;
+}
+
+
+/* =========================================================
+  업무일지 결재완료
+
+  - 파트장 또는 최고관리자만 가능
+  - 결재요청 상태의 파트원 업무일지만 가능
+  - 결재 이력과 결재자 정보는 서버에서 기록
+========================================================= */
+
+completeCurrentDetailShiftLogApproval =
+  async function completeCurrentDetailShiftLogApproval() {
+    const targetLog =
+      getCurrentDetailShiftLog();
+
+
+    if (
+      !targetLog
+    ) {
+      showToast(
+        "결재할 업무일지를 찾을 수 없습니다."
+      );
+
+
+      return null;
+    }
+
+
+    if (
+      !(
+        isCurrentShiftLogLeader() ||
+        isCurrentUserSuperAdmin()
+      )
+    ) {
+      showToast(
+        "파트장 또는 최고관리자만 업무일지를 결재할 수 있습니다."
+      );
+
+
+      return null;
+    }
+
+
+    if (
+      normalizeMemberLogRole(
+        targetLog.role
+      ) ===
+        "파트장"
+    ) {
+      showToast(
+        "파트장 업무일지는 결재 대상이 아닙니다."
+      );
+
+
+      return null;
+    }
+
+
+    if (
+      normalizeShiftLogApprovalStatus(
+        targetLog.status
+      ) !==
+        "결재요청"
+    ) {
+      showToast(
+        "결재요청 상태의 업무일지만 결재할 수 있습니다."
+      );
+
+
+      return null;
+    }
+
+
+    const shouldApprove =
+      window.confirm(
+        [
+          "이 업무일지를 결재완료 처리하시겠습니까?",
+          "",
+          `작성일: ${targetLog.date || "-"}`,
+          `근무: ${getShiftDisplayName(
+            targetLog.shift
+          )}`,
+          `보직: ${targetLog.role || "-"}`,
+          `작성자: ${targetLog.author || "-"}`
+        ].join(
+          "\n"
+        )
+      );
+
+
+    if (
+      !shouldApprove
+    ) {
+      return null;
+    }
+
+
+    try {
+      const savedLog =
+        await changeShiftLogApprovalOnServer(
+          targetLog,
+          "approve"
+        );
+
+
+      renderLogTable();
+
+
+      updateShiftMemberCardStates();
+
+
+      openLogDetail(
+        savedLog
+      );
+
+
+      showToast(
+        "업무일지 결재가 완료되었습니다."
+      );
+
+
+      return savedLog;
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "업무일지 결재 실패:",
+        error
+      );
+
+
+      if (
+        error instanceof
+          ShiftLogApiError &&
+        error.isConflict
+      ) {
+        handleShiftLogConflict(
+          error
+        );
+
+      } else {
+        showToast(
+          error.message ||
+          "업무일지를 결재하지 못했습니다."
+        );
+      }
+
+
+      return null;
+    }
+  };
+
+
+/* =========================================================
+  기존 상세보기 결재 함수 연결
+========================================================= */
+
+approveCurrentDetailLog =
+  function approveCurrentDetailLog() {
+    return completeCurrentDetailShiftLogApproval();
+  };
+
+
+/* =========================================================
+  업무일지 결재취소
+
+  - 본인: 결재요청 상태 취소 가능
+  - 파트장·최고관리자:
+    결재요청 또는 결재완료 상태 취소 가능
+  - 취소 후 임시저장 상태로 변경
+========================================================= */
+
+cancelCurrentDetailShiftLogApproval =
+  async function cancelCurrentDetailShiftLogApproval() {
+    const targetLog =
+      getCurrentDetailShiftLog();
+
+
+    if (
+      !targetLog
+    ) {
+      showToast(
+        "결재취소할 업무일지를 찾을 수 없습니다."
+      );
+
+
+      return null;
+    }
+
+
+    if (
+      !canCurrentUserCancelShiftLogApproval(
+        targetLog
+      )
+    ) {
+      showToast(
+        "현재 계정으로는 이 업무일지의 결재를 취소할 수 없습니다."
+      );
+
+
+      return null;
+    }
+
+
+    const previousStatus =
+      normalizeShiftLogApprovalStatus(
+        targetLog.status
+      );
+
+
+    const shouldCancel =
+      window.confirm(
+        previousStatus ===
+          "결재완료"
+          ? [
+              "완료된 결재를 취소하시겠습니까?",
+              "",
+              "업무일지는 임시저장 상태로 돌아갑니다."
+            ].join(
+              "\n"
+            )
+          : [
+              "결재요청을 취소하시겠습니까?",
+              "",
+              "업무일지는 임시저장 상태로 돌아갑니다."
+            ].join(
+              "\n"
+            )
+      );
+
+
+    if (
+      !shouldCancel
+    ) {
+      return null;
+    }
+
+
+    try {
+      const savedLog =
+        await changeShiftLogApprovalOnServer(
+          targetLog,
+          "cancel"
+        );
+
+
+      renderLogTable();
+
+
+      updateShiftMemberCardStates();
+
+
+      openLogDetail(
+        savedLog
+      );
+
+
+      showToast(
+        previousStatus ===
+          "결재완료"
+          ? "완료된 결재를 취소했습니다."
+          : "결재요청을 취소했습니다."
+      );
+
+
+      return savedLog;
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "업무일지 결재취소 실패:",
+        error
+      );
+
+
+      if (
+        error instanceof
+          ShiftLogApiError &&
+        error.isConflict
+      ) {
+        handleShiftLogConflict(
+          error
+        );
+
+      } else {
+        showToast(
+          error.message ||
+          "업무일지 결재를 취소하지 못했습니다."
+        );
+      }
+
+
+      return null;
+    }
+  };
+
+  /* =========================================================
+  날짜·근무 이동과 조회 실행 직전에
+  다른 PC가 저장한 최신 D1 자료를 다시 불러온다.
+========================================================= */
+
+const toggleSelectedShiftBeforeSharedSync =
+  toggleSelectedShift;
+
+
+toggleSelectedShift =
+  async function toggleSelectedShift() {
+    await toggleSelectedShiftBeforeSharedSync();
+
+
+    try {
+      await refreshSharedShiftLogsInState();
+
+
+      await loadLegacyLogsForSelectedDate();
+
+
+      renderLogTable();
+
+
+      updateShiftMemberCardStates();
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "근무 전환 후 공용 업무일지 갱신 실패:",
+        error
+      );
+    }
+  };
+
+
+const moveSelectedDateBeforeSharedSync =
+  moveSelectedDate;
+
+
+moveSelectedDate =
+  async function moveSelectedDate(
+    direction
+  ) {
+    await moveSelectedDateBeforeSharedSync(
+      direction
+    );
+
+
+    try {
+      await refreshSharedShiftLogsInState();
+
+
+      await loadLegacyLogsForSelectedDate();
+
+
+      renderLogTable();
+
+
+      updateShiftMemberCardStates();
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "날짜 이동 후 공용 업무일지 갱신 실패:",
+        error
+      );
+    }
+  };
+
+
+const moveSelectedDateToTodayBeforeSharedSync =
+  moveSelectedDateToToday;
+
+
+moveSelectedDateToToday =
+  async function moveSelectedDateToToday() {
+    await moveSelectedDateToTodayBeforeSharedSync();
+
+
+    try {
+      await refreshSharedShiftLogsInState();
+
+
+      await loadLegacyLogsForSelectedDate();
+
+
+      renderLogTable();
+
+
+      updateShiftMemberCardStates();
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "오늘 이동 후 공용 업무일지 갱신 실패:",
+        error
+      );
+    }
+  };
+
+
+const runSearchBeforeSharedSync =
+  runSearch;
+
+
+runSearch =
+  async function runSearch() {
+    try {
+      await refreshSharedShiftLogsInState();
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "조회 전 공용 업무일지 갱신 실패:",
+        error
+      );
+    }
+
+
+    return runSearchBeforeSharedSync();
+  };
