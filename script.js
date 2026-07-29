@@ -37864,9 +37864,21 @@ function resolveShiftLogSaveStatus(
   return "임시저장";
 }
 
-
 /* =========================================================
-  현재 업무일지 작성창 권한 구분
+  현재 업무일지 작성·수정창 버튼 유형 결정
+
+  기준은 로그인 계정 권한이 아니라
+  현재 작성·수정 중인 업무일지의 보직이다.
+
+  파트장:
+  - 저장 버튼
+
+  나머지 보직:
+  - 임시저장
+  - 결재요청
+
+  최고관리자가 다른 보직 업무일지를 수정해도
+  해당 보직의 일반적인 저장 흐름을 그대로 사용한다.
 ========================================================= */
 
 function getCurrentShiftLogPermissionType() {
@@ -37877,49 +37889,9 @@ function getCurrentShiftLogPermissionType() {
     );
 
 
-  const editingId =
-    String(
-      elements.logEditorForm
-        ?.dataset.editingId ||
-      ""
-    ).trim();
-
-
-  /*
-    최고관리자가 기존 일지를 수정하면
-    어느 보직이든 관리자 수정 모드
-  */
   if (
-    isCurrentUserSuperAdmin() &&
-    editingId
-  ) {
-    return "super_admin_edit";
-  }
-
-
-  /*
-    최고관리자의 신규 업무일지
-
-    파트장:
-    - 저장 버튼
-    - 저장완료
-
-    다른 보직:
-    - 임시저장
-    - 결재요청
-  */
-  if (
-    isCurrentUserSuperAdmin()
-  ) {
-    return currentEditorRole ===
-      "파트장"
-        ? "leader"
-        : "member";
-  }
-
-
-  if (
-    isCurrentShiftLogLeader()
+    currentEditorRole ===
+    "파트장"
   ) {
     return "leader";
   }
@@ -37930,7 +37902,20 @@ function getCurrentShiftLogPermissionType() {
 
 
 /* =========================================================
-  작성·수정창 하단 버튼 표시
+  업무일지 작성·수정창 하단 버튼 표시
+
+  파트장:
+  - 저장 표시
+  - 임시저장 숨김
+  - 결재요청 숨김
+
+  TGO·BCO1·BCO2·TO·BO1·BO2:
+  - 저장 숨김
+  - 임시저장 표시
+  - 결재요청 표시
+
+  최고관리자가 수정해도
+  현재 업무일지 보직 기준으로 동일하게 표시한다.
 ========================================================= */
 
 function updateLogEditorActionButtons() {
@@ -37958,82 +37943,126 @@ function updateLogEditorActionButtons() {
 
   const isLeaderMode =
     permissionType ===
-      "leader";
-
-
-  const isSuperAdminEditMode =
-    permissionType ===
-      "super_admin_edit";
-
-
-  const showSubmitButton =
-    isLeaderMode ||
-    isSuperAdminEditMode;
+    "leader";
 
 
   /*
-    파트장 신규 저장 또는
-    최고관리자 기존 일지 수정 저장
+    파트장 저장 버튼
   */
   if (
     submitButton
   ) {
     submitButton.hidden =
-      !showSubmitButton;
+      !isLeaderMode;
+
 
     submitButton.disabled =
-      !showSubmitButton;
+      !isLeaderMode;
+
 
     submitButton.textContent =
-      isSuperAdminEditMode
-        ? "수정 저장"
-        : "저장";
+      "저장";
+
 
     submitButton.title =
-      isSuperAdminEditMode
-        ? "기존 작성자와 결재 상태를 유지하고 수정 내용을 저장합니다."
-        : (
-            isLeaderMode
-              ? "파트장 업무일지를 저장완료 상태로 저장합니다."
-              : ""
-          );
+      isLeaderMode
+        ? "파트장 업무일지를 저장완료 상태로 저장합니다."
+        : "";
   }
 
 
   /*
-    파트원 보직 신규 작성 시 임시저장
+    파트원 임시저장 버튼
   */
   if (
     saveDraftButton
   ) {
     saveDraftButton.hidden =
-      showSubmitButton;
+      isLeaderMode;
+
 
     saveDraftButton.disabled =
-      showSubmitButton;
+      isLeaderMode;
+
 
     saveDraftButton.textContent =
       "임시저장";
+
+
+    saveDraftButton.title =
+      isLeaderMode
+        ? ""
+        : "현재 작성 내용을 임시저장합니다.";
   }
 
 
   /*
-    파트원 보직 신규 작성 시 결재요청
+    파트원 결재요청 버튼
   */
   if (
     requestApprovalButton
   ) {
     requestApprovalButton.hidden =
-      showSubmitButton;
+      isLeaderMode;
+
 
     requestApprovalButton.disabled =
-      showSubmitButton;
+      isLeaderMode;
+
 
     requestApprovalButton.textContent =
       "결재요청";
+
+
+    requestApprovalButton.title =
+      isLeaderMode
+        ? ""
+        : "업무일지를 저장하고 결재를 요청합니다.";
+  }
+
+
+  /*
+    hidden 속성이 기존 CSS에 의해 무시되는 경우를 막기 위해
+    실제 표시 상태도 함께 고정한다.
+  */
+  if (
+    submitButton
+  ) {
+    submitButton.style.setProperty(
+      "display",
+      isLeaderMode
+        ? "inline-flex"
+        : "none",
+      "important"
+    );
+  }
+
+
+  if (
+    saveDraftButton
+  ) {
+    saveDraftButton.style.setProperty(
+      "display",
+      isLeaderMode
+        ? "none"
+        : "inline-flex",
+      "important"
+    );
+  }
+
+
+  if (
+    requestApprovalButton
+  ) {
+    requestApprovalButton.style.setProperty(
+      "display",
+      isLeaderMode
+        ? "none"
+        : "inline-flex",
+      "important"
+    );
   }
 }
-
 
 /* =========================================================
   업무일지 수정·이어쓰기 가능 여부
@@ -43926,80 +43955,131 @@ canCurrentUserEditShiftLog =
   };
 
 /* =========================================================
-  업무일지 편집창 권한 유형 최종본
+  업무일지 편집창 권한 유형
 
-  핵심 수정:
-  - 임시저장 후 editingId가 생겨도 파트원 모드를 유지한다.
-  - 실제로 상세보기나 목록에서 기존 업무일지를 연 경우에만
-    최고관리자 수정 모드로 처리한다.
+  중요:
+  로그인 계정 권한이 아니라
+  현재 작성·수정 중인 업무일지의 보직을 기준으로
+  저장 버튼 구성을 결정한다.
+
+  파트장:
+  저장
+
+  TGO · BCO1 · BCO2 · TO · BO1 · BO2:
+  임시저장 · 결재요청
+
+  최고관리자가 다른 보직 일지를 수정하더라도
+  해당 보직의 일반 작성 절차를 그대로 사용한다.
 ========================================================= */
 
 getCurrentShiftLogPermissionType =
   function getCurrentShiftLogPermissionType() {
     const currentEditorRole =
       normalizeMemberLogRole(
-        elements.logRole
-          ?.value ||
-        ""
+        elements.logRole?.value || ""
       );
 
-
-    const editorMode =
-      String(
-        elements.logEditorForm
-          ?.dataset
-          ?.editorMode ||
-        ""
-      ).trim();
-
-
-    /*
-      최고관리자가 실제 기존 업무일지를
-      수정하기 위해 연 경우에만 관리자 수정 모드
-    */
     if (
-      isCurrentUserSuperAdmin() &&
-      editorMode ===
-        "existing-edit"
-    ) {
-      return "super_admin_edit";
-    }
-
-
-    /*
-      최고관리자가 직접 새 업무일지를 작성하거나
-      작성 중인 일지를 임시저장한 경우
-
-      파트장:
-      저장 버튼
-
-      일반 보직:
-      임시저장 + 결재요청
-    */
-    if (
-      isCurrentUserSuperAdmin()
-    ) {
-      return currentEditorRole ===
-        "파트장"
-          ? "leader"
-          : "member";
-    }
-
-
-    /*
-      일반 파트장 계정
-    */
-    if (
-      isCurrentShiftLogLeader()
+      currentEditorRole ===
+      "파트장"
     ) {
       return "leader";
     }
 
+    return "member";
+  };
+
+
+/* =========================================================
+  편집창 저장 버튼 표시
+
+  파트장:
+  저장 버튼 표시
+  임시저장·결재요청 숨김
+
+  일반 보직:
+  저장 버튼 숨김
+  임시저장·결재요청 표시
+
+  최고관리자 수정도 현재 업무일지 보직 기준으로 처리
+========================================================= */
+
+updateLogEditorActionButtons =
+  function updateLogEditorActionButtons() {
+    const permissionType =
+      getCurrentShiftLogPermissionType();
+
+    const submitButton =
+      getShiftLogEditorSubmitButton();
+
+    const saveDraftButton =
+      elements.saveDraftButton ||
+      document.getElementById(
+        "saveDraftButton"
+      );
+
+    const requestApprovalButton =
+      elements.requestApprovalButton ||
+      document.getElementById(
+        "requestApprovalButton"
+      );
+
+    const isLeaderMode =
+      permissionType ===
+      "leader";
 
     /*
-      일반 파트원
+      파트장 전용 저장 버튼
     */
-    return "member";
+    if (
+      submitButton
+    ) {
+      submitButton.hidden =
+        !isLeaderMode;
+
+      submitButton.disabled =
+        !isLeaderMode;
+
+      submitButton.textContent =
+        "저장";
+
+      submitButton.title =
+        isLeaderMode
+          ? "파트장 업무일지를 저장완료 상태로 저장합니다."
+          : "";
+    }
+
+    /*
+      일반 보직 임시저장
+    */
+    if (
+      saveDraftButton
+    ) {
+      saveDraftButton.hidden =
+        isLeaderMode;
+
+      saveDraftButton.disabled =
+        isLeaderMode;
+
+      saveDraftButton.textContent =
+        "임시저장";
+    }
+
+    /*
+      일반 보직 결재요청
+    */
+    if (
+      requestApprovalButton
+    ) {
+      requestApprovalButton.hidden =
+        isLeaderMode;
+
+      requestApprovalButton.disabled =
+        isLeaderMode;
+
+      requestApprovalButton.textContent =
+        "결재요청";
+    }
   };
 
 
