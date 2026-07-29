@@ -152,3 +152,67 @@ idx_auth_logs_created_at
 ON auth_logs (
   created_at
 );
+
+-- =========================================================
+-- 브랜드 설정
+--
+-- 항상 id = 1 한 행만 사용
+-- 이미지 파일은 R2에 저장하고,
+-- DB에는 버전값과 표시 설정만 저장
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS brand_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+
+  company_name TEXT NOT NULL DEFAULT 'GS 포천그린에너지',
+
+  program_name TEXT NOT NULL DEFAULT 'GS Shift Log',
+
+  program_subtitle TEXT NOT NULL DEFAULT '교대근무 업무일지 시스템',
+
+  logo_content_type TEXT NOT NULL DEFAULT '',
+
+  logo_version TEXT NOT NULL DEFAULT '',
+
+  background_content_type TEXT NOT NULL DEFAULT '',
+
+  background_version TEXT NOT NULL DEFAULT '',
+
+  background_position_x INTEGER NOT NULL DEFAULT 50,
+
+  background_position_y INTEGER NOT NULL DEFAULT 50,
+
+  background_overlay INTEGER NOT NULL DEFAULT 30,
+
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+
+INSERT OR IGNORE INTO brand_settings (
+  id,
+  company_name,
+  program_name,
+  program_subtitle,
+  logo_content_type,
+  logo_version,
+  background_content_type,
+  background_version,
+  background_position_x,
+  background_position_y,
+  background_overlay,
+  updated_at
+)
+VALUES (
+  1,
+  'GS 포천그린에너지',
+  'GS Shift Log',
+  '교대근무 업무일지 시스템',
+  '',
+  '',
+  '',
+  '',
+  50,
+  50,
+  30,
+  CURRENT_TIMESTAMP
+);
