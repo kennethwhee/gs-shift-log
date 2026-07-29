@@ -425,12 +425,6 @@ async function loadLegacyAttachmentsByDiaryIds(
   }
 
 
-  /*
-    D1 바인딩 자리표시자 생성
-
-    예:
-    ?1, ?2, ?3
-  */
   const placeholders =
     normalizedDiaryIds
       .map(
@@ -485,6 +479,50 @@ async function loadLegacyAttachmentsByDiaryIds(
       attachmentMap,
       attachmentRow
     ) => {
+      const fileName =
+        normalizeText(
+          attachmentRow.file_name
+        );
+
+
+      /*
+        과거 시스템의 안내용 값은
+        실제 첨부파일에서 제외한다.
+
+        제목
+        유첨: 제목
+        유첨 : 제목
+      */
+      const normalizedFileLabel =
+        fileName
+          .normalize("NFKC")
+          .replace(
+            /\s+/g,
+            ""
+          )
+          .replace(
+            /：/g,
+            ":"
+          )
+          .toLowerCase();
+
+
+      const isPlaceholderAttachment =
+        [
+          "제목",
+          "유첨:제목"
+        ].includes(
+          normalizedFileLabel
+        );
+
+
+      if (
+        isPlaceholderAttachment
+      ) {
+        return attachmentMap;
+      }
+
+
       const legacyDiaryId =
         normalizeText(
           attachmentRow
