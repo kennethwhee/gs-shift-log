@@ -20103,16 +20103,39 @@ tbody tr:not(.log-entry-empty-row) td {
 }
 
 /* =========================================================
-  업무일지 수정창 빈 목록 높이 최종 강제 적용
+  업무일지 작성·수정창 목록 최소 높이 최종 적용
 
-  TM 발행 내역 : 약 3줄
-  인계사항      : 약 5줄
+  내용 유무와 관계없이 유지:
+  - TM 발행 내역 : 84px, 약 3줄
+  - 인계사항     : 132px, 약 5줄
+  - 비고         : 84px, 약 3줄
+
+  내용이 많아지면 아래쪽으로 자동 확장된다.
 ========================================================= */
 
 
 /* =========================================================
-  TM 발행 내역 빈 상태
+  TM 발행 내역
 ========================================================= */
+
+#logEntryListPanel
+.handover-entry-group--tm
+.log-entry-table--tm {
+  width: 100% !important;
+  height: 84px !important;
+  min-height: 84px !important;
+
+  box-sizing: border-box;
+}
+
+
+#logEntryListPanel
+.handover-entry-group--tm
+.log-entry-table--tm
+tbody {
+  height: 84px !important;
+}
+
 
 #logEntryListPanel
 .handover-entry-group--tm
@@ -20121,6 +20144,7 @@ tbody
 tr.log-entry-empty-row {
   height: 84px !important;
 }
+
 
 #logEntryListPanel
 .handover-entry-group--tm
@@ -20144,9 +20168,43 @@ td {
 }
 
 
+/*
+  실제 항목이 있을 때는 내용을 위쪽부터 표시한다.
+  전체 목록 높이는 84px 아래로 줄어들지 않는다.
+*/
+#logEntryListPanel
+.handover-entry-group--tm
+.log-entry-table--tm
+tbody
+tr:not(.log-entry-empty-row)
+td {
+  height: auto !important;
+  vertical-align: top !important;
+}
+
+
 /* =========================================================
-  인계사항 빈 상태
+  인계사항
 ========================================================= */
+
+#logEntryListPanel
+.handover-entry-group--handover
+.log-entry-table--handover {
+  width: 100% !important;
+  height: 132px !important;
+  min-height: 132px !important;
+
+  box-sizing: border-box;
+}
+
+
+#logEntryListPanel
+.handover-entry-group--handover
+.log-entry-table--handover
+tbody {
+  height: 132px !important;
+}
+
 
 #logEntryListPanel
 .handover-entry-group--handover
@@ -20155,6 +20213,7 @@ tbody
 tr.log-entry-empty-row {
   height: 132px !important;
 }
+
 
 #logEntryListPanel
 .handover-entry-group--handover
@@ -20175,6 +20234,75 @@ td {
 
   text-align: center !important;
   vertical-align: middle !important;
+}
+
+
+/*
+  항목 한 개만 추가해도 약 5줄 높이를 유지한다.
+  항목이 많아지면 내용만큼 자동 확장된다.
+*/
+#logEntryListPanel
+.handover-entry-group--handover
+.log-entry-table--handover
+tbody
+tr:not(.log-entry-empty-row)
+td {
+  height: auto !important;
+  vertical-align: top !important;
+}
+
+
+/* =========================================================
+  비고
+========================================================= */
+
+table:has(#noteEntryTableBody) {
+  width: 100% !important;
+  height: 84px !important;
+  min-height: 84px !important;
+
+  box-sizing: border-box;
+}
+
+
+#noteEntryTableBody {
+  height: 84px !important;
+}
+
+
+#noteEntryTableBody
+tr.log-entry-empty-row {
+  height: 84px !important;
+}
+
+
+#noteEntryTableBody
+tr.log-entry-empty-row
+td {
+  height: 84px !important;
+  min-height: 84px !important;
+
+  padding: 0 16px !important;
+
+  background: #fbfaff !important;
+  color: #77738b !important;
+
+  font-size: 11px !important;
+  font-weight: 600 !important;
+
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+
+/*
+  비고가 추가되어도 약 3줄 높이를 유지한다.
+*/
+#noteEntryTableBody
+tr:not(.log-entry-empty-row)
+td {
+  height: auto !important;
+  vertical-align: top !important;
 }
 
 /* =========================================================
