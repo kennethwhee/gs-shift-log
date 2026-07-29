@@ -33193,3 +33193,276 @@ output {
     transform: none;
   }
 }
+
+/* =========================================================
+   로그인 화면 배치 최종 고정
+
+   구성:
+   소개 문구 | 로그인 카드
+
+   - 로그인 카드는 화면 정중앙
+   - GS Shift Log 문구는 카드 왼쪽
+   - 배경 이미지 안의 회사 로고와 슬로건은 그대로 사용
+========================================================= */
+
+
+/* =========================================================
+   로그인 화면 전체
+========================================================= */
+
+.login-screen {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1000 !important;
+
+  display: block !important;
+
+  width: 100vw !important;
+  min-width: 1180px !important;
+  min-height: 100vh !important;
+
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+
+/* =========================================================
+   로그인 카드 영역
+
+   화면 기준 정중앙에 고정
+========================================================= */
+
+.login-screen__content {
+  position: absolute !important;
+
+  top: 50% !important;
+  left: 50% !important;
+  z-index: 5 !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  transform: translate(-50%, -50%) !important;
+}
+
+
+/* 로그인 카드 자체 위치 흔들림 방지 */
+
+.login-screen__content .login-card {
+  position: relative !important;
+
+  width: 430px !important;
+  max-width: 430px !important;
+
+  margin: 0 !important;
+
+  transform: none !important;
+}
+
+
+/* =========================================================
+   왼쪽 시스템 소개 영역
+
+   로그인 카드 왼쪽에 위치
+========================================================= */
+
+.login-introduction {
+  position: absolute !important;
+
+  top: 50% !important;
+  right: calc(50% + 255px) !important;
+  z-index: 4 !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+
+  width: 460px !important;
+  min-width: 460px !important;
+  min-height: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  transform: translateY(-50%) !important;
+
+  pointer-events: none !important;
+}
+
+
+/* 소개 문구 실제 내용 */
+
+.login-introduction__content {
+  position: static !important;
+
+  width: 430px !important;
+  max-width: 430px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  text-align: left !important;
+
+  transform: none !important;
+}
+
+
+/* =========================================================
+   배경 이미지에 이미 회사 로고와 슬로건이 있으므로 숨김
+========================================================= */
+
+.login-introduction__logo,
+.login-introduction__company {
+  display: none !important;
+}
+
+
+/* =========================================================
+   GS Shift Log
+========================================================= */
+
+.login-introduction__title {
+  width: 100% !important;
+
+  margin: 0 !important;
+
+  color: #ffffff !important;
+
+  font-size: 54px !important;
+  font-weight: 900 !important;
+  line-height: 1.04 !important;
+  letter-spacing: -0.055em !important;
+
+  text-align: left !important;
+  white-space: nowrap !important;
+
+  text-shadow:
+    0 8px 28px
+    rgba(0, 0, 0, 0.22) !important;
+}
+
+
+/* 교대근무 업무일지 시스템 */
+
+.login-introduction__description {
+  margin: 14px 0 0 !important;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.92
+    ) !important;
+
+  font-size: 18px !important;
+  font-weight: 750 !important;
+  line-height: 1.45 !important;
+
+  text-align: left !important;
+  white-space: nowrap !important;
+}
+
+
+/* 짧은 가로선 */
+
+.login-introduction__line {
+  width: 42px !important;
+  height: 3px !important;
+
+  margin: 24px 0 17px !important;
+
+  border-radius: 999px !important;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.86
+    ) !important;
+}
+
+
+/* 안내 문구 */
+
+.login-introduction__notice {
+  width: 100% !important;
+
+  margin: 0 !important;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.78
+    ) !important;
+
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  line-height: 1.6 !important;
+
+  text-align: left !important;
+  white-space: nowrap !important;
+}
+
+
+/* =========================================================
+   화면 폭이 조금 좁을 때
+========================================================= */
+
+@media (max-width: 1450px) {
+  .login-introduction {
+    right: calc(50% + 235px) !important;
+    width: 400px !important;
+    min-width: 400px !important;
+  }
+
+  .login-introduction__content {
+    width: 370px !important;
+  }
+
+  .login-introduction__title {
+    font-size: 46px !important;
+  }
+
+  .login-introduction__description {
+    font-size: 16px !important;
+  }
+}
+
+
+/* =========================================================
+   모바일·태블릿
+
+   작은 화면에서는 소개 문구를 숨기고
+   로그인 카드만 중앙에 표시
+========================================================= */
+
+@media (max-width: 900px) {
+  .login-screen {
+    min-width: 0 !important;
+  }
+
+  .login-introduction {
+    display: none !important;
+  }
+
+  .login-screen__content {
+    width: calc(100% - 32px) !important;
+  }
+
+  .login-screen__content .login-card {
+    width: min(430px, 100%) !important;
+    max-width: 100% !important;
+  }
+}
