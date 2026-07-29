@@ -21990,129 +21990,135 @@ td {
 }
 
 /* =========================================================
-  비고 이전일지 가져오기 버튼 최종 디자인
+  TM 발행 내역 · 인계사항 · 비고 디자인 최종 통일
 ========================================================= */
 
-
-/*
-  비고 제목·건수·버튼을 한 줄로 정렬
-*/
-#logEntryListPanel
-.log-entry-group-header__title:has(
-  #loadPreviousRemarkEntriesButton
-) {
-  display: flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-
-  width: 100% !important;
-}
-
-
-/*
-  버튼은 비고 제목 영역의 오른쪽에 배치
-*/
-#loadPreviousRemarkEntriesButton {
-  flex: 0 0 auto;
-
-  min-height: 28px;
-  margin-left: auto;
-  padding: 5px 10px;
-
-  border: 1px solid #c9c6dc;
-  border-radius: 7px;
-
-  background: #f7f6fc;
-  color: #56516f;
-
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-
-  white-space: nowrap;
-  cursor: pointer;
-
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-}
-
-
-#loadPreviousRemarkEntriesButton:hover {
-  border-color: #948daa;
-  background: #eeecf7;
-  color: #3f3958;
-}
-
-
-#loadPreviousRemarkEntriesButton:active {
-  transform: translateY(1px);
-}
-
-
-/*
-  가져오는 중 상태
-*/
-#loadPreviousRemarkEntriesButton:disabled {
-  border-color: #d9d7e2;
-  background: #f2f1f5;
-  color: #9995a7;
-
-  cursor: wait;
-  opacity: 0.8;
-}
-
-
-/* 모바일에서도 한 줄 유지 */
-@media (max-width: 640px) {
-  #loadPreviousRemarkEntriesButton {
-    min-height: 27px;
-    padding: 5px 8px;
-
-    font-size: 10px;
-  }
-}
 
 /* =========================================================
-  인계사항 이전일지 가져오기 버튼
+  공통 헤더 크기와 정렬
 ========================================================= */
 
 #logEntryListPanel
-.handover-entry-group--handover
-.handover-entry-group__header {
+.handover-entry-group__header,
+
+#noteEntrySection
+.log-entry-group-header__title {
+  box-sizing: border-box;
+
   display: flex !important;
   align-items: center !important;
-  justify-content: space-between !important;
-  gap: 10px !important;
+  justify-content: flex-start !important;
+
+  width: 100% !important;
+  min-height: 38px !important;
+
+  margin: 0 !important;
+  padding: 4px 10px 4px 13px !important;
+
+  gap: 6px !important;
+  border-radius: 0 !important;
 }
 
+
+#noteEntrySection
+.log-entry-group-header {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+
+/* =========================================================
+  제목 글씨 통일
+========================================================= */
 
 #logEntryListPanel
-.handover-entry-group--handover
-.handover-entry-group__header > div {
-  display: flex;
+.handover-entry-group__header strong,
+
+#noteEntrySection
+.log-entry-group-header__title strong {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
+
+  color: inherit;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.2;
 }
 
 
-#loadPreviousHandoverEntriesButton {
-  display: inline-flex;
+/* =========================================================
+  왼쪽 짧은 포인트선 통일
+========================================================= */
+
+#noteEntrySection
+.log-entry-group-header__title {
+  border-left: 1px solid #ded9ef !important;
+  border-top: 1px solid #ded9ef !important;
+  border-right: 1px solid #ded9ef !important;
+  border-bottom: 1px solid #ded9ef !important;
+
+  background: #f4f1fb !important;
+  color: #342f4d !important;
+}
+
+
+#noteEntrySection
+.log-entry-group-header__title strong::before {
+  content: "";
+
+  display: inline-block;
   flex: 0 0 auto;
+
+  width: 3px;
+  height: 13px;
+  margin-right: 7px;
+
+  border-radius: 999px;
+  background: #8c82bd;
+}
+
+
+/* =========================================================
+  건수 배지 간격 통일
+========================================================= */
+
+#tmIssueEntryCount,
+#handoverEntryCount,
+#noteEntryCount {
+  min-width: auto !important;
+  min-height: 20px !important;
+  height: 20px !important;
+
+  margin-left: 0 !important;
+  padding: 0 7px !important;
+
+  font-size: 9px !important;
+  line-height: 1 !important;
+}
+
+
+/* =========================================================
+  이전일지 가져오기 버튼 공통 크기
+========================================================= */
+
+#loadPreviousHandoverEntriesButton,
+#loadPreviousRemarkEntriesButton {
+  box-sizing: border-box;
+
+  display: inline-flex;
+  flex: 0 0 92px;
   align-items: center;
   justify-content: center;
 
+  width: 92px;
+  height: 28px;
   min-height: 28px;
-  margin-left: auto;
-  padding: 5px 10px;
 
-  border: 1px solid #b8c7dd;
+  margin-left: auto !important;
+  padding: 0 9px;
+
   border-radius: 7px;
-
-  background: #ffffff;
-  color: #41546f;
 
   font-family: inherit;
   font-size: 11px;
@@ -22125,7 +22131,17 @@ td {
   transition:
     background-color 0.15s ease,
     border-color 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+
+/* 인계사항 버튼 */
+
+#loadPreviousHandoverEntriesButton {
+  border: 1px solid #b8c7dd;
+  background: #ffffff;
+  color: #41546f;
 }
 
 
@@ -22136,25 +22152,65 @@ td {
 }
 
 
-#loadPreviousHandoverEntriesButton:active:not(:disabled) {
+/* 비고 버튼 */
+
+#loadPreviousRemarkEntriesButton {
+  border: 1px solid #c9c6dc;
+  background: #f7f6fc;
+  color: #56516f;
+}
+
+
+#loadPreviousRemarkEntriesButton:hover:not(:disabled) {
+  border-color: #948daa;
+  background: #eeecf7;
+  color: #3f3958;
+}
+
+
+/* 공통 상태 */
+
+#loadPreviousHandoverEntriesButton:active:not(:disabled),
+#loadPreviousRemarkEntriesButton:active:not(:disabled) {
   transform: translateY(1px);
 }
 
 
-#loadPreviousHandoverEntriesButton:disabled {
-  border-color: #d8dee8;
-  background: #f3f5f8;
-  color: #98a2b3;
+#loadPreviousHandoverEntriesButton:disabled,
+#loadPreviousRemarkEntriesButton:disabled {
+  border-color: #d8dbe2;
+  background: #f2f3f5;
+  color: #999da7;
 
   cursor: wait;
   opacity: 0.8;
 }
 
 
+/* =========================================================
+  모바일
+========================================================= */
+
 @media (max-width: 640px) {
-  #loadPreviousHandoverEntriesButton {
+  #logEntryListPanel
+  .handover-entry-group__header,
+
+  #noteEntrySection
+  .log-entry-group-header__title {
+    min-height: 36px !important;
+    padding: 4px 8px 4px 10px !important;
+  }
+
+
+  #loadPreviousHandoverEntriesButton,
+  #loadPreviousRemarkEntriesButton {
+    flex-basis: 88px;
+
+    width: 88px;
+    height: 27px;
     min-height: 27px;
-    padding: 5px 8px;
+
+    padding: 0 7px;
     font-size: 10px;
   }
 }
