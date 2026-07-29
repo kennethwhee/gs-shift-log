@@ -38988,18 +38988,29 @@ function renderShiftLogApprovalHistoryInDetail(
 
 
 /* =========================================================
-  업무일지 상세보기 단일 실행 최종본
+  업무일지 상세보기 단일 실행 · 재진입 방지 최종본
 
-  - 중복 openLogDetail 래퍼 제거
-  - 상세 내용부터 안전하게 표시
-  - 최고관리자 버튼 오류가 나도 상세창 유지
-  - 상세 생성 실패 시 화면 잠금 자동 해제
+  - 최초 상세보기 함수만 1회 실행
+  - 중복 래퍼 호출 제거
+  - 연속 클릭 및 재진입 차단
+  - 버튼 처리 오류가 나도 열린 상세창 유지
 ========================================================= */
+
+let isOpeningLogDetail =
+  false;
+
 
 openLogDetail =
   function openLogDetail(
     log
   ) {
+    if (
+      isOpeningLogDetail
+    ) {
+      return;
+    }
+
+
     if (
       !log ||
       typeof log !==
@@ -39013,14 +39024,32 @@ openLogDetail =
     }
 
 
-    /*
-      최초 상세보기 함수를 직접 실행한다.
+    isOpeningLogDetail =
+      true;
 
-      기존 중간 래퍼를 다시 호출하지 않아
-      상세보기 함수가 중복 실행되지 않게 한다.
-    */
+
     try {
+      /*
+        다른 래퍼를 다시 거치지 않고
+        최초 상세보기 함수만 직접 실행한다.
+      */
       openLogDetailBeforeApprovalActions(
+        log
+      );
+
+
+      /*
+        권한별 하단 버튼을 한 번만 정리한다.
+      */
+      updateShiftLogDetailActionButtons(
+        log
+      );
+
+
+      /*
+        상세창에서는 결재 이력을 표시하지 않는다.
+      */
+      renderShiftLogApprovalHistoryInDetail(
         log
       );
 
@@ -39033,10 +39062,6 @@ openLogDetail =
       );
 
 
-      appState.currentDetailLogId =
-        null;
-
-
       const detailModal =
         elements.logDetailModal ||
         document.getElementById(
@@ -39044,79 +39069,47 @@ openLogDetail =
         );
 
 
-      if (
-        detailModal
-      ) {
-        detailModal.classList.remove(
+      const detailIsOpen =
+        detailModal?.classList.contains(
           "is-open"
-        );
-
-        detailModal.setAttribute(
-          "aria-hidden",
-          "true"
-        );
-      }
+        ) ===
+        true;
 
 
-      const otherOpenModal =
-        document.querySelector(
-          ".modal-backdrop.is-open"
-        );
-
-
+      /*
+        상세창이 이미 열렸다면
+        버튼 처리 중 오류이므로 창은 유지한다.
+      */
       if (
-        !otherOpenModal
+        !detailIsOpen
       ) {
-        document.body.classList.remove(
-          "modal-open"
+        appState.currentDetailLogId =
+          null;
+
+
+        const otherOpenModal =
+          document.querySelector(
+            ".modal-backdrop.is-open"
+          );
+
+
+        if (
+          !otherOpenModal
+        ) {
+          document.body.classList.remove(
+            "modal-open"
+          );
+        }
+
+
+        showToast(
+          "상세보기를 열지 못했습니다. 다시 시도해 주세요."
         );
       }
 
-
-      showToast(
-        "상세보기를 열지 못했습니다. 다시 시도해 주세요."
-      );
-
-      return;
-    }
-
-
-    /*
-      최고관리자·파트장·작성자별 버튼 설정.
-
-      버튼 처리에서 오류가 발생해도
-      이미 열린 상세창은 그대로 사용할 수 있다.
-    */
-    try {
-      updateShiftLogDetailActionButtons(
-        log
-      );
-
-    } catch (
-      error
-    ) {
-      console.error(
-        "상세보기 작업 버튼 설정 실패:",
-        error
-      );
-    }
-
-
-    /*
-      상세화면에서는 결재 이력을 표시하지 않는다.
-    */
-    try {
-      renderShiftLogApprovalHistoryInDetail(
-        log
-      );
-
-    } catch (
-      error
-    ) {
-      console.error(
-        "상세보기 결재 이력 정리 실패:",
-        error
-      );
+    } finally {
+      isOpeningLogDetail =
+        false;
     }
   };
   
