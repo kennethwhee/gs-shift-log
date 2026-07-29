@@ -33159,3 +33159,31 @@ output {
     padding: 24px 19px;
   }
 }
+
+/* =========================================================
+  로그인 카드 위치 최종 보정
+
+  반드시 style.css 맨 마지막에 배치
+========================================================= */
+
+#loginScreen .login-screen__content {
+  justify-content: center;
+
+  padding:
+    42px
+    0;
+
+  /*
+    음수: 왼쪽으로 이동
+    양수: 오른쪽으로 이동
+  */
+  transform: translateX(-90px);
+}
+
+@media (max-width: 780px) {
+  #loginScreen .login-screen__content {
+    padding: 22px;
+
+    transform: none;
+  }
+}
