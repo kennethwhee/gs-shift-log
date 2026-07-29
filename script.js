@@ -29111,7 +29111,7 @@ function parseOperationStatusRowsForDisplay(
 
   /*
     TO · BO1 · BO2는
-    자유 텍스트 전체를 한 행으로 표시한다.
+    자유 텍스트 전체를 그대로 표시한다.
   */
   if (
     freeTextRoles.includes(
@@ -29156,10 +29156,6 @@ function parseOperationStatusRowsForDisplay(
   /*
     과거 원문에 실제 운전현황이
     몇 줄 저장되어 있는지 확인한다.
-
-    operationItems에는 첫 줄만 남아 있고
-    원문에는 여러 줄이 남아 있는 과거 자료를
-    구분하기 위한 처리다.
   */
   const sourceOperationLineCount =
     sourceText
@@ -29191,12 +29187,10 @@ function parseOperationStatusRowsForDisplay(
 
 
   /*
-    저장된 배열이 원문 줄 수 이상일 때만
-    operationItems를 우선 사용한다.
+    저장된 설비별 배열을 사용할 때도
+    화면에는 사용자가 입력한 내용만 표시한다.
 
-    배열이 1개이고 원문이 여러 줄이면
-    아래 원문 분석 과정으로 내려가
-    모든 운전현황을 표시한다.
+    설비명은 상태 판정과 내부 데이터에는 유지한다.
   */
   if (
     savedOperationItems.length &&
@@ -29241,17 +29235,6 @@ function parseOperationStatusRowsForDisplay(
             ).trim();
 
 
-          const combinedContent =
-            equipmentName
-              ? [
-                  equipmentName,
-                  operationContent
-                ]
-                  .filter(Boolean)
-                  .join(" : ")
-              : operationContent;
-
-
           return {
             role:
               normalizedLogRole,
@@ -29264,8 +29247,12 @@ function parseOperationStatusRowsForDisplay(
                 ].join(" ")
               ),
 
+            /*
+              상세보기에는 설비명을 앞에 붙이지 않는다.
+            */
             content:
-              combinedContent,
+              operationContent ||
+              equipmentName,
 
             equipmentName,
 
@@ -29316,8 +29303,8 @@ function parseOperationStatusRowsForDisplay(
 
 
   /*
-    한 줄의 운전현황을
-    설비명과 상태 내용으로 구분한다.
+    과거 문자열 자료도 설비명과 내용을 분리한 뒤
+    화면에는 실제 운전 내용만 표시한다.
   */
   const createOperationRow =
     (
@@ -29331,13 +29318,6 @@ function parseOperationStatusRowsForDisplay(
         );
 
 
-      /*
-        앞에 붙은 번호를 제거한다.
-
-        1. 내용
-        2) 내용
-        3 - 내용
-      */
       const contentWithoutNumber =
         String(
           rawLine ||
@@ -29357,14 +29337,6 @@ function parseOperationStatusRowsForDisplay(
       }
 
 
-      /*
-        설비명과 운전 내용을 구분한다.
-
-        지원 구분자:
-        :
-        ：
-        |
-      */
       const separatorMatch =
         contentWithoutNumber.match(
           /^(.+?)\s*(?:[:：|])\s*(.+)$/
@@ -29409,10 +29381,12 @@ function parseOperationStatusRowsForDisplay(
             ].join(" ")
           ),
 
+        /*
+          설비명을 합치지 않고
+          입력된 운전현황 내용만 표시한다.
+        */
         content:
-          equipmentName
-            ? `${equipmentName} : ${operationContent}`
-            : operationContent,
+          operationContent,
 
         equipmentName,
 
