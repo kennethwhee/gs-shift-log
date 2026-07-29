@@ -22078,14 +22078,19 @@ td {
   인계사항 이전일지 가져오기 버튼
 ========================================================= */
 
+#logEntryListPanel
+.handover-entry-group--handover
 .handover-entry-group__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
 }
 
 
-.handover-entry-group__title {
+#logEntryListPanel
+.handover-entry-group--handover
+.handover-entry-group__header > div {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -22093,23 +22098,24 @@ td {
 }
 
 
-.previous-handover-import-button {
+#loadPreviousHandoverEntriesButton {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
 
-  min-height: 30px;
-  margin-left: 4px;
+  min-height: 28px;
+  margin-left: auto;
   padding: 5px 10px;
 
   border: 1px solid #b8c7dd;
-  border-radius: 8px;
+  border-radius: 7px;
 
   background: #ffffff;
   color: #41546f;
 
   font-family: inherit;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -22117,32 +22123,25 @@ td {
   cursor: pointer;
 
   transition:
-    background-color 0.16s ease,
-    border-color 0.16s ease,
-    color 0.16s ease,
-    transform 0.16s ease;
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
 
-.previous-handover-import-button:hover:not(:disabled) {
+#loadPreviousHandoverEntriesButton:hover:not(:disabled) {
   border-color: #7c97bd;
   background: #f1f6fc;
   color: #234b7c;
 }
 
 
-.previous-handover-import-button:active:not(:disabled) {
+#loadPreviousHandoverEntriesButton:active:not(:disabled) {
   transform: translateY(1px);
 }
 
 
-.previous-handover-import-button:focus-visible {
-  outline: 3px solid rgba(59, 130, 246, 0.2);
-  outline-offset: 2px;
-}
-
-
-.previous-handover-import-button:disabled {
+#loadPreviousHandoverEntriesButton:disabled {
   border-color: #d8dee8;
   background: #f3f5f8;
   color: #98a2b3;
@@ -22152,20 +22151,10 @@ td {
 }
 
 
-/* 모바일 화면 */
-
 @media (max-width: 640px) {
-  .handover-entry-group__title {
-    width: 100%;
-    gap: 5px;
-  }
-
-
-  .previous-handover-import-button {
-    min-height: 28px;
-    margin-left: auto;
-    padding: 4px 8px;
-
-    font-size: 11px;
+  #loadPreviousHandoverEntriesButton {
+    min-height: 27px;
+    padding: 5px 8px;
+    font-size: 10px;
   }
 }
