@@ -4070,9 +4070,14 @@ function applyBrandLogoToScreen(
   브랜드 설정 실제 화면 적용
 
   적용 대상:
-  - 로그인 화면
+  - 로그인 화면 배경
   - 로그인 카드
   - 로그인 후 상단 헤더
+
+  로그인 화면 왼쪽:
+  - 회사 로고 숨김
+  - 회사명 숨김
+  - 배경 이미지 안의 로고·슬로건 사용
 ========================================================= */
 
 function applyBrandManagementToActualScreen() {
@@ -4098,6 +4103,7 @@ function applyBrandManagementToActualScreen() {
     loginBackground,
     loginOverlay,
 
+    introductionLogo,
     introductionLogoFallback,
     introductionLogoImage,
     introductionCompanyName,
@@ -4113,13 +4119,12 @@ function applyBrandManagementToActualScreen() {
 
 
   const savedSettings =
-    brandManagementState
-      .savedSettings ||
+    brandManagementState.savedSettings ||
     DEFAULT_BRAND_SETTINGS;
 
 
   /* =====================================================
-    현재 입력값
+    현재 설정값
   ====================================================== */
 
   const companyName =
@@ -4190,7 +4195,9 @@ function applyBrandManagementToActualScreen() {
 
 
   /* =====================================================
-    상단 헤더
+    로그인 후 상단 헤더
+
+    상단 헤더에는 회사 로고와 회사명을 그대로 표시한다.
   ====================================================== */
 
   if (
@@ -4219,17 +4226,70 @@ function applyBrandManagementToActualScreen() {
   }
 
 
+  applyBrandLogoToScreen(
+    headerLogoImage,
+    headerLogoFallback,
+    logoUrl
+  );
+
+
   /* =====================================================
-    로그인 왼쪽 소개
+    로그인 화면 왼쪽 중복 브랜드 숨김
+
+    배경 이미지에 이미 회사 로고와 슬로건이 있으므로
+    HTML 로고와 회사명은 표시하지 않는다.
   ====================================================== */
+
+  if (
+    introductionLogo
+  ) {
+    introductionLogo.hidden =
+      true;
+
+
+    introductionLogo.style.display =
+      "none";
+  }
+
+
+  if (
+    introductionLogoFallback
+  ) {
+    introductionLogoFallback.hidden =
+      true;
+  }
+
+
+  if (
+    introductionLogoImage
+  ) {
+    introductionLogoImage.hidden =
+      true;
+
+
+    introductionLogoImage.removeAttribute(
+      "src"
+    );
+  }
+
 
   if (
     introductionCompanyName
   ) {
-    introductionCompanyName.textContent =
-      companyName;
+    introductionCompanyName.hidden =
+      true;
+
+
+    introductionCompanyName.style.display =
+      "none";
   }
 
+
+  /* =====================================================
+    로그인 화면 왼쪽 프로그램 안내
+
+    GS Shift Log 제목과 설명은 유지한다.
+  ====================================================== */
 
   if (
     introductionProgramName
@@ -4248,7 +4308,10 @@ function applyBrandManagementToActualScreen() {
 
 
   /* =====================================================
-    로그인 카드
+    모바일 로그인 카드
+
+    모바일에서는 배경 속 로고가 잘릴 수 있으므로
+    로그인 카드 안의 로고와 회사명은 유지한다.
   ====================================================== */
 
   if (
@@ -4267,24 +4330,6 @@ function applyBrandManagementToActualScreen() {
   }
 
 
-  /* =====================================================
-    로고
-  ====================================================== */
-
-  applyBrandLogoToScreen(
-    headerLogoImage,
-    headerLogoFallback,
-    logoUrl
-  );
-
-
-  applyBrandLogoToScreen(
-    introductionLogoImage,
-    introductionLogoFallback,
-    logoUrl
-  );
-
-
   applyBrandLogoToScreen(
     loginCardLogoImage,
     loginCardLogoFallback,
@@ -4299,8 +4344,7 @@ function applyBrandManagementToActualScreen() {
   if (
     loginBackground
   ) {
-    loginBackground.style
-      .backgroundImage =
+    loginBackground.style.backgroundImage =
       backgroundUrl
         ? `url("${backgroundUrl}")`
         : `linear-gradient(
@@ -4310,18 +4354,15 @@ function applyBrandManagementToActualScreen() {
           )`;
 
 
-    loginBackground.style
-      .backgroundPosition =
+    loginBackground.style.backgroundPosition =
       `${positionX}% ${positionY}%`;
 
 
-    loginBackground.style
-      .backgroundSize =
+    loginBackground.style.backgroundSize =
       "cover";
 
 
-    loginBackground.style
-      .backgroundRepeat =
+    loginBackground.style.backgroundRepeat =
       "no-repeat";
   }
 
@@ -4333,8 +4374,7 @@ function applyBrandManagementToActualScreen() {
   if (
     loginOverlay
   ) {
-    loginOverlay.style
-      .background =
+    loginOverlay.style.background =
       `linear-gradient(
         90deg,
         rgba(
@@ -4364,7 +4404,6 @@ function applyBrandManagementToActualScreen() {
       )`;
   }
 }
-
 /* =========================================================
   시스템 관리자·브랜드 관리 요소 가져오기
 
