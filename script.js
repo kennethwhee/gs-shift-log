@@ -8212,9 +8212,17 @@ function parseLegacyDiaryContentLines(
 
 
   sourceLines.forEach(
-    (
-      sourceLine
-    ) => {
+    sourceLine => {
+      /*
+        과거 시스템의 유첨 안내문을
+        줄 전체뿐 아니라 문장 끝에서도 제거한다.
+
+        제거 예:
+        유첨 : 제목
+        ※ 유첨 : scaled_1
+        업무내용 ※ 유첨 : scaled_2
+        유첨 : scaled_2 [0000GH1A0A002]
+      */
       const originalLine =
         String(
           sourceLine || ""
@@ -8223,42 +8231,21 @@ function parseLegacyDiaryContentLines(
             /\t/g,
             " "
           )
+          .replace(
+            /\s*\(?\s*(?:[-–—]\s*)?[※*＊•·]?\s*유첨\s*[:：]?\s*(?:제목|scaled(?:\s*[_-]?\s*\d+)?)\s*(?:\[[^\]\r\n]*\])?\s*\)?/gi,
+            " "
+          )
+          .replace(
+            / {2,}/g,
+            " "
+          )
           .trim();
 
 
       /*
-        과거 시스템의 본문용 첨부 안내문 제거
-
-        제거 예:
-        유첨 : 제목
-        ※ 유첨 : scaled_1
-        * 유첨 : scaled_2 [0000GH1A0A002]
+        유첨 안내문을 제거한 뒤
+        내용이 남지 않으면 제외한다.
       */
-      const normalizedAttachmentGuideLine =
-        originalLine
-          .normalize(
-            "NFKC"
-          )
-          .replace(
-            /\s+/g,
-            ""
-          )
-          .toLowerCase();
-
-
-      const isLegacyAttachmentGuideLine =
-        /^(?:[※*＊•·-]*)유첨[:：]?(?:제목|scaled(?:[_-]?\d+)?)(?:\[[^\]]*\])?$/.test(
-          normalizedAttachmentGuideLine
-        );
-
-
-      if (
-        isLegacyAttachmentGuideLine
-      ) {
-        return;
-      }
-
-
       if (
         !originalLine
       ) {
@@ -8336,7 +8323,7 @@ function parseLegacyDiaryContentLines(
 
       /*
         번호가 없는 줄은
-        바로 위 항목의 후속 내용으로 연결
+        바로 위 항목의 후속 내용으로 연결한다.
       */
       if (
         parsedEntries.length >
@@ -8408,9 +8395,7 @@ function parseLegacyDiaryContentLines(
 
 
   return parsedEntries.filter(
-    (
-      entry
-    ) => {
+    entry => {
       return Boolean(
         String(
           entry.content ||
@@ -8420,7 +8405,6 @@ function parseLegacyDiaryContentLines(
     }
   );
 }
-
 /* =========================================================
   기존 body index 내용 가져오기
 ========================================================= */
