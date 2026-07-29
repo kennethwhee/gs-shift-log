@@ -829,13 +829,25 @@ function canEditExistingLog(
   user
 ) {
   /*
-    최고관리자는 모든 업무일지 수정 가능
+    최고관리자는 모든 신규 업무일지 수정 가능
   */
   if (
     user.isSuperAdmin
   ) {
     return true;
   }
+
+
+  const logRole =
+    normalizeLogRole(
+      existingLog.role
+    );
+
+
+  const status =
+    normalizeStatus(
+      existingLog.status
+    );
 
 
   const isAuthor =
@@ -845,24 +857,12 @@ function canEditExistingLog(
       user.employeeNo;
 
 
-  const status =
-    normalizeStatus(
-      existingLog.status
-    );
-
-
-  const logRole =
-    normalizeLogRole(
-      existingLog.role
-    );
-
-
   /*
     파트장 계정
 
     - 본인이 작성한 파트장 업무일지만 수정 가능
     - 저장완료 상태만 수정 가능
-    - 일반 보직 업무일지는 수정 불가
+    - 다른 일반 보직 업무일지는 수정 불가
   */
   if (
     user.role ===
@@ -902,24 +902,19 @@ function canEditExistingLog(
 
 
   /*
-    일반회원의 일반 보직 업무일지
+    일반 보직 업무일지
 
-    - 임시저장: 수정 가능
-    - 결재요청: 결재완료 전까지 수정 가능
+    - 작성중(임시저장): 작성자와 관계없이 수정 가능
+    - 결재요청: 먼저 결재취소해야 하므로 수정 불가
     - 결재완료: 수정 불가
-    - 작성자가 달라도 수정 가능
   */
   return (
     editableMemberRoles.includes(
       logRole
     ) &&
 
-    [
-      "임시저장",
-      "결재요청"
-    ].includes(
-      status
-    )
+    status ===
+      "임시저장"
   );
 }
 
@@ -1098,6 +1093,68 @@ function applySaveRules(
   }
 
 
+  const existingStatus =
+    normalizeStatus(
+      existingLog.status
+    );
+
+
+  const requestedStatus =
+    normalizeStatus(
+      incomingLog.status
+    );
+
+
+  const logRole =
+    normalizeLogRole(
+      existingLog.role
+    );
+
+
+  const isLeaderLog =
+    logRole ===
+      "파트장";
+
+
+  const editableMemberRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  const isMemberLog =
+    editableMemberRoles.includes(
+      logRole
+    );
+
+
+  const previousAuthorId =
+    normalizeEmployeeNo(
+      existingLog.authorId
+    );
+
+
+  const previousAuthorName =
+    normalizeText(
+      existingLog.author
+    );
+
+
+  const isDifferentAuthor =
+    previousAuthorId
+      ? previousAuthorId !==
+          user.employeeNo
+      : (
+          previousAuthorName &&
+          previousAuthorName !==
+            user.name
+        );
+
+
   const log = {
     ...incomingLog,
 
@@ -1125,38 +1182,8 @@ function applySaveRules(
   };
 
 
-  const existingStatus =
-    normalizeStatus(
-      existingLog.status
-    );
-
-
-  const requestedStatus =
-    normalizeStatus(
-      incomingLog.status
-    );
-
-
-  const logRole =
-    normalizeLogRole(
-      existingLog.role
-    );
-
-
-  const isLeaderLog =
-    logRole ===
-      "파트장";
-
-
-  const authorChanged =
-    normalizeEmployeeNo(
-      existingLog.authorId
-    ) !==
-      user.employeeNo;
-
-
   /*
-    기존 최초 작성자 기록은 유지한다.
+    이미 기록된 최초 작성자 정보는 유지한다.
   */
   log.originalAuthor =
     existingLog.originalAuthor ||
@@ -1172,13 +1199,13 @@ function applySaveRules(
 
 
   /*
-    일반 보직 일지를 다른 사람이 이어서 저장하면
-    기존 작성자를 최초 작성자로 기록한다.
+    다른 사람이 일반 보직 일지를 이어서 저장하면
+    변경 전 작성자를 최초 작성자로 보존한다.
   */
   if (
     !user.isSuperAdmin &&
-    !isLeaderLog &&
-    authorChanged
+    isMemberLog &&
+    isDifferentAuthor
   ) {
     log.originalAuthor =
       log.originalAuthor ||
@@ -1198,12 +1225,12 @@ function applySaveRules(
 
 
   /*
-    일반 보직 일지는 실제로 저장한 사람을
+    일반 보직 일지는 실제 저장한 사람을
     현재 작성자로 변경한다.
   */
   if (
     !user.isSuperAdmin &&
-    !isLeaderLog
+    isMemberLog
   ) {
     log.author =
       user.name;
@@ -1215,7 +1242,7 @@ function applySaveRules(
       user.role;
 
   /*
-    최고관리자와 파트장 수정은
+    파트장 일지와 최고관리자 수정에서는
     기존 작성자를 유지한다.
   */
   } else {
@@ -1234,8 +1261,8 @@ function applySaveRules(
 
 
   /*
-    최고관리자와 파트장 일지는
-    기존 상태를 유지한다.
+    최고관리자 또는 파트장 일지는
+    수정으로 상태를 변경하지 않는다.
   */
   if (
     user.isSuperAdmin ||
@@ -1245,16 +1272,13 @@ function applySaveRules(
       existingStatus;
 
   /*
-    일반 보직 일지는 결재완료 전까지
-    임시저장과 결재요청 상태로 저장할 수 있다.
+    일반 보직의 작성중 일지는
+    임시저장 또는 결재요청으로 저장한다.
   */
   } else if (
-    [
-      "임시저장",
-      "결재요청"
-    ].includes(
-      existingStatus
-    )
+    isMemberLog &&
+    existingStatus ===
+      "임시저장"
   ) {
     log.status =
       [
@@ -1264,7 +1288,7 @@ function applySaveRules(
         requestedStatus
       )
         ? requestedStatus
-        : existingStatus;
+        : "임시저장";
 
   } else {
     log.status =
@@ -1272,30 +1296,6 @@ function applySaveRules(
   }
 
 
-  /*
-    마지막으로 저장한 사람도 별도 기록한다.
-  */
-  log.lastModifiedBy =
-    user.name;
-
-  log.lastModifiedById =
-    user.employeeNo;
-
-  log.lastModifiedByRole =
-    user.role;
-
-  log.updatedAt =
-    now;
-
-
-  return log;
-}
-
-
-  /*
-    작성자는 유지하고,
-    실제로 수정한 사람은 별도로 기록한다.
-  */
   log.lastModifiedBy =
     user.name;
 
@@ -1322,28 +1322,54 @@ function applyApprovalAction(
     ...existingLog
   };
 
+
   const previousStatus =
     normalizeStatus(
       existingLog.status
     );
 
-  const isLeaderOrAdmin =
+
+  const logRole =
+    normalizeLogRole(
+      existingLog.role
+    );
+
+
+  const isLeaderOrSuperAdmin =
     user.role ===
       "admin" ||
     user.isSuperAdmin;
 
-  const isAuthor =
-    normalizeEmployeeNo(
-      existingLog.authorId
-    ) ===
-      user.employeeNo;
 
+  const editableMemberRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  const isMemberLog =
+    editableMemberRoles.includes(
+      logRole
+    );
+
+
+  /*
+    결재완료
+
+    - 파트장 또는 최고관리자만 가능
+    - 일반 보직의 결재요청 상태만 가능
+    - 파트장 업무일지는 결재 대상이 아님
+  */
   if (
     action ===
       "approve"
   ) {
     if (
-      !isLeaderOrAdmin
+      !isLeaderOrSuperAdmin
     ) {
       const error =
         new Error(
@@ -1356,9 +1382,9 @@ function applyApprovalAction(
       throw error;
     }
 
+
     if (
-      existingLog.role ===
-        "파트장" ||
+      !isMemberLog ||
       previousStatus !==
         "결재요청"
     ) {
@@ -1372,6 +1398,7 @@ function applyApprovalAction(
 
       throw error;
     }
+
 
     log.status =
       "결재완료";
@@ -1388,6 +1415,7 @@ function applyApprovalAction(
     log.approvedByRole =
       user.role;
 
+
     appendApprovalHistory(
       log,
       "결재완료",
@@ -1398,30 +1426,46 @@ function applyApprovalAction(
     );
   }
 
-  if (
+
+  /*
+    결재취소
+
+    파트장·최고관리자
+    - 결재요청 또는 결재완료 취소 가능
+
+    일반회원
+    - 작성자와 관계없이 일반 보직의 결재요청 취소 가능
+    - 결재완료 취소 불가
+
+    취소 후 상태는 임시저장으로 변경
+  */
+  else if (
     action ===
       "cancel"
   ) {
-    const canCancel =
-      (
-        isLeaderOrAdmin &&
-        [
-          "결재요청",
-          "결재완료"
-        ].includes(
-          previousStatus
-        )
-      ) ||
-      (
-        isAuthor &&
-        previousStatus ===
-          "결재요청"
+    const canLeaderCancel =
+      isLeaderOrSuperAdmin &&
+      [
+        "결재요청",
+        "결재완료"
+      ].includes(
+        previousStatus
       );
 
+
+    const canMemberCancel =
+      !isLeaderOrSuperAdmin &&
+      isMemberLog &&
+      previousStatus ===
+        "결재요청";
+
+
     if (
-      existingLog.role ===
-        "파트장" ||
-      !canCancel
+      !isMemberLog ||
+      (
+        !canLeaderCancel &&
+        !canMemberCancel
+      )
     ) {
       const error =
         new Error(
@@ -1434,13 +1478,16 @@ function applyApprovalAction(
       throw error;
     }
 
+
     log.status =
       "임시저장";
+
 
     delete log.approvedAt;
     delete log.approvedBy;
     delete log.approvedById;
     delete log.approvedByRole;
+
 
     log.approvalCancelledAt =
       now;
@@ -1454,6 +1501,7 @@ function applyApprovalAction(
     log.approvalCancelledFrom =
       previousStatus;
 
+
     appendApprovalHistory(
       log,
       "결재취소",
@@ -1463,6 +1511,23 @@ function applyApprovalAction(
       now
     );
   }
+
+
+  /*
+    정의되지 않은 결재 작업은 차단한다.
+  */
+  else {
+    const error =
+      new Error(
+        "지원하지 않는 결재 작업입니다."
+      );
+
+    error.status =
+      400;
+
+    throw error;
+  }
+
 
   log.lastModifiedBy =
     user.name;
@@ -1475,6 +1540,7 @@ function applyApprovalAction(
 
   log.updatedAt =
     now;
+
 
   return log;
 }

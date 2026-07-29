@@ -36823,7 +36823,8 @@ function updateShiftLogDetailActionButtons(
 
 
   /*
-    기본적으로 모든 작업 버튼을 숨긴다.
+    상세보기를 열 때마다
+    모든 작업 버튼을 먼저 숨긴다.
   */
   if (
     approveButton
@@ -36867,6 +36868,10 @@ function updateShiftLogDetailActionButtons(
   }
 
 
+  /*
+    업무일지가 없거나 과거 연동 일지이면
+    작업 버튼을 표시하지 않는다.
+  */
   if (
     !log ||
     isReadOnlyLegacyShiftLog(
@@ -36883,30 +36888,30 @@ function updateShiftLogDetailActionButtons(
     );
 
 
-  const isLeader =
-    isCurrentShiftLogLeader() ||
-    isCurrentUserSuperAdmin();
-
-
-  const isAuthor =
-    isCurrentUserShiftLogAuthor(
-      log
+  const normalizedLogRole =
+    normalizeMemberLogRole(
+      log.role
     );
 
 
   const isLeaderLog =
-    normalizeMemberLogRole(
-      log.role
-    ) ===
+    normalizedLogRole ===
       "파트장";
 
 
-  /* =====================================================
-    수정 버튼
+  const isLeaderOrSuperAdmin =
+    isCurrentShiftLogLeader() ||
+    isCurrentUserSuperAdmin();
 
-    앞 단계에서 만든 수정 가능 여부 함수를 그대로 사용한다.
-  ====================================================== */
 
+  /*
+    수정 가능 여부는 앞 단계에서 교체한
+    최종 수정 권한 함수를 그대로 사용한다.
+
+    - 일반회원: 일반 보직의 임시저장 일지
+    - 파트장: 본인의 파트장 저장완료 일지
+    - 최고관리자: 관리 가능한 일지
+  */
   if (
     editButton &&
     canCurrentUserEditShiftLog(
@@ -36921,12 +36926,9 @@ function updateShiftLogDetailActionButtons(
   }
 
 
-  /* =====================================================
-    파트장 본인 업무일지
-
-    승인 대상이 아니므로 결재 버튼을 표시하지 않는다.
-  ====================================================== */
-
+  /*
+    파트장 업무일지는 결재 대상이 아니다.
+  */
   if (
     isLeaderLog
   ) {
@@ -36934,93 +36936,42 @@ function updateShiftLogDetailActionButtons(
   }
 
 
-  /* =====================================================
-    파트장 권한
-
-    결재요청:
-    - 결재완료
-    - 결재취소
-
-    결재완료:
-    - 결재취소
-  ====================================================== */
-
+  /*
+    파트장 또는 최고관리자는
+    결재요청 상태를 결재완료할 수 있다.
+  */
   if (
-    isLeader
-  ) {
-    if (
-      normalizedStatus ===
-        "결재요청"
-    ) {
-      if (
-        approveButton
-      ) {
-        approveButton.hidden =
-          false;
-
-        approveButton.disabled =
-          false;
-      }
-
-
-      if (
-        cancelApprovalButton
-      ) {
-        cancelApprovalButton.hidden =
-          false;
-
-        cancelApprovalButton.disabled =
-          false;
-      }
-
-
-      return;
-    }
-
-
-    if (
-      normalizedStatus ===
-        "결재완료"
-    ) {
-      if (
-        cancelApprovalButton
-      ) {
-        cancelApprovalButton.hidden =
-          false;
-
-        cancelApprovalButton.disabled =
-          false;
-      }
-
-
-      return;
-    }
-
-
-    return;
-  }
-
-
-  /* =====================================================
-    파트원 본인
-
-    결재요청 상태에서만 결재취소 가능
-  ====================================================== */
-
-  if (
-    isAuthor &&
+    approveButton &&
+    isLeaderOrSuperAdmin &&
     normalizedStatus ===
       "결재요청"
   ) {
-    if (
-      cancelApprovalButton
-    ) {
-      cancelApprovalButton.hidden =
-        false;
+    approveButton.hidden =
+      false;
 
-      cancelApprovalButton.disabled =
-        false;
-    }
+    approveButton.disabled =
+      false;
+  }
+
+
+  /*
+    결재취소 버튼은 앞 단계에서 교체한
+    최종 결재취소 권한 함수로 표시한다.
+
+    - 일반회원: 모든 일반 보직의 결재요청 취소 가능
+    - 파트장·최고관리자: 결재요청·결재완료 취소 가능
+  */
+  if (
+    cancelApprovalButton &&
+    canCurrentUserCancelShiftLogApproval(
+      log
+    )
+  ) {
+    cancelApprovalButton.hidden =
+      false;
+
+    cancelApprovalButton.disabled =
+      false;
   }
 }
 
@@ -37215,11 +37166,38 @@ function canCurrentUserCancelShiftLogApproval(
   }
 
 
-  if (
+  const normalizedLogRole =
     normalizeMemberLogRole(
       log.role
-    ) ===
+    );
+
+
+  /*
+    파트장 업무일지는 결재 대상이 아니므로
+    누구도 결재취소할 수 없다.
+  */
+  if (
+    normalizedLogRole ===
       "파트장"
+  ) {
+    return false;
+  }
+
+
+  const editableMemberRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  if (
+    !editableMemberRoles.includes(
+      normalizedLogRole
+    )
   ) {
     return false;
   }
@@ -37231,6 +37209,12 @@ function canCurrentUserCancelShiftLogApproval(
     );
 
 
+  /*
+    파트장·최고관리자
+
+    - 결재요청 취소 가능
+    - 결재완료 취소 가능
+  */
   if (
     isCurrentShiftLogLeader() ||
     isCurrentUserSuperAdmin()
@@ -37244,10 +37228,15 @@ function canCurrentUserCancelShiftLogApproval(
   }
 
 
+  /*
+    일반회원
+
+    - 일반 보직의 결재요청을 취소 가능
+    - 작성자가 달라도 취소 가능
+    - 취소 후 임시저장 상태에서 이어쓰기 가능
+    - 결재완료는 취소 불가
+  */
   return (
-    isCurrentUserShiftLogAuthor(
-      log
-    ) &&
     normalizedStatus ===
       "결재요청"
   );
@@ -42271,6 +42260,7 @@ canCurrentUserEditShiftLog =
       파트장 계정
 
       - 본인이 작성한 파트장 업무일지만 수정 가능
+      - 저장완료 상태만 수정 가능
       - 일반 보직 업무일지는 수정 불가
     */
     if (
@@ -42312,25 +42302,21 @@ canCurrentUserEditShiftLog =
 
 
     /*
-      일반 보직 업무일지는 작성자와 관계없이
+      일반회원
 
-      - 임시저장(작성중): 수정 가능
-      - 결재요청: 결재완료 전까지 수정 가능
-      - 결재완료: 수정 불가
+      - 일반 보직의 작성중 일지는 작성자와 관계없이 수정 가능
+      - 결재요청은 먼저 결재취소해야 수정 가능
+      - 결재완료는 수정 불가
     */
     return (
       editableMemberRoles.includes(
         normalizedLogRole
       ) &&
 
-      [
-        "임시저장",
-        "결재요청"
-      ].includes(
-        normalizedStatus
-      )
+      normalizedStatus ===
+        "임시저장"
     );
-  };
+  };  
 
 
 /* =========================================================
