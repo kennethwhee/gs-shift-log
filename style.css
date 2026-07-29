@@ -21922,3 +21922,70 @@ td {
   white-space: nowrap !important;
 }
 
+/* =========================================================
+  업무일지 작성·수정창 실제 항목 글씨 크기 최종 조정
+
+  적용 대상:
+  - TM 발행 내역
+  - 인계사항
+  - 비고
+
+  기존 10~11px → 12px
+========================================================= */
+
+
+/* TM 발행 내역 */
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-document-line,
+
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-document-number,
+
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-document-body,
+
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-document-time,
+
+#logEntryListPanel
+.log-entry-table--tm
+.log-entry-document-content-text {
+  font-size: 12px !important;
+  line-height: 1.6 !important;
+}
+
+
+/* 인계사항 */
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-line,
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-number,
+
+#logEntryListPanel
+.log-entry-table--handover
+.log-entry-handover-text {
+  font-size: 12px !important;
+  line-height: 1.6 !important;
+}
+
+
+/* 비고 */
+#noteEntryTableBody
+.log-entry-document-number,
+
+#noteEntryTableBody
+.log-entry-document-body,
+
+#noteEntryTableBody
+.log-entry-document-content-text.is-remark-content {
+  font-size: 12px !important;
+  line-height: 1.6 !important;
+}
+
