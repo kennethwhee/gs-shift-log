@@ -4317,6 +4317,216 @@ function applyBrandManagementToActualScreen() {
 }
 
 /* =========================================================
+  시스템 관리자·브랜드 관리 요소 가져오기
+
+  직원 관리와 브랜드 관리에서 사용하는
+  모든 HTML 요소를 한곳에서 연결한다.
+========================================================= */
+
+function getBrandManagementElements() {
+  return {
+    /* =====================================================
+      시스템 관리자 탭
+    ====================================================== */
+
+    employeeTabButton:
+      document.getElementById(
+        "employeeManagementTabButton"
+      ),
+
+    brandTabButton:
+      document.getElementById(
+        "brandManagementTabButton"
+      ),
+
+
+    /* =====================================================
+      탭별 화면
+    ====================================================== */
+
+    employeeView:
+      document.getElementById(
+        "employeeManagementView"
+      ),
+
+    brandView:
+      document.getElementById(
+        "brandManagementView"
+      ),
+
+
+    /* =====================================================
+      관리자 하단
+    ====================================================== */
+
+    footerHelp:
+      document.getElementById(
+        "systemAdminFooterHelp"
+      ),
+
+    saveBrandButton:
+      document.getElementById(
+        "saveBrandManagementButton"
+      ),
+
+
+    /* =====================================================
+      브랜드 기본 정보
+    ====================================================== */
+
+    companyNameInput:
+      document.getElementById(
+        "brandCompanyNameInput"
+      ),
+
+    programNameInput:
+      document.getElementById(
+        "brandProgramNameInput"
+      ),
+
+    programSubtitleInput:
+      document.getElementById(
+        "brandProgramSubtitleInput"
+      ),
+
+
+    /* =====================================================
+      회사 로고
+    ====================================================== */
+
+    logoFileInput:
+      document.getElementById(
+        "brandLogoFileInput"
+      ),
+
+    removeLogoButton:
+      document.getElementById(
+        "removeBrandLogoButton"
+      ),
+
+    logoPreview:
+      document.getElementById(
+        "brandLogoPreview"
+      ),
+
+
+    /* =====================================================
+      로그인 배경
+    ====================================================== */
+
+    backgroundFileInput:
+      document.getElementById(
+        "brandLoginBackgroundFileInput"
+      ),
+
+    removeBackgroundButton:
+      document.getElementById(
+        "removeBrandLoginBackgroundButton"
+      ),
+
+    backgroundPreview:
+      document.getElementById(
+        "brandLoginBackgroundPreview"
+      ),
+
+
+    /* =====================================================
+      배경 표시 설정
+    ====================================================== */
+
+    positionXInput:
+      document.getElementById(
+        "brandBackgroundPositionXInput"
+      ),
+
+    positionYInput:
+      document.getElementById(
+        "brandBackgroundPositionYInput"
+      ),
+
+    overlayInput:
+      document.getElementById(
+        "brandBackgroundOverlayInput"
+      ),
+
+    positionXValue:
+      document.getElementById(
+        "brandBackgroundPositionXValue"
+      ),
+
+    positionYValue:
+      document.getElementById(
+        "brandBackgroundPositionYValue"
+      ),
+
+    overlayValue:
+      document.getElementById(
+        "brandBackgroundOverlayValue"
+      ),
+
+
+    /* =====================================================
+      로그인 화면 최종 미리보기
+    ====================================================== */
+
+    loginFinalPreview:
+      document.getElementById(
+        "brandLoginFinalPreview"
+      ),
+
+    loginFinalPreviewLogo:
+      document.getElementById(
+        "brandLoginFinalPreviewLogo"
+      ),
+
+    loginFinalPreviewCompany:
+      document.getElementById(
+        "brandLoginFinalPreviewCompany"
+      ),
+
+    loginFinalPreviewProgram:
+      document.getElementById(
+        "brandLoginFinalPreviewProgram"
+      ),
+
+    loginFinalPreviewSubtitle:
+      document.getElementById(
+        "brandLoginFinalPreviewSubtitle"
+      ),
+
+
+    /* =====================================================
+      상단 헤더 최종 미리보기
+    ====================================================== */
+
+    headerFinalPreviewLogo:
+      document.getElementById(
+        "brandHeaderFinalPreviewLogo"
+      ),
+
+    headerFinalPreviewProgram:
+      document.getElementById(
+        "brandHeaderFinalPreviewProgram"
+      ),
+
+    headerFinalPreviewCompany:
+      document.getElementById(
+        "brandHeaderFinalPreviewCompany"
+      ),
+
+
+    /* =====================================================
+      처리 결과 메시지
+    ====================================================== */
+
+    message:
+      document.getElementById(
+        "brandManagementMessage"
+      )
+  };
+}
+
+/* =========================================================
   브랜드 관리 메시지 표시
 ========================================================= */
 
