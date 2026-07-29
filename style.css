@@ -25193,3 +25193,553 @@ strong {
       ) !important;
   }
 }
+
+/* =========================================================
+  보직별 공지 버튼
+
+  적용 대상:
+  TGO · BCO1 · BCO2 · TO · BO1 · BO2
+
+  파트장:
+  공지 버튼 없이 기존 카드 높이와 정렬만 맞춘다.
+
+  배치:
+  작은 공지 버튼
+  ↓
+  기존 근무자 카드
+========================================================= */
+
+
+/* =========================================================
+  근무자 카드 그리드
+
+  래퍼가 기존 grid의 각 칸을 차지한다.
+========================================================= */
+
+#shiftMemberGrid.shift-member-grid {
+  align-items:
+    stretch;
+}
+
+
+/* =========================================================
+  카드 전체 래퍼
+
+  위:
+  공지 버튼
+
+  아래:
+  기존 업무일지 카드
+========================================================= */
+
+#shiftMemberGrid
+.shift-member-card-wrap {
+  display:
+    grid;
+
+  min-width:
+    0;
+
+  grid-template-rows:
+    25px
+    minmax(
+      0,
+      1fr
+    );
+
+  row-gap:
+    5px;
+}
+
+
+/*
+  기존 업무일지 카드가
+  래퍼 아래쪽 높이를 전부 사용하도록 한다.
+*/
+#shiftMemberGrid
+.shift-member-card-wrap
+>
+.shift-member-card {
+  width:
+    100%;
+
+  height:
+    100%;
+
+  min-height:
+    0;
+
+  margin:
+    0;
+}
+
+
+/* =========================================================
+  파트장 공지 자리
+
+  파트장에는 버튼을 표시하지 않지만
+  다른 카드와 위아래 시작선을 맞추기 위해
+  같은 높이의 빈 공간을 유지한다.
+========================================================= */
+
+#shiftMemberGrid
+.role-notice-placeholder {
+  display:
+    block;
+
+  width:
+    100%;
+
+  height:
+    25px;
+}
+
+
+/* =========================================================
+  공지 버튼
+
+  카드 위 오른쪽에 작게 표시한다.
+========================================================= */
+
+#shiftMemberGrid
+.role-notice-button {
+  display:
+    inline-flex;
+
+  justify-self:
+    end;
+
+  align-self:
+    center;
+
+  min-width:
+    58px;
+
+  height:
+    23px;
+
+  min-height:
+    23px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    4px;
+
+  margin:
+    0
+    2px
+    0
+    0;
+
+  padding:
+    0
+    7px;
+
+  border:
+    1px solid
+    #c9d4df;
+
+  border-radius:
+    6px;
+
+  background:
+    #ffffff;
+
+  color:
+    #667589;
+
+  font-size:
+    9px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+
+  letter-spacing:
+    -0.01em;
+
+  white-space:
+    nowrap;
+
+  cursor:
+    pointer;
+
+  box-shadow:
+    0
+    1px
+    3px
+    rgba(
+      15,
+      23,
+      42,
+      0.04
+    );
+
+  transition:
+    border-color
+    0.15s
+    ease,
+    background
+    0.15s
+    ease,
+    color
+    0.15s
+    ease,
+    box-shadow
+    0.15s
+    ease,
+    transform
+    0.12s
+    ease;
+}
+
+
+#shiftMemberGrid
+.role-notice-button:hover {
+  border-color:
+    #8eafd2;
+
+  background:
+    #f2f7fd;
+
+  color:
+    #1f5fae;
+
+  box-shadow:
+    0
+    3px
+    8px
+    rgba(
+      31,
+      95,
+      174,
+      0.1
+    );
+}
+
+
+#shiftMemberGrid
+.role-notice-button:active {
+  transform:
+    translateY(
+      1px
+    );
+}
+
+
+#shiftMemberGrid
+.role-notice-button:focus-visible {
+  outline:
+    3px
+    solid
+    rgba(
+      31,
+      95,
+      174,
+      0.18
+    );
+
+  outline-offset:
+    2px;
+}
+
+
+/* =========================================================
+  공지 아이콘
+========================================================= */
+
+#shiftMemberGrid
+.role-notice-button__icon {
+  display:
+    inline-flex;
+
+  flex:
+    0
+    0
+    auto;
+
+  width:
+    10px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  color:
+    #8895a5;
+
+  font-size:
+    9px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+}
+
+
+/* =========================================================
+  공지 글씨
+========================================================= */
+
+#shiftMemberGrid
+.role-notice-button__label {
+  display:
+    inline-block;
+
+  color:
+    inherit;
+
+  font-size:
+    9px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+}
+
+
+/* =========================================================
+  활성 공지 개수
+========================================================= */
+
+#shiftMemberGrid
+.role-notice-button__count {
+  display:
+    inline-flex;
+
+  flex:
+    0
+    0
+    auto;
+
+  min-width:
+    16px;
+
+  height:
+    16px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    4px;
+
+  border-radius:
+    999px;
+
+  background:
+    #ffffff;
+
+  color:
+    #1f5fae;
+
+  font-size:
+    8px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+}
+
+
+/*
+  hidden 상태는 기존 전역 규칙과 함께
+  확실히 숨긴다.
+*/
+#shiftMemberGrid
+.role-notice-button__count[hidden] {
+  display:
+    none
+    !important;
+}
+
+
+/* =========================================================
+  활성 공지가 있는 버튼
+
+  JavaScript에서
+  .has-active-notice 클래스를 추가한다.
+========================================================= */
+
+#shiftMemberGrid
+.role-notice-button.has-active-notice {
+  border-color:
+    #2771be;
+
+  background:
+    #1f5fae;
+
+  color:
+    #ffffff;
+
+  box-shadow:
+    0
+    4px
+    10px
+    rgba(
+      31,
+      95,
+      174,
+      0.2
+    );
+}
+
+
+#shiftMemberGrid
+.role-notice-button.has-active-notice:hover {
+  border-color:
+    #174f91;
+
+  background:
+    #194f91;
+
+  color:
+    #ffffff;
+}
+
+
+#shiftMemberGrid
+.role-notice-button.has-active-notice
+.role-notice-button__icon {
+  color:
+    #ffffff;
+}
+
+
+/* =========================================================
+  활성 공지가 있는 카드
+
+  공지가 있다는 사실을 약하게 표시하되
+  업무일지 상태 색상과 충돌하지 않도록
+  상단에 작은 파란 선만 추가한다.
+========================================================= */
+
+#shiftMemberGrid
+.shift-member-card-wrap:has(
+  .role-notice-button.has-active-notice
+)
+>
+.shift-member-card {
+  box-shadow:
+    inset
+    0
+    3px
+    0
+    #1f5fae,
+    0
+    2px
+    8px
+    rgba(
+      15,
+      23,
+      42,
+      0.05
+    );
+}
+
+
+/* =========================================================
+  공지 버튼 클릭 영역과 업무일지 카드 분리
+
+  공지 버튼 위에서 카드 hover 효과가 발생하지 않도록 한다.
+========================================================= */
+
+#shiftMemberGrid
+.role-notice-button {
+  position:
+    relative;
+
+  z-index:
+    2;
+}
+
+
+/* =========================================================
+  좁은 화면
+========================================================= */
+
+@media (
+  max-width:
+  760px
+) {
+  #shiftMemberGrid
+  .shift-member-card-wrap {
+    grid-template-rows:
+      24px
+      minmax(
+        0,
+        1fr
+      );
+
+    row-gap:
+      4px;
+  }
+
+
+  #shiftMemberGrid
+  .role-notice-placeholder {
+    height:
+      24px;
+  }
+
+
+  #shiftMemberGrid
+  .role-notice-button {
+    min-width:
+      56px;
+
+    height:
+      22px;
+
+    min-height:
+      22px;
+
+    padding:
+      0
+      6px;
+
+    font-size:
+      8px;
+  }
+
+
+  #shiftMemberGrid
+  .role-notice-button__label,
+  #shiftMemberGrid
+  .role-notice-button__icon {
+    font-size:
+      8px;
+  }
+
+
+  #shiftMemberGrid
+  .role-notice-button__count {
+    min-width:
+      15px;
+
+    height:
+      15px;
+
+    font-size:
+      7px;
+  }
+}

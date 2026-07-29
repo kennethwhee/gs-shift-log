@@ -236,144 +236,483 @@
               </strong>
             </div>
           </div>
-        <div
-          class="shift-member-grid"
-          id="shiftMemberGrid"
-        >
 
-          <article
-            class="shift-member-card"
-            data-role="파트장"
-          >
-            <div class="shift-member-card__role">
-              파트장
-            </div>
+<!-- =========================================================
+  근무자 현황 카드
 
-            <div class="shift-member-card__body">
-              <strong class="shift-member-card__name"></strong>
-              <span class="shift-member-card__team"></span>
-            </div>
+  파트장:
+  - 공지 기능 없음
+  - 기존 업무일지 카드만 표시
 
-            <div class="shift-member-card__status is-empty">
-              미작성
-            </div>
-          </article>
+  TGO · BCO1 · BCO2 · TO · BO1 · BO2:
+  - 카드 위쪽에 보직별 공지 버튼 표시
+  - 활성 공지 개수 표시
+  - 공지 버튼과 업무일지 카드는 각각 독립적으로 동작
+========================================================== -->
 
+<div
+  class="shift-member-grid"
+  id="shiftMemberGrid"
+>
 
-          <article
-            class="shift-member-card"
-            data-role="TGO"
-          >
-            <div class="shift-member-card__role">
-              TGO
-            </div>
+  <!-- =====================================================
+    파트장
 
-            <div class="shift-member-card__body">
-              <strong class="shift-member-card__name"></strong>
-              <span class="shift-member-card__team"></span>
-            </div>
+    파트장에는 보직별 공지 버튼을 표시하지 않는다.
+  ====================================================== -->
+  <div
+    class="
+      shift-member-card-wrap
+      shift-member-card-wrap--leader
+    "
+    data-role-card-wrap="파트장"
+  >
 
-            <div class="shift-member-card__status is-empty">
-              미작성
-            </div>
-          </article>
+    <div
+      class="role-notice-placeholder"
+      aria-hidden="true"
+    >
+    </div>
 
 
-          <article
-            class="shift-member-card"
-            data-role="BCO1"
-          >
-            <div class="shift-member-card__role">
-              BCO1
-            </div>
+    <article
+      class="shift-member-card"
+      data-role="파트장"
+    >
 
-            <div class="shift-member-card__body">
-              <strong class="shift-member-card__name"></strong>
-              <span class="shift-member-card__team"></span>
-            </div>
-
-            <div class="shift-member-card__status is-empty">
-              미작성
-            </div>
-          </article>
+      <div class="shift-member-card__role">
+        파트장
+      </div>
 
 
-          <article
-            class="shift-member-card"
-            data-role="BCO2"
-          >
-            <div class="shift-member-card__role">
-              BCO2
-            </div>
+      <div class="shift-member-card__body">
 
-            <div class="shift-member-card__body">
-              <strong class="shift-member-card__name"></strong>
-              <span class="shift-member-card__team"></span>
-            </div>
+        <strong class="shift-member-card__name">
+        </strong>
 
-            <div class="shift-member-card__status is-empty">
-              미작성
-            </div>
-          </article>
+        <span class="shift-member-card__team">
+        </span>
+
+      </div>
 
 
-          <article
-            class="shift-member-card"
-            data-role="TO"
-          >
-            <div class="shift-member-card__role">
-              TO
-            </div>
+      <div class="shift-member-card__status is-empty">
+        미작성
+      </div>
 
-            <div class="shift-member-card__body">
-              <strong class="shift-member-card__name"></strong>
-              <span class="shift-member-card__team"></span>
-            </div>
+    </article>
 
-            <div class="shift-member-card__status is-empty">
-              미작성
-            </div>
-          </article>
+  </div>
 
 
-          <article
-            class="shift-member-card"
-            data-role="BO1"
-          >
-            <div class="shift-member-card__role">
-              BO1
-            </div>
+  <!-- =====================================================
+    TGO
+  ====================================================== -->
+  <div
+    class="shift-member-card-wrap"
+    data-role-card-wrap="TGO"
+  >
 
-            <div class="shift-member-card__body">
-              <strong class="shift-member-card__name"></strong>
-              <span class="shift-member-card__team"></span>
-            </div>
+    <button
+      type="button"
+      class="role-notice-button"
+      data-role-notice-button
+      data-role="TGO"
+      aria-label="TGO 공지사항 열기"
+    >
 
-            <div class="shift-member-card__status is-empty">
-              미작성
-            </div>
-          </article>
+      <span
+        class="role-notice-button__icon"
+        aria-hidden="true"
+      >
+        □
+      </span>
+
+      <span class="role-notice-button__label">
+        공지
+      </span>
+
+      <span
+        class="role-notice-button__count"
+        data-role-notice-count
+        hidden
+      >
+        0
+      </span>
+
+    </button>
 
 
-          <article
-            class="shift-member-card"
-            data-role="BO2"
-          >
-            <div class="shift-member-card__role">
-              BO2
-            </div>
+    <article
+      class="shift-member-card"
+      data-role="TGO"
+    >
 
-            <div class="shift-member-card__body">
-              <strong class="shift-member-card__name"></strong>
-              <span class="shift-member-card__team"></span>
-            </div>
+      <div class="shift-member-card__role">
+        TGO
+      </div>
 
-            <div class="shift-member-card__status is-empty">
-              미작성
-            </div>
-          </article>
 
-        </div>
+      <div class="shift-member-card__body">
+
+        <strong class="shift-member-card__name">
+        </strong>
+
+        <span class="shift-member-card__team">
+        </span>
+
+      </div>
+
+
+      <div class="shift-member-card__status is-empty">
+        미작성
+      </div>
+
+    </article>
+
+  </div>
+
+
+  <!-- =====================================================
+    BCO1
+  ====================================================== -->
+  <div
+    class="shift-member-card-wrap"
+    data-role-card-wrap="BCO1"
+  >
+
+    <button
+      type="button"
+      class="role-notice-button"
+      data-role-notice-button
+      data-role="BCO1"
+      aria-label="BCO1 공지사항 열기"
+    >
+
+      <span
+        class="role-notice-button__icon"
+        aria-hidden="true"
+      >
+        □
+      </span>
+
+      <span class="role-notice-button__label">
+        공지
+      </span>
+
+      <span
+        class="role-notice-button__count"
+        data-role-notice-count
+        hidden
+      >
+        0
+      </span>
+
+    </button>
+
+
+    <article
+      class="shift-member-card"
+      data-role="BCO1"
+    >
+
+      <div class="shift-member-card__role">
+        BCO1
+      </div>
+
+
+      <div class="shift-member-card__body">
+
+        <strong class="shift-member-card__name">
+        </strong>
+
+        <span class="shift-member-card__team">
+        </span>
+
+      </div>
+
+
+      <div class="shift-member-card__status is-empty">
+        미작성
+      </div>
+
+    </article>
+
+  </div>
+
+
+  <!-- =====================================================
+    BCO2
+  ====================================================== -->
+  <div
+    class="shift-member-card-wrap"
+    data-role-card-wrap="BCO2"
+  >
+
+    <button
+      type="button"
+      class="role-notice-button"
+      data-role-notice-button
+      data-role="BCO2"
+      aria-label="BCO2 공지사항 열기"
+    >
+
+      <span
+        class="role-notice-button__icon"
+        aria-hidden="true"
+      >
+        □
+      </span>
+
+      <span class="role-notice-button__label">
+        공지
+      </span>
+
+      <span
+        class="role-notice-button__count"
+        data-role-notice-count
+        hidden
+      >
+        0
+      </span>
+
+    </button>
+
+
+    <article
+      class="shift-member-card"
+      data-role="BCO2"
+    >
+
+      <div class="shift-member-card__role">
+        BCO2
+      </div>
+
+
+      <div class="shift-member-card__body">
+
+        <strong class="shift-member-card__name">
+        </strong>
+
+        <span class="shift-member-card__team">
+        </span>
+
+      </div>
+
+
+      <div class="shift-member-card__status is-empty">
+        미작성
+      </div>
+
+    </article>
+
+  </div>
+
+
+  <!-- =====================================================
+    TO
+  ====================================================== -->
+  <div
+    class="shift-member-card-wrap"
+    data-role-card-wrap="TO"
+  >
+
+    <button
+      type="button"
+      class="role-notice-button"
+      data-role-notice-button
+      data-role="TO"
+      aria-label="TO 공지사항 열기"
+    >
+
+      <span
+        class="role-notice-button__icon"
+        aria-hidden="true"
+      >
+        □
+      </span>
+
+      <span class="role-notice-button__label">
+        공지
+      </span>
+
+      <span
+        class="role-notice-button__count"
+        data-role-notice-count
+        hidden
+      >
+        0
+      </span>
+
+    </button>
+
+
+    <article
+      class="shift-member-card"
+      data-role="TO"
+    >
+
+      <div class="shift-member-card__role">
+        TO
+      </div>
+
+
+      <div class="shift-member-card__body">
+
+        <strong class="shift-member-card__name">
+        </strong>
+
+        <span class="shift-member-card__team">
+        </span>
+
+      </div>
+
+
+      <div class="shift-member-card__status is-empty">
+        미작성
+      </div>
+
+    </article>
+
+  </div>
+
+
+  <!-- =====================================================
+    BO1
+  ====================================================== -->
+  <div
+    class="shift-member-card-wrap"
+    data-role-card-wrap="BO1"
+  >
+
+    <button
+      type="button"
+      class="role-notice-button"
+      data-role-notice-button
+      data-role="BO1"
+      aria-label="BO1 공지사항 열기"
+    >
+
+      <span
+        class="role-notice-button__icon"
+        aria-hidden="true"
+      >
+        □
+      </span>
+
+      <span class="role-notice-button__label">
+        공지
+      </span>
+
+      <span
+        class="role-notice-button__count"
+        data-role-notice-count
+        hidden
+      >
+        0
+      </span>
+
+    </button>
+
+
+    <article
+      class="shift-member-card"
+      data-role="BO1"
+    >
+
+      <div class="shift-member-card__role">
+        BO1
+      </div>
+
+
+      <div class="shift-member-card__body">
+
+        <strong class="shift-member-card__name">
+        </strong>
+
+        <span class="shift-member-card__team">
+        </span>
+
+      </div>
+
+
+      <div class="shift-member-card__status is-empty">
+        미작성
+      </div>
+
+    </article>
+
+  </div>
+
+
+  <!-- =====================================================
+    BO2
+  ====================================================== -->
+  <div
+    class="shift-member-card-wrap"
+    data-role-card-wrap="BO2"
+  >
+
+    <button
+      type="button"
+      class="role-notice-button"
+      data-role-notice-button
+      data-role="BO2"
+      aria-label="BO2 공지사항 열기"
+    >
+
+      <span
+        class="role-notice-button__icon"
+        aria-hidden="true"
+      >
+        □
+      </span>
+
+      <span class="role-notice-button__label">
+        공지
+      </span>
+
+      <span
+        class="role-notice-button__count"
+        data-role-notice-count
+        hidden
+      >
+        0
+      </span>
+
+    </button>
+
+
+    <article
+      class="shift-member-card"
+      data-role="BO2"
+    >
+
+      <div class="shift-member-card__role">
+        BO2
+      </div>
+
+
+      <div class="shift-member-card__body">
+
+        <strong class="shift-member-card__name">
+        </strong>
+
+        <span class="shift-member-card__team">
+        </span>
+
+      </div>
+
+
+      <div class="shift-member-card__status is-empty">
+        미작성
+      </div>
+
+    </article>
+
+  </div>
+
+</div>
 
       </section>
 
