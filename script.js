@@ -18651,46 +18651,79 @@ function bindEvents() {
 
 
   /* =======================================================
-    업무일지 작성창
-  ======================================================== */
+  업무일지 작성창
 
-  bindClick(
-    elements.openLogEditorButton,
-    () => {
-      openLogEditor();
-    }
-  );
+  닫기 허용:
+  - 우측 상단 X 버튼
+  - 하단 닫기 버튼
 
+  닫기 차단:
+  - 모달 바깥쪽 배경 클릭
 
-  bindClick(
-    elements.closeLogEditorButton,
-    closeLogEditor
-  );
+  저장되지 않은 변경사항이 있으면
+  사용자 확인 후 닫는다.
+======================================================= */
 
-
-  bindClick(
-    elements.cancelLogButton,
-    closeLogEditor
-  );
-
-
-  if (
-    elements.logEditorModal
-  ) {
-    elements.logEditorModal
-      .addEventListener(
-        "click",
-        (event) => {
-          if (
-            event.target ===
-            elements.logEditorModal
-          ) {
-            closeLogEditor();
-          }
-        }
-      );
+bindClick(
+  elements.openLogEditorButton,
+  () => {
+    openLogEditor();
   }
+);
 
+
+/*
+  우측 상단 X 버튼
+*/
+bindClick(
+  elements.closeLogEditorButton,
+  () => {
+    requestCloseLogEditor();
+  }
+);
+
+
+/*
+  하단 닫기 버튼
+*/
+bindClick(
+  elements.cancelLogButton,
+  () => {
+    requestCloseLogEditor();
+  }
+);
+
+
+/*
+  업무일지 작성창 바깥 배경 클릭
+
+  기존에는 closeLogEditor()를 실행했지만,
+  이제는 아무 동작도 하지 않는다.
+*/
+if (
+  elements.logEditorModal
+) {
+  elements.logEditorModal
+    .addEventListener(
+      "click",
+      (event) => {
+        if (
+          event.target !==
+          elements.logEditorModal
+        ) {
+          return;
+        }
+
+
+        /*
+          배경 클릭으로 창이 닫히지 않도록
+          이벤트만 막는다.
+        */
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    );
+}
 
   /* =======================================================
     현재 운전현황
@@ -20799,11 +20832,218 @@ function updateShiftMemberCardStates() {
   );
 }
 
+/* =========================================================
+  업무일지 작성창 저장 상태 관리
+========================================================= */
 
-function closeLogEditor() {
-  closeModal(elements.logEditorModal);
+let logEditorSavedSnapshot =
+  "";
+
+
+/* =========================================================
+  현재 작성창 내용을 비교 가능한 문자열로 만든다.
+========================================================= */
+
+function createLogEditorSnapshot() {
+  const form =
+    elements.logEditorForm;
+
+
+  if (
+    !form
+  ) {
+    return "";
+  }
+
+
+  const formValues = {};
+
+
+  /*
+    폼 안의 입력값을 전부 수집한다.
+  */
+  form
+    .querySelectorAll(
+      "input, select, textarea"
+    )
+    .forEach(
+      (field) => {
+        /*
+          파일 입력은 파일명만 저장한다.
+        */
+        if (
+          field.type ===
+          "file"
+        ) {
+          formValues[
+            field.id ||
+            field.name ||
+            "file"
+          ] = [
+            ...field.files
+          ].map(
+            (file) =>
+              file.name
+          );
+
+          return;
+        }
+
+
+        /*
+          체크박스와 라디오 버튼
+        */
+        if (
+          field.type ===
+            "checkbox" ||
+          field.type ===
+            "radio"
+        ) {
+          formValues[
+            field.id ||
+            field.name
+          ] =
+            field.checked;
+
+          return;
+        }
+
+
+        formValues[
+          field.id ||
+          field.name
+        ] =
+          field.value;
+      }
+    );
+
+
+  /*
+    화면에 추가된 작업 내역도 비교한다.
+  */
+  formValues.editorEntries =
+    Array.isArray(
+      appState.editorEntries
+    )
+      ? appState.editorEntries
+      : [];
+
+
+  /*
+    운전현황 수정값도 비교한다.
+  */
+  formValues.operationStatus =
+    appState.currentOperationStatus ||
+    {};
+
+
+  return JSON.stringify(
+    formValues
+  );
 }
 
+
+/* =========================================================
+  현재 상태를 저장 완료 상태로 기록한다.
+
+  업무일지 창을 처음 열었을 때와
+  저장 성공 후 호출한다.
+========================================================= */
+
+function markLogEditorAsSaved() {
+  logEditorSavedSnapshot =
+    createLogEditorSnapshot();
+}
+
+
+/* =========================================================
+  저장되지 않은 변경사항 확인
+========================================================= */
+
+function hasUnsavedLogEditorChanges() {
+  return (
+    createLogEditorSnapshot() !==
+    logEditorSavedSnapshot
+  );
+}
+
+
+/* =========================================================
+  작성창 닫기 요청
+
+  저장된 상태:
+  바로 닫기
+
+  저장되지 않은 변경사항 존재:
+  확인창 표시
+========================================================= */
+
+async function requestCloseLogEditor() {
+  if (
+    !elements.logEditorModal
+      ?.classList
+      .contains(
+        "is-open"
+      )
+  ) {
+    return;
+  }
+
+
+  if (
+    !hasUnsavedLogEditorChanges()
+  ) {
+    closeLogEditor();
+
+    return;
+  }
+
+
+  const shouldClose =
+    await showCompactConfirm({
+      title:
+        "입력 중단",
+
+      message:
+        "아직 저장하지 않은 내용이 있습니다. 입력을 중단하시겠습니까?",
+
+      confirmText:
+        "중단",
+
+      cancelText:
+        "계속 작성"
+    });
+
+
+  if (
+    !shouldClose
+  ) {
+    return;
+  }
+
+
+  closeLogEditor();
+}
+
+
+/* =========================================================
+  업무일지 작성창 실제 닫기
+
+  확인 절차 없이 모달만 닫는다.
+========================================================= */
+
+function closeLogEditor() {
+  closeModal(
+    elements.logEditorModal
+  );
+
+
+  /*
+    다음 작성창을 위해 상태 초기화
+  */
+  logEditorSavedSnapshot =
+    "";
+}
 
 function resetLogEditor() {
   elements.logEditorForm.reset();
@@ -44903,4 +45143,110 @@ deleteLogById =
 
       return null;
     }
+  };
+
+  /* =========================================================
+  업무일지 작성창 저장 여부 추적 최종 연결
+
+  기능:
+  - 작성창이 완전히 열린 뒤 현재 상태를 저장 기준으로 기록
+  - 임시저장·저장·결재요청 성공 후 저장 기준 갱신
+  - 저장 후 자동으로 닫히는 경우에도 경고창이 뜨지 않음
+========================================================= */
+
+
+/* =========================================================
+  기존 최종 openLogEditor 보존
+========================================================= */
+
+const openLogEditorBeforeUnsavedTracking =
+  openLogEditor;
+
+
+/* =========================================================
+  저장 여부 추적이 적용된 작성창 열기
+========================================================= */
+
+openLogEditor =
+  function openLogEditor(
+    log = null,
+    preset = null
+  ) {
+    const result =
+      openLogEditorBeforeUnsavedTracking(
+        log,
+        preset
+      );
+
+
+    /*
+      openLogEditor 내부에서
+      reset·fill·운전현황 렌더링이 모두 끝난 다음
+      기준 상태를 기록해야 한다.
+    */
+    window.requestAnimationFrame(
+      () => {
+        window.requestAnimationFrame(
+          () => {
+            markLogEditorAsSaved();
+          }
+        );
+      }
+    );
+
+
+    return result;
+  };
+
+
+/* =========================================================
+  기존 최종 saveCurrentLog 보존
+========================================================= */
+
+const saveCurrentLogBeforeUnsavedTracking =
+  saveCurrentLog;
+
+
+/* =========================================================
+  저장 여부 추적이 적용된 업무일지 저장
+========================================================= */
+
+saveCurrentLog =
+  async function saveCurrentLog(
+    requestedStatus,
+    options = {}
+  ) {
+    /*
+      기존 저장 함수가 저장 성공 여부를
+      업무일지 객체 또는 null로 반환한다.
+    */
+    const savedLog =
+      await saveCurrentLogBeforeUnsavedTracking(
+        requestedStatus,
+        options
+      );
+
+
+    /*
+      유효성 검사 실패·서버 저장 실패
+      → null이 반환되므로 저장 상태를 갱신하지 않는다.
+    */
+    if (
+      !savedLog
+    ) {
+      return savedLog;
+    }
+
+
+    /*
+      저장 성공 직후 현재 화면 상태를
+      새로운 저장 기준으로 갱신한다.
+
+      closeAfterSave가 false인 임시저장에서도
+      저장 이후 추가 변경이 없으면 바로 닫을 수 있다.
+    */
+    markLogEditorAsSaved();
+
+
+    return savedLog;
   };
