@@ -49146,3 +49146,3705 @@ document.addEventListener(
   "DOMContentLoaded",
   initializeRoleNotices
 );
+
+/* =========================================================
+  전체공지 프런트엔드 기능
+
+  권한:
+  - 로그인한 모든 사용자 조회 가능
+  - 로그인한 모든 사용자 추가·수정·삭제 가능
+
+  중요도:
+  - normal    : 일반
+  - important : 중요
+  - urgent    : 긴급
+
+  자동 팝업:
+  - 현재 활성 상태인 중요·긴급 공지
+  - 사용자별·공지별 12시간 숨김 지원
+
+  첨부자료:
+  - FormData로 서버 전송
+  - 실제 파일은 다음 단계의 Worker API에서 R2에 저장
+
+  API:
+  - GET    /api/global-notices
+  - POST   /api/global-notices
+  - DELETE /api/global-notices?id=공지ID
+========================================================= */
+
+
+/* =========================================================
+  전체공지 기본 설정
+========================================================= */
+
+const GLOBAL_NOTICE_API_URL =
+  "/api/global-notices";
+
+
+const GLOBAL_NOTICE_HIDE_STORAGE_PREFIX =
+  "gsShiftLog.globalNoticeHidden";
+
+
+const GLOBAL_NOTICE_ALLOWED_EXTENSIONS =
+  new Set([
+    "pdf",
+    "hwp",
+    "hwpx",
+    "doc",
+    "docx",
+    "xls",
+    "xlsx",
+    "ppt",
+    "pptx",
+    "txt",
+    "csv",
+    "jpg",
+    "jpeg",
+    "png",
+    "webp",
+    "zip"
+  ]);
+
+
+const GLOBAL_NOTICE_MAX_FILE_COUNT =
+  10;
+
+
+const GLOBAL_NOTICE_MAX_FILE_SIZE =
+  20 * 1024 * 1024;
+
+
+const globalNoticeState = {
+  notices: [],
+
+  currentFilter:
+    "active",
+
+  editingNoticeId:
+    "",
+
+  selectedFiles: [],
+
+  existingAttachments: [],
+
+  deletedAttachmentIds:
+    [],
+
+  alertQueue: [],
+
+  currentAlertNoticeId:
+    "",
+
+  isLoading:
+    false,
+
+  eventsBound:
+    false
+};
+
+
+/* =========================================================
+  전체공지 HTML 요소
+========================================================= */
+
+function getGlobalNoticeElements() {
+  return {
+    noticeButton:
+      document.getElementById(
+        "noticeButton"
+      ),
+
+
+    /*
+      목록창
+    */
+    globalNoticeModal:
+      document.getElementById(
+        "globalNoticeModal"
+      ),
+
+    globalNoticeActiveCount:
+      document.getElementById(
+        "globalNoticeActiveCount"
+      ),
+
+    closeGlobalNoticeModalButton:
+      document.getElementById(
+        "closeGlobalNoticeModalButton"
+      ),
+
+    closeGlobalNoticeModalFooterButton:
+      document.getElementById(
+        "closeGlobalNoticeModalFooterButton"
+      ),
+
+    openGlobalNoticeEditorButton:
+      document.getElementById(
+        "openGlobalNoticeEditorButton"
+      ),
+
+    globalNoticeList:
+      document.getElementById(
+        "globalNoticeList"
+      ),
+
+    globalNoticeEmpty:
+      document.getElementById(
+        "globalNoticeEmpty"
+      ),
+
+    filterButtons: [
+      ...document.querySelectorAll(
+        "[data-global-notice-filter]"
+      )
+    ],
+
+    globalNoticeActiveFilterCount:
+      document.getElementById(
+        "globalNoticeActiveFilterCount"
+      ),
+
+    globalNoticeUpcomingFilterCount:
+      document.getElementById(
+        "globalNoticeUpcomingFilterCount"
+      ),
+
+    globalNoticeExpiredFilterCount:
+      document.getElementById(
+        "globalNoticeExpiredFilterCount"
+      ),
+
+    globalNoticeAllFilterCount:
+      document.getElementById(
+        "globalNoticeAllFilterCount"
+      ),
+
+
+    /*
+      작성·수정창
+    */
+    globalNoticeEditorModal:
+      document.getElementById(
+        "globalNoticeEditorModal"
+      ),
+
+    globalNoticeEditorForm:
+      document.getElementById(
+        "globalNoticeEditorForm"
+      ),
+
+    globalNoticeEditorTitle:
+      document.getElementById(
+        "globalNoticeEditorTitle"
+      ),
+
+    globalNoticeEditingId:
+      document.getElementById(
+        "globalNoticeEditingId"
+      ),
+
+    closeGlobalNoticeEditorButton:
+      document.getElementById(
+        "closeGlobalNoticeEditorButton"
+      ),
+
+    cancelGlobalNoticeEditorButton:
+      document.getElementById(
+        "cancelGlobalNoticeEditorButton"
+      ),
+
+    saveGlobalNoticeButton:
+      document.getElementById(
+        "saveGlobalNoticeButton"
+      ),
+
+    globalNoticeTitleInput:
+      document.getElementById(
+        "globalNoticeTitleInput"
+      ),
+
+    globalNoticeContentInput:
+      document.getElementById(
+        "globalNoticeContentInput"
+      ),
+
+    globalNoticeCharacterCount:
+      document.getElementById(
+        "globalNoticeCharacterCount"
+      ),
+
+    globalNoticeStartDateInput:
+      document.getElementById(
+        "globalNoticeStartDateInput"
+      ),
+
+    globalNoticeEndDateInput:
+      document.getElementById(
+        "globalNoticeEndDateInput"
+      ),
+
+    priorityInputs: [
+      ...document.querySelectorAll(
+        'input[name="globalNoticePriority"]'
+      )
+    ],
+
+    globalNoticeFileDropzone:
+      document.getElementById(
+        "globalNoticeFileDropzone"
+      ),
+
+    globalNoticeFileInput:
+      document.getElementById(
+        "globalNoticeFileInput"
+      ),
+
+    globalNoticeSelectedFileList:
+      document.getElementById(
+        "globalNoticeSelectedFileList"
+      ),
+
+    globalNoticeExistingAttachmentWrap:
+      document.getElementById(
+        "globalNoticeExistingAttachmentWrap"
+      ),
+
+    globalNoticeExistingAttachmentCount:
+      document.getElementById(
+        "globalNoticeExistingAttachmentCount"
+      ),
+
+    globalNoticeExistingAttachmentList:
+      document.getElementById(
+        "globalNoticeExistingAttachmentList"
+      ),
+
+    globalNoticeDeletedAttachmentIds:
+      document.getElementById(
+        "globalNoticeDeletedAttachmentIds"
+      ),
+
+    globalNoticeEditorMessage:
+      document.getElementById(
+        "globalNoticeEditorMessage"
+      ),
+
+
+    /*
+      자동 팝업
+    */
+    globalNoticeAlertModal:
+      document.getElementById(
+        "globalNoticeAlertModal"
+      ),
+
+    globalNoticeAlertNoticeId:
+      document.getElementById(
+        "globalNoticeAlertNoticeId"
+      ),
+
+    globalNoticeAlertPriorityBadge:
+      document.getElementById(
+        "globalNoticeAlertPriorityBadge"
+      ),
+
+    globalNoticeAlertTitle:
+      document.getElementById(
+        "globalNoticeAlertTitle"
+      ),
+
+    globalNoticeAlertPeriod:
+      document.getElementById(
+        "globalNoticeAlertPeriod"
+      ),
+
+    globalNoticeAlertContent:
+      document.getElementById(
+        "globalNoticeAlertContent"
+      ),
+
+    globalNoticeAlertAttachmentSection:
+      document.getElementById(
+        "globalNoticeAlertAttachmentSection"
+      ),
+
+    globalNoticeAlertAttachmentCount:
+      document.getElementById(
+        "globalNoticeAlertAttachmentCount"
+      ),
+
+    globalNoticeAlertAttachmentList:
+      document.getElementById(
+        "globalNoticeAlertAttachmentList"
+      ),
+
+    globalNoticeHideForTwelveHours:
+      document.getElementById(
+        "globalNoticeHideForTwelveHours"
+      ),
+
+    closeGlobalNoticeAlertButton:
+      document.getElementById(
+        "closeGlobalNoticeAlertButton"
+      ),
+
+    closeGlobalNoticeAlertFooterButton:
+      document.getElementById(
+        "closeGlobalNoticeAlertFooterButton"
+      )
+  };
+}
+
+
+/* =========================================================
+  전체공지 날짜 처리
+========================================================= */
+
+function getGlobalNoticeTodayText() {
+  const today =
+    new Date();
+
+
+  return [
+    today.getFullYear(),
+
+    String(
+      today.getMonth() + 1
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    String(
+      today.getDate()
+    ).padStart(
+      2,
+      "0"
+    )
+  ].join("-");
+}
+
+
+function normalizeGlobalNoticeDate(
+  value
+) {
+  return String(
+    value ||
+    ""
+  )
+    .trim()
+    .slice(
+      0,
+      10
+    );
+}
+
+
+function formatGlobalNoticeDate(
+  value
+) {
+  const normalizedDate =
+    normalizeGlobalNoticeDate(
+      value
+    );
+
+
+  if (
+    !normalizedDate
+  ) {
+    return "-";
+  }
+
+
+  const parts =
+    normalizedDate.split(
+      "-"
+    );
+
+
+  if (
+    parts.length !==
+    3
+  ) {
+    return normalizedDate;
+  }
+
+
+  return `${parts[0]}.${parts[1]}.${parts[2]}`;
+}
+
+
+/* =========================================================
+  전체공지 상태 판정
+
+  오늘 < 시작일:
+  예정
+
+  시작일 <= 오늘 <= 종료일:
+  진행 중
+
+  오늘 > 종료일:
+  종료
+========================================================= */
+
+function getGlobalNoticeStatus(
+  notice,
+  todayText =
+    getGlobalNoticeTodayText()
+) {
+  const startDate =
+    normalizeGlobalNoticeDate(
+      notice?.startDate ||
+      notice?.start_date
+    );
+
+
+  const endDate =
+    normalizeGlobalNoticeDate(
+      notice?.endDate ||
+      notice?.end_date
+    );
+
+
+  if (
+    startDate &&
+    todayText <
+      startDate
+  ) {
+    return "upcoming";
+  }
+
+
+  if (
+    endDate &&
+    todayText >
+      endDate
+  ) {
+    return "expired";
+  }
+
+
+  return "active";
+}
+
+
+function getGlobalNoticeStatusLabel(
+  status
+) {
+  const statusMap = {
+    active:
+      "진행 중",
+
+    upcoming:
+      "예정",
+
+    expired:
+      "종료"
+  };
+
+
+  return (
+    statusMap[
+      status
+    ] ||
+    "진행 중"
+  );
+}
+
+
+/* =========================================================
+  중요도 정규화
+========================================================= */
+
+function normalizeGlobalNoticePriority(
+  value
+) {
+  const priority =
+    String(
+      value ||
+      "normal"
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (
+    priority ===
+      "urgent" ||
+    priority ===
+      "긴급"
+  ) {
+    return "urgent";
+  }
+
+
+  if (
+    priority ===
+      "important" ||
+    priority ===
+      "중요"
+  ) {
+    return "important";
+  }
+
+
+  return "normal";
+}
+
+
+function getGlobalNoticePriorityLabel(
+  priority
+) {
+  const priorityMap = {
+    normal:
+      "일반",
+
+    important:
+      "중요",
+
+    urgent:
+      "긴급"
+  };
+
+
+  return (
+    priorityMap[
+      normalizeGlobalNoticePriority(
+        priority
+      )
+    ] ||
+    "일반"
+  );
+}
+
+
+/* =========================================================
+  서버 전체공지 객체 정규화
+========================================================= */
+
+function normalizeGlobalNotice(
+  notice
+) {
+  const sourceNotice =
+    notice &&
+    typeof notice ===
+      "object"
+      ? notice
+      : {};
+
+
+  const attachments =
+    Array.isArray(
+      sourceNotice.attachments
+    )
+      ? sourceNotice.attachments
+      : [];
+
+
+  return {
+    id:
+      String(
+        sourceNotice.id ||
+        ""
+      ).trim(),
+
+    priority:
+      normalizeGlobalNoticePriority(
+        sourceNotice.priority ||
+        sourceNotice.importance ||
+        sourceNotice.noticePriority ||
+        sourceNotice.notice_priority
+      ),
+
+    title:
+      String(
+        sourceNotice.title ||
+        ""
+      ).trim(),
+
+    content:
+      String(
+        sourceNotice.content ||
+        ""
+      )
+        .replace(
+          /\r\n/g,
+          "\n"
+        )
+        .replace(
+          /\r/g,
+          "\n"
+        )
+        .trim(),
+
+    startDate:
+      normalizeGlobalNoticeDate(
+        sourceNotice.startDate ||
+        sourceNotice.start_date
+      ),
+
+    endDate:
+      normalizeGlobalNoticeDate(
+        sourceNotice.endDate ||
+        sourceNotice.end_date
+      ),
+
+    createdBy:
+      String(
+        sourceNotice.createdBy ||
+        sourceNotice.created_by ||
+        ""
+      ).trim(),
+
+    createdByName:
+      String(
+        sourceNotice.createdByName ||
+        sourceNotice.created_by_name ||
+        sourceNotice.authorName ||
+        sourceNotice.author_name ||
+        ""
+      ).trim(),
+
+    createdAt:
+      String(
+        sourceNotice.createdAt ||
+        sourceNotice.created_at ||
+        ""
+      ).trim(),
+
+    updatedAt:
+      String(
+        sourceNotice.updatedAt ||
+        sourceNotice.updated_at ||
+        ""
+      ).trim(),
+
+    attachments:
+      attachments
+        .map(
+          attachment => {
+            const attachmentId =
+              String(
+                attachment?.id ||
+                ""
+              ).trim();
+
+
+            const fileName =
+              String(
+                attachment?.fileName ||
+                attachment?.file_name ||
+                attachment?.name ||
+                ""
+              ).trim();
+
+
+            const url =
+              String(
+                attachment?.url ||
+                attachment?.downloadUrl ||
+                attachment?.download_url ||
+                (
+                  attachmentId
+                    ? `/api/global-notices/attachment?id=${encodeURIComponent(
+                        attachmentId
+                      )}`
+                    : ""
+                )
+              ).trim();
+
+
+            return {
+              id:
+                attachmentId,
+
+              fileName,
+
+              name:
+                fileName,
+
+              fileSize:
+                Number(
+                  attachment?.fileSize ||
+                  attachment?.file_size ||
+                  0
+                ),
+
+              mimeType:
+                String(
+                  attachment?.mimeType ||
+                  attachment?.mime_type ||
+                  ""
+                ).trim(),
+
+              r2Key:
+                String(
+                  attachment?.r2Key ||
+                  attachment?.r2_key ||
+                  ""
+                ).trim(),
+
+              url
+            };
+          }
+        )
+        .filter(
+          attachment => {
+            return Boolean(
+              attachment.id ||
+              attachment.fileName ||
+              attachment.url
+            );
+          }
+        )
+  };
+}
+
+
+/* =========================================================
+  전체공지 관리 권한
+
+  요청사항:
+  - 일반 사용자도 추가·수정·삭제 가능
+========================================================= */
+
+function canCurrentUserManageGlobalNotice() {
+  return Boolean(
+    loadCurrentUser()
+  );
+}
+
+
+/* =========================================================
+  전체공지 API 응답 읽기
+========================================================= */
+
+async function parseGlobalNoticeResponse(
+  response
+) {
+  const responseText =
+    await response.text();
+
+
+  if (
+    !responseText.trim()
+  ) {
+    return {};
+  }
+
+
+  try {
+    return JSON.parse(
+      responseText
+    );
+
+  } catch {
+    throw new Error(
+      "전체공지 서버 응답 형식이 올바르지 않습니다."
+    );
+  }
+}
+
+
+/* =========================================================
+  전체공지 불러오기
+========================================================= */
+
+async function loadGlobalNotices() {
+  if (
+    globalNoticeState.isLoading
+  ) {
+    return globalNoticeState.notices;
+  }
+
+
+  const currentUser =
+    loadCurrentUser();
+
+
+  if (
+    !currentUser
+  ) {
+    globalNoticeState.notices =
+      [];
+
+    return [];
+  }
+
+
+  globalNoticeState.isLoading =
+    true;
+
+
+  try {
+    const response =
+      await fetch(
+        `${GLOBAL_NOTICE_API_URL}?_=${Date.now()}`,
+        {
+          method:
+            "GET",
+
+          headers:
+            getShiftLogAuthHeaders(),
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    const result =
+      await parseGlobalNoticeResponse(
+        response
+      );
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false ||
+      result.success ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        `전체공지 조회 실패 (HTTP ${response.status})`
+      );
+    }
+
+
+    const sourceItems =
+      Array.isArray(
+        result.items
+      )
+        ? result.items
+        : (
+            Array.isArray(
+              result.notices
+            )
+              ? result.notices
+              : (
+                  Array.isArray(
+                    result.data
+                  )
+                    ? result.data
+                    : []
+                )
+          );
+
+
+    globalNoticeState.notices =
+      sourceItems
+        .map(
+          normalizeGlobalNotice
+        )
+        .filter(
+          notice => {
+            return Boolean(
+              notice.id
+            );
+          }
+        )
+        .sort(
+          (
+            firstNotice,
+            secondNotice
+          ) => {
+            const priorityOrder = {
+              urgent:
+                3,
+
+              important:
+                2,
+
+              normal:
+                1
+            };
+
+
+            const priorityDifference =
+              (
+                priorityOrder[
+                  secondNotice.priority
+                ] ||
+                0
+              ) -
+              (
+                priorityOrder[
+                  firstNotice.priority
+                ] ||
+                0
+              );
+
+
+            if (
+              priorityDifference !==
+              0
+            ) {
+              return priorityDifference;
+            }
+
+
+            return String(
+              secondNotice.updatedAt ||
+              secondNotice.createdAt ||
+              ""
+            ).localeCompare(
+              String(
+                firstNotice.updatedAt ||
+                firstNotice.createdAt ||
+                ""
+              )
+            );
+          }
+        );
+
+
+    updateGlobalNoticeHeaderButton();
+
+
+    return globalNoticeState.notices;
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "전체공지 조회 오류:",
+      error
+    );
+
+
+    globalNoticeState.notices =
+      [];
+
+
+    updateGlobalNoticeHeaderButton();
+
+
+    return [];
+
+  } finally {
+    globalNoticeState.isLoading =
+      false;
+  }
+}
+
+
+/* =========================================================
+  상단 전체공지 버튼 활성 건수 표시
+========================================================= */
+
+function updateGlobalNoticeHeaderButton() {
+  const {
+    noticeButton
+  } =
+    getGlobalNoticeElements();
+
+
+  if (
+    !noticeButton
+  ) {
+    return;
+  }
+
+
+  const activeCount =
+    globalNoticeState.notices.filter(
+      notice => {
+        return (
+          getGlobalNoticeStatus(
+            notice
+          ) ===
+          "active"
+        );
+      }
+    ).length;
+
+
+  noticeButton.textContent =
+    activeCount > 0
+      ? `전체공지 ${activeCount}`
+      : "전체공지";
+
+
+  noticeButton.dataset
+    .activeNoticeCount =
+    String(
+      activeCount
+    );
+
+
+  noticeButton.classList.toggle(
+    "has-active-notice",
+    activeCount > 0
+  );
+}
+
+
+/* =========================================================
+  전체공지 카드 HTML
+========================================================= */
+
+function createGlobalNoticeCardHtml(
+  notice
+) {
+  const status =
+    getGlobalNoticeStatus(
+      notice
+    );
+
+
+  const priority =
+    normalizeGlobalNoticePriority(
+      notice.priority
+    );
+
+
+  const authorText =
+    notice.createdByName ||
+    notice.createdBy ||
+    "작성자 미확인";
+
+
+  const updatedText =
+    typeof formatDateTime ===
+      "function"
+      ? formatDateTime(
+          notice.updatedAt ||
+          notice.createdAt
+        )
+      : String(
+          notice.updatedAt ||
+          notice.createdAt ||
+          ""
+        );
+
+
+  const attachments =
+    Array.isArray(
+      notice.attachments
+    )
+      ? notice.attachments
+      : [];
+
+
+  const attachmentHtml =
+    attachments.length
+      ? `
+        <div class="global-notice-card__attachments">
+
+          ${attachments
+            .map(
+              attachment => {
+                const fileName =
+                  attachment.fileName ||
+                  attachment.name ||
+                  "첨부자료";
+
+
+                return `
+                  <a
+                    href="${escapeHtml(
+                      attachment.url ||
+                      "#"
+                    )}"
+                    class="global-notice-card__attachment-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    title="${escapeHtml(
+                      fileName
+                    )}"
+                  >
+                    📎
+                    ${escapeHtml(
+                      fileName
+                    )}
+                  </a>
+                `;
+              }
+            )
+            .join("")}
+
+        </div>
+      `
+      : "";
+
+
+  return `
+    <article
+      class="
+        global-notice-card
+        is-${escapeHtml(
+          priority
+        )}
+        ${
+          status ===
+            "expired"
+            ? "is-expired"
+            : ""
+        }
+      "
+      data-global-notice-id="${escapeHtml(
+        notice.id
+      )}"
+    >
+
+      <div class="global-notice-card__main">
+
+        <div class="global-notice-card__heading">
+
+          <span
+            class="
+              global-notice-priority-badge
+              is-${escapeHtml(
+                priority
+              )}
+            "
+          >
+            ${escapeHtml(
+              getGlobalNoticePriorityLabel(
+                priority
+              )
+            )}
+          </span>
+
+
+          <h3 class="global-notice-card__title">
+            ${escapeHtml(
+              notice.title ||
+              "제목 없음"
+            )}
+          </h3>
+
+
+          <span
+            class="
+              global-notice-card__status
+              is-${escapeHtml(
+                status
+              )}
+            "
+          >
+            ${escapeHtml(
+              getGlobalNoticeStatusLabel(
+                status
+              )
+            )}
+          </span>
+
+        </div>
+
+
+        <p class="global-notice-card__period">
+          ${escapeHtml(
+            formatGlobalNoticeDate(
+              notice.startDate
+            )
+          )}
+          ~
+          ${escapeHtml(
+            formatGlobalNoticeDate(
+              notice.endDate
+            )
+          )}
+        </p>
+
+
+        <p class="global-notice-card__content">
+          ${escapeHtml(
+            notice.content ||
+            ""
+          )}
+        </p>
+
+
+        ${attachmentHtml}
+
+
+        <p class="global-notice-card__meta">
+          ${escapeHtml(
+            authorText
+          )}
+          ·
+          ${escapeHtml(
+            updatedText
+          )}
+        </p>
+
+      </div>
+
+
+      ${
+        canCurrentUserManageGlobalNotice()
+          ? `
+            <div class="global-notice-card__actions">
+
+              <button
+                type="button"
+                class="global-notice-card__edit-button"
+                data-global-notice-edit="${escapeHtml(
+                  notice.id
+                )}"
+              >
+                수정
+              </button>
+
+
+              <button
+                type="button"
+                class="global-notice-card__delete-button"
+                data-global-notice-delete="${escapeHtml(
+                  notice.id
+                )}"
+              >
+                삭제
+              </button>
+
+            </div>
+          `
+          : ""
+      }
+
+    </article>
+  `;
+}
+
+
+/* =========================================================
+  전체공지 목록 출력
+========================================================= */
+
+function renderGlobalNoticeList() {
+  const noticeElements =
+    getGlobalNoticeElements();
+
+
+  if (
+    !noticeElements.globalNoticeList
+  ) {
+    return;
+  }
+
+
+  const statusCounts = {
+    active:
+      0,
+
+    upcoming:
+      0,
+
+    expired:
+      0,
+
+    all:
+      globalNoticeState.notices.length
+  };
+
+
+  globalNoticeState.notices.forEach(
+    notice => {
+      const status =
+        getGlobalNoticeStatus(
+          notice
+        );
+
+
+      statusCounts[
+        status
+      ] +=
+        1;
+    }
+  );
+
+
+  if (
+    noticeElements.globalNoticeActiveCount
+  ) {
+    noticeElements
+      .globalNoticeActiveCount
+      .textContent =
+      `활성 ${statusCounts.active}건`;
+  }
+
+
+  if (
+    noticeElements.globalNoticeActiveFilterCount
+  ) {
+    noticeElements
+      .globalNoticeActiveFilterCount
+      .textContent =
+      String(
+        statusCounts.active
+      );
+  }
+
+
+  if (
+    noticeElements.globalNoticeUpcomingFilterCount
+  ) {
+    noticeElements
+      .globalNoticeUpcomingFilterCount
+      .textContent =
+      String(
+        statusCounts.upcoming
+      );
+  }
+
+
+  if (
+    noticeElements.globalNoticeExpiredFilterCount
+  ) {
+    noticeElements
+      .globalNoticeExpiredFilterCount
+      .textContent =
+      String(
+        statusCounts.expired
+      );
+  }
+
+
+  if (
+    noticeElements.globalNoticeAllFilterCount
+  ) {
+    noticeElements
+      .globalNoticeAllFilterCount
+      .textContent =
+      String(
+        statusCounts.all
+      );
+  }
+
+
+  const filteredNotices =
+    globalNoticeState.currentFilter ===
+      "all"
+      ? globalNoticeState.notices
+      : globalNoticeState.notices.filter(
+          notice => {
+            return (
+              getGlobalNoticeStatus(
+                notice
+              ) ===
+              globalNoticeState
+                .currentFilter
+            );
+          }
+        );
+
+
+  if (
+    noticeElements.globalNoticeEmpty
+  ) {
+    noticeElements
+      .globalNoticeEmpty
+      .hidden =
+      filteredNotices.length >
+      0;
+  }
+
+
+  noticeElements.globalNoticeList
+    .querySelectorAll(
+      ".global-notice-card"
+    )
+    .forEach(
+      card => {
+        card.remove();
+      }
+    );
+
+
+  if (
+    filteredNotices.length
+  ) {
+    noticeElements.globalNoticeList
+      .insertAdjacentHTML(
+        "beforeend",
+        filteredNotices
+          .map(
+            createGlobalNoticeCardHtml
+          )
+          .join("")
+      );
+  }
+
+
+  updateGlobalNoticeHeaderButton();
+}
+
+
+/* =========================================================
+  전체공지 목록창 열기
+========================================================= */
+
+async function openGlobalNoticeModal() {
+  const noticeElements =
+    getGlobalNoticeElements();
+
+
+  if (
+    !noticeElements.globalNoticeModal
+  ) {
+    showToast(
+      "전체공지창을 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  globalNoticeState.currentFilter =
+    "active";
+
+
+  noticeElements.filterButtons
+    .forEach(
+      button => {
+        button.classList.toggle(
+          "is-active",
+          button.dataset
+            .globalNoticeFilter ===
+            "active"
+        );
+      }
+    );
+
+
+  if (
+    noticeElements.openGlobalNoticeEditorButton
+  ) {
+    noticeElements
+      .openGlobalNoticeEditorButton
+      .hidden =
+      !canCurrentUserManageGlobalNotice();
+  }
+
+
+  openModal(
+    noticeElements.globalNoticeModal
+  );
+
+
+  if (
+    noticeElements.globalNoticeList
+  ) {
+    noticeElements.globalNoticeList
+      .setAttribute(
+        "aria-busy",
+        "true"
+      );
+  }
+
+
+  await loadGlobalNotices();
+
+
+  if (
+    noticeElements.globalNoticeList
+  ) {
+    noticeElements.globalNoticeList
+      .setAttribute(
+        "aria-busy",
+        "false"
+      );
+  }
+
+
+  renderGlobalNoticeList();
+}
+
+
+/* =========================================================
+  전체공지 목록창 닫기
+========================================================= */
+
+function closeGlobalNoticeModal() {
+  const {
+    globalNoticeModal,
+    globalNoticeEditorModal
+  } =
+    getGlobalNoticeElements();
+
+
+  if (
+    globalNoticeEditorModal
+      ?.classList.contains(
+        "is-open"
+      )
+  ) {
+    closeGlobalNoticeEditor();
+  }
+
+
+  if (
+    globalNoticeModal
+  ) {
+    closeModal(
+      globalNoticeModal
+    );
+  }
+}
+
+
+/* =========================================================
+  전체공지 작성창 메시지
+========================================================= */
+
+function showGlobalNoticeEditorMessage(
+  message
+) {
+  const {
+    globalNoticeEditorMessage
+  } =
+    getGlobalNoticeElements();
+
+
+  if (
+    !globalNoticeEditorMessage
+  ) {
+    return;
+  }
+
+
+  globalNoticeEditorMessage.textContent =
+    String(
+      message ||
+      ""
+    );
+
+
+  globalNoticeEditorMessage.hidden =
+    !message;
+}
+
+
+function hideGlobalNoticeEditorMessage() {
+  showGlobalNoticeEditorMessage(
+    ""
+  );
+}
+
+
+/* =========================================================
+  전체공지 작성창 초기화
+========================================================= */
+
+function resetGlobalNoticeEditor() {
+  const noticeElements =
+    getGlobalNoticeElements();
+
+
+  noticeElements.globalNoticeEditorForm
+    ?.reset();
+
+
+  globalNoticeState.editingNoticeId =
+    "";
+
+
+  globalNoticeState.selectedFiles =
+    [];
+
+
+  globalNoticeState.existingAttachments =
+    [];
+
+
+  globalNoticeState.deletedAttachmentIds =
+    [];
+
+
+  if (
+    noticeElements.globalNoticeEditingId
+  ) {
+    noticeElements.globalNoticeEditingId.value =
+      "";
+  }
+
+
+  const todayText =
+    getGlobalNoticeTodayText();
+
+
+  if (
+    noticeElements.globalNoticeStartDateInput
+  ) {
+    noticeElements
+      .globalNoticeStartDateInput
+      .value =
+      todayText;
+  }
+
+
+  if (
+    noticeElements.globalNoticeEndDateInput
+  ) {
+    noticeElements
+      .globalNoticeEndDateInput
+      .value =
+      todayText;
+  }
+
+
+  if (
+    noticeElements.globalNoticeCharacterCount
+  ) {
+    noticeElements
+      .globalNoticeCharacterCount
+      .textContent =
+      "0 / 5000";
+  }
+
+
+  if (
+    noticeElements.globalNoticeFileInput
+  ) {
+    noticeElements.globalNoticeFileInput.value =
+      "";
+  }
+
+
+  if (
+    noticeElements.globalNoticeDeletedAttachmentIds
+  ) {
+    noticeElements
+      .globalNoticeDeletedAttachmentIds
+      .value =
+      "[]";
+  }
+
+
+  hideGlobalNoticeEditorMessage();
+
+
+  renderGlobalNoticeSelectedFiles();
+
+
+  renderGlobalNoticeExistingAttachments();
+}
+
+
+/* =========================================================
+  새 전체공지 작성창
+========================================================= */
+
+function openNewGlobalNoticeEditor() {
+  if (
+    !canCurrentUserManageGlobalNotice()
+  ) {
+    showToast(
+      "로그인 후 전체공지를 작성할 수 있습니다."
+    );
+
+    return;
+  }
+
+
+  const noticeElements =
+    getGlobalNoticeElements();
+
+
+  resetGlobalNoticeEditor();
+
+
+  if (
+    noticeElements.globalNoticeEditorTitle
+  ) {
+    noticeElements.globalNoticeEditorTitle.textContent =
+      "새 전체공지";
+  }
+
+
+  openModal(
+    noticeElements.globalNoticeEditorModal
+  );
+
+
+  window.setTimeout(
+    () => {
+      noticeElements.globalNoticeTitleInput
+        ?.focus();
+    },
+    50
+  );
+}
+
+
+/* =========================================================
+  기존 전체공지 수정창
+========================================================= */
+
+function openGlobalNoticeEditor(
+  noticeId
+) {
+  const notice =
+    globalNoticeState.notices.find(
+      item => {
+        return (
+          String(
+            item.id
+          ) ===
+          String(
+            noticeId
+          )
+        );
+      }
+    );
+
+
+  if (
+    !notice
+  ) {
+    showToast(
+      "수정할 전체공지를 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  const noticeElements =
+    getGlobalNoticeElements();
+
+
+  resetGlobalNoticeEditor();
+
+
+  globalNoticeState.editingNoticeId =
+    notice.id;
+
+
+  globalNoticeState.existingAttachments =
+    Array.isArray(
+      notice.attachments
+    )
+      ? notice.attachments.map(
+          attachment => {
+            return {
+              ...attachment
+            };
+          }
+        )
+      : [];
+
+
+  if (
+    noticeElements.globalNoticeEditingId
+  ) {
+    noticeElements.globalNoticeEditingId.value =
+      notice.id;
+  }
+
+
+  if (
+    noticeElements.globalNoticeEditorTitle
+  ) {
+    noticeElements.globalNoticeEditorTitle.textContent =
+      "전체공지 수정";
+  }
+
+
+  if (
+    noticeElements.globalNoticeTitleInput
+  ) {
+    noticeElements.globalNoticeTitleInput.value =
+      notice.title;
+  }
+
+
+  if (
+    noticeElements.globalNoticeContentInput
+  ) {
+    noticeElements.globalNoticeContentInput.value =
+      notice.content;
+  }
+
+
+  if (
+    noticeElements.globalNoticeCharacterCount
+  ) {
+    noticeElements.globalNoticeCharacterCount.textContent =
+      `${notice.content.length} / 5000`;
+  }
+
+
+  if (
+    noticeElements.globalNoticeStartDateInput
+  ) {
+    noticeElements.globalNoticeStartDateInput.value =
+      notice.startDate;
+  }
+
+
+  if (
+    noticeElements.globalNoticeEndDateInput
+  ) {
+    noticeElements.globalNoticeEndDateInput.value =
+      notice.endDate;
+  }
+
+
+  noticeElements.priorityInputs
+    .forEach(
+      input => {
+        input.checked =
+          input.value ===
+          notice.priority;
+      }
+    );
+
+
+  renderGlobalNoticeExistingAttachments();
+
+
+  openModal(
+    noticeElements.globalNoticeEditorModal
+  );
+
+
+  window.setTimeout(
+    () => {
+      noticeElements.globalNoticeTitleInput
+        ?.focus();
+    },
+    50
+  );
+}
+
+
+/* =========================================================
+  전체공지 작성창 닫기
+========================================================= */
+
+function closeGlobalNoticeEditor() {
+  const {
+    globalNoticeEditorModal,
+    globalNoticeModal
+  } =
+    getGlobalNoticeElements();
+
+
+  if (
+    globalNoticeEditorModal
+  ) {
+    closeModal(
+      globalNoticeEditorModal
+    );
+  }
+
+
+  /*
+    목록창이 열려 있으면
+    body의 modal-open 상태를 유지한다.
+  */
+  if (
+    globalNoticeModal
+      ?.classList.contains(
+        "is-open"
+      )
+  ) {
+    document.body.classList.add(
+      "modal-open"
+    );
+  }
+
+
+  resetGlobalNoticeEditor();
+}
+
+
+/* =========================================================
+  파일 크기 표시
+========================================================= */
+
+function formatGlobalNoticeFileSize(
+  fileSize
+) {
+  const size =
+    Number(
+      fileSize ||
+      0
+    );
+
+
+  if (
+    size >=
+    1024 * 1024
+  ) {
+    return `${(
+      size /
+      1024 /
+      1024
+    ).toFixed(1)} MB`;
+  }
+
+
+  if (
+    size >=
+    1024
+  ) {
+    return `${Math.round(
+      size /
+      1024
+    )} KB`;
+  }
+
+
+  return `${size} B`;
+}
+
+
+/* =========================================================
+  새 첨부파일 검증 및 추가
+========================================================= */
+
+function addGlobalNoticeFiles(
+  fileList
+) {
+  const files = [
+    ...(
+      fileList ||
+      []
+    )
+  ];
+
+
+  if (
+    !files.length
+  ) {
+    return;
+  }
+
+
+  const existingCount =
+    globalNoticeState
+      .existingAttachments
+      .filter(
+        attachment => {
+          return !globalNoticeState
+            .deletedAttachmentIds
+            .includes(
+              String(
+                attachment.id
+              )
+            );
+        }
+      ).length;
+
+
+  for (
+    const file
+    of files
+  ) {
+    const extension =
+      String(
+        file.name ||
+        ""
+      )
+        .split(
+          "."
+        )
+        .pop()
+        .toLowerCase();
+
+
+    if (
+      !GLOBAL_NOTICE_ALLOWED_EXTENSIONS
+        .has(
+          extension
+        )
+    ) {
+      showGlobalNoticeEditorMessage(
+        `${file.name} 파일 형식은 첨부할 수 없습니다.`
+      );
+
+      continue;
+    }
+
+
+    if (
+      file.size >
+      GLOBAL_NOTICE_MAX_FILE_SIZE
+    ) {
+      showGlobalNoticeEditorMessage(
+        `${file.name} 파일은 20MB를 초과합니다.`
+      );
+
+      continue;
+    }
+
+
+    const totalCount =
+      existingCount +
+      globalNoticeState
+        .selectedFiles
+        .length;
+
+
+    if (
+      totalCount >=
+      GLOBAL_NOTICE_MAX_FILE_COUNT
+    ) {
+      showGlobalNoticeEditorMessage(
+        "첨부자료는 최대 10개까지 등록할 수 있습니다."
+      );
+
+      break;
+    }
+
+
+    const duplicateFile =
+      globalNoticeState
+        .selectedFiles
+        .some(
+          currentFile => {
+            return (
+              currentFile.name ===
+                file.name &&
+              currentFile.size ===
+                file.size &&
+              currentFile.lastModified ===
+                file.lastModified
+            );
+          }
+        );
+
+
+    if (
+      duplicateFile
+    ) {
+      continue;
+    }
+
+
+    globalNoticeState.selectedFiles.push(
+      file
+    );
+  }
+
+
+  renderGlobalNoticeSelectedFiles();
+}
+
+
+/* =========================================================
+  새로 선택한 파일 출력
+========================================================= */
+
+function renderGlobalNoticeSelectedFiles() {
+  const {
+    globalNoticeSelectedFileList
+  } =
+    getGlobalNoticeElements();
+
+
+  if (
+    !globalNoticeSelectedFileList
+  ) {
+    return;
+  }
+
+
+  globalNoticeSelectedFileList.innerHTML =
+    globalNoticeState.selectedFiles
+      .map(
+        (
+          file,
+          fileIndex
+        ) => {
+          return `
+            <div class="global-notice-selected-file-item">
+
+              <span class="global-notice-file-name">
+                ${escapeHtml(
+                  file.name
+                )}
+              </span>
+
+
+              <span class="global-notice-file-size">
+                ${escapeHtml(
+                  formatGlobalNoticeFileSize(
+                    file.size
+                  )
+                )}
+              </span>
+
+
+              <button
+                type="button"
+                class="global-notice-file-remove-button"
+                data-global-notice-file-remove="${fileIndex}"
+              >
+                삭제
+              </button>
+
+            </div>
+          `;
+        }
+      )
+      .join("");
+}
+
+
+/* =========================================================
+  기존 첨부자료 출력
+========================================================= */
+
+function renderGlobalNoticeExistingAttachments() {
+  const noticeElements =
+    getGlobalNoticeElements();
+
+
+  const visibleAttachments =
+    globalNoticeState
+      .existingAttachments
+      .filter(
+        attachment => {
+          return !globalNoticeState
+            .deletedAttachmentIds
+            .includes(
+              String(
+                attachment.id
+              )
+            );
+        }
+      );
+
+
+  if (
+    noticeElements
+      .globalNoticeExistingAttachmentWrap
+  ) {
+    noticeElements
+      .globalNoticeExistingAttachmentWrap
+      .hidden =
+      visibleAttachments.length ===
+      0;
+  }
+
+
+  if (
+    noticeElements
+      .globalNoticeExistingAttachmentCount
+  ) {
+    noticeElements
+      .globalNoticeExistingAttachmentCount
+      .textContent =
+      `${visibleAttachments.length}개`;
+  }
+
+
+  if (
+    noticeElements
+      .globalNoticeExistingAttachmentList
+  ) {
+    noticeElements
+      .globalNoticeExistingAttachmentList
+      .innerHTML =
+      visibleAttachments
+        .map(
+          attachment => {
+            return `
+              <div class="global-notice-existing-attachment-item">
+
+                <span class="global-notice-file-name">
+                  ${escapeHtml(
+                    attachment.fileName ||
+                    attachment.name ||
+                    "첨부자료"
+                  )}
+                </span>
+
+
+                <span class="global-notice-file-size">
+                  ${escapeHtml(
+                    formatGlobalNoticeFileSize(
+                      attachment.fileSize
+                    )
+                  )}
+                </span>
+
+
+                <button
+                  type="button"
+                  class="global-notice-file-remove-button"
+                  data-global-notice-existing-remove="${escapeHtml(
+                    attachment.id
+                  )}"
+                >
+                  삭제
+                </button>
+
+              </div>
+            `;
+          }
+        )
+        .join("");
+  }
+
+
+  if (
+    noticeElements
+      .globalNoticeDeletedAttachmentIds
+  ) {
+    noticeElements
+      .globalNoticeDeletedAttachmentIds
+      .value =
+      JSON.stringify(
+        globalNoticeState
+          .deletedAttachmentIds
+      );
+  }
+}
+
+
+/* =========================================================
+  전체공지 입력 검증
+========================================================= */
+
+function validateGlobalNoticeEditor() {
+  const noticeElements =
+    getGlobalNoticeElements();
+
+
+  const title =
+    String(
+      noticeElements
+        .globalNoticeTitleInput
+        ?.value ||
+      ""
+    ).trim();
+
+
+  const content =
+    String(
+      noticeElements
+        .globalNoticeContentInput
+        ?.value ||
+      ""
+    ).trim();
+
+
+  const startDate =
+    String(
+      noticeElements
+        .globalNoticeStartDateInput
+        ?.value ||
+      ""
+    ).trim();
+
+
+  const endDate =
+    String(
+      noticeElements
+        .globalNoticeEndDateInput
+        ?.value ||
+      ""
+    ).trim();
+
+
+  if (
+    !title
+  ) {
+    showGlobalNoticeEditorMessage(
+      "공지 제목을 입력해 주세요."
+    );
+
+    noticeElements.globalNoticeTitleInput
+      ?.focus();
+
+    return false;
+  }
+
+
+  if (
+    !content
+  ) {
+    showGlobalNoticeEditorMessage(
+      "공지 내용을 입력해 주세요."
+    );
+
+    noticeElements.globalNoticeContentInput
+      ?.focus();
+
+    return false;
+  }
+
+
+  if (
+    !startDate ||
+    !endDate
+  ) {
+    showGlobalNoticeEditorMessage(
+      "공지 시작일과 종료일을 선택해 주세요."
+    );
+
+    return false;
+  }
+
+
+  if (
+    startDate >
+    endDate
+  ) {
+    showGlobalNoticeEditorMessage(
+      "종료일은 시작일보다 빠를 수 없습니다."
+    );
+
+    noticeElements.globalNoticeEndDateInput
+      ?.focus();
+
+    return false;
+  }
+
+
+  hideGlobalNoticeEditorMessage();
+
+
+  return true;
+}
+
+
+/* =========================================================
+  전체공지 저장
+
+  FormData:
+  - id
+  - priority
+  - title
+  - content
+  - startDate
+  - endDate
+  - deletedAttachmentIds
+  - files
+========================================================= */
+
+async function saveGlobalNotice(
+  event
+) {
+  event?.preventDefault();
+
+
+  if (
+    !validateGlobalNoticeEditor()
+  ) {
+    return;
+  }
+
+
+  const noticeElements =
+    getGlobalNoticeElements();
+
+
+  const currentUser =
+    loadCurrentUser();
+
+
+  if (
+    !currentUser
+  ) {
+    showGlobalNoticeEditorMessage(
+      "로그인 정보를 확인할 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  const priority =
+    noticeElements.priorityInputs
+      .find(
+        input => {
+          return input.checked;
+        }
+      )
+      ?.value ||
+    "normal";
+
+
+  const formData =
+    new FormData();
+
+
+  formData.append(
+    "id",
+    String(
+      globalNoticeState
+        .editingNoticeId ||
+      ""
+    )
+  );
+
+
+  formData.append(
+    "priority",
+    normalizeGlobalNoticePriority(
+      priority
+    )
+  );
+
+
+  formData.append(
+    "title",
+    String(
+      noticeElements
+        .globalNoticeTitleInput
+        ?.value ||
+      ""
+    ).trim()
+  );
+
+
+  formData.append(
+    "content",
+    String(
+      noticeElements
+        .globalNoticeContentInput
+        ?.value ||
+      ""
+    ).trim()
+  );
+
+
+  formData.append(
+    "startDate",
+    String(
+      noticeElements
+        .globalNoticeStartDateInput
+        ?.value ||
+      ""
+    ).trim()
+  );
+
+
+  formData.append(
+    "endDate",
+    String(
+      noticeElements
+        .globalNoticeEndDateInput
+        ?.value ||
+      ""
+    ).trim()
+  );
+
+
+  formData.append(
+    "deletedAttachmentIds",
+    JSON.stringify(
+      globalNoticeState
+        .deletedAttachmentIds
+    )
+  );
+
+
+  globalNoticeState.selectedFiles
+    .forEach(
+      file => {
+        formData.append(
+          "files",
+          file,
+          file.name
+        );
+      }
+    );
+
+
+  if (
+    noticeElements.saveGlobalNoticeButton
+  ) {
+    noticeElements.saveGlobalNoticeButton.disabled =
+      true;
+
+    noticeElements.saveGlobalNoticeButton.textContent =
+      "저장 중...";
+  }
+
+
+  try {
+    const response =
+      await fetch(
+        GLOBAL_NOTICE_API_URL,
+        {
+          method:
+            "POST",
+
+          headers:
+            getShiftLogAuthHeaders(),
+
+          body:
+            formData
+        }
+      );
+
+
+    const result =
+      await parseGlobalNoticeResponse(
+        response
+      );
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false ||
+      result.success ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        `전체공지 저장 실패 (HTTP ${response.status})`
+      );
+    }
+
+
+    closeGlobalNoticeEditor();
+
+
+    await loadGlobalNotices();
+
+
+    renderGlobalNoticeList();
+
+
+    showToast(
+      globalNoticeState.editingNoticeId
+        ? "전체공지가 수정되었습니다."
+        : "전체공지가 등록되었습니다.",
+      1600
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "전체공지 저장 오류:",
+      error
+    );
+
+
+    showGlobalNoticeEditorMessage(
+      error.message ||
+      "전체공지를 저장하지 못했습니다."
+    );
+
+  } finally {
+    if (
+      noticeElements.saveGlobalNoticeButton
+    ) {
+      noticeElements.saveGlobalNoticeButton.disabled =
+        false;
+
+      noticeElements.saveGlobalNoticeButton.textContent =
+        "저장";
+    }
+  }
+}
+
+
+/* =========================================================
+  전체공지 삭제
+========================================================= */
+
+async function deleteGlobalNotice(
+  noticeId
+) {
+  const notice =
+    globalNoticeState.notices.find(
+      item => {
+        return (
+          String(
+            item.id
+          ) ===
+          String(
+            noticeId
+          )
+        );
+      }
+    );
+
+
+  if (
+    !notice
+  ) {
+    showToast(
+      "삭제할 전체공지를 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  const shouldDelete =
+    await showCompactConfirm({
+      title:
+        "전체공지 삭제",
+
+      message:
+        `"${notice.title}" 공지를 삭제하시겠습니까? 첨부자료도 함께 삭제됩니다.`,
+
+      confirmText:
+        "삭제",
+
+      cancelText:
+        "취소"
+    });
+
+
+  if (
+    !shouldDelete
+  ) {
+    return;
+  }
+
+
+  try {
+    const response =
+      await fetch(
+        `${GLOBAL_NOTICE_API_URL}?id=${encodeURIComponent(
+          notice.id
+        )}`,
+        {
+          method:
+            "DELETE",
+
+          headers:
+            getShiftLogAuthHeaders()
+        }
+      );
+
+
+    const result =
+      await parseGlobalNoticeResponse(
+        response
+      );
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false ||
+      result.success ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        `전체공지 삭제 실패 (HTTP ${response.status})`
+      );
+    }
+
+
+    await loadGlobalNotices();
+
+
+    renderGlobalNoticeList();
+
+
+    showToast(
+      "전체공지가 삭제되었습니다.",
+      1600
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "전체공지 삭제 오류:",
+      error
+    );
+
+
+    showToast(
+      error.message ||
+      "전체공지를 삭제하지 못했습니다.",
+      2200
+    );
+  }
+}
+
+
+/* =========================================================
+  12시간 숨김 저장 키
+
+  사용자 + 공지별로 분리한다.
+========================================================= */
+
+function getGlobalNoticeHideStorageKey(
+  noticeId
+) {
+  const currentUser =
+    loadCurrentUser();
+
+
+  const employeeNo =
+    getShiftLogUserEmployeeNo(
+      currentUser
+    ) ||
+    "unknown";
+
+
+  return [
+    GLOBAL_NOTICE_HIDE_STORAGE_PREFIX,
+    employeeNo,
+    String(
+      noticeId ||
+      ""
+    )
+  ].join("||");
+}
+
+
+/* =========================================================
+  현재 공지가 12시간 숨김 상태인지 확인
+========================================================= */
+
+function isGlobalNoticeHidden(
+  noticeId
+) {
+  const storageKey =
+    getGlobalNoticeHideStorageKey(
+      noticeId
+    );
+
+
+  const hiddenUntil =
+    Number(
+      localStorage.getItem(
+        storageKey
+      ) ||
+      0
+    );
+
+
+  if (
+    !hiddenUntil
+  ) {
+    return false;
+  }
+
+
+  if (
+    Date.now() >=
+    hiddenUntil
+  ) {
+    localStorage.removeItem(
+      storageKey
+    );
+
+    return false;
+  }
+
+
+  return true;
+}
+
+
+/* =========================================================
+  전체공지 12시간 숨김 저장
+========================================================= */
+
+function hideGlobalNoticeForTwelveHours(
+  noticeId
+) {
+  const storageKey =
+    getGlobalNoticeHideStorageKey(
+      noticeId
+    );
+
+
+  const hiddenUntil =
+    Date.now() +
+    (
+      12 *
+      60 *
+      60 *
+      1000
+    );
+
+
+  localStorage.setItem(
+    storageKey,
+    String(
+      hiddenUntil
+    )
+  );
+}
+
+
+/* =========================================================
+  자동 팝업 표시 대상 구성
+========================================================= */
+
+function buildGlobalNoticeAlertQueue() {
+  globalNoticeState.alertQueue =
+    globalNoticeState.notices
+      .filter(
+        notice => {
+          const priority =
+            normalizeGlobalNoticePriority(
+              notice.priority
+            );
+
+
+          return (
+            getGlobalNoticeStatus(
+              notice
+            ) ===
+              "active" &&
+
+            [
+              "important",
+              "urgent"
+            ].includes(
+              priority
+            ) &&
+
+            !isGlobalNoticeHidden(
+              notice.id
+            )
+          );
+        }
+      )
+      .sort(
+        (
+          firstNotice,
+          secondNotice
+        ) => {
+          const priorityOrder = {
+            urgent:
+              2,
+
+            important:
+              1
+          };
+
+
+          return (
+            priorityOrder[
+              secondNotice.priority
+            ] -
+            priorityOrder[
+              firstNotice.priority
+            ]
+          );
+        }
+      );
+}
+
+
+/* =========================================================
+  중요·긴급 공지 팝업 출력
+========================================================= */
+
+function showNextGlobalNoticeAlert() {
+  const noticeElements =
+    getGlobalNoticeElements();
+
+
+  if (
+    noticeElements
+      .globalNoticeAlertModal
+      ?.classList.contains(
+        "is-open"
+      )
+  ) {
+    return;
+  }
+
+
+  const notice =
+    globalNoticeState.alertQueue.shift();
+
+
+  if (
+    !notice
+  ) {
+    globalNoticeState.currentAlertNoticeId =
+      "";
+
+    return;
+  }
+
+
+  const priority =
+    normalizeGlobalNoticePriority(
+      notice.priority
+    );
+
+
+  const attachments =
+    Array.isArray(
+      notice.attachments
+    )
+      ? notice.attachments
+      : [];
+
+
+  globalNoticeState.currentAlertNoticeId =
+    notice.id;
+
+
+  if (
+    noticeElements.globalNoticeAlertNoticeId
+  ) {
+    noticeElements.globalNoticeAlertNoticeId.value =
+      notice.id;
+  }
+
+
+  if (
+    noticeElements.globalNoticeAlertTitle
+  ) {
+    noticeElements.globalNoticeAlertTitle.textContent =
+      notice.title ||
+      "전체공지";
+  }
+
+
+  if (
+    noticeElements.globalNoticeAlertPriorityBadge
+  ) {
+    noticeElements
+      .globalNoticeAlertPriorityBadge
+      .textContent =
+      getGlobalNoticePriorityLabel(
+        priority
+      );
+
+
+    noticeElements
+      .globalNoticeAlertPriorityBadge
+      .className =
+      [
+        "global-notice-priority-badge",
+        `is-${priority}`
+      ].join(" ");
+  }
+
+
+  if (
+    noticeElements.globalNoticeAlertPeriod
+  ) {
+    noticeElements.globalNoticeAlertPeriod.textContent =
+      [
+        formatGlobalNoticeDate(
+          notice.startDate
+        ),
+
+        "~",
+
+        formatGlobalNoticeDate(
+          notice.endDate
+        )
+      ].join(" ");
+  }
+
+
+  if (
+    noticeElements.globalNoticeAlertContent
+  ) {
+    noticeElements.globalNoticeAlertContent.textContent =
+      notice.content;
+  }
+
+
+  if (
+    noticeElements
+      .globalNoticeAlertAttachmentSection
+  ) {
+    noticeElements
+      .globalNoticeAlertAttachmentSection
+      .hidden =
+      attachments.length ===
+      0;
+  }
+
+
+  if (
+    noticeElements
+      .globalNoticeAlertAttachmentCount
+  ) {
+    noticeElements
+      .globalNoticeAlertAttachmentCount
+      .textContent =
+      `${attachments.length}개`;
+  }
+
+
+  if (
+    noticeElements
+      .globalNoticeAlertAttachmentList
+  ) {
+    noticeElements
+      .globalNoticeAlertAttachmentList
+      .innerHTML =
+      attachments
+        .map(
+          attachment => {
+            const fileName =
+              attachment.fileName ||
+              attachment.name ||
+              "첨부자료";
+
+
+            return `
+              <a
+                href="${escapeHtml(
+                  attachment.url ||
+                  "#"
+                )}"
+                class="global-notice-alert-attachment-link"
+                target="_blank"
+                rel="noopener noreferrer"
+                download
+              >
+                📎
+                ${escapeHtml(
+                  fileName
+                )}
+              </a>
+            `;
+          }
+        )
+        .join("");
+  }
+
+
+  if (
+    noticeElements
+      .globalNoticeHideForTwelveHours
+  ) {
+    noticeElements
+      .globalNoticeHideForTwelveHours
+      .checked =
+      false;
+  }
+
+
+  noticeElements.globalNoticeAlertModal
+    ?.classList.toggle(
+      "is-urgent",
+      priority ===
+        "urgent"
+    );
+
+
+  openModal(
+    noticeElements.globalNoticeAlertModal
+  );
+}
+
+
+/* =========================================================
+  중요·긴급 공지 팝업 닫기
+========================================================= */
+
+function closeGlobalNoticeAlert() {
+  const noticeElements =
+    getGlobalNoticeElements();
+
+
+  const noticeId =
+    String(
+      globalNoticeState
+        .currentAlertNoticeId ||
+      noticeElements
+        .globalNoticeAlertNoticeId
+        ?.value ||
+      ""
+    ).trim();
+
+
+  if (
+    noticeId &&
+    noticeElements
+      .globalNoticeHideForTwelveHours
+      ?.checked
+  ) {
+    hideGlobalNoticeForTwelveHours(
+      noticeId
+    );
+  }
+
+
+  if (
+    noticeElements.globalNoticeAlertModal
+  ) {
+    closeModal(
+      noticeElements.globalNoticeAlertModal
+    );
+  }
+
+
+  globalNoticeState.currentAlertNoticeId =
+    "";
+
+
+  window.setTimeout(
+    showNextGlobalNoticeAlert,
+    180
+  );
+}
+
+
+/* =========================================================
+  로그인 후 중요·긴급 공지 자동 확인
+========================================================= */
+
+async function checkGlobalNoticeAlerts() {
+  if (
+    !loadCurrentUser()
+  ) {
+    return;
+  }
+
+
+  await loadGlobalNotices();
+
+
+  buildGlobalNoticeAlertQueue();
+
+
+  showNextGlobalNoticeAlert();
+}
+
+
+/* =========================================================
+  전체공지 이벤트
+========================================================= */
+
+function bindGlobalNoticeEvents() {
+  if (
+    globalNoticeState.eventsBound
+  ) {
+    return;
+  }
+
+
+  const noticeElements =
+    getGlobalNoticeElements();
+
+
+  if (
+    !noticeElements.globalNoticeModal
+  ) {
+    return;
+  }
+
+
+  globalNoticeState.eventsBound =
+    true;
+
+
+  noticeElements.noticeButton
+    ?.addEventListener(
+      "click",
+      openGlobalNoticeModal
+    );
+
+
+  noticeElements.closeGlobalNoticeModalButton
+    ?.addEventListener(
+      "click",
+      closeGlobalNoticeModal
+    );
+
+
+  noticeElements.closeGlobalNoticeModalFooterButton
+    ?.addEventListener(
+      "click",
+      closeGlobalNoticeModal
+    );
+
+
+  noticeElements.openGlobalNoticeEditorButton
+    ?.addEventListener(
+      "click",
+      openNewGlobalNoticeEditor
+    );
+
+
+  noticeElements.closeGlobalNoticeEditorButton
+    ?.addEventListener(
+      "click",
+      closeGlobalNoticeEditor
+    );
+
+
+  noticeElements.cancelGlobalNoticeEditorButton
+    ?.addEventListener(
+      "click",
+      closeGlobalNoticeEditor
+    );
+
+
+  noticeElements.globalNoticeEditorForm
+    ?.addEventListener(
+      "submit",
+      saveGlobalNotice
+    );
+
+
+  noticeElements.globalNoticeContentInput
+    ?.addEventListener(
+      "input",
+      () => {
+        const length =
+          noticeElements
+            .globalNoticeContentInput
+            .value
+            .length;
+
+
+        if (
+          noticeElements
+            .globalNoticeCharacterCount
+        ) {
+          noticeElements
+            .globalNoticeCharacterCount
+            .textContent =
+            `${length} / 5000`;
+        }
+      }
+    );
+
+
+  noticeElements.filterButtons
+    .forEach(
+      button => {
+        button.addEventListener(
+          "click",
+          () => {
+            const filter =
+              String(
+                button.dataset
+                  .globalNoticeFilter ||
+                "active"
+              ).trim();
+
+
+            globalNoticeState.currentFilter =
+              filter;
+
+
+            noticeElements.filterButtons
+              .forEach(
+                currentButton => {
+                  currentButton.classList.toggle(
+                    "is-active",
+                    currentButton ===
+                      button
+                  );
+                }
+              );
+
+
+            renderGlobalNoticeList();
+          }
+        );
+      }
+    );
+
+
+  noticeElements.globalNoticeList
+    ?.addEventListener(
+      "click",
+      event => {
+        const editButton =
+          event.target.closest(
+            "[data-global-notice-edit]"
+          );
+
+
+        if (
+          editButton
+        ) {
+          openGlobalNoticeEditor(
+            editButton.dataset
+              .globalNoticeEdit
+          );
+
+          return;
+        }
+
+
+        const deleteButton =
+          event.target.closest(
+            "[data-global-notice-delete]"
+          );
+
+
+        if (
+          deleteButton
+        ) {
+          deleteGlobalNotice(
+            deleteButton.dataset
+              .globalNoticeDelete
+          );
+        }
+      }
+    );
+
+
+  noticeElements.globalNoticeFileInput
+    ?.addEventListener(
+      "change",
+      event => {
+        addGlobalNoticeFiles(
+          event.target.files
+        );
+
+
+        event.target.value =
+          "";
+      }
+    );
+
+
+  noticeElements.globalNoticeFileDropzone
+    ?.addEventListener(
+      "dragover",
+      event => {
+        event.preventDefault();
+
+
+        noticeElements
+          .globalNoticeFileDropzone
+          .classList.add(
+            "is-dragover"
+          );
+      }
+    );
+
+
+  noticeElements.globalNoticeFileDropzone
+    ?.addEventListener(
+      "dragleave",
+      () => {
+        noticeElements
+          .globalNoticeFileDropzone
+          .classList.remove(
+            "is-dragover"
+          );
+      }
+    );
+
+
+  noticeElements.globalNoticeFileDropzone
+    ?.addEventListener(
+      "drop",
+      event => {
+        event.preventDefault();
+
+
+        noticeElements
+          .globalNoticeFileDropzone
+          .classList.remove(
+            "is-dragover"
+          );
+
+
+        addGlobalNoticeFiles(
+          event.dataTransfer
+            ?.files
+        );
+      }
+    );
+
+
+  noticeElements.globalNoticeSelectedFileList
+    ?.addEventListener(
+      "click",
+      event => {
+        const removeButton =
+          event.target.closest(
+            "[data-global-notice-file-remove]"
+          );
+
+
+        if (
+          !removeButton
+        ) {
+          return;
+        }
+
+
+        const fileIndex =
+          Number(
+            removeButton.dataset
+              .globalNoticeFileRemove
+          );
+
+
+        if (
+          !Number.isInteger(
+            fileIndex
+          )
+        ) {
+          return;
+        }
+
+
+        globalNoticeState.selectedFiles.splice(
+          fileIndex,
+          1
+        );
+
+
+        renderGlobalNoticeSelectedFiles();
+      }
+    );
+
+
+  noticeElements.globalNoticeExistingAttachmentList
+    ?.addEventListener(
+      "click",
+      event => {
+        const removeButton =
+          event.target.closest(
+            "[data-global-notice-existing-remove]"
+          );
+
+
+        if (
+          !removeButton
+        ) {
+          return;
+        }
+
+
+        const attachmentId =
+          String(
+            removeButton.dataset
+              .globalNoticeExistingRemove ||
+            ""
+          ).trim();
+
+
+        if (
+          attachmentId &&
+          !globalNoticeState
+            .deletedAttachmentIds
+            .includes(
+              attachmentId
+            )
+        ) {
+          globalNoticeState
+            .deletedAttachmentIds
+            .push(
+              attachmentId
+            );
+        }
+
+
+        renderGlobalNoticeExistingAttachments();
+      }
+    );
+
+
+  noticeElements.closeGlobalNoticeAlertButton
+    ?.addEventListener(
+      "click",
+      closeGlobalNoticeAlert
+    );
+
+
+  noticeElements.closeGlobalNoticeAlertFooterButton
+    ?.addEventListener(
+      "click",
+      closeGlobalNoticeAlert
+    );
+
+
+  /*
+    목록창·작성창·자동 팝업 모두
+    바깥 배경 클릭으로 닫히지 않게 한다.
+  */
+  [
+    noticeElements.globalNoticeModal,
+    noticeElements.globalNoticeEditorModal,
+    noticeElements.globalNoticeAlertModal
+  ]
+    .filter(Boolean)
+    .forEach(
+      modal => {
+        modal.addEventListener(
+          "click",
+          event => {
+            if (
+              event.target ===
+              modal
+            ) {
+              event.preventDefault();
+
+              event.stopPropagation();
+            }
+          }
+        );
+      }
+    );
+
+
+  document.addEventListener(
+    "keydown",
+    event => {
+      if (
+        event.key !==
+        "Escape"
+      ) {
+        return;
+      }
+
+
+      if (
+        noticeElements
+          .globalNoticeAlertModal
+          ?.classList.contains(
+            "is-open"
+          )
+      ) {
+        closeGlobalNoticeAlert();
+
+        return;
+      }
+
+
+      if (
+        noticeElements
+          .globalNoticeEditorModal
+          ?.classList.contains(
+            "is-open"
+          )
+      ) {
+        closeGlobalNoticeEditor();
+
+        return;
+      }
+
+
+      if (
+        noticeElements
+          .globalNoticeModal
+          ?.classList.contains(
+            "is-open"
+          )
+      ) {
+        closeGlobalNoticeModal();
+      }
+    }
+  );
+}
+
+
+/* =========================================================
+  전체공지 초기화
+========================================================= */
+
+async function initializeGlobalNotices(
+  options = {}
+) {
+  const {
+    showAlerts =
+      true
+  } = options;
+
+
+  const noticeElements =
+    getGlobalNoticeElements();
+
+
+  /*
+    전체공지 HTML이 아직 적용되지 않았으면
+    기존 업무일지 기능에는 영향을 주지 않는다.
+  */
+  if (
+    !noticeElements.globalNoticeModal
+  ) {
+    return;
+  }
+
+
+  bindGlobalNoticeEvents();
+
+
+  updateGlobalNoticeHeaderButton();
+
+
+  if (
+    !loadCurrentUser()
+  ) {
+    return;
+  }
+
+
+  await loadGlobalNotices();
+
+
+  renderGlobalNoticeList();
+
+
+  if (
+    showAlerts
+  ) {
+    buildGlobalNoticeAlertQueue();
+
+    showNextGlobalNoticeAlert();
+  }
+}
+
+
+/* =========================================================
+  페이지 진입 시 전체공지 초기화
+========================================================= */
+
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+    initializeGlobalNotices({
+      showAlerts:
+        true
+    });
+  }
+);
+
+
+/* =========================================================
+  로그인 완료 시 전체공지 다시 확인
+
+  기존 openShiftLogApp()을 감싸는 방식이므로
+  기존 로그인 함수 전체를 교체할 필요가 없다.
+
+  적용 효과:
+  - 새 로그인 성공
+  - 저장된 로그인 복원
+
+  모두 중요·긴급 공지를 자동 확인한다.
+========================================================= */
+
+const originalOpenShiftLogAppForGlobalNotice =
+  openShiftLogApp;
+
+
+openShiftLogApp = function (
+  user
+) {
+  originalOpenShiftLogAppForGlobalNotice(
+    user
+  );
+
+
+  window.setTimeout(
+    () => {
+      initializeGlobalNotices({
+        showAlerts:
+          true
+      });
+    },
+    100
+  );
+};

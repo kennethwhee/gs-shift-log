@@ -148,8 +148,9 @@
             type="button"
             class="header-action"
             id="noticeButton"
+            aria-label="전체공지 열기"
           >
-            공지
+            전체공지
           </button>
 
           <button
@@ -3574,6 +3575,956 @@
           id="saveRoleNoticeButton"
         >
           저장
+        </button>
+
+      </div>
+
+    </footer>
+
+  </section>
+</div>
+
+<!-- =========================================================
+  전체공지 목록 모달
+
+  권한:
+  - 모든 로그인 사용자 조회 가능
+  - 모든 로그인 사용자 추가·수정·삭제 가능
+
+  기능:
+  - 진행 중 / 예정 / 종료 / 전체 필터
+  - 중요도 표시
+  - 첨부자료 표시
+  - 새 공지 작성
+  - 공지 수정·삭제
+========================================================== -->
+
+<div
+  class="
+    modal-backdrop
+    global-notice-modal
+  "
+  id="globalNoticeModal"
+  aria-hidden="true"
+>
+  <section
+    class="
+      modal-panel
+      global-notice-panel
+    "
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="globalNoticeModalTitle"
+  >
+
+    <!-- 상단 -->
+    <header
+      class="
+        modal-header
+        global-notice-modal__header
+      "
+    >
+
+      <div>
+
+        <p class="modal-header__eyebrow">
+          GLOBAL NOTICE
+        </p>
+
+        <div class="global-notice-modal__title-row">
+
+          <h2
+            class="modal-header__title"
+            id="globalNoticeModalTitle"
+          >
+            전체공지
+          </h2>
+
+          <span
+            class="global-notice-modal__active-count"
+            id="globalNoticeActiveCount"
+          >
+            활성 0건
+          </span>
+
+        </div>
+
+      </div>
+
+
+      <button
+        type="button"
+        class="modal-close-button"
+        id="closeGlobalNoticeModalButton"
+        aria-label="전체공지창 닫기"
+      >
+        ×
+      </button>
+
+    </header>
+
+
+    <!-- 본문 -->
+    <div
+      class="
+        modal-body
+        global-notice-modal__body
+      "
+    >
+
+      <!-- 필터 및 새 공지 -->
+      <section class="global-notice-toolbar">
+
+        <div class="global-notice-toolbar__filters">
+
+          <button
+            type="button"
+            class="
+              global-notice-filter-button
+              is-active
+            "
+            data-global-notice-filter="active"
+          >
+            진행 중
+
+            <span
+              class="global-notice-filter-button__count"
+              id="globalNoticeActiveFilterCount"
+            >
+              0
+            </span>
+          </button>
+
+
+          <button
+            type="button"
+            class="global-notice-filter-button"
+            data-global-notice-filter="upcoming"
+          >
+            예정
+
+            <span
+              class="global-notice-filter-button__count"
+              id="globalNoticeUpcomingFilterCount"
+            >
+              0
+            </span>
+          </button>
+
+
+          <button
+            type="button"
+            class="global-notice-filter-button"
+            data-global-notice-filter="expired"
+          >
+            종료
+
+            <span
+              class="global-notice-filter-button__count"
+              id="globalNoticeExpiredFilterCount"
+            >
+              0
+            </span>
+          </button>
+
+
+          <button
+            type="button"
+            class="global-notice-filter-button"
+            data-global-notice-filter="all"
+          >
+            전체
+
+            <span
+              class="global-notice-filter-button__count"
+              id="globalNoticeAllFilterCount"
+            >
+              0
+            </span>
+          </button>
+
+        </div>
+
+
+        <button
+          type="button"
+          class="
+            primary-button
+            global-notice-add-button
+          "
+          id="openGlobalNoticeEditorButton"
+        >
+          ＋ 새 공지
+        </button>
+
+      </section>
+
+
+      <!-- 전체공지 목록 -->
+      <section
+        class="global-notice-list"
+        id="globalNoticeList"
+        aria-live="polite"
+      >
+
+        <div
+          class="global-notice-empty"
+          id="globalNoticeEmpty"
+        >
+
+          <strong>
+            등록된 전체공지가 없습니다.
+          </strong>
+
+          <p>
+            새 공지 버튼을 눌러 전체공지를 등록하세요.
+          </p>
+
+        </div>
+
+      </section>
+
+    </div>
+
+
+    <!-- 하단 -->
+    <footer
+      class="
+        modal-footer
+        global-notice-modal__footer
+      "
+    >
+
+      <div class="modal-footer__left">
+
+        <span class="global-notice-footer-help">
+          중요·긴급 공지는 로그인 후 자동 팝업으로 표시됩니다.
+        </span>
+
+      </div>
+
+
+      <div class="modal-footer__right">
+
+        <button
+          type="button"
+          class="secondary-button"
+          id="closeGlobalNoticeModalFooterButton"
+        >
+          닫기
+        </button>
+
+      </div>
+
+    </footer>
+
+  </section>
+</div>
+
+
+<!-- =========================================================
+  전체공지 작성·수정 모달
+
+  입력:
+  - 중요도
+  - 제목
+  - 내용
+  - 시작일
+  - 종료일
+  - 첨부자료
+
+  첨부파일:
+  - 실제 파일은 Cloudflare R2에 저장
+  - 선택 파일은 저장 전 화면에 표시
+  - 기존 첨부파일은 수정 시 표시
+========================================================== -->
+
+<div
+  class="
+    modal-backdrop
+    global-notice-editor-modal
+  "
+  id="globalNoticeEditorModal"
+  aria-hidden="true"
+>
+  <section
+    class="
+      modal-panel
+      global-notice-editor-panel
+    "
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="globalNoticeEditorTitle"
+  >
+
+    <!-- 상단 -->
+    <header
+      class="
+        modal-header
+        global-notice-editor-modal__header
+      "
+    >
+
+      <div>
+
+        <p class="modal-header__eyebrow">
+          GLOBAL NOTICE EDITOR
+        </p>
+
+        <h2
+          class="modal-header__title"
+          id="globalNoticeEditorTitle"
+        >
+          새 전체공지
+        </h2>
+
+      </div>
+
+
+      <button
+        type="button"
+        class="modal-close-button"
+        id="closeGlobalNoticeEditorButton"
+        aria-label="전체공지 작성창 닫기"
+      >
+        ×
+      </button>
+
+    </header>
+
+
+    <!-- 본문 -->
+    <div
+      class="
+        modal-body
+        global-notice-editor-modal__body
+      "
+    >
+
+      <form
+        class="global-notice-editor-form"
+        id="globalNoticeEditorForm"
+      >
+
+        <!-- 수정 중인 전체공지 ID -->
+        <input
+          type="hidden"
+          id="globalNoticeEditingId"
+          value=""
+        />
+
+
+        <!-- =================================================
+          중요도
+        ================================================== -->
+        <fieldset class="global-notice-priority-fieldset">
+
+          <legend>
+            중요도
+          </legend>
+
+
+          <div
+            class="global-notice-priority-options"
+            role="radiogroup"
+            aria-label="전체공지 중요도 선택"
+          >
+
+            <label
+              class="
+                global-notice-priority-option
+                is-normal
+              "
+            >
+
+              <input
+                type="radio"
+                name="globalNoticePriority"
+                value="normal"
+                checked
+              />
+
+              <span class="global-notice-priority-option__indicator">
+              </span>
+
+              <span class="global-notice-priority-option__text">
+
+                <strong>
+                  일반
+                </strong>
+
+                <small>
+                  전체공지 목록에만 표시
+                </small>
+
+              </span>
+
+            </label>
+
+
+            <label
+              class="
+                global-notice-priority-option
+                is-important
+              "
+            >
+
+              <input
+                type="radio"
+                name="globalNoticePriority"
+                value="important"
+              />
+
+              <span class="global-notice-priority-option__indicator">
+              </span>
+
+              <span class="global-notice-priority-option__text">
+
+                <strong>
+                  중요
+                </strong>
+
+                <small>
+                  로그인 후 팝업 표시
+                </small>
+
+              </span>
+
+            </label>
+
+
+            <label
+              class="
+                global-notice-priority-option
+                is-urgent
+              "
+            >
+
+              <input
+                type="radio"
+                name="globalNoticePriority"
+                value="urgent"
+              />
+
+              <span class="global-notice-priority-option__indicator">
+              </span>
+
+              <span class="global-notice-priority-option__text">
+
+                <strong>
+                  긴급
+                </strong>
+
+                <small>
+                  로그인 후 긴급 팝업 표시
+                </small>
+
+              </span>
+
+            </label>
+
+          </div>
+
+        </fieldset>
+
+
+        <!-- =================================================
+          제목
+        ================================================== -->
+        <label class="form-field global-notice-editor-field">
+
+          <span class="form-field__label">
+            공지 제목
+          </span>
+
+          <input
+            type="text"
+            id="globalNoticeTitleInput"
+            name="globalNoticeTitle"
+            maxlength="100"
+            placeholder="전체공지 제목을 입력하세요."
+            autocomplete="off"
+            required
+          />
+
+        </label>
+
+
+        <!-- =================================================
+          내용
+        ================================================== -->
+        <label
+          class="
+            form-field
+            global-notice-editor-field
+            global-notice-editor-field--content
+          "
+        >
+
+          <span class="form-field__label">
+            공지 내용
+          </span>
+
+          <textarea
+            id="globalNoticeContentInput"
+            name="globalNoticeContent"
+            rows="8"
+            maxlength="5000"
+            placeholder="전체공지 내용을 입력하세요."
+            required
+          ></textarea>
+
+
+          <div class="global-notice-editor-content-meta">
+
+            <small class="global-notice-editor-help">
+              줄바꿈을 포함하여 최대 5,000자까지 입력할 수 있습니다.
+            </small>
+
+            <span
+              class="global-notice-character-count"
+              id="globalNoticeCharacterCount"
+            >
+              0 / 5000
+            </span>
+
+          </div>
+
+        </label>
+
+
+        <!-- =================================================
+          공지 기간
+        ================================================== -->
+        <fieldset class="global-notice-period-fieldset">
+
+          <legend>
+            공지 기간
+          </legend>
+
+
+          <div class="global-notice-period-grid">
+
+            <label class="form-field">
+
+              <span class="form-field__label">
+                시작일
+              </span>
+
+              <input
+                type="date"
+                id="globalNoticeStartDateInput"
+                name="globalNoticeStartDate"
+                required
+              />
+
+            </label>
+
+
+            <span
+              class="global-notice-period-divider"
+              aria-hidden="true"
+            >
+              ~
+            </span>
+
+
+            <label class="form-field">
+
+              <span class="form-field__label">
+                종료일
+              </span>
+
+              <input
+                type="date"
+                id="globalNoticeEndDateInput"
+                name="globalNoticeEndDate"
+                required
+              />
+
+            </label>
+
+          </div>
+
+
+          <p class="global-notice-period-help">
+            설정한 기간 동안 전체공지 목록과 자동 팝업에 표시됩니다.
+          </p>
+
+        </fieldset>
+
+
+        <!-- =================================================
+          자료 첨부
+
+          실제 파일은 R2에 업로드한다.
+        ================================================== -->
+        <section class="global-notice-attachment-section">
+
+          <div class="global-notice-attachment-section__heading">
+
+            <div>
+
+              <strong>
+                자료 첨부
+              </strong>
+
+              <p>
+                공지 관련 문서, 사진 및 자료를 첨부할 수 있습니다.
+              </p>
+
+            </div>
+
+
+            <span
+              class="global-notice-attachment-limit"
+              id="globalNoticeAttachmentLimit"
+            >
+              최대 10개
+            </span>
+
+          </div>
+
+
+          <!-- 파일 선택 영역 -->
+          <label
+            class="global-notice-file-dropzone"
+            id="globalNoticeFileDropzone"
+          >
+
+            <input
+              type="file"
+              id="globalNoticeFileInput"
+              name="globalNoticeFiles"
+              multiple
+              hidden
+              accept="
+                .pdf,
+                .hwp,
+                .hwpx,
+                .doc,
+                .docx,
+                .xls,
+                .xlsx,
+                .ppt,
+                .pptx,
+                .txt,
+                .csv,
+                .jpg,
+                .jpeg,
+                .png,
+                .webp,
+                .zip
+              "
+            />
+
+
+            <span class="global-notice-file-dropzone__icon">
+              ＋
+            </span>
+
+
+            <strong>
+              파일 선택 또는 드래그
+            </strong>
+
+
+            <small>
+              파일 1개당 최대 20MB, 공지 1건당 최대 10개
+            </small>
+
+          </label>
+
+
+          <!-- 새로 선택한 파일 -->
+          <div
+            class="global-notice-selected-file-list"
+            id="globalNoticeSelectedFileList"
+          >
+          </div>
+
+
+          <!-- 수정 시 기존 첨부파일 -->
+          <div
+            class="global-notice-existing-attachment-wrap"
+            id="globalNoticeExistingAttachmentWrap"
+            hidden
+          >
+
+            <div class="global-notice-existing-attachment-heading">
+
+              <strong>
+                기존 첨부자료
+              </strong>
+
+              <span id="globalNoticeExistingAttachmentCount">
+                0개
+              </span>
+
+            </div>
+
+
+            <div
+              class="global-notice-existing-attachment-list"
+              id="globalNoticeExistingAttachmentList"
+            >
+            </div>
+
+          </div>
+
+
+          <!-- 삭제 예약된 기존 첨부 ID -->
+          <input
+            type="hidden"
+            id="globalNoticeDeletedAttachmentIds"
+            value="[]"
+          />
+
+        </section>
+
+
+        <!-- 유효성 안내 -->
+        <p
+          class="global-notice-editor-message"
+          id="globalNoticeEditorMessage"
+          role="alert"
+          hidden
+        >
+        </p>
+
+      </form>
+
+    </div>
+
+
+    <!-- 하단 -->
+    <footer
+      class="
+        modal-footer
+        global-notice-editor-modal__footer
+      "
+    >
+
+      <div class="modal-footer__left">
+
+        <span class="global-notice-editor-footer-help">
+          첨부자료는 Cloudflare R2 저장소에 보관됩니다.
+        </span>
+
+      </div>
+
+
+      <div class="modal-footer__right">
+
+        <button
+          type="button"
+          class="secondary-button"
+          id="cancelGlobalNoticeEditorButton"
+        >
+          취소
+        </button>
+
+
+        <button
+          type="submit"
+          form="globalNoticeEditorForm"
+          class="primary-button"
+          id="saveGlobalNoticeButton"
+        >
+          저장
+        </button>
+
+      </div>
+
+    </footer>
+
+  </section>
+</div>
+
+
+<!-- =========================================================
+  중요·긴급 전체공지 자동 팝업
+
+  표시 대상:
+  - 중요 공지
+  - 긴급 공지
+  - 현재 날짜 기준 활성 상태
+  - 12시간 숨김 처리되지 않은 공지
+
+  체크 후 닫기:
+  - 해당 사용자
+  - 해당 공지
+  - 12시간 동안 다시 표시하지 않음
+========================================================== -->
+
+<div
+  class="
+    modal-backdrop
+    global-notice-alert-modal
+  "
+  id="globalNoticeAlertModal"
+  aria-hidden="true"
+>
+  <section
+    class="
+      modal-panel
+      global-notice-alert-panel
+    "
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="globalNoticeAlertTitle"
+    aria-describedby="globalNoticeAlertContent"
+  >
+
+    <!-- 현재 표시 중인 공지 ID -->
+    <input
+      type="hidden"
+      id="globalNoticeAlertNoticeId"
+      value=""
+    />
+
+
+    <!-- 상단 -->
+    <header
+      class="
+        modal-header
+        global-notice-alert-modal__header
+      "
+    >
+
+      <div>
+
+        <p class="modal-header__eyebrow">
+          IMPORTANT NOTICE
+        </p>
+
+        <div class="global-notice-alert-title-row">
+
+          <span
+            class="
+              global-notice-priority-badge
+              is-important
+            "
+            id="globalNoticeAlertPriorityBadge"
+          >
+            중요
+          </span>
+
+          <h2
+            class="modal-header__title"
+            id="globalNoticeAlertTitle"
+          >
+            전체공지
+          </h2>
+
+        </div>
+
+      </div>
+
+
+      <button
+        type="button"
+        class="modal-close-button"
+        id="closeGlobalNoticeAlertButton"
+        aria-label="중요 전체공지 닫기"
+      >
+        ×
+      </button>
+
+    </header>
+
+
+    <!-- 본문 -->
+    <div
+      class="
+        modal-body
+        global-notice-alert-modal__body
+      "
+    >
+
+      <div
+        class="global-notice-alert-period"
+        id="globalNoticeAlertPeriod"
+      >
+      </div>
+
+
+      <div
+        class="global-notice-alert-content"
+        id="globalNoticeAlertContent"
+      >
+      </div>
+
+
+      <!-- 첨부자료 -->
+      <section
+        class="global-notice-alert-attachment-section"
+        id="globalNoticeAlertAttachmentSection"
+        hidden
+      >
+
+        <div class="global-notice-alert-attachment-heading">
+
+          <strong>
+            첨부자료
+          </strong>
+
+          <span id="globalNoticeAlertAttachmentCount">
+            0개
+          </span>
+
+        </div>
+
+
+        <div
+          class="global-notice-alert-attachment-list"
+          id="globalNoticeAlertAttachmentList"
+        >
+        </div>
+
+      </section>
+
+    </div>
+
+
+    <!-- 하단 -->
+    <footer
+      class="
+        modal-footer
+        global-notice-alert-modal__footer
+      "
+    >
+
+      <div class="modal-footer__left">
+
+        <label class="global-notice-hide-check">
+
+          <input
+            type="checkbox"
+            id="globalNoticeHideForTwelveHours"
+          />
+
+          <span class="global-notice-hide-check__box">
+            ✓
+          </span>
+
+          <span class="global-notice-hide-check__text">
+            12시간 동안 팝업창 열지 않음
+          </span>
+
+        </label>
+
+      </div>
+
+
+      <div class="modal-footer__right">
+
+        <button
+          type="button"
+          class="primary-button"
+          id="closeGlobalNoticeAlertFooterButton"
+        >
+          확인
         </button>
 
       </div>

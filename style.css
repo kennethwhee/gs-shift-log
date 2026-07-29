@@ -27786,3 +27786,3127 @@ small {
       0;
   }
 }
+
+/* =========================================================
+  전체공지 기능 최종 디자인
+
+  포함:
+  - 전체공지 목록 모달
+  - 전체공지 작성·수정 모달
+  - 일반 / 중요 / 긴급 중요도
+  - R2 첨부자료 선택·목록
+  - 중요·긴급 자동 팝업
+  - 12시간 팝업 숨김 체크박스
+
+  중요:
+  - 반드시 style.css 맨 마지막에 추가
+========================================================= */
+
+
+/* =========================================================
+  공통 열림 처리
+========================================================= */
+
+#globalNoticeModal,
+#globalNoticeEditorModal,
+#globalNoticeAlertModal {
+  display:
+    none;
+
+  position:
+    fixed;
+
+  inset:
+    0;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    20px;
+
+  background:
+    rgba(
+      15,
+      23,
+      42,
+      0.54
+    );
+
+  box-sizing:
+    border-box;
+}
+
+
+#globalNoticeModal.is-open,
+#globalNoticeEditorModal.is-open,
+#globalNoticeAlertModal.is-open {
+  display:
+    flex;
+}
+
+
+#globalNoticeModal {
+  z-index:
+    600;
+}
+
+
+#globalNoticeEditorModal {
+  z-index:
+    620;
+}
+
+
+#globalNoticeAlertModal {
+  z-index:
+    650;
+}
+
+
+/* =========================================================
+  전체공지 목록 모달 본체
+========================================================= */
+
+#globalNoticeModal
+.global-notice-panel {
+  display:
+    flex;
+
+  width:
+    min(
+      940px,
+      calc(
+        100vw -
+        40px
+      )
+    );
+
+  height:
+    min(
+      780px,
+      calc(
+        100vh -
+        40px
+      )
+    );
+
+  max-width:
+    940px;
+
+  max-height:
+    calc(
+      100vh -
+      40px
+    );
+
+  flex-direction:
+    column;
+
+  overflow:
+    hidden;
+
+  border:
+    1px solid
+    #d9e2ec;
+
+  border-radius:
+    16px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0
+    28px
+    80px
+    rgba(
+      15,
+      23,
+      42,
+      0.3
+    );
+}
+
+
+/* =========================================================
+  전체공지 목록 상단
+========================================================= */
+
+#globalNoticeModal
+.global-notice-modal__header {
+  display:
+    flex;
+
+  flex:
+    0
+    0
+    auto;
+
+  min-height:
+    74px;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    18px;
+
+  padding:
+    14px
+    20px;
+
+  border-bottom:
+    1px solid
+    #dce4ed;
+
+  background:
+    #ffffff;
+}
+
+
+#globalNoticeModal
+.global-notice-modal__title-row {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  flex-wrap:
+    wrap;
+
+  gap:
+    9px;
+}
+
+
+#globalNoticeModal
+.global-notice-modal__active-count {
+  display:
+    inline-flex;
+
+  min-height:
+    24px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    9px;
+
+  border:
+    1px solid
+    #bad2ee;
+
+  border-radius:
+    999px;
+
+  background:
+    #eaf3ff;
+
+  color:
+    #1763c5;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+
+  white-space:
+    nowrap;
+}
+
+
+/* =========================================================
+  전체공지 목록 본문
+========================================================= */
+
+#globalNoticeModal
+.global-notice-modal__body {
+  display:
+    flex;
+
+  flex:
+    1
+    1
+    auto;
+
+  min-height:
+    0;
+
+  flex-direction:
+    column;
+
+  padding:
+    16px
+    18px
+    18px;
+
+  overflow:
+    hidden;
+
+  background:
+    #f5f7fa;
+}
+
+
+/* =========================================================
+  전체공지 필터 도구
+========================================================= */
+
+#globalNoticeModal
+.global-notice-toolbar {
+  display:
+    flex;
+
+  flex:
+    0
+    0
+    auto;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    14px;
+
+  margin-bottom:
+    13px;
+
+  padding:
+    11px
+    12px;
+
+  border:
+    1px solid
+    #dce4ed;
+
+  border-radius:
+    10px;
+
+  background:
+    #ffffff;
+}
+
+
+#globalNoticeModal
+.global-notice-toolbar__filters {
+  display:
+    flex;
+
+  min-width:
+    0;
+
+  align-items:
+    center;
+
+  flex-wrap:
+    wrap;
+
+  gap:
+    6px;
+}
+
+
+#globalNoticeModal
+.global-notice-filter-button {
+  display:
+    inline-flex;
+
+  min-height:
+    32px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    5px;
+
+  padding:
+    0
+    11px;
+
+  border:
+    1px solid
+    #d4dde7;
+
+  border-radius:
+    7px;
+
+  background:
+    #ffffff;
+
+  color:
+    #647286;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+
+  white-space:
+    nowrap;
+
+  cursor:
+    pointer;
+}
+
+
+#globalNoticeModal
+.global-notice-filter-button:hover {
+  border-color:
+    #9db8d5;
+
+  background:
+    #f2f7fc;
+
+  color:
+    #1f5fae;
+}
+
+
+#globalNoticeModal
+.global-notice-filter-button.is-active {
+  border-color:
+    #1f5fae;
+
+  background:
+    #1f5fae;
+
+  color:
+    #ffffff;
+}
+
+
+#globalNoticeModal
+.global-notice-filter-button__count {
+  display:
+    inline-flex;
+
+  min-width:
+    18px;
+
+  height:
+    18px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    5px;
+
+  border-radius:
+    999px;
+
+  background:
+    #edf2f7;
+
+  color:
+    #607087;
+
+  font-size:
+    8px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeModal
+.global-notice-filter-button.is-active
+.global-notice-filter-button__count {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.18
+    );
+
+  color:
+    #ffffff;
+}
+
+
+#globalNoticeModal
+.global-notice-add-button {
+  flex:
+    0
+    0
+    auto;
+
+  min-height:
+    34px;
+
+  padding:
+    0
+    13px;
+
+  border-radius:
+    8px;
+
+  font-size:
+    11px;
+}
+
+
+/* =========================================================
+  전체공지 목록
+========================================================= */
+
+#globalNoticeModal
+.global-notice-list {
+  display:
+    flex;
+
+  flex:
+    1
+    1
+    auto;
+
+  min-height:
+    0;
+
+  flex-direction:
+    column;
+
+  gap:
+    10px;
+
+  padding-right:
+    3px;
+
+  overflow-x:
+    hidden;
+
+  overflow-y:
+    auto;
+}
+
+
+/* =========================================================
+  전체공지 카드
+
+  JavaScript에서 아래 클래스 사용 예정:
+
+  .global-notice-card
+  .is-normal
+  .is-important
+  .is-urgent
+  .is-expired
+========================================================= */
+
+#globalNoticeModal
+.global-notice-card {
+  display:
+    grid;
+
+  width:
+    100%;
+
+  min-width:
+    0;
+
+  grid-template-columns:
+    minmax(
+      0,
+      1fr
+    )
+    auto;
+
+  gap:
+    10px
+    16px;
+
+  padding:
+    15px;
+
+  border:
+    1px solid
+    #d9e2ec;
+
+  border-radius:
+    11px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0
+    2px
+    8px
+    rgba(
+      15,
+      23,
+      42,
+      0.04
+    );
+}
+
+
+#globalNoticeModal
+.global-notice-card.is-important {
+  border-color:
+    #e4c475;
+
+  background:
+    #fffdf5;
+
+  box-shadow:
+    inset
+    4px
+    0
+    0
+    #d69c27,
+    0
+    2px
+    8px
+    rgba(
+      15,
+      23,
+      42,
+      0.04
+    );
+}
+
+
+#globalNoticeModal
+.global-notice-card.is-urgent {
+  border-color:
+    #e39a9a;
+
+  background:
+    #fff8f8;
+
+  box-shadow:
+    inset
+    4px
+    0
+    0
+    #d64b4b,
+    0
+    2px
+    8px
+    rgba(
+      15,
+      23,
+      42,
+      0.04
+    );
+}
+
+
+#globalNoticeModal
+.global-notice-card.is-expired {
+  opacity:
+    0.72;
+
+  background:
+    #f8fafc;
+}
+
+
+#globalNoticeModal
+.global-notice-card__main {
+  min-width:
+    0;
+}
+
+
+#globalNoticeModal
+.global-notice-card__heading {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  flex-wrap:
+    wrap;
+
+  gap:
+    7px;
+
+  margin-bottom:
+    7px;
+}
+
+
+#globalNoticeModal
+.global-notice-card__title {
+  margin:
+    0;
+
+  color:
+    #203149;
+
+  font-size:
+    14px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1.45;
+
+  word-break:
+    break-word;
+}
+
+
+/* =========================================================
+  중요도 배지
+========================================================= */
+
+.global-notice-priority-badge {
+  display:
+    inline-flex;
+
+  min-height:
+    22px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    8px;
+
+  border-radius:
+    999px;
+
+  font-size:
+    8px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+
+  white-space:
+    nowrap;
+}
+
+
+.global-notice-priority-badge.is-normal {
+  border:
+    1px solid
+    #c7d3df;
+
+  background:
+    #edf2f7;
+
+  color:
+    #657387;
+}
+
+
+.global-notice-priority-badge.is-important {
+  border:
+    1px solid
+    #e1bd68;
+
+  background:
+    #fff2d3;
+
+  color:
+    #94600a;
+}
+
+
+.global-notice-priority-badge.is-urgent {
+  border:
+    1px solid
+    #e8a5a5;
+
+  background:
+    #ffe3e3;
+
+  color:
+    #b92f2f;
+}
+
+
+/* =========================================================
+  공지 상태 배지
+========================================================= */
+
+#globalNoticeModal
+.global-notice-card__status {
+  display:
+    inline-flex;
+
+  min-height:
+    22px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    8px;
+
+  border-radius:
+    999px;
+
+  font-size:
+    8px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeModal
+.global-notice-card__status.is-active {
+  background:
+    #e8f7ef;
+
+  color:
+    #178451;
+}
+
+
+#globalNoticeModal
+.global-notice-card__status.is-upcoming {
+  background:
+    #eaf3ff;
+
+  color:
+    #1763c5;
+}
+
+
+#globalNoticeModal
+.global-notice-card__status.is-expired {
+  background:
+    #edf0f4;
+
+  color:
+    #748092;
+}
+
+
+/* =========================================================
+  공지 기간·내용·작성자
+========================================================= */
+
+#globalNoticeModal
+.global-notice-card__period {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  flex-wrap:
+    wrap;
+
+  gap:
+    5px;
+
+  margin:
+    0
+    0
+    7px;
+
+  color:
+    #6e7c8f;
+
+  font-size:
+    10px;
+
+  font-weight:
+    800;
+}
+
+
+#globalNoticeModal
+.global-notice-card__period::before {
+  content:
+    "기간";
+
+  display:
+    inline-flex;
+
+  min-height:
+    19px;
+
+  align-items:
+    center;
+
+  padding:
+    0
+    6px;
+
+  border-radius:
+    5px;
+
+  background:
+    #edf2f7;
+
+  color:
+    #66758a;
+
+  font-size:
+    8px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeModal
+.global-notice-card__content {
+  display:
+    -webkit-box;
+
+  overflow:
+    hidden;
+
+  margin:
+    0;
+
+  color:
+    #44536a;
+
+  font-size:
+    11px;
+
+  font-weight:
+    650;
+
+  line-height:
+    1.65;
+
+  white-space:
+    pre-line;
+
+  word-break:
+    break-word;
+
+  -webkit-box-orient:
+    vertical;
+
+  -webkit-line-clamp:
+    4;
+}
+
+
+#globalNoticeModal
+.global-notice-card__meta {
+  margin:
+    8px
+    0
+    0;
+
+  color:
+    #929cab;
+
+  font-size:
+    9px;
+
+  font-weight:
+    700;
+}
+
+
+/* =========================================================
+  목록 첨부자료
+========================================================= */
+
+#globalNoticeModal
+.global-notice-card__attachments {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  flex-wrap:
+    wrap;
+
+  gap:
+    5px;
+
+  margin-top:
+    9px;
+}
+
+
+#globalNoticeModal
+.global-notice-card__attachment-link {
+  display:
+    inline-flex;
+
+  max-width:
+    240px;
+
+  min-height:
+    27px;
+
+  align-items:
+    center;
+
+  gap:
+    5px;
+
+  padding:
+    0
+    8px;
+
+  overflow:
+    hidden;
+
+  border:
+    1px solid
+    #cbd8e6;
+
+  border-radius:
+    6px;
+
+  background:
+    #f4f8fc;
+
+  color:
+    #315f91;
+
+  font-size:
+    9px;
+
+  font-weight:
+    800;
+
+  text-decoration:
+    none;
+
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
+
+  cursor:
+    pointer;
+}
+
+
+#globalNoticeModal
+.global-notice-card__attachment-link:hover {
+  border-color:
+    #83a9ce;
+
+  background:
+    #eaf3fc;
+}
+
+
+/* =========================================================
+  수정·삭제 버튼
+========================================================= */
+
+#globalNoticeModal
+.global-notice-card__actions {
+  display:
+    flex;
+
+  align-items:
+    flex-start;
+
+  justify-content:
+    flex-end;
+
+  gap:
+    5px;
+}
+
+
+#globalNoticeModal
+.global-notice-card__edit-button,
+#globalNoticeModal
+.global-notice-card__delete-button {
+  display:
+    inline-flex;
+
+  min-width:
+    48px;
+
+  min-height:
+    29px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    8px;
+
+  border-radius:
+    6px;
+
+  font-size:
+    9px;
+
+  font-weight:
+    900;
+
+  cursor:
+    pointer;
+}
+
+
+#globalNoticeModal
+.global-notice-card__edit-button {
+  border:
+    1px solid
+    #b8cde5;
+
+  background:
+    #f0f6fd;
+
+  color:
+    #245d9b;
+}
+
+
+#globalNoticeModal
+.global-notice-card__delete-button {
+  border:
+    1px solid
+    #efc1c1;
+
+  background:
+    #fff5f5;
+
+  color:
+    #b73d3d;
+}
+
+
+/* =========================================================
+  빈 상태
+========================================================= */
+
+#globalNoticeModal
+.global-notice-empty {
+  display:
+    flex;
+
+  flex:
+    1
+    1
+    auto;
+
+  min-height:
+    260px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  flex-direction:
+    column;
+
+  gap:
+    6px;
+
+  padding:
+    30px;
+
+  border:
+    1px dashed
+    #cbd6e2;
+
+  border-radius:
+    11px;
+
+  background:
+    #ffffff;
+
+  color:
+    #7d8999;
+
+  text-align:
+    center;
+}
+
+
+#globalNoticeModal
+.global-notice-empty[hidden] {
+  display:
+    none
+    !important;
+}
+
+
+#globalNoticeModal
+.global-notice-empty
+strong {
+  color:
+    #44536a;
+
+  font-size:
+    14px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeModal
+.global-notice-empty
+p {
+  margin:
+    0;
+
+  font-size:
+    11px;
+}
+
+
+/* =========================================================
+  목록창 하단
+========================================================= */
+
+#globalNoticeModal
+.global-notice-modal__footer {
+  flex:
+    0
+    0
+    auto;
+
+  min-height:
+    58px;
+
+  padding:
+    9px
+    16px;
+}
+
+
+#globalNoticeModal
+.global-notice-footer-help {
+  color:
+    #8491a1;
+
+  font-size:
+    9px;
+
+  font-weight:
+    700;
+}
+
+
+/* =========================================================
+  전체공지 작성·수정 모달
+========================================================= */
+
+#globalNoticeEditorModal
+.global-notice-editor-panel {
+  display:
+    flex;
+
+  width:
+    min(
+      720px,
+      calc(
+        100vw -
+        40px
+      )
+    );
+
+  max-width:
+    720px;
+
+  max-height:
+    calc(
+      100vh -
+      40px
+    );
+
+  flex-direction:
+    column;
+
+  overflow:
+    hidden;
+
+  border:
+    1px solid
+    #d9e2ec;
+
+  border-radius:
+    16px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0
+    28px
+    80px
+    rgba(
+      15,
+      23,
+      42,
+      0.32
+    );
+}
+
+
+#globalNoticeEditorModal
+.global-notice-editor-modal__header {
+  flex:
+    0
+    0
+    auto;
+
+  min-height:
+    70px;
+
+  padding:
+    13px
+    19px;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-editor-modal__body {
+  flex:
+    1
+    1
+    auto;
+
+  min-height:
+    0;
+
+  padding:
+    16px
+    18px
+    20px;
+
+  overflow-y:
+    auto;
+
+  background:
+    #f5f7fa;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-editor-form {
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  gap:
+    14px;
+}
+
+
+/* =========================================================
+  중요도 선택
+========================================================= */
+
+#globalNoticeEditorModal
+.global-notice-priority-fieldset {
+  min-width:
+    0;
+
+  margin:
+    0;
+
+  padding:
+    13px;
+
+  border:
+    1px solid
+    #d6e0ea;
+
+  border-radius:
+    10px;
+
+  background:
+    #ffffff;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-fieldset
+legend {
+  padding:
+    0
+    5px;
+
+  color:
+    #4e5f75;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-options {
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap:
+    8px;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-option {
+  position:
+    relative;
+
+  display:
+    flex;
+
+  min-width:
+    0;
+
+  min-height:
+    62px;
+
+  align-items:
+    center;
+
+  gap:
+    9px;
+
+  padding:
+    10px;
+
+  border:
+    1px solid
+    #d2dce7;
+
+  border-radius:
+    9px;
+
+  background:
+    #ffffff;
+
+  cursor:
+    pointer;
+
+  user-select:
+    none;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-option
+input {
+  position:
+    absolute;
+
+  width:
+    1px;
+
+  height:
+    1px;
+
+  opacity:
+    0;
+
+  pointer-events:
+    none;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-option__indicator {
+  display:
+    inline-flex;
+
+  flex:
+    0
+    0
+    18px;
+
+  width:
+    18px;
+
+  height:
+    18px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  border:
+    2px solid
+    #b7c3d0;
+
+  border-radius:
+    999px;
+
+  background:
+    #ffffff;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-option
+input:checked
++
+.global-notice-priority-option__indicator::after {
+  content:
+    "";
+
+  display:
+    block;
+
+  width:
+    8px;
+
+  height:
+    8px;
+
+  border-radius:
+    999px;
+
+  background:
+    currentColor;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-option__text {
+  display:
+    flex;
+
+  min-width:
+    0;
+
+  flex-direction:
+    column;
+
+  gap:
+    2px;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-option__text
+strong {
+  color:
+    #35455b;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-option__text
+small {
+  color:
+    #8793a3;
+
+  font-size:
+    8px;
+
+  line-height:
+    1.4;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-option.is-normal:has(
+  input:checked
+) {
+  border-color:
+    #7f94aa;
+
+  background:
+    #f3f6f9;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-option.is-normal
+input:checked
++
+.global-notice-priority-option__indicator {
+  border-color:
+    #60758a;
+
+  color:
+    #60758a;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-option.is-important:has(
+  input:checked
+) {
+  border-color:
+    #d7aa45;
+
+  background:
+    #fff9e9;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-option.is-important
+input:checked
++
+.global-notice-priority-option__indicator {
+  border-color:
+    #c98b18;
+
+  color:
+    #c98b18;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-option.is-urgent:has(
+  input:checked
+) {
+  border-color:
+    #d96565;
+
+  background:
+    #fff1f1;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-priority-option.is-urgent
+input:checked
++
+.global-notice-priority-option__indicator {
+  border-color:
+    #cf4141;
+
+  color:
+    #cf4141;
+}
+
+
+/* =========================================================
+  작성창 입력칸
+========================================================= */
+
+#globalNoticeEditorModal
+.global-notice-editor-field {
+  gap:
+    6px;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-editor-field
+input,
+#globalNoticeEditorModal
+.global-notice-editor-field
+textarea,
+#globalNoticeEditorModal
+.global-notice-period-fieldset
+input {
+  width:
+    100%;
+
+  border:
+    1px solid
+    #c9d5e2;
+
+  border-radius:
+    8px;
+
+  background:
+    #ffffff;
+
+  color:
+    #203149;
+
+  font-size:
+    12px;
+
+  font-weight:
+    650;
+
+  outline:
+    none;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-editor-field
+input,
+#globalNoticeEditorModal
+.global-notice-period-fieldset
+input {
+  min-height:
+    41px;
+
+  padding:
+    0
+    11px;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-editor-field
+textarea {
+  min-height:
+    155px;
+
+  max-height:
+    320px;
+
+  padding:
+    10px
+    11px;
+
+  line-height:
+    1.65;
+
+  resize:
+    vertical;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-editor-field
+input:focus,
+#globalNoticeEditorModal
+.global-notice-editor-field
+textarea:focus,
+#globalNoticeEditorModal
+.global-notice-period-fieldset
+input:focus {
+  border-color:
+    #6d9dce;
+
+  box-shadow:
+    0
+    0
+    0
+    3px
+    rgba(
+      31,
+      95,
+      174,
+      0.1
+    );
+}
+
+
+#globalNoticeEditorModal
+.global-notice-editor-content-meta {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    12px;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-editor-help,
+#globalNoticeEditorModal
+.global-notice-character-count {
+  color:
+    #8793a3;
+
+  font-size:
+    9px;
+
+  font-weight:
+    700;
+}
+
+
+/* =========================================================
+  전체공지 기간
+========================================================= */
+
+#globalNoticeEditorModal
+.global-notice-period-fieldset {
+  min-width:
+    0;
+
+  margin:
+    0;
+
+  padding:
+    13px;
+
+  border:
+    1px solid
+    #d6e0ea;
+
+  border-radius:
+    10px;
+
+  background:
+    #ffffff;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-period-fieldset
+legend {
+  padding:
+    0
+    5px;
+
+  color:
+    #4e5f75;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-period-grid {
+  display:
+    grid;
+
+  grid-template-columns:
+    minmax(
+      0,
+      1fr
+    )
+    22px
+    minmax(
+      0,
+      1fr
+    );
+
+  align-items:
+    end;
+
+  gap:
+    9px;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-period-divider {
+  display:
+    flex;
+
+  height:
+    41px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  color:
+    #7f8b9b;
+
+  font-size:
+    12px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-period-help {
+  margin:
+    8px
+    0
+    0;
+
+  color:
+    #8793a3;
+
+  font-size:
+    9px;
+}
+
+
+/* =========================================================
+  첨부자료 영역
+========================================================= */
+
+#globalNoticeEditorModal
+.global-notice-attachment-section {
+  padding:
+    13px;
+
+  border:
+    1px solid
+    #d6e0ea;
+
+  border-radius:
+    10px;
+
+  background:
+    #ffffff;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-attachment-section__heading {
+  display:
+    flex;
+
+  align-items:
+    flex-start;
+
+  justify-content:
+    space-between;
+
+  gap:
+    14px;
+
+  margin-bottom:
+    10px;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-attachment-section__heading
+strong {
+  display:
+    block;
+
+  color:
+    #35455b;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-attachment-section__heading
+p {
+  margin:
+    3px
+    0
+    0;
+
+  color:
+    #8793a3;
+
+  font-size:
+    9px;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-attachment-limit {
+  display:
+    inline-flex;
+
+  min-height:
+    23px;
+
+  align-items:
+    center;
+
+  padding:
+    0
+    8px;
+
+  border-radius:
+    999px;
+
+  background:
+    #edf2f7;
+
+  color:
+    #66758a;
+
+  font-size:
+    8px;
+
+  font-weight:
+    900;
+
+  white-space:
+    nowrap;
+}
+
+
+/* =========================================================
+  파일 드롭존
+========================================================= */
+
+#globalNoticeEditorModal
+.global-notice-file-dropzone {
+  display:
+    flex;
+
+  min-height:
+    106px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  flex-direction:
+    column;
+
+  gap:
+    4px;
+
+  padding:
+    16px;
+
+  border:
+    1px dashed
+    #9eb5cc;
+
+  border-radius:
+    9px;
+
+  background:
+    #f7fafc;
+
+  color:
+    #5f7085;
+
+  text-align:
+    center;
+
+  cursor:
+    pointer;
+
+  transition:
+    border-color
+    0.15s
+    ease,
+    background
+    0.15s
+    ease;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-file-dropzone:hover,
+#globalNoticeEditorModal
+.global-notice-file-dropzone.is-dragover {
+  border-color:
+    #4d86bd;
+
+  background:
+    #eef6ff;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-file-dropzone__icon {
+  display:
+    flex;
+
+  width:
+    28px;
+
+  height:
+    28px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  border-radius:
+    999px;
+
+  background:
+    #1f5fae;
+
+  color:
+    #ffffff;
+
+  font-size:
+    18px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-file-dropzone
+strong {
+  color:
+    #3f5066;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-file-dropzone
+small {
+  color:
+    #8793a3;
+
+  font-size:
+    8px;
+}
+
+
+/* =========================================================
+  새로 선택한 파일·기존 첨부 공통
+========================================================= */
+
+#globalNoticeEditorModal
+.global-notice-selected-file-list,
+#globalNoticeEditorModal
+.global-notice-existing-attachment-list {
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  gap:
+    6px;
+
+  margin-top:
+    9px;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-selected-file-item,
+#globalNoticeEditorModal
+.global-notice-existing-attachment-item {
+  display:
+    grid;
+
+  grid-template-columns:
+    minmax(
+      0,
+      1fr
+    )
+    auto
+    auto;
+
+  align-items:
+    center;
+
+  gap:
+    8px;
+
+  padding:
+    8px
+    9px;
+
+  border:
+    1px solid
+    #d8e1eb;
+
+  border-radius:
+    7px;
+
+  background:
+    #f8fafc;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-file-name {
+  min-width:
+    0;
+
+  overflow:
+    hidden;
+
+  color:
+    #405168;
+
+  font-size:
+    10px;
+
+  font-weight:
+    800;
+
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-file-size {
+  color:
+    #8793a3;
+
+  font-size:
+    8px;
+
+  font-weight:
+    700;
+
+  white-space:
+    nowrap;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-file-remove-button {
+  display:
+    inline-flex;
+
+  min-width:
+    42px;
+
+  min-height:
+    27px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    7px;
+
+  border:
+    1px solid
+    #efc1c1;
+
+  border-radius:
+    6px;
+
+  background:
+    #fff5f5;
+
+  color:
+    #b73d3d;
+
+  font-size:
+    8px;
+
+  font-weight:
+    900;
+
+  cursor:
+    pointer;
+}
+
+
+/* =========================================================
+  기존 첨부자료
+========================================================= */
+
+#globalNoticeEditorModal
+.global-notice-existing-attachment-wrap {
+  margin-top:
+    12px;
+
+  padding-top:
+    11px;
+
+  border-top:
+    1px solid
+    #e0e7ef;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-existing-attachment-wrap[hidden] {
+  display:
+    none
+    !important;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-existing-attachment-heading {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    12px;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-existing-attachment-heading
+strong {
+  color:
+    #4e5f75;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-existing-attachment-heading
+span {
+  color:
+    #7f8b9b;
+
+  font-size:
+    9px;
+
+  font-weight:
+    800;
+}
+
+
+/* =========================================================
+  작성 오류 메시지
+========================================================= */
+
+#globalNoticeEditorModal
+.global-notice-editor-message {
+  margin:
+    0;
+
+  padding:
+    9px
+    11px;
+
+  border:
+    1px solid
+    #efb8b8;
+
+  border-radius:
+    8px;
+
+  background:
+    #fff1f1;
+
+  color:
+    #b63d3d;
+
+  font-size:
+    10px;
+
+  font-weight:
+    750;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-editor-message[hidden] {
+  display:
+    none
+    !important;
+}
+
+
+/* =========================================================
+  작성창 하단
+========================================================= */
+
+#globalNoticeEditorModal
+.global-notice-editor-modal__footer {
+  flex:
+    0
+    0
+    auto;
+
+  min-height:
+    60px;
+
+  padding:
+    9px
+    16px;
+}
+
+
+#globalNoticeEditorModal
+.global-notice-editor-footer-help {
+  color:
+    #8793a3;
+
+  font-size:
+    9px;
+
+  font-weight:
+    700;
+}
+
+
+/* =========================================================
+  중요·긴급 자동 팝업
+========================================================= */
+
+#globalNoticeAlertModal
+.global-notice-alert-panel {
+  display:
+    flex;
+
+  width:
+    min(
+      620px,
+      calc(
+        100vw -
+        40px
+      )
+    );
+
+  max-width:
+    620px;
+
+  max-height:
+    calc(
+      100vh -
+      40px
+    );
+
+  flex-direction:
+    column;
+
+  overflow:
+    hidden;
+
+  border:
+    1px solid
+    #e2c27b;
+
+  border-radius:
+    16px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0
+    30px
+    90px
+    rgba(
+      15,
+      23,
+      42,
+      0.36
+    );
+}
+
+
+#globalNoticeAlertModal
+.global-notice-alert-modal__header {
+  display:
+    flex;
+
+  flex:
+    0
+    0
+    auto;
+
+  min-height:
+    76px;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    16px;
+
+  padding:
+    14px
+    19px;
+
+  border-bottom:
+    1px solid
+    #eadcb9;
+
+  background:
+    #fffaf0;
+}
+
+
+#globalNoticeAlertModal.is-urgent
+.global-notice-alert-modal__header {
+  border-bottom-color:
+    #edc6c6;
+
+  background:
+    #fff3f3;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-alert-title-row {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  flex-wrap:
+    wrap;
+
+  gap:
+    8px;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-alert-modal__body {
+  flex:
+    1
+    1
+    auto;
+
+  min-height:
+    0;
+
+  padding:
+    18px
+    19px;
+
+  overflow-y:
+    auto;
+
+  background:
+    #ffffff;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-alert-period {
+  display:
+    inline-flex;
+
+  min-height:
+    24px;
+
+  align-items:
+    center;
+
+  margin-bottom:
+    13px;
+
+  padding:
+    0
+    8px;
+
+  border-radius:
+    6px;
+
+  background:
+    #edf2f7;
+
+  color:
+    #657387;
+
+  font-size:
+    9px;
+
+  font-weight:
+    800;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-alert-content {
+  color:
+    #34445a;
+
+  font-size:
+    13px;
+
+  font-weight:
+    650;
+
+  line-height:
+    1.75;
+
+  white-space:
+    pre-wrap;
+
+  word-break:
+    break-word;
+}
+
+
+/* =========================================================
+  자동 팝업 첨부자료
+========================================================= */
+
+#globalNoticeAlertModal
+.global-notice-alert-attachment-section {
+  margin-top:
+    18px;
+
+  padding:
+    12px;
+
+  border:
+    1px solid
+    #d8e1eb;
+
+  border-radius:
+    9px;
+
+  background:
+    #f8fafc;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-alert-attachment-section[hidden] {
+  display:
+    none
+    !important;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-alert-attachment-heading {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    12px;
+
+  margin-bottom:
+    8px;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-alert-attachment-heading
+strong {
+  color:
+    #45566c;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-alert-attachment-heading
+span {
+  color:
+    #7f8b9b;
+
+  font-size:
+    9px;
+
+  font-weight:
+    800;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-alert-attachment-list {
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  gap:
+    6px;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-alert-attachment-link {
+  display:
+    flex;
+
+  min-width:
+    0;
+
+  min-height:
+    34px;
+
+  align-items:
+    center;
+
+  gap:
+    7px;
+
+  padding:
+    0
+    10px;
+
+  overflow:
+    hidden;
+
+  border:
+    1px solid
+    #cbd8e6;
+
+  border-radius:
+    7px;
+
+  background:
+    #ffffff;
+
+  color:
+    #315f91;
+
+  font-size:
+    10px;
+
+  font-weight:
+    800;
+
+  text-decoration:
+    none;
+
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
+
+  cursor:
+    pointer;
+}
+
+
+/* =========================================================
+  12시간 숨김 체크
+========================================================= */
+
+#globalNoticeAlertModal
+.global-notice-alert-modal__footer {
+  flex:
+    0
+    0
+    auto;
+
+  min-height:
+    64px;
+
+  padding:
+    10px
+    16px;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-hide-check {
+  position:
+    relative;
+
+  display:
+    inline-flex;
+
+  min-height:
+    34px;
+
+  align-items:
+    center;
+
+  gap:
+    8px;
+
+  cursor:
+    pointer;
+
+  user-select:
+    none;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-hide-check
+input {
+  position:
+    absolute;
+
+  width:
+    1px;
+
+  height:
+    1px;
+
+  opacity:
+    0;
+
+  pointer-events:
+    none;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-hide-check__box {
+  display:
+    inline-flex;
+
+  flex:
+    0
+    0
+    19px;
+
+  width:
+    19px;
+
+  height:
+    19px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  border:
+    1px solid
+    #b7c4d1;
+
+  border-radius:
+    5px;
+
+  background:
+    #ffffff;
+
+  color:
+    transparent;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-hide-check
+input:checked
++
+.global-notice-hide-check__box {
+  border-color:
+    #1f5fae;
+
+  background:
+    #1f5fae;
+
+  color:
+    #ffffff;
+}
+
+
+#globalNoticeAlertModal
+.global-notice-hide-check__text {
+  color:
+    #59697e;
+
+  font-size:
+    10px;
+
+  font-weight:
+    800;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width:
+  760px
+) {
+  #globalNoticeModal,
+  #globalNoticeEditorModal,
+  #globalNoticeAlertModal {
+    padding:
+      8px;
+  }
+
+
+  #globalNoticeModal
+  .global-notice-panel {
+    width:
+      calc(
+        100vw -
+        16px
+      );
+
+    height:
+      calc(
+        100vh -
+        16px
+      );
+
+    max-width:
+      none;
+
+    max-height:
+      calc(
+        100vh -
+        16px
+      );
+
+    border-radius:
+      12px;
+  }
+
+
+  #globalNoticeModal
+  .global-notice-toolbar {
+    align-items:
+      stretch;
+
+    flex-direction:
+      column;
+  }
+
+
+  #globalNoticeModal
+  .global-notice-toolbar__filters {
+    display:
+      grid;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+
+
+  #globalNoticeModal
+  .global-notice-filter-button,
+  #globalNoticeModal
+  .global-notice-add-button {
+    width:
+      100%;
+  }
+
+
+  #globalNoticeModal
+  .global-notice-card {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  #globalNoticeModal
+  .global-notice-card__actions {
+    justify-content:
+      flex-end;
+  }
+
+
+  #globalNoticeModal
+  .global-notice-footer-help {
+    display:
+      none;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-editor-panel {
+    width:
+      calc(
+        100vw -
+        16px
+      );
+
+    max-width:
+      none;
+
+    max-height:
+      calc(
+        100vh -
+        16px
+      );
+
+    border-radius:
+      12px;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-priority-options {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-period-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-period-divider {
+    display:
+      none;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-editor-content-meta {
+    align-items:
+      flex-start;
+
+    flex-direction:
+      column;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-editor-footer-help {
+    display:
+      none;
+  }
+
+
+  #globalNoticeAlertModal
+  .global-notice-alert-panel {
+    width:
+      calc(
+        100vw -
+        16px
+      );
+
+    max-width:
+      none;
+
+    max-height:
+      calc(
+        100vh -
+        16px
+      );
+
+    border-radius:
+      12px;
+  }
+
+
+  #globalNoticeAlertModal
+  .global-notice-alert-modal__footer {
+    align-items:
+      stretch;
+
+    flex-direction:
+      column;
+
+    gap:
+      8px;
+  }
+
+
+  #globalNoticeAlertModal
+  .modal-footer__left,
+  #globalNoticeAlertModal
+  .modal-footer__right {
+    width:
+      100%;
+  }
+
+
+  #globalNoticeAlertModal
+  .modal-footer__right
+  button {
+    width:
+      100%;
+  }
+}
