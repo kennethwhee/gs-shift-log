@@ -31205,3 +31205,49 @@ input:checked
     line-height: 1.7;
   }
 }
+
+/* =========================================================
+   업무내용 입력창 가독성 개선 (최종)
+========================================================= */
+
+.log-entry-textarea,
+.entry-textarea,
+textarea[name="content"],
+textarea[name="description"],
+textarea.log-content,
+.task-entry textarea,
+.work-entry textarea,
+.section-entry textarea,
+.entry-input textarea,
+.entry-form textarea,
+textarea {
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    line-height: 1.8 !important;
+
+    color: #16253d !important;
+
+    padding: 14px 16px !important;
+
+    min-height: 90px !important;
+
+    letter-spacing: -0.02em;
+
+    font-family: inherit !important;
+}
+
+.log-entry-textarea::placeholder,
+.entry-textarea::placeholder,
+textarea::placeholder{
+    font-size:15px !important;
+    color:#8d97a6 !important;
+}
+
+.log-entry-textarea:focus,
+.entry-textarea:focus,
+textarea:focus{
+
+    border-color:#2f6fd4 !important;
+
+    box-shadow:0 0 0 3px rgba(47,111,212,.12) !important;
+}
