@@ -23752,3 +23752,639 @@ td {
       13px;
   }
 }
+
+/* =========================================================
+  업무일지 상세보기 모달 크기 최종 강제 고정
+
+  중요:
+  이 섹션은 반드시 style.css의 진짜 맨 마지막에 둔다.
+
+  적용 결과:
+  - PC 최대 폭 1320px
+  - 화면 좌우 여백 최소 20px
+  - 화면 높이의 약 94% 사용
+  - 상세 본문 전체 폭 사용
+  - 작성창에는 영향 없음
+========================================================= */
+
+
+/* =========================================================
+  상세보기 배경 영역
+
+  기본 modal-backdrop의 28px 여백을 줄여
+  상세창이 화면 공간을 더 넓게 사용하도록 한다.
+========================================================= */
+
+#logDetailModal.modal-backdrop,
+#logDetailModal {
+  padding:
+    18px !important;
+}
+
+
+/* =========================================================
+  상세보기 모달 본체 최종 크기
+
+  아래 선택자는 기존의
+  #logDetailModal .log-detail-modal
+  width: 920px !important;
+  선언을 확실하게 덮어쓴다.
+========================================================= */
+
+#logDetailModal
+.log-detail-modal,
+
+#logDetailModal
+.modal-panel.log-detail-modal,
+
+#logDetailModal
+.modal-panel {
+  display:
+    flex !important;
+
+  width:
+    min(
+      1320px,
+      calc(100vw - 40px)
+    ) !important;
+
+  min-width:
+    min(
+      1000px,
+      calc(100vw - 40px)
+    ) !important;
+
+  max-width:
+    1320px !important;
+
+  height:
+    min(
+      94vh,
+      1040px
+    ) !important;
+
+  min-height:
+    650px !important;
+
+  max-height:
+    calc(
+      100vh -
+      36px
+    ) !important;
+
+  flex-direction:
+    column !important;
+
+  margin:
+    0 auto !important;
+
+  overflow:
+    hidden !important;
+
+  border-radius:
+    15px !important;
+}
+
+
+/* =========================================================
+  상세보기 상단
+
+  폭 확대 후 제목과 X 버튼이
+  양끝에 안정적으로 배치되도록 고정
+========================================================= */
+
+#logDetailModal
+.log-detail-modal__header,
+
+#logDetailModal
+.modal-header {
+  display:
+    flex !important;
+
+  flex:
+    0 0 auto !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  min-height:
+    64px !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    space-between !important;
+
+  padding:
+    12px
+    18px !important;
+}
+
+
+/* =========================================================
+  상세보기 스크롤 본문
+
+  가로 폭을 전부 사용하고
+  세로 스크롤만 생성한다.
+========================================================= */
+
+#logDetailModal
+.log-detail-modal__body,
+
+#logDetailModal
+.modal-body {
+  display:
+    block !important;
+
+  flex:
+    1 1 auto !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  min-height:
+    0 !important;
+
+  max-width:
+    none !important;
+
+  padding:
+    14px
+    18px
+    18px !important;
+
+  overflow-x:
+    hidden !important;
+
+  overflow-y:
+    auto !important;
+
+  background:
+    #f5f7fa !important;
+}
+
+
+/* =========================================================
+  상세 내용 최상위 영역
+
+  내부 콘텐츠가 과거 max-width 선언 때문에
+  다시 좁아지지 않도록 전부 해제한다.
+========================================================= */
+
+#logDetailModal
+#logDetailContent,
+
+#logDetailModal
+.shift-log-detail-document,
+
+#logDetailModal
+.log-detail-layout,
+
+#logDetailModal
+.detail-document,
+
+#logDetailModal
+.log-report {
+  display:
+    flex !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  max-width:
+    none !important;
+
+  flex-direction:
+    column !important;
+
+  margin:
+    0 !important;
+}
+
+
+/* 상세 문서 내부 모든 직접 구역 */
+#logDetailModal
+#logDetailContent
+>
+* {
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  max-width:
+    none !important;
+}
+
+
+/* =========================================================
+  기본정보
+
+  넓어진 화면에서는 3열 구조를 유지해
+  좌우 공간을 충분히 활용한다.
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-summary {
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  max-width:
+    none !important;
+
+  padding:
+    16px !important;
+}
+
+
+#logDetailModal
+.shift-log-detail-summary__grid,
+
+#logDetailModal
+.detail-summary-grid {
+  display:
+    grid !important;
+
+  width:
+    100% !important;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(
+        0,
+        1fr
+      )
+    ) !important;
+
+  gap:
+    10px !important;
+}
+
+
+/* =========================================================
+  운전현황·TM·인계·비고·첨부 구역
+
+  모든 카드를 상세창 전체 너비로 확장한다.
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-section,
+
+#logDetailModal
+.log-detail-card,
+
+#logDetailModal
+.log-report-section {
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  max-width:
+    none !important;
+
+  margin-right:
+    0 !important;
+
+  margin-left:
+    0 !important;
+}
+
+
+#logDetailModal
+.shift-log-detail-section__body,
+
+#logDetailModal
+.log-detail-card__content,
+
+#logDetailModal
+.log-report-section__body {
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  max-width:
+    none !important;
+}
+
+
+/* =========================================================
+  인계 및 작업 내역
+
+  최소 약 5줄 높이를 유지한다.
+  내용이 많으면 자연스럽게 아래로 확장된다.
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-section__body--roles {
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  min-height:
+    145px !important;
+
+  height:
+    auto !important;
+
+  max-width:
+    none !important;
+
+  padding:
+    10px
+    15px
+    14px !important;
+}
+
+
+/*
+  인계사항이 비어 있어도
+  최소 높이가 유지되도록 빈 문구 영역도 확장한다.
+*/
+#logDetailModal
+.shift-log-detail-section__body--roles
+.detail-empty-message,
+
+#logDetailModal
+.shift-log-detail-section__body--roles
+.detail-empty,
+
+#logDetailModal
+.shift-log-detail-section__body--roles
+.shift-log-detail-empty {
+  display:
+    block !important;
+
+  width:
+    100% !important;
+
+  min-height:
+    115px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    4px 0 !important;
+}
+
+
+/* =========================================================
+  비고·첨부파일 하단 영역
+
+  PC에서는 기존 2열 배치를 유지하되
+  전체 너비를 정확히 사용한다.
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-bottom-grid {
+  display:
+    grid !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  max-width:
+    none !important;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(
+        0,
+        1fr
+      )
+    ) !important;
+
+  gap:
+    12px !important;
+}
+
+
+/* =========================================================
+  상세보기 하단 버튼 영역
+========================================================= */
+
+#logDetailModal
+.log-detail-modal__footer,
+
+#logDetailModal
+.modal-footer {
+  display:
+    flex !important;
+
+  flex:
+    0 0 auto !important;
+
+  width:
+    100% !important;
+
+  min-height:
+    60px !important;
+
+  padding:
+    9px
+    16px !important;
+}
+
+
+/* =========================================================
+  1400px 이하 화면
+
+  모니터 폭에 맞춰 거의 전체 화면을 사용한다.
+========================================================= */
+
+@media (
+  max-width:
+  1400px
+) {
+  #logDetailModal
+  .log-detail-modal,
+
+  #logDetailModal
+  .modal-panel.log-detail-modal,
+
+  #logDetailModal
+  .modal-panel {
+    width:
+      calc(
+        100vw -
+        36px
+      ) !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      none !important;
+  }
+}
+
+
+/* =========================================================
+  태블릿
+========================================================= */
+
+@media (
+  max-width:
+  900px
+) {
+  #logDetailModal.modal-backdrop,
+  #logDetailModal {
+    padding:
+      10px !important;
+  }
+
+
+  #logDetailModal
+  .log-detail-modal,
+
+  #logDetailModal
+  .modal-panel.log-detail-modal,
+
+  #logDetailModal
+  .modal-panel {
+    width:
+      calc(
+        100vw -
+        20px
+      ) !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      none !important;
+
+    height:
+      calc(
+        100vh -
+        20px
+      ) !important;
+
+    min-height:
+      0 !important;
+
+    max-height:
+      calc(
+        100vh -
+        20px
+      ) !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__grid,
+
+  #logDetailModal
+  .detail-summary-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-bottom-grid {
+    grid-template-columns:
+      1fr !important;
+  }
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width:
+  600px
+) {
+  #logDetailModal.modal-backdrop,
+  #logDetailModal {
+    padding:
+      0 !important;
+  }
+
+
+  #logDetailModal
+  .log-detail-modal,
+
+  #logDetailModal
+  .modal-panel.log-detail-modal,
+
+  #logDetailModal
+  .modal-panel {
+    width:
+      100vw !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      100vw !important;
+
+    height:
+      100dvh !important;
+
+    min-height:
+      0 !important;
+
+    max-height:
+      100dvh !important;
+
+    margin:
+      0 !important;
+
+    border-radius:
+      0 !important;
+  }
+
+
+  #logDetailModal
+  .log-detail-modal__body,
+
+  #logDetailModal
+  .modal-body {
+    padding:
+      9px !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__grid,
+
+  #logDetailModal
+  .detail-summary-grid {
+    grid-template-columns:
+      1fr !important;
+  }
+}

@@ -20080,73 +20080,45 @@ function formatDateTime(value) {
   return `${year}-${month}-${day} ${hour}:${minute}`;
 }
 
-
 /* =========================================================
   업무일지 작성·수정창 열기 최종본
 
-  기존 업무일지 수정:
-  - 해당 일지에 저장된 운전현황 스냅샷 유지
-  - 현재 localStorage 운전현황으로 덮어쓰지 않음
-
-  신규 업무일지 작성:
-  - 현재 날짜·근무·보직의 최신 운전현황 사용
+  editorMode:
+  - new          : 신규 작성
+  - existing-edit: 기존 업무일지 수정
+  - draft-edit   : 현재 창에서 임시저장 후 계속 작성
 ========================================================= */
 
 function openLogEditor(
   log = null,
   preset = null
 ) {
-  /*
-    이전 입력 상태 초기화
-  */
   resetLogEditor();
 
 
-  /* =====================================================
+  /*
     기존 업무일지 수정
-  ====================================================== */
-
+  */
   if (
     log
   ) {
-    /*
-      해당 업무일지에 저장된 값으로
-      날짜·근무·보직·운전현황·업무내역을 채운다.
-    */
     fillLogEditor(
       log
     );
 
 
-    if (
-      elements.logEditorTitle
-    ) {
-      elements.logEditorTitle.textContent =
-        `${log.role || ""} 업무일지 수정`;
-    }
+    elements
+      .logEditorForm
+      .dataset
+      .editorMode =
+      "existing-edit";
 
 
-    /*
-      중요:
-
-      기존에는 여기서
-      refreshOperationStatusForCurrentRole()를 실행해
-      해당 일지의 운전현황을 현재 localStorage 값으로
-      덮어쓰고 있었다.
-
-      수정창에서는 과거 업무일지에 저장된
-      운전현황 스냅샷을 그대로 렌더링한다.
-    */
-    renderOperationStatusCard();
+    elements.logEditorTitle.textContent =
+      `${log.role || ""} 업무일지 수정`;
 
 
-    updateOperationStatusRoleTitles();
-
-
-    closeOperationStatusEditor();
-
-
-    updateMemberLogImportSection();
+    updateLogEditorActionButtons();
 
 
     openModal(
@@ -20158,146 +20130,84 @@ function openLogEditor(
   }
 
 
-  /* =====================================================
-    근무자 카드에서 신규 업무일지 작성
-  ====================================================== */
+  /*
+    신규 업무일지
+  */
+  elements
+    .logEditorForm
+    .dataset
+    .editorMode =
+    "new";
+
 
   if (
     preset
   ) {
-    const presetRole =
-      normalizeMemberLogRole(
-        preset.role
-      );
-
-
-    const presetAuthor =
-      String(
-        preset.author ||
-        ""
-      ).trim();
-
-
-    const presetTeam =
-      normalizeTeamName(
-        preset.team
-      );
-
-
-    /*
-      보직 적용
-    */
     if (
-      presetRole &&
-      elements.logRole &&
+      preset.role &&
       [
-        ...elements.logRole.options
+        ...elements
+          .logRole
+          .options
       ].some(
         (
           option
         ) => {
           return (
-            normalizeMemberLogRole(
-              option.value
-            ) ===
-            presetRole
+            option.value ===
+            preset.role
           );
         }
       )
     ) {
       elements.logRole.value =
-        presetRole;
+        preset.role;
     }
 
 
-    /*
-      작성자 적용
-    */
     if (
-      presetAuthor &&
-      elements.logAuthor
+      preset.author
     ) {
       elements.logAuthor.value =
-        presetAuthor;
+        preset.author;
     }
 
 
-    /*
-      근무파트 적용
-    */
     if (
-      presetTeam &&
-      elements.logTeam &&
+      preset.team &&
       [
-        ...elements.logTeam.options
+        ...elements
+          .logTeam
+          .options
       ].some(
         (
           option
         ) => {
           return (
-            normalizeTeamName(
-              option.value
-            ) ===
-            presetTeam
+            option.value ===
+            preset.team
           );
         }
       )
     ) {
       elements.logTeam.value =
-        presetTeam;
+        preset.team;
     }
 
 
-    if (
-      elements.logEditorTitle
-    ) {
-      elements.logEditorTitle.textContent =
-        `${presetRole || ""} 업무일지 작성`;
-    }
+    elements.logEditorTitle.textContent =
+      `${preset.role || ""} 업무일지 작성`;
 
-
-    /*
-      신규 작성은 현재 날짜·근무·보직의
-      최신 운전현황을 불러온다.
-    */
-    refreshOperationStatusForCurrentRole();
-
-
-    updateMemberLogImportSection();
-
-
-    openModal(
-      elements.logEditorModal
-    );
-
-
-    return;
-  }
-
-
-  /* =====================================================
-    일반 신규 업무일지 작성
-  ====================================================== */
-
-  if (
-    elements.logEditorTitle
-  ) {
+  } else {
     elements.logEditorTitle.textContent =
       "업무일지 작성";
+
+
+    restoreDraftIfAvailable();
   }
 
 
-  restoreDraftIfAvailable();
-
-
-  /*
-    임시저장 복원 또는 기본 보직 기준으로
-    현재 운전현황을 불러온다.
-  */
-  refreshOperationStatusForCurrentRole();
-
-
-  updateMemberLogImportSection();
+  updateLogEditorActionButtons();
 
 
   openModal(
@@ -26873,14 +26783,32 @@ function saveCurrentLog(
   );
 
 
-  /*
-    현재 편집 중인 업무일지 ID 갱신
-  */
+/* =========================================================
+  저장 후 현재 창은 계속 작성 모드로 유지
+
+  임시저장으로 ID가 생성되어도
+  관리자 기존 일지 수정 모드로 전환하지 않는다.
+========================================================= */
+
+elements
+  .logEditorForm
+  .dataset
+  .editingId =
+  log.id;
+
+
+if (
+  !closeAfterSave
+) {
   elements
     .logEditorForm
     .dataset
-    .editingId =
-    log.id;
+    .editorMode =
+    "draft-edit";
+
+
+  updateLogEditorActionButtons();
+}
 
 
   /*
@@ -43998,7 +43926,12 @@ canCurrentUserEditShiftLog =
   };
 
 /* =========================================================
-  업무일지 편집창 권한 유형
+  업무일지 편집창 권한 유형 최종본
+
+  핵심 수정:
+  - 임시저장 후 editingId가 생겨도 파트원 모드를 유지한다.
+  - 실제로 상세보기나 목록에서 기존 업무일지를 연 경우에만
+    최고관리자 수정 모드로 처리한다.
 ========================================================= */
 
 getCurrentShiftLogPermissionType =
@@ -44011,22 +43944,38 @@ getCurrentShiftLogPermissionType =
       );
 
 
-    const editingId =
+    const editorMode =
       String(
         elements.logEditorForm
-          ?.dataset.editingId ||
+          ?.dataset
+          ?.editorMode ||
         ""
       ).trim();
 
 
+    /*
+      최고관리자가 실제 기존 업무일지를
+      수정하기 위해 연 경우에만 관리자 수정 모드
+    */
     if (
       isCurrentUserSuperAdmin() &&
-      editingId
+      editorMode ===
+        "existing-edit"
     ) {
       return "super_admin_edit";
     }
 
 
+    /*
+      최고관리자가 직접 새 업무일지를 작성하거나
+      작성 중인 일지를 임시저장한 경우
+
+      파트장:
+      저장 버튼
+
+      일반 보직:
+      임시저장 + 결재요청
+    */
     if (
       isCurrentUserSuperAdmin()
     ) {
@@ -44037,6 +43986,9 @@ getCurrentShiftLogPermissionType =
     }
 
 
+    /*
+      일반 파트장 계정
+    */
     if (
       isCurrentShiftLogLeader()
     ) {
@@ -44044,6 +43996,9 @@ getCurrentShiftLogPermissionType =
     }
 
 
+    /*
+      일반 파트원
+    */
     return "member";
   };
 
