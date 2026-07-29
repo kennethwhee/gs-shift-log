@@ -29083,20 +29083,23 @@ function parseOperationStatusRowsForDisplay(
       .trim();
 
 
+  const savedOperationItems =
+    Array.isArray(
+      log?.operationItems
+    )
+      ? log.operationItems
+      : (
+          Array.isArray(
+            log?.items
+          )
+            ? log.items
+            : []
+        );
+
+
   if (
     !sourceText &&
-    !(
-      Array.isArray(
-        log?.operationItems
-      ) &&
-      log.operationItems.length
-    ) &&
-    !(
-      Array.isArray(
-        log?.items
-      ) &&
-      log.items.length
-    )
+    !savedOperationItems.length
   ) {
     return [];
   }
@@ -29139,23 +29142,243 @@ function parseOperationStatusRowsForDisplay(
   }
 
 
-  const savedOperationItems =
-    Array.isArray(
-      log?.operationItems
-    )
-      ? log.operationItems
-      : (
-          Array.isArray(
-            log?.items
-          )
-            ? log.items
-            : []
+  /*
+    설비명 비교용 문자열 생성
+
+    공백·특수문자·대소문자 차이를 제거한다.
+  */
+  const normalizeEquipmentText =
+    value => {
+      return String(
+        value ||
+        ""
+      )
+        .toLowerCase()
+        .replace(
+          /[^a-z0-9가-힣]+/gi,
+          ""
         );
+    };
 
 
   /*
-    과거 원문에 실제 운전현황이
-    몇 줄 저장되어 있는지 확인한다.
+    내용 안에 설비 정보가 이미 포함되어 있는지 확인한다.
+
+    예:
+    설비명: 1호기 주보일러
+    내용: #1 BLR 정상 운전 중
+
+    위 경우에는 설비명을 다시 붙이지 않는다.
+  */
+  const isEquipmentAlreadyIncluded =
+    (
+      equipmentName,
+      operationContent
+    ) => {
+      const equipmentKey =
+        normalizeEquipmentText(
+          equipmentName
+        );
+
+
+      const contentKey =
+        normalizeEquipmentText(
+          operationContent
+        );
+
+
+      if (
+        !equipmentKey ||
+        !contentKey
+      ) {
+        return false;
+      }
+
+
+      if (
+        contentKey.includes(
+          equipmentKey
+        )
+      ) {
+        return true;
+      }
+
+
+      let aliases = [];
+
+
+      if (
+        equipmentKey.includes(
+          "터빈"
+        ) ||
+        equipmentKey.includes(
+          "turbine"
+        ) ||
+        equipmentKey.includes(
+          "tbn"
+        )
+      ) {
+        aliases = [
+          "터빈",
+          "turbine",
+          "tbn",
+          "gtst",
+          "gt",
+          "st"
+        ];
+      }
+
+
+      else if (
+        equipmentKey.includes(
+          "1호기주보일러"
+        ) ||
+        equipmentKey.includes(
+          "1주보일러"
+        ) ||
+        equipmentKey.includes(
+          "1blr"
+        )
+      ) {
+        aliases = [
+          "1호기",
+          "1주보일러",
+          "1blr",
+          "blr1",
+          "1boiler",
+          "boiler1"
+        ];
+      }
+
+
+      else if (
+        equipmentKey.includes(
+          "2호기주보일러"
+        ) ||
+        equipmentKey.includes(
+          "2주보일러"
+        ) ||
+        equipmentKey.includes(
+          "2blr"
+        )
+      ) {
+        aliases = [
+          "2호기",
+          "2주보일러",
+          "2blr",
+          "blr2",
+          "2boiler",
+          "boiler2"
+        ];
+      }
+
+
+      else if (
+        equipmentKey.includes(
+          "3호기보조보일러"
+        ) ||
+        equipmentKey.includes(
+          "3보조보일러"
+        )
+      ) {
+        aliases = [
+          "3호기보조보일러",
+          "3보조보일러",
+          "3auxboiler",
+          "3aux"
+        ];
+      }
+
+
+      else if (
+        equipmentKey.includes(
+          "4호기보조보일러"
+        ) ||
+        equipmentKey.includes(
+          "4보조보일러"
+        )
+      ) {
+        aliases = [
+          "4호기보조보일러",
+          "4보조보일러",
+          "4auxboiler",
+          "4aux"
+        ];
+      }
+
+
+      return aliases.some(
+        alias => {
+          return contentKey.includes(
+            normalizeEquipmentText(
+              alias
+            )
+          );
+        }
+      );
+    };
+
+
+  /*
+    상세보기에 표시할 최종 내용 생성
+
+    - 내용에 설비 정보가 없으면:
+      설비명 : 내용
+
+    - 내용에 설비 정보가 이미 있으면:
+      내용만 표시
+  */
+  const createDisplayContent =
+    (
+      equipmentName,
+      operationContent
+    ) => {
+      const safeEquipmentName =
+        String(
+          equipmentName ||
+          ""
+        ).trim();
+
+
+      const safeOperationContent =
+        String(
+          operationContent ||
+          ""
+        ).trim();
+
+
+      if (
+        !safeEquipmentName
+      ) {
+        return safeOperationContent;
+      }
+
+
+      if (
+        !safeOperationContent
+      ) {
+        return safeEquipmentName;
+      }
+
+
+      if (
+        isEquipmentAlreadyIncluded(
+          safeEquipmentName,
+          safeOperationContent
+        )
+      ) {
+        return safeOperationContent;
+      }
+
+
+      return (
+        `${safeEquipmentName} : ${safeOperationContent}`
+      );
+    };
+
+
+  /*
+    과거 원문에 저장된 실제 운전현황 줄 수를 확인한다.
   */
   const sourceOperationLineCount =
     sourceText
@@ -29187,10 +29410,10 @@ function parseOperationStatusRowsForDisplay(
 
 
   /*
-    저장된 설비별 배열을 사용할 때도
-    화면에는 사용자가 입력한 내용만 표시한다.
+    일반 보직의 저장된 설비 배열을 사용한다.
 
-    설비명은 상태 판정과 내부 데이터에는 유지한다.
+    과거 원문은 여러 줄인데 배열에는 첫 줄만 남은 경우,
+    배열을 사용하지 않고 아래 원문 분석으로 넘어간다.
   */
   if (
     savedOperationItems.length &&
@@ -29240,19 +29463,15 @@ function parseOperationStatusRowsForDisplay(
               normalizedLogRole,
 
             type:
-              inferOperationStatusTypeFromText(
-                [
-                  equipmentName,
-                  operationContent
-                ].join(" ")
+              normalizeOperationStatusType(
+                normalizedItem.type
               ),
 
-            /*
-              상세보기에는 설비명을 앞에 붙이지 않는다.
-            */
             content:
-              operationContent ||
-              equipmentName,
+              createDisplayContent(
+                equipmentName,
+                operationContent
+              ),
 
             equipmentName,
 
@@ -29303,8 +29522,8 @@ function parseOperationStatusRowsForDisplay(
 
 
   /*
-    과거 문자열 자료도 설비명과 내용을 분리한 뒤
-    화면에는 실제 운전 내용만 표시한다.
+    과거 문자열 한 줄을
+    설비명과 운전 내용으로 분리한다.
   */
   const createOperationRow =
     (
@@ -29381,12 +29600,11 @@ function parseOperationStatusRowsForDisplay(
             ].join(" ")
           ),
 
-        /*
-          설비명을 합치지 않고
-          입력된 운전현황 내용만 표시한다.
-        */
         content:
-          operationContent,
+          createDisplayContent(
+            equipmentName,
+            operationContent
+          ),
 
         equipmentName,
 
@@ -29399,7 +29617,7 @@ function parseOperationStatusRowsForDisplay(
 
 
   /*
-    파트장 및 기존 설비형 운전현황 분석
+    파트장 및 과거 설비형 운전현황 분석
   */
   sourceLines.forEach(
     sourceLine => {
@@ -29416,7 +29634,6 @@ function parseOperationStatusRowsForDisplay(
           normalizeMemberLogRole(
             roleMatch[1]
           );
-
 
         return;
       }
@@ -29435,23 +29652,16 @@ function parseOperationStatusRowsForDisplay(
 
 
       if (
-        !createdRow
-      ) {
-        return;
-      }
-
-
-      rows.push(
         createdRow
-      );
+      ) {
+        rows.push(
+          createdRow
+        );
+      }
     }
   );
 
 
-  /*
-    분석 결과가 없는 예외 자료는
-    원문 전체를 한 행으로 유지한다.
-  */
   if (
     !rows.length
   ) {
