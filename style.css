@@ -30910,3 +30910,298 @@ input:checked
       100%;
   }
 }
+
+/* =========================================================
+   전체공지 가독성 개선
+========================================================= */
+
+/* 공지 카드 전체 */
+.global-notice-card {
+  padding: 18px 20px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #d7dee8;
+  box-shadow: 0 3px 10px rgba(15, 35, 65, 0.06);
+}
+
+/* 공지 카드 상단 */
+.global-notice-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+/* 중요도 + 제목 묶음 */
+.global-notice-card-title-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* 공지 제목 */
+.global-notice-card-title {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.45;
+  color: #172033;
+  letter-spacing: -0.02em;
+  word-break: break-word;
+}
+
+/* 중요도 배지 */
+.global-notice-priority-badge {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* 진행상태 배지 */
+.global-notice-status-badge {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* 기간 */
+.global-notice-card-period {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #5e6b7d;
+}
+
+/* 기간 라벨 */
+.global-notice-card-period-label {
+  color: #7d8898;
+}
+
+/* 공지 본문 */
+.global-notice-card-content {
+  margin-top: 4px;
+  padding: 14px 16px;
+  border-radius: 9px;
+  background: #f7f9fc;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.75;
+  color: #263247;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 첨부파일 영역 */
+.global-notice-card-attachments {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* 첨부파일 제목 */
+.global-notice-card-attachments-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #536176;
+}
+
+/* 첨부파일 링크 */
+.global-notice-attachment-link {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid #d9e1ec;
+  border-radius: 7px;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  color: #245da8;
+  text-decoration: none;
+}
+
+.global-notice-attachment-link:hover {
+  background: #eef5ff;
+  border-color: #b8ccec;
+}
+
+/* 작성자 및 작성일 */
+.global-notice-card-meta {
+  margin-top: 14px;
+  padding-top: 11px;
+  border-top: 1px solid #e2e7ee;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #687588;
+}
+
+/* 수정/삭제 버튼 */
+.global-notice-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.global-notice-card-actions button {
+  min-width: 48px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* 중요 공지 */
+.global-notice-card[data-priority="important"] {
+  border-color: #e2ad38;
+  border-left: 5px solid #d89a12;
+  background: #fffdf7;
+}
+
+.global-notice-card[data-priority="important"]
+.global-notice-card-content {
+  background: #fff8e7;
+}
+
+/* 긴급 공지 */
+.global-notice-card[data-priority="urgent"] {
+  border-color: #e06868;
+  border-left: 5px solid #d83d3d;
+  background: #fffafa;
+}
+
+.global-notice-card[data-priority="urgent"]
+.global-notice-card-content {
+  background: #fff0f0;
+}
+
+/* 일반 공지 */
+.global-notice-card[data-priority="normal"] {
+  border-left: 5px solid #5c89c7;
+}
+
+/* 모바일 */
+@media (max-width: 768px) {
+  .global-notice-card {
+    padding: 15px 14px;
+  }
+
+  .global-notice-card-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .global-notice-card-actions {
+    align-self: flex-end;
+  }
+
+  .global-notice-card-title {
+    font-size: 16px;
+  }
+
+  .global-notice-card-content {
+    padding: 13px 14px;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+}
+
+/* =========================================================
+   업무일지 작성창 입력 가독성 개선
+========================================================= */
+
+/* 업무내용 입력 textarea */
+#memberLogModal textarea,
+#shiftLogModal textarea,
+#editLogModal textarea,
+.member-log-modal textarea,
+.shift-log-modal textarea,
+.daily-log-modal textarea {
+  min-height: 92px;
+  padding: 14px 16px;
+
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.75;
+
+  color: #172033;
+  background: #ffffff;
+
+  border: 1px solid #8fb8eb;
+  border-radius: 7px;
+
+  resize: vertical;
+  letter-spacing: -0.01em;
+  word-break: break-word;
+}
+
+/* 입력 중 포커스 */
+#memberLogModal textarea:focus,
+#shiftLogModal textarea:focus,
+#editLogModal textarea:focus,
+.member-log-modal textarea:focus,
+.shift-log-modal textarea:focus,
+.daily-log-modal textarea:focus {
+  outline: none;
+  border-color: #2468bd;
+  box-shadow: 0 0 0 3px rgba(36, 104, 189, 0.12);
+}
+
+/* 안내문 placeholder */
+#memberLogModal textarea::placeholder,
+#shiftLogModal textarea::placeholder,
+#editLogModal textarea::placeholder,
+.member-log-modal textarea::placeholder,
+.shift-log-modal textarea::placeholder,
+.daily-log-modal textarea::placeholder {
+  font-size: 14px;
+  font-weight: 500;
+  color: #8a96a8;
+}
+
+/* 입력창 아래 안내문 */
+#memberLogModal textarea + small,
+#shiftLogModal textarea + small,
+#editLogModal textarea + small,
+.member-log-modal textarea + small,
+.shift-log-modal textarea + small,
+.daily-log-modal textarea + small {
+  display: block;
+  margin-top: 7px;
+
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #657286;
+}
+
+/* 모바일에서도 너무 작아지지 않도록 */
+@media (max-width: 768px) {
+  #memberLogModal textarea,
+  #shiftLogModal textarea,
+  #editLogModal textarea,
+  .member-log-modal textarea,
+  .shift-log-modal textarea,
+  .daily-log-modal textarea {
+    min-height: 110px;
+    padding: 13px 14px;
+    font-size: 16px;
+    line-height: 1.7;
+  }
+}
