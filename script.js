@@ -42205,6 +42205,42 @@ canCurrentUserEditShiftLog =
     }
 
 
+    /*
+      최고관리자
+
+      - 신규 업무일지는 모든 보직과 상태 수정 가능
+      - 관리 가능한 과거 업무일지만 수정 가능
+    */
+    if (
+      isCurrentUserSuperAdmin()
+    ) {
+      if (
+        isReadOnlyLegacyShiftLog(
+          log
+        )
+      ) {
+        return isSuperAdminManageableLegacyLog(
+          log
+        );
+      }
+
+
+      return true;
+    }
+
+
+    /*
+      일반 계정은 과거 연동 업무일지 수정 불가
+    */
+    if (
+      isReadOnlyLegacyShiftLog(
+        log
+      )
+    ) {
+      return false;
+    }
+
+
     const currentUser =
       getCurrentShiftLogUserIdentity();
 
@@ -42232,52 +42268,14 @@ canCurrentUserEditShiftLog =
 
 
     /*
-      최고관리자
-
-      - 신규 업무일지는 모든 보직 수정 가능
-      - 과거 연동 일지는 관리 가능한 자료만 수정 가능
-    */
-    if (
-      isCurrentUserSuperAdmin()
-    ) {
-      if (
-        isReadOnlyLegacyShiftLog(
-          log
-        )
-      ) {
-        return isSuperAdminManageableLegacyLog(
-          log
-        );
-      }
-
-
-      return true;
-    }
-
-
-    const isLeaderUser =
-      isCurrentShiftLogLeader();
-
-
-    /*
-      일반 파트장 계정
+      파트장 계정
 
       - 본인이 작성한 파트장 업무일지만 수정 가능
-      - TGO·BCO1·BCO2·TO·BO1·BO2 수정 불가
-      - 과거 연동 일지 수정 불가
+      - 일반 보직 업무일지는 수정 불가
     */
     if (
-      isLeaderUser
+      isCurrentShiftLogLeader()
     ) {
-      if (
-        isReadOnlyLegacyShiftLog(
-          log
-        )
-      ) {
-        return false;
-      }
-
-
       return (
         normalizedLogRole ===
           "파트장" &&
@@ -42289,18 +42287,6 @@ canCurrentUserEditShiftLog =
         normalizedStatus ===
           "저장완료"
       );
-    }
-
-
-    /*
-      일반회원은 과거 연동 일지 수정 불가
-    */
-    if (
-      isReadOnlyLegacyShiftLog(
-        log
-      )
-    ) {
-      return false;
     }
 
 
@@ -42326,16 +42312,23 @@ canCurrentUserEditShiftLog =
 
 
     /*
-      일반회원은 다른 일반 보직의
-      작성중 일지를 이어쓰기 가능
+      일반 보직 업무일지는 작성자와 관계없이
+
+      - 임시저장(작성중): 수정 가능
+      - 결재요청: 결재완료 전까지 수정 가능
+      - 결재완료: 수정 불가
     */
     return (
       editableMemberRoles.includes(
         normalizedLogRole
       ) &&
 
-      normalizedStatus ===
-        "임시저장"
+      [
+        "임시저장",
+        "결재요청"
+      ].includes(
+        normalizedStatus
+      )
     );
   };
 

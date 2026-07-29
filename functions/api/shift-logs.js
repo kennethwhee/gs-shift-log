@@ -851,28 +851,28 @@ function canEditExistingLog(
     );
 
 
-  const isLeaderLog =
+  const logRole =
     normalizeLogRole(
       existingLog.role
-    ) ===
-      "파트장";
+    );
 
 
   /*
-    파트장 업무일지
+    파트장 계정
 
-    - 일반회원 접근·수정 불가
-    - 파트장 계정은 본인이 작성한
-      저장완료 일지만 수정 가능
+    - 본인이 작성한 파트장 업무일지만 수정 가능
+    - 저장완료 상태만 수정 가능
+    - 일반 보직 업무일지는 수정 불가
   */
   if (
-    isLeaderLog
+    user.role ===
+      "admin"
   ) {
     return (
-      isAuthor &&
+      logRole ===
+        "파트장" &&
 
-      user.role ===
-        "admin" &&
+      isAuthor &&
 
       status ===
         "저장완료"
@@ -881,14 +881,45 @@ function canEditExistingLog(
 
 
   /*
-    일반 보직 업무일지
+    일반회원은 파트장 업무일지 수정 불가
+  */
+  if (
+    logRole ===
+      "파트장"
+  ) {
+    return false;
+  }
 
-    - 작성자가 달라도 작성중 일지 수정 가능
-    - 결재요청·결재완료 일지는 수정 불가
+
+  const editableMemberRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  /*
+    일반회원의 일반 보직 업무일지
+
+    - 임시저장: 수정 가능
+    - 결재요청: 결재완료 전까지 수정 가능
+    - 결재완료: 수정 불가
+    - 작성자가 달라도 수정 가능
   */
   return (
-    status ===
-      "임시저장"
+    editableMemberRoles.includes(
+      logRole
+    ) &&
+
+    [
+      "임시저장",
+      "결재요청"
+    ].includes(
+      status
+    )
   );
 }
 
@@ -1067,10 +1098,6 @@ function applySaveRules(
   }
 
 
-  /*
-    수정 가능한 내용은 새로 반영하되,
-    일지의 고유 정보는 기존 값을 유지한다.
-  */
   const log = {
     ...incomingLog,
 
@@ -1098,26 +1125,38 @@ function applySaveRules(
   };
 
 
+  const existingStatus =
+    normalizeStatus(
+      existingLog.status
+    );
+
+
+  const requestedStatus =
+    normalizeStatus(
+      incomingLog.status
+    );
+
+
+  const logRole =
+    normalizeLogRole(
+      existingLog.role
+    );
+
+
+  const isLeaderLog =
+    logRole ===
+      "파트장";
+
+
+  const authorChanged =
+    normalizeEmployeeNo(
+      existingLog.authorId
+    ) !==
+      user.employeeNo;
+
+
   /*
-    다른 사람이 이어서 작성하더라도
-    최초 작성자 정보는 변경하지 않는다.
-  */
-  log.author =
-    existingLog.author ||
-    user.name;
-
-  log.authorId =
-    existingLog.authorId ||
-    user.employeeNo;
-
-  log.authorRole =
-    existingLog.authorRole ||
-    user.role;
-
-
-  /*
-    과거 자료 등에 저장된
-    원 작성자 정보도 그대로 유지한다.
+    기존 최초 작성자 기록은 유지한다.
   */
   log.originalAuthor =
     existingLog.originalAuthor ||
@@ -1132,38 +1171,90 @@ function applySaveRules(
     "";
 
 
-  const existingStatus =
-    normalizeStatus(
-      existingLog.status
-    );
+  /*
+    일반 보직 일지를 다른 사람이 이어서 저장하면
+    기존 작성자를 최초 작성자로 기록한다.
+  */
+  if (
+    !user.isSuperAdmin &&
+    !isLeaderLog &&
+    authorChanged
+  ) {
+    log.originalAuthor =
+      log.originalAuthor ||
+      existingLog.author ||
+      "";
 
+    log.originalAuthorId =
+      log.originalAuthorId ||
+      existingLog.authorId ||
+      "";
 
-  const requestedStatus =
-    normalizeStatus(
-      incomingLog.status
-    );
+    log.originalAuthorRole =
+      log.originalAuthorRole ||
+      existingLog.authorRole ||
+      "";
+  }
 
 
   /*
-    최고관리자 수정에서는
-    기존 상태를 변경하지 않는다.
-
-    상태 변경은 별도의
-    결재·결재취소 기능에서 처리한다.
+    일반 보직 일지는 실제로 저장한 사람을
+    현재 작성자로 변경한다.
   */
   if (
-    user.isSuperAdmin
+    !user.isSuperAdmin &&
+    !isLeaderLog
+  ) {
+    log.author =
+      user.name;
+
+    log.authorId =
+      user.employeeNo;
+
+    log.authorRole =
+      user.role;
+
+  /*
+    최고관리자와 파트장 수정은
+    기존 작성자를 유지한다.
+  */
+  } else {
+    log.author =
+      existingLog.author ||
+      user.name;
+
+    log.authorId =
+      existingLog.authorId ||
+      user.employeeNo;
+
+    log.authorRole =
+      existingLog.authorRole ||
+      user.role;
+  }
+
+
+  /*
+    최고관리자와 파트장 일지는
+    기존 상태를 유지한다.
+  */
+  if (
+    user.isSuperAdmin ||
+    isLeaderLog
   ) {
     log.status =
       existingStatus;
 
   /*
-    일반 보직의 작성중 일지는
-    임시저장 또는 결재요청으로 저장할 수 있다.
+    일반 보직 일지는 결재완료 전까지
+    임시저장과 결재요청 상태로 저장할 수 있다.
   */
   } else if (
-    existingStatus ===
-      "임시저장"
+    [
+      "임시저장",
+      "결재요청"
+    ].includes(
+      existingStatus
+    )
   ) {
     log.status =
       [
@@ -1173,16 +1264,32 @@ function applySaveRules(
         requestedStatus
       )
         ? requestedStatus
-        : "임시저장";
+        : existingStatus;
 
-  /*
-    파트장 저장완료 일지 등은
-    기존 상태를 유지한다.
-  */
   } else {
     log.status =
       existingStatus;
   }
+
+
+  /*
+    마지막으로 저장한 사람도 별도 기록한다.
+  */
+  log.lastModifiedBy =
+    user.name;
+
+  log.lastModifiedById =
+    user.employeeNo;
+
+  log.lastModifiedByRole =
+    user.role;
+
+  log.updatedAt =
+    now;
+
+
+  return log;
+}
 
 
   /*
