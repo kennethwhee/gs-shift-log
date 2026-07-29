@@ -5128,13 +5128,23 @@ async function getPreviousShiftOperationStatus(
     );
 
 
-  const allowedRoles = [
+  const equipmentRoles = [
     "TGO",
     "BCO1",
-    "BCO2",
+    "BCO2"
+  ];
+
+
+  const manualTextRoles = [
     "TO",
     "BO1",
     "BO2"
+  ];
+
+
+  const allowedRoles = [
+    ...equipmentRoles,
+    ...manualTextRoles
   ];
 
 
@@ -5177,10 +5187,10 @@ async function getPreviousShiftOperationStatus(
   };
 
 
-  /* =====================================================
-    업무일지 1건을 운전현황 객체로 변환
-  ====================================================== */
-
+  /*
+    업무일지 1건을
+    전 근무 운전현황 객체로 변환한다.
+  */
   const createPreviousStatusFromLog = (
     sourceLog
   ) => {
@@ -5213,9 +5223,129 @@ async function getPreviousShiftOperationStatus(
           );
 
 
+    const rawContent =
+      String(
+        sourceLog.operationStatus ||
+        sourceLog.operationStatusContent ||
+        ""
+      ).trim();
+
+
     /*
-      신규 설비별 배열과 기존 문자열을
-      모두 getOperationStatusItems()에 전달한다.
+      TO·BO1·BO2는 수기 텍스트 보직이다.
+
+      설비형 분석·번호 매김·재조합을 하지 않고
+      저장된 문자열과 줄바꿈을 그대로 사용한다.
+    */
+    if (
+      manualTextRoles.includes(
+        normalizedRole
+      )
+    ) {
+      const fallbackContent =
+        rawOperationItems
+          .map(
+            item => {
+              if (
+                typeof item ===
+                "string"
+              ) {
+                return item;
+              }
+
+
+              return String(
+                item?.content ||
+                item?.text ||
+                ""
+              );
+            }
+          )
+          .filter(
+            content => {
+              return Boolean(
+                String(
+                  content ||
+                  ""
+                ).trim()
+              );
+            }
+          )
+          .join("\n")
+          .trim();
+
+
+      const manualContent =
+        rawContent ||
+        fallbackContent;
+
+
+      if (
+        !manualContent
+      ) {
+        return null;
+      }
+
+
+      return {
+        role:
+          normalizedRole,
+
+        date:
+          previousContext.date,
+
+        shift:
+          previousContext.shift,
+
+        author:
+          String(
+            sourceLog.author ||
+            ""
+          ).trim(),
+
+        /*
+          수기 운전현황은 상태 배지와
+          설비별 배열을 사용하지 않는다.
+        */
+        type:
+          "normal",
+
+        content:
+          manualContent,
+
+        operationItems:
+          [],
+
+        items:
+          [],
+
+        updatedAt:
+          String(
+            sourceLog.operationStatusUpdatedAt ||
+            sourceLog.updatedAt ||
+            sourceLog.createdAt ||
+            ""
+          ),
+
+        updatedBy:
+          String(
+            sourceLog.operationStatusUpdatedBy ||
+            sourceLog.author ||
+            ""
+          ).trim(),
+
+        createdAt:
+          String(
+            sourceLog.createdAt ||
+            ""
+          )
+      };
+    }
+
+
+    /*
+      TGO·BCO1·BCO2만
+      설비별 운전현황 구조로 변환한다.
     */
     const operationItems =
       getOperationStatusItems({
@@ -5229,11 +5359,7 @@ async function getPreviousShiftOperationStatus(
           rawOperationItems,
 
         content:
-          String(
-            sourceLog.operationStatus ||
-            sourceLog.operationStatusContent ||
-            ""
-          ).trim(),
+          rawContent,
 
         type:
           sourceLog.operationStatusType ||
@@ -5261,14 +5387,6 @@ async function getPreviousShiftOperationStatus(
         );
 
 
-    const rawContent =
-      String(
-        sourceLog.operationStatus ||
-        sourceLog.operationStatusContent ||
-        ""
-      ).trim();
-
-
     const content =
       operationItems.length
         ? serializeOperationStatusItems(
@@ -5277,10 +5395,6 @@ async function getPreviousShiftOperationStatus(
         : rawContent;
 
 
-    /*
-      내용과 설비 항목이 모두 없으면
-      운전현황이 없는 업무일지다.
-    */
     if (
       !content &&
       !operationItems.length
@@ -5322,9 +5436,6 @@ async function getPreviousShiftOperationStatus(
 
       content,
 
-      /*
-        TGO·BCO1·BCO2 설비별 구조
-      */
       operationItems,
 
       items:
@@ -5354,10 +5465,10 @@ async function getPreviousShiftOperationStatus(
   };
 
 
-  /* =====================================================
-    업무일지 배열에서 전 근무 일지 찾기
-  ====================================================== */
-
+  /*
+    업무일지 배열에서 같은 보직의
+    가장 최근 전 근무 일지를 찾는다.
+  */
   const findLatestPreviousStatus = (
     sourceLogs
   ) => {
@@ -5372,9 +5483,7 @@ async function getPreviousShiftOperationStatus(
     const matchedStatuses =
       safeLogs
         .filter(
-          (
-            sourceLog
-          ) => {
+          sourceLog => {
             const sourceDate =
               String(
                 sourceLog?.date ||
@@ -5409,9 +5518,7 @@ async function getPreviousShiftOperationStatus(
           }
         )
         .map(
-          (
-            sourceLog
-          ) => {
+          sourceLog => {
             return createPreviousStatusFromLog(
               sourceLog
             );
@@ -5454,10 +5561,9 @@ async function getPreviousShiftOperationStatus(
   };
 
 
-  /* =====================================================
-    1. 현재 신규 업무일지에서 조회
-  ====================================================== */
-
+  /*
+    1. 현재 불러온 D1 업무일지에서 조회
+  */
   const currentStoredStatus =
     findLatestPreviousStatus(
       appState.logs
@@ -5476,10 +5582,9 @@ async function getPreviousShiftOperationStatus(
   }
 
 
-  /* =====================================================
+  /*
     2. D1 과거 업무일지에서 조회
-  ====================================================== */
-
+  */
   const legacyLogs =
     await loadLegacyLogsForOperationStatusDate(
       previousContext.date
@@ -12569,8 +12674,7 @@ function loadOperationStatusByRole(
   options = {}
 ) {
   const {
-    allowLegacyFallback =
-      false
+    allowLegacyFallback = false
   } = options;
 
 
@@ -12578,6 +12682,235 @@ function loadOperationStatusByRole(
     normalizeMemberLogRole(
       role
     );
+
+
+  const manualTextRoles = [
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  const isManualTextRole =
+    manualTextRoles.includes(
+      normalizedRole
+    );
+
+
+  /*
+    저장자료를 현재 보직의 운전현황으로 변환한다.
+  */
+  const createLoadedStatus = (
+    sourceStatus
+  ) => {
+    const safeStatus =
+      sourceStatus &&
+      typeof sourceStatus ===
+        "object"
+        ? sourceStatus
+        : {};
+
+
+    /*
+      TO·BO1·BO2는 수기 텍스트 그대로 사용한다.
+
+      과거 코드에서 잘못 생성된 operationItems가 있으면
+      설비 번호를 제거하고 원래 내용으로 복원한다.
+    */
+    if (
+      isManualTextRole
+    ) {
+      const savedItems =
+        Array.isArray(
+          safeStatus.operationItems
+        )
+          ? safeStatus.operationItems
+          : (
+              Array.isArray(
+                safeStatus.items
+              )
+                ? safeStatus.items
+                : []
+            );
+
+
+      const recoveredContent =
+        savedItems
+          .map(
+            item => {
+              if (
+                typeof item ===
+                "string"
+              ) {
+                return item;
+              }
+
+
+              const itemName =
+                String(
+                  item?.name ||
+                  ""
+                ).trim();
+
+
+              const itemContent =
+                String(
+                  item?.content ||
+                  item?.text ||
+                  ""
+                ).trim();
+
+
+              /*
+                수기 문장을 설비형으로 잘못 분석하면서
+                생성된 "설비 1", "설비 2"는 제거한다.
+              */
+              if (
+                /^설비\s*\d+$/u.test(
+                  itemName
+                )
+              ) {
+                return itemContent;
+              }
+
+
+              if (
+                itemName &&
+                itemContent
+              ) {
+                return `${itemName} : ${itemContent}`;
+              }
+
+
+              return (
+                itemContent ||
+                itemName
+              );
+            }
+          )
+          .filter(
+            content => {
+              return Boolean(
+                String(
+                  content ||
+                  ""
+                ).trim()
+              );
+            }
+          )
+          .join("\n")
+          .trim();
+
+
+      const manualContent =
+        String(
+          recoveredContent ||
+          safeStatus.content ||
+          getDefaultOperationStatusContent(
+            normalizedRole
+          )
+        )
+          .replace(
+            /\r\n/g,
+            "\n"
+          )
+          .replace(
+            /\r/g,
+            "\n"
+          )
+          .trim();
+
+
+      return {
+        role:
+          normalizedRole,
+
+        type:
+          "normal",
+
+        content:
+          manualContent,
+
+        operationItems:
+          [],
+
+        items:
+          [],
+
+        updatedAt:
+          String(
+            safeStatus.updatedAt ||
+            ""
+          ),
+
+        updatedBy:
+          String(
+            safeStatus.updatedBy ||
+            ""
+          ).trim()
+      };
+    }
+
+
+    /*
+      TGO·BCO1·BCO2는 기존 설비형 구조를 유지한다.
+    */
+    const operationItems =
+      getOperationStatusItems(
+        safeStatus
+      );
+
+
+    const content =
+      operationItems.length
+        ? serializeOperationStatusItems(
+            operationItems
+          )
+        : String(
+            safeStatus.content ||
+            getDefaultOperationStatusContent(
+              normalizedRole
+            )
+          ).trim();
+
+
+    const representativeType =
+      operationItems.length
+        ? getRepresentativeOperationStatusType(
+            operationItems
+          )
+        : normalizeOperationStatusType(
+            safeStatus.type
+          );
+
+
+    return {
+      role:
+        normalizedRole,
+
+      type:
+        representativeType,
+
+      content,
+
+      operationItems,
+
+      items:
+        operationItems,
+
+      updatedAt:
+        String(
+          safeStatus.updatedAt ||
+          ""
+        ),
+
+      updatedBy:
+        String(
+          safeStatus.updatedBy ||
+          ""
+        ).trim()
+    };
+  };
 
 
   const storageKey =
@@ -12596,74 +12929,15 @@ function loadOperationStatusByRole(
     savedValue
   ) {
     try {
-      const parsedValue =
+      return createLoadedStatus(
         JSON.parse(
           savedValue
-        );
+        )
+      );
 
-
-      const operationItems =
-        getOperationStatusItems(
-          parsedValue
-        );
-
-
-      const content =
-        operationItems.length
-          ? serializeOperationStatusItems(
-              operationItems
-            )
-          : String(
-              parsedValue.content ||
-              getDefaultOperationStatusContent(
-                normalizedRole
-              )
-            ).trim();
-
-
-      const representativeType =
-        operationItems.length
-          ? getRepresentativeOperationStatusType(
-              operationItems
-            )
-          : normalizeOperationStatusType(
-              parsedValue.type
-            );
-
-
-      return {
-        role:
-          normalizedRole,
-
-
-        type:
-          representativeType,
-
-
-        content,
-
-
-        operationItems,
-
-        items:
-          operationItems,
-
-
-        updatedAt:
-          String(
-            parsedValue.updatedAt ||
-            ""
-          ),
-
-
-        updatedBy:
-          String(
-            parsedValue.updatedBy ||
-            ""
-          ).trim()
-      };
-
-    } catch (error) {
+    } catch (
+      error
+    ) {
       console.error(
         `${normalizedRole} 운전현황 불러오기 실패:`,
         error
@@ -12685,89 +12959,21 @@ function loadOperationStatusByRole(
     if (
       legacyStatus?.content
     ) {
-      const operationItems =
-        getOperationStatusItems(
-          legacyStatus
-        );
-
-
-      const content =
-        operationItems.length
-          ? serializeOperationStatusItems(
-              operationItems
-            )
-          : String(
-              legacyStatus.content ||
-              ""
-            ).trim();
-
-
-      const representativeType =
-        operationItems.length
-          ? getRepresentativeOperationStatusType(
-              operationItems
-            )
-          : normalizeOperationStatusType(
-              legacyStatus.type
-            );
-
-
-      return {
-        role:
-          normalizedRole,
-
-
-        type:
-          representativeType,
-
-
-        content,
-
-
-        operationItems,
-
-        items:
-          operationItems,
-
-
-        updatedAt:
-          String(
-            legacyStatus.updatedAt ||
-            ""
-          ),
-
-
-        updatedBy:
-          String(
-            legacyStatus.updatedBy ||
-            ""
-          ).trim()
-      };
+      return createLoadedStatus(
+        legacyStatus
+      );
     }
   }
 
 
-  const defaultStatus =
+  /*
+    저장자료가 없으면 보직별 기본값 사용
+  */
+  return createLoadedStatus(
     createDefaultOperationStatus(
       normalizedRole
-    );
-
-
-  const defaultItems =
-    getOperationStatusItems(
-      defaultStatus
-    );
-
-
-  return {
-    ...defaultStatus,
-
-    operationItems:
-      defaultItems,
-
-    items:
-      defaultItems
-  };
+    )
+  );
 }
 
 
@@ -12795,6 +13001,85 @@ function saveOperationStatusByRole(
     );
 
 
+  const manualTextRoles = [
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  /*
+    TO·BO1·BO2는 줄바꿈을 포함한
+    수기 원문만 그대로 저장한다.
+  */
+  if (
+    manualTextRoles.includes(
+      normalizedRole
+    )
+  ) {
+    const manualContent =
+      String(
+        status?.content ||
+        ""
+      )
+        .replace(
+          /\r\n/g,
+          "\n"
+        )
+        .replace(
+          /\r/g,
+          "\n"
+        )
+        .trim();
+
+
+    const safeStatus = {
+      role:
+        normalizedRole,
+
+      type:
+        "normal",
+
+      content:
+        manualContent,
+
+      operationItems:
+        [],
+
+      items:
+        [],
+
+      updatedAt:
+        String(
+          status?.updatedAt ||
+          new Date().toISOString()
+        ),
+
+      updatedBy:
+        String(
+          status?.updatedBy ||
+          ""
+        ).trim()
+    };
+
+
+    localStorage.setItem(
+      getOperationStatusStorageKey(
+        normalizedRole
+      ),
+      JSON.stringify(
+        safeStatus
+      )
+    );
+
+
+    return safeStatus;
+  }
+
+
+  /*
+    TGO·BCO1·BCO2는 기존 설비형 방식 유지
+  */
   const operationItems =
     getOperationStatusItems(
       status
@@ -12836,36 +13121,22 @@ function saveOperationStatusByRole(
     role:
       normalizedRole,
 
-
-    /*
-      기존 코드 호환용 대표 상태
-    */
     type:
       representativeType,
 
-
-    /*
-      기존 상세보기·검색 호환 문자열
-    */
     content:
       serializedContent,
 
-
-    /*
-      신규 설비별 운전현황 구조
-    */
     operationItems,
 
     items:
       operationItems,
-
 
     updatedAt:
       String(
         status?.updatedAt ||
         new Date().toISOString()
       ),
-
 
     updatedBy:
       String(
@@ -12879,7 +13150,6 @@ function saveOperationStatusByRole(
     getOperationStatusStorageKey(
       normalizedRole
     ),
-
     JSON.stringify(
       safeStatus
     )
@@ -14427,16 +14697,201 @@ elements.leaderOperationStatusList.innerHTML =
   현재 보직 운전현황 새로고침
 ========================================================= */
 
-function refreshOperationStatusForCurrentRole() {
+async function refreshOperationStatusForCurrentRole() {
   closeOperationStatusEditor();
 
-  loadOperationStatus();
+  const currentRole =
+    getCurrentOperationStatusRole();
+
+  const currentDate =
+    String(
+      elements.logDate?.value ||
+      ""
+    ).trim();
+
+  const currentShift =
+    String(
+      elements.logShift?.value ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+  const manualTextRoles = [
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+  /*
+    먼저 현재 날짜·근무·보직에
+    저장된 운전현황을 불러온다.
+  */
+  const loadedStatus =
+    loadOperationStatus();
 
   renderOperationStatusCard();
-
   updateOperationStatusRoleTitles();
-}
 
+  /*
+    TGO·BCO1·BCO2·파트장은
+    기존 운전현황 방식을 그대로 사용한다.
+  */
+  if (
+    !manualTextRoles.includes(
+      currentRole
+    )
+  ) {
+    return;
+  }
+
+  /*
+    현재 근무에서 이미 저장한 내용이 있으면
+    전 근무 내용으로 덮어쓰지 않는다.
+  */
+  const hasCurrentSavedStatus =
+    Boolean(
+      String(
+        loadedStatus?.updatedAt ||
+        ""
+      ).trim()
+    );
+
+  if (
+    hasCurrentSavedStatus ||
+    !currentDate ||
+    !currentShift
+  ) {
+    return;
+  }
+
+  /*
+    비동기 조회 중 보직·날짜·근무가 바뀌는 경우
+    이전 조회 결과가 잘못 적용되지 않게 확인한다.
+  */
+  const requestedContextKey = [
+    currentRole,
+    currentDate,
+    currentShift
+  ].join("||");
+
+  try {
+    const previousStatus =
+      await getPreviousShiftOperationStatus(
+        currentRole,
+        currentDate,
+        currentShift
+      );
+
+    const latestContextKey = [
+      getCurrentOperationStatusRole(),
+
+      String(
+        elements.logDate?.value ||
+        ""
+      ).trim(),
+
+      String(
+        elements.logShift?.value ||
+        ""
+      )
+        .trim()
+        .toUpperCase()
+    ].join("||");
+
+    if (
+      requestedContextKey !==
+      latestContextKey
+    ) {
+      return;
+    }
+
+    const previousContent =
+      String(
+        previousStatus?.content ||
+        ""
+      )
+        .replace(
+          /\r\n/g,
+          "\n"
+        )
+        .replace(
+          /\r/g,
+          "\n"
+        )
+        .trim();
+
+    if (
+      !previousContent
+    ) {
+      return;
+    }
+
+    /*
+      전 근무 수기 원문을 화면에만 임시 적용한다.
+
+      운전현황 저장 버튼을 누르기 전까지는
+      현재 근무의 저장값으로 확정하지 않는다.
+    */
+    appState.currentOperationStatus = {
+      role:
+        currentRole,
+
+      type:
+        "normal",
+
+      content:
+        previousContent,
+
+      operationItems:
+        [],
+
+      items:
+        [],
+
+      updatedAt:
+        "",
+
+      updatedBy:
+        "",
+
+      inheritedFromDate:
+        String(
+          previousStatus.date ||
+          ""
+        ).trim(),
+
+      inheritedFromShift:
+        String(
+          previousStatus.shift ||
+          ""
+        )
+          .trim()
+          .toUpperCase(),
+
+      inheritedFromAuthor:
+        String(
+          previousStatus.author ||
+          ""
+        ).trim(),
+
+      inheritedFromSource:
+        String(
+          previousStatus.source ||
+          ""
+        ).trim()
+    };
+
+    renderOperationStatusCard();
+    updateOperationStatusRoleTitles();
+
+  } catch (error) {
+    console.error(
+      `${currentRole} 전 근무 운전현황 자동 표시 실패:`,
+      error
+    );
+  }
+}
 /* =========================================================
   설비별 운전현황 편집 UI
 
