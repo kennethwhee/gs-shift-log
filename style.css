@@ -22586,3 +22586,364 @@ td {
     min-width: 96px !important;
   }
 }
+
+/* =========================================================
+  컴팩트 확인 팝업
+
+  브라우저 기본 confirm 대신
+  업무일지 화면 가운데에 표시되는 전용 확인창
+========================================================= */
+
+.compact-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+
+  z-index: 99999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+
+  background:
+    rgba(15, 23, 42, 0.34);
+
+  opacity: 0;
+  visibility: hidden;
+
+  transition:
+    opacity 0.13s ease,
+    visibility 0.13s ease;
+}
+
+
+.compact-confirm-backdrop.is-open {
+  opacity: 1;
+  visibility: visible;
+}
+
+
+/* =========================================================
+  팝업 본체
+========================================================= */
+
+.compact-confirm-dialog {
+  display: grid;
+
+  grid-template-columns:
+    38px
+    minmax(0, 1fr);
+
+  width: min(
+    320px,
+    calc(100vw - 40px)
+  );
+
+  padding:
+    17px
+    17px
+    14px;
+
+  border:
+    1px solid
+    #d4dde8;
+
+  border-radius:
+    13px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0 18px 48px
+    rgba(15, 23, 42, 0.22);
+
+  transform:
+    translateY(7px)
+    scale(0.98);
+
+  transition:
+    transform 0.13s ease;
+
+  overflow: hidden;
+}
+
+
+.compact-confirm-backdrop.is-open
+.compact-confirm-dialog {
+  transform:
+    translateY(0)
+    scale(1);
+}
+
+
+/* =========================================================
+  아이콘
+========================================================= */
+
+.compact-confirm-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 30px;
+  height: 30px;
+
+  margin-top: 1px;
+
+  border:
+    1px solid
+    #9ebce0;
+
+  border-radius:
+    50%;
+
+  background:
+    #eef5fd;
+
+  color:
+    #2468ad;
+
+  font-size:
+    15px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+}
+
+
+/* =========================================================
+  제목·설명
+========================================================= */
+
+.compact-confirm-content {
+  min-width: 0;
+
+  padding-top:
+    1px;
+}
+
+
+.compact-confirm-title {
+  display: block;
+
+  margin: 0 0 5px;
+
+  color:
+    #172033;
+
+  font-size:
+    14px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1.35;
+
+  letter-spacing:
+    -0.02em;
+}
+
+
+.compact-confirm-message {
+  margin: 0;
+
+  color:
+    #667085;
+
+  font-size:
+    12px;
+
+  font-weight:
+    600;
+
+  line-height:
+    1.55;
+
+  word-break:
+    keep-all;
+}
+
+
+/* =========================================================
+  버튼 영역
+========================================================= */
+
+.compact-confirm-actions {
+  grid-column:
+    1 /
+    -1;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: flex-end;
+
+  gap:
+    7px;
+
+  margin-top:
+    15px;
+}
+
+
+.compact-confirm-button {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-width:
+    64px;
+
+  height:
+    32px;
+
+  padding:
+    0 14px;
+
+  border-radius:
+    8px;
+
+  font-size:
+    12px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease,
+    color 0.12s ease,
+    transform 0.08s ease;
+}
+
+
+.compact-confirm-button:active {
+  transform:
+    translateY(1px);
+}
+
+
+/* 취소 */
+.compact-confirm-button--cancel {
+  border:
+    1px solid
+    #d5dce5;
+
+  background:
+    #f7f9fb;
+
+  color:
+    #536071;
+}
+
+
+.compact-confirm-button--cancel:hover {
+  border-color:
+    #c2ccd8;
+
+  background:
+    #eef2f6;
+
+  color:
+    #374151;
+}
+
+
+/* 확인·추가 */
+.compact-confirm-button--confirm {
+  border:
+    1px solid
+    #2167aa;
+
+  background:
+    #2167aa;
+
+  color:
+    #ffffff;
+
+  box-shadow:
+    0 3px 8px
+    rgba(33, 103, 170, 0.18);
+}
+
+
+.compact-confirm-button--confirm:hover {
+  border-color:
+    #18578f;
+
+  background:
+    #18578f;
+}
+
+
+/* =========================================================
+  키보드 포커스
+========================================================= */
+
+.compact-confirm-button:focus-visible {
+  outline:
+    3px solid
+    rgba(59, 130, 246, 0.24);
+
+  outline-offset:
+    2px;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 480px) {
+  .compact-confirm-backdrop {
+    padding:
+      16px;
+  }
+
+
+  .compact-confirm-dialog {
+    width:
+      min(
+        300px,
+        calc(100vw - 32px)
+      );
+
+    padding:
+      16px
+      15px
+      13px;
+
+    border-radius:
+      12px;
+  }
+
+
+  .compact-confirm-actions {
+    margin-top:
+      13px;
+  }
+
+
+  .compact-confirm-button {
+    min-width:
+      62px;
+
+    height:
+      32px;
+
+    padding:
+      0 13px;
+  }
+}

@@ -22498,18 +22498,283 @@ function resolveLogEntryTimeAndContent() {
 }
 
 /* =========================================================
-  작업내역 Enter 추가 확인
+  컴팩트 공통 확인창
 
-  내용 입력창에서 Enter를 누르면:
-  1. 기본 줄바꿈을 막는다.
-  2. 추가 여부를 확인한다.
-  3. 확인을 누르면 작업내역을 추가한다.
-
-  Shift + Enter:
-  줄바꿈 입력
+  브라우저 기본 window.confirm 대신
+  화면 중앙에 작은 사용자 지정 확인창을 표시한다.
 ========================================================= */
 
-function confirmAndAddLogEntry() {
+function showCompactConfirm({
+  title = "확인",
+  message = "",
+  confirmText = "확인",
+  cancelText = "취소"
+} = {}) {
+  return new Promise(
+    (resolve) => {
+      /*
+        기존 확인창이 남아 있다면 제거한다.
+      */
+      document
+        .querySelectorAll(
+          ".compact-confirm-backdrop"
+        )
+        .forEach(
+          (element) => {
+            element.remove();
+          }
+        );
+
+
+      const backdrop =
+        document.createElement(
+          "div"
+        );
+
+
+      backdrop.className =
+        "compact-confirm-backdrop";
+
+
+      backdrop.innerHTML = `
+        <section
+          class="compact-confirm-dialog"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="compactConfirmTitle"
+          aria-describedby="compactConfirmMessage"
+        >
+          <div class="compact-confirm-icon">
+            <span>?</span>
+          </div>
+
+          <div class="compact-confirm-content">
+            <strong
+              id="compactConfirmTitle"
+              class="compact-confirm-title"
+            >
+              ${escapeHtml(title)}
+            </strong>
+
+            <p
+              id="compactConfirmMessage"
+              class="compact-confirm-message"
+            >
+              ${escapeHtml(message)}
+            </p>
+          </div>
+
+          <div class="compact-confirm-actions">
+            <button
+              type="button"
+              class="
+                compact-confirm-button
+                compact-confirm-button--cancel
+              "
+              data-compact-confirm-cancel
+            >
+              ${escapeHtml(cancelText)}
+            </button>
+
+            <button
+              type="button"
+              class="
+                compact-confirm-button
+                compact-confirm-button--confirm
+              "
+              data-compact-confirm-approve
+            >
+              ${escapeHtml(confirmText)}
+            </button>
+          </div>
+        </section>
+      `;
+
+
+      document.body.appendChild(
+        backdrop
+      );
+
+
+      const dialog =
+        backdrop.querySelector(
+          ".compact-confirm-dialog"
+        );
+
+
+      const confirmButton =
+        backdrop.querySelector(
+          "[data-compact-confirm-approve]"
+        );
+
+
+      const cancelButton =
+        backdrop.querySelector(
+          "[data-compact-confirm-cancel]"
+        );
+
+
+      let isClosed =
+        false;
+
+
+      const closeConfirm = (
+        result
+      ) => {
+        if (
+          isClosed
+        ) {
+          return;
+        }
+
+
+        isClosed =
+          true;
+
+
+        document.removeEventListener(
+          "keydown",
+          handleKeydown
+        );
+
+
+        backdrop.classList.remove(
+          "is-open"
+        );
+
+
+        window.setTimeout(
+          () => {
+            backdrop.remove();
+
+            resolve(
+              result
+            );
+          },
+          130
+        );
+      };
+
+
+      const handleKeydown = (
+        event
+      ) => {
+        if (
+          event.key ===
+          "Escape"
+        ) {
+          event.preventDefault();
+
+          closeConfirm(
+            false
+          );
+
+          return;
+        }
+
+
+        if (
+          event.key ===
+          "Enter"
+        ) {
+          event.preventDefault();
+
+          closeConfirm(
+            true
+          );
+        }
+      };
+
+
+      confirmButton
+        ?.addEventListener(
+          "click",
+          () => {
+            closeConfirm(
+              true
+            );
+          }
+        );
+
+
+      cancelButton
+        ?.addEventListener(
+          "click",
+          () => {
+            closeConfirm(
+              false
+            );
+          }
+        );
+
+
+      /*
+        팝업 바깥의 어두운 영역을 누르면 취소한다.
+      */
+      backdrop.addEventListener(
+        "mousedown",
+        (event) => {
+          if (
+            event.target ===
+            backdrop
+          ) {
+            closeConfirm(
+              false
+            );
+          }
+        }
+      );
+
+
+      /*
+        팝업 내부를 클릭했을 때
+        바깥 영역 클릭으로 처리되지 않도록 한다.
+      */
+      dialog
+        ?.addEventListener(
+          "mousedown",
+          (event) => {
+            event.stopPropagation();
+          }
+        );
+
+
+      document.addEventListener(
+        "keydown",
+        handleKeydown
+      );
+
+
+      /*
+        DOM에 추가한 다음 열림 효과를 적용한다.
+      */
+      window.requestAnimationFrame(
+        () => {
+          backdrop.classList.add(
+            "is-open"
+          );
+
+
+          confirmButton
+            ?.focus();
+        }
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+  작업내역 Enter 추가 확인
+
+  Enter:
+  컴팩트 확인창 표시
+
+  Shift + Enter:
+  줄바꿈 유지
+========================================================= */
+
+async function confirmAndAddLogEntry() {
   const rawContent =
     String(
       elements.logEntryContent
@@ -22518,37 +22783,55 @@ function confirmAndAddLogEntry() {
     ).trim();
 
 
-  if (!rawContent) {
+  if (
+    !rawContent
+  ) {
     showToast(
       "작업 내용을 입력해 주세요."
     );
 
+
     elements.logEntryContent
       ?.focus();
+
 
     return;
   }
 
 
   const isEditing =
-    appState.editingEntryIndex >= 0;
-
-
-  const confirmMessage =
-    isEditing
-      ? "내역을 수정하시겠습니까?"
-      : "내역을 추가하시겠습니까?";
+    appState.editingEntryIndex >=
+    0;
 
 
   const shouldContinue =
-    window.confirm(
-      confirmMessage
-    );
+    await showCompactConfirm({
+      title:
+        isEditing
+          ? "내역 수정"
+          : "내역 추가",
+
+      message:
+        isEditing
+          ? "입력한 내용으로 수정할까요?"
+          : "입력한 내용을 추가할까요?",
+
+      confirmText:
+        isEditing
+          ? "수정"
+          : "추가",
+
+      cancelText:
+        "취소"
+    });
 
 
-  if (!shouldContinue) {
+  if (
+    !shouldContinue
+  ) {
     elements.logEntryContent
       ?.focus();
+
 
     return;
   }
