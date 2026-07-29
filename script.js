@@ -25584,258 +25584,78 @@ function collectLogEntriesForDisplay(log) {
       }
     );
 
-  const isSameDisplayedEntry = (
-    firstEntry,
-    secondEntry
-  ) => {
-    if (
-      normalizeMemberLogRole(
-        firstEntry
-          ?.importedFromRole ||
-        ""
-      ) !==
-      normalizeMemberLogRole(
-        secondEntry
-          ?.importedFromRole ||
-        ""
-      )
-    ) {
-      return false;
-    }
-
-    if (
-      getCategoryGroup(
-        firstEntry?.category
-      ) !==
-      getCategoryGroup(
-        secondEntry?.category
-      )
-    ) {
-      return false;
-    }
-
-    const firstTag =
-      String(
-        firstEntry?.tag || ""
-      )
-        .trim()
-        .toUpperCase();
-
-    const secondTag =
-      String(
-        secondEntry?.tag || ""
-      )
-        .trim()
-        .toUpperCase();
-
-    if (
-      firstTag &&
-      secondTag &&
-      firstTag !==
-        secondTag
-    ) {
-      return false;
-    }
-
-    const firstLogId =
-      String(
-        firstEntry
-          ?.importedFromLogId ||
-        ""
-      ).trim();
-
-    const secondLogId =
-      String(
-        secondEntry
-          ?.importedFromLogId ||
-        ""
-      ).trim();
-
-    const firstEntryIndex =
-      firstEntry
-        ?.importedFromEntryIndex;
-
-    const secondEntryIndex =
-      secondEntry
-        ?.importedFromEntryIndex;
-
-    if (
-      firstLogId &&
-      secondLogId &&
-      firstLogId ===
-        secondLogId &&
-      firstEntryIndex !==
-        undefined &&
-      firstEntryIndex !==
-        null &&
-      secondEntryIndex !==
-        undefined &&
-      secondEntryIndex !==
-        null &&
-      Number(
-        firstEntryIndex
-      ) ===
-        Number(
-          secondEntryIndex
-        )
-    ) {
-      return true;
-    }
-
-    return (
-      getEntryContentKey(
-        firstEntry?.content
-      ) ===
-      getEntryContentKey(
-        secondEntry?.content
-      )
-    );
-  };
-
   /*
-    파트장 저장본에 남아 있는
-    과거 취합 항목을 정리한다.
+    파트장 저장본 정리
 
-    - TGO·BCO1·BCO2는 팀원 원본을 사용한다.
-    - TO·BO1·BO2 일반 업무는 제거한다.
-    - TO·BO1·BO2는 TM만 유지한다.
-    - 파트장 일반 업무 구역은 만들지 않는다.
-    - 파트장 저장본의 TM과 비고는 공통 구역에 유지한다.
+    파트장 TM은 저장본에서 다시 가져오지 않고
+    현재 팀원 원본 업무일지만 사용한다.
+
+    유지:
+    - 파트장 저장본의 비고
+
+    제외:
+    - 파트장 저장본의 과거 TM
+    - 과거에 취합된 팀원 업무
+    - 파트장 별도 일반 업무
   */
   const recoveredSavedEntries =
     collectEntriesFromLog(
       log
     )
+      .filter(
+        entry => {
+          return (
+            getCategoryGroup(
+              entry.category
+            ) ===
+            "remark"
+          );
+        }
+      )
       .map(
         (
           entry,
           entryIndex
         ) => {
-          const recoveredEntry = {
-            ...entry
+          return {
+            ...entry,
+
+            category:
+              "비고",
+
+            time:
+              "",
+
+            tag:
+              "",
+
+            importedFromRole:
+              "파트장",
+
+            importedFromAuthor:
+              String(
+                entry.importedFromAuthor ||
+                log.author ||
+                ""
+              ).trim(),
+
+            importedFromLogId:
+              String(
+                entry.importedFromLogId ||
+                log.id ||
+                ""
+              ).trim(),
+
+            importedFromEntryIndex:
+              entry.importedFromEntryIndex ??
+              entryIndex
           };
-
-          const recoveredRole =
-            normalizeMemberLogRole(
-              resolveDetailEntrySourceRole(
-                recoveredEntry,
-                log
-              )
-            );
-
-          recoveredEntry.importedFromRole =
-            recoveredRole;
-
-          recoveredEntry.importedFromAuthor =
-            String(
-              recoveredEntry
-                .importedFromAuthor ||
-              log.author ||
-              ""
-            ).trim();
-
-          recoveredEntry.importedFromLogId =
-            String(
-              recoveredEntry
-                .importedFromLogId ||
-              log.id ||
-              ""
-            ).trim();
-
-          recoveredEntry.importedFromEntryIndex =
-            recoveredEntry
-              .importedFromEntryIndex ??
-            entryIndex;
-
-          return recoveredEntry;
-        }
-      )
-      .filter(
-        entry => {
-          const sourceRole =
-            normalizeMemberLogRole(
-              entry.importedFromRole ||
-              ""
-            );
-
-          const categoryGroup =
-            getCategoryGroup(
-              entry.category
-            );
-
-          /*
-            TGO·BCO1·BCO2 원본이 있으면
-            파트장 저장본의 복사본은 제외한다.
-          */
-          if (
-            fullImportRoles.includes(
-              sourceRole
-            ) &&
-            memberLogMap.has(
-              sourceRole
-            )
-          ) {
-            return false;
-          }
-
-          /*
-            TO·BO1·BO2 일반 업무는
-            파트장 화면에 절대로 표시하지 않는다.
-
-            TM만 유지하되 팀원 원본과 같은 TM이면
-            저장본 복사 항목은 제외한다.
-          */
-          if (
-            tmOnlyRoles.includes(
-              sourceRole
-            )
-          ) {
-            if (
-              categoryGroup !==
-              "tm"
-            ) {
-              return false;
-            }
-
-            return !memberDisplayEntries.some(
-              memberEntry => {
-                return isSameDisplayedEntry(
-                  entry,
-                  memberEntry
-                );
-              }
-            );
-          }
-
-          /*
-            팀원 원본 로그를 찾을 수 없는
-            과거 TGO·BCO1·BCO2 항목은 유지한다.
-          */
-          if (
-            fullImportRoles.includes(
-              sourceRole
-            )
-          ) {
-            return true;
-          }
-
-          /*
-            파트장 업무일지라는
-            별도 일반 업무 구역은 만들지 않는다.
-
-            TM과 비고만 각 공통 구역에 유지한다.
-          */
-          return (
-            categoryGroup ===
-              "tm" ||
-            categoryGroup ===
-              "remark"
-          );
         }
       );
 
   /*
-    TM에만 상·하위 보직 중복 규칙을 적용한다.
+    TM에만 보직 우선순위와
+    중복 제거 규칙을 적용한다.
   */
   const hierarchyFilteredEntries =
     filterLeaderTmEntriesByRoleHierarchy([
