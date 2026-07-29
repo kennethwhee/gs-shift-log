@@ -22740,8 +22740,10 @@ function resolveLogEntryTimeAndContent() {
 /* =========================================================
   컴팩트 공통 확인창
 
-  브라우저 기본 window.confirm 대신
-  화면 중앙에 작은 사용자 지정 확인창을 표시한다.
+  중요:
+  확인창을 연 Enter·클릭 이벤트가
+  새 팝업에 다시 전달되어 즉시 닫히지 않도록
+  키보드 이벤트 등록을 한 박자 늦춘다.
 ========================================================= */
 
 function showCompactConfirm({
@@ -22752,9 +22754,6 @@ function showCompactConfirm({
 } = {}) {
   return new Promise(
     (resolve) => {
-      /*
-        기존 확인창이 남아 있다면 제거한다.
-      */
       document
         .querySelectorAll(
           ".compact-confirm-backdrop"
@@ -22858,6 +22857,14 @@ function showCompactConfirm({
         false;
 
 
+      /*
+        팝업이 열린 직후의 Enter·클릭 이벤트가
+        팝업까지 전달되는 것을 방지한다.
+      */
+      let interactionReady =
+        false;
+
+
       const closeConfirm = (
         result
       ) => {
@@ -22874,7 +22881,8 @@ function showCompactConfirm({
 
         document.removeEventListener(
           "keydown",
-          handleKeydown
+          handleKeydown,
+          true
         );
 
 
@@ -22900,10 +22908,18 @@ function showCompactConfirm({
         event
       ) => {
         if (
+          !interactionReady
+        ) {
+          return;
+        }
+
+
+        if (
           event.key ===
           "Escape"
         ) {
           event.preventDefault();
+          event.stopPropagation();
 
           closeConfirm(
             false
@@ -22918,6 +22934,7 @@ function showCompactConfirm({
           "Enter"
         ) {
           event.preventDefault();
+          event.stopPropagation();
 
           closeConfirm(
             true
@@ -22929,7 +22946,17 @@ function showCompactConfirm({
       confirmButton
         ?.addEventListener(
           "click",
-          () => {
+          (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (
+              !interactionReady
+            ) {
+              return;
+            }
+
+
             closeConfirm(
               true
             );
@@ -22940,7 +22967,17 @@ function showCompactConfirm({
       cancelButton
         ?.addEventListener(
           "click",
-          () => {
+          (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (
+              !interactionReady
+            ) {
+              return;
+            }
+
+
             closeConfirm(
               false
             );
@@ -22948,56 +22985,74 @@ function showCompactConfirm({
         );
 
 
-      /*
-        팝업 바깥의 어두운 영역을 누르면 취소한다.
-      */
       backdrop.addEventListener(
-        "mousedown",
+        "click",
         (event) => {
           if (
-            event.target ===
-            backdrop
+            !interactionReady ||
+            event.target !==
+              backdrop
           ) {
-            closeConfirm(
-              false
-            );
+            return;
           }
+
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          closeConfirm(
+            false
+          );
         }
       );
 
 
-      /*
-        팝업 내부를 클릭했을 때
-        바깥 영역 클릭으로 처리되지 않도록 한다.
-      */
       dialog
         ?.addEventListener(
-          "mousedown",
+          "click",
           (event) => {
             event.stopPropagation();
           }
         );
 
 
-      document.addEventListener(
-        "keydown",
-        handleKeydown
-      );
-
-
-      /*
-        DOM에 추가한 다음 열림 효과를 적용한다.
-      */
       window.requestAnimationFrame(
         () => {
           backdrop.classList.add(
             "is-open"
           );
+        }
+      );
+
+
+      /*
+        현재 진행 중인 Enter 또는 클릭 이벤트가
+        모두 종료된 다음 팝업 조작을 허용한다.
+      */
+      window.setTimeout(
+        () => {
+          if (
+            isClosed
+          ) {
+            return;
+          }
+
+
+          interactionReady =
+            true;
+
+
+          document.addEventListener(
+            "keydown",
+            handleKeydown,
+            true
+          );
 
 
           confirmButton
             ?.focus();
-        }
+        },
+        80
       );
     }
   );
