@@ -8207,15 +8207,6 @@ function parseLegacyDiaryContentLines(
   const parsedEntries = [];
 
 
-  /*
-    숫자 뒤에는 다음 기호만 번호로 인정한다.
-
-    .
-    )
-    -
-
-    콜론(:)은 절대 포함하지 않는다.
-  */
   const numberedLinePattern =
     /^\s*(?:\d+\s*(?:[.)]|-\s+)\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*)(.*)$/;
 
@@ -8236,8 +8227,38 @@ function parseLegacyDiaryContentLines(
 
 
       /*
-        빈 줄은 건너뛴다.
+        과거 시스템의 본문용 첨부 안내문 제거
+
+        제거 예:
+        유첨 : 제목
+        ※ 유첨 : scaled_1
+        * 유첨 : scaled_2 [0000GH1A0A002]
       */
+      const normalizedAttachmentGuideLine =
+        originalLine
+          .normalize(
+            "NFKC"
+          )
+          .replace(
+            /\s+/g,
+            ""
+          )
+          .toLowerCase();
+
+
+      const isLegacyAttachmentGuideLine =
+        /^(?:[※*＊•·-]*)유첨[:：]?(?:제목|scaled(?:[_-]?\d+)?)(?:\[[^\]]*\])?$/.test(
+          normalizedAttachmentGuideLine
+        );
+
+
+      if (
+        isLegacyAttachmentGuideLine
+      ) {
+        return;
+      }
+
+
       if (
         !originalLine
       ) {
@@ -8251,12 +8272,9 @@ function parseLegacyDiaryContentLines(
         );
 
 
-      /* ===================================================
+      /*
         번호가 있는 줄
-
-        새로운 항목 시작
-      ==================================================== */
-
+      */
       if (
         numberedMatch
       ) {
@@ -8280,11 +8298,6 @@ function parseLegacyDiaryContentLines(
           );
 
 
-        /*
-          번호 다음에 시간과 내용이 모두 있는 경우
-
-          4. 08:30 작업 내용
-        */
         if (
           parsedTimeExpression.timeText &&
           parsedTimeExpression.content
@@ -8308,9 +8321,6 @@ function parseLegacyDiaryContentLines(
         }
 
 
-        /*
-          시간 표현이 없는 번호 항목
-        */
         parsedEntries.push({
           time:
             "",
@@ -8324,19 +8334,10 @@ function parseLegacyDiaryContentLines(
       }
 
 
-      /* ===================================================
-        번호가 없는 줄
-
-        무조건 바로 위 항목의 후속 내용으로 연결한다.
-
-        예:
-        4. 08:30 하역 라인 막힘 발생
-           14:10 Booster Air Line 점검
-
-        결과:
-        하나의 4번 항목으로 유지
-      ==================================================== */
-
+      /*
+        번호가 없는 줄은
+        바로 위 항목의 후속 내용으로 연결
+      */
       if (
         parsedEntries.length >
         0
@@ -8363,12 +8364,9 @@ function parseLegacyDiaryContentLines(
       }
 
 
-      /* ===================================================
-        첫 번째 줄부터 번호가 없는 예외 자료
-
-        데이터 유실 방지를 위해 첫 항목으로 생성한다.
-      ==================================================== */
-
+      /*
+        첫 줄부터 번호가 없는 자료
+      */
       const parsedTimeExpression =
         parseLeadingLogTimeExpression(
           originalLine
