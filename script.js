@@ -25082,6 +25082,16 @@ function normalizeLogEntryTime() {
   return formattedTime;
 }
 
+/* =========================================================
+  작업 구분에 따른 TAG·시간·추가 버튼 배치
+
+  인계사항·비고:
+  구분 | 현재시간 | 추가
+
+  TM·BM·CM:
+  구분 | 현재시간 | TAG | 추가
+========================================================= */
+
 function updateTagFieldVisibility() {
   const category =
     String(
@@ -25089,32 +25099,107 @@ function updateTagFieldVisibility() {
       "인계사항"
     ).trim();
 
-  const isHandover =
-    category === "인계사항";
-
-  const needsTag =
-    category.startsWith("TM") ||
-    category.startsWith("BM") ||
-    category.startsWith("CM");
-
-  const timeField =
-    document.getElementById(
-      "logEntryTimeField"
-    );
 
   /*
-    시간은 인계사항에서만 입력한다.
+    TAG가 필요한 구분
+
+    TM 발행
+    TM 작업
+    BM 발행
+    BM 작업
+    CM 발행
   */
-  if (timeField) {
-    timeField.hidden =
-      !isHandover;
+  const needsTag =
+    category.startsWith(
+      "TM"
+    ) ||
+    category.startsWith(
+      "BM"
+    ) ||
+    category.startsWith(
+      "CM"
+    );
+
+
+  /*
+    TAG 없이 간단하게 입력하는 구분
+
+    인계사항
+    비고
+  */
+  const isCompactCategory =
+    category ===
+      "인계사항" ||
+    category ===
+      "비고";
+
+
+  /*
+    TAG 입력 영역 표시
+  */
+  if (
+    elements.logEntryTagField
+  ) {
+    elements.logEntryTagField.hidden =
+      !needsTag;
   }
 
-  if (!isHandover) {
-    if (elements.logEntryTime) {
+
+  /*
+    TAG가 필요하지 않은 구분으로 변경하면
+    이전에 입력했던 TAG를 지운다.
+  */
+  if (
+    !needsTag &&
+    elements.logEntryTag
+  ) {
+    elements.logEntryTag.value =
+      "";
+  }
+
+
+  /*
+    입력 패널에 현재 레이아웃 상태를 표시한다.
+
+    CSS에서는 이 클래스를 기준으로
+    추가 버튼 위치를 변경한다.
+  */
+  if (
+    elements.logEntryInputPanel
+  ) {
+    elements.logEntryInputPanel
+      .classList
+      .toggle(
+        "is-compact-entry-layout",
+        isCompactCategory
+      );
+
+
+    elements.logEntryInputPanel
+      .classList
+      .toggle(
+        "is-tag-entry-layout",
+        needsTag
+      );
+  }
+
+
+  /*
+    인계사항·비고에서는 현재시간을 사용할 수 있다.
+
+    TM·BM·CM으로 변경할 때는
+    기존에 체크했던 현재시간과 숨겨진 시간값을 초기화한다.
+  */
+  if (
+    !isCompactCategory
+  ) {
+    if (
+      elements.logEntryTime
+    ) {
       elements.logEntryTime.value =
         "";
     }
+
 
     if (
       elements.useCurrentTimeCheckbox
@@ -25124,23 +25209,6 @@ function updateTagFieldVisibility() {
         .checked =
         false;
     }
-  }
-
-  /*
-    TM·BM·CM 관련 구분에서는
-    TAG 입력창을 표시한다.
-  */
-  if (elements.logEntryTagField) {
-    elements.logEntryTagField.hidden =
-      !needsTag;
-  }
-
-  if (
-    !needsTag &&
-    elements.logEntryTag
-  ) {
-    elements.logEntryTag.value =
-      "";
   }
 }
 

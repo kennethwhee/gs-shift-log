@@ -22214,3 +22214,375 @@ td {
     font-size: 10px;
   }
 }
+
+/* =========================================================
+  작업 내역 입력창 최종 배치
+
+  인계사항·비고:
+  구분 | 현재시간 | ＋ 추가
+
+  TM·BM·CM:
+  구분 | 현재시간 | TAG·설비보기 | ＋ 추가
+
+  적용 조건:
+  script.js의 updateTagFieldVisibility()에서
+  is-compact-entry-layout 클래스를 부여한다.
+========================================================= */
+
+
+/* =========================================================
+  인계사항·비고 간단 배치
+========================================================= */
+
+#logEntryInputPanel.is-compact-entry-layout
+.log-entry-input-top-row {
+  display: grid !important;
+
+  grid-template-columns:
+    158px
+    96px
+    82px
+    minmax(0, 1fr) !important;
+
+  align-items: end !important;
+  justify-content: start !important;
+
+  gap: 7px !important;
+}
+
+
+/*
+  구분
+*/
+#logEntryInputPanel.is-compact-entry-layout
+.log-entry-field--category {
+  grid-column: 1 !important;
+
+  width: 158px !important;
+  min-width: 158px !important;
+}
+
+
+/*
+  현재시간
+*/
+#logEntryInputPanel.is-compact-entry-layout
+.log-entry-current-time-field {
+  grid-column: 2 !important;
+
+  width: 96px !important;
+  min-width: 96px !important;
+}
+
+
+/*
+  인계사항·비고에서는 TAG를 숨긴다.
+*/
+#logEntryInputPanel.is-compact-entry-layout
+.log-entry-field--tag {
+  display: none !important;
+}
+
+
+/*
+  추가 버튼을 현재시간 바로 오른쪽에 배치한다.
+*/
+#logEntryInputPanel.is-compact-entry-layout
+.log-entry-input-actions {
+  display: flex !important;
+
+  grid-column: 3 !important;
+
+  width: 82px !important;
+  min-width: 82px !important;
+
+  align-items: flex-end !important;
+  justify-content: flex-start !important;
+
+  margin: 0 !important;
+}
+
+
+/* =========================================================
+  TAG 입력 구분 배치
+
+  TM 발행·TM 작업·BM 발행·BM 작업·CM 발행
+========================================================= */
+
+#logEntryInputPanel.is-tag-entry-layout
+.log-entry-input-top-row {
+  display: grid !important;
+
+  grid-template-columns:
+    158px
+    96px
+    264px
+    82px
+    minmax(0, 1fr) !important;
+
+  align-items: end !important;
+  justify-content: start !important;
+
+  gap: 7px !important;
+}
+
+
+#logEntryInputPanel.is-tag-entry-layout
+.log-entry-field--category {
+  grid-column: 1 !important;
+}
+
+
+#logEntryInputPanel.is-tag-entry-layout
+.log-entry-current-time-field {
+  grid-column: 2 !important;
+}
+
+
+#logEntryInputPanel.is-tag-entry-layout
+.log-entry-field--tag {
+  display: flex !important;
+
+  grid-column: 3 !important;
+
+  width: 264px !important;
+  min-width: 264px !important;
+
+  flex-direction: column;
+}
+
+
+#logEntryInputPanel.is-tag-entry-layout
+.log-entry-input-actions {
+  grid-column: 4 !important;
+
+  width: 82px !important;
+  min-width: 82px !important;
+}
+
+
+/* =========================================================
+  ＋ 추가 버튼 최종 디자인
+========================================================= */
+
+#logEntryInputPanel
+.log-entry-input-actions
+.add-entry-button {
+  display: inline-flex !important;
+
+  width: 82px !important;
+  min-width: 82px !important;
+
+  height: 34px !important;
+  min-height: 34px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  padding: 0 10px !important;
+
+  border: 1px solid #76a4d4 !important;
+  border-radius: 7px !important;
+
+  background: #eaf3fc !important;
+  color: #16599f !important;
+
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+
+  letter-spacing: -0.01em !important;
+  white-space: nowrap !important;
+
+  box-shadow:
+    0 2px 5px
+    rgba(31, 95, 174, 0.08) !important;
+}
+
+
+#logEntryInputPanel
+.log-entry-input-actions
+.add-entry-button:hover {
+  border-color: #4f88c4 !important;
+
+  background: #dcebf9 !important;
+  color: #124c89 !important;
+}
+
+
+#logEntryInputPanel
+.log-entry-input-actions
+.add-entry-button:active {
+  transform: translateY(1px);
+}
+
+
+/* =========================================================
+  수정 중 취소 버튼
+
+  추가 버튼 옆에 함께 표시되도록 한다.
+========================================================= */
+
+#logEntryInputPanel
+.log-entry-input-actions {
+  gap: 6px !important;
+}
+
+
+#logEntryInputPanel
+#cancelLogEntryEditButton:not([hidden]) {
+  position: static !important;
+
+  width: 58px !important;
+  min-width: 58px !important;
+
+  height: 34px !important;
+  min-height: 34px !important;
+
+  margin: 0 !important;
+  padding: 0 8px !important;
+
+  font-size: 11px !important;
+  font-weight: 900 !important;
+}
+
+
+/*
+  수정 중에는 취소 버튼과 추가 버튼이 들어가므로
+  액션 영역 폭을 자동으로 확장한다.
+*/
+#logEntryInputPanel.is-editing
+.log-entry-input-actions {
+  width: auto !important;
+  min-width: 146px !important;
+}
+
+
+/* =========================================================
+  좁은 화면
+========================================================= */
+
+@media (max-width: 768px) {
+  /*
+    인계사항·비고
+
+    첫째 줄:
+    구분 | 현재시간
+
+    둘째 줄:
+    ＋ 추가
+  */
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-input-top-row {
+    grid-template-columns:
+      minmax(0, 1fr)
+      96px !important;
+
+    gap: 7px !important;
+  }
+
+
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-field--category {
+    grid-column: 1 !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-current-time-field {
+    grid-column: 2 !important;
+  }
+
+
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-input-actions {
+    grid-column:
+      1 /
+      -1 !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    justify-content: flex-end !important;
+  }
+
+
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-input-actions
+  .add-entry-button {
+    width: 96px !important;
+    min-width: 96px !important;
+  }
+
+
+  /*
+    TAG가 있는 구분
+  */
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-top-row {
+    grid-template-columns:
+      minmax(0, 1fr)
+      96px !important;
+  }
+
+
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--category {
+    grid-column: 1 !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-current-time-field {
+    grid-column: 2 !important;
+  }
+
+
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--tag {
+    grid-column:
+      1 /
+      -1 !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+
+  #logEntryInputPanel.is-tag-entry-layout
+  .tag-input-group {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      75px !important;
+  }
+
+
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-actions {
+    grid-column:
+      1 /
+      -1 !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    justify-content: flex-end !important;
+  }
+
+
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-actions
+  .add-entry-button {
+    width: 96px !important;
+    min-width: 96px !important;
+  }
+}
