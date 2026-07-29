@@ -26592,6 +26592,19 @@ operationStatusItems:
   };
 }
 
+/* =========================================================
+  업무일지 저장
+
+  작성중:
+  - 임시저장
+  - 작성창 유지 가능
+  - 중앙에 저장 완료 문구 표시
+
+  작성완료:
+  - 결재요청
+  - 중앙에 결재요청 완료 문구 표시
+  - 설정에 따라 작성창 닫기
+========================================================= */
 
 function saveCurrentLog(
   status,
@@ -26601,42 +26614,62 @@ function saveCurrentLog(
     closeAfterSave = true
   } = options;
 
+
+  /*
+    필수 입력값 검사
+  */
   if (
     !elements
       .logEditorForm
       .reportValidity()
   ) {
-    return;
+    return null;
   }
 
+
   const log =
-    collectEditorData(status);
+    collectEditorData(
+      status
+    );
+
 
   const hasEntryContent =
-    log.entries.some((entry) => {
-      return Boolean(
-        String(
-          entry.content || ""
-        ).trim()
-      );
-    });
+    log.entries.some(
+      (entry) => {
+        return Boolean(
+          String(
+            entry.content ||
+            ""
+          ).trim()
+        );
+      }
+    );
 
+
+  /*
+    운전현황, 업무내용, 비고가
+    모두 비어 있으면 저장하지 않는다.
+  */
   if (
     !log.operationStatus &&
     !hasEntryContent &&
     !log.note
   ) {
     showToast(
-      "운전 현황 또는 업무 내용을 입력해 주세요."
+      "운전 현황 또는 업무 내용을 입력해 주세요.",
+      1800
     );
 
-    return;
+
+    return null;
   }
+
 
   const normalizedRole =
     normalizeMemberLogRole(
       log.role
     );
+
 
   /*
     현재 저장하려는 업무일지와 같은
@@ -26644,33 +26677,47 @@ function saveCurrentLog(
   */
   const matchingLogs =
     appState.logs
-      .map((item, index) => {
-        return {
+      .map(
+        (
           item,
           index
-        };
-      })
-      .filter(({ item }) => {
-        return (
-          String(
-            item.date || ""
-          ).trim() ===
+        ) => {
+          return {
+            item,
+            index
+          };
+        }
+      )
+      .filter(
+        ({
+          item
+        }) => {
+          return (
             String(
-              log.date || ""
-            ).trim() &&
+              item.date ||
+              ""
+            ).trim() ===
+              String(
+                log.date ||
+                ""
+              ).trim() &&
 
-          String(
-            item.shift || ""
-          ).trim() ===
             String(
-              log.shift || ""
-            ).trim() &&
+              item.shift ||
+              ""
+            ).trim() ===
+              String(
+                log.shift ||
+                ""
+              ).trim() &&
 
-          normalizeMemberLogRole(
-            item.role
-          ) === normalizedRole
-        );
-      })
+            normalizeMemberLogRole(
+              item.role
+            ) ===
+              normalizedRole
+          );
+        }
+      )
       .sort(
         (
           resultA,
@@ -26685,6 +26732,7 @@ function saveCurrentLog(
               0
             ).getTime();
 
+
           const timeB =
             new Date(
               resultB.item
@@ -26694,9 +26742,14 @@ function saveCurrentLog(
               0
             ).getTime();
 
-          return timeB - timeA;
+
+          return (
+            timeB -
+            timeA
+          );
         }
       );
+
 
   /*
     편집 중인 업무일지 ID가 있으면
@@ -26711,17 +26764,23 @@ function saveCurrentLog(
       ""
     ).trim();
 
+
   let baseLog =
     matchingLogs.find(
-      ({ item }) => {
+      ({
+        item
+      }) => {
         return (
           String(
-            item.id || ""
+            item.id ||
+            ""
           ).trim() ===
           editingId
         );
       }
-    )?.item || null;
+    )?.item ||
+    null;
+
 
   /*
     편집 ID를 찾지 못하면
@@ -26732,90 +26791,182 @@ function saveCurrentLog(
     matchingLogs.length
   ) {
     baseLog =
-      matchingLogs[0].item;
+      matchingLogs[0]
+        .item;
   }
 
-  if (baseLog) {
+
+  /*
+    기존 업무일지 수정일 경우
+    ID와 최초 작성일을 유지한다.
+  */
+  if (
+    baseLog
+  ) {
     log.id =
       baseLog.id;
+
 
     log.createdAt =
       baseLog.createdAt ||
       log.createdAt;
   }
 
+
   log.updatedAt =
-    new Date().toISOString();
+    new Date()
+      .toISOString();
+
 
   /*
     같은 날짜·근무·보직의 기존 일지를
     모두 제거한 후 새 일지 하나만 저장한다.
   */
   appState.logs =
-    appState.logs.filter((item) => {
-      const isSameLogGroup =
-        String(
-          item.date || ""
-        ).trim() ===
+    appState.logs.filter(
+      (item) => {
+        const isSameLogGroup =
           String(
-            log.date || ""
-          ).trim() &&
+            item.date ||
+            ""
+          ).trim() ===
+            String(
+              log.date ||
+              ""
+            ).trim() &&
 
-        String(
-          item.shift || ""
-        ).trim() ===
           String(
-            log.shift || ""
-          ).trim() &&
+            item.shift ||
+            ""
+          ).trim() ===
+            String(
+              log.shift ||
+              ""
+            ).trim() &&
 
-        normalizeMemberLogRole(
-          item.role
-        ) === normalizedRole;
+          normalizeMemberLogRole(
+            item.role
+          ) ===
+            normalizedRole;
 
-      return !isSameLogGroup;
-    });
+
+        return (
+          !isSameLogGroup
+        );
+      }
+    );
+
 
   appState.logs.unshift(
     log
   );
 
+
+  /*
+    로컬 저장
+  */
   persistLogs();
+
 
   localStorage.removeItem(
     STORAGE_KEYS.draft
   );
 
+
+  /*
+    현재 편집 중인 업무일지 ID 갱신
+  */
   elements
     .logEditorForm
     .dataset
     .editingId =
     log.id;
 
+
+  /*
+    현재 조회 기준을 저장한 업무일지로 맞춘다.
+  */
   appState.selectedDate =
     new Date(
       `${log.date}T00:00:00`
     );
 
+
   appState.selectedShift =
     log.shift;
+
 
   renderSelectedDate();
   renderLogTable();
   updateShiftMemberCardStates();
 
+
+  /*
+    저장 완료 상태를 갱신한다.
+
+    저장 후 내용 변경이 없다면
+    닫기 버튼을 눌러도
+    미저장 경고가 표시되지 않는다.
+  */
   if (
-   closeAfterSave
+    typeof markLogEditorAsSaved ===
+    "function"
   ) {
-   closeLogEditor();
+    markLogEditorAsSaved();
   }
 
-  showToast(
-    status === "작성완료"
-      ? "업무일지 작성을 완료하고 결재를 요청했습니다."
-      : "업무일지를 작성 중 상태로 저장했습니다."
-  );
-}
 
+  /*
+    저장 결과 중앙 안내
+
+    showToast()에서 약 1.6초간
+    화면 중앙에 표시한 뒤 자동으로 사라진다.
+  */
+  if (
+    status ===
+    "작성완료"
+  ) {
+    showToast(
+      "결재요청이 완료되었습니다.",
+      1600
+    );
+  } else {
+    showToast(
+      "저장이 되었습니다.",
+      1600
+    );
+  }
+
+
+  /*
+    임시저장은 closeAfterSave가 false이므로
+    작성창을 그대로 유지한다.
+
+    결재요청 등 closeAfterSave가 true이면
+    기존처럼 작성창을 닫는다.
+  */
+  if (
+    closeAfterSave
+  ) {
+    /*
+      문구가 화면에 먼저 표시된 뒤
+      작성창이 닫히도록 아주 짧게 지연한다.
+    */
+    window.setTimeout(
+      () => {
+        closeLogEditor();
+      },
+      120
+    );
+  }
+
+
+  /*
+    저장 성공 여부를 외부 로직에서
+    확인할 수 있도록 저장된 업무일지를 반환한다.
+  */
+  return log;
+}
 
 /* =========================================================
   업무일지 임시저장
@@ -36199,56 +36350,133 @@ function closeModal(modalElement) {
 let toastTimer = null;
 
 /* =========================================================
-  중앙 Toast
+  화면 중앙 안내 메시지
 
-  화면 가운데 1.6초 표시 후 자동으로 사라진다.
+  사용 예시:
+  showToast(
+    "저장이 되었습니다.",
+    1600
+  );
+
+  동작:
+  - 화면 정중앙 표시
+  - 기본 1.6초 유지
+  - 부드럽게 나타났다가 사라짐
+  - 여러 번 실행되면 기존 문구 제거 후 새 문구 표시
 ========================================================= */
 
 function showToast(
   message,
   duration = 1600
 ) {
+  /*
+    기존 중앙 안내가 남아 있으면 제거한다.
+  */
   document
     .querySelectorAll(
       ".center-toast"
     )
-    .forEach((element) =>
-      element.remove()
+    .forEach(
+      (toast) => {
+        toast.remove();
+      }
     );
+
 
   const toast =
     document.createElement(
       "div"
     );
 
+
   toast.className =
     "center-toast";
 
+
+  toast.setAttribute(
+    "role",
+    "status"
+  );
+
+
+  toast.setAttribute(
+    "aria-live",
+    "polite"
+  );
+
+
   toast.innerHTML = `
     <div class="center-toast__content">
-      ✓ ${escapeHtml(message)}
+      <span
+        class="center-toast__icon"
+        aria-hidden="true"
+      >
+        ✓
+      </span>
+
+      <span class="center-toast__message">
+        ${escapeHtml(
+          String(
+            message ||
+            ""
+          )
+        )}
+      </span>
     </div>
   `;
+
 
   document.body.appendChild(
     toast
   );
 
-  requestAnimationFrame(() => {
-    toast.classList.add(
-      "is-visible"
-    );
-  });
 
-  window.setTimeout(() => {
-    toast.classList.remove(
-      "is-visible"
-    );
+  /*
+    DOM 추가 후 표시 애니메이션 실행
+  */
+  window.requestAnimationFrame(
+    () => {
+      window.requestAnimationFrame(
+        () => {
+          toast.classList.add(
+            "is-visible"
+          );
+        }
+      );
+    }
+  );
 
-    window.setTimeout(() => {
-      toast.remove();
-    }, 180);
-  }, duration);
+
+  /*
+    지정 시간 후 사라지게 한다.
+  */
+  window.setTimeout(
+    () => {
+      toast.classList.remove(
+        "is-visible"
+      );
+
+
+      toast.classList.add(
+        "is-hiding"
+      );
+
+
+      window.setTimeout(
+        () => {
+          toast.remove();
+        },
+        220
+      );
+    },
+    Math.max(
+      1000,
+      Number(
+        duration
+      ) ||
+      1600
+    )
+  );
 }
 
 

@@ -23522,3 +23522,233 @@ td {
 
     transform:scale(1);
 }
+
+/* =========================================================
+  화면 중앙 안내 Toast
+
+  사용 예:
+  - 저장이 되었습니다.
+  - 결재요청이 완료되었습니다.
+  - 입력 내용을 확인해 주세요.
+
+  동작:
+  - 화면 정중앙 표시
+  - 1~2초 유지
+  - 클릭 방해 없음
+  - 부드럽게 나타났다 사라짐
+========================================================= */
+
+.center-toast {
+  position: fixed;
+  inset: 0;
+
+  z-index: 999999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+
+  pointer-events: none;
+
+  opacity: 0;
+  visibility: hidden;
+
+  transition:
+    opacity 0.18s ease,
+    visibility 0.18s ease;
+}
+
+
+.center-toast.is-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+
+.center-toast.is-hiding {
+  opacity: 0;
+  visibility: hidden;
+}
+
+
+/* =========================================================
+  Toast 본체
+========================================================= */
+
+.center-toast__content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 9px;
+
+  min-width: 220px;
+  max-width: min(
+    420px,
+    calc(100vw - 40px)
+  );
+
+  min-height: 52px;
+
+  padding:
+    14px
+    22px;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.12);
+
+  border-radius:
+    13px;
+
+  background:
+    rgba(20, 29, 42, 0.94);
+
+  color:
+    #ffffff;
+
+  box-shadow:
+    0 18px 42px
+    rgba(15, 23, 42, 0.28);
+
+  backdrop-filter:
+    blur(8px);
+
+  -webkit-backdrop-filter:
+    blur(8px);
+
+  transform:
+    translateY(7px)
+    scale(0.96);
+
+  transition:
+    transform 0.18s ease;
+
+  box-sizing: border-box;
+}
+
+
+.center-toast.is-visible
+.center-toast__content {
+  transform:
+    translateY(0)
+    scale(1);
+}
+
+
+.center-toast.is-hiding
+.center-toast__content {
+  transform:
+    translateY(-4px)
+    scale(0.98);
+}
+
+
+/* =========================================================
+  체크 아이콘
+========================================================= */
+
+.center-toast__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  flex:
+    0 0 auto;
+
+  width: 24px;
+  height: 24px;
+
+  border-radius:
+    50%;
+
+  background:
+    #35a866;
+
+  color:
+    #ffffff;
+
+  font-size:
+    14px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+}
+
+
+/* =========================================================
+  안내 문구
+========================================================= */
+
+.center-toast__message {
+  min-width: 0;
+
+  color:
+    #ffffff;
+
+  font-size:
+    14px;
+
+  font-weight:
+    800;
+
+  line-height:
+    1.4;
+
+  letter-spacing:
+    -0.02em;
+
+  text-align:
+    center;
+
+  word-break:
+    keep-all;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width:
+  480px
+) {
+  .center-toast {
+    padding:
+      16px;
+  }
+
+
+  .center-toast__content {
+    min-width:
+      200px;
+
+    max-width:
+      calc(
+        100vw -
+        32px
+      );
+
+    min-height:
+      50px;
+
+    padding:
+      13px
+      18px;
+
+    border-radius:
+      12px;
+  }
+
+
+  .center-toast__message {
+    font-size:
+      13px;
+  }
+}
