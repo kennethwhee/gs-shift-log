@@ -19682,16 +19682,27 @@ async function moveSelectedDateToToday() {
   updateShiftMemberCardStates();
 }
 
+/* =========================================================
+  현재 선택 날짜·근무 표시
+
+  날짜 또는 근무가 변경될 때마다:
+  - 화면 날짜 표시
+  - 작성창 날짜 동기화
+  - 보직별 활성 공지 다시 계산
+========================================================= */
+
 function renderSelectedDate() {
   const dateText =
     formatKoreanDate(
       appState.selectedDate
     );
 
+
   const shiftDisplayName =
     getShiftDisplayName(
       appState.selectedShift
     );
+
 
   const scheduledPart =
     getScheduledPart(
@@ -19700,15 +19711,13 @@ function renderSelectedDate() {
     );
 
 
-  /*
-    날짜 이동 영역
-  */
   if (
     elements.selectedDateText
   ) {
     elements.selectedDateText.textContent =
       dateText;
   }
+
 
   if (
     elements.selectedShiftBadge
@@ -19718,9 +19727,6 @@ function renderSelectedDate() {
   }
 
 
-  /*
-    오른쪽 현재 근무 표시
-  */
   if (
     elements.currentShiftLabel
   ) {
@@ -19730,53 +19736,44 @@ function renderSelectedDate() {
         shiftDisplayName,
         scheduledPart
       ]
-        .filter(Boolean)
-        .join(" · ");
-  }
-
-
-  /*
-    근무자 현황 제목 옆에
-    현재 파트를 표시한다.
-
-    예:
-    근무자 현황 (2파트)
-  */
-  const shiftSectionTitle =
-    document.querySelector(
-      ".shift-member-grid"
-    )
-      ?.closest(
-        ".content-section"
-      )
-      ?.querySelector(
-        ".section-heading__title"
-      );
-
-  if (shiftSectionTitle) {
-    shiftSectionTitle.innerHTML = `
-      근무자 현황
-
-      ${
-        scheduledPart
-          ? `
-            <span
-              class="shift-section-part"
-            >
-              (${escapeHtml(
-                scheduledPart
-              )})
-            </span>
-          `
-          : ""
-      }
-    `;
+        .filter(
+          Boolean
+        )
+        .join(
+          " · "
+        );
   }
 
 
   setEditorDateFromSelectedDate();
-}
 
+
+  /*
+    보직별 공지 기능이 아직 초기화되기 전이면
+    오류 없이 건너뛴다.
+  */
+  if (
+    typeof updateAllRoleNoticeButtons ===
+      "function"
+  ) {
+    updateAllRoleNoticeButtons();
+  }
+
+
+  /*
+    공지 목록창이 열려 있는 경우
+    선택 날짜 기준으로 목록과 건수를 다시 표시한다.
+  */
+  if (
+    typeof roleNoticeState !==
+      "undefined" &&
+    roleNoticeState.currentRole &&
+    typeof renderCurrentRoleNoticeList ===
+      "function"
+  ) {
+    renderCurrentRoleNoticeList();
+  }
+}
 
 function setEditorDateFromSelectedDate() {
   if (!elements.logDate) {
@@ -46458,6 +46455,32 @@ function getRoleNoticeTodayValue() {
   ].join("-");
 }
 
+/* =========================================================
+  공지 표시 기준일
+
+  실제 오늘 날짜가 아니라
+  현재 화면에서 선택한 업무일지 기준일을 사용한다.
+========================================================= */
+
+function getRoleNoticeReferenceDate() {
+  if (
+    typeof appState !==
+      "undefined" &&
+    appState.selectedDate instanceof
+      Date &&
+    !Number.isNaN(
+      appState.selectedDate.getTime()
+    )
+  ) {
+    return formatInputDate(
+      appState.selectedDate
+    );
+  }
+
+
+  return getRoleNoticeTodayValue();
+}
+
 
 /* =========================================================
   날짜 표시
@@ -46680,30 +46703,40 @@ function normalizeRoleNotice(
   };
 }
 
+/* =========================================================
+  공지 상태 판정
+
+  중요:
+  오늘 날짜가 아니라
+  현재 화면에서 선택한 업무일지 기준일로 판단한다.
+========================================================= */
 
 /* =========================================================
   공지 상태 판정
 
+  현재 화면에서 선택한 업무일지 날짜 기준:
+
   active:
-  시작일 <= 오늘 <= 종료일
+  시작일 <= 화면 날짜 <= 종료일
 
   upcoming:
-  오늘 < 시작일
+  화면 날짜 < 시작일
 
   expired:
-  종료일 < 오늘
+  종료일 < 화면 날짜
 ========================================================= */
 
 function getRoleNoticeStatus(
   notice,
-  todayValue =
-    getRoleNoticeTodayValue()
+  referenceDate =
+    getRoleNoticeReferenceDate()
 ) {
   const startDate =
     String(
       notice?.startDate ||
       ""
     ).trim();
+
 
   const endDate =
     String(
@@ -46714,7 +46747,7 @@ function getRoleNoticeStatus(
 
   if (
     startDate &&
-    todayValue <
+    referenceDate <
       startDate
   ) {
     return "upcoming";
@@ -46723,7 +46756,7 @@ function getRoleNoticeStatus(
 
   if (
     endDate &&
-    todayValue >
+    referenceDate >
       endDate
   ) {
     return "expired";
