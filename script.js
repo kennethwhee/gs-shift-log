@@ -6865,7 +6865,6 @@ function getUpperRoleForTmRole(
   );
 }
 
-
 function filterLeaderTmEntriesByRoleHierarchy(
   entries
 ) {
@@ -6876,14 +6875,33 @@ function filterLeaderTmEntriesByRoleHierarchy(
       ? entries
       : [];
 
-  const similarityThreshold =
+
+  /*
+    상위·하위 보직 비교 기준
+
+    TGO  > TO
+    BCO1 > BO1
+    BCO2 > BO2
+  */
+  const memberSimilarityThreshold =
     0.7;
+
+
+  /*
+    BCO 보직 간 비교 기준
+
+    BCO1 > BCO2
+  */
+  const bcoSimilarityThreshold =
+    0.8;
+
 
   const upperRoles = [
     "TGO",
     "BCO1",
     "BCO2"
   ];
+
 
   const lowerRoles = [
     "TO",
@@ -6894,14 +6912,17 @@ function filterLeaderTmEntriesByRoleHierarchy(
 
   /*
     TM 발행이 아닌 항목은
-    중복 비교 대상에서 제외하고 그대로 유지한다.
+    중복 비교하지 않고 그대로 유지한다.
   */
   const nonTmEntries =
     sourceEntries.filter(
-      (entry) => {
+      (
+        entry
+      ) => {
         return (
           String(
-            entry.category || ""
+            entry.category ||
+            ""
           ).trim() !==
           "TM 발행"
         );
@@ -6914,10 +6935,13 @@ function filterLeaderTmEntriesByRoleHierarchy(
   */
   const tmEntries =
     sourceEntries.filter(
-      (entry) => {
+      (
+        entry
+      ) => {
         return (
           String(
-            entry.category || ""
+            entry.category ||
+            ""
           ).trim() ===
           "TM 발행"
         );
@@ -6926,15 +6950,18 @@ function filterLeaderTmEntriesByRoleHierarchy(
 
 
   /*
-    상위 보직의 TM은 먼저 모두 유지한다.
+    TGO·BCO1·BCO2 TM을 분리한다.
   */
   const upperTmEntries =
     tmEntries.filter(
-      (entry) => {
+      (
+        entry
+      ) => {
         const sourceRole =
           normalizeMemberLogRole(
             entry.importedFromRole
           );
+
 
         return upperRoles.includes(
           sourceRole
@@ -6944,16 +6971,116 @@ function filterLeaderTmEntriesByRoleHierarchy(
 
 
   /*
-    하위 보직 TM 중에서
-    대응하는 상위 보직 TM과 70% 이상 유사한 것은 제외한다.
+    BCO1 TM을 따로 준비한다.
+
+    BCO2와 80% 이상 중복되는지
+    비교할 때 사용한다.
+  */
+  const bco1TmEntries =
+    upperTmEntries.filter(
+      (
+        entry
+      ) => {
+        return (
+          normalizeMemberLogRole(
+            entry.importedFromRole
+          ) ===
+          "BCO1"
+        );
+      }
+    );
+
+
+  /*
+    BCO1 > BCO2 중복 제거
+
+    BCO2 TM 내용이 BCO1 TM과
+    80% 이상 유사하면 BCO2 TM을 제외한다.
+
+    TGO와 BCO1 TM은 그대로 유지한다.
+  */
+  const filteredUpperTmEntries =
+    upperTmEntries.filter(
+      (
+        entry
+      ) => {
+        const sourceRole =
+          normalizeMemberLogRole(
+            entry.importedFromRole
+          );
+
+
+        if (
+          sourceRole !==
+          "BCO2"
+        ) {
+          return true;
+        }
+
+
+        const bco2Content =
+          String(
+            entry.content ||
+            ""
+          ).trim();
+
+
+        const hasSimilarBco1Entry =
+          bco1TmEntries.some(
+            (
+              bco1Entry
+            ) => {
+              const bco1Content =
+                String(
+                  bco1Entry.content ||
+                  ""
+                ).trim();
+
+
+              const similarity =
+                calculateLegacyContentSimilarity(
+                  bco1Content,
+                  bco2Content
+                );
+
+
+              return (
+                similarity >=
+                bcoSimilarityThreshold
+              );
+            }
+          );
+
+
+        /*
+          BCO1과 중복되지 않는
+          BCO2 TM만 유지한다.
+        */
+        return !hasSimilarBco1Entry;
+      }
+    );
+
+
+  /*
+    TO·BO1·BO2 TM 중복 제거
+
+    TGO  > TO
+    BCO1 > BO1
+    BCO2 > BO2
+
+    대응하는 상위 보직과
+    70% 이상 유사하면 하위 보직 TM을 제외한다.
   */
   const filteredLowerTmEntries =
     tmEntries.filter(
-      (entry) => {
+      (
+        entry
+      ) => {
         const lowerRole =
           normalizeMemberLogRole(
             entry.importedFromRole
           );
+
 
         if (
           !lowerRoles.includes(
@@ -6963,23 +7090,38 @@ function filterLeaderTmEntriesByRoleHierarchy(
           return false;
         }
 
+
         const upperRole =
           getUpperRoleForTmRole(
             lowerRole
           );
 
+
         const lowerContent =
           String(
-            entry.content || ""
+            entry.content ||
+            ""
           ).trim();
 
+
+        /*
+          BCO2가 BCO1과 중복되어
+          최종 목록에서 제외되더라도,
+          BO2와의 중복 판단에는 원래 BCO2 TM을 사용한다.
+
+          따라서 동일 계통의 중복 항목이
+          다시 BO2로 남는 것을 방지한다.
+        */
         const hasSimilarUpperEntry =
           upperTmEntries.some(
-            (upperEntry) => {
+            (
+              upperEntry
+            ) => {
               const upperEntryRole =
                 normalizeMemberLogRole(
                   upperEntry.importedFromRole
                 );
+
 
               if (
                 upperEntryRole !==
@@ -6988,11 +7130,13 @@ function filterLeaderTmEntriesByRoleHierarchy(
                 return false;
               }
 
+
               const upperContent =
                 String(
                   upperEntry.content ||
                   ""
                 ).trim();
+
 
               const similarity =
                 calculateLegacyContentSimilarity(
@@ -7000,12 +7144,14 @@ function filterLeaderTmEntriesByRoleHierarchy(
                   lowerContent
                 );
 
+
               return (
                 similarity >=
-                similarityThreshold
+                memberSimilarityThreshold
               );
             }
           );
+
 
         return !hasSimilarUpperEntry;
       }
@@ -7018,11 +7164,14 @@ function filterLeaderTmEntriesByRoleHierarchy(
   */
   const otherTmEntries =
     tmEntries.filter(
-      (entry) => {
+      (
+        entry
+      ) => {
         const sourceRole =
           normalizeMemberLogRole(
             entry.importedFromRole
           );
+
 
         return (
           !upperRoles.includes(
@@ -7037,7 +7186,7 @@ function filterLeaderTmEntriesByRoleHierarchy(
 
 
   return [
-    ...upperTmEntries,
+    ...filteredUpperTmEntries,
     ...filteredLowerTmEntries,
     ...otherTmEntries,
     ...nonTmEntries
