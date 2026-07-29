@@ -4413,10 +4413,9 @@ editFromDetailButton:
 /* =========================================================
   D1에 보관된 과거 업무일지 1일 불러오기
 
-  조회 화면에서 지정한 날짜의
-  D/S와 N/S 저장 자료를 모두 가져온다.
-
-  과거 서버는 호출하지 않는다.
+  - 조회 날짜의 D/S·N/S 모두 불러오기
+  - 원본 업무일지와 첨부파일 함께 연결
+  - 과거 서버는 직접 호출하지 않음
 ========================================================= */
 
 async function loadLegacyLogsForSearchDate(
@@ -4502,11 +4501,10 @@ async function loadLegacyLogsForSearchDate(
 
 
   /*
-    D1에는 화면용 정보와 함께
-    과거 서버 원본이 original에 보관되어 있다.
+    D1의 original은 기존 업무일지 원본이고,
+    attachments는 별도로 저장된 첨부파일 목록이다.
 
-    기존 변환 함수가 원본 구조를 사용하므로
-    original을 다시 전달한다.
+    두 데이터를 변환된 업무일지에 함께 연결한다.
   */
   const convertedLogs =
     storedItems
@@ -4542,12 +4540,119 @@ async function loadLegacyLogsForSearchDate(
               .toUpperCase();
 
 
-          return convertLegacyDiaryToLog(
-            originalItem,
-            itemIndex,
-            normalizedDate,
-            storedShift
-          );
+          const convertedLog =
+            convertLegacyDiaryToLog(
+              originalItem,
+              itemIndex,
+              normalizedDate,
+              storedShift
+            );
+
+
+          if (!convertedLog) {
+            return null;
+          }
+
+
+          /*
+            조회용 업무일지에도 D1 첨부파일을 연결한다.
+          */
+          convertedLog.attachments =
+            Array.isArray(
+              storedItem.attachments
+            )
+              ? storedItem.attachments
+                  .map(
+                    attachment => {
+                      const attachmentId =
+                        Number(
+                          attachment?.id ||
+                          0
+                        );
+
+
+                      const fileName =
+                        String(
+                          attachment?.fileName ||
+                          attachment?.name ||
+                          ""
+                        ).trim();
+
+
+                      const attachmentUrl =
+                        String(
+                          attachment?.url ||
+                          (
+                            attachmentId
+                              ? `/api/legacy-attachment?id=${encodeURIComponent(
+                                  attachmentId
+                                )}`
+                              : ""
+                          )
+                        ).trim();
+
+
+                      return {
+                        id:
+                          attachmentId,
+
+                        name:
+                          fileName,
+
+                        fileName,
+
+                        mimeType:
+                          String(
+                            attachment?.mimeType ||
+                            ""
+                          ).trim(),
+
+                        fileSize:
+                          Number(
+                            attachment?.fileSize ||
+                            0
+                          ),
+
+                        r2Key:
+                          String(
+                            attachment?.r2Key ||
+                            ""
+                          ).trim(),
+
+                        originalUrl:
+                          String(
+                            attachment?.originalUrl ||
+                            ""
+                          ).trim(),
+
+                        uploadedAt:
+                          String(
+                            attachment?.uploadedAt ||
+                            ""
+                          ).trim(),
+
+                        url:
+                          attachmentUrl
+                      };
+                    }
+                  )
+                  .filter(
+                    attachment => {
+                      return Boolean(
+                        attachment.url
+                      );
+                    }
+                  )
+              : [];
+
+
+          convertedLog.legacyAttachmentCount =
+            convertedLog
+              .attachments
+              .length;
+
+
+          return convertedLog;
         }
       )
       .filter(Boolean);
