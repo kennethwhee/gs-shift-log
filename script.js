@@ -3148,7 +3148,13 @@ document.addEventListener(
 );
 
 /* =========================================================
-  직원관리 모달 열기
+  시스템 관리자 모달 열기
+
+  기본 화면:
+  - 직원 관리
+
+  브랜드 관리:
+  - 탭 선택 시 표시
 ========================================================= */
 
 async function openEmployeeManagementModal() {
@@ -3157,6 +3163,7 @@ async function openEmployeeManagementModal() {
   } =
     getLoginElements();
 
+
   if (
     !isCurrentUserSuperAdmin()
   ) {
@@ -3164,18 +3171,22 @@ async function openEmployeeManagementModal() {
       "최고관리자만 사용할 수 있습니다."
     );
 
+
     return;
   }
+
 
   if (
     !employeeManagementModal
   ) {
     console.error(
-      "직원관리 모달을 찾을 수 없습니다."
+      "시스템 관리 모달을 찾을 수 없습니다."
     );
+
 
     return;
   }
+
 
   employeeManagementModal
     .classList
@@ -3183,22 +3194,38 @@ async function openEmployeeManagementModal() {
       "is-open"
     );
 
+
   employeeManagementModal
     .setAttribute(
       "aria-hidden",
       "false"
     );
 
+
   document.body.classList.add(
     "modal-open"
   );
 
+
   /*
-    모달을 열 때마다 최신 가입 완료 직원 조회
+    모달을 열 때는 직원 관리 탭부터 표시한다.
+  */
+  switchSystemAdminView(
+    "employees"
+  );
+
+
+  hideBrandManagementMessage();
+
+
+  updateBrandManagementPreview();
+
+
+  /*
+    최신 직원 목록 조회
   */
   await loadEmployeeManagement();
 }
-
 
 /* =========================================================
   직원관리 모달 닫기
@@ -3237,65 +3264,2304 @@ function closeEmployeeManagementModal() {
   );
 }
 
+/* =========================================================
+  브랜드 관리 상태
+
+  saved:
+  - localStorage에 저장된 현재 설정
+
+  preview:
+  - 관리자가 새로 선택한 이미지 미리보기
+========================================================= */
+
+const BRAND_SETTINGS_STORAGE_KEY =
+  "gsShiftLogBrandSettings";
+
+
+const DEFAULT_BRAND_SETTINGS = {
+  companyName:
+    "GS 포천그린에너지",
+
+  programName:
+    "GS Shift Log",
+
+  programSubtitle:
+    "교대근무 업무일지 시스템",
+
+  logoDataUrl:
+    "",
+
+  backgroundDataUrl:
+    "",
+
+  backgroundPositionX:
+    50,
+
+  backgroundPositionY:
+    50,
+
+  backgroundOverlay:
+    30
+};
+
+
+const brandManagementState = {
+  logoFile:
+    null,
+
+  logoPreviewUrl:
+    "",
+
+  logoDataUrl:
+    "",
+
+
+  backgroundFile:
+    null,
+
+  backgroundPreviewUrl:
+    "",
+
+  backgroundDataUrl:
+    "",
+
+
+  savedSettings:
+    {
+      ...DEFAULT_BRAND_SETTINGS
+    }
+};
 
 /* =========================================================
-  로그인 및 관리자 기능 초기화
+  숫자 범위 제한
+========================================================= */
+
+function clampBrandNumber(
+  value,
+  minimum,
+  maximum,
+  fallback
+) {
+  const numericValue =
+    Number(
+      value
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return fallback;
+  }
+
+
+  return Math.min(
+    maximum,
+    Math.max(
+      minimum,
+      numericValue
+    )
+  );
+}
+
+
+/* =========================================================
+  브랜드 설정 데이터 정규화
+========================================================= */
+
+function normalizeBrandSettings(
+  rawSettings = {}
+) {
+  return {
+    companyName:
+      String(
+        rawSettings.companyName ||
+        DEFAULT_BRAND_SETTINGS.companyName
+      ).trim() ||
+      DEFAULT_BRAND_SETTINGS.companyName,
+
+
+    programName:
+      String(
+        rawSettings.programName ||
+        DEFAULT_BRAND_SETTINGS.programName
+      ).trim() ||
+      DEFAULT_BRAND_SETTINGS.programName,
+
+
+    programSubtitle:
+      String(
+        rawSettings.programSubtitle ||
+        DEFAULT_BRAND_SETTINGS.programSubtitle
+      ).trim() ||
+      DEFAULT_BRAND_SETTINGS.programSubtitle,
+
+
+    logoDataUrl:
+      String(
+        rawSettings.logoDataUrl ||
+        ""
+      ).trim(),
+
+
+    backgroundDataUrl:
+      String(
+        rawSettings.backgroundDataUrl ||
+        ""
+      ).trim(),
+
+
+    backgroundPositionX:
+      clampBrandNumber(
+        rawSettings.backgroundPositionX,
+        0,
+        100,
+        DEFAULT_BRAND_SETTINGS
+          .backgroundPositionX
+      ),
+
+
+    backgroundPositionY:
+      clampBrandNumber(
+        rawSettings.backgroundPositionY,
+        0,
+        100,
+        DEFAULT_BRAND_SETTINGS
+          .backgroundPositionY
+      ),
+
+
+    backgroundOverlay:
+      clampBrandNumber(
+        rawSettings.backgroundOverlay,
+        0,
+        80,
+        DEFAULT_BRAND_SETTINGS
+          .backgroundOverlay
+      )
+  };
+}
+
+
+/* =========================================================
+  localStorage에서 브랜드 설정 불러오기
+========================================================= */
+
+function loadBrandSettingsFromStorage() {
+  try {
+    const savedValue =
+      localStorage.getItem(
+        BRAND_SETTINGS_STORAGE_KEY
+      );
+
+
+    if (
+      !savedValue
+    ) {
+      return {
+        ...DEFAULT_BRAND_SETTINGS
+      };
+    }
+
+
+    const parsedValue =
+      JSON.parse(
+        savedValue
+      );
+
+
+    return normalizeBrandSettings(
+      parsedValue
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "브랜드 설정 불러오기 실패:",
+      error
+    );
+
+
+    return {
+      ...DEFAULT_BRAND_SETTINGS
+    };
+  }
+}
+
+
+/* =========================================================
+  localStorage에 브랜드 설정 저장
+========================================================= */
+
+function saveBrandSettingsToStorage(
+  settings
+) {
+  const normalizedSettings =
+    normalizeBrandSettings(
+      settings
+    );
+
+
+  try {
+    localStorage.setItem(
+      BRAND_SETTINGS_STORAGE_KEY,
+      JSON.stringify(
+        normalizedSettings
+      )
+    );
+
+
+    return normalizedSettings;
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "브랜드 설정 저장 실패:",
+      error
+    );
+
+
+    throw new Error(
+      "브랜드 설정을 저장하지 못했습니다. 이미지 용량을 줄인 후 다시 시도해 주세요."
+    );
+  }
+}
+
+
+/* =========================================================
+  파일을 Data URL로 변환
+
+  localStorage 저장용
+========================================================= */
+
+function readBrandFileAsDataUrl(
+  file
+) {
+  return new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+      if (
+        !file
+      ) {
+        resolve(
+          ""
+        );
+
+        return;
+      }
+
+
+      const reader =
+        new FileReader();
+
+
+      reader.addEventListener(
+        "load",
+        () => {
+          resolve(
+            String(
+              reader.result ||
+              ""
+            )
+          );
+        }
+      );
+
+
+      reader.addEventListener(
+        "error",
+        () => {
+          reject(
+            new Error(
+              "이미지 파일을 읽지 못했습니다."
+            )
+          );
+        }
+      );
+
+
+      reader.readAsDataURL(
+        file
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+  현재 사용할 로고 URL 가져오기
+
+  우선순위:
+  1. 새로 선택한 미리보기
+  2. 저장된 Data URL
+========================================================= */
+
+function getCurrentBrandLogoUrl() {
+  return String(
+    brandManagementState
+      .logoPreviewUrl ||
+    brandManagementState
+      .logoDataUrl ||
+    brandManagementState
+      .savedSettings
+      .logoDataUrl ||
+    ""
+  ).trim();
+}
+
+
+/* =========================================================
+  현재 사용할 배경 URL 가져오기
+========================================================= */
+
+function getCurrentBrandBackgroundUrl() {
+  return String(
+    brandManagementState
+      .backgroundPreviewUrl ||
+    brandManagementState
+      .backgroundDataUrl ||
+    brandManagementState
+      .savedSettings
+      .backgroundDataUrl ||
+    ""
+  ).trim();
+}
+
+/* =========================================================
+  저장된 브랜드 설정을 관리자 입력창에 반영
+========================================================= */
+
+function populateBrandManagementForm(
+  settings
+) {
+  const normalizedSettings =
+    normalizeBrandSettings(
+      settings
+    );
+
+
+  const {
+    companyNameInput,
+    programNameInput,
+    programSubtitleInput,
+
+    positionXInput,
+    positionYInput,
+    overlayInput
+  } =
+    getBrandManagementElements();
+
+
+  if (
+    companyNameInput
+  ) {
+    companyNameInput.value =
+      normalizedSettings
+        .companyName;
+  }
+
+
+  if (
+    programNameInput
+  ) {
+    programNameInput.value =
+      normalizedSettings
+        .programName;
+  }
+
+
+  if (
+    programSubtitleInput
+  ) {
+    programSubtitleInput.value =
+      normalizedSettings
+        .programSubtitle;
+  }
+
+
+  if (
+    positionXInput
+  ) {
+    positionXInput.value =
+      String(
+        normalizedSettings
+          .backgroundPositionX
+      );
+  }
+
+
+  if (
+    positionYInput
+  ) {
+    positionYInput.value =
+      String(
+        normalizedSettings
+          .backgroundPositionY
+      );
+  }
+
+
+  if (
+    overlayInput
+  ) {
+    overlayInput.value =
+      String(
+        normalizedSettings
+          .backgroundOverlay
+      );
+  }
+}
+
+/* =========================================================
+  브랜드 설정 초기화
+
+  페이지 로드 시:
+  - localStorage 설정 불러오기
+  - 상태값 설정
+  - 관리자 입력창 반영
+  - 실제 로그인 화면·헤더 반영
+========================================================= */
+
+function initializeBrandSettings() {
+  const savedSettings =
+    loadBrandSettingsFromStorage();
+
+
+  brandManagementState.savedSettings =
+    {
+      ...savedSettings
+    };
+
+
+  brandManagementState.logoFile =
+    null;
+
+
+  brandManagementState.logoPreviewUrl =
+    "";
+
+
+  brandManagementState.logoDataUrl =
+    savedSettings.logoDataUrl;
+
+
+  brandManagementState.backgroundFile =
+    null;
+
+
+  brandManagementState.backgroundPreviewUrl =
+    "";
+
+
+  brandManagementState.backgroundDataUrl =
+    savedSettings.backgroundDataUrl;
+
+
+  populateBrandManagementForm(
+    savedSettings
+  );
+
+
+  updateBrandManagementPreview();
+}
+
+/* =========================================================
+  실제 로그인 화면·상단 헤더 브랜드 요소
+========================================================= */
+
+function getAppliedBrandElements() {
+  return {
+    /*
+      로그인 후 상단 헤더
+    */
+    headerBrand:
+      document.getElementById(
+        "appHeaderBrand"
+      ),
+
+    headerLogoContainer:
+      document.getElementById(
+        "appHeaderBrandLogo"
+      ),
+
+    headerLogoFallback:
+      document.getElementById(
+        "appHeaderBrandFallback"
+      ),
+
+    headerLogoImage:
+      document.getElementById(
+        "appHeaderBrandLogoImage"
+      ),
+
+    headerProgramName:
+      document.getElementById(
+        "appHeaderProgramName"
+      ),
+
+    headerCompanyName:
+      document.getElementById(
+        "appHeaderCompanyName"
+      ),
+
+
+    /*
+      로그인 화면 배경
+    */
+    loginScreen:
+      document.getElementById(
+        "loginScreen"
+      ),
+
+    loginBackground:
+      document.getElementById(
+        "loginScreenBackground"
+      ),
+
+    loginOverlay:
+      document.getElementById(
+        "loginScreenOverlay"
+      ),
+
+
+    /*
+      로그인 화면 왼쪽 소개
+    */
+    introductionLogo:
+      document.getElementById(
+        "loginIntroductionLogo"
+      ),
+
+    introductionLogoFallback:
+      document.getElementById(
+        "loginIntroductionLogoFallback"
+      ),
+
+    introductionLogoImage:
+      document.getElementById(
+        "loginIntroductionLogoImage"
+      ),
+
+    introductionCompanyName:
+      document.getElementById(
+        "loginIntroductionCompanyName"
+      ),
+
+    introductionProgramName:
+      document.getElementById(
+        "loginIntroductionProgramName"
+      ),
+
+    introductionProgramSubtitle:
+      document.getElementById(
+        "loginIntroductionProgramSubtitle"
+      ),
+
+
+    /*
+      로그인 카드
+    */
+    loginCardLogo:
+      document.getElementById(
+        "loginCardLogo"
+      ),
+
+    loginCardLogoFallback:
+      document.getElementById(
+        "loginCardLogoFallback"
+      ),
+
+    loginCardLogoImage:
+      document.getElementById(
+        "loginCardLogoImage"
+      ),
+
+    loginCardCompanyName:
+      document.getElementById(
+        "loginCardCompanyName"
+      ),
+
+    loginCardProgramName:
+      document.getElementById(
+        "loginCardProgramName"
+      )
+  };
+}
+
+/* =========================================================
+  실제 화면 로고 적용
+
+  로고가 있으면:
+  - 이미지 표시
+  - GS 기본 마크 숨김
+
+  로고가 없으면:
+  - 이미지 숨김
+  - GS 기본 마크 표시
+========================================================= */
+
+function applyBrandLogoToScreen(
+  imageElement,
+  fallbackElement,
+  logoUrl
+) {
+  if (
+    !imageElement ||
+    !fallbackElement
+  ) {
+    return;
+  }
+
+
+  const normalizedLogoUrl =
+    String(
+      logoUrl ||
+      ""
+    ).trim();
+
+
+  if (
+    normalizedLogoUrl
+  ) {
+    imageElement.src =
+      normalizedLogoUrl;
+
+    imageElement.hidden =
+      false;
+
+    fallbackElement.hidden =
+      true;
+
+    return;
+  }
+
+
+  imageElement.removeAttribute(
+    "src"
+  );
+
+  imageElement.hidden =
+    true;
+
+  fallbackElement.hidden =
+    false;
+}
+
+/* =========================================================
+  브랜드 설정 실제 화면 적용
+
+  적용 대상:
+  - 로그인 화면
+  - 로그인 카드
+  - 로그인 후 상단 헤더
+========================================================= */
+
+function applyBrandManagementToActualScreen() {
+  const {
+    companyNameInput,
+    programNameInput,
+    programSubtitleInput,
+
+    positionXInput,
+    positionYInput,
+    overlayInput
+  } =
+    getBrandManagementElements();
+
+
+  const {
+    headerBrand,
+    headerLogoFallback,
+    headerLogoImage,
+    headerProgramName,
+    headerCompanyName,
+
+    loginBackground,
+    loginOverlay,
+
+    introductionLogoFallback,
+    introductionLogoImage,
+    introductionCompanyName,
+    introductionProgramName,
+    introductionProgramSubtitle,
+
+    loginCardLogoFallback,
+    loginCardLogoImage,
+    loginCardCompanyName,
+    loginCardProgramName
+  } =
+    getAppliedBrandElements();
+
+
+  const savedSettings =
+    brandManagementState
+      .savedSettings ||
+    DEFAULT_BRAND_SETTINGS;
+
+
+  /* =====================================================
+    현재 입력값
+  ====================================================== */
+
+  const companyName =
+    String(
+      companyNameInput?.value ||
+      savedSettings.companyName ||
+      DEFAULT_BRAND_SETTINGS.companyName
+    ).trim() ||
+    DEFAULT_BRAND_SETTINGS.companyName;
+
+
+  const programName =
+    String(
+      programNameInput?.value ||
+      savedSettings.programName ||
+      DEFAULT_BRAND_SETTINGS.programName
+    ).trim() ||
+    DEFAULT_BRAND_SETTINGS.programName;
+
+
+  const programSubtitle =
+    String(
+      programSubtitleInput?.value ||
+      savedSettings.programSubtitle ||
+      DEFAULT_BRAND_SETTINGS.programSubtitle
+    ).trim() ||
+    DEFAULT_BRAND_SETTINGS.programSubtitle;
+
+
+  const positionX =
+    clampBrandNumber(
+      positionXInput?.value,
+      0,
+      100,
+      savedSettings.backgroundPositionX
+    );
+
+
+  const positionY =
+    clampBrandNumber(
+      positionYInput?.value,
+      0,
+      100,
+      savedSettings.backgroundPositionY
+    );
+
+
+  const overlayPercent =
+    clampBrandNumber(
+      overlayInput?.value,
+      0,
+      80,
+      savedSettings.backgroundOverlay
+    );
+
+
+  const overlayOpacity =
+    overlayPercent /
+    100;
+
+
+  const logoUrl =
+    getCurrentBrandLogoUrl();
+
+
+  const backgroundUrl =
+    getCurrentBrandBackgroundUrl();
+
+
+  /* =====================================================
+    상단 헤더
+  ====================================================== */
+
+  if (
+    headerProgramName
+  ) {
+    headerProgramName.textContent =
+      programName;
+  }
+
+
+  if (
+    headerCompanyName
+  ) {
+    headerCompanyName.textContent =
+      companyName;
+  }
+
+
+  if (
+    headerBrand
+  ) {
+    headerBrand.setAttribute(
+      "aria-label",
+      `${programName} 홈`
+    );
+  }
+
+
+  /* =====================================================
+    로그인 왼쪽 소개
+  ====================================================== */
+
+  if (
+    introductionCompanyName
+  ) {
+    introductionCompanyName.textContent =
+      companyName;
+  }
+
+
+  if (
+    introductionProgramName
+  ) {
+    introductionProgramName.textContent =
+      programName;
+  }
+
+
+  if (
+    introductionProgramSubtitle
+  ) {
+    introductionProgramSubtitle.textContent =
+      programSubtitle;
+  }
+
+
+  /* =====================================================
+    로그인 카드
+  ====================================================== */
+
+  if (
+    loginCardCompanyName
+  ) {
+    loginCardCompanyName.textContent =
+      companyName;
+  }
+
+
+  if (
+    loginCardProgramName
+  ) {
+    loginCardProgramName.textContent =
+      programName;
+  }
+
+
+  /* =====================================================
+    로고
+  ====================================================== */
+
+  applyBrandLogoToScreen(
+    headerLogoImage,
+    headerLogoFallback,
+    logoUrl
+  );
+
+
+  applyBrandLogoToScreen(
+    introductionLogoImage,
+    introductionLogoFallback,
+    logoUrl
+  );
+
+
+  applyBrandLogoToScreen(
+    loginCardLogoImage,
+    loginCardLogoFallback,
+    logoUrl
+  );
+
+
+  /* =====================================================
+    로그인 배경
+  ====================================================== */
+
+  if (
+    loginBackground
+  ) {
+    loginBackground.style
+      .backgroundImage =
+      backgroundUrl
+        ? `url("${backgroundUrl}")`
+        : `linear-gradient(
+            135deg,
+            #17385f,
+            #2d6daf
+          )`;
+
+
+    loginBackground.style
+      .backgroundPosition =
+      `${positionX}% ${positionY}%`;
+
+
+    loginBackground.style
+      .backgroundSize =
+      "cover";
+
+
+    loginBackground.style
+      .backgroundRepeat =
+      "no-repeat";
+  }
+
+
+  /* =====================================================
+    로그인 배경 어둡기
+  ====================================================== */
+
+  if (
+    loginOverlay
+  ) {
+    loginOverlay.style
+      .background =
+      `linear-gradient(
+        90deg,
+        rgba(
+          8,
+          25,
+          48,
+          ${Math.min(
+            0.86,
+            overlayOpacity + 0.18
+          )}
+        ) 0%,
+        rgba(
+          8,
+          25,
+          48,
+          ${overlayOpacity}
+        ) 54%,
+        rgba(
+          8,
+          25,
+          48,
+          ${Math.max(
+            0.05,
+            overlayOpacity - 0.12
+          )}
+        ) 100%
+      )`;
+  }
+}
+
+/* =========================================================
+  브랜드 관리 메시지 표시
+========================================================= */
+
+function showBrandManagementMessage(
+  message,
+  type = "info"
+) {
+  const {
+    message: messageElement
+  } =
+    getBrandManagementElements();
+
+
+  if (
+    !messageElement
+  ) {
+    return;
+  }
+
+
+  messageElement.textContent =
+    String(
+      message ||
+      ""
+    );
+
+
+  messageElement.dataset.type =
+    type;
+
+
+  messageElement.hidden =
+    !message;
+}
+
+
+/* =========================================================
+  브랜드 관리 메시지 숨기기
+========================================================= */
+
+function hideBrandManagementMessage() {
+  showBrandManagementMessage(
+    ""
+  );
+}
+
+
+/* =========================================================
+  관리자 화면 탭 전환
+
+  employees:
+  - 직원 관리
+
+  brand:
+  - 브랜드 관리
+========================================================= */
+
+function switchSystemAdminView(
+  requestedView
+) {
+  const {
+    employeeTabButton,
+    brandTabButton,
+    employeeView,
+    brandView,
+    footerHelp,
+    saveBrandButton
+  } =
+    getBrandManagementElements();
+
+
+  const normalizedView =
+    requestedView ===
+      "brand"
+      ? "brand"
+      : "employees";
+
+
+  const isEmployeeView =
+    normalizedView ===
+      "employees";
+
+
+  employeeTabButton
+    ?.classList
+    .toggle(
+      "is-active",
+      isEmployeeView
+    );
+
+
+  brandTabButton
+    ?.classList
+    .toggle(
+      "is-active",
+      !isEmployeeView
+    );
+
+
+  employeeTabButton
+    ?.setAttribute(
+      "aria-selected",
+      String(
+        isEmployeeView
+      )
+    );
+
+
+  brandTabButton
+    ?.setAttribute(
+      "aria-selected",
+      String(
+        !isEmployeeView
+      )
+    );
+
+
+  if (
+    employeeView
+  ) {
+    employeeView.hidden =
+      !isEmployeeView;
+
+
+    employeeView.classList.toggle(
+      "is-active",
+      isEmployeeView
+    );
+  }
+
+
+  if (
+    brandView
+  ) {
+    brandView.hidden =
+      isEmployeeView;
+
+
+    brandView.classList.toggle(
+      "is-active",
+      !isEmployeeView
+    );
+  }
+
+
+  if (
+    saveBrandButton
+  ) {
+    saveBrandButton.hidden =
+      isEmployeeView;
+  }
+
+
+  if (
+    footerHelp
+  ) {
+    footerHelp.textContent =
+      isEmployeeView
+        ? "계정을 중지하면 해당 직원은 로그인할 수 없습니다."
+        : "저장 전 미리보기에서 로그인 화면과 상단 로고를 확인해 주세요.";
+  }
+
+
+  if (
+    !isEmployeeView
+  ) {
+    updateBrandManagementPreview();
+  }
+}
+
+
+/* =========================================================
+  이미지 파일 검사
+
+  지원:
+  - PNG
+  - JPEG
+  - WEBP
+
+  최대:
+  - 15MB
+========================================================= */
+
+function validateBrandImageFile(
+  file
+) {
+  if (
+    !file
+  ) {
+    return {
+      valid:
+        false,
+
+      message:
+        "이미지 파일을 선택해 주세요."
+    };
+  }
+
+
+  const allowedTypes = [
+    "image/png",
+    "image/jpeg",
+    "image/webp"
+  ];
+
+
+  if (
+    !allowedTypes.includes(
+      file.type
+    )
+  ) {
+    return {
+      valid:
+        false,
+
+      message:
+        "PNG, JPG, WEBP 이미지만 사용할 수 있습니다."
+    };
+  }
+
+
+  const maximumFileSize =
+    15 *
+    1024 *
+    1024;
+
+
+  if (
+    file.size >
+    maximumFileSize
+  ) {
+    return {
+      valid:
+        false,
+
+      message:
+        "이미지 파일은 15MB 이하로 선택해 주세요."
+    };
+  }
+
+
+  return {
+    valid:
+      true,
+
+    message:
+      ""
+  };
+}
+
+
+/* =========================================================
+  기존 Object URL 해제
+========================================================= */
+
+function revokeBrandPreviewUrl(
+  previewUrl
+) {
+  if (
+    !previewUrl ||
+    !String(
+      previewUrl
+    ).startsWith(
+      "blob:"
+    )
+  ) {
+    return;
+  }
+
+
+  URL.revokeObjectURL(
+    previewUrl
+  );
+}
+
+/* =========================================================
+  회사 로고 파일 선택
+========================================================= */
+
+async function handleBrandLogoFileChange(
+  event
+) {
+  const file =
+    event.target.files?.[0] ||
+    null;
+
+
+  if (
+    !file
+  ) {
+    return;
+  }
+
+
+  const validationResult =
+    validateBrandImageFile(
+      file
+    );
+
+
+  if (
+    !validationResult.valid
+  ) {
+    event.target.value =
+      "";
+
+
+    showBrandManagementMessage(
+      validationResult.message,
+      "error"
+    );
+
+
+    return;
+  }
+
+
+  try {
+    const dataUrl =
+      await readBrandFileAsDataUrl(
+        file
+      );
+
+
+    revokeBrandPreviewUrl(
+      brandManagementState
+        .logoPreviewUrl
+    );
+
+
+    brandManagementState.logoFile =
+      file;
+
+
+    brandManagementState.logoPreviewUrl =
+      URL.createObjectURL(
+        file
+      );
+
+
+    brandManagementState.logoDataUrl =
+      dataUrl;
+
+
+    hideBrandManagementMessage();
+
+
+    updateBrandManagementPreview();
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "회사 로고 읽기 실패:",
+      error
+    );
+
+
+    event.target.value =
+      "";
+
+
+    showBrandManagementMessage(
+      "회사 로고 파일을 읽지 못했습니다.",
+      "error"
+    );
+  }
+}
+
+/* =========================================================
+  로그인 배경 파일 선택
+========================================================= */
+
+async function handleBrandBackgroundFileChange(
+  event
+) {
+  const file =
+    event.target.files?.[0] ||
+    null;
+
+
+  if (
+    !file
+  ) {
+    return;
+  }
+
+
+  const validationResult =
+    validateBrandImageFile(
+      file
+    );
+
+
+  if (
+    !validationResult.valid
+  ) {
+    event.target.value =
+      "";
+
+
+    showBrandManagementMessage(
+      validationResult.message,
+      "error"
+    );
+
+
+    return;
+  }
+
+
+  try {
+    const dataUrl =
+      await readBrandFileAsDataUrl(
+        file
+      );
+
+
+    revokeBrandPreviewUrl(
+      brandManagementState
+        .backgroundPreviewUrl
+    );
+
+
+    brandManagementState.backgroundFile =
+      file;
+
+
+    brandManagementState.backgroundPreviewUrl =
+      URL.createObjectURL(
+        file
+      );
+
+
+    brandManagementState.backgroundDataUrl =
+      dataUrl;
+
+
+    hideBrandManagementMessage();
+
+
+    updateBrandManagementPreview();
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "로그인 배경 읽기 실패:",
+      error
+    );
+
+
+    event.target.value =
+      "";
+
+
+    showBrandManagementMessage(
+      "로그인 배경 파일을 읽지 못했습니다.",
+      "error"
+    );
+  }
+}
+
+/* =========================================================
+  회사 로고 삭제
+
+  저장 버튼을 눌러야 삭제 상태가 확정된다.
+========================================================= */
+
+function removeBrandLogoPreview() {
+  const {
+    logoFileInput
+  } =
+    getBrandManagementElements();
+
+
+  revokeBrandPreviewUrl(
+    brandManagementState
+      .logoPreviewUrl
+  );
+
+
+  brandManagementState.logoFile =
+    null;
+
+
+  brandManagementState.logoPreviewUrl =
+    "";
+
+
+  brandManagementState.logoDataUrl =
+    "";
+
+
+  if (
+    logoFileInput
+  ) {
+    logoFileInput.value =
+      "";
+  }
+
+
+  updateBrandManagementPreview();
+
+
+  showBrandManagementMessage(
+    "회사 로고를 삭제 상태로 변경했습니다. 저장 버튼을 눌러 적용해 주세요.",
+    "warning"
+  );
+}
+
+/* =========================================================
+  로그인 배경 삭제
+
+  저장 버튼을 눌러야 삭제 상태가 확정된다.
+========================================================= */
+
+function removeBrandBackgroundPreview() {
+  const {
+    backgroundFileInput
+  } =
+    getBrandManagementElements();
+
+
+  revokeBrandPreviewUrl(
+    brandManagementState
+      .backgroundPreviewUrl
+  );
+
+
+  brandManagementState.backgroundFile =
+    null;
+
+
+  brandManagementState.backgroundPreviewUrl =
+    "";
+
+
+  brandManagementState.backgroundDataUrl =
+    "";
+
+
+  if (
+    backgroundFileInput
+  ) {
+    backgroundFileInput.value =
+      "";
+  }
+
+
+  updateBrandManagementPreview();
+
+
+  showBrandManagementMessage(
+    "로그인 배경을 삭제 상태로 변경했습니다. 저장 버튼을 눌러 적용해 주세요.",
+    "warning"
+  );
+}
+/* =========================================================
+  이미지 미리보기 HTML 생성
+========================================================= */
+
+function renderBrandImagePreview(
+  container,
+  imageUrl,
+  options = {}
+) {
+  if (
+    !container
+  ) {
+    return;
+  }
+
+
+  const {
+    emptyTitle =
+      "이미지 미리보기",
+
+    emptyDescription =
+      "이미지를 선택해 주세요.",
+
+    alt =
+      "브랜드 이미지"
+  } = options;
+
+
+  if (
+    !imageUrl
+  ) {
+    container.innerHTML = `
+      <div class="brand-preview__empty">
+
+        <strong>
+          ${escapeEmployeeManagementHtml(
+            emptyTitle
+          )}
+        </strong>
+
+        <span>
+          ${escapeEmployeeManagementHtml(
+            emptyDescription
+          )}
+        </span>
+
+      </div>
+    `;
+
+
+    return;
+  }
+
+
+  container.innerHTML = `
+    <img
+      src="${escapeEmployeeManagementHtml(
+        imageUrl
+      )}"
+      alt="${escapeEmployeeManagementHtml(
+        alt
+      )}"
+    />
+  `;
+}
+
+
+/* =========================================================
+  최종 미리보기 로고 적용
+
+  이미지가 없으면 GS 기본 마크 표시
+========================================================= */
+
+function applyBrandLogoPreview(
+  container,
+  logoUrl
+) {
+  if (
+    !container
+  ) {
+    return;
+  }
+
+
+  if (
+    logoUrl
+  ) {
+    container.classList.add(
+      "has-image"
+    );
+
+
+    container.innerHTML = `
+      <img
+        src="${escapeEmployeeManagementHtml(
+          logoUrl
+        )}"
+        alt="회사 로고"
+      />
+    `;
+
+
+    return;
+  }
+
+
+  container.classList.remove(
+    "has-image"
+  );
+
+
+  container.textContent =
+    "GS";
+}
+
+/* =========================================================
+  브랜드 설정 실시간 미리보기 갱신
+========================================================= */
+
+function updateBrandManagementPreview() {
+  const {
+    companyNameInput,
+    programNameInput,
+    programSubtitleInput,
+
+    logoPreview,
+    backgroundPreview,
+
+    positionXInput,
+    positionYInput,
+    overlayInput,
+
+    positionXValue,
+    positionYValue,
+    overlayValue,
+
+    loginFinalPreview,
+    loginFinalPreviewLogo,
+    loginFinalPreviewCompany,
+    loginFinalPreviewProgram,
+    loginFinalPreviewSubtitle,
+
+    headerFinalPreviewLogo,
+    headerFinalPreviewProgram,
+    headerFinalPreviewCompany
+  } =
+    getBrandManagementElements();
+
+
+  const companyName =
+    String(
+      companyNameInput?.value ||
+      brandManagementState
+        .savedSettings
+        .companyName ||
+      DEFAULT_BRAND_SETTINGS
+        .companyName
+    ).trim() ||
+    DEFAULT_BRAND_SETTINGS
+      .companyName;
+
+
+  const programName =
+    String(
+      programNameInput?.value ||
+      brandManagementState
+        .savedSettings
+        .programName ||
+      DEFAULT_BRAND_SETTINGS
+        .programName
+    ).trim() ||
+    DEFAULT_BRAND_SETTINGS
+      .programName;
+
+
+  const programSubtitle =
+    String(
+      programSubtitleInput?.value ||
+      brandManagementState
+        .savedSettings
+        .programSubtitle ||
+      DEFAULT_BRAND_SETTINGS
+        .programSubtitle
+    ).trim() ||
+    DEFAULT_BRAND_SETTINGS
+      .programSubtitle;
+
+
+  const positionX =
+    clampBrandNumber(
+      positionXInput?.value,
+      0,
+      100,
+      DEFAULT_BRAND_SETTINGS
+        .backgroundPositionX
+    );
+
+
+  const positionY =
+    clampBrandNumber(
+      positionYInput?.value,
+      0,
+      100,
+      DEFAULT_BRAND_SETTINGS
+        .backgroundPositionY
+    );
+
+
+  const overlayPercent =
+    clampBrandNumber(
+      overlayInput?.value,
+      0,
+      80,
+      DEFAULT_BRAND_SETTINGS
+        .backgroundOverlay
+    );
+
+
+  const overlayOpacity =
+    overlayPercent /
+    100;
+
+
+  const logoUrl =
+    getCurrentBrandLogoUrl();
+
+
+  const backgroundUrl =
+    getCurrentBrandBackgroundUrl();
+
+
+  /* =====================================================
+    단독 이미지 미리보기
+  ====================================================== */
+
+  renderBrandImagePreview(
+    logoPreview,
+    logoUrl,
+    {
+      emptyTitle:
+        "회사 로고 미리보기",
+
+      emptyDescription:
+        "PNG·JPG·WEBP 이미지",
+
+      alt:
+        "회사 로고 미리보기"
+    }
+  );
+
+
+  renderBrandImagePreview(
+    backgroundPreview,
+    backgroundUrl,
+    {
+      emptyTitle:
+        "로그인 배경 미리보기",
+
+      emptyDescription:
+        "가로형 고화질 이미지를 권장합니다.",
+
+      alt:
+        "로그인 배경 미리보기"
+    }
+  );
+
+
+  /* =====================================================
+    로그인 미리보기 텍스트
+  ====================================================== */
+
+  if (
+    loginFinalPreviewCompany
+  ) {
+    loginFinalPreviewCompany.textContent =
+      companyName;
+  }
+
+
+  if (
+    loginFinalPreviewProgram
+  ) {
+    loginFinalPreviewProgram.textContent =
+      programName;
+  }
+
+
+  if (
+    loginFinalPreviewSubtitle
+  ) {
+    loginFinalPreviewSubtitle.textContent =
+      programSubtitle;
+  }
+
+
+  /* =====================================================
+    헤더 미리보기 텍스트
+  ====================================================== */
+
+  if (
+    headerFinalPreviewProgram
+  ) {
+    headerFinalPreviewProgram.textContent =
+      programName;
+  }
+
+
+  if (
+    headerFinalPreviewCompany
+  ) {
+    headerFinalPreviewCompany.textContent =
+      companyName;
+  }
+
+
+  /* =====================================================
+    로그인·헤더 로고
+  ====================================================== */
+
+  applyBrandLogoPreview(
+    loginFinalPreviewLogo,
+    logoUrl
+  );
+
+
+  applyBrandLogoPreview(
+    headerFinalPreviewLogo,
+    logoUrl
+  );
+
+
+  /* =====================================================
+    로그인 배경 미리보기
+  ====================================================== */
+
+  if (
+    loginFinalPreview
+  ) {
+    loginFinalPreview.style
+      .backgroundImage =
+      backgroundUrl
+        ? `linear-gradient(
+            rgba(
+              10,
+              28,
+              54,
+              ${overlayOpacity}
+            ),
+            rgba(
+              10,
+              28,
+              54,
+              ${overlayOpacity}
+            )
+          ),
+          url("${backgroundUrl}")`
+        : `linear-gradient(
+            135deg,
+            #17385f,
+            #2b69ad
+          )`;
+
+
+    loginFinalPreview.style
+      .backgroundPosition =
+      `${positionX}% ${positionY}%`;
+
+
+    loginFinalPreview.style
+      .backgroundSize =
+      "cover";
+  }
+
+
+  /* =====================================================
+    슬라이더 표시값
+  ====================================================== */
+
+  if (
+    positionXValue
+  ) {
+    positionXValue.textContent =
+      `${positionX}%`;
+  }
+
+
+  if (
+    positionYValue
+  ) {
+    positionYValue.textContent =
+      `${positionY}%`;
+  }
+
+
+  if (
+    overlayValue
+  ) {
+    overlayValue.textContent =
+      `${overlayPercent}%`;
+  }
+
+
+  /*
+    실제 로그인 화면과 상단 헤더에도
+    현재 설정을 즉시 반영한다.
+  */
+  applyBrandManagementToActualScreen();
+}
+
+/* =========================================================
+  브랜드 설정 저장
+
+  현재 단계:
+  - localStorage 저장
+  - 새로고침 후 유지
+========================================================= */
+
+function handleBrandManagementSavePreview() {
+  const {
+    companyNameInput,
+    programNameInput,
+    programSubtitleInput,
+
+    positionXInput,
+    positionYInput,
+    overlayInput,
+
+    saveBrandButton
+  } =
+    getBrandManagementElements();
+
+
+  const settingsToSave =
+    normalizeBrandSettings({
+      companyName:
+        companyNameInput?.value,
+
+      programName:
+        programNameInput?.value,
+
+      programSubtitle:
+        programSubtitleInput?.value,
+
+      logoDataUrl:
+        brandManagementState
+          .logoDataUrl,
+
+      backgroundDataUrl:
+        brandManagementState
+          .backgroundDataUrl,
+
+      backgroundPositionX:
+        positionXInput?.value,
+
+      backgroundPositionY:
+        positionYInput?.value,
+
+      backgroundOverlay:
+        overlayInput?.value
+    });
+
+
+  if (
+    saveBrandButton
+  ) {
+    saveBrandButton.disabled =
+      true;
+
+
+    saveBrandButton.textContent =
+      "저장 중...";
+  }
+
+
+  try {
+    const savedSettings =
+      saveBrandSettingsToStorage(
+        settingsToSave
+      );
+
+
+    brandManagementState.savedSettings =
+      {
+        ...savedSettings
+      };
+
+
+    brandManagementState.logoDataUrl =
+      savedSettings.logoDataUrl;
+
+
+    brandManagementState.backgroundDataUrl =
+      savedSettings.backgroundDataUrl;
+
+
+    /*
+      저장 완료 후 blob 미리보기가 아니라
+      영구 저장된 Data URL을 사용하도록 전환한다.
+    */
+    revokeBrandPreviewUrl(
+      brandManagementState
+        .logoPreviewUrl
+    );
+
+
+    brandManagementState.logoPreviewUrl =
+      "";
+
+
+    brandManagementState.logoFile =
+      null;
+
+
+    revokeBrandPreviewUrl(
+      brandManagementState
+        .backgroundPreviewUrl
+    );
+
+
+    brandManagementState.backgroundPreviewUrl =
+      "";
+
+
+    brandManagementState.backgroundFile =
+      null;
+
+
+    populateBrandManagementForm(
+      savedSettings
+    );
+
+
+    updateBrandManagementPreview();
+
+
+    showBrandManagementMessage(
+      "브랜드 설정을 저장했습니다. 새로고침 후에도 동일하게 유지됩니다.",
+      "success"
+    );
+
+
+    showToast(
+      "브랜드 설정이 저장되었습니다."
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "브랜드 설정 저장 오류:",
+      error
+    );
+
+
+    showBrandManagementMessage(
+      error.message ||
+      "브랜드 설정을 저장하지 못했습니다.",
+      "error"
+    );
+
+
+    showToast(
+      "브랜드 설정 저장에 실패했습니다."
+    );
+
+  } finally {
+    if (
+      saveBrandButton
+    ) {
+      saveBrandButton.disabled =
+        false;
+
+
+      saveBrandButton.textContent =
+        "브랜드 설정 저장";
+    }
+  }
+}
+
+/* =========================================================
+  브랜드 관리 이벤트 연결
+========================================================= */
+
+function bindBrandManagementEvents() {
+  const {
+    employeeTabButton,
+    brandTabButton,
+
+    companyNameInput,
+    programNameInput,
+    programSubtitleInput,
+
+    logoFileInput,
+    backgroundFileInput,
+
+    removeLogoButton,
+    removeBackgroundButton,
+
+    positionXInput,
+    positionYInput,
+    overlayInput,
+
+    saveBrandButton
+  } =
+    getBrandManagementElements();
+
+
+  employeeTabButton
+    ?.addEventListener(
+      "click",
+      () => {
+        switchSystemAdminView(
+          "employees"
+        );
+      }
+    );
+
+
+  brandTabButton
+    ?.addEventListener(
+      "click",
+      () => {
+        switchSystemAdminView(
+          "brand"
+        );
+      }
+    );
+
+
+  [
+    companyNameInput,
+    programNameInput,
+    programSubtitleInput,
+    positionXInput,
+    positionYInput,
+    overlayInput
+  ]
+    .filter(Boolean)
+    .forEach(
+      input => {
+        input.addEventListener(
+          "input",
+          updateBrandManagementPreview
+        );
+      }
+    );
+
+
+  logoFileInput
+    ?.addEventListener(
+      "change",
+      handleBrandLogoFileChange
+    );
+
+
+  backgroundFileInput
+    ?.addEventListener(
+      "change",
+      handleBrandBackgroundFileChange
+    );
+
+
+  removeLogoButton
+    ?.addEventListener(
+      "click",
+      removeBrandLogoPreview
+    );
+
+
+  removeBackgroundButton
+    ?.addEventListener(
+      "click",
+      removeBrandBackgroundPreview
+    );
+
+
+  saveBrandButton
+    ?.addEventListener(
+      "click",
+      handleBrandManagementSavePreview
+    );
+
+
+  updateBrandManagementPreview();
+}
+
+/* =========================================================
+  로그인 및 시스템 관리자 기능 초기화
 ========================================================= */
 
 function initializeShiftLogLogin() {
   const {
-  loginForm,
-  logoutButton,
-  adminButton,
-  employeeManagementModal,
-  closeEmployeeManagementButton,
-  closeEmployeeManagementFooterButton
+    loginForm,
+    logoutButton,
+    adminButton,
+    employeeManagementModal,
+    closeEmployeeManagementButton,
+    closeEmployeeManagementFooterButton
   } =
-  getLoginElements();
+    getLoginElements();
+
 
   const refreshEmployeeManagementButton =
-  document.getElementById(
-    "refreshEmployeeManagementButton"
-  );
+    document.getElementById(
+      "refreshEmployeeManagementButton"
+    );
+
 
   const employeeManagementSearch =
-  document.getElementById(
-    "employeeManagementSearch"
-  );
+    document.getElementById(
+      "employeeManagementSearch"
+    );
 
 
+  /* =====================================================
+    로그인
+  ====================================================== */
+
+  loginForm
+    ?.addEventListener(
+      "submit",
+      handleShiftLogLogin
+    );
 
 
-  /*
-    로그인 폼
-  */
-  loginForm?.addEventListener(
-    "submit",
-    handleShiftLogLogin
-  );
-
-
-  /*
+  /* =====================================================
     로그아웃
-  */
-  logoutButton?.addEventListener(
-    "click",
-    handleShiftLogLogout
-  );
+  ====================================================== */
+
+  logoutButton
+    ?.addEventListener(
+      "click",
+      handleShiftLogLogout
+    );
 
 
-  /*
-    최고관리자 직원관리 열기
-  */
-  adminButton?.addEventListener(
-    "click",
-    openEmployeeManagementModal
-  );
+  /* =====================================================
+    시스템 관리자 열기
+  ====================================================== */
+
+  adminButton
+    ?.addEventListener(
+      "click",
+      openEmployeeManagementModal
+    );
 
 
-  /*
-    직원관리 상단 닫기
-  */
+  /* =====================================================
+    시스템 관리자 닫기
+  ====================================================== */
+
   closeEmployeeManagementButton
     ?.addEventListener(
       "click",
@@ -3303,34 +5569,53 @@ function initializeShiftLogLogin() {
     );
 
 
-  /*
-    직원관리 하단 닫기
-  */
   closeEmployeeManagementFooterButton
     ?.addEventListener(
       "click",
       closeEmployeeManagementModal
     );
 
-refreshEmployeeManagementButton?.addEventListener(
-  "click",
-  loadEmployeeManagement
-);
 
-employeeManagementSearch?.addEventListener(
-  "input",
-  filterEmployeeManagementUsers
-);
+  /* =====================================================
+    직원 관리
+  ====================================================== */
+
+  refreshEmployeeManagementButton
+    ?.addEventListener(
+      "click",
+      loadEmployeeManagement
+    );
+
+
+  employeeManagementSearch
+    ?.addEventListener(
+      "input",
+      filterEmployeeManagementUsers
+    );
+
+
+  /* =====================================================
+    브랜드 관리 이벤트
+  ====================================================== */
+
+  bindBrandManagementEvents();
+
 
   /*
-    모달 바깥 배경을 누르면 닫기
+    저장된 브랜드 설정을 불러오고
+    로그인 화면과 상단 헤더에 적용한다.
   */
+  initializeBrandSettings();
+
+
+  /* =====================================================
+    모달 바깥 클릭 닫기
+  ====================================================== */
+
   employeeManagementModal
     ?.addEventListener(
       "click",
-      (
-        event
-      ) => {
+      event => {
         if (
           event.target ===
           employeeManagementModal
@@ -3341,9 +5626,10 @@ employeeManagementSearch?.addEventListener(
     );
 
 
-  /*
+  /* =====================================================
     저장된 로그인 사용자 복원
-  */
+  ====================================================== */
+
   const currentUser =
     loadCurrentUser();
 
@@ -3355,14 +5641,13 @@ employeeManagementSearch?.addEventListener(
       currentUser
     );
 
+
     return;
   }
 
 
   openLoginScreen();
 }
-
-
 document.addEventListener(
   "DOMContentLoaded",
   initializeShiftLogLogin

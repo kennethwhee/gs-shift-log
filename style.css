@@ -31251,3 +31251,1906 @@ textarea:focus{
 
     box-shadow:0 0 0 3px rgba(47,111,212,.12) !important;
 }
+
+/* =========================================================
+  시스템 관리자 모달
+========================================================= */
+
+.system-admin-panel {
+  width: min(
+    1180px,
+    calc(100vw - 48px)
+  );
+
+  max-width: 1180px;
+  height: min(
+    900px,
+    calc(100vh - 48px)
+  );
+
+  max-height: calc(100vh - 48px);
+}
+
+
+/* =========================================================
+  관리자 상단
+========================================================= */
+
+.system-admin-header {
+  min-height: 70px;
+  padding: 14px 20px;
+  background: #ffffff;
+}
+
+
+/* =========================================================
+  관리자 탭
+========================================================= */
+
+.system-admin-tabs {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  flex: 0 0 auto;
+  min-height: 68px;
+
+  border-bottom: 1px solid #d9e2ec;
+  background: #f7f9fc;
+}
+
+
+.system-admin-tab {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+
+  gap: 3px;
+
+  min-width: 0;
+  padding: 11px 20px;
+
+  border-right: 1px solid #e2e8f0;
+
+  background: transparent;
+  color: #64748b;
+
+  text-align: left;
+
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+
+.system-admin-tab:last-child {
+  border-right: 0;
+}
+
+
+.system-admin-tab::after {
+  content: "";
+
+  position: absolute;
+  right: 18px;
+  bottom: -1px;
+  left: 18px;
+
+  height: 3px;
+
+  border-radius:
+    999px
+    999px
+    0
+    0;
+
+  background: transparent;
+}
+
+
+.system-admin-tab:hover {
+  background: #f1f6fc;
+  color: #245f9e;
+}
+
+
+.system-admin-tab.is-active {
+  background: #ffffff;
+  color: #1f5fae;
+}
+
+
+.system-admin-tab.is-active::after {
+  background: #1f5fae;
+}
+
+
+.system-admin-tab__title {
+  color: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+
+.system-admin-tab small {
+  color: #8a96a5;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+
+.system-admin-tab.is-active small {
+  color: #5e7590;
+}
+
+
+/* =========================================================
+  관리자 본문
+========================================================= */
+
+.system-admin-body {
+  flex: 1 1 auto;
+  min-height: 0;
+
+  padding: 18px;
+
+  overflow-y: auto;
+
+  background: #f3f6f9;
+}
+
+
+.system-admin-view {
+  display: none;
+  width: 100%;
+}
+
+
+.system-admin-view.is-active {
+  display: block;
+}
+
+
+.system-admin-view[hidden] {
+  display: none !important;
+}
+
+
+/* =========================================================
+  관리자 하단
+========================================================= */
+
+.system-admin-footer {
+  min-height: 64px;
+  padding: 11px 18px;
+}
+
+
+.employee-management-footer-help {
+  color: #748195;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+  브랜드 관리 공통 섹션
+========================================================= */
+
+.brand-management-section {
+  margin-bottom: 14px;
+  padding: 18px;
+
+  border: 1px solid #d8e2ec;
+  border-radius: 12px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 3px 10px
+    rgba(
+      15,
+      23,
+      42,
+      0.035
+    );
+}
+
+
+.brand-management-section:last-of-type {
+  margin-bottom: 0;
+}
+
+
+.brand-management-section__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 16px;
+
+  margin-bottom: 15px;
+}
+
+
+.brand-management-section__header h3 {
+  margin: 2px 0 3px;
+
+  color: #203149;
+
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+}
+
+
+.brand-management-section__header p {
+  margin: 0;
+
+  color: #8290a2;
+
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+
+.brand-management-eyebrow {
+  display: block;
+
+  color: #1f5fae;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.14em;
+}
+
+
+/* =========================================================
+  브랜드 기본 정보 입력
+========================================================= */
+
+.brand-management-form-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 12px;
+}
+
+
+.brand-management-form-field--wide {
+  grid-column: 1 / -1;
+}
+
+
+/* =========================================================
+  이미지 업로드 영역
+========================================================= */
+
+.brand-upload-layout {
+  display: grid;
+
+  grid-template-columns:
+    minmax(360px, 1.45fr)
+    minmax(220px, 0.75fr);
+
+  align-items: stretch;
+
+  gap: 16px;
+}
+
+
+/* =========================================================
+  단독 이미지 미리보기
+========================================================= */
+
+.brand-preview {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  min-width: 0;
+
+  overflow: hidden;
+
+  border: 1px solid #d1dce8;
+  border-radius: 11px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f8fafc,
+      #eef3f8
+    );
+}
+
+
+.brand-preview--logo {
+  min-height: 160px;
+}
+
+
+.brand-preview--background {
+  min-height: 220px;
+}
+
+
+.brand-preview img {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: contain;
+}
+
+
+.brand-preview--background img {
+  object-fit: cover;
+}
+
+
+.brand-preview__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 5px;
+
+  min-height: inherit;
+  padding: 20px;
+
+  color: #7c899b;
+  text-align: center;
+}
+
+
+.brand-preview__empty::before {
+  content: "＋";
+
+  display: grid;
+  place-items: center;
+
+  width: 38px;
+  height: 38px;
+
+  margin-bottom: 3px;
+
+  border: 1px solid #bdd0e4;
+  border-radius: 50%;
+
+  background: #edf4fb;
+  color: #1f5fae;
+
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+
+.brand-preview__empty strong {
+  color: #4c5d72;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+
+.brand-preview__empty span {
+  color: #8a96a5;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+
+/* =========================================================
+  업로드 버튼 영역
+========================================================= */
+
+.brand-upload-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+
+  gap: 9px;
+
+  min-width: 0;
+}
+
+
+.brand-upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 42px;
+  padding: 0 15px;
+
+  border: 1px solid #8eb2d8;
+  border-radius: 9px;
+
+  background: #eaf3fc;
+  color: #1f5fae;
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.14s ease;
+}
+
+
+.brand-upload-button:hover {
+  border-color: #6997c8;
+  background: #dceaf8;
+}
+
+
+.brand-upload-button:active {
+  transform: translateY(1px);
+}
+
+
+.brand-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 38px;
+  padding: 0 14px;
+
+  border: 1px solid #e3bcbc;
+  border-radius: 9px;
+
+  background: #fff7f7;
+  color: #b34242;
+
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+.brand-delete-button:hover {
+  border-color: #d48181;
+  background: #fdecec;
+}
+
+
+.brand-upload-controls small {
+  color: #8491a2;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+
+/* =========================================================
+  배경 표시 설정
+========================================================= */
+
+.brand-display-setting-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap: 18px;
+}
+
+
+.brand-display-setting-grid
+.form-field {
+  padding: 12px;
+
+  border: 1px solid #e0e7ef;
+  border-radius: 10px;
+
+  background: #f8fafc;
+}
+
+
+.brand-display-setting-grid
+input[type="range"] {
+  width: 100%;
+  height: 5px;
+
+  margin: 7px 0 3px;
+
+  border: 0;
+  border-radius: 999px;
+
+  background: #d9e4ef;
+
+  accent-color: #1f5fae;
+}
+
+
+.brand-display-setting-grid
+output {
+  align-self: flex-end;
+
+  color: #1f5fae;
+
+  font-size: 11px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* =========================================================
+  최종 미리보기
+========================================================= */
+
+.brand-final-preview-grid {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1.25fr)
+    minmax(300px, 0.75fr);
+
+  align-items: stretch;
+
+  gap: 14px;
+}
+
+
+.brand-final-preview {
+  position: relative;
+
+  overflow: hidden;
+
+  border: 1px solid #ccd8e5;
+  border-radius: 12px;
+
+  background: #ffffff;
+}
+
+
+/* =========================================================
+  로그인 화면 미리보기
+========================================================= */
+
+.brand-final-preview--login {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  min-height: 320px;
+  padding: 28px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #17385f,
+      #2b69ad
+    );
+
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+}
+
+
+.brand-final-preview__overlay {
+  position: absolute;
+  inset: 0;
+
+  pointer-events: none;
+}
+
+
+/* =========================================================
+  로그인 카드 미리보기
+========================================================= */
+
+.brand-final-preview-login-card {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+
+  width: min(300px, 88%);
+  min-height: 215px;
+  padding: 23px;
+
+  border: 1px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.75
+    );
+
+  border-radius: 14px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.94
+    );
+
+  box-shadow:
+    0 18px 45px
+    rgba(
+      15,
+      23,
+      42,
+      0.22
+    );
+
+  backdrop-filter: blur(12px);
+}
+
+
+.brand-final-preview-logo {
+  display: grid;
+  place-items: center;
+
+  width: 52px;
+  height: 52px;
+
+  margin-bottom: 15px;
+
+  overflow: hidden;
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #1d5da8,
+      #2e79c9
+    );
+
+  color: #ffffff;
+
+  font-size: 17px;
+  font-weight: 900;
+}
+
+
+.brand-final-preview-logo.has-image {
+  width: auto;
+  min-width: 80px;
+  max-width: 170px;
+
+  padding: 5px 8px;
+
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+
+.brand-final-preview-logo img {
+  display: block;
+
+  width: 100%;
+  max-width: 150px;
+  height: 42px;
+
+  object-fit: contain;
+}
+
+
+.brand-final-preview-login-card > span {
+  margin-bottom: 3px;
+
+  color: #708096;
+
+  font-size: 10px;
+  font-weight: 800;
+}
+
+
+.brand-final-preview-login-card > strong {
+  margin-bottom: 3px;
+
+  color: #18283f;
+
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+}
+
+
+.brand-final-preview-login-card > small {
+  color: #7c8999;
+
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+  헤더 미리보기
+========================================================= */
+
+.brand-final-preview--header {
+  display: flex;
+  align-items: center;
+
+  min-height: 110px;
+  padding: 20px;
+
+  gap: 13px;
+
+  background: #ffffff;
+}
+
+
+.brand-header-preview-logo {
+  display: grid;
+  place-items: center;
+
+  flex: 0 0 auto;
+
+  width: 46px;
+  height: 46px;
+
+  overflow: hidden;
+
+  border-radius: 10px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #1d5da8,
+      #2e79c9
+    );
+
+  color: #ffffff;
+
+  font-size: 15px;
+  font-weight: 900;
+}
+
+
+.brand-header-preview-logo.has-image {
+  width: 100px;
+  padding: 4px 7px;
+
+  border: 1px solid #e0e6ed;
+  border-radius: 7px;
+
+  background: #ffffff;
+}
+
+
+.brand-header-preview-logo img {
+  display: block;
+
+  width: 100%;
+  height: 36px;
+
+  object-fit: contain;
+}
+
+
+.brand-header-preview-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+
+  gap: 1px;
+}
+
+
+.brand-header-preview-text strong {
+  overflow: hidden;
+
+  color: #18283f;
+
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.3;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.brand-header-preview-text small {
+  overflow: hidden;
+
+  color: #778598;
+
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  브랜드 관리 메시지
+========================================================= */
+
+.brand-management-message {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+
+  border: 1px solid #c7d9ec;
+  border-radius: 9px;
+
+  background: #edf5fc;
+  color: #245f9e;
+
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+
+.brand-management-message[data-type="success"] {
+  border-color: #a7d8bd;
+  background: #eaf8f0;
+  color: #19784b;
+}
+
+
+.brand-management-message[data-type="error"] {
+  border-color: #e5b3b3;
+  background: #fdecec;
+  color: #b43d3d;
+}
+
+
+.brand-management-message[data-type="warning"] {
+  border-color: #e3c78d;
+  background: #fff4df;
+  color: #94600e;
+}
+
+
+/* =========================================================
+  모바일·태블릿
+========================================================= */
+
+@media (max-width: 960px) {
+  .system-admin-panel {
+    width: calc(100vw - 24px);
+    height: calc(100vh - 24px);
+    max-height: calc(100vh - 24px);
+  }
+
+
+  .brand-upload-layout,
+  .brand-final-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+
+  .brand-display-setting-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+
+  .brand-final-preview--login {
+    min-height: 300px;
+  }
+
+
+  .brand-final-preview--header {
+    min-height: 90px;
+  }
+}
+
+
+@media (max-width: 680px) {
+  .employee-management-modal {
+    padding: 0;
+  }
+
+
+  .system-admin-panel {
+    width: 100vw;
+    max-width: 100vw;
+
+    height: 100dvh;
+    max-height: 100dvh;
+
+    border-radius: 0;
+  }
+
+
+  .system-admin-header {
+    min-height: 62px;
+    padding: 11px 14px;
+  }
+
+
+  .system-admin-tabs {
+    min-height: 60px;
+  }
+
+
+  .system-admin-tab {
+    padding: 9px 12px;
+  }
+
+
+  .system-admin-tab__title {
+    font-size: 12px;
+  }
+
+
+  .system-admin-tab small {
+    font-size: 9px;
+  }
+
+
+  .system-admin-body {
+    padding: 11px;
+  }
+
+
+  .brand-management-section {
+    padding: 14px;
+    border-radius: 10px;
+  }
+
+
+  .brand-management-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+
+  .brand-management-form-field--wide {
+    grid-column: auto;
+  }
+
+
+  .brand-upload-layout {
+    gap: 11px;
+  }
+
+
+  .brand-preview--logo {
+    min-height: 130px;
+  }
+
+
+  .brand-preview--background {
+    min-height: 180px;
+  }
+
+
+  .brand-final-preview--login {
+    min-height: 285px;
+    justify-content: center;
+    padding: 18px;
+  }
+
+
+  .brand-final-preview-login-card {
+    width: 100%;
+    max-width: 310px;
+  }
+
+
+  .system-admin-footer {
+    align-items: stretch;
+    flex-direction: column;
+
+    gap: 8px;
+  }
+
+
+  .system-admin-footer
+  .modal-footer__left,
+  .system-admin-footer
+  .modal-footer__right {
+    width: 100%;
+  }
+
+
+  .system-admin-footer
+  .modal-footer__right {
+    display: grid;
+    grid-template-columns:
+      1fr
+      1fr;
+  }
+
+
+  .system-admin-footer
+  button {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+  실제 상단 회사 브랜드
+========================================================= */
+
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+
+  min-width: 0;
+}
+
+
+.app-brand__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: auto;
+  min-width: 42px;
+  max-width: 190px;
+  height: 42px;
+
+  padding: 0;
+
+  overflow: hidden;
+
+  border: 0;
+  border-radius: 0;
+
+  background: transparent;
+  box-shadow: none;
+}
+
+
+.app-brand__fallback {
+  display: grid;
+  place-items: center;
+
+  width: 42px;
+  height: 42px;
+
+  border-radius: 10px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #1d5da8,
+      #2e79c9
+    );
+
+  color: #ffffff;
+
+  font-size: 14px;
+  font-weight: 900;
+}
+
+
+.app-brand__logo-image {
+  display: block;
+
+  width: auto;
+  max-width: 180px;
+  height: 38px;
+
+  object-fit: contain;
+  object-position: left center;
+}
+
+
+.app-brand__logo-image[hidden],
+.app-brand__fallback[hidden] {
+  display: none !important;
+}
+
+
+.app-brand__text {
+  min-width: 0;
+  gap: 0;
+}
+
+
+.app-brand__text strong {
+  overflow: hidden;
+
+  color: #172033;
+
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.3;
+
+  letter-spacing: -0.02em;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.app-brand__text small {
+  overflow: hidden;
+
+  color: #778396;
+
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  실제 로그인 화면
+========================================================= */
+
+.login-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.15fr)
+    minmax(460px, 0.85fr);
+
+  min-width: 0;
+  min-height: 100vh;
+
+  overflow: hidden;
+
+  background:
+    linear-gradient(
+      135deg,
+      #17385f,
+      #2d6daf
+    );
+}
+
+
+.login-screen__background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+
+  background:
+    linear-gradient(
+      135deg,
+      #17385f,
+      #2d6daf
+    );
+
+  background-repeat: no-repeat;
+  background-position: 50% 50%;
+  background-size: cover;
+
+  transform: scale(1.01);
+}
+
+
+.login-screen__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(8, 25, 48, 0.56) 0%,
+      rgba(8, 25, 48, 0.3) 54%,
+      rgba(8, 25, 48, 0.13) 100%
+    );
+
+  pointer-events: none;
+}
+
+
+/* =========================================================
+  로그인 왼쪽 안내
+========================================================= */
+
+.login-introduction {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  align-items: center;
+
+  min-width: 0;
+  min-height: 100vh;
+
+  padding:
+    clamp(50px, 7vw, 110px);
+}
+
+
+.login-introduction__content {
+  width: min(620px, 100%);
+}
+
+
+.login-introduction__logo {
+  display: flex;
+  align-items: center;
+
+  width: auto;
+  max-width: 260px;
+  height: 62px;
+
+  margin-bottom: 28px;
+}
+
+
+.login-introduction__logo-fallback {
+  display: grid;
+  place-items: center;
+
+  width: 62px;
+  height: 62px;
+
+  border: 1px solid
+    rgba(255, 255, 255, 0.32);
+
+  border-radius: 15px;
+
+  background:
+    rgba(255, 255, 255, 0.15);
+
+  color: #ffffff;
+
+  font-size: 19px;
+  font-weight: 900;
+
+  backdrop-filter: blur(10px);
+}
+
+
+.login-introduction__logo-image {
+  display: block;
+
+  width: auto;
+  max-width: 250px;
+  height: 60px;
+
+  object-fit: contain;
+  object-position: left center;
+
+  filter:
+    drop-shadow(
+      0 5px 15px
+      rgba(0, 0, 0, 0.15)
+    );
+}
+
+
+.login-introduction__logo-image[hidden],
+.login-introduction__logo-fallback[hidden] {
+  display: none !important;
+}
+
+
+.login-introduction__company {
+  margin: 0 0 9px;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.76
+    );
+
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+}
+
+
+.login-introduction__title {
+  margin: 0;
+
+  color: #ffffff;
+
+  font-size:
+    clamp(
+      40px,
+      5vw,
+      68px
+    );
+
+  font-weight: 900;
+  line-height: 1.06;
+  letter-spacing: -0.055em;
+
+  text-shadow:
+    0 8px 30px
+    rgba(0, 0, 0, 0.18);
+}
+
+
+.login-introduction__description {
+  margin: 14px 0 0;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.84
+    );
+
+  font-size:
+    clamp(
+      15px,
+      1.45vw,
+      20px
+    );
+
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+
+.login-introduction__line {
+  width: 44px;
+  height: 3px;
+
+  margin: 27px 0 19px;
+
+  border-radius: 999px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.78
+    );
+}
+
+
+.login-introduction__notice {
+  margin: 0;
+
+  color:
+    rgba(
+      255,
+      255,
+      255,
+      0.68
+    );
+
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.6;
+}
+
+
+/* =========================================================
+  로그인 카드 영역
+========================================================= */
+
+.login-screen__content {
+  position: relative;
+  z-index: 3;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 0;
+  min-height: 100vh;
+
+  padding:
+    42px
+    clamp(38px, 5vw, 82px);
+}
+
+
+/* =========================================================
+  로그인 카드
+========================================================= */
+
+.login-card {
+  width: min(430px, 100%);
+
+  padding: 34px;
+
+  border: 1px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.76
+    );
+
+  border-radius: 20px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.95
+    );
+
+  box-shadow:
+    0 28px 80px
+    rgba(
+      8,
+      22,
+      42,
+      0.3
+    );
+
+  backdrop-filter: blur(18px);
+}
+
+
+.login-card__brand {
+  display: none;
+  align-items: center;
+  gap: 11px;
+
+  margin-bottom: 26px;
+}
+
+
+.login-card__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex: 0 0 auto;
+
+  min-width: 44px;
+  max-width: 150px;
+  height: 44px;
+}
+
+
+.login-card__logo-fallback {
+  display: grid;
+  place-items: center;
+
+  width: 44px;
+  height: 44px;
+
+  border-radius: 10px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #1d5da8,
+      #2e79c9
+    );
+
+  color: #ffffff;
+
+  font-size: 14px;
+  font-weight: 900;
+}
+
+
+.login-card__logo-image {
+  display: block;
+
+  width: auto;
+  max-width: 145px;
+  height: 42px;
+
+  object-fit: contain;
+  object-position: left center;
+}
+
+
+.login-card__logo-image[hidden],
+.login-card__logo-fallback[hidden] {
+  display: none !important;
+}
+
+
+.login-card__brand-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+
+.login-card__brand-text span {
+  color: #8190a2;
+
+  font-size: 9px;
+  font-weight: 750;
+}
+
+
+.login-card__brand-text strong {
+  color: #18283f;
+
+  font-size: 15px;
+  font-weight: 900;
+}
+
+
+.login-card__header {
+  margin-bottom: 25px;
+}
+
+
+.login-card__eyebrow {
+  margin: 0 0 6px;
+
+  color: #1f5fae;
+
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+}
+
+
+.login-card__header h2 {
+  margin: 0;
+
+  color: #172033;
+
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+}
+
+
+.login-card__header > p:last-child {
+  margin: 7px 0 0;
+
+  color: #7d8999;
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
+
+/* =========================================================
+  로그인 입력
+========================================================= */
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+
+  gap: 15px;
+}
+
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+
+  gap: 6px;
+}
+
+
+.login-field__label {
+  color: #48586e;
+
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+.login-field__input-wrap {
+  display: grid;
+  grid-template-columns:
+    46px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  min-height: 50px;
+
+  overflow: hidden;
+
+  border: 1px solid #cbd6e2;
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+
+.login-field__input-wrap:focus-within {
+  border-color: #6d9dcc;
+
+  box-shadow:
+    0 0 0 4px
+    rgba(
+      31,
+      95,
+      174,
+      0.1
+    );
+}
+
+
+.login-field__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  align-self: stretch;
+
+  border-right: 1px solid #e0e6ed;
+
+  background: #f6f8fb;
+  color: #6f7f92;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+.login-field input {
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+
+  padding: 0 13px;
+
+  border: 0;
+  outline: 0;
+
+  background: transparent;
+  color: #172033;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+
+.login-field input::placeholder {
+  color: #a1aab6;
+  font-weight: 500;
+}
+
+
+/* =========================================================
+  로그인 오류
+========================================================= */
+
+.login-error {
+  margin: 0;
+  padding: 10px 11px;
+
+  border: 1px solid #e8b6b6;
+  border-radius: 8px;
+
+  background: #fff0f0;
+  color: #b13c3c;
+
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+  로그인 버튼
+========================================================= */
+
+.login-submit-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 51px;
+  margin-top: 3px;
+
+  border-radius: 10px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #1f5fae,
+      #174c8d
+    );
+
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 900;
+
+  box-shadow:
+    0 9px 20px
+    rgba(
+      31,
+      95,
+      174,
+      0.22
+    );
+
+  transition:
+    transform 0.14s ease,
+    filter 0.16s ease;
+}
+
+
+.login-submit-button:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+
+.login-submit-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+
+.login-submit-button:disabled {
+  cursor: wait;
+  opacity: 0.66;
+}
+
+
+/* =========================================================
+  로그인 카드 하단
+========================================================= */
+
+.login-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  margin-top: 22px;
+  padding-top: 17px;
+
+  border-top: 1px solid #e4e9ef;
+
+  color: #8793a3;
+
+  font-size: 9px;
+  font-weight: 700;
+}
+
+
+.login-card__status-dot {
+  width: 6px;
+  height: 6px;
+
+  border-radius: 50%;
+
+  background: #168b58;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(
+      22,
+      139,
+      88,
+      0.12
+    );
+}
+
+
+/* =========================================================
+  로그인 화면 반응형
+========================================================= */
+
+@media (max-width: 1050px) {
+  .login-screen {
+    grid-template-columns:
+      minmax(0, 0.9fr)
+      minmax(430px, 1.1fr);
+  }
+
+
+  .login-introduction {
+    padding: 52px;
+  }
+
+
+  .login-introduction__title {
+    font-size: 46px;
+  }
+
+
+  .login-screen__content {
+    padding: 34px;
+  }
+}
+
+
+@media (max-width: 780px) {
+  .login-screen {
+    display: block;
+
+    overflow-y: auto;
+  }
+
+
+  .login-introduction {
+    display: none;
+  }
+
+
+  .login-screen__overlay {
+    background:
+      rgba(
+        7,
+        24,
+        47,
+        0.42
+      );
+  }
+
+
+  .login-screen__content {
+    min-height: 100dvh;
+    padding: 22px;
+  }
+
+
+  .login-card {
+    width: min(420px, 100%);
+
+    padding: 27px 23px;
+
+    border-radius: 17px;
+  }
+
+
+  .login-card__brand {
+    display: flex;
+  }
+
+
+  .login-card__header h2 {
+    font-size: 26px;
+  }
+}
+
+
+@media (max-width: 420px) {
+  .login-screen__content {
+    padding: 13px;
+  }
+
+
+  .login-card {
+    padding: 24px 19px;
+  }
+}

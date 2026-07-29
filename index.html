@@ -26,99 +26,280 @@
   class="login-screen"
   id="loginScreen"
 >
+<!-- =========================================================
+  로그인 화면
+
+  관리자 브랜드 설정 적용 대상:
+  - 전체 배경 이미지
+  - 배경 위치
+  - 배경 어둡기
+  - 회사 로고
+  - 회사명
+  - 프로그램명
+  - 프로그램 설명
+========================================================== -->
+<section
+  class="login-screen"
+  id="loginScreen"
+>
+
+  <!-- 관리자 업로드 배경 -->
+  <div
+    class="login-screen__background"
+    id="loginScreenBackground"
+    aria-hidden="true"
+  >
+  </div>
+
+
+  <!-- 배경 위 어두운 효과 -->
+  <div
+    class="login-screen__overlay"
+    id="loginScreenOverlay"
+    aria-hidden="true"
+  >
+  </div>
+
+
+  <!-- 왼쪽 프로그램 안내 -->
   <section
-    class="login-card"
-    aria-labelledby="loginTitle"
+    class="login-introduction"
+    aria-label="프로그램 안내"
   >
 
-    <div class="login-card__brand">
+    <div class="login-introduction__content">
 
-      <span class="login-card__company">
-        GS 포천그린에너지
-      </span>
+      <!-- 회사 로고 -->
+      <div
+        class="login-introduction__logo"
+        id="loginIntroductionLogo"
+      >
 
-      <h1 id="loginTitle">
-        GS Shift Log
-      </h1>
-
-      <p>
-        교대근무 업무일지 시스템
-      </p>
-
-    </div>
-
-
-    <form
-      class="login-form"
-      id="loginForm"
-      autocomplete="off"
-    >
-
-      <label class="login-field">
-
-        <span>
-          사번
+        <span
+          class="login-introduction__logo-fallback"
+          id="loginIntroductionLogoFallback"
+        >
+          GS
         </span>
 
-        <input
-          type="text"
-          id="loginEmployeeId"
-          inputmode="numeric"
-          maxlength="7"
-          placeholder="사번을 입력하세요"
-          autocomplete="username"
-          required
+        <img
+          class="login-introduction__logo-image"
+          id="loginIntroductionLogoImage"
+          src=""
+          alt="회사 로고"
+          hidden
         />
 
-      </label>
-
-
-      <label class="login-field">
-
-        <span>
-          비밀번호
-        </span>
-
-        <input
-          type="password"
-          id="loginPassword"
-          maxlength="30"
-          placeholder="비밀번호를 입력하세요"
-          autocomplete="current-password"
-          required
-        />
-
-      </label>
+      </div>
 
 
       <p
-        class="login-error"
-        id="loginError"
-        role="alert"
-        hidden
+        class="login-introduction__company"
+        id="loginIntroductionCompanyName"
       >
+        GS 포천그린에너지
       </p>
 
 
-      <button
-        type="submit"
-        class="login-submit-button"
+      <h1
+        class="login-introduction__title"
+        id="loginIntroductionProgramName"
       >
-        로그인
-      </button>
-
-    </form>
+        GS Shift Log
+      </h1>
 
 
-    <div class="login-card__help">
+      <p
+        class="login-introduction__description"
+        id="loginIntroductionProgramSubtitle"
+      >
+        교대근무 업무일지 시스템
+      </p>
 
-      <span>
-        초기 비밀번호는 사번과 동일합니다.
-      </span>
+
+      <div class="login-introduction__line">
+      </div>
+
+
+      <p class="login-introduction__notice">
+        안전하고 정확한 교대근무 인수인계를 지원합니다.
+      </p>
 
     </div>
 
   </section>
+
+
+  <!-- 로그인 카드 영역 -->
+  <div class="login-screen__content">
+
+    <section
+      class="login-card"
+      aria-labelledby="loginCardTitle"
+    >
+
+      <!-- 모바일·기본 화면용 카드 로고 -->
+      <div class="login-card__brand">
+
+        <div
+          class="login-card__logo"
+          id="loginCardLogo"
+        >
+
+          <span
+            class="login-card__logo-fallback"
+            id="loginCardLogoFallback"
+          >
+            GS
+          </span>
+
+          <img
+            class="login-card__logo-image"
+            id="loginCardLogoImage"
+            src=""
+            alt="회사 로고"
+            hidden
+          />
+
+        </div>
+
+
+        <div class="login-card__brand-text">
+
+          <span id="loginCardCompanyName">
+            GS 포천그린에너지
+          </span>
+
+          <strong id="loginCardProgramName">
+            GS Shift Log
+          </strong>
+
+        </div>
+
+      </div>
+
+
+      <!-- 로그인 제목 -->
+      <header class="login-card__header">
+
+        <p class="login-card__eyebrow">
+          EMPLOYEE LOGIN
+        </p>
+
+        <h2 id="loginCardTitle">
+          로그인
+        </h2>
+
+        <p>
+          사번과 비밀번호를 입력해 주세요.
+        </p>
+
+      </header>
+
+
+      <!-- 로그인 폼 -->
+      <form
+        class="login-form"
+        id="loginForm"
+        novalidate
+      >
+
+        <label class="login-field">
+
+          <span class="login-field__label">
+            사번
+          </span>
+
+          <div class="login-field__input-wrap">
+
+            <span
+              class="login-field__icon"
+              aria-hidden="true"
+            >
+              ID
+            </span>
+
+            <input
+              type="text"
+              id="loginEmployeeId"
+              inputmode="numeric"
+              autocomplete="username"
+              placeholder="사번을 입력하세요."
+              required
+            />
+
+          </div>
+
+        </label>
+
+
+        <label class="login-field">
+
+          <span class="login-field__label">
+            비밀번호
+          </span>
+
+          <div class="login-field__input-wrap">
+
+            <span
+              class="login-field__icon"
+              aria-hidden="true"
+            >
+              PW
+            </span>
+
+            <input
+              type="password"
+              id="loginPassword"
+              autocomplete="current-password"
+              placeholder="비밀번호를 입력하세요."
+              required
+            />
+
+          </div>
+
+        </label>
+
+
+        <p
+          class="login-error"
+          id="loginError"
+          role="alert"
+          hidden
+        >
+        </p>
+
+
+        <button
+          type="submit"
+          class="login-submit-button"
+        >
+          로그인
+        </button>
+
+      </form>
+
+
+      <footer class="login-card__footer">
+
+        <span
+          class="login-card__status-dot"
+          aria-hidden="true"
+        >
+        </span>
+
+        <span>
+          GS Shift Log 보안 접속
+        </span>
+
+      </footer>
+
+    </section>
+
+  </div>
+
+</section>
+
 </div>
 
 <body>
@@ -128,56 +309,121 @@
   hidden
 >
 
-    <!-- =========================================================
-      상단 헤더
-    ========================================================== -->
-    <header class="app-header">
-      <div class="app-header__inner">
+<!-- =========================================================
+  상단 헤더
 
-        <a href="#" class="brand" aria-label="GS Shift Log 홈">
-          <span class="brand__mark">GS</span>
+  관리자 브랜드 설정 적용 대상:
+  - 회사 로고
+  - 프로그램명
+  - 회사명
+========================================================== -->
+<header class="app-header">
+  <div class="app-header__inner">
 
-          <span class="brand__text">
-            <strong>SHIFT LOG</strong>
-            <small>GS 포천그린에너지</small>
-          </span>
-        </a>
+    <!-- =====================================================
+      왼쪽 브랜드
+    ====================================================== -->
+    <a
+      href="#"
+      class="brand app-brand"
+      id="appHeaderBrand"
+      aria-label="GS Shift Log 홈"
+    >
 
-        <div class="header-actions">
-          <button
-            type="button"
-            class="header-action"
-            id="noticeButton"
-            aria-label="전체공지 열기"
-          >
-            전체공지
-          </button>
+      <!-- 회사 로고 -->
+      <span
+        class="brand__mark app-brand__logo"
+        id="appHeaderBrandLogo"
+        aria-hidden="true"
+      >
 
-          <button
-            type="button"
-            class="header-action"
-            id="adminButton"
-          >
-            관리자
-          </button>
+        <!-- 로고 미등록 시 기본 표시 -->
+        <span
+          class="app-brand__fallback"
+          id="appHeaderBrandFallback"
+        >
+          GS
+        </span>
 
-          <div class="header-user">
-            <span class="header-user__name" id="headerUserName">
-              이휘근
-            </span>
+        <!-- 관리자 업로드 로고 -->
+        <img
+          class="app-brand__logo-image"
+          id="appHeaderBrandLogoImage"
+          src=""
+          alt="회사 로고"
+          hidden
+        />
 
-            <button
-              type="button"
-              class="header-action header-action--logout"
-              id="logoutButton"
-            >
-              로그아웃
-            </button>
-          </div>
-        </div>
+      </span>
+
+
+      <!-- 프로그램명·회사명 -->
+      <span class="brand__text app-brand__text">
+
+        <strong id="appHeaderProgramName">
+          GS Shift Log
+        </strong>
+
+        <small id="appHeaderCompanyName">
+          GS 포천그린에너지
+        </small>
+
+      </span>
+
+    </a>
+
+
+    <!-- =====================================================
+      오른쪽 메뉴
+    ====================================================== -->
+    <div class="header-actions">
+
+      <button
+        type="button"
+        class="header-action"
+        id="noticeButton"
+        aria-label="전체공지 열기"
+      >
+        전체공지
+      </button>
+
+
+      <button
+        type="button"
+        class="header-action"
+        id="adminButton"
+      >
+        관리자
+      </button>
+
+
+      <div class="header-user">
+
+        <span
+          class="header-user__name"
+          id="headerUserName"
+        >
+          이휘근
+        </span>
+
+
+        <button
+          type="button"
+          class="
+            header-action
+            header-action--logout
+          "
+          id="logoutButton"
+        >
+          로그아웃
+        </button>
 
       </div>
-    </header>
+
+    </div>
+
+  </div>
+</header>
 
 
     <!-- =========================================================
@@ -4535,8 +4781,12 @@
 </div>
 
 <!-- =========================================================
-  직원 관리 모달
+  시스템 관리자 모달
   최고관리자 전용
+
+  메뉴:
+  - 직원 관리
+  - 브랜드 관리
 ========================================================== -->
 <div
   class="modal-backdrop employee-management-modal"
@@ -4544,7 +4794,11 @@
   aria-hidden="true"
 >
   <section
-    class="modal-panel employee-management-panel"
+    class="
+      modal-panel
+      employee-management-panel
+      system-admin-panel
+    "
     role="dialog"
     aria-modal="true"
     aria-labelledby="employeeManagementTitle"
@@ -4553,9 +4807,10 @@
     <!-- =====================================================
       상단
     ====================================================== -->
-    <header class="modal-header">
+    <header class="modal-header system-admin-header">
 
       <div>
+
         <p class="modal-header__eyebrow">
           SUPER ADMIN
         </p>
@@ -4564,8 +4819,9 @@
           class="modal-header__title"
           id="employeeManagementTitle"
         >
-          직원 관리
+          시스템 관리
         </h2>
+
       </div>
 
 
@@ -4573,7 +4829,7 @@
         type="button"
         class="modal-close-button"
         id="closeEmployeeManagementButton"
-        aria-label="직원 관리창 닫기"
+        aria-label="시스템 관리창 닫기"
       >
         ×
       </button>
@@ -4582,389 +4838,955 @@
 
 
     <!-- =====================================================
+      관리자 메뉴 탭
+    ====================================================== -->
+    <nav
+      class="system-admin-tabs"
+      aria-label="관리자 메뉴"
+    >
+
+      <button
+        type="button"
+        class="
+          system-admin-tab
+          is-active
+        "
+        id="employeeManagementTabButton"
+        data-system-admin-tab="employees"
+        aria-selected="true"
+      >
+
+        <span class="system-admin-tab__title">
+          직원 관리
+        </span>
+
+        <small>
+          계정·권한·보직 관리
+        </small>
+
+      </button>
+
+
+      <button
+        type="button"
+        class="system-admin-tab"
+        id="brandManagementTabButton"
+        data-system-admin-tab="brand"
+        aria-selected="false"
+      >
+
+        <span class="system-admin-tab__title">
+          브랜드 관리
+        </span>
+
+        <small>
+          로고·로그인 화면 관리
+        </small>
+
+      </button>
+
+    </nav>
+
+
+    <!-- =====================================================
       본문
     ====================================================== -->
-    <div class="modal-body employee-management-body">
+    <div
+      class="
+        modal-body
+        employee-management-body
+        system-admin-body
+      "
+    >
 
       <!-- ===================================================
-        검색 및 직원 추가
+        직원 관리 화면
       ==================================================== -->
-      <section class="employee-management-toolbar">
+      <section
+        class="
+          system-admin-view
+          is-active
+        "
+        id="employeeManagementView"
+        data-system-admin-view="employees"
+      >
 
-        <label class="employee-management-search">
+        <!-- 검색 및 직원 추가 -->
+        <section class="employee-management-toolbar">
 
-          <span>
-            직원 검색
-          </span>
+          <label class="employee-management-search">
 
-          <input
-            type="search"
-            id="employeeManagementSearch"
-            placeholder="사번 또는 이름 검색"
-            autocomplete="off"
-          />
+            <span>
+              직원 검색
+            </span>
 
-        </label>
+            <input
+              type="search"
+              id="employeeManagementSearch"
+              placeholder="사번 또는 이름 검색"
+              autocomplete="off"
+            />
 
-
-<div class="employee-management-toolbar__actions">
-
-  <!-- 직원 목록 다시 불러오기 -->
-  <button
-    type="button"
-    class="secondary-button"
-    id="refreshEmployeeManagementButton"
-  >
-    새로고침
-  </button>
+          </label>
 
 
-  <!-- 엑셀 파일 선택 -->
-  <button
-    type="button"
-    class="secondary-button"
-    id="openEmployeeExcelUploadButton"
-    onclick="openEmployeeExcelUpload()"
-  >
-    엑셀 업로드
-  </button>
+          <div class="employee-management-toolbar__actions">
+
+            <button
+              type="button"
+              class="secondary-button"
+              id="refreshEmployeeManagementButton"
+            >
+              새로고침
+            </button>
 
 
-  <!-- 직원 한 명 직접 추가 -->
-  <button
-    type="button"
-    class="primary-button"
-    id="openEmployeeAddButton"
-  >
-    ＋ 직원 추가
-  </button>
+            <button
+              type="button"
+              class="secondary-button"
+              id="openEmployeeExcelUploadButton"
+              onclick="openEmployeeExcelUpload()"
+            >
+              엑셀 업로드
+            </button>
 
 
-  <!-- 실제 엑셀 파일 선택창 -->
-  <input
-    type="file"
-    id="employeeExcelFileInput"
-    accept=".xlsx,.xls"
-    hidden
-    onchange="handleEmployeeExcelUpload(event)"
-  />
+            <button
+              type="button"
+              class="primary-button"
+              id="openEmployeeAddButton"
+            >
+              ＋ 직원 추가
+            </button>
 
-</div>
+
+            <input
+              type="file"
+              id="employeeExcelFileInput"
+              accept=".xlsx,.xls"
+              hidden
+              onchange="handleEmployeeExcelUpload(event)"
+            />
+
+          </div>
+
+        </section>
+
+
+        <!-- 과거 업무일지 동기화 -->
+        <section
+          class="legacy-sync-panel"
+          id="legacySyncPanel"
+        >
+
+          <div class="legacy-sync-panel__header">
+
+            <div>
+
+              <strong>
+                과거 업무일지 동기화
+              </strong>
+
+              <p>
+                과거 업무일지를 GS Shift Log 데이터베이스에 저장합니다.
+              </p>
+
+            </div>
+
+
+            <span
+              class="legacy-sync-status-badge"
+              id="legacySyncStatusBadge"
+            >
+              대기
+            </span>
+
+          </div>
+
+
+          <div class="legacy-sync-form">
+
+            <label class="form-field">
+
+              <span class="form-field__label">
+                시작일
+              </span>
+
+              <input
+                type="date"
+                id="legacySyncStartDate"
+              />
+
+            </label>
+
+
+            <label class="form-field">
+
+              <span class="form-field__label">
+                종료일
+              </span>
+
+              <input
+                type="date"
+                id="legacySyncEndDate"
+              />
+
+            </label>
+
+
+            <button
+              type="button"
+              class="
+                primary-button
+                legacy-sync-button
+              "
+              id="runLegacySyncButton"
+            >
+              과거 업무일지 동기화
+            </button>
+
+          </div>
+
+
+          <div
+            class="legacy-sync-progress"
+            id="legacySyncProgress"
+            hidden
+          >
+
+            <div class="legacy-sync-progress__track">
+
+              <span
+                class="legacy-sync-progress__bar"
+                id="legacySyncProgressBar"
+              >
+              </span>
+
+            </div>
+
+
+            <div class="legacy-sync-progress__text">
+
+              <strong id="legacySyncProgressText">
+                동기화를 준비하고 있습니다.
+              </strong>
+
+              <span id="legacySyncProgressPercent">
+                0%
+              </span>
+
+            </div>
+
+          </div>
+
+
+          <p
+            class="
+              employee-management-message
+              legacy-sync-message
+            "
+            id="legacySyncMessage"
+            hidden
+          >
+          </p>
+
+
+          <div class="legacy-sync-summary">
+
+            <div>
+
+              <span>
+                마지막 동기화
+              </span>
+
+              <strong id="legacySyncLastRun">
+                기록 없음
+              </strong>
+
+            </div>
+
+
+            <div>
+
+              <span>
+                동기화 기간
+              </span>
+
+              <strong id="legacySyncLastRange">
+                -
+              </strong>
+
+            </div>
+
+
+            <div>
+
+              <span>
+                처리 결과
+              </span>
+
+              <strong id="legacySyncLastResult">
+                -
+              </strong>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        <!-- 직원 추가 입력 -->
+        <section
+          class="employee-add-panel"
+          id="employeeAddPanel"
+          hidden
+        >
+
+          <div class="employee-add-panel__header">
+
+            <div>
+
+              <strong>
+                직원 계정 추가
+              </strong>
+
+              <p>
+                초기 비밀번호는 입력한 사번과 동일하게 설정됩니다.
+              </p>
+
+            </div>
+
+
+            <button
+              type="button"
+              class="employee-add-panel__close"
+              id="closeEmployeeAddButton"
+              aria-label="직원 추가 닫기"
+            >
+              ×
+            </button>
+
+          </div>
+
+
+          <div class="employee-add-form">
+
+            <label class="form-field">
+
+              <span class="form-field__label">
+                사번
+              </span>
+
+              <input
+                type="text"
+                id="employeeAddEmployeeNo"
+                inputmode="numeric"
+                maxlength="10"
+                placeholder="사번 입력"
+                autocomplete="off"
+              />
+
+            </label>
+
+
+            <label class="form-field">
+
+              <span class="form-field__label">
+                이름
+              </span>
+
+              <input
+                type="text"
+                id="employeeAddName"
+                maxlength="30"
+                placeholder="직원 이름 입력"
+                autocomplete="off"
+              />
+
+            </label>
+
+
+            <label class="form-field">
+
+              <span class="form-field__label">
+                권한
+              </span>
+
+              <select id="employeeAddRole">
+
+                <option
+                  value="user"
+                  selected
+                >
+                  일반
+                </option>
+
+                <option value="super_admin">
+                  최고관리자
+                </option>
+
+              </select>
+
+            </label>
+
+
+            <button
+              type="button"
+              class="
+                primary-button
+                employee-add-save-button
+              "
+              id="saveEmployeeAddButton"
+            >
+              등록
+            </button>
+
+          </div>
+
+
+          <p
+            class="employee-management-message"
+            id="employeeAddMessage"
+            hidden
+          >
+          </p>
+
+        </section>
+
+
+        <!-- 직원 목록 -->
+        <section class="employee-management-list-section">
+
+          <div class="employee-management-list-header">
+
+            <div>
+
+              <strong>
+                가입 완료 직원
+              </strong>
+
+              <span id="employeeManagementCount">
+                0명
+              </span>
+
+            </div>
+
+
+            <small>
+              일반·파트장·최고관리자 계정 관리
+            </small>
+
+          </div>
+
+
+          <div
+            class="employee-management-list"
+            id="employeeManagementList"
+          >
+
+            <div class="employee-management-empty">
+              직원 목록을 불러오세요.
+            </div>
+
+          </div>
+
+        </section>
 
       </section>
 
-      <!-- ===================================================
-  과거 업무일지 동기화
-==================================================== -->
-<section
-  class="legacy-sync-panel"
-  id="legacySyncPanel"
->
-
-  <div class="legacy-sync-panel__header">
-
-    <div>
-
-      <strong>
-        과거 업무일지 동기화
-      </strong>
-
-      <p>
-        과거 업무일지를 GS Shift Log 데이터베이스에 저장합니다.
-      </p>
-
-    </div>
-
-
-    <span
-      class="legacy-sync-status-badge"
-      id="legacySyncStatusBadge"
-    >
-      대기
-    </span>
-
-  </div>
-
-
-  <div class="legacy-sync-form">
-
-    <label class="form-field">
-
-      <span class="form-field__label">
-        시작일
-      </span>
-
-      <input
-        type="date"
-        id="legacySyncStartDate"
-      />
-
-    </label>
-
-
-    <label class="form-field">
-
-      <span class="form-field__label">
-        종료일
-      </span>
-
-      <input
-        type="date"
-        id="legacySyncEndDate"
-      />
-
-    </label>
-
-
-    <button
-      type="button"
-      class="primary-button legacy-sync-button"
-      id="runLegacySyncButton"
-    >
-      과거 업무일지 동기화
-    </button>
-
-  </div>
-
-
-  <div
-    class="legacy-sync-progress"
-    id="legacySyncProgress"
-    hidden
-  >
-
-    <div class="legacy-sync-progress__track">
-
-      <span
-        class="legacy-sync-progress__bar"
-        id="legacySyncProgressBar"
-      >
-      </span>
-
-    </div>
-
-
-    <div class="legacy-sync-progress__text">
-
-      <strong id="legacySyncProgressText">
-        동기화를 준비하고 있습니다.
-      </strong>
-
-      <span id="legacySyncProgressPercent">
-        0%
-      </span>
-
-    </div>
-
-  </div>
-
-
-  <p
-    class="employee-management-message legacy-sync-message"
-    id="legacySyncMessage"
-    hidden
-  >
-  </p>
-
-
-  <div class="legacy-sync-summary">
-
-    <div>
-
-      <span>
-        마지막 동기화
-      </span>
-
-      <strong id="legacySyncLastRun">
-        기록 없음
-      </strong>
-
-    </div>
-
-
-    <div>
-
-      <span>
-        동기화 기간
-      </span>
-
-      <strong id="legacySyncLastRange">
-        -
-      </strong>
-
-    </div>
-
-
-    <div>
-
-      <span>
-        처리 결과
-      </span>
-
-      <strong id="legacySyncLastResult">
-        -
-      </strong>
-
-    </div>
-
-  </div>
-
-</section>
 
       <!-- ===================================================
-        직원 추가 입력
+        브랜드 관리 화면
       ==================================================== -->
       <section
-        class="employee-add-panel"
-        id="employeeAddPanel"
+        class="system-admin-view"
+        id="brandManagementView"
+        data-system-admin-view="brand"
         hidden
       >
 
-        <div class="employee-add-panel__header">
+        <!-- 브랜드 기본 정보 -->
+        <section class="brand-management-section">
 
-          <div>
-            <strong>
-              직원 계정 추가
-            </strong>
+          <div class="brand-management-section__header">
 
-            <p>
-              초기 비밀번호는 입력한 사번과 동일하게 설정됩니다.
-            </p>
+            <div>
+
+              <span class="brand-management-eyebrow">
+                BRAND IDENTITY
+              </span>
+
+              <h3>
+                프로그램 기본 정보
+              </h3>
+
+              <p>
+                로그인 화면과 상단 헤더에 표시할 명칭을 설정합니다.
+              </p>
+
+            </div>
+
           </div>
 
 
-          <button
-            type="button"
-            class="employee-add-panel__close"
-            id="closeEmployeeAddButton"
-            aria-label="직원 추가 닫기"
-          >
-            ×
-          </button>
+          <div class="brand-management-form-grid">
 
-        </div>
+            <label class="form-field">
 
+              <span class="form-field__label">
+                회사명
+              </span>
 
-        <div class="employee-add-form">
+              <input
+                type="text"
+                id="brandCompanyNameInput"
+                maxlength="80"
+                value="GS 포천그린에너지"
+                placeholder="회사명을 입력하세요."
+                autocomplete="off"
+              />
 
-          <label class="form-field">
-
-            <span class="form-field__label">
-              사번
-            </span>
-
-            <input
-              type="text"
-              id="employeeAddEmployeeNo"
-              inputmode="numeric"
-              maxlength="10"
-              placeholder="사번 입력"
-              autocomplete="off"
-            />
-
-          </label>
+            </label>
 
 
-          <label class="form-field">
+            <label class="form-field">
 
-            <span class="form-field__label">
-              이름
-            </span>
+              <span class="form-field__label">
+                프로그램명
+              </span>
 
-            <input
-              type="text"
-              id="employeeAddName"
-              maxlength="30"
-              placeholder="직원 이름 입력"
-              autocomplete="off"
-            />
+              <input
+                type="text"
+                id="brandProgramNameInput"
+                maxlength="80"
+                value="GS Shift Log"
+                placeholder="프로그램명을 입력하세요."
+                autocomplete="off"
+              />
 
-          </label>
+            </label>
 
 
-          <label class="form-field">
+            <label
+              class="
+                form-field
+                brand-management-form-field--wide
+              "
+            >
 
-            <span class="form-field__label">
-              권한
-            </span>
+              <span class="form-field__label">
+                프로그램 설명
+              </span>
 
-            <select id="employeeAddRole">
+              <input
+                type="text"
+                id="brandProgramSubtitleInput"
+                maxlength="120"
+                value="교대근무 업무일지 시스템"
+                placeholder="프로그램 설명을 입력하세요."
+                autocomplete="off"
+              />
 
-              <option
-                value="user"
-                selected
+            </label>
+
+          </div>
+
+        </section>
+
+
+        <!-- 회사 로고 -->
+        <section class="brand-management-section">
+
+          <div class="brand-management-section__header">
+
+            <div>
+
+              <span class="brand-management-eyebrow">
+                COMPANY LOGO
+              </span>
+
+              <h3>
+                회사 로고
+              </h3>
+
+              <p>
+                로그인 화면과 로그인 후 왼쪽 상단에 표시됩니다.
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <div class="brand-upload-layout">
+
+            <div
+              class="
+                brand-preview
+                brand-preview--logo
+              "
+              id="brandLogoPreview"
+            >
+
+              <div class="brand-preview__empty">
+
+                <strong>
+                  회사 로고 미리보기
+                </strong>
+
+                <span>
+                  PNG·JPG·WEBP 이미지
+                </span>
+
+              </div>
+
+            </div>
+
+
+            <div class="brand-upload-controls">
+
+              <label
+                class="brand-upload-button"
+                for="brandLogoFileInput"
               >
-                일반
-              </option>
 
-              <option value="super_admin">
-                최고관리자
-              </option>
+                <span>
+                  로고 이미지 선택
+                </span>
 
-            </select>
+                <input
+                  type="file"
+                  id="brandLogoFileInput"
+                  accept="image/png,image/jpeg,image/webp"
+                  hidden
+                />
 
-          </label>
+              </label>
 
 
-          <button
-            type="button"
-            class="primary-button employee-add-save-button"
-            id="saveEmployeeAddButton"
-          >
-            등록
-          </button>
+              <button
+                type="button"
+                class="brand-delete-button"
+                id="removeBrandLogoButton"
+              >
+                로고 삭제
+              </button>
 
-        </div>
+
+              <small>
+                투명 배경 PNG 또는 가로형 회사 로고를 권장합니다.
+              </small>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        <!-- 로그인 배경 -->
+        <section class="brand-management-section">
+
+          <div class="brand-management-section__header">
+
+            <div>
+
+              <span class="brand-management-eyebrow">
+                LOGIN BACKGROUND
+              </span>
+
+              <h3>
+                로그인 화면 배경
+              </h3>
+
+              <p>
+                로그인 카드 뒤에 표시할 전체 배경 이미지를 설정합니다.
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <div class="brand-upload-layout">
+
+            <div
+              class="
+                brand-preview
+                brand-preview--background
+              "
+              id="brandLoginBackgroundPreview"
+            >
+
+              <div class="brand-preview__empty">
+
+                <strong>
+                  로그인 배경 미리보기
+                </strong>
+
+                <span>
+                  가로형 고화질 이미지를 권장합니다.
+                </span>
+
+              </div>
+
+            </div>
+
+
+            <div class="brand-upload-controls">
+
+              <label
+                class="brand-upload-button"
+                for="brandLoginBackgroundFileInput"
+              >
+
+                <span>
+                  배경 이미지 선택
+                </span>
+
+                <input
+                  type="file"
+                  id="brandLoginBackgroundFileInput"
+                  accept="image/png,image/jpeg,image/webp"
+                  hidden
+                />
+
+              </label>
+
+
+              <button
+                type="button"
+                class="brand-delete-button"
+                id="removeBrandLoginBackgroundButton"
+              >
+                배경 삭제
+              </button>
+
+
+              <small>
+                로그인 화면 전체에 비율을 유지하여 확대 적용됩니다.
+              </small>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        <!-- 로그인 배경 표시 설정 -->
+        <section class="brand-management-section">
+
+          <div class="brand-management-section__header">
+
+            <div>
+
+              <span class="brand-management-eyebrow">
+                BACKGROUND DISPLAY
+              </span>
+
+              <h3>
+                배경 표시 설정
+              </h3>
+
+              <p>
+                사진의 중심 위치와 어두운 효과를 조절합니다.
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <div class="brand-display-setting-grid">
+
+            <label class="form-field">
+
+              <span class="form-field__label">
+                가로 중심 위치
+              </span>
+
+              <input
+                type="range"
+                id="brandBackgroundPositionXInput"
+                min="0"
+                max="100"
+                value="50"
+              />
+
+              <output
+                id="brandBackgroundPositionXValue"
+                for="brandBackgroundPositionXInput"
+              >
+                50%
+              </output>
+
+            </label>
+
+
+            <label class="form-field">
+
+              <span class="form-field__label">
+                세로 중심 위치
+              </span>
+
+              <input
+                type="range"
+                id="brandBackgroundPositionYInput"
+                min="0"
+                max="100"
+                value="50"
+              />
+
+              <output
+                id="brandBackgroundPositionYValue"
+                for="brandBackgroundPositionYInput"
+              >
+                50%
+              </output>
+
+            </label>
+
+
+            <label class="form-field">
+
+              <span class="form-field__label">
+                배경 어둡기
+              </span>
+
+              <input
+                type="range"
+                id="brandBackgroundOverlayInput"
+                min="0"
+                max="80"
+                value="30"
+              />
+
+              <output
+                id="brandBackgroundOverlayValue"
+                for="brandBackgroundOverlayInput"
+              >
+                30%
+              </output>
+
+            </label>
+
+          </div>
+
+        </section>
+
+
+        <!-- 전체 미리보기 -->
+        <section class="brand-management-section">
+
+          <div class="brand-management-section__header">
+
+            <div>
+
+              <span class="brand-management-eyebrow">
+                PREVIEW
+              </span>
+
+              <h3>
+                적용 미리보기
+              </h3>
+
+              <p>
+                저장 전 로그인 화면과 상단 헤더 모습을 확인합니다.
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <div class="brand-final-preview-grid">
+
+            <!-- 로그인 미리보기 -->
+            <article
+              class="
+                brand-final-preview
+                brand-final-preview--login
+              "
+              id="brandLoginFinalPreview"
+            >
+
+              <div class="brand-final-preview__overlay">
+              </div>
+
+
+              <div class="brand-final-preview-login-card">
+
+                <div
+                  class="brand-final-preview-logo"
+                  id="brandLoginFinalPreviewLogo"
+                >
+                  GS
+                </div>
+
+
+                <span id="brandLoginFinalPreviewCompany">
+                  GS 포천그린에너지
+                </span>
+
+
+                <strong id="brandLoginFinalPreviewProgram">
+                  GS Shift Log
+                </strong>
+
+
+                <small id="brandLoginFinalPreviewSubtitle">
+                  교대근무 업무일지 시스템
+                </small>
+
+              </div>
+
+            </article>
+
+
+            <!-- 헤더 미리보기 -->
+            <article
+              class="
+                brand-final-preview
+                brand-final-preview--header
+              "
+            >
+
+              <div
+                class="brand-header-preview-logo"
+                id="brandHeaderFinalPreviewLogo"
+              >
+                GS
+              </div>
+
+
+              <div class="brand-header-preview-text">
+
+                <strong id="brandHeaderFinalPreviewProgram">
+                  GS Shift Log
+                </strong>
+
+                <small id="brandHeaderFinalPreviewCompany">
+                  GS 포천그린에너지
+                </small>
+
+              </div>
+
+            </article>
+
+          </div>
+
+        </section>
 
 
         <p
-          class="employee-management-message"
-          id="employeeAddMessage"
+          class="brand-management-message"
+          id="brandManagementMessage"
+          role="alert"
           hidden
         >
         </p>
-
-      </section>
-
-
-      <!-- ===================================================
-        직원 목록 정보
-      ==================================================== -->
-      <section class="employee-management-list-section">
-
-        <div class="employee-management-list-header">
-
-          <div>
-            <strong>
-              가입 완료 직원
-            </strong>
-
-            <span id="employeeManagementCount">
-              0명
-            </span>
-          </div>
-
-
-          <small>
-            일반·최고관리자 계정 관리
-          </small>
-
-        </div>
-
-
-        <!-- =================================================
-          직원 목록
-        ================================================== -->
-        <div
-          class="employee-management-list"
-          id="employeeManagementList"
-        >
-
-          <div class="employee-management-empty">
-            직원 목록을 불러오세요.
-          </div>
-
-        </div>
 
       </section>
 
@@ -4974,11 +5796,19 @@
     <!-- =====================================================
       하단
     ====================================================== -->
-    <footer class="modal-footer">
+    <footer
+      class="
+        modal-footer
+        system-admin-footer
+      "
+    >
 
       <div class="modal-footer__left">
 
-        <span class="employee-management-footer-help">
+        <span
+          class="employee-management-footer-help"
+          id="systemAdminFooterHelp"
+        >
           계정을 중지하면 해당 직원은 로그인할 수 없습니다.
         </span>
 
@@ -4993,6 +5823,16 @@
           id="closeEmployeeManagementFooterButton"
         >
           닫기
+        </button>
+
+
+        <button
+          type="button"
+          class="primary-button"
+          id="saveBrandManagementButton"
+          hidden
+        >
+          브랜드 설정 저장
         </button>
 
       </div>
