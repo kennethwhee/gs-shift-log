@@ -17207,20 +17207,15 @@ function isCustomOperationStatusItem(
 /* =========================================================
   TGO·BCO1·BCO2 운전현황 편집 행 최종본
 
-  수정 가능:
-  - 운전 상태만 변경
-
-  수정 불가:
-  - 설비명
-  - 운전현황 문구
+  사용 가능:
+  - 설비명 수정
+  - 운전상태 수정
+  - 운전현황 내용 수정
   - 항목 삭제
 
-  상태 변경 시 문구도 자동 변경:
-  - 정상운전 → 정상 운전 중
-  - 기동     → 기동 중
-  - 정지     → 정지 중
-  - 보존     → 만수 보존 중
-  - 비상     → 비상 상태
+  고정 운전현황:
+  - 저장한 내용은 날짜·근무와 관계없이 유지
+  - 업무일지 신규 작성 시 마지막 저장 상태 표시
 ========================================================= */
 
 function createOperationStatusEditorItemHtml(
@@ -17295,7 +17290,6 @@ function createOperationStatusEditorItemHtml(
     <article
       class="
         operation-status-item-editor
-        operation-status-item-editor--fixed
         is-${escapeHtml(
           normalizedItem.type
         )}
@@ -17311,10 +17305,10 @@ function createOperationStatusEditorItemHtml(
       </span>
 
 
-      <div
+      <label
         class="
           operation-status-item-field
-          operation-status-item-field--fixed-name
+          operation-status-item-field--name
         "
       >
         <span
@@ -17323,14 +17317,17 @@ function createOperationStatusEditorItemHtml(
           설비명
         </span>
 
-        <strong
-          class="operation-status-item-fixed-name"
-        >
-          ${escapeHtml(
+        <input
+          type="text"
+          class="operation-status-item-name-input"
+          data-operation-item-index="${itemIndex}"
+          value="${escapeHtml(
             normalizedItem.name
-          )}
-        </strong>
-      </div>
+          )}"
+          placeholder="설비명을 입력하세요."
+          autocomplete="off"
+        />
+      </label>
 
 
       <div
@@ -17392,10 +17389,10 @@ function createOperationStatusEditorItemHtml(
       </div>
 
 
-      <div
+      <label
         class="
           operation-status-item-field
-          operation-status-item-field--fixed-content
+          operation-status-item-field--content
         "
       >
         <span
@@ -17404,15 +17401,29 @@ function createOperationStatusEditorItemHtml(
           운전현황
         </span>
 
-        <span
-          class="operation-status-item-fixed-content"
-          data-operation-item-content="${itemIndex}"
-        >
-          ${escapeHtml(
+        <input
+          type="text"
+          class="operation-status-item-content-input"
+          data-operation-item-index="${itemIndex}"
+          value="${escapeHtml(
             normalizedItem.content
-          )}
-        </span>
-      </div>
+          )}"
+          placeholder="운전현황 내용을 입력하세요."
+          autocomplete="off"
+        />
+      </label>
+
+
+      <button
+        type="button"
+        class="operation-status-item-delete-button"
+        data-operation-item-delete="${itemIndex}"
+        data-operation-item-index="${itemIndex}"
+        aria-label="${itemIndex + 1}번 운전현황 삭제"
+        title="삭제"
+      >
+        삭제
+      </button>
 
     </article>
   `;
@@ -17615,20 +17626,99 @@ function addOperationStatusEditorItem() {
 }
 
 /* =========================================================
-  TGO·BCO1·BCO2 운전 상태 선택 최종본
+  운전현황 편집창 클릭 처리 최종본
 
-  상태 버튼을 누르면:
-  1. 상태값 변경
-  2. 고정 운전현황 문구 자동 변경
-  3. 해당 행 색상 변경
-  4. 선택 버튼 표시 변경
-
-  설비명·내용·항목 수는 변경하지 않는다.
+  처리 기능:
+  - 상태 변경
+  - 항목 삭제
 ========================================================= */
 
 function handleOperationStatusItemsEditorClick(
   event
 ) {
+  /* =====================================================
+    항목 삭제
+  ====================================================== */
+
+  const deleteButton =
+    event.target.closest(
+      "[data-operation-item-delete]"
+    );
+
+
+  if (
+    deleteButton
+  ) {
+    event.preventDefault();
+
+
+    const itemIndex =
+      Number(
+        deleteButton.dataset
+          .operationItemIndex
+      );
+
+
+    if (
+      !Number.isInteger(
+        itemIndex
+      ) ||
+      !editingOperationStatusItems[
+        itemIndex
+      ]
+    ) {
+      return;
+    }
+
+
+    const targetItem =
+      editingOperationStatusItems[
+        itemIndex
+      ];
+
+
+    const equipmentName =
+      String(
+        targetItem.name ||
+        `${itemIndex + 1}번 항목`
+      ).trim();
+
+
+    const shouldDelete =
+      window.confirm(
+        `${equipmentName} 운전현황을 삭제하시겠습니까?`
+      );
+
+
+    if (
+      !shouldDelete
+    ) {
+      return;
+    }
+
+
+    editingOperationStatusItems.splice(
+      itemIndex,
+      1
+    );
+
+
+    renderOperationStatusItemsEditor();
+
+
+    showToast(
+      `${equipmentName} 운전현황을 삭제했습니다.`
+    );
+
+
+    return;
+  }
+
+
+  /* =====================================================
+    운전상태 변경
+  ====================================================== */
+
   const typeButton =
     event.target.closest(
       "[data-operation-item-type]"
@@ -17689,114 +17779,60 @@ function handleOperationStatusItemsEditorClick(
   };
 
 
-  const selectedContent =
+  const previousType =
+    normalizeOperationStatusType(
+      editingOperationStatusItems[
+        itemIndex
+      ].type
+    );
+
+
+  const previousDefaultContent =
     statusContentMap[
-      selectedType
+      previousType
     ] ||
-    "정상 운전 중";
+    "";
 
 
-  /*
-    편집 데이터 변경
-  */
+  const currentContent =
+    String(
+      editingOperationStatusItems[
+        itemIndex
+      ].content ||
+      ""
+    ).trim();
+
+
   editingOperationStatusItems[
     itemIndex
   ].type =
     selectedType;
 
 
-  editingOperationStatusItems[
-    itemIndex
-  ].content =
-    selectedContent;
-
-
   /*
-    현재 설비 행
+    기존 내용이 상태 기본 문구이거나 비어 있을 때만
+    새 상태의 기본 문구로 자동 변경한다.
+
+    사용자가 직접 작성한 문장은 유지한다.
   */
-  const editorItem =
-    typeButton.closest(
-      ".operation-status-item-editor"
-    );
-
-
   if (
-    !editorItem
+    !currentContent ||
+    currentContent ===
+      previousDefaultContent
   ) {
-    return;
+    editingOperationStatusItems[
+      itemIndex
+    ].content =
+      statusContentMap[
+        selectedType
+      ] ||
+      "정상 운전 중";
   }
 
 
-  /*
-    행 상태색 변경
-  */
-  OPERATION_STATUS_TYPES.forEach(
-    statusType => {
-      editorItem.classList.remove(
-        `is-${statusType}`
-      );
-    }
-  );
-
-
-  editorItem.classList.add(
-    `is-${selectedType}`
-  );
-
-
-  /*
-    선택 버튼 표시
-  */
-  editorItem
-    .querySelectorAll(
-      "[data-operation-item-type]"
-    )
-    .forEach(
-      button => {
-        const buttonType =
-          normalizeOperationStatusType(
-            button.dataset
-              .operationItemType
-          );
-
-
-        const isSelected =
-          buttonType ===
-          selectedType;
-
-
-        button.classList.toggle(
-          "is-selected",
-          isSelected
-        );
-
-
-        button.setAttribute(
-          "aria-pressed",
-          String(
-            isSelected
-          )
-        );
-      }
-    );
-
-
-  /*
-    고정 문구 즉시 변경
-  */
-  const contentElement =
-    editorItem.querySelector(
-      `[data-operation-item-content="${itemIndex}"]`
-    );
-
-
-  if (
-    contentElement
-  ) {
-    contentElement.textContent =
-      selectedContent;
-  }
+  renderOperationStatusItemsEditor();
 }
+
 /* =========================================================
   설비 선택 변경 처리
 
@@ -17903,9 +17939,11 @@ function handleOperationStatusItemsEditorChange(
 }
 
 /* =========================================================
-  운전현황 내용 입력 동기화
+  운전현황 편집 입력 동기화 최종본
 
-  설비명은 select change 이벤트에서 처리한다.
+  수정 대상:
+  - 설비명
+  - 운전현황 내용
 ========================================================= */
 
 function handleOperationStatusItemsEditorInput(
@@ -17934,6 +17972,27 @@ function handleOperationStatusItemsEditorInput(
   }
 
 
+  /*
+    설비명 수정
+  */
+  if (
+    input.classList.contains(
+      "operation-status-item-name-input"
+    )
+  ) {
+    editingOperationStatusItems[
+      itemIndex
+    ].name =
+      input.value;
+
+
+    return;
+  }
+
+
+  /*
+    운전현황 내용 수정
+  */
   if (
     input.classList.contains(
       "operation-status-item-content-input"
@@ -17945,7 +18004,6 @@ function handleOperationStatusItemsEditorInput(
       input.value;
   }
 }
-
 
 /* =========================================================
   편집 항목 입력값 검증
@@ -18193,7 +18251,7 @@ if (
     const editorContainer =
       ensureOperationStatusItemsEditor();
 
-      const addItemButton =
+const addItemButton =
   editorContainer?.querySelector(
     "#addOperationStatusItemButton"
   );
@@ -18203,7 +18261,10 @@ if (
   addItemButton
 ) {
   addItemButton.hidden =
-    true;
+    false;
+
+  addItemButton.disabled =
+    false;
 }
 
 
