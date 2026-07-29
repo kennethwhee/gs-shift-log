@@ -3215,10 +3215,14 @@ async function openEmployeeManagementModal() {
   );
 
 
-  hideBrandManagementMessage();
+hideBrandManagementMessage();
 
 
-  updateBrandManagementPreview();
+/*
+  다른 최고관리자가 설정을 변경했을 수 있으므로
+  관리자 창을 열 때 서버 설정을 다시 조회한다.
+*/
+await initializeBrandSettings();
 
 
   /*
@@ -3267,15 +3271,19 @@ function closeEmployeeManagementModal() {
 /* =========================================================
   브랜드 관리 상태
 
-  saved:
-  - localStorage에 저장된 현재 설정
+  저장 위치:
+  - 텍스트 설정: D1 brand_settings
+  - 로고·배경: R2 ATTACHMENTS
 
-  preview:
-  - 관리자가 새로 선택한 이미지 미리보기
+  previewUrl:
+  - 새 파일 선택 후 저장 전 미리보기용 Blob URL
+
+  savedSettings:
+  - 서버에 저장된 최종 설정
 ========================================================= */
 
-const BRAND_SETTINGS_STORAGE_KEY =
-  "gsShiftLogBrandSettings";
+const BRAND_SETTINGS_API_URL =
+  "/api/brand-settings";
 
 
 const DEFAULT_BRAND_SETTINGS = {
@@ -3288,10 +3296,10 @@ const DEFAULT_BRAND_SETTINGS = {
   programSubtitle:
     "교대근무 업무일지 시스템",
 
-  logoDataUrl:
+  logoUrl:
     "",
 
-  backgroundDataUrl:
+  backgroundUrl:
     "",
 
   backgroundPositionX:
@@ -3301,7 +3309,10 @@ const DEFAULT_BRAND_SETTINGS = {
     50,
 
   backgroundOverlay:
-    30
+    30,
+
+  updatedAt:
+    ""
 };
 
 
@@ -3312,8 +3323,8 @@ const brandManagementState = {
   logoPreviewUrl:
     "",
 
-  logoDataUrl:
-    "",
+  logoRemoved:
+    false,
 
 
   backgroundFile:
@@ -3322,14 +3333,20 @@ const brandManagementState = {
   backgroundPreviewUrl:
     "",
 
-  backgroundDataUrl:
-    "",
+  backgroundRemoved:
+    false,
 
 
-  savedSettings:
-    {
-      ...DEFAULT_BRAND_SETTINGS
-    }
+  savedSettings: {
+    ...DEFAULT_BRAND_SETTINGS
+  },
+
+
+  isLoading:
+    false,
+
+  isSaving:
+    false
 };
 
 /* =========================================================
@@ -3366,9 +3383,10 @@ function clampBrandNumber(
   );
 }
 
-
 /* =========================================================
   브랜드 설정 데이터 정규화
+
+  서버 응답과 기본값을 하나의 형식으로 통일한다.
 ========================================================= */
 
 function normalizeBrandSettings(
@@ -3378,6 +3396,7 @@ function normalizeBrandSettings(
     companyName:
       String(
         rawSettings.companyName ||
+        rawSettings.company_name ||
         DEFAULT_BRAND_SETTINGS.companyName
       ).trim() ||
       DEFAULT_BRAND_SETTINGS.companyName,
@@ -3386,6 +3405,7 @@ function normalizeBrandSettings(
     programName:
       String(
         rawSettings.programName ||
+        rawSettings.program_name ||
         DEFAULT_BRAND_SETTINGS.programName
       ).trim() ||
       DEFAULT_BRAND_SETTINGS.programName,
@@ -3394,241 +3414,200 @@ function normalizeBrandSettings(
     programSubtitle:
       String(
         rawSettings.programSubtitle ||
+        rawSettings.program_subtitle ||
         DEFAULT_BRAND_SETTINGS.programSubtitle
       ).trim() ||
       DEFAULT_BRAND_SETTINGS.programSubtitle,
 
 
-    logoDataUrl:
+    logoUrl:
       String(
-        rawSettings.logoDataUrl ||
+        rawSettings.logoUrl ||
+        rawSettings.logo_url ||
         ""
       ).trim(),
 
 
-    backgroundDataUrl:
+    backgroundUrl:
       String(
-        rawSettings.backgroundDataUrl ||
+        rawSettings.backgroundUrl ||
+        rawSettings.background_url ||
         ""
       ).trim(),
 
 
     backgroundPositionX:
       clampBrandNumber(
-        rawSettings.backgroundPositionX,
+        rawSettings.backgroundPositionX ??
+        rawSettings.background_position_x,
         0,
         100,
-        DEFAULT_BRAND_SETTINGS
-          .backgroundPositionX
+        DEFAULT_BRAND_SETTINGS.backgroundPositionX
       ),
 
 
     backgroundPositionY:
       clampBrandNumber(
-        rawSettings.backgroundPositionY,
+        rawSettings.backgroundPositionY ??
+        rawSettings.background_position_y,
         0,
         100,
-        DEFAULT_BRAND_SETTINGS
-          .backgroundPositionY
+        DEFAULT_BRAND_SETTINGS.backgroundPositionY
       ),
 
 
     backgroundOverlay:
       clampBrandNumber(
-        rawSettings.backgroundOverlay,
+        rawSettings.backgroundOverlay ??
+        rawSettings.background_overlay,
         0,
         80,
-        DEFAULT_BRAND_SETTINGS
-          .backgroundOverlay
-      )
+        DEFAULT_BRAND_SETTINGS.backgroundOverlay
+      ),
+
+
+    updatedAt:
+      String(
+        rawSettings.updatedAt ||
+        rawSettings.updated_at ||
+        ""
+      ).trim()
   };
 }
 
-
 /* =========================================================
-  localStorage에서 브랜드 설정 불러오기
+  서버에서 브랜드 설정 조회
+
+  GET /api/brand-settings
+
+  로그인 화면에서도 사용하므로
+  Authorization 없이 공개 조회한다.
 ========================================================= */
 
-function loadBrandSettingsFromStorage() {
-  try {
-    const savedValue =
-      localStorage.getItem(
-        BRAND_SETTINGS_STORAGE_KEY
-      );
-
-
-    if (
-      !savedValue
-    ) {
-      return {
-        ...DEFAULT_BRAND_SETTINGS
-      };
-    }
-
-
-    const parsedValue =
-      JSON.parse(
-        savedValue
-      );
-
-
-    return normalizeBrandSettings(
-      parsedValue
+async function loadBrandSettingsFromServer() {
+  const requestUrl =
+    new URL(
+      BRAND_SETTINGS_API_URL,
+      window.location.origin
     );
 
-  } catch (
-    error
+
+  /*
+    브라우저와 중간 캐시를 방지한다.
+  */
+  requestUrl.searchParams.set(
+    "_",
+    String(
+      Date.now()
+    )
+  );
+
+
+  const response =
+    await fetch(
+      requestUrl.toString(),
+      {
+        method:
+          "GET",
+
+        headers: {
+          Accept:
+            "application/json"
+        },
+
+        cache:
+          "no-store"
+      }
+    );
+
+
+  const responseText =
+    await response.text();
+
+
+  let result = {};
+
+
+  if (
+    responseText.trim()
   ) {
-    console.error(
-      "브랜드 설정 불러오기 실패:",
-      error
-    );
-
-
-    return {
-      ...DEFAULT_BRAND_SETTINGS
-    };
-  }
-}
-
-
-/* =========================================================
-  localStorage에 브랜드 설정 저장
-========================================================= */
-
-function saveBrandSettingsToStorage(
-  settings
-) {
-  const normalizedSettings =
-    normalizeBrandSettings(
-      settings
-    );
-
-
-  try {
-    localStorage.setItem(
-      BRAND_SETTINGS_STORAGE_KEY,
-      JSON.stringify(
-        normalizedSettings
-      )
-    );
-
-
-    return normalizedSettings;
-
-  } catch (
-    error
-  ) {
-    console.error(
-      "브랜드 설정 저장 실패:",
-      error
-    );
-
-
-    throw new Error(
-      "브랜드 설정을 저장하지 못했습니다. 이미지 용량을 줄인 후 다시 시도해 주세요."
-    );
-  }
-}
-
-
-/* =========================================================
-  파일을 Data URL로 변환
-
-  localStorage 저장용
-========================================================= */
-
-function readBrandFileAsDataUrl(
-  file
-) {
-  return new Promise(
-    (
-      resolve,
-      reject
-    ) => {
-      if (
-        !file
-      ) {
-        resolve(
-          ""
+    try {
+      result =
+        JSON.parse(
+          responseText
         );
 
-        return;
-      }
-
-
-      const reader =
-        new FileReader();
-
-
-      reader.addEventListener(
-        "load",
-        () => {
-          resolve(
-            String(
-              reader.result ||
-              ""
-            )
-          );
-        }
-      );
-
-
-      reader.addEventListener(
-        "error",
-        () => {
-          reject(
-            new Error(
-              "이미지 파일을 읽지 못했습니다."
-            )
-          );
-        }
-      );
-
-
-      reader.readAsDataURL(
-        file
+    } catch {
+      throw new Error(
+        "브랜드 설정 서버 응답 형식이 올바르지 않습니다."
       );
     }
+  }
+
+
+  if (
+    !response.ok ||
+    result.ok === false
+  ) {
+    throw new Error(
+      result.message ||
+      result.error ||
+      `브랜드 설정 조회 실패 (HTTP ${response.status})`
+    );
+  }
+
+
+  return normalizeBrandSettings(
+    result.brand ||
+    result.data ||
+    result
   );
 }
 
-
 /* =========================================================
-  현재 사용할 로고 URL 가져오기
+  현재 화면에서 사용할 회사 로고 URL
 
   우선순위:
-  1. 새로 선택한 미리보기
-  2. 저장된 Data URL
+  1. 삭제 상태면 빈 값
+  2. 새 파일 Blob 미리보기
+  3. 서버 저장 URL
 ========================================================= */
 
 function getCurrentBrandLogoUrl() {
+  if (
+    brandManagementState.logoRemoved
+  ) {
+    return "";
+  }
+
+
   return String(
-    brandManagementState
-      .logoPreviewUrl ||
-    brandManagementState
-      .logoDataUrl ||
-    brandManagementState
-      .savedSettings
-      .logoDataUrl ||
+    brandManagementState.logoPreviewUrl ||
+    brandManagementState.savedSettings.logoUrl ||
     ""
   ).trim();
 }
 
-
 /* =========================================================
-  현재 사용할 배경 URL 가져오기
+  현재 화면에서 사용할 로그인 배경 URL
+
+  우선순위:
+  1. 삭제 상태면 빈 값
+  2. 새 파일 Blob 미리보기
+  3. 서버 저장 URL
 ========================================================= */
 
 function getCurrentBrandBackgroundUrl() {
+  if (
+    brandManagementState.backgroundRemoved
+  ) {
+    return "";
+  }
+
+
   return String(
-    brandManagementState
-      .backgroundPreviewUrl ||
-    brandManagementState
-      .backgroundDataUrl ||
-    brandManagementState
-      .savedSettings
-      .backgroundDataUrl ||
+    brandManagementState.backgroundPreviewUrl ||
+    brandManagementState.savedSettings.backgroundUrl ||
     ""
   ).trim();
 }
@@ -3722,53 +3701,138 @@ function populateBrandManagementForm(
   브랜드 설정 초기화
 
   페이지 로드 시:
-  - localStorage 설정 불러오기
-  - 상태값 설정
+  - D1 설정 조회
+  - R2 이미지 URL 반영
   - 관리자 입력창 반영
-  - 실제 로그인 화면·헤더 반영
+  - 로그인 화면과 헤더 반영
+
+  서버 조회 실패 시:
+  - 기본값으로 화면은 정상 작동
 ========================================================= */
 
-function initializeBrandSettings() {
-  const savedSettings =
-    loadBrandSettingsFromStorage();
+async function initializeBrandSettings() {
+  if (
+    brandManagementState.isLoading
+  ) {
+    return;
+  }
 
 
-  brandManagementState.savedSettings =
-    {
+  brandManagementState.isLoading =
+    true;
+
+
+  try {
+    const savedSettings =
+      await loadBrandSettingsFromServer();
+
+
+    brandManagementState.savedSettings = {
       ...savedSettings
     };
 
 
-  brandManagementState.logoFile =
-    null;
+    brandManagementState.logoFile =
+      null;
 
 
-  brandManagementState.logoPreviewUrl =
-    "";
+    revokeBrandPreviewUrl(
+      brandManagementState.logoPreviewUrl
+    );
 
 
-  brandManagementState.logoDataUrl =
-    savedSettings.logoDataUrl;
+    brandManagementState.logoPreviewUrl =
+      "";
 
 
-  brandManagementState.backgroundFile =
-    null;
+    brandManagementState.logoRemoved =
+      false;
 
 
-  brandManagementState.backgroundPreviewUrl =
-    "";
+    brandManagementState.backgroundFile =
+      null;
 
 
-  brandManagementState.backgroundDataUrl =
-    savedSettings.backgroundDataUrl;
+    revokeBrandPreviewUrl(
+      brandManagementState.backgroundPreviewUrl
+    );
 
 
-  populateBrandManagementForm(
-    savedSettings
-  );
+    brandManagementState.backgroundPreviewUrl =
+      "";
 
 
-  updateBrandManagementPreview();
+    brandManagementState.backgroundRemoved =
+      false;
+
+
+    populateBrandManagementForm(
+      savedSettings
+    );
+
+
+    updateBrandManagementPreview();
+
+
+    console.log(
+      "브랜드 설정을 서버에서 불러왔습니다.",
+      savedSettings
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "브랜드 설정 서버 조회 실패:",
+      error
+    );
+
+
+    const fallbackSettings = {
+      ...DEFAULT_BRAND_SETTINGS
+    };
+
+
+    brandManagementState.savedSettings = {
+      ...fallbackSettings
+    };
+
+
+    brandManagementState.logoFile =
+      null;
+
+
+    brandManagementState.logoPreviewUrl =
+      "";
+
+
+    brandManagementState.logoRemoved =
+      false;
+
+
+    brandManagementState.backgroundFile =
+      null;
+
+
+    brandManagementState.backgroundPreviewUrl =
+      "";
+
+
+    brandManagementState.backgroundRemoved =
+      false;
+
+
+    populateBrandManagementForm(
+      fallbackSettings
+    );
+
+
+    updateBrandManagementPreview();
+
+  } finally {
+    brandManagementState.isLoading =
+      false;
+  }
 }
 
 /* =========================================================
@@ -4530,9 +4594,12 @@ function revokeBrandPreviewUrl(
 
 /* =========================================================
   회사 로고 파일 선택
+
+  저장 전에는 Blob URL로만 미리보기하며,
+  저장 버튼을 누르면 원본 File을 R2로 전송한다.
 ========================================================= */
 
-async function handleBrandLogoFileChange(
+function handleBrandLogoFileChange(
   event
 ) {
   const file =
@@ -4570,63 +4637,39 @@ async function handleBrandLogoFileChange(
   }
 
 
-  try {
-    const dataUrl =
-      await readBrandFileAsDataUrl(
-        file
-      );
+  revokeBrandPreviewUrl(
+    brandManagementState.logoPreviewUrl
+  );
 
 
-    revokeBrandPreviewUrl(
-      brandManagementState
-        .logoPreviewUrl
+  brandManagementState.logoFile =
+    file;
+
+
+  brandManagementState.logoPreviewUrl =
+    URL.createObjectURL(
+      file
     );
 
 
-    brandManagementState.logoFile =
-      file;
+  brandManagementState.logoRemoved =
+    false;
 
 
-    brandManagementState.logoPreviewUrl =
-      URL.createObjectURL(
-        file
-      );
+  hideBrandManagementMessage();
 
 
-    brandManagementState.logoDataUrl =
-      dataUrl;
-
-
-    hideBrandManagementMessage();
-
-
-    updateBrandManagementPreview();
-
-  } catch (
-    error
-  ) {
-    console.error(
-      "회사 로고 읽기 실패:",
-      error
-    );
-
-
-    event.target.value =
-      "";
-
-
-    showBrandManagementMessage(
-      "회사 로고 파일을 읽지 못했습니다.",
-      "error"
-    );
-  }
+  updateBrandManagementPreview();
 }
 
 /* =========================================================
   로그인 배경 파일 선택
+
+  저장 전에는 Blob URL로만 미리보기하며,
+  저장 버튼을 누르면 원본 File을 R2로 전송한다.
 ========================================================= */
 
-async function handleBrandBackgroundFileChange(
+function handleBrandBackgroundFileChange(
   event
 ) {
   const file =
@@ -4664,62 +4707,35 @@ async function handleBrandBackgroundFileChange(
   }
 
 
-  try {
-    const dataUrl =
-      await readBrandFileAsDataUrl(
-        file
-      );
+  revokeBrandPreviewUrl(
+    brandManagementState.backgroundPreviewUrl
+  );
 
 
-    revokeBrandPreviewUrl(
-      brandManagementState
-        .backgroundPreviewUrl
+  brandManagementState.backgroundFile =
+    file;
+
+
+  brandManagementState.backgroundPreviewUrl =
+    URL.createObjectURL(
+      file
     );
 
 
-    brandManagementState.backgroundFile =
-      file;
+  brandManagementState.backgroundRemoved =
+    false;
 
 
-    brandManagementState.backgroundPreviewUrl =
-      URL.createObjectURL(
-        file
-      );
+  hideBrandManagementMessage();
 
 
-    brandManagementState.backgroundDataUrl =
-      dataUrl;
-
-
-    hideBrandManagementMessage();
-
-
-    updateBrandManagementPreview();
-
-  } catch (
-    error
-  ) {
-    console.error(
-      "로그인 배경 읽기 실패:",
-      error
-    );
-
-
-    event.target.value =
-      "";
-
-
-    showBrandManagementMessage(
-      "로그인 배경 파일을 읽지 못했습니다.",
-      "error"
-    );
-  }
+  updateBrandManagementPreview();
 }
 
 /* =========================================================
-  회사 로고 삭제
+  회사 로고 삭제 상태
 
-  저장 버튼을 눌러야 삭제 상태가 확정된다.
+  실제 R2 삭제는 저장 버튼 클릭 시 처리한다.
 ========================================================= */
 
 function removeBrandLogoPreview() {
@@ -4730,8 +4746,7 @@ function removeBrandLogoPreview() {
 
 
   revokeBrandPreviewUrl(
-    brandManagementState
-      .logoPreviewUrl
+    brandManagementState.logoPreviewUrl
   );
 
 
@@ -4743,8 +4758,8 @@ function removeBrandLogoPreview() {
     "";
 
 
-  brandManagementState.logoDataUrl =
-    "";
+  brandManagementState.logoRemoved =
+    true;
 
 
   if (
@@ -4765,9 +4780,9 @@ function removeBrandLogoPreview() {
 }
 
 /* =========================================================
-  로그인 배경 삭제
+  로그인 배경 삭제 상태
 
-  저장 버튼을 눌러야 삭제 상태가 확정된다.
+  실제 R2 삭제는 저장 버튼 클릭 시 처리한다.
 ========================================================= */
 
 function removeBrandBackgroundPreview() {
@@ -4778,8 +4793,7 @@ function removeBrandBackgroundPreview() {
 
 
   revokeBrandPreviewUrl(
-    brandManagementState
-      .backgroundPreviewUrl
+    brandManagementState.backgroundPreviewUrl
   );
 
 
@@ -4791,8 +4805,8 @@ function removeBrandBackgroundPreview() {
     "";
 
 
-  brandManagementState.backgroundDataUrl =
-    "";
+  brandManagementState.backgroundRemoved =
+    true;
 
 
   if (
@@ -4811,6 +4825,7 @@ function removeBrandBackgroundPreview() {
     "warning"
   );
 }
+
 /* =========================================================
   이미지 미리보기 HTML 생성
 ========================================================= */
@@ -5221,14 +5236,23 @@ function updateBrandManagementPreview() {
 }
 
 /* =========================================================
-  브랜드 설정 저장
+  브랜드 설정 서버 저장
 
-  현재 단계:
-  - localStorage 저장
-  - 새로고침 후 유지
+  POST /api/brand-settings
+
+  저장:
+  - 회사명·프로그램명·표시 설정 → D1
+  - 회사 로고·로그인 배경 → R2
 ========================================================= */
 
-function handleBrandManagementSavePreview() {
+async function handleBrandManagementSavePreview() {
+  if (
+    brandManagementState.isSaving
+  ) {
+    return;
+  }
+
+
   const {
     companyNameInput,
     programNameInput,
@@ -5238,39 +5262,209 @@ function handleBrandManagementSavePreview() {
     positionYInput,
     overlayInput,
 
+    logoFileInput,
+    backgroundFileInput,
+
     saveBrandButton
   } =
     getBrandManagementElements();
 
 
-  const settingsToSave =
-    normalizeBrandSettings({
-      companyName:
-        companyNameInput?.value,
+  const companyName =
+    String(
+      companyNameInput?.value ||
+      ""
+    ).trim();
 
-      programName:
-        programNameInput?.value,
 
-      programSubtitle:
-        programSubtitleInput?.value,
+  const programName =
+    String(
+      programNameInput?.value ||
+      ""
+    ).trim();
 
-      logoDataUrl:
-        brandManagementState
-          .logoDataUrl,
 
-      backgroundDataUrl:
-        brandManagementState
-          .backgroundDataUrl,
+  const programSubtitle =
+    String(
+      programSubtitleInput?.value ||
+      ""
+    ).trim();
 
-      backgroundPositionX:
+
+  if (
+    !companyName
+  ) {
+    showBrandManagementMessage(
+      "회사명을 입력해 주세요.",
+      "error"
+    );
+
+
+    companyNameInput?.focus();
+
+
+    return;
+  }
+
+
+  if (
+    !programName
+  ) {
+    showBrandManagementMessage(
+      "프로그램명을 입력해 주세요.",
+      "error"
+    );
+
+
+    programNameInput?.focus();
+
+
+    return;
+  }
+
+
+  if (
+    !programSubtitle
+  ) {
+    showBrandManagementMessage(
+      "프로그램 설명을 입력해 주세요.",
+      "error"
+    );
+
+
+    programSubtitleInput?.focus();
+
+
+    return;
+  }
+
+
+  const sessionToken =
+    getShiftLogSessionToken();
+
+
+  if (
+    !sessionToken
+  ) {
+    showBrandManagementMessage(
+      "로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요.",
+      "error"
+    );
+
+
+    return;
+  }
+
+
+  const formData =
+    new FormData();
+
+
+  formData.append(
+    "companyName",
+    companyName
+  );
+
+
+  formData.append(
+    "programName",
+    programName
+  );
+
+
+  formData.append(
+    "programSubtitle",
+    programSubtitle
+  );
+
+
+  formData.append(
+    "backgroundPositionX",
+    String(
+      clampBrandNumber(
         positionXInput?.value,
+        0,
+        100,
+        DEFAULT_BRAND_SETTINGS.backgroundPositionX
+      )
+    )
+  );
 
-      backgroundPositionY:
+
+  formData.append(
+    "backgroundPositionY",
+    String(
+      clampBrandNumber(
         positionYInput?.value,
+        0,
+        100,
+        DEFAULT_BRAND_SETTINGS.backgroundPositionY
+      )
+    )
+  );
 
-      backgroundOverlay:
-        overlayInput?.value
-    });
+
+  formData.append(
+    "backgroundOverlay",
+    String(
+      clampBrandNumber(
+        overlayInput?.value,
+        0,
+        80,
+        DEFAULT_BRAND_SETTINGS.backgroundOverlay
+      )
+    )
+  );
+
+
+  /*
+    새로 선택한 파일이 있는 경우에만 업로드한다.
+  */
+  if (
+    brandManagementState.logoFile instanceof
+      File
+  ) {
+    formData.append(
+      "logo",
+      brandManagementState.logoFile,
+      brandManagementState.logoFile.name
+    );
+  }
+
+
+  if (
+    brandManagementState.backgroundFile instanceof
+      File
+  ) {
+    formData.append(
+      "background",
+      brandManagementState.backgroundFile,
+      brandManagementState.backgroundFile.name
+    );
+  }
+
+
+  /*
+    삭제 버튼을 누른 상태는 별도 boolean으로 전달한다.
+  */
+  formData.append(
+    "removeLogo",
+    String(
+      brandManagementState.logoRemoved
+    )
+  );
+
+
+  formData.append(
+    "removeBackground",
+    String(
+      brandManagementState.backgroundRemoved
+    )
+  );
+
+
+  brandManagementState.isSaving =
+    true;
 
 
   if (
@@ -5285,57 +5479,137 @@ function handleBrandManagementSavePreview() {
   }
 
 
+  showBrandManagementMessage(
+    "브랜드 설정과 이미지를 저장하고 있습니다.",
+    "info"
+  );
+
+
   try {
-    const savedSettings =
-      saveBrandSettingsToStorage(
-        settingsToSave
+    const response =
+      await fetch(
+        BRAND_SETTINGS_API_URL,
+        {
+          method:
+            "POST",
+
+          headers: {
+            Accept:
+              "application/json",
+
+            Authorization:
+              `Bearer ${sessionToken}`
+          },
+
+          body:
+            formData,
+
+          cache:
+            "no-store"
+        }
       );
 
 
-    brandManagementState.savedSettings =
-      {
-        ...savedSettings
-      };
+    const responseText =
+      await response.text();
 
 
-    brandManagementState.logoDataUrl =
-      savedSettings.logoDataUrl;
+    let result = {};
 
 
-    brandManagementState.backgroundDataUrl =
-      savedSettings.backgroundDataUrl;
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "브랜드 설정 저장 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok === false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        `브랜드 설정 저장 실패 (HTTP ${response.status})`
+      );
+    }
+
+
+    const savedSettings =
+      normalizeBrandSettings(
+        result.brand ||
+        result.data ||
+        result
+      );
 
 
     /*
-      저장 완료 후 blob 미리보기가 아니라
-      영구 저장된 Data URL을 사용하도록 전환한다.
+      저장 전에 사용하던 Blob URL을 정리한다.
     */
     revokeBrandPreviewUrl(
-      brandManagementState
-        .logoPreviewUrl
+      brandManagementState.logoPreviewUrl
     );
 
 
-    brandManagementState.logoPreviewUrl =
-      "";
+    revokeBrandPreviewUrl(
+      brandManagementState.backgroundPreviewUrl
+    );
+
+
+    brandManagementState.savedSettings = {
+      ...savedSettings
+    };
 
 
     brandManagementState.logoFile =
       null;
 
 
-    revokeBrandPreviewUrl(
-      brandManagementState
-        .backgroundPreviewUrl
-    );
+    brandManagementState.logoPreviewUrl =
+      "";
+
+
+    brandManagementState.logoRemoved =
+      false;
+
+
+    brandManagementState.backgroundFile =
+      null;
 
 
     brandManagementState.backgroundPreviewUrl =
       "";
 
 
-    brandManagementState.backgroundFile =
-      null;
+    brandManagementState.backgroundRemoved =
+      false;
+
+
+    if (
+      logoFileInput
+    ) {
+      logoFileInput.value =
+        "";
+    }
+
+
+    if (
+      backgroundFileInput
+    ) {
+      backgroundFileInput.value =
+        "";
+    }
 
 
     populateBrandManagementForm(
@@ -5347,7 +5621,7 @@ function handleBrandManagementSavePreview() {
 
 
     showBrandManagementMessage(
-      "브랜드 설정을 저장했습니다. 새로고침 후에도 동일하게 유지됩니다.",
+      "브랜드 설정을 저장했습니다. 모든 사용자에게 동일하게 적용됩니다.",
       "success"
     );
 
@@ -5356,11 +5630,17 @@ function handleBrandManagementSavePreview() {
       "브랜드 설정이 저장되었습니다."
     );
 
+
+    console.log(
+      "브랜드 설정 서버 저장 완료:",
+      savedSettings
+    );
+
   } catch (
     error
   ) {
     console.error(
-      "브랜드 설정 저장 오류:",
+      "브랜드 설정 서버 저장 오류:",
       error
     );
 
@@ -5373,10 +5653,15 @@ function handleBrandManagementSavePreview() {
 
 
     showToast(
+      error.message ||
       "브랜드 설정 저장에 실패했습니다."
     );
 
   } finally {
+    brandManagementState.isSaving =
+      false;
+
+
     if (
       saveBrandButton
     ) {
@@ -5501,7 +5786,7 @@ function bindBrandManagementEvents() {
   로그인 및 시스템 관리자 기능 초기화
 ========================================================= */
 
-function initializeShiftLogLogin() {
+async function initializeShiftLogLogin() {
   const {
     loginForm,
     logoutButton,
@@ -5602,10 +5887,10 @@ function initializeShiftLogLogin() {
 
 
   /*
-    저장된 브랜드 설정을 불러오고
-    로그인 화면과 상단 헤더에 적용한다.
+    서버의 브랜드 설정을 먼저 불러온 후
+    로그인 화면과 헤더를 표시한다.
   */
-  initializeBrandSettings();
+  await initializeBrandSettings();
 
 
   /* =====================================================
@@ -5648,6 +5933,7 @@ function initializeShiftLogLogin() {
 
   openLoginScreen();
 }
+
 document.addEventListener(
   "DOMContentLoaded",
   initializeShiftLogLogin
