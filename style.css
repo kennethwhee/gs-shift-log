@@ -21689,11 +21689,16 @@ td {
 
 /* =========================================================
   비고 번호 시작점 정렬
-  다른 업무일지 항목과 동일한 기준 적용
+
+  인계사항·TM 발행내역과
+  동일한 번호 시작점을 사용한다.
 ========================================================= */
 
 #logTableBody
-.log-preview__group.is-remark {
+.log-preview__group:is(
+  .is-note,
+  .is-remark
+) {
   grid-template-columns:
     90px
     minmax(0, 1fr) !important;
@@ -21703,16 +21708,20 @@ td {
 
 
 #logTableBody
-.log-preview__group.is-remark
+.log-preview__group:is(
+  .is-note,
+  .is-remark
+)
 > .log-preview__content {
   grid-column: 2 !important;
 
   display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
   align-items: baseline !important;
   flex-wrap: nowrap !important;
-
-  width: 100%;
-  min-width: 0;
 
   gap: 0 !important;
 
@@ -21724,7 +21733,10 @@ td {
 
 
 #logTableBody
-.log-preview__group.is-remark
+.log-preview__group:is(
+  .is-note,
+  .is-remark
+)
 > .log-preview__content
 > .log-preview__entry-number {
   display: block !important;
@@ -21747,13 +21759,16 @@ td {
 
 
 #logTableBody
-.log-preview__group.is-remark
+.log-preview__group:is(
+  .is-note,
+  .is-remark
+)
 > .log-preview__content
 > .log-preview__text {
   display: block !important;
 
   flex: 1 1 auto !important;
-  min-width: 0;
+  min-width: 0 !important;
 
   margin: 0 !important;
   padding: 0 !important;
