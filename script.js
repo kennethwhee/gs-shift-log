@@ -37147,8 +37147,8 @@ function canCurrentUserCancelShiftLogApproval(
 
 
   /*
-    파트장 업무일지는 결재 대상이 아니므로
-    누구도 결재취소할 수 없다.
+    파트장 업무일지는
+    결재 대상이 아니다.
   */
   if (
     normalizedLogRole ===
@@ -37158,7 +37158,7 @@ function canCurrentUserCancelShiftLogApproval(
   }
 
 
-  const editableMemberRoles = [
+  const memberRoles = [
     "TGO",
     "BCO1",
     "BCO2",
@@ -37169,7 +37169,7 @@ function canCurrentUserCancelShiftLogApproval(
 
 
   if (
-    !editableMemberRoles.includes(
+    !memberRoles.includes(
       normalizedLogRole
     )
   ) {
@@ -37184,38 +37184,41 @@ function canCurrentUserCancelShiftLogApproval(
 
 
   /*
-    파트장·최고관리자
+    결재요청 상태
 
-    - 결재요청 취소 가능
-    - 결재완료 취소 가능
+    - 결재요청한 현재 작성자 본인만 취소 가능
+    - 다른 일반회원은 취소 불가
+    - 파트장과 최고관리자도 취소 불가
   */
   if (
-    isCurrentShiftLogLeader() ||
-    isCurrentUserSuperAdmin()
+    normalizedStatus ===
+      "결재요청"
   ) {
-    return [
-      "결재요청",
-      "결재완료"
-    ].includes(
-      normalizedStatus
+    return isCurrentUserShiftLogAuthor(
+      log
     );
   }
 
 
   /*
-    일반회원
+    결재완료 상태
 
-    - 일반 보직의 결재요청을 취소 가능
-    - 작성자가 달라도 취소 가능
-    - 취소 후 임시저장 상태에서 이어쓰기 가능
-    - 결재완료는 취소 불가
+    - 파트장 또는 최고관리자만
+      완료된 결재를 취소할 수 있다.
   */
-  return (
+  if (
     normalizedStatus ===
-      "결재요청"
-  );
-}
+      "결재완료"
+  ) {
+    return (
+      isCurrentShiftLogLeader() ||
+      isCurrentUserSuperAdmin()
+    );
+  }
 
+
+  return false;
+}
 
 /* =========================================================
   결재취소 처리

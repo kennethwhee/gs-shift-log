@@ -1341,7 +1341,16 @@ function applyApprovalAction(
     user.isSuperAdmin;
 
 
-  const editableMemberRoles = [
+  const isAuthor =
+    normalizeEmployeeNo(
+      existingLog.authorId
+    ) ===
+    normalizeEmployeeNo(
+      user.employeeNo
+    );
+
+
+  const memberRoles = [
     "TGO",
     "BCO1",
     "BCO2",
@@ -1352,7 +1361,7 @@ function applyApprovalAction(
 
 
   const isMemberLog =
-    editableMemberRoles.includes(
+    memberRoles.includes(
       logRole
     );
 
@@ -1362,7 +1371,6 @@ function applyApprovalAction(
 
     - 파트장 또는 최고관리자만 가능
     - 일반 보직의 결재요청 상태만 가능
-    - 파트장 업무일지는 결재 대상이 아님
   */
   if (
     action ===
@@ -1430,46 +1438,42 @@ function applyApprovalAction(
   /*
     결재취소
 
-    파트장·최고관리자
-    - 결재요청 또는 결재완료 취소 가능
+    결재요청 상태
+    - 현재 작성자 본인만 취소 가능
+    - 다른 일반회원은 취소 불가
+    - 파트장·최고관리자도 취소 불가
 
-    일반회원
-    - 작성자와 관계없이 일반 보직의 결재요청 취소 가능
-    - 결재완료 취소 불가
-
-    취소 후 상태는 임시저장으로 변경
+    결재완료 상태
+    - 파트장·최고관리자만 취소 가능
   */
   else if (
     action ===
       "cancel"
   ) {
-    const canLeaderCancel =
-      isLeaderOrSuperAdmin &&
-      [
-        "결재요청",
-        "결재완료"
-      ].includes(
-        previousStatus
-      );
-
-
-    const canMemberCancel =
-      !isLeaderOrSuperAdmin &&
+    const canAuthorCancelRequest =
       isMemberLog &&
       previousStatus ===
-        "결재요청";
+        "결재요청" &&
+      isAuthor;
+
+
+    const canLeaderCancelCompleted =
+      isMemberLog &&
+      previousStatus ===
+        "결재완료" &&
+      isLeaderOrSuperAdmin;
 
 
     if (
-      !isMemberLog ||
-      (
-        !canLeaderCancel &&
-        !canMemberCancel
-      )
+      !canAuthorCancelRequest &&
+      !canLeaderCancelCompleted
     ) {
       const error =
         new Error(
-          "현재 계정으로는 이 업무일지의 결재를 취소할 수 없습니다."
+          previousStatus ===
+            "결재요청"
+            ? "결재요청한 작성자 본인만 결재를 취소할 수 있습니다."
+            : "현재 계정으로는 이 업무일지의 결재를 취소할 수 없습니다."
         );
 
       error.status =
@@ -1513,9 +1517,6 @@ function applyApprovalAction(
   }
 
 
-  /*
-    정의되지 않은 결재 작업은 차단한다.
-  */
   else {
     const error =
       new Error(
