@@ -36198,15 +36198,57 @@ function closeModal(modalElement) {
 
 let toastTimer = null;
 
-function showToast(message) {
-  window.clearTimeout(toastTimer);
+/* =========================================================
+  중앙 Toast
 
-  elements.appToast.textContent = message;
-  elements.appToast.classList.add("is-visible");
+  화면 가운데 1.6초 표시 후 자동으로 사라진다.
+========================================================= */
 
-  toastTimer = window.setTimeout(() => {
-    elements.appToast.classList.remove("is-visible");
-  }, 2600);
+function showToast(
+  message,
+  duration = 1600
+) {
+  document
+    .querySelectorAll(
+      ".center-toast"
+    )
+    .forEach((element) =>
+      element.remove()
+    );
+
+  const toast =
+    document.createElement(
+      "div"
+    );
+
+  toast.className =
+    "center-toast";
+
+  toast.innerHTML = `
+    <div class="center-toast__content">
+      ✓ ${escapeHtml(message)}
+    </div>
+  `;
+
+  document.body.appendChild(
+    toast
+  );
+
+  requestAnimationFrame(() => {
+    toast.classList.add(
+      "is-visible"
+    );
+  });
+
+  window.setTimeout(() => {
+    toast.classList.remove(
+      "is-visible"
+    );
+
+    window.setTimeout(() => {
+      toast.remove();
+    }, 180);
+  }, duration);
 }
 
 

@@ -23465,3 +23465,60 @@ td {
       0 13px;
   }
 }
+
+/* =========================================================
+   Center Toast
+========================================================= */
+
+.center-toast{
+    position:fixed;
+    inset:0;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    pointer-events:none;
+
+    z-index:999999;
+
+    opacity:0;
+    transition:.18s;
+}
+
+.center-toast.is-visible{
+    opacity:1;
+}
+
+.center-toast__content{
+
+    min-width:220px;
+    max-width:420px;
+
+    padding:18px 30px;
+
+    border-radius:14px;
+
+    background:rgba(25,33,45,.95);
+
+    color:#fff;
+
+    font-size:17px;
+    font-weight:700;
+
+    text-align:center;
+
+    box-shadow:
+        0 18px 40px
+        rgba(0,0,0,.28);
+
+    transform:scale(.94);
+
+    transition:.18s;
+}
+
+.center-toast.is-visible
+.center-toast__content{
+
+    transform:scale(1);
+}
