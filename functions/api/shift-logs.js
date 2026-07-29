@@ -824,16 +824,19 @@ function validateLogInput(
   };
 }
 
-
 function canEditExistingLog(
   existingLog,
   user
 ) {
+  /*
+    최고관리자는 모든 업무일지 수정 가능
+  */
   if (
     user.isSuperAdmin
   ) {
     return true;
   }
+
 
   const isAuthor =
     normalizeEmployeeNo(
@@ -841,36 +844,53 @@ function canEditExistingLog(
     ) ===
       user.employeeNo;
 
-  if (
-    !isAuthor
-  ) {
-    return false;
-  }
 
   const status =
     normalizeStatus(
       existingLog.status
     );
 
-  if (
-    status ===
-      "임시저장"
-  ) {
-    return true;
-  }
 
-  return (
-    user.role ===
-      "admin" &&
+  const isLeaderLog =
     normalizeLogRole(
       existingLog.role
     ) ===
-      "파트장" &&
+      "파트장";
+
+
+  /*
+    파트장 업무일지
+
+    - 일반회원 접근·수정 불가
+    - 파트장 계정은 본인이 작성한
+      저장완료 일지만 수정 가능
+  */
+  if (
+    isLeaderLog
+  ) {
+    return (
+      isAuthor &&
+
+      user.role ===
+        "admin" &&
+
+      status ===
+        "저장완료"
+    );
+  }
+
+
+  /*
+    일반 보직 업무일지
+
+    - 작성자가 달라도 작성중 일지 수정 가능
+    - 결재요청·결재완료 일지는 수정 불가
+  */
+  return (
     status ===
-      "저장완료"
+      "임시저장"
   );
 }
-
 
 function createConflictResponse(
   currentLog,
@@ -1023,7 +1043,6 @@ function applyCreateRules(
   return log;
 }
 
-
 function applySaveRules(
   incomingLog,
   existingLog,
@@ -1047,92 +1066,129 @@ function applySaveRules(
     throw error;
   }
 
+
+  /*
+    수정 가능한 내용은 새로 반영하되,
+    일지의 고유 정보는 기존 값을 유지한다.
+  */
   const log = {
     ...incomingLog,
+
     id:
       existingLog.id,
+
     date:
       existingLog.date,
+
     shift:
       existingLog.shift,
+
     role:
       existingLog.role,
+
     team:
       incomingLog.team ||
       existingLog.team,
+
     createdAt:
       existingLog.createdAt,
+
     source:
       "shared-d1"
   };
 
+
+  /*
+    다른 사람이 이어서 작성하더라도
+    최초 작성자 정보는 변경하지 않는다.
+  */
+  log.author =
+    existingLog.author ||
+    user.name;
+
+  log.authorId =
+    existingLog.authorId ||
+    user.employeeNo;
+
+  log.authorRole =
+    existingLog.authorRole ||
+    user.role;
+
+
+  /*
+    과거 자료 등에 저장된
+    원 작성자 정보도 그대로 유지한다.
+  */
+  log.originalAuthor =
+    existingLog.originalAuthor ||
+    "";
+
+  log.originalAuthorId =
+    existingLog.originalAuthorId ||
+    "";
+
+  log.originalAuthorRole =
+    existingLog.originalAuthorRole ||
+    "";
+
+
+  const existingStatus =
+    normalizeStatus(
+      existingLog.status
+    );
+
+
+  const requestedStatus =
+    normalizeStatus(
+      incomingLog.status
+    );
+
+
+  /*
+    최고관리자 수정에서는
+    기존 상태를 변경하지 않는다.
+
+    상태 변경은 별도의
+    결재·결재취소 기능에서 처리한다.
+  */
   if (
     user.isSuperAdmin
   ) {
-    log.author =
-      existingLog.author;
-
-    log.authorId =
-      existingLog.authorId;
-
-    log.authorRole =
-      existingLog.authorRole;
-
     log.status =
-      normalizeStatus(
-        existingLog.status
-      );
+      existingStatus;
 
-    log.originalAuthor =
-      existingLog.originalAuthor ||
-      "";
+  /*
+    일반 보직의 작성중 일지는
+    임시저장 또는 결재요청으로 저장할 수 있다.
+  */
+  } else if (
+    existingStatus ===
+      "임시저장"
+  ) {
+    log.status =
+      [
+        "임시저장",
+        "결재요청"
+      ].includes(
+        requestedStatus
+      )
+        ? requestedStatus
+        : "임시저장";
 
-    log.originalAuthorId =
-      existingLog.originalAuthorId ||
-      "";
-
-    log.originalAuthorRole =
-      existingLog.originalAuthorRole ||
-      "";
-
+  /*
+    파트장 저장완료 일지 등은
+    기존 상태를 유지한다.
+  */
   } else {
-    log.author =
-      existingLog.author ||
-      user.name;
-
-    log.authorId =
-      existingLog.authorId ||
-      user.employeeNo;
-
-    log.authorRole =
-      existingLog.authorRole ||
-      user.role;
-
-    const existingStatus =
-      normalizeStatus(
-        existingLog.status
-      );
-
-    if (
-      existingStatus ===
-        "임시저장"
-    ) {
-      log.status =
-        [
-          "임시저장",
-          "결재요청"
-        ].includes(
-          incomingLog.status
-        )
-          ? incomingLog.status
-          : "임시저장";
-
-    } else {
-      log.status =
-        existingStatus;
-    }
+    log.status =
+      existingStatus;
   }
 
+
+  /*
+    작성자는 유지하고,
+    실제로 수정한 사람은 별도로 기록한다.
+  */
   log.lastModifiedBy =
     user.name;
 
@@ -1145,9 +1201,9 @@ function applySaveRules(
   log.updatedAt =
     now;
 
+
   return log;
 }
-
 
 function applyApprovalAction(
   existingLog,

@@ -37628,9 +37628,99 @@ createLogRowHtml =
     };
 
 
-    return createLogRowHtmlBeforeStatusDisplay(
-      displayLog
-    );
+    let rowHtml =
+      createLogRowHtmlBeforeStatusDisplay(
+        displayLog
+      );
+
+
+    const isSuperAdmin =
+      isCurrentUserSuperAdmin();
+
+
+    const isLegacyLog =
+      isReadOnlyLegacyShiftLog(
+        log
+      );
+
+
+    const isAuthor =
+      isCurrentUserShiftLogAuthor(
+        log
+      );
+
+
+    const normalizedStatus =
+      normalizeShiftLogApprovalStatus(
+        log?.status
+      );
+
+
+    const normalizedRole =
+      normalizeMemberLogRole(
+        log?.role
+      );
+
+
+    let canDeleteLog =
+      false;
+
+
+    /*
+      최고관리자는 관리 가능한 일지를
+      기존 권한대로 삭제할 수 있다.
+    */
+    if (
+      isSuperAdmin
+    ) {
+      canDeleteLog =
+        isLegacyLog
+          ? isSuperAdminManageableLegacyLog(
+              log
+            )
+          : true;
+
+    /*
+      일반 사용자는 본인이 작성한
+      업무일지만 삭제할 수 있다.
+    */
+    } else if (
+      !isLegacyLog &&
+      isAuthor
+    ) {
+      if (
+        normalizedRole ===
+          "파트장"
+      ) {
+        canDeleteLog =
+          isCurrentShiftLogLeader() &&
+          normalizedStatus ===
+            "저장완료";
+
+      } else {
+        canDeleteLog =
+          normalizedStatus ===
+            "임시저장";
+      }
+    }
+
+
+    /*
+      다른 사람의 작성중 일지는
+      이어쓰기만 허용하고 삭제 버튼은 제거한다.
+    */
+    if (
+      !canDeleteLog
+    ) {
+      rowHtml =
+        rowHtml.replace(
+          /\s*<button\b(?=[^>]*\bdata-action\s*=\s*"delete")[^>]*>[\s\S]*?<\/button>/i,
+          ""
+        );
+    }
+
+
+    return rowHtml;
   };
 
 
@@ -40278,11 +40368,21 @@ function setShiftLogSavingState(
 function handleShiftLogConflict(
   error
 ) {
+  const latestLog =
+    normalizeSharedShiftLog(
+      error?.currentLog
+    );
+
+
+  /*
+    다른 사용자가 먼저 저장한 최신 일지가 있으면
+    현재 화면의 자료를 최신 서버 자료로 교체한다.
+  */
   if (
-    error?.currentLog
+    latestLog
   ) {
     replaceSharedShiftLogInState(
-      error.currentLog
+      latestLog
     );
 
 
@@ -40290,12 +40390,30 @@ function handleShiftLogConflict(
 
 
     updateShiftMemberCardStates();
+
+
+    /*
+      오래된 내용이 열린 수정창을 그대로 두면
+      다시 저장할 때 최신 내용을 덮어쓸 수 있다.
+
+      수정창을 닫고 최신 상세보기로 전환한다.
+    */
+    closeLogEditor();
+
+
+    openLogDetail(
+      latestLog
+    );
   }
 
 
   showToast(
     error?.message ||
-    "다른 사용자가 먼저 수정했습니다. 최신 내용을 다시 확인해 주세요."
+    (
+      latestLog
+        ? "다른 사용자가 먼저 저장했습니다. 최신 업무일지를 다시 확인해 주세요."
+        : "다른 사용자가 먼저 수정했습니다. 업무일지를 다시 불러와 주세요."
+    )
   );
 }
 
@@ -42087,45 +42205,6 @@ canCurrentUserEditShiftLog =
     }
 
 
-    /*
-      최고관리자
-    */
-    if (
-      isCurrentUserSuperAdmin()
-    ) {
-      /*
-        legacy 자료는 2026-07-22 이후만 허용
-      */
-      if (
-        isReadOnlyLegacyShiftLog(
-          log
-        )
-      ) {
-        return isSuperAdminManageableLegacyLog(
-          log
-        );
-      }
-
-
-      /*
-        신규 D1 업무일지는 상태·작성자와 관계없이 허용
-      */
-      return true;
-    }
-
-
-    /*
-      일반 사용자는 legacy 수정 불가
-    */
-    if (
-      isReadOnlyLegacyShiftLog(
-        log
-      )
-    ) {
-      return false;
-    }
-
-
     const currentUser =
       getCurrentShiftLogUserIdentity();
 
@@ -42140,16 +42219,10 @@ canCurrentUserEditShiftLog =
     }
 
 
-    /*
-      일반 사용자는 본인 일지만 수정 가능
-    */
-    if (
-      !isCurrentUserShiftLogAuthor(
-        log
-      )
-    ) {
-      return false;
-    }
+    const normalizedLogRole =
+      normalizeMemberLogRole(
+        log.role
+      );
 
 
     const normalizedStatus =
@@ -42158,24 +42231,111 @@ canCurrentUserEditShiftLog =
       );
 
 
+    /*
+      최고관리자
+
+      - 신규 업무일지는 모든 보직 수정 가능
+      - 과거 연동 일지는 관리 가능한 자료만 수정 가능
+    */
     if (
-      normalizedStatus ===
-        "임시저장"
+      isCurrentUserSuperAdmin()
     ) {
+      if (
+        isReadOnlyLegacyShiftLog(
+          log
+        )
+      ) {
+        return isSuperAdminManageableLegacyLog(
+          log
+        );
+      }
+
+
       return true;
     }
 
 
-    return (
-      isCurrentShiftLogLeader() &&
+    const isLeaderUser =
+      isCurrentShiftLogLeader();
 
-      normalizeMemberLogRole(
-        log.role
-      ) ===
-        "파트장" &&
+
+    /*
+      일반 파트장 계정
+
+      - 본인이 작성한 파트장 업무일지만 수정 가능
+      - TGO·BCO1·BCO2·TO·BO1·BO2 수정 불가
+      - 과거 연동 일지 수정 불가
+    */
+    if (
+      isLeaderUser
+    ) {
+      if (
+        isReadOnlyLegacyShiftLog(
+          log
+        )
+      ) {
+        return false;
+      }
+
+
+      return (
+        normalizedLogRole ===
+          "파트장" &&
+
+        isCurrentUserShiftLogAuthor(
+          log
+        ) &&
+
+        normalizedStatus ===
+          "저장완료"
+      );
+    }
+
+
+    /*
+      일반회원은 과거 연동 일지 수정 불가
+    */
+    if (
+      isReadOnlyLegacyShiftLog(
+        log
+      )
+    ) {
+      return false;
+    }
+
+
+    /*
+      일반회원은 파트장 업무일지 수정 불가
+    */
+    if (
+      normalizedLogRole ===
+        "파트장"
+    ) {
+      return false;
+    }
+
+
+    const editableMemberRoles = [
+      "TGO",
+      "BCO1",
+      "BCO2",
+      "TO",
+      "BO1",
+      "BO2"
+    ];
+
+
+    /*
+      일반회원은 다른 일반 보직의
+      작성중 일지를 이어쓰기 가능
+    */
+    return (
+      editableMemberRoles.includes(
+        normalizedLogRole
+      ) &&
 
       normalizedStatus ===
-        "저장완료"
+        "임시저장"
     );
   };
 
