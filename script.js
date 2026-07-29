@@ -5635,54 +5635,29 @@ async function getPreviousShiftRemarkEntries(
 }
 
 /* =========================================================
-  전 근무 비고를 현재 신규 작성창에 자동 적용
-
-  적용 조건:
-  - 신규 업무일지
-  - 현재 비고가 비어 있음
-  - 같은 날짜·근무·보직의 저장 일지가 없음
+  버튼으로 전 근무 비고 가져오기
 
   적용 방식:
-  - 화면에만 임시 반영
-  - 저장 전까지 현재 일지에 확정하지 않음
+  - 현재 날짜·근무·보직의 전 근무 비고 조회
+  - 현재 작성된 비고는 그대로 유지
+  - 중복되지 않은 비고만 추가
+  - 신규 작성창·기존 수정창 모두 사용 가능
 ========================================================= */
 
-async function inheritPreviousShiftRemarkEntriesForCurrentEditor() {
+async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
   const editorForm =
     elements.logEditorForm;
 
 
+  const importButton =
+    document.getElementById(
+      "loadPreviousRemarkEntriesButton"
+    );
+
+
   if (
-    !editorForm
-  ) {
-    return;
-  }
-
-
-  /*
-    이전 비동기 조회 결과가
-    나중에 잘못 적용되는 것을 방지한다.
-  */
-  const requestToken =
-    createId();
-
-
-  appState.previousShiftRemarkRequestToken =
-    requestToken;
-
-
-  const editingId =
-    String(
-      editorForm.dataset.editingId ||
-      ""
-    ).trim();
-
-
-  /*
-    기존 업무일지 수정창에는 적용하지 않는다.
-  */
-  if (
-    editingId
+    !editorForm ||
+    !importButton
   ) {
     return;
   }
@@ -5728,6 +5703,10 @@ async function inheritPreviousShiftRemarkEntriesForCurrentEditor() {
     !currentDate ||
     !currentShift
   ) {
+    showToast(
+      "날짜·근무·보직 정보를 먼저 확인해 주세요."
+    );
+
     return;
   }
 
@@ -5752,105 +5731,50 @@ async function inheritPreviousShiftRemarkEntriesForCurrentEditor() {
   };
 
 
-  /*
-    현재 작성창에 비고가 있는지 확인한다.
-  */
-  const hasRemarkEntries = () => {
-    const editorHasRemark =
-      (
-        Array.isArray(
-          appState.editorEntries
-        )
-          ? appState.editorEntries
-          : []
-      ).some(
-        entry => {
-          return (
-            String(
-              entry?.category ||
-              ""
-            ).trim() ===
-              "비고" &&
-
-            Boolean(
-              String(
-                entry?.content ||
-                ""
-              ).trim()
-            )
-          );
-        }
-      );
-
-
-    const legacyNoteHasContent =
-      Boolean(
-        String(
-          elements.logNote?.value ||
-          ""
-        ).trim()
-      );
-
-
-    return (
-      editorHasRemark ||
-      legacyNoteHasContent
-    );
+  const normalizeRemarkContent = (
+    value
+  ) => {
+    return String(
+      value ||
+      ""
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .trim()
+      .replace(
+        /^(?:\d+\s*[.)\-:：]\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*)/u,
+        ""
+      )
+      .trim();
   };
 
 
-  /*
-    임시저장 복원본이나 현재 초안에
-    비고가 있으면 덮어쓰지 않는다.
-  */
-  if (
-    hasRemarkEntries()
-  ) {
-    return;
-  }
-
-
-  /*
-    같은 날짜·근무·보직의 저장본이 있으면
-    신규 일지로 판단하지 않는다.
-  */
-  const hasCurrentStoredLog =
-    (
-      Array.isArray(
-        appState.logs
+  const createRemarkKey = (
+    value
+  ) => {
+    return normalizeRemarkContent(
+      value
+    )
+      .normalize(
+        "NFKC"
       )
-        ? appState.logs
-        : []
-    ).some(
-      log => {
-        return (
-          String(
-            log?.date ||
-            ""
-          ).trim() ===
-            currentDate &&
-
-          normalizeShiftValue(
-            log?.shift
-          ) ===
-            normalizeShiftValue(
-              currentShift
-            ) &&
-
-          normalizeMemberLogRole(
-            log?.role
-          ) ===
-            currentRole
-        );
-      }
-    );
-
-
-  if (
-    hasCurrentStoredLog
-  ) {
-    return;
-  }
+      .replace(
+        /[\u200B-\u200D\u2060\uFEFF]/g,
+        ""
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim()
+      .toUpperCase();
+  };
 
 
   const requestedContextKey = [
@@ -5862,6 +5786,28 @@ async function inheritPreviousShiftRemarkEntriesForCurrentEditor() {
   ].join("||");
 
 
+  const requestToken =
+    createId();
+
+
+  appState.previousShiftRemarkRequestToken =
+    requestToken;
+
+
+  const originalButtonText =
+    String(
+      importButton.textContent ||
+      "이전일지 가져오기"
+    ).trim();
+
+
+  importButton.disabled =
+    true;
+
+  importButton.textContent =
+    "가져오는 중...";
+
+
   try {
     const previousRemarkResult =
       await getPreviousShiftRemarkEntries(
@@ -5871,10 +5817,6 @@ async function inheritPreviousShiftRemarkEntriesForCurrentEditor() {
       );
 
 
-    /*
-      더 늦게 시작된 조회가 있으면
-      현재 조회 결과를 사용하지 않는다.
-    */
     if (
       appState
         .previousShiftRemarkRequestToken !==
@@ -5900,30 +5842,14 @@ async function inheritPreviousShiftRemarkEntriesForCurrentEditor() {
     ].join("||");
 
 
-    /*
-      조회 중 날짜·근무·보직이 변경됐거나
-      수정창으로 전환됐다면 적용하지 않는다.
-    */
     if (
       requestedContextKey !==
-        latestContextKey ||
-
-      String(
-        editorForm.dataset.editingId ||
-        ""
-      ).trim()
+      latestContextKey
     ) {
-      return;
-    }
+      showToast(
+        "날짜·근무·보직이 변경되어 가져오기를 취소했습니다."
+      );
 
-
-    /*
-      조회 중 사용자가 비고를 직접 추가했다면
-      전 근무 비고로 덮어쓰지 않는다.
-    */
-    if (
-      hasRemarkEntries()
-    ) {
       return;
     }
 
@@ -5936,8 +5862,99 @@ async function inheritPreviousShiftRemarkEntriesForCurrentEditor() {
         : [];
 
 
-    const inheritedEntryMap =
-      new Map();
+    if (
+      !sourceEntries.length
+    ) {
+      showToast(
+        `${currentRole} 전 근무 업무일지에 비고가 없습니다.`
+      );
+
+      return;
+    }
+
+
+    /*
+      현재 작성창에 존재하는 비고를
+      중복 확인용으로 수집한다.
+    */
+    const existingRemarkKeys =
+      new Set();
+
+
+    (
+      Array.isArray(
+        appState.editorEntries
+      )
+        ? appState.editorEntries
+        : []
+    )
+      .filter(
+        entry => {
+          return (
+            String(
+              entry?.category ||
+              ""
+            ).trim() ===
+            "비고"
+          );
+        }
+      )
+      .forEach(
+        entry => {
+          String(
+            entry?.content ||
+            ""
+          )
+            .split("\n")
+            .forEach(
+              line => {
+                const uniqueKey =
+                  createRemarkKey(
+                    line
+                  );
+
+
+                if (
+                  uniqueKey
+                ) {
+                  existingRemarkKeys.add(
+                    uniqueKey
+                  );
+                }
+              }
+            );
+        }
+      );
+
+
+    /*
+      기존 note 문자열도 중복 확인에 포함한다.
+    */
+    String(
+      elements.logNote?.value ||
+      ""
+    )
+      .split("\n")
+      .forEach(
+        line => {
+          const uniqueKey =
+            createRemarkKey(
+              line
+            );
+
+
+          if (
+            uniqueKey
+          ) {
+            existingRemarkKeys.add(
+              uniqueKey
+            );
+          }
+        }
+      );
+
+
+    const importedEntries = [];
 
 
     sourceEntries.forEach(
@@ -5945,7 +5962,7 @@ async function inheritPreviousShiftRemarkEntriesForCurrentEditor() {
         entry,
         entryIndex
       ) => {
-        const content =
+        const sourceLines =
           String(
             entry?.content ||
             ""
@@ -5958,151 +5975,142 @@ async function inheritPreviousShiftRemarkEntriesForCurrentEditor() {
               /\r/g,
               "\n"
             )
-            .trim();
-
-
-        if (
-          !content
-        ) {
-          return;
-        }
-
-
-        const uniqueKey =
-          content
-            .normalize(
-              "NFKC"
+            .split("\n")
+            .map(
+              line => {
+                return normalizeRemarkContent(
+                  line
+                );
+              }
             )
-            .replace(
-              /[\u200B-\u200D\u2060\uFEFF]/g,
-              ""
-            )
-            .replace(
-              /\s+/g,
-              " "
-            )
-            .trim()
-            .toUpperCase();
+            .filter(Boolean);
 
 
-        if (
-          !uniqueKey ||
-          inheritedEntryMap.has(
-            uniqueKey
-          )
-        ) {
-          return;
-        }
-
-
-        const rawImportedIndex =
-          entry
-            ?.importedFromEntryIndex;
-
-
-        const importedFromEntryIndex =
-          rawImportedIndex === "" ||
-          rawImportedIndex === null ||
-          rawImportedIndex === undefined
-            ? null
-            : Number(
-                rawImportedIndex
+        sourceLines.forEach(
+          content => {
+            const uniqueKey =
+              createRemarkKey(
+                content
               );
 
 
-        inheritedEntryMap.set(
-          uniqueKey,
-          {
-            id:
-              createId(),
-
-            time:
-              "",
-
-            category:
-              "비고",
-
-            tag:
-              "",
-
-            content,
-
-            attachmentName:
-              "",
-
-            importedFromRole:
-              normalizeMemberLogRole(
-                entry?.importedFromRole ||
-                previousRemarkResult?.role ||
-                currentRole
-              ),
-
-            importedFromAuthor:
-              String(
-                entry?.importedFromAuthor ||
-                previousRemarkResult?.author ||
-                ""
-              ).trim(),
-
-            importedFromLogId:
-              String(
-                entry?.importedFromLogId ||
-                previousRemarkResult
-                  ?.sourceLogId ||
-                ""
-              ).trim(),
-
-            importedFromEntryIndex:
-              Number.isInteger(
-                importedFromEntryIndex
+            if (
+              !uniqueKey ||
+              existingRemarkKeys.has(
+                uniqueKey
               )
-                ? importedFromEntryIndex
-                : entryIndex,
+            ) {
+              return;
+            }
 
-            source:
-              "previous-shift-remark",
 
-            sourceCollection:
-              String(
-                entry?.sourceCollection ||
-                ""
-              ).trim(),
+            existingRemarkKeys.add(
+              uniqueKey
+            );
 
-            inheritedFromDate:
-              String(
-                previousRemarkResult?.date ||
-                ""
-              ).trim(),
 
-            inheritedFromShift:
-              String(
-                previousRemarkResult?.shift ||
-                ""
-              )
-                .trim()
-                .toUpperCase()
+            const rawImportedIndex =
+              entry
+                ?.importedFromEntryIndex;
+
+
+            const importedFromEntryIndex =
+              rawImportedIndex === "" ||
+              rawImportedIndex === null ||
+              rawImportedIndex === undefined
+                ? null
+                : Number(
+                    rawImportedIndex
+                  );
+
+
+            importedEntries.push({
+              id:
+                createId(),
+
+              time:
+                "",
+
+              category:
+                "비고",
+
+              tag:
+                "",
+
+              content,
+
+              attachmentName:
+                "",
+
+              importedFromRole:
+                normalizeMemberLogRole(
+                  entry?.importedFromRole ||
+                  previousRemarkResult?.role ||
+                  currentRole
+                ),
+
+              importedFromAuthor:
+                String(
+                  entry?.importedFromAuthor ||
+                  previousRemarkResult?.author ||
+                  ""
+                ).trim(),
+
+              importedFromLogId:
+                String(
+                  entry?.importedFromLogId ||
+                  previousRemarkResult
+                    ?.sourceLogId ||
+                  ""
+                ).trim(),
+
+              importedFromEntryIndex:
+                Number.isInteger(
+                  importedFromEntryIndex
+                )
+                  ? importedFromEntryIndex
+                  : entryIndex,
+
+              source:
+                "previous-shift-remark",
+
+              sourceCollection:
+                String(
+                  entry?.sourceCollection ||
+                  ""
+                ).trim(),
+
+              inheritedFromDate:
+                String(
+                  previousRemarkResult?.date ||
+                  ""
+                ).trim(),
+
+              inheritedFromShift:
+                String(
+                  previousRemarkResult?.shift ||
+                  ""
+                )
+                  .trim()
+                  .toUpperCase()
+            });
           }
         );
       }
     );
 
 
-    const inheritedEntries = [
-      ...inheritedEntryMap.values()
-    ];
-
-
     if (
-      !inheritedEntries.length
+      !importedEntries.length
     ) {
+      showToast(
+        "전 근무 비고가 이미 모두 반영되어 있습니다."
+      );
+
       return;
     }
 
 
-    /*
-      기존 TM·인계사항은 유지하고
-      전 근무 비고만 뒤에 추가한다.
-    */
     appState.editorEntries = [
       ...(
         Array.isArray(
@@ -6112,23 +6120,44 @@ async function inheritPreviousShiftRemarkEntriesForCurrentEditor() {
           : []
       ),
 
-      ...inheritedEntries
+      ...importedEntries
     ];
 
 
     /*
-      작성창 화면에만 반영한다.
-
-      임시저장·결재요청·저장을 누르기 전에는
-      현재 업무일지에 확정 저장되지 않는다.
+      목록을 다시 그리면서
+      기존 note 문자열도 함께 동기화된다.
     */
     renderLogEntryTable();
 
+
+    showToast(
+      `${previousRemarkResult.date} ${previousRemarkResult.shift} ${currentRole} 비고 ${importedEntries.length}건을 가져왔습니다.`
+    );
+
   } catch (error) {
     console.error(
-      `${currentRole} 전 근무 비고 자동 표시 실패:`,
+      `${currentRole} 전 근무 비고 가져오기 실패:`,
       error
     );
+
+
+    showToast(
+      "전 근무 비고를 가져오지 못했습니다."
+    );
+
+  } finally {
+    if (
+      appState
+        .previousShiftRemarkRequestToken ===
+      requestToken
+    ) {
+      importButton.disabled =
+        false;
+
+      importButton.textContent =
+        originalButtonText;
+    }
   }
 }
 
@@ -44123,54 +44152,26 @@ openLogEditor =
     }
   };
 
-  /* =========================================================
-  신규 업무일지 작성창 전 근무 비고 자동 승계 연결
-
-  - 신규 작성창에만 적용
-  - 기존 업무일지 수정창에는 적용하지 않음
-  - 임시저장 복원본에 비고가 있으면 덮어쓰지 않음
+/* =========================================================
+  전 근무 비고 가져오기 버튼 연결
 ========================================================= */
 
-const openLogEditorBeforeRemarkInheritance =
-  openLogEditor;
+const loadPreviousRemarkEntriesButton =
+  document.getElementById(
+    "loadPreviousRemarkEntriesButton"
+  );
 
 
-openLogEditor =
-  async function openLogEditor(
-    log = null,
-    preset = null
-  ) {
-    /*
-      기존 작성·수정창 열기 기능을
-      먼저 끝까지 실행한다.
-    */
-    const openResult =
-      await openLogEditorBeforeRemarkInheritance(
-        log,
-        preset
-      );
-
-
-    /*
-      기존 업무일지 수정창에는
-      전 근무 비고를 적용하지 않는다.
-    */
-    if (
-      log
-    ) {
-      return openResult;
+if (
+  loadPreviousRemarkEntriesButton
+) {
+  loadPreviousRemarkEntriesButton.addEventListener(
+    "click",
+    async () => {
+      await loadPreviousShiftRemarkEntriesForCurrentEditor();
     }
-
-
-    /*
-      신규 작성창 초기화가 끝난 다음
-      같은 보직의 전 근무 비고를 불러온다.
-    */
-    await inheritPreviousShiftRemarkEntriesForCurrentEditor();
-
-
-    return openResult;
-  };
+  );
+}
 
 /* =========================================================
   삭제 클릭 시 legacy → D1 전환

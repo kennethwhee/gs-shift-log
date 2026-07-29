@@ -21989,3 +21989,87 @@ td {
   line-height: 1.6 !important;
 }
 
+/* =========================================================
+  비고 이전일지 가져오기 버튼 최종 디자인
+========================================================= */
+
+
+/*
+  비고 제목·건수·버튼을 한 줄로 정렬
+*/
+#logEntryListPanel
+.log-entry-group-header__title:has(
+  #loadPreviousRemarkEntriesButton
+) {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+
+  width: 100% !important;
+}
+
+
+/*
+  버튼은 비고 제목 영역의 오른쪽에 배치
+*/
+#loadPreviousRemarkEntriesButton {
+  flex: 0 0 auto;
+
+  min-height: 28px;
+  margin-left: auto;
+  padding: 5px 10px;
+
+  border: 1px solid #c9c6dc;
+  border-radius: 7px;
+
+  background: #f7f6fc;
+  color: #56516f;
+
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+
+  white-space: nowrap;
+  cursor: pointer;
+
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+
+#loadPreviousRemarkEntriesButton:hover {
+  border-color: #948daa;
+  background: #eeecf7;
+  color: #3f3958;
+}
+
+
+#loadPreviousRemarkEntriesButton:active {
+  transform: translateY(1px);
+}
+
+
+/*
+  가져오는 중 상태
+*/
+#loadPreviousRemarkEntriesButton:disabled {
+  border-color: #d9d7e2;
+  background: #f2f1f5;
+  color: #9995a7;
+
+  cursor: wait;
+  opacity: 0.8;
+}
+
+
+/* 모바일에서도 한 줄 유지 */
+@media (max-width: 640px) {
+  #loadPreviousRemarkEntriesButton {
+    min-height: 27px;
+    padding: 5px 8px;
+
+    font-size: 10px;
+  }
+}
