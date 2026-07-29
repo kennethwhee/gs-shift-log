@@ -2987,6 +2987,603 @@
 </div>
 
 <!-- =========================================================
+  보직별 공지사항 목록 모달
+
+  대상:
+  TGO · BCO1 · BCO2 · TO · BO1 · BO2
+
+  기능:
+  - 활성 공지 조회
+  - 예정 공지 조회
+  - 종료 공지 조회
+  - 새 공지 작성
+  - 공지 수정
+  - 공지 삭제
+
+  파트장:
+  - 보직별 공지 버튼 없음
+========================================================== -->
+
+<div
+  class="
+    modal-backdrop
+    role-notice-modal
+  "
+  id="roleNoticeModal"
+  aria-hidden="true"
+>
+  <section
+    class="
+      modal-panel
+      role-notice-panel
+    "
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="roleNoticeModalTitle"
+  >
+
+    <!-- =====================================================
+      상단
+    ====================================================== -->
+    <header
+      class="
+        modal-header
+        role-notice-modal__header
+      "
+    >
+
+      <div>
+
+        <p class="modal-header__eyebrow">
+          ROLE NOTICE
+        </p>
+
+        <div class="role-notice-modal__title-row">
+
+          <h2
+            class="modal-header__title"
+            id="roleNoticeModalTitle"
+          >
+            TGO 공지사항
+          </h2>
+
+          <span
+            class="role-notice-modal__active-count"
+            id="roleNoticeActiveCount"
+          >
+            활성 0건
+          </span>
+
+        </div>
+
+      </div>
+
+
+      <button
+        type="button"
+        class="modal-close-button"
+        id="closeRoleNoticeModalButton"
+        aria-label="보직별 공지사항창 닫기"
+      >
+        ×
+      </button>
+
+    </header>
+
+
+    <!-- =====================================================
+      본문
+    ====================================================== -->
+    <div
+      class="
+        modal-body
+        role-notice-modal__body
+      "
+    >
+
+      <!-- 현재 선택된 보직 -->
+      <input
+        type="hidden"
+        id="roleNoticeCurrentRole"
+        value=""
+      />
+
+
+      <!-- ===================================================
+        상단 도구 영역
+      ==================================================== -->
+      <section class="role-notice-toolbar">
+
+        <div class="role-notice-toolbar__filters">
+
+          <button
+            type="button"
+            class="
+              role-notice-filter-button
+              is-active
+            "
+            data-role-notice-filter="active"
+          >
+            진행 중
+
+            <span
+              class="role-notice-filter-button__count"
+              id="roleNoticeActiveFilterCount"
+            >
+              0
+            </span>
+          </button>
+
+
+          <button
+            type="button"
+            class="role-notice-filter-button"
+            data-role-notice-filter="upcoming"
+          >
+            예정
+
+            <span
+              class="role-notice-filter-button__count"
+              id="roleNoticeUpcomingFilterCount"
+            >
+              0
+            </span>
+          </button>
+
+
+          <button
+            type="button"
+            class="role-notice-filter-button"
+            data-role-notice-filter="expired"
+          >
+            종료
+
+            <span
+              class="role-notice-filter-button__count"
+              id="roleNoticeExpiredFilterCount"
+            >
+              0
+            </span>
+          </button>
+
+
+          <button
+            type="button"
+            class="role-notice-filter-button"
+            data-role-notice-filter="all"
+          >
+            전체
+
+            <span
+              class="role-notice-filter-button__count"
+              id="roleNoticeAllFilterCount"
+            >
+              0
+            </span>
+          </button>
+
+        </div>
+
+
+        <button
+          type="button"
+          class="
+            primary-button
+            role-notice-add-button
+          "
+          id="openRoleNoticeEditorButton"
+        >
+          ＋ 새 공지
+        </button>
+
+      </section>
+
+
+      <!-- ===================================================
+        공지 목록
+
+        JavaScript에서 공지 카드를 생성한다.
+      ==================================================== -->
+      <section
+        class="role-notice-list"
+        id="roleNoticeList"
+        aria-live="polite"
+      >
+
+        <div
+          class="role-notice-empty"
+          id="roleNoticeEmpty"
+        >
+
+          <strong>
+            등록된 공지사항이 없습니다.
+          </strong>
+
+          <p>
+            새 공지 버튼을 눌러 보직 공지사항을 등록하세요.
+          </p>
+
+        </div>
+
+      </section>
+
+    </div>
+
+
+    <!-- =====================================================
+      하단
+    ====================================================== -->
+    <footer
+      class="
+        modal-footer
+        role-notice-modal__footer
+      "
+    >
+
+      <div class="modal-footer__left">
+
+        <span class="role-notice-footer-help">
+          종료일이 지나면 근무자 카드의 활성 공지에서 자동으로 제외됩니다.
+        </span>
+
+      </div>
+
+
+      <div class="modal-footer__right">
+
+        <button
+          type="button"
+          class="secondary-button"
+          id="closeRoleNoticeModalFooterButton"
+        >
+          닫기
+        </button>
+
+      </div>
+
+    </footer>
+
+  </section>
+</div>
+
+
+<!-- =========================================================
+  보직별 공지 작성·수정 모달
+
+  신규 작성:
+  - 제목
+  - 내용
+  - 시작일
+  - 종료일
+
+  수정:
+  - 기존 값을 입력창에 채움
+  - 저장 시 기존 공지 갱신
+========================================================== -->
+
+<div
+  class="
+    modal-backdrop
+    role-notice-editor-modal
+  "
+  id="roleNoticeEditorModal"
+  aria-hidden="true"
+>
+  <section
+    class="
+      modal-panel
+      role-notice-editor-panel
+    "
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="roleNoticeEditorTitle"
+  >
+
+    <!-- =====================================================
+      상단
+    ====================================================== -->
+    <header
+      class="
+        modal-header
+        role-notice-editor-modal__header
+      "
+    >
+
+      <div>
+
+        <p class="modal-header__eyebrow">
+          NOTICE EDITOR
+        </p>
+
+        <h2
+          class="modal-header__title"
+          id="roleNoticeEditorTitle"
+        >
+          TGO 새 공지
+        </h2>
+
+      </div>
+
+
+      <button
+        type="button"
+        class="modal-close-button"
+        id="closeRoleNoticeEditorButton"
+        aria-label="공지 작성창 닫기"
+      >
+        ×
+      </button>
+
+    </header>
+
+
+    <!-- =====================================================
+      공지 입력 폼
+    ====================================================== -->
+    <div
+      class="
+        modal-body
+        role-notice-editor-modal__body
+      "
+    >
+
+      <form
+        class="role-notice-editor-form"
+        id="roleNoticeEditorForm"
+      >
+
+        <!-- 수정 중인 공지 ID -->
+        <input
+          type="hidden"
+          id="roleNoticeEditingId"
+          value=""
+        />
+
+
+        <!-- 공지 대상 보직 -->
+        <input
+          type="hidden"
+          id="roleNoticeEditorRole"
+          value=""
+        />
+
+
+        <!-- =================================================
+          대상 보직 표시
+        ================================================== -->
+        <div class="role-notice-editor-target">
+
+          <span>
+            공지 대상
+          </span>
+
+          <strong id="roleNoticeEditorRoleLabel">
+            TGO
+          </strong>
+
+        </div>
+
+
+        <!-- =================================================
+          제목
+        ================================================== -->
+        <label class="form-field role-notice-editor-field">
+
+          <span class="form-field__label">
+            공지 제목
+          </span>
+
+          <input
+            type="text"
+            id="roleNoticeTitleInput"
+            name="roleNoticeTitle"
+            maxlength="80"
+            placeholder="공지 제목을 입력하세요."
+            autocomplete="off"
+            required
+          />
+
+          <small class="role-notice-editor-help">
+            근무자 카드와 공지 목록에 표시되는 제목입니다.
+          </small>
+
+        </label>
+
+
+        <!-- =================================================
+          공지 내용
+        ================================================== -->
+        <label
+          class="
+            form-field
+            role-notice-editor-field
+            role-notice-editor-field--content
+          "
+        >
+
+          <span class="form-field__label">
+            공지 내용
+          </span>
+
+          <textarea
+            id="roleNoticeContentInput"
+            name="roleNoticeContent"
+            rows="7"
+            maxlength="2000"
+            placeholder="공지 내용을 입력하세요."
+            required
+          ></textarea>
+
+          <div class="role-notice-editor-content-meta">
+
+            <small class="role-notice-editor-help">
+              줄바꿈을 포함하여 최대 2,000자까지 입력할 수 있습니다.
+            </small>
+
+            <span
+              class="role-notice-character-count"
+              id="roleNoticeCharacterCount"
+            >
+              0 / 2000
+            </span>
+
+          </div>
+
+        </label>
+
+
+        <!-- =================================================
+          공지 기간
+        ================================================== -->
+        <fieldset class="role-notice-period-fieldset">
+
+          <legend>
+            공지 기간
+          </legend>
+
+
+          <div class="role-notice-period-grid">
+
+            <label class="form-field">
+
+              <span class="form-field__label">
+                시작일
+              </span>
+
+              <input
+                type="date"
+                id="roleNoticeStartDateInput"
+                name="roleNoticeStartDate"
+                required
+              />
+
+            </label>
+
+
+            <span
+              class="role-notice-period-divider"
+              aria-hidden="true"
+            >
+              ~
+            </span>
+
+
+            <label class="form-field">
+
+              <span class="form-field__label">
+                종료일
+              </span>
+
+              <input
+                type="date"
+                id="roleNoticeEndDateInput"
+                name="roleNoticeEndDate"
+                required
+              />
+
+            </label>
+
+          </div>
+
+
+          <p class="role-notice-period-help">
+            시작일부터 종료일까지 근무자 카드의 활성 공지로 표시됩니다.
+          </p>
+
+        </fieldset>
+
+
+        <!-- =================================================
+          중요 공지 여부
+        ================================================== -->
+        <label class="role-notice-important-check">
+
+          <input
+            type="checkbox"
+            id="roleNoticeImportantInput"
+            name="roleNoticeImportant"
+          />
+
+          <span class="role-notice-important-check__box">
+            ✓
+          </span>
+
+          <span class="role-notice-important-check__text">
+
+            <strong>
+              중요 공지
+            </strong>
+
+            <small>
+              중요 공지는 공지 목록 상단에 먼저 표시됩니다.
+            </small>
+
+          </span>
+
+        </label>
+
+
+        <!-- 유효성 안내 -->
+        <p
+          class="role-notice-editor-message"
+          id="roleNoticeEditorMessage"
+          role="alert"
+          hidden
+        >
+        </p>
+
+      </form>
+
+    </div>
+
+
+    <!-- =====================================================
+      하단
+    ====================================================== -->
+    <footer
+      class="
+        modal-footer
+        role-notice-editor-modal__footer
+      "
+    >
+
+      <div class="modal-footer__left">
+
+        <span class="role-notice-editor-footer-help">
+          종료된 공지는 카드에서 사라지지만 관리 목록에는 보관됩니다.
+        </span>
+
+      </div>
+
+
+      <div class="modal-footer__right">
+
+        <button
+          type="button"
+          class="secondary-button"
+          id="cancelRoleNoticeEditorButton"
+        >
+          취소
+        </button>
+
+
+        <button
+          type="submit"
+          form="roleNoticeEditorForm"
+          class="primary-button"
+          id="saveRoleNoticeButton"
+        >
+          저장
+        </button>
+
+      </div>
+
+    </footer>
+
+  </section>
+</div>
+
+<!-- =========================================================
   직원 관리 모달
   최고관리자 전용
 ========================================================== -->

@@ -25743,3 +25743,2046 @@ strong {
       7px;
   }
 }
+
+/* =========================================================
+  보직별 공지사항 모달 최종 디자인
+
+  대상:
+  - 공지사항 목록창
+  - 공지 작성·수정창
+
+  중요:
+  - 기존 업무일지 작성창·상세창에는 영향 없음
+  - 반드시 style.css 맨 마지막에 추가
+========================================================= */
+
+
+/* =========================================================
+  모달 열림 처리
+
+  공통 .modal-backdrop.is-open 규칙이 있지만
+  공지 모달은 별도로 한 번 더 보강한다.
+========================================================= */
+
+#roleNoticeModal,
+#roleNoticeEditorModal {
+  display:
+    none;
+
+  z-index:
+    520;
+
+  padding:
+    20px;
+
+  background:
+    rgba(
+      15,
+      23,
+      42,
+      0.5
+    );
+}
+
+
+#roleNoticeModal.is-open,
+#roleNoticeEditorModal.is-open {
+  display:
+    flex;
+}
+
+
+/*
+  공지 작성창은 목록창 위에 나타난다.
+*/
+#roleNoticeEditorModal {
+  z-index:
+    540;
+}
+
+
+/* =========================================================
+  공지 목록 모달 본체
+========================================================= */
+
+#roleNoticeModal
+.role-notice-panel {
+  display:
+    flex;
+
+  width:
+    min(
+      900px,
+      calc(
+        100vw -
+        40px
+      )
+    );
+
+  max-width:
+    900px;
+
+  height:
+    min(
+      760px,
+      calc(
+        100vh -
+        40px
+      )
+    );
+
+  max-height:
+    calc(
+      100vh -
+      40px
+    );
+
+  flex-direction:
+    column;
+
+  overflow:
+    hidden;
+
+  border:
+    1px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.75
+    );
+
+  border-radius:
+    15px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0
+    26px
+    75px
+    rgba(
+      15,
+      23,
+      42,
+      0.28
+    );
+}
+
+
+/* =========================================================
+  공지 목록창 상단
+========================================================= */
+
+#roleNoticeModal
+.role-notice-modal__header {
+  display:
+    flex;
+
+  flex:
+    0
+    0
+    auto;
+
+  min-height:
+    72px;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    18px;
+
+  padding:
+    14px
+    20px;
+
+  border-bottom:
+    1px solid
+    #dce4ed;
+
+  background:
+    #ffffff;
+}
+
+
+#roleNoticeModal
+.role-notice-modal__title-row {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  flex-wrap:
+    wrap;
+
+  gap:
+    9px;
+}
+
+
+#roleNoticeModal
+.role-notice-modal__active-count {
+  display:
+    inline-flex;
+
+  min-height:
+    24px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    9px;
+
+  border:
+    1px solid
+    #bad2ee;
+
+  border-radius:
+    999px;
+
+  background:
+    #eaf3ff;
+
+  color:
+    #1763c5;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+
+  white-space:
+    nowrap;
+}
+
+
+/* =========================================================
+  공지 목록창 본문
+========================================================= */
+
+#roleNoticeModal
+.role-notice-modal__body {
+  display:
+    flex;
+
+  flex:
+    1
+    1
+    auto;
+
+  min-height:
+    0;
+
+  flex-direction:
+    column;
+
+  padding:
+    16px
+    18px
+    18px;
+
+  overflow:
+    hidden;
+
+  background:
+    #f5f7fa;
+}
+
+
+/* =========================================================
+  공지 목록 상단 필터·추가 버튼
+========================================================= */
+
+#roleNoticeModal
+.role-notice-toolbar {
+  display:
+    flex;
+
+  flex:
+    0
+    0
+    auto;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    14px;
+
+  margin-bottom:
+    13px;
+
+  padding:
+    11px
+    12px;
+
+  border:
+    1px solid
+    #dce4ed;
+
+  border-radius:
+    10px;
+
+  background:
+    #ffffff;
+}
+
+
+#roleNoticeModal
+.role-notice-toolbar__filters {
+  display:
+    flex;
+
+  min-width:
+    0;
+
+  align-items:
+    center;
+
+  flex-wrap:
+    wrap;
+
+  gap:
+    6px;
+}
+
+
+/* =========================================================
+  필터 버튼
+========================================================= */
+
+#roleNoticeModal
+.role-notice-filter-button {
+  display:
+    inline-flex;
+
+  min-height:
+    32px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    5px;
+
+  padding:
+    0
+    11px;
+
+  border:
+    1px solid
+    #d4dde7;
+
+  border-radius:
+    7px;
+
+  background:
+    #ffffff;
+
+  color:
+    #647286;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+
+  white-space:
+    nowrap;
+
+  transition:
+    border-color
+    0.15s
+    ease,
+    background
+    0.15s
+    ease,
+    color
+    0.15s
+    ease;
+}
+
+
+#roleNoticeModal
+.role-notice-filter-button:hover {
+  border-color:
+    #9db8d5;
+
+  background:
+    #f2f7fc;
+
+  color:
+    #1f5fae;
+}
+
+
+#roleNoticeModal
+.role-notice-filter-button.is-active {
+  border-color:
+    #1f5fae;
+
+  background:
+    #1f5fae;
+
+  color:
+    #ffffff;
+}
+
+
+#roleNoticeModal
+.role-notice-filter-button__count {
+  display:
+    inline-flex;
+
+  min-width:
+    18px;
+
+  height:
+    18px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    5px;
+
+  border-radius:
+    999px;
+
+  background:
+    #edf2f7;
+
+  color:
+    #607087;
+
+  font-size:
+    8px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+}
+
+
+#roleNoticeModal
+.role-notice-filter-button.is-active
+.role-notice-filter-button__count {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.18
+    );
+
+  color:
+    #ffffff;
+}
+
+
+/* =========================================================
+  새 공지 버튼
+========================================================= */
+
+#roleNoticeModal
+.role-notice-add-button {
+  flex:
+    0
+    0
+    auto;
+
+  min-height:
+    34px;
+
+  padding:
+    0
+    13px;
+
+  border-radius:
+    8px;
+
+  font-size:
+    11px;
+}
+
+
+/* =========================================================
+  공지 목록
+========================================================= */
+
+#roleNoticeModal
+.role-notice-list {
+  display:
+    flex;
+
+  flex:
+    1
+    1
+    auto;
+
+  min-height:
+    0;
+
+  flex-direction:
+    column;
+
+  gap:
+    9px;
+
+  padding-right:
+    3px;
+
+  overflow-x:
+    hidden;
+
+  overflow-y:
+    auto;
+}
+
+
+/* =========================================================
+  공지 카드
+
+  JavaScript에서 생성될 예정인 구조:
+
+  article.role-notice-card
+========================================================= */
+
+#roleNoticeModal
+.role-notice-card {
+  position:
+    relative;
+
+  display:
+    grid;
+
+  width:
+    100%;
+
+  min-width:
+    0;
+
+  grid-template-columns:
+    minmax(
+      0,
+      1fr
+    )
+    auto;
+
+  gap:
+    10px
+    16px;
+
+  padding:
+    14px
+    15px;
+
+  border:
+    1px solid
+    #d9e2ec;
+
+  border-radius:
+    10px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0
+    2px
+    8px
+    rgba(
+      15,
+      23,
+      42,
+      0.035
+    );
+}
+
+
+#roleNoticeModal
+.role-notice-card.is-important {
+  border-color:
+    #edc47c;
+
+  background:
+    #fffcf5;
+
+  box-shadow:
+    inset
+    4px
+    0
+    0
+    #d89924,
+    0
+    2px
+    8px
+    rgba(
+      15,
+      23,
+      42,
+      0.035
+    );
+}
+
+
+#roleNoticeModal
+.role-notice-card.is-expired {
+  opacity:
+    0.72;
+
+  background:
+    #f8fafc;
+}
+
+
+/* =========================================================
+  공지 카드 본문
+========================================================= */
+
+#roleNoticeModal
+.role-notice-card__main {
+  min-width:
+    0;
+}
+
+
+#roleNoticeModal
+.role-notice-card__heading {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  flex-wrap:
+    wrap;
+
+  gap:
+    6px;
+
+  margin-bottom:
+    7px;
+}
+
+
+#roleNoticeModal
+.role-notice-card__title {
+  margin:
+    0;
+
+  color:
+    #203149;
+
+  font-size:
+    14px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1.4;
+
+  word-break:
+    break-word;
+}
+
+
+#roleNoticeModal
+.role-notice-card__important-badge {
+  display:
+    inline-flex;
+
+  min-height:
+    21px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    7px;
+
+  border:
+    1px solid
+    #e5bd73;
+
+  border-radius:
+    999px;
+
+  background:
+    #fff4dc;
+
+  color:
+    #9a610d;
+
+  font-size:
+    8px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+}
+
+
+/* =========================================================
+  공지 상태 배지
+========================================================= */
+
+#roleNoticeModal
+.role-notice-card__status {
+  display:
+    inline-flex;
+
+  min-height:
+    21px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    7px;
+
+  border-radius:
+    999px;
+
+  font-size:
+    8px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+}
+
+
+#roleNoticeModal
+.role-notice-card__status.is-active {
+  background:
+    #e8f7ef;
+
+  color:
+    #178451;
+}
+
+
+#roleNoticeModal
+.role-notice-card__status.is-upcoming {
+  background:
+    #eaf3ff;
+
+  color:
+    #1763c5;
+}
+
+
+#roleNoticeModal
+.role-notice-card__status.is-expired {
+  background:
+    #edf0f4;
+
+  color:
+    #748092;
+}
+
+
+/* =========================================================
+  공지 기간
+========================================================= */
+
+#roleNoticeModal
+.role-notice-card__period {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  flex-wrap:
+    wrap;
+
+  gap:
+    5px;
+
+  margin:
+    0
+    0
+    7px;
+
+  color:
+    #6e7c8f;
+
+  font-size:
+    10px;
+
+  font-weight:
+    800;
+
+  line-height:
+    1.4;
+}
+
+
+#roleNoticeModal
+.role-notice-card__period::before {
+  content:
+    "기간";
+
+  display:
+    inline-flex;
+
+  min-height:
+    19px;
+
+  align-items:
+    center;
+
+  padding:
+    0
+    6px;
+
+  border-radius:
+    5px;
+
+  background:
+    #edf2f7;
+
+  color:
+    #66758a;
+
+  font-size:
+    8px;
+
+  font-weight:
+    900;
+}
+
+
+/* =========================================================
+  공지 내용
+========================================================= */
+
+#roleNoticeModal
+.role-notice-card__content {
+  display:
+    -webkit-box;
+
+  overflow:
+    hidden;
+
+  margin:
+    0;
+
+  color:
+    #44536a;
+
+  font-size:
+    11px;
+
+  font-weight:
+    650;
+
+  line-height:
+    1.6;
+
+  white-space:
+    pre-line;
+
+  word-break:
+    break-word;
+
+  -webkit-box-orient:
+    vertical;
+
+  -webkit-line-clamp:
+    3;
+}
+
+
+/* =========================================================
+  작성 정보
+========================================================= */
+
+#roleNoticeModal
+.role-notice-card__meta {
+  margin-top:
+    8px;
+
+  color:
+    #929cab;
+
+  font-size:
+    9px;
+
+  font-weight:
+    700;
+
+  line-height:
+    1.4;
+}
+
+
+/* =========================================================
+  공지 수정·삭제 버튼
+========================================================= */
+
+#roleNoticeModal
+.role-notice-card__actions {
+  display:
+    flex;
+
+  align-items:
+    flex-start;
+
+  justify-content:
+    flex-end;
+
+  gap:
+    5px;
+}
+
+
+#roleNoticeModal
+.role-notice-card__edit-button,
+#roleNoticeModal
+.role-notice-card__delete-button {
+  display:
+    inline-flex;
+
+  min-width:
+    48px;
+
+  min-height:
+    28px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    8px;
+
+  border-radius:
+    6px;
+
+  font-size:
+    9px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+
+  cursor:
+    pointer;
+}
+
+
+#roleNoticeModal
+.role-notice-card__edit-button {
+  border:
+    1px solid
+    #b8cde5;
+
+  background:
+    #f0f6fd;
+
+  color:
+    #245d9b;
+}
+
+
+#roleNoticeModal
+.role-notice-card__edit-button:hover {
+  border-color:
+    #7ba5d2;
+
+  background:
+    #e3effc;
+}
+
+
+#roleNoticeModal
+.role-notice-card__delete-button {
+  border:
+    1px solid
+    #efc1c1;
+
+  background:
+    #fff5f5;
+
+  color:
+    #b73d3d;
+}
+
+
+#roleNoticeModal
+.role-notice-card__delete-button:hover {
+  border-color:
+    #db8585;
+
+  background:
+    #ffe9e9;
+}
+
+
+/* =========================================================
+  공지 목록 빈 상태
+========================================================= */
+
+#roleNoticeModal
+.role-notice-empty {
+  display:
+    flex;
+
+  flex:
+    1
+    1
+    auto;
+
+  min-height:
+    260px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  flex-direction:
+    column;
+
+  gap:
+    6px;
+
+  padding:
+    30px;
+
+  border:
+    1px dashed
+    #cbd6e2;
+
+  border-radius:
+    11px;
+
+  background:
+    #ffffff;
+
+  color:
+    #7d8999;
+
+  text-align:
+    center;
+}
+
+
+#roleNoticeModal
+.role-notice-empty[hidden] {
+  display:
+    none
+    !important;
+}
+
+
+#roleNoticeModal
+.role-notice-empty
+strong {
+  color:
+    #44536a;
+
+  font-size:
+    14px;
+
+  font-weight:
+    900;
+}
+
+
+#roleNoticeModal
+.role-notice-empty
+p {
+  margin:
+    0;
+
+  font-size:
+    11px;
+
+  line-height:
+    1.6;
+}
+
+
+/* =========================================================
+  공지 목록 하단
+========================================================= */
+
+#roleNoticeModal
+.role-notice-modal__footer {
+  flex:
+    0
+    0
+    auto;
+
+  min-height:
+    58px;
+
+  padding:
+    9px
+    16px;
+}
+
+
+#roleNoticeModal
+.role-notice-footer-help {
+  color:
+    #8491a1;
+
+  font-size:
+    9px;
+
+  font-weight:
+    700;
+
+  line-height:
+    1.5;
+}
+
+
+/* =========================================================
+  공지 작성·수정 모달 본체
+========================================================= */
+
+#roleNoticeEditorModal
+.role-notice-editor-panel {
+  display:
+    flex;
+
+  width:
+    min(
+      660px,
+      calc(
+        100vw -
+        40px
+      )
+    );
+
+  max-width:
+    660px;
+
+  max-height:
+    calc(
+      100vh -
+      40px
+    );
+
+  flex-direction:
+    column;
+
+  overflow:
+    hidden;
+
+  border-radius:
+    15px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0
+    26px
+    75px
+    rgba(
+      15,
+      23,
+      42,
+      0.3
+    );
+}
+
+
+/* =========================================================
+  작성창 상단
+========================================================= */
+
+#roleNoticeEditorModal
+.role-notice-editor-modal__header {
+  min-height:
+    68px;
+
+  padding:
+    13px
+    19px;
+}
+
+
+/* =========================================================
+  작성창 본문
+========================================================= */
+
+#roleNoticeEditorModal
+.role-notice-editor-modal__body {
+  flex:
+    1
+    1
+    auto;
+
+  min-height:
+    0;
+
+  padding:
+    16px
+    18px
+    19px;
+
+  overflow-y:
+    auto;
+
+  background:
+    #f5f7fa;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-editor-form {
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  gap:
+    14px;
+}
+
+
+/* =========================================================
+  대상 보직
+========================================================= */
+
+#roleNoticeEditorModal
+.role-notice-editor-target {
+  display:
+    flex;
+
+  min-height:
+    46px;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    12px;
+
+  padding:
+    9px
+    12px;
+
+  border:
+    1px solid
+    #cbd9e8;
+
+  border-radius:
+    9px;
+
+  background:
+    #eef5fc;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-editor-target
+span {
+  color:
+    #607087;
+
+  font-size:
+    10px;
+
+  font-weight:
+    800;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-editor-target
+strong {
+  display:
+    inline-flex;
+
+  min-height:
+    25px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    10px;
+
+  border-radius:
+    999px;
+
+  background:
+    #1f5fae;
+
+  color:
+    #ffffff;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+}
+
+
+/* =========================================================
+  작성창 입력칸
+========================================================= */
+
+#roleNoticeEditorModal
+.role-notice-editor-field {
+  gap:
+    6px;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-editor-field
+input,
+#roleNoticeEditorModal
+.role-notice-editor-field
+textarea,
+#roleNoticeEditorModal
+.role-notice-period-fieldset
+input {
+  width:
+    100%;
+
+  border:
+    1px solid
+    #c9d5e2;
+
+  border-radius:
+    8px;
+
+  background:
+    #ffffff;
+
+  color:
+    #203149;
+
+  font-size:
+    12px;
+
+  font-weight:
+    650;
+
+  outline:
+    none;
+
+  transition:
+    border-color
+    0.15s
+    ease,
+    box-shadow
+    0.15s
+    ease;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-editor-field
+input,
+#roleNoticeEditorModal
+.role-notice-period-fieldset
+input {
+  min-height:
+    41px;
+
+  padding:
+    0
+    11px;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-editor-field
+textarea {
+  min-height:
+    142px;
+
+  max-height:
+    280px;
+
+  padding:
+    10px
+    11px;
+
+  line-height:
+    1.65;
+
+  resize:
+    vertical;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-editor-field
+input:focus,
+#roleNoticeEditorModal
+.role-notice-editor-field
+textarea:focus,
+#roleNoticeEditorModal
+.role-notice-period-fieldset
+input:focus {
+  border-color:
+    #6d9dce;
+
+  box-shadow:
+    0
+    0
+    0
+    3px
+    rgba(
+      31,
+      95,
+      174,
+      0.1
+    );
+}
+
+
+/* =========================================================
+  입력 도움말
+========================================================= */
+
+#roleNoticeEditorModal
+.role-notice-editor-help {
+  color:
+    #8793a3;
+
+  font-size:
+    9px;
+
+  font-weight:
+    650;
+
+  line-height:
+    1.5;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-editor-content-meta {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    12px;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-character-count {
+  flex:
+    0
+    0
+    auto;
+
+  color:
+    #7b8797;
+
+  font-size:
+    9px;
+
+  font-weight:
+    800;
+
+  white-space:
+    nowrap;
+}
+
+
+/* =========================================================
+  공지 기간
+========================================================= */
+
+#roleNoticeEditorModal
+.role-notice-period-fieldset {
+  min-width:
+    0;
+
+  margin:
+    0;
+
+  padding:
+    13px;
+
+  border:
+    1px solid
+    #d6e0ea;
+
+  border-radius:
+    10px;
+
+  background:
+    #ffffff;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-period-fieldset
+legend {
+  padding:
+    0
+    5px;
+
+  color:
+    #4e5f75;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-period-grid {
+  display:
+    grid;
+
+  grid-template-columns:
+    minmax(
+      0,
+      1fr
+    )
+    22px
+    minmax(
+      0,
+      1fr
+    );
+
+  align-items:
+    end;
+
+  gap:
+    9px;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-period-divider {
+  display:
+    flex;
+
+  height:
+    41px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  color:
+    #7f8b9b;
+
+  font-size:
+    12px;
+
+  font-weight:
+    900;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-period-help {
+  margin:
+    8px
+    0
+    0;
+
+  color:
+    #8793a3;
+
+  font-size:
+    9px;
+
+  line-height:
+    1.5;
+}
+
+
+/* =========================================================
+  중요 공지 체크
+========================================================= */
+
+#roleNoticeEditorModal
+.role-notice-important-check {
+  position:
+    relative;
+
+  display:
+    flex;
+
+  min-height:
+    58px;
+
+  align-items:
+    center;
+
+  gap:
+    10px;
+
+  padding:
+    10px
+    12px;
+
+  border:
+    1px solid
+    #dfc793;
+
+  border-radius:
+    9px;
+
+  background:
+    #fffaf0;
+
+  cursor:
+    pointer;
+
+  user-select:
+    none;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-important-check
+input {
+  position:
+    absolute;
+
+  width:
+    1px;
+
+  height:
+    1px;
+
+  overflow:
+    hidden;
+
+  opacity:
+    0;
+
+  pointer-events:
+    none;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-important-check__box {
+  display:
+    inline-flex;
+
+  flex:
+    0
+    0
+    20px;
+
+  width:
+    20px;
+
+  height:
+    20px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  border:
+    1px solid
+    #c7aa70;
+
+  border-radius:
+    5px;
+
+  background:
+    #ffffff;
+
+  color:
+    transparent;
+
+  font-size:
+    12px;
+
+  font-weight:
+    900;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-important-check
+input:checked
++
+.role-notice-important-check__box {
+  border-color:
+    #c48216;
+
+  background:
+    #d49120;
+
+  color:
+    #ffffff;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-important-check__text {
+  display:
+    flex;
+
+  min-width:
+    0;
+
+  flex-direction:
+    column;
+
+  gap:
+    2px;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-important-check__text
+strong {
+  color:
+    #73511b;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-important-check__text
+small {
+  color:
+    #91784e;
+
+  font-size:
+    9px;
+
+  line-height:
+    1.45;
+}
+
+
+/* =========================================================
+  작성창 오류 메시지
+========================================================= */
+
+#roleNoticeEditorModal
+.role-notice-editor-message {
+  margin:
+    0;
+
+  padding:
+    9px
+    11px;
+
+  border:
+    1px solid
+    #efb8b8;
+
+  border-radius:
+    8px;
+
+  background:
+    #fff1f1;
+
+  color:
+    #b63d3d;
+
+  font-size:
+    10px;
+
+  font-weight:
+    750;
+
+  line-height:
+    1.5;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-editor-message[hidden] {
+  display:
+    none
+    !important;
+}
+
+
+/* =========================================================
+  작성창 하단
+========================================================= */
+
+#roleNoticeEditorModal
+.role-notice-editor-modal__footer {
+  min-height:
+    60px;
+
+  padding:
+    9px
+    16px;
+}
+
+
+#roleNoticeEditorModal
+.role-notice-editor-footer-help {
+  color:
+    #8793a3;
+
+  font-size:
+    9px;
+
+  font-weight:
+    700;
+
+  line-height:
+    1.5;
+}
+
+
+/* =========================================================
+  좁은 화면
+========================================================= */
+
+@media (
+  max-width:
+  760px
+) {
+  #roleNoticeModal,
+  #roleNoticeEditorModal {
+    padding:
+      8px;
+  }
+
+
+  #roleNoticeModal
+  .role-notice-panel {
+    width:
+      calc(
+        100vw -
+        16px
+      );
+
+    height:
+      calc(
+        100vh -
+        16px
+      );
+
+    max-width:
+      none;
+
+    max-height:
+      calc(
+        100vh -
+        16px
+      );
+
+    border-radius:
+      12px;
+  }
+
+
+  #roleNoticeModal
+  .role-notice-toolbar {
+    align-items:
+      stretch;
+
+    flex-direction:
+      column;
+  }
+
+
+  #roleNoticeModal
+  .role-notice-toolbar__filters {
+    display:
+      grid;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+
+
+  #roleNoticeModal
+  .role-notice-filter-button,
+  #roleNoticeModal
+  .role-notice-add-button {
+    width:
+      100%;
+  }
+
+
+  #roleNoticeModal
+  .role-notice-card {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  #roleNoticeModal
+  .role-notice-card__actions {
+    justify-content:
+      flex-end;
+  }
+
+
+  #roleNoticeModal
+  .role-notice-footer-help {
+    display:
+      none;
+  }
+
+
+  #roleNoticeEditorModal
+  .role-notice-editor-panel {
+    width:
+      calc(
+        100vw -
+        16px
+      );
+
+    max-width:
+      none;
+
+    max-height:
+      calc(
+        100vh -
+        16px
+      );
+
+    border-radius:
+      12px;
+  }
+
+
+  #roleNoticeEditorModal
+  .role-notice-period-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  #roleNoticeEditorModal
+  .role-notice-period-divider {
+    display:
+      none;
+  }
+
+
+  #roleNoticeEditorModal
+  .role-notice-editor-content-meta {
+    align-items:
+      flex-start;
+
+    flex-direction:
+      column;
+  }
+
+
+  #roleNoticeEditorModal
+  .role-notice-editor-footer-help {
+    display:
+      none;
+  }
+
+
+  #roleNoticeEditorModal
+  .modal-footer__right {
+    width:
+      100%;
+  }
+
+
+  #roleNoticeEditorModal
+  .modal-footer__right
+  button {
+    flex:
+      1
+      1
+      0;
+  }
+}

@@ -46194,3 +46194,2922 @@ if (
 } else {
   initializeLogDetailModalSizeFix();
 }
+
+/* =========================================================
+  보직별 공지사항 프런트엔드 기능
+
+  대상 보직:
+  - TGO
+  - BCO1
+  - BCO2
+  - TO
+  - BO1
+  - BO2
+
+  제외:
+  - 파트장 카드
+
+  저장:
+  - /api/role-notices
+  - 다음 단계에서 D1 API를 연결한다.
+
+  현재 단계에서 연결되는 기능:
+  - 보직 공지 버튼 클릭
+  - 공지 목록창 열기
+  - 진행 중 / 예정 / 종료 / 전체 필터
+  - 새 공지 작성창
+  - 공지 수정창
+  - 공지 삭제 요청
+  - 카드별 활성 공지 건수 표시
+========================================================= */
+
+
+/* =========================================================
+  기본 설정
+========================================================= */
+
+const ROLE_NOTICE_API_URL =
+  "/api/role-notices";
+
+
+const ROLE_NOTICE_ROLES = [
+  "TGO",
+  "BCO1",
+  "BCO2",
+  "TO",
+  "BO1",
+  "BO2"
+];
+
+
+const roleNoticeState = {
+  notices: [],
+
+  currentRole:
+    "",
+
+  currentFilter:
+    "active",
+
+  editingNoticeId:
+    "",
+
+  isLoading:
+    false
+};
+
+
+/* =========================================================
+  공지 기능 요소 가져오기
+========================================================= */
+
+function getRoleNoticeElements() {
+  return {
+    noticeButtons: [
+      ...document.querySelectorAll(
+        "[data-role-notice-button]"
+      )
+    ],
+
+
+    roleNoticeModal:
+      document.getElementById(
+        "roleNoticeModal"
+      ),
+
+    roleNoticeModalTitle:
+      document.getElementById(
+        "roleNoticeModalTitle"
+      ),
+
+    roleNoticeActiveCount:
+      document.getElementById(
+        "roleNoticeActiveCount"
+      ),
+
+    roleNoticeCurrentRole:
+      document.getElementById(
+        "roleNoticeCurrentRole"
+      ),
+
+    closeRoleNoticeModalButton:
+      document.getElementById(
+        "closeRoleNoticeModalButton"
+      ),
+
+    closeRoleNoticeModalFooterButton:
+      document.getElementById(
+        "closeRoleNoticeModalFooterButton"
+      ),
+
+    openRoleNoticeEditorButton:
+      document.getElementById(
+        "openRoleNoticeEditorButton"
+      ),
+
+    roleNoticeList:
+      document.getElementById(
+        "roleNoticeList"
+      ),
+
+    roleNoticeEmpty:
+      document.getElementById(
+        "roleNoticeEmpty"
+      ),
+
+    filterButtons: [
+      ...document.querySelectorAll(
+        "[data-role-notice-filter]"
+      )
+    ],
+
+    roleNoticeActiveFilterCount:
+      document.getElementById(
+        "roleNoticeActiveFilterCount"
+      ),
+
+    roleNoticeUpcomingFilterCount:
+      document.getElementById(
+        "roleNoticeUpcomingFilterCount"
+      ),
+
+    roleNoticeExpiredFilterCount:
+      document.getElementById(
+        "roleNoticeExpiredFilterCount"
+      ),
+
+    roleNoticeAllFilterCount:
+      document.getElementById(
+        "roleNoticeAllFilterCount"
+      ),
+
+
+    /*
+      작성·수정창
+    */
+    roleNoticeEditorModal:
+      document.getElementById(
+        "roleNoticeEditorModal"
+      ),
+
+    roleNoticeEditorTitle:
+      document.getElementById(
+        "roleNoticeEditorTitle"
+      ),
+
+    closeRoleNoticeEditorButton:
+      document.getElementById(
+        "closeRoleNoticeEditorButton"
+      ),
+
+    cancelRoleNoticeEditorButton:
+      document.getElementById(
+        "cancelRoleNoticeEditorButton"
+      ),
+
+    roleNoticeEditorForm:
+      document.getElementById(
+        "roleNoticeEditorForm"
+      ),
+
+    roleNoticeEditingId:
+      document.getElementById(
+        "roleNoticeEditingId"
+      ),
+
+    roleNoticeEditorRole:
+      document.getElementById(
+        "roleNoticeEditorRole"
+      ),
+
+    roleNoticeEditorRoleLabel:
+      document.getElementById(
+        "roleNoticeEditorRoleLabel"
+      ),
+
+    roleNoticeTitleInput:
+      document.getElementById(
+        "roleNoticeTitleInput"
+      ),
+
+    roleNoticeContentInput:
+      document.getElementById(
+        "roleNoticeContentInput"
+      ),
+
+    roleNoticeStartDateInput:
+      document.getElementById(
+        "roleNoticeStartDateInput"
+      ),
+
+    roleNoticeEndDateInput:
+      document.getElementById(
+        "roleNoticeEndDateInput"
+      ),
+
+    roleNoticeImportantInput:
+      document.getElementById(
+        "roleNoticeImportantInput"
+      ),
+
+    roleNoticeCharacterCount:
+      document.getElementById(
+        "roleNoticeCharacterCount"
+      ),
+
+    roleNoticeEditorMessage:
+      document.getElementById(
+        "roleNoticeEditorMessage"
+      ),
+
+    saveRoleNoticeButton:
+      document.getElementById(
+        "saveRoleNoticeButton"
+      )
+  };
+}
+
+
+/* =========================================================
+  날짜를 YYYY-MM-DD로 반환
+========================================================= */
+
+function getRoleNoticeTodayValue() {
+  const today =
+    new Date();
+
+
+  return [
+    today.getFullYear(),
+
+    String(
+      today.getMonth() + 1
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    String(
+      today.getDate()
+    ).padStart(
+      2,
+      "0"
+    )
+  ].join("-");
+}
+
+
+/* =========================================================
+  날짜 표시
+========================================================= */
+
+function formatRoleNoticeDate(
+  value
+) {
+  const normalizedValue =
+    String(
+      value ||
+      ""
+    ).trim();
+
+
+  if (
+    !normalizedValue
+  ) {
+    return "-";
+  }
+
+
+  const dateMatch =
+    normalizedValue.match(
+      /^(\d{4})-(\d{2})-(\d{2})/
+    );
+
+
+  if (
+    !dateMatch
+  ) {
+    return normalizedValue;
+  }
+
+
+  return [
+    dateMatch[1],
+    dateMatch[2],
+    dateMatch[3]
+  ].join(".");
+}
+
+
+/* =========================================================
+  작성일시 표시
+========================================================= */
+
+function formatRoleNoticeDateTime(
+  value
+) {
+  const date =
+    new Date(
+      value
+    );
+
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "-";
+  }
+
+
+  return [
+    date.getFullYear(),
+    ".",
+    String(
+      date.getMonth() + 1
+    ).padStart(
+      2,
+      "0"
+    ),
+    ".",
+    String(
+      date.getDate()
+    ).padStart(
+      2,
+      "0"
+    ),
+    " ",
+    String(
+      date.getHours()
+    ).padStart(
+      2,
+      "0"
+    ),
+    ":",
+    String(
+      date.getMinutes()
+    ).padStart(
+      2,
+      "0"
+    )
+  ].join("");
+}
+
+
+/* =========================================================
+  공지 데이터 정규화
+========================================================= */
+
+function normalizeRoleNotice(
+  notice
+) {
+  const sourceNotice =
+    notice &&
+    typeof notice ===
+      "object"
+      ? notice
+      : {};
+
+
+  const role =
+    normalizeMemberLogRole(
+      sourceNotice.role ||
+      sourceNotice.position ||
+      sourceNotice.targetRole ||
+      sourceNotice.target_role ||
+      ""
+    );
+
+
+  return {
+    id:
+      String(
+        sourceNotice.id ||
+        sourceNotice.noticeId ||
+        sourceNotice.notice_id ||
+        ""
+      ).trim(),
+
+    role,
+
+    title:
+      String(
+        sourceNotice.title ||
+        ""
+      ).trim(),
+
+    content:
+      String(
+        sourceNotice.content ||
+        sourceNotice.body ||
+        ""
+      )
+        .replace(
+          /\r\n/g,
+          "\n"
+        )
+        .replace(
+          /\r/g,
+          "\n"
+        )
+        .trim(),
+
+    startDate:
+      String(
+        sourceNotice.startDate ||
+        sourceNotice.start_date ||
+        ""
+      ).slice(
+        0,
+        10
+      ),
+
+    endDate:
+      String(
+        sourceNotice.endDate ||
+        sourceNotice.end_date ||
+        ""
+      ).slice(
+        0,
+        10
+      ),
+
+    isImportant:
+      sourceNotice.isImportant ===
+        true ||
+      sourceNotice.is_important ===
+        true ||
+      Number(
+        sourceNotice.isImportant ??
+        sourceNotice.is_important ??
+        0
+      ) ===
+        1,
+
+    createdBy:
+      String(
+        sourceNotice.createdBy ||
+        sourceNotice.created_by ||
+        ""
+      ).trim(),
+
+    createdByName:
+      String(
+        sourceNotice.createdByName ||
+        sourceNotice.created_by_name ||
+        sourceNotice.author ||
+        ""
+      ).trim(),
+
+    createdAt:
+      String(
+        sourceNotice.createdAt ||
+        sourceNotice.created_at ||
+        ""
+      ),
+
+    updatedAt:
+      String(
+        sourceNotice.updatedAt ||
+        sourceNotice.updated_at ||
+        sourceNotice.createdAt ||
+        sourceNotice.created_at ||
+        ""
+      )
+  };
+}
+
+
+/* =========================================================
+  공지 상태 판정
+
+  active:
+  시작일 <= 오늘 <= 종료일
+
+  upcoming:
+  오늘 < 시작일
+
+  expired:
+  종료일 < 오늘
+========================================================= */
+
+function getRoleNoticeStatus(
+  notice,
+  todayValue =
+    getRoleNoticeTodayValue()
+) {
+  const startDate =
+    String(
+      notice?.startDate ||
+      ""
+    ).trim();
+
+  const endDate =
+    String(
+      notice?.endDate ||
+      ""
+    ).trim();
+
+
+  if (
+    startDate &&
+    todayValue <
+      startDate
+  ) {
+    return "upcoming";
+  }
+
+
+  if (
+    endDate &&
+    todayValue >
+      endDate
+  ) {
+    return "expired";
+  }
+
+
+  return "active";
+}
+
+
+/* =========================================================
+  공지 상태 표시 이름
+========================================================= */
+
+function getRoleNoticeStatusLabel(
+  status
+) {
+  const labelMap = {
+    active:
+      "진행 중",
+
+    upcoming:
+      "예정",
+
+    expired:
+      "종료"
+  };
+
+
+  return (
+    labelMap[
+      status
+    ] ||
+    "진행 중"
+  );
+}
+
+
+/* =========================================================
+  현재 로그인 사용자의 보직 확인
+========================================================= */
+
+function getCurrentUserRoleNoticePosition() {
+  const currentUser =
+    loadCurrentUser();
+
+
+  return normalizeMemberLogRole(
+    currentUser?.position ||
+    currentUser?.jobPosition ||
+    currentUser?.job_position ||
+    currentUser?.duty ||
+    ""
+  );
+}
+
+
+/* =========================================================
+  공지 관리 권한 판정
+
+  수정·삭제 가능:
+  - 최고관리자
+  - 파트장 권한
+  - 해당 보직 사용자
+
+  조회:
+  - 모든 로그인 사용자
+========================================================= */
+
+function canCurrentUserManageRoleNotice(
+  role
+) {
+  const currentUser =
+    loadCurrentUser();
+
+
+  if (
+    !currentUser
+  ) {
+    return false;
+  }
+
+
+  if (
+    typeof isCurrentUserSuperAdmin ===
+      "function" &&
+    isCurrentUserSuperAdmin()
+  ) {
+    return true;
+  }
+
+
+  const accountRole =
+    typeof getShiftLogUserAccountRole ===
+      "function"
+      ? getShiftLogUserAccountRole(
+          currentUser
+        )
+      : String(
+          currentUser.role ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+
+  /*
+    파트장 계정
+  */
+  if (
+    accountRole ===
+      "admin" ||
+    accountRole ===
+      "leader"
+  ) {
+    return true;
+  }
+
+
+  const userPosition =
+    getCurrentUserRoleNoticePosition();
+
+
+  return (
+    userPosition ===
+    normalizeMemberLogRole(
+      role
+    )
+  );
+}
+
+
+/* =========================================================
+  API 응답 읽기
+========================================================= */
+
+async function readRoleNoticeApiResponse(
+  response
+) {
+  const responseText =
+    await response.text();
+
+
+  let result = {};
+
+
+  if (
+    responseText.trim()
+  ) {
+    try {
+      result =
+        JSON.parse(
+          responseText
+        );
+
+    } catch {
+      throw new Error(
+        "공지사항 서버 응답 형식이 올바르지 않습니다."
+      );
+    }
+  }
+
+
+  if (
+    !response.ok ||
+    result.ok === false ||
+    result.success === false
+  ) {
+    throw new Error(
+      result.message ||
+      result.error ||
+      `공지사항 요청 실패 (HTTP ${response.status})`
+    );
+  }
+
+
+  return result;
+}
+
+
+/* =========================================================
+  전체 보직 공지 불러오기
+
+  API 응답 지원:
+  {
+    notices: []
+  }
+
+  {
+    items: []
+  }
+
+  {
+    data: []
+  }
+========================================================= */
+
+async function loadRoleNotices() {
+  if (
+    roleNoticeState.isLoading
+  ) {
+    return roleNoticeState.notices;
+  }
+
+
+  roleNoticeState.isLoading =
+    true;
+
+
+  try {
+    const requestUrl =
+      new URL(
+        ROLE_NOTICE_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    const result =
+      await readRoleNoticeApiResponse(
+        response
+      );
+
+
+    const rawNotices =
+      Array.isArray(
+        result.notices
+      )
+        ? result.notices
+        : (
+            Array.isArray(
+              result.items
+            )
+              ? result.items
+              : (
+                  Array.isArray(
+                    result.data
+                  )
+                    ? result.data
+                    : []
+                )
+          );
+
+
+    roleNoticeState.notices =
+      rawNotices
+        .map(
+          normalizeRoleNotice
+        )
+        .filter(
+          notice => {
+            return (
+              notice.id &&
+              ROLE_NOTICE_ROLES.includes(
+                notice.role
+              )
+            );
+          }
+        );
+
+
+    updateAllRoleNoticeButtons();
+
+
+    if (
+      roleNoticeState.currentRole
+    ) {
+      renderCurrentRoleNoticeList();
+    }
+
+
+    return roleNoticeState.notices;
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "보직별 공지사항 불러오기 실패:",
+      error
+    );
+
+
+    roleNoticeState.notices =
+      [];
+
+
+    updateAllRoleNoticeButtons();
+
+
+    return [];
+
+  } finally {
+    roleNoticeState.isLoading =
+      false;
+  }
+}
+
+
+/* =========================================================
+  특정 보직 공지 목록
+========================================================= */
+
+function getRoleNoticesByRole(
+  role
+) {
+  const normalizedRole =
+    normalizeMemberLogRole(
+      role
+    );
+
+
+  return roleNoticeState.notices
+    .filter(
+      notice => {
+        return (
+          notice.role ===
+          normalizedRole
+        );
+      }
+    )
+    .sort(
+      (
+        firstNotice,
+        secondNotice
+      ) => {
+        /*
+          중요 공지 우선
+        */
+        const importantDifference =
+          Number(
+            secondNotice.isImportant
+          ) -
+          Number(
+            firstNotice.isImportant
+          );
+
+
+        if (
+          importantDifference !==
+          0
+        ) {
+          return importantDifference;
+        }
+
+
+        /*
+          최근 수정 공지 우선
+        */
+        const firstTime =
+          new Date(
+            firstNotice.updatedAt ||
+            firstNotice.createdAt ||
+            0
+          ).getTime();
+
+
+        const secondTime =
+          new Date(
+            secondNotice.updatedAt ||
+            secondNotice.createdAt ||
+            0
+          ).getTime();
+
+
+        return (
+          secondTime -
+          firstTime
+        );
+      }
+    );
+}
+
+
+/* =========================================================
+  보직 카드의 활성 공지 버튼 갱신
+========================================================= */
+
+function updateRoleNoticeButton(
+  button
+) {
+  if (
+    !button
+  ) {
+    return;
+  }
+
+
+  const role =
+    normalizeMemberLogRole(
+      button.dataset.role
+    );
+
+
+  const activeCount =
+    getRoleNoticesByRole(
+      role
+    ).filter(
+      notice => {
+        return (
+          getRoleNoticeStatus(
+            notice
+          ) ===
+          "active"
+        );
+      }
+    ).length;
+
+
+  const icon =
+    button.querySelector(
+      ".role-notice-button__icon"
+    );
+
+
+  const count =
+    button.querySelector(
+      "[data-role-notice-count]"
+    );
+
+
+  button.classList.toggle(
+    "has-active-notice",
+    activeCount >
+      0
+  );
+
+
+  button.setAttribute(
+    "aria-label",
+    activeCount >
+      0
+      ? `${role} 활성 공지 ${activeCount}건 열기`
+      : `${role} 공지사항 열기`
+  );
+
+
+  if (
+    icon
+  ) {
+    icon.textContent =
+      activeCount >
+        0
+        ? "■"
+        : "□";
+  }
+
+
+  if (
+    count
+  ) {
+    count.textContent =
+      String(
+        activeCount
+      );
+
+    count.hidden =
+      activeCount ===
+      0;
+  }
+}
+
+
+/* =========================================================
+  전체 공지 버튼 갱신
+========================================================= */
+
+function updateAllRoleNoticeButtons() {
+  document
+    .querySelectorAll(
+      "[data-role-notice-button]"
+    )
+    .forEach(
+      updateRoleNoticeButton
+    );
+}
+
+
+/* =========================================================
+  공지 목록창 열기
+========================================================= */
+
+async function openRoleNoticeModal(
+  role
+) {
+  const normalizedRole =
+    normalizeMemberLogRole(
+      role
+    );
+
+
+  if (
+    !ROLE_NOTICE_ROLES.includes(
+      normalizedRole
+    )
+  ) {
+    showToast(
+      "공지 대상 보직을 확인할 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  const noticeElements =
+    getRoleNoticeElements();
+
+
+  if (
+    !noticeElements.roleNoticeModal
+  ) {
+    showToast(
+      "보직 공지사항창을 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  roleNoticeState.currentRole =
+    normalizedRole;
+
+  roleNoticeState.currentFilter =
+    "active";
+
+
+  if (
+    noticeElements.roleNoticeCurrentRole
+  ) {
+    noticeElements
+      .roleNoticeCurrentRole
+      .value =
+      normalizedRole;
+  }
+
+
+  if (
+    noticeElements.roleNoticeModalTitle
+  ) {
+    noticeElements
+      .roleNoticeModalTitle
+      .textContent =
+      `${normalizedRole} 공지사항`;
+  }
+
+
+  noticeElements
+    .filterButtons
+    .forEach(
+      button => {
+        button.classList.toggle(
+          "is-active",
+          button.dataset
+            .roleNoticeFilter ===
+            "active"
+        );
+      }
+    );
+
+
+  /*
+    공지 작성 권한이 없으면
+    새 공지 버튼을 숨긴다.
+  */
+  if (
+    noticeElements
+      .openRoleNoticeEditorButton
+  ) {
+    noticeElements
+      .openRoleNoticeEditorButton
+      .hidden =
+      !canCurrentUserManageRoleNotice(
+        normalizedRole
+      );
+  }
+
+
+  if (
+    typeof openModal ===
+      "function"
+  ) {
+    openModal(
+      noticeElements.roleNoticeModal
+    );
+
+  } else {
+    noticeElements
+      .roleNoticeModal
+      .classList
+      .add(
+        "is-open"
+      );
+
+    noticeElements
+      .roleNoticeModal
+      .setAttribute(
+        "aria-hidden",
+        "false"
+      );
+
+    document.body.classList.add(
+      "modal-open"
+    );
+  }
+
+
+  if (
+    noticeElements.roleNoticeList
+  ) {
+    noticeElements
+      .roleNoticeList
+      .setAttribute(
+        "aria-busy",
+        "true"
+      );
+  }
+
+
+  await loadRoleNotices();
+
+
+  if (
+    noticeElements.roleNoticeList
+  ) {
+    noticeElements
+      .roleNoticeList
+      .setAttribute(
+        "aria-busy",
+        "false"
+      );
+  }
+
+
+  renderCurrentRoleNoticeList();
+}
+
+
+/* =========================================================
+  공지 목록창 닫기
+========================================================= */
+
+function closeRoleNoticeModal() {
+  const {
+    roleNoticeModal,
+    roleNoticeEditorModal
+  } =
+    getRoleNoticeElements();
+
+
+  if (
+    roleNoticeEditorModal?.classList.contains(
+      "is-open"
+    )
+  ) {
+    closeRoleNoticeEditor();
+  }
+
+
+  if (
+    !roleNoticeModal
+  ) {
+    return;
+  }
+
+
+  if (
+    typeof closeModal ===
+      "function"
+  ) {
+    closeModal(
+      roleNoticeModal
+    );
+
+  } else {
+    roleNoticeModal
+      .classList
+      .remove(
+        "is-open"
+      );
+
+    roleNoticeModal
+      .setAttribute(
+        "aria-hidden",
+        "true"
+      );
+
+    document.body.classList.remove(
+      "modal-open"
+    );
+  }
+
+
+  roleNoticeState.currentRole =
+    "";
+
+  roleNoticeState.currentFilter =
+    "active";
+}
+
+
+/* =========================================================
+  공지 카드 HTML
+========================================================= */
+
+function createRoleNoticeCardHtml(
+  notice
+) {
+  const status =
+    getRoleNoticeStatus(
+      notice
+    );
+
+
+  const canManage =
+    canCurrentUserManageRoleNotice(
+      notice.role
+    );
+
+
+  const authorText =
+    notice.createdByName ||
+    notice.createdBy ||
+    "작성자 미확인";
+
+
+  const updatedText =
+    formatRoleNoticeDateTime(
+      notice.updatedAt ||
+      notice.createdAt
+    );
+
+
+  return `
+    <article
+      class="
+        role-notice-card
+        ${
+          notice.isImportant
+            ? "is-important"
+            : ""
+        }
+        ${
+          status ===
+            "expired"
+            ? "is-expired"
+            : ""
+        }
+      "
+      data-role-notice-id="${escapeHtml(
+        notice.id
+      )}"
+    >
+
+      <div class="role-notice-card__main">
+
+        <div class="role-notice-card__heading">
+
+          <h3 class="role-notice-card__title">
+            ${escapeHtml(
+              notice.title ||
+              "제목 없음"
+            )}
+          </h3>
+
+          ${
+            notice.isImportant
+              ? `
+                <span class="role-notice-card__important-badge">
+                  중요
+                </span>
+              `
+              : ""
+          }
+
+          <span
+            class="
+              role-notice-card__status
+              is-${status}
+            "
+          >
+            ${getRoleNoticeStatusLabel(
+              status
+            )}
+          </span>
+
+        </div>
+
+
+        <p class="role-notice-card__period">
+          ${escapeHtml(
+            formatRoleNoticeDate(
+              notice.startDate
+            )
+          )}
+          ~
+          ${escapeHtml(
+            formatRoleNoticeDate(
+              notice.endDate
+            )
+          )}
+        </p>
+
+
+        <p class="role-notice-card__content">
+          ${escapeHtml(
+            notice.content ||
+            ""
+          )}
+        </p>
+
+
+        <p class="role-notice-card__meta">
+          ${escapeHtml(
+            authorText
+          )}
+          ·
+          ${escapeHtml(
+            updatedText
+          )}
+        </p>
+
+      </div>
+
+
+      ${
+        canManage
+          ? `
+            <div class="role-notice-card__actions">
+
+              <button
+                type="button"
+                class="role-notice-card__edit-button"
+                data-role-notice-edit="${escapeHtml(
+                  notice.id
+                )}"
+              >
+                수정
+              </button>
+
+              <button
+                type="button"
+                class="role-notice-card__delete-button"
+                data-role-notice-delete="${escapeHtml(
+                  notice.id
+                )}"
+              >
+                삭제
+              </button>
+
+            </div>
+          `
+          : ""
+      }
+
+    </article>
+  `;
+}
+
+
+/* =========================================================
+  현재 보직의 공지 목록 출력
+========================================================= */
+
+function renderCurrentRoleNoticeList() {
+  const noticeElements =
+    getRoleNoticeElements();
+
+
+  const currentRole =
+    normalizeMemberLogRole(
+      roleNoticeState.currentRole
+    );
+
+
+  if (
+    !currentRole ||
+    !noticeElements.roleNoticeList
+  ) {
+    return;
+  }
+
+
+  const allNotices =
+    getRoleNoticesByRole(
+      currentRole
+    );
+
+
+  const statusCounts = {
+    active:
+      0,
+
+    upcoming:
+      0,
+
+    expired:
+      0,
+
+    all:
+      allNotices.length
+  };
+
+
+  allNotices.forEach(
+    notice => {
+      const status =
+        getRoleNoticeStatus(
+          notice
+        );
+
+
+      if (
+        Object.hasOwn(
+          statusCounts,
+          status
+        )
+      ) {
+        statusCounts[
+          status
+        ] +=
+          1;
+      }
+    }
+  );
+
+
+  if (
+    noticeElements.roleNoticeActiveCount
+  ) {
+    noticeElements
+      .roleNoticeActiveCount
+      .textContent =
+      `활성 ${statusCounts.active}건`;
+  }
+
+
+  if (
+    noticeElements
+      .roleNoticeActiveFilterCount
+  ) {
+    noticeElements
+      .roleNoticeActiveFilterCount
+      .textContent =
+      String(
+        statusCounts.active
+      );
+  }
+
+
+  if (
+    noticeElements
+      .roleNoticeUpcomingFilterCount
+  ) {
+    noticeElements
+      .roleNoticeUpcomingFilterCount
+      .textContent =
+      String(
+        statusCounts.upcoming
+      );
+  }
+
+
+  if (
+    noticeElements
+      .roleNoticeExpiredFilterCount
+  ) {
+    noticeElements
+      .roleNoticeExpiredFilterCount
+      .textContent =
+      String(
+        statusCounts.expired
+      );
+  }
+
+
+  if (
+    noticeElements
+      .roleNoticeAllFilterCount
+  ) {
+    noticeElements
+      .roleNoticeAllFilterCount
+      .textContent =
+      String(
+        statusCounts.all
+      );
+  }
+
+
+  const filteredNotices =
+    roleNoticeState
+      .currentFilter ===
+      "all"
+      ? allNotices
+      : allNotices.filter(
+          notice => {
+            return (
+              getRoleNoticeStatus(
+                notice
+              ) ===
+              roleNoticeState
+                .currentFilter
+            );
+          }
+        );
+
+
+  if (
+    noticeElements.roleNoticeEmpty
+  ) {
+    noticeElements
+      .roleNoticeEmpty
+      .hidden =
+      filteredNotices.length >
+      0;
+  }
+
+
+  /*
+    빈 상태 요소를 보존하면서
+    기존 공지 카드만 제거한다.
+  */
+  noticeElements
+    .roleNoticeList
+    .querySelectorAll(
+      ".role-notice-card"
+    )
+    .forEach(
+      card => {
+        card.remove();
+      }
+    );
+
+
+  if (
+    !filteredNotices.length
+  ) {
+    return;
+  }
+
+
+  noticeElements
+    .roleNoticeList
+    .insertAdjacentHTML(
+      "beforeend",
+      filteredNotices
+        .map(
+          createRoleNoticeCardHtml
+        )
+        .join("")
+    );
+}
+
+
+/* =========================================================
+  공지 필터 변경
+========================================================= */
+
+function changeRoleNoticeFilter(
+  filter
+) {
+  const validFilters = [
+    "active",
+    "upcoming",
+    "expired",
+    "all"
+  ];
+
+
+  if (
+    !validFilters.includes(
+      filter
+    )
+  ) {
+    return;
+  }
+
+
+  roleNoticeState.currentFilter =
+    filter;
+
+
+  const {
+    filterButtons
+  } =
+    getRoleNoticeElements();
+
+
+  filterButtons.forEach(
+    button => {
+      button.classList.toggle(
+        "is-active",
+        button.dataset
+          .roleNoticeFilter ===
+          filter
+      );
+    }
+  );
+
+
+  renderCurrentRoleNoticeList();
+}
+
+
+/* =========================================================
+  공지 작성창 오류 메시지
+========================================================= */
+
+function showRoleNoticeEditorMessage(
+  message
+) {
+  const {
+    roleNoticeEditorMessage
+  } =
+    getRoleNoticeElements();
+
+
+  if (
+    !roleNoticeEditorMessage
+  ) {
+    return;
+  }
+
+
+  roleNoticeEditorMessage.textContent =
+    String(
+      message ||
+      ""
+    );
+
+  roleNoticeEditorMessage.hidden =
+    !message;
+}
+
+
+function hideRoleNoticeEditorMessage() {
+  showRoleNoticeEditorMessage(
+    ""
+  );
+}
+
+
+/* =========================================================
+  공지 작성창 글자 수
+========================================================= */
+
+function updateRoleNoticeCharacterCount() {
+  const {
+    roleNoticeContentInput,
+    roleNoticeCharacterCount
+  } =
+    getRoleNoticeElements();
+
+
+  if (
+    !roleNoticeCharacterCount
+  ) {
+    return;
+  }
+
+
+  const length =
+    String(
+      roleNoticeContentInput?.value ||
+      ""
+    ).length;
+
+
+  roleNoticeCharacterCount.textContent =
+    `${length} / 2000`;
+}
+
+
+/* =========================================================
+  새 공지 작성창 열기
+========================================================= */
+
+function openNewRoleNoticeEditor() {
+  const currentRole =
+    normalizeMemberLogRole(
+      roleNoticeState.currentRole
+    );
+
+
+  if (
+    !ROLE_NOTICE_ROLES.includes(
+      currentRole
+    )
+  ) {
+    showToast(
+      "공지 대상 보직을 확인해 주세요."
+    );
+
+    return;
+  }
+
+
+  if (
+    !canCurrentUserManageRoleNotice(
+      currentRole
+    )
+  ) {
+    showToast(
+      "해당 보직 공지를 작성할 권한이 없습니다."
+    );
+
+    return;
+  }
+
+
+  const noticeElements =
+    getRoleNoticeElements();
+
+
+  if (
+    !noticeElements.roleNoticeEditorModal ||
+    !noticeElements.roleNoticeEditorForm
+  ) {
+    showToast(
+      "공지 작성창을 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  roleNoticeState.editingNoticeId =
+    "";
+
+
+  noticeElements
+    .roleNoticeEditorForm
+    .reset();
+
+
+  const todayValue =
+    getRoleNoticeTodayValue();
+
+
+  if (
+    noticeElements.roleNoticeEditingId
+  ) {
+    noticeElements
+      .roleNoticeEditingId
+      .value =
+      "";
+  }
+
+
+  if (
+    noticeElements.roleNoticeEditorRole
+  ) {
+    noticeElements
+      .roleNoticeEditorRole
+      .value =
+      currentRole;
+  }
+
+
+  if (
+    noticeElements
+      .roleNoticeEditorRoleLabel
+  ) {
+    noticeElements
+      .roleNoticeEditorRoleLabel
+      .textContent =
+      currentRole;
+  }
+
+
+  if (
+    noticeElements.roleNoticeEditorTitle
+  ) {
+    noticeElements
+      .roleNoticeEditorTitle
+      .textContent =
+      `${currentRole} 새 공지`;
+  }
+
+
+  if (
+    noticeElements
+      .roleNoticeStartDateInput
+  ) {
+    noticeElements
+      .roleNoticeStartDateInput
+      .value =
+      todayValue;
+  }
+
+
+  if (
+    noticeElements
+      .roleNoticeEndDateInput
+  ) {
+    noticeElements
+      .roleNoticeEndDateInput
+      .value =
+      todayValue;
+  }
+
+
+  hideRoleNoticeEditorMessage();
+
+  updateRoleNoticeCharacterCount();
+
+
+  if (
+    typeof openModal ===
+      "function"
+  ) {
+    openModal(
+      noticeElements
+        .roleNoticeEditorModal
+    );
+
+  } else {
+    noticeElements
+      .roleNoticeEditorModal
+      .classList
+      .add(
+        "is-open"
+      );
+
+    noticeElements
+      .roleNoticeEditorModal
+      .setAttribute(
+        "aria-hidden",
+        "false"
+      );
+
+    document.body.classList.add(
+      "modal-open"
+    );
+  }
+
+
+  window.setTimeout(
+    () => {
+      noticeElements
+        .roleNoticeTitleInput
+        ?.focus();
+    },
+    50
+  );
+}
+
+
+/* =========================================================
+  기존 공지 수정창 열기
+========================================================= */
+
+function openEditRoleNoticeEditor(
+  noticeId
+) {
+  const notice =
+    roleNoticeState.notices.find(
+      item => {
+        return (
+          item.id ===
+          String(
+            noticeId ||
+            ""
+          )
+        );
+      }
+    );
+
+
+  if (
+    !notice
+  ) {
+    showToast(
+      "수정할 공지를 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  if (
+    !canCurrentUserManageRoleNotice(
+      notice.role
+    )
+  ) {
+    showToast(
+      "해당 공지를 수정할 권한이 없습니다."
+    );
+
+    return;
+  }
+
+
+  const noticeElements =
+    getRoleNoticeElements();
+
+
+  roleNoticeState.editingNoticeId =
+    notice.id;
+
+
+  if (
+    noticeElements.roleNoticeEditingId
+  ) {
+    noticeElements
+      .roleNoticeEditingId
+      .value =
+      notice.id;
+  }
+
+
+  if (
+    noticeElements.roleNoticeEditorRole
+  ) {
+    noticeElements
+      .roleNoticeEditorRole
+      .value =
+      notice.role;
+  }
+
+
+  if (
+    noticeElements
+      .roleNoticeEditorRoleLabel
+  ) {
+    noticeElements
+      .roleNoticeEditorRoleLabel
+      .textContent =
+      notice.role;
+  }
+
+
+  if (
+    noticeElements.roleNoticeEditorTitle
+  ) {
+    noticeElements
+      .roleNoticeEditorTitle
+      .textContent =
+      `${notice.role} 공지 수정`;
+  }
+
+
+  if (
+    noticeElements.roleNoticeTitleInput
+  ) {
+    noticeElements
+      .roleNoticeTitleInput
+      .value =
+      notice.title;
+  }
+
+
+  if (
+    noticeElements.roleNoticeContentInput
+  ) {
+    noticeElements
+      .roleNoticeContentInput
+      .value =
+      notice.content;
+  }
+
+
+  if (
+    noticeElements
+      .roleNoticeStartDateInput
+  ) {
+    noticeElements
+      .roleNoticeStartDateInput
+      .value =
+      notice.startDate;
+  }
+
+
+  if (
+    noticeElements.roleNoticeEndDateInput
+  ) {
+    noticeElements
+      .roleNoticeEndDateInput
+      .value =
+      notice.endDate;
+  }
+
+
+  if (
+    noticeElements.roleNoticeImportantInput
+  ) {
+    noticeElements
+      .roleNoticeImportantInput
+      .checked =
+      notice.isImportant;
+  }
+
+
+  hideRoleNoticeEditorMessage();
+
+  updateRoleNoticeCharacterCount();
+
+
+  if (
+    typeof openModal ===
+      "function"
+  ) {
+    openModal(
+      noticeElements
+        .roleNoticeEditorModal
+    );
+
+  } else {
+    noticeElements
+      .roleNoticeEditorModal
+      .classList
+      .add(
+        "is-open"
+      );
+
+    noticeElements
+      .roleNoticeEditorModal
+      .setAttribute(
+        "aria-hidden",
+        "false"
+      );
+  }
+
+
+  window.setTimeout(
+    () => {
+      noticeElements
+        .roleNoticeTitleInput
+        ?.focus();
+    },
+    50
+  );
+}
+
+
+/* =========================================================
+  공지 작성창 닫기
+========================================================= */
+
+function closeRoleNoticeEditor() {
+  const {
+    roleNoticeEditorModal,
+    roleNoticeEditorForm
+  } =
+    getRoleNoticeElements();
+
+
+  if (
+    !roleNoticeEditorModal
+  ) {
+    return;
+  }
+
+
+  roleNoticeEditorModal
+    .classList
+    .remove(
+      "is-open"
+    );
+
+  roleNoticeEditorModal
+    .setAttribute(
+      "aria-hidden",
+      "true"
+    );
+
+
+  /*
+    뒤쪽 목록창이 열려 있으면
+    body의 modal-open은 유지한다.
+  */
+  const roleNoticeModal =
+    document.getElementById(
+      "roleNoticeModal"
+    );
+
+
+  if (
+    !roleNoticeModal?.classList.contains(
+      "is-open"
+    )
+  ) {
+    document.body.classList.remove(
+      "modal-open"
+    );
+  }
+
+
+  roleNoticeEditorForm?.reset();
+
+
+  roleNoticeState.editingNoticeId =
+    "";
+
+
+  hideRoleNoticeEditorMessage();
+
+  updateRoleNoticeCharacterCount();
+}
+
+
+/* =========================================================
+  공지 저장
+========================================================= */
+
+async function saveRoleNotice(
+  event
+) {
+  event.preventDefault();
+
+
+  const noticeElements =
+    getRoleNoticeElements();
+
+
+  if (
+    !noticeElements.roleNoticeEditorForm
+      ?.reportValidity()
+  ) {
+    return;
+  }
+
+
+  const editingId =
+    String(
+      noticeElements
+        .roleNoticeEditingId
+        ?.value ||
+      roleNoticeState
+        .editingNoticeId ||
+      ""
+    ).trim();
+
+
+  const role =
+    normalizeMemberLogRole(
+      noticeElements
+        .roleNoticeEditorRole
+        ?.value ||
+      roleNoticeState
+        .currentRole
+    );
+
+
+  const title =
+    String(
+      noticeElements
+        .roleNoticeTitleInput
+        ?.value ||
+      ""
+    ).trim();
+
+
+  const content =
+    String(
+      noticeElements
+        .roleNoticeContentInput
+        ?.value ||
+      ""
+    ).trim();
+
+
+  const startDate =
+    String(
+      noticeElements
+        .roleNoticeStartDateInput
+        ?.value ||
+      ""
+    ).trim();
+
+
+  const endDate =
+    String(
+      noticeElements
+        .roleNoticeEndDateInput
+        ?.value ||
+      ""
+    ).trim();
+
+
+  const isImportant =
+    Boolean(
+      noticeElements
+        .roleNoticeImportantInput
+        ?.checked
+    );
+
+
+  hideRoleNoticeEditorMessage();
+
+
+  if (
+    !ROLE_NOTICE_ROLES.includes(
+      role
+    )
+  ) {
+    showRoleNoticeEditorMessage(
+      "공지 대상 보직을 확인해 주세요."
+    );
+
+    return;
+  }
+
+
+  if (
+    !canCurrentUserManageRoleNotice(
+      role
+    )
+  ) {
+    showRoleNoticeEditorMessage(
+      "해당 보직 공지를 저장할 권한이 없습니다."
+    );
+
+    return;
+  }
+
+
+  if (
+    !title
+  ) {
+    showRoleNoticeEditorMessage(
+      "공지 제목을 입력해 주세요."
+    );
+
+    noticeElements
+      .roleNoticeTitleInput
+      ?.focus();
+
+    return;
+  }
+
+
+  if (
+    !content
+  ) {
+    showRoleNoticeEditorMessage(
+      "공지 내용을 입력해 주세요."
+    );
+
+    noticeElements
+      .roleNoticeContentInput
+      ?.focus();
+
+    return;
+  }
+
+
+  if (
+    !startDate ||
+    !endDate
+  ) {
+    showRoleNoticeEditorMessage(
+      "공지 시작일과 종료일을 선택해 주세요."
+    );
+
+    return;
+  }
+
+
+  if (
+    startDate >
+    endDate
+  ) {
+    showRoleNoticeEditorMessage(
+      "종료일은 시작일보다 빠를 수 없습니다."
+    );
+
+    noticeElements
+      .roleNoticeEndDateInput
+      ?.focus();
+
+    return;
+  }
+
+
+  const saveButton =
+    noticeElements
+      .saveRoleNoticeButton;
+
+
+  const originalButtonText =
+    String(
+      saveButton?.textContent ||
+      "저장"
+    ).trim();
+
+
+  if (
+    saveButton
+  ) {
+    saveButton.disabled =
+      true;
+
+    saveButton.textContent =
+      "저장 중...";
+  }
+
+
+  try {
+    const requestBody = {
+      id:
+        editingId ||
+        undefined,
+
+      role,
+
+      title,
+
+      content,
+
+      startDate,
+
+      endDate,
+
+      isImportant
+    };
+
+
+    const response =
+      await fetch(
+        ROLE_NOTICE_API_URL,
+        {
+          method:
+            editingId
+              ? "PUT"
+              : "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  "Content-Type":
+                    "application/json",
+
+                  Accept:
+                    "application/json"
+                },
+
+          body:
+            JSON.stringify(
+              requestBody
+            )
+        }
+      );
+
+
+    await readRoleNoticeApiResponse(
+      response
+    );
+
+
+    closeRoleNoticeEditor();
+
+
+    await loadRoleNotices();
+
+
+    renderCurrentRoleNoticeList();
+
+
+    showToast(
+      editingId
+        ? "공지가 수정되었습니다."
+        : "공지가 등록되었습니다."
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "보직 공지 저장 실패:",
+      error
+    );
+
+
+    showRoleNoticeEditorMessage(
+      error.message ||
+      "공지를 저장하지 못했습니다."
+    );
+
+  } finally {
+    if (
+      saveButton
+    ) {
+      saveButton.disabled =
+        false;
+
+      saveButton.textContent =
+        originalButtonText;
+    }
+  }
+}
+
+
+/* =========================================================
+  공지 삭제
+========================================================= */
+
+async function deleteRoleNotice(
+  noticeId
+) {
+  const notice =
+    roleNoticeState.notices.find(
+      item => {
+        return (
+          item.id ===
+          String(
+            noticeId ||
+            ""
+          )
+        );
+      }
+    );
+
+
+  if (
+    !notice
+  ) {
+    showToast(
+      "삭제할 공지를 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  if (
+    !canCurrentUserManageRoleNotice(
+      notice.role
+    )
+  ) {
+    showToast(
+      "해당 공지를 삭제할 권한이 없습니다."
+    );
+
+    return;
+  }
+
+
+  const shouldDelete =
+    typeof showCompactConfirm ===
+      "function"
+      ? await showCompactConfirm(
+          "이 공지사항을 삭제하시겠습니까?"
+        )
+      : window.confirm(
+          "이 공지사항을 삭제하시겠습니까?"
+        );
+
+
+  if (
+    !shouldDelete
+  ) {
+    return;
+  }
+
+
+  try {
+    const requestUrl =
+      new URL(
+        ROLE_NOTICE_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "id",
+      notice.id
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "DELETE",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                }
+        }
+      );
+
+
+    await readRoleNoticeApiResponse(
+      response
+    );
+
+
+    await loadRoleNotices();
+
+
+    renderCurrentRoleNoticeList();
+
+
+    showToast(
+      "공지가 삭제되었습니다."
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "보직 공지 삭제 실패:",
+      error
+    );
+
+
+    showToast(
+      error.message ||
+      "공지를 삭제하지 못했습니다."
+    );
+  }
+}
+
+
+/* =========================================================
+  공지 목록 클릭 처리
+
+  동적 생성되는 수정·삭제 버튼을
+  이벤트 위임 방식으로 처리한다.
+========================================================= */
+
+function handleRoleNoticeListClick(
+  event
+) {
+  const editButton =
+    event.target.closest(
+      "[data-role-notice-edit]"
+    );
+
+
+  if (
+    editButton
+  ) {
+    openEditRoleNoticeEditor(
+      editButton.dataset
+        .roleNoticeEdit
+    );
+
+    return;
+  }
+
+
+  const deleteButton =
+    event.target.closest(
+      "[data-role-notice-delete]"
+    );
+
+
+  if (
+    deleteButton
+  ) {
+    deleteRoleNotice(
+      deleteButton.dataset
+        .roleNoticeDelete
+    );
+  }
+}
+
+
+/* =========================================================
+  공지 기능 이벤트 연결
+========================================================= */
+
+function bindRoleNoticeEvents() {
+  const noticeElements =
+    getRoleNoticeElements();
+
+
+  /*
+    보직 카드 위 공지 버튼
+  */
+  noticeElements.noticeButtons.forEach(
+    button => {
+      button.addEventListener(
+        "click",
+        event => {
+          /*
+            아래 업무일지 카드의 클릭 이벤트로
+            전달되지 않도록 차단한다.
+          */
+          event.preventDefault();
+
+          event.stopPropagation();
+
+
+          openRoleNoticeModal(
+            button.dataset.role
+          );
+        }
+      );
+    }
+  );
+
+
+  /*
+    목록창 닫기
+  */
+  noticeElements
+    .closeRoleNoticeModalButton
+    ?.addEventListener(
+      "click",
+      closeRoleNoticeModal
+    );
+
+
+  noticeElements
+    .closeRoleNoticeModalFooterButton
+    ?.addEventListener(
+      "click",
+      closeRoleNoticeModal
+    );
+
+
+  /*
+    새 공지
+  */
+  noticeElements
+    .openRoleNoticeEditorButton
+    ?.addEventListener(
+      "click",
+      openNewRoleNoticeEditor
+    );
+
+
+  /*
+    필터
+  */
+  noticeElements.filterButtons.forEach(
+    button => {
+      button.addEventListener(
+        "click",
+        () => {
+          changeRoleNoticeFilter(
+            button.dataset
+              .roleNoticeFilter
+          );
+        }
+      );
+    }
+  );
+
+
+  /*
+    공지 카드 수정·삭제
+  */
+  noticeElements
+    .roleNoticeList
+    ?.addEventListener(
+      "click",
+      handleRoleNoticeListClick
+    );
+
+
+  /*
+    작성창 닫기
+  */
+  noticeElements
+    .closeRoleNoticeEditorButton
+    ?.addEventListener(
+      "click",
+      closeRoleNoticeEditor
+    );
+
+
+  noticeElements
+    .cancelRoleNoticeEditorButton
+    ?.addEventListener(
+      "click",
+      closeRoleNoticeEditor
+    );
+
+
+  /*
+    작성창 저장
+  */
+  noticeElements
+    .roleNoticeEditorForm
+    ?.addEventListener(
+      "submit",
+      saveRoleNotice
+    );
+
+
+  /*
+    내용 글자 수
+  */
+  noticeElements
+    .roleNoticeContentInput
+    ?.addEventListener(
+      "input",
+      updateRoleNoticeCharacterCount
+    );
+
+
+  /*
+    시작일 변경 시 종료일이 더 빠르면
+    종료일을 시작일과 같게 보정한다.
+  */
+  noticeElements
+    .roleNoticeStartDateInput
+    ?.addEventListener(
+      "change",
+      () => {
+        const startDate =
+          noticeElements
+            .roleNoticeStartDateInput
+            ?.value ||
+          "";
+
+        const endDate =
+          noticeElements
+            .roleNoticeEndDateInput
+            ?.value ||
+          "";
+
+
+        if (
+          startDate &&
+          (
+            !endDate ||
+            endDate <
+              startDate
+          )
+        ) {
+          noticeElements
+            .roleNoticeEndDateInput
+            .value =
+            startDate;
+        }
+      }
+    );
+
+
+  /*
+    목록창은 배경 클릭으로 닫는다.
+    작성창은 입력 실수를 막기 위해 배경 클릭으로 닫지 않는다.
+  */
+  noticeElements
+    .roleNoticeModal
+    ?.addEventListener(
+      "click",
+      event => {
+        if (
+          event.target ===
+          noticeElements
+            .roleNoticeModal
+        ) {
+          closeRoleNoticeModal();
+        }
+      }
+    );
+
+
+  /*
+    ESC 처리
+  */
+  document.addEventListener(
+    "keydown",
+    event => {
+      if (
+        event.key !==
+        "Escape"
+      ) {
+        return;
+      }
+
+
+      if (
+        noticeElements
+          .roleNoticeEditorModal
+          ?.classList.contains(
+            "is-open"
+          )
+      ) {
+        closeRoleNoticeEditor();
+
+        return;
+      }
+
+
+      if (
+        noticeElements
+          .roleNoticeModal
+          ?.classList.contains(
+            "is-open"
+          )
+      ) {
+        closeRoleNoticeModal();
+      }
+    }
+  );
+}
+
+
+/* =========================================================
+  보직 공지 초기화
+
+  로그인 후 카드에 활성 공지 개수를 표시한다.
+========================================================= */
+
+async function initializeRoleNotices() {
+  const noticeButtons =
+    document.querySelectorAll(
+      "[data-role-notice-button]"
+    );
+
+
+  /*
+    공지 HTML이 아직 없으면
+    기존 업무일지 기능에는 영향을 주지 않는다.
+  */
+  if (
+    !noticeButtons.length
+  ) {
+    return;
+  }
+
+
+  bindRoleNoticeEvents();
+
+
+  /*
+    API 응답 전에는 모든 버튼을
+    공지 없음 상태로 표시한다.
+  */
+  updateAllRoleNoticeButtons();
+
+
+  /*
+    로그인 사용자만 공지 데이터를 조회한다.
+  */
+  const currentUser =
+    loadCurrentUser();
+
+
+  if (
+    !currentUser
+  ) {
+    return;
+  }
+
+
+  await loadRoleNotices();
+}
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  initializeRoleNotices
+);
