@@ -22073,3 +22073,99 @@ td {
     font-size: 10px;
   }
 }
+
+/* =========================================================
+  인계사항 이전일지 가져오기 버튼
+========================================================= */
+
+.handover-entry-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+
+.handover-entry-group__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+
+.previous-handover-import-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 30px;
+  margin-left: 4px;
+  padding: 5px 10px;
+
+  border: 1px solid #b8c7dd;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #41546f;
+
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+
+.previous-handover-import-button:hover:not(:disabled) {
+  border-color: #7c97bd;
+  background: #f1f6fc;
+  color: #234b7c;
+}
+
+
+.previous-handover-import-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+
+.previous-handover-import-button:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.2);
+  outline-offset: 2px;
+}
+
+
+.previous-handover-import-button:disabled {
+  border-color: #d8dee8;
+  background: #f3f5f8;
+  color: #98a2b3;
+
+  cursor: wait;
+  opacity: 0.8;
+}
+
+
+/* 모바일 화면 */
+
+@media (max-width: 640px) {
+  .handover-entry-group__title {
+    width: 100%;
+    gap: 5px;
+  }
+
+
+  .previous-handover-import-button {
+    min-height: 28px;
+    margin-left: auto;
+    padding: 4px 8px;
+
+    font-size: 11px;
+  }
+}

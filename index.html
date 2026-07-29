@@ -1978,22 +1978,33 @@
            handover-entry-group--tm"
   >
 
-    <div class="handover-entry-group__header">
+<div class="handover-entry-group__header">
 
-      <div>
-        <strong>
-          TM 발행 내역
-        </strong>
+  <div class="handover-entry-group__title">
 
-        <span
-          id="tmIssueEntryCount"
-          class="handover-entry-group__count"
-        >
-          0건
-        </span>
-      </div>
+    <strong>
+      인계사항
+    </strong>
 
-    </div>
+    <span
+      id="handoverEntryCount"
+      class="handover-entry-group__count"
+    >
+      0건
+    </span>
+
+    <button
+      type="button"
+      id="loadPreviousHandoverEntriesButton"
+      class="previous-handover-import-button"
+      aria-label="같은 보직의 이전 근무일지 인계사항 가져오기"
+    >
+      이전일지 가져오기
+    </button>
+
+  </div>
+
+</div>
 
 
     <div class="log-entry-table-wrap">

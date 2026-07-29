@@ -5096,28 +5096,28 @@ async function loadLegacyLogsForOperationStatusDate(
 }
 
 /* =========================================================
-  모든 보직의 전 근무 비고 조회
+  모든 보직의 전 근무 인계사항 조회
 
   현재 근무 기준:
   - N/S → 같은 날 D/S
   - D/S → 전날 N/S
 
-  대상:
-  - 파트장
-  - TGO
-  - BCO1
-  - BCO2
-  - TO
-  - BO1
-  - BO2
+  가져오는 항목:
+  - 인계사항
+  - TM 작업
+  - BM 발행
+  - BM 작업
+  - CM 발행
 
-  지원 저장 형식:
-  - remarkEntries
-  - entries
-  - note
+  제외:
+  - TM 발행
+  - 비고
+
+  항목별 시간·구분·TAG·줄바꿈·출처 정보를
+  원본 그대로 유지한다.
 ========================================================= */
 
-async function getPreviousShiftRemarkEntries(
+async function getPreviousShiftHandoverEntries(
   roleValue,
   dateValue,
   shiftValue
@@ -5202,7 +5202,102 @@ async function getPreviousShiftRemarkEntries(
 
 
   /*
-    같은 날짜·근무·보직의 업무일지가 여러 개면
+    저장 시점에 따라 구분명의
+    띄어쓰기가 다르더라도 같은 구분으로 처리한다.
+  */
+  const normalizeHandoverCategory = (
+    value
+  ) => {
+    const categoryText =
+      String(
+        value ||
+        "인계사항"
+      ).trim();
+
+
+    const compactCategory =
+      categoryText
+        .toUpperCase()
+        .replace(
+          /\s+/g,
+          ""
+        );
+
+
+    if (
+      !compactCategory ||
+      compactCategory ===
+        "인계사항" ||
+      compactCategory ===
+        "인계"
+    ) {
+      return "인계사항";
+    }
+
+
+    if (
+      compactCategory.includes(
+        "비고"
+      )
+    ) {
+      return "비고";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "TM발행"
+      )
+    ) {
+      return "TM 발행";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "TM작업"
+      )
+    ) {
+      return "TM 작업";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "BM발행"
+      )
+    ) {
+      return "BM 발행";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "BM작업"
+      )
+    ) {
+      return "BM 작업";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "CM발행"
+      )
+    ) {
+      return "CM 발행";
+    }
+
+
+    return (
+      categoryText ||
+      "인계사항"
+    );
+  };
+
+
+  /*
+    같은 날짜·근무·보직의 일지가 여러 개면
     가장 최근에 수정된 일지를 사용한다.
   */
   const findLatestPreviousLog = (
@@ -5262,13 +5357,13 @@ async function getPreviousShiftRemarkEntries(
 
 
   /*
-    업무일지 1건에서 비고만 추출한다.
+    업무일지 한 건에서 인계사항 영역에
+    표시되는 항목만 추출한다.
 
-    중요:
-    비고 1건 안의 줄바꿈과 하위 설명은
-    분리하지 않고 원본 한 건으로 유지한다.
+    handoverEntries가 있으면 먼저 사용하고,
+    없으면 기존 entries 배열을 사용한다.
   */
-  const collectRemarkEntries = (
+  const collectHandoverEntries = (
     sourceLog
   ) => {
     if (
@@ -5305,6 +5400,27 @@ async function getPreviousShiftRemarkEntries(
             };
 
 
+      const category =
+        normalizeHandoverCategory(
+          sourceEntry.category ||
+          "인계사항"
+        );
+
+
+      /*
+        TM 발행은 위쪽 TM 발행 내역 영역이며,
+        비고는 아래쪽 비고 영역이므로 제외한다.
+      */
+      if (
+        category ===
+          "TM 발행" ||
+        category ===
+          "비고"
+      ) {
+        return false;
+      }
+
+
       const rawContent =
         String(
           sourceEntry.content ||
@@ -5330,10 +5446,10 @@ async function getPreviousShiftRemarkEntries(
 
 
       /*
-        비고 항목 맨 앞에 저장된 기존 번호만 제거한다.
+        화면에서 자동으로 붙었던 번호만 제거한다.
 
-        내부 줄바꿈과
-        "- 하위 설명" 같은 내용은 그대로 유지한다.
+        항목 내부의 줄바꿈과
+        "- 하위 설명"은 그대로 유지한다.
       */
       const content =
         rawContent
@@ -5352,8 +5468,58 @@ async function getPreviousShiftRemarkEntries(
 
 
       candidates.push({
+        time:
+          String(
+            sourceEntry.time ||
+            ""
+          ).trim(),
+
+        category,
+
+        tag:
+          String(
+            sourceEntry.tag ||
+            ""
+          )
+            .trim()
+            .toUpperCase(),
+
         content,
+
+        attachmentName:
+          String(
+            sourceEntry.attachmentName ||
+            sourceEntry.fileName ||
+            ""
+          ).trim(),
+
+        importedFromRole:
+          normalizeMemberLogRole(
+            sourceEntry.importedFromRole ||
+            sourceEntry.sourceRole ||
+            normalizedRole
+          ),
+
+        importedFromAuthor:
+          String(
+            sourceEntry.importedFromAuthor ||
+            sourceLog.author ||
+            ""
+          ).trim(),
+
+        importedFromLogId:
+          String(
+            sourceEntry.importedFromLogId ||
+            sourceLog.id ||
+            ""
+          ).trim(),
+
+        importedFromEntryIndex:
+          sourceEntry
+            .importedFromEntryIndex,
+
         entryIndex,
+
         sourceCollection
       });
 
@@ -5363,22 +5529,14 @@ async function getPreviousShiftRemarkEntries(
 
 
     /*
-      저장 구조가 중복되어 있을 수 있으므로
-      가장 최신 분리 배열부터 우선 사용한다.
-
-      1. remarkEntries
-      2. entries 안의 비고
-      3. 기존 note 문자열
-
-      상위 구조에서 비고가 확인되면
-      하위 구조는 다시 수집하지 않는다.
+      최신 분리 저장 배열 우선
     */
     if (
       Array.isArray(
-        sourceLog.remarkEntries
+        sourceLog.handoverEntries
       )
     ) {
-      sourceLog.remarkEntries.forEach(
+      sourceLog.handoverEntries.forEach(
         (
           entry,
           entryIndex
@@ -5386,13 +5544,17 @@ async function getPreviousShiftRemarkEntries(
           appendCandidate(
             entry,
             entryIndex,
-            "remarkEntries"
+            "handoverEntries"
           );
         }
       );
     }
 
 
+    /*
+      분리 배열에서 항목을 찾지 못했을 때만
+      기존 entries 배열을 사용한다.
+    */
     if (
       !candidates.length &&
       Array.isArray(
@@ -5404,56 +5566,10 @@ async function getPreviousShiftRemarkEntries(
           entry,
           entryIndex
         ) => {
-          const category =
-            String(
-              entry?.category ||
-              ""
-            ).trim();
-
-
-          if (
-            category ===
-              "비고" ||
-            category.includes(
-              "비고"
-            )
-          ) {
-            appendCandidate(
-              entry,
-              entryIndex,
-              "entries"
-            );
-          }
-        }
-      );
-    }
-
-
-    if (
-      !candidates.length
-    ) {
-      const legacyNoteEntries =
-        convertSavedNoteToEntries(
-          sourceLog.note,
-          sourceLog
-        );
-
-
-      (
-        Array.isArray(
-          legacyNoteEntries
-        )
-          ? legacyNoteEntries
-          : []
-      ).forEach(
-        (
-          entry,
-          entryIndex
-        ) => {
           appendCandidate(
             entry,
             entryIndex,
-            "note"
+            "entries"
           );
         }
       );
@@ -5461,10 +5577,10 @@ async function getPreviousShiftRemarkEntries(
 
 
     /*
-      같은 비고가 중복 저장된 경우
-      한 번만 사용한다.
+      handoverEntries와 entries에
+      같은 항목이 중복 저장된 경우 한 번만 사용한다.
 
-      줄바꿈이 있어도 비고 한 건 전체를
+      구분·시간·TAG·내용 전체를
       하나의 중복 확인 단위로 사용한다.
     */
     const uniqueEntryMap =
@@ -5473,24 +5589,34 @@ async function getPreviousShiftRemarkEntries(
 
     candidates.forEach(
       candidate => {
-        const uniqueKey =
-          String(
-            candidate.content ||
-            ""
+        const uniqueKey = [
+          candidate.category,
+          candidate.time,
+          candidate.tag,
+          candidate.content
+        ]
+          .map(
+            value => {
+              return String(
+                value ||
+                ""
+              )
+                .normalize(
+                  "NFKC"
+                )
+                .replace(
+                  /[\u200B-\u200D\u2060\uFEFF]/g,
+                  ""
+                )
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .trim()
+                .toUpperCase();
+            }
           )
-            .normalize(
-              "NFKC"
-            )
-            .replace(
-              /[\u200B-\u200D\u2060\uFEFF]/g,
-              ""
-            )
-            .replace(
-              /\s+/g,
-              " "
-            )
-            .trim()
-            .toUpperCase();
+          .join("||");
 
 
         if (
@@ -5503,52 +5629,61 @@ async function getPreviousShiftRemarkEntries(
         }
 
 
+        const rawImportedIndex =
+          candidate
+            .importedFromEntryIndex;
+
+
+        const importedFromEntryIndex =
+          rawImportedIndex === "" ||
+          rawImportedIndex === null ||
+          rawImportedIndex === undefined
+            ? null
+            : Number(
+                rawImportedIndex
+              );
+
+
         uniqueEntryMap.set(
           uniqueKey,
           {
             time:
-              "",
+              candidate.time,
 
             category:
-              "비고",
+              candidate.category,
 
             tag:
-              "",
+              candidate.tag,
 
             /*
-              원본 줄바꿈을 포함한
-              비고 한 건 전체
+              여러 줄 내용도 한 항목으로 유지
             */
             content:
               candidate.content,
 
             attachmentName:
-              "",
+              candidate.attachmentName,
 
             importedFromRole:
+              candidate.importedFromRole ||
               normalizedRole,
 
             importedFromAuthor:
-              String(
-                sourceLog.author ||
-                ""
-              ).trim(),
+              candidate.importedFromAuthor,
 
             importedFromLogId:
-              String(
-                sourceLog.id ||
-                ""
-              ).trim(),
+              candidate.importedFromLogId,
 
             importedFromEntryIndex:
               Number.isInteger(
-                candidate.entryIndex
+                importedFromEntryIndex
               )
-                ? candidate.entryIndex
-                : null,
+                ? importedFromEntryIndex
+                : candidate.entryIndex,
 
             source:
-              "previous-shift-remark",
+              "previous-shift-handover",
 
             sourceCollection:
               candidate.sourceCollection,
@@ -5600,7 +5735,7 @@ async function getPreviousShiftRemarkEntries(
         sourceType,
 
       entries:
-        collectRemarkEntries(
+        collectHandoverEntries(
           sourceLog
         )
     };
@@ -5655,23 +5790,24 @@ async function getPreviousShiftRemarkEntries(
 }
 
 /* =========================================================
-  버튼으로 전 근무 비고 가져오기
+  버튼으로 전 근무 인계사항 가져오기
 
   적용 방식:
-  - 현재 날짜·근무·보직의 전 근무 비고 조회
-  - 현재 작성된 비고는 그대로 유지
-  - 중복되지 않은 비고만 추가
-  - 신규 작성창·기존 수정창 모두 사용 가능
+  - 같은 보직의 직전 근무 인계사항 조회
+  - 현재 작성한 항목은 그대로 유지
+  - 중복되지 않은 항목만 추가
+  - 시간·구분·TAG·줄바꿈 유지
+  - 자동 저장하지 않음
 ========================================================= */
 
-async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
+async function loadPreviousShiftHandoverEntriesForCurrentEditor() {
   const editorForm =
     elements.logEditorForm;
 
 
   const importButton =
     document.getElementById(
-      "loadPreviousRemarkEntriesButton"
+      "loadPreviousHandoverEntriesButton"
     );
 
 
@@ -5752,10 +5888,105 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
 
 
   /*
-    비고 한 건의 줄바꿈은 유지하고
-    맨 앞의 기존 번호만 제거한다.
+    저장 시점에 따라 구분명의
+    띄어쓰기가 달라도 같은 구분으로 처리한다.
   */
-  const normalizeRemarkContent = (
+  const normalizeHandoverCategory = (
+    value
+  ) => {
+    const categoryText =
+      String(
+        value ||
+        "인계사항"
+      ).trim();
+
+
+    const compactCategory =
+      categoryText
+        .toUpperCase()
+        .replace(
+          /\s+/g,
+          ""
+        );
+
+
+    if (
+      !compactCategory ||
+      compactCategory ===
+        "인계사항" ||
+      compactCategory ===
+        "인계"
+    ) {
+      return "인계사항";
+    }
+
+
+    if (
+      compactCategory.includes(
+        "비고"
+      )
+    ) {
+      return "비고";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "TM발행"
+      )
+    ) {
+      return "TM 발행";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "TM작업"
+      )
+    ) {
+      return "TM 작업";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "BM발행"
+      )
+    ) {
+      return "BM 발행";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "BM작업"
+      )
+    ) {
+      return "BM 작업";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "CM발행"
+      )
+    ) {
+      return "CM 발행";
+    }
+
+
+    return (
+      categoryText ||
+      "인계사항"
+    );
+  };
+
+
+  /*
+    한 항목 안의 줄바꿈은 유지하고
+    맨 앞에 저장된 기존 번호만 제거한다.
+  */
+  const normalizeHandoverContent = (
     value
   ) => {
     return String(
@@ -5779,25 +6010,75 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
   };
 
 
-  const createRemarkKey = (
-    value
+  /*
+    구분·시간·TAG·내용이 모두 같을 때만
+    동일한 항목으로 판단한다.
+  */
+  const createHandoverEntryKey = (
+    entry
   ) => {
-    return normalizeRemarkContent(
-      value
-    )
-      .normalize(
-        "NFKC"
-      )
-      .replace(
-        /[\u200B-\u200D\u2060\uFEFF]/g,
+    const category =
+      normalizeHandoverCategory(
+        entry?.category
+      );
+
+
+    const content =
+      normalizeHandoverContent(
+        entry?.content
+      );
+
+
+    if (
+      !content ||
+      category ===
+        "TM 발행" ||
+      category ===
+        "비고"
+    ) {
+      return "";
+    }
+
+
+    return [
+      category,
+
+      String(
+        entry?.time ||
+        ""
+      ).trim(),
+
+      String(
+        entry?.tag ||
         ""
       )
-      .replace(
-        /\s+/g,
-        " "
+        .trim()
+        .toUpperCase(),
+
+      content
+    ]
+      .map(
+        value => {
+          return String(
+            value ||
+            ""
+          )
+            .normalize(
+              "NFKC"
+            )
+            .replace(
+              /[\u200B-\u200D\u2060\uFEFF]/g,
+              ""
+            )
+            .replace(
+              /\s+/g,
+              " "
+            )
+            .trim()
+            .toUpperCase();
+        }
       )
-      .trim()
-      .toUpperCase();
+      .join("||");
   };
 
 
@@ -5814,7 +6095,7 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
     createId();
 
 
-  appState.previousShiftRemarkRequestToken =
+  appState.previousShiftHandoverRequestToken =
     requestToken;
 
 
@@ -5833,8 +6114,8 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
 
 
   try {
-    const previousRemarkResult =
-      await getPreviousShiftRemarkEntries(
+    const previousHandoverResult =
+      await getPreviousShiftHandoverEntries(
         currentRole,
         currentDate,
         currentShift
@@ -5843,13 +6124,17 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
 
     if (
       appState
-        .previousShiftRemarkRequestToken !==
+        .previousShiftHandoverRequestToken !==
       requestToken
     ) {
       return;
     }
 
 
+    /*
+      조회 중 날짜·근무·보직이 변경되었다면
+      현재 작성창에는 반영하지 않는다.
+    */
     const latestContextKey = [
       normalizeMemberLogRole(
         elements.logRole?.value
@@ -5880,9 +6165,9 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
 
     const sourceEntries =
       Array.isArray(
-        previousRemarkResult?.entries
+        previousHandoverResult?.entries
       )
-        ? previousRemarkResult.entries
+        ? previousHandoverResult.entries
         : [];
 
 
@@ -5890,7 +6175,7 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
       !sourceEntries.length
     ) {
       showToast(
-        `${currentRole} 전 근무 업무일지에 비고가 없습니다.`
+        `${currentRole} 전 근무 업무일지에 인계사항이 없습니다.`
       );
 
       return;
@@ -5898,12 +6183,12 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
 
 
     /*
-      현재 작성창의 비고를
-      항목 전체 단위로 중복 확인한다.
+      현재 작성창에 이미 존재하는
+      인계사항 영역 항목을 수집한다.
 
-      줄마다 나누지 않는다.
+      TM 발행과 비고는 제외한다.
     */
-    const existingRemarkKeys =
+    const existingEntryKeys =
       new Set();
 
 
@@ -5914,29 +6199,18 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
         ? appState.editorEntries
         : []
     )
-      .filter(
-        entry => {
-          return (
-            String(
-              entry?.category ||
-              ""
-            ).trim() ===
-            "비고"
-          );
-        }
-      )
       .forEach(
         entry => {
           const uniqueKey =
-            createRemarkKey(
-              entry?.content
+            createHandoverEntryKey(
+              entry
             );
 
 
           if (
             uniqueKey
           ) {
-            existingRemarkKeys.add(
+            existingEntryKeys.add(
               uniqueKey
             );
           }
@@ -5944,55 +6218,60 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
       );
 
 
-    /*
-      기존 note 문자열도
-      중복 확인에 포함한다.
-    */
-    const existingLegacyNoteKey =
-      createRemarkKey(
-        elements.logNote?.value
-      );
-
-
-    if (
-      existingLegacyNoteKey
-    ) {
-      existingRemarkKeys.add(
-        existingLegacyNoteKey
-      );
-    }
-
-
     const importedEntries = [];
 
 
-    /*
-      이전 비고 1건을 현재 비고 1건으로 가져온다.
-
-      내부 줄바꿈과 하위 설명은
-      원본 그대로 유지한다.
-    */
     sourceEntries.forEach(
       (
         entry,
         entryIndex
       ) => {
+        const category =
+          normalizeHandoverCategory(
+            entry?.category
+          );
+
+
+        const time =
+          String(
+            entry?.time ||
+            ""
+          ).trim();
+
+
+        const tag =
+          String(
+            entry?.tag ||
+            ""
+          )
+            .trim()
+            .toUpperCase();
+
+
         const content =
-          normalizeRemarkContent(
+          normalizeHandoverContent(
             entry?.content
           );
 
 
+        const normalizedEntry = {
+          category,
+          time,
+          tag,
+          content
+        };
+
+
         const uniqueKey =
-          createRemarkKey(
-            content
+          createHandoverEntryKey(
+            normalizedEntry
           );
 
 
         if (
           !content ||
           !uniqueKey ||
-          existingRemarkKeys.has(
+          existingEntryKeys.has(
             uniqueKey
           )
         ) {
@@ -6000,7 +6279,7 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
         }
 
 
-        existingRemarkKeys.add(
+        existingEntryKeys.add(
           uniqueKey
         );
 
@@ -6024,42 +6303,42 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
           id:
             createId(),
 
-          time:
-            "",
-
-          category:
-            "비고",
-
-          tag:
-            "",
-
           /*
-            줄바꿈을 포함한
-            원본 비고 한 건 전체
+            시간·구분·TAG·줄바꿈을
+            이전 일지 원본대로 유지한다.
           */
+          time,
+
+          category,
+
+          tag,
+
           content,
 
           attachmentName:
-            "",
+            String(
+              entry?.attachmentName ||
+              ""
+            ).trim(),
 
           importedFromRole:
             normalizeMemberLogRole(
               entry?.importedFromRole ||
-              previousRemarkResult?.role ||
+              previousHandoverResult?.role ||
               currentRole
             ),
 
           importedFromAuthor:
             String(
               entry?.importedFromAuthor ||
-              previousRemarkResult?.author ||
+              previousHandoverResult?.author ||
               ""
             ).trim(),
 
           importedFromLogId:
             String(
               entry?.importedFromLogId ||
-              previousRemarkResult
+              previousHandoverResult
                 ?.sourceLogId ||
               ""
             ).trim(),
@@ -6072,7 +6351,7 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
               : entryIndex,
 
           source:
-            "previous-shift-remark",
+            "previous-shift-handover",
 
           sourceCollection:
             String(
@@ -6082,13 +6361,13 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
 
           inheritedFromDate:
             String(
-              previousRemarkResult?.date ||
+              previousHandoverResult?.date ||
               ""
             ).trim(),
 
           inheritedFromShift:
             String(
-              previousRemarkResult?.shift ||
+              previousHandoverResult?.shift ||
               ""
             )
               .trim()
@@ -6102,7 +6381,7 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
       !importedEntries.length
     ) {
       showToast(
-        "전 근무 비고가 이미 모두 반영되어 있습니다."
+        "전 근무 인계사항이 이미 모두 반영되어 있습니다."
       );
 
       return;
@@ -6126,24 +6405,24 @@ async function loadPreviousShiftRemarkEntriesForCurrentEditor() {
 
 
     showToast(
-      `${previousRemarkResult.date} ${previousRemarkResult.shift} ${currentRole} 비고 ${importedEntries.length}건을 가져왔습니다.`
+      `${previousHandoverResult.date} ${previousHandoverResult.shift} ${currentRole} 인계사항 ${importedEntries.length}건을 가져왔습니다.`
     );
 
   } catch (error) {
     console.error(
-      `${currentRole} 전 근무 비고 가져오기 실패:`,
+      `${currentRole} 전 근무 인계사항 가져오기 실패:`,
       error
     );
 
 
     showToast(
-      "전 근무 비고를 가져오지 못했습니다."
+      "전 근무 인계사항을 가져오지 못했습니다."
     );
 
   } finally {
     if (
       appState
-        .previousShiftRemarkRequestToken ===
+        .previousShiftHandoverRequestToken ===
       requestToken
     ) {
       importButton.disabled =
@@ -44147,12 +44426,18 @@ openLogEditor =
   };
 
 /* =========================================================
-  전 근무 비고 가져오기 버튼 연결
+  전 근무 비고·인계사항 가져오기 버튼 연결
 ========================================================= */
 
 const loadPreviousRemarkEntriesButton =
   document.getElementById(
     "loadPreviousRemarkEntriesButton"
+  );
+
+
+const loadPreviousHandoverEntriesButton =
+  document.getElementById(
+    "loadPreviousHandoverEntriesButton"
   );
 
 
@@ -44163,6 +44448,18 @@ if (
     "click",
     async () => {
       await loadPreviousShiftRemarkEntriesForCurrentEditor();
+    }
+  );
+}
+
+
+if (
+  loadPreviousHandoverEntriesButton
+) {
+  loadPreviousHandoverEntriesButton.addEventListener(
+    "click",
+    async () => {
+      await loadPreviousShiftHandoverEntriesForCurrentEditor();
     }
   );
 }
