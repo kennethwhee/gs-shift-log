@@ -13782,6 +13782,145 @@ function getRepresentativeOperationStatusType(
   return representativeType;
 }
 
+/* =========================================================
+  TGO·BCO1·BCO2 고정 운전현황 설비 생성
+
+  TGO:
+  - 터빈
+  - 3호기 보조보일러
+  - 4호기 보조보일러
+
+  BCO1:
+  - 1호기 주보일러
+
+  BCO2:
+  - 2호기 주보일러
+
+  설비 구성과 문구는 고정하며,
+  사용자는 수정창에서 운전 상태만 변경한다.
+========================================================= */
+
+function createFixedOperationStatusItemsByRole(
+  role
+) {
+  const normalizedRole =
+    normalizeMemberLogRole(
+      role
+    );
+
+
+  const equipmentMap = {
+    TGO: [
+      {
+        name:
+          "터빈",
+
+        type:
+          "normal",
+
+        content:
+          "정상 운전 중"
+      },
+
+      {
+        name:
+          "3호기 보조보일러",
+
+        type:
+          "abnormal",
+
+        content:
+          "만수 보존 중"
+      },
+
+      {
+        name:
+          "4호기 보조보일러",
+
+        type:
+          "abnormal",
+
+        content:
+          "만수 보존 중"
+      }
+    ],
+
+
+    BCO1: [
+      {
+        name:
+          "1호기 주보일러",
+
+        type:
+          "normal",
+
+        content:
+          "정상 운전 중"
+      }
+    ],
+
+
+    BCO2: [
+      {
+        name:
+          "2호기 주보일러",
+
+        type:
+          "normal",
+
+        content:
+          "정상 운전 중"
+      }
+    ]
+  };
+
+
+  const sourceItems =
+    equipmentMap[
+      normalizedRole
+    ] ||
+    [];
+
+
+  return sourceItems.map(
+    (
+      item,
+      itemIndex
+    ) => {
+      return normalizeOperationStatusItem(
+        {
+          id:
+            createOperationStatusItemId(),
+
+          role:
+            normalizedRole,
+
+          sourceRole:
+            normalizedRole,
+
+          name:
+            item.name,
+
+          type:
+            item.type,
+
+          content:
+            item.content,
+
+          equipmentMode:
+            "equipment",
+
+          updatedAt:
+            "",
+
+          updatedBy:
+            ""
+        },
+        itemIndex
+      );
+    }
+  );
+}
 
 /* =========================================================
   보직별 기본 운전현황
@@ -13837,7 +13976,20 @@ function getDefaultOperationStatusContent(
 
 
 /* =========================================================
-  기본 운전현황 객체
+  보직별 기본 운전현황 객체 최종본
+
+  TGO·BCO1·BCO2:
+  - 고정 설비 배열 생성
+  - 설비명과 기본 문구 고정
+  - 수정창에서는 상태만 변경
+
+  TO·BO1·BO2:
+  - 자유 텍스트 기본값 사용
+  - 실제 신규 작성 시에는 직전 근무 내용을 우선 적용
+
+  파트장:
+  - 별도 기본값을 저장하지 않음
+  - TGO·BCO1·BCO2 운전현황 자동 취합
 ========================================================= */
 
 function createDefaultOperationStatus(
@@ -13848,6 +14000,103 @@ function createDefaultOperationStatus(
     normalizeMemberLogRole(
       role
     );
+
+
+  const equipmentRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2"
+  ];
+
+
+  /* =====================================================
+    TGO·BCO1·BCO2 고정 설비 운전현황
+  ====================================================== */
+
+  if (
+    equipmentRoles.includes(
+      normalizedRole
+    )
+  ) {
+    const operationItems =
+      createFixedOperationStatusItemsByRole(
+        normalizedRole
+      );
+
+
+    const content =
+      serializeOperationStatusItems(
+        operationItems
+      );
+
+
+    return {
+      role:
+        normalizedRole,
+
+      type:
+        getRepresentativeOperationStatusType(
+          operationItems
+        ),
+
+      content,
+
+      operationItems,
+
+      items:
+        operationItems,
+
+      updatedAt:
+        "",
+
+      updatedBy:
+        ""
+    };
+  }
+
+
+  /* =====================================================
+    파트장
+
+    실제 화면에서는 createLeaderCombinedOperationStatus()
+    결과를 사용한다.
+  ====================================================== */
+
+  if (
+    normalizedRole ===
+    "파트장"
+  ) {
+    return {
+      role:
+        "파트장",
+
+      type:
+        "normal",
+
+      content:
+        "",
+
+      operationItems:
+        [],
+
+      items:
+        [],
+
+      memberStatuses:
+        [],
+
+      updatedAt:
+        "",
+
+      updatedBy:
+        ""
+    };
+  }
+
+
+  /* =====================================================
+    TO·BO1·BO2 자유 텍스트
+  ====================================================== */
 
   return {
     role:
@@ -13861,6 +14110,12 @@ function createDefaultOperationStatus(
         normalizedRole
       ),
 
+    operationItems:
+      [],
+
+    items:
+      [],
+
     updatedAt:
       "",
 
@@ -13868,7 +14123,6 @@ function createDefaultOperationStatus(
       ""
   };
 }
-
 
 /* =========================================================
   현재 선택 날짜
@@ -13898,9 +14152,20 @@ function getOperationStatusShift() {
     .toUpperCase();
 }
 
-
 /* =========================================================
-  날짜 + 근무 + 보직별 저장 키
+  보직별 운전현황 저장 키 최종본
+
+  TGO·BCO1·BCO2:
+  - 날짜와 근무에 관계없이 보직별로 하나만 저장
+  - 마지막으로 수정한 운전상태를 계속 유지
+
+  TO·BO1·BO2:
+  - 날짜 + 근무 + 보직별로 저장
+  - 직전 근무 운전현황 가져오기 방식 유지
+
+  파트장:
+  - 별도 운전현황을 저장하지 않음
+  - TGO·BCO1·BCO2 최신 상태 자동 취합
 ========================================================= */
 
 function getOperationStatusStorageKey(
@@ -13912,12 +14177,62 @@ function getOperationStatusStorageKey(
       role
     );
 
+
+  const fixedEquipmentRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2"
+  ];
+
+
+  /*
+    TGO·BCO1·BCO2는 날짜·근무와 관계없이
+    보직별 고정 운전현황 하나만 사용한다.
+  */
+  if (
+    fixedEquipmentRoles.includes(
+      normalizedRole
+    )
+  ) {
+    return [
+      STORAGE_KEYS.operationStatus,
+      "fixed",
+      normalizedRole
+    ].join(
+      "||"
+    );
+  }
+
+
+  /*
+    파트장은 저장하지 않지만,
+    기존 코드에서 키를 요청할 경우를 대비한다.
+  */
+  if (
+    normalizedRole ===
+    "파트장"
+  ) {
+    return [
+      STORAGE_KEYS.operationStatus,
+      "leader",
+      "combined"
+    ].join(
+      "||"
+    );
+  }
+
+
+  /*
+    TO·BO1·BO2는 현재 날짜·근무별로 저장한다.
+  */
   return [
     STORAGE_KEYS.operationStatus,
     getOperationStatusDate(),
     getOperationStatusShift(),
     normalizedRole
-  ].join("||");
+  ].join(
+    "||"
+  );
 }
 
 
@@ -13993,19 +14308,19 @@ function getLegacySharedOperationStatus() {
   }
 }
 
-
 /* =========================================================
-  특정 보직의 저장된 운전현황 불러오기
+  특정 보직 운전현황 불러오기 최종본
 
-  신규 구조:
-  - operationItems
-  - items
+  TGO·BCO1·BCO2:
+  1. 보직별 고정 저장값 조회
+  2. 없으면 현재 날짜·근무의 기존 저장값 조회
+  3. 기존 값이 있으면 고정 저장값으로 자동 이전
+  4. 모두 없으면 고정 설비 기본값 생성
 
-  기존 구조:
-  - type
-  - content
-
-  기존 문자열 자료도 설비별 배열로 자동 변환한다.
+  TO·BO1·BO2:
+  - 현재 날짜·근무·보직 저장값 조회
+  - 없으면 기본값 반환
+  - 신규 작성창에서는 별도 함수가 직전 근무를 가져옴
 ========================================================= */
 
 function loadOperationStatusByRole(
@@ -14013,7 +14328,8 @@ function loadOperationStatusByRole(
   options = {}
 ) {
   const {
-    allowLegacyFallback = false
+    allowLegacyFallback =
+      false
   } = options;
 
 
@@ -14023,11 +14339,24 @@ function loadOperationStatusByRole(
     );
 
 
+  const fixedEquipmentRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2"
+  ];
+
+
   const manualTextRoles = [
     "TO",
     "BO1",
     "BO2"
   ];
+
+
+  const isFixedEquipmentRole =
+    fixedEquipmentRoles.includes(
+      normalizedRole
+    );
 
 
   const isManualTextRole =
@@ -14036,9 +14365,10 @@ function loadOperationStatusByRole(
     );
 
 
-  /*
-    저장자료를 현재 보직의 운전현황으로 변환한다.
-  */
+  /* =====================================================
+    저장자료를 현재 보직 구조로 변환
+  ====================================================== */
+
   const createLoadedStatus = (
     sourceStatus
   ) => {
@@ -14050,12 +14380,10 @@ function loadOperationStatusByRole(
         : {};
 
 
-    /*
-      TO·BO1·BO2는 수기 텍스트 그대로 사용한다.
+    /* ===================================================
+      TO·BO1·BO2 자유 텍스트
+    ==================================================== */
 
-      과거 코드에서 잘못 생성된 operationItems가 있으면
-      설비 번호를 제거하고 원래 내용으로 복원한다.
-    */
     if (
       isManualTextRole
     ) {
@@ -14073,6 +14401,10 @@ function loadOperationStatusByRole(
             );
 
 
+      /*
+        과거에 수기 문장이 설비형 배열로
+        잘못 저장된 자료를 텍스트로 복원한다.
+      */
       const recoveredContent =
         savedItems
           .map(
@@ -14081,7 +14413,9 @@ function loadOperationStatusByRole(
                 typeof item ===
                 "string"
               ) {
-                return item;
+                return String(
+                  item
+                ).trim();
               }
 
 
@@ -14100,10 +14434,6 @@ function loadOperationStatusByRole(
                 ).trim();
 
 
-              /*
-                수기 문장을 설비형으로 잘못 분석하면서
-                생성된 "설비 1", "설비 2"는 제거한다.
-              */
               if (
                 /^설비\s*\d+$/u.test(
                   itemName
@@ -14127,17 +14457,10 @@ function loadOperationStatusByRole(
               );
             }
           )
-          .filter(
-            content => {
-              return Boolean(
-                String(
-                  content ||
-                  ""
-                ).trim()
-              );
-            }
+          .filter(Boolean)
+          .join(
+            "\n"
           )
-          .join("\n")
           .trim();
 
 
@@ -14191,36 +14514,68 @@ function loadOperationStatusByRole(
     }
 
 
-    /*
-      TGO·BCO1·BCO2는 기존 설비형 구조를 유지한다.
-    */
+    /* ===================================================
+      TGO·BCO1·BCO2 고정 설비형
+    ==================================================== */
+
     const operationItems =
       getOperationStatusItems(
-        safeStatus
+        {
+          ...safeStatus,
+
+          role:
+            normalizedRole
+        }
+      )
+        .map(
+          (
+            item,
+            itemIndex
+          ) => {
+            return normalizeOperationStatusItem(
+              {
+                ...item,
+
+                role:
+                  normalizedRole,
+
+                sourceRole:
+                  normalizedRole
+              },
+              itemIndex
+            );
+          }
+        );
+
+
+    const fallbackStatus =
+      createDefaultOperationStatus(
+        normalizedRole
       );
 
 
-    const content =
+    const fallbackItems =
+      getOperationStatusItems(
+        fallbackStatus
+      );
+
+
+    const finalOperationItems =
       operationItems.length
+        ? operationItems
+        : fallbackItems;
+
+
+    const content =
+      finalOperationItems.length
         ? serializeOperationStatusItems(
-            operationItems
+            finalOperationItems
           )
         : String(
             safeStatus.content ||
-            getDefaultOperationStatusContent(
-              normalizedRole
-            )
+            fallbackStatus.content ||
+            ""
           ).trim();
-
-
-    const representativeType =
-      operationItems.length
-        ? getRepresentativeOperationStatusType(
-            operationItems
-          )
-        : normalizeOperationStatusType(
-            safeStatus.type
-          );
 
 
     return {
@@ -14228,14 +14583,21 @@ function loadOperationStatusByRole(
         normalizedRole,
 
       type:
-        representativeType,
+        finalOperationItems.length
+          ? getRepresentativeOperationStatusType(
+              finalOperationItems
+            )
+          : normalizeOperationStatusType(
+              safeStatus.type
+            ),
 
       content,
 
-      operationItems,
+      operationItems:
+        finalOperationItems,
 
       items:
-        operationItems,
+        finalOperationItems,
 
       updatedAt:
         String(
@@ -14252,7 +14614,11 @@ function loadOperationStatusByRole(
   };
 
 
-  const storageKey =
+  /* =====================================================
+    1. 현재 방식 저장값 조회
+  ====================================================== */
+
+  const currentStorageKey =
     getOperationStatusStorageKey(
       normalizedRole
     );
@@ -14260,7 +14626,7 @@ function loadOperationStatusByRole(
 
   const savedValue =
     localStorage.getItem(
-      storageKey
+      currentStorageKey
     );
 
 
@@ -14281,15 +14647,91 @@ function loadOperationStatusByRole(
         `${normalizedRole} 운전현황 불러오기 실패:`,
         error
       );
+
+
+      localStorage.removeItem(
+        currentStorageKey
+      );
     }
   }
 
 
-  /*
-    기존 공통 저장값 호환
-  */
+  /* =====================================================
+    2. TGO·BCO1·BCO2 기존 날짜·근무별 저장값 이전
+
+    이전 키:
+    gsShiftLog.operationStatus||날짜||근무||보직
+
+    신규 키:
+    gsShiftLog.operationStatus||fixed||보직
+  ====================================================== */
+
   if (
-    allowLegacyFallback
+    isFixedEquipmentRole
+  ) {
+    const previousStorageKey = [
+      STORAGE_KEYS.operationStatus,
+      getOperationStatusDate(),
+      getOperationStatusShift(),
+      normalizedRole
+    ].join(
+      "||"
+    );
+
+
+    const previousSavedValue =
+      localStorage.getItem(
+        previousStorageKey
+      );
+
+
+    if (
+      previousSavedValue
+    ) {
+      try {
+        const migratedStatus =
+          createLoadedStatus(
+            JSON.parse(
+              previousSavedValue
+            )
+          );
+
+
+        /*
+          새 고정 저장키로 자동 이전한다.
+        */
+        localStorage.setItem(
+          currentStorageKey,
+          JSON.stringify(
+            migratedStatus
+          )
+        );
+
+
+        return migratedStatus;
+
+      } catch (
+        error
+      ) {
+        console.error(
+          `${normalizedRole} 기존 운전현황 이전 실패:`,
+          error
+        );
+      }
+    }
+  }
+
+
+  /* =====================================================
+    3. 과거 공통 운전현황 호환
+
+    공통 운전현황은 TGO에만 적용한다.
+  ====================================================== */
+
+  if (
+    allowLegacyFallback &&
+    normalizedRole ===
+      "TGO"
   ) {
     const legacyStatus =
       getLegacySharedOperationStatus();
@@ -14298,23 +14740,62 @@ function loadOperationStatusByRole(
     if (
       legacyStatus?.content
     ) {
-      return createLoadedStatus(
-        legacyStatus
-      );
+      const migratedLegacyStatus =
+        createLoadedStatus(
+          legacyStatus
+        );
+
+
+      /*
+        공통 운전현황도 TGO 고정 키로 이전한다.
+      */
+      if (
+        isFixedEquipmentRole
+      ) {
+        localStorage.setItem(
+          currentStorageKey,
+          JSON.stringify(
+            migratedLegacyStatus
+          )
+        );
+      }
+
+
+      return migratedLegacyStatus;
     }
   }
 
 
-  /*
-    저장자료가 없으면 보직별 기본값 사용
-  */
-  return createLoadedStatus(
-    createDefaultOperationStatus(
-      normalizedRole
-    )
-  );
-}
+  /* =====================================================
+    4. 저장자료가 없으면 보직 기본값
+  ====================================================== */
 
+  const defaultStatus =
+    createLoadedStatus(
+      createDefaultOperationStatus(
+        normalizedRole
+      )
+    );
+
+
+  /*
+    TGO·BCO1·BCO2 기본값은 최초 한 번
+    고정 저장소에 바로 보관한다.
+  */
+  if (
+    isFixedEquipmentRole
+  ) {
+    localStorage.setItem(
+      currentStorageKey,
+      JSON.stringify(
+        defaultStatus
+      )
+    );
+  }
+
+
+  return defaultStatus;
+}
 
 /* =========================================================
   특정 보직 운전현황 저장
@@ -14499,45 +14980,86 @@ function saveOperationStatusByRole(
 }
 
 /* =========================================================
-  파트장 운전현황 최신 자동 취합
+  파트장 운전현황 자동 취합 최종본
 
-  TGO → BCO1 → BCO2 순서로 불러오며
-  각 설비의 상태 배열을 그대로 보존한다.
+  취합 대상:
+  - TGO
+  - BCO1
+  - BCO2
 
-  파트장 취합 결과의 updatedAt은
-  팀원 운전현황 중 가장 최근 수정시간으로 설정한다.
+  최종 설비 표시 순서:
+  1. 터빈
+  2. 1호기 주보일러
+  3. 2호기 주보일러
+  4. 3호기 보조보일러
+  5. 4호기 보조보일러
+
+  보직별 저장 순서와 관계없이
+  설비명을 기준으로 항상 같은 순서로 표시한다.
 ========================================================= */
 
 function createLeaderCombinedOperationStatus() {
+  const memberRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2"
+  ];
+
+
+  /* =====================================================
+    TGO·BCO1·BCO2 운전현황 불러오기
+  ====================================================== */
+
   const memberStatuses =
-    OPERATION_STATUS_MEMBER_ROLES.map(
-      (
-        role
-      ) => {
-        const memberStatus =
+    memberRoles.map(
+      role => {
+        const loadedStatus =
           loadOperationStatusByRole(
             role,
             {
+              /*
+                과거 공통 운전현황은
+                TGO에서만 호환 적용한다.
+              */
               allowLegacyFallback:
                 role === "TGO"
             }
           );
 
 
+        const fallbackStatus =
+          createDefaultOperationStatus(
+            role
+          );
+
+
+        const sourceStatus =
+          loadedStatus ||
+          fallbackStatus;
+
+
         const operationItems =
           getOperationStatusItems(
-            memberStatus
-          ).map(
-            (
-              item,
-              itemIndex
-            ) => {
-              return normalizeOperationStatusItem(
+            sourceStatus
+          )
+            .map(
+              (
                 item,
                 itemIndex
-              );
-            }
-          );
+              ) => {
+                return normalizeOperationStatusItem(
+                  {
+                    ...item,
+
+                    role,
+
+                    sourceRole:
+                      role
+                  },
+                  itemIndex
+                );
+              }
+            );
 
 
         const content =
@@ -14546,26 +15068,22 @@ function createLeaderCombinedOperationStatus() {
                 operationItems
               )
             : String(
-                memberStatus?.content ||
-                "등록된 운전현황이 없습니다."
+                sourceStatus?.content ||
+                ""
               ).trim();
-
-
-        const representativeType =
-          operationItems.length
-            ? getRepresentativeOperationStatusType(
-                operationItems
-              )
-            : normalizeOperationStatusType(
-                memberStatus?.type
-              );
 
 
         return {
           role,
 
           type:
-            representativeType,
+            operationItems.length
+              ? getRepresentativeOperationStatusType(
+                  operationItems
+                )
+              : normalizeOperationStatusType(
+                  sourceStatus?.type
+                ),
 
           content,
 
@@ -14576,13 +15094,13 @@ function createLeaderCombinedOperationStatus() {
 
           updatedAt:
             String(
-              memberStatus?.updatedAt ||
+              sourceStatus?.updatedAt ||
               ""
-            ),
+            ).trim(),
 
           updatedBy:
             String(
-              memberStatus?.updatedBy ||
+              sourceStatus?.updatedBy ||
               ""
             ).trim()
         };
@@ -14590,102 +15108,290 @@ function createLeaderCombinedOperationStatus() {
     );
 
 
-  /*
-    파트장 전체 설비 배열
+  /* =====================================================
+    모든 설비를 하나의 배열로 취합
+  ====================================================== */
 
-    TGO·BCO1·BCO2 설비를 순서대로 합친다.
-  */
   const combinedOperationItems =
     memberStatuses.flatMap(
-      (
-        memberStatus
-      ) => {
-        return memberStatus.operationItems.map(
-          (
-            item,
-            itemIndex
-          ) => {
-            return {
-              ...normalizeOperationStatusItem(
-                item,
-                itemIndex
-              ),
+      memberStatus => {
+        return memberStatus
+          .operationItems
+          .map(
+            (
+              item,
+              itemIndex
+            ) => {
+              return normalizeOperationStatusItem(
+                {
+                  ...item,
 
-              sourceRole:
-                memberStatus.role
-            };
-          }
-        );
+                  role:
+                    memberStatus.role,
+
+                  sourceRole:
+                    memberStatus.role
+                },
+                itemIndex
+              );
+            }
+          );
       }
     );
 
 
-  /*
-    기존 업무일지 및 상세보기 호환용 문자열
-  */
-  const combinedContent =
-    memberStatuses
-      .map(
-        (
-          memberStatus
-        ) => {
-          return [
-            `[${memberStatus.role}]`,
-            memberStatus.content
-          ].join("\n");
-        }
+  /* =====================================================
+    설비명 비교용 정규화
+  ====================================================== */
+
+  const normalizeEquipmentName = (
+    value
+  ) => {
+    return String(
+      value ||
+      ""
+    )
+      .normalize(
+        "NFKC"
       )
-      .join("\n\n");
+      .toLowerCase()
+      .replace(
+        /\s+/g,
+        ""
+      )
+      .replace(
+        /[#_\-]/g,
+        ""
+      );
+  };
 
 
-  /*
-    팀원 운전현황 중 가장 최근 수정시간
-  */
-  const latestUpdatedAt =
+  /* =====================================================
+    설비 표시 순서 판정
+  ====================================================== */
+
+  const getEquipmentOrder = (
+    item
+  ) => {
+    const equipmentName =
+      normalizeEquipmentName(
+        item?.name
+      );
+
+
+    /*
+      터빈
+    */
+    if (
+      equipmentName.includes(
+        "터빈"
+      ) ||
+      equipmentName.includes(
+        "turbine"
+      ) ||
+      equipmentName ===
+        "tbn"
+    ) {
+      return 1;
+    }
+
+
+    /*
+      1호기 주보일러
+    */
+    if (
+      equipmentName.includes(
+        "1호기주보일러"
+      ) ||
+      equipmentName.includes(
+        "1주보일러"
+      ) ||
+      equipmentName.includes(
+        "1blr"
+      ) ||
+      equipmentName.includes(
+        "blr1"
+      )
+    ) {
+      return 2;
+    }
+
+
+    /*
+      2호기 주보일러
+    */
+    if (
+      equipmentName.includes(
+        "2호기주보일러"
+      ) ||
+      equipmentName.includes(
+        "2주보일러"
+      ) ||
+      equipmentName.includes(
+        "2blr"
+      ) ||
+      equipmentName.includes(
+        "blr2"
+      )
+    ) {
+      return 3;
+    }
+
+
+    /*
+      3호기 보조보일러
+    */
+    if (
+      equipmentName.includes(
+        "3호기보조보일러"
+      ) ||
+      equipmentName.includes(
+        "3보조보일러"
+      ) ||
+      equipmentName.includes(
+        "3auxboiler"
+      )
+    ) {
+      return 4;
+    }
+
+
+    /*
+      4호기 보조보일러
+    */
+    if (
+      equipmentName.includes(
+        "4호기보조보일러"
+      ) ||
+      equipmentName.includes(
+        "4보조보일러"
+      ) ||
+      equipmentName.includes(
+        "4auxboiler"
+      )
+    ) {
+      return 5;
+    }
+
+
+    /*
+      예상하지 못한 설비는 맨 뒤
+    */
+    return 99;
+  };
+
+
+  /* =====================================================
+    설비 순서 고정
+  ====================================================== */
+
+  combinedOperationItems.sort(
+    (
+      firstItem,
+      secondItem
+    ) => {
+      const orderDifference =
+        getEquipmentOrder(
+          firstItem
+        ) -
+        getEquipmentOrder(
+          secondItem
+        );
+
+
+      if (
+        orderDifference !==
+        0
+      ) {
+        return orderDifference;
+      }
+
+
+      return String(
+        firstItem?.name ||
+        ""
+      ).localeCompare(
+        String(
+          secondItem?.name ||
+          ""
+        ),
+        "ko"
+      );
+    }
+  );
+
+
+  /* =====================================================
+    파트장 업무일지 저장 호환 문자열
+
+    설비 순서대로 하나의 문자열을 만든다.
+    [TGO], [BCO1] 같은 중간 제목은 넣지 않는다.
+  ====================================================== */
+
+  const combinedContent =
+    serializeOperationStatusItems(
+      combinedOperationItems
+    );
+
+
+  /* =====================================================
+    가장 최근 수정시간 확인
+  ====================================================== */
+
+  const latestMemberStatus =
     memberStatuses
-      .map(
-        (
-          memberStatus
-        ) => {
-          return String(
-            memberStatus.updatedAt ||
-            ""
+      .filter(
+        memberStatus => {
+          return Boolean(
+            memberStatus.updatedAt
           );
         }
-      )
-      .filter(
-        Boolean
       )
       .sort(
         (
-          valueA,
-          valueB
+          firstStatus,
+          secondStatus
         ) => {
+          const firstTime =
+            new Date(
+              firstStatus.updatedAt ||
+              0
+            ).getTime();
+
+
+          const secondTime =
+            new Date(
+              secondStatus.updatedAt ||
+              0
+            ).getTime();
+
+
           return (
-            new Date(
-              valueB
-            ).getTime() -
-            new Date(
-              valueA
-            ).getTime()
+            secondTime -
+            firstTime
           );
         }
       )[0] ||
-    "";
+    null;
 
 
-  const latestMemberStatus =
-    memberStatuses.find(
-      (
-        memberStatus
-      ) => {
-        return (
-          memberStatus.updatedAt ===
-          latestUpdatedAt
-        );
-      }
-    );
+  const latestUpdatedAt =
+    String(
+      latestMemberStatus?.updatedAt ||
+      ""
+    ).trim();
 
+
+  const latestUpdatedBy =
+    String(
+      latestMemberStatus?.updatedBy ||
+      ""
+    ).trim();
+
+
+  /* =====================================================
+    파트장 운전현황 최종 결과
+  ====================================================== */
 
   return {
     role:
@@ -14713,10 +15419,7 @@ function createLeaderCombinedOperationStatus() {
       latestUpdatedAt,
 
     updatedBy:
-      String(
-        latestMemberStatus?.updatedBy ||
-        ""
-      ).trim()
+      latestUpdatedBy
   };
 }
 
@@ -16502,15 +17205,22 @@ function isCustomOperationStatusItem(
 }
 
 /* =========================================================
-  설비별 운전현황 편집 행 최종본
+  TGO·BCO1·BCO2 운전현황 편집 행 최종본
 
-  고정 설비:
-  설비 선택 | 상태 선택 | 운전현황 내용 | 삭제
+  수정 가능:
+  - 운전 상태만 변경
 
-  직접입력:
-  설비 선택 | 자유 내용 | 삭제
-  - 상태 버튼 없음
-  - 별도 설비명 입력칸 없음
+  수정 불가:
+  - 설비명
+  - 운전현황 문구
+  - 항목 삭제
+
+  상태 변경 시 문구도 자동 변경:
+  - 정상운전 → 정상 운전 중
+  - 기동     → 기동 중
+  - 정지     → 정지 중
+  - 보존     → 만수 보존 중
+  - 비상     → 비상 상태
 ========================================================= */
 
 function createOperationStatusEditorItemHtml(
@@ -16538,27 +17248,6 @@ function createOperationStatusEditorItemHtml(
     );
 
 
-  const equipmentOptions =
-    getOperationStatusEquipmentOptions(
-      currentRole
-    );
-
-
-  const currentName =
-    String(
-      item?.name ||
-      normalizedItem.name ||
-      ""
-    ).trim();
-
-
-  const isCustom =
-    currentName ===
-      "직접입력" ||
-    item?.equipmentMode ===
-      "custom";
-
-
   const statusTypes = [
     {
       type:
@@ -16567,6 +17256,7 @@ function createOperationStatusEditorItemHtml(
       label:
         "정상운전"
     },
+
     {
       type:
         "starting",
@@ -16574,6 +17264,7 @@ function createOperationStatusEditorItemHtml(
       label:
         "기동"
     },
+
     {
       type:
         "stopped",
@@ -16581,6 +17272,7 @@ function createOperationStatusEditorItemHtml(
       label:
         "정지"
     },
+
     {
       type:
         "abnormal",
@@ -16588,6 +17280,7 @@ function createOperationStatusEditorItemHtml(
       label:
         "보존"
     },
+
     {
       type:
         "emergency",
@@ -16602,14 +17295,10 @@ function createOperationStatusEditorItemHtml(
     <article
       class="
         operation-status-item-editor
+        operation-status-item-editor--fixed
         is-${escapeHtml(
           normalizedItem.type
         )}
-        ${
-          isCustom
-            ? "is-custom-entry"
-            : ""
-        }
       "
       data-operation-item-index="${itemIndex}"
     >
@@ -16622,10 +17311,10 @@ function createOperationStatusEditorItemHtml(
       </span>
 
 
-      <label
+      <div
         class="
           operation-status-item-field
-          operation-status-item-field--name
+          operation-status-item-field--fixed-name
         "
       >
         <span
@@ -16634,167 +17323,100 @@ function createOperationStatusEditorItemHtml(
           설비명
         </span>
 
-
-        <select
-          class="operation-status-item-equipment-select"
-          data-operation-item-index="${itemIndex}"
-          aria-label="${itemIndex + 1}번 설비 선택"
+        <strong
+          class="operation-status-item-fixed-name"
         >
-          ${equipmentOptions
-            .map(
-              equipmentName => {
-                return `
-                  <option
-                    value="${escapeHtml(
-                      equipmentName
-                    )}"
-                    ${
-                      !isCustom &&
-                      currentName ===
-                        equipmentName
-                        ? "selected"
-                        : ""
-                    }
-                  >
-                    ${escapeHtml(
-                      equipmentName
-                    )}
-                  </option>
-                `;
-              }
-            )
-            .join("")}
+          ${escapeHtml(
+            normalizedItem.name
+          )}
+        </strong>
+      </div>
 
 
-          <option
-            value="직접입력"
-            ${
-              isCustom
-                ? "selected"
-                : ""
-            }
-          >
-            직접입력
-          </option>
-        </select>
-      </label>
-
-
-      ${
-        isCustom
-          ? ""
-          : `
-            <div
-              class="
-                operation-status-item-field
-                operation-status-item-field--status
-              "
-            >
-              <span
-                class="operation-status-item-field__label"
-              >
-                운전 상태
-              </span>
-
-
-              <div
-                class="operation-status-item-type-buttons"
-                role="group"
-                aria-label="${itemIndex + 1}번 운전 상태"
-              >
-                ${statusTypes
-                  .map(
-                    statusOption => {
-                      const isSelected =
-                        normalizedItem.type ===
-                        statusOption.type;
-
-
-                      return `
-                        <button
-                          type="button"
-                          class="
-                            operation-status-item-type-button
-                            is-${escapeHtml(
-                              statusOption.type
-                            )}
-                            ${
-                              isSelected
-                                ? "is-selected"
-                                : ""
-                            }
-                          "
-                          data-operation-item-type="${escapeHtml(
-                            statusOption.type
-                          )}"
-                          data-operation-item-index="${itemIndex}"
-                          aria-pressed="${String(
-                            isSelected
-                          )}"
-                        >
-                          ${escapeHtml(
-                            statusOption.label
-                          )}
-                        </button>
-                      `;
-                    }
-                  )
-                  .join("")}
-              </div>
-            </div>
-          `
-      }
-
-
-      <label
+      <div
         class="
           operation-status-item-field
-          operation-status-item-field--content
+          operation-status-item-field--status
         "
       >
         <span
           class="operation-status-item-field__label"
         >
-          ${
-            isCustom
-              ? "직접 입력"
-              : "운전현황 내용"
-          }
+          운전 상태
         </span>
 
-
-        <textarea
-          class="operation-status-item-content-input"
-          rows="1"
-          placeholder="${
-            isCustom
-              ? "내용을 자유롭게 입력하세요."
-              : "현재 설비 상태 입력"
-          }"
-          data-operation-item-index="${itemIndex}"
-          aria-label="${itemIndex + 1}번 운전현황 내용"
-        >${escapeHtml(
-          normalizedItem.content ===
-            "상태 내용 없음"
-            ? ""
-            : normalizedItem.content
-        )}</textarea>
-      </label>
+        <div
+          class="operation-status-item-type-buttons"
+        >
+          ${statusTypes
+            .map(
+              statusOption => {
+                const isSelected =
+                  normalizeOperationStatusType(
+                    normalizedItem.type
+                  ) ===
+                  statusOption.type;
 
 
-      <button
-        type="button"
-        class="operation-status-item-delete-button"
-        data-operation-item-delete="${itemIndex}"
-        aria-label="${itemIndex + 1}번 항목 삭제"
+                return `
+                  <button
+                    type="button"
+                    class="
+                      operation-status-item-type-button
+                      is-${escapeHtml(
+                        statusOption.type
+                      )}
+                      ${
+                        isSelected
+                          ? "is-selected"
+                          : ""
+                      }
+                    "
+                    data-operation-item-type="${escapeHtml(
+                      statusOption.type
+                    )}"
+                    data-operation-item-index="${itemIndex}"
+                    aria-pressed="${String(
+                      isSelected
+                    )}"
+                  >
+                    ${escapeHtml(
+                      statusOption.label
+                    )}
+                  </button>
+                `;
+              }
+            )
+            .join("")}
+        </div>
+      </div>
+
+
+      <div
+        class="
+          operation-status-item-field
+          operation-status-item-field--fixed-content
+        "
       >
-        삭제
-      </button>
+        <span
+          class="operation-status-item-field__label"
+        >
+          운전현황
+        </span>
+
+        <span
+          class="operation-status-item-fixed-content"
+          data-operation-item-content="${itemIndex}"
+        >
+          ${escapeHtml(
+            normalizedItem.content
+          )}
+        </span>
+      </div>
 
     </article>
   `;
 }
-
 
 /* =========================================================
   설비별 운전현황 편집 목록 출력
@@ -16992,18 +17614,16 @@ function addOperationStatusEditorItem() {
   );
 }
 
-
 /* =========================================================
-  설비별 상태 버튼 및 삭제 처리
+  TGO·BCO1·BCO2 운전 상태 선택 최종본
 
-  상태 선택:
-  - 전체 목록을 다시 그리지 않는다.
-  - 현재 행의 버튼과 색상만 즉시 변경한다.
-  - 포커스 삭제로 발생하던 접근성 경고를 방지한다.
+  상태 버튼을 누르면:
+  1. 상태값 변경
+  2. 고정 운전현황 문구 자동 변경
+  3. 해당 행 색상 변경
+  4. 선택 버튼 표시 변경
 
-  삭제:
-  - 확인 후 배열에서 제거
-  - 삭제할 때만 목록을 다시 그린다.
+  설비명·내용·항목 수는 변경하지 않는다.
 ========================================================= */
 
 function handleOperationStatusItemsEditorClick(
@@ -17015,141 +17635,8 @@ function handleOperationStatusItemsEditorClick(
     );
 
 
-  /* =====================================================
-    설비별 운전 상태 선택
-  ====================================================== */
-
   if (
-    typeButton
-  ) {
-    event.preventDefault();
-
-
-    const itemIndex =
-      Number(
-        typeButton.dataset
-          .operationItemIndex
-      );
-
-
-    const selectedType =
-      normalizeOperationStatusType(
-        typeButton.dataset
-          .operationItemType
-      );
-
-
-    if (
-      !Number.isInteger(
-        itemIndex
-      ) ||
-      !editingOperationStatusItems[
-        itemIndex
-      ]
-    ) {
-      return;
-    }
-
-
-    /*
-      편집 데이터 변경
-    */
-    editingOperationStatusItems[
-      itemIndex
-    ].type =
-      selectedType;
-
-
-    /*
-      해당 설비 편집 행 찾기
-    */
-    const editorItem =
-      typeButton.closest(
-        ".operation-status-item-editor"
-      );
-
-
-    if (
-      !editorItem
-    ) {
-      return;
-    }
-
-
-    /*
-      행 전체 상태색 변경
-    */
-    OPERATION_STATUS_TYPES.forEach(
-      (
-        statusType
-      ) => {
-        editorItem.classList.remove(
-          `is-${statusType}`
-        );
-      }
-    );
-
-
-    editorItem.classList.add(
-      `is-${selectedType}`
-    );
-
-
-    /*
-      같은 행의 상태 버튼 선택 표시 변경
-    */
-    editorItem
-      .querySelectorAll(
-        "[data-operation-item-type]"
-      )
-      .forEach(
-        (
-          button
-        ) => {
-          const buttonType =
-            normalizeOperationStatusType(
-              button.dataset
-                .operationItemType
-            );
-
-
-          const isSelected =
-            buttonType ===
-            selectedType;
-
-
-          button.classList.toggle(
-            "is-selected",
-            isSelected
-          );
-
-
-          button.setAttribute(
-            "aria-pressed",
-            String(
-              isSelected
-            )
-          );
-        }
-      );
-
-
-    return;
-  }
-
-
-  /* =====================================================
-    설비별 운전현황 삭제
-  ====================================================== */
-
-  const deleteButton =
-    event.target.closest(
-      "[data-operation-item-delete]"
-    );
-
-
-  if (
-    !deleteButton
+    !typeButton
   ) {
     return;
   }
@@ -17160,8 +17647,15 @@ function handleOperationStatusItemsEditorClick(
 
   const itemIndex =
     Number(
-      deleteButton.dataset
-        .operationItemDelete
+      typeButton.dataset
+        .operationItemIndex
+    );
+
+
+  const selectedType =
+    normalizeOperationStatusType(
+      typeButton.dataset
+        .operationItemType
     );
 
 
@@ -17177,45 +17671,132 @@ function handleOperationStatusItemsEditorClick(
   }
 
 
-  const itemName =
-    String(
-      editingOperationStatusItems[
-        itemIndex
-      ].name ||
-      `설비 ${itemIndex + 1}`
-    ).trim();
+  const statusContentMap = {
+    normal:
+      "정상 운전 중",
+
+    starting:
+      "기동 중",
+
+    stopped:
+      "정지 중",
+
+    abnormal:
+      "만수 보존 중",
+
+    emergency:
+      "비상 상태"
+  };
 
 
-  const shouldDelete =
-    window.confirm(
-      `${itemName} 운전현황을 삭제하시겠습니까?`
+  const selectedContent =
+    statusContentMap[
+      selectedType
+    ] ||
+    "정상 운전 중";
+
+
+  /*
+    편집 데이터 변경
+  */
+  editingOperationStatusItems[
+    itemIndex
+  ].type =
+    selectedType;
+
+
+  editingOperationStatusItems[
+    itemIndex
+  ].content =
+    selectedContent;
+
+
+  /*
+    현재 설비 행
+  */
+  const editorItem =
+    typeButton.closest(
+      ".operation-status-item-editor"
     );
 
 
   if (
-    !shouldDelete
+    !editorItem
   ) {
     return;
   }
 
 
-  editingOperationStatusItems.splice(
-    itemIndex,
-    1
+  /*
+    행 상태색 변경
+  */
+  OPERATION_STATUS_TYPES.forEach(
+    statusType => {
+      editorItem.classList.remove(
+        `is-${statusType}`
+      );
+    }
+  );
+
+
+  editorItem.classList.add(
+    `is-${selectedType}`
   );
 
 
   /*
-    삭제한 경우에만 목록을 다시 그린다.
+    선택 버튼 표시
   */
-  renderOperationStatusItemsEditor();
+  editorItem
+    .querySelectorAll(
+      "[data-operation-item-type]"
+    )
+    .forEach(
+      button => {
+        const buttonType =
+          normalizeOperationStatusType(
+            button.dataset
+              .operationItemType
+          );
 
 
-  showToast(
-    `${itemName} 운전현황을 삭제했습니다.`
-  );
+        const isSelected =
+          buttonType ===
+          selectedType;
+
+
+        button.classList.toggle(
+          "is-selected",
+          isSelected
+        );
+
+
+        button.setAttribute(
+          "aria-pressed",
+          String(
+            isSelected
+          )
+        );
+      }
+    );
+
+
+  /*
+    고정 문구 즉시 변경
+  */
+  const contentElement =
+    editorItem.querySelector(
+      `[data-operation-item-content="${itemIndex}"]`
+    );
+
+
+  if (
+    contentElement
+  ) {
+    contentElement.textContent =
+      selectedContent;
+  }
 }
-
 /* =========================================================
   설비 선택 변경 처리
 
@@ -17519,11 +18100,25 @@ async function openOperationStatusEditor() {
     );
 
 
+/* =====================================================
+  전 근무 운전현황 가져오기 버튼 표시 규칙
+
+  TGO·BCO1·BCO2:
+  - 운전현황 고정
+  - 전 근무 운전현황 가져오기 버튼 숨김
+  - 수정 버튼으로 운전상태만 변경
+
+  TO·BO1·BO2:
+  - 이전 근무 현황 자동 적용
+  - 필요 시 수동 가져오기 버튼 표시
+
+  파트장:
+  - TGO·BCO1·BCO2 자동 취합
+  - 가져오기 버튼 숨김
+===================================================== */
+
 const canLoadPreviousStatus =
   [
-    "TGO",
-    "BCO1",
-    "BCO2",
     "TO",
     "BO1",
     "BO2"
@@ -17532,18 +18127,12 @@ const canLoadPreviousStatus =
   );
 
 
-  /* =====================================================
-    TO·BO1·BO2에서는
-    전 근무자 운전현황 가져오기 버튼을 표시한다.
-  ====================================================== */
-
-  if (
-    previousOperationStatusWrap
-  ) {
-    previousOperationStatusWrap.hidden =
-      !canLoadPreviousStatus;
-  }
-
+if (
+  previousOperationStatusWrap
+) {
+  previousOperationStatusWrap.hidden =
+    !canLoadPreviousStatus;
+}
 
   /* =====================================================
     파트장은 직접 수정하지 않는다.
@@ -17603,6 +18192,19 @@ const canLoadPreviousStatus =
   ) {
     const editorContainer =
       ensureOperationStatusItemsEditor();
+
+      const addItemButton =
+  editorContainer?.querySelector(
+    "#addOperationStatusItemButton"
+  );
+
+
+if (
+  addItemButton
+) {
+  addItemButton.hidden =
+    true;
+}
 
 
     if (
@@ -18078,13 +18680,15 @@ function selectOperationStatusType(
 /* =========================================================
   운전현황 저장 최종본
 
-  TGO · BCO1 · BCO2:
-  - 설비별 운전현황 배열 저장
-  - 설비명·상태·내용 검증
+  TGO·BCO1·BCO2:
+  - 설비 구성 고정
+  - 설비명·순서 변경 불가
+  - 운전 상태만 저장
+  - 상태에 맞는 문구 자동 생성
 
-  TO · BO1 · BO2:
-  - 자유 텍스트 저장
-  - 설비별 항목 검증 사용하지 않음
+  TO·BO1·BO2:
+  - 자유 텍스트 그대로 저장
+  - 줄바꿈 유지
 
   파트장:
   - 직접 저장하지 않음
@@ -18096,9 +18700,10 @@ function saveOperationStatus() {
     getCurrentOperationStatusRole();
 
 
-  /*
-    파트장은 운전현황을 직접 저장하지 않는다.
-  */
+  /* =====================================================
+    파트장은 직접 저장하지 않는다.
+  ====================================================== */
+
   if (
     currentRole ===
     "파트장"
@@ -18115,7 +18720,8 @@ function saveOperationStatus() {
     String(
       elements.logAuthor?.value ||
       ""
-    ).trim();
+    ).trim() ||
+    "작성자 미지정";
 
 
   const updatedAt =
@@ -18124,7 +18730,7 @@ function saveOperationStatus() {
 
 
   /* =====================================================
-    TGO · BCO1 · BCO2 설비별 운전현황 저장
+    TGO·BCO1·BCO2 고정 설비 저장
   ====================================================== */
 
   if (
@@ -18132,68 +18738,282 @@ function saveOperationStatus() {
       currentRole
     )
   ) {
-    /*
-      설비별 편집 보직에서만
-      설비 항목 검증을 실행한다.
-    */
-    if (
-      !validateOperationStatusEditorItems()
-    ) {
-      return;
-    }
+    const fixedEquipmentMap = {
+      TGO: [
+        {
+          name:
+            "터빈",
+
+          defaultType:
+            "normal"
+        },
+
+        {
+          name:
+            "3호기 보조보일러",
+
+          defaultType:
+            "abnormal"
+        },
+
+        {
+          name:
+            "4호기 보조보일러",
+
+          defaultType:
+            "abnormal"
+        }
+      ],
+
+      BCO1: [
+        {
+          name:
+            "1호기 주보일러",
+
+          defaultType:
+            "normal"
+        }
+      ],
+
+      BCO2: [
+        {
+          name:
+            "2호기 주보일러",
+
+          defaultType:
+            "normal"
+        }
+      ]
+    };
+
+
+    const statusContentMap = {
+      normal:
+        "정상 운전 중",
+
+      starting:
+        "기동 중",
+
+      stopped:
+        "정지 중",
+
+      abnormal:
+        "만수 보존 중",
+
+      emergency:
+        "비상 상태"
+    };
+
+
+    const normalizeEquipmentName = (
+      value
+    ) => {
+      return String(
+        value ||
+        ""
+      )
+        .normalize(
+          "NFKC"
+        )
+        .toLowerCase()
+        .replace(
+          /\s+/g,
+          ""
+        )
+        .replace(
+          /[#_\-]/g,
+          ""
+        );
+    };
+
+
+    const getEquipmentAliases = (
+      equipmentName
+    ) => {
+      const normalizedName =
+        normalizeEquipmentName(
+          equipmentName
+        );
+
+
+      const aliasMap = {
+        터빈: [
+          "터빈",
+          "turbine",
+          "tbn"
+        ],
+
+        "1호기주보일러": [
+          "1호기주보일러",
+          "1주보일러",
+          "1blr",
+          "blr1",
+          "1boiler",
+          "boiler1"
+        ],
+
+        "2호기주보일러": [
+          "2호기주보일러",
+          "2주보일러",
+          "2blr",
+          "blr2",
+          "2boiler",
+          "boiler2"
+        ],
+
+        "3호기보조보일러": [
+          "3호기보조보일러",
+          "3보조보일러",
+          "3auxboiler",
+          "auxboiler3"
+        ],
+
+        "4호기보조보일러": [
+          "4호기보조보일러",
+          "4보조보일러",
+          "4auxboiler",
+          "auxboiler4"
+        ]
+      };
+
+
+      return (
+        aliasMap[
+          normalizedName
+        ] ||
+        [
+          normalizedName
+        ]
+      );
+    };
+
+
+    const sourceItems =
+      Array.isArray(
+        editingOperationStatusItems
+      )
+        ? editingOperationStatusItems
+        : [];
+
+
+    const fixedEquipmentDefinitions =
+      fixedEquipmentMap[
+        currentRole
+      ] ||
+      [];
 
 
     const normalizedItems =
-      editingOperationStatusItems.map(
+      fixedEquipmentDefinitions.map(
         (
-          item,
+          equipmentDefinition,
           itemIndex
         ) => {
-          const normalizedItem =
-            normalizeOperationStatusItem(
-              {
-                ...item,
-
-                role:
-                  currentRole,
-
-                sourceRole:
-                  item?.sourceRole ||
-                  currentRole
-              },
-              itemIndex
+          const aliases =
+            getEquipmentAliases(
+              equipmentDefinition.name
             );
 
 
-          return {
-            ...normalizedItem,
+          const matchedItem =
+            sourceItems.find(
+              sourceItem => {
+                const sourceName =
+                  normalizeEquipmentName(
+                    sourceItem?.name
+                  );
 
-            role:
-              currentRole,
 
-            sourceRole:
-              normalizedItem.sourceRole ||
-              currentRole,
+                return aliases.includes(
+                  sourceName
+                );
+              }
+            );
 
-            name:
-              String(
-                normalizedItem.name ||
-                ""
-              ).trim(),
 
-            content:
-              String(
-                normalizedItem.content ||
-                ""
-              ).trim(),
+          /*
+            기존 자료에서 설비명이 정확하지 않은 경우
+            같은 배열 위치의 상태를 보조적으로 사용한다.
+          */
+          const fallbackItem =
+            sourceItems[
+              itemIndex
+            ];
 
-            updatedAt,
 
-            updatedBy:
-              author
-          };
+          const sourceItem =
+            matchedItem ||
+            fallbackItem ||
+            {};
+
+
+          const selectedType =
+            normalizeOperationStatusType(
+              sourceItem.type ||
+              equipmentDefinition.defaultType
+            );
+
+
+          const selectedContent =
+            statusContentMap[
+              selectedType
+            ] ||
+            "정상 운전 중";
+
+
+          return normalizeOperationStatusItem(
+            {
+              id:
+                String(
+                  sourceItem.id ||
+                  ""
+                ).trim() ||
+                createOperationStatusItemId(),
+
+              role:
+                currentRole,
+
+              sourceRole:
+                currentRole,
+
+              /*
+                저장 시 설비명을 고정값으로 강제한다.
+              */
+              name:
+                equipmentDefinition.name,
+
+              type:
+                selectedType,
+
+              /*
+                상태에 맞는 문구를 자동 생성한다.
+              */
+              content:
+                selectedContent,
+
+              equipmentMode:
+                "equipment",
+
+              updatedAt,
+
+              updatedBy:
+                author
+            },
+            itemIndex
+          );
         }
       );
+
+
+    if (
+      !normalizedItems.length
+    ) {
+      showToast(
+        `${currentRole} 고정 설비 정보를 확인할 수 없습니다.`
+      );
+
+      return;
+    }
 
 
     const serializedContent =
@@ -18231,6 +19051,19 @@ function saveOperationStatus() {
     };
 
 
+    /*
+      현재 편집 배열도 저장 결과와 동일하게 맞춘다.
+    */
+    editingOperationStatusItems =
+      normalizedItems.map(
+        item => {
+          return {
+            ...item
+          };
+        }
+      );
+
+
     if (
       elements.operationStatus
     ) {
@@ -18265,7 +19098,7 @@ function saveOperationStatus() {
 
 
     showToast(
-      `${currentRole} 설비별 운전현황 ${normalizedItems.length}건을 저장했습니다.`
+      `${currentRole} 운전상태를 저장했습니다.`
     );
 
 
@@ -18274,15 +19107,18 @@ function saveOperationStatus() {
 
 
   /* =====================================================
-    TO · BO1 · BO2 자유 텍스트 운전현황 저장
+    TO·BO1·BO2 자유 텍스트 저장
   ====================================================== */
 
+  const manualTextRoles = [
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
   if (
-    ![
-      "TO",
-      "BO1",
-      "BO2"
-    ].includes(
+    !manualTextRoles.includes(
       currentRole
     )
   ) {
@@ -18298,7 +19134,16 @@ function saveOperationStatus() {
     String(
       elements.operationStatus?.value ||
       ""
-    ).trim();
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .trim();
 
 
   if (
@@ -18321,18 +19166,11 @@ function saveOperationStatus() {
     role:
       currentRole,
 
-    /*
-      TO·BO1·BO2는 자유 텍스트 방식이므로
-      대표 상태를 normal로 유지한다.
-    */
     type:
       "normal",
 
     content,
 
-    /*
-      설비별 항목 배열은 사용하지 않는다.
-    */
     operationItems:
       [],
 
@@ -18344,14 +19182,6 @@ function saveOperationStatus() {
     updatedBy:
       author
   };
-
-
-  if (
-    elements.operationStatus
-  ) {
-    elements.operationStatus.value =
-      content;
-  }
 
 
   if (
@@ -18383,7 +19213,6 @@ function saveOperationStatus() {
     `${currentRole} 운전현황을 저장했습니다.`
   );
 }
-
 
 /* =========================================================
   운전현황 전용 이벤트 연결
@@ -20080,22 +20909,35 @@ function formatDateTime(value) {
 /* =========================================================
   업무일지 작성·수정창 열기 최종본
 
-  editorMode:
-  - new          : 신규 작성
-  - existing-edit: 기존 업무일지 수정
-  - draft-edit   : 현재 창에서 임시저장 후 계속 작성
+  신규 작성 운전현황 규칙:
+
+  TGO·BCO1·BCO2
+  - 해당 날짜·근무에 저장된 고정 운전현황 표시
+  - 전 근무 운전현황 자동 가져오기 안 함
+  - 필요할 때 수정 버튼으로 변경
+
+  TO·BO1·BO2
+  - 현재 근무 저장값이 없으면
+    같은 보직의 직전 근무 운전현황 자동 적용
+
+  파트장
+  - TGO·BCO1·BCO2 운전현황 자동 취합
+
+  기존 업무일지 수정
+  - 업무일지에 저장된 내용을 그대로 복원
 ========================================================= */
 
-function openLogEditor(
+async function openLogEditor(
   log = null,
   preset = null
 ) {
   resetLogEditor();
 
 
-  /*
+  /* =====================================================
     기존 업무일지 수정
-  */
+  ====================================================== */
+
   if (
     log
   ) {
@@ -20115,6 +20957,8 @@ function openLogEditor(
       `${log.role || ""} 업무일지 수정`;
 
 
+    updateMemberLogImportSection();
+
     updateLogEditorActionButtons();
 
 
@@ -20123,13 +20967,26 @@ function openLogEditor(
     );
 
 
+    /*
+      기존 일지를 복원한 직후 상태를
+      저장 완료 상태로 기록한다.
+    */
+    window.setTimeout(
+      () => {
+        markLogEditorAsSaved();
+      },
+      0
+    );
+
+
     return;
   }
 
 
-  /*
+  /* =====================================================
     신규 업무일지
-  */
+  ====================================================== */
+
   elements
     .logEditorForm
     .dataset
@@ -20137,63 +20994,168 @@ function openLogEditor(
     "new";
 
 
+  /*
+    먼저 현재 선택 날짜와 근무를 입력한다.
+  */
+  setEditorDateFromSelectedDate();
+
+
+  /* =====================================================
+    근무자 카드에서 전달된 정보 적용
+  ====================================================== */
+
   if (
     preset
   ) {
+    /*
+      작성일
+    */
+    if (
+      preset.date &&
+      elements.logDate
+    ) {
+      elements.logDate.value =
+        String(
+          preset.date
+        ).trim();
+    }
+
+
+    /*
+      근무
+    */
+    if (
+      preset.shift &&
+      elements.logShift
+    ) {
+      const presetShift =
+        String(
+          preset.shift
+        )
+          .trim()
+          .toUpperCase();
+
+
+      const matchedShiftOption = [
+        ...elements.logShift.options
+      ].find(
+        option => {
+          return (
+            String(
+              option.value ||
+              ""
+            )
+              .trim()
+              .toUpperCase() ===
+            presetShift
+          );
+        }
+      );
+
+
+      if (
+        matchedShiftOption
+      ) {
+        elements.logShift.value =
+          matchedShiftOption.value;
+      }
+    }
+
+
+    /*
+      보직
+    */
     if (
       preset.role &&
-      [
-        ...elements
-          .logRole
-          .options
-      ].some(
-        (
-          option
-        ) => {
+      elements.logRole
+    ) {
+      const presetRole =
+        normalizeMemberLogRole(
+          preset.role
+        );
+
+
+      const matchedRoleOption = [
+        ...elements.logRole.options
+      ].find(
+        option => {
           return (
-            option.value ===
-            preset.role
+            normalizeMemberLogRole(
+              option.value
+            ) ===
+            presetRole
           );
         }
-      )
-    ) {
-      elements.logRole.value =
-        preset.role;
+      );
+
+
+      if (
+        matchedRoleOption
+      ) {
+        elements.logRole.value =
+          matchedRoleOption.value;
+      }
     }
 
 
+    /*
+      작성자
+    */
     if (
-      preset.author
+      preset.author &&
+      elements.logAuthor
     ) {
       elements.logAuthor.value =
-        preset.author;
+        String(
+          preset.author
+        ).trim();
     }
 
 
+    /*
+      근무파트
+    */
     if (
       preset.team &&
-      [
-        ...elements
-          .logTeam
-          .options
-      ].some(
-        (
-          option
-        ) => {
+      elements.logTeam
+    ) {
+      const presetTeam =
+        normalizeTeamName(
+          preset.team
+        );
+
+
+      const matchedTeamOption = [
+        ...elements.logTeam.options
+      ].find(
+        option => {
           return (
-            option.value ===
-            preset.team
+            normalizeTeamName(
+              option.value
+            ) ===
+            presetTeam
           );
         }
-      )
-    ) {
-      elements.logTeam.value =
-        preset.team;
+      );
+
+
+      if (
+        matchedTeamOption
+      ) {
+        elements.logTeam.value =
+          matchedTeamOption.value;
+      }
     }
 
 
     elements.logEditorTitle.textContent =
-      `${preset.role || ""} 업무일지 작성`;
+      `${
+        normalizeMemberLogRole(
+          elements.logRole?.value ||
+          preset.role ||
+          ""
+        )
+      } 업무일지 작성`;
 
   } else {
     elements.logEditorTitle.textContent =
@@ -20204,11 +21166,58 @@ function openLogEditor(
   }
 
 
+  /* =====================================================
+    이전 작성창 운전현황 초기화
+
+    다른 보직을 열었을 때 이전 보직의 운전현황이
+    잠시 표시되는 현상을 방지한다.
+  ====================================================== */
+
+  appState.currentOperationStatus =
+    null;
+
+
+  /* =====================================================
+    보직별 운전현황 적용
+
+    refreshOperationStatusForCurrentRole() 내부 규칙:
+
+    TGO·BCO1·BCO2
+    → 현재 날짜·근무의 고정 운전현황
+
+    TO·BO1·BO2
+    → 현재 저장값이 없으면 직전 근무 운전현황
+
+    파트장
+    → TGO·BCO1·BCO2 자동 취합
+  ====================================================== */
+
+  await refreshOperationStatusForCurrentRole();
+
+
+  /*
+    파트장 팀원 업무일지 취합 영역 갱신
+  */
+  updateMemberLogImportSection();
+
+
   updateLogEditorActionButtons();
 
 
   openModal(
     elements.logEditorModal
+  );
+
+
+  /*
+    전 근무 운전현황 자동 적용 자체는
+    작성자가 변경한 것으로 판정하지 않는다.
+  */
+  window.setTimeout(
+    () => {
+      markLogEditorAsSaved();
+    },
+    0
   );
 }
 
@@ -36954,18 +37963,24 @@ async function handleEmployeeExcelUpload(event) {
 }
 
 /* =========================================================
-  전 근무자 운전현황 가져오기 최종본
+  TO·BO1·BO2 전 근무 운전현황 가져오기 최종본
 
-  TGO·BCO1·BCO2:
-  - 전 근무의 설비명·상태·내용 전체 가져오기
-  - 설비별 편집 배열에 적용
-  - 가져온 뒤에도 수정 가능
-  - 운전현황 저장 버튼을 눌러야 최종 확정
+  사용 가능:
+  - TO
+  - BO1
+  - BO2
 
-  TO·BO1·BO2:
-  - 전 근무의 자유 텍스트 가져오기
-  - 가져온 뒤 직접 수정 가능
-  - 운전현황 저장 버튼을 눌러야 최종 확정
+  사용 불가:
+  - TGO
+  - BCO1
+  - BCO2
+  - 파트장
+
+  적용 방식:
+  - 같은 보직의 직전 근무 운전현황 조회
+  - 줄바꿈과 내용 그대로 적용
+  - 현재 작성 내용이 있으면 덮어쓰기 확인
+  - 운전현황 저장 버튼을 눌러야 현재 근무에 확정
 ========================================================= */
 
 async function handleLoadPreviousOperationStatus() {
@@ -36983,9 +37998,6 @@ async function handleLoadPreviousOperationStatus() {
 
 
   const allowedRoles = [
-    "TGO",
-    "BCO1",
-    "BCO2",
     "TO",
     "BO1",
     "BO2"
@@ -36998,7 +38010,18 @@ async function handleLoadPreviousOperationStatus() {
     )
   ) {
     showToast(
-      "현재 보직에서는 전 근무자 운전현황을 가져올 수 없습니다."
+      "TO·BO1·BO2 업무일지에서만 전 근무 운전현황을 가져올 수 있습니다."
+    );
+
+    return;
+  }
+
+
+  if (
+    !elements.operationStatus
+  ) {
+    showToast(
+      "운전현황 입력창을 찾을 수 없습니다."
     );
 
     return;
@@ -37033,69 +38056,36 @@ async function handleLoadPreviousOperationStatus() {
   }
 
 
-  const isEquipmentRole =
-    usesEquipmentOperationStatusEditor(
-      currentRole
-    );
-
-
-  /* =====================================================
-    현재 편집창에 작성된 내용 확인
-  ====================================================== */
-
-  let hasCurrentContent =
-    false;
-
-
-  if (
-    isEquipmentRole
-  ) {
-    hasCurrentContent =
-      Array.isArray(
-        editingOperationStatusItems
-      ) &&
-      editingOperationStatusItems.some(
-        (
-          item
-        ) => {
-          return Boolean(
-            String(
-              item?.name ||
-              ""
-            ).trim() ||
-            String(
-              item?.content ||
-              ""
-            ).trim()
-          );
-        }
-      );
-
-  } else {
-    hasCurrentContent =
-      Boolean(
-        String(
-          elements.operationStatus
-            ?.value ||
-          ""
-        ).trim()
-      );
-  }
+  const currentContent =
+    String(
+      elements.operationStatus.value ||
+      ""
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .trim();
 
 
   if (
-    hasCurrentContent
+    currentContent
   ) {
     const shouldOverwrite =
       window.confirm(
         [
           "현재 작성된 운전현황이 있습니다.",
           "",
-          "같은 보직의 전 근무자 운전현황으로 덮어쓰시겠습니까?",
+          "전 근무 운전현황으로 덮어쓰시겠습니까?",
           "",
-          "가져온 뒤에도 수정할 수 있습니다.",
           "아직 업무일지는 저장되지 않습니다."
-        ].join("\n")
+        ].join(
+          "\n"
+        )
       );
 
 
@@ -37105,6 +38095,13 @@ async function handleLoadPreviousOperationStatus() {
       return;
     }
   }
+
+
+  const originalButtonText =
+    String(
+      loadButton?.textContent ||
+      "전 근무자 운전현황 가져오기"
+    ).trim();
 
 
   if (
@@ -37127,273 +38124,109 @@ async function handleLoadPreviousOperationStatus() {
       );
 
 
-    if (
-      !previousStatus
-    ) {
-      showToast(
-        "같은 보직의 전 근무자 운전현황을 찾을 수 없습니다."
-      );
-
-      return;
-    }
-
-
-    /* =====================================================
-      TGO·BCO1·BCO2 설비별 운전현황 적용
-    ====================================================== */
-
-    if (
-      isEquipmentRole
-    ) {
-      /*
-        새 구조와 기존 호환 구조 모두 확인한다.
-      */
-      const previousItems =
-        getOperationStatusItems({
-          role:
-            currentRole,
-
-          operationItems:
-            Array.isArray(
-              previousStatus.operationItems
-            )
-              ? previousStatus.operationItems
-              : (
-                  Array.isArray(
-                    previousStatus.items
-                  )
-                    ? previousStatus.items
-                    : []
-                ),
-
-          items:
-            Array.isArray(
-              previousStatus.items
-            )
-              ? previousStatus.items
-              : (
-                  Array.isArray(
-                    previousStatus.operationItems
-                  )
-                    ? previousStatus.operationItems
-                    : []
-                ),
-
-          content:
-            String(
-              previousStatus.content ||
-              ""
-            ).trim(),
-
-          type:
-            previousStatus.type ||
-            "normal"
-        })
-          .map(
-            (
-              item,
-              itemIndex
-            ) => {
-              const normalizedItem =
-                normalizeOperationStatusItem(
-                  {
-                    ...item,
-
-                    /*
-                      전 근무 자료와 현재 근무 자료의
-                      항목 ID가 겹치지 않게 새 ID를 부여한다.
-                    */
-                    id:
-                      createOperationStatusItemId(),
-
-                    role:
-                      currentRole,
-
-                    sourceRole:
-                      currentRole,
-
-                    /*
-                      아직 현재 근무에서 저장한 것이 아니므로
-                      수정자·수정시간은 비워둔다.
-                    */
-                    updatedAt:
-                      "",
-
-                    updatedBy:
-                      "",
-
-                    inheritedFromDate:
-                      previousStatus.date,
-
-                    inheritedFromShift:
-                      previousStatus.shift,
-
-                    inheritedFromAuthor:
-                      previousStatus.author ||
-                      ""
-                  },
-                  itemIndex
-                );
-
-
-              return {
-                ...normalizedItem,
-
-                id:
-                  normalizedItem.id ||
-                  createOperationStatusItemId(),
-
-                role:
-                  currentRole,
-
-                sourceRole:
-                  currentRole,
-
-                name:
-                  String(
-                    normalizedItem.name ||
-                    ""
-                  ).trim(),
-
-                content:
-                  String(
-                    normalizedItem.content ||
-                    ""
-                  ).trim(),
-
-                updatedAt:
-                  "",
-
-                updatedBy:
-                  "",
-
-                inheritedFromDate:
-                  previousStatus.date,
-
-                inheritedFromShift:
-                  previousStatus.shift,
-
-                inheritedFromAuthor:
-                  String(
-                    previousStatus.author ||
-                    ""
-                  ).trim()
-              };
-            }
-          )
-          .filter(
-            (
-              item
-            ) => {
-              return Boolean(
-                item.name ||
-                item.content
-              );
-            }
-          );
-
-
-      if (
-        !previousItems.length
-      ) {
-        showToast(
-          `${currentRole} 전 근무의 설비별 운전현황을 찾을 수 없습니다.`
-        );
-
-        return;
-      }
-
-
-      /*
-        설비별 편집창에 적용한다.
-
-        이 단계에서는 appState에 저장하지 않는다.
-        사용자가 아래 저장 버튼을 눌러야 확정된다.
-      */
-      editingOperationStatusItems =
-        previousItems;
-
-
-      const editorContainer =
-        ensureOperationStatusItemsEditor();
-
-
-      if (
-        editorContainer
-      ) {
-        editorContainer.hidden =
-          false;
-      }
-
-
-      renderOperationStatusItemsEditor();
-
-
-      window.setTimeout(
-        () => {
-          document.querySelector(
-            '.operation-status-item-content-input[data-operation-item-index="0"]'
-          )?.focus();
-        },
-        0
-      );
-
-
-      const previousShiftName =
-        getShiftDisplayName(
-          previousStatus.shift
-        );
-
-
-      showToast(
-        [
-          previousStatus.date,
-          previousShiftName,
-          currentRole,
-          `설비별 운전현황 ${previousItems.length}건을 가져왔습니다.`
-        ].join(" ")
-      );
-
-
-      return;
-    }
-
-
-    /* =====================================================
-      TO·BO1·BO2 자유 텍스트 적용
-    ====================================================== */
-
     const previousContent =
       String(
-        previousStatus.content ||
+        previousStatus?.content ||
         ""
-      ).trim();
+      )
+        .replace(
+          /\r\n/g,
+          "\n"
+        )
+        .replace(
+          /\r/g,
+          "\n"
+        )
+        .trim();
 
 
     if (
+      !previousStatus ||
       !previousContent
     ) {
       showToast(
-        `${currentRole} 전 근무의 운전현황 내용을 찾을 수 없습니다.`
+        `${currentRole} 전 근무 운전현황을 찾을 수 없습니다.`
       );
 
       return;
+    }
+
+
+    /*
+      자유 텍스트 입력창에 전 근무 내용을 그대로 적용한다.
+    */
+    elements.operationStatus.value =
+      previousContent;
+
+
+    /*
+      업무일지 저장용 숨김값도 함께 갱신한다.
+    */
+    if (
+      elements.operationStatusSnapshot
+    ) {
+      elements.operationStatusSnapshot.value =
+        previousContent;
     }
 
 
     if (
-      !elements.operationStatus
+      elements.operationStatusType
     ) {
-      showToast(
-        "운전현황 입력창을 찾을 수 없습니다."
-      );
-
-      return;
+      elements.operationStatusType.value =
+        "normal";
     }
 
 
-    elements.operationStatus.value =
-      previousContent;
+    /*
+      현재 작성창 운전현황 객체 갱신
+    */
+    appState.currentOperationStatus = {
+      role:
+        currentRole,
+
+      type:
+        "normal",
+
+      content:
+        previousContent,
+
+      operationItems:
+        [],
+
+      items:
+        [],
+
+      /*
+        아직 현재 근무 운전현황으로 저장한 것이 아니므로
+        수정시간과 수정자는 비워둔다.
+      */
+      updatedAt:
+        "",
+
+      updatedBy:
+        "",
+
+      inheritedFromDate:
+        String(
+          previousStatus.date ||
+          ""
+        ).trim(),
+
+      inheritedFromShift:
+        String(
+          previousStatus.shift ||
+          ""
+        )
+          .trim()
+          .toUpperCase(),
+
+      inheritedFromAuthor:
+        String(
+          previousStatus.author ||
+          ""
+        ).trim()
+    };
 
 
     elements.operationStatus
@@ -37401,21 +38234,14 @@ async function handleLoadPreviousOperationStatus() {
         new Event(
           "input",
           {
-            bubbles: true
+            bubbles:
+              true
           }
         )
       );
 
 
-    elements.operationStatus
-      .focus();
-
-
-    elements.operationStatus
-      .setSelectionRange(
-        previousContent.length,
-        previousContent.length
-      );
+    elements.operationStatus.focus();
 
 
     const previousShiftName =
@@ -37430,21 +38256,23 @@ async function handleLoadPreviousOperationStatus() {
         previousShiftName,
         currentRole,
         "운전현황을 가져왔습니다."
-      ].join(" ")
+      ].join(
+        " "
+      )
     );
 
   } catch (
     error
   ) {
     console.error(
-      "전 근무자 운전현황 조회 오류:",
+      `${currentRole} 전 근무 운전현황 조회 오류:`,
       error
     );
 
 
     showToast(
       error.message ||
-      "전 근무자 운전현황을 불러오지 못했습니다."
+      "전 근무 운전현황을 불러오지 못했습니다."
     );
 
   } finally {
@@ -37455,11 +38283,10 @@ async function handleLoadPreviousOperationStatus() {
         false;
 
       loadButton.textContent =
-        "전 근무자 운전현황 가져오기";
+        originalButtonText;
     }
   }
 }
-
 /* =========================================================
   로그인 사용자 → 업무일지 작성자 자동 연결
 
