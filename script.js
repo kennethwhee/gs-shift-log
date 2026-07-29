@@ -3148,13 +3148,17 @@ document.addEventListener(
 );
 
 /* =========================================================
-  시스템 관리자 모달 열기
+  시스템 관리자 모달 열기 최종본
 
   기본 화면:
   - 직원 관리
 
-  브랜드 관리:
-  - 탭 선택 시 표시
+  모달을 연 뒤:
+  - 직원 목록 조회
+  - 브랜드 설정 조회
+
+  두 조회는 서로 기다리지 않고 동시에 실행한다.
+  한쪽 조회가 실패해도 다른 관리 화면은 정상 작동한다.
 ========================================================= */
 
 async function openEmployeeManagementModal() {
@@ -3184,9 +3188,18 @@ async function openEmployeeManagementModal() {
     );
 
 
+    showToast(
+      "시스템 관리 화면을 찾을 수 없습니다."
+    );
+
+
     return;
   }
 
+
+  /* =====================================================
+    모달 열기
+  ====================================================== */
 
   employeeManagementModal
     .classList
@@ -3207,28 +3220,64 @@ async function openEmployeeManagementModal() {
   );
 
 
-  /*
-    모달을 열 때는 직원 관리 탭부터 표시한다.
-  */
+  /* =====================================================
+    기본 탭은 직원 관리
+  ====================================================== */
+
   switchSystemAdminView(
     "employees"
   );
 
 
-hideBrandManagementMessage();
+  hideBrandManagementMessage();
 
 
-/*
-  다른 최고관리자가 설정을 변경했을 수 있으므로
-  관리자 창을 열 때 서버 설정을 다시 조회한다.
-*/
-await initializeBrandSettings();
+  /* =====================================================
+    직원 목록과 브랜드 설정을 동시에 조회
+
+    브랜드 API가 실패하더라도
+    직원 목록 조회는 계속 진행한다.
+
+    직원 API가 실패하더라도
+    브랜드 관리 화면은 계속 사용할 수 있다.
+  ====================================================== */
+
+  const loadResults =
+    await Promise.allSettled([
+      loadEmployeeManagement(),
+
+      initializeBrandSettings()
+    ]);
 
 
-  /*
-    최신 직원 목록 조회
-  */
-  await loadEmployeeManagement();
+  const employeeLoadResult =
+    loadResults[0];
+
+
+  const brandLoadResult =
+    loadResults[1];
+
+
+  if (
+    employeeLoadResult.status ===
+      "rejected"
+  ) {
+    console.error(
+      "직원 관리 목록 초기화 실패:",
+      employeeLoadResult.reason
+    );
+  }
+
+
+  if (
+    brandLoadResult.status ===
+      "rejected"
+  ) {
+    console.error(
+      "브랜드 설정 초기화 실패:",
+      brandLoadResult.reason
+    );
+  }
 }
 
 /* =========================================================
