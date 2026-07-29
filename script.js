@@ -40177,6 +40177,86 @@ async function saveShiftLogToServer(
 }
 
 /* =========================================================
+  D1 공용 업무일지 삭제
+========================================================= */
+
+async function deleteShiftLogFromServer(
+  log
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    throw new ShiftLogApiError(
+      "삭제할 업무일지 정보가 없습니다."
+    );
+  }
+
+
+  const logId =
+    String(
+      log.id ||
+      ""
+    ).trim();
+
+
+  const serverRevision =
+    Number(
+      log.serverRevision
+    );
+
+
+  if (
+    !logId
+  ) {
+    throw new ShiftLogApiError(
+      "삭제할 업무일지 ID를 확인할 수 없습니다."
+    );
+  }
+
+
+  if (
+    !Number.isInteger(
+      serverRevision
+    ) ||
+    serverRevision < 1
+  ) {
+    throw new ShiftLogApiError(
+      "업무일지의 서버 버전을 확인할 수 없습니다."
+    );
+  }
+
+
+  const searchParams =
+    new URLSearchParams({
+      id:
+        logId,
+
+      revision:
+        String(
+          serverRevision
+        )
+    });
+
+
+  const result =
+    await requestShiftLogApi(
+      `?${searchParams.toString()}`,
+      {
+        method:
+          "DELETE"
+      }
+    );
+
+
+  return String(
+    result.deletedId ||
+    logId
+  ).trim();
+}
+
+/* =========================================================
   브라우저에 저장된 신규 업무일지 이전 자료 정리
 
   - 과거 연동 업무일지 제외
