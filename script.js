@@ -45540,3 +45540,577 @@ saveCurrentLog =
 
     return savedLog;
   };
+
+  /* =========================================================
+  업무일지 상세보기 모달 크기 최종 강제 적용
+
+  적용 방식:
+  - CSS 중복 선언과 관계없이 인라인 !important 적용
+  - 상세창이 열릴 때마다 다시 크기 적용
+  - 브라우저 크기가 바뀌어도 자동 재계산
+  - 업무일지 작성·수정창에는 영향 없음
+
+  PC:
+  - 최대 폭 1320px
+  - 좌우 여백 18px
+  - 화면 높이 약 94%
+
+  모바일:
+  - 전체 화면 사용
+========================================================= */
+
+function applyLogDetailModalSize() {
+  const modal =
+    document.getElementById(
+      "logDetailModal"
+    );
+
+
+  if (
+    !modal
+  ) {
+    return;
+  }
+
+
+  const panel =
+    modal.querySelector(
+      ".log-detail-modal"
+    ) ||
+    modal.querySelector(
+      ".modal-panel"
+    );
+
+
+  const header =
+    modal.querySelector(
+      ".log-detail-modal__header"
+    ) ||
+    modal.querySelector(
+      ".modal-header"
+    );
+
+
+  const body =
+    modal.querySelector(
+      ".log-detail-modal__body"
+    ) ||
+    modal.querySelector(
+      ".modal-body"
+    );
+
+
+  const footer =
+    modal.querySelector(
+      ".log-detail-modal__footer"
+    ) ||
+    modal.querySelector(
+      ".modal-footer"
+    );
+
+
+  if (
+    !panel
+  ) {
+    return;
+  }
+
+
+  const isMobile =
+    window.innerWidth <=
+    600;
+
+
+  const isTablet =
+    window.innerWidth <=
+    900;
+
+
+  /*
+    상세보기 배경 영역
+  */
+  modal.style.setProperty(
+    "box-sizing",
+    "border-box",
+    "important"
+  );
+
+
+  modal.style.setProperty(
+    "align-items",
+    "center",
+    "important"
+  );
+
+
+  modal.style.setProperty(
+    "justify-content",
+    "center",
+    "important"
+  );
+
+
+  modal.style.setProperty(
+    "padding",
+    isMobile
+      ? "0"
+      : (
+          isTablet
+            ? "10px"
+            : "18px"
+        ),
+    "important"
+  );
+
+
+  /*
+    상세보기 모달 본체
+  */
+  panel.style.setProperty(
+    "display",
+    "flex",
+    "important"
+  );
+
+
+  panel.style.setProperty(
+    "flex-direction",
+    "column",
+    "important"
+  );
+
+
+  panel.style.setProperty(
+    "box-sizing",
+    "border-box",
+    "important"
+  );
+
+
+  panel.style.setProperty(
+    "margin",
+    "0 auto",
+    "important"
+  );
+
+
+  panel.style.setProperty(
+    "overflow",
+    "hidden",
+    "important"
+  );
+
+
+  if (
+    isMobile
+  ) {
+    panel.style.setProperty(
+      "width",
+      "100vw",
+      "important"
+    );
+
+
+    panel.style.setProperty(
+      "min-width",
+      "0",
+      "important"
+    );
+
+
+    panel.style.setProperty(
+      "max-width",
+      "100vw",
+      "important"
+    );
+
+
+    panel.style.setProperty(
+      "height",
+      "100dvh",
+      "important"
+    );
+
+
+    panel.style.setProperty(
+      "min-height",
+      "0",
+      "important"
+    );
+
+
+    panel.style.setProperty(
+      "max-height",
+      "100dvh",
+      "important"
+    );
+
+
+    panel.style.setProperty(
+      "border-radius",
+      "0",
+      "important"
+    );
+  } else {
+    panel.style.setProperty(
+      "width",
+      isTablet
+        ? "calc(100vw - 20px)"
+        : "min(1320px, calc(100vw - 36px))",
+      "important"
+    );
+
+
+    panel.style.setProperty(
+      "min-width",
+      "0",
+      "important"
+    );
+
+
+    panel.style.setProperty(
+      "max-width",
+      isTablet
+        ? "none"
+        : "1320px",
+      "important"
+    );
+
+
+    panel.style.setProperty(
+      "height",
+      isTablet
+        ? "calc(100vh - 20px)"
+        : "min(94vh, 1040px)",
+      "important"
+    );
+
+
+    panel.style.setProperty(
+      "min-height",
+      isTablet
+        ? "0"
+        : "650px",
+      "important"
+    );
+
+
+    panel.style.setProperty(
+      "max-height",
+      isTablet
+        ? "calc(100vh - 20px)"
+        : "calc(100vh - 36px)",
+      "important"
+    );
+
+
+    panel.style.setProperty(
+      "border-radius",
+      "15px",
+      "important"
+    );
+  }
+
+
+  /*
+    상단
+  */
+  if (
+    header
+  ) {
+    header.style.setProperty(
+      "flex",
+      "0 0 auto",
+      "important"
+    );
+
+
+    header.style.setProperty(
+      "width",
+      "100%",
+      "important"
+    );
+
+
+    header.style.setProperty(
+      "box-sizing",
+      "border-box",
+      "important"
+    );
+  }
+
+
+  /*
+    본문 스크롤 영역
+  */
+  if (
+    body
+  ) {
+    body.style.setProperty(
+      "display",
+      "block",
+      "important"
+    );
+
+
+    body.style.setProperty(
+      "flex",
+      "1 1 auto",
+      "important"
+    );
+
+
+    body.style.setProperty(
+      "width",
+      "100%",
+      "important"
+    );
+
+
+    body.style.setProperty(
+      "min-width",
+      "0",
+      "important"
+    );
+
+
+    body.style.setProperty(
+      "max-width",
+      "none",
+      "important"
+    );
+
+
+    body.style.setProperty(
+      "min-height",
+      "0",
+      "important"
+    );
+
+
+    body.style.setProperty(
+      "box-sizing",
+      "border-box",
+      "important"
+    );
+
+
+    body.style.setProperty(
+      "overflow-x",
+      "hidden",
+      "important"
+    );
+
+
+    body.style.setProperty(
+      "overflow-y",
+      "auto",
+      "important"
+    );
+
+
+    body.style.setProperty(
+      "padding",
+      isMobile
+        ? "9px"
+        : "14px 18px 18px",
+      "important"
+    );
+  }
+
+
+  /*
+    하단 버튼 영역
+  */
+  if (
+    footer
+  ) {
+    footer.style.setProperty(
+      "flex",
+      "0 0 auto",
+      "important"
+    );
+
+
+    footer.style.setProperty(
+      "width",
+      "100%",
+      "important"
+    );
+
+
+    footer.style.setProperty(
+      "box-sizing",
+      "border-box",
+      "important"
+    );
+  }
+
+
+  /*
+    상세 내용 내부의 max-width 제한 제거
+  */
+  const detailContent =
+    document.getElementById(
+      "logDetailContent"
+    );
+
+
+  if (
+    detailContent
+  ) {
+    detailContent.style.setProperty(
+      "width",
+      "100%",
+      "important"
+    );
+
+
+    detailContent.style.setProperty(
+      "min-width",
+      "0",
+      "important"
+    );
+
+
+    detailContent.style.setProperty(
+      "max-width",
+      "none",
+      "important"
+    );
+
+
+    detailContent
+      .querySelectorAll(
+        [
+          ".shift-log-detail-document",
+          ".detail-document",
+          ".log-detail-layout",
+          ".log-report",
+          ".shift-log-detail-summary",
+          ".shift-log-detail-section",
+          ".log-detail-card",
+          ".log-report-section"
+        ].join(",")
+      )
+      .forEach(
+        (element) => {
+          element.style.setProperty(
+            "width",
+            "100%",
+            "important"
+          );
+
+
+          element.style.setProperty(
+            "min-width",
+            "0",
+            "important"
+          );
+
+
+          element.style.setProperty(
+            "max-width",
+            "none",
+            "important"
+          );
+
+
+          element.style.setProperty(
+            "box-sizing",
+            "border-box",
+            "important"
+          );
+        }
+      );
+  }
+}
+
+
+/* =========================================================
+  상세창 열림 감시
+
+  openModal()에서 is-open 클래스가 붙는 순간
+  크기를 다시 강제로 적용한다.
+========================================================= */
+
+function initializeLogDetailModalSizeFix() {
+  const modal =
+    document.getElementById(
+      "logDetailModal"
+    );
+
+
+  if (
+    !modal
+  ) {
+    return;
+  }
+
+
+  /*
+    페이지 로드 직후 한 번 적용
+  */
+  applyLogDetailModalSize();
+
+
+  /*
+    상세창의 class·aria-hidden 변경 감시
+  */
+  const observer =
+    new MutationObserver(
+      () => {
+        if (
+          modal.classList.contains(
+            "is-open"
+          ) ||
+          modal.getAttribute(
+            "aria-hidden"
+          ) ===
+            "false"
+        ) {
+          window.requestAnimationFrame(
+            () => {
+              applyLogDetailModalSize();
+            }
+          );
+        }
+      }
+    );
+
+
+  observer.observe(
+    modal,
+    {
+      attributes:
+        true,
+
+      attributeFilter: [
+        "class",
+        "aria-hidden"
+      ]
+    }
+  );
+
+
+  /*
+    화면 크기 변경 시 재적용
+  */
+  window.addEventListener(
+    "resize",
+    applyLogDetailModalSize
+  );
+}
+
+
+if (
+  document.readyState ===
+  "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeLogDetailModalSizeFix
+  );
+} else {
+  initializeLogDetailModalSizeFix();
+}

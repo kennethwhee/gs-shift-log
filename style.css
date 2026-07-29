@@ -23753,3 +23753,31 @@ td {
   }
 }
 
+/* =========================================================
+  업무일지 상세보기 모달 크기 보조 규칙
+
+  실제 크기는 script.js의
+  applyLogDetailModalSize()가 인라인 !important로 적용한다.
+========================================================= */
+
+#logDetailModal {
+  box-sizing: border-box !important;
+}
+
+#logDetailModal > .modal-panel.log-detail-modal {
+  box-sizing: border-box !important;
+}
+
+#logDetailModal #logDetailContent {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
+
+#logDetailModal #logDetailContent > * {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
