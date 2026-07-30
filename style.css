@@ -51099,3 +51099,218 @@ legend {
   }
 
 }
+
+/* =========================================================
+  모바일 파트장 업무일지 보직별 구분 최종 보정
+
+  적용 위치:
+  style.css 파일 맨 마지막
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    TGO · BCO1 · BCO2 보직 제목 영역
+
+    PC 전용 absolute/고정 높이 규칙을 해제한다.
+  ====================================================== */
+
+  #logTableBody
+  .log-preview
+  .log-preview__role-section,
+
+  #logTableBody
+  .log-preview
+  .log-preview__role-section.is-first-role {
+    position:
+      static !important;
+
+    display:
+      block !important;
+
+    width:
+      100% !important;
+
+    height:
+      auto !important;
+
+    min-height:
+      0 !important;
+
+    margin:
+      14px
+      0
+      6px !important;
+
+    padding:
+      10px
+      0
+      0 !important;
+
+    border-top:
+      1px solid
+      #cbd8e5 !important;
+
+    background:
+      transparent !important;
+
+    box-sizing:
+      border-box !important;
+  }
+
+
+  /* =====================================================
+    보직 제목
+
+    예:
+    TGO 업무일지 (7건)
+    BCO1 업무일지 (8건)
+    BCO2 업무일지 (6건)
+  ====================================================== */
+
+  #logTableBody
+  .log-preview
+  .log-preview__role-section
+  .log-preview__role-divider {
+    position:
+      static !important;
+
+    inset:
+      auto !important;
+
+    display:
+      block !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    min-height:
+      0 !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0
+      0
+      6px !important;
+
+    border:
+      0 !important;
+
+    border-radius:
+      0 !important;
+
+    background:
+      transparent !important;
+
+    box-shadow:
+      none !important;
+
+    font-size:
+      11px !important;
+
+    font-weight:
+      900 !important;
+
+    line-height:
+      1.45 !important;
+
+    text-align:
+      left !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  #logTableBody
+  .log-preview__role-divider::before,
+
+  #logTableBody
+  .log-preview__role-divider::after {
+    display:
+      none !important;
+
+    content:
+      none !important;
+  }
+
+
+  /* =====================================================
+    보직별 제목 색상
+  ====================================================== */
+
+  #logTableBody
+  .log-preview__role-divider.is-tgo {
+    color:
+      #1f5fae !important;
+  }
+
+
+  #logTableBody
+  .log-preview__role-divider.is-bco1 {
+    color:
+      #17865f !important;
+  }
+
+
+  #logTableBody
+  .log-preview__role-divider.is-bco2 {
+    color:
+      #74419c !important;
+  }
+
+
+  /* =====================================================
+    제목 바로 아래 첫 번째 업무
+
+    PC용 겹침 배치를 제거하고
+    제목 다음 줄부터 정상 표시한다.
+  ====================================================== */
+
+  #logTableBody
+  .log-preview__role-section
+  +
+  .log-preview__group {
+    margin-top:
+      0 !important;
+
+    padding-top:
+      0 !important;
+
+    border-top:
+      0 !important;
+  }
+
+
+  /* =====================================================
+    보직별 업무 행
+
+    모바일에서도 제목 칸과 내용 칸 정렬을 유지한다.
+  ====================================================== */
+
+  #logTableBody
+  .log-preview__role-section
+  ~
+  .log-preview__group:not(.is-section-start) {
+    grid-template-columns:
+      68px
+      minmax(0, 1fr) !important;
+  }
+
+
+  #logTableBody
+  .log-preview__role-section
+  ~
+  .log-preview__group.has-no-title::before {
+    width:
+      68px !important;
+
+    min-width:
+      68px !important;
+  }
+}

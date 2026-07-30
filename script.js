@@ -60241,3 +60241,316 @@ if (
 } else {
   initializeDateQuickNavigation();
 }
+
+/* =========================================================
+  모바일 파트장 업무일지 보직별 구분 최종 보정
+
+  적용 결과:
+  - TGO → BCO1 → BCO2 보직 제목 표시
+  - 보직별 건수 표시
+  - 각 보직 번호를 1번부터 다시 시작
+  - PC 렌더링 구조는 변경하지 않음
+
+  적용 위치:
+  script.js 파일 맨 마지막
+========================================================= */
+
+(function initializeMobileLeaderRoleGroupingFix() {
+  const MOBILE_BREAKPOINT =
+    "(max-width: 768px)";
+
+
+  function isMobileShiftLogScreen() {
+    return window.matchMedia(
+      MOBILE_BREAKPOINT
+    ).matches;
+  }
+
+
+  function getDirectPreviewChildren(
+    previewElement
+  ) {
+    return [
+      ...previewElement.children
+    ];
+  }
+
+
+  function isRoleSectionElement(
+    element
+  ) {
+    return Boolean(
+      element?.classList.contains(
+        "log-preview__role-section"
+      )
+    );
+  }
+
+
+  function isRoleEntryElement(
+    element
+  ) {
+    return Boolean(
+      element?.classList.contains(
+        "log-preview__group"
+      ) &&
+      !element.classList.contains(
+        "is-operation"
+      ) &&
+      !element.classList.contains(
+        "is-section-start"
+      )
+    );
+  }
+
+
+  function normalizeRoleSectionTitle(
+    titleElement
+  ) {
+    if (!titleElement) {
+      return "";
+    }
+
+
+    const storedTitle =
+      String(
+        titleElement.dataset
+          .mobileOriginalTitle ||
+        ""
+      ).trim();
+
+
+    if (storedTitle) {
+      return storedTitle;
+    }
+
+
+    const originalTitle =
+      String(
+        titleElement.textContent ||
+        ""
+      )
+        .replace(
+          /\s*\(\s*\d+\s*건\s*\)\s*$/,
+          ""
+        )
+        .trim();
+
+
+    titleElement.dataset
+      .mobileOriginalTitle =
+      originalTitle;
+
+
+    return originalTitle;
+  }
+
+
+  function refreshSingleLeaderPreview(
+    previewElement
+  ) {
+    const directChildren =
+      getDirectPreviewChildren(
+        previewElement
+      );
+
+
+    const roleSections =
+      directChildren.filter(
+        isRoleSectionElement
+      );
+
+
+    if (!roleSections.length) {
+      return;
+    }
+
+
+    roleSections.forEach(
+      roleSection => {
+        const titleElement =
+          roleSection.querySelector(
+            ".log-preview__role-divider"
+          );
+
+
+        let nextElement =
+          roleSection.nextElementSibling;
+
+
+        const roleEntryElements = [];
+
+
+        while (
+          nextElement &&
+          !isRoleSectionElement(
+            nextElement
+          )
+        ) {
+          if (
+            isRoleEntryElement(
+              nextElement
+            )
+          ) {
+            roleEntryElements.push(
+              nextElement
+            );
+          }
+
+
+          nextElement =
+            nextElement.nextElementSibling;
+        }
+
+
+        roleEntryElements.forEach(
+          (
+            entryElement,
+            entryIndex
+          ) => {
+            const numberElement =
+              entryElement.querySelector(
+                ".log-preview__entry-number"
+              );
+
+
+            if (numberElement) {
+              numberElement.textContent =
+                `${entryIndex + 1}.`;
+            }
+          }
+        );
+
+
+        if (titleElement) {
+          const originalTitle =
+            normalizeRoleSectionTitle(
+              titleElement
+            );
+
+
+          titleElement.textContent =
+            `${originalTitle} (${roleEntryElements.length}건)`;
+        }
+
+
+        roleSection.hidden =
+          roleEntryElements.length ===
+          0;
+      }
+    );
+  }
+
+
+  function refreshMobileLeaderRoleGrouping(
+    rootElement = document
+  ) {
+    if (
+      !isMobileShiftLogScreen()
+    ) {
+      return;
+    }
+
+
+    rootElement
+      .querySelectorAll(
+        "#logTableBody .log-preview"
+      )
+      .forEach(
+        refreshSingleLeaderPreview
+      );
+  }
+
+
+  /*
+    기존 renderLogTable 실행 직후
+    모바일 보직 구분을 다시 정리한다.
+  */
+  const originalRenderLogTable =
+    window.renderLogTable;
+
+
+  if (
+    typeof originalRenderLogTable ===
+      "function"
+  ) {
+    window.renderLogTable =
+      function renderLogTableWithMobileRoleGrouping(
+        ...args
+      ) {
+        const result =
+          originalRenderLogTable.apply(
+            this,
+            args
+          );
+
+
+        window.requestAnimationFrame(
+          () => {
+            refreshMobileLeaderRoleGrouping();
+          }
+        );
+
+
+        return result;
+      };
+  }
+
+
+  document.addEventListener(
+    "DOMContentLoaded",
+    () => {
+      window.requestAnimationFrame(
+        () => {
+          refreshMobileLeaderRoleGrouping();
+        }
+      );
+    }
+  );
+
+
+  window.addEventListener(
+    "resize",
+    () => {
+      refreshMobileLeaderRoleGrouping();
+    }
+  );
+
+
+  /*
+    날짜 이동·근무 전환·데이터 재조회처럼
+    목록 DOM이 비동기로 바뀌는 경우에도 자동 반영한다.
+  */
+  const logTableBody =
+    document.getElementById(
+      "logTableBody"
+    );
+
+
+  if (
+    logTableBody &&
+    typeof MutationObserver ===
+      "function"
+  ) {
+    const observer =
+      new MutationObserver(
+        () => {
+          refreshMobileLeaderRoleGrouping(
+            logTableBody
+          );
+        }
+      );
+
+
+    observer.observe(
+      logTableBody,
+      {
+        childList:
+          true,
+
+        subtree:
+          true
+      }
+    );
+  }
+})();
