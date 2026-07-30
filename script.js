@@ -52873,7 +52873,12 @@ function getRoleNoticesByRole(
 
 
 /* =========================================================
-  보직 카드의 활성 공지 버튼 갱신
+  보직 카드 공지 버튼 갱신
+
+  표시:
+  - 항상 종 아이콘 사용
+  - 활성 공지가 있으면 숫자 배지 표시
+  - 더 이상 ■ / □ 문자로 변경하지 않음
 ========================================================= */
 
 function updateRoleNoticeButton(
@@ -52935,14 +52940,15 @@ function updateRoleNoticeButton(
   );
 
 
+  /*
+    공지 유무와 관계없이
+    아이콘은 항상 종으로 유지한다.
+  */
   if (
     icon
   ) {
     icon.textContent =
-      activeCount >
-        0
-        ? "■"
-        : "□";
+      "🔔";
   }
 
 
@@ -52954,12 +52960,12 @@ function updateRoleNoticeButton(
         activeCount
       );
 
+
     count.hidden =
       activeCount ===
       0;
   }
 }
-
 
 /* =========================================================
   전체 공지 버튼 갱신
