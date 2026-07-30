@@ -43865,3 +43865,811 @@ strong,
     font-size: 7px !important;
   }
 }
+
+/* =========================================================
+  업무일지 수정창 모바일 최종 컴팩트 교정
+
+  수정 내용:
+  1. 기본정보 4개 입력칸 완전 동일 크기
+  2. 작성일 날짜 세로·가로 중앙 정렬
+  3. TM·인계·비고 실제 항목 높이 자동 축소
+  4. 번호와 내용의 왼쪽 여백 최소화
+  5. 목록 좌우 패딩 축소
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    1. 기본정보 한 줄 구조 재확정
+
+    작성일 | 근무 | 보직 | 작성자 | 대근
+  ====================================================== */
+
+  #logEditorModal
+  .basic-info-grid {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      repeat(
+        4,
+        minmax(0, 1fr)
+      )
+      38px !important;
+
+    grid-template-rows:
+      auto !important;
+
+    align-items: end !important;
+
+    gap: 4px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #logEditorModal
+  .basic-info-field--date,
+  #logEditorModal
+  .basic-info-field--shift,
+  #logEditorModal
+  .basic-info-field--role,
+  #logEditorModal
+  .basic-info-field--author {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+
+    flex-direction: column !important;
+
+    gap: 2px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  /* =====================================================
+    항목명 높이 통일
+
+    작성일·근무·보직·작성자·대근
+  ====================================================== */
+
+  #logEditorModal
+  .basic-info-grid
+  .form-field__label {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    height: 12px !important;
+    min-height: 12px !important;
+    max-height: 12px !important;
+
+    align-items: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: visible !important;
+
+    color: #6f7d91 !important;
+
+    font-size: 7px !important;
+    font-weight: 900 !important;
+    line-height: 12px !important;
+    letter-spacing: -0.04em !important;
+
+    white-space: nowrap !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =====================================================
+    작성일·근무·보직·작성자 입력칸
+
+    네 칸 모두 정확히 동일:
+    - 같은 높이
+    - 같은 패딩
+    - 같은 글자 크기
+    - 같은 정렬
+  ====================================================== */
+
+  #logEditorModal
+  .basic-info-field--date
+  input,
+
+  #logEditorModal
+  .basic-info-field--shift
+  select,
+
+  #logEditorModal
+  .basic-info-field--role
+  select,
+
+  #logEditorModal
+  .basic-info-field--author
+  input {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+
+    height: 31px !important;
+    min-height: 31px !important;
+    max-height: 31px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      4px !important;
+
+    overflow: hidden !important;
+
+    border:
+      1px
+      solid
+      #cbd6e2 !important;
+
+    border-radius: 6px !important;
+
+    background: #ffffff !important;
+    color: #26384f !important;
+
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    line-height: 29px !important;
+    letter-spacing: -0.04em !important;
+
+    text-align: center !important;
+    text-indent: 0 !important;
+
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =====================================================
+    iOS 날짜 입력 보정
+
+    Safari가 date input 내부에 자체 여백을 넣어
+    날짜가 위쪽으로 붙는 현상을 제거한다.
+  ====================================================== */
+
+  #logEditorModal
+  .basic-info-field--date
+  input[type="date"] {
+    display: block !important;
+
+    padding:
+      0
+      2px !important;
+
+    line-height: 29px !important;
+
+    text-align: center !important;
+
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
+
+
+  #logEditorModal
+  .basic-info-field--date
+  input[type="date"]::-webkit-date-and-time-value {
+    display: flex !important;
+
+    width: 100% !important;
+    height: 29px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    line-height: 29px !important;
+
+    text-align: center !important;
+  }
+
+
+  #logEditorModal
+  .basic-info-field--date
+  input[type="date"]::-webkit-datetime-edit {
+    display: flex !important;
+
+    width: 100% !important;
+    height: 29px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    line-height: 29px !important;
+  }
+
+
+  #logEditorModal
+  .basic-info-field--date
+  input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+    display: flex !important;
+
+    width: 100% !important;
+    height: 29px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    line-height: 29px !important;
+  }
+
+
+  /* =====================================================
+    대근 초소형
+  ====================================================== */
+
+  #logEditorModal
+  .substitute-work-field {
+    width: 38px !important;
+    min-width: 38px !important;
+    max-width: 38px !important;
+  }
+
+
+  #logEditorModal
+  .substitute-work-check {
+    width: 38px !important;
+    min-width: 38px !important;
+    max-width: 38px !important;
+
+    height: 31px !important;
+    min-height: 31px !important;
+    max-height: 31px !important;
+  }
+
+
+  /* =====================================================
+    2. 인수인계사항 전체 패널 좌우 여백 축소
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryListPanel {
+    margin-top: 8px !important;
+
+    border-radius: 8px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group {
+    margin: 0 !important;
+
+    padding:
+      0 !important;
+  }
+
+
+  /* =====================================================
+    TM·인계·비고 제목줄 컴팩트
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group__header,
+
+  #logEditorModal
+  .log-entry-note-section
+  .log-entry-group-header {
+    min-height: 36px !important;
+
+    margin: 0 !important;
+
+    padding:
+      6px
+      8px !important;
+  }
+
+
+  /* =====================================================
+    3. 실제 항목이 있을 때 최소 높이 완전 제거
+
+    TM 1건이면 1건 높이만 사용한다.
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--tm
+  .log-entry-table-wrap,
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--handover
+  .log-entry-table-wrap,
+
+  #logEditorModal
+  .log-entry-note-section
+  .log-entry-table-wrap {
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+
+    overflow: hidden !important;
+
+    border-radius: 0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--tm
+  .log-entry-table,
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--handover
+  .log-entry-table,
+
+  #logEditorModal
+  .log-entry-note-section
+  .log-entry-table {
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--tm
+  tbody,
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--handover
+  tbody,
+
+  #logEditorModal
+  .log-entry-note-section
+  tbody {
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--tm
+  tbody tr:not(.log-entry-empty-row),
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--handover
+  tbody tr:not(.log-entry-empty-row),
+
+  #logEditorModal
+  .log-entry-note-section
+  tbody tr:not(.log-entry-empty-row) {
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--tm
+  tbody tr:not(.log-entry-empty-row)
+  td,
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--handover
+  tbody tr:not(.log-entry-empty-row)
+  td,
+
+  #logEditorModal
+  .log-entry-note-section
+  tbody tr:not(.log-entry-empty-row)
+  td {
+    min-height: 0 !important;
+    height: auto !important;
+
+    padding:
+      7px
+      5px !important;
+
+    vertical-align: top !important;
+  }
+
+
+  /* =====================================================
+    항목이 있는 TM 영역의 빈 공간 제거
+
+    기존 min-height: 3줄 규칙을 최종 해제
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--tm:has(
+    tbody tr:not(.log-entry-empty-row)
+  )
+  .log-entry-table-wrap,
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--tm:has(
+    tbody tr:not(.log-entry-empty-row)
+  )
+  tbody,
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--tm:has(
+    tbody tr:not(.log-entry-empty-row)
+  )
+  tr,
+
+  #logEditorModal
+  #logEntryListPanel
+  .handover-entry-group--tm:has(
+    tbody tr:not(.log-entry-empty-row)
+  )
+  td {
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+
+  /* =====================================================
+    4. 번호와 내용 왼쪽 여백 최소화
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-content-cell,
+
+  #logEditorModal
+  .log-entry-note-section
+  .log-entry-content-cell {
+    padding-right: 5px !important;
+    padding-left: 3px !important;
+  }
+
+
+  /* TM 번호 + 내용 */
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-table--tm
+  .log-entry-tm-line {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      18px
+      minmax(0, 1fr) !important;
+
+    align-items: start !important;
+
+    column-gap: 4px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-table--tm
+  .log-entry-tm-number {
+    display: block !important;
+
+    width: 18px !important;
+    min-width: 18px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-size: 10px !important;
+    line-height: 1.45 !important;
+
+    text-align: right !important;
+  }
+
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-table--tm
+  .log-entry-tm-text {
+    display: block !important;
+
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-size: 10px !important;
+    line-height: 1.45 !important;
+
+    text-align: left !important;
+  }
+
+
+  /* 인계 번호 + 내용 */
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-handover-line {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      18px
+      minmax(0, 1fr) !important;
+
+    align-items: start !important;
+
+    column-gap: 4px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-handover-number {
+    display: block !important;
+
+    width: 18px !important;
+    min-width: 18px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-size: 10px !important;
+    line-height: 1.45 !important;
+
+    text-align: right !important;
+  }
+
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-table--handover
+  .log-entry-handover-text {
+    display: block !important;
+
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-size: 10px !important;
+    line-height: 1.45 !important;
+
+    text-align: left !important;
+
+    white-space: pre-wrap !important;
+  }
+
+
+  /* =====================================================
+    새 문서형 클래스가 사용되는 경우도 동일 보정
+
+    번호 18px + 내용
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-document-line {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      18px
+      minmax(0, 1fr) !important;
+
+    align-items: start !important;
+
+    column-gap: 4px !important;
+
+    margin: 0 !important;
+
+    padding:
+      6px
+      4px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-document-number {
+    width: 18px !important;
+    min-width: 18px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-size: 10px !important;
+    line-height: 1.45 !important;
+
+    text-align: right !important;
+  }
+
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-document-body {
+    min-width: 0 !important;
+
+    gap: 3px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-document-time,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-document-content-text {
+    font-size: 10px !important;
+    line-height: 1.45 !important;
+  }
+
+
+  /* =====================================================
+    비고 번호와 내용도 왼쪽으로 이동
+  ====================================================== */
+
+  #logEditorModal
+  .log-entry-note-section
+  .log-entry-note-line {
+    display: grid !important;
+
+    grid-template-columns:
+      18px
+      minmax(0, 1fr) !important;
+
+    column-gap: 4px !important;
+
+    margin: 0 !important;
+
+    padding:
+      6px
+      4px !important;
+  }
+
+
+  #logEditorModal
+  .log-entry-note-section
+  .log-entry-note-number {
+    width: 18px !important;
+    min-width: 18px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-size: 10px !important;
+    line-height: 1.45 !important;
+
+    text-align: right !important;
+  }
+
+
+  #logEditorModal
+  .log-entry-note-section
+  .log-entry-note-text {
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-size: 10px !important;
+    line-height: 1.45 !important;
+  }
+
+
+  /* =====================================================
+    항목 첫 번째 줄 왼쪽 시작점 추가 축소
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryListPanel
+  tbody td:first-child:not(
+    .log-entry-select-cell
+  ),
+
+  #logEditorModal
+  .log-entry-note-section
+  tbody td:first-child:not(
+    .log-entry-select-cell
+  ) {
+    padding-left: 4px !important;
+  }
+}
+
+
+/* =========================================================
+  작은 모바일 추가 보정
+========================================================= */
+
+@media (max-width: 390px) {
+
+  #logEditorModal
+  .basic-info-grid {
+    grid-template-columns:
+      repeat(
+        4,
+        minmax(0, 1fr)
+      )
+      36px !important;
+
+    gap: 3px !important;
+  }
+
+
+  #logEditorModal
+  .substitute-work-field,
+
+  #logEditorModal
+  .substitute-work-check {
+    width: 36px !important;
+    min-width: 36px !important;
+    max-width: 36px !important;
+  }
+
+
+  #logEditorModal
+  .basic-info-field--date
+  input,
+
+  #logEditorModal
+  .basic-info-field--shift
+  select,
+
+  #logEditorModal
+  .basic-info-field--role
+  select,
+
+  #logEditorModal
+  .basic-info-field--author
+  input {
+    padding:
+      0
+      2px !important;
+
+    font-size: 8px !important;
+  }
+}
