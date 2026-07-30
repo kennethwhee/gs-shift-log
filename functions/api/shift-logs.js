@@ -936,8 +936,176 @@ function createConflictResponse(
   );
 }
 
+/* =========================================================
+  과거 업무일지의 원래 결재 상태 확인
 
-function applyCreateRules(
+  목적:
+  - 브라우저에서 전달한 상태를 그대로 신뢰하지 않는다.
+  - legacy_logs에 저장된 원래 상태를 서버에서 확인한다.
+  - APPROVED 자료는 결재완료 상태로 이전한다.
+========================================================= */
+
+async function getTrustedLegacyMigrationStatus(
+  database,
+  log
+) {
+  if (
+    !database ||
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    return "";
+  }
+
+
+  const logId =
+    normalizeText(
+      log.id
+    );
+
+
+  /*
+    우선 legacyDiaryId를 사용하고,
+    없으면 legacy- 접두사가 붙은 ID에서 추출한다.
+  */
+  const legacyDiaryId =
+    normalizeText(
+      log.legacyDiaryId ||
+      (
+        logId.startsWith(
+          "legacy-"
+        )
+          ? logId.slice(
+              "legacy-".length
+            )
+          : ""
+      )
+    );
+
+
+  if (
+    !legacyDiaryId
+  ) {
+    return "";
+  }
+
+
+  const legacyRow =
+    await database
+      .prepare(`
+        SELECT
+          status
+
+        FROM legacy_logs
+
+        WHERE
+          legacy_diary_id = ?
+
+          AND work_date = ?
+
+          AND shift = ?
+
+          AND role = ?
+
+        LIMIT 1
+      `)
+      .bind(
+        legacyDiaryId,
+
+        normalizeText(
+          log.date
+        ),
+
+        normalizeShift(
+          log.shift
+        ),
+
+        normalizeLogRole(
+          log.role
+        )
+      )
+      .first();
+
+
+  if (
+    !legacyRow
+  ) {
+    return "";
+  }
+
+
+  const rawStatus =
+    normalizeText(
+      legacyRow.status
+    );
+
+
+  /*
+    legacy_logs에 현재 한글 상태값으로
+    저장된 경우
+  */
+  const normalizedStatus =
+    normalizeStatus(
+      rawStatus
+    );
+
+
+  if (
+    normalizedStatus
+  ) {
+    return normalizedStatus;
+  }
+
+
+  /*
+    혹시 이전 버전 데이터에 영문 상태가
+    남아 있는 경우까지 호환한다.
+  */
+  const legacyStatusMap = {
+    APPROVED:
+      "결재완료",
+
+    SUBMITTED:
+      "결재요청",
+
+    REQUESTED:
+      "결재요청",
+
+    DRAFT:
+      "임시저장",
+
+    WRITING:
+      "임시저장",
+
+    REJECTED:
+      "임시저장"
+  };
+
+
+  return (
+    legacyStatusMap[
+      rawStatus.toUpperCase()
+    ] ||
+    ""
+  );
+}
+
+/* =========================================================
+  신규 업무일지 생성 규칙 최종본
+
+  일반 신규 작성:
+  - 파트장: 저장완료
+  - 파트원: 임시저장 또는 결재요청
+
+  과거 업무일지 이전:
+  - legacy_logs에서 원래 상태를 서버가 직접 확인
+  - 결재완료 자료는 결재완료 그대로 유지
+  - 결재요청·임시저장도 원래 상태 그대로 유지
+========================================================= */
+
+async function applyCreateRules(
+  database,
   log,
   user,
   action,
@@ -946,6 +1114,20 @@ function applyCreateRules(
   const isMigration =
     action ===
       "migrate";
+
+
+  /*
+    과거 업무일지인 경우에만
+    legacy_logs에서 신뢰할 수 있는 상태를 조회한다.
+  */
+  const trustedMigrationStatus =
+    isMigration
+      ? await getTrustedLegacyMigrationStatus(
+          database,
+          log
+        )
+      : "";
+
 
   if (
     isMigration
@@ -956,11 +1138,17 @@ function applyCreateRules(
         log.writerId
       );
 
+
     const suppliedAuthor =
       normalizeText(
         log.author
       );
 
+
+    /*
+      최고관리자가 아닌 사용자는
+      다른 작성자의 과거 자료를 이전할 수 없다.
+    */
     if (
       !user.isSuperAdmin &&
       (
@@ -979,22 +1167,30 @@ function applyCreateRules(
     ) {
       const error =
         new Error(
-        "다른 작성자의 브라우저 자료는 이전할 수 없습니다."
-      );
+          "다른 작성자의 브라우저 자료는 이전할 수 없습니다."
+        );
+
 
       error.status =
         403;
 
+
       throw error;
     }
 
+
+    /*
+      과거 원 작성자를 그대로 유지한다.
+    */
     log.author =
       suppliedAuthor ||
       user.name;
 
+
     log.authorId =
       suppliedAuthorId ||
       user.employeeNo;
+
 
     log.authorRole =
       normalizeAccountRole(
@@ -1003,20 +1199,49 @@ function applyCreateRules(
       user.role;
 
   } else {
+    /*
+      새로 작성한 업무일지는
+      현재 로그인 사용자를 작성자로 저장한다.
+    */
     log.author =
       user.name;
 
+
     log.authorId =
       user.employeeNo;
+
 
     log.authorRole =
       user.role;
   }
 
+
+  /* =====================================================
+    상태 결정
+  ====================================================== */
+
   if (
+    isMigration &&
+    trustedMigrationStatus
+  ) {
+    /*
+      과거 업무일지의 원래 상태를 그대로 유지한다.
+
+      예:
+      APPROVED  → 결재완료
+      SUBMITTED → 결재요청
+      DRAFT     → 임시저장
+    */
+    log.status =
+      trustedMigrationStatus;
+
+  } else if (
     log.role ===
       "파트장"
   ) {
+    /*
+      일반 신규 파트장 업무일지
+    */
     if (
       user.role ===
         "admin" ||
@@ -1024,22 +1249,40 @@ function applyCreateRules(
     ) {
       log.status =
         "저장완료";
+
     } else {
       log.status =
         "임시저장";
     }
 
-  } else if (
-    ![
-      "임시저장",
-      "결재요청"
-    ].includes(
-      log.status
-    )
-  ) {
+  } else {
+    /*
+      일반 신규 파트원 업무일지
+
+      파트원은 새 작성 시
+      임시저장 또는 결재요청만 가능하다.
+    */
+    const requestedStatus =
+      normalizeStatus(
+        log.status
+      );
+
+
     log.status =
-      "임시저장";
+      [
+        "임시저장",
+        "결재요청"
+      ].includes(
+        requestedStatus
+      )
+        ? requestedStatus
+        : "임시저장";
   }
+
+
+  /* =====================================================
+    생성·수정 정보
+  ====================================================== */
 
   log.createdAt =
     isMigration &&
@@ -1051,20 +1294,26 @@ function applyCreateRules(
         )
       : now;
 
+
   log.updatedAt =
     now;
+
 
   log.lastModifiedBy =
     user.name;
 
+
   log.lastModifiedById =
     user.employeeNo;
+
 
   log.lastModifiedByRole =
     user.role;
 
+
   log.source =
     "shared-d1";
+
 
   return log;
 }
@@ -2049,15 +2298,20 @@ export async function onRequestPost(
         );
       }
 
-      const createdLog =
-        applyCreateRules(
-          {
-            ...incomingLog
-          },
-          user,
-          action,
-          now
-        );
+const createdLog =
+  await applyCreateRules(
+    context.env.DB,
+
+    {
+      ...incomingLog
+    },
+
+    user,
+
+    action,
+
+    now
+  );
 
       try {
         const savedLog =
