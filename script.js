@@ -58732,3 +58732,732 @@ openShiftLogApp = function (
     100
   );
 };
+
+/* =========================================================
+  조회 결과 미리보기·검색어 강조 최종본
+
+  적용:
+  - 운전현황 미리보기 제외
+  - 메인 업무일지와 같은 구조 사용
+  - 모바일은 최대 4개 항목만 표시
+  - 검색어가 있으면 일치 항목 우선 표시
+  - 검색어 노란색 강조
+========================================================= */
+
+function getCurrentSearchKeyword() {
+  return String(
+    document.getElementById(
+      "searchKeyword"
+    )?.value ||
+    ""
+  ).trim();
+}
+
+
+function escapeSearchKeywordRegExp(
+  value
+) {
+  return String(
+    value ||
+    ""
+  ).replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&"
+  );
+}
+
+
+function highlightSearchKeywordInElement(
+  rootElement,
+  keyword
+) {
+  if (
+    !rootElement ||
+    !keyword
+  ) {
+    return;
+  }
+
+
+  const searchPattern =
+    new RegExp(
+      `(${escapeSearchKeywordRegExp(
+        keyword
+      )})`,
+      "gi"
+    );
+
+
+  const textNodes = [];
+
+
+  const treeWalker =
+    document.createTreeWalker(
+      rootElement,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(
+          textNode
+        ) {
+          const text =
+            String(
+              textNode.nodeValue ||
+              ""
+            );
+
+
+          const parentElement =
+            textNode.parentElement;
+
+
+          if (
+            !text.trim() ||
+            !parentElement ||
+            parentElement.closest(
+              ".search-keyword-highlight"
+            )
+          ) {
+            return NodeFilter.FILTER_REJECT;
+          }
+
+
+          searchPattern.lastIndex =
+            0;
+
+
+          return searchPattern.test(
+            text
+          )
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_REJECT;
+        }
+      }
+    );
+
+
+  while (
+    treeWalker.nextNode()
+  ) {
+    textNodes.push(
+      treeWalker.currentNode
+    );
+  }
+
+
+  textNodes.forEach(
+    textNode => {
+      const parts =
+        String(
+          textNode.nodeValue ||
+          ""
+        ).split(
+          searchPattern
+        );
+
+
+      const fragment =
+        document.createDocumentFragment();
+
+
+      parts.forEach(
+        (
+          part,
+          partIndex
+        ) => {
+          if (
+            !part
+          ) {
+            return;
+          }
+
+
+          if (
+            partIndex %
+              2 ===
+            1
+          ) {
+            const mark =
+              document.createElement(
+                "mark"
+              );
+
+
+            mark.className =
+              "search-keyword-highlight";
+
+
+            mark.textContent =
+              part;
+
+
+            fragment.appendChild(
+              mark
+            );
+
+          } else {
+            fragment.appendChild(
+              document.createTextNode(
+                part
+              )
+            );
+          }
+        }
+      );
+
+
+      textNode.replaceWith(
+        fragment
+      );
+    }
+  );
+}
+
+
+function cleanupSearchPreviewRoleSections(
+  previewElement
+) {
+  const roleSections = [
+    ...previewElement.children
+  ].filter(
+    element => {
+      return element.classList.contains(
+        "log-preview__role-section"
+      );
+    }
+  );
+
+
+  roleSections.forEach(
+    roleSection => {
+      let nextElement =
+        roleSection.nextElementSibling;
+
+
+      let hasVisibleEntry =
+        false;
+
+
+      while (
+        nextElement &&
+        !nextElement.classList.contains(
+          "log-preview__role-section"
+        )
+      ) {
+        if (
+          nextElement.classList.contains(
+            "log-preview__group"
+          )
+        ) {
+          hasVisibleEntry =
+            true;
+
+          break;
+        }
+
+
+        nextElement =
+          nextElement.nextElementSibling;
+      }
+
+
+      if (
+        !hasVisibleEntry
+      ) {
+        roleSection.remove();
+      }
+    }
+  );
+}
+
+
+function limitMobileSearchPreviewGroups(
+  previewElement,
+  keyword
+) {
+  const allGroups = [
+    ...previewElement.children
+  ].filter(
+    element => {
+      return element.classList.contains(
+        "log-preview__group"
+      );
+    }
+  );
+
+
+  if (
+    !allGroups.length
+  ) {
+    return;
+  }
+
+
+  const matchingGroups =
+    keyword
+      ? allGroups.filter(
+          groupElement => {
+            return Boolean(
+              groupElement.querySelector(
+                ".search-keyword-highlight"
+              )
+            );
+          }
+        )
+      : [];
+
+
+  const baseGroups =
+    matchingGroups.length
+      ? matchingGroups
+      : allGroups;
+
+
+  const visibleGroups =
+    new Set(
+      baseGroups.slice(
+        0,
+        matchingGroups.length
+          ? 8
+          : 4
+      )
+    );
+
+
+  /*
+    검색어가 보직 제목에서 일치하면
+    해당 보직 아래 항목도 함께 표시한다.
+  */
+  if (
+    keyword
+  ) {
+    [
+      ...previewElement.children
+    ]
+      .filter(
+        element => {
+          return (
+            element.classList.contains(
+              "log-preview__role-section"
+            ) &&
+            element.querySelector(
+              ".search-keyword-highlight"
+            )
+          );
+        }
+      )
+      .forEach(
+        roleSection => {
+          let nextElement =
+            roleSection.nextElementSibling;
+
+
+          while (
+            nextElement &&
+            !nextElement.classList.contains(
+              "log-preview__role-section"
+            )
+          ) {
+            if (
+              nextElement.classList.contains(
+                "log-preview__group"
+              )
+            ) {
+              visibleGroups.add(
+                nextElement
+              );
+            }
+
+
+            nextElement =
+              nextElement.nextElementSibling;
+          }
+        }
+      );
+  }
+
+
+  let hiddenGroupCount =
+    0;
+
+
+  allGroups.forEach(
+    groupElement => {
+      if (
+        visibleGroups.has(
+          groupElement
+        )
+      ) {
+        return;
+      }
+
+
+      groupElement.remove();
+
+      hiddenGroupCount +=
+        1;
+    }
+  );
+
+
+  cleanupSearchPreviewRoleSections(
+    previewElement
+  );
+
+
+  if (
+    hiddenGroupCount >
+    0
+  ) {
+    const moreElement =
+      document.createElement(
+        "span"
+      );
+
+
+    moreElement.className =
+      "search-preview-more";
+
+
+    moreElement.textContent =
+      `외 ${hiddenGroupCount}건`;
+
+
+    previewElement.appendChild(
+      moreElement
+    );
+  }
+}
+
+
+/* =========================================================
+  PC·모바일 공통 업무내용 미리보기
+========================================================= */
+
+createSearchLogPreviewHtml =
+  function createSearchLogPreviewHtml(
+    log,
+    options = {}
+  ) {
+    const keyword =
+      getCurrentSearchKeyword();
+
+
+    const rowHtml =
+      createLogRowHtml(
+        log
+      );
+
+
+    const template =
+      document.createElement(
+        "template"
+      );
+
+
+    template.innerHTML = `
+      <table>
+        <tbody>
+          ${rowHtml}
+        </tbody>
+      </table>
+    `;
+
+
+    const mainPreview =
+      template.content.querySelector(
+        ".log-preview"
+      );
+
+
+    if (
+      !mainPreview
+    ) {
+      return `
+        <span class="log-preview__empty">
+          등록된 업무 내용이 없습니다.
+        </span>
+      `;
+    }
+
+
+    /* 운전현황은 조회 미리보기에서 제외 */
+    mainPreview
+      .querySelectorAll(
+        ".log-preview__group.is-operation"
+      )
+      .forEach(
+        element => {
+          element.remove();
+        }
+      );
+
+
+    /* TAG 클릭 기능 유지 */
+    mainPreview
+      .querySelectorAll(
+        ".log-preview__tag"
+      )
+      .forEach(
+        tagElement => {
+          const tag =
+            String(
+              tagElement.textContent ||
+              ""
+            )
+              .trim()
+              .replace(
+                /^[\[【]\s*/,
+                ""
+              )
+              .replace(
+                /\s*[\]】]$/,
+                ""
+              )
+              .trim()
+              .toUpperCase();
+
+
+          if (
+            !tag
+          ) {
+            return;
+          }
+
+
+          tagElement.dataset.searchTag =
+            tag;
+
+
+          tagElement.setAttribute(
+            "title",
+            "Facility Navigator에서 설비 보기"
+          );
+        }
+      );
+
+
+    highlightSearchKeywordInElement(
+      mainPreview,
+      keyword
+    );
+
+
+    if (
+      options.mobile ===
+        true
+    ) {
+      limitMobileSearchPreviewGroups(
+        mainPreview,
+        keyword
+      );
+    }
+
+
+    cleanupSearchPreviewRoleSections(
+      mainPreview
+    );
+
+
+    const hasVisibleContent =
+      Boolean(
+        mainPreview.querySelector(
+          ".log-preview__group, .log-preview__role-section"
+        )
+      );
+
+
+    return `
+      <span
+        class="
+          log-preview
+          search-result-log-preview
+        "
+      >
+        ${
+          hasVisibleContent
+            ? mainPreview.innerHTML
+            : `
+              <span class="log-preview__empty">
+                운전현황 외 등록된 업무 내용이 없습니다.
+              </span>
+            `
+        }
+      </span>
+    `;
+  };
+
+
+/* =========================================================
+  모바일 조회 카드
+========================================================= */
+
+createMobileSearchCardHtml =
+  function createMobileSearchCardHtml(
+    log
+  ) {
+    const attachmentCount =
+      Array.isArray(
+        log?.attachments
+      )
+        ? log.attachments.length
+        : Number(
+            log?.legacyAttachmentCount ||
+            0
+          );
+
+
+    const statusText =
+      typeof getMobileLogStatusDisplay ===
+        "function"
+        ? getMobileLogStatusDisplay(
+            log?.status
+          )
+        : String(
+            log?.status ||
+            "미작성"
+          ).trim();
+
+
+    const statusClass =
+      typeof getStatusClass ===
+        "function"
+        ? getStatusClass(
+            log?.status
+          )
+        : "is-empty";
+
+
+    return `
+      <article
+        class="mobile-search-card"
+        data-search-log-id="${escapeHtml(
+          log.id
+        )}"
+      >
+
+        <button
+          type="button"
+          class="mobile-search-card__open"
+          data-search-view="${escapeHtml(
+            log.id
+          )}"
+          aria-label="${escapeHtml(
+            log.date ||
+            ""
+          )} ${escapeHtml(
+            log.role ||
+            ""
+          )} 업무일지 상세보기"
+        >
+
+          <div class="mobile-search-card__date-row">
+
+            <strong>
+              ${escapeHtml(
+                log.date ||
+                "-"
+              )}
+            </strong>
+
+            <span class="mobile-search-card__shift">
+              ${escapeHtml(
+                getShiftDisplayName(
+                  log.shift
+                )
+              )}
+            </span>
+
+          </div>
+
+
+          <header class="mobile-search-card__header">
+
+            <div class="mobile-search-card__identity">
+
+              <strong class="mobile-search-card__role">
+                ${escapeHtml(
+                  log.role ||
+                  "-"
+                )}
+              </strong>
+
+              <span class="mobile-search-card__author">
+                ${escapeHtml(
+                  log.author ||
+                  "-"
+                )}
+              </span>
+
+              ${
+                log.isSubstitute ===
+                  true
+                  ? `
+                    <span class="mobile-search-card__substitute">
+                      대근
+                    </span>
+                  `
+                  : ""
+              }
+
+            </div>
+
+
+            <span
+              class="
+                status-badge
+                mobile-search-card__status
+                ${statusClass}
+              "
+            >
+              ${escapeHtml(
+                statusText
+              )}
+            </span>
+
+          </header>
+
+
+          <div class="mobile-search-card__content">
+            ${createSearchLogPreviewHtml(
+              log,
+              {
+                mobile:
+                  true
+              }
+            )}
+          </div>
+
+        </button>
+
+
+        <footer class="mobile-search-card__footer">
+
+          <span class="mobile-search-card__attachment">
+            ${
+              attachmentCount >
+                0
+                ? `첨부 ${attachmentCount}개`
+                : "첨부 없음"
+            }
+          </span>
+
+
+          <button
+            type="button"
+            class="mobile-search-card__detail-button"
+            data-search-view="${escapeHtml(
+              log.id
+            )}"
+          >
+            상세보기
+            <span aria-hidden="true">
+              ›
+            </span>
+          </button>
+
+        </footer>
+
+      </article>
+    `;
+  };
+
