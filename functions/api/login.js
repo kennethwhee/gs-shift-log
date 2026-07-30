@@ -638,28 +638,51 @@ export async function onRequestPost(
     }
 
 
-    const user =
-      await context.env.DB
-        .prepare(`
-          SELECT
-            id,
-            employee_no,
-            name,
-            password_hash,
-            role,
-            is_active,
-            approved_at,
-            approved_by,
-            last_login_at,
-            created_at
-          FROM users
-          WHERE employee_no = ?
-          LIMIT 1
-        `)
-        .bind(
-          employeeNo
-        )
-        .first();
+/* =========================================================
+  로그인 사용자와 실제 보직 조회
+
+  users:
+  - 로그인 계정
+  - 권한
+
+  employees:
+  - 실제 근무 보직
+
+  보직 공지 관리 권한을 프런트에서도 판정할 수 있도록
+  position을 로그인 결과에 포함한다.
+========================================================= */
+
+const user =
+  await context.env.DB
+    .prepare(`
+      SELECT
+        account.id,
+        account.employee_no,
+        account.name,
+        account.password_hash,
+        account.role,
+        account.is_active,
+        account.approved_at,
+        account.approved_by,
+        account.last_login_at,
+        account.created_at,
+
+        employee.position AS position
+
+      FROM users AS account
+
+      LEFT JOIN employees AS employee
+        ON employee.employee_no =
+           account.employee_no
+
+      WHERE account.employee_no = ?
+
+      LIMIT 1
+    `)
+    .bind(
+      employeeNo
+    )
+    .first();
 
 
     if (
@@ -808,41 +831,79 @@ export async function onRequestPost(
       .run();
 
 
-    const responseUser = {
-      id:
-        Number(
-          user.id
-        ),
+/* =========================================================
+  프런트에 전달할 로그인 사용자
 
-      employeeNo:
-        user.employee_no,
+  position:
+  - 보직 공지 관리 권한 판정
+  - 현재 사용자 보직 확인
+========================================================= */
 
-      employee_no:
-        user.employee_no,
+const responseUser = {
+  id:
+    Number(
+      user.id
+    ),
 
-      name:
-        user.name,
+  employeeNo:
+    String(
+      user.employee_no ||
+      ""
+    ).trim(),
 
-      role,
+  employee_no:
+    String(
+      user.employee_no ||
+      ""
+    ).trim(),
 
-      adminLevel,
+  name:
+    String(
+      user.name ||
+      ""
+    ).trim(),
 
-      isAdmin:
-        adminLevel >=
-        1,
+  role,
 
-      isSuperAdmin:
-        adminLevel ===
-        2,
+  position:
+    String(
+      user.position ||
+      ""
+    ).trim(),
 
-      lastLoginAt:
-        currentTimeText,
+  /*
+    기존 코드 호환용 보직 필드
+  */
+  jobPosition:
+    String(
+      user.position ||
+      ""
+    ).trim(),
 
-      sessionToken,
+  job_position:
+    String(
+      user.position ||
+      ""
+    ).trim(),
 
-      sessionExpiresAt:
-        expiresAt
-    };
+  adminLevel,
+
+  isAdmin:
+    adminLevel >=
+      1,
+
+  isSuperAdmin:
+    adminLevel ===
+      2,
+
+  lastLoginAt:
+    currentTimeText,
+
+  sessionToken,
+
+  sessionExpiresAt:
+    expiresAt
+};
 
 
     return jsonResponse({

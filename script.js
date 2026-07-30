@@ -53394,84 +53394,75 @@ async function openRoleNoticeModal(
         );
       }
     );
-
-
-  /*
-    공지 작성 권한이 없으면
-    새 공지 버튼을 숨긴다.
-  */
-  if (
-    noticeElements
-      .openRoleNoticeEditorButton
-  ) {
-    noticeElements
-      .openRoleNoticeEditorButton
-      .hidden =
-      !canCurrentUserManageRoleNotice(
-        normalizedRole
-      );
   }
 
+/*
+  보직 공지 추가 버튼 표시
 
-  if (
-    typeof openModal ===
-      "function"
-  ) {
-    openModal(
-      noticeElements.roleNoticeModal
+  표시 가능:
+  - 최고관리자
+  - 파트장 계정
+  - 현재 공지 대상과 동일한 보직 사용자
+
+  표시 불가:
+  - 다른 보직 일반 사용자
+*/
+if (
+  noticeElements
+    .openRoleNoticeEditorButton
+) {
+  const canManageCurrentRole =
+    canCurrentUserManageRoleNotice(
+      normalizedRole
     );
 
-  } else {
+
+  noticeElements
+    .openRoleNoticeEditorButton
+    .hidden =
+    !canManageCurrentRole;
+
+
+  noticeElements
+    .openRoleNoticeEditorButton
+    .disabled =
+    !canManageCurrentRole;
+
+
+  if (
+    canManageCurrentRole
+  ) {
     noticeElements
-      .roleNoticeModal
-      .classList
-      .add(
-        "is-open"
+      .openRoleNoticeEditorButton
+      .removeAttribute(
+        "hidden"
       );
 
+
     noticeElements
-      .roleNoticeModal
+      .openRoleNoticeEditorButton
+      .style
+      .removeProperty(
+        "display"
+      );
+
+
+    noticeElements
+      .openRoleNoticeEditorButton
       .setAttribute(
         "aria-hidden",
         "false"
       );
 
-    document.body.classList.add(
-      "modal-open"
-    );
-  }
-
-
-  if (
-    noticeElements.roleNoticeList
-  ) {
+  } else {
     noticeElements
-      .roleNoticeList
+      .openRoleNoticeEditorButton
       .setAttribute(
-        "aria-busy",
+        "aria-hidden",
         "true"
       );
   }
-
-
-  await loadRoleNotices();
-
-
-  if (
-    noticeElements.roleNoticeList
-  ) {
-    noticeElements
-      .roleNoticeList
-      .setAttribute(
-        "aria-busy",
-        "false"
-      );
-  }
-
-
-  renderCurrentRoleNoticeList();
 }
-
 
 /* =========================================================
   공지 목록창 닫기
@@ -54007,6 +53998,65 @@ function updateRoleNoticeCharacterCount() {
     `${length} / 2000`;
 }
 
+/* =========================================================
+  보직 공지 중요도 선택
+
+  false:
+  - 일반 선택
+
+  true:
+  - 중요 선택
+========================================================= */
+
+function setRoleNoticeEditorPriority(
+  isImportant
+) {
+  const editorForm =
+    document.getElementById(
+      "roleNoticeEditorForm"
+    );
+
+
+  const normalInput =
+    editorForm?.querySelector(
+      `
+        input[
+          name="roleNoticePriority"
+        ][
+          value="normal"
+        ]
+      `
+    );
+
+
+  const importantInput =
+    document.getElementById(
+      "roleNoticeImportantInput"
+    );
+
+
+  const shouldUseImportant =
+    Boolean(
+      isImportant
+    );
+
+
+  if (
+    normalInput
+  ) {
+    normalInput.checked =
+      !shouldUseImportant;
+  }
+
+
+  if (
+    importantInput
+  ) {
+    importantInput.checked =
+      shouldUseImportant;
+  }
+}
+
 
 /* =========================================================
   새 공지 작성창 열기
@@ -54072,6 +54122,13 @@ function openNewRoleNoticeEditor() {
 
   const todayValue =
     getRoleNoticeTodayValue();
+
+    /*
+  새 보직 공지는 기본적으로 일반 공지
+*/
+setRoleNoticeEditorPriority(
+  false
+);
 
 
   if (
@@ -54318,14 +54375,13 @@ function openEditRoleNoticeEditor(
   }
 
 
-  if (
-    noticeElements.roleNoticeImportantInput
-  ) {
-    noticeElements
-      .roleNoticeImportantInput
-      .checked =
-      notice.isImportant;
-  }
+/*
+  저장된 중요도에 맞춰
+  일반 또는 중요을 선택한다.
+*/
+setRoleNoticeEditorPriority(
+  notice.isImportant
+);
 
 
   hideRoleNoticeEditorMessage();

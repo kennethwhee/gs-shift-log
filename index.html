@@ -3638,15 +3638,17 @@
 <!-- =========================================================
   보직별 공지 작성·수정 모달
 
-  신규 작성:
-  - 제목
-  - 내용
+  전체공지 작성창과 동일한 카드형 구성
+
+  입력:
+  - 대상 보직
+  - 중요도: 일반 / 중요
+  - 공지 제목
+  - 공지 내용
   - 시작일
   - 종료일
 
-  수정:
-  - 기존 값을 입력창에 채움
-  - 저장 시 기존 공지 갱신
+  보직 공지 API의 기존 ID는 모두 유지한다.
 ========================================================== -->
 
 <div
@@ -3661,6 +3663,7 @@
     class="
       modal-panel
       role-notice-editor-panel
+      role-notice-editor-panel--global-style
     "
     role="dialog"
     aria-modal="true"
@@ -3680,7 +3683,7 @@
       <div>
 
         <p class="modal-header__eyebrow">
-          NOTICE EDITOR
+          ROLE NOTICE EDITOR
         </p>
 
         <h2
@@ -3697,7 +3700,7 @@
         type="button"
         class="modal-close-button"
         id="closeRoleNoticeEditorButton"
-        aria-label="공지 작성창 닫기"
+        aria-label="보직 공지 작성창 닫기"
       >
         ×
       </button>
@@ -3706,7 +3709,7 @@
 
 
     <!-- =====================================================
-      공지 입력 폼
+      본문
     ====================================================== -->
     <div
       class="
@@ -3716,7 +3719,10 @@
     >
 
       <form
-        class="role-notice-editor-form"
+        class="
+          role-notice-editor-form
+          role-notice-editor-form--global-style
+        "
         id="roleNoticeEditorForm"
       >
 
@@ -3737,9 +3743,9 @@
 
 
         <!-- =================================================
-          대상 보직 표시
+          공지 대상
         ================================================== -->
-        <div class="role-notice-editor-target">
+        <section class="role-notice-editor-target">
 
           <span>
             공지 대상
@@ -3749,13 +3755,106 @@
             TGO
           </strong>
 
-        </div>
+        </section>
+
+
+        <!-- =================================================
+          중요도
+
+          보직 공지는 현재 일반·중요 두 단계
+        ================================================== -->
+        <fieldset class="role-notice-priority-fieldset">
+
+          <legend>
+            중요도
+          </legend>
+
+
+          <div
+            class="role-notice-priority-options"
+            role="radiogroup"
+            aria-label="보직 공지 중요도 선택"
+          >
+
+            <!-- 일반 -->
+            <label
+              class="
+                role-notice-priority-option
+                is-normal
+              "
+            >
+
+              <input
+                type="radio"
+                name="roleNoticePriority"
+                value="normal"
+                checked
+              />
+
+              <span class="role-notice-priority-option__indicator">
+              </span>
+
+              <span class="role-notice-priority-option__text">
+
+                <strong>
+                  일반
+                </strong>
+
+                <small>
+                  해당 보직 공지 목록에 표시
+                </small>
+
+              </span>
+
+            </label>
+
+
+            <!-- 중요 -->
+            <label
+              class="
+                role-notice-priority-option
+                is-important
+              "
+            >
+
+              <input
+                type="radio"
+                id="roleNoticeImportantInput"
+                name="roleNoticePriority"
+                value="important"
+              />
+
+              <span class="role-notice-priority-option__indicator">
+              </span>
+
+              <span class="role-notice-priority-option__text">
+
+                <strong>
+                  중요
+                </strong>
+
+                <small>
+                  공지 목록 상단에 먼저 표시
+                </small>
+
+              </span>
+
+            </label>
+
+          </div>
+
+        </fieldset>
 
 
         <!-- =================================================
           제목
         ================================================== -->
-        <label class="form-field role-notice-editor-field">
+        <label
+          class="
+            form-field
+            role-notice-editor-field
+          "
+        >
 
           <span class="form-field__label">
             공지 제목
@@ -3766,20 +3865,16 @@
             id="roleNoticeTitleInput"
             name="roleNoticeTitle"
             maxlength="80"
-            placeholder="공지 제목을 입력하세요."
+            placeholder="보직 공지 제목을 입력하세요."
             autocomplete="off"
             required
           />
-
-          <small class="role-notice-editor-help">
-            근무자 카드와 공지 목록에 표시되는 제목입니다.
-          </small>
 
         </label>
 
 
         <!-- =================================================
-          공지 내용
+          내용
         ================================================== -->
         <label
           class="
@@ -3796,11 +3891,12 @@
           <textarea
             id="roleNoticeContentInput"
             name="roleNoticeContent"
-            rows="7"
+            rows="8"
             maxlength="2000"
-            placeholder="공지 내용을 입력하세요."
+            placeholder="보직 공지 내용을 입력하세요."
             required
           ></textarea>
+
 
           <div class="role-notice-editor-content-meta">
 
@@ -3832,6 +3928,7 @@
 
           <div class="role-notice-period-grid">
 
+            <!-- 시작일 -->
             <label class="form-field">
 
               <span class="form-field__label">
@@ -3856,6 +3953,7 @@
             </span>
 
 
+            <!-- 종료일 -->
             <label class="form-field">
 
               <span class="form-field__label">
@@ -3875,40 +3973,10 @@
 
 
           <p class="role-notice-period-help">
-            시작일부터 종료일까지 근무자 카드의 활성 공지로 표시됩니다.
+            설정한 기간 동안 해당 보직의 활성 공지로 표시됩니다.
           </p>
 
         </fieldset>
-
-
-        <!-- =================================================
-          중요 공지 여부
-        ================================================== -->
-        <label class="role-notice-important-check">
-
-          <input
-            type="checkbox"
-            id="roleNoticeImportantInput"
-            name="roleNoticeImportant"
-          />
-
-          <span class="role-notice-important-check__box">
-            ✓
-          </span>
-
-          <span class="role-notice-important-check__text">
-
-            <strong>
-              중요 공지
-            </strong>
-
-            <small>
-              중요 공지는 공지 목록 상단에 먼저 표시됩니다.
-            </small>
-
-          </span>
-
-        </label>
 
 
         <!-- 유효성 안내 -->
@@ -3938,7 +4006,7 @@
       <div class="modal-footer__left">
 
         <span class="role-notice-editor-footer-help">
-          종료된 공지는 카드에서 사라지지만 관리 목록에는 보관됩니다.
+          종료일이 지나면 활성 공지에서 자동으로 제외됩니다.
         </span>
 
       </div>
