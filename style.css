@@ -37337,3 +37337,429 @@ body {
     color: #ffffff !important;
   }
 }
+
+/* =========================================================
+  모바일 근무자 현황 최종 보정
+
+  1. 공지 버튼 초소형화
+  2. 현재 근무 정보 오른쪽 정렬
+  3. 이전·다음 날짜 버튼 터치 영역 확대
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    근무자 현황 제목과 현재 근무 정보
+
+    왼쪽  : 근무자 현황
+    오른쪽: 2026.07.29(수) · D/S · 4파트
+  ====================================================== */
+
+  #statusView
+  .shift-status-section
+  .section-heading {
+    display: grid !important;
+
+    grid-template-columns:
+      auto
+      minmax(0, 1fr) !important;
+
+    align-items: end !important;
+
+    gap: 8px !important;
+
+    margin-bottom: 9px !important;
+  }
+
+
+  #statusView
+  .shift-status-section
+  .section-heading > div:first-child {
+    min-width: 0 !important;
+  }
+
+
+  #statusView
+  .shift-status-section
+  .shift-summary {
+    display: flex !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    justify-content: flex-end !important;
+
+    justify-self: end !important;
+
+    gap: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    text-align: right !important;
+  }
+
+
+  /*
+    "현재 근무" 글자는 모바일에서 숨김
+  */
+  #statusView
+  .shift-status-section
+  .shift-summary__label {
+    display: none !important;
+  }
+
+
+  #statusView
+  .shift-status-section
+  .shift-summary__value {
+    display: block !important;
+
+    width: auto !important;
+    max-width: 100% !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: #536178 !important;
+
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    line-height: 1.25 !important;
+    letter-spacing: -0.035em !important;
+
+    text-align: right !important;
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    근무자 카드와 공지 버튼 사이 공간 축소
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .shift-member-card-wrap {
+    display: grid !important;
+
+    grid-template-rows:
+      16px
+      minmax(0, 1fr) !important;
+
+    row-gap: 2px !important;
+
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  /* =====================================================
+    파트장 공지 빈 공간
+
+    다른 보직 카드와 높이를 맞춘다.
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-placeholder {
+    display: block !important;
+
+    grid-row: 1 !important;
+
+    width: 100% !important;
+
+    height: 16px !important;
+    min-height: 16px !important;
+    max-height: 16px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+
+  /* =====================================================
+    공지 버튼 초소형화
+
+    글자 양옆 내부 여백 제거
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button {
+    position: relative !important;
+
+    grid-row: 1 !important;
+
+    display: inline-flex !important;
+
+    width: 22px !important;
+    min-width: 22px !important;
+    max-width: 22px !important;
+
+    height: 15px !important;
+    min-height: 15px !important;
+    max-height: 15px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    align-self: end !important;
+    justify-self: end !important;
+
+    gap: 0 !important;
+
+    order: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: hidden !important;
+
+    border:
+      1px
+      solid
+      #c9d3df !important;
+
+    border-radius: 4px !important;
+
+    background: #ffffff !important;
+    color: #667589 !important;
+
+    font-size: 7px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.08em !important;
+
+    white-space: nowrap !important;
+
+    box-shadow: none !important;
+    transform: none !important;
+
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+
+  /*
+    이전 CSS에서 생성한 가상 문구 제거
+  */
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button::before,
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button::after {
+    display: none !important;
+    content: none !important;
+  }
+
+
+  /*
+    아이콘과 숫자 숨김
+  */
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button__icon,
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button__count {
+    display: none !important;
+  }
+
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button__label {
+    display: block !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: inherit !important;
+
+    font-size: 7px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.08em !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /*
+    활성 공지가 있을 때
+  */
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice {
+    border-color: #2771be !important;
+
+    background: #1f5fae !important;
+    color: #ffffff !important;
+
+    box-shadow: none !important;
+  }
+
+
+  /* =====================================================
+    날짜 이동 카드
+
+    이전·다음 버튼의 가로 터치 영역 확대
+  ====================================================== */
+
+  #statusView
+  .date-navigation-section {
+    display: grid !important;
+
+    grid-template-columns:
+      58px
+      minmax(0, 1fr)
+      58px !important;
+
+    grid-template-areas:
+      "previous center next"
+      "today today today" !important;
+
+    align-items: center !important;
+
+    gap: 7px 8px !important;
+
+    width: 100% !important;
+
+    margin: 0 0 9px !important;
+    padding: 9px !important;
+  }
+
+
+  #statusView
+  #previousDateButton {
+    grid-area: previous !important;
+  }
+
+
+  #statusView
+  #nextDateButton {
+    grid-area: next !important;
+  }
+
+
+  /* =====================================================
+    이전·다음 버튼
+
+    기존 34px 정사각형에서
+    58px × 42px 가로형 버튼으로 확대
+  ====================================================== */
+
+  #statusView
+  .date-nav-button {
+    display: inline-flex !important;
+
+    width: 58px !important;
+    min-width: 58px !important;
+    max-width: 58px !important;
+
+    height: 42px !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border:
+      1px
+      solid
+      #c8d4e0 !important;
+
+    border-radius: 10px !important;
+
+    background: #ffffff !important;
+    color: #41526a !important;
+
+    font-size: 24px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+
+    box-shadow: none !important;
+
+    touch-action: manipulation !important;
+
+    -webkit-user-select: none !important;
+    user-select: none !important;
+
+    -webkit-tap-highlight-color: transparent;
+  }
+
+
+  #statusView
+  .date-nav-button:active {
+    border-color: #8eafd1 !important;
+
+    background: #edf5fc !important;
+    color: #1f5fae !important;
+
+    transform: scale(0.98) !important;
+  }
+
+
+  /*
+    가운데 날짜 영역
+  */
+  #statusView
+  .date-navigation__center {
+    grid-area: center !important;
+
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+
+/* =========================================================
+  작은 모바일 추가 보정
+========================================================= */
+
+@media (max-width: 390px) {
+
+  #statusView
+  .date-navigation-section {
+    grid-template-columns:
+      52px
+      minmax(0, 1fr)
+      52px !important;
+
+    gap: 6px !important;
+
+    padding: 8px !important;
+  }
+
+
+  #statusView
+  .date-nav-button {
+    width: 52px !important;
+    min-width: 52px !important;
+    max-width: 52px !important;
+
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+  }
+
+
+  #statusView
+  .shift-status-section
+  .shift-summary__value {
+    font-size: 9px !important;
+  }
+}
