@@ -46433,3 +46433,55 @@ input {
     line-height: 28px !important;
   }
 }
+
+/* =========================================================
+  조회 시작일·종료일 가운데 간격 최종 보정
+========================================================= */
+
+@media (max-width: 768px) {
+
+  #searchView
+  .search-form-date-row {
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(0, 1fr) !important;
+
+    column-gap: 8px !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+
+  #searchView
+  .search-date-field {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #searchView
+  #searchStartDate,
+
+  #searchView
+  #searchEndDate {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    margin: 0 !important;
+
+    box-sizing: border-box !important;
+
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
+}
