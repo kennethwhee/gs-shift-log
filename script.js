@@ -31241,12 +31241,1092 @@ function loadLogs() {
 }
 
 /* =========================================================
+  모바일 업무일지 목록
+
+  PC:
+  - 기존 표 유지
+
+  모바일:
+  - 업무일지 1건당 카드 1개
+  - 운전현황·TM·인계·비고를 세로로 표시
+  - 각 영역은 최대 2건만 미리보기
+  - 전체 내용은 카드 또는 상세보기 버튼으로 확인
+========================================================= */
+
+
+/* =========================================================
+  모바일 화면 판정
+========================================================= */
+
+function isShiftLogMobileView() {
+  return window.matchMedia(
+    "(max-width: 768px)"
+  ).matches;
+}
+
+
+/* =========================================================
+  모바일 목록 컨테이너 생성
+
+  index.html을 수정하지 않고
+  기존 업무일지 표 바로 아래에 자동으로 추가한다.
+========================================================= */
+
+function ensureMobileLogListContainer() {
+  let container =
+    document.getElementById(
+      "mobileLogCardList"
+    );
+
+
+  if (
+    container
+  ) {
+    return container;
+  }
+
+
+  const tableWrap =
+    elements.logTableBody
+      ?.closest(
+        ".log-table-wrap"
+      );
+
+
+  if (
+    !tableWrap
+  ) {
+    return null;
+  }
+
+
+  container =
+    document.createElement(
+      "div"
+    );
+
+
+  container.id =
+    "mobileLogCardList";
+
+
+  container.className =
+    "mobile-log-card-list";
+
+
+  container.setAttribute(
+    "aria-label",
+    "모바일 업무일지 목록"
+  );
+
+
+  tableWrap.insertAdjacentElement(
+    "afterend",
+    container
+  );
+
+
+  /*
+    기존 업무일지 클릭 처리 함수를 그대로 사용한다.
+
+    상세보기·수정·삭제·첨부파일 기능을
+    모바일 카드에서도 동일하게 유지한다.
+  */
+  container.addEventListener(
+    "click",
+    handleLogTableClick
+  );
+
+
+  return container;
+}
+
+
+/* =========================================================
+  항목 구분 정규화
+========================================================= */
+
+function getMobileLogEntrySection(
+  entry
+) {
+  const category =
+    String(
+      entry?.category ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  if (
+    category.startsWith(
+      "TM발행"
+    )
+  ) {
+    return "tm";
+  }
+
+
+  if (
+    category.includes(
+      "비고"
+    )
+  ) {
+    return "note";
+  }
+
+
+  return "handover";
+}
+
+
+/* =========================================================
+  업무일지 항목 전체 수집
+
+  우선순위:
+  - 분리 배열
+  - 기존 entries
+  - 기존 note 문자열
+========================================================= */
+
+function collectMobileLogPreviewEntries(
+  log
+) {
+  const collectedEntries = [];
+
+
+  const appendEntry = (
+    entry,
+    fallbackCategory
+  ) => {
+    const content =
+      String(
+        entry?.content ||
+        entry?.text ||
+        ""
+      ).trim();
+
+
+    if (
+      !content
+    ) {
+      return;
+    }
+
+
+    collectedEntries.push({
+      category:
+        String(
+          entry?.category ||
+          fallbackCategory ||
+          "인계사항"
+        ).trim(),
+
+      time:
+        String(
+          entry?.time ||
+          ""
+        ).trim(),
+
+      tag:
+        String(
+          entry?.tag ||
+          ""
+        )
+          .trim()
+          .toUpperCase(),
+
+      content,
+
+      importedFromRole:
+        normalizeMemberLogRole(
+          entry?.importedFromRole ||
+          entry?.sourceRole ||
+          ""
+        )
+    });
+  };
+
+
+  /*
+    최신 분리 저장 구조
+  */
+  if (
+    Array.isArray(
+      log?.tmEntries
+    )
+  ) {
+    log.tmEntries.forEach(
+      entry => {
+        appendEntry(
+          entry,
+          "TM 발행"
+        );
+      }
+    );
+  }
+
+
+  if (
+    Array.isArray(
+      log?.handoverEntries
+    )
+  ) {
+    log.handoverEntries.forEach(
+      entry => {
+        appendEntry(
+          entry,
+          "인계사항"
+        );
+      }
+    );
+  }
+
+
+  if (
+    Array.isArray(
+      log?.remarkEntries
+    )
+  ) {
+    log.remarkEntries.forEach(
+      entry => {
+        appendEntry(
+          entry,
+          "비고"
+        );
+      }
+    );
+  }
+
+
+  /*
+    분리 배열에 아무 내용도 없을 때만
+    기존 entries 배열을 사용한다.
+  */
+  if (
+    collectedEntries.length ===
+      0 &&
+    Array.isArray(
+      log?.entries
+    )
+  ) {
+    log.entries.forEach(
+      entry => {
+        appendEntry(
+          entry,
+          "인계사항"
+        );
+      }
+    );
+  }
+
+
+  /*
+    비고 항목이 없을 때
+    기존 note 문자열을 추가한다.
+  */
+  const hasNoteEntry =
+    collectedEntries.some(
+      entry => {
+        return (
+          getMobileLogEntrySection(
+            entry
+          ) ===
+          "note"
+        );
+      }
+    );
+
+
+  if (
+    !hasNoteEntry &&
+    String(
+      log?.note ||
+      ""
+    ).trim()
+  ) {
+    String(
+      log.note
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .split(
+        "\n"
+      )
+      .map(
+        line => {
+          return String(
+            line ||
+            ""
+          )
+            .replace(
+              /^\s*\d+\s*[.)\-:]\s*/,
+              ""
+            )
+            .trim();
+        }
+      )
+      .filter(Boolean)
+      .forEach(
+        content => {
+          collectedEntries.push({
+            category:
+              "비고",
+
+            time:
+              "",
+
+            tag:
+              "",
+
+            content,
+
+            importedFromRole:
+              ""
+          });
+        }
+      );
+  }
+
+
+  /*
+    완전 중복 제거
+  */
+  const uniqueEntryMap =
+    new Map();
+
+
+  collectedEntries.forEach(
+    entry => {
+      const uniqueKey = [
+        entry.category,
+        entry.time,
+        entry.tag,
+        entry.content,
+        entry.importedFromRole
+      ]
+        .map(
+          value => {
+            return String(
+              value ||
+              ""
+            )
+              .replace(
+                /\s+/g,
+                " "
+              )
+              .trim()
+              .toUpperCase();
+          }
+        )
+        .join(
+          "||"
+        );
+
+
+      if (
+        !uniqueEntryMap.has(
+          uniqueKey
+        )
+      ) {
+        uniqueEntryMap.set(
+          uniqueKey,
+          entry
+        );
+      }
+    }
+  );
+
+
+  return [
+    ...uniqueEntryMap.values()
+  ];
+}
+
+
+/* =========================================================
+  운전현황 모바일 미리보기 항목
+========================================================= */
+
+function collectMobileOperationPreviewItems(
+  log
+) {
+  const sourceItems =
+    Array.isArray(
+      log?.operationStatusItems
+    )
+      ? log.operationStatusItems
+      : (
+          Array.isArray(
+            log?.operationItems
+          )
+            ? log.operationItems
+            : []
+        );
+
+
+  if (
+    sourceItems.length
+  ) {
+    return sourceItems
+      .map(
+        item => {
+          const name =
+            String(
+              item?.name ||
+              item?.equipmentName ||
+              item?.equipment ||
+              ""
+            ).trim();
+
+
+          const state =
+            String(
+              item?.stateLabel ||
+              item?.statusLabel ||
+              item?.typeLabel ||
+              item?.state ||
+              item?.type ||
+              ""
+            ).trim();
+
+
+          const content =
+            String(
+              item?.content ||
+              item?.text ||
+              ""
+            ).trim();
+
+
+          const combinedText = [
+            name,
+            state,
+            content
+          ]
+            .filter(Boolean)
+            .join(
+              " · "
+            );
+
+
+          return combinedText;
+        }
+      )
+      .filter(Boolean);
+  }
+
+
+  const operationText =
+    String(
+      log?.operationStatus ||
+      log?.operationStatusContent ||
+      ""
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .trim();
+
+
+  if (
+    !operationText
+  ) {
+    return [];
+  }
+
+
+  return operationText
+    .split(
+      "\n"
+    )
+    .map(
+      line => {
+        return String(
+          line ||
+          ""
+        )
+          .replace(
+            /^\s*\d+\s*[.)\-:]\s*/,
+            ""
+          )
+          .trim();
+      }
+    )
+    .filter(Boolean);
+}
+
+
+/* =========================================================
+  모바일 미리보기 한 항목
+========================================================= */
+
+function createMobileLogPreviewItemHtml(
+  entry,
+  index,
+  sectionType
+) {
+  const numberClass =
+    sectionType ===
+      "tm"
+      ? "is-tm"
+      : "is-handover";
+
+
+  return `
+    <div class="mobile-log-preview-item">
+
+      <span
+        class="
+          mobile-log-preview-item__number
+          ${numberClass}
+        "
+      >
+        ${index + 1}.
+      </span>
+
+
+      <div class="mobile-log-preview-item__main">
+
+        <div class="mobile-log-preview-item__line">
+
+          ${
+            entry.time
+              ? `
+                <span class="mobile-log-preview-item__time">
+                  ${escapeHtml(
+                    entry.time
+                  )}
+                </span>
+              `
+              : ""
+          }
+
+
+          ${
+            entry.tag
+              ? `
+                <button
+                  type="button"
+                  class="mobile-log-preview-item__tag"
+                  data-action="tag"
+                  data-log-tag="${escapeHtml(
+                    entry.tag
+                  )}"
+                >
+                  ${escapeHtml(
+                    entry.tag
+                  )}
+                </button>
+              `
+              : ""
+          }
+
+
+          <span class="mobile-log-preview-item__text">
+            ${escapeHtml(
+              firstMeaningfulLine(
+                entry.content
+              ) ||
+              "-"
+            )}
+          </span>
+
+        </div>
+
+      </div>
+
+    </div>
+  `;
+}
+
+
+/* =========================================================
+  모바일 미리보기 섹션
+========================================================= */
+
+function createMobileLogSectionHtml(
+  title,
+  entries,
+  sectionType,
+  options = {}
+) {
+  const {
+    maximumPreviewCount =
+      2
+  } = options;
+
+
+  const safeEntries =
+    Array.isArray(
+      entries
+    )
+      ? entries
+      : [];
+
+
+  if (
+    !safeEntries.length
+  ) {
+    return "";
+  }
+
+
+  const previewEntries =
+    safeEntries.slice(
+      0,
+      maximumPreviewCount
+    );
+
+
+  const remainingCount =
+    Math.max(
+      0,
+      safeEntries.length -
+      previewEntries.length
+    );
+
+
+  return `
+    <section
+      class="
+        mobile-log-preview-section
+        is-${sectionType}
+      "
+    >
+
+      <div class="mobile-log-preview-section__header">
+
+        <strong>
+          ${escapeHtml(
+            title
+          )}
+        </strong>
+
+        <span>
+          ${safeEntries.length}건
+        </span>
+
+      </div>
+
+
+      <div class="mobile-log-preview-section__body">
+
+        ${previewEntries
+          .map(
+            (
+              entry,
+              index
+            ) => {
+              return createMobileLogPreviewItemHtml(
+                entry,
+                index,
+                sectionType
+              );
+            }
+          )
+          .join("")}
+
+
+        ${
+          remainingCount >
+          0
+            ? `
+              <span class="mobile-log-preview-section__more">
+                외 ${remainingCount}건
+              </span>
+            `
+            : ""
+        }
+
+      </div>
+
+    </section>
+  `;
+}
+
+
+/* =========================================================
+  모바일 업무일지 카드 1개
+========================================================= */
+
+function createMobileLogCardHtml(
+  log
+) {
+  const entries =
+    collectMobileLogPreviewEntries(
+      log
+    );
+
+
+  const tmEntries =
+    entries.filter(
+      entry => {
+        return (
+          getMobileLogEntrySection(
+            entry
+          ) ===
+          "tm"
+        );
+      }
+    );
+
+
+  const handoverEntries =
+    entries.filter(
+      entry => {
+        return (
+          getMobileLogEntrySection(
+            entry
+          ) ===
+          "handover"
+        );
+      }
+    );
+
+
+  const noteEntries =
+    entries.filter(
+      entry => {
+        return (
+          getMobileLogEntrySection(
+            entry
+          ) ===
+          "note"
+        );
+      }
+    );
+
+
+  const operationItems =
+    collectMobileOperationPreviewItems(
+      log
+    )
+      .slice(
+        0,
+        2
+      )
+      .map(
+        content => {
+          return {
+            time:
+              "",
+
+            tag:
+              "",
+
+            content
+          };
+        }
+      );
+
+
+  const attachmentCount =
+    Array.isArray(
+      log?.attachments
+    )
+      ? log.attachments.length
+      : Number(
+          log?.legacyAttachmentCount ||
+          0
+        );
+
+
+  const statusText =
+    String(
+      log?.status ||
+      "-"
+    ).trim();
+
+
+  const statusClass =
+    getStatusClass(
+      statusText
+    );
+
+
+  const isEditable =
+    !isReadOnlyLegacyShiftLog(
+      log
+    );
+
+
+  const editButtonText =
+    statusText ===
+      "작성중" ||
+    statusText ===
+      "임시저장"
+      ? "이어쓰기"
+      : "수정";
+
+
+  return `
+    <article
+      class="mobile-log-card"
+      data-mobile-log-id="${escapeHtml(
+        log.id
+      )}"
+    >
+
+      <button
+        type="button"
+        class="mobile-log-card__open"
+        data-action="view"
+        data-log-id="${escapeHtml(
+          log.id
+        )}"
+        aria-label="${escapeHtml(
+          log.role ||
+          "업무일지"
+        )} 상세보기"
+      >
+
+        <header class="mobile-log-card__header">
+
+          <div class="mobile-log-card__identity">
+
+            <strong class="mobile-log-card__role">
+              ${escapeHtml(
+                log.role ||
+                "-"
+              )}
+            </strong>
+
+            <span class="mobile-log-card__author">
+              ${escapeHtml(
+                log.author ||
+                "-"
+              )}
+            </span>
+
+            ${
+              log.isSubstitute ===
+                true
+                ? `
+                  <span class="mobile-log-card__substitute">
+                    대근
+                  </span>
+                `
+                : ""
+            }
+
+          </div>
+
+
+          <span
+            class="
+              status-badge
+              ${statusClass}
+            "
+          >
+            ${escapeHtml(
+              statusText
+            )}
+          </span>
+
+        </header>
+
+
+        <div class="mobile-log-card__preview">
+
+          ${createMobileLogSectionHtml(
+            "운전현황",
+            operationItems,
+            "operation"
+          )}
+
+
+          ${createMobileLogSectionHtml(
+            "TM 발행 내역",
+            tmEntries,
+            "tm"
+          )}
+
+
+          ${createMobileLogSectionHtml(
+            normalizeMemberLogRole(
+              log.role
+            ) ===
+              "파트장"
+              ? "인계 및 업무"
+              : "인계사항",
+            handoverEntries,
+            "handover"
+          )}
+
+
+          ${createMobileLogSectionHtml(
+            "비고",
+            noteEntries,
+            "note",
+            {
+              maximumPreviewCount:
+                1
+            }
+          )}
+
+
+          ${
+            !operationItems.length &&
+            !tmEntries.length &&
+            !handoverEntries.length &&
+            !noteEntries.length
+              ? `
+                <p class="mobile-log-card__empty">
+                  등록된 업무 내용이 없습니다.
+                </p>
+              `
+              : ""
+          }
+
+        </div>
+
+      </button>
+
+
+      <footer class="mobile-log-card__footer">
+
+        <button
+          type="button"
+          class="mobile-log-card__detail-button"
+          data-action="view"
+          data-log-id="${escapeHtml(
+            log.id
+          )}"
+        >
+          상세보기
+        </button>
+
+
+        ${
+          attachmentCount >
+          0
+            ? `
+              <button
+                type="button"
+                class="mobile-log-card__attachment-button"
+                data-action="attachment"
+                data-log-id="${escapeHtml(
+                  log.id
+                )}"
+              >
+                첨부 ${attachmentCount}개
+              </button>
+            `
+            : `
+              <span class="mobile-log-card__attachment-empty">
+                첨부 없음
+              </span>
+            `
+        }
+
+
+        ${
+          isEditable
+            ? `
+              <button
+                type="button"
+                class="mobile-log-card__edit-button"
+                data-action="edit"
+                data-log-id="${escapeHtml(
+                  log.id
+                )}"
+              >
+                ${editButtonText}
+              </button>
+            `
+            : ""
+        }
+
+      </footer>
+
+    </article>
+  `;
+}
+
+
+/* =========================================================
+  모바일 업무일지 목록 렌더링
+========================================================= */
+
+function renderMobileLogCards(
+  logs
+) {
+  const container =
+    ensureMobileLogListContainer();
+
+
+  if (
+    !container
+  ) {
+    return;
+  }
+
+
+  const safeLogs =
+    Array.isArray(
+      logs
+    )
+      ? logs
+      : [];
+
+
+  if (
+    !safeLogs.length
+  ) {
+    container.innerHTML =
+      "";
+
+
+    container.hidden =
+      true;
+
+
+    return;
+  }
+
+
+  container.hidden =
+    false;
+
+
+  container.innerHTML =
+    safeLogs
+      .map(
+        log => {
+          return createMobileLogCardHtml(
+            log
+          );
+        }
+      )
+      .join("");
+}
+
+/* =========================================================
   업무일지 목록 렌더링 최종본
 
-  첨부파일:
-  - 0개: -
-  - 1개 이상: 🖼 개수 버튼
-  - 버튼 클릭 시 openAttachmentSelector() 실행
+  PC:
+  - 기존 표 렌더링
+
+  모바일:
+  - 별도 카드 렌더링
+
+  두 화면은 같은 업무일지 데이터를 사용한다.
 ========================================================= */
 
 function renderLogTable() {
@@ -31258,22 +32338,26 @@ function renderLogTable() {
 
   const filteredLogs =
     appState.logs.filter(
-      (log) => {
+      log => {
         return (
           String(
-            log.date ||
+            log?.date ||
             ""
           ).trim() ===
             selectedDateText &&
 
           String(
-            log.shift ||
+            log?.shift ||
             ""
-          ).trim() ===
+          )
+            .trim()
+            .toUpperCase() ===
             String(
               appState.selectedShift ||
               ""
-            ).trim()
+            )
+              .trim()
+              .toUpperCase()
         );
       }
     );
@@ -31287,12 +32371,24 @@ function renderLogTable() {
   }
 
 
+  /*
+    기존 PC 표 초기화
+  */
   elements.logTableBody.innerHTML =
     "";
 
 
   elements.logEmptyState.hidden =
-    filteredLogs.length > 0;
+    filteredLogs.length >
+    0;
+
+
+  /*
+    모바일 카드도 항상 함께 갱신한다.
+  */
+  renderMobileLogCards(
+    filteredLogs
+  );
 
 
   if (
@@ -31304,8 +32400,15 @@ function renderLogTable() {
   }
 
 
+  /*
+    PC 표 렌더링
+
+    모바일에서는 CSS로 숨기지만,
+    화면 크기가 바뀔 때 다시 서버 조회하지 않아도
+    바로 PC 표가 나타날 수 있도록 계속 생성한다.
+  */
   filteredLogs.forEach(
-    (log) => {
+    log => {
       elements.logTableBody
         .insertAdjacentHTML(
           "beforeend",
@@ -31318,9 +32421,7 @@ function renderLogTable() {
 
 
   /*
-    createLogRowHtml()에서 생성한 각 행과
-    filteredLogs의 순서가 동일하므로,
-    행별 첨부파일 셀을 안전하게 다시 구성한다.
+    기존 첨부파일 셀 재구성
   */
   const renderedRows = [
     ...elements.logTableBody
@@ -31367,14 +32468,16 @@ function renderLogTable() {
 
 
       const attachmentCount =
-        attachments.length;
+        attachments.length ||
+        Number(
+          log.legacyAttachmentCount ||
+          0
+        );
 
 
-      /*
-        첨부파일 없음
-      */
       if (
-        attachmentCount === 0
+        attachmentCount ===
+        0
       ) {
         attachmentCell.innerHTML = `
           <span
@@ -31388,16 +32491,11 @@ function renderLogTable() {
           </span>
         `;
 
+
         return;
       }
 
 
-      /*
-        첨부파일 있음
-
-        클릭 이벤트는
-        handleLogTableClick()에서 처리한다.
-      */
       attachmentCell.innerHTML = `
         <button
           type="button"
@@ -31416,7 +32514,7 @@ function renderLogTable() {
             class="diary-attachment-button__icon"
             aria-hidden="true"
           >
-            🖼
+            📎
           </span>
 
           <span
@@ -33036,6 +34134,28 @@ function createLogRowHtml(log) {
 function handleLogTableClick(
   event
 ) {
+    const tagButton =
+    event.target.closest(
+      "[data-log-tag]"
+    );
+
+
+  if (
+    tagButton
+  ) {
+    event.preventDefault();
+
+    event.stopPropagation();
+
+
+    openFacilityNavigator(
+      tagButton.dataset.logTag
+    );
+
+
+    return;
+  }
+  
   if (
     !elements.logTableBody
   ) {

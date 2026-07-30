@@ -35320,3 +35320,449 @@ body {
     height: 22px !important;
   }
 }
+
+/* =========================================================
+  모바일 업무일지 목록 카드 최종본
+
+  PC:
+  - 기존 표 표시
+  - 모바일 카드 숨김
+
+  모바일:
+  - 기존 표 숨김
+  - 모바일 카드 표시
+========================================================= */
+
+
+/* =========================================================
+  기본 상태
+========================================================= */
+
+.mobile-log-card-list {
+  display: none;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    업무일지 구역
+  ====================================================== */
+
+  .log-list-section {
+    padding: 12px !important;
+  }
+
+
+  .log-list-section
+  .section-heading {
+    margin-bottom: 11px !important;
+  }
+
+
+  .log-list-section
+  .section-heading__title {
+    font-size: 22px !important;
+  }
+
+
+  /* =====================================================
+    PC 표 숨김
+  ====================================================== */
+
+  .log-list-section
+  .log-table-wrap {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    빈 상태
+  ====================================================== */
+
+  .log-list-section
+  .empty-state {
+    padding: 28px 12px;
+  }
+
+
+  /* =====================================================
+    모바일 목록
+  ====================================================== */
+
+  .mobile-log-card-list {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+
+  .mobile-log-card-list[hidden] {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    카드
+  ====================================================== */
+
+  .mobile-log-card {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid #d5e0eb;
+    border-radius: 11px;
+    background: #ffffff;
+    box-shadow:
+      0 3px 10px
+      rgba(20, 35, 55, 0.045);
+  }
+
+
+  .mobile-log-card__open {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+  }
+
+
+  /* =====================================================
+    카드 상단
+  ====================================================== */
+
+  .mobile-log-card__header {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 11px;
+    border-bottom: 1px solid #e2e8ef;
+    background: #fbfcfe;
+  }
+
+
+  .mobile-log-card__identity {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+  }
+
+
+  .mobile-log-card__role {
+    flex: 0 0 auto;
+    color: #1f5fae;
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1.3;
+  }
+
+
+  .mobile-log-card__author {
+    min-width: 0;
+    overflow: hidden;
+    color: #24344b;
+    font-size: 13px;
+    font-weight: 850;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+
+  .mobile-log-card__substitute {
+    display: inline-flex;
+    flex: 0 0 auto;
+    min-height: 19px;
+    align-items: center;
+    padding: 0 6px;
+    border: 1px solid #f0be6c;
+    border-radius: 999px;
+    background: #fff7e8;
+    color: #a25d08;
+    font-size: 8px;
+    font-weight: 900;
+  }
+
+
+  .mobile-log-card__header
+  .status-badge {
+    flex: 0 0 auto;
+    min-width: 56px;
+    min-height: 21px;
+    padding: 0 7px;
+    font-size: 9px;
+  }
+
+
+  /* =====================================================
+    미리보기 전체
+  ====================================================== */
+
+  .mobile-log-card__preview {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    padding: 0 11px;
+  }
+
+
+  .mobile-log-card__empty {
+    margin: 0;
+    padding: 16px 0;
+    color: #8a96a5;
+    font-size: 11px;
+    text-align: center;
+  }
+
+
+  /* =====================================================
+    미리보기 섹션
+  ====================================================== */
+
+  .mobile-log-preview-section {
+    display: grid;
+    min-width: 0;
+    grid-template-columns:
+      72px
+      minmax(0, 1fr);
+    gap: 8px;
+    padding: 9px 0;
+  }
+
+
+  .mobile-log-preview-section
+  +
+  .mobile-log-preview-section {
+    border-top: 1px solid #e8edf3;
+  }
+
+
+  .mobile-log-preview-section__header {
+    min-width: 0;
+  }
+
+
+  .mobile-log-preview-section__header
+  strong {
+    display: block;
+    color: #485a71;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1.4;
+    word-break: keep-all;
+  }
+
+
+  .mobile-log-preview-section__header
+  span {
+    display: block;
+    margin-top: 3px;
+    color: #98a2af;
+    font-size: 8px;
+    font-weight: 750;
+  }
+
+
+  .mobile-log-preview-section.is-operation
+  .mobile-log-preview-section__header
+  strong {
+    color: #1f5fae;
+  }
+
+
+  .mobile-log-preview-section.is-tm
+  .mobile-log-preview-section__header
+  strong {
+    color: #17865f;
+  }
+
+
+  .mobile-log-preview-section.is-handover
+  .mobile-log-preview-section__header
+  strong {
+    color: #ad6b0c;
+  }
+
+
+  .mobile-log-preview-section.is-note
+  .mobile-log-preview-section__header
+  strong {
+    color: #667181;
+  }
+
+
+  .mobile-log-preview-section__body {
+    min-width: 0;
+  }
+
+
+  /* =====================================================
+    미리보기 한 항목
+  ====================================================== */
+
+  .mobile-log-preview-item {
+    display: grid;
+    min-width: 0;
+    grid-template-columns:
+      18px
+      minmax(0, 1fr);
+    gap: 4px;
+  }
+
+
+  .mobile-log-preview-item
+  +
+  .mobile-log-preview-item {
+    margin-top: 5px;
+  }
+
+
+  .mobile-log-preview-item__number {
+    display: block;
+    padding-top: 1px;
+    color: #1f5fae;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1.45;
+    text-align: right;
+  }
+
+
+  .mobile-log-preview-item__number.is-tm {
+    color: #b87412;
+  }
+
+
+  .mobile-log-preview-item__main {
+    min-width: 0;
+  }
+
+
+  .mobile-log-preview-item__line {
+    display: block;
+    min-width: 0;
+    color: #26364b;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.45;
+  }
+
+
+  .mobile-log-preview-item__time {
+    display: inline;
+    margin-right: 4px;
+    color: #1f5fae;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+
+  .mobile-log-preview-item__tag {
+    display: inline;
+    margin: 0 4px 0 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #1763c5;
+    font: inherit;
+    font-size: 9px;
+    font-weight: 900;
+    line-height: inherit;
+    vertical-align: baseline;
+  }
+
+
+  .mobile-log-preview-item__text {
+    display: inline;
+    color: #26364b;
+    font: inherit;
+    line-height: inherit;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+
+  .mobile-log-preview-section__more {
+    display: block;
+    margin-top: 5px;
+    color: #7c8999;
+    font-size: 9px;
+    font-weight: 750;
+  }
+
+
+  /* =====================================================
+    카드 하단
+  ====================================================== */
+
+  .mobile-log-card__footer {
+    display: grid;
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto
+      auto;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-top: 1px solid #e2e8ef;
+    background: #fbfcfe;
+  }
+
+
+  .mobile-log-card__detail-button,
+  .mobile-log-card__attachment-button,
+  .mobile-log-card__edit-button {
+    display: inline-flex;
+    min-height: 30px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    border-radius: 7px;
+    font-size: 9px;
+    font-weight: 900;
+  }
+
+
+  .mobile-log-card__detail-button {
+    justify-self: start;
+    border: 1px solid #b9cee5;
+    background: #eef5fc;
+    color: #1f5fae;
+  }
+
+
+  .mobile-log-card__attachment-button {
+    border: 1px solid #d0dce9;
+    background: #ffffff;
+    color: #53677e;
+  }
+
+
+  .mobile-log-card__attachment-empty {
+    color: #9ba5b1;
+    font-size: 9px;
+    font-weight: 700;
+  }
+
+
+  .mobile-log-card__edit-button {
+    border: 1px solid #a9c4e2;
+    background: #ffffff;
+    color: #245f9e;
+  }
+}
