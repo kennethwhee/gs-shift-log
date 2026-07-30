@@ -60249,6 +60249,8 @@ if (
   - TGO → BCO1 → BCO2 보직 제목 표시
   - 보직별 건수 표시
   - 각 보직 번호를 1번부터 다시 시작
+  - MutationObserver 반복 실행 방지
+  - 모바일 화면 멈춤 현상 방지
   - PC 렌더링 구조는 변경하지 않음
 
   적용 위치:
@@ -60259,13 +60261,14 @@ if (
   const MOBILE_BREAKPOINT =
     "(max-width: 768px)";
 
+  let refreshFrameId = 0;
+  let isRefreshing = false;
 
   function isMobileShiftLogScreen() {
     return window.matchMedia(
       MOBILE_BREAKPOINT
     ).matches;
   }
-
 
   function getDirectPreviewChildren(
     previewElement
@@ -60274,7 +60277,6 @@ if (
       ...previewElement.children
     ];
   }
-
 
   function isRoleSectionElement(
     element
@@ -60285,7 +60287,6 @@ if (
       )
     );
   }
-
 
   function isRoleEntryElement(
     element
@@ -60303,14 +60304,12 @@ if (
     );
   }
 
-
   function normalizeRoleSectionTitle(
     titleElement
   ) {
     if (!titleElement) {
       return "";
     }
-
 
     const storedTitle =
       String(
@@ -60319,11 +60318,9 @@ if (
         ""
       ).trim();
 
-
     if (storedTitle) {
       return storedTitle;
     }
-
 
     const originalTitle =
       String(
@@ -60336,15 +60333,54 @@ if (
         )
         .trim();
 
-
     titleElement.dataset
       .mobileOriginalTitle =
       originalTitle;
 
-
     return originalTitle;
   }
 
+  function updateElementText(
+    element,
+    nextText
+  ) {
+    if (!element) {
+      return false;
+    }
+
+    if (
+      element.textContent ===
+      nextText
+    ) {
+      return false;
+    }
+
+    element.textContent =
+      nextText;
+
+    return true;
+  }
+
+  function updateElementHidden(
+    element,
+    nextHidden
+  ) {
+    if (!element) {
+      return false;
+    }
+
+    if (
+      element.hidden ===
+      nextHidden
+    ) {
+      return false;
+    }
+
+    element.hidden =
+      nextHidden;
+
+    return true;
+  }
 
   function refreshSingleLeaderPreview(
     previewElement
@@ -60354,17 +60390,14 @@ if (
         previewElement
       );
 
-
     const roleSections =
       directChildren.filter(
         isRoleSectionElement
       );
 
-
     if (!roleSections.length) {
       return;
     }
-
 
     roleSections.forEach(
       roleSection => {
@@ -60373,13 +60406,10 @@ if (
             ".log-preview__role-divider"
           );
 
-
         let nextElement =
           roleSection.nextElementSibling;
 
-
         const roleEntryElements = [];
-
 
         while (
           nextElement &&
@@ -60397,11 +60427,9 @@ if (
             );
           }
 
-
           nextElement =
             nextElement.nextElementSibling;
         }
-
 
         roleEntryElements.forEach(
           (
@@ -60413,14 +60441,15 @@ if (
                 ".log-preview__entry-number"
               );
 
+            const nextNumberText =
+              `${entryIndex + 1}.`;
 
-            if (numberElement) {
-              numberElement.textContent =
-                `${entryIndex + 1}.`;
-            }
+            updateElementText(
+              numberElement,
+              nextNumberText
+            );
           }
         );
-
 
         if (titleElement) {
           const originalTitle =
@@ -60428,39 +60457,66 @@ if (
               titleElement
             );
 
-
-          titleElement.textContent =
+          const nextTitleText =
             `${originalTitle} (${roleEntryElements.length}건)`;
+
+          updateElementText(
+            titleElement,
+            nextTitleText
+          );
         }
 
-
-        roleSection.hidden =
-          roleEntryElements.length ===
-          0;
+        updateElementHidden(
+          roleSection,
+          roleEntryElements.length === 0
+        );
       }
     );
   }
-
 
   function refreshMobileLeaderRoleGrouping(
     rootElement = document
   ) {
     if (
-      !isMobileShiftLogScreen()
+      !isMobileShiftLogScreen() ||
+      isRefreshing
     ) {
       return;
     }
 
+    isRefreshing = true;
 
-    rootElement
-      .querySelectorAll(
-        "#logTableBody .log-preview"
-      )
-      .forEach(
-        refreshSingleLeaderPreview
-      );
+    try {
+      rootElement
+        .querySelectorAll(
+          "#logTableBody .log-preview"
+        )
+        .forEach(
+          refreshSingleLeaderPreview
+        );
+    } finally {
+      isRefreshing = false;
+    }
   }
 
+  function scheduleMobileLeaderRoleGrouping(
+    rootElement = document
+  ) {
+    if (refreshFrameId) {
+      return;
+    }
+
+    refreshFrameId =
+      window.requestAnimationFrame(
+        () => {
+          refreshFrameId = 0;
+
+          refreshMobileLeaderRoleGrouping(
+            rootElement
+          );
+        }
+      );
+  }
 
   /*
     기존 renderLogTable 실행 직후
@@ -60468,7 +60524,6 @@ if (
   */
   const originalRenderLogTable =
     window.renderLogTable;
-
 
   if (
     typeof originalRenderLogTable ===
@@ -60484,73 +60539,127 @@ if (
             args
           );
 
-
-        window.requestAnimationFrame(
-          () => {
-            refreshMobileLeaderRoleGrouping();
-          }
-        );
-
+        scheduleMobileLeaderRoleGrouping();
 
         return result;
       };
   }
 
+  function initializeObserver() {
+    const logTableBody =
+      document.getElementById(
+        "logTableBody"
+      );
 
-  document.addEventListener(
-    "DOMContentLoaded",
-    () => {
-      window.requestAnimationFrame(
-        () => {
-          refreshMobileLeaderRoleGrouping();
+    if (
+      !logTableBody ||
+      typeof MutationObserver !==
+        "function"
+    ) {
+      return;
+    }
+
+    const observerOptions = {
+      childList: true,
+      subtree: true
+    };
+
+    const observer =
+      new MutationObserver(
+        mutationRecords => {
+          if (
+            isRefreshing ||
+            !isMobileShiftLogScreen()
+          ) {
+            return;
+          }
+
+          const hasMeaningfulChange =
+            mutationRecords.some(
+              mutationRecord => {
+                if (
+                  mutationRecord.type !==
+                  "childList"
+                ) {
+                  return false;
+                }
+
+                return (
+                  mutationRecord.addedNodes
+                    .length > 0 ||
+                  mutationRecord.removedNodes
+                    .length > 0
+                );
+              }
+            );
+
+          if (!hasMeaningfulChange) {
+            return;
+          }
+
+          if (refreshFrameId) {
+            return;
+          }
+
+          refreshFrameId =
+            window.requestAnimationFrame(
+              () => {
+                refreshFrameId = 0;
+
+                /*
+                  번호와 제목을 수정하는 동안에는
+                  MutationObserver를 잠시 중지한다.
+                */
+                observer.disconnect();
+
+                try {
+                  refreshMobileLeaderRoleGrouping(
+                    logTableBody
+                  );
+                } finally {
+                  observer.observe(
+                    logTableBody,
+                    observerOptions
+                  );
+                }
+              }
+            );
         }
       );
-    }
-  );
 
+    observer.observe(
+      logTableBody,
+      observerOptions
+    );
+  }
+
+  function initializeMobileLeaderGrouping() {
+    scheduleMobileLeaderRoleGrouping();
+    initializeObserver();
+  }
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeMobileLeaderGrouping,
+      {
+        once: true
+      }
+    );
+  } else {
+    initializeMobileLeaderGrouping();
+  }
 
   window.addEventListener(
     "resize",
     () => {
-      refreshMobileLeaderRoleGrouping();
+      scheduleMobileLeaderRoleGrouping();
+    },
+    {
+      passive: true
     }
   );
-
-
-  /*
-    날짜 이동·근무 전환·데이터 재조회처럼
-    목록 DOM이 비동기로 바뀌는 경우에도 자동 반영한다.
-  */
-  const logTableBody =
-    document.getElementById(
-      "logTableBody"
-    );
-
-
-  if (
-    logTableBody &&
-    typeof MutationObserver ===
-      "function"
-  ) {
-    const observer =
-      new MutationObserver(
-        () => {
-          refreshMobileLeaderRoleGrouping(
-            logTableBody
-          );
-        }
-      );
-
-
-    observer.observe(
-      logTableBody,
-      {
-        childList:
-          true,
-
-        subtree:
-          true
-      }
-    );
-  }
 })();
