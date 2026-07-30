@@ -37096,3 +37096,244 @@ body {
   }
 
 }
+
+/* =========================================================
+  모바일 근무자 현황 공지 버튼 최종 컴팩트 보정
+
+  적용 대상:
+  - TGO
+  - BCO1
+  - BCO2
+  - TO
+  - BO1
+  - BO2
+
+  적용 결과:
+  - □ / ■ 아이콘 제거
+  - 공지 건수 배지 숨김
+  - "공지" 글자만 표시
+  - 버튼 크기 34px × 19px
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    공지 버튼 위쪽 줄 높이
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .shift-member-card-wrap {
+    grid-template-rows:
+      19px
+      minmax(0, 1fr) !important;
+
+    row-gap: 4px !important;
+  }
+
+
+  /* =====================================================
+    파트장 공지 빈 자리
+
+    파트장에는 공지 버튼이 없지만
+    다른 보직 카드와 시작선을 맞춘다.
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-placeholder {
+    display: block !important;
+
+    width: 100% !important;
+
+    height: 19px !important;
+    min-height: 19px !important;
+    max-height: 19px !important;
+
+    flex:
+      0
+      0
+      19px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+
+  /* =====================================================
+    공지 버튼
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button {
+    position: static !important;
+
+    inset: auto !important;
+
+    z-index: 2 !important;
+
+    display: inline-flex !important;
+
+    flex:
+      0
+      0
+      19px !important;
+
+    width: 34px !important;
+    min-width: 34px !important;
+    max-width: 34px !important;
+
+    height: 19px !important;
+    min-height: 19px !important;
+    max-height: 19px !important;
+
+    align-self: flex-end !important;
+    justify-self: end !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    gap: 0 !important;
+
+    margin:
+      0
+      1px
+      0
+      0 !important;
+
+    padding: 0 !important;
+
+    overflow: hidden !important;
+
+    border:
+      1px
+      solid
+      #c9d4df !important;
+
+    border-radius: 5px !important;
+
+    background: #ffffff !important;
+    color: #667589 !important;
+
+    font-size: 8px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.02em !important;
+
+    white-space: nowrap !important;
+
+    box-shadow: none !important;
+    transform: none !important;
+
+    cursor: pointer;
+  }
+
+
+  /* =====================================================
+    기존 CSS의 가상 "공지" 문구 제거
+
+    실제 HTML의 공지 글자만 사용한다.
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button::before {
+    display: none !important;
+
+    content: none !important;
+  }
+
+
+  /* =====================================================
+    아이콘과 공지 건수 완전 숨김
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button__icon,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button__count {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    공지 글자
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button__label {
+    display: inline !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: inherit !important;
+
+    font-size: 8px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    활성 공지가 있는 버튼
+
+    숫자 대신 파란색으로 공지 유무를 표시한다.
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice {
+    border-color: #2771be !important;
+
+    background: #1f5fae !important;
+    color: #ffffff !important;
+
+    box-shadow: none !important;
+  }
+
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button:hover,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button:active,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button:focus-visible {
+    transform: none !important;
+
+    box-shadow: none !important;
+  }
+
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice:hover,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice:active,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice:focus-visible {
+    border-color: #194f91 !important;
+
+    background: #194f91 !important;
+    color: #ffffff !important;
+  }
+}
