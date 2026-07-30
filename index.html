@@ -1241,79 +1241,225 @@
 
           <form class="search-form" id="searchForm">
 
-            <div class="search-form__grid">
+<div class="search-form__grid">
 
-              <label class="form-field">
-                <span class="form-field__label">시작일</span>
+  <!-- ===================================================
+    시작일
+  ==================================================== -->
+  <label
+    class="
+      form-field
+      search-form-field--start
+    "
+  >
 
-                <input
-                  type="date"
-                  id="searchStartDate"
-                  name="startDate"
-                />
-              </label>
+    <span class="form-field__label">
+      시작일
+    </span>
 
-              <label class="form-field">
-                <span class="form-field__label">종료일</span>
+    <input
+      type="date"
+      id="searchStartDate"
+      name="startDate"
+    />
 
-                <input
-                  type="date"
-                  id="searchEndDate"
-                  name="endDate"
-                />
-              </label>
+  </label>
 
-              <label class="form-field">
-                <span class="form-field__label">근무구분</span>
 
-                <select id="searchShift" name="shift">
-                  <option value="">전체</option>
-                  <option value="DS">DS</option>
-                  <option value="NS">N/S</option>
-                </select>
-              </label>
+  <!-- ===================================================
+    종료일
+  ==================================================== -->
+  <label
+    class="
+      form-field
+      search-form-field--end
+    "
+  >
 
-              <label class="form-field">
-                <span class="form-field__label">보직</span>
+    <span class="form-field__label">
+      종료일
+    </span>
 
-                <select id="searchRole" name="role">
-                  <option value="">전체</option>
-                  <option value="파트장">파트장</option>
-                  <option value="TGO">TGO</option>
-                  <option value="BCO1">BCO1</option>
-                  <option value="BCO2">BCO2</option>
-                  <option value="TO">TO</option>
-                  <option value="BO1">BO1</option>
-                  <option value="BO2">BO2</option>
-                </select>
-              </label>
+    <input
+      type="date"
+      id="searchEndDate"
+      name="endDate"
+    />
 
-              <label class="form-field">
-                <span class="form-field__label">구분</span>
+  </label>
 
-                <select id="searchCategory" name="category">
-                  <option value="">전체</option>
-                  <option value="operation">운전현황</option>
-                  <option value="tm">TM</option>
-                  <option value="bm">BM</option>
-                  <option value="cm">CM</option>
-                  <option value="handover">인계사항</option>
-                  <option value="note">비고</option>
-                </select>
-              </label>
 
-              <label class="form-field form-field--wide">
-                <span class="form-field__label">TAG 또는 내용</span>
+  <!-- ===================================================
+    근무
 
-                <input
-                  type="search"
-                  id="searchKeyword"
-                  name="keyword"
-                  placeholder="예: 10HFB10AF001, Rotary Feeder, Bearing"
-                />
-              </label>
+    기존 "근무구분"에서 "근무"로 명칭 변경
+  ==================================================== -->
+  <label
+    class="
+      form-field
+      search-form-field--shift
+    "
+  >
 
-            </div>
+    <span class="form-field__label">
+      근무
+    </span>
+
+    <select
+      id="searchShift"
+      name="shift"
+    >
+
+      <option value="">
+        전체
+      </option>
+
+      <option value="DS">
+        D/S
+      </option>
+
+      <option value="NS">
+        N/S
+      </option>
+
+    </select>
+
+  </label>
+
+
+  <!-- ===================================================
+    보직
+  ==================================================== -->
+  <label
+    class="
+      form-field
+      search-form-field--role
+    "
+  >
+
+    <span class="form-field__label">
+      보직
+    </span>
+
+    <select
+      id="searchRole"
+      name="role"
+    >
+
+      <option value="">
+        전체
+      </option>
+
+      <option value="파트장">
+        파트장
+      </option>
+
+      <option value="TGO">
+        TGO
+      </option>
+
+      <option value="BCO1">
+        BCO1
+      </option>
+
+      <option value="BCO2">
+        BCO2
+      </option>
+
+      <option value="TO">
+        TO
+      </option>
+
+      <option value="BO1">
+        BO1
+      </option>
+
+      <option value="BO2">
+        BO2
+      </option>
+
+    </select>
+
+  </label>
+
+
+  <!-- ===================================================
+    구분
+  ==================================================== -->
+  <label
+    class="
+      form-field
+      search-form-field--category
+    "
+  >
+
+    <span class="form-field__label">
+      구분
+    </span>
+
+    <select
+      id="searchCategory"
+      name="category"
+    >
+
+      <option value="">
+        전체
+      </option>
+
+      <option value="operation">
+        운전현황
+      </option>
+
+      <option value="tm">
+        TM
+      </option>
+
+      <option value="bm">
+        BM
+      </option>
+
+      <option value="cm">
+        CM
+      </option>
+
+      <option value="handover">
+        인계사항
+      </option>
+
+      <option value="note">
+        비고
+      </option>
+
+    </select>
+
+  </label>
+
+
+  <!-- ===================================================
+    TAG 또는 내용
+  ==================================================== -->
+  <label
+    class="
+      form-field
+      search-form-field--keyword
+    "
+  >
+
+    <span class="form-field__label">
+      TAG 또는 내용
+    </span>
+
+    <input
+      type="search"
+      id="searchKeyword"
+      name="keyword"
+      placeholder="TAG 번호 또는 업무 내용"
+      autocomplete="off"
+    />
+
+  </label>
+
+</div>
 
 
             <div class="search-form__actions">

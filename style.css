@@ -44675,350 +44675,393 @@ strong,
 }
 
 /* =========================================================
-  업무일지 조회 화면 최종 디자인
+  업무일지 조회 화면 최종 통합본
 
-  1. 조회 조건 컴팩트화
-  2. 조회 조건 칸 너비 통일
-  3. 모바일 카드 문서형 미리보기
-  4. 검색어 노란색 강조
+  1. 시작일·종료일 같은 크기
+  2. 근무·보직·구분 한 줄, 같은 크기
+  3. 조회 결과는 기존 업무일지 미리보기 그대로 재사용
+  4. 검색어 노란색 강조 유지
 ========================================================= */
-
-/* =========================================================
-  조회 제목
-========================================================= */
-
-#searchView .search-section {
-  padding: 20px !important;
-}
-
-#searchView .section-heading {
-  margin-bottom: 13px !important;
-}
-
-#searchView .section-heading__title {
-  font-size: 27px !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.045em !important;
-}
 
 
 /* =========================================================
   조회 조건 카드
 ========================================================= */
 
-#searchView .search-form {
-  margin: 0 0 14px !important;
-  padding: 13px !important;
+#searchView
+.search-form {
+  margin:
+    0
+    0
+    12px !important;
 
-  border: 1px solid #d5e0eb !important;
-  border-radius: 11px !important;
+  padding:
+    11px !important;
+
+  border:
+    1px
+    solid
+    #d6e0ea !important;
+
+  border-radius:
+    10px !important;
 
   background:
-    linear-gradient(
-      180deg,
-      #fbfcfe,
-      #f5f8fb
+    #f8fafc !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+/* =========================================================
+  PC 조회 조건
+
+  시작일 | 종료일 | 근무 | 보직 | 구분 | TAG 또는 내용
+========================================================= */
+
+#searchView
+.search-form__grid {
+  display:
+    grid !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  grid-template-columns:
+    repeat(
+      5,
+      minmax(
+        120px,
+        1fr
+      )
+    )
+    minmax(
+      240px,
+      1.6fr
     ) !important;
 
-  box-shadow:
-    0 3px 12px
-    rgba(15, 23, 42, 0.035) !important;
+  grid-template-areas:
+    "start end shift role category keyword" !important;
+
+  align-items:
+    end !important;
+
+  gap:
+    7px !important;
 }
 
-/* PC는 6개 입력칸을 정확히 같은 너비로 사용 */
-#searchView .search-form__grid {
-  display: grid !important;
-  grid-template-columns:
-    repeat(6, minmax(0, 1fr)) !important;
-  align-items: end !important;
-  gap: 8px !important;
 
-  width: 100% !important;
-  min-width: 0 !important;
+#searchView
+.search-form-field--start {
+  grid-area:
+    start !important;
 }
 
-#searchView .search-form .form-field--wide {
-  grid-column: auto !important;
+
+#searchView
+.search-form-field--end {
+  grid-area:
+    end !important;
 }
 
-#searchView .search-form .form-field {
-  min-width: 0 !important;
-  gap: 4px !important;
+
+#searchView
+.search-form-field--shift {
+  grid-area:
+    shift !important;
 }
 
-#searchView .search-form .form-field__label {
-  color: #53647a !important;
-  font-size: 10px !important;
-  font-weight: 900 !important;
-  line-height: 1.2 !important;
+
+#searchView
+.search-form-field--role {
+  grid-area:
+    role !important;
 }
 
-#searchView .search-form input,
-#searchView .search-form select {
-  display: block !important;
 
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: none !important;
-
-  height: 38px !important;
-  min-height: 38px !important;
-  max-height: 38px !important;
-
-  margin: 0 !important;
-  padding: 0 9px !important;
-
-  border: 1px solid #c7d3e0 !important;
-  border-radius: 8px !important;
-
-  background: #ffffff !important;
-  color: #22344c !important;
-
-  font-size: 12px !important;
-  font-weight: 800 !important;
-  line-height: 1 !important;
-  letter-spacing: -0.025em !important;
-
-  box-shadow: none !important;
-  box-sizing: border-box !important;
+#searchView
+.search-form-field--category {
+  grid-area:
+    category !important;
 }
 
-#searchView .search-form input:focus,
-#searchView .search-form select:focus {
-  border-color: #6f9fce !important;
-  box-shadow:
-    0 0 0 3px
-    rgba(31, 95, 174, 0.1) !important;
+
+#searchView
+.search-form-field--keyword {
+  grid-area:
+    keyword !important;
 }
 
-#searchView .search-form input::placeholder {
-  color: #9aa5b3 !important;
-  font-weight: 650 !important;
-}
-
-#searchView .search-form input[type="date"] {
-  padding-right: 4px !important;
-  padding-left: 4px !important;
-  text-align: center !important;
-  font-variant-numeric: tabular-nums !important;
-}
 
 #searchView
 .search-form
-input[type="date"]::-webkit-date-and-time-value {
-  min-height: 36px !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  line-height: 36px !important;
-  text-align: center !important;
+.form-field {
+  min-width:
+    0 !important;
+
+  gap:
+    3px !important;
 }
 
-#searchView .search-form__actions {
-  display: grid !important;
-  grid-template-columns: 100px 120px !important;
-  justify-content: end !important;
-  gap: 7px !important;
-  margin-top: 10px !important;
-}
-
-#searchView .search-form__actions button {
-  width: 100% !important;
-  height: 37px !important;
-  min-height: 37px !important;
-  padding: 0 12px !important;
-  border-radius: 8px !important;
-  font-size: 11px !important;
-  font-weight: 900 !important;
-}
-
-
-/* =========================================================
-  조회 건수
-========================================================= */
-
-#searchView .search-result-header {
-  display: flex !important;
-  align-items: center !important;
-  min-height: 31px !important;
-  margin: 0 0 7px !important;
-}
-
-#searchView .search-result-header strong {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 5px !important;
-  color: #2b3d55 !important;
-  font-size: 12px !important;
-  font-weight: 900 !important;
-}
-
-#searchView #searchResultCount {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-width: 25px !important;
-  height: 21px !important;
-  padding: 0 7px !important;
-  border-radius: 999px !important;
-  background: #eaf2fb !important;
-  color: #1f5fae !important;
-  font-size: 10px !important;
-  font-weight: 900 !important;
-}
-
-
-/* =========================================================
-  PC 조회 결과 표
-========================================================= */
-
-#searchView .search-log-table-wrap {
-  overflow: auto !important;
-  border: 1px solid #d6e0ea !important;
-  border-radius: 10px !important;
-  background: #ffffff !important;
-}
-
-#searchView .search-result-table {
-  width: 100% !important;
-  min-width: 1000px !important;
-  table-layout: fixed !important;
-  border-collapse: collapse !important;
-}
-
-#searchView .search-result-table th {
-  height: 38px !important;
-  padding: 0 8px !important;
-  border-bottom: 1px solid #d5e0eb !important;
-  background: #f3f6fa !important;
-  color: #455870 !important;
-  font-size: 11px !important;
-  font-weight: 900 !important;
-  text-align: center !important;
-}
-
-#searchView .search-result-table td {
-  height: auto !important;
-  padding: 8px !important;
-  border-bottom: 1px solid #e4eaf1 !important;
-  background: #ffffff !important;
-  vertical-align: middle !important;
-}
-
-#searchView #searchResultBody tr:last-child td {
-  border-bottom: 0 !important;
-}
-
-#searchView #searchResultBody tr:hover td {
-  background: #f8fbff !important;
-}
-
-#searchView .search-result-table th:nth-child(1),
-#searchView .search-result-table td:nth-child(1) {
-  width: 94px !important;
-}
-
-#searchView .search-result-table th:nth-child(2),
-#searchView .search-result-table td:nth-child(2) {
-  width: 58px !important;
-}
-
-#searchView .search-result-table th:nth-child(3),
-#searchView .search-result-table td:nth-child(3) {
-  width: 70px !important;
-}
-
-#searchView .search-result-table th:nth-child(4),
-#searchView .search-result-table td:nth-child(4) {
-  width: 86px !important;
-}
-
-#searchView .search-result-table th:nth-child(5),
-#searchView .search-result-table td:nth-child(5) {
-  width: auto !important;
-}
-
-#searchView .search-result-table th:nth-child(6),
-#searchView .search-result-table td:nth-child(6) {
-  width: 58px !important;
-}
-
-#searchView .search-result-table th:nth-child(7),
-#searchView .search-result-table td:nth-child(7) {
-  width: 44px !important;
-}
-
-#searchView .search-log-date-cell,
-#searchView .search-log-shift-cell,
-#searchView .search-log-role-cell,
-#searchView .search-log-author-cell {
-  color: #263a55 !important;
-  font-size: 12px !important;
-  font-weight: 850 !important;
-  line-height: 1.35 !important;
-  text-align: center !important;
-  white-space: nowrap !important;
-}
-
-#searchView .search-log-author-cell strong {
-  color: inherit !important;
-  font: inherit !important;
-}
-
-#searchView .search-log-preview-cell {
-  min-width: 0 !important;
-  padding: 6px 9px !important;
-  text-align: left !important;
-  vertical-align: top !important;
-}
-
-#searchView .search-log-view-cell,
-#searchView .search-log-attachment-cell {
-  padding-right: 5px !important;
-  padding-left: 5px !important;
-  text-align: center !important;
-}
 
 #searchView
-.search-log-view-cell
-.table-action-button {
-  width: 46px !important;
-  min-width: 46px !important;
-  max-width: 46px !important;
-  height: 26px !important;
-  min-height: 26px !important;
-  max-height: 26px !important;
-  padding: 0 !important;
-  border-radius: 6px !important;
-  font-size: 9px !important;
-  font-weight: 900 !important;
+.search-form
+.form-field__label {
+  color:
+    #58697f !important;
+
+  font-size:
+    9px !important;
+
+  font-weight:
+    900 !important;
+
+  line-height:
+    1.2 !important;
+
+  white-space:
+    nowrap !important;
+}
+
+
+#searchView
+.search-form
+input,
+
+#searchView
+.search-form
+select {
+  display:
+    block !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  max-width:
+    none !important;
+
+  height:
+    34px !important;
+
+  min-height:
+    34px !important;
+
+  max-height:
+    34px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0
+    8px !important;
+
+  border:
+    1px
+    solid
+    #c7d3e0 !important;
+
+  border-radius:
+    7px !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #23364e !important;
+
+  font-size:
+    11px !important;
+
+  font-weight:
+    850 !important;
+
+  line-height:
+    1 !important;
+
+  letter-spacing:
+    -0.02em !important;
+
+  box-sizing:
+    border-box !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+#searchView
+.search-form
+input:focus,
+
+#searchView
+.search-form
+select:focus {
+  border-color:
+    #78a2d0 !important;
+
+  outline:
+    none !important;
+
+  box-shadow:
+    0
+    0
+    0
+    2px
+    rgba(
+      31,
+      95,
+      174,
+      0.1
+    ) !important;
 }
 
 
 /* =========================================================
-  검색어 강조 - PC와 모바일 공통
+  날짜 입력칸
+
+  시작일·종료일을 같은 높이와 정렬로 표시
+========================================================= */
+
+#searchView
+.search-form
+input[type="date"] {
+  padding-right:
+    3px !important;
+
+  padding-left:
+    3px !important;
+
+  text-align:
+    center !important;
+
+  font-variant-numeric:
+    tabular-nums !important;
+}
+
+
+#searchView
+.search-form
+input[type="date"]::-webkit-date-and-time-value,
+
+#searchView
+.search-form
+input[type="date"]::-webkit-datetime-edit,
+
+#searchView
+.search-form
+input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+  min-height:
+    32px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  line-height:
+    32px !important;
+
+  text-align:
+    center !important;
+}
+
+
+/* =========================================================
+  초기화·조회 버튼
+========================================================= */
+
+#searchView
+.search-form__actions {
+  display:
+    grid !important;
+
+  grid-template-columns:
+    repeat(
+      2,
+      100px
+    ) !important;
+
+  justify-content:
+    end !important;
+
+  gap:
+    6px !important;
+
+  margin-top:
+    8px !important;
+}
+
+
+#searchView
+.search-form__actions
+button {
+  width:
+    100% !important;
+
+  height:
+    34px !important;
+
+  min-height:
+    34px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0
+    8px !important;
+
+  border-radius:
+    7px !important;
+
+  font-size:
+    10px !important;
+
+  font-weight:
+    900 !important;
+}
+
+
+/* =========================================================
+  검색어 강조
+
+  PC·모바일 공통
 ========================================================= */
 
 .search-keyword-highlight {
-  display: inline !important;
-  margin: 0 !important;
-  padding: 0 2px !important;
-  border-radius: 3px !important;
-  background: #ffe68a !important;
-  color: inherit !important;
-  font: inherit !important;
-  font-weight: 900 !important;
-  line-height: inherit !important;
-  box-decoration-break: clone !important;
-  -webkit-box-decoration-break: clone !important;
-}
+  display:
+    inline !important;
 
-.search-preview-more {
-  display: block !important;
-  margin: 2px 0 0 90px !important;
-  color: #8793a3 !important;
-  font-size: 9px !important;
-  font-weight: 850 !important;
-  line-height: 1.3 !important;
+  margin:
+    0 !important;
+
+  padding:
+    0
+    2px !important;
+
+  border-radius:
+    3px !important;
+
+  background:
+    #ffe58a !important;
+
+  color:
+    inherit !important;
+
+  box-decoration-break:
+    clone;
+
+  -webkit-box-decoration-break:
+    clone;
 }
 
 
@@ -45026,416 +45069,569 @@ input[type="date"]::-webkit-date-and-time-value {
   모바일 조회 화면
 ========================================================= */
 
-@media (max-width: 768px) {
+@media (
+  max-width:
+  768px
+) {
 
-  #searchView .search-log-table-wrap {
-    display: none !important;
+  #searchView
+  .search-section {
+    padding:
+      11px
+      8px
+      14px !important;
   }
 
-  #searchView .search-section {
-    padding: 10px 8px 14px !important;
+
+  #searchView
+  .search-form {
+    margin-bottom:
+      10px !important;
+
+    padding:
+      8px !important;
   }
 
-  #searchView .section-heading {
-    margin-bottom: 9px !important;
-  }
 
-  #searchView .section-heading__eyebrow {
-    display: none !important;
-  }
+  /* =====================================================
+    모바일 조회 조건
 
-  #searchView .section-heading__title {
-    font-size: 19px !important;
-  }
+    1줄: 시작일 | 종료일
+    2줄: 근무 | 보직 | 구분
+    3줄: TAG 또는 내용
+  ====================================================== */
 
-  #searchView .search-form {
-    margin-bottom: 11px !important;
-    padding: 8px !important;
-    border-radius: 9px !important;
-  }
-
-  /* 모바일은 2열, TAG·내용만 한 줄 전체 사용 */
-  #searchView .search-form__grid {
+  #searchView
+  .search-form__grid {
     grid-template-columns:
-      repeat(2, minmax(0, 1fr)) !important;
-    gap: 6px !important;
+      repeat(
+        6,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    grid-template-areas:
+      "start start start end end end"
+      "shift shift role role category category"
+      "keyword keyword keyword keyword keyword keyword" !important;
+
+    gap:
+      5px
+      4px !important;
   }
 
-  #searchView .search-form .form-field--wide {
-    grid-column: 1 / -1 !important;
-  }
-
-  #searchView .search-form .form-field {
-    gap: 3px !important;
-  }
-
-  #searchView .search-form .form-field__label {
-    font-size: 8px !important;
-  }
-
-  #searchView .search-form input,
-  #searchView .search-form select {
-    height: 34px !important;
-    min-height: 34px !important;
-    max-height: 34px !important;
-    padding: 0 7px !important;
-    border-radius: 7px !important;
-    font-size: 10px !important;
-    font-weight: 850 !important;
-  }
-
-  #searchView .search-form input[type="date"] {
-    padding-right: 3px !important;
-    padding-left: 3px !important;
-  }
 
   #searchView
   .search-form
-  input[type="date"]::-webkit-date-and-time-value {
-    min-height: 32px !important;
-    line-height: 32px !important;
+  .form-field__label {
+    font-size:
+      7px !important;
   }
 
-  #searchView .search-form__actions {
+
+  #searchView
+  .search-form
+  input,
+
+  #searchView
+  .search-form
+  select {
+    height:
+      31px !important;
+
+    min-height:
+      31px !important;
+
+    max-height:
+      31px !important;
+
+    padding:
+      0
+      5px !important;
+
+    border-radius:
+      6px !important;
+
+    font-size:
+      9px !important;
+
+    font-weight:
+      850 !important;
+  }
+
+
+  #searchView
+  .search-form
+  input[type="date"] {
+    padding-right:
+      2px !important;
+
+    padding-left:
+      2px !important;
+  }
+
+
+  #searchView
+  .search-form
+  input[type="date"]::-webkit-date-and-time-value,
+
+  #searchView
+  .search-form
+  input[type="date"]::-webkit-datetime-edit,
+
+  #searchView
+  .search-form
+  input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+    min-height:
+      29px !important;
+
+    line-height:
+      29px !important;
+  }
+
+
+  #searchView
+  .search-form__actions {
     grid-template-columns:
-      repeat(2, minmax(0, 1fr)) !important;
-    gap: 6px !important;
-    margin-top: 7px !important;
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    gap:
+      5px !important;
+
+    margin-top:
+      6px !important;
   }
 
-  #searchView .search-form__actions button {
-    height: 34px !important;
-    min-height: 34px !important;
-    padding: 0 8px !important;
-    font-size: 10px !important;
+
+  #searchView
+  .search-form__actions
+  button {
+    height:
+      31px !important;
+
+    min-height:
+      31px !important;
+
+    font-size:
+      9px !important;
   }
 
-  #searchView .search-result-header {
-    min-height: 27px !important;
-    margin-bottom: 6px !important;
+
+  /* =====================================================
+    조회 결과 목록
+
+    기존 모바일 업무일지 카드를 그대로 사용
+  ====================================================== */
+
+  #searchView
+  .mobile-search-card-list {
+    display:
+      flex !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    flex-direction:
+      column !important;
+
+    gap:
+      7px !important;
   }
 
-  #searchView .search-result-header strong {
-    font-size: 11px !important;
-  }
 
-  #searchView .mobile-search-card-list {
-    display: flex !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    flex-direction: column !important;
-    gap: 7px !important;
-  }
+  #searchView
+  .search-reused-log-card {
+    overflow:
+      hidden !important;
 
-  #searchView .mobile-search-card {
-    overflow: hidden !important;
-    border: 1px solid #d5e0eb !important;
-    border-radius: 9px !important;
-    background: #ffffff !important;
+    border:
+      1px
+      solid
+      #d6e0ea !important;
+
+    border-radius:
+      10px !important;
+
+    background:
+      #ffffff !important;
+
     box-shadow:
-      0 2px 8px
-      rgba(20, 35, 55, 0.045) !important;
+      0
+      2px
+      7px
+      rgba(
+        20,
+        35,
+        55,
+        0.045
+      ) !important;
   }
 
-  #searchView .mobile-search-card__open {
-    display: block !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: 0 !important;
-    background: transparent !important;
-    color: inherit !important;
-    text-align: left !important;
-  }
-
-  #searchView .mobile-search-card__date-row {
-    display: flex !important;
-    min-height: 29px !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    padding: 5px 8px !important;
-    border-bottom: 1px solid #e3e9f0 !important;
-    background: #f6f8fb !important;
-  }
-
-  #searchView .mobile-search-card__date-row strong {
-    color: #31445d !important;
-    font-size: 10px !important;
-    font-weight: 900 !important;
-  }
-
-  #searchView .mobile-search-card__shift {
-    display: inline-flex !important;
-    min-width: 33px !important;
-    height: 20px !important;
-    align-items: center !important;
-    justify-content: center !important;
-    padding: 0 6px !important;
-    border-radius: 999px !important;
-    background: #263f62 !important;
-    color: #ffffff !important;
-    font-size: 8px !important;
-    font-weight: 900 !important;
-  }
-
-  #searchView .mobile-search-card__header {
-    display: flex !important;
-    min-height: 35px !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 7px !important;
-    padding: 6px 8px 4px !important;
-  }
-
-  #searchView .mobile-search-card__identity {
-    display: flex !important;
-    min-width: 0 !important;
-    align-items: center !important;
-    flex-wrap: wrap !important;
-    gap: 5px !important;
-  }
-
-  #searchView .mobile-search-card__role {
-    color: #1f3048 !important;
-    font-size: 12px !important;
-    font-weight: 900 !important;
-  }
-
-  #searchView .mobile-search-card__author {
-    color: #57657a !important;
-    font-size: 10px !important;
-    font-weight: 800 !important;
-  }
-
-  #searchView .mobile-search-card__status {
-    min-width: 39px !important;
-    min-height: 19px !important;
-    padding: 0 5px !important;
-    font-size: 7.5px !important;
-  }
-
-  #searchView .mobile-search-card__content {
-    width: 100% !important;
-    min-width: 0 !important;
-    padding: 2px 8px 6px !important;
-  }
-
-  /* 메인 업무일지 미리보기 구조를 모바일 조회 카드에 맞춰 축소 */
-  #searchView
-  .mobile-search-card
-  .search-result-log-preview {
-    display: flex !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    flex-direction: column !important;
-    gap: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
 
   #searchView
-  .mobile-search-card
-  .log-preview__group {
-    display: grid !important;
-    width: 100% !important;
-    min-width: 0 !important;
+  .search-reused-log-card
+  .mobile-log-card__open {
+    display:
+      block !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+
+    border:
+      0 !important;
+
+    background:
+      transparent !important;
+
+    color:
+      inherit !important;
+
+    text-align:
+      left !important;
+  }
+
+
+  /* 조회 목록에만 날짜·근무 추가 */
+
+  #searchView
+  .search-reused-log-card__date-row {
+    display:
+      flex !important;
+
+    min-height:
+      28px !important;
+
+    align-items:
+      center !important;
+
+    justify-content:
+      space-between !important;
+
+    padding:
+      4px
+      8px !important;
+
+    border-bottom:
+      1px
+      solid
+      #e3e9f0 !important;
+
+    background:
+      #f6f8fb !important;
+  }
+
+
+  #searchView
+  .search-reused-log-card__date-row
+  strong {
+    color:
+      #34455c !important;
+
+    font-size:
+      10px !important;
+
+    font-weight:
+      900 !important;
+  }
+
+
+  #searchView
+  .search-reused-log-card__date-row
+  span {
+    display:
+      inline-flex !important;
+
+    min-width:
+      34px !important;
+
+    height:
+      20px !important;
+
+    align-items:
+      center !important;
+
+    justify-content:
+      center !important;
+
+    padding:
+      0
+      6px !important;
+
+    border-radius:
+      999px !important;
+
+    background:
+      #223c5f !important;
+
+    color:
+      #ffffff !important;
+
+    font-size:
+      8px !important;
+
+    font-weight:
+      900 !important;
+  }
+
+
+  /* 기존 업무일지 카드와 동일한 크기 */
+
+  #searchView
+  .search-reused-log-card
+  .mobile-log-card__header {
+    min-height:
+      39px !important;
+
+    padding:
+      8px
+      9px !important;
+  }
+
+
+  #searchView
+  .search-reused-log-card
+  .mobile-log-card__identity {
+    gap:
+      6px !important;
+  }
+
+
+  #searchView
+  .search-reused-log-card
+  .mobile-log-card__role,
+
+  #searchView
+  .search-reused-log-card
+  .mobile-log-card__author {
+    font-size:
+      12px !important;
+  }
+
+
+  #searchView
+  .search-reused-log-card
+  .mobile-log-card__status {
+    min-width:
+      42px !important;
+
+    min-height:
+      19px !important;
+
+    padding:
+      0
+      6px !important;
+
+    font-size:
+      8px !important;
+  }
+
+
+  #searchView
+  .search-reused-log-card
+  .mobile-log-card__preview {
+    padding:
+      0
+      9px !important;
+  }
+
+
+  #searchView
+  .search-reused-log-card
+  .mobile-log-preview-section {
     grid-template-columns:
-      54px minmax(0, 1fr) !important;
-    align-items: start !important;
-    column-gap: 3px !important;
-    margin: 0 !important;
-    padding: 3px 0 !important;
-    border: 0 !important;
+      62px
+      minmax(
+        0,
+        1fr
+      ) !important;
+
+    gap:
+      7px !important;
+
+    padding:
+      7px
+      0 !important;
   }
+
 
   #searchView
-  .mobile-search-card
-  .log-preview__group
-  +
-  .log-preview__group {
-    border-top: 1px solid #edf1f5 !important;
+  .search-reused-log-card
+  .mobile-log-preview-section__header
+  strong {
+    font-size:
+      9px !important;
+
+    line-height:
+      1.35 !important;
   }
+
 
   #searchView
-  .mobile-search-card
-  .log-preview__group.has-no-title::before {
-    display: block !important;
-    width: 54px !important;
-    min-width: 54px !important;
-    content: "" !important;
+  .search-reused-log-card
+  .mobile-log-preview-section__header
+  span {
+    margin-top:
+      2px !important;
+
+    font-size:
+      7px !important;
   }
+
 
   #searchView
-  .mobile-search-card
-  .log-preview__group.has-no-title
-  .log-preview__content {
-    grid-column: 2 !important;
+  .search-reused-log-card
+  .mobile-log-preview-item {
+    grid-template-columns:
+      16px
+      minmax(
+        0,
+        1fr
+      ) !important;
+
+    gap:
+      3px !important;
   }
+
 
   #searchView
-  .mobile-search-card
-  .log-preview__title {
-    display: block !important;
-    width: 54px !important;
-    min-width: 54px !important;
-    min-height: 0 !important;
-    margin: 0 !important;
-    padding: 0 2px 0 0 !important;
-    border: 0 !important;
-    background: transparent !important;
-    font-size: 8.5px !important;
-    font-weight: 900 !important;
-    line-height: 1.3 !important;
-    text-align: left !important;
-    white-space: normal !important;
-    word-break: keep-all !important;
+  .search-reused-log-card
+  .mobile-log-preview-item__number {
+    font-size:
+      9px !important;
   }
+
 
   #searchView
-  .mobile-search-card
-  .log-preview__content {
-    display: flex !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    align-items: baseline !important;
-    flex-wrap: wrap !important;
-    gap: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
+  .search-reused-log-card
+  .mobile-log-preview-item__line {
+    font-size:
+      10px !important;
+
+    line-height:
+      1.45 !important;
   }
+
 
   #searchView
-  .mobile-search-card
-  .log-preview__entry-number {
-    display: block !important;
-    flex: 0 0 17px !important;
-    width: 17px !important;
-    min-width: 17px !important;
-    margin: 0 !important;
-    padding: 0 2px 0 0 !important;
-    font-size: 9px !important;
-    font-weight: 900 !important;
-    line-height: 1.4 !important;
-    text-align: right !important;
+  .search-reused-log-card
+  .mobile-log-preview-item__time {
+    margin-right:
+      3px !important;
   }
+
 
   #searchView
-  .mobile-search-card
-  .log-preview__entry-time {
-    display: inline !important;
-    flex: 0 0 auto !important;
-    margin: 0 4px 0 0 !important;
-    padding: 0 !important;
-    color: #1f61ad !important;
-    font-size: 9.5px !important;
-    font-weight: 900 !important;
-    line-height: 1.4 !important;
-    white-space: nowrap !important;
+  .search-reused-log-card
+  .mobile-log-preview-item__tag {
+    margin-left:
+      3px !important;
+
+    font-size:
+      8px !important;
   }
+
+
+  /* =====================================================
+    조회 화면 하단
+
+    수정 버튼은 JavaScript에서 제거
+  ====================================================== */
 
   #searchView
-  .mobile-search-card
-  .log-preview__text {
-    display: inline !important;
-    flex: 1 1 auto !important;
-    min-width: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    color: #2b3d54 !important;
-    font-size: 9.5px !important;
-    font-weight: 750 !important;
-    line-height: 1.4 !important;
-    white-space: normal !important;
-    word-break: keep-all !important;
-    overflow-wrap: anywhere !important;
+  .search-reused-log-card
+  .mobile-log-card__footer--search {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      )
+      auto !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      5px !important;
+
+    padding:
+      6px
+      8px !important;
   }
+
 
   #searchView
-  .mobile-search-card
-  .log-preview__tag {
-    display: inline !important;
-    margin: 0 0 0 4px !important;
-    padding: 0 !important;
-    border: 0 !important;
-    background: transparent !important;
-    color: #1763c5 !important;
-    font-size: 8px !important;
-    font-weight: 900 !important;
-    line-height: inherit !important;
-  }
+  .search-reused-log-card
+  .mobile-log-card__detail-button,
 
   #searchView
-  .mobile-search-card
-  .log-preview__role-section {
-    margin: 3px 0 1px !important;
-    padding: 3px 0 0 !important;
-    border-top: 1px solid #e3e9f0 !important;
+  .search-reused-log-card
+  .mobile-log-card__attachment-button {
+    min-height:
+      27px !important;
+
+    padding:
+      0
+      8px !important;
+
+    border-radius:
+      6px !important;
+
+    font-size:
+      8px !important;
   }
+
 
   #searchView
-  .mobile-search-card
-  .log-preview__role-divider {
-    display: inline-flex !important;
-    width: auto !important;
-    min-width: 0 !important;
-    min-height: 17px !important;
-    margin: 0 !important;
-    padding: 0 5px !important;
-    border-radius: 4px !important;
-    font-size: 7px !important;
-    font-weight: 900 !important;
+  .search-reused-log-card
+  .mobile-log-card__detail-button {
+    width:
+      100% !important;
+
+    justify-self:
+      stretch !important;
   }
 
-  #searchView .mobile-search-card .search-preview-more {
-    margin: 2px 0 0 57px !important;
-    font-size: 8px !important;
-  }
 
-  #searchView .mobile-search-card__footer {
-    display: flex !important;
-    min-height: 36px !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 7px !important;
-    padding: 5px 7px !important;
-    border-top: 1px solid #e2e8ef !important;
-    background: #fafbfd !important;
-  }
+  #searchView
+  .search-reused-log-card
+  .mobile-log-card__attachment-empty {
+    justify-self:
+      end !important;
 
-  #searchView .mobile-search-card__attachment {
-    color: #69778a !important;
-    font-size: 8.5px !important;
-    font-weight: 800 !important;
-  }
+    padding:
+      0
+      3px !important;
 
-  #searchView .mobile-search-card__detail-button {
-    display: inline-flex !important;
-    min-width: 69px !important;
-    height: 27px !important;
-    min-height: 27px !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 4px !important;
-    padding: 0 9px !important;
-    border: 1px solid #94b4d7 !important;
-    border-radius: 6px !important;
-    background: #eaf3fc !important;
-    color: #174f91 !important;
-    font-size: 8.5px !important;
-    font-weight: 900 !important;
-  }
-}
+    color:
+      #9ba5b1 !important;
 
-@media (max-width: 390px) {
-  #searchView .search-form__grid {
-    gap: 5px !important;
-  }
+    font-size:
+      8px !important;
 
-  #searchView .search-form input,
-  #searchView .search-form select {
-    padding-right: 5px !important;
-    padding-left: 5px !important;
-    font-size: 9.5px !important;
+    font-weight:
+      750 !important;
   }
 }

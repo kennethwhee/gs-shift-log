@@ -58734,14 +58734,23 @@ openShiftLogApp = function (
 };
 
 /* =========================================================
-  조회 결과 미리보기·검색어 강조 최종본
+  조회 결과 = 기존 업무일지 미리보기 그대로 재사용
 
   적용:
-  - 운전현황 미리보기 제외
-  - 메인 업무일지와 같은 구조 사용
-  - 모바일은 최대 4개 항목만 표시
-  - 검색어가 있으면 일치 항목 우선 표시
-  - 검색어 노란색 강조
+  - PC 조회:
+    createLogRowHtml()의 기존 미리보기 복사
+
+  - 모바일 조회:
+    createMobileLogCardHtml()의 기존 카드 복사
+
+  - 조회 미리보기에서는 운전현황만 제외
+  - 검색어 노란색 강조 유지
+  - 조회 화면에서는 수정 버튼 제거
+========================================================= */
+
+
+/* =========================================================
+  현재 검색어
 ========================================================= */
 
 function getCurrentSearchKeyword() {
@@ -58753,6 +58762,10 @@ function getCurrentSearchKeyword() {
   ).trim();
 }
 
+
+/* =========================================================
+  정규식 특수문자 처리
+========================================================= */
 
 function escapeSearchKeywordRegExp(
   value
@@ -58766,6 +58779,12 @@ function escapeSearchKeywordRegExp(
   );
 }
 
+
+/* =========================================================
+  검색어 노란색 강조
+
+  PC·모바일 공통 적용
+========================================================= */
 
 function highlightSearchKeywordInElement(
   rootElement,
@@ -58788,7 +58807,8 @@ function highlightSearchKeywordInElement(
     );
 
 
-  const textNodes = [];
+  const matchedTextNodes =
+    [];
 
 
   const treeWalker =
@@ -58838,19 +58858,27 @@ function highlightSearchKeywordInElement(
   while (
     treeWalker.nextNode()
   ) {
-    textNodes.push(
+    matchedTextNodes.push(
       treeWalker.currentNode
     );
   }
 
 
-  textNodes.forEach(
+  matchedTextNodes.forEach(
     textNode => {
-      const parts =
+      const text =
         String(
           textNode.nodeValue ||
           ""
-        ).split(
+        );
+
+
+      searchPattern.lastIndex =
+        0;
+
+
+      const parts =
+        text.split(
           searchPattern
         );
 
@@ -58872,8 +58900,7 @@ function highlightSearchKeywordInElement(
 
 
           if (
-            partIndex %
-              2 ===
+            partIndex % 2 ===
             1
           ) {
             const mark =
@@ -58894,13 +58921,16 @@ function highlightSearchKeywordInElement(
               mark
             );
 
-          } else {
-            fragment.appendChild(
-              document.createTextNode(
-                part
-              )
-            );
+
+            return;
           }
+
+
+          fragment.appendChild(
+            document.createTextNode(
+              part
+            )
+          );
         }
       );
 
@@ -58913,241 +58943,153 @@ function highlightSearchKeywordInElement(
 }
 
 
-function cleanupSearchPreviewRoleSections(
-  previewElement
+/* =========================================================
+  조회 미리보기 TAG 연결 정리
+
+  기존 미리보기의 data-log-tag를
+  조회 이벤트에서 사용하는 data-search-tag로 변경한다.
+========================================================= */
+
+function normalizeSearchPreviewTagElements(
+  rootElement
 ) {
-  const roleSections = [
-    ...previewElement.children
-  ].filter(
-    element => {
-      return element.classList.contains(
-        "log-preview__role-section"
-      );
-    }
-  );
-
-
-  roleSections.forEach(
-    roleSection => {
-      let nextElement =
-        roleSection.nextElementSibling;
-
-
-      let hasVisibleEntry =
-        false;
-
-
-      while (
-        nextElement &&
-        !nextElement.classList.contains(
-          "log-preview__role-section"
-        )
-      ) {
-        if (
-          nextElement.classList.contains(
-            "log-preview__group"
-          )
-        ) {
-          hasVisibleEntry =
-            true;
-
-          break;
-        }
-
-
-        nextElement =
-          nextElement.nextElementSibling;
-      }
-
-
-      if (
-        !hasVisibleEntry
-      ) {
-        roleSection.remove();
-      }
-    }
-  );
-}
-
-
-function limitMobileSearchPreviewGroups(
-  previewElement,
-  keyword
-) {
-  const allGroups = [
-    ...previewElement.children
-  ].filter(
-    element => {
-      return element.classList.contains(
-        "log-preview__group"
-      );
-    }
-  );
-
-
   if (
-    !allGroups.length
+    !rootElement
   ) {
     return;
   }
 
 
-  const matchingGroups =
-    keyword
-      ? allGroups.filter(
-          groupElement => {
-            return Boolean(
-              groupElement.querySelector(
-                ".search-keyword-highlight"
-              )
+  rootElement
+    .querySelectorAll(
+      `
+        .log-preview__tag,
+        .mobile-log-preview-item__tag
+      `
+    )
+    .forEach(
+      sourceElement => {
+        const normalizedTag =
+          String(
+            sourceElement.dataset
+              .searchTag ||
+            sourceElement.dataset
+              .logTag ||
+            sourceElement.textContent ||
+            ""
+          )
+            .trim()
+            .replace(
+              /^[\[【]\s*/,
+              ""
+            )
+            .replace(
+              /\s*[\]】]$/,
+              ""
+            )
+            .trim()
+            .toUpperCase();
+
+
+        if (
+          !normalizedTag
+        ) {
+          return;
+        }
+
+
+        let targetElement =
+          sourceElement;
+
+
+        /*
+          카드 본문 자체가 button이므로
+          내부 TAG가 button이면 중첩 버튼이 된다.
+
+          TAG가 button인 경우 span으로 바꾼 뒤
+          기존 모양과 클릭 기능을 유지한다.
+        */
+        if (
+          sourceElement.tagName ===
+          "BUTTON"
+        ) {
+          const replacement =
+            document.createElement(
+              "span"
             );
-          }
-        )
-      : [];
 
 
-  const baseGroups =
-    matchingGroups.length
-      ? matchingGroups
-      : allGroups;
+          replacement.className =
+            sourceElement.className;
 
 
-  const visibleGroups =
-    new Set(
-      baseGroups.slice(
-        0,
-        matchingGroups.length
-          ? 8
-          : 4
-      )
-    );
+          replacement.innerHTML =
+            sourceElement.innerHTML;
 
 
-  /*
-    검색어가 보직 제목에서 일치하면
-    해당 보직 아래 항목도 함께 표시한다.
-  */
-  if (
-    keyword
-  ) {
-    [
-      ...previewElement.children
-    ]
-      .filter(
-        element => {
-          return (
-            element.classList.contains(
-              "log-preview__role-section"
-            ) &&
-            element.querySelector(
-              ".search-keyword-highlight"
-            )
+          sourceElement.replaceWith(
+            replacement
           );
+
+
+          targetElement =
+            replacement;
         }
-      )
-      .forEach(
-        roleSection => {
-          let nextElement =
-            roleSection.nextElementSibling;
 
 
-          while (
-            nextElement &&
-            !nextElement.classList.contains(
-              "log-preview__role-section"
-            )
-          ) {
-            if (
-              nextElement.classList.contains(
-                "log-preview__group"
-              )
-            ) {
-              visibleGroups.add(
-                nextElement
-              );
-            }
+        targetElement.dataset.searchTag =
+          normalizedTag;
 
 
-            nextElement =
-              nextElement.nextElementSibling;
-          }
-        }
-      );
-  }
+        targetElement.removeAttribute(
+          "data-log-tag"
+        );
 
 
-  let hiddenGroupCount =
-    0;
+        targetElement.removeAttribute(
+          "data-action"
+        );
 
 
-  allGroups.forEach(
-    groupElement => {
-      if (
-        visibleGroups.has(
-          groupElement
-        )
-      ) {
-        return;
+        targetElement.removeAttribute(
+          "data-log-id"
+        );
+
+
+        targetElement.setAttribute(
+          "role",
+          "button"
+        );
+
+
+        targetElement.setAttribute(
+          "tabindex",
+          "0"
+        );
+
+
+        targetElement.setAttribute(
+          "title",
+          "Facility Navigator에서 설비 보기"
+        );
       }
-
-
-      groupElement.remove();
-
-      hiddenGroupCount +=
-        1;
-    }
-  );
-
-
-  cleanupSearchPreviewRoleSections(
-    previewElement
-  );
-
-
-  if (
-    hiddenGroupCount >
-    0
-  ) {
-    const moreElement =
-      document.createElement(
-        "span"
-      );
-
-
-    moreElement.className =
-      "search-preview-more";
-
-
-    moreElement.textContent =
-      `외 ${hiddenGroupCount}건`;
-
-
-    previewElement.appendChild(
-      moreElement
     );
-  }
 }
 
 
 /* =========================================================
-  PC·모바일 공통 업무내용 미리보기
+  PC 조회 결과
+
+  별도 조회용 미리보기를 만들지 않는다.
+
+  메인 업무일지 표의 createLogRowHtml() 결과에서
+  .log-preview 내부를 그대로 복사한다.
 ========================================================= */
 
 createSearchLogPreviewHtml =
   function createSearchLogPreviewHtml(
-    log,
-    options = {}
+    log
   ) {
-    const keyword =
-      getCurrentSearchKeyword();
-
-
-    const rowHtml =
-      createLogRowHtml(
-        log
-      );
-
-
     const template =
       document.createElement(
         "template"
@@ -59157,20 +59099,23 @@ createSearchLogPreviewHtml =
     template.innerHTML = `
       <table>
         <tbody>
-          ${rowHtml}
+          ${createLogRowHtml(
+            log
+          )}
         </tbody>
       </table>
     `;
 
 
-    const mainPreview =
-      template.content.querySelector(
-        ".log-preview"
-      );
+    const previewElement =
+      template.content
+        .querySelector(
+          ".log-preview"
+        );
 
 
     if (
-      !mainPreview
+      !previewElement
     ) {
       return `
         <span class="log-preview__empty">
@@ -59180,10 +59125,18 @@ createSearchLogPreviewHtml =
     }
 
 
-    /* 운전현황은 조회 미리보기에서 제외 */
-    mainPreview
+    /*
+      조회 목록 미리보기에서는
+      운전현황을 표시하지 않는다.
+
+      상세보기에서는 기존처럼 표시된다.
+    */
+    previewElement
       .querySelectorAll(
-        ".log-preview__group.is-operation"
+        `
+          .log-preview__group.is-operation,
+          .log-preview__group.is-operation-dashboard
+        `
       )
       .forEach(
         element => {
@@ -59192,76 +59145,24 @@ createSearchLogPreviewHtml =
       );
 
 
-    /* TAG 클릭 기능 유지 */
-    mainPreview
-      .querySelectorAll(
-        ".log-preview__tag"
-      )
-      .forEach(
-        tagElement => {
-          const tag =
-            String(
-              tagElement.textContent ||
-              ""
-            )
-              .trim()
-              .replace(
-                /^[\[【]\s*/,
-                ""
-              )
-              .replace(
-                /\s*[\]】]$/,
-                ""
-              )
-              .trim()
-              .toUpperCase();
-
-
-          if (
-            !tag
-          ) {
-            return;
-          }
-
-
-          tagElement.dataset.searchTag =
-            tag;
-
-
-          tagElement.setAttribute(
-            "title",
-            "Facility Navigator에서 설비 보기"
-          );
-        }
-      );
-
-
-    highlightSearchKeywordInElement(
-      mainPreview,
-      keyword
+    normalizeSearchPreviewTagElements(
+      previewElement
     );
 
 
-    if (
-      options.mobile ===
-        true
-    ) {
-      limitMobileSearchPreviewGroups(
-        mainPreview,
-        keyword
-      );
-    }
-
-
-    cleanupSearchPreviewRoleSections(
-      mainPreview
+    highlightSearchKeywordInElement(
+      previewElement,
+      getCurrentSearchKeyword()
     );
 
 
     const hasVisibleContent =
       Boolean(
-        mainPreview.querySelector(
-          ".log-preview__group, .log-preview__role-section"
+        previewElement.querySelector(
+          `
+            .log-preview__group,
+            .log-preview__role-section
+          `
         )
       );
 
@@ -59275,7 +59176,7 @@ createSearchLogPreviewHtml =
       >
         ${
           hasVisibleContent
-            ? mainPreview.innerHTML
+            ? previewElement.innerHTML
             : `
               <span class="log-preview__empty">
                 운전현황 외 등록된 업무 내용이 없습니다.
@@ -59288,176 +59189,242 @@ createSearchLogPreviewHtml =
 
 
 /* =========================================================
-  모바일 조회 카드
+  모바일 조회 결과
+
+  별도 mobile-search-card를 새로 만들지 않는다.
+
+  현황 화면에서 사용하는 createMobileLogCardHtml()의
+  결과를 그대로 복사한 뒤 조회 화면에 필요한
+  날짜·근무 정보만 추가한다.
 ========================================================= */
 
 createMobileSearchCardHtml =
   function createMobileSearchCardHtml(
     log
   ) {
-    const attachmentCount =
-      Array.isArray(
-        log?.attachments
-      )
-        ? log.attachments.length
-        : Number(
-            log?.legacyAttachmentCount ||
-            0
-          );
+    const template =
+      document.createElement(
+        "template"
+      );
 
 
-    const statusText =
-      typeof getMobileLogStatusDisplay ===
-        "function"
-        ? getMobileLogStatusDisplay(
-            log?.status
-          )
-        : String(
-            log?.status ||
-            "미작성"
-          ).trim();
+    template.innerHTML =
+      String(
+        createMobileLogCardHtml(
+          log
+        ) ||
+        ""
+      ).trim();
 
 
-    const statusClass =
-      typeof getStatusClass ===
-        "function"
-        ? getStatusClass(
-            log?.status
-          )
-        : "is-empty";
+    const cardElement =
+      template.content
+        .querySelector(
+          ".mobile-log-card"
+        );
 
 
-    return `
-      <article
-        class="mobile-search-card"
-        data-search-log-id="${escapeHtml(
-          log.id
-        )}"
-      >
+    if (
+      !cardElement
+    ) {
+      return "";
+    }
 
-        <button
-          type="button"
-          class="mobile-search-card__open"
-          data-search-view="${escapeHtml(
-            log.id
-          )}"
-          aria-label="${escapeHtml(
-            log.date ||
-            ""
-          )} ${escapeHtml(
-            log.role ||
-            ""
-          )} 업무일지 상세보기"
-        >
 
-          <div class="mobile-search-card__date-row">
+    const logId =
+      String(
+        log?.id ||
+        ""
+      ).trim();
+
+
+    /*
+      기존 모바일 업무일지 카드 클래스 유지
+
+      조회 화면 전용 클래스는 날짜 표시와
+      조회 전용 하단 정렬에만 사용한다.
+    */
+    cardElement.classList.add(
+      "search-reused-log-card"
+    );
+
+
+    cardElement.setAttribute(
+      "data-search-log-id",
+      logId
+    );
+
+
+    cardElement.removeAttribute(
+      "data-mobile-log-id"
+    );
+
+
+    const openButton =
+      cardElement.querySelector(
+        ".mobile-log-card__open"
+      );
+
+
+    if (
+      openButton
+    ) {
+      openButton.setAttribute(
+        "data-search-view",
+        logId
+      );
+
+
+      openButton.removeAttribute(
+        "data-action"
+      );
+
+
+      openButton.removeAttribute(
+        "data-log-id"
+      );
+
+
+      /*
+        조회 목록은 여러 날짜를 표시하므로
+        기존 미리보기 위에 날짜와 근무만 추가한다.
+      */
+      openButton.insertAdjacentHTML(
+        "afterbegin",
+        `
+          <div class="search-reused-log-card__date-row">
 
             <strong>
               ${escapeHtml(
-                log.date ||
+                log?.date ||
                 "-"
               )}
             </strong>
 
-            <span class="mobile-search-card__shift">
+            <span>
               ${escapeHtml(
                 getShiftDisplayName(
-                  log.shift
+                  log?.shift
                 )
               )}
             </span>
 
           </div>
+        `
+      );
+    }
 
 
-          <header class="mobile-search-card__header">
-
-            <div class="mobile-search-card__identity">
-
-              <strong class="mobile-search-card__role">
-                ${escapeHtml(
-                  log.role ||
-                  "-"
-                )}
-              </strong>
-
-              <span class="mobile-search-card__author">
-                ${escapeHtml(
-                  log.author ||
-                  "-"
-                )}
-              </span>
-
-              ${
-                log.isSubstitute ===
-                  true
-                  ? `
-                    <span class="mobile-search-card__substitute">
-                      대근
-                    </span>
-                  `
-                  : ""
-              }
-
-            </div>
+    const previewElement =
+      cardElement.querySelector(
+        ".mobile-log-card__preview"
+      );
 
 
-            <span
-              class="
-                status-badge
-                mobile-search-card__status
-                ${statusClass}
-              "
-            >
-              ${escapeHtml(
-                statusText
-              )}
-            </span>
-
-          </header>
-
-
-          <div class="mobile-search-card__content">
-            ${createSearchLogPreviewHtml(
-              log,
-              {
-                mobile:
-                  true
-              }
-            )}
-          </div>
-
-        </button>
+    if (
+      previewElement
+    ) {
+      /*
+        조회 목록에서는 운전현황 제외
+      */
+      previewElement
+        .querySelectorAll(
+          ".mobile-log-preview-section.is-operation"
+        )
+        .forEach(
+          element => {
+            element.remove();
+          }
+        );
 
 
-        <footer class="mobile-search-card__footer">
-
-          <span class="mobile-search-card__attachment">
-            ${
-              attachmentCount >
-                0
-                ? `첨부 ${attachmentCount}개`
-                : "첨부 없음"
-            }
-          </span>
+      normalizeSearchPreviewTagElements(
+        previewElement
+      );
 
 
-          <button
-            type="button"
-            class="mobile-search-card__detail-button"
-            data-search-view="${escapeHtml(
-              log.id
-            )}"
-          >
-            상세보기
-            <span aria-hidden="true">
-              ›
-            </span>
-          </button>
+      highlightSearchKeywordInElement(
+        previewElement,
+        getCurrentSearchKeyword()
+      );
 
-        </footer>
 
-      </article>
-    `;
+      if (
+        !previewElement.querySelector(
+          ".mobile-log-preview-section"
+        )
+      ) {
+        previewElement.innerHTML = `
+          <p class="mobile-log-card__empty">
+            운전현황 외 등록된 업무 내용이 없습니다.
+          </p>
+        `;
+      }
+    }
+
+
+    /*
+      조회 화면에서는 수정·이어쓰기 버튼을 제거한다.
+    */
+    cardElement
+      .querySelectorAll(
+        `
+          .mobile-log-card__edit-button,
+          .mobile-log-card__edit-disabled
+        `
+      )
+      .forEach(
+        element => {
+          element.remove();
+        }
+      );
+
+
+    const footerElement =
+      cardElement.querySelector(
+        ".mobile-log-card__footer"
+      );
+
+
+    if (
+      footerElement
+    ) {
+      footerElement.classList.add(
+        "mobile-log-card__footer--search"
+      );
+
+
+      /*
+        조회 결과 공통 이벤트가 인식하도록
+        버튼 속성만 조회용으로 바꾼다.
+      */
+      footerElement
+        .querySelectorAll(
+          `
+            .mobile-log-card__detail-button,
+            .mobile-log-card__attachment-button
+          `
+        )
+        .forEach(
+          button => {
+            button.setAttribute(
+              "data-search-view",
+              logId
+            );
+
+
+            button.removeAttribute(
+              "data-action"
+            );
+
+
+            button.removeAttribute(
+              "data-log-id"
+            );
+          }
+        );
+    }
+
+
+    return cardElement.outerHTML;
   };
-
