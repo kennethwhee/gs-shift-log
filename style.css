@@ -25201,201 +25201,130 @@ strong {
   카드 전체 래퍼
 
   위:
-  공지 버튼
+  작은 종 버튼
 
   아래:
-  기존 업무일지 카드
+  업무일지 카드
 ========================================================= */
 
 #shiftMemberGrid
 .shift-member-card-wrap {
-  display:
-    grid;
+  display: grid;
 
-  min-width:
-    0;
+  min-width: 0;
 
   grid-template-rows:
-    25px
+    24px
     minmax(
       0,
       1fr
     );
 
-  row-gap:
-    5px;
+  row-gap: 3px;
 }
 
 
 /*
-  기존 업무일지 카드가
-  래퍼 아래쪽 높이를 전부 사용하도록 한다.
+  업무일지 카드는 기존 크기를 그대로 사용한다.
 */
 #shiftMemberGrid
 .shift-member-card-wrap
 >
 .shift-member-card {
-  width:
-    100%;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
 
-  height:
-    100%;
-
-  min-height:
-    0;
-
-  margin:
-    0;
+  margin: 0;
 }
 
 
 /* =========================================================
-  파트장 공지 자리
+  파트장 공지 빈자리
 
-  파트장에는 버튼을 표시하지 않지만
-  다른 카드와 위아래 시작선을 맞추기 위해
-  같은 높이의 빈 공간을 유지한다.
+  파트장은 공지 기능이 없지만
+  다른 카드와 시작선을 맞추기 위해
+  종 버튼과 같은 높이만 유지한다.
 ========================================================= */
 
 #shiftMemberGrid
 .role-notice-placeholder {
-  display:
-    block;
+  display: block;
 
-  width:
-    100%;
+  width: 24px;
+  height: 24px;
 
-  height:
-    25px;
+  justify-self: center;
+
+  visibility: hidden;
 }
 
 
 /* =========================================================
-  공지 버튼
-
-  카드 위 오른쪽에 작게 표시한다.
+  공지 종 버튼
 ========================================================= */
 
 #shiftMemberGrid
 .role-notice-button {
-  display:
-    inline-flex;
+  position: relative;
+  z-index: 2;
 
-  justify-self:
-    end;
+  display: inline-flex;
 
-  align-self:
-    center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
 
-  min-width:
-    58px;
+  align-self: center;
+  justify-self: center;
 
-  height:
-    23px;
+  align-items: center;
+  justify-content: center;
 
-  min-height:
-    23px;
+  gap: 0;
 
-  align-items:
-    center;
+  margin: 0;
+  padding: 0;
 
-  justify-content:
-    center;
+  border: 1px solid #cbd6e2;
+  border-radius: 7px;
 
-  gap:
-    4px;
-
-  margin:
-    0
-    2px
-    0
-    0;
-
-  padding:
-    0
-    7px;
-
-  border:
-    1px solid
-    #c9d4df;
-
-  border-radius:
-    6px;
-
-  background:
-    #ffffff;
-
-  color:
-    #667589;
-
-  font-size:
-    9px;
-
-  font-weight:
-    900;
-
-  line-height:
-    1;
-
-  letter-spacing:
-    -0.01em;
-
-  white-space:
-    nowrap;
-
-  cursor:
-    pointer;
+  background: #ffffff;
+  color: #637287;
 
   box-shadow:
-    0
-    1px
-    3px
+    0 1px 3px
     rgba(
       15,
       23,
       42,
-      0.04
+      0.05
     );
 
+  cursor: pointer;
+
   transition:
-    border-color
-    0.15s
-    ease,
-    background
-    0.15s
-    ease,
-    color
-    0.15s
-    ease,
-    box-shadow
-    0.15s
-    ease,
-    transform
-    0.12s
-    ease;
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
 }
 
 
 #shiftMemberGrid
 .role-notice-button:hover {
-  border-color:
-    #8eafd2;
+  border-color: #8cadd1;
 
-  background:
-    #f2f7fd;
-
-  color:
-    #1f5fae;
+  background: #f1f7fd;
 
   box-shadow:
-    0
-    3px
-    8px
+    0 2px 6px
     rgba(
       31,
       95,
       174,
-      0.1
+      0.12
     );
 }
 
@@ -25412,8 +25341,7 @@ strong {
 #shiftMemberGrid
 .role-notice-button:focus-visible {
   outline:
-    3px
-    solid
+    3px solid
     rgba(
       31,
       95,
@@ -25421,200 +25349,131 @@ strong {
       0.18
     );
 
-  outline-offset:
-    2px;
+  outline-offset: 2px;
 }
 
 
 /* =========================================================
-  공지 아이콘
+  종 아이콘
 ========================================================= */
 
 #shiftMemberGrid
 .role-notice-button__icon {
-  display:
-    inline-flex;
+  display: inline-flex;
 
-  flex:
-    0
-    0
-    auto;
+  width: 15px;
+  height: 15px;
 
-  width:
-    10px;
+  align-items: center;
+  justify-content: center;
 
-  align-items:
-    center;
+  margin: 0;
+  padding: 0;
 
-  justify-content:
-    center;
+  font-family:
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    sans-serif;
 
-  color:
-    #8895a5;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
 
-  font-size:
-    9px;
-
-  font-weight:
-    900;
-
-  line-height:
-    1;
+  transform:
+    translateY(
+      -0.5px
+    );
 }
 
 
-/* =========================================================
-  공지 글씨
-========================================================= */
-
+/*
+  기존 공지 글씨가 남아 있는 경우에도
+  화면에는 표시하지 않는다.
+*/
 #shiftMemberGrid
 .role-notice-button__label {
-  display:
-    inline-block;
-
-  color:
-    inherit;
-
-  font-size:
-    9px;
-
-  font-weight:
-    900;
-
-  line-height:
-    1;
+  display: none;
 }
 
 
 /* =========================================================
   활성 공지 개수
+
+  종 우측 상단에 작은 숫자 배지로 표시한다.
 ========================================================= */
 
 #shiftMemberGrid
 .role-notice-button__count {
-  display:
-    inline-flex;
+  position: absolute;
 
-  flex:
-    0
-    0
-    auto;
+  top: -5px;
+  right: -6px;
 
-  min-width:
-    16px;
+  display: inline-flex;
 
-  height:
-    16px;
+  min-width: 13px;
+  height: 13px;
 
-  align-items:
-    center;
+  align-items: center;
+  justify-content: center;
 
-  justify-content:
-    center;
+  margin: 0;
+  padding: 0 3px;
 
-  padding:
-    0
-    4px;
+  border: 1px solid #ffffff;
+  border-radius: 999px;
 
-  border-radius:
-    999px;
+  background: #d84b4b;
+  color: #ffffff;
 
-  background:
-    #ffffff;
+  font-size: 6px;
+  font-weight: 900;
+  line-height: 1;
 
-  color:
-    #1f5fae;
-
-  font-size:
-    8px;
-
-  font-weight:
-    900;
-
-  line-height:
-    1;
+  box-shadow:
+    0 1px 3px
+    rgba(
+      15,
+      23,
+      42,
+      0.18
+    );
 }
 
 
-/*
-  hidden 상태는 기존 전역 규칙과 함께
-  확실히 숨긴다.
-*/
 #shiftMemberGrid
 .role-notice-button__count[hidden] {
-  display:
-    none
-    !important;
+  display: none !important;
 }
 
 
 /* =========================================================
   활성 공지가 있는 버튼
-
-  JavaScript에서
-  .has-active-notice 클래스를 추가한다.
 ========================================================= */
 
 #shiftMemberGrid
 .role-notice-button.has-active-notice {
-  border-color:
-    #2771be;
+  border-color: #6596ca;
 
-  background:
-    #1f5fae;
-
-  color:
-    #ffffff;
+  background: #eaf3fc;
 
   box-shadow:
-    0
-    4px
-    10px
+    0 2px 6px
     rgba(
       31,
       95,
       174,
-      0.2
+      0.16
     );
 }
 
 
 #shiftMemberGrid
 .role-notice-button.has-active-notice:hover {
-  border-color:
-    #174f91;
+  border-color: #397bbd;
 
-  background:
-    #194f91;
-
-  color:
-    #ffffff;
+  background: #dceafa;
 }
-
-
-#shiftMemberGrid
-.role-notice-button.has-active-notice
-.role-notice-button__icon {
-  color:
-    #ffffff;
-}
-
-
-/* =========================================================
-  공지 버튼 클릭 영역과 업무일지 카드 분리
-
-  공지 버튼 위에서 카드 hover 효과가 발생하지 않도록 한다.
-========================================================= */
-
-#shiftMemberGrid
-.role-notice-button {
-  position:
-    relative;
-
-  z-index:
-    2;
-}
-
 /* =========================================================
   보직별 공지사항 모달 최종 디자인
 
