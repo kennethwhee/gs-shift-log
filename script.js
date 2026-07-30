@@ -32264,6 +32264,103 @@ function getMobileLogStatusDisplay(
 }
 
 /* =========================================================
+  모바일 업무일지 삭제 버튼 표시 권한
+
+  최고관리자:
+  - 신규 업무일지 삭제 가능
+
+  일반회원:
+  - 본인이 작성한 임시저장 업무일지만 삭제 가능
+
+  파트장:
+  - 본인이 작성한 파트장 저장완료 업무일지 삭제 가능
+
+  공통:
+  - 과거 연동 업무일지는 삭제 불가
+========================================================= */
+
+function canCurrentUserDeleteShiftLog(
+  log
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    return false;
+  }
+
+
+  /*
+    과거 연동 업무일지는
+    누구에게도 삭제 버튼을 표시하지 않는다.
+  */
+  if (
+    isReadOnlyLegacyShiftLog(
+      log
+    )
+  ) {
+    return false;
+  }
+
+
+  /*
+    최고관리자는 신규 업무일지 삭제 가능
+  */
+  if (
+    isCurrentUserSuperAdmin()
+  ) {
+    return true;
+  }
+
+
+  /*
+    일반 사용자와 파트장은
+    반드시 본인이 작성한 업무일지여야 한다.
+  */
+  if (
+    !isCurrentUserShiftLogAuthor(
+      log
+    )
+  ) {
+    return false;
+  }
+
+
+  const normalizedStatus =
+    normalizeShiftLogApprovalStatus(
+      log.status
+    );
+
+
+  /*
+    일반회원 본인 임시저장 일지
+  */
+  if (
+    normalizedStatus ===
+      "임시저장"
+  ) {
+    return true;
+  }
+
+
+  /*
+    파트장 본인의 파트장 저장완료 일지
+  */
+  return (
+    isCurrentShiftLogLeader() &&
+
+    normalizeMemberLogRole(
+      log.role
+    ) ===
+      "파트장" &&
+
+    normalizedStatus ===
+      "저장완료"
+  );
+}
+
+/* =========================================================
   모바일 업무일지 카드 최종본
 
   적용:
@@ -32404,10 +32501,33 @@ function createMobileLogCardHtml(
     );
 
 
-  const isEditable =
-    !isReadOnlyLegacyShiftLog(
-      log
-    );
+/*
+  수정·이어쓰기 권한은
+  실제 업무일지 수정 권한 함수를 사용한다.
+
+  일반회원:
+  - 파트장 일지 수정 불가
+  - 일반 보직 임시저장 일지는 기존 권한 규칙 적용
+
+  최고관리자:
+  - 기존 전체 수정 권한 유지
+*/
+const isEditable =
+  canCurrentUserEditShiftLog(
+    log
+  );
+
+
+/*
+  삭제 버튼은 수정 권한과 별도로 판정한다.
+
+  다른 사람이 작성한 일지는
+  이어쓰기가 가능하더라도 삭제는 불가능하다.
+*/
+const isDeletable =
+  canCurrentUserDeleteShiftLog(
+    log
+  );
 
 
   const editButtonText =
@@ -32556,8 +32676,37 @@ function createMobileLogCardHtml(
       </button>
 
 
-      <footer class="mobile-log-card__footer">
+      <!-- =================================================
+        모바일 업무일지 카드 하단
 
+        권한에 따라 자동 구성:
+
+        권한 없음:
+        상세보기 | 첨부
+
+        수정만 가능:
+        상세보기 | 첨부 | 이어쓰기
+
+        본인 임시저장:
+        상세보기 | 첨부 | 이어쓰기 | 삭제
+      ================================================== -->
+      <footer
+        class="
+          mobile-log-card__footer
+          ${
+            isEditable
+              ? "has-edit-action"
+              : ""
+          }
+          ${
+            isDeletable
+              ? "has-delete-action"
+              : ""
+          }
+        "
+      >
+
+        <!-- 상세보기 -->
         <button
           type="button"
           class="
@@ -32573,6 +32722,7 @@ function createMobileLogCardHtml(
         </button>
 
 
+        <!-- 첨부파일 -->
         ${
           attachmentCount >
           0
@@ -32597,8 +32747,8 @@ function createMobileLogCardHtml(
                 class="
                   mobile-log-card__footer-button
                   mobile-log-card__attachment-empty
-                  is-disabled
                 "
+                aria-label="첨부파일 없음"
               >
                 첨부 없음
               </span>
@@ -32606,6 +32756,7 @@ function createMobileLogCardHtml(
         }
 
 
+        <!-- 수정 또는 이어쓰기 -->
         ${
           isEditable
             ? `
@@ -32623,17 +32774,33 @@ function createMobileLogCardHtml(
                 ${editButtonText}
               </button>
             `
-            : `
-              <span
+            : ""
+        }
+
+
+        <!-- 본인 업무일지 삭제 -->
+        ${
+          isDeletable
+            ? `
+              <button
+                type="button"
                 class="
                   mobile-log-card__footer-button
-                  mobile-log-card__edit-disabled
-                  is-disabled
+                  mobile-log-card__delete-button
                 "
+                data-action="delete"
+                data-log-id="${escapeHtml(
+                  log.id
+                )}"
+                aria-label="${escapeHtml(
+                  log.author ||
+                  ""
+                )} 업무일지 삭제"
               >
-                수정 불가
-              </span>
+                삭제
+              </button>
             `
+            : ""
         }
 
       </footer>
@@ -59371,6 +59538,7 @@ createMobileSearchCardHtml =
         `
           .mobile-log-card__edit-button,
           .mobile-log-card__edit-disabled
+          .mobile-log-card__delete-button
         `
       )
       .forEach(
@@ -59392,6 +59560,13 @@ createMobileSearchCardHtml =
       footerElement.classList.add(
         "mobile-log-card__footer--search"
       );
+      /*
+  원본 카드의 수정·삭제용 그리드 상태도 제거한다.
+*/
+footerElement.classList.remove(
+  "has-edit-action",
+  "has-delete-action"
+);
 
 
       /*

@@ -46485,3 +46485,291 @@ input {
     appearance: none !important;
   }
 }
+
+/* =========================================================
+  모바일 업무일지 카드 하단 권한별 버튼 최종 디자인
+
+  권한 없음:
+  [상세보기────────────] [첨부 없음]
+
+  수정 가능:
+  [상세보기────────] [첨부] [이어쓰기]
+
+  본인 임시저장:
+  [상세보기──────] [첨부] [이어쓰기] [삭제]
+
+  적용:
+  - 상세보기 버튼은 상대적으로 길게
+  - 첨부·이어쓰기·삭제는 동일한 너비
+  - 파트장 일지 수정 버튼 권한은 JavaScript에서 제거
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    기본 상태
+
+    상세보기 | 첨부
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__footer {
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(
+        0,
+        1.7fr
+      )
+      minmax(
+        0,
+        1fr
+      ) !important;
+
+    align-items: stretch !important;
+
+    gap: 4px !important;
+
+    width: 100% !important;
+
+    margin: 0 !important;
+
+    padding:
+      6px
+      7px !important;
+
+    border-top:
+      1px
+      solid
+      #dfe6ee !important;
+
+    background: #fafbfd !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =====================================================
+    수정 또는 삭제 중 하나만 있는 경우
+
+    상세보기 | 첨부 | 관리 버튼
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__footer.has-edit-action:not(
+    .has-delete-action
+  ),
+
+  #statusView
+  .mobile-log-card__footer.has-delete-action:not(
+    .has-edit-action
+  ) {
+    grid-template-columns:
+      minmax(
+        0,
+        1.65fr
+      )
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+  }
+
+
+  /* =====================================================
+    수정과 삭제가 모두 있는 경우
+
+    상세보기 | 첨부 | 이어쓰기 | 삭제
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__footer.has-edit-action.has-delete-action {
+    grid-template-columns:
+      minmax(
+        0,
+        1.65fr
+      )
+      repeat(
+        3,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+  }
+
+
+  /* =====================================================
+    모든 하단 칸 공통
+
+    첨부·이어쓰기·삭제는 같은 grid 1fr이므로
+    정확히 같은 너비가 된다.
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__footer-button {
+    display: inline-flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+
+    height: 29px !important;
+    min-height: 29px !important;
+    max-height: 29px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    gap: 2px !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      3px !important;
+
+    overflow: hidden !important;
+
+    border:
+      1px
+      solid
+      #c7d3e0 !important;
+
+    border-radius: 6px !important;
+
+    background: #ffffff !important;
+    color: #52667d !important;
+
+    font-size: 8px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.025em !important;
+
+    text-align: center !important;
+    text-overflow: ellipsis !important;
+
+    white-space: nowrap !important;
+
+    box-shadow: none !important;
+
+    box-sizing: border-box !important;
+
+    touch-action: manipulation !important;
+
+    -webkit-tap-highlight-color: transparent;
+  }
+
+
+  /* =====================================================
+    상세보기
+
+    다른 버튼보다 가로로 길게 표시
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__detail-button {
+    border-color: #8fb2d8 !important;
+
+    background: #eaf3fc !important;
+    color: #174f91 !important;
+  }
+
+
+  /* =====================================================
+    첨부파일
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__attachment-button {
+    border-color: #c7d3e0 !important;
+
+    background: #ffffff !important;
+    color: #52667d !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__attachment-empty {
+    border-color: #e0e5eb !important;
+
+    background: #f5f7f9 !important;
+    color: #9aa4b1 !important;
+
+    pointer-events: none !important;
+  }
+
+
+  /* =====================================================
+    수정·이어쓰기
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__edit-button {
+    border-color: #9fbddd !important;
+
+    background: #ffffff !important;
+    color: #1f5fae !important;
+  }
+
+
+  /* =====================================================
+    삭제
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__delete-button {
+    border-color: #e2b5b5 !important;
+
+    background: #fff7f7 !important;
+    color: #b64040 !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__delete-button:active {
+    border-color: #d88787 !important;
+
+    background: #fdeaea !important;
+    color: #9f3030 !important;
+  }
+
+
+  /* =====================================================
+    터치 효과
+  ====================================================== */
+
+  #statusView
+  button.mobile-log-card__footer-button:active {
+    transform: scale(0.985) !important;
+  }
+}
+
+
+/* =========================================================
+  작은 모바일 추가 보정
+========================================================= */
+
+@media (max-width: 390px) {
+
+  #statusView
+  .mobile-log-card__footer {
+    gap: 3px !important;
+
+    padding:
+      6px !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__footer-button {
+    padding:
+      0
+      2px !important;
+
+    font-size: 7.5px !important;
+  }
+}
