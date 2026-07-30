@@ -23444,16 +23444,40 @@ async function moveSelectedDateToToday() {
 /* =========================================================
   현재 선택 날짜·근무 표시
 
-  날짜 또는 근무가 변경될 때마다:
-  - 화면 날짜 표시
-  - 작성창 날짜 동기화
-  - 보직별 활성 공지 다시 계산
+  PC:
+  - 2026년 07월 29일 수요일
+
+  모바일 날짜 이동바:
+  - 07.29(수)
+
+  모바일 근무자 현황:
+  - 2026.07.29(수) · N/S · 3파트
 ========================================================= */
 
 function renderSelectedDate() {
-  const dateText =
+  const isMobileView =
+    window.matchMedia(
+      "(max-width: 768px)"
+    ).matches;
+
+
+  const desktopDateText =
     formatKoreanDate(
       appState.selectedDate
+    );
+
+
+  const mobileDateText =
+    formatMobileKoreanDate(
+      appState.selectedDate,
+      false
+    );
+
+
+  const mobileCurrentShiftDateText =
+    formatMobileKoreanDate(
+      appState.selectedDate,
+      true
     );
 
 
@@ -23470,13 +23494,29 @@ function renderSelectedDate() {
     );
 
 
+  /* =====================================================
+    날짜 이동바
+
+    PC:
+    2026년 07월 29일 수요일
+
+    모바일:
+    07.29(수)
+  ====================================================== */
+
   if (
     elements.selectedDateText
   ) {
     elements.selectedDateText.textContent =
-      dateText;
+      isMobileView
+        ? mobileDateText
+        : desktopDateText;
   }
 
+
+  /* =====================================================
+    근무 배지
+  ====================================================== */
 
   if (
     elements.selectedShiftBadge
@@ -23486,13 +23526,27 @@ function renderSelectedDate() {
   }
 
 
+  /* =====================================================
+    근무자 현황 현재 근무 표시
+
+    PC:
+    2026년 07월 29일 수요일 · N/S · 3파트
+
+    모바일:
+    2026.07.29(수) · N/S · 3파트
+  ====================================================== */
+
   if (
     elements.currentShiftLabel
   ) {
     elements.currentShiftLabel.textContent =
       [
-        dateText,
+        isMobileView
+          ? mobileCurrentShiftDateText
+          : desktopDateText,
+
         shiftDisplayName,
+
         scheduledPart
       ]
         .filter(
@@ -23591,6 +23645,75 @@ function formatKoreanDate(date) {
     "일 ",
     weekdays[date.getDay()]
   ].join("");
+}
+
+/* =========================================================
+  모바일 날짜 형식
+
+  includeYear = false
+  07.29(수)
+
+  includeYear = true
+  2026.07.29(수)
+========================================================= */
+
+function formatMobileKoreanDate(
+  date,
+  includeYear = false
+) {
+  const weekdays = [
+    "일",
+    "월",
+    "화",
+    "수",
+    "목",
+    "금",
+    "토"
+  ];
+
+
+  const year =
+    String(
+      date.getFullYear()
+    );
+
+
+  const month =
+    String(
+      date.getMonth() + 1
+    ).padStart(
+      2,
+      "0"
+    );
+
+
+  const day =
+    String(
+      date.getDate()
+    ).padStart(
+      2,
+      "0"
+    );
+
+
+  const weekday =
+    weekdays[
+      date.getDay()
+    ];
+
+
+  if (
+    includeYear
+  ) {
+    return (
+      `${year}.${month}.${day}(${weekday})`
+    );
+  }
+
+
+  return (
+    `${month}.${day}(${weekday})`
+  );
 }
 
 
@@ -34155,7 +34278,7 @@ function handleLogTableClick(
 
     return;
   }
-  
+
   if (
     !elements.logTableBody
   ) {
