@@ -38378,3 +38378,587 @@ body {
       ) !important;
   }
 }
+
+/* =========================================================
+  업무일지 상세창 최종 컴팩트 보정
+
+  적용 내용:
+  1. 작성일·근무·근무파트·보직·작성자·등록내역
+     한 줄 6칸 표시
+  2. 기본정보 카드 높이와 내부 여백 축소
+  3. 모바일 하단 버튼을 화면 안쪽으로 올림
+  4. iPhone 하단 안전 영역 대응
+========================================================= */
+
+
+/* =========================================================
+  기본정보 전체 카드
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-summary {
+  width: 100% !important;
+  min-width: 0 !important;
+
+  padding: 10px !important;
+
+  border-radius: 10px !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* =========================================================
+  날짜 제목과 상태
+
+  2026-07-29 업무일지          저장완료
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-summary__header {
+  display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+
+  gap: 8px !important;
+
+  margin: 0 0 8px !important;
+  padding: 0 !important;
+}
+
+
+#logDetailModal
+.shift-log-detail-summary__header
+h3 {
+  margin: 0 !important;
+
+  font-size: 18px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+
+  letter-spacing: -0.035em !important;
+
+  white-space: nowrap !important;
+}
+
+
+#logDetailModal
+.shift-log-detail-summary__header
+.shift-log-detail-eyebrow {
+  margin: 0 0 3px !important;
+
+  font-size: 8px !important;
+  line-height: 1 !important;
+}
+
+
+/* =========================================================
+  기본정보 6칸
+
+  작성일 | 근무 | 근무파트 | 보직 | 작성자 | 등록내역
+
+  날짜 칸은 조금 넓게,
+  근무 칸은 조금 좁게 배분한다.
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-summary__grid,
+
+#logDetailModal
+.detail-summary-grid {
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  grid-template-columns:
+    minmax(0, 1.45fr)
+    minmax(0, 0.65fr)
+    minmax(0, 0.85fr)
+    minmax(0, 0.8fr)
+    minmax(0, 0.9fr)
+    minmax(0, 0.9fr) !important;
+
+  gap: 4px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+/* =========================================================
+  기본정보 개별 칸
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-summary__item,
+
+#logDetailModal
+.detail-summary-item,
+
+#logDetailModal
+.detail-summary-grid
+>
+div {
+  display: flex !important;
+
+  min-width: 0 !important;
+  min-height: 48px !important;
+
+  flex-direction: column !important;
+
+  align-items: flex-start !important;
+  justify-content: center !important;
+
+  gap: 2px !important;
+
+  margin: 0 !important;
+
+  padding:
+    6px
+    7px !important;
+
+  overflow: hidden !important;
+
+  border:
+    1px
+    solid
+    #dce4ed !important;
+
+  border-radius: 6px !important;
+
+  background: #f7f9fc !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* =========================================================
+  기본정보 항목명
+
+  작성일 / 근무 / 근무파트 등
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-summary__item
+>
+span:first-child,
+
+#logDetailModal
+.detail-summary-item__label,
+
+#logDetailModal
+.detail-summary-label {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: hidden !important;
+
+  color: #7b8799 !important;
+
+  font-size: 8px !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.04em !important;
+
+  text-align: left !important;
+
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+
+/* =========================================================
+  기본정보 값
+
+  2026-07-29 / N/S / 3파트 등
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-summary__item
+>
+strong,
+
+#logDetailModal
+.detail-summary-item__value,
+
+#logDetailModal
+.detail-summary-value {
+  display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  align-items: center !important;
+
+  gap: 3px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: hidden !important;
+
+  color: #203149 !important;
+
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.035em !important;
+
+  text-align: left !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* 대근 배지도 기본정보 칸 안에 맞게 축소 */
+
+#logDetailModal
+.detail-substitute-badge {
+  min-height: 16px !important;
+
+  padding:
+    0
+    4px !important;
+
+  font-size: 7px !important;
+}
+
+
+/* =========================================================
+  모바일 상세창
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    기본정보 카드 전체
+  ====================================================== */
+
+  #logDetailModal
+  .shift-log-detail-summary {
+    padding: 8px !important;
+
+    border-radius: 9px !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__header {
+    gap: 6px !important;
+
+    margin-bottom: 6px !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__header
+  h3 {
+    font-size: 15px !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__header
+  .shift-log-detail-eyebrow {
+    margin-bottom: 2px !important;
+
+    font-size: 7px !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__header
+  .status-badge {
+    min-width: 0 !important;
+    min-height: 21px !important;
+
+    padding:
+      0
+      7px !important;
+
+    font-size: 8px !important;
+  }
+
+
+  /* =====================================================
+    모바일에서도 반드시 한 줄 6칸
+
+    기존 1열·2열 규칙을 최종적으로 해제한다.
+  ====================================================== */
+
+  #logDetailModal
+  .shift-log-detail-summary__grid,
+
+  #logDetailModal
+  .detail-summary-grid {
+    grid-template-columns:
+      minmax(0, 1.45fr)
+      minmax(0, 0.65fr)
+      minmax(0, 0.85fr)
+      minmax(0, 0.8fr)
+      minmax(0, 0.9fr)
+      minmax(0, 0.9fr) !important;
+
+    gap: 3px !important;
+  }
+
+
+  /* =====================================================
+    모바일 기본정보 칸
+  ====================================================== */
+
+  #logDetailModal
+  .shift-log-detail-summary__item,
+
+  #logDetailModal
+  .detail-summary-item,
+
+  #logDetailModal
+  .detail-summary-grid
+  >
+  div {
+    min-width: 0 !important;
+    min-height: 40px !important;
+
+    gap: 1px !important;
+
+    padding:
+      4px
+      3px !important;
+
+    border-radius: 5px !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__item
+  >
+  span:first-child,
+
+  #logDetailModal
+  .detail-summary-item__label,
+
+  #logDetailModal
+  .detail-summary-label {
+    font-size: 7px !important;
+    line-height: 1.1 !important;
+    letter-spacing: -0.07em !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__item
+  >
+  strong,
+
+  #logDetailModal
+  .detail-summary-item__value,
+
+  #logDetailModal
+  .detail-summary-value {
+    gap: 2px !important;
+
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+    letter-spacing: -0.06em !important;
+  }
+
+
+  /* =====================================================
+    상세창 하단 버튼 영역
+
+    기존보다 아래쪽 여백을 늘려서
+    인쇄·수정·닫기 버튼을 화면 안쪽으로 올린다.
+  ====================================================== */
+
+  #logDetailModal
+  .log-detail-modal__footer {
+    position: relative !important;
+
+    z-index: 20 !important;
+
+    display: flex !important;
+
+    flex:
+      0
+      0
+      auto !important;
+
+    width: 100% !important;
+    min-height: 0 !important;
+
+    align-items: center !important;
+    justify-content: space-between !important;
+
+    gap: 7px !important;
+
+    margin: 0 !important;
+
+    padding:
+      6px
+      8px
+      max(
+        12px,
+        env(
+          safe-area-inset-bottom,
+          0px
+        )
+      ) !important;
+
+    border-top:
+      1px
+      solid
+      #d9e2ec !important;
+
+    background: #ffffff !important;
+
+    box-shadow:
+      0
+      -4px
+      12px
+      rgba(
+        15,
+        23,
+        42,
+        0.06
+      ) !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #logDetailModal
+  .log-detail-footer__left,
+
+  #logDetailModal
+  .log-detail-footer__right {
+    display: flex !important;
+
+    min-width: 0 !important;
+
+    align-items: center !important;
+
+    gap: 6px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #logDetailModal
+  .log-detail-modal__footer
+  button {
+    display: inline-flex !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      11px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 10px !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+
+    touch-action: manipulation !important;
+
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+
+/* =========================================================
+  작은 모바일 추가 보정
+
+  기존 max-width: 390px의 1열 규칙도 다시 덮어쓴다.
+========================================================= */
+
+@media (max-width: 390px) {
+
+  #logDetailModal
+  .shift-log-detail-summary {
+    padding: 6px !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__grid,
+
+  #logDetailModal
+  .detail-summary-grid {
+    grid-template-columns:
+      minmax(0, 1.45fr)
+      minmax(0, 0.65fr)
+      minmax(0, 0.85fr)
+      minmax(0, 0.8fr)
+      minmax(0, 0.9fr)
+      minmax(0, 0.9fr) !important;
+
+    gap: 2px !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__item,
+
+  #logDetailModal
+  .detail-summary-item,
+
+  #logDetailModal
+  .detail-summary-grid
+  >
+  div {
+    min-height: 38px !important;
+
+    padding:
+      3px
+      2px !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__item
+  >
+  span:first-child {
+    font-size: 6.5px !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__item
+  >
+  strong {
+    font-size: 8.5px !important;
+  }
+
+
+  #logDetailModal
+  .log-detail-modal__footer
+  button {
+    padding:
+      0
+      8px !important;
+
+    font-size: 9px !important;
+  }
+}
