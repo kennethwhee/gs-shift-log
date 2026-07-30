@@ -38962,3 +38962,540 @@ strong,
     font-size: 9px !important;
   }
 }
+
+/* =========================================================
+  업무일지 상세보기 최종 교정
+
+  수정 내용:
+  1. 상태·권한상 숨겨진 하단 버튼 확실히 숨김
+  2. 운전현황 내용 영역 전체 너비 사용
+  3. 기본정보 6개 칸 동일한 너비·높이 적용
+  4. 기본정보 글자 상단 잘림 방지
+========================================================= */
+
+
+/* =========================================================
+  1. 상세보기 하단 버튼 표시 오류 수정
+
+  JavaScript에서 hidden 처리한 버튼을
+  다른 display: inline-flex !important 규칙이
+  다시 표시하지 못하게 한다.
+========================================================= */
+
+#logDetailModal
+.log-detail-modal__footer
+button[hidden],
+
+#logDetailModal
+.log-detail-modal__footer
+[hidden] {
+  display: none !important;
+}
+
+
+/* =========================================================
+  2. 운전현황 행 구조 교정
+
+  실제 HTML 구조:
+  보직 | 상태 배지 | 구분선 | 내용
+
+  기존 5칸 구조를 4칸으로 변경하여
+  내용이 남은 공간을 모두 사용하게 한다.
+========================================================= */
+
+#logDetailModal
+.detail-operation-dashboard__row {
+  display: grid !important;
+
+  grid-template-columns:
+    42px
+    58px
+    1px
+    minmax(0, 1fr) !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  align-items: center !important;
+
+  column-gap: 7px !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* 보직 */
+
+#logDetailModal
+.detail-operation-dashboard__role {
+  min-width: 0 !important;
+
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+
+/* 상태 배지 */
+
+#logDetailModal
+.detail-operation-dashboard__badge {
+  width: 58px !important;
+  min-width: 58px !important;
+  max-width: 58px !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* 구분선 */
+
+#logDetailModal
+.detail-operation-dashboard__divider {
+  width: 1px !important;
+  min-width: 1px !important;
+  max-width: 1px !important;
+}
+
+
+/* 운전현황 내용 */
+
+#logDetailModal
+.detail-operation-dashboard__content,
+
+#logDetailModal
+.detail-operation-dashboard__text {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #394b61 !important;
+
+  line-height: 1.4 !important;
+
+  text-align: left !important;
+
+  white-space: normal !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+
+/* =========================================================
+  3. 상세보기 기본정보 6칸 동일 크기
+
+  작성일 | 근무 | 근무파트 | 보직 | 작성자 | 등록내역
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-summary__grid,
+
+#logDetailModal
+.detail-summary-grid {
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  grid-template-columns:
+    repeat(
+      6,
+      minmax(0, 1fr)
+    ) !important;
+
+  grid-auto-columns:
+    minmax(0, 1fr) !important;
+
+  gap: 5px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  align-items: stretch !important;
+}
+
+
+/* =========================================================
+  기본정보 개별 칸
+
+  모든 칸:
+  - 같은 너비
+  - 같은 높이
+  - 같은 내부 여백
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-summary__item,
+
+#logDetailModal
+.detail-summary-item,
+
+#logDetailModal
+.detail-summary-grid
+>
+div {
+  display: flex !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+
+  height: 54px !important;
+  min-height: 54px !important;
+  max-height: 54px !important;
+
+  flex-direction: column !important;
+
+  align-items: flex-start !important;
+  justify-content: center !important;
+
+  gap: 2px !important;
+
+  margin: 0 !important;
+
+  padding:
+    6px
+    7px !important;
+
+  overflow: visible !important;
+
+  border:
+    1px
+    solid
+    #d9e2ec !important;
+
+  border-radius: 7px !important;
+
+  background: #f7f9fc !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* =========================================================
+  기본정보 항목명
+
+  작성일, 근무, 근무파트 등
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-summary__item
+>
+span:first-child,
+
+#logDetailModal
+.detail-summary-item__label,
+
+#logDetailModal
+.detail-summary-label {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: visible !important;
+
+  color: #778498 !important;
+
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  line-height: 1.4 !important;
+  letter-spacing: -0.035em !important;
+
+  text-align: left !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* =========================================================
+  기본정보 값
+
+  2026-07-29, N/S, 3파트 등
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-summary__item
+>
+strong,
+
+#logDetailModal
+.detail-summary-item__value,
+
+#logDetailModal
+.detail-summary-value {
+  display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  flex-wrap: nowrap !important;
+
+  align-items: center !important;
+
+  gap: 3px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: visible !important;
+
+  color: #203149 !important;
+
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.35 !important;
+  letter-spacing: -0.035em !important;
+
+  text-align: left !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* =========================================================
+  모바일 상세보기
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    모바일 운전현황
+
+    왼쪽 고정 칸을 조금 더 줄이고
+    내용에 최대한 많은 너비를 제공한다.
+  ====================================================== */
+
+  #logDetailModal
+  .detail-operation-dashboard__row {
+    grid-template-columns:
+      35px
+      50px
+      1px
+      minmax(0, 1fr) !important;
+
+    column-gap: 5px !important;
+
+    min-height: 30px !important;
+
+    padding:
+      4px
+      7px !important;
+  }
+
+
+  #logDetailModal
+  .detail-operation-dashboard__role {
+    font-size: 9px !important;
+  }
+
+
+  #logDetailModal
+  .detail-operation-dashboard__badge {
+    width: 50px !important;
+    min-width: 50px !important;
+    max-width: 50px !important;
+
+    height: 20px !important;
+    min-height: 20px !important;
+
+    padding:
+      0
+      4px !important;
+
+    font-size: 8px !important;
+  }
+
+
+  #logDetailModal
+  .detail-operation-dashboard__content,
+
+  #logDetailModal
+  .detail-operation-dashboard__text {
+    font-size: 9px !important;
+    font-weight: 750 !important;
+    line-height: 1.4 !important;
+  }
+
+
+  /* =====================================================
+    모바일 기본정보 6칸
+
+    기존 1열·2열·서로 다른 비율 설정을
+    최종적으로 모두 덮어쓴다.
+  ====================================================== */
+
+  #logDetailModal
+  .shift-log-detail-summary__grid,
+
+  #logDetailModal
+  .detail-summary-grid {
+    grid-template-columns:
+      repeat(
+        6,
+        minmax(0, 1fr)
+      ) !important;
+
+    gap: 3px !important;
+  }
+
+
+  /* =====================================================
+    모바일 기본정보 개별 칸
+
+    전체 높이를 동일한 45px로 적용한다.
+  ====================================================== */
+
+  #logDetailModal
+  .shift-log-detail-summary__item,
+
+  #logDetailModal
+  .detail-summary-item,
+
+  #logDetailModal
+  .detail-summary-grid
+  >
+  div {
+    width: auto !important;
+    min-width: 0 !important;
+
+    height: 45px !important;
+    min-height: 45px !important;
+    max-height: 45px !important;
+
+    gap: 1px !important;
+
+    padding:
+      5px
+      3px !important;
+
+    overflow: visible !important;
+
+    border-radius: 5px !important;
+  }
+
+
+  /* 모바일 항목명 */
+
+  #logDetailModal
+  .shift-log-detail-summary__item
+  >
+  span:first-child,
+
+  #logDetailModal
+  .detail-summary-item__label,
+
+  #logDetailModal
+  .detail-summary-label {
+    margin: 0 !important;
+
+    font-size: 7px !important;
+    line-height: 1.4 !important;
+    letter-spacing: -0.065em !important;
+
+    overflow: visible !important;
+  }
+
+
+  /* 모바일 값 */
+
+  #logDetailModal
+  .shift-log-detail-summary__item
+  >
+  strong,
+
+  #logDetailModal
+  .detail-summary-item__value,
+
+  #logDetailModal
+  .detail-summary-value {
+    gap: 2px !important;
+
+    font-size: 9px !important;
+    line-height: 1.4 !important;
+    letter-spacing: -0.055em !important;
+
+    overflow: visible !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* 대근 배지 */
+
+  #logDetailModal
+  .detail-substitute-badge {
+    min-height: 15px !important;
+
+    padding:
+      0
+      3px !important;
+
+    font-size: 6px !important;
+    line-height: 1 !important;
+  }
+}
+
+
+/* =========================================================
+  아주 작은 모바일 추가 보정
+========================================================= */
+
+@media (max-width: 390px) {
+
+  #logDetailModal
+  .shift-log-detail-summary__grid,
+
+  #logDetailModal
+  .detail-summary-grid {
+    grid-template-columns:
+      repeat(
+        6,
+        minmax(0, 1fr)
+      ) !important;
+
+    gap: 2px !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__item,
+
+  #logDetailModal
+  .detail-summary-item,
+
+  #logDetailModal
+  .detail-summary-grid
+  >
+  div {
+    height: 43px !important;
+    min-height: 43px !important;
+    max-height: 43px !important;
+
+    padding:
+      4px
+      2px !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__item
+  >
+  span:first-child {
+    font-size: 6.5px !important;
+  }
+
+
+  #logDetailModal
+  .shift-log-detail-summary__item
+  >
+  strong {
+    font-size: 8.5px !important;
+  }
+}
