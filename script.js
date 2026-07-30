@@ -46242,7 +46242,24 @@ function findLatestShiftMemberLog(
 
 
 /* =========================================================
-  근무자 카드 상태 설정
+  근무자 카드 업무일지 상태 설정 최종본
+
+  실제 저장 상태:
+  - 미작성
+  - 임시저장
+  - 결재요청
+  - 결재완료
+  - 저장완료
+
+  모바일 표시:
+  - 미작성
+  - 저장
+  - 결재
+  - 승인
+  - 완료
+
+  PC 표시:
+  - 기존 전체 상태명 유지
 ========================================================= */
 
 function applyShiftMemberCardLogStatus(
@@ -46258,9 +46275,10 @@ function applyShiftMemberCardLogStatus(
   }
 
 
-  /*
-    작성된 업무일지가 없는 경우
-  */
+  /* =====================================================
+    업무일지가 없는 경우
+  ====================================================== */
+
   if (
     !log
   ) {
@@ -46272,17 +46290,32 @@ function applyShiftMemberCardLogStatus(
       "empty";
 
 
+    card.dataset.mobileStatus =
+      "미작성";
+
+
+    statusElement.dataset.mobileStatus =
+      "미작성";
+
+
     statusElement.textContent =
       "미작성";
 
 
     statusElement.className =
-      "shift-member-card__status is-empty";
+      [
+        "shift-member-card__status",
+        "is-empty"
+      ].join(" ");
 
 
     return;
   }
 
+
+  /* =====================================================
+    저장 상태 정규화
+  ====================================================== */
 
   const normalizedStatus =
     normalizeShiftLogApprovalStatus(
@@ -46290,26 +46323,17 @@ function applyShiftMemberCardLogStatus(
     );
 
 
-  const displayName =
+  const desktopDisplayName =
     getShiftLogStatusDisplayName(
       normalizedStatus
     );
 
 
-  card.dataset.logState =
-    "existing";
-
-
-  card.dataset.approvalStatus =
-    normalizedStatus;
-
-
-  statusElement.textContent =
-    displayName;
-
-
   const statusClassMap = {
     임시저장:
+      "is-writing",
+
+    작성중:
       "is-writing",
 
     결재요청:
@@ -46319,7 +46343,31 @@ function applyShiftMemberCardLogStatus(
       "is-approved",
 
     저장완료:
+      "is-complete",
+
+    작성완료:
       "is-complete"
+  };
+
+
+  const mobileStatusMap = {
+    임시저장:
+      "저장",
+
+    작성중:
+      "저장",
+
+    결재요청:
+      "결재",
+
+    결재완료:
+      "승인",
+
+    저장완료:
+      "완료",
+
+    작성완료:
+      "완료"
   };
 
 
@@ -46328,6 +46376,44 @@ function applyShiftMemberCardLogStatus(
       normalizedStatus
     ] ||
     "is-writing";
+
+
+  const mobileStatus =
+    mobileStatusMap[
+      normalizedStatus
+    ] ||
+    "저장";
+
+
+  /* =====================================================
+    카드 상태 저장
+  ====================================================== */
+
+  card.dataset.logState =
+    "existing";
+
+
+  card.dataset.approvalStatus =
+    normalizedStatus;
+
+
+  card.dataset.mobileStatus =
+    mobileStatus;
+
+
+  /* =====================================================
+    상태 배지 출력
+
+    기본 textContent는 PC 화면에서 사용하고,
+    모바일에서는 CSS가 data-mobile-status 값을 표시한다.
+  ====================================================== */
+
+  statusElement.textContent =
+    desktopDisplayName;
+
+
+  statusElement.dataset.mobileStatus =
+    mobileStatus;
 
 
   statusElement.className = [

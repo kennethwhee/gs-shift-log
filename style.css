@@ -37512,3 +37512,576 @@ body {
   }
 
 }
+
+/* =========================================================
+  모바일 메인 화면 - 근무자 현황 최종본
+
+  적용 범위:
+  - 모바일에서만 적용
+  - PC 화면은 기존 디자인 유지
+
+  구성:
+  - 보직별 공지 버튼을 카드 위에 독립 배치
+  - 파트장 공지 공간도 같은 높이로 유지
+  - 7개 보직 한 줄 표시
+  - 상태 문구 모바일 전용 축약
+  - 카드 클릭 영역과 공지 클릭 영역 분리
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    근무자 현황 전체 영역
+  ====================================================== */
+
+  #statusView
+  .shift-status-section {
+    margin-bottom: 12px !important;
+    padding: 14px 10px 12px !important;
+
+    border-radius: 13px !important;
+  }
+
+
+  /* =====================================================
+    제목 영역
+
+    근무자 현황                  날짜 · 근무 · 파트
+  ====================================================== */
+
+  #statusView
+  .shift-status-section
+  .section-heading {
+    align-items: flex-end !important;
+
+    gap: 8px !important;
+
+    margin-bottom: 11px !important;
+  }
+
+
+  #statusView
+  .shift-status-section
+  .section-heading__eyebrow {
+    display: none !important;
+  }
+
+
+  #statusView
+  .shift-status-section
+  .section-heading__title {
+    gap: 5px !important;
+
+    margin: 0 !important;
+
+    color: #18263b !important;
+
+    font-size: 20px !important;
+    font-weight: 900 !important;
+    line-height: 1.15 !important;
+
+    letter-spacing: -0.045em !important;
+
+    white-space: nowrap;
+  }
+
+
+  /*
+    제목 옆 파트 표시는 모바일에서 숨긴다.
+
+    오른쪽 현재 근무 정보에 이미 파트가 표시되므로
+    같은 정보가 두 번 나오지 않게 한다.
+  */
+  #statusView
+  .shift-status-section
+  .shift-section-part {
+    display: none !important;
+  }
+
+
+  #statusView
+  .shift-status-section
+  .shift-summary {
+    display: block !important;
+
+    min-width: 0;
+
+    margin-left: auto;
+
+    text-align: right;
+  }
+
+
+  #statusView
+  .shift-status-section
+  .shift-summary__label {
+    display: none !important;
+  }
+
+
+  #statusView
+  .shift-status-section
+  .shift-summary__value {
+    display: block;
+
+    overflow: hidden;
+
+    max-width: 195px;
+
+    color: #526177 !important;
+
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    line-height: 1.3 !important;
+
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+
+  /* =====================================================
+    7개 보직 한 줄
+
+    가로 스크롤 없이 화면 안에 전부 표시한다.
+  ====================================================== */
+
+  #statusView
+  .shift-member-grid {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      repeat(
+        7,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    align-items: stretch !important;
+
+    gap: 0 !important;
+
+    overflow: hidden !important;
+
+    border: 1px solid #cfd9e4;
+    border-radius: 10px;
+
+    background: #ffffff;
+  }
+
+
+  /* =====================================================
+    보직별 전체 묶음
+
+    공지 버튼
+    업무일지 카드
+  ====================================================== */
+
+  #statusView
+  .shift-member-card-wrap {
+    display: flex !important;
+
+    min-width: 0 !important;
+
+    flex-direction: column !important;
+
+    border-right: 1px solid #d9e1ea;
+  }
+
+
+  #statusView
+  .shift-member-card-wrap:last-child {
+    border-right: 0;
+  }
+
+
+  /* =====================================================
+    공지 버튼
+
+    카드 내부가 아니라 위쪽에 독립적으로 배치
+  ====================================================== */
+
+  #statusView
+  .role-notice-button,
+  #statusView
+  .role-notice-placeholder {
+    width: 100% !important;
+    height: 23px !important;
+    min-height: 23px !important;
+
+    margin: 0 !important;
+    padding: 0 2px !important;
+
+    border: 0 !important;
+    border-bottom: 1px solid #e2e8ef !important;
+    border-radius: 0 !important;
+
+    background: #f8fafc !important;
+  }
+
+
+  #statusView
+  .role-notice-button {
+    display: flex !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    gap: 2px !important;
+
+    color: #627083 !important;
+
+    font-size: 8px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+
+    cursor: pointer;
+  }
+
+
+  #statusView
+  .role-notice-button:active {
+    background: #edf4fb !important;
+    color: #1f5fae !important;
+  }
+
+
+  /*
+    기존 네모 문자 아이콘은 표시하지 않는다.
+    공지 글자만 깔끔하게 사용한다.
+  */
+  #statusView
+  .role-notice-button__icon {
+    display: none !important;
+  }
+
+
+  #statusView
+  .role-notice-button__label {
+    display: inline !important;
+  }
+
+
+  /* 공지 건수 */
+  #statusView
+  .role-notice-button__count {
+    display: inline-flex !important;
+
+    min-width: 14px !important;
+    height: 14px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 3px !important;
+
+    border-radius: 999px !important;
+
+    background: #dcecff !important;
+    color: #1763c5 !important;
+
+    font-size: 7px !important;
+    font-weight: 900 !important;
+  }
+
+
+  #statusView
+  .role-notice-button__count[hidden] {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    업무일지 카드
+  ====================================================== */
+
+  #statusView
+  .shift-member-card {
+    display: flex !important;
+
+    min-width: 0 !important;
+    min-height: 104px !important;
+
+    flex: 1 1 auto !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+
+    margin: 0 !important;
+    padding: 7px 4px 7px !important;
+
+    border: 0 !important;
+    border-radius: 0 !important;
+
+    background: #ffffff !important;
+
+    box-shadow: none !important;
+
+    cursor: pointer;
+
+    transform: none !important;
+  }
+
+
+  #statusView
+  .shift-member-card:hover,
+  #statusView
+  .shift-member-card:focus,
+  #statusView
+  .shift-member-card:focus-visible {
+    border: 0 !important;
+
+    background: #f8fbff !important;
+
+    box-shadow: none !important;
+
+    transform: none !important;
+  }
+
+
+  #statusView
+  .shift-member-card:active {
+    background: #edf5fd !important;
+  }
+
+
+  /*
+    PC 마우스 오버용 "업무일지" 문구 제거
+  */
+  #statusView
+  .shift-member-card::after {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    보직명
+  ====================================================== */
+
+  #statusView
+  .shift-member-card__role {
+    overflow: hidden;
+
+    width: 100%;
+
+    margin: 0 0 6px !important;
+
+    color: #536176 !important;
+
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 1.15 !important;
+
+    text-align: center !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+
+  /* =====================================================
+    이름 영역
+  ====================================================== */
+
+  #statusView
+  .shift-member-card__body {
+    display: flex !important;
+
+    min-width: 0 !important;
+    min-height: 39px !important;
+
+    flex: 1 1 auto !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 0 6px !important;
+    padding: 4px 2px !important;
+
+    border-radius: 6px !important;
+
+    background: #f5f7fa !important;
+
+    text-align: center !important;
+  }
+
+
+  #statusView
+  .shift-member-card__name-wrap {
+    display: flex !important;
+
+    min-width: 0 !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+    flex-direction: column !important;
+
+    gap: 2px !important;
+  }
+
+
+  #statusView
+  .shift-member-card__name {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    overflow: hidden !important;
+
+    color: #172033 !important;
+
+    font-size: 11px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+
+    letter-spacing: -0.04em !important;
+
+    text-align: center !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+
+  /*
+    카드 안의 파트 표시는 숨긴다.
+
+    모든 근무자가 같은 파트이므로
+    7개 카드에 반복 표시할 필요가 없다.
+  */
+  #statusView
+  .shift-member-card__team {
+    display: none !important;
+  }
+
+
+  /* 대근 */
+  #statusView
+  .shift-member-card__substitute {
+    min-height: 15px !important;
+
+    padding: 0 4px !important;
+
+    font-size: 6px !important;
+  }
+
+
+  /* =====================================================
+    상태 배지 공통
+  ====================================================== */
+
+  #statusView
+  .shift-member-card__status {
+    display: inline-flex !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+    height: 21px !important;
+    min-height: 21px !important;
+
+    align-self: center !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    gap: 3px !important;
+
+    margin: 0 auto !important;
+    padding: 0 6px !important;
+
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-radius: 999px !important;
+
+    font-size: 7px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /*
+    PC용 상태 문구는 모바일에서 숨기고,
+    JavaScript가 저장한 data-mobile-status를 표시한다.
+  */
+  #statusView
+  .shift-member-card__status {
+    font-size: 0 !important;
+  }
+
+
+  #statusView
+  .shift-member-card__status::after {
+    content:
+      attr(
+        data-mobile-status
+      );
+
+    font-size: 7px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+  }
+
+
+  /*
+    상태 앞 점
+  */
+  #statusView
+  .shift-member-card__status::before {
+    width: 5px !important;
+    height: 5px !important;
+
+    margin: 0 !important;
+  }
+
+
+  /* =====================================================
+    상태별 색상
+  ====================================================== */
+
+  /* 미작성 */
+  #statusView
+  .shift-member-card__status.is-empty {
+    border-color: #cfd6df !important;
+    background: #f3f5f7 !important;
+    color: #778291 !important;
+  }
+
+
+  /* 저장 */
+  #statusView
+  .shift-member-card__status.is-writing {
+    border-color: #efc67f !important;
+    background: #fff7e8 !important;
+    color: #a5650b !important;
+  }
+
+
+  /* 결재요청 */
+  #statusView
+  .shift-member-card__status.is-requested {
+    border-color: #c5b7ed !important;
+    background: #f4efff !important;
+    color: #6942a5 !important;
+  }
+
+
+  /* 저장완료 */
+  #statusView
+  .shift-member-card__status.is-complete {
+    border-color: #accbed !important;
+    background: #eaf3ff !important;
+    color: #1763c5 !important;
+  }
+
+
+  /* 결재완료 */
+  #statusView
+  .shift-member-card__status.is-approved {
+    border-color: #a8d9bf !important;
+    background: #eaf8f0 !important;
+    color: #188451 !important;
+  }
+
+}
