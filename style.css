@@ -46775,23 +46775,23 @@ input {
 }
 
 /* =========================================================
-  모바일 업무일지 미리보기 하단 버튼 최종 색상 보정
+  모바일 업무일지 미리보기 하단 버튼 최종 색상 교정
 
-  상세보기 : 아주 연한 파란색
-  첨부     : 아주 연한 회색
-  이어쓰기 : 아주 연한 주황색
-  삭제     : 아주 연한 빨간색
+  상세보기 : 연한 파란색
+  첨부     : 연한 회색
+  이어쓰기 : 연한 주황색
+  삭제     : 연한 빨간색
 
-  적용:
-  - 버튼 높이 26px
-  - 기능별 색상 구분
-  - 기존 버튼 너비 비율 유지
+  중요:
+  - 기존 공통 버튼 CSS보다 우선순위를 높이기 위해
+    footer의 직접 자식 선택자를 사용한다.
+  - 기존 버튼 너비 비율은 그대로 유지한다.
 ========================================================= */
 
 @media (max-width: 768px) {
 
   /* =====================================================
-    하단 영역 자체 높이 축소
+    하단 버튼 영역 높이 축소
   ====================================================== */
 
   #statusView
@@ -46802,6 +46802,11 @@ input {
       4px
       6px !important;
 
+    border-top:
+      1px
+      solid
+      #dde5ed !important;
+
     background: #fbfcfe !important;
 
     box-sizing: border-box !important;
@@ -46809,22 +46814,14 @@ input {
 
 
   /* =====================================================
-    모든 버튼·첨부 없음 칸 공통
+    모든 버튼 공통 크기
 
-    기존 약 28~30px에서 26px로 축소
+    그리드 너비 비율은 기존 설정 유지
   ====================================================== */
 
   #statusView
   .mobile-log-card__footer
   >
-  button,
-
-  #statusView
-  .mobile-log-card__footer
-  >
-  span,
-
-  #statusView
   .mobile-log-card__footer-button {
     display: inline-flex !important;
 
@@ -46832,9 +46829,9 @@ input {
     min-width: 0 !important;
     max-width: none !important;
 
-    height: 26px !important;
-    min-height: 26px !important;
-    max-height: 26px !important;
+    height: 25px !important;
+    min-height: 25px !important;
+    max-height: 25px !important;
 
     align-items: center !important;
     justify-content: center !important;
@@ -46849,6 +46846,8 @@ input {
 
     overflow: hidden !important;
 
+    border-width: 1px !important;
+    border-style: solid !important;
     border-radius: 5px !important;
 
     font-size: 8px !important;
@@ -46858,13 +46857,15 @@ input {
 
     text-align: center !important;
     text-overflow: ellipsis !important;
-
     white-space: nowrap !important;
 
     box-shadow: none !important;
     transform: none !important;
 
     box-sizing: border-box !important;
+
+    -webkit-appearance: none !important;
+    appearance: none !important;
 
     touch-action: manipulation !important;
 
@@ -46875,61 +46876,68 @@ input {
   /* =====================================================
     상세보기
 
-    연한 파란색
+    기능의 기본 진입 버튼이므로
+    연한 파란색으로 표시
   ====================================================== */
 
   #statusView
+  .mobile-log-card__footer
+  >
   .mobile-log-card__detail-button {
-    border:
-      1px
-      solid
-      #abc5e1 !important;
+    border-color: #a7c5e5 !important;
 
-    background: #eef6fd !important;
-    color: #245b92 !important;
+    background: #edf6ff !important;
+    color: #245c95 !important;
   }
 
 
   #statusView
+  .mobile-log-card__footer
+  >
   .mobile-log-card__detail-button:active {
-    border-color: #82aad3 !important;
+    border-color: #7fa9d5 !important;
 
-    background: #e1eefb !important;
-    color: #174f87 !important;
+    background: #deedfc !important;
+    color: #164d86 !important;
   }
 
 
   /* =====================================================
-    첨부 및 첨부 없음
+    첨부·첨부 없음
 
-    아주 연한 회색
+    중립 기능이므로 연한 회색
   ====================================================== */
 
   #statusView
+  .mobile-log-card__footer
+  >
   .mobile-log-card__attachment-button,
 
   #statusView
+  .mobile-log-card__footer
+  >
   .mobile-log-card__attachment-empty {
-    border:
-      1px
-      solid
-      #d3dce5 !important;
+    border-color: #ccd6e1 !important;
 
-    background: #f5f7f9 !important;
-    color: #657386 !important;
+    background: #f2f5f8 !important;
+    color: #5d6d80 !important;
   }
 
 
   #statusView
+  .mobile-log-card__footer
+  >
   .mobile-log-card__attachment-button:active {
-    border-color: #bac6d2 !important;
+    border-color: #adbcca !important;
 
-    background: #e9edf2 !important;
-    color: #526174 !important;
+    background: #e6ebf0 !important;
+    color: #4e5f73 !important;
   }
 
 
   #statusView
+  .mobile-log-card__footer
+  >
   .mobile-log-card__attachment-empty {
     pointer-events: none !important;
   }
@@ -46938,63 +46946,68 @@ input {
   /* =====================================================
     이어쓰기·수정
 
-    아주 연한 주황색
+    작성 기능이므로 연한 주황색
   ====================================================== */
 
   #statusView
+  .mobile-log-card__footer
+  >
   .mobile-log-card__edit-button {
-    border:
-      1px
-      solid
-      #e7cfa2 !important;
+    border-color: #e5c98e !important;
 
-    background: #fff8e9 !important;
-    color: #946116 !important;
+    background: #fff6e3 !important;
+    color: #946015 !important;
   }
 
 
   #statusView
+  .mobile-log-card__footer
+  >
   .mobile-log-card__edit-button:active {
-    border-color: #d6b778 !important;
+    border-color: #d3ad62 !important;
 
-    background: #ffefcf !important;
-    color: #82500b !important;
+    background: #ffebc5 !important;
+    color: #7f4e09 !important;
   }
 
 
   /* =====================================================
     삭제
 
-    아주 연한 빨간색
-  ====================================================== */
-
-  #statusView
-  .mobile-log-card__delete-button {
-    border:
-      1px
-      solid
-      #e7b9b9 !important;
-
-    background: #fff2f2 !important;
-    color: #b34545 !important;
-  }
-
-
-  #statusView
-  .mobile-log-card__delete-button:active {
-    border-color: #d88989 !important;
-
-    background: #fde5e5 !important;
-    color: #9f3030 !important;
-  }
-
-
-  /* =====================================================
-    터치 시 버튼이 아래로 움직이지 않도록 고정
+    위험 기능이므로 연한 빨간색
   ====================================================== */
 
   #statusView
   .mobile-log-card__footer
+  >
+  .mobile-log-card__delete-button {
+    border-color: #e5b1b1 !important;
+
+    background: #fff0f0 !important;
+    color: #b13d3d !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__footer
+  >
+  .mobile-log-card__delete-button:active {
+    border-color: #d37d7d !important;
+
+    background: #fddede !important;
+    color: #982d2d !important;
+  }
+
+
+  /* =====================================================
+    공통 터치 효과 제거
+
+    버튼이 눌릴 때 위치가 움직이지 않도록 한다.
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__footer
+  >
   button:active {
     transform: none !important;
   }
@@ -47002,7 +47015,7 @@ input {
 
 
 /* =========================================================
-  작은 모바일 추가 보정
+  작은 모바일
 ========================================================= */
 
 @media (max-width: 390px) {
@@ -47020,18 +47033,10 @@ input {
   #statusView
   .mobile-log-card__footer
   >
-  button,
-
-  #statusView
-  .mobile-log-card__footer
-  >
-  span,
-
-  #statusView
   .mobile-log-card__footer-button {
-    height: 25px !important;
-    min-height: 25px !important;
-    max-height: 25px !important;
+    height: 24px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
 
     padding:
       0
