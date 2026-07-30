@@ -21626,17 +21626,16 @@ function selectOperationStatusType(
   운전현황 저장 최종본
 
   TGO·BCO1·BCO2:
-  - 설비 구성 고정
-  - 설비명·순서 변경 불가
-  - 운전 상태만 저장
-  - 상태에 맞는 문구 자동 생성
+  - 기본 설비와 추가 설비 모두 저장
+  - 사용자가 입력한 설비명·운전현황 유지
+  - 추가한 순서 그대로 저장
+  - 상태 변경 내용 저장
 
   TO·BO1·BO2:
   - 자유 텍스트 그대로 저장
   - 줄바꿈 유지
 
   파트장:
-  - 직접 저장하지 않음
   - TGO·BCO1·BCO2 운전현황 자동 취합
 ========================================================= */
 
@@ -21670,12 +21669,11 @@ function saveOperationStatus() {
 
 
   const updatedAt =
-    new Date()
-      .toISOString();
+    new Date().toISOString();
 
 
   /* =====================================================
-    TGO·BCO1·BCO2 고정 설비 저장
+    TGO·BCO1·BCO2 설비별 운전현황 저장
   ====================================================== */
 
   if (
@@ -21683,234 +21681,113 @@ function saveOperationStatus() {
       currentRole
     )
   ) {
-    const fixedEquipmentMap = {
-      TGO: [
-        {
-          name:
-            "터빈",
-
-          defaultType:
-            "normal"
-        },
-
-        {
-          name:
-            "3호기 보조보일러",
-
-          defaultType:
-            "abnormal"
-        },
-
-        {
-          name:
-            "4호기 보조보일러",
-
-          defaultType:
-            "abnormal"
-        }
-      ],
-
-      BCO1: [
-        {
-          name:
-            "1호기 주보일러",
-
-          defaultType:
-            "normal"
-        }
-      ],
-
-      BCO2: [
-        {
-          name:
-            "2호기 주보일러",
-
-          defaultType:
-            "normal"
-        }
-      ]
-    };
-
-
-    const statusContentMap = {
-      normal:
-        "정상 운전 중",
-
-      starting:
-        "기동 중",
-
-      stopped:
-        "정지 중",
-
-      abnormal:
-        "만수 보존 중",
-
-      emergency:
-        "비상 상태"
-    };
-
-
-    const normalizeEquipmentName = (
-      value
-    ) => {
-      return String(
-        value ||
-        ""
+    /*
+      화면에서 마지막으로 입력한 값이
+      편집 배열에 반영됐는지 한 번 더 확인한다.
+    */
+    document
+      .querySelectorAll(
+        ".operation-status-item-editor"
       )
-        .normalize(
-          "NFKC"
-        )
-        .toLowerCase()
-        .replace(
-          /\s+/g,
-          ""
-        )
-        .replace(
-          /[#_\-]/g,
-          ""
-        );
-    };
-
-
-    const getEquipmentAliases = (
-      equipmentName
-    ) => {
-      const normalizedName =
-        normalizeEquipmentName(
-          equipmentName
-        );
-
-
-      const aliasMap = {
-        터빈: [
-          "터빈",
-          "turbine",
-          "tbn"
-        ],
-
-        "1호기주보일러": [
-          "1호기주보일러",
-          "1주보일러",
-          "1blr",
-          "blr1",
-          "1boiler",
-          "boiler1"
-        ],
-
-        "2호기주보일러": [
-          "2호기주보일러",
-          "2주보일러",
-          "2blr",
-          "blr2",
-          "2boiler",
-          "boiler2"
-        ],
-
-        "3호기보조보일러": [
-          "3호기보조보일러",
-          "3보조보일러",
-          "3auxboiler",
-          "auxboiler3"
-        ],
-
-        "4호기보조보일러": [
-          "4호기보조보일러",
-          "4보조보일러",
-          "4auxboiler",
-          "auxboiler4"
-        ]
-      };
-
-
-      return (
-        aliasMap[
-          normalizedName
-        ] ||
-        [
-          normalizedName
-        ]
-      );
-    };
-
-
-    const sourceItems =
-      Array.isArray(
-        editingOperationStatusItems
-      )
-        ? editingOperationStatusItems
-        : [];
-
-
-    const fixedEquipmentDefinitions =
-      fixedEquipmentMap[
-        currentRole
-      ] ||
-      [];
-
-
-    const normalizedItems =
-      fixedEquipmentDefinitions.map(
+      .forEach(
         (
-          equipmentDefinition,
+          itemElement,
           itemIndex
         ) => {
-          const aliases =
-            getEquipmentAliases(
-              equipmentDefinition.name
-            );
-
-
-          const matchedItem =
-            sourceItems.find(
-              sourceItem => {
-                const sourceName =
-                  normalizeEquipmentName(
-                    sourceItem?.name
-                  );
-
-
-                return aliases.includes(
-                  sourceName
-                );
-              }
-            );
-
-
-          /*
-            기존 자료에서 설비명이 정확하지 않은 경우
-            같은 배열 위치의 상태를 보조적으로 사용한다.
-          */
-          const fallbackItem =
-            sourceItems[
+          const targetItem =
+            editingOperationStatusItems[
               itemIndex
             ];
 
 
-          const sourceItem =
-            matchedItem ||
-            fallbackItem ||
-            {};
+          if (
+            !targetItem
+          ) {
+            return;
+          }
 
 
-          const selectedType =
-            normalizeOperationStatusType(
-              sourceItem.type ||
-              equipmentDefinition.defaultType
+          const nameInput =
+            itemElement.querySelector(
+              ".operation-status-item-name-input"
             );
 
 
-          const selectedContent =
-            statusContentMap[
-              selectedType
-            ] ||
-            "정상 운전 중";
+          const contentInput =
+            itemElement.querySelector(
+              ".operation-status-item-content-input"
+            );
+
+
+          if (
+            nameInput
+          ) {
+            targetItem.name =
+              nameInput.value;
+          }
+
+
+          if (
+            contentInput
+          ) {
+            targetItem.content =
+              contentInput.value;
+          }
+        }
+      );
+
+
+    /*
+      설비명과 운전현황 내용이 비어 있는지 검사한다.
+    */
+    if (
+      !validateOperationStatusEditorItems()
+    ) {
+      return;
+    }
+
+
+    /*
+      fixedEquipmentMap을 사용하지 않고
+      사용자가 편집한 전체 항목을 그대로 저장한다.
+    */
+    const normalizedItems =
+      editingOperationStatusItems.map(
+        (
+          sourceItem,
+          itemIndex
+        ) => {
+          const equipmentName =
+            String(
+              sourceItem?.name ||
+              ""
+            ).trim();
+
+
+          const operationContent =
+            String(
+              sourceItem?.content ||
+              ""
+            ).trim();
+
+
+          const equipmentMode =
+            String(
+              sourceItem?.equipmentMode ||
+              ""
+            ).trim() ===
+              "custom"
+              ? "custom"
+              : "equipment";
 
 
           return normalizeOperationStatusItem(
             {
+              ...sourceItem,
+
               id:
                 String(
-                  sourceItem.id ||
+                  sourceItem?.id ||
                   ""
                 ).trim() ||
                 createOperationStatusItemId(),
@@ -21921,23 +21798,19 @@ function saveOperationStatus() {
               sourceRole:
                 currentRole,
 
-              /*
-                저장 시 설비명을 고정값으로 강제한다.
-              */
               name:
-                equipmentDefinition.name,
+                equipmentName,
 
               type:
-                selectedType,
+                normalizeOperationStatusType(
+                  sourceItem?.type ||
+                  "normal"
+                ),
 
-              /*
-                상태에 맞는 문구를 자동 생성한다.
-              */
               content:
-                selectedContent,
+                operationContent,
 
-              equipmentMode:
-                "equipment",
+              equipmentMode,
 
               updatedAt,
 
@@ -21954,7 +21827,7 @@ function saveOperationStatus() {
       !normalizedItems.length
     ) {
       showToast(
-        `${currentRole} 고정 설비 정보를 확인할 수 없습니다.`
+        "운전현황을 한 건 이상 추가해 주세요."
       );
 
       return;
@@ -21997,15 +21870,13 @@ function saveOperationStatus() {
 
 
     /*
-      현재 편집 배열도 저장 결과와 동일하게 맞춘다.
+      편집 배열도 최종 저장 결과와 맞춘다.
     */
     editingOperationStatusItems =
       normalizedItems.map(
-        item => {
-          return {
-            ...item
-          };
-        }
+        item => ({
+          ...item
+        })
       );
 
 
@@ -22033,6 +21904,10 @@ function saveOperationStatus() {
     }
 
 
+    /*
+      고정 운전현황 저장소에도
+      전체 설비 목록을 저장한다.
+    */
     saveOperationStatusToStorage();
 
 
@@ -22043,7 +21918,7 @@ function saveOperationStatus() {
 
 
     showToast(
-      `${currentRole} 운전상태를 저장했습니다.`
+      `${currentRole} 운전현황 ${normalizedItems.length}건을 저장했습니다.`
     );
 
 
@@ -22052,7 +21927,7 @@ function saveOperationStatus() {
 
 
   /* =====================================================
-    TO·BO1·BO2 자유 텍스트 저장
+    TO·BO1·BO2 자유 텍스트 운전현황 저장
   ====================================================== */
 
   const manualTextRoles = [
