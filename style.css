@@ -36793,3 +36793,722 @@ body {
   }
 
 }
+
+/* =========================================================
+  모바일 업무일지 카드 최종 보정
+
+  - 카드 높이 축소
+  - 상태명을 짧게 표시
+  - 상세보기 버튼 강조
+  - 첨부 버튼 컴팩트화
+  - 터치 효과 적용
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    업무일지 전체 영역
+  ====================================================== */
+
+  #statusView
+  .log-list-section {
+    margin-bottom: 12px !important;
+    padding: 11px 9px 10px !important;
+
+    border-radius: 12px !important;
+  }
+
+
+  #statusView
+  .log-list-section
+  .section-heading {
+    margin-bottom: 8px !important;
+  }
+
+
+  #statusView
+  .log-list-section
+  .section-heading__eyebrow {
+    display: none !important;
+  }
+
+
+  #statusView
+  .log-list-section
+  .section-heading__title {
+    font-size: 19px !important;
+    line-height: 1.2 !important;
+  }
+
+
+  /* =====================================================
+    카드 목록
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card-list {
+    gap: 8px !important;
+  }
+
+
+  /* =====================================================
+    카드
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card {
+    border-color: #d6e0ea !important;
+    border-radius: 10px !important;
+
+    box-shadow:
+      0 2px 7px
+      rgba(
+        20,
+        35,
+        55,
+        0.045
+      ) !important;
+
+    transition:
+      border-color 0.14s ease,
+      background 0.14s ease,
+      transform 0.12s ease !important;
+  }
+
+
+  #statusView
+  .mobile-log-card:active {
+    border-color: #8eb2d9 !important;
+    background: #f8fbff !important;
+
+    transform:
+      scale(
+        0.992
+      ) !important;
+  }
+
+
+  /* =====================================================
+    카드 상단
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__header {
+    min-height: 39px !important;
+
+    padding:
+      8px
+      9px !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__identity {
+    gap: 6px !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__role {
+    font-size: 12px !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__author {
+    font-size: 12px !important;
+  }
+
+
+  /* =====================================================
+    모바일 상태 배지
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__status {
+    min-width: 42px !important;
+    min-height: 19px !important;
+
+    padding:
+      0
+      6px !important;
+
+    font-size: 8px !important;
+    line-height: 1 !important;
+  }
+
+
+  /* =====================================================
+    업무 미리보기
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__preview {
+    padding:
+      0
+      9px !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-section {
+    grid-template-columns:
+      62px
+      minmax(
+        0,
+        1fr
+      ) !important;
+
+    gap: 7px !important;
+
+    padding:
+      7px
+      0 !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-section__header
+  strong {
+    font-size: 9px !important;
+    line-height: 1.35 !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-section__header
+  span {
+    margin-top: 2px !important;
+
+    font-size: 7px !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-item {
+    grid-template-columns:
+      16px
+      minmax(
+        0,
+        1fr
+      ) !important;
+
+    gap: 3px !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-item__number {
+    font-size: 9px !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-item__line {
+    font-size: 10px !important;
+    line-height: 1.45 !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-item__time {
+    margin-right: 3px !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-item__tag {
+    margin-right: 3px !important;
+
+    font-size: 8px !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-section__more {
+    margin-top: 4px !important;
+
+    font-size: 8px !important;
+  }
+
+
+  /* =====================================================
+    하단 버튼
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__footer {
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      )
+      auto
+      auto !important;
+
+    gap: 5px !important;
+
+    padding:
+      7px
+      8px !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__detail-button,
+  #statusView
+  .mobile-log-card__attachment-button,
+  #statusView
+  .mobile-log-card__edit-button {
+    min-height: 28px !important;
+
+    padding:
+      0
+      9px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 8px !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__detail-button {
+    width: 100% !important;
+
+    justify-self: stretch !important;
+
+    border-color: #8fb2d8 !important;
+
+    background: #eaf3fc !important;
+    color: #174f91 !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__attachment-button {
+    gap: 3px !important;
+
+    min-width: 38px !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__attachment-empty {
+    padding:
+      0
+      3px !important;
+
+    font-size: 8px !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__edit-button {
+    min-width: 48px !important;
+  }
+
+
+  /* =====================================================
+    빈 업무 내용
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__empty {
+    padding:
+      13px
+      0 !important;
+
+    font-size: 10px !important;
+  }
+
+}
+
+/* =========================================================
+  모바일 업무일지 조회 결과
+
+  PC 표는 그대로 유지하고
+  모바일에서만 카드 목록으로 전환한다.
+========================================================= */
+
+.mobile-search-card-list {
+  display: none;
+}
+
+
+@media (max-width: 768px) {
+
+  /* PC 표 숨김 */
+  #searchView
+  .search-log-table-wrap {
+    display: none !important;
+  }
+
+
+  /* 모바일 카드 목록 */
+  #searchView
+  .mobile-search-card-list {
+    display: flex;
+
+    width: 100%;
+    min-width: 0;
+
+    flex-direction: column;
+    gap: 9px;
+  }
+
+
+  /* 조회 화면 전체 */
+  #searchView
+  .search-section {
+    padding: 12px 9px 14px !important;
+  }
+
+
+  #searchView
+  .section-heading {
+    margin-bottom: 12px !important;
+  }
+
+
+  #searchView
+  .section-heading__eyebrow {
+    display: none !important;
+  }
+
+
+  #searchView
+  .section-heading__title {
+    font-size: 20px !important;
+  }
+
+
+  /* 조회 조건 */
+  #searchView
+  .search-form {
+    margin-bottom: 14px !important;
+    padding: 11px !important;
+
+    border-radius: 10px !important;
+  }
+
+
+  #searchView
+  .search-form__grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    gap: 8px !important;
+  }
+
+
+  #searchView
+  .search-form
+  .form-field--wide {
+    grid-column:
+      1 /
+      -1 !important;
+  }
+
+
+  #searchView
+  .search-form__actions {
+    display: grid;
+
+    grid-template-columns:
+      1fr
+      1fr;
+
+    gap: 7px;
+
+    margin-top: 10px !important;
+  }
+
+
+  #searchView
+  .search-form__actions
+  button {
+    width: 100%;
+  }
+
+
+  /* 조회 건수 */
+  #searchView
+  .search-result-header {
+    margin-bottom: 8px;
+
+    font-size: 12px;
+  }
+
+
+  /* 카드 */
+  .mobile-search-card {
+    overflow: hidden;
+
+    border: 1px solid #d5e0eb;
+    border-radius: 11px;
+
+    background: #ffffff;
+
+    box-shadow:
+      0 3px 10px
+      rgba(
+        20,
+        35,
+        55,
+        0.05
+      );
+
+    transition:
+      border-color 0.14s ease,
+      background 0.14s ease,
+      transform 0.12s ease;
+  }
+
+
+  .mobile-search-card:active {
+    border-color: #8db1d7;
+    background: #f8fbff;
+
+    transform:
+      scale(
+        0.993
+      );
+  }
+
+
+  /* 카드 본문 버튼 */
+  .mobile-search-card__open {
+    display: block;
+
+    width: 100%;
+
+    margin: 0;
+    padding: 0;
+
+    border: 0;
+    background: transparent;
+
+    color: inherit;
+    text-align: left;
+  }
+
+
+  /* 날짜 */
+  .mobile-search-card__date-row {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    min-height: 32px;
+    padding: 6px 10px;
+
+    border-bottom: 1px solid #e5ebf1;
+    background: #f7f9fc;
+  }
+
+
+  .mobile-search-card__date-row
+  strong {
+    color: #34455c;
+
+    font-size: 11px;
+    font-weight: 900;
+  }
+
+
+  .mobile-search-card__shift {
+    display: inline-flex;
+
+    min-width: 34px;
+    min-height: 20px;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: 0 7px;
+
+    border-radius: 999px;
+
+    background: #253f63;
+    color: #ffffff;
+
+    font-size: 8px;
+    font-weight: 900;
+  }
+
+
+  /* 상단 정보 */
+  .mobile-search-card__header {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 8px;
+
+    padding: 9px 10px 7px;
+  }
+
+
+  .mobile-search-card__identity {
+    display: flex;
+
+    min-width: 0;
+
+    align-items: center;
+    flex-wrap: wrap;
+
+    gap: 6px;
+  }
+
+
+  .mobile-search-card__role {
+    color: #1c2c43;
+
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+
+  .mobile-search-card__author {
+    color: #536176;
+
+    font-size: 11px;
+    font-weight: 750;
+  }
+
+
+  .mobile-search-card__substitute {
+    display: inline-flex;
+
+    min-height: 18px;
+
+    align-items: center;
+
+    padding: 0 6px;
+
+    border: 1px solid #e5b45d;
+    border-radius: 999px;
+
+    background: #fff6e3;
+    color: #9d620c;
+
+    font-size: 8px;
+    font-weight: 900;
+  }
+
+
+  .mobile-search-card__status {
+    flex: 0 0 auto;
+
+    min-width: 42px !important;
+    min-height: 20px !important;
+
+    padding:
+      0
+      6px !important;
+
+    font-size: 8px !important;
+  }
+
+
+  /* 내용 */
+  .mobile-search-card__content {
+    padding: 4px 10px 11px;
+  }
+
+
+  .mobile-search-card__content-label {
+    display: block;
+
+    margin-bottom: 4px;
+
+    color: #1f5fae;
+
+    font-size: 9px;
+    font-weight: 900;
+  }
+
+
+  .mobile-search-card__content
+  p {
+    display: -webkit-box;
+    overflow: hidden;
+
+    margin: 0;
+
+    color: #2d3d52;
+
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.55;
+
+    word-break: break-word;
+    overflow-wrap: anywhere;
+
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+
+  /* 하단 */
+  .mobile-search-card__footer {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 8px;
+
+    min-height: 40px;
+    padding: 6px 8px;
+
+    border-top: 1px solid #e3e9f0;
+    background: #fafbfd;
+  }
+
+
+  .mobile-search-card__attachment {
+    display: inline-flex;
+
+    align-items: center;
+    gap: 4px;
+
+    color: #6a7789;
+
+    font-size: 9px;
+    font-weight: 750;
+  }
+
+
+  .mobile-search-card__detail-button {
+    display: inline-flex;
+
+    min-height: 28px;
+
+    align-items: center;
+    justify-content: center;
+
+    gap: 5px;
+
+    padding: 0 11px;
+
+    border: 1px solid #98b8da;
+    border-radius: 6px;
+
+    background: #eaf3fc;
+    color: #174f91;
+
+    font-size: 9px;
+    font-weight: 900;
+  }
+
+}

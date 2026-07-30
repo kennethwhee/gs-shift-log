@@ -7243,30 +7243,45 @@ editFromDetailButton:
     "editFromDetailButton"
   ),
 
-    /* =====================================================
-      조회
-    ====================================================== */
+/* =====================================================
+  조회
 
-    searchForm:
-      document.getElementById(
-        "searchForm"
-      ),
+  PC
+  - 기존 테이블
 
-    searchResultBody:
-      document.getElementById(
-        "searchResultBody"
-      ),
+  모바일
+  - 카드 목록
+===================================================== */
 
-    searchResultCount:
-      document.getElementById(
-        "searchResultCount"
-      ),
+searchForm:
+  document.getElementById(
+    "searchForm"
+  ),
 
-    searchEmptyState:
-      document.getElementById(
-        "searchEmptyState"
-      ),
+desktopSearchResultWrap:
+  document.getElementById(
+    "desktopSearchResultWrap"
+  ),
 
+searchResultBody:
+  document.getElementById(
+    "searchResultBody"
+  ),
+
+mobileSearchCardList:
+  document.getElementById(
+    "mobileSearchCardList"
+  ),
+
+searchResultCount:
+  document.getElementById(
+    "searchResultCount"
+  ),
+
+searchEmptyState:
+  document.getElementById(
+    "searchEmptyState"
+  ),
 
     /* =====================================================
       공통 알림
@@ -23158,6 +23173,16 @@ bindClick(
                   .innerHTML = "";
               }
 
+              if (
+                elements
+                  .mobileSearchCardList
+              ) {
+                elements
+                  .mobileSearchCardList
+                  .innerHTML =
+                  "";
+              }
+
 
               if (
                 elements
@@ -32083,9 +32108,117 @@ function createMobileLogSectionHtml(
   `;
 }
 
+/* =========================================================
+  모바일 업무일지 상태 표시
+
+  실제 저장 상태는 변경하지 않고
+  모바일 화면에 표시되는 글자만 짧게 변환한다.
+
+  작성중·임시저장 → 저장
+  작성완료·저장완료 → 완료
+  결재요청       → 결재
+  결재완료       → 승인
+========================================================= */
+
+function getMobileLogStatusDisplay(
+  status
+) {
+  const normalizedStatus =
+    String(
+      status ||
+      ""
+    )
+      .trim()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  if (
+    [
+      "작성중",
+      "임시저장",
+      "임시"
+    ].includes(
+      normalizedStatus
+    )
+  ) {
+    return "저장";
+  }
+
+
+  if (
+    [
+      "작성완료",
+      "저장완료",
+      "완료"
+    ].includes(
+      normalizedStatus
+    )
+  ) {
+    return "완료";
+  }
+
+
+  if (
+    [
+      "결재요청",
+      "승인요청"
+    ].includes(
+      normalizedStatus
+    )
+  ) {
+    return "결재";
+  }
+
+
+  if (
+    [
+      "결재완료",
+      "승인완료",
+      "승인"
+    ].includes(
+      normalizedStatus
+    )
+  ) {
+    return "승인";
+  }
+
+
+  if (
+    [
+      "미작성",
+      "없음"
+    ].includes(
+      normalizedStatus
+    )
+  ) {
+    return "미작성";
+  }
+
+
+  return (
+    String(
+      status ||
+      ""
+    ).trim() ||
+    "미작성"
+  );
+}
 
 /* =========================================================
   모바일 업무일지 카드 1개
+
+  구성:
+  - 보직·작성자·상태
+  - 운전현황
+  - TM 발행 내역
+  - 인계사항
+  - 비고
+  - 첨부·상세보기·수정
+
+  PC 표에는 영향을 주지 않는다.
 ========================================================= */
 
 function createMobileLogCardHtml(
@@ -32159,27 +32292,46 @@ function createMobileLogCardHtml(
       );
 
 
-  const attachmentCount =
+  const attachments =
     Array.isArray(
       log?.attachments
     )
-      ? log.attachments.length
-      : Number(
-          log?.legacyAttachmentCount ||
-          0
-        );
+      ? log.attachments.filter(
+          Boolean
+        )
+      : [];
 
 
-  const statusText =
+  const attachmentCount =
+    attachments.length ||
+    Number(
+      log?.legacyAttachmentCount ||
+      0
+    );
+
+
+  /*
+    실제 상태값은 권한·수정 가능 여부 판정에 사용한다.
+  */
+  const originalStatus =
     String(
       log?.status ||
-      "-"
+      "미작성"
     ).trim();
+
+
+  /*
+    모바일 화면에만 짧은 상태명을 표시한다.
+  */
+  const mobileStatusText =
+    getMobileLogStatusDisplay(
+      originalStatus
+    );
 
 
   const statusClass =
     getStatusClass(
-      statusText
+      originalStatus
     );
 
 
@@ -32190,12 +32342,36 @@ function createMobileLogCardHtml(
 
 
   const editButtonText =
-    statusText ===
-      "작성중" ||
-    statusText ===
+    [
+      "작성중",
       "임시저장"
+    ].includes(
+      originalStatus
+    )
       ? "이어쓰기"
       : "수정";
+
+
+  const normalizedRole =
+    normalizeMemberLogRole(
+      log?.role
+    );
+
+
+  const isLeader =
+    normalizedRole ===
+    "파트장";
+
+
+  const hasPreviewContent =
+    operationItems.length >
+      0 ||
+    tmEntries.length >
+      0 ||
+    handoverEntries.length >
+      0 ||
+    noteEntries.length >
+      0;
 
 
   return `
@@ -32206,6 +32382,7 @@ function createMobileLogCardHtml(
       )}"
     >
 
+      <!-- 카드 본문 전체 클릭 시 상세보기 -->
       <button
         type="button"
         class="mobile-log-card__open"
@@ -32216,9 +32393,10 @@ function createMobileLogCardHtml(
         aria-label="${escapeHtml(
           log.role ||
           "업무일지"
-        )} 상세보기"
+        )} 업무일지 상세보기"
       >
 
+        <!-- 상단 정보 -->
         <header class="mobile-log-card__header">
 
           <div class="mobile-log-card__identity">
@@ -32230,12 +32408,14 @@ function createMobileLogCardHtml(
               )}
             </strong>
 
+
             <span class="mobile-log-card__author">
               ${escapeHtml(
                 log.author ||
                 "-"
               )}
             </span>
+
 
             ${
               log.isSubstitute ===
@@ -32254,17 +32434,22 @@ function createMobileLogCardHtml(
           <span
             class="
               status-badge
+              mobile-log-card__status
               ${statusClass}
             "
+            title="${escapeHtml(
+              originalStatus
+            )}"
           >
             ${escapeHtml(
-              statusText
+              mobileStatusText
             )}
           </span>
 
         </header>
 
 
+        <!-- 업무 내용 -->
         <div class="mobile-log-card__preview">
 
           ${createMobileLogSectionHtml(
@@ -32275,17 +32460,14 @@ function createMobileLogCardHtml(
 
 
           ${createMobileLogSectionHtml(
-            "TM 발행 내역",
+            "TM 발행",
             tmEntries,
             "tm"
           )}
 
 
           ${createMobileLogSectionHtml(
-            normalizeMemberLogRole(
-              log.role
-            ) ===
-              "파트장"
+            isLeader
               ? "인계 및 업무"
               : "인계사항",
             handoverEntries,
@@ -32305,10 +32487,7 @@ function createMobileLogCardHtml(
 
 
           ${
-            !operationItems.length &&
-            !tmEntries.length &&
-            !handoverEntries.length &&
-            !noteEntries.length
+            !hasPreviewContent
               ? `
                 <p class="mobile-log-card__empty">
                   등록된 업무 내용이 없습니다.
@@ -32322,6 +32501,7 @@ function createMobileLogCardHtml(
       </button>
 
 
+      <!-- 카드 하단 -->
       <footer class="mobile-log-card__footer">
 
         <button
@@ -32347,8 +32527,15 @@ function createMobileLogCardHtml(
                 data-log-id="${escapeHtml(
                   log.id
                 )}"
+                aria-label="첨부파일 ${attachmentCount}개 보기"
               >
-                첨부 ${attachmentCount}개
+                <span aria-hidden="true">
+                  📎
+                </span>
+
+                <span>
+                  ${attachmentCount}
+                </span>
               </button>
             `
             : `
@@ -32381,7 +32568,6 @@ function createMobileLogCardHtml(
     </article>
   `;
 }
-
 
 /* =========================================================
   모바일 업무일지 목록 렌더링
@@ -41027,17 +41213,372 @@ async function runSearch() {
 }
 
 /* =========================================================
-  조회 결과 출력 최종본
+  조회 결과 ID로 업무일지 찾기
 
-  핵심:
-  - 조회 결과 전용 배열에 업무일지를 저장한다.
-  - 클릭 시 appState.logs가 아니라
-    currentSearchResultLogs에서 찾는다.
-  - 조회 결과 행 전체를 클릭할 수 있다.
-  - 과거 업무일지도 수정 권한과 관계없이 상세보기 가능
+  조회 기간에서 불러온 과거 업무일지는
+  appState.logs에 존재하지 않을 수 있다.
+
+  따라서 조회 전용 배열을 먼저 확인한다.
 ========================================================= */
 
-function renderSearchResults(results) {
+function findSearchResultLogById(
+  logId
+) {
+  const normalizedLogId =
+    String(
+      logId ||
+      ""
+    ).trim();
+
+
+  if (
+    !normalizedLogId
+  ) {
+    return null;
+  }
+
+
+  const searchLogs =
+    Array.isArray(
+      currentSearchResultLogs
+    )
+      ? currentSearchResultLogs
+      : [];
+
+
+  return (
+    searchLogs.find(
+      log => {
+        return (
+          String(
+            log?.id ||
+            ""
+          ).trim() ===
+          normalizedLogId
+        );
+      }
+    ) ||
+
+    appState.logs.find(
+      log => {
+        return (
+          String(
+            log?.id ||
+            ""
+          ).trim() ===
+          normalizedLogId
+        );
+      }
+    ) ||
+
+    null
+  );
+}
+
+/* =========================================================
+  모바일 조회 결과 카드 1개
+
+  구성:
+  - 날짜·근무
+  - 보직·작성자
+  - 상태
+  - 업무 미리보기
+  - 첨부 개수
+  - 상세보기
+
+  조회 화면에서는 수정 버튼을 표시하지 않는다.
+========================================================= */
+
+function createMobileSearchCardHtml(
+  log
+) {
+  const previewText =
+    typeof createSearchLogPreviewText ===
+      "function"
+      ? createSearchLogPreviewText(
+          log
+        )
+      : firstMeaningfulLine(
+          typeof createSearchLogText ===
+            "function"
+            ? createSearchLogText(
+                log
+              )
+            : ""
+        );
+
+
+  const attachmentCount =
+    Array.isArray(
+      log?.attachments
+    )
+      ? log.attachments.length
+      : Number(
+          log?.legacyAttachmentCount ||
+          0
+        );
+
+
+  const statusText =
+    typeof getMobileLogStatusDisplay ===
+      "function"
+      ? getMobileLogStatusDisplay(
+          log?.status
+        )
+      : String(
+          log?.status ||
+          "미작성"
+        ).trim();
+
+
+  const statusClass =
+    typeof getStatusClass ===
+      "function"
+      ? getStatusClass(
+          log?.status
+        )
+      : "is-empty";
+
+
+  return `
+    <article
+      class="mobile-search-card"
+      data-search-log-id="${escapeHtml(
+        log.id
+      )}"
+    >
+
+      <button
+        type="button"
+        class="mobile-search-card__open"
+        data-search-view="${escapeHtml(
+          log.id
+        )}"
+        aria-label="${escapeHtml(
+          log.date ||
+          ""
+        )} ${escapeHtml(
+          log.role ||
+          ""
+        )} 업무일지 상세보기"
+      >
+
+        <!-- 날짜·근무 -->
+        <div class="mobile-search-card__date-row">
+
+          <strong>
+            ${escapeHtml(
+              log.date ||
+              "-"
+            )}
+          </strong>
+
+          <span class="mobile-search-card__shift">
+            ${escapeHtml(
+              getShiftDisplayName(
+                log.shift
+              )
+            )}
+          </span>
+
+        </div>
+
+
+        <!-- 보직·작성자·상태 -->
+        <header class="mobile-search-card__header">
+
+          <div class="mobile-search-card__identity">
+
+            <strong class="mobile-search-card__role">
+              ${escapeHtml(
+                log.role ||
+                "-"
+              )}
+            </strong>
+
+            <span class="mobile-search-card__author">
+              ${escapeHtml(
+                log.author ||
+                "-"
+              )}
+            </span>
+
+            ${
+              log.isSubstitute ===
+                true
+                ? `
+                  <span class="mobile-search-card__substitute">
+                    대근
+                  </span>
+                `
+                : ""
+            }
+
+          </div>
+
+
+          <span
+            class="
+              status-badge
+              mobile-search-card__status
+              ${statusClass}
+            "
+          >
+            ${escapeHtml(
+              statusText
+            )}
+          </span>
+
+        </header>
+
+
+        <!-- 업무내용 미리보기 -->
+        <div class="mobile-search-card__content">
+
+          <span class="mobile-search-card__content-label">
+            업무 내용
+          </span>
+
+          <p>
+            ${escapeHtml(
+              previewText ||
+              "등록된 업무 내용이 없습니다."
+            )}
+          </p>
+
+        </div>
+
+      </button>
+
+
+      <!-- 하단 -->
+      <footer class="mobile-search-card__footer">
+
+        <span class="mobile-search-card__attachment">
+
+          <span aria-hidden="true">
+            📎
+          </span>
+
+          ${
+            attachmentCount >
+              0
+              ? `첨부 ${attachmentCount}개`
+              : "첨부 없음"
+          }
+
+        </span>
+
+
+        <button
+          type="button"
+          class="mobile-search-card__detail-button"
+          data-search-view="${escapeHtml(
+            log.id
+          )}"
+        >
+          상세보기
+          <span aria-hidden="true">
+            ›
+          </span>
+        </button>
+
+      </footer>
+
+    </article>
+  `;
+}
+
+/* =========================================================
+  조회 결과 ID로 업무일지 찾기
+
+  조회 기간에서 불러온 과거 업무일지는
+  appState.logs에 존재하지 않을 수 있다.
+
+  조회 전용 배열을 먼저 확인하고,
+  없으면 현재 업무일지 배열에서 다시 찾는다.
+========================================================= */
+
+function findSearchResultLogById(
+  logId
+) {
+  const normalizedLogId =
+    String(
+      logId ||
+      ""
+    ).trim();
+
+
+  if (
+    !normalizedLogId
+  ) {
+    return null;
+  }
+
+
+  const searchResultLogs =
+    Array.isArray(
+      currentSearchResultLogs
+    )
+      ? currentSearchResultLogs
+      : [];
+
+
+  const currentLogs =
+    Array.isArray(
+      appState.logs
+    )
+      ? appState.logs
+      : [];
+
+
+  return (
+    searchResultLogs.find(
+      log => {
+        return (
+          String(
+            log?.id ||
+            ""
+          ).trim() ===
+          normalizedLogId
+        );
+      }
+    ) ||
+
+    currentLogs.find(
+      log => {
+        return (
+          String(
+            log?.id ||
+            ""
+          ).trim() ===
+          normalizedLogId
+        );
+      }
+    ) ||
+
+    null
+  );
+}
+
+/* =========================================================
+  조회 결과 출력 최종본
+
+  PC:
+  기존 표 출력
+
+  모바일:
+  전용 카드 출력
+
+  공통:
+  currentSearchResultLogs에 결과를 저장하여
+  조회 기간에서 새로 불러온 과거 업무일지도
+  상세보기가 가능하게 한다.
+========================================================= */
+
+function renderSearchResults(
+  results
+) {
   if (
     !elements.searchResultBody ||
     !elements.searchResultCount ||
@@ -41046,375 +41587,444 @@ function renderSearchResults(results) {
     return;
   }
 
-  const safeResults = Array.isArray(results)
-    ? results.filter((log) => Boolean(log && log.id))
-    : [];
+
+  const safeResults =
+    Array.isArray(
+      results
+    )
+      ? results.filter(
+          log => {
+            return Boolean(
+              log &&
+              log.id
+            );
+          }
+        )
+      : [];
+
 
   /*
-    조회로 불러온 과거 업무일지는
-    appState.logs에 없을 수 있으므로 별도로 보관
+    조회 전용 결과 보관
   */
-  currentSearchResultLogs = [...safeResults];
+  currentSearchResultLogs = [
+    ...safeResults
+  ];
 
-  elements.searchResultBody.innerHTML = "";
-  elements.searchResultCount.textContent = String(
-    safeResults.length
-  );
+
+  /*
+    PC 표 초기화
+  */
+  elements.searchResultBody.innerHTML =
+    "";
+
+
+  /*
+    모바일 카드 초기화
+  */
+  if (
+    elements.mobileSearchCardList
+  ) {
+    elements.mobileSearchCardList
+      .innerHTML =
+      "";
+  }
+
+
+  elements.searchResultCount.textContent =
+    String(
+      safeResults.length
+    );
+
 
   elements.searchEmptyState.hidden =
-    safeResults.length > 0;
+    safeResults.length >
+    0;
 
-  if (!safeResults.length) {
+
+  if (
+    !safeResults.length
+  ) {
     const emptyTitle =
-      elements.searchEmptyState.querySelector(
-        "strong"
-      );
+      elements.searchEmptyState
+        .querySelector(
+          "strong"
+        );
+
 
     const emptyDescription =
-      elements.searchEmptyState.querySelector(
-        "p"
-      );
+      elements.searchEmptyState
+        .querySelector(
+          "p"
+        );
 
-    if (emptyTitle) {
+
+    if (
+      emptyTitle
+    ) {
       emptyTitle.textContent =
         "조회 결과가 없습니다.";
     }
 
-    if (emptyDescription) {
+
+    if (
+      emptyDescription
+    ) {
       emptyDescription.textContent =
         "검색 조건을 변경하여 다시 조회해 주세요.";
     }
 
+
     return;
   }
 
-  /*
-    조회 결과 또는 현재 화면 자료에서
-    업무일지 1건 찾기
-  */
-  const findSearchLogById = (logId) => {
-    const normalizedLogId = String(
-      logId || ""
-    ).trim();
 
-    if (!normalizedLogId) {
-      return null;
-    }
+  /* =====================================================
+    PC 조회 표
+  ====================================================== */
 
-    return (
-      currentSearchResultLogs.find((item) => {
-        return (
-          String(item?.id || "").trim() ===
-          normalizedLogId
-        );
-      }) ||
-      appState.logs.find((item) => {
-        return (
-          String(item?.id || "").trim() ===
-          normalizedLogId
-        );
-      }) ||
-      null
-    );
-  };
+  safeResults.forEach(
+    log => {
+      const previewText =
+        typeof createSearchLogPreviewText ===
+          "function"
+          ? createSearchLogPreviewText(
+              log
+            )
+          : firstMeaningfulLine(
+              typeof createSearchLogText ===
+                "function"
+                ? createSearchLogText(
+                    log
+                  )
+                : ""
+            );
 
-  /*
-    상세보기 열기
-  */
-  const openSearchLogDetailById = (logId) => {
-    const normalizedLogId = String(
-      logId || ""
-    ).trim();
 
-    if (!normalizedLogId) {
-      showToast(
-        "업무일지 정보를 확인할 수 없습니다."
-      );
-
-      return;
-    }
-
-    const log = findSearchLogById(
-      normalizedLogId
-    );
-
-    if (!log) {
-      showToast(
-        "조회한 업무일지를 찾을 수 없습니다."
-      );
-
-      return;
-    }
-
-    openLogDetail(log);
-  };
-
-  /*
-    조회 결과 행 생성
-  */
-  safeResults.forEach((log) => {
-    const previewHtml =
-      typeof createSearchLogPreviewHtml ===
-      "function"
-        ? createSearchLogPreviewHtml(log)
-        : `
-            <span class="search-preview-empty">
-              ${escapeHtml(
-                firstMeaningfulLine(
-                  createSearchLogText(log) ||
-                    "등록된 업무 내용이 없습니다."
-                )
-              )}
-            </span>
-          `;
-
-    const directAttachmentCount =
-      typeof getSearchLogAttachmentCount ===
-      "function"
-        ? Number(
-            getSearchLogAttachmentCount(log)
-          )
-        : Array.isArray(log?.attachments)
+      const attachmentCount =
+        Array.isArray(
+          log.attachments
+        )
           ? log.attachments.length
-          : 0;
+          : Number(
+              log.legacyAttachmentCount ||
+              0
+            );
 
-    const savedAttachmentCount = Number(
-      log?.legacyAttachmentCount ||
-        log?.attachmentCount ||
-        0
-    );
 
-    const attachmentCount = Math.max(
-      Number.isFinite(directAttachmentCount)
-        ? directAttachmentCount
-        : 0,
-      Number.isFinite(savedAttachmentCount)
-        ? savedAttachmentCount
-        : 0
-    );
-
-    elements.searchResultBody.insertAdjacentHTML(
-      "beforeend",
-      `
-        <tr
-          data-search-log-id="${escapeHtml(
-            log.id
-          )}"
-          tabindex="0"
-          role="button"
-          title="업무일지 상세보기"
-        >
-          <td class="search-result-table__date">
-            ${escapeHtml(log.date || "-")}
-          </td>
-
-          <td class="search-result-table__shift">
-            ${escapeHtml(
-              getShiftDisplayName(log.shift)
-            )}
-          </td>
-
-          <td class="search-result-table__role">
-            ${escapeHtml(log.role || "-")}
-          </td>
-
-          <td class="search-result-table__author">
-            ${escapeHtml(log.author || "-")}
-          </td>
-
-          <td
-            class="
-              search-result-table__content
-              search-log-preview-cell
-            "
-            data-search-view="${escapeHtml(
-              log.id
-            )}"
-          >
-            <div
-              class="search-log-preview"
-              aria-label="업무일지 미리보기. 누르면 상세보기가 열립니다."
-            >
-              ${previewHtml}
-            </div>
-          </td>
-
-          <td class="search-result-table__view">
-            <button
-              type="button"
-              class="table-action-button"
-              data-search-view="${escapeHtml(
+      elements.searchResultBody
+        .insertAdjacentHTML(
+          "beforeend",
+          `
+            <tr
+              data-search-log-id="${escapeHtml(
                 log.id
               )}"
+              tabindex="0"
+              role="button"
+              title="업무일지 상세보기"
             >
-              보기
-            </button>
-          </td>
 
-          <td
-            class="search-result-table__attachment"
-          >
-            ${
-              attachmentCount > 0
-                ? `
-                    <span
-                      class="attachment-count"
-                      title="첨부파일 ${attachmentCount}개"
-                    >
-                      ${attachmentCount}
-                    </span>
-                  `
-                : `
-                    <span
-                      class="
-                        attachment-count
-                        is-empty
-                      "
-                    >
-                      0
-                    </span>
-                  `
-            }
-          </td>
-        </tr>
-      `
-    );
-  });
+              <td class="search-log-date-cell">
+                ${escapeHtml(
+                  log.date ||
+                  "-"
+                )}
+              </td>
 
-  /* =====================================================
-    마우스 클릭
 
-    TAG 클릭:
-    Facility Navigator 이동
+              <td class="search-log-shift-cell">
+                ${escapeHtml(
+                  getShiftDisplayName(
+                    log.shift
+                  )
+                )}
+              </td>
 
-    행·미리보기·보기 버튼 클릭:
-    업무일지 상세보기
-  ====================================================== */
 
-  elements.searchResultBody.onclick =
-    function handleSearchResultClick(event) {
-      const tagButton = event.target.closest(
-        `
-          [data-search-tag],
-          [data-search-preview-tag]
-        `
-      );
+              <td class="search-log-role-cell">
+                ${escapeHtml(
+                  log.role ||
+                  "-"
+                )}
+              </td>
 
-      if (
-        tagButton &&
-        elements.searchResultBody.contains(
-          tagButton
-        )
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
 
-        const tag = String(
-          tagButton.dataset.searchTag ||
-            tagButton.dataset
-              .searchPreviewTag ||
-            ""
-        ).trim();
+              <td class="search-log-author-cell">
 
-        if (tag) {
-          openFacilityNavigator(tag);
-        }
+                <strong>
+                  ${escapeHtml(
+                    log.author ||
+                    "-"
+                  )}
+                </strong>
 
-        return;
-      }
+              </td>
 
-      const clickedElement =
-        event.target.closest(
-          `
-            [data-search-view],
-            tr[data-search-log-id]
+
+              <td
+                class="search-log-preview-cell"
+                data-search-view="${escapeHtml(
+                  log.id
+                )}"
+              >
+                ${
+                  typeof createSearchLogPreviewHtml ===
+                    "function"
+                    ? createSearchLogPreviewHtml(
+                        log
+                      )
+                    : escapeHtml(
+                        previewText ||
+                        "등록된 업무 내용이 없습니다."
+                      )
+                }
+              </td>
+
+
+              <td class="search-log-view-cell">
+
+                <button
+                  type="button"
+                  class="table-action-button"
+                  data-search-view="${escapeHtml(
+                    log.id
+                  )}"
+                >
+                  보기
+                </button>
+
+              </td>
+
+
+              <td class="search-log-attachment-cell">
+
+                ${
+                  attachmentCount >
+                    0
+                    ? `
+                      <span
+                        class="attachment-indicator"
+                        title="첨부파일 ${attachmentCount}개"
+                      >
+                        📎
+                      </span>
+                    `
+                    : `
+                      <span
+                        class="
+                          attachment-indicator
+                          is-empty
+                        "
+                      >
+                        -
+                      </span>
+                    `
+                }
+
+              </td>
+
+            </tr>
           `
         );
+    }
+  );
 
-      if (
-        !clickedElement ||
-        !elements.searchResultBody.contains(
-          clickedElement
-        )
-      ) {
-        return;
-      }
-
-      const row = clickedElement.closest(
-        "tr[data-search-log-id]"
-      );
-
-      openSearchLogDetailById(
-        clickedElement.dataset.searchView ||
-          row?.dataset.searchLogId ||
-          ""
-      );
-    };
 
   /* =====================================================
-    키보드 동작
-
-    Enter 또는 Space
+    모바일 조회 카드
   ====================================================== */
 
-  elements.searchResultBody.onkeydown =
-    function handleSearchResultKeydown(
-      event
-    ) {
-      if (
-        event.key !== "Enter" &&
-        event.key !== " "
-      ) {
-        return;
-      }
-
-      const tagButton = event.target.closest(
-        `
-          [data-search-tag],
-          [data-search-preview-tag]
-        `
-      );
-
-      if (
-        tagButton &&
-        elements.searchResultBody.contains(
-          tagButton
+  if (
+    elements.mobileSearchCardList
+  ) {
+    elements.mobileSearchCardList
+      .innerHTML =
+      safeResults
+        .map(
+          log => {
+            return createMobileSearchCardHtml(
+              log
+            );
+          }
         )
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
+        .join("");
+  }
 
-        const tag = String(
-          tagButton.dataset.searchTag ||
-            tagButton.dataset
-              .searchPreviewTag ||
-            ""
-        ).trim();
 
-        if (tag) {
-          openFacilityNavigator(tag);
-        }
+  bindSearchResultEvents();
+}
 
-        return;
-      }
+/* =========================================================
+  조회 결과 공통 이벤트
 
-      const row = event.target.closest(
-        "tr[data-search-log-id]"
-      );
+  지원 대상:
+  - PC 표
+  - 모바일 카드
 
-      if (
-        !row ||
-        !elements.searchResultBody.contains(row)
-      ) {
-        return;
-      }
+  TAG 클릭:
+  Facility Navigator 이동
 
-      event.preventDefault();
+  카드·행·상세보기 클릭:
+  업무일지 상세창 열기
+========================================================= */
 
-      openSearchLogDetailById(
-        row.dataset.searchLogId || ""
-      );
-    };
+function bindSearchResultEvents() {
+  const resultContainers = [
+    elements.searchResultBody,
+    elements.mobileSearchCardList
+  ].filter(
+    Boolean
+  );
+
+
+  resultContainers.forEach(
+    container => {
+      container.onclick =
+        function handleSearchResultClick(
+          event
+        ) {
+          const tagButton =
+            event.target.closest(
+              "[data-search-tag]"
+            );
+
+
+          if (
+            tagButton &&
+            container.contains(
+              tagButton
+            )
+          ) {
+            event.preventDefault();
+
+            event.stopPropagation();
+
+
+            openFacilityNavigator(
+              tagButton.dataset
+                .searchTag
+            );
+
+
+            return;
+          }
+
+
+          const clickedElement =
+            event.target.closest(
+              `
+                [data-search-view],
+                [data-search-log-id]
+              `
+            );
+
+
+          if (
+            !clickedElement ||
+            !container.contains(
+              clickedElement
+            )
+          ) {
+            return;
+          }
+
+
+          const cardOrRow =
+            clickedElement.closest(
+              "[data-search-log-id]"
+            );
+
+
+          const logId =
+            String(
+              clickedElement.dataset
+                .searchView ||
+              cardOrRow?.dataset
+                .searchLogId ||
+              ""
+            ).trim();
+
+
+          const log =
+            findSearchResultLogById(
+              logId
+            );
+
+
+          if (
+            !log
+          ) {
+            showToast(
+              "조회한 업무일지를 찾을 수 없습니다."
+            );
+
+            return;
+          }
+
+
+          openLogDetail(
+            log
+          );
+        };
+
+
+      container.onkeydown =
+        function handleSearchResultKeydown(
+          event
+        ) {
+          if (
+            event.key !==
+              "Enter" &&
+            event.key !==
+              " "
+          ) {
+            return;
+          }
+
+
+          const target =
+            event.target.closest(
+              "[data-search-log-id]"
+            );
+
+
+          if (
+            !target ||
+            !container.contains(
+              target
+            )
+          ) {
+            return;
+          }
+
+
+          event.preventDefault();
+
+
+          const log =
+            findSearchResultLogById(
+              target.dataset
+                .searchLogId
+            );
+
+
+          if (
+            !log
+          ) {
+            showToast(
+              "조회한 업무일지를 찾을 수 없습니다."
+            );
+
+            return;
+          }
+
+
+          openLogDetail(
+            log
+          );
+        };
+    }
+  );
 }
 
 function matchesKeyword(text, keyword) {
