@@ -45945,3 +45945,491 @@ button {
       2px !important;
   }
 }
+
+/* =========================================================
+  업무일지 조회 조건 구조 최종 교정
+
+  핵심:
+  - 기존 search-form__grid 사용 중단
+  - 날짜 행을 별도 2열로 분리
+  - 날짜 사이 명확한 간격 확보
+  - 근무·보직·구분 동일한 3칸
+  - iPhone Safari date input 고유 너비 대응
+========================================================= */
+
+
+/* =========================================================
+  조회 조건 전체 레이아웃
+========================================================= */
+
+#searchView
+.search-form-layout {
+  display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  flex-direction: column !important;
+
+  gap: 8px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* =========================================================
+  날짜 행
+
+  [ 시작일 ]   [ 종료일 ]
+========================================================= */
+
+#searchView
+.search-form-date-row {
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(
+        0,
+        1fr
+      )
+    ) !important;
+
+  align-items: end !important;
+
+  column-gap: 10px !important;
+  row-gap: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* 날짜 필드 자체 */
+
+#searchView
+.search-date-field {
+  position: static !important;
+
+  display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  flex-direction: column !important;
+
+  gap: 3px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  transform: none !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* =========================================================
+  시작일·종료일 입력칸
+
+  브라우저 고유 최소 너비까지 강제로 해제한다.
+========================================================= */
+
+#searchView
+#searchStartDate,
+
+#searchView
+#searchEndDate {
+  position: static !important;
+
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  inline-size: 100% !important;
+  min-inline-size: 0 !important;
+  max-inline-size: 100% !important;
+
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+
+  margin: 0 !important;
+
+  padding:
+    0
+    4px !important;
+
+  overflow: hidden !important;
+
+  border:
+    1px
+    solid
+    #c7d3e0 !important;
+
+  border-radius: 7px !important;
+
+  background: #ffffff !important;
+  color: #25374f !important;
+
+  font-size: 10px !important;
+  font-weight: 850 !important;
+  line-height: 30px !important;
+
+  text-align: center !important;
+  text-indent: 0 !important;
+
+  font-variant-numeric:
+    tabular-nums !important;
+
+  box-shadow: none !important;
+  transform: none !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* =========================================================
+  iPhone Safari 날짜 내부 요소
+
+  날짜가 위로 붙거나 입력칸 밖으로 넓어지는 현상 방지
+========================================================= */
+
+#searchView
+#searchStartDate::-webkit-date-and-time-value,
+
+#searchView
+#searchEndDate::-webkit-date-and-time-value {
+  display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  height: 30px !important;
+  min-height: 30px !important;
+  max-height: 30px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  line-height: 30px !important;
+
+  text-align: center !important;
+
+  box-sizing: border-box !important;
+}
+
+
+#searchView
+#searchStartDate::-webkit-datetime-edit,
+
+#searchView
+#searchEndDate::-webkit-datetime-edit {
+  display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  height: 30px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  line-height: 30px !important;
+
+  box-sizing: border-box !important;
+}
+
+
+#searchView
+#searchStartDate::-webkit-datetime-edit-fields-wrapper,
+
+#searchView
+#searchEndDate::-webkit-datetime-edit-fields-wrapper {
+  display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  height: 30px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  line-height: 30px !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* =========================================================
+  필터 행
+
+  [ 근무 ] [ 보직 ] [ 구분 ]
+========================================================= */
+
+#searchView
+.search-form-filter-row {
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(
+        0,
+        1fr
+      )
+    ) !important;
+
+  align-items: end !important;
+
+  gap: 8px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  box-sizing: border-box !important;
+}
+
+
+#searchView
+.search-filter-field {
+  display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  flex-direction: column !important;
+
+  gap: 3px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  box-sizing: border-box !important;
+}
+
+
+#searchView
+.search-filter-field
+select {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+
+  margin: 0 !important;
+
+  padding:
+    0
+    7px !important;
+
+  border:
+    1px
+    solid
+    #c7d3e0 !important;
+
+  border-radius: 7px !important;
+
+  background: #ffffff !important;
+  color: #25374f !important;
+
+  font-size: 10px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+
+  box-shadow: none !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* =========================================================
+  검색어 한 줄 전체
+========================================================= */
+
+#searchView
+.search-keyword-field {
+  display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  flex-direction: column !important;
+
+  gap: 3px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  box-sizing: border-box !important;
+}
+
+
+#searchView
+.search-keyword-field
+input {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+
+  margin: 0 !important;
+
+  padding:
+    0
+    8px !important;
+
+  border:
+    1px
+    solid
+    #c7d3e0 !important;
+
+  border-radius: 7px !important;
+
+  background: #ffffff !important;
+  color: #25374f !important;
+
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* =========================================================
+  조회 조건 공통 제목
+========================================================= */
+
+#searchView
+.search-form-layout
+.form-field__label {
+  display: block !important;
+
+  min-height: 10px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #5b6b80 !important;
+
+  font-size: 8px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* =========================================================
+  모바일 미세 보정
+========================================================= */
+
+@media (max-width: 768px) {
+
+  #searchView
+  .search-form-layout {
+    gap: 6px !important;
+  }
+
+
+  #searchView
+  .search-form-date-row {
+    column-gap: 8px !important;
+  }
+
+
+  #searchView
+  .search-form-filter-row {
+    gap: 5px !important;
+  }
+
+
+  #searchView
+  #searchStartDate,
+
+  #searchView
+  #searchEndDate,
+
+  #searchView
+  .search-filter-field
+  select,
+
+  #searchView
+  .search-keyword-field
+  input {
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 9px !important;
+  }
+
+
+  #searchView
+  #searchStartDate::-webkit-date-and-time-value,
+
+  #searchView
+  #searchEndDate::-webkit-date-and-time-value,
+
+  #searchView
+  #searchStartDate::-webkit-datetime-edit,
+
+  #searchView
+  #searchEndDate::-webkit-datetime-edit,
+
+  #searchView
+  #searchStartDate::-webkit-datetime-edit-fields-wrapper,
+
+  #searchView
+  #searchEndDate::-webkit-datetime-edit-fields-wrapper {
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+
+    line-height: 28px !important;
+  }
+}

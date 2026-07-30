@@ -1241,207 +1241,226 @@
 
           <form class="search-form" id="searchForm">
 
-<div class="search-form__grid">
+<!-- =====================================================
+  업무일지 조회 조건
+
+  1행:
+  시작일 | 종료일
+
+  2행:
+  근무 | 보직 | 구분
+
+  3행:
+  TAG 또는 내용
+====================================================== -->
+
+<div class="search-form-layout">
 
   <!-- ===================================================
-    시작일
+    날짜 행
   ==================================================== -->
-  <label
-    class="
-      form-field
-      search-form-field--start
-    "
-  >
+  <div class="search-form-date-row">
 
-    <span class="form-field__label">
-      시작일
-    </span>
-
-    <input
-      type="date"
-      id="searchStartDate"
-      name="startDate"
-    />
-
-  </label>
-
-
-  <!-- ===================================================
-    종료일
-  ==================================================== -->
-  <label
-    class="
-      form-field
-      search-form-field--end
-    "
-  >
-
-    <span class="form-field__label">
-      종료일
-    </span>
-
-    <input
-      type="date"
-      id="searchEndDate"
-      name="endDate"
-    />
-
-  </label>
-
-
-  <!-- ===================================================
-    근무
-
-    기존 "근무구분"에서 "근무"로 명칭 변경
-  ==================================================== -->
-  <label
-    class="
-      form-field
-      search-form-field--shift
-    "
-  >
-
-    <span class="form-field__label">
-      근무
-    </span>
-
-    <select
-      id="searchShift"
-      name="shift"
+    <!-- 시작일 -->
+    <label
+      class="
+        form-field
+        search-date-field
+        search-date-field--start
+      "
     >
 
-      <option value="">
-        전체
-      </option>
+      <span class="form-field__label">
+        시작일
+      </span>
 
-      <option value="DS">
-        D/S
-      </option>
+      <input
+        type="date"
+        id="searchStartDate"
+        name="startDate"
+      />
 
-      <option value="NS">
-        N/S
-      </option>
-
-    </select>
-
-  </label>
+    </label>
 
 
-  <!-- ===================================================
-    보직
-  ==================================================== -->
-  <label
-    class="
-      form-field
-      search-form-field--role
-    "
-  >
-
-    <span class="form-field__label">
-      보직
-    </span>
-
-    <select
-      id="searchRole"
-      name="role"
+    <!-- 종료일 -->
+    <label
+      class="
+        form-field
+        search-date-field
+        search-date-field--end
+      "
     >
 
-      <option value="">
-        전체
-      </option>
+      <span class="form-field__label">
+        종료일
+      </span>
 
-      <option value="파트장">
-        파트장
-      </option>
+      <input
+        type="date"
+        id="searchEndDate"
+        name="endDate"
+      />
 
-      <option value="TGO">
-        TGO
-      </option>
+    </label>
 
-      <option value="BCO1">
-        BCO1
-      </option>
-
-      <option value="BCO2">
-        BCO2
-      </option>
-
-      <option value="TO">
-        TO
-      </option>
-
-      <option value="BO1">
-        BO1
-      </option>
-
-      <option value="BO2">
-        BO2
-      </option>
-
-    </select>
-
-  </label>
+  </div>
 
 
   <!-- ===================================================
-    구분
+    필터 행
+
+    근무 | 보직 | 구분
   ==================================================== -->
-  <label
-    class="
-      form-field
-      search-form-field--category
-    "
-  >
+  <div class="search-form-filter-row">
 
-    <span class="form-field__label">
-      구분
-    </span>
-
-    <select
-      id="searchCategory"
-      name="category"
+    <!-- 근무 -->
+    <label
+      class="
+        form-field
+        search-filter-field
+      "
     >
 
-      <option value="">
-        전체
-      </option>
+      <span class="form-field__label">
+        근무
+      </span>
 
-      <option value="operation">
-        운전현황
-      </option>
+      <select
+        id="searchShift"
+        name="shift"
+      >
 
-      <option value="tm">
-        TM
-      </option>
+        <option value="">
+          전체
+        </option>
 
-      <option value="bm">
-        BM
-      </option>
+        <option value="DS">
+          D/S
+        </option>
 
-      <option value="cm">
-        CM
-      </option>
+        <option value="NS">
+          N/S
+        </option>
 
-      <option value="handover">
-        인계사항
-      </option>
+      </select>
 
-      <option value="note">
-        비고
-      </option>
+    </label>
 
-    </select>
 
-  </label>
+    <!-- 보직 -->
+    <label
+      class="
+        form-field
+        search-filter-field
+      "
+    >
+
+      <span class="form-field__label">
+        보직
+      </span>
+
+      <select
+        id="searchRole"
+        name="role"
+      >
+
+        <option value="">
+          전체
+        </option>
+
+        <option value="파트장">
+          파트장
+        </option>
+
+        <option value="TGO">
+          TGO
+        </option>
+
+        <option value="BCO1">
+          BCO1
+        </option>
+
+        <option value="BCO2">
+          BCO2
+        </option>
+
+        <option value="TO">
+          TO
+        </option>
+
+        <option value="BO1">
+          BO1
+        </option>
+
+        <option value="BO2">
+          BO2
+        </option>
+
+      </select>
+
+    </label>
+
+
+    <!-- 구분 -->
+    <label
+      class="
+        form-field
+        search-filter-field
+      "
+    >
+
+      <span class="form-field__label">
+        구분
+      </span>
+
+      <select
+        id="searchCategory"
+        name="category"
+      >
+
+        <option value="">
+          전체
+        </option>
+
+        <option value="operation">
+          운전현황
+        </option>
+
+        <option value="tm">
+          TM
+        </option>
+
+        <option value="bm">
+          BM
+        </option>
+
+        <option value="cm">
+          CM
+        </option>
+
+        <option value="handover">
+          인계사항
+        </option>
+
+        <option value="note">
+          비고
+        </option>
+
+      </select>
+
+    </label>
+
+  </div>
 
 
   <!-- ===================================================
-    TAG 또는 내용
+    검색어 행
   ==================================================== -->
   <label
     class="
       form-field
-      search-form-field--keyword
+      search-keyword-field
     "
   >
 
