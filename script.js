@@ -31921,7 +31921,15 @@ function collectMobileOperationPreviewItems(
 
 
 /* =========================================================
-  모바일 미리보기 한 항목
+  모바일 업무일지 미리보기 항목 최종본
+
+  표시 순서:
+  번호 → 시간 → 내용 → TAG
+
+  적용:
+  - 여러 줄 내용 전체 표시
+  - TAG는 내용 뒤에 배치
+  - 중첩 button 방지를 위해 TAG는 span으로 출력
 ========================================================= */
 
 function createMobileLogPreviewItemHtml(
@@ -31933,7 +31941,50 @@ function createMobileLogPreviewItemHtml(
     sectionType ===
       "tm"
       ? "is-tm"
-      : "is-handover";
+      : (
+          sectionType ===
+            "note"
+            ? "is-note"
+            : "is-handover"
+        );
+
+
+  const timeText =
+    String(
+      entry?.time ||
+      ""
+    )
+      .trim()
+      .replace(
+        /\s*,\s*/g,
+        ", "
+      );
+
+
+  const contentText =
+    String(
+      entry?.content ||
+      "-"
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .trim() ||
+    "-";
+
+
+  const tagText =
+    String(
+      entry?.tag ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
 
 
   return `
@@ -31954,11 +32005,11 @@ function createMobileLogPreviewItemHtml(
         <div class="mobile-log-preview-item__line">
 
           ${
-            entry.time
+            timeText
               ? `
                 <span class="mobile-log-preview-item__time">
                   ${escapeHtml(
-                    entry.time
+                    timeText
                   )}
                 </span>
               `
@@ -31966,34 +32017,35 @@ function createMobileLogPreviewItemHtml(
           }
 
 
+          <span class="mobile-log-preview-item__text">
+            ${escapeHtml(
+              contentText
+            )}
+          </span>
+
+
           ${
-            entry.tag
+            tagText
               ? `
-                <button
-                  type="button"
+                <span
                   class="mobile-log-preview-item__tag"
                   data-action="tag"
                   data-log-tag="${escapeHtml(
-                    entry.tag
+                    tagText
                   )}"
+                  role="button"
+                  tabindex="0"
+                  aria-label="${escapeHtml(
+                    tagText
+                  )} 설비 보기"
                 >
                   ${escapeHtml(
-                    entry.tag
+                    tagText
                   )}
-                </button>
+                </span>
               `
               : ""
           }
-
-
-          <span class="mobile-log-preview-item__text">
-            ${escapeHtml(
-              firstMeaningfulLine(
-                entry.content
-              ) ||
-              "-"
-            )}
-          </span>
 
         </div>
 
@@ -32005,26 +32057,33 @@ function createMobileLogPreviewItemHtml(
 
 
 /* =========================================================
-  모바일 미리보기 섹션
+  모바일 업무일지 미리보기 섹션 최종본
+
+  적용:
+  - 저장된 항목 전체 표시
+  - 외 n건 문구 제거
+  - 건수는 제목 아래에만 표시
 ========================================================= */
 
 function createMobileLogSectionHtml(
   title,
   entries,
-  sectionType,
-  options = {}
+  sectionType
 ) {
-  const {
-    maximumPreviewCount =
-      2
-  } = options;
-
-
   const safeEntries =
     Array.isArray(
       entries
     )
-      ? entries
+      ? entries.filter(
+          entry => {
+            return Boolean(
+              String(
+                entry?.content ||
+                ""
+              ).trim()
+            );
+          }
+        )
       : [];
 
 
@@ -32033,21 +32092,6 @@ function createMobileLogSectionHtml(
   ) {
     return "";
   }
-
-
-  const previewEntries =
-    safeEntries.slice(
-      0,
-      maximumPreviewCount
-    );
-
-
-  const remainingCount =
-    Math.max(
-      0,
-      safeEntries.length -
-      previewEntries.length
-    );
 
 
   return `
@@ -32075,7 +32119,7 @@ function createMobileLogSectionHtml(
 
       <div class="mobile-log-preview-section__body">
 
-        ${previewEntries
+        ${safeEntries
           .map(
             (
               entry,
@@ -32089,18 +32133,6 @@ function createMobileLogSectionHtml(
             }
           )
           .join("")}
-
-
-        ${
-          remainingCount >
-          0
-            ? `
-              <span class="mobile-log-preview-section__more">
-                외 ${remainingCount}건
-              </span>
-            `
-            : ""
-        }
 
       </div>
 
@@ -32208,17 +32240,13 @@ function getMobileLogStatusDisplay(
 }
 
 /* =========================================================
-  모바일 업무일지 카드 1개
+  모바일 업무일지 카드 최종본
 
-  구성:
-  - 보직·작성자·상태
-  - 운전현황
-  - TM 발행 내역
-  - 인계사항
-  - 비고
-  - 첨부·상세보기·수정
-
-  PC 표에는 영향을 주지 않는다.
+  적용:
+  - 파트장만 운전현황 표시
+  - 모든 TM·인계·비고 내용 표시
+  - TM TAG는 내용 뒤에 배치
+  - 하단 상세보기·첨부·수정 3칸 유지
 ========================================================= */
 
 function createMobileLogCardHtml(
@@ -32269,27 +32297,50 @@ function createMobileLogCardHtml(
     );
 
 
+  const normalizedRole =
+    normalizeMemberLogRole(
+      log?.role
+    );
+
+
+  const isLeader =
+    normalizedRole ===
+    "파트장";
+
+
+  /*
+    운전현황은 파트장 업무일지에서만 표시한다.
+  */
   const operationItems =
-    collectMobileOperationPreviewItems(
-      log
-    )
-      .slice(
-        0,
-        2
-      )
-      .map(
-        content => {
-          return {
-            time:
-              "",
+    isLeader
+      ? collectMobileOperationPreviewItems(
+          log
+        )
+          .map(
+            content => {
+              return {
+                time:
+                  "",
 
-            tag:
-              "",
+                tag:
+                  "",
 
-            content
-          };
-        }
-      );
+                content:
+                  String(
+                    content ||
+                    ""
+                  ).trim()
+              };
+            }
+          )
+          .filter(
+            entry => {
+              return Boolean(
+                entry.content
+              );
+            }
+          )
+      : [];
 
 
   const attachments =
@@ -32310,9 +32361,6 @@ function createMobileLogCardHtml(
     );
 
 
-  /*
-    실제 상태값은 권한·수정 가능 여부 판정에 사용한다.
-  */
   const originalStatus =
     String(
       log?.status ||
@@ -32320,9 +32368,6 @@ function createMobileLogCardHtml(
     ).trim();
 
 
-  /*
-    모바일 화면에만 짧은 상태명을 표시한다.
-  */
   const mobileStatusText =
     getMobileLogStatusDisplay(
       originalStatus
@@ -32352,17 +32397,6 @@ function createMobileLogCardHtml(
       : "수정";
 
 
-  const normalizedRole =
-    normalizeMemberLogRole(
-      log?.role
-    );
-
-
-  const isLeader =
-    normalizedRole ===
-    "파트장";
-
-
   const hasPreviewContent =
     operationItems.length >
       0 ||
@@ -32382,7 +32416,6 @@ function createMobileLogCardHtml(
       )}"
     >
 
-      <!-- 카드 본문 전체 클릭 시 상세보기 -->
       <button
         type="button"
         class="mobile-log-card__open"
@@ -32396,7 +32429,6 @@ function createMobileLogCardHtml(
         )} 업무일지 상세보기"
       >
 
-        <!-- 상단 정보 -->
         <header class="mobile-log-card__header">
 
           <div class="mobile-log-card__identity">
@@ -32449,14 +32481,17 @@ function createMobileLogCardHtml(
         </header>
 
 
-        <!-- 업무 내용 -->
         <div class="mobile-log-card__preview">
 
-          ${createMobileLogSectionHtml(
-            "운전현황",
-            operationItems,
-            "operation"
-          )}
+          ${
+            isLeader
+              ? createMobileLogSectionHtml(
+                  "운전현황",
+                  operationItems,
+                  "operation"
+                )
+              : ""
+          }
 
 
           ${createMobileLogSectionHtml(
@@ -32478,11 +32513,7 @@ function createMobileLogCardHtml(
           ${createMobileLogSectionHtml(
             "비고",
             noteEntries,
-            "note",
-            {
-              maximumPreviewCount:
-                1
-            }
+            "note"
           )}
 
 
@@ -32501,12 +32532,14 @@ function createMobileLogCardHtml(
       </button>
 
 
-      <!-- 카드 하단 -->
       <footer class="mobile-log-card__footer">
 
         <button
           type="button"
-          class="mobile-log-card__detail-button"
+          class="
+            mobile-log-card__footer-button
+            mobile-log-card__detail-button
+          "
           data-action="view"
           data-log-id="${escapeHtml(
             log.id
@@ -32522,24 +32555,27 @@ function createMobileLogCardHtml(
             ? `
               <button
                 type="button"
-                class="mobile-log-card__attachment-button"
+                class="
+                  mobile-log-card__footer-button
+                  mobile-log-card__attachment-button
+                "
                 data-action="attachment"
                 data-log-id="${escapeHtml(
                   log.id
                 )}"
                 aria-label="첨부파일 ${attachmentCount}개 보기"
               >
-                <span aria-hidden="true">
-                  📎
-                </span>
-
-                <span>
-                  ${attachmentCount}
-                </span>
+                첨부 ${attachmentCount}
               </button>
             `
             : `
-              <span class="mobile-log-card__attachment-empty">
+              <span
+                class="
+                  mobile-log-card__footer-button
+                  mobile-log-card__attachment-empty
+                  is-disabled
+                "
+              >
                 첨부 없음
               </span>
             `
@@ -32551,7 +32587,10 @@ function createMobileLogCardHtml(
             ? `
               <button
                 type="button"
-                class="mobile-log-card__edit-button"
+                class="
+                  mobile-log-card__footer-button
+                  mobile-log-card__edit-button
+                "
                 data-action="edit"
                 data-log-id="${escapeHtml(
                   log.id
@@ -32560,7 +32599,17 @@ function createMobileLogCardHtml(
                 ${editButtonText}
               </button>
             `
-            : ""
+            : `
+              <span
+                class="
+                  mobile-log-card__footer-button
+                  mobile-log-card__edit-disabled
+                  is-disabled
+                "
+              >
+                수정 불가
+              </span>
+            `
         }
 
       </footer>

@@ -37763,3 +37763,525 @@ body {
     font-size: 9px !important;
   }
 }
+
+/* =========================================================
+  모바일 업무일지 미리보기 최종 정돈
+
+  적용:
+  - 상세보기와 유사한 문서형 정렬
+  - 입력 내용 전체 표시
+  - 번호 → 시간 → 내용 → TAG
+  - 하단 버튼 3칸 동일 크기
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    카드 본문
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__open {
+    display: block !important;
+
+    width: 100% !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border: 0 !important;
+    background: transparent !important;
+
+    color: inherit !important;
+    text-align: left !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__preview {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    flex-direction: column !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  /* =====================================================
+    미리보기 구역
+
+    운전현황 / TM 발행 / 인계사항 / 비고
+  ====================================================== */
+
+  #statusView
+  .mobile-log-preview-section {
+    display: grid !important;
+
+    grid-template-columns:
+      72px
+      minmax(0, 1fr) !important;
+
+    align-items: start !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding:
+      9px
+      9px !important;
+
+    border: 0 !important;
+    border-top:
+      1px
+      solid
+      #e1e7ee !important;
+
+    background: #ffffff !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-section:first-child {
+    border-top: 0 !important;
+  }
+
+
+  /* =====================================================
+    왼쪽 구역 제목
+  ====================================================== */
+
+  #statusView
+  .mobile-log-preview-section__header {
+    display: flex !important;
+
+    min-width: 0 !important;
+
+    flex-direction: column !important;
+    align-items: flex-start !important;
+
+    gap: 2px !important;
+
+    margin: 0 !important;
+    padding:
+      1px
+      7px
+      0
+      0 !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-section__header strong {
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    line-height: 1.35 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-section__header span {
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: #8a96a5 !important;
+
+    font-size: 8px !important;
+    font-weight: 800 !important;
+    line-height: 1.3 !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-section.is-operation
+  .mobile-log-preview-section__header strong {
+    color: #1763c5 !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-section.is-tm
+  .mobile-log-preview-section__header strong {
+    color: #188451 !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-section.is-handover
+  .mobile-log-preview-section__header strong {
+    color: #a8660b !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-section.is-note
+  .mobile-log-preview-section__header strong {
+    color: #657286 !important;
+  }
+
+
+  /* =====================================================
+    오른쪽 항목 목록
+  ====================================================== */
+
+  #statusView
+  .mobile-log-preview-section__body {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    flex-direction: column !important;
+
+    gap: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  /* 기존 외 n건 문구 방어적 제거 */
+  #statusView
+  .mobile-log-preview-section__more {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    한 항목
+
+    번호 | 시간·내용·TAG
+  ====================================================== */
+
+  #statusView
+  .mobile-log-preview-item {
+    display: grid !important;
+
+    grid-template-columns:
+      22px
+      minmax(0, 1fr) !important;
+
+    align-items: start !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding:
+      3px
+      0 !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-item
+  +
+  .mobile-log-preview-item {
+    border-top:
+      1px
+      solid
+      #edf1f5 !important;
+  }
+
+
+  /* 번호 */
+  #statusView
+  .mobile-log-preview-item__number {
+    display: block !important;
+
+    width: 22px !important;
+    min-width: 22px !important;
+
+    margin: 0 !important;
+    padding:
+      0
+      5px
+      0
+      0 !important;
+
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    line-height: 1.55 !important;
+
+    text-align: right !important;
+    white-space: nowrap !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-item__number.is-tm {
+    color: #b87412 !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-item__number.is-handover {
+    color: #1763c5 !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-item__number.is-note {
+    color: #657286 !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-item__main {
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #statusView
+  .mobile-log-preview-item__line {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: #26364b !important;
+
+    font-size: 10px !important;
+    font-weight: 650 !important;
+    line-height: 1.55 !important;
+
+    text-align: left !important;
+  }
+
+
+  /* 시간 */
+  #statusView
+  .mobile-log-preview-item__time {
+    display: inline !important;
+
+    margin:
+      0
+      5px
+      0
+      0 !important;
+    padding: 0 !important;
+
+    color: #245caf !important;
+
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    line-height: inherit !important;
+
+    white-space: nowrap !important;
+
+    font-variant-numeric:
+      tabular-nums !important;
+  }
+
+
+  /* 내용 전체 표시 */
+  #statusView
+  .mobile-log-preview-item__text {
+    display: inline !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: #26364b !important;
+
+    font-size: 10px !important;
+    font-weight: 650 !important;
+    line-height: inherit !important;
+
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+  }
+
+
+  /* TAG는 내용 뒤 */
+  #statusView
+  .mobile-log-preview-item__tag {
+    display: inline !important;
+
+    margin:
+      0
+      0
+      0
+      5px !important;
+    padding: 0 !important;
+
+    border: 0 !important;
+    border-radius: 0 !important;
+
+    background: transparent !important;
+    color: #1763c5 !important;
+
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: inherit !important;
+
+    white-space: nowrap !important;
+
+    cursor: pointer !important;
+  }
+
+
+  /* =====================================================
+    카드 하단
+
+    상세보기 / 첨부 / 수정
+    세 칸을 같은 크기로 통일
+  ====================================================== */
+
+  #statusView
+  .mobile-log-card__footer {
+    display: grid !important;
+
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    align-items: stretch !important;
+
+    gap: 6px !important;
+
+    min-height: 0 !important;
+
+    margin: 0 !important;
+    padding:
+      7px
+      8px !important;
+
+    border-top:
+      1px
+      solid
+      #dfe6ee !important;
+
+    background: #fafbfd !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__footer-button {
+    display: inline-flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    gap: 3px !important;
+
+    margin: 0 !important;
+    padding:
+      0
+      4px !important;
+
+    border:
+      1px
+      solid
+      #b6cbe2 !important;
+
+    border-radius: 7px !important;
+
+    background: #ffffff !important;
+    color: #285d98 !important;
+
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+
+    text-align: center !important;
+    white-space: nowrap !important;
+
+    box-shadow: none !important;
+
+    box-sizing: border-box !important;
+
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+
+  #statusView
+  .mobile-log-card__detail-button {
+    border-color: #8eb1d8 !important;
+
+    background: #eaf3fc !important;
+    color: #174f91 !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__attachment-button {
+    border-color: #c9d4df !important;
+
+    background: #ffffff !important;
+    color: #59687b !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__edit-button {
+    border-color: #8eb1d8 !important;
+
+    background: #ffffff !important;
+    color: #1f5fae !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__footer-button.is-disabled {
+    border-color: #e0e5eb !important;
+
+    background: #f5f7f9 !important;
+    color: #9aa4b1 !important;
+  }
+
+
+  #statusView
+  button.mobile-log-card__footer-button:active {
+    background: #e4eef9 !important;
+
+    transform:
+      scale(
+        0.985
+      ) !important;
+  }
+
+
+  /* 빈 내용 */
+  #statusView
+  .mobile-log-card__empty {
+    margin: 0 !important;
+    padding:
+      14px
+      10px !important;
+
+    color: #8994a3 !important;
+
+    font-size: 10px !important;
+    text-align: center !important;
+  }
+}
