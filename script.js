@@ -53394,74 +53394,142 @@ async function openRoleNoticeModal(
         );
       }
     );
+
+
+  /*
+    보직 공지 추가 버튼 표시
+
+    표시 가능:
+    - 최고관리자
+    - 파트장 계정
+    - 현재 공지 대상과 동일한 보직 사용자
+
+    표시 불가:
+    - 다른 보직 일반 사용자
+  */
+  if (
+    noticeElements
+      .openRoleNoticeEditorButton
+  ) {
+    const canManageCurrentRole =
+      canCurrentUserManageRoleNotice(
+        normalizedRole
+      );
+
+
+    noticeElements
+      .openRoleNoticeEditorButton
+      .hidden =
+      !canManageCurrentRole;
+
+
+    noticeElements
+      .openRoleNoticeEditorButton
+      .disabled =
+      !canManageCurrentRole;
+
+
+    if (
+      canManageCurrentRole
+    ) {
+      noticeElements
+        .openRoleNoticeEditorButton
+        .removeAttribute(
+          "hidden"
+        );
+
+
+      noticeElements
+        .openRoleNoticeEditorButton
+        .style
+        .removeProperty(
+          "display"
+        );
+
+
+      noticeElements
+        .openRoleNoticeEditorButton
+        .setAttribute(
+          "aria-hidden",
+          "false"
+        );
+
+    } else {
+      noticeElements
+        .openRoleNoticeEditorButton
+        .setAttribute(
+          "aria-hidden",
+          "true"
+        );
+    }
   }
 
-/*
-  보직 공지 추가 버튼 표시
 
-  표시 가능:
-  - 최고관리자
-  - 파트장 계정
-  - 현재 공지 대상과 동일한 보직 사용자
+  /*
+    API 응답을 기다리기 전에 모달부터 연다.
 
-  표시 불가:
-  - 다른 보직 일반 사용자
-*/
-if (
-  noticeElements
-    .openRoleNoticeEditorButton
-) {
-  const canManageCurrentRole =
-    canCurrentUserManageRoleNotice(
-      normalizedRole
+    서버 조회가 느리거나 실패하더라도
+    버튼 클릭 자체는 즉시 확인할 수 있다.
+  */
+  if (
+    typeof openModal ===
+      "function"
+  ) {
+    openModal(
+      noticeElements.roleNoticeModal
     );
 
-
-  noticeElements
-    .openRoleNoticeEditorButton
-    .hidden =
-    !canManageCurrentRole;
-
-
-  noticeElements
-    .openRoleNoticeEditorButton
-    .disabled =
-    !canManageCurrentRole;
-
-
-  if (
-    canManageCurrentRole
-  ) {
+  } else {
     noticeElements
-      .openRoleNoticeEditorButton
-      .removeAttribute(
-        "hidden"
+      .roleNoticeModal
+      .classList
+      .add(
+        "is-open"
       );
 
-
     noticeElements
-      .openRoleNoticeEditorButton
-      .style
-      .removeProperty(
-        "display"
-      );
-
-
-    noticeElements
-      .openRoleNoticeEditorButton
+      .roleNoticeModal
       .setAttribute(
         "aria-hidden",
         "false"
       );
 
-  } else {
+    document.body.classList.add(
+      "modal-open"
+    );
+  }
+
+
+  if (
+    noticeElements.roleNoticeList
+  ) {
     noticeElements
-      .openRoleNoticeEditorButton
+      .roleNoticeList
       .setAttribute(
-        "aria-hidden",
+        "aria-busy",
         "true"
       );
   }
+
+
+  try {
+    await loadRoleNotices();
+
+  } finally {
+    if (
+      noticeElements.roleNoticeList
+    ) {
+      noticeElements
+        .roleNoticeList
+        .setAttribute(
+          "aria-busy",
+          "false"
+        );
+    }
+  }
+
+
+  renderCurrentRoleNoticeList();
 }
 
 /* =========================================================
@@ -59659,3 +59727,510 @@ footerElement.classList.remove(
 
     return cardElement.outerHTML;
   };
+
+  /* =========================================================
+  업무일지 상세보기 삭제 버튼 최종 연결
+
+  일반회원:
+  - 본인이 작성한 임시저장 일지만 삭제 가능
+  - 결재요청·결재완료에서는 삭제 불가
+
+  파트장:
+  - 본인이 작성한 파트장 저장완료 일지 삭제 가능
+
+  최고관리자:
+  - 신규 업무일지 삭제 가능
+
+  과거 연동 일지:
+  - 삭제 불가
+========================================================= */
+
+
+/* =========================================================
+  상세보기 삭제 권한
+========================================================= */
+
+function canCurrentUserDeleteShiftLogFromDetail(
+  log
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    return false;
+  }
+
+
+  /*
+    과거 업무일지는 삭제 불가
+  */
+  if (
+    isReadOnlyLegacyShiftLog(
+      log
+    )
+  ) {
+    return false;
+  }
+
+
+  /*
+    최고관리자
+  */
+  if (
+    isCurrentUserSuperAdmin()
+  ) {
+    return true;
+  }
+
+
+  /*
+    최고관리자가 아니면
+    반드시 본인이 작성한 일지여야 한다.
+  */
+  if (
+    !isCurrentUserShiftLogAuthor(
+      log
+    )
+  ) {
+    return false;
+  }
+
+
+  const normalizedStatus =
+    normalizeShiftLogApprovalStatus(
+      log.status
+    );
+
+
+  /*
+    일반 보직:
+    본인 임시저장 일지
+  */
+  if (
+    normalizedStatus ===
+    "임시저장"
+  ) {
+    return true;
+  }
+
+
+  /*
+    파트장:
+    본인의 파트장 저장완료 일지
+  */
+  return (
+    isCurrentShiftLogLeader() &&
+
+    normalizeMemberLogRole(
+      log.role
+    ) ===
+      "파트장" &&
+
+    normalizedStatus ===
+      "저장완료"
+  );
+}
+
+
+/* =========================================================
+  기존 상세보기 버튼 갱신 함수 보존
+========================================================= */
+
+const updateShiftLogDetailActionButtonsBeforeDeleteSupport =
+  updateShiftLogDetailActionButtons;
+
+
+/* =========================================================
+  삭제 버튼이 포함된 상세보기 버튼 갱신
+========================================================= */
+
+updateShiftLogDetailActionButtons =
+  function updateShiftLogDetailActionButtons(
+    log
+  ) {
+    /*
+      기존 결재취소·결재완료·수정 표시 규칙 실행
+    */
+    updateShiftLogDetailActionButtonsBeforeDeleteSupport(
+      log
+    );
+
+
+    const deleteButton =
+      document.getElementById(
+        "deleteFromDetailButton"
+      );
+
+
+    if (
+      !deleteButton
+    ) {
+      return;
+    }
+
+
+    const canDelete =
+      canCurrentUserDeleteShiftLogFromDetail(
+        log
+      );
+
+
+    deleteButton.hidden =
+      !canDelete;
+
+
+    deleteButton.disabled =
+      !canDelete;
+
+
+    deleteButton.setAttribute(
+      "aria-hidden",
+      String(
+        !canDelete
+      )
+    );
+
+
+    if (
+      canDelete
+    ) {
+      deleteButton.removeAttribute(
+        "hidden"
+      );
+
+
+      deleteButton.style.removeProperty(
+        "display"
+      );
+
+    } else {
+      deleteButton.setAttribute(
+        "hidden",
+        ""
+      );
+    }
+  };
+
+
+/* =========================================================
+  현재 상세 업무일지 삭제
+========================================================= */
+
+async function deleteCurrentDetailShiftLog() {
+  const targetLog =
+    getCurrentDetailShiftLog();
+
+
+  if (
+    !targetLog
+  ) {
+    showToast(
+      "삭제할 업무일지를 찾을 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  if (
+    !canCurrentUserDeleteShiftLogFromDetail(
+      targetLog
+    )
+  ) {
+    const normalizedStatus =
+      normalizeShiftLogApprovalStatus(
+        targetLog.status
+      );
+
+
+    showToast(
+      normalizedStatus ===
+        "결재요청"
+        ? "결재요청을 취소한 후 삭제할 수 있습니다."
+        : "현재 상태에서는 이 업무일지를 삭제할 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  const targetLogId =
+    String(
+      targetLog.id ||
+      ""
+    ).trim();
+
+
+  await deleteLogById(
+    targetLogId
+  );
+
+
+  /*
+    서버 삭제 성공 후 appState에서 사라졌는지 확인한다.
+
+    삭제 실패 시 상세창은 그대로 유지한다.
+  */
+  const logStillExists =
+    appState.logs.some(
+      log => {
+        return (
+          String(
+            log?.id ||
+            ""
+          ).trim() ===
+          targetLogId
+        );
+      }
+    );
+
+
+  if (
+    !logStillExists
+  ) {
+    closeLogDetail();
+  }
+}
+
+
+/* =========================================================
+  상세보기 삭제 이벤트 연결
+========================================================= */
+
+function initializeShiftLogDetailDeleteAction() {
+  const deleteButton =
+    document.getElementById(
+      "deleteFromDetailButton"
+    );
+
+
+  if (
+    !deleteButton ||
+    deleteButton.dataset
+      .deleteEventBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  deleteButton.dataset
+    .deleteEventBound =
+    "true";
+
+
+  deleteButton.addEventListener(
+    "click",
+    deleteCurrentDetailShiftLog
+  );
+}
+
+
+if (
+  document.readyState ===
+  "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeShiftLogDetailDeleteAction
+  );
+
+} else {
+  initializeShiftLogDetailDeleteAction();
+}
+
+/* =========================================================
+  날짜 ±7일·±30일 빠른 이동
+
+  적용:
+  - 선택한 D/S 또는 N/S는 그대로 유지
+  - 날짜만 ±7일·±30일 이동
+  - 이동 후 D1 최신 데이터 재조회
+  - 과거 업무일지 재조회
+========================================================= */
+
+let isQuickDateJumpRunning =
+  false;
+
+
+/* =========================================================
+  날짜 단위 이동
+========================================================= */
+
+async function jumpSelectedDateByDays(
+  dayOffset
+) {
+  const normalizedOffset =
+    Number(
+      dayOffset
+    );
+
+
+  if (
+    !Number.isInteger(
+      normalizedOffset
+    ) ||
+    normalizedOffset ===
+      0 ||
+    isQuickDateJumpRunning
+  ) {
+    return;
+  }
+
+
+  isQuickDateJumpRunning =
+    true;
+
+
+  const quickButtons = [
+    ...document.querySelectorAll(
+      "[data-date-jump-days]"
+    )
+  ];
+
+
+  quickButtons.forEach(
+    button => {
+      button.disabled =
+        true;
+    }
+  );
+
+
+  try {
+    const nextDate =
+      new Date(
+        appState.selectedDate
+      );
+
+
+    nextDate.setDate(
+      nextDate.getDate() +
+      normalizedOffset
+    );
+
+
+    /*
+      시간값을 제거하고 날짜만 저장한다.
+
+      현재 선택된 D/S·N/S는 변경하지 않는다.
+    */
+    appState.selectedDate =
+      new Date(
+        nextDate.getFullYear(),
+        nextDate.getMonth(),
+        nextDate.getDate()
+      );
+
+
+    renderSelectedDate();
+
+
+    /*
+      다른 PC에서 저장한 최신 D1 자료 갱신
+    */
+    if (
+      typeof refreshSharedShiftLogsInState ===
+      "function"
+    ) {
+      await refreshSharedShiftLogsInState();
+    }
+
+
+    /*
+      선택 날짜의 과거·연동 업무일지 로딩
+    */
+    if (
+      typeof loadLegacyLogsForSelectedDate ===
+      "function"
+    ) {
+      await loadLegacyLogsForSelectedDate();
+    }
+
+
+    renderLogTable();
+
+    updateShiftMemberCardStates();
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "날짜 빠른 이동 실패:",
+      error
+    );
+
+
+    showToast(
+      "날짜를 이동하지 못했습니다. 다시 시도해 주세요."
+    );
+
+  } finally {
+    isQuickDateJumpRunning =
+      false;
+
+
+    quickButtons.forEach(
+      button => {
+        button.disabled =
+          false;
+      }
+    );
+  }
+}
+
+
+/* =========================================================
+  날짜 빠른 이동 버튼 이벤트
+========================================================= */
+
+function initializeDateQuickNavigation() {
+  document
+    .querySelectorAll(
+      "[data-date-jump-days]"
+    )
+    .forEach(
+      button => {
+        if (
+          button.dataset
+            .quickJumpBound ===
+            "true"
+        ) {
+          return;
+        }
+
+
+        button.dataset
+          .quickJumpBound =
+          "true";
+
+
+        button.addEventListener(
+          "click",
+          () => {
+            jumpSelectedDateByDays(
+              button.dataset
+                .dateJumpDays
+            );
+          }
+        );
+      }
+    );
+}
+
+
+if (
+  document.readyState ===
+  "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeDateQuickNavigation
+  );
+
+} else {
+  initializeDateQuickNavigation();
+}

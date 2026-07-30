@@ -49602,3 +49602,596 @@ legend {
     width: 100% !important;
   }
 }
+
+/* =========================================================
+  전체공지·보직공지 기간 입력칸 최종 축소
+
+  적용:
+  - 전체공지 시작일·종료일
+  - 보직공지 시작일·종료일
+  - 모바일에서 각각 116px 고정
+  - 가운데 정렬
+  - iPhone date input 고유 너비 해제
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    공지 기간 전체
+
+    [시작일] [종료일]
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-period-grid,
+
+  #roleNoticeEditorModal
+  .role-notice-period-grid {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    grid-template-columns:
+      repeat(
+        2,
+        116px
+      ) !important;
+
+    align-items: end !important;
+    justify-content: center !important;
+
+    gap: 8px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: visible !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* 기존 가운데 ~ 표시 제거 */
+
+  #globalNoticeEditorModal
+  .global-notice-period-divider,
+
+  #roleNoticeEditorModal
+  .role-notice-period-divider {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    날짜 라벨 한 칸
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-period-grid
+  >
+  .form-field,
+
+  #roleNoticeEditorModal
+  .role-notice-period-grid
+  >
+  .form-field {
+    display: flex !important;
+
+    width: 116px !important;
+    min-width: 0 !important;
+    max-width: 116px !important;
+
+    flex:
+      0
+      0
+      116px !important;
+
+    flex-direction: column !important;
+
+    gap: 2px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: hidden !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* 시작일·종료일 제목 */
+
+  #globalNoticeEditorModal
+  .global-notice-period-grid
+  .form-field__label,
+
+  #roleNoticeEditorModal
+  .role-notice-period-grid
+  .form-field__label {
+    display: block !important;
+
+    width: 116px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: #64748a !important;
+
+    font-size: 7px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+
+    text-align: left !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    실제 날짜 입력칸
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  #globalNoticeStartDateInput,
+
+  #globalNoticeEditorModal
+  #globalNoticeEndDateInput,
+
+  #roleNoticeEditorModal
+  #roleNoticeStartDateInput,
+
+  #roleNoticeEditorModal
+  #roleNoticeEndDateInput {
+    position: static !important;
+
+    display: block !important;
+
+    width: 116px !important;
+    min-width: 0 !important;
+    max-width: 116px !important;
+
+    inline-size: 116px !important;
+    min-inline-size: 0 !important;
+    max-inline-size: 116px !important;
+
+    height: 29px !important;
+    min-height: 29px !important;
+    max-height: 29px !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      2px !important;
+
+    overflow: hidden !important;
+
+    border:
+      1px
+      solid
+      #c8d4e1 !important;
+
+    border-radius: 6px !important;
+
+    background: #ffffff !important;
+    color: #26384f !important;
+
+    font-size: 8.5px !important;
+    font-weight: 850 !important;
+    line-height: 27px !important;
+
+    text-align: center !important;
+    text-indent: 0 !important;
+
+    font-variant-numeric:
+      tabular-nums !important;
+
+    box-shadow: none !important;
+    transform: none !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =====================================================
+    iPhone Safari 날짜 내부 정렬
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  #globalNoticeStartDateInput::-webkit-date-and-time-value,
+
+  #globalNoticeEditorModal
+  #globalNoticeEndDateInput::-webkit-date-and-time-value,
+
+  #roleNoticeEditorModal
+  #roleNoticeStartDateInput::-webkit-date-and-time-value,
+
+  #roleNoticeEditorModal
+  #roleNoticeEndDateInput::-webkit-date-and-time-value,
+
+  #globalNoticeEditorModal
+  #globalNoticeStartDateInput::-webkit-datetime-edit,
+
+  #globalNoticeEditorModal
+  #globalNoticeEndDateInput::-webkit-datetime-edit,
+
+  #roleNoticeEditorModal
+  #roleNoticeStartDateInput::-webkit-datetime-edit,
+
+  #roleNoticeEditorModal
+  #roleNoticeEndDateInput::-webkit-datetime-edit,
+
+  #globalNoticeEditorModal
+  #globalNoticeStartDateInput::-webkit-datetime-edit-fields-wrapper,
+
+  #globalNoticeEditorModal
+  #globalNoticeEndDateInput::-webkit-datetime-edit-fields-wrapper,
+
+  #roleNoticeEditorModal
+  #roleNoticeStartDateInput::-webkit-datetime-edit-fields-wrapper,
+
+  #roleNoticeEditorModal
+  #roleNoticeEndDateInput::-webkit-datetime-edit-fields-wrapper {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    height: 27px !important;
+    min-height: 27px !important;
+    max-height: 27px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    line-height: 27px !important;
+
+    text-align: center !important;
+
+    box-sizing: border-box !important;
+  }
+}
+
+
+/* =========================================================
+  폭이 작은 모바일
+
+  날짜 입력칸 108px
+========================================================= */
+
+@media (max-width: 390px) {
+
+  #globalNoticeEditorModal
+  .global-notice-period-grid,
+
+  #roleNoticeEditorModal
+  .role-notice-period-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        108px
+      ) !important;
+
+    gap: 6px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-period-grid
+  >
+  .form-field,
+
+  #roleNoticeEditorModal
+  .role-notice-period-grid
+  >
+  .form-field,
+
+  #globalNoticeEditorModal
+  .global-notice-period-grid
+  .form-field__label,
+
+  #roleNoticeEditorModal
+  .role-notice-period-grid
+  .form-field__label {
+    width: 108px !important;
+    max-width: 108px !important;
+
+    flex-basis: 108px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  #globalNoticeStartDateInput,
+
+  #globalNoticeEditorModal
+  #globalNoticeEndDateInput,
+
+  #roleNoticeEditorModal
+  #roleNoticeStartDateInput,
+
+  #roleNoticeEditorModal
+  #roleNoticeEndDateInput {
+    width: 108px !important;
+    max-width: 108px !important;
+
+    inline-size: 108px !important;
+    max-inline-size: 108px !important;
+
+    font-size: 8px !important;
+  }
+}
+
+/* =========================================================
+  업무일지 상세보기 삭제 버튼
+========================================================= */
+
+#logDetailModal
+#deleteFromDetailButton[hidden] {
+  display: none !important;
+}
+
+
+#logDetailModal
+#deleteFromDetailButton:not([hidden]) {
+  display: inline-flex !important;
+
+  min-width: 60px !important;
+
+  height: 36px !important;
+  min-height: 36px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+
+  padding:
+    0
+    11px !important;
+
+  border:
+    1px
+    solid
+    #e3a8a8 !important;
+
+  border-radius: 7px !important;
+
+  background: #fff0f0 !important;
+  color: #ad3939 !important;
+
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+
+  white-space: nowrap !important;
+
+  box-shadow: none !important;
+
+  cursor: pointer !important;
+}
+
+
+#logDetailModal
+#deleteFromDetailButton:not([hidden]):active {
+  border-color: #d67b7b !important;
+
+  background: #fddddf !important;
+  color: #942929 !important;
+}
+
+
+@media (max-width: 768px) {
+
+  #logDetailModal
+  #deleteFromDetailButton:not([hidden]) {
+    min-width: 48px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+
+    padding:
+      0
+      8px !important;
+
+    font-size: 9px !important;
+  }
+}
+
+/* =========================================================
+  날짜 빠른 이동 버튼
+
+  ‹ 30일 | ‹ 7일 | • 오늘 | 7일 › | 30일 ›
+========================================================= */
+
+#statusView
+.date-quick-navigation {
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  grid-template-columns:
+    repeat(
+      5,
+      minmax(
+        0,
+        1fr
+      )
+    ) !important;
+
+  align-items: stretch !important;
+
+  gap: 5px !important;
+
+  flex:
+    0
+    0
+    100% !important;
+
+  grid-column:
+    1
+    /
+    -1 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  box-sizing: border-box !important;
+}
+
+
+#statusView
+.date-quick-navigation__button {
+  display: inline-flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  height: 31px !important;
+  min-height: 31px !important;
+  max-height: 31px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+
+  padding:
+    0
+    5px !important;
+
+  border:
+    1px
+    solid
+    #ccd7e2 !important;
+
+  border-radius: 7px !important;
+
+  background: #ffffff !important;
+  color: #53647a !important;
+
+  font-size: 9px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+
+  white-space: nowrap !important;
+
+  box-shadow: none !important;
+
+  cursor: pointer !important;
+
+  touch-action: manipulation !important;
+
+  -webkit-tap-highlight-color: transparent;
+}
+
+
+/* 오늘 버튼 */
+
+#statusView
+.date-quick-navigation
+#todayButton {
+  grid-area: auto !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+
+  margin: 0 !important;
+
+  border-color: #a8c4e1 !important;
+
+  background: #edf5fd !important;
+  color: #215d9b !important;
+
+  font-weight: 900 !important;
+}
+
+
+/* 눌림 */
+
+#statusView
+.date-quick-navigation__button:active {
+  border-color: #8faccc !important;
+
+  background: #e7eff8 !important;
+  color: #174f87 !important;
+}
+
+
+#statusView
+.date-quick-navigation__button:disabled {
+  opacity: 0.55 !important;
+
+  cursor: wait !important;
+}
+
+
+/* =========================================================
+  모바일 날짜 이동 카드에 빠른 이동 행 배치
+========================================================= */
+
+@media (max-width: 768px) {
+
+  #statusView
+  .date-navigation-section {
+    grid-template-areas:
+      "previous center next"
+      "quick quick quick" !important;
+  }
+
+
+  #statusView
+  .date-quick-navigation {
+    grid-area: quick !important;
+
+    gap: 3px !important;
+  }
+
+
+  #statusView
+  .date-quick-navigation__button {
+    height: 27px !important;
+    min-height: 27px !important;
+    max-height: 27px !important;
+
+    padding:
+      0
+      2px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 8px !important;
+    letter-spacing: -0.035em !important;
+  }
+}
+
+
+/* =========================================================
+  작은 모바일
+========================================================= */
+
+@media (max-width: 390px) {
+
+  #statusView
+  .date-quick-navigation {
+    gap: 2px !important;
+  }
+
+
+  #statusView
+  .date-quick-navigation__button {
+    padding:
+      0
+      1px !important;
+
+    font-size: 7.5px !important;
+  }
+}

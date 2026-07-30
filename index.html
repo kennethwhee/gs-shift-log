@@ -963,13 +963,71 @@
             ›
           </button>
 
-          <button
-            type="button"
-            class="today-button"
-            id="todayButton"
-          >
-            오늘
-          </button>
+<!-- =====================================================
+  날짜 빠른 이동
+
+  -30일 | -7일 | 오늘 | +7일 | +30일
+====================================================== -->
+
+<div
+  class="date-quick-navigation"
+  id="dateQuickNavigation"
+>
+
+  <button
+    type="button"
+    class="date-quick-navigation__button"
+    data-date-jump-days="-30"
+    aria-label="30일 전으로 이동"
+  >
+    ‹ 30일
+  </button>
+
+
+  <button
+    type="button"
+    class="date-quick-navigation__button"
+    data-date-jump-days="-7"
+    aria-label="7일 전으로 이동"
+  >
+    ‹ 7일
+  </button>
+
+
+  <!-- 기존 ID 유지 -->
+  <button
+    type="button"
+    class="
+      today-button
+      date-quick-navigation__button
+      date-quick-navigation__today
+    "
+    id="todayButton"
+  >
+    • 오늘
+  </button>
+
+
+  <button
+    type="button"
+    class="date-quick-navigation__button"
+    data-date-jump-days="7"
+    aria-label="7일 후로 이동"
+  >
+    7일 ›
+  </button>
+
+
+  <button
+    type="button"
+    class="date-quick-navigation__button"
+    data-date-jump-days="30"
+    aria-label="30일 후로 이동"
+  >
+    30일 ›
+  </button>
+
+</div>
         </section>
 
 
@@ -3343,6 +3401,17 @@
       결재확인
     </button>
 
+    <!-- 본인 저장 단계 업무일지 삭제 -->
+<button
+  type="button"
+  class="
+    log-detail-delete-button
+  "
+  id="deleteFromDetailButton"
+  hidden
+>
+  삭제
+</button>
 
     <button
       type="button"
