@@ -47069,3 +47069,1316 @@ input {
     display: none !important;
   }
 }
+
+/* =========================================================
+  전체공지 작성·수정창 모바일 최종 컴팩트 디자인
+
+  적용 내용:
+  1. 모바일 전체 화면 모달
+  2. 중요도 일반·중요·긴급 한 줄 배치
+  3. 제목·내용 입력창 높이 축소
+  4. 시작일·종료일 한 줄 2칸 배치
+  5. iPhone 날짜 입력칸 화면 이탈 방지
+  6. 첨부파일 영역 가로형 컴팩트 디자인
+  7. 하단 취소·저장 버튼 안전 영역 대응
+
+  HTML·JavaScript 수정 없음
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    모달 바깥 영역
+  ====================================================== */
+
+  #globalNoticeEditorModal {
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+
+    padding: 0 !important;
+
+    overflow: hidden !important;
+
+    background:
+      rgba(
+        15,
+        23,
+        42,
+        0.46
+      ) !important;
+  }
+
+
+  /* =====================================================
+    모달 본체
+
+    모바일에서는 화면 전체를 사용한다.
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-editor-panel {
+    display: flex !important;
+
+    width: 100vw !important;
+    min-width: 0 !important;
+    max-width: 100vw !important;
+
+    height: 100vh !important;
+    height: 100dvh !important;
+
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+
+    flex-direction: column !important;
+
+    margin: 0 !important;
+
+    overflow: hidden !important;
+
+    border: 0 !important;
+    border-radius: 0 !important;
+
+    background: #ffffff !important;
+
+    box-shadow: none !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =====================================================
+    모달 내부 공통 너비 보정
+
+    fieldset과 iPhone 입력칸의 고유 최소 너비 때문에
+    화면 밖으로 나가는 현상을 방지한다.
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-editor-form,
+
+  #globalNoticeEditorModal
+  .global-notice-editor-form
+  > *,
+
+  #globalNoticeEditorModal
+  fieldset,
+
+  #globalNoticeEditorModal
+  label,
+
+  #globalNoticeEditorModal
+  section {
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =====================================================
+    상단
+
+    새 전체공지                         ×
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-editor-modal__header {
+    position: relative !important;
+
+    z-index: 20 !important;
+
+    display: flex !important;
+
+    flex:
+      0
+      0
+      auto !important;
+
+    min-height: 54px !important;
+
+    align-items: center !important;
+    justify-content: space-between !important;
+
+    gap: 10px !important;
+
+    margin: 0 !important;
+
+    padding:
+      9px
+      12px !important;
+
+    border-bottom:
+      1px
+      solid
+      #dce4ed !important;
+
+    background: #ffffff !important;
+  }
+
+
+  /* 영문 작은 제목 제거 */
+
+  #globalNoticeEditorModal
+  .global-notice-editor-modal__header
+  .modal-header__eyebrow {
+    display: none !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-editor-modal__header
+  .modal-header__title {
+    margin: 0 !important;
+
+    color: #1c2b43 !important;
+
+    font-size: 17px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+    letter-spacing: -0.035em !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-editor-modal__header
+  .modal-close-button {
+    display: inline-flex !important;
+
+    width: 34px !important;
+    min-width: 34px !important;
+    max-width: 34px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border-radius: 8px !important;
+
+    background: #f1f4f7 !important;
+    color: #637083 !important;
+
+    font-size: 22px !important;
+    font-weight: 400 !important;
+    line-height: 1 !important;
+  }
+
+
+  /* =====================================================
+    본문 스크롤 영역
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-editor-modal__body {
+    flex:
+      1
+      1
+      auto !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+
+    margin: 0 !important;
+
+    padding:
+      8px
+      8px
+      12px !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+
+    background: #f3f6f9 !important;
+
+    overscroll-behavior: contain !important;
+
+    box-sizing: border-box !important;
+
+    -webkit-overflow-scrolling: touch;
+  }
+
+
+  /* =====================================================
+    작성 폼
+
+    각 영역 사이 간격 축소
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-editor-form {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    flex-direction: column !important;
+
+    gap: 8px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  /* =====================================================
+    중요도 영역
+
+    [일반] [중요] [긴급]
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-priority-fieldset {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+
+    padding:
+      7px
+      8px
+      8px !important;
+
+    overflow: hidden !important;
+
+    border:
+      1px
+      solid
+      #d6e0ea !important;
+
+    border-radius: 8px !important;
+
+    background: #ffffff !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-priority-fieldset
+  legend {
+    margin: 0 !important;
+
+    padding:
+      0
+      4px !important;
+
+    color: #506177 !important;
+
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-priority-options {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    gap: 5px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  /* =====================================================
+    중요도 개별 버튼
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-priority-option {
+    display: flex !important;
+
+    min-width: 0 !important;
+    min-height: 40px !important;
+    height: 40px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    gap: 5px !important;
+
+    margin: 0 !important;
+
+    padding:
+      5px
+      4px !important;
+
+    overflow: hidden !important;
+
+    border-radius: 7px !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* 선택 원 */
+
+  #globalNoticeEditorModal
+  .global-notice-priority-option__indicator {
+    flex:
+      0
+      0
+      14px !important;
+
+    width: 14px !important;
+    min-width: 14px !important;
+    max-width: 14px !important;
+
+    height: 14px !important;
+    min-height: 14px !important;
+    max-height: 14px !important;
+
+    border-width: 1.5px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-priority-option
+  input:checked
+  +
+  .global-notice-priority-option__indicator::after {
+    width: 6px !important;
+    height: 6px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-priority-option__text {
+    min-width: 0 !important;
+
+    gap: 0 !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-priority-option__text
+  strong {
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /*
+    모바일에서는 설명을 숨기고
+    일반·중요·긴급 글자만 표시한다.
+  */
+
+  #globalNoticeEditorModal
+  .global-notice-priority-option__text
+  small {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    제목·내용 공통
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-editor-field {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    flex-direction: column !important;
+
+    gap: 3px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-editor-field
+  .form-field__label {
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: #53647a !important;
+
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+  }
+
+
+  /* =====================================================
+    공지 제목
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  #globalNoticeTitleInput {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      9px !important;
+
+    border:
+      1px
+      solid
+      #c8d4e1 !important;
+
+    border-radius: 7px !important;
+
+    background: #ffffff !important;
+    color: #26384f !important;
+
+    font-size: 10px !important;
+    font-weight: 750 !important;
+    line-height: 1 !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #globalNoticeEditorModal
+  #globalNoticeTitleInput::placeholder {
+    color: #9aa5b3 !important;
+
+    font-size: 9px !important;
+  }
+
+
+  /* =====================================================
+    공지 내용
+
+    기존 큰 입력창을 약 128px로 축소한다.
+    내용이 많으면 입력창 안에서 스크롤한다.
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  #globalNoticeContentInput {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    height: 128px !important;
+    min-height: 128px !important;
+    max-height: 180px !important;
+
+    margin: 0 !important;
+
+    padding:
+      8px
+      9px !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+
+    border:
+      1px
+      solid
+      #c8d4e1 !important;
+
+    border-radius: 7px !important;
+
+    background: #ffffff !important;
+    color: #26384f !important;
+
+    font-size: 10px !important;
+    font-weight: 650 !important;
+    line-height: 1.5 !important;
+
+    resize: none !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #globalNoticeEditorModal
+  #globalNoticeContentInput::placeholder {
+    color: #9aa5b3 !important;
+
+    font-size: 9px !important;
+  }
+
+
+  /* =====================================================
+    내용 도움말과 글자 수
+
+    한 줄로 유지한다.
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-editor-content-meta {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+
+    gap: 6px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-editor-help {
+    min-width: 0 !important;
+
+    overflow: hidden !important;
+
+    color: #8995a5 !important;
+
+    font-size: 7.5px !important;
+    font-weight: 650 !important;
+    line-height: 1.3 !important;
+
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-character-count {
+    flex:
+      0
+      0
+      auto !important;
+
+    color: #7b8797 !important;
+
+    font-size: 8px !important;
+    font-weight: 850 !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    공지 기간
+
+    [시작일] [종료일]
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-period-fieldset {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    margin: 0 !important;
+
+    padding:
+      7px
+      8px
+      8px !important;
+
+    overflow: hidden !important;
+
+    border:
+      1px
+      solid
+      #d6e0ea !important;
+
+    border-radius: 8px !important;
+
+    background: #ffffff !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-period-fieldset
+  legend {
+    padding:
+      0
+      4px !important;
+
+    color: #506177 !important;
+
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-period-grid {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    align-items: end !important;
+
+    gap: 6px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: hidden !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-period-divider {
+    display: none !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-period-grid
+  >
+  .form-field {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    flex-direction: column !important;
+
+    gap: 2px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: hidden !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-period-grid
+  .form-field__label {
+    color: #66758a !important;
+
+    font-size: 8px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+  }
+
+
+  /* =====================================================
+    날짜 입력칸 화면 이탈 방지
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  #globalNoticeStartDateInput,
+
+  #globalNoticeEditorModal
+  #globalNoticeEndDateInput {
+    position: static !important;
+
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    inline-size: 100% !important;
+    min-inline-size: 0 !important;
+    max-inline-size: 100% !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      3px !important;
+
+    overflow: hidden !important;
+
+    border:
+      1px
+      solid
+      #c8d4e1 !important;
+
+    border-radius: 6px !important;
+
+    background: #ffffff !important;
+    color: #26384f !important;
+
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    line-height: 30px !important;
+
+    text-align: center !important;
+
+    font-variant-numeric:
+      tabular-nums !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =====================================================
+    iPhone Safari 날짜 내부 정렬
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  #globalNoticeStartDateInput::-webkit-date-and-time-value,
+
+  #globalNoticeEditorModal
+  #globalNoticeEndDateInput::-webkit-date-and-time-value,
+
+  #globalNoticeEditorModal
+  #globalNoticeStartDateInput::-webkit-datetime-edit,
+
+  #globalNoticeEditorModal
+  #globalNoticeEndDateInput::-webkit-datetime-edit,
+
+  #globalNoticeEditorModal
+  #globalNoticeStartDateInput::-webkit-datetime-edit-fields-wrapper,
+
+  #globalNoticeEditorModal
+  #globalNoticeEndDateInput::-webkit-datetime-edit-fields-wrapper {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    line-height: 30px !important;
+
+    text-align: center !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* 모바일에서는 기간 설명 숨김 */
+
+  #globalNoticeEditorModal
+  .global-notice-period-help {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    첨부자료 카드
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-attachment-section {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+
+    padding: 8px !important;
+
+    overflow: hidden !important;
+
+    border:
+      1px
+      solid
+      #d6e0ea !important;
+
+    border-radius: 8px !important;
+
+    background: #ffffff !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-attachment-section__heading {
+    display: flex !important;
+
+    align-items: center !important;
+    justify-content: space-between !important;
+
+    gap: 8px !important;
+
+    margin:
+      0
+      0
+      6px !important;
+
+    padding: 0 !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-attachment-section__heading
+  strong {
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+  }
+
+
+  /*
+    모바일에서는 중복 설명을 숨긴다.
+  */
+
+  #globalNoticeEditorModal
+  .global-notice-attachment-section__heading
+  p {
+    display: none !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-attachment-limit {
+    min-height: 19px !important;
+
+    padding:
+      0
+      6px !important;
+
+    font-size: 7px !important;
+  }
+
+
+  /* =====================================================
+    첨부파일 선택
+
+    기존 세로형 큰 박스를
+    가로형 컴팩트 박스로 변경
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-file-dropzone {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    min-height: 58px !important;
+
+    grid-template-columns:
+      24px
+      minmax(
+        0,
+        1fr
+      ) !important;
+
+    grid-template-areas:
+      "icon title"
+      "icon help" !important;
+
+    align-items: center !important;
+
+    gap:
+      1px
+      8px !important;
+
+    margin: 0 !important;
+
+    padding:
+      8px
+      10px !important;
+
+    border:
+      1px
+      dashed
+      #9eb5cc !important;
+
+    border-radius: 7px !important;
+
+    background: #f7fafc !important;
+
+    text-align: left !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-file-dropzone__icon {
+    grid-area: icon !important;
+
+    width: 24px !important;
+    min-width: 24px !important;
+
+    height: 24px !important;
+    min-height: 24px !important;
+
+    font-size: 15px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-file-dropzone
+  strong {
+    grid-area: title !important;
+
+    margin: 0 !important;
+
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-file-dropzone
+  small {
+    grid-area: help !important;
+
+    margin: 0 !important;
+
+    color: #8995a5 !important;
+
+    font-size: 7px !important;
+    line-height: 1.25 !important;
+
+    text-align: left !important;
+  }
+
+
+  /* =====================================================
+    선택된 첨부파일 목록
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-selected-file-list,
+
+  #globalNoticeEditorModal
+  .global-notice-existing-attachment-list {
+    gap: 4px !important;
+
+    margin-top: 6px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-selected-file-item,
+
+  #globalNoticeEditorModal
+  .global-notice-existing-attachment-item {
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      )
+      auto
+      auto !important;
+
+    gap: 5px !important;
+
+    padding:
+      6px !important;
+
+    border-radius: 6px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-file-name {
+    font-size: 8px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-file-size {
+    font-size: 7px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-file-remove-button {
+    min-width: 36px !important;
+    min-height: 24px !important;
+
+    padding:
+      0
+      5px !important;
+
+    border-radius: 5px !important;
+
+    font-size: 7px !important;
+  }
+
+
+  /* =====================================================
+    기존 첨부자료
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-existing-attachment-wrap {
+    margin-top: 7px !important;
+
+    padding-top: 7px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-existing-attachment-heading
+  strong {
+    font-size: 8px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-existing-attachment-heading
+  span {
+    font-size: 7px !important;
+  }
+
+
+  /* =====================================================
+    오류 메시지
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-editor-message {
+    margin: 0 !important;
+
+    padding:
+      7px
+      8px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 8px !important;
+  }
+
+
+  /* =====================================================
+    하단 취소·저장 버튼
+  ====================================================== */
+
+  #globalNoticeEditorModal
+  .global-notice-editor-modal__footer {
+    position: relative !important;
+
+    z-index: 20 !important;
+
+    display: flex !important;
+
+    flex:
+      0
+      0
+      auto !important;
+
+    width: 100% !important;
+    min-height: 0 !important;
+
+    align-items: center !important;
+    justify-content: flex-end !important;
+
+    gap: 5px !important;
+
+    margin: 0 !important;
+
+    padding:
+      6px
+      8px
+      max(
+        8px,
+        env(
+          safe-area-inset-bottom,
+          0px
+        )
+      ) !important;
+
+    border-top:
+      1px
+      solid
+      #d8e2ec !important;
+
+    background: #ffffff !important;
+
+    box-shadow:
+      0
+      -4px
+      12px
+      rgba(
+        15,
+        23,
+        42,
+        0.06
+      ) !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-editor-modal__footer
+  .modal-footer__left {
+    display: none !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-editor-modal__footer
+  .modal-footer__right {
+    display: flex !important;
+
+    width: 100% !important;
+
+    align-items: center !important;
+    justify-content: flex-end !important;
+
+    gap: 5px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-editor-modal__footer
+  button {
+    display: inline-flex !important;
+
+    min-width: 60px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      11px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+
+    touch-action: manipulation !important;
+
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+
+/* =========================================================
+  작은 모바일 추가 보정
+========================================================= */
+
+@media (max-width: 390px) {
+
+  #globalNoticeEditorModal
+  .global-notice-editor-modal__body {
+    padding:
+      7px
+      6px
+      10px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-editor-form {
+    gap: 7px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-priority-option {
+    gap: 3px !important;
+
+    padding:
+      4px
+      2px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-priority-option__text
+  strong {
+    font-size: 8px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  #globalNoticeStartDateInput,
+
+  #globalNoticeEditorModal
+  #globalNoticeEndDateInput {
+    padding:
+      0
+      2px !important;
+
+    font-size: 8.5px !important;
+  }
+
+
+  #globalNoticeEditorModal
+  .global-notice-editor-modal__footer
+  button {
+    min-width: 58px !important;
+
+    padding:
+      0
+      9px !important;
+
+    font-size: 8.5px !important;
+  }
+}
