@@ -34429,21 +34429,26 @@ function createLogRowHtml(log) {
 /* =========================================================
   업무일지 목록 클릭 처리 최종본
 
-  업무내용·행 클릭:
-  - 항상 상세보기
+  지원 화면:
+  - PC 업무일지 표
+  - 모바일 업무일지 카드
 
-  수정 버튼:
-  - 수정 가능하면 수정창
-  - 수정 불가능하면 상세보기
-
-  삭제 버튼:
-  - 기존 삭제 권한 검사 사용
+  처리:
+  - 카드·업무내용·상세보기 클릭 → 상세보기
+  - 수정·이어쓰기 클릭 → 수정창
+  - 첨부 클릭 → 상세보기
+  - TAG 클릭 → Facility Navigator
+  - 삭제 클릭 → 삭제
 ========================================================= */
 
 function handleLogTableClick(
   event
 ) {
-    const tagButton =
+  /* =====================================================
+    TAG 클릭
+  ====================================================== */
+
+  const tagButton =
     event.target.closest(
       "[data-log-tag]"
     );
@@ -34465,12 +34470,46 @@ function handleLogTableClick(
     return;
   }
 
+
+  /* =====================================================
+    PC·모바일 클릭 가능 영역 확인
+  ====================================================== */
+
+  const mobileLogCardList =
+    document.getElementById(
+      "mobileLogCardList"
+    );
+
+
+  const clickedInsideDesktopTable =
+    Boolean(
+      elements.logTableBody &&
+      elements.logTableBody.contains(
+        event.target
+      )
+    );
+
+
+  const clickedInsideMobileCards =
+    Boolean(
+      mobileLogCardList &&
+      mobileLogCardList.contains(
+        event.target
+      )
+    );
+
+
   if (
-    !elements.logTableBody
+    !clickedInsideDesktopTable &&
+    !clickedInsideMobileCards
   ) {
     return;
   }
 
+
+  /* =====================================================
+    클릭 대상 찾기
+  ====================================================== */
 
   const actionElement =
     event.target.closest(
@@ -34484,40 +34523,53 @@ function handleLogTableClick(
     );
 
 
-  const rowElement =
+  const desktopRowElement =
     event.target.closest(
       "tr[data-log-id]"
+    );
+
+
+  const mobileCardElement =
+    event.target.closest(
+      ".mobile-log-card[data-mobile-log-id]"
     );
 
 
   const clickedElement =
     actionElement ||
     previewElement ||
-    rowElement;
+    desktopRowElement ||
+    mobileCardElement;
 
 
   if (
-    !clickedElement ||
-    !elements.logTableBody.contains(
-      clickedElement
-    )
+    !clickedElement
   ) {
     return;
   }
 
 
+  /* =====================================================
+    업무일지 ID 확인
+  ====================================================== */
+
   const logId =
     String(
-      clickedElement.dataset.logId ||
-      rowElement?.dataset.logId ||
+      actionElement?.dataset.logId ||
+      previewElement?.dataset.logId ||
+      desktopRowElement?.dataset.logId ||
+      mobileCardElement?.dataset.mobileLogId ||
       ""
     ).trim();
 
 
-  if (!logId) {
+  if (
+    !logId
+  ) {
     showToast(
       "업무일지 정보를 확인할 수 없습니다."
     );
+
 
     return;
   }
@@ -34537,10 +34589,13 @@ function handleLogTableClick(
     );
 
 
-  if (!log) {
+  if (
+    !log
+  ) {
     showToast(
       "업무일지를 찾을 수 없습니다."
     );
+
 
     return;
   }
@@ -34561,25 +34616,33 @@ function handleLogTableClick(
     action ===
     "delete"
   ) {
+    event.preventDefault();
+
+    event.stopPropagation();
+
+
     deleteLogById(
       log.id
     );
+
 
     return;
   }
 
 
   /* =====================================================
-    수정
-
-    수정할 수 없으면 토스트만 띄우는 대신
-    상세창을 열어 조회할 수 있게 한다.
+    수정·이어쓰기
   ====================================================== */
 
   if (
     action ===
     "edit"
   ) {
+    event.preventDefault();
+
+    event.stopPropagation();
+
+
     if (
       canCurrentUserEditShiftLog(
         log
@@ -34589,6 +34652,7 @@ function handleLogTableClick(
         log
       );
 
+
       return;
     }
 
@@ -34597,16 +34661,44 @@ function handleLogTableClick(
       log
     );
 
+
     return;
   }
 
 
   /* =====================================================
-    업무내용·행·보기 클릭
+    첨부파일
 
-    권한이나 과거 자료 여부와 관계없이
-    무조건 상세창을 연다.
+    모바일에서는 별도 작은 팝업으로 나누지 않고
+    상세보기의 첨부파일 구역으로 연결한다.
   ====================================================== */
+
+  if (
+    action ===
+    "attachment"
+  ) {
+    event.preventDefault();
+
+    event.stopPropagation();
+
+
+    openLogDetail(
+      log
+    );
+
+
+    return;
+  }
+
+
+  /* =====================================================
+    카드 본문·상세보기·PC 업무내용 클릭
+  ====================================================== */
+
+  event.preventDefault();
+
+  event.stopPropagation();
+
 
   openLogDetail(
     log
