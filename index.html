@@ -1526,30 +1526,31 @@
     </label>
 
 
-    <!-- 근무 -->
-    <label class="form-field basic-info-field--shift">
+<!-- 근무 -->
+<label class="form-field basic-info-field--shift">
 
-      <span class="form-field__label">
-        근무
-      </span>
+  <span class="form-field__label">
+    근무
+  </span>
 
-      <select
-        id="logShift"
-        name="logShift"
-        required
-      >
+  <select
+    id="logShift"
+    name="logShift"
+    required
+    aria-label="근무 선택"
+  >
 
-        <option value="DS">
-          D/S (07:00 ~ 19:00)
-        </option>
+    <option value="DS">
+      D/S
+    </option>
 
-        <option value="NS">
-          N/S (19:00 ~ 07:00)
-        </option>
+    <option value="NS">
+      N/S
+    </option>
 
-      </select>
+  </select>
 
-    </label>
+</label>
 
 
     <!--
@@ -2376,37 +2377,40 @@
     </div>
 
 
-    <!-- TAG: TM·BM·CM 선택 시 표시 -->
-    <div
-      class="form-field log-entry-field--tag"
-      id="logEntryTagField"
-      hidden
+<!--
+  TM·BM·CM 선택 시 표시되는 태그번호
+-->
+<div
+  class="form-field log-entry-field--tag"
+  id="logEntryTagField"
+  hidden
+>
+
+  <span class="form-field__label">
+    태그번호
+  </span>
+
+  <div class="tag-input-group">
+
+    <input
+      type="text"
+      id="logEntryTag"
+      placeholder="태그번호 입력"
+      autocomplete="off"
+      aria-label="태그번호"
+    />
+
+    <button
+      type="button"
+      class="navigator-button"
+      id="logEntryNavigatorButton"
     >
+      설비보기
+    </button>
 
-      <span class="form-field__label">
-        TAG
-      </span>
+  </div>
 
-      <div class="tag-input-group">
-
-        <input
-          type="text"
-          id="logEntryTag"
-          placeholder="예: 10HFB10AF001"
-          autocomplete="off"
-        />
-
-        <button
-          type="button"
-          class="navigator-button"
-          id="logEntryNavigatorButton"
-        >
-          설비보기
-        </button>
-
-      </div>
-
-    </div>
+</div>
 
 
     <!-- 우측 추가·취소 버튼 -->

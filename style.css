@@ -42361,3 +42361,1507 @@ strong,
     font-size: 7.5px !important;
   }
 }
+
+/* =========================================================
+  업무일지 작성·수정창 모바일 최종 교정
+
+  적용 내용:
+  1. 기본정보 한 줄 5칸
+  2. 날짜·근무·보직·작성자 동일 너비
+  3. 대근 칸 최소 너비
+  4. 근무파트 다시 숨김
+  5. 운전현황을 상세보기형 행 디자인으로 변경
+  6. 인계·비고:
+     구분 | 현재시간 | 추가
+  7. TM·BM·CM:
+     구분 | 태그번호 | 현재시간 | 추가
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    1. 기본정보 전체 카드
+  ====================================================== */
+
+  #logEditorModal
+  .editor-section--basic {
+    padding:
+      8px
+      8px
+      9px !important;
+  }
+
+
+  #logEditorModal
+  .editor-section--basic
+  .editor-section__heading {
+    margin:
+      0
+      0
+      6px !important;
+  }
+
+
+  #logEditorModal
+  .editor-section--basic
+  .editor-section__heading
+  h3 {
+    font-size: 12px !important;
+  }
+
+
+  /* =====================================================
+    근무파트는 저장용으로만 유지하고
+    화면에서는 반드시 숨긴다.
+
+    이전 모바일 입력칸 CSS가 display:block으로
+    다시 노출시키지 못하게 선택자 우선순위를 높인다.
+  ====================================================== */
+
+  #logEditorModal
+  #logTeam.basic-info-hidden-team,
+
+  #logEditorModal
+  .basic-info-grid
+  #logTeam {
+    display: none !important;
+
+    width: 0 !important;
+    height: 0 !important;
+
+    min-width: 0 !important;
+    min-height: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    visibility: hidden !important;
+
+    pointer-events: none !important;
+  }
+
+
+  /* =====================================================
+    기본정보 한 줄
+
+    작성일 | 근무 | 보직 | 작성자 | 대근
+
+    앞의 네 칸은 정확히 동일한 크기
+    대근만 42px
+  ====================================================== */
+
+  #logEditorModal
+  .basic-info-grid {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      repeat(
+        4,
+        minmax(
+          0,
+          1fr
+        )
+      )
+      42px !important;
+
+    grid-template-rows:
+      auto !important;
+
+    align-items: end !important;
+
+    gap: 4px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #logEditorModal
+  .basic-info-field--date {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+
+  #logEditorModal
+  .basic-info-field--shift {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+  }
+
+
+  #logEditorModal
+  .basic-info-field--role {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+  }
+
+
+  #logEditorModal
+  .basic-info-field--author {
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+  }
+
+
+  #logEditorModal
+  .substitute-work-field {
+    grid-column: 5 !important;
+    grid-row: 1 !important;
+
+    width: 42px !important;
+    min-width: 42px !important;
+    max-width: 42px !important;
+  }
+
+
+  /* =====================================================
+    기본정보 공통 항목
+  ====================================================== */
+
+  #logEditorModal
+  .basic-info-grid
+  .form-field {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    flex-direction: column !important;
+
+    gap: 2px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  /* =====================================================
+    기본정보 항목명
+  ====================================================== */
+
+  #logEditorModal
+  .basic-info-grid
+  .form-field__label {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: #6f7d91 !important;
+
+    font-size: 7px !important;
+    font-weight: 900 !important;
+    line-height: 1.25 !important;
+    letter-spacing: -0.045em !important;
+
+    text-align: left !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    작성일·근무·보직·작성자
+
+    네 칸의 높이와 너비를 모두 동일하게 적용
+  ====================================================== */
+
+  #logEditorModal
+  .basic-info-field--date
+  input,
+
+  #logEditorModal
+  .basic-info-field--shift
+  select,
+
+  #logEditorModal
+  .basic-info-field--role
+  select,
+
+  #logEditorModal
+  .basic-info-field--author
+  input {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+
+    height: 31px !important;
+    min-height: 31px !important;
+    max-height: 31px !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      3px !important;
+
+    overflow: hidden !important;
+
+    border:
+      1px
+      solid
+      #cbd6e2 !important;
+
+    border-radius: 6px !important;
+
+    background: #ffffff !important;
+    color: #27384f !important;
+
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.04em !important;
+
+    text-align: center !important;
+
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #logEditorModal
+  .basic-info-field--date
+  input {
+    font-variant-numeric:
+      tabular-nums !important;
+  }
+
+
+  /* 작성자도 다른 칸과 동일한 중앙 정렬 */
+
+  #logEditorModal
+  .basic-info-field--author
+  input {
+    text-align: center !important;
+  }
+
+
+  /* =====================================================
+    대근 초소형 체크칸
+  ====================================================== */
+
+  #logEditorModal
+  .substitute-work-check {
+    display: flex !important;
+
+    width: 42px !important;
+    min-width: 42px !important;
+    max-width: 42px !important;
+
+    height: 31px !important;
+    min-height: 31px !important;
+    max-height: 31px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    gap: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border:
+      1px
+      solid
+      #cbd6e2 !important;
+
+    border-radius: 6px !important;
+
+    background: #ffffff !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #logEditorModal
+  .substitute-work-check__box {
+    width: 15px !important;
+    min-width: 15px !important;
+    max-width: 15px !important;
+
+    height: 15px !important;
+    min-height: 15px !important;
+    max-height: 15px !important;
+
+    margin: 0 !important;
+
+    border-radius: 4px !important;
+
+    font-size: 9px !important;
+  }
+
+
+  /*
+    바깥 항목명에 이미 "대근"이 있으므로
+    체크칸 안쪽의 중복 대근 글자는 숨긴다.
+  */
+
+  #logEditorModal
+  .substitute-work-check__text {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    2. 현재 운전현황 전체 섹션
+  ====================================================== */
+
+  #logEditorModal
+  #operationStatusSection {
+    padding:
+      8px !important;
+  }
+
+
+  #logEditorModal
+  #operationStatusSection
+  .operation-status-heading {
+    display: block !important;
+
+    min-height: 0 !important;
+
+    margin:
+      0
+      0
+      6px !important;
+
+    padding: 0 !important;
+  }
+
+
+  #logEditorModal
+  #operationStatusSection
+  .operation-status-heading
+  h3 {
+    font-size: 12px !important;
+  }
+
+
+  /* =====================================================
+    운전현황 바깥 카드
+
+    상세보기처럼 제목 줄과 내용 표만 표시
+  ====================================================== */
+
+  #logEditorModal
+  .operation-status-current-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+
+    margin: 0 !important;
+
+    padding:
+      7px !important;
+
+    overflow: hidden !important;
+
+    border:
+      1px
+      solid
+      #d6e1ec !important;
+
+    border-radius: 8px !important;
+
+    background: #ffffff !important;
+
+    box-shadow: none !important;
+  }
+
+
+  #logEditorModal
+  .operation-status-current-card::before {
+    display: none !important;
+
+    content: none !important;
+  }
+
+
+  /* =====================================================
+    운전현황 상단
+
+    BCO1 운전현황                 수정
+  ====================================================== */
+
+  #logEditorModal
+  .operation-status-current-header {
+    display: flex !important;
+
+    min-height: 27px !important;
+
+    align-items: center !important;
+    justify-content: space-between !important;
+
+    gap: 6px !important;
+
+    margin:
+      0
+      0
+      5px !important;
+
+    padding: 0 !important;
+  }
+
+
+  #logEditorModal
+  .operation-status-current-title {
+    gap: 5px !important;
+  }
+
+
+  #logEditorModal
+  .operation-status-live-dot {
+    width: 7px !important;
+    min-width: 7px !important;
+
+    height: 7px !important;
+    min-height: 7px !important;
+
+    box-shadow: none !important;
+  }
+
+
+  #logEditorModal
+  .operation-status-live-dot::after {
+    display: none !important;
+  }
+
+
+  #logEditorModal
+  .operation-status-current-title
+  strong {
+    color: #25364d !important;
+
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+  }
+
+
+  #logEditorModal
+  .operation-status-edit-button {
+    width: 45px !important;
+    min-width: 45px !important;
+    max-width: 45px !important;
+
+    height: 26px !important;
+    min-height: 26px !important;
+    max-height: 26px !important;
+
+    margin: 0 !important;
+
+    padding: 0 !important;
+
+    border-radius: 6px !important;
+
+    font-size: 8px !important;
+    font-weight: 900 !important;
+  }
+
+
+  /* =====================================================
+    일반 보직 표시 영역 높이 초기화
+  ====================================================== */
+
+  #logEditorModal
+  #operationStatusSingleView {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #logEditorModal
+  .operation-status-summary-row {
+    min-height: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  /* =====================================================
+    설비형 운전현황 표
+
+    상태 | 설비명 : 내용
+  ====================================================== */
+
+  #logEditorModal
+  #operationStatusCurrentContent:has(
+    .operation-status-compact-line
+  ) {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+
+    flex-direction: column !important;
+
+    gap: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: hidden !important;
+
+    border:
+      1px
+      solid
+      #dbe4ed !important;
+
+    border-radius: 7px !important;
+
+    background: #ffffff !important;
+
+    white-space: normal !important;
+  }
+
+
+  #logEditorModal
+  #operationStatusCurrentContent
+  .operation-status-compact-line {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      48px
+      1px
+      minmax(
+        72px,
+        112px
+      )
+      5px
+      minmax(
+        0,
+        1fr
+      ) !important;
+
+    align-items: center !important;
+
+    gap: 5px !important;
+
+    min-height: 29px !important;
+
+    margin: 0 !important;
+
+    padding:
+      4px
+      6px !important;
+
+    border: 0 !important;
+
+    background: #ffffff !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #logEditorModal
+  #operationStatusCurrentContent
+  .operation-status-compact-line
+  +
+  .operation-status-compact-line {
+    border-top:
+      1px
+      solid
+      #e3e9f0 !important;
+  }
+
+
+  /* 상태 */
+
+  #logEditorModal
+  .operation-status-compact-line__badge {
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+
+    height: 19px !important;
+    min-height: 19px !important;
+
+    padding:
+      0
+      3px !important;
+
+    font-size: 7.5px !important;
+    line-height: 1 !important;
+  }
+
+
+  /* 구분선 */
+
+  #logEditorModal
+  .operation-status-compact-line__divider {
+    width: 1px !important;
+    min-width: 1px !important;
+
+    height: 11px !important;
+  }
+
+
+  /* 설비명 */
+
+  #logEditorModal
+  .operation-status-compact-line__name {
+    min-width: 0 !important;
+
+    overflow: visible !important;
+
+    color: #26384f !important;
+
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 1.35 !important;
+
+    text-overflow: clip !important;
+
+    white-space: normal !important;
+    word-break: keep-all !important;
+  }
+
+
+  /* 콜론 */
+
+  #logEditorModal
+  .operation-status-compact-line__colon {
+    font-size: 9px !important;
+    line-height: 1 !important;
+  }
+
+
+  /* 실제 운전현황 */
+
+  #logEditorModal
+  .operation-status-compact-line__content {
+    min-width: 0 !important;
+
+    overflow: visible !important;
+
+    color: #35465c !important;
+
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+
+    text-overflow: clip !important;
+
+    white-space: normal !important;
+    word-break: keep-all !important;
+    overflow-wrap: anywhere !important;
+  }
+
+
+  /* =====================================================
+    TO·BO1·BO2 자유 텍스트 운전현황
+  ====================================================== */
+
+  #logEditorModal
+  #operationStatusCurrentContent:not(
+    :has(
+      .operation-status-compact-line
+    )
+  ) {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+
+    margin: 0 !important;
+
+    padding:
+      7px
+      8px !important;
+
+    border:
+      1px
+      solid
+      #dbe4ed !important;
+
+    border-radius: 7px !important;
+
+    background: #ffffff !important;
+    color: #35465c !important;
+
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    line-height: 1.45 !important;
+
+    white-space: pre-wrap !important;
+    word-break: keep-all !important;
+    overflow-wrap: anywhere !important;
+  }
+
+
+  /* =====================================================
+    운전현황 수정시간
+  ====================================================== */
+
+  #logEditorModal
+  .operation-status-current-meta {
+    display: flex !important;
+
+    min-height: 0 !important;
+
+    align-items: center !important;
+    justify-content: flex-end !important;
+
+    margin:
+      4px
+      1px
+      0 !important;
+
+    padding: 0 !important;
+
+    color: #929dad !important;
+
+    font-size: 7px !important;
+    line-height: 1.2 !important;
+  }
+
+
+  #logEditorModal
+  #operationStatusUpdatedAt,
+
+  #logEditorModal
+  #operationStatusUpdatedBy {
+    font-size: 7px !important;
+  }
+
+
+  /* =====================================================
+    3. 작업·정비·인계 입력 영역
+  ====================================================== */
+
+  #logEditorModal
+  .log-entry-section {
+    padding:
+      8px !important;
+  }
+
+
+  #logEditorModal
+  .log-entry-section
+  .editor-section__heading {
+    margin:
+      0
+      0
+      6px !important;
+  }
+
+
+  #logEditorModal
+  .log-entry-input-panel {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+
+    padding:
+      7px !important;
+
+    border:
+      1px
+      solid
+      #d6e0eb !important;
+
+    border-radius: 8px !important;
+
+    background: #f8fafc !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =====================================================
+    상단 입력 공통
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-input-top-row {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    align-items: end !important;
+
+    gap: 4px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .form-field {
+    min-width: 0 !important;
+
+    gap: 2px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .form-field__label {
+    display: block !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: #66758a !important;
+
+    font-size: 7px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    인계사항·비고
+
+    구분 | 현재시간 | 추가
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-input-top-row {
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      )
+      73px
+      54px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-field--category {
+    display: flex !important;
+
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-current-time-field {
+    display: flex !important;
+
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-field--tag {
+    display: none !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-input-actions {
+    display: flex !important;
+
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+
+  /* =====================================================
+    TM·BM·CM
+
+    구분 | 태그번호 | 현재시간 | 추가
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-top-row {
+    grid-template-columns:
+      78px
+      minmax(
+        0,
+        1fr
+      )
+      73px
+      54px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--category {
+    display: flex !important;
+
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--tag {
+    display: flex !important;
+
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+
+    flex-direction: column !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-current-time-field {
+    display: flex !important;
+
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-actions {
+    display: flex !important;
+
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+
+  /* =====================================================
+    구분 선택칸
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-field--category
+  select {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      6px !important;
+
+    border:
+      1px
+      solid
+      #c8d4e1 !important;
+
+    border-radius: 6px !important;
+
+    background: #ffffff !important;
+    color: #26384f !important;
+
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =====================================================
+    태그번호
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryInputPanel
+  .tag-input-group {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  #logEntryTag {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      6px !important;
+
+    border:
+      1px
+      solid
+      #c8d4e1 !important;
+
+    border-radius: 6px !important;
+
+    background: #ffffff !important;
+    color: #26384f !important;
+
+    font-size: 8.5px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  #logEntryTag::placeholder {
+    color: #9aa5b3 !important;
+
+    font-size: 8px !important;
+  }
+
+
+  /*
+    모바일에서는 태그 입력 공간 확보를 위해 숨김
+    PC에서는 기존 설비보기 버튼 유지
+  */
+
+  #logEditorModal
+  #logEntryInputPanel
+  .navigator-button {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    현재시간
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryInputPanel
+  .current-time-check {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    gap: 3px !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      3px !important;
+
+    border:
+      1px
+      solid
+      #c8d4e1 !important;
+
+    border-radius: 6px !important;
+
+    background: #ffffff !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .current-time-check__box {
+    width: 13px !important;
+    min-width: 13px !important;
+
+    height: 13px !important;
+    min-height: 13px !important;
+
+    border-radius: 3px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .current-time-check__text {
+    color: #5d6b7e !important;
+
+    font-size: 7px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    추가 버튼
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-input-actions {
+    align-items: flex-end !important;
+    justify-content: stretch !important;
+
+    gap: 3px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-input-actions
+  button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      3px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 8px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  #addLogEntryButton {
+    border:
+      1px
+      solid
+      #86acd5 !important;
+
+    background: #eaf3fc !important;
+    color: #185a9e !important;
+  }
+
+
+  /* =====================================================
+    항목 수정 중 취소·적용 버튼
+
+    평상시에는 추가 버튼 하나만 표시하고,
+    항목 수정 중에는 아래 한 줄에 두 버튼 표시
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-input-top-row:has(
+    #cancelLogEntryEditButton:not(
+      [hidden]
+    )
+  )
+  .log-entry-input-actions {
+    grid-column:
+      1
+      /
+      -1 !important;
+
+    grid-row: 2 !important;
+
+    display: grid !important;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    margin-top: 2px !important;
+  }
+
+
+  /* =====================================================
+    내용 입력창
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-content-field {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    margin:
+      6px
+      0
+      0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-content-field
+  textarea {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    min-height: 64px !important;
+    max-height: 130px !important;
+
+    margin: 0 !important;
+
+    padding:
+      7px
+      8px !important;
+
+    border:
+      1px
+      solid
+      #c8d4e1 !important;
+
+    border-radius: 6px !important;
+
+    background: #ffffff !important;
+    color: #27384f !important;
+
+    font-size: 10px !important;
+    font-weight: 650 !important;
+    line-height: 1.45 !important;
+
+    resize: vertical !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-content-field
+  textarea::placeholder {
+    color: #9aa5b3 !important;
+
+    font-size: 9px !important;
+    line-height: 1.4 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-content-help {
+    display: none !important;
+  }
+}
+
+
+/* =========================================================
+  작은 모바일 추가 보정
+========================================================= */
+
+@media (max-width: 390px) {
+
+  /* 기본정보 대근 칸만 38px */
+
+  #logEditorModal
+  .basic-info-grid {
+    grid-template-columns:
+      repeat(
+        4,
+        minmax(
+          0,
+          1fr
+        )
+      )
+      38px !important;
+
+    gap: 3px !important;
+  }
+
+
+  #logEditorModal
+  .substitute-work-field,
+
+  #logEditorModal
+  .substitute-work-check {
+    width: 38px !important;
+    min-width: 38px !important;
+    max-width: 38px !important;
+  }
+
+
+  #logEditorModal
+  .basic-info-field--date
+  input,
+
+  #logEditorModal
+  .basic-info-field--shift
+  select,
+
+  #logEditorModal
+  .basic-info-field--role
+  select,
+
+  #logEditorModal
+  .basic-info-field--author
+  input {
+    padding:
+      0
+      2px !important;
+
+    font-size: 8.5px !important;
+  }
+
+
+  /* TAG 입력 구분 한 줄 추가 축소 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-top-row {
+    grid-template-columns:
+      70px
+      minmax(
+        0,
+        1fr
+      )
+      68px
+      50px !important;
+
+    gap: 3px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-input-top-row {
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      )
+      68px
+      50px !important;
+
+    gap: 3px !important;
+  }
+
+
+  #logEditorModal
+  #operationStatusCurrentContent
+  .operation-status-compact-line {
+    grid-template-columns:
+      45px
+      1px
+      minmax(
+        65px,
+        100px
+      )
+      4px
+      minmax(
+        0,
+        1fr
+      ) !important;
+
+    gap: 4px !important;
+
+    padding:
+      4px
+      5px !important;
+  }
+
+
+  #logEditorModal
+  .operation-status-compact-line__badge {
+    width: 45px !important;
+    min-width: 45px !important;
+    max-width: 45px !important;
+
+    font-size: 7px !important;
+  }
+}
