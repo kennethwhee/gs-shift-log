@@ -53405,7 +53405,7 @@ async function openRoleNoticeModal(
   - 현재 공지 대상과 같은 보직 사용자
 
   숨김:
-  - 다른 보직 일반 사용자
+  - 다른 보직의 일반 사용자
 */
 if (
   noticeElements
@@ -53442,8 +53442,8 @@ if (
     canManageCurrentRole
   ) {
     /*
-      이전에 적용된 hidden·display 상태를
-      모두 확실하게 해제한다.
+      과거에 설정된 hidden과
+      인라인 스타일을 확실히 해제한다.
     */
     addButton.removeAttribute(
       "hidden"

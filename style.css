@@ -50278,3 +50278,419 @@ legend {
     font-size: 9px !important;
   }
 }
+
+/* =========================================================
+  보직 공지 새 공지 버튼 표시 최종 보정
+
+  권한 없음:
+  hidden 유지
+
+  권한 있음:
+  PC·모바일 모두 표시
+========================================================= */
+
+#roleNoticeModal
+#openRoleNoticeEditorButton[hidden] {
+  display: none !important;
+}
+
+
+#roleNoticeModal
+#openRoleNoticeEditorButton:not([hidden]) {
+  display: inline-flex !important;
+
+  flex:
+    0
+    0
+    auto !important;
+
+  min-width: 82px !important;
+
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+
+  padding:
+    0
+    13px !important;
+
+  border:
+    1px
+    solid
+    #1f5fae !important;
+
+  border-radius: 7px !important;
+
+  background: #1f5fae !important;
+  color: #ffffff !important;
+
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+
+  white-space: nowrap !important;
+
+  visibility: visible !important;
+  opacity: 1 !important;
+
+  box-shadow: none !important;
+}
+
+
+#roleNoticeModal
+#openRoleNoticeEditorButton:not([hidden]):hover {
+  border-color: #194f91 !important;
+
+  background: #194f91 !important;
+}
+
+/* =========================================================
+  PC 근무자 카드 위 보직 공지 버튼
+
+  기존:
+  [□]
+
+  변경:
+  [공지]
+
+  활성 공지 있음:
+  파란색 [공지]
+========================================================= */
+
+@media (min-width: 769px) {
+
+  /* =====================================================
+    공지 버튼이 들어가는 위쪽 줄
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .shift-member-card-wrap {
+    grid-template-rows:
+      24px
+      minmax(
+        0,
+        1fr
+      ) !important;
+
+    row-gap: 4px !important;
+  }
+
+
+  /* =====================================================
+    파트장 빈자리
+
+    파트장에는 공지 버튼이 없지만
+    다른 카드와 위아래 정렬은 맞춘다.
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-placeholder {
+    display: block !important;
+
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+
+    height: 24px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
+
+    align-self: center !important;
+    justify-self: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    visibility: hidden !important;
+  }
+
+
+  /* =====================================================
+    실제 공지 버튼
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button {
+    position: relative !important;
+
+    display: inline-flex !important;
+
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+
+    height: 24px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
+
+    align-self: center !important;
+    justify-self: center !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    gap: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: hidden !important;
+
+    border:
+      1px
+      solid
+      #c5d1de !important;
+
+    border-radius: 6px !important;
+
+    background: #ffffff !important;
+    color: #627186 !important;
+
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+
+    box-shadow:
+      0
+      1px
+      3px
+      rgba(
+        15,
+        23,
+        42,
+        0.04
+      ) !important;
+
+    transform: none !important;
+  }
+
+
+  /* =====================================================
+    기존 네모·종 아이콘과 숫자 제거
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button__icon,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button__count {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    공지 글자 표시
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button__label {
+    display: inline-flex !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    color: inherit !important;
+
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+
+    letter-spacing: -0.025em !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    활성 공지가 있는 보직
+
+    숫자 대신 버튼 색상으로 표시
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice {
+    border-color: #2771be !important;
+
+    background: #1f5fae !important;
+    color: #ffffff !important;
+
+    box-shadow:
+      0
+      2px
+      5px
+      rgba(
+        31,
+        95,
+        174,
+        0.16
+      ) !important;
+  }
+
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button:hover,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button:focus-visible {
+    border-color: #86a9cf !important;
+
+    background: #edf5fd !important;
+    color: #1f5fae !important;
+
+    outline: none !important;
+  }
+
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice:hover,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice:focus-visible {
+    border-color: #194f91 !important;
+
+    background: #194f91 !important;
+    color: #ffffff !important;
+  }
+}
+
+/* =========================================================
+  PC 날짜 빠른 이동 버튼 가독성 확대
+
+  대상:
+  - ‹ 30일
+  - ‹ 7일
+  - • 오늘
+  - 7일 ›
+  - 30일 ›
+  - 상단 이전·다음 근무 화살표
+========================================================= */
+
+@media (min-width: 769px) {
+
+  /* =====================================================
+    빠른 이동 버튼 사이 간격
+  ====================================================== */
+
+  #statusView
+  .date-quick-navigation {
+    gap: 7px !important;
+  }
+
+
+  /* =====================================================
+    30일·7일·오늘 버튼
+
+    기존 배치와 너비는 그대로 두고
+    높이와 글자만 확대한다.
+  ====================================================== */
+
+  #statusView
+  .date-quick-navigation__button,
+
+  #statusView
+  .pc-date-jump-button {
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+
+    padding:
+      0
+      8px !important;
+
+    border-radius: 7px !important;
+
+    color: #465a72 !important;
+
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.025em !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    오늘 버튼
+
+    가운데 핵심 기능이므로
+    연한 파란색을 유지하면서 조금 더 선명하게
+  ====================================================== */
+
+  #statusView
+  .date-quick-navigation
+  #todayButton,
+
+  #statusView
+  .date-quick-navigation__today {
+    border-color: #9fbee0 !important;
+
+    background: #eaf4ff !important;
+    color: #1f5fae !important;
+
+    font-size: 12px !important;
+    font-weight: 900 !important;
+  }
+
+
+  /* =====================================================
+    상단 이전·다음 근무 화살표
+
+    ‹ / › 기호 확대
+  ====================================================== */
+
+  #statusView
+  .date-navigation-section
+  .date-nav-button {
+    width: 42px !important;
+    min-width: 42px !important;
+    max-width: 42px !important;
+
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+
+    padding: 0 !important;
+
+    font-size: 26px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+  }
+
+
+  /* =====================================================
+    눌렀을 때
+  ====================================================== */
+
+  #statusView
+  .date-quick-navigation__button:hover,
+
+  #statusView
+  .pc-date-jump-button:hover {
+    border-color: #8eafd2 !important;
+
+    background: #edf5fd !important;
+    color: #1f5fae !important;
+  }
+}

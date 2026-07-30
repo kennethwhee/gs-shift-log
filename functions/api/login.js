@@ -640,14 +640,14 @@ export async function onRequestPost(
 
 
 /* =========================
-   사용자 계정 + 실제 보직 조회
+  로그인 계정 + 실제 보직 조회
 
-   users:
-   - 로그인 정보
-   - 계정 권한
+  users:
+  - 로그인 계정
+  - 권한
 
-   employees:
-   - 실제 보직 position
+  employees:
+  - 실제 보직 position
 ========================= */
 
 const user =
@@ -830,12 +830,18 @@ const user =
 
 
 /* =========================
-   프런트에 전달할 로그인 사용자
+  프런트에 전달할 로그인 사용자
 
-   position:
-   - 보직 공지 추가 권한
-   - 보직 공지 수정·삭제 권한
+  position:
+  - 보직 공지 추가·수정·삭제 권한 판정
 ========================= */
+
+const position =
+  String(
+    user.position ||
+    ""
+  ).trim();
+
 
 const responseUser = {
   id:
@@ -866,36 +872,26 @@ const responseUser = {
   /*
     실제 근무 보직
   */
-  position:
-    String(
-      user.position ||
-      ""
-    ).trim(),
+  position,
 
   /*
-    기존 JavaScript 호환용
+    기존 JavaScript와의 호환용 필드
   */
   jobPosition:
-    String(
-      user.position ||
-      ""
-    ).trim(),
+    position,
 
   job_position:
-    String(
-      user.position ||
-      ""
-    ).trim(),
+    position,
 
   adminLevel,
 
   isAdmin:
     adminLevel >=
-      1,
+    1,
 
   isSuperAdmin:
     adminLevel ===
-      2,
+    2,
 
   lastLoginAt:
     currentTimeText,
