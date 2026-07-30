@@ -31919,17 +31919,17 @@ function collectMobileOperationPreviewItems(
     .filter(Boolean);
 }
 
-
 /* =========================================================
-  모바일 업무일지 미리보기 항목 최종본
+  모바일 업무일지 미리보기 항목 최종 컴팩트본
 
   표시 순서:
   번호 → 시간 → 내용 → TAG
 
-  적용:
-  - 여러 줄 내용 전체 표시
+  핵심:
+  - 번호와 내용 첫 줄을 정확히 맞춤
+  - 실제 줄바꿈은 유지
+  - HTML 들여쓰기 공백은 화면에 표시하지 않음
   - TAG는 내용 뒤에 배치
-  - 중첩 button 방지를 위해 TAG는 span으로 출력
 ========================================================= */
 
 function createMobileLogPreviewItemHtml(
@@ -31937,16 +31937,26 @@ function createMobileLogPreviewItemHtml(
   index,
   sectionType
 ) {
+  const numberClassMap = {
+    operation:
+      "is-operation",
+
+    tm:
+      "is-tm",
+
+    handover:
+      "is-handover",
+
+    note:
+      "is-note"
+  };
+
+
   const numberClass =
-    sectionType ===
-      "tm"
-      ? "is-tm"
-      : (
-          sectionType ===
-            "note"
-            ? "is-note"
-            : "is-handover"
-        );
+    numberClassMap[
+      sectionType
+    ] ||
+    "is-handover";
 
 
   const timeText =
@@ -31961,10 +31971,16 @@ function createMobileLogPreviewItemHtml(
       );
 
 
+  /*
+    줄마다 불필요한 공백을 정리한다.
+
+    빈 줄은 모바일 미리보기에서는 제거하여
+    세로 공간을 최소화한다.
+  */
   const contentText =
     String(
       entry?.content ||
-      "-"
+      ""
     )
       .replace(
         /\r\n/g,
@@ -31974,7 +31990,26 @@ function createMobileLogPreviewItemHtml(
         /\r/g,
         "\n"
       )
-      .trim() ||
+      .split(
+        "\n"
+      )
+      .map(
+        line => {
+          return String(
+            line ||
+            ""
+          )
+            .replace(
+              /[ \t]+/g,
+              " "
+            )
+            .trim();
+        }
+      )
+      .filter(Boolean)
+      .join(
+        "\n"
+      ) ||
     "-";
 
 
@@ -31987,6 +32022,43 @@ function createMobileLogPreviewItemHtml(
       .toUpperCase();
 
 
+  /*
+    inline 요소 사이에 템플릿 줄바꿈을 넣지 않는다.
+
+    이전처럼 span 안쪽을 여러 줄로 작성하면
+    white-space 설정에 따라 들여쓰기 공백이
+    실제 화면에 나타날 수 있다.
+  */
+  const timeHtml =
+    timeText
+      ? `<span class="mobile-log-preview-item__time">${escapeHtml(
+          timeText
+        )}</span>`
+      : "";
+
+
+  const contentHtml =
+    `<span class="mobile-log-preview-item__text">${escapeHtml(
+      contentText
+    )}</span>`;
+
+
+  /*
+    카드 전체가 button이므로
+    TAG를 또 button으로 만들지 않는다.
+
+    클릭 처리는 기존 data-log-tag 이벤트가 담당한다.
+  */
+  const tagHtml =
+    tagText
+      ? `<span class="mobile-log-preview-item__tag" data-action="tag" data-log-tag="${escapeHtml(
+          tagText
+        )}">${escapeHtml(
+          tagText
+        )}</span>`
+      : "";
+
+
   return `
     <div class="mobile-log-preview-item">
 
@@ -31995,59 +32067,11 @@ function createMobileLogPreviewItemHtml(
           mobile-log-preview-item__number
           ${numberClass}
         "
-      >
-        ${index + 1}.
-      </span>
-
+      >${index + 1}.</span>
 
       <div class="mobile-log-preview-item__main">
 
-        <div class="mobile-log-preview-item__line">
-
-          ${
-            timeText
-              ? `
-                <span class="mobile-log-preview-item__time">
-                  ${escapeHtml(
-                    timeText
-                  )}
-                </span>
-              `
-              : ""
-          }
-
-
-          <span class="mobile-log-preview-item__text">
-            ${escapeHtml(
-              contentText
-            )}
-          </span>
-
-
-          ${
-            tagText
-              ? `
-                <span
-                  class="mobile-log-preview-item__tag"
-                  data-action="tag"
-                  data-log-tag="${escapeHtml(
-                    tagText
-                  )}"
-                  role="button"
-                  tabindex="0"
-                  aria-label="${escapeHtml(
-                    tagText
-                  )} 설비 보기"
-                >
-                  ${escapeHtml(
-                    tagText
-                  )}
-                </span>
-              `
-              : ""
-          }
-
-        </div>
+        <div class="mobile-log-preview-item__line">${timeHtml}${contentHtml}${tagHtml}</div>
 
       </div>
 
