@@ -50195,3 +50195,86 @@ legend {
     font-size: 7.5px !important;
   }
 }
+
+/* =========================================================
+  모바일 보직 공지 새 공지 버튼 표시 보정
+========================================================= */
+
+/* 권한이 없는 버튼 */
+#roleNoticeModal
+#openRoleNoticeEditorButton[hidden] {
+  display: none !important;
+}
+
+
+/* 권한이 있는 버튼 */
+#roleNoticeModal
+#openRoleNoticeEditorButton:not([hidden]) {
+  display: inline-flex !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  min-height: 34px !important;
+
+  padding:
+    0
+    13px !important;
+
+  border-radius: 7px !important;
+
+  background: #1f5fae !important;
+  color: #ffffff !important;
+
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+
+  white-space: nowrap !important;
+
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+
+@media (max-width: 768px) {
+
+  #roleNoticeModal
+  .role-notice-toolbar {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    flex-direction: column !important;
+
+    align-items: stretch !important;
+
+    gap: 6px !important;
+
+    padding: 8px !important;
+  }
+
+
+  #roleNoticeModal
+  #openRoleNoticeEditorButton:not([hidden]) {
+    display: inline-flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      8px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 9px !important;
+  }
+}
