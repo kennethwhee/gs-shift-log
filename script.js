@@ -55306,6 +55306,15 @@ const globalNoticeState = {
   currentAlertNoticeId:
     "",
 
+  /*
+    현재 페이지에서 이미 표시한 공지 ID.
+
+    DOMContentLoaded와 로그인 완료 초기화가
+    연속 실행되더라도 같은 공지를 다시 넣지 않는다.
+  */
+  shownAlertNoticeIds:
+    new Set(),
+
   isLoading:
     false,
 
@@ -58047,21 +58056,63 @@ function hideGlobalNoticeForTwelveHours(
 
 
 /* =========================================================
-  자동 팝업 표시 대상 구성
+  자동 팝업 표시 대상 구성 최종본
+
+  - 중요·긴급 활성 공지만 표시
+  - 12시간 숨김 공지 제외
+  - 현재 열려 있는 공지 제외
+  - 현재 페이지에서 이미 표시한 공지 제외
+  - 중복 초기화되어도 같은 공지를 다시 띄우지 않음
 ========================================================= */
 
 function buildGlobalNoticeAlertQueue() {
+  const currentAlertNoticeId =
+    String(
+      globalNoticeState
+        .currentAlertNoticeId ||
+      ""
+    ).trim();
+
+
+  const queuedNoticeIds =
+    new Set();
+
+
   globalNoticeState.alertQueue =
     globalNoticeState.notices
       .filter(
         notice => {
+          const noticeId =
+            String(
+              notice?.id ||
+              ""
+            ).trim();
+
+
           const priority =
             normalizeGlobalNoticePriority(
-              notice.priority
+              notice?.priority
             );
 
 
-          return (
+          if (
+            !noticeId ||
+            queuedNoticeIds.has(
+              noticeId
+            ) ||
+            currentAlertNoticeId ===
+              noticeId ||
+            globalNoticeState
+              .shownAlertNoticeIds
+              .has(
+                noticeId
+              )
+          ) {
+            return false;
+          }
+
+
+          const shouldShow =
             getGlobalNoticeStatus(
               notice
             ) ===
@@ -58075,9 +58126,20 @@ function buildGlobalNoticeAlertQueue() {
             ) &&
 
             !isGlobalNoticeHidden(
-              notice.id
-            )
-          );
+              noticeId
+            );
+
+
+          if (
+            shouldShow
+          ) {
+            queuedNoticeIds.add(
+              noticeId
+            );
+          }
+
+
+          return shouldShow;
         }
       )
       .sort(
@@ -58090,16 +58152,23 @@ function buildGlobalNoticeAlertQueue() {
               2,
 
             important:
-              1
+              1,
+
+            normal:
+              0
           };
 
 
           return (
             priorityOrder[
-              secondNotice.priority
+              normalizeGlobalNoticePriority(
+                secondNotice.priority
+              )
             ] -
             priorityOrder[
-              firstNotice.priority
+              normalizeGlobalNoticePriority(
+                firstNotice.priority
+              )
             ]
           );
         }
@@ -58157,6 +58226,19 @@ function showNextGlobalNoticeAlert() {
 
   globalNoticeState.currentAlertNoticeId =
     notice.id;
+
+    /*
+  실제로 표시하는 순간 기록한다.
+  다른 초기화가 다시 실행되어도
+  같은 공지가 대기열에 들어가지 않는다.
+*/
+globalNoticeState
+  .shownAlertNoticeIds
+  .add(
+    String(
+      notice.id
+    )
+  );
 
 
   if (
