@@ -60620,3 +60620,206 @@ if (
     }
   );
 })();
+
+/* =========================================================
+  업무일지 → 네비게이터 TAG 자동 이동 최종본
+
+  - ?tag=TAG번호 수신
+  - 로그인 전에는 요청 보류
+  - 로그인 완료 후 자동 이동
+  - TAG 데이터 로딩까지 대기
+  - 정확히 일치하는 TAG만 선택
+  - 한 페이지에서 한 번만 처리
+========================================================= */
+
+const NAVIGATOR_TAG_LINK_REQUEST = {
+  tagNo:
+    String(
+      new URLSearchParams(
+        window.location.search
+      ).get("tag") || ""
+    ).trim(),
+
+  handled:
+    false,
+
+  timerId:
+    null
+};
+
+
+function stopNavigatorTagLinkWatcher() {
+  if (
+    !NAVIGATOR_TAG_LINK_REQUEST
+      .timerId
+  ) {
+    return;
+  }
+
+
+  window.clearInterval(
+    NAVIGATOR_TAG_LINK_REQUEST
+      .timerId
+  );
+
+
+  NAVIGATOR_TAG_LINK_REQUEST
+    .timerId =
+      null;
+}
+
+
+function tryOpenLinkedNavigatorTag() {
+  const requestedTagNo =
+    String(
+      NAVIGATOR_TAG_LINK_REQUEST
+        .tagNo || ""
+    ).trim();
+
+
+  if (
+    !requestedTagNo ||
+    NAVIGATOR_TAG_LINK_REQUEST
+      .handled
+  ) {
+    return;
+  }
+
+
+  /*
+    로그인 전에는 TAG 요청을 지우지 않고 기다린다.
+  */
+  if (!STATE.currentUser) {
+    return;
+  }
+
+
+  /*
+    서버 TAG 로딩이 끝날 때까지 기다린다.
+  */
+  const savedTags =
+    getSavedTags();
+
+
+  if (
+    !Array.isArray(savedTags) ||
+    savedTags.length === 0
+  ) {
+    return;
+  }
+
+
+  const normalizedRequestedTag =
+    normalizeSearchValue(
+      requestedTagNo
+    );
+
+
+  /*
+    부분 검색이 아니라 정확히 같은 TAG만 찾는다.
+  */
+  const targetTag =
+    savedTags.find(
+      tag =>
+        normalizeSearchValue(
+          tag?.tagNo
+        ) ===
+        normalizedRequestedTag
+    );
+
+
+  NAVIGATOR_TAG_LINK_REQUEST
+    .handled =
+      true;
+
+
+  stopNavigatorTagLinkWatcher();
+
+
+  if (!targetTag) {
+    alert(
+      "네비게이터에서 TAG를 찾을 수 없습니다.\n\n" +
+      requestedTagNo
+    );
+
+    return;
+  }
+
+
+  const searchInput =
+    document.getElementById(
+      "searchInput"
+    );
+
+
+  const mobileSearchInput =
+    document.getElementById(
+      "mobileSearchInput"
+    );
+
+
+  if (searchInput) {
+    searchInput.value =
+      targetTag.tagNo ||
+      requestedTagNo;
+  }
+
+
+  if (mobileSearchInput) {
+    mobileSearchInput.value =
+      targetTag.tagNo ||
+      requestedTagNo;
+  }
+
+
+  /*
+    기존 검색 이동 기능을 그대로 사용한다.
+
+    해당 노드 이동
+    → TAG 선택
+    → 설비정보 표시
+    → TAG 깜빡임
+  */
+  moveToSearchResult(
+    targetTag.id
+  );
+}
+
+
+function initializeNavigatorTagLink() {
+  if (
+    !NAVIGATOR_TAG_LINK_REQUEST
+      .tagNo
+  ) {
+    return;
+  }
+
+
+  NAVIGATOR_TAG_LINK_REQUEST
+    .timerId =
+      window.setInterval(
+        tryOpenLinkedNavigatorTag,
+        300
+      );
+
+
+  tryOpenLinkedNavigatorTag();
+}
+
+
+if (
+  document.readyState ===
+  "complete"
+) {
+  initializeNavigatorTagLink();
+
+} else {
+  window.addEventListener(
+    "load",
+    initializeNavigatorTagLink,
+    {
+      once:
+        true
+    }
+  );
+}
