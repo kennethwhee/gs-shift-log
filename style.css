@@ -26334,6 +26334,7 @@ strong {
   -webkit-box-orient:
     vertical;
 
+  line-clamp: 3;
   -webkit-line-clamp:
     3;
 }
@@ -28417,6 +28418,7 @@ small {
   -webkit-box-orient:
     vertical;
 
+  line-clamp: 4;
   -webkit-line-clamp:
     4;
 }
@@ -36295,6 +36297,7 @@ body {
     overflow-wrap: anywhere;
 
     -webkit-box-orient: vertical;
+    line-clamp: 3;
     -webkit-line-clamp: 3;
   }
 
