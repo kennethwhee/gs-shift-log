@@ -21622,23 +21622,17 @@ function selectOperationStatusType(
 }
 
 /* =========================================================
-  운전현황 저장 최종본
+  운전현황 저장 + D1 자동 임시저장 최종본
 
-  TGO·BCO1·BCO2:
-  - 기본 설비와 추가 설비 모두 저장
-  - 사용자가 입력한 설비명·운전현황 유지
-  - 추가한 순서 그대로 저장
-  - 상태 변경 내용 저장
-
-  TO·BO1·BO2:
-  - 자유 텍스트 그대로 저장
-  - 줄바꿈 유지
-
-  파트장:
-  - TGO·BCO1·BCO2 운전현황 자동 취합
+  저장 버튼 한 번으로:
+  - 운전현황을 작성 화면에 반영
+  - 현재 업무일지를 D1에 작성중 상태로 저장
+  - 작성창과 운전현황 수정창은 유지
+  - 추가 설비도 모두 저장
+  - 서버 저장 실패 시 수정창을 닫지 않음
 ========================================================= */
 
-function saveOperationStatus() {
+async function saveOperationStatus() {
   const currentRole =
     getCurrentOperationStatusRole();
 
@@ -21655,7 +21649,7 @@ function saveOperationStatus() {
       "파트장 운전현황은 TGO·BCO1·BCO2 운전현황을 자동 취합합니다."
     );
 
-    return;
+    return null;
   }
 
 
@@ -21672,7 +21666,7 @@ function saveOperationStatus() {
 
 
   /* =====================================================
-    TGO·BCO1·BCO2 설비별 운전현황 저장
+    TGO·BCO1·BCO2 설비별 운전현황
   ====================================================== */
 
   if (
@@ -21681,8 +21675,7 @@ function saveOperationStatus() {
     )
   ) {
     /*
-      화면에서 마지막으로 입력한 값이
-      편집 배열에 반영됐는지 한 번 더 확인한다.
+      화면 입력값을 편집 배열에 최종 반영한다.
     */
     document
       .querySelectorAll(
@@ -21699,9 +21692,7 @@ function saveOperationStatus() {
             ];
 
 
-          if (
-            !targetItem
-          ) {
+          if (!targetItem) {
             return;
           }
 
@@ -21718,17 +21709,13 @@ function saveOperationStatus() {
             );
 
 
-          if (
-            nameInput
-          ) {
+          if (nameInput) {
             targetItem.name =
               nameInput.value;
           }
 
 
-          if (
-            contentInput
-          ) {
+          if (contentInput) {
             targetItem.content =
               contentInput.value;
           }
@@ -21736,100 +21723,104 @@ function saveOperationStatus() {
       );
 
 
-    /*
-      설비명과 운전현황 내용이 비어 있는지 검사한다.
-    */
     if (
       !validateOperationStatusEditorItems()
     ) {
-      return;
+      return null;
     }
 
 
     /*
-      fixedEquipmentMap을 사용하지 않고
-      사용자가 편집한 전체 항목을 그대로 저장한다.
+      고정 설비 목록으로 다시 만들지 않고,
+      사용자가 추가한 설비까지 전부 저장한다.
     */
     const normalizedItems =
-      editingOperationStatusItems.map(
-        (
-          sourceItem,
-          itemIndex
-        ) => {
-          const equipmentName =
-            String(
-              sourceItem?.name ||
-              ""
-            ).trim();
-
-
-          const operationContent =
-            String(
-              sourceItem?.content ||
-              ""
-            ).trim();
-
-
-          const equipmentMode =
-            String(
-              sourceItem?.equipmentMode ||
-              ""
-            ).trim() ===
-              "custom"
-              ? "custom"
-              : "equipment";
-
-
-          return normalizeOperationStatusItem(
-            {
-              ...sourceItem,
-
-              id:
-                String(
-                  sourceItem?.id ||
-                  ""
-                ).trim() ||
-                createOperationStatusItemId(),
-
-              role:
-                currentRole,
-
-              sourceRole:
-                currentRole,
-
-              name:
-                equipmentName,
-
-              type:
-                normalizeOperationStatusType(
-                  sourceItem?.type ||
-                  "normal"
-                ),
-
-              content:
-                operationContent,
-
-              equipmentMode,
-
-              updatedAt,
-
-              updatedBy:
-                author
-            },
+      editingOperationStatusItems
+        .map(
+          (
+            sourceItem,
             itemIndex
-          );
-        }
-      );
+          ) => {
+            const equipmentName =
+              String(
+                sourceItem?.name ||
+                ""
+              ).trim();
+
+
+            const operationContent =
+              String(
+                sourceItem?.content ||
+                ""
+              ).trim();
+
+
+            if (
+              !equipmentName ||
+              !operationContent
+            ) {
+              return null;
+            }
+
+
+            return normalizeOperationStatusItem(
+              {
+                ...sourceItem,
+
+                id:
+                  String(
+                    sourceItem?.id ||
+                    ""
+                  ).trim() ||
+                  createOperationStatusItemId(),
+
+                role:
+                  currentRole,
+
+                sourceRole:
+                  currentRole,
+
+                name:
+                  equipmentName,
+
+                type:
+                  normalizeOperationStatusType(
+                    sourceItem?.type ||
+                    "normal"
+                  ),
+
+                content:
+                  operationContent,
+
+                equipmentMode:
+                  String(
+                    sourceItem?.equipmentMode ||
+                    ""
+                  ).trim() ===
+                    "custom"
+                    ? "custom"
+                    : "equipment",
+
+                updatedAt,
+
+                updatedBy:
+                  author
+              },
+              itemIndex
+            );
+          }
+        )
+        .filter(Boolean);
 
 
     if (
       !normalizedItems.length
     ) {
       showToast(
-        "운전현황을 한 건 이상 추가해 주세요."
+        "운전현황을 한 건 이상 입력해 주세요."
       );
 
-      return;
+      return null;
     }
 
 
@@ -21868,9 +21859,6 @@ function saveOperationStatus() {
     };
 
 
-    /*
-      편집 배열도 최종 저장 결과와 맞춘다.
-    */
     editingOperationStatusItems =
       normalizedItems.map(
         item => ({
@@ -21901,136 +21889,149 @@ function saveOperationStatus() {
       elements.operationStatusType.value =
         representativeType;
     }
-
-
-    /*
-      고정 운전현황 저장소에도
-      전체 설비 목록을 저장한다.
-    */
-    saveOperationStatusToStorage();
-
-
-    renderOperationStatusCard();
-
-
-    closeOperationStatusEditor();
-
-
-    showToast(
-      `${currentRole} 운전현황 ${normalizedItems.length}건을 저장했습니다.`
-    );
-
-
-    return;
   }
 
 
   /* =====================================================
-    TO·BO1·BO2 자유 텍스트 운전현황 저장
+    TO·BO1·BO2 자유 텍스트 운전현황
   ====================================================== */
 
-  const manualTextRoles = [
-    "TO",
-    "BO1",
-    "BO2"
-  ];
+  else {
+    const manualTextRoles = [
+      "TO",
+      "BO1",
+      "BO2"
+    ];
 
 
-  if (
-    !manualTextRoles.includes(
-      currentRole
-    )
-  ) {
-    showToast(
-      "현재 보직의 운전현황 저장 방식을 확인할 수 없습니다."
-    );
-
-    return;
-  }
-
-
-  const content =
-    String(
-      elements.operationStatus?.value ||
-      ""
-    )
-      .replace(
-        /\r\n/g,
-        "\n"
+    if (
+      !manualTextRoles.includes(
+        currentRole
       )
-      .replace(
-        /\r/g,
-        "\n"
+    ) {
+      showToast(
+        "현재 보직의 운전현황 저장 방식을 확인할 수 없습니다."
+      );
+
+      return null;
+    }
+
+
+    const content =
+      String(
+        elements.operationStatus?.value ||
+        ""
       )
-      .trim();
+        .replace(
+          /\r\n/g,
+          "\n"
+        )
+        .replace(
+          /\r/g,
+          "\n"
+        )
+        .trim();
 
 
-  if (
-    !content
-  ) {
-    showToast(
-      "현재 운전현황 내용을 입력해 주세요."
-    );
+    if (!content) {
+      showToast(
+        "현재 운전현황 내용을 입력해 주세요."
+      );
 
 
-    elements.operationStatus
-      ?.focus();
+      elements.operationStatus
+        ?.focus();
 
 
-    return;
+      return null;
+    }
+
+
+    appState.currentOperationStatus = {
+      role:
+        currentRole,
+
+      type:
+        "normal",
+
+      content,
+
+      operationItems:
+        [],
+
+      items:
+        [],
+
+      updatedAt,
+
+      updatedBy:
+        author
+    };
+
+
+    if (
+      elements.operationStatusSnapshot
+    ) {
+      elements.operationStatusSnapshot.value =
+        content;
+    }
+
+
+    if (
+      elements.operationStatusType
+    ) {
+      elements.operationStatusType.value =
+        "normal";
+    }
   }
 
 
-  appState.currentOperationStatus = {
-    role:
-      currentRole,
-
-    type:
-      "normal",
-
-    content,
-
-    operationItems:
-      [],
-
-    items:
-      [],
-
-    updatedAt,
-
-    updatedBy:
-      author
-  };
-
-
-  if (
-    elements.operationStatusSnapshot
-  ) {
-    elements.operationStatusSnapshot.value =
-      content;
-  }
-
-
-  if (
-    elements.operationStatusType
-  ) {
-    elements.operationStatusType.value =
-      "normal";
-  }
-
-
+  /*
+    브라우저 임시 저장소와 작성 화면에 먼저 반영한다.
+  */
   saveOperationStatusToStorage();
 
 
   renderOperationStatusCard();
 
 
+  /*
+    현재 업무일지 전체를 D1에 작성중 상태로 저장한다.
+
+    closeAfterSave: false
+    → 업무일지 작성창은 닫지 않는다.
+  */
+  const savedLog =
+    await saveCurrentLog(
+      "작성중",
+      {
+        closeAfterSave:
+          false
+      }
+    );
+
+
+  /*
+    유효성 검사 또는 서버 저장 실패:
+    - 운전현황 수정창 유지
+    - 성공 처리하지 않음
+  */
+  if (!savedLog) {
+    showToast(
+      "운전현황을 서버에 저장하지 못했습니다. 입력값을 확인한 뒤 다시 저장해 주세요."
+    );
+
+    return null;
+  }
+
+
+  /*
+    서버 저장 성공 후에만 운전현황 수정창을 닫는다.
+  */
   closeOperationStatusEditor();
 
 
-  showToast(
-    `${currentRole} 운전현황을 저장했습니다.`
-  );
+  return savedLog;
 }
 
 /* =========================================================
