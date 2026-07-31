@@ -51220,3 +51220,221 @@ legend {
     color: #74419c !important;
   }
 }
+
+/* =========================================================
+  PC · 모바일 대근자 카드 외곽선 표시 최종본
+
+  - 카드 목록의 대근 배지는 숨김
+  - 대근자 카드 전체 외곽선 강조
+  - 저장·요청·승인 상태 색상은 그대로 유지
+  - 상세보기의 대근 표시는 그대로 유지
+========================================================= */
+
+
+/* =========================================================
+  1. 근무자 현황 카드
+  PC · 모바일 공통
+========================================================= */
+
+#statusView
+#shiftMemberGrid.shift-member-grid
+.shift-member-card:has(
+  .shift-member-card__substitute
+) {
+  border-color:
+    #c98622 !important;
+
+  background:
+    #fffdf8 !important;
+
+  box-shadow:
+    inset 0 0 0 1px
+    rgba(
+      201,
+      134,
+      34,
+      0.22
+    ),
+    0 3px 9px
+    rgba(
+      107,
+      70,
+      14,
+      0.08
+    ) !important;
+}
+
+
+/*
+  이름 영역도 아주 옅게 연결한다.
+*/
+#statusView
+#shiftMemberGrid.shift-member-grid
+.shift-member-card:has(
+  .shift-member-card__substitute
+)
+.shift-member-card__body {
+  background:
+    #fff6e7 !important;
+}
+
+
+/*
+  마우스·터치 상태에서도
+  대근 외곽선이 다른 색으로 바뀌지 않게 유지한다.
+*/
+#statusView
+#shiftMemberGrid.shift-member-grid
+.shift-member-card:has(
+  .shift-member-card__substitute
+):hover,
+
+#statusView
+#shiftMemberGrid.shift-member-grid
+.shift-member-card:has(
+  .shift-member-card__substitute
+):focus-visible,
+
+#statusView
+#shiftMemberGrid.shift-member-grid
+.shift-member-card:has(
+  .shift-member-card__substitute
+):active {
+  border-color:
+    #b77717 !important;
+
+  background:
+    #fffaf0 !important;
+}
+
+
+/*
+  좁은 카드 안의 대근 배지는 숨긴다.
+*/
+#statusView
+#shiftMemberGrid
+.shift-member-card__substitute {
+  display:
+    none !important;
+}
+
+
+/* =========================================================
+  2. 모바일 업무일지 카드
+========================================================= */
+
+@media (max-width: 768px) {
+
+  #statusView
+  .mobile-log-card:has(
+    .mobile-log-card__substitute
+  ) {
+    border-color:
+      #c98622 !important;
+
+    background:
+      #ffffff !important;
+
+    box-shadow:
+      inset 0 0 0 1px
+      rgba(
+        201,
+        134,
+        34,
+        0.18
+      ),
+      0 3px 9px
+      rgba(
+        107,
+        70,
+        14,
+        0.07
+      ) !important;
+  }
+
+
+  #statusView
+  .mobile-log-card:has(
+    .mobile-log-card__substitute
+  )
+  .mobile-log-card__header {
+    border-bottom-color:
+      #ead4ad !important;
+
+    background:
+      #fff9ef !important;
+  }
+
+
+  #statusView
+  .mobile-log-card__substitute {
+    display:
+      none !important;
+  }
+
+}
+
+
+/* =========================================================
+  3. PC 업무일지 목록 행
+========================================================= */
+
+@media (min-width: 769px) {
+
+  #statusView
+  #logTableBody
+  >
+  .log-row:has(
+    .substitute-work-badge
+  )
+  >
+  td {
+    border-top:
+      1px solid
+      #c98622 !important;
+
+    border-bottom:
+      1px solid
+      #c98622 !important;
+
+    background:
+      #fffdf8 !important;
+  }
+
+
+  #statusView
+  #logTableBody
+  >
+  .log-row:has(
+    .substitute-work-badge
+  )
+  >
+  td:first-child {
+    border-left:
+      1px solid
+      #c98622 !important;
+  }
+
+
+  #statusView
+  #logTableBody
+  >
+  .log-row:has(
+    .substitute-work-badge
+  )
+  >
+  td:last-child {
+    border-right:
+      1px solid
+      #c98622 !important;
+  }
+
+
+  #statusView
+  #logTableBody
+  .substitute-work-badge {
+    display:
+      none !important;
+  }
+
+}
