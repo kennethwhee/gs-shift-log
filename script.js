@@ -31405,274 +31405,98 @@ function getMobileLogEntrySection(
   return "handover";
 }
 
-
 /* =========================================================
-  업무일지 항목 전체 수집
+  모바일 업무일지 미리보기 항목 수집 최종본
 
-  우선순위:
-  - 분리 배열
-  - 기존 entries
-  - 기존 note 문자열
+  상세보기와 동일한 최종 데이터를 사용한다.
 ========================================================= */
 
 function collectMobileLogPreviewEntries(
   log
 ) {
-  const collectedEntries = [];
-
-
-  const appendEntry = (
-    entry,
-    fallbackCategory
-  ) => {
-    const content =
-      String(
-        entry?.content ||
-        entry?.text ||
-        ""
-      ).trim();
-
-
-    if (
-      !content
-    ) {
-      return;
-    }
-
-
-    collectedEntries.push({
-      category:
-        String(
-          entry?.category ||
-          fallbackCategory ||
-          "인계사항"
-        ).trim(),
-
-      time:
-        String(
-          entry?.time ||
-          ""
-        ).trim(),
-
-      tag:
-        String(
-          entry?.tag ||
-          ""
-        )
-          .trim()
-          .toUpperCase(),
-
-      content,
-
-      importedFromRole:
-        normalizeMemberLogRole(
-          entry?.importedFromRole ||
-          entry?.sourceRole ||
-          ""
-        )
-    });
-  };
-
-
-  /*
-    최신 분리 저장 구조
-  */
   if (
-    Array.isArray(
-      log?.tmEntries
-    )
+    !log ||
+    typeof log !== "object"
   ) {
-    log.tmEntries.forEach(
-      entry => {
-        appendEntry(
-          entry,
-          "TM 발행"
-        );
-      }
-    );
+    return [];
   }
 
+  const displayEntries =
+    collectLogEntriesForDisplay(
+      log
+    );
 
   if (
-    Array.isArray(
-      log?.handoverEntries
+    !Array.isArray(
+      displayEntries
     )
   ) {
-    log.handoverEntries.forEach(
-      entry => {
-        appendEntry(
-          entry,
-          "인계사항"
-        );
-      }
-    );
+    return [];
   }
 
-
-  if (
-    Array.isArray(
-      log?.remarkEntries
-    )
-  ) {
-    log.remarkEntries.forEach(
+  return displayEntries
+    .map(
       entry => {
-        appendEntry(
-          entry,
-          "비고"
-        );
-      }
-    );
-  }
+        const sourceEntry =
+          entry &&
+          typeof entry === "object" &&
+          !Array.isArray(entry)
+            ? entry
+            : {
+                content:
+                  String(
+                    entry || ""
+                  ).trim()
+              };
 
-
-  /*
-    분리 배열에 아무 내용도 없을 때만
-    기존 entries 배열을 사용한다.
-  */
-  if (
-    collectedEntries.length ===
-      0 &&
-    Array.isArray(
-      log?.entries
-    )
-  ) {
-    log.entries.forEach(
-      entry => {
-        appendEntry(
-          entry,
-          "인계사항"
-        );
-      }
-    );
-  }
-
-
-  /*
-    비고 항목이 없을 때
-    기존 note 문자열을 추가한다.
-  */
-  const hasNoteEntry =
-    collectedEntries.some(
-      entry => {
-        return (
-          getMobileLogEntrySection(
-            entry
-          ) ===
-          "note"
-        );
-      }
-    );
-
-
-  if (
-    !hasNoteEntry &&
-    String(
-      log?.note ||
-      ""
-    ).trim()
-  ) {
-    String(
-      log.note
-    )
-      .replace(
-        /\r\n/g,
-        "\n"
-      )
-      .replace(
-        /\r/g,
-        "\n"
-      )
-      .split(
-        "\n"
-      )
-      .map(
-        line => {
-          return String(
-            line ||
+        const content =
+          String(
+            sourceEntry.content ||
+            sourceEntry.text ||
             ""
-          )
-            .replace(
-              /^\s*\d+\s*[.)\-:]\s*/,
+          ).trim();
+
+        if (!content) {
+          return null;
+        }
+
+        return {
+          ...sourceEntry,
+
+          category:
+            String(
+              sourceEntry.category ||
+              "인계사항"
+            ).trim(),
+
+          time:
+            String(
+              sourceEntry.time ||
+              ""
+            ).trim(),
+
+          tag:
+            String(
+              sourceEntry.tag ||
               ""
             )
-            .trim();
-        }
-      )
-      .filter(Boolean)
-      .forEach(
-        content => {
-          collectedEntries.push({
-            category:
-              "비고",
-
-            time:
-              "",
-
-            tag:
-              "",
-
-            content,
-
-            importedFromRole:
-              ""
-          });
-        }
-      );
-  }
-
-
-  /*
-    완전 중복 제거
-  */
-  const uniqueEntryMap =
-    new Map();
-
-
-  collectedEntries.forEach(
-    entry => {
-      const uniqueKey = [
-        entry.category,
-        entry.time,
-        entry.tag,
-        entry.content,
-        entry.importedFromRole
-      ]
-        .map(
-          value => {
-            return String(
-              value ||
-              ""
-            )
-              .replace(
-                /\s+/g,
-                " "
-              )
               .trim()
-              .toUpperCase();
-          }
-        )
-        .join(
-          "||"
-        );
+              .toUpperCase(),
 
+          content,
 
-      if (
-        !uniqueEntryMap.has(
-          uniqueKey
-        )
-      ) {
-        uniqueEntryMap.set(
-          uniqueKey,
-          entry
-        );
+          importedFromRole:
+            normalizeMemberLogRole(
+              sourceEntry.importedFromRole ||
+              sourceEntry.sourceRole ||
+              sourceEntry.role ||
+              log.role ||
+              ""
+            )
+        };
       }
-    }
-  );
-
-
-  return [
-    ...uniqueEntryMap.values()
-  ];
+    )
+    .filter(Boolean);
 }
 
 
@@ -31953,14 +31777,16 @@ function createMobileLogPreviewItemHtml(
   `;
 }
 
-
 /* =========================================================
   모바일 업무일지 미리보기 섹션 최종본
 
-  적용:
-  - 저장된 항목 전체 표시
-  - 외 n건 문구 제거
-  - 건수는 제목 아래에만 표시
+  파트장:
+  - TGO → BCO1 → BCO2 보직별 분류
+  - 보직별 건수 표시
+  - 보직마다 번호를 1번부터 다시 시작
+
+  일반 보직:
+  - 기존 인계사항 표시 유지
 ========================================================= */
 
 function createMobileLogSectionHtml(
@@ -31969,9 +31795,7 @@ function createMobileLogSectionHtml(
   sectionType
 ) {
   const safeEntries =
-    Array.isArray(
-      entries
-    )
+    Array.isArray(entries)
       ? entries.filter(
           entry => {
             return Boolean(
@@ -31984,56 +31808,245 @@ function createMobileLogSectionHtml(
         )
       : [];
 
-
-  if (
-    !safeEntries.length
-  ) {
+  if (!safeEntries.length) {
     return "";
   }
 
+  const isLeaderRoleGroupedSection =
+    sectionType ===
+      "handover" &&
+    String(
+      title || ""
+    ).trim() ===
+      "인계 및 업무";
+
+  /*
+    일반 보직과 운전현황·TM·비고는
+    기존 구조를 그대로 유지한다.
+  */
+  if (
+    !isLeaderRoleGroupedSection
+  ) {
+    return `
+      <section
+        class="
+          mobile-log-preview-section
+          is-${sectionType}
+        "
+      >
+        <div
+          class="mobile-log-preview-section__header"
+        >
+          <strong>
+            ${escapeHtml(title)}
+          </strong>
+
+          <span>
+            ${safeEntries.length}건
+          </span>
+        </div>
+
+        <div
+          class="mobile-log-preview-section__body"
+        >
+          ${safeEntries
+            .map(
+              (
+                entry,
+                index
+              ) => {
+                return createMobileLogPreviewItemHtml(
+                  entry,
+                  index,
+                  sectionType
+                );
+              }
+            )
+            .join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  const roleOrder = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2",
+    "파트장"
+  ];
+
+  const roleClassMap = {
+    TGO: "is-tgo",
+    BCO1: "is-bco1",
+    BCO2: "is-bco2",
+    TO: "is-to",
+    BO1: "is-bo1",
+    BO2: "is-bo2",
+    파트장: "is-leader"
+  };
+
+  const groupedEntryMap =
+    new Map();
+
+  safeEntries.forEach(
+    entry => {
+      const normalizedRole =
+        normalizeMemberLogRole(
+          entry?.importedFromRole ||
+          entry?.sourceRole ||
+          entry?.role ||
+          ""
+        );
+
+      const safeRole =
+        normalizedRole ||
+        "파트장";
+
+      if (
+        !groupedEntryMap.has(
+          safeRole
+        )
+      ) {
+        groupedEntryMap.set(
+          safeRole,
+          []
+        );
+      }
+
+      groupedEntryMap
+        .get(safeRole)
+        .push(entry);
+    }
+  );
+
+  const orderedRoles = [
+    ...roleOrder.filter(
+      role => {
+        return Boolean(
+          groupedEntryMap.get(
+            role
+          )?.length
+        );
+      }
+    ),
+
+    ...[
+      ...groupedEntryMap.keys()
+    ].filter(
+      role => {
+        return (
+          !roleOrder.includes(
+            role
+          )
+        );
+      }
+    )
+  ];
+
+  const groupedRoleHtml =
+    orderedRoles
+      .map(
+        role => {
+          const roleEntries =
+            sortDetailEntriesByTime(
+              groupedEntryMap.get(
+                role
+              ) || []
+            );
+
+          if (!roleEntries.length) {
+            return "";
+          }
+
+          const roleClass =
+            roleClassMap[role] ||
+            "is-other";
+
+          return `
+            <section
+              class="
+                mobile-log-preview-role-group
+                ${roleClass}
+              "
+            >
+              <div
+                class="
+                  mobile-log-preview-role-group__header
+                "
+              >
+                <strong
+                  class="
+                    mobile-log-preview-role-group__title
+                  "
+                >
+                  ${escapeHtml(
+                    `${role} 업무일지`
+                  )}
+                </strong>
+
+                <span
+                  class="
+                    mobile-log-preview-role-group__count
+                  "
+                >
+                  ${roleEntries.length}건
+                </span>
+              </div>
+
+              <div
+                class="
+                  mobile-log-preview-role-group__body
+                "
+              >
+                ${roleEntries
+                  .map(
+                    (
+                      entry,
+                      index
+                    ) => {
+                      return createMobileLogPreviewItemHtml(
+                        entry,
+                        index,
+                        "handover"
+                      );
+                    }
+                  )
+                  .join("")}
+              </div>
+            </section>
+          `;
+        }
+      )
+      .join("");
 
   return `
     <section
       class="
         mobile-log-preview-section
-        is-${sectionType}
+        is-handover
+        is-role-grouped
       "
     >
-
-      <div class="mobile-log-preview-section__header">
-
+      <div
+        class="mobile-log-preview-section__header"
+      >
         <strong>
-          ${escapeHtml(
-            title
-          )}
+          ${escapeHtml(title)}
         </strong>
 
         <span>
           ${safeEntries.length}건
         </span>
-
       </div>
 
-
-      <div class="mobile-log-preview-section__body">
-
-        ${safeEntries
-          .map(
-            (
-              entry,
-              index
-            ) => {
-              return createMobileLogPreviewItemHtml(
-                entry,
-                index,
-                sectionType
-              );
-            }
-          )
-          .join("")}
-
+      <div
+        class="mobile-log-preview-section__body"
+      >
+        ${groupedRoleHtml}
       </div>
-
     </section>
   `;
 }

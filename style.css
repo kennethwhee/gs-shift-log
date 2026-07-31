@@ -51101,216 +51101,122 @@ legend {
 }
 
 /* =========================================================
-  모바일 파트장 업무일지 보직별 구분 최종 보정
-
-  적용 위치:
-  style.css 파일 맨 마지막
+  모바일 파트장 업무일지 보직별 구분 최종본
 ========================================================= */
 
 @media (max-width: 768px) {
+  .mobile-log-preview-section.is-role-grouped
+  .mobile-log-preview-section__body {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
 
-  /* =====================================================
-    TGO · BCO1 · BCO2 보직 제목 영역
+  .mobile-log-preview-role-group {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-sizing: border-box !important;
+  }
 
-    PC 전용 absolute/고정 높이 규칙을 해제한다.
-  ====================================================== */
-
-  #logTableBody
-  .log-preview
-  .log-preview__role-section,
-
-  #logTableBody
-  .log-preview
-  .log-preview__role-section.is-first-role {
-    position:
-      static !important;
-
-    display:
-      block !important;
-
-    width:
-      100% !important;
-
-    height:
-      auto !important;
-
-    min-height:
-      0 !important;
-
-    margin:
-      14px
-      0
-      6px !important;
-
-    padding:
-      10px
-      0
-      0 !important;
-
+  .mobile-log-preview-role-group
+  +
+  .mobile-log-preview-role-group {
+    margin-top: 6px !important;
+    padding-top: 6px !important;
     border-top:
       1px solid
-      #cbd8e5 !important;
-
-    background:
-      transparent !important;
-
-    box-sizing:
-      border-box !important;
+      #dce5ee !important;
   }
 
+  .mobile-log-preview-role-group__header {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 19px !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    margin: 0 0 3px !important;
+    padding: 0 !important;
+  }
 
-  /* =====================================================
-    보직 제목
-
-    예:
-    TGO 업무일지 (7건)
-    BCO1 업무일지 (8건)
-    BCO2 업무일지 (6건)
-  ====================================================== */
-
-  #logTableBody
-  .log-preview
-  .log-preview__role-section
-  .log-preview__role-divider {
-    position:
-      static !important;
-
-    inset:
-      auto !important;
-
-    display:
-      block !important;
-
-    width:
-      100% !important;
-
-    min-width:
-      0 !important;
-
-    min-height:
-      0 !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0
-      0
-      6px !important;
-
+  .mobile-log-preview-role-group__title {
+    display: inline-flex !important;
+    min-height: 19px !important;
+    align-items: center !important;
+    margin: 0 !important;
+    padding: 0 6px !important;
     border:
-      0 !important;
-
-    border-radius:
-      0 !important;
-
-    background:
-      transparent !important;
-
-    box-shadow:
-      none !important;
-
-    font-size:
-      11px !important;
-
-    font-weight:
-      900 !important;
-
-    line-height:
-      1.45 !important;
-
-    text-align:
-      left !important;
-
-    white-space:
-      nowrap !important;
+      1px solid
+      #c7d3e0 !important;
+    border-radius: 5px !important;
+    background: #f6f8fa !important;
+    color: #52667d !important;
+    font-size: 8.5px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+    letter-spacing: -0.025em !important;
+    white-space: nowrap !important;
   }
 
-
-  #logTableBody
-  .log-preview__role-divider::before,
-
-  #logTableBody
-  .log-preview__role-divider::after {
-    display:
-      none !important;
-
-    content:
-      none !important;
+  .mobile-log-preview-role-group__count {
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #8d99a8 !important;
+    font-size: 7px !important;
+    font-weight: 850 !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
   }
 
-
-  /* =====================================================
-    보직별 제목 색상
-  ====================================================== */
-
-  #logTableBody
-  .log-preview__role-divider.is-tgo {
-    color:
-      #1f5fae !important;
+  .mobile-log-preview-role-group__body {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
-
-  #logTableBody
-  .log-preview__role-divider.is-bco1 {
-    color:
-      #17865f !important;
-  }
-
-
-  #logTableBody
-  .log-preview__role-divider.is-bco2 {
-    color:
-      #74419c !important;
-  }
-
-
-  /* =====================================================
-    제목 바로 아래 첫 번째 업무
-
-    PC용 겹침 배치를 제거하고
-    제목 다음 줄부터 정상 표시한다.
-  ====================================================== */
-
-  #logTableBody
-  .log-preview__role-section
+  .mobile-log-preview-role-group__body
+  .mobile-log-preview-item
   +
-  .log-preview__group {
-    margin-top:
-      0 !important;
-
-    padding-top:
-      0 !important;
-
-    border-top:
-      0 !important;
+  .mobile-log-preview-item {
+    margin-top: 1px !important;
   }
 
-
-  /* =====================================================
-    보직별 업무 행
-
-    모바일에서도 제목 칸과 내용 칸 정렬을 유지한다.
-  ====================================================== */
-
-  #logTableBody
-  .log-preview__role-section
-  ~
-  .log-preview__group:not(.is-section-start) {
-    grid-template-columns:
-      68px
-      minmax(0, 1fr) !important;
+  /* TGO */
+  .mobile-log-preview-role-group.is-tgo
+  .mobile-log-preview-role-group__title {
+    border-color: #9fc5ef !important;
+    background: #eef6ff !important;
+    color: #1f5fae !important;
   }
 
+  /* BCO1 */
+  .mobile-log-preview-role-group.is-bco1
+  .mobile-log-preview-role-group__title {
+    border-color: #9ed8bb !important;
+    background: #effaf5 !important;
+    color: #17865f !important;
+  }
 
-  #logTableBody
-  .log-preview__role-section
-  ~
-  .log-preview__group.has-no-title::before {
-    width:
-      68px !important;
-
-    min-width:
-      68px !important;
+  /* BCO2 */
+  .mobile-log-preview-role-group.is-bco2
+  .mobile-log-preview-role-group__title {
+    border-color: #d1afe8 !important;
+    background: #faf3ff !important;
+    color: #74419c !important;
   }
 }
