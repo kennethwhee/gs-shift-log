@@ -51441,3 +51441,28 @@ legend {
   }
 
 }
+
+/* PC에서는 대근 배지를 다시 표시 */
+@media (min-width: 769px) {
+  #statusView
+  #shiftMemberGrid
+  .shift-member-card__substitute {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 auto !important;
+
+    margin-left: 5px !important;
+    padding: 2px 5px !important;
+
+    border: 1px solid #d79a3d !important;
+    border-radius: 4px !important;
+    background: #fff6e7 !important;
+
+    color: #a45d09 !important;
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+  }
+}
