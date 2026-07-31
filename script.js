@@ -42001,21 +42001,6 @@ function renderSearchResults(
               </td>
 
 
-              <td class="search-log-view-cell">
-
-                <button
-                  type="button"
-                  class="table-action-button"
-                  data-search-view="${escapeHtml(
-                    log.id
-                  )}"
-                >
-                  보기
-                </button>
-
-              </td>
-
-
               <td class="search-log-attachment-cell">
 
                 ${
@@ -59507,10 +59492,7 @@ createMobileSearchCardHtml =
 
 
     /*
-      기존 모바일 업무일지 카드 클래스 유지
-
-      조회 화면 전용 클래스는 날짜 표시와
-      조회 전용 하단 정렬에만 사용한다.
+      기존 모바일 카드 구조 유지
     */
     cardElement.classList.add(
       "search-reused-log-card"
@@ -59528,6 +59510,9 @@ createMobileSearchCardHtml =
     );
 
 
+    /*
+      카드 본문 전체 클릭 유지
+    */
     const openButton =
       cardElement.querySelector(
         ".mobile-log-card__open"
@@ -59554,8 +59539,7 @@ createMobileSearchCardHtml =
 
 
       /*
-        조회 목록은 여러 날짜를 표시하므로
-        기존 미리보기 위에 날짜와 근무만 추가한다.
+        조회 결과 날짜·근무 추가
       */
       openButton.insertAdjacentHTML(
         "afterbegin",
@@ -59606,11 +59590,17 @@ createMobileSearchCardHtml =
         );
 
 
+      /*
+        TAG 클릭 기능 유지
+      */
       normalizeSearchPreviewTagElements(
         previewElement
       );
 
 
+      /*
+        검색어 강조 유지
+      */
       highlightSearchKeywordInElement(
         previewElement,
         getCurrentSearchKeyword()
@@ -59632,14 +59622,16 @@ createMobileSearchCardHtml =
 
 
     /*
-      조회 화면에서는 수정·이어쓰기 버튼을 제거한다.
+      조회 화면에서는
+      수정·삭제·이어쓰기·상세보기 버튼 제거
     */
     cardElement
       .querySelectorAll(
         `
           .mobile-log-card__edit-button,
-          .mobile-log-card__edit-disabled
-          .mobile-log-card__delete-button
+          .mobile-log-card__edit-disabled,
+          .mobile-log-card__delete-button,
+          .mobile-log-card__detail-button
         `
       )
       .forEach(
@@ -59661,25 +59653,20 @@ createMobileSearchCardHtml =
       footerElement.classList.add(
         "mobile-log-card__footer--search"
       );
-      /*
-  원본 카드의 수정·삭제용 그리드 상태도 제거한다.
-*/
-footerElement.classList.remove(
-  "has-edit-action",
-  "has-delete-action"
-);
+
+
+      footerElement.classList.remove(
+        "has-edit-action",
+        "has-delete-action"
+      );
 
 
       /*
-        조회 결과 공통 이벤트가 인식하도록
-        버튼 속성만 조회용으로 바꾼다.
+        첨부 표시 기능 유지
       */
       footerElement
         .querySelectorAll(
-          `
-            .mobile-log-card__detail-button,
-            .mobile-log-card__attachment-button
-          `
+          ".mobile-log-card__attachment-button"
         )
         .forEach(
           button => {

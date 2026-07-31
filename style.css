@@ -14599,18 +14599,6 @@ tbody tr:hover td {
 }
 
 /* =========================================================
-   조회 목록 업무내용 전용 최종 디자인
-
-   해결 항목:
-   1. TM 번호·시간·TAG·내용을 같은 줄에서 시작
-   2. 긴 내용만 본문 시작 위치에서 줄바꿈
-   3. 보직 업무일지 제목 박스 제거
-   4. TGO·BCO1·BCO2·TO·BO1·BO2 글자색 유지
-   5. 메인 목록 log-preview__* 스타일과 완전 분리
-========================================================= */
-
-
-/* =========================================================
    조회 업무내용 전체
 ========================================================= */
 
@@ -51465,4 +51453,69 @@ legend {
     line-height: 1.2 !important;
     white-space: nowrap !important;
   }
+}
+
+/* =========================================================
+  조회 목록 보기 열 제거
+
+  PC:
+  - 보기 열 삭제
+  - 첨부 열을 여섯 번째 열로 정렬
+
+  모바일:
+  - 상세보기 버튼 삭제
+  - 첨부 표시만 오른쪽에 배치
+========================================================= */
+
+.search-result-table
+th:nth-child(6),
+
+.search-result-table
+td:nth-child(6) {
+  width:
+    40px !important;
+
+  min-width:
+    40px !important;
+
+  max-width:
+    40px !important;
+
+  padding-right:
+    3px !important;
+
+  padding-left:
+    3px !important;
+
+  border-right:
+    0 !important;
+}
+
+
+#searchView
+.search-reused-log-card
+.mobile-log-card__footer--search {
+  display:
+    flex !important;
+
+  grid-template-columns:
+    none !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    flex-end !important;
+}
+
+
+#searchView
+.search-reused-log-card
+.mobile-log-card__attachment-button,
+
+#searchView
+.search-reused-log-card
+.mobile-log-card__attachment-empty {
+  margin-left:
+    auto !important;
 }
