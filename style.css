@@ -53279,12 +53279,21 @@ small {
 
 
 /* =========================================================
-  PC 조회 조건
+  PC 업무일지 조회 조건 컴팩트형
+
+  변경:
+  - 항목 제목 12px
+  - 입력값·선택값 14px
+  - 검색어 14px
+  - 버튼 13px
+  - 한 줄 배치 유지
+
+  모바일에는 적용되지 않음
 ========================================================= */
 
 @media screen and (min-width: 769px) {
 
-  /* 조회 제목 아래 여백 */
+  /* 조회 제목 아래 간격 */
   #searchView
   .section-heading {
     margin-bottom:
@@ -53292,7 +53301,7 @@ small {
   }
 
 
-  /* 조회 폼 전체 */
+  /* 조회 조건 전체 박스 */
   #searchView
   .search-form--compact {
     margin:
@@ -53301,7 +53310,7 @@ small {
       14px !important;
 
     padding:
-      12px
+      13px
       14px !important;
 
     border-radius:
@@ -53309,7 +53318,10 @@ small {
   }
 
 
-  /* 한 줄 그리드 */
+  /* =====================================================
+    시작일 | 종료일 | 근무 | 보직 | 구분 | 검색어 | 버튼
+  ====================================================== */
+
   #searchView
   .search-form-layout--compact {
     display:
@@ -53318,18 +53330,27 @@ small {
     grid-template-columns:
       minmax(
         145px,
-        1.05fr
+        1fr
       )
       minmax(
         145px,
-        1.05fr
+        1fr
       )
-      84px
-      102px
-      112px
       minmax(
-        240px,
-        2.2fr
+        72px,
+        0.48fr
+      )
+      minmax(
+        80px,
+        0.55fr
+      )
+      minmax(
+        90px,
+        0.62fr
+      )
+      minmax(
+        220px,
+        2fr
       )
       auto !important;
 
@@ -53343,7 +53364,7 @@ small {
       end !important;
 
     gap:
-      8px !important;
+      9px !important;
 
     margin:
       0 !important;
@@ -53353,7 +53374,7 @@ small {
   }
 
 
-  /* 각 필드 */
+  /* 각 조회 항목 */
   #searchView
   .search-compact-field {
     display:
@@ -53372,7 +53393,7 @@ small {
       column !important;
 
     gap:
-      4px !important;
+      5px !important;
 
     margin:
       0 !important;
@@ -53382,7 +53403,10 @@ small {
   }
 
 
-  /* 필드 제목 */
+  /* =====================================================
+    시작일·종료일·근무·보직·구분·검색어 제목
+  ====================================================== */
+
   #searchView
   .search-form-layout--compact
   .form-field__label {
@@ -53390,32 +53414,39 @@ small {
       block !important;
 
     min-height:
-      11px !important;
+      14px !important;
 
     margin:
       0 !important;
 
     padding:
-      0 !important;
+      0
+      1px !important;
 
     color:
-      #5b6b80 !important;
+      #4c5f78 !important;
 
     font-size:
-      9px !important;
+      12px !important;
 
     font-weight:
-      900 !important;
+      850 !important;
 
     line-height:
       1.2 !important;
+
+    letter-spacing:
+      -0.015em !important;
 
     white-space:
       nowrap !important;
   }
 
 
-  /* 모든 입력칸 */
+  /* =====================================================
+    날짜·선택창·검색창 공통
+  ====================================================== */
+
   #searchView
   .search-form-layout--compact
   input,
@@ -53436,49 +53467,67 @@ small {
       100% !important;
 
     height:
-      36px !important;
+      42px !important;
 
     min-height:
-      36px !important;
+      42px !important;
 
     max-height:
-      36px !important;
+      42px !important;
 
     margin:
       0 !important;
 
     padding:
       0
-      9px !important;
+      11px !important;
 
     border:
       1px solid
-      #c7d3e0 !important;
+      #b9c9da !important;
 
     border-radius:
-      7px !important;
+      8px !important;
 
     background:
       #ffffff !important;
 
     color:
-      #25374f !important;
+      #182b45 !important;
+
+    font-family:
+      inherit !important;
 
     font-size:
-      11px !important;
+      14px !important;
 
     font-weight:
-      800 !important;
+      750 !important;
 
     line-height:
-      1 !important;
+      1.2 !important;
+
+    letter-spacing:
+      -0.015em !important;
 
     box-shadow:
       none !important;
   }
 
 
-  /* 날짜 가운데 정렬 */
+  /* 선택창 오른쪽 화살표 공간 */
+  #searchView
+  .search-form-layout--compact
+  select {
+    padding-right:
+      30px !important;
+
+    cursor:
+      pointer !important;
+  }
+
+
+  /* 날짜값 */
   #searchView
   #searchStartDate,
 
@@ -53486,7 +53535,15 @@ small {
   #searchEndDate {
     padding:
       0
-      5px !important;
+      8px
+      0
+      11px !important;
+
+    font-size:
+      14px !important;
+
+    font-weight:
+      800 !important;
 
     font-variant-numeric:
       tabular-nums !important;
@@ -53496,17 +53553,86 @@ small {
   }
 
 
+  /* 날짜 선택 아이콘 */
+  #searchView
+  #searchStartDate::-webkit-calendar-picker-indicator,
+
+  #searchView
+  #searchEndDate::-webkit-calendar-picker-indicator {
+    width:
+      17px !important;
+
+    height:
+      17px !important;
+
+    cursor:
+      pointer !important;
+  }
+
+
   /* 검색창 */
   #searchView
   .search-compact-field--keyword
   input {
     padding:
       0
-      11px !important;
+      13px !important;
+
+    font-size:
+      14px !important;
+
+    font-weight:
+      700 !important;
   }
 
 
-  /* 버튼 영역 */
+  /* 검색창 안내 문구 */
+  #searchView
+  .search-compact-field--keyword
+  input::placeholder {
+    color:
+      #748397 !important;
+
+    font-size:
+      13px !important;
+
+    font-weight:
+      650 !important;
+
+    opacity:
+      1 !important;
+  }
+
+
+  /* 입력창 선택 상태 */
+  #searchView
+  .search-form-layout--compact
+  input:focus,
+
+  #searchView
+  .search-form-layout--compact
+  select:focus {
+    border-color:
+      #4d83c2 !important;
+
+    outline:
+      3px solid
+      rgba(
+        48,
+        102,
+        173,
+        0.12
+      ) !important;
+
+    outline-offset:
+      0 !important;
+  }
+
+
+  /* =====================================================
+    초기화·조회 버튼
+  ====================================================== */
+
   #searchView
   .search-form__actions--compact {
     display:
@@ -53525,7 +53651,7 @@ small {
       end !important;
 
     gap:
-      6px !important;
+      7px !important;
 
     width:
       auto !important;
@@ -53541,7 +53667,6 @@ small {
   }
 
 
-  /* 버튼 높이를 입력칸과 동일하게 */
   #searchView
   .search-form__actions--compact
   button {
@@ -53552,13 +53677,13 @@ small {
       76px !important;
 
     height:
-      36px !important;
+      42px !important;
 
     min-height:
-      36px !important;
+      42px !important;
 
     max-height:
-      36px !important;
+      42px !important;
 
     margin:
       0 !important;
@@ -53568,10 +53693,13 @@ small {
       10px !important;
 
     border-radius:
-      7px !important;
+      8px !important;
 
     font-size:
-      11px !important;
+      13px !important;
+
+    font-weight:
+      850 !important;
 
     line-height:
       1 !important;

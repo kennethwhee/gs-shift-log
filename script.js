@@ -14304,6 +14304,11 @@ function resolveLogEntryId(
 
 /* =========================================================
   원본 항목 식별 키
+
+  우선순위:
+  1. 기존 고정 ID
+  2. 원본 일지 ID + 원본 항목 번호로 만든 보조 ID
+  3. 과거 데이터용 내용 비교 키
 ========================================================= */
 
 function createSourceEntryKey(
@@ -14314,45 +14319,223 @@ function createSourceEntryKey(
 ) {
   const normalizedRole =
     normalizeMemberLogRole(
+      entry
+        ?.importedFromRole ||
       sourceRole
     );
 
+
+  /*
+    이전 근무에서 이어진 항목이면
+    최초 원본 정보를 계속 사용한다.
+  */
   const sourceLogId =
     String(
-      memberLog?.id || ""
+      entry
+        ?.importedFromLogId ||
+      memberLog?.id ||
+      ""
     ).trim();
 
-  const sourceIndex =
-    Number.isInteger(entryIndex)
-      ? entryIndex
-      : Number(entryIndex);
+
+  const rawOriginalIndex =
+    entry
+      ?.importedFromEntryIndex;
+
+
+  const originalEntryIndex =
+    rawOriginalIndex === "" ||
+    rawOriginalIndex === null ||
+    rawOriginalIndex === undefined
+      ? null
+      : Number(
+          rawOriginalIndex
+        );
+
+
+  const numericEntryIndex =
+    entryIndex === "" ||
+    entryIndex === null ||
+    entryIndex === undefined
+      ? null
+      : Number(
+          entryIndex
+        );
+
+
+  const sourceEntryIndex =
+    Number.isInteger(
+      originalEntryIndex
+    ) &&
+    originalEntryIndex >= 0
+      ? originalEntryIndex
+      : (
+          Number.isInteger(
+            numericEntryIndex
+          ) &&
+          numericEntryIndex >= 0
+            ? numericEntryIndex
+            : null
+        );
+
+
+  const entryId =
+    String(
+      entry?.id ||
+      ""
+    ).trim();
+
 
   /*
-    원본 업무일지 ID와 원본 항목 번호가 있으면
-    가장 우선적으로 사용한다.
+    이미 고정 ID가 있으면
+    내용이나 배열 순서보다 ID를 우선한다.
   */
   if (
-    normalizedRole &&
-    sourceLogId &&
-    Number.isInteger(sourceIndex) &&
-    sourceIndex >= 0
+    entryId
   ) {
     return [
-      "SOURCE",
-      normalizedRole,
-      sourceLogId,
-      sourceIndex
-    ].join("||");
+      "ID",
+      entryId
+    ].join(
+      "||"
+    );
   }
 
+
   /*
-    과거 데이터 호환용 키
+    ID가 없는 과거 항목은
+    최초 원본 일지와 항목 번호로
+    가져오기 항목과 동일한 보조 ID를 계산한다.
+  */
+  if (
+    sourceLogId &&
+    sourceEntryIndex !== null
+  ) {
+    return [
+      "ID",
+
+      resolveLogEntryId(
+        entry,
+        sourceLogId,
+        sourceEntryIndex
+      )
+    ].join(
+      "||"
+    );
+  }
+
+
+  /*
+    출처 정보도 없는 과거 데이터만
+    기존 내용 비교 방식을 사용한다.
   */
   return [
     "CONTENT",
     normalizedRole,
-    createLogEntryImportKey(entry)
-  ].join("||");
+    createLogEntryImportKey(
+      entry
+    )
+  ].join(
+    "||"
+  );
+}
+
+
+/* =========================================================
+  현재 파트장 일지에 저장된 항목 식별 키
+========================================================= */
+
+function createImportedEntryUniqueKey(
+  entry
+) {
+  const sourceRole =
+    normalizeMemberLogRole(
+      entry
+        ?.importedFromRole ||
+      ""
+    );
+
+
+  const sourceLogId =
+    String(
+      entry
+        ?.importedFromLogId ||
+      ""
+    ).trim();
+
+
+  const rawSourceIndex =
+    entry
+      ?.importedFromEntryIndex;
+
+
+  const sourceIndex =
+    rawSourceIndex === "" ||
+    rawSourceIndex === null ||
+    rawSourceIndex === undefined
+      ? null
+      : Number(
+          rawSourceIndex
+        );
+
+
+  const entryId =
+    String(
+      entry?.id ||
+      ""
+    ).trim();
+
+
+  /*
+    저장된 항목도 고정 ID를
+    가장 먼저 사용한다.
+  */
+  if (
+    entryId
+  ) {
+    return [
+      "ID",
+      entryId
+    ].join(
+      "||"
+    );
+  }
+
+
+  /*
+    ID 없는 과거 취합 항목은
+    최초 원본 정보로 동일한 보조 ID를 계산한다.
+  */
+  if (
+    sourceLogId &&
+    Number.isInteger(
+      sourceIndex
+    ) &&
+    sourceIndex >= 0
+  ) {
+    return [
+      "ID",
+
+      resolveLogEntryId(
+        entry,
+        sourceLogId,
+        sourceIndex
+      )
+    ].join(
+      "||"
+    );
+  }
+
+
+  return [
+    "CONTENT",
+    sourceRole,
+    createLogEntryImportKey(
+      entry
+    )
+  ].join(
+    "||"
+  );
 }
 
 
@@ -30650,6 +30833,8 @@ function collectEditorData(
     파트장 업무일지는 저장 직전에
     원본 팀원 업무일지와 다시 비교하여
     출처 보직을 최종 확정한다.
+
+    모든 항목은 저장 전에 고정 ID를 확정한다.
   ====================================================== */
 
   const savingDate =
@@ -30782,7 +30967,10 @@ function collectEditorData(
         : []
     )
       .map(
-        entry => {
+        (
+          entry,
+          entryIndex
+        ) => {
           const rawImportedIndex =
             entry
               ?.importedFromEntryIndex;
@@ -30796,6 +30984,39 @@ function collectEditorData(
               : Number(
                   rawImportedIndex
                 );
+
+
+          const hasValidImportedIndex =
+            Number.isInteger(
+              importedFromEntryIndex
+            ) &&
+            importedFromEntryIndex >=
+              0;
+
+
+          /*
+            가져온 항목은 최초 원본 일지와 항목 번호를 사용한다.
+
+            ID 없는 기존 항목은 현재 업무일지 ID와
+            배열 번호를 이용해 동일한 보조 ID를 만든다.
+
+            완전 신규 항목은 새 UUID를 만든다.
+          */
+          const resolvedEntryId =
+            resolveLogEntryId(
+              entry,
+
+              String(
+                entry
+                  ?.importedFromLogId ||
+                editorContextLog.id ||
+                ""
+              ).trim(),
+
+              hasValidImportedIndex
+                ? importedFromEntryIndex
+                : entryIndex
+            );
 
 
           /*
@@ -30822,13 +31043,17 @@ function collectEditorData(
 
 
           /*
-            현재 수정창 상태에도 복구 결과를 반영한다.
+            저장 후 수정창을 닫지 않고 다시 저장해도
+            같은 ID가 유지되도록 현재 항목에 반영한다.
           */
           if (
             entry &&
             typeof entry ===
               "object"
           ) {
+            entry.id =
+              resolvedEntryId;
+
             entry.importedFromRole =
               resolvedImportedFromRole;
           }
@@ -30836,10 +31061,7 @@ function collectEditorData(
 
           return {
             id:
-              String(
-                entry?.id ||
-                ""
-              ).trim(),
+              resolvedEntryId,
 
             time:
               String(
@@ -30894,11 +31116,7 @@ function collectEditorData(
               ).trim(),
 
             importedFromEntryIndex:
-              Number.isInteger(
-                importedFromEntryIndex
-              ) &&
-              importedFromEntryIndex >=
-                0
+              hasValidImportedIndex
                 ? importedFromEntryIndex
                 : null,
 
