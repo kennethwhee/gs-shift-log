@@ -53318,31 +53318,92 @@ small {
   }
 
 
-  /* =====================================================
-    시작일 | 종료일 | 근무 | 보직 | 구분 | 검색어 | 버튼
-  ====================================================== */
+/* =====================================================
+  시작일 | 종료일 | 근무 | 보직 | 구분 | 검색어 | 버튼
+====================================================== */
 
 #searchView
 .search-form-layout--compact {
-  display: grid !important;
+  display:
+    grid !important;
 
   grid-template-columns:
-    150px
-    150px
-    92px
-    92px
-    92px
-    minmax(240px, 1fr)
+    repeat(
+      5,
+      minmax(
+        125px,
+        125px
+      )
+    )
+    minmax(
+      240px,
+      1fr
+    )
     auto !important;
 
-  width: 100% !important;
-  min-width: 0 !important;
-  align-items: end !important;
-  gap: 9px !important;
-  margin: 0 !important;
-  padding: 0 !important;
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  align-items:
+    end !important;
+
+  gap:
+    9px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
 }
 
+/* 날짜·선택칸 외부 크기 완전 통일 */
+#searchView
+.search-compact-field--start,
+
+#searchView
+.search-compact-field--end,
+
+#searchView
+.search-compact-field--shift,
+
+#searchView
+.search-compact-field--role,
+
+#searchView
+.search-compact-field--category {
+  width:
+    125px !important;
+
+  min-width:
+    125px !important;
+
+  max-width:
+    125px !important;
+}
+
+
+/* 날짜 입력칸이 기본 크기를 넘지 않도록 보정 */
+#searchView
+#searchStartDate,
+
+#searchView
+#searchEndDate {
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  max-width:
+    100% !important;
+
+  box-sizing:
+    border-box !important;
+}
 
   /* 각 조회 항목 */
   #searchView

@@ -1541,6 +1541,100 @@ function createNavigatorInspectionSyncSelection(
   };
 }
 
+function canEditExistingLog(
+  existingLog,
+  user
+) {
+  /*
+    최고관리자는 모든 신규 업무일지 수정 가능
+  */
+  if (
+    user.isSuperAdmin
+  ) {
+    return true;
+  }
+
+
+  const logRole =
+    normalizeLogRole(
+      existingLog.role
+    );
+
+
+  const status =
+    normalizeStatus(
+      existingLog.status
+    );
+
+
+  const isAuthor =
+    normalizeEmployeeNo(
+      existingLog.authorId
+    ) ===
+      user.employeeNo;
+
+
+  /*
+    파트장 계정
+
+    - 본인이 작성한 파트장 업무일지만 수정 가능
+    - 저장완료 상태만 수정 가능
+    - 다른 일반 보직 업무일지는 수정 불가
+  */
+  if (
+    user.role ===
+      "admin"
+  ) {
+    return (
+      logRole ===
+        "파트장" &&
+
+      isAuthor &&
+
+      status ===
+        "저장완료"
+    );
+  }
+
+
+  /*
+    일반회원은 파트장 업무일지 수정 불가
+  */
+  if (
+    logRole ===
+      "파트장"
+  ) {
+    return false;
+  }
+
+
+  const editableMemberRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  /*
+    일반 보직 업무일지
+
+    - 임시저장: 작성자와 관계없이 수정 가능
+    - 결재요청: 결재취소 후 수정
+    - 결재완료: 수정 불가
+  */
+  return (
+    editableMemberRoles.includes(
+      logRole
+    ) &&
+
+    status ===
+      "임시저장"
+  );
+}
+
 function createConflictResponse(
   currentLog,
   message =
