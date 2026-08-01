@@ -13927,6 +13927,99 @@ function normalizeMemberLogRole(role) {
   return normalizedRole;
 }
 
+/* =========================================================
+  업무 항목 고정 ID
+
+  우선순위:
+  1. 기존 항목 ID 유지
+  2. ID 없는 과거 항목은 원본 일지 ID + 항목 번호
+  3. 완전 신규 항목은 새 UUID
+========================================================= */
+
+function createLogEntryId() {
+  if (
+    typeof window !==
+      "undefined" &&
+    typeof window.crypto
+      ?.randomUUID ===
+      "function"
+  ) {
+    return (
+      "entry-" +
+      window.crypto
+        .randomUUID()
+    );
+  }
+
+
+  return [
+    "entry",
+    Date.now(),
+    Math.random()
+      .toString(36)
+      .slice(2, 10)
+  ].join("-");
+}
+
+
+function resolveLogEntryId(
+  entry,
+  sourceLogId = "",
+  sourceEntryIndex = null
+) {
+  const existingId =
+    String(
+      entry?.id ||
+      ""
+    ).trim();
+
+
+  if (
+    existingId
+  ) {
+    return existingId;
+  }
+
+
+  const normalizedSourceLogId =
+    String(
+      sourceLogId ||
+      ""
+    ).trim();
+
+
+  const normalizedSourceIndex =
+    sourceEntryIndex === "" ||
+    sourceEntryIndex === null ||
+    sourceEntryIndex === undefined
+      ? null
+      : Number(
+          sourceEntryIndex
+        );
+
+
+  /*
+    서버 연동의 과거 항목 보조 ID와
+    같은 형식을 사용한다.
+  */
+  if (
+    normalizedSourceLogId &&
+    Number.isInteger(
+      normalizedSourceIndex
+    ) &&
+    normalizedSourceIndex >=
+      0
+  ) {
+    return [
+      "entry-legacy",
+      normalizedSourceLogId,
+      normalizedSourceIndex
+    ].join("-");
+  }
+
+
+  return createLogEntryId();
+}
 
 /* =========================================================
   원본 항목 식별 키
@@ -14222,7 +14315,73 @@ function createMemberImportedEntry(
     );
 
 
+  const memberLogId =
+    String(
+      memberLog?.id ||
+      ""
+    ).trim();
+
+
+  const numericEntryIndex =
+    Number(
+      entryIndex
+    );
+
+
+  const normalizedEntryIndex =
+    Number.isInteger(
+      numericEntryIndex
+    ) &&
+    numericEntryIndex >=
+      0
+      ? numericEntryIndex
+      : null;
+
+
+  const rawOriginalIndex =
+    entry
+      ?.importedFromEntryIndex;
+
+
+  const originalEntryIndex =
+    rawOriginalIndex === "" ||
+    rawOriginalIndex === null ||
+    rawOriginalIndex === undefined
+      ? null
+      : Number(
+          rawOriginalIndex
+        );
+
+
+  /*
+    이전 근무에서 이어진 항목이면
+    최초 원본 업무일지 정보를 유지한다.
+  */
+  const sourceLogId =
+    String(
+      entry?.importedFromLogId ||
+      memberLogId
+    ).trim();
+
+
+  const sourceEntryIndex =
+    Number.isInteger(
+      originalEntryIndex
+    ) &&
+    originalEntryIndex >=
+      0
+      ? originalEntryIndex
+      : normalizedEntryIndex;
+
+
   return {
+    id:
+      resolveLogEntryId(
+        entry,
+        sourceLogId,
+        sourceEntryIndex
+      ),
+
     time:
       String(
         entry?.time ||
@@ -14254,18 +14413,16 @@ function createMemberImportedEntry(
 
     importedFromAuthor:
       String(
+        entry?.importedFromAuthor ||
         memberLog?.author ||
         ""
       ).trim(),
 
     importedFromLogId:
-      String(
-        memberLog?.id ||
-        ""
-      ).trim(),
+      sourceLogId,
 
     importedFromEntryIndex:
-      entryIndex
+      sourceEntryIndex
   };
 }
 
