@@ -53922,48 +53922,61 @@ small {
 }
 
 /* =========================================================
-  보직별 공지 중요도 색상 구분 최종본
+  보직별 공지 버튼 중요도 색상 구분 최종본
 
   일반공지:
-  - 파란색
+  [공지] 버튼만 연한 파랑
 
   중요공지:
-  - 연한 핑크색
+  [공지] 버튼만 연한 핑크
 
-  우선순위:
-  중요공지 > 일반공지
-
-  적용 위치:
-  style.css 맨 마지막
+  보직 카드:
+  기존 색상 유지
 ========================================================= */
 
 
 /* =========================================================
-  1. 일반공지
+  공통
 
-  활성 일반 공지만 존재할 때 파란색
+  기존 활성공지의 진한 파란색 효과 제거
+========================================================= */
+
+#shiftMemberGrid
+.role-notice-button.has-active-notice {
+  box-shadow:
+    none !important;
+
+  transform:
+    none !important;
+}
+
+
+/* =========================================================
+  일반공지
+
+  [공지] 버튼 배경만 연한 파랑
 ========================================================= */
 
 #shiftMemberGrid
 .role-notice-button.has-active-notice.has-normal-notice {
   border-color:
-    #2771be !important;
+    #9fc5eb !important;
 
   background:
-    #1f5fae !important;
+    #eaf4ff !important;
 
   color:
-    #ffffff !important;
+    #1f5fae !important;
 
   box-shadow:
     0
-    4px
-    10px
+    2px
+    6px
     rgba(
       31,
       95,
       174,
-      0.2
+      0.1
     ) !important;
 }
 
@@ -53971,13 +53984,26 @@ small {
 #shiftMemberGrid
 .role-notice-button.has-active-notice.has-normal-notice:hover {
   border-color:
-    #174f91 !important;
+    #79acd9 !important;
 
   background:
-    #194f91 !important;
+    #dceeff !important;
 
   color:
-    #ffffff !important;
+    #174f91 !important;
+}
+
+
+/* 일반공지 아이콘·글씨 */
+#shiftMemberGrid
+.role-notice-button.has-normal-notice
+.role-notice-button__icon,
+
+#shiftMemberGrid
+.role-notice-button.has-normal-notice
+.role-notice-button__text {
+  color:
+    #1f5fae !important;
 }
 
 
@@ -53985,6 +54011,10 @@ small {
 #shiftMemberGrid
 .role-notice-button.has-normal-notice
 .role-notice-button__count {
+  border:
+    1px solid
+    #b8d6f2 !important;
+
   background:
     #ffffff !important;
 
@@ -53993,45 +54023,10 @@ small {
 }
 
 
-/* 일반공지 아이콘 */
-#shiftMemberGrid
-.role-notice-button.has-normal-notice
-.role-notice-button__icon {
-  color:
-    #ffffff !important;
-}
-
-
-/* 일반공지 카드 상단 파란 선 */
-#shiftMemberGrid
-.shift-member-card-wrap:has(
-  .role-notice-button.has-normal-notice
-)
->
-.shift-member-card {
-  box-shadow:
-    inset
-    0
-    3px
-    0
-    #1f5fae,
-    0
-    2px
-    8px
-    rgba(
-      15,
-      23,
-      42,
-      0.05
-    ) !important;
-}
-
-
 /* =========================================================
-  2. 중요공지
+  중요공지
 
-  중요 공지가 하나라도 존재하면
-  일반공지보다 우선하여 연한 핑크색 표시
+  [공지] 버튼 배경만 연한 핑크
 ========================================================= */
 
 #shiftMemberGrid
@@ -54047,13 +54042,13 @@ small {
 
   box-shadow:
     0
-    4px
-    10px
+    2px
+    6px
     rgba(
       190,
       79,
       105,
-      0.16
+      0.11
     ) !important;
 }
 
@@ -54071,44 +54066,49 @@ small {
 }
 
 
+/* 중요공지 아이콘·글씨 */
+#shiftMemberGrid
+.role-notice-button.has-important-notice
+.role-notice-button__icon,
+
+#shiftMemberGrid
+.role-notice-button.has-important-notice
+.role-notice-button__text {
+  color:
+    #a23e57 !important;
+}
+
+
 /* 중요공지 건수 */
 #shiftMemberGrid
 .role-notice-button.has-important-notice
 .role-notice-button__count {
+  border:
+    1px solid
+    #edbec8 !important;
+
   background:
     #ffffff !important;
 
   color:
-    #ad405b !important;
-
-  box-shadow:
-    inset
-    0
-    0
-    0
-    1px
-    rgba(
-      194,
-      87,
-      112,
-      0.14
-    ) !important;
+    #a23e57 !important;
 }
 
 
-/* 중요공지 아이콘 */
+/* =========================================================
+  보직 카드 색상 초기화
+
+  공지가 있어도 카드 상단에
+  파랑·핑크 선이 생기지 않도록 제거
+========================================================= */
+
 #shiftMemberGrid
-.role-notice-button.has-important-notice
-.role-notice-button__icon {
-  color:
-    #ad405b !important;
+.shift-member-card-wrap:has(
+  .role-notice-button.has-normal-notice
+)
+>
+.shift-member-card,
 
-  font-weight:
-    900 !important;
-}
-
-
-/* 중요공지 카드 상단 핑크 선 */
 #shiftMemberGrid
 .shift-member-card-wrap:has(
   .role-notice-button.has-important-notice
@@ -54116,11 +54116,6 @@ small {
 >
 .shift-member-card {
   box-shadow:
-    inset
-    0
-    3px
-    0
-    #d96f87,
     0
     2px
     8px
@@ -54134,10 +54129,7 @@ small {
 
 
 /* =========================================================
-  3. 모바일 보강
-
-  기존 모바일 공지 버튼 배경에 !important가
-  사용되어 있으므로 더 구체적인 선택자로 덮어쓴다.
+  모바일에서도 동일하게 적용
 ========================================================= */
 
 @media screen and (max-width: 768px) {
@@ -54145,24 +54137,12 @@ small {
   /* 일반공지 */
   #statusView
   #shiftMemberGrid
-  .role-notice-button.has-normal-notice {
-    border-bottom-color:
-      #2771be !important;
+  .role-notice-button.has-active-notice.has-normal-notice {
+    border-color:
+      #9fc5eb !important;
 
     background:
-      #1f5fae !important;
-
-    color:
-      #ffffff !important;
-  }
-
-
-  #statusView
-  #shiftMemberGrid
-  .role-notice-button.has-normal-notice
-  .role-notice-button__count {
-    background:
-      #ffffff !important;
+      #eaf4ff !important;
 
     color:
       #1f5fae !important;
@@ -54172,26 +54152,14 @@ small {
   /* 중요공지 */
   #statusView
   #shiftMemberGrid
-  .role-notice-button.has-important-notice {
-    border-bottom-color:
-      #df93a5 !important;
+  .role-notice-button.has-active-notice.has-important-notice {
+    border-color:
+      #e3a2b1 !important;
 
     background:
       #fbe8ed !important;
 
     color:
       #a23e57 !important;
-  }
-
-
-  #statusView
-  #shiftMemberGrid
-  .role-notice-button.has-important-notice
-  .role-notice-button__count {
-    background:
-      #ffffff !important;
-
-    color:
-      #ad405b !important;
   }
 }
