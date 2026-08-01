@@ -1303,34 +1303,40 @@
           </div>
 
 
-          <form class="search-form" id="searchForm">
+<form
+  class="
+    search-form
+    search-form--compact
+  "
+  id="searchForm"
+>
 
-<!-- =====================================================
-  업무일지 조회 조건
+  <!-- =====================================================
+    업무일지 조회 조건
 
-  1행:
-  시작일 | 종료일
+    PC:
+    시작일 | 종료일 | 근무 | 보직 | 구분 | 검색어 | 버튼
 
-  2행:
-  근무 | 보직 | 구분
+    모바일:
+    시작일 | 종료일
+    근무 | 보직 | 구분
+    검색어
+    초기화 | 조회
+  ====================================================== -->
 
-  3행:
-  TAG 또는 내용
-====================================================== -->
-
-<div class="search-form-layout">
-
-  <!-- ===================================================
-    날짜 행
-  ==================================================== -->
-  <div class="search-form-date-row">
+  <div
+    class="
+      search-form-layout
+      search-form-layout--compact
+    "
+  >
 
     <!-- 시작일 -->
     <label
       class="
         form-field
-        search-date-field
-        search-date-field--start
+        search-compact-field
+        search-compact-field--start
       "
     >
 
@@ -1351,8 +1357,8 @@
     <label
       class="
         form-field
-        search-date-field
-        search-date-field--end
+        search-compact-field
+        search-compact-field--end
       "
     >
 
@@ -1368,21 +1374,13 @@
 
     </label>
 
-  </div>
-
-
-  <!-- ===================================================
-    필터 행
-
-    근무 | 보직 | 구분
-  ==================================================== -->
-  <div class="search-form-filter-row">
 
     <!-- 근무 -->
     <label
       class="
         form-field
-        search-filter-field
+        search-compact-field
+        search-compact-field--shift
       "
     >
 
@@ -1416,7 +1414,8 @@
     <label
       class="
         form-field
-        search-filter-field
+        search-compact-field
+        search-compact-field--role
       "
     >
 
@@ -1470,7 +1469,8 @@
     <label
       class="
         form-field
-        search-filter-field
+        search-compact-field
+        search-compact-field--category
       "
     >
 
@@ -1515,54 +1515,59 @@
 
     </label>
 
+
+    <!-- 검색어 -->
+    <label
+      class="
+        form-field
+        search-compact-field
+        search-compact-field--keyword
+      "
+    >
+
+      <span class="form-field__label">
+        TAG 또는 내용
+      </span>
+
+      <input
+        type="search"
+        id="searchKeyword"
+        name="keyword"
+        placeholder="TAG 번호 또는 업무 내용"
+        autocomplete="off"
+      />
+
+    </label>
+
+
+    <!-- 버튼 -->
+    <div
+      class="
+        search-form__actions
+        search-form__actions--compact
+      "
+    >
+
+      <button
+        type="reset"
+        class="secondary-button"
+        id="resetSearchButton"
+      >
+        초기화
+      </button>
+
+      <button
+        type="submit"
+        class="primary-button"
+      >
+        조회
+      </button>
+
+    </div>
+
   </div>
 
-
-  <!-- ===================================================
-    검색어 행
-  ==================================================== -->
-  <label
-    class="
-      form-field
-      search-keyword-field
-    "
-  >
-
-    <span class="form-field__label">
-      TAG 또는 내용
-    </span>
-
-    <input
-      type="search"
-      id="searchKeyword"
-      name="keyword"
-      placeholder="TAG 번호 또는 업무 내용"
-      autocomplete="off"
-    />
-
-  </label>
-
-</div>
-
-
-            <div class="search-form__actions">
-              <button
-                type="reset"
-                class="secondary-button"
-                id="resetSearchButton"
-              >
-                초기화
-              </button>
-
-              <button
-                type="submit"
-                class="primary-button"
-              >
-                조회
-              </button>
-            </div>
-
-          </form>
+</form>
 
 
 <div class="search-result-header">

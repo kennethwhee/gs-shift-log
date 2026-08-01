@@ -52562,3 +52562,1263 @@ td:nth-child(6) {
       12px !important;
   }
 }
+
+/* =========================================================
+  업무일지 상세보기 첨부파일 미리보기 카드
+
+  적용 결과:
+  - 이미지 썸네일 표시
+  - 파일명과 안내 문구 표시
+  - 클릭 시 기존 확대 팝업
+  - 일반 파일은 확장자 카드 표시
+========================================================= */
+
+
+/* =========================================================
+  첨부파일 본문 여백
+========================================================= */
+
+#logDetailModal
+.shift-log-detail-section--attachment
+.shift-log-detail-section__body {
+  min-height:
+    0 !important;
+
+  padding:
+    13px
+    15px !important;
+}
+
+
+/* =========================================================
+  미리보기 카드 목록
+========================================================= */
+
+#logDetailModal
+.detail-attachment-preview-grid {
+  display:
+    grid !important;
+
+  grid-template-columns:
+    repeat(
+      auto-fill,
+      minmax(
+        200px,
+        230px
+      )
+    ) !important;
+
+  align-items:
+    start !important;
+
+  justify-content:
+    start !important;
+
+  gap:
+    12px !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+}
+
+
+/* =========================================================
+  미리보기 카드 공통
+========================================================= */
+
+#logDetailModal
+.detail-attachment-preview-card,
+#logDetailModal
+.detail-attachment-preview-card.detail-attachment-chip {
+  appearance:
+    none !important;
+
+  display:
+    flex !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  min-height:
+    0 !important;
+
+  height:
+    auto !important;
+
+  flex-direction:
+    column !important;
+
+  align-items:
+    stretch !important;
+
+  justify-content:
+    flex-start !important;
+
+  gap:
+    0 !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  border:
+    1px solid
+    #d3deea !important;
+
+  border-radius:
+    11px !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #26364c !important;
+
+  font-size:
+    inherit !important;
+
+  line-height:
+    normal !important;
+
+  text-align:
+    left !important;
+
+  text-decoration:
+    none !important;
+
+  white-space:
+    normal !important;
+
+  overflow:
+    hidden !important;
+
+  box-shadow:
+    0
+    3px
+    10px
+    rgba(
+      28,
+      47,
+      75,
+      0.07
+    ) !important;
+
+  cursor:
+    pointer !important;
+
+  transition:
+    border-color
+    0.16s
+    ease,
+    box-shadow
+    0.16s
+    ease,
+    transform
+    0.16s
+    ease !important;
+}
+
+
+/* 마우스 올림 */
+#logDetailModal
+.detail-attachment-preview-card.is-clickable:hover {
+  border-color:
+    #8fb2d8 !important;
+
+  box-shadow:
+    0
+    8px
+    20px
+    rgba(
+      31,
+      95,
+      174,
+      0.14
+    ) !important;
+
+  transform:
+    translateY(
+      -2px
+    ) !important;
+}
+
+
+/* 키보드 선택 */
+#logDetailModal
+.detail-attachment-preview-card:focus-visible {
+  outline:
+    3px solid
+    rgba(
+      31,
+      95,
+      174,
+      0.2
+    ) !important;
+
+  outline-offset:
+    2px !important;
+}
+
+
+/* 비활성 파일 */
+#logDetailModal
+.detail-attachment-preview-card.is-disabled {
+  opacity:
+    0.65 !important;
+
+  cursor:
+    not-allowed !important;
+
+  transform:
+    none !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+/* =========================================================
+  이미지·파일 미리보기 영역
+========================================================= */
+
+#logDetailModal
+.detail-attachment-preview-card__visual {
+  position:
+    relative !important;
+
+  display:
+    flex !important;
+
+  width:
+    100% !important;
+
+  height:
+    142px !important;
+
+  min-height:
+    142px !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  overflow:
+    hidden !important;
+
+  border-bottom:
+    1px solid
+    #dde5ee !important;
+
+  background:
+    #f3f6f9 !important;
+}
+
+
+/* 이미지 */
+#logDetailModal
+.detail-attachment-preview-card__visual
+img {
+  display:
+    block !important;
+
+  width:
+    100% !important;
+
+  height:
+    100% !important;
+
+  object-fit:
+    contain !important;
+
+  object-position:
+    center !important;
+
+  background:
+    #f3f6f9 !important;
+
+  transition:
+    transform
+    0.2s
+    ease !important;
+}
+
+
+#logDetailModal
+.detail-attachment-preview-card.is-image:hover
+.detail-attachment-preview-card__visual
+img {
+  transform:
+    scale(
+      1.025
+    ) !important;
+}
+
+
+/* =========================================================
+  일반 파일 확장자 표시
+========================================================= */
+
+#logDetailModal
+.detail-attachment-preview-card__file-type {
+  display:
+    inline-flex !important;
+
+  min-width:
+    62px !important;
+
+  min-height:
+    72px !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  padding:
+    0
+    10px !important;
+
+  border:
+    1px solid
+    #bbcee2 !important;
+
+  border-radius:
+    10px !important;
+
+  background:
+    #eaf2fb !important;
+
+  color:
+    #1f5fae !important;
+
+  font-size:
+    15px !important;
+
+  font-weight:
+    900 !important;
+
+  line-height:
+    1 !important;
+
+  letter-spacing:
+    0.03em !important;
+
+  box-shadow:
+    0
+    4px
+    12px
+    rgba(
+      31,
+      95,
+      174,
+      0.1
+    ) !important;
+}
+
+
+/* =========================================================
+  마우스 올렸을 때 크게 보기 표시
+========================================================= */
+
+#logDetailModal
+.detail-attachment-preview-card__overlay {
+  position:
+    absolute !important;
+
+  inset:
+    0 !important;
+
+  display:
+    flex !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  padding:
+    10px !important;
+
+  background:
+    rgba(
+      14,
+      29,
+      50,
+      0.48
+    ) !important;
+
+  opacity:
+    0 !important;
+
+  transition:
+    opacity
+    0.16s
+    ease !important;
+
+  pointer-events:
+    none !important;
+}
+
+
+#logDetailModal
+.detail-attachment-preview-card__overlay
+span {
+  display:
+    inline-flex !important;
+
+  min-height:
+    32px !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  padding:
+    0
+    13px !important;
+
+  border:
+    1px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.55
+    ) !important;
+
+  border-radius:
+    999px !important;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.94
+    ) !important;
+
+  color:
+    #1d3553 !important;
+
+  font-size:
+    11px !important;
+
+  font-weight:
+    900 !important;
+
+  line-height:
+    1 !important;
+
+  box-shadow:
+    0
+    5px
+    15px
+    rgba(
+      0,
+      0,
+      0,
+      0.16
+    ) !important;
+}
+
+
+#logDetailModal
+.detail-attachment-preview-card.is-clickable:hover
+.detail-attachment-preview-card__overlay {
+  opacity:
+    1 !important;
+}
+
+
+/* =========================================================
+  파일명 정보
+========================================================= */
+
+#logDetailModal
+.detail-attachment-preview-card__info {
+  display:
+    flex !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  flex-direction:
+    column !important;
+
+  gap:
+    3px !important;
+
+  padding:
+    9px
+    11px
+    10px !important;
+
+  background:
+    #ffffff !important;
+}
+
+
+#logDetailModal
+.detail-attachment-preview-card__info
+strong {
+  display:
+    -webkit-box !important;
+
+  min-width:
+    0 !important;
+
+  overflow:
+    hidden !important;
+
+  color:
+    #26364c !important;
+
+  font-size:
+    11px !important;
+
+  font-weight:
+    850 !important;
+
+  line-height:
+    1.4 !important;
+
+  word-break:
+    break-all !important;
+
+  -webkit-box-orient:
+    vertical !important;
+
+  -webkit-line-clamp:
+    2 !important;
+}
+
+
+#logDetailModal
+.detail-attachment-preview-card__info
+small {
+  display:
+    block !important;
+
+  overflow:
+    hidden !important;
+
+  color:
+    #788698 !important;
+
+  font-size:
+    9px !important;
+
+  font-weight:
+    650 !important;
+
+  line-height:
+    1.35 !important;
+
+  text-overflow:
+    ellipsis !important;
+
+  white-space:
+    nowrap !important;
+}
+
+
+/* =========================================================
+  모바일 첨부파일 미리보기
+========================================================= */
+
+@media (
+  max-width:
+  768px
+) {
+  #logDetailModal
+  .shift-log-detail-section--attachment
+  .shift-log-detail-section__body {
+    padding:
+      10px !important;
+  }
+
+
+  #logDetailModal
+  .detail-attachment-preview-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    gap:
+      8px !important;
+  }
+
+
+  #logDetailModal
+  .detail-attachment-preview-card__visual {
+    height:
+      118px !important;
+
+    min-height:
+      118px !important;
+  }
+
+
+  #logDetailModal
+  .detail-attachment-preview-card__info {
+    padding:
+      8px
+      9px
+      9px !important;
+  }
+
+
+  #logDetailModal
+  .detail-attachment-preview-card__info
+  strong {
+    font-size:
+      10px !important;
+  }
+
+
+  #logDetailModal
+  .detail-attachment-preview-card__overlay {
+    display:
+      none !important;
+  }
+
+
+  #logDetailModal
+  .detail-attachment-preview-card.is-clickable:hover {
+    transform:
+      none !important;
+  }
+}
+
+
+/* 매우 좁은 모바일 */
+@media (
+  max-width:
+  360px
+) {
+  #logDetailModal
+  .detail-attachment-preview-grid {
+    grid-template-columns:
+      1fr !important;
+  }
+
+
+  #logDetailModal
+  .detail-attachment-preview-card__visual {
+    height:
+      145px !important;
+
+    min-height:
+      145px !important;
+  }
+}
+
+
+/* =========================================================
+  인쇄 시 효과 제거
+========================================================= */
+
+@media print {
+  #logDetailModal
+  .detail-attachment-preview-card {
+    box-shadow:
+      none !important;
+
+    transform:
+      none !important;
+  }
+
+
+  #logDetailModal
+  .detail-attachment-preview-card__overlay {
+    display:
+      none !important;
+  }
+}
+
+/* =========================================================
+  업무일지 조회 조건 컴팩트 최종본
+
+  PC:
+  시작일 | 종료일 | 근무 | 보직 | 구분 | 검색어 | 버튼
+
+  모바일:
+  날짜 2칸
+  필터 3칸
+  검색어 1줄
+  버튼 1줄
+========================================================= */
+
+
+/* =========================================================
+  PC 조회 조건
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  /* 조회 제목 아래 여백 */
+  #searchView
+  .section-heading {
+    margin-bottom:
+      12px !important;
+  }
+
+
+  /* 조회 폼 전체 */
+  #searchView
+  .search-form--compact {
+    margin:
+      0
+      0
+      14px !important;
+
+    padding:
+      12px
+      14px !important;
+
+    border-radius:
+      10px !important;
+  }
+
+
+  /* 한 줄 그리드 */
+  #searchView
+  .search-form-layout--compact {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      minmax(
+        145px,
+        1.05fr
+      )
+      minmax(
+        145px,
+        1.05fr
+      )
+      84px
+      102px
+      112px
+      minmax(
+        240px,
+        2.2fr
+      )
+      auto !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    align-items:
+      end !important;
+
+    gap:
+      8px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+  }
+
+
+  /* 각 필드 */
+  #searchView
+  .search-compact-field {
+    display:
+      flex !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      none !important;
+
+    flex-direction:
+      column !important;
+
+    gap:
+      4px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+  }
+
+
+  /* 필드 제목 */
+  #searchView
+  .search-form-layout--compact
+  .form-field__label {
+    display:
+      block !important;
+
+    min-height:
+      11px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+
+    color:
+      #5b6b80 !important;
+
+    font-size:
+      9px !important;
+
+    font-weight:
+      900 !important;
+
+    line-height:
+      1.2 !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  /* 모든 입력칸 */
+  #searchView
+  .search-form-layout--compact
+  input,
+
+  #searchView
+  .search-form-layout--compact
+  select {
+    display:
+      block !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      100% !important;
+
+    height:
+      36px !important;
+
+    min-height:
+      36px !important;
+
+    max-height:
+      36px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0
+      9px !important;
+
+    border:
+      1px solid
+      #c7d3e0 !important;
+
+    border-radius:
+      7px !important;
+
+    background:
+      #ffffff !important;
+
+    color:
+      #25374f !important;
+
+    font-size:
+      11px !important;
+
+    font-weight:
+      800 !important;
+
+    line-height:
+      1 !important;
+
+    box-shadow:
+      none !important;
+  }
+
+
+  /* 날짜 가운데 정렬 */
+  #searchView
+  #searchStartDate,
+
+  #searchView
+  #searchEndDate {
+    padding:
+      0
+      5px !important;
+
+    font-variant-numeric:
+      tabular-nums !important;
+
+    text-align:
+      center !important;
+  }
+
+
+  /* 검색창 */
+  #searchView
+  .search-compact-field--keyword
+  input {
+    padding:
+      0
+      11px !important;
+  }
+
+
+  /* 버튼 영역 */
+  #searchView
+  .search-form__actions--compact {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      repeat(
+        2,
+        76px
+      ) !important;
+
+    align-items:
+      end !important;
+
+    justify-content:
+      end !important;
+
+    gap:
+      6px !important;
+
+    width:
+      auto !important;
+
+    min-width:
+      0 !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+  }
+
+
+  /* 버튼 높이를 입력칸과 동일하게 */
+  #searchView
+  .search-form__actions--compact
+  button {
+    width:
+      76px !important;
+
+    min-width:
+      76px !important;
+
+    height:
+      36px !important;
+
+    min-height:
+      36px !important;
+
+    max-height:
+      36px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0
+      10px !important;
+
+    border-radius:
+      7px !important;
+
+    font-size:
+      11px !important;
+
+    line-height:
+      1 !important;
+  }
+}
+
+
+/* =========================================================
+  모바일 조회 조건
+
+  모바일은 기존과 비슷한 배치를 유지한다.
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  #searchView
+  .search-form--compact {
+    margin:
+      0
+      0
+      12px !important;
+
+    padding:
+      10px !important;
+  }
+
+
+  #searchView
+  .search-form-layout--compact {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      repeat(
+        6,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    gap:
+      6px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+  }
+
+
+  /* 시작일 */
+  #searchView
+  .search-compact-field--start {
+    grid-column:
+      1 /
+      4 !important;
+  }
+
+
+  /* 종료일 */
+  #searchView
+  .search-compact-field--end {
+    grid-column:
+      4 /
+      7 !important;
+  }
+
+
+  /* 근무 */
+  #searchView
+  .search-compact-field--shift {
+    grid-column:
+      1 /
+      3 !important;
+  }
+
+
+  /* 보직 */
+  #searchView
+  .search-compact-field--role {
+    grid-column:
+      3 /
+      5 !important;
+  }
+
+
+  /* 구분 */
+  #searchView
+  .search-compact-field--category {
+    grid-column:
+      5 /
+      7 !important;
+  }
+
+
+  /* 검색어 */
+  #searchView
+  .search-compact-field--keyword {
+    grid-column:
+      1 /
+      -1 !important;
+  }
+
+
+  #searchView
+  .search-compact-field {
+    display:
+      flex !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    flex-direction:
+      column !important;
+
+    gap:
+      3px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+  }
+
+
+  #searchView
+  .search-form-layout--compact
+  .form-field__label {
+    min-height:
+      10px !important;
+
+    margin:
+      0 !important;
+
+    font-size:
+      8px !important;
+  }
+
+
+  #searchView
+  .search-form-layout--compact
+  input,
+
+  #searchView
+  .search-form-layout--compact
+  select {
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    height:
+      30px !important;
+
+    min-height:
+      30px !important;
+
+    max-height:
+      30px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0
+      7px !important;
+
+    border-radius:
+      6px !important;
+
+    font-size:
+      9px !important;
+  }
+
+
+  /* 모바일 버튼 */
+  #searchView
+  .search-form__actions--compact {
+    display:
+      grid !important;
+
+    grid-column:
+      1 /
+      -1 !important;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    gap:
+      6px !important;
+
+    width:
+      100% !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+  }
+
+
+  #searchView
+  .search-form__actions--compact
+  button {
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    height:
+      34px !important;
+
+    min-height:
+      34px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0
+      10px !important;
+
+    border-radius:
+      7px !important;
+
+    font-size:
+      10px !important;
+  }
+}

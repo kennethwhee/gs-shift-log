@@ -7953,6 +7953,102 @@ async function loadLegacyLogsForSearchDate(
 }
 
 /* =========================================================
+  업무일지 조회 최대 종료일 계산
+
+  기준:
+  시작일로부터 달력 기준 6개월
+
+  예:
+  2026-02-02 → 2026-08-02
+  2026-08-31 → 2027-02-28
+========================================================= */
+
+function getSearchMaximumEndDate(
+  startDateValue
+) {
+  const normalizedStartDate =
+    String(
+      startDateValue ||
+      ""
+    ).trim();
+
+
+  if (
+    !normalizedStartDate
+  ) {
+    return "";
+  }
+
+
+  const startDate =
+    new Date(
+      `${normalizedStartDate}T00:00:00`
+    );
+
+
+  if (
+    Number.isNaN(
+      startDate.getTime()
+    )
+  ) {
+    return "";
+  }
+
+
+  /*
+    31일인 날짜가 짧은 달로 이동할 때
+    다음 달로 넘어가지 않게 원래 일자를 보관한다.
+  */
+  const originalDay =
+    startDate.getDate();
+
+
+  const maximumEndDate =
+    new Date(
+      startDate
+    );
+
+
+  /*
+    먼저 1일로 이동한 뒤
+    6개월을 더한다.
+  */
+  maximumEndDate.setDate(
+    1
+  );
+
+
+  maximumEndDate.setMonth(
+    maximumEndDate.getMonth() +
+    6
+  );
+
+
+  /*
+    대상 월의 마지막 날짜
+  */
+  const lastDayOfTargetMonth =
+    new Date(
+      maximumEndDate.getFullYear(),
+      maximumEndDate.getMonth() + 1,
+      0
+    ).getDate();
+
+
+  maximumEndDate.setDate(
+    Math.min(
+      originalDay,
+      lastDayOfTargetMonth
+    )
+  );
+
+
+  return formatInputDate(
+    maximumEndDate
+  );
+}
+
+/* =========================================================
   시작일 ~ 종료일 날짜 배열 생성
 
   예:
@@ -8040,16 +8136,14 @@ function createSearchDateRange(
   return dateList;
 }
 
-
 /* =========================================================
   조회 기간 전체의 과거 업무일지 불러오기
 
-  각 날짜마다:
-  - D/S
-  - N/S
-
-  과거 업무일지를 불러온 뒤
-  하나의 배열로 합쳐서 반환한다.
+  처리 방식:
+  - 시작일~종료일 날짜 목록 생성
+  - 날짜 6개씩 묶어서 병렬 조회
+  - 한 번에 지나치게 많은 요청을 보내지 않음
+  - 특정 날짜 실패 시 나머지 날짜는 계속 조회
 ========================================================= */
 
 async function loadLegacyLogsForSearchRange(
@@ -8063,54 +8157,241 @@ async function loadLegacyLogsForSearchRange(
     );
 
 
-  if (!searchDates.length) {
+  if (
+    !searchDates.length
+  ) {
     return [];
   }
 
 
-  /*
-    한 번에 너무 많은 서버 요청을 보내지 않도록
-    날짜별로 순서대로 불러온다.
-
-    날짜 1개당:
-    DAY 1회
-    NIGHT 1회
-  */
   const allLegacyLogs = [];
 
 
+  /*
+    동시에 조회할 날짜 수
+
+    날짜 1개당 D/S와 N/S를 조회하므로
+    실제 동시 요청은 최대 약 12개다.
+  */
+  const batchSize =
+    6;
+
+
   for (
-    const searchDate
-    of searchDates
+    let startIndex = 0;
+    startIndex <
+      searchDates.length;
+    startIndex +=
+      batchSize
   ) {
-    try {
-      const dateLogs =
-        await loadLegacyLogsForSearchDate(
-          searchDate
+    const dateBatch =
+      searchDates.slice(
+        startIndex,
+        startIndex +
+        batchSize
+      );
+
+
+    const batchResults =
+      await Promise.allSettled(
+        dateBatch.map(
+          searchDate => {
+            return (
+              loadLegacyLogsForSearchDate(
+                searchDate
+              )
+            );
+          }
+        )
+      );
+
+
+    batchResults.forEach(
+      (
+        result,
+        resultIndex
+      ) => {
+        const searchDate =
+          dateBatch[
+            resultIndex
+          ];
+
+
+        if (
+          result.status ===
+          "fulfilled"
+        ) {
+          const dateLogs =
+            Array.isArray(
+              result.value
+            )
+              ? result.value
+              : [];
+
+
+          allLegacyLogs.push(
+            ...dateLogs
+          );
+
+
+          return;
+        }
+
+
+        console.error(
+          `${searchDate} 조회용 과거 업무일지 불러오기 실패:`,
+          result.reason
         );
-
-
-      allLegacyLogs.push(
-        ...dateLogs
-      );
-
-    } catch (error) {
-      console.error(
-        `${searchDate} 조회용 과거 업무일지 불러오기 실패:`,
-        error
-      );
-
-
-      /*
-        특정 날짜를 불러오지 못하더라도
-        나머지 날짜 조회는 계속 진행한다.
-      */
-    }
+      }
+    );
   }
 
 
   return allLegacyLogs;
 }
+
+/* =========================================================
+  조회 날짜 입력창 제한 동기화
+
+  시작일 선택 시:
+  - 종료일 최소값 = 시작일
+  - 종료일 최대값 = 시작일 기준 6개월
+
+  폼 초기화 시:
+  - 초기값을 기준으로 다시 계산
+========================================================= */
+
+function syncSearchDateInputLimits() {
+  const searchStartDate =
+    document.getElementById(
+      "searchStartDate"
+    );
+
+
+  const searchEndDate =
+    document.getElementById(
+      "searchEndDate"
+    );
+
+
+  if (
+    !searchStartDate ||
+    !searchEndDate
+  ) {
+    return;
+  }
+
+
+  const startDate =
+    String(
+      searchStartDate.value ||
+      ""
+    ).trim();
+
+
+  if (
+    !startDate
+  ) {
+    searchEndDate.removeAttribute(
+      "min"
+    );
+
+
+    searchEndDate.removeAttribute(
+      "max"
+    );
+
+
+    return;
+  }
+
+
+  const maximumEndDate =
+    getSearchMaximumEndDate(
+      startDate
+    );
+
+
+  searchEndDate.min =
+    startDate;
+
+
+  if (
+    maximumEndDate
+  ) {
+    searchEndDate.max =
+      maximumEndDate;
+
+  } else {
+    searchEndDate.removeAttribute(
+      "max"
+    );
+  }
+}
+
+
+/* =========================================================
+  조회 날짜 제한 이벤트 연결
+========================================================= */
+
+function initializeSearchDateInputLimits() {
+  const searchForm =
+    document.getElementById(
+      "searchForm"
+    );
+
+
+  const searchStartDate =
+    document.getElementById(
+      "searchStartDate"
+    );
+
+
+  if (
+    !searchStartDate
+  ) {
+    return;
+  }
+
+
+  searchStartDate.addEventListener(
+    "change",
+    syncSearchDateInputLimits
+  );
+
+
+  searchStartDate.addEventListener(
+    "input",
+    syncSearchDateInputLimits
+  );
+
+
+  searchForm?.addEventListener(
+    "reset",
+    () => {
+      window.setTimeout(
+        syncSearchDateInputLimits,
+        0
+      );
+    }
+  );
+
+
+  /*
+    기존 기본 날짜 설정 함수가 실행된 뒤
+    제한값을 다시 계산한다.
+  */
+  window.setTimeout(
+    syncSearchDateInputLimits,
+    0
+  );
+}
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  initializeSearchDateInputLimits
+);
 
 /* =========================================================
   TO · BO1 · BO2 전 근무자 운전현황 가져오기
@@ -15774,6 +16055,10 @@ function importAllMemberLogs() {
         }
 
 
+        /*
+          기존 항목 ID와 최초 원본 출처 정보는
+          createMemberImportedEntry()에서 이미 확정한다.
+        */
         const importedEntry =
           createMemberImportedEntry(
             memberLog,
@@ -15781,28 +16066,6 @@ function importAllMemberLogs() {
             sourceEntry,
             sourceIndex
           );
-
-
-        importedEntry.importedFromRole =
-          normalizedRole;
-
-
-        importedEntry.importedFromAuthor =
-          String(
-            memberLog.author ||
-            ""
-          ).trim();
-
-
-        importedEntry.importedFromLogId =
-          String(
-            memberLog.id ||
-            ""
-          ).trim();
-
-
-        importedEntry.importedFromEntryIndex =
-          sourceIndex;
 
 
         /*
@@ -27699,12 +27962,28 @@ function addOrUpdateLogEntry() {
 
 
   /*
-    기존 가져오기 출처 데이터를 유지한다.
-
-    파트장이 팀원 업무일지를 가져온 뒤
-    항목을 수정해도 출처 보직 정보가 사라지지 않는다.
+    수정 중인 항목은 기존 ID와 메타데이터를 유지하고,
+    완전 신규 항목만 새 ID를 만든다.
   */
+  const previousEntryData =
+    previousEntry &&
+    typeof previousEntry ===
+      "object"
+      ? previousEntry
+      : {};
+
+
   const entry = {
+    ...previousEntryData,
+
+    id:
+      resolveLogEntryId(
+        previousEntryData,
+        previousEntryData
+          .importedFromLogId,
+        importedFromEntryIndex
+      ),
+
     time:
       normalizedTime,
 
@@ -27716,22 +27995,22 @@ function addOrUpdateLogEntry() {
 
     importedFromRole:
       String(
-        previousEntry
-          ?.importedFromRole ||
+        previousEntryData
+          .importedFromRole ||
         ""
       ).trim(),
 
     importedFromAuthor:
       String(
-        previousEntry
-          ?.importedFromAuthor ||
+        previousEntryData
+          .importedFromAuthor ||
         ""
       ).trim(),
 
     importedFromLogId:
       String(
-        previousEntry
-          ?.importedFromLogId ||
+        previousEntryData
+          .importedFromLogId ||
         ""
       ).trim(),
 
@@ -39571,6 +39850,316 @@ function resolveDetailEntrySourceRole(entry, detailLog) {
 ========================================================= */
 
 /* =========================================================
+  상세보기 첨부파일 확장자 표시 이름
+========================================================= */
+
+function getDetailAttachmentFileTypeLabel(
+  fileName
+) {
+  const normalizedFileName =
+    String(
+      fileName ||
+      ""
+    )
+      .trim()
+      .split("?")[0]
+      .split("#")[0];
+
+
+  const extensionMatch =
+    normalizedFileName.match(
+      /\.([a-z0-9]+)$/i
+    );
+
+
+  const extension =
+    String(
+      extensionMatch?.[1] ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  return (
+    extension
+      ? extension.slice(
+          0,
+          5
+        )
+      : "FILE"
+  );
+}
+
+
+/* =========================================================
+  상세보기 첨부파일 이미지 여부 확인
+========================================================= */
+
+function isDetailAttachmentImage(
+  attachment
+) {
+  const mimeType =
+    String(
+      attachment?.mimeType ||
+      attachment?.mime_type ||
+      attachment?.type ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (
+    mimeType.startsWith(
+      "image/"
+    )
+  ) {
+    return true;
+  }
+
+
+  const fileName =
+    String(
+      attachment?.name ||
+      attachment?.fileName ||
+      attachment?.file_name ||
+      ""
+    )
+      .trim()
+      .toLowerCase()
+      .split("?")[0]
+      .split("#")[0];
+
+
+  return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)$/i
+    .test(
+      fileName
+    );
+}
+
+
+/* =========================================================
+  상세보기 첨부파일 미리보기 카드 HTML 생성
+
+  이미지:
+  - 썸네일 표시
+  - 클릭하면 기존 이미지 확대 팝업 실행
+
+  일반 파일:
+  - 확장자 카드 표시
+  - 주소가 있으면 새 창에서 열기
+
+  주소 없음:
+  - 비활성 카드 표시
+========================================================= */
+
+function createDetailAttachmentPreviewCardHtml(
+  attachment,
+  index
+) {
+  const fileName =
+    String(
+      attachment?.name ||
+      `첨부파일 ${index + 1}`
+    ).trim();
+
+
+  const fileUrl =
+    String(
+      attachment?.url ||
+      ""
+    ).trim();
+
+
+  const canOpen =
+    Boolean(
+      fileUrl
+    );
+
+
+  const isImage =
+    isDetailAttachmentImage(
+      attachment
+    );
+
+
+  const fileTypeLabel =
+    getDetailAttachmentFileTypeLabel(
+      fileName
+    );
+
+
+  const safeFileName =
+    escapeHtml(
+      fileName
+    );
+
+
+  const safeFileUrl =
+    escapeHtml(
+      fileUrl
+    );
+
+
+  const visualHtml =
+    isImage &&
+    canOpen
+      ? `
+        <img
+          src="${safeFileUrl}"
+          alt="${safeFileName} 미리보기"
+          loading="lazy"
+        />
+      `
+      : `
+        <span
+          class="
+            detail-attachment-preview-card__file-type
+          "
+          aria-hidden="true"
+        >
+          ${escapeHtml(
+            fileTypeLabel
+          )}
+        </span>
+      `;
+
+
+  const guideText =
+    !canOpen
+      ? "파일 주소를 확인할 수 없습니다."
+      : isImage
+        ? "클릭하여 크게 보기"
+        : "클릭하여 파일 열기";
+
+
+  const cardInnerHtml = `
+    <span
+      class="
+        detail-attachment-preview-card__visual
+      "
+    >
+      ${visualHtml}
+
+      ${
+        canOpen
+          ? `
+            <span
+              class="
+                detail-attachment-preview-card__overlay
+              "
+              aria-hidden="true"
+            >
+              <span>
+                ${
+                  isImage
+                    ? "크게 보기"
+                    : "파일 열기"
+                }
+              </span>
+            </span>
+          `
+          : ""
+      }
+    </span>
+
+
+    <span
+      class="
+        detail-attachment-preview-card__info
+      "
+    >
+      <strong
+        title="${safeFileName}"
+      >
+        ${safeFileName}
+      </strong>
+
+      <small>
+        ${escapeHtml(
+          guideText
+        )}
+      </small>
+    </span>
+  `;
+
+
+  /*
+    이미지는 기존 이미지 확대 팝업과 연결한다.
+
+    기존 bindDetailAttachmentPreviewEvents()가
+    찾을 수 있도록 detail-attachment-chip 클래스와
+    data-detail-attachment-index를 유지한다.
+  */
+  if (
+    isImage &&
+    canOpen
+  ) {
+    return `
+      <button
+        type="button"
+        class="
+          detail-attachment-chip
+          detail-attachment-preview-card
+          is-image
+          is-clickable
+        "
+        data-detail-attachment-index="${index}"
+        title="${safeFileName} 크게 보기"
+      >
+        ${cardInnerHtml}
+      </button>
+    `;
+  }
+
+
+  /*
+    PDF, 엑셀, 문서 등 일반 파일은
+    새 창에서 연다.
+  */
+  if (
+    canOpen
+  ) {
+    return `
+      <a
+        class="
+          detail-attachment-preview-card
+          is-file
+          is-clickable
+        "
+        href="${safeFileUrl}"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="${safeFileName} 열기"
+      >
+        ${cardInnerHtml}
+      </a>
+    `;
+  }
+
+
+  /*
+    주소가 없는 첨부파일
+  */
+  return `
+    <button
+      type="button"
+      class="
+        detail-attachment-chip
+        detail-attachment-preview-card
+        is-file
+        is-disabled
+      "
+      disabled
+      title="열 수 없는 첨부파일"
+    >
+      ${cardInnerHtml}
+    </button>
+  `;
+}
+
+/* =========================================================
   업무일지 상세보기 최종본
 
   분리 구조:
@@ -40548,89 +41137,66 @@ const remarkHtml =
       </div>
     `;
 
-  /* =====================================================
-    첨부파일
-  ====================================================== */
+/* =====================================================
+  첨부파일 미리보기 카드
 
-  const attachments =
-    Array.isArray(
-      log.attachments
-    )
-      ? log.attachments
-      : [];
+  이미지:
+  - 썸네일 표시
+  - 클릭 시 기존 확대 팝업
 
+  일반 파일:
+  - 파일 확장자 카드
+  - 클릭 시 새 창 열기
+====================================================== */
 
-  const normalizedAttachments =
-    attachments.map(
-      normalizeDetailAttachment
-    );
-
-
-  const attachmentHtml =
-    normalizedAttachments.length
-      ? `
-        <div class="detail-attachment-list">
-
-          ${normalizedAttachments
-            .map(
-              (
-                attachment,
-                index
-              ) => {
-                const canOpen =
-                  Boolean(
-                    attachment.url
-                  );
+const attachments =
+  Array.isArray(
+    log.attachments
+  )
+    ? log.attachments
+    : [];
 
 
-                return `
-                  <button
-                    type="button"
-                    class="
-                      detail-attachment-chip
-                      ${
-                        canOpen
-                          ? "is-clickable"
-                          : "is-disabled"
-                      }
-                    "
-                    data-detail-attachment-index="${index}"
-                    ${
-                      canOpen
-                        ? ""
-                        : "disabled"
-                    }
-                    title="${
-                      canOpen
-                        ? "첨부 이미지 보기"
-                        : "열 수 없는 첨부파일"
-                    }"
-                  >
-                    <span
-                      aria-hidden="true"
-                    >
-                      📎
-                    </span>
+const normalizedAttachments =
+  attachments.map(
+    normalizeDetailAttachment
+  );
 
-                    <span>
-                      ${escapeHtml(
-                        attachment.name
-                      )}
-                    </span>
-                  </button>
-                `;
-              }
-            )
-            .join("")}
 
-        </div>
-      `
-      : `
-        <div class="detail-empty-message">
-          첨부파일이 없습니다.
-        </div>
-      `;
-
+const attachmentHtml =
+  normalizedAttachments.length
+    ? `
+      <div
+        class="
+          detail-attachment-preview-grid
+        "
+      >
+        ${normalizedAttachments
+          .map(
+            (
+              attachment,
+              index
+            ) => {
+              return (
+                createDetailAttachmentPreviewCardHtml(
+                  attachment,
+                  index
+                )
+              );
+            }
+          )
+          .join("")}
+      </div>
+    `
+    : `
+      <div
+        class="
+          detail-empty-message
+        "
+      >
+        첨부파일이 없습니다.
+      </div>
+    `;
 
   /* =====================================================
     최종 상세 HTML
@@ -41572,59 +42138,87 @@ async function runSearch() {
       .toLowerCase();
 
 
-  if (
-    !startDate ||
-    !endDate
-  ) {
-    showToast(
-      "조회 시작일과 종료일을 선택해 주세요."
-    );
+/* =====================================================
+  조회 기간 검사
 
-    return;
-  }
+  최대:
+  시작일 기준 달력 6개월
+====================================================== */
+
+if (
+  !startDate ||
+  !endDate
+) {
+  showToast(
+    "조회 시작일과 종료일을 선택해 주세요."
+  );
 
 
-  if (
-    startDate >
+  return;
+}
+
+
+if (
+  startDate >
+  endDate
+) {
+  showToast(
+    "종료일은 시작일보다 빠를 수 없습니다."
+  );
+
+
+  return;
+}
+
+
+const maximumEndDate =
+  getSearchMaximumEndDate(
+    startDate
+  );
+
+
+if (
+  !maximumEndDate
+) {
+  showToast(
+    "조회 시작일을 확인해 주세요."
+  );
+
+
+  return;
+}
+
+
+if (
+  endDate >
+  maximumEndDate
+) {
+  showToast(
+    `조회 기간은 최대 6개월까지 선택할 수 있습니다. 최대 종료일은 ${maximumEndDate}입니다.`
+  );
+
+
+  return;
+}
+
+
+const searchDates =
+  createSearchDateRange(
+    startDate,
     endDate
-  ) {
-    showToast(
-      "종료일은 시작일보다 빠를 수 없습니다."
-    );
-
-    return;
-  }
+  );
 
 
-  const searchDates =
-    createSearchDateRange(
-      startDate,
-      endDate
-    );
+if (
+  !searchDates.length
+) {
+  showToast(
+    "조회 기간을 확인해 주세요."
+  );
 
 
-  if (
-    !searchDates.length
-  ) {
-    showToast(
-      "조회 기간을 확인해 주세요."
-    );
-
-    return;
-  }
-
-
-  if (
-    searchDates.length >
-    31
-  ) {
-    showToast(
-      "조회 기간은 최대 31일까지 선택할 수 있습니다."
-    );
-
-    return;
-  }
-
+  return;
+}
 
   const submitButton =
     elements.searchForm
