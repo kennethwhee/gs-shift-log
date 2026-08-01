@@ -54493,14 +54493,17 @@ function getRoleNoticesByRole(
     );
 }
 
-
 /* =========================================================
-  보직 카드 공지 버튼 갱신
+  보직 카드의 활성 공지 버튼 갱신
 
-  표시:
-  - 항상 종 아이콘 사용
-  - 활성 공지가 있으면 숫자 배지 표시
-  - 더 이상 ■ / □ 문자로 변경하지 않음
+  색상 구분:
+  - 일반 공지만 있음:
+    has-normal-notice
+
+  - 중요 공지가 하나라도 있음:
+    has-important-notice
+
+  - 중요 공지가 있으면 일반 공지보다 우선 표시
 ========================================================= */
 
 function updateRoleNoticeButton(
@@ -54519,7 +54522,11 @@ function updateRoleNoticeButton(
     );
 
 
-  const activeCount =
+  /* =====================================================
+    현재 선택 날짜에 활성화된 공지만 가져온다.
+  ====================================================== */
+
+  const activeNotices =
     getRoleNoticesByRole(
       role
     ).filter(
@@ -54531,7 +54538,50 @@ function updateRoleNoticeButton(
           "active"
         );
       }
+    );
+
+
+  const activeCount =
+    activeNotices.length;
+
+
+  /* =====================================================
+    일반·중요 공지 개수
+  ====================================================== */
+
+  const importantCount =
+    activeNotices.filter(
+      notice => {
+        return (
+          notice.isImportant ===
+          true
+        );
+      }
     ).length;
+
+
+  const normalCount =
+    activeCount -
+    importantCount;
+
+
+  const hasActiveNotice =
+    activeCount >
+    0;
+
+
+  /*
+    중요 공지가 하나라도 있으면
+    중요 공지 색상을 우선 적용한다.
+  */
+  const hasImportantNotice =
+    importantCount >
+    0;
+
+
+  const hasNormalNoticeOnly =
+    hasActiveNotice &&
+    !hasImportantNotice;
 
 
   const icon =
@@ -54546,33 +54596,108 @@ function updateRoleNoticeButton(
     );
 
 
+  /* =====================================================
+    공지 상태 클래스
+
+    기존 has-active-notice는 유지한다.
+  ====================================================== */
+
   button.classList.toggle(
     "has-active-notice",
-    activeCount >
-      0
+    hasActiveNotice
   );
 
 
-  button.setAttribute(
-    "aria-label",
-    activeCount >
-      0
-      ? `${role} 활성 공지 ${activeCount}건 열기`
-      : `${role} 공지사항 열기`
+  button.classList.toggle(
+    "has-normal-notice",
+    hasNormalNoticeOnly
+  );
+
+
+  button.classList.toggle(
+    "has-important-notice",
+    hasImportantNotice
   );
 
 
   /*
-    공지 유무와 관계없이
-    아이콘은 항상 종으로 유지한다.
+    현재 상태를 개발자 도구에서도
+    확인할 수 있도록 저장한다.
   */
+  button.dataset.noticePriority =
+    hasImportantNotice
+      ? "important"
+      : (
+          hasNormalNoticeOnly
+            ? "normal"
+            : "none"
+        );
+
+
+  /* =====================================================
+    접근성 안내 문구
+  ====================================================== */
+
+  if (
+    hasImportantNotice
+  ) {
+    button.setAttribute(
+      "aria-label",
+      [
+        `${role} 중요 공지 ${importantCount}건`,
+
+        normalCount >
+          0
+          ? `일반 공지 ${normalCount}건`
+          : "",
+
+        "열기"
+      ]
+        .filter(
+          Boolean
+        )
+        .join(
+          ", "
+        )
+    );
+
+  } else if (
+    hasNormalNoticeOnly
+  ) {
+    button.setAttribute(
+      "aria-label",
+      `${role} 일반 공지 ${normalCount}건 열기`
+    );
+
+  } else {
+    button.setAttribute(
+      "aria-label",
+      `${role} 공지사항 열기`
+    );
+  }
+
+
+  /* =====================================================
+    기존 아이콘이 있는 HTML도 대응
+  ====================================================== */
+
   if (
     icon
   ) {
     icon.textContent =
-      "🔔";
+      hasImportantNotice
+        ? "!"
+        : (
+            hasNormalNoticeOnly
+              ? "■"
+              : "□"
+          );
   }
 
+
+  /* =====================================================
+    활성 공지 전체 건수
+  ====================================================== */
 
   if (
     count

@@ -824,98 +824,721 @@ function validateLogInput(
   };
 }
 
-function canEditExistingLog(
-  existingLog,
-  user
-) {
-  /*
-    최고관리자는 모든 신규 업무일지 수정 가능
-  */
-  if (
-    user.isSuperAdmin
-  ) {
-    return true;
-  }
+/* =========================================================
+  Facility Navigator 점검이력 연동 대상 선별
+
+  연동 대상:
+  - TAG와 내용이 있는 항목
+  - TM/BM/CM 발행·작업
+  - 파트원: 결재완료
+  - 파트장: 저장완료
+
+  연동 제외:
+  - 임시저장
+  - 결재요청
+  - 인계사항
+  - 비고
+  - 운전현황
+
+  항목 식별:
+  1. 기존 고정 ID
+  2. 최초 원본 일지 ID + 원본 항목 번호
+========================================================= */
+
+const NAVIGATOR_INSPECTION_SYNC_CATEGORIES =
+  new Set([
+    "TM 발행",
+    "TM 작업",
+    "BM 발행",
+    "BM 작업",
+    "CM 발행",
+    "CM 작업"
+  ]);
 
 
-  const logRole =
-    normalizeLogRole(
-      existingLog.role
-    );
-
-
-  const status =
-    normalizeStatus(
-      existingLog.status
-    );
-
-
-  const isAuthor =
-    normalizeEmployeeNo(
-      existingLog.authorId
-    ) ===
-      user.employeeNo;
-
-
-  /*
-    파트장 계정
-
-    - 본인이 작성한 파트장 업무일지만 수정 가능
-    - 저장완료 상태만 수정 가능
-    - 다른 일반 보직 업무일지는 수정 불가
-  */
-  if (
-    user.role ===
-      "admin"
-  ) {
-    return (
-      logRole ===
-        "파트장" &&
-
-      isAuthor &&
-
-      status ===
-        "저장완료"
-    );
-  }
-
-
-  /*
-    일반회원은 파트장 업무일지 수정 불가
-  */
-  if (
-    logRole ===
-      "파트장"
-  ) {
-    return false;
-  }
-
-
-  const editableMemberRoles = [
+const NAVIGATOR_INSPECTION_SYNC_MEMBER_ROLES =
+  new Set([
     "TGO",
     "BCO1",
     "BCO2",
     "TO",
     "BO1",
     "BO2"
+  ]);
+
+
+/* =========================================================
+  Navigator 연동용 구분명 정규화
+========================================================= */
+
+function normalizeNavigatorInspectionCategory(
+  value
+) {
+  const compactCategory =
+    normalizeText(
+      value
+    )
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  const categoryPrefixes = [
+    [
+      "TM발행",
+      "TM 발행"
+    ],
+    [
+      "TM작업",
+      "TM 작업"
+    ],
+    [
+      "BM발행",
+      "BM 발행"
+    ],
+    [
+      "BM작업",
+      "BM 작업"
+    ],
+    [
+      "CM발행",
+      "CM 발행"
+    ],
+    [
+      "CM작업",
+      "CM 작업"
+    ]
   ];
 
 
-  /*
-    일반 보직 업무일지
+  const matchedCategory =
+    categoryPrefixes.find(
+      (
+        [
+          prefix
+        ]
+      ) => {
+        return compactCategory
+          .startsWith(
+            prefix
+          );
+      }
+    );
 
-    - 작성중(임시저장): 작성자와 관계없이 수정 가능
-    - 결재요청: 먼저 결재취소해야 하므로 수정 불가
-    - 결재완료: 수정 불가
+
+  return (
+    matchedCategory?.[1] ||
+    ""
+  );
+}
+
+
+/* =========================================================
+  원본 항목 번호 정규화
+========================================================= */
+
+function normalizeNavigatorInspectionEntryIndex(
+  value
+) {
+  if (
+    value === "" ||
+    value === null ||
+    value === undefined
+  ) {
+    return null;
+  }
+
+
+  const numericValue =
+    Number(
+      value
+    );
+
+
+  return (
+    Number.isInteger(
+      numericValue
+    ) &&
+    numericValue >= 0
+  )
+    ? numericValue
+    : null;
+}
+
+
+/* =========================================================
+  Navigator 연동용 고정 항목 ID
+========================================================= */
+
+function createNavigatorInspectionSourceEntryId(
+  log,
+  entry,
+  entryIndex
+) {
+  const existingEntryId =
+    normalizeText(
+      entry?.id
+    );
+
+
+  /*
+    저장된 고정 ID가 있으면
+    가장 먼저 사용한다.
+  */
+  if (
+    existingEntryId
+  ) {
+    return existingEntryId;
+  }
+
+
+  /*
+    파트장에게 취합된 항목은
+    최초 원본 업무일지 ID를 유지한다.
+  */
+  const sourceLogId =
+    normalizeText(
+      entry
+        ?.importedFromLogId ||
+      log?.id
+    );
+
+
+  const importedEntryIndex =
+    normalizeNavigatorInspectionEntryIndex(
+      entry
+        ?.importedFromEntryIndex
+    );
+
+
+  const fallbackEntryIndex =
+    normalizeNavigatorInspectionEntryIndex(
+      entryIndex
+    );
+
+
+  const sourceEntryIndex =
+    importedEntryIndex ??
+    fallbackEntryIndex;
+
+
+  if (
+    !sourceLogId ||
+    sourceEntryIndex ===
+      null
+  ) {
+    return "";
+  }
+
+
+  /*
+    ID가 없는 과거 항목도
+    같은 원본이면 항상 같은 ID를 사용한다.
+  */
+  return [
+    "entry-legacy",
+    sourceLogId,
+    sourceEntryIndex
+  ].join(
+    "-"
+  );
+}
+
+
+/* =========================================================
+  저장 구조별 업무 항목 수집
+
+  새 구조와 기존 entries가 함께 저장되어도
+  이후 단계에서 같은 항목은 한 번만 남긴다.
+========================================================= */
+
+function collectNavigatorInspectionSourceEntries(
+  log
+) {
+  const sourceEntries = [];
+
+
+  const appendEntries = (
+    entries,
+    collection,
+    fallbackCategory = ""
+  ) => {
+    if (
+      !Array.isArray(
+        entries
+      )
+    ) {
+      return;
+    }
+
+
+    entries.forEach(
+      (
+        entry,
+        entryIndex
+      ) => {
+        if (
+          !entry ||
+          typeof entry !==
+            "object" ||
+          Array.isArray(
+            entry
+          )
+        ) {
+          return;
+        }
+
+
+        sourceEntries.push({
+          entry,
+          entryIndex,
+          collection,
+          fallbackCategory
+        });
+      }
+    );
+  };
+
+
+  /*
+    기존 공통 배열
+  */
+  appendEntries(
+    log?.entries,
+    "entries"
+  );
+
+
+  /*
+    새 분리 저장 배열
+  */
+  appendEntries(
+    log?.tmEntries,
+    "tmEntries",
+    "TM 발행"
+  );
+
+
+  appendEntries(
+    log?.handoverEntries,
+    "handoverEntries"
+  );
+
+
+  /*
+    비고는 수집하더라도
+    최종 대상 선별에서 제외된다.
+  */
+  appendEntries(
+    log?.remarkEntries,
+    "remarkEntries",
+    "비고"
+  );
+
+
+  return sourceEntries;
+}
+
+
+/* =========================================================
+  업무일지 상태별 연동 가능 여부
+========================================================= */
+
+function isNavigatorInspectionPublishableLog(
+  log
+) {
+  const role =
+    normalizeLogRole(
+      log?.role
+    );
+
+
+  const status =
+    normalizeStatus(
+      log?.status
+    );
+
+
+  /*
+    파트장 업무일지는 저장완료 후 연동
+  */
+  if (
+    role ===
+      "파트장"
+  ) {
+    return (
+      status ===
+      "저장완료"
+    );
+  }
+
+
+  /*
+    파트원 업무일지는 결재완료 후 연동
   */
   return (
-    editableMemberRoles.includes(
-      logRole
-    ) &&
+    NAVIGATOR_INSPECTION_SYNC_MEMBER_ROLES
+      .has(
+        role
+      ) &&
 
     status ===
-      "임시저장"
+      "결재완료"
   );
+}
+
+
+/* =========================================================
+  Navigator 점검이력 항목 생성
+========================================================= */
+
+function createNavigatorInspectionSyncItems(
+  log
+) {
+  const containerLogId =
+    normalizeText(
+      log?.id
+    );
+
+
+  const inspectionDate =
+    normalizeText(
+      log?.date
+    );
+
+
+  const shift =
+    normalizeShift(
+      log?.shift
+    );
+
+
+  const containerRole =
+    normalizeLogRole(
+      log?.role
+    );
+
+
+  const uniqueItems =
+    new Map();
+
+
+  /*
+    entries와 분리 배열에 같은 과거 항목이
+    중복 저장된 경우를 확인한다.
+  */
+  const legacyContentOwners =
+    new Map();
+
+
+  const storedEntryIds =
+    new Set();
+
+
+  collectNavigatorInspectionSourceEntries(
+    log
+  ).forEach(
+    source => {
+      const {
+        entry,
+        entryIndex,
+        collection,
+        fallbackCategory
+      } = source;
+
+
+      const category =
+        normalizeNavigatorInspectionCategory(
+          entry?.category ||
+          fallbackCategory
+        );
+
+
+      const tagNo =
+        normalizeText(
+          entry?.tag
+        )
+          .toUpperCase();
+
+
+      const content =
+        normalizeText(
+          entry?.content
+        );
+
+
+      /*
+        TAG가 있는 TM/BM/CM 발행·작업만
+        점검이력 대상으로 사용한다.
+      */
+      if (
+        !NAVIGATOR_INSPECTION_SYNC_CATEGORIES
+          .has(
+            category
+          ) ||
+        !tagNo ||
+        !content
+      ) {
+        return;
+      }
+
+
+      const sourceLogId =
+        normalizeText(
+          entry
+            ?.importedFromLogId ||
+          containerLogId
+        );
+
+
+      const sourceEntryIndex =
+        normalizeNavigatorInspectionEntryIndex(
+          entry
+            ?.importedFromEntryIndex
+        ) ??
+        normalizeNavigatorInspectionEntryIndex(
+          entryIndex
+        );
+
+
+      const sourceEntryId =
+        createNavigatorInspectionSourceEntryId(
+          log,
+          entry,
+          entryIndex
+        );
+
+
+      if (
+        !sourceLogId ||
+        !sourceEntryId
+      ) {
+        return;
+      }
+
+
+      const storedEntryId =
+        normalizeText(
+          entry?.id
+        );
+
+
+      /*
+        같은 고정 ID가 entries와 분리 배열에
+        동시에 있으면 한 번만 사용한다.
+      */
+      if (
+        storedEntryId &&
+        storedEntryIds.has(
+          storedEntryId
+        )
+      ) {
+        return;
+      }
+
+
+      /*
+        원본 업무일지 ID + 항목 ID를
+        최종 중복 방지 키로 사용한다.
+      */
+      const sourceKey = [
+        sourceLogId,
+        sourceEntryId
+      ].join(
+        "||"
+      );
+
+
+      if (
+        uniqueItems.has(
+          sourceKey
+        )
+      ) {
+        return;
+      }
+
+
+      /*
+        ID가 없는 과거 자료가 entries와
+        분리 배열 양쪽에 있으면 내용으로 한 번 더 제거한다.
+      */
+      const legacyContentKey = [
+        category,
+
+        normalizeText(
+          entry?.time
+        ),
+
+        tagNo,
+
+        content.replace(
+          /\s+/g,
+          " "
+        )
+      ].join(
+        "||"
+      );
+
+
+      const legacyOwnerCollection =
+        legacyContentOwners.get(
+          legacyContentKey
+        );
+
+
+      if (
+        !storedEntryId &&
+        legacyOwnerCollection &&
+        legacyOwnerCollection !==
+          collection
+      ) {
+        return;
+      }
+
+
+      if (
+        !storedEntryId &&
+        !legacyOwnerCollection
+      ) {
+        legacyContentOwners.set(
+          legacyContentKey,
+          collection
+        );
+      }
+
+
+      uniqueItems.set(
+        sourceKey,
+        {
+          /*
+            Navigator가 동일 항목을
+            생성·수정·삭제할 때 사용하는 식별 정보
+          */
+          sourceKey,
+
+          sourceLogId,
+
+          sourceEntryId,
+
+          sourceEntryIndex,
+
+
+          /*
+            파트장 취합 항목은
+            최초 작성 보직과 작성자를 유지한다.
+          */
+          sourceRole:
+            normalizeLogRole(
+              entry
+                ?.importedFromRole
+            ) ||
+            containerRole,
+
+          sourceAuthor:
+            normalizeText(
+              entry
+                ?.importedFromAuthor ||
+              log?.author
+            ),
+
+
+          /*
+            점검이력 표시 정보
+          */
+          tagNo,
+
+          inspectionDate,
+
+          shift,
+
+          category,
+
+          time:
+            normalizeText(
+              entry?.time
+            ),
+
+          content,
+
+          attachmentName:
+            normalizeText(
+              entry
+                ?.attachmentName
+            )
+        }
+      );
+
+
+      if (
+        storedEntryId
+      ) {
+        storedEntryIds.add(
+          storedEntryId
+        );
+      }
+    }
+  );
+
+
+  return [
+    ...uniqueItems.values()
+  ];
+}
+
+
+/* =========================================================
+  Navigator 전송 대상 최종 선택
+
+  publish:
+  - 현재 업무일지의 연동 대상 전체 전송
+
+  purge:
+  - 기존에 이 업무일지가 연동한 항목 해제
+========================================================= */
+
+function createNavigatorInspectionSyncSelection(
+  log
+) {
+  const containerLogId =
+    normalizeText(
+      log?.id
+    );
+
+
+  const publishable =
+    isNavigatorInspectionPublishableLog(
+      log
+    );
+
+
+  const items =
+    publishable
+      ? createNavigatorInspectionSyncItems(
+          log
+        )
+      : [];
+
+
+  return {
+    containerLogId,
+
+    /*
+      연동 가능한 상태라도 대상 항목이 없으면
+      이전 점검이력 연결을 해제해야 한다.
+    */
+    disposition:
+      publishable &&
+      items.length > 0
+        ? "publish"
+        : "purge",
+
+    items:
+      publishable
+        ? items
+        : []
+  };
 }
 
 function createConflictResponse(
