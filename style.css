@@ -51519,3 +51519,137 @@ td:nth-child(6) {
   margin-left:
     auto !important;
 }
+
+/* =========================================================
+  로그인 화면 자동 로그인 체크박스
+========================================================= */
+
+.login-remember {
+  position: relative;
+
+  display: inline-flex;
+  width: max-content;
+  min-height: 28px;
+
+  align-items: center;
+
+  gap: 8px;
+
+  margin-top: -2px;
+
+  color: #526177;
+
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+
+  cursor: pointer;
+  user-select: none;
+}
+
+
+/* 실제 체크박스 숨김 */
+.login-remember input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  margin: 0;
+
+  overflow: hidden;
+
+  opacity: 0;
+
+  pointer-events: none;
+}
+
+
+/* 화면에 표시되는 체크박스 */
+.login-remember__box {
+  display: inline-flex;
+
+  flex: 0 0 19px;
+
+  width: 19px;
+  height: 19px;
+
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #b8c5d3;
+  border-radius: 5px;
+
+  background: #ffffff;
+  color: transparent;
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+
+/* 마우스 올림 */
+.login-remember:hover
+.login-remember__box {
+  border-color: #7fa3ca;
+
+  background: #f3f7fc;
+}
+
+
+/* 체크 상태 */
+.login-remember input:checked
++
+.login-remember__box {
+  border-color: #1f5fae;
+
+  background: #1f5fae;
+  color: #ffffff;
+
+  box-shadow:
+    0 3px 8px
+    rgba(31, 95, 174, 0.2);
+}
+
+
+/* 키보드 선택 상태 */
+.login-remember input:focus-visible
++
+.login-remember__box {
+  outline:
+    3px solid
+    rgba(31, 95, 174, 0.16);
+
+  outline-offset: 2px;
+}
+
+
+.login-remember__text {
+  color: #526177;
+
+  white-space: nowrap;
+}
+
+
+/* 모바일 */
+@media (max-width: 520px) {
+  .login-remember {
+    min-height: 26px;
+
+    font-size: 11px;
+  }
+
+  .login-remember__box {
+    flex-basis: 18px;
+
+    width: 18px;
+    height: 18px;
+  }
+}

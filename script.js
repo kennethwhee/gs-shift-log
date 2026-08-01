@@ -7,6 +7,12 @@
 const AUTH_STORAGE_KEY =
   "gsShiftLog.currentUser";
 
+  /*
+  자동 로그인 체크 시
+  사번과 비밀번호를 저장하는 키
+*/
+const REMEMBER_LOGIN_STORAGE_KEY =
+  "gsShiftLog.rememberedLogin";
 
 const SHIFT_LOGS_API_URL =
   "/api/shift-logs";
@@ -86,6 +92,270 @@ function isForcedShiftLogSuperAdmin(
   );
 }
 
+/* =========================================================
+  자동 로그인 정보 관리
+
+  동작:
+  - 로그인 성공 시에만 저장
+  - 체크 해제 시 즉시 삭제
+  - 로그인 화면을 열 때 저장된 정보 복원
+========================================================= */
+
+
+/* =========================================================
+  저장된 자동 로그인 정보 불러오기
+========================================================= */
+
+function loadRememberedLoginCredentials() {
+  const savedCredentials =
+    localStorage.getItem(
+      REMEMBER_LOGIN_STORAGE_KEY
+    );
+
+
+  if (
+    !savedCredentials
+  ) {
+    return null;
+  }
+
+
+  try {
+    const parsedCredentials =
+      JSON.parse(
+        savedCredentials
+      );
+
+
+    if (
+      !parsedCredentials ||
+      typeof parsedCredentials !==
+        "object"
+    ) {
+      clearRememberedLoginCredentials();
+
+      return null;
+    }
+
+
+    const employeeId =
+      String(
+        parsedCredentials.employeeId ||
+        ""
+      ).trim();
+
+
+    const password =
+      String(
+        parsedCredentials.password ??
+        ""
+      );
+
+
+    if (
+      !employeeId ||
+      !password
+    ) {
+      clearRememberedLoginCredentials();
+
+      return null;
+    }
+
+
+    return {
+      employeeId,
+      password
+    };
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "저장된 자동 로그인 정보를 불러오지 못했습니다.",
+      error
+    );
+
+
+    clearRememberedLoginCredentials();
+
+
+    return null;
+  }
+}
+
+
+/* =========================================================
+  자동 로그인 정보 저장
+========================================================= */
+
+function saveRememberedLoginCredentials(
+  employeeId,
+  password
+) {
+  const normalizedEmployeeId =
+    String(
+      employeeId ||
+      ""
+    ).trim();
+
+
+  const normalizedPassword =
+    String(
+      password ??
+      ""
+    );
+
+
+  if (
+    !normalizedEmployeeId ||
+    !normalizedPassword
+  ) {
+    clearRememberedLoginCredentials();
+
+    return;
+  }
+
+
+  localStorage.setItem(
+    REMEMBER_LOGIN_STORAGE_KEY,
+
+    JSON.stringify({
+      employeeId:
+        normalizedEmployeeId,
+
+      password:
+        normalizedPassword,
+
+      savedAt:
+        new Date()
+          .toISOString()
+    })
+  );
+}
+
+
+/* =========================================================
+  자동 로그인 정보 삭제
+========================================================= */
+
+function clearRememberedLoginCredentials() {
+  localStorage.removeItem(
+    REMEMBER_LOGIN_STORAGE_KEY
+  );
+}
+
+
+/* =========================================================
+  로그인 입력칸에 저장 정보 복원
+========================================================= */
+
+function restoreRememberedLoginCredentials() {
+  const {
+    loginEmployeeId,
+    loginPassword,
+    loginRemember
+  } =
+    getLoginElements();
+
+
+  const savedCredentials =
+    loadRememberedLoginCredentials();
+
+
+  if (
+    !savedCredentials
+  ) {
+    if (
+      loginRemember
+    ) {
+      loginRemember.checked =
+        false;
+    }
+
+
+    return false;
+  }
+
+
+  if (
+    loginEmployeeId
+  ) {
+    loginEmployeeId.value =
+      savedCredentials.employeeId;
+  }
+
+
+  if (
+    loginPassword
+  ) {
+    loginPassword.value =
+      savedCredentials.password;
+  }
+
+
+  if (
+    loginRemember
+  ) {
+    loginRemember.checked =
+      true;
+  }
+
+
+  return true;
+}
+
+
+/* =========================================================
+  자동 로그인 체크박스 이벤트 연결
+
+  체크 해제 시:
+  - 저장된 사번과 비밀번호 즉시 삭제
+========================================================= */
+
+function bindRememberLoginCheckbox() {
+  const {
+    loginRemember
+  } =
+    getLoginElements();
+
+
+  if (
+    !loginRemember
+  ) {
+    return;
+  }
+
+
+  /*
+    openLoginScreen이 여러 번 실행되어도
+    이벤트가 중복 등록되지 않게 한다.
+  */
+  if (
+    loginRemember.dataset
+      .rememberLoginBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  loginRemember.addEventListener(
+    "change",
+    () => {
+      if (
+        !loginRemember.checked
+      ) {
+        clearRememberedLoginCredentials();
+      }
+    }
+  );
+
+
+  loginRemember.dataset
+    .rememberLoginBound =
+    "true";
+}
+
 function getLoginElements() {
   return {
     loginScreen:
@@ -111,6 +381,14 @@ function getLoginElements() {
     loginPassword:
       document.getElementById(
         "loginPassword"
+      ),
+
+    /*
+      자동 로그인 체크박스
+    */
+    loginRemember:
+      document.getElementById(
+        "loginRemember"
       ),
 
     loginError:
@@ -682,25 +960,32 @@ function openLoginScreen() {
     appShell,
     loginEmployeeId,
     loginPassword,
+    loginRemember,
     adminButton,
     employeeManagementModal
   } =
     getLoginElements();
 
 
-  if (loginScreen) {
+  if (
+    loginScreen
+  ) {
     loginScreen.hidden =
       false;
   }
 
 
-  if (appShell) {
+  if (
+    appShell
+  ) {
     appShell.hidden =
       true;
   }
 
 
-  if (adminButton) {
+  if (
+    adminButton
+  ) {
     adminButton.hidden =
       true;
 
@@ -709,12 +994,15 @@ function openLoginScreen() {
   }
 
 
-  if (employeeManagementModal) {
+  if (
+    employeeManagementModal
+  ) {
     employeeManagementModal
       .classList
       .remove(
         "is-open"
       );
+
 
     employeeManagementModal
       .setAttribute(
@@ -729,14 +1017,68 @@ function openLoginScreen() {
   );
 
 
-  if (loginPassword) {
-    loginPassword.value =
-      "";
+  /*
+    자동 로그인 체크박스 이벤트를
+    한 번만 연결한다.
+  */
+  bindRememberLoginCheckbox();
+
+
+  /*
+    저장된 사번과 비밀번호를 복원한다.
+  */
+  const hasRememberedCredentials =
+    restoreRememberedLoginCredentials();
+
+
+  /*
+    저장된 정보가 없는 경우에는
+    입력칸을 모두 비운다.
+  */
+  if (
+    !hasRememberedCredentials
+  ) {
+    if (
+      loginEmployeeId
+    ) {
+      loginEmployeeId.value =
+        "";
+    }
+
+
+    if (
+      loginPassword
+    ) {
+      loginPassword.value =
+        "";
+    }
+
+
+    if (
+      loginRemember
+    ) {
+      loginRemember.checked =
+        false;
+    }
   }
 
 
+  /*
+    저장된 정보가 있으면 비밀번호 입력칸,
+    없으면 사번 입력칸에 포커스를 둔다.
+  */
   window.setTimeout(
     () => {
+      if (
+        hasRememberedCredentials &&
+        loginPassword?.value
+      ) {
+        loginPassword.focus();
+
+        return;
+      }
+
+
       loginEmployeeId?.focus();
     },
     0
@@ -810,6 +1152,7 @@ async function handleShiftLogLogin(
   const {
     loginEmployeeId,
     loginPassword,
+    loginRemember,
     loginForm
   } =
     getLoginElements();
@@ -888,9 +1231,30 @@ async function handleShiftLogLogin(
       );
 
 
+    /* =====================================================
+      자동 로그인 정보 저장
+
+      로그인 성공 후:
+      - 체크 상태면 사번과 비밀번호 저장
+      - 체크 해제 상태면 기존 저장 정보 삭제
+    ====================================================== */
+
+    if (
+      loginRemember?.checked
+    ) {
+      saveRememberedLoginCredentials(
+        employeeId,
+        password
+      );
+
+    } else {
+      clearRememberedLoginCredentials();
+    }
+
+
     /*
       로그인 API에서 받은 사용자 정보와
-      D1 접속용 세션 토큰을 함께 저장한다.
+      D1 접속용 세션 토큰을 저장한다.
     */
     saveCurrentUser(
       user
@@ -918,8 +1282,7 @@ async function handleShiftLogLogin(
 
 
     /*
-      기존 과거 업무일지 불러오기 기능은
-      그대로 유지한다.
+      기존 과거 업무일지 불러오기 기능 유지
     */
     if (
       typeof loadLegacyLogsForSelectedDate ===
@@ -13906,22 +14269,6 @@ function createMemberImportedEntry(
   };
 }
 
-/* =========================================================
-  팀원 업무일지의 전체 항목 구성 최종본
-
-  우선순위:
-  1. tmEntries
-  2. handoverEntries
-  3. remarkEntries
-  4. 기존 entries
-  5. 기존 note 문자열
-
-  결과:
-  - TM은 TM 발행으로 고정
-  - 비고는 비고로 고정
-  - 중복 항목 제거
-========================================================= */
-
 function getMemberLogEntriesForImport(
   memberLog
 ) {
@@ -13932,6 +14279,98 @@ function getMemberLogEntriesForImport(
   ) {
     return [];
   }
+
+
+  const normalizeCategory = (
+    category,
+    fallbackCategory =
+      "인계사항"
+  ) => {
+    const categoryText =
+      String(
+        category ||
+        fallbackCategory ||
+        "인계사항"
+      ).trim();
+
+
+    const compactCategory =
+      categoryText
+        .toUpperCase()
+        .replace(
+          /\s+/g,
+          ""
+        );
+
+
+    if (
+      compactCategory.includes(
+        "비고"
+      )
+    ) {
+      return "비고";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "TM발행"
+      )
+    ) {
+      return "TM 발행";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "TM작업"
+      )
+    ) {
+      return "TM 작업";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "BM발행"
+      )
+    ) {
+      return "BM 발행";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "BM작업"
+      )
+    ) {
+      return "BM 작업";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "CM발행"
+      )
+    ) {
+      return "CM 발행";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "CM작업"
+      )
+    ) {
+      return "CM 작업";
+    }
+
+
+    return (
+      categoryText ||
+      "인계사항"
+    );
+  };
 
 
   const separatedEntries = [];
@@ -13947,14 +14386,15 @@ function getMemberLogEntriesForImport(
     )
   ) {
     memberLog.tmEntries.forEach(
-      (
-        entry
-      ) => {
+      entry => {
         separatedEntries.push({
           ...entry,
 
           category:
-            "TM 발행"
+            normalizeCategory(
+              entry?.category,
+              "TM 발행"
+            )
         });
       }
     );
@@ -13971,17 +14411,15 @@ function getMemberLogEntriesForImport(
     )
   ) {
     memberLog.handoverEntries.forEach(
-      (
-        entry
-      ) => {
+      entry => {
         separatedEntries.push({
           ...entry,
 
           category:
-            String(
-              entry?.category ||
+            normalizeCategory(
+              entry?.category,
               "인계사항"
-            ).trim()
+            )
         });
       }
     );
@@ -13998,9 +14436,7 @@ function getMemberLogEntriesForImport(
     )
   ) {
     memberLog.remarkEntries.forEach(
-      (
-        entry
-      ) => {
+      entry => {
         separatedEntries.push({
           ...entry,
 
@@ -14034,42 +14470,12 @@ function getMemberLogEntriesForImport(
   const normalizedEntries =
     sourceEntries
       .map(
-        (
-          entry
-        ) => {
-          const rawCategory =
-            String(
-              entry?.category ||
+        entry => {
+          const category =
+            normalizeCategory(
+              entry?.category,
               "인계사항"
-            ).trim();
-
-
-          let category =
-            rawCategory;
-
-
-          if (
-            rawCategory ===
-              "비고" ||
-            rawCategory.includes(
-              "비고"
-            )
-          ) {
-            category =
-              "비고";
-
-          } else if (
-            rawCategory ===
-              "TM 발행" ||
-            rawCategory
-              .toUpperCase()
-              .startsWith(
-                "TM"
-              )
-          ) {
-            category =
-              "TM 발행";
-          }
+            );
 
 
           return {
@@ -14103,9 +14509,7 @@ function getMemberLogEntriesForImport(
         }
       )
       .filter(
-        (
-          entry
-        ) => {
+        entry => {
           return Boolean(
             entry.content
           );
@@ -14119,9 +14523,7 @@ function getMemberLogEntriesForImport(
   */
   const hasRemarkEntry =
     normalizedEntries.some(
-      (
-        entry
-      ) => {
+      entry => {
         return (
           entry.category ===
           "비고"
@@ -14142,9 +14544,7 @@ function getMemberLogEntriesForImport(
         memberLog.note,
         memberLog
       ).map(
-        (
-          entry
-        ) => {
+        entry => {
           return {
             ...entry,
 
@@ -14169,9 +14569,7 @@ function getMemberLogEntriesForImport(
 
 
   normalizedEntries.forEach(
-    (
-      entry
-    ) => {
+    entry => {
       const uniqueKey = [
         String(
           entry.category ||
@@ -14222,7 +14620,6 @@ function getMemberLogEntriesForImport(
     ...uniqueEntryMap.values()
   ];
 }
-
 
 /* =========================================================
   팀원 업무일지 가져오기 대상 최종본
@@ -33022,27 +33419,78 @@ function collectLogEntriesForDisplay(log) {
         "인계사항"
       ).trim();
 
+
+    const compactCategory =
+      categoryText
+        .toUpperCase()
+        .replace(
+          /\s+/g,
+          ""
+        );
+
+
     if (
-      categoryText.includes(
+      compactCategory.includes(
         "비고"
       )
     ) {
       return "비고";
     }
 
+
     if (
-      categoryText
-        .toUpperCase()
-        .replace(
-          /\s+/g,
-          ""
-        )
-        .startsWith(
-          "TM"
-        )
+      compactCategory.startsWith(
+        "TM발행"
+      )
     ) {
       return "TM 발행";
     }
+
+
+    if (
+      compactCategory.startsWith(
+        "TM작업"
+      )
+    ) {
+      return "TM 작업";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "BM발행"
+      )
+    ) {
+      return "BM 발행";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "BM작업"
+      )
+    ) {
+      return "BM 작업";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "CM발행"
+      )
+    ) {
+      return "CM 발행";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "CM작업"
+      )
+    ) {
+      return "CM 작업";
+    }
+
 
     return (
       categoryText ||

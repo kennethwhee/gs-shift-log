@@ -194,86 +194,99 @@
 
 
       <!-- 로그인 폼 -->
-      <form
-        class="login-form"
-        id="loginForm"
-        novalidate
-      >
+<form
+  class="login-form"
+  id="loginForm"
+  autocomplete="on"
+>
 
-        <label class="login-field">
+  <!-- 사번 -->
+  <label class="login-field">
 
-          <span class="login-field__label">
-            사번
-          </span>
+    <span>
+      사번
+    </span>
 
-          <div class="login-field__input-wrap">
+    <input
+      type="text"
+      id="loginEmployeeId"
+      name="employeeNo"
+      inputmode="numeric"
+      maxlength="7"
+      placeholder="사번을 입력하세요"
+      autocomplete="username"
+      required
+    />
 
-            <span
-              class="login-field__icon"
-              aria-hidden="true"
-            >
-              ID
-            </span>
-
-            <input
-              type="text"
-              id="loginEmployeeId"
-              inputmode="numeric"
-              autocomplete="username"
-              placeholder="사번을 입력하세요."
-              required
-            />
-
-          </div>
-
-        </label>
+  </label>
 
 
-        <label class="login-field">
+  <!-- 비밀번호 -->
+  <label class="login-field">
 
-          <span class="login-field__label">
-            비밀번호
-          </span>
+    <span>
+      비밀번호
+    </span>
 
-          <div class="login-field__input-wrap">
+    <input
+      type="password"
+      id="loginPassword"
+      name="password"
+      maxlength="30"
+      placeholder="비밀번호를 입력하세요"
+      autocomplete="current-password"
+      required
+    />
 
-            <span
-              class="login-field__icon"
-              aria-hidden="true"
-            >
-              PW
-            </span>
-
-            <input
-              type="password"
-              id="loginPassword"
-              autocomplete="current-password"
-              placeholder="비밀번호를 입력하세요."
-              required
-            />
-
-          </div>
-
-        </label>
+  </label>
 
 
-        <p
-          class="login-error"
-          id="loginError"
-          role="alert"
-          hidden
-        >
-        </p>
+  <!-- 자동 로그인 -->
+  <label
+    class="login-remember"
+    for="loginRemember"
+    title="체크하면 이 기기에 사번과 비밀번호가 저장됩니다."
+  >
+
+    <input
+      type="checkbox"
+      id="loginRemember"
+      name="loginRemember"
+    />
+
+    <span
+      class="login-remember__box"
+      aria-hidden="true"
+    >
+      ✓
+    </span>
+
+    <span class="login-remember__text">
+      자동 로그인
+    </span>
+
+  </label>
 
 
-        <button
-          type="submit"
-          class="login-submit-button"
-        >
-          로그인
-        </button>
+  <!-- 로그인 오류 -->
+  <p
+    class="login-error"
+    id="loginError"
+    role="alert"
+    hidden
+  >
+  </p>
 
-      </form>
+
+  <!-- 로그인 버튼 -->
+  <button
+    type="submit"
+    class="login-submit-button"
+  >
+    로그인
+  </button>
+
+</form>
 
 
       <footer class="login-card__footer">
