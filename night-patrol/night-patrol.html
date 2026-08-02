@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>야간 순찰 점검일지</title>
+  <link rel="stylesheet" href="night-patrol.css" />
+  <script src="night-patrol.js" defer></script>
+</head>
+<body>
+  <main class="patrol-app">
+    <section class="patrol-toolbar-card">
+      <div class="patrol-toolbar-card__heading">
+        <div>
+          <span class="patrol-eyebrow">DAILY NIGHT PATROL</span>
+          <h1>야간 순찰 점검일지</h1>
+          <p>
+            순찰 목록 1~4 중 하나를 선택하면 당일 기준으로 20개 점검 포인트가 배정됩니다.
+          </p>
+        </div>
+
+        <div class="patrol-save-state" id="patrolSaveState" data-state="idle">
+          저장 전
+        </div>
+      </div>
+
+      <div class="patrol-controls-grid">
+        <label class="patrol-field">
+          <span>점검일자</span>
+          <input type="date" id="patrolDate" />
+        </label>
+
+        <fieldset class="patrol-list-selector">
+          <legend>순찰 목록 선택</legend>
+          <div class="patrol-list-buttons" id="patrolListButtons">
+            <button type="button" data-list-number="1">1</button>
+            <button type="button" data-list-number="2">2</button>
+            <button type="button" data-list-number="3">3</button>
+            <button type="button" data-list-number="4">4</button>
+          </div>
+          <small>같은 날짜와 번호는 항상 같은 목록을 표시합니다.</small>
+        </fieldset>
+
+        <label class="patrol-field">
+          <span>점검 상태</span>
+          <select id="patrolDocumentStatus">
+            <option value="작성중">작성중</option>
+            <option value="점검완료">점검완료</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="patrol-members-grid">
+        <label class="patrol-field">
+          <span>순찰자 1</span>
+          <input type="text" id="patrolMember1" maxlength="20" placeholder="이름 입력" />
+        </label>
+
+        <label class="patrol-field">
+          <span>순찰자 2</span>
+          <input type="text" id="patrolMember2" maxlength="20" placeholder="이름 입력" />
+        </label>
+
+        <label class="patrol-field">
+          <span>순찰자 3</span>
+          <input type="text" id="patrolMember3" maxlength="20" placeholder="이름 입력" />
+        </label>
+      </div>
+    </section>
+
+    <section class="patrol-summary" aria-label="점검 현황">
+      <div>
+        <span>전체</span>
+        <strong id="summaryTotal">20</strong>
+      </div>
+      <div class="is-good">
+        <span>양호</span>
+        <strong id="summaryGood">20</strong>
+      </div>
+      <div class="is-bad">
+        <span>이상</span>
+        <strong id="summaryBad">0</strong>
+      </div>
+      <div class="is-pending">
+        <span>미점검</span>
+        <strong id="summaryPending">0</strong>
+      </div>
+    </section>
+
+    <section class="patrol-table-card">
+      <div class="patrol-table-card__header">
+        <div>
+          <h2>순찰 점검 항목</h2>
+          <p>01시·02시·04시·06시, 시간대별 5개 항목</p>
+        </div>
+
+        <button type="button" class="patrol-secondary-button" id="setAllGoodButton">
+          전체 양호
+        </button>
+      </div>
+
+      <div class="patrol-table-wrap">
+        <table class="patrol-table">
+          <thead>
+            <tr>
+              <th class="patrol-col-number">번호</th>
+              <th class="patrol-col-time">시간</th>
+              <th>순찰 구역</th>
+              <th class="patrol-col-status">상태</th>
+              <th class="patrol-col-note">특이사항</th>
+            </tr>
+          </thead>
+          <tbody id="patrolTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="patrol-note-card">
+      <label class="patrol-field">
+        <span>비고</span>
+        <textarea
+          id="patrolGeneralNote"
+          rows="3"
+          maxlength="1000"
+          placeholder="공통 비고 또는 인계할 내용을 입력하세요."
+        ></textarea>
+      </label>
+    </section>
+
+    <footer class="patrol-footer">
+      <div class="patrol-footer__left">
+        <button type="button" class="patrol-danger-button" id="resetPatrolButton">
+          현재 목록 초기화
+        </button>
+      </div>
+
+      <div class="patrol-footer__right">
+        <button type="button" class="patrol-secondary-button" id="printPatrolButton">
+          인쇄
+        </button>
+        <button type="button" class="patrol-secondary-button" id="closePatrolPageButton">
+          닫기
+        </button>
+        <button type="button" class="patrol-primary-button" id="savePatrolButton">
+          저장
+        </button>
+      </div>
+    </footer>
+  </main>
+</body>
+</html>
