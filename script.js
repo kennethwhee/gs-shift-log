@@ -36447,6 +36447,28 @@ function collectLogEntriesForDisplay(log) {
   팀원 업무일지에서 취합된 항목은 제외한다.
 */
 
+/* =====================================================
+  파트장 저장본 중복 정리 최종본
+
+  화면 표시 기준:
+  1. 같은 날짜·근무의 팀원 원본 업무를 먼저 사용
+  2. 파트장 저장본에 같은 내용이 있으면 제외
+  3. 팀원 원본에 없는 파트장 직접 작성 내용만 유지
+
+  과거에 팀원 업무가 다음처럼 잘못 저장된 경우도 정리:
+  - importedFromRole: "파트장"
+  - source: "leader-manual"
+  - importedFromLogId: 파트장 업무일지 ID
+  - 출처 정보 없음
+===================================================== */
+
+const leaderLogId =
+  String(
+    log?.id ||
+    ""
+  ).trim();
+
+
 const memberSourceLogIds =
   new Set(
     [
@@ -36460,9 +36482,181 @@ const memberSourceLogIds =
           ).trim();
         }
       )
-      .filter(Boolean)
+      .filter(
+        Boolean
+      )
   );
 
+
+/* =====================================================
+  파트장 저장 항목과 팀원 원본 항목 비교
+
+  다음 조건을 비교한다.
+  - 업무 대분류
+  - 시간
+  - TAG
+  - 내용
+
+  과거 자료는 구분명이 달라질 수 있으므로
+  TM·비고·일반업무 대분류를 기준으로 비교한다.
+===================================================== */
+
+const isSameLeaderSavedEntryAsMemberEntry = (
+  savedEntry,
+  memberEntry
+) => {
+  const savedCategoryGroup =
+    getCategoryGroup(
+      savedEntry?.category
+    );
+
+
+  const memberCategoryGroup =
+    getCategoryGroup(
+      memberEntry?.category
+    );
+
+
+  if (
+    savedCategoryGroup !==
+    memberCategoryGroup
+  ) {
+    return false;
+  }
+
+
+  const savedTime =
+    String(
+      savedEntry?.time ||
+      ""
+    ).trim();
+
+
+  const memberTime =
+    String(
+      memberEntry?.time ||
+      ""
+    ).trim();
+
+
+  /*
+    두 항목 모두 시간이 있는데
+    시간이 다르면 다른 업무로 판단한다.
+  */
+  if (
+    savedTime &&
+    memberTime &&
+    savedTime !==
+      memberTime
+  ) {
+    return false;
+  }
+
+
+  const savedTag =
+    String(
+      savedEntry?.tag ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  const memberTag =
+    String(
+      memberEntry?.tag ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  /*
+    두 항목 모두 TAG가 있는데
+    TAG가 다르면 다른 업무로 판단한다.
+  */
+  if (
+    savedTag &&
+    memberTag &&
+    savedTag !==
+      memberTag
+  ) {
+    return false;
+  }
+
+
+  const savedContent =
+    String(
+      savedEntry?.content ||
+      ""
+    ).trim();
+
+
+  const memberContent =
+    String(
+      memberEntry?.content ||
+      ""
+    ).trim();
+
+
+  if (
+    !savedContent ||
+    !memberContent
+  ) {
+    return false;
+  }
+
+
+  const savedContentKey =
+    getEntryContentKey(
+      savedContent
+    );
+
+
+  const memberContentKey =
+    getEntryContentKey(
+      memberContent
+    );
+
+
+  /*
+    공백·기호·줄바꿈을 정리한 내용이
+    완전히 같으면 같은 업무다.
+  */
+  if (
+    savedContentKey &&
+    savedContentKey ===
+      memberContentKey
+  ) {
+    return true;
+  }
+
+
+  /*
+    과거 저장 과정에서 표현이나 공백이
+    조금 달라진 자료도 비교한다.
+  */
+  if (
+    typeof calculateLegacyContentSimilarity ===
+      "function"
+  ) {
+    return (
+      calculateLegacyContentSimilarity(
+        savedContent,
+        memberContent
+      ) >=
+      0.93
+    );
+  }
+
+
+  return false;
+};
+
+
+/* =====================================================
+  파트장 저장본에서 실제 직접 작성 항목만 복구
+===================================================== */
 
 const recoveredSavedEntries =
   collectEntriesFromLog(
@@ -36492,30 +36686,8 @@ const recoveredSavedEntries =
 
 
         /*
-          명시적인 파트장 직접 작성 항목은
-          구분과 관계없이 모두 유지한다.
-        */
-        if (
-          [
-            "leader-manual",
-            "legacy-leader-own",
-            "previous-shift-handover"
-          ].includes(
-            source
-          ) &&
-          (
-            sourceRole ===
-              "파트장" ||
-            !sourceRole
-          )
-        ) {
-          return true;
-        }
-
-
-        /*
-          현재 팀원 원본 업무일지와 연결된 항목은
-          저장본에서 다시 사용하지 않는다.
+          현재 팀원 원본 업무일지 ID와
+          직접 연결된 항목은 저장본에서 제외한다.
         */
         if (
           sourceLogId &&
@@ -36528,7 +36700,8 @@ const recoveredSavedEntries =
 
 
         /*
-          팀원 보직 출처가 명확한 취합 항목도 제외한다.
+          출처 보직이 팀원 보직으로 명확하면
+          파트장 직접 업무가 아니므로 제외한다.
         */
         if (
           allMemberRoles.includes(
@@ -36540,21 +36713,57 @@ const recoveredSavedEntries =
 
 
         /*
-          파트장 보직 또는 출처 정보가 없는 기존 항목은
-          파트장 직접 작성 내용으로 유지한다.
+          과거 저장본에서 파트장 업무로 표시돼 있더라도
+          현재 팀원 원본에 같은 업무가 있으면 제외한다.
+
+          source가 leader-manual로 잘못 변경된
+          기존 중복 자료도 이 단계에서 제거된다.
         */
+        const duplicatesMemberEntry =
+          memberDisplayEntries.some(
+            memberEntry => {
+              return isSameLeaderSavedEntryAsMemberEntry(
+                entry,
+                memberEntry
+              );
+            }
+          );
+
+
+        if (
+          duplicatesMemberEntry
+        ) {
+          return false;
+        }
+
+
+        /*
+          팀원 원본에 없는 다음 항목만
+          파트장 직접 작성 업무로 유지한다.
+        */
+        const isExplicitLeaderSource =
+          [
+            "leader-manual",
+            "legacy-leader-own",
+            "previous-shift-handover"
+          ].includes(
+            source
+          );
+
+
         return (
           sourceRole ===
             "파트장" ||
+
+          isExplicitLeaderSource ||
+
+          sourceLogId ===
+            leaderLogId ||
+
           (
             !sourceRole &&
             !sourceLogId
-          ) ||
-          sourceLogId ===
-            String(
-              log.id ||
-              ""
-            ).trim()
+          )
         );
       }
     )
@@ -36563,6 +36772,13 @@ const recoveredSavedEntries =
         entry,
         entryIndex
       ) => {
+        const entrySourceLogId =
+          String(
+            entry?.importedFromLogId ||
+            ""
+          ).trim();
+
+
         return {
           ...entry,
 
@@ -36571,37 +36787,28 @@ const recoveredSavedEntries =
 
           importedFromAuthor:
             String(
-              entry.importedFromAuthor ||
-              log.author ||
+              entry?.importedFromAuthor ||
+              log?.author ||
               ""
             ).trim(),
 
           /*
-            파트장 직접 작성 항목은
-            팀원 원본 ID를 붙이지 않는다.
+            파트장 업무일지 자기 ID는
+            팀원 원본 출처로 사용하지 않는다.
           */
           importedFromLogId:
-            String(
-              entry.importedFromLogId ||
-              ""
-            ).trim() ===
-              String(
-                log.id ||
-                ""
-              ).trim()
+            entrySourceLogId ===
+              leaderLogId
               ? ""
-              : String(
-                  entry.importedFromLogId ||
-                  ""
-                ).trim(),
+              : entrySourceLogId,
 
           importedFromEntryIndex:
-            entry.importedFromEntryIndex ??
+            entry?.importedFromEntryIndex ??
             entryIndex,
 
           source:
             String(
-              entry.source ||
+              entry?.source ||
               "leader-manual"
             ).trim()
         };
