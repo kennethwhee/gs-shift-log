@@ -964,19 +964,47 @@
           <div class="date-navigation__center">
             <p class="date-navigation__label">업무일지 기준일</p>
 
-            <button
-              type="button"
-              class="date-navigation__date"
-              id="selectedDateButton"
-            >
-              <strong id="selectedDateText">
-                2026년 07월 20일 월요일
-              </strong>
+<!-- =====================================================
+  업무일지 기준일 직접 선택
 
-              <span class="shift-badge" id="selectedShiftBadge">
-                NS
-              </span>
-            </button>
+  실제 날짜 input이 표시 영역 전체를 덮고 있어서
+  PC·모바일에서 날짜를 누르면 기본 달력이 열린다.
+====================================================== -->
+
+<label
+  class="
+    date-navigation__date
+    selected-date-picker-wrap
+  "
+  id="selectedDateButton"
+  for="selectedDatePicker"
+  title="날짜를 직접 선택합니다."
+>
+
+  <strong id="selectedDateText">
+    2026년 07월 20일 월요일
+  </strong>
+
+
+  <span
+    class="shift-badge"
+    id="selectedShiftBadge"
+  >
+    NS
+  </span>
+
+
+  <!-- 실제 브라우저 날짜 선택기 -->
+  <input
+    type="date"
+    id="selectedDatePicker"
+    class="selected-date-picker-overlay"
+    aria-label="업무일지 기준일 선택"
+    autocomplete="off"
+  />
+
+</label>
+
           </div>
 
           <button
