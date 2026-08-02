@@ -21,6 +21,7 @@
   const FRAME_ID = "nightPatrolFrame";
   const PAGE_URL = "night-patrol/night-patrol.html";
 
+  
   function getModal() {
     return document.getElementById(MODAL_ID);
   }
