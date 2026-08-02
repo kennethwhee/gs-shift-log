@@ -55856,24 +55856,37 @@ textarea:disabled {
 
 /* =========================================================
   업무일지 작성·수정창 하단 버튼 최종 통합 디자인
+
+  PC
+  왼쪽  : 인쇄 | 삭제 | 결재취소
+  오른쪽: 임시저장 | 결재요청·결재완료 | 닫기
+
+  모바일
+  왼쪽 그룹과 오른쪽 그룹을 2줄로 표시
 ========================================================= */
 
-#logEditorModal .log-editor-footer {
+#logEditorModal
+.log-editor-modal
+>
+.log-editor-footer {
   display: flex !important;
+
+  flex: 0 0 auto !important;
+
+  width: 100% !important;
+  min-height: 60px !important;
 
   align-items: center !important;
   justify-content: space-between !important;
 
   gap: 12px !important;
 
-  width: 100% !important;
-  min-height: 60px !important;
-
   margin: 0 !important;
   padding: 10px 16px !important;
 
   border-top:
-    1px solid #dbe4ee !important;
+    1px solid
+    #dbe4ee !important;
 
   background:
     #f8fafc !important;
@@ -55882,15 +55895,17 @@ textarea:disabled {
     0 -4px 14px
     rgba(15, 23, 42, 0.06) !important;
 
-  box-sizing: border-box !important;
+  box-sizing:
+    border-box !important;
 }
 
 
 #logEditorModal
-.log-editor-footer__left {
-  display: flex !important;
+.log-editor-footer__left,
 
-  flex: 0 0 auto !important;
+#logEditorModal
+.log-editor-footer__right {
+  display: flex !important;
 
   align-items: center !important;
 
@@ -55902,22 +55917,25 @@ textarea:disabled {
 
 
 #logEditorModal
-.log-editor-footer__right {
-  display: flex !important;
+.log-editor-footer__left {
+  flex: 0 0 auto !important;
 
+  justify-content:
+    flex-start !important;
+}
+
+
+#logEditorModal
+.log-editor-footer__right {
   flex: 1 1 auto !important;
 
   min-width: 0 !important;
 
-  align-items: center !important;
-  justify-content: flex-end !important;
+  justify-content:
+    flex-end !important;
 
-  gap: 8px !important;
-
-  margin:
-    0 0 0 auto !important;
-
-  padding: 0 !important;
+  margin-left:
+    auto !important;
 }
 
 
@@ -55945,15 +55963,15 @@ button:not([hidden]) {
   align-items: center !important;
   justify-content: center !important;
 
-  gap: 5px !important;
-
   margin: 0 !important;
   padding: 0 14px !important;
 
   border:
-    1px solid #cbd5e1 !important;
+    1px solid
+    #cbd5e1 !important;
 
-  border-radius: 9px !important;
+  border-radius:
+    9px !important;
 
   background:
     #ffffff !important;
@@ -55979,18 +55997,40 @@ button:not([hidden]) {
 }
 
 
+/* 인쇄·닫기 */
 #logEditorModal
 .log-editor-print-button,
 
 #logEditorModal
 .log-editor-close-button {
   min-width: 58px !important;
+
+  border-color:
+    #cbd5e1 !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #475569 !important;
 }
 
 
-/*
-  결재취소
-*/
+/* 삭제 */
+#logEditorModal
+.log-editor-delete-button {
+  border-color:
+    #fda4af !important;
+
+  background:
+    #fff1f2 !important;
+
+  color:
+    #be123c !important;
+}
+
+
+/* 결재취소 */
 #logEditorModal
 .log-editor-cancel-approval-button,
 
@@ -56007,29 +56047,11 @@ button:not([hidden]) {
 }
 
 
-/*
-  삭제
-*/
-#logEditorModal
-.log-editor-delete-button {
-  border-color:
-    #fda4af !important;
-
-  background:
-    #fff1f2 !important;
-
-  color:
-    #be123c !important;
-}
-
-
-/*
-  임시저장
-*/
+/* 임시저장 */
 #logEditorModal
 .log-editor-draft-button {
   border-color:
-    #bfdbfe !important;
+    #93c5fd !important;
 
   background:
     #eff6ff !important;
@@ -56039,9 +56061,7 @@ button:not([hidden]) {
 }
 
 
-/*
-  결재요청·결재완료
-*/
+/* 결재요청·결재완료 */
 #logEditorModal
 .log-editor-complete-button:not(
   .is-cancel-request
@@ -56104,8 +56124,15 @@ button:focus-visible {
 @media (max-width: 768px) {
 
   #logEditorModal
+  .log-editor-modal
+  >
   .log-editor-footer {
-    gap: 6px !important;
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(0, 1fr) !important;
+
+    gap: 5px !important;
 
     min-height: 0 !important;
 
@@ -56123,16 +56150,27 @@ button:focus-visible {
 
 
   #logEditorModal
+  .log-editor-footer__left,
+
+  #logEditorModal
   .log-editor-footer__right {
-    flex-wrap: wrap !important;
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
 
     gap: 5px !important;
+
+    margin: 0 !important;
   }
 
 
   #logEditorModal
   .log-editor-footer
   button:not([hidden]) {
+    flex: 1 1 0 !important;
+
+    width: auto !important;
     min-width: 0 !important;
 
     height: 35px !important;
@@ -56140,20 +56178,13 @@ button:focus-visible {
     max-height: 35px !important;
 
     padding:
-      0 8px !important;
+      0 6px !important;
 
     border-radius:
       7px !important;
 
     font-size:
       10px !important;
-  }
-
-
-  #logEditorModal
-  .log-editor-print-button {
-    min-width:
-      48px !important;
   }
 }
 
@@ -56164,7 +56195,7 @@ button:focus-visible {
   .log-editor-footer
   button:not([hidden]) {
     padding:
-      0 6px !important;
+      0 4px !important;
 
     font-size:
       9px !important;
