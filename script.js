@@ -65308,95 +65308,148 @@ function getCurrentEditorStoredLog() {
     updateLogEditorActionButtons();
   }
 
+/* =====================================================
+  일반 보직 결재요청
 
-  /* =====================================================
-    결재요청 클릭
-  ====================================================== */
+  처리:
+  - 임시저장 상태인지 확인
+  - 결재요청 상태로 저장
+  - 작성·수정창은 닫지 않음
+  - 저장 성공 후 버튼 상태 갱신
+====================================================== */
 
-  async function handleMemberApprovalRequestClick(
-    event
+async function handleMemberApprovalRequestClick(
+  event
+) {
+  event.preventDefault();
+
+  event.stopPropagation();
+
+
+  if (
+    !isCurrentMemberEditorRole()
   ) {
-    event.preventDefault();
-
-    event.stopPropagation();
-
-
-    if (
-      !isCurrentMemberEditorRole()
-    ) {
-      return;
-    }
+    return;
+  }
 
 
-    const currentLog =
-      getCurrentMemberEditorStoredLog();
+  const currentLog =
+    getCurrentMemberEditorStoredLog();
 
 
-    const currentStatus =
-      normalizeMemberEditorLogStatus(
-        currentLog?.status
-      );
+  const currentStatus =
+    normalizeMemberEditorLogStatus(
+      currentLog?.status
+    );
 
 
-    /*
-      신규 작성 상태에서 개발자 도구 등으로
-      숨겨진 결재요청 버튼을 강제로 눌러도 차단한다.
-    */
-    if (
-      !currentLog ||
-      currentStatus !==
-        "임시저장"
-    ) {
-      showToast(
-        "먼저 임시저장해 주세요."
-      );
+  /*
+    먼저 임시저장한 업무일지만
+    결재요청할 수 있다.
+  */
+  if (
+    !currentLog ||
+    currentStatus !==
+      "임시저장"
+  ) {
+    showToast(
+      "먼저 임시저장해 주세요."
+    );
 
 
-      updateLogEditorActionButtons();
+    updateLogEditorActionButtons();
 
 
-      return;
-    }
+    return;
+  }
 
 
-    const shouldRequest =
-      await showCompactConfirm({
-        title:
-          "결재요청",
+  const shouldRequest =
+    await showCompactConfirm({
+      title:
+        "결재요청",
 
-        message:
-          "현재 업무일지를 결재요청 상태로 변경할까요?",
+      message:
+        "현재 업무일지를 결재요청 상태로 변경할까요?",
 
-        confirmText:
-          "결재요청",
+      confirmText:
+        "결재요청",
 
-        cancelText:
-          "취소"
-      });
-
-
-    if (
-      !shouldRequest
-    ) {
-      return;
-    }
+      cancelText:
+        "취소"
+    });
 
 
-    /*
-      현재 작성창에서 임시저장 이후 수정한 내용까지
-      함께 저장하면서 결재요청으로 변경한다.
+  if (
+    !shouldRequest
+  ) {
+    return;
+  }
 
-      기존 코드와 API 호환을 위해
-      작성완료 값을 전달한다.
-    */
+
+  /*
+    결재요청 상태로 저장하되
+    수정창은 자동으로 닫지 않는다.
+  */
+  const requestedLog =
     await saveCurrentLog(
       "작성완료",
       {
         closeAfterSave:
-          true
+          false
       }
     );
+
+
+  if (
+    !requestedLog
+  ) {
+    return;
   }
+
+
+  /*
+    저장된 업무일지 ID를
+    현재 작성창에 계속 연결한다.
+  */
+  if (
+    elements?.logEditorForm
+  ) {
+    elements.logEditorForm
+      .dataset
+      .editingId =
+      String(
+        requestedLog.id ||
+        ""
+      );
+
+
+    elements.logEditorForm
+      .dataset
+      .editorMode =
+      "approval-requested";
+  }
+
+
+  /*
+    결재요청 상태에 맞춰
+    임시저장·결재요청 버튼을 다시 정리한다.
+  */
+  updateLogEditorActionButtons();
+
+
+  /*
+    결재요청 직후 상태를 저장 완료 기준으로 기록한다.
+    닫기 버튼을 눌렀을 때 불필요한
+    미저장 경고가 나오지 않게 한다.
+  */
+  if (
+    typeof markLogEditorAsSaved ===
+      "function"
+  ) {
+    markLogEditorAsSaved();
+  }
+}
 
 
   /* =====================================================
