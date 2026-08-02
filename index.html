@@ -5269,167 +5269,244 @@
         </section>
 
 
-        <!-- 과거 업무일지 동기화 -->
-        <section
-          class="legacy-sync-panel"
-          id="legacySyncPanel"
-        >
+<!-- ===================================================
+  과거 업무일지 동기화
+==================================================== -->
 
-          <div class="legacy-sync-panel__header">
+<section
+  class="legacy-sync-panel"
+  id="legacySyncPanel"
+>
 
-            <div>
+  <!-- =================================================
+    제목 및 상태
+  ================================================== -->
 
-              <strong>
-                과거 업무일지 동기화
-              </strong>
+  <div class="legacy-sync-panel__header">
 
-              <p>
-                과거 업무일지를 GS Shift Log 데이터베이스에 저장합니다.
-              </p>
+    <div>
 
-            </div>
+      <strong>
+        과거 업무일지 동기화
+      </strong>
 
+      <p>
+        과거 업무일지를 GS Shift Log 데이터베이스에 저장합니다.
+      </p>
 
-            <span
-              class="legacy-sync-status-badge"
-              id="legacySyncStatusBadge"
-            >
-              대기
-            </span>
-
-          </div>
+    </div>
 
 
-          <div class="legacy-sync-form">
+    <span
+      class="legacy-sync-status-badge"
+      id="legacySyncStatusBadge"
+    >
+      대기
+    </span>
 
-            <label class="form-field">
-
-              <span class="form-field__label">
-                시작일
-              </span>
-
-              <input
-                type="date"
-                id="legacySyncStartDate"
-              />
-
-            </label>
+  </div>
 
 
-            <label class="form-field">
+  <!-- =================================================
+    동기화 기간
+  ================================================== -->
 
-              <span class="form-field__label">
-                종료일
-              </span>
+  <div class="legacy-sync-form">
 
-              <input
-                type="date"
-                id="legacySyncEndDate"
-              />
+    <label class="form-field">
 
-            </label>
+      <span class="form-field__label">
+        시작일
+      </span>
 
+      <input
+        type="date"
+        id="legacySyncStartDate"
+      />
 
-            <button
-              type="button"
-              class="
-                primary-button
-                legacy-sync-button
-              "
-              id="runLegacySyncButton"
-            >
-              과거 업무일지 동기화
-            </button>
-
-          </div>
+    </label>
 
 
-          <div
-            class="legacy-sync-progress"
-            id="legacySyncProgress"
-            hidden
-          >
+    <label class="form-field">
 
-            <div class="legacy-sync-progress__track">
+      <span class="form-field__label">
+        종료일
+      </span>
 
-              <span
-                class="legacy-sync-progress__bar"
-                id="legacySyncProgressBar"
-              >
-              </span>
+      <input
+        type="date"
+        id="legacySyncEndDate"
+      />
 
-            </div>
+    </label>
 
 
-            <div class="legacy-sync-progress__text">
+    <button
+      type="button"
+      class="
+        primary-button
+        legacy-sync-button
+      "
+      id="runLegacySyncButton"
+    >
+      과거 업무일지 동기화
+    </button>
 
-              <strong id="legacySyncProgressText">
-                동기화를 준비하고 있습니다.
-              </strong>
-
-              <span id="legacySyncProgressPercent">
-                0%
-              </span>
-
-            </div>
-
-          </div>
-
-
-          <p
-            class="
-              employee-management-message
-              legacy-sync-message
-            "
-            id="legacySyncMessage"
-            hidden
-          >
-          </p>
+  </div>
 
 
-          <div class="legacy-sync-summary">
+  <!-- =================================================
+    진행률
+  ================================================== -->
 
-            <div>
+  <div
+    class="legacy-sync-progress"
+    id="legacySyncProgress"
+    hidden
+  >
 
-              <span>
-                마지막 동기화
-              </span>
+    <div class="legacy-sync-progress__track">
 
-              <strong id="legacySyncLastRun">
-                기록 없음
-              </strong>
+      <span
+        class="legacy-sync-progress__bar"
+        id="legacySyncProgressBar"
+      >
+      </span>
 
-            </div>
-
-
-            <div>
-
-              <span>
-                동기화 기간
-              </span>
-
-              <strong id="legacySyncLastRange">
-                -
-              </strong>
-
-            </div>
+    </div>
 
 
-            <div>
+    <div class="legacy-sync-progress__text">
 
-              <span>
-                처리 결과
-              </span>
+      <strong id="legacySyncProgressText">
+        동기화를 준비하고 있습니다.
+      </strong>
 
-              <strong id="legacySyncLastResult">
-                -
-              </strong>
+      <span id="legacySyncProgressPercent">
+        0%
+      </span>
 
-            </div>
+    </div>
 
-          </div>
+  </div>
 
-        </section>
+
+  <!-- =================================================
+    처리 메시지
+  ================================================== -->
+
+  <p
+    class="
+      employee-management-message
+      legacy-sync-message
+    "
+    id="legacySyncMessage"
+    hidden
+  >
+  </p>
+
+
+  <!-- =================================================
+    마지막 동기화 요약
+  ================================================== -->
+
+  <div class="legacy-sync-summary">
+
+    <div>
+
+      <span>
+        마지막 동기화
+      </span>
+
+      <strong id="legacySyncLastRun">
+        기록 없음
+      </strong>
+
+    </div>
+
+
+    <div>
+
+      <span>
+        동기화 기간
+      </span>
+
+      <strong id="legacySyncLastRange">
+        -
+      </strong>
+
+    </div>
+
+
+    <div>
+
+      <span>
+        처리 결과
+      </span>
+
+      <strong id="legacySyncLastResult">
+        -
+      </strong>
+
+    </div>
+
+  </div>
+
+
+  <!-- =================================================
+    실패 항목 상세
+
+    실패한 날짜와 DAY·NIGHT를 표시하고
+    실패 항목만 다시 동기화한다.
+  ================================================== -->
+
+  <div
+    class="legacy-sync-failure-panel"
+    id="legacySyncFailurePanel"
+    hidden
+  >
+
+    <div class="legacy-sync-failure-panel__header">
+
+      <div class="legacy-sync-failure-panel__title">
+
+        <strong>
+          동기화 실패 항목
+        </strong>
+
+        <span id="legacySyncFailureCount">
+          0건
+        </span>
+
+      </div>
+
+
+      <button
+        type="button"
+        class="legacy-sync-retry-button"
+        id="retryLegacySyncFailuresButton"
+      >
+        실패 항목 재동기화
+      </button>
+
+    </div>
+
+
+    <p class="legacy-sync-failure-panel__description">
+      실패한 날짜와 근무만 다시 요청합니다.
+      이미 저장된 정상 자료는 다시 처리하지 않습니다.
+    </p>
+
+
+    <div
+      class="legacy-sync-failure-list"
+      id="legacySyncFailureList"
+    >
+    </div>
+
+  </div>
+
+</section>
 
 
         <!-- 직원 추가 입력 -->

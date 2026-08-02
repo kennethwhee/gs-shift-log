@@ -2951,6 +2951,603 @@ function saveLegacySyncLastResult(
   );
 }
 
+/* =========================================================
+  저장된 과거 업무일지 동기화 결과 불러오기
+========================================================= */
+
+function loadLegacySyncLastResult() {
+  const savedResult =
+    localStorage.getItem(
+      LEGACY_SYNC_STORAGE_KEY
+    );
+
+
+  if (
+    !savedResult
+  ) {
+    return null;
+  }
+
+
+  try {
+    const parsedResult =
+      JSON.parse(
+        savedResult
+      );
+
+
+    return (
+      parsedResult &&
+      typeof parsedResult ===
+        "object"
+        ? parsedResult
+        : null
+    );
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "저장된 과거 업무일지 동기화 결과를 읽지 못했습니다.",
+      error
+    );
+
+
+    localStorage.removeItem(
+      LEGACY_SYNC_STORAGE_KEY
+    );
+
+
+    return null;
+  }
+}
+
+
+/* =========================================================
+  실패 항목 정규화
+
+  지원:
+  - date: 20210103
+  - workDate: 2021-01-03
+  - shift: DAY / NIGHT
+  - currentShift: DS / NS
+========================================================= */
+
+function normalizeLegacySyncFailure(
+  failure
+) {
+  if (
+    !failure ||
+    typeof failure !==
+      "object"
+  ) {
+    return null;
+  }
+
+
+  const rawDate =
+    String(
+      failure.date ||
+      failure.workDate ||
+      ""
+    )
+      .trim()
+      .replace(
+        /-/g,
+        ""
+      );
+
+
+  if (
+    !/^\d{8}$/.test(
+      rawDate
+    )
+  ) {
+    return null;
+  }
+
+
+  let legacyShift =
+    String(
+      failure.shift ||
+      failure.legacyShift ||
+      failure.currentShift ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replaceAll(
+        "/",
+        ""
+      );
+
+
+  if (
+    legacyShift ===
+    "DS"
+  ) {
+    legacyShift =
+      "DAY";
+  }
+
+
+  if (
+    legacyShift ===
+    "NS"
+  ) {
+    legacyShift =
+      "NIGHT";
+  }
+
+
+  if (
+    ![
+      "DAY",
+      "NIGHT"
+    ].includes(
+      legacyShift
+    )
+  ) {
+    return null;
+  }
+
+
+  const workDate = [
+    rawDate.slice(
+      0,
+      4
+    ),
+
+    rawDate.slice(
+      4,
+      6
+    ),
+
+    rawDate.slice(
+      6,
+      8
+    )
+  ].join(
+    "-"
+  );
+
+
+  return {
+    date:
+      rawDate,
+
+    workDate,
+
+    shift:
+      legacyShift,
+
+    currentShift:
+      legacyShift ===
+        "DAY"
+        ? "DS"
+        : "NS",
+
+    message:
+      String(
+        failure.message ||
+        failure.error ||
+        "실패 사유를 확인할 수 없습니다."
+      ).trim()
+  };
+}
+
+
+/* =========================================================
+  API 응답에서 실패 항목 수집
+
+  최신 API:
+  result.failedRequests
+
+  기존 API 호환:
+  result.dateResults[].errors
+========================================================= */
+
+function collectLegacySyncFailures(
+  result
+) {
+  if (
+    !result ||
+    typeof result !==
+      "object"
+  ) {
+    return [];
+  }
+
+
+  const collectedFailures =
+    [];
+
+
+  /*
+    최신 API 실패 목록
+  */
+  if (
+    Array.isArray(
+      result.failedRequests
+    )
+  ) {
+    collectedFailures.push(
+      ...result.failedRequests
+    );
+  }
+
+
+  /*
+    기존 API의 날짜별 실패 목록도 지원한다.
+  */
+  if (
+    Array.isArray(
+      result.dateResults
+    )
+  ) {
+    result.dateResults.forEach(
+      dateResult => {
+        const dateErrors =
+          Array.isArray(
+            dateResult?.errors
+          )
+            ? dateResult.errors
+            : [];
+
+
+        dateErrors.forEach(
+          error => {
+            collectedFailures.push({
+              date:
+                dateResult.date,
+
+              workDate:
+                dateResult.workDate,
+
+              shift:
+                error.shift,
+
+              currentShift:
+                error.currentShift,
+
+              message:
+                error.message ||
+                error.error ||
+                ""
+            });
+          }
+        );
+      }
+    );
+  }
+
+
+  const uniqueFailureMap =
+    new Map();
+
+
+  collectedFailures.forEach(
+    failure => {
+      const normalizedFailure =
+        normalizeLegacySyncFailure(
+          failure
+        );
+
+
+      if (
+        !normalizedFailure
+      ) {
+        return;
+      }
+
+
+      const failureKey = [
+        normalizedFailure.date,
+        normalizedFailure.shift
+      ].join(
+        "||"
+      );
+
+
+      /*
+        동일 날짜·근무가 여러 번 실패한 경우
+        가장 마지막 실패 사유를 사용한다.
+      */
+      uniqueFailureMap.set(
+        failureKey,
+        normalizedFailure
+      );
+    }
+  );
+
+
+  return [
+    ...uniqueFailureMap.values()
+  ].sort(
+    (
+      firstFailure,
+      secondFailure
+    ) => {
+      const dateCompare =
+        firstFailure.date.localeCompare(
+          secondFailure.date
+        );
+
+
+      if (
+        dateCompare !==
+        0
+      ) {
+        return dateCompare;
+      }
+
+
+      return (
+        firstFailure.shift ===
+        "DAY"
+          ? -1
+          : 1
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+  실패 항목 날짜 수 계산
+========================================================= */
+
+function countLegacySyncFailureDates(
+  failures
+) {
+  return new Set(
+    (
+      Array.isArray(
+        failures
+      )
+        ? failures
+        : []
+    ).map(
+      failure => {
+        return String(
+          failure.date ||
+          ""
+        );
+      }
+    )
+  ).size;
+}
+
+
+/* =========================================================
+  실패 항목 화면 출력
+========================================================= */
+
+function renderLegacySyncFailures(
+  failures = null,
+  syncResult = null
+) {
+  const panel =
+    document.getElementById(
+      "legacySyncFailurePanel"
+    );
+
+
+  const list =
+    document.getElementById(
+      "legacySyncFailureList"
+    );
+
+
+  const count =
+    document.getElementById(
+      "legacySyncFailureCount"
+    );
+
+
+  const retryButton =
+    document.getElementById(
+      "retryLegacySyncFailuresButton"
+    );
+
+
+  if (
+    !panel ||
+    !list
+  ) {
+    return;
+  }
+
+
+  const savedResult =
+    syncResult ||
+    loadLegacySyncLastResult();
+
+
+  const normalizedFailures =
+    Array.isArray(
+      failures
+    )
+      ? collectLegacySyncFailures({
+          failedRequests:
+            failures
+        })
+      : collectLegacySyncFailures(
+          savedResult
+        );
+
+
+  /*
+    기존 저장 결과에 실패 숫자만 있고
+    실패 날짜 정보가 없는 경우
+  */
+  if (
+    normalizedFailures.length ===
+      0 &&
+    Number(
+      savedResult?.failedDateCount ||
+      0
+    ) >
+      0
+  ) {
+    panel.hidden =
+      false;
+
+
+    if (
+      count
+    ) {
+      count.textContent =
+        `${Number(
+          savedResult.failedDateCount
+        )}일`;
+    }
+
+
+    list.innerHTML = `
+      <div class="legacy-sync-failure-empty">
+
+        <strong>
+          기존 실패 날짜의 상세 정보가 저장되어 있지 않습니다.
+        </strong>
+
+        <p>
+          수정된 기능으로 동기화를 다시 실행하면
+          날짜·근무·실패 사유가 여기에 표시됩니다.
+        </p>
+
+      </div>
+    `;
+
+
+    if (
+      retryButton
+    ) {
+      retryButton.disabled =
+        true;
+    }
+
+
+    return;
+  }
+
+
+  if (
+    normalizedFailures.length ===
+    0
+  ) {
+    panel.hidden =
+      true;
+
+
+    list.innerHTML =
+      "";
+
+
+    if (
+      count
+    ) {
+      count.textContent =
+        "0건";
+    }
+
+
+    if (
+      retryButton
+    ) {
+      retryButton.disabled =
+        true;
+    }
+
+
+    return;
+  }
+
+
+  panel.hidden =
+    false;
+
+
+  const failedDateCount =
+    countLegacySyncFailureDates(
+      normalizedFailures
+    );
+
+
+  if (
+    count
+  ) {
+    count.textContent =
+      `${normalizedFailures.length}건 · ${failedDateCount}일`;
+  }
+
+
+  if (
+    retryButton
+  ) {
+    retryButton.disabled =
+      false;
+  }
+
+
+  list.innerHTML =
+    normalizedFailures
+      .map(
+        failure => {
+          const shiftLabel =
+            failure.shift ===
+              "DAY"
+              ? "D/S"
+              : "N/S";
+
+
+          return `
+            <article class="legacy-sync-failure-item">
+
+              <div class="legacy-sync-failure-item__identity">
+
+                <strong>
+                  ${escapeEmployeeManagementHtml(
+                    failure.workDate
+                  )}
+                </strong>
+
+                <span
+                  class="
+                    legacy-sync-failure-item__shift
+                    ${
+                      failure.shift ===
+                        "DAY"
+                        ? "is-day"
+                        : "is-night"
+                    }
+                  "
+                >
+                  ${shiftLabel}
+                </span>
+
+              </div>
+
+
+              <p
+                class="
+                  legacy-sync-failure-item__message
+                "
+              >
+                ${escapeEmployeeManagementHtml(
+                  failure.message
+                )}
+              </p>
+
+            </article>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+}
+
 
 /* =========================================================
   마지막 동기화 결과 화면 표시
@@ -2964,10 +3561,12 @@ function renderLegacySyncLastResult(
       "legacySyncLastRun"
     );
 
+
   const lastRangeElement =
     document.getElementById(
       "legacySyncLastRange"
     );
+
 
   const lastResultElement =
     document.getElementById(
@@ -2975,53 +3574,76 @@ function renderLegacySyncLastResult(
     );
 
 
-  let result =
-    syncResult;
+  const result =
+    syncResult ||
+    loadLegacySyncLastResult();
 
 
-  if (!result) {
-    const savedResult =
-      localStorage.getItem(
-        LEGACY_SYNC_STORAGE_KEY
-      );
-
-
-    if (savedResult) {
-      try {
-        result =
-          JSON.parse(
-            savedResult
-          );
-      } catch {
-        localStorage.removeItem(
-          LEGACY_SYNC_STORAGE_KEY
-        );
-      }
-    }
-  }
-
-
-  if (!result) {
-    if (lastRunElement) {
+  if (
+    !result
+  ) {
+    if (
+      lastRunElement
+    ) {
       lastRunElement.textContent =
         "기록 없음";
     }
 
-    if (lastRangeElement) {
+
+    if (
+      lastRangeElement
+    ) {
       lastRangeElement.textContent =
         "-";
     }
 
-    if (lastResultElement) {
+
+    if (
+      lastResultElement
+    ) {
       lastResultElement.textContent =
         "-";
     }
+
+
+    renderLegacySyncFailures(
+      [],
+      null
+    );
+
 
     return;
   }
 
 
-  if (lastRunElement) {
+  const failures =
+    collectLegacySyncFailures(
+      result
+    );
+
+
+  const failedShiftCount =
+    failures.length ||
+    Number(
+      result.failedShiftCount ||
+      0
+    );
+
+
+  const failedDateCount =
+    failures.length
+      ? countLegacySyncFailureDates(
+          failures
+        )
+      : Number(
+          result.failedDateCount ||
+          0
+        );
+
+
+  if (
+    lastRunElement
+  ) {
     lastRunElement.textContent =
       formatDateTime(
         result.completedAt
@@ -3029,21 +3651,66 @@ function renderLegacySyncLastResult(
   }
 
 
-  if (lastRangeElement) {
+  if (
+    lastRangeElement
+  ) {
     lastRangeElement.textContent =
       `${result.startDate} ~ ${result.endDate}`;
   }
 
 
-  if (lastResultElement) {
+  if (
+    lastResultElement
+  ) {
+    const resultParts = [
+      `조회 ${Number(
+        result.fetchedCount ||
+        0
+      )}건`,
+
+      `신규 ${Number(
+        result.createdCount ||
+        0
+      )}건`,
+
+      `갱신 ${Number(
+        result.updatedCount ||
+        0
+      )}건`
+    ];
+
+
+    if (
+      failedShiftCount >
+      0
+    ) {
+      resultParts.push(
+        `실패 근무 ${failedShiftCount}건`
+      );
+
+
+      resultParts.push(
+        `실패 날짜 ${failedDateCount}일`
+      );
+
+    } else {
+      resultParts.push(
+        "실패 0건"
+      );
+    }
+
+
     lastResultElement.textContent =
-      [
-        `조회 ${result.fetchedCount}건`,
-        `신규 ${result.createdCount}건`,
-        `갱신 ${result.updatedCount}건`,
-        `실패 ${result.failedDateCount}일`
-      ].join(" / ");
+      resultParts.join(
+        " / "
+      );
   }
+
+
+  renderLegacySyncFailures(
+    failures,
+    result
+  );
 }
 
 
@@ -3114,7 +3781,12 @@ function setDefaultLegacySyncDateRange() {
 
 
 /* =========================================================
-  과거 업무일지 동기화 실행
+  과거 업무일지 전체 기간 동기화
+
+  추가 기능:
+  - 실패 날짜·근무·원인 수집
+  - 실패 목록 localStorage 저장
+  - 실패 상세 화면 출력
 ========================================================= */
 
 async function runLegacyLogSync() {
@@ -3123,14 +3795,22 @@ async function runLegacyLogSync() {
       "legacySyncStartDate"
     );
 
+
   const endDateInput =
     document.getElementById(
       "legacySyncEndDate"
     );
 
+
   const runButton =
     document.getElementById(
       "runLegacySyncButton"
+    );
+
+
+  const retryButton =
+    document.getElementById(
+      "retryLegacySyncFailuresButton"
     );
 
 
@@ -3157,6 +3837,7 @@ async function runLegacyLogSync() {
       "error"
     );
 
+
     return;
   }
 
@@ -3176,6 +3857,7 @@ async function runLegacyLogSync() {
       "error"
     );
 
+
     return;
   }
 
@@ -3189,21 +3871,36 @@ async function runLegacyLogSync() {
         `총 ${chunks.length}회로 나누어 처리합니다.`,
         "",
         "이미 저장된 자료는 최신 내용으로 갱신됩니다."
-      ].join("\n")
+      ].join(
+        "\n"
+      )
     );
 
 
-  if (!shouldRun) {
+  if (
+    !shouldRun
+  ) {
     return;
   }
 
 
-  if (runButton) {
+  if (
+    runButton
+  ) {
     runButton.disabled =
       true;
 
+
     runButton.textContent =
       "동기화 중...";
+  }
+
+
+  if (
+    retryButton
+  ) {
+    retryButton.disabled =
+      true;
   }
 
 
@@ -3226,13 +3923,24 @@ async function runLegacyLogSync() {
   );
 
 
-  let fetchedCount = 0;
+  let fetchedCount =
+    0;
 
-  let createdCount = 0;
 
-  let updatedCount = 0;
+  let createdCount =
+    0;
 
-  let failedDateCount = 0;
+
+  let updatedCount =
+    0;
+
+
+  let attachmentFailedCount =
+    0;
+
+
+  const collectedFailures =
+    [];
 
 
   try {
@@ -3240,7 +3948,8 @@ async function runLegacyLogSync() {
       let chunkIndex = 0;
       chunkIndex <
         chunks.length;
-      chunkIndex += 1
+      chunkIndex +=
+        1
     ) {
       const chunk =
         chunks[
@@ -3346,11 +4055,18 @@ async function runLegacyLogSync() {
         );
 
 
-      failedDateCount +=
+      attachmentFailedCount +=
         Number(
-          result.failedDateCount ||
+          result.attachmentFailedCount ||
           0
         );
+
+
+      collectedFailures.push(
+        ...collectLegacySyncFailures(
+          result
+        )
+      );
 
 
       updateLegacySyncProgress(
@@ -3359,6 +4075,23 @@ async function runLegacyLogSync() {
         `${chunk.startDate} ~ ${chunk.endDate} 완료`
       );
     }
+
+
+    const failedRequests =
+      collectLegacySyncFailures({
+        failedRequests:
+          collectedFailures
+      });
+
+
+    const failedShiftCount =
+      failedRequests.length;
+
+
+    const failedDateCount =
+      countLegacySyncFailureDates(
+        failedRequests
+      );
 
 
     const completedAt =
@@ -3377,7 +4110,13 @@ async function runLegacyLogSync() {
 
       updatedCount,
 
+      attachmentFailedCount,
+
       failedDateCount,
+
+      failedShiftCount,
+
+      failedRequests,
 
       completedAt
     };
@@ -3394,11 +4133,13 @@ async function runLegacyLogSync() {
 
 
     setLegacySyncStatus(
-      failedDateCount > 0
+      failedShiftCount >
+        0
         ? "warning"
         : "complete",
 
-      failedDateCount > 0
+      failedShiftCount >
+        0
         ? "일부 완료"
         : "완료"
     );
@@ -3407,12 +4148,22 @@ async function runLegacyLogSync() {
     showLegacySyncMessage(
       [
         "과거 업무일지 동기화가 완료되었습니다.",
+
         `조회 ${fetchedCount}건`,
+
         `신규 ${createdCount}건`,
+
         `갱신 ${updatedCount}건`,
+
+        `실패 근무 ${failedShiftCount}건`,
+
         `실패 날짜 ${failedDateCount}일`
-      ].join(" / "),
-      failedDateCount > 0
+      ].join(
+        " / "
+      ),
+
+      failedShiftCount >
+        0
         ? "warning"
         : "success"
     );
@@ -3421,25 +4172,29 @@ async function runLegacyLogSync() {
     updateLegacySyncProgress(
       chunks.length,
       chunks.length,
-      "모든 동기화 작업이 완료되었습니다."
+      failedShiftCount >
+        0
+        ? "동기화가 완료되었습니다. 실패 항목을 확인해 주세요."
+        : "모든 동기화 작업이 완료되었습니다."
     );
 
 
-    /*
-      현재 화면의 선택 날짜 자료를 다시 불러온다.
-    */
     if (
       typeof loadLegacyLogsForSelectedDate ===
-      "function"
+        "function"
     ) {
       await loadLegacyLogsForSelectedDate();
 
+
       renderLogTable();
+
 
       updateShiftMemberCardStates();
     }
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "과거 업무일지 동기화 오류:",
       error
@@ -3459,16 +4214,483 @@ async function runLegacyLogSync() {
     );
 
   } finally {
-    if (runButton) {
+    if (
+      runButton
+    ) {
       runButton.disabled =
         false;
+
 
       runButton.textContent =
         "과거 업무일지 동기화";
     }
+
+
+    const savedResult =
+      loadLegacySyncLastResult();
+
+
+    const remainingFailures =
+      collectLegacySyncFailures(
+        savedResult
+      );
+
+
+    if (
+      retryButton
+    ) {
+      retryButton.disabled =
+        remainingFailures.length ===
+        0;
+    }
   }
 }
 
+/* =========================================================
+  실패한 날짜·근무만 재동기화
+========================================================= */
+
+async function retryLegacySyncFailures() {
+  const runButton =
+    document.getElementById(
+      "runLegacySyncButton"
+    );
+
+
+  const retryButton =
+    document.getElementById(
+      "retryLegacySyncFailuresButton"
+    );
+
+
+  const previousResult =
+    loadLegacySyncLastResult();
+
+
+  const failedRequests =
+    collectLegacySyncFailures(
+      previousResult
+    );
+
+
+  if (
+    failedRequests.length ===
+    0
+  ) {
+    showLegacySyncMessage(
+      "재동기화할 실패 항목이 없습니다.",
+      "info"
+    );
+
+
+    return;
+  }
+
+
+  const failedDateCount =
+    countLegacySyncFailureDates(
+      failedRequests
+    );
+
+
+  const shouldRetry =
+    window.confirm(
+      [
+        "실패한 항목만 다시 동기화하시겠습니까?",
+        "",
+        `실패 날짜 ${failedDateCount}일`,
+        `실패 근무 ${failedRequests.length}건`,
+        "",
+        "정상 완료된 날짜는 다시 처리하지 않습니다."
+      ].join(
+        "\n"
+      )
+    );
+
+
+  if (
+    !shouldRetry
+  ) {
+    return;
+  }
+
+
+  if (
+    runButton
+  ) {
+    runButton.disabled =
+      true;
+  }
+
+
+  if (
+    retryButton
+  ) {
+    retryButton.disabled =
+      true;
+
+
+    retryButton.textContent =
+      "재동기화 중...";
+  }
+
+
+  setLegacySyncStatus(
+    "running",
+    "재시도 중"
+  );
+
+
+  showLegacySyncMessage(
+    "실패한 날짜와 근무를 다시 동기화하고 있습니다.",
+    "info"
+  );
+
+
+  updateLegacySyncProgress(
+    0,
+    failedRequests.length,
+    "실패 항목 재동기화를 준비하고 있습니다."
+  );
+
+
+  let retryFetchedCount =
+    0;
+
+
+  let retryCreatedCount =
+    0;
+
+
+  let retryUpdatedCount =
+    0;
+
+
+  const remainingFailures =
+    [];
+
+
+  try {
+    for (
+      let failureIndex = 0;
+      failureIndex <
+        failedRequests.length;
+      failureIndex +=
+        1
+    ) {
+      const failure =
+        failedRequests[
+          failureIndex
+        ];
+
+
+      const shiftLabel =
+        failure.shift ===
+          "DAY"
+          ? "D/S"
+          : "N/S";
+
+
+      updateLegacySyncProgress(
+        failureIndex,
+        failedRequests.length,
+        `${failure.workDate} ${shiftLabel} 재동기화 중`
+      );
+
+
+      try {
+        const response =
+          await fetch(
+            "/api/legacy-import",
+            {
+              method:
+                "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+
+                Accept:
+                  "application/json"
+              },
+
+              cache:
+                "no-store",
+
+              body:
+                JSON.stringify({
+                  date:
+                    failure.date,
+
+                  shift:
+                    failure.shift
+                })
+            }
+          );
+
+
+        const responseText =
+          await response.text();
+
+
+        let result = {};
+
+
+        try {
+          result =
+            responseText
+              ? JSON.parse(
+                  responseText
+                )
+              : {};
+
+        } catch {
+          throw new Error(
+            "서버 응답이 JSON 형식이 아닙니다."
+          );
+        }
+
+
+        if (
+          !response.ok ||
+          !result.success
+        ) {
+          throw new Error(
+            result.message ||
+            "재동기화에 실패했습니다."
+          );
+        }
+
+
+        retryFetchedCount +=
+          Number(
+            result.fetchedCount ||
+            0
+          );
+
+
+        retryCreatedCount +=
+          Number(
+            result.createdCount ||
+            0
+          );
+
+
+        retryUpdatedCount +=
+          Number(
+            result.updatedCount ||
+            0
+          );
+
+
+        const retryFailures =
+          collectLegacySyncFailures(
+            result
+          );
+
+
+        if (
+          retryFailures.length >
+          0
+        ) {
+          remainingFailures.push(
+            ...retryFailures
+          );
+        }
+
+      } catch (
+        error
+      ) {
+        remainingFailures.push({
+          ...failure,
+
+          message:
+            error instanceof Error
+              ? error.message
+              : String(
+                  error
+                )
+        });
+      }
+
+
+      updateLegacySyncProgress(
+        failureIndex + 1,
+        failedRequests.length,
+        `${failure.workDate} ${shiftLabel} 처리 완료`
+      );
+    }
+
+
+    const normalizedRemainingFailures =
+      collectLegacySyncFailures({
+        failedRequests:
+          remainingFailures
+      });
+
+
+    const remainingFailedShiftCount =
+      normalizedRemainingFailures.length;
+
+
+    const remainingFailedDateCount =
+      countLegacySyncFailureDates(
+        normalizedRemainingFailures
+      );
+
+
+    const finalResult = {
+      ...previousResult,
+
+      fetchedCount:
+        Number(
+          previousResult?.fetchedCount ||
+          0
+        ) +
+        retryFetchedCount,
+
+      createdCount:
+        Number(
+          previousResult?.createdCount ||
+          0
+        ) +
+        retryCreatedCount,
+
+      updatedCount:
+        Number(
+          previousResult?.updatedCount ||
+          0
+        ) +
+        retryUpdatedCount,
+
+      failedDateCount:
+        remainingFailedDateCount,
+
+      failedShiftCount:
+        remainingFailedShiftCount,
+
+      failedRequests:
+        normalizedRemainingFailures,
+
+      retryAttemptedCount:
+        failedRequests.length,
+
+      retryCompletedAt:
+        new Date()
+          .toISOString(),
+
+      completedAt:
+        new Date()
+          .toISOString()
+    };
+
+
+    saveLegacySyncLastResult(
+      finalResult
+    );
+
+
+    renderLegacySyncLastResult(
+      finalResult
+    );
+
+
+    setLegacySyncStatus(
+      remainingFailedShiftCount >
+        0
+        ? "warning"
+        : "complete",
+
+      remainingFailedShiftCount >
+        0
+        ? "일부 실패"
+        : "완료"
+    );
+
+
+    showLegacySyncMessage(
+      remainingFailedShiftCount >
+        0
+        ? [
+            "실패 항목 재동기화를 완료했습니다.",
+            `재시도 ${failedRequests.length}건`,
+            `남은 실패 ${remainingFailedShiftCount}건`,
+            `남은 실패 날짜 ${remainingFailedDateCount}일`
+          ].join(
+            " / "
+          )
+        : [
+            "실패 항목 재동기화가 모두 완료되었습니다.",
+            `재시도 ${failedRequests.length}건`,
+            `조회 ${retryFetchedCount}건`,
+            `신규 ${retryCreatedCount}건`,
+            `갱신 ${retryUpdatedCount}건`
+          ].join(
+            " / "
+          ),
+
+      remainingFailedShiftCount >
+        0
+        ? "warning"
+        : "success"
+    );
+
+
+    updateLegacySyncProgress(
+      failedRequests.length,
+      failedRequests.length,
+      remainingFailedShiftCount >
+        0
+        ? "일부 실패 항목이 남아 있습니다."
+        : "모든 실패 항목이 정상 처리되었습니다."
+    );
+
+
+    if (
+      typeof loadLegacyLogsForSelectedDate ===
+        "function"
+    ) {
+      await loadLegacyLogsForSelectedDate();
+
+
+      renderLogTable();
+
+
+      updateShiftMemberCardStates();
+    }
+
+  } finally {
+    if (
+      runButton
+    ) {
+      runButton.disabled =
+        false;
+    }
+
+
+    if (
+      retryButton
+    ) {
+      const latestResult =
+        loadLegacySyncLastResult();
+
+
+      const latestFailures =
+        collectLegacySyncFailures(
+          latestResult
+        );
+
+
+      retryButton.disabled =
+        latestFailures.length ===
+        0;
+
+
+      retryButton.textContent =
+        "실패 항목 재동기화";
+    }
+  }
+}
 
 /* =========================================================
   과거 업무일지 동기화 초기화
@@ -3481,7 +4703,15 @@ function initializeLegacySyncPanel() {
     );
 
 
-  if (!runButton) {
+  const retryButton =
+    document.getElementById(
+      "retryLegacySyncFailuresButton"
+    );
+
+
+  if (
+    !runButton
+  ) {
     return;
   }
 
@@ -3492,15 +4722,38 @@ function initializeLegacySyncPanel() {
   renderLegacySyncLastResult();
 
 
+  const savedResult =
+    loadLegacySyncLastResult();
+
+
+  const savedFailures =
+    collectLegacySyncFailures(
+      savedResult
+    );
+
+
   setLegacySyncStatus(
-    "ready",
-    "대기"
+    savedFailures.length >
+      0
+      ? "warning"
+      : "ready",
+
+    savedFailures.length >
+      0
+      ? "일부 실패"
+      : "대기"
   );
 
 
   runButton.addEventListener(
     "click",
     runLegacyLogSync
+  );
+
+
+  retryButton?.addEventListener(
+    "click",
+    retryLegacySyncFailures
   );
 }
 
@@ -3509,6 +4762,7 @@ document.addEventListener(
   "DOMContentLoaded",
   initializeLegacySyncPanel
 );
+
 
 /* =========================================================
   시스템 관리자 모달 열기 최종본

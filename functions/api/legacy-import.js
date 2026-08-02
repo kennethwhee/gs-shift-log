@@ -1081,9 +1081,35 @@ async function importLegacyAttachments(
 }
 
 /* =========================================================
+  과거 업무일지 재시도 대기
+
+  기존 서버가 일시적으로 응답하지 않는 경우
+  잠시 기다린 뒤 다시 요청한다.
+========================================================= */
+
+function waitForLegacyRetry(
+  milliseconds
+) {
+  return new Promise(
+    resolve => {
+      setTimeout(
+        resolve,
+        milliseconds
+      );
+    }
+  );
+}
+
+/* =========================================================
   현재 사이트의 기존 업무일지 API 호출
 
   GET /api/legacy-diaries
+
+  재시도:
+  - 최대 3회
+  - 1차 실패 후 700ms 대기
+  - 2차 실패 후 1,400ms 대기
+  - 입력값 오류를 제외한 일시적 오류 재시도
 ========================================================= */
 
 async function fetchLegacyDiaries(
@@ -1096,74 +1122,258 @@ async function fetchLegacyDiaries(
       request.url
     );
 
+
   const requestUrl =
     new URL(
       "/api/legacy-diaries",
       currentUrl.origin
     );
 
+
   requestUrl.searchParams.set(
     "date",
     date
   );
+
 
   requestUrl.searchParams.set(
     "shift",
     shift
   );
 
-  const response =
-    await fetch(
-      requestUrl.toString(),
-      {
-        method:
-          "GET",
 
-        headers: {
-          Accept:
-            "application/json"
-        },
+  const maximumAttemptCount =
+    3;
 
-        cache:
-          "no-store"
-      }
-    );
 
-  const responseText =
-    await response.text();
+  let lastError =
+    null;
 
-  let result = {};
 
-  try {
-    result =
-      responseText
-        ? JSON.parse(
-            responseText
-          )
-        : {};
-
-  } catch {
-    throw new Error(
-      `${shift} 기존 업무일지 서버 응답이 JSON 형식이 아닙니다.`
-    );
-  }
-
-  if (
-    !response.ok ||
-    !result.success
+  for (
+    let attemptNumber = 1;
+    attemptNumber <=
+      maximumAttemptCount;
+    attemptNumber += 1
   ) {
-    throw new Error(
-      result.message ||
-      result.error ||
-      `${shift} 기존 업무일지를 불러오지 못했습니다.`
-    );
+    try {
+      /*
+        한 요청이 지나치게 오래 멈추는 것을 방지한다.
+      */
+      const abortController =
+        new AbortController();
+
+
+      const timeoutId =
+        setTimeout(
+          () => {
+            abortController.abort();
+          },
+          20000
+        );
+
+
+      let response;
+
+
+      try {
+        response =
+          await fetch(
+            requestUrl.toString(),
+            {
+              method:
+                "GET",
+
+              headers: {
+                Accept:
+                  "application/json"
+              },
+
+              cache:
+                "no-store",
+
+              signal:
+                abortController.signal
+            }
+          );
+
+      } finally {
+        clearTimeout(
+          timeoutId
+        );
+      }
+
+
+      const responseText =
+        await response.text();
+
+
+      let result = {};
+
+
+      try {
+        result =
+          responseText
+            ? JSON.parse(
+                responseText
+              )
+            : {};
+
+      } catch {
+        const jsonError =
+          new Error(
+            [
+              `${date} ${shift}`,
+              "기존 업무일지 서버 응답이 JSON 형식이 아닙니다.",
+              `시도 ${attemptNumber}/${maximumAttemptCount}`
+            ].join(" / ")
+          );
+
+
+        jsonError.status =
+          response.status;
+
+
+        throw jsonError;
+      }
+
+
+      if (
+        !response.ok ||
+        !result.success
+      ) {
+        const responseError =
+          new Error(
+            [
+              `${date} ${shift}`,
+              result.error ||
+              result.message ||
+              "기존 업무일지를 불러오지 못했습니다.",
+              `HTTP ${response.status}`,
+              `시도 ${attemptNumber}/${maximumAttemptCount}`
+            ].join(" / ")
+          );
+
+
+        responseError.status =
+          response.status;
+
+
+        throw responseError;
+      }
+
+
+      /*
+        빈 배열은 실패가 아니다.
+
+        해당 날짜·근무에 자료가 없다는 뜻이므로
+        정상적으로 빈 배열을 반환한다.
+      */
+      return Array.isArray(
+        result.items
+      )
+        ? result.items
+        : [];
+
+    } catch (
+      error
+    ) {
+      const normalizedError =
+        error instanceof Error
+          ? error
+          : new Error(
+              String(
+                error
+              )
+            );
+
+
+      lastError =
+        normalizedError;
+
+
+      const errorStatus =
+        Number(
+          normalizedError.status ||
+          0
+        );
+
+
+      const isRequestInputError =
+        errorStatus >=
+          400 &&
+        errorStatus <
+          500 &&
+        errorStatus !==
+          408 &&
+        errorStatus !==
+          429;
+
+
+      console.warn(
+        [
+          `${date} ${shift} 과거 업무일지 조회 실패`,
+          `시도 ${attemptNumber}/${maximumAttemptCount}`,
+          normalizedError.message
+        ].join(" / ")
+      );
+
+
+      /*
+        날짜·근무값 오류와 같은 4xx 요청 오류는
+        반복해도 해결되지 않으므로 바로 종료한다.
+      */
+      if (
+        isRequestInputError
+      ) {
+        break;
+      }
+
+
+      if (
+        attemptNumber >=
+        maximumAttemptCount
+      ) {
+        break;
+      }
+
+
+      /*
+        첫 실패:
+        700ms 대기
+
+        두 번째 실패:
+        1,400ms 대기
+      */
+      const retryDelay =
+        700 *
+        attemptNumber;
+
+
+      await waitForLegacyRetry(
+        retryDelay
+      );
+    }
   }
 
-  return Array.isArray(
-    result.items
-  )
-    ? result.items
-    : [];
+
+  const finalMessage =
+    lastError?.name ===
+      "AbortError"
+      ? "기존 업무일지 서버 응답 시간이 20초를 초과했습니다."
+      : (
+          lastError?.message ||
+          "원인을 확인할 수 없는 오류입니다."
+        );
+
+
+  throw new Error(
+    [
+      `${date} ${shift}`,
+      `기존 업무일지 조회를 ${maximumAttemptCount}회 시도했지만 실패했습니다.`,
+      finalMessage
+    ].join(" / ")
+  );
 }
 
 
@@ -2007,8 +2217,29 @@ export async function onRequestPost(
       0;
 
 
-    let failedDateCount =
-      0;
+/* =====================================================
+  실패 정보 전체 합계
+
+  failedDateCount:
+  DAY·NIGHT 중 하나라도 실패한 날짜 수
+
+  failedShiftCount:
+  실제 실패한 DAY·NIGHT 요청 수
+
+  failedRequests:
+  실패 날짜·근무·원인 전체 목록
+===================================================== */
+
+let failedDateCount =
+  0;
+
+
+let failedShiftCount =
+  0;
+
+
+const failedRequests =
+  [];
 
 
     /* =====================================================
@@ -2159,23 +2390,76 @@ export async function onRequestPost(
               0
             );
 
-        } catch (error) {
-          console.error(
-            `${importDate} ${legacyShift} 동기화 실패:`,
-            error
-          );
+} catch (
+  error
+) {
+  const errorMessage =
+    error instanceof Error
+      ? error.message
+      : String(
+          error
+        );
 
 
-          errors.push({
-            shift:
-              legacyShift,
+  /*
+    날짜별 결과와 전체 결과에서
+    동일한 실패 정보를 사용한다.
+  */
+  const failedRequest = {
+    date:
+      importDate,
 
-            message:
-              error instanceof Error
-                ? error.message
-                : String(error)
-          });
-        }
+    workDate:
+      convertLegacyDateToIso(
+        importDate
+      ),
+
+    /*
+      과거 서버 근무명
+      DAY 또는 NIGHT
+    */
+    shift:
+      legacyShift,
+
+    /*
+      현재 업무일지 근무명
+      DS 또는 NS
+    */
+    currentShift:
+      convertLegacyShift(
+        legacyShift
+      ),
+
+    message:
+      errorMessage
+  };
+
+
+  console.error(
+    `${importDate} ${legacyShift} 동기화 실패:`,
+    error
+  );
+
+
+  /*
+    해당 날짜의 오류 목록
+  */
+  errors.push(
+    failedRequest
+  );
+
+
+  /*
+    전체 기간의 오류 목록
+  */
+  failedRequests.push(
+    failedRequest
+  );
+
+
+  failedShiftCount +=
+    1;
+}
       }
 
 
@@ -2272,85 +2556,147 @@ export async function onRequestPost(
     }
 
 
-    /* =====================================================
-      최종 응답
-    ====================================================== */
+/* =====================================================
+  최종 응답
 
-    return createJsonResponse({
-      success:
-        true,
+  실패 정보:
+  - failedDateCount
+  - failedShiftCount
+  - failedRequests
+===================================================== */
 
-      message:
-        [
-          `과거 업무일지 ${importDates.length}일 동기화 완료`,
+return createJsonResponse({
+  success:
+    true,
 
-          `업무일지 조회 ${totalFetchedCount}건`,
 
-          `업무일지 신규 ${totalCreatedCount}건`,
+  message:
+    [
+      `과거 업무일지 ${importDates.length}일 동기화 완료`,
 
-          `업무일지 갱신 ${totalUpdatedCount}건`,
+      `업무일지 조회 ${totalFetchedCount}건`,
 
-          `첨부파일 조회 ${totalAttachmentFetchedCount}개`,
+      `업무일지 신규 ${totalCreatedCount}건`,
 
-          `첨부파일 신규 ${totalAttachmentCreatedCount}개`,
+      `업무일지 갱신 ${totalUpdatedCount}건`,
 
-          `첨부파일 갱신 ${totalAttachmentUpdatedCount}개`,
+      `첨부파일 조회 ${totalAttachmentFetchedCount}개`,
 
-          `첨부파일 기존 ${totalAttachmentSkippedCount}개`,
+      `첨부파일 신규 ${totalAttachmentCreatedCount}개`,
 
-          `첨부파일 실패 ${totalAttachmentFailedCount}개`,
+      `첨부파일 갱신 ${totalAttachmentUpdatedCount}개`,
 
-          `실패 날짜 ${failedDateCount}일`
-        ].join(" / "),
+      `첨부파일 기존 ${totalAttachmentSkippedCount}개`,
 
-      startDate:
-        importDates[0],
+      `첨부파일 실패 ${totalAttachmentFailedCount}개`,
 
-      endDate:
-        importDates[
-          importDates.length -
-          1
-        ],
+      `실패 근무 ${failedShiftCount}건`,
 
-      requestedShift,
+      `실패 날짜 ${failedDateCount}일`
+    ].join(
+      " / "
+    ),
 
-      requestedDateCount:
-        importDates.length,
 
-      fetchedCount:
-        totalFetchedCount,
+  startDate:
+    importDates[0],
 
-      createdCount:
-        totalCreatedCount,
 
-      updatedCount:
-        totalUpdatedCount,
+  endDate:
+    importDates[
+      importDates.length -
+      1
+    ],
 
-      attachmentFetchedCount:
-        totalAttachmentFetchedCount,
 
-      attachmentCreatedCount:
-        totalAttachmentCreatedCount,
+  requestedShift,
 
-      attachmentUpdatedCount:
-        totalAttachmentUpdatedCount,
 
-      attachmentSkippedCount:
-        totalAttachmentSkippedCount,
+  requestedDateCount:
+    importDates.length,
 
-      attachmentFailedCount:
-        totalAttachmentFailedCount,
 
-      failedDateCount,
+  /* ===================================================
+    업무일지 처리 합계
+  =================================================== */
 
-      r2BindingAvailable:
-        Boolean(
-          context.env
-            .ATTACHMENTS
-        ),
+  fetchedCount:
+    totalFetchedCount,
 
-      dateResults
-    });
+
+  createdCount:
+    totalCreatedCount,
+
+
+  updatedCount:
+    totalUpdatedCount,
+
+
+  /* ===================================================
+    첨부파일 처리 합계
+  =================================================== */
+
+  attachmentFetchedCount:
+    totalAttachmentFetchedCount,
+
+
+  attachmentCreatedCount:
+    totalAttachmentCreatedCount,
+
+
+  attachmentUpdatedCount:
+    totalAttachmentUpdatedCount,
+
+
+  attachmentSkippedCount:
+    totalAttachmentSkippedCount,
+
+
+  attachmentFailedCount:
+    totalAttachmentFailedCount,
+
+
+  /* ===================================================
+    실패 결과
+  =================================================== */
+
+  failedDateCount,
+
+
+  failedShiftCount,
+
+
+  hasFailures:
+    failedRequests.length >
+    0,
+
+
+  /*
+    예:
+
+    {
+      date: "20210103",
+      workDate: "2021-01-03",
+      shift: "NIGHT",
+      currentShift: "NS",
+      message: "..."
+    }
+  */
+  failedRequests,
+
+
+  r2BindingAvailable:
+    Boolean(
+      context.env
+        .ATTACHMENTS
+    ),
+
+
+  /*
+    기존 날짜별 상세 결과도 유지한다.
+  */
+  dateResults
+});
 
   } catch (error) {
     console.error(

@@ -55108,3 +55108,426 @@ small {
       9px !important;
   }
 }
+
+/* =========================================================
+  과거 업무일지 동기화 실패 목록
+========================================================= */
+
+.legacy-sync-failure-panel {
+  margin-top:
+    14px;
+
+  padding:
+    14px;
+
+  border:
+    1px solid
+    #e5b8b8;
+
+  border-radius:
+    10px;
+
+  background:
+    #fffafa;
+}
+
+
+.legacy-sync-failure-panel[hidden] {
+  display:
+    none !important;
+}
+
+
+/* =========================================================
+  실패 목록 상단
+========================================================= */
+
+.legacy-sync-failure-panel__header {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    12px;
+}
+
+
+.legacy-sync-failure-panel__title {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  gap:
+    8px;
+}
+
+
+.legacy-sync-failure-panel__title
+strong {
+  color:
+    #8e3535;
+
+  font-size:
+    13px;
+
+  font-weight:
+    900;
+}
+
+
+#legacySyncFailureCount {
+  display:
+    inline-flex;
+
+  min-height:
+    22px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    8px;
+
+  border-radius:
+    999px;
+
+  background:
+    #fde8e8;
+
+  color:
+    #b33c3c;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+}
+
+
+/* =========================================================
+  재동기화 버튼
+========================================================= */
+
+.legacy-sync-retry-button {
+  min-height:
+    34px;
+
+  padding:
+    0
+    12px;
+
+  border:
+    1px solid
+    #d88a8a;
+
+  border-radius:
+    8px;
+
+  background:
+    #ffffff;
+
+  color:
+    #ac3838;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+}
+
+
+.legacy-sync-retry-button:hover:not(
+  :disabled
+) {
+  border-color:
+    #bc5656;
+
+  background:
+    #fff0f0;
+}
+
+
+.legacy-sync-retry-button:disabled {
+  cursor:
+    not-allowed;
+
+  opacity:
+    0.5;
+}
+
+
+/* =========================================================
+  안내 문구
+========================================================= */
+
+.legacy-sync-failure-panel__description {
+  margin:
+    9px
+    0
+    11px;
+
+  color:
+    #7d5b5b;
+
+  font-size:
+    10px;
+
+  line-height:
+    1.5;
+}
+
+
+/* =========================================================
+  실패 목록
+========================================================= */
+
+.legacy-sync-failure-list {
+  display:
+    flex;
+
+  max-height:
+    310px;
+
+  flex-direction:
+    column;
+
+  gap:
+    6px;
+
+  overflow-y:
+    auto;
+}
+
+
+.legacy-sync-failure-item {
+  display:
+    grid;
+
+  grid-template-columns:
+    132px
+    minmax(
+      0,
+      1fr
+    );
+
+  align-items:
+    start;
+
+  gap:
+    10px;
+
+  padding:
+    9px
+    10px;
+
+  border:
+    1px solid
+    #efd3d3;
+
+  border-radius:
+    8px;
+
+  background:
+    #ffffff;
+}
+
+
+.legacy-sync-failure-item__identity {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  gap:
+    6px;
+}
+
+
+.legacy-sync-failure-item__identity
+strong {
+  color:
+    #4a3640;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+/* 근무 배지 */
+.legacy-sync-failure-item__shift {
+  display:
+    inline-flex;
+
+  min-width:
+    35px;
+
+  min-height:
+    20px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    6px;
+
+  border-radius:
+    999px;
+
+  font-size:
+    9px;
+
+  font-weight:
+    900;
+}
+
+
+.legacy-sync-failure-item__shift.is-day {
+  background:
+    #fff1cf;
+
+  color:
+    #99600c;
+}
+
+
+.legacy-sync-failure-item__shift.is-night {
+  background:
+    #e9effb;
+
+  color:
+    #385c9b;
+}
+
+
+.legacy-sync-failure-item__message {
+  margin:
+    0;
+
+  color:
+    #6d4f58;
+
+  font-size:
+    10px;
+
+  font-weight:
+    650;
+
+  line-height:
+    1.5;
+
+  word-break:
+    break-word;
+
+  overflow-wrap:
+    anywhere;
+}
+
+
+/* =========================================================
+  기존 기록에 실패 날짜 정보가 없는 경우
+========================================================= */
+
+.legacy-sync-failure-empty {
+  padding:
+    16px;
+
+  border:
+    1px dashed
+    #debcbc;
+
+  border-radius:
+    8px;
+
+  background:
+    #ffffff;
+
+  text-align:
+    center;
+}
+
+
+.legacy-sync-failure-empty
+strong {
+  display:
+    block;
+
+  margin-bottom:
+    5px;
+
+  color:
+    #8e4141;
+
+  font-size:
+    11px;
+}
+
+
+.legacy-sync-failure-empty
+p {
+  margin:
+    0;
+
+  color:
+    #806565;
+
+  font-size:
+    10px;
+
+  line-height:
+    1.55;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media screen and (max-width: 680px) {
+
+  .legacy-sync-failure-panel__header {
+    align-items:
+      stretch;
+
+    flex-direction:
+      column;
+  }
+
+
+  .legacy-sync-retry-button {
+    width:
+      100%;
+  }
+
+
+  .legacy-sync-failure-item {
+    grid-template-columns:
+      1fr;
+
+    gap:
+      6px;
+  }
+}

@@ -2449,6 +2449,89 @@ async function syncNavigatorInspectionHistory(
   return failureResult;
 }
 
+/* =========================================================
+  Facility Navigator 비동기 전송 예약
+
+  Navigator 연동 실패가 업무일지 저장·수정·삭제
+  응답에 영향을 주지 않도록 waitUntil로 분리한다.
+========================================================= */
+
+function scheduleNavigatorInspectionSync(
+  context,
+  log,
+  options = {}
+) {
+  if (
+    !context ||
+    typeof context.waitUntil !==
+      "function"
+  ) {
+    console.error(
+      "Facility Navigator 연동 예약 실패: context.waitUntil()을 사용할 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  /*
+    실제 연동 함수에서 예상하지 못한 예외가 발생해도
+    업무일지 요청에는 예외가 전달되지 않게 한다.
+  */
+  const syncTask =
+    Promise.resolve()
+      .then(
+        () => {
+          return syncNavigatorInspectionHistory(
+            context,
+            log,
+            options
+          );
+        }
+      )
+      .catch(
+        error => {
+          console.error(
+            "Facility Navigator 점검이력 비동기 연동 오류:",
+            error
+          );
+
+
+          return {
+            ok:
+              false,
+
+            skipped:
+              false,
+
+            reason:
+              "unexpected-error",
+
+            message:
+              error instanceof
+                Error
+                  ? error.message
+                  : "Facility Navigator 비동기 연동 중 오류가 발생했습니다."
+          };
+        }
+      );
+
+
+  try {
+    context.waitUntil(
+      syncTask
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "Facility Navigator waitUntil 등록 오류:",
+      error
+    );
+  }
+}
+
 function canEditExistingLog(
   existingLog,
   user
@@ -3946,12 +4029,34 @@ const createdLog =
             user
           );
 
+
+        scheduleNavigatorInspectionSync(
+          context,
+          savedLog,
+          {
+            trigger:
+              action ===
+                "migrate"
+                  ? "migration-create"
+                  : "realtime-create",
+
+            containerRevision:
+              savedLog.serverRevision,
+
+            containerUpdatedAt:
+              savedLog.updatedAt
+          }
+        );
+
+
         return jsonResponse(
           {
             ok:
               true,
+
             created:
               true,
+
             log:
               savedLog
           },
@@ -4024,6 +4129,7 @@ const createdLog =
         expectedRevision
       );
 
+
     if (
       !savedLog
     ) {
@@ -4033,16 +4139,36 @@ const createdLog =
           existingLog.id
         );
 
+
       return createConflictResponse(
         currentLog
       );
     }
 
+
+    scheduleNavigatorInspectionSync(
+      context,
+      savedLog,
+      {
+        trigger:
+          `realtime-${action}`,
+
+        containerRevision:
+          savedLog.serverRevision,
+
+        containerUpdatedAt:
+          savedLog.updatedAt
+      }
+    );
+
+
     return jsonResponse({
       ok:
         true,
+
       created:
         false,
+
       log:
         savedLog
     });
@@ -4227,9 +4353,46 @@ export async function onRequestDelete(
       );
     }
 
+    const deletedAt =
+      new Date()
+        .toISOString();
+
+
+    /*
+      삭제된 행의 검증된 revision보다
+      1 높은 revision으로 purge를 전송한다.
+    */
+    const deletedRevision =
+      expectedRevision +
+      1;
+
+
+    scheduleNavigatorInspectionSync(
+      context,
+      existingLog,
+      {
+        trigger:
+          "realtime-delete",
+
+        containerRevision:
+          deletedRevision,
+
+        containerUpdatedAt:
+          deletedAt,
+
+        deleted:
+          true,
+
+        forcePurge:
+          true
+      }
+    );
+
+
     return jsonResponse({
       ok:
         true,
+
       deletedId:
         id
     });
