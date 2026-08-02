@@ -46861,35 +46861,52 @@ function isCurrentShiftLogLeader() {
 }
 
 /* =========================================================
-  저장 요청 상태 정규화
+  업무일지 저장 요청 상태 최종 결정
 
-  최고관리자:
-  - 신규 파트장 일지: 저장완료
-  - 신규 다른 보직 일지: 임시저장 또는 결재요청
-  - 기존 일지 수정: 기존 결재 상태 유지
+  일반 보직:
+  - 작성중·임시저장 → 임시저장
+  - 작성완료·결재요청 → 결재요청
+
+  파트장:
+  - 일반 저장은 항상 임시저장
+  - 결재완료는 changeShiftLogApprovalOnServer("approve")
+    전용 API 흐름으로 처리
+
+  이미 결재요청·결재완료된 일지:
+  - 일반 내용 저장으로 상태를 임의 변경하지 않음
+
+  최고관리자·파트장 계정이어도
+  현재 작성 중인 업무일지의 보직과
+  사용자가 누른 버튼을 기준으로 상태를 결정한다.
 ========================================================= */
 
 function resolveShiftLogSaveStatus(
   requestedStatus
 ) {
-  const normalizedStatus =
-    String(
-      requestedStatus ||
-      ""
-    ).trim();
+  const normalizedRequestedStatus =
+    typeof normalizeShiftLogApprovalStatus ===
+      "function"
+      ? normalizeShiftLogApprovalStatus(
+          requestedStatus
+        )
+      : String(
+          requestedStatus ||
+          ""
+        ).trim();
 
 
   const currentEditorRole =
     normalizeMemberLogRole(
-      elements.logRole?.value ||
+      elements?.logRole?.value ||
       ""
     );
 
 
   const editingId =
     String(
-      elements.logEditorForm
-        ?.dataset.editingId ||
+      elements?.logEditorForm
+        ?.dataset
+        ?.editingId ||
       ""
     ).trim();
 
@@ -46913,45 +46930,75 @@ function resolveShiftLogSaveStatus(
       : null;
 
 
-  /*
-    최고관리자가 기존 일지를 수정할 때는
-    수정만으로 결재 상태를 바꾸지 않는다.
-  */
-  if (
-    isCurrentUserSuperAdmin() &&
+  const existingStatus =
     existingLog
+      ? normalizeShiftLogApprovalStatus(
+          existingLog.status
+        )
+      : "";
+
+
+  /* =====================================================
+    이미 결재요청 또는 결재완료된 업무일지
+
+    일반 저장 동작으로 상태를 낮추거나 바꾸지 않는다.
+
+    상태 변경은 다음 전용 기능을 사용한다.
+    - 결재요청 취소
+    - 결재완료
+    - 결재취소
+  ====================================================== */
+
+  if (
+    [
+      "결재요청",
+      "결재완료"
+    ].includes(
+      existingStatus
+    )
   ) {
-    return normalizeShiftLogApprovalStatus(
-      existingLog.status
-    );
+    return existingStatus;
   }
 
 
-  /*
-    최고관리자의 신규 파트장 업무일지 또는
-    실제 파트장의 업무일지는 저장완료
-  */
+  /* =====================================================
+    파트장 업무일지
+
+    임시저장 후 별도 approve API를 통해
+    결재완료 처리한다.
+  ====================================================== */
+
   if (
-    (
-      isCurrentUserSuperAdmin() &&
-      currentEditorRole ===
-        "파트장"
-    ) ||
-    isCurrentShiftLogLeader()
+    currentEditorRole ===
+      "파트장"
   ) {
-    return "저장완료";
+    return "임시저장";
   }
 
 
+  /* =====================================================
+    일반 보직 결재요청
+
+    작성완료도 기존 코드 호환상
+    결재요청으로 처리한다.
+  ====================================================== */
+
   if (
-    normalizedStatus ===
+    normalizedRequestedStatus ===
       "결재요청" ||
-    normalizedStatus ===
+    String(
+      requestedStatus ||
+      ""
+    ).trim() ===
       "작성완료"
   ) {
     return "결재요청";
   }
 
+
+  /* =====================================================
+    일반 보직 임시저장
+  ====================================================== */
 
   return "임시저장";
 }
