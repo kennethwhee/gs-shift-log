@@ -65466,17 +65466,10 @@ function setMemberEditorRequestLock(
 
 updateLogEditorActionButtons =
   function updateLogEditorActionButtons() {
-    /*
-      파트장 및 기존 권한 버튼 처리를 먼저 적용한다.
-    */
     updateLogEditorActionButtonsBeforeMemberFlow
       ?.();
 
 
-    /*
-      다른 보직으로 전환될 때
-      이전 결재요청 잠금이 남지 않도록 해제한다.
-    */
     if (
       !isCurrentMemberEditorRole()
     ) {
@@ -65484,15 +65477,10 @@ updateLogEditorActionButtons =
         false
       );
 
-
       return;
     }
 
 
-    /*
-      버튼을 다시 계산하기 전에
-      기존 잠금 상태를 먼저 복원한다.
-    */
     setMemberEditorRequestLock(
       false
     );
@@ -65536,8 +65524,12 @@ updateLogEditorActionButtons =
       Boolean(
         currentLog
       ) &&
-      currentStatus ===
-        "임시저장";
+      [
+        "임시저장",
+        "저장완료"
+      ].includes(
+        currentStatus
+      );
 
 
     const isRequested =
@@ -65556,32 +65548,29 @@ updateLogEditorActionButtons =
         "결재완료";
 
 
-    /* ===================================================
+    /*
       기존 일반 저장 버튼 숨김
-    ==================================================== */
-
+    */
     setMemberEditorButtonVisible(
       submitButton,
       false
     );
 
 
-    /* ===================================================
+    /*
       임시저장 버튼
 
-      신규:
-      표시
+      신규·임시저장:
+      활성
 
-      임시저장:
-      표시
+      결재요청:
+      표시하되 비활성
 
-      결재요청·결재완료:
+      결재완료:
       숨김
-    ==================================================== */
-
+    */
     setMemberEditorButtonVisible(
       saveDraftButton,
-      !isRequested &&
       !isApproved
     );
 
@@ -65589,31 +65578,70 @@ updateLogEditorActionButtons =
     if (
       saveDraftButton
     ) {
+      const canSaveDraft =
+        !isRequested &&
+        !isApproved;
+
+
+      saveDraftButton.type =
+        "button";
+
+
+      saveDraftButton.disabled =
+        !canSaveDraft;
+
+
       saveDraftButton.textContent =
         "임시저장";
 
 
       saveDraftButton.title =
-        "현재 작성 내용을 임시저장합니다.";
+        canSaveDraft
+          ? "현재 작성 내용을 임시저장합니다."
+          : "결재취소 후 다시 저장할 수 있습니다.";
+
+
+      saveDraftButton.setAttribute(
+        "aria-disabled",
+        String(
+          !canSaveDraft
+        )
+      );
     }
 
 
-    /* ===================================================
-      결재요청 또는 결재요청 취소 버튼
-    ==================================================== */
+    /*
+      결재요청 → 결재취소 전환
 
+      신규:
+      결재요청 비활성
+
+      임시저장:
+      결재요청 활성
+
+      결재요청:
+      결재취소 활성
+    */
     setMemberEditorButtonVisible(
       requestApprovalButton,
-      isDraft ||
-      isRequested
+      !isApproved
     );
 
 
     if (
       requestApprovalButton
     ) {
+      const canUseApprovalButton =
+        isDraft ||
+        isRequested;
+
+
       requestApprovalButton.type =
         "button";
+
+
+      requestApprovalButton.disabled =
+        !canUseApprovalButton;
 
 
       requestApprovalButton.classList.toggle(
@@ -65631,7 +65659,7 @@ updateLogEditorActionButtons =
 
       requestApprovalButton.textContent =
         isRequested
-          ? "결재요청 취소"
+          ? "결재취소"
           : "결재요청";
 
 
@@ -65648,18 +65676,23 @@ updateLogEditorActionButtons =
       requestApprovalButton.setAttribute(
         "aria-label",
         isRequested
-          ? "업무일지 결재요청 취소"
+          ? "업무일지 결재취소"
           : "업무일지 결재요청"
+      );
+
+
+      requestApprovalButton.setAttribute(
+        "aria-disabled",
+        String(
+          !canUseApprovalButton
+        )
       );
     }
 
 
-    /* ===================================================
-      결재요청·결재완료 상태 잠금
-
-      결재요청 취소 버튼과 닫기·인쇄는 사용 가능
-    ==================================================== */
-
+    /*
+      결재요청·결재완료 상태 입력 잠금
+    */
     setMemberEditorRequestLock(
       isRequested ||
       isApproved
@@ -67046,140 +67079,160 @@ if (
     파트장 버튼 생성 및 위치 정리
   ====================================================== */
 
-  function ensureLeaderFooterButtons() {
-    const modal =
-      document.getElementById(
-        "logEditorModal"
-      );
-
-    const leftGroup =
-      modal?.querySelector(
-        ".log-editor-footer__left"
-      );
-
-    const rightGroup =
-      modal?.querySelector(
-        ".log-editor-footer__right"
-      );
-
-    if (
-      !leftGroup ||
-      !rightGroup
-    ) {
-      return null;
-    }
-
-    const printButton =
-      document.getElementById(
-        "printLogButton"
-      );
-
-    const closeButton =
-      document.getElementById(
-        "cancelLogButton"
-      );
-
-    const cancelButton =
-      createLeaderFooterButton({
-        id:
-          "leaderApprovalCancelButton",
-
-        className:
-          "secondary-button log-editor-cancel-approval-button",
-
-        text:
-          "결재취소"
-      });
-
-    const deleteButton =
-      createLeaderFooterButton({
-        id:
-          "leaderLogDeleteButton",
-
-        className:
-          "danger-button log-editor-delete-button",
-
-        text:
-          "삭제"
-      });
-
-    const draftButton =
-      createLeaderFooterButton({
-        id:
-          "leaderDraftSaveButton",
-
-        className:
-          "secondary-button log-editor-draft-button",
-
-        text:
-          "임시저장"
-      });
-
-    const completeButton =
-      createLeaderFooterButton({
-        id:
-          "leaderApprovalCompleteButton",
-
-        className:
-          "approval-button log-editor-complete-button",
-
-        text:
-          "결재완료"
-      });
-
-    if (
-      printButton
-    ) {
-      leftGroup.appendChild(
-        printButton
-      );
-    }
-
-    leftGroup.append(
-      cancelButton,
-      deleteButton
+function ensureLeaderFooterButtons() {
+  const modal =
+    document.getElementById(
+      "logEditorModal"
     );
 
-    rightGroup.append(
-      draftButton,
-      completeButton
+
+  const leftGroup =
+    modal?.querySelector(
+      ".log-editor-footer__left"
     );
 
-    if (
-      closeButton
-    ) {
-      rightGroup.appendChild(
-        closeButton
-      );
-    }
 
-    bindLeaderFooterButton(
-      cancelButton,
-      "cancel"
+  const rightGroup =
+    modal?.querySelector(
+      ".log-editor-footer__right"
     );
 
-    bindLeaderFooterButton(
-      deleteButton,
-      "delete"
-    );
 
-    bindLeaderFooterButton(
-      draftButton,
-      "draft"
-    );
-
-    bindLeaderFooterButton(
-      completeButton,
-      "complete"
-    );
-
-    return {
-      cancelButton,
-      deleteButton,
-      draftButton,
-      completeButton
-    };
+  if (
+    !leftGroup ||
+    !rightGroup
+  ) {
+    return null;
   }
+
+
+  const printButton =
+    document.getElementById(
+      "printLogButton"
+    );
+
+
+  const closeButton =
+    document.getElementById(
+      "cancelLogButton"
+    );
+
+
+  const cancelButton =
+    createLeaderFooterButton({
+      id:
+        "leaderApprovalCancelButton",
+
+      className:
+        "secondary-button log-editor-cancel-approval-button",
+
+      text:
+        "결재취소"
+    });
+
+
+  const deleteButton =
+    createLeaderFooterButton({
+      id:
+        "leaderLogDeleteButton",
+
+      className:
+        "secondary-button log-editor-delete-button",
+
+      text:
+        "삭제"
+    });
+
+
+  const draftButton =
+    createLeaderFooterButton({
+      id:
+        "leaderDraftSaveButton",
+
+      className:
+        "secondary-button log-editor-draft-button",
+
+      text:
+        "임시저장"
+    });
+
+
+  const completeButton =
+    createLeaderFooterButton({
+      id:
+        "leaderApprovalCompleteButton",
+
+      className:
+        "approval-button log-editor-complete-button",
+
+      text:
+        "결재완료"
+    });
+
+
+  /*
+    왼쪽에는 인쇄만 배치
+  */
+  if (
+    printButton
+  ) {
+    leftGroup.appendChild(
+      printButton
+    );
+  }
+
+
+  /*
+    나머지는 모두 오른쪽 배치
+  */
+  rightGroup.append(
+    cancelButton,
+    deleteButton,
+    draftButton,
+    completeButton
+  );
+
+
+  if (
+    closeButton
+  ) {
+    rightGroup.appendChild(
+      closeButton
+    );
+  }
+
+
+  bindLeaderFooterButton(
+    cancelButton,
+    "cancel"
+  );
+
+
+  bindLeaderFooterButton(
+    deleteButton,
+    "delete"
+  );
+
+
+  bindLeaderFooterButton(
+    draftButton,
+    "draft"
+  );
+
+
+  bindLeaderFooterButton(
+    completeButton,
+    "complete"
+  );
+
+
+  return {
+    cancelButton,
+    deleteButton,
+    draftButton,
+    completeButton
+  };
+}
 
 
   function hideOriginalLeaderActionButtons() {

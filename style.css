@@ -55853,3 +55853,320 @@ textarea:disabled {
   opacity:
     0.72 !important;
 }
+
+/* =========================================================
+  업무일지 작성·수정창 하단 버튼 최종 통합 디자인
+========================================================= */
+
+#logEditorModal .log-editor-footer {
+  display: flex !important;
+
+  align-items: center !important;
+  justify-content: space-between !important;
+
+  gap: 12px !important;
+
+  width: 100% !important;
+  min-height: 60px !important;
+
+  margin: 0 !important;
+  padding: 10px 16px !important;
+
+  border-top:
+    1px solid #dbe4ee !important;
+
+  background:
+    #f8fafc !important;
+
+  box-shadow:
+    0 -4px 14px
+    rgba(15, 23, 42, 0.06) !important;
+
+  box-sizing: border-box !important;
+}
+
+
+#logEditorModal
+.log-editor-footer__left {
+  display: flex !important;
+
+  flex: 0 0 auto !important;
+
+  align-items: center !important;
+
+  gap: 8px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+#logEditorModal
+.log-editor-footer__right {
+  display: flex !important;
+
+  flex: 1 1 auto !important;
+
+  min-width: 0 !important;
+
+  align-items: center !important;
+  justify-content: flex-end !important;
+
+  gap: 8px !important;
+
+  margin:
+    0 0 0 auto !important;
+
+  padding: 0 !important;
+}
+
+
+#logEditorModal
+.log-editor-footer
+button[hidden] {
+  display: none !important;
+}
+
+
+#logEditorModal
+.log-editor-footer
+button:not([hidden]) {
+  display: inline-flex !important;
+
+  flex: 0 0 auto !important;
+
+  width: auto !important;
+  min-width: 72px !important;
+
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  gap: 5px !important;
+
+  margin: 0 !important;
+  padding: 0 14px !important;
+
+  border:
+    1px solid #cbd5e1 !important;
+
+  border-radius: 9px !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #475569 !important;
+
+  box-shadow:
+    0 1px 2px
+    rgba(15, 23, 42, 0.05) !important;
+
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+
+  white-space: nowrap !important;
+
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.14s ease !important;
+}
+
+
+#logEditorModal
+.log-editor-print-button,
+
+#logEditorModal
+.log-editor-close-button {
+  min-width: 58px !important;
+}
+
+
+/*
+  결재취소
+*/
+#logEditorModal
+.log-editor-cancel-approval-button,
+
+#logEditorModal
+.log-editor-complete-button.is-cancel-request {
+  border-color:
+    #fdba74 !important;
+
+  background:
+    #fff7ed !important;
+
+  color:
+    #c2410c !important;
+}
+
+
+/*
+  삭제
+*/
+#logEditorModal
+.log-editor-delete-button {
+  border-color:
+    #fda4af !important;
+
+  background:
+    #fff1f2 !important;
+
+  color:
+    #be123c !important;
+}
+
+
+/*
+  임시저장
+*/
+#logEditorModal
+.log-editor-draft-button {
+  border-color:
+    #bfdbfe !important;
+
+  background:
+    #eff6ff !important;
+
+  color:
+    #1d4ed8 !important;
+}
+
+
+/*
+  결재요청·결재완료
+*/
+#logEditorModal
+.log-editor-complete-button:not(
+  .is-cancel-request
+) {
+  border-color:
+    #203b60 !important;
+
+  background:
+    #203b60 !important;
+
+  color:
+    #ffffff !important;
+
+  box-shadow:
+    0 4px 10px
+    rgba(32, 59, 96, 0.18) !important;
+}
+
+
+#logEditorModal
+.log-editor-footer
+button:not([hidden]):not(:disabled):hover {
+  transform:
+    translateY(-1px) !important;
+}
+
+
+#logEditorModal
+.log-editor-footer
+button:disabled {
+  opacity: 0.42 !important;
+
+  cursor:
+    not-allowed !important;
+
+  box-shadow:
+    none !important;
+
+  transform:
+    none !important;
+}
+
+
+#logEditorModal
+.log-editor-footer
+button:focus-visible {
+  outline:
+    3px solid
+    rgba(59, 130, 246, 0.22) !important;
+
+  outline-offset:
+    2px !important;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+
+  #logEditorModal
+  .log-editor-footer {
+    gap: 6px !important;
+
+    min-height: 0 !important;
+
+    padding:
+      7px
+      8px
+      max(
+        9px,
+        env(
+          safe-area-inset-bottom,
+          0px
+        )
+      ) !important;
+  }
+
+
+  #logEditorModal
+  .log-editor-footer__right {
+    flex-wrap: wrap !important;
+
+    gap: 5px !important;
+  }
+
+
+  #logEditorModal
+  .log-editor-footer
+  button:not([hidden]) {
+    min-width: 0 !important;
+
+    height: 35px !important;
+    min-height: 35px !important;
+    max-height: 35px !important;
+
+    padding:
+      0 8px !important;
+
+    border-radius:
+      7px !important;
+
+    font-size:
+      10px !important;
+  }
+
+
+  #logEditorModal
+  .log-editor-print-button {
+    min-width:
+      48px !important;
+  }
+}
+
+
+@media (max-width: 390px) {
+
+  #logEditorModal
+  .log-editor-footer
+  button:not([hidden]) {
+    padding:
+      0 6px !important;
+
+    font-size:
+      9px !important;
+  }
+}
