@@ -55798,3 +55798,58 @@ p {
       #1f5fae;
   }
 }
+
+/* =========================================================
+  업무일지 결재요청 취소 버튼
+========================================================= */
+
+#logEditorModal
+#requestApprovalButton.is-cancel-request {
+  border-color:
+    #e3a2aa !important;
+
+  background:
+    #fff1f3 !important;
+
+  color:
+    #a33a4b !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+#logEditorModal
+#requestApprovalButton.is-cancel-request:hover {
+  border-color:
+    #d17d8a !important;
+
+  background:
+    #ffe4e8 !important;
+
+  color:
+    #8d293a !important;
+}
+
+
+/* 결재요청 상태 입력 영역 */
+#logEditorForm.is-approval-requested {
+  position:
+    relative;
+}
+
+
+#logEditorForm.is-approval-requested
+input:disabled,
+
+#logEditorForm.is-approval-requested
+select:disabled,
+
+#logEditorForm.is-approval-requested
+textarea:disabled {
+  cursor:
+    not-allowed !important;
+
+  opacity:
+    0.72 !important;
+}

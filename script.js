@@ -65238,146 +65238,373 @@ function getCurrentEditorStoredLog() {
     }
   }
 
-
   /* =====================================================
-    작성창 하단 버튼 최종 보정
-  ====================================================== */
+  일반 보직 결재요청 상태 입력 잠금
 
-  updateLogEditorActionButtons =
-    function updateLogEditorActionButtons() {
-      /*
-        파트장 및 기존 특수 권한 처리를 먼저 적용한다.
-      */
-      updateLogEditorActionButtonsBeforeMemberFlow
-        ?.();
+  잠금 대상:
+  - 작성일·근무·보직·작성자
+  - 운전현황 수정
+  - 업무내역 추가·수정·삭제
+  - 첨부파일 변경
+  - 이전일지 가져오기
+
+  잠금 제외:
+  - 결재요청 취소
+  - 인쇄
+  - 닫기
+====================================================== */
+
+function setMemberEditorRequestLock(
+  locked
+) {
+  const form =
+    elements?.logEditorForm ||
+    document.getElementById(
+      "logEditorForm"
+    );
 
 
-      /*
-        일반 보직이 아니면 기존 결과를 그대로 사용한다.
-      */
+  if (
+    !form
+  ) {
+    return;
+  }
+
+
+  const lockExemptIds =
+    new Set([
+      "requestApprovalButton",
+      "printLogButton",
+      "cancelLogButton"
+    ]);
+
+
+  const controls = [
+    ...form.querySelectorAll(
+      "input, select, textarea, button"
+    )
+  ];
+
+
+  controls.forEach(
+    control => {
+      const isLockExempt =
+        lockExemptIds.has(
+          control.id
+        ) ||
+        control.dataset
+          .memberRequestLockExempt ===
+          "true";
+
+
       if (
-        !isCurrentMemberEditorRole()
+        isLockExempt
       ) {
         return;
       }
 
 
-      const submitButton =
-        typeof getShiftLogEditorSubmitButton ===
-          "function"
-          ? getShiftLogEditorSubmitButton()
-          : elements?.logEditorForm
-              ?.querySelector(
-                'button[type="submit"]'
-              );
+      if (
+        locked
+      ) {
+        /*
+          잠금 전의 disabled 상태를 기억한다.
+        */
+        if (
+          control.dataset
+            .memberRequestPreviousDisabled ===
+            undefined
+        ) {
+          control.dataset
+            .memberRequestPreviousDisabled =
+            control.disabled
+              ? "1"
+              : "0";
+        }
 
 
-      const saveDraftButton =
-        elements?.saveDraftButton ||
-        document.getElementById(
-          "saveDraftButton"
+        control.disabled =
+          true;
+
+
+        control.setAttribute(
+          "aria-disabled",
+          "true"
         );
 
 
-      const requestApprovalButton =
-        elements?.requestApprovalButton ||
-        document.getElementById(
-          "requestApprovalButton"
-        );
-
-
-      const currentLog =
-        getCurrentMemberEditorStoredLog();
-
-
-      const currentStatus =
-        normalizeMemberEditorLogStatus(
-          currentLog?.status
-        );
-
-
-      const isDraft =
-        Boolean(
-          currentLog
-        ) &&
-        currentStatus ===
-          "임시저장";
-
-
-      const isRequested =
-        currentStatus ===
-        "결재요청";
-
-
-      const isApproved =
-        currentStatus ===
-        "결재완료";
+        return;
+      }
 
 
       /*
-        일반 보직은 별도의 일반 저장 버튼을 사용하지 않는다.
+        결재요청 취소 후 원래 disabled 상태로 복원한다.
       */
-      setMemberEditorButtonVisible(
-        submitButton,
+      if (
+        control.dataset
+          .memberRequestPreviousDisabled ===
+          undefined
+      ) {
+        return;
+      }
+
+
+      control.disabled =
+        control.dataset
+          .memberRequestPreviousDisabled ===
+        "1";
+
+
+      if (
+        control.disabled
+      ) {
+        control.setAttribute(
+          "aria-disabled",
+          "true"
+        );
+
+      } else {
+        control.removeAttribute(
+          "aria-disabled"
+        );
+      }
+
+
+      delete control.dataset
+        .memberRequestPreviousDisabled;
+    }
+  );
+
+
+  form.classList.toggle(
+    "is-approval-requested",
+    locked
+  );
+}
+
+/* =====================================================
+  작성창 하단 버튼 최종 표시
+
+  일반 보직 신규:
+  - 임시저장
+
+  일반 보직 임시저장:
+  - 임시저장
+  - 결재요청
+
+  일반 보직 결재요청:
+  - 결재요청 취소
+  - 입력 영역 잠금
+
+  일반 보직 결재완료:
+  - 입력 영역 잠금
+  - 취소 버튼 없음
+
+  파트장:
+  - 기존 파트장 결재 흐름 유지
+====================================================== */
+
+updateLogEditorActionButtons =
+  function updateLogEditorActionButtons() {
+    /*
+      파트장 및 기존 권한 버튼 처리를 먼저 적용한다.
+    */
+    updateLogEditorActionButtonsBeforeMemberFlow
+      ?.();
+
+
+    /*
+      다른 보직으로 전환될 때
+      이전 결재요청 잠금이 남지 않도록 해제한다.
+    */
+    if (
+      !isCurrentMemberEditorRole()
+    ) {
+      setMemberEditorRequestLock(
         false
       );
 
 
-      /*
-        임시저장
+      return;
+    }
 
-        신규 작성:
-        표시
 
-        임시저장 상태:
-        계속 표시
+    /*
+      버튼을 다시 계산하기 전에
+      기존 잠금 상태를 먼저 복원한다.
+    */
+    setMemberEditorRequestLock(
+      false
+    );
 
-        결재요청·결재완료:
-        숨김
-      */
-      setMemberEditorButtonVisible(
-        saveDraftButton,
-        !isRequested &&
-        !isApproved
+
+    const submitButton =
+      typeof getShiftLogEditorSubmitButton ===
+        "function"
+        ? getShiftLogEditorSubmitButton()
+        : elements?.logEditorForm
+            ?.querySelector(
+              'button[type="submit"]'
+            );
+
+
+    const saveDraftButton =
+      elements?.saveDraftButton ||
+      document.getElementById(
+        "saveDraftButton"
       );
 
 
-      if (
-        saveDraftButton
-      ) {
-        saveDraftButton.textContent =
-          "임시저장";
-
-
-        saveDraftButton.title =
-          "현재 작성 내용을 임시저장합니다.";
-      }
-
-
-      /*
-        결재요청
-
-        저장된 임시저장 업무일지가 있을 때만 표시한다.
-      */
-      setMemberEditorButtonVisible(
-        requestApprovalButton,
-        isDraft
+    const requestApprovalButton =
+      elements?.requestApprovalButton ||
+      document.getElementById(
+        "requestApprovalButton"
       );
 
 
-      if (
-        requestApprovalButton
-      ) {
-        requestApprovalButton.textContent =
-          "결재요청";
+    const currentLog =
+      getCurrentMemberEditorStoredLog();
 
 
-        requestApprovalButton.title =
-          isDraft
-            ? "임시저장된 업무일지를 결재요청합니다."
-            : "먼저 임시저장해 주세요.";
-      }
-    };
+    const currentStatus =
+      normalizeMemberEditorLogStatus(
+        currentLog?.status
+      );
+
+
+    const isDraft =
+      Boolean(
+        currentLog
+      ) &&
+      currentStatus ===
+        "임시저장";
+
+
+    const isRequested =
+      Boolean(
+        currentLog
+      ) &&
+      currentStatus ===
+        "결재요청";
+
+
+    const isApproved =
+      Boolean(
+        currentLog
+      ) &&
+      currentStatus ===
+        "결재완료";
+
+
+    /* ===================================================
+      기존 일반 저장 버튼 숨김
+    ==================================================== */
+
+    setMemberEditorButtonVisible(
+      submitButton,
+      false
+    );
+
+
+    /* ===================================================
+      임시저장 버튼
+
+      신규:
+      표시
+
+      임시저장:
+      표시
+
+      결재요청·결재완료:
+      숨김
+    ==================================================== */
+
+    setMemberEditorButtonVisible(
+      saveDraftButton,
+      !isRequested &&
+      !isApproved
+    );
+
+
+    if (
+      saveDraftButton
+    ) {
+      saveDraftButton.textContent =
+        "임시저장";
+
+
+      saveDraftButton.title =
+        "현재 작성 내용을 임시저장합니다.";
+    }
+
+
+    /* ===================================================
+      결재요청 또는 결재요청 취소 버튼
+    ==================================================== */
+
+    setMemberEditorButtonVisible(
+      requestApprovalButton,
+      isDraft ||
+      isRequested
+    );
+
+
+    if (
+      requestApprovalButton
+    ) {
+      requestApprovalButton.type =
+        "button";
+
+
+      requestApprovalButton.classList.toggle(
+        "is-cancel-request",
+        isRequested
+      );
+
+
+      requestApprovalButton.dataset
+        .memberApprovalAction =
+        isRequested
+          ? "cancel"
+          : "request";
+
+
+      requestApprovalButton.textContent =
+        isRequested
+          ? "결재요청 취소"
+          : "결재요청";
+
+
+      requestApprovalButton.title =
+        isRequested
+          ? "결재요청을 취소하고 임시저장 상태로 되돌립니다."
+          : (
+              isDraft
+                ? "임시저장된 업무일지를 결재요청합니다."
+                : "먼저 임시저장해 주세요."
+            );
+
+
+      requestApprovalButton.setAttribute(
+        "aria-label",
+        isRequested
+          ? "업무일지 결재요청 취소"
+          : "업무일지 결재요청"
+      );
+    }
+
+
+    /* ===================================================
+      결재요청·결재완료 상태 잠금
+
+      결재요청 취소 버튼과 닫기·인쇄는 사용 가능
+    ==================================================== */
+
+    setMemberEditorRequestLock(
+      isRequested ||
+      isApproved
+    );
+  };
 
 
   /* =====================================================
@@ -65500,13 +65727,14 @@ function getCurrentEditorStoredLog() {
   }
 
 /* =====================================================
-  일반 보직 결재요청
+  일반 보직 결재요청·결재요청 취소
 
-  처리:
-  - 임시저장 상태인지 확인
-  - 결재요청 상태로 저장
-  - 작성·수정창은 닫지 않음
-  - 저장 성공 후 버튼 상태 갱신
+  임시저장 상태:
+  → 결재요청
+
+  결재요청 상태:
+  → 결재요청 취소
+  → 임시저장으로 복귀
 ====================================================== */
 
 async function handleMemberApprovalRequestClick(
@@ -65524,6 +65752,13 @@ async function handleMemberApprovalRequestClick(
   }
 
 
+  const requestApprovalButton =
+    elements?.requestApprovalButton ||
+    document.getElementById(
+      "requestApprovalButton"
+    );
+
+
   const currentLog =
     getCurrentMemberEditorStoredLog();
 
@@ -65534,10 +65769,179 @@ async function handleMemberApprovalRequestClick(
     );
 
 
-  /*
-    먼저 임시저장한 업무일지만
-    결재요청할 수 있다.
-  */
+  /* ===================================================
+    결재요청 취소
+
+    결재요청 → 임시저장
+  ==================================================== */
+
+  if (
+    currentLog &&
+    currentStatus ===
+      "결재요청"
+  ) {
+    const canCancel =
+      typeof canCurrentUserCancelShiftLogApproval ===
+        "function"
+        ? canCurrentUserCancelShiftLogApproval(
+            currentLog
+          )
+        : true;
+
+
+    if (
+      !canCancel
+    ) {
+      showToast(
+        "결재요청한 작성자 본인만 요청을 취소할 수 있습니다."
+      );
+
+
+      return;
+    }
+
+
+    const shouldCancel =
+      await showCompactConfirm({
+        title:
+          "결재요청 취소",
+
+        message:
+          "결재요청을 취소하고 임시저장 상태로 되돌릴까요?",
+
+        confirmText:
+          "요청 취소",
+
+        cancelText:
+          "유지"
+      });
+
+
+    if (
+      !shouldCancel
+    ) {
+      return;
+    }
+
+
+    if (
+      requestApprovalButton
+    ) {
+      requestApprovalButton.disabled =
+        true;
+
+
+      requestApprovalButton.textContent =
+        "취소 중...";
+    }
+
+
+    try {
+      const cancelledLog =
+        await changeShiftLogApprovalOnServer(
+          currentLog,
+          "cancel"
+        );
+
+
+      if (
+        !cancelledLog
+      ) {
+        return;
+      }
+
+
+      /*
+        같은 업무일지를 계속 편집하도록 ID 유지
+      */
+      if (
+        elements?.logEditorForm
+      ) {
+        elements.logEditorForm
+          .dataset
+          .editingId =
+          String(
+            cancelledLog.id ||
+            ""
+          );
+
+
+        elements.logEditorForm
+          .dataset
+          .editorMode =
+          "existing-edit";
+      }
+
+
+      renderLogTable();
+
+      updateShiftMemberCardStates();
+
+
+      /*
+        임시저장 상태에 맞게:
+        - 입력 잠금 해제
+        - 임시저장 표시
+        - 결재요청 표시
+      */
+      updateLogEditorActionButtons();
+
+
+      if (
+        typeof markLogEditorAsSaved ===
+          "function"
+      ) {
+        markLogEditorAsSaved();
+      }
+
+
+      showToast(
+        "결재요청을 취소했습니다. 다시 수정할 수 있습니다."
+      );
+
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "결재요청 취소 실패:",
+        error
+      );
+
+
+      if (
+        error?.isConflict ===
+          true &&
+        typeof handleShiftLogConflict ===
+          "function"
+      ) {
+        handleShiftLogConflict(
+          error
+        );
+
+      } else {
+        showToast(
+          error?.message ||
+          "결재요청을 취소하지 못했습니다."
+        );
+      }
+
+
+    } finally {
+      updateLogEditorActionButtons();
+    }
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    결재요청
+
+    반드시 임시저장된 업무일지만 가능
+  ==================================================== */
+
   if (
     !currentLog ||
     currentStatus !==
@@ -65580,7 +65984,7 @@ async function handleMemberApprovalRequestClick(
 
   /*
     결재요청 상태로 저장하되
-    수정창은 자동으로 닫지 않는다.
+    작성창은 자동으로 닫지 않는다.
   */
   const requestedLog =
     await saveCurrentLog(
@@ -65599,10 +66003,6 @@ async function handleMemberApprovalRequestClick(
   }
 
 
-  /*
-    저장된 업무일지 ID를
-    현재 작성창에 계속 연결한다.
-  */
   if (
     elements?.logEditorForm
   ) {
@@ -65623,23 +66023,25 @@ async function handleMemberApprovalRequestClick(
 
 
   /*
-    결재요청 상태에 맞춰
-    임시저장·결재요청 버튼을 다시 정리한다.
+    결재요청 상태에 맞게:
+    - 임시저장 숨김
+    - 결재요청 취소 표시
+    - 입력 영역 잠금
   */
   updateLogEditorActionButtons();
 
 
-  /*
-    결재요청 직후 상태를 저장 완료 기준으로 기록한다.
-    닫기 버튼을 눌렀을 때 불필요한
-    미저장 경고가 나오지 않게 한다.
-  */
   if (
     typeof markLogEditorAsSaved ===
       "function"
   ) {
     markLogEditorAsSaved();
   }
+
+
+  showToast(
+    "결재요청했습니다."
+  );
 }
 
 
