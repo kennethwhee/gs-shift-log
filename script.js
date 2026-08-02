@@ -68025,54 +68025,30 @@ if (
   }
 
 
-  /* =====================================================
-    현재 수정창이 파트장 업무일지인지 판정
+/* =====================================================
+  현재 작성창이 파트장 업무일지인지 정확히 판정
 
-    logRole 값만 보지 않고
-    수정 중인 실제 업무일지와 제목도 함께 확인한다.
-  ====================================================== */
+  중요:
+  - 현재 보직 선택값만 기준으로 판정한다.
+  - 같은 날짜·근무에 파트장 일지가 있다는 이유로
+    일반 보직 작성창을 파트장으로 판단하지 않는다.
+====================================================== */
 
-  function isLeaderFooterEditor() {
-    const roleValue =
+function isLeaderFooterEditor() {
+  const currentRole =
+    normalizeMemberLogRole(
       document.getElementById(
         "logRole"
       )?.value ||
-      "";
-
-    if (
-      normalizeMemberLogRole(
-        roleValue
-      ) ===
-      "파트장"
-    ) {
-      return true;
-    }
-
-    const currentLog =
-      getLeaderFooterCurrentLog();
-
-    if (
-      normalizeMemberLogRole(
-        currentLog?.role
-      ) ===
-      "파트장"
-    ) {
-      return true;
-    }
-
-    const editorTitle =
-      String(
-        document.getElementById(
-          "logEditorTitle"
-        )?.textContent ||
-        ""
-      );
-
-    return editorTitle.includes(
-      "파트장"
+      ""
     );
-  }
 
+
+  return (
+    currentRole ===
+    "파트장"
+  );
+}
 
 /* =====================================================
   파트장 작성창 하단 버튼 생성 최종본
@@ -68510,153 +68486,321 @@ function ensureLeaderFooterButtons() {
   }
 
 
-  /* =====================================================
-    하단 버튼 최종 갱신
-  ====================================================== */
+/* =====================================================
+  파트장 하단 버튼 최종 갱신
 
-  function refreshLeaderFooterButtons() {
-    const buttons =
-      ensureLeaderFooterButtons();
+  파트장:
+  - 파트장 전용 버튼 표시
+  - 기존 공통 버튼 숨김
 
-    if (
-      !buttons
-    ) {
-      return;
-    }
+  일반 보직:
+  - 파트장 전용 버튼 숨김
+  - 기존 임시저장·결재요청 버튼 복원
+  - 현재 결재 상태에 따라 버튼 다시 계산
 
-    const isLeader =
-      isLeaderFooterEditor();
+  일반 보직 결재요청 상태:
+  - 임시저장 숨김
+  - 결재요청 취소 표시
+====================================================== */
 
-    if (
-      !isLeader
-    ) {
-      Object.values(
-        buttons
-      ).forEach(
+function refreshLeaderFooterButtons() {
+  const buttons =
+    ensureLeaderFooterButtons();
+
+
+  if (
+    !buttons
+  ) {
+    return;
+  }
+
+
+  const isLeader =
+    isLeaderFooterEditor();
+
+
+  /* ===================================================
+    일반 보직 작성창
+
+    파트장 전용 버튼을 모두 숨기고
+    일반 보직 버튼을 다시 복원한다.
+  ==================================================== */
+
+  if (
+    !isLeader
+  ) {
+    Object.values(
+      buttons
+    ).forEach(
+      button => {
+        setLeaderFooterButtonState(
+          button,
+          {
+            visible:
+              false,
+
+            enabled:
+              false
+          }
+        );
+      }
+    );
+
+
+    const saveDraftButton =
+      elements?.saveDraftButton ||
+      document.getElementById(
+        "saveDraftButton"
+      );
+
+
+    const requestApprovalButton =
+      elements?.requestApprovalButton ||
+      document.getElementById(
+        "requestApprovalButton"
+      );
+
+
+    const cancelLeaderApprovalButton =
+      document.getElementById(
+        "cancelLeaderApprovalButton"
+      );
+
+
+    /*
+      파트장 코드가 적용했던
+      hidden과 display:none을 먼저 제거한다.
+
+      실제 표시 여부는 바로 아래
+      updateLogEditorActionButtons()에서
+      현재 상태를 기준으로 다시 결정한다.
+    */
+    [
+      saveDraftButton,
+      requestApprovalButton
+    ]
+      .filter(
+        Boolean
+      )
+      .forEach(
         button => {
-          setLeaderFooterButtonState(
-            button,
-            {
-              visible:
-                false,
+          button.type =
+            "button";
 
-              enabled:
-                false
-            }
+
+          button.hidden =
+            false;
+
+
+          button.disabled =
+            false;
+
+
+          button.removeAttribute(
+            "hidden"
+          );
+
+
+          button.style.removeProperty(
+            "display"
           );
         }
       );
 
-      return;
+
+    /*
+      파트장 전용 결재취소 버튼은
+      일반 보직에서 표시하지 않는다.
+    */
+    if (
+      cancelLeaderApprovalButton
+    ) {
+      cancelLeaderApprovalButton.hidden =
+        true;
+
+
+      cancelLeaderApprovalButton.disabled =
+        true;
+
+
+      cancelLeaderApprovalButton.setAttribute(
+        "hidden",
+        ""
+      );
+
+
+      cancelLeaderApprovalButton.style.setProperty(
+        "display",
+        "none",
+        "important"
+      );
     }
 
-    hideOriginalLeaderFooterButtons();
 
-    const currentLog =
-      getLeaderFooterCurrentLog();
+    /*
+      일반 보직 최종 버튼 로직 실행
 
-    const currentStatus =
-      normalizeLeaderFooterStatus(
-        currentLog?.status
-      );
+      신규:
+      임시저장
 
-    const hasCurrentLog =
-      Boolean(
-        currentLog
-      );
+      임시저장:
+      임시저장 + 결재요청
 
-    const isApproved =
-      currentStatus ===
-      "결재완료";
+      결재요청:
+      결재요청 취소
 
-    const canComplete =
-      hasCurrentLog &&
-      [
-        "임시저장",
-        "저장완료"
-      ].includes(
-        currentStatus
-      );
+      결재완료:
+      저장 버튼 없음
+    */
+    if (
+      typeof updateLogEditorActionButtons ===
+        "function"
+    ) {
+      updateLogEditorActionButtons();
+    }
 
-    const canDelete =
-      hasCurrentLog &&
-      (
-        typeof canCurrentUserDeleteShiftLog ===
-          "function"
-          ? canCurrentUserDeleteShiftLog(
-              currentLog
-            )
-          : true
-      );
 
-    setLeaderFooterButtonState(
-      buttons.cancelButton,
-      {
-        visible:
-          true,
-
-        enabled:
-          isApproved &&
-          !isFooterActionWorking,
-
-        title:
-          isApproved
-            ? "결재를 취소하고 임시저장 상태로 되돌립니다."
-            : "결재완료 상태에서 사용할 수 있습니다."
-      }
-    );
-
-    setLeaderFooterButtonState(
-      buttons.deleteButton,
-      {
-        visible:
-          true,
-
-        enabled:
-          canDelete &&
-          !isFooterActionWorking,
-
-        title:
-          canDelete
-            ? "현재 파트장 업무일지를 삭제합니다."
-            : "현재 상태 또는 권한에서는 삭제할 수 없습니다."
-      }
-    );
-
-    setLeaderFooterButtonState(
-      buttons.draftButton,
-      {
-        visible:
-          true,
-
-        enabled:
-          !isApproved &&
-          !isFooterActionWorking,
-
-        title:
-          isApproved
-            ? "결재취소 후 임시저장할 수 있습니다."
-            : "파트장 업무일지를 임시저장합니다."
-      }
-    );
-
-    setLeaderFooterButtonState(
-      buttons.completeButton,
-      {
-        visible:
-          true,
-
-        enabled:
-          canComplete &&
-          !isFooterActionWorking,
-
-        title:
-          canComplete
-            ? "파트장 업무일지를 결재완료 처리합니다."
-            : "먼저 임시저장해 주세요."
-      }
-    );
+    return;
   }
+
+
+  /* ===================================================
+    파트장 작성창
+  ==================================================== */
+
+  hideOriginalLeaderFooterButtons();
+
+
+  const currentLog =
+    getLeaderFooterCurrentLog();
+
+
+  const currentStatus =
+    normalizeLeaderFooterStatus(
+      currentLog?.status
+    );
+
+
+  const hasCurrentLog =
+    Boolean(
+      currentLog
+    );
+
+
+  const isApproved =
+    currentStatus ===
+    "결재완료";
+
+
+  const canComplete =
+    hasCurrentLog &&
+    [
+      "임시저장",
+      "저장완료"
+    ].includes(
+      currentStatus
+    );
+
+
+  const canDelete =
+    hasCurrentLog &&
+    (
+      typeof canCurrentUserDeleteShiftLog ===
+        "function"
+        ? canCurrentUserDeleteShiftLog(
+            currentLog
+          )
+        : true
+    );
+
+
+  /* ===================================================
+    결재취소
+  ==================================================== */
+
+  setLeaderFooterButtonState(
+    buttons.cancelButton,
+    {
+      visible:
+        true,
+
+      enabled:
+        isApproved &&
+        !isFooterActionWorking,
+
+      title:
+        isApproved
+          ? "결재를 취소하고 임시저장 상태로 되돌립니다."
+          : "결재완료 상태에서 사용할 수 있습니다."
+    }
+  );
+
+
+  /* ===================================================
+    삭제
+  ==================================================== */
+
+  setLeaderFooterButtonState(
+    buttons.deleteButton,
+    {
+      visible:
+        true,
+
+      enabled:
+        canDelete &&
+        !isFooterActionWorking,
+
+      title:
+        canDelete
+          ? "현재 파트장 업무일지를 삭제합니다."
+          : "현재 상태 또는 권한에서는 삭제할 수 없습니다."
+    }
+  );
+
+
+  /* ===================================================
+    임시저장
+  ==================================================== */
+
+  setLeaderFooterButtonState(
+    buttons.draftButton,
+    {
+      visible:
+        true,
+
+      enabled:
+        !isApproved &&
+        !isFooterActionWorking,
+
+      title:
+        isApproved
+          ? "결재취소 후 임시저장할 수 있습니다."
+          : "파트장 업무일지를 임시저장합니다."
+    }
+  );
+
+
+  /* ===================================================
+    결재완료
+  ==================================================== */
+
+  setLeaderFooterButtonState(
+    buttons.completeButton,
+    {
+      visible:
+        true,
+
+      enabled:
+        canComplete &&
+        !isFooterActionWorking,
+
+      title:
+        canComplete
+          ? "파트장 업무일지를 결재완료 처리합니다."
+          : "먼저 임시저장해 주세요."
+    }
+  );
+}
 
 
 /* =====================================================
