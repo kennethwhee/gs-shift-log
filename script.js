@@ -7698,6 +7698,695 @@ function bindBrandManagementEvents() {
 }
 
 /* =========================================================
+  직원 직접 추가 기능 최종본
+
+  기능:
+  - 직원 추가 버튼 클릭
+  - 직원 추가 패널 열기·닫기
+  - 사번·이름·권한 입력
+  - D1 employees 저장
+  - users 로그인 계정 자동 생성
+  - 초기 비밀번호는 사번과 동일
+========================================================= */
+
+
+/* =========================================================
+  직원 추가 요소 가져오기
+========================================================= */
+
+function getShiftLogEmployeeAddElements() {
+  return {
+    panel:
+      document.getElementById(
+        "employeeAddPanel"
+      ),
+
+    openButton:
+      document.getElementById(
+        "openEmployeeAddButton"
+      ),
+
+    closeButton:
+      document.getElementById(
+        "closeEmployeeAddButton"
+      ),
+
+    employeeNoInput:
+      document.getElementById(
+        "employeeAddEmployeeNo"
+      ),
+
+    nameInput:
+      document.getElementById(
+        "employeeAddName"
+      ),
+
+    roleSelect:
+      document.getElementById(
+        "employeeAddRole"
+      ),
+
+    saveButton:
+      document.getElementById(
+        "saveEmployeeAddButton"
+      ),
+
+    message:
+      document.getElementById(
+        "employeeAddMessage"
+      )
+  };
+}
+
+
+/* =========================================================
+  직원 추가 메시지 표시
+========================================================= */
+
+function showShiftLogEmployeeAddMessage(
+  message,
+  type = "info"
+) {
+  const {
+    message: messageElement
+  } =
+    getShiftLogEmployeeAddElements();
+
+
+  if (
+    !messageElement
+  ) {
+    return;
+  }
+
+
+  messageElement.textContent =
+    String(
+      message ||
+      ""
+    );
+
+
+  messageElement.hidden =
+    !message;
+
+
+  messageElement.classList.remove(
+    "is-error",
+    "is-success"
+  );
+
+
+  if (
+    type ===
+    "error"
+  ) {
+    messageElement.classList.add(
+      "is-error"
+    );
+  }
+
+
+  if (
+    type ===
+    "success"
+  ) {
+    messageElement.classList.add(
+      "is-success"
+    );
+  }
+}
+
+
+/* =========================================================
+  직원 추가 입력값 초기화
+========================================================= */
+
+function resetShiftLogEmployeeAddForm() {
+  const {
+    employeeNoInput,
+    nameInput,
+    roleSelect
+  } =
+    getShiftLogEmployeeAddElements();
+
+
+  if (
+    employeeNoInput
+  ) {
+    employeeNoInput.value =
+      "";
+  }
+
+
+  if (
+    nameInput
+  ) {
+    nameInput.value =
+      "";
+  }
+
+
+  if (
+    roleSelect
+  ) {
+    roleSelect.value =
+      "user";
+  }
+
+
+  showShiftLogEmployeeAddMessage(
+    ""
+  );
+}
+
+
+/* =========================================================
+  직원 추가 패널 열기
+========================================================= */
+
+function openShiftLogEmployeeAddPanel() {
+  if (
+    !isCurrentUserSuperAdmin()
+  ) {
+    showToast(
+      "최고관리자만 직원을 추가할 수 있습니다."
+    );
+
+
+    return;
+  }
+
+
+  const {
+    panel,
+    employeeNoInput
+  } =
+    getShiftLogEmployeeAddElements();
+
+
+  if (
+    !panel
+  ) {
+    console.error(
+      "직원 추가 패널을 찾을 수 없습니다."
+    );
+
+
+    showToast(
+      "직원 추가 화면을 찾을 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  /*
+    직원 관리 탭으로 전환한다.
+  */
+  if (
+    typeof switchSystemAdminView ===
+      "function"
+  ) {
+    switchSystemAdminView(
+      "employees"
+    );
+  }
+
+
+  resetShiftLogEmployeeAddForm();
+
+
+  panel.hidden =
+    false;
+
+
+  panel.removeAttribute(
+    "hidden"
+  );
+
+
+  window.requestAnimationFrame(
+    () => {
+      panel.scrollIntoView({
+        behavior:
+          "smooth",
+
+        block:
+          "nearest"
+      });
+
+
+      employeeNoInput?.focus();
+    }
+  );
+}
+
+
+/* =========================================================
+  직원 추가 패널 닫기
+========================================================= */
+
+function closeShiftLogEmployeeAddPanel() {
+  const {
+    panel
+  } =
+    getShiftLogEmployeeAddElements();
+
+
+  if (
+    !panel
+  ) {
+    return;
+  }
+
+
+  panel.hidden =
+    true;
+
+
+  showShiftLogEmployeeAddMessage(
+    ""
+  );
+}
+
+
+/* =========================================================
+  직원 한 명 등록
+
+  API:
+  POST /api/employees
+
+  신규 등록 시:
+  - employees 명단 생성
+  - users 로그인 계정 생성
+  - 초기 비밀번호는 사번과 동일
+========================================================= */
+
+async function saveShiftLogEmployeeAdd() {
+  const {
+    employeeNoInput,
+    nameInput,
+    roleSelect,
+    saveButton
+  } =
+    getShiftLogEmployeeAddElements();
+
+
+  if (
+    !isCurrentUserSuperAdmin()
+  ) {
+    showShiftLogEmployeeAddMessage(
+      "최고관리자만 직원을 등록할 수 있습니다.",
+      "error"
+    );
+
+
+    return;
+  }
+
+
+  const employeeNo =
+    String(
+      employeeNoInput?.value ||
+      ""
+    )
+      .replace(
+        /[^0-9]/g,
+        ""
+      )
+      .trim();
+
+
+  const name =
+    String(
+      nameInput?.value ||
+      ""
+    ).trim();
+
+
+  const selectedRole =
+    String(
+      roleSelect?.value ||
+      "user"
+    )
+      .trim()
+      .toLowerCase();
+
+
+  /* =====================================================
+    입력값 검사
+  ====================================================== */
+
+  if (
+    !/^\d{6,10}$/.test(
+      employeeNo
+    )
+  ) {
+    showShiftLogEmployeeAddMessage(
+      "사번은 숫자 6~10자리로 입력해 주세요.",
+      "error"
+    );
+
+
+    employeeNoInput?.focus();
+
+
+    return;
+  }
+
+
+  if (
+    !name
+  ) {
+    showShiftLogEmployeeAddMessage(
+      "직원 이름을 입력해 주세요.",
+      "error"
+    );
+
+
+    nameInput?.focus();
+
+
+    return;
+  }
+
+
+  if (
+    name.length < 2 ||
+    name.length > 30
+  ) {
+    showShiftLogEmployeeAddMessage(
+      "직원 이름은 2~30자로 입력해 주세요.",
+      "error"
+    );
+
+
+    nameInput?.focus();
+
+
+    return;
+  }
+
+
+  const defaultRole =
+    selectedRole ===
+      "super_admin"
+      ? "super_admin"
+      : "user";
+
+
+  showShiftLogEmployeeAddMessage(
+    "직원 계정을 등록하고 있습니다."
+  );
+
+
+  if (
+    saveButton
+  ) {
+    saveButton.disabled =
+      true;
+
+
+    saveButton.textContent =
+      "등록 중...";
+  }
+
+
+  try {
+    const response =
+      await fetch(
+        "/api/employees",
+        {
+          method:
+            "POST",
+
+          headers:
+            getShiftLogAuthHeaders({
+              "Content-Type":
+                "application/json"
+            }),
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              employeeNo,
+
+              name,
+
+              defaultRole,
+
+              /*
+                보직은 계정 등록 후
+                직원 수정창에서 지정할 수 있다.
+              */
+              position:
+                "",
+
+              isAllowed:
+                true
+            })
+        }
+      );
+
+
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "직원 등록 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok === false ||
+      result.success === false
+    ) {
+      const detailErrors =
+        Array.isArray(
+          result.errors
+        )
+          ? result.errors.join(
+              "\n"
+            )
+          : "";
+
+
+      throw new Error(
+        detailErrors ||
+        result.message ||
+        result.error ||
+        `직원 등록 실패 (HTTP ${response.status})`
+      );
+    }
+
+
+    /*
+      가입 완료 직원 목록을 다시 불러온다.
+    */
+    await loadEmployeeManagement();
+
+
+    closeShiftLogEmployeeAddPanel();
+
+
+    showToast(
+      `${name} 직원이 등록되었습니다. 초기 비밀번호는 사번과 동일합니다.`
+    );
+
+
+    console.log(
+      "직원 직접 등록 완료:",
+      {
+        employeeNo,
+        name,
+        defaultRole,
+        result
+      }
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "직원 직접 등록 오류:",
+      error
+    );
+
+
+    showShiftLogEmployeeAddMessage(
+      error.message ||
+      "직원을 등록하지 못했습니다.",
+      "error"
+    );
+
+
+    showToast(
+      error.message ||
+      "직원 등록에 실패했습니다."
+    );
+
+  } finally {
+    if (
+      saveButton
+    ) {
+      saveButton.disabled =
+        false;
+
+
+      saveButton.textContent =
+        "등록";
+    }
+  }
+}
+
+
+/* =========================================================
+  직원 추가 이벤트 연결
+========================================================= */
+
+function initializeShiftLogEmployeeAdd() {
+  const {
+    openButton,
+    closeButton,
+    employeeNoInput,
+    nameInput,
+    roleSelect,
+    saveButton
+  } =
+    getShiftLogEmployeeAddElements();
+
+
+  if (
+    !openButton
+  ) {
+    return;
+  }
+
+
+  /*
+    이벤트 중복 연결 방지
+  */
+  if (
+    openButton.dataset
+      .employeeAddBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  openButton.addEventListener(
+    "click",
+    openShiftLogEmployeeAddPanel
+  );
+
+
+  closeButton?.addEventListener(
+    "click",
+    closeShiftLogEmployeeAddPanel
+  );
+
+
+  saveButton?.addEventListener(
+    "click",
+    saveShiftLogEmployeeAdd
+  );
+
+
+  /*
+    사번에는 숫자만 입력한다.
+  */
+  employeeNoInput?.addEventListener(
+    "input",
+    () => {
+      employeeNoInput.value =
+        employeeNoInput.value.replace(
+          /[^0-9]/g,
+          ""
+        );
+    }
+  );
+
+
+  /*
+    입력 중 Enter를 누르면 등록한다.
+  */
+  [
+    employeeNoInput,
+    nameInput,
+    roleSelect
+  ]
+    .filter(
+      Boolean
+    )
+    .forEach(
+      input => {
+        input.addEventListener(
+          "keydown",
+          event => {
+            if (
+              event.key !==
+              "Enter"
+            ) {
+              return;
+            }
+
+
+            event.preventDefault();
+
+
+            saveShiftLogEmployeeAdd();
+          }
+        );
+      }
+    );
+
+
+  openButton.dataset
+    .employeeAddBound =
+    "true";
+}
+
+
+/* =========================================================
+  직원 추가 기능 초기 실행
+========================================================= */
+
+if (
+  document.readyState ===
+    "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeShiftLogEmployeeAdd
+  );
+
+} else {
+  initializeShiftLogEmployeeAdd();
+}
+
+/* =========================================================
   로그인 및 시스템 관리자 기능 초기화
 ========================================================= */
 
