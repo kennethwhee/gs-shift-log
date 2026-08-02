@@ -516,12 +516,15 @@ async function getAuthenticatedUser(
 
 
 /* =========================================================
-  공지 관리 권한
+  보직 공지 서버 관리 권한
 
   허용:
-  - 최고관리자
-  - 파트장 계정(admin)
-  - 공지 대상과 동일한 보직 사용자
+  - 정상 로그인 사용자 전체
+  - 모든 보직 공지 등록·수정·삭제 가능
+
+  차단:
+  - 로그인 정보 없음
+  - 허용되지 않은 보직
 ========================================================= */
 
 function canManageRoleNotice(
@@ -534,27 +537,8 @@ function canManageRoleNotice(
     );
 
 
-  if (
-    !user ||
-    !role
-  ) {
-    return false;
-  }
-
-
-  if (
-    user.isSuperAdmin ||
-    user.role ===
-      "admin"
-  ) {
-    return true;
-  }
-
-
-  return (
-    normalizeNoticeRole(
-      user.position
-    ) ===
+  return Boolean(
+    user &&
     role
   );
 }

@@ -56074,15 +56074,20 @@ function getCurrentUserRoleNoticePosition() {
 
 
 /* =========================================================
-  공지 관리 권한 판정
+  보직 공지 관리 권한
 
-  수정·삭제 가능:
-  - 최고관리자
-  - 파트장 권한
-  - 해당 보직 사용자
+  허용:
+  - 로그인한 모든 사용자
+  - 모든 보직 공지 추가·수정·삭제 가능
 
-  조회:
-  - 모든 로그인 사용자
+  대상:
+  - 파트장
+  - TGO
+  - BCO1
+  - BCO2
+  - TO
+  - BO1
+  - BO2
 ========================================================= */
 
 function canCurrentUserManageRoleNotice(
@@ -56092,6 +56097,12 @@ function canCurrentUserManageRoleNotice(
     loadCurrentUser();
 
 
+  const normalizedRole =
+    normalizeMemberLogRole(
+      role
+    );
+
+
   if (
     !currentUser
   ) {
@@ -56099,51 +56110,8 @@ function canCurrentUserManageRoleNotice(
   }
 
 
-  if (
-    typeof isCurrentUserSuperAdmin ===
-      "function" &&
-    isCurrentUserSuperAdmin()
-  ) {
-    return true;
-  }
-
-
-  const accountRole =
-    typeof getShiftLogUserAccountRole ===
-      "function"
-      ? getShiftLogUserAccountRole(
-          currentUser
-        )
-      : String(
-          currentUser.role ||
-          ""
-        )
-          .trim()
-          .toLowerCase();
-
-
-  /*
-    파트장 계정
-  */
-  if (
-    accountRole ===
-      "admin" ||
-    accountRole ===
-      "leader"
-  ) {
-    return true;
-  }
-
-
-  const userPosition =
-    getCurrentUserRoleNoticePosition();
-
-
-  return (
-    userPosition ===
-    normalizeMemberLogRole(
-      role
-    )
+  return ROLE_NOTICE_ROLES.includes(
+    normalizedRole
   );
 }
 
