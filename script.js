@@ -67788,3 +67788,1342 @@ if (
   }
 
 })();
+
+/* =========================================================
+  파트장 업무일지 수정창 하단 버튼 최종 복구
+
+  표시 순서
+  왼쪽  : 인쇄 | 결재취소 | 삭제
+  오른쪽: 임시저장 | 결재완료 | 닫기
+
+  상태별 동작
+  - 신규 작성: 임시저장만 사용 가능
+  - 임시저장: 삭제·임시저장·결재완료 사용 가능
+  - 결재완료: 결재취소·삭제 사용 가능
+========================================================= */
+
+(function initializeLeaderEditorFooterRecovery() {
+  if (
+    window.__leaderEditorFooterRecoveryInstalled ===
+    true
+  ) {
+    return;
+  }
+
+  window.__leaderEditorFooterRecoveryInstalled =
+    true;
+
+  let isFooterActionWorking =
+    false;
+
+  /* =====================================================
+    상태 정규화
+  ====================================================== */
+
+  function normalizeLeaderFooterStatus(
+    status
+  ) {
+    if (
+      typeof normalizeShiftLogApprovalStatus ===
+      "function"
+    ) {
+      return normalizeShiftLogApprovalStatus(
+        status
+      );
+    }
+
+    const statusMap = {
+      작성중:
+        "임시저장",
+
+      임시저장:
+        "임시저장",
+
+      저장완료:
+        "저장완료",
+
+      작성완료:
+        "결재요청",
+
+      결재요청:
+        "결재요청",
+
+      결재완료:
+        "결재완료"
+    };
+
+    return (
+      statusMap[
+        String(
+          status ||
+          ""
+        ).trim()
+      ] ||
+      ""
+    );
+  }
+
+
+  /* =====================================================
+    현재 수정창과 연결된 업무일지 찾기
+  ====================================================== */
+
+  function getLeaderFooterCurrentLog() {
+    const logs =
+      Array.isArray(
+        appState?.logs
+      )
+        ? appState.logs
+        : [];
+
+    const form =
+      document.getElementById(
+        "logEditorForm"
+      );
+
+    const editingId =
+      String(
+        form?.dataset?.editingId ||
+        ""
+      ).trim();
+
+    if (
+      editingId
+    ) {
+      const editingLog =
+        logs.find(
+          log => {
+            return (
+              String(
+                log?.id ||
+                ""
+              ).trim() ===
+              editingId
+            );
+          }
+        );
+
+      if (
+        editingLog
+      ) {
+        return editingLog;
+      }
+    }
+
+    const date =
+      String(
+        document.getElementById(
+          "logDate"
+        )?.value ||
+        ""
+      ).trim();
+
+    const shift =
+      String(
+        document.getElementById(
+          "logShift"
+        )?.value ||
+        ""
+      )
+        .trim()
+        .toUpperCase()
+        .replaceAll(
+          "/",
+          ""
+        );
+
+    if (
+      !date ||
+      !shift
+    ) {
+      return null;
+    }
+
+    return (
+      logs
+        .filter(
+          log => {
+            const source =
+              String(
+                log?.source ||
+                ""
+              )
+                .trim()
+                .toLowerCase();
+
+            const logShift =
+              String(
+                log?.shift ||
+                ""
+              )
+                .trim()
+                .toUpperCase()
+                .replaceAll(
+                  "/",
+                  ""
+                );
+
+            return (
+              !source.startsWith(
+                "legacy"
+              ) &&
+
+              String(
+                log?.date ||
+                ""
+              ).trim() ===
+                date &&
+
+              logShift ===
+                shift &&
+
+              normalizeMemberLogRole(
+                log?.role
+              ) ===
+                "파트장"
+            );
+          }
+        )
+        .sort(
+          (
+            firstLog,
+            secondLog
+          ) => {
+            const revisionDifference =
+              Number(
+                secondLog?.serverRevision ||
+                0
+              ) -
+              Number(
+                firstLog?.serverRevision ||
+                0
+              );
+
+            if (
+              revisionDifference !==
+              0
+            ) {
+              return revisionDifference;
+            }
+
+            return (
+              new Date(
+                secondLog?.updatedAt ||
+                secondLog?.createdAt ||
+                0
+              ).getTime() -
+              new Date(
+                firstLog?.updatedAt ||
+                firstLog?.createdAt ||
+                0
+              ).getTime()
+            );
+          }
+        )[0] ||
+      null
+    );
+  }
+
+
+  /* =====================================================
+    현재 수정창이 파트장 업무일지인지 판정
+
+    logRole 값만 보지 않고
+    수정 중인 실제 업무일지와 제목도 함께 확인한다.
+  ====================================================== */
+
+  function isLeaderFooterEditor() {
+    const roleValue =
+      document.getElementById(
+        "logRole"
+      )?.value ||
+      "";
+
+    if (
+      normalizeMemberLogRole(
+        roleValue
+      ) ===
+      "파트장"
+    ) {
+      return true;
+    }
+
+    const currentLog =
+      getLeaderFooterCurrentLog();
+
+    if (
+      normalizeMemberLogRole(
+        currentLog?.role
+      ) ===
+      "파트장"
+    ) {
+      return true;
+    }
+
+    const editorTitle =
+      String(
+        document.getElementById(
+          "logEditorTitle"
+        )?.textContent ||
+        ""
+      );
+
+    return editorTitle.includes(
+      "파트장"
+    );
+  }
+
+
+  /* =====================================================
+    버튼 생성 및 위치 정리
+  ====================================================== */
+
+  function ensureLeaderFooterButtons() {
+    const modal =
+      document.getElementById(
+        "logEditorModal"
+      );
+
+    const leftGroup =
+      modal?.querySelector(
+        ".log-editor-footer__left"
+      );
+
+    const rightGroup =
+      modal?.querySelector(
+        ".log-editor-footer__right"
+      );
+
+    const printButton =
+      document.getElementById(
+        "printLogButton"
+      );
+
+    const closeButton =
+      document.getElementById(
+        "cancelLogButton"
+      );
+
+    if (
+      !leftGroup ||
+      !rightGroup
+    ) {
+      return null;
+    }
+
+    let cancelButton =
+      document.getElementById(
+        "leaderFooterCancelButton"
+      );
+
+    if (
+      !cancelButton
+    ) {
+      cancelButton =
+        document.createElement(
+          "button"
+        );
+
+      cancelButton.type =
+        "button";
+
+      cancelButton.id =
+        "leaderFooterCancelButton";
+
+      cancelButton.className =
+        "secondary-button log-editor-cancel-approval-button";
+
+      cancelButton.textContent =
+        "결재취소";
+    }
+
+    let deleteButton =
+      document.getElementById(
+        "leaderFooterDeleteButton"
+      );
+
+    if (
+      !deleteButton
+    ) {
+      deleteButton =
+        document.createElement(
+          "button"
+        );
+
+      deleteButton.type =
+        "button";
+
+      deleteButton.id =
+        "leaderFooterDeleteButton";
+
+      deleteButton.className =
+        "danger-button log-editor-delete-button";
+
+      deleteButton.textContent =
+        "삭제";
+    }
+
+    let draftButton =
+      document.getElementById(
+        "leaderFooterDraftButton"
+      );
+
+    if (
+      !draftButton
+    ) {
+      draftButton =
+        document.createElement(
+          "button"
+        );
+
+      draftButton.type =
+        "button";
+
+      draftButton.id =
+        "leaderFooterDraftButton";
+
+      draftButton.className =
+        "secondary-button log-editor-draft-button";
+
+      draftButton.textContent =
+        "임시저장";
+    }
+
+    let completeButton =
+      document.getElementById(
+        "leaderFooterCompleteButton"
+      );
+
+    if (
+      !completeButton
+    ) {
+      completeButton =
+        document.createElement(
+          "button"
+        );
+
+      completeButton.type =
+        "button";
+
+      completeButton.id =
+        "leaderFooterCompleteButton";
+
+      completeButton.className =
+        "approval-button log-editor-complete-button";
+
+      completeButton.textContent =
+        "결재완료";
+    }
+
+    if (
+      printButton
+    ) {
+      printButton.insertAdjacentElement(
+        "afterend",
+        cancelButton
+      );
+
+    } else {
+      leftGroup.appendChild(
+        cancelButton
+      );
+    }
+
+    cancelButton.insertAdjacentElement(
+      "afterend",
+      deleteButton
+    );
+
+    if (
+      closeButton
+    ) {
+      rightGroup.insertBefore(
+        draftButton,
+        closeButton
+      );
+
+      rightGroup.insertBefore(
+        completeButton,
+        closeButton
+      );
+
+    } else {
+      rightGroup.append(
+        draftButton,
+        completeButton
+      );
+    }
+
+    return {
+      cancelButton,
+      deleteButton,
+      draftButton,
+      completeButton
+    };
+  }
+
+
+  /* =====================================================
+    버튼 표시 및 사용 가능 상태
+  ====================================================== */
+
+  function setLeaderFooterButtonState(
+    button,
+    {
+      visible,
+      enabled,
+      title = ""
+    }
+  ) {
+    if (
+      !button
+    ) {
+      return;
+    }
+
+    button.type =
+      "button";
+
+    button.hidden =
+      !visible;
+
+    if (
+      visible
+    ) {
+      button.removeAttribute(
+        "hidden"
+      );
+
+      button.style.setProperty(
+        "display",
+        "inline-flex",
+        "important"
+      );
+
+    } else {
+      button.setAttribute(
+        "hidden",
+        ""
+      );
+
+      button.style.setProperty(
+        "display",
+        "none",
+        "important"
+      );
+    }
+
+    button.disabled =
+      !enabled;
+
+    button.setAttribute(
+      "aria-disabled",
+      String(
+        !enabled
+      )
+    );
+
+    button.title =
+      title;
+  }
+
+
+  /* =====================================================
+    기존 파트장용 버튼 숨기기
+
+    현재 복구 버튼과 중복 표시되지 않게 한다.
+  ====================================================== */
+
+  function hideOriginalLeaderFooterButtons() {
+    [
+      document.getElementById(
+        "saveDraftButton"
+      ),
+
+      document.getElementById(
+        "requestApprovalButton"
+      ),
+
+      document.getElementById(
+        "cancelLeaderApprovalButton"
+      )
+    ]
+      .filter(Boolean)
+      .forEach(
+        button => {
+          button.hidden =
+            true;
+
+          button.setAttribute(
+            "hidden",
+            ""
+          );
+
+          button.style.setProperty(
+            "display",
+            "none",
+            "important"
+          );
+        }
+      );
+  }
+
+
+  /* =====================================================
+    하단 버튼 최종 갱신
+  ====================================================== */
+
+  function refreshLeaderFooterButtons() {
+    const buttons =
+      ensureLeaderFooterButtons();
+
+    if (
+      !buttons
+    ) {
+      return;
+    }
+
+    const isLeader =
+      isLeaderFooterEditor();
+
+    if (
+      !isLeader
+    ) {
+      Object.values(
+        buttons
+      ).forEach(
+        button => {
+          setLeaderFooterButtonState(
+            button,
+            {
+              visible:
+                false,
+
+              enabled:
+                false
+            }
+          );
+        }
+      );
+
+      return;
+    }
+
+    hideOriginalLeaderFooterButtons();
+
+    const currentLog =
+      getLeaderFooterCurrentLog();
+
+    const currentStatus =
+      normalizeLeaderFooterStatus(
+        currentLog?.status
+      );
+
+    const hasCurrentLog =
+      Boolean(
+        currentLog
+      );
+
+    const isApproved =
+      currentStatus ===
+      "결재완료";
+
+    const canComplete =
+      hasCurrentLog &&
+      [
+        "임시저장",
+        "저장완료"
+      ].includes(
+        currentStatus
+      );
+
+    const canDelete =
+      hasCurrentLog &&
+      (
+        typeof canCurrentUserDeleteShiftLog ===
+          "function"
+          ? canCurrentUserDeleteShiftLog(
+              currentLog
+            )
+          : true
+      );
+
+    setLeaderFooterButtonState(
+      buttons.cancelButton,
+      {
+        visible:
+          true,
+
+        enabled:
+          isApproved &&
+          !isFooterActionWorking,
+
+        title:
+          isApproved
+            ? "결재를 취소하고 임시저장 상태로 되돌립니다."
+            : "결재완료 상태에서 사용할 수 있습니다."
+      }
+    );
+
+    setLeaderFooterButtonState(
+      buttons.deleteButton,
+      {
+        visible:
+          true,
+
+        enabled:
+          canDelete &&
+          !isFooterActionWorking,
+
+        title:
+          canDelete
+            ? "현재 파트장 업무일지를 삭제합니다."
+            : "현재 상태 또는 권한에서는 삭제할 수 없습니다."
+      }
+    );
+
+    setLeaderFooterButtonState(
+      buttons.draftButton,
+      {
+        visible:
+          true,
+
+        enabled:
+          !isApproved &&
+          !isFooterActionWorking,
+
+        title:
+          isApproved
+            ? "결재취소 후 임시저장할 수 있습니다."
+            : "파트장 업무일지를 임시저장합니다."
+      }
+    );
+
+    setLeaderFooterButtonState(
+      buttons.completeButton,
+      {
+        visible:
+          true,
+
+        enabled:
+          canComplete &&
+          !isFooterActionWorking,
+
+        title:
+          canComplete
+            ? "파트장 업무일지를 결재완료 처리합니다."
+            : "먼저 임시저장해 주세요."
+      }
+    );
+  }
+
+
+  /* =====================================================
+    서버 결과를 현재 화면에 반영
+  ====================================================== */
+
+  function applyLeaderFooterSavedLog(
+    savedLog
+  ) {
+    if (
+      !savedLog
+    ) {
+      return;
+    }
+
+    if (
+      typeof replaceSharedShiftLogInState ===
+        "function"
+    ) {
+      replaceSharedShiftLogInState(
+        savedLog
+      );
+
+    } else if (
+      Array.isArray(
+        appState?.logs
+      )
+    ) {
+      const existingIndex =
+        appState.logs.findIndex(
+          log => {
+            return (
+              String(
+                log?.id ||
+                ""
+              ) ===
+              String(
+                savedLog.id ||
+                ""
+              )
+            );
+          }
+        );
+
+      if (
+        existingIndex >=
+        0
+      ) {
+        appState.logs.splice(
+          existingIndex,
+          1,
+          savedLog
+        );
+
+      } else {
+        appState.logs.unshift(
+          savedLog
+        );
+      }
+    }
+
+    const form =
+      document.getElementById(
+        "logEditorForm"
+      );
+
+    if (
+      form
+    ) {
+      form.dataset.editingId =
+        String(
+          savedLog.id ||
+          ""
+        );
+    }
+
+    if (
+      typeof renderLogTable ===
+        "function"
+    ) {
+      renderLogTable();
+    }
+
+    if (
+      typeof updateShiftMemberCardStates ===
+        "function"
+    ) {
+      updateShiftMemberCardStates();
+    }
+
+    if (
+      typeof markLogEditorAsSaved ===
+        "function"
+    ) {
+      markLogEditorAsSaved();
+    }
+  }
+
+
+  /* =====================================================
+    확인창
+  ====================================================== */
+
+  async function confirmLeaderFooterAction(
+    options
+  ) {
+    if (
+      typeof showCompactConfirm ===
+        "function"
+    ) {
+      return Boolean(
+        await showCompactConfirm(
+          options
+        )
+      );
+    }
+
+    return window.confirm(
+      String(
+        options?.message ||
+        ""
+      )
+    );
+  }
+
+
+  /* =====================================================
+    오류 처리
+  ====================================================== */
+
+  function handleLeaderFooterError(
+    error,
+    fallbackMessage
+  ) {
+    console.error(
+      fallbackMessage,
+      error
+    );
+
+    if (
+      error?.isConflict ===
+        true &&
+      typeof handleShiftLogConflict ===
+        "function"
+    ) {
+      handleShiftLogConflict(
+        error
+      );
+
+      return;
+    }
+
+    showToast(
+      error?.message ||
+      fallbackMessage
+    );
+  }
+
+
+  /* =====================================================
+    임시저장
+  ====================================================== */
+
+  async function saveLeaderFooterDraft() {
+    const savedLog =
+      await saveCurrentLog(
+        "작성중",
+        {
+          closeAfterSave:
+            false
+        }
+      );
+
+    if (
+      !savedLog
+    ) {
+      return;
+    }
+
+    applyLeaderFooterSavedLog(
+      savedLog
+    );
+
+    showToast(
+      "파트장 업무일지를 임시저장했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    결재완료
+  ====================================================== */
+
+  async function completeLeaderFooterApproval() {
+    const currentLog =
+      getLeaderFooterCurrentLog();
+
+    const currentStatus =
+      normalizeLeaderFooterStatus(
+        currentLog?.status
+      );
+
+    if (
+      !currentLog ||
+      ![
+        "임시저장",
+        "저장완료"
+      ].includes(
+        currentStatus
+      )
+    ) {
+      showToast(
+        "먼저 파트장 업무일지를 임시저장해 주세요."
+      );
+
+      return;
+    }
+
+    const shouldComplete =
+      await confirmLeaderFooterAction({
+        title:
+          "결재완료",
+
+        message:
+          "파트장 업무일지를 결재완료 처리할까요?",
+
+        confirmText:
+          "결재완료",
+
+        cancelText:
+          "취소"
+      });
+
+    if (
+      !shouldComplete
+    ) {
+      return;
+    }
+
+    const latestDraft =
+      await saveCurrentLog(
+        "작성중",
+        {
+          closeAfterSave:
+            false
+        }
+      );
+
+    const approvalTarget =
+      latestDraft ||
+      getLeaderFooterCurrentLog();
+
+    if (
+      !approvalTarget
+    ) {
+      throw new Error(
+        "결재완료할 파트장 업무일지를 찾을 수 없습니다."
+      );
+    }
+
+    const approvedLog =
+      await changeShiftLogApprovalOnServer(
+        approvalTarget,
+        "approve"
+      );
+
+    applyLeaderFooterSavedLog(
+      approvedLog
+    );
+
+    showToast(
+      "파트장 업무일지 결재가 완료되었습니다."
+    );
+  }
+
+
+  /* =====================================================
+    결재취소
+  ====================================================== */
+
+  async function cancelLeaderFooterApproval() {
+    const currentLog =
+      getLeaderFooterCurrentLog();
+
+    if (
+      !currentLog ||
+      normalizeLeaderFooterStatus(
+        currentLog.status
+      ) !==
+        "결재완료"
+    ) {
+      showToast(
+        "결재취소할 파트장 업무일지를 찾을 수 없습니다."
+      );
+
+      return;
+    }
+
+    const shouldCancel =
+      await confirmLeaderFooterAction({
+        title:
+          "결재취소",
+
+        message:
+          "파트장 업무일지 결재를 취소하고 임시저장 상태로 되돌릴까요?",
+
+        confirmText:
+          "결재취소",
+
+        cancelText:
+          "유지"
+      });
+
+    if (
+      !shouldCancel
+    ) {
+      return;
+    }
+
+    const cancelledLog =
+      await changeShiftLogApprovalOnServer(
+        currentLog,
+        "cancel"
+      );
+
+    applyLeaderFooterSavedLog(
+      cancelledLog
+    );
+
+    showToast(
+      "파트장 업무일지 결재를 취소했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    삭제
+  ====================================================== */
+
+  async function deleteLeaderFooterLog() {
+    const currentLog =
+      getLeaderFooterCurrentLog();
+
+    if (
+      !currentLog
+    ) {
+      showToast(
+        "삭제할 파트장 업무일지를 찾을 수 없습니다."
+      );
+
+      return;
+    }
+
+    if (
+      typeof canCurrentUserDeleteShiftLog ===
+        "function" &&
+      !canCurrentUserDeleteShiftLog(
+        currentLog
+      )
+    ) {
+      showToast(
+        "현재 상태 또는 권한에서는 이 업무일지를 삭제할 수 없습니다."
+      );
+
+      return;
+    }
+
+    const shouldDelete =
+      await confirmLeaderFooterAction({
+        title:
+          "업무일지 삭제",
+
+        message:
+          "현재 파트장 업무일지를 삭제할까요? 삭제한 자료는 복구할 수 없습니다.",
+
+        confirmText:
+          "삭제",
+
+        cancelText:
+          "취소"
+      });
+
+    if (
+      !shouldDelete
+    ) {
+      return;
+    }
+
+    if (
+      typeof deleteShiftLogFromServer ===
+        "function"
+    ) {
+      await deleteShiftLogFromServer(
+        currentLog
+      );
+
+      appState.logs =
+        appState.logs.filter(
+          log => {
+            return (
+              String(
+                log?.id ||
+                ""
+              ) !==
+              String(
+                currentLog.id ||
+                ""
+              )
+            );
+          }
+        );
+
+      renderLogTable();
+
+      updateShiftMemberCardStates();
+
+      closeLogEditor();
+
+      showToast(
+        "파트장 업무일지를 삭제했습니다."
+      );
+
+      return;
+    }
+
+    if (
+      typeof deleteLogById ===
+        "function"
+    ) {
+      await Promise.resolve(
+        deleteLogById(
+          currentLog.id
+        )
+      );
+    }
+  }
+
+
+  /* =====================================================
+    버튼 이벤트
+  ====================================================== */
+
+  document.addEventListener(
+    "click",
+    async event => {
+      const target =
+        event.target instanceof
+          Element
+          ? event.target.closest(
+              [
+                "#leaderFooterCancelButton",
+                "#leaderFooterDeleteButton",
+                "#leaderFooterDraftButton",
+                "#leaderFooterCompleteButton"
+              ].join(
+                ","
+              )
+            )
+          : null;
+
+      if (
+        !target ||
+        !isLeaderFooterEditor()
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+
+      event.stopPropagation();
+
+      if (
+        isFooterActionWorking ||
+        target.disabled
+      ) {
+        return;
+      }
+
+      isFooterActionWorking =
+        true;
+
+      refreshLeaderFooterButtons();
+
+      try {
+        if (
+          target.id ===
+          "leaderFooterDraftButton"
+        ) {
+          await saveLeaderFooterDraft();
+
+        } else if (
+          target.id ===
+          "leaderFooterCompleteButton"
+        ) {
+          await completeLeaderFooterApproval();
+
+        } else if (
+          target.id ===
+          "leaderFooterCancelButton"
+        ) {
+          await cancelLeaderFooterApproval();
+
+        } else if (
+          target.id ===
+          "leaderFooterDeleteButton"
+        ) {
+          await deleteLeaderFooterLog();
+        }
+
+      } catch (
+        error
+      ) {
+        handleLeaderFooterError(
+          error,
+          "파트장 업무일지 작업을 처리하지 못했습니다."
+        );
+
+      } finally {
+        isFooterActionWorking =
+          false;
+
+        refreshLeaderFooterButtons();
+      }
+    },
+    true
+  );
+
+
+  /* =====================================================
+    수정창이 열리고 값이 채워지는 순서 차이 보정
+  ====================================================== */
+
+  function scheduleLeaderFooterRefresh() {
+    [
+      0,
+      40,
+      120,
+      300
+    ].forEach(
+      delay => {
+        window.setTimeout(
+          refreshLeaderFooterButtons,
+          delay
+        );
+      }
+    );
+  }
+
+  const modal =
+    document.getElementById(
+      "logEditorModal"
+    );
+
+  if (
+    modal &&
+    typeof MutationObserver ===
+      "function"
+  ) {
+    const observer =
+      new MutationObserver(
+        () => {
+          const isOpen =
+            modal.classList.contains(
+              "is-open"
+            ) ||
+            modal.getAttribute(
+              "aria-hidden"
+            ) ===
+              "false";
+
+          if (
+            isOpen
+          ) {
+            scheduleLeaderFooterRefresh();
+          }
+        }
+      );
+
+    observer.observe(
+      modal,
+      {
+        attributes:
+          true,
+
+        attributeFilter: [
+          "class",
+          "aria-hidden"
+        ]
+      }
+    );
+  }
+
+  [
+    "logRole",
+    "logDate",
+    "logShift"
+  ].forEach(
+    elementId => {
+      document
+        .getElementById(
+          elementId
+        )
+        ?.addEventListener(
+          "change",
+          scheduleLeaderFooterRefresh
+        );
+    }
+  );
+
+  scheduleLeaderFooterRefresh();
+})();
