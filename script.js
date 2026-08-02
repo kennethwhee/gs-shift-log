@@ -68074,193 +68074,334 @@ if (
   }
 
 
-  /* =====================================================
-    버튼 생성 및 위치 정리
-  ====================================================== */
+/* =====================================================
+  파트장 작성창 하단 버튼 생성 최종본
 
-  function ensureLeaderFooterButtons() {
-    const modal =
-      document.getElementById(
-        "logEditorModal"
-      );
+  HTML 클래스 지원:
+  - log-editor-footer__left
+  - log-editor-footer__right
+  - modal-footer__left
+  - modal-footer__right
 
-    const leftGroup =
-      modal?.querySelector(
-        ".log-editor-footer__left"
-      );
+  클래스가 없어도
+  인쇄·닫기 버튼의 부모 영역을 사용한다.
+====================================================== */
 
-    const rightGroup =
-      modal?.querySelector(
-        ".log-editor-footer__right"
-      );
-
-    const printButton =
-      document.getElementById(
-        "printLogButton"
-      );
-
-    const closeButton =
-      document.getElementById(
-        "cancelLogButton"
-      );
-
-    if (
-      !leftGroup ||
-      !rightGroup
-    ) {
-      return null;
-    }
-
-    let cancelButton =
-      document.getElementById(
-        "leaderFooterCancelButton"
-      );
-
-    if (
-      !cancelButton
-    ) {
-      cancelButton =
-        document.createElement(
-          "button"
-        );
-
-      cancelButton.type =
-        "button";
-
-      cancelButton.id =
-        "leaderFooterCancelButton";
-
-      cancelButton.className =
-        "secondary-button log-editor-cancel-approval-button";
-
-      cancelButton.textContent =
-        "결재취소";
-    }
-
-    let deleteButton =
-      document.getElementById(
-        "leaderFooterDeleteButton"
-      );
-
-    if (
-      !deleteButton
-    ) {
-      deleteButton =
-        document.createElement(
-          "button"
-        );
-
-      deleteButton.type =
-        "button";
-
-      deleteButton.id =
-        "leaderFooterDeleteButton";
-
-      deleteButton.className =
-        "danger-button log-editor-delete-button";
-
-      deleteButton.textContent =
-        "삭제";
-    }
-
-    let draftButton =
-      document.getElementById(
-        "leaderFooterDraftButton"
-      );
-
-    if (
-      !draftButton
-    ) {
-      draftButton =
-        document.createElement(
-          "button"
-        );
-
-      draftButton.type =
-        "button";
-
-      draftButton.id =
-        "leaderFooterDraftButton";
-
-      draftButton.className =
-        "secondary-button log-editor-draft-button";
-
-      draftButton.textContent =
-        "임시저장";
-    }
-
-    let completeButton =
-      document.getElementById(
-        "leaderFooterCompleteButton"
-      );
-
-    if (
-      !completeButton
-    ) {
-      completeButton =
-        document.createElement(
-          "button"
-        );
-
-      completeButton.type =
-        "button";
-
-      completeButton.id =
-        "leaderFooterCompleteButton";
-
-      completeButton.className =
-        "approval-button log-editor-complete-button";
-
-      completeButton.textContent =
-        "결재완료";
-    }
-
-    if (
-      printButton
-    ) {
-      printButton.insertAdjacentElement(
-        "afterend",
-        cancelButton
-      );
-
-    } else {
-      leftGroup.appendChild(
-        cancelButton
-      );
-    }
-
-    cancelButton.insertAdjacentElement(
-      "afterend",
-      deleteButton
+function ensureLeaderFooterButtons() {
+  const modal =
+    document.getElementById(
+      "logEditorModal"
     );
+
+
+  const printButton =
+    document.getElementById(
+      "printLogButton"
+    );
+
+
+  const closeButton =
+    document.getElementById(
+      "cancelLogButton"
+    );
+
+
+  if (
+    !modal
+  ) {
+    return null;
+  }
+
+
+  /*
+    기존 HTML 버전에 따라
+    버튼 영역 클래스가 다를 수 있으므로
+    여러 선택자를 함께 지원한다.
+  */
+  const leftGroup =
+    modal.querySelector(
+      [
+        ".log-editor-footer__left",
+        ".modal-footer__left"
+      ].join(
+        ","
+      )
+    ) ||
+    printButton?.parentElement ||
+    null;
+
+
+  const rightGroup =
+    modal.querySelector(
+      [
+        ".log-editor-footer__right",
+        ".modal-footer__right"
+      ].join(
+        ","
+      )
+    ) ||
+    closeButton?.parentElement ||
+    null;
+
+
+  if (
+    !leftGroup ||
+    !rightGroup
+  ) {
+    console.error(
+      "파트장 업무일지 하단 버튼 영역을 찾을 수 없습니다.",
+      {
+        leftGroup,
+        rightGroup,
+        printButton,
+        closeButton
+      }
+    );
+
+
+    return null;
+  }
+
+
+  /* ===================================================
+    결재취소
+  ==================================================== */
+
+  let cancelButton =
+    document.getElementById(
+      "leaderFooterCancelButton"
+    );
+
+
+  if (
+    !cancelButton
+  ) {
+    cancelButton =
+      document.createElement(
+        "button"
+      );
+
+
+    cancelButton.type =
+      "button";
+
+
+    cancelButton.id =
+      "leaderFooterCancelButton";
+
+
+    cancelButton.className =
+      [
+        "secondary-button",
+        "log-editor-cancel-approval-button"
+      ].join(
+        " "
+      );
+
+
+    cancelButton.textContent =
+      "결재취소";
+  }
+
+
+  /* ===================================================
+    삭제
+  ==================================================== */
+
+  let deleteButton =
+    document.getElementById(
+      "leaderFooterDeleteButton"
+    );
+
+
+  if (
+    !deleteButton
+  ) {
+    deleteButton =
+      document.createElement(
+        "button"
+      );
+
+
+    deleteButton.type =
+      "button";
+
+
+    deleteButton.id =
+      "leaderFooterDeleteButton";
+
+
+    deleteButton.className =
+      [
+        "danger-button",
+        "log-editor-delete-button"
+      ].join(
+        " "
+      );
+
+
+    deleteButton.textContent =
+      "삭제";
+  }
+
+
+  /* ===================================================
+    임시저장
+  ==================================================== */
+
+  let draftButton =
+    document.getElementById(
+      "leaderFooterDraftButton"
+    );
+
+
+  if (
+    !draftButton
+  ) {
+    draftButton =
+      document.createElement(
+        "button"
+      );
+
+
+    draftButton.type =
+      "button";
+
+
+    draftButton.id =
+      "leaderFooterDraftButton";
+
+
+    draftButton.className =
+      [
+        "secondary-button",
+        "log-editor-draft-button"
+      ].join(
+        " "
+      );
+
+
+    draftButton.textContent =
+      "임시저장";
+  }
+
+
+  /* ===================================================
+    결재완료
+  ==================================================== */
+
+  let completeButton =
+    document.getElementById(
+      "leaderFooterCompleteButton"
+    );
+
+
+  if (
+    !completeButton
+  ) {
+    completeButton =
+      document.createElement(
+        "button"
+      );
+
+
+    completeButton.type =
+      "button";
+
+
+    completeButton.id =
+      "leaderFooterCompleteButton";
+
+
+    completeButton.className =
+      [
+        "approval-button",
+        "log-editor-complete-button"
+      ].join(
+        " "
+      );
+
+
+    completeButton.textContent =
+      "결재완료";
+  }
+
+
+  /* ===================================================
+    왼쪽 버튼 순서
+
+    인쇄 | 결재취소 | 삭제
+  ==================================================== */
+
+  if (
+    printButton &&
+    printButton.parentElement ===
+      leftGroup
+  ) {
+    printButton.insertAdjacentElement(
+      "afterend",
+      cancelButton
+    );
+
+  } else {
+    leftGroup.appendChild(
+      cancelButton
+    );
+  }
+
+
+  cancelButton.insertAdjacentElement(
+    "afterend",
+    deleteButton
+  );
+
+
+  /* ===================================================
+    오른쪽 버튼 순서
+
+    임시저장 | 결재완료 | 닫기
+  ==================================================== */
+
+  if (
+    closeButton &&
+    closeButton.parentElement ===
+      rightGroup
+  ) {
+    rightGroup.insertBefore(
+      draftButton,
+      closeButton
+    );
+
+
+    rightGroup.insertBefore(
+      completeButton,
+      closeButton
+    );
+
+  } else {
+    rightGroup.append(
+      draftButton,
+      completeButton
+    );
+
 
     if (
       closeButton
     ) {
-      rightGroup.insertBefore(
-        draftButton,
+      rightGroup.appendChild(
         closeButton
-      );
-
-      rightGroup.insertBefore(
-        completeButton,
-        closeButton
-      );
-
-    } else {
-      rightGroup.append(
-        draftButton,
-        completeButton
       );
     }
-
-    return {
-      cancelButton,
-      deleteButton,
-      draftButton,
-      completeButton
-    };
   }
+
+
+  return {
+    cancelButton,
+    deleteButton,
+    draftButton,
+    completeButton
+  };
+}
 
 
   /* =====================================================
@@ -68518,102 +68659,165 @@ if (
   }
 
 
-  /* =====================================================
-    서버 결과를 현재 화면에 반영
-  ====================================================== */
+/* =====================================================
+  파트장 저장·결재 결과 화면 반영 최종본
 
-  function applyLeaderFooterSavedLog(
-    savedLog
+  중요:
+  - 서버 결과를 appState에 반영
+  - 작성창 ID 유지
+  - 결재취소 후 입력 잠금 해제
+  - 하단 버튼 즉시 갱신
+====================================================== */
+
+function applyLeaderFooterSavedLog(
+  savedLog
+) {
+  if (
+    !savedLog
   ) {
-    if (
-      !savedLog
-    ) {
-      return;
-    }
+    return;
+  }
+
+
+  /* ===================================================
+    서버 결과를 업무일지 목록에 반영
+  ==================================================== */
+
+  if (
+    typeof replaceSharedShiftLogInState ===
+      "function"
+  ) {
+    replaceSharedShiftLogInState(
+      savedLog
+    );
+
+  } else if (
+    Array.isArray(
+      appState?.logs
+    )
+  ) {
+    const existingIndex =
+      appState.logs.findIndex(
+        log => {
+          return (
+            String(
+              log?.id ||
+              ""
+            ).trim() ===
+            String(
+              savedLog.id ||
+              ""
+            ).trim()
+          );
+        }
+      );
+
 
     if (
-      typeof replaceSharedShiftLogInState ===
-        "function"
+      existingIndex >=
+      0
     ) {
-      replaceSharedShiftLogInState(
+      appState.logs.splice(
+        existingIndex,
+        1,
         savedLog
       );
 
-    } else if (
-      Array.isArray(
-        appState?.logs
-      )
-    ) {
-      const existingIndex =
-        appState.logs.findIndex(
-          log => {
-            return (
-              String(
-                log?.id ||
-                ""
-              ) ===
-              String(
-                savedLog.id ||
-                ""
-              )
-            );
-          }
-        );
-
-      if (
-        existingIndex >=
-        0
-      ) {
-        appState.logs.splice(
-          existingIndex,
-          1,
-          savedLog
-        );
-
-      } else {
-        appState.logs.unshift(
-          savedLog
-        );
-      }
-    }
-
-    const form =
-      document.getElementById(
-        "logEditorForm"
+    } else {
+      appState.logs.unshift(
+        savedLog
       );
-
-    if (
-      form
-    ) {
-      form.dataset.editingId =
-        String(
-          savedLog.id ||
-          ""
-        );
-    }
-
-    if (
-      typeof renderLogTable ===
-        "function"
-    ) {
-      renderLogTable();
-    }
-
-    if (
-      typeof updateShiftMemberCardStates ===
-        "function"
-    ) {
-      updateShiftMemberCardStates();
-    }
-
-    if (
-      typeof markLogEditorAsSaved ===
-        "function"
-    ) {
-      markLogEditorAsSaved();
     }
   }
 
+
+  /* ===================================================
+    현재 수정창과 업무일지 ID 연결
+  ==================================================== */
+
+  const form =
+    elements?.logEditorForm ||
+    document.getElementById(
+      "logEditorForm"
+    );
+
+
+  if (
+    form
+  ) {
+    form.dataset.editingId =
+      String(
+        savedLog.id ||
+        ""
+      );
+
+
+    form.dataset.editorMode =
+      "existing-edit";
+  }
+
+
+  /* ===================================================
+    결재 상태 기준으로 입력 잠금 갱신
+
+    결재취소 결과가 임시저장이면:
+    - 입력칸 잠금 해제
+    - 추가·수정 버튼 사용 가능
+
+    결재완료이면:
+    - 입력칸 잠금 유지
+  ==================================================== */
+
+  if (
+    typeof updateLogEditorActionButtons ===
+      "function"
+  ) {
+    updateLogEditorActionButtons();
+  }
+
+
+  /* ===================================================
+    목록과 근무자 카드 갱신
+  ==================================================== */
+
+  if (
+    typeof renderLogTable ===
+      "function"
+  ) {
+    renderLogTable();
+  }
+
+
+  if (
+    typeof updateShiftMemberCardStates ===
+      "function"
+  ) {
+    updateShiftMemberCardStates();
+  }
+
+
+  /* ===================================================
+    현재 상태를 저장 완료 기준으로 기록
+  ==================================================== */
+
+  if (
+    typeof markLogEditorAsSaved ===
+      "function"
+  ) {
+    markLogEditorAsSaved();
+  }
+
+
+  /* ===================================================
+    새 상태 기준으로 파트장 하단 버튼 갱신
+  ==================================================== */
+
+  window.requestAnimationFrame(
+    () => {
+      refreshLeaderFooterButtons();
+    }
+  );
+}
 
   /* =====================================================
     확인창
