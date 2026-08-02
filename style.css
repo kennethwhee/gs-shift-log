@@ -52964,7 +52964,8 @@ strong {
 
   -webkit-box-orient:
     vertical !important;
-
+  
+  line-clamp: 2;
   -webkit-line-clamp:
     2 !important;
 }
@@ -54378,5 +54379,495 @@ small {
   .role-notice-button__text {
     color:
       inherit !important;
+  }
+}
+
+/* =========================================================
+  PC 업무일지 글씨 크기 1단계 추가 확대
+
+  미리보기·상세보기:
+  15px → 16px
+
+  작성·수정창:
+  14px → 15px
+
+  모바일:
+  기존 크기 유지
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  /* =====================================================
+    1. 메인 업무일지 미리보기
+  ====================================================== */
+
+  #logTableBody
+  .log-preview__content,
+
+  #logTableBody
+  .log-preview__entry-number,
+
+  #logTableBody
+  .log-preview__entry-time,
+
+  #logTableBody
+  .log-preview__text {
+    font-size:
+      16px !important;
+
+    line-height:
+      1.68 !important;
+  }
+
+
+  /* 운전현황·TM·인계사항 구분 제목 */
+  #logTableBody
+  .log-preview__title,
+
+  #logTableBody
+  .log-preview__role-divider {
+    font-size:
+      14px !important;
+
+    line-height:
+      1.5 !important;
+  }
+
+
+  /* 미리보기 TAG */
+  #logTableBody
+  .log-preview__tag {
+    font-size:
+      13px !important;
+
+    line-height:
+      1.5 !important;
+  }
+
+
+  /* =====================================================
+    2. 조회 결과 미리보기
+  ====================================================== */
+
+  #searchResultBody
+  .search-result-log-preview
+  .log-preview__content,
+
+  #searchResultBody
+  .search-result-log-preview
+  .log-preview__entry-number,
+
+  #searchResultBody
+  .search-result-log-preview
+  .log-preview__entry-time,
+
+  #searchResultBody
+  .search-result-log-preview
+  .log-preview__text,
+
+  #searchResultBody
+  .search-preview-entry,
+
+  #searchResultBody
+  .search-preview-entry__body,
+
+  #searchResultBody
+  .search-preview-entry__number,
+
+  #searchResultBody
+  .search-preview-entry__time,
+
+  #searchResultBody
+  .search-preview-entry__text,
+
+  #searchResultBody
+  .search-preview-operation,
+
+  #searchResultBody
+  .search-preview-note {
+    font-size:
+      16px !important;
+
+    line-height:
+      1.68 !important;
+  }
+
+
+  #searchResultBody
+  .search-preview-section__title,
+
+  #searchResultBody
+  .search-preview-role-title,
+
+  #searchResultBody
+  .search-result-log-preview
+  .log-preview__title,
+
+  #searchResultBody
+  .search-result-log-preview
+  .log-preview__role-divider {
+    font-size:
+      14px !important;
+
+    line-height:
+      1.5 !important;
+  }
+
+
+  #searchResultBody
+  .search-preview-entry__tag,
+
+  #searchResultBody
+  .search-result-log-preview
+  .log-preview__tag {
+    font-size:
+      13px !important;
+
+    line-height:
+      inherit !important;
+  }
+
+
+  /* =====================================================
+    3. 업무일지 작성·수정창 등록 목록
+  ====================================================== */
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-document-line,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-document-body,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-document-content-text,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-handover-line,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-handover-text,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-tm-line,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-tm-text,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-inline-content,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-inline-content__text,
+
+  #logEditorModal
+  #noteEntryTableBody
+  .log-entry-document-body,
+
+  #logEditorModal
+  #noteEntryTableBody
+  .log-entry-document-content-text {
+    font-size:
+      15px !important;
+
+    line-height:
+      1.65 !important;
+  }
+
+
+  /* 수정창 번호·시간 */
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-document-number,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-document-time,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-handover-number,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-tm-number,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-time-cell,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-time-group-label,
+
+  #logEditorModal
+  #noteEntryTableBody
+  .log-entry-document-number {
+    font-size:
+      14px !important;
+
+    line-height:
+      1.65 !important;
+  }
+
+
+  /* 수정창 TAG */
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-inline-tag,
+
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-document-body
+  .log-entry-inline-tag {
+    font-size:
+      13px !important;
+
+    line-height:
+      inherit !important;
+  }
+
+
+  /* 수정창 보직 제목 */
+  #logEditorModal
+  #logEntryListPanel
+  .log-entry-role-divider strong {
+    font-size:
+      15px !important;
+
+    line-height:
+      1.5 !important;
+  }
+
+
+  /* 수정창 현재 운전현황 */
+  #logEditorModal
+  .operation-status-current-content,
+
+  #logEditorModal
+  .operation-status-compact-line__name,
+
+  #logEditorModal
+  .operation-status-compact-line__content {
+    font-size:
+      15px !important;
+
+    line-height:
+      1.6 !important;
+  }
+
+
+  /* 수정창 업무내용 입력창 */
+  #logEditorModal
+  .log-entry-content-field
+  textarea,
+
+  #logEditorModal
+  .operation-status-editor
+  textarea,
+
+  #logEditorModal
+  .large-textarea,
+
+  #logEditorModal
+  .editor-section
+  > textarea {
+    font-size:
+      15px !important;
+
+    line-height:
+      1.65 !important;
+  }
+
+
+  /* =====================================================
+    4. 업무일지 상세보기 업무내용
+  ====================================================== */
+
+  #logDetailModal
+  .detail-operation-row,
+
+  #logDetailModal
+  .detail-operation-row__number,
+
+  #logDetailModal
+  .detail-operation-row__text,
+
+  #logDetailModal
+  .detail-work-row,
+
+  #logDetailModal
+  .detail-work-row__number,
+
+  #logDetailModal
+  .detail-work-row__main,
+
+  #logDetailModal
+  .detail-work-row__time,
+
+  #logDetailModal
+  .detail-work-row__text,
+
+  #logDetailModal
+  .detail-work-row__continuation,
+
+  #logDetailModal
+  .detail-note-content,
+
+  #logDetailModal
+  .detail-document-text,
+
+  #logDetailModal
+  .detail-operation-status-text,
+
+  #logDetailModal
+  .detail-document-number,
+
+  #logDetailModal
+  .detail-document-time,
+
+  #logDetailModal
+  .detail-document-line__content,
+
+  #logDetailModal
+  .detail-document-content-text,
+
+  #logDetailModal
+  .detail-grouped-entry-line,
+
+  #logDetailModal
+  .detail-grouped-entry-line__number,
+
+  #logDetailModal
+  .detail-grouped-entry-line__time,
+
+  #logDetailModal
+  .detail-grouped-entry-line__content,
+
+  #logDetailModal
+  .detail-grouped-entry-line__content-text {
+    font-size:
+      16px !important;
+
+    line-height:
+      1.7 !important;
+  }
+
+
+  /* 상세보기 TAG */
+  #logDetailModal
+  .detail-work-row__tag,
+
+  #logDetailModal
+  .detail-inline-tag {
+    font-size:
+      14px !important;
+
+    line-height:
+      inherit !important;
+  }
+
+
+  /* 상세보기 보직 제목 */
+  #logDetailModal
+  .detail-role-group__title {
+    font-size:
+      17px !important;
+
+    line-height:
+      1.55 !important;
+  }
+
+
+  /* =====================================================
+    상세보기 설비별 운전현황
+
+    기존 초컴팩트 규칙을 별도로 덮어쓴다.
+  ====================================================== */
+
+  #logDetailModal
+  .detail-operation-dashboard__equipment,
+
+  #logDetailModal
+  .detail-operation-dashboard__name,
+
+  #logDetailModal
+  .detail-operation-dashboard__content,
+
+  #logDetailModal
+  .detail-operation-dashboard__text {
+    font-size:
+      13px !important;
+
+    line-height:
+      1.5 !important;
+  }
+
+
+  #logDetailModal
+  .detail-operation-dashboard__role {
+    font-size:
+      12px !important;
+  }
+
+
+  #logDetailModal
+  .detail-operation-dashboard__badge {
+    font-size:
+      10px !important;
+  }
+
+
+  /* =====================================================
+    보고서형 상세보기 구조 대응
+  ====================================================== */
+
+  #logDetailModal
+  .log-report-entry__content,
+
+  #logDetailModal
+  .log-report-line__text,
+
+  #logDetailModal
+  .log-report-operation-content,
+
+  #logDetailModal
+  .log-report-note-content,
+
+  #logDetailModal
+  .log-report-timeline-item__content {
+    font-size:
+      16px !important;
+
+    line-height:
+      1.7 !important;
+  }
+
+
+  #logDetailModal
+  .log-report-line__time,
+
+  #logDetailModal
+  .log-report-line__number {
+    font-size:
+      15px !important;
+
+    line-height:
+      1.7 !important;
+  }
+
+
+  #logDetailModal
+  .log-report-tag {
+    font-size:
+      13px !important;
   }
 }

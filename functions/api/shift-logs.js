@@ -1541,6 +1541,914 @@ function createNavigatorInspectionSyncSelection(
   };
 }
 
+/* =========================================================
+  Facility Navigator 점검이력 서버 간 전송
+
+  업무일지 서버 환경변수:
+  - FACILITY_NAVIGATOR_SYNC_URL
+  - FACILITY_NAVIGATOR_SYNC_SECRET
+
+  전용 수신 주소:
+  - /api/shift-log-inspection-sync
+
+  저장된 업무일지 전체를 컨테이너 스냅샷으로 전송한다.
+  publish는 현재 전체 항목을 보내고,
+  purge는 items: []로 해당 업무일지의 연동 주장을 제거한다.
+========================================================= */
+
+const NAVIGATOR_INSPECTION_SYNC_SCHEMA_VERSION = 1;
+const NAVIGATOR_INSPECTION_SYNC_TIMEOUT_MS = 7000;
+const NAVIGATOR_INSPECTION_SYNC_MAX_ATTEMPTS = 2;
+
+const NAVIGATOR_INSPECTION_SYNC_RETRY_STATUS_CODES =
+  new Set([
+    408,
+    425,
+    429,
+    500,
+    502,
+    503,
+    504
+  ]);
+
+
+/* =========================================================
+  Navigator revision 정규화
+========================================================= */
+
+function normalizeNavigatorInspectionSyncRevision(
+  value
+) {
+  const revision =
+    Number(
+      value
+    );
+
+
+  return (
+    Number.isInteger(
+      revision
+    ) &&
+    revision > 0
+  )
+    ? revision
+    : null;
+}
+
+
+/* =========================================================
+  Navigator 전송 사유 정규화
+========================================================= */
+
+function normalizeNavigatorInspectionSyncTrigger(
+  value
+) {
+  return (
+    normalizeText(
+      value ||
+      "realtime"
+    )
+      .toLowerCase()
+      .replace(
+        /[^a-z0-9_-]/g,
+        ""
+      )
+      .slice(
+        0,
+        40
+      ) ||
+    "realtime"
+  );
+}
+
+
+/* =========================================================
+  Navigator 연동 환경변수 확인
+========================================================= */
+
+function getNavigatorInspectionSyncConfig(
+  context
+) {
+  const endpoint =
+    normalizeText(
+      context
+        ?.env
+        ?.FACILITY_NAVIGATOR_SYNC_URL
+    );
+
+
+  const secret =
+    normalizeText(
+      context
+        ?.env
+        ?.FACILITY_NAVIGATOR_SYNC_SECRET
+    );
+
+
+  if (
+    !endpoint ||
+    !secret
+  ) {
+    return {
+      ok:
+        false,
+
+      reason:
+        "not-configured",
+
+      message:
+        "Facility Navigator 연동 환경변수가 아직 등록되지 않았습니다."
+    };
+  }
+
+
+  if (
+    secret.length < 32
+  ) {
+    return {
+      ok:
+        false,
+
+      reason:
+        "weak-secret",
+
+      message:
+        "Facility Navigator 연동 비밀키는 32자 이상이어야 합니다."
+    };
+  }
+
+
+  let parsedEndpoint;
+
+
+  try {
+    parsedEndpoint =
+      new URL(
+        endpoint
+      );
+
+  } catch {
+    return {
+      ok:
+        false,
+
+      reason:
+        "invalid-endpoint",
+
+      message:
+        "Facility Navigator 연동 주소 형식이 올바르지 않습니다."
+    };
+  }
+
+
+  const isLocalDevelopment =
+    parsedEndpoint.protocol ===
+      "http:" &&
+
+    [
+      "localhost",
+      "127.0.0.1",
+      "::1"
+    ].includes(
+      parsedEndpoint.hostname
+    );
+
+
+  if (
+    parsedEndpoint.protocol !==
+      "https:" &&
+    !isLocalDevelopment
+  ) {
+    return {
+      ok:
+        false,
+
+      reason:
+        "insecure-endpoint",
+
+      message:
+        "Facility Navigator 연동 주소는 HTTPS여야 합니다."
+    };
+  }
+
+
+  if (
+    parsedEndpoint.username ||
+    parsedEndpoint.password
+  ) {
+    return {
+      ok:
+        false,
+
+      reason:
+        "invalid-endpoint",
+
+      message:
+        "Facility Navigator 연동 주소에 사용자 정보가 포함되면 안 됩니다."
+    };
+  }
+
+
+  return {
+    ok:
+      true,
+
+    endpoint:
+      parsedEndpoint
+        .toString(),
+
+    secret
+  };
+}
+
+
+/* =========================================================
+  Navigator 전송 이벤트 ID 생성
+========================================================= */
+
+async function createNavigatorInspectionSyncEventId(
+  containerLogId,
+  containerRevision
+) {
+  const identityText = [
+    `v${NAVIGATOR_INSPECTION_SYNC_SCHEMA_VERSION}`,
+    containerLogId,
+    String(
+      containerRevision
+    )
+  ].join(
+    "\n"
+  );
+
+
+  const digest =
+    await crypto.subtle.digest(
+      "SHA-256",
+
+      new TextEncoder()
+        .encode(
+          identityText
+        )
+    );
+
+
+  return (
+    "gssl-" +
+    bytesToHex(
+      new Uint8Array(
+        digest
+      )
+    )
+  );
+}
+
+
+/* =========================================================
+  Navigator 전송 데이터 생성
+========================================================= */
+
+async function createNavigatorInspectionSyncPayload(
+  log,
+  options = {}
+) {
+  const selection =
+    createNavigatorInspectionSyncSelection(
+      log
+    );
+
+
+  const containerLogId =
+    normalizeText(
+      selection
+        .containerLogId
+    );
+
+
+  const containerRevision =
+    normalizeNavigatorInspectionSyncRevision(
+      options
+        .containerRevision ??
+      log
+        ?.serverRevision
+    );
+
+
+  if (
+    !containerLogId ||
+    containerRevision ===
+      null
+  ) {
+    return {
+      ok:
+        false,
+
+      reason:
+        "invalid-log",
+
+      message:
+        "연동할 업무일지 ID 또는 서버 revision을 확인할 수 없습니다."
+    };
+  }
+
+
+  const disposition =
+    options.forcePurge ===
+      true
+        ? "purge"
+        : selection.disposition;
+
+
+  const items =
+    disposition ===
+      "publish" &&
+    Array.isArray(
+      selection.items
+    )
+      ? selection.items
+      : [];
+
+
+  const eventId =
+    await createNavigatorInspectionSyncEventId(
+      containerLogId,
+      containerRevision
+    );
+
+
+  return {
+    ok:
+      true,
+
+    payload: {
+      schemaVersion:
+        NAVIGATOR_INSPECTION_SYNC_SCHEMA_VERSION,
+
+      eventType:
+        "inspection-history.container-snapshot",
+
+      sourceSystem:
+        "gs-shift-log",
+
+      eventId,
+
+      operation:
+        "replace-container-snapshot",
+
+      disposition,
+
+      container: {
+        logId:
+          containerLogId,
+
+        revision:
+          containerRevision,
+
+        role:
+          normalizeLogRole(
+            log?.role
+          ),
+
+        status:
+          normalizeStatus(
+            log?.status
+          ),
+
+        deleted:
+          options.deleted ===
+            true,
+
+        updatedAt:
+          normalizeText(
+            options
+              .containerUpdatedAt ||
+            log?.updatedAt ||
+            log?.createdAt
+          )
+      },
+
+      /*
+        purge는 현재 남은 항목만 지우는 요청이 아니라
+        이 업무일지가 과거에 연동한 전체 항목을 해제하는 요청이다.
+      */
+      items
+    }
+  };
+}
+
+
+/* =========================================================
+  Navigator 전송 오류 생성
+========================================================= */
+
+function createNavigatorInspectionSyncError(
+  message,
+  status = 0,
+  retryable = false
+) {
+  const error =
+    new Error(
+      message
+    );
+
+
+  error.status =
+    status;
+
+  error.retryable =
+    retryable;
+
+
+  return error;
+}
+
+
+/* =========================================================
+  Navigator 재전송 대기
+========================================================= */
+
+function waitForNavigatorInspectionSyncRetry(
+  attempt
+) {
+  const delayMs =
+    250 *
+    Math.max(
+      1,
+      Number(
+        attempt
+      ) ||
+      1
+    );
+
+
+  return new Promise(
+    resolve => {
+      setTimeout(
+        resolve,
+        delayMs
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+  Navigator 서버 전송
+========================================================= */
+
+async function postNavigatorInspectionSyncPayload(
+  config,
+  payload,
+  bodyText,
+  trigger
+) {
+  const abortController =
+    new AbortController();
+
+
+  const timeoutId =
+    setTimeout(
+      () => {
+        abortController
+          .abort();
+      },
+
+      NAVIGATOR_INSPECTION_SYNC_TIMEOUT_MS
+    );
+
+
+  const requestId =
+    crypto.randomUUID();
+
+
+  try {
+    const response =
+      await fetch(
+        config.endpoint,
+        {
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json; charset=utf-8",
+
+            "Accept":
+              "application/json",
+
+            "Authorization":
+              `Bearer ${config.secret}`,
+
+            "Cache-Control":
+              "no-store",
+
+            "X-GS-Sync-Version":
+              String(
+                NAVIGATOR_INSPECTION_SYNC_SCHEMA_VERSION
+              ),
+
+            "X-GS-Sync-Request-Id":
+              requestId,
+
+            "X-GS-Sync-Trigger":
+              trigger,
+
+            "Idempotency-Key":
+              payload.eventId
+          },
+
+          body:
+            bodyText,
+
+          signal:
+            abortController.signal,
+
+          /*
+            다른 주소로 이동될 때
+            Authorization 비밀키가 전달되지 않게 한다.
+          */
+          redirect:
+            "error"
+        }
+      );
+
+
+    const responseText =
+      await response.text();
+
+
+    let responseData =
+      null;
+
+
+    if (
+      responseText
+    ) {
+      try {
+        responseData =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        responseData =
+          null;
+      }
+    }
+
+
+    if (
+      !response.ok
+    ) {
+      throw createNavigatorInspectionSyncError(
+        normalizeText(
+          responseData?.message ||
+          responseData?.error
+        ) ||
+        `Facility Navigator 연동 요청 실패 (HTTP ${response.status})`,
+
+        response.status,
+
+        NAVIGATOR_INSPECTION_SYNC_RETRY_STATUS_CODES
+          .has(
+            response.status
+          )
+      );
+    }
+
+
+    if (
+      !responseData ||
+      typeof responseData !==
+        "object" ||
+      Array.isArray(
+        responseData
+      ) ||
+      responseData.ok !==
+        true
+    ) {
+      throw createNavigatorInspectionSyncError(
+        "Facility Navigator 연동 서버 응답 형식이 올바르지 않습니다.",
+
+        502,
+
+        true
+      );
+    }
+
+
+    return {
+      status:
+        response.status,
+
+      requestId,
+
+      data:
+        responseData
+    };
+
+  } catch (
+    error
+  ) {
+    if (
+      error?.name ===
+        "AbortError"
+    ) {
+      throw createNavigatorInspectionSyncError(
+        "Facility Navigator 연동 요청 시간이 초과되었습니다.",
+
+        0,
+
+        true
+      );
+    }
+
+
+    if (
+      typeof error?.retryable ===
+        "boolean"
+    ) {
+      throw error;
+    }
+
+
+    throw createNavigatorInspectionSyncError(
+      error instanceof
+        Error
+          ? error.message
+          : "Facility Navigator 연동 네트워크 오류가 발생했습니다.",
+
+      0,
+
+      true
+    );
+
+  } finally {
+    clearTimeout(
+      timeoutId
+    );
+  }
+}
+
+
+/* =========================================================
+  Facility Navigator 최종 서버 간 전송
+
+  실시간 저장과 수동 최신화가 함께 사용한다.
+
+  실패 결과를 반환하지만 예외는 던지지 않는다.
+  실제 저장 흐름에서는 다음 단계에서
+  context.waitUntil()로 호출한다.
+========================================================= */
+
+async function syncNavigatorInspectionHistory(
+  context,
+  log,
+  options = {}
+) {
+  const config =
+    getNavigatorInspectionSyncConfig(
+      context
+    );
+
+
+  if (
+    !config.ok
+  ) {
+    return {
+      ok:
+        false,
+
+      skipped:
+        true,
+
+      reason:
+        config.reason,
+
+      message:
+        config.message
+    };
+  }
+
+
+  let payloadResult;
+
+
+  try {
+    payloadResult =
+      await createNavigatorInspectionSyncPayload(
+        log,
+        options
+      );
+
+  } catch (
+    error
+  ) {
+    return {
+      ok:
+        false,
+
+      skipped:
+        false,
+
+      reason:
+        "payload-error",
+
+      message:
+        error instanceof
+          Error
+            ? error.message
+            : "Facility Navigator 연동 데이터를 만들지 못했습니다."
+    };
+  }
+
+
+  if (
+    !payloadResult.ok
+  ) {
+    return {
+      ok:
+        false,
+
+      skipped:
+        true,
+
+      reason:
+        payloadResult.reason,
+
+      message:
+        payloadResult.message
+    };
+  }
+
+
+  const payload =
+    payloadResult.payload;
+
+
+  const trigger =
+    normalizeNavigatorInspectionSyncTrigger(
+      options.trigger
+    );
+
+
+  /*
+    재시도해도 완전히 같은 본문과 eventId가
+    전송되도록 JSON 문자열을 한 번만 만든다.
+  */
+  const bodyText =
+    JSON.stringify(
+      payload
+    );
+
+
+  let lastError =
+    null;
+
+
+  let attemptCount =
+    0;
+
+
+  for (
+    let attempt = 1;
+    attempt <=
+      NAVIGATOR_INSPECTION_SYNC_MAX_ATTEMPTS;
+    attempt += 1
+  ) {
+    attemptCount =
+      attempt;
+
+
+    try {
+      const response =
+        await postNavigatorInspectionSyncPayload(
+          config,
+          payload,
+          bodyText,
+          trigger
+        );
+
+
+      return {
+        ok:
+          true,
+
+        skipped:
+          false,
+
+        eventId:
+          payload.eventId,
+
+        disposition:
+          payload.disposition,
+
+        containerLogId:
+          payload.container.logId,
+
+        containerRevision:
+          payload.container.revision,
+
+        itemCount:
+          payload.items.length,
+
+        attempts:
+          attempt,
+
+        requestId:
+          response.requestId,
+
+        status:
+          response.status,
+
+        result:
+          response.data.result ||
+          "applied"
+      };
+
+    } catch (
+      error
+    ) {
+      lastError =
+        error;
+
+
+      const canRetry =
+        error?.retryable ===
+          true &&
+
+        attempt <
+          NAVIGATOR_INSPECTION_SYNC_MAX_ATTEMPTS;
+
+
+      if (
+        !canRetry
+      ) {
+        break;
+      }
+
+
+      await waitForNavigatorInspectionSyncRetry(
+        attempt
+      );
+    }
+  }
+
+
+  const failureResult = {
+    ok:
+      false,
+
+    skipped:
+      false,
+
+    reason:
+      "request-failed",
+
+    eventId:
+      payload.eventId,
+
+    disposition:
+      payload.disposition,
+
+    containerLogId:
+      payload.container.logId,
+
+    containerRevision:
+      payload.container.revision,
+
+    itemCount:
+      payload.items.length,
+
+    attempts:
+      attemptCount,
+
+    status:
+      Number(
+        lastError?.status
+      ) ||
+      0,
+
+    retryable:
+      lastError?.retryable ===
+        true,
+
+    message:
+      lastError instanceof
+        Error
+          ? lastError.message
+          : "Facility Navigator 점검이력 연동에 실패했습니다."
+  };
+
+
+  console.error(
+    "Facility Navigator 점검이력 연동 실패:",
+    failureResult
+  );
+
+
+  return failureResult;
+}
+
 function canEditExistingLog(
   existingLog,
   user
