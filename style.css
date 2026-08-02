@@ -54871,3 +54871,240 @@ small {
       13px !important;
   }
 }
+
+/* =========================================================
+  업무일지 상세보기 운전현황 보직명 중복 제거
+
+  변경 전:
+  파트장 | 정상운전 | #1 주보일러 : 정상운전 중
+
+  변경 후:
+  정상운전 | #1 주보일러 : 정상운전 중
+
+  위쪽의
+  파트장 운전현황 / TGO 운전현황 / BCO1 운전현황
+  제목은 그대로 유지한다.
+
+  적용 위치:
+  style.css 진짜 맨 마지막
+========================================================= */
+
+
+/* =========================================================
+  설비형 운전현황
+
+  상태 | 구분선 | 내용
+========================================================= */
+
+#logDetailModal
+.detail-operation-dashboard
+.detail-operation-dashboard__row {
+  grid-template-columns:
+    64px
+    1px
+    minmax(
+      0,
+      1fr
+    ) !important;
+
+  column-gap:
+    9px !important;
+}
+
+
+/* 행 안의 중복 보직명 숨김 */
+#logDetailModal
+.detail-operation-dashboard
+.detail-operation-dashboard__row
+.detail-operation-dashboard__role {
+  display:
+    none !important;
+}
+
+
+/* 상태 배지 */
+#logDetailModal
+.detail-operation-dashboard
+.detail-operation-dashboard__row
+.detail-operation-dashboard__badge {
+  grid-column:
+    1 !important;
+
+  width:
+    64px !important;
+
+  min-width:
+    64px !important;
+
+  max-width:
+    64px !important;
+
+  margin:
+    0 !important;
+}
+
+
+/* 상태 다음 구분선 */
+#logDetailModal
+.detail-operation-dashboard
+.detail-operation-dashboard__row
+.detail-operation-dashboard__divider {
+  grid-column:
+    2 !important;
+
+  width:
+    1px !important;
+
+  min-width:
+    1px !important;
+
+  max-width:
+    1px !important;
+}
+
+
+/* 설비명과 운전현황 내용 */
+#logDetailModal
+.detail-operation-dashboard
+.detail-operation-dashboard__row
+.detail-operation-dashboard__content,
+
+#logDetailModal
+.detail-operation-dashboard
+.detail-operation-dashboard__row
+.detail-operation-dashboard__text {
+  grid-column:
+    3 !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+}
+
+
+/* =========================================================
+  TO·BO1·BO2 자유입력형 운전현황
+
+  상태 배지가 없는 형태이므로
+  보직명을 제거하고 내용을 전체 폭으로 표시
+========================================================= */
+
+#logDetailModal
+.detail-operation-dashboard
+.detail-operation-dashboard__row.is-free-text {
+  grid-template-columns:
+    minmax(
+      0,
+      1fr
+    ) !important;
+
+  column-gap:
+    0 !important;
+}
+
+
+#logDetailModal
+.detail-operation-dashboard
+.detail-operation-dashboard__row.is-free-text
+.detail-operation-dashboard__role,
+
+#logDetailModal
+.detail-operation-dashboard
+.detail-operation-dashboard__row.is-free-text
+.detail-operation-dashboard__badge,
+
+#logDetailModal
+.detail-operation-dashboard
+.detail-operation-dashboard__row.is-free-text
+.detail-operation-dashboard__divider {
+  display:
+    none !important;
+}
+
+
+#logDetailModal
+.detail-operation-dashboard
+.detail-operation-dashboard__row.is-free-text
+.detail-operation-dashboard__content,
+
+#logDetailModal
+.detail-operation-dashboard
+.detail-operation-dashboard__row.is-free-text
+.detail-operation-dashboard__text {
+  grid-column:
+    1 !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+}
+
+
+/* =========================================================
+  모바일
+
+  상태 배지는 조금만 줄이고
+  내용 공간을 더 넓게 사용
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  #logDetailModal
+  .detail-operation-dashboard
+  .detail-operation-dashboard__row {
+    grid-template-columns:
+      58px
+      1px
+      minmax(
+        0,
+        1fr
+      ) !important;
+
+    column-gap:
+      7px !important;
+
+    padding:
+      5px
+      8px !important;
+  }
+
+
+  #logDetailModal
+  .detail-operation-dashboard
+  .detail-operation-dashboard__row
+  .detail-operation-dashboard__badge {
+    width:
+      58px !important;
+
+    min-width:
+      58px !important;
+
+    max-width:
+      58px !important;
+  }
+
+
+  #logDetailModal
+  .detail-operation-dashboard
+  .detail-operation-dashboard__row.is-free-text {
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      ) !important;
+
+    padding:
+      6px
+      9px !important;
+  }
+}
