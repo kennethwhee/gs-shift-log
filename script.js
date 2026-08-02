@@ -17313,83 +17313,95 @@ function importAllMemberLogs() {
 
 
   /* =====================================================
-    1. 파트장 직접 작성 일반 업무만 보존
+    1. 파트장 직접 작성 내역 전체 보존
 
     제거 대상:
-    - 기존 TM 발행 내역 전체
-    - TGO·BCO1·BCO2·TO·BO1·BO2 취합 내역
-    - 출처 ID가 있는 과거 취합 내역
+    - TGO·BCO1·BCO2·TO·BO1·BO2에서 가져온 항목
+    - 원본 팀원 업무일지 ID가 연결된 항목
+    - 기존 팀원 취합 표시가 있는 항목
 
     유지 대상:
-    - 파트장이 직접 입력한 TM 이외 일반 업무
+    - 파트장이 직접 작성한 TM 발행
+    - 파트장이 직접 작성한 인계사항
+    - 파트장이 직접 작성한 비고
+    - source가 leader-manual인 항목
   ====================================================== */
 
   const leaderOwnEntries =
-    appState.editorEntries.filter(
-      (entry) => {
-        const category =
-          String(
-            entry.category || ""
-          ).trim();
-
-
+    (
+      Array.isArray(
+        appState.editorEntries
+      )
+        ? appState.editorEntries
+        : []
+    ).filter(
+      entry => {
         const sourceRole =
           normalizeMemberLogRole(
-            entry.importedFromRole
+            entry?.importedFromRole
           );
 
 
         const sourceLogId =
           String(
-            entry.importedFromLogId ||
+            entry?.importedFromLogId ||
+            ""
+          ).trim();
+
+
+        const source =
+          String(
+            entry?.source ||
             ""
           ).trim();
 
 
         /*
-          기존 TM은 출처 보직과 상관없이
-          전부 제거한 뒤 원본에서 다시 취합한다.
+          파트장이 직접 작성한 것으로
+          명확히 표시된 항목은 구분과 관계없이 유지한다.
         */
         if (
-          category ===
-          "TM 발행"
+          source ===
+          "leader-manual"
         ) {
-          return false;
+          return true;
         }
 
 
-        /*
-          팀원 보직에서 가져온 일반 업무는 제거한다.
-        */
-        if (
+        const isMemberRoleImport =
           allMemberRoles.includes(
             sourceRole
-          )
-        ) {
-          return false;
-        }
+          );
 
 
-        /*
-          원본 업무일지 ID가 존재하는 항목은
-          과거 취합 항목일 가능성이 높으므로 제거한다.
-
-          단, 파트장 직접 작성으로 명확히 저장된 것은 유지한다.
-        */
-        if (
-          sourceLogId &&
+        const isMemberSourceImport =
+          Boolean(
+            sourceLogId
+          ) &&
           sourceRole !==
-            "파트장"
-        ) {
-          return false;
-        }
+            "파트장";
+
+
+        const isKnownMemberImport =
+          [
+            "member-import",
+            "legacy-member-copy"
+          ].includes(
+            source
+          );
 
 
         /*
-          출처가 없거나 파트장으로 표시된
-          TM 이외 항목은 파트장 직접 업무로 유지한다.
+          팀원 업무일지에서 가져온 항목만 제거한다.
+
+          파트장이 직접 작성한 항목은
+          TM 발행이라도 삭제하지 않는다.
         */
-        return true;
+        return !(
+          isMemberRoleImport ||
+          isMemberSourceImport ||
+          isKnownMemberImport
+        );
       }
     );
 
@@ -29349,15 +29361,13 @@ function addOrUpdateLogEntry() {
 
 
   if (!content) {
-    /*
-      시간만 입력하고 실제 내용이 없는 경우
-    */
     if (
       normalizedTime
     ) {
       showToast(
         "시간 뒤에 작업 내용을 입력해 주세요."
       );
+
     } else {
       showToast(
         "작업 내용을 입력해 주세요."
@@ -29372,7 +29382,8 @@ function addOrUpdateLogEntry() {
 
 
   const isEditing =
-    appState.editingEntryIndex >= 0;
+    appState.editingEntryIndex >=
+    0;
 
 
   const previousEntry =
@@ -29383,8 +29394,16 @@ function addOrUpdateLogEntry() {
       : null;
 
 
+  const previousEntryData =
+    previousEntry &&
+    typeof previousEntry ===
+      "object"
+      ? previousEntry
+      : {};
+
+
   const rawSourceIndex =
-    previousEntry
+    previousEntryData
       ?.importedFromEntryIndex;
 
 
@@ -29398,16 +29417,88 @@ function addOrUpdateLogEntry() {
         );
 
 
+  const currentEditorRole =
+    normalizeMemberLogRole(
+      elements.logRole?.value ||
+      ""
+    );
+
+
+  const currentAuthor =
+    String(
+      elements.logAuthor?.value ||
+      ""
+    ).trim();
+
+
+  const previousSourceRole =
+    normalizeMemberLogRole(
+      previousEntryData
+        .importedFromRole ||
+      ""
+    );
+
+
+  const previousSourceLogId =
+    String(
+      previousEntryData
+        .importedFromLogId ||
+      ""
+    ).trim();
+
+
+  const previousSource =
+    String(
+      previousEntryData
+        .source ||
+      ""
+    ).trim();
+
+
+  const knownMemberImportSources =
+    new Set([
+      "member-import",
+      "legacy-member-copy",
+      "detail-member-source"
+    ]);
+
+
+  const memberRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
   /*
-    수정 중인 항목은 기존 ID와 메타데이터를 유지하고,
-    완전 신규 항목만 새 ID를 만든다.
+    파트장 작성창에서 사용자가 직접 추가한 항목은
+    팀원 취합 항목과 구분하여 명확히 표시한다.
+
+    기존 항목 수정 시:
+    - 팀원 원본 ID가 있으면 팀원 취합 항목 유지
+    - 팀원 원본 정보가 없으면 파트장 직접 작성으로 복구
   */
-  const previousEntryData =
-    previousEntry &&
-    typeof previousEntry ===
-      "object"
-      ? previousEntry
-      : {};
+  const isImportedMemberEntry =
+    memberRoles.includes(
+      previousSourceRole
+    ) &&
+    (
+      Boolean(
+        previousSourceLogId
+      ) ||
+      knownMemberImportSources.has(
+        previousSource
+      )
+    );
+
+
+  const isLeaderManualEntry =
+    currentEditorRole ===
+      "파트장" &&
+    !isImportedMemberEntry;
 
 
   const entry = {
@@ -29416,8 +29507,7 @@ function addOrUpdateLogEntry() {
     id:
       resolveLogEntryId(
         previousEntryData,
-        previousEntryData
-          .importedFromLogId,
+        previousSourceLogId,
         importedFromEntryIndex
       ),
 
@@ -29431,33 +29521,52 @@ function addOrUpdateLogEntry() {
     content,
 
     importedFromRole:
-      String(
-        previousEntryData
-          .importedFromRole ||
-        ""
-      ).trim(),
+      isLeaderManualEntry
+        ? "파트장"
+        : (
+            previousSourceRole ||
+            currentEditorRole
+          ),
 
     importedFromAuthor:
-      String(
-        previousEntryData
-          .importedFromAuthor ||
-        ""
-      ).trim(),
+      isLeaderManualEntry
+        ? (
+            String(
+              previousEntryData
+                .importedFromAuthor ||
+              currentAuthor
+            ).trim()
+          )
+        : String(
+            previousEntryData
+              .importedFromAuthor ||
+            ""
+          ).trim(),
 
     importedFromLogId:
-      String(
-        previousEntryData
-          .importedFromLogId ||
-        ""
-      ).trim(),
+      isLeaderManualEntry
+        ? ""
+        : previousSourceLogId,
 
     importedFromEntryIndex:
-      Number.isInteger(
-        importedFromEntryIndex
-      ) &&
-      importedFromEntryIndex >= 0
-        ? importedFromEntryIndex
-        : null
+      isLeaderManualEntry
+        ? null
+        : (
+            Number.isInteger(
+              importedFromEntryIndex
+            ) &&
+            importedFromEntryIndex >= 0
+              ? importedFromEntryIndex
+              : null
+          ),
+
+    source:
+      isLeaderManualEntry
+        ? "leader-manual"
+        : (
+            previousSource ||
+            "member-manual"
+          )
   };
 
 
@@ -32279,21 +32388,73 @@ function collectEditorData(
             일반 팀원 업무는 작성 보직을
             해당 업무의 출처 보직으로 확정한다.
           */
-          const resolvedImportedFromRole =
-            savingRole ===
-              "파트장"
-              ? resolveDetailEntrySourceRole(
-                  entry,
-                  editorContextLog
-                )
-              : (
-                  savingRole ||
-                  normalizeMemberLogRole(
-                    entry
-                      ?.importedFromRole ||
-                    ""
-                  )
-                );
+const entrySource =
+  String(
+    entry?.source ||
+    ""
+  ).trim();
+
+
+const existingImportedRole =
+  normalizeMemberLogRole(
+    entry
+      ?.importedFromRole ||
+    ""
+  );
+
+
+const existingImportedLogId =
+  String(
+    entry
+      ?.importedFromLogId ||
+    ""
+  ).trim();
+
+
+/*
+  파트장이 직접 추가한 항목은
+  팀원 원본과 내용이 비슷하더라도
+  파트장 직접 작성으로 유지한다.
+*/
+const isExplicitLeaderOwnedEntry =
+  savingRole ===
+    "파트장" &&
+  (
+    [
+      "leader-manual",
+      "legacy-leader-own"
+    ].includes(
+      entrySource
+    ) ||
+    (
+      existingImportedRole ===
+        "파트장" &&
+      (
+        !existingImportedLogId ||
+        existingImportedLogId ===
+          editorContextLog.id ||
+        entrySource ===
+          "previous-shift-handover"
+      )
+    )
+  );
+
+
+const resolvedImportedFromRole =
+  isExplicitLeaderOwnedEntry
+    ? "파트장"
+    : (
+        savingRole ===
+          "파트장"
+          ? resolveDetailEntrySourceRole(
+              entry,
+              editorContextLog
+            )
+          : (
+              savingRole ||
+              existingImportedRole
+            )
+      );
 
 
           /*
@@ -35930,74 +36091,181 @@ function collectLogEntriesForDisplay(log) {
       }
     );
 
-  /*
-    파트장 저장본 정리
+/*
+  파트장 저장본 정리
 
-    파트장 TM은 저장본에서 다시 가져오지 않고
-    현재 팀원 원본 업무일지만 사용한다.
+  팀원 원본 업무는 위의 memberDisplayEntries에서
+  최신 자료로 다시 구성한다.
 
-    유지:
-    - 파트장 저장본의 비고
+  파트장 저장본에서는 다음 항목을 유지한다.
+  - 파트장이 직접 등록한 TM 발행
+  - 파트장이 직접 등록한 인계사항·일반 업무
+  - 파트장이 직접 등록한 비고
+  - 이전 파트장 근무에서 가져온 인계사항
 
-    제외:
-    - 파트장 저장본의 과거 TM
-    - 과거에 취합된 팀원 업무
-    - 파트장 별도 일반 업무
-  */
-  const recoveredSavedEntries =
-    collectEntriesFromLog(
-      log
-    )
-      .filter(
-        entry => {
-          return (
-            getCategoryGroup(
-              entry.category
-            ) ===
-            "remark"
-          );
+  팀원 업무일지에서 취합된 항목은 제외한다.
+*/
+
+const memberSourceLogIds =
+  new Set(
+    [
+      ...memberLogMap.values()
+    ]
+      .map(
+        memberLog => {
+          return String(
+            memberLog?.id ||
+            ""
+          ).trim();
         }
       )
-      .map(
-        (
-          entry,
-          entryIndex
-        ) => {
-          return {
-            ...entry,
+      .filter(Boolean)
+  );
 
-            category:
-              "비고",
 
-            time:
-              "",
+const recoveredSavedEntries =
+  collectEntriesFromLog(
+    log
+  )
+    .filter(
+      entry => {
+        const sourceRole =
+          normalizeMemberLogRole(
+            entry?.importedFromRole ||
+            ""
+          );
 
-            tag:
-              "",
 
-            importedFromRole:
-              "파트장",
+        const sourceLogId =
+          String(
+            entry?.importedFromLogId ||
+            ""
+          ).trim();
 
-            importedFromAuthor:
+
+        const source =
+          String(
+            entry?.source ||
+            ""
+          ).trim();
+
+
+        /*
+          명시적인 파트장 직접 작성 항목은
+          구분과 관계없이 모두 유지한다.
+        */
+        if (
+          [
+            "leader-manual",
+            "legacy-leader-own",
+            "previous-shift-handover"
+          ].includes(
+            source
+          ) &&
+          (
+            sourceRole ===
+              "파트장" ||
+            !sourceRole
+          )
+        ) {
+          return true;
+        }
+
+
+        /*
+          현재 팀원 원본 업무일지와 연결된 항목은
+          저장본에서 다시 사용하지 않는다.
+        */
+        if (
+          sourceLogId &&
+          memberSourceLogIds.has(
+            sourceLogId
+          )
+        ) {
+          return false;
+        }
+
+
+        /*
+          팀원 보직 출처가 명확한 취합 항목도 제외한다.
+        */
+        if (
+          allMemberRoles.includes(
+            sourceRole
+          )
+        ) {
+          return false;
+        }
+
+
+        /*
+          파트장 보직 또는 출처 정보가 없는 기존 항목은
+          파트장 직접 작성 내용으로 유지한다.
+        */
+        return (
+          sourceRole ===
+            "파트장" ||
+          (
+            !sourceRole &&
+            !sourceLogId
+          ) ||
+          sourceLogId ===
+            String(
+              log.id ||
+              ""
+            ).trim()
+        );
+      }
+    )
+    .map(
+      (
+        entry,
+        entryIndex
+      ) => {
+        return {
+          ...entry,
+
+          importedFromRole:
+            "파트장",
+
+          importedFromAuthor:
+            String(
+              entry.importedFromAuthor ||
+              log.author ||
+              ""
+            ).trim(),
+
+          /*
+            파트장 직접 작성 항목은
+            팀원 원본 ID를 붙이지 않는다.
+          */
+          importedFromLogId:
+            String(
+              entry.importedFromLogId ||
+              ""
+            ).trim() ===
               String(
-                entry.importedFromAuthor ||
-                log.author ||
-                ""
-              ).trim(),
-
-            importedFromLogId:
-              String(
-                entry.importedFromLogId ||
                 log.id ||
                 ""
-              ).trim(),
+              ).trim()
+              ? ""
+              : String(
+                  entry.importedFromLogId ||
+                  ""
+                ).trim(),
 
-            importedFromEntryIndex:
-              entry.importedFromEntryIndex ??
-              entryIndex
-          };
-        }
-      );
+          importedFromEntryIndex:
+            entry.importedFromEntryIndex ??
+            entryIndex,
+
+          source:
+            String(
+              entry.source ||
+              "leader-manual"
+            ).trim()
+        };
+      }
+    );
 
   /*
     TM에만 보직 우선순위와
