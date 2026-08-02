@@ -55531,3 +55531,205 @@ p {
       6px;
   }
 }
+
+/* =========================================================
+  업무일지 기준일 직접 선택 달력
+
+  적용:
+  - 날짜 영역 클릭 가능 표시
+  - 달력 화살표 표시
+  - 키보드 포커스 표시
+  - 날짜 자료 로딩 상태 표시
+========================================================= */
+
+
+/* =========================================================
+  날짜 선택 버튼
+========================================================= */
+
+#statusView
+#selectedDateButton.has-date-picker {
+  cursor:
+    pointer !important;
+
+  transition:
+    color 0.15s ease,
+    opacity 0.15s ease,
+    transform 0.15s ease !important;
+
+  touch-action:
+    manipulation;
+
+  -webkit-tap-highlight-color:
+    transparent;
+}
+
+
+/* =========================================================
+  날짜 오른쪽 달력 열기 표시
+========================================================= */
+
+#statusView
+#selectedDateButton.has-date-picker::after {
+  content:
+    "▾";
+
+  display:
+    inline-flex;
+
+  flex:
+    0
+    0
+    auto;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  margin-left:
+    2px;
+
+  color:
+    #66809d;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+}
+
+
+/* =========================================================
+  PC 마우스 오버
+========================================================= */
+
+@media (hover: hover) {
+
+  #statusView
+  #selectedDateButton.has-date-picker:hover
+  #selectedDateText {
+    color:
+      #1f5fae !important;
+  }
+
+
+  #statusView
+  #selectedDateButton.has-date-picker:hover::after {
+    color:
+      #1f5fae;
+  }
+}
+
+
+/* =========================================================
+  키보드 포커스
+========================================================= */
+
+#statusView
+#selectedDateButton.has-date-picker:focus-visible {
+  border-radius:
+    7px;
+
+  outline:
+    3px solid
+    rgba(
+      31,
+      95,
+      174,
+      0.18
+    );
+
+  outline-offset:
+    4px;
+}
+
+
+/* =========================================================
+  날짜 변경 후 자료 로딩 중
+========================================================= */
+
+#statusView
+#selectedDateButton.is-calendar-loading {
+  opacity:
+    0.55;
+
+  cursor:
+    wait !important;
+
+  pointer-events:
+    none;
+}
+
+
+/* =========================================================
+  JavaScript에서 생성하는 실제 날짜 입력창
+
+  화면에서는 보이지 않지만
+  브라우저의 기본 날짜 달력을 실행한다.
+========================================================= */
+
+#selectedDatePicker.selected-date-native-picker {
+  position:
+    fixed !important;
+
+  top:
+    0 !important;
+
+  left:
+    -10000px !important;
+
+  width:
+    1px !important;
+
+  min-width:
+    1px !important;
+
+  height:
+    1px !important;
+
+  min-height:
+    1px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  overflow:
+    hidden !important;
+
+  border:
+    0 !important;
+
+  opacity:
+    0 !important;
+
+  pointer-events:
+    none !important;
+}
+
+
+/* =========================================================
+  작은 모바일
+
+  날짜 공간이 좁으면 화살표만 조금 축소
+========================================================= */
+
+@media (max-width: 390px) {
+
+  #statusView
+  #selectedDateButton.has-date-picker::after {
+    margin-left:
+      0;
+
+    font-size:
+      8px;
+  }
+}

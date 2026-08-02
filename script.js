@@ -64829,3 +64829,615 @@ function openFacilityNavigator(
     }
   );
 })();
+
+/* =========================================================
+  업무일지 기준일 직접 선택 달력
+
+  동작:
+  - 화면의 날짜를 누르면 달력 표시
+  - 선택한 날짜로 즉시 이동
+  - 현재 선택한 D/S·N/S는 그대로 유지
+  - D1 공용 업무일지 최신화
+  - 과거 업무일지 다시 불러오기
+  - PC·모바일 공통
+========================================================= */
+
+(function initializeSelectedDateCalendarFeature() {
+  let isApplyingCalendarDate =
+    false;
+
+
+  /* =====================================================
+    YYYY-MM-DD 값을 로컬 날짜로 변환
+
+    new Date("2026-08-02") 방식은
+    시간대에 따라 날짜가 하루 달라질 수 있으므로
+    연·월·일을 직접 분리한다.
+  ====================================================== */
+
+  function parseSelectedDatePickerValue(
+    value
+  ) {
+    const normalizedValue =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    const matchedDate =
+      normalizedValue.match(
+        /^(\d{4})-(\d{2})-(\d{2})$/
+      );
+
+
+    if (
+      !matchedDate
+    ) {
+      return null;
+    }
+
+
+    const year =
+      Number(
+        matchedDate[1]
+      );
+
+
+    const month =
+      Number(
+        matchedDate[2]
+      );
+
+
+    const day =
+      Number(
+        matchedDate[3]
+      );
+
+
+    const parsedDate =
+      new Date(
+        year,
+        month - 1,
+        day
+      );
+
+
+    /*
+      2026-02-31처럼 실제로 존재하지 않는 날짜 방지
+    */
+    if (
+      parsedDate.getFullYear() !==
+        year ||
+      parsedDate.getMonth() !==
+        month - 1 ||
+      parsedDate.getDate() !==
+        day
+    ) {
+      return null;
+    }
+
+
+    return new Date(
+      year,
+      month - 1,
+      day
+    );
+  }
+
+
+  /* =====================================================
+    실제 달력 input 생성
+
+    HTML 파일을 수정하지 않고
+    JavaScript에서 한 번만 자동 생성한다.
+  ====================================================== */
+
+  function ensureSelectedDatePicker() {
+    let datePicker =
+      document.getElementById(
+        "selectedDatePicker"
+      );
+
+
+    if (
+      datePicker
+    ) {
+      return datePicker;
+    }
+
+
+    datePicker =
+      document.createElement(
+        "input"
+      );
+
+
+    datePicker.type =
+      "date";
+
+
+    datePicker.id =
+      "selectedDatePicker";
+
+
+    datePicker.className =
+      "selected-date-native-picker";
+
+
+    datePicker.tabIndex =
+      -1;
+
+
+    datePicker.autocomplete =
+      "off";
+
+
+    datePicker.setAttribute(
+      "aria-label",
+      "업무일지 기준일 선택"
+    );
+
+
+    document.body.appendChild(
+      datePicker
+    );
+
+
+    return datePicker;
+  }
+
+
+  /* =====================================================
+    현재 선택 날짜를 달력에 반영
+
+    화살표·7일·30일·오늘 버튼으로 이동한 뒤에도
+    달력을 열면 현재 화면 날짜부터 표시한다.
+  ====================================================== */
+
+  function syncSelectedDatePickerValue() {
+    const datePicker =
+      ensureSelectedDatePicker();
+
+
+    if (
+      !datePicker ||
+      !appState?.selectedDate ||
+      Number.isNaN(
+        appState.selectedDate.getTime()
+      )
+    ) {
+      return;
+    }
+
+
+    datePicker.value =
+      formatInputDate(
+        appState.selectedDate
+      );
+  }
+
+
+  /* =====================================================
+    달력에서 선택한 날짜 적용
+  ====================================================== */
+
+  async function applySelectedDateFromCalendar(
+    selectedValue
+  ) {
+    if (
+      isApplyingCalendarDate
+    ) {
+      return;
+    }
+
+
+    const selectedDate =
+      parseSelectedDatePickerValue(
+        selectedValue
+      );
+
+
+    if (
+      !selectedDate
+    ) {
+      showToast(
+        "선택한 날짜를 확인할 수 없습니다."
+      );
+
+
+      syncSelectedDatePickerValue();
+
+
+      return;
+    }
+
+
+    const previousDateValue =
+      formatInputDate(
+        appState.selectedDate
+      );
+
+
+    const nextDateValue =
+      formatInputDate(
+        selectedDate
+      );
+
+
+    /*
+      같은 날짜를 다시 선택한 경우
+      추가 조회는 하지 않는다.
+    */
+    if (
+      previousDateValue ===
+        nextDateValue
+    ) {
+      syncSelectedDatePickerValue();
+
+      return;
+    }
+
+
+    const selectedDateButton =
+      document.getElementById(
+        "selectedDateButton"
+      );
+
+
+    const datePicker =
+      ensureSelectedDatePicker();
+
+
+    isApplyingCalendarDate =
+      true;
+
+
+    if (
+      selectedDateButton
+    ) {
+      selectedDateButton.classList.add(
+        "is-calendar-loading"
+      );
+
+
+      selectedDateButton.setAttribute(
+        "aria-busy",
+        "true"
+      );
+    }
+
+
+    if (
+      datePicker
+    ) {
+      datePicker.disabled =
+        true;
+    }
+
+
+    /*
+      날짜만 변경한다.
+
+      현재 선택된 D/S 또는 N/S는
+      기존 상태 그대로 유지한다.
+    */
+    appState.selectedDate =
+      selectedDate;
+
+
+    renderSelectedDate();
+
+
+    let hasLoadFailure =
+      false;
+
+
+    /* ===================================================
+      다른 PC에서 저장한 공용 D1 자료 최신화
+    ==================================================== */
+
+    if (
+      typeof refreshSharedShiftLogsInState ===
+        "function"
+    ) {
+      try {
+        await refreshSharedShiftLogsInState();
+
+      } catch (
+        error
+      ) {
+        hasLoadFailure =
+          true;
+
+
+        console.error(
+          "달력 날짜 변경 후 공용 업무일지 갱신 실패:",
+          error
+        );
+      }
+    }
+
+
+    /* ===================================================
+      선택 날짜의 과거 업무일지 불러오기
+    ==================================================== */
+
+    if (
+      typeof loadLegacyLogsForSelectedDate ===
+        "function"
+    ) {
+      try {
+        await loadLegacyLogsForSelectedDate();
+
+      } catch (
+        error
+      ) {
+        hasLoadFailure =
+          true;
+
+
+        console.error(
+          "달력 날짜 변경 후 과거 업무일지 조회 실패:",
+          error
+        );
+      }
+    }
+
+
+    /* ===================================================
+      화면 최종 갱신
+    ==================================================== */
+
+    if (
+      typeof renderLogTable ===
+        "function"
+    ) {
+      renderLogTable();
+    }
+
+
+    if (
+      typeof updateShiftMemberCardStates ===
+        "function"
+    ) {
+      updateShiftMemberCardStates();
+    }
+
+
+    syncSelectedDatePickerValue();
+
+
+    if (
+      hasLoadFailure
+    ) {
+      showToast(
+        "날짜는 변경했지만 일부 업무일지를 불러오지 못했습니다."
+      );
+    }
+
+
+    isApplyingCalendarDate =
+      false;
+
+
+    if (
+      selectedDateButton
+    ) {
+      selectedDateButton.classList.remove(
+        "is-calendar-loading"
+      );
+
+
+      selectedDateButton.removeAttribute(
+        "aria-busy"
+      );
+    }
+
+
+    if (
+      datePicker
+    ) {
+      datePicker.disabled =
+        false;
+
+
+      datePicker.blur();
+    }
+  }
+
+
+  /* =====================================================
+    달력 열기
+  ====================================================== */
+
+  function openSelectedDateCalendar() {
+    if (
+      isApplyingCalendarDate
+    ) {
+      return;
+    }
+
+
+    const datePicker =
+      ensureSelectedDatePicker();
+
+
+    if (
+      !datePicker
+    ) {
+      showToast(
+        "날짜 선택 달력을 열 수 없습니다."
+      );
+
+      return;
+    }
+
+
+    syncSelectedDatePickerValue();
+
+
+    /*
+      Chrome·Edge·Android 등
+    */
+    try {
+      if (
+        typeof datePicker.showPicker ===
+          "function"
+      ) {
+        datePicker.showPicker();
+
+        return;
+      }
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "기본 달력 열기 방식으로 전환합니다.",
+        error
+      );
+    }
+
+
+    /*
+      showPicker를 지원하지 않는 브라우저
+    */
+    try {
+      datePicker.focus({
+        preventScroll:
+          true
+      });
+
+
+      datePicker.click();
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "날짜 달력 열기 실패:",
+        error
+      );
+
+
+      showToast(
+        "날짜 선택 달력을 열지 못했습니다."
+      );
+    }
+  }
+
+
+  /* =====================================================
+    날짜 버튼과 달력 이벤트 연결
+  ====================================================== */
+
+  function bindSelectedDateCalendarEvents() {
+    const selectedDateButton =
+      document.getElementById(
+        "selectedDateButton"
+      );
+
+
+    const datePicker =
+      ensureSelectedDatePicker();
+
+
+    if (
+      !selectedDateButton ||
+      !datePicker
+    ) {
+      return;
+    }
+
+
+    selectedDateButton.title =
+      "날짜를 직접 선택합니다.";
+
+
+    selectedDateButton.setAttribute(
+      "aria-label",
+      "업무일지 기준일 직접 선택"
+    );
+
+
+    selectedDateButton.classList.add(
+      "has-date-picker"
+    );
+
+
+    /*
+      날짜 버튼 이벤트 중복 방지
+    */
+    if (
+      selectedDateButton.dataset
+        .selectedDatePickerBound !==
+        "true"
+    ) {
+      selectedDateButton.addEventListener(
+        "click",
+        event => {
+          event.preventDefault();
+
+
+          openSelectedDateCalendar();
+        }
+      );
+
+
+      selectedDateButton.dataset
+        .selectedDatePickerBound =
+        "true";
+    }
+
+
+    /*
+      달력 날짜 선택 이벤트 중복 방지
+    */
+    if (
+      datePicker.dataset
+        .selectedDatePickerBound !==
+        "true"
+    ) {
+      datePicker.addEventListener(
+        "change",
+        () => {
+          applySelectedDateFromCalendar(
+            datePicker.value
+          );
+        }
+      );
+
+
+      datePicker.dataset
+        .selectedDatePickerBound =
+        "true";
+    }
+
+
+    syncSelectedDatePickerValue();
+  }
+
+
+  /* =====================================================
+    초기 실행
+  ====================================================== */
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      bindSelectedDateCalendarEvents,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    bindSelectedDateCalendarEvents();
+  }
+})();
