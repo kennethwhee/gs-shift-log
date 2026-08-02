@@ -55678,20 +55678,23 @@ p {
 
 
 /* =========================================================
-  Chrome·Edge 달력 아이콘을 전체 영역으로 확대
+  Chrome·Edge 달력 선택 영역 전체 확대
 
-  날짜 글자 어느 곳을 눌러도
-  달력이 열리도록 한다.
+  중요:
+  input 선택자와 ::-webkit-calendar-picker-indicator
+  사이에 공백이 없어야 한다.
 ========================================================= */
 
 #statusView
-#selectedDatePicker.selected-date-picker-overlay
-::-webkit-calendar-picker-indicator {
+#selectedDatePicker.selected-date-picker-overlay::-webkit-calendar-picker-indicator {
   position:
     absolute !important;
 
   inset:
     0 !important;
+
+  z-index:
+    30 !important;
 
   display:
     block !important;
@@ -55699,7 +55702,19 @@ p {
   width:
     100% !important;
 
+  min-width:
+    100% !important;
+
+  max-width:
+    100% !important;
+
   height:
+    100% !important;
+
+  min-height:
+    100% !important;
+
+  max-height:
     100% !important;
 
   margin:
@@ -55713,8 +55728,10 @@ p {
 
   cursor:
     pointer !important;
-}
 
+  pointer-events:
+    auto !important;
+}
 
 /* =========================================================
   키보드 포커스
