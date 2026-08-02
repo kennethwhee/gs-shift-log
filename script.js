@@ -66371,55 +66371,72 @@ if (
 
 })();
 
-
 /* =========================================================
-  파트장 업무일지 수정창 하단 버튼 최종 복구
+  파트장 임시저장 → 결재완료 → 결재취소 단일 최종본
 
-  표시 순서
   왼쪽  : 인쇄 | 결재취소 | 삭제
   오른쪽: 임시저장 | 결재완료 | 닫기
 
-  상태별 동작
-  - 신규 작성: 임시저장만 사용 가능
-  - 임시저장: 삭제·임시저장·결재완료 사용 가능
-  - 결재완료: 결재취소·삭제 사용 가능
+  핵심:
+  - 일반 보직 버튼 흐름은 그대로 유지한다.
+  - 파트장 전용 버튼은 각 버튼에 직접 한 번만 연결한다.
+  - 결재완료 상태에서는 입력 영역만 잠근다.
+  - 결재취소·삭제·인쇄·닫기는 계속 사용할 수 있다.
 ========================================================= */
 
-(function initializeLeaderEditorFooterRecovery() {
+(function initializeLeaderEditorApprovalFlow() {
   if (
-    window.__leaderEditorFooterRecoveryInstalled ===
+    window.__leaderEditorApprovalFlowInstalled ===
     true
   ) {
     return;
   }
 
-  window.__leaderEditorFooterRecoveryInstalled =
+  window.__leaderEditorApprovalFlowInstalled =
     true;
 
-  let isFooterActionWorking =
+  let isLeaderActionWorking =
     false;
+
+  let lastSavedLeaderLog =
+    null;
+
+  const updateLogEditorActionButtonsBeforeLeaderFlow =
+    typeof updateLogEditorActionButtons ===
+      "function"
+      ? updateLogEditorActionButtons
+      : null;
+
 
   /* =====================================================
     상태 정규화
   ====================================================== */
 
-  function normalizeLeaderFooterStatus(
+  function normalizeLeaderEditorStatus(
     status
   ) {
-    if (
-      typeof normalizeShiftLogApprovalStatus ===
-      "function"
-    ) {
-      return normalizeShiftLogApprovalStatus(
-        status
-      );
-    }
+    const rawStatus =
+      String(
+        status ||
+        ""
+      )
+        .trim()
+        .replace(
+          /\s+/g,
+          ""
+        );
 
     const statusMap = {
       작성중:
         "임시저장",
 
+      임시:
+        "임시저장",
+
       임시저장:
+        "임시저장",
+
+      저장:
         "임시저장",
 
       저장완료:
@@ -66431,34 +66448,91 @@ if (
       결재요청:
         "결재요청",
 
+      승인요청:
+        "결재요청",
+
       결재완료:
+        "결재완료",
+
+      승인완료:
+        "결재완료",
+
+      승인:
         "결재완료"
     };
+
+    const normalizedBySharedFunction =
+      typeof normalizeShiftLogApprovalStatus ===
+        "function"
+        ? normalizeShiftLogApprovalStatus(
+            rawStatus
+          )
+        : rawStatus;
 
     return (
       statusMap[
         String(
-          status ||
-          ""
-        ).trim()
+          normalizedBySharedFunction ||
+          rawStatus
+        )
+          .trim()
+          .replace(
+            /\s+/g,
+            ""
+          )
       ] ||
-      ""
+      normalizedBySharedFunction ||
+      rawStatus ||
+      "임시저장"
     );
   }
 
 
+  function normalizeLeaderEditorShift(
+    shift
+  ) {
+    return String(
+      shift ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /[\s/]/g,
+        ""
+      );
+  }
+
+
+  function isLeaderEditorLegacyLog(
+    log
+  ) {
+    if (
+      typeof isReadOnlyLegacyShiftLog ===
+      "function"
+    ) {
+      return isReadOnlyLegacyShiftLog(
+        log
+      );
+    }
+
+    return String(
+      log?.source ||
+      ""
+    )
+      .trim()
+      .toLowerCase()
+      .startsWith(
+        "legacy"
+      );
+  }
+
+
   /* =====================================================
-    현재 수정창과 연결된 업무일지 찾기
+    현재 수정 중인 파트장 업무일지
   ====================================================== */
 
-  function getLeaderFooterCurrentLog() {
-    const logs =
-      Array.isArray(
-        appState?.logs
-      )
-        ? appState.logs
-        : [];
-
+  function getLeaderEditorCurrentLog() {
     const form =
       document.getElementById(
         "logEditorForm"
@@ -66466,34 +66540,122 @@ if (
 
     const editingId =
       String(
-        form?.dataset?.editingId ||
+        form?.dataset
+          ?.editingId ||
         ""
       ).trim();
+
+    const logs = [
+      ...(
+        Array.isArray(
+          appState?.logs
+        )
+          ? appState.logs
+          : []
+      ),
+
+      ...(
+        typeof currentSearchResultLogs !==
+          "undefined" &&
+        Array.isArray(
+          currentSearchResultLogs
+        )
+          ? currentSearchResultLogs
+          : []
+      )
+    ];
 
     if (
       editingId
     ) {
-      const editingLog =
-        logs.find(
+      const idMatches = [
+        ...logs.filter(
           log => {
             return (
               String(
                 log?.id ||
                 ""
               ).trim() ===
-              editingId
+                editingId &&
+
+              normalizeMemberLogRole(
+                log?.role
+              ) ===
+                "파트장"
             );
           }
-        );
+        ),
+
+        String(
+          lastSavedLeaderLog?.id ||
+          ""
+        ).trim() ===
+          editingId &&
+
+        normalizeMemberLogRole(
+          lastSavedLeaderLog?.role
+        ) ===
+          "파트장"
+          ? lastSavedLeaderLog
+          : null
+      ].filter(
+        Boolean
+      );
 
       if (
-        editingLog
+        idMatches.length >
+        0
       ) {
-        return editingLog;
+        return idMatches
+          .sort(
+            (
+              firstLog,
+              secondLog
+            ) => {
+              const revisionDifference =
+                Number(
+                  secondLog?.serverRevision ||
+                  0
+                ) -
+                Number(
+                  firstLog?.serverRevision ||
+                  0
+                );
+
+              if (
+                revisionDifference !==
+                0
+              ) {
+                return revisionDifference;
+              }
+
+              return (
+                new Date(
+                  secondLog?.updatedAt ||
+                  secondLog?.createdAt ||
+                  0
+                ).getTime() -
+
+                new Date(
+                  firstLog?.updatedAt ||
+                  firstLog?.createdAt ||
+                  0
+                ).getTime()
+              );
+            }
+          )[0];
       }
     }
 
-    const date =
+    if (
+      form?.dataset
+        ?.editorMode ===
+      "new"
+    ) {
+      return null;
+    }
+
+    const currentDate =
       String(
         document.getElementById(
           "logDate"
@@ -66501,23 +66663,16 @@ if (
         ""
       ).trim();
 
-    const shift =
-      String(
+    const currentShift =
+      normalizeLeaderEditorShift(
         document.getElementById(
           "logShift"
-        )?.value ||
-        ""
-      )
-        .trim()
-        .toUpperCase()
-        .replaceAll(
-          "/",
-          ""
-        );
+        )?.value
+      );
 
     if (
-      !date ||
-      !shift
+      !currentDate ||
+      !currentShift
     ) {
       return null;
     }
@@ -66526,39 +66681,21 @@ if (
       logs
         .filter(
           log => {
-            const source =
-              String(
-                log?.source ||
-                ""
-              )
-                .trim()
-                .toLowerCase();
-
-            const logShift =
-              String(
-                log?.shift ||
-                ""
-              )
-                .trim()
-                .toUpperCase()
-                .replaceAll(
-                  "/",
-                  ""
-                );
-
             return (
-              !source.startsWith(
-                "legacy"
+              !isLeaderEditorLegacyLog(
+                log
               ) &&
 
               String(
                 log?.date ||
                 ""
               ).trim() ===
-                date &&
+                currentDate &&
 
-              logShift ===
-                shift &&
+              normalizeLeaderEditorShift(
+                log?.shift
+              ) ===
+                currentShift &&
 
               normalizeMemberLogRole(
                 log?.role
@@ -66595,6 +66732,7 @@ if (
                 secondLog?.createdAt ||
                 0
               ).getTime() -
+
               new Date(
                 firstLog?.updatedAt ||
                 firstLog?.createdAt ||
@@ -66608,359 +66746,153 @@ if (
   }
 
 
-/* =====================================================
-  현재 작성창이 파트장 업무일지인지 정확히 판정
+  function isLeaderLogEditor() {
+    const rawRole =
+      String(
+        document.getElementById(
+          "logRole"
+        )?.value ||
+        ""
+      ).trim();
 
-  중요:
-  - 현재 보직 선택값만 기준으로 판정한다.
-  - 같은 날짜·근무에 파트장 일지가 있다는 이유로
-    일반 보직 작성창을 파트장으로 판단하지 않는다.
-====================================================== */
+    if (
+      rawRole
+    ) {
+      return (
+        normalizeMemberLogRole(
+          rawRole
+        ) ===
+        "파트장"
+      );
+    }
 
-function isLeaderFooterEditor() {
-  const currentRole =
-    normalizeMemberLogRole(
-      document.getElementById(
-        "logRole"
-      )?.value ||
-      ""
+    return (
+      normalizeMemberLogRole(
+        getLeaderEditorCurrentLog()
+          ?.role
+      ) ===
+      "파트장"
     );
-
-
-  return (
-    currentRole ===
-    "파트장"
-  );
-}
-
-/* =====================================================
-  파트장 작성창 하단 버튼 생성 최종본
-
-  HTML 클래스 지원:
-  - log-editor-footer__left
-  - log-editor-footer__right
-  - modal-footer__left
-  - modal-footer__right
-
-  클래스가 없어도
-  인쇄·닫기 버튼의 부모 영역을 사용한다.
-====================================================== */
-
-function ensureLeaderFooterButtons() {
-  const modal =
-    document.getElementById(
-      "logEditorModal"
-    );
-
-
-  const printButton =
-    document.getElementById(
-      "printLogButton"
-    );
-
-
-  const closeButton =
-    document.getElementById(
-      "cancelLogButton"
-    );
-
-
-  if (
-    !modal
-  ) {
-    return null;
   }
 
 
-  /*
-    기존 HTML 버전에 따라
-    버튼 영역 클래스가 다를 수 있으므로
-    여러 선택자를 함께 지원한다.
-  */
-  const leftGroup =
-    modal.querySelector(
-      [
-        ".log-editor-footer__left",
-        ".modal-footer__left"
-      ].join(
-        ","
-      )
-    ) ||
-    printButton?.parentElement ||
-    null;
+  /* =====================================================
+    결재완료 상태 입력 잠금
+  ====================================================== */
 
-
-  const rightGroup =
-    modal.querySelector(
-      [
-        ".log-editor-footer__right",
-        ".modal-footer__right"
-      ].join(
-        ","
-      )
-    ) ||
-    closeButton?.parentElement ||
-    null;
-
-
-  if (
-    !leftGroup ||
-    !rightGroup
+  function setLeaderEditorInputLock(
+    locked
   ) {
-    console.error(
-      "파트장 업무일지 하단 버튼 영역을 찾을 수 없습니다.",
-      {
-        leftGroup,
-        rightGroup,
-        printButton,
-        closeButton
+    const form =
+      document.getElementById(
+        "logEditorForm"
+      );
+
+    if (
+      !form
+    ) {
+      return;
+    }
+
+    const isCurrentlyLocked =
+      form.dataset
+        .leaderApprovedLocked ===
+      "true";
+
+    if (
+      !locked &&
+      !isCurrentlyLocked
+    ) {
+      return;
+    }
+
+    const controls = [
+      ...form.querySelectorAll(
+        "input, select, textarea, button"
+      )
+    ];
+
+    if (
+      locked
+    ) {
+      controls.forEach(
+        control => {
+          if (
+            control.dataset
+              .leaderPreviousDisabled ===
+            undefined
+          ) {
+            control.dataset
+              .leaderPreviousDisabled =
+              control.disabled
+                ? "1"
+                : "0";
+          }
+
+          control.disabled =
+            true;
+
+          control.setAttribute(
+            "aria-disabled",
+            "true"
+          );
+        }
+      );
+
+      form.dataset
+        .leaderApprovedLocked =
+        "true";
+
+      form.classList.add(
+        "is-leader-approved"
+      );
+
+      return;
+    }
+
+    controls.forEach(
+      control => {
+        const previousDisabled =
+          control.dataset
+            .leaderPreviousDisabled;
+
+        if (
+          previousDisabled ===
+          undefined
+        ) {
+          return;
+        }
+
+        control.disabled =
+          previousDisabled ===
+          "1";
+
+        if (
+          control.disabled
+        ) {
+          control.setAttribute(
+            "aria-disabled",
+            "true"
+          );
+
+        } else {
+          control.removeAttribute(
+            "aria-disabled"
+          );
+        }
+
+        delete control.dataset
+          .leaderPreviousDisabled;
       }
     );
 
+    delete form.dataset
+      .leaderApprovedLocked;
 
-    return null;
-  }
-
-
-  /* ===================================================
-    결재취소
-  ==================================================== */
-
-  let cancelButton =
-    document.getElementById(
-      "leaderFooterCancelButton"
-    );
-
-
-  if (
-    !cancelButton
-  ) {
-    cancelButton =
-      document.createElement(
-        "button"
-      );
-
-
-    cancelButton.type =
-      "button";
-
-
-    cancelButton.id =
-      "leaderFooterCancelButton";
-
-
-    cancelButton.className =
-      [
-        "secondary-button",
-        "log-editor-cancel-approval-button"
-      ].join(
-        " "
-      );
-
-
-    cancelButton.textContent =
-      "결재취소";
-  }
-
-
-  /* ===================================================
-    삭제
-  ==================================================== */
-
-  let deleteButton =
-    document.getElementById(
-      "leaderFooterDeleteButton"
-    );
-
-
-  if (
-    !deleteButton
-  ) {
-    deleteButton =
-      document.createElement(
-        "button"
-      );
-
-
-    deleteButton.type =
-      "button";
-
-
-    deleteButton.id =
-      "leaderFooterDeleteButton";
-
-
-    deleteButton.className =
-      [
-        "danger-button",
-        "log-editor-delete-button"
-      ].join(
-        " "
-      );
-
-
-    deleteButton.textContent =
-      "삭제";
-  }
-
-
-  /* ===================================================
-    임시저장
-  ==================================================== */
-
-  let draftButton =
-    document.getElementById(
-      "leaderFooterDraftButton"
-    );
-
-
-  if (
-    !draftButton
-  ) {
-    draftButton =
-      document.createElement(
-        "button"
-      );
-
-
-    draftButton.type =
-      "button";
-
-
-    draftButton.id =
-      "leaderFooterDraftButton";
-
-
-    draftButton.className =
-      [
-        "secondary-button",
-        "log-editor-draft-button"
-      ].join(
-        " "
-      );
-
-
-    draftButton.textContent =
-      "임시저장";
-  }
-
-
-  /* ===================================================
-    결재완료
-  ==================================================== */
-
-  let completeButton =
-    document.getElementById(
-      "leaderFooterCompleteButton"
-    );
-
-
-  if (
-    !completeButton
-  ) {
-    completeButton =
-      document.createElement(
-        "button"
-      );
-
-
-    completeButton.type =
-      "button";
-
-
-    completeButton.id =
-      "leaderFooterCompleteButton";
-
-
-    completeButton.className =
-      [
-        "approval-button",
-        "log-editor-complete-button"
-      ].join(
-        " "
-      );
-
-
-    completeButton.textContent =
-      "결재완료";
-  }
-
-
-  /* ===================================================
-    왼쪽 버튼 순서
-
-    인쇄 | 결재취소 | 삭제
-  ==================================================== */
-
-  if (
-    printButton &&
-    printButton.parentElement ===
-      leftGroup
-  ) {
-    printButton.insertAdjacentElement(
-      "afterend",
-      cancelButton
-    );
-
-  } else {
-    leftGroup.appendChild(
-      cancelButton
+    form.classList.remove(
+      "is-leader-approved"
     );
   }
-
-
-  cancelButton.insertAdjacentElement(
-    "afterend",
-    deleteButton
-  );
-
-
-  /* ===================================================
-    오른쪽 버튼 순서
-
-    임시저장 | 결재완료 | 닫기
-  ==================================================== */
-
-  if (
-    closeButton &&
-    closeButton.parentElement ===
-      rightGroup
-  ) {
-    rightGroup.insertBefore(
-      draftButton,
-      closeButton
-    );
-
-
-    rightGroup.insertBefore(
-      completeButton,
-      closeButton
-    );
-
-  } else {
-    rightGroup.append(
-      draftButton,
-      completeButton
-    );
-
-
-    if (
-      closeButton
-    ) {
-      rightGroup.appendChild(
-        closeButton
-      );
-    }
-  }
-
-
-  return {
-    cancelButton,
-    deleteButton,
-    draftButton,
-    completeButton
-  };
-}
 
 
   /* =====================================================
@@ -66987,6 +66919,35 @@ function ensureLeaderFooterButtons() {
     button.hidden =
       !visible;
 
+    button.disabled =
+      !enabled;
+
+    button.title =
+      title;
+
+    button.setAttribute(
+      "aria-disabled",
+      String(
+        !enabled
+      )
+    );
+
+    button.style.setProperty(
+      "opacity",
+      enabled
+        ? "1"
+        : "0.46",
+      "important"
+    );
+
+    button.style.setProperty(
+      "cursor",
+      enabled
+        ? "pointer"
+        : "not-allowed",
+      "important"
+    );
+
     if (
       visible
     ) {
@@ -67012,29 +66973,216 @@ function ensureLeaderFooterButtons() {
         "important"
       );
     }
+  }
 
-    button.disabled =
-      !enabled;
 
-    button.setAttribute(
-      "aria-disabled",
-      String(
-        !enabled
-      )
+  function createLeaderFooterButton({
+    id,
+    className,
+    text
+  }) {
+    let button =
+      document.getElementById(
+        id
+      );
+
+    if (
+      !button
+    ) {
+      button =
+        document.createElement(
+          "button"
+        );
+
+      button.id =
+        id;
+
+      button.type =
+        "button";
+
+      button.className =
+        className;
+
+      button.textContent =
+        text;
+    }
+
+    return button;
+  }
+
+
+  function bindLeaderFooterButton(
+    button,
+    action
+  ) {
+    if (
+      !button ||
+      button.dataset
+        .leaderDirectEventBound ===
+        "true"
+    ) {
+      return;
+    }
+
+    button.dataset
+      .leaderDirectEventBound =
+      "true";
+
+    button.addEventListener(
+      "click",
+      event => {
+        event.preventDefault();
+
+        void runLeaderFooterAction(
+          action,
+          button
+        );
+      }
     );
-
-    button.title =
-      title;
   }
 
 
   /* =====================================================
-    기존 파트장용 버튼 숨기기
-
-    현재 복구 버튼과 중복 표시되지 않게 한다.
+    파트장 버튼 생성 및 위치 정리
   ====================================================== */
 
-  function hideOriginalLeaderFooterButtons() {
+  function ensureLeaderFooterButtons() {
+    const modal =
+      document.getElementById(
+        "logEditorModal"
+      );
+
+    const leftGroup =
+      modal?.querySelector(
+        ".log-editor-footer__left"
+      );
+
+    const rightGroup =
+      modal?.querySelector(
+        ".log-editor-footer__right"
+      );
+
+    if (
+      !leftGroup ||
+      !rightGroup
+    ) {
+      return null;
+    }
+
+    const printButton =
+      document.getElementById(
+        "printLogButton"
+      );
+
+    const closeButton =
+      document.getElementById(
+        "cancelLogButton"
+      );
+
+    const cancelButton =
+      createLeaderFooterButton({
+        id:
+          "leaderApprovalCancelButton",
+
+        className:
+          "secondary-button log-editor-cancel-approval-button",
+
+        text:
+          "결재취소"
+      });
+
+    const deleteButton =
+      createLeaderFooterButton({
+        id:
+          "leaderLogDeleteButton",
+
+        className:
+          "danger-button log-editor-delete-button",
+
+        text:
+          "삭제"
+      });
+
+    const draftButton =
+      createLeaderFooterButton({
+        id:
+          "leaderDraftSaveButton",
+
+        className:
+          "secondary-button log-editor-draft-button",
+
+        text:
+          "임시저장"
+      });
+
+    const completeButton =
+      createLeaderFooterButton({
+        id:
+          "leaderApprovalCompleteButton",
+
+        className:
+          "approval-button log-editor-complete-button",
+
+        text:
+          "결재완료"
+      });
+
+    if (
+      printButton
+    ) {
+      leftGroup.appendChild(
+        printButton
+      );
+    }
+
+    leftGroup.append(
+      cancelButton,
+      deleteButton
+    );
+
+    rightGroup.append(
+      draftButton,
+      completeButton
+    );
+
+    if (
+      closeButton
+    ) {
+      rightGroup.appendChild(
+        closeButton
+      );
+    }
+
+    bindLeaderFooterButton(
+      cancelButton,
+      "cancel"
+    );
+
+    bindLeaderFooterButton(
+      deleteButton,
+      "delete"
+    );
+
+    bindLeaderFooterButton(
+      draftButton,
+      "draft"
+    );
+
+    bindLeaderFooterButton(
+      completeButton,
+      "complete"
+    );
+
+    return {
+      cancelButton,
+      deleteButton,
+      draftButton,
+      completeButton
+    };
+  }
+
+
+  function hideOriginalLeaderActionButtons() {
     [
       document.getElementById(
         "saveDraftButton"
@@ -67048,10 +67196,15 @@ function ensureLeaderFooterButtons() {
         "cancelLeaderApprovalButton"
       )
     ]
-      .filter(Boolean)
+      .filter(
+        Boolean
+      )
       .forEach(
         button => {
           button.hidden =
+            true;
+
+          button.disabled =
             true;
 
           button.setAttribute(
@@ -67069,493 +67222,310 @@ function ensureLeaderFooterButtons() {
   }
 
 
-/* =====================================================
-  파트장 하단 버튼 최종 갱신
-
-  파트장:
-  - 파트장 전용 버튼 표시
-  - 기존 공통 버튼 숨김
-
-  일반 보직:
-  - 파트장 전용 버튼 숨김
-  - 기존 임시저장·결재요청 버튼 복원
-  - 현재 결재 상태에 따라 버튼 다시 계산
-
-  일반 보직 결재요청 상태:
-  - 임시저장 숨김
-  - 결재요청 취소 표시
-====================================================== */
-
-function refreshLeaderFooterButtons() {
-  const buttons =
-    ensureLeaderFooterButtons();
-
-
-  if (
-    !buttons
+  function canDeleteLeaderEditorLog(
+    currentLog
   ) {
-    return;
+    if (
+      !currentLog ||
+      isLeaderEditorLegacyLog(
+        currentLog
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      typeof canCurrentUserDeleteShiftLog ===
+        "function" &&
+      canCurrentUserDeleteShiftLog(
+        currentLog
+      )
+    ) {
+      return true;
+    }
+
+    if (
+      typeof isCurrentUserSuperAdmin ===
+        "function" &&
+      isCurrentUserSuperAdmin()
+    ) {
+      return true;
+    }
+
+    const isLeaderAccount =
+      typeof isCurrentShiftLogLeader ===
+        "function"
+        ? isCurrentShiftLogLeader()
+        : true;
+
+    const isOwnLog =
+      typeof isCurrentUserShiftLogAuthor ===
+        "function"
+        ? isCurrentUserShiftLogAuthor(
+            currentLog
+          )
+        : true;
+
+    return (
+      isLeaderAccount &&
+      isOwnLog &&
+
+      normalizeMemberLogRole(
+        currentLog.role
+      ) ===
+        "파트장"
+    );
   }
 
 
-  const isLeader =
-    isLeaderFooterEditor();
+  /* =====================================================
+    파트장 버튼 및 입력 잠금 갱신
+  ====================================================== */
 
+  function refreshLeaderEditorApprovalFlow() {
+    const buttons =
+      ensureLeaderFooterButtons();
 
-  /* ===================================================
-    일반 보직 작성창
+    if (
+      !buttons
+    ) {
+      return;
+    }
 
-    파트장 전용 버튼을 모두 숨기고
-    일반 보직 버튼을 다시 복원한다.
-  ==================================================== */
+    if (
+      !isLeaderLogEditor()
+    ) {
+      setLeaderEditorInputLock(
+        false
+      );
 
-  if (
-    !isLeader
-  ) {
-    Object.values(
-      buttons
-    ).forEach(
-      button => {
-        setLeaderFooterButtonState(
-          button,
-          {
-            visible:
-              false,
+      Object.values(
+        buttons
+      ).forEach(
+        button => {
+          setLeaderFooterButtonState(
+            button,
+            {
+              visible:
+                false,
 
-            enabled:
-              false
-          }
-        );
+              enabled:
+                false
+            }
+          );
+        }
+      );
+
+      return;
+    }
+
+    hideOriginalLeaderActionButtons();
+
+    const currentLog =
+      getLeaderEditorCurrentLog();
+
+    const currentStatus =
+      normalizeLeaderEditorStatus(
+        currentLog?.status
+      );
+
+    const hasCurrentLog =
+      Boolean(
+        currentLog
+      );
+
+    const isApproved =
+      hasCurrentLog &&
+      currentStatus ===
+        "결재완료";
+
+    const canComplete =
+      hasCurrentLog &&
+      [
+        "임시저장",
+        "저장완료"
+      ].includes(
+        currentStatus
+      );
+
+    const canDelete =
+      canDeleteLeaderEditorLog(
+        currentLog
+      );
+
+    setLeaderEditorInputLock(
+      isApproved
+    );
+
+    setLeaderFooterButtonState(
+      buttons.cancelButton,
+      {
+        visible:
+          true,
+
+        enabled:
+          isApproved &&
+          !isLeaderActionWorking,
+
+        title:
+          isApproved
+            ? "결재를 취소하고 임시저장 상태로 되돌립니다."
+            : "결재완료 상태에서 사용할 수 있습니다."
       }
     );
 
+    setLeaderFooterButtonState(
+      buttons.deleteButton,
+      {
+        visible:
+          true,
 
-    const saveDraftButton =
-      elements?.saveDraftButton ||
-      document.getElementById(
-        "saveDraftButton"
-      );
+        enabled:
+          canDelete &&
+          !isLeaderActionWorking,
 
-
-    const requestApprovalButton =
-      elements?.requestApprovalButton ||
-      document.getElementById(
-        "requestApprovalButton"
-      );
-
-
-    const cancelLeaderApprovalButton =
-      document.getElementById(
-        "cancelLeaderApprovalButton"
-      );
-
-
-    /*
-      파트장 코드가 적용했던
-      hidden과 display:none을 먼저 제거한다.
-
-      실제 표시 여부는 바로 아래
-      updateLogEditorActionButtons()에서
-      현재 상태를 기준으로 다시 결정한다.
-    */
-    [
-      saveDraftButton,
-      requestApprovalButton
-    ]
-      .filter(
-        Boolean
-      )
-      .forEach(
-        button => {
-          button.type =
-            "button";
-
-
-          button.hidden =
-            false;
-
-
-          button.disabled =
-            false;
-
-
-          button.removeAttribute(
-            "hidden"
-          );
-
-
-          button.style.removeProperty(
-            "display"
-          );
-        }
-      );
-
-
-    /*
-      파트장 전용 결재취소 버튼은
-      일반 보직에서 표시하지 않는다.
-    */
-    if (
-      cancelLeaderApprovalButton
-    ) {
-      cancelLeaderApprovalButton.hidden =
-        true;
-
-
-      cancelLeaderApprovalButton.disabled =
-        true;
-
-
-      cancelLeaderApprovalButton.setAttribute(
-        "hidden",
-        ""
-      );
-
-
-      cancelLeaderApprovalButton.style.setProperty(
-        "display",
-        "none",
-        "important"
-      );
-    }
-
-
-    /*
-      일반 보직 최종 버튼 로직 실행
-
-      신규:
-      임시저장
-
-      임시저장:
-      임시저장 + 결재요청
-
-      결재요청:
-      결재요청 취소
-
-      결재완료:
-      저장 버튼 없음
-    */
-    if (
-      typeof updateLogEditorActionButtons ===
-        "function"
-    ) {
-      updateLogEditorActionButtons();
-    }
-
-
-    return;
-  }
-
-
-  /* ===================================================
-    파트장 작성창
-  ==================================================== */
-
-  hideOriginalLeaderFooterButtons();
-
-
-  const currentLog =
-    getLeaderFooterCurrentLog();
-
-
-  const currentStatus =
-    normalizeLeaderFooterStatus(
-      currentLog?.status
+        title:
+          canDelete
+            ? "현재 파트장 업무일지를 삭제합니다."
+            : "저장된 본인 업무일지만 삭제할 수 있습니다."
+      }
     );
 
+    setLeaderFooterButtonState(
+      buttons.draftButton,
+      {
+        visible:
+          true,
 
-  const hasCurrentLog =
-    Boolean(
-      currentLog
+        enabled:
+          !isApproved &&
+          !isLeaderActionWorking,
+
+        title:
+          isApproved
+            ? "결재취소 후 임시저장할 수 있습니다."
+            : "파트장 업무일지를 임시저장합니다."
+      }
     );
 
+    setLeaderFooterButtonState(
+      buttons.completeButton,
+      {
+        visible:
+          true,
 
-  const isApproved =
-    currentStatus ===
-    "결재완료";
+        enabled:
+          canComplete &&
+          !isLeaderActionWorking,
 
-
-  const canComplete =
-    hasCurrentLog &&
-    [
-      "임시저장",
-      "저장완료"
-    ].includes(
-      currentStatus
+        title:
+          canComplete
+            ? "파트장 업무일지를 결재완료 처리합니다."
+            : "먼저 임시저장해 주세요."
+      }
     );
-
-
-  const canDelete =
-    hasCurrentLog &&
-    (
-      typeof canCurrentUserDeleteShiftLog ===
-        "function"
-        ? canCurrentUserDeleteShiftLog(
-            currentLog
-          )
-        : true
-    );
-
-
-  /* ===================================================
-    결재취소
-  ==================================================== */
-
-  setLeaderFooterButtonState(
-    buttons.cancelButton,
-    {
-      visible:
-        true,
-
-      enabled:
-        isApproved &&
-        !isFooterActionWorking,
-
-      title:
-        isApproved
-          ? "결재를 취소하고 임시저장 상태로 되돌립니다."
-          : "결재완료 상태에서 사용할 수 있습니다."
-    }
-  );
-
-
-  /* ===================================================
-    삭제
-  ==================================================== */
-
-  setLeaderFooterButtonState(
-    buttons.deleteButton,
-    {
-      visible:
-        true,
-
-      enabled:
-        canDelete &&
-        !isFooterActionWorking,
-
-      title:
-        canDelete
-          ? "현재 파트장 업무일지를 삭제합니다."
-          : "현재 상태 또는 권한에서는 삭제할 수 없습니다."
-    }
-  );
-
-
-  /* ===================================================
-    임시저장
-  ==================================================== */
-
-  setLeaderFooterButtonState(
-    buttons.draftButton,
-    {
-      visible:
-        true,
-
-      enabled:
-        !isApproved &&
-        !isFooterActionWorking,
-
-      title:
-        isApproved
-          ? "결재취소 후 임시저장할 수 있습니다."
-          : "파트장 업무일지를 임시저장합니다."
-    }
-  );
-
-
-  /* ===================================================
-    결재완료
-  ==================================================== */
-
-  setLeaderFooterButtonState(
-    buttons.completeButton,
-    {
-      visible:
-        true,
-
-      enabled:
-        canComplete &&
-        !isFooterActionWorking,
-
-      title:
-        canComplete
-          ? "파트장 업무일지를 결재완료 처리합니다."
-          : "먼저 임시저장해 주세요."
-    }
-  );
-}
-
-
-/* =====================================================
-  파트장 저장·결재 결과 화면 반영 최종본
-
-  중요:
-  - 서버 결과를 appState에 반영
-  - 작성창 ID 유지
-  - 결재취소 후 입력 잠금 해제
-  - 하단 버튼 즉시 갱신
-====================================================== */
-
-function applyLeaderFooterSavedLog(
-  savedLog
-) {
-  if (
-    !savedLog
-  ) {
-    return;
   }
 
-
-  /* ===================================================
-    서버 결과를 업무일지 목록에 반영
-  ==================================================== */
-
-  if (
-    typeof replaceSharedShiftLogInState ===
-      "function"
-  ) {
-    replaceSharedShiftLogInState(
-      savedLog
-    );
-
-  } else if (
-    Array.isArray(
-      appState?.logs
-    )
-  ) {
-    const existingIndex =
-      appState.logs.findIndex(
-        log => {
-          return (
-            String(
-              log?.id ||
-              ""
-            ).trim() ===
-            String(
-              savedLog.id ||
-              ""
-            ).trim()
-          );
-        }
-      );
-
-
-    if (
-      existingIndex >=
-      0
-    ) {
-      appState.logs.splice(
-        existingIndex,
-        1,
-        savedLog
-      );
-
-    } else {
-      appState.logs.unshift(
-        savedLog
-      );
-    }
-  }
-
-
-  /* ===================================================
-    현재 수정창과 업무일지 ID 연결
-  ==================================================== */
-
-  const form =
-    elements?.logEditorForm ||
-    document.getElementById(
-      "logEditorForm"
-    );
-
-
-  if (
-    form
-  ) {
-    form.dataset.editingId =
-      String(
-        savedLog.id ||
-        ""
-      );
-
-
-    form.dataset.editorMode =
-      "existing-edit";
-  }
-
-
-  /* ===================================================
-    결재 상태 기준으로 입력 잠금 갱신
-
-    결재취소 결과가 임시저장이면:
-    - 입력칸 잠금 해제
-    - 추가·수정 버튼 사용 가능
-
-    결재완료이면:
-    - 입력칸 잠금 유지
-  ==================================================== */
-
-  if (
-    typeof updateLogEditorActionButtons ===
-      "function"
-  ) {
-    updateLogEditorActionButtons();
-  }
-
-
-  /* ===================================================
-    목록과 근무자 카드 갱신
-  ==================================================== */
-
-  if (
-    typeof renderLogTable ===
-      "function"
-  ) {
-    renderLogTable();
-  }
-
-
-  if (
-    typeof updateShiftMemberCardStates ===
-      "function"
-  ) {
-    updateShiftMemberCardStates();
-  }
-
-
-  /* ===================================================
-    현재 상태를 저장 완료 기준으로 기록
-  ==================================================== */
-
-  if (
-    typeof markLogEditorAsSaved ===
-      "function"
-  ) {
-    markLogEditorAsSaved();
-  }
-
-
-  /* ===================================================
-    새 상태 기준으로 파트장 하단 버튼 갱신
-  ==================================================== */
-
-  window.requestAnimationFrame(
-    () => {
-      refreshLeaderFooterButtons();
-    }
-  );
-}
 
   /* =====================================================
-    확인창
+    일반 보직 버튼 처리 후 파트장 상태 적용
   ====================================================== */
 
-  async function confirmLeaderFooterAction(
+  updateLogEditorActionButtons =
+    function updateLogEditorActionButtons(
+      ...args
+    ) {
+      const previousResult =
+        updateLogEditorActionButtonsBeforeLeaderFlow
+          ?.apply(
+            this,
+            args
+          );
+
+      refreshLeaderEditorApprovalFlow();
+
+      return previousResult;
+    };
+
+
+  /* =====================================================
+    서버 결과 반영
+  ====================================================== */
+
+  function applyLeaderEditorSavedLog(
+    savedLog
+  ) {
+    if (
+      !savedLog
+    ) {
+      return null;
+    }
+
+    const appliedLog =
+      typeof replaceSharedShiftLogInState ===
+        "function"
+        ? (
+            replaceSharedShiftLogInState(
+              savedLog
+            ) ||
+            savedLog
+          )
+        : savedLog;
+
+    lastSavedLeaderLog =
+      appliedLog;
+
+    const form =
+      document.getElementById(
+        "logEditorForm"
+      );
+
+    if (
+      form
+    ) {
+      form.dataset.editingId =
+        String(
+          appliedLog.id ||
+          ""
+        );
+
+      form.dataset.editorMode =
+        "existing-edit";
+    }
+
+    if (
+      typeof renderLogTable ===
+      "function"
+    ) {
+      renderLogTable();
+    }
+
+    if (
+      typeof updateShiftMemberCardStates ===
+      "function"
+    ) {
+      updateShiftMemberCardStates();
+    }
+
+    if (
+      typeof markLogEditorAsSaved ===
+      "function"
+    ) {
+      markLogEditorAsSaved();
+    }
+
+    updateLogEditorActionButtons();
+
+    return appliedLog;
+  }
+
+
+  async function confirmLeaderEditorAction(
     options
   ) {
     if (
       typeof showCompactConfirm ===
-        "function"
+      "function"
     ) {
       return Boolean(
         await showCompactConfirm(
@@ -67573,11 +67543,7 @@ function applyLeaderFooterSavedLog(
   }
 
 
-  /* =====================================================
-    오류 처리
-  ====================================================== */
-
-  function handleLeaderFooterError(
+  function handleLeaderEditorError(
     error,
     fallbackMessage
   ) {
@@ -67610,7 +67576,7 @@ function applyLeaderFooterSavedLog(
     임시저장
   ====================================================== */
 
-  async function saveLeaderFooterDraft() {
+  async function saveLeaderEditorDraft() {
     const savedLog =
       await saveCurrentLog(
         "작성중",
@@ -67621,18 +67587,12 @@ function applyLeaderFooterSavedLog(
       );
 
     if (
-      !savedLog
-    ) {
-      return;
-    }
-
-    applyLeaderFooterSavedLog(
       savedLog
-    );
-
-    showToast(
-      "파트장 업무일지를 임시저장했습니다."
-    );
+    ) {
+      applyLeaderEditorSavedLog(
+        savedLog
+      );
+    }
   }
 
 
@@ -67640,12 +67600,12 @@ function applyLeaderFooterSavedLog(
     결재완료
   ====================================================== */
 
-  async function completeLeaderFooterApproval() {
+  async function completeLeaderEditorApproval() {
     const currentLog =
-      getLeaderFooterCurrentLog();
+      getLeaderEditorCurrentLog();
 
     const currentStatus =
-      normalizeLeaderFooterStatus(
+      normalizeLeaderEditorStatus(
         currentLog?.status
       );
 
@@ -67666,7 +67626,7 @@ function applyLeaderFooterSavedLog(
     }
 
     const shouldComplete =
-      await confirmLeaderFooterAction({
+      await confirmLeaderEditorAction({
         title:
           "결재완료",
 
@@ -67695,25 +67655,31 @@ function applyLeaderFooterSavedLog(
         }
       );
 
-    const approvalTarget =
-      latestDraft ||
-      getLeaderFooterCurrentLog();
-
     if (
-      !approvalTarget
+      !latestDraft
     ) {
-      throw new Error(
-        "결재완료할 파트장 업무일지를 찾을 수 없습니다."
-      );
+      return;
     }
+
+    applyLeaderEditorSavedLog(
+      latestDraft
+    );
 
     const approvedLog =
       await changeShiftLogApprovalOnServer(
-        approvalTarget,
+        latestDraft,
         "approve"
       );
 
-    applyLeaderFooterSavedLog(
+    if (
+      !approvedLog
+    ) {
+      throw new Error(
+        "결재완료된 업무일지를 확인할 수 없습니다."
+      );
+    }
+
+    applyLeaderEditorSavedLog(
       approvedLog
     );
 
@@ -67727,13 +67693,13 @@ function applyLeaderFooterSavedLog(
     결재취소
   ====================================================== */
 
-  async function cancelLeaderFooterApproval() {
+  async function cancelLeaderEditorApproval() {
     const currentLog =
-      getLeaderFooterCurrentLog();
+      getLeaderEditorCurrentLog();
 
     if (
       !currentLog ||
-      normalizeLeaderFooterStatus(
+      normalizeLeaderEditorStatus(
         currentLog.status
       ) !==
         "결재완료"
@@ -67746,7 +67712,7 @@ function applyLeaderFooterSavedLog(
     }
 
     const shouldCancel =
-      await confirmLeaderFooterAction({
+      await confirmLeaderEditorAction({
         title:
           "결재취소",
 
@@ -67772,12 +67738,24 @@ function applyLeaderFooterSavedLog(
         "cancel"
       );
 
-    applyLeaderFooterSavedLog(
+    if (
+      !cancelledLog
+    ) {
+      throw new Error(
+        "결재취소된 업무일지를 확인할 수 없습니다."
+      );
+    }
+
+    applyLeaderEditorSavedLog(
       cancelledLog
     );
 
+    setLeaderEditorInputLock(
+      false
+    );
+
     showToast(
-      "파트장 업무일지 결재를 취소했습니다."
+      "파트장 업무일지 결재를 취소했습니다. 다시 수정할 수 있습니다."
     );
   }
 
@@ -67786,9 +67764,9 @@ function applyLeaderFooterSavedLog(
     삭제
   ====================================================== */
 
-  async function deleteLeaderFooterLog() {
+  async function deleteLeaderEditorLog() {
     const currentLog =
-      getLeaderFooterCurrentLog();
+      getLeaderEditorCurrentLog();
 
     if (
       !currentLog
@@ -67801,26 +67779,32 @@ function applyLeaderFooterSavedLog(
     }
 
     if (
-      typeof canCurrentUserDeleteShiftLog ===
-        "function" &&
-      !canCurrentUserDeleteShiftLog(
+      !canDeleteLeaderEditorLog(
         currentLog
       )
     ) {
       showToast(
-        "현재 상태 또는 권한에서는 이 업무일지를 삭제할 수 없습니다."
+        "현재 계정으로는 이 업무일지를 삭제할 수 없습니다."
       );
 
       return;
     }
 
+    const isApproved =
+      normalizeLeaderEditorStatus(
+        currentLog.status
+      ) ===
+      "결재완료";
+
     const shouldDelete =
-      await confirmLeaderFooterAction({
+      await confirmLeaderEditorAction({
         title:
           "업무일지 삭제",
 
         message:
-          "현재 파트장 업무일지를 삭제할까요? 삭제한 자료는 복구할 수 없습니다.",
+          isApproved
+            ? "결재를 취소한 뒤 현재 파트장 업무일지를 삭제할까요? 삭제한 자료는 복구할 수 없습니다."
+            : "현재 파트장 업무일지를 삭제할까요? 삭제한 자료는 복구할 수 없습니다.",
 
         confirmText:
           "삭제",
@@ -67835,14 +67819,56 @@ function applyLeaderFooterSavedLog(
       return;
     }
 
+    let deleteTarget =
+      currentLog;
+
+    /*
+      결재완료 자료는 직접 삭제하지 않고
+      먼저 결재취소 후 최신 revision으로 삭제한다.
+    */
     if (
-      typeof deleteShiftLogFromServer ===
-        "function"
+      isApproved
     ) {
+      const cancelledLog =
+        await changeShiftLogApprovalOnServer(
+          currentLog,
+          "cancel"
+        );
+
+      if (
+        !cancelledLog
+      ) {
+        throw new Error(
+          "삭제 전 결재취소 결과를 확인할 수 없습니다."
+        );
+      }
+
+      deleteTarget =
+        applyLeaderEditorSavedLog(
+          cancelledLog
+        ) ||
+        cancelledLog;
+    }
+
+    const deletedId =
       await deleteShiftLogFromServer(
-        currentLog
+        deleteTarget
       );
 
+    if (
+      typeof removeSharedShiftLogFromState ===
+      "function"
+    ) {
+      removeSharedShiftLogFromState(
+        deletedId ||
+        deleteTarget.id
+      );
+
+    } else if (
+      Array.isArray(
+        appState?.logs
+      )
+    ) {
       appState.logs =
         appState.logs.filter(
           log => {
@@ -67852,209 +67878,238 @@ function applyLeaderFooterSavedLog(
                 ""
               ) !==
               String(
-                currentLog.id ||
+                deleteTarget.id ||
                 ""
               )
             );
           }
         );
+    }
 
+    lastSavedLeaderLog =
+      null;
+
+    if (
+      typeof renderLogTable ===
+      "function"
+    ) {
       renderLogTable();
-
-      updateShiftMemberCardStates();
-
-      closeLogEditor();
-
-      showToast(
-        "파트장 업무일지를 삭제했습니다."
-      );
-
-      return;
     }
 
     if (
-      typeof deleteLogById ===
-        "function"
+      typeof updateShiftMemberCardStates ===
+      "function"
     ) {
-      await Promise.resolve(
-        deleteLogById(
-          currentLog.id
-        )
-      );
+      updateShiftMemberCardStates();
     }
+
+    setLeaderEditorInputLock(
+      false
+    );
+
+    if (
+      typeof closeLogEditor ===
+      "function"
+    ) {
+      closeLogEditor();
+    }
+
+    showToast(
+      "파트장 업무일지를 삭제했습니다."
+    );
   }
 
 
   /* =====================================================
-    버튼 이벤트
+    버튼 작업 실행
   ====================================================== */
 
-  document.addEventListener(
-    "click",
-    async event => {
-      const target =
-        event.target instanceof
-          Element
-          ? event.target.closest(
-              [
-                "#leaderFooterCancelButton",
-                "#leaderFooterDeleteButton",
-                "#leaderFooterDraftButton",
-                "#leaderFooterCompleteButton"
-              ].join(
-                ","
-              )
-            )
-          : null;
+  async function runLeaderFooterAction(
+    action,
+    button
+  ) {
+    if (
+      !isLeaderLogEditor() ||
+      isLeaderActionWorking ||
+      button?.disabled
+    ) {
+      return;
+    }
+
+    isLeaderActionWorking =
+      true;
+
+    try {
+      updateLogEditorActionButtons();
 
       if (
-        !target ||
-        !isLeaderFooterEditor()
+        action ===
+        "draft"
       ) {
-        return;
+        await saveLeaderEditorDraft();
+
+      } else if (
+        action ===
+        "complete"
+      ) {
+        await completeLeaderEditorApproval();
+
+      } else if (
+        action ===
+        "cancel"
+      ) {
+        await cancelLeaderEditorApproval();
+
+      } else if (
+        action ===
+        "delete"
+      ) {
+        await deleteLeaderEditorLog();
       }
 
-      event.preventDefault();
+    } catch (
+      error
+    ) {
+      handleLeaderEditorError(
+        error,
+        "파트장 업무일지 작업을 처리하지 못했습니다."
+      );
 
-      event.stopPropagation();
+    } finally {
+      isLeaderActionWorking =
+        false;
 
-      if (
-        isFooterActionWorking ||
-        target.disabled
-      ) {
-        return;
-      }
-
-      isFooterActionWorking =
-        true;
-
-      refreshLeaderFooterButtons();
-
-      try {
-        if (
-          target.id ===
-          "leaderFooterDraftButton"
-        ) {
-          await saveLeaderFooterDraft();
-
-        } else if (
-          target.id ===
-          "leaderFooterCompleteButton"
-        ) {
-          await completeLeaderFooterApproval();
-
-        } else if (
-          target.id ===
-          "leaderFooterCancelButton"
-        ) {
-          await cancelLeaderFooterApproval();
-
-        } else if (
-          target.id ===
-          "leaderFooterDeleteButton"
-        ) {
-          await deleteLeaderFooterLog();
-        }
-
-      } catch (
-        error
-      ) {
-        handleLeaderFooterError(
-          error,
-          "파트장 업무일지 작업을 처리하지 못했습니다."
-        );
-
-      } finally {
-        isFooterActionWorking =
-          false;
-
-        refreshLeaderFooterButtons();
-      }
-    },
-    true
-  );
+      updateLogEditorActionButtons();
+    }
+  }
 
 
-  /* =====================================================
-    수정창이 열리고 값이 채워지는 순서 차이 보정
-  ====================================================== */
-
-  function scheduleLeaderFooterRefresh() {
+  function scheduleLeaderEditorRefresh() {
     [
       0,
-      40,
-      120,
-      300
+      60,
+      160
     ].forEach(
       delay => {
         window.setTimeout(
-          refreshLeaderFooterButtons,
+          () => {
+            updateLogEditorActionButtons();
+          },
           delay
         );
       }
     );
   }
 
-  const modal =
-    document.getElementById(
-      "logEditorModal"
+
+  /* =====================================================
+    초기 연결
+  ====================================================== */
+
+  function initializeLeaderEditorApprovalBindings() {
+    ensureLeaderFooterButtons();
+
+    [
+      "logRole",
+      "logDate",
+      "logShift"
+    ].forEach(
+      elementId => {
+        const field =
+          document.getElementById(
+            elementId
+          );
+
+        if (
+          !field ||
+          field.dataset
+            .leaderRefreshEventBound ===
+            "true"
+        ) {
+          return;
+        }
+
+        field.dataset
+          .leaderRefreshEventBound =
+          "true";
+
+        field.addEventListener(
+          "change",
+          scheduleLeaderEditorRefresh
+        );
+      }
     );
 
-  if (
-    modal &&
-    typeof MutationObserver ===
-      "function"
-  ) {
-    const observer =
-      new MutationObserver(
-        () => {
-          const isOpen =
-            modal.classList.contains(
-              "is-open"
-            ) ||
-            modal.getAttribute(
-              "aria-hidden"
-            ) ===
-              "false";
+    const modal =
+      document.getElementById(
+        "logEditorModal"
+      );
 
-          if (
-            isOpen
-          ) {
-            scheduleLeaderFooterRefresh();
+    if (
+      modal &&
+      modal.dataset
+        .leaderApprovalObserved !==
+        "true" &&
+      typeof MutationObserver ===
+        "function"
+    ) {
+      const observer =
+        new MutationObserver(
+          () => {
+            const isOpen =
+              modal.classList.contains(
+                "is-open"
+              ) ||
+
+              modal.getAttribute(
+                "aria-hidden"
+              ) ===
+                "false";
+
+            if (
+              isOpen
+            ) {
+              scheduleLeaderEditorRefresh();
+            }
           }
+        );
+
+      observer.observe(
+        modal,
+        {
+          attributes:
+            true,
+
+          attributeFilter: [
+            "class",
+            "aria-hidden"
+          ]
         }
       );
 
-    observer.observe(
-      modal,
-      {
-        attributes:
-          true,
+      modal.dataset
+        .leaderApprovalObserved =
+        "true";
+    }
 
-        attributeFilter: [
-          "class",
-          "aria-hidden"
-        ]
-      }
-    );
+    scheduleLeaderEditorRefresh();
   }
 
-  [
-    "logRole",
-    "logDate",
-    "logShift"
-  ].forEach(
-    elementId => {
-      document
-        .getElementById(
-          elementId
-        )
-        ?.addEventListener(
-          "change",
-          scheduleLeaderFooterRefresh
-        );
-    }
-  );
 
-  scheduleLeaderFooterRefresh();
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeLeaderEditorApprovalBindings,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeLeaderEditorApprovalBindings();
+  }
 })();
