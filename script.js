@@ -36489,41 +36489,138 @@ const memberSourceLogIds =
 
 
 /* =====================================================
-  파트장 저장 항목과 팀원 원본 항목 비교
+  파트장 저장본과 팀원 원본 중복 판정 최종본
 
-  다음 조건을 비교한다.
-  - 업무 대분류
-  - 시간
-  - TAG
-  - 내용
+  처리:
+  - 시간·TAG·업무 구분 비교
+  - 여러 줄 내용에서 과거 보직 제목 제거
+  - 첫 번째 실제 업무 문장이 같으면 중복 처리
+  - 뒤에 설명 문장이 추가된 자료도 중복 처리
 
-  과거 자료는 구분명이 달라질 수 있으므로
-  TM·비고·일반업무 대분류를 기준으로 비교한다.
+  제거 대상 예:
+  Fly Ash Sampling 실시
+  #2 Boiler 운전 및 작업사항
+
+  원본:
+  Fly Ash Sampling 실시
 ===================================================== */
 
 const isSameLeaderSavedEntryAsMemberEntry = (
   savedEntry,
   memberEntry
 ) => {
-  const savedCategoryGroup =
-    getCategoryGroup(
-      savedEntry?.category
+  /* ===================================================
+    과거 파트장 통합본문에 붙어 있던
+    보직별 제목 줄
+  ==================================================== */
+
+  const legacyHeadingKeys =
+    new Set(
+      [
+        "#1 Boiler 운전 및 작업사항",
+        "#2 Boiler 운전 및 작업사항",
+        "1 Boiler 운전 및 작업사항",
+        "2 Boiler 운전 및 작업사항",
+        "1호기 Boiler 운전 및 작업사항",
+        "2호기 Boiler 운전 및 작업사항",
+        "TBN & BOP 운전 및 작업사항",
+        "TBN BOP 운전 및 작업사항"
+      ].map(
+        heading => {
+          return getEntryContentKey(
+            heading
+          );
+        }
+      )
     );
 
 
-  const memberCategoryGroup =
-    getCategoryGroup(
-      memberEntry?.category
-    );
+  /* ===================================================
+    비교할 내용 정리
 
+    - 줄바꿈 통일
+    - 줄 앞 기호 제거
+    - 보직별 제목 줄 제거
+    - 실제 업무 내용만 유지
+  ==================================================== */
+
+  const cleanComparisonContent = (
+    value
+  ) => {
+    return String(
+      value ||
+      ""
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .split(
+        "\n"
+      )
+      .map(
+        line => {
+          return String(
+            line ||
+            ""
+          )
+            .normalize(
+              "NFKC"
+            )
+            .replace(
+              /^[\s※●■◆◇▶▷▣□•·*＊\-–—]+/u,
+              ""
+            )
+            .trim();
+        }
+      )
+      .filter(Boolean)
+      .filter(
+        line => {
+          const lineKey =
+            getEntryContentKey(
+              line
+            );
+
+
+          return (
+            lineKey &&
+            !legacyHeadingKeys.has(
+              lineKey
+            )
+          );
+        }
+      )
+      .join(
+        "\n"
+      )
+      .trim();
+  };
+
+
+  /* ===================================================
+    업무 구분 비교
+  ==================================================== */
 
   if (
-    savedCategoryGroup !==
-    memberCategoryGroup
+    getCategoryGroup(
+      savedEntry?.category
+    ) !==
+    getCategoryGroup(
+      memberEntry?.category
+    )
   ) {
     return false;
   }
 
+
+  /* ===================================================
+    시간 비교
+  ==================================================== */
 
   const savedTime =
     String(
@@ -36539,10 +36636,6 @@ const isSameLeaderSavedEntryAsMemberEntry = (
     ).trim();
 
 
-  /*
-    두 항목 모두 시간이 있는데
-    시간이 다르면 다른 업무로 판단한다.
-  */
   if (
     savedTime &&
     memberTime &&
@@ -36552,6 +36645,19 @@ const isSameLeaderSavedEntryAsMemberEntry = (
     return false;
   }
 
+
+  const hasSameTime =
+    Boolean(
+      savedTime &&
+      memberTime &&
+      savedTime ===
+        memberTime
+    );
+
+
+  /* ===================================================
+    TAG 비교
+  ==================================================== */
 
   const savedTag =
     String(
@@ -36571,10 +36677,6 @@ const isSameLeaderSavedEntryAsMemberEntry = (
       .toUpperCase();
 
 
-  /*
-    두 항목 모두 TAG가 있는데
-    TAG가 다르면 다른 업무로 판단한다.
-  */
   if (
     savedTag &&
     memberTag &&
@@ -36585,18 +36687,20 @@ const isSameLeaderSavedEntryAsMemberEntry = (
   }
 
 
+  /* ===================================================
+    내용 정리
+  ==================================================== */
+
   const savedContent =
-    String(
-      savedEntry?.content ||
-      ""
-    ).trim();
+    cleanComparisonContent(
+      savedEntry?.content
+    );
 
 
   const memberContent =
-    String(
-      memberEntry?.content ||
-      ""
-    ).trim();
+    cleanComparisonContent(
+      memberEntry?.content
+    );
 
 
   if (
@@ -36619,10 +36723,10 @@ const isSameLeaderSavedEntryAsMemberEntry = (
     );
 
 
-  /*
-    공백·기호·줄바꿈을 정리한 내용이
-    완전히 같으면 같은 업무다.
-  */
+  /* ===================================================
+    전체 내용이 같은 경우
+  ==================================================== */
+
   if (
     savedContentKey &&
     savedContentKey ===
@@ -36632,20 +36736,100 @@ const isSameLeaderSavedEntryAsMemberEntry = (
   }
 
 
-  /*
-    과거 저장 과정에서 표현이나 공백이
-    조금 달라진 자료도 비교한다.
-  */
+  /* ===================================================
+    첫 번째 실제 업무 문장 비교
+
+    파트장 저장본에 설명 줄이 더 붙었어도
+    첫 번째 업무 문장과 시간이 같으면 중복이다.
+  ==================================================== */
+
+  const savedPrimaryLine =
+    String(
+      savedContent
+        .split(
+          "\n"
+        )[0] ||
+      ""
+    ).trim();
+
+
+  const memberPrimaryLine =
+    String(
+      memberContent
+        .split(
+          "\n"
+        )[0] ||
+      ""
+    ).trim();
+
+
+  const savedPrimaryKey =
+    getEntryContentKey(
+      savedPrimaryLine
+    );
+
+
+  const memberPrimaryKey =
+    getEntryContentKey(
+      memberPrimaryLine
+    );
+
+
+  if (
+    hasSameTime &&
+    savedPrimaryKey &&
+    savedPrimaryKey ===
+      memberPrimaryKey
+  ) {
+    return true;
+  }
+
+
+  /* ===================================================
+    한쪽 내용에 다른 쪽 업무가 포함된 경우
+
+    시간까지 같을 때만 중복으로 처리한다.
+  ==================================================== */
+
+  if (
+    hasSameTime &&
+    savedContentKey &&
+    memberContentKey &&
+    (
+      savedContentKey.includes(
+        memberContentKey
+      ) ||
+      memberContentKey.includes(
+        savedContentKey
+      )
+    )
+  ) {
+    return true;
+  }
+
+
+  /* ===================================================
+    표현이나 공백이 조금 다른 과거 자료
+  ==================================================== */
+
   if (
     typeof calculateLegacyContentSimilarity ===
       "function"
   ) {
-    return (
+    const similarity =
       calculateLegacyContentSimilarity(
         savedContent,
         memberContent
-      ) >=
-      0.93
+      );
+
+
+    return (
+      similarity >=
+      (
+        hasSameTime
+          ? 0.86
+          : 0.93
+      )
     );
   }
 
