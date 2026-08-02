@@ -3185,24 +3185,22 @@
 </div>
 
 
-<!-- =====================================================
-  업무일지 작성·수정창 하단 버튼
+<!-- =========================================================
+  업무일지 작성창 하단 버튼
 
-  왼쪽:
-  인쇄
+  파트장:
+  - 신규 작성: 임시저장
+  - 임시저장 후: 임시저장 + 결재완료
+  - 결재완료 후: 결재취소
 
-  오른쪽:
-  임시저장 | 결재요청 | 닫기
-====================================================== -->
+  일반 보직:
+  - 임시저장
+  - 결재요청
+========================================================== -->
 
 <footer class="modal-footer log-editor-footer">
 
-  <div
-    class="
-      modal-footer__left
-      log-editor-footer__left
-    "
-  >
+  <div class="modal-footer__left log-editor-footer__left">
 
     <button
       type="button"
@@ -3218,12 +3216,7 @@
   </div>
 
 
-  <div
-    class="
-      modal-footer__right
-      log-editor-footer__right
-    "
-  >
+  <div class="modal-footer__right log-editor-footer__right">
 
     <button
       type="button"
@@ -3246,6 +3239,19 @@
       id="requestApprovalButton"
     >
       결재요청
+    </button>
+
+
+    <button
+      type="button"
+      class="
+        secondary-button
+        log-editor-cancel-approval-button
+      "
+      id="cancelLeaderApprovalButton"
+      hidden
+    >
+      결재취소
     </button>
 
 

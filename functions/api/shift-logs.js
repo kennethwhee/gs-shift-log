@@ -1143,7 +1143,13 @@ function collectNavigatorInspectionSourceEntries(
 
 
 /* =========================================================
-  업무일지 상태별 연동 가능 여부
+  업무일지 상태별 Navigator 연동 가능 여부
+
+  파트장:
+  - 결재완료 후 연동
+
+  파트원:
+  - 결재완료 후 연동
 ========================================================= */
 
 function isNavigatorInspectionPublishableLog(
@@ -1162,7 +1168,8 @@ function isNavigatorInspectionPublishableLog(
 
 
   /*
-    파트장 업무일지는 저장완료 후 연동
+    파트장 업무일지는
+    결재완료 상태에서 연동한다.
   */
   if (
     role ===
@@ -1170,13 +1177,14 @@ function isNavigatorInspectionPublishableLog(
   ) {
     return (
       status ===
-      "저장완료"
+      "결재완료"
     );
   }
 
 
   /*
-    파트원 업무일지는 결재완료 후 연동
+    파트원 업무일지도
+    결재완료 상태에서 연동한다.
   */
   return (
     NAVIGATOR_INSPECTION_SYNC_MEMBER_ROLES
@@ -2532,12 +2540,28 @@ function scheduleNavigatorInspectionSync(
   }
 }
 
+/* =========================================================
+  기존 업무일지 수정 가능 여부
+
+  최고관리자:
+  - 모든 상태 수정 가능
+
+  파트장:
+  - 본인의 파트장 업무일지만 가능
+  - 임시저장 가능
+  - 기존 저장완료 자료 호환
+  - 결재완료는 먼저 결재취소
+
+  일반 보직:
+  - 임시저장 상태만 수정 가능
+========================================================= */
+
 function canEditExistingLog(
   existingLog,
   user
 ) {
   /*
-    최고관리자는 모든 신규 업무일지 수정 가능
+    최고관리자는 모든 업무일지 수정 가능
   */
   if (
     user.isSuperAdmin
@@ -2562,15 +2586,13 @@ function canEditExistingLog(
     normalizeEmployeeNo(
       existingLog.authorId
     ) ===
-      user.employeeNo;
+      normalizeEmployeeNo(
+        user.employeeNo
+      );
 
 
   /*
     파트장 계정
-
-    - 본인이 작성한 파트장 업무일지만 수정 가능
-    - 저장완료 상태만 수정 가능
-    - 다른 일반 보직 업무일지는 수정 불가
   */
   if (
     user.role ===
@@ -2582,8 +2604,12 @@ function canEditExistingLog(
 
       isAuthor &&
 
-      status ===
+      [
+        "임시저장",
         "저장완료"
+      ].includes(
+        status
+      )
     );
   }
 
@@ -2609,13 +2635,6 @@ function canEditExistingLog(
   ];
 
 
-  /*
-    일반 보직 업무일지
-
-    - 임시저장: 작성자와 관계없이 수정 가능
-    - 결재요청: 결재취소 후 수정
-    - 결재완료: 수정 불가
-  */
   return (
     editableMemberRoles.includes(
       logRole
@@ -2803,13 +2822,11 @@ async function getTrustedLegacyMigrationStatus(
   신규 업무일지 생성 규칙 최종본
 
   일반 신규 작성:
-  - 파트장: 저장완료
+  - 파트장: 임시저장
   - 파트원: 임시저장 또는 결재요청
 
   과거 업무일지 이전:
-  - legacy_logs에서 원래 상태를 서버가 직접 확인
-  - 결재완료 자료는 결재완료 그대로 유지
-  - 결재요청·임시저장도 원래 상태 그대로 유지
+  - legacy_logs에 저장된 기존 상태 유지
 ========================================================= */
 
 async function applyCreateRules(
@@ -2825,8 +2842,8 @@ async function applyCreateRules(
 
 
   /*
-    과거 업무일지인 경우에만
-    legacy_logs에서 신뢰할 수 있는 상태를 조회한다.
+    과거 업무일지인 경우
+    서버의 legacy_logs에서 원래 상태를 확인한다.
   */
   const trustedMigrationStatus =
     isMigration
@@ -2836,6 +2853,10 @@ async function applyCreateRules(
         )
       : "";
 
+
+  /* =====================================================
+    작성자 결정
+  ====================================================== */
 
   if (
     isMigration
@@ -2853,10 +2874,6 @@ async function applyCreateRules(
       );
 
 
-    /*
-      최고관리자가 아닌 사용자는
-      다른 작성자의 과거 자료를 이전할 수 없다.
-    */
     if (
       !user.isSuperAdmin &&
       (
@@ -2888,7 +2905,7 @@ async function applyCreateRules(
 
 
     /*
-      과거 원 작성자를 그대로 유지한다.
+      과거 원 작성자를 유지한다.
     */
     log.author =
       suppliedAuthor ||
@@ -2908,8 +2925,7 @@ async function applyCreateRules(
 
   } else {
     /*
-      새로 작성한 업무일지는
-      현재 로그인 사용자를 작성자로 저장한다.
+      새 업무일지는 현재 로그인 사용자가 작성자다.
     */
     log.author =
       user.name;
@@ -2929,62 +2945,58 @@ async function applyCreateRules(
   ====================================================== */
 
   if (
-    isMigration &&
-    trustedMigrationStatus
+    isMigration
   ) {
     /*
-      과거 업무일지의 원래 상태를 그대로 유지한다.
-
-      예:
-      APPROVED  → 결재완료
-      SUBMITTED → 결재요청
-      DRAFT     → 임시저장
+      과거 자료는 서버에서 확인한 기존 상태를 유지한다.
+      확인되지 않는 경우 임시저장으로 처리한다.
     */
     log.status =
-      trustedMigrationStatus;
+      trustedMigrationStatus ||
+      "임시저장";
 
   } else if (
     log.role ===
       "파트장"
   ) {
-    /*
-      일반 신규 파트장 업무일지
-    */
     if (
-      user.role ===
-        "admin" ||
-      user.isSuperAdmin
+      !(
+        user.role ===
+          "admin" ||
+        user.isSuperAdmin
+      )
     ) {
-      log.status =
-        "저장완료";
+      const error =
+        new Error(
+          "파트장 또는 최고관리자만 파트장 업무일지를 작성할 수 있습니다."
+        );
 
-    } else {
-      log.status =
-        "임시저장";
+
+      error.status =
+        403;
+
+
+      throw error;
     }
 
-  } else {
+
     /*
-      일반 신규 파트원 업무일지
-
-      파트원은 새 작성 시
-      임시저장 또는 결재요청만 가능하다.
+      파트장 신규 업무일지도
+      먼저 임시저장 상태로 생성한다.
     */
-    const requestedStatus =
-      normalizeStatus(
-        log.status
-      );
-
-
     log.status =
-      [
-        "임시저장",
-        "결재요청"
-      ].includes(
-        requestedStatus
-      )
-        ? requestedStatus
-        : "임시저장";
+      "임시저장";
+
+  } else if (
+    ![
+      "임시저장",
+      "결재요청"
+    ].includes(
+      log.status
+    )
+  ) {
+    log.status =
+      "임시저장";
   }
 
 
@@ -3269,6 +3281,20 @@ function applySaveRules(
   return log;
 }
 
+/* =========================================================
+  업무일지 결재완료·결재취소 최종본
+
+  파트원:
+  - 결재요청 → 결재완료
+  - 작성자 결재요청 취소
+  - 파트장·최고관리자 결재완료 취소
+
+  파트장:
+  - 임시저장 → 결재완료
+  - 기존 저장완료 → 결재완료
+  - 결재완료 → 임시저장
+========================================================= */
+
 function applyApprovalAction(
   existingLog,
   user,
@@ -3302,9 +3328,9 @@ function applyApprovalAction(
     normalizeEmployeeNo(
       existingLog.authorId
     ) ===
-    normalizeEmployeeNo(
-      user.employeeNo
-    );
+      normalizeEmployeeNo(
+        user.employeeNo
+      );
 
 
   const memberRoles = [
@@ -3323,43 +3349,71 @@ function applyApprovalAction(
     );
 
 
-  /*
-    결재완료
+  const isLeaderLog =
+    logRole ===
+      "파트장";
 
-    - 파트장 또는 최고관리자만 가능
-    - 일반 보직의 결재요청 상태만 가능
-  */
+
+  /* =====================================================
+    결재완료
+  ====================================================== */
+
   if (
     action ===
       "approve"
   ) {
+    /*
+      파트원 업무일지 결재
+    */
+    const canApproveMemberLog =
+      isMemberLog &&
+
+      previousStatus ===
+        "결재요청" &&
+
+      isLeaderOrSuperAdmin;
+
+
+    /*
+      파트장 본인 업무일지 결재완료
+
+      저장완료는 기존 자료 호환용이다.
+    */
+    const canCompleteLeaderLog =
+      isLeaderLog &&
+
+      [
+        "임시저장",
+        "저장완료"
+      ].includes(
+        previousStatus
+      ) &&
+
+      isLeaderOrSuperAdmin &&
+
+      (
+        isAuthor ||
+        user.isSuperAdmin
+      );
+
+
     if (
-      !isLeaderOrSuperAdmin
+      !canApproveMemberLog &&
+      !canCompleteLeaderLog
     ) {
       const error =
         new Error(
-          "파트장 또는 최고관리자만 결재할 수 있습니다."
+          isLeaderLog
+            ? "본인의 임시저장 상태 파트장 업무일지만 결재완료할 수 있습니다."
+            : "결재요청 상태의 파트원 업무일지만 결재할 수 있습니다."
         );
 
-      error.status =
-        403;
-
-      throw error;
-    }
-
-
-    if (
-      !isMemberLog ||
-      previousStatus !==
-        "결재요청"
-    ) {
-      const error =
-        new Error(
-          "결재요청 상태의 파트원 업무일지만 결재할 수 있습니다."
-        );
 
       error.status =
-        400;
+        isLeaderOrSuperAdmin
+          ? 400
+          : 403;
+
 
       throw error;
     }
@@ -3368,14 +3422,18 @@ function applyApprovalAction(
     log.status =
       "결재완료";
 
+
     log.approvedAt =
       now;
+
 
     log.approvedBy =
       user.name;
 
+
     log.approvedById =
       user.employeeNo;
+
 
     log.approvedByRole =
       user.role;
@@ -3389,41 +3447,62 @@ function applyApprovalAction(
       log.status,
       now
     );
-  }
 
 
-  /*
+  /* =====================================================
     결재취소
+  ====================================================== */
 
-    결재요청 상태
-    - 현재 작성자 본인만 취소 가능
-    - 다른 일반회원은 취소 불가
-    - 파트장·최고관리자도 취소 불가
-
-    결재완료 상태
-    - 파트장·최고관리자만 취소 가능
-  */
-  else if (
+  } else if (
     action ===
       "cancel"
   ) {
+    /*
+      파트원 본인의 결재요청 취소
+    */
     const canAuthorCancelRequest =
       isMemberLog &&
+
       previousStatus ===
         "결재요청" &&
+
       isAuthor;
 
 
-    const canLeaderCancelCompleted =
+    /*
+      파트장 또는 최고관리자의
+      파트원 결재완료 취소
+    */
+    const canLeaderCancelCompletedMember =
       isMemberLog &&
+
       previousStatus ===
         "결재완료" &&
+
       isLeaderOrSuperAdmin;
+
+
+    /*
+      파트장 본인 일지 결재취소
+    */
+    const canCancelCompletedLeaderLog =
+      isLeaderLog &&
+
+      previousStatus ===
+        "결재완료" &&
+
+      isLeaderOrSuperAdmin &&
+
+      (
+        isAuthor ||
+        user.isSuperAdmin
+      );
 
 
     if (
       !canAuthorCancelRequest &&
-      !canLeaderCancelCompleted
+      !canLeaderCancelCompletedMember &&
+      !canCancelCompletedLeaderLog
     ) {
       const error =
         new Error(
@@ -3433,31 +3512,42 @@ function applyApprovalAction(
             : "현재 계정으로는 이 업무일지의 결재를 취소할 수 없습니다."
         );
 
+
       error.status =
         403;
+
 
       throw error;
     }
 
 
+    /*
+      결재취소 후 다시 임시저장으로 되돌린다.
+    */
     log.status =
       "임시저장";
 
 
     delete log.approvedAt;
+
     delete log.approvedBy;
+
     delete log.approvedById;
+
     delete log.approvedByRole;
 
 
     log.approvalCancelledAt =
       now;
 
+
     log.approvalCancelledBy =
       user.name;
 
+
     log.approvalCancelledById =
       user.employeeNo;
+
 
     log.approvalCancelledFrom =
       previousStatus;
@@ -3471,30 +3561,38 @@ function applyApprovalAction(
       log.status,
       now
     );
-  }
 
 
-  else {
+  } else {
     const error =
       new Error(
         "지원하지 않는 결재 작업입니다."
       );
 
+
     error.status =
       400;
+
 
     throw error;
   }
 
 
+  /* =====================================================
+    최종 수정 정보
+  ====================================================== */
+
   log.lastModifiedBy =
     user.name;
+
 
   log.lastModifiedById =
     user.employeeNo;
 
+
   log.lastModifiedByRole =
     user.role;
+
 
   log.updatedAt =
     now;

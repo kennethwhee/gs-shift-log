@@ -63481,3 +63481,1083 @@ function openFacilityNavigator(
     );
   }
 }
+
+/* =========================================================
+  파트장 업무일지 결재 흐름 최종본
+
+  신규 작성:
+  - 임시저장 버튼만 표시
+
+  임시저장 후:
+  - 임시저장
+  - 결재완료
+
+  결재완료 후:
+  - 입력창 잠금
+  - 결재취소 버튼 표시
+
+  결재취소 후:
+  - 임시저장 상태로 복귀
+  - 입력창 잠금 해제
+========================================================= */
+
+(function initializeLeaderEditorApprovalFlow() {
+  const updateLogEditorActionButtonsBeforeLeaderFlow =
+    typeof updateLogEditorActionButtons ===
+      "function"
+      ? updateLogEditorActionButtons
+      : null;
+
+
+  const openLogEditorBeforeLeaderFlow =
+    typeof openLogEditor ===
+      "function"
+      ? openLogEditor
+      : null;
+
+
+  /* =====================================================
+    파트장 작성창 상태 정규화
+  ====================================================== */
+
+  function normalizeLeaderEditorStatus(
+    status
+  ) {
+    if (
+      typeof normalizeShiftLogApprovalStatus ===
+        "function"
+    ) {
+      return normalizeShiftLogApprovalStatus(
+        status
+      );
+    }
+
+
+    const statusMap = {
+      작성중:
+        "임시저장",
+
+      임시저장:
+        "임시저장",
+
+      작성완료:
+        "결재요청",
+
+      결재요청:
+        "결재요청",
+
+      결재완료:
+        "결재완료",
+
+      저장완료:
+        "저장완료"
+    };
+
+
+    return (
+      statusMap[
+        String(
+          status ||
+          ""
+        ).trim()
+      ] ||
+      ""
+    );
+  }
+
+
+  /* =====================================================
+    현재 작성창이 파트장 업무일지인지 확인
+  ====================================================== */
+
+  function isLeaderEditorRole() {
+    return (
+      normalizeMemberLogRole(
+        elements?.logRole?.value
+      ) ===
+      "파트장"
+    );
+  }
+
+
+  /* =====================================================
+    현재 작성창과 연결된 파트장 업무일지 찾기
+
+    우선순위:
+    1. editingId
+    2. 날짜 + 근무 + 파트장
+  ====================================================== */
+
+  function getCurrentLeaderEditorLog() {
+    const editingId =
+      String(
+        elements?.logEditorForm
+          ?.dataset
+          ?.editingId ||
+        ""
+      ).trim();
+
+
+    if (
+      editingId &&
+      Array.isArray(
+        appState?.logs
+      )
+    ) {
+      const editingLog =
+        appState.logs.find(
+          log => {
+            return (
+              String(
+                log?.id ||
+                ""
+              ).trim() ===
+              editingId
+            );
+          }
+        );
+
+
+      if (
+        editingLog
+      ) {
+        return editingLog;
+      }
+    }
+
+
+    const currentDate =
+      String(
+        elements?.logDate?.value ||
+        ""
+      ).trim();
+
+
+    const currentShift =
+      String(
+        elements?.logShift?.value ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    if (
+      !currentDate ||
+      !currentShift ||
+      !Array.isArray(
+        appState?.logs
+      )
+    ) {
+      return null;
+    }
+
+
+    const matchedLogs =
+      appState.logs
+        .filter(
+          log => {
+            return (
+              String(
+                log?.date ||
+                ""
+              ).trim() ===
+                currentDate &&
+
+              String(
+                log?.shift ||
+                ""
+              )
+                .trim()
+                .toUpperCase() ===
+                currentShift &&
+
+              normalizeMemberLogRole(
+                log?.role
+              ) ===
+                "파트장"
+            );
+          }
+        )
+        .sort(
+          (
+            firstLog,
+            secondLog
+          ) => {
+            const firstTime =
+              new Date(
+                firstLog?.updatedAt ||
+                firstLog?.createdAt ||
+                0
+              ).getTime();
+
+
+            const secondTime =
+              new Date(
+                secondLog?.updatedAt ||
+                secondLog?.createdAt ||
+                0
+              ).getTime();
+
+
+            return (
+              secondTime -
+              firstTime
+            );
+          }
+        );
+
+
+    return (
+      matchedLogs[0] ||
+      null
+    );
+  }
+
+
+  /* =====================================================
+    작성창과 저장 업무일지 ID 연결
+  ====================================================== */
+
+  function connectLeaderLogToEditor(
+    log
+  ) {
+    if (
+      !log ||
+      !elements?.logEditorForm
+    ) {
+      return;
+    }
+
+
+    elements.logEditorForm
+      .dataset
+      .editingId =
+      String(
+        log.id ||
+        ""
+      );
+  }
+
+
+  /* =====================================================
+    결재완료 상태 입력창 잠금
+
+    잠금 전 disabled 상태를 저장하고,
+    결재취소 시 원래 상태로 되돌린다.
+  ====================================================== */
+
+  function setLeaderEditorApprovalLock(
+    locked
+  ) {
+    const form =
+      elements?.logEditorForm ||
+      document.getElementById(
+        "logEditorForm"
+      );
+
+
+    if (
+      !form
+    ) {
+      return;
+    }
+
+
+    const controls = [
+      ...form.querySelectorAll(
+        "input, select, textarea, button"
+      )
+    ];
+
+
+    controls.forEach(
+      control => {
+        if (
+          locked
+        ) {
+          if (
+            control.dataset
+              .leaderApprovalPreviousDisabled ===
+              undefined
+          ) {
+            control.dataset
+              .leaderApprovalPreviousDisabled =
+              control.disabled
+                ? "1"
+                : "0";
+          }
+
+
+          control.disabled =
+            true;
+
+
+          return;
+        }
+
+
+        if (
+          control.dataset
+            .leaderApprovalPreviousDisabled ===
+            undefined
+        ) {
+          return;
+        }
+
+
+        control.disabled =
+          control.dataset
+            .leaderApprovalPreviousDisabled ===
+          "1";
+
+
+        delete control.dataset
+          .leaderApprovalPreviousDisabled;
+      }
+    );
+
+
+    form.classList.toggle(
+      "is-leader-approved",
+      locked
+    );
+  }
+
+
+  /* =====================================================
+    작성창 하단 버튼 표시 최종본
+  ====================================================== */
+
+  updateLogEditorActionButtons =
+    function updateLogEditorActionButtons() {
+      const saveDraftButton =
+        elements?.saveDraftButton ||
+        document.getElementById(
+          "saveDraftButton"
+        );
+
+
+      const completeButton =
+        elements?.requestApprovalButton ||
+        document.getElementById(
+          "requestApprovalButton"
+        );
+
+
+      const cancelLeaderApprovalButton =
+        document.getElementById(
+          "cancelLeaderApprovalButton"
+        );
+
+
+      /*
+        일반 보직은 기존 버튼 흐름을 그대로 사용한다.
+      */
+      if (
+        !isLeaderEditorRole()
+      ) {
+        updateLogEditorActionButtonsBeforeLeaderFlow
+          ?.();
+
+
+        if (
+          cancelLeaderApprovalButton
+        ) {
+          cancelLeaderApprovalButton.hidden =
+            true;
+
+
+          cancelLeaderApprovalButton.disabled =
+            true;
+        }
+
+
+        setLeaderEditorApprovalLock(
+          false
+        );
+
+
+        return;
+      }
+
+
+      const currentLog =
+        getCurrentLeaderEditorLog();
+
+
+      const currentStatus =
+        normalizeLeaderEditorStatus(
+          currentLog?.status
+        );
+
+
+      const isApproved =
+        currentStatus ===
+        "결재완료";
+
+
+      /*
+        기존 저장완료 파트장 일지도
+        새 결재 흐름으로 전환할 수 있게 한다.
+      */
+      const canComplete =
+        Boolean(
+          currentLog
+        ) &&
+        [
+          "임시저장",
+          "저장완료"
+        ].includes(
+          currentStatus
+        );
+
+
+      /*
+        임시저장
+
+        신규 작성:
+        표시
+
+        결재완료:
+        숨김
+      */
+      if (
+        saveDraftButton
+      ) {
+        saveDraftButton.hidden =
+          isApproved;
+
+
+        saveDraftButton.disabled =
+          isApproved;
+
+
+        saveDraftButton.textContent =
+          "임시저장";
+
+
+        saveDraftButton.title =
+          isApproved
+            ? ""
+            : "파트장 업무일지를 임시저장합니다.";
+      }
+
+
+      /*
+        결재완료
+
+        임시저장 전:
+        숨김
+
+        임시저장 후:
+        표시
+      */
+      if (
+        completeButton
+      ) {
+        completeButton.hidden =
+          !canComplete ||
+          isApproved;
+
+
+        completeButton.disabled =
+          !canComplete ||
+          isApproved;
+
+
+        completeButton.textContent =
+          "결재완료";
+
+
+        completeButton.title =
+          canComplete
+            ? "파트장 업무일지를 결재완료 처리합니다."
+            : "먼저 임시저장해 주세요.";
+      }
+
+
+      /*
+        결재취소
+
+        결재완료 상태에서만 표시
+      */
+      if (
+        cancelLeaderApprovalButton
+      ) {
+        cancelLeaderApprovalButton.hidden =
+          !isApproved;
+
+
+        cancelLeaderApprovalButton.disabled =
+          !isApproved;
+
+
+        cancelLeaderApprovalButton.textContent =
+          "결재취소";
+      }
+
+
+      setLeaderEditorApprovalLock(
+        isApproved
+      );
+    };
+
+
+  /* =====================================================
+    서버 저장 결과 상태 반영
+  ====================================================== */
+
+  function applyLeaderApprovalResult(
+    savedLog
+  ) {
+    if (
+      !savedLog
+    ) {
+      return;
+    }
+
+
+    if (
+      typeof replaceSharedShiftLogInState ===
+        "function"
+    ) {
+      replaceSharedShiftLogInState(
+        savedLog
+      );
+    }
+
+
+    connectLeaderLogToEditor(
+      savedLog
+    );
+
+
+    if (
+      typeof renderLogTable ===
+        "function"
+    ) {
+      renderLogTable();
+    }
+
+
+    if (
+      typeof updateShiftMemberCardStates ===
+        "function"
+    ) {
+      updateShiftMemberCardStates();
+    }
+
+
+    updateLogEditorActionButtons();
+  }
+
+
+  /* =====================================================
+    결재 처리 오류
+  ====================================================== */
+
+  function handleLeaderApprovalError(
+    error,
+    fallbackMessage
+  ) {
+    console.error(
+      fallbackMessage,
+      error
+    );
+
+
+    if (
+      error?.isConflict ===
+        true &&
+      typeof handleShiftLogConflict ===
+        "function"
+    ) {
+      handleShiftLogConflict(
+        error
+      );
+
+
+      return;
+    }
+
+
+    showToast(
+      error?.message ||
+      fallbackMessage
+    );
+  }
+
+
+  /* =====================================================
+    파트장 임시저장
+  ====================================================== */
+
+  async function saveLeaderDraftFromEditor() {
+    try {
+      const savedLog =
+        await saveCurrentLog(
+          "작성중",
+          {
+            closeAfterSave:
+              false
+          }
+        );
+
+
+      const currentLog =
+        savedLog ||
+        getCurrentLeaderEditorLog();
+
+
+      if (
+        currentLog
+      ) {
+        connectLeaderLogToEditor(
+          currentLog
+        );
+      }
+
+
+      updateLogEditorActionButtons();
+
+    } catch (
+      error
+    ) {
+      handleLeaderApprovalError(
+        error,
+        "파트장 업무일지를 임시저장하지 못했습니다."
+      );
+    }
+  }
+
+
+  /* =====================================================
+    파트장 결재완료
+  ====================================================== */
+
+  async function completeLeaderLogFromEditor() {
+    const currentLog =
+      getCurrentLeaderEditorLog();
+
+
+    if (
+      !currentLog
+    ) {
+      showToast(
+        "먼저 임시저장해 주세요."
+      );
+
+
+      return;
+    }
+
+
+    const currentStatus =
+      normalizeLeaderEditorStatus(
+        currentLog.status
+      );
+
+
+    if (
+      ![
+        "임시저장",
+        "저장완료"
+      ].includes(
+        currentStatus
+      )
+    ) {
+      showToast(
+        currentStatus ===
+          "결재완료"
+          ? "이미 결재가 완료되었습니다."
+          : "현재 상태에서는 결재완료할 수 없습니다."
+      );
+
+
+      updateLogEditorActionButtons();
+
+
+      return;
+    }
+
+
+    const shouldComplete =
+      window.confirm(
+        [
+          "파트장 업무일지를 결재완료 처리하시겠습니까?",
+          "",
+          `작성일: ${currentLog.date || "-"}`,
+          `근무: ${getShiftDisplayName(
+            currentLog.shift
+          )}`,
+          `작성자: ${currentLog.author || "-"}`
+        ].join(
+          "\n"
+        )
+      );
+
+
+    if (
+      !shouldComplete
+    ) {
+      return;
+    }
+
+
+    try {
+      /*
+        결재완료 직전의 수정 내용까지
+        서버에 먼저 임시저장한다.
+      */
+      const latestDraft =
+        await saveCurrentLog(
+          "작성중",
+          {
+            closeAfterSave:
+              false
+          }
+        );
+
+
+      const approvalTarget =
+        latestDraft ||
+        getCurrentLeaderEditorLog();
+
+
+      if (
+        !approvalTarget
+      ) {
+        showToast(
+          "결재완료할 업무일지를 찾을 수 없습니다."
+        );
+
+
+        return;
+      }
+
+
+      const approvedLog =
+        await changeShiftLogApprovalOnServer(
+          approvalTarget,
+          "approve"
+        );
+
+
+      if (
+        !approvedLog
+      ) {
+        return;
+      }
+
+
+      applyLeaderApprovalResult(
+        approvedLog
+      );
+
+
+      showToast(
+        "파트장 업무일지 결재가 완료되었습니다."
+      );
+
+    } catch (
+      error
+    ) {
+      handleLeaderApprovalError(
+        error,
+        "파트장 업무일지를 결재완료 처리하지 못했습니다."
+      );
+    }
+  }
+
+
+  /* =====================================================
+    파트장 결재취소
+  ====================================================== */
+
+  async function cancelLeaderLogApprovalFromEditor() {
+    const currentLog =
+      getCurrentLeaderEditorLog();
+
+
+    if (
+      !currentLog ||
+      normalizeLeaderEditorStatus(
+        currentLog.status
+      ) !==
+        "결재완료"
+    ) {
+      showToast(
+        "결재취소할 파트장 업무일지를 찾을 수 없습니다."
+      );
+
+
+      return;
+    }
+
+
+    const shouldCancel =
+      window.confirm(
+        [
+          "파트장 업무일지 결재를 취소하시겠습니까?",
+          "",
+          "결재취소 후 임시저장 상태로 변경됩니다."
+        ].join(
+          "\n"
+        )
+      );
+
+
+    if (
+      !shouldCancel
+    ) {
+      return;
+    }
+
+
+    try {
+      const cancelledLog =
+        await changeShiftLogApprovalOnServer(
+          currentLog,
+          "cancel"
+        );
+
+
+      if (
+        !cancelledLog
+      ) {
+        return;
+      }
+
+
+      applyLeaderApprovalResult(
+        cancelledLog
+      );
+
+
+      showToast(
+        "파트장 업무일지 결재를 취소했습니다."
+      );
+
+    } catch (
+      error
+    ) {
+      handleLeaderApprovalError(
+        error,
+        "파트장 업무일지 결재를 취소하지 못했습니다."
+      );
+    }
+  }
+
+
+  /* =====================================================
+    기존 버튼 클릭 이벤트 제거
+
+    기존 bindEvents()에서 연결한 이벤트와
+    새 파트장 이벤트가 동시에 실행되지 않도록
+    버튼을 복제하여 이전 이벤트를 제거한다.
+  ====================================================== */
+
+  function replaceButtonWithoutOldEvents(
+    buttonId
+  ) {
+    const oldButton =
+      document.getElementById(
+        buttonId
+      );
+
+
+    if (
+      !oldButton
+    ) {
+      return null;
+    }
+
+
+    const newButton =
+      oldButton.cloneNode(
+        true
+      );
+
+
+    oldButton.replaceWith(
+      newButton
+    );
+
+
+    return newButton;
+  }
+
+
+  /* =====================================================
+    파트장 작성창 버튼 이벤트 연결
+  ====================================================== */
+
+  function initializeLeaderEditorApprovalButtons() {
+    const saveDraftButton =
+      replaceButtonWithoutOldEvents(
+        "saveDraftButton"
+      );
+
+
+    const requestApprovalButton =
+      replaceButtonWithoutOldEvents(
+        "requestApprovalButton"
+      );
+
+
+    const cancelLeaderApprovalButton =
+      document.getElementById(
+        "cancelLeaderApprovalButton"
+      );
+
+
+    /*
+      기존 elements 참조를 새 버튼으로 갱신한다.
+    */
+    if (
+      typeof elements ===
+        "object" &&
+      elements
+    ) {
+      elements.saveDraftButton =
+        saveDraftButton;
+
+
+      elements.requestApprovalButton =
+        requestApprovalButton;
+    }
+
+
+    saveDraftButton
+      ?.addEventListener(
+        "click",
+        async () => {
+          if (
+            isLeaderEditorRole()
+          ) {
+            await saveLeaderDraftFromEditor();
+
+
+            return;
+          }
+
+
+          /*
+            일반 보직은 기존 임시저장 기능 사용
+          */
+          if (
+            typeof saveDraft ===
+              "function"
+          ) {
+            await saveDraft();
+
+
+            return;
+          }
+
+
+          await saveCurrentLog(
+            "작성중",
+            {
+              closeAfterSave:
+                false
+            }
+          );
+        }
+      );
+
+
+    requestApprovalButton
+      ?.addEventListener(
+        "click",
+        async () => {
+          if (
+            isLeaderEditorRole()
+          ) {
+            await completeLeaderLogFromEditor();
+
+
+            return;
+          }
+
+
+          /*
+            일반 보직은 기존 결재요청 기능 사용
+          */
+          if (
+            typeof requestApproval ===
+              "function"
+          ) {
+            await requestApproval();
+
+
+            return;
+          }
+
+
+          await saveCurrentLog(
+            "결재요청"
+          );
+        }
+      );
+
+
+    cancelLeaderApprovalButton
+      ?.addEventListener(
+        "click",
+        cancelLeaderLogApprovalFromEditor
+      );
+
+
+    elements?.logRole
+      ?.addEventListener(
+        "change",
+        updateLogEditorActionButtons
+      );
+
+
+    updateLogEditorActionButtons();
+  }
+
+
+  /* =====================================================
+    작성창이 열릴 때 버튼 상태 다시 계산
+  ====================================================== */
+
+  if (
+    openLogEditorBeforeLeaderFlow
+  ) {
+    openLogEditor =
+      function openLogEditor(
+        ...args
+      ) {
+        const result =
+          openLogEditorBeforeLeaderFlow
+            .apply(
+              this,
+              args
+            );
+
+
+        window.requestAnimationFrame(
+          () => {
+            updateLogEditorActionButtons();
+          }
+        );
+
+
+        return result;
+      };
+  }
+
+
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeLeaderEditorApprovalButtons,
+    {
+      once:
+        true
+    }
+  );
+})();
