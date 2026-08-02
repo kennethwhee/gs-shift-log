@@ -33968,7 +33968,22 @@ function collectMobileLogPreviewEntries(
 
 
 /* =========================================================
-  운전현황 모바일 미리보기 항목
+  모바일 운전현황 미리보기 항목 최종본
+
+  표시:
+  터빈 : 정상 운전 중
+  1호기 주보일러 : 정상 운전 중
+  3호기 보조보일러 : 만수 보존 중
+
+  숨김:
+  - normal
+  - starting
+  - stopped
+  - abnormal
+  - emergency
+
+  내부 상태값은 색상·상태 판정에만 사용하고
+  모바일 미리보기 글자로는 표시하지 않는다.
 ========================================================= */
 
 function collectMobileOperationPreviewItems(
@@ -33988,57 +34003,168 @@ function collectMobileOperationPreviewItems(
         );
 
 
+  /* =====================================================
+    신규 설비별 운전현황 배열
+  ====================================================== */
+
   if (
     sourceItems.length
   ) {
     return sourceItems
       .map(
-        item => {
+        (
+          item,
+          itemIndex
+        ) => {
+          const normalizedItem =
+            typeof normalizeOperationStatusItem ===
+              "function"
+              ? normalizeOperationStatusItem(
+                  item,
+                  itemIndex
+                )
+              : (
+                  item &&
+                  typeof item ===
+                    "object"
+                    ? item
+                    : {}
+                );
+
+
           const name =
             String(
-              item?.name ||
-              item?.equipmentName ||
-              item?.equipment ||
+              normalizedItem?.name ||
+              normalizedItem?.equipmentName ||
+              normalizedItem?.equipment ||
               ""
-            ).trim();
+            )
+              .replace(
+                /\s+/g,
+                " "
+              )
+              .trim();
 
 
-          const state =
+          let content =
             String(
-              item?.stateLabel ||
-              item?.statusLabel ||
-              item?.typeLabel ||
-              item?.state ||
-              item?.type ||
+              normalizedItem?.content ||
+              normalizedItem?.text ||
               ""
-            ).trim();
+            )
+              .replace(
+                /\r\n/g,
+                "\n"
+              )
+              .replace(
+                /\r/g,
+                "\n"
+              )
+              .trim();
 
 
-          const content =
-            String(
-              item?.content ||
-              item?.text ||
-              ""
-            ).trim();
+          /*
+            과거 저장자료의 내용 앞에
+            내부 상태값이 들어간 경우도 제거한다.
 
-
-          const combinedText = [
-            name,
-            state,
+            예:
+            normal · 정상 운전 중
+            abnormal : 만수 보존 중
+          */
+          content =
             content
-          ]
-            .filter(Boolean)
-            .join(
-              " · "
-            );
+              .replace(
+                /^\s*(?:normal|starting|stopped|abnormal|emergency)\s*(?:[·|:：\-]\s*)?/i,
+                ""
+              )
+              .trim();
 
 
-          return combinedText;
+          if (
+            !name &&
+            !content
+          ) {
+            return "";
+          }
+
+
+          if (
+            !name
+          ) {
+            return content;
+          }
+
+
+          if (
+            !content
+          ) {
+            return name;
+          }
+
+
+          /*
+            내용에 설비명이 이미 포함된 경우
+            같은 설비명을 두 번 붙이지 않는다.
+          */
+          const comparableName =
+            name
+              .normalize(
+                "NFKC"
+              )
+              .toLowerCase()
+              .replace(
+                /\s+/g,
+                ""
+              )
+              .replace(
+                /[:：·|]/g,
+                "");
+
+
+          const comparableContent =
+            content
+              .normalize(
+                "NFKC"
+              )
+              .toLowerCase()
+              .replace(
+                /\s+/g,
+                ""
+              )
+              .replace(
+                /[:：·|]/g,
+                "");
+
+
+          if (
+            comparableName &&
+            comparableContent.startsWith(
+              comparableName
+            )
+          ) {
+            return content;
+          }
+
+
+          return `${name} : ${content}`;
         }
       )
-      .filter(Boolean);
+      .filter(
+        item => {
+          return Boolean(
+            String(
+              item ||
+              ""
+            ).trim()
+          );
+        }
+      );
   }
 
+
+  /* =====================================================
+    기존 문자열형 운전현황 호환
+  ====================================================== */
 
   const operationText =
     String(
@@ -34074,14 +34200,38 @@ function collectMobileOperationPreviewItems(
           line ||
           ""
         )
+          /*
+            기존 앞 번호 제거
+          */
           .replace(
             /^\s*\d+\s*[.)\-:]\s*/,
             ""
           )
+
+          /*
+            문자열 중간에 들어간 내부 상태값 제거
+
+            터빈 · normal · 정상 운전 중
+            → 터빈 : 정상 운전 중
+          */
+          .replace(
+            /\s*[·|]\s*(?:normal|starting|stopped|abnormal|emergency)\s*[·|]\s*/gi,
+            " : "
+          )
+          .replace(
+            /\s+/g,
+            " "
+          )
           .trim();
       }
     )
-    .filter(Boolean);
+    .filter(
+      line => {
+        return Boolean(
+          line
+        );
+      }
+    );
 }
 
 /* =========================================================
