@@ -65238,3 +65238,167 @@ function openFacilityNavigator(
   }
 
 })();
+
+/* =========================================================
+  보조보일러 공사 중 → 정지 상태 자동 표시
+
+  적용 대상:
+  - 3호기 보조보일러
+  - 4호기 보조보일러
+  - Auxiliary Boiler 표기 자료
+
+  적용 문구:
+  - 공사 중
+  - 개조 공사 중
+  - 보수 공사 중
+  - 공사 진행 중
+
+  기존 자료가 정상운전 상태로 저장돼 있어도
+  내용이 공사 중이면 화면에서는 정지로 보정한다.
+========================================================= */
+
+(function applyAuxiliaryBoilerConstructionStatusRule() {
+  /*
+    기존 함수를 먼저 보관한다.
+  */
+  const normalizeOperationStatusItemBeforeConstructionRule =
+    normalizeOperationStatusItem;
+
+
+  /* =====================================================
+    비교용 문자열 정리
+  ====================================================== */
+
+  function normalizeConstructionStatusText(
+    value
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .normalize(
+        "NFKC"
+      )
+      .trim()
+      .toLowerCase()
+      .replace(
+        /\s+/g,
+        ""
+      )
+      .replace(
+        /[#_\-]/g,
+        ""
+      );
+  }
+
+
+  /* =====================================================
+    보조보일러 여부 확인
+  ====================================================== */
+
+  function isAuxiliaryBoilerStatusItem(
+    item
+  ) {
+    const equipmentName =
+      normalizeConstructionStatusText(
+        item?.name ||
+        item?.equipmentName ||
+        item?.title ||
+        ""
+      );
+
+
+    return (
+      equipmentName.includes(
+        "보조보일러"
+      ) ||
+      equipmentName.includes(
+        "auxboiler"
+      ) ||
+      equipmentName.includes(
+        "auxiliaryboiler"
+      )
+    );
+  }
+
+
+  /* =====================================================
+    공사 중 문구 확인
+  ====================================================== */
+
+  function isConstructionInProgressStatus(
+    item
+  ) {
+    const statusText =
+      normalizeConstructionStatusText(
+        [
+          item?.name,
+          item?.content,
+          item?.description
+        ]
+          .filter(
+            Boolean
+          )
+          .join(
+            " "
+          )
+      );
+
+
+    return (
+      statusText.includes(
+        "공사중"
+      ) ||
+      statusText.includes(
+        "공사진행중"
+      ) ||
+      statusText.includes(
+        "개조공사중"
+      ) ||
+      statusText.includes(
+        "보수공사중"
+      )
+    );
+  }
+
+
+  /* =====================================================
+    기존 운전현황 정규화 함수 최종 보정
+  ====================================================== */
+
+  normalizeOperationStatusItem =
+    function normalizeOperationStatusItem(
+      item,
+      fallbackIndex = 0
+    ) {
+      const normalizedItem =
+        normalizeOperationStatusItemBeforeConstructionRule(
+          item,
+          fallbackIndex
+        );
+
+
+      /*
+        보조보일러이면서 공사 중인 경우
+        저장된 기존 상태가 normal이어도 stopped로 바꾼다.
+      */
+      if (
+        isAuxiliaryBoilerStatusItem(
+          normalizedItem
+        ) &&
+        isConstructionInProgressStatus(
+          normalizedItem
+        )
+      ) {
+        return {
+          ...normalizedItem,
+
+          type:
+            "stopped"
+        };
+      }
+
+
+      return normalizedItem;
+    };
+})();
