@@ -53565,6 +53565,7 @@ const ROLE_NOTICE_API_URL =
 
 
 const ROLE_NOTICE_ROLES = [
+  "파트장",
   "TGO",
   "BCO1",
   "BCO2",

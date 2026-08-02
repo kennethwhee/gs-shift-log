@@ -508,55 +508,74 @@
   id="shiftMemberGrid"
 >
 
-  <!-- =====================================================
-    파트장
+<!-- =====================================================
+  파트장
 
-    파트장에는 보직별 공지 버튼을 표시하지 않는다.
-  ====================================================== -->
-  <div
-    class="
-      shift-member-card-wrap
-      shift-member-card-wrap--leader
-    "
-    data-role-card-wrap="파트장"
+  파트장도 다른 보직과 동일하게
+  카드 위쪽에 공지 버튼을 표시한다.
+====================================================== -->
+
+<div
+  class="
+    shift-member-card-wrap
+    shift-member-card-wrap--leader
+  "
+  data-role-card-wrap="파트장"
+>
+
+  <!-- 파트장 공지 -->
+  <button
+    type="button"
+    class="role-notice-button"
+    data-role-notice-button
+    data-role="파트장"
+    aria-label="파트장 공지사항 열기"
   >
 
-    <div
-      class="role-notice-placeholder"
-      aria-hidden="true"
+    <span class="role-notice-button__label">
+      공지
+    </span>
+
+    <span
+      class="role-notice-button__count"
+      data-role-notice-count
+      hidden
     >
+      0
+    </span>
+
+  </button>
+
+
+  <!-- 파트장 업무일지 카드 -->
+  <article
+    class="shift-member-card"
+    data-role="파트장"
+  >
+
+    <div class="shift-member-card__role">
+      파트장
     </div>
 
 
-    <article
-      class="shift-member-card"
-      data-role="파트장"
-    >
+    <div class="shift-member-card__body">
 
-      <div class="shift-member-card__role">
-        파트장
-      </div>
+      <strong class="shift-member-card__name">
+      </strong>
 
+      <span class="shift-member-card__team">
+      </span>
 
-      <div class="shift-member-card__body">
-
-        <strong class="shift-member-card__name">
-        </strong>
-
-        <span class="shift-member-card__team">
-        </span>
-
-      </div>
+    </div>
 
 
-      <div class="shift-member-card__status is-empty">
-        미작성
-      </div>
+    <div class="shift-member-card__status is-empty">
+      미작성
+    </div>
 
-    </article>
+  </article>
 
-  </div>
-
+</div>
 
   <!-- =====================================================
     TGO

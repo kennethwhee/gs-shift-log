@@ -14,6 +14,7 @@
     · 해당 보직 사용자
 
   대상 보직
+  - 파트장
   - TGO
   - BCO1
   - BCO2
@@ -33,6 +34,7 @@ const FORCED_SUPER_ADMIN_EMPLOYEE_NO =
 
 const VALID_NOTICE_ROLES =
   new Set([
+    "파트장",
     "TGO",
     "BCO1",
     "BCO2",
