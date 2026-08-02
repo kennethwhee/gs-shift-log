@@ -19,9 +19,9 @@
   const MODAL_ID = "nightPatrolModal";
   const BUTTON_ID = "nightPatrolButton";
   const FRAME_ID = "nightPatrolFrame";
-  const PAGE_URL = "night-patrol/night-patrol.html";
+  const PAGE_URL =
+    "night-patrol/night-patrol.html?v=20260803-2";
 
-  
   function getModal() {
     return document.getElementById(MODAL_ID);
   }
@@ -45,7 +45,7 @@
       return;
     }
 
-    if (!frame.getAttribute("src")) {
+    if (frame.getAttribute("src") !== PAGE_URL) {
       frame.setAttribute("src", PAGE_URL);
     }
 

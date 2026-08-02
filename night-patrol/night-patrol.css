@@ -16,7 +16,6 @@ body {
   background: #eef4f9;
 }
 
-
 button,
 input,
 select,
@@ -448,37 +447,386 @@ h2 {
   }
 }
 
-@media print {
-  :root,
-  html,
-  body {
-    background: #ffffff;
-  }
 
-  .patrol-app {
-    width: 100%;
+
+/* =========================================================
+  인쇄 전 미리보기
+========================================================= */
+
+body.patrol-print-preview-open {
+  overflow: hidden;
+}
+
+.patrol-print-preview-modal {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(13, 28, 44, 0.72);
+}
+
+.patrol-print-preview-modal.is-open {
+  display: flex;
+}
+
+.patrol-print-preview-panel {
+  display: flex;
+  width: min(1120px, 100%);
+  height: min(96vh, 1040px);
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #f3f6f9;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+}
+
+.patrol-print-preview-header,
+.patrol-print-preview-footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
+  background: #ffffff;
+}
+
+.patrol-print-preview-header {
+  border-bottom: 1px solid #d2dde7;
+}
+
+.patrol-print-preview-header span {
+  color: #217eb8;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+}
+
+.patrol-print-preview-header h2 {
+  margin: 3px 0 0;
+  color: #132a40;
+  font-size: 16px;
+}
+
+.patrol-print-preview-close {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: #eef3f7;
+  color: #43596d;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.patrol-print-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 22px;
+  background: #dfe5eb;
+}
+
+.patrol-print-sheet-host {
+  display: flex;
+  min-width: max-content;
+  justify-content: center;
+}
+
+.patrol-print-preview-footer {
+  border-top: 1px solid #d2dde7;
+}
+
+.patrol-print-preview-footer > span {
+  color: #66798b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.patrol-print-preview-footer > div {
+  display: flex;
+  gap: 8px;
+}
+
+
+/* =========================================================
+  원본 엑셀 양식형 A4 출력지
+========================================================= */
+
+.patrol-print-sheet {
+  box-sizing: border-box;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 7.5mm;
+  background: #ffffff;
+  color: #000000;
+  font-family: "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+}
+
+.patrol-print-document {
+  width: 100%;
+  height: 282mm;
+  border: 0.6mm solid #000000;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.patrol-print-document th,
+.patrol-print-document td {
+  box-sizing: border-box;
+  border: 0.32mm solid #000000;
+  padding: 0;
+  background: #ffffff;
+  color: #000000;
+}
+
+.patrol-print-col-time {
+  width: 8.7%;
+}
+
+.patrol-print-col-member {
+  width: 10.2%;
+}
+
+.patrol-print-col-point {
+  width: 45.9%;
+}
+
+.patrol-print-col-status {
+  width: 17.5%;
+}
+
+.patrol-print-col-note {
+  width: 17.7%;
+}
+
+.patrol-print-title-row {
+  height: 8mm;
+}
+
+.patrol-print-title {
+  height: 24mm;
+  font-size: 7.2mm;
+  font-weight: 900;
+  letter-spacing: -0.06em;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.patrol-print-approval-title {
+  height: 8mm;
+  font-size: 3.5mm;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.patrol-print-approval-row,
+.patrol-print-approval-box {
+  height: 16mm;
+}
+
+.patrol-print-meta-row,
+.patrol-print-meta-row th {
+  height: 8mm;
+}
+
+.patrol-print-department,
+.patrol-print-date {
+  padding: 0 2mm !important;
+  font-size: 3.2mm;
+  font-weight: 900;
+  vertical-align: middle;
+}
+
+.patrol-print-department {
+  text-align: center;
+}
+
+.patrol-print-date {
+  text-align: right;
+}
+
+.patrol-print-header-row,
+.patrol-print-header-row th {
+  height: 11mm;
+}
+
+.patrol-print-header-row th {
+  font-size: 3.4mm;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.patrol-print-inspection-row,
+.patrol-print-inspection-row td {
+  height: 8.6mm;
+}
+
+.patrol-print-time,
+.patrol-print-members,
+.patrol-print-status {
+  font-size: 3.2mm;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.patrol-print-members {
+  line-height: 1.65;
+}
+
+.patrol-print-point,
+.patrol-print-note {
+  padding: 0 1.2mm !important;
+  font-size: 2.85mm;
+  line-height: 1.18;
+  vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.patrol-print-status {
+  padding: 0 1mm !important;
+}
+
+.patrol-print-remark-row,
+.patrol-print-remark-row td {
+  height: 47mm;
+}
+
+.patrol-print-remark-row td {
+  padding: 1mm 1.2mm !important;
+  vertical-align: top;
+}
+
+.patrol-print-remark-row strong {
+  display: block;
+  margin-bottom: 1.5mm;
+  font-size: 3.4mm;
+  font-weight: 900;
+}
+
+.patrol-print-remark-row div {
+  font-size: 3mm;
+  font-weight: 700;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .patrol-print-preview-modal {
     padding: 0;
   }
 
-  .patrol-toolbar-card,
-  .patrol-table-card,
-  .patrol-note-card {
-    border-color: #777777;
-    box-shadow: none;
+  .patrol-print-preview-panel {
+    width: 100vw;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
   }
 
-  .patrol-save-state,
-  .patrol-list-selector small,
-  .patrol-table-card__header button,
-  .patrol-footer {
+  .patrol-print-preview-body {
+    padding: 12px;
+  }
+
+  .patrol-print-sheet {
+    transform-origin: top left;
+  }
+
+  .patrol-print-preview-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .patrol-print-preview-footer > div button {
+    flex: 1 1 0;
+  }
+}
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    width: 210mm;
+    height: 297mm;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  body > .patrol-app {
     display: none !important;
   }
 
-  .patrol-table-wrap {
-    overflow: visible;
+  .patrol-print-preview-modal {
+    position: static !important;
+    display: block !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    padding: 0 !important;
+    background: #ffffff !important;
   }
 
-  .patrol-table {
-    min-width: 0;
+  .patrol-print-preview-panel {
+    display: block !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .patrol-print-preview-header,
+  .patrol-print-preview-footer {
+    display: none !important;
+  }
+
+  .patrol-print-preview-body {
+    display: block !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .patrol-print-sheet-host {
+    display: block !important;
+    min-width: 0 !important;
+  }
+
+  .patrol-print-sheet {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    padding: 7.5mm !important;
+    box-shadow: none !important;
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+
+  .patrol-print-document {
+    height: 282mm !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
+

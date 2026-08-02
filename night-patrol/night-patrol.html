@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>야간 순찰 점검일지</title>
-  <link rel="stylesheet" href="night-patrol.css" />
-  <script src="night-patrol.js" defer></script>
+  <link rel="stylesheet" href="./night-patrol.css?v=20260803-2" />
+  <script src="./night-patrol.js?v=20260803-2" defer></script>
 </head>
 <body>
   <main class="patrol-app">
@@ -19,7 +19,6 @@
           </p>
         </div>
 
-        
         <div class="patrol-save-state" id="patrolSaveState" data-state="idle">
           저장 전
         </div>
@@ -137,7 +136,7 @@
 
       <div class="patrol-footer__right">
         <button type="button" class="patrol-secondary-button" id="printPatrolButton">
-          인쇄
+          인쇄 미리보기
         </button>
         <button type="button" class="patrol-secondary-button" id="closePatrolPageButton">
           닫기
@@ -148,5 +147,69 @@
       </div>
     </footer>
   </main>
+
+  <!-- =====================================================
+    인쇄 전 미리보기
+
+    실제 인쇄 시에는 이 미리보기의 A4 양식만 출력한다.
+  ====================================================== -->
+  <div
+    class="patrol-print-preview-modal"
+    id="patrolPrintPreviewModal"
+    aria-hidden="true"
+  >
+    <section
+      class="patrol-print-preview-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="patrolPrintPreviewTitle"
+    >
+      <header class="patrol-print-preview-header">
+        <div>
+          <span>PRINT PREVIEW</span>
+          <h2 id="patrolPrintPreviewTitle">야간 순찰 점검일지 인쇄 미리보기</h2>
+        </div>
+
+        <button
+          type="button"
+          class="patrol-print-preview-close"
+          id="closePatrolPrintPreviewButton"
+          aria-label="인쇄 미리보기 닫기"
+        >
+          ×
+        </button>
+      </header>
+
+      <div class="patrol-print-preview-body">
+        <div
+          class="patrol-print-sheet-host"
+          id="patrolPrintSheetHost"
+        ></div>
+      </div>
+
+      <footer class="patrol-print-preview-footer">
+        <span>용지: A4 세로 · 배율: 100%</span>
+
+        <div>
+          <button
+            type="button"
+            class="patrol-secondary-button"
+            id="closePatrolPrintPreviewFooterButton"
+          >
+            닫기
+          </button>
+
+          <button
+            type="button"
+            class="patrol-primary-button"
+            id="confirmPatrolPrintButton"
+          >
+            인쇄
+          </button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
 </body>
 </html>

@@ -11,7 +11,6 @@
   화면 로직과 저장 로직을 분리해 두었다.
 ========================================================= */
 
-
 const NIGHT_PATROL_POINTS = [
   "CVP 점검",
   "Deaerator 점검(6F)",
@@ -93,10 +92,10 @@ const NIGHT_PATROL_POINTS = [
 ];
 
 const NIGHT_PATROL_TIMES = [
-  "01:00",
-  "02:00",
-  "04:00",
-  "06:00"
+  "0:00",
+  "2:00",
+  "4:00",
+  "6:00"
 ];
 
 const NIGHT_PATROL_STORAGE_PREFIX =
@@ -1890,6 +1889,433 @@ function handlePatrolListChange(
 
 
 /* =========================================================
+  인쇄 날짜 표시
+
+  입력:
+  2026-08-03
+
+  출력:
+  2026-08-03
+========================================================= */
+
+function formatPatrolPrintDate(
+  value
+) {
+  const normalizedValue =
+    String(
+      value ||
+      ""
+    ).trim();
+
+
+  return normalizedValue ||
+    "-";
+}
+
+
+/* =========================================================
+  인쇄용 순찰자 표시
+========================================================= */
+
+function createPatrolPrintMembersHtml() {
+  const members =
+    Array.isArray(
+      nightPatrolState.members
+    )
+      ? nightPatrolState.members
+      : [];
+
+
+  return [
+    members[0],
+    members[1],
+    members[2]
+  ]
+    .map(
+      member => {
+        return escapePatrolHtml(
+          String(
+            member ||
+            ""
+          ).trim() ||
+          "-"
+        );
+      }
+    )
+    .join(
+      "<br />"
+    );
+}
+
+
+/* =========================================================
+  원본 엑셀 양식형 A4 인쇄 HTML 생성
+
+  원본 PDF 기준:
+  - A4 세로 1페이지
+  - 제목 + 파트장/팀장 결재란
+  - 설비운영팀 + 점검일자
+  - 시간 / 순찰자 / 순찰 구역 / 상태 / 특이사항
+  - 시간대별 5개 항목, 총 20개
+  - 하단 비고
+========================================================= */
+
+function createPatrolPrintSheetHtml() {
+  const entries =
+    Array.isArray(
+      nightPatrolState.entries
+    )
+      ? nightPatrolState.entries
+      : [];
+
+
+  const membersHtml =
+    createPatrolPrintMembersHtml();
+
+
+  const rowsHtml = [];
+
+
+  for (
+    let groupIndex = 0;
+    groupIndex <
+      NIGHT_PATROL_TIMES.length;
+    groupIndex += 1
+  ) {
+    const startIndex =
+      groupIndex *
+      5;
+
+
+    const groupEntries =
+      entries.slice(
+        startIndex,
+        startIndex + 5
+      );
+
+
+    while (
+      groupEntries.length <
+      5
+    ) {
+      groupEntries.push({
+        time:
+          NIGHT_PATROL_TIMES[
+            groupIndex
+          ],
+
+        pointName:
+          "",
+
+        status:
+          "",
+
+        note:
+          ""
+      });
+    }
+
+
+    groupEntries.forEach(
+      (
+        entry,
+        entryIndex
+      ) => {
+        const timeAndMemberCells =
+          entryIndex === 0
+            ? `
+              <td
+                class="patrol-print-time"
+                rowspan="5"
+              >
+                ${escapePatrolHtml(
+                  NIGHT_PATROL_TIMES[
+                    groupIndex
+                  ]
+                )}
+              </td>
+
+              <td
+                class="patrol-print-members"
+                rowspan="5"
+              >
+                ${membersHtml}
+              </td>
+            `
+            : "";
+
+
+        rowsHtml.push(`
+          <tr class="patrol-print-inspection-row">
+            ${timeAndMemberCells}
+
+            <td class="patrol-print-point">
+              ${escapePatrolHtml(
+                entry?.pointName ||
+                ""
+              )}
+            </td>
+
+            <td class="patrol-print-status">
+              ${escapePatrolHtml(
+                entry?.status ||
+                ""
+              )}
+            </td>
+
+            <td class="patrol-print-note">
+              ${escapePatrolHtml(
+                entry?.note ||
+                ""
+              )}
+            </td>
+          </tr>
+        `);
+      }
+    );
+  }
+
+
+  const generalNote =
+    String(
+      nightPatrolState.generalNote ||
+      ""
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .trim();
+
+
+  return `
+    <article class="patrol-print-sheet">
+
+      <table class="patrol-print-document">
+
+        <colgroup>
+          <col class="patrol-print-col-time" />
+          <col class="patrol-print-col-member" />
+          <col class="patrol-print-col-point" />
+          <col class="patrol-print-col-status" />
+          <col class="patrol-print-col-note" />
+        </colgroup>
+
+        <tbody>
+
+          <tr class="patrol-print-title-row">
+            <th
+              class="patrol-print-title"
+              colspan="3"
+              rowspan="2"
+            >
+              야간 순찰 점검일지
+            </th>
+
+            <th class="patrol-print-approval-title">
+              파 트 장
+            </th>
+
+            <th class="patrol-print-approval-title">
+              팀 장
+            </th>
+          </tr>
+
+          <tr class="patrol-print-approval-row">
+            <td class="patrol-print-approval-box"></td>
+            <td class="patrol-print-approval-box"></td>
+          </tr>
+
+          <tr class="patrol-print-meta-row">
+            <th
+              class="patrol-print-department"
+              colspan="3"
+            >
+              설비운영팀
+            </th>
+
+            <th
+              class="patrol-print-date"
+              colspan="2"
+            >
+              점검일자 : ${escapePatrolHtml(
+                formatPatrolPrintDate(
+                  nightPatrolState.date
+                )
+              )}
+            </th>
+          </tr>
+
+          <tr class="patrol-print-header-row">
+            <th>시 간</th>
+            <th>순찰자</th>
+            <th>순찰 구역</th>
+            <th>상 태</th>
+            <th>특이 사항</th>
+          </tr>
+
+          ${rowsHtml.join("")}
+
+          <tr class="patrol-print-remark-row">
+            <td colspan="5">
+              <strong>비고</strong>
+
+              <div>${escapePatrolHtml(
+                generalNote
+              ).replaceAll(
+                "\n",
+                "<br />"
+              )}</div>
+            </td>
+          </tr>
+
+        </tbody>
+
+      </table>
+
+    </article>
+  `;
+}
+
+
+/* =========================================================
+  인쇄 미리보기 열기
+========================================================= */
+
+function openPatrolPrintPreview() {
+  collectPatrolScreenValues();
+
+
+  const modal =
+    document.getElementById(
+      "patrolPrintPreviewModal"
+    );
+
+
+  const sheetHost =
+    document.getElementById(
+      "patrolPrintSheetHost"
+    );
+
+
+  if (
+    !modal ||
+    !sheetHost
+  ) {
+    window.alert(
+      "인쇄 미리보기 화면을 찾을 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  sheetHost.innerHTML =
+    createPatrolPrintSheetHtml();
+
+
+  modal.classList.add(
+    "is-open"
+  );
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "false"
+  );
+
+
+  document.body.classList.add(
+    "patrol-print-preview-open"
+  );
+
+
+  window.setTimeout(
+    () => {
+      document
+        .getElementById(
+          "confirmPatrolPrintButton"
+        )
+        ?.focus();
+    },
+    0
+  );
+}
+
+
+/* =========================================================
+  인쇄 미리보기 닫기
+========================================================= */
+
+function closePatrolPrintPreview() {
+  const modal =
+    document.getElementById(
+      "patrolPrintPreviewModal"
+    );
+
+
+  if (
+    !modal
+  ) {
+    return;
+  }
+
+
+  modal.classList.remove(
+    "is-open"
+  );
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+
+  document.body.classList.remove(
+    "patrol-print-preview-open"
+  );
+}
+
+
+/* =========================================================
+  실제 인쇄
+
+  미리보기 화면의 A4 양식만 인쇄한다.
+========================================================= */
+
+function printNightPatrolDocument() {
+  collectPatrolScreenValues();
+
+
+  const sheetHost =
+    document.getElementById(
+      "patrolPrintSheetHost"
+    );
+
+
+  if (
+    sheetHost
+  ) {
+    sheetHost.innerHTML =
+      createPatrolPrintSheetHtml();
+  }
+
+
+  window.requestAnimationFrame(
+    () => {
+      window.print();
+    }
+  );
+}
+
+
+/* =========================================================
   닫기
 ========================================================= */
 
@@ -2079,9 +2505,37 @@ function bindNightPatrolEvents() {
     )
     ?.addEventListener(
       "click",
-      () => {
-        window.print();
-      }
+      openPatrolPrintPreview
+    );
+
+
+  document
+    .getElementById(
+      "closePatrolPrintPreviewButton"
+    )
+    ?.addEventListener(
+      "click",
+      closePatrolPrintPreview
+    );
+
+
+  document
+    .getElementById(
+      "closePatrolPrintPreviewFooterButton"
+    )
+    ?.addEventListener(
+      "click",
+      closePatrolPrintPreview
+    );
+
+
+  document
+    .getElementById(
+      "confirmPatrolPrintButton"
+    )
+    ?.addEventListener(
+      "click",
+      printNightPatrolDocument
     );
 
 
@@ -2105,6 +2559,59 @@ function bindNightPatrolEvents() {
         saveNightPatrolRecord();
       }
     );
+
+
+  document
+    .getElementById(
+      "patrolPrintPreviewModal"
+    )
+    ?.addEventListener(
+      "click",
+      event => {
+        if (
+          event.target ===
+          event.currentTarget
+        ) {
+          closePatrolPrintPreview();
+        }
+      }
+    );
+
+
+  document.addEventListener(
+    "keydown",
+    event => {
+      if (
+        event.key !==
+        "Escape"
+      ) {
+        return;
+      }
+
+
+      const previewModal =
+        document.getElementById(
+          "patrolPrintPreviewModal"
+        );
+
+
+      if (
+        !previewModal?.classList.contains(
+          "is-open"
+        )
+      ) {
+        return;
+      }
+
+
+      event.preventDefault();
+      event.stopPropagation();
+
+
+      closePatrolPrintPreview();
+    },
+    true
+  );
 
 
   window.addEventListener(
