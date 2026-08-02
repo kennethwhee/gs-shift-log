@@ -54243,3 +54243,140 @@ small {
       #a23e57 !important;
   }
 }
+
+/* =========================================================
+  PC 보직별 공지 버튼 중요도 색상 최종 강제 적용
+
+  일반공지:
+  공지 버튼만 연한 파랑
+
+  중요공지:
+  공지 버튼만 연한 핑크
+
+  주의:
+  반드시 style.css의 진짜 맨 마지막에 배치
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  /* =====================================================
+    일반공지
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice.has-normal-notice {
+    border-color:
+      #9fc5eb !important;
+
+    background:
+      #eaf4ff !important;
+
+    color:
+      #1f5fae !important;
+
+    box-shadow:
+      none !important;
+  }
+
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice.has-normal-notice:hover,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice.has-normal-notice:active,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice.has-normal-notice:focus-visible {
+    border-color:
+      #79acd9 !important;
+
+    background:
+      #dceeff !important;
+
+    color:
+      #174f91 !important;
+
+    box-shadow:
+      none !important;
+  }
+
+
+  /* 일반공지 글자 */
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-normal-notice
+  .role-notice-button__label,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-normal-notice
+  .role-notice-button__text {
+    color:
+      inherit !important;
+  }
+
+
+  /* =====================================================
+    중요공지
+  ====================================================== */
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice.has-important-notice {
+    border-color:
+      #e3a2b1 !important;
+
+    background:
+      #fbe8ed !important;
+
+    color:
+      #a23e57 !important;
+
+    box-shadow:
+      none !important;
+  }
+
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice.has-important-notice:hover,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice.has-important-notice:active,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-active-notice.has-important-notice:focus-visible {
+    border-color:
+      #d47c91 !important;
+
+    background:
+      #f7dce3 !important;
+
+    color:
+      #8f3049 !important;
+
+    box-shadow:
+      none !important;
+  }
+
+
+  /* 중요공지 글자 */
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-important-notice
+  .role-notice-button__label,
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-important-notice
+  .role-notice-button__text {
+    color:
+      inherit !important;
+  }
+}
