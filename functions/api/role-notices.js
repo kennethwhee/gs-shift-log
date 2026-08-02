@@ -516,22 +516,18 @@ async function getAuthenticatedUser(
 
 
 /* =========================================================
-  보직 공지 서버 관리 권한
+  보직 공지 서버 관리 권한 최종본
 
   허용:
   - 정상 로그인 사용자 전체
   - 모든 보직 공지 등록·수정·삭제 가능
-
-  차단:
-  - 로그인 정보 없음
-  - 허용되지 않은 보직
 ========================================================= */
 
 function canManageRoleNotice(
   user,
   noticeRole
 ) {
-  const role =
+  const normalizedRole =
     normalizeNoticeRole(
       noticeRole
     );
@@ -539,7 +535,7 @@ function canManageRoleNotice(
 
   return Boolean(
     user &&
-    role
+    normalizedRole
   );
 }
 

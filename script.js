@@ -56074,20 +56074,12 @@ function getCurrentUserRoleNoticePosition() {
 
 
 /* =========================================================
-  보직 공지 관리 권한
+  보직 공지 관리 권한 최종본
 
   허용:
-  - 로그인한 모든 사용자
+  - 로그인한 사용자 전체
+  - 파트장·TGO·BCO1·BCO2·TO·BO1·BO2
   - 모든 보직 공지 추가·수정·삭제 가능
-
-  대상:
-  - 파트장
-  - TGO
-  - BCO1
-  - BCO2
-  - TO
-  - BO1
-  - BO2
 ========================================================= */
 
 function canCurrentUserManageRoleNotice(
@@ -56097,17 +56089,17 @@ function canCurrentUserManageRoleNotice(
     loadCurrentUser();
 
 
-  const normalizedRole =
-    normalizeMemberLogRole(
-      role
-    );
-
-
   if (
     !currentUser
   ) {
     return false;
   }
+
+
+  const normalizedRole =
+    normalizeMemberLogRole(
+      role
+    );
 
 
   return ROLE_NOTICE_ROLES.includes(
