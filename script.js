@@ -35373,13 +35373,24 @@ function renderMobileLogCards(
 /* =========================================================
   업무일지 목록 렌더링 최종본
 
-  PC:
-  - 기존 표 렌더링
+  고정 보직 순서:
+  1. 파트장
+  2. TGO
+  3. BCO1
+  4. BCO2
+  5. TO
+  6. BO1
+  7. BO2
 
-  모바일:
-  - 별도 카드 렌더링
+  최근 작성·수정 여부와 관계없이
+  위 보직 순서를 항상 유지한다.
 
-  두 화면은 같은 업무일지 데이터를 사용한다.
+  같은 보직의 자료가 여러 건인 경우에만:
+  - 서버 리비전이 높은 자료
+  - 최근 수정 자료
+  순서로 표시한다.
+
+  PC 표와 모바일 카드에 동일하게 적용한다.
 ========================================================= */
 
 function renderLogTable() {
@@ -35389,31 +35400,198 @@ function renderLogTable() {
     );
 
 
-  const filteredLogs =
-    appState.logs.filter(
-      log => {
-        return (
-          String(
-            log?.date ||
-            ""
-          ).trim() ===
-            selectedDateText &&
+  /* =====================================================
+    업무일지 고정 보직 순서
+  ====================================================== */
 
-          String(
-            log?.shift ||
-            ""
-          )
-            .trim()
-            .toUpperCase() ===
+  const roleOrder = {
+    파트장:
+      1,
+
+    TGO:
+      2,
+
+    BCO1:
+      3,
+
+    BCO2:
+      4,
+
+    TO:
+      5,
+
+    BO1:
+      6,
+
+    BO2:
+      7
+  };
+
+
+  /* =====================================================
+    선택 날짜·근무 필터링 후 보직 순서 정렬
+  ====================================================== */
+
+  const filteredLogs =
+    appState.logs
+      .filter(
+        log => {
+          return (
             String(
-              appState.selectedShift ||
+              log?.date ||
+              ""
+            ).trim() ===
+              selectedDateText &&
+
+            String(
+              log?.shift ||
               ""
             )
               .trim()
-              .toUpperCase()
-        );
-      }
-    );
+              .toUpperCase() ===
+              String(
+                appState.selectedShift ||
+                ""
+              )
+                .trim()
+                .toUpperCase()
+          );
+        }
+      )
+      .sort(
+        (
+          firstLog,
+          secondLog
+        ) => {
+          const firstRole =
+            normalizeMemberLogRole(
+              firstLog?.role ||
+              ""
+            );
+
+
+          const secondRole =
+            normalizeMemberLogRole(
+              secondLog?.role ||
+              ""
+            );
+
+
+          const firstRoleOrder =
+            roleOrder[
+              firstRole
+            ] ??
+            999;
+
+
+          const secondRoleOrder =
+            roleOrder[
+              secondRole
+            ] ??
+            999;
+
+
+          /*
+            가장 먼저 보직 고정 순서를 적용한다.
+          */
+          const roleDifference =
+            firstRoleOrder -
+            secondRoleOrder;
+
+
+          if (
+            roleDifference !==
+            0
+          ) {
+            return roleDifference;
+          }
+
+
+          /*
+            등록되지 않은 예상 외 보직끼리는
+            보직명 순서로 정렬한다.
+          */
+          if (
+            firstRoleOrder ===
+              999 &&
+            firstRole !==
+              secondRole
+          ) {
+            return firstRole.localeCompare(
+              secondRole,
+              "ko"
+            );
+          }
+
+
+          /*
+            같은 보직의 업무일지가 여러 건이면
+            최신 서버 리비전을 우선한다.
+          */
+          const revisionDifference =
+            Number(
+              secondLog?.serverRevision ||
+              0
+            ) -
+            Number(
+              firstLog?.serverRevision ||
+              0
+            );
+
+
+          if (
+            revisionDifference !==
+            0
+          ) {
+            return revisionDifference;
+          }
+
+
+          /*
+            서버 리비전도 같다면
+            가장 최근에 수정한 자료를 우선한다.
+
+            이 정렬은 같은 보직 안에서만 적용되므로
+            전체 보직 고정 순서에는 영향을 주지 않는다.
+          */
+          const firstTimeValue =
+            new Date(
+              firstLog?.updatedAt ||
+              firstLog?.createdAt ||
+              0
+            ).getTime();
+
+
+          const secondTimeValue =
+            new Date(
+              secondLog?.updatedAt ||
+              secondLog?.createdAt ||
+              0
+            ).getTime();
+
+
+          const firstTime =
+            Number.isFinite(
+              firstTimeValue
+            )
+              ? firstTimeValue
+              : 0;
+
+
+          const secondTime =
+            Number.isFinite(
+              secondTimeValue
+            )
+              ? secondTimeValue
+              : 0;
+
+
+          return (
+            secondTime -
+            firstTime
+          );
+        }
+      );
 
 
   if (
@@ -35437,7 +35615,7 @@ function renderLogTable() {
 
 
   /*
-    모바일 카드도 항상 함께 갱신한다.
+    모바일 카드에도 정렬된 업무일지 배열을 전달한다.
   */
   renderMobileLogCards(
     filteredLogs
@@ -35454,11 +35632,11 @@ function renderLogTable() {
 
 
   /*
-    PC 표 렌더링
+    PC 업무일지 표 렌더링
 
-    모바일에서는 CSS로 숨기지만,
-    화면 크기가 바뀔 때 다시 서버 조회하지 않아도
-    바로 PC 표가 나타날 수 있도록 계속 생성한다.
+    모바일에서는 CSS로 숨겨지지만,
+    화면 크기가 변경되면 즉시 표시될 수 있도록
+    PC 표도 항상 함께 생성한다.
   */
   filteredLogs.forEach(
     log => {
@@ -35473,9 +35651,10 @@ function renderLogTable() {
   );
 
 
-  /*
-    기존 첨부파일 셀 재구성
-  */
+  /* =====================================================
+    첨부파일 셀 재구성
+  ====================================================== */
+
   const renderedRows = [
     ...elements.logTableBody
       .querySelectorAll(
@@ -35489,6 +35668,10 @@ function renderLogTable() {
       row,
       rowIndex
     ) => {
+      /*
+        화면 행과 정렬된 업무일지 배열을
+        같은 인덱스로 연결한다.
+      */
       const log =
         filteredLogs[
           rowIndex
@@ -35528,6 +35711,9 @@ function renderLogTable() {
         );
 
 
+      /*
+        첨부파일 없음
+      */
       if (
         attachmentCount ===
         0
@@ -35549,6 +35735,9 @@ function renderLogTable() {
       }
 
 
+      /*
+        첨부파일 있음
+      */
       attachmentCell.innerHTML = `
         <button
           type="button"
@@ -35563,6 +35752,7 @@ function renderLogTable() {
           title="첨부파일 ${attachmentCount}개 보기"
           aria-label="첨부파일 ${attachmentCount}개 보기"
         >
+
           <span
             class="diary-attachment-button__icon"
             aria-hidden="true"
@@ -35575,6 +35765,7 @@ function renderLogTable() {
           >
             ${attachmentCount}
           </span>
+
         </button>
       `;
     }
@@ -65468,6 +65659,26 @@ async function handleMemberApprovalRequestClick(
         "requestApprovalButton"
       );
 
+      /*
+  폼 submit이 함께 실행되지 않도록
+  두 버튼을 일반 버튼으로 강제한다.
+*/
+
+if (
+  saveDraftButton
+) {
+  saveDraftButton.type =
+    "button";
+}
+
+
+if (
+  requestApprovalButton
+) {
+  requestApprovalButton.type =
+    "button";
+}
+
 
     /*
       기존 elements 참조를 새 버튼으로 변경한다.
@@ -65595,24 +65806,105 @@ async function handleMemberApprovalRequestClick(
   }
 
 
-  /* =====================================================
-    초기 실행
+/* =====================================================
+  초기 실행 최종본
 
-    기존 DOMContentLoaded의 cacheElements와 bindEvents가
-    먼저 실행된 뒤 버튼을 교체한다.
-  ====================================================== */
+  기존 bindEvents()가 결재요청 버튼에
+  예전 클릭 이벤트를 먼저 연결한 다음,
+  한 박자 뒤 버튼을 복제하여
+  기존 이벤트를 완전히 제거한다.
 
-  if (
-    document.readyState ===
-      "loading"
-  ) {
-    document.addEventListener(
-      "DOMContentLoaded",
-      bindMemberDraftBeforeApprovalRequestFlow
-    );
+  최종적으로 남는 이벤트:
+  - 임시저장 전용 이벤트
+  - 결재요청 전용 이벤트
+====================================================== */
 
-  } else {
-    bindMemberDraftBeforeApprovalRequestFlow();
-  }
+function scheduleMemberDraftBeforeApprovalRequestFlow() {
+  window.setTimeout(
+    () => {
+      const currentApprovalButton =
+        document.getElementById(
+          "requestApprovalButton"
+        );
+
+
+      /*
+        이미 최종 이벤트가 연결된 경우
+        다시 버튼을 교체하지 않는다.
+      */
+      if (
+        currentApprovalButton
+          ?.dataset
+          ?.memberDraftFlowFinalBound ===
+        "true"
+      ) {
+        return;
+      }
+
+
+      bindMemberDraftBeforeApprovalRequestFlow();
+
+
+      const finalDraftButton =
+        document.getElementById(
+          "saveDraftButton"
+        );
+
+
+      const finalApprovalButton =
+        document.getElementById(
+          "requestApprovalButton"
+        );
+
+
+      /*
+        버튼 기본 submit 동작 차단
+      */
+      if (
+        finalDraftButton
+      ) {
+        finalDraftButton.type =
+          "button";
+
+
+        finalDraftButton.dataset
+          .memberDraftFlowFinalBound =
+          "true";
+      }
+
+
+      if (
+        finalApprovalButton
+      ) {
+        finalApprovalButton.type =
+          "button";
+
+
+        finalApprovalButton.dataset
+          .memberDraftFlowFinalBound =
+          "true";
+      }
+    },
+    0
+  );
+}
+
+
+if (
+  document.readyState ===
+    "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    scheduleMemberDraftBeforeApprovalRequestFlow,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  scheduleMemberDraftBeforeApprovalRequestFlow();
+}
 
 })();
