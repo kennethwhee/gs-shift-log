@@ -55857,12 +55857,8 @@ textarea:disabled {
 /* =========================================================
   업무일지 작성·수정창 하단 버튼 최종 통합 디자인
 
-  PC
   왼쪽  : 인쇄 | 삭제 | 결재취소
   오른쪽: 임시저장 | 결재요청·결재완료 | 닫기
-
-  모바일
-  왼쪽 그룹과 오른쪽 그룹을 2줄로 표시
 ========================================================= */
 
 #logEditorModal
@@ -55908,6 +55904,8 @@ textarea:disabled {
   display: flex !important;
 
   align-items: center !important;
+
+  flex-wrap: nowrap !important;
 
   gap: 8px !important;
 
@@ -55983,6 +55981,9 @@ button:not([hidden]) {
     0 1px 2px
     rgba(15, 23, 42, 0.05) !important;
 
+  box-sizing:
+    border-box !important;
+
   font-size: 12px !important;
   font-weight: 850 !important;
   line-height: 1 !important;
@@ -55999,10 +56000,12 @@ button:not([hidden]) {
 
 /* 인쇄·닫기 */
 #logEditorModal
-.log-editor-print-button,
+.log-editor-footer
+button.log-editor-print-button:not([hidden]),
 
 #logEditorModal
-.log-editor-close-button {
+.log-editor-footer
+button.log-editor-close-button:not([hidden]) {
   min-width: 58px !important;
 
   border-color:
@@ -56018,7 +56021,8 @@ button:not([hidden]) {
 
 /* 삭제 */
 #logEditorModal
-.log-editor-delete-button {
+.log-editor-footer
+button.log-editor-delete-button:not([hidden]) {
   border-color:
     #fda4af !important;
 
@@ -56032,10 +56036,12 @@ button:not([hidden]) {
 
 /* 결재취소 */
 #logEditorModal
-.log-editor-cancel-approval-button,
+.log-editor-footer
+button.log-editor-cancel-approval-button:not([hidden]),
 
 #logEditorModal
-.log-editor-complete-button.is-cancel-request {
+.log-editor-footer
+button.log-editor-complete-button.is-cancel-request:not([hidden]) {
   border-color:
     #fdba74 !important;
 
@@ -56049,7 +56055,8 @@ button:not([hidden]) {
 
 /* 임시저장 */
 #logEditorModal
-.log-editor-draft-button {
+.log-editor-footer
+button.log-editor-draft-button:not([hidden]) {
   border-color:
     #93c5fd !important;
 
@@ -56063,9 +56070,10 @@ button:not([hidden]) {
 
 /* 결재요청·결재완료 */
 #logEditorModal
-.log-editor-complete-button:not(
+.log-editor-footer
+button.log-editor-complete-button:not(
   .is-cancel-request
-) {
+):not([hidden]) {
   border-color:
     #203b60 !important;
 
@@ -56089,10 +56097,14 @@ button:not([hidden]):not(:disabled):hover {
 }
 
 
+/*
+  비활성 버튼도 어떤 기능인지
+  색상 구분은 남긴다.
+*/
 #logEditorModal
 .log-editor-footer
 button:disabled {
-  opacity: 0.42 !important;
+  opacity: 0.58 !important;
 
   cursor:
     not-allowed !important;

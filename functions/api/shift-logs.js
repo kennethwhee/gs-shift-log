@@ -3101,6 +3101,12 @@ function applySaveRules(
     );
 
 
+  const isEditableMemberDraft =
+    isMemberLog &&
+    existingStatus ===
+      "임시저장";
+
+
   const previousAuthorId =
     normalizeEmployeeNo(
       existingLog.authorId
@@ -3152,7 +3158,7 @@ function applySaveRules(
 
 
   /*
-    이미 기록된 최초 작성자 정보는 유지한다.
+    기존 최초 작성자 정보 유지
   */
   log.originalAuthor =
     existingLog.originalAuthor ||
@@ -3168,12 +3174,13 @@ function applySaveRules(
 
 
   /*
-    다른 사람이 일반 보직 일지를 이어서 저장하면
-    변경 전 작성자를 최초 작성자로 보존한다.
+    다른 사용자가 임시저장 일지를 이어서 저장하면
+    기존 작성자를 최초 작성자로 보존한다.
+
+    최고관리자도 동일하게 적용한다.
   */
   if (
-    !user.isSuperAdmin &&
-    isMemberLog &&
+    isEditableMemberDraft &&
     isDifferentAuthor
   ) {
     log.originalAuthor =
@@ -3194,12 +3201,11 @@ function applySaveRules(
 
 
   /*
-    일반 보직 일지는 실제 저장한 사람을
-    현재 작성자로 변경한다.
+    일반 보직 임시저장 자료는
+    실제 저장한 사용자를 현재 작성자로 변경한다.
   */
   if (
-    !user.isSuperAdmin &&
-    isMemberLog
+    isEditableMemberDraft
   ) {
     log.author =
       user.name;
@@ -3210,10 +3216,6 @@ function applySaveRules(
     log.authorRole =
       user.role;
 
-  /*
-    파트장 일지와 최고관리자 수정에서는
-    기존 작성자를 유지한다.
-  */
   } else {
     log.author =
       existingLog.author ||
@@ -3230,24 +3232,23 @@ function applySaveRules(
 
 
   /*
-    최고관리자 또는 파트장 일지는
-    수정으로 상태를 변경하지 않는다.
+    파트장 업무일지는 일반 저장으로
+    결재 상태를 변경하지 않는다.
   */
   if (
-    user.isSuperAdmin ||
     isLeaderLog
   ) {
     log.status =
       existingStatus;
 
+
   /*
-    일반 보직의 작성중 일지는
-    임시저장 또는 결재요청으로 저장한다.
+    일반 보직 임시저장은
+    최고관리자 여부와 관계없이
+    임시저장 또는 결재요청으로 전환한다.
   */
   } else if (
-    isMemberLog &&
-    existingStatus ===
-      "임시저장"
+    isEditableMemberDraft
   ) {
     log.status =
       [
@@ -3257,8 +3258,13 @@ function applySaveRules(
         requestedStatus
       )
         ? requestedStatus
-        : "임시저장";
+        : existingStatus;
 
+
+  /*
+    결재요청·결재완료 상태는
+    일반 저장으로 변경하지 않는다.
+  */
   } else {
     log.status =
       existingStatus;
