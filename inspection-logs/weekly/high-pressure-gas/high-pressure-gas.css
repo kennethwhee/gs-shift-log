@@ -313,6 +313,7 @@ button {
 
 /* =========================================================
   제목·결재란
+  원본 점검표 배치
 ========================================================= */
 
 .gas-check-title-row {
@@ -320,23 +321,28 @@ button {
     grid;
 
   grid-template-columns:
-    110px 1fr 132px;
+    36mm 1fr 36mm;
 
   align-items:
     start;
 
+  min-height:
+    34mm;
+
   margin-bottom:
-    20px;
+    10mm;
 }
+
 
 .gas-check-title-spacer {
   min-height:
     1px;
 }
 
+
 .gas-check-main-title {
   margin:
-    3px 0 0;
+    5mm 0 0;
 
   color:
     #111111;
@@ -347,33 +353,44 @@ button {
   text-decoration:
     underline;
 
+  text-decoration-thickness:
+    1px;
+
   text-underline-offset:
-    6px;
+    4px;
 
   font-size:
-    25px;
+    21px;
 
   font-weight:
     900;
 
   letter-spacing:
-    -0.04em;
+    0.04em;
+
+  white-space:
+    nowrap;
 }
+
 
 .gas-check-approval-table {
   width:
-    132px !important;
+    36mm !important;
+
+  justify-self:
+    end;
 
   font-size:
-    10px;
+    9px;
 }
+
 
 .gas-check-approval-table th {
   height:
-    38px;
+    12mm;
 
   padding:
-    3px;
+    2px;
 
   background:
     #ffffff;
@@ -383,19 +400,33 @@ button {
 
   line-height:
     1.25;
+
+  font-weight:
+    900;
 }
+
 
 .gas-check-approval-table td {
   height:
-    58px;
+    18mm;
 
   padding:
     0;
 }
 
+
 .gas-check-approval-table input {
   min-height:
-    56px;
+    18mm;
+
+  padding:
+    2px;
+
+  background:
+    transparent;
+
+  font-size:
+    9px;
 }
 
 
@@ -446,41 +477,93 @@ button {
 
 
 /* =========================================================
-  점검일자
+  점검일자·일반현황
+  원본 점검표 크기
 ========================================================= */
+
+.gas-check-section:first-of-type {
+  margin-top:
+    0;
+}
+
+
+.gas-check-section:first-of-type
+.gas-check-section-heading {
+  display:
+    grid;
+
+  grid-template-columns:
+    1fr auto 1fr;
+
+  align-items:
+    center;
+
+  margin-bottom:
+    5mm;
+}
+
+
+.gas-check-section:first-of-type
+.gas-check-section-heading h3 {
+  grid-column:
+    1;
+
+  justify-self:
+    start;
+
+  margin:
+    0;
+
+  font-size:
+    11px;
+}
+
 
 .gas-check-date-field {
   display:
     flex;
 
+  grid-column:
+    2;
+
   align-items:
     center;
 
   gap:
-    7px;
+    5px;
 
   color:
     #111111;
 
   font-size:
-    11px;
+    9px;
 
   font-weight:
     700;
+
+  white-space:
+    nowrap;
 }
+
 
 .gas-check-date-field input {
   width:
-    145px;
+    33mm;
 
   min-height:
-    28px;
+    7mm;
+
+  padding:
+    1px 3px;
 
   border:
-    1px solid #b5b5b5;
+    0;
 
   background:
     #fffceb;
+
+  font-size:
+    9px;
 }
 
 
@@ -490,35 +573,23 @@ button {
 
 .gas-check-overview-table {
   font-size:
-    11px;
+    9px;
 }
 
-.gas-check-overview-table th {
-  width:
-    17%;
 
-  height:
-    38px;
-
-  padding:
-    6px;
-
-  background:
-    #f1f1f1;
-
-  text-align:
-    center;
-
-  font-weight:
-    900;
-}
-
+.gas-check-overview-table th,
 .gas-check-overview-table td {
   height:
-    38px;
+    11mm;
+}
 
+
+.gas-check-overview-table th {
   padding:
-    0 7px;
+    3px;
+
+  background:
+    #ffffff;
 
   text-align:
     center;
@@ -527,47 +598,123 @@ button {
     700;
 }
 
+
+.gas-check-overview-table td {
+  padding:
+    0 5px;
+
+  text-align:
+    center;
+
+  font-weight:
+    500;
+}
+
+
+.gas-check-overview-table th:nth-child(1) {
+  width:
+    19%;
+}
+
+
+.gas-check-overview-table td:nth-child(2) {
+  width:
+    35%;
+}
+
+
+.gas-check-overview-table th:nth-child(3) {
+  width:
+    15%;
+}
+
+
+.gas-check-overview-table td:nth-child(4) {
+  width:
+    31%;
+}
+
+
 .gas-check-overview-table td:has(input) {
   padding:
     0;
 }
 
 
+.gas-check-overview-table input {
+  min-height:
+    10.5mm;
+
+  background:
+    #fffceb;
+
+  font-size:
+    9px;
+}
+
 /* =========================================================
   점검내용 표
+  원본 점검표 크기·간격
 ========================================================= */
 
+/* 두 번째 섹션 위쪽 간격 */
+.gas-check-section:nth-of-type(2) {
+  margin-top:
+    11mm;
+}
+
+
+.gas-check-section:nth-of-type(2) h3 {
+  margin:
+    0 0 5mm;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+}
+
+
+/* 열 너비 */
 .gas-check-col-number {
   width:
     9%;
 }
+
 
 .gas-check-col-item {
   width:
     22%;
 }
 
+
 .gas-check-col-description {
   width:
-    56%;
+    57%;
 }
+
 
 .gas-check-col-result {
   width:
-    13%;
+    12%;
 }
 
+
+/* 표 전체 */
 .gas-check-detail-table {
   font-size:
-    10px;
+    8.8px;
 }
 
+
+/* 제목 행 */
 .gas-check-detail-table thead th {
   height:
-    36px;
+    11mm;
 
   padding:
-    5px;
+    2px 4px;
 
   background:
     #d8d8d8;
@@ -575,24 +722,43 @@ button {
   text-align:
     center;
 
+  vertical-align:
+    middle;
+
   font-size:
-    10px;
+    8.8px;
 
   font-weight:
-    900;
+    700;
 }
 
+
+/* 내용 행 */
 .gas-check-detail-table tbody td {
-  min-height:
-    39px;
+  height:
+    10.5mm;
 
   padding:
-    7px 6px;
+    1.8mm 1.5mm;
+
+  vertical-align:
+    middle;
+
+  font-size:
+    8.8px;
+
+  font-weight:
+    500;
 
   line-height:
-    1.45;
+    1.35;
+
+  word-break:
+    keep-all;
 }
 
+
+/* 번호·점검항목·점검결과 가운데 정렬 */
 .gas-check-detail-table tbody td:nth-child(1),
 .gas-check-detail-table tbody td:nth-child(2),
 .gas-check-detail-table tbody td:nth-child(4) {
@@ -600,24 +766,98 @@ button {
     center;
 }
 
+
+/* 번호 */
 .gas-check-detail-table tbody td:nth-child(1) {
+  padding-left:
+    2px;
+
+  padding-right:
+    2px;
+
   font-weight:
-    800;
+    500;
 }
 
+
+/* 점검항목 */
 .gas-check-detail-table tbody td:nth-child(2) {
+  padding-left:
+    3px;
+
+  padding-right:
+    3px;
+
   font-weight:
-    800;
+    500;
 }
 
+
+/* 확인내용 */
+.gas-check-detail-table tbody td:nth-child(3) {
+  padding-left:
+    2mm;
+
+  padding-right:
+    1.5mm;
+
+  text-align:
+    left;
+}
+
+
+/* 점검결과 입력칸 */
 .gas-check-detail-table tbody td:nth-child(4) {
   padding:
     0;
 }
 
+
 .gas-check-detail-table tbody td:nth-child(4) input {
+  width:
+    100%;
+
+  height:
+    100%;
+
   min-height:
-    42px;
+    10mm;
+
+  padding:
+    2px;
+
+  background:
+    #fffceb;
+
+  text-align:
+    center;
+
+  font-size:
+    8.8px;
+
+  font-weight:
+    700;
+}
+
+
+/* 내용이 두 줄인 행은 조금 높게 */
+.gas-check-detail-table tbody tr:nth-child(3) td,
+.gas-check-detail-table tbody tr:nth-child(5) td,
+.gas-check-detail-table tbody tr:nth-child(9) td,
+.gas-check-detail-table tbody tr:nth-child(11) td,
+.gas-check-detail-table tbody tr:nth-child(12) td {
+  height:
+    14mm;
+}
+
+
+.gas-check-detail-table tbody tr:nth-child(3) input,
+.gas-check-detail-table tbody tr:nth-child(5) input,
+.gas-check-detail-table tbody tr:nth-child(9) input,
+.gas-check-detail-table tbody tr:nth-child(11) input,
+.gas-check-detail-table tbody tr:nth-child(12) input {
+  min-height:
+    13.5mm;
 }
 
 
