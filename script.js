@@ -12028,11 +12028,6 @@ async function getPreviousShiftOperationStatus(
   dateValue,
   shiftValue
 ) {
-  async function getPreviousShiftOperationStatus(
-  roleValue,
-  dateValue,
-  shiftValue
-) {
   const normalizedRole =
     normalizeMemberLogRole(
       roleValue
@@ -16251,6 +16246,46 @@ function normalizeMemberLogRole(role) {
   }
 
   return normalizedRole;
+}
+
+/* =========================================================
+  TM · BM · CM 발행 내역 판정
+
+  위쪽 TM/BM/CM 발행 내역에 표시:
+  - TM 발행
+  - BM 발행
+  - CM 발행
+
+  인계 및 작업 내역에 표시:
+  - TM 작업
+  - BM 작업
+  - CM 작업
+  - 인계사항
+========================================================= */
+
+function isIssueEntryCategory(
+  category
+) {
+  const normalizedCategory =
+    String(
+      category ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  return [
+    "TM발행",
+    "BM발행",
+    "CM발행"
+  ].includes(
+    normalizedCategory
+  );
 }
 
 /* =========================================================
@@ -28993,52 +29028,60 @@ function fillLogEditor(
     );
 
 
-  const tmEntries =
-    collectedEntries.filter(
-      entry => {
-        return (
-          String(
-            entry?.category ||
-            ""
-          ).trim() ===
-          "TM 발행"
-        );
-      }
-    );
+/* =====================================================
+  저장된 항목 화면 분류
+
+  발행 내역:
+  TM 발행 · BM 발행 · CM 발행
+
+  인계 및 작업:
+  인계사항 · TM 작업 · BM 작업 · CM 작업
+===================================================== */
+
+const tmEntries =
+  collectedEntries.filter(
+    entry => {
+      return isIssueEntryCategory(
+        entry?.category
+      );
+    }
+  );
 
 
-  const handoverEntries =
-    collectedEntries.filter(
-      entry => {
-        const category =
-          String(
-            entry?.category ||
-            ""
-          ).trim();
+const handoverEntries =
+  collectedEntries.filter(
+    entry => {
+      const category =
+        String(
+          entry?.category ||
+          ""
+        ).trim();
 
 
-        return (
-          category !==
-            "TM 발행" &&
-          category !==
-            "비고"
-        );
-      }
-    );
+      return (
+        !isIssueEntryCategory(
+          category
+        ) &&
 
-
-  const remarkEntries =
-    collectedEntries.filter(
-      entry => {
-        return (
-          String(
-            entry?.category ||
-            ""
-          ).trim() ===
+        category !==
           "비고"
-        );
-      }
-    );
+      );
+    }
+  );
+
+
+const remarkEntries =
+  collectedEntries.filter(
+    entry => {
+      return (
+        String(
+          entry?.category ||
+          ""
+        ).trim() ===
+        "비고"
+      );
+    }
+  );
 
 
   appState.editorEntries = [
@@ -30795,71 +30838,79 @@ function renderLogEntryTable() {
   };
 
 
-  /* =====================================================
-    TM / 일반 업무 / 비고 분리
-  ====================================================== */
+/* =====================================================
+  TM·BM·CM 발행 / 일반 업무 / 비고 분리
 
-  const tmEntries =
-    indexedEntries
-      .filter(
-        ({
-          entry
-        }) => {
-          return (
-            String(
-              entry?.category ||
-              ""
-            ).trim() ===
-            "TM 발행"
-          );
-        }
-      )
-      .sort(
-        sortEntries
-      );
+  발행 내역:
+  - TM 발행
+  - BM 발행
+  - CM 발행
 
+  일반 업무:
+  - 인계사항
+  - TM 작업
+  - BM 작업
+  - CM 작업
+===================================================== */
 
-  const noteEntries =
-    indexedEntries
-      .filter(
-        ({
-          entry
-        }) => {
-          return (
-            String(
-              entry?.category ||
-              ""
-            ).trim() ===
-            "비고"
-          );
-        }
-      )
-      .sort(
-        sortEntries
-      );
-
-
-  const ordinaryEntries =
-    indexedEntries.filter(
+const tmEntries =
+  indexedEntries
+    .filter(
       ({
         entry
       }) => {
-        const category =
+        return isIssueEntryCategory(
+          entry?.category
+        );
+      }
+    )
+    .sort(
+      sortEntries
+    );
+
+
+const noteEntries =
+  indexedEntries
+    .filter(
+      ({
+        entry
+      }) => {
+        return (
           String(
             entry?.category ||
             ""
-          ).trim();
-
-
-        return (
-          category !==
-            "TM 발행" &&
-          category !==
-            "비고"
+          ).trim() ===
+          "비고"
         );
       }
+    )
+    .sort(
+      sortEntries
     );
 
+
+const ordinaryEntries =
+  indexedEntries.filter(
+    ({
+      entry
+    }) => {
+      const category =
+        String(
+          entry?.category ||
+          ""
+        ).trim();
+
+
+      return (
+        !isIssueEntryCategory(
+          category
+        ) &&
+
+        category !==
+          "비고"
+      );
+    }
+  );
 
   /* =====================================================
     건수 및 저장용 JSON
