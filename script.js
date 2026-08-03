@@ -30921,7 +30921,7 @@ function renderLogEntryTable() {
       elements.tmIssueEntryTableBody.innerHTML = `
         <tr class="log-entry-empty-row">
           <td colspan="${tmColumnCount}">
-            등록된 TM 발행 내역이 없습니다.
+            등록된 TM/BM/CM 발행 내역이 없습니다.
           </td>
         </tr>
       `;
