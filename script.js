@@ -11906,6 +11906,102 @@ async function loadPreviousShiftHandoverEntriesForCurrentEditor() {
 }
 
 /* =========================================================
+  TO · BO1 · BO2 운전현황 자유 텍스트 정리
+
+  제거:
+  1. 내용
+  2) 내용
+  3 - 내용
+  ① 내용
+
+  유지:
+  1호기
+  #3호기
+  설비 4
+  56°C
+  TR Oil & Winding Temp
+
+  줄바꿈은 그대로 유지한다.
+========================================================= */
+
+function normalizeManualOperationStatusContent(
+  value
+) {
+  const normalizedLines =
+    String(
+      value ||
+      ""
+    )
+      /*
+        HTML 또는 문자열 형태 줄바꿈을
+        실제 줄바꿈으로 통일한다.
+      */
+      .replace(
+        /<br\s*\/?>/gi,
+        "\n"
+      )
+      .replace(
+        /\\n/g,
+        "\n"
+      )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .split(
+        "\n"
+      )
+      .map(
+        line => {
+          return String(
+            line ||
+            ""
+          )
+            /*
+              문장 앞에 자동으로 붙은 번호만 제거한다.
+
+              1.
+              1)
+              1 -
+              ①
+            */
+            .replace(
+              /^\s*(?:\d+\s*(?:[.)]|-\s+)\s*|[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]\s*)/u,
+              ""
+            )
+            .trim();
+        }
+      )
+      /*
+        과거 자료에 들어 있는 보직 제목 줄 제거
+      */
+      .filter(
+        line => {
+          return (
+            Boolean(
+              line
+            ) &&
+            !/^\[\s*(?:TO|BO1|BO2)\s*\]$/i
+              .test(
+                line
+              )
+          );
+        }
+      );
+
+
+  return normalizedLines
+    .join(
+      "\n"
+    )
+    .trim();
+}
+
+/* =========================================================
   모든 보직의 전 근무 운전현황 조회 최종본
 
   사용 보직:
@@ -11928,6 +12024,11 @@ async function loadPreviousShiftHandoverEntriesForCurrentEditor() {
 ========================================================= */
 
 async function getPreviousShiftOperationStatus(
+  roleValue,
+  dateValue,
+  shiftValue
+) {
+  async function getPreviousShiftOperationStatus(
   roleValue,
   dateValue,
   shiftValue
@@ -11998,7 +12099,7 @@ async function getPreviousShiftOperationStatus(
 
 
   /*
-    업무일지 1건을
+    업무일지 한 건을
     전 근무 운전현황 객체로 변환한다.
   */
   const createPreviousStatusFromLog = (
@@ -12042,10 +12143,11 @@ async function getPreviousShiftOperationStatus(
 
 
     /*
-      TO·BO1·BO2는 수기 텍스트 보직이다.
+      TO·BO1·BO2는 자유 텍스트 보직이다.
 
-      설비형 분석·번호 매김·재조합을 하지 않고
-      저장된 문자열과 줄바꿈을 그대로 사용한다.
+      - 설비형 배열로 변환하지 않는다.
+      - 줄 앞 자동 번호만 제거한다.
+      - 원래 줄바꿈은 유지한다.
     */
     if (
       manualTextRoles.includes(
@@ -12058,7 +12160,7 @@ async function getPreviousShiftOperationStatus(
             item => {
               if (
                 typeof item ===
-                "string"
+                  "string"
               ) {
                 return item;
               }
@@ -12081,13 +12183,17 @@ async function getPreviousShiftOperationStatus(
               );
             }
           )
-          .join("\n")
+          .join(
+            "\n"
+          )
           .trim();
 
 
       const manualContent =
-        rawContent ||
-        fallbackContent;
+        normalizeManualOperationStatusContent(
+          rawContent ||
+          fallbackContent
+        );
 
 
       if (
@@ -12113,10 +12219,6 @@ async function getPreviousShiftOperationStatus(
             ""
           ).trim(),
 
-        /*
-          수기 운전현황은 상태 배지와
-          설비별 배열을 사용하지 않는다.
-        */
         type:
           "normal",
 
@@ -20158,8 +20260,13 @@ function getLegacySharedOperationStatus() {
 
   TO·BO1·BO2:
   - 현재 날짜·근무·보직 저장값 조회
-  - 없으면 기본값 반환
-  - 신규 작성창에서는 별도 함수가 직전 근무를 가져옴
+  - 기존 설비형 배열 자료는 자유 텍스트로 복원
+  - 각 줄 앞 자동 번호 제거
+  - 없으면 보직 기본값 반환
+
+  파트장:
+  - 별도 저장값을 사용하지 않지만
+    기존 코드 호환을 위해 기본 객체를 반환한다.
 ========================================================= */
 
 function loadOperationStatusByRole(
@@ -20241,7 +20348,7 @@ function loadOperationStatusByRole(
 
 
       /*
-        과거에 수기 문장이 설비형 배열로
+        과거에 자유 텍스트가 설비형 배열로
         잘못 저장된 자료를 텍스트로 복원한다.
       */
       const recoveredContent =
@@ -20250,7 +20357,7 @@ function loadOperationStatusByRole(
             item => {
               if (
                 typeof item ===
-                "string"
+                  "string"
               ) {
                 return String(
                   item
@@ -20273,6 +20380,10 @@ function loadOperationStatusByRole(
                 ).trim();
 
 
+              /*
+                설비 1, 설비 2와 같은 임시 설비명은
+                표시하지 않고 내용만 복원한다.
+              */
               if (
                 /^설비\s*\d+$/u.test(
                   itemName
@@ -20282,6 +20393,10 @@ function loadOperationStatusByRole(
               }
 
 
+              /*
+                실제 설비명과 내용이 모두 있는
+                과거 자료는 설비명과 내용을 함께 유지한다.
+              */
               if (
                 itemName &&
                 itemContent
@@ -20296,30 +20411,27 @@ function loadOperationStatusByRole(
               );
             }
           )
-          .filter(Boolean)
+          .filter(
+            Boolean
+          )
           .join(
             "\n"
           )
           .trim();
 
 
+      /*
+        저장자료에 이미 들어 있던
+        각 문장 앞의 1. 2. 3. 번호를 제거한다.
+      */
       const manualContent =
-        String(
+        normalizeManualOperationStatusContent(
           recoveredContent ||
           safeStatus.content ||
           getDefaultOperationStatusContent(
             normalizedRole
           )
-        )
-          .replace(
-            /\r\n/g,
-            "\n"
-          )
-          .replace(
-            /\r/g,
-            "\n"
-          )
-          .trim();
+        );
 
 
       return {
@@ -20332,6 +20444,10 @@ function loadOperationStatusByRole(
         content:
           manualContent,
 
+        /*
+          TO·BO1·BO2는 설비형 배열을
+          화면과 저장에 사용하지 않는다.
+        */
         operationItems:
           [],
 
@@ -20358,14 +20474,12 @@ function loadOperationStatusByRole(
     ==================================================== */
 
     const operationItems =
-      getOperationStatusItems(
-        {
-          ...safeStatus,
+      getOperationStatusItems({
+        ...safeStatus,
 
-          role:
-            normalizedRole
-        }
-      )
+        role:
+          normalizedRole
+      })
         .map(
           (
             item,
@@ -20473,11 +20587,34 @@ function loadOperationStatusByRole(
     savedValue
   ) {
     try {
-      return createLoadedStatus(
-        JSON.parse(
-          savedValue
-        )
-      );
+      const loadedStatus =
+        createLoadedStatus(
+          JSON.parse(
+            savedValue
+          )
+        );
+
+
+      /*
+        TO·BO1·BO2의 과거 저장자료에 번호가 있었다면
+        정리된 결과를 같은 저장키에 다시 저장한다.
+
+        다음 로딩부터는 번호 없는 내용이 사용된다.
+      */
+      if (
+        isManualTextRole
+      ) {
+        localStorage.setItem(
+          currentStorageKey,
+
+          JSON.stringify(
+            loadedStatus
+          )
+        );
+      }
+
+
+      return loadedStatus;
 
     } catch (
       error
@@ -20488,6 +20625,10 @@ function loadOperationStatusByRole(
       );
 
 
+      /*
+        JSON 형식이 깨진 값은 제거하고
+        아래 기본값 처리로 넘어간다.
+      */
       localStorage.removeItem(
         currentStorageKey
       );
@@ -20541,6 +20682,7 @@ function loadOperationStatusByRole(
         */
         localStorage.setItem(
           currentStorageKey,
+
           JSON.stringify(
             migratedStatus
           )
@@ -20593,6 +20735,7 @@ function loadOperationStatusByRole(
       ) {
         localStorage.setItem(
           currentStorageKey,
+
           JSON.stringify(
             migratedLegacyStatus
           )
@@ -20626,6 +20769,7 @@ function loadOperationStatusByRole(
   ) {
     localStorage.setItem(
       currentStorageKey,
+
       JSON.stringify(
         defaultStatus
       )
@@ -22581,14 +22725,17 @@ elements.leaderOperationStatusList.innerHTML =
 async function refreshOperationStatusForCurrentRole() {
   closeOperationStatusEditor();
 
+
   const currentRole =
     getCurrentOperationStatusRole();
+
 
   const currentDate =
     String(
       elements.logDate?.value ||
       ""
     ).trim();
+
 
   const currentShift =
     String(
@@ -22598,11 +22745,13 @@ async function refreshOperationStatusForCurrentRole() {
       .trim()
       .toUpperCase();
 
+
   const manualTextRoles = [
     "TO",
     "BO1",
     "BO2"
   ];
+
 
   /*
     먼저 현재 날짜·근무·보직에
@@ -22611,8 +22760,11 @@ async function refreshOperationStatusForCurrentRole() {
   const loadedStatus =
     loadOperationStatus();
 
+
   renderOperationStatusCard();
+
   updateOperationStatusRoleTitles();
+
 
   /*
     TGO·BCO1·BCO2·파트장은
@@ -22626,6 +22778,7 @@ async function refreshOperationStatusForCurrentRole() {
     return;
   }
 
+
   /*
     현재 근무에서 이미 저장한 내용이 있으면
     전 근무 내용으로 덮어쓰지 않는다.
@@ -22638,6 +22791,7 @@ async function refreshOperationStatusForCurrentRole() {
       ).trim()
     );
 
+
   if (
     hasCurrentSavedStatus ||
     !currentDate ||
@@ -22645,6 +22799,7 @@ async function refreshOperationStatusForCurrentRole() {
   ) {
     return;
   }
+
 
   /*
     비동기 조회 중 보직·날짜·근무가 바뀌는 경우
@@ -22654,7 +22809,10 @@ async function refreshOperationStatusForCurrentRole() {
     currentRole,
     currentDate,
     currentShift
-  ].join("||");
+  ].join(
+    "||"
+  );
+
 
   try {
     const previousStatus =
@@ -22663,6 +22821,7 @@ async function refreshOperationStatusForCurrentRole() {
         currentDate,
         currentShift
       );
+
 
     const latestContextKey = [
       getCurrentOperationStatusRole(),
@@ -22678,7 +22837,10 @@ async function refreshOperationStatusForCurrentRole() {
       )
         .trim()
         .toUpperCase()
-    ].join("||");
+    ].join(
+      "||"
+    );
+
 
     if (
       requestedContextKey !==
@@ -22687,20 +22849,12 @@ async function refreshOperationStatusForCurrentRole() {
       return;
     }
 
+
     const previousContent =
-      String(
-        previousStatus?.content ||
-        ""
-      )
-        .replace(
-          /\r\n/g,
-          "\n"
-        )
-        .replace(
-          /\r/g,
-          "\n"
-        )
-        .trim();
+      normalizeManualOperationStatusContent(
+        previousStatus?.content
+      );
+
 
     if (
       !previousContent
@@ -22708,8 +22862,9 @@ async function refreshOperationStatusForCurrentRole() {
       return;
     }
 
+
     /*
-      전 근무 수기 원문을 화면에만 임시 적용한다.
+      전 근무 자유 텍스트를 화면에만 임시 적용한다.
 
       운전현황 저장 버튼을 누르기 전까지는
       현재 근무의 저장값으로 확정하지 않는다.
@@ -22763,16 +22918,21 @@ async function refreshOperationStatusForCurrentRole() {
         ).trim()
     };
 
+
     renderOperationStatusCard();
+
     updateOperationStatusRoleTitles();
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       `${currentRole} 전 근무 운전현황 자동 표시 실패:`,
       error
     );
   }
 }
+
 /* =========================================================
   설비별 운전현황 편집 UI
 
@@ -44091,53 +44251,60 @@ function openLogDetail(
                       statusRowRole
                     );
 
+if (
+  isFreeTextOperationRow
+) {
+  const manualOperationContent =
+    normalizeManualOperationStatusContent(
+      statusRow.content
+    );
 
-                  if (
-                    isFreeTextOperationRow
-                  ) {
-                    return `
-                      <div
-                        class="detail-operation-dashboard__free-text"
-                        style="
-                          display: block !important;
-                          grid-column: 1 / -1 !important;
-                          width: 100% !important;
-                          min-width: 0 !important;
-                          max-width: none !important;
-                          margin: 0 !important;
-                          padding: 0 !important;
-                          box-sizing: border-box !important;
-                        "
-                      >
 
-                        <span
-                          class="
-                            detail-operation-dashboard__content
-                            is-free-text
-                          "
-                          style="
-                            display: block !important;
-                            width: 100% !important;
-                            min-width: 0 !important;
-                            max-width: none !important;
-                            margin: 0 !important;
-                            padding: 0 !important;
-                            text-align: left !important;
-                            white-space: normal !important;
-                            word-break: keep-all !important;
-                            overflow-wrap: anywhere !important;
-                            line-height: 1.65 !important;
-                          "
-                        >
-                          ${createDetailOperationContentHtml(
-                            statusRow.content,
-                            true
-                          )}
-                        </span>
+  return `
+    <div
+      class="
+        detail-operation-dashboard__free-text
+      "
+      style="
+        display: block !important;
+        grid-column: 1 / -1 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+      "
+    >
 
-                      </div>
-                    `;
-                  }
+      <span
+        class="
+          detail-operation-dashboard__content
+          is-free-text
+        "
+        style="
+          display: block !important;
+          width: 100% !important;
+          min-width: 0 !important;
+          max-width: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          text-align: left !important;
+          white-space: normal !important;
+          word-break: keep-all !important;
+          overflow-wrap: anywhere !important;
+          line-height: 1.65 !important;
+        "
+      >
+        ${createDetailOperationContentHtml(
+          manualOperationContent,
+          false
+        )}
+      </span>
+
+    </div>
+  `;
+}
 
 
                   const statusType =
@@ -55680,6 +55847,20 @@ async function convertLegacyLogForSuperAdminManagement(
 
 /* =========================================================
   수정·삭제 버튼 표시 최종 권한
+
+  최고관리자:
+  - 모든 신규 업무일지 수정 가능
+  - 관리 가능한 과거 업무일지 수정 가능
+
+  파트장:
+  - 본인이 작성한 파트장 업무일지만 수정 가능
+  - 임시저장·저장완료 상태 수정 가능
+  - 결재완료 상태는 결재취소 후 수정 가능
+  - 일반 보직 업무일지는 직접 수정 불가
+
+  일반회원:
+  - 일반 보직의 임시저장 일지 수정 가능
+  - 파트장 업무일지 수정 불가
 ========================================================= */
 
 canCurrentUserEditShiftLog =
@@ -55695,12 +55876,10 @@ canCurrentUserEditShiftLog =
     }
 
 
-    /*
+    /* =====================================================
       최고관리자
+    ====================================================== */
 
-      - 신규 업무일지는 모든 보직과 상태 수정 가능
-      - 관리 가능한 과거 업무일지만 수정 가능
-    */
     if (
       isCurrentUserSuperAdmin()
     ) {
@@ -55719,9 +55898,12 @@ canCurrentUserEditShiftLog =
     }
 
 
-    /*
-      일반 계정은 과거 연동 업무일지 수정 불가
-    */
+    /* =====================================================
+      과거 연동 업무일지
+
+      최고관리자가 아니면 조회 전용
+    ====================================================== */
+
     if (
       isReadOnlyLegacyShiftLog(
         log
@@ -55735,11 +55917,15 @@ canCurrentUserEditShiftLog =
       getCurrentShiftLogUserIdentity();
 
 
-    if (
-      !String(
+    const currentEmployeeNo =
+      String(
         currentUser?.employeeNo ||
         ""
-      ).trim()
+      ).trim();
+
+
+    if (
+      !currentEmployeeNo
     ) {
       return false;
     }
@@ -55757,33 +55943,52 @@ canCurrentUserEditShiftLog =
       );
 
 
-    /*
+    /* =====================================================
       파트장 계정
 
-      - 본인이 작성한 파트장 업무일지만 수정 가능
-      - 저장완료 상태만 수정 가능
-      - 일반 보직 업무일지는 수정 불가
-    */
+      허용:
+      - 본인의 파트장 업무일지
+      - 임시저장
+      - 저장완료
+
+      불가:
+      - 타인 파트장 업무일지
+      - 일반 보직 업무일지
+      - 결재완료 상태
+    ====================================================== */
+
     if (
       isCurrentShiftLogLeader()
     ) {
-      return (
+      const isOwnLeaderLog =
         normalizedLogRole ===
           "파트장" &&
 
         isCurrentUserShiftLogAuthor(
           log
-        ) &&
+        );
 
-        normalizedStatus ===
-          "저장완료"
+
+      if (
+        !isOwnLeaderLog
+      ) {
+        return false;
+      }
+
+
+      return [
+        "임시저장",
+        "저장완료"
+      ].includes(
+        normalizedStatus
       );
     }
 
 
-    /*
+    /* =====================================================
       일반회원은 파트장 업무일지 수정 불가
-    */
+    ====================================================== */
+
     if (
       normalizedLogRole ===
         "파트장"
@@ -55802,13 +56007,12 @@ canCurrentUserEditShiftLog =
     ];
 
 
-    /*
+    /* =====================================================
       일반회원
 
-      - 일반 보직의 작성중 일지는 작성자와 관계없이 수정 가능
-      - 결재요청은 먼저 결재취소해야 수정 가능
-      - 결재완료는 수정 불가
-    */
+      일반 보직의 임시저장 일지만 수정 가능
+    ====================================================== */
+
     return (
       editableMemberRoles.includes(
         normalizedLogRole
@@ -55817,7 +56021,7 @@ canCurrentUserEditShiftLog =
       normalizedStatus ===
         "임시저장"
     );
-  };  
+  };
 
 
 /* =========================================================

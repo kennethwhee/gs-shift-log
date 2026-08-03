@@ -24,7 +24,7 @@
   const BUTTON_ID = "nightPatrolButton";
   const FRAME_ID = "nightPatrolFrame";
   const PAGE_URL =
-    "inspection-logs/inspection-logs.html?v=20260803-2";
+    "inspection-logs/inspection-logs.html?v=20260803-3";
 
   const AUTH_STORAGE_KEY =
     "gsShiftLog.currentUser";
