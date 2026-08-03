@@ -72470,3 +72470,2654 @@ function openEfficiencyTeamModal() {
     bindEfficiencyTeamEvents();
   }
 })();
+
+/* =========================================================
+  효율팀 - 석회석 입고 현황
+
+  API:
+  GET    /api/limestone-receipts
+  POST   /api/limestone-receipts
+  PUT    /api/limestone-receipts
+  DELETE /api/limestone-receipts
+
+  기능:
+  - 오늘·최근 7일·이번 달·지난 달
+  - 직접 기간 조회
+  - 전체·1호기·2호기 합계
+  - 일자별 입고량
+  - 입고기록 상세
+  - 직접 등록
+  - 수정·삭제
+========================================================= */
+
+(function installLimestoneReceiptFeature() {
+  if (
+    window
+      .__limestoneReceiptFeatureInstalled
+  ) {
+    return;
+  }
+
+
+  window
+    .__limestoneReceiptFeatureInstalled =
+    true;
+
+
+  const LIMESTONE_RECEIPTS_API_URL =
+    "/api/limestone-receipts";
+
+
+  const limestoneReceiptState = {
+    items:
+      [],
+
+    dailySummary:
+      [],
+
+    summary: {
+      totalQuantity:
+        0,
+
+      unitOneQuantity:
+        0,
+
+      unitTwoQuantity:
+        0,
+
+      receiptCount:
+        0
+    },
+
+    range: {
+      startDate:
+        "",
+
+      endDate:
+        "",
+
+      unitNo:
+        null
+    },
+
+    currentRangeType:
+      "7days",
+
+    isLoading:
+      false,
+
+    hasLoaded:
+      false
+  };
+
+
+  /* =====================================================
+    HTML 요소
+  ====================================================== */
+
+  function getLimestoneReceiptElements() {
+    return {
+      limestoneTab:
+        document.querySelector(
+          '[data-efficiency-tab="limestone"]'
+        ),
+
+      view:
+        document.getElementById(
+          "efficiencyLimestoneView"
+        ),
+
+
+      refreshButton:
+        document.getElementById(
+          "refreshLimestoneReceiptsButton"
+        ),
+
+      importButton:
+        document.getElementById(
+          "importLimestoneFromShiftLogsButton"
+        ),
+
+      openEditorButton:
+        document.getElementById(
+          "openLimestoneReceiptEditorButton"
+        ),
+
+
+      quickRangeButtons: [
+        ...document.querySelectorAll(
+          "[data-limestone-range]"
+        )
+      ],
+
+      searchForm:
+        document.getElementById(
+          "limestoneSearchForm"
+        ),
+
+      startDateInput:
+        document.getElementById(
+          "limestoneStartDate"
+        ),
+
+      endDateInput:
+        document.getElementById(
+          "limestoneEndDate"
+        ),
+
+      unitFilter:
+        document.getElementById(
+          "limestoneUnitFilter"
+        ),
+
+      periodLabel:
+        document.getElementById(
+          "limestonePeriodLabel"
+        ),
+
+
+      totalQuantity:
+        document.getElementById(
+          "limestoneTotalQuantity"
+        ),
+
+      unitOneQuantity:
+        document.getElementById(
+          "limestoneUnitOneQuantity"
+        ),
+
+      unitTwoQuantity:
+        document.getElementById(
+          "limestoneUnitTwoQuantity"
+        ),
+
+      receiptCount:
+        document.getElementById(
+          "limestoneReceiptCount"
+        ),
+
+
+      dailySummaryCount:
+        document.getElementById(
+          "limestoneDailySummaryCount"
+        ),
+
+      dailySummaryBody:
+        document.getElementById(
+          "limestoneDailySummaryBody"
+        ),
+
+
+      detailCount:
+        document.getElementById(
+          "limestoneDetailCount"
+        ),
+
+      loading:
+        document.getElementById(
+          "limestoneLoading"
+        ),
+
+      receiptTableBody:
+        document.getElementById(
+          "limestoneReceiptTableBody"
+        ),
+
+
+      editorPanel:
+        document.getElementById(
+          "limestoneReceiptEditorPanel"
+        ),
+
+      editorTitle:
+        document.getElementById(
+          "limestoneReceiptEditorTitle"
+        ),
+
+      closeEditorButton:
+        document.getElementById(
+          "closeLimestoneReceiptEditorButton"
+        ),
+
+      cancelEditorButton:
+        document.getElementById(
+          "cancelLimestoneReceiptEditorButton"
+        ),
+
+      editorForm:
+        document.getElementById(
+          "limestoneReceiptEditorForm"
+        ),
+
+      editingIdInput:
+        document.getElementById(
+          "limestoneReceiptEditingId"
+        ),
+
+      receiptDateInput:
+        document.getElementById(
+          "limestoneReceiptDate"
+        ),
+
+      receiptTimeInput:
+        document.getElementById(
+          "limestoneReceiptTime"
+        ),
+
+      receiptUnitInput:
+        document.getElementById(
+          "limestoneReceiptUnit"
+        ),
+
+      receiptQuantityInput:
+        document.getElementById(
+          "limestoneReceiptQuantity"
+        ),
+
+      receiptNoteInput:
+        document.getElementById(
+          "limestoneReceiptNote"
+        ),
+
+      saveButton:
+        document.getElementById(
+          "saveLimestoneReceiptButton"
+        ),
+
+      editorMessage:
+        document.getElementById(
+          "limestoneReceiptEditorMessage"
+        ),
+
+
+      importPanel:
+        document.getElementById(
+          "limestoneImportPanel"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    문자열 안전 처리
+  ====================================================== */
+
+  function escapeLimestoneHtml(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replaceAll(
+        "&",
+        "&amp;"
+      )
+      .replaceAll(
+        "<",
+        "&lt;"
+      )
+      .replaceAll(
+        ">",
+        "&gt;"
+      )
+      .replaceAll(
+        '"',
+        "&quot;"
+      )
+      .replaceAll(
+        "'",
+        "&#039;"
+      );
+  }
+
+
+  /* =====================================================
+    날짜 처리
+  ====================================================== */
+
+  function formatLimestoneDate(
+    date
+  ) {
+    return [
+      date.getFullYear(),
+
+      String(
+        date.getMonth() +
+        1
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        date.getDate()
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    );
+  }
+
+
+  function getLimestoneToday() {
+    return formatLimestoneDate(
+      new Date()
+    );
+  }
+
+
+  function addLimestoneDays(
+    sourceDate,
+    dayCount
+  ) {
+    const nextDate =
+      new Date(
+        sourceDate
+      );
+
+
+    nextDate.setDate(
+      nextDate.getDate() +
+      dayCount
+    );
+
+
+    return nextDate;
+  }
+
+
+  function isValidLimestoneDate(
+    value
+  ) {
+    const normalizedValue =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        normalizedValue
+      )
+    ) {
+      return false;
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${normalizedValue}T00:00:00`
+      );
+
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      formatLimestoneDate(
+        parsedDate
+      ) ===
+        normalizedValue
+    );
+  }
+
+
+  /* =====================================================
+    수량 표시
+  ====================================================== */
+
+  function normalizeLimestoneQuantity(
+    value
+  ) {
+    const numericValue =
+      Number(
+        value
+      );
+
+
+    if (
+      !Number.isFinite(
+        numericValue
+      )
+    ) {
+      return 0;
+    }
+
+
+    return (
+      Math.round(
+        numericValue *
+        100
+      ) /
+      100
+    );
+  }
+
+
+  function formatLimestoneQuantity(
+    value
+  ) {
+    return normalizeLimestoneQuantity(
+      value
+    ).toLocaleString(
+      "ko-KR",
+      {
+        minimumFractionDigits:
+          2,
+
+        maximumFractionDigits:
+          2
+      }
+    );
+  }
+
+
+  /* =====================================================
+    현재 시각
+  ====================================================== */
+
+  function getLimestoneCurrentTime() {
+    const now =
+      new Date();
+
+
+    return [
+      String(
+        now.getHours()
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        now.getMinutes()
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      ":"
+    );
+  }
+
+
+  /* =====================================================
+    API 헤더
+
+    기존 업무일지 로그인 세션을 그대로 사용한다.
+  ====================================================== */
+
+  function getLimestoneApiHeaders(
+    extraHeaders = {}
+  ) {
+    if (
+      typeof getShiftLogAuthHeaders ===
+        "function"
+    ) {
+      return getShiftLogAuthHeaders({
+        Accept:
+          "application/json",
+
+        ...extraHeaders
+      });
+    }
+
+
+    return {
+      Accept:
+        "application/json",
+
+      ...extraHeaders
+    };
+  }
+
+
+  /* =====================================================
+    API 요청
+  ====================================================== */
+
+  async function requestLimestoneApi(
+    requestUrl,
+    options = {}
+  ) {
+    const response =
+      await fetch(
+        requestUrl,
+        {
+          cache:
+            "no-store",
+
+          ...options
+        }
+      );
+
+
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          `석회석 서버 응답 형식이 올바르지 않습니다. HTTP ${response.status}`
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false
+    ) {
+      const error =
+        new Error(
+          result.message ||
+          result.error ||
+          `석회석 서버 요청 실패 (HTTP ${response.status})`
+        );
+
+
+      error.status =
+        response.status;
+
+
+      error.result =
+        result;
+
+
+      throw error;
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    메시지
+  ====================================================== */
+
+  function showLimestoneToast(
+    message
+  ) {
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+
+
+      return;
+    }
+
+
+    alert(
+      message
+    );
+  }
+
+
+  function showLimestoneEditorMessage(
+    message,
+    type = "error"
+  ) {
+    const {
+      editorMessage
+    } =
+      getLimestoneReceiptElements();
+
+
+    if (
+      !editorMessage
+    ) {
+      return;
+    }
+
+
+    editorMessage.textContent =
+      String(
+        message ||
+        ""
+      );
+
+
+    editorMessage.hidden =
+      !message;
+
+
+    editorMessage.dataset.type =
+      type;
+  }
+
+
+  /* =====================================================
+    기간 버튼 상태
+  ====================================================== */
+
+  function setLimestoneRangeButtonState(
+    selectedRange
+  ) {
+    const {
+      quickRangeButtons
+    } =
+      getLimestoneReceiptElements();
+
+
+    quickRangeButtons.forEach(
+      button => {
+        button.classList.toggle(
+          "is-active",
+
+          button.dataset
+            .limestoneRange ===
+            selectedRange
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    기간 설정
+  ====================================================== */
+
+  function setLimestoneDateRange(
+    rangeType
+  ) {
+    const {
+      startDateInput,
+      endDateInput,
+      periodLabel
+    } =
+      getLimestoneReceiptElements();
+
+
+    if (
+      !startDateInput ||
+      !endDateInput
+    ) {
+      return;
+    }
+
+
+    const today =
+      new Date();
+
+
+    let startDate =
+      new Date(
+        today
+      );
+
+
+    let endDate =
+      new Date(
+        today
+      );
+
+
+    let label =
+      "최근 7일";
+
+
+    if (
+      rangeType ===
+        "today"
+    ) {
+      label =
+        "오늘";
+
+    } else if (
+      rangeType ===
+        "this-month"
+    ) {
+      startDate =
+        new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          1
+        );
+
+
+      label =
+        "이번 달";
+
+    } else if (
+      rangeType ===
+        "last-month"
+    ) {
+      startDate =
+        new Date(
+          today.getFullYear(),
+          today.getMonth() -
+            1,
+          1
+        );
+
+
+      endDate =
+        new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          0
+        );
+
+
+      label =
+        "지난 달";
+
+    } else {
+      startDate =
+        addLimestoneDays(
+          today,
+          -6
+        );
+
+
+      rangeType =
+        "7days";
+
+
+      label =
+        "최근 7일";
+    }
+
+
+    startDateInput.value =
+      formatLimestoneDate(
+        startDate
+      );
+
+
+    endDateInput.value =
+      formatLimestoneDate(
+        endDate
+      );
+
+
+    limestoneReceiptState
+      .currentRangeType =
+      rangeType;
+
+
+    setLimestoneRangeButtonState(
+      rangeType
+    );
+
+
+    if (
+      periodLabel
+    ) {
+      periodLabel.textContent =
+        label;
+    }
+  }
+
+
+  /* =====================================================
+    로딩 상태
+  ====================================================== */
+
+  function setLimestoneLoading(
+    isLoading
+  ) {
+    const {
+      loading,
+      refreshButton,
+      searchForm
+    } =
+      getLimestoneReceiptElements();
+
+
+    limestoneReceiptState
+      .isLoading =
+      isLoading ===
+      true;
+
+
+    if (
+      loading
+    ) {
+      loading.hidden =
+        !isLoading;
+    }
+
+
+    if (
+      refreshButton
+    ) {
+      refreshButton.disabled =
+        isLoading;
+
+
+      refreshButton.textContent =
+        isLoading
+          ? "불러오는 중..."
+          : "새로고침";
+    }
+
+
+    const searchButton =
+      searchForm?.querySelector(
+        'button[type="submit"]'
+      );
+
+
+    if (
+      searchButton
+    ) {
+      searchButton.disabled =
+        isLoading;
+
+
+      searchButton.textContent =
+        isLoading
+          ? "조회 중..."
+          : "조회";
+    }
+  }
+
+
+  /* =====================================================
+    현재 사용자의 관리 권한
+
+    화면에서 버튼을 숨기기 위한 보조 판정이다.
+    실제 권한은 서버에서 다시 확인한다.
+  ====================================================== */
+
+  function canCurrentUserManageLimestoneReceipt(
+    receipt
+  ) {
+    const currentUser =
+      typeof loadCurrentUser ===
+        "function"
+        ? loadCurrentUser()
+        : null;
+
+
+    if (
+      !currentUser
+    ) {
+      return false;
+    }
+
+
+    const currentEmployeeNo =
+      String(
+        currentUser.employeeNo ||
+        currentUser.employee_no ||
+        currentUser.employeeId ||
+        currentUser.employee_id ||
+        ""
+      ).trim();
+
+
+    const createdEmployeeNo =
+      String(
+        receipt.createdById ||
+        receipt.created_by_id ||
+        ""
+      ).trim();
+
+
+    if (
+      currentEmployeeNo &&
+      currentEmployeeNo ===
+        createdEmployeeNo
+    ) {
+      return true;
+    }
+
+
+    if (
+      typeof isCurrentUserSuperAdmin ===
+        "function" &&
+      isCurrentUserSuperAdmin()
+    ) {
+      return true;
+    }
+
+
+    const role =
+      String(
+        currentUser.role ||
+        currentUser.userRole ||
+        currentUser.user_role ||
+        ""
+      )
+        .trim()
+        .toLowerCase()
+        .replace(
+          /[\s-]+/g,
+          "_"
+        );
+
+
+    return [
+      "admin",
+      "leader",
+      "super_admin",
+      "superadmin"
+    ].includes(
+      role
+    );
+  }
+
+
+  /* =====================================================
+    기간 합계 출력
+  ====================================================== */
+
+  function renderLimestoneSummary(
+    summary
+  ) {
+    const {
+      totalQuantity,
+      unitOneQuantity,
+      unitTwoQuantity,
+      receiptCount
+    } =
+      getLimestoneReceiptElements();
+
+
+    if (
+      totalQuantity
+    ) {
+      totalQuantity.textContent =
+        formatLimestoneQuantity(
+          summary.totalQuantity
+        );
+    }
+
+
+    if (
+      unitOneQuantity
+    ) {
+      unitOneQuantity.textContent =
+        formatLimestoneQuantity(
+          summary.unitOneQuantity
+        );
+    }
+
+
+    if (
+      unitTwoQuantity
+    ) {
+      unitTwoQuantity.textContent =
+        formatLimestoneQuantity(
+          summary.unitTwoQuantity
+        );
+    }
+
+
+    if (
+      receiptCount
+    ) {
+      receiptCount.textContent =
+        String(
+          Number(
+            summary.receiptCount
+          ) ||
+          0
+        );
+    }
+  }
+
+
+  /* =====================================================
+    일자별 집계 출력
+  ====================================================== */
+
+  function renderLimestoneDailySummary(
+    dailySummary
+  ) {
+    const {
+      dailySummaryBody,
+      dailySummaryCount
+    } =
+      getLimestoneReceiptElements();
+
+
+    if (
+      dailySummaryCount
+    ) {
+      dailySummaryCount.textContent =
+        `${dailySummary.length}일`;
+    }
+
+
+    if (
+      !dailySummaryBody
+    ) {
+      return;
+    }
+
+
+    if (
+      dailySummary.length ===
+        0
+    ) {
+      dailySummaryBody.innerHTML = `
+        <tr class="limestone-empty-table-row">
+
+          <td colspan="5">
+            선택한 기간의 석회석 입고기록이 없습니다.
+          </td>
+
+        </tr>
+      `;
+
+
+      return;
+    }
+
+
+    dailySummaryBody.innerHTML =
+      dailySummary
+        .map(
+          item => {
+            return `
+              <tr>
+
+                <td>
+                  ${escapeLimestoneHtml(
+                    item.date
+                  )}
+                </td>
+
+                <td
+                  class="limestone-quantity-value"
+                >
+                  ${formatLimestoneQuantity(
+                    item.unitOneQuantity
+                  )} t
+                </td>
+
+                <td
+                  class="limestone-quantity-value"
+                >
+                  ${formatLimestoneQuantity(
+                    item.unitTwoQuantity
+                  )} t
+                </td>
+
+                <td
+                  class="limestone-quantity-value"
+                >
+                  ${formatLimestoneQuantity(
+                    item.totalQuantity
+                  )} t
+                </td>
+
+                <td>
+                  ${Number(
+                    item.receiptCount
+                  ) || 0}회
+                </td>
+
+              </tr>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+  }
+
+
+  /* =====================================================
+    당일 호기별 누적량 계산
+
+    같은 날짜·같은 호기의 기록을
+    시간순으로 누적한다.
+  ====================================================== */
+
+  function createLimestoneCumulativeMap(
+    items
+  ) {
+    const cumulativeMap =
+      new Map();
+
+
+    const runningTotals =
+      new Map();
+
+
+    [
+      ...items
+    ]
+      .sort(
+        (
+          firstItem,
+          secondItem
+        ) => {
+          const firstKey = [
+            firstItem.receiptDate,
+            firstItem.receiptTime,
+            firstItem.createdAt
+          ].join(
+            " "
+          );
+
+
+          const secondKey = [
+            secondItem.receiptDate,
+            secondItem.receiptTime,
+            secondItem.createdAt
+          ].join(
+            " "
+          );
+
+
+          return firstKey.localeCompare(
+            secondKey
+          );
+        }
+      )
+      .forEach(
+        item => {
+          const runningKey = [
+            item.receiptDate,
+            item.unitNo
+          ].join(
+            "||"
+          );
+
+
+          const nextTotal =
+            normalizeLimestoneQuantity(
+              (
+                runningTotals.get(
+                  runningKey
+                ) ||
+                0
+              ) +
+              (
+                Number(
+                  item.quantityTon
+                ) ||
+                0
+              )
+            );
+
+
+          runningTotals.set(
+            runningKey,
+            nextTotal
+          );
+
+
+          cumulativeMap.set(
+            item.id,
+            nextTotal
+          );
+        }
+      );
+
+
+    return cumulativeMap;
+  }
+
+
+  /* =====================================================
+    출처 표시
+  ====================================================== */
+
+  function getLimestoneSourceLabel(
+    item
+  ) {
+    if (
+      item.sourceType ===
+        "shift_log"
+    ) {
+      const sourceRole =
+        String(
+          item.sourceRole ||
+          ""
+        ).trim();
+
+
+      return sourceRole
+        ? `${sourceRole} 업무일지`
+        : "업무일지";
+    }
+
+
+    return "직접 입력";
+  }
+
+
+  /* =====================================================
+    입고기록 상세 출력
+  ====================================================== */
+
+  function renderLimestoneReceiptItems(
+    items
+  ) {
+    const {
+      receiptTableBody,
+      detailCount
+    } =
+      getLimestoneReceiptElements();
+
+
+    if (
+      detailCount
+    ) {
+      detailCount.textContent =
+        `${items.length}건`;
+    }
+
+
+    if (
+      !receiptTableBody
+    ) {
+      return;
+    }
+
+
+    if (
+      items.length ===
+        0
+    ) {
+      receiptTableBody.innerHTML = `
+        <tr class="limestone-empty-table-row">
+
+          <td colspan="8">
+            등록된 석회석 입고기록이 없습니다.
+          </td>
+
+        </tr>
+      `;
+
+
+      return;
+    }
+
+
+    const cumulativeMap =
+      createLimestoneCumulativeMap(
+        items
+      );
+
+
+    receiptTableBody.innerHTML =
+      items
+        .map(
+          item => {
+            const canManage =
+              canCurrentUserManageLimestoneReceipt(
+                item
+              );
+
+
+            const sourceLabel =
+              getLimestoneSourceLabel(
+                item
+              );
+
+
+            const sourceTitle =
+              item.sourceText ||
+              sourceLabel;
+
+
+            const note =
+              String(
+                item.note ||
+                ""
+              ).trim();
+
+
+            return `
+              <tr data-limestone-row="${escapeLimestoneHtml(
+                item.id
+              )}">
+
+                <td>
+                  ${escapeLimestoneHtml(
+                    item.receiptDate
+                  )}
+                </td>
+
+                <td>
+                  ${escapeLimestoneHtml(
+                    item.receiptTime
+                  )}
+                </td>
+
+                <td>
+                  ${Number(
+                    item.unitNo
+                  )}호기
+                </td>
+
+                <td
+                  class="limestone-quantity-value"
+                >
+                  ${formatLimestoneQuantity(
+                    item.quantityTon
+                  )} t
+                </td>
+
+                <td
+                  class="limestone-quantity-value"
+                  title="같은 날짜·같은 호기의 누적 입고량"
+                >
+                  ${formatLimestoneQuantity(
+                    cumulativeMap.get(
+                      item.id
+                    )
+                  )} t
+                </td>
+
+                <td
+                  title="${escapeLimestoneHtml(
+                    sourceTitle
+                  )}"
+                >
+                  ${escapeLimestoneHtml(
+                    sourceLabel
+                  )}
+                </td>
+
+                <td>
+                  ${note
+                    ? escapeLimestoneHtml(
+                        note
+                      )
+                    : "-"
+                  }
+                </td>
+
+                <td>
+
+                  ${
+                    canManage
+                      ? `
+                        <div class="limestone-row-actions">
+
+                          <button
+                            type="button"
+                            class="limestone-edit-button"
+                            data-limestone-edit="${escapeLimestoneHtml(
+                              item.id
+                            )}"
+                          >
+                            수정
+                          </button>
+
+                          <button
+                            type="button"
+                            class="limestone-delete-button"
+                            data-limestone-delete="${escapeLimestoneHtml(
+                              item.id
+                            )}"
+                          >
+                            삭제
+                          </button>
+
+                        </div>
+                      `
+                      : "-"
+                  }
+
+                </td>
+
+              </tr>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+  }
+
+
+  /* =====================================================
+    조회 결과 전체 출력
+  ====================================================== */
+
+  function renderLimestoneResult(
+    result
+  ) {
+    limestoneReceiptState.items =
+      Array.isArray(
+        result.items
+      )
+        ? result.items
+        : [];
+
+
+    limestoneReceiptState.dailySummary =
+      Array.isArray(
+        result.dailySummary
+      )
+        ? result.dailySummary
+        : [];
+
+
+    limestoneReceiptState.summary = {
+      totalQuantity:
+        Number(
+          result.summary
+            ?.totalQuantity
+        ) ||
+        0,
+
+      unitOneQuantity:
+        Number(
+          result.summary
+            ?.unitOneQuantity
+        ) ||
+        0,
+
+      unitTwoQuantity:
+        Number(
+          result.summary
+            ?.unitTwoQuantity
+        ) ||
+        0,
+
+      receiptCount:
+        Number(
+          result.summary
+            ?.receiptCount
+        ) ||
+        0
+    };
+
+
+    limestoneReceiptState.range = {
+      startDate:
+        String(
+          result.range
+            ?.startDate ||
+          ""
+        ),
+
+      endDate:
+        String(
+          result.range
+            ?.endDate ||
+          ""
+        ),
+
+      unitNo:
+        result.range
+          ?.unitNo ??
+        null
+    };
+
+
+    renderLimestoneSummary(
+      limestoneReceiptState
+        .summary
+    );
+
+
+    renderLimestoneDailySummary(
+      limestoneReceiptState
+        .dailySummary
+    );
+
+
+    renderLimestoneReceiptItems(
+      limestoneReceiptState.items
+    );
+  }
+
+
+  /* =====================================================
+    입고기록 조회
+  ====================================================== */
+
+  async function loadLimestoneReceipts() {
+    if (
+      limestoneReceiptState
+        .isLoading
+    ) {
+      return;
+    }
+
+
+    const {
+      startDateInput,
+      endDateInput,
+      unitFilter,
+      periodLabel
+    } =
+      getLimestoneReceiptElements();
+
+
+    const startDate =
+      String(
+        startDateInput?.value ||
+        ""
+      ).trim();
+
+
+    const endDate =
+      String(
+        endDateInput?.value ||
+        ""
+      ).trim();
+
+
+    const unitNo =
+      String(
+        unitFilter?.value ||
+        ""
+      ).trim();
+
+
+    if (
+      !isValidLimestoneDate(
+        startDate
+      ) ||
+      !isValidLimestoneDate(
+        endDate
+      )
+    ) {
+      showLimestoneToast(
+        "석회석 조회 시작일과 종료일을 확인해 주세요."
+      );
+
+
+      return;
+    }
+
+
+    if (
+      startDate >
+        endDate
+    ) {
+      showLimestoneToast(
+        "석회석 조회 시작일은 종료일보다 늦을 수 없습니다."
+      );
+
+
+      return;
+    }
+
+
+    const requestUrl =
+      new URL(
+        LIMESTONE_RECEIPTS_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "startDate",
+      startDate
+    );
+
+
+    requestUrl.searchParams.set(
+      "endDate",
+      endDate
+    );
+
+
+    if (
+      unitNo
+    ) {
+      requestUrl.searchParams.set(
+        "unitNo",
+        unitNo
+      );
+    }
+
+
+    setLimestoneLoading(
+      true
+    );
+
+
+    try {
+      const result =
+        await requestLimestoneApi(
+          requestUrl.toString(),
+          {
+            method:
+              "GET",
+
+            headers:
+              getLimestoneApiHeaders()
+          }
+        );
+
+
+      renderLimestoneResult(
+        result
+      );
+
+
+      limestoneReceiptState
+        .hasLoaded =
+        true;
+
+
+      if (
+        periodLabel &&
+        limestoneReceiptState
+          .currentRangeType ===
+          "custom"
+      ) {
+        periodLabel.textContent =
+          `${startDate} ~ ${endDate}`;
+      }
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "석회석 입고기록 조회 실패:",
+        error
+      );
+
+
+      showLimestoneToast(
+        error.message ||
+        "석회석 입고기록을 불러오지 못했습니다."
+      );
+
+    } finally {
+      setLimestoneLoading(
+        false
+      );
+    }
+  }
+
+
+  /* =====================================================
+    입력창 초기화
+  ====================================================== */
+
+  function resetLimestoneReceiptEditor() {
+    const {
+      editorForm,
+      editingIdInput,
+      receiptDateInput,
+      receiptTimeInput,
+      receiptUnitInput,
+      receiptQuantityInput,
+      receiptNoteInput
+    } =
+      getLimestoneReceiptElements();
+
+
+    editorForm?.reset();
+
+
+    if (
+      editingIdInput
+    ) {
+      editingIdInput.value =
+        "";
+
+
+      delete editingIdInput
+        .dataset
+        .revision;
+    }
+
+
+    if (
+      receiptDateInput
+    ) {
+      receiptDateInput.value =
+        getLimestoneToday();
+    }
+
+
+    if (
+      receiptTimeInput
+    ) {
+      receiptTimeInput.value =
+        getLimestoneCurrentTime();
+    }
+
+
+    if (
+      receiptUnitInput
+    ) {
+      receiptUnitInput.value =
+        "";
+    }
+
+
+    if (
+      receiptQuantityInput
+    ) {
+      receiptQuantityInput.value =
+        "";
+    }
+
+
+    if (
+      receiptNoteInput
+    ) {
+      receiptNoteInput.value =
+        "";
+    }
+
+
+    showLimestoneEditorMessage(
+      ""
+    );
+  }
+
+
+  /* =====================================================
+    입력창 열기
+  ====================================================== */
+
+  function openLimestoneReceiptEditor(
+    receipt = null
+  ) {
+    const {
+      editorPanel,
+      editorTitle,
+      editingIdInput,
+      receiptDateInput,
+      receiptTimeInput,
+      receiptUnitInput,
+      receiptQuantityInput,
+      receiptNoteInput,
+      importPanel
+    } =
+      getLimestoneReceiptElements();
+
+
+    if (
+      !editorPanel
+    ) {
+      showLimestoneToast(
+        "석회석 입고기록 입력창을 찾을 수 없습니다."
+      );
+
+
+      return;
+    }
+
+
+    if (
+      importPanel
+    ) {
+      importPanel.hidden =
+        true;
+    }
+
+
+    resetLimestoneReceiptEditor();
+
+
+    if (
+      receipt
+    ) {
+      if (
+        editorTitle
+      ) {
+        editorTitle.textContent =
+          "석회석 입고기록 수정";
+      }
+
+
+      if (
+        editingIdInput
+      ) {
+        editingIdInput.value =
+          receipt.id;
+
+
+        editingIdInput.dataset
+          .revision =
+          String(
+            receipt.revision ||
+            1
+          );
+      }
+
+
+      if (
+        receiptDateInput
+      ) {
+        receiptDateInput.value =
+          receipt.receiptDate;
+      }
+
+
+      if (
+        receiptTimeInput
+      ) {
+        receiptTimeInput.value =
+          receipt.receiptTime;
+      }
+
+
+      if (
+        receiptUnitInput
+      ) {
+        receiptUnitInput.value =
+          String(
+            receipt.unitNo
+          );
+      }
+
+
+      if (
+        receiptQuantityInput
+      ) {
+        receiptQuantityInput.value =
+          String(
+            receipt.quantityTon
+          );
+      }
+
+
+      if (
+        receiptNoteInput
+      ) {
+        receiptNoteInput.value =
+          receipt.note ||
+          "";
+      }
+
+    } else if (
+      editorTitle
+    ) {
+      editorTitle.textContent =
+        "석회석 입고기록 추가";
+    }
+
+
+    editorPanel.hidden =
+      false;
+
+
+    editorPanel.removeAttribute(
+      "hidden"
+    );
+
+
+    window.requestAnimationFrame(
+      () => {
+        editorPanel.scrollIntoView({
+          behavior:
+            "smooth",
+
+          block:
+            "nearest"
+        });
+
+
+        receiptDateInput?.focus();
+      }
+    );
+  }
+
+
+  /* =====================================================
+    입력창 닫기
+  ====================================================== */
+
+  function closeLimestoneReceiptEditor() {
+    const {
+      editorPanel
+    } =
+      getLimestoneReceiptElements();
+
+
+    if (
+      !editorPanel
+    ) {
+      return;
+    }
+
+
+    editorPanel.hidden =
+      true;
+
+
+    resetLimestoneReceiptEditor();
+  }
+
+
+  /* =====================================================
+    입력값 읽기
+  ====================================================== */
+
+  function collectLimestoneReceiptFormData() {
+    const {
+      receiptDateInput,
+      receiptTimeInput,
+      receiptUnitInput,
+      receiptQuantityInput,
+      receiptNoteInput
+    } =
+      getLimestoneReceiptElements();
+
+
+    return {
+      receiptDate:
+        String(
+          receiptDateInput?.value ||
+          ""
+        ).trim(),
+
+      receiptTime:
+        String(
+          receiptTimeInput?.value ||
+          ""
+        ).trim(),
+
+      unitNo:
+        Number(
+          receiptUnitInput?.value
+        ),
+
+      quantityTon:
+        Number(
+          receiptQuantityInput?.value
+        ),
+
+      note:
+        String(
+          receiptNoteInput?.value ||
+          ""
+        ).trim()
+    };
+  }
+
+
+  /* =====================================================
+    입력값 검사
+  ====================================================== */
+
+  function validateLimestoneReceiptForm(
+    receipt
+  ) {
+    const {
+      receiptDateInput,
+      receiptTimeInput,
+      receiptUnitInput,
+      receiptQuantityInput,
+      receiptNoteInput
+    } =
+      getLimestoneReceiptElements();
+
+
+    if (
+      !isValidLimestoneDate(
+        receipt.receiptDate
+      )
+    ) {
+      showLimestoneEditorMessage(
+        "입고일자를 확인해 주세요."
+      );
+
+
+      receiptDateInput?.focus();
+
+
+      return false;
+    }
+
+
+    if (
+      !/^([01]\d|2[0-3]):[0-5]\d$/.test(
+        receipt.receiptTime
+      )
+    ) {
+      showLimestoneEditorMessage(
+        "입고시간을 확인해 주세요."
+      );
+
+
+      receiptTimeInput?.focus();
+
+
+      return false;
+    }
+
+
+    if (
+      ![
+        1,
+        2
+      ].includes(
+        receipt.unitNo
+      )
+    ) {
+      showLimestoneEditorMessage(
+        "1호기 또는 2호기를 선택해 주세요."
+      );
+
+
+      receiptUnitInput?.focus();
+
+
+      return false;
+    }
+
+
+    if (
+      !Number.isFinite(
+        receipt.quantityTon
+      ) ||
+      receipt.quantityTon <
+        0.01 ||
+      receipt.quantityTon >
+        999.99
+    ) {
+      showLimestoneEditorMessage(
+        "입고량은 0.01~999.99 ton 범위로 입력해 주세요."
+      );
+
+
+      receiptQuantityInput?.focus();
+
+
+      return false;
+    }
+
+
+    if (
+      receipt.note.length >
+        200
+    ) {
+      showLimestoneEditorMessage(
+        "비고는 200자 이하로 입력해 주세요."
+      );
+
+
+      receiptNoteInput?.focus();
+
+
+      return false;
+    }
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    신규 등록·수정
+  ====================================================== */
+
+  async function saveLimestoneReceipt(
+    event
+  ) {
+    event?.preventDefault();
+
+
+    const {
+      editingIdInput,
+      saveButton
+    } =
+      getLimestoneReceiptElements();
+
+
+    const receipt =
+      collectLimestoneReceiptFormData();
+
+
+    showLimestoneEditorMessage(
+      ""
+    );
+
+
+    if (
+      !validateLimestoneReceiptForm(
+        receipt
+      )
+    ) {
+      return;
+    }
+
+
+    const editingId =
+      String(
+        editingIdInput?.value ||
+        ""
+      ).trim();
+
+
+    const revision =
+      Number(
+        editingIdInput
+          ?.dataset
+          ?.revision ||
+        0
+      );
+
+
+    const isEditing =
+      Boolean(
+        editingId
+      );
+
+
+    if (
+      saveButton
+    ) {
+      saveButton.disabled =
+        true;
+
+
+      saveButton.textContent =
+        isEditing
+          ? "수정 중..."
+          : "저장 중...";
+    }
+
+
+    try {
+      const result =
+        await requestLimestoneApi(
+          LIMESTONE_RECEIPTS_API_URL,
+          {
+            method:
+              isEditing
+                ? "PUT"
+                : "POST",
+
+            headers:
+              getLimestoneApiHeaders({
+                "Content-Type":
+                  "application/json"
+              }),
+
+            body:
+              JSON.stringify({
+                ...receipt,
+
+                ...(
+                  isEditing
+                    ? {
+                        id:
+                          editingId,
+
+                        revision
+                      }
+                    : {}
+                )
+              })
+          }
+        );
+
+
+      closeLimestoneReceiptEditor();
+
+
+      await loadLimestoneReceipts();
+
+
+      showLimestoneToast(
+        result.message ||
+        (
+          isEditing
+            ? "석회석 입고기록을 수정했습니다."
+            : "석회석 입고기록을 등록했습니다."
+        )
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "석회석 입고기록 저장 실패:",
+        error
+      );
+
+
+      if (
+        error.status ===
+          409
+      ) {
+        await loadLimestoneReceipts();
+      }
+
+
+      showLimestoneEditorMessage(
+        error.message ||
+        "석회석 입고기록을 저장하지 못했습니다."
+      );
+
+    } finally {
+      if (
+        saveButton
+      ) {
+        saveButton.disabled =
+          false;
+
+
+        saveButton.textContent =
+          "저장";
+      }
+    }
+  }
+
+
+  /* =====================================================
+    기록 찾기
+  ====================================================== */
+
+  function findLimestoneReceipt(
+    receiptId
+  ) {
+    const normalizedId =
+      String(
+        receiptId ||
+        ""
+      ).trim();
+
+
+    return (
+      limestoneReceiptState
+        .items
+        .find(
+          item => {
+            return (
+              String(
+                item.id ||
+                ""
+              ).trim() ===
+              normalizedId
+            );
+          }
+        ) ||
+      null
+    );
+  }
+
+
+  /* =====================================================
+    삭제
+  ====================================================== */
+
+  async function deleteLimestoneReceipt(
+    receiptId
+  ) {
+    const receipt =
+      findLimestoneReceipt(
+        receiptId
+      );
+
+
+    if (
+      !receipt
+    ) {
+      showLimestoneToast(
+        "삭제할 석회석 입고기록을 찾을 수 없습니다."
+      );
+
+
+      return;
+    }
+
+
+    const shouldDelete =
+      window.confirm(
+        [
+          "석회석 입고기록을 삭제하시겠습니까?",
+          "",
+          `${receipt.receiptDate} ${receipt.receiptTime}`,
+          `${receipt.unitNo}호기`,
+          `${formatLimestoneQuantity(
+            receipt.quantityTon
+          )} ton`
+        ].join(
+          "\n"
+        )
+      );
+
+
+    if (
+      !shouldDelete
+    ) {
+      return;
+    }
+
+
+    const requestUrl =
+      new URL(
+        LIMESTONE_RECEIPTS_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "id",
+      receipt.id
+    );
+
+
+    requestUrl.searchParams.set(
+      "revision",
+      String(
+        receipt.revision ||
+        1
+      )
+    );
+
+
+    try {
+      const result =
+        await requestLimestoneApi(
+          requestUrl.toString(),
+          {
+            method:
+              "DELETE",
+
+            headers:
+              getLimestoneApiHeaders()
+          }
+        );
+
+
+      await loadLimestoneReceipts();
+
+
+      showLimestoneToast(
+        result.message ||
+        "석회석 입고기록을 삭제했습니다."
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "석회석 입고기록 삭제 실패:",
+        error
+      );
+
+
+      if (
+        error.status ===
+          409
+      ) {
+        await loadLimestoneReceipts();
+      }
+
+
+      showLimestoneToast(
+        error.message ||
+        "석회석 입고기록을 삭제하지 못했습니다."
+      );
+    }
+  }
+
+
+  /* =====================================================
+    상세 표 클릭
+  ====================================================== */
+
+  function handleLimestoneReceiptTableClick(
+    event
+  ) {
+    const editButton =
+      event.target.closest(
+        "[data-limestone-edit]"
+      );
+
+
+    if (
+      editButton
+    ) {
+      const receipt =
+        findLimestoneReceipt(
+          editButton.dataset
+            .limestoneEdit
+        );
+
+
+      if (
+        receipt
+      ) {
+        openLimestoneReceiptEditor(
+          receipt
+        );
+      }
+
+
+      return;
+    }
+
+
+    const deleteButton =
+      event.target.closest(
+        "[data-limestone-delete]"
+      );
+
+
+    if (
+      deleteButton
+    ) {
+      deleteLimestoneReceipt(
+        deleteButton.dataset
+          .limestoneDelete
+      );
+    }
+  }
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function bindLimestoneReceiptEvents() {
+    const elements =
+      getLimestoneReceiptElements();
+
+
+    const {
+      limestoneTab,
+      refreshButton,
+      importButton,
+      openEditorButton,
+      quickRangeButtons,
+      searchForm,
+      closeEditorButton,
+      cancelEditorButton,
+      editorForm,
+      receiptTableBody
+    } = elements;
+
+
+    if (
+      !limestoneTab ||
+      !elements.view
+    ) {
+      return;
+    }
+
+
+    if (
+      limestoneTab.dataset
+        .limestoneFeatureBound ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    /*
+      기본 조회 기간
+    */
+    setLimestoneDateRange(
+      "7days"
+    );
+
+
+    /*
+      석회석 탭을 열 때 조회
+    */
+    limestoneTab.addEventListener(
+      "click",
+      () => {
+        window.setTimeout(
+          () => {
+            loadLimestoneReceipts();
+          },
+          0
+        );
+      }
+    );
+
+
+    refreshButton?.addEventListener(
+      "click",
+      loadLimestoneReceipts
+    );
+
+
+    openEditorButton?.addEventListener(
+      "click",
+      () => {
+        openLimestoneReceiptEditor();
+      }
+    );
+
+
+    closeEditorButton?.addEventListener(
+      "click",
+      closeLimestoneReceiptEditor
+    );
+
+
+    cancelEditorButton?.addEventListener(
+      "click",
+      closeLimestoneReceiptEditor
+    );
+
+
+    editorForm?.addEventListener(
+      "submit",
+      saveLimestoneReceipt
+    );
+
+
+    receiptTableBody?.addEventListener(
+      "click",
+      handleLimestoneReceiptTableClick
+    );
+
+
+    quickRangeButtons.forEach(
+      button => {
+        button.addEventListener(
+          "click",
+          async () => {
+            setLimestoneDateRange(
+              button.dataset
+                .limestoneRange
+            );
+
+
+            await loadLimestoneReceipts();
+          }
+        );
+      }
+    );
+
+
+    searchForm?.addEventListener(
+      "submit",
+      async event => {
+        event.preventDefault();
+
+
+        limestoneReceiptState
+          .currentRangeType =
+          "custom";
+
+
+        setLimestoneRangeButtonState(
+          ""
+        );
+
+
+        await loadLimestoneReceipts();
+      }
+    );
+
+
+    /*
+      업무일지 자동 가져오기는
+      다음 단계에서 실제 추출 기능을 연결한다.
+    */
+    importButton?.addEventListener(
+      "click",
+      () => {
+        showLimestoneToast(
+          "업무일지 석회석 입고내역 가져오기는 다음 단계에서 연결합니다."
+        );
+      }
+    );
+
+
+    limestoneTab.dataset
+      .limestoneFeatureBound =
+      "true";
+  }
+
+
+  /* =====================================================
+    외부 호출용
+  ====================================================== */
+
+  window.loadLimestoneReceipts =
+    loadLimestoneReceipts;
+
+
+  window.openLimestoneReceiptEditor =
+    openLimestoneReceiptEditor;
+
+
+  window.closeLimestoneReceiptEditor =
+    closeLimestoneReceiptEditor;
+
+
+  /* =====================================================
+    초기 실행
+  ====================================================== */
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      bindLimestoneReceiptEvents,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    bindLimestoneReceiptEvents();
+  }
+})();

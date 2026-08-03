@@ -72,51 +72,92 @@
     </nav>
 
 
-    <section
-      class="inspection-log-list"
-      id="inspectionLogList"
-    >
+<section
+  class="inspection-log-list"
+  id="inspectionLogList"
+>
 
-      <button
-        type="button"
-        class="inspection-log-card"
-        data-inspection-log="night-patrol"
-        data-inspection-category-item="daily"
-        data-inspection-path="daily/night-patrol/night-patrol.html?v=20260803-6"
-      >
+  <!-- =====================================================
+    일일점검일지
+  ====================================================== -->
 
-        <span class="inspection-log-card__icon">
-          🌙
-        </span>
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-log="night-patrol"
+    data-inspection-category-item="daily"
+    data-inspection-path="daily/night-patrol/night-patrol.html?v=20260803-6"
+  >
 
-        <span class="inspection-log-card__text">
+    <span class="inspection-log-card__icon">
+      🌙
+    </span>
 
-          <strong>
-            야간 순찰 점검일지
-          </strong>
+    <span class="inspection-log-card__text">
 
-          <small>
-            야간 현장 순찰 및 이상 유무 기록
-          </small>
+      <strong>
+        야간 순찰 점검일지
+      </strong>
 
-        </span>
+      <small>
+        야간 현장 순찰 및 이상 유무 기록
+      </small>
 
-        <span class="inspection-log-card__arrow">
-          ›
-        </span>
+    </span>
 
-      </button>
+    <span class="inspection-log-card__arrow">
+      ›
+    </span>
+
+  </button>
 
 
-      <div
-        class="inspection-log-empty"
-        id="inspectionLogEmpty"
-        hidden
-      >
-        등록된 점검일지가 없습니다.
-      </div>
+  <!-- =====================================================
+    주간점검일지
+  ====================================================== -->
 
-    </section>
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-log="high-pressure-gas"
+    data-inspection-category-item="weekly"
+    data-inspection-path="weekly/high-pressure-gas/high-pressure-gas.html?v=20260803-1"
+  >
+
+    <span class="inspection-log-card__icon">
+      🧯
+    </span>
+
+    <span class="inspection-log-card__text">
+
+      <strong>
+        고압가스 저장시설 주간점검표
+      </strong>
+
+      <small>
+        매주 일요일 D/S · CO2 저장시설 점검
+      </small>
+
+    </span>
+
+    <span class="inspection-log-card__arrow">
+      ›
+    </span>
+
+  </button>
+
+
+  <!-- 등록된 일지가 없을 때 표시 -->
+
+  <div
+    class="inspection-log-empty"
+    id="inspectionLogEmpty"
+    hidden
+  >
+    등록된 점검일지가 없습니다.
+  </div>
+
+</section>
 
 
     <section
