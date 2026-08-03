@@ -60992,3 +60992,188 @@ thead th {
       0 !important;
   }
 }
+
+/* =========================================================
+  작업내역 시간 입력칸 표시 조건 최종본
+
+  평상시:
+  - 시간 직접입력 칸 숨김
+  - 현재시간 체크만 표시
+
+  기존 항목 수정 중:
+  - 시간 직접입력 칸 표시
+  - 현재시간 체크 함께 표시
+========================================================= */
+
+
+/* =========================================================
+  평상시 시간 직접입력 숨김
+========================================================= */
+
+#logEditorModal
+#logEntryInputPanel:not(.is-editing)
+#logEntryTime[type="text"] {
+  display: none !important;
+}
+
+
+#logEditorModal
+#logEntryInputPanel:not(.is-editing)
+.log-entry-time-edit-group {
+  display: grid !important;
+
+  width: 92px !important;
+  min-width: 92px !important;
+
+  grid-template-columns:
+    92px !important;
+
+  justify-content: start !important;
+  gap: 0 !important;
+}
+
+
+#logEditorModal
+#logEntryInputPanel:not(.is-editing)
+.log-entry-current-time-field {
+  width: 92px !important;
+  min-width: 92px !important;
+}
+
+
+/* =========================================================
+  기존 항목 수정 중 시간 직접입력 표시
+========================================================= */
+
+#logEditorModal
+#logEntryInputPanel.is-editing
+#logEntryTime[type="text"] {
+  display: block !important;
+}
+
+
+#logEditorModal
+#logEntryInputPanel.is-editing
+.log-entry-time-edit-group {
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    92px !important;
+
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+
+/* =========================================================
+  PC 평상시 배치
+
+  구분 | 현재시간 | 추가
+========================================================= */
+
+@media (min-width: 981px) {
+
+  /* 인계사항·비고 평상시 */
+
+  #logEditorModal
+  #logEntryInputPanel:not(.is-editing)
+  .log-entry-input-top-row {
+    grid-template-columns:
+      158px
+      92px
+      auto
+      minmax(0, 1fr) !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel:not(.is-editing)
+  .log-entry-current-time-field {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel:not(.is-editing)
+  .log-entry-input-actions {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+  }
+
+
+  /* TM·BM·CM 평상시 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout:not(.is-editing)
+  .log-entry-input-top-row {
+    grid-template-columns:
+      140px
+      92px
+      minmax(220px, 1fr)
+      155px
+      78px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout:not(.is-editing)
+  .log-entry-current-time-field {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+
+    width: 92px !important;
+    min-width: 92px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout:not(.is-editing)
+  .log-entry-field--tag {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout:not(.is-editing)
+  .log-entry-navigator-history-field {
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout:not(.is-editing)
+  .log-entry-input-actions {
+    grid-column: 5 !important;
+    grid-row: 1 !important;
+  }
+}
+
+
+/* =========================================================
+  모바일 평상시
+========================================================= */
+
+@media (max-width: 980px) {
+
+  #logEditorModal
+  #logEntryInputPanel:not(.is-editing)
+  .log-entry-current-time-field {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel:not(.is-editing)
+  .log-entry-time-edit-group {
+    width: 92px !important;
+    min-width: 92px !important;
+  }
+}
