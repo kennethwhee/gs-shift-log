@@ -219,29 +219,38 @@ function getNightPatrolCurrentUserPosition() {
 }
 
 
+/* =========================================================
+  야간순찰 점검일지 최종 접근 권한
+
+  허용:
+  - GS Shift Log에 로그인한 모든 직원
+  - 모든 보직
+  - PC 및 모바일
+
+  차단:
+  - 로그인 정보가 없는 직접 접근
+========================================================= */
+
 function canCurrentUserAccessNightPatrolPage() {
-  const isDesktop =
-    window.matchMedia(
-      "(min-width: 769px)"
-    ).matches;
+  const currentUser =
+    loadNightPatrolCurrentUser();
 
-  if (
-    !isDesktop
-  ) {
-    return false;
-  }
 
-  if (
-    isNightPatrolCurrentUserSuperAdmin()
-  ) {
-    return true;
-  }
-
-  return NIGHT_PATROL_ALLOWED_POSITIONS.has(
-    getNightPatrolCurrentUserPosition()
+  /*
+    GS Shift Log에 로그인한 사용자라면
+    보직과 접속 기기에 관계없이 사용할 수 있다.
+  */
+  return Boolean(
+    currentUser &&
+    typeof currentUser ===
+      "object"
   );
 }
 
+
+/* =========================================================
+  로그인하지 않은 직접 접근 안내
+========================================================= */
 
 function renderNightPatrolAccessDenied() {
   document.body.innerHTML = `
@@ -263,7 +272,9 @@ function renderNightPatrolAccessDenied() {
           border-radius: 16px;
           background: #ffffff;
           text-align: center;
-          box-shadow: 0 14px 40px rgba(27, 58, 86, 0.12);
+          box-shadow:
+            0 14px 40px
+            rgba(27, 58, 86, 0.12);
         "
       >
         <strong
@@ -273,7 +284,7 @@ function renderNightPatrolAccessDenied() {
             font-size: 20px;
           "
         >
-          야간순찰 메뉴를 사용할 수 없습니다.
+          로그인 정보를 확인할 수 없습니다.
         </strong>
 
         <p
@@ -284,8 +295,8 @@ function renderNightPatrolAccessDenied() {
             line-height: 1.65;
           "
         >
-          야간순찰 점검일지는 PC에서<br>
-          최고관리자·TO·BO1·BO2만 사용할 수 있습니다.
+          GS Shift Log에 로그인한 뒤<br>
+          점검일지 메뉴에서 다시 열어 주세요.
         </p>
       </section>
     </main>
