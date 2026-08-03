@@ -3810,50 +3810,834 @@
 
   </article>
 
+<!-- =================================================
+  석회석 입고 현황
+
+  집계 기준:
+  - 당일 00:00 이상
+  - 익일 00:00 미만
+
+  호기:
+  - BCO1 → 1호기
+  - BCO2 → 2호기
+================================================== -->
+<article
+  class="
+    efficiency-team-view
+    limestone-management-view
+  "
+  id="efficiencyLimestoneView"
+  data-efficiency-view="limestone"
+  role="tabpanel"
+  aria-labelledby="efficiencyLimestoneTab"
+  hidden
+>
 
   <!-- =================================================
-    석회석
+    상단
   ================================================== -->
-  <article
-    class="efficiency-team-view"
-    id="efficiencyLimestoneView"
-    data-efficiency-view="limestone"
-    role="tabpanel"
-    aria-labelledby="efficiencyLimestoneTab"
-    hidden
+  <div
+    class="
+      efficiency-team-view__heading
+      limestone-view-heading
+    "
   >
 
-    <div class="efficiency-team-view__heading">
+    <div>
 
-      <div>
+      <span>
+        LIMESTONE RECEIPT
+      </span>
 
-        <span>
-          LIMESTONE
-        </span>
+      <h3>
+        석회석 입고 현황
+      </h3>
 
-        <h3>
-          석회석
-        </h3>
-
-      </div>
-
-    </div>
-
-
-    <div class="efficiency-team-empty-content">
-
-      <strong>
-        석회석 관리 화면
-      </strong>
-
-      <p>
-        석회석 관련 기능을 이 영역에 구성합니다.
+      <p class="limestone-view-description">
+        호기별 석회석 입고량을 기록하고 기간별 합계를 확인합니다.
       </p>
 
     </div>
 
-  </article>
 
+    <div class="limestone-heading-actions">
+
+      <button
+        type="button"
+        class="
+          secondary-button
+          limestone-refresh-button
+        "
+        id="refreshLimestoneReceiptsButton"
+      >
+        새로고침
+      </button>
+
+
+      <button
+        type="button"
+        class="
+          secondary-button
+          limestone-import-button
+        "
+        id="importLimestoneFromShiftLogsButton"
+      >
+        업무일지에서 가져오기
+      </button>
+
+
+      <button
+        type="button"
+        class="
+          primary-button
+          limestone-add-button
+        "
+        id="openLimestoneReceiptEditorButton"
+      >
+        ＋ 입고 기록
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <!-- =================================================
+    석회석 관리 본문
+  ================================================== -->
+  <div
+    class="limestone-dashboard"
+    id="limestoneDashboard"
+  >
+
+    <!-- =================================================
+      기간 검색
+    ================================================== -->
+    <section class="limestone-filter-card">
+
+      <!-- 빠른 기간 선택 -->
+      <div
+        class="limestone-quick-range"
+        role="group"
+        aria-label="석회석 조회 기간 빠른 선택"
+      >
+
+        <button
+          type="button"
+          class="limestone-range-button"
+          data-limestone-range="today"
+        >
+          오늘
+        </button>
+
+
+        <button
+          type="button"
+          class="
+            limestone-range-button
+            is-active
+          "
+          data-limestone-range="7days"
+        >
+          최근 7일
+        </button>
+
+
+        <button
+          type="button"
+          class="limestone-range-button"
+          data-limestone-range="this-month"
+        >
+          이번 달
+        </button>
+
+
+        <button
+          type="button"
+          class="limestone-range-button"
+          data-limestone-range="last-month"
+        >
+          지난 달
+        </button>
+
+      </div>
+
+
+      <!-- 직접 기간 선택 -->
+      <form
+        class="limestone-search-form"
+        id="limestoneSearchForm"
+      >
+
+        <label class="form-field">
+
+          <span class="form-field__label">
+            시작일
+          </span>
+
+          <input
+            type="date"
+            id="limestoneStartDate"
+            name="limestoneStartDate"
+            required
+          />
+
+        </label>
+
+
+        <label class="form-field">
+
+          <span class="form-field__label">
+            종료일
+          </span>
+
+          <input
+            type="date"
+            id="limestoneEndDate"
+            name="limestoneEndDate"
+            required
+          />
+
+        </label>
+
+
+        <label class="form-field">
+
+          <span class="form-field__label">
+            호기
+          </span>
+
+          <select
+            id="limestoneUnitFilter"
+            name="limestoneUnitFilter"
+          >
+
+            <option value="">
+              전체 호기
+            </option>
+
+            <option value="1">
+              1호기
+            </option>
+
+            <option value="2">
+              2호기
+            </option>
+
+          </select>
+
+        </label>
+
+
+        <button
+          type="submit"
+          class="
+            primary-button
+            limestone-search-button
+          "
+          id="searchLimestoneReceiptsButton"
+        >
+          조회
+        </button>
+
+      </form>
+
+
+      <div class="limestone-period-information">
+
+        <span>
+          집계 기준
+        </span>
+
+        <strong id="limestonePeriodLabel">
+          최근 7일
+        </strong>
+
+        <small>
+          각 날짜의 00:00부터 다음 날짜 00:00 전까지 집계합니다.
+        </small>
+
+      </div>
+
+    </section>
+
+
+    <!-- =================================================
+      기간 합계
+    ================================================== -->
+    <section
+      class="limestone-summary-grid"
+      aria-label="석회석 입고량 요약"
+    >
+
+      <!-- 전체 -->
+      <article
+        class="
+          limestone-summary-card
+          is-total
+        "
+      >
+
+        <span>
+          전체 입고량
+        </span>
+
+        <strong id="limestoneTotalQuantity">
+          0.00
+        </strong>
+
+        <small>
+          ton
+        </small>
+
+      </article>
+
+
+      <!-- 1호기 -->
+      <article
+        class="
+          limestone-summary-card
+          is-unit-one
+        "
+      >
+
+        <span>
+          1호기 입고량
+        </span>
+
+        <strong id="limestoneUnitOneQuantity">
+          0.00
+        </strong>
+
+        <small>
+          ton
+        </small>
+
+      </article>
+
+
+      <!-- 2호기 -->
+      <article
+        class="
+          limestone-summary-card
+          is-unit-two
+        "
+      >
+
+        <span>
+          2호기 입고량
+        </span>
+
+        <strong id="limestoneUnitTwoQuantity">
+          0.00
+        </strong>
+
+        <small>
+          ton
+        </small>
+
+      </article>
+
+
+      <!-- 입고 횟수 -->
+      <article
+        class="
+          limestone-summary-card
+          is-count
+        "
+      >
+
+        <span>
+          입고 횟수
+        </span>
+
+        <strong id="limestoneReceiptCount">
+          0
+        </strong>
+
+        <small>
+          회
+        </small>
+
+      </article>
+
+    </section>
+
+
+    <!-- =================================================
+      일자별 집계
+
+      예:
+      날짜 | 1호기 | 2호기 | 합계 | 횟수
+    ================================================== -->
+    <section class="limestone-section-card">
+
+      <header class="limestone-section-header">
+
+        <div>
+
+          <span>
+            DAILY SUMMARY
+          </span>
+
+          <h4>
+            일자별 입고량
+          </h4>
+
+        </div>
+
+
+        <strong
+          class="limestone-section-count"
+          id="limestoneDailySummaryCount"
+        >
+          0일
+        </strong>
+
+      </header>
+
+
+      <div class="limestone-table-wrap">
+
+        <table
+          class="
+            limestone-table
+            limestone-daily-summary-table
+          "
+        >
+
+          <thead>
+
+            <tr>
+
+              <th scope="col">
+                일자
+              </th>
+
+              <th scope="col">
+                1호기
+              </th>
+
+              <th scope="col">
+                2호기
+              </th>
+
+              <th scope="col">
+                일일 합계
+              </th>
+
+              <th scope="col">
+                입고 횟수
+              </th>
+
+            </tr>
+
+          </thead>
+
+
+          <tbody id="limestoneDailySummaryBody">
+
+            <tr class="limestone-empty-table-row">
+
+              <td colspan="5">
+                선택한 기간의 석회석 입고기록이 없습니다.
+              </td>
+
+            </tr>
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+
+    <!-- =================================================
+      입고기록 상세
+    ================================================== -->
+    <section class="limestone-section-card">
+
+      <header class="limestone-section-header">
+
+        <div>
+
+          <span>
+            RECEIPT HISTORY
+          </span>
+
+          <h4>
+            입고기록 상세
+          </h4>
+
+        </div>
+
+
+        <strong
+          class="limestone-section-count"
+          id="limestoneDetailCount"
+        >
+          0건
+        </strong>
+
+      </header>
+
+
+      <!-- 조회 중 -->
+      <div
+        class="limestone-loading"
+        id="limestoneLoading"
+        hidden
+      >
+        석회석 입고기록을 불러오는 중입니다.
+      </div>
+
+
+      <div class="limestone-table-wrap">
+
+        <table
+          class="
+            limestone-table
+            limestone-receipt-table
+          "
+        >
+
+          <thead>
+
+            <tr>
+
+              <th scope="col">
+                일자
+              </th>
+
+              <th scope="col">
+                시간
+              </th>
+
+              <th scope="col">
+                호기
+              </th>
+
+              <th scope="col">
+                입고량
+              </th>
+
+              <th scope="col">
+                당일 누적
+              </th>
+
+              <th scope="col">
+                출처
+              </th>
+
+              <th scope="col">
+                비고
+              </th>
+
+              <th scope="col">
+                관리
+              </th>
+
+            </tr>
+
+          </thead>
+
+
+          <tbody id="limestoneReceiptTableBody">
+
+            <tr class="limestone-empty-table-row">
+
+              <td colspan="8">
+                등록된 석회석 입고기록이 없습니다.
+              </td>
+
+            </tr>
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+
+    <!-- =================================================
+      입고기록 입력·수정
+
+      모든 로그인 사용자가 등록 가능하도록
+      다음 JavaScript·API 단계에서 연결한다.
+    ================================================== -->
+    <section
+      class="limestone-editor-panel"
+      id="limestoneReceiptEditorPanel"
+      hidden
+    >
+
+      <header class="limestone-editor-header">
+
+        <div>
+
+          <span>
+            RECEIPT ENTRY
+          </span>
+
+          <h4 id="limestoneReceiptEditorTitle">
+            석회석 입고기록 추가
+          </h4>
+
+        </div>
+
+
+        <button
+          type="button"
+          class="limestone-editor-close-button"
+          id="closeLimestoneReceiptEditorButton"
+          aria-label="석회석 입고기록 입력창 닫기"
+        >
+          ×
+        </button>
+
+      </header>
+
+
+      <input
+        type="hidden"
+        id="limestoneReceiptEditingId"
+        value=""
+      />
+
+
+      <form
+        class="limestone-editor-form"
+        id="limestoneReceiptEditorForm"
+      >
+
+        <!-- 입고일자 -->
+        <label class="form-field">
+
+          <span class="form-field__label">
+            입고일자
+          </span>
+
+          <input
+            type="date"
+            id="limestoneReceiptDate"
+            name="limestoneReceiptDate"
+            required
+          />
+
+        </label>
+
+
+        <!-- 입고시간 -->
+        <label class="form-field">
+
+          <span class="form-field__label">
+            입고시간
+          </span>
+
+          <input
+            type="time"
+            id="limestoneReceiptTime"
+            name="limestoneReceiptTime"
+            required
+          />
+
+        </label>
+
+
+        <!-- 호기 -->
+        <label class="form-field">
+
+          <span class="form-field__label">
+            호기
+          </span>
+
+          <select
+            id="limestoneReceiptUnit"
+            name="limestoneReceiptUnit"
+            required
+          >
+
+            <option value="">
+              호기 선택
+            </option>
+
+            <option value="1">
+              1호기
+            </option>
+
+            <option value="2">
+              2호기
+            </option>
+
+          </select>
+
+        </label>
+
+
+        <!-- 입고량 -->
+        <label class="form-field">
+
+          <span class="form-field__label">
+            입고량
+          </span>
+
+          <div class="limestone-quantity-input-wrap">
+
+            <input
+              type="number"
+              id="limestoneReceiptQuantity"
+              name="limestoneReceiptQuantity"
+              min="0.01"
+              max="999.99"
+              step="0.01"
+              inputmode="decimal"
+              placeholder="예: 30.20"
+              required
+            />
+
+            <span>
+              ton
+            </span>
+
+          </div>
+
+        </label>
+
+
+        <!-- 비고 -->
+        <label
+          class="
+            form-field
+            limestone-editor-note-field
+          "
+        >
+
+          <span class="form-field__label">
+            비고
+          </span>
+
+          <input
+            type="text"
+            id="limestoneReceiptNote"
+            name="limestoneReceiptNote"
+            maxlength="200"
+            placeholder="차량번호, 전표번호 또는 특이사항"
+            autocomplete="off"
+          />
+
+        </label>
+
+
+        <div class="limestone-editor-actions">
+
+          <button
+            type="button"
+            class="secondary-button"
+            id="cancelLimestoneReceiptEditorButton"
+          >
+            취소
+          </button>
+
+
+          <button
+            type="submit"
+            class="primary-button"
+            id="saveLimestoneReceiptButton"
+          >
+            저장
+          </button>
+
+        </div>
+
+      </form>
+
+
+      <p
+        class="limestone-editor-message"
+        id="limestoneReceiptEditorMessage"
+        role="alert"
+        hidden
+      >
+      </p>
+
+    </section>
+
+
+    <!-- =================================================
+      업무일지 가져오기 확인
+
+      자동 추출 결과를 바로 저장하지 않고
+      사용자가 확인한 항목만 등록한다.
+    ================================================== -->
+    <section
+      class="limestone-import-panel"
+      id="limestoneImportPanel"
+      hidden
+    >
+
+      <header class="limestone-import-header">
+
+        <div>
+
+          <span>
+            SHIFT LOG IMPORT
+          </span>
+
+          <h4>
+            업무일지 석회석 입고내역 가져오기
+          </h4>
+
+          <p>
+            BCO1은 1호기, BCO2는 2호기로 분류합니다.
+          </p>
+
+        </div>
+
+
+        <strong id="limestoneImportCandidateCount">
+          0건
+        </strong>
+
+      </header>
+
+
+      <div
+        class="limestone-import-candidate-list"
+        id="limestoneImportCandidateList"
+      >
+      </div>
+
+
+      <div class="limestone-import-actions">
+
+        <button
+          type="button"
+          class="secondary-button"
+          id="cancelLimestoneImportButton"
+        >
+          취소
+        </button>
+
+
+        <button
+          type="button"
+          class="primary-button"
+          id="applyLimestoneImportButton"
+        >
+          선택 기록 추가
+        </button>
+
+      </div>
+
+    </section>
+
+  </div>
+
+</article>
 
   <!-- =================================================
     Arm Roll

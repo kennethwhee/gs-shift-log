@@ -58825,3 +58825,1532 @@ and (
   }
 
 }
+
+/* =========================================================
+  효율팀 - 석회석 입고 현황
+
+  주요 기능:
+  - 기간별 조회
+  - 전체·1호기·2호기 합계
+  - 일자별 입고량
+  - 입고기록 상세
+  - 직접 입력
+  - 업무일지 가져오기
+========================================================= */
+
+
+/* =========================================================
+  석회석 화면 전체
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-management-view {
+  min-width: 0;
+  min-height: 0;
+
+  background: #f5f8fb;
+}
+
+
+#efficiencyTeamModal
+.limestone-view-heading {
+  align-items: center;
+}
+
+
+#efficiencyTeamModal
+.limestone-view-description {
+  margin: 6px 0 0;
+
+  color: #738195;
+
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+  상단 버튼
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-heading-actions {
+  display: flex;
+
+  flex: 0 0 auto;
+
+  align-items: center;
+  justify-content: flex-end;
+
+  flex-wrap: wrap;
+
+  gap: 7px;
+}
+
+
+#efficiencyTeamModal
+.limestone-heading-actions button {
+  min-height: 36px;
+
+  padding-right: 12px;
+  padding-left: 12px;
+
+  font-size: 11px;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-button {
+  border-color: #b9cce3;
+
+  background: #eef5fc;
+  color: #1f5fae;
+}
+
+
+/* =========================================================
+  석회석 대시보드
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-dashboard {
+  display: flex;
+
+  width: 100%;
+  min-width: 0;
+
+  flex: 1 1 auto;
+  flex-direction: column;
+
+  gap: 14px;
+
+  padding: 16px;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+
+/* =========================================================
+  기간 검색 카드
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-filter-card {
+  display: grid;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    auto
+    minmax(520px, 1fr)
+    minmax(220px, auto);
+
+  align-items: end;
+
+  gap: 14px;
+
+  padding: 14px;
+
+  border: 1px solid #d8e2ec;
+  border-radius: 12px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 3px 10px
+    rgba(15, 23, 42, 0.035);
+}
+
+
+/* =========================================================
+  빠른 기간 버튼
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-quick-range {
+  display: flex;
+
+  align-items: center;
+
+  gap: 5px;
+}
+
+
+#efficiencyTeamModal
+.limestone-range-button {
+  min-height: 36px;
+
+  padding: 0 11px;
+
+  border: 1px solid #cbd6e2;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #5c6a7d;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  white-space: nowrap;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+
+#efficiencyTeamModal
+.limestone-range-button:hover {
+  border-color: #8db0d5;
+
+  background: #f2f7fd;
+  color: #1f5fae;
+}
+
+
+#efficiencyTeamModal
+.limestone-range-button.is-active {
+  border-color: #6d9fd2;
+
+  background: #e8f2fd;
+  color: #175b9f;
+
+  box-shadow:
+    inset 0 -2px 0 #1f5fae;
+}
+
+
+/* =========================================================
+  직접 기간 검색
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-search-form {
+  display: grid;
+
+  min-width: 0;
+
+  grid-template-columns:
+    minmax(130px, 1fr)
+    minmax(130px, 1fr)
+    120px
+    72px;
+
+  align-items: end;
+
+  gap: 7px;
+}
+
+
+#efficiencyTeamModal
+.limestone-search-form
+.form-field {
+  gap: 4px;
+}
+
+
+#efficiencyTeamModal
+.limestone-search-form
+.form-field__label {
+  font-size: 9px;
+}
+
+
+#efficiencyTeamModal
+.limestone-search-form
+input,
+
+#efficiencyTeamModal
+.limestone-search-form
+select {
+  min-height: 36px;
+
+  padding-right: 9px;
+  padding-left: 9px;
+
+  border-radius: 7px;
+
+  font-size: 11px;
+}
+
+
+#efficiencyTeamModal
+.limestone-search-button {
+  width: 72px;
+  min-width: 72px;
+  min-height: 36px;
+
+  padding: 0;
+}
+
+
+/* =========================================================
+  현재 집계 기간
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-information {
+  display: grid;
+
+  min-width: 210px;
+
+  grid-template-columns:
+    auto
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  column-gap: 7px;
+  row-gap: 2px;
+
+  padding: 9px 11px;
+
+  border: 1px solid #d9e4ef;
+  border-radius: 9px;
+
+  background: #f8fafc;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-information > span {
+  color: #768396;
+
+  font-size: 9px;
+  font-weight: 800;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-information > strong {
+  color: #29425f;
+
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-information > small {
+  grid-column: 1 / -1;
+
+  color: #8a95a4;
+
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+
+/* =========================================================
+  기간 합계 카드
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-summary-grid {
+  display: grid;
+
+  width: 100%;
+
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 10px;
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card {
+  position: relative;
+
+  min-width: 0;
+  min-height: 104px;
+
+  padding: 16px;
+
+  overflow: hidden;
+
+  border: 1px solid #d8e2ec;
+  border-radius: 12px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 3px 10px
+    rgba(15, 23, 42, 0.035);
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card::before {
+  content: "";
+
+  position: absolute;
+
+  top: 0;
+  bottom: 0;
+  left: 0;
+
+  width: 4px;
+
+  background: #60758d;
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card > span {
+  display: block;
+
+  margin-bottom: 9px;
+
+  color: #748195;
+
+  font-size: 10px;
+  font-weight: 800;
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card > strong {
+  display: inline-block;
+
+  color: #1c2c43;
+
+  font-size: 27px;
+  font-weight: 900;
+  line-height: 1;
+
+  letter-spacing: -0.04em;
+
+  font-variant-numeric: tabular-nums;
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card > small {
+  margin-left: 5px;
+
+  color: #8290a2;
+
+  font-size: 10px;
+  font-weight: 800;
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card.is-total::before {
+  background: #1f5fae;
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card.is-total {
+  border-color: #b9d0e9;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f5faff 0%,
+      #ffffff 70%
+    );
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card.is-total > strong {
+  color: #175b9f;
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card.is-unit-one::before {
+  background: #17865f;
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card.is-unit-one > strong {
+  color: #16764f;
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card.is-unit-two::before {
+  background: #7a4aa2;
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card.is-unit-two > strong {
+  color: #704394;
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card.is-count::before {
+  background: #b87412;
+}
+
+
+#efficiencyTeamModal
+.limestone-summary-card.is-count > strong {
+  color: #a3650c;
+}
+
+
+/* =========================================================
+  공통 섹션 카드
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-section-card {
+  width: 100%;
+  min-width: 0;
+
+  overflow: hidden;
+
+  border: 1px solid #d8e2ec;
+  border-radius: 12px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 3px 10px
+    rgba(15, 23, 42, 0.035);
+}
+
+
+#efficiencyTeamModal
+.limestone-section-header {
+  display: flex;
+
+  min-height: 58px;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  padding: 11px 15px;
+
+  border-bottom: 1px solid #e0e7ef;
+
+  background: #f9fbfd;
+}
+
+
+#efficiencyTeamModal
+.limestone-section-header span {
+  display: block;
+
+  margin-bottom: 3px;
+
+  color: #1f5fae;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.14em;
+}
+
+
+#efficiencyTeamModal
+.limestone-section-header h4 {
+  margin: 0;
+
+  color: #26384f;
+
+  font-size: 14px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-section-count {
+  display: inline-flex;
+
+  min-width: 42px;
+  min-height: 23px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 8px;
+
+  border-radius: 999px;
+
+  background: #eaf2fb;
+  color: #1f5fae;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+/* =========================================================
+  석회석 표
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-table-wrap {
+  width: 100%;
+
+  overflow-x: auto;
+}
+
+
+#efficiencyTeamModal
+.limestone-table {
+  width: 100%;
+  min-width: 760px;
+
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+
+#efficiencyTeamModal
+.limestone-table th {
+  height: 36px;
+
+  padding: 7px 9px;
+
+  border-bottom: 1px solid #dfe6ee;
+
+  background: #f4f7fa;
+  color: #627083;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  text-align: center;
+  white-space: nowrap;
+}
+
+
+#efficiencyTeamModal
+.limestone-table td {
+  height: 41px;
+
+  padding: 8px 9px;
+
+  border-bottom: 1px solid #edf1f5;
+
+  background: #ffffff;
+  color: #33445b;
+
+  font-size: 10px;
+  font-weight: 650;
+
+  text-align: center;
+  vertical-align: middle;
+}
+
+
+#efficiencyTeamModal
+.limestone-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+
+#efficiencyTeamModal
+.limestone-table tbody tr:hover td {
+  background: #f8fbff;
+}
+
+
+/* 숫자 열 */
+
+#efficiencyTeamModal
+.limestone-table
+.limestone-quantity-value {
+  color: #1f5fae;
+
+  font-weight: 900;
+
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* 일자별 요약 열 */
+
+#efficiencyTeamModal
+.limestone-daily-summary-table th:nth-child(1),
+#efficiencyTeamModal
+.limestone-daily-summary-table td:nth-child(1) {
+  width: 150px;
+}
+
+
+#efficiencyTeamModal
+.limestone-daily-summary-table th:nth-child(2),
+#efficiencyTeamModal
+.limestone-daily-summary-table td:nth-child(2),
+
+#efficiencyTeamModal
+.limestone-daily-summary-table th:nth-child(3),
+#efficiencyTeamModal
+.limestone-daily-summary-table td:nth-child(3),
+
+#efficiencyTeamModal
+.limestone-daily-summary-table th:nth-child(4),
+#efficiencyTeamModal
+.limestone-daily-summary-table td:nth-child(4) {
+  width: 150px;
+}
+
+
+/* 입고 상세 열 */
+
+#efficiencyTeamModal
+.limestone-receipt-table {
+  min-width: 980px;
+}
+
+
+#efficiencyTeamModal
+.limestone-receipt-table th:nth-child(1),
+#efficiencyTeamModal
+.limestone-receipt-table td:nth-child(1) {
+  width: 105px;
+}
+
+
+#efficiencyTeamModal
+.limestone-receipt-table th:nth-child(2),
+#efficiencyTeamModal
+.limestone-receipt-table td:nth-child(2) {
+  width: 72px;
+}
+
+
+#efficiencyTeamModal
+.limestone-receipt-table th:nth-child(3),
+#efficiencyTeamModal
+.limestone-receipt-table td:nth-child(3) {
+  width: 65px;
+}
+
+
+#efficiencyTeamModal
+.limestone-receipt-table th:nth-child(4),
+#efficiencyTeamModal
+.limestone-receipt-table td:nth-child(4),
+
+#efficiencyTeamModal
+.limestone-receipt-table th:nth-child(5),
+#efficiencyTeamModal
+.limestone-receipt-table td:nth-child(5) {
+  width: 90px;
+}
+
+
+#efficiencyTeamModal
+.limestone-receipt-table th:nth-child(6),
+#efficiencyTeamModal
+.limestone-receipt-table td:nth-child(6) {
+  width: 130px;
+}
+
+
+#efficiencyTeamModal
+.limestone-receipt-table th:nth-child(8),
+#efficiencyTeamModal
+.limestone-receipt-table td:nth-child(8) {
+  width: 108px;
+}
+
+
+/* 빈 표 */
+
+#efficiencyTeamModal
+.limestone-empty-table-row td {
+  height: 76px;
+
+  color: #8b97a6;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  text-align: center;
+}
+
+
+/* =========================================================
+  로딩
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-loading {
+  padding: 11px 15px;
+
+  border-bottom: 1px solid #e5ebf1;
+
+  background: #f4f8fd;
+  color: #1f5fae;
+
+  font-size: 10px;
+  font-weight: 800;
+}
+
+
+/* =========================================================
+  표 관리 버튼
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-row-actions {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 4px;
+}
+
+
+#efficiencyTeamModal
+.limestone-edit-button,
+
+#efficiencyTeamModal
+.limestone-delete-button {
+  min-width: 43px;
+  min-height: 26px;
+
+  padding: 0 6px;
+
+  border: 1px solid #cbd6e2;
+  border-radius: 6px;
+
+  background: #ffffff;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-edit-button {
+  border-color: #afc9e5;
+
+  color: #1f5fae;
+}
+
+
+#efficiencyTeamModal
+.limestone-edit-button:hover {
+  background: #edf5fd;
+}
+
+
+#efficiencyTeamModal
+.limestone-delete-button {
+  border-color: #ebc0c0;
+
+  color: #b84444;
+}
+
+
+#efficiencyTeamModal
+.limestone-delete-button:hover {
+  background: #fff1f1;
+}
+
+
+/* =========================================================
+  입고기록 입력·수정
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-editor-panel {
+  width: 100%;
+
+  padding: 15px;
+
+  border: 1px solid #b9d0e9;
+  border-radius: 12px;
+
+  background: #f7fbff;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(31, 95, 174, 0.06);
+}
+
+
+#efficiencyTeamModal
+.limestone-editor-header {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 15px;
+
+  margin-bottom: 13px;
+}
+
+
+#efficiencyTeamModal
+.limestone-editor-header span {
+  display: block;
+
+  margin-bottom: 3px;
+
+  color: #1f5fae;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.14em;
+}
+
+
+#efficiencyTeamModal
+.limestone-editor-header h4 {
+  margin: 0;
+
+  color: #24364d;
+
+  font-size: 15px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-editor-close-button {
+  width: 30px;
+  height: 30px;
+
+  border-radius: 7px;
+
+  background: #edf2f7;
+  color: #59687a;
+
+  font-size: 20px;
+  line-height: 1;
+}
+
+
+#efficiencyTeamModal
+.limestone-editor-form {
+  display: grid;
+
+  grid-template-columns:
+    145px
+    115px
+    105px
+    155px
+    minmax(220px, 1fr)
+    auto;
+
+  align-items: end;
+
+  gap: 9px;
+}
+
+
+#efficiencyTeamModal
+.limestone-editor-form
+.form-field {
+  gap: 4px;
+}
+
+
+#efficiencyTeamModal
+.limestone-editor-form
+input,
+
+#efficiencyTeamModal
+.limestone-editor-form
+select {
+  min-height: 37px;
+
+  border-radius: 7px;
+
+  font-size: 11px;
+}
+
+
+#efficiencyTeamModal
+.limestone-quantity-input-wrap {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    38px;
+
+  align-items: center;
+
+  overflow: hidden;
+
+  border: 1px solid #c8d4e1;
+  border-radius: 7px;
+
+  background: #ffffff;
+}
+
+
+#efficiencyTeamModal
+.limestone-quantity-input-wrap input {
+  min-width: 0;
+
+  border: 0;
+  border-radius: 0;
+
+  box-shadow: none;
+}
+
+
+#efficiencyTeamModal
+.limestone-quantity-input-wrap > span {
+  display: flex;
+
+  height: 100%;
+
+  align-items: center;
+  justify-content: center;
+
+  border-left: 1px solid #d9e1ea;
+
+  background: #f4f7fa;
+  color: #68778a;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-editor-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 6px;
+}
+
+
+#efficiencyTeamModal
+.limestone-editor-actions button {
+  min-height: 37px;
+
+  padding-right: 12px;
+  padding-left: 12px;
+
+  font-size: 10px;
+}
+
+
+#efficiencyTeamModal
+.limestone-editor-message {
+  margin: 11px 0 0;
+
+  padding: 9px 10px;
+
+  border: 1px solid #efbcbc;
+  border-radius: 7px;
+
+  background: #fff4f4;
+  color: #b43e3e;
+
+  font-size: 10px;
+  font-weight: 700;
+}
+
+
+/* =========================================================
+  업무일지 가져오기
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-import-panel {
+  width: 100%;
+
+  padding: 15px;
+
+  border: 1px solid #d8c695;
+  border-radius: 12px;
+
+  background: #fffdf7;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-header {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 15px;
+
+  margin-bottom: 12px;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-header span {
+  display: block;
+
+  margin-bottom: 3px;
+
+  color: #a3680d;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 0.14em;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-header h4 {
+  margin: 0;
+
+  color: #3d3a2f;
+
+  font-size: 14px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-header p {
+  margin: 4px 0 0;
+
+  color: #85765e;
+
+  font-size: 9px;
+  font-weight: 600;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-header > strong {
+  display: inline-flex;
+
+  min-width: 44px;
+  min-height: 25px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 8px;
+
+  border-radius: 999px;
+
+  background: #fff1d4;
+  color: #9c620d;
+
+  font-size: 10px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-candidate-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 6px;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-candidate {
+  display: grid;
+
+  grid-template-columns:
+    30px
+    95px
+    65px
+    85px
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  gap: 8px;
+
+  min-height: 42px;
+
+  padding: 7px 9px;
+
+  border: 1px solid #eadfc3;
+  border-radius: 8px;
+
+  background: #ffffff;
+
+  color: #4f4a3d;
+
+  font-size: 10px;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-candidate input {
+  width: 15px;
+  height: 15px;
+
+  margin: 0;
+
+  accent-color: #b87412;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-actions {
+  display: flex;
+
+  justify-content: flex-end;
+
+  gap: 7px;
+
+  margin-top: 12px;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-actions button {
+  min-height: 36px;
+
+  font-size: 10px;
+}
+
+
+/* =========================================================
+  중간 PC
+========================================================= */
+
+@media screen and (max-width: 1250px) {
+
+  #efficiencyTeamModal
+  .limestone-filter-card {
+    grid-template-columns:
+      1fr
+      minmax(0, 1fr);
+
+    align-items: stretch;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-information {
+    grid-column: 1 / -1;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-editor-form {
+    grid-template-columns:
+      repeat(4, minmax(0, 1fr));
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-editor-note-field {
+    grid-column: span 3;
+  }
+
+}
+
+
+/* =========================================================
+  태블릿
+========================================================= */
+
+@media screen and (max-width: 980px) {
+
+  #efficiencyTeamModal
+  .limestone-view-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-heading-actions {
+    justify-content: flex-start;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-filter-card {
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: stretch;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-search-form {
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr))
+      80px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-summary-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-editor-form {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-editor-note-field {
+    grid-column: 1 / -1;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-editor-actions {
+    grid-column: 1 / -1;
+
+    justify-content: flex-end;
+  }
+
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  #efficiencyTeamModal
+  .limestone-dashboard {
+    gap: 10px;
+
+    padding: 10px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-heading-actions {
+    display: grid;
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+    width: 100%;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-heading-actions button {
+    width: 100%;
+
+    min-width: 0;
+
+    padding-right: 5px;
+    padding-left: 5px;
+
+    font-size: 9px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-add-button {
+    grid-column: 1 / -1;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-filter-card {
+    gap: 10px;
+
+    padding: 11px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-quick-range {
+    display: grid;
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-range-button {
+    width: 100%;
+
+    padding: 0 5px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-search-form {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-search-form
+  .form-field:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-search-button {
+    width: 100%;
+
+    grid-column: 1 / -1;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-information {
+    min-width: 0;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-summary-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+
+    gap: 7px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-summary-card {
+    min-height: 88px;
+
+    padding: 12px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-summary-card > strong {
+    font-size: 21px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-section-header {
+    min-height: 52px;
+
+    padding: 9px 11px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-editor-panel,
+
+  #efficiencyTeamModal
+  .limestone-import-panel {
+    padding: 11px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-editor-form {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-editor-note-field,
+
+  #efficiencyTeamModal
+  .limestone-editor-actions {
+    grid-column: auto;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-editor-actions {
+    display: grid;
+
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-editor-actions button {
+    width: 100%;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-import-candidate {
+    grid-template-columns:
+      28px
+      80px
+      55px
+      minmax(0, 1fr);
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-import-candidate
+  .limestone-import-source {
+    grid-column:
+      2 / -1;
+  }
+
+}
+
+
+/* =========================================================
+  작은 모바일
+========================================================= */
+
+@media screen and (max-width: 430px) {
+
+  #efficiencyTeamModal
+  .limestone-summary-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-quick-range {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-search-form {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-search-form
+  .form-field:nth-child(3),
+
+  #efficiencyTeamModal
+  .limestone-search-button {
+    grid-column: auto;
+  }
+
+}
