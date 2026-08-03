@@ -3847,47 +3847,405 @@
   <!-- =================================================
     일일업무현황
   ================================================== -->
-  <article
-    class="
-      efficiency-team-view
-      is-active
-    "
-    id="efficiencyDailyWorkView"
-    data-efficiency-view="daily-work"
-    role="tabpanel"
-    aria-labelledby="efficiencyDailyWorkTab"
-  >
+<article class="efficiency-team-view efficiency-daily-work-view is-active" id="efficiencyDailyWorkView" data-efficiency-view="daily-work" role="tabpanel" aria-labelledby="efficiencyDailyWorkTab">
+  <!-- =================================================
+    상단
+  ================================================== -->
+  <header class="efficiency-team-view__heading efficiency-daily-work-heading">
+    <div>
+      <span> DAILY WORK STATUS </span>
 
-    <div class="efficiency-team-view__heading">
+      <h3>일일업무현황</h3>
 
-      <div>
+      <p class="efficiency-daily-work-description">
+        일자별 업무현황을 작성하고 PDF 양식으로 확인합니다.
+      </p>
+    </div>
 
-        <span>
-          DAILY WORK STATUS
-        </span>
+    <div class="efficiency-daily-work-heading-actions" role="group" aria-label="일일업무현황 작업">
+      <button type="button" class="secondary-button" id="toggleEfficiencyDailyWorkArchiveButton" aria-controls="efficiencyDailyWorkArchivePanel" aria-expanded="true">
+        날짜별 보관함
+      </button>
 
-        <h3>
-          일일업무현황
-        </h3>
+      <button type="button" class="primary-button" id="newEfficiencyDailyWorkButton">
+        ＋ 새 일지
+      </button>
+    </div>
+  </header>
 
+  <!-- =================================================
+    보관함 + 작성 화면
+  ================================================== -->
+  <div class="efficiency-daily-work-dashboard" id="efficiencyDailyWorkDashboard">
+    <!-- ===============================================
+      연도 → 월 → 날짜별 보관함
+    ================================================ -->
+    <aside class="efficiency-daily-work-archive" id="efficiencyDailyWorkArchivePanel" aria-labelledby="efficiencyDailyWorkArchiveTitle">
+      <div class="efficiency-daily-work-archive__heading">
+        <div>
+          <span> ARCHIVE </span>
+
+          <h4 id="efficiencyDailyWorkArchiveTitle">
+            날짜별 보관함
+          </h4>
+        </div>
+
+        <strong id="efficiencyDailyWorkArchiveCount">
+          0건
+        </strong>
       </div>
 
-    </div>
+      <button type="button" class="secondary-button efficiency-daily-work-refresh-button" id="refreshEfficiencyDailyWorkButton">
+        새로고침
+      </button>
 
+      <div class="efficiency-daily-work-folder-tree" id="efficiencyDailyWorkFolderTree" aria-live="polite"></div>
 
-    <div class="efficiency-team-empty-content">
+      <div class="efficiency-daily-work-archive-empty" id="efficiencyDailyWorkArchiveEmptyState">
+        <strong>저장된 기록이 없습니다.</strong>
 
-      <strong>
-        일일업무현황
-      </strong>
+        <p>
+          새 일지를 저장하면 연도·월·날짜 순으로 정리됩니다.
+        </p>
+      </div>
+    </aside>
 
-      <p>
-        효율팀 일일업무현황 기능을 이 영역에 구성합니다.
-      </p>
+    <!-- ===============================================
+      A4 작성 화면
+    ================================================ -->
+    <section class="efficiency-daily-work-editor" id="efficiencyDailyWorkEditor" aria-labelledby="efficiencyDailyWorkDocumentTitle">
+      <form class="efficiency-daily-work-form" id="efficiencyDailyWorkForm" autocomplete="off">
+        <input type="hidden" id="efficiencyDailyWorkRecordId" name="recordId" />
 
-    </div>
+        <input type="hidden" id="efficiencyDailyWorkVersion" name="version" value="0" />
 
-  </article>
+        <!-- =============================================
+          날짜 이동 및 기록 상태
+        ============================================== -->
+        <div class="efficiency-daily-work-date-toolbar">
+          <div class="efficiency-daily-work-date-navigation">
+            <button type="button" class="efficiency-daily-work-date-button" id="previousEfficiencyDailyWorkDateButton" aria-label="이전 날짜">
+              ‹
+            </button>
+
+            <label class="efficiency-daily-work-date-field">
+              <span>작성일</span>
+
+              <input type="date" id="efficiencyDailyWorkDate" name="workDate" required />
+            </label>
+
+            <button type="button" class="efficiency-daily-work-date-button" id="nextEfficiencyDailyWorkDateButton" aria-label="다음 날짜">
+              ›
+            </button>
+
+            <button type="button" class="secondary-button" id="moveEfficiencyDailyWorkToTodayButton">
+              오늘
+            </button>
+          </div>
+
+          <div class="efficiency-daily-work-record-meta">
+            <span class="status-badge is-writing" id="efficiencyDailyWorkStatusBadge">
+              새 일지
+            </span>
+
+            <span id="efficiencyDailyWorkAuthor">
+              작성자 미지정
+            </span>
+
+            <span id="efficiencyDailyWorkUpdatedAt"></span>
+          </div>
+        </div>
+
+        <!-- =============================================
+          실제 A4 양식
+        ============================================== -->
+        <div class="efficiency-daily-work-paper-scroll">
+          <section class="efficiency-daily-work-paper" id="efficiencyDailyWorkPaper" data-efficiency-daily-work-paper>
+            <header class="efficiency-daily-work-paper__header">
+              <h2 id="efficiencyDailyWorkDocumentTitle">
+                설비운영팀 일일 업무 현황
+              </h2>
+
+              <time id="efficiencyDailyWorkFormattedDate" datetime="">
+                작성일을 선택하세요
+              </time>
+            </header>
+
+            <!-- =========================================
+              1. 주요 전달 및 지시사항
+            ========================================== -->
+            <section class="efficiency-daily-work-paper-section">
+              <h3 class="efficiency-daily-work-section-title">
+                1. 주요 전달 및 지시사항(TM회의 등등 Issue사항) :
+                팀장(◎대표님, ○부문장님, -팀장, *기타 지시사항)
+              </h3>
+
+              <div class="efficiency-daily-work-instruction-box">
+                <label class="efficiency-daily-work-instruction-field is-notice">
+                  <span>[공지사항]</span>
+
+                  <textarea id="efficiencyDailyWorkNotice" name="notice" rows="4" placeholder="공지사항을 입력하세요."></textarea>
+                </label>
+
+                <label class="efficiency-daily-work-instruction-field">
+                  <span>[TM 회의]</span>
+
+                  <textarea id="efficiencyDailyWorkTmMeeting" name="tmMeeting" rows="6" placeholder="TM 회의 내용을 입력하세요."></textarea>
+                </label>
+
+                <label class="efficiency-daily-work-instruction-field">
+                  <span>[설비운영팀]</span>
+
+                  <textarea id="efficiencyDailyWorkTeamInstruction" name="teamInstruction" rows="6" placeholder="설비운영팀 전달사항을 입력하세요."></textarea>
+                </label>
+              </div>
+            </section>
+
+            <!-- =========================================
+              2. 주요 업무 현황
+            ========================================== -->
+            <section class="efficiency-daily-work-paper-section">
+              <div class="efficiency-daily-work-section-heading-row">
+                <h3 class="efficiency-daily-work-section-title">
+                  2. 주요 업무 현황
+                </h3>
+
+                <label class="efficiency-daily-work-generation-check">
+                  <input type="checkbox" id="efficiencyDailyWorkGenerationReportCompleted" name="generationReportCompleted" />
+
+                  <span class="efficiency-daily-work-generation-check__box" aria-hidden="true"></span>
+
+                  <span>일일발전 운전현황작성</span>
+                </label>
+              </div>
+
+              <div class="efficiency-daily-work-table-wrap">
+                <table class="efficiency-daily-work-table">
+                  <caption>
+                    □ 효율파트 업무일지 및 운전파트 주요사항
+                  </caption>
+
+                  <colgroup>
+                    <col class="efficiency-daily-work-table__group-column" />
+                    <col class="efficiency-daily-work-table__role-column" />
+                    <col class="efficiency-daily-work-table__task-column" />
+                    <col class="efficiency-daily-work-table__remark-column" />
+                  </colgroup>
+
+                  <thead>
+                    <tr>
+                      <th scope="col">구분</th>
+                      <th scope="col">업무[정+부]</th>
+                      <th scope="col">
+                        주요 업무(업무내용, Event, Issue사항 등)
+                      </th>
+                      <th scope="col">비고</th>
+                    </tr>
+                  </thead>
+
+                  <tbody class="efficiency-daily-work-table__efficiency-body">
+                    <tr data-efficiency-daily-work-row data-efficiency-daily-work-row-key="efficiency-overall">
+                      <th class="efficiency-daily-work-table__group-cell" scope="rowgroup" rowspan="5">
+                        <span>효율파트</span>
+                      </th>
+
+                      <th class="efficiency-daily-work-table__role-cell" scope="row">
+                        <span>효율업무 총괄</span>
+
+                        <input type="text" name="efficiencyOverallAssignee" data-efficiency-daily-work-field="assignee" aria-label="효율업무 총괄 담당자" placeholder="[담당자]" />
+                      </th>
+
+                      <td>
+                        <textarea name="efficiencyOverallTasks" rows="4" data-efficiency-daily-work-field="tasks" aria-label="효율업무 총괄 주요 업무"></textarea>
+                      </td>
+
+                      <td>
+                        <textarea name="efficiencyOverallRemarks" rows="4" data-efficiency-daily-work-field="remarks" aria-label="효율업무 총괄 비고"></textarea>
+                      </td>
+                    </tr>
+
+                    <tr data-efficiency-daily-work-row data-efficiency-daily-work-row-key="efficiency-1">
+                      <th class="efficiency-daily-work-table__role-cell" scope="row">
+                        <span>효율업무1</span>
+
+                        <input type="text" name="efficiency1Assignee" data-efficiency-daily-work-field="assignee" aria-label="효율업무1 담당자" placeholder="[담당자]" />
+                      </th>
+
+                      <td>
+                        <textarea name="efficiency1Tasks" rows="4" data-efficiency-daily-work-field="tasks" aria-label="효율업무1 주요 업무"></textarea>
+                      </td>
+
+                      <td>
+                        <textarea name="efficiency1Remarks" rows="4" data-efficiency-daily-work-field="remarks" aria-label="효율업무1 비고"></textarea>
+                      </td>
+                    </tr>
+
+                    <tr data-efficiency-daily-work-row data-efficiency-daily-work-row-key="efficiency-2">
+                      <th class="efficiency-daily-work-table__role-cell" scope="row">
+                        <span>효율업무2</span>
+
+                        <input type="text" name="efficiency2Assignee" data-efficiency-daily-work-field="assignee" aria-label="효율업무2 담당자" placeholder="[담당자]" />
+                      </th>
+
+                      <td>
+                        <textarea name="efficiency2Tasks" rows="4" data-efficiency-daily-work-field="tasks" aria-label="효율업무2 주요 업무"></textarea>
+                      </td>
+
+                      <td>
+                        <textarea name="efficiency2Remarks" rows="4" data-efficiency-daily-work-field="remarks" aria-label="효율업무2 비고"></textarea>
+                      </td>
+                    </tr>
+
+                    <tr data-efficiency-daily-work-row data-efficiency-daily-work-row-key="efficiency-3">
+                      <th class="efficiency-daily-work-table__role-cell" scope="row">
+                        <span>효율업무3</span>
+
+                        <input type="text" name="efficiency3Assignee" data-efficiency-daily-work-field="assignee" aria-label="효율업무3 담당자" placeholder="[담당자]" />
+                      </th>
+
+                      <td>
+                        <textarea name="efficiency3Tasks" rows="4" data-efficiency-daily-work-field="tasks" aria-label="효율업무3 주요 업무"></textarea>
+                      </td>
+
+                      <td>
+                        <textarea name="efficiency3Remarks" rows="4" data-efficiency-daily-work-field="remarks" aria-label="효율업무3 비고"></textarea>
+                      </td>
+                    </tr>
+
+                    <tr data-efficiency-daily-work-row data-efficiency-daily-work-row-key="purchase-admin">
+                      <th class="efficiency-daily-work-table__role-cell is-purchase-admin" scope="row">
+                        <span>구매·행정업무</span>
+
+                        <input type="text" name="purchaseAdminAssignee" data-efficiency-daily-work-field="assignee" aria-label="구매·행정업무 담당자" placeholder="[담당자]" />
+                      </th>
+
+                      <td>
+                        <textarea name="purchaseAdminTasks" rows="4" data-efficiency-daily-work-field="tasks" aria-label="구매·행정업무 주요 업무"></textarea>
+                      </td>
+
+                      <td>
+                        <textarea name="purchaseAdminRemarks" rows="4" data-efficiency-daily-work-field="remarks" aria-label="구매·행정업무 비고"></textarea>
+                      </td>
+                    </tr>
+                  </tbody>
+
+                  <tbody class="efficiency-daily-work-table__operation-body">
+                    <tr data-efficiency-daily-work-row data-efficiency-daily-work-row-key="operation-day">
+                      <th class="efficiency-daily-work-table__group-cell" scope="rowgroup" rowspan="2">
+                        <span>운전파트</span>
+                      </th>
+
+                      <th class="efficiency-daily-work-table__role-cell" scope="row">
+                        <span>Day 근무조</span>
+
+                        <select name="dayPart" data-efficiency-daily-work-field="part" aria-label="Day 실제 근무 파트">
+                          <option value="">파트 선택</option>
+                          <option value="1">1파트</option>
+                          <option value="2">2파트</option>
+                          <option value="3">3파트</option>
+                          <option value="4">4파트</option>
+                        </select>
+
+                        <input type="text" name="dayMembers" data-efficiency-daily-work-field="members" aria-label="Day 근무자" placeholder="[근무자]" />
+                      </th>
+
+                      <td>
+                        <textarea name="dayTasks" rows="14" data-efficiency-daily-work-field="tasks" aria-label="Day 근무조 주요 업무"></textarea>
+                      </td>
+
+                      <td>
+                        <textarea name="dayRemarks" rows="14" data-efficiency-daily-work-field="remarks" aria-label="Day 근무조 비고"></textarea>
+                      </td>
+                    </tr>
+
+                    <tr data-efficiency-daily-work-row data-efficiency-daily-work-row-key="operation-night">
+                      <th class="efficiency-daily-work-table__role-cell" scope="row">
+                        <span>Night 근무조</span>
+
+                        <select name="nightPart" data-efficiency-daily-work-field="part" aria-label="Night 실제 근무 파트">
+                          <option value="">파트 선택</option>
+                          <option value="1">1파트</option>
+                          <option value="2">2파트</option>
+                          <option value="3">3파트</option>
+                          <option value="4">4파트</option>
+                        </select>
+
+                        <input type="text" name="nightMembers" data-efficiency-daily-work-field="members" aria-label="Night 근무자" placeholder="[근무자]" />
+                      </th>
+
+                      <td>
+                        <textarea name="nightTasks" rows="7" data-efficiency-daily-work-field="tasks" aria-label="Night 근무조 주요 업무"></textarea>
+                      </td>
+
+                      <td>
+                        <textarea name="nightRemarks" rows="7" data-efficiency-daily-work-field="remarks" aria-label="Night 근무조 비고"></textarea>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <p class="efficiency-daily-work-table-note">
+                ※ 1) 연료관리 : 자이E 업무일지 참고.
+                2) 운전파트 : 주요 Event, 파트별 주요 전달 및 공유사항 등 기록하고,
+                상세사항 업무일지에 기록.
+                3) 필요시 행추가 후 작성
+              </p>
+            </section>
+
+            <!-- =========================================
+              3. 기타사항
+            ========================================== -->
+            <section class="efficiency-daily-work-paper-section">
+              <label class="efficiency-daily-work-other-field">
+                <span class="efficiency-daily-work-section-title">
+                  3. 기타사항 : 근태사항(사용일자 Sheet에 휴가자 및 대근자 명기),
+                  협의 또는 요청사항 등등(작성자 또는 파트 명기)
+                </span>
+
+                <textarea id="efficiencyDailyWorkOtherNotes" name="otherNotes" rows="6" placeholder="기타사항을 입력하세요."></textarea>
+              </label>
+            </section>
+          </section>
+        </div>
+
+        <p class="efficiency-daily-work-overflow-warning" id="efficiencyDailyWorkPageOverflowWarning" role="alert" hidden>
+          입력 내용이 A4 한 페이지를 초과했습니다.
+        </p>
+
+        <div class="efficiency-daily-work-form-actions">
+          <div class="efficiency-daily-work-form-actions__left">
+            <button type="button" class="secondary-button efficiency-daily-work-delete-button" id="deleteEfficiencyDailyWorkButton" hidden>
+              삭제
+            </button>
+
+            <span class="efficiency-daily-work-message" id="efficiencyDailyWorkMessage" aria-live="polite"></span>
+
+            <span class="efficiency-daily-work-error" id="efficiencyDailyWorkError" role="alert" hidden></span>
+          </div>
+
+          <div class="efficiency-daily-work-form-actions__right">
+            <button type="button" class="secondary-button" id="cancelEfficiencyDailyWorkEditorButton">
+              취소
+            </button>
+
+            <button type="button" class="secondary-button" id="previewEfficiencyDailyWorkPdfButton">
+              PDF 미리보기
+            </button>
+
+            <button type="button" class="secondary-button" id="printEfficiencyDailyWorkButton">
+              인쇄
+            </button>
+
+            <button type="submit" class="primary-button" id="saveEfficiencyDailyWorkButton">
+              저장
+            </button>
+          </div>
+        </div>
+      </form>
+    </section>
+  </div>
+</article>
 
 <!-- =================================================
   석회석 입고 현황
@@ -5330,167 +5688,6 @@
       disabled
     >
       선택 기록 최신화
-    </button>
-
-  </div>
-
-</section>
-
-  <header class="limestone-import-header">
-
-    <div>
-
-      <span>
-        SHIFT LOG IMPORT
-      </span>
-
-      <h4>
-        업무일지 석회석 입고내역 가져오기
-      </h4>
-
-      <p>
-        BCO1은 1호기, BCO2는 2호기로 분류합니다.
-      </p>
-
-    </div>
-
-
-    <strong id="limestoneImportCandidateCount">
-      0건
-    </strong>
-
-  </header>
-
-
-  <!-- =================================================
-    가져오기 전용 조회 조건
-  ================================================== -->
-  <div class="limestone-import-range-panel">
-
-    <div class="limestone-import-range-heading">
-
-      <div>
-
-        <strong>
-          가져오기 기간
-        </strong>
-
-        <small>
-          위쪽 입고현황 조회 기간과 별도로 적용됩니다.
-        </small>
-
-      </div>
-
-    </div>
-
-
-    <div class="limestone-import-range-form">
-
-      <label class="form-field">
-
-        <span class="form-field__label">
-          시작일
-        </span>
-
-        <input
-          type="date"
-          id="limestoneImportStartDate"
-        />
-
-      </label>
-
-
-      <label class="form-field">
-
-        <span class="form-field__label">
-          종료일
-        </span>
-
-        <input
-          type="date"
-          id="limestoneImportEndDate"
-        />
-
-      </label>
-
-
-      <label class="form-field">
-
-        <span class="form-field__label">
-          호기
-        </span>
-
-        <select id="limestoneImportUnitFilter">
-
-          <option value="">
-            전체 호기
-          </option>
-
-          <option value="1">
-            1호기
-          </option>
-
-          <option value="2">
-            2호기
-          </option>
-
-        </select>
-
-      </label>
-
-
-      <button
-        type="button"
-        class="
-          primary-button
-          limestone-import-search-button
-        "
-        id="searchLimestoneImportCandidatesButton"
-      >
-        업무일지 조회
-      </button>
-
-    </div>
-
-  </div>
-
-
-  <!-- =================================================
-    가져오기 후보 목록
-  ================================================== -->
-  <div
-    class="limestone-import-candidate-list"
-    id="limestoneImportCandidateList"
-  >
-
-    <div class="limestone-import-empty-message">
-
-      가져오기 기간을 선택한 후
-      업무일지 조회 버튼을 눌러주세요.
-
-    </div>
-
-  </div>
-
-
-  <div class="limestone-import-actions">
-
-    <button
-      type="button"
-      class="secondary-button"
-      id="cancelLimestoneImportButton"
-    >
-      취소
-    </button>
-
-
-    <button
-      type="button"
-      class="primary-button"
-      id="applyLimestoneImportButton"
-      disabled
-    >
-      선택 기록 추가
     </button>
 
   </div>

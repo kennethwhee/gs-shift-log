@@ -1046,136 +1046,942 @@ function isSameLimestoneSyncRow(row, candidate) {
     && normalizeText(row.source_text) === candidate.sourceText;
 }
 
-async function synchronizeLimestoneReceiptsForShiftContext(context, options = {}) {
+async function synchronizeLimestoneReceiptsForShiftContext(
+  context,
+  options = {}
+) {
   const database = context?.env?.DB;
   const workDate = normalizeText(options.workDate);
   const shift = normalizeShift(options.shift);
   const user = options.user || {};
-  const removedIds = new Set(
-    (Array.isArray(options.removedSourceLogIds) ? options.removedSourceLogIds : [])
+
+  const removedSourceLogIds = new Set(
+    (
+      Array.isArray(options.removedSourceLogIds)
+        ? options.removedSourceLogIds
+        : []
+    )
       .map(normalizeText)
       .filter(Boolean)
   );
 
-  if (!database || !isValidIsoDate(workDate) || !VALID_SHIFTS.has(shift)) {
-    return { ok: false, skipped: true, message: "석회석 자동 동기화 조건을 확인할 수 없습니다." };
+  if (
+    !database ||
+    !isValidIsoDate(workDate) ||
+    !VALID_SHIFTS.has(shift)
+  ) {
+    return {
+      ok: false,
+      skipped: true,
+      message: "석회석 자동 동기화 조건을 확인할 수 없습니다."
+    };
   }
 
   try {
-    const logResult = await database.prepare(`
-      SELECT * FROM shift_logs
-      WHERE work_date = ? AND shift = ?
-        AND role IN ('BCO1', 'BO1', 'BCO2', 'BO2')
-    `).bind(workDate, shift).all();
+    /* =====================================================
+      같은 날짜·근무의 연동 대상 업무일지
+    ====================================================== */
 
-    const logs = (Array.isArray(logResult.results) ? logResult.results : []).map(convertRowToLog);
-    const sourceIds = new Set(logs.map(log => normalizeText(log.id)).filter(Boolean));
-    removedIds.forEach(id => sourceIds.add(id));
+    const logResult = await database
+      .prepare(`
+        SELECT *
+        FROM shift_logs
+        WHERE
+          work_date = ?
+          AND shift = ?
+          AND role IN ('BCO1', 'BO1', 'BCO2', 'BO2')
+      `)
+      .bind(workDate, shift)
+      .all();
 
-    if (!sourceIds.size) {
-      return { ok: true, skipped: true, selectedCount: 0, createdCount: 0, updatedCount: 0, deletedCount: 0 };
+    const logs = (
+      Array.isArray(logResult.results)
+        ? logResult.results
+        : []
+    ).map(convertRowToLog);
+
+    const currentSourceLogIds = new Set(
+      logs
+        .map(log => normalizeText(log.id))
+        .filter(Boolean)
+    );
+
+    const managedSourceLogIds = new Set([
+      ...currentSourceLogIds,
+      ...removedSourceLogIds
+    ]);
+
+    if (managedSourceLogIds.size === 0) {
+      return {
+        ok: true,
+        skipped: true,
+        workDate,
+        shift,
+        selectedCount: 0,
+        createdCount: 0,
+        updatedCount: 0,
+        deletedCount: 0,
+        manualProtectedCount: 0,
+        priorityProtectedCount: 0
+      };
     }
 
     const candidates = buildLimestoneSyncCandidates(logs);
-    const sourceIdList = [...sourceIds];
-    const placeholders = sourceIdList.map(() => "?").join(", ");
-    const existingResult = await database.prepare(`
-      SELECT * FROM limestone_receipts
-      WHERE source_type = 'shift_log'
-        AND source_log_id IN (${placeholders})
-    `).bind(...sourceIdList).all();
 
-    const existingRows = Array.isArray(existingResult.results) ? existingResult.results : [];
-    const existingBySourceKey = new Map();
+    const candidateSourceKeys = new Set(
+      candidates
+        .map(candidate => normalizeText(candidate.sourceKey))
+        .filter(Boolean)
+    );
+
+    const receiptDateEnd =
+      addLimestoneSyncDateDays(
+        workDate,
+        1
+      );
+
+    const sourceLogIdList = [
+      ...managedSourceLogIds
+    ];
+
+    const placeholders =
+      sourceLogIdList
+        .map(() => "?")
+        .join(", ");
+
+    /* =====================================================
+      기존 기록 조회
+
+      - 현재·삭제 업무일지에서 생성된 자동기록
+      - 기준일과 다음 날의 수기·자동기록
+
+      N/S 00:00~06:59 입고는 다음 날짜로 저장되므로
+      다음 날까지 함께 확인한다.
+    ====================================================== */
+
+    const existingResult = await database
+      .prepare(`
+        SELECT *
+        FROM limestone_receipts
+        WHERE
+          (
+            source_type = 'shift_log'
+            AND source_log_id IN (${placeholders})
+          )
+          OR
+          (
+            receipt_date >= ?
+            AND receipt_date <= ?
+            AND unit_no IN (1, 2)
+          )
+      `)
+      .bind(
+        ...sourceLogIdList,
+        workDate,
+        receiptDateEnd
+      )
+      .all();
+
+    const existingRows =
+      Array.isArray(existingResult.results)
+        ? existingResult.results
+        : [];
+
+    const getSourceType = row =>
+      normalizeText(
+        row?.source_type
+      ).toLowerCase();
+
+    const createRowBusinessKey = row => [
+      normalizeText(
+        row?.receipt_date
+      ),
+
+      normalizeText(
+        row?.receipt_time
+      ),
+
+      String(
+        Number(
+          row?.unit_no
+        ) || ""
+      ),
+
+      Number(
+        row?.quantity_ton
+      ).toFixed(2)
+    ].join("||");
+
+    const getRolePriority = role =>
+      Number(
+        LIMESTONE_SYNC_ROLE_PRIORITY[
+          normalizeLogRole(role)
+        ] || 0
+      );
+
+    const rowsByBusinessKey =
+      new Map();
+
+    const autoRowBySourceKey =
+      new Map();
+
     existingRows.forEach(row => {
-      const key = normalizeText(row.source_key);
-      if (key && !existingBySourceKey.has(key)) existingBySourceKey.set(key, row);
+      const businessKey =
+        createRowBusinessKey(row);
+
+      if (
+        !rowsByBusinessKey.has(
+          businessKey
+        )
+      ) {
+        rowsByBusinessKey.set(
+          businessKey,
+          []
+        );
+      }
+
+      rowsByBusinessKey
+        .get(businessKey)
+        .push(row);
+
+      const sourceKey =
+        normalizeText(
+          row.source_key
+        );
+
+      if (
+        getSourceType(row) ===
+          "shift_log" &&
+        sourceKey &&
+        !autoRowBySourceKey.has(
+          sourceKey
+        )
+      ) {
+        autoRowBySourceKey.set(
+          sourceKey,
+          row
+        );
+      }
     });
 
-    const keptIds = new Set();
-    const statements = [];
-    const timestamp = new Date().toISOString();
+    const isSameAutomaticRow = (
+      row,
+      candidate
+    ) => (
+      getSourceType(row) ===
+        "shift_log" &&
+
+      normalizeText(
+        row.receipt_date
+      ) ===
+        candidate.receiptDate &&
+
+      normalizeText(
+        row.receipt_time
+      ) ===
+        candidate.receiptTime &&
+
+      Number(
+        row.unit_no
+      ) ===
+        candidate.unitNo &&
+
+      Number(
+        row.quantity_ton
+      ).toFixed(2) ===
+        Number(
+          candidate.quantityTon
+        ).toFixed(2) &&
+
+      normalizeText(
+        row.note
+      ) ===
+        candidate.note &&
+
+      normalizeText(
+        row.source_log_id
+      ) ===
+        candidate.sourceLogId &&
+
+      normalizeText(
+        row.source_entry_id
+      ) ===
+        candidate.sourceEntryId &&
+
+      normalizeText(
+        row.source_key
+      ) ===
+        candidate.sourceKey &&
+
+      normalizeText(
+        row.source_role
+      ) ===
+        candidate.sourceRole &&
+
+      normalizeText(
+        row.source_author
+      ) ===
+        candidate.sourceAuthor &&
+
+      normalizeText(
+        row.source_text
+      ) ===
+        candidate.sourceText
+    );
+
+    /* =====================================================
+      D1 반영 문장
+
+      삭제 → 수정 → 신규 순서로 실행하여
+      source_key 중복 충돌을 방지한다.
+    ====================================================== */
+
+    const deleteStatements = [];
+    const updateStatements = [];
+    const insertStatements = [];
+
+    const keptAutomaticIds =
+      new Set();
+
+    const queuedDeleteIds =
+      new Set();
+
+    const timestamp =
+      new Date()
+        .toISOString();
+
     let createdCount = 0;
     let updatedCount = 0;
     let deletedCount = 0;
+    let manualProtectedCount = 0;
+    let priorityProtectedCount = 0;
 
-    candidates.forEach(candidate => {
-      const existing = existingBySourceKey.get(candidate.sourceKey);
-      const authorId = candidate.sourceAuthorId || normalizeEmployeeNo(user.employeeNo);
-      const authorName = candidate.sourceAuthor || normalizeText(user.name) || "업무일지 자동연동";
-      const modifierId = normalizeEmployeeNo(user.employeeNo) || authorId;
-      const modifierName = normalizeText(user.name) || authorName;
+    const queueDelete = row => {
+      const rowId =
+        normalizeText(
+          row?.id
+        );
 
-      if (existing) {
-        keptIds.add(normalizeText(existing.id));
-        if (!isSameLimestoneSyncRow(existing, candidate)) {
-          statements.push(database.prepare(`
-            UPDATE limestone_receipts SET
-              receipt_date = ?, receipt_time = ?, unit_no = ?, quantity_ton = ?, note = ?,
-              source_log_id = ?, source_entry_id = ?, source_key = ?, source_role = ?,
-              source_author = ?, source_text = ?, updated_by_id = ?, updated_by_name = ?,
-              updated_at = ?, revision = revision + 1
-            WHERE id = ?
-          `).bind(
-            candidate.receiptDate, candidate.receiptTime, candidate.unitNo,
-            candidate.quantityTon, candidate.note, candidate.sourceLogId,
-            candidate.sourceEntryId, candidate.sourceKey, candidate.sourceRole,
-            candidate.sourceAuthor, candidate.sourceText, modifierId, modifierName,
-            timestamp, existing.id
-          ));
-          updatedCount += 1;
-        }
+      if (
+        !rowId ||
+        getSourceType(row) !==
+          "shift_log" ||
+        queuedDeleteIds.has(
+          rowId
+        ) ||
+        keptAutomaticIds.has(
+          rowId
+        )
+      ) {
         return;
       }
 
-      statements.push(database.prepare(`
-        INSERT INTO limestone_receipts (
-          id, receipt_date, receipt_time, unit_no, quantity_ton, note,
-          source_type, source_log_id, source_entry_id, source_key, source_role,
-          source_author, source_text, created_by_id, created_by_name,
-          updated_by_id, updated_by_name, created_at, updated_at, revision
-        ) VALUES (
-          ?, ?, ?, ?, ?, ?, 'shift_log', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
+      queuedDeleteIds.add(
+        rowId
+      );
+
+      deleteStatements.push(
+        database
+          .prepare(`
+            DELETE FROM limestone_receipts
+            WHERE
+              id = ?
+              AND source_type = 'shift_log'
+          `)
+          .bind(
+            rowId
+          )
+      );
+
+      deletedCount += 1;
+    };
+
+    const queueUpdate = (
+      row,
+      candidate
+    ) => {
+      const rowId =
+        normalizeText(
+          row?.id
+        );
+
+      if (!rowId) {
+        return;
+      }
+
+      keptAutomaticIds.add(
+        rowId
+      );
+
+      if (
+        isSameAutomaticRow(
+          row,
+          candidate
         )
-      `).bind(
-        crypto.randomUUID(), candidate.receiptDate, candidate.receiptTime,
-        candidate.unitNo, candidate.quantityTon, candidate.note,
-        candidate.sourceLogId, candidate.sourceEntryId, candidate.sourceKey,
-        candidate.sourceRole, candidate.sourceAuthor, candidate.sourceText,
-        authorId, authorName, modifierId, modifierName, timestamp, timestamp
-      ));
+      ) {
+        return;
+      }
+
+      const authorId =
+        candidate.sourceAuthorId ||
+        normalizeEmployeeNo(
+          user.employeeNo
+        );
+
+      const authorName =
+        candidate.sourceAuthor ||
+        normalizeText(
+          user.name
+        ) ||
+        "업무일지 자동연동";
+
+      const modifierId =
+        normalizeEmployeeNo(
+          user.employeeNo
+        ) ||
+        authorId;
+
+      const modifierName =
+        normalizeText(
+          user.name
+        ) ||
+        authorName;
+
+      updateStatements.push(
+        database
+          .prepare(`
+            UPDATE limestone_receipts
+
+            SET
+              receipt_date = ?,
+              receipt_time = ?,
+              unit_no = ?,
+              quantity_ton = ?,
+              note = ?,
+
+              source_type = 'shift_log',
+              source_log_id = ?,
+              source_entry_id = ?,
+              source_key = ?,
+              source_role = ?,
+              source_author = ?,
+              source_text = ?,
+
+              updated_by_id = ?,
+              updated_by_name = ?,
+              updated_at = ?,
+
+              revision =
+                revision + 1
+
+            WHERE
+              id = ?
+              AND source_type = 'shift_log'
+          `)
+          .bind(
+            candidate.receiptDate,
+            candidate.receiptTime,
+            candidate.unitNo,
+            candidate.quantityTon,
+            candidate.note,
+
+            candidate.sourceLogId,
+            candidate.sourceEntryId,
+            candidate.sourceKey,
+            candidate.sourceRole,
+            candidate.sourceAuthor,
+            candidate.sourceText,
+
+            modifierId,
+            modifierName,
+            timestamp,
+
+            rowId
+          )
+      );
+
+      updatedCount += 1;
+    };
+
+    const queueInsert = candidate => {
+      const authorId =
+        candidate.sourceAuthorId ||
+        normalizeEmployeeNo(
+          user.employeeNo
+        );
+
+      const authorName =
+        candidate.sourceAuthor ||
+        normalizeText(
+          user.name
+        ) ||
+        "업무일지 자동연동";
+
+      const modifierId =
+        normalizeEmployeeNo(
+          user.employeeNo
+        ) ||
+        authorId;
+
+      const modifierName =
+        normalizeText(
+          user.name
+        ) ||
+        authorName;
+
+      insertStatements.push(
+        database
+          .prepare(`
+            INSERT INTO limestone_receipts (
+              id,
+
+              receipt_date,
+              receipt_time,
+              unit_no,
+              quantity_ton,
+              note,
+
+              source_type,
+              source_log_id,
+              source_entry_id,
+              source_key,
+              source_role,
+              source_author,
+              source_text,
+
+              created_by_id,
+              created_by_name,
+              updated_by_id,
+              updated_by_name,
+
+              created_at,
+              updated_at,
+              revision
+            )
+            VALUES (
+              ?,
+
+              ?,
+              ?,
+              ?,
+              ?,
+              ?,
+
+              'shift_log',
+              ?,
+              ?,
+              ?,
+              ?,
+              ?,
+              ?,
+
+              ?,
+              ?,
+              ?,
+              ?,
+
+              ?,
+              ?,
+              1
+            )
+          `)
+          .bind(
+            crypto.randomUUID(),
+
+            candidate.receiptDate,
+            candidate.receiptTime,
+            candidate.unitNo,
+            candidate.quantityTon,
+            candidate.note,
+
+            candidate.sourceLogId,
+            candidate.sourceEntryId,
+            candidate.sourceKey,
+            candidate.sourceRole,
+            candidate.sourceAuthor,
+            candidate.sourceText,
+
+            authorId,
+            authorName,
+            modifierId,
+            modifierName,
+
+            timestamp,
+            timestamp
+          )
+      );
+
       createdCount += 1;
+    };
+
+    /* =====================================================
+      후보별 수기 보호·상위 보직 우선순위 적용
+    ====================================================== */
+
+    candidates.forEach(candidate => {
+      const businessKey =
+        createLimestoneSyncBusinessKey(
+          candidate
+        );
+
+      const businessRows =
+        rowsByBusinessKey.get(
+          businessKey
+        ) || [];
+
+      const manualRows =
+        businessRows.filter(
+          row => {
+            return (
+              getSourceType(row) ===
+              "manual"
+            );
+          }
+        );
+
+      const automaticRows =
+        businessRows.filter(
+          row => {
+            return (
+              getSourceType(row) ===
+              "shift_log"
+            );
+          }
+        );
+
+      /*
+        삭제된 업무일지 또는 현재 업무일지에서
+        더 이상 존재하지 않는 항목의 자동기록은
+        상위 보직 경쟁 대상으로 사용하지 않는다.
+      */
+      const validAutomaticRows =
+        automaticRows
+          .filter(row => {
+            const sourceLogId =
+              normalizeText(
+                row.source_log_id
+              );
+
+            const sourceKey =
+              normalizeText(
+                row.source_key
+              );
+
+            if (
+              removedSourceLogIds.has(
+                sourceLogId
+              )
+            ) {
+              return false;
+            }
+
+            if (
+              currentSourceLogIds.has(
+                sourceLogId
+              )
+            ) {
+              return candidateSourceKeys.has(
+                sourceKey
+              );
+            }
+
+            return true;
+          })
+          .sort((
+            firstRow,
+            secondRow
+          ) => {
+            const priorityDifference =
+              getRolePriority(
+                secondRow.source_role
+              ) -
+              getRolePriority(
+                firstRow.source_role
+              );
+
+            if (
+              priorityDifference !== 0
+            ) {
+              return priorityDifference;
+            }
+
+            return String(
+              secondRow.updated_at ||
+              secondRow.created_at ||
+              ""
+            ).localeCompare(
+              String(
+                firstRow.updated_at ||
+                firstRow.created_at ||
+                ""
+              )
+            );
+          });
+
+      const validAutomaticIds =
+        new Set(
+          validAutomaticRows
+            .map(row => {
+              return normalizeText(
+                row.id
+              );
+            })
+            .filter(Boolean)
+        );
+
+      automaticRows.forEach(row => {
+        const rowId =
+          normalizeText(
+            row.id
+          );
+
+        if (
+          !validAutomaticIds.has(
+            rowId
+          )
+        ) {
+          queueDelete(
+            row
+          );
+        }
+      });
+
+      const sameSourceRow =
+        autoRowBySourceKey.get(
+          candidate.sourceKey
+        ) || null;
+
+      /* ===================================================
+        수기 기록 보호
+
+        같은 실제 입고에 수기 기록이 있으면
+        수기는 유지하고 자동기록만 제거한다.
+      ==================================================== */
+
+      if (
+        manualRows.length > 0
+      ) {
+        manualProtectedCount += 1;
+
+        automaticRows.forEach(
+          queueDelete
+        );
+
+        if (
+          sameSourceRow &&
+          !automaticRows.some(
+            row => {
+              return (
+                normalizeText(
+                  row.id
+                ) ===
+                normalizeText(
+                  sameSourceRow.id
+                )
+              );
+            }
+          )
+        ) {
+          queueDelete(
+            sameSourceRow
+          );
+        }
+
+        return;
+      }
+
+      const strongestRow =
+        validAutomaticRows[0] ||
+        null;
+
+      const strongestPriority =
+        strongestRow
+          ? getRolePriority(
+              strongestRow.source_role
+            )
+          : 0;
+
+      const candidatePriority =
+        getRolePriority(
+          candidate.sourceRole
+        );
+
+      /* ===================================================
+        기존 상위 보직 자동기록 보호
+
+        BCO1이 있으면 BO1을 만들지 않고,
+        BCO2가 있으면 BO2를 만들지 않는다.
+      ==================================================== */
+
+      if (
+        strongestRow &&
+        strongestPriority >
+          candidatePriority
+      ) {
+        const strongestId =
+          normalizeText(
+            strongestRow.id
+          );
+
+        if (strongestId) {
+          keptAutomaticIds.add(
+            strongestId
+          );
+        }
+
+        validAutomaticRows
+          .slice(1)
+          .forEach(
+            queueDelete
+          );
+
+        if (
+          sameSourceRow &&
+          normalizeText(
+            sameSourceRow.id
+          ) !==
+            strongestId
+        ) {
+          queueDelete(
+            sameSourceRow
+          );
+        }
+
+        priorityProtectedCount += 1;
+
+        return;
+      }
+
+      /* ===================================================
+        같은 원본 → 같은 실제 입고 → 신규 순서로 반영
+      ==================================================== */
+
+      const targetRow =
+        sameSourceRow ||
+        strongestRow ||
+        null;
+
+      if (targetRow) {
+        queueUpdate(
+          targetRow,
+          candidate
+        );
+
+        const targetId =
+          normalizeText(
+            targetRow.id
+          );
+
+        automaticRows.forEach(row => {
+          if (
+            normalizeText(
+              row.id
+            ) !==
+              targetId
+          ) {
+            queueDelete(
+              row
+            );
+          }
+        });
+
+        return;
+      }
+
+      queueInsert(
+        candidate
+      );
     });
+
+    /* =====================================================
+      현재·삭제 업무일지의 오래된 자동기록 정리
+
+      후보로 유지되지 않은 shift_log 기록만 삭제한다.
+      manual 기록은 절대로 삭제하지 않는다.
+    ====================================================== */
 
     existingRows.forEach(row => {
-      const id = normalizeText(row.id);
-      if (!id || keptIds.has(id)) return;
-      statements.push(database.prepare(
-        "DELETE FROM limestone_receipts WHERE id = ?"
-      ).bind(id));
-      deletedCount += 1;
+      const rowId =
+        normalizeText(
+          row.id
+        );
+
+      const sourceLogId =
+        normalizeText(
+          row.source_log_id
+        );
+
+      if (
+        getSourceType(row) !==
+          "shift_log" ||
+        !managedSourceLogIds.has(
+          sourceLogId
+        ) ||
+        !rowId ||
+        keptAutomaticIds.has(
+          rowId
+        ) ||
+        queuedDeleteIds.has(
+          rowId
+        )
+      ) {
+        return;
+      }
+
+      queueDelete(
+        row
+      );
     });
 
-    if (statements.length) await database.batch(statements);
+    const statements = [
+      ...deleteStatements,
+      ...updateStatements,
+      ...insertStatements
+    ];
+
+    if (
+      statements.length > 0
+    ) {
+      await database.batch(
+        statements
+      );
+    }
 
     return {
       ok: true,
       skipped: false,
+
       workDate,
       shift,
-      selectedCount: candidates.length,
+
+      selectedCount:
+        candidates.length,
+
       createdCount,
       updatedCount,
-      deletedCount
+      deletedCount,
+
+      manualProtectedCount,
+      priorityProtectedCount
     };
+
   } catch (error) {
-    console.error("석회석 입고기록 자동 동기화 실패:", error);
+    console.error(
+      "석회석 입고기록 자동 동기화 실패:",
+      error
+    );
+
     return {
       ok: false,
       skipped: false,
+
       workDate,
       shift,
-      message: error instanceof Error ? error.message : "석회석 자동 동기화 오류"
+
+      message:
+        error instanceof Error
+          ? error.message
+          : "석회석 자동 동기화 오류"
     };
   }
 }

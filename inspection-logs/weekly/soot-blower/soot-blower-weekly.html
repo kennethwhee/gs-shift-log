@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Soot Blower 주간점검일지</title>
+
+  <link
+    rel="stylesheet"
+    href="soot-blower-weekly.css?v=20260803-1"
+  >
+
+  <script
+    src="soot-blower-weekly.js?v=20260803-1"
+    defer
+  ></script>
+</head>
+
+
+<body>
+  <main
+    class="soot-check-app"
+    data-schedule-day="monday"
+    data-schedule-shift="N/S"
+  >
+
+    <!-- ===================================================
+      작성 화면
+    ==================================================== -->
+
+    <section
+      class="soot-write-view"
+      id="sootWriteView"
+    >
+
+      <header class="soot-check-toolbar screen-only">
+        <div>
+          <p class="soot-check-toolbar__eyebrow">
+            WEEKLY INSPECTION
+          </p>
+
+          <h1>
+            Soot Blower 주간점검일지
+          </h1>
+
+          <p class="soot-check-toolbar__schedule">
+            매주 월요일 N/S
+          </p>
+
+          <p
+            class="soot-check-toolbar__save-state"
+            id="sootCheckSaveState"
+          >
+            저장되지 않음
+          </p>
+        </div>
+
+
+        <div class="soot-check-toolbar__actions">
+          <button
+            type="button"
+            id="sootArchiveOpenButton"
+          >
+            일지 보관함
+          </button>
+
+          <button
+            type="button"
+            id="sootCheckSaveButton"
+          >
+            일지 저장
+          </button>
+
+          <button
+            type="button"
+            id="sootCheckPreviewButton"
+          >
+            인쇄 미리보기
+          </button>
+        </div>
+      </header>
+
+
+      <!-- =================================================
+        원본 A4 1페이지
+      ================================================== -->
+
+      <section
+        class="soot-check-sheet"
+        id="sootCheckSheet"
+      >
+
+        <div class="soot-check-title-row">
+          <div class="soot-check-heading-block">
+            <h2>
+              SOOT BLOWER CHECK LIST
+            </h2>
+
+            <div class="soot-check-date-row">
+              <strong>
+                점검일
+              </strong>
+
+              <input
+                type="date"
+                id="sootInspectionDate"
+                aria-label="점검일"
+              >
+            </div>
+          </div>
+
+          <table
+            class="soot-check-approval-table"
+            aria-label="결재"
+          >
+            <tbody>
+              <tr>
+                <th rowspan="2">
+                  결<br>재
+                </th>
+
+                <th>
+                  파트장
+                </th>
+              </tr>
+
+              <tr>
+                <td>
+                  <input
+                    type="text"
+                    id="sootPartLeaderApproval"
+                    aria-label="파트장 결재"
+                    autocomplete="off"
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+
+        <table class="soot-check-table">
+          <colgroup>
+            <col class="soot-col-type">
+            <col class="soot-col-number">
+            <col class="soot-col-result">
+            <col class="soot-col-remark">
+            <col class="soot-col-date">
+            <col class="soot-col-number">
+            <col class="soot-col-result">
+            <col class="soot-col-remark">
+            <col class="soot-col-date soot-col-date--unit-2">
+          </colgroup>
+
+
+          <thead>
+            <tr>
+              <th rowspan="2">
+                TYPE
+              </th>
+
+              <th rowspan="2">
+                SB<br>NO
+              </th>
+
+              <th colspan="3">
+                1호기
+              </th>
+
+              <th colspan="4">
+                2호기
+              </th>
+            </tr>
+
+
+            <tr>
+              <th class="soot-check-inspector-cell">
+                <label>
+                  <span>
+                    점검자 :
+                  </span>
+
+                  <input
+                    type="text"
+                    id="sootUnit1Inspector"
+                    aria-label="1호기 점검자"
+                    autocomplete="off"
+                  >
+                </label>
+              </th>
+
+              <th>
+                특이사항
+              </th>
+
+              <th>
+                발생 날짜
+              </th>
+
+              <th
+                class="soot-check-inspector-cell"
+                colspan="2"
+              >
+                <label>
+                  <span>
+                    점검자 :
+                  </span>
+
+                  <input
+                    type="text"
+                    id="sootUnit2Inspector"
+                    aria-label="2호기 점검자"
+                    autocomplete="off"
+                  >
+                </label>
+              </th>
+
+              <th>
+                특이사항
+              </th>
+
+              <th>
+                발생 날짜
+              </th>
+            </tr>
+          </thead>
+
+
+          <tbody id="sootCheckRows">
+            <!-- JavaScript가 원본 34개 점검행을 생성합니다. -->
+          </tbody>
+
+
+          <tfoot>
+            <tr>
+              <td colspan="9">
+                <div class="soot-check-guide">
+                  <strong>
+                    ▷ 주요 점검 사항
+                  </strong>
+
+                  <ol>
+                    <li>
+                      Flange Bolt 결합 상태 Check
+                    </li>
+
+                    <li>
+                      Grease 도포상태 Check
+                    </li>
+
+                    <li>
+                      Motor 이음상태 Check
+                    </li>
+
+                    <li>
+                      Poppet V/V 상태 및 Flange Leak 확인
+                    </li>
+                  </ol>
+
+                  <div class="soot-check-guide__meta">
+                    <span>
+                      - 표시방법 : 양호(○), 불량(X)
+                    </span>
+
+                    <span>
+                      - 점검일 : 매주 월요일 N/S근무자
+                    </span>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </section>
+    </section>
+
+
+    <!-- ===================================================
+      게시판형 보관함
+    ==================================================== -->
+
+    <section
+      class="soot-archive-view screen-only"
+      id="sootArchiveView"
+      hidden
+    >
+      <header class="soot-archive-header">
+        <div>
+          <p>
+            WEEKLY INSPECTION ARCHIVE
+          </p>
+
+          <h2>
+            Soot Blower 주간점검일지 보관함
+          </h2>
+
+          <small>
+            저장된 일지를 선택하면 보기·수정·인쇄할 수 있습니다.
+          </small>
+        </div>
+
+
+        <div>
+          <button
+            type="button"
+            id="sootArchiveRefreshButton"
+          >
+            새로고침
+          </button>
+
+          <button
+            type="button"
+            id="sootArchiveBackButton"
+          >
+            작성 화면
+          </button>
+        </div>
+      </header>
+
+
+      <section class="soot-archive-filter">
+        <label>
+          <span>
+            시작일
+          </span>
+
+          <input
+            type="date"
+            id="sootArchiveStartDate"
+          >
+        </label>
+
+
+        <label>
+          <span>
+            종료일
+          </span>
+
+          <input
+            type="date"
+            id="sootArchiveEndDate"
+          >
+        </label>
+
+
+        <label class="soot-archive-filter__search">
+          <span>
+            검색어
+          </span>
+
+          <input
+            type="search"
+            id="sootArchiveKeyword"
+            placeholder="점검자·작성자 검색"
+          >
+        </label>
+
+
+        <button
+          type="button"
+          id="sootArchiveSearchButton"
+        >
+          조회
+        </button>
+
+        <button
+          type="button"
+          id="sootArchiveResetButton"
+        >
+          초기화
+        </button>
+      </section>
+
+
+      <section class="soot-archive-board">
+        <header class="soot-archive-board__header">
+          <strong>
+            저장 기록
+          </strong>
+
+          <span id="sootArchiveCount">
+            총 0건
+          </span>
+        </header>
+
+
+        <div class="soot-archive-table-wrap">
+          <table class="soot-archive-table">
+            <colgroup>
+              <col class="soot-archive-col-number">
+              <col class="soot-archive-col-date">
+              <col class="soot-archive-col-shift">
+              <col class="soot-archive-col-person">
+              <col class="soot-archive-col-status">
+              <col class="soot-archive-col-updated">
+              <col class="soot-archive-col-revision">
+              <col class="soot-archive-col-actions">
+            </colgroup>
+
+            <thead>
+              <tr>
+                <th>
+                  번호
+                </th>
+
+                <th>
+                  점검일
+                </th>
+
+                <th>
+                  근무
+                </th>
+
+                <th>
+                  점검자
+                </th>
+
+                <th>
+                  상태
+                </th>
+
+                <th>
+                  최종 수정
+                </th>
+
+                <th>
+                  Rev.
+                </th>
+
+                <th>
+                  관리
+                </th>
+              </tr>
+            </thead>
+
+            <tbody id="sootArchiveTableBody">
+            </tbody>
+          </table>
+        </div>
+
+
+        <div
+          class="soot-archive-empty"
+          id="sootArchiveEmpty"
+        >
+          저장된 Soot Blower 주간점검일지가 없습니다.
+        </div>
+      </section>
+    </section>
+
+
+    <!-- ===================================================
+      인쇄 미리보기
+    ==================================================== -->
+
+    <section
+      class="soot-print-preview screen-only"
+      id="sootPrintPreview"
+      hidden
+    >
+      <div class="soot-print-preview__panel">
+        <header class="soot-print-preview__header">
+          <strong>
+            인쇄 미리보기
+          </strong>
+
+          <button
+            type="button"
+            id="sootPreviewCloseButton"
+            aria-label="미리보기 닫기"
+          >
+            ×
+          </button>
+        </header>
+
+
+        <div
+          class="soot-print-preview__body"
+          id="sootPrintPreviewBody"
+        >
+        </div>
+
+
+        <footer class="soot-print-preview__footer">
+          <button
+            type="button"
+            id="sootPreviewCancelButton"
+          >
+            닫기
+          </button>
+
+          <button
+            type="button"
+            id="sootPrintButton"
+          >
+            인쇄
+          </button>
+        </footer>
+      </div>
+    </section>
+  </main>
+</body>
+
+</html>
