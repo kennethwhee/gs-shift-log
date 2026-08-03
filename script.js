@@ -76230,16 +76230,86 @@ function deduplicateLimestoneSourceLogs(
 
 
 /* =====================================================
+  가져오기 기간의 기존 석회석 기록 조회
+
+  중요:
+  - 상단 입고현황 화면은 변경하지 않는다.
+  - limestoneReceiptState도 변경하지 않는다.
+  - 가져오기 후보 중복 확인에만 사용한다.
+===================================================== */
+
+async function loadExistingLimestoneReceiptsForImport(
+  startDate,
+  endDate,
+  unitNo = null
+) {
+  const requestUrl =
+    new URL(
+      LIMESTONE_RECEIPTS_API_URL,
+      window.location.origin
+    );
+
+
+  requestUrl.searchParams.set(
+    "startDate",
+    startDate
+  );
+
+
+  requestUrl.searchParams.set(
+    "endDate",
+    endDate
+  );
+
+
+  if (
+    unitNo === 1 ||
+    unitNo === 2
+  ) {
+    requestUrl.searchParams.set(
+      "unitNo",
+      String(
+        unitNo
+      )
+    );
+  }
+
+
+  const result =
+    await requestLimestoneApi(
+      requestUrl.toString(),
+      {
+        method:
+          "GET",
+
+        headers:
+          getLimestoneApiHeaders()
+      }
+    );
+
+
+  return Array.isArray(
+    result.items
+  )
+    ? result.items
+    : [];
+}
+
+/* =====================================================
   신규·과거 업무일지 석회석 입고내역 통합 조회
 
   조회 대상:
   - 신규 공용 shift_logs
   - 과거 D1 legacy_logs
 
-  중복 방지:
-  - 동일 날짜·근무·보직은 신규 자료 우선
-  - 동일 입고일·시간·호기·수량은 한 번만 표시
-  - 이미 등록된 입고기록은 등록 완료로 표시
+  중복 확인:
+  - 상단 입고현황 조회 결과를 사용하지 않음
+  - 가져오기 전용 기간의 기존 석회석 기록을 별도 조회
+  - 동일 업무일지 원본은 sourceKey로 확인
+  - 동일 일자·시간·호기·수량도 한 번만 표시
+
+  중요:
+  - 상단 조회 기간과 합계는 변경하지 않는다.
 ===================================================== */
 
 async function loadLimestoneImportCandidates() {
@@ -76282,7 +76352,7 @@ async function loadLimestoneImportCandidates() {
     )
   ) {
     throw new Error(
-      "석회석 조회 시작일과 종료일을 확인해 주세요."
+      "가져오기 시작일과 종료일을 확인해 주세요."
     );
   }
 
@@ -76292,15 +76362,15 @@ async function loadLimestoneImportCandidates() {
       endDate
   ) {
     throw new Error(
-      "조회 시작일은 종료일보다 늦을 수 없습니다."
+      "가져오기 시작일은 종료일보다 늦을 수 없습니다."
     );
   }
 
 
   /*
-    N/S의 00:00~06:59 입고기록은
-    전날 N/S 업무일지에 들어 있으므로
-    하루 전 업무일지부터 조회한다.
+    N/S 00:00~06:59 기록은
+    전날 N/S 업무일지에 저장되어 있으므로
+    업무일지는 시작일보다 하루 전부터 조회한다.
   */
   const shiftLogStartDate =
     addLimestoneIsoDateDays(
@@ -76319,11 +76389,16 @@ async function loadLimestoneImportCandidates() {
   }
 
 
-  /*
-    현재 석회석 저장자료를 먼저 갱신한다.
-  */
-  await loadLimestoneReceipts();
+  /* ===================================================
+    세 자료를 조회한다.
 
+    1. 가져오기 기간의 기존 석회석 기록
+    2. 신규 공용 업무일지
+    3. 과거 업무일지
+
+    기존 석회석 기록 조회는 반드시 성공해야 한다.
+    실패 상태에서 후보를 표시하면 중복 등록 위험이 있다.
+  ==================================================== */
 
   const searchParams =
     new URLSearchParams({
@@ -76335,41 +76410,41 @@ async function loadLimestoneImportCandidates() {
     });
 
 
-  /* ===================================================
-    신규·과거 업무일지를 동시에 조회
-
-    한쪽 조회가 실패해도
-    나머지 한쪽 자료는 계속 사용한다.
-  ==================================================== */
-
-  const sourceResults =
-    await Promise.allSettled([
-      loadSharedShiftLogsFromServer(
-        `?${searchParams.toString()}`
+  const [
+    existingReceipts,
+    sourceResults
+  ] =
+    await Promise.all([
+      loadExistingLimestoneReceiptsForImport(
+        startDate,
+        endDate,
+        selectedUnitNo
       ),
 
-      typeof loadLegacyLogsForSearchRange ===
-        "function"
-        ? loadLegacyLogsForSearchRange(
-            shiftLogStartDate,
-            endDate
-          )
-        : Promise.resolve(
-            []
-          )
+      Promise.allSettled([
+        loadSharedShiftLogsFromServer(
+          `?${searchParams.toString()}`
+        ),
+
+        typeof loadLegacyLogsForSearchRange ===
+          "function"
+          ? loadLegacyLogsForSearchRange(
+              shiftLogStartDate,
+              endDate
+            )
+          : Promise.resolve(
+              []
+            )
+      ])
     ]);
 
 
   const sharedResult =
-    sourceResults[
-      0
-    ];
+    sourceResults[0];
 
 
   const legacyResult =
-    sourceResults[
-      1
-    ];
+    sourceResults[1];
 
 
   const sharedLogs =
@@ -76440,13 +76515,15 @@ async function loadLimestoneImportCandidates() {
 
 
   /* ===================================================
-    기존 석회석 기록 중복 확인
+    가져오기 기간에 이미 등록된 기록
+
+    상단 조회 화면의 limestoneReceiptState.items가 아니라
+    방금 별도로 조회한 existingReceipts를 사용한다.
   ==================================================== */
 
   const existingSourceKeys =
     new Set(
-      limestoneReceiptState
-        .items
+      existingReceipts
         .map(
           item => {
             return String(
@@ -76463,8 +76540,7 @@ async function loadLimestoneImportCandidates() {
 
   const existingBusinessKeys =
     new Set(
-      limestoneReceiptState
-        .items
+      existingReceipts
         .map(
           createLimestoneReceiptBusinessKey
         )
@@ -76475,7 +76551,7 @@ async function loadLimestoneImportCandidates() {
 
 
   /*
-    같은 실제 입고 건이 신규·과거 양쪽에서
+    신규·과거 자료에서 같은 실제 입고 건이
     발견되더라도 한 번만 표시한다.
   */
   const candidateMap =
@@ -76561,6 +76637,10 @@ async function loadLimestoneImportCandidates() {
                 );
 
 
+              /*
+                실제 입고일 기준으로
+                가져오기 기간 안에 있는 자료만 사용한다.
+              */
               if (
                 receiptDate <
                   startDate ||
@@ -76593,6 +76673,7 @@ async function loadLimestoneImportCandidates() {
                 entryId ||
                 [
                   collectionName,
+
                   createLimestoneStableHash(
                     entryFingerprint
                   )
@@ -76604,10 +76685,8 @@ async function loadLimestoneImportCandidates() {
               const sourceEntryId = [
                 baseEntryId,
                 "limestone",
-                extractedItem
-                  .lineIndex,
-                extractedItem
-                  .matchIndex
+                extractedItem.lineIndex,
+                extractedItem.matchIndex
               ].join(
                 "-"
               );
@@ -76694,7 +76773,7 @@ async function loadLimestoneImportCandidates() {
 
 
               /*
-                같은 실제 입고 건이 양쪽에 있으면
+                같은 건이 신규·과거 양쪽에 있으면
                 신규 공용 업무일지를 우선 사용한다.
               */
               if (
@@ -77266,32 +77345,48 @@ async function searchLimestoneImportCandidates() {
   }
 
 
-  /* =====================================================
-    선택한 업무일지 항목 등록
-  ====================================================== */
+/* =====================================================
+  선택한 업무일지 석회석 입고기록 등록
 
-  async function applyLimestoneImportCandidates() {
-    const {
-      list,
-      applyButton
-    } =
-      getLimestoneImportElements();
+  처리:
+  - 체크한 후보만 수집
+  - 이미 등록된 후보 제외
+  - D1에 일괄 등록
+  - 등록 후 현재 상단 조회 조건으로 다시 조회
+===================================================== */
+
+async function applyLimestoneImportCandidates() {
+  const {
+    list,
+    applyButton
+  } =
+    getLimestoneImportElements();
 
 
-    if (
-      !list
-    ) {
-      return;
-    }
+  if (
+    !list
+  ) {
+    showLimestoneToast(
+      "석회석 가져오기 후보 목록을 찾을 수 없습니다."
+    );
 
 
-    const selectedSourceKeys =
-      new Set(
-        [
-          ...list.querySelectorAll(
-            'input[data-limestone-import-key]:checked:not(:disabled)'
-          )
-        ].map(
+    return;
+  }
+
+
+  /* ===================================================
+    화면에서 체크된 원본 키 수집
+  ==================================================== */
+
+  const selectedSourceKeys =
+    new Set(
+      [
+        ...list.querySelectorAll(
+          'input[data-limestone-import-key]:checked:not(:disabled)'
+        )
+      ]
+        .map(
           checkbox => {
             return String(
               checkbox.dataset
@@ -77300,163 +77395,225 @@ async function searchLimestoneImportCandidates() {
             ).trim();
           }
         )
-      );
+        .filter(
+          Boolean
+        )
+    );
 
 
-    const selectedCandidates =
+  const importCandidates =
+    Array.isArray(
       limestoneReceiptState
         .importCandidates
-        .filter(
-          candidate => {
-            return (
-              candidate
-                .alreadyImported !==
-                true &&
+    )
+      ? limestoneReceiptState
+          .importCandidates
+      : [];
 
-              selectedSourceKeys.has(
-                candidate.sourceKey
-              )
-            );
-          }
+
+  /* ===================================================
+    체크 항목 중 등록 가능한 후보만 선별
+  ==================================================== */
+
+  const selectedCandidates =
+    importCandidates.filter(
+      candidate => {
+        const sourceKey =
+          String(
+            candidate?.sourceKey ||
+            ""
+          ).trim();
+
+
+        return (
+          candidate?.alreadyImported !==
+            true &&
+          sourceKey &&
+          selectedSourceKeys.has(
+            sourceKey
+          )
         );
+      }
+    );
 
 
-    if (
-      selectedCandidates.length ===
-        0
-    ) {
-      showLimestoneToast(
-        "추가할 석회석 입고기록을 선택해 주세요."
+  if (
+    selectedCandidates.length ===
+      0
+  ) {
+    showLimestoneToast(
+      "추가할 석회석 입고기록을 선택해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  if (
+    applyButton
+  ) {
+    applyButton.disabled =
+      true;
+
+
+    applyButton.textContent =
+      "등록 중...";
+  }
+
+
+  try {
+    const result =
+      await requestLimestoneApi(
+        LIMESTONE_RECEIPTS_API_URL,
+        {
+          method:
+            "POST",
+
+          headers:
+            getLimestoneApiHeaders({
+              "Content-Type":
+                "application/json"
+            }),
+
+          body:
+            JSON.stringify({
+              action:
+                "bulk_import",
+
+              items:
+                selectedCandidates.map(
+                  candidate => {
+                    return {
+                      receiptDate:
+                        String(
+                          candidate
+                            .receiptDate ||
+                          ""
+                        ).trim(),
+
+                      receiptTime:
+                        String(
+                          candidate
+                            .receiptTime ||
+                          ""
+                        ).trim(),
+
+                      unitNo:
+                        Number(
+                          candidate
+                            .unitNo
+                        ),
+
+                      quantityTon:
+                        Number(
+                          candidate
+                            .quantityTon
+                        ),
+
+                      note:
+                        String(
+                          candidate.note ||
+                          ""
+                        ).trim(),
+
+                      sourceLogId:
+                        String(
+                          candidate
+                            .sourceLogId ||
+                          ""
+                        ).trim(),
+
+                      sourceEntryId:
+                        String(
+                          candidate
+                            .sourceEntryId ||
+                          ""
+                        ).trim(),
+
+                      sourceKey:
+                        String(
+                          candidate
+                            .sourceKey ||
+                          ""
+                        ).trim(),
+
+                      sourceRole:
+                        String(
+                          candidate
+                            .sourceRole ||
+                          ""
+                        ).trim(),
+
+                      sourceAuthor:
+                        String(
+                          candidate
+                            .sourceAuthor ||
+                          ""
+                        ).trim(),
+
+                      sourceText:
+                        String(
+                          candidate
+                            .sourceText ||
+                          ""
+                        ).trim()
+                    };
+                  }
+                )
+            })
+        }
       );
 
 
-      return;
-    }
+    /*
+      가져오기 패널만 닫는다.
+      상단 조회 기간과 호기 조건은 유지한다.
+    */
+    closeLimestoneImportPanel();
 
 
+    /*
+      현재 상단 조회 조건으로 결과를 다시 불러온다.
+
+      가져오기 기간 전체가 아니라
+      상단에서 조회한 범위만 요약 카드에 반영된다.
+    */
+    await loadLimestoneReceipts();
+
+
+    showLimestoneToast(
+      result.message ||
+      `석회석 입고기록 ${selectedCandidates.length}건을 등록했습니다.`
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "석회석 업무일지 가져오기 등록 실패:",
+      error
+    );
+
+
+    showLimestoneToast(
+      error.message ||
+      "선택한 석회석 입고기록을 등록하지 못했습니다."
+    );
+
+  } finally {
     if (
       applyButton
     ) {
       applyButton.disabled =
-        true;
+        false;
 
 
       applyButton.textContent =
-        "등록 중...";
-    }
-
-
-    try {
-      const result =
-        await requestLimestoneApi(
-          LIMESTONE_RECEIPTS_API_URL,
-          {
-            method:
-              "POST",
-
-            headers:
-              getLimestoneApiHeaders({
-                "Content-Type":
-                  "application/json"
-              }),
-
-            body:
-              JSON.stringify({
-                action:
-                  "bulk_import",
-
-                items:
-                  selectedCandidates.map(
-                    candidate => {
-                      return {
-                        receiptDate:
-                          candidate
-                            .receiptDate,
-
-                        receiptTime:
-                          candidate
-                            .receiptTime,
-
-                        unitNo:
-                          candidate
-                            .unitNo,
-
-                        quantityTon:
-                          candidate
-                            .quantityTon,
-
-                        note:
-                          candidate.note,
-
-                        sourceLogId:
-                          candidate
-                            .sourceLogId,
-
-                        sourceEntryId:
-                          candidate
-                            .sourceEntryId,
-
-                        sourceKey:
-                          candidate
-                            .sourceKey,
-
-                        sourceRole:
-                          candidate
-                            .sourceRole,
-
-                        sourceAuthor:
-                          candidate
-                            .sourceAuthor,
-
-                        sourceText:
-                          candidate
-                            .sourceText
-                      };
-                    }
-                  )
-              })
-          }
-        );
-
-
-      closeLimestoneImportPanel();
-
-
-      await loadLimestoneReceipts();
-
-
-      showLimestoneToast(
-        result.message ||
-        `석회석 입고기록 ${selectedCandidates.length}건을 등록했습니다.`
-      );
-
-    } catch (
-      error
-    ) {
-      console.error(
-        "석회석 업무일지 가져오기 등록 실패:",
-        error
-      );
-
-
-      showLimestoneToast(
-        error.message ||
-        "선택한 석회석 입고기록을 등록하지 못했습니다."
-      );
-
-    } finally {
-      if (
-        applyButton
-      ) {
-        applyButton.disabled =
-          false;
-
-
-        applyButton.textContent =
-          "선택 기록 추가";
-      }
+        "선택 기록 추가";
     }
   }
+}
 
 
   /* =====================================================

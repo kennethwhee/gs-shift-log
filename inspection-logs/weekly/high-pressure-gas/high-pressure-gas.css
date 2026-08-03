@@ -1264,6 +1264,47 @@ button {
     700;
 }
 
+/* =========================================================
+  점검일자 원본 크기
+========================================================= */
+
+.gas-check-date-field,
+.gas-check-date-field > span,
+.gas-check-date-field input,
+.gas-check-date-field
+.gas-check-print-value {
+  color:
+    #111111;
+
+  font-size:
+    8.5px;
+
+  font-weight:
+    500;
+
+  line-height:
+    1;
+
+  letter-spacing:
+    0;
+}
+
+
+.gas-check-date-field
+.gas-check-print-value {
+  display:
+    inline-block;
+
+  min-width:
+    33mm;
+
+  text-align:
+    center;
+
+  white-space:
+    nowrap;
+}
+
 @media print {
 
   html,

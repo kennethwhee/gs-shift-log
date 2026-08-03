@@ -1,0 +1,7 @@
+{
+  "editor.folding": true,
+  "editor.showFoldingControls": "always",
+  "editor.foldingStrategy": "indentation",
+  "editor.foldingMaximumRegions": 50000,
+  "editor.largeFileOptimizations": false
+}
