@@ -531,6 +531,52 @@ function canUseHighPressureGasLog(
   );
 }
 
+/* =========================================================
+  고압가스 점검일지 삭제 권한
+
+  - 최고관리자: 모든 일지 삭제
+  - 일반 사용자: 본인이 최초 작성한 일지만 삭제
+========================================================= */
+
+function canDeleteHighPressureGasLog(
+  user,
+  log
+) {
+  if (
+    !user ||
+    !log
+  ) {
+    return false;
+  }
+
+
+  if (
+    user.isSuperAdmin
+  ) {
+    return true;
+  }
+
+
+  const currentEmployeeNo =
+    normalizeEmployeeNo(
+      user.employeeNo
+    );
+
+
+  const authorEmployeeNo =
+    normalizeEmployeeNo(
+      log.authorId
+    );
+
+
+  return Boolean(
+    currentEmployeeNo &&
+    authorEmployeeNo &&
+    currentEmployeeNo ===
+      authorEmployeeNo
+  );
+}
+
 
 async function ensureSchema(
   database
@@ -1775,6 +1821,232 @@ export async function onRequestPost(
       isUniqueConflict
         ? 409
         : 500
+    );
+  }
+}
+
+/* =========================================================
+  고압가스 점검일지 삭제
+========================================================= */
+
+export async function onRequestDelete(
+  context
+) {
+  try {
+    const authentication =
+      await getAuthenticatedUser(
+        context
+      );
+
+
+    if (
+      authentication.error
+    ) {
+      return authentication.error;
+    }
+
+
+    const user =
+      authentication.user;
+
+
+    if (
+      !canUseHighPressureGasLog(
+        user
+      )
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          message:
+            "고압가스 점검일지를 삭제할 권한이 없습니다."
+        },
+        403
+      );
+    }
+
+
+    await ensureSchema(
+      context.env.DB
+    );
+
+
+    let body;
+
+
+    try {
+      body =
+        await context.request.json();
+
+    } catch {
+      return jsonResponse(
+        {
+          ok: false,
+          message:
+            "삭제 요청 데이터 형식이 올바르지 않습니다."
+        },
+        400
+      );
+    }
+
+
+    const id =
+      normalizeText(
+        body?.id
+      );
+
+
+    const expectedRevision =
+      Number(
+        body?.expectedRevision
+      );
+
+
+    if (
+      !id
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          message:
+            "삭제할 점검일지 ID가 없습니다."
+        },
+        400
+      );
+    }
+
+
+    const existingLog =
+      await findLogById(
+        context.env.DB,
+        id
+      );
+
+
+    if (
+      !existingLog
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          message:
+            "이미 삭제되었거나 존재하지 않는 점검일지입니다."
+        },
+        404
+      );
+    }
+
+
+    if (
+      !canDeleteHighPressureGasLog(
+        user,
+        existingLog
+      )
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          message:
+            "본인이 작성한 일지 또는 최고관리자만 삭제할 수 있습니다."
+        },
+        403
+      );
+    }
+
+
+    if (
+      !Number.isInteger(
+        expectedRevision
+      ) ||
+      expectedRevision <
+        1 ||
+      expectedRevision !==
+        existingLog.serverRevision
+    ) {
+      return createConflictResponse(
+        existingLog
+      );
+    }
+
+
+    const deleteResult =
+      await context.env.DB
+        .prepare(`
+          DELETE FROM
+            inspection_high_pressure_gas_logs
+          WHERE
+            id = ? AND
+            revision = ?
+        `)
+        .bind(
+          existingLog.id,
+          expectedRevision
+        )
+        .run();
+
+
+    if (
+      Number(
+        deleteResult?.meta?.changes ||
+        0
+      ) !==
+        1
+    ) {
+      const currentLog =
+        await findLogById(
+          context.env.DB,
+          existingLog.id
+        );
+
+
+      return createConflictResponse(
+        currentLog
+      );
+    }
+
+
+    /* 삭제 직전 내용을 이력으로 보존 */
+    await appendHistory(
+      context.env.DB,
+      existingLog,
+      "삭제",
+      user
+    );
+
+
+    return jsonResponse({
+      ok: true,
+
+      deletedId:
+        existingLog.id,
+
+      inspectionDate:
+        existingLog.inspectionDate,
+
+      message:
+        "고압가스 점검일지가 삭제되었습니다."
+    });
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "고압가스 점검일지 삭제 오류:",
+      error
+    );
+
+
+    return jsonResponse(
+      {
+        ok: false,
+
+        message:
+          error instanceof
+            Error
+            ? error.message
+            : "고압가스 점검일지 삭제 중 오류가 발생했습니다."
+      },
+      500
     );
   }
 }
