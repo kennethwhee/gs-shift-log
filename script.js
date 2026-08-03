@@ -74975,30 +74975,188 @@ function createLimestoneSummaryFromResultItems(
   };
 }
 
- /* =====================================================
-  석회석 조회 결과 출력 최종본
+/* =====================================================
+  현재 설정한 조회 기간의 기록만 선별
 
-  요약 기준:
-  현재 조회 API가 반환한 items만 사용한다.
+  필터 기준:
+  - 시작일 이상
+  - 종료일 이하
+  - 선택한 호기와 일치
+
+  API가 조건 밖 기록을 함께 반환하더라도
+  화면 합계에는 포함하지 않는다.
 ===================================================== */
+
+function filterLimestoneItemsBySelectedRange(
+  items,
+  resultRange = {}
+) {
+  const safeItems =
+    Array.isArray(
+      items
+    )
+      ? items
+      : [];
+
+
+  const {
+    startDateInput,
+    endDateInput,
+    unitFilter
+  } =
+    getLimestoneReceiptElements();
+
+
+  /*
+    화면에 현재 입력된 조회조건을 가장 우선한다.
+  */
+  const startDate =
+    String(
+      startDateInput?.value ||
+      resultRange?.startDate ||
+      ""
+    ).trim();
+
+
+  const endDate =
+    String(
+      endDateInput?.value ||
+      resultRange?.endDate ||
+      ""
+    ).trim();
+
+
+  const selectedUnitNo =
+    Number(
+      unitFilter?.value ||
+      resultRange?.unitNo ||
+      0
+    ) ||
+    null;
+
+
+  return safeItems
+    .filter(
+      item => {
+        const receiptDate =
+          String(
+            item?.receiptDate ||
+            ""
+          ).trim();
+
+
+        const unitNo =
+          Number(
+            item?.unitNo
+          );
+
+
+        if (
+          !receiptDate
+        ) {
+          return false;
+        }
+
+
+        /*
+          시작일보다 이전 기록 제외
+        */
+        if (
+          startDate &&
+          receiptDate <
+            startDate
+        ) {
+          return false;
+        }
+
+
+        /*
+          종료일보다 이후 기록 제외
+        */
+        if (
+          endDate &&
+          receiptDate >
+            endDate
+        ) {
+          return false;
+        }
+
+
+        /*
+          특정 호기를 선택했으면
+          다른 호기 기록 제외
+        */
+        if (
+          selectedUnitNo &&
+          unitNo !==
+            selectedUnitNo
+        ) {
+          return false;
+        }
+
+
+        return true;
+      }
+    )
+    .sort(
+      (
+        firstItem,
+        secondItem
+      ) => {
+        const firstKey = [
+          String(
+            firstItem?.receiptDate ||
+            ""
+          ),
+
+          String(
+            firstItem?.receiptTime ||
+            ""
+          )
+        ].join(
+          " "
+        );
+
+
+        const secondKey = [
+          String(
+            secondItem?.receiptDate ||
+            ""
+          ),
+
+          String(
+            secondItem?.receiptTime ||
+            ""
+          )
+        ].join(
+          " "
+        );
+
+
+        return secondKey.localeCompare(
+          firstKey
+        );
+      }
+    );
+}
 
 /* =====================================================
   석회석 조회 결과 출력 최종본
 
   상단 합계:
-  조회된 기간 전체 합계
+  현재 설정한 시작일~종료일 기록만 계산
 
-  중간 표:
-  일별·주별·월별 선택 방식으로 묶음
+  중간 집계:
+  현재 기간의 기록만 일별·주별·월별 분류
 
-  하단:
-  조회 기간의 상세 기록
+  하단 상세:
+  현재 기간의 기록만 출력
 ===================================================== */
 
 function renderLimestoneResult(
   result
 ) {
-  const resultItems =
+  const sourceItems =
     Array.isArray(
       result?.items
     )
@@ -75006,14 +75164,73 @@ function renderLimestoneResult(
       : [];
 
 
+  const {
+    startDateInput,
+    endDateInput,
+    unitFilter
+  } =
+    getLimestoneReceiptElements();
+
+
+  const selectedStartDate =
+    String(
+      startDateInput?.value ||
+      result?.range
+        ?.startDate ||
+      ""
+    ).trim();
+
+
+  const selectedEndDate =
+    String(
+      endDateInput?.value ||
+      result?.range
+        ?.endDate ||
+      ""
+    ).trim();
+
+
+  const selectedUnitNo =
+    Number(
+      unitFilter?.value ||
+      result?.range
+        ?.unitNo ||
+      0
+    ) ||
+    null;
+
+
+  /*
+    서버 응답을 현재 화면 조회조건으로
+    다시 한 번 필터링한다.
+  */
+  const filteredItems =
+    filterLimestoneItemsBySelectedRange(
+      sourceItems,
+      {
+        startDate:
+          selectedStartDate,
+
+        endDate:
+          selectedEndDate,
+
+        unitNo:
+          selectedUnitNo
+      }
+    );
+
+
+  /*
+    합계도 필터링된 기록으로만 계산한다.
+  */
   const calculatedResult =
     createLimestoneSummaryFromResultItems(
-      resultItems
+      filteredItems
     );
 
 
   limestoneReceiptState.items =
-    resultItems;
+    filteredItems;
 
 
   limestoneReceiptState.summary =
@@ -75022,28 +75239,18 @@ function renderLimestoneResult(
 
   limestoneReceiptState.range = {
     startDate:
-      String(
-        result?.range
-          ?.startDate ||
-        ""
-      ),
+      selectedStartDate,
 
     endDate:
-      String(
-        result?.range
-          ?.endDate ||
-        ""
-      ),
+      selectedEndDate,
 
     unitNo:
-      result?.range
-        ?.unitNo ??
-      null
+      selectedUnitNo
   };
 
 
   /*
-    조회 기간 전체 합계
+    조회 기간 전체 합계 카드
   */
   renderLimestoneSummary(
     limestoneReceiptState
@@ -75052,7 +75259,7 @@ function renderLimestoneResult(
 
 
   /*
-    현재 선택된 집계 방식
+    선택한 기간의 일별·주별·월별 집계
   */
   renderLimestoneGroupedSummary(
     limestoneReceiptState
@@ -75061,7 +75268,7 @@ function renderLimestoneResult(
 
 
   /*
-    상세 입고기록
+    선택한 기간의 상세 기록
   */
   renderLimestoneReceiptItems(
     limestoneReceiptState
@@ -75070,6 +75277,31 @@ function renderLimestoneResult(
 
 
   updateLimestonePeriodDisplay();
+
+
+  console.log(
+    "석회석 조회 기간 필터 결과:",
+    {
+      startDate:
+        selectedStartDate,
+
+      endDate:
+        selectedEndDate,
+
+      unitNo:
+        selectedUnitNo,
+
+      serverItemCount:
+        sourceItems.length,
+
+      displayedItemCount:
+        filteredItems.length,
+
+      summary:
+        limestoneReceiptState
+          .summary
+    }
+  );
 }
 
 
