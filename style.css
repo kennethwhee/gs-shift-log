@@ -57870,3 +57870,117 @@ and (
   }
 
 }
+
+/* =========================================================
+  PC 업무일지 TAG 입력칸 너비 축소
+
+  기존:
+  남는 가로 공간을 TAG 칸이 모두 사용
+
+  변경:
+  TAG 영역 전체 380px
+  - TAG 입력 약 298px
+  - 설비보기 75px
+========================================================= */
+
+@media (min-width: 981px) {
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-top-row {
+    grid-template-columns:
+      158px
+      96px
+      380px
+      188px
+      82px !important;
+
+    justify-content:
+      start !important;
+
+    align-items:
+      end !important;
+
+    gap:
+      7px !important;
+  }
+
+
+  /* TAG 전체 영역 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--tag {
+    width:
+      380px !important;
+
+    min-width:
+      380px !important;
+
+    max-width:
+      380px !important;
+  }
+
+
+  /* TAG 입력 + 설비보기 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .tag-input-group {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      )
+      75px !important;
+
+    width:
+      380px !important;
+
+    min-width:
+      380px !important;
+
+    max-width:
+      380px !important;
+
+    gap:
+      7px !important;
+  }
+
+
+  /* 실제 TAG 입력창 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .tag-input-group
+  input {
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      none !important;
+  }
+
+
+  /* 설비보기 버튼 크기 유지 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .navigator-button {
+    width:
+      75px !important;
+
+    min-width:
+      75px !important;
+
+    max-width:
+      75px !important;
+  }
+
+}
