@@ -333,37 +333,33 @@
 
 
 /* =====================================================
-  점검일지 메뉴 표시 조건
+  점검일지 최종 사용 권한
 
-  - PC 화면
-  - 로그인 완료 후 앱 화면이 표시된 모든 직원
-  - 보직 및 관리자 권한 제한 없음
-====================================================== */
+  허용:
+  - GS Shift Log에 로그인한 모든 사용자
+  - 모든 보직
+  - PC·모바일
+
+  차단:
+  - 로그인하지 않은 사용자
+===================================================== */
 
 function canCurrentUserUseNightPatrol() {
-  /*
-    현재는 PC 화면에서만 표시한다.
-  */
-  if (
-    !desktopMedia.matches
-  ) {
-    return false;
-  }
-
-
-  /*
-    로그인 완료 후 appShell이 표시된 경우에는
-    보직·계정 권한과 관계없이 점검일지 메뉴를 표시한다.
-  */
   const appShell =
     document.getElementById(
       "appShell"
     );
 
 
+  const currentUser =
+    getCurrentUser();
+
+
   return Boolean(
+    currentUser &&
     appShell &&
-    appShell.hidden === false
+    appShell.hidden !==
+      true
   );
 }
 
