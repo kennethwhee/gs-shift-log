@@ -84554,20 +84554,33 @@ createLogRowHtml =
                   );
 
 
-              if (
-                ![
-                  "TM발행내역",
-                  "TM/BM/CM발행내역"
-                ].includes(
-                  compactTitle
-                )
-              ) {
-                return;
-              }
+const titleTextMap = {
+  운전현황:
+    "운전 현황",
+
+  TM발행내역:
+    "발행 내역",
+
+  "TM/BM/CM발행내역":
+    "발행 내역"
+};
 
 
-              titleElement.textContent =
-                "발행 내역";
+const displayTitle =
+  titleTextMap[
+    compactTitle
+  ];
+
+
+if (
+  !displayTitle
+) {
+  return;
+}
+
+
+titleElement.textContent =
+  displayTitle;
             }
           );
 
