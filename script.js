@@ -25683,41 +25683,101 @@ bindClick(
   );
 
 
-  if (
-    elements.logEntryTableBody
-  ) {
+/* =======================================================
+  TM/BM/CM 발행 · 인계사항 · 비고
+  수정·삭제·TAG 버튼 이벤트 연결 최종본
+
+  기존 문제:
+  - 인계사항 표에만 클릭 이벤트가 연결됨
+  - 발행 내역과 비고의 수정·삭제 버튼은 작동하지 않음
+
+  수정:
+  - 발행 내역
+  - 인계 및 작업 내역
+  - 비고
+
+  세 표 모두 동일한 이벤트 처리
+======================================================= */
+
+const logEntryActionTableBodies = [
+  elements.tmIssueEntryTableBody,
+  elements.logEntryTableBody,
+  elements.noteEntryTableBody
+]
+  .filter(
+    Boolean
+  );
+
+
+logEntryActionTableBodies.forEach(
+  tableBody => {
     /*
-      수정·삭제·TAG 이동 버튼
+      bindEvents가 다시 호출되더라도
+      같은 이벤트를 중복 연결하지 않는다.
     */
-    elements.logEntryTableBody
-      .addEventListener(
-        "click",
-        handleLogEntryTableClick
-      );
+    if (
+      tableBody.dataset
+        .logEntryActionsBound ===
+        "true"
+    ) {
+      return;
+    }
 
 
     /*
-      개별 작업 내역 체크
+      수정·삭제·Facility Navigator 이동
     */
-    elements.logEntryTableBody
-      .addEventListener(
-        "change",
-        (event) => {
-          const checkbox =
-            event.target.closest(
-              ".log-entry-select-checkbox"
-            );
+    tableBody.addEventListener(
+      "click",
+      handleLogEntryTableClick
+    );
 
 
-          if (!checkbox) {
-            return;
-          }
+    /*
+      개별 체크박스 선택 상태
+    */
+    tableBody.addEventListener(
+      "change",
+      event => {
+        const checkbox =
+          event.target.closest(
+            ".log-entry-select-checkbox"
+          );
 
 
-          updateSelectedEntryControls();
+        if (
+          !checkbox
+        ) {
+          return;
         }
-      );
+
+
+        /*
+          최신 통합 선택 함수가 있으면 우선 사용
+        */
+        if (
+          typeof updateLogEntrySelectionState ===
+            "function"
+        ) {
+          updateLogEntrySelectionState();
+
+          return;
+        }
+
+
+        /*
+          기존 선택 상태 함수 호환
+        */
+        updateSelectedEntryControls();
+      }
+    );
+
+
+    tableBody.dataset
+      .logEntryActionsBound =
+      "true";
   }
+);
 
 
   /* =======================================================
