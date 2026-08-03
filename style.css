@@ -56659,3 +56659,1185 @@ table:has(
   text-indent:
     0 !important;
 }
+
+/* =========================================================
+  네비게이터 이력관리 제외 체크박스 최종 디자인
+
+  적용 대상:
+  - TM 발행
+  - TM 작업
+  - BM 발행
+  - BM 작업
+  - CM 발행
+
+  체크 해제:
+  - 네비게이터 점검이력 포함
+
+  체크:
+  - 업무일지에는 저장
+  - 네비게이터 점검이력에서는 제외
+========================================================= */
+
+
+/* =========================================================
+  숨김 상태
+========================================================= */
+
+#logEditorModal
+#logEntryInputPanel
+.log-entry-navigator-history-field[hidden] {
+  display:
+    none !important;
+}
+
+
+/* =========================================================
+  필드 전체
+========================================================= */
+
+#logEditorModal
+#logEntryInputPanel
+.log-entry-navigator-history-field {
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+}
+
+
+/* =========================================================
+  체크박스 카드
+========================================================= */
+
+#logEditorModal
+#logEntryInputPanel
+.navigator-history-exclude-check {
+  position:
+    relative !important;
+
+  display:
+    flex !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  height:
+    34px !important;
+
+  min-height:
+    34px !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    flex-start !important;
+
+  gap:
+    8px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0
+    10px !important;
+
+  overflow:
+    hidden !important;
+
+  border:
+    1px
+    solid
+    #c8d4e1 !important;
+
+  border-radius:
+    7px !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #526177 !important;
+
+  box-sizing:
+    border-box !important;
+
+  cursor:
+    pointer !important;
+
+  user-select:
+    none !important;
+
+  transition:
+    border-color
+    0.16s
+    ease,
+    background
+    0.16s
+    ease,
+    color
+    0.16s
+    ease,
+    box-shadow
+    0.16s
+    ease !important;
+}
+
+
+/* 마우스 올림 */
+
+#logEditorModal
+#logEntryInputPanel
+.navigator-history-exclude-check:hover {
+  border-color:
+    #d7a55c !important;
+
+  background:
+    #fffbf3 !important;
+}
+
+
+/* =========================================================
+  실제 체크박스 숨김
+
+  키보드 접근은 유지한다.
+========================================================= */
+
+#logEditorModal
+#logEntryInputPanel
+.navigator-history-exclude-check
+input {
+  position:
+    absolute !important;
+
+  width:
+    1px !important;
+
+  height:
+    1px !important;
+
+  margin:
+    0 !important;
+
+  overflow:
+    hidden !important;
+
+  opacity:
+    0 !important;
+}
+
+
+/* =========================================================
+  사용자에게 보이는 체크박스
+========================================================= */
+
+#logEditorModal
+#logEntryInputPanel
+.navigator-history-exclude-check__box {
+  display:
+    inline-flex !important;
+
+  flex:
+    0
+    0
+    15px !important;
+
+  width:
+    15px !important;
+
+  height:
+    15px !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  border:
+    1px
+    solid
+    #aebbc9 !important;
+
+  border-radius:
+    4px !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    transparent !important;
+
+  font-size:
+    9px !important;
+
+  font-weight:
+    900 !important;
+
+  line-height:
+    1 !important;
+
+  box-sizing:
+    border-box !important;
+
+  transition:
+    border-color
+    0.16s
+    ease,
+    background
+    0.16s
+    ease,
+    color
+    0.16s
+    ease !important;
+}
+
+
+/* =========================================================
+  체크박스 설명
+========================================================= */
+
+#logEditorModal
+#logEntryInputPanel
+.navigator-history-exclude-check__content {
+  display:
+    flex !important;
+
+  min-width:
+    0 !important;
+
+  flex:
+    1
+    1
+    auto !important;
+
+  flex-direction:
+    column !important;
+
+  align-items:
+    flex-start !important;
+
+  justify-content:
+    center !important;
+
+  gap:
+    1px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+}
+
+
+#logEditorModal
+#logEntryInputPanel
+.navigator-history-exclude-check__content
+strong {
+  display:
+    block !important;
+
+  max-width:
+    100% !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  overflow:
+    hidden !important;
+
+  color:
+    inherit !important;
+
+  font-size:
+    9px !important;
+
+  font-weight:
+    900 !important;
+
+  line-height:
+    1.1 !important;
+
+  text-overflow:
+    ellipsis !important;
+
+  white-space:
+    nowrap !important;
+}
+
+
+#logEditorModal
+#logEntryInputPanel
+.navigator-history-exclude-check__content
+small {
+  display:
+    block !important;
+
+  max-width:
+    100% !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  overflow:
+    hidden !important;
+
+  color:
+    #8a6b3f !important;
+
+  font-size:
+    7px !important;
+
+  font-weight:
+    750 !important;
+
+  line-height:
+    1.1 !important;
+
+  text-overflow:
+    ellipsis !important;
+
+  white-space:
+    nowrap !important;
+}
+
+
+/* =========================================================
+  체크 상태
+
+  주황색은 삭제가 아니라
+  연동 제외 설정이라는 의미로 사용한다.
+========================================================= */
+
+#logEditorModal
+#logEntryInputPanel
+.navigator-history-exclude-check:has(
+  input:checked
+) {
+  border-color:
+    #e0a04c !important;
+
+  background:
+    #fff7e8 !important;
+
+  color:
+    #9a5c0d !important;
+
+  box-shadow:
+    0
+    0
+    0
+    2px
+    rgba(
+      217,
+      119,
+      6,
+      0.09
+    ) !important;
+}
+
+
+#logEditorModal
+#logEntryInputPanel
+.navigator-history-exclude-check
+input:checked
++
+.navigator-history-exclude-check__box {
+  border-color:
+    #d97706 !important;
+
+  background:
+    #d97706 !important;
+
+  color:
+    #ffffff !important;
+}
+
+
+/* HTML 체크문자가 없더라도 표시 */
+
+#logEditorModal
+#logEntryInputPanel
+.navigator-history-exclude-check
+input:checked
++
+.navigator-history-exclude-check__box::before {
+  content:
+    "✓" !important;
+}
+
+
+/* =========================================================
+  키보드 포커스
+========================================================= */
+
+#logEditorModal
+#logEntryInputPanel
+.navigator-history-exclude-check:focus-within {
+  outline:
+    3px
+    solid
+    rgba(
+      217,
+      119,
+      6,
+      0.16
+    ) !important;
+
+  outline-offset:
+    1px !important;
+}
+
+
+/* =========================================================
+  PC
+
+  구분 | 현재시간 | TAG | 이력 제외 | 추가
+========================================================= */
+
+@media (min-width: 981px) {
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-top-row {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      158px
+      96px
+      minmax(
+        264px,
+        1fr
+      )
+      188px
+      82px !important;
+
+    align-items:
+      end !important;
+
+    gap:
+      7px !important;
+  }
+
+
+  /* 구분 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--category {
+    grid-column:
+      1 !important;
+
+    grid-row:
+      1 !important;
+
+    width:
+      158px !important;
+
+    min-width:
+      158px !important;
+  }
+
+
+  /* 현재시간 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-current-time-field {
+    grid-column:
+      2 !important;
+
+    grid-row:
+      1 !important;
+
+    width:
+      96px !important;
+
+    min-width:
+      96px !important;
+  }
+
+
+  /* TAG */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--tag {
+    display:
+      flex !important;
+
+    grid-column:
+      3 !important;
+
+    grid-row:
+      1 !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      264px !important;
+
+    flex-direction:
+      column !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .tag-input-group {
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    grid-template-columns:
+      minmax(
+        160px,
+        1fr
+      )
+      75px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .tag-input-group
+  input {
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+  }
+
+
+  /* 네비게이터 이력 제외 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-navigator-history-field {
+    display:
+      flex !important;
+
+    grid-column:
+      4 !important;
+
+    grid-row:
+      1 !important;
+
+    width:
+      188px !important;
+
+    min-width:
+      188px !important;
+
+    flex-direction:
+      column !important;
+  }
+
+
+  /* 추가 버튼 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-actions {
+    display:
+      flex !important;
+
+    grid-column:
+      5 !important;
+
+    grid-row:
+      1 !important;
+
+    width:
+      82px !important;
+
+    min-width:
+      82px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-actions
+  .add-entry-button {
+    width:
+      82px !important;
+
+    min-width:
+      82px !important;
+  }
+
+}
+
+
+/* =========================================================
+  좁은 PC·태블릿
+
+  첫째 줄:
+  구분 | 현재시간 | TAG | 추가
+
+  둘째 줄:
+  네비게이터 이력 제외
+========================================================= */
+
+@media (
+  min-width: 769px
+)
+and (
+  max-width: 980px
+) {
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-top-row {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      142px
+      96px
+      minmax(
+        220px,
+        1fr
+      )
+      82px !important;
+
+    align-items:
+      end !important;
+
+    gap:
+      7px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--category {
+    grid-column:
+      1 !important;
+
+    grid-row:
+      1 !important;
+
+    width:
+      142px !important;
+
+    min-width:
+      142px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-current-time-field {
+    grid-column:
+      2 !important;
+
+    grid-row:
+      1 !important;
+
+    width:
+      96px !important;
+
+    min-width:
+      96px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--tag {
+    display:
+      flex !important;
+
+    grid-column:
+      3 !important;
+
+    grid-row:
+      1 !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    flex-direction:
+      column !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .tag-input-group {
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    grid-template-columns:
+      minmax(
+        120px,
+        1fr
+      )
+      70px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .tag-input-group
+  input {
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-actions {
+    grid-column:
+      4 !important;
+
+    grid-row:
+      1 !important;
+
+    width:
+      82px !important;
+
+    min-width:
+      82px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-navigator-history-field {
+    display:
+      flex !important;
+
+    grid-column:
+      1
+      /
+      -1 !important;
+
+    grid-row:
+      2 !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+  }
+
+}
+
+
+/* =========================================================
+  모바일
+
+  첫째 줄:
+  구분 | 현재시간
+
+  둘째 줄:
+  TAG 입력 + 설비보기
+
+  셋째 줄:
+  네비게이터 이력 제외
+
+  넷째 줄:
+  취소 | 추가
+========================================================= */
+
+@media (max-width: 768px) {
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-top-row {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      )
+      92px !important;
+
+    grid-template-rows:
+      auto
+      auto
+      auto
+      auto !important;
+
+    align-items:
+      end !important;
+
+    gap:
+      5px !important;
+  }
+
+
+  /* 구분 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--category {
+    grid-column:
+      1 !important;
+
+    grid-row:
+      1 !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--category
+  select {
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+  }
+
+
+  /* 현재시간 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-current-time-field {
+    grid-column:
+      2 !important;
+
+    grid-row:
+      1 !important;
+
+    width:
+      92px !important;
+
+    min-width:
+      92px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-current-time-field
+  .current-time-check {
+    width:
+      92px !important;
+
+    min-width:
+      92px !important;
+  }
+
+
+  /* TAG */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--tag {
+    display:
+      flex !important;
+
+    grid-column:
+      1
+      /
+      -1 !important;
+
+    grid-row:
+      2 !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    flex-direction:
+      column !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .tag-input-group {
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      )
+      70px !important;
+
+    gap:
+      5px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .tag-input-group
+  input {
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .navigator-button {
+    width:
+      70px !important;
+
+    min-width:
+      70px !important;
+  }
+
+
+  /* 이력 제외 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-navigator-history-field {
+    display:
+      flex !important;
+
+    grid-column:
+      1
+      /
+      -1 !important;
+
+    grid-row:
+      3 !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    flex-direction:
+      column !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .navigator-history-exclude-check {
+    height:
+      32px !important;
+
+    min-height:
+      32px !important;
+
+    padding:
+      0
+      9px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .navigator-history-exclude-check__content {
+    flex-direction:
+      row !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      6px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .navigator-history-exclude-check__content
+  strong {
+    font-size:
+      9px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .navigator-history-exclude-check__content
+  small {
+    font-size:
+      7px !important;
+  }
+
+
+  /* 추가·취소 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-actions {
+    position:
+      static !important;
+
+    display:
+      flex !important;
+
+    grid-column:
+      1
+      /
+      -1 !important;
+
+    grid-row:
+      4 !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    align-items:
+      center !important;
+
+    justify-content:
+      stretch !important;
+
+    gap:
+      5px !important;
+
+    margin:
+      0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-actions
+  button {
+    position:
+      static !important;
+
+    flex:
+      1
+      1
+      0 !important;
+
+    width:
+      auto !important;
+
+    min-width:
+      0 !important;
+
+    margin:
+      0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-actions
+  .add-entry-button {
+    width:
+      auto !important;
+
+    min-width:
+      0 !important;
+  }
+
+}
+
+
+/* =========================================================
+  아주 작은 모바일
+========================================================= */
+
+@media (max-width: 390px) {
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-top-row {
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      )
+      84px !important;
+
+    gap:
+      4px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-current-time-field,
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-current-time-field
+  .current-time-check {
+    width:
+      84px !important;
+
+    min-width:
+      84px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .navigator-history-exclude-check__content
+  small {
+    display:
+      none !important;
+  }
+
+}
