@@ -60,3 +60,14 @@
 .night-patrol-modal__body {
   flex: 1 1 auto;
 }
+
+/* =========================================================
+  야간순찰은 PC에서만 사용
+========================================================= */
+
+@media (max-width: 768px) {
+  .night-patrol-header-button,
+  .night-patrol-modal {
+    display: none !important;
+  }
+}

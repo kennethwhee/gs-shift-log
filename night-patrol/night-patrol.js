@@ -1,5 +1,185 @@
 "use strict";
 
+
+/* =========================================================
+  야간순찰 접근 권한
+
+  허용:
+  - PC 화면
+  - 로그인 사용자의 보직이 TO, BO1, BO2
+
+  직접 URL 접근도 동일하게 차단한다.
+========================================================= */
+
+const NIGHT_PATROL_AUTH_STORAGE_KEY =
+  "gsShiftLog.currentUser";
+
+
+const NIGHT_PATROL_ALLOWED_POSITIONS =
+  new Set([
+    "TO",
+    "BO1",
+    "BO2"
+  ]);
+
+
+function normalizeNightPatrolUserPosition(
+  value
+) {
+  const normalizedValue =
+    String(
+      value ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /[\s_-]+/g,
+        ""
+      );
+
+  return NIGHT_PATROL_ALLOWED_POSITIONS.has(
+    normalizedValue
+  )
+    ? normalizedValue
+    : "";
+}
+
+
+function loadNightPatrolCurrentUser() {
+  try {
+    const savedUser =
+      window.localStorage.getItem(
+        NIGHT_PATROL_AUTH_STORAGE_KEY
+      );
+
+    return savedUser
+      ? JSON.parse(savedUser)
+      : null;
+
+  } catch (error) {
+    console.warn(
+      "야간순찰 로그인 정보 읽기 실패:",
+      error
+    );
+
+    return null;
+  }
+}
+
+
+function getNightPatrolCurrentUserPosition() {
+  const currentUser =
+    loadNightPatrolCurrentUser();
+
+  if (
+    !currentUser
+  ) {
+    return "";
+  }
+
+  const positionCandidates = [
+    currentUser.position,
+    currentUser.jobPosition,
+    currentUser.job_position,
+    currentUser.duty,
+    currentUser.dutyName,
+    currentUser.duty_name,
+    currentUser.defaultPosition,
+    currentUser.default_position,
+    currentUser.assignedPosition,
+    currentUser.assigned_position,
+    currentUser.memberPosition,
+    currentUser.member_position
+  ];
+
+  for (
+    const candidate of
+    positionCandidates
+  ) {
+    const normalizedPosition =
+      normalizeNightPatrolUserPosition(
+        candidate
+      );
+
+    if (
+      normalizedPosition
+    ) {
+      return normalizedPosition;
+    }
+  }
+
+  return "";
+}
+
+
+function canCurrentUserAccessNightPatrolPage() {
+  const isDesktop =
+    window.matchMedia(
+      "(min-width: 769px)"
+    ).matches;
+
+  if (
+    !isDesktop
+  ) {
+    return false;
+  }
+
+  return NIGHT_PATROL_ALLOWED_POSITIONS.has(
+    getNightPatrolCurrentUserPosition()
+  );
+}
+
+
+function renderNightPatrolAccessDenied() {
+  document.body.innerHTML = `
+    <main
+      style="
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #eef4f9;
+        font-family: Arial, 'Noto Sans KR', sans-serif;
+      "
+    >
+      <section
+        style="
+          width: min(520px, 100%);
+          padding: 28px;
+          border: 1px solid #c9d8e6;
+          border-radius: 16px;
+          background: #ffffff;
+          text-align: center;
+          box-shadow: 0 14px 40px rgba(27, 58, 86, 0.12);
+        "
+      >
+        <strong
+          style="
+            display: block;
+            color: #17324d;
+            font-size: 20px;
+          "
+        >
+          야간순찰 메뉴를 사용할 수 없습니다.
+        </strong>
+
+        <p
+          style="
+            margin: 12px 0 0;
+            color: #61778c;
+            font-size: 14px;
+            line-height: 1.65;
+          "
+        >
+          야간순찰 점검일지는 PC에서<br>
+          TO·BO1·BO2 보직만 사용할 수 있습니다.
+        </p>
+      </section>
+    </main>
+  `;
+}
+
 /* =========================================================
   GS Shift Log - 야간 순찰 점검일지
 
@@ -3574,6 +3754,15 @@ function bindNightPatrolEvents() {
 ========================================================= */
 
 function initializeNightPatrolPage() {
+  if (
+    !canCurrentUserAccessNightPatrolPage()
+  ) {
+    renderNightPatrolAccessDenied();
+
+    return;
+  }
+
+
   nightPatrolPointCatalog =
     loadNightPatrolPointCatalog();
 
