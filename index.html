@@ -3182,6 +3182,14 @@
   </span>
 
   <button
+  type="button"
+  id="addDirectRemarkButton"
+  class="direct-remark-add-button"
+>
+  ＋ 내용 추가
+</button>
+
+  <button
     type="button"
     id="loadPreviousRemarkEntriesButton"
     class="previous-remark-import-button"
@@ -3194,6 +3202,52 @@
 
   </div>
 
+  <!-- =====================================================
+  비고 전용 내용 입력창
+
+  모든 보직에서 사용
+====================================================== -->
+
+<div
+  class="direct-remark-input-panel"
+  id="directRemarkInputPanel"
+  hidden
+>
+
+  <label class="direct-remark-input-field">
+
+    <span>
+      비고 내용
+    </span>
+
+    <textarea
+      id="directRemarkContent"
+      rows="3"
+      placeholder="비고 내용을 입력하세요. 여러 줄 입력도 가능합니다."
+    ></textarea>
+
+  </label>
+
+
+  <div class="direct-remark-input-actions">
+
+    <button
+      type="button"
+      id="cancelDirectRemarkButton"
+    >
+      취소
+    </button>
+
+    <button
+      type="button"
+      id="saveDirectRemarkButton"
+    >
+      ＋ 추가
+    </button>
+
+  </div>
+
+</div>
 
   <div class="log-entry-table-wrap">
 

@@ -63384,3 +63384,362 @@ select {
   }
 
 }
+
+/* =========================================================
+  TM·BM·CM 구분 배지
+========================================================= */
+
+.log-entry-kind-badge {
+  display:
+    inline-flex;
+
+  flex:
+    0 0 auto;
+
+  min-width:
+    29px;
+
+  min-height:
+    20px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  margin-right:
+    6px;
+
+  padding:
+    2px 7px;
+
+  border:
+    1px solid transparent;
+
+  border-radius:
+    6px;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+
+  vertical-align:
+    middle;
+
+  white-space:
+    nowrap;
+}
+
+
+/* TM */
+.log-entry-kind-badge.is-tm {
+  border-color:
+    #efcb8c;
+
+  background:
+    #fff5df;
+
+  color:
+    #a56808;
+}
+
+
+/* BM */
+.log-entry-kind-badge.is-bm {
+  border-color:
+    #a7c9ed;
+
+  background:
+    #edf6ff;
+
+  color:
+    #2368a9;
+}
+
+
+/* CM */
+.log-entry-kind-badge.is-cm {
+  border-color:
+    #cfb8e8;
+
+  background:
+    #f6effd;
+
+  color:
+    #75439e;
+}
+
+
+/* =========================================================
+  비고 내용 추가 버튼
+========================================================= */
+
+#addDirectRemarkButton {
+  display:
+    inline-flex;
+
+  flex:
+    0 0 auto;
+
+  min-height:
+    28px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  margin-left:
+    auto;
+
+  padding:
+    0 10px;
+
+  border:
+    1px solid #aaa4ce;
+
+  border-radius:
+    7px;
+
+  background:
+    #ffffff;
+
+  color:
+    #554e7b;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+
+  white-space:
+    nowrap;
+}
+
+
+#addDirectRemarkButton:hover {
+  border-color:
+    #8077b1;
+
+  background:
+    #eeeafb;
+
+  color:
+    #443c70;
+}
+
+
+/*
+  내용 추가 버튼이 먼저 오른쪽 여백을 차지하므로
+  이전일지 버튼의 기존 auto margin을 해제한다.
+*/
+#noteEntrySection
+#loadPreviousRemarkEntriesButton {
+  margin-left:
+    0 !important;
+}
+
+
+/* =========================================================
+  비고 직접 입력 패널
+========================================================= */
+
+.direct-remark-input-panel {
+  display:
+    grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  align-items:
+    end;
+
+  gap:
+    10px;
+
+  padding:
+    12px;
+
+  border-right:
+    1px solid #ded9ef;
+
+  border-left:
+    1px solid #ded9ef;
+
+  background:
+    #fbfaff;
+}
+
+
+.direct-remark-input-field {
+  display:
+    grid;
+
+  min-width:
+    0;
+
+  gap:
+    6px;
+}
+
+
+.direct-remark-input-field > span {
+  color:
+    #514a78;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+}
+
+
+#directRemarkContent {
+  width:
+    100%;
+
+  min-height:
+    76px;
+
+  padding:
+    9px 10px;
+
+  border:
+    1px solid #c8c4dc;
+
+  border-radius:
+    8px;
+
+  background:
+    #ffffff;
+
+  color:
+    #273248;
+
+  font-size:
+    12px;
+
+  line-height:
+    1.55;
+
+  outline:
+    none;
+
+  resize:
+    vertical;
+}
+
+
+#directRemarkContent:focus {
+  border-color:
+    #8c82bd;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(140, 130, 189, 0.13);
+}
+
+
+.direct-remark-input-actions {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  gap:
+    6px;
+}
+
+
+.direct-remark-input-actions button {
+  min-height:
+    34px;
+
+  padding:
+    0 12px;
+
+  border:
+    1px solid #c9c6dc;
+
+  border-radius:
+    7px;
+
+  background:
+    #ffffff;
+
+  color:
+    #57516f;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+}
+
+
+#saveDirectRemarkButton {
+  border-color:
+    #8c82bd;
+
+  background:
+    #8c82bd;
+
+  color:
+    #ffffff;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width:
+    768px
+) {
+
+  #addDirectRemarkButton {
+    min-height:
+      27px;
+
+    padding:
+      0 8px;
+
+    font-size:
+      9px;
+  }
+
+
+  .direct-remark-input-panel {
+    grid-template-columns:
+      1fr;
+
+    padding:
+      10px;
+  }
+
+
+  .direct-remark-input-actions {
+    justify-content:
+      flex-end;
+  }
+
+
+  .direct-remark-input-actions button {
+    min-width:
+      66px;
+  }
+
+}

@@ -30593,6 +30593,7 @@ function createTagHtml(
 ========================================================= */
 
 function renderLogEntryTable() {
+  
   const entries =
     Array.isArray(
       appState.editorEntries
@@ -31614,6 +31615,345 @@ const ordinaryEntries =
   updateMemberLogImportCount();
 }
 
+/* =========================================================
+  TM·BM·CM 구분 배지 생성
+
+  예:
+  TM 발행 → TM
+  BM 발행 → BM
+  CM 발행 → CM
+========================================================= */
+
+function createLogEntryCategoryBadgeHtml(
+  entry
+) {
+  const category =
+    String(
+      entry?.category ||
+      ""
+    ).trim();
+
+
+  const matchedCategory =
+    category.match(
+      /^(TM|BM|CM)/i
+    );
+
+
+  if (
+    !matchedCategory
+  ) {
+    return "";
+  }
+
+
+  const categoryCode =
+    String(
+      matchedCategory[1] ||
+      ""
+    ).toUpperCase();
+
+
+  return `
+    <span
+      class="
+        log-entry-kind-badge
+        is-${categoryCode.toLowerCase()}
+      "
+      title="${escapeHtml(
+        category
+      )}"
+    >
+      ${categoryCode}
+    </span>
+  `;
+}
+
+/* =========================================================
+  비고 전용 입력창 열기
+========================================================= */
+
+function openDirectRemarkInput() {
+  const inputPanel =
+    document.getElementById(
+      "directRemarkInputPanel"
+    );
+
+
+  const contentInput =
+    document.getElementById(
+      "directRemarkContent"
+    );
+
+
+  if (
+    !inputPanel ||
+    !contentInput
+  ) {
+    return;
+  }
+
+
+  inputPanel.hidden =
+    false;
+
+
+  window.setTimeout(
+    () => {
+      contentInput.focus();
+    },
+    0
+  );
+}
+
+
+/* =========================================================
+  비고 전용 입력창 닫기
+========================================================= */
+
+function closeDirectRemarkInput(
+  clearContent = true
+) {
+  const inputPanel =
+    document.getElementById(
+      "directRemarkInputPanel"
+    );
+
+
+  const contentInput =
+    document.getElementById(
+      "directRemarkContent"
+    );
+
+
+  if (
+    inputPanel
+  ) {
+    inputPanel.hidden =
+      true;
+  }
+
+
+  if (
+    clearContent &&
+    contentInput
+  ) {
+    contentInput.value =
+      "";
+  }
+}
+
+
+/* =========================================================
+  비고 내용 직접 추가
+
+  모든 보직 공통:
+  - category: 비고
+  - 시간 없음
+  - TAG 없음
+========================================================= */
+
+function addDirectRemarkEntry() {
+  const contentInput =
+    document.getElementById(
+      "directRemarkContent"
+    );
+
+
+  const content =
+    String(
+      contentInput?.value ||
+      ""
+    )
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .trim();
+
+
+  if (
+    !content
+  ) {
+    showToast(
+      "비고 내용을 입력해 주세요."
+    );
+
+
+    contentInput?.focus();
+
+
+    return;
+  }
+
+
+  if (
+    !Array.isArray(
+      appState.editorEntries
+    )
+  ) {
+    appState.editorEntries =
+      [];
+  }
+
+
+  appState.editorEntries.push({
+    id: [
+      "direct-remark",
+      Date.now(),
+      Math.random()
+        .toString(36)
+        .slice(2, 8)
+    ].join("-"),
+
+    time:
+      "",
+
+    category:
+      "비고",
+
+    tag:
+      "",
+
+    content,
+
+    attachmentName:
+      "",
+
+    importedFromRole:
+      "",
+
+    importedFromAuthor:
+      "",
+
+    importedFromLogId:
+      "",
+
+    importedFromEntryIndex:
+      null,
+
+    source:
+      "direct-remark"
+  });
+
+
+  /*
+    목록, 건수, 저장용 JSON,
+    기존 note 문자열을 함께 갱신한다.
+  */
+  renderLogEntryTable();
+
+
+  closeDirectRemarkInput(
+    true
+  );
+
+
+  showToast(
+    "비고 내용을 추가했습니다."
+  );
+}
+
+
+/* =========================================================
+  비고 전용 입력 기능 초기화
+========================================================= */
+
+function initializeDirectRemarkInput() {
+  const openButton =
+    document.getElementById(
+      "addDirectRemarkButton"
+    );
+
+
+  const cancelButton =
+    document.getElementById(
+      "cancelDirectRemarkButton"
+    );
+
+
+  const saveButton =
+    document.getElementById(
+      "saveDirectRemarkButton"
+    );
+
+
+  const contentInput =
+    document.getElementById(
+      "directRemarkContent"
+    );
+
+
+  if (
+    !openButton ||
+    openButton.dataset
+      .directRemarkBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  openButton.addEventListener(
+    "click",
+    openDirectRemarkInput
+  );
+
+
+  cancelButton?.addEventListener(
+    "click",
+    () => {
+      closeDirectRemarkInput(
+        true
+      );
+    }
+  );
+
+
+  saveButton?.addEventListener(
+    "click",
+    addDirectRemarkEntry
+  );
+
+
+  /*
+    Ctrl + Enter 또는 Command + Enter로 추가
+    일반 Enter는 줄바꿈 유지
+  */
+  contentInput?.addEventListener(
+    "keydown",
+    event => {
+      if (
+        event.key !==
+          "Enter" ||
+        !(
+          event.ctrlKey ||
+          event.metaKey
+        )
+      ) {
+        return;
+      }
+
+
+      event.preventDefault();
+
+
+      addDirectRemarkEntry();
+    }
+  );
+
+
+  openButton.dataset
+    .directRemarkBound =
+    "true";
+}
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  initializeDirectRemarkInput
+);
+
 /* =====================================================
   업무일지 한 줄 출력 최종본
 
@@ -31632,6 +31972,8 @@ const ordinaryEntries =
 
   여러 줄 내용은 같은 번호 안에서 줄바꿈을 유지한다.
 ===================================================== */
+
+
 
 const createCompactLineHtml = (
   entry,
@@ -31733,7 +32075,13 @@ const createCompactLineHtml = (
           entry,
           originalIndex
         );
-
+        
+          const categoryBadgeHtml =
+    isRemark
+      ? ""
+      : createLogEntryCategoryBadgeHtml(
+          entry
+        );
 
   return `
     <div
@@ -31757,7 +32105,8 @@ const createCompactLineHtml = (
       <div
         class="log-entry-document-body"
       >
-        ${timeHtml}${contentHtml}${tagHtml}
+        ${categoryBadgeHtml}${timeHtml}${contentHtml}${tagHtml}
+
       </div>
 
     </div>
@@ -33659,67 +34008,73 @@ const resolvedImportedFromRole =
           return true;
         }
       );
-  /* =====================================================
-    TM 발행 내역 분리
-  ====================================================== */
-
-  const tmEntries =
-    normalizedEntries.filter(
-      (
-        entry
-      ) => {
-        return (
-          entry.category ===
-          "TM 발행"
-        );
-      }
-    );
 
 
-  /* =====================================================
-    비고 내역 분리
-  ====================================================== */
+      /* =====================================================
+  TM·BM·CM 발행 내역 분리
 
-  const remarkEntries =
-    normalizedEntries.filter(
-      (
-        entry
-      ) => {
-        return (
-          entry.category ===
+  tmEntries 배열 이름은 기존 API 호환을 위해 유지하지만,
+  실제로는 세 종류의 발행 내역을 모두 저장한다.
+===================================================== */
+
+const tmEntries =
+  normalizedEntries.filter(
+    entry => {
+      return isIssueEntryCategory(
+        entry?.category
+      );
+    }
+  );
+
+
+/* =====================================================
+  비고 내역 분리
+===================================================== */
+
+const remarkEntries =
+  normalizedEntries.filter(
+    entry => {
+      return (
+        String(
+          entry?.category ||
+          ""
+        ).trim() ===
+        "비고"
+      );
+    }
+  );
+
+
+/* =====================================================
+  인계사항 및 일반 작업 분리
+
+  포함:
+  - 인계사항
+  - TM 작업
+  - BM 작업
+  - CM 작업
+===================================================== */
+
+const handoverEntries =
+  normalizedEntries.filter(
+    entry => {
+      const category =
+        String(
+          entry?.category ||
+          ""
+        ).trim();
+
+
+      return (
+        !isIssueEntryCategory(
+          category
+        ) &&
+
+        category !==
           "비고"
-        );
-      }
-    );
-
-
-  /* =====================================================
-    인계사항 및 일반 업무 분리
-
-    TM과 비고를 제외한 나머지 모든 구분은
-    handoverEntries에 저장한다.
-
-    예:
-    인계사항
-    BM 작업
-    CM 작업
-    일반 업무
-  ====================================================== */
-
-  const handoverEntries =
-    normalizedEntries.filter(
-      (
-        entry
-      ) => {
-        return (
-          entry.category !==
-            "TM 발행" &&
-          entry.category !==
-            "비고"
-        );
-      }
-    );
-
+      );
+    }
+  );
 
   /* =====================================================
     기존 note 문자열 호환
@@ -81790,4 +82145,470 @@ function bindLimestoneReceiptEvents() {
   } else {
     bindLimestoneReceiptEvents();
   }
+})();
+
+/* =========================================================
+  TM · BM · CM 발행 내역 최종 분류 보정
+
+  적용 대상:
+  1. PC 업무일지 목록 미리보기
+  2. 모바일 업무일지 목록 미리보기
+  3. 업무일지 상세보기
+  4. 조회 화면 미리보기
+  5. 이전 근무 인계사항 가져오기
+
+  발행 내역:
+  - TM 발행
+  - BM 발행
+  - CM 발행
+
+  인계 및 작업 내역:
+  - 인계사항
+  - TM 작업
+  - BM 작업
+  - CM 작업
+========================================================= */
+
+(function installIssueEntryDisplayFix() {
+  /*
+    같은 코드를 중복으로 실행하지 않는다.
+  */
+  if (
+    window
+      .__gsShiftLogIssueEntryDisplayFixInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__gsShiftLogIssueEntryDisplayFixInstalled =
+    true;
+
+
+  /* =====================================================
+    TM·BM·CM 발행 구분 판정
+
+    띄어쓰기 차이도 동일하게 처리한다.
+
+    예:
+    TM 발행
+    TM발행
+    BM 발행
+    BM발행
+  ====================================================== */
+
+  const isIssueCategory = (
+    value
+  ) => {
+    const normalizedCategory =
+      String(
+        value ||
+        ""
+      )
+        .trim()
+        .toUpperCase()
+        .replace(
+          /\s+/g,
+          ""
+        );
+
+
+    return [
+      "TM발행",
+      "BM발행",
+      "CM발행"
+    ].includes(
+      normalizedCategory
+    );
+  };
+
+
+  /* =====================================================
+    화면 표시용 발행 내역 분류
+
+    원본 구분은 originalIssueCategory에 유지하고,
+    화면 분류에서만 TM 발행 그룹으로 묶는다.
+
+    실제 저장된 BM 발행·CM 발행 값은 변경하지 않는다.
+  ====================================================== */
+
+  const normalizeIssueEntriesForDisplay = (
+    entries
+  ) => {
+    return (
+      Array.isArray(
+        entries
+      )
+        ? entries
+        : []
+    ).map(
+      entry => {
+        if (
+          !entry ||
+          typeof entry !==
+            "object" ||
+          Array.isArray(
+            entry
+          )
+        ) {
+          return entry;
+        }
+
+
+        if (
+          !isIssueCategory(
+            entry.category
+          )
+        ) {
+          return entry;
+        }
+
+
+        return {
+          ...entry,
+
+          /*
+            원래 구분 보존
+
+            TM 발행
+            BM 발행
+            CM 발행
+          */
+          originalIssueCategory:
+            String(
+              entry.category ||
+              ""
+            ).trim(),
+
+          /*
+            기존 화면은 TM 발행 조건으로
+            발행 내역 구역을 구분하므로
+            표시할 때만 통합한다.
+          */
+          category:
+            "TM 발행"
+        };
+      }
+    );
+  };
+
+
+  /* =====================================================
+    화면 출력 중에만 항목 수집 함수를 임시 보정
+
+    편집창·저장 데이터에는 영향을 주지 않는다.
+  ====================================================== */
+
+  const runWithIssueDisplayCollector = (
+    callback
+  ) => {
+    const collectorBeforeOverride =
+      collectLogEntriesForDisplay;
+
+
+    collectLogEntriesForDisplay =
+      function collectLogEntriesForDisplay(
+        log
+      ) {
+        const collectedEntries =
+          collectorBeforeOverride(
+            log
+          );
+
+
+        return normalizeIssueEntriesForDisplay(
+          collectedEntries
+        );
+      };
+
+
+    try {
+      return callback();
+
+    } finally {
+      /*
+        화면 출력이 끝나면 원래 수집 함수로 복원한다.
+
+        따라서 BM 발행·CM 발행의
+        실제 저장 구분은 유지된다.
+      */
+      collectLogEntriesForDisplay =
+        collectorBeforeOverride;
+    }
+  };
+
+
+  /* =====================================================
+    5번
+    PC 업무일지 목록 미리보기 전체 함수 덮어쓰기
+
+    기능:
+    - TM·BM·CM 발행을 위쪽 발행 내역에 표시
+    - 제목을 TM/BM/CM 발행 내역으로 변경
+  ====================================================== */
+
+  const createLogRowHtmlBeforeIssueFix =
+    createLogRowHtml;
+
+
+  createLogRowHtml =
+    function createLogRowHtml(
+      log
+    ) {
+      return runWithIssueDisplayCollector(
+        () => {
+          const rowHtml =
+            createLogRowHtmlBeforeIssueFix(
+              log
+            );
+
+
+          return String(
+            rowHtml ||
+            ""
+          ).replaceAll(
+            "TM 발행 내역",
+            "TM/BM/CM 발행 내역"
+          );
+        }
+      );
+    };
+
+
+  /* =====================================================
+    6번
+    업무일지 상세보기 전체 함수 덮어쓰기
+
+    기능:
+    - TM·BM·CM 발행을 위쪽 발행 내역에 표시
+    - 상세보기 제목을 TM/BM/CM 발행 내역으로 변경
+    - 기존 버튼·첨부파일·권한 기능은 그대로 유지
+  ====================================================== */
+
+  const openLogDetailBeforeIssueFix =
+    openLogDetail;
+
+
+  openLogDetail =
+    function openLogDetail(
+      log
+    ) {
+      return runWithIssueDisplayCollector(
+        () => {
+          const result =
+            openLogDetailBeforeIssueFix(
+              log
+            );
+
+
+          const detailRoot =
+            elements?.logDetailContent;
+
+
+          /*
+            상세보기 HTML이 생성된 뒤
+            기존 제목만 변경한다.
+          */
+          if (
+            detailRoot
+          ) {
+            const textWalker =
+              document.createTreeWalker(
+                detailRoot,
+                NodeFilter.SHOW_TEXT
+              );
+
+
+            const textNodes =
+              [];
+
+
+            while (
+              textWalker.nextNode()
+            ) {
+              textNodes.push(
+                textWalker.currentNode
+              );
+            }
+
+
+            textNodes.forEach(
+              textNode => {
+                const originalText =
+                  String(
+                    textNode.nodeValue ||
+                    ""
+                  );
+
+
+                if (
+                  !originalText.includes(
+                    "TM 발행 내역"
+                  )
+                ) {
+                  return;
+                }
+
+
+                textNode.nodeValue =
+                  originalText.replaceAll(
+                    "TM 발행 내역",
+                    "TM/BM/CM 발행 내역"
+                  );
+              }
+            );
+          }
+
+
+          return result;
+        }
+      );
+    };
+
+
+  /* =====================================================
+    모바일 업무일지 미리보기 전체 함수 교체
+
+    기존:
+    TM 발행만 tm 구역
+
+    수정:
+    TM·BM·CM 발행 모두 tm 구역
+  ====================================================== */
+
+  getMobileLogEntrySection =
+    function getMobileLogEntrySection(
+      entry
+    ) {
+      const category =
+        String(
+          entry?.category ||
+          ""
+        ).trim();
+
+
+      /*
+        TM·BM·CM 발행
+      */
+      if (
+        isIssueCategory(
+          category
+        )
+      ) {
+        return "tm";
+      }
+
+
+      /*
+        비고
+      */
+      if (
+        category
+          .toUpperCase()
+          .replace(
+            /\s+/g,
+            ""
+          )
+          .includes(
+            "비고"
+          )
+      ) {
+        return "note";
+      }
+
+
+      /*
+        인계사항 및 작업
+      */
+      return "handover";
+    };
+
+
+  /* =====================================================
+    7번
+    이전 근무 인계사항 조회 전체 함수 덮어쓰기
+
+    이전 근무에서 가져오지 않는 항목:
+    - TM 발행
+    - BM 발행
+    - CM 발행
+    - 비고
+
+    가져오는 항목:
+    - 인계사항
+    - TM 작업
+    - BM 작업
+    - CM 작업
+  ====================================================== */
+
+  const getPreviousShiftHandoverEntriesBeforeIssueFix =
+    getPreviousShiftHandoverEntries;
+
+
+  getPreviousShiftHandoverEntries =
+    async function getPreviousShiftHandoverEntries(
+      roleValue,
+      dateValue,
+      shiftValue
+    ) {
+      const result =
+        await getPreviousShiftHandoverEntriesBeforeIssueFix(
+          roleValue,
+          dateValue,
+          shiftValue
+        );
+
+
+      if (
+        !result ||
+        typeof result !==
+          "object"
+      ) {
+        return result;
+      }
+
+
+      const filteredEntries =
+        (
+          Array.isArray(
+            result.entries
+          )
+            ? result.entries
+            : []
+        ).filter(
+          entry => {
+            const category =
+              String(
+                entry?.category ||
+                ""
+              ).trim();
+
+
+            return (
+              /*
+                모든 발행 내역 제외
+              */
+              !isIssueCategory(
+                category
+              ) &&
+
+              /*
+                비고 제외
+              */
+              category !==
+                "비고"
+            );
+          }
+        );
+
+
+      return {
+        ...result,
+
+        entries:
+          filteredEntries
+      };
+    };
 })();
