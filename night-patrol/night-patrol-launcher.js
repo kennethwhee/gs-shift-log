@@ -20,7 +20,7 @@
   const BUTTON_ID = "nightPatrolButton";
   const FRAME_ID = "nightPatrolFrame";
   const PAGE_URL =
-    "night-patrol/night-patrol.html?v=20260803-2";
+    "night-patrol/night-patrol.html?v=20260803-3";
 
   function getModal() {
     return document.getElementById(MODAL_ID);

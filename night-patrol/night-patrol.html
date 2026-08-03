@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>야간 순찰 점검일지</title>
-  <link rel="stylesheet" href="./night-patrol.css?v=20260803-2" />
-  <script src="./night-patrol.js?v=20260803-2" defer></script>
+  <link rel="stylesheet" href="./night-patrol.css?v=20260803-3" />
+  <script src="./night-patrol.js?v=20260803-3" defer></script>
 </head>
 <body>
   <main class="patrol-app">
@@ -32,13 +32,28 @@
 
         <fieldset class="patrol-list-selector">
           <legend>순찰 목록 선택</legend>
-          <div class="patrol-list-buttons" id="patrolListButtons">
-            <button type="button" data-list-number="1">1</button>
-            <button type="button" data-list-number="2">2</button>
-            <button type="button" data-list-number="3">3</button>
-            <button type="button" data-list-number="4">4</button>
+
+          <div class="patrol-list-selector__toolbar">
+            <div class="patrol-list-buttons" id="patrolListButtons">
+              <button type="button" data-list-number="1">1</button>
+              <button type="button" data-list-number="2">2</button>
+              <button type="button" data-list-number="3">3</button>
+              <button type="button" data-list-number="4">4</button>
+            </div>
+
+            <button
+              type="button"
+              class="patrol-list-manage-button"
+              id="openPatrolPointManagerButton"
+            >
+              순찰 포인트 관리
+            </button>
           </div>
-          <small>같은 날짜와 번호는 항상 같은 목록을 표시합니다.</small>
+
+          <small>
+            같은 날짜와 번호는 항상 같은 목록을 표시합니다.
+            원본 목록은 관리 버튼에서 추가·수정할 수 있습니다.
+          </small>
         </fieldset>
 
         <label class="patrol-field">
@@ -105,7 +120,7 @@
             <tr>
               <th class="patrol-col-number">번호</th>
               <th class="patrol-col-time">시간</th>
-              <th>순찰 구역</th>
+              <th>순찰 구역 (직접 수정 가능)</th>
               <th class="patrol-col-status">상태</th>
               <th class="patrol-col-note">특이사항</th>
             </tr>
@@ -205,6 +220,118 @@
             id="confirmPatrolPrintButton"
           >
             인쇄
+          </button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+
+  <!-- =====================================================
+    랜덤 순찰 포인트 원본 목록 관리
+
+    - 원본 포인트 추가
+    - 원본 포인트명 수정
+    - 원본 포인트 삭제
+    - 현재 날짜·목록 다시 배정
+  ====================================================== -->
+  <div
+    class="patrol-point-manager-modal"
+    id="patrolPointManagerModal"
+    aria-hidden="true"
+  >
+    <section
+      class="patrol-point-manager-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="patrolPointManagerTitle"
+    >
+      <header class="patrol-point-manager-header">
+        <div>
+          <span>POINT CATALOG</span>
+          <h2 id="patrolPointManagerTitle">랜덤 순찰 포인트 관리</h2>
+          <p>
+            이 목록에서 당일 순찰 항목 20개가 무작위로 배정됩니다.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          class="patrol-point-manager-close"
+          id="closePatrolPointManagerButton"
+          aria-label="순찰 포인트 관리창 닫기"
+        >
+          ×
+        </button>
+      </header>
+
+      <div class="patrol-point-manager-body">
+        <section class="patrol-point-add-card">
+          <label class="patrol-field">
+            <span>새 순찰 포인트</span>
+            <div class="patrol-point-add-row">
+              <input
+                type="text"
+                id="newPatrolPointName"
+                maxlength="160"
+                placeholder="예: Main Steam MOV Area 점검(4.5F)"
+                autocomplete="off"
+              />
+
+              <button
+                type="button"
+                class="patrol-primary-button"
+                id="addPatrolPointButton"
+              >
+                ＋ 추가
+              </button>
+            </div>
+          </label>
+        </section>
+
+        <div class="patrol-point-manager-summary">
+          <strong>
+            전체 순찰 포인트
+            <span id="patrolPointCatalogCount">0</span>개
+          </strong>
+
+          <small>
+            항목명은 입력 즉시 저장됩니다. 최소 20개는 유지해야 합니다.
+          </small>
+        </div>
+
+        <div
+          class="patrol-point-catalog-list"
+          id="patrolPointCatalogList"
+        ></div>
+      </div>
+
+      <footer class="patrol-point-manager-footer">
+        <div>
+          <button
+            type="button"
+            class="patrol-danger-button"
+            id="restoreDefaultPatrolPointsButton"
+          >
+            기본 목록 복원
+          </button>
+        </div>
+
+        <div>
+          <button
+            type="button"
+            class="patrol-secondary-button"
+            id="reassignCurrentPatrolPointsButton"
+          >
+            현재 목록 다시 배정
+          </button>
+
+          <button
+            type="button"
+            class="patrol-primary-button"
+            id="closePatrolPointManagerFooterButton"
+          >
+            완료
           </button>
         </div>
       </footer>

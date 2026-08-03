@@ -91,6 +91,13 @@ const NIGHT_PATROL_POINTS = [
   "TBN AVR Room 점검"
 ];
 
+const NIGHT_PATROL_POINT_CATALOG_STORAGE_KEY =
+  "gsShiftLog.nightPatrol.pointCatalog.v1";
+
+
+let nightPatrolPointCatalog = [];
+
+
 const NIGHT_PATROL_TIMES = [
   "0:00",
   "2:00",
@@ -283,6 +290,233 @@ function createPatrolRandom(
 
 
 /* =========================================================
+  기본 순찰 포인트 목록
+========================================================= */
+
+function createDefaultNightPatrolPointCatalog() {
+  return NIGHT_PATROL_POINTS.map(
+    (
+      pointName,
+      pointIndex
+    ) => {
+      return {
+        id:
+          `point-${pointIndex + 1}`,
+
+        name:
+          String(
+            pointName ||
+            ""
+          ).trim()
+      };
+    }
+  );
+}
+
+
+/* =========================================================
+  순찰 포인트 목록 정규화
+========================================================= */
+
+function normalizeNightPatrolPointCatalog(
+  catalogValue
+) {
+  const sourceCatalog =
+    Array.isArray(
+      catalogValue
+    )
+      ? catalogValue
+      : [];
+
+
+  const usedIds =
+    new Set();
+
+
+  const normalizedCatalog = [];
+
+
+  sourceCatalog.forEach(
+    (
+      point,
+      pointIndex
+    ) => {
+      const name =
+        String(
+          point?.name ||
+          ""
+        ).trim();
+
+
+      if (
+        !name
+      ) {
+        return;
+      }
+
+
+      let id =
+        String(
+          point?.id ||
+          ""
+        ).trim();
+
+
+      if (
+        !id ||
+        usedIds.has(
+          id
+        )
+      ) {
+        id = [
+          "custom",
+          Date.now(),
+          pointIndex,
+          Math.random()
+            .toString(
+              36
+            )
+            .slice(
+              2,
+              9
+            )
+        ].join(
+          "-"
+        );
+      }
+
+
+      usedIds.add(
+        id
+      );
+
+
+      normalizedCatalog.push({
+        id,
+        name
+      });
+    }
+  );
+
+
+  return normalizedCatalog;
+}
+
+
+/* =========================================================
+  순찰 포인트 원본 목록 불러오기
+========================================================= */
+
+function loadNightPatrolPointCatalog() {
+  try {
+    const savedText =
+      window.localStorage.getItem(
+        NIGHT_PATROL_POINT_CATALOG_STORAGE_KEY
+      );
+
+
+    if (
+      savedText
+    ) {
+      const parsedCatalog =
+        normalizeNightPatrolPointCatalog(
+          JSON.parse(
+            savedText
+          )
+        );
+
+
+      if (
+        parsedCatalog.length >=
+          20
+      ) {
+        return parsedCatalog;
+      }
+    }
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "순찰 포인트 원본 목록을 불러오지 못했습니다.",
+      error
+    );
+  }
+
+
+  return createDefaultNightPatrolPointCatalog();
+}
+
+
+/* =========================================================
+  순찰 포인트 원본 목록 저장
+========================================================= */
+
+function saveNightPatrolPointCatalog() {
+  try {
+    window.localStorage.setItem(
+      NIGHT_PATROL_POINT_CATALOG_STORAGE_KEY,
+      JSON.stringify(
+        nightPatrolPointCatalog
+      )
+    );
+
+
+    return true;
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "순찰 포인트 원본 목록 저장 실패:",
+      error
+    );
+
+
+    window.alert(
+      "순찰 포인트 원본 목록을 저장하지 못했습니다."
+    );
+
+
+    return false;
+  }
+}
+
+
+/* =========================================================
+  새 순찰 포인트 ID
+========================================================= */
+
+function createNightPatrolPointId() {
+  if (
+    typeof globalThis.crypto?.randomUUID ===
+      "function"
+  ) {
+    return (
+      "custom-" +
+      globalThis.crypto.randomUUID()
+    );
+  }
+
+
+  return [
+    "custom",
+    Date.now(),
+    Math.random()
+      .toString(
+        36
+      )
+      .slice(
+        2,
+        12
+      )
+  ].join(
+    "-"
+  );
+}
+
+
+/* =========================================================
   날짜별 기본 무작위 순서
 
   같은 날짜:
@@ -296,18 +530,21 @@ function createDailyPatrolOrder(
   dateValue
 ) {
   const sourcePoints =
-    NIGHT_PATROL_POINTS.map(
+    nightPatrolPointCatalog.map(
       (
-        pointName,
+        point,
         pointIndex
       ) => {
         return {
           id:
-            `point-${pointIndex + 1}`,
+            String(
+              point?.id ||
+              `point-${pointIndex + 1}`
+            ).trim(),
 
           name:
             String(
-              pointName ||
+              point?.name ||
               ""
             ).trim(),
 
@@ -628,7 +865,7 @@ function savePatrolMembers() {
 function createPatrolRecord() {
   return {
     version:
-      1,
+      2,
 
     date:
       nightPatrolState.date,
@@ -773,36 +1010,36 @@ function normalizeSavedPatrolRecord(
     );
 
 
-  const savedEntryMap =
-    new Map(
-      (
-        Array.isArray(
-          savedRecord?.entries
-        )
-          ? savedRecord.entries
-          : []
-      ).map(
-        entry => {
-          return [
-            String(
-              entry?.pointId ||
-              ""
-            ),
-
-            entry
-          ];
-        }
-      )
-    );
+  const rawSavedEntries =
+    Array.isArray(
+      savedRecord?.entries
+    )
+      ? savedRecord.entries
+      : [];
 
 
   const entries =
-    defaultEntries.map(
-      defaultEntry => {
+    Array.from(
+      {
+        length:
+          20
+      },
+
+      (
+        unused,
+        entryIndex
+      ) => {
+        const defaultEntry =
+          defaultEntries[
+            entryIndex
+          ];
+
+
         const savedEntry =
-          savedEntryMap.get(
-            defaultEntry.pointId
-          );
+          rawSavedEntries[
+            entryIndex
+          ] ||
+          null;
 
 
         const normalizedStatus =
@@ -824,7 +1061,34 @@ function normalizeSavedPatrolRecord(
 
 
         return {
-          ...defaultEntry,
+          entryId:
+            String(
+              savedEntry?.entryId ||
+              defaultEntry?.entryId ||
+              ""
+            ).trim(),
+
+          pointId:
+            String(
+              savedEntry?.pointId ||
+              defaultEntry?.pointId ||
+              ""
+            ).trim(),
+
+          pointName:
+            String(
+              savedEntry?.pointName ||
+              defaultEntry?.pointName ||
+              ""
+            ).trim(),
+
+          time:
+            NIGHT_PATROL_TIMES[
+              Math.floor(
+                entryIndex /
+                5
+              )
+            ],
 
           status:
             normalizedStatus,
@@ -902,7 +1166,6 @@ function normalizeSavedPatrolRecord(
       )
   };
 }
-
 
 /* =========================================================
   저장 자료 불러오기
@@ -1076,6 +1339,16 @@ function collectPatrolScreenValues() {
         ) {
           return;
         }
+
+
+        targetEntry.pointName =
+          String(
+            row.querySelector(
+              "[data-patrol-point-name]"
+            )?.value ||
+            targetEntry.pointName ||
+            ""
+          ).trim();
 
 
         targetEntry.status =
@@ -1448,14 +1721,19 @@ function renderPatrolTable() {
               </td>
 
               <td class="patrol-row-point">
-                <strong>
-                  ${escapePatrolHtml(
+                <input
+                  type="text"
+                  class="patrol-point-name-input"
+                  data-patrol-point-name
+                  value="${escapePatrolHtml(
                     entry.pointName
-                  )}
-                </strong>
+                  )}"
+                  maxlength="160"
+                  aria-label="${entryIndex + 1}번 순찰 구역"
+                />
 
                 <small>
-                  순찰 목록 ${nightPatrolState.listNumber}
+                  현재 일지에서 직접 수정 가능 · 순찰 목록 ${nightPatrolState.listNumber}
                 </small>
               </td>
 
@@ -1885,6 +2163,462 @@ function handlePatrolListChange(
     nightPatrolState.date,
     nextListNumber
   );
+}
+
+
+/* =========================================================
+  순찰 포인트 관리 목록 렌더링
+========================================================= */
+
+function renderPatrolPointManager() {
+  const countElement =
+    document.getElementById(
+      "patrolPointCatalogCount"
+    );
+
+
+  const listElement =
+    document.getElementById(
+      "patrolPointCatalogList"
+    );
+
+
+  if (
+    countElement
+  ) {
+    countElement.textContent =
+      String(
+        nightPatrolPointCatalog.length
+      );
+  }
+
+
+  if (
+    !listElement
+  ) {
+    return;
+  }
+
+
+  listElement.innerHTML =
+    nightPatrolPointCatalog
+      .map(
+        (
+          point,
+          pointIndex
+        ) => {
+          return `
+            <div
+              class="patrol-point-catalog-item"
+              data-patrol-catalog-id="${escapePatrolHtml(
+                point.id
+              )}"
+            >
+              <span class="patrol-point-catalog-number">
+                ${pointIndex + 1}
+              </span>
+
+              <input
+                type="text"
+                data-patrol-catalog-name
+                value="${escapePatrolHtml(
+                  point.name
+                )}"
+                maxlength="160"
+                aria-label="${pointIndex + 1}번 순찰 포인트명"
+              />
+
+              <button
+                type="button"
+                class="patrol-point-delete-button"
+                data-delete-patrol-catalog-point
+                aria-label="${pointIndex + 1}번 순찰 포인트 삭제"
+              >
+                삭제
+              </button>
+            </div>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+}
+
+
+/* =========================================================
+  순찰 포인트 관리창 열기
+========================================================= */
+
+function openPatrolPointManager() {
+  const modal =
+    document.getElementById(
+      "patrolPointManagerModal"
+    );
+
+
+  if (
+    !modal
+  ) {
+    return;
+  }
+
+
+  renderPatrolPointManager();
+
+
+  modal.classList.add(
+    "is-open"
+  );
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "false"
+  );
+
+
+  document.body.classList.add(
+    "patrol-point-manager-open"
+  );
+
+
+  window.setTimeout(
+    () => {
+      document
+        .getElementById(
+          "newPatrolPointName"
+        )
+        ?.focus();
+    },
+    0
+  );
+}
+
+
+/* =========================================================
+  순찰 포인트 관리창 닫기
+========================================================= */
+
+function closePatrolPointManager() {
+  const modal =
+    document.getElementById(
+      "patrolPointManagerModal"
+    );
+
+
+  if (
+    !modal
+  ) {
+    return;
+  }
+
+
+  modal.classList.remove(
+    "is-open"
+  );
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+
+  document.body.classList.remove(
+    "patrol-point-manager-open"
+  );
+}
+
+
+/* =========================================================
+  순찰 포인트 추가
+========================================================= */
+
+function addNightPatrolPoint() {
+  const input =
+    document.getElementById(
+      "newPatrolPointName"
+    );
+
+
+  const pointName =
+    String(
+      input?.value ||
+      ""
+    ).trim();
+
+
+  if (
+    !pointName
+  ) {
+    window.alert(
+      "추가할 순찰 포인트명을 입력해 주세요."
+    );
+
+
+    input?.focus();
+
+
+    return;
+  }
+
+
+  nightPatrolPointCatalog.push({
+    id:
+      createNightPatrolPointId(),
+
+    name:
+      pointName
+  });
+
+
+  if (
+    !saveNightPatrolPointCatalog()
+  ) {
+    nightPatrolPointCatalog.pop();
+
+
+    return;
+  }
+
+
+  if (
+    input
+  ) {
+    input.value =
+      "";
+  }
+
+
+  renderPatrolPointManager();
+
+
+  input?.focus();
+}
+
+
+/* =========================================================
+  순찰 포인트명 수정
+========================================================= */
+
+function updateNightPatrolPointName(
+  pointId,
+  pointName
+) {
+  const targetPoint =
+    nightPatrolPointCatalog.find(
+      point => {
+        return (
+          point.id ===
+          pointId
+        );
+      }
+    );
+
+
+  if (
+    !targetPoint
+  ) {
+    return;
+  }
+
+
+  const normalizedName =
+    String(
+      pointName ||
+      ""
+    ).trim();
+
+
+  if (
+    !normalizedName
+  ) {
+    renderPatrolPointManager();
+
+
+    return;
+  }
+
+
+  targetPoint.name =
+    normalizedName;
+
+
+  saveNightPatrolPointCatalog();
+}
+
+
+/* =========================================================
+  순찰 포인트 삭제
+========================================================= */
+
+function deleteNightPatrolPoint(
+  pointId
+) {
+  if (
+    nightPatrolPointCatalog.length <=
+      20
+  ) {
+    window.alert(
+      "랜덤 배정을 위해 순찰 포인트는 최소 20개가 필요합니다."
+    );
+
+
+    return;
+  }
+
+
+  const targetPoint =
+    nightPatrolPointCatalog.find(
+      point => {
+        return (
+          point.id ===
+          pointId
+        );
+      }
+    );
+
+
+  if (
+    !targetPoint
+  ) {
+    return;
+  }
+
+
+  const confirmed =
+    window.confirm(
+      `다음 순찰 포인트를 삭제할까요?\n\n${targetPoint.name}`
+    );
+
+
+  if (
+    !confirmed
+  ) {
+    return;
+  }
+
+
+  const previousCatalog =
+    nightPatrolPointCatalog.map(
+      point => {
+        return {
+          ...point
+        };
+      }
+    );
+
+
+  nightPatrolPointCatalog =
+    nightPatrolPointCatalog.filter(
+      point => {
+        return (
+          point.id !==
+          pointId
+        );
+      }
+    );
+
+
+  if (
+    !saveNightPatrolPointCatalog()
+  ) {
+    nightPatrolPointCatalog =
+      previousCatalog;
+  }
+
+
+  renderPatrolPointManager();
+}
+
+
+/* =========================================================
+  기본 순찰 포인트 복원
+========================================================= */
+
+function restoreDefaultNightPatrolPoints() {
+  const confirmed =
+    window.confirm(
+      [
+        "순찰 포인트 원본 목록을 기본 77개 항목으로 복원할까요?",
+        "",
+        "추가하거나 수정한 원본 포인트는 삭제됩니다.",
+        "이미 저장된 일지의 항목명은 유지됩니다."
+      ].join(
+        "\n"
+      )
+    );
+
+
+  if (
+    !confirmed
+  ) {
+    return;
+  }
+
+
+  nightPatrolPointCatalog =
+    createDefaultNightPatrolPointCatalog();
+
+
+  saveNightPatrolPointCatalog();
+
+
+  renderPatrolPointManager();
+}
+
+
+/* =========================================================
+  현재 날짜·목록 다시 배정
+========================================================= */
+
+function reassignCurrentNightPatrolPoints() {
+  collectPatrolScreenValues();
+
+
+  const confirmed =
+    window.confirm(
+      [
+        `${nightPatrolState.date} · 순찰 목록 ${nightPatrolState.listNumber}을 다시 배정할까요?`,
+        "",
+        "현재 20개 항목의 상태와 특이사항은 초기화됩니다.",
+        "순찰자와 공통 비고는 유지됩니다."
+      ].join(
+        "\n"
+      )
+    );
+
+
+  if (
+    !confirmed
+  ) {
+    return;
+  }
+
+
+  nightPatrolState.entries =
+    createPatrolPoints(
+      nightPatrolState.date,
+      nightPatrolState.listNumber
+    );
+
+
+  nightPatrolState.documentStatus =
+    "작성중";
+
+
+  nightPatrolState.completedAt =
+    "";
+
+
+  renderNightPatrolScreen();
+
+
+  markPatrolDirty();
+
+
+  closePatrolPointManager();
 }
 
 
@@ -2501,6 +3235,164 @@ function bindNightPatrolEvents() {
 
   document
     .getElementById(
+      "openPatrolPointManagerButton"
+    )
+    ?.addEventListener(
+      "click",
+      openPatrolPointManager
+    );
+
+
+  document
+    .getElementById(
+      "closePatrolPointManagerButton"
+    )
+    ?.addEventListener(
+      "click",
+      closePatrolPointManager
+    );
+
+
+  document
+    .getElementById(
+      "closePatrolPointManagerFooterButton"
+    )
+    ?.addEventListener(
+      "click",
+      closePatrolPointManager
+    );
+
+
+  document
+    .getElementById(
+      "addPatrolPointButton"
+    )
+    ?.addEventListener(
+      "click",
+      addNightPatrolPoint
+    );
+
+
+  document
+    .getElementById(
+      "newPatrolPointName"
+    )
+    ?.addEventListener(
+      "keydown",
+      event => {
+        if (
+          event.key !==
+            "Enter"
+        ) {
+          return;
+        }
+
+
+        event.preventDefault();
+
+
+        addNightPatrolPoint();
+      }
+    );
+
+
+  document
+    .getElementById(
+      "patrolPointCatalogList"
+    )
+    ?.addEventListener(
+      "change",
+      event => {
+        const input =
+          event.target.closest(
+            "[data-patrol-catalog-name]"
+          );
+
+
+        if (
+          !input
+        ) {
+          return;
+        }
+
+
+        const item =
+          input.closest(
+            "[data-patrol-catalog-id]"
+          );
+
+
+        updateNightPatrolPointName(
+          String(
+            item?.dataset
+              ?.patrolCatalogId ||
+            ""
+          ),
+          input.value
+        );
+      }
+    );
+
+
+  document
+    .getElementById(
+      "patrolPointCatalogList"
+    )
+    ?.addEventListener(
+      "click",
+      event => {
+        const deleteButton =
+          event.target.closest(
+            "[data-delete-patrol-catalog-point]"
+          );
+
+
+        if (
+          !deleteButton
+        ) {
+          return;
+        }
+
+
+        const item =
+          deleteButton.closest(
+            "[data-patrol-catalog-id]"
+          );
+
+
+        deleteNightPatrolPoint(
+          String(
+            item?.dataset
+              ?.patrolCatalogId ||
+            ""
+          )
+        );
+      }
+    );
+
+
+  document
+    .getElementById(
+      "restoreDefaultPatrolPointsButton"
+    )
+    ?.addEventListener(
+      "click",
+      restoreDefaultNightPatrolPoints
+    );
+
+
+  document
+    .getElementById(
+      "reassignCurrentPatrolPointsButton"
+    )
+    ?.addEventListener(
+      "click",
+      reassignCurrentNightPatrolPoints
+    );
+
+
+  document
+    .getElementById(
       "printPatrolButton"
     )
     ?.addEventListener(
@@ -2578,6 +3470,24 @@ function bindNightPatrolEvents() {
     );
 
 
+  document
+    .getElementById(
+      "patrolPointManagerModal"
+    )
+    ?.addEventListener(
+      "click",
+      event => {
+        if (
+          event.target ===
+          event.currentTarget
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }
+    );
+
+
   document.addEventListener(
     "keydown",
     event => {
@@ -2585,6 +3495,28 @@ function bindNightPatrolEvents() {
         event.key !==
         "Escape"
       ) {
+        return;
+      }
+
+
+      const pointManagerModal =
+        document.getElementById(
+          "patrolPointManagerModal"
+        );
+
+
+      if (
+        pointManagerModal?.classList.contains(
+          "is-open"
+        )
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        closePatrolPointManager();
+
+
         return;
       }
 
@@ -2642,6 +3574,10 @@ function bindNightPatrolEvents() {
 ========================================================= */
 
 function initializeNightPatrolPage() {
+  nightPatrolPointCatalog =
+    loadNightPatrolPointCatalog();
+
+
   bindNightPatrolEvents();
 
 
