@@ -212,13 +212,30 @@ button {
     0 auto;
 
   padding:
-    12mm 12mm 10mm;
+    22mm 0 16mm;
 
   background:
     #ffffff;
 
   box-shadow:
     0 6px 25px rgba(15, 23, 42, 0.13);
+}
+
+
+/* 원본처럼 점검표 내용을 좁게 가운데 배치 */
+.gas-check-sheet >
+.gas-check-title-row,
+
+.gas-check-sheet >
+.gas-check-section {
+  width:
+    152mm;
+
+  margin-left:
+    auto;
+
+  margin-right:
+    auto;
 }
 
 .gas-check-sheet table {
@@ -1042,22 +1059,22 @@ button {
       0;
   }
 
-  .gas-check-sheet {
-    width:
-      210mm;
+.gas-check-sheet {
+  width:
+    210mm;
 
-    min-height:
-      297mm;
+  min-height:
+    297mm;
 
-    margin:
-      0;
+  margin:
+    0;
 
-    padding:
-      10mm 11mm 8mm;
+  padding:
+    22mm 0 16mm;
 
-    box-shadow:
-      none;
-  }
+  box-shadow:
+    none;
+}
 
   .gas-check-sheet input {
     background:
