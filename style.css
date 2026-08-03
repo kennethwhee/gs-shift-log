@@ -28688,17 +28688,23 @@ small {
     760px
 ) {
 
-  #globalNoticeModal
-  .global-notice-card__content-preview,
+#globalNoticeModal
+.global-notice-card__content-preview,
 
-  #globalNoticeModal
-  .global-notice-card__content-full {
-    font-size:
-      12px;
+#globalNoticeModal
+.global-notice-card__content-full {
+  font-size:
+    12px;
 
-    line-height:
-      1.75;
-  }
+  line-height:
+    1.75;
+
+  text-indent:
+    0 !important;
+
+  padding-left:
+    0;
+}
 
 
   #globalNoticeModal
@@ -56642,4 +56648,14 @@ table:has(
 
   gap:
     4px !important;
+}
+
+/* 전체공지 내용 왼쪽 공백 제거 */
+#globalNoticeModal
+.global-notice-card__content-preview,
+
+#globalNoticeModal
+.global-notice-card__content-full {
+  text-indent:
+    0 !important;
 }
