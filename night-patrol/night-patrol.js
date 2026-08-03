@@ -2,17 +2,24 @@
 
 
 /* =========================================================
-  야간순찰 접근 권한
+  야간순찰 접근 권한 최종본
 
   허용:
   - PC 화면
-  - 로그인 사용자의 보직이 TO, BO1, BO2
+  - 최고관리자
+  - TO
+  - BO1
+  - BO2
 
-  직접 URL 접근도 동일하게 차단한다.
+  직접 URL 접근도 같은 기준으로 확인한다.
 ========================================================= */
 
 const NIGHT_PATROL_AUTH_STORAGE_KEY =
   "gsShiftLog.currentUser";
+
+
+const NIGHT_PATROL_FORCED_SUPER_ADMIN_EMPLOYEE_NO =
+  "2014081";
 
 
 const NIGHT_PATROL_ALLOWED_POSITIONS =
@@ -68,6 +75,90 @@ function loadNightPatrolCurrentUser() {
 }
 
 
+function isNightPatrolCurrentUserSuperAdmin() {
+  const currentUser =
+    loadNightPatrolCurrentUser();
+
+  if (
+    !currentUser
+  ) {
+    return false;
+  }
+
+  const employeeNo =
+    String(
+      currentUser.employeeNo ||
+      currentUser.employee_no ||
+      currentUser.employeeId ||
+      currentUser.employee_id ||
+      ""
+    ).trim();
+
+  if (
+    employeeNo ===
+    NIGHT_PATROL_FORCED_SUPER_ADMIN_EMPLOYEE_NO
+  ) {
+    return true;
+  }
+
+  if (
+    Number(
+      currentUser.adminLevel ??
+      currentUser.admin_level ??
+      0
+    ) >= 2
+  ) {
+    return true;
+  }
+
+  const superAdminFlag =
+    currentUser.isSuperAdmin ??
+    currentUser.is_super_admin ??
+    false;
+
+  if (
+    superAdminFlag === true ||
+    Number(superAdminFlag) === 1 ||
+    String(superAdminFlag)
+      .trim()
+      .toLowerCase() === "true"
+  ) {
+    return true;
+  }
+
+  const roleCandidates = [
+    currentUser.role,
+    currentUser.userRole,
+    currentUser.user_role,
+    currentUser.defaultRole,
+    currentUser.default_role,
+    currentUser.permission,
+    currentUser.authority,
+    currentUser.accessRole,
+    currentUser.access_role
+  ];
+
+  return roleCandidates.some(
+    value => {
+      const role =
+        String(
+          value ||
+          ""
+        )
+          .trim()
+          .toLowerCase()
+          .replace(/[\s-]+/g, "_");
+
+      return [
+        "super_admin",
+        "superadmin",
+        "최고관리자"
+      ].includes(role);
+    }
+  );
+}
+
+
 function getNightPatrolCurrentUserPosition() {
   const currentUser =
     loadNightPatrolCurrentUser();
@@ -82,15 +173,30 @@ function getNightPatrolCurrentUserPosition() {
     currentUser.position,
     currentUser.jobPosition,
     currentUser.job_position,
+    currentUser.jobRole,
+    currentUser.job_role,
     currentUser.duty,
     currentUser.dutyName,
     currentUser.duty_name,
+    currentUser.workPosition,
+    currentUser.work_position,
+    currentUser.workRole,
+    currentUser.work_role,
+    currentUser.shiftPosition,
+    currentUser.shift_position,
+    currentUser.shiftRole,
+    currentUser.shift_role,
+    currentUser.logRole,
+    currentUser.log_role,
     currentUser.defaultPosition,
     currentUser.default_position,
     currentUser.assignedPosition,
     currentUser.assigned_position,
     currentUser.memberPosition,
-    currentUser.member_position
+    currentUser.member_position,
+    currentUser.memberRole,
+    currentUser.member_role,
+    currentUser.role
   ];
 
   for (
@@ -123,6 +229,12 @@ function canCurrentUserAccessNightPatrolPage() {
     !isDesktop
   ) {
     return false;
+  }
+
+  if (
+    isNightPatrolCurrentUserSuperAdmin()
+  ) {
+    return true;
   }
 
   return NIGHT_PATROL_ALLOWED_POSITIONS.has(
@@ -173,7 +285,7 @@ function renderNightPatrolAccessDenied() {
           "
         >
           야간순찰 점검일지는 PC에서<br>
-          TO·BO1·BO2 보직만 사용할 수 있습니다.
+          최고관리자·TO·BO1·BO2만 사용할 수 있습니다.
         </p>
       </section>
     </main>

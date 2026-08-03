@@ -5,7 +5,7 @@
 
   사용 조건:
   - PC 화면에서만 사용 가능
-  - 로그인 사용자의 보직이 TO, BO1, BO2인 경우만 사용 가능
+  - 최고관리자 또는 로그인 사용자의 보직이 TO, BO1, BO2인 경우 사용 가능
 
   원칙:
   - 기존 script.js와 완전히 분리
@@ -24,10 +24,13 @@
   const BUTTON_ID = "nightPatrolButton";
   const FRAME_ID = "nightPatrolFrame";
   const PAGE_URL =
-    "night-patrol/night-patrol.html?v=20260803-4";
+    "night-patrol/night-patrol.html?v=20260803-5";
 
   const AUTH_STORAGE_KEY =
     "gsShiftLog.currentUser";
+
+  const FORCED_SUPER_ADMIN_EMPLOYEE_NO =
+    "2014081";
 
   const DESKTOP_MEDIA_QUERY =
     "(min-width: 769px)";
@@ -125,6 +128,10 @@
 
 
   function getCurrentUserPosition() {
+    /*
+      업무일지 본체가 이미 사용하는 보직 판정 함수를
+      가장 먼저 사용한다.
+    */
     if (
       typeof window.getCurrentUserRoleNoticePosition ===
         "function"
@@ -157,19 +164,39 @@
       return "";
     }
 
+    /*
+      서버·이전 버전별 보직 필드명을 모두 지원한다.
+      role은 일반적으로 user/admin/super_admin이지만,
+      TO·BO1·BO2가 직접 들어오는 예외도 함께 확인한다.
+    */
     const positionCandidates = [
       currentUser.position,
       currentUser.jobPosition,
       currentUser.job_position,
+      currentUser.jobRole,
+      currentUser.job_role,
       currentUser.duty,
       currentUser.dutyName,
       currentUser.duty_name,
+      currentUser.workPosition,
+      currentUser.work_position,
+      currentUser.workRole,
+      currentUser.work_role,
+      currentUser.shiftPosition,
+      currentUser.shift_position,
+      currentUser.shiftRole,
+      currentUser.shift_role,
+      currentUser.logRole,
+      currentUser.log_role,
       currentUser.defaultPosition,
       currentUser.default_position,
       currentUser.assignedPosition,
       currentUser.assigned_position,
       currentUser.memberPosition,
-      currentUser.member_position
+      currentUser.member_position,
+      currentUser.memberRole,
+      currentUser.member_role,
+      currentUser.role
     ];
 
     for (
@@ -193,6 +220,119 @@
 
 
   /* =====================================================
+    최고관리자 판정
+
+    지원:
+    - 업무일지 본체의 isCurrentUserSuperAdmin()
+    - 사번 2014081
+    - adminLevel 2 이상
+    - isSuperAdmin 플래그
+    - role 계열 필드의 super_admin
+  ====================================================== */
+
+  function isCurrentUserNightPatrolSuperAdmin() {
+    if (
+      typeof window.isCurrentUserSuperAdmin ===
+        "function"
+    ) {
+      try {
+        if (
+          window.isCurrentUserSuperAdmin()
+        ) {
+          return true;
+        }
+      } catch (error) {
+        console.warn(
+          "야간순찰 최고관리자 함수 확인 실패:",
+          error
+        );
+      }
+    }
+
+    const currentUser =
+      getCurrentUser();
+
+    if (
+      !currentUser
+    ) {
+      return false;
+    }
+
+    const employeeNo =
+      String(
+        currentUser.employeeNo ||
+        currentUser.employee_no ||
+        currentUser.employeeId ||
+        currentUser.employee_id ||
+        ""
+      ).trim();
+
+    if (
+      employeeNo ===
+      FORCED_SUPER_ADMIN_EMPLOYEE_NO
+    ) {
+      return true;
+    }
+
+    if (
+      Number(
+        currentUser.adminLevel ??
+        currentUser.admin_level ??
+        0
+      ) >= 2
+    ) {
+      return true;
+    }
+
+    const superAdminFlag =
+      currentUser.isSuperAdmin ??
+      currentUser.is_super_admin ??
+      false;
+
+    if (
+      superAdminFlag === true ||
+      Number(superAdminFlag) === 1 ||
+      String(superAdminFlag)
+        .trim()
+        .toLowerCase() === "true"
+    ) {
+      return true;
+    }
+
+    const accountRoleCandidates = [
+      currentUser.role,
+      currentUser.userRole,
+      currentUser.user_role,
+      currentUser.defaultRole,
+      currentUser.default_role,
+      currentUser.permission,
+      currentUser.authority,
+      currentUser.accessRole,
+      currentUser.access_role
+    ];
+
+    return accountRoleCandidates.some(
+      value => {
+        const role =
+          String(
+            value ||
+            ""
+          )
+            .trim()
+            .toLowerCase()
+            .replace(/[\s-]+/g, "_");
+
+        return [
+          "super_admin",
+          "superadmin",
+          "최고관리자"
+        ].includes(role);
+      }
+    );
+  }
+
+
+  /* =====================================================
     최종 사용 권한
   ====================================================== */
 
@@ -209,10 +349,16 @@
       );
 
     if (
-      appShell?.hidden ===
-        true
+      !appShell ||
+      appShell.hidden === true
     ) {
       return false;
+    }
+
+    if (
+      isCurrentUserNightPatrolSuperAdmin()
+    ) {
+      return true;
     }
 
     return ALLOWED_POSITIONS.has(

@@ -1199,7 +1199,121 @@ function isNavigatorInspectionPublishableLog(
 
 
 /* =========================================================
-  Navigator 점검이력 항목 생성
+  네비게이터 이력관리 제외값 확인
+
+  지원 값:
+  - true
+  - 1
+  - "1"
+  - "true"
+  - "yes"
+  - "y"
+  - "exclude"
+  - "excluded"
+  - "제외"
+
+  기존 업무일지처럼 값이 없으면 false로 처리하여
+  기존과 동일하게 네비게이터 이력에 포함한다.
+========================================================= */
+
+function isNavigatorInspectionHistoryExcluded(
+  value
+) {
+  if (
+    value === true ||
+    value === 1
+  ) {
+    return true;
+  }
+
+
+  const normalizedValue =
+    normalizeText(
+      value
+    )
+      .toLowerCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  return [
+    "1",
+    "true",
+    "yes",
+    "y",
+    "exclude",
+    "excluded",
+    "제외"
+  ].includes(
+    normalizedValue
+  );
+}
+
+
+/* =========================================================
+  Navigator 항목 내용 비교 키 생성
+
+  목적:
+  entries와 tmEntries 등에 같은 항목이
+  중복 저장되어 있을 때 한쪽 배열에만 제외값이 있어도
+  최종적으로 같은 항목 전체를 제외한다.
+========================================================= */
+
+function createNavigatorInspectionContentKey(
+  category,
+  entry,
+  tagNo,
+  content
+) {
+  return [
+    normalizeText(
+      category
+    ),
+
+    normalizeText(
+      entry?.time
+    ),
+
+    normalizeText(
+      tagNo
+    )
+      .toUpperCase(),
+
+    normalizeText(
+      content
+    )
+      .normalize(
+        "NFKC"
+      )
+      .replace(
+        /[\u200B-\u200D\u2060\uFEFF]/g,
+        ""
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .toUpperCase()
+  ].join(
+    "||"
+  );
+}
+
+
+/* =========================================================
+  Navigator 점검이력 항목 생성 최종본
+
+  연동 대상:
+  - TM/BM/CM 발행·작업
+  - TAG 존재
+  - 내용 존재
+  - 이력관리 제외가 체크되지 않은 항목
+
+  연동 제외:
+  - excludeFromNavigatorHistory = true
+  - entries와 분리 배열 중 하나라도 제외 처리된 동일 항목
 ========================================================= */
 
 function createNavigatorInspectionSyncItems(
@@ -1229,25 +1343,178 @@ function createNavigatorInspectionSyncItems(
     );
 
 
+  /*
+    업무일지의 모든 저장 배열을 한 번만 수집한다.
+
+    지원:
+    - entries
+    - tmEntries
+    - handoverEntries
+    - remarkEntries
+  */
+  const sourceEntries =
+    collectNavigatorInspectionSourceEntries(
+      log
+    );
+
+
+  /*
+    제외 대상 식별 정보
+
+    sourceKey:
+    원본 일지 ID + 항목 ID
+
+    contentKey:
+    구분 + 시간 + TAG + 내용
+  */
+  const excludedSourceKeys =
+    new Set();
+
+
+  const excludedContentKeys =
+    new Set();
+
+
+  /* =====================================================
+    1차 순회
+
+    전체 배열을 먼저 확인하여
+    제외 처리된 항목의 식별값을 수집한다.
+
+    entries에는 false,
+    tmEntries에는 true가 들어 있는 예외 상황에서도
+    true를 우선하도록 한다.
+  ====================================================== */
+
+  sourceEntries.forEach(
+    source => {
+      const {
+        entry,
+        entryIndex,
+        fallbackCategory
+      } = source;
+
+
+      const category =
+        normalizeNavigatorInspectionCategory(
+          entry?.category ||
+          fallbackCategory
+        );
+
+
+      const tagNo =
+        normalizeText(
+          entry?.tag
+        )
+          .toUpperCase();
+
+
+      const content =
+        normalizeText(
+          entry?.content
+        );
+
+
+      /*
+        네비게이터 대상 구분이 아니거나
+        TAG·내용이 없으면 제외 맵을 만들 필요가 없다.
+      */
+      if (
+        !NAVIGATOR_INSPECTION_SYNC_CATEGORIES
+          .has(
+            category
+          ) ||
+        !tagNo ||
+        !content
+      ) {
+        return;
+      }
+
+
+      if (
+        !isNavigatorInspectionHistoryExcluded(
+          entry
+            ?.excludeFromNavigatorHistory
+        )
+      ) {
+        return;
+      }
+
+
+      const sourceLogId =
+        normalizeText(
+          entry
+            ?.importedFromLogId ||
+          containerLogId
+        );
+
+
+      const sourceEntryId =
+        createNavigatorInspectionSourceEntryId(
+          log,
+          entry,
+          entryIndex
+        );
+
+
+      if (
+        sourceLogId &&
+        sourceEntryId
+      ) {
+        excludedSourceKeys.add(
+          [
+            sourceLogId,
+            sourceEntryId
+          ].join(
+            "||"
+          )
+        );
+      }
+
+
+      excludedContentKeys.add(
+        createNavigatorInspectionContentKey(
+          category,
+          entry,
+          tagNo,
+          content
+        )
+      );
+    }
+  );
+
+
+  /* =====================================================
+    최종 연동 항목
+  ====================================================== */
+
   const uniqueItems =
     new Map();
 
 
   /*
-    entries와 분리 배열에 같은 과거 항목이
-    중복 저장된 경우를 확인한다.
+    ID가 없는 과거 자료가
+    entries와 분리 배열 양쪽에 저장된 경우
+    동일 내용을 한 번만 사용한다.
   */
   const legacyContentOwners =
     new Map();
 
 
+  /*
+    고정 ID 중복 확인
+  */
   const storedEntryIds =
     new Set();
 
 
-  collectNavigatorInspectionSourceEntries(
-    log
-  ).forEach(
+  /* =====================================================
+    2차 순회
+
+    실제 네비게이터 전송 항목을 만든다.
+  ====================================================== */
+
+  sourceEntries.forEach(
     source => {
       const {
         entry,
@@ -1327,6 +1594,51 @@ function createNavigatorInspectionSyncItems(
       }
 
 
+      const sourceKey = [
+        sourceLogId,
+        sourceEntryId
+      ].join(
+        "||"
+      );
+
+
+      const contentKey =
+        createNavigatorInspectionContentKey(
+          category,
+          entry,
+          tagNo,
+          content
+        );
+
+
+      /* ===================================================
+        네비게이터 이력관리 제외
+
+        현재 항목 자체가 제외 상태이거나,
+        다른 저장 배열의 동일 항목이 제외 상태면
+        최종 전송 대상에서 제외한다.
+      ==================================================== */
+
+      const excluded =
+        isNavigatorInspectionHistoryExcluded(
+          entry
+            ?.excludeFromNavigatorHistory
+        ) ||
+        excludedSourceKeys.has(
+          sourceKey
+        ) ||
+        excludedContentKeys.has(
+          contentKey
+        );
+
+
+      if (
+        excluded
+      ) {
+        return;
+      }
+
+
       const storedEntryId =
         normalizeText(
           entry?.id
@@ -1351,14 +1663,6 @@ function createNavigatorInspectionSyncItems(
         원본 업무일지 ID + 항목 ID를
         최종 중복 방지 키로 사용한다.
       */
-      const sourceKey = [
-        sourceLogId,
-        sourceEntryId
-      ].join(
-        "||"
-      );
-
-
       if (
         uniqueItems.has(
           sourceKey
@@ -1372,27 +1676,9 @@ function createNavigatorInspectionSyncItems(
         ID가 없는 과거 자료가 entries와
         분리 배열 양쪽에 있으면 내용으로 한 번 더 제거한다.
       */
-      const legacyContentKey = [
-        category,
-
-        normalizeText(
-          entry?.time
-        ),
-
-        tagNo,
-
-        content.replace(
-          /\s+/g,
-          " "
-        )
-      ].join(
-        "||"
-      );
-
-
       const legacyOwnerCollection =
         legacyContentOwners.get(
-          legacyContentKey
+          contentKey
         );
 
 
@@ -1411,7 +1697,7 @@ function createNavigatorInspectionSyncItems(
         !legacyOwnerCollection
       ) {
         legacyContentOwners.set(
-          legacyContentKey,
+          contentKey,
           collection
         );
       }
@@ -1494,7 +1780,6 @@ function createNavigatorInspectionSyncItems(
     ...uniqueItems.values()
   ];
 }
-
 
 /* =========================================================
   Navigator 전송 대상 최종 선택

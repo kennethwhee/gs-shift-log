@@ -70841,3 +70841,1149 @@ function refreshMemberFooterButtons() {
     initializeMemberFooterBindings();
   }
 })();
+
+/* =========================================================
+  네비게이터 이력관리 제외 기능
+
+  기능:
+  - TM·BM·CM 항목에서만 제외 체크박스 표시
+  - 항목 추가·수정 시 제외 상태 저장
+  - 기존 업무일지 수정 시 제외 상태 복원
+  - 파트장 팀원 업무 취합 시 제외 상태 유지
+  - 이전 근무 인계사항 가져오기 시 제외 상태 유지
+  - 최종 업무일지 JSON에 제외 상태 포함
+========================================================= */
+
+(function installNavigatorHistoryExcludeFeature() {
+  if (
+    window
+      .__navigatorHistoryExcludeInstalled
+  ) {
+    return;
+  }
+
+
+  window
+    .__navigatorHistoryExcludeInstalled =
+    true;
+
+
+  /* =====================================================
+    네비게이터 이력관리 대상 구분
+  ====================================================== */
+
+  const linkedCategories =
+    new Set([
+      "TM발행",
+      "TM작업",
+      "BM발행",
+      "BM작업",
+      "CM발행",
+      "CM작업"
+    ]);
+
+
+  function compactNavigatorCategory(
+    value
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+  }
+
+
+  function isNavigatorLinkedCategory(
+    value
+  ) {
+    const category =
+      compactNavigatorCategory(
+        value
+      );
+
+
+    return [
+      ...linkedCategories
+    ].some(
+      prefix => {
+        return category.startsWith(
+          prefix
+        );
+      }
+    );
+  }
+
+
+  function normalizeNavigatorExcluded(
+    value
+  ) {
+    return (
+      value === true ||
+      value === 1 ||
+      value === "1" ||
+      String(
+        value ||
+        ""
+      )
+        .trim()
+        .toLowerCase() ===
+        "true"
+    );
+  }
+
+
+  /* =====================================================
+    새 HTML 요소 연결
+  ====================================================== */
+
+  function getNavigatorExcludeElements() {
+    const field =
+      document.getElementById(
+        "logEntryNavigatorHistoryField"
+      );
+
+
+    const checkbox =
+      document.getElementById(
+        "excludeFromNavigatorHistoryCheckbox"
+      );
+
+
+    /*
+      기존 elements 객체에서도
+      새 요소를 사용할 수 있게 등록한다.
+    */
+    if (
+      typeof elements ===
+        "object" &&
+      elements
+    ) {
+      elements
+        .logEntryNavigatorHistoryField =
+        field;
+
+
+      elements
+        .excludeFromNavigatorHistoryCheckbox =
+        checkbox;
+    }
+
+
+    return {
+      field,
+      checkbox
+    };
+  }
+
+
+  /* =====================================================
+    항목 비교용 문자열 정리
+  ====================================================== */
+
+  function normalizeNavigatorKeyText(
+    value
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .normalize(
+        "NFKC"
+      )
+      .replace(
+        /[\u200B-\u200D\u2060\uFEFF]/g,
+        ""
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim()
+      .toUpperCase();
+  }
+
+
+  function getNavigatorImportedIndex(
+    entry,
+    fallbackIndex = null
+  ) {
+    const rawValue =
+      entry
+        ?.importedFromEntryIndex;
+
+
+    if (
+      rawValue !== "" &&
+      rawValue !== null &&
+      rawValue !== undefined
+    ) {
+      const numericValue =
+        Number(
+          rawValue
+        );
+
+
+      if (
+        Number.isInteger(
+          numericValue
+        ) &&
+        numericValue >= 0
+      ) {
+        return numericValue;
+      }
+    }
+
+
+    const fallbackValue =
+      Number(
+        fallbackIndex
+      );
+
+
+    return (
+      Number.isInteger(
+        fallbackValue
+      ) &&
+      fallbackValue >= 0
+    )
+      ? fallbackValue
+      : null;
+  }
+
+
+  /* =====================================================
+    항목 식별 키 생성
+
+    우선순위:
+    1. 항목 ID
+    2. 원본 일지 ID + 원본 항목 번호
+    3. 구분 + 시간 + TAG + 내용
+  ====================================================== */
+
+  function getNavigatorEntryKeys(
+    entry,
+    fallbackIndex = null
+  ) {
+    if (
+      !entry ||
+      typeof entry !==
+        "object"
+    ) {
+      return [];
+    }
+
+
+    const keys = [];
+
+
+    const id =
+      String(
+        entry.id ||
+        ""
+      ).trim();
+
+
+    const sourceLogId =
+      String(
+        entry.importedFromLogId ||
+        ""
+      ).trim();
+
+
+    const sourceIndex =
+      getNavigatorImportedIndex(
+        entry,
+        fallbackIndex
+      );
+
+
+    if (
+      id
+    ) {
+      keys.push(
+        `id:${id}`
+      );
+    }
+
+
+    if (
+      sourceLogId &&
+      sourceIndex !== null
+    ) {
+      keys.push(
+        `source:${sourceLogId}:${sourceIndex}`
+      );
+    }
+
+
+    keys.push(
+      [
+        "content",
+
+        normalizeNavigatorKeyText(
+          entry.category
+        ),
+
+        normalizeNavigatorKeyText(
+          entry.time
+        ),
+
+        normalizeNavigatorKeyText(
+          entry.tag
+        ),
+
+        normalizeNavigatorKeyText(
+          entry.content
+        )
+      ].join(
+        ":"
+      )
+    );
+
+
+    return [
+      ...new Set(
+        keys
+      )
+    ];
+  }
+
+
+  /* =====================================================
+    업무일지 안의 모든 항목 수집
+  ====================================================== */
+
+  function collectNavigatorLogEntries(
+    log
+  ) {
+    if (
+      !log ||
+      typeof log !==
+        "object"
+    ) {
+      return [];
+    }
+
+
+    const result = [];
+
+
+    [
+      "tmEntries",
+      "handoverEntries",
+      "remarkEntries",
+      "entries"
+    ].forEach(
+      collectionName => {
+        const entries =
+          Array.isArray(
+            log[
+              collectionName
+            ]
+          )
+            ? log[
+                collectionName
+              ]
+            : [];
+
+
+        entries.forEach(
+          (
+            entry,
+            entryIndex
+          ) => {
+            if (
+              entry &&
+              typeof entry ===
+                "object"
+            ) {
+              result.push({
+                entry,
+                entryIndex
+              });
+            }
+          }
+        );
+      }
+    );
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    제외 상태 비교 맵 생성
+  ====================================================== */
+
+  function createNavigatorExcludeMap(
+    entryItems
+  ) {
+    const result =
+      new Map();
+
+
+    (
+      Array.isArray(
+        entryItems
+      )
+        ? entryItems
+        : []
+    ).forEach(
+      (
+        item,
+        itemIndex
+      ) => {
+        const entry =
+          item?.entry ||
+          item;
+
+
+        const fallbackIndex =
+          item?.entryIndex ??
+          itemIndex;
+
+
+        const excluded =
+          isNavigatorLinkedCategory(
+            entry?.category
+          ) &&
+          normalizeNavigatorExcluded(
+            entry
+              ?.excludeFromNavigatorHistory
+          );
+
+
+        getNavigatorEntryKeys(
+          entry,
+          fallbackIndex
+        ).forEach(
+          key => {
+            /*
+              분리 배열과 entries 배열에
+              같은 항목이 있으면 true를 우선한다.
+            */
+            result.set(
+              key,
+
+              Boolean(
+                result.get(
+                  key
+                ) ||
+                excluded
+              )
+            );
+          }
+        );
+      }
+    );
+
+
+    return result;
+  }
+
+
+  function getNavigatorExcludedFromMap(
+    entry,
+    entryIndex,
+    excludeMap
+  ) {
+    return getNavigatorEntryKeys(
+      entry,
+      entryIndex
+    ).some(
+      key => {
+        return (
+          excludeMap.get(
+            key
+          ) === true
+        );
+      }
+    );
+  }
+
+
+  function applyNavigatorExcludeFlag(
+    targetEntry,
+    sourceEntry
+  ) {
+    if (
+      !targetEntry ||
+      typeof targetEntry !==
+        "object"
+    ) {
+      return;
+    }
+
+
+    targetEntry
+      .excludeFromNavigatorHistory =
+      isNavigatorLinkedCategory(
+        targetEntry.category ||
+        sourceEntry?.category
+      ) &&
+      normalizeNavigatorExcluded(
+        sourceEntry
+          ?.excludeFromNavigatorHistory
+      );
+  }
+
+
+  /* =====================================================
+    구분 변경 시 체크박스 표시
+
+    TM·BM·CM:
+    체크박스 표시
+
+    인계사항·비고:
+    체크박스 숨김 및 체크 해제
+  ====================================================== */
+
+  const originalUpdateTagFieldVisibility =
+    updateTagFieldVisibility;
+
+
+  updateTagFieldVisibility =
+    function updateTagFieldVisibilityWithNavigatorExclude() {
+      originalUpdateTagFieldVisibility();
+
+
+      const {
+        field,
+        checkbox
+      } =
+        getNavigatorExcludeElements();
+
+
+      const category =
+        elements
+          .logEntryCategory
+          ?.value ||
+        "인계사항";
+
+
+      const visible =
+        isNavigatorLinkedCategory(
+          category
+        );
+
+
+      if (
+        field
+      ) {
+        field.hidden =
+          !visible;
+      }
+
+
+      if (
+        checkbox
+      ) {
+        checkbox.disabled =
+          !visible;
+
+
+        if (
+          !visible
+        ) {
+          checkbox.checked =
+            false;
+        }
+      }
+
+
+      elements
+        .logEntryInputPanel
+        ?.classList
+        .toggle(
+          "has-navigator-history-option",
+          visible
+        );
+    };
+
+
+  /* =====================================================
+    입력창 초기화
+
+    새 항목 입력 시:
+    제외 체크 해제
+  ====================================================== */
+
+  const originalResetLogEntryInput =
+    resetLogEntryInput;
+
+
+  resetLogEntryInput =
+    function resetLogEntryInputWithNavigatorExclude(
+      options = {}
+    ) {
+      originalResetLogEntryInput(
+        options
+      );
+
+
+      const {
+        checkbox
+      } =
+        getNavigatorExcludeElements();
+
+
+      if (
+        checkbox
+      ) {
+        checkbox.checked =
+          false;
+      }
+
+
+      updateTagFieldVisibility();
+    };
+
+
+  /* =====================================================
+    항목 수정 시작
+
+    기존 항목의 제외 상태를 체크박스에 복원
+  ====================================================== */
+
+  const originalStartLogEntryEdit =
+    startLogEntryEdit;
+
+
+  startLogEntryEdit =
+    function startLogEntryEditWithNavigatorExclude(
+      entryIndex
+    ) {
+      const entry =
+        appState
+          .editorEntries[
+            entryIndex
+          ];
+
+
+      originalStartLogEntryEdit(
+        entryIndex
+      );
+
+
+      const {
+        checkbox
+      } =
+        getNavigatorExcludeElements();
+
+
+      if (
+        checkbox
+      ) {
+        checkbox.checked =
+          isNavigatorLinkedCategory(
+            entry?.category
+          ) &&
+          normalizeNavigatorExcluded(
+            entry
+              ?.excludeFromNavigatorHistory
+          );
+      }
+
+
+      updateTagFieldVisibility();
+    };
+
+
+  /* =====================================================
+    항목 추가·수정 저장
+
+    저장값:
+    excludeFromNavigatorHistory
+  ====================================================== */
+
+  const originalAddOrUpdateLogEntry =
+    addOrUpdateLogEntry;
+
+
+  addOrUpdateLogEntry =
+    function addOrUpdateLogEntryWithNavigatorExclude() {
+      const beforeEntries = [
+        ...(
+          Array.isArray(
+            appState.editorEntries
+          )
+            ? appState.editorEntries
+            : []
+        )
+      ];
+
+
+      const beforeObjects =
+        new Set(
+          beforeEntries
+        );
+
+
+      const editingIndex =
+        appState
+          .editingEntryIndex;
+
+
+      const editingEntry =
+        editingIndex >= 0
+          ? appState
+              .editorEntries[
+                editingIndex
+              ]
+          : null;
+
+
+      const editingKeys =
+        getNavigatorEntryKeys(
+          editingEntry,
+          editingIndex
+        );
+
+
+      const {
+        checkbox
+      } =
+        getNavigatorExcludeElements();
+
+
+      const category =
+        elements
+          .logEntryCategory
+          ?.value ||
+        "인계사항";
+
+
+      /*
+        체크박스 상태는 기존 함수가
+        입력창을 초기화하기 전에 저장한다.
+      */
+      const excluded =
+        isNavigatorLinkedCategory(
+          category
+        ) &&
+        checkbox?.checked ===
+          true;
+
+
+      originalAddOrUpdateLogEntry();
+
+
+      let savedEntry =
+        null;
+
+
+      if (
+        editingIndex >= 0
+      ) {
+        /*
+          입력 검증에 실패한 경우에는
+          기존 editingEntryIndex가 유지된다.
+        */
+        if (
+          appState
+            .editingEntryIndex >=
+          0
+        ) {
+          return;
+        }
+
+
+        savedEntry =
+          appState
+            .editorEntries
+            .find(
+              (
+                entry,
+                entryIndex
+              ) => {
+                const currentKeys =
+                  getNavigatorEntryKeys(
+                    entry,
+                    entryIndex
+                  );
+
+
+                return editingKeys.some(
+                  key => {
+                    return currentKeys.includes(
+                      key
+                    );
+                  }
+                );
+              }
+            ) ||
+          null;
+
+      } else {
+        /*
+          추가 전에는 존재하지 않았던
+          새 항목 객체를 찾는다.
+        */
+        savedEntry =
+          appState
+            .editorEntries
+            .find(
+              entry => {
+                return !beforeObjects.has(
+                  entry
+                );
+              }
+            ) ||
+          null;
+      }
+
+
+      if (
+        !savedEntry
+      ) {
+        return;
+      }
+
+
+      savedEntry
+        .excludeFromNavigatorHistory =
+        excluded;
+
+
+      /*
+        기존 함수가 먼저 목록을 출력하므로
+        제외 상태 적용 후 다시 출력한다.
+      */
+      renderLogEntryTable();
+    };
+
+
+  /* =====================================================
+    기존 업무일지 수정창 복원
+
+    저장된 제외 상태를 editorEntries에 복원
+  ====================================================== */
+
+  const originalFillLogEditor =
+    fillLogEditor;
+
+
+  fillLogEditor =
+    function fillLogEditorWithNavigatorExclude(
+      log
+    ) {
+      const excludeMap =
+        createNavigatorExcludeMap(
+          collectNavigatorLogEntries(
+            log
+          )
+        );
+
+
+      originalFillLogEditor(
+        log
+      );
+
+
+      appState
+        .editorEntries
+        .forEach(
+          (
+            entry,
+            entryIndex
+          ) => {
+            entry
+              .excludeFromNavigatorHistory =
+              isNavigatorLinkedCategory(
+                entry.category
+              ) &&
+              getNavigatorExcludedFromMap(
+                entry,
+                entryIndex,
+                excludeMap
+              );
+          }
+        );
+
+
+      renderLogEntryTable();
+    };
+
+
+  /* =====================================================
+    팀원 업무일지 취합
+
+    원본 항목의 제외 상태를 그대로 복사한다.
+  ====================================================== */
+
+  const originalCreateMemberImportedEntry =
+    createMemberImportedEntry;
+
+
+  createMemberImportedEntry =
+    function createMemberImportedEntryWithNavigatorExclude(
+      memberLog,
+      role,
+      entry,
+      entryIndex
+    ) {
+      const importedEntry =
+        originalCreateMemberImportedEntry(
+          memberLog,
+          role,
+          entry,
+          entryIndex
+        );
+
+
+      applyNavigatorExcludeFlag(
+        importedEntry,
+        entry
+      );
+
+
+      return importedEntry;
+    };
+
+
+  /* =====================================================
+    이전 근무 인계사항 가져오기
+
+    원본 업무일지의 제외 상태를 새 항목에 복원한다.
+  ====================================================== */
+
+  const originalLoadPreviousShiftHandover =
+    loadPreviousShiftHandoverEntriesForCurrentEditor;
+
+
+  loadPreviousShiftHandoverEntriesForCurrentEditor =
+    async function loadPreviousShiftHandoverWithNavigatorExclude() {
+      const beforeObjects =
+        new Set(
+          Array.isArray(
+            appState.editorEntries
+          )
+            ? appState.editorEntries
+            : []
+        );
+
+
+      await originalLoadPreviousShiftHandover();
+
+
+      /*
+        현재 불러온 업무일지 전체를
+        원본 항목 찾기용 맵으로 만든다.
+      */
+      const sourceMap =
+        new Map();
+
+
+      appState.logs.forEach(
+        log => {
+          collectNavigatorLogEntries(
+            log
+          ).forEach(
+            item => {
+              getNavigatorEntryKeys(
+                item.entry,
+                item.entryIndex
+              ).forEach(
+                key => {
+                  sourceMap.set(
+                    key,
+                    item.entry
+                  );
+                }
+              );
+            }
+          );
+        }
+      );
+
+
+      const addedEntries =
+        appState
+          .editorEntries
+          .filter(
+            entry => {
+              return !beforeObjects.has(
+                entry
+              );
+            }
+          );
+
+
+      addedEntries.forEach(
+        (
+          entry,
+          entryIndex
+        ) => {
+          const sourceEntry =
+            getNavigatorEntryKeys(
+              entry,
+              entryIndex
+            )
+              .map(
+                key => {
+                  return sourceMap.get(
+                    key
+                  );
+                }
+              )
+              .find(
+                Boolean
+              );
+
+
+          applyNavigatorExcludeFlag(
+            entry,
+            sourceEntry
+          );
+        }
+      );
+
+
+      if (
+        addedEntries.length
+      ) {
+        renderLogEntryTable();
+      }
+    };
+
+
+  /* =====================================================
+    최종 업무일지 저장 데이터
+
+    다음 배열에 모두 제외값을 저장한다.
+    - tmEntries
+    - handoverEntries
+    - remarkEntries
+    - entries
+  ====================================================== */
+
+  const originalCollectEditorData =
+    collectEditorData;
+
+
+  collectEditorData =
+    function collectEditorDataWithNavigatorExclude(
+      status
+    ) {
+      const collectedLog =
+        originalCollectEditorData(
+          status
+        );
+
+
+      if (
+        !collectedLog
+      ) {
+        return collectedLog;
+      }
+
+
+      const excludeMap =
+        createNavigatorExcludeMap(
+          appState
+            .editorEntries
+            .map(
+              (
+                entry,
+                entryIndex
+              ) => {
+                return {
+                  entry,
+                  entryIndex
+                };
+              }
+            )
+        );
+
+
+      const applyToEntries = (
+        entries
+      ) => {
+        if (
+          !Array.isArray(
+            entries
+          )
+        ) {
+          return;
+        }
+
+
+        entries.forEach(
+          (
+            entry,
+            entryIndex
+          ) => {
+            entry
+              .excludeFromNavigatorHistory =
+              isNavigatorLinkedCategory(
+                entry.category
+              ) &&
+              getNavigatorExcludedFromMap(
+                entry,
+                entryIndex,
+                excludeMap
+              );
+          }
+        );
+      };
+
+
+      applyToEntries(
+        collectedLog.tmEntries
+      );
+
+
+      applyToEntries(
+        collectedLog.handoverEntries
+      );
+
+
+      applyToEntries(
+        collectedLog.remarkEntries
+      );
+
+
+      applyToEntries(
+        collectedLog.entries
+      );
+
+
+      return collectedLog;
+    };
+
+
+  /* =====================================================
+    최초 화면 초기화
+  ====================================================== */
+
+  function initializeNavigatorExcludeUi() {
+    getNavigatorExcludeElements();
+
+    updateTagFieldVisibility();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeNavigatorExcludeUi,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeNavigatorExcludeUi();
+  }
+})();
