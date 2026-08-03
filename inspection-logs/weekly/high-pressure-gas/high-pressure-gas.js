@@ -1963,6 +1963,21 @@ function initializeHighPressureGasCheck() {
                 인쇄
               </button>
 
+              ${
+                log.canDelete
+                  ? `
+                    <button
+                      type="button"
+                      data-gas-archive-delete="${escapeHtml(log.id)}"
+                      data-gas-archive-revision="${escapeHtml(String(log.serverRevision || 1))}"
+                      data-gas-archive-date="${escapeHtml(log.inspectionDate || "")}"
+                    >
+                      삭제
+                    </button>
+                  `
+                  : ""
+              }
+
             </div>
           </td>
         `;
@@ -2163,6 +2178,173 @@ function initializeHighPressureGasCheck() {
     }
 
     await loadArchiveBoard();
+  }
+
+
+  async function deleteArchiveLog(
+    logId,
+    expectedRevision,
+    inspectionDateValue,
+    deleteButton = null
+  ) {
+    const normalizedId =
+      normalizeText(
+        logId
+      );
+
+    const revision =
+      Number(
+        expectedRevision
+      );
+
+    const normalizedDate =
+      normalizeText(
+        inspectionDateValue
+      );
+
+    const dateLabel =
+      formatHistoryDate(
+        normalizedDate
+      );
+
+    if (
+      !normalizedId ||
+      !Number.isInteger(
+        revision
+      ) ||
+      revision <
+        1
+    ) {
+      window.alert(
+        "삭제할 점검일지 정보를 확인하지 못했습니다."
+      );
+
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        `${dateLabel} 고압가스 점검일지를 삭제하시겠습니까?\n\n삭제하면 보관함 목록에서 제거됩니다.`
+      );
+
+    if (
+      !confirmed
+    ) {
+      return;
+    }
+
+    if (
+      deleteButton
+    ) {
+      deleteButton.disabled =
+        true;
+
+      deleteButton.textContent =
+        "삭제 중";
+    }
+
+    try {
+      const payload =
+        await requestApi(
+          HIGH_PRESSURE_GAS_API_URL,
+          {
+            method:
+              "DELETE",
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+            body:
+              JSON.stringify({
+                id:
+                  normalizedId,
+                expectedRevision:
+                  revision
+              })
+          }
+        );
+
+      archiveAllLogs =
+        archiveAllLogs.filter(
+          log => {
+            return normalizeText(
+              log?.id
+            ) !==
+              normalizedId;
+          }
+        );
+
+      renderArchiveBoard();
+
+      if (
+        currentLogId ===
+          normalizedId
+      ) {
+        currentLogId =
+          "";
+
+        currentRevision =
+          0;
+
+        isDirty =
+          false;
+
+        removeRecoveryDraft(
+          normalizedDate
+        );
+
+        if (
+          inspectionDate.value ===
+            normalizedDate
+        ) {
+          await loadLogForDate(
+            normalizedDate
+          );
+        }
+      }
+
+      window.alert(
+        payload.message ||
+        "고압가스 점검일지가 삭제되었습니다."
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "고압가스 점검일지 삭제 실패:",
+        error
+      );
+
+      if (
+        error.status ===
+          409
+      ) {
+        window.alert(
+          `${error.message}\n\n보관함을 새로고침한 뒤 다시 시도해 주세요.`
+        );
+
+        await loadArchiveBoard();
+
+      } else {
+        window.alert(
+          error.message ||
+          "고압가스 점검일지를 삭제하지 못했습니다."
+        );
+      }
+
+    } finally {
+      if (
+        deleteButton &&
+        deleteButton.isConnected
+      ) {
+        deleteButton.disabled =
+          false;
+
+        deleteButton.textContent =
+          "삭제";
+      }
+    }
   }
 
 
@@ -2784,6 +2966,30 @@ function initializeHighPressureGasCheck() {
             "data-gas-archive-print"
           ),
           true
+        );
+
+        return;
+      }
+
+      const deleteButton =
+        target?.closest(
+          "[data-gas-archive-delete]"
+        );
+
+      if (
+        deleteButton
+      ) {
+        deleteArchiveLog(
+          deleteButton.getAttribute(
+            "data-gas-archive-delete"
+          ),
+          deleteButton.getAttribute(
+            "data-gas-archive-revision"
+          ),
+          deleteButton.getAttribute(
+            "data-gas-archive-date"
+          ),
+          deleteButton
         );
       }
     }

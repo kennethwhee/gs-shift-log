@@ -2163,6 +2163,42 @@ input {
 }
 
 
+.gas-archive-actions
+[data-gas-archive-delete] {
+  border-color:
+    #efb3b3;
+
+  background:
+    #fff4f4;
+
+  color:
+    #bb3030;
+}
+
+
+.gas-archive-actions
+[data-gas-archive-delete]:hover {
+  border-color:
+    #dd7777;
+
+  background:
+    #ffe8e8;
+
+  color:
+    #9f1f1f;
+}
+
+
+.gas-archive-actions
+[data-gas-archive-delete]:disabled {
+  cursor:
+    not-allowed;
+
+  opacity:
+    0.55;
+}
+
+
 .gas-archive-empty {
   padding:
     70px 20px;
