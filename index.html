@@ -4567,73 +4567,179 @@
     </section>
 
 
-    <!-- =================================================
-      업무일지 가져오기 확인
+<!-- =================================================
+  업무일지 석회석 입고내역 가져오기
 
-      자동 추출 결과를 바로 저장하지 않고
-      사용자가 확인한 항목만 등록한다.
-    ================================================== -->
-    <section
-      class="limestone-import-panel"
-      id="limestoneImportPanel"
-      hidden
-    >
+  중요:
+  - 상단 석회석 조회 기간과 별도
+  - 이 기간은 업무일지 후보 검색에만 사용
+================================================== -->
+<section
+  class="limestone-import-panel"
+  id="limestoneImportPanel"
+  hidden
+>
 
-      <header class="limestone-import-header">
+  <header class="limestone-import-header">
 
-        <div>
+    <div>
 
-          <span>
-            SHIFT LOG IMPORT
-          </span>
+      <span>
+        SHIFT LOG IMPORT
+      </span>
 
-          <h4>
-            업무일지 석회석 입고내역 가져오기
-          </h4>
+      <h4>
+        업무일지 석회석 입고내역 가져오기
+      </h4>
 
-          <p>
-            BCO1은 1호기, BCO2는 2호기로 분류합니다.
-          </p>
+      <p>
+        BCO1은 1호기, BCO2는 2호기로 분류합니다.
+      </p>
 
-        </div>
+    </div>
 
 
-        <strong id="limestoneImportCandidateCount">
-          0건
+    <strong id="limestoneImportCandidateCount">
+      0건
+    </strong>
+
+  </header>
+
+
+  <!-- =================================================
+    가져오기 전용 조회 조건
+  ================================================== -->
+  <div class="limestone-import-range-panel">
+
+    <div class="limestone-import-range-heading">
+
+      <div>
+
+        <strong>
+          가져오기 기간
         </strong>
 
-      </header>
+        <small>
+          위쪽 입고현황 조회 기간과 별도로 적용됩니다.
+        </small>
+
+      </div>
+
+    </div>
 
 
-      <div
-        class="limestone-import-candidate-list"
-        id="limestoneImportCandidateList"
+    <div class="limestone-import-range-form">
+
+      <label class="form-field">
+
+        <span class="form-field__label">
+          시작일
+        </span>
+
+        <input
+          type="date"
+          id="limestoneImportStartDate"
+        />
+
+      </label>
+
+
+      <label class="form-field">
+
+        <span class="form-field__label">
+          종료일
+        </span>
+
+        <input
+          type="date"
+          id="limestoneImportEndDate"
+        />
+
+      </label>
+
+
+      <label class="form-field">
+
+        <span class="form-field__label">
+          호기
+        </span>
+
+        <select id="limestoneImportUnitFilter">
+
+          <option value="">
+            전체 호기
+          </option>
+
+          <option value="1">
+            1호기
+          </option>
+
+          <option value="2">
+            2호기
+          </option>
+
+        </select>
+
+      </label>
+
+
+      <button
+        type="button"
+        class="
+          primary-button
+          limestone-import-search-button
+        "
+        id="searchLimestoneImportCandidatesButton"
       >
-      </div>
+        업무일지 조회
+      </button>
+
+    </div>
+
+  </div>
 
 
-      <div class="limestone-import-actions">
+  <!-- =================================================
+    가져오기 후보 목록
+  ================================================== -->
+  <div
+    class="limestone-import-candidate-list"
+    id="limestoneImportCandidateList"
+  >
 
-        <button
-          type="button"
-          class="secondary-button"
-          id="cancelLimestoneImportButton"
-        >
-          취소
-        </button>
+    <div class="limestone-import-empty-message">
+
+      가져오기 기간을 선택한 후
+      업무일지 조회 버튼을 눌러주세요.
+
+    </div>
+
+  </div>
 
 
-        <button
-          type="button"
-          class="primary-button"
-          id="applyLimestoneImportButton"
-        >
-          선택 기록 추가
-        </button>
+  <div class="limestone-import-actions">
 
-      </div>
+    <button
+      type="button"
+      class="secondary-button"
+      id="cancelLimestoneImportButton"
+    >
+      취소
+    </button>
 
-    </section>
+
+    <button
+      type="button"
+      class="primary-button"
+      id="applyLimestoneImportButton"
+      disabled
+    >
+      선택 기록 추가
+    </button>
+
+  </div>
+
+</section>
 
   </div>
 

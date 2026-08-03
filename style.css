@@ -60403,3 +60403,328 @@ input:disabled {
   opacity:
     0.55;
 }
+
+/* =========================================================
+  석회석 조회·가져오기 분리 및 상세기록 스크롤
+========================================================= */
+
+
+/* =========================================================
+  가져오기 전용 기간
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-import-range-panel {
+  margin-bottom:
+    12px;
+
+  padding:
+    12px;
+
+  border:
+    1px solid #e3d7b8;
+
+  border-radius:
+    10px;
+
+  background:
+    #fffaf0;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-range-heading {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  margin-bottom:
+    9px;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-range-heading strong {
+  display:
+    block;
+
+  color:
+    #654c25;
+
+  font-size:
+    11px;
+
+  font-weight:
+    900;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-range-heading small {
+  display:
+    block;
+
+  margin-top:
+    2px;
+
+  color:
+    #927b58;
+
+  font-size:
+    8px;
+
+  font-weight:
+    650;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-range-form {
+  display:
+    grid;
+
+  grid-template-columns:
+    minmax(
+      140px,
+      1fr
+    )
+    minmax(
+      140px,
+      1fr
+    )
+    120px
+    110px;
+
+  align-items:
+    end;
+
+  gap:
+    8px;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-range-form
+.form-field {
+  gap:
+    4px;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-range-form
+input,
+
+#efficiencyTeamModal
+.limestone-import-range-form
+select {
+  min-height:
+    36px;
+
+  font-size:
+    10px;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-search-button {
+  min-height:
+    36px;
+
+  padding:
+    0 10px;
+
+  font-size:
+    10px;
+
+  white-space:
+    nowrap;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-empty-message {
+  padding:
+    28px 14px;
+
+  border:
+    1px dashed #dfd4ba;
+
+  border-radius:
+    9px;
+
+  background:
+    #ffffff;
+
+  color:
+    #8a795e;
+
+  font-size:
+    10px;
+
+  font-weight:
+    650;
+
+  line-height:
+    1.6;
+
+  text-align:
+    center;
+}
+
+
+/* =========================================================
+  석회석 화면 세로 영역
+========================================================= */
+
+#efficiencyTeamModal
+.efficiency-team-workspace,
+
+#efficiencyTeamModal
+.efficiency-team-view,
+
+#efficiencyTeamModal
+.limestone-management-view,
+
+#efficiencyTeamModal
+.limestone-dashboard {
+  min-height:
+    0 !important;
+}
+
+
+/*
+  석회석 화면 전체도 스크롤할 수 있게 유지
+*/
+#efficiencyTeamModal
+.limestone-dashboard {
+  overflow-y:
+    auto !important;
+
+  overscroll-behavior:
+    contain;
+}
+
+
+/* =========================================================
+  입고기록 상세 내부 스크롤
+
+  기록이 많아지면 이 표 안에서 스크롤한다.
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-section-card:has(
+  .limestone-receipt-table
+)
+.limestone-table-wrap {
+  width:
+    100%;
+
+  max-height:
+    clamp(
+      250px,
+      36vh,
+      430px
+    );
+
+  overflow-x:
+    auto !important;
+
+  overflow-y:
+    auto !important;
+
+  overscroll-behavior:
+    contain;
+
+  scrollbar-gutter:
+    stable;
+}
+
+
+/*
+  스크롤해도 표 제목 고정
+*/
+#efficiencyTeamModal
+.limestone-receipt-table
+thead th {
+  position:
+    sticky;
+
+  top:
+    0;
+
+  z-index:
+    3;
+
+  box-shadow:
+    0 1px 0
+    #dfe6ee;
+}
+
+
+/* =========================================================
+  태블릿
+========================================================= */
+
+@media screen and (max-width: 980px) {
+
+  #efficiencyTeamModal
+  .limestone-import-range-form {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-import-search-button {
+    grid-column:
+      1 / -1;
+
+    width:
+      100%;
+  }
+
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  #efficiencyTeamModal
+  .limestone-import-range-form {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-import-search-button {
+    grid-column:
+      auto;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-section-card:has(
+    .limestone-receipt-table
+  )
+  .limestone-table-wrap {
+    max-height:
+      46vh;
+  }
+
+}

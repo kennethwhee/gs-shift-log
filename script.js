@@ -73891,99 +73891,282 @@ function openEfficiencyTeamModal() {
         );
   }
 
+/* =====================================================
+  현재 조회 결과만으로 요약 재계산
 
-  /* =====================================================
-    조회 결과 전체 출력
-  ====================================================== */
+  중요:
+  - D1 전체 자료를 계산하지 않음
+  - 서버가 이번 조회에서 반환한 items만 사용
+  - 시작일·종료일·호기 필터가 그대로 반영됨
+===================================================== */
 
-  function renderLimestoneResult(
-    result
-  ) {
-    limestoneReceiptState.items =
-      Array.isArray(
-        result.items
-      )
-        ? result.items
-        : [];
-
-
-    limestoneReceiptState.dailySummary =
-      Array.isArray(
-        result.dailySummary
-      )
-        ? result.dailySummary
-        : [];
+function createLimestoneSummaryFromResultItems(
+  items
+) {
+  const safeItems =
+    Array.isArray(
+      items
+    )
+      ? items
+      : [];
 
 
-    limestoneReceiptState.summary = {
-      totalQuantity:
+  const dailyMap =
+    new Map();
+
+
+  let unitOneQuantity =
+    0;
+
+
+  let unitTwoQuantity =
+    0;
+
+
+  safeItems.forEach(
+    item => {
+      const quantity =
+        normalizeLimestoneQuantity(
+          item.quantityTon
+        );
+
+
+      const unitNo =
         Number(
-          result.summary
-            ?.totalQuantity
-        ) ||
-        0,
+          item.unitNo
+        );
+
+
+      if (
+        unitNo ===
+        1
+      ) {
+        unitOneQuantity +=
+          quantity;
+
+      } else if (
+        unitNo ===
+        2
+      ) {
+        unitTwoQuantity +=
+          quantity;
+      }
+
+
+      const receiptDate =
+        String(
+          item.receiptDate ||
+          ""
+        ).trim();
+
+
+      if (
+        !receiptDate
+      ) {
+        return;
+      }
+
+
+      if (
+        !dailyMap.has(
+          receiptDate
+        )
+      ) {
+        dailyMap.set(
+          receiptDate,
+          {
+            date:
+              receiptDate,
+
+            unitOneQuantity:
+              0,
+
+            unitTwoQuantity:
+              0,
+
+            totalQuantity:
+              0,
+
+            receiptCount:
+              0
+          }
+        );
+      }
+
+
+      const dailyItem =
+        dailyMap.get(
+          receiptDate
+        );
+
+
+      if (
+        unitNo ===
+        1
+      ) {
+        dailyItem
+          .unitOneQuantity +=
+          quantity;
+
+      } else if (
+        unitNo ===
+        2
+      ) {
+        dailyItem
+          .unitTwoQuantity +=
+          quantity;
+      }
+
+
+      dailyItem.totalQuantity +=
+        quantity;
+
+
+      dailyItem.receiptCount +=
+        1;
+    }
+  );
+
+
+  return {
+    summary: {
+      totalQuantity:
+        normalizeLimestoneQuantity(
+          unitOneQuantity +
+          unitTwoQuantity
+        ),
 
       unitOneQuantity:
-        Number(
-          result.summary
-            ?.unitOneQuantity
-        ) ||
-        0,
+        normalizeLimestoneQuantity(
+          unitOneQuantity
+        ),
 
       unitTwoQuantity:
-        Number(
-          result.summary
-            ?.unitTwoQuantity
-        ) ||
-        0,
+        normalizeLimestoneQuantity(
+          unitTwoQuantity
+        ),
 
       receiptCount:
-        Number(
-          result.summary
-            ?.receiptCount
-        ) ||
-        0
-    };
+        safeItems.length
+    },
+
+    dailySummary: [
+      ...dailyMap.values()
+    ]
+      .map(
+        item => {
+          return {
+            ...item,
+
+            unitOneQuantity:
+              normalizeLimestoneQuantity(
+                item.unitOneQuantity
+              ),
+
+            unitTwoQuantity:
+              normalizeLimestoneQuantity(
+                item.unitTwoQuantity
+              ),
+
+            totalQuantity:
+              normalizeLimestoneQuantity(
+                item.totalQuantity
+              )
+          };
+        }
+      )
+      .sort(
+        (
+          firstItem,
+          secondItem
+        ) => {
+          return secondItem
+            .date
+            .localeCompare(
+              firstItem.date
+            );
+        }
+      )
+  };
+}
+
+ /* =====================================================
+  석회석 조회 결과 출력 최종본
+
+  요약 기준:
+  현재 조회 API가 반환한 items만 사용한다.
+===================================================== */
+
+function renderLimestoneResult(
+  result
+) {
+  const resultItems =
+    Array.isArray(
+      result.items
+    )
+      ? result.items
+      : [];
 
 
-    limestoneReceiptState.range = {
-      startDate:
-        String(
-          result.range
-            ?.startDate ||
-          ""
-        ),
+  const calculatedResult =
+    createLimestoneSummaryFromResultItems(
+      resultItems
+    );
 
-      endDate:
-        String(
-          result.range
-            ?.endDate ||
-          ""
-        ),
 
-      unitNo:
+  limestoneReceiptState.items =
+    resultItems;
+
+
+  limestoneReceiptState.dailySummary =
+    calculatedResult
+      .dailySummary;
+
+
+  limestoneReceiptState.summary =
+    calculatedResult
+      .summary;
+
+
+  limestoneReceiptState.range = {
+    startDate:
+      String(
         result.range
-          ?.unitNo ??
-        null
-    };
+          ?.startDate ||
+        ""
+      ),
+
+    endDate:
+      String(
+        result.range
+          ?.endDate ||
+        ""
+      ),
+
+    unitNo:
+      result.range
+        ?.unitNo ??
+      null
+  };
 
 
-    renderLimestoneSummary(
-      limestoneReceiptState
-        .summary
-    );
+  renderLimestoneSummary(
+    limestoneReceiptState
+      .summary
+  );
 
 
-    renderLimestoneDailySummary(
-      limestoneReceiptState
-        .dailySummary
-    );
+  renderLimestoneDailySummary(
+    limestoneReceiptState
+      .dailySummary
+  );
 
 
-    renderLimestoneReceiptItems(
-      limestoneReceiptState.items
-    );
-  }
+  renderLimestoneReceiptItems(
+    limestoneReceiptState
+      .items
+  );
+}
 
 
   /* =====================================================
@@ -74941,55 +75124,152 @@ function openEfficiencyTeamModal() {
     [];
 
 
-  function getLimestoneImportElements() {
-    return {
-      importButton:
-        document.getElementById(
-          "importLimestoneFromShiftLogsButton"
-        ),
+/* =====================================================
+  업무일지 가져오기 요소
 
-      panel:
-        document.getElementById(
-          "limestoneImportPanel"
-        ),
+  상단 입고현황 조회 조건과
+  가져오기 조건을 완전히 분리한다.
+===================================================== */
 
-      count:
-        document.getElementById(
-          "limestoneImportCandidateCount"
-        ),
+function getLimestoneImportElements() {
+  return {
+    importButton:
+      document.getElementById(
+        "importLimestoneFromShiftLogsButton"
+      ),
 
-      list:
-        document.getElementById(
-          "limestoneImportCandidateList"
-        ),
+    panel:
+      document.getElementById(
+        "limestoneImportPanel"
+      ),
 
-      cancelButton:
-        document.getElementById(
-          "cancelLimestoneImportButton"
-        ),
+    count:
+      document.getElementById(
+        "limestoneImportCandidateCount"
+      ),
 
-      applyButton:
-        document.getElementById(
-          "applyLimestoneImportButton"
-        ),
+    list:
+      document.getElementById(
+        "limestoneImportCandidateList"
+      ),
 
-      startDateInput:
-        document.getElementById(
-          "limestoneStartDate"
-        ),
+    cancelButton:
+      document.getElementById(
+        "cancelLimestoneImportButton"
+      ),
 
-      endDateInput:
-        document.getElementById(
-          "limestoneEndDate"
-        ),
+    applyButton:
+      document.getElementById(
+        "applyLimestoneImportButton"
+      ),
 
-      unitFilter:
-        document.getElementById(
-          "limestoneUnitFilter"
-        )
-    };
+    searchButton:
+      document.getElementById(
+        "searchLimestoneImportCandidatesButton"
+      ),
+
+    /*
+      가져오기 전용 기간
+    */
+    startDateInput:
+      document.getElementById(
+        "limestoneImportStartDate"
+      ),
+
+    endDateInput:
+      document.getElementById(
+        "limestoneImportEndDate"
+      ),
+
+    unitFilter:
+      document.getElementById(
+        "limestoneImportUnitFilter"
+      )
+  };
+}
+
+/* =====================================================
+  업무일지 가져오기 기본 기간
+
+  기본:
+  - 오늘 포함 최근 7일
+  - 전체 호기
+===================================================== */
+
+function setDefaultLimestoneImportDateRange() {
+  const {
+    startDateInput,
+    endDateInput,
+    unitFilter
+  } =
+    getLimestoneImportElements();
+
+
+  if (
+    !startDateInput ||
+    !endDateInput
+  ) {
+    return;
   }
 
+
+  const today =
+    new Date();
+
+
+  const sevenDaysAgo =
+    new Date(
+      today
+    );
+
+
+  sevenDaysAgo.setDate(
+    sevenDaysAgo.getDate() -
+    6
+  );
+
+
+  /*
+    이미 사용자가 날짜를 선택했다면 유지한다.
+  */
+  if (
+    !isValidLimestoneDate(
+      startDateInput.value
+    )
+  ) {
+    startDateInput.value =
+      formatLimestoneDate(
+        sevenDaysAgo
+      );
+  }
+
+
+  if (
+    !isValidLimestoneDate(
+      endDateInput.value
+    )
+  ) {
+    endDateInput.value =
+      formatLimestoneDate(
+        today
+      );
+  }
+
+
+  if (
+    unitFilter &&
+    ![
+      "",
+      "1",
+      "2"
+    ].includes(
+      unitFilter.value
+    )
+  ) {
+    unitFilter.value =
+      "";
+  }
+}
 
   /* =====================================================
     날짜 더하기
@@ -76659,161 +76939,289 @@ async function loadLimestoneImportCandidates() {
   }
 
 
-  /* =====================================================
-    가져오기 패널 열기
-  ====================================================== */
+/* =====================================================
+  업무일지 가져오기 패널 열기
 
-  async function openLimestoneImportPanel() {
-    const {
-      importButton,
-      panel,
-      count,
-      list,
-      applyButton
-    } =
-      getLimestoneImportElements();
+  변경:
+  - 즉시 업무일지 조회하지 않음
+  - 별도 시작일·종료일 선택
+  - 업무일지 조회 버튼을 눌러 후보 생성
+===================================================== */
 
-
-    if (
-      !panel ||
-      !list
-    ) {
-      showLimestoneToast(
-        "석회석 업무일지 가져오기 화면을 찾을 수 없습니다."
-      );
+function openLimestoneImportPanel() {
+  const {
+    panel,
+    count,
+    list,
+    applyButton,
+    startDateInput
+  } =
+    getLimestoneImportElements();
 
 
-      return;
-    }
-
-
-    closeLimestoneReceiptEditor();
-
-
-    panel.hidden =
-      false;
-
-
-    panel.removeAttribute(
-      "hidden"
+  if (
+    !panel ||
+    !list
+  ) {
+    showLimestoneToast(
+      "석회석 업무일지 가져오기 화면을 찾을 수 없습니다."
     );
+
+
+    return;
+  }
+
+
+  closeLimestoneReceiptEditor();
+
+
+  setDefaultLimestoneImportDateRange();
+
+
+  limestoneReceiptState
+    .importCandidates =
+    [];
+
+
+  if (
+    count
+  ) {
+    count.textContent =
+      "0건";
+  }
+
+
+  if (
+    applyButton
+  ) {
+    applyButton.disabled =
+      true;
+
+
+    applyButton.textContent =
+      "선택 기록 추가";
+  }
+
+
+  list.innerHTML = `
+    <div class="limestone-import-empty-message">
+
+      가져오기 기간을 선택한 후
+      업무일지 조회 버튼을 눌러주세요.
+
+    </div>
+  `;
+
+
+  panel.hidden =
+    false;
+
+
+  panel.removeAttribute(
+    "hidden"
+  );
+
+
+  window.requestAnimationFrame(
+    () => {
+      panel.scrollIntoView({
+        behavior:
+          "smooth",
+
+        block:
+          "nearest"
+      });
+
+
+      startDateInput?.focus();
+    }
+  );
+}
+
+
+/* =====================================================
+  설정한 가져오기 기간으로 업무일지 후보 조회
+===================================================== */
+
+async function searchLimestoneImportCandidates() {
+  const {
+    importButton,
+    searchButton,
+    count,
+    list,
+    applyButton,
+    startDateInput,
+    endDateInput
+  } =
+    getLimestoneImportElements();
+
+
+  const startDate =
+    String(
+      startDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const endDate =
+    String(
+      endDateInput?.value ||
+      ""
+    ).trim();
+
+
+  if (
+    !isValidLimestoneDate(
+      startDate
+    ) ||
+    !isValidLimestoneDate(
+      endDate
+    )
+  ) {
+    showLimestoneToast(
+      "가져오기 시작일과 종료일을 선택해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  if (
+    startDate >
+    endDate
+  ) {
+    showLimestoneToast(
+      "가져오기 시작일은 종료일보다 늦을 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  limestoneReceiptState
+    .importCandidates =
+    [];
+
+
+  if (
+    count
+  ) {
+    count.textContent =
+      "조회 중";
+  }
+
+
+  if (
+    applyButton
+  ) {
+    applyButton.disabled =
+      true;
+  }
+
+
+  if (
+    searchButton
+  ) {
+    searchButton.disabled =
+      true;
+
+
+    searchButton.textContent =
+      "조회 중...";
+  }
+
+
+  if (
+    importButton
+  ) {
+    importButton.disabled =
+      true;
+  }
+
+
+  list.innerHTML = `
+    <div class="limestone-loading">
+
+      ${escapeLimestoneHtml(
+        `${startDate} ~ ${endDate}`
+      )}
+      업무일지에서 석회석 입고내역을 찾고 있습니다.
+
+    </div>
+  `;
+
+
+  try {
+    const candidates =
+      await loadLimestoneImportCandidates();
 
 
     limestoneReceiptState
       .importCandidates =
-      [];
+      candidates;
+
+
+    renderLimestoneImportCandidates(
+      candidates
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "석회석 업무일지 후보 조회 실패:",
+      error
+    );
 
 
     if (
       count
     ) {
       count.textContent =
-        "조회 중";
-    }
-
-
-    if (
-      applyButton
-    ) {
-      applyButton.disabled =
-        true;
+        "0건";
     }
 
 
     list.innerHTML = `
-      <div class="limestone-loading">
-        BCO1·BCO2 업무일지에서 석회석 입고내역을 찾고 있습니다.
+      <div class="limestone-import-empty-message">
+
+        ${escapeLimestoneHtml(
+          error.message ||
+          "업무일지 석회석 입고내역을 불러오지 못했습니다."
+        )}
+
       </div>
     `;
+
+
+    showLimestoneToast(
+      error.message ||
+      "업무일지 석회석 입고내역을 불러오지 못했습니다."
+    );
+
+  } finally {
+    if (
+      searchButton
+    ) {
+      searchButton.disabled =
+        false;
+
+
+      searchButton.textContent =
+        "업무일지 조회";
+    }
 
 
     if (
       importButton
     ) {
       importButton.disabled =
-        true;
-
-
-      importButton.textContent =
-        "업무일지 확인 중...";
-    }
-
-
-    try {
-      const candidates =
-        await loadLimestoneImportCandidates();
-
-
-      limestoneReceiptState
-        .importCandidates =
-        candidates;
-
-
-      renderLimestoneImportCandidates(
-        candidates
-      );
-
-
-      window.requestAnimationFrame(
-        () => {
-          panel.scrollIntoView({
-            behavior:
-              "smooth",
-
-            block:
-              "nearest"
-          });
-        }
-      );
-
-    } catch (
-      error
-    ) {
-      console.error(
-        "석회석 업무일지 가져오기 조회 실패:",
-        error
-      );
-
-
-      if (
-        count
-      ) {
-        count.textContent =
-          "0건";
-      }
-
-
-      list.innerHTML = `
-        <div class="limestone-empty-table-row">
-
-          ${escapeLimestoneHtml(
-            error.message ||
-            "업무일지 석회석 입고내역을 불러오지 못했습니다."
-          )}
-
-        </div>
-      `;
-
-
-      showLimestoneToast(
-        error.message ||
-        "업무일지 석회석 입고내역을 불러오지 못했습니다."
-      );
-
-    } finally {
-      if (
-        importButton
-      ) {
-        importButton.disabled =
-          false;
-
-
-        importButton.textContent =
-          "업무일지에서 가져오기";
-      }
+        false;
     }
   }
-
+}
 
   /* =====================================================
     가져오기 패널 닫기
@@ -77081,14 +77489,19 @@ async function loadLimestoneImportCandidates() {
     } = elements;
 
 
-    const {
-      importButton,
-      cancelButton:
-        cancelImportButton,
+const {
+  importButton,
 
-      applyButton:
-        applyImportButton
-    } = importElements;
+  searchButton:
+    searchImportButton,
+
+  cancelButton:
+    cancelImportButton,
+
+  applyButton:
+    applyImportButton
+} = importElements;
+
 
 
     if (
@@ -77245,6 +77658,10 @@ async function loadLimestoneImportCandidates() {
       openLimestoneImportPanel
     );
 
+    searchImportButton?.addEventListener(
+  "click",
+  searchLimestoneImportCandidates
+);
 
     cancelImportButton?.addEventListener(
       "click",
