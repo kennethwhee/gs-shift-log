@@ -911,6 +911,102 @@ button {
     0;
 }
 
+/* =========================================================
+  원본 하단 사업장확인·점검자 행
+========================================================= */
+
+.gas-check-confirmation-row td {
+  height:
+    30px;
+
+  padding:
+    0 !important;
+
+  background:
+    #d8d8d8;
+}
+
+
+.gas-check-confirmation-grid {
+  display:
+    grid;
+
+  grid-template-columns:
+    15% 35% 20% 30%;
+
+  min-height:
+    30px;
+}
+
+
+.gas-check-confirmation-grid > * {
+  display:
+    flex;
+
+  min-width:
+    0;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  border-right:
+    1px solid #111111;
+}
+
+
+.gas-check-confirmation-grid > *:last-child {
+  border-right:
+    0;
+}
+
+
+.gas-check-confirmation-label {
+  padding:
+    3px 5px;
+
+  color:
+    #111111;
+
+  text-align:
+    center;
+
+  font-size:
+    9px;
+
+  font-weight:
+    800;
+}
+
+
+.gas-check-confirmation-input input {
+  width:
+    100%;
+
+  min-height:
+    29px;
+
+  padding:
+    2px 5px;
+
+  border:
+    0;
+
+  background:
+    transparent;
+
+  text-align:
+    center;
+
+  font-size:
+    9px;
+
+  font-weight:
+    700;
+}
+
 @media print {
 
   html,
