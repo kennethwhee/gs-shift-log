@@ -73824,6 +73824,395 @@ function getEfficiencyDailyWorkElements() {
 }
 
 /* =========================================================
+  효율팀 - 일일업무현황
+
+  2단계:
+  화면 상태값 및 날짜 처리
+========================================================= */
+
+const EFFICIENCY_DAILY_WORK_EDITOR_MODE =
+  Object.freeze({
+    NEW:
+      "new",
+
+    EXISTING:
+      "existing"
+  });
+
+
+const efficiencyDailyWorkState = {
+  /*
+    날짜별 보관함 기록
+  */
+  items:
+    [],
+
+
+  /*
+    현재 작성 화면에 연결된 저장 기록
+  */
+  activeRecord:
+    null,
+
+
+  /*
+    현재 선택된 작성일
+  */
+  selectedDate:
+    "",
+
+
+  /*
+    새 기록 또는 기존 저장 기록 수정
+  */
+  editorMode:
+    EFFICIENCY_DAILY_WORK_EDITOR_MODE
+      .NEW,
+
+
+  /*
+    입력 후 아직 저장하지 않은 변경 여부
+  */
+  isDirty:
+    false,
+
+
+  /*
+    날짜별 보관함 표시 여부
+  */
+  isArchiveVisible:
+    true,
+
+
+  /*
+    서버 처리 상태
+  */
+  isLoading:
+    false,
+
+  isSaving:
+    false,
+
+  hasLoaded:
+    false
+};
+
+
+/* =========================================================
+  Date 객체 → YYYY-MM-DD
+
+  UTC 변환을 사용하지 않고
+  브라우저 현지 날짜를 그대로 사용한다.
+========================================================= */
+
+function formatEfficiencyDailyWorkDateValue(
+  date
+) {
+  if (
+    !(date instanceof Date) ||
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "";
+  }
+
+
+  return [
+    String(
+      date.getFullYear()
+    ).padStart(
+      4,
+      "0"
+    ),
+
+    String(
+      date.getMonth() +
+      1
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    String(
+      date.getDate()
+    ).padStart(
+      2,
+      "0"
+    )
+  ].join(
+    "-"
+  );
+}
+
+
+/* =========================================================
+  YYYY-MM-DD → 현지 Date 객체
+
+  실제로 존재하지 않는 날짜는 null을 반환한다.
+========================================================= */
+
+function parseEfficiencyDailyWorkDateValue(
+  value
+) {
+  const normalizedValue =
+    String(
+      value ??
+      ""
+    ).trim();
+
+
+  const dateMatch =
+    /^(\d{4})-(\d{2})-(\d{2})$/
+      .exec(
+        normalizedValue
+      );
+
+
+  if (
+    !dateMatch
+  ) {
+    return null;
+  }
+
+
+  const year =
+    Number(
+      dateMatch[1]
+    );
+
+
+  const month =
+    Number(
+      dateMatch[2]
+    );
+
+
+  const day =
+    Number(
+      dateMatch[3]
+    );
+
+
+  /*
+    정오를 사용해 날짜 이동 시
+    시간대·일광절약시간 영향을 최소화한다.
+  */
+  const parsedDate =
+    new Date(
+      year,
+      month - 1,
+      day,
+      12,
+      0,
+      0,
+      0
+    );
+
+
+  if (
+    Number.isNaN(
+      parsedDate.getTime()
+    ) ||
+    parsedDate.getFullYear() !==
+      year ||
+    parsedDate.getMonth() !==
+      month - 1 ||
+    parsedDate.getDate() !==
+      day
+  ) {
+    return null;
+  }
+
+
+  return parsedDate;
+}
+
+
+/* =========================================================
+  날짜값 정규화
+
+  유효한 값:
+  YYYY-MM-DD
+
+  잘못된 값:
+  빈 문자열
+========================================================= */
+
+function normalizeEfficiencyDailyWorkDateValue(
+  value
+) {
+  if (
+    value instanceof Date
+  ) {
+    return formatEfficiencyDailyWorkDateValue(
+      value
+    );
+  }
+
+
+  const parsedDate =
+    parseEfficiencyDailyWorkDateValue(
+      value
+    );
+
+
+  return parsedDate
+    ? formatEfficiencyDailyWorkDateValue(
+        parsedDate
+      )
+    : "";
+}
+
+
+/* =========================================================
+  날짜 유효성 확인
+========================================================= */
+
+function isValidEfficiencyDailyWorkDateValue(
+  value
+) {
+  return Boolean(
+    parseEfficiencyDailyWorkDateValue(
+      value
+    )
+  );
+}
+
+
+/* =========================================================
+  오늘 날짜
+
+  반환 예:
+  2026-08-03
+========================================================= */
+
+function getEfficiencyDailyWorkTodayValue(
+  now = new Date()
+) {
+  return formatEfficiencyDailyWorkDateValue(
+    now
+  );
+}
+
+
+/* =========================================================
+  날짜 더하기 및 빼기
+
+  예:
+  addEfficiencyDailyWorkDateDays(
+    "2026-08-03",
+    -1
+  )
+
+  반환:
+  2026-08-02
+========================================================= */
+
+function addEfficiencyDailyWorkDateDays(
+  dateValue,
+  dayCount
+) {
+  const sourceDate =
+    parseEfficiencyDailyWorkDateValue(
+      dateValue
+    );
+
+
+  const normalizedDayCount =
+    Number(
+      dayCount
+    );
+
+
+  if (
+    !sourceDate ||
+    !Number.isInteger(
+      normalizedDayCount
+    )
+  ) {
+    return "";
+  }
+
+
+  sourceDate.setDate(
+    sourceDate.getDate() +
+    normalizedDayCount
+  );
+
+
+  return formatEfficiencyDailyWorkDateValue(
+    sourceDate
+  );
+}
+
+
+/* =========================================================
+  A4 문서 표시용 날짜
+
+  반환 예:
+  2026년 08월 03일 월요일
+========================================================= */
+
+function formatEfficiencyDailyWorkDisplayDate(
+  dateValue
+) {
+  const parsedDate =
+    parseEfficiencyDailyWorkDateValue(
+      dateValue
+    );
+
+
+  if (
+    !parsedDate
+  ) {
+    return "";
+  }
+
+
+  const weekdays = [
+    "일요일",
+    "월요일",
+    "화요일",
+    "수요일",
+    "목요일",
+    "금요일",
+    "토요일"
+  ];
+
+
+  return [
+    parsedDate.getFullYear(),
+    "년 ",
+
+    String(
+      parsedDate.getMonth() +
+      1
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    "월 ",
+
+    String(
+      parsedDate.getDate()
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    "일 ",
+
+    weekdays[
+      parsedDate.getDay()
+    ]
+  ].join(
+    ""
+  );
+}
+
+/* =========================================================
   효율팀 - 석회석 입고 현황
 
   API:
