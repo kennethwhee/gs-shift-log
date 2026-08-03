@@ -30550,11 +30550,82 @@ function addOrUpdateLogEntry() {
 }
 
 /* =========================================================
-  작업 시간 저장 전 검증
+  석회석 입고 시간 필수 검증
 
-  기존 addOrUpdateLogEntry()의
-  보직·원본 출처·네비게이터 연동 로직은 유지하고,
-  수동 시간 입력값만 먼저 정규화한다.
+  적용 예:
+  - Limestone 입고 (30.26 ton)
+  - 석회석 입고 (30.26톤)
+
+  인정되는 시간:
+  - 현재시간 체크
+  - 21:40
+  - 2140
+========================================================= */
+
+const LIMESTONE_RECEIPT_CONTENT_PATTERN =
+  /(?:\blime[\s-]*stone\b|석회석)\s*입고(?:량|완료)?\s*(?:[:：=]\s*)?\(?\s*\d{1,3}(?:[.,]\d{1,2})?\s*(?:tons?|t|톤)(?![a-z가-힣])\s*\)?/iu;
+
+
+function hasLimestoneReceiptContent(
+  value
+) {
+  const lines =
+    String(
+      value || ""
+    )
+      .normalize("NFKC")
+      .replace(/\r\n?/g, "\n")
+      .split("\n");
+
+
+  return lines.some(
+    line => {
+      return LIMESTONE_RECEIPT_CONTENT_PATTERN.test(
+        line.trim()
+      );
+    }
+  );
+}
+
+
+function hasValidLimestoneReceiptTime(
+  value
+) {
+  const rawValue =
+    String(
+      value || ""
+    ).trim();
+
+
+  if (!rawValue) {
+    return false;
+  }
+
+
+  const endMarker =
+    "__GS_LIMESTONE_TIME_END__";
+
+
+  const parsedTime =
+    parseLeadingLogTimeExpression(
+      `${rawValue} ${endMarker}`
+    );
+
+
+  return (
+    Boolean(
+      parsedTime.timeText
+    ) &&
+    String(
+      parsedTime.content || ""
+    ).trim() ===
+      endMarker
+  );
+}
+
+
+/* =========================================================
+  작업 시간 및 석회석 입고시간 저장 전 검증
 ========================================================= */
 
 const addOrUpdateLogEntryBeforeTimeValidation =
@@ -30565,21 +30636,73 @@ addOrUpdateLogEntry =
   function addOrUpdateLogEntryWithTimeValidation() {
     const rawTime =
       String(
-        elements.logEntryTime?.value ||
+        elements.logEntryTime
+          ?.value ||
         ""
       ).trim();
 
 
     /*
-      시간 입력값이 있으면 형식을 검사한다.
-
-      잘못된 시간은 저장하지 않는다.
-      시간 입력이 비어 있는 항목은 기존처럼 허용한다.
+      시간 입력값이 있으면 기존 형식으로 검사한다.
     */
     if (
       rawTime &&
       !normalizeLogEntryTime()
     ) {
+      return;
+    }
+
+
+    /*
+      현재시간 또는 내용 앞의 시간을 분석한다.
+    */
+    const resolvedInput =
+      resolveLogEntryTimeAndContent();
+
+
+    const resolvedTime =
+      String(
+        resolvedInput.time ||
+        ""
+      ).trim();
+
+
+    const resolvedContent =
+      String(
+        resolvedInput.content ||
+        ""
+      ).trim();
+
+
+    /*
+      입고 톤수는 있으나 시간이 없으면
+      항목 추가·수정을 중단한다.
+    */
+    if (
+      hasLimestoneReceiptContent(
+        resolvedContent
+      ) &&
+      !hasValidLimestoneReceiptTime(
+        resolvedTime
+      )
+    ) {
+      showToast(
+        "석회석 입고 시간을 반드시 적어주세요",
+        2200
+      );
+
+
+      elements.logEntryContent
+        ?.focus();
+
+
+      elements.logEntryContent
+        ?.setSelectionRange(
+          0,
+          0
+        );
+
+
       return;
     }
 
