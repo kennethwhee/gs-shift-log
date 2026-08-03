@@ -62383,3 +62383,1004 @@ select:focus {
   }
 
 }
+
+/* =========================================================
+  효율팀 석회석 기간 선택판 최종 디자인
+
+  일별:
+  시작일·종료일 직접 선택
+
+  주별:
+  연도 선택
+  1월~12월 / 1주~5주 선택
+
+  월별:
+  연도 선택
+  1월~12월 선택
+========================================================= */
+
+
+/* =========================================================
+  조회 단위
+
+  일별 | 주별 | 월별
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-query-mode {
+  display: flex;
+
+  align-items: center;
+  justify-content: flex-start;
+
+  gap: 12px;
+
+  width: 100%;
+
+  margin-bottom: 13px;
+  padding-bottom: 12px;
+
+  border-bottom: 1px solid #e1e8f0;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-query-mode__label {
+  flex: 0 0 auto;
+
+  color: #4f6279;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+
+/* 기존 버튼 디자인 보완 */
+
+#efficiencyTeamModal
+.limestone-period-query-mode
+.limestone-group-mode-buttons {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 4px;
+
+  margin: 0;
+  padding: 3px;
+
+  border: 1px solid #ccd8e5;
+  border-radius: 9px;
+
+  background: #f1f5f9;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-query-mode
+.limestone-group-mode-button {
+  display: inline-flex;
+
+  min-width: 62px;
+  height: 31px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0 12px;
+
+  border: 0;
+  border-radius: 7px;
+
+  background: transparent;
+  color: #66768a;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+
+  cursor: pointer;
+
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-query-mode
+.limestone-group-mode-button:hover {
+  background: #e4ebf2;
+  color: #314e6e;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-query-mode
+.limestone-group-mode-button.is-active {
+  background: #ffffff;
+  color: #1f5fae;
+
+  box-shadow:
+    0 2px 7px
+    rgba(
+      31,
+      95,
+      174,
+      0.14
+    );
+}
+
+
+/* =========================================================
+  일별·주별·월별 공통 선택 영역
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-picker {
+  display: none;
+
+  width: 100%;
+
+  margin: 0 0 13px;
+  padding: 13px;
+
+  border: 1px solid #d5e0eb;
+  border-radius: 10px;
+
+  background: #f8fafc;
+
+  box-sizing: border-box;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-picker.is-active {
+  display: block;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-picker[hidden] {
+  display: none !important;
+}
+
+
+/* =========================================================
+  선택 영역 제목
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-picker__heading {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  flex-wrap: wrap;
+
+  gap: 7px;
+
+  margin-bottom: 11px;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-picker__heading strong {
+  color: #253e5b;
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-picker__heading span {
+  color: #78879a;
+
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+
+/* =========================================================
+  일별 날짜 선택
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-daily-period-picker
+.limestone-period-search-fields {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(
+        180px,
+        1fr
+      )
+    );
+
+  gap: 10px;
+
+  width: 100%;
+}
+
+
+/* =========================================================
+  주별·월별 연도 선택 도구
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-picker__toolbar {
+  display: flex;
+
+  align-items: flex-end;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  margin-bottom: 11px;
+  padding-bottom: 11px;
+
+  border-bottom: 1px solid #e0e7ef;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-picker__toolbar
+.form-field {
+  flex: 0 0 150px;
+
+  gap: 5px;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-picker__toolbar
+.form-field__label {
+  color: #53667d;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-picker__toolbar
+select {
+  width: 100%;
+  height: 36px;
+
+  padding: 0 10px;
+
+  border: 1px solid #c5d3e1;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #283d57;
+
+  font-size: 11px;
+  font-weight: 850;
+
+  outline: none;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-picker__toolbar
+select:focus {
+  border-color: #6596ca;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(
+      31,
+      95,
+      174,
+      0.09
+    );
+}
+
+
+#efficiencyTeamModal
+.limestone-period-picker__toolbar
+p {
+  flex: 1 1 auto;
+
+  margin: 0;
+
+  color: #7b8999;
+
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.55;
+
+  text-align: right;
+}
+
+
+/* =========================================================
+  주별 선택 목록
+
+  PC:
+  한 줄에 월 2개
+
+  각 월:
+  월 이름 | 1주~5주
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-weekly-option-list {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap: 7px;
+
+  width: 100%;
+  max-height: 265px;
+
+  padding-right: 4px;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  scrollbar-gutter: stable;
+}
+
+
+#efficiencyTeamModal
+.limestone-week-option-row {
+  display: grid;
+
+  grid-template-columns:
+    38px
+    minmax(
+      0,
+      1fr
+    );
+
+  align-items: center;
+
+  gap: 7px;
+
+  min-width: 0;
+
+  padding: 7px;
+
+  border: 1px solid #dce4ed;
+  border-radius: 8px;
+
+  background: #ffffff;
+
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease;
+}
+
+
+#efficiencyTeamModal
+.limestone-week-option-row:hover {
+  border-color: #b6cbe0;
+
+  background: #fbfdff;
+}
+
+
+#efficiencyTeamModal
+.limestone-week-option-row > strong {
+  color: #405772;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  text-align: center;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyTeamModal
+.limestone-week-option-row > div {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      5,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap: 4px;
+
+  min-width: 0;
+}
+
+
+/* =========================================================
+  주차 선택 버튼
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-week-option-button {
+  display: inline-flex;
+
+  min-width: 0;
+  height: 29px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0 4px;
+
+  border: 1px solid #d0dae5;
+  border-radius: 6px;
+
+  background: #f7f9fb;
+  color: #607187;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
+}
+
+
+#efficiencyTeamModal
+.limestone-week-option-button:hover {
+  border-color: #88afd7;
+
+  background: #edf5fd;
+  color: #1f5fae;
+}
+
+
+#efficiencyTeamModal
+.limestone-week-option-button:active {
+  transform: translateY(1px);
+}
+
+
+#efficiencyTeamModal
+.limestone-week-option-button.is-selected {
+  border-color: #1f69b5;
+
+  background: #1f69b5;
+  color: #ffffff;
+
+  box-shadow:
+    0 3px 8px
+    rgba(
+      31,
+      105,
+      181,
+      0.2
+    );
+}
+
+
+/* =========================================================
+  월별 선택 목록
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-monthly-option-list {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      6,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap: 7px;
+
+  width: 100%;
+}
+
+
+/* =========================================================
+  월 선택 버튼
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-month-option-button {
+  display: inline-flex;
+
+  min-width: 0;
+  height: 38px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0 8px;
+
+  border: 1px solid #cfdae6;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #526982;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
+}
+
+
+#efficiencyTeamModal
+.limestone-month-option-button:hover {
+  border-color: #7ea8d4;
+
+  background: #edf5fd;
+  color: #1f5fae;
+}
+
+
+#efficiencyTeamModal
+.limestone-month-option-button:active {
+  transform: translateY(1px);
+}
+
+
+#efficiencyTeamModal
+.limestone-month-option-button.is-selected {
+  border-color: #1f69b5;
+
+  background:
+    linear-gradient(
+      135deg,
+      #236db9,
+      #1b5ca1
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 4px 10px
+    rgba(
+      31,
+      105,
+      181,
+      0.22
+    );
+}
+
+
+/* =========================================================
+  공통 조회 조건
+
+  호기
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-common-fields {
+  display: grid;
+
+  grid-template-columns:
+    minmax(
+      170px,
+      220px
+    );
+
+  align-items: end;
+
+  gap: 10px;
+
+  width: 100%;
+
+  margin: 0 0 13px;
+  padding: 12px 13px;
+
+  border: 1px solid #d8e1eb;
+  border-radius: 9px;
+
+  background: #fbfcfe;
+
+  box-sizing: border-box;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-common-fields
+.form-field {
+  gap: 5px;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-common-fields
+.form-field__label {
+  color: #53667d;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-common-fields
+select {
+  width: 100%;
+  height: 36px;
+
+  padding: 0 10px;
+
+  border: 1px solid #c7d4e1;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #2b4059;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  outline: none;
+}
+
+
+/* =========================================================
+  선택된 기간 미리보기
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-selection-preview {
+  display: grid;
+
+  grid-template-columns:
+    auto
+    auto
+    minmax(
+      0,
+      1fr
+    );
+
+  align-items: center;
+
+  gap: 8px;
+
+  min-height: 39px;
+
+  padding: 8px 11px;
+
+  border: 1px solid #bcd1e8;
+  border-radius: 9px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #edf5fd,
+      #f8fbff
+    );
+
+  color: #334f6d;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-selection-preview > span {
+  display: inline-flex;
+
+  min-height: 21px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 7px;
+
+  border-radius: 999px;
+
+  background: #ffffff;
+  color: #1f5fae;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-selection-preview > strong {
+  color: #244564;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-selection-preview > small {
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: #5d7188;
+
+  font-size: 9px;
+  font-weight: 750;
+
+  text-align: right;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  키보드 포커스
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-week-option-button:focus-visible,
+#efficiencyTeamModal
+.limestone-month-option-button:focus-visible {
+  outline:
+    3px solid
+    rgba(
+      31,
+      95,
+      174,
+      0.18
+    );
+
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+  태블릿
+========================================================= */
+
+@media (max-width: 1050px) {
+
+  #efficiencyTeamModal
+  .limestone-weekly-option-list {
+    grid-template-columns: 1fr;
+
+    max-height: 290px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-monthly-option-list {
+    grid-template-columns:
+      repeat(
+        4,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+
+  #efficiencyTeamModal
+  .limestone-period-query-mode {
+    align-items: stretch;
+    flex-direction: column;
+
+    gap: 8px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-query-mode
+  .limestone-group-mode-buttons {
+    display: grid;
+
+    width: 100%;
+
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-query-mode
+  .limestone-group-mode-button {
+    width: 100%;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-picker {
+    padding: 11px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-daily-period-picker
+  .limestone-period-search-fields {
+    grid-template-columns: 1fr;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-picker__heading {
+    align-items: flex-start;
+    flex-direction: column;
+
+    gap: 3px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-picker__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+
+    gap: 8px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-picker__toolbar
+  .form-field {
+    flex: 0 0 auto;
+
+    width: 100%;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-picker__toolbar
+  p {
+    text-align: left;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-weekly-option-list {
+    grid-template-columns: 1fr;
+
+    max-height: 330px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-week-option-row {
+    grid-template-columns:
+      34px
+      minmax(
+        0,
+        1fr
+      );
+
+    gap: 5px;
+
+    padding: 6px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-week-option-row > div {
+    gap: 3px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-week-option-button {
+    height: 28px;
+
+    padding: 0 2px;
+
+    font-size: 8px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-monthly-option-list {
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(
+          0,
+          1fr
+        )
+      );
+
+    gap: 6px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-month-option-button {
+    height: 36px;
+
+    font-size: 9px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-common-fields {
+    grid-template-columns: 1fr;
+
+    padding: 10px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-selection-preview {
+    grid-template-columns: 1fr;
+
+    gap: 4px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-selection-preview > span {
+    justify-self: start;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-selection-preview > strong {
+    white-space: normal;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-selection-preview > small {
+    text-align: left;
+
+    white-space: normal;
+  }
+
+}
