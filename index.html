@@ -3918,251 +3918,277 @@
   >
 
 <!-- =================================================
-  조회 기간 및 집계 방식
+  석회석 조회 기준
+
+  기본:
+  - 오늘 하루
+  - 이전·다음 하루 이동
+
+  기간 조회:
+  - 버튼을 눌렀을 때만 상세 조건 표시
 ================================================= -->
-<section class="limestone-period-control-card">
+<section class="limestone-day-query-card">
 
   <!-- =================================================
-    현재 조회 기간
+    하루 단위 이동
   ================================================== -->
-  <div class="limestone-period-current">
+  <div class="limestone-day-navigation">
 
-    <div class="limestone-period-current__label">
-
-      <span>
-        조회 기간
-      </span>
-
-      <strong id="limestonePeriodLabel">
-        2026-07-28 ~ 2026-08-03
-      </strong>
-
-      <small id="limestonePeriodDayCount">
-        7일
-      </small>
-
-    </div>
-
-
-    <!-- ===============================================
-      기간 이동
-
-      현재 기간 길이를 유지한 채
-      시작일과 종료일을 함께 이동한다.
-    ================================================ -->
-    <div
-      class="limestone-period-navigation"
-      id="limestonePeriodNavigation"
-      role="group"
-      aria-label="석회석 조회 기간 이동"
+    <button
+      type="button"
+      class="limestone-day-arrow-button"
+      id="limestonePreviousDayButton"
+      aria-label="이전 날짜"
+      title="이전 날짜"
     >
-
-      <button
-        type="button"
-        class="limestone-period-move-button"
-        data-limestone-move-days="-30"
-      >
-        ＜ 30일
-      </button>
-
-
-      <button
-        type="button"
-        class="limestone-period-move-button"
-        data-limestone-move-days="-7"
-      >
-        ＜ 7일
-      </button>
-
-
-      <button
-        type="button"
-        class="limestone-period-move-button"
-        data-limestone-move-days="-1"
-      >
-        ＜ 1일
-      </button>
-
-
-      <button
-        type="button"
-        class="
-          limestone-period-move-button
-          is-today
-        "
-        id="limestoneMoveToTodayButton"
-      >
-        오늘
-      </button>
-
-
-      <button
-        type="button"
-        class="limestone-period-move-button"
-        data-limestone-move-days="1"
-      >
-        1일 ＞
-      </button>
-
-
-      <button
-        type="button"
-        class="limestone-period-move-button"
-        data-limestone-move-days="7"
-      >
-        7일 ＞
-      </button>
-
-
-      <button
-        type="button"
-        class="limestone-period-move-button"
-        data-limestone-move-days="30"
-      >
-        30일 ＞
-      </button>
-
-    </div>
-
-  </div>
-
-
-  <!-- =================================================
-    직접 기간 및 호기 선택
-  ================================================== -->
-  <form
-    class="limestone-search-form"
-    id="limestoneSearchForm"
-  >
-
-    <label class="form-field">
-
-      <span class="form-field__label">
-        시작일
-      </span>
-
-      <input
-        type="date"
-        id="limestoneStartDate"
-        required
-      />
-
-    </label>
-
-
-    <label class="form-field">
-
-      <span class="form-field__label">
-        종료일
-      </span>
-
-      <input
-        type="date"
-        id="limestoneEndDate"
-        required
-      />
-
-    </label>
-
-
-    <label class="form-field">
-
-      <span class="form-field__label">
-        호기
-      </span>
-
-      <select id="limestoneUnitFilter">
-
-        <option value="">
-          전체 호기
-        </option>
-
-        <option value="1">
-          1호기
-        </option>
-
-        <option value="2">
-          2호기
-        </option>
-
-      </select>
-
-    </label>
+      ‹
+    </button>
 
 
     <button
-      type="submit"
-      class="
-        primary-button
-        limestone-search-button
-      "
-      id="searchLimestoneReceiptsButton"
+      type="button"
+      class="limestone-current-day-button"
+      id="limestoneMoveToTodayButton"
+      title="오늘로 이동"
     >
-      조회
+
+      <strong id="limestoneDayLabel">
+        26.08.03 (월)
+      </strong>
+
+      <span
+        class="limestone-today-badge"
+        id="limestoneTodayBadge"
+      >
+        오늘
+      </span>
+
     </button>
 
-  </form>
+
+    <button
+      type="button"
+      class="limestone-day-arrow-button"
+      id="limestoneNextDayButton"
+      aria-label="다음 날짜"
+      title="다음 날짜"
+    >
+      ›
+    </button>
+
+
+    <button
+      type="button"
+      class="limestone-open-period-button"
+      id="openLimestonePeriodSearchButton"
+    >
+      기간 조회
+    </button>
+
+  </div>
 
 
   <!-- =================================================
-    집계 방식
+    기간 조회 결과 안내
 
-    조회 기간은 그대로 두고
-    아래 집계 표만 일별·주별·월별로 변경한다.
+    평상시 하루 조회에서는 숨김
   ================================================== -->
-  <div class="limestone-group-mode-control">
+  <div
+    class="limestone-active-range-information"
+    id="limestoneActiveRangeInformation"
+    hidden
+  >
 
-    <span class="limestone-group-mode-control__label">
-      집계 방식
+    <span>
+      기간 조회
     </span>
 
+    <strong id="limestonePeriodLabel">
+      -
+    </strong>
 
-    <div
-      class="limestone-group-mode-buttons"
-      role="group"
-      aria-label="석회석 입고량 집계 방식"
-    >
+    <small id="limestonePeriodDayCount">
+      -
+    </small>
+
+  </div>
+
+
+  <!-- =================================================
+    기간 조회 설정창
+
+    기간 조회 버튼을 누를 때만 표시
+  ================================================== -->
+  <form
+    class="limestone-period-search-panel"
+    id="limestoneSearchForm"
+    hidden
+  >
+
+    <header class="limestone-period-search-panel__header">
+
+      <div>
+
+        <strong>
+          기간 조회
+        </strong>
+
+        <p>
+          조회할 기간과 집계 방식을 설정하세요.
+        </p>
+
+      </div>
+
 
       <button
         type="button"
-        class="
-          limestone-group-mode-button
-          is-active
-        "
-        data-limestone-group-mode="daily"
-        aria-pressed="true"
+        class="limestone-period-search-close-button"
+        id="closeLimestonePeriodSearchButton"
+        aria-label="기간 조회 닫기"
       >
-        일별
+        ×
       </button>
 
-
-      <button
-        type="button"
-        class="limestone-group-mode-button"
-        data-limestone-group-mode="weekly"
-        aria-pressed="false"
-      >
-        주별
-      </button>
+    </header>
 
 
-      <button
-        type="button"
-        class="limestone-group-mode-button"
-        data-limestone-group-mode="monthly"
-        aria-pressed="false"
-      >
-        월별
-      </button>
+    <div class="limestone-period-search-fields">
+
+      <label class="form-field">
+
+        <span class="form-field__label">
+          시작일
+        </span>
+
+        <input
+          type="date"
+          id="limestoneStartDate"
+          required
+        />
+
+      </label>
+
+
+      <label class="form-field">
+
+        <span class="form-field__label">
+          종료일
+        </span>
+
+        <input
+          type="date"
+          id="limestoneEndDate"
+          required
+        />
+
+      </label>
+
+
+      <label class="form-field">
+
+        <span class="form-field__label">
+          호기
+        </span>
+
+        <select id="limestoneUnitFilter">
+
+          <option value="">
+            전체 호기
+          </option>
+
+          <option value="1">
+            1호기
+          </option>
+
+          <option value="2">
+            2호기
+          </option>
+
+        </select>
+
+      </label>
 
     </div>
 
 
-    <small class="limestone-group-mode-help">
-      선택한 조회 기간의 자료를 원하는 단위로 묶어 표시합니다.
-    </small>
+    <!-- =================================================
+      기간 조회 집계 방식
+    ================================================== -->
+    <div class="limestone-period-group-setting">
 
-  </div>
+      <span class="limestone-period-group-setting__label">
+        집계 방식
+      </span>
+
+
+      <div
+        class="limestone-group-mode-buttons"
+        role="group"
+        aria-label="석회석 입고량 집계 방식"
+      >
+
+        <button
+          type="button"
+          class="
+            limestone-group-mode-button
+            is-active
+          "
+          data-limestone-group-mode="daily"
+          aria-pressed="true"
+        >
+          일별
+        </button>
+
+
+        <button
+          type="button"
+          class="limestone-group-mode-button"
+          data-limestone-group-mode="weekly"
+          aria-pressed="false"
+        >
+          주별
+        </button>
+
+
+        <button
+          type="button"
+          class="limestone-group-mode-button"
+          data-limestone-group-mode="monthly"
+          aria-pressed="false"
+        >
+          월별
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <footer class="limestone-period-search-actions">
+
+      <button
+        type="button"
+        class="secondary-button"
+        id="cancelLimestonePeriodSearchButton"
+      >
+        취소
+      </button>
+
+
+      <button
+        type="submit"
+        class="
+          primary-button
+          limestone-search-button
+        "
+        id="searchLimestoneReceiptsButton"
+      >
+        조회하기
+      </button>
+
+    </footer>
+
+  </form>
 
 </section>
 

@@ -72566,32 +72566,30 @@ function openEfficiencyTeamModal() {
     "/api/limestone-receipts";
 
 
-  const limestoneReceiptState = {
+const limestoneReceiptState = {
   /*
-    현재 조회된 상세 기록
+    현재 화면에 표시된 입고기록
   */
   items:
     [],
 
 
   /*
-    현재 집계 방식으로 묶은 결과
+    기존 코드 호환
+  */
+  dailySummary:
+    [],
 
-    daily:
-    일별
 
-    weekly:
-    월별 1주~5주
-
-    monthly:
-    월별
+  /*
+    일별·주별·월별 집계 결과
   */
   groupedSummary:
     [],
 
 
   /*
-    현재 조회 기간 전체 합계
+    현재 조회 결과 전체 합계
   */
   summary: {
     totalQuantity:
@@ -72609,7 +72607,7 @@ function openEfficiencyTeamModal() {
 
 
   /*
-    현재 조회 조건
+    실제 조회 조건
   */
   range: {
     startDate:
@@ -72624,7 +72622,27 @@ function openEfficiencyTeamModal() {
 
 
   /*
-    기본 집계 방식
+    현재 화면 조회 방식
+
+    day:
+    하루 단위
+
+    range:
+    직접 설정한 기간
+  */
+  queryMode:
+    "day",
+
+
+  /*
+    하루 이동바에서 선택된 날짜
+  */
+  selectedDay:
+    "",
+
+
+  /*
+    기간 조회 집계 방식
   */
   groupMode:
     "daily",
@@ -72637,12 +72655,11 @@ function openEfficiencyTeamModal() {
     false
 };
 
+/* =====================================================
+  석회석 입고 현황 HTML 요소
+===================================================== */
 
-  /* =====================================================
-    HTML 요소
-  ====================================================== */
-
-  function getLimestoneReceiptElements() {
+function getLimestoneReceiptElements() {
   return {
     limestoneTab:
       document.querySelector(
@@ -72676,33 +72693,62 @@ function openEfficiencyTeamModal() {
 
 
     /* ===================================================
-      기간 이동
+      하루 단위 이동
     ==================================================== */
 
-    periodMoveButtons: [
-      ...document.querySelectorAll(
-        "[data-limestone-move-days]"
-      )
-    ],
+    previousDayButton:
+      document.getElementById(
+        "limestonePreviousDayButton"
+      ),
+
+    nextDayButton:
+      document.getElementById(
+        "limestoneNextDayButton"
+      ),
 
     moveToTodayButton:
       document.getElementById(
         "limestoneMoveToTodayButton"
       ),
 
-    periodLabel:
+    dayLabel:
       document.getElementById(
-        "limestonePeriodLabel"
+        "limestoneDayLabel"
       ),
 
-    periodDayCount:
+    todayBadge:
       document.getElementById(
-        "limestonePeriodDayCount"
+        "limestoneTodayBadge"
       ),
 
 
     /* ===================================================
-      직접 조회
+      기간 조회 열기·닫기
+    ==================================================== */
+
+    openPeriodSearchButton:
+      document.getElementById(
+        "openLimestonePeriodSearchButton"
+      ),
+
+    closePeriodSearchButton:
+      document.getElementById(
+        "closeLimestonePeriodSearchButton"
+      ),
+
+    cancelPeriodSearchButton:
+      document.getElementById(
+        "cancelLimestonePeriodSearchButton"
+      ),
+
+    activeRangeInformation:
+      document.getElementById(
+        "limestoneActiveRangeInformation"
+      ),
+
+
+    /* ===================================================
+      기간 조회 입력값
     ==================================================== */
 
     searchForm:
@@ -72725,9 +72771,19 @@ function openEfficiencyTeamModal() {
         "limestoneUnitFilter"
       ),
 
+    periodLabel:
+      document.getElementById(
+        "limestonePeriodLabel"
+      ),
+
+    periodDayCount:
+      document.getElementById(
+        "limestonePeriodDayCount"
+      ),
+
 
     /* ===================================================
-      기간 합계 카드
+      합계 카드
     ==================================================== */
 
     totalQuantity:
@@ -72788,7 +72844,7 @@ function openEfficiencyTeamModal() {
 
 
     /* ===================================================
-      상세 기록
+      입고기록 상세
     ==================================================== */
 
     detailCount:
@@ -72808,7 +72864,7 @@ function openEfficiencyTeamModal() {
 
 
     /* ===================================================
-      직접 입고기록 입력창
+      직접 입고기록 등록·수정
     ==================================================== */
 
     editorPanel:
@@ -73720,64 +73776,86 @@ function setLimestoneGroupMode(
     로딩 상태
   ====================================================== */
 
-  function setLimestoneLoading(
-    isLoading
+function setLimestoneLoading(
+  isLoading
+) {
+  const {
+    loading,
+    refreshButton,
+    searchForm,
+
+    previousDayButton,
+    nextDayButton,
+    moveToTodayButton,
+    openPeriodSearchButton
+  } =
+    getLimestoneReceiptElements();
+
+
+  limestoneReceiptState
+    .isLoading =
+    isLoading ===
+    true;
+
+
+  if (
+    loading
   ) {
-    const {
-      loading,
-      refreshButton,
-      searchForm
-    } =
-      getLimestoneReceiptElements();
-
-
-    limestoneReceiptState
-      .isLoading =
-      isLoading ===
-      true;
-
-
-    if (
-      loading
-    ) {
-      loading.hidden =
-        !isLoading;
-    }
-
-
-    if (
-      refreshButton
-    ) {
-      refreshButton.disabled =
-        isLoading;
-
-
-      refreshButton.textContent =
-        isLoading
-          ? "불러오는 중..."
-          : "새로고침";
-    }
-
-
-    const searchButton =
-      searchForm?.querySelector(
-        'button[type="submit"]'
-      );
-
-
-    if (
-      searchButton
-    ) {
-      searchButton.disabled =
-        isLoading;
-
-
-      searchButton.textContent =
-        isLoading
-          ? "조회 중..."
-          : "조회";
-    }
+    loading.hidden =
+      !isLoading;
   }
+
+
+  if (
+    refreshButton
+  ) {
+    refreshButton.disabled =
+      isLoading;
+
+
+    refreshButton.textContent =
+      isLoading
+        ? "불러오는 중..."
+        : "새로고침";
+  }
+
+
+  [
+    previousDayButton,
+    nextDayButton,
+    moveToTodayButton,
+    openPeriodSearchButton
+  ]
+    .filter(
+      Boolean
+    )
+    .forEach(
+      button => {
+        button.disabled =
+          isLoading;
+      }
+    );
+
+
+  const searchButton =
+    searchForm?.querySelector(
+      'button[type="submit"]'
+    );
+
+
+  if (
+    searchButton
+  ) {
+    searchButton.disabled =
+      isLoading;
+
+
+    searchButton.textContent =
+      isLoading
+        ? "조회 중..."
+        : "조회하기";
+  }
+}
 
 
   /* =====================================================
@@ -78745,20 +78823,16 @@ async function applyLimestoneImportCandidates() {
 }
 
 
-  /* =====================================================
-    이벤트 연결
-  ====================================================== */
-
 /* =====================================================
   석회석 입고 현황 이벤트 연결 최종본
 
-  기능:
-  - 1일·7일·30일 이전·다음 이동
-  - 오늘 이동
-  - 직접 기간 조회
-  - 일별·주별·월별 집계 전환
-  - 업무일지 가져오기
-  - 직접 등록·수정·삭제
+  기본:
+  - 오늘 하루 조회
+  - 이전·다음 하루 이동
+
+  기간 조회:
+  - 버튼을 눌러 설정창 열기
+  - 시작일·종료일·호기·집계방식 설정
 ===================================================== */
 
 function bindLimestoneReceiptEvents() {
@@ -78775,13 +78849,19 @@ function bindLimestoneReceiptEvents() {
     refreshButton,
     openEditorButton,
 
-    periodMoveButtons,
+    previousDayButton,
+    nextDayButton,
     moveToTodayButton,
-    groupModeButtons,
+
+    openPeriodSearchButton,
+    closePeriodSearchButton,
+    cancelPeriodSearchButton,
 
     searchForm,
     startDateInput,
     endDateInput,
+
+    groupModeButtons,
 
     closeEditorButton,
     cancelEditorButton,
@@ -78826,27 +78906,16 @@ function bindLimestoneReceiptEvents() {
   /* ===================================================
     기본 설정
 
-    기간:
-    오늘 포함 최근 7일
-
-    집계:
-    일별
+    오늘 하루
   ==================================================== */
 
   setDefaultLimestoneDateRange();
 
 
-  setLimestoneGroupMode(
-    "daily",
-    {
-      render:
-        false
-    }
-  );
-
-
   /* ===================================================
     석회석 탭 열기
+
+    열 때마다 현재 하루 또는 기간 조건을 다시 조회
   ==================================================== */
 
   limestoneTab.addEventListener(
@@ -78873,32 +78942,39 @@ function bindLimestoneReceiptEvents() {
 
 
   /* ===================================================
-    기간 이전·다음 이동
+    이전 날짜
   ==================================================== */
 
-  periodMoveButtons.forEach(
-    button => {
-      button.addEventListener(
-        "click",
-        async () => {
-          const moveDayCount =
-            Number(
-              button.dataset
-                .limestoneMoveDays
-            );
-
-
-          await moveLimestoneDateRange(
-            moveDayCount
-          );
-        }
-      );
-    }
-  );
+  previousDayButton
+    ?.addEventListener(
+      "click",
+      () => {
+        moveLimestoneDay(
+          -1
+        );
+      }
+    );
 
 
   /* ===================================================
-    오늘 이동
+    다음 날짜
+  ==================================================== */
+
+  nextDayButton
+    ?.addEventListener(
+      "click",
+      () => {
+        moveLimestoneDay(
+          1
+        );
+      }
+    );
+
+
+  /* ===================================================
+    가운데 날짜 클릭
+
+    오늘 하루로 이동
   ==================================================== */
 
   moveToTodayButton
@@ -78909,7 +78985,77 @@ function bindLimestoneReceiptEvents() {
 
 
   /* ===================================================
-    일별·주별·월별 집계 방식
+    기간 조회 설정창 열기
+  ==================================================== */
+
+  openPeriodSearchButton
+    ?.addEventListener(
+      "click",
+      openLimestonePeriodSearchPanel
+    );
+
+
+  /* ===================================================
+    기간 조회 설정창 닫기
+  ==================================================== */
+
+  closePeriodSearchButton
+    ?.addEventListener(
+      "click",
+      closeLimestonePeriodSearchPanel
+    );
+
+
+  cancelPeriodSearchButton
+    ?.addEventListener(
+      "click",
+      closeLimestonePeriodSearchPanel
+    );
+
+
+  /* ===================================================
+    시작일 변경
+
+    종료일 최소값을 시작일로 제한
+  ==================================================== */
+
+  startDateInput
+    ?.addEventListener(
+      "change",
+      () => {
+        const startDate =
+          String(
+            startDateInput.value ||
+            ""
+          ).trim();
+
+
+        if (
+          endDateInput
+        ) {
+          endDateInput.min =
+            startDate;
+
+
+          if (
+            startDate &&
+            endDateInput.value &&
+            endDateInput.value <
+              startDate
+          ) {
+            endDateInput.value =
+              startDate;
+          }
+        }
+      }
+    );
+
+
+  /* ===================================================
+    기간 집계 방식
+
+    설정창에서는 선택만 하고,
+    조회하기를 눌렀을 때 결과에 적용한다.
   ==================================================== */
 
   groupModeButtons.forEach(
@@ -78919,7 +79065,11 @@ function bindLimestoneReceiptEvents() {
         () => {
           setLimestoneGroupMode(
             button.dataset
-              .limestoneGroupMode
+              .limestoneGroupMode,
+            {
+              render:
+                false
+            }
           );
         }
       );
@@ -78928,27 +79078,7 @@ function bindLimestoneReceiptEvents() {
 
 
   /* ===================================================
-    날짜 직접 변경 시 상단 기간 표시 갱신
-
-    실제 서버 조회는 조회 버튼을 눌렀을 때 실행한다.
-  ==================================================== */
-
-  startDateInput
-    ?.addEventListener(
-      "change",
-      updateLimestonePeriodDisplay
-    );
-
-
-  endDateInput
-    ?.addEventListener(
-      "change",
-      updateLimestonePeriodDisplay
-    );
-
-
-  /* ===================================================
-    직접 기간 조회
+    기간 조회 실행
   ==================================================== */
 
   searchForm?.addEventListener(
@@ -78957,13 +79087,7 @@ function bindLimestoneReceiptEvents() {
       event.preventDefault();
 
 
-      closeLimestoneImportPanel();
-
-
-      updateLimestonePeriodDisplay();
-
-
-      await loadLimestoneReceipts();
+      await applyLimestonePeriodSearch();
     }
   );
 
@@ -78976,6 +79100,8 @@ function bindLimestoneReceiptEvents() {
     "click",
     () => {
       closeLimestoneImportPanel();
+
+      closeLimestonePeriodSearchPanel();
 
 
       openLimestoneReceiptEditor();
@@ -79013,7 +79139,14 @@ function bindLimestoneReceiptEvents() {
 
   importButton?.addEventListener(
     "click",
-    openLimestoneImportPanel
+    () => {
+      closeLimestoneReceiptEditor();
+
+      closeLimestonePeriodSearchPanel();
+
+
+      openLimestoneImportPanel();
+    }
   );
 
 
