@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>
+    LNG System 주간점검 일지
+  </title>
+
+  <link
+    rel="stylesheet"
+    href="lng-weekly.css?v=20260803-1"
+  >
+
+  <script
+    src="lng-weekly.js?v=20260803-1"
+    defer
+  ></script>
+
+</head>
+
+
+<body>
+
+  <main
+    class="lng-check-app"
+    data-schedule-day="sunday"
+    data-schedule-shift="D/S"
+  >
+
+
+    <!-- =====================================================
+      작성 화면
+    ====================================================== -->
+
+    <section
+      class="lng-write-view"
+      id="lngWriteView"
+    >
+
+
+      <!-- 상단 조작 영역 -->
+
+      <header class="lng-check-toolbar screen-only">
+
+        <div>
+
+          <p class="lng-check-toolbar__eyebrow">
+            WEEKLY INSPECTION
+          </p>
+
+          <h1>
+            LNG System 주간점검 일지
+          </h1>
+
+          <p class="lng-check-toolbar__schedule">
+            매주 일요일 D/S
+          </p>
+
+          <p
+            class="lng-check-toolbar__save-state"
+            id="lngCheckSaveState"
+          >
+            저장되지 않음
+          </p>
+
+        </div>
+
+
+        <div class="lng-check-toolbar__actions">
+
+          <button
+            type="button"
+            id="lngTemplateEditButton"
+            hidden
+          >
+            내용 편집
+          </button>
+
+          <button
+            type="button"
+            id="lngArchiveOpenButton"
+          >
+            일지 보관함
+          </button>
+
+          <button
+            type="button"
+            id="lngCheckSaveButton"
+          >
+            일지 저장
+          </button>
+
+          <button
+            type="button"
+            id="lngCheckPreviewButton"
+          >
+            인쇄 미리보기
+          </button>
+
+        </div>
+
+      </header>
+
+
+      <!-- ===================================================
+        원본 1페이지
+      ==================================================== -->
+
+      <section
+        class="
+          lng-check-sheet
+          lng-check-sheet--page-1
+        "
+        id="lngCheckSheetPage1"
+      >
+
+
+        <h2 class="lng-check-main-title">
+          LNG System 주간점검 일지
+        </h2>
+
+
+        <div class="lng-check-head-row">
+
+          <div class="lng-check-meta">
+
+            <label class="lng-check-date-field">
+
+              <span>
+                일 시:
+              </span>
+
+              <input
+                type="date"
+                id="lngInspectionDate"
+              >
+
+            </label>
+
+
+            <label class="lng-check-inspector-field">
+
+              <span>
+                점검자:
+              </span>
+
+              <input
+                type="text"
+                id="lngInspectorName"
+                aria-label="점검자"
+              >
+
+            </label>
+
+          </div>
+
+
+          <table class="lng-check-approval-table">
+
+            <thead>
+
+              <tr>
+
+                <th>
+                  파트장
+                </th>
+
+                <th>
+                  팀 장
+                </th>
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              <tr>
+
+                <td>
+
+                  <input
+                    type="text"
+                    id="lngPartLeaderApproval"
+                    aria-label="파트장 결재"
+                  >
+
+                </td>
+
+                <td>
+
+                  <input
+                    type="text"
+                    id="lngTeamLeaderApproval"
+                    aria-label="팀장 결재"
+                  >
+
+                </td>
+
+              </tr>
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+
+        <table class="lng-check-table">
+
+          <colgroup>
+
+            <col class="lng-col-number">
+            <col class="lng-col-area">
+            <col class="lng-col-item">
+            <col class="lng-col-content">
+            <col class="lng-col-action">
+
+          </colgroup>
+
+
+          <thead>
+
+            <tr>
+
+              <th>
+                구분
+              </th>
+
+              <th colspan="2">
+                점 검 사 항
+              </th>
+
+              <th>
+                점검 내용
+              </th>
+
+              <th>
+                조치 사항
+              </th>
+
+            </tr>
+
+          </thead>
+
+
+          <tbody id="lngCheckRowsPage1">
+
+            <tr data-lng-item-row="1">
+              <td>1</td>
+              <td data-lng-item-title>CFBC용 정압기 입구압력 (3~6barg)</td>
+              <td>
+                <div class="lng-value-with-unit">
+                  <input
+                    type="text"
+                    id="lngContent1"
+                    aria-label="1번 점검 내용"
+                  >
+                  <span>barg</span>
+                </div>
+              </td>
+              <td>
+                <textarea
+                  id="lngAction1"
+                  aria-label="1번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="2">
+              <td>2</td>
+              <td data-lng-item-title>CFBC용 정압기 출구압력 (2~4barg)</td>
+              <td>
+                <div class="lng-value-with-unit">
+                  <input
+                    type="text"
+                    id="lngContent2"
+                    aria-label="2번 점검 내용"
+                  >
+                  <span>barg</span>
+                </div>
+              </td>
+              <td>
+                <textarea
+                  id="lngAction2"
+                  aria-label="2번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="3">
+              <td>3</td>
+              <td data-lng-item-title>Aux’ BLR 정압기 입구압력 (3~6barg)</td>
+              <td>
+                <div class="lng-value-with-unit">
+                  <input
+                    type="text"
+                    id="lngContent3"
+                    aria-label="3번 점검 내용"
+                  >
+                  <span>barg</span>
+                </div>
+              </td>
+              <td>
+                <textarea
+                  id="lngAction3"
+                  aria-label="3번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="4">
+              <td>4</td>
+              <td data-lng-item-title>Aux’ BLR 정압기 출구압력 (2~4barg)</td>
+              <td>
+                <div class="lng-value-with-unit">
+                  <input
+                    type="text"
+                    id="lngContent4"
+                    aria-label="4번 점검 내용"
+                  >
+                  <span>barg</span>
+                </div>
+              </td>
+              <td>
+                <textarea
+                  id="lngAction4"
+                  aria-label="4번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="5">
+              <td>5</td>
+              <td data-lng-item-title>CFBC BLR #1 FCV 후단 압력</td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent5"
+                  aria-label="5번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction5"
+                  aria-label="5번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="6">
+              <td>6</td>
+              <td data-lng-item-title>CFBC BLR #2 FCV 후단 압력</td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent6"
+                  aria-label="6번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction6"
+                  aria-label="6번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="7">
+              <td>7</td>
+              <td data-lng-item-title>Aux BLR #3 FCV 후단 압력</td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent7"
+                  aria-label="7번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction7"
+                  aria-label="7번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="8">
+              <td>8</td>
+              <td data-lng-item-title>Aux BLR #4 FCV 후단 압력</td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent8"
+                  aria-label="8번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction8"
+                  aria-label="8번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="9">
+              <td>9</td>
+              <td data-lng-item-title>긴급 차단장치 동작상태</td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent9"
+                  aria-label="9번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction9"
+                  aria-label="9번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="10">
+              <td>10</td>
+              <td data-lng-item-title>정압기 이상유무</td>
+              <td>
+                <div class="lng-inline-fields">
+                  <label>
+                    <span>M/B:</span>
+                    <input
+                      type="text"
+                      id="lngContent10Mb"
+                      aria-label="10번 M/B 점검 내용"
+                    >
+                  </label>
+                  <label>
+                    <span>A/B:</span>
+                    <input
+                      type="text"
+                      id="lngContent10Ab"
+                      aria-label="10번 A/B 점검 내용"
+                    >
+                  </label>
+                </div>
+              </td>
+              <td>
+                <textarea
+                  id="lngAction10"
+                  aria-label="10번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="11">
+              <td>11</td>
+              <td data-lng-item-title>정압실 통풍상태는 양호한가</td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent11"
+                  aria-label="11번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction11"
+                  aria-label="11번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="12">
+              <td>12</td>
+              <td data-lng-item-title>각 Press Gauge는 동작상태는 양호한가</td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent12"
+                  aria-label="12번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction12"
+                  aria-label="12번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="13">
+              <td>13</td>
+              <td data-lng-item-title>각 Gas 누설 경보장치 상태는 양호한가</td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent13"
+                  aria-label="13번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction13"
+                  aria-label="13번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="14">
+              <td>14</td>
+              <td data-lng-item-title>
+                정압실 LNG Line의 Flange 및 접합 부위 등에서<br>
+                가스가 유출되고 있지 않는가
+              </td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent14"
+                  aria-label="14번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction14"
+                  aria-label="14번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="15">
+              <td>15</td>
+              <td data-lng-item-title>
+                CFBC #1 LNG Line의 Flange 및 접합 부위<br>
+                등에서 가스가 유출되고 있지 않는가
+              </td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent15"
+                  aria-label="15번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction15"
+                  aria-label="15번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="16">
+              <td>16</td>
+              <td data-lng-item-title>
+                CFBC #2 LNG Line의 Flange 및 접합 부위<br>
+                등에서 가스가 유출되고 있지 않는가
+              </td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent16"
+                  aria-label="16번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction16"
+                  aria-label="16번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="17">
+              <td>17</td>
+              <td data-lng-item-title>
+                Aux BLR #3 LNG Line의 Flange 및 접합 부위<br>
+                등에서 가스가 유출되고 있지 않는가
+              </td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent17"
+                  aria-label="17번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction17"
+                  aria-label="17번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="18">
+              <td>18</td>
+              <td data-lng-item-title>
+                Aux BLR #4 LNG Line의 Flange 및 접합 부위<br>
+                등에서 가스가 유출되고 있지 않는가
+              </td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent18"
+                  aria-label="18번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction18"
+                  aria-label="18번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="19">
+              <td>19</td>
+              <td data-lng-item-title>CFBC, Aux’ LNG Flow Meter는 정상인가</td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent19"
+                  aria-label="19번 점검 내용"
+                >
+              </td>
+              <td>
+                <div class="lng-stacked-fields">
+                  <label>
+                    <span>CFBC BLR’:</span>
+                    <input
+                      type="text"
+                      id="lngAction19Cfbc"
+                      aria-label="19번 CFBC BLR 조치 사항"
+                    >
+                  </label>
+                  <label>
+                    <span>Aux’ BLR’(1):</span>
+                    <input
+                      type="text"
+                      id="lngAction19Aux1"
+                      aria-label="19번 Aux BLR 1 조치 사항"
+                    >
+                  </label>
+                  <label>
+                    <span>Aux’ BLR’(2):</span>
+                    <input
+                      type="text"
+                      id="lngAction19Aux2"
+                      aria-label="19번 Aux BLR 2 조치 사항"
+                    >
+                  </label>
+                </div>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="20">
+              <td>20</td>
+              <td data-lng-item-title>소화기 상태와 비치는 적당한가</td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent20"
+                  aria-label="20번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction20"
+                  aria-label="20번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="21">
+              <td>21</td>
+              <td data-lng-item-title>I.A Press는 적절한가 (4.0~8.5barg)</td>
+              <td>
+                <div class="lng-value-with-unit">
+                  <input
+                    type="text"
+                    id="lngContent21"
+                    aria-label="21번 점검 내용"
+                  >
+                  <span>barg</span>
+                </div>
+              </td>
+              <td>
+                <textarea
+                  id="lngAction21"
+                  aria-label="21번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+          </tbody>
+
+        </table>
+
+      </section>
+
+
+      <!-- ===================================================
+        원본 2페이지
+      ==================================================== -->
+
+      <section
+        class="
+          lng-check-sheet
+          lng-check-sheet--page-2
+        "
+        id="lngCheckSheetPage2"
+      >
+
+        <table class="lng-check-table lng-check-table--continued">
+
+          <colgroup>
+
+            <col class="lng-col-number">
+            <col class="lng-col-item">
+            <col class="lng-col-content">
+            <col class="lng-col-action">
+
+          </colgroup>
+
+          <tbody id="lngCheckRowsPage2">
+
+            <tr data-lng-item-row="22">
+              <td>22</td>
+              <td data-lng-item-title>
+                Gas Filter #A, #B 전, 후단의 △P는 얼마인가
+              </td>
+              <td>
+                <div class="lng-inline-fields">
+                  <label>
+                    <span>A:</span>
+                    <input
+                      type="text"
+                      id="lngContent22A"
+                      aria-label="22번 A 점검 내용"
+                    >
+                  </label>
+                  <label>
+                    <span>B:</span>
+                    <input
+                      type="text"
+                      id="lngContent22B"
+                      aria-label="22번 B 점검 내용"
+                    >
+                  </label>
+                </div>
+              </td>
+              <td>
+                <textarea
+                  id="lngAction22"
+                  aria-label="22번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="23">
+              <td>23</td>
+              <td data-lng-item-title>각 Control v/v 의 동작상태는 양호한가</td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent23"
+                  aria-label="23번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction23"
+                  aria-label="23번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="24">
+              <td>24</td>
+              <td data-lng-item-title>설비 주변 청결상태는 양호한가</td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent24"
+                  aria-label="24번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction24"
+                  aria-label="24번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="25">
+              <td>25</td>
+              <td
+                class="lng-cafeteria-label"
+                rowspan="4"
+              >
+                식<br>당<br>측
+              </td>
+              <td data-lng-item-title>정압기 입구압력 (3~6barg)</td>
+              <td>
+                <div class="lng-value-with-unit">
+                  <input
+                    type="text"
+                    id="lngContent25"
+                    aria-label="25번 점검 내용"
+                  >
+                  <span>barg</span>
+                </div>
+              </td>
+              <td>
+                <textarea
+                  id="lngAction25"
+                  aria-label="25번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="26">
+              <td>26</td>
+              <td data-lng-item-title>정압기 출구압력 (0.02~0.04barg)</td>
+              <td>
+                <div class="lng-value-with-unit">
+                  <input
+                    type="text"
+                    id="lngContent26"
+                    aria-label="26번 점검 내용"
+                  >
+                  <span>barg</span>
+                </div>
+              </td>
+              <td>
+                <textarea
+                  id="lngAction26"
+                  aria-label="26번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="27">
+              <td>27</td>
+              <td data-lng-item-title>정압기 동작상태는 양호한가</td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent27"
+                  aria-label="27번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction27"
+                  aria-label="27번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+            <tr data-lng-item-row="28">
+              <td>28</td>
+              <td data-lng-item-title>
+                정압기 및 Line의 Flange 접합부위<br>
+                등에서 가스가 새고 있지 않는가
+              </td>
+              <td>
+                <input
+                  type="text"
+                  id="lngContent28"
+                  aria-label="28번 점검 내용"
+                >
+              </td>
+              <td>
+                <textarea
+                  id="lngAction28"
+                  aria-label="28번 조치 사항"
+                ></textarea>
+              </td>
+            </tr>
+
+
+            <tr class="lng-remark-row">
+
+              <th>
+                비<br>고
+              </th>
+
+              <td colspan="3">
+
+                <textarea
+                  id="lngRemark"
+                  aria-label="비고"
+                ></textarea>
+
+              </td>
+
+            </tr>
+
+          </tbody>
+
+        </table>
+
+
+        <footer class="lng-check-sheet-footer">
+
+          <span>
+            설비운영팀
+          </span>
+
+          <span>
+            GS포천그린에너지㈜
+          </span>
+
+        </footer>
+
+      </section>
+
+    </section>
+
+
+    <!-- =====================================================
+      게시판형 보관함 화면
+    ====================================================== -->
+
+    <section
+      class="lng-archive-view screen-only"
+      id="lngArchiveView"
+      hidden
+    >
+
+      <header class="lng-archive-header">
+
+        <button
+          type="button"
+          id="lngArchiveBackButton"
+        >
+          ← 점검표 작성
+        </button>
+
+
+        <div>
+
+          <p>
+            WEEKLY INSPECTION ARCHIVE
+          </p>
+
+          <h2>
+            LNG 주간점검 일지 보관함
+          </h2>
+
+          <small>
+            저장된 점검일지를 조회하고 수정하거나 인쇄할 수 있습니다.
+          </small>
+
+        </div>
+
+
+        <button
+          type="button"
+          id="lngArchiveRefreshButton"
+        >
+          새로고침
+        </button>
+
+      </header>
+
+
+      <section class="lng-archive-filter">
+
+        <label>
+
+          <span>
+            시작일
+          </span>
+
+          <input
+            type="date"
+            id="lngArchiveStartDate"
+          >
+
+        </label>
+
+
+        <label>
+
+          <span>
+            종료일
+          </span>
+
+          <input
+            type="date"
+            id="lngArchiveEndDate"
+          >
+
+        </label>
+
+
+        <label class="lng-archive-filter__search">
+
+          <span>
+            검색
+          </span>
+
+          <input
+            type="search"
+            id="lngArchiveKeyword"
+            placeholder="점검일자, 점검자, 작성자, 상태 검색"
+          >
+
+        </label>
+
+
+        <button
+          type="button"
+          id="lngArchiveSearchButton"
+        >
+          조회
+        </button>
+
+
+        <button
+          type="button"
+          id="lngArchiveResetButton"
+        >
+          초기화
+        </button>
+
+      </section>
+
+
+      <section class="lng-archive-board">
+
+        <header class="lng-archive-board__header">
+
+          <strong>
+            저장된 일지
+          </strong>
+
+          <span id="lngArchiveCount">
+            총 0건
+          </span>
+
+          <small>
+            최신 점검일자순
+          </small>
+
+        </header>
+
+
+        <div class="lng-archive-table-wrap">
+
+          <table class="lng-archive-table">
+
+            <colgroup>
+
+              <col class="lng-archive-col-number">
+              <col class="lng-archive-col-date">
+              <col class="lng-archive-col-shift">
+              <col class="lng-archive-col-person">
+              <col class="lng-archive-col-status">
+              <col class="lng-archive-col-updated">
+              <col class="lng-archive-col-revision">
+              <col class="lng-archive-col-actions">
+
+            </colgroup>
+
+            <thead>
+
+              <tr>
+
+                <th>
+                  번호
+                </th>
+
+                <th>
+                  점검일자
+                </th>
+
+                <th>
+                  근무
+                </th>
+
+                <th>
+                  점검자 / 작성자
+                </th>
+
+                <th>
+                  상태
+                </th>
+
+                <th>
+                  최종수정
+                </th>
+
+                <th>
+                  Revision
+                </th>
+
+                <th>
+                  관리
+                </th>
+
+              </tr>
+
+            </thead>
+
+            <tbody id="lngArchiveTableBody"></tbody>
+
+          </table>
+
+
+          <div
+            class="lng-archive-empty"
+            id="lngArchiveEmpty"
+          >
+            저장된 LNG 주간점검 일지가 없습니다.
+          </div>
+
+        </div>
+
+      </section>
+
+    </section>
+
+
+    <!-- =====================================================
+      점검사항 편집 팝업
+      최고관리자만 사용
+    ====================================================== -->
+
+    <section
+      class="lng-template-modal screen-only"
+      id="lngTemplateModal"
+      hidden
+    >
+
+      <div class="lng-template-modal__panel">
+
+        <header class="lng-template-modal__header">
+
+          <div>
+
+            <strong>
+              LNG 주간점검 사항 편집
+            </strong>
+
+            <small>
+              28개 점검사항의 고정 문구를 수정할 수 있습니다.
+            </small>
+
+          </div>
+
+
+          <button
+            type="button"
+            id="lngTemplateCloseButton"
+            aria-label="내용 편집 닫기"
+          >
+            ×
+          </button>
+
+        </header>
+
+
+        <div class="lng-template-modal__notice">
+
+          <strong>
+            주의
+          </strong>
+
+          <span>
+            변경한 내용은 이후 저장되는 점검일지와 인쇄 양식에 적용됩니다.
+          </span>
+
+        </div>
+
+
+        <div
+          class="lng-template-modal__body"
+          id="lngTemplateEditList"
+        ></div>
+
+
+        <footer class="lng-template-modal__footer">
+
+          <button
+            type="button"
+            id="lngTemplateCancelButton"
+          >
+            취소
+          </button>
+
+          <button
+            type="button"
+            id="lngTemplateApplyButton"
+          >
+            내용 적용
+          </button>
+
+        </footer>
+
+      </div>
+
+    </section>
+
+
+    <!-- =====================================================
+      인쇄 미리보기
+    ====================================================== -->
+
+    <section
+      class="lng-print-preview screen-only"
+      id="lngPrintPreview"
+      hidden
+    >
+
+      <div class="lng-print-preview__panel">
+
+        <header class="lng-print-preview__header">
+
+          <strong>
+            LNG 주간점검 일지 인쇄 미리보기
+          </strong>
+
+          <button
+            type="button"
+            id="lngPreviewCloseButton"
+            aria-label="인쇄 미리보기 닫기"
+          >
+            ×
+          </button>
+
+        </header>
+
+
+        <div
+          class="lng-print-preview__body"
+          id="lngPrintPreviewBody"
+        ></div>
+
+
+        <footer class="lng-print-preview__footer">
+
+          <button
+            type="button"
+            id="lngPreviewCancelButton"
+          >
+            닫기
+          </button>
+
+          <button
+            type="button"
+            id="lngPrintButton"
+          >
+            인쇄
+          </button>
+
+        </footer>
+
+      </div>
+
+    </section>
+
+  </main>
+
+</body>
+
+</html>

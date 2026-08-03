@@ -4052,63 +4052,307 @@
     </header>
 
 
-    <div class="limestone-period-search-fields">
+<!-- =================================================
+  조회 단위
 
-      <label class="form-field">
+  일별:
+  시작일·종료일 직접 지정
 
-        <span class="form-field__label">
-          시작일
-        </span>
+  주별:
+  연도와 월별 주차 선택
 
-        <input
-          type="date"
-          id="limestoneStartDate"
-          required
-        />
+  월별:
+  연도와 월 선택
+================================================= -->
+<div class="limestone-period-query-mode">
 
-      </label>
-
-
-      <label class="form-field">
-
-        <span class="form-field__label">
-          종료일
-        </span>
-
-        <input
-          type="date"
-          id="limestoneEndDate"
-          required
-        />
-
-      </label>
+  <span class="limestone-period-query-mode__label">
+    조회 단위
+  </span>
 
 
-      <label class="form-field">
+  <div
+    class="limestone-group-mode-buttons"
+    role="group"
+    aria-label="석회석 조회 단위"
+  >
 
-        <span class="form-field__label">
-          호기
-        </span>
+    <button
+      type="button"
+      class="
+        limestone-group-mode-button
+        is-active
+      "
+      data-limestone-group-mode="daily"
+      aria-pressed="true"
+    >
+      일별
+    </button>
 
-        <select id="limestoneUnitFilter">
 
-          <option value="">
-            전체 호기
-          </option>
+    <button
+      type="button"
+      class="limestone-group-mode-button"
+      data-limestone-group-mode="weekly"
+      aria-pressed="false"
+    >
+      주별
+    </button>
 
-          <option value="1">
-            1호기
-          </option>
 
-          <option value="2">
-            2호기
-          </option>
+    <button
+      type="button"
+      class="limestone-group-mode-button"
+      data-limestone-group-mode="monthly"
+      aria-pressed="false"
+    >
+      월별
+    </button>
 
-        </select>
+  </div>
 
-      </label>
+</div>
 
-    </div>
+
+<!-- =================================================
+  일별 기간 선택
+
+  시작일·종료일을 직접 선택한다.
+================================================= -->
+<section
+  class="
+    limestone-period-picker
+    limestone-daily-period-picker
+    is-active
+  "
+  id="limestoneDailyPeriodPicker"
+  data-limestone-period-picker="daily"
+>
+
+  <div class="limestone-period-picker__heading">
+
+    <strong>
+      날짜 범위
+    </strong>
+
+    <span>
+      시작일과 종료일을 직접 선택합니다.
+    </span>
+
+  </div>
+
+
+  <div class="limestone-period-search-fields">
+
+    <label class="form-field">
+
+      <span class="form-field__label">
+        시작일
+      </span>
+
+      <input
+        type="date"
+        id="limestoneStartDate"
+        required
+      />
+
+    </label>
+
+
+    <label class="form-field">
+
+      <span class="form-field__label">
+        종료일
+      </span>
+
+      <input
+        type="date"
+        id="limestoneEndDate"
+        required
+      />
+
+    </label>
+
+  </div>
+
+</section>
+
+
+<!-- =================================================
+  주별 기간 선택
+
+  JavaScript에서 선택한 연도의
+  월별 1주~5주 버튼을 생성한다.
+================================================= -->
+<section
+  class="
+    limestone-period-picker
+    limestone-weekly-period-picker
+  "
+  id="limestoneWeeklyPeriodPicker"
+  data-limestone-period-picker="weekly"
+  hidden
+>
+
+  <div class="limestone-period-picker__heading">
+
+    <strong>
+      주차 선택
+    </strong>
+
+    <span>
+      조회할 주차를 한 개 선택합니다.
+    </span>
+
+  </div>
+
+
+  <div class="limestone-period-picker__toolbar">
+
+    <label class="form-field">
+
+      <span class="form-field__label">
+        연도
+      </span>
+
+      <select id="limestoneWeeklyYearSelect">
+      </select>
+
+    </label>
+
+
+    <p>
+      1주 1~7일 · 2주 8~14일 ·
+      3주 15~21일 · 4주 22~28일 ·
+      5주 29~말일
+    </p>
+
+  </div>
+
+
+  <div
+    class="limestone-weekly-option-list"
+    id="limestoneWeeklyOptionList"
+    role="group"
+    aria-label="월별 주차 선택"
+  >
+  </div>
+
+</section>
+
+
+<!-- =================================================
+  월별 기간 선택
+
+  JavaScript에서 1월~12월 버튼을 생성한다.
+================================================= -->
+<section
+  class="
+    limestone-period-picker
+    limestone-monthly-period-picker
+  "
+  id="limestoneMonthlyPeriodPicker"
+  data-limestone-period-picker="monthly"
+  hidden
+>
+
+  <div class="limestone-period-picker__heading">
+
+    <strong>
+      월 선택
+    </strong>
+
+    <span>
+      조회할 월을 한 개 선택합니다.
+    </span>
+
+  </div>
+
+
+  <div class="limestone-period-picker__toolbar">
+
+    <label class="form-field">
+
+      <span class="form-field__label">
+        연도
+      </span>
+
+      <select id="limestoneMonthlyYearSelect">
+      </select>
+
+    </label>
+
+  </div>
+
+
+  <div
+    class="limestone-monthly-option-list"
+    id="limestoneMonthlyOptionList"
+    role="group"
+    aria-label="조회 월 선택"
+  >
+  </div>
+
+</section>
+
+
+<!-- =================================================
+  공통 조회 조건
+================================================= -->
+<div class="limestone-period-common-fields">
+
+  <label class="form-field">
+
+    <span class="form-field__label">
+      호기
+    </span>
+
+    <select id="limestoneUnitFilter">
+
+      <option value="">
+        전체 호기
+      </option>
+
+      <option value="1">
+        1호기
+      </option>
+
+      <option value="2">
+        2호기
+      </option>
+
+    </select>
+
+  </label>
+
+</div>
+
+
+<!-- =================================================
+  선택된 기간 미리보기
+
+  예:
+  2026년 7월 3주
+  2026-07-15 ~ 2026-07-21
+================================================= -->
+<div
+  class="limestone-period-selection-preview"
+  id="limestonePeriodSelectionPreview"
+>
+
+  <span>
+    선택 기간
+  </span>
+
+  <strong id="limestonePeriodSelectionTitle">
+    직접 날짜 선택
+  </strong>
+
+  <small id="limestonePeriodSelectionRange">
+    -
+  </small>
+
+</div>
 
 
     <!-- =================================================

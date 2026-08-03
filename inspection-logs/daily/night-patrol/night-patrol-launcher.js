@@ -332,39 +332,40 @@
   }
 
 
-  /* =====================================================
-    최종 사용 권한
-  ====================================================== */
+/* =====================================================
+  점검일지 메뉴 표시 조건
 
-  function canCurrentUserUseNightPatrol() {
-    if (
-      !desktopMedia.matches
-    ) {
-      return false;
-    }
+  - PC 화면
+  - 로그인 완료 후 앱 화면이 표시된 모든 직원
+  - 보직 및 관리자 권한 제한 없음
+====================================================== */
 
-    const appShell =
-      document.getElementById(
-        "appShell"
-      );
-
-    if (
-      !appShell ||
-      appShell.hidden === true
-    ) {
-      return false;
-    }
-
-    if (
-      isCurrentUserNightPatrolSuperAdmin()
-    ) {
-      return true;
-    }
-
-    return ALLOWED_POSITIONS.has(
-      getCurrentUserPosition()
-    );
+function canCurrentUserUseNightPatrol() {
+  /*
+    현재는 PC 화면에서만 표시한다.
+  */
+  if (
+    !desktopMedia.matches
+  ) {
+    return false;
   }
+
+
+  /*
+    로그인 완료 후 appShell이 표시된 경우에는
+    보직·계정 권한과 관계없이 점검일지 메뉴를 표시한다.
+  */
+  const appShell =
+    document.getElementById(
+      "appShell"
+    );
+
+
+  return Boolean(
+    appShell &&
+    appShell.hidden === false
+  );
+}
 
 
   function getModal() {

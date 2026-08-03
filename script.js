@@ -73869,6 +73869,11 @@ async function moveLimestoneDateRangeToToday() {
 
 /* =====================================================
   기간 조회 설정창 열기
+
+  - 연도 목록 생성
+  - 주차 버튼 생성
+  - 월 버튼 생성
+  - 현재 조회 단위 화면 표시
 ===================================================== */
 
 function openLimestonePeriodSearchPanel() {
@@ -73900,8 +73905,8 @@ function openLimestonePeriodSearchPanel() {
 
 
   /*
-    하루 조회 중이라면 현재 선택 날짜를
-    시작일과 종료일 기본값으로 넣는다.
+    하루 조회 중이면 현재 보고 있던 날짜를
+    일별 시작일·종료일 기본값으로 사용한다.
   */
   if (
     limestoneReceiptState
@@ -73967,9 +73972,21 @@ function openLimestonePeriodSearchPanel() {
     );
 
 
+  /*
+    주별·월별 선택 기능을 초기화한다.
+  */
+  initializeLimestonePeriodSelectionControls();
+
+
   window.requestAnimationFrame(
     () => {
-      startDateInput?.focus();
+      searchForm.scrollIntoView({
+        behavior:
+          "smooth",
+
+        block:
+          "nearest"
+      });
     }
   );
 }
@@ -74107,16 +74124,1596 @@ async function applyLimestonePeriodSearch() {
 }
 
 /* =====================================================
-  집계 방식 변경
+  석회석 기간 선택 요소
+===================================================== */
+
+function getLimestonePeriodPickerElements() {
+  return {
+    searchForm:
+      document.getElementById(
+        "limestoneSearchForm"
+      ),
+
+    startDateInput:
+      document.getElementById(
+        "limestoneStartDate"
+      ),
+
+    endDateInput:
+      document.getElementById(
+        "limestoneEndDate"
+      ),
+
+
+    /*
+      조회 단위별 화면
+    */
+    periodPickers:
+      Array.from(
+        document.querySelectorAll(
+          "[data-limestone-period-picker]"
+        )
+      ),
+
+    dailyPicker:
+      document.getElementById(
+        "limestoneDailyPeriodPicker"
+      ),
+
+    weeklyPicker:
+      document.getElementById(
+        "limestoneWeeklyPeriodPicker"
+      ),
+
+    monthlyPicker:
+      document.getElementById(
+        "limestoneMonthlyPeriodPicker"
+      ),
+
+
+    /*
+      주별 선택
+    */
+    weeklyYearSelect:
+      document.getElementById(
+        "limestoneWeeklyYearSelect"
+      ),
+
+    weeklyOptionList:
+      document.getElementById(
+        "limestoneWeeklyOptionList"
+      ),
+
+
+    /*
+      월별 선택
+    */
+    monthlyYearSelect:
+      document.getElementById(
+        "limestoneMonthlyYearSelect"
+      ),
+
+    monthlyOptionList:
+      document.getElementById(
+        "limestoneMonthlyOptionList"
+      ),
+
+
+    /*
+      선택 기간 미리보기
+    */
+    selectionPreview:
+      document.getElementById(
+        "limestonePeriodSelectionPreview"
+      ),
+
+    selectionTitle:
+      document.getElementById(
+        "limestonePeriodSelectionTitle"
+      ),
+
+    selectionRange:
+      document.getElementById(
+        "limestonePeriodSelectionRange"
+      )
+  };
+}
+
+
+/* =====================================================
+  연·월·일 → YYYY-MM-DD
+===================================================== */
+
+function createLimestoneDateValue(
+  year,
+  month,
+  day
+) {
+  return [
+    String(
+      Number(
+        year
+      )
+    ),
+
+    String(
+      Number(
+        month
+      )
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    String(
+      Number(
+        day
+      )
+    ).padStart(
+      2,
+      "0"
+    )
+  ].join(
+    "-"
+  );
+}
+
+
+/* =====================================================
+  해당 월의 마지막 날짜
+
+  예:
+  2026년 2월 → 28
+  2026년 8월 → 31
+===================================================== */
+
+function getLimestoneMonthLastDay(
+  year,
+  month
+) {
+  return new Date(
+    Number(
+      year
+    ),
+
+    Number(
+      month
+    ),
+
+    0
+  ).getDate();
+}
+
+
+/* =====================================================
+  월별 주차 기간 계산
+
+  1주:
+  1일~7일
+
+  2주:
+  8일~14일
+
+  3주:
+  15일~21일
+
+  4주:
+  22일~28일
+
+  5주:
+  29일~말일
+===================================================== */
+
+function getLimestoneWeekDateRange(
+  year,
+  month,
+  weekNumber
+) {
+  const normalizedYear =
+    Number(
+      year
+    );
+
+
+  const normalizedMonth =
+    Number(
+      month
+    );
+
+
+  const normalizedWeekNumber =
+    Number(
+      weekNumber
+    );
+
+
+  if (
+    !Number.isInteger(
+      normalizedYear
+    ) ||
+    !Number.isInteger(
+      normalizedMonth
+    ) ||
+    !Number.isInteger(
+      normalizedWeekNumber
+    ) ||
+    normalizedMonth <
+      1 ||
+    normalizedMonth >
+      12 ||
+    normalizedWeekNumber <
+      1 ||
+    normalizedWeekNumber >
+      5
+  ) {
+    return null;
+  }
+
+
+  const lastDay =
+    getLimestoneMonthLastDay(
+      normalizedYear,
+      normalizedMonth
+    );
+
+
+  const startDay =
+    (
+      normalizedWeekNumber -
+      1
+    ) *
+    7 +
+    1;
+
+
+  if (
+    startDay >
+      lastDay
+  ) {
+    return null;
+  }
+
+
+  const endDay =
+    Math.min(
+      normalizedWeekNumber *
+        7,
+      lastDay
+    );
+
+
+  return {
+    year:
+      normalizedYear,
+
+    month:
+      normalizedMonth,
+
+    weekNumber:
+      normalizedWeekNumber,
+
+    startDate:
+      createLimestoneDateValue(
+        normalizedYear,
+        normalizedMonth,
+        startDay
+      ),
+
+    endDate:
+      createLimestoneDateValue(
+        normalizedYear,
+        normalizedMonth,
+        endDay
+      ),
+
+    title:
+      `${normalizedYear}년 ${normalizedMonth}월 ${normalizedWeekNumber}주`
+  };
+}
+
+
+/* =====================================================
+  월 전체 기간 계산
+===================================================== */
+
+function getLimestoneMonthDateRange(
+  year,
+  month
+) {
+  const normalizedYear =
+    Number(
+      year
+    );
+
+
+  const normalizedMonth =
+    Number(
+      month
+    );
+
+
+  if (
+    !Number.isInteger(
+      normalizedYear
+    ) ||
+    !Number.isInteger(
+      normalizedMonth
+    ) ||
+    normalizedMonth <
+      1 ||
+    normalizedMonth >
+      12
+  ) {
+    return null;
+  }
+
+
+  const lastDay =
+    getLimestoneMonthLastDay(
+      normalizedYear,
+      normalizedMonth
+    );
+
+
+  return {
+    year:
+      normalizedYear,
+
+    month:
+      normalizedMonth,
+
+    startDate:
+      createLimestoneDateValue(
+        normalizedYear,
+        normalizedMonth,
+        1
+      ),
+
+    endDate:
+      createLimestoneDateValue(
+        normalizedYear,
+        normalizedMonth,
+        lastDay
+      ),
+
+    title:
+      `${normalizedYear}년 ${normalizedMonth}월`
+  };
+}
+
+
+/* =====================================================
+  연도 선택 목록 생성
+
+  현재 연도를 기준으로:
+  - 과거 10년
+  - 다음 1년
+===================================================== */
+
+function populateLimestonePeriodYearSelect(
+  selectElement,
+  selectedYear
+) {
+  if (
+    !selectElement
+  ) {
+    return;
+  }
+
+
+  const currentYear =
+    new Date()
+      .getFullYear();
+
+
+  const minimumYear =
+    currentYear -
+    10;
+
+
+  const maximumYear =
+    currentYear +
+    1;
+
+
+  const normalizedSelectedYear =
+    Math.min(
+      maximumYear,
+      Math.max(
+        minimumYear,
+        Number(
+          selectedYear
+        ) ||
+        currentYear
+      )
+    );
+
+
+  const yearOptions = [];
+
+
+  for (
+    let year =
+      maximumYear;
+
+    year >=
+      minimumYear;
+
+    year -=
+      1
+  ) {
+    yearOptions.push(`
+      <option
+        value="${year}"
+        ${
+          year ===
+            normalizedSelectedYear
+            ? "selected"
+            : ""
+        }
+      >
+        ${year}년
+      </option>
+    `);
+  }
+
+
+  selectElement.innerHTML =
+    yearOptions.join(
+      ""
+    );
+
+
+  selectElement.value =
+    String(
+      normalizedSelectedYear
+    );
+}
+
+
+/* =====================================================
+  선택 기간 미리보기
+===================================================== */
+
+function updateLimestonePeriodSelectionPreview(
+  title,
+  startDate,
+  endDate
+) {
+  const {
+    selectionTitle,
+    selectionRange
+  } =
+    getLimestonePeriodPickerElements();
+
+
+  const normalizedTitle =
+    String(
+      title ||
+      "선택 기간"
+    ).trim();
+
+
+  const normalizedStartDate =
+    String(
+      startDate ||
+      ""
+    ).trim();
+
+
+  const normalizedEndDate =
+    String(
+      endDate ||
+      ""
+    ).trim();
+
+
+  if (
+    selectionTitle
+  ) {
+    selectionTitle.textContent =
+      normalizedTitle;
+  }
+
+
+  if (
+    selectionRange
+  ) {
+    const dayCount =
+      getLimestoneDateRangeDayCount(
+        normalizedStartDate,
+        normalizedEndDate
+      );
+
+
+    selectionRange.textContent =
+      normalizedStartDate &&
+      normalizedEndDate
+        ? [
+            `${normalizedStartDate} ~ ${normalizedEndDate}`,
+
+            dayCount >
+              0
+              ? `(${dayCount}일)`
+              : ""
+          ]
+            .filter(
+              Boolean
+            )
+            .join(
+              " "
+            )
+        : "-";
+  }
+}
+
+
+/* =====================================================
+  일별 직접 선택 미리보기
+===================================================== */
+
+function updateLimestoneDailyPeriodSelectionPreview() {
+  const {
+    startDateInput,
+    endDateInput
+  } =
+    getLimestonePeriodPickerElements();
+
+
+  updateLimestonePeriodSelectionPreview(
+    "직접 날짜 선택",
+    startDateInput?.value,
+    endDateInput?.value
+  );
+}
+
+
+/* =====================================================
+  주차 선택 적용
+
+  선택한 주의 시작일·종료일을
+  기존 날짜 입력칸에 자동 입력한다.
+===================================================== */
+
+function selectLimestoneWeeklyPeriod(
+  year,
+  month,
+  weekNumber
+) {
+  const periodRange =
+    getLimestoneWeekDateRange(
+      year,
+      month,
+      weekNumber
+    );
+
+
+  if (
+    !periodRange
+  ) {
+    showLimestoneToast(
+      "선택한 주차의 기간을 확인할 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  const {
+    startDateInput,
+    endDateInput,
+    weeklyYearSelect,
+    weeklyOptionList
+  } =
+    getLimestonePeriodPickerElements();
+
+
+  if (
+    !startDateInput ||
+    !endDateInput
+  ) {
+    return;
+  }
+
+
+  startDateInput.value =
+    periodRange.startDate;
+
+
+  endDateInput.value =
+    periodRange.endDate;
+
+
+  endDateInput.min =
+    periodRange.startDate;
+
+
+  limestoneReceiptState
+    .selectedDay =
+    periodRange.endDate;
+
+
+  if (
+    weeklyYearSelect
+  ) {
+    weeklyYearSelect.value =
+      String(
+        periodRange.year
+      );
+  }
+
+
+  weeklyOptionList
+    ?.querySelectorAll(
+      "[data-limestone-week-year]"
+    )
+    .forEach(
+      button => {
+        const isSelected =
+          Number(
+            button.dataset
+              .limestoneWeekYear
+          ) ===
+            periodRange.year &&
+
+          Number(
+            button.dataset
+              .limestoneWeekMonth
+          ) ===
+            periodRange.month &&
+
+          Number(
+            button.dataset
+              .limestoneWeekNumber
+          ) ===
+            periodRange.weekNumber;
+
+
+        button.classList.toggle(
+          "is-selected",
+          isSelected
+        );
+
+
+        button.setAttribute(
+          "aria-pressed",
+          String(
+            isSelected
+          )
+        );
+      }
+    );
+
+
+  updateLimestonePeriodSelectionPreview(
+    periodRange.title,
+    periodRange.startDate,
+    periodRange.endDate
+  );
+}
+
+
+/* =====================================================
+  월 선택 적용
+
+  선택한 월의 1일~말일을
+  기존 날짜 입력칸에 자동 입력한다.
+===================================================== */
+
+function selectLimestoneMonthlyPeriod(
+  year,
+  month
+) {
+  const periodRange =
+    getLimestoneMonthDateRange(
+      year,
+      month
+    );
+
+
+  if (
+    !periodRange
+  ) {
+    showLimestoneToast(
+      "선택한 월의 기간을 확인할 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  const {
+    startDateInput,
+    endDateInput,
+    monthlyYearSelect,
+    monthlyOptionList
+  } =
+    getLimestonePeriodPickerElements();
+
+
+  if (
+    !startDateInput ||
+    !endDateInput
+  ) {
+    return;
+  }
+
+
+  startDateInput.value =
+    periodRange.startDate;
+
+
+  endDateInput.value =
+    periodRange.endDate;
+
+
+  endDateInput.min =
+    periodRange.startDate;
+
+
+  limestoneReceiptState
+    .selectedDay =
+    periodRange.endDate;
+
+
+  if (
+    monthlyYearSelect
+  ) {
+    monthlyYearSelect.value =
+      String(
+        periodRange.year
+      );
+  }
+
+
+  monthlyOptionList
+    ?.querySelectorAll(
+      "[data-limestone-month-year]"
+    )
+    .forEach(
+      button => {
+        const isSelected =
+          Number(
+            button.dataset
+              .limestoneMonthYear
+          ) ===
+            periodRange.year &&
+
+          Number(
+            button.dataset
+              .limestoneMonthNumber
+          ) ===
+            periodRange.month;
+
+
+        button.classList.toggle(
+          "is-selected",
+          isSelected
+        );
+
+
+        button.setAttribute(
+          "aria-pressed",
+          String(
+            isSelected
+          )
+        );
+      }
+    );
+
+
+  updateLimestonePeriodSelectionPreview(
+    periodRange.title,
+    periodRange.startDate,
+    periodRange.endDate
+  );
+}
+
+
+/* =====================================================
+  주별 선택 버튼 생성
+
+  예:
+  7월 | 1주 2주 3주 4주 5주
+  8월 | 1주 2주 3주 4주 5주
+===================================================== */
+
+function renderLimestoneWeeklyPeriodOptions(
+  options = {}
+) {
+  const {
+    selectDefault =
+      false
+  } = options;
+
+
+  const {
+    weeklyYearSelect,
+    weeklyOptionList,
+    startDateInput,
+    endDateInput
+  } =
+    getLimestonePeriodPickerElements();
+
+
+  if (
+    !weeklyYearSelect ||
+    !weeklyOptionList
+  ) {
+    return;
+  }
+
+
+  const selectedYear =
+    Number(
+      weeklyYearSelect.value
+    ) ||
+    new Date()
+      .getFullYear();
+
+
+  const currentStartDate =
+    String(
+      startDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const currentEndDate =
+    String(
+      endDateInput?.value ||
+      ""
+    ).trim();
+
+
+  let hasMatchedSelection =
+    false;
+
+
+  const monthRows = [];
+
+
+  for (
+    let month =
+      1;
+
+    month <=
+      12;
+
+    month +=
+      1
+  ) {
+    const lastDay =
+      getLimestoneMonthLastDay(
+        selectedYear,
+        month
+      );
+
+
+    const maximumWeekNumber =
+      Math.ceil(
+        lastDay /
+        7
+      );
+
+
+    const weekButtons = [];
+
+
+    for (
+      let weekNumber =
+        1;
+
+      weekNumber <=
+        maximumWeekNumber;
+
+      weekNumber +=
+        1
+    ) {
+      const periodRange =
+        getLimestoneWeekDateRange(
+          selectedYear,
+          month,
+          weekNumber
+        );
+
+
+      if (
+        !periodRange
+      ) {
+        continue;
+      }
+
+
+      const isSelected =
+        currentStartDate ===
+          periodRange.startDate &&
+        currentEndDate ===
+          periodRange.endDate;
+
+
+      if (
+        isSelected
+      ) {
+        hasMatchedSelection =
+          true;
+      }
+
+
+      weekButtons.push(`
+        <button
+          type="button"
+          class="
+            limestone-week-option-button
+            ${
+              isSelected
+                ? "is-selected"
+                : ""
+            }
+          "
+          data-limestone-week-year="${selectedYear}"
+          data-limestone-week-month="${month}"
+          data-limestone-week-number="${weekNumber}"
+          aria-pressed="${
+            isSelected
+              ? "true"
+              : "false"
+          }"
+          title="${periodRange.startDate} ~ ${periodRange.endDate}"
+        >
+          ${weekNumber}주
+        </button>
+      `);
+    }
+
+
+    monthRows.push(`
+      <article class="limestone-week-option-row">
+
+        <strong>
+          ${month}월
+        </strong>
+
+        <div>
+          ${weekButtons.join(
+            ""
+          )}
+        </div>
+
+      </article>
+    `);
+  }
+
+
+  weeklyOptionList.innerHTML =
+    monthRows.join(
+      ""
+    );
+
+
+  /*
+    기존 날짜가 주차와 정확히 일치하면
+    해당 주차를 그대로 표시한다.
+  */
+  if (
+    hasMatchedSelection
+  ) {
+    const selectedButton =
+      weeklyOptionList.querySelector(
+        ".limestone-week-option-button.is-selected"
+      );
+
+
+    if (
+      selectedButton
+    ) {
+      const periodRange =
+        getLimestoneWeekDateRange(
+          selectedButton.dataset
+            .limestoneWeekYear,
+
+          selectedButton.dataset
+            .limestoneWeekMonth,
+
+          selectedButton.dataset
+            .limestoneWeekNumber
+        );
+
+
+      if (
+        periodRange
+      ) {
+        updateLimestonePeriodSelectionPreview(
+          periodRange.title,
+          periodRange.startDate,
+          periodRange.endDate
+        );
+      }
+    }
+
+
+    return;
+  }
+
+
+  if (
+    !selectDefault
+  ) {
+    return;
+  }
+
+
+  /*
+    최초 주별 전환 시:
+    선택 날짜가 포함된 주를 기본 선택한다.
+
+    다른 연도를 선택하면:
+    해당 연도의 1월 1주를 기본 선택한다.
+  */
+  const referenceDate =
+    parseLimestoneDateValue(
+      limestoneReceiptState
+        .selectedDay ||
+      getLimestoneToday()
+    );
+
+
+  const referenceYear =
+    referenceDate
+      ?.getFullYear();
+
+
+  const defaultMonth =
+    referenceYear ===
+      selectedYear
+      ? referenceDate.getMonth() +
+        1
+      : 1;
+
+
+  const defaultWeekNumber =
+    referenceYear ===
+      selectedYear
+      ? Math.ceil(
+          referenceDate.getDate() /
+          7
+        )
+      : 1;
+
+
+  selectLimestoneWeeklyPeriod(
+    selectedYear,
+    defaultMonth,
+    defaultWeekNumber
+  );
+}
+
+
+/* =====================================================
+  월별 선택 버튼 생성
+
+  1월~12월
+===================================================== */
+
+function renderLimestoneMonthlyPeriodOptions(
+  options = {}
+) {
+  const {
+    selectDefault =
+      false
+  } = options;
+
+
+  const {
+    monthlyYearSelect,
+    monthlyOptionList,
+    startDateInput,
+    endDateInput
+  } =
+    getLimestonePeriodPickerElements();
+
+
+  if (
+    !monthlyYearSelect ||
+    !monthlyOptionList
+  ) {
+    return;
+  }
+
+
+  const selectedYear =
+    Number(
+      monthlyYearSelect.value
+    ) ||
+    new Date()
+      .getFullYear();
+
+
+  const currentStartDate =
+    String(
+      startDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const currentEndDate =
+    String(
+      endDateInput?.value ||
+      ""
+    ).trim();
+
+
+  let hasMatchedSelection =
+    false;
+
+
+  const monthButtons = [];
+
+
+  for (
+    let month =
+      1;
+
+    month <=
+      12;
+
+    month +=
+      1
+  ) {
+    const periodRange =
+      getLimestoneMonthDateRange(
+        selectedYear,
+        month
+      );
+
+
+    const isSelected =
+      currentStartDate ===
+        periodRange.startDate &&
+      currentEndDate ===
+        periodRange.endDate;
+
+
+    if (
+      isSelected
+    ) {
+      hasMatchedSelection =
+        true;
+    }
+
+
+    monthButtons.push(`
+      <button
+        type="button"
+        class="
+          limestone-month-option-button
+          ${
+            isSelected
+              ? "is-selected"
+              : ""
+          }
+        "
+        data-limestone-month-year="${selectedYear}"
+        data-limestone-month-number="${month}"
+        aria-pressed="${
+          isSelected
+            ? "true"
+            : "false"
+        }"
+      >
+        ${month}월
+      </button>
+    `);
+  }
+
+
+  monthlyOptionList.innerHTML =
+    monthButtons.join(
+      ""
+    );
+
+
+  if (
+    hasMatchedSelection
+  ) {
+    const selectedButton =
+      monthlyOptionList.querySelector(
+        ".limestone-month-option-button.is-selected"
+      );
+
+
+    if (
+      selectedButton
+    ) {
+      const periodRange =
+        getLimestoneMonthDateRange(
+          selectedButton.dataset
+            .limestoneMonthYear,
+
+          selectedButton.dataset
+            .limestoneMonthNumber
+        );
+
+
+      if (
+        periodRange
+      ) {
+        updateLimestonePeriodSelectionPreview(
+          periodRange.title,
+          periodRange.startDate,
+          periodRange.endDate
+        );
+      }
+    }
+
+
+    return;
+  }
+
+
+  if (
+    !selectDefault
+  ) {
+    return;
+  }
+
+
+  const referenceDate =
+    parseLimestoneDateValue(
+      limestoneReceiptState
+        .selectedDay ||
+      getLimestoneToday()
+    );
+
+
+  const referenceYear =
+    referenceDate
+      ?.getFullYear();
+
+
+  const defaultMonth =
+    referenceYear ===
+      selectedYear
+      ? referenceDate.getMonth() +
+        1
+      : 1;
+
+
+  selectLimestoneMonthlyPeriod(
+    selectedYear,
+    defaultMonth
+  );
+}
+
+
+/* =====================================================
+  일별·주별·월별 선택 화면 전환
+===================================================== */
+
+function setLimestonePeriodPickerMode(
+  requestedMode,
+  options = {}
+) {
+  const {
+    selectDefault =
+      true
+  } = options;
+
+
+  const validModes = [
+    "daily",
+    "weekly",
+    "monthly"
+  ];
+
+
+  const normalizedMode =
+    validModes.includes(
+      requestedMode
+    )
+      ? requestedMode
+      : "daily";
+
+
+  const {
+    periodPickers
+  } =
+    getLimestonePeriodPickerElements();
+
+
+  periodPickers.forEach(
+    picker => {
+      const isActive =
+        picker.dataset
+          .limestonePeriodPicker ===
+        normalizedMode;
+
+
+      picker.hidden =
+        !isActive;
+
+
+      picker.classList.toggle(
+        "is-active",
+        isActive
+      );
+    }
+  );
+
+
+  if (
+    normalizedMode ===
+      "daily"
+  ) {
+    updateLimestoneDailyPeriodSelectionPreview();
+
+    return;
+  }
+
+
+  if (
+    normalizedMode ===
+      "weekly"
+  ) {
+    renderLimestoneWeeklyPeriodOptions({
+      selectDefault
+    });
+
+    return;
+  }
+
+
+  renderLimestoneMonthlyPeriodOptions({
+    selectDefault
+  });
+}
+
+
+/* =====================================================
+  기간 선택 기능 초기화
+
+  기간 조회창을 열 때 한 번만 연결한다.
+===================================================== */
+
+function initializeLimestonePeriodSelectionControls() {
+  const {
+    searchForm,
+    startDateInput,
+    endDateInput,
+
+    weeklyYearSelect,
+    weeklyOptionList,
+
+    monthlyYearSelect,
+    monthlyOptionList
+  } =
+    getLimestonePeriodPickerElements();
+
+
+  if (
+    !searchForm
+  ) {
+    return;
+  }
+
+
+  const referenceDate =
+    parseLimestoneDateValue(
+      limestoneReceiptState
+        .selectedDay ||
+      getLimestoneToday()
+    ) ||
+    new Date();
+
+
+  const referenceYear =
+    referenceDate
+      .getFullYear();
+
+
+  /*
+    연도 목록은 화면을 열 때마다
+    현재 선택값을 보존하면서 다시 만든다.
+  */
+  const weeklySelectedYear =
+    Number(
+      weeklyYearSelect?.value
+    ) ||
+    referenceYear;
+
+
+  const monthlySelectedYear =
+    Number(
+      monthlyYearSelect?.value
+    ) ||
+    referenceYear;
+
+
+  populateLimestonePeriodYearSelect(
+    weeklyYearSelect,
+    weeklySelectedYear
+  );
+
+
+  populateLimestonePeriodYearSelect(
+    monthlyYearSelect,
+    monthlySelectedYear
+  );
+
+
+  /*
+    이벤트 중복 연결 방지
+  */
+  if (
+    searchForm.dataset
+      .limestonePeriodSelectionBound !==
+      "true"
+  ) {
+    weeklyYearSelect
+      ?.addEventListener(
+        "change",
+        () => {
+          renderLimestoneWeeklyPeriodOptions({
+            selectDefault:
+              true
+          });
+        }
+      );
+
+
+    monthlyYearSelect
+      ?.addEventListener(
+        "change",
+        () => {
+          renderLimestoneMonthlyPeriodOptions({
+            selectDefault:
+              true
+          });
+        }
+      );
+
+
+    weeklyOptionList
+      ?.addEventListener(
+        "click",
+        event => {
+          const button =
+            event.target.closest(
+              "[data-limestone-week-year]"
+            );
+
+
+          if (
+            !button
+          ) {
+            return;
+          }
+
+
+          selectLimestoneWeeklyPeriod(
+            button.dataset
+              .limestoneWeekYear,
+
+            button.dataset
+              .limestoneWeekMonth,
+
+            button.dataset
+              .limestoneWeekNumber
+          );
+        }
+      );
+
+
+    monthlyOptionList
+      ?.addEventListener(
+        "click",
+        event => {
+          const button =
+            event.target.closest(
+              "[data-limestone-month-year]"
+            );
+
+
+          if (
+            !button
+          ) {
+            return;
+          }
+
+
+          selectLimestoneMonthlyPeriod(
+            button.dataset
+              .limestoneMonthYear,
+
+            button.dataset
+              .limestoneMonthNumber
+          );
+        }
+      );
+
+
+    const handleDailyDateChange =
+      () => {
+        if (
+          limestoneReceiptState
+            .groupMode !==
+          "daily"
+        ) {
+          return;
+        }
+
+
+        if (
+          endDateInput?.value
+        ) {
+          limestoneReceiptState
+            .selectedDay =
+            endDateInput.value;
+        }
+
+
+        updateLimestoneDailyPeriodSelectionPreview();
+      };
+
+
+    startDateInput
+      ?.addEventListener(
+        "input",
+        handleDailyDateChange
+      );
+
+
+    startDateInput
+      ?.addEventListener(
+        "change",
+        handleDailyDateChange
+      );
+
+
+    endDateInput
+      ?.addEventListener(
+        "input",
+        handleDailyDateChange
+      );
+
+
+    endDateInput
+      ?.addEventListener(
+        "change",
+        handleDailyDateChange
+      );
+
+
+    searchForm.dataset
+      .limestonePeriodSelectionBound =
+      "true";
+  }
+
+
+  setLimestonePeriodPickerMode(
+    limestoneReceiptState
+      .groupMode ||
+    "daily",
+    {
+      selectDefault:
+        true
+    }
+  );
+}
+
+/* =====================================================
+  석회석 조회 단위 변경
 
   daily:
-  일별
+  직접 날짜 범위
 
   weekly:
-  주별
+  월별 주차 선택
 
   monthly:
-  월별
+  월 선택
 ===================================================== */
 
 function setLimestoneGroupMode(
@@ -74125,6 +75722,9 @@ function setLimestoneGroupMode(
 ) {
   const {
     render =
+      true,
+
+    selectDefault =
       true
   } = options;
 
@@ -74179,6 +75779,21 @@ function setLimestoneGroupMode(
   );
 
 
+  /*
+    기간 조회창 안의 선택 화면도 함께 전환한다.
+  */
+  setLimestonePeriodPickerMode(
+    normalizedMode,
+    {
+      selectDefault
+    }
+  );
+
+
+  /*
+    조회 결과가 이미 존재하는 상태에서
+    집계 방식만 변경하는 경우 표를 다시 출력한다.
+  */
   if (
     render
   ) {
