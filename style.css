@@ -28373,9 +28373,69 @@ small {
     900;
 }
 
+/* =========================================================
+  전체공지 내용 미리보기·전체보기
+
+  기본:
+  - 4줄 미리보기
+
+  펼침:
+  - 줄바꿈 포함 전체 내용
+  - 접기 버튼 표시
+========================================================= */
 
 #globalNoticeModal
-.global-notice-card__content {
+.global-notice-card__content-details {
+  margin:
+    0;
+
+  border:
+    0;
+
+  background:
+    transparent;
+}
+
+
+/* =========================================================
+  클릭 영역
+========================================================= */
+
+#globalNoticeModal
+.global-notice-card__content-summary {
+  display:
+    block;
+
+  margin:
+    0;
+
+  padding:
+    0;
+
+  list-style:
+    none;
+
+  cursor:
+    pointer;
+
+  outline:
+    none;
+}
+
+
+#globalNoticeModal
+.global-notice-card__content-summary::-webkit-details-marker {
+  display:
+    none;
+}
+
+
+/* =========================================================
+  접힌 상태 미리보기
+========================================================= */
+
+#globalNoticeModal
+.global-notice-card__content-preview {
   display:
     -webkit-box;
 
@@ -28386,29 +28446,268 @@ small {
     0;
 
   color:
-    #44536a;
+    #34445a;
 
   font-size:
-    11px;
+    13px;
 
   font-weight:
     650;
 
   line-height:
-    1.65;
+    1.75;
 
   white-space:
-    pre-line;
+    pre-wrap;
 
   word-break:
     break-word;
 
+  overflow-wrap:
+    anywhere;
+
   -webkit-box-orient:
     vertical;
 
-  line-clamp: 4;
+  line-clamp:
+    4;
+
   -webkit-line-clamp:
     4;
+}
+
+
+/* =========================================================
+  전체보기·접기 버튼
+========================================================= */
+
+#globalNoticeModal
+.global-notice-card__content-toggle {
+  display:
+    flex;
+
+  min-height:
+    32px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    5px;
+
+  margin-top:
+    8px;
+
+  border:
+    1px solid
+    #c4d5e8;
+
+  border-radius:
+    7px;
+
+  background:
+    #f3f8fd;
+
+  color:
+    #2362a4;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+
+  transition:
+    border-color
+    0.15s
+    ease,
+    background
+    0.15s
+    ease;
+}
+
+
+#globalNoticeModal
+.global-notice-card__content-summary:hover
+.global-notice-card__content-toggle {
+  border-color:
+    #8fb5dc;
+
+  background:
+    #eaf4fd;
+}
+
+
+#globalNoticeModal
+.global-notice-card__content-less {
+  display:
+    none;
+}
+
+
+#globalNoticeModal
+.global-notice-card__content-arrow {
+  font-size:
+    8px;
+
+  transition:
+    transform
+    0.15s
+    ease;
+}
+
+
+/* =========================================================
+  펼친 전체 내용
+========================================================= */
+
+#globalNoticeModal
+.global-notice-card__content-full {
+  display:
+    none;
+
+  padding:
+    15px
+    16px;
+
+  border:
+    1px solid
+    #dce5ef;
+
+  border-radius:
+    9px;
+
+  background:
+    #f7f9fc;
+
+  color:
+    #26364c;
+
+  font-size:
+    13px;
+
+  font-weight:
+    650;
+
+  line-height:
+    1.85;
+
+  white-space:
+    pre-wrap;
+
+  word-break:
+    break-word;
+
+  overflow-wrap:
+    anywhere;
+}
+
+
+/* =========================================================
+  펼쳐진 상태
+
+  전체 내용을 위에 표시하고
+  접기 버튼을 아래쪽에 배치한다.
+========================================================= */
+
+#globalNoticeModal
+.global-notice-card__content-details[open] {
+  display:
+    flex;
+
+  flex-direction:
+    column;
+}
+
+
+#globalNoticeModal
+.global-notice-card__content-details[open]
+.global-notice-card__content-summary {
+  order:
+    2;
+
+  margin-top:
+    8px;
+}
+
+
+#globalNoticeModal
+.global-notice-card__content-details[open]
+.global-notice-card__content-preview {
+  display:
+    none;
+}
+
+
+#globalNoticeModal
+.global-notice-card__content-details[open]
+.global-notice-card__content-full {
+  display:
+    block;
+
+  order:
+    1;
+}
+
+
+#globalNoticeModal
+.global-notice-card__content-details[open]
+.global-notice-card__content-more {
+  display:
+    none;
+}
+
+
+#globalNoticeModal
+.global-notice-card__content-details[open]
+.global-notice-card__content-less {
+  display:
+    inline;
+}
+
+
+#globalNoticeModal
+.global-notice-card__content-details[open]
+.global-notice-card__content-arrow {
+  transform:
+    rotate(
+      180deg
+    );
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width:
+    760px
+) {
+
+  #globalNoticeModal
+  .global-notice-card__content-preview,
+
+  #globalNoticeModal
+  .global-notice-card__content-full {
+    font-size:
+      12px;
+
+    line-height:
+      1.75;
+  }
+
+
+  #globalNoticeModal
+  .global-notice-card__content-full {
+    padding:
+      13px
+      14px;
+  }
+
 }
 
 

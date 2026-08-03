@@ -60872,6 +60872,14 @@ function updateGlobalNoticeHeaderButton() {
 
 /* =========================================================
   전체공지 카드 HTML
+
+  기본:
+  - 공지 내용 4줄 미리보기
+  - 전체보기 표시
+
+  전체보기 선택:
+  - 줄바꿈을 포함한 전체 내용 표시
+  - 접기 선택 시 다시 4줄 미리보기
 ========================================================= */
 
 function createGlobalNoticeCardHtml(
@@ -60907,6 +60915,14 @@ function createGlobalNoticeCardHtml(
           notice.createdAt ||
           ""
         );
+
+
+  const contentText =
+    String(
+      notice.content ||
+      ""
+    ).trim() ||
+    "등록된 공지 내용이 없습니다.";
 
 
   const attachments =
@@ -61040,12 +61056,53 @@ function createGlobalNoticeCardHtml(
         </p>
 
 
-        <p class="global-notice-card__content">
-          ${escapeHtml(
-            notice.content ||
-            ""
-          )}
-        </p>
+        <!-- =================================================
+          공지 내용
+
+          details 기본 기능을 사용하므로
+          별도 클릭 이벤트를 추가하지 않아도 된다.
+        ================================================== -->
+
+        <details class="global-notice-card__content-details">
+
+          <summary class="global-notice-card__content-summary">
+
+            <span class="global-notice-card__content-preview">
+              ${escapeHtml(
+                contentText
+              )}
+            </span>
+
+
+            <span class="global-notice-card__content-toggle">
+
+              <span class="global-notice-card__content-more">
+                전체보기
+              </span>
+
+              <span class="global-notice-card__content-less">
+                접기
+              </span>
+
+              <span
+                class="global-notice-card__content-arrow"
+                aria-hidden="true"
+              >
+                ▼
+              </span>
+
+            </span>
+
+          </summary>
+
+
+          <div class="global-notice-card__content-full">
+            ${escapeHtml(
+              contentText
+            )}
+          </div>
+
+        </details>
 
 
         ${attachmentHtml}
