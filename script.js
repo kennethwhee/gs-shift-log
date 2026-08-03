@@ -30602,6 +30602,157 @@ function renderLogEntryTable() {
       : [];
 
 
+  /* =====================================================
+    업무 구분 정규화·발행 여부 판정
+
+    이 함수 내부에서 직접 판정하므로
+    isIssueEntryCategory / isIssueLogEntryCategory
+    이름 차이로 오류가 발생하지 않는다.
+  ====================================================== */
+
+  const normalizeCategory = (
+    value
+  ) => {
+    if (
+      typeof normalizeLogEntryCategory ===
+        "function"
+    ) {
+      return normalizeLogEntryCategory(
+        value
+      );
+    }
+
+
+    const rawCategory =
+      String(
+        value ||
+        "인계사항"
+      ).trim();
+
+
+    const compactCategory =
+      rawCategory
+        .toUpperCase()
+        .replace(
+          /\s+/g,
+          ""
+        );
+
+
+    if (
+      compactCategory.startsWith(
+        "TM발행"
+      )
+    ) {
+      return "TM 발행";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "TM작업"
+      ) ||
+      compactCategory.startsWith(
+        "TM종결"
+      )
+    ) {
+      return "TM 작업";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "BM발행"
+      )
+    ) {
+      return "BM 발행";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "BM작업"
+      ) ||
+      compactCategory.startsWith(
+        "BM종결"
+      )
+    ) {
+      return "BM 작업";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "CM발행"
+      )
+    ) {
+      return "CM 발행";
+    }
+
+
+    if (
+      compactCategory.startsWith(
+        "CM작업"
+      ) ||
+      compactCategory.startsWith(
+        "CM종결"
+      )
+    ) {
+      return "CM 작업";
+    }
+
+
+    if (
+      compactCategory.includes(
+        "비고"
+      )
+    ) {
+      return "비고";
+    }
+
+
+    return "인계사항";
+  };
+
+
+  const issueCategories =
+    new Set([
+      "TM 발행",
+      "BM 발행",
+      "CM 발행"
+    ]);
+
+
+  const isIssueCategory = (
+    value
+  ) => {
+    return issueCategories.has(
+      normalizeCategory(
+        value
+      )
+    );
+  };
+
+
+  /*
+    과거 저장자료까지 표준 구분명으로 맞춘다.
+  */
+  entries.forEach(
+    entry => {
+      if (
+        entry &&
+        typeof entry ===
+          "object"
+      ) {
+        entry.category =
+          normalizeCategory(
+            entry.category
+          );
+      }
+    }
+  );
+
+
   const isEditMode =
     Boolean(
       elements.logEntryListPanel
@@ -30840,7 +30991,7 @@ function renderLogEntryTable() {
 
 
 /* =====================================================
-  TM·BM·CM 발행 / 일반 업무 / 비고 분리
+  TM·BM·CM 발행 / 인계·작업 / 비고 분리
 
   발행 내역:
   - TM 발행
@@ -30860,7 +31011,7 @@ const tmEntries =
       ({
         entry
       }) => {
-        return isIssueEntryCategory(
+        return isIssueCategory(
           entry?.category
         );
       }
@@ -30877,10 +31028,9 @@ const noteEntries =
         entry
       }) => {
         return (
-          String(
-            entry?.category ||
-            ""
-          ).trim() ===
+          normalizeCategory(
+            entry?.category
+          ) ===
           "비고"
         );
       }
@@ -30896,14 +31046,13 @@ const ordinaryEntries =
       entry
     }) => {
       const category =
-        String(
-          entry?.category ||
-          ""
-        ).trim();
+        normalizeCategory(
+          entry?.category
+        );
 
 
       return (
-        !isIssueEntryCategory(
+        !isIssueCategory(
           category
         ) &&
 
@@ -31616,55 +31765,81 @@ const ordinaryEntries =
 }
 
 /* =========================================================
-  TM·BM·CM 구분 배지 생성
+  TM·BM·CM 전체 구분 배지
 
-  예:
-  TM 발행 → TM
-  BM 발행 → BM
-  CM 발행 → CM
+  표시:
+  [TM발행]
+  [TM작업]
+  [BM발행]
+  [BM작업]
+  [CM발행]
+  [CM작업]
 ========================================================= */
 
 function createLogEntryCategoryBadgeHtml(
   entry
 ) {
   const category =
-    String(
-      entry?.category ||
-      ""
-    ).trim();
-
-
-  const matchedCategory =
-    category.match(
-      /^(TM|BM|CM)/i
+    normalizeLogEntryCategory(
+      entry?.category
     );
 
 
   if (
-    !matchedCategory
+    !isIssueLogEntryCategory(
+      category
+    ) &&
+    !isWorkLogEntryCategory(
+      category
+    )
   ) {
     return "";
   }
 
 
-  const categoryCode =
-    String(
-      matchedCategory[1] ||
+  const family =
+    category.startsWith(
+      "TM"
+    )
+      ? "tm"
+      : (
+          category.startsWith(
+            "BM"
+          )
+            ? "bm"
+            : "cm"
+        );
+
+
+  const type =
+    isIssueLogEntryCategory(
+      category
+    )
+      ? "issue"
+      : "work";
+
+
+  const label =
+    category.replace(
+      /\s+/g,
       ""
-    ).toUpperCase();
+    );
 
 
   return `
     <span
       class="
         log-entry-kind-badge
-        is-${categoryCode.toLowerCase()}
+        is-${family}
+        is-${type}
       "
       title="${escapeHtml(
         category
       )}"
     >
-      ${categoryCode}
+      [${escapeHtml(
+        label
+      )}]
     </span>
   `;
 }
@@ -31986,12 +32161,10 @@ const createCompactLineHtml = (
   } = options;
 
 
-  const category =
-    String(
-      entry?.category ||
-      ""
-    ).trim();
-
+const category =
+  normalizeLogEntryCategory(
+    entry?.category
+  );
 
   const isRemark =
     category ===
@@ -47543,6 +47716,182 @@ function getMainCategory(category) {
   return "비고";
 }
 
+/* =========================================================
+  업무일지 구분 통합 판정
+
+  발행:
+  - TM 발행
+  - BM 발행
+  - CM 발행
+
+  작업:
+  - TM 작업
+  - BM 작업
+  - CM 작업
+========================================================= */
+
+const LOG_ENTRY_ISSUE_CATEGORIES =
+  new Set([
+    "TM 발행",
+    "BM 발행",
+    "CM 발행"
+  ]);
+
+
+const LOG_ENTRY_WORK_CATEGORIES =
+  new Set([
+    "TM 작업",
+    "BM 작업",
+    "CM 작업"
+  ]);
+
+
+/* =========================================================
+  구분명 정규화
+
+  과거 종결 자료:
+  - TM 종결 → TM 작업
+  - BM 종결 → BM 작업
+  - CM 종결 → CM 작업
+
+  기존 일반 구분:
+  - 운전조작·점검 → 인계사항
+========================================================= */
+
+function normalizeLogEntryCategory(
+  value
+) {
+  const rawCategory =
+    String(
+      value ||
+      "인계사항"
+    ).trim();
+
+
+  const compactCategory =
+    rawCategory
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  if (
+    !compactCategory ||
+    compactCategory ===
+      "인계사항" ||
+    compactCategory ===
+      "인계"
+  ) {
+    return "인계사항";
+  }
+
+
+  if (
+    compactCategory.includes(
+      "비고"
+    )
+  ) {
+    return "비고";
+  }
+
+
+  if (
+    compactCategory.startsWith(
+      "TM발행"
+    )
+  ) {
+    return "TM 발행";
+  }
+
+
+  if (
+    compactCategory.startsWith(
+      "TM작업"
+    ) ||
+    compactCategory.startsWith(
+      "TM종결"
+    )
+  ) {
+    return "TM 작업";
+  }
+
+
+  if (
+    compactCategory.startsWith(
+      "BM발행"
+    )
+  ) {
+    return "BM 발행";
+  }
+
+
+  if (
+    compactCategory.startsWith(
+      "BM작업"
+    ) ||
+    compactCategory.startsWith(
+      "BM종결"
+    )
+  ) {
+    return "BM 작업";
+  }
+
+
+  if (
+    compactCategory.startsWith(
+      "CM발행"
+    )
+  ) {
+    return "CM 발행";
+  }
+
+
+  if (
+    compactCategory.startsWith(
+      "CM작업"
+    ) ||
+    compactCategory.startsWith(
+      "CM종결"
+    )
+  ) {
+    return "CM 작업";
+  }
+
+
+  return "인계사항";
+}
+
+
+/* =========================================================
+  발행 항목 여부
+========================================================= */
+
+function isIssueLogEntryCategory(
+  value
+) {
+  return LOG_ENTRY_ISSUE_CATEGORIES.has(
+    normalizeLogEntryCategory(
+      value
+    )
+  );
+}
+
+
+/* =========================================================
+  작업 항목 여부
+========================================================= */
+
+function isWorkLogEntryCategory(
+  value
+) {
+  return LOG_ENTRY_WORK_CATEGORIES.has(
+    normalizeLogEntryCategory(
+      value
+    )
+  );
+}
 
 function createId() {
   if (window.crypto?.randomUUID) {
