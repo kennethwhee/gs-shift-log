@@ -825,6 +825,362 @@ function validateLogInput(
 }
 
 /* =========================================================
+  석회석 입고기록 업무일지 자동 동기화
+
+  - 업무일지가 D1에 저장되기만 하면 반영
+  - 상태와 무관: 임시저장·결재요청·결재완료·저장완료
+  - 1호기: BCO1 > BO1
+  - 2호기: BCO2 > BO2
+  - 같은 실제일자·시간·호기·수량이면 상위 보직만 유지
+========================================================= */
+
+const LIMESTONE_SYNC_ROLE_TO_UNIT = {
+  BCO1: 1,
+  BO1: 1,
+  BCO2: 2,
+  BO2: 2
+};
+
+const LIMESTONE_SYNC_ROLE_PRIORITY = {
+  BCO1: 20,
+  BO1: 10,
+  BCO2: 20,
+  BO2: 10
+};
+
+function normalizeLimestoneSyncQuantity(value) {
+  const quantity = Number(String(value ?? "").replace(",", "."));
+  if (!Number.isFinite(quantity)) return null;
+  const rounded = Math.round(quantity * 100) / 100;
+  return rounded >= 0.01 && rounded <= 999.99 ? rounded : null;
+}
+
+function addLimestoneSyncDateDays(dateValue, dayCount) {
+  const date = new Date(`${dateValue}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setUTCDate(date.getUTCDate() + Number(dayCount || 0));
+  return date.toISOString().slice(0, 10);
+}
+
+function findLimestoneSyncTime(value) {
+  const matches = [
+    ...String(value || "").matchAll(
+      /(?:^|[^\d])([01]\d|2[0-3]):([0-5]\d)(?!\d)/g
+    )
+  ];
+  if (!matches.length) return "";
+  const match = matches[matches.length - 1];
+  return `${match[1]}:${match[2]}`;
+}
+
+function getLimestoneSyncReceiptDate(workDate, shift, receiptTime) {
+  const hour = Number(String(receiptTime || "").slice(0, 2));
+  return normalizeShift(shift) === "NS" && hour >= 0 && hour < 7
+    ? addLimestoneSyncDateDays(workDate, 1)
+    : normalizeText(workDate);
+}
+
+function collectLimestoneSyncEntries(log) {
+  const result = [];
+  const usedKeys = new Set();
+  const collections = [
+    ["entries", log?.entries],
+    ["tmEntries", log?.tmEntries],
+    ["handoverEntries", log?.handoverEntries]
+  ];
+
+  collections.forEach(([collectionName, source]) => {
+    (Array.isArray(source) ? source : []).forEach((rawEntry, entryIndex) => {
+      const entry = rawEntry && typeof rawEntry === "object" && !Array.isArray(rawEntry)
+        ? rawEntry
+        : { content: String(rawEntry || "") };
+
+      const content = normalizeText(entry.content || entry.text);
+      if (!content) return;
+
+      const sourceType = normalizeText(entry.source).toLowerCase();
+      if (sourceType.includes("previous-shift") || normalizeText(entry.inheritedFromDate)) {
+        return;
+      }
+
+      const entryId = normalizeText(entry.id);
+      const key = entryId || [
+        normalizeText(entry.time),
+        normalizeText(entry.category),
+        normalizeText(entry.tag),
+        content.replace(/\s+/g, " ").toUpperCase()
+      ].join("||");
+
+      if (usedKeys.has(key)) return;
+      usedKeys.add(key);
+      result.push({ entry, entryIndex, collectionName });
+    });
+  });
+
+  return result;
+}
+
+function extractLimestoneSyncItems(entry) {
+  const content = String(entry?.content || entry?.text || "")
+    .replace(/\r\n?/g, "\n")
+    .trim();
+  if (!content) return [];
+
+  const entryTime = findLimestoneSyncTime(entry?.time);
+  const result = [];
+
+  content.split("\n").map(line => line.trim()).filter(Boolean).forEach((line, lineIndex) => {
+    const patterns = [
+      /(?:lime\s*stone|석회석)[^\r\n]{0,60}?입고(?:량|완료)?[^0-9\r\n]{0,30}?(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:tons?|t|톤)/gi,
+      /(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:tons?|t|톤)[^\r\n]{0,50}?(?:lime\s*stone|석회석)[^\r\n]{0,30}?입고(?:량|완료)?/gi
+    ];
+
+    const lineItems = new Map();
+    patterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(line)) !== null) {
+        const quantityTon = normalizeLimestoneSyncQuantity(match[1]);
+        const receiptTime = findLimestoneSyncTime(line.slice(0, match.index))
+          || findLimestoneSyncTime(line)
+          || entryTime;
+        if (quantityTon === null || !receiptTime) continue;
+        lineItems.set(`${receiptTime}||${quantityTon.toFixed(2)}`, {
+          receiptTime,
+          quantityTon,
+          sourceText: line
+        });
+      }
+    });
+
+    [...lineItems.values()].forEach((item, matchIndex) => {
+      result.push({ ...item, lineIndex, matchIndex });
+    });
+  });
+
+  return result;
+}
+
+function createLimestoneSyncBusinessKey(item) {
+  return [
+    item.receiptDate,
+    item.receiptTime,
+    item.unitNo,
+    Number(item.quantityTon).toFixed(2)
+  ].join("||");
+}
+
+function buildLimestoneSyncCandidates(logs) {
+  const latestByRole = new Map();
+
+  (Array.isArray(logs) ? logs : [])
+    .filter(log => Object.hasOwn(LIMESTONE_SYNC_ROLE_TO_UNIT, normalizeLogRole(log?.role)))
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
+    .forEach(log => {
+      const role = normalizeLogRole(log.role);
+      if (!latestByRole.has(role)) latestByRole.set(role, log);
+    });
+
+  const rawCandidates = [];
+
+  latestByRole.forEach((log, role) => {
+    const unitNo = LIMESTONE_SYNC_ROLE_TO_UNIT[role];
+
+    collectLimestoneSyncEntries(log).forEach(({ entry, entryIndex, collectionName }) => {
+      extractLimestoneSyncItems(entry).forEach(extracted => {
+        const receiptDate = getLimestoneSyncReceiptDate(log.date, log.shift, extracted.receiptTime);
+        if (!isValidIsoDate(receiptDate)) return;
+
+        const originalIndex = Number(entry.importedFromEntryIndex);
+        const stableIndex = Number.isInteger(originalIndex) && originalIndex >= 0
+          ? originalIndex
+          : entryIndex;
+        const baseEntryId = normalizeText(entry.id)
+          || `entry-legacy-${log.id}-${stableIndex}-${collectionName}`;
+        const sourceEntryId = `${baseEntryId}-limestone-${extracted.lineIndex}-${extracted.matchIndex}`;
+        const sourceLogId = normalizeText(log.id);
+        if (!sourceLogId) return;
+
+        rawCandidates.push({
+          receiptDate,
+          receiptTime: extracted.receiptTime,
+          unitNo,
+          quantityTon: extracted.quantityTon,
+          note: "",
+          sourceLogId,
+          sourceEntryId,
+          sourceKey: `${sourceLogId}||${sourceEntryId}`,
+          sourceRole: role,
+          sourceAuthor: normalizeText(log.author),
+          sourceAuthorId: normalizeEmployeeNo(log.authorId),
+          sourceText: normalizeText(extracted.sourceText).slice(0, 1000),
+          sourceUpdatedAt: normalizeText(log.updatedAt || log.createdAt)
+        });
+      });
+    });
+  });
+
+  rawCandidates.sort((a, b) => {
+    const priority = LIMESTONE_SYNC_ROLE_PRIORITY[b.sourceRole]
+      - LIMESTONE_SYNC_ROLE_PRIORITY[a.sourceRole];
+    if (priority !== 0) return priority;
+    return String(b.sourceUpdatedAt).localeCompare(String(a.sourceUpdatedAt));
+  });
+
+  const selected = new Map();
+  rawCandidates.forEach(candidate => {
+    const key = createLimestoneSyncBusinessKey(candidate);
+    if (!selected.has(key)) selected.set(key, candidate);
+  });
+
+  return [...selected.values()];
+}
+
+function isSameLimestoneSyncRow(row, candidate) {
+  return normalizeText(row.receipt_date) === candidate.receiptDate
+    && normalizeText(row.receipt_time) === candidate.receiptTime
+    && Number(row.unit_no) === candidate.unitNo
+    && Number(row.quantity_ton).toFixed(2) === Number(candidate.quantityTon).toFixed(2)
+    && normalizeText(row.note) === candidate.note
+    && normalizeText(row.source_role) === candidate.sourceRole
+    && normalizeText(row.source_author) === candidate.sourceAuthor
+    && normalizeText(row.source_text) === candidate.sourceText;
+}
+
+async function synchronizeLimestoneReceiptsForShiftContext(context, options = {}) {
+  const database = context?.env?.DB;
+  const workDate = normalizeText(options.workDate);
+  const shift = normalizeShift(options.shift);
+  const user = options.user || {};
+  const removedIds = new Set(
+    (Array.isArray(options.removedSourceLogIds) ? options.removedSourceLogIds : [])
+      .map(normalizeText)
+      .filter(Boolean)
+  );
+
+  if (!database || !isValidIsoDate(workDate) || !VALID_SHIFTS.has(shift)) {
+    return { ok: false, skipped: true, message: "석회석 자동 동기화 조건을 확인할 수 없습니다." };
+  }
+
+  try {
+    const logResult = await database.prepare(`
+      SELECT * FROM shift_logs
+      WHERE work_date = ? AND shift = ?
+        AND role IN ('BCO1', 'BO1', 'BCO2', 'BO2')
+    `).bind(workDate, shift).all();
+
+    const logs = (Array.isArray(logResult.results) ? logResult.results : []).map(convertRowToLog);
+    const sourceIds = new Set(logs.map(log => normalizeText(log.id)).filter(Boolean));
+    removedIds.forEach(id => sourceIds.add(id));
+
+    if (!sourceIds.size) {
+      return { ok: true, skipped: true, selectedCount: 0, createdCount: 0, updatedCount: 0, deletedCount: 0 };
+    }
+
+    const candidates = buildLimestoneSyncCandidates(logs);
+    const sourceIdList = [...sourceIds];
+    const placeholders = sourceIdList.map(() => "?").join(", ");
+    const existingResult = await database.prepare(`
+      SELECT * FROM limestone_receipts
+      WHERE source_type = 'shift_log'
+        AND source_log_id IN (${placeholders})
+    `).bind(...sourceIdList).all();
+
+    const existingRows = Array.isArray(existingResult.results) ? existingResult.results : [];
+    const existingBySourceKey = new Map();
+    existingRows.forEach(row => {
+      const key = normalizeText(row.source_key);
+      if (key && !existingBySourceKey.has(key)) existingBySourceKey.set(key, row);
+    });
+
+    const keptIds = new Set();
+    const statements = [];
+    const timestamp = new Date().toISOString();
+    let createdCount = 0;
+    let updatedCount = 0;
+    let deletedCount = 0;
+
+    candidates.forEach(candidate => {
+      const existing = existingBySourceKey.get(candidate.sourceKey);
+      const authorId = candidate.sourceAuthorId || normalizeEmployeeNo(user.employeeNo);
+      const authorName = candidate.sourceAuthor || normalizeText(user.name) || "업무일지 자동연동";
+      const modifierId = normalizeEmployeeNo(user.employeeNo) || authorId;
+      const modifierName = normalizeText(user.name) || authorName;
+
+      if (existing) {
+        keptIds.add(normalizeText(existing.id));
+        if (!isSameLimestoneSyncRow(existing, candidate)) {
+          statements.push(database.prepare(`
+            UPDATE limestone_receipts SET
+              receipt_date = ?, receipt_time = ?, unit_no = ?, quantity_ton = ?, note = ?,
+              source_log_id = ?, source_entry_id = ?, source_key = ?, source_role = ?,
+              source_author = ?, source_text = ?, updated_by_id = ?, updated_by_name = ?,
+              updated_at = ?, revision = revision + 1
+            WHERE id = ?
+          `).bind(
+            candidate.receiptDate, candidate.receiptTime, candidate.unitNo,
+            candidate.quantityTon, candidate.note, candidate.sourceLogId,
+            candidate.sourceEntryId, candidate.sourceKey, candidate.sourceRole,
+            candidate.sourceAuthor, candidate.sourceText, modifierId, modifierName,
+            timestamp, existing.id
+          ));
+          updatedCount += 1;
+        }
+        return;
+      }
+
+      statements.push(database.prepare(`
+        INSERT INTO limestone_receipts (
+          id, receipt_date, receipt_time, unit_no, quantity_ton, note,
+          source_type, source_log_id, source_entry_id, source_key, source_role,
+          source_author, source_text, created_by_id, created_by_name,
+          updated_by_id, updated_by_name, created_at, updated_at, revision
+        ) VALUES (
+          ?, ?, ?, ?, ?, ?, 'shift_log', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
+        )
+      `).bind(
+        crypto.randomUUID(), candidate.receiptDate, candidate.receiptTime,
+        candidate.unitNo, candidate.quantityTon, candidate.note,
+        candidate.sourceLogId, candidate.sourceEntryId, candidate.sourceKey,
+        candidate.sourceRole, candidate.sourceAuthor, candidate.sourceText,
+        authorId, authorName, modifierId, modifierName, timestamp, timestamp
+      ));
+      createdCount += 1;
+    });
+
+    existingRows.forEach(row => {
+      const id = normalizeText(row.id);
+      if (!id || keptIds.has(id)) return;
+      statements.push(database.prepare(
+        "DELETE FROM limestone_receipts WHERE id = ?"
+      ).bind(id));
+      deletedCount += 1;
+    });
+
+    if (statements.length) await database.batch(statements);
+
+    return {
+      ok: true,
+      skipped: false,
+      workDate,
+      shift,
+      selectedCount: candidates.length,
+      createdCount,
+      updatedCount,
+      deletedCount
+    };
+  } catch (error) {
+    console.error("석회석 입고기록 자동 동기화 실패:", error);
+    return {
+      ok: false,
+      skipped: false,
+      workDate,
+      shift,
+      message: error instanceof Error ? error.message : "석회석 자동 동기화 오류"
+    };
+  }
+}
+
+/* =========================================================
   Facility Navigator 점검이력 연동 대상 선별
 
   연동 대상:
@@ -4257,25 +4613,31 @@ export async function onRequestPost(
         context
       );
 
+
     if (
       authentication.error
     ) {
       return authentication.error;
     }
 
+
     const user =
       authentication.user;
 
+
     let body;
+
 
     try {
       body =
         await context.request.json();
+
     } catch {
       return jsonResponse(
         {
           ok:
             false,
+
           message:
             "요청 데이터 형식이 올바르지 않습니다."
         },
@@ -4283,12 +4645,14 @@ export async function onRequestPost(
       );
     }
 
+
     const action =
       normalizeText(
         body.action ||
         "save"
       )
         .toLowerCase();
+
 
     if (
       ![
@@ -4304,6 +4668,7 @@ export async function onRequestPost(
         {
           ok:
             false,
+
           message:
             "지원하지 않는 업무일지 작업입니다."
         },
@@ -4311,10 +4676,12 @@ export async function onRequestPost(
       );
     }
 
+
     const validation =
       validateLogInput(
         body.log
       );
+
 
     if (
       validation.error
@@ -4323,6 +4690,7 @@ export async function onRequestPost(
         {
           ok:
             false,
+
           message:
             validation.error
         },
@@ -4330,8 +4698,10 @@ export async function onRequestPost(
       );
     }
 
+
     const incomingLog =
       validation.log;
+
 
     const expectedRevision =
       Number(
@@ -4340,11 +4710,13 @@ export async function onRequestPost(
         0
       );
 
+
     let existingLog =
       await findLogById(
         context.env.DB,
         incomingLog.id
       );
+
 
     if (
       !existingLog
@@ -4358,6 +4730,7 @@ export async function onRequestPost(
         );
     }
 
+
     if (
       existingLog &&
       action ===
@@ -4369,9 +4742,15 @@ export async function onRequestPost(
       );
     }
 
+
     const now =
       new Date()
         .toISOString();
+
+
+    /* =====================================================
+      신규 업무일지 생성
+    ====================================================== */
 
     if (
       !existingLog
@@ -4388,6 +4767,7 @@ export async function onRequestPost(
           {
             ok:
               false,
+
             message:
               "상태를 변경할 업무일지를 찾을 수 없습니다."
           },
@@ -4395,20 +4775,22 @@ export async function onRequestPost(
         );
       }
 
-const createdLog =
-  await applyCreateRules(
-    context.env.DB,
 
-    {
-      ...incomingLog
-    },
+      const createdLog =
+        await applyCreateRules(
+          context.env.DB,
 
-    user,
+          {
+            ...incomingLog
+          },
 
-    action,
+          user,
 
-    now
-  );
+          action,
+
+          now
+        );
+
 
       try {
         const savedLog =
@@ -4419,6 +4801,10 @@ const createdLog =
           );
 
 
+        /* =================================================
+          Facility Navigator 점검이력 연동
+        ================================================= */
+
         scheduleNavigatorInspectionSync(
           context,
           savedLog,
@@ -4426,8 +4812,8 @@ const createdLog =
             trigger:
               action ===
                 "migrate"
-                  ? "migration-create"
-                  : "realtime-create",
+                ? "migration-create"
+                : "realtime-create",
 
             containerRevision:
               savedLog.serverRevision,
@@ -4436,6 +4822,34 @@ const createdLog =
               savedLog.updatedAt
           }
         );
+
+
+        /* =================================================
+          석회석 입고기록 자동 동기화
+
+          신규 업무일지가 D1에 저장되면
+          결재 상태와 관계없이 바로 반영한다.
+
+          대상 상태:
+          - 임시저장
+          - 결재요청
+          - 결재완료
+          - 저장완료
+        ================================================= */
+
+        const limestoneSync =
+          await synchronizeLimestoneReceiptsForShiftContext(
+            context,
+            {
+              workDate:
+                savedLog.date,
+
+              shift:
+                savedLog.shift,
+
+              user
+            }
+          );
 
 
         return jsonResponse(
@@ -4447,12 +4861,16 @@ const createdLog =
               true,
 
             log:
-              savedLog
+              savedLog,
+
+            limestoneSync
           },
           201
         );
 
-      } catch (error) {
+      } catch (
+        error
+      ) {
         const currentLog =
           await findLogByGroup(
             context.env.DB,
@@ -4460,6 +4878,7 @@ const createdLog =
             createdLog.shift,
             createdLog.role
           );
+
 
         if (
           currentLog
@@ -4469,9 +4888,15 @@ const createdLog =
           );
         }
 
+
         throw error;
       }
     }
+
+
+    /* =====================================================
+      기존 업무일지 revision 확인
+    ====================================================== */
 
     if (
       !Number.isInteger(
@@ -4487,7 +4912,13 @@ const createdLog =
       );
     }
 
+
     let nextLog;
+
+
+    /* =====================================================
+      일반 저장 또는 결재 상태 변경
+    ====================================================== */
 
     if (
       action ===
@@ -4500,6 +4931,7 @@ const createdLog =
           user,
           now
         );
+
     } else {
       nextLog =
         applyApprovalAction(
@@ -4509,6 +4941,7 @@ const createdLog =
           now
         );
     }
+
 
     const savedLog =
       await updateLog(
@@ -4535,6 +4968,10 @@ const createdLog =
     }
 
 
+    /* =====================================================
+      Facility Navigator 점검이력 연동
+    ====================================================== */
+
     scheduleNavigatorInspectionSync(
       context,
       savedLog,
@@ -4551,6 +4988,34 @@ const createdLog =
     );
 
 
+    /* =====================================================
+      석회석 입고기록 자동 동기화
+
+      업무일지 저장·수정·결재·결재취소 후
+      같은 날짜와 근무의 아래 보직을 다시 비교한다.
+
+      1호기:
+      BCO1 > BO1
+
+      2호기:
+      BCO2 > BO2
+    ====================================================== */
+
+    const limestoneSync =
+      await synchronizeLimestoneReceiptsForShiftContext(
+        context,
+        {
+          workDate:
+            savedLog.date,
+
+          shift:
+            savedLog.shift,
+
+          user
+        }
+      );
+
+
     return jsonResponse({
       ok:
         true,
@@ -4559,19 +5024,25 @@ const createdLog =
         false,
 
       log:
-        savedLog
+        savedLog,
+
+      limestoneSync
     });
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "공용 업무일지 저장 오류:",
       error
     );
 
+
     return jsonResponse(
       {
         ok:
           false,
+
         message:
           error instanceof Error
             ? error.message
@@ -4586,6 +5057,23 @@ const createdLog =
 }
 
 
+/* =========================================================
+  업무일지 삭제 최종본
+
+  처리:
+  1. 로그인 및 삭제 권한 확인
+  2. revision 충돌 확인
+  3. 업무일지 D1 삭제
+  4. Facility Navigator 점검이력 해제
+  5. 같은 날짜·근무의 석회석 입고기록 재구성
+
+  석회석 재구성 예:
+  - BCO1 삭제 후 BO1 기록이 남아 있으면 BO1 자동 복구
+  - BCO2 삭제 후 BO2 기록이 남아 있으면 BO2 자동 복구
+  - 하위 보직까지 없으면 해당 자동기록 삭제
+  - 직접 등록한 manual 기록은 유지
+========================================================= */
+
 export async function onRequestDelete(
   context
 ) {
@@ -4595,19 +5083,23 @@ export async function onRequestDelete(
         context
       );
 
+
     if (
       authentication.error
     ) {
       return authentication.error;
     }
 
+
     const user =
       authentication.user;
+
 
     const url =
       new URL(
         context.request.url
       );
+
 
     const id =
       normalizeText(
@@ -4616,12 +5108,18 @@ export async function onRequestDelete(
         )
       );
 
+
     const expectedRevision =
       Number(
         url.searchParams.get(
           "revision"
         )
       );
+
+
+    /* =====================================================
+      삭제 대상 ID 확인
+    ====================================================== */
 
     if (
       !id
@@ -4630,6 +5128,7 @@ export async function onRequestDelete(
         {
           ok:
             false,
+
           message:
             "삭제할 업무일지 ID가 필요합니다."
         },
@@ -4637,11 +5136,17 @@ export async function onRequestDelete(
       );
     }
 
+
+    /* =====================================================
+      삭제 대상 업무일지 조회
+    ====================================================== */
+
     const existingLog =
       await findLogById(
         context.env.DB,
         id
       );
+
 
     if (
       !existingLog
@@ -4650,12 +5155,18 @@ export async function onRequestDelete(
         {
           ok:
             false,
+
           message:
             "삭제할 업무일지를 찾을 수 없습니다."
         },
         404
       );
     }
+
+
+    /* =====================================================
+      revision 충돌 확인
+    ====================================================== */
 
     if (
       !Number.isInteger(
@@ -4669,32 +5180,61 @@ export async function onRequestDelete(
       );
     }
 
+
+    /* =====================================================
+      삭제 권한
+
+      최고관리자:
+      - 모든 업무일지 삭제 가능
+
+      일반 작성자:
+      - 본인 임시저장 업무일지 삭제 가능
+
+      파트장:
+      - 본인 파트장 임시저장 업무일지 삭제 가능
+      - 기존 저장완료 상태 호환
+    ====================================================== */
+
     const isAuthor =
       normalizeEmployeeNo(
         existingLog.authorId
       ) ===
-        user.employeeNo;
+      normalizeEmployeeNo(
+        user.employeeNo
+      );
+
+
+    const existingStatus =
+      normalizeStatus(
+        existingLog.status
+      );
+
+
+    const existingRole =
+      normalizeLogRole(
+        existingLog.role
+      );
+
 
     const canDelete =
       user.isSuperAdmin ||
+
       (
         isAuthor &&
-        normalizeStatus(
-          existingLog.status
-        ) ===
+        existingStatus ===
           "임시저장"
       ) ||
+
       (
         isAuthor &&
         user.role ===
           "admin" &&
-        existingLog.role ===
+        existingRole ===
           "파트장" &&
-        normalizeStatus(
-          existingLog.status
-        ) ===
+        existingStatus ===
           "저장완료"
       );
+
 
     if (
       !canDelete
@@ -4703,6 +5243,7 @@ export async function onRequestDelete(
         {
           ok:
             false,
+
           message:
             "현재 계정으로는 이 업무일지를 삭제할 수 없습니다."
         },
@@ -4710,19 +5251,26 @@ export async function onRequestDelete(
       );
     }
 
+
+    /* =====================================================
+      업무일지 실제 삭제
+    ====================================================== */
+
     const deleteResult =
       await context.env.DB
         .prepare(`
           DELETE FROM shift_logs
+
           WHERE
-            id = ? AND
-            revision = ?
+            id = ?
+            AND revision = ?
         `)
         .bind(
           id,
           expectedRevision
         )
         .run();
+
 
     if (
       Number(
@@ -4737,10 +5285,12 @@ export async function onRequestDelete(
           id
         );
 
+
       return createConflictResponse(
         currentLog
       );
     }
+
 
     const deletedAt =
       new Date()
@@ -4748,13 +5298,20 @@ export async function onRequestDelete(
 
 
     /*
-      삭제된 행의 검증된 revision보다
-      1 높은 revision으로 purge를 전송한다.
+      삭제된 업무일지의 기존 revision보다
+      1 높은 값을 삭제 이벤트 revision으로 사용한다.
     */
     const deletedRevision =
       expectedRevision +
       1;
 
+
+    /* =====================================================
+      Facility Navigator 점검이력 해제
+
+      이 업무일지가 과거 전송했던
+      점검이력 전체를 purge한다.
+    ====================================================== */
 
     scheduleNavigatorInspectionSync(
       context,
@@ -4778,31 +5335,77 @@ export async function onRequestDelete(
     );
 
 
+    /* =====================================================
+      석회석 입고기록 자동 재동기화
+
+      삭제된 업무일지 ID도 조회 범위에 포함하여
+      이 업무일지에서 만들어진 기존 자동기록을 찾는다.
+
+      이후 같은 날짜·근무의 남은 업무일지를 다시 비교한다.
+
+      1호기:
+      BCO1 > BO1
+
+      2호기:
+      BCO2 > BO2
+    ====================================================== */
+
+    const limestoneSync =
+      await synchronizeLimestoneReceiptsForShiftContext(
+        context,
+        {
+          workDate:
+            existingLog.date,
+
+          shift:
+            existingLog.shift,
+
+          user,
+
+          removedSourceLogIds: [
+            existingLog.id
+          ]
+        }
+      );
+
+
     return jsonResponse({
       ok:
         true,
 
       deletedId:
-        id
+        id,
+
+      limestoneSync
     });
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "공용 업무일지 삭제 오류:",
       error
     );
 
+
     return jsonResponse(
       {
         ok:
           false,
+
         message:
-          "공용 업무일지를 삭제하는 중 오류가 발생했습니다.",
+          error instanceof Error
+            ? error.message
+            : "공용 업무일지를 삭제하는 중 오류가 발생했습니다.",
+
         error:
           String(
             error
           )
       },
+      Number(
+        error?.status
+      ) ||
       500
     );
   }

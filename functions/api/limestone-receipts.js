@@ -655,7 +655,15 @@ function roundQuantity(
 
 
 /* =========================================================
-  업무일지 원본 보직
+  업무일지 원본 보직 최종 정규화
+
+  1호기:
+  - BCO1
+  - BO1
+
+  2호기:
+  - BCO2
+  - BO2
 ========================================================= */
 
 function normalizeSourceRole(
@@ -672,10 +680,15 @@ function normalizeSourceRole(
       );
 
 
-  return [
+  const validRoles = [
     "BCO1",
-    "BCO2"
-  ].includes(
+    "BO1",
+    "BCO2",
+    "BO2"
+  ];
+
+
+  return validRoles.includes(
     role
   )
     ? role
@@ -963,9 +976,17 @@ function validateManualReceiptInput(
   };
 }
 
-
 /* =========================================================
-  업무일지 가져오기 항목 검증
+  업무일지 가져오기 항목 검증 최종본
+
+  허용 보직:
+  - BCO1 → 1호기
+  - BO1  → 1호기
+  - BCO2 → 2호기
+  - BO2  → 2호기
+
+  호기는 화면에서 전달된 값보다
+  원본 보직 기준을 우선한다.
 ========================================================= */
 
 function validateImportedReceiptInput(
@@ -996,20 +1017,30 @@ function validateImportedReceiptInput(
   ) {
     return {
       error:
-        "업무일지 원본 보직은 BCO1 또는 BCO2여야 합니다."
+        "업무일지 원본 보직은 BCO1·BO1·BCO2·BO2 중 하나여야 합니다."
     };
   }
 
 
-  /*
-    BCO1 → 1호기
-    BCO2 → 2호기
-  */
+  /* =====================================================
+    원본 보직 → 호기
+
+    1호기:
+    BCO1, BO1
+
+    2호기:
+    BCO2, BO2
+  ====================================================== */
+
   const unitNo =
-    sourceRole ===
-      "BCO1"
-        ? 1
-        : 2;
+    [
+      "BCO1",
+      "BO1"
+    ].includes(
+      sourceRole
+    )
+      ? 1
+      : 2;
 
 
   const sourceLogId =
@@ -1085,6 +1116,10 @@ function validateImportedReceiptInput(
     receipt: {
       ...manualValidation.receipt,
 
+      /*
+        화면에서 잘못된 호기가 전달되어도
+        원본 보직에 맞게 다시 지정한다.
+      */
       unitNo,
 
       sourceRole,
@@ -1530,22 +1565,24 @@ export async function onRequestGet(
 
 
 /* =========================================================
-  POST /api/limestone-receipts
+  POST /api/limestone-receipts 최종본
 
-  일반 등록:
-  {
-    receiptDate,
-    receiptTime,
-    unitNo,
-    quantityTon,
-    note
-  }
+  직접 등록:
+  - 효율팀 석회석 메뉴에서 수기 등록
 
-  업무일지 일괄 등록:
-  {
-    action: "bulk_import",
-    items: [...]
-  }
+  업무일지 최신화:
+  - BCO1·BO1 → 1호기
+  - BCO2·BO2 → 2호기
+
+  상·하위 우선순위:
+  - BCO1 > BO1
+  - BCO2 > BO2
+
+  처리:
+  - 저장된 업무일지라면 결재 상태와 관계없이 등록
+  - 같은 실제 입고는 한 건만 유지
+  - 하위 보직 기록이 먼저 있으면 상위 보직으로 교체
+  - 수기 등록 기록은 자동 삭제·교체하지 않음
 ========================================================= */
 
 export async function onRequestPost(
@@ -1587,7 +1624,8 @@ export async function onRequestPost(
 
 
     /* =====================================================
-      업무일지 일괄 가져오기
+      업무일지 → 효율팀 석회석 입고기록
+      일괄 최신화
     ====================================================== */
 
     if (
@@ -1636,6 +1674,10 @@ export async function onRequestPost(
       }
 
 
+      /* ===================================================
+        전달 항목 검증
+      ==================================================== */
+
       const validatedItems = [];
 
 
@@ -1676,17 +1718,378 @@ export async function onRequestPost(
       }
 
 
+      /* ===================================================
+        보직 우선순위
+
+        1호기:
+        BCO1 > BO1
+
+        2호기:
+        BCO2 > BO2
+      ==================================================== */
+
+      const rolePriorityMap = {
+        BCO1:
+          20,
+
+        BO1:
+          10,
+
+        BCO2:
+          20,
+
+        BO2:
+          10
+      };
+
+
+      const getSourceRolePriority = (
+        role
+      ) => {
+        return Number(
+          rolePriorityMap[
+            normalizeSourceRole(
+              role
+            )
+          ] ||
+          0
+        );
+      };
+
+
+      /* ===================================================
+        같은 실제 입고 판정 키
+
+        기준:
+        - 입고일자
+        - 입고시간
+        - 호기
+        - 입고량
+      ==================================================== */
+
+      const createBusinessKey = (
+        receipt
+      ) => {
+        return [
+          normalizeText(
+            receipt.receiptDate
+          ),
+
+          normalizeText(
+            receipt.receiptTime
+          ),
+
+          String(
+            Number(
+              receipt.unitNo
+            ) ||
+            ""
+          ),
+
+          Number(
+            receipt.quantityTon
+          ).toFixed(
+            2
+          )
+        ].join(
+          "||"
+        );
+      };
+
+
+      /* ===================================================
+        같은 요청 안의 중복 제거
+
+        같은 입고에 BCO1과 BO1이 함께 있으면
+        BCO1만 남긴다.
+
+        같은 입고에 BCO2와 BO2가 함께 있으면
+        BCO2만 남긴다.
+      ==================================================== */
+
+      const requestCandidateMap =
+        new Map();
+
+
+      validatedItems.forEach(
+        receipt => {
+          const businessKey =
+            createBusinessKey(
+              receipt
+            );
+
+
+          const currentReceipt =
+            requestCandidateMap.get(
+              businessKey
+            );
+
+
+          if (
+            !currentReceipt ||
+            getSourceRolePriority(
+              receipt.sourceRole
+            ) >
+              getSourceRolePriority(
+                currentReceipt.sourceRole
+              )
+          ) {
+            requestCandidateMap.set(
+              businessKey,
+              receipt
+            );
+          }
+        }
+      );
+
+
+      const effectiveItems = [
+        ...requestCandidateMap.values()
+      ];
+
+
       const timestamp =
         new Date()
           .toISOString();
 
 
-      const statements =
-        validatedItems.map(
-          receipt => {
-            return context.env.DB
+      let createdCount =
+        0;
+
+
+      let updatedCount =
+        0;
+
+
+      let replacedCount =
+        0;
+
+
+      let removedCount =
+        0;
+
+
+      let manualProtectedCount =
+        0;
+
+
+      let duplicateCount =
+        validatedItems.length -
+        effectiveItems.length;
+
+
+      /* ===================================================
+        같은 업무일지 원본 항목 조회
+      ==================================================== */
+
+      const loadSameSourceReceipt =
+        async receipt => {
+          const row =
+            await context.env.DB
               .prepare(`
-                INSERT OR IGNORE INTO limestone_receipts (
+                SELECT
+                  *
+
+                FROM limestone_receipts
+
+                WHERE
+                  source_type = 'shift_log'
+                  AND source_key = ?
+
+                ORDER BY
+                  updated_at DESC,
+                  created_at DESC
+
+                LIMIT 1
+              `)
+              .bind(
+                receipt.sourceKey
+              )
+              .first();
+
+
+          return row
+            ? convertReceiptRow(
+                row
+              )
+            : null;
+        };
+
+
+      /* ===================================================
+        같은 실제 입고기록 조회
+      ==================================================== */
+
+      const loadBusinessReceipts =
+        async receipt => {
+          const result =
+            await context.env.DB
+              .prepare(`
+                SELECT
+                  *
+
+                FROM limestone_receipts
+
+                WHERE
+                  receipt_date = ?
+                  AND receipt_time = ?
+                  AND unit_no = ?
+                  AND ABS(
+                    quantity_ton - ?
+                  ) < 0.005
+
+                ORDER BY
+                  CASE source_type
+                    WHEN 'manual' THEN 1
+                    WHEN 'shift_log' THEN 2
+                    ELSE 9
+                  END,
+
+                  updated_at DESC,
+                  created_at DESC
+              `)
+              .bind(
+                receipt.receiptDate,
+                receipt.receiptTime,
+                receipt.unitNo,
+                receipt.quantityTon
+              )
+              .all();
+
+
+          return (
+            Array.isArray(
+              result.results
+            )
+              ? result.results
+              : []
+          ).map(
+            convertReceiptRow
+          );
+        };
+
+
+      /* ===================================================
+        자동 연동 기록 삭제
+      ==================================================== */
+
+      const deleteReceiptById =
+        async receiptId => {
+          const deleteResult =
+            await context.env.DB
+              .prepare(`
+                DELETE FROM limestone_receipts
+
+                WHERE id = ?
+              `)
+              .bind(
+                receiptId
+              )
+              .run();
+
+
+          const changes =
+            Number(
+              deleteResult
+                ?.meta
+                ?.changes ||
+              0
+            );
+
+
+          removedCount +=
+            changes;
+
+
+          return changes;
+        };
+
+
+      /* ===================================================
+        기존 자동 연동 기록 갱신
+
+        사용:
+        - 같은 원본 내용 수정
+        - BO1 → BCO1 교체
+        - BO2 → BCO2 교체
+      ==================================================== */
+
+      const updateAutomaticReceipt =
+        async (
+          receiptId,
+          receipt
+        ) => {
+          const updateResult =
+            await context.env.DB
+              .prepare(`
+                UPDATE limestone_receipts
+
+                SET
+                  receipt_date = ?,
+                  receipt_time = ?,
+                  unit_no = ?,
+                  quantity_ton = ?,
+                  note = ?,
+
+                  source_type = 'shift_log',
+                  source_log_id = ?,
+                  source_entry_id = ?,
+                  source_key = ?,
+                  source_role = ?,
+                  source_author = ?,
+                  source_text = ?,
+
+                  updated_by_id = ?,
+                  updated_by_name = ?,
+                  updated_at = ?,
+
+                  revision =
+                    revision + 1
+
+                WHERE id = ?
+              `)
+              .bind(
+                receipt.receiptDate,
+                receipt.receiptTime,
+                receipt.unitNo,
+                receipt.quantityTon,
+                receipt.note,
+
+                receipt.sourceLogId,
+                receipt.sourceEntryId,
+                receipt.sourceKey,
+                receipt.sourceRole,
+                receipt.sourceAuthor,
+                receipt.sourceText,
+
+                user.employeeNo,
+                user.name,
+                timestamp,
+
+                receiptId
+              )
+              .run();
+
+
+          return Number(
+            updateResult
+              ?.meta
+              ?.changes ||
+            0
+          );
+        };
+
+
+      /* ===================================================
+        신규 자동 연동 기록 등록
+      ==================================================== */
+
+      const insertAutomaticReceipt =
+        async receipt => {
+          const insertResult =
+            await context.env.DB
+              .prepare(`
+                INSERT INTO limestone_receipts (
                   id,
 
                   receipt_date,
@@ -1714,6 +2117,7 @@ export async function onRequestPost(
                 )
                 VALUES (
                   ?,
+
                   ?,
                   ?,
                   ?,
@@ -1761,36 +2165,391 @@ export async function onRequestPost(
 
                 timestamp,
                 timestamp
-              );
-          }
-        );
+              )
+              .run();
 
 
-      const batchResults =
-        await context.env.DB
-          .batch(
-            statements
+          return Number(
+            insertResult
+              ?.meta
+              ?.changes ||
+            0
+          );
+        };
+
+
+      /* ===================================================
+        업무일지 후보별 등록·갱신·교체
+      ==================================================== */
+
+      for (
+        const receipt of effectiveItems
+      ) {
+        const candidatePriority =
+          getSourceRolePriority(
+            receipt.sourceRole
           );
 
 
-      const createdCount =
-        batchResults.reduce(
-          (
-            total,
-            result
-          ) => {
-            return (
-              total +
-              (
-                Number(
-                  result?.meta?.changes
-                ) ||
-                0
-              )
+        /*
+          같은 업무일지 항목으로
+          이미 만들어진 기록
+        */
+        const sameSourceReceipt =
+          await loadSameSourceReceipt(
+            receipt
+          );
+
+
+        /*
+          같은 날짜·시간·호기·수량 기록
+        */
+        const businessReceipts =
+          await loadBusinessReceipts(
+            receipt
+          );
+
+
+        /*
+          사용자가 직접 등록한 기록
+        */
+        const manualReceipt =
+          businessReceipts.find(
+            item => {
+              return (
+                normalizeText(
+                  item.sourceType
+                )
+                  .toLowerCase() ===
+                "manual"
+              );
+            }
+          ) ||
+          null;
+
+
+        /*
+          업무일지 자동 연동 기록
+        */
+        const automaticReceipts =
+          businessReceipts.filter(
+            item => {
+              return (
+                normalizeText(
+                  item.sourceType
+                )
+                  .toLowerCase() ===
+                "shift_log"
+              );
+            }
+          );
+
+
+        /*
+          같은 원본 항목을 제외한
+          다른 자동 연동 기록
+        */
+        const competingAutomaticReceipts =
+          automaticReceipts.filter(
+            item => {
+              return (
+                !sameSourceReceipt ||
+                item.id !==
+                  sameSourceReceipt.id
+              );
+            }
+          );
+
+
+        const highestCompetingPriority =
+          competingAutomaticReceipts.reduce(
+            (
+              highestPriority,
+              item
+            ) => {
+              return Math.max(
+                highestPriority,
+
+                getSourceRolePriority(
+                  item.sourceRole
+                )
+              );
+            },
+            0
+          );
+
+
+        /* ===============================================
+          같은 업무일지 원본 항목이 이미 등록됨
+        ================================================ */
+
+        if (
+          sameSourceReceipt
+        ) {
+          /*
+            수기 기록이 있거나
+            같은 입고에 동일·상위 보직 기록이 있으면
+            현재 자동기록을 제거한다.
+          */
+          if (
+            manualReceipt ||
+            highestCompetingPriority >=
+              candidatePriority
+          ) {
+            await deleteReceiptById(
+              sameSourceReceipt.id
             );
-          },
+
+
+            duplicateCount +=
+              1;
+
+
+            if (
+              manualReceipt
+            ) {
+              manualProtectedCount +=
+                1;
+            }
+
+
+            continue;
+          }
+
+
+          /*
+            같은 원본 업무일지 항목은
+            최신 내용으로 갱신한다.
+          */
+          const updated =
+            await updateAutomaticReceipt(
+              sameSourceReceipt.id,
+              receipt
+            );
+
+
+          updatedCount +=
+            updated;
+
+
+          /*
+            같은 실제 입고에 남아 있는
+            낮은 우선순위 자동기록 제거
+          */
+          for (
+            const duplicateReceipt of competingAutomaticReceipts
+          ) {
+            if (
+              getSourceRolePriority(
+                duplicateReceipt.sourceRole
+              ) <=
+                candidatePriority
+            ) {
+              await deleteReceiptById(
+                duplicateReceipt.id
+              );
+            }
+          }
+
+
+          continue;
+        }
+
+
+        /* ===============================================
+          수기 등록 기록 보호
+        ================================================ */
+
+        if (
+          manualReceipt
+        ) {
+          manualProtectedCount +=
+            1;
+
+
+          duplicateCount +=
+            1;
+
+
+          continue;
+        }
+
+
+        /* ===============================================
+          같은 실제 입고의 자동기록 존재
+        ================================================ */
+
+        if (
+          automaticReceipts.length >
+            0
+        ) {
+          /*
+            가장 높은 보직 순서로 정렬
+          */
+          const orderedAutomaticReceipts = [
+            ...automaticReceipts
+          ].sort(
+            (
+              firstItem,
+              secondItem
+            ) => {
+              const priorityDifference =
+                getSourceRolePriority(
+                  secondItem.sourceRole
+                ) -
+                getSourceRolePriority(
+                  firstItem.sourceRole
+                );
+
+
+              if (
+                priorityDifference !==
+                  0
+              ) {
+                return priorityDifference;
+              }
+
+
+              return String(
+                secondItem.updatedAt ||
+                ""
+              ).localeCompare(
+                String(
+                  firstItem.updatedAt ||
+                  ""
+                )
+              );
+            }
+          );
+
+
+          const primaryReceipt =
+            orderedAutomaticReceipts[
+              0
+            ];
+
+
+          const primaryPriority =
+            getSourceRolePriority(
+              primaryReceipt.sourceRole
+            );
+
+
+          /*
+            기존 기록이 같은 보직 또는
+            더 높은 보직이면 신규 후보를 제외한다.
+          */
+          if (
+            primaryPriority >=
+              candidatePriority
+          ) {
+            duplicateCount +=
+              1;
+
+
+            continue;
+          }
+
+
+          /*
+            기존 하위 보직 기록을
+            현재 상위 보직 기록으로 교체한다.
+
+            BO1 → BCO1
+            BO2 → BCO2
+          */
+          const replaced =
+            await updateAutomaticReceipt(
+              primaryReceipt.id,
+              receipt
+            );
+
+
+          updatedCount +=
+            replaced;
+
+
+          replacedCount +=
+            replaced;
+
+
+          /*
+            나머지 자동 중복기록 제거
+          */
+          for (
+            const duplicateReceipt of orderedAutomaticReceipts.slice(
+              1
+            )
+          ) {
+            await deleteReceiptById(
+              duplicateReceipt.id
+            );
+          }
+
+
+          continue;
+        }
+
+
+        /* ===============================================
+          신규 자동기록 등록
+        ================================================ */
+
+        createdCount +=
+          await insertAutomaticReceipt(
+            receipt
+          );
+      }
+
+
+      /* ===================================================
+        처리 결과
+      ==================================================== */
+
+      const messageParts = [
+        `신규 ${createdCount}건`,
+        `갱신 ${updatedCount}건`
+      ];
+
+
+      if (
+        replacedCount >
           0
+      ) {
+        messageParts.push(
+          `상위 보직 교체 ${replacedCount}건`
         );
+      }
+
+
+      if (
+        duplicateCount >
+          0
+      ) {
+        messageParts.push(
+          `중복 제외 ${duplicateCount}건`
+        );
+      }
+
+
+      if (
+        manualProtectedCount >
+          0
+      ) {
+        messageParts.push(
+          `수기 기록 유지 ${manualProtectedCount}건`
+        );
+      }
+
+
+      if (
+        removedCount >
+          0
+      ) {
+        messageParts.push(
+          `자동 중복 정리 ${removedCount}건`
+        );
+      }
 
 
       return jsonResponse(
@@ -1801,22 +2560,25 @@ export async function onRequestPost(
           requestedCount:
             validatedItems.length,
 
+          effectiveCount:
+            effectiveItems.length,
+
           createdCount,
 
-          duplicateCount:
-            validatedItems.length -
-            createdCount,
+          updatedCount,
+
+          replacedCount,
+
+          duplicateCount,
+
+          manualProtectedCount,
+
+          removedCount,
 
           message:
-            (
-              `석회석 입고기록 ${createdCount}건을 등록했습니다.` +
-              (
-                createdCount <
-                  validatedItems.length
-                  ? ` 중복 ${validatedItems.length - createdCount}건은 제외했습니다.`
-                  : ""
-              )
-            )
+            `석회석 입고기록 최신화를 완료했습니다. ${messageParts.join(
+              " / "
+            )}`
         },
         201
       );
@@ -1824,7 +2586,7 @@ export async function onRequestPost(
 
 
     /* =====================================================
-      직접 입력 등록
+      효율팀 석회석 메뉴 직접 입력 등록
     ====================================================== */
 
     const validation =

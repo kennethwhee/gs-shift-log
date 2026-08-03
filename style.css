@@ -62385,23 +62385,35 @@ select:focus {
 }
 
 /* =========================================================
-  효율팀 석회석 기간 선택판 최종 디자인
+  효율팀 석회석 기간 조회 최종 디자인
 
-  일별:
-  시작일·종료일 직접 선택
+  조회 방식:
+  - 일별: 시작일·종료일
+  - 주별: 이전 | 연도 | 월 | 주차 | 다음
+  - 월별: 이전 | 연도 | 월 | 다음
 
-  주별:
-  연도 선택
-  1월~12월 / 1주~5주 선택
-
-  월별:
-  연도 선택
-  1월~12월 선택
+  기존 펼침형 월·주차 목록은 사용하지 않는다.
 ========================================================= */
 
 
 /* =========================================================
-  조회 단위
+  이전 구조 잔존 방지
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-group-setting,
+
+#efficiencyTeamModal
+.limestone-weekly-option-list,
+
+#efficiencyTeamModal
+.limestone-monthly-option-list {
+  display: none !important;
+}
+
+
+/* =========================================================
+  조회 방식
 
   일별 | 주별 | 월별
 ========================================================= */
@@ -62410,15 +62422,15 @@ select:focus {
 .limestone-period-query-mode {
   display: flex;
 
+  width: 100%;
+
   align-items: center;
   justify-content: flex-start;
 
   gap: 12px;
 
-  width: 100%;
-
-  margin-bottom: 13px;
-  padding-bottom: 12px;
+  margin: 0 0 13px;
+  padding: 0 0 12px;
 
   border-bottom: 1px solid #e1e8f0;
 }
@@ -62437,8 +62449,6 @@ select:focus {
   white-space: nowrap;
 }
 
-
-/* 기존 버튼 디자인 보완 */
 
 #efficiencyTeamModal
 .limestone-period-query-mode
@@ -62464,14 +62474,14 @@ select:focus {
 .limestone-group-mode-button {
   display: inline-flex;
 
-  min-width: 62px;
-  height: 31px;
+  min-width: 64px;
+  min-height: 32px;
 
   align-items: center;
   justify-content: center;
 
   margin: 0;
-  padding: 0 12px;
+  padding: 0 13px;
 
   border: 0;
   border-radius: 7px;
@@ -62488,7 +62498,8 @@ select:focus {
   transition:
     background 0.16s ease,
     color 0.16s ease,
-    box-shadow 0.16s ease;
+    box-shadow 0.16s ease,
+    transform 0.12s ease;
 }
 
 
@@ -62497,6 +62508,13 @@ select:focus {
 .limestone-group-mode-button:hover {
   background: #e4ebf2;
   color: #314e6e;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-query-mode
+.limestone-group-mode-button:active {
+  transform: translateY(1px);
 }
 
 
@@ -62533,7 +62551,12 @@ select:focus {
   border: 1px solid #d5e0eb;
   border-radius: 10px;
 
-  background: #f8fafc;
+  background:
+    linear-gradient(
+      135deg,
+      #f8fafc,
+      #fbfdff
+    );
 
   box-sizing: border-box;
 }
@@ -62566,7 +62589,7 @@ select:focus {
 
   gap: 7px;
 
-  margin-bottom: 11px;
+  margin: 0 0 11px;
 }
 
 
@@ -62591,13 +62614,15 @@ select:focus {
 
 
 /* =========================================================
-  일별 날짜 선택
+  일별 날짜 범위
 ========================================================= */
 
 #efficiencyTeamModal
 .limestone-daily-period-picker
 .limestone-period-search-fields {
   display: grid;
+
+  width: 100%;
 
   grid-template-columns:
     repeat(
@@ -62609,42 +62634,18 @@ select:focus {
     );
 
   gap: 10px;
-
-  width: 100%;
-}
-
-
-/* =========================================================
-  주별·월별 연도 선택 도구
-========================================================= */
-
-#efficiencyTeamModal
-.limestone-period-picker__toolbar {
-  display: flex;
-
-  align-items: flex-end;
-  justify-content: space-between;
-
-  gap: 14px;
-
-  margin-bottom: 11px;
-  padding-bottom: 11px;
-
-  border-bottom: 1px solid #e0e7ef;
 }
 
 
 #efficiencyTeamModal
-.limestone-period-picker__toolbar
+.limestone-daily-period-picker
 .form-field {
-  flex: 0 0 150px;
-
   gap: 5px;
 }
 
 
 #efficiencyTeamModal
-.limestone-period-picker__toolbar
+.limestone-daily-period-picker
 .form-field__label {
   color: #53667d;
 
@@ -62654,29 +62655,31 @@ select:focus {
 
 
 #efficiencyTeamModal
-.limestone-period-picker__toolbar
-select {
+.limestone-daily-period-picker
+input {
   width: 100%;
-  height: 36px;
+  height: 38px;
 
   padding: 0 10px;
 
-  border: 1px solid #c5d3e1;
+  border: 1px solid #c7d4e1;
   border-radius: 8px;
 
   background: #ffffff;
-  color: #283d57;
+  color: #2b4059;
 
   font-size: 11px;
-  font-weight: 850;
+  font-weight: 800;
 
   outline: none;
+
+  box-sizing: border-box;
 }
 
 
 #efficiencyTeamModal
-.limestone-period-picker__toolbar
-select:focus {
+.limestone-daily-period-picker
+input:focus {
   border-color: #6596ca;
 
   box-shadow:
@@ -62690,251 +62693,111 @@ select:focus {
 }
 
 
-#efficiencyTeamModal
-.limestone-period-picker__toolbar
-p {
-  flex: 1 1 auto;
-
-  margin: 0;
-
-  color: #7b8999;
-
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 1.55;
-
-  text-align: right;
-}
-
-
 /* =========================================================
-  주별 선택 목록
-
-  PC:
-  한 줄에 월 2개
-
-  각 월:
-  월 이름 | 1주~5주
+  주별·월별 컴팩트 이동 영역
 ========================================================= */
 
 #efficiencyTeamModal
-.limestone-weekly-option-list {
+.limestone-compact-period-navigation {
   display: grid;
-
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(
-        0,
-        1fr
-      )
-    );
-
-  gap: 7px;
 
   width: 100%;
-  max-height: 265px;
 
-  padding-right: 4px;
+  align-items: end;
 
-  overflow-x: hidden;
-  overflow-y: auto;
+  gap: 8px;
 
-  scrollbar-gutter: stable;
-}
+  margin: 0;
+  padding: 11px;
 
-
-#efficiencyTeamModal
-.limestone-week-option-row {
-  display: grid;
-
-  grid-template-columns:
-    38px
-    minmax(
-      0,
-      1fr
-    );
-
-  align-items: center;
-
-  gap: 7px;
-
-  min-width: 0;
-
-  padding: 7px;
-
-  border: 1px solid #dce4ed;
-  border-radius: 8px;
+  border: 1px solid #d4dfe9;
+  border-radius: 10px;
 
   background: #ffffff;
 
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease;
+  box-sizing: border-box;
 }
 
 
-#efficiencyTeamModal
-.limestone-week-option-row:hover {
-  border-color: #b6cbe0;
+/* 주별
 
-  background: #fbfdff;
+  이전 | 연도 | 월 | 주차 | 다음
+*/
+
+#efficiencyTeamModal
+.limestone-compact-period-navigation--weekly {
+  grid-template-columns:
+    42px
+    minmax(
+      150px,
+      1.2fr
+    )
+    minmax(
+      100px,
+      0.8fr
+    )
+    minmax(
+      100px,
+      0.8fr
+    )
+    42px;
 }
 
 
-#efficiencyTeamModal
-.limestone-week-option-row > strong {
-  color: #405772;
+/* 월별
 
-  font-size: 10px;
-  font-weight: 900;
-
-  text-align: center;
-
-  white-space: nowrap;
-}
-
+  이전 | 연도 | 월 | 다음
+*/
 
 #efficiencyTeamModal
-.limestone-week-option-row > div {
-  display: grid;
+.limestone-compact-period-navigation--monthly {
+  width: min(
+    540px,
+    100%
+  );
 
   grid-template-columns:
-    repeat(
-      5,
-      minmax(
-        0,
-        1fr
-      )
-    );
+    42px
+    minmax(
+      160px,
+      1fr
+    )
+    minmax(
+      110px,
+      0.72fr
+    )
+    42px;
 
-  gap: 4px;
-
-  min-width: 0;
+  margin-right: auto;
+  margin-left: auto;
 }
 
 
 /* =========================================================
-  주차 선택 버튼
+  이전·다음 화살표
 ========================================================= */
 
 #efficiencyTeamModal
-.limestone-week-option-button {
+.limestone-compact-period-arrow {
   display: inline-flex;
 
-  min-width: 0;
-  height: 29px;
-
-  align-items: center;
-  justify-content: center;
-
-  margin: 0;
-  padding: 0 4px;
-
-  border: 1px solid #d0dae5;
-  border-radius: 6px;
-
-  background: #f7f9fb;
-  color: #607187;
-
-  font-size: 9px;
-  font-weight: 900;
-  line-height: 1;
-
-  white-space: nowrap;
-
-  cursor: pointer;
-
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.12s ease;
-}
-
-
-#efficiencyTeamModal
-.limestone-week-option-button:hover {
-  border-color: #88afd7;
-
-  background: #edf5fd;
-  color: #1f5fae;
-}
-
-
-#efficiencyTeamModal
-.limestone-week-option-button:active {
-  transform: translateY(1px);
-}
-
-
-#efficiencyTeamModal
-.limestone-week-option-button.is-selected {
-  border-color: #1f69b5;
-
-  background: #1f69b5;
-  color: #ffffff;
-
-  box-shadow:
-    0 3px 8px
-    rgba(
-      31,
-      105,
-      181,
-      0.2
-    );
-}
-
-
-/* =========================================================
-  월별 선택 목록
-========================================================= */
-
-#efficiencyTeamModal
-.limestone-monthly-option-list {
-  display: grid;
-
-  grid-template-columns:
-    repeat(
-      6,
-      minmax(
-        0,
-        1fr
-      )
-    );
-
-  gap: 7px;
-
-  width: 100%;
-}
-
-
-/* =========================================================
-  월 선택 버튼
-========================================================= */
-
-#efficiencyTeamModal
-.limestone-month-option-button {
-  display: inline-flex;
-
-  min-width: 0;
+  width: 42px;
   height: 38px;
 
   align-items: center;
   justify-content: center;
 
   margin: 0;
-  padding: 0 8px;
+  padding: 0;
 
-  border: 1px solid #cfdae6;
-  border-radius: 8px;
+  border: 1px solid #bdcddd;
+  border-radius: 9px;
 
-  background: #ffffff;
-  color: #526982;
+  background: #f7f9fc;
+  color: #3e5b79;
 
-  font-size: 10px;
-  font-weight: 900;
+  font-size: 24px;
+  font-weight: 500;
   line-height: 1;
 
   cursor: pointer;
@@ -62943,47 +62806,146 @@ p {
     border-color 0.15s ease,
     background 0.15s ease,
     color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.12s ease;
+    transform 0.12s ease,
+    box-shadow 0.15s ease;
 }
 
 
 #efficiencyTeamModal
-.limestone-month-option-button:hover {
-  border-color: #7ea8d4;
+.limestone-compact-period-arrow:hover {
+  border-color: #7da5ce;
 
   background: #edf5fd;
   color: #1f5fae;
+
+  box-shadow:
+    0 3px 9px
+    rgba(
+      31,
+      95,
+      174,
+      0.1
+    );
 }
 
 
 #efficiencyTeamModal
-.limestone-month-option-button:active {
+.limestone-compact-period-arrow:active {
   transform: translateY(1px);
 }
 
 
 #efficiencyTeamModal
-.limestone-month-option-button.is-selected {
-  border-color: #1f69b5;
+.limestone-compact-period-arrow:disabled {
+  border-color: #dbe2ea;
 
-  background:
-    linear-gradient(
-      135deg,
-      #236db9,
-      #1b5ca1
-    );
+  background: #f5f6f8;
+  color: #a7b0bc;
 
-  color: #ffffff;
+  cursor: not-allowed;
+
+  box-shadow: none;
+}
+
+
+/* =========================================================
+  연도·월·주차 입력칸
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-compact-period-field {
+  display: flex;
+
+  min-width: 0;
+
+  flex-direction: column;
+
+  gap: 5px;
+
+  margin: 0;
+}
+
+
+#efficiencyTeamModal
+.limestone-compact-period-field > span {
+  color: #53667d;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyTeamModal
+.limestone-compact-period-field select {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+
+  padding: 0 30px 0 10px;
+
+  border: 1px solid #c5d3e1;
+  border-radius: 8px;
+
+  background-color: #ffffff;
+  color: #283d57;
+
+  font-size: 11px;
+  font-weight: 850;
+
+  outline: none;
+
+  box-sizing: border-box;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+
+#efficiencyTeamModal
+.limestone-compact-period-field select:hover {
+  border-color: #9eb8d3;
+
+  background-color: #fbfdff;
+}
+
+
+#efficiencyTeamModal
+.limestone-compact-period-field select:focus {
+  border-color: #6596ca;
 
   box-shadow:
-    0 4px 10px
+    0 0 0 3px
     rgba(
       31,
-      105,
-      181,
-      0.22
+      95,
+      174,
+      0.09
     );
+}
+
+
+/* =========================================================
+  주차 안내
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-compact-period-help {
+  margin: 9px 1px 0;
+
+  color: #78879a;
+
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.55;
+
+  text-align: center;
 }
 
 
@@ -62997,6 +62959,8 @@ p {
 .limestone-period-common-fields {
   display: grid;
 
+  width: 100%;
+
   grid-template-columns:
     minmax(
       170px,
@@ -63006,8 +62970,6 @@ p {
   align-items: end;
 
   gap: 10px;
-
-  width: 100%;
 
   margin: 0 0 13px;
   padding: 12px 13px;
@@ -63056,16 +63018,36 @@ select {
   font-weight: 800;
 
   outline: none;
+
+  box-sizing: border-box;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-common-fields
+select:focus {
+  border-color: #6596ca;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(
+      31,
+      95,
+      174,
+      0.09
+    );
 }
 
 
 /* =========================================================
-  선택된 기간 미리보기
+  선택 기간 미리보기
 ========================================================= */
 
 #efficiencyTeamModal
 .limestone-period-selection-preview {
   display: grid;
+
+  min-height: 42px;
 
   grid-template-columns:
     auto
@@ -63078,8 +63060,6 @@ select {
   align-items: center;
 
   gap: 8px;
-
-  min-height: 39px;
 
   padding: 8px 11px;
 
@@ -63094,6 +63074,8 @@ select {
     );
 
   color: #334f6d;
+
+  box-sizing: border-box;
 }
 
 
@@ -63101,12 +63083,12 @@ select {
 .limestone-period-selection-preview > span {
   display: inline-flex;
 
-  min-height: 21px;
+  min-height: 22px;
 
   align-items: center;
   justify-content: center;
 
-  padding: 0 7px;
+  padding: 0 8px;
 
   border-radius: 999px;
 
@@ -63150,13 +63132,15 @@ select {
 
 
 /* =========================================================
-  키보드 포커스
+  포커스 표시
 ========================================================= */
 
 #efficiencyTeamModal
-.limestone-week-option-button:focus-visible,
+.limestone-compact-period-arrow:focus-visible,
+
 #efficiencyTeamModal
-.limestone-month-option-button:focus-visible {
+.limestone-compact-period-field
+select:focus-visible {
   outline:
     3px solid
     rgba(
@@ -63174,26 +63158,47 @@ select {
   태블릿
 ========================================================= */
 
-@media (max-width: 1050px) {
+@media (max-width: 1000px) {
 
   #efficiencyTeamModal
-  .limestone-weekly-option-list {
-    grid-template-columns: 1fr;
-
-    max-height: 290px;
+  .limestone-compact-period-navigation--weekly {
+    grid-template-columns:
+      40px
+      minmax(
+        125px,
+        1.1fr
+      )
+      minmax(
+        88px,
+        0.8fr
+      )
+      minmax(
+        88px,
+        0.8fr
+      )
+      40px;
   }
 
 
   #efficiencyTeamModal
-  .limestone-monthly-option-list {
+  .limestone-compact-period-navigation--monthly {
     grid-template-columns:
-      repeat(
-        4,
-        minmax(
-          0,
-          1fr
-        )
-      );
+      40px
+      minmax(
+        140px,
+        1fr
+      )
+      minmax(
+        100px,
+        0.75fr
+      )
+      40px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-compact-period-arrow {
+    width: 40px;
   }
 
 }
@@ -63208,6 +63213,7 @@ select {
   #efficiencyTeamModal
   .limestone-period-query-mode {
     align-items: stretch;
+
     flex-direction: column;
 
     gap: 8px;
@@ -63236,12 +63242,23 @@ select {
   .limestone-period-query-mode
   .limestone-group-mode-button {
     width: 100%;
+    min-width: 0;
   }
 
 
   #efficiencyTeamModal
   .limestone-period-picker {
     padding: 11px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-picker__heading {
+    align-items: flex-start;
+
+    flex-direction: column;
+
+    gap: 3px;
   }
 
 
@@ -63253,98 +63270,92 @@ select {
 
 
   #efficiencyTeamModal
-  .limestone-period-picker__heading {
-    align-items: flex-start;
-    flex-direction: column;
+  .limestone-compact-period-navigation {
+    gap: 5px;
 
-    gap: 3px;
+    padding: 8px;
   }
 
 
   #efficiencyTeamModal
-  .limestone-period-picker__toolbar {
-    align-items: stretch;
-    flex-direction: column;
-
-    gap: 8px;
+  .limestone-compact-period-navigation--weekly {
+    grid-template-columns:
+      34px
+      minmax(
+        0,
+        1.15fr
+      )
+      minmax(
+        0,
+        0.8fr
+      )
+      minmax(
+        0,
+        0.8fr
+      )
+      34px;
   }
 
 
   #efficiencyTeamModal
-  .limestone-period-picker__toolbar
-  .form-field {
-    flex: 0 0 auto;
-
+  .limestone-compact-period-navigation--monthly {
     width: 100%;
-  }
 
-
-  #efficiencyTeamModal
-  .limestone-period-picker__toolbar
-  p {
-    text-align: left;
-  }
-
-
-  #efficiencyTeamModal
-  .limestone-weekly-option-list {
-    grid-template-columns: 1fr;
-
-    max-height: 330px;
-  }
-
-
-  #efficiencyTeamModal
-  .limestone-week-option-row {
     grid-template-columns:
       34px
       minmax(
         0,
         1fr
-      );
-
-    gap: 5px;
-
-    padding: 6px;
+      )
+      minmax(
+        0,
+        0.75fr
+      )
+      34px;
   }
 
 
   #efficiencyTeamModal
-  .limestone-week-option-row > div {
-    gap: 3px;
+  .limestone-compact-period-arrow {
+    width: 34px;
+    height: 36px;
+
+    border-radius: 8px;
+
+    font-size: 21px;
   }
 
 
   #efficiencyTeamModal
-  .limestone-week-option-button {
-    height: 28px;
+  .limestone-compact-period-field {
+    gap: 4px;
+  }
 
-    padding: 0 2px;
 
+  #efficiencyTeamModal
+  .limestone-compact-period-field > span {
     font-size: 8px;
   }
 
 
   #efficiencyTeamModal
-  .limestone-monthly-option-list {
-    grid-template-columns:
-      repeat(
-        3,
-        minmax(
-          0,
-          1fr
-        )
-      );
+  .limestone-compact-period-field select {
+    height: 36px;
 
-    gap: 6px;
+    padding-right: 20px;
+    padding-left: 7px;
+
+    font-size: 9px;
   }
 
 
   #efficiencyTeamModal
-  .limestone-month-option-button {
-    height: 36px;
+  .limestone-compact-period-help {
+    margin-top: 8px;
 
-    font-size: 9px;
+    font-size: 8px;
+
+    text-align: left;
   }
 
 
@@ -63381,6 +63392,65 @@ select {
     text-align: left;
 
     white-space: normal;
+  }
+
+}
+
+
+/* =========================================================
+  매우 작은 모바일
+========================================================= */
+
+@media (max-width: 420px) {
+
+  #efficiencyTeamModal
+  .limestone-compact-period-navigation--weekly {
+    grid-template-columns:
+      32px
+      minmax(
+        0,
+        1.1fr
+      )
+      minmax(
+        0,
+        0.74fr
+      )
+      minmax(
+        0,
+        0.74fr
+      )
+      32px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-compact-period-navigation--monthly {
+    grid-template-columns:
+      32px
+      minmax(
+        0,
+        1fr
+      )
+      minmax(
+        0,
+        0.72fr
+      )
+      32px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-compact-period-arrow {
+    width: 32px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-compact-period-field select {
+    padding-right: 16px;
+    padding-left: 5px;
+
+    font-size: 8px;
   }
 
 }

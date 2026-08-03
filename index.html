@@ -532,19 +532,33 @@
 
         <!-- 근무자 현황 -->
         <section class="content-section shift-status-section">
-          <div class="section-heading">
-            <div>
-              <p class="section-heading__eyebrow">CURRENT SHIFT</p>
-              <h1 class="section-heading__title">근무자 현황</h1>
-            </div>
+<div class="section-heading">
+  <div>
+    <p class="section-heading__eyebrow">
+      CURRENT SHIFT
+    </p>
 
-            <div class="shift-summary">
-              <span class="shift-summary__label">현재 근무</span>
-              <strong class="shift-summary__value" id="currentShiftLabel">
-                2026년 07월 20일 월요일 N/S
-              </strong>
-            </div>
-          </div>
+    <h1
+      class="section-heading__title"
+      id="currentShiftTitle"
+    >
+      근무자 현황
+    </h1>
+  </div>
+
+  <div class="shift-summary">
+    <span class="shift-summary__label">
+      현재 근무
+    </span>
+
+    <strong
+      class="shift-summary__value"
+      id="currentShiftLabel"
+    >
+      2026년 07월 20일 월요일 N/S
+    </strong>
+  </div>
+</div>
 
 <!-- =========================================================
   근무자 현황 카드
@@ -3927,42 +3941,42 @@
 
     <div class="limestone-heading-actions">
 
-      <button
-        type="button"
-        class="
-          secondary-button
-          limestone-refresh-button
-        "
-        id="refreshLimestoneReceiptsButton"
-      >
-        새로고침
-      </button>
+  <button
+    type="button"
+    class="
+      secondary-button
+      limestone-refresh-button
+    "
+    id="refreshLimestoneReceiptsButton"
+  >
+    새로고침
+  </button>
 
 
-      <button
-        type="button"
-        class="
-          secondary-button
-          limestone-import-button
-        "
-        id="importLimestoneFromShiftLogsButton"
-      >
-        업무일지에서 가져오기
-      </button>
+  <button
+    type="button"
+    class="
+      secondary-button
+      limestone-import-button
+    "
+    id="importLimestoneFromShiftLogsButton"
+  >
+    업무일지 최신화
+  </button>
 
 
-      <button
-        type="button"
-        class="
-          primary-button
-          limestone-add-button
-        "
-        id="openLimestoneReceiptEditorButton"
-      >
-        ＋ 입고 기록
-      </button>
+  <button
+    type="button"
+    class="
+      primary-button
+      limestone-add-button
+    "
+    id="openLimestoneReceiptEditorButton"
+  >
+    ＋ 입고 기록
+  </button>
 
-    </div>
+</div>
 
   </div>
 
@@ -4077,420 +4091,523 @@
 
     기간 조회 버튼을 누를 때만 표시
   ================================================== -->
-  <form
-    class="limestone-period-search-panel"
-    id="limestoneSearchForm"
-    hidden
-  >
+  <!-- =================================================
+  석회석 기간 조회 최종본
 
-    <header class="limestone-period-search-panel__header">
+  조회 방식:
+  - 일별: 시작일·종료일 직접 선택
+  - 주별: 이전 | 연도 | 월 | 주차 | 다음
+  - 월별: 이전 | 연도 | 월 | 다음
 
-      <div>
-
-        <strong>
-          기간 조회
-        </strong>
-
-        <p>
-          조회할 기간과 집계 방식을 설정하세요.
-        </p>
-
-      </div>
-
-
-      <button
-        type="button"
-        class="limestone-period-search-close-button"
-        id="closeLimestonePeriodSearchButton"
-        aria-label="기간 조회 닫기"
-      >
-        ×
-      </button>
-
-    </header>
-
-
-<!-- =================================================
-  조회 단위
-
-  일별:
-  시작일·종료일 직접 지정
-
-  주별:
-  연도와 월별 주차 선택
-
-  월별:
-  연도와 월 선택
+  조회 방식과 집계 방식을 하나로 통합한다.
 ================================================= -->
-<div class="limestone-period-query-mode">
 
-  <span class="limestone-period-query-mode__label">
-    조회 단위
-  </span>
-
-
-  <div
-    class="limestone-group-mode-buttons"
-    role="group"
-    aria-label="석회석 조회 단위"
-  >
-
-    <button
-      type="button"
-      class="
-        limestone-group-mode-button
-        is-active
-      "
-      data-limestone-group-mode="daily"
-      aria-pressed="true"
-    >
-      일별
-    </button>
-
-
-    <button
-      type="button"
-      class="limestone-group-mode-button"
-      data-limestone-group-mode="weekly"
-      aria-pressed="false"
-    >
-      주별
-    </button>
-
-
-    <button
-      type="button"
-      class="limestone-group-mode-button"
-      data-limestone-group-mode="monthly"
-      aria-pressed="false"
-    >
-      월별
-    </button>
-
-  </div>
-
-</div>
-
-
-<!-- =================================================
-  일별 기간 선택
-
-  시작일·종료일을 직접 선택한다.
-================================================= -->
-<section
-  class="
-    limestone-period-picker
-    limestone-daily-period-picker
-    is-active
-  "
-  id="limestoneDailyPeriodPicker"
-  data-limestone-period-picker="daily"
->
-
-  <div class="limestone-period-picker__heading">
-
-    <strong>
-      날짜 범위
-    </strong>
-
-    <span>
-      시작일과 종료일을 직접 선택합니다.
-    </span>
-
-  </div>
-
-
-  <div class="limestone-period-search-fields">
-
-    <label class="form-field">
-
-      <span class="form-field__label">
-        시작일
-      </span>
-
-      <input
-        type="date"
-        id="limestoneStartDate"
-        required
-      />
-
-    </label>
-
-
-    <label class="form-field">
-
-      <span class="form-field__label">
-        종료일
-      </span>
-
-      <input
-        type="date"
-        id="limestoneEndDate"
-        required
-      />
-
-    </label>
-
-  </div>
-
-</section>
-
-
-<!-- =================================================
-  주별 기간 선택
-
-  JavaScript에서 선택한 연도의
-  월별 1주~5주 버튼을 생성한다.
-================================================= -->
-<section
-  class="
-    limestone-period-picker
-    limestone-weekly-period-picker
-  "
-  id="limestoneWeeklyPeriodPicker"
-  data-limestone-period-picker="weekly"
+<form
+  class="limestone-period-search-panel"
+  id="limestoneSearchForm"
   hidden
 >
 
-  <div class="limestone-period-picker__heading">
+  <!-- =================================================
+    상단
+  ================================================== -->
+  <header class="limestone-period-search-panel__header">
 
-    <strong>
-      주차 선택
-    </strong>
+    <div>
 
-    <span>
-      조회할 주차를 한 개 선택합니다.
-    </span>
+      <strong>
+        기간 조회
+      </strong>
 
-  </div>
-
-
-  <div class="limestone-period-picker__toolbar">
-
-    <label class="form-field">
-
-      <span class="form-field__label">
-        연도
-      </span>
-
-      <select id="limestoneWeeklyYearSelect">
-      </select>
-
-    </label>
-
-
-    <p>
-      1주 1~7일 · 2주 8~14일 ·
-      3주 15~21일 · 4주 22~28일 ·
-      5주 29~말일
-    </p>
-
-  </div>
-
-
-  <div
-    class="limestone-weekly-option-list"
-    id="limestoneWeeklyOptionList"
-    role="group"
-    aria-label="월별 주차 선택"
-  >
-  </div>
-
-</section>
-
-
-<!-- =================================================
-  월별 기간 선택
-
-  JavaScript에서 1월~12월 버튼을 생성한다.
-================================================= -->
-<section
-  class="
-    limestone-period-picker
-    limestone-monthly-period-picker
-  "
-  id="limestoneMonthlyPeriodPicker"
-  data-limestone-period-picker="monthly"
-  hidden
->
-
-  <div class="limestone-period-picker__heading">
-
-    <strong>
-      월 선택
-    </strong>
-
-    <span>
-      조회할 월을 한 개 선택합니다.
-    </span>
-
-  </div>
-
-
-  <div class="limestone-period-picker__toolbar">
-
-    <label class="form-field">
-
-      <span class="form-field__label">
-        연도
-      </span>
-
-      <select id="limestoneMonthlyYearSelect">
-      </select>
-
-    </label>
-
-  </div>
-
-
-  <div
-    class="limestone-monthly-option-list"
-    id="limestoneMonthlyOptionList"
-    role="group"
-    aria-label="조회 월 선택"
-  >
-  </div>
-
-</section>
-
-
-<!-- =================================================
-  공통 조회 조건
-================================================= -->
-<div class="limestone-period-common-fields">
-
-  <label class="form-field">
-
-    <span class="form-field__label">
-      호기
-    </span>
-
-    <select id="limestoneUnitFilter">
-
-      <option value="">
-        전체 호기
-      </option>
-
-      <option value="1">
-        1호기
-      </option>
-
-      <option value="2">
-        2호기
-      </option>
-
-    </select>
-
-  </label>
-
-</div>
-
-
-<!-- =================================================
-  선택된 기간 미리보기
-
-  예:
-  2026년 7월 3주
-  2026-07-15 ~ 2026-07-21
-================================================= -->
-<div
-  class="limestone-period-selection-preview"
-  id="limestonePeriodSelectionPreview"
->
-
-  <span>
-    선택 기간
-  </span>
-
-  <strong id="limestonePeriodSelectionTitle">
-    직접 날짜 선택
-  </strong>
-
-  <small id="limestonePeriodSelectionRange">
-    -
-  </small>
-
-</div>
-
-
-    <!-- =================================================
-      기간 조회 집계 방식
-    ================================================== -->
-    <div class="limestone-period-group-setting">
-
-      <span class="limestone-period-group-setting__label">
-        집계 방식
-      </span>
-
-
-      <div
-        class="limestone-group-mode-buttons"
-        role="group"
-        aria-label="석회석 입고량 집계 방식"
-      >
-
-        <button
-          type="button"
-          class="
-            limestone-group-mode-button
-            is-active
-          "
-          data-limestone-group-mode="daily"
-          aria-pressed="true"
-        >
-          일별
-        </button>
-
-
-        <button
-          type="button"
-          class="limestone-group-mode-button"
-          data-limestone-group-mode="weekly"
-          aria-pressed="false"
-        >
-          주별
-        </button>
-
-
-        <button
-          type="button"
-          class="limestone-group-mode-button"
-          data-limestone-group-mode="monthly"
-          aria-pressed="false"
-        >
-          월별
-        </button>
-
-      </div>
+      <p>
+        조회 방식과 기간을 선택하세요.
+      </p>
 
     </div>
 
 
-    <footer class="limestone-period-search-actions">
+    <button
+      type="button"
+      class="limestone-period-search-close-button"
+      id="closeLimestonePeriodSearchButton"
+      aria-label="기간 조회 닫기"
+    >
+      ×
+    </button>
+
+  </header>
+
+
+  <!-- =================================================
+    조회 방식
+
+    이 버튼이 조회 기간과 결과 집계 방식을
+    동시에 결정한다.
+
+    별도의 집계 방식 버튼은 사용하지 않는다.
+  ================================================== -->
+  <div class="limestone-period-query-mode">
+
+    <span class="limestone-period-query-mode__label">
+      조회 방식
+    </span>
+
+
+    <div
+      class="limestone-group-mode-buttons"
+      role="group"
+      aria-label="석회석 조회 방식"
+    >
 
       <button
         type="button"
-        class="secondary-button"
-        id="cancelLimestonePeriodSearchButton"
+        class="
+          limestone-group-mode-button
+          is-active
+        "
+        data-limestone-group-mode="daily"
+        aria-pressed="true"
       >
-        취소
+        일별
       </button>
 
 
       <button
-        type="submit"
-        class="
-          primary-button
-          limestone-search-button
-        "
-        id="searchLimestoneReceiptsButton"
+        type="button"
+        class="limestone-group-mode-button"
+        data-limestone-group-mode="weekly"
+        aria-pressed="false"
       >
-        조회하기
+        주별
       </button>
 
-    </footer>
 
-  </form>
+      <button
+        type="button"
+        class="limestone-group-mode-button"
+        data-limestone-group-mode="monthly"
+        aria-pressed="false"
+      >
+        월별
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <!-- =================================================
+    일별 기간 선택
+
+    시작일과 종료일을 직접 선택한다.
+  ================================================== -->
+  <section
+    class="
+      limestone-period-picker
+      limestone-daily-period-picker
+      is-active
+    "
+    id="limestoneDailyPeriodPicker"
+    data-limestone-period-picker="daily"
+  >
+
+    <div class="limestone-period-picker__heading">
+
+      <strong>
+        날짜 범위
+      </strong>
+
+      <span>
+        시작일과 종료일을 직접 선택합니다.
+      </span>
+
+    </div>
+
+
+    <div class="limestone-period-search-fields">
+
+      <label class="form-field">
+
+        <span class="form-field__label">
+          시작일
+        </span>
+
+        <input
+          type="date"
+          id="limestoneStartDate"
+          required
+        />
+
+      </label>
+
+
+      <label class="form-field">
+
+        <span class="form-field__label">
+          종료일
+        </span>
+
+        <input
+          type="date"
+          id="limestoneEndDate"
+          required
+        />
+
+      </label>
+
+    </div>
+
+  </section>
+
+
+  <!-- =================================================
+    주별 기간 선택
+
+    표시:
+    [‹] [연도] [월] [주차] [›]
+
+    주차 기준:
+    - 1주: 1일~7일
+    - 2주: 8일~14일
+    - 3주: 15일~21일
+    - 4주: 22일~28일
+    - 5주: 29일~말일
+  ================================================== -->
+  <section
+    class="
+      limestone-period-picker
+      limestone-weekly-period-picker
+    "
+    id="limestoneWeeklyPeriodPicker"
+    data-limestone-period-picker="weekly"
+    hidden
+  >
+
+    <div class="limestone-period-picker__heading">
+
+      <strong>
+        주차 선택
+      </strong>
+
+      <span>
+        연도·월·주차를 선택하거나 화살표로 이동합니다.
+      </span>
+
+    </div>
+
+
+    <div
+      class="
+        limestone-compact-period-navigation
+        limestone-compact-period-navigation--weekly
+      "
+    >
+
+      <!-- 이전 주 -->
+      <button
+        type="button"
+        class="limestone-compact-period-arrow"
+        id="limestonePreviousWeekButton"
+        aria-label="이전 주로 이동"
+        title="이전 주"
+      >
+        ‹
+      </button>
+
+
+      <!-- 연도 -->
+      <label class="limestone-compact-period-field">
+
+        <span>
+          연도
+        </span>
+
+        <select
+          id="limestoneWeeklyYearSelect"
+          aria-label="주별 조회 연도"
+        >
+        </select>
+
+      </label>
+
+
+      <!-- 월 -->
+      <label class="limestone-compact-period-field">
+
+        <span>
+          월
+        </span>
+
+        <select
+          id="limestoneWeeklyMonthSelect"
+          aria-label="주별 조회 월"
+        >
+
+          <option value="1">1월</option>
+          <option value="2">2월</option>
+          <option value="3">3월</option>
+          <option value="4">4월</option>
+          <option value="5">5월</option>
+          <option value="6">6월</option>
+          <option value="7">7월</option>
+          <option value="8">8월</option>
+          <option value="9">9월</option>
+          <option value="10">10월</option>
+          <option value="11">11월</option>
+          <option value="12">12월</option>
+
+        </select>
+
+      </label>
+
+
+      <!-- 주차 -->
+      <label class="limestone-compact-period-field">
+
+        <span>
+          주차
+        </span>
+
+        <select
+          id="limestoneWeeklyWeekSelect"
+          aria-label="주별 조회 주차"
+        >
+
+          <option value="1">1주</option>
+          <option value="2">2주</option>
+          <option value="3">3주</option>
+          <option value="4">4주</option>
+          <option value="5">5주</option>
+
+        </select>
+
+      </label>
+
+
+      <!-- 다음 주 -->
+      <button
+        type="button"
+        class="limestone-compact-period-arrow"
+        id="limestoneNextWeekButton"
+        aria-label="다음 주로 이동"
+        title="다음 주"
+      >
+        ›
+      </button>
+
+    </div>
+
+
+    <p class="limestone-compact-period-help">
+      1주 1~7일 · 2주 8~14일 · 3주 15~21일 ·
+      4주 22~28일 · 5주 29~말일
+    </p>
+
+  </section>
+
+
+  <!-- =================================================
+    월별 기간 선택
+
+    표시:
+    [‹] [연도] [월] [›]
+  ================================================== -->
+  <section
+    class="
+      limestone-period-picker
+      limestone-monthly-period-picker
+    "
+    id="limestoneMonthlyPeriodPicker"
+    data-limestone-period-picker="monthly"
+    hidden
+  >
+
+    <div class="limestone-period-picker__heading">
+
+      <strong>
+        월 선택
+      </strong>
+
+      <span>
+        연도와 월을 선택하거나 화살표로 이동합니다.
+      </span>
+
+    </div>
+
+
+    <div
+      class="
+        limestone-compact-period-navigation
+        limestone-compact-period-navigation--monthly
+      "
+    >
+
+      <!-- 이전 월 -->
+      <button
+        type="button"
+        class="limestone-compact-period-arrow"
+        id="limestonePreviousMonthButton"
+        aria-label="이전 월로 이동"
+        title="이전 월"
+      >
+        ‹
+      </button>
+
+
+      <!-- 연도 -->
+      <label class="limestone-compact-period-field">
+
+        <span>
+          연도
+        </span>
+
+        <select
+          id="limestoneMonthlyYearSelect"
+          aria-label="월별 조회 연도"
+        >
+        </select>
+
+      </label>
+
+
+      <!-- 월 -->
+      <label class="limestone-compact-period-field">
+
+        <span>
+          월
+        </span>
+
+        <select
+          id="limestoneMonthlyMonthSelect"
+          aria-label="월별 조회 월"
+        >
+
+          <option value="1">1월</option>
+          <option value="2">2월</option>
+          <option value="3">3월</option>
+          <option value="4">4월</option>
+          <option value="5">5월</option>
+          <option value="6">6월</option>
+          <option value="7">7월</option>
+          <option value="8">8월</option>
+          <option value="9">9월</option>
+          <option value="10">10월</option>
+          <option value="11">11월</option>
+          <option value="12">12월</option>
+
+        </select>
+
+      </label>
+
+
+      <!-- 다음 월 -->
+      <button
+        type="button"
+        class="limestone-compact-period-arrow"
+        id="limestoneNextMonthButton"
+        aria-label="다음 월로 이동"
+        title="다음 월"
+      >
+        ›
+      </button>
+
+    </div>
+
+  </section>
+
+
+  <!-- =================================================
+    공통 조회 조건
+  ================================================== -->
+  <div class="limestone-period-common-fields">
+
+    <label class="form-field">
+
+      <span class="form-field__label">
+        호기
+      </span>
+
+      <select id="limestoneUnitFilter">
+
+        <option value="">
+          전체 호기
+        </option>
+
+        <option value="1">
+          1호기
+        </option>
+
+        <option value="2">
+          2호기
+        </option>
+
+      </select>
+
+    </label>
+
+  </div>
+
+
+  <!-- =================================================
+    선택 기간 미리보기
+
+    일별:
+    직접 날짜 선택
+
+    주별:
+    2026년 8월 1주
+
+    월별:
+    2026년 8월
+  ================================================== -->
+  <div
+    class="limestone-period-selection-preview"
+    id="limestonePeriodSelectionPreview"
+  >
+
+    <span>
+      선택 기간
+    </span>
+
+    <strong id="limestonePeriodSelectionTitle">
+      직접 날짜 선택
+    </strong>
+
+    <small id="limestonePeriodSelectionRange">
+      -
+    </small>
+
+  </div>
+
+
+  <!-- =================================================
+    하단 버튼
+  ================================================== -->
+  <footer class="limestone-period-search-actions">
+
+    <button
+      type="button"
+      class="secondary-button"
+      id="cancelLimestonePeriodSearchButton"
+    >
+      취소
+    </button>
+
+
+    <button
+      type="submit"
+      class="
+        primary-button
+        limestone-search-button
+      "
+      id="searchLimestoneReceiptsButton"
+    >
+      조회하기
+    </button>
+
+  </footer>
+
+</form>
 
 </section>
 
@@ -5026,17 +5143,198 @@
 
 
 <!-- =================================================
-  업무일지 석회석 입고내역 가져오기
+  업무일지 석회석 입고기록 최신화
 
-  중요:
-  - 상단 석회석 조회 기간과 별도
-  - 이 기간은 업무일지 후보 검색에만 사용
+  기본:
+  - 업무일지 저장 시 자동 반영
+
+  수동 최신화:
+  - 누락된 기록 확인
+  - 과거 업무일지 확인
+  - 하위 보직 기록을 상위 보직 기록으로 교체
+
+  우선순위:
+  - 1호기: BCO1 > BO1
+  - 2호기: BCO2 > BO2
 ================================================== -->
+
 <section
   class="limestone-import-panel"
   id="limestoneImportPanel"
   hidden
 >
+
+  <header class="limestone-import-header">
+
+    <div>
+
+      <span>
+        SHIFT LOG SYNC
+      </span>
+
+      <h4>
+        업무일지 석회석 입고기록 최신화
+      </h4>
+
+      <p>
+        업무일지 저장 시 자동 반영됩니다.
+        누락된 기록이나 과거자료를 다시 확인할 때 사용합니다.
+        <br />
+
+        1호기는 BCO1 &gt; BO1,
+        2호기는 BCO2 &gt; BO2 순서로 우선 반영하며
+        직접 입력한 수기 기록은 유지합니다.
+      </p>
+
+    </div>
+
+
+    <strong id="limestoneImportCandidateCount">
+      0건
+    </strong>
+
+  </header>
+
+
+  <!-- =================================================
+    최신화 전용 조회 조건
+
+    위쪽 석회석 현황 조회 기간과는
+    독립적으로 사용한다.
+  ================================================== -->
+
+  <div class="limestone-import-range-panel">
+
+    <div class="limestone-import-range-heading">
+
+      <div>
+
+        <strong>
+          최신화 기간
+        </strong>
+
+        <small>
+          위쪽 입고현황 조회 기간과 별도로 적용됩니다.
+        </small>
+
+      </div>
+
+    </div>
+
+
+    <div class="limestone-import-range-form">
+
+      <label class="form-field">
+
+        <span class="form-field__label">
+          시작일
+        </span>
+
+        <input
+          type="date"
+          id="limestoneImportStartDate"
+        />
+
+      </label>
+
+
+      <label class="form-field">
+
+        <span class="form-field__label">
+          종료일
+        </span>
+
+        <input
+          type="date"
+          id="limestoneImportEndDate"
+        />
+
+      </label>
+
+
+      <label class="form-field">
+
+        <span class="form-field__label">
+          호기
+        </span>
+
+        <select id="limestoneImportUnitFilter">
+
+          <option value="">
+            전체 호기
+          </option>
+
+          <option value="1">
+            1호기
+          </option>
+
+          <option value="2">
+            2호기
+          </option>
+
+        </select>
+
+      </label>
+
+
+      <button
+        type="button"
+        class="
+          primary-button
+          limestone-import-search-button
+        "
+        id="searchLimestoneImportCandidatesButton"
+      >
+        최신화 대상 조회
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <!-- =================================================
+    최신화 대상 목록
+  ================================================== -->
+
+  <div
+    class="limestone-import-candidate-list"
+    id="limestoneImportCandidateList"
+  >
+
+    <div class="limestone-import-empty-message">
+
+      최신화 기간을 선택한 후
+      최신화 대상 조회 버튼을 눌러주세요.
+
+    </div>
+
+  </div>
+
+
+  <div class="limestone-import-actions">
+
+    <button
+      type="button"
+      class="secondary-button"
+      id="cancelLimestoneImportButton"
+    >
+      취소
+    </button>
+
+
+    <button
+      type="button"
+      class="primary-button"
+      id="applyLimestoneImportButton"
+      disabled
+    >
+      선택 기록 최신화
+    </button>
+
+  </div>
+
+</section>
 
   <header class="limestone-import-header">
 

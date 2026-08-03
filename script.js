@@ -9079,6 +9079,11 @@ function cacheElements() {
         "currentShiftLabel"
       ),
 
+    currentShiftTitle:
+      document.getElementById(
+        "currentShiftTitle"
+      ),
+
     selectedDateText:
       document.getElementById(
         "selectedDateText"
@@ -9103,7 +9108,6 @@ function cacheElements() {
       document.getElementById(
         "todayButton"
       ),
-
 
     /* =====================================================
       업무일지 작성 모달
@@ -26570,12 +26574,10 @@ function renderSelectedDate() {
       "(max-width: 768px)"
     ).matches;
 
-
   const desktopDateText =
     formatKoreanDate(
       appState.selectedDate
     );
-
 
   const mobileDateText =
     formatMobileKoreanDate(
@@ -26583,19 +26585,16 @@ function renderSelectedDate() {
       false
     );
 
-
   const mobileCurrentShiftDateText =
     formatMobileKoreanDate(
       appState.selectedDate,
       true
     );
 
-
   const shiftDisplayName =
     getShiftDisplayName(
       appState.selectedShift
     );
-
 
   const scheduledPart =
     getScheduledPart(
@@ -26603,17 +26602,24 @@ function renderSelectedDate() {
       appState.selectedShift
     );
 
+  /*
+    근무자 현황 제목
 
-  /* =====================================================
+    예:
+    근무자 현황 · 4파트
+  */
+  if (
+    elements.currentShiftTitle
+  ) {
+    elements.currentShiftTitle.textContent =
+      scheduledPart
+        ? `근무자 현황 · ${scheduledPart}`
+        : "근무자 현황";
+  }
+
+  /*
     날짜 이동바
-
-    PC:
-    2026년 07월 29일 수요일
-
-    모바일:
-    07.29(수)
-  ====================================================== */
-
+  */
   if (
     elements.selectedDateText
   ) {
@@ -26623,11 +26629,9 @@ function renderSelectedDate() {
         : desktopDateText;
   }
 
-
-  /* =====================================================
+  /*
     근무 배지
-  ====================================================== */
-
+  */
   if (
     elements.selectedShiftBadge
   ) {
@@ -26635,17 +26639,12 @@ function renderSelectedDate() {
       shiftDisplayName;
   }
 
+  /*
+    오른쪽 현재 근무 표시
 
-  /* =====================================================
-    근무자 현황 현재 근무 표시
-
-    PC:
-    2026년 07월 29일 수요일 · N/S · 3파트
-
-    모바일:
-    2026.07.29(수) · N/S · 3파트
-  ====================================================== */
-
+    파트는 제목에만 표시하고
+    여기에는 날짜와 근무만 표시한다.
+  */
   if (
     elements.currentShiftLabel
   ) {
@@ -26655,38 +26654,21 @@ function renderSelectedDate() {
           ? mobileCurrentShiftDateText
           : desktopDateText,
 
-        shiftDisplayName,
-
-        scheduledPart
+        shiftDisplayName
       ]
-        .filter(
-          Boolean
-        )
-        .join(
-          " · "
-        );
+        .filter(Boolean)
+        .join(" · ");
   }
-
 
   setEditorDateFromSelectedDate();
 
-
-  /*
-    보직별 공지 기능이 아직 초기화되기 전이면
-    오류 없이 건너뛴다.
-  */
   if (
     typeof updateAllRoleNoticeButtons ===
-      "function"
+    "function"
   ) {
     updateAllRoleNoticeButtons();
   }
 
-
-  /*
-    공지 목록창이 열려 있는 경우
-    선택 날짜 기준으로 목록과 건수를 다시 표시한다.
-  */
   if (
     typeof roleNoticeState !==
       "undefined" &&
@@ -75142,31 +75124,31 @@ async function applyLimestonePeriodSearch() {
   closeLimestonePeriodSearchPanel();
 }
 
-/* =====================================================
-  석회석 기간 선택 요소
-===================================================== */
-
 function getLimestonePeriodPickerElements() {
+  const byId =
+    id => document.getElementById(
+      id
+    );
+
+
   return {
     searchForm:
-      document.getElementById(
+      byId(
         "limestoneSearchForm"
       ),
 
     startDateInput:
-      document.getElementById(
+      byId(
         "limestoneStartDate"
       ),
 
     endDateInput:
-      document.getElementById(
+      byId(
         "limestoneEndDate"
       ),
 
 
-    /*
-      조회 단위별 화면
-    */
+    /* 조회 방식별 화면 */
     periodPickers:
       Array.from(
         document.querySelectorAll(
@@ -75175,64 +75157,83 @@ function getLimestonePeriodPickerElements() {
       ),
 
     dailyPicker:
-      document.getElementById(
+      byId(
         "limestoneDailyPeriodPicker"
       ),
 
     weeklyPicker:
-      document.getElementById(
+      byId(
         "limestoneWeeklyPeriodPicker"
       ),
 
     monthlyPicker:
-      document.getElementById(
+      byId(
         "limestoneMonthlyPeriodPicker"
       ),
 
 
-    /*
-      주별 선택
-    */
+    /* 주별 선택 */
     weeklyYearSelect:
-      document.getElementById(
+      byId(
         "limestoneWeeklyYearSelect"
       ),
 
-    weeklyOptionList:
-      document.getElementById(
-        "limestoneWeeklyOptionList"
+    weeklyMonthSelect:
+      byId(
+        "limestoneWeeklyMonthSelect"
+      ),
+
+    weeklyWeekSelect:
+      byId(
+        "limestoneWeeklyWeekSelect"
+      ),
+
+    previousWeekButton:
+      byId(
+        "limestonePreviousWeekButton"
+      ),
+
+    nextWeekButton:
+      byId(
+        "limestoneNextWeekButton"
       ),
 
 
-    /*
-      월별 선택
-    */
+    /* 월별 선택 */
     monthlyYearSelect:
-      document.getElementById(
+      byId(
         "limestoneMonthlyYearSelect"
       ),
 
-    monthlyOptionList:
-      document.getElementById(
-        "limestoneMonthlyOptionList"
+    monthlyMonthSelect:
+      byId(
+        "limestoneMonthlyMonthSelect"
+      ),
+
+    previousMonthButton:
+      byId(
+        "limestonePreviousMonthButton"
+      ),
+
+    nextMonthButton:
+      byId(
+        "limestoneNextMonthButton"
       ),
 
 
-    /*
-      선택 기간 미리보기
-    */
+    /* 선택 기간 미리보기 */
     selectionPreview:
-      document.getElementById(
+      byId(
         "limestonePeriodSelectionPreview"
       ),
 
     selectionTitle:
-      document.getElementById(
+      byId(
         "limestonePeriodSelectionTitle"
       ),
 
     selectionRange:
-      document.getElementById(
+      byId(
         "limestonePeriodSelectionRange"
       )
   };
@@ -75688,10 +75689,24 @@ function updateLimestoneDailyPeriodSelectionPreview() {
 
 
 /* =====================================================
-  주차 선택 적용
+  석회석 주별 조회 기간 선택 최종본
 
-  선택한 주의 시작일·종료일을
-  기존 날짜 입력칸에 자동 입력한다.
+  선택값:
+  - 연도
+  - 월
+  - 주차
+
+  적용:
+  - 시작일·종료일 자동 입력
+  - 선택창 값 동기화
+  - 선택 기간 미리보기 갱신
+
+  주차:
+  - 1주: 1일~7일
+  - 2주: 8일~14일
+  - 3주: 15일~21일
+  - 4주: 22일~28일
+  - 5주: 29일~말일
 ===================================================== */
 
 function selectLimestoneWeeklyPeriod(
@@ -75699,11 +75714,29 @@ function selectLimestoneWeeklyPeriod(
   month,
   weekNumber
 ) {
+  const normalizedYear =
+    Number(
+      year
+    );
+
+
+  const normalizedMonth =
+    Number(
+      month
+    );
+
+
+  const normalizedWeekNumber =
+    Number(
+      weekNumber
+    );
+
+
   const periodRange =
     getLimestoneWeekDateRange(
-      year,
-      month,
-      weekNumber
+      normalizedYear,
+      normalizedMonth,
+      normalizedWeekNumber
     );
 
 
@@ -75715,15 +75748,17 @@ function selectLimestoneWeeklyPeriod(
     );
 
 
-    return;
+    return false;
   }
 
 
   const {
     startDateInput,
     endDateInput,
+
     weeklyYearSelect,
-    weeklyOptionList
+    weeklyMonthSelect,
+    weeklyWeekSelect
   } =
     getLimestonePeriodPickerElements();
 
@@ -75732,9 +75767,13 @@ function selectLimestoneWeeklyPeriod(
     !startDateInput ||
     !endDateInput
   ) {
-    return;
+    return false;
   }
 
+
+  /* ===================================================
+    실제 조회 날짜 입력
+  ==================================================== */
 
   startDateInput.value =
     periodRange.startDate;
@@ -75748,10 +75787,18 @@ function selectLimestoneWeeklyPeriod(
     periodRange.startDate;
 
 
+  /*
+    기간 조회 후 하루 이동 버튼을 사용하면
+    선택 기간의 마지막 날짜를 기준으로 이동한다.
+  */
   limestoneReceiptState
     .selectedDay =
     periodRange.endDate;
 
+
+  /* ===================================================
+    컴팩트 선택창 값 동기화
+  ==================================================== */
 
   if (
     weeklyYearSelect
@@ -75763,71 +75810,74 @@ function selectLimestoneWeeklyPeriod(
   }
 
 
-  weeklyOptionList
-    ?.querySelectorAll(
-      "[data-limestone-week-year]"
-    )
-    .forEach(
-      button => {
-        const isSelected =
-          Number(
-            button.dataset
-              .limestoneWeekYear
-          ) ===
-            periodRange.year &&
-
-          Number(
-            button.dataset
-              .limestoneWeekMonth
-          ) ===
-            periodRange.month &&
-
-          Number(
-            button.dataset
-              .limestoneWeekNumber
-          ) ===
-            periodRange.weekNumber;
+  if (
+    weeklyMonthSelect
+  ) {
+    weeklyMonthSelect.value =
+      String(
+        periodRange.month
+      );
+  }
 
 
-        button.classList.toggle(
-          "is-selected",
-          isSelected
-        );
+  if (
+    weeklyWeekSelect
+  ) {
+    weeklyWeekSelect.value =
+      String(
+        periodRange.weekNumber
+      );
+  }
 
 
-        button.setAttribute(
-          "aria-pressed",
-          String(
-            isSelected
-          )
-        );
-      }
-    );
-
+  /* ===================================================
+    선택 기간 미리보기
+  ==================================================== */
 
   updateLimestonePeriodSelectionPreview(
     periodRange.title,
     periodRange.startDate,
     periodRange.endDate
   );
+
+
+  return true;
 }
 
 
 /* =====================================================
-  월 선택 적용
+  석회석 월별 조회 기간 선택 최종본
 
-  선택한 월의 1일~말일을
-  기존 날짜 입력칸에 자동 입력한다.
+  선택값:
+  - 연도
+  - 월
+
+  적용:
+  - 해당 월 1일~말일 자동 입력
+  - 연도·월 선택창 동기화
+  - 선택 기간 미리보기 갱신
 ===================================================== */
 
 function selectLimestoneMonthlyPeriod(
   year,
   month
 ) {
+  const normalizedYear =
+    Number(
+      year
+    );
+
+
+  const normalizedMonth =
+    Number(
+      month
+    );
+
+
   const periodRange =
     getLimestoneMonthDateRange(
-      year,
-      month
+      normalizedYear,
+      normalizedMonth
     );
 
 
@@ -75839,15 +75889,16 @@ function selectLimestoneMonthlyPeriod(
     );
 
 
-    return;
+    return false;
   }
 
 
   const {
     startDateInput,
     endDateInput,
+
     monthlyYearSelect,
-    monthlyOptionList
+    monthlyMonthSelect
   } =
     getLimestonePeriodPickerElements();
 
@@ -75856,9 +75907,13 @@ function selectLimestoneMonthlyPeriod(
     !startDateInput ||
     !endDateInput
   ) {
-    return;
+    return false;
   }
 
+
+  /* ===================================================
+    실제 조회 날짜 입력
+  ==================================================== */
 
   startDateInput.value =
     periodRange.startDate;
@@ -75872,10 +75927,18 @@ function selectLimestoneMonthlyPeriod(
     periodRange.startDate;
 
 
+  /*
+    기간 조회 후 하루 이동 버튼을 사용하면
+    해당 월의 마지막 날짜를 기준으로 이동한다.
+  */
   limestoneReceiptState
     .selectedDay =
     periodRange.endDate;
 
+
+  /* ===================================================
+    컴팩트 선택창 값 동기화
+  ==================================================== */
 
   if (
     monthlyYearSelect
@@ -75887,47 +75950,28 @@ function selectLimestoneMonthlyPeriod(
   }
 
 
-  monthlyOptionList
-    ?.querySelectorAll(
-      "[data-limestone-month-year]"
-    )
-    .forEach(
-      button => {
-        const isSelected =
-          Number(
-            button.dataset
-              .limestoneMonthYear
-          ) ===
-            periodRange.year &&
-
-          Number(
-            button.dataset
-              .limestoneMonthNumber
-          ) ===
-            periodRange.month;
+  if (
+    monthlyMonthSelect
+  ) {
+    monthlyMonthSelect.value =
+      String(
+        periodRange.month
+      );
+  }
 
 
-        button.classList.toggle(
-          "is-selected",
-          isSelected
-        );
-
-
-        button.setAttribute(
-          "aria-pressed",
-          String(
-            isSelected
-          )
-        );
-      }
-    );
-
+  /* ===================================================
+    선택 기간 미리보기
+  ==================================================== */
 
   updateLimestonePeriodSelectionPreview(
     periodRange.title,
     periodRange.startDate,
     periodRange.endDate
   );
+
+
+  return true;
 }
 
 
@@ -76437,7 +76481,16 @@ function setLimestonePeriodPickerMode(
 
 
   const {
-    periodPickers
+    periodPickers,
+
+    weeklyYearSelect,
+    weeklyMonthSelect,
+    weeklyWeekSelect,
+
+    monthlyYearSelect,
+    monthlyMonthSelect,
+
+    endDateInput
   } =
     getLimestonePeriodPickerElements();
 
@@ -76462,6 +76515,10 @@ function setLimestonePeriodPickerMode(
   );
 
 
+  /* ===================================================
+    일별
+  ==================================================== */
+
   if (
     normalizedMode ===
       "daily"
@@ -76472,29 +76529,175 @@ function setLimestonePeriodPickerMode(
   }
 
 
+  const referenceDate =
+    parseLimestoneDateValue(
+      limestoneReceiptState
+        .selectedDay
+    ) ||
+
+    parseLimestoneDateValue(
+      endDateInput?.value
+    ) ||
+
+    parseLimestoneDateValue(
+      getLimestoneToday()
+    ) ||
+
+    new Date();
+
+
+  /* ===================================================
+    주별
+  ==================================================== */
+
   if (
     normalizedMode ===
       "weekly"
   ) {
-    renderLimestoneWeeklyPeriodOptions({
+    const selectedYear =
+      Number(
+        weeklyYearSelect?.value
+      ) ||
+      referenceDate.getFullYear();
+
+
+    const selectedMonth =
+      Number(
+        weeklyMonthSelect?.value
+      ) ||
+      referenceDate.getMonth() +
+      1;
+
+
+    let selectedWeek =
+      Number(
+        weeklyWeekSelect?.value
+      ) ||
+
+      Math.min(
+        5,
+
+        Math.floor(
+          (
+            referenceDate.getDate() -
+            1
+          ) /
+          7
+        ) +
+        1
+      );
+
+
+    /*
+      2월 5주처럼 실제 날짜가 없는 주차는
+      4주로 자동 조정한다.
+    */
+    if (
+      !getLimestoneWeekDateRange(
+        selectedYear,
+        selectedMonth,
+        selectedWeek
+      )
+    ) {
+      selectedWeek =
+        4;
+    }
+
+
+    if (
+      weeklyYearSelect
+    ) {
+      weeklyYearSelect.value =
+        String(
+          selectedYear
+        );
+    }
+
+
+    if (
+      weeklyMonthSelect
+    ) {
+      weeklyMonthSelect.value =
+        String(
+          selectedMonth
+        );
+    }
+
+
+    if (
+      weeklyWeekSelect
+    ) {
+      weeklyWeekSelect.value =
+        String(
+          selectedWeek
+        );
+    }
+
+
+    if (
       selectDefault
-    });
+    ) {
+      selectLimestoneWeeklyPeriod(
+        selectedYear,
+        selectedMonth,
+        selectedWeek
+      );
+    }
+
 
     return;
   }
 
 
-  renderLimestoneMonthlyPeriodOptions({
+  /* ===================================================
+    월별
+  ==================================================== */
+
+  const selectedYear =
+    Number(
+      monthlyYearSelect?.value
+    ) ||
+    referenceDate.getFullYear();
+
+
+  const selectedMonth =
+    Number(
+      monthlyMonthSelect?.value
+    ) ||
+    referenceDate.getMonth() +
+    1;
+
+
+  if (
+    monthlyYearSelect
+  ) {
+    monthlyYearSelect.value =
+      String(
+        selectedYear
+      );
+  }
+
+
+  if (
+    monthlyMonthSelect
+  ) {
+    monthlyMonthSelect.value =
+      String(
+        selectedMonth
+      );
+  }
+
+
+  if (
     selectDefault
-  });
+  ) {
+    selectLimestoneMonthlyPeriod(
+      selectedYear,
+      selectedMonth
+    );
+  }
 }
 
-
-/* =====================================================
-  기간 선택 기능 초기화
-
-  기간 조회창을 열 때 한 번만 연결한다.
-===================================================== */
 
 function initializeLimestonePeriodSelectionControls() {
   const {
@@ -76503,10 +76706,15 @@ function initializeLimestonePeriodSelectionControls() {
     endDateInput,
 
     weeklyYearSelect,
-    weeklyOptionList,
+    weeklyMonthSelect,
+    weeklyWeekSelect,
+    previousWeekButton,
+    nextWeekButton,
 
     monthlyYearSelect,
-    monthlyOptionList
+    monthlyMonthSelect,
+    previousMonthButton,
+    nextMonthButton
   } =
     getLimestonePeriodPickerElements();
 
@@ -76518,37 +76726,86 @@ function initializeLimestonePeriodSelectionControls() {
   }
 
 
+  /* ===================================================
+    현재 조회 기준 날짜
+  ==================================================== */
+
   const referenceDate =
     parseLimestoneDateValue(
       limestoneReceiptState
-        .selectedDay ||
+        .selectedDay
+    ) ||
+
+    parseLimestoneDateValue(
+      endDateInput?.value
+    ) ||
+
+    parseLimestoneDateValue(
       getLimestoneToday()
     ) ||
+
     new Date();
 
 
   const referenceYear =
-    referenceDate
-      .getFullYear();
+    referenceDate.getFullYear();
+
+
+  const referenceMonth =
+    referenceDate.getMonth() +
+    1;
+
+
+  const referenceWeek =
+    Math.min(
+      5,
+
+      Math.floor(
+        (
+          referenceDate.getDate() -
+          1
+        ) /
+        7
+      ) +
+      1
+    );
 
 
   /*
-    연도 목록은 화면을 열 때마다
-    현재 선택값을 보존하면서 다시 만든다.
+    처음 열거나 일별 조회에서 전환할 때는
+    현재 보고 있던 날짜를 기본값으로 사용한다.
   */
+  const useReferenceSelection =
+    limestoneReceiptState
+      .groupMode ===
+      "daily" ||
+
+    searchForm.dataset
+      .limestoneCompactPeriodInitialized !==
+      "true";
+
+
   const weeklySelectedYear =
-    Number(
-      weeklyYearSelect?.value
-    ) ||
-    referenceYear;
+    useReferenceSelection
+      ? referenceYear
+      : Number(
+          weeklyYearSelect?.value
+        ) ||
+        referenceYear;
 
 
   const monthlySelectedYear =
-    Number(
-      monthlyYearSelect?.value
-    ) ||
-    referenceYear;
+    useReferenceSelection
+      ? referenceYear
+      : Number(
+          monthlyYearSelect?.value
+        ) ||
+        referenceYear;
 
+
+  /* ===================================================
+    연도 목록 생성
+  ==================================================== */
 
   populateLimestonePeriodYearSelect(
     weeklyYearSelect,
@@ -76562,99 +76819,639 @@ function initializeLimestonePeriodSelectionControls() {
   );
 
 
-  /*
-    이벤트 중복 연결 방지
-  */
+  /* ===================================================
+    기본 월·주차 설정
+  ==================================================== */
+
+  if (
+    weeklyMonthSelect
+  ) {
+    weeklyMonthSelect.value =
+      String(
+        useReferenceSelection
+          ? referenceMonth
+          : Number(
+              weeklyMonthSelect.value
+            ) ||
+            referenceMonth
+      );
+  }
+
+
+  if (
+    weeklyWeekSelect
+  ) {
+    weeklyWeekSelect.value =
+      String(
+        useReferenceSelection
+          ? referenceWeek
+          : Number(
+              weeklyWeekSelect.value
+            ) ||
+            referenceWeek
+      );
+  }
+
+
+  if (
+    monthlyMonthSelect
+  ) {
+    monthlyMonthSelect.value =
+      String(
+        useReferenceSelection
+          ? referenceMonth
+          : Number(
+              monthlyMonthSelect.value
+            ) ||
+            referenceMonth
+      );
+  }
+
+
+  /* ===================================================
+    주차 선택 가능 상태 갱신
+
+    2월 5주처럼 실제 날짜가 없는 주차는
+    선택하지 못하게 한다.
+  ==================================================== */
+
+  const updateWeeklyWeekOptions =
+    () => {
+      if (
+        !weeklyWeekSelect
+      ) {
+        return 1;
+      }
+
+
+      const selectedYear =
+        Number(
+          weeklyYearSelect?.value
+        ) ||
+        referenceYear;
+
+
+      const selectedMonth =
+        Number(
+          weeklyMonthSelect?.value
+        ) ||
+        referenceMonth;
+
+
+      Array.from(
+        weeklyWeekSelect.options
+      ).forEach(
+        option => {
+          option.disabled =
+            !getLimestoneWeekDateRange(
+              selectedYear,
+              selectedMonth,
+              option.value
+            );
+        }
+      );
+
+
+      let selectedWeek =
+        Number(
+          weeklyWeekSelect.value
+        ) ||
+        1;
+
+
+      if (
+        !getLimestoneWeekDateRange(
+          selectedYear,
+          selectedMonth,
+          selectedWeek
+        )
+      ) {
+        selectedWeek =
+          4;
+
+
+        weeklyWeekSelect.value =
+          "4";
+      }
+
+
+      return selectedWeek;
+    };
+
+
+  updateWeeklyWeekOptions();
+
+
+  searchForm.dataset
+    .limestoneCompactPeriodInitialized =
+    "true";
+
+
+  /* ===================================================
+    이벤트는 한 번만 연결
+  ==================================================== */
+
   if (
     searchForm.dataset
       .limestonePeriodSelectionBound !==
       "true"
   ) {
+    /* =================================================
+      주별 선택 적용
+    ================================================= */
+
+    const applyWeeklySelection =
+      () => {
+        const selectedWeek =
+          updateWeeklyWeekOptions();
+
+
+        selectLimestoneWeeklyPeriod(
+          weeklyYearSelect?.value,
+          weeklyMonthSelect?.value,
+          selectedWeek
+        );
+      };
+
+
+    /* =================================================
+      월별 선택 적용
+    ================================================= */
+
+    const applyMonthlySelection =
+      () => {
+        selectLimestoneMonthlyPeriod(
+          monthlyYearSelect?.value,
+          monthlyMonthSelect?.value
+        );
+      };
+
+
+    /* =================================================
+      연도 선택 범위
+    ================================================= */
+
+    const getYearBounds =
+      selectElement => {
+        const years =
+          Array.from(
+            selectElement?.options ||
+            []
+          )
+            .map(
+              option => {
+                return Number(
+                  option.value
+                );
+              }
+            )
+            .filter(
+              Number.isInteger
+            );
+
+
+        return {
+          minimumYear:
+            years.length
+              ? Math.min(
+                  ...years
+                )
+              : referenceYear -
+                10,
+
+          maximumYear:
+            years.length
+              ? Math.max(
+                  ...years
+                )
+              : referenceYear +
+                1
+        };
+      };
+
+
+    /* =================================================
+      이전·다음 주 이동
+    ================================================= */
+
+    const moveWeeklySelection =
+      direction => {
+        const step =
+          Number(
+            direction
+          );
+
+
+        if (
+          ![
+            -1,
+            1
+          ].includes(
+            step
+          )
+        ) {
+          return;
+        }
+
+
+        const {
+          minimumYear,
+          maximumYear
+        } =
+          getYearBounds(
+            weeklyYearSelect
+          );
+
+
+        let year =
+          Number(
+            weeklyYearSelect?.value
+          ) ||
+          referenceYear;
+
+
+        let month =
+          Number(
+            weeklyMonthSelect?.value
+          ) ||
+          referenceMonth;
+
+
+        let week =
+          Number(
+            weeklyWeekSelect?.value
+          ) ||
+          referenceWeek;
+
+
+        /*
+          최대 24회 반복하면서
+          실제 날짜가 존재하는 다음 주차를 찾는다.
+        */
+        for (
+          let attempt =
+            0;
+
+          attempt <
+            24;
+
+          attempt +=
+            1
+        ) {
+          week +=
+            step;
+
+
+          if (
+            week >
+              5
+          ) {
+            week =
+              1;
+
+            month +=
+              1;
+
+          } else if (
+            week <
+              1
+          ) {
+            week =
+              5;
+
+            month -=
+              1;
+          }
+
+
+          if (
+            month >
+              12
+          ) {
+            month =
+              1;
+
+            year +=
+              1;
+
+          } else if (
+            month <
+              1
+          ) {
+            month =
+              12;
+
+            year -=
+              1;
+          }
+
+
+          if (
+            year <
+              minimumYear ||
+            year >
+              maximumYear
+          ) {
+            showLimestoneToast(
+              "선택 가능한 주별 조회 범위를 벗어났습니다."
+            );
+
+            return;
+          }
+
+
+          /*
+            2월 5주처럼 실제 날짜가 없는 주는 건너뛴다.
+          */
+          if (
+            !getLimestoneWeekDateRange(
+              year,
+              month,
+              week
+            )
+          ) {
+            continue;
+          }
+
+
+          if (
+            weeklyYearSelect
+          ) {
+            weeklyYearSelect.value =
+              String(
+                year
+              );
+          }
+
+
+          if (
+            weeklyMonthSelect
+          ) {
+            weeklyMonthSelect.value =
+              String(
+                month
+              );
+          }
+
+
+          if (
+            weeklyWeekSelect
+          ) {
+            weeklyWeekSelect.value =
+              String(
+                week
+              );
+          }
+
+
+          updateWeeklyWeekOptions();
+
+
+          selectLimestoneWeeklyPeriod(
+            year,
+            month,
+            week
+          );
+
+
+          return;
+        }
+      };
+
+
+    /* =================================================
+      이전·다음 월 이동
+    ================================================= */
+
+    const moveMonthlySelection =
+      direction => {
+        const step =
+          Number(
+            direction
+          );
+
+
+        if (
+          ![
+            -1,
+            1
+          ].includes(
+            step
+          )
+        ) {
+          return;
+        }
+
+
+        const {
+          minimumYear,
+          maximumYear
+        } =
+          getYearBounds(
+            monthlyYearSelect
+          );
+
+
+        let year =
+          Number(
+            monthlyYearSelect?.value
+          ) ||
+          referenceYear;
+
+
+        let month =
+          Number(
+            monthlyMonthSelect?.value
+          ) ||
+          referenceMonth;
+
+
+        month +=
+          step;
+
+
+        if (
+          month >
+            12
+        ) {
+          month =
+            1;
+
+          year +=
+            1;
+
+        } else if (
+          month <
+            1
+        ) {
+          month =
+            12;
+
+          year -=
+            1;
+        }
+
+
+        if (
+          year <
+            minimumYear ||
+          year >
+            maximumYear
+        ) {
+          showLimestoneToast(
+            "선택 가능한 월별 조회 범위를 벗어났습니다."
+          );
+
+          return;
+        }
+
+
+        if (
+          monthlyYearSelect
+        ) {
+          monthlyYearSelect.value =
+            String(
+              year
+            );
+        }
+
+
+        if (
+          monthlyMonthSelect
+        ) {
+          monthlyMonthSelect.value =
+            String(
+              month
+            );
+        }
+
+
+        selectLimestoneMonthlyPeriod(
+          year,
+          month
+        );
+      };
+
+
+    /* =================================================
+      주별 이벤트
+    ================================================= */
+
     weeklyYearSelect
       ?.addEventListener(
         "change",
+        applyWeeklySelection
+      );
+
+
+    weeklyMonthSelect
+      ?.addEventListener(
+        "change",
+        applyWeeklySelection
+      );
+
+
+    weeklyWeekSelect
+      ?.addEventListener(
+        "change",
+        applyWeeklySelection
+      );
+
+
+    previousWeekButton
+      ?.addEventListener(
+        "click",
         () => {
-          renderLimestoneWeeklyPeriodOptions({
-            selectDefault:
-              true
-          });
+          moveWeeklySelection(
+            -1
+          );
         }
       );
 
+
+    nextWeekButton
+      ?.addEventListener(
+        "click",
+        () => {
+          moveWeeklySelection(
+            1
+          );
+        }
+      );
+
+
+    /* =================================================
+      월별 이벤트
+    ================================================= */
 
     monthlyYearSelect
       ?.addEventListener(
         "change",
+        applyMonthlySelection
+      );
+
+
+    monthlyMonthSelect
+      ?.addEventListener(
+        "change",
+        applyMonthlySelection
+      );
+
+
+    previousMonthButton
+      ?.addEventListener(
+        "click",
         () => {
-          renderLimestoneMonthlyPeriodOptions({
-            selectDefault:
-              true
-          });
-        }
-      );
-
-
-    weeklyOptionList
-      ?.addEventListener(
-        "click",
-        event => {
-          const button =
-            event.target.closest(
-              "[data-limestone-week-year]"
-            );
-
-
-          if (
-            !button
-          ) {
-            return;
-          }
-
-
-          selectLimestoneWeeklyPeriod(
-            button.dataset
-              .limestoneWeekYear,
-
-            button.dataset
-              .limestoneWeekMonth,
-
-            button.dataset
-              .limestoneWeekNumber
+          moveMonthlySelection(
+            -1
           );
         }
       );
 
 
-    monthlyOptionList
+    nextMonthButton
       ?.addEventListener(
         "click",
-        event => {
-          const button =
-            event.target.closest(
-              "[data-limestone-month-year]"
-            );
-
-
-          if (
-            !button
-          ) {
-            return;
-          }
-
-
-          selectLimestoneMonthlyPeriod(
-            button.dataset
-              .limestoneMonthYear,
-
-            button.dataset
-              .limestoneMonthNumber
+        () => {
+          moveMonthlySelection(
+            1
           );
         }
       );
 
+
+    /* =================================================
+      일별 날짜 직접 선택
+    ================================================= */
 
     const handleDailyDateChange =
       () => {
+        const startDate =
+          String(
+            startDateInput?.value ||
+            ""
+          ).trim();
+
+
+        if (
+          endDateInput
+        ) {
+          endDateInput.min =
+            startDate;
+
+
+          if (
+            startDate &&
+            endDateInput.value &&
+            endDateInput.value <
+              startDate
+          ) {
+            endDateInput.value =
+              startDate;
+          }
+        }
+
+
         if (
           limestoneReceiptState
             .groupMode !==
@@ -76711,10 +77508,15 @@ function initializeLimestonePeriodSelectionControls() {
   }
 
 
+  /* ===================================================
+    현재 조회 방식 화면 표시
+  ==================================================== */
+
   setLimestonePeriodPickerMode(
     limestoneReceiptState
       .groupMode ||
     "daily",
+
     {
       selectDefault:
         true
@@ -79957,6 +80759,26 @@ function normalizeLimestoneImportStatus(
 }
 
 
+/* =====================================================
+  효율팀 석회석 입고기록 연동 대상 업무일지
+
+  대상 보직:
+  - BCO1 → 1호기 상위 보직
+  - BO1  → 1호기 하위 보직
+  - BCO2 → 2호기 상위 보직
+  - BO2  → 2호기 하위 보직
+
+  신규 공용 업무일지:
+  - D1에 저장된 상태라면 모두 사용
+  - 임시저장
+  - 결재요청
+  - 결재완료
+  - 저장완료
+
+  과거 업무일지:
+  - 기존 확정자료로 사용
+===================================================== */
+
 function isLimestoneImportableLog(
   log
 ) {
@@ -79975,11 +80797,16 @@ function isLimestoneImportableLog(
     );
 
 
+  const allowedRoles = [
+    "BCO1",
+    "BO1",
+    "BCO2",
+    "BO2"
+  ];
+
+
   if (
-    ![
-      "BCO1",
-      "BCO2"
-    ].includes(
+    !allowedRoles.includes(
       role
     )
   ) {
@@ -79988,8 +80815,8 @@ function isLimestoneImportableLog(
 
 
   /*
-    과거 업무일지는 이미 종료된 확정자료이므로
-    상태값과 관계없이 가져오기 대상으로 사용한다.
+    과거 업무일지는 기존 저장자료이므로
+    현재 상태값과 관계없이 후보로 사용한다.
   */
   if (
     isLimestoneLegacySourceLog(
@@ -80006,10 +80833,25 @@ function isLimestoneImportableLog(
     );
 
 
-  return [
+  /*
+    서버 D1에 저장된 업무일지만 조회되므로
+    아래 네 상태를 모두 연동 대상으로 사용한다.
+  */
+  const savedStatuses = [
+    "임시저장",
+    "결재요청",
     "결재완료",
-    "저장완료"
-  ].includes(
+    "저장완료",
+
+    /*
+      기존 화면 상태명 호환
+    */
+    "작성중",
+    "작성완료"
+  ];
+
+
+  return savedStatuses.includes(
     status
   );
 }
@@ -80848,20 +81690,23 @@ async function loadExistingLimestoneReceiptsForImport(
 }
 
 /* =====================================================
-  신규·과거 업무일지 석회석 입고내역 통합 조회
+  효율팀 석회석 입고기록 후보 조회 최종본
 
-  조회 대상:
-  - 신규 공용 shift_logs
-  - 과거 D1 legacy_logs
+  대상 보직:
+  - BCO1 → 1호기 상위
+  - BO1  → 1호기 하위
+  - BCO2 → 2호기 상위
+  - BO2  → 2호기 하위
 
-  중복 확인:
-  - 상단 입고현황 조회 결과를 사용하지 않음
-  - 가져오기 전용 기간의 기존 석회석 기록을 별도 조회
-  - 동일 업무일지 원본은 sourceKey로 확인
-  - 동일 일자·시간·호기·수량도 한 번만 표시
+  중복 우선순위:
+  - BCO1 > BO1
+  - BCO2 > BO2
 
-  중요:
-  - 상단 조회 기간과 합계는 변경하지 않는다.
+  중복 기준:
+  - 실제 입고일
+  - 입고시간
+  - 호기
+  - 입고량
 ===================================================== */
 
 async function loadLimestoneImportCandidates() {
@@ -80869,8 +81714,7 @@ async function loadLimestoneImportCandidates() {
     startDateInput,
     endDateInput,
     unitFilter
-  } =
-    getLimestoneImportElements();
+  } = getLimestoneImportElements();
 
 
   const startDate =
@@ -80919,10 +81763,67 @@ async function loadLimestoneImportCandidates() {
   }
 
 
+  /* ===================================================
+    보직별 호기
+  ==================================================== */
+
+  const roleToUnit = {
+    BCO1:
+      1,
+
+    BO1:
+      1,
+
+    BCO2:
+      2,
+
+    BO2:
+      2
+  };
+
+
+  /* ===================================================
+    보직별 우선순위
+
+    숫자가 클수록 우선한다.
+  ==================================================== */
+
+  const rolePriority = {
+    BCO1:
+      20,
+
+    BO1:
+      10,
+
+    BCO2:
+      20,
+
+    BO2:
+      10
+  };
+
+
+  const getRolePriority = (
+    role
+  ) => {
+    const normalizedRole =
+      normalizeLimestoneImportRole(
+        role
+      );
+
+
+    return Number(
+      rolePriority[
+        normalizedRole
+      ] ||
+      0
+    );
+  };
+
+
   /*
-    N/S 00:00~06:59 기록은
-    전날 N/S 업무일지에 저장되어 있으므로
-    업무일지는 시작일보다 하루 전부터 조회한다.
+    N/S 00:00~06:59 입고는
+    전날 N/S 업무일지에 저장되어 있다.
   */
   const shiftLogStartDate =
     addLimestoneIsoDateDays(
@@ -80941,17 +81842,6 @@ async function loadLimestoneImportCandidates() {
   }
 
 
-  /* ===================================================
-    세 자료를 조회한다.
-
-    1. 가져오기 기간의 기존 석회석 기록
-    2. 신규 공용 업무일지
-    3. 과거 업무일지
-
-    기존 석회석 기록 조회는 반드시 성공해야 한다.
-    실패 상태에서 후보를 표시하면 중복 등록 위험이 있다.
-  ==================================================== */
-
   const searchParams =
     new URLSearchParams({
       from:
@@ -80961,6 +81851,14 @@ async function loadLimestoneImportCandidates() {
         endDate
     });
 
+
+  /* ===================================================
+    기존 기록과 업무일지를 함께 조회
+
+    1. 기존 석회석 입고기록
+    2. 신규 공용 업무일지
+    3. 과거 업무일지
+  ==================================================== */
 
   const [
     existingReceipts,
@@ -81001,27 +81899,21 @@ async function loadLimestoneImportCandidates() {
 
   const sharedLogs =
     sharedResult.status ===
-      "fulfilled"
-      ? (
-          Array.isArray(
-            sharedResult.value
-          )
-            ? sharedResult.value
-            : []
-        )
+      "fulfilled" &&
+    Array.isArray(
+      sharedResult.value
+    )
+      ? sharedResult.value
       : [];
 
 
   const legacyLogs =
     legacyResult.status ===
-      "fulfilled"
-      ? (
-          Array.isArray(
-            legacyResult.value
-          )
-            ? legacyResult.value
-            : []
-        )
+      "fulfilled" &&
+    Array.isArray(
+      legacyResult.value
+    )
+      ? legacyResult.value
       : [];
 
 
@@ -81067,293 +81959,561 @@ async function loadLimestoneImportCandidates() {
 
 
   /* ===================================================
-    가져오기 기간에 이미 등록된 기록
-
-    상단 조회 화면의 limestoneReceiptState.items가 아니라
-    방금 별도로 조회한 existingReceipts를 사용한다.
+    기존 석회석 기록을 실제 입고 단위로 분류
   ==================================================== */
 
-  const existingSourceKeys =
-    new Set(
-      existingReceipts
-        .map(
-          item => {
-            return String(
-              item.sourceKey ||
-              ""
-            ).trim();
-          }
-        )
-        .filter(
-          Boolean
-        )
+  const existingByBusinessKey =
+    new Map();
+
+
+  for (
+    const receipt of existingReceipts
+  ) {
+    const businessKey =
+      createLimestoneReceiptBusinessKey(
+        receipt
+      );
+
+
+    if (
+      !businessKey
+    ) {
+      continue;
+    }
+
+
+    const currentItems =
+      existingByBusinessKey.get(
+        businessKey
+      ) ||
+      [];
+
+
+    currentItems.push(
+      receipt
     );
 
 
-  const existingBusinessKeys =
-    new Set(
-      existingReceipts
-        .map(
-          createLimestoneReceiptBusinessKey
-        )
-        .filter(
-          Boolean
-        )
+    existingByBusinessKey.set(
+      businessKey,
+      currentItems
     );
+  }
 
 
-  /*
-    신규·과거 자료에서 같은 실제 입고 건이
-    발견되더라도 한 번만 표시한다.
-  */
+  /* ===================================================
+    출처 종류 우선순위
+
+    신규 공용 업무일지 > 과거 업무일지
+  ==================================================== */
+
+  const sourceKindPriority = {
+    shared:
+      2,
+
+    legacy:
+      1
+  };
+
+
+  /* ===================================================
+    같은 실제 입고 건의 후보 비교
+
+    우선순위:
+    1. 상위 보직
+    2. 신규 공용 업무일지
+    3. 최근 수정 업무일지
+  ==================================================== */
+
+  const shouldReplaceCandidate = (
+    currentCandidate,
+    nextCandidate
+  ) => {
+    if (
+      !currentCandidate
+    ) {
+      return true;
+    }
+
+
+    const roleDifference =
+      getRolePriority(
+        nextCandidate.sourceRole
+      ) -
+      getRolePriority(
+        currentCandidate.sourceRole
+      );
+
+
+    if (
+      roleDifference !==
+        0
+    ) {
+      return roleDifference >
+        0;
+    }
+
+
+    const sourceDifference =
+      Number(
+        sourceKindPriority[
+          nextCandidate.sourceKind
+        ] ||
+        0
+      ) -
+      Number(
+        sourceKindPriority[
+          currentCandidate.sourceKind
+        ] ||
+        0
+      );
+
+
+    if (
+      sourceDifference !==
+        0
+    ) {
+      return sourceDifference >
+        0;
+    }
+
+
+    return (
+      String(
+        nextCandidate.sourceUpdatedAt ||
+        ""
+      ) >
+      String(
+        currentCandidate.sourceUpdatedAt ||
+        ""
+      )
+    );
+  };
+
+
+  /* ===================================================
+    업무일지에서 석회석 후보 추출
+  ==================================================== */
+
   const candidateMap =
     new Map();
 
 
-  sourceLogs.forEach(
-    log => {
-      const sourceRole =
-        normalizeLimestoneImportRole(
-          log.role
-        );
+  for (
+    const log of sourceLogs
+  ) {
+    const sourceRole =
+      normalizeLimestoneImportRole(
+        log?.role
+      );
 
 
-      const unitNo =
-        sourceRole ===
-          "BCO1"
-          ? 1
-          : 2;
+    const unitNo =
+      roleToUnit[
+        sourceRole
+      ];
 
 
-      if (
-        selectedUnitNo &&
-        unitNo !==
-          selectedUnitNo
-      ) {
-        return;
-      }
+    if (
+      !unitNo
+    ) {
+      continue;
+    }
 
 
-      const sourceLogId =
-        createLimestoneSourceLogId(
-          log
-        );
+    if (
+      selectedUnitNo &&
+      unitNo !==
+        selectedUnitNo
+    ) {
+      continue;
+    }
 
 
-      if (
-        !sourceLogId
-      ) {
-        return;
-      }
+    const sourceLogId =
+      createLimestoneSourceLogId(
+        log
+      );
 
 
-      const isLegacySource =
-        isLimestoneLegacySourceLog(
-          log
-        );
+    if (
+      !sourceLogId
+    ) {
+      continue;
+    }
 
 
-      const sourceStatus =
-        isLegacySource
-          ? "과거 업무일지"
-          : normalizeLimestoneImportStatus(
-              log.status
-            );
+    const isLegacySource =
+      isLimestoneLegacySourceLog(
+        log
+      );
 
 
+    const sourceStatus =
+      isLegacySource
+        ? "과거 업무일지"
+        : normalizeLimestoneImportStatus(
+            log?.status
+          );
+
+
+    const sourceKind =
+      isLegacySource
+        ? "legacy"
+        : "shared";
+
+
+    const sourceUpdatedAt =
+      String(
+        log?.updatedAt ||
+        log?.createdAt ||
+        ""
+      ).trim();
+
+
+    const logEntries =
       collectLimestoneLogEntries(
         log
-      ).forEach(
-        entryItem => {
-          const {
-            entry,
-            entryIndex,
-            collectionName
-          } = entryItem;
+      );
 
 
-          const extractedItems =
-            extractLimestoneReceiptsFromEntry(
-              entry
-            );
+    for (
+      const {
+        entry,
+        entryIndex,
+        collectionName
+      } of logEntries
+    ) {
+      const extractedItems =
+        extractLimestoneReceiptsFromEntry(
+          entry
+        );
 
 
-          extractedItems.forEach(
-            extractedItem => {
-              const receiptDate =
-                getLimestoneActualReceiptDate(
-                  log.date,
-                  log.shift,
-                  extractedItem
-                    .receiptTime
-                );
+      for (
+        const extractedItem of extractedItems
+      ) {
+        const receiptDate =
+          getLimestoneActualReceiptDate(
+            log?.date,
+            log?.shift,
+            extractedItem.receiptTime
+          );
 
 
-              /*
-                실제 입고일 기준으로
-                가져오기 기간 안에 있는 자료만 사용한다.
-              */
-              if (
-                receiptDate <
-                  startDate ||
-                receiptDate >
-                  endDate
-              ) {
-                return;
-              }
+        /*
+          실제 입고일이 조회 기간 안에 있는 자료만 사용한다.
+        */
+        if (
+          receiptDate <
+            startDate ||
+          receiptDate >
+            endDate
+        ) {
+          continue;
+        }
 
 
-              const entryId =
-                String(
-                  entry.id ||
-                  ""
-                ).trim();
+        const entryId =
+          String(
+            entry?.id ||
+            ""
+          ).trim();
 
 
-              const entryFingerprint = [
-                collectionName,
-                entryIndex,
-                entry?.time,
-                entry?.tag,
-                entry?.content
-              ].join(
-                "||"
-              );
+        const entryFingerprint = [
+          collectionName,
+          entryIndex,
+          entry?.time,
+          entry?.tag,
+          entry?.content
+        ].join(
+          "||"
+        );
 
 
-              const baseEntryId =
-                entryId ||
-                [
-                  collectionName,
+        const baseEntryId =
+          entryId ||
+          [
+            collectionName,
 
-                  createLimestoneStableHash(
-                    entryFingerprint
-                  )
-                ].join(
-                  "-"
-                );
-
-
-              const sourceEntryId = [
-                baseEntryId,
-                "limestone",
-                extractedItem.lineIndex,
-                extractedItem.matchIndex
-              ].join(
-                "-"
-              );
+            createLimestoneStableHash(
+              entryFingerprint
+            )
+          ].join(
+            "-"
+          );
 
 
-              const sourceKey = [
-                sourceLogId,
-                sourceEntryId
-              ].join(
-                "||"
-              );
+        const sourceEntryId = [
+          baseEntryId,
+          "limestone",
+          extractedItem.lineIndex,
+          extractedItem.matchIndex
+        ].join(
+          "-"
+        );
 
 
-              const candidate = {
-                receiptDate,
-
-                receiptTime:
-                  extractedItem
-                    .receiptTime,
-
-                unitNo,
-
-                quantityTon:
-                  extractedItem
-                    .quantityTon,
-
-                note:
-                  "",
-
-                sourceLogId,
-
-                sourceEntryId,
-
-                sourceKey,
-
-                sourceRole,
-
-                sourceAuthor:
-                  String(
-                    log.author ||
-                    ""
-                  ).trim(),
-
-                sourceText:
-                  extractedItem
-                    .sourceText
-                    .slice(
-                      0,
-                      1000
-                    ),
-
-                sourceStatus,
-
-                sourceKind:
-                  isLegacySource
-                    ? "legacy"
-                    : "shared"
-              };
+        const sourceKey = [
+          sourceLogId,
+          sourceEntryId
+        ].join(
+          "||"
+        );
 
 
-              const businessKey =
-                createLimestoneReceiptBusinessKey(
-                  candidate
-                );
+        const candidate = {
+          receiptDate,
+
+          receiptTime:
+            extractedItem.receiptTime,
+
+          unitNo,
+
+          quantityTon:
+            extractedItem.quantityTon,
+
+          note:
+            "",
+
+          sourceLogId,
+
+          sourceEntryId,
+
+          sourceKey,
+
+          sourceRole,
+
+          sourceAuthor:
+            String(
+              log?.author ||
+              ""
+            ).trim(),
+
+          sourceText:
+            String(
+              extractedItem.sourceText ||
+              ""
+            ).slice(
+              0,
+              1000
+            ),
+
+          sourceStatus,
+
+          sourceKind,
+
+          sourceUpdatedAt
+        };
 
 
-              candidate.businessKey =
-                businessKey;
+        const businessKey =
+          createLimestoneReceiptBusinessKey(
+            candidate
+          );
 
 
-              candidate.alreadyImported =
-                existingSourceKeys.has(
-                  sourceKey
-                ) ||
-                existingBusinessKeys.has(
-                  businessKey
-                );
+        if (
+          !businessKey
+        ) {
+          continue;
+        }
 
 
-              const previousCandidate =
-                candidateMap.get(
-                  businessKey
-                );
+        candidate.businessKey =
+          businessKey;
 
 
-              /*
-                같은 건이 신규·과거 양쪽에 있으면
-                신규 공용 업무일지를 우선 사용한다.
-              */
-              if (
-                !previousCandidate ||
-                (
-                  previousCandidate
-                    .sourceKind ===
-                    "legacy" &&
-                  candidate.sourceKind ===
-                    "shared"
-                )
-              ) {
-                candidateMap.set(
-                  businessKey,
-                  candidate
-                );
-              }
-            }
+        const currentCandidate =
+          candidateMap.get(
+            businessKey
+          );
+
+
+        /*
+          동일 입고 건이 여러 보직에 있으면
+          상위 보직 후보로 교체한다.
+        */
+        if (
+          shouldReplaceCandidate(
+            currentCandidate,
+            candidate
+          )
+        ) {
+          candidateMap.set(
+            businessKey,
+            candidate
+          );
+        }
+      }
+    }
+  }
+
+
+  const candidates = [
+    ...candidateMap.values()
+  ];
+
+
+  /* ===================================================
+    기존 등록 여부 판정
+
+    기존 하위 보직 기록만 있고
+    상위 보직 후보가 새로 발견되면
+    상위 후보는 선택할 수 있게 유지한다.
+  ==================================================== */
+
+  for (
+    const candidate of candidates
+  ) {
+    const existingItems =
+      existingByBusinessKey.get(
+        candidate.businessKey
+      ) ||
+      [];
+
+
+    const candidatePriority =
+      getRolePriority(
+        candidate.sourceRole
+      );
+
+
+    /*
+      완전히 같은 업무일지 원본이 이미 등록됨
+    */
+    const sameSourceExists =
+      existingItems.some(
+        item => {
+          return (
+            String(
+              item?.sourceKey ||
+              ""
+            ).trim() ===
+            candidate.sourceKey
           );
         }
       );
-    }
-  );
 
 
-  return [
-    ...candidateMap.values()
-  ].sort(
+    /*
+      사용자가 직접 등록한 수기 기록은 유지하고
+      같은 입고 건을 중복 등록하지 않는다.
+    */
+    const manualExists =
+      existingItems.some(
+        item => {
+          return (
+            String(
+              item?.sourceType ||
+              ""
+            )
+              .trim()
+              .toLowerCase() ===
+            "manual"
+          );
+        }
+      );
+
+
+    /*
+      이미 같은 보직 또는 상위 보직 기록이 있으면
+      등록 완료로 처리한다.
+    */
+    const sameOrHigherRoleExists =
+      existingItems.some(
+        item => {
+          const sourceType =
+            String(
+              item?.sourceType ||
+              ""
+            )
+              .trim()
+              .toLowerCase();
+
+
+          return (
+            sourceType ===
+              "shift_log" &&
+
+            getRolePriority(
+              item?.sourceRole
+            ) >=
+              candidatePriority
+          );
+        }
+      );
+
+
+    /*
+      기존 하위 보직 기록 확인
+
+      예:
+      기존 BO1 기록이 있고
+      새 BCO1 후보가 발견된 경우
+    */
+    const lowerRoleItem =
+      existingItems.find(
+        item => {
+          const sourceType =
+            String(
+              item?.sourceType ||
+              ""
+            )
+              .trim()
+              .toLowerCase();
+
+
+          const existingPriority =
+            getRolePriority(
+              item?.sourceRole
+            );
+
+
+          return (
+            sourceType ===
+              "shift_log" &&
+
+            existingPriority >
+              0 &&
+
+            existingPriority <
+              candidatePriority
+          );
+        }
+      ) ||
+      null;
+
+
+    candidate.alreadyImported =
+      sameSourceExists ||
+      manualExists ||
+      sameOrHigherRoleExists;
+
+
+    candidate.replacesLowerRole =
+      !candidate.alreadyImported &&
+      Boolean(
+        lowerRoleItem
+      );
+
+
+    candidate.replacedSourceRole =
+      candidate.replacesLowerRole
+        ? String(
+            lowerRoleItem?.sourceRole ||
+            ""
+          ).trim()
+        : "";
+  }
+
+
+  /* ===================================================
+    최신 입고 순서로 정렬
+  ==================================================== */
+
+  return candidates.sort(
     (
       firstItem,
       secondItem
@@ -81383,200 +82543,355 @@ async function loadLimestoneImportCandidates() {
   );
 }
 
-  /* =====================================================
-    후보 목록 출력
-  ====================================================== */
+/* =====================================================
+  석회석 업무일지 연동 후보 목록 출력 최종본
 
-  function renderLimestoneImportCandidates(
-    candidates
-  ) {
-    const {
-      count,
-      list,
-      applyButton
-    } =
-      getLimestoneImportElements();
+  표시 구분:
+  - 신규 반영
+  - 하위 보직 → 상위 보직 교체
+  - 이미 등록됨
+
+  대상 보직:
+  - BCO1
+  - BO1
+  - BCO2
+  - BO2
+===================================================== */
+
+function renderLimestoneImportCandidates(
+  candidates
+) {
+  const {
+    count,
+    list,
+    applyButton
+  } =
+    getLimestoneImportElements();
 
 
-    const safeCandidates =
-      Array.isArray(
-        candidates
-      )
-        ? candidates
-        : [];
+  const safeCandidates =
+    Array.isArray(
+      candidates
+    )
+      ? candidates
+      : [];
 
 
-    const availableCount =
-      safeCandidates.filter(
-        candidate => {
-          return (
-            candidate
-              .alreadyImported !==
+  /* ===================================================
+    후보 상태별 건수
+  ==================================================== */
+
+  const importedCount =
+    safeCandidates.filter(
+      candidate => {
+        return (
+          candidate
+            ?.alreadyImported ===
+          true
+        );
+      }
+    ).length;
+
+
+  const replacementCount =
+    safeCandidates.filter(
+      candidate => {
+        return (
+          candidate
+            ?.alreadyImported !==
+            true &&
+
+          candidate
+            ?.replacesLowerRole ===
             true
-          );
-        }
-      ).length;
+        );
+      }
+    ).length;
 
 
-    const importedCount =
-      safeCandidates.length -
-      availableCount;
+  const newCount =
+    safeCandidates.filter(
+      candidate => {
+        return (
+          candidate
+            ?.alreadyImported !==
+            true &&
+
+          candidate
+            ?.replacesLowerRole !==
+            true
+        );
+      }
+    ).length;
 
 
-    if (
-      count
-    ) {
-      count.textContent =
-        importedCount >
-          0
-          ? (
-              `${availableCount}건 선택 가능 · ` +
-              `등록됨 ${importedCount}건`
-            )
-          : `${availableCount}건`;
-    }
+  const availableCount =
+    newCount +
+    replacementCount;
 
 
-    if (
-      applyButton
-    ) {
-      applyButton.disabled =
-        availableCount ===
-        0;
-    }
+  /* ===================================================
+    상단 건수 표시
+  ==================================================== */
 
-
-    if (
-      !list
-    ) {
-      return;
-    }
+  if (
+    count
+  ) {
+    const countParts = [];
 
 
     if (
-      safeCandidates.length ===
+      newCount >
         0
     ) {
-      list.innerHTML = `
-        <div class="limestone-empty-table-row">
-
-          선택한 기간의 BCO1·BCO2 업무일지에서
-          석회석 입고내역을 찾지 못했습니다.
-
-        </div>
-      `;
-
-
-      return;
+      countParts.push(
+        `신규 ${newCount}건`
+      );
     }
 
 
-    list.innerHTML =
-      safeCandidates
-        .map(
-          candidate => {
-            const isImported =
-              candidate
-                .alreadyImported ===
-              true;
+    if (
+      replacementCount >
+        0
+    ) {
+      countParts.push(
+        `상위 보직 교체 ${replacementCount}건`
+      );
+    }
 
 
-            const sourceLabel = [
-              candidate.sourceRole,
-
-              candidate.sourceAuthor ||
-              "작성자 미상",
-
-              candidate.sourceStatus,
-
-              isImported
-                ? "이미 등록됨"
-                : ""
-            ]
-              .filter(
-                Boolean
-              )
-              .join(
-                " · "
-              );
+    if (
+      importedCount >
+        0
+    ) {
+      countParts.push(
+        `등록됨 ${importedCount}건`
+      );
+    }
 
 
-            return `
-              <label
-                class="
-                  limestone-import-candidate
-                  ${
-                    isImported
-                      ? "is-imported"
-                      : ""
-                  }
-                "
-                title="${escapeLimestoneHtml(
-                  candidate.sourceText
-                )}"
-              >
-
-                <input
-                  type="checkbox"
-                  data-limestone-import-key="${escapeLimestoneHtml(
-                    candidate.sourceKey
-                  )}"
-                  ${
-                    isImported
-                      ? "disabled"
-                      : "checked"
-                  }
-                />
-
-
-                <span>
-                  ${escapeLimestoneHtml(
-                    candidate.receiptDate
-                  )}
-                  <br />
-                  ${escapeLimestoneHtml(
-                    candidate.receiptTime
-                  )}
-                </span>
-
-
-                <strong>
-                  ${candidate.unitNo}호기
-                </strong>
-
-
-                <strong
-                  class="limestone-quantity-value"
-                >
-                  ${formatLimestoneQuantity(
-                    candidate.quantityTon
-                  )} t
-                </strong>
-
-
-                <span class="limestone-import-source">
-                  ${escapeLimestoneHtml(
-                    sourceLabel
-                  )}
-                </span>
-
-              </label>
-            `;
-          }
-        )
-        .join(
-          ""
-        );
+    count.textContent =
+      countParts.length
+        ? countParts.join(
+            " · "
+          )
+        : "0건";
   }
 
 
-/* =====================================================
-  업무일지 가져오기 패널 열기
+  /* ===================================================
+    실행 버튼 상태와 문구
+  ==================================================== */
 
-  변경:
-  - 즉시 업무일지 조회하지 않음
-  - 별도 시작일·종료일 선택
-  - 업무일지 조회 버튼을 눌러 후보 생성
+  if (
+    applyButton
+  ) {
+    applyButton.disabled =
+      availableCount ===
+      0;
+
+
+    applyButton.textContent =
+      replacementCount >
+        0
+        ? "선택 기록 최신화"
+        : "선택 기록 추가";
+  }
+
+
+  if (
+    !list
+  ) {
+    return;
+  }
+
+
+  /* ===================================================
+    조회 결과 없음
+  ==================================================== */
+
+  if (
+    safeCandidates.length ===
+      0
+  ) {
+    list.innerHTML = `
+      <div class="limestone-empty-table-row">
+
+        선택한 기간의 BCO1·BO1·BCO2·BO2 업무일지에서
+        석회석 입고내역을 찾지 못했습니다.
+
+      </div>
+    `;
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    후보 목록
+  ==================================================== */
+
+  list.innerHTML =
+    safeCandidates
+      .map(
+        candidate => {
+          const isImported =
+            candidate
+              ?.alreadyImported ===
+            true;
+
+
+          const isReplacement =
+            !isImported &&
+
+            candidate
+              ?.replacesLowerRole ===
+              true;
+
+
+          const sourceRole =
+            String(
+              candidate
+                ?.sourceRole ||
+              ""
+            ).trim();
+
+
+          const replacedSourceRole =
+            String(
+              candidate
+                ?.replacedSourceRole ||
+              ""
+            ).trim();
+
+
+          /* =============================================
+            처리 상태 표시
+          ============================================== */
+
+          const processingLabel =
+            isImported
+              ? "이미 등록됨"
+              : (
+                  isReplacement
+                    ? (
+                        `${replacedSourceRole || "하위 보직"}` +
+                        ` → ${sourceRole} 교체`
+                      )
+                    : "신규 반영"
+                );
+
+
+          const sourceLabel = [
+            sourceRole,
+
+            candidate
+              ?.sourceAuthor ||
+              "작성자 미상",
+
+            candidate
+              ?.sourceStatus,
+
+            processingLabel
+          ]
+            .filter(
+              Boolean
+            )
+            .join(
+              " · "
+            );
+
+
+          return `
+            <label
+              class="
+                limestone-import-candidate
+                ${
+                  isImported
+                    ? "is-imported"
+                    : ""
+                }
+              "
+              title="${escapeLimestoneHtml(
+                candidate
+                  ?.sourceText ||
+                ""
+              )}"
+            >
+
+              <input
+                type="checkbox"
+                data-limestone-import-key="${escapeLimestoneHtml(
+                  candidate
+                    ?.sourceKey ||
+                  ""
+                )}"
+                ${
+                  isImported
+                    ? "disabled"
+                    : "checked"
+                }
+              />
+
+
+              <span>
+                ${escapeLimestoneHtml(
+                  candidate
+                    ?.receiptDate ||
+                  ""
+                )}
+                <br />
+
+                ${escapeLimestoneHtml(
+                  candidate
+                    ?.receiptTime ||
+                  ""
+                )}
+              </span>
+
+
+              <strong>
+                ${Number(
+                  candidate
+                    ?.unitNo
+                )}호기
+              </strong>
+
+
+              <strong
+                class="limestone-quantity-value"
+              >
+                ${formatLimestoneQuantity(
+                  candidate
+                    ?.quantityTon
+                )} t
+              </strong>
+
+
+              <span class="limestone-import-source">
+                ${escapeLimestoneHtml(
+                  sourceLabel
+                )}
+              </span>
+
+            </label>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+}
+
+/* =====================================================
+  업무일지 석회석 입고기록 최신화 패널 열기
+
+  처리:
+  - 직접 입고기록 편집창 닫기
+  - 기본 최신화 기간 설정
+  - 기존 후보 목록 초기화
+  - 최신화 대상 조회 전 안내 표시
 ===================================================== */
 
 function openLimestoneImportPanel() {
@@ -81595,7 +82910,7 @@ function openLimestoneImportPanel() {
     !list
   ) {
     showLimestoneToast(
-      "석회석 업무일지 가져오기 화면을 찾을 수 없습니다."
+      "석회석 업무일지 최신화 화면을 찾을 수 없습니다."
     );
 
 
@@ -81630,15 +82945,15 @@ function openLimestoneImportPanel() {
 
 
     applyButton.textContent =
-      "선택 기록 추가";
+      "선택 기록 최신화";
   }
 
 
   list.innerHTML = `
     <div class="limestone-import-empty-message">
 
-      가져오기 기간을 선택한 후
-      업무일지 조회 버튼을 눌러주세요.
+      최신화 기간을 선택한 후
+      최신화 대상 조회 버튼을 눌러주세요.
 
     </div>
   `;
@@ -81671,7 +82986,17 @@ function openLimestoneImportPanel() {
 
 
 /* =====================================================
-  설정한 가져오기 기간으로 업무일지 후보 조회
+  설정한 최신화 기간으로 업무일지 후보 조회
+
+  조회:
+  - BCO1
+  - BO1
+  - BCO2
+  - BO2
+
+  우선순위:
+  - BCO1 > BO1
+  - BCO2 > BO2
 ===================================================== */
 
 async function searchLimestoneImportCandidates() {
@@ -81701,6 +83026,10 @@ async function searchLimestoneImportCandidates() {
     ).trim();
 
 
+  /* ===================================================
+    날짜 확인
+  ==================================================== */
+
   if (
     !isValidLimestoneDate(
       startDate
@@ -81710,7 +83039,7 @@ async function searchLimestoneImportCandidates() {
     )
   ) {
     showLimestoneToast(
-      "가져오기 시작일과 종료일을 선택해 주세요."
+      "최신화 시작일과 종료일을 선택해 주세요."
     );
 
 
@@ -81723,13 +83052,17 @@ async function searchLimestoneImportCandidates() {
     endDate
   ) {
     showLimestoneToast(
-      "가져오기 시작일은 종료일보다 늦을 수 없습니다."
+      "최신화 시작일은 종료일보다 늦을 수 없습니다."
     );
 
 
     return;
   }
 
+
+  /* ===================================================
+    기존 후보 초기화
+  ==================================================== */
 
   limestoneReceiptState
     .importCandidates =
@@ -81772,16 +83105,21 @@ async function searchLimestoneImportCandidates() {
   }
 
 
-  list.innerHTML = `
-    <div class="limestone-loading">
+  if (
+    list
+  ) {
+    list.innerHTML = `
+      <div class="limestone-loading">
 
-      ${escapeLimestoneHtml(
-        `${startDate} ~ ${endDate}`
-      )}
-      업무일지에서 석회석 입고내역을 찾고 있습니다.
+        ${escapeLimestoneHtml(
+          `${startDate} ~ ${endDate}`
+        )}
 
-    </div>
-  `;
+        업무일지에서 석회석 입고기록을 확인하고 있습니다.
+
+      </div>
+    `;
+  }
 
 
   try {
@@ -81802,7 +83140,7 @@ async function searchLimestoneImportCandidates() {
     error
   ) {
     console.error(
-      "석회석 업무일지 후보 조회 실패:",
+      "석회석 업무일지 최신화 대상 조회 실패:",
       error
     );
 
@@ -81815,21 +83153,25 @@ async function searchLimestoneImportCandidates() {
     }
 
 
-    list.innerHTML = `
-      <div class="limestone-import-empty-message">
+    if (
+      list
+    ) {
+      list.innerHTML = `
+        <div class="limestone-import-empty-message">
 
-        ${escapeLimestoneHtml(
-          error.message ||
-          "업무일지 석회석 입고내역을 불러오지 못했습니다."
-        )}
+          ${escapeLimestoneHtml(
+            error.message ||
+            "업무일지 석회석 입고기록을 불러오지 못했습니다."
+          )}
 
-      </div>
-    `;
+        </div>
+      `;
+    }
 
 
     showLimestoneToast(
       error.message ||
-      "업무일지 석회석 입고내역을 불러오지 못했습니다."
+      "업무일지 석회석 입고기록을 불러오지 못했습니다."
     );
 
   } finally {
@@ -81841,7 +83183,7 @@ async function searchLimestoneImportCandidates() {
 
 
       searchButton.textContent =
-        "업무일지 조회";
+        "최신화 대상 조회";
     }
 
 
@@ -81898,13 +83240,15 @@ async function searchLimestoneImportCandidates() {
 
 
 /* =====================================================
-  선택한 업무일지 석회석 입고기록 등록
+  선택한 업무일지 석회석 입고기록 최신화 최종본
 
   처리:
-  - 체크한 후보만 수집
-  - 이미 등록된 후보 제외
-  - D1에 일괄 등록
-  - 등록 후 현재 상단 조회 조건으로 다시 조회
+  - 체크한 후보만 전송
+  - 이미 등록된 항목 제외
+  - 신규 기록 등록
+  - BO1 → BCO1 교체
+  - BO2 → BCO2 교체
+  - 처리 후 석회석 현황 재조회
 ===================================================== */
 
 async function applyLimestoneImportCandidates() {
@@ -81928,7 +83272,7 @@ async function applyLimestoneImportCandidates() {
 
 
   /* ===================================================
-    화면에서 체크된 원본 키 수집
+    화면에서 체크된 후보 키
   ==================================================== */
 
   const selectedSourceKeys =
@@ -81964,7 +83308,9 @@ async function applyLimestoneImportCandidates() {
 
 
   /* ===================================================
-    체크 항목 중 등록 가능한 후보만 선별
+    실제 최신화할 후보
+
+    이미 등록 완료된 항목은 제외한다.
   ==================================================== */
 
   const selectedCandidates =
@@ -81972,15 +83318,19 @@ async function applyLimestoneImportCandidates() {
       candidate => {
         const sourceKey =
           String(
-            candidate?.sourceKey ||
+            candidate
+              ?.sourceKey ||
             ""
           ).trim();
 
 
         return (
-          candidate?.alreadyImported !==
+          candidate
+            ?.alreadyImported !==
             true &&
+
           sourceKey &&
+
           selectedSourceKeys.has(
             sourceKey
           )
@@ -81994,12 +83344,99 @@ async function applyLimestoneImportCandidates() {
       0
   ) {
     showLimestoneToast(
-      "추가할 석회석 입고기록을 선택해 주세요."
+      "최신화할 석회석 입고기록을 선택해 주세요."
     );
 
 
     return;
   }
+
+
+  /* ===================================================
+    상위 보직 교체 대상
+  ==================================================== */
+
+  const replacementCandidates =
+    selectedCandidates.filter(
+      candidate => {
+        return (
+          candidate
+            ?.replacesLowerRole ===
+          true
+        );
+      }
+    );
+
+
+  /* ===================================================
+    하위 보직 기록 교체 확인
+  ==================================================== */
+
+  if (
+    replacementCandidates.length >
+      0
+  ) {
+    const replacementSummary =
+      replacementCandidates
+        .map(
+          candidate => {
+            const previousRole =
+              String(
+                candidate
+                  ?.replacedSourceRole ||
+                "하위 보직"
+              ).trim();
+
+
+            const nextRole =
+              String(
+                candidate
+                  ?.sourceRole ||
+                "상위 보직"
+              ).trim();
+
+
+            return (
+              `${candidate.receiptDate} ` +
+              `${candidate.receiptTime} ` +
+              `${candidate.unitNo}호기: ` +
+              `${previousRole} → ${nextRole}`
+            );
+          }
+        )
+        .join(
+          "\n"
+        );
+
+
+    const shouldContinue =
+      window.confirm(
+        [
+          "하위 보직의 기존 석회석 기록을 상위 보직 기록으로 교체합니다.",
+          "",
+          replacementSummary,
+          "",
+          "계속하시겠습니까?"
+        ].join(
+          "\n"
+        )
+      );
+
+
+    if (
+      !shouldContinue
+    ) {
+      return;
+    }
+  }
+
+
+  const originalButtonText =
+    String(
+      applyButton
+        ?.textContent ||
+      "선택 기록 최신화"
+    ).trim();
 
 
   if (
@@ -82010,11 +83447,15 @@ async function applyLimestoneImportCandidates() {
 
 
     applyButton.textContent =
-      "등록 중...";
+      "최신화 중...";
   }
 
 
   try {
+    /* =================================================
+      효율팀 석회석 API에 전송
+    ================================================= */
+
     const result =
       await requestLimestoneApi(
         LIMESTONE_RECEIPTS_API_URL,
@@ -82040,74 +83481,75 @@ async function applyLimestoneImportCandidates() {
                       receiptDate:
                         String(
                           candidate
-                            .receiptDate ||
+                            ?.receiptDate ||
                           ""
                         ).trim(),
 
                       receiptTime:
                         String(
                           candidate
-                            .receiptTime ||
+                            ?.receiptTime ||
                           ""
                         ).trim(),
 
                       unitNo:
                         Number(
                           candidate
-                            .unitNo
+                            ?.unitNo
                         ),
 
                       quantityTon:
                         Number(
                           candidate
-                            .quantityTon
+                            ?.quantityTon
                         ),
 
                       note:
                         String(
-                          candidate.note ||
+                          candidate
+                            ?.note ||
                           ""
                         ).trim(),
 
                       sourceLogId:
                         String(
                           candidate
-                            .sourceLogId ||
+                            ?.sourceLogId ||
                           ""
                         ).trim(),
 
                       sourceEntryId:
                         String(
                           candidate
-                            .sourceEntryId ||
+                            ?.sourceEntryId ||
                           ""
                         ).trim(),
 
                       sourceKey:
                         String(
                           candidate
-                            .sourceKey ||
+                            ?.sourceKey ||
                           ""
                         ).trim(),
 
                       sourceRole:
                         String(
                           candidate
-                            .sourceRole ||
+                            ?.sourceRole ||
                           ""
                         ).trim(),
 
                       sourceAuthor:
                         String(
                           candidate
-                            .sourceAuthor ||
+                            ?.sourceAuthor ||
                           ""
                         ).trim(),
 
                       sourceText:
                         String(
                           candidate
-                            .sourceText ||
+                            ?.sourceText ||
                           ""
                         ).trim()
                     };
@@ -82118,39 +83560,37 @@ async function applyLimestoneImportCandidates() {
       );
 
 
-    /*
-      가져오기 패널만 닫는다.
-      상단 조회 기간과 호기 조건은 유지한다.
-    */
+    /* =================================================
+      가져오기 패널 닫기
+    ================================================= */
+
     closeLimestoneImportPanel();
 
 
-    /*
-      현재 상단 조회 조건으로 결과를 다시 불러온다.
+    /* =================================================
+      현재 상단 조회 조건으로 석회석 현황 갱신
+    ================================================= */
 
-      가져오기 기간 전체가 아니라
-      상단에서 조회한 범위만 요약 카드에 반영된다.
-    */
     await loadLimestoneReceipts();
 
 
     showLimestoneToast(
       result.message ||
-      `석회석 입고기록 ${selectedCandidates.length}건을 등록했습니다.`
+      `석회석 입고기록 ${selectedCandidates.length}건을 최신화했습니다.`
     );
 
   } catch (
     error
   ) {
     console.error(
-      "석회석 업무일지 가져오기 등록 실패:",
+      "석회석 업무일지 최신화 실패:",
       error
     );
 
 
     showLimestoneToast(
       error.message ||
-      "선택한 석회석 입고기록을 등록하지 못했습니다."
+      "선택한 석회석 입고기록을 최신화하지 못했습니다."
     );
 
   } finally {
@@ -82162,7 +83602,7 @@ async function applyLimestoneImportCandidates() {
 
 
       applyButton.textContent =
-        "선택 기록 추가";
+        originalButtonText;
     }
   }
 }

@@ -24,6 +24,7 @@ const LNG_CURRENT_USER_STORAGE_KEY =
 const LNG_FORCED_SUPER_ADMIN_EMPLOYEE_NO =
   "2014081";
 
+
 const LNG_DEFAULT_TEMPLATE_ITEMS = [
   "CFBC용 정압기 입구압력 (3~6barg)",
   "CFBC용 정압기 출구압력 (2~4barg)",
@@ -52,7 +53,7 @@ const LNG_DEFAULT_TEMPLATE_ITEMS = [
   "정압기 입구압력 (3~6barg)",
   "정압기 출구압력 (0.02~0.04barg)",
   "정압기 동작상태는 양호한가",
-  "정압기 및 Line의 Flange 접합부위\n등에서 가스가 새고 있지 않는가"
+  "정압기 및 Line의 Flange 접합부위\n등에서 가스가 새고있지 않는가"
 ];
 
 
@@ -740,53 +741,14 @@ function initializeLngWeeklyInspection() {
     원본 표의 빈 구분 칸 자동 생성
   ======================================================= */
 
-  function ensureAreaCells() {
+function ensureAreaCells() {
     document
       .querySelectorAll(
-        "[data-lng-item-row]"
+        ".lng-area-cell"
       )
       .forEach(
-        row => {
-          const number =
-            Number(
-              row.getAttribute(
-                "data-lng-item-row"
-              )
-            );
-
-          if (
-            !Number.isInteger(
-              number
-            ) ||
-            number <
-              1 ||
-            number >
-              24 ||
-            row.querySelector(
-              ".lng-area-cell"
-            )
-          ) {
-            return;
-          }
-
-          const areaCell =
-            document.createElement(
-              "td"
-            );
-
-          areaCell.className =
-            "lng-area-cell";
-
-          areaCell.setAttribute(
-            "aria-hidden",
-            "true"
-          );
-
-          row.insertBefore(
-            areaCell,
-            row.children[1] ||
-            null
-          );
+        areaCell => {
+          areaCell.remove();
         }
       );
   }
@@ -2227,7 +2189,7 @@ function initializeLngWeeklyInspection() {
   }
 
 
-  function replaceCloneFieldsWithText(
+function replaceCloneFieldsWithText(
     originalRoot,
     clonedRoot
   ) {
@@ -2278,29 +2240,26 @@ function initializeLngWeeklyInspection() {
         printValue.className =
           "lng-check-print-value";
 
-        printValue.textContent =
-          value;
-
-        printValue.style.display =
-          "block";
-
-        printValue.style.width =
-          "100%";
-
-        printValue.style.minHeight =
+        if (
           original instanceof
             HTMLTextAreaElement
-            ? "8mm"
-            : "6mm";
+        ) {
+          printValue.classList.add(
+            "is-textarea"
+          );
+        }
 
-        printValue.style.whiteSpace =
-          "pre-wrap";
+        if (
+          original?.id ===
+            "lngRemark"
+        ) {
+          printValue.classList.add(
+            "is-remark"
+          );
+        }
 
-        printValue.style.textAlign =
-          "center";
-
-        printValue.style.fontSize =
-          "8.5px";
+        printValue.textContent =
+          value;
 
         clone.replaceWith(
           printValue
@@ -2308,6 +2267,7 @@ function initializeLngWeeklyInspection() {
       }
     );
   }
+
 
 
   function createPreviewPages() {

@@ -16,11 +16,11 @@
 
   <link
     rel="stylesheet"
-    href="lng-weekly.css?v=20260803-1"
+    href="lng-weekly.css?v=20260803-2"
   >
 
   <script
-    src="lng-weekly.js?v=20260803-1"
+    src="lng-weekly.js?v=20260803-2"
     defer
   ></script>
 
@@ -40,7 +40,7 @@
       작성 화면
     ====================================================== -->
 
-    <section
+<section
       class="lng-write-view"
       id="lngWriteView"
     >
@@ -70,6 +70,39 @@
           >
             저장되지 않음
           </p>
+
+        </div>
+
+
+        <div class="lng-check-toolbar__meta">
+
+          <label>
+
+            <span>
+              점검일자
+            </span>
+
+            <input
+              type="date"
+              id="lngInspectionDate"
+            >
+
+          </label>
+
+
+          <label>
+
+            <span>
+              점검자
+            </span>
+
+            <input
+              type="text"
+              id="lngInspectorName"
+              aria-label="점검자"
+            >
+
+          </label>
 
         </div>
 
@@ -128,42 +161,16 @@
         </h2>
 
 
-        <div class="lng-check-head-row">
-
-          <div class="lng-check-meta">
-
-            <label class="lng-check-date-field">
-
-              <span>
-                일 시:
-              </span>
-
-              <input
-                type="date"
-                id="lngInspectionDate"
-              >
-
-            </label>
-
-
-            <label class="lng-check-inspector-field">
-
-              <span>
-                점검자:
-              </span>
-
-              <input
-                type="text"
-                id="lngInspectorName"
-                aria-label="점검자"
-              >
-
-            </label>
-
-          </div>
-
+        <div class="lng-check-approval-wrap">
 
           <table class="lng-check-approval-table">
+
+            <colgroup>
+
+              <col class="lng-approval-col-part-leader">
+              <col class="lng-approval-col-team-leader">
+
+            </colgroup>
 
             <thead>
 
@@ -219,7 +226,6 @@
           <colgroup>
 
             <col class="lng-col-number">
-            <col class="lng-col-area">
             <col class="lng-col-item">
             <col class="lng-col-content">
             <col class="lng-col-action">
@@ -235,7 +241,7 @@
                 구분
               </th>
 
-              <th colspan="2">
+              <th>
                 점 검 사 항
               </th>
 
@@ -697,38 +703,6 @@
               </td>
             </tr>
 
-          </tbody>
-
-        </table>
-
-      </section>
-
-
-      <!-- ===================================================
-        원본 2페이지
-      ==================================================== -->
-
-      <section
-        class="
-          lng-check-sheet
-          lng-check-sheet--page-2
-        "
-        id="lngCheckSheetPage2"
-      >
-
-        <table class="lng-check-table lng-check-table--continued">
-
-          <colgroup>
-
-            <col class="lng-col-number">
-            <col class="lng-col-item">
-            <col class="lng-col-content">
-            <col class="lng-col-action">
-
-          </colgroup>
-
-          <tbody id="lngCheckRowsPage2">
-
             <tr data-lng-item-row="22">
               <td>22</td>
               <td data-lng-item-title>
@@ -797,6 +771,39 @@
                 ></textarea>
               </td>
             </tr>
+
+          </tbody>
+
+        </table>
+
+      </section>
+
+
+      <!-- ===================================================
+        원본 2페이지
+      ==================================================== -->
+
+      <section
+        class="
+          lng-check-sheet
+          lng-check-sheet--page-2
+        "
+        id="lngCheckSheetPage2"
+      >
+
+        <table class="lng-check-table lng-check-table--continued">
+
+          <colgroup>
+
+            <col class="lng-col-number">
+            <col class="lng-col-area">
+            <col class="lng-col-item">
+            <col class="lng-col-content">
+            <col class="lng-col-action">
+
+          </colgroup>
+
+          <tbody id="lngCheckRowsPage2">
 
             <tr data-lng-item-row="25">
               <td>25</td>
@@ -868,7 +875,7 @@
               <td>28</td>
               <td data-lng-item-title>
                 정압기 및 Line의 Flange 접합부위<br>
-                등에서 가스가 새고 있지 않는가
+                등에서 가스가 새고있지 않는가
               </td>
               <td>
                 <input
@@ -892,7 +899,7 @@
                 비<br>고
               </th>
 
-              <td colspan="3">
+              <td colspan="4">
 
                 <textarea
                   id="lngRemark"
