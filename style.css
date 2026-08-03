@@ -60354,3 +60354,52 @@ select {
   }
 
 }
+
+/* =========================================================
+  석회석 업무일지 가져오기 상태
+
+  이미 등록된 항목:
+  - 선택 불가
+  - 회색 처리
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-import-candidate.is-imported {
+  border-color:
+    #d7dde5;
+
+  background:
+    #f4f6f8;
+
+  color:
+    #8a94a2;
+
+  opacity:
+    0.7;
+
+  cursor:
+    default;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-candidate.is-imported
+strong,
+
+#efficiencyTeamModal
+.limestone-import-candidate.is-imported
+.limestone-quantity-value {
+  color:
+    #7c8795;
+}
+
+
+#efficiencyTeamModal
+.limestone-import-candidate
+input:disabled {
+  cursor:
+    not-allowed;
+
+  opacity:
+    0.55;
+}

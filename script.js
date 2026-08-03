@@ -74922,9 +74922,2141 @@ function openEfficiencyTeamModal() {
     }
   }
 
+  /* =====================================================
+    업무일지 석회석 입고내역 가져오기
+
+    대상:
+    - BCO1 → 1호기
+    - BCO2 → 2호기
+    - 결재완료·저장완료 업무일지
+
+    인식:
+    - Limestone 입고
+    - 석회석 입고
+    - ton / t / 톤
+  ====================================================== */
+
+  limestoneReceiptState
+    .importCandidates =
+    [];
+
+
+  function getLimestoneImportElements() {
+    return {
+      importButton:
+        document.getElementById(
+          "importLimestoneFromShiftLogsButton"
+        ),
+
+      panel:
+        document.getElementById(
+          "limestoneImportPanel"
+        ),
+
+      count:
+        document.getElementById(
+          "limestoneImportCandidateCount"
+        ),
+
+      list:
+        document.getElementById(
+          "limestoneImportCandidateList"
+        ),
+
+      cancelButton:
+        document.getElementById(
+          "cancelLimestoneImportButton"
+        ),
+
+      applyButton:
+        document.getElementById(
+          "applyLimestoneImportButton"
+        ),
+
+      startDateInput:
+        document.getElementById(
+          "limestoneStartDate"
+        ),
+
+      endDateInput:
+        document.getElementById(
+          "limestoneEndDate"
+        ),
+
+      unitFilter:
+        document.getElementById(
+          "limestoneUnitFilter"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    날짜 더하기
+
+    YYYY-MM-DD → 지정 날짜만큼 이동
+  ====================================================== */
+
+  function addLimestoneIsoDateDays(
+    dateValue,
+    dayCount
+  ) {
+    const parsedDate =
+      new Date(
+        `${dateValue}T00:00:00`
+      );
+
+
+    if (
+      Number.isNaN(
+        parsedDate.getTime()
+      )
+    ) {
+      return "";
+    }
+
+
+    parsedDate.setDate(
+      parsedDate.getDate() +
+      Number(
+        dayCount ||
+        0
+      )
+    );
+
+
+    return formatLimestoneDate(
+      parsedDate
+    );
+  }
+
+
+  /* =====================================================
+    보직 정리
+  ====================================================== */
+
+  function normalizeLimestoneImportRole(
+    value
+  ) {
+    if (
+      typeof normalizeMemberLogRole ===
+        "function"
+    ) {
+      return normalizeMemberLogRole(
+        value
+      );
+    }
+
+
+    return String(
+      value ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+  }
+
+
+/* =====================================================
+  석회석 가져오기 가능 업무일지 판정
+
+  신규 업무일지:
+  - BCO1·BCO2
+  - 결재완료·저장완료만 사용
+
+  과거 업무일지:
+  - BCO1·BCO2
+  - legacy 자료는 과거 확정자료로 처리
+===================================================== */
+
+function isLimestoneLegacySourceLog(
+  log
+) {
+  if (
+    typeof isReadOnlyLegacyShiftLog ===
+      "function"
+  ) {
+    return isReadOnlyLegacyShiftLog(
+      log
+    );
+  }
+
+
+  const source =
+    String(
+      log?.source ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  return (
+    source ===
+      "legacy" ||
+    source.startsWith(
+      "legacy-"
+    )
+  );
+}
+
+
+function normalizeLimestoneImportStatus(
+  value
+) {
+  if (
+    typeof normalizeShiftLogApprovalStatus ===
+      "function"
+  ) {
+    return normalizeShiftLogApprovalStatus(
+      value
+    );
+  }
+
+
+  return String(
+    value ||
+    ""
+  ).trim();
+}
+
+
+function isLimestoneImportableLog(
+  log
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    return false;
+  }
+
+
+  const role =
+    normalizeLimestoneImportRole(
+      log.role
+    );
+
+
+  if (
+    ![
+      "BCO1",
+      "BCO2"
+    ].includes(
+      role
+    )
+  ) {
+    return false;
+  }
+
+
+  /*
+    과거 업무일지는 이미 종료된 확정자료이므로
+    상태값과 관계없이 가져오기 대상으로 사용한다.
+  */
+  if (
+    isLimestoneLegacySourceLog(
+      log
+    )
+  ) {
+    return true;
+  }
+
+
+  const status =
+    normalizeLimestoneImportStatus(
+      log.status
+    );
+
+
+  return [
+    "결재완료",
+    "저장완료"
+  ].includes(
+    status
+  );
+}
+
+/* =====================================================
+  신규·과거 업무일지 통합 중복 방지
+
+  우선순위:
+  1. 신규 공용 업무일지
+  2. 과거 legacy 업무일지
+
+  같은 날짜·근무·보직의 자료가 양쪽에 있으면
+  신규 공용 업무일지를 사용한다.
+===================================================== */
+
+function createLimestoneStableHash(
+  value
+) {
+  const sourceText =
+    String(
+      value ||
+      ""
+    );
+
+
+  let hash =
+    0x811c9dc5;
+
+
+  for (
+    let index = 0;
+    index <
+      sourceText.length;
+    index +=
+      1
+  ) {
+    hash ^=
+      sourceText.charCodeAt(
+        index
+      );
+
+
+    hash =
+      Math.imul(
+        hash,
+        0x01000193
+      );
+  }
+
+
+  return (
+    hash >>>
+    0
+  )
+    .toString(
+      16
+    )
+    .padStart(
+      8,
+      "0"
+    );
+}
+
+
+function createLimestoneSourceLogGroupKey(
+  log
+) {
+  return [
+    String(
+      log?.date ||
+      ""
+    ).trim(),
+
+    String(
+      log?.shift ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replaceAll(
+        "/",
+        ""
+      ),
+
+    normalizeLimestoneImportRole(
+      log?.role
+    )
+  ].join(
+    "||"
+  );
+}
+
+
+function createLimestoneSourceLogId(
+  log
+) {
+  const storedId =
+    String(
+      log?.id ||
+      log?.legacyDiaryId ||
+      log?.legacy_diary_id ||
+      ""
+    ).trim();
+
+
+  if (
+    storedId
+  ) {
+    return storedId;
+  }
+
+
+  /*
+    ID가 없는 예외적인 과거자료는
+    날짜·근무·보직·작성자·내용으로
+    항상 같은 임시 ID를 만든다.
+  */
+  const entryFingerprint =
+    collectLimestoneLogEntries(
+      log
+    )
+      .map(
+        item => {
+          return [
+            item.entry?.time,
+            item.entry?.category,
+            item.entry?.tag,
+            item.entry?.content
+          ]
+            .map(
+              value => {
+                return String(
+                  value ||
+                  ""
+                )
+                  .replace(
+                    /\s+/g,
+                    " "
+                  )
+                  .trim();
+              }
+            )
+            .join(
+              "|"
+            );
+        }
+      )
+      .join(
+        "||"
+      );
+
+
+  const fingerprint = [
+    log?.date,
+    log?.shift,
+    log?.role,
+    log?.author,
+    entryFingerprint
+  ].join(
+    "||"
+  );
+
+
+  return [
+    "limestone-source",
+    String(
+      log?.date ||
+      "unknown-date"
+    ),
+    String(
+      log?.shift ||
+      "unknown-shift"
+    ),
+    normalizeLimestoneImportRole(
+      log?.role
+    ) ||
+    "unknown-role",
+    createLimestoneStableHash(
+      fingerprint
+    )
+  ].join(
+    "-"
+  );
+}
+
+
+function createLimestoneReceiptBusinessKey(
+  receipt
+) {
+  const quantity =
+    normalizeLimestoneQuantity(
+      receipt?.quantityTon
+    );
+
+
+  return [
+    String(
+      receipt?.receiptDate ||
+      ""
+    ).trim(),
+
+    String(
+      receipt?.receiptTime ||
+      ""
+    ).trim(),
+
+    String(
+      Number(
+        receipt?.unitNo
+      ) ||
+      ""
+    ),
+
+    quantity.toFixed(
+      2
+    )
+  ].join(
+    "||"
+  );
+}
+
+
+function deduplicateLimestoneSourceLogs(
+  sharedLogs,
+  legacyLogs
+) {
+  const logMap =
+    new Map();
+
+
+  /*
+    신규 자료를 먼저 넣는다.
+  */
+  (
+    Array.isArray(
+      sharedLogs
+    )
+      ? sharedLogs
+      : []
+  )
+    .filter(
+      isLimestoneImportableLog
+    )
+    .forEach(
+      log => {
+        const groupKey =
+          createLimestoneSourceLogGroupKey(
+            log
+          );
+
+
+        if (
+          groupKey
+        ) {
+          logMap.set(
+            groupKey,
+            log
+          );
+        }
+      }
+    );
+
+
+  /*
+    동일 그룹의 신규 자료가 없을 때만
+    과거 자료를 넣는다.
+  */
+  (
+    Array.isArray(
+      legacyLogs
+    )
+      ? legacyLogs
+      : []
+  )
+    .filter(
+      isLimestoneImportableLog
+    )
+    .forEach(
+      log => {
+        const groupKey =
+          createLimestoneSourceLogGroupKey(
+            log
+          );
+
+
+        if (
+          groupKey &&
+          !logMap.has(
+            groupKey
+          )
+        ) {
+          logMap.set(
+            groupKey,
+            log
+          );
+        }
+      }
+    );
+
+
+  return [
+    ...logMap.values()
+  ];
+}
+
+
+  /* =====================================================
+    업무일지 항목 수집
+
+    새 구조:
+    - tmEntries
+    - handoverEntries
+    - remarkEntries
+
+    기존 호환:
+    - entries
+
+    같은 항목이 여러 배열에 있으면 한 번만 사용한다.
+  ====================================================== */
+
+  function collectLimestoneLogEntries(
+    log
+  ) {
+    const collectedEntries =
+      [];
+
+
+    const seenEntryKeys =
+      new Set();
+
+
+    const collections = [
+      {
+        name:
+          "entries",
+
+        items:
+          log?.entries
+      },
+
+      {
+        name:
+          "tmEntries",
+
+        items:
+          log?.tmEntries
+      },
+
+      {
+        name:
+          "handoverEntries",
+
+        items:
+          log?.handoverEntries
+      },
+
+      {
+        name:
+          "remarkEntries",
+
+        items:
+          log?.remarkEntries
+      }
+    ];
+
+
+    collections.forEach(
+      collection => {
+        const items =
+          Array.isArray(
+            collection.items
+          )
+            ? collection.items
+            : [];
+
+
+        items.forEach(
+          (
+            rawEntry,
+            entryIndex
+          ) => {
+            const entry =
+              rawEntry &&
+              typeof rawEntry ===
+                "object" &&
+              !Array.isArray(
+                rawEntry
+              )
+                ? rawEntry
+                : {
+                    content:
+                      String(
+                        rawEntry ||
+                        ""
+                      )
+                  };
+
+
+            const content =
+              String(
+                entry.content ||
+                entry.text ||
+                ""
+              )
+                .replace(
+                  /\r\n?/g,
+                  "\n"
+                )
+                .trim();
+
+
+            if (
+              !content
+            ) {
+              return;
+            }
+
+
+            const entryId =
+              String(
+                entry.id ||
+                ""
+              ).trim();
+
+
+            const entryKey =
+              entryId
+                ? `id:${entryId}`
+                : [
+                    "content",
+
+                    String(
+                      entry.time ||
+                      ""
+                    ).trim(),
+
+                    String(
+                      entry.tag ||
+                      ""
+                    ).trim(),
+
+                    content
+                      .replace(
+                        /\s+/g,
+                        " "
+                      )
+                      .toUpperCase()
+                  ].join(
+                    "||"
+                  );
+
+
+            if (
+              seenEntryKeys.has(
+                entryKey
+              )
+            ) {
+              return;
+            }
+
+
+            seenEntryKeys.add(
+              entryKey
+            );
+
+
+            collectedEntries.push({
+              entry,
+
+              entryIndex,
+
+              collectionName:
+                collection.name
+            });
+          }
+        );
+      }
+    );
+
+
+    return collectedEntries;
+  }
+
+
+  /* =====================================================
+    문자열에서 마지막 시간 찾기
+
+    예:
+    14:45 Limestone 입고
+
+    결과:
+    14:45
+  ====================================================== */
+
+  function findLastLimestoneTime(
+    value
+  ) {
+    const timeMatches = [
+      ...String(
+        value ||
+        ""
+      ).matchAll(
+        /(?:^|[^\d])([01]\d|2[0-3]):([0-5]\d)(?!\d)/g
+      )
+    ];
+
+
+    if (
+      timeMatches.length ===
+        0
+    ) {
+      return "";
+    }
+
+
+    const lastMatch =
+      timeMatches[
+        timeMatches.length -
+        1
+      ];
+
+
+    return [
+      lastMatch[1],
+      lastMatch[2]
+    ].join(
+      ":"
+    );
+  }
+
+
+  /* =====================================================
+    석회석 입고 문구 분석
+
+    지원 예:
+    - 14:45 Limestone 입고 (30.2ton)
+    - Limestone 입고 30.2 t
+    - 석회석 입고량 30.2톤
+  ====================================================== */
+
+  function extractLimestoneReceiptsFromEntry(
+    entry
+  ) {
+    const content =
+      String(
+        entry?.content ||
+        entry?.text ||
+        ""
+      )
+        .replace(
+          /\r\n?/g,
+          "\n"
+        )
+        .trim();
+
+
+    if (
+      !content
+    ) {
+      return [];
+    }
+
+
+    const entryTime =
+      findLastLimestoneTime(
+        entry?.time
+      );
+
+
+    const result =
+      [];
+
+
+    const lines =
+      content
+        .split(
+          "\n"
+        )
+        .map(
+          line => {
+            return line.trim();
+          }
+        )
+        .filter(
+          Boolean
+        );
+
+
+    lines.forEach(
+      (
+        line,
+        lineIndex
+      ) => {
+        /*
+          석회석 또는 Limestone 뒤에
+          입고라는 단어가 나오고,
+          그 뒤의 ton 수량을 찾는다.
+        */
+        const quantityPattern =
+          /(?:lime\s*stone|석회석)[^0-9\r\n]{0,24}?입고(?:량)?[^0-9\r\n]{0,30}?(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:tons?|t|톤)/gi;
+
+
+        let quantityMatch;
+
+        let matchIndex =
+          0;
+
+
+        while (
+          (
+            quantityMatch =
+              quantityPattern.exec(
+                line
+              )
+          ) !==
+          null
+        ) {
+          /*
+            현재 수량 앞쪽에 있는 가장 가까운 시간을 사용한다.
+          */
+          const textBeforeQuantity =
+            line.slice(
+              0,
+              quantityMatch.index
+            );
+
+
+          const receiptTime =
+            findLastLimestoneTime(
+              textBeforeQuantity
+            ) ||
+            findLastLimestoneTime(
+              line
+            ) ||
+            entryTime;
+
+
+          if (
+            !receiptTime
+          ) {
+            matchIndex +=
+              1;
+
+            continue;
+          }
+
+
+          const quantityTon =
+            normalizeLimestoneQuantity(
+              String(
+                quantityMatch[1] ||
+                ""
+              ).replace(
+                ",",
+                "."
+              )
+            );
+
+
+          if (
+            quantityTon <
+              0.01 ||
+            quantityTon >
+              999.99
+          ) {
+            matchIndex +=
+              1;
+
+            continue;
+          }
+
+
+          result.push({
+            receiptTime,
+
+            quantityTon,
+
+            sourceText:
+              line,
+
+            lineIndex,
+
+            matchIndex
+          });
+
+
+          matchIndex +=
+            1;
+        }
+      }
+    );
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    실제 입고일 계산
+
+    업무일지 N/S 기준일:
+    19:00 ~ 다음 날 07:00
+
+    N/S의 00:00~06:59:
+    실제 달력 날짜는 업무일지 기준일의 다음 날짜
+  ====================================================== */
+
+  function getLimestoneActualReceiptDate(
+    workDate,
+    shift,
+    receiptTime
+  ) {
+    const normalizedDate =
+      String(
+        workDate ||
+        ""
+      ).trim();
+
+
+    const normalizedShift =
+      String(
+        shift ||
+        ""
+      )
+        .trim()
+        .toUpperCase()
+        .replace(
+          /[^A-Z]/g,
+          ""
+        );
+
+
+    const receiptHour =
+      Number(
+        String(
+          receiptTime ||
+          ""
+        ).slice(
+          0,
+          2
+        )
+      );
+
+
+    const isNightShift =
+      [
+        "NS",
+        "N"
+      ].includes(
+        normalizedShift
+      );
+
+
+    if (
+      isNightShift &&
+      receiptHour >=
+        0 &&
+      receiptHour <
+        7
+    ) {
+      return addLimestoneIsoDateDays(
+        normalizedDate,
+        1
+      );
+    }
+
+
+    return normalizedDate;
+  }
+
+
+/* =====================================================
+  신규·과거 업무일지 석회석 입고내역 통합 조회
+
+  조회 대상:
+  - 신규 공용 shift_logs
+  - 과거 D1 legacy_logs
+
+  중복 방지:
+  - 동일 날짜·근무·보직은 신규 자료 우선
+  - 동일 입고일·시간·호기·수량은 한 번만 표시
+  - 이미 등록된 입고기록은 등록 완료로 표시
+===================================================== */
+
+async function loadLimestoneImportCandidates() {
+  const {
+    startDateInput,
+    endDateInput,
+    unitFilter
+  } =
+    getLimestoneImportElements();
+
+
+  const startDate =
+    String(
+      startDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const endDate =
+    String(
+      endDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const selectedUnitNo =
+    Number(
+      unitFilter?.value ||
+      0
+    ) ||
+    null;
+
+
+  if (
+    !isValidLimestoneDate(
+      startDate
+    ) ||
+    !isValidLimestoneDate(
+      endDate
+    )
+  ) {
+    throw new Error(
+      "석회석 조회 시작일과 종료일을 확인해 주세요."
+    );
+  }
+
+
+  if (
+    startDate >
+      endDate
+  ) {
+    throw new Error(
+      "조회 시작일은 종료일보다 늦을 수 없습니다."
+    );
+  }
+
+
+  /*
+    N/S의 00:00~06:59 입고기록은
+    전날 N/S 업무일지에 들어 있으므로
+    하루 전 업무일지부터 조회한다.
+  */
+  const shiftLogStartDate =
+    addLimestoneIsoDateDays(
+      startDate,
+      -1
+    );
+
+
+  if (
+    typeof loadSharedShiftLogsFromServer !==
+      "function"
+  ) {
+    throw new Error(
+      "신규 공용 업무일지 조회 기능을 찾을 수 없습니다."
+    );
+  }
+
+
+  /*
+    현재 석회석 저장자료를 먼저 갱신한다.
+  */
+  await loadLimestoneReceipts();
+
+
+  const searchParams =
+    new URLSearchParams({
+      from:
+        shiftLogStartDate,
+
+      to:
+        endDate
+    });
+
+
+  /* ===================================================
+    신규·과거 업무일지를 동시에 조회
+
+    한쪽 조회가 실패해도
+    나머지 한쪽 자료는 계속 사용한다.
+  ==================================================== */
+
+  const sourceResults =
+    await Promise.allSettled([
+      loadSharedShiftLogsFromServer(
+        `?${searchParams.toString()}`
+      ),
+
+      typeof loadLegacyLogsForSearchRange ===
+        "function"
+        ? loadLegacyLogsForSearchRange(
+            shiftLogStartDate,
+            endDate
+          )
+        : Promise.resolve(
+            []
+          )
+    ]);
+
+
+  const sharedResult =
+    sourceResults[
+      0
+    ];
+
+
+  const legacyResult =
+    sourceResults[
+      1
+    ];
+
+
+  const sharedLogs =
+    sharedResult.status ===
+      "fulfilled"
+      ? (
+          Array.isArray(
+            sharedResult.value
+          )
+            ? sharedResult.value
+            : []
+        )
+      : [];
+
+
+  const legacyLogs =
+    legacyResult.status ===
+      "fulfilled"
+      ? (
+          Array.isArray(
+            legacyResult.value
+          )
+            ? legacyResult.value
+            : []
+        )
+      : [];
+
+
+  if (
+    sharedResult.status ===
+      "rejected"
+  ) {
+    console.error(
+      "신규 석회석 업무일지 조회 실패:",
+      sharedResult.reason
+    );
+  }
+
+
+  if (
+    legacyResult.status ===
+      "rejected"
+  ) {
+    console.error(
+      "과거 석회석 업무일지 조회 실패:",
+      legacyResult.reason
+    );
+  }
+
+
+  if (
+    sharedResult.status ===
+      "rejected" &&
+    legacyResult.status ===
+      "rejected"
+  ) {
+    throw new Error(
+      "신규·과거 업무일지를 모두 불러오지 못했습니다."
+    );
+  }
+
+
+  const sourceLogs =
+    deduplicateLimestoneSourceLogs(
+      sharedLogs,
+      legacyLogs
+    );
+
+
+  /* ===================================================
+    기존 석회석 기록 중복 확인
+  ==================================================== */
+
+  const existingSourceKeys =
+    new Set(
+      limestoneReceiptState
+        .items
+        .map(
+          item => {
+            return String(
+              item.sourceKey ||
+              ""
+            ).trim();
+          }
+        )
+        .filter(
+          Boolean
+        )
+    );
+
+
+  const existingBusinessKeys =
+    new Set(
+      limestoneReceiptState
+        .items
+        .map(
+          createLimestoneReceiptBusinessKey
+        )
+        .filter(
+          Boolean
+        )
+    );
+
+
+  /*
+    같은 실제 입고 건이 신규·과거 양쪽에서
+    발견되더라도 한 번만 표시한다.
+  */
+  const candidateMap =
+    new Map();
+
+
+  sourceLogs.forEach(
+    log => {
+      const sourceRole =
+        normalizeLimestoneImportRole(
+          log.role
+        );
+
+
+      const unitNo =
+        sourceRole ===
+          "BCO1"
+          ? 1
+          : 2;
+
+
+      if (
+        selectedUnitNo &&
+        unitNo !==
+          selectedUnitNo
+      ) {
+        return;
+      }
+
+
+      const sourceLogId =
+        createLimestoneSourceLogId(
+          log
+        );
+
+
+      if (
+        !sourceLogId
+      ) {
+        return;
+      }
+
+
+      const isLegacySource =
+        isLimestoneLegacySourceLog(
+          log
+        );
+
+
+      const sourceStatus =
+        isLegacySource
+          ? "과거 업무일지"
+          : normalizeLimestoneImportStatus(
+              log.status
+            );
+
+
+      collectLimestoneLogEntries(
+        log
+      ).forEach(
+        entryItem => {
+          const {
+            entry,
+            entryIndex,
+            collectionName
+          } = entryItem;
+
+
+          const extractedItems =
+            extractLimestoneReceiptsFromEntry(
+              entry
+            );
+
+
+          extractedItems.forEach(
+            extractedItem => {
+              const receiptDate =
+                getLimestoneActualReceiptDate(
+                  log.date,
+                  log.shift,
+                  extractedItem
+                    .receiptTime
+                );
+
+
+              if (
+                receiptDate <
+                  startDate ||
+                receiptDate >
+                  endDate
+              ) {
+                return;
+              }
+
+
+              const entryId =
+                String(
+                  entry.id ||
+                  ""
+                ).trim();
+
+
+              const entryFingerprint = [
+                collectionName,
+                entryIndex,
+                entry?.time,
+                entry?.tag,
+                entry?.content
+              ].join(
+                "||"
+              );
+
+
+              const baseEntryId =
+                entryId ||
+                [
+                  collectionName,
+                  createLimestoneStableHash(
+                    entryFingerprint
+                  )
+                ].join(
+                  "-"
+                );
+
+
+              const sourceEntryId = [
+                baseEntryId,
+                "limestone",
+                extractedItem
+                  .lineIndex,
+                extractedItem
+                  .matchIndex
+              ].join(
+                "-"
+              );
+
+
+              const sourceKey = [
+                sourceLogId,
+                sourceEntryId
+              ].join(
+                "||"
+              );
+
+
+              const candidate = {
+                receiptDate,
+
+                receiptTime:
+                  extractedItem
+                    .receiptTime,
+
+                unitNo,
+
+                quantityTon:
+                  extractedItem
+                    .quantityTon,
+
+                note:
+                  "",
+
+                sourceLogId,
+
+                sourceEntryId,
+
+                sourceKey,
+
+                sourceRole,
+
+                sourceAuthor:
+                  String(
+                    log.author ||
+                    ""
+                  ).trim(),
+
+                sourceText:
+                  extractedItem
+                    .sourceText
+                    .slice(
+                      0,
+                      1000
+                    ),
+
+                sourceStatus,
+
+                sourceKind:
+                  isLegacySource
+                    ? "legacy"
+                    : "shared"
+              };
+
+
+              const businessKey =
+                createLimestoneReceiptBusinessKey(
+                  candidate
+                );
+
+
+              candidate.businessKey =
+                businessKey;
+
+
+              candidate.alreadyImported =
+                existingSourceKeys.has(
+                  sourceKey
+                ) ||
+                existingBusinessKeys.has(
+                  businessKey
+                );
+
+
+              const previousCandidate =
+                candidateMap.get(
+                  businessKey
+                );
+
+
+              /*
+                같은 실제 입고 건이 양쪽에 있으면
+                신규 공용 업무일지를 우선 사용한다.
+              */
+              if (
+                !previousCandidate ||
+                (
+                  previousCandidate
+                    .sourceKind ===
+                    "legacy" &&
+                  candidate.sourceKind ===
+                    "shared"
+                )
+              ) {
+                candidateMap.set(
+                  businessKey,
+                  candidate
+                );
+              }
+            }
+          );
+        }
+      );
+    }
+  );
+
+
+  return [
+    ...candidateMap.values()
+  ].sort(
+    (
+      firstItem,
+      secondItem
+    ) => {
+      const firstKey = [
+        firstItem.receiptDate,
+        firstItem.receiptTime,
+        firstItem.unitNo
+      ].join(
+        " "
+      );
+
+
+      const secondKey = [
+        secondItem.receiptDate,
+        secondItem.receiptTime,
+        secondItem.unitNo
+      ].join(
+        " "
+      );
+
+
+      return secondKey.localeCompare(
+        firstKey
+      );
+    }
+  );
+}
+
+  /* =====================================================
+    후보 목록 출력
+  ====================================================== */
+
+  function renderLimestoneImportCandidates(
+    candidates
+  ) {
+    const {
+      count,
+      list,
+      applyButton
+    } =
+      getLimestoneImportElements();
+
+
+    const safeCandidates =
+      Array.isArray(
+        candidates
+      )
+        ? candidates
+        : [];
+
+
+    const availableCount =
+      safeCandidates.filter(
+        candidate => {
+          return (
+            candidate
+              .alreadyImported !==
+            true
+          );
+        }
+      ).length;
+
+
+    const importedCount =
+      safeCandidates.length -
+      availableCount;
+
+
+    if (
+      count
+    ) {
+      count.textContent =
+        importedCount >
+          0
+          ? (
+              `${availableCount}건 선택 가능 · ` +
+              `등록됨 ${importedCount}건`
+            )
+          : `${availableCount}건`;
+    }
+
+
+    if (
+      applyButton
+    ) {
+      applyButton.disabled =
+        availableCount ===
+        0;
+    }
+
+
+    if (
+      !list
+    ) {
+      return;
+    }
+
+
+    if (
+      safeCandidates.length ===
+        0
+    ) {
+      list.innerHTML = `
+        <div class="limestone-empty-table-row">
+
+          선택한 기간의 BCO1·BCO2 업무일지에서
+          석회석 입고내역을 찾지 못했습니다.
+
+        </div>
+      `;
+
+
+      return;
+    }
+
+
+    list.innerHTML =
+      safeCandidates
+        .map(
+          candidate => {
+            const isImported =
+              candidate
+                .alreadyImported ===
+              true;
+
+
+            const sourceLabel = [
+              candidate.sourceRole,
+
+              candidate.sourceAuthor ||
+              "작성자 미상",
+
+              candidate.sourceStatus,
+
+              isImported
+                ? "이미 등록됨"
+                : ""
+            ]
+              .filter(
+                Boolean
+              )
+              .join(
+                " · "
+              );
+
+
+            return `
+              <label
+                class="
+                  limestone-import-candidate
+                  ${
+                    isImported
+                      ? "is-imported"
+                      : ""
+                  }
+                "
+                title="${escapeLimestoneHtml(
+                  candidate.sourceText
+                )}"
+              >
+
+                <input
+                  type="checkbox"
+                  data-limestone-import-key="${escapeLimestoneHtml(
+                    candidate.sourceKey
+                  )}"
+                  ${
+                    isImported
+                      ? "disabled"
+                      : "checked"
+                  }
+                />
+
+
+                <span>
+                  ${escapeLimestoneHtml(
+                    candidate.receiptDate
+                  )}
+                  <br />
+                  ${escapeLimestoneHtml(
+                    candidate.receiptTime
+                  )}
+                </span>
+
+
+                <strong>
+                  ${candidate.unitNo}호기
+                </strong>
+
+
+                <strong
+                  class="limestone-quantity-value"
+                >
+                  ${formatLimestoneQuantity(
+                    candidate.quantityTon
+                  )} t
+                </strong>
+
+
+                <span class="limestone-import-source">
+                  ${escapeLimestoneHtml(
+                    sourceLabel
+                  )}
+                </span>
+
+              </label>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+  }
+
+
+  /* =====================================================
+    가져오기 패널 열기
+  ====================================================== */
+
+  async function openLimestoneImportPanel() {
+    const {
+      importButton,
+      panel,
+      count,
+      list,
+      applyButton
+    } =
+      getLimestoneImportElements();
+
+
+    if (
+      !panel ||
+      !list
+    ) {
+      showLimestoneToast(
+        "석회석 업무일지 가져오기 화면을 찾을 수 없습니다."
+      );
+
+
+      return;
+    }
+
+
+    closeLimestoneReceiptEditor();
+
+
+    panel.hidden =
+      false;
+
+
+    panel.removeAttribute(
+      "hidden"
+    );
+
+
+    limestoneReceiptState
+      .importCandidates =
+      [];
+
+
+    if (
+      count
+    ) {
+      count.textContent =
+        "조회 중";
+    }
+
+
+    if (
+      applyButton
+    ) {
+      applyButton.disabled =
+        true;
+    }
+
+
+    list.innerHTML = `
+      <div class="limestone-loading">
+        BCO1·BCO2 업무일지에서 석회석 입고내역을 찾고 있습니다.
+      </div>
+    `;
+
+
+    if (
+      importButton
+    ) {
+      importButton.disabled =
+        true;
+
+
+      importButton.textContent =
+        "업무일지 확인 중...";
+    }
+
+
+    try {
+      const candidates =
+        await loadLimestoneImportCandidates();
+
+
+      limestoneReceiptState
+        .importCandidates =
+        candidates;
+
+
+      renderLimestoneImportCandidates(
+        candidates
+      );
+
+
+      window.requestAnimationFrame(
+        () => {
+          panel.scrollIntoView({
+            behavior:
+              "smooth",
+
+            block:
+              "nearest"
+          });
+        }
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "석회석 업무일지 가져오기 조회 실패:",
+        error
+      );
+
+
+      if (
+        count
+      ) {
+        count.textContent =
+          "0건";
+      }
+
+
+      list.innerHTML = `
+        <div class="limestone-empty-table-row">
+
+          ${escapeLimestoneHtml(
+            error.message ||
+            "업무일지 석회석 입고내역을 불러오지 못했습니다."
+          )}
+
+        </div>
+      `;
+
+
+      showLimestoneToast(
+        error.message ||
+        "업무일지 석회석 입고내역을 불러오지 못했습니다."
+      );
+
+    } finally {
+      if (
+        importButton
+      ) {
+        importButton.disabled =
+          false;
+
+
+        importButton.textContent =
+          "업무일지에서 가져오기";
+      }
+    }
+  }
+
+
+  /* =====================================================
+    가져오기 패널 닫기
+  ====================================================== */
+
+  function closeLimestoneImportPanel() {
+    const {
+      panel,
+      list,
+      count
+    } =
+      getLimestoneImportElements();
+
+
+    if (
+      panel
+    ) {
+      panel.hidden =
+        true;
+    }
+
+
+    if (
+      list
+    ) {
+      list.innerHTML =
+        "";
+    }
+
+
+    if (
+      count
+    ) {
+      count.textContent =
+        "0건";
+    }
+
+
+    limestoneReceiptState
+      .importCandidates =
+      [];
+  }
+
+
+  /* =====================================================
+    선택한 업무일지 항목 등록
+  ====================================================== */
+
+  async function applyLimestoneImportCandidates() {
+    const {
+      list,
+      applyButton
+    } =
+      getLimestoneImportElements();
+
+
+    if (
+      !list
+    ) {
+      return;
+    }
+
+
+    const selectedSourceKeys =
+      new Set(
+        [
+          ...list.querySelectorAll(
+            'input[data-limestone-import-key]:checked:not(:disabled)'
+          )
+        ].map(
+          checkbox => {
+            return String(
+              checkbox.dataset
+                .limestoneImportKey ||
+              ""
+            ).trim();
+          }
+        )
+      );
+
+
+    const selectedCandidates =
+      limestoneReceiptState
+        .importCandidates
+        .filter(
+          candidate => {
+            return (
+              candidate
+                .alreadyImported !==
+                true &&
+
+              selectedSourceKeys.has(
+                candidate.sourceKey
+              )
+            );
+          }
+        );
+
+
+    if (
+      selectedCandidates.length ===
+        0
+    ) {
+      showLimestoneToast(
+        "추가할 석회석 입고기록을 선택해 주세요."
+      );
+
+
+      return;
+    }
+
+
+    if (
+      applyButton
+    ) {
+      applyButton.disabled =
+        true;
+
+
+      applyButton.textContent =
+        "등록 중...";
+    }
+
+
+    try {
+      const result =
+        await requestLimestoneApi(
+          LIMESTONE_RECEIPTS_API_URL,
+          {
+            method:
+              "POST",
+
+            headers:
+              getLimestoneApiHeaders({
+                "Content-Type":
+                  "application/json"
+              }),
+
+            body:
+              JSON.stringify({
+                action:
+                  "bulk_import",
+
+                items:
+                  selectedCandidates.map(
+                    candidate => {
+                      return {
+                        receiptDate:
+                          candidate
+                            .receiptDate,
+
+                        receiptTime:
+                          candidate
+                            .receiptTime,
+
+                        unitNo:
+                          candidate
+                            .unitNo,
+
+                        quantityTon:
+                          candidate
+                            .quantityTon,
+
+                        note:
+                          candidate.note,
+
+                        sourceLogId:
+                          candidate
+                            .sourceLogId,
+
+                        sourceEntryId:
+                          candidate
+                            .sourceEntryId,
+
+                        sourceKey:
+                          candidate
+                            .sourceKey,
+
+                        sourceRole:
+                          candidate
+                            .sourceRole,
+
+                        sourceAuthor:
+                          candidate
+                            .sourceAuthor,
+
+                        sourceText:
+                          candidate
+                            .sourceText
+                      };
+                    }
+                  )
+              })
+          }
+        );
+
+
+      closeLimestoneImportPanel();
+
+
+      await loadLimestoneReceipts();
+
+
+      showLimestoneToast(
+        result.message ||
+        `석회석 입고기록 ${selectedCandidates.length}건을 등록했습니다.`
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "석회석 업무일지 가져오기 등록 실패:",
+        error
+      );
+
+
+      showLimestoneToast(
+        error.message ||
+        "선택한 석회석 입고기록을 등록하지 못했습니다."
+      );
+
+    } finally {
+      if (
+        applyButton
+      ) {
+        applyButton.disabled =
+          false;
+
+
+        applyButton.textContent =
+          "선택 기록 추가";
+      }
+    }
+  }
+
 
   /* =====================================================
     이벤트 연결
+  ====================================================== */
+
+  /* =====================================================
+    석회석 입고 현황 이벤트 연결 최종본
   ====================================================== */
 
   function bindLimestoneReceiptEvents() {
@@ -74932,10 +77064,13 @@ function openEfficiencyTeamModal() {
       getLimestoneReceiptElements();
 
 
+    const importElements =
+      getLimestoneImportElements();
+
+
     const {
       limestoneTab,
       refreshButton,
-      importButton,
       openEditorButton,
       quickRangeButtons,
       searchForm,
@@ -74944,6 +77079,16 @@ function openEfficiencyTeamModal() {
       editorForm,
       receiptTableBody
     } = elements;
+
+
+    const {
+      importButton,
+      cancelButton:
+        cancelImportButton,
+
+      applyButton:
+        applyImportButton
+    } = importElements;
 
 
     if (
@@ -74963,17 +77108,19 @@ function openEfficiencyTeamModal() {
     }
 
 
-    /*
+    /* ===================================================
       기본 조회 기간
-    */
+    ==================================================== */
+
     setLimestoneDateRange(
       "7days"
     );
 
 
-    /*
+    /* ===================================================
       석회석 탭을 열 때 조회
-    */
+    ==================================================== */
+
     limestoneTab.addEventListener(
       "click",
       () => {
@@ -74987,15 +77134,26 @@ function openEfficiencyTeamModal() {
     );
 
 
+    /* ===================================================
+      새로고침
+    ==================================================== */
+
     refreshButton?.addEventListener(
       "click",
       loadLimestoneReceipts
     );
 
 
+    /* ===================================================
+      직접 입력
+    ==================================================== */
+
     openEditorButton?.addEventListener(
       "click",
       () => {
+        closeLimestoneImportPanel();
+
+
         openLimestoneReceiptEditor();
       }
     );
@@ -75025,6 +77183,10 @@ function openEfficiencyTeamModal() {
     );
 
 
+    /* ===================================================
+      빠른 기간 선택
+    ==================================================== */
+
     quickRangeButtons.forEach(
       button => {
         button.addEventListener(
@@ -75036,12 +77198,19 @@ function openEfficiencyTeamModal() {
             );
 
 
+            closeLimestoneImportPanel();
+
+
             await loadLimestoneReceipts();
           }
         );
       }
     );
 
+
+    /* ===================================================
+      직접 기간 조회
+    ==================================================== */
 
     searchForm?.addEventListener(
       "submit",
@@ -75059,22 +77228,33 @@ function openEfficiencyTeamModal() {
         );
 
 
+        closeLimestoneImportPanel();
+
+
         await loadLimestoneReceipts();
       }
     );
 
 
-    /*
-      업무일지 자동 가져오기는
-      다음 단계에서 실제 추출 기능을 연결한다.
-    */
+    /* ===================================================
+      업무일지에서 가져오기
+    ==================================================== */
+
     importButton?.addEventListener(
       "click",
-      () => {
-        showLimestoneToast(
-          "업무일지 석회석 입고내역 가져오기는 다음 단계에서 연결합니다."
-        );
-      }
+      openLimestoneImportPanel
+    );
+
+
+    cancelImportButton?.addEventListener(
+      "click",
+      closeLimestoneImportPanel
+    );
+
+
+    applyImportButton?.addEventListener(
+      "click",
+      applyLimestoneImportCandidates
     );
 
 
