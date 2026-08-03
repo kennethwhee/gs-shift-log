@@ -60917,12 +60917,47 @@ function createGlobalNoticeCardHtml(
         );
 
 
-  const contentText =
-    String(
-      notice.content ||
-      ""
-    ).trim() ||
-    "등록된 공지 내용이 없습니다.";
+/* =========================================================
+  전체공지 내용 앞 공백 정리
+
+  제거:
+  - 일반 공백
+  - 탭
+  - 줄마다 들어간 앞 공백
+  - 복사·붙여넣기로 들어온 특수 공백
+  - 보이지 않는 Zero Width Space
+
+  줄바꿈은 그대로 유지한다.
+========================================================= */
+
+const contentText =
+  String(
+    notice.content ||
+    ""
+  )
+    .replace(
+      /\r\n?/g,
+      "\n"
+    )
+    .split(
+      "\n"
+    )
+    .map(
+      line => {
+        return String(
+          line ||
+          ""
+        ).replace(
+          /^[\t \u00A0\u1680\u2000-\u200B\u202F\u205F\u3000\uFEFF]+/gu,
+          ""
+        );
+      }
+    )
+    .join(
+      "\n"
+    )
+    .trim() ||
+  "등록된 공지 내용이 없습니다.";
 
 
   const attachments =
