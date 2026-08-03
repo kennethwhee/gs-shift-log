@@ -1269,6 +1269,17 @@ button {
     700;
 }
 
+/* 사업장확인 옆 '인'만 원본처럼 오른쪽 배치 */
+.gas-check-confirmation-grid
+.gas-check-confirmation-input:nth-child(2)
+input {
+  padding-right:
+    8px;
+
+  text-align:
+    right;
+}
+
 /* =========================================================
   점검일자 원본 크기
 ========================================================= */

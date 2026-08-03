@@ -61179,11 +61179,18 @@ thead th {
 }
 
 /* =========================================================
-  효율팀 석회석 하단 잘림 방지
+  효율팀 석회석 세로 레이아웃 최종본
 
-  - 효율팀 본문만 내부 스크롤
-  - 상세 표는 제목 + 4개 행 높이로 고정
-  - 마지막 행이 중간에서 잘리지 않도록 처리
+  적용:
+  - 석회석 화면 전체 세로 스크롤
+  - 일별·주별·월별 표 내부 스크롤
+  - 입고기록 상세 최소 5~7줄 표시
+  - 행 중간 잘림 방지
+========================================================= */
+
+
+/* =========================================================
+  효율팀 본문 구조
 ========================================================= */
 
 #efficiencyTeamModal
@@ -61207,52 +61214,203 @@ thead th {
 }
 
 
+/* =========================================================
+  석회석 화면 전체 스크롤
+
+  화면 높이를 넘어가는 내용은
+  석회석 화면 안에서 아래로 스크롤한다.
+========================================================= */
+
 #efficiencyTeamModal
 .limestone-dashboard {
+  height: 100% !important;
   min-height: 0 !important;
+  max-height: 100% !important;
 
-  padding-bottom: 18px !important;
+  padding-bottom: 24px !important;
 
   overflow-x: hidden !important;
+  overflow-y: auto !important;
+
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+
+/*
+  flex 레이아웃에서 각 카드가
+  강제로 한 줄 높이까지 축소되지 않게 한다.
+*/
+#efficiencyTeamModal
+.limestone-dashboard
+> * {
+  flex: 0 0 auto !important;
+}
+
+
+/* =========================================================
+  일별·주별·월별 집계 표
+
+  항목이 많으면 집계 표 안에서 스크롤한다.
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-group-summary-card {
+  height: auto !important;
+  min-height: 0 !important;
+
+  flex: 0 0 auto !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-group-summary-card
+.limestone-table-wrap {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: 220px !important;
+
+  overflow-x: auto !important;
   overflow-y: auto !important;
 
   scrollbar-gutter: stable;
 }
 
 
+/* =========================================================
+  입고기록 상세 카드
+========================================================= */
+
 #efficiencyTeamModal
-.limestone-section-card:last-child {
-  margin-bottom: 4px !important;
+.limestone-receipt-history-card {
+  display: block !important;
+
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+
+  flex: 0 0 auto !important;
+
+  overflow: hidden !important;
+}
+
+
+/* =========================================================
+  입고기록 상세 스크롤
+
+  PC:
+  약 5~7줄 표시
+
+  기록이 많으면 이 영역 안에서 스크롤
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-receipt-scroll {
+  display: block !important;
+
+  width: 100% !important;
+
+  height: clamp(
+    260px,
+    36vh,
+    360px
+  ) !important;
+
+  min-height: 260px !important;
+  max-height: 360px !important;
+
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+
+/* =========================================================
+  표 자체
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-receipt-scroll
+.limestone-receipt-table {
+  width: 100% !important;
+  min-width: 900px !important;
+
+  table-layout: fixed !important;
 }
 
 
 /*
-  표 제목 36px + 상세 행 41px × 4개
+  이전의 고정 행 높이를 제거한다.
 
-  총 200px
+  내용이 많은 행은 자연스럽게 높이가 늘어나고,
+  마지막 행이 중간에서 잘리지 않게 한다.
 */
-#efficiencyTeamModal
-.limestone-section-card:has(
-  .limestone-receipt-table
-)
-.limestone-table-wrap {
-  height: 200px !important;
-  max-height: 200px !important;
-
-  overflow-x: auto !important;
-  overflow-y: auto !important;
-}
-
-
 #efficiencyTeamModal
 .limestone-receipt-table
 tbody tr {
-  height: 41px !important;
+  height: auto !important;
+  min-height: 40px !important;
 }
 
 
 #efficiencyTeamModal
 .limestone-receipt-table
 td {
-  height: 41px !important;
+  height: auto !important;
+  min-height: 40px !important;
+
+  padding-top: 9px !important;
+  padding-bottom: 9px !important;
+
+  vertical-align: middle !important;
+}
+
+
+/* =========================================================
+  표 제목 고정
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-receipt-table
+thead th {
+  position: sticky !important;
+
+  top: 0 !important;
+  z-index: 4 !important;
+
+  background: #f3f6fa !important;
+
+  box-shadow:
+    0 1px 0
+    #dfe6ee !important;
+}
+
+
+/* =========================================================
+  모바일·작은 화면
+========================================================= */
+
+@media (max-width: 768px) {
+
+  #efficiencyTeamModal
+  .limestone-receipt-scroll {
+    height: clamp(
+      240px,
+      42vh,
+      340px
+    ) !important;
+
+    min-height: 240px !important;
+    max-height: 340px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-group-summary-card
+  .limestone-table-wrap {
+    max-height: 240px !important;
+  }
+
 }
