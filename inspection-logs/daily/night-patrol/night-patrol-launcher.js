@@ -539,11 +539,11 @@
       "header-action night-patrol-header-button";
 
     button.textContent =
-      "야간순찰";
+      "점검일지";
 
     button.setAttribute(
       "aria-label",
-      "야간 순찰 점검일지 열기"
+      "점검일지 열기"
     );
 
     const noticeButton =

@@ -58592,6 +58592,14 @@ and (
   }
 
 
+/* =========================================================
+  효율팀 모바일 메뉴 3개 배치
+
+  일일업무현황 | 석회석 | Arm Roll
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
   #efficiencyTeamModal
   .efficiency-team-tabs {
     display:
@@ -58599,7 +58607,7 @@ and (
 
     grid-template-columns:
       repeat(
-        2,
+        3,
         minmax(
           0,
           1fr
@@ -58607,7 +58615,7 @@ and (
       );
 
     gap:
-      6px;
+      5px;
 
     padding:
       7px;
@@ -58616,6 +58624,9 @@ and (
 
   #efficiencyTeamModal
   .efficiency-team-tab {
+    min-width:
+      0;
+
     min-height:
       42px;
 
@@ -58624,11 +58635,22 @@ and (
 
     padding:
       0
-      8px;
+      5px;
+
+    font-size:
+      10px;
+
+    line-height:
+      1.2;
 
     text-align:
       center;
+
+    white-space:
+      nowrap;
   }
+
+}
 
 
   #efficiencyTeamModal

@@ -72097,139 +72097,178 @@ function refreshMemberFooterButtons() {
   }
 
 
-  /* =====================================================
-    메뉴 전환
-  ====================================================== */
+/* =====================================================
+  효율팀 메뉴 전환
 
-  function switchEfficiencyTeamView(
-    requestedView
-  ) {
-    const {
-      tabs,
-      views
-    } =
-      getEfficiencyTeamElements();
+  메뉴:
+  - daily-work
+  - limestone
+  - arm-roll
 
+  잘못된 메뉴값은 일일업무현황으로 처리한다.
+===================================================== */
 
-    const selectedView =
-      requestedView ===
-        "arm-roll"
-        ? "arm-roll"
-        : "limestone";
-
-
-    tabs.forEach(
-      tab => {
-        const isSelected =
-          tab.dataset
-            .efficiencyTab ===
-          selectedView;
+function switchEfficiencyTeamView(
+  requestedView
+) {
+  const {
+    tabs,
+    views
+  } =
+    getEfficiencyTeamElements();
 
 
-        tab.classList.toggle(
-          "is-active",
-          isSelected
-        );
+  const validViews =
+    new Set([
+      "daily-work",
+      "limestone",
+      "arm-roll"
+    ]);
 
 
-        tab.setAttribute(
-          "aria-selected",
-          String(
-            isSelected
-          )
-        );
-      }
-    );
+  const normalizedView =
+    String(
+      requestedView ||
+      ""
+    ).trim();
 
 
-    views.forEach(
-      view => {
-        const isSelected =
-          view.dataset
-            .efficiencyView ===
-          selectedView;
+  const selectedView =
+    validViews.has(
+      normalizedView
+    )
+      ? normalizedView
+      : "daily-work";
 
 
-        view.classList.toggle(
-          "is-active",
-          isSelected
-        );
+  tabs.forEach(
+    tab => {
+      const isSelected =
+        tab.dataset
+          .efficiencyTab ===
+        selectedView;
 
 
-        view.hidden =
-          !isSelected;
-      }
-    );
-  }
-
-
-  /* =====================================================
-    팝업 열기
-
-    권한 검사를 하지 않는다.
-  ====================================================== */
-
-  function openEfficiencyTeamModal() {
-    const {
-      modal,
-      closeButton
-    } =
-      getEfficiencyTeamElements();
-
-
-    if (
-      !modal
-    ) {
-      console.error(
-        "효율팀 팝업을 찾을 수 없습니다."
+      tab.classList.toggle(
+        "is-active",
+        isSelected
       );
 
 
-      if (
-        typeof showToast ===
-          "function"
-      ) {
-        showToast(
-          "효율팀 화면을 찾을 수 없습니다."
-        );
-      }
+      tab.setAttribute(
+        "aria-selected",
+        String(
+          isSelected
+        )
+      );
 
 
-      return;
+      tab.tabIndex =
+        isSelected
+          ? 0
+          : -1;
+    }
+  );
+
+
+  views.forEach(
+    view => {
+      const isSelected =
+        view.dataset
+          .efficiencyView ===
+        selectedView;
+
+
+      view.classList.toggle(
+        "is-active",
+        isSelected
+      );
+
+
+      view.hidden =
+        !isSelected;
+
+
+      view.setAttribute(
+        "aria-hidden",
+        String(
+          !isSelected
+        )
+      );
+    }
+  );
+}
+
+
+/* =====================================================
+  효율팀 팝업 열기
+
+  모든 로그인 사용자 사용 가능
+  기본 메뉴: 일일업무현황
+===================================================== */
+
+function openEfficiencyTeamModal() {
+  const {
+    modal,
+    closeButton
+  } =
+    getEfficiencyTeamElements();
+
+
+  if (
+    !modal
+  ) {
+    console.error(
+      "효율팀 팝업을 찾을 수 없습니다."
+    );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        "효율팀 화면을 찾을 수 없습니다."
+      );
     }
 
 
-    /*
-      팝업을 열 때 기본 메뉴는 석회석
-    */
-    switchEfficiencyTeamView(
-      "limestone"
-    );
-
-
-    modal.classList.add(
-      "is-open"
-    );
-
-
-    modal.setAttribute(
-      "aria-hidden",
-      "false"
-    );
-
-
-    document.body.classList.add(
-      "modal-open"
-    );
-
-
-    window.setTimeout(
-      () => {
-        closeButton?.focus();
-      },
-      50
-    );
+    return;
   }
+
+
+  /*
+    팝업을 열 때마다
+    일일업무현황을 기본 메뉴로 표시한다.
+  */
+  switchEfficiencyTeamView(
+    "daily-work"
+  );
+
+
+  modal.classList.add(
+    "is-open"
+  );
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "false"
+  );
+
+
+  document.body.classList.add(
+    "modal-open"
+  );
+
+
+  window.setTimeout(
+    () => {
+      closeButton?.focus();
+    },
+    50
+  );
+}
 
 
   /* =====================================================

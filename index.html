@@ -3670,130 +3670,201 @@
       <!-- ===================================================
         메뉴
       ==================================================== -->
-      <nav
-        class="efficiency-team-tabs"
-        role="tablist"
-        aria-label="효율팀 메뉴"
-      >
+<!-- ===================================================
+  효율팀 메뉴
+==================================================== -->
+<nav
+  class="efficiency-team-tabs"
+  role="tablist"
+  aria-label="효율팀 메뉴"
+>
 
-        <button
-          type="button"
-          class="
-            efficiency-team-tab
-            is-active
-          "
-          id="efficiencyLimestoneTab"
-          data-efficiency-tab="limestone"
-          role="tab"
-          aria-selected="true"
-          aria-controls="efficiencyLimestoneView"
-        >
+  <!-- 일일업무현황 -->
+  <button
+    type="button"
+    class="
+      efficiency-team-tab
+      is-active
+    "
+    id="efficiencyDailyWorkTab"
+    data-efficiency-tab="daily-work"
+    role="tab"
+    aria-selected="true"
+    aria-controls="efficiencyDailyWorkView"
+  >
+    일일업무현황
+  </button>
+
+
+  <!-- 석회석 -->
+  <button
+    type="button"
+    class="efficiency-team-tab"
+    id="efficiencyLimestoneTab"
+    data-efficiency-tab="limestone"
+    role="tab"
+    aria-selected="false"
+    aria-controls="efficiencyLimestoneView"
+  >
+    석회석
+  </button>
+
+
+  <!-- Arm Roll -->
+  <button
+    type="button"
+    class="efficiency-team-tab"
+    id="efficiencyArmRollTab"
+    data-efficiency-tab="arm-roll"
+    role="tab"
+    aria-selected="false"
+    aria-controls="efficiencyArmRollView"
+  >
+    Arm Roll
+  </button>
+
+</nav>
+
+
+<!-- ===================================================
+  효율팀 메뉴별 내용
+==================================================== -->
+<section class="efficiency-team-workspace">
+
+  <!-- =================================================
+    일일업무현황
+  ================================================== -->
+  <article
+    class="
+      efficiency-team-view
+      is-active
+    "
+    id="efficiencyDailyWorkView"
+    data-efficiency-view="daily-work"
+    role="tabpanel"
+    aria-labelledby="efficiencyDailyWorkTab"
+  >
+
+    <div class="efficiency-team-view__heading">
+
+      <div>
+
+        <span>
+          DAILY WORK STATUS
+        </span>
+
+        <h3>
+          일일업무현황
+        </h3>
+
+      </div>
+
+    </div>
+
+
+    <div class="efficiency-team-empty-content">
+
+      <strong>
+        일일업무현황
+      </strong>
+
+      <p>
+        효율팀 일일업무현황 기능을 이 영역에 구성합니다.
+      </p>
+
+    </div>
+
+  </article>
+
+
+  <!-- =================================================
+    석회석
+  ================================================== -->
+  <article
+    class="efficiency-team-view"
+    id="efficiencyLimestoneView"
+    data-efficiency-view="limestone"
+    role="tabpanel"
+    aria-labelledby="efficiencyLimestoneTab"
+    hidden
+  >
+
+    <div class="efficiency-team-view__heading">
+
+      <div>
+
+        <span>
+          LIMESTONE
+        </span>
+
+        <h3>
           석회석
-        </button>
+        </h3>
+
+      </div>
+
+    </div>
 
 
-        <button
-          type="button"
-          class="efficiency-team-tab"
-          id="efficiencyArmRollTab"
-          data-efficiency-tab="arm-roll"
-          role="tab"
-          aria-selected="false"
-          aria-controls="efficiencyArmRollView"
-        >
+    <div class="efficiency-team-empty-content">
+
+      <strong>
+        석회석 관리 화면
+      </strong>
+
+      <p>
+        석회석 관련 기능을 이 영역에 구성합니다.
+      </p>
+
+    </div>
+
+  </article>
+
+
+  <!-- =================================================
+    Arm Roll
+  ================================================== -->
+  <article
+    class="efficiency-team-view"
+    id="efficiencyArmRollView"
+    data-efficiency-view="arm-roll"
+    role="tabpanel"
+    aria-labelledby="efficiencyArmRollTab"
+    hidden
+  >
+
+    <div class="efficiency-team-view__heading">
+
+      <div>
+
+        <span>
+          ARM ROLL
+        </span>
+
+        <h3>
           Arm Roll
-        </button>
+        </h3>
 
-      </nav>
+      </div>
 
-
-      <!-- ===================================================
-        메뉴 내용
-      ==================================================== -->
-      <section class="efficiency-team-workspace">
-
-        <!-- 석회석 -->
-        <article
-          class="
-            efficiency-team-view
-            is-active
-          "
-          id="efficiencyLimestoneView"
-          data-efficiency-view="limestone"
-          role="tabpanel"
-          aria-labelledby="efficiencyLimestoneTab"
-        >
-
-          <div class="efficiency-team-view__heading">
-
-            <div>
-              <span>
-                LIMESTONE
-              </span>
-
-              <h3>
-                석회석
-              </h3>
-            </div>
-
-          </div>
+    </div>
 
 
-          <div class="efficiency-team-empty-content">
+    <div class="efficiency-team-empty-content">
 
-            <strong>
-              석회석 관리 화면
-            </strong>
+      <strong>
+        Arm Roll 관리 화면
+      </strong>
 
-            <p>
-              석회석 관련 기능을 이 영역에 구성합니다.
-            </p>
+      <p>
+        Arm Roll 관련 기능을 이 영역에 구성합니다.
+      </p>
 
-          </div>
+    </div>
 
-        </article>
+  </article>
 
-
-        <!-- Arm Roll -->
-        <article
-          class="efficiency-team-view"
-          id="efficiencyArmRollView"
-          data-efficiency-view="arm-roll"
-          role="tabpanel"
-          aria-labelledby="efficiencyArmRollTab"
-          hidden
-        >
-
-          <div class="efficiency-team-view__heading">
-
-            <div>
-              <span>
-                ARM ROLL
-              </span>
-
-              <h3>
-                Arm Roll
-              </h3>
-            </div>
-
-          </div>
-
-
-          <div class="efficiency-team-empty-content">
-
-            <strong>
-              Arm Roll 관리 화면
-            </strong>
-
-            <p>
-              Arm Roll 관련 기능을 이 영역에 구성합니다.
-            </p>
-
-          </div>
-
-        </article>
-
-      </section>
+</section>
 
     </div>
 
