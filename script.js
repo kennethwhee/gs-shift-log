@@ -61102,11 +61102,9 @@ const contentText =
 
           <summary class="global-notice-card__content-summary">
 
-            <span class="global-notice-card__content-preview">
-              ${escapeHtml(
-                contentText
-              )}
-            </span>
+            <span class="global-notice-card__content-preview">${escapeHtml(
+              contentText
+              )}</span>
 
 
             <span class="global-notice-card__content-toggle">
@@ -61131,11 +61129,9 @@ const contentText =
           </summary>
 
 
-          <div class="global-notice-card__content-full">
-            ${escapeHtml(
+          <div class="global-notice-card__content-full">${escapeHtml(
               contentText
-            )}
-          </div>
+            )}</div>
 
         </details>
 

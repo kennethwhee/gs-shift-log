@@ -30992,7 +30992,7 @@ input:checked
   font-weight: 600;
   line-height: 1.75;
   color: #263247;
-  white-space: pre-wrap;
+  white-space: pre-line;
   word-break: break-word;
 }
 
