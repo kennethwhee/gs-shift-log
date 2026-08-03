@@ -57984,3 +57984,711 @@ and (
   }
 
 }
+
+/* =========================================================
+  효율팀 통합 팝업
+
+  메뉴:
+  - 석회석
+  - Arm Roll
+
+  권한:
+  - 모든 로그인 사용자
+========================================================= */
+
+
+/* =========================================================
+  상단 효율팀 버튼
+========================================================= */
+
+.header-action--efficiency {
+  color:
+    #17634a;
+}
+
+
+.header-action--efficiency:hover,
+.header-action--efficiency:focus-visible {
+  background:
+    #eaf7f1;
+
+  color:
+    #0f6948;
+}
+
+
+/* =========================================================
+  팝업 전체
+========================================================= */
+
+#efficiencyTeamModal {
+  z-index:
+    590;
+
+  padding:
+    22px;
+}
+
+
+#efficiencyTeamModal
+.efficiency-team-panel {
+  display:
+    flex;
+
+  width:
+    min(
+      1380px,
+      calc(
+        100vw -
+        44px
+      )
+    );
+
+  max-width:
+    1380px;
+
+  height:
+    min(
+      900px,
+      calc(
+        100dvh -
+        44px
+      )
+    );
+
+  max-height:
+    calc(
+      100dvh -
+      44px
+    );
+
+  flex-direction:
+    column;
+
+  overflow:
+    hidden;
+
+  border:
+    1px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.76
+    );
+
+  border-radius:
+    18px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0
+    28px
+    80px
+    rgba(
+      15,
+      23,
+      42,
+      0.3
+    );
+}
+
+
+/* =========================================================
+  상단
+========================================================= */
+
+#efficiencyTeamModal
+.efficiency-team-modal__header {
+  min-height:
+    72px;
+
+  padding:
+    15px
+    21px;
+}
+
+
+/* =========================================================
+  본문
+========================================================= */
+
+#efficiencyTeamModal
+.efficiency-team-modal__body {
+  display:
+    grid;
+
+  min-width:
+    0;
+
+  min-height:
+    0;
+
+  flex:
+    1
+    1
+    auto;
+
+  grid-template-columns:
+    190px
+    minmax(
+      0,
+      1fr
+    );
+
+  gap:
+    16px;
+
+  padding:
+    16px;
+
+  overflow:
+    hidden;
+
+  background:
+    #f4f7fa;
+}
+
+
+/* =========================================================
+  왼쪽 메뉴
+========================================================= */
+
+#efficiencyTeamModal
+.efficiency-team-tabs {
+  display:
+    flex;
+
+  min-width:
+    0;
+
+  flex-direction:
+    column;
+
+  align-items:
+    stretch;
+
+  gap:
+    8px;
+
+  padding:
+    10px;
+
+  border:
+    1px solid
+    #d8e2ec;
+
+  border-radius:
+    13px;
+
+  background:
+    #ffffff;
+}
+
+
+#efficiencyTeamModal
+.efficiency-team-tab {
+  display:
+    flex;
+
+  width:
+    100%;
+
+  min-height:
+    48px;
+
+  align-items:
+    center;
+
+  justify-content:
+    flex-start;
+
+  padding:
+    0
+    15px;
+
+  border:
+    1px solid
+    transparent;
+
+  border-radius:
+    10px;
+
+  background:
+    transparent;
+
+  color:
+    #536176;
+
+  font-size:
+    13px;
+
+  font-weight:
+    900;
+
+  text-align:
+    left;
+
+  transition:
+    border-color
+    0.16s
+    ease,
+    background
+    0.16s
+    ease,
+    color
+    0.16s
+    ease;
+}
+
+
+#efficiencyTeamModal
+.efficiency-team-tab {
+  display: flex;
+
+  width: 100%;
+  min-height: 48px;
+
+  align-items: center;
+  justify-content: flex-start;
+
+  padding: 0 15px;
+
+  border:
+    1px solid transparent;
+
+  border-radius: 10px;
+
+  background: transparent;
+  color: #536176;
+
+  font-size: 13px;
+  font-weight: 900;
+
+  text-align: left;
+
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+
+#efficiencyTeamModal
+.efficiency-team-tab:hover {
+  background:
+    #f1f6fb;
+
+  color:
+    #1f5fae;
+}
+
+
+#efficiencyTeamModal
+.efficiency-team-tab.is-active {
+  border-color:
+    #8fb4dc;
+
+  background:
+    #eaf3fc;
+
+  color:
+    #175b9f;
+
+  box-shadow:
+    inset
+    3px
+    0
+    0
+    #1f5fae;
+}
+
+
+/* =========================================================
+  오른쪽 작업 영역
+========================================================= */
+
+#efficiencyTeamModal
+.efficiency-team-workspace {
+  min-width:
+    0;
+
+  min-height:
+    0;
+
+  overflow:
+    hidden;
+
+  border:
+    1px solid
+    #d8e2ec;
+
+  border-radius:
+    13px;
+
+  background:
+    #ffffff;
+}
+
+
+#efficiencyTeamModal
+.efficiency-team-view {
+  display:
+    none;
+
+  width:
+    100%;
+
+  height:
+    100%;
+
+  min-width:
+    0;
+
+  min-height:
+    0;
+
+  flex-direction:
+    column;
+
+  overflow-y:
+    auto;
+}
+
+
+#efficiencyTeamModal
+.efficiency-team-view.is-active {
+  display:
+    flex;
+}
+
+
+/* =========================================================
+  메뉴별 제목
+========================================================= */
+
+#efficiencyTeamModal
+.efficiency-team-view__heading {
+  display:
+    flex;
+
+  min-height:
+    78px;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    16px;
+
+  padding:
+    16px
+    20px;
+
+  border-bottom:
+    1px solid
+    #e0e7ef;
+
+  background:
+    #fbfcfe;
+}
+
+
+#efficiencyTeamModal
+.efficiency-team-view__heading span {
+  display:
+    block;
+
+  margin-bottom:
+    4px;
+
+  color:
+    #1f5fae;
+
+  font-size:
+    9px;
+
+  font-weight:
+    900;
+
+  letter-spacing:
+    0.15em;
+}
+
+
+#efficiencyTeamModal
+.efficiency-team-view__heading h3 {
+  margin:
+    0;
+
+  color:
+    #203149;
+
+  font-size:
+    21px;
+
+  font-weight:
+    900;
+
+  letter-spacing:
+    -0.03em;
+}
+
+
+/* =========================================================
+  초기 빈 내용
+========================================================= */
+
+#efficiencyTeamModal
+.efficiency-team-empty-content {
+  display:
+    flex;
+
+  min-height:
+    360px;
+
+  flex:
+    1
+    1
+    auto;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  flex-direction:
+    column;
+
+  gap:
+    7px;
+
+  padding:
+    30px;
+
+  color:
+    #768396;
+
+  text-align:
+    center;
+}
+
+
+#efficiencyTeamModal
+.efficiency-team-empty-content strong {
+  color:
+    #34445b;
+
+  font-size:
+    17px;
+
+  font-weight:
+    900;
+}
+
+
+#efficiencyTeamModal
+.efficiency-team-empty-content p {
+  margin:
+    0;
+
+  font-size:
+    12px;
+
+  font-weight:
+    600;
+}
+
+
+/* =========================================================
+  하단
+========================================================= */
+
+#efficiencyTeamModal
+.efficiency-team-modal__footer {
+  min-height:
+    62px;
+
+  padding:
+    10px
+    17px;
+}
+
+
+#efficiencyTeamModal
+.efficiency-team-footer-help {
+  color:
+    #778397;
+
+  font-size:
+    11px;
+
+  font-weight:
+    650;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  #efficiencyTeamModal {
+    padding:
+      0;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-panel {
+    width:
+      100vw;
+
+    max-width:
+      100vw;
+
+    height:
+      100dvh;
+
+    max-height:
+      100dvh;
+
+    border-radius:
+      0;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-modal__header {
+    min-height:
+      62px;
+
+    padding:
+      12px
+      14px;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-modal__body {
+    display:
+      flex;
+
+    flex-direction:
+      column;
+
+    gap:
+      10px;
+
+    padding:
+      10px;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-tabs {
+    display:
+      grid;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+
+    gap:
+      6px;
+
+    padding:
+      7px;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-tab {
+    min-height:
+      42px;
+
+    justify-content:
+      center;
+
+    padding:
+      0
+      8px;
+
+    text-align:
+      center;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-tab.is-active {
+    box-shadow:
+      inset
+      0
+      -3px
+      0
+      #1f5fae;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-workspace {
+    flex:
+      1
+      1
+      auto;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-view__heading {
+    min-height:
+      66px;
+
+    padding:
+      13px
+      15px;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-view__heading h3 {
+    font-size:
+      18px;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-footer-help {
+    display:
+      none;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-modal__footer
+  .modal-footer__right {
+    width:
+      100%;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-modal__footer
+  button {
+    width:
+      100%;
+  }
+
+}

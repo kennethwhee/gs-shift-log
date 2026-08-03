@@ -72029,3 +72029,405 @@ function refreshMemberFooterButtons() {
     initializeNavigatorExcludeUi();
   }
 })();
+
+/* =========================================================
+  효율팀 통합 팝업
+
+  권한:
+  - 모든 로그인 사용자 사용 가능
+  - 관리자 권한 검사 없음
+
+  메뉴:
+  - 석회석
+  - Arm Roll
+========================================================= */
+
+(function initializeEfficiencyTeamFeature() {
+  if (
+    window
+      .__efficiencyTeamFeatureInstalled
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyTeamFeatureInstalled =
+    true;
+
+
+  /* =====================================================
+    요소 조회
+  ====================================================== */
+
+  function getEfficiencyTeamElements() {
+    return {
+      openButton:
+        document.getElementById(
+          "efficiencyTeamButton"
+        ),
+
+      modal:
+        document.getElementById(
+          "efficiencyTeamModal"
+        ),
+
+      closeButton:
+        document.getElementById(
+          "closeEfficiencyTeamModalButton"
+        ),
+
+      closeFooterButton:
+        document.getElementById(
+          "closeEfficiencyTeamModalFooterButton"
+        ),
+
+      tabs: [
+        ...document.querySelectorAll(
+          "[data-efficiency-tab]"
+        )
+      ],
+
+      views: [
+        ...document.querySelectorAll(
+          "[data-efficiency-view]"
+        )
+      ]
+    };
+  }
+
+
+  /* =====================================================
+    메뉴 전환
+  ====================================================== */
+
+  function switchEfficiencyTeamView(
+    requestedView
+  ) {
+    const {
+      tabs,
+      views
+    } =
+      getEfficiencyTeamElements();
+
+
+    const selectedView =
+      requestedView ===
+        "arm-roll"
+        ? "arm-roll"
+        : "limestone";
+
+
+    tabs.forEach(
+      tab => {
+        const isSelected =
+          tab.dataset
+            .efficiencyTab ===
+          selectedView;
+
+
+        tab.classList.toggle(
+          "is-active",
+          isSelected
+        );
+
+
+        tab.setAttribute(
+          "aria-selected",
+          String(
+            isSelected
+          )
+        );
+      }
+    );
+
+
+    views.forEach(
+      view => {
+        const isSelected =
+          view.dataset
+            .efficiencyView ===
+          selectedView;
+
+
+        view.classList.toggle(
+          "is-active",
+          isSelected
+        );
+
+
+        view.hidden =
+          !isSelected;
+      }
+    );
+  }
+
+
+  /* =====================================================
+    팝업 열기
+
+    권한 검사를 하지 않는다.
+  ====================================================== */
+
+  function openEfficiencyTeamModal() {
+    const {
+      modal,
+      closeButton
+    } =
+      getEfficiencyTeamElements();
+
+
+    if (
+      !modal
+    ) {
+      console.error(
+        "효율팀 팝업을 찾을 수 없습니다."
+      );
+
+
+      if (
+        typeof showToast ===
+          "function"
+      ) {
+        showToast(
+          "효율팀 화면을 찾을 수 없습니다."
+        );
+      }
+
+
+      return;
+    }
+
+
+    /*
+      팝업을 열 때 기본 메뉴는 석회석
+    */
+    switchEfficiencyTeamView(
+      "limestone"
+    );
+
+
+    modal.classList.add(
+      "is-open"
+    );
+
+
+    modal.setAttribute(
+      "aria-hidden",
+      "false"
+    );
+
+
+    document.body.classList.add(
+      "modal-open"
+    );
+
+
+    window.setTimeout(
+      () => {
+        closeButton?.focus();
+      },
+      50
+    );
+  }
+
+
+  /* =====================================================
+    팝업 닫기
+  ====================================================== */
+
+  function closeEfficiencyTeamModal() {
+    const {
+      modal,
+      openButton
+    } =
+      getEfficiencyTeamElements();
+
+
+    if (
+      !modal
+    ) {
+      return;
+    }
+
+
+    modal.classList.remove(
+      "is-open"
+    );
+
+
+    modal.setAttribute(
+      "aria-hidden",
+      "true"
+    );
+
+
+    /*
+      다른 팝업이 열려 있지 않을 때만
+      body 스크롤 잠금을 해제한다.
+    */
+    const anotherOpenModal =
+      document.querySelector(
+        ".modal-backdrop.is-open"
+      );
+
+
+    if (
+      !anotherOpenModal
+    ) {
+      document.body.classList.remove(
+        "modal-open"
+      );
+    }
+
+
+    openButton?.focus();
+  }
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function bindEfficiencyTeamEvents() {
+    const {
+      openButton,
+      modal,
+      closeButton,
+      closeFooterButton,
+      tabs
+    } =
+      getEfficiencyTeamElements();
+
+
+    if (
+      !openButton ||
+      !modal
+    ) {
+      return;
+    }
+
+
+    if (
+      openButton.dataset
+        .efficiencyTeamBound ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    openButton.addEventListener(
+      "click",
+      openEfficiencyTeamModal
+    );
+
+
+    closeButton?.addEventListener(
+      "click",
+      closeEfficiencyTeamModal
+    );
+
+
+    closeFooterButton?.addEventListener(
+      "click",
+      closeEfficiencyTeamModal
+    );
+
+
+    tabs.forEach(
+      tab => {
+        tab.addEventListener(
+          "click",
+          () => {
+            switchEfficiencyTeamView(
+              tab.dataset
+                .efficiencyTab
+            );
+          }
+        );
+      }
+    );
+
+
+    /*
+      모달 배경 클릭 시 닫기
+    */
+    modal.addEventListener(
+      "click",
+      event => {
+        if (
+          event.target ===
+          modal
+        ) {
+          closeEfficiencyTeamModal();
+        }
+      }
+    );
+
+
+    /*
+      ESC 닫기
+    */
+    document.addEventListener(
+      "keydown",
+      event => {
+        if (
+          event.key !==
+            "Escape" ||
+          !modal.classList.contains(
+            "is-open"
+          )
+        ) {
+          return;
+        }
+
+
+        closeEfficiencyTeamModal();
+      }
+    );
+
+
+    openButton.dataset
+      .efficiencyTeamBound =
+      "true";
+  }
+
+
+  /* =====================================================
+    외부 호출용
+  ====================================================== */
+
+  window.openEfficiencyTeamModal =
+    openEfficiencyTeamModal;
+
+
+  window.closeEfficiencyTeamModal =
+    closeEfficiencyTeamModal;
+
+
+  window.switchEfficiencyTeamView =
+    switchEfficiencyTeamView;
+
+
+  /* =====================================================
+    초기 실행
+  ====================================================== */
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      bindEfficiencyTeamEvents,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    bindEfficiencyTeamEvents();
+  }
+})();

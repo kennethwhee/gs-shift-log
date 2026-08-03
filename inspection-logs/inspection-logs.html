@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>점검일지</title>
+
+  <link
+    rel="stylesheet"
+    href="inspection-logs.css?v=20260803-1"
+  >
+
+  <script
+    src="inspection-logs.js?v=20260803-1"
+    defer
+  ></script>
+</head>
+
+<body>
+
+  <main class="inspection-log-hub">
+
+    <header class="inspection-log-header">
+
+      <div>
+        <p class="inspection-log-header__eyebrow">
+          GS SHIFT LOG
+        </p>
+
+        <h1>
+          점검일지
+        </h1>
+      </div>
+
+    </header>
+
+
+    <nav
+      class="inspection-log-tabs"
+      aria-label="점검일지 분류"
+    >
+
+      <button
+        type="button"
+        class="inspection-log-tab is-active"
+        data-inspection-category="daily"
+      >
+        일일점검일지
+      </button>
+
+      <button
+        type="button"
+        class="inspection-log-tab"
+        data-inspection-category="weekly"
+      >
+        주간점검일지
+      </button>
+
+      <button
+        type="button"
+        class="inspection-log-tab"
+        data-inspection-category="monthly"
+      >
+        월간점검일지
+      </button>
+
+    </nav>
+
+
+    <section
+      class="inspection-log-list"
+      id="inspectionLogList"
+    >
+
+      <button
+        type="button"
+        class="inspection-log-card"
+        data-inspection-log="night-patrol"
+        data-inspection-category-item="daily"
+        data-inspection-path="daily/night-patrol/night-patrol.html?v=20260803-6"
+      >
+
+        <span class="inspection-log-card__icon">
+          🌙
+        </span>
+
+        <span class="inspection-log-card__text">
+
+          <strong>
+            야간 순찰 점검일지
+          </strong>
+
+          <small>
+            야간 현장 순찰 및 이상 유무 기록
+          </small>
+
+        </span>
+
+        <span class="inspection-log-card__arrow">
+          ›
+        </span>
+
+      </button>
+
+
+      <div
+        class="inspection-log-empty"
+        id="inspectionLogEmpty"
+        hidden
+      >
+        등록된 점검일지가 없습니다.
+      </div>
+
+    </section>
+
+
+    <section
+      class="inspection-log-viewer"
+      id="inspectionLogViewer"
+      hidden
+    >
+
+      <div class="inspection-log-viewer__header">
+
+        <button
+          type="button"
+          id="inspectionLogBackButton"
+        >
+          ← 목록
+        </button>
+
+        <strong id="inspectionLogViewerTitle">
+          점검일지
+        </strong>
+
+      </div>
+
+      <iframe
+        id="inspectionLogFrame"
+        title="점검일지 화면"
+      ></iframe>
+
+    </section>
+
+  </main>
+
+</body>
+</html>
