@@ -61414,3 +61414,972 @@ thead th {
   }
 
 }
+
+/* =========================================================
+  효율팀 석회석 조회 상단 최종 디자인
+
+  기본 화면:
+  ‹ 26.08.03 (월) 오늘 ›
+
+  기간 조회:
+  시작일 | 종료일 | 호기
+  일별 | 주별 | 월별
+========================================================= */
+
+
+/* =========================================================
+  하루 조회 전체 카드
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-day-query-card {
+  display: block;
+
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 13px 15px;
+
+  border: 1px solid #d2deeb;
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f8fbff 0%,
+      #ffffff 72%
+    );
+
+  box-shadow:
+    0 3px 12px
+    rgba(
+      24,
+      55,
+      92,
+      0.05
+    );
+
+  box-sizing: border-box;
+}
+
+
+/* =========================================================
+  하루 날짜 이동
+
+  이전 | 날짜 | 다음 | 기간 조회
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-day-navigation {
+  display: grid;
+
+  grid-template-columns:
+    38px
+    minmax(180px, 230px)
+    38px
+    auto;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  width: 100%;
+}
+
+
+/* =========================================================
+  이전·다음 화살표
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-day-arrow-button {
+  display: inline-flex;
+
+  width: 38px;
+  height: 38px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0;
+
+  border: 1px solid #c4d3e3;
+  border-radius: 9px;
+
+  background: #ffffff;
+  color: #355574;
+
+  font-size: 25px;
+  font-weight: 500;
+  line-height: 1;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 2px 6px
+    rgba(
+      30,
+      57,
+      88,
+      0.05
+    );
+
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.12s ease;
+}
+
+
+#efficiencyTeamModal
+.limestone-day-arrow-button:hover:not(:disabled) {
+  border-color: #78a3d1;
+
+  background: #edf5fd;
+  color: #175da7;
+}
+
+
+#efficiencyTeamModal
+.limestone-day-arrow-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+
+/* =========================================================
+  가운데 날짜
+
+  클릭하면 오늘로 복귀
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-current-day-button {
+  display: inline-flex;
+
+  min-width: 180px;
+  min-height: 38px;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  margin: 0;
+  padding: 0 14px;
+
+  border: 1px solid #a9c5e3;
+  border-radius: 9px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #ffffff,
+      #f3f8fe
+    );
+
+  color: #183b63;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 3px 9px
+    rgba(
+      31,
+      95,
+      174,
+      0.07
+    );
+
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+
+#efficiencyTeamModal
+.limestone-current-day-button:hover:not(:disabled) {
+  border-color: #6093c8;
+
+  background:
+    linear-gradient(
+      180deg,
+      #ffffff,
+      #eaf3fc
+    );
+
+  box-shadow:
+    0 5px 13px
+    rgba(
+      31,
+      95,
+      174,
+      0.11
+    );
+}
+
+
+#efficiencyTeamModal
+.limestone-current-day-button strong {
+  color: #193b60;
+
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  오늘 배지
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-today-badge {
+  display: inline-flex;
+
+  min-height: 21px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 7px;
+
+  border: 1px solid #a9d4be;
+  border-radius: 999px;
+
+  background: #eaf8f0;
+  color: #178451;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyTeamModal
+.limestone-today-badge[hidden] {
+  display: none !important;
+}
+
+
+/* =========================================================
+  기간 조회 열기 버튼
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-open-period-button {
+  display: inline-flex;
+
+  min-width: 88px;
+  min-height: 38px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin-left: 4px;
+  padding: 0 13px;
+
+  border: 1px solid #b8caDE;
+  border-radius: 9px;
+
+  background: #f3f7fb;
+  color: #3c5875;
+
+  font-size: 11px;
+  font-weight: 900;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+
+#efficiencyTeamModal
+.limestone-open-period-button:hover:not(:disabled),
+#efficiencyTeamModal
+.limestone-open-period-button.is-active {
+  border-color: #5f91c6;
+
+  background: #e8f2fc;
+  color: #185b9f;
+}
+
+
+/* =========================================================
+  조회 중 버튼
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-day-navigation button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+
+/* =========================================================
+  기간 조회가 적용된 상태 표시
+
+  예:
+  기간 조회 | 2026-07-01 ~ 2026-07-31 | 31일
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-active-range-information {
+  display: flex;
+
+  width: fit-content;
+
+  min-height: 30px;
+
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+
+  gap: 7px;
+
+  margin: 11px auto 0;
+  padding: 5px 10px;
+
+  border: 1px solid #bbd0e7;
+  border-radius: 999px;
+
+  background: #edf5fd;
+  color: #46617e;
+}
+
+
+#efficiencyTeamModal
+.limestone-active-range-information[hidden] {
+  display: none !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-active-range-information > span {
+  color: #1f5fae;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-active-range-information > strong {
+  color: #243e5c;
+
+  font-size: 11px;
+  font-weight: 900;
+
+  font-variant-numeric: tabular-nums;
+}
+
+
+#efficiencyTeamModal
+.limestone-active-range-information > small {
+  display: inline-flex;
+
+  min-height: 20px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 7px;
+
+  border-radius: 999px;
+
+  background: #ffffff;
+  color: #5d7189;
+
+  font-size: 9px;
+  font-weight: 800;
+}
+
+
+/* =========================================================
+  기간 조회 설정창
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-search-panel {
+  display: none;
+
+  width: min(
+    860px,
+    100%
+  );
+
+  margin: 12px auto 0;
+  padding: 15px;
+
+  border: 1px solid #c5d5e6;
+  border-radius: 12px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 12px 28px
+    rgba(
+      23,
+      53,
+      86,
+      0.11
+    );
+
+  box-sizing: border-box;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-search-panel.is-open {
+  display: block !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-search-panel[hidden] {
+  display: none !important;
+}
+
+
+/* =========================================================
+  기간 조회창 상단
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-search-panel__header {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  margin: 0 0 13px;
+  padding: 0 0 11px;
+
+  border-bottom: 1px solid #e3eaf1;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-search-panel__header strong {
+  display: block;
+
+  margin: 0;
+
+  color: #1d3858;
+
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-search-panel__header p {
+  margin: 4px 0 0;
+
+  color: #758499;
+
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+
+/* =========================================================
+  기간 조회 닫기
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-search-close-button {
+  display: inline-flex;
+
+  width: 29px;
+  height: 29px;
+
+  flex: 0 0 auto;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0;
+
+  border: 1px solid #d1dbe6;
+  border-radius: 8px;
+
+  background: #f5f7fa;
+  color: #607086;
+
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-search-close-button:hover {
+  border-color: #aab9ca;
+
+  background: #eaf0f6;
+  color: #344c68;
+}
+
+
+/* =========================================================
+  기간 입력 영역
+
+  시작일 | 종료일 | 호기
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-search-fields {
+  display: grid;
+
+  grid-template-columns:
+    minmax(170px, 1fr)
+    minmax(170px, 1fr)
+    minmax(130px, 0.62fr);
+
+  align-items: end;
+
+  gap: 10px;
+
+  width: 100%;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-search-fields
+.form-field {
+  gap: 5px;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-search-fields
+.form-field__label {
+  color: #4f6279;
+
+  font-size: 10px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-search-fields
+input,
+#efficiencyTeamModal
+.limestone-period-search-fields
+select {
+  width: 100%;
+  min-height: 38px;
+
+  padding: 0 10px;
+
+  border: 1px solid #c5d2e0;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #26384f;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  outline: none;
+
+  box-sizing: border-box;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-search-fields
+input:focus,
+#efficiencyTeamModal
+.limestone-period-search-fields
+select:focus {
+  border-color: #6798cc;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(
+      31,
+      95,
+      174,
+      0.09
+    );
+}
+
+
+/* =========================================================
+  집계 방식
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-group-setting {
+  display: flex;
+
+  align-items: center;
+  justify-content: flex-start;
+
+  gap: 12px;
+
+  margin-top: 13px;
+  padding-top: 12px;
+
+  border-top: 1px solid #e6ecf2;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-group-setting__label {
+  flex: 0 0 auto;
+
+  color: #54677f;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+
+#efficiencyTeamModal
+.limestone-group-mode-buttons {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 4px;
+
+  padding: 3px;
+
+  border: 1px solid #d2dce7;
+  border-radius: 9px;
+
+  background: #f2f5f8;
+}
+
+
+#efficiencyTeamModal
+.limestone-group-mode-button {
+  display: inline-flex;
+
+  min-width: 54px;
+  min-height: 30px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 10px;
+
+  border: 0;
+  border-radius: 7px;
+
+  background: transparent;
+  color: #64748a;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  cursor: pointer;
+
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+
+#efficiencyTeamModal
+.limestone-group-mode-button:hover {
+  background: #e7edf4;
+  color: #314d6b;
+}
+
+
+#efficiencyTeamModal
+.limestone-group-mode-button.is-active {
+  background: #ffffff;
+  color: #1f5fae;
+
+  box-shadow:
+    0 2px 6px
+    rgba(
+      31,
+      95,
+      174,
+      0.12
+    );
+}
+
+
+/* =========================================================
+  기간 조회창 하단 버튼
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-period-search-actions {
+  display: flex;
+
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 7px;
+
+  margin-top: 14px;
+  padding-top: 12px;
+
+  border-top: 1px solid #e5ebf1;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-search-actions button {
+  min-height: 36px;
+
+  padding: 0 14px;
+
+  border-radius: 8px;
+
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-search-actions
+.secondary-button {
+  border: 1px solid #c8d3df;
+
+  background: #ffffff;
+  color: #56677c;
+}
+
+
+#efficiencyTeamModal
+.limestone-period-search-actions
+.primary-button {
+  border: 1px solid #1f5fae;
+
+  background: #1f5fae;
+  color: #ffffff;
+
+  box-shadow:
+    0 5px 12px
+    rgba(
+      31,
+      95,
+      174,
+      0.18
+    );
+}
+
+
+/* =========================================================
+  하루 조회 영역 다음 합계 카드 간격
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-day-query-card
++
+.limestone-summary-grid {
+  margin-top: 0;
+}
+
+
+/* =========================================================
+  키보드 포커스
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-day-navigation button:focus-visible,
+#efficiencyTeamModal
+.limestone-period-search-panel button:focus-visible {
+  outline:
+    3px solid
+    rgba(
+      31,
+      95,
+      174,
+      0.18
+    );
+
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+  좁은 PC
+========================================================= */
+
+@media (max-width: 1000px) {
+
+  #efficiencyTeamModal
+  .limestone-day-navigation {
+    grid-template-columns:
+      38px
+      minmax(160px, 1fr)
+      38px
+      auto;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-search-panel {
+    width: 100%;
+  }
+
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+
+  #efficiencyTeamModal
+  .limestone-day-query-card {
+    padding: 11px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-day-navigation {
+    grid-template-columns:
+      36px
+      minmax(0, 1fr)
+      36px;
+
+    gap: 6px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-day-arrow-button {
+    width: 36px;
+    height: 36px;
+
+    font-size: 23px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-current-day-button {
+    width: 100%;
+    min-width: 0;
+    min-height: 36px;
+
+    padding: 0 8px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-current-day-button strong {
+    font-size: 13px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-open-period-button {
+    grid-column: 1 / -1;
+
+    width: 100%;
+    min-height: 36px;
+
+    margin: 2px 0 0;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-active-range-information {
+    width: 100%;
+
+    border-radius: 9px;
+
+    box-sizing: border-box;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-search-panel {
+    width: 100%;
+
+    padding: 12px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-search-fields {
+    grid-template-columns: 1fr;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-group-setting {
+    align-items: flex-start;
+    flex-direction: column;
+
+    gap: 8px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-group-mode-buttons {
+    display: grid;
+
+    width: 100%;
+
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-group-mode-button {
+    width: 100%;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-search-actions {
+    display: grid;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-period-search-actions button {
+    width: 100%;
+  }
+
+}

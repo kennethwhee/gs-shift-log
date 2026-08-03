@@ -73317,9 +73317,6 @@ function getLimestoneReceiptElements() {
 
 /* =====================================================
   날짜 문자열 → Date
-
-  입력:
-  2026-08-03
 ===================================================== */
 
 function parseLimestoneDateValue(
@@ -73367,9 +73364,6 @@ function parseLimestoneDateValue(
   조회 기간 일수
 
   시작일과 종료일을 모두 포함한다.
-
-  8월 1일 ~ 8월 7일
-  → 7일
 ===================================================== */
 
 function getLimestoneDateRangeDayCount(
@@ -73412,21 +73406,96 @@ function getLimestoneDateRangeDayCount(
 
 
 /* =====================================================
-  현재 조회 기간 표시
+  하루 이동바 표시용 날짜
 
   예:
-  2026-07-28 ~ 2026-08-03
-  7일
+  26.08.03 (월)
+===================================================== */
+
+function formatLimestoneDayNavigationLabel(
+  dateValue
+) {
+  const parsedDate =
+    parseLimestoneDateValue(
+      dateValue
+    );
+
+
+  if (
+    !parsedDate
+  ) {
+    return "-";
+  }
+
+
+  const weekdayLabels = [
+    "일",
+    "월",
+    "화",
+    "수",
+    "목",
+    "금",
+    "토"
+  ];
+
+
+  const year =
+    String(
+      parsedDate.getFullYear()
+    ).slice(
+      -2
+    );
+
+
+  const month =
+    String(
+      parsedDate.getMonth() +
+      1
+    ).padStart(
+      2,
+      "0"
+    );
+
+
+  const day =
+    String(
+      parsedDate.getDate()
+    ).padStart(
+      2,
+      "0"
+    );
+
+
+  const weekday =
+    weekdayLabels[
+      parsedDate.getDay()
+    ];
+
+
+  return `${year}.${month}.${day} (${weekday})`;
+}
+
+
+/* =====================================================
+  하루 이동바와 기간 조회 표시 갱신
 ===================================================== */
 
 function updateLimestonePeriodDisplay() {
   const {
+    view,
+    dayLabel,
+    todayBadge,
+    activeRangeInformation,
     startDateInput,
     endDateInput,
     periodLabel,
     periodDayCount
   } =
     getLimestoneReceiptElements();
+
+
+  const today =
+    getLimestoneToday();
 
 
   const startDate =
@@ -73443,11 +73512,47 @@ function updateLimestonePeriodDisplay() {
     ).trim();
 
 
-  const dayCount =
-    getLimestoneDateRangeDayCount(
-      startDate,
-      endDate
-    );
+  const selectedDay =
+    isValidLimestoneDate(
+      limestoneReceiptState
+        .selectedDay
+    )
+      ? limestoneReceiptState
+          .selectedDay
+      : today;
+
+
+  const isRangeMode =
+    limestoneReceiptState
+      .queryMode ===
+    "range";
+
+
+  if (
+    dayLabel
+  ) {
+    dayLabel.textContent =
+      formatLimestoneDayNavigationLabel(
+        selectedDay
+      );
+  }
+
+
+  if (
+    todayBadge
+  ) {
+    todayBadge.hidden =
+      selectedDay !==
+      today;
+  }
+
+
+  if (
+    activeRangeInformation
+  ) {
+    activeRangeInformation.hidden =
+      !isRangeMode;
+  }
 
 
   if (
@@ -73464,25 +73569,45 @@ function updateLimestonePeriodDisplay() {
   if (
     periodDayCount
   ) {
+    const dayCount =
+      getLimestoneDateRangeDayCount(
+        startDate,
+        endDate
+      );
+
+
     periodDayCount.textContent =
       dayCount >
         0
         ? `${dayCount}일`
         : "-";
   }
+
+
+  view?.classList.toggle(
+    "is-day-query-mode",
+    !isRangeMode
+  );
+
+
+  view?.classList.toggle(
+    "is-range-query-mode",
+    isRangeMode
+  );
 }
 
 
 /* =====================================================
-  기본 조회 기간
+  기본 조회 설정
 
-  오늘 포함 최근 7일
+  오늘 하루만 조회한다.
 ===================================================== */
 
 function setDefaultLimestoneDateRange() {
   const {
     startDateInput,
-    endDateInput
+    endDateInput,
+    unitFilter
   } =
     getLimestoneReceiptElements();
 
@@ -73496,26 +73621,49 @@ function setDefaultLimestoneDateRange() {
 
 
   const today =
-    new Date();
+    getLimestoneToday();
 
 
-  const startDate =
-    addLimestoneDays(
-      today,
-      -6
-    );
+  limestoneReceiptState
+    .queryMode =
+    "day";
+
+
+  limestoneReceiptState
+    .selectedDay =
+    today;
 
 
   startDateInput.value =
-    formatLimestoneDate(
-      startDate
-    );
+    today;
 
 
   endDateInput.value =
-    formatLimestoneDate(
-      today
-    );
+    today;
+
+
+  endDateInput.min =
+    today;
+
+
+  if (
+    unitFilter
+  ) {
+    unitFilter.value =
+      "";
+  }
+
+
+  setLimestoneGroupMode(
+    "daily",
+    {
+      render:
+        false
+    }
+  );
+
+
+  closeLimestonePeriodSearchPanel();
 
 
   updateLimestonePeriodDisplay();
@@ -73523,48 +73671,42 @@ function setDefaultLimestoneDateRange() {
 
 
 /* =====================================================
-  현재 조회 기간 이동
+  특정 날짜 하루 조회
 
-  예:
-  현재 8월 1일 ~ 8월 7일
-
-  -1:
-  7월 31일 ~ 8월 6일
-
-  +7:
-  8월 8일 ~ 8월 14일
+  시작일과 종료일을 같은 날짜로 설정한다.
 ===================================================== */
 
-async function moveLimestoneDateRange(
-  moveDayCount
+async function setLimestoneDayQuery(
+  dateValue,
+  options = {}
 ) {
   const {
+    load =
+      true
+  } = options;
+
+
+  const {
     startDateInput,
-    endDateInput
+    endDateInput,
+    unitFilter
   } =
     getLimestoneReceiptElements();
 
 
-  const startDate =
+  const parsedDate =
     parseLimestoneDateValue(
-      startDateInput?.value
-    );
-
-
-  const endDate =
-    parseLimestoneDateValue(
-      endDateInput?.value
+      dateValue
     );
 
 
   if (
-    !startDate ||
-    !endDate ||
-    startDate >
-      endDate
+    !parsedDate ||
+    !startDateInput ||
+    !endDateInput
   ) {
     showLimestoneToast(
-      "조회 시작일과 종료일을 확인해 주세요."
+      "조회할 날짜를 확인해 주세요."
     );
 
 
@@ -73572,119 +73714,156 @@ async function moveLimestoneDateRange(
   }
 
 
-  const normalizedMoveDayCount =
+  const normalizedDate =
+    formatLimestoneDate(
+      parsedDate
+    );
+
+
+  limestoneReceiptState
+    .queryMode =
+    "day";
+
+
+  limestoneReceiptState
+    .selectedDay =
+    normalizedDate;
+
+
+  startDateInput.value =
+    normalizedDate;
+
+
+  endDateInput.value =
+    normalizedDate;
+
+
+  endDateInput.min =
+    normalizedDate;
+
+
+  /*
+    하루 조회에서는 전체 호기를 조회한다.
+
+    합계 카드에서 1호기와 2호기를
+    각각 확인할 수 있다.
+  */
+  if (
+    unitFilter
+  ) {
+    unitFilter.value =
+      "";
+  }
+
+
+  setLimestoneGroupMode(
+    "daily",
+    {
+      render:
+        false
+    }
+  );
+
+
+  closeLimestonePeriodSearchPanel();
+
+
+  closeLimestoneImportPanel();
+
+
+  updateLimestonePeriodDisplay();
+
+
+  if (
+    load
+  ) {
+    await loadLimestoneReceipts();
+  }
+}
+
+
+/* =====================================================
+  이전·다음 하루 이동
+
+  -1:
+  전날
+
+  1:
+  다음 날
+===================================================== */
+
+async function moveLimestoneDay(
+  direction
+) {
+  const normalizedDirection =
     Number(
-      moveDayCount
+      direction
     );
 
 
   if (
-    !Number.isFinite(
-      normalizedMoveDayCount
+    ![
+      -1,
+      1
+    ].includes(
+      normalizedDirection
     )
   ) {
     return;
   }
 
 
-  startDateInput.value =
-    formatLimestoneDate(
-      addLimestoneDays(
-        startDate,
-        normalizedMoveDayCount
-      )
-    );
+  const currentDateValue =
+    isValidLimestoneDate(
+      limestoneReceiptState
+        .selectedDay
+    )
+      ? limestoneReceiptState
+          .selectedDay
+      : getLimestoneToday();
 
 
-  endDateInput.value =
-    formatLimestoneDate(
-      addLimestoneDays(
-        endDate,
-        normalizedMoveDayCount
-      )
-    );
-
-
-  updateLimestonePeriodDisplay();
-
-
-  closeLimestoneImportPanel();
-
-
-  await loadLimestoneReceipts();
-}
-
-
-/* =====================================================
-  오늘로 이동
-
-  현재 조회 기간 길이는 유지하고
-  종료일만 오늘로 맞춘다.
-
-  현재 기간이 7일:
-  오늘을 포함한 최근 7일
-
-  현재 기간이 1일:
-  오늘 하루
-===================================================== */
-
-async function moveLimestoneDateRangeToToday() {
-  const {
-    startDateInput,
-    endDateInput
-  } =
-    getLimestoneReceiptElements();
-
-
-  let dayCount =
-    getLimestoneDateRangeDayCount(
-      startDateInput?.value,
-      endDateInput?.value
+  const currentDate =
+    parseLimestoneDateValue(
+      currentDateValue
     );
 
 
   if (
-    dayCount <
-      1
+    !currentDate
   ) {
-    dayCount =
-      7;
+    showLimestoneToast(
+      "현재 조회 날짜를 확인할 수 없습니다."
+    );
+
+
+    return;
   }
 
 
-  const today =
-    new Date();
-
-
-  const startDate =
+  const nextDate =
     addLimestoneDays(
-      today,
-      -(
-        dayCount -
-        1
-      )
+      currentDate,
+      normalizedDirection
     );
 
 
-  startDateInput.value =
+  await setLimestoneDayQuery(
     formatLimestoneDate(
-      startDate
-    );
+      nextDate
+    )
+  );
+}
 
 
-  endDateInput.value =
-    formatLimestoneDate(
-      today
-    );
+/* =====================================================
+  오늘 하루로 이동
+===================================================== */
 
-
-  updateLimestonePeriodDisplay();
-
-
-  closeLimestoneImportPanel();
-
-
-  await loadLimestoneReceipts();
+async function moveLimestoneDateRangeToToday() {
+  await setLimestoneDayQuery(
+    getLimestoneToday()
+  );
 }
 
 
@@ -73705,11 +73884,6 @@ function openLimestonePeriodSearchPanel() {
   if (
     !searchForm
   ) {
-    console.error(
-      "limestoneSearchForm을 찾을 수 없습니다."
-    );
-
-
     showLimestoneToast(
       "기간 조회 설정창을 찾을 수 없습니다."
     );
@@ -73719,38 +73893,28 @@ function openLimestonePeriodSearchPanel() {
   }
 
 
-  /*
-    다른 입력창이 열려 있으면 닫는다.
-  */
-  if (
-    typeof closeLimestoneReceiptEditor ===
-      "function"
-  ) {
-    closeLimestoneReceiptEditor();
-  }
+  closeLimestoneReceiptEditor();
 
 
-  if (
-    typeof closeLimestoneImportPanel ===
-      "function"
-  ) {
-    closeLimestoneImportPanel();
-  }
+  closeLimestoneImportPanel();
 
 
   /*
-    하루 조회 상태에서는 현재 보고 있는 날짜를
-    기간 조회 시작일·종료일 기본값으로 사용한다.
+    하루 조회 중이라면 현재 선택 날짜를
+    시작일과 종료일 기본값으로 넣는다.
   */
   if (
-    limestoneReceiptState.queryMode ===
+    limestoneReceiptState
+      .queryMode ===
       "day"
   ) {
     const selectedDay =
       isValidLimestoneDate(
-        limestoneReceiptState.selectedDay
+        limestoneReceiptState
+          .selectedDay
       )
-        ? limestoneReceiptState.selectedDay
+        ? limestoneReceiptState
+            .selectedDay
         : getLimestoneToday();
 
 
@@ -73767,6 +73931,7 @@ function openLimestonePeriodSearchPanel() {
     ) {
       endDateInput.value =
         selectedDay;
+
 
       endDateInput.min =
         selectedDay;
@@ -73788,37 +73953,22 @@ function openLimestonePeriodSearchPanel() {
   );
 
 
-  searchForm.style.removeProperty(
-    "display"
-  );
-
-
-  if (
-    openPeriodSearchButton
-  ) {
-    openPeriodSearchButton.classList.add(
+  openPeriodSearchButton
+    ?.classList
+    .add(
       "is-active"
     );
 
 
-    openPeriodSearchButton.setAttribute(
+  openPeriodSearchButton
+    ?.setAttribute(
       "aria-expanded",
       "true"
     );
-  }
 
 
   window.requestAnimationFrame(
     () => {
-      searchForm.scrollIntoView({
-        behavior:
-          "smooth",
-
-        block:
-          "nearest"
-      });
-
-
       startDateInput?.focus();
     }
   );
@@ -73859,19 +74009,101 @@ function closeLimestonePeriodSearchPanel() {
   );
 
 
-  if (
-    openPeriodSearchButton
-  ) {
-    openPeriodSearchButton.classList.remove(
+  openPeriodSearchButton
+    ?.classList
+    .remove(
       "is-active"
     );
 
 
-    openPeriodSearchButton.setAttribute(
+  openPeriodSearchButton
+    ?.setAttribute(
       "aria-expanded",
       "false"
     );
+}
+
+
+/* =====================================================
+  기간 조회 실행
+===================================================== */
+
+async function applyLimestonePeriodSearch() {
+  const {
+    startDateInput,
+    endDateInput
+  } =
+    getLimestoneReceiptElements();
+
+
+  const startDate =
+    String(
+      startDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const endDate =
+    String(
+      endDateInput?.value ||
+      ""
+    ).trim();
+
+
+  if (
+    !isValidLimestoneDate(
+      startDate
+    ) ||
+    !isValidLimestoneDate(
+      endDate
+    )
+  ) {
+    showLimestoneToast(
+      "조회 시작일과 종료일을 선택해 주세요."
+    );
+
+
+    return;
   }
+
+
+  if (
+    startDate >
+      endDate
+  ) {
+    showLimestoneToast(
+      "조회 시작일은 종료일보다 늦을 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  limestoneReceiptState
+    .queryMode =
+    "range";
+
+
+  /*
+    기간 조회 후 화살표를 누르면
+    기간 종료일을 기준으로 하루 이동한다.
+  */
+  limestoneReceiptState
+    .selectedDay =
+    endDate;
+
+
+  updateLimestonePeriodDisplay();
+
+
+  closeLimestoneImportPanel();
+
+
+  await loadLimestoneReceipts();
+
+
+  closeLimestonePeriodSearchPanel();
 }
 
 /* =====================================================
