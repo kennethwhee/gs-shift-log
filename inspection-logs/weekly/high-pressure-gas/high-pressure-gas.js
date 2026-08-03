@@ -1843,152 +1843,276 @@ function initializeHighPressureGasCheck() {
   }
 
 
-  function renderArchiveBoard() {
-    if (
-      !archiveTableBody ||
-      !archiveEmpty
-    ) {
-      return;
-    }
+/* =========================================================
+  보관함 일지 삭제 권한
 
-    const logs =
-      getFilteredArchiveLogs();
+  - 최고관리자: 전체 삭제 가능
+  - 일반 사용자: 본인이 최초 작성한 일지만 삭제 가능
+  - 서버가 canDelete를 보내면 해당 값을 우선 사용
+========================================================= */
 
-    archiveTableBody.innerHTML =
-      "";
-
-    if (
-      archiveCount
-    ) {
-      archiveCount.textContent =
-        `총 ${logs.length}건`;
-    }
-
-    archiveEmpty.hidden =
-      logs.length >
-      0;
-
-    logs.forEach(
-      (
-        log,
-        index
-      ) => {
-        const row =
-          document.createElement(
-            "tr"
-          );
-
-        const number =
-          logs.length -
-          index;
-
-        const inspectorName =
-          normalizeText(
-            log?.form?.inspectorName
-          ) ||
-          normalizeText(
-            log?.authorName
-          ) ||
-          "미확인";
-
-        const authorName =
-          normalizeText(
-            log?.authorName
-          ) ||
-          "미확인";
-
-        const overallResult =
-          normalizeText(
-            log?.form?.overallResult
-          ) ||
-          "-";
-
-        row.innerHTML = `
-          <td>${escapeHtml(String(number))}</td>
-
-          <td>
-            <span class="gas-archive-table__date">
-              ${escapeHtml(formatHistoryDate(log.inspectionDate))}
-            </span>
-          </td>
-
-          <td>
-            ${escapeHtml(normalizeShiftLabel(log.shift))}
-          </td>
-
-          <td>
-            <span class="gas-archive-table__person">
-              <strong>${escapeHtml(inspectorName)}</strong>
-              <small>작성 ${escapeHtml(authorName)}</small>
-            </span>
-          </td>
-
-          <td>
-            <span
-              class="gas-archive-result"
-              title="${escapeHtml(overallResult)}"
-            >
-              ${escapeHtml(overallResult)}
-            </span>
-          </td>
-
-          <td>
-            <span class="gas-archive-status">
-              ${escapeHtml(log.status || "저장완료")}
-            </span>
-          </td>
-
-          <td>
-            ${escapeHtml(formatDateTime(log.updatedAt) || "-")}
-          </td>
-
-          <td>
-            ${escapeHtml(String(log.serverRevision || 1))}
-          </td>
-
-          <td>
-            <div class="gas-archive-actions">
-
-              <button
-                type="button"
-                data-gas-archive-open="${escapeHtml(log.id)}"
-              >
-                보기·수정
-              </button>
-
-              <button
-                type="button"
-                data-gas-archive-print="${escapeHtml(log.id)}"
-              >
-                인쇄
-              </button>
-
-              ${
-                log.canDelete
-                  ? `
-                    <button
-                      type="button"
-                      data-gas-archive-delete="${escapeHtml(log.id)}"
-                      data-gas-archive-revision="${escapeHtml(String(log.serverRevision || 1))}"
-                      data-gas-archive-date="${escapeHtml(log.inspectionDate || "")}"
-                    >
-                      삭제
-                    </button>
-                  `
-                  : ""
-              }
-
-            </div>
-          </td>
-        `;
-
-        archiveTableBody.appendChild(
-          row
-        );
-      }
-    );
+function canCurrentUserDeleteArchiveLog(
+  log
+) {
+  if (
+    log?.canDelete ===
+      true
+  ) {
+    return true;
   }
 
+
+  if (
+    isStoredUserSuperAdmin()
+  ) {
+    return true;
+  }
+
+
+  const currentEmployeeNo =
+    getStoredEmployeeNo();
+
+
+  const authorEmployeeNo =
+    normalizeText(
+      log?.authorId
+    ).replace(
+      /\s+/g,
+      ""
+    );
+
+
+  return Boolean(
+    currentEmployeeNo &&
+    authorEmployeeNo &&
+    currentEmployeeNo ===
+      authorEmployeeNo
+  );
+}
+
+function renderArchiveBoard() {
+  if (
+    !archiveTableBody ||
+    !archiveEmpty
+  ) {
+    return;
+  }
+
+
+  const logs =
+    getFilteredArchiveLogs();
+
+
+  archiveTableBody.innerHTML =
+    "";
+
+
+  if (
+    archiveCount
+  ) {
+    archiveCount.textContent =
+      `총 ${logs.length}건`;
+  }
+
+
+  archiveEmpty.hidden =
+    logs.length >
+    0;
+
+
+  logs.forEach(
+    (
+      log,
+      index
+    ) => {
+      const row =
+        document.createElement(
+          "tr"
+        );
+
+
+      const number =
+        logs.length -
+        index;
+
+
+      const inspectorName =
+        normalizeText(
+          log?.form?.inspectorName
+        ) ||
+        normalizeText(
+          log?.authorName
+        ) ||
+        "미확인";
+
+
+      const authorName =
+        normalizeText(
+          log?.authorName
+        ) ||
+        "미확인";
+
+
+      const overallResult =
+        normalizeText(
+          log?.form?.overallResult
+        ) ||
+        "-";
+
+
+      const canDelete =
+        canCurrentUserDeleteArchiveLog(
+          log
+        );
+
+
+      row.innerHTML = `
+        <td>
+          ${escapeHtml(
+            String(
+              number
+            )
+          )}
+        </td>
+
+        <td>
+          <span class="gas-archive-table__date">
+            ${escapeHtml(
+              formatHistoryDate(
+                log.inspectionDate
+              )
+            )}
+          </span>
+        </td>
+
+        <td>
+          ${escapeHtml(
+            normalizeShiftLabel(
+              log.shift
+            )
+          )}
+        </td>
+
+        <td>
+          <span class="gas-archive-table__person">
+
+            <strong>
+              ${escapeHtml(
+                inspectorName
+              )}
+            </strong>
+
+            <small>
+              작성
+              ${escapeHtml(
+                authorName
+              )}
+            </small>
+
+          </span>
+        </td>
+
+        <td>
+          <span
+            class="gas-archive-result"
+            title="${escapeHtml(
+              overallResult
+            )}"
+          >
+            ${escapeHtml(
+              overallResult
+            )}
+          </span>
+        </td>
+
+        <td>
+          <span class="gas-archive-status">
+            ${escapeHtml(
+              log.status ||
+              "저장완료"
+            )}
+          </span>
+        </td>
+
+        <td>
+          ${escapeHtml(
+            formatDateTime(
+              log.updatedAt
+            ) ||
+            "-"
+          )}
+        </td>
+
+        <td>
+          ${escapeHtml(
+            String(
+              log.serverRevision ||
+              1
+            )
+          )}
+        </td>
+
+        <td>
+
+          <div class="gas-archive-actions">
+
+            <button
+              type="button"
+              data-gas-archive-open="${escapeHtml(
+                log.id
+              )}"
+            >
+              보기·수정
+            </button>
+
+
+            <button
+              type="button"
+              data-gas-archive-print="${escapeHtml(
+                log.id
+              )}"
+            >
+              인쇄
+            </button>
+
+
+            ${
+              canDelete
+                ? `
+                  <button
+                    type="button"
+                    data-gas-archive-delete="${escapeHtml(
+                      log.id
+                    )}"
+                    data-gas-archive-revision="${escapeHtml(
+                      String(
+                        log.serverRevision ||
+                        1
+                      )
+                    )}"
+                    data-gas-archive-date="${escapeHtml(
+                      log.inspectionDate ||
+                      ""
+                    )}"
+                  >
+                    삭제
+                  </button>
+                `
+                : ""
+            }
+
+          </div>
+
+        </td>
+      `;
+
+
+      archiveTableBody.appendChild(
+        row
+      );
+    }
+  );
+}
 
   function getArchiveRequestUrl() {
     const requestUrl =
@@ -2347,6 +2471,197 @@ function initializeHighPressureGasCheck() {
     }
   }
 
+
+  /* =========================================================
+  보관함 점검일지 삭제
+========================================================= */
+
+async function deleteArchiveLog(
+  logId,
+  expectedRevision,
+  inspectionDateValue,
+  deleteButton = null
+) {
+  const normalizedId =
+    normalizeText(
+      logId
+    );
+
+
+  const revision =
+    Number(
+      expectedRevision
+    );
+
+
+  const normalizedDate =
+    normalizeText(
+      inspectionDateValue
+    );
+
+
+  const dateLabel =
+    formatHistoryDate(
+      normalizedDate
+    );
+
+
+  if (
+    !normalizedId ||
+    !Number.isInteger(
+      revision
+    ) ||
+    revision <
+      1
+  ) {
+    window.alert(
+      "삭제할 점검일지 정보를 확인하지 못했습니다."
+    );
+
+    return;
+  }
+
+
+  const confirmed =
+    window.confirm(
+      `${dateLabel} 고압가스 점검일지를 삭제하시겠습니까?\n\n삭제하면 보관함 목록에서 제거됩니다.`
+    );
+
+
+  if (
+    !confirmed
+  ) {
+    return;
+  }
+
+
+  if (
+    deleteButton
+  ) {
+    deleteButton.disabled =
+      true;
+
+    deleteButton.textContent =
+      "삭제 중";
+  }
+
+
+  try {
+    const payload =
+      await requestApi(
+        HIGH_PRESSURE_GAS_API_URL,
+        {
+          method:
+            "DELETE",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body:
+            JSON.stringify({
+              id:
+                normalizedId,
+
+              expectedRevision:
+                revision
+            })
+        }
+      );
+
+
+    archiveAllLogs =
+      archiveAllLogs.filter(
+        log => {
+          return (
+            normalizeText(
+              log?.id
+            ) !==
+            normalizedId
+          );
+        }
+      );
+
+
+    renderArchiveBoard();
+
+
+    if (
+      currentLogId ===
+        normalizedId
+    ) {
+      currentLogId =
+        "";
+
+      currentRevision =
+        0;
+
+      isDirty =
+        false;
+
+
+      removeRecoveryDraft(
+        normalizedDate
+      );
+
+
+      if (
+        inspectionDate.value ===
+          normalizedDate
+      ) {
+        await loadLogForDate(
+          normalizedDate
+        );
+      }
+    }
+
+
+    window.alert(
+      payload.message ||
+      "고압가스 점검일지가 삭제되었습니다."
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "고압가스 점검일지 삭제 실패:",
+      error
+    );
+
+
+    if (
+      error.status ===
+        409
+    ) {
+      window.alert(
+        `${error.message}\n\n보관함을 새로고침한 뒤 다시 시도해 주세요.`
+      );
+
+
+      await loadArchiveBoard();
+
+    } else {
+      window.alert(
+        error.message ||
+        "고압가스 점검일지를 삭제하지 못했습니다."
+      );
+    }
+
+  } finally {
+    if (
+      deleteButton &&
+      deleteButton.isConnected
+    ) {
+      deleteButton.disabled =
+        false;
+
+      deleteButton.textContent =
+        "삭제";
+    }
+  }
+}
 
   async function openHistoryLog(
     logId,
@@ -2926,74 +3241,83 @@ function initializeHighPressureGasCheck() {
   );
 
 
-  archiveTableBody?.addEventListener(
-    "click",
-    event => {
-      const target =
-        event.target instanceof
+archiveTableBody?.addEventListener(
+  "click",
+  event => {
+    const target =
+      event.target instanceof
         Element
-          ? event.target
-          : null;
+        ? event.target
+        : null;
 
-      const openButton =
-        target?.closest(
-          "[data-gas-archive-open]"
-        );
 
-      if (
-        openButton
-      ) {
-        openHistoryLog(
-          openButton.getAttribute(
-            "data-gas-archive-open"
-          ),
-          false
-        );
+    const openButton =
+      target?.closest(
+        "[data-gas-archive-open]"
+      );
 
-        return;
-      }
 
-      const printButton =
-        target?.closest(
-          "[data-gas-archive-print]"
-        );
+    if (
+      openButton
+    ) {
+      openHistoryLog(
+        openButton.getAttribute(
+          "data-gas-archive-open"
+        ),
+        false
+      );
 
-      if (
-        printButton
-      ) {
-        openHistoryLog(
-          printButton.getAttribute(
-            "data-gas-archive-print"
-          ),
-          true
-        );
-
-        return;
-      }
-
-      const deleteButton =
-        target?.closest(
-          "[data-gas-archive-delete]"
-        );
-
-      if (
-        deleteButton
-      ) {
-        deleteArchiveLog(
-          deleteButton.getAttribute(
-            "data-gas-archive-delete"
-          ),
-          deleteButton.getAttribute(
-            "data-gas-archive-revision"
-          ),
-          deleteButton.getAttribute(
-            "data-gas-archive-date"
-          ),
-          deleteButton
-        );
-      }
+      return;
     }
-  );
+
+
+    const printButton =
+      target?.closest(
+        "[data-gas-archive-print]"
+      );
+
+
+    if (
+      printButton
+    ) {
+      openHistoryLog(
+        printButton.getAttribute(
+          "data-gas-archive-print"
+        ),
+        true
+      );
+
+      return;
+    }
+
+
+    const deleteButton =
+      target?.closest(
+        "[data-gas-archive-delete]"
+      );
+
+
+    if (
+      deleteButton
+    ) {
+      deleteArchiveLog(
+        deleteButton.getAttribute(
+          "data-gas-archive-delete"
+        ),
+
+        deleteButton.getAttribute(
+          "data-gas-archive-revision"
+        ),
+
+        deleteButton.getAttribute(
+          "data-gas-archive-date"
+        ),
+
+        deleteButton
+      );
+    }
+  }
+);
 
 
   templateCloseButton?.addEventListener(

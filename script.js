@@ -73689,6 +73689,192 @@ async function moveLimestoneDateRangeToToday() {
 
 
 /* =====================================================
+  기간 조회 설정창 열기
+===================================================== */
+
+function openLimestonePeriodSearchPanel() {
+  const {
+    searchForm,
+    startDateInput,
+    endDateInput,
+    openPeriodSearchButton
+  } =
+    getLimestoneReceiptElements();
+
+
+  if (
+    !searchForm
+  ) {
+    console.error(
+      "limestoneSearchForm을 찾을 수 없습니다."
+    );
+
+
+    showLimestoneToast(
+      "기간 조회 설정창을 찾을 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  /*
+    다른 입력창이 열려 있으면 닫는다.
+  */
+  if (
+    typeof closeLimestoneReceiptEditor ===
+      "function"
+  ) {
+    closeLimestoneReceiptEditor();
+  }
+
+
+  if (
+    typeof closeLimestoneImportPanel ===
+      "function"
+  ) {
+    closeLimestoneImportPanel();
+  }
+
+
+  /*
+    하루 조회 상태에서는 현재 보고 있는 날짜를
+    기간 조회 시작일·종료일 기본값으로 사용한다.
+  */
+  if (
+    limestoneReceiptState.queryMode ===
+      "day"
+  ) {
+    const selectedDay =
+      isValidLimestoneDate(
+        limestoneReceiptState.selectedDay
+      )
+        ? limestoneReceiptState.selectedDay
+        : getLimestoneToday();
+
+
+    if (
+      startDateInput
+    ) {
+      startDateInput.value =
+        selectedDay;
+    }
+
+
+    if (
+      endDateInput
+    ) {
+      endDateInput.value =
+        selectedDay;
+
+      endDateInput.min =
+        selectedDay;
+    }
+  }
+
+
+  searchForm.hidden =
+    false;
+
+
+  searchForm.removeAttribute(
+    "hidden"
+  );
+
+
+  searchForm.classList.add(
+    "is-open"
+  );
+
+
+  searchForm.style.removeProperty(
+    "display"
+  );
+
+
+  if (
+    openPeriodSearchButton
+  ) {
+    openPeriodSearchButton.classList.add(
+      "is-active"
+    );
+
+
+    openPeriodSearchButton.setAttribute(
+      "aria-expanded",
+      "true"
+    );
+  }
+
+
+  window.requestAnimationFrame(
+    () => {
+      searchForm.scrollIntoView({
+        behavior:
+          "smooth",
+
+        block:
+          "nearest"
+      });
+
+
+      startDateInput?.focus();
+    }
+  );
+}
+
+
+/* =====================================================
+  기간 조회 설정창 닫기
+===================================================== */
+
+function closeLimestonePeriodSearchPanel() {
+  const {
+    searchForm,
+    openPeriodSearchButton
+  } =
+    getLimestoneReceiptElements();
+
+
+  if (
+    !searchForm
+  ) {
+    return;
+  }
+
+
+  searchForm.classList.remove(
+    "is-open"
+  );
+
+
+  searchForm.hidden =
+    true;
+
+
+  searchForm.setAttribute(
+    "hidden",
+    ""
+  );
+
+
+  if (
+    openPeriodSearchButton
+  ) {
+    openPeriodSearchButton.classList.remove(
+      "is-active"
+    );
+
+
+    openPeriodSearchButton.setAttribute(
+      "aria-expanded",
+      "false"
+    );
+  }
+}
+
+/* =====================================================
   집계 방식 변경
 
   daily:
@@ -75384,10 +75570,16 @@ function renderLimestoneResult(
 
 
 /* =====================================================
-  입고기록 조회
+  석회석 입고기록 조회 최종본
 
-  합계 기준:
-  시작일~종료일에 조회된 자료만 계산한다.
+  하루 조회:
+  - 선택 날짜 하루만 조회
+  - 시작일 = 종료일
+
+  기간 조회:
+  - 사용자가 입력한 시작일~종료일 조회
+
+  서버 결과도 현재 조회조건으로 다시 필터링한다.
 ===================================================== */
 
 async function loadLimestoneReceipts() {
@@ -75407,26 +75599,139 @@ async function loadLimestoneReceipts() {
     getLimestoneReceiptElements();
 
 
-  const startDate =
-    String(
-      startDateInput?.value ||
-      ""
-    ).trim();
+  if (
+    !startDateInput ||
+    !endDateInput
+  ) {
+    console.error(
+      "석회석 조회 날짜 입력칸을 찾을 수 없습니다."
+    );
 
 
-  const endDate =
-    String(
-      endDateInput?.value ||
-      ""
-    ).trim();
+    return;
+  }
 
 
-  const unitNo =
-    String(
-      unitFilter?.value ||
-      ""
-    ).trim();
+  const isRangeMode =
+    limestoneReceiptState
+      .queryMode ===
+    "range";
 
+
+  let startDate =
+    "";
+
+
+  let endDate =
+    "";
+
+
+  let unitNo =
+    "";
+
+
+  /* ===================================================
+    하루 단위 조회
+
+    화면에 표시된 날짜를
+    시작일과 종료일에 강제로 동일하게 넣는다.
+  ==================================================== */
+
+  if (
+    !isRangeMode
+  ) {
+    const selectedDay =
+      isValidLimestoneDate(
+        limestoneReceiptState
+          .selectedDay
+      )
+        ? limestoneReceiptState
+            .selectedDay
+        : getLimestoneToday();
+
+
+    limestoneReceiptState
+      .queryMode =
+      "day";
+
+
+    limestoneReceiptState
+      .selectedDay =
+      selectedDay;
+
+
+    startDate =
+      selectedDay;
+
+
+    endDate =
+      selectedDay;
+
+
+    unitNo =
+      "";
+
+
+    startDateInput.value =
+      selectedDay;
+
+
+    endDateInput.value =
+      selectedDay;
+
+
+    /*
+      하루 조회에서는
+      전체·1호기·2호기 합계를 모두 보여준다.
+    */
+    if (
+      unitFilter
+    ) {
+      unitFilter.value =
+        "";
+    }
+
+
+    setLimestoneGroupMode(
+      "daily",
+      {
+        render:
+          false
+      }
+    );
+  }
+
+
+  /* ===================================================
+    직접 기간 조회
+  ==================================================== */
+
+  else {
+    startDate =
+      String(
+        startDateInput.value ||
+        ""
+      ).trim();
+
+
+    endDate =
+      String(
+        endDateInput.value ||
+        ""
+      ).trim();
+
+
+    unitNo =
+      String(
+        unitFilter?.value ||
+        ""
+      ).trim();
+  }
+
+
+  /* ===================================================
+    조회조건 검사
+  ==================================================== */
 
   if (
     !isValidLimestoneDate(
@@ -75458,6 +75763,23 @@ async function loadLimestoneReceipts() {
   }
 
 
+  limestoneReceiptState.range = {
+    startDate,
+
+    endDate,
+
+    unitNo:
+      unitNo
+        ? Number(
+            unitNo
+          )
+        : null
+  };
+
+
+  updateLimestonePeriodDisplay();
+
+
   const requestUrl =
     new URL(
       LIMESTONE_RECEIPTS_API_URL,
@@ -75487,7 +75809,15 @@ async function loadLimestoneReceipts() {
   }
 
 
-  updateLimestonePeriodDisplay();
+  /*
+    이전 조회 응답 캐시 방지
+  */
+  requestUrl.searchParams.set(
+    "_",
+    String(
+      Date.now()
+    )
+  );
 
 
   setLimestoneLoading(
@@ -75509,14 +75839,163 @@ async function loadLimestoneReceipts() {
       );
 
 
-    renderLimestoneResult(
-      result
-    );
+    const sourceItems =
+      Array.isArray(
+        result?.items
+      )
+        ? result.items
+        : [];
+
+
+    /*
+      API 응답도 현재 화면의 날짜와 호기로
+      다시 한 번 정확하게 필터링한다.
+    */
+    const filteredItems =
+      sourceItems
+        .filter(
+          item => {
+            const receiptDate =
+              String(
+                item?.receiptDate ||
+                item?.receipt_date ||
+                ""
+              ).trim();
+
+
+            const itemUnitNo =
+              Number(
+                item?.unitNo ??
+                item?.unit_no ??
+                0
+              );
+
+
+            if (
+              !receiptDate
+            ) {
+              return false;
+            }
+
+
+            if (
+              receiptDate <
+                startDate ||
+              receiptDate >
+                endDate
+            ) {
+              return false;
+            }
+
+
+            if (
+              unitNo &&
+              itemUnitNo !==
+                Number(
+                  unitNo
+                )
+            ) {
+              return false;
+            }
+
+
+            return true;
+          }
+        )
+        .sort(
+          (
+            firstItem,
+            secondItem
+          ) => {
+            const firstKey = [
+              String(
+                firstItem?.receiptDate ||
+                firstItem?.receipt_date ||
+                ""
+              ),
+
+              String(
+                firstItem?.receiptTime ||
+                firstItem?.receipt_time ||
+                ""
+              )
+            ].join(
+              " "
+            );
+
+
+            const secondKey = [
+              String(
+                secondItem?.receiptDate ||
+                secondItem?.receipt_date ||
+                ""
+              ),
+
+              String(
+                secondItem?.receiptTime ||
+                secondItem?.receipt_time ||
+                ""
+              )
+            ].join(
+              " "
+            );
+
+
+            return secondKey.localeCompare(
+              firstKey
+            );
+          }
+        );
+
+
+    renderLimestoneResult({
+      ...result,
+
+      items:
+        filteredItems,
+
+      range: {
+        startDate,
+
+        endDate,
+
+        unitNo:
+          unitNo
+            ? Number(
+                unitNo
+              )
+            : null
+      }
+    });
 
 
     limestoneReceiptState
       .hasLoaded =
       true;
+
+
+    console.log(
+      "석회석 조회 완료:",
+      {
+        queryMode:
+          limestoneReceiptState
+            .queryMode,
+
+        startDate,
+
+        endDate,
+
+        unitNo:
+          unitNo ||
+          "전체",
+
+        serverCount:
+          sourceItems.length,
+
+        displayedCount:
+          filteredItems.length
+      }
+    );
 
   } catch (
     error
