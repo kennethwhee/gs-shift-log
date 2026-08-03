@@ -230,7 +230,7 @@ button {
 .gas-check-sheet >
 .gas-check-section {
   width:
-    152mm;
+    150mm;
 
   margin-left:
     auto;
@@ -314,36 +314,36 @@ button {
 
 /* =========================================================
   제목·결재란
-  A4 한 장 인쇄 최적화
+  원본 배치와 동일하게 조정
 ========================================================= */
 
 .gas-check-title-row {
+  position:
+    relative;
+
   display:
-    grid;
-
-  grid-template-columns:
-    32mm 1fr 32mm;
-
-  align-items:
-    start;
+    block;
 
   min-height:
-    29mm;
+    42mm;
 
   margin-bottom:
-    6mm;
+    0;
 }
 
 
 .gas-check-title-spacer {
-  min-height:
-    1px;
+  display:
+    none;
 }
 
 
 .gas-check-main-title {
   margin:
-    5mm 0 0;
+    0;
+
+  padding-top:
+    5mm;
 
   color:
     #111111;
@@ -361,13 +361,13 @@ button {
     4px;
 
   font-size:
-    20px;
+    23px;
 
   font-weight:
     900;
 
   letter-spacing:
-    0.035em;
+    0.055em;
 
   white-space:
     nowrap;
@@ -375,20 +375,26 @@ button {
 
 
 .gas-check-approval-table {
-  width:
-    32mm !important;
+  position:
+    absolute;
 
-  justify-self:
-    end;
+  top:
+    19mm;
+
+  right:
+    0;
+
+  width:
+    38mm !important;
 
   font-size:
-    8px;
+    8.5px;
 }
 
 
 .gas-check-approval-table th {
   height:
-    9mm;
+    10mm;
 
   padding:
     1px;
@@ -409,7 +415,7 @@ button {
 
 .gas-check-approval-table td {
   height:
-    14mm;
+    16mm;
 
   padding:
     0;
@@ -418,7 +424,7 @@ button {
 
 .gas-check-approval-table input {
   min-height:
-    14mm;
+    16mm;
 
   padding:
     1px;
@@ -427,8 +433,9 @@ button {
     transparent;
 
   font-size:
-    8px;
+    8.5px;
 }
+
 /* =========================================================
   공통 섹션
 ========================================================= */
@@ -498,7 +505,7 @@ button {
     center;
 
   margin-bottom:
-    3mm;
+    5mm;
 }
 
 
@@ -514,7 +521,7 @@ button {
     0;
 
   font-size:
-    10px;
+    11px;
 }
 
 
@@ -578,14 +585,14 @@ button {
 
 .gas-check-overview-table {
   font-size:
-    8.5px;
+    9px;
 }
 
 
 .gas-check-overview-table th,
 .gas-check-overview-table td {
   height:
-    9.5mm;
+    11mm;
 }
 
 
@@ -648,31 +655,31 @@ button {
 
 .gas-check-overview-table input {
   min-height:
-    9mm;
+    10.5mm;
 
   background:
     #fffceb;
 
   font-size:
-    8.5px;
+    9px;
 }
 /* =========================================================
   점검내용 표
-  A4 한 장 인쇄 최적화
+  원본 행 높이·글씨 크기·간격
 ========================================================= */
 
 .gas-check-section:nth-of-type(2) {
   margin-top:
-    7mm;
+    11mm;
 }
 
 
 .gas-check-section:nth-of-type(2) h3 {
   margin:
-    0 0 3mm;
+    0 0 5mm;
 
   font-size:
-    10px;
+    11px;
 
   font-weight:
     900;
@@ -707,17 +714,17 @@ button {
 /* 표 전체 */
 .gas-check-detail-table {
   font-size:
-    8.2px;
+    8.8px;
 }
 
 
 /* 제목 행 */
 .gas-check-detail-table thead th {
   height:
-    8.5mm;
+    11mm;
 
   padding:
-    1px 3px;
+    2px 4px;
 
   background:
     #d8d8d8;
@@ -729,7 +736,7 @@ button {
     middle;
 
   font-size:
-    8.2px;
+    8.8px;
 
   font-weight:
     700;
@@ -739,22 +746,22 @@ button {
 /* 내용 행 */
 .gas-check-detail-table tbody td {
   height:
-    8.4mm;
+    10.5mm;
 
   padding:
-    1mm 1.2mm;
+    1.8mm 1.5mm;
 
   vertical-align:
     middle;
 
   font-size:
-    8.2px;
+    8.8px;
 
   font-weight:
     500;
 
   line-height:
-    1.25;
+    1.35;
 
   word-break:
     keep-all;
@@ -770,7 +777,6 @@ button {
 }
 
 
-/* 번호 */
 .gas-check-detail-table tbody td:nth-child(1) {
   padding-left:
     2px;
@@ -783,7 +789,6 @@ button {
 }
 
 
-/* 점검항목 */
 .gas-check-detail-table tbody td:nth-child(2) {
   padding-left:
     3px;
@@ -796,20 +801,18 @@ button {
 }
 
 
-/* 확인내용 */
 .gas-check-detail-table tbody td:nth-child(3) {
   padding-left:
-    1.5mm;
+    2mm;
 
   padding-right:
-    1.2mm;
+    1.5mm;
 
   text-align:
     left;
 }
 
 
-/* 점검결과 입력칸 */
 .gas-check-detail-table tbody td:nth-child(4) {
   padding:
     0;
@@ -824,10 +827,10 @@ button {
     100%;
 
   min-height:
-    8mm;
+    10mm;
 
   padding:
-    1px;
+    2px;
 
   background:
     #fffceb;
@@ -836,21 +839,21 @@ button {
     center;
 
   font-size:
-    8.2px;
+    8.8px;
 
   font-weight:
     700;
 }
 
 
-/* 내용이 두 줄인 행 */
+/* 원본에서 두 줄로 표시되는 행 */
 .gas-check-detail-table tbody tr:nth-child(3) td,
 .gas-check-detail-table tbody tr:nth-child(5) td,
 .gas-check-detail-table tbody tr:nth-child(9) td,
 .gas-check-detail-table tbody tr:nth-child(11) td,
 .gas-check-detail-table tbody tr:nth-child(12) td {
   height:
-    10.8mm;
+    14mm;
 }
 
 
@@ -860,8 +863,9 @@ button {
 .gas-check-detail-table tbody tr:nth-child(11) input,
 .gas-check-detail-table tbody tr:nth-child(12) input {
   min-height:
-    10.4mm;
+    13.5mm;
 }
+
 /* =========================================================
   하단 확인란
 ========================================================= */
@@ -1175,7 +1179,7 @@ button {
 
 .gas-check-confirmation-row td {
   height:
-    7.5mm;
+    9.5mm;
 
   padding:
     0 !important;
@@ -1193,7 +1197,7 @@ button {
     15% 35% 20% 30%;
 
   min-height:
-    7.5mm;
+    9.5mm;
 }
 
 
@@ -1244,7 +1248,7 @@ button {
     100%;
 
   min-height:
-    7mm;
+    9mm;
 
   padding:
     2px 5px;
@@ -1881,6 +1885,28 @@ button {
 
 }
 
+
+/* 실제 브라우저 인쇄용 날짜 */
+.gas-check-print-date-value {
+  display:
+    none;
+
+  color:
+    #111111;
+
+  font-size:
+    8.5px;
+
+  font-weight:
+    500;
+
+  line-height:
+    1;
+
+  white-space:
+    nowrap;
+}
+
 @media print {
 
   html,
@@ -1943,7 +1969,7 @@ button {
       0;
 
     padding:
-      20mm 0 8mm;
+      20mm 0 6mm;
 
     overflow:
       hidden;
@@ -1959,6 +1985,24 @@ button {
 
     box-shadow:
       none !important;
+  }
+
+
+  .gas-check-date-field input {
+    display:
+      none !important;
+  }
+
+
+  .gas-check-print-date-value {
+    display:
+      inline-block;
+
+    min-width:
+      31mm;
+
+    text-align:
+      center;
   }
 
 

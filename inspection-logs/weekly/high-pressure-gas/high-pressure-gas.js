@@ -2112,7 +2112,65 @@ function initializeHighPressureGasCheck() {
   }
 
 
+
+  /* =======================================================
+    실제 브라우저 인쇄용 날짜 표시
+
+    date input은 브라우저에 따라 2026-08-03 형식으로
+    인쇄되므로 원본 양식에 맞는 별도 텍스트를 사용한다.
+  ======================================================= */
+
+  function ensurePrintDateValueElement() {
+    let printDateValue =
+      document.querySelector(
+        ".gas-check-print-date-value"
+      );
+
+    if (
+      printDateValue
+    ) {
+      return printDateValue;
+    }
+
+    printDateValue =
+      document.createElement(
+        "span"
+      );
+
+    printDateValue.className =
+      "gas-check-print-date-value";
+
+    inspectionDate.insertAdjacentElement(
+      "afterend",
+      printDateValue
+    );
+
+    return printDateValue;
+  }
+
+
+  function updatePrintDateValue() {
+    const printDateValue =
+      ensurePrintDateValueElement();
+
+    const dateValue =
+      String(
+        inspectionDate.value ||
+        ""
+      ).trim();
+
+    printDateValue.textContent =
+      dateValue
+        ? formatDateForPrint(
+            dateValue
+          )
+        : "      년      월      일";
+  }
+
+
   function printInspectionSheet() {
+    updatePrintDateValue();
+
     closePrintPreview();
 
     window.setTimeout(
@@ -2393,6 +2451,15 @@ function initializeHighPressureGasCheck() {
   );
 
 
+
+  window.addEventListener(
+    "beforeprint",
+    () => {
+      updatePrintDateValue();
+    }
+  );
+
+
   window.addEventListener(
     "beforeunload",
     event => {
@@ -2416,6 +2483,8 @@ function initializeHighPressureGasCheck() {
   ======================================================= */
 
   refreshTemplateEditButton();
+
+  ensurePrintDateValueElement();
 
   applyTemplateToSheet(
     DEFAULT_TEMPLATE_ITEMS
