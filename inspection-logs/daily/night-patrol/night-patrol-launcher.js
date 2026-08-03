@@ -1,7 +1,7 @@
 "use strict";
 
 /* =========================================================
-  GS Shift Log - 야간 순찰 점검일지 실행기
+  GS Shift Log - 점검일지 실행기
 
   사용 조건:
   - PC 화면에서만 사용 가능
@@ -24,7 +24,7 @@
   const BUTTON_ID = "nightPatrolButton";
   const FRAME_ID = "nightPatrolFrame";
   const PAGE_URL =
-    "inspection-logs/inspection-logs.html?v=20260803-1";
+    "inspection-logs/inspection-logs.html?v=20260803-2";
 
   const AUTH_STORAGE_KEY =
     "gsShiftLog.currentUser";
@@ -607,12 +607,12 @@
       >
         <header class="modal-header night-patrol-modal__header">
           <div>
-            <p class="modal-header__eyebrow">NIGHT PATROL</p>
+            <p class="modal-header__eyebrow">INSPECTION LOGS</p>
             <h2
               class="modal-header__title"
               id="nightPatrolModalTitle"
             >
-              야간 순찰 점검일지
+              점검일지
             </h2>
           </div>
 
@@ -620,7 +620,7 @@
             type="button"
             class="modal-close-button"
             id="closeNightPatrolButton"
-            aria-label="야간 순찰 점검일지 닫기"
+            aria-label="점검일지 닫기"
           >
             ×
           </button>
@@ -630,7 +630,7 @@
           <iframe
             id="${FRAME_ID}"
             class="night-patrol-frame"
-            title="야간 순찰 점검일지"
+            title="점검일지"
             loading="lazy"
           ></iframe>
         </div>
