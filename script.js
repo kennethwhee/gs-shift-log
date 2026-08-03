@@ -84567,7 +84567,7 @@ createLogRowHtml =
 
 
               titleElement.textContent =
-                "발행내역";
+                "발행 내역";
             }
           );
 
@@ -84662,7 +84662,7 @@ openLogDetail =
 
 
                 titleElement.textContent =
-                  "발행내역";
+                  "발행 내역";
               }
             );
         }
