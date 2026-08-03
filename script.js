@@ -83021,3 +83021,672 @@ function bindLimestoneReceiptEvents() {
       };
     };
 })();
+
+/* =========================================================
+  비고 항목 제자리 수정 최종본
+
+  동작:
+  - 비고의 수정 버튼 클릭
+  - 현재 줄이 textarea로 변경
+  - 저장 또는 취소
+  - 상단 공통 업무 입력창은 사용하지 않음
+
+  적용:
+  - 모든 보직
+========================================================= */
+
+(function installInlineRemarkEditor() {
+  let editingRemarkIndex =
+    -1;
+
+
+  /* =====================================================
+    비고 항목 여부
+  ====================================================== */
+
+  function isInlineRemarkEntry(
+    entry
+  ) {
+    return (
+      String(
+        entry?.category ||
+        ""
+      ).trim() ===
+      "비고"
+    );
+  }
+
+
+  /* =====================================================
+    비고 테이블
+  ====================================================== */
+
+  function getInlineRemarkTableBody() {
+    return document.getElementById(
+      "noteEntryTableBody"
+    );
+  }
+
+
+  /* =====================================================
+    textarea 높이 자동 조절
+  ====================================================== */
+
+  function resizeInlineRemarkTextarea(
+    textarea
+  ) {
+    if (
+      !textarea
+    ) {
+      return;
+    }
+
+
+    textarea.style.height =
+      "auto";
+
+
+    const nextHeight =
+      Math.min(
+        180,
+        Math.max(
+          58,
+          textarea.scrollHeight
+        )
+      );
+
+
+    textarea.style.height =
+      `${nextHeight}px`;
+  }
+
+
+  /* =====================================================
+    비고 제자리 수정 취소
+  ====================================================== */
+
+  function cancelInlineRemarkEdit() {
+    editingRemarkIndex =
+      -1;
+
+
+    renderLogEntryTable();
+  }
+
+
+  /* =====================================================
+    비고 제자리 수정 저장
+  ====================================================== */
+
+  function saveInlineRemarkEdit(
+    targetRow
+  ) {
+    const entryIndex =
+      Number(
+        targetRow?.dataset
+          ?.entryIndex
+      );
+
+
+    const textarea =
+      targetRow?.querySelector(
+        "[data-inline-remark-textarea]"
+      );
+
+
+    if (
+      !Number.isInteger(
+        entryIndex
+      ) ||
+      !appState.editorEntries[
+        entryIndex
+      ]
+    ) {
+      showToast(
+        "수정할 비고를 찾을 수 없습니다."
+      );
+
+
+      return;
+    }
+
+
+    const content =
+      String(
+        textarea?.value ||
+        ""
+      )
+        .replace(
+          /\r\n/g,
+          "\n"
+        )
+        .replace(
+          /\r/g,
+          "\n"
+        )
+        .trim();
+
+
+    if (
+      !content
+    ) {
+      showToast(
+        "비고 내용을 입력해 주세요."
+      );
+
+
+      textarea?.focus();
+
+
+      return;
+    }
+
+
+    /*
+      기존 출처·작성 정보는 유지하고
+      비고 내용만 변경한다.
+    */
+    appState.editorEntries[
+      entryIndex
+    ] = {
+      ...appState.editorEntries[
+        entryIndex
+      ],
+
+      category:
+        "비고",
+
+      /*
+        비고는 자유 텍스트이므로
+        시간과 TAG를 사용하지 않는다.
+      */
+      time:
+        "",
+
+      tag:
+        "",
+
+      content
+    };
+
+
+    editingRemarkIndex =
+      -1;
+
+
+    /*
+      목록과 기존 log.note 문자열을
+      함께 다시 동기화한다.
+    */
+    renderLogEntryTable();
+
+
+    if (
+      typeof updateMemberLogImportStatus ===
+        "function"
+    ) {
+      updateMemberLogImportStatus();
+    }
+
+
+    showToast(
+      "비고를 수정했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    비고 제자리 수정 시작
+  ====================================================== */
+
+  function startInlineRemarkEdit(
+    entryIndex
+  ) {
+    const tableBody =
+      getInlineRemarkTableBody();
+
+
+    const entry =
+      appState.editorEntries[
+        entryIndex
+      ];
+
+
+    if (
+      !tableBody ||
+      !isInlineRemarkEntry(
+        entry
+      )
+    ) {
+      return;
+    }
+
+
+    /*
+      다른 비고를 수정 중이었다면
+      먼저 기존 편집 상태를 종료한다.
+    */
+    if (
+      editingRemarkIndex >=
+        0 &&
+      editingRemarkIndex !==
+        entryIndex
+    ) {
+      renderLogEntryTable();
+    }
+
+
+    editingRemarkIndex =
+      entryIndex;
+
+
+    const targetRow =
+      tableBody.querySelector(
+        `tr[data-entry-index="${entryIndex}"]`
+      );
+
+
+    if (
+      !targetRow
+    ) {
+      editingRemarkIndex =
+        -1;
+
+
+      showToast(
+        "수정할 비고 행을 찾을 수 없습니다."
+      );
+
+
+      return;
+    }
+
+
+    const rowShell =
+      targetRow.querySelector(
+        "[data-entry-row-shell]"
+      );
+
+
+    const contentHost =
+      targetRow.querySelector(
+        ".log-entry-row-content"
+      );
+
+
+    const actionHost =
+      targetRow.querySelector(
+        ".log-entry-row-actions"
+      );
+
+
+    if (
+      !rowShell ||
+      !contentHost ||
+      !actionHost
+    ) {
+      editingRemarkIndex =
+        -1;
+
+
+      showToast(
+        "비고 수정 화면을 만들 수 없습니다."
+      );
+
+
+      return;
+    }
+
+
+    const displayNumber =
+      String(
+        targetRow
+          .querySelector(
+            ".log-entry-document-number"
+          )
+          ?.textContent ||
+        ""
+      ).trim();
+
+
+    targetRow.classList.add(
+      "is-inline-remark-editing"
+    );
+
+
+    rowShell.style
+      .gridTemplateColumns =
+      "32px minmax(0, 1fr) 108px";
+
+
+    contentHost.innerHTML = `
+      <div class="inline-remark-editor">
+
+        <span class="inline-remark-number">
+          ${escapeHtml(
+            displayNumber
+          )}
+        </span>
+
+        <textarea
+          class="inline-remark-textarea"
+          data-inline-remark-textarea
+          rows="2"
+          maxlength="2000"
+          aria-label="비고 내용 수정"
+        >${escapeHtml(
+          entry.content ||
+          ""
+        )}</textarea>
+
+      </div>
+    `;
+
+
+    actionHost.hidden =
+      false;
+
+
+    actionHost.removeAttribute(
+      "hidden"
+    );
+
+
+    actionHost.classList.add(
+      "inline-remark-actions"
+    );
+
+
+    actionHost.innerHTML = `
+      <button
+        type="button"
+        class="inline-remark-save-button"
+        data-inline-remark-action="save"
+      >
+        저장
+      </button>
+
+      <button
+        type="button"
+        class="inline-remark-cancel-button"
+        data-inline-remark-action="cancel"
+      >
+        취소
+      </button>
+    `;
+
+
+    const textarea =
+      contentHost.querySelector(
+        "[data-inline-remark-textarea]"
+      );
+
+
+    resizeInlineRemarkTextarea(
+      textarea
+    );
+
+
+    window.setTimeout(
+      () => {
+        textarea?.focus();
+
+        textarea?.setSelectionRange(
+          textarea.value.length,
+          textarea.value.length
+        );
+      },
+      0
+    );
+  }
+
+
+  /* =====================================================
+    비고 테이블 이벤트 연결
+
+    capture 단계에서 기존 수정 이벤트보다
+    먼저 처리하여 상단 입력창 이동을 막는다.
+  ====================================================== */
+
+  function bindInlineRemarkEditor() {
+    const tableBody =
+      getInlineRemarkTableBody();
+
+
+    if (
+      !tableBody ||
+      tableBody.dataset
+        .inlineRemarkEditorBound ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    tableBody.addEventListener(
+      "click",
+      event => {
+        const inlineActionButton =
+          event.target.closest(
+            "[data-inline-remark-action]"
+          );
+
+
+        if (
+          inlineActionButton
+        ) {
+          event.preventDefault();
+
+          event.stopPropagation();
+
+          event.stopImmediatePropagation();
+
+
+          const targetRow =
+            inlineActionButton.closest(
+              "tr[data-entry-index]"
+            );
+
+
+          const action =
+            inlineActionButton.dataset
+              .inlineRemarkAction;
+
+
+          if (
+            action ===
+            "save"
+          ) {
+            saveInlineRemarkEdit(
+              targetRow
+            );
+
+
+            return;
+          }
+
+
+          if (
+            action ===
+            "cancel"
+          ) {
+            cancelInlineRemarkEdit();
+          }
+
+
+          return;
+        }
+
+
+        /*
+          기존 비고 수정 버튼을 가로채서
+          상단 공통 입력창 대신 제자리 수정한다.
+        */
+        const editButton =
+          event.target.closest(
+            '[data-entry-action="edit"]'
+          );
+
+
+        if (
+          !editButton
+        ) {
+          return;
+        }
+
+
+        const entryIndex =
+          Number(
+            editButton.dataset
+              .entryIndex
+          );
+
+
+        const entry =
+          appState.editorEntries[
+            entryIndex
+          ];
+
+
+        if (
+          !Number.isInteger(
+            entryIndex
+          ) ||
+          !isInlineRemarkEntry(
+            entry
+          )
+        ) {
+          return;
+        }
+
+
+        event.preventDefault();
+
+        event.stopPropagation();
+
+        event.stopImmediatePropagation();
+
+
+        startInlineRemarkEdit(
+          entryIndex
+        );
+      },
+      true
+    );
+
+
+    /*
+      입력 내용에 맞춰 높이 자동 조절
+    */
+    tableBody.addEventListener(
+      "input",
+      event => {
+        const textarea =
+          event.target.closest(
+            "[data-inline-remark-textarea]"
+          );
+
+
+        if (
+          textarea
+        ) {
+          resizeInlineRemarkTextarea(
+            textarea
+          );
+        }
+      }
+    );
+
+
+    /*
+      Ctrl + Enter:
+      저장
+
+      Escape:
+      취소
+
+      일반 Enter:
+      줄바꿈
+    */
+    tableBody.addEventListener(
+      "keydown",
+      event => {
+        const textarea =
+          event.target.closest(
+            "[data-inline-remark-textarea]"
+          );
+
+
+        if (
+          !textarea
+        ) {
+          return;
+        }
+
+
+        if (
+          event.key ===
+          "Escape"
+        ) {
+          event.preventDefault();
+
+          event.stopPropagation();
+
+
+          cancelInlineRemarkEdit();
+
+
+          return;
+        }
+
+
+        if (
+          event.key ===
+            "Enter" &&
+          (
+            event.ctrlKey ||
+            event.metaKey
+          )
+        ) {
+          event.preventDefault();
+
+          event.stopPropagation();
+
+
+          const targetRow =
+            textarea.closest(
+              "tr[data-entry-index]"
+            );
+
+
+          saveInlineRemarkEdit(
+            targetRow
+          );
+        }
+      }
+    );
+
+
+    tableBody.dataset
+      .inlineRemarkEditorBound =
+      "true";
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      bindInlineRemarkEditor,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    bindInlineRemarkEditor();
+  }
+})();

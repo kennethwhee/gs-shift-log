@@ -63743,3 +63743,208 @@ select {
   }
 
 }
+
+/* =========================================================
+  비고 제자리 텍스트 수정
+========================================================= */
+
+#noteEntryTableBody
+tr.is-inline-remark-editing
+.log-entry-row-shell {
+  grid-template-columns:
+    32px
+    minmax(0, 1fr)
+    108px
+    !important;
+
+  align-items: start !important;
+
+  background: #fbf9ff !important;
+}
+
+
+#noteEntryTableBody
+.inline-remark-editor {
+  display: grid;
+
+  grid-template-columns:
+    25px
+    minmax(0, 1fr);
+
+  align-items: start;
+
+  gap: 7px;
+
+  width: 100%;
+  min-width: 0;
+}
+
+
+#noteEntryTableBody
+.inline-remark-number {
+  padding-top: 8px;
+
+  color: #514a78;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.4;
+
+  text-align: right;
+
+  white-space: nowrap;
+}
+
+
+#noteEntryTableBody
+.inline-remark-textarea {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+  min-height: 58px;
+  max-height: 180px;
+
+  padding: 8px 10px;
+
+  border: 1px solid #9e92c9;
+  border-radius: 7px;
+
+  background: #ffffff;
+  color: #263248;
+
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+
+  resize: vertical;
+  outline: none;
+
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+
+  box-sizing: border-box;
+}
+
+
+#noteEntryTableBody
+.inline-remark-textarea:focus {
+  border-color: #6e61a8;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(110, 97, 168, 0.12);
+}
+
+
+#noteEntryTableBody
+.inline-remark-actions {
+  display: flex !important;
+
+  width: 108px !important;
+  min-width: 108px !important;
+
+  align-items: center !important;
+  justify-content: flex-end !important;
+
+  gap: 5px !important;
+
+  padding-top: 1px;
+}
+
+
+#noteEntryTableBody
+.inline-remark-save-button,
+#noteEntryTableBody
+.inline-remark-cancel-button {
+  min-width: 50px;
+  height: 31px;
+
+  padding: 0 8px;
+
+  border-radius: 6px;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+
+#noteEntryTableBody
+.inline-remark-save-button {
+  border: 1px solid #6c60a6;
+
+  background: #6c60a6;
+  color: #ffffff;
+}
+
+
+#noteEntryTableBody
+.inline-remark-cancel-button {
+  border: 1px solid #cbc6dc;
+
+  background: #ffffff;
+  color: #625c77;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+
+  #noteEntryTableBody
+  tr.is-inline-remark-editing
+  .log-entry-row-shell {
+    grid-template-columns:
+      26px
+      minmax(0, 1fr)
+      !important;
+
+    row-gap: 7px !important;
+  }
+
+
+  #noteEntryTableBody
+  tr.is-inline-remark-editing
+  .log-entry-row-content {
+    grid-column: 2;
+  }
+
+
+  #noteEntryTableBody
+  .inline-remark-editor {
+    grid-template-columns:
+      minmax(0, 1fr);
+  }
+
+
+  #noteEntryTableBody
+  .inline-remark-number {
+    display: none;
+  }
+
+
+  #noteEntryTableBody
+  .inline-remark-actions {
+    grid-column: 2;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    justify-content: flex-end !important;
+  }
+
+
+  #noteEntryTableBody
+  .inline-remark-textarea {
+    min-height: 72px;
+
+    font-size: 12px;
+  }
+
+}
