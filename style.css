@@ -60728,3 +60728,267 @@ thead th {
   }
 
 }
+
+/* =========================================================
+  작업내역 시간 직접 수정 최종본
+
+  적용:
+  - 신규 항목 시간 직접 입력
+  - 기존 항목 시간 추가·수정
+  - 여러 시간 및 시간 범위
+========================================================= */
+
+#logEditorModal
+#logEntryInputPanel
+.log-entry-current-time-field {
+  display: flex !important;
+  min-width: 0 !important;
+  flex-direction: column !important;
+}
+
+
+#logEditorModal
+#logEntryInputPanel
+.log-entry-time-edit-group {
+  display: grid !important;
+  width: 100% !important;
+  min-width: 0 !important;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    92px !important;
+
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+
+#logEditorModal
+#logEntryInputPanel
+#logEntryTime[type="text"] {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  height: 34px !important;
+  min-height: 34px !important;
+
+  margin: 0 !important;
+  padding: 0 9px !important;
+
+  border: 1px solid #c8d4e1 !important;
+  border-radius: 7px !important;
+
+  background: #ffffff !important;
+  color: #26364c !important;
+
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  font-variant-numeric: tabular-nums !important;
+
+  outline: none !important;
+}
+
+
+#logEditorModal
+#logEntryInputPanel
+#logEntryTime[type="text"]:focus {
+  border-color: #5c94cf !important;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(31, 95, 174, 0.1) !important;
+}
+
+
+#logEditorModal
+#logEntryInputPanel
+.log-entry-time-edit-group
+.current-time-check {
+  width: 92px !important;
+  min-width: 92px !important;
+
+  height: 34px !important;
+  min-height: 34px !important;
+}
+
+
+/* =========================================================
+  PC
+========================================================= */
+
+@media (min-width: 981px) {
+
+  /* 인계사항·비고 */
+
+  #logEditorModal
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-input-top-row {
+    grid-template-columns:
+      158px
+      320px
+      auto
+      minmax(0, 1fr) !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-current-time-field {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+
+    width: 320px !important;
+    min-width: 320px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-compact-entry-layout
+  .log-entry-input-actions {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+  }
+
+
+  /* TM·BM·CM */
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-top-row {
+    grid-template-columns:
+      140px
+      260px
+      minmax(220px, 1fr)
+      155px
+      78px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--category {
+    width: 140px !important;
+    min-width: 140px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-current-time-field {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+
+    width: 260px !important;
+    min-width: 260px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--tag {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+
+    width: 100% !important;
+    min-width: 220px !important;
+    max-width: none !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-navigator-history-field {
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+
+    width: 155px !important;
+    min-width: 155px !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-input-actions {
+    grid-column: 5 !important;
+    grid-row: 1 !important;
+
+    width: 78px !important;
+    min-width: 78px !important;
+  }
+}
+
+
+/* =========================================================
+  태블릿·모바일
+========================================================= */
+
+@media (max-width: 980px) {
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-input-top-row {
+    grid-template-columns:
+      1fr !important;
+
+    grid-template-rows:
+      auto !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-field--category,
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-current-time-field,
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-field--tag,
+
+  #logEditorModal
+  #logEntryInputPanel.is-tag-entry-layout
+  .log-entry-navigator-history-field,
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-input-actions {
+    grid-column:
+      1 !important;
+
+    grid-row:
+      auto !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-input-actions {
+    justify-content:
+      stretch !important;
+  }
+
+
+  #logEditorModal
+  #logEntryInputPanel
+  .log-entry-input-actions
+  button {
+    flex:
+      1 1 0 !important;
+
+    width:
+      auto !important;
+
+    min-width:
+      0 !important;
+  }
+}

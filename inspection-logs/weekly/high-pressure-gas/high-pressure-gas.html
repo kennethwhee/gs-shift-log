@@ -41,44 +41,66 @@
       인쇄 시 표시되지 않음
     ====================================================== -->
 
-    <header class="gas-check-toolbar screen-only">
+<header class="gas-check-toolbar screen-only">
 
-      <div>
+  <div>
 
-        <p class="gas-check-toolbar__eyebrow">
-          WEEKLY INSPECTION
-        </p>
+    <p class="gas-check-toolbar__eyebrow">
+      WEEKLY INSPECTION
+    </p>
 
-        <h1>
-          고압가스 저장시설 주간점검
-        </h1>
+    <h1>
+      고압가스 저장시설 주간점검
+    </h1>
 
-        <p class="gas-check-toolbar__schedule">
-          매주 일요일 D/S
-        </p>
+    <p class="gas-check-toolbar__schedule">
+      매주 일요일 D/S
+    </p>
 
-      </div>
+    <p
+      class="gas-check-toolbar__save-state"
+      id="gasCheckSaveState"
+    >
+      저장되지 않음
+    </p>
+
+  </div>
 
 
-      <div class="gas-check-toolbar__actions">
+  <div class="gas-check-toolbar__actions">
 
-        <button
-          type="button"
-          id="gasCheckSaveButton"
-        >
-          임시저장
-        </button>
+    <button
+      type="button"
+      id="gasTemplateEditButton"
+      hidden
+    >
+      내용 편집
+    </button>
 
-        <button
-          type="button"
-          id="gasCheckPreviewButton"
-        >
-          인쇄 미리보기
-        </button>
+    <button
+      type="button"
+      id="gasCheckHistoryButton"
+    >
+      저장 기록
+    </button>
 
-      </div>
+    <button
+      type="button"
+      id="gasCheckSaveButton"
+    >
+      일지 저장
+    </button>
 
-    </header>
+    <button
+      type="button"
+      id="gasCheckPreviewButton"
+    >
+      인쇄 미리보기
+    </button>
+
+  </div>
+
+</header>
 
 
     <!-- =====================================================
@@ -704,6 +726,145 @@
 
     </section>
 
+<!-- =====================================================
+  점검표 내용 편집 팝업
+  최고관리자만 사용
+====================================================== -->
+
+<section
+  class="gas-template-modal screen-only"
+  id="gasTemplateModal"
+  hidden
+>
+
+  <div class="gas-template-modal__panel">
+
+    <header class="gas-template-modal__header">
+
+      <div>
+
+        <strong>
+          고압가스 점검표 내용 편집
+        </strong>
+
+        <small>
+          점검항목과 확인내용을 수정할 수 있습니다.
+        </small>
+
+      </div>
+
+
+      <button
+        type="button"
+        id="gasTemplateCloseButton"
+        aria-label="내용 편집 닫기"
+      >
+        ×
+      </button>
+
+    </header>
+
+
+    <div class="gas-template-modal__notice">
+
+      <strong>
+        주의
+      </strong>
+
+      <span>
+        수정한 내용은 이후 저장되는 점검일지와 인쇄 양식에 적용됩니다.
+      </span>
+
+    </div>
+
+
+    <div
+      class="gas-template-modal__body"
+      id="gasTemplateEditList"
+    >
+
+      <!-- JavaScript가 12개 점검항목을 자동으로 생성 -->
+
+    </div>
+
+
+    <footer class="gas-template-modal__footer">
+
+      <button
+        type="button"
+        id="gasTemplateCancelButton"
+      >
+        취소
+      </button>
+
+
+      <button
+        type="button"
+        id="gasTemplateApplyButton"
+      >
+        내용 적용
+      </button>
+
+    </footer>
+
+  </div>
+
+</section>
+
+    <!-- =====================================================
+  저장 기록 팝업
+====================================================== -->
+
+<section
+  class="gas-history-modal screen-only"
+  id="gasHistoryModal"
+  hidden
+>
+
+  <div class="gas-history-modal__panel">
+
+    <header class="gas-history-modal__header">
+
+      <div>
+
+        <strong>
+          고압가스 점검일지 저장 기록
+        </strong>
+
+        <small>
+          저장된 일지를 선택하면 상세보기·수정·인쇄가 가능합니다.
+        </small>
+
+      </div>
+
+      <button
+        type="button"
+        id="gasHistoryCloseButton"
+        aria-label="저장 기록 닫기"
+      >
+        ×
+      </button>
+
+    </header>
+
+
+    <div
+      class="gas-history-modal__body"
+      id="gasHistoryList"
+    >
+
+      <div
+        class="gas-history-empty"
+        id="gasHistoryEmpty"
+      >
+        저장된 점검일지가 없습니다.
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
 
     <!-- =====================================================
       인쇄 미리보기 팝업

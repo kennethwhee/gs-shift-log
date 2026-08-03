@@ -30305,6 +30305,44 @@ function addOrUpdateLogEntry() {
 }
 
 /* =========================================================
+  작업 시간 저장 전 검증
+
+  기존 addOrUpdateLogEntry()의
+  보직·원본 출처·네비게이터 연동 로직은 유지하고,
+  수동 시간 입력값만 먼저 정규화한다.
+========================================================= */
+
+const addOrUpdateLogEntryBeforeTimeValidation =
+  addOrUpdateLogEntry;
+
+
+addOrUpdateLogEntry =
+  function addOrUpdateLogEntryWithTimeValidation() {
+    const rawTime =
+      String(
+        elements.logEntryTime?.value ||
+        ""
+      ).trim();
+
+
+    /*
+      시간 입력값이 있으면 형식을 검사한다.
+
+      잘못된 시간은 저장하지 않는다.
+      시간 입력이 비어 있는 항목은 기존처럼 허용한다.
+    */
+    if (
+      rawTime &&
+      !normalizeLogEntryTime()
+    ) {
+      return;
+    }
+
+
+    return addOrUpdateLogEntryBeforeTimeValidation();
+  };
+
+/* =========================================================
   업무 항목 TAG 버튼 생성
 ========================================================= */
 
@@ -32482,48 +32520,103 @@ function handleLogEntryTableClick(event) {
 
 
 function startLogEntryEdit(entryIndex) {
-  const entry = appState.editorEntries[entryIndex];
+  const entry =
+    appState.editorEntries[
+      entryIndex
+    ];
+
 
   if (!entry) {
     return;
   }
 
-  appState.editingEntryIndex = entryIndex;
 
-  elements.logEntryTime.value =
-    entry.time || "";
+  appState.editingEntryIndex =
+    entryIndex;
 
-  if (elements.useCurrentTimeCheckbox) {
-    elements.useCurrentTimeCheckbox.checked = false;
+
+  if (
+    elements.logEntryTime
+  ) {
+    elements.logEntryTime.value =
+      String(
+        entry.time ||
+        ""
+      ).trim();
   }
 
+
+  if (
+    elements.useCurrentTimeCheckbox
+  ) {
+    elements.useCurrentTimeCheckbox.checked =
+      false;
+  }
+
+
   elements.logEntryCategory.value =
-    entry.category || "인계사항";
+    entry.category ||
+    "인계사항";
+
 
   elements.logEntryTag.value =
-    entry.tag || "";
+    entry.tag ||
+    "";
+
 
   elements.logEntryContent.value =
-    entry.content || "";
+    entry.content ||
+    "";
+
 
   elements.addLogEntryButton.textContent =
     "수정 완료";
 
-  elements.cancelLogEntryEditButton.hidden = false;
+
+  elements.cancelLogEntryEditButton.hidden =
+    false;
+
 
   elements.logEntryInputPanel.classList.add(
     "is-editing"
   );
 
+
   updateTagFieldVisibility();
+
   renderLogEntryTable();
 
+
   elements.logEntryInputPanel.scrollIntoView({
-    behavior: "smooth",
-    block: "center"
+    behavior:
+      "smooth",
+
+    block:
+      "center"
   });
 
-  elements.logEntryContent.focus();
+
+  /*
+    기존 시간이 바로 수정 가능하도록
+    시간 입력칸을 먼저 선택한다.
+  */
+  window.setTimeout(
+    () => {
+      if (
+        elements.logEntryTime
+      ) {
+        elements.logEntryTime.focus();
+        elements.logEntryTime.select();
+
+        return;
+      }
+
+
+      elements.logEntryContent
+        ?.focus();
+    },
+    180
+  );
 }
 
 
@@ -32580,138 +32673,140 @@ function deleteLogEntry(entryIndex) {
 ========================================================= */
 
 function handleLogEntryTimeInput(event) {
-  const input = event?.target || elements.logEntryTime;
+  const input =
+    event?.target ||
+    elements.logEntryTime;
+
 
   if (!input) {
     return;
   }
 
-  const cursorPosition =
-    typeof input.selectionStart === "number"
-      ? input.selectionStart
-      : 0;
-
-  const previousValue = input.value;
-
-  let digits = previousValue.replace(/\D/g, "");
 
   /*
-    HHMM까지만 입력 가능
-  */
-  digits = digits.slice(0, 4);
-
-  let formattedValue = "";
-
-  if (digits.length <= 2) {
-    formattedValue = digits;
-  } else {
-    formattedValue =
-      `${digits.slice(0, 2)}:${digits.slice(2)}`;
-  }
-
-  input.value = formattedValue;
-
-  /*
-    현재시간 체크 후 사용자가 직접 수정하면
-    체크 상태를 해제한다.
+    현재시간 적용 후 사용자가 직접 수정하면
+    현재시간 체크를 해제한다.
   */
   if (
-    elements.useCurrentTimeCheckbox &&
-    elements.useCurrentTimeCheckbox.checked
+    elements.useCurrentTimeCheckbox
+      ?.checked
   ) {
-    elements.useCurrentTimeCheckbox.checked = false;
+    elements.useCurrentTimeCheckbox.checked =
+      false;
   }
+
 
   /*
-    입력 도중 커서가 어색하게 이동하지 않도록 처리
+    여러 시간과 시간 범위를 입력할 수 있도록
+    숫자 이외의 문자를 제거하지 않는다.
+
+    전각·유사 기호만 현재 시간 분석기가
+    처리하는 기호로 통일한다.
   */
-  if (
-    document.activeElement === input &&
-    typeof input.setSelectionRange === "function"
-  ) {
-    let nextCursorPosition = cursorPosition;
-
-    if (
-      previousValue.length < formattedValue.length &&
-      formattedValue.includes(":") &&
-      cursorPosition >= 2
-    ) {
-      nextCursorPosition = cursorPosition + 1;
-    }
-
-    window.requestAnimationFrame(() => {
-      const safeCursorPosition = Math.min(
-        nextCursorPosition,
-        input.value.length
+  input.value =
+    String(
+      input.value ||
+      ""
+    )
+      .replaceAll(
+        "，",
+        ","
+      )
+      .replaceAll(
+        "／",
+        "/"
+      )
+      .replaceAll(
+        "～",
+        "~"
+      )
+      .replace(
+        /[–—]/g,
+        "-"
       );
-
-      input.setSelectionRange(
-        safeCursorPosition,
-        safeCursorPosition
-      );
-    });
-  }
 }
 
 function normalizeLogEntryTime() {
-  const rawValue = String(elements.logEntryTime.value || "").trim();
+  const input =
+    elements.logEntryTime;
 
+
+  const rawValue =
+    String(
+      input?.value ||
+      ""
+    ).trim();
+
+
+  /*
+    시간 없이 등록하는 것도 허용한다.
+  */
   if (!rawValue) {
     return "";
   }
 
-  const normalizedValue = rawValue
-    .replace(/[.\s]/g, ":")
-    .replace(/[^0-9:]/g, "");
 
-  let hour = "";
-  let minute = "";
+  /*
+    기존 다중 시간 분석기를 그대로 사용한다.
 
-  if (normalizedValue.includes(":")) {
-    const parts = normalizedValue.split(":");
+    뒤에 임시 문자를 붙여서
+    입력값 전체가 시간 표현인지 확인한다.
+  */
+  const endMarker =
+    "__GS_LOG_TIME_END__";
 
-    hour = parts[0] || "";
-    minute = parts[1] || "";
-  } else {
-    const digits = normalizedValue.replace(/\D/g, "");
 
-    if (digits.length <= 2) {
-      hour = digits;
-      minute = "00";
-    } else if (digits.length === 3) {
-      hour = digits.slice(0, 1);
-      minute = digits.slice(1);
-    } else {
-      hour = digits.slice(0, 2);
-      minute = digits.slice(2, 4);
-    }
-  }
+  const parsedTime =
+    parseLeadingLogTimeExpression(
+      `${rawValue} ${endMarker}`
+    );
 
-  const hourNumber = Number(hour);
-  const minuteNumber = Number(minute);
+
+  const normalizedTime =
+    String(
+      parsedTime.timeText ||
+      ""
+    ).trim();
+
+
+  const remainingText =
+    String(
+      parsedTime.content ||
+      ""
+    ).trim();
+
+
+  const isValidTimeExpression =
+    Boolean(
+      normalizedTime
+    ) &&
+    remainingText ===
+      endMarker;
+
 
   if (
-    !Number.isInteger(hourNumber) ||
-    !Number.isInteger(minuteNumber) ||
-    hourNumber < 0 ||
-    hourNumber > 23 ||
-    minuteNumber < 0 ||
-    minuteNumber > 59
+    !isValidTimeExpression
   ) {
-    showToast("시간을 00:00부터 23:59 사이로 입력해 주세요.");
-    elements.logEntryTime.focus();
-    elements.logEntryTime.select();
+    showToast(
+      "시간은 08:30, 10:05 또는 08:00~11:00 형식으로 입력해 주세요."
+    );
+
+
+    input?.focus();
+    input?.select();
+
+
     return "";
   }
 
-  const formattedTime = [
-    String(hourNumber).padStart(2, "0"),
-    String(minuteNumber).padStart(2, "0")
-  ].join(":");
 
-  elements.logEntryTime.value = formattedTime;
+  if (input) {
+    input.value =
+      normalizedTime;
+  }
 
-  return formattedTime;
+
+  return normalizedTime;
 }
 
 /* =========================================================
@@ -32732,15 +32827,6 @@ function updateTagFieldVisibility() {
     ).trim();
 
 
-  /*
-    TAG가 필요한 구분
-
-    TM 발행
-    TM 작업
-    BM 발행
-    BM 작업
-    CM 발행
-  */
   const needsTag =
     category.startsWith(
       "TM"
@@ -32753,12 +32839,6 @@ function updateTagFieldVisibility() {
     );
 
 
-  /*
-    TAG 없이 간단하게 입력하는 구분
-
-    인계사항
-    비고
-  */
   const isCompactCategory =
     category ===
       "인계사항" ||
@@ -32778,8 +32858,8 @@ function updateTagFieldVisibility() {
 
 
   /*
-    TAG가 필요하지 않은 구분으로 변경하면
-    이전에 입력했던 TAG를 지운다.
+    TAG가 필요 없는 구분에서는
+    기존 TAG만 초기화한다.
   */
   if (
     !needsTag &&
@@ -32791,10 +32871,7 @@ function updateTagFieldVisibility() {
 
 
   /*
-    입력 패널에 현재 레이아웃 상태를 표시한다.
-
-    CSS에서는 이 클래스를 기준으로
-    추가 버튼 위치를 변경한다.
+    구분에 맞는 입력 레이아웃 적용
   */
   if (
     elements.logEntryInputPanel
@@ -32817,31 +32894,12 @@ function updateTagFieldVisibility() {
 
 
   /*
-    인계사항·비고에서는 현재시간을 사용할 수 있다.
+    시간 입력값은 모든 구분에서 유지한다.
 
-    TM·BM·CM으로 변경할 때는
-    기존에 체크했던 현재시간과 숨겨진 시간값을 초기화한다.
+    기존에는 TM·BM·CM을 선택하면
+    시간값을 강제로 지웠기 때문에
+    기존 항목 수정 시 시간이 사라질 수 있었다.
   */
-  if (
-    !isCompactCategory
-  ) {
-    if (
-      elements.logEntryTime
-    ) {
-      elements.logEntryTime.value =
-        "";
-    }
-
-
-    if (
-      elements.useCurrentTimeCheckbox
-    ) {
-      elements
-        .useCurrentTimeCheckbox
-        .checked =
-        false;
-    }
-  }
 }
 
 function getCurrentTimeValue() {
