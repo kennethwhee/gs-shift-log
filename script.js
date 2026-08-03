@@ -57575,16 +57575,18 @@ function getRoleNoticesByRole(
 }
 
 /* =========================================================
-  보직 카드의 활성 공지 버튼 갱신
+  보직 카드 공지 상태 갱신 최종본
 
-  색상 구분:
-  - 일반 공지만 있음:
-    has-normal-notice
+  일반 공지:
+  - 공지 버튼 디자인 변화 없음
+  - 근무자 카드 디자인 변화 없음
+  - 공지 개수 표시 없음
+  - 공지 버튼을 누르면 목록에서는 정상 조회
 
-  - 중요 공지가 하나라도 있음:
-    has-important-notice
-
-  - 중요 공지가 있으면 일반 공지보다 우선 표시
+  중요 공지:
+  - 공지 버튼에 중요 상태 적용
+  - 근무자 카드 래퍼에 중요 상태 적용
+  - 중요 공지 개수 표시
 ========================================================= */
 
 function updateRoleNoticeButton(
@@ -57604,7 +57606,7 @@ function updateRoleNoticeButton(
 
 
   /* =====================================================
-    현재 선택 날짜에 활성화된 공지만 가져온다.
+    현재 선택 날짜에 진행 중인 공지
   ====================================================== */
 
   const activeNotices =
@@ -57622,15 +57624,11 @@ function updateRoleNoticeButton(
     );
 
 
-  const activeCount =
-    activeNotices.length;
-
-
   /* =====================================================
-    일반·중요 공지 개수
+    일반 공지와 중요 공지 분리
   ====================================================== */
 
-  const importantCount =
+  const importantNotices =
     activeNotices.filter(
       notice => {
         return (
@@ -57638,31 +57636,42 @@ function updateRoleNoticeButton(
           true
         );
       }
-    ).length;
+    );
+
+
+  const normalNotices =
+    activeNotices.filter(
+      notice => {
+        return (
+          notice.isImportant !==
+          true
+        );
+      }
+    );
+
+
+  const importantCount =
+    importantNotices.length;
 
 
   const normalCount =
-    activeCount -
-    importantCount;
+    normalNotices.length;
 
 
-  const hasActiveNotice =
-    activeCount >
-    0;
-
-
-  /*
-    중요 공지가 하나라도 있으면
-    중요 공지 색상을 우선 적용한다.
-  */
   const hasImportantNotice =
     importantCount >
     0;
 
 
-  const hasNormalNoticeOnly =
-    hasActiveNotice &&
-    !hasImportantNotice;
+  const hasNormalNotice =
+    normalCount >
+    0;
+
+
+  const cardWrap =
+    button.closest(
+      ".shift-member-card-wrap"
+    );
 
 
   const icon =
@@ -57678,45 +57687,75 @@ function updateRoleNoticeButton(
 
 
   /* =====================================================
-    공지 상태 클래스
+    기존 상태 클래스 완전 초기화
 
-    기존 has-active-notice는 유지한다.
+    중요 공지가 없는 경우에는
+    일반 공지가 존재하더라도 기본 공지 버튼 상태로 유지한다.
   ====================================================== */
 
-  button.classList.toggle(
+  button.classList.remove(
     "has-active-notice",
-    hasActiveNotice
-  );
-
-
-  button.classList.toggle(
     "has-normal-notice",
-    hasNormalNoticeOnly
+    "has-important-notice"
   );
 
 
-  button.classList.toggle(
-    "has-important-notice",
+  cardWrap?.classList.remove(
+    "has-important-role-notice",
+    "has-normal-role-notice"
+  );
+
+
+  /* =====================================================
+    중요 공지에만 시각적 상태 부여
+  ====================================================== */
+
+  if (
     hasImportantNotice
-  );
+  ) {
+    button.classList.add(
+      "has-active-notice",
+      "has-important-notice"
+    );
 
 
-  /*
-    현재 상태를 개발자 도구에서도
-    확인할 수 있도록 저장한다.
-  */
+    cardWrap?.classList.add(
+      "has-important-role-notice"
+    );
+  }
+
+
+  /* =====================================================
+    개발자 도구 확인용 상태값
+
+    일반 공지가 있어도
+    클래스는 붙이지 않고 데이터값만 기록한다.
+  ====================================================== */
+
   button.dataset.noticePriority =
     hasImportantNotice
       ? "important"
       : (
-          hasNormalNoticeOnly
+          hasNormalNotice
             ? "normal"
             : "none"
         );
 
 
+  if (
+    cardWrap
+  ) {
+    cardWrap.dataset
+      .noticePriority =
+      button.dataset
+        .noticePriority;
+  }
+
+
   /* =====================================================
-    접근성 안내 문구
+    접근성 안내
+
+    일반 공지도 버튼을 누르면 정상적으로 확인 가능하다.
   ====================================================== */
 
   if (
@@ -57727,8 +57766,7 @@ function updateRoleNoticeButton(
       [
         `${role} 중요 공지 ${importantCount}건`,
 
-        normalCount >
-          0
+        hasNormalNotice
           ? `일반 공지 ${normalCount}건`
           : "",
 
@@ -57743,7 +57781,7 @@ function updateRoleNoticeButton(
     );
 
   } else if (
-    hasNormalNoticeOnly
+    hasNormalNotice
   ) {
     button.setAttribute(
       "aria-label",
@@ -57759,7 +57797,10 @@ function updateRoleNoticeButton(
 
 
   /* =====================================================
-    기존 아이콘이 있는 HTML도 대응
+    아이콘이 존재하는 구버전 HTML 대응
+
+    일반 공지는 기본 상태 유지
+    중요 공지만 느낌표 표시
   ====================================================== */
 
   if (
@@ -57768,16 +57809,18 @@ function updateRoleNoticeButton(
     icon.textContent =
       hasImportantNotice
         ? "!"
-        : (
-            hasNormalNoticeOnly
-              ? "■"
-              : "□"
-          );
+        : "";
   }
 
 
   /* =====================================================
-    활성 공지 전체 건수
+    공지 개수
+
+    일반 공지:
+    표시하지 않음
+
+    중요 공지:
+    중요 공지 개수만 표시
   ====================================================== */
 
   if (
@@ -57785,13 +57828,12 @@ function updateRoleNoticeButton(
   ) {
     count.textContent =
       String(
-        activeCount
+        importantCount
       );
 
 
     count.hidden =
-      activeCount ===
-      0;
+      !hasImportantNotice;
   }
 }
 

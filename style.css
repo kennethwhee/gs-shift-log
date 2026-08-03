@@ -54308,56 +54308,110 @@ small {
 }
 
 /* =========================================================
-  보직별 공지 버튼 중요도 색상 구분 최종본
+  보직별 공지 버튼 중요도 최종본
 
-  일반공지:
-  [공지] 버튼만 연한 파랑
+  일반 공지:
+  - 공지가 없는 버튼과 완전히 동일
+  - 색상 변화 없음
+  - 카드 변화 없음
+  - 공지 개수 표시 없음
 
-  중요공지:
-  [공지] 버튼만 연한 핑크
-
-  보직 카드:
-  기존 색상 유지
+  중요 공지:
+  - 사진처럼 공지 버튼만 연한 파란색
+  - 카드, 이름, 업무일지 상태는 변화 없음
+  - 공지 개수 표시 없음
 ========================================================= */
 
 
 /* =========================================================
-  공통
+  공지 개수는 중요도와 관계없이 숨김
 
-  기존 활성공지의 진한 파란색 효과 제거
+  사진처럼 버튼에는 "공지" 글자만 표시한다.
 ========================================================= */
 
+#statusView
 #shiftMemberGrid
-.role-notice-button.has-active-notice {
-  box-shadow:
+.role-notice-button__count {
+  display:
     none !important;
+}
+
+
+/* =========================================================
+  일반 공지
+
+  일반 공지가 존재해도
+  공지가 없는 기본 버튼과 똑같이 표시한다.
+========================================================= */
+
+#statusView
+#shiftMemberGrid
+.role-notice-button[
+  data-notice-priority="normal"
+],
+
+#statusView
+#shiftMemberGrid
+.role-notice-button.has-normal-notice {
+  border-color:
+    #c9d4df !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #667589 !important;
+
+  box-shadow:
+    0
+    1px
+    3px
+    rgba(
+      15,
+      23,
+      42,
+      0.04
+    ) !important;
 
   transform:
     none !important;
 }
 
 
-/* =========================================================
-  일반공지
+/* 일반 공지 버튼의 기존 hover 상태 유지 */
 
-  [공지] 버튼 배경만 연한 파랑
-========================================================= */
-
+#statusView
 #shiftMemberGrid
-.role-notice-button.has-active-notice.has-normal-notice {
+.role-notice-button[
+  data-notice-priority="normal"
+]:hover,
+
+#statusView
+#shiftMemberGrid
+.role-notice-button[
+  data-notice-priority="normal"
+]:focus-visible,
+
+#statusView
+#shiftMemberGrid
+.role-notice-button.has-normal-notice:hover,
+
+#statusView
+#shiftMemberGrid
+.role-notice-button.has-normal-notice:focus-visible {
   border-color:
-    #9fc5eb !important;
+    #8eafd2 !important;
 
   background:
-    #eaf4ff !important;
+    #f2f7fd !important;
 
   color:
     #1f5fae !important;
 
   box-shadow:
     0
-    2px
-    6px
+    3px
+    8px
     rgba(
       31,
       95,
@@ -54367,127 +54421,174 @@ small {
 }
 
 
+/* 일반 공지 글자 */
+
+#statusView
 #shiftMemberGrid
-.role-notice-button.has-active-notice.has-normal-notice:hover {
-  border-color:
-    #79acd9 !important;
+.role-notice-button[
+  data-notice-priority="normal"
+]
+.role-notice-button__label,
 
-  background:
-    #dceeff !important;
-
-  color:
-    #174f91 !important;
-}
-
-
-/* 일반공지 아이콘·글씨 */
+#statusView
 #shiftMemberGrid
 .role-notice-button.has-normal-notice
-.role-notice-button__icon,
-
-#shiftMemberGrid
-.role-notice-button.has-normal-notice
-.role-notice-button__text {
+.role-notice-button__label {
   color:
-    #1f5fae !important;
-}
-
-
-/* 일반공지 건수 */
-#shiftMemberGrid
-.role-notice-button.has-normal-notice
-.role-notice-button__count {
-  border:
-    1px solid
-    #b8d6f2 !important;
-
-  background:
-    #ffffff !important;
-
-  color:
-    #1f5fae !important;
+    inherit !important;
 }
 
 
 /* =========================================================
-  중요공지
+  중요 공지
 
-  [공지] 버튼 배경만 연한 핑크
+  사진처럼:
+  - 연한 파란 배경
+  - 파란 테두리
+  - 파란 글씨
 ========================================================= */
 
+#statusView
+#shiftMemberGrid
+.role-notice-button[
+  data-notice-priority="important"
+],
+
+#statusView
+#shiftMemberGrid
+.role-notice-button.has-important-notice,
+
+#statusView
 #shiftMemberGrid
 .role-notice-button.has-active-notice.has-important-notice {
   border-color:
-    #e3a2b1 !important;
+    #8dbced !important;
 
   background:
-    #fbe8ed !important;
+    #eaf4ff !important;
 
   color:
-    #a23e57 !important;
+    #1763c5 !important;
 
   box-shadow:
     0
     2px
     6px
     rgba(
-      190,
-      79,
-      105,
+      31,
+      95,
+      174,
       0.11
+    ) !important;
+
+  transform:
+    none !important;
+}
+
+
+/* 중요 공지 버튼 hover */
+
+#statusView
+#shiftMemberGrid
+.role-notice-button[
+  data-notice-priority="important"
+]:hover,
+
+#statusView
+#shiftMemberGrid
+.role-notice-button[
+  data-notice-priority="important"
+]:focus-visible,
+
+#statusView
+#shiftMemberGrid
+.role-notice-button.has-important-notice:hover,
+
+#statusView
+#shiftMemberGrid
+.role-notice-button.has-important-notice:focus-visible,
+
+#statusView
+#shiftMemberGrid
+.role-notice-button.has-active-notice.has-important-notice:hover {
+  border-color:
+    #6da5dd !important;
+
+  background:
+    #dceeff !important;
+
+  color:
+    #174f91 !important;
+
+  box-shadow:
+    0
+    3px
+    8px
+    rgba(
+      31,
+      95,
+      174,
+      0.14
     ) !important;
 }
 
 
+/* 중요 공지 글자 */
+
+#statusView
 #shiftMemberGrid
-.role-notice-button.has-active-notice.has-important-notice:hover {
-  border-color:
-    #d47c91 !important;
+.role-notice-button[
+  data-notice-priority="important"
+]
+.role-notice-button__label,
 
-  background:
-    #f7dce3 !important;
-
-  color:
-    #8f3049 !important;
-}
-
-
-/* 중요공지 아이콘·글씨 */
+#statusView
 #shiftMemberGrid
 .role-notice-button.has-important-notice
-.role-notice-button__icon,
-
-#shiftMemberGrid
-.role-notice-button.has-important-notice
-.role-notice-button__text {
+.role-notice-button__label {
   color:
-    #a23e57 !important;
-}
-
-
-/* 중요공지 건수 */
-#shiftMemberGrid
-.role-notice-button.has-important-notice
-.role-notice-button__count {
-  border:
-    1px solid
-    #edbec8 !important;
-
-  background:
-    #ffffff !important;
-
-  color:
-    #a23e57 !important;
+    inherit !important;
 }
 
 
 /* =========================================================
-  보직 카드 색상 초기화
+  근무자 카드 변화 제거
 
-  공지가 있어도 카드 상단에
-  파랑·핑크 선이 생기지 않도록 제거
+  기존 CSS에는 활성 공지가 있으면
+  카드 위에 파란 선을 넣는 규칙이 있으므로
+  카드 그림자만 원래 상태로 복구한다.
+
+  카드의:
+  - 테두리
+  - 배경
+  - 작성 상태
+  - 작성자
+  는 건드리지 않는다.
 ========================================================= */
 
+#statusView
+#shiftMemberGrid
+.shift-member-card-wrap[
+  data-notice-priority="normal"
+]
+>
+.shift-member-card,
+
+#statusView
+#shiftMemberGrid
+.shift-member-card-wrap[
+  data-notice-priority="important"
+]
+>
+.shift-member-card,
+
+#statusView
+#shiftMemberGrid
+.shift-member-card-wrap.has-important-role-notice
+>
+.shift-member-card,
+
+#statusView
 #shiftMemberGrid
 .shift-member-card-wrap:has(
   .role-notice-button.has-normal-notice
@@ -54495,6 +54596,7 @@ small {
 >
 .shift-member-card,
 
+#statusView
 #shiftMemberGrid
 .shift-member-card-wrap:has(
   .role-notice-button.has-important-notice
@@ -54514,177 +54616,104 @@ small {
 }
 
 
+/* 카드 hover 효과는 기존대로 유지 */
+
+#statusView
+#shiftMemberGrid
+.shift-member-card-wrap[
+  data-notice-priority="normal"
+]
+>
+.shift-member-card:hover,
+
+#statusView
+#shiftMemberGrid
+.shift-member-card-wrap[
+  data-notice-priority="important"
+]
+>
+.shift-member-card:hover,
+
+#statusView
+#shiftMemberGrid
+.shift-member-card-wrap.has-important-role-notice
+>
+.shift-member-card:hover {
+  box-shadow:
+    0
+    7px
+    18px
+    rgba(
+      31,
+      93,
+      163,
+      0.1
+    ) !important;
+}
+
+
 /* =========================================================
-  모바일에서도 동일하게 적용
+  모바일
+
+  모바일에서도 동일한 중요도 규칙을 적용한다.
+  기존 모바일 버튼 크기와 위치는 변경하지 않는다.
 ========================================================= */
 
 @media screen and (max-width: 768px) {
 
-  /* 일반공지 */
-  #statusView
-  #shiftMemberGrid
-  .role-notice-button.has-active-notice.has-normal-notice {
-    border-color:
-      #9fc5eb !important;
-
-    background:
-      #eaf4ff !important;
-
-    color:
-      #1f5fae !important;
-  }
-
-
-  /* 중요공지 */
-  #statusView
-  #shiftMemberGrid
-  .role-notice-button.has-active-notice.has-important-notice {
-    border-color:
-      #e3a2b1 !important;
-
-    background:
-      #fbe8ed !important;
-
-    color:
-      #a23e57 !important;
-  }
-}
-
-/* =========================================================
-  PC 보직별 공지 버튼 중요도 색상 최종 강제 적용
-
-  일반공지:
-  공지 버튼만 연한 파랑
-
-  중요공지:
-  공지 버튼만 연한 핑크
-
-  주의:
-  반드시 style.css의 진짜 맨 마지막에 배치
-========================================================= */
-
-@media screen and (min-width: 769px) {
-
-  /* =====================================================
-    일반공지
-  ====================================================== */
+  /* 일반 공지 */
 
   #statusView
   #shiftMemberGrid
-  .role-notice-button.has-active-notice.has-normal-notice {
+  .role-notice-button[
+    data-notice-priority="normal"
+  ],
+
+  #statusView
+  #shiftMemberGrid
+  .role-notice-button.has-normal-notice {
     border-color:
-      #9fc5eb !important;
+      #c9d3df !important;
 
     background:
-      #eaf4ff !important;
+      #ffffff !important;
 
     color:
-      #1f5fae !important;
+      #667589 !important;
 
     box-shadow:
       none !important;
   }
 
 
-  #statusView
-  #shiftMemberGrid
-  .role-notice-button.has-active-notice.has-normal-notice:hover,
+  /* 중요 공지 */
 
   #statusView
   #shiftMemberGrid
-  .role-notice-button.has-active-notice.has-normal-notice:active,
+  .role-notice-button[
+    data-notice-priority="important"
+  ],
 
   #statusView
   #shiftMemberGrid
-  .role-notice-button.has-active-notice.has-normal-notice:focus-visible {
-    border-color:
-      #79acd9 !important;
-
-    background:
-      #dceeff !important;
-
-    color:
-      #174f91 !important;
-
-    box-shadow:
-      none !important;
-  }
-
-
-  /* 일반공지 글자 */
-  #statusView
-  #shiftMemberGrid
-  .role-notice-button.has-normal-notice
-  .role-notice-button__label,
-
-  #statusView
-  #shiftMemberGrid
-  .role-notice-button.has-normal-notice
-  .role-notice-button__text {
-    color:
-      inherit !important;
-  }
-
-
-  /* =====================================================
-    중요공지
-  ====================================================== */
+  .role-notice-button.has-important-notice,
 
   #statusView
   #shiftMemberGrid
   .role-notice-button.has-active-notice.has-important-notice {
     border-color:
-      #e3a2b1 !important;
+      #8dbced !important;
 
     background:
-      #fbe8ed !important;
+      #eaf4ff !important;
 
     color:
-      #a23e57 !important;
+      #1763c5 !important;
 
     box-shadow:
       none !important;
   }
 
-
-  #statusView
-  #shiftMemberGrid
-  .role-notice-button.has-active-notice.has-important-notice:hover,
-
-  #statusView
-  #shiftMemberGrid
-  .role-notice-button.has-active-notice.has-important-notice:active,
-
-  #statusView
-  #shiftMemberGrid
-  .role-notice-button.has-active-notice.has-important-notice:focus-visible {
-    border-color:
-      #d47c91 !important;
-
-    background:
-      #f7dce3 !important;
-
-    color:
-      #8f3049 !important;
-
-    box-shadow:
-      none !important;
-  }
-
-
-  /* 중요공지 글자 */
-  #statusView
-  #shiftMemberGrid
-  .role-notice-button.has-important-notice
-  .role-notice-button__label,
-
-  #statusView
-  #shiftMemberGrid
-  .role-notice-button.has-important-notice
-  .role-notice-button__text {
-    color:
-      inherit !important;
-  }
 }
 
 /* =========================================================
