@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>
+    고압가스 저장시설 점검표
+  </title>
+
+  <link
+    rel="stylesheet"
+    href="high-pressure-gas.css?v=20260803-1"
+  >
+
+  <script
+    src="high-pressure-gas.js?v=20260803-1"
+    defer
+  ></script>
+
+</head>
+
+
+<body>
+
+  <main
+    class="gas-check-app"
+    data-schedule-day="sunday"
+    data-schedule-shift="D/S"
+  >
+
+
+    <!-- =====================================================
+      상단 조작 영역
+      인쇄 시 표시되지 않음
+    ====================================================== -->
+
+    <header class="gas-check-toolbar screen-only">
+
+      <div>
+
+        <p class="gas-check-toolbar__eyebrow">
+          WEEKLY INSPECTION
+        </p>
+
+        <h1>
+          고압가스 저장시설 주간점검
+        </h1>
+
+        <p class="gas-check-toolbar__schedule">
+          매주 일요일 D/S
+        </p>
+
+      </div>
+
+
+      <div class="gas-check-toolbar__actions">
+
+        <button
+          type="button"
+          id="gasCheckSaveButton"
+        >
+          임시저장
+        </button>
+
+        <button
+          type="button"
+          id="gasCheckPreviewButton"
+        >
+          인쇄 미리보기
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <!-- =====================================================
+      실제 점검표
+    ====================================================== -->
+
+    <section
+      class="gas-check-sheet"
+      id="gasCheckSheet"
+    >
+
+
+      <!-- 제목·결재란 -->
+
+      <div class="gas-check-title-row">
+
+        <div class="gas-check-title-spacer"></div>
+
+
+        <h2 class="gas-check-main-title">
+          고압가스 저장시설 점검표
+        </h2>
+
+
+        <table class="gas-check-approval-table">
+
+          <thead>
+
+            <tr>
+
+              <th>
+                안전관리<br>
+                책 임 자
+              </th>
+
+              <th>
+                안전관리<br>
+                총 괄 자
+              </th>
+
+            </tr>
+
+          </thead>
+
+
+          <tbody>
+
+            <tr>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasSafetyManager"
+                  aria-label="안전관리 책임자"
+                >
+
+              </td>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasSafetyGeneralManager"
+                  aria-label="안전관리 총괄자"
+                >
+
+              </td>
+
+            </tr>
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+
+      <!-- ===================================================
+        1. 일반현황
+      ==================================================== -->
+
+      <section class="gas-check-section">
+
+        <div class="gas-check-section-heading">
+
+          <h3>
+            1. 일반현황
+          </h3>
+
+
+          <label class="gas-check-date-field">
+
+            <span>
+              점검일자:
+            </span>
+
+            <input
+              type="date"
+              id="gasInspectionDate"
+            >
+
+          </label>
+
+        </div>
+
+
+        <table class="gas-check-overview-table">
+
+          <tbody>
+
+            <tr>
+
+              <th>
+                시설명
+              </th>
+
+              <td>
+                고압가스 저장소 시설(CO2)
+              </td>
+
+              <th>
+                점검원
+              </th>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasInspectorName"
+                  aria-label="점검원"
+                >
+
+              </td>
+
+            </tr>
+
+
+            <tr>
+
+              <th>
+                가스종류
+              </th>
+
+              <td>
+                CO2
+              </td>
+
+              <th>
+                점검결과
+              </th>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasOverallResult"
+                  aria-label="전체 점검결과"
+                  placeholder="양호"
+                >
+
+              </td>
+
+            </tr>
+
+          </tbody>
+
+        </table>
+
+      </section>
+
+
+      <!-- ===================================================
+        2. 점검내용
+      ==================================================== -->
+
+      <section class="gas-check-section">
+
+        <h3>
+          2. 점검내용
+        </h3>
+
+
+        <table class="gas-check-detail-table">
+
+          <colgroup>
+
+            <col class="gas-check-col-number">
+            <col class="gas-check-col-item">
+            <col class="gas-check-col-description">
+            <col class="gas-check-col-result">
+
+          </colgroup>
+
+
+          <thead>
+
+            <tr>
+
+              <th>
+                번호
+              </th>
+
+              <th>
+                점검항목
+              </th>
+
+              <th>
+                확인내용
+              </th>
+
+              <th>
+                점검결과
+              </th>
+
+            </tr>
+
+          </thead>
+
+
+          <tbody>
+
+
+            <tr>
+
+              <td>
+                1
+              </td>
+
+              <td>
+                안전거리
+              </td>
+
+              <td>
+                화기와의 안전거리 유지상태는 적절한가.
+              </td>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasResult1"
+                  aria-label="안전거리 점검결과"
+                >
+
+              </td>
+
+            </tr>
+
+
+            <tr>
+
+              <td>
+                2
+              </td>
+
+              <td>
+                시설 등의 표시
+              </td>
+
+              <td>
+                출입문 경계표지 및 위험표지 설치는 양호한가.
+              </td>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasResult2"
+                  aria-label="시설 등의 표시 점검결과"
+                >
+
+              </td>
+
+            </tr>
+
+
+            <tr>
+
+              <td>
+                3
+              </td>
+
+              <td>
+                가스누설경보장치
+              </td>
+
+              <td>
+
+                경보기 작동상태 및 설치위치
+
+                <br>
+
+                제독제 보유량 및 흡수중화설비 연결상태
+
+              </td>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasResult3"
+                  aria-label="가스누설경보장치 점검결과"
+                >
+
+              </td>
+
+            </tr>
+
+
+            <tr>
+
+              <td>
+                4
+              </td>
+
+              <td>
+                저장탱크
+              </td>
+
+              <td>
+                탱크실 내 강제통풍 장치 정상적 동작 여부
+              </td>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasResult4"
+                  aria-label="저장탱크 점검결과"
+                >
+
+              </td>
+
+            </tr>
+
+
+            <tr>
+
+              <td>
+                5
+              </td>
+
+              <td>
+                가스설비의 구조
+              </td>
+
+              <td>
+
+                방폭기기 유지관리 상태
+
+                <br>
+
+                위험장소에 따른 적합한 방폭구조 선정 여부
+
+              </td>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasResult5"
+                  aria-label="가스설비의 구조 점검결과"
+                >
+
+              </td>
+
+            </tr>
+
+
+            <tr>
+
+              <td>
+                6
+              </td>
+
+              <td>
+                과충전 방지조치
+              </td>
+
+              <td>
+                내용적의 90% 초과 충전방지 조치 여부
+              </td>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasResult6"
+                  aria-label="과충전 방지조치 점검결과"
+                >
+
+              </td>
+
+            </tr>
+
+
+            <tr>
+
+              <td>
+                7
+              </td>
+
+              <td>
+                누설검사
+              </td>
+
+              <td>
+                저장탱크 부속설비 및 배관설비 연결부 누설 여부
+              </td>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasResult7"
+                  aria-label="누설검사 점검결과"
+                >
+
+              </td>
+
+            </tr>
+
+
+            <tr>
+
+              <td>
+                8
+              </td>
+
+              <td>
+                긴급차단장치
+              </td>
+
+              <td>
+                긴급 시 신속하게 조작할 수 있는 위치 및 상태
+              </td>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasResult8"
+                  aria-label="긴급차단장치 점검결과"
+                >
+
+              </td>
+
+            </tr>
+
+
+            <tr>
+
+              <td>
+                9
+              </td>
+
+              <td>
+                안전밸브
+              </td>
+
+              <td>
+
+                압력계, 온도계 지시상태는 양호한가.
+
+                <br>
+
+                안전밸브 설치위치 및 작동압력 적합 여부
+
+              </td>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasResult9"
+                  aria-label="안전밸브 점검결과"
+                >
+
+              </td>
+
+            </tr>
+
+
+            <tr>
+
+              <td>
+                10
+              </td>
+
+              <td>
+                정전기 제거조치
+              </td>
+
+              <td>
+                정전기 제거용 본딩선 및 접지연결 상태
+              </td>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasResult10"
+                  aria-label="정전기 제거조치 점검결과"
+                >
+
+              </td>
+
+            </tr>
+
+
+            <tr>
+
+              <td>
+                11
+              </td>
+
+              <td>
+                기타사항
+              </td>
+
+              <td>
+
+                각종 조작용 밸브의 정위치 Setting 상태 확인
+
+                <br>
+
+                설비 자체 점검 실시 및 기술기준 준수 여부 등
+
+              </td>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasResult11"
+                  aria-label="기타사항 점검결과"
+                >
+
+              </td>
+
+            </tr>
+
+
+            <tr>
+
+              <td>
+                12
+              </td>
+
+              <td>
+                기타시설
+              </td>
+
+              <td>
+
+                경보장치 및 이송설비 적정한가.
+
+                <br>
+
+                통신시설, 통행시설은 적정한가.
+
+              </td>
+
+              <td>
+
+                <input
+                  type="text"
+                  id="gasResult12"
+                  aria-label="기타시설 점검결과"
+                >
+
+              </td>
+
+            </tr>
+
+
+          </tbody>
+
+        </table>
+
+      </section>
+
+
+      <!-- ===================================================
+        하단 확인란
+      ==================================================== -->
+
+      <footer class="gas-check-footer">
+
+        <label>
+
+          <span>
+            사업장확인
+          </span>
+
+          <input
+            type="text"
+            id="gasWorkplaceConfirmation"
+            aria-label="사업장 확인"
+          >
+
+        </label>
+
+
+        <label>
+
+          <span>
+            점 검 자 :
+          </span>
+
+          <input
+            type="text"
+            id="gasFinalInspector"
+            aria-label="최종 점검자"
+          >
+
+        </label>
+
+      </footer>
+
+
+    </section>
+
+
+    <!-- =====================================================
+      인쇄 미리보기 팝업
+    ====================================================== -->
+
+    <section
+      class="gas-print-preview screen-only"
+      id="gasPrintPreview"
+      hidden
+    >
+
+      <div class="gas-print-preview__panel">
+
+        <header class="gas-print-preview__header">
+
+          <strong>
+            인쇄 미리보기
+          </strong>
+
+
+          <button
+            type="button"
+            id="gasPreviewCloseButton"
+            aria-label="미리보기 닫기"
+          >
+            ×
+          </button>
+
+        </header>
+
+
+        <div
+          class="gas-print-preview__body"
+          id="gasPrintPreviewBody"
+        ></div>
+
+
+        <footer class="gas-print-preview__footer">
+
+          <button
+            type="button"
+            id="gasPreviewCancelButton"
+          >
+            닫기
+          </button>
+
+
+          <button
+            type="button"
+            id="gasPrintButton"
+          >
+            인쇄
+          </button>
+
+        </footer>
+
+      </div>
+
+    </section>
+
+
+  </main>
+
+</body>
+
+</html>
