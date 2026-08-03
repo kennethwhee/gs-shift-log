@@ -72567,46 +72567,75 @@ function openEfficiencyTeamModal() {
 
 
   const limestoneReceiptState = {
-    items:
-      [],
+  /*
+    현재 조회된 상세 기록
+  */
+  items:
+    [],
 
-    dailySummary:
-      [],
 
-    summary: {
-      totalQuantity:
-        0,
+  /*
+    현재 집계 방식으로 묶은 결과
 
-      unitOneQuantity:
-        0,
+    daily:
+    일별
 
-      unitTwoQuantity:
-        0,
+    weekly:
+    월별 1주~5주
 
-      receiptCount:
-        0
-    },
+    monthly:
+    월별
+  */
+  groupedSummary:
+    [],
 
-    range: {
-      startDate:
-        "",
 
-      endDate:
-        "",
+  /*
+    현재 조회 기간 전체 합계
+  */
+  summary: {
+    totalQuantity:
+      0,
 
-      unitNo:
-        null
-    },
+    unitOneQuantity:
+      0,
 
-    currentRangeType:
-      "7days",
+    unitTwoQuantity:
+      0,
 
-    isLoading:
-      false,
+    receiptCount:
+      0
+  },
 
-    hasLoaded:
-      false
-  };
+
+  /*
+    현재 조회 조건
+  */
+  range: {
+    startDate:
+      "",
+
+    endDate:
+      "",
+
+    unitNo:
+      null
+  },
+
+
+  /*
+    기본 집계 방식
+  */
+  groupMode:
+    "daily",
+
+
+  isLoading:
+    false,
+
+  hasLoaded:
+    false
+};
 
 
   /* =====================================================
@@ -72614,186 +72643,250 @@ function openEfficiencyTeamModal() {
   ====================================================== */
 
   function getLimestoneReceiptElements() {
-    return {
-      limestoneTab:
-        document.querySelector(
-          '[data-efficiency-tab="limestone"]'
-        ),
+  return {
+    limestoneTab:
+      document.querySelector(
+        '[data-efficiency-tab="limestone"]'
+      ),
 
-      view:
-        document.getElementById(
-          "efficiencyLimestoneView"
-        ),
-
-
-      refreshButton:
-        document.getElementById(
-          "refreshLimestoneReceiptsButton"
-        ),
-
-      importButton:
-        document.getElementById(
-          "importLimestoneFromShiftLogsButton"
-        ),
-
-      openEditorButton:
-        document.getElementById(
-          "openLimestoneReceiptEditorButton"
-        ),
+    view:
+      document.getElementById(
+        "efficiencyLimestoneView"
+      ),
 
 
-      quickRangeButtons: [
-        ...document.querySelectorAll(
-          "[data-limestone-range]"
-        )
-      ],
+    /* ===================================================
+      상단 기능 버튼
+    ==================================================== */
 
-      searchForm:
-        document.getElementById(
-          "limestoneSearchForm"
-        ),
+    refreshButton:
+      document.getElementById(
+        "refreshLimestoneReceiptsButton"
+      ),
 
-      startDateInput:
-        document.getElementById(
-          "limestoneStartDate"
-        ),
+    importButton:
+      document.getElementById(
+        "importLimestoneFromShiftLogsButton"
+      ),
 
-      endDateInput:
-        document.getElementById(
-          "limestoneEndDate"
-        ),
-
-      unitFilter:
-        document.getElementById(
-          "limestoneUnitFilter"
-        ),
-
-      periodLabel:
-        document.getElementById(
-          "limestonePeriodLabel"
-        ),
+    openEditorButton:
+      document.getElementById(
+        "openLimestoneReceiptEditorButton"
+      ),
 
 
-      totalQuantity:
-        document.getElementById(
-          "limestoneTotalQuantity"
-        ),
+    /* ===================================================
+      기간 이동
+    ==================================================== */
 
-      unitOneQuantity:
-        document.getElementById(
-          "limestoneUnitOneQuantity"
-        ),
+    periodMoveButtons: [
+      ...document.querySelectorAll(
+        "[data-limestone-move-days]"
+      )
+    ],
 
-      unitTwoQuantity:
-        document.getElementById(
-          "limestoneUnitTwoQuantity"
-        ),
+    moveToTodayButton:
+      document.getElementById(
+        "limestoneMoveToTodayButton"
+      ),
 
-      receiptCount:
-        document.getElementById(
-          "limestoneReceiptCount"
-        ),
+    periodLabel:
+      document.getElementById(
+        "limestonePeriodLabel"
+      ),
 
-
-      dailySummaryCount:
-        document.getElementById(
-          "limestoneDailySummaryCount"
-        ),
-
-      dailySummaryBody:
-        document.getElementById(
-          "limestoneDailySummaryBody"
-        ),
+    periodDayCount:
+      document.getElementById(
+        "limestonePeriodDayCount"
+      ),
 
 
-      detailCount:
-        document.getElementById(
-          "limestoneDetailCount"
-        ),
+    /* ===================================================
+      직접 조회
+    ==================================================== */
 
-      loading:
-        document.getElementById(
-          "limestoneLoading"
-        ),
+    searchForm:
+      document.getElementById(
+        "limestoneSearchForm"
+      ),
 
-      receiptTableBody:
-        document.getElementById(
-          "limestoneReceiptTableBody"
-        ),
+    startDateInput:
+      document.getElementById(
+        "limestoneStartDate"
+      ),
 
+    endDateInput:
+      document.getElementById(
+        "limestoneEndDate"
+      ),
 
-      editorPanel:
-        document.getElementById(
-          "limestoneReceiptEditorPanel"
-        ),
-
-      editorTitle:
-        document.getElementById(
-          "limestoneReceiptEditorTitle"
-        ),
-
-      closeEditorButton:
-        document.getElementById(
-          "closeLimestoneReceiptEditorButton"
-        ),
-
-      cancelEditorButton:
-        document.getElementById(
-          "cancelLimestoneReceiptEditorButton"
-        ),
-
-      editorForm:
-        document.getElementById(
-          "limestoneReceiptEditorForm"
-        ),
-
-      editingIdInput:
-        document.getElementById(
-          "limestoneReceiptEditingId"
-        ),
-
-      receiptDateInput:
-        document.getElementById(
-          "limestoneReceiptDate"
-        ),
-
-      receiptTimeInput:
-        document.getElementById(
-          "limestoneReceiptTime"
-        ),
-
-      receiptUnitInput:
-        document.getElementById(
-          "limestoneReceiptUnit"
-        ),
-
-      receiptQuantityInput:
-        document.getElementById(
-          "limestoneReceiptQuantity"
-        ),
-
-      receiptNoteInput:
-        document.getElementById(
-          "limestoneReceiptNote"
-        ),
-
-      saveButton:
-        document.getElementById(
-          "saveLimestoneReceiptButton"
-        ),
-
-      editorMessage:
-        document.getElementById(
-          "limestoneReceiptEditorMessage"
-        ),
+    unitFilter:
+      document.getElementById(
+        "limestoneUnitFilter"
+      ),
 
 
-      importPanel:
-        document.getElementById(
-          "limestoneImportPanel"
-        )
-    };
-  }
+    /* ===================================================
+      기간 합계 카드
+    ==================================================== */
+
+    totalQuantity:
+      document.getElementById(
+        "limestoneTotalQuantity"
+      ),
+
+    unitOneQuantity:
+      document.getElementById(
+        "limestoneUnitOneQuantity"
+      ),
+
+    unitTwoQuantity:
+      document.getElementById(
+        "limestoneUnitTwoQuantity"
+      ),
+
+    receiptCount:
+      document.getElementById(
+        "limestoneReceiptCount"
+      ),
+
+
+    /* ===================================================
+      일별·주별·월별 집계
+    ==================================================== */
+
+    groupModeButtons: [
+      ...document.querySelectorAll(
+        "[data-limestone-group-mode]"
+      )
+    ],
+
+    groupSummaryEyebrow:
+      document.getElementById(
+        "limestoneGroupSummaryEyebrow"
+      ),
+
+    groupSummaryTitle:
+      document.getElementById(
+        "limestoneGroupSummaryTitle"
+      ),
+
+    groupSummaryPeriodHeader:
+      document.getElementById(
+        "limestoneGroupSummaryPeriodHeader"
+      ),
+
+    dailySummaryCount:
+      document.getElementById(
+        "limestoneDailySummaryCount"
+      ),
+
+    dailySummaryBody:
+      document.getElementById(
+        "limestoneDailySummaryBody"
+      ),
+
+
+    /* ===================================================
+      상세 기록
+    ==================================================== */
+
+    detailCount:
+      document.getElementById(
+        "limestoneDetailCount"
+      ),
+
+    loading:
+      document.getElementById(
+        "limestoneLoading"
+      ),
+
+    receiptTableBody:
+      document.getElementById(
+        "limestoneReceiptTableBody"
+      ),
+
+
+    /* ===================================================
+      직접 입고기록 입력창
+    ==================================================== */
+
+    editorPanel:
+      document.getElementById(
+        "limestoneReceiptEditorPanel"
+      ),
+
+    editorTitle:
+      document.getElementById(
+        "limestoneReceiptEditorTitle"
+      ),
+
+    closeEditorButton:
+      document.getElementById(
+        "closeLimestoneReceiptEditorButton"
+      ),
+
+    cancelEditorButton:
+      document.getElementById(
+        "cancelLimestoneReceiptEditorButton"
+      ),
+
+    editorForm:
+      document.getElementById(
+        "limestoneReceiptEditorForm"
+      ),
+
+    editingIdInput:
+      document.getElementById(
+        "limestoneReceiptEditingId"
+      ),
+
+    receiptDateInput:
+      document.getElementById(
+        "limestoneReceiptDate"
+      ),
+
+    receiptTimeInput:
+      document.getElementById(
+        "limestoneReceiptTime"
+      ),
+
+    receiptUnitInput:
+      document.getElementById(
+        "limestoneReceiptUnit"
+      ),
+
+    receiptQuantityInput:
+      document.getElementById(
+        "limestoneReceiptQuantity"
+      ),
+
+    receiptNoteInput:
+      document.getElementById(
+        "limestoneReceiptNote"
+      ),
+
+    saveButton:
+      document.getElementById(
+        "saveLimestoneReceiptButton"
+      ),
+
+    editorMessage:
+      document.getElementById(
+        "limestoneReceiptEditorMessage"
+      ),
+
+
+    /* ===================================================
+      업무일지 가져오기
+    ==================================================== */
+
+    importPanel:
+      document.getElementById(
+        "limestoneImportPanel"
+      )
+  };
+}
 
 
   /* =====================================================
@@ -73166,168 +73259,461 @@ function openEfficiencyTeamModal() {
   }
 
 
-  /* =====================================================
-    기간 버튼 상태
-  ====================================================== */
+/* =====================================================
+  날짜 문자열 → Date
 
-  function setLimestoneRangeButtonState(
-    selectedRange
+  입력:
+  2026-08-03
+===================================================== */
+
+function parseLimestoneDateValue(
+  value
+) {
+  const normalizedValue =
+    String(
+      value ||
+      ""
+    ).trim();
+
+
+  if (
+    !isValidLimestoneDate(
+      normalizedValue
+    )
   ) {
-    const {
-      quickRangeButtons
-    } =
-      getLimestoneReceiptElements();
-
-
-    quickRangeButtons.forEach(
-      button => {
-        button.classList.toggle(
-          "is-active",
-
-          button.dataset
-            .limestoneRange ===
-            selectedRange
-        );
-      }
-    );
+    return null;
   }
 
 
-  /* =====================================================
-    기간 설정
-  ====================================================== */
-
-  function setLimestoneDateRange(
-    rangeType
-  ) {
-    const {
-      startDateInput,
-      endDateInput,
-      periodLabel
-    } =
-      getLimestoneReceiptElements();
-
-
-    if (
-      !startDateInput ||
-      !endDateInput
-    ) {
-      return;
-    }
-
-
-    const today =
-      new Date();
-
-
-    let startDate =
-      new Date(
-        today
+  const [
+    year,
+    month,
+    day
+  ] =
+    normalizedValue
+      .split(
+        "-"
+      )
+      .map(
+        Number
       );
 
 
-    let endDate =
-      new Date(
-        today
-      );
+  return new Date(
+    year,
+    month - 1,
+    day
+  );
+}
 
 
-    let label =
-      "최근 7일";
+/* =====================================================
+  조회 기간 일수
 
+  시작일과 종료일을 모두 포함한다.
 
-    if (
-      rangeType ===
-        "today"
-    ) {
-      label =
-        "오늘";
+  8월 1일 ~ 8월 7일
+  → 7일
+===================================================== */
 
-    } else if (
-      rangeType ===
-        "this-month"
-    ) {
-      startDate =
-        new Date(
-          today.getFullYear(),
-          today.getMonth(),
-          1
-        );
-
-
-      label =
-        "이번 달";
-
-    } else if (
-      rangeType ===
-        "last-month"
-    ) {
-      startDate =
-        new Date(
-          today.getFullYear(),
-          today.getMonth() -
-            1,
-          1
-        );
-
-
-      endDate =
-        new Date(
-          today.getFullYear(),
-          today.getMonth(),
-          0
-        );
-
-
-      label =
-        "지난 달";
-
-    } else {
-      startDate =
-        addLimestoneDays(
-          today,
-          -6
-        );
-
-
-      rangeType =
-        "7days";
-
-
-      label =
-        "최근 7일";
-    }
-
-
-    startDateInput.value =
-      formatLimestoneDate(
-        startDate
-      );
-
-
-    endDateInput.value =
-      formatLimestoneDate(
-        endDate
-      );
-
-
-    limestoneReceiptState
-      .currentRangeType =
-      rangeType;
-
-
-    setLimestoneRangeButtonState(
-      rangeType
+function getLimestoneDateRangeDayCount(
+  startDateValue,
+  endDateValue
+) {
+  const startDate =
+    parseLimestoneDateValue(
+      startDateValue
     );
 
 
-    if (
-      periodLabel
-    ) {
-      periodLabel.textContent =
-        label;
-    }
+  const endDate =
+    parseLimestoneDateValue(
+      endDateValue
+    );
+
+
+  if (
+    !startDate ||
+    !endDate ||
+    startDate >
+      endDate
+  ) {
+    return 0;
   }
+
+
+  return (
+    Math.round(
+      (
+        endDate.getTime() -
+        startDate.getTime()
+      ) /
+      86400000
+    ) +
+    1
+  );
+}
+
+
+/* =====================================================
+  현재 조회 기간 표시
+
+  예:
+  2026-07-28 ~ 2026-08-03
+  7일
+===================================================== */
+
+function updateLimestonePeriodDisplay() {
+  const {
+    startDateInput,
+    endDateInput,
+    periodLabel,
+    periodDayCount
+  } =
+    getLimestoneReceiptElements();
+
+
+  const startDate =
+    String(
+      startDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const endDate =
+    String(
+      endDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const dayCount =
+    getLimestoneDateRangeDayCount(
+      startDate,
+      endDate
+    );
+
+
+  if (
+    periodLabel
+  ) {
+    periodLabel.textContent =
+      startDate &&
+      endDate
+        ? `${startDate} ~ ${endDate}`
+        : "-";
+  }
+
+
+  if (
+    periodDayCount
+  ) {
+    periodDayCount.textContent =
+      dayCount >
+        0
+        ? `${dayCount}일`
+        : "-";
+  }
+}
+
+
+/* =====================================================
+  기본 조회 기간
+
+  오늘 포함 최근 7일
+===================================================== */
+
+function setDefaultLimestoneDateRange() {
+  const {
+    startDateInput,
+    endDateInput
+  } =
+    getLimestoneReceiptElements();
+
+
+  if (
+    !startDateInput ||
+    !endDateInput
+  ) {
+    return;
+  }
+
+
+  const today =
+    new Date();
+
+
+  const startDate =
+    addLimestoneDays(
+      today,
+      -6
+    );
+
+
+  startDateInput.value =
+    formatLimestoneDate(
+      startDate
+    );
+
+
+  endDateInput.value =
+    formatLimestoneDate(
+      today
+    );
+
+
+  updateLimestonePeriodDisplay();
+}
+
+
+/* =====================================================
+  현재 조회 기간 이동
+
+  예:
+  현재 8월 1일 ~ 8월 7일
+
+  -1:
+  7월 31일 ~ 8월 6일
+
+  +7:
+  8월 8일 ~ 8월 14일
+===================================================== */
+
+async function moveLimestoneDateRange(
+  moveDayCount
+) {
+  const {
+    startDateInput,
+    endDateInput
+  } =
+    getLimestoneReceiptElements();
+
+
+  const startDate =
+    parseLimestoneDateValue(
+      startDateInput?.value
+    );
+
+
+  const endDate =
+    parseLimestoneDateValue(
+      endDateInput?.value
+    );
+
+
+  if (
+    !startDate ||
+    !endDate ||
+    startDate >
+      endDate
+  ) {
+    showLimestoneToast(
+      "조회 시작일과 종료일을 확인해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  const normalizedMoveDayCount =
+    Number(
+      moveDayCount
+    );
+
+
+  if (
+    !Number.isFinite(
+      normalizedMoveDayCount
+    )
+  ) {
+    return;
+  }
+
+
+  startDateInput.value =
+    formatLimestoneDate(
+      addLimestoneDays(
+        startDate,
+        normalizedMoveDayCount
+      )
+    );
+
+
+  endDateInput.value =
+    formatLimestoneDate(
+      addLimestoneDays(
+        endDate,
+        normalizedMoveDayCount
+      )
+    );
+
+
+  updateLimestonePeriodDisplay();
+
+
+  closeLimestoneImportPanel();
+
+
+  await loadLimestoneReceipts();
+}
+
+
+/* =====================================================
+  오늘로 이동
+
+  현재 조회 기간 길이는 유지하고
+  종료일만 오늘로 맞춘다.
+
+  현재 기간이 7일:
+  오늘을 포함한 최근 7일
+
+  현재 기간이 1일:
+  오늘 하루
+===================================================== */
+
+async function moveLimestoneDateRangeToToday() {
+  const {
+    startDateInput,
+    endDateInput
+  } =
+    getLimestoneReceiptElements();
+
+
+  let dayCount =
+    getLimestoneDateRangeDayCount(
+      startDateInput?.value,
+      endDateInput?.value
+    );
+
+
+  if (
+    dayCount <
+      1
+  ) {
+    dayCount =
+      7;
+  }
+
+
+  const today =
+    new Date();
+
+
+  const startDate =
+    addLimestoneDays(
+      today,
+      -(
+        dayCount -
+        1
+      )
+    );
+
+
+  startDateInput.value =
+    formatLimestoneDate(
+      startDate
+    );
+
+
+  endDateInput.value =
+    formatLimestoneDate(
+      today
+    );
+
+
+  updateLimestonePeriodDisplay();
+
+
+  closeLimestoneImportPanel();
+
+
+  await loadLimestoneReceipts();
+}
+
+
+/* =====================================================
+  집계 방식 변경
+
+  daily:
+  일별
+
+  weekly:
+  주별
+
+  monthly:
+  월별
+===================================================== */
+
+function setLimestoneGroupMode(
+  requestedMode,
+  options = {}
+) {
+  const {
+    render =
+      true
+  } = options;
+
+
+  const validModes = [
+    "daily",
+    "weekly",
+    "monthly"
+  ];
+
+
+  const normalizedMode =
+    validModes.includes(
+      requestedMode
+    )
+      ? requestedMode
+      : "daily";
+
+
+  limestoneReceiptState
+    .groupMode =
+    normalizedMode;
+
+
+  const {
+    groupModeButtons
+  } =
+    getLimestoneReceiptElements();
+
+
+  groupModeButtons.forEach(
+    button => {
+      const isActive =
+        button.dataset
+          .limestoneGroupMode ===
+        normalizedMode;
+
+
+      button.classList.toggle(
+        "is-active",
+        isActive
+      );
+
+
+      button.setAttribute(
+        "aria-pressed",
+        String(
+          isActive
+        )
+      );
+    }
+  );
+
+
+  if (
+    render
+  ) {
+    renderLimestoneGroupedSummary(
+      limestoneReceiptState
+        .items
+    );
+  }
+}
 
 
   /* =====================================================
@@ -73540,105 +73926,546 @@ function openEfficiencyTeamModal() {
   }
 
 
-  /* =====================================================
-    일자별 집계 출력
-  ====================================================== */
+/* =====================================================
+  일별 표시 이름
 
-  function renderLimestoneDailySummary(
-    dailySummary
-  ) {
-    const {
-      dailySummaryBody,
-      dailySummaryCount
-    } =
-      getLimestoneReceiptElements();
+  오늘:
+  오늘 (2026-08-03)
 
+  어제:
+  어제 (2026-08-02)
 
-    if (
-      dailySummaryCount
-    ) {
-      dailySummaryCount.textContent =
-        `${dailySummary.length}일`;
-    }
+  나머지:
+  2026-08-01
+===================================================== */
+
+function getLimestoneDailyGroupLabel(
+  dateValue
+) {
+  const today =
+    getLimestoneToday();
 
 
-    if (
-      !dailySummaryBody
-    ) {
-      return;
-    }
+  const todayDate =
+    parseLimestoneDateValue(
+      today
+    );
 
 
-    if (
-      dailySummary.length ===
-        0
-    ) {
-      dailySummaryBody.innerHTML = `
-        <tr class="limestone-empty-table-row">
-
-          <td colspan="5">
-            선택한 기간의 석회석 입고기록이 없습니다.
-          </td>
-
-        </tr>
-      `;
-
-
-      return;
-    }
-
-
-    dailySummaryBody.innerHTML =
-      dailySummary
-        .map(
-          item => {
-            return `
-              <tr>
-
-                <td>
-                  ${escapeLimestoneHtml(
-                    item.date
-                  )}
-                </td>
-
-                <td
-                  class="limestone-quantity-value"
-                >
-                  ${formatLimestoneQuantity(
-                    item.unitOneQuantity
-                  )} t
-                </td>
-
-                <td
-                  class="limestone-quantity-value"
-                >
-                  ${formatLimestoneQuantity(
-                    item.unitTwoQuantity
-                  )} t
-                </td>
-
-                <td
-                  class="limestone-quantity-value"
-                >
-                  ${formatLimestoneQuantity(
-                    item.totalQuantity
-                  )} t
-                </td>
-
-                <td>
-                  ${Number(
-                    item.receiptCount
-                  ) || 0}회
-                </td>
-
-              </tr>
-            `;
-          }
+  const yesterday =
+    todayDate
+      ? formatLimestoneDate(
+          addLimestoneDays(
+            todayDate,
+            -1
+          )
         )
-        .join(
-          ""
-        );
+      : "";
+
+
+  if (
+    dateValue ===
+      today
+  ) {
+    return `오늘 (${dateValue})`;
   }
+
+
+  if (
+    dateValue ===
+      yesterday
+  ) {
+    return `어제 (${dateValue})`;
+  }
+
+
+  return dateValue;
+}
+
+
+/* =====================================================
+  날짜별 집계 그룹 정보
+
+  주별 기준:
+  1주 = 1일~7일
+  2주 = 8일~14일
+  3주 = 15일~21일
+  4주 = 22일~28일
+  5주 = 29일~말일
+===================================================== */
+
+function getLimestoneGroupInformation(
+  dateValue,
+  groupMode
+) {
+  const parsedDate =
+    parseLimestoneDateValue(
+      dateValue
+    );
+
+
+  if (
+    !parsedDate
+  ) {
+    return null;
+  }
+
+
+  const year =
+    parsedDate.getFullYear();
+
+
+  const month =
+    parsedDate.getMonth() +
+    1;
+
+
+  const day =
+    parsedDate.getDate();
+
+
+  const monthText =
+    String(
+      month
+    ).padStart(
+      2,
+      "0"
+    );
+
+
+  if (
+    groupMode ===
+      "monthly"
+  ) {
+    return {
+      key:
+        `${year}-${monthText}`,
+
+      sortKey:
+        `${year}-${monthText}`,
+
+      label:
+        `${year}년 ${monthText}월`
+    };
+  }
+
+
+  if (
+    groupMode ===
+      "weekly"
+  ) {
+    const weekNumber =
+      Math.ceil(
+        day /
+        7
+      );
+
+
+    return {
+      key:
+        `${year}-${monthText}-W${weekNumber}`,
+
+      sortKey:
+        `${year}-${monthText}-${String(
+          weekNumber
+        ).padStart(
+          2,
+          "0"
+        )}`,
+
+      label:
+        `${year}년 ${monthText}월 ${weekNumber}주`
+    };
+  }
+
+
+  return {
+    key:
+      dateValue,
+
+    sortKey:
+      dateValue,
+
+    label:
+      getLimestoneDailyGroupLabel(
+        dateValue
+      )
+  };
+}
+
+
+/* =====================================================
+  현재 조회 결과를 일별·주별·월별로 집계
+===================================================== */
+
+function createLimestoneGroupedSummary(
+  items,
+  requestedMode
+) {
+  const safeItems =
+    Array.isArray(
+      items
+    )
+      ? items
+      : [];
+
+
+  const groupMode =
+    [
+      "daily",
+      "weekly",
+      "monthly"
+    ].includes(
+      requestedMode
+    )
+      ? requestedMode
+      : "daily";
+
+
+  const groupMap =
+    new Map();
+
+
+  safeItems.forEach(
+    item => {
+      const receiptDate =
+        String(
+          item?.receiptDate ||
+          ""
+        ).trim();
+
+
+      const groupInformation =
+        getLimestoneGroupInformation(
+          receiptDate,
+          groupMode
+        );
+
+
+      if (
+        !groupInformation
+      ) {
+        return;
+      }
+
+
+      if (
+        !groupMap.has(
+          groupInformation.key
+        )
+      ) {
+        groupMap.set(
+          groupInformation.key,
+          {
+            key:
+              groupInformation.key,
+
+            sortKey:
+              groupInformation.sortKey,
+
+            label:
+              groupInformation.label,
+
+            unitOneQuantity:
+              0,
+
+            unitTwoQuantity:
+              0,
+
+            totalQuantity:
+              0,
+
+            receiptCount:
+              0
+          }
+        );
+      }
+
+
+      const groupItem =
+        groupMap.get(
+          groupInformation.key
+        );
+
+
+      const quantity =
+        Number(
+          item?.quantityTon
+        ) ||
+        0;
+
+
+      const unitNo =
+        Number(
+          item?.unitNo
+        );
+
+
+      if (
+        unitNo ===
+          1
+      ) {
+        groupItem.unitOneQuantity +=
+          quantity;
+
+      } else if (
+        unitNo ===
+          2
+      ) {
+        groupItem.unitTwoQuantity +=
+          quantity;
+      }
+
+
+      groupItem.totalQuantity +=
+        quantity;
+
+
+      groupItem.receiptCount +=
+        1;
+    }
+  );
+
+
+  return [
+    ...groupMap.values()
+  ]
+    .map(
+      groupItem => {
+        return {
+          ...groupItem,
+
+          unitOneQuantity:
+            normalizeLimestoneQuantity(
+              groupItem
+                .unitOneQuantity
+            ),
+
+          unitTwoQuantity:
+            normalizeLimestoneQuantity(
+              groupItem
+                .unitTwoQuantity
+            ),
+
+          totalQuantity:
+            normalizeLimestoneQuantity(
+              groupItem
+                .totalQuantity
+            )
+        };
+      }
+    )
+    .sort(
+      (
+        firstItem,
+        secondItem
+      ) => {
+        return secondItem
+          .sortKey
+          .localeCompare(
+            firstItem.sortKey
+          );
+      }
+    );
+}
+
+
+/* =====================================================
+  일별·주별·월별 집계 화면 출력
+===================================================== */
+
+function renderLimestoneGroupedSummary(
+  items
+) {
+  const {
+    groupSummaryEyebrow,
+    groupSummaryTitle,
+    groupSummaryPeriodHeader,
+    dailySummaryCount,
+    dailySummaryBody
+  } =
+    getLimestoneReceiptElements();
+
+
+  const groupMode =
+    limestoneReceiptState
+      .groupMode ||
+    "daily";
+
+
+  const modeConfiguration = {
+    daily: {
+      eyebrow:
+        "DAILY SUMMARY",
+
+      title:
+        "일별 입고량",
+
+      periodHeader:
+        "일자",
+
+      countUnit:
+        "일"
+    },
+
+    weekly: {
+      eyebrow:
+        "WEEKLY SUMMARY",
+
+      title:
+        "주별 입고량",
+
+      periodHeader:
+        "주차",
+
+      countUnit:
+        "주"
+    },
+
+    monthly: {
+      eyebrow:
+        "MONTHLY SUMMARY",
+
+      title:
+        "월별 입고량",
+
+      periodHeader:
+        "월",
+
+      countUnit:
+        "개월"
+    }
+  };
+
+
+  const configuration =
+    modeConfiguration[
+      groupMode
+    ] ||
+    modeConfiguration.daily;
+
+
+  const groupedSummary =
+    createLimestoneGroupedSummary(
+      items,
+      groupMode
+    );
+
+
+  limestoneReceiptState
+    .groupedSummary =
+    groupedSummary;
+
+
+  if (
+    groupSummaryEyebrow
+  ) {
+    groupSummaryEyebrow.textContent =
+      configuration.eyebrow;
+  }
+
+
+  if (
+    groupSummaryTitle
+  ) {
+    groupSummaryTitle.textContent =
+      configuration.title;
+  }
+
+
+  if (
+    groupSummaryPeriodHeader
+  ) {
+    groupSummaryPeriodHeader.textContent =
+      configuration.periodHeader;
+  }
+
+
+  if (
+    dailySummaryCount
+  ) {
+    dailySummaryCount.textContent =
+      `${groupedSummary.length}${configuration.countUnit}`;
+  }
+
+
+  if (
+    !dailySummaryBody
+  ) {
+    return;
+  }
+
+
+  if (
+    groupedSummary.length ===
+      0
+  ) {
+    dailySummaryBody.innerHTML = `
+      <tr class="limestone-empty-table-row">
+
+        <td colspan="5">
+          선택한 기간의 석회석 입고기록이 없습니다.
+        </td>
+
+      </tr>
+    `;
+
+
+    return;
+  }
+
+
+  dailySummaryBody.innerHTML =
+    groupedSummary
+      .map(
+        groupItem => {
+          return `
+            <tr>
+
+              <td>
+                ${escapeLimestoneHtml(
+                  groupItem.label
+                )}
+              </td>
+
+              <td
+                class="limestone-quantity-value"
+              >
+                ${formatLimestoneQuantity(
+                  groupItem.unitOneQuantity
+                )} t
+              </td>
+
+              <td
+                class="limestone-quantity-value"
+              >
+                ${formatLimestoneQuantity(
+                  groupItem.unitTwoQuantity
+                )} t
+              </td>
+
+              <td
+                class="limestone-quantity-value"
+              >
+                ${formatLimestoneQuantity(
+                  groupItem.totalQuantity
+                )} t
+              </td>
+
+              <td>
+                ${Number(
+                  groupItem.receiptCount
+                ) || 0}회
+              </td>
+
+            </tr>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+}
 
 
   /* =====================================================
@@ -74155,12 +74982,25 @@ function createLimestoneSummaryFromResultItems(
   현재 조회 API가 반환한 items만 사용한다.
 ===================================================== */
 
+/* =====================================================
+  석회석 조회 결과 출력 최종본
+
+  상단 합계:
+  조회된 기간 전체 합계
+
+  중간 표:
+  일별·주별·월별 선택 방식으로 묶음
+
+  하단:
+  조회 기간의 상세 기록
+===================================================== */
+
 function renderLimestoneResult(
   result
 ) {
   const resultItems =
     Array.isArray(
-      result.items
+      result?.items
     )
       ? result.items
       : [];
@@ -74176,219 +75016,218 @@ function renderLimestoneResult(
     resultItems;
 
 
-  limestoneReceiptState.dailySummary =
-    calculatedResult
-      .dailySummary;
-
-
   limestoneReceiptState.summary =
-    calculatedResult
-      .summary;
+    calculatedResult.summary;
 
 
   limestoneReceiptState.range = {
     startDate:
       String(
-        result.range
+        result?.range
           ?.startDate ||
         ""
       ),
 
     endDate:
       String(
-        result.range
+        result?.range
           ?.endDate ||
         ""
       ),
 
     unitNo:
-      result.range
+      result?.range
         ?.unitNo ??
       null
   };
 
 
+  /*
+    조회 기간 전체 합계
+  */
   renderLimestoneSummary(
     limestoneReceiptState
       .summary
   );
 
 
-  renderLimestoneDailySummary(
+  /*
+    현재 선택된 집계 방식
+  */
+  renderLimestoneGroupedSummary(
     limestoneReceiptState
-      .dailySummary
+      .items
   );
 
 
+  /*
+    상세 입고기록
+  */
   renderLimestoneReceiptItems(
     limestoneReceiptState
       .items
   );
+
+
+  updateLimestonePeriodDisplay();
 }
 
 
-  /* =====================================================
-    입고기록 조회
-  ====================================================== */
+/* =====================================================
+  입고기록 조회
 
-  async function loadLimestoneReceipts() {
-    if (
-      limestoneReceiptState
-        .isLoading
-    ) {
-      return;
-    }
+  합계 기준:
+  시작일~종료일에 조회된 자료만 계산한다.
+===================================================== */
 
-
-    const {
-      startDateInput,
-      endDateInput,
-      unitFilter,
-      periodLabel
-    } =
-      getLimestoneReceiptElements();
-
-
-    const startDate =
-      String(
-        startDateInput?.value ||
-        ""
-      ).trim();
-
-
-    const endDate =
-      String(
-        endDateInput?.value ||
-        ""
-      ).trim();
-
-
-    const unitNo =
-      String(
-        unitFilter?.value ||
-        ""
-      ).trim();
-
-
-    if (
-      !isValidLimestoneDate(
-        startDate
-      ) ||
-      !isValidLimestoneDate(
-        endDate
-      )
-    ) {
-      showLimestoneToast(
-        "석회석 조회 시작일과 종료일을 확인해 주세요."
-      );
-
-
-      return;
-    }
-
-
-    if (
-      startDate >
-        endDate
-    ) {
-      showLimestoneToast(
-        "석회석 조회 시작일은 종료일보다 늦을 수 없습니다."
-      );
-
-
-      return;
-    }
-
-
-    const requestUrl =
-      new URL(
-        LIMESTONE_RECEIPTS_API_URL,
-        window.location.origin
-      );
-
-
-    requestUrl.searchParams.set(
-      "startDate",
-      startDate
-    );
-
-
-    requestUrl.searchParams.set(
-      "endDate",
-      endDate
-    );
-
-
-    if (
-      unitNo
-    ) {
-      requestUrl.searchParams.set(
-        "unitNo",
-        unitNo
-      );
-    }
-
-
-    setLimestoneLoading(
-      true
-    );
-
-
-    try {
-      const result =
-        await requestLimestoneApi(
-          requestUrl.toString(),
-          {
-            method:
-              "GET",
-
-            headers:
-              getLimestoneApiHeaders()
-          }
-        );
-
-
-      renderLimestoneResult(
-        result
-      );
-
-
-      limestoneReceiptState
-        .hasLoaded =
-        true;
-
-
-      if (
-        periodLabel &&
-        limestoneReceiptState
-          .currentRangeType ===
-          "custom"
-      ) {
-        periodLabel.textContent =
-          `${startDate} ~ ${endDate}`;
-      }
-
-    } catch (
-      error
-    ) {
-      console.error(
-        "석회석 입고기록 조회 실패:",
-        error
-      );
-
-
-      showLimestoneToast(
-        error.message ||
-        "석회석 입고기록을 불러오지 못했습니다."
-      );
-
-    } finally {
-      setLimestoneLoading(
-        false
-      );
-    }
+async function loadLimestoneReceipts() {
+  if (
+    limestoneReceiptState
+      .isLoading
+  ) {
+    return;
   }
 
+
+  const {
+    startDateInput,
+    endDateInput,
+    unitFilter
+  } =
+    getLimestoneReceiptElements();
+
+
+  const startDate =
+    String(
+      startDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const endDate =
+    String(
+      endDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const unitNo =
+    String(
+      unitFilter?.value ||
+      ""
+    ).trim();
+
+
+  if (
+    !isValidLimestoneDate(
+      startDate
+    ) ||
+    !isValidLimestoneDate(
+      endDate
+    )
+  ) {
+    showLimestoneToast(
+      "석회석 조회 시작일과 종료일을 확인해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  if (
+    startDate >
+      endDate
+  ) {
+    showLimestoneToast(
+      "석회석 조회 시작일은 종료일보다 늦을 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  const requestUrl =
+    new URL(
+      LIMESTONE_RECEIPTS_API_URL,
+      window.location.origin
+    );
+
+
+  requestUrl.searchParams.set(
+    "startDate",
+    startDate
+  );
+
+
+  requestUrl.searchParams.set(
+    "endDate",
+    endDate
+  );
+
+
+  if (
+    unitNo
+  ) {
+    requestUrl.searchParams.set(
+      "unitNo",
+      unitNo
+    );
+  }
+
+
+  updateLimestonePeriodDisplay();
+
+
+  setLimestoneLoading(
+    true
+  );
+
+
+  try {
+    const result =
+      await requestLimestoneApi(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            getLimestoneApiHeaders()
+        }
+      );
+
+
+    renderLimestoneResult(
+      result
+    );
+
+
+    limestoneReceiptState
+      .hasLoaded =
+      true;
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "석회석 입고기록 조회 실패:",
+      error
+    );
+
+
+    showLimestoneToast(
+      error.message ||
+      "석회석 입고기록을 불러오지 못했습니다."
+    );
+
+  } finally {
+    setLimestoneLoading(
+      false
+    );
+  }
+}
 
   /* =====================================================
     입력창 초기화
@@ -77678,62 +78517,296 @@ async function applyLimestoneImportCandidates() {
     이벤트 연결
   ====================================================== */
 
-  /* =====================================================
-    석회석 입고 현황 이벤트 연결 최종본
-  ====================================================== */
+/* =====================================================
+  석회석 입고 현황 이벤트 연결 최종본
 
-  function bindLimestoneReceiptEvents() {
-    const elements =
-      getLimestoneReceiptElements();
+  기능:
+  - 1일·7일·30일 이전·다음 이동
+  - 오늘 이동
+  - 직접 기간 조회
+  - 일별·주별·월별 집계 전환
+  - 업무일지 가져오기
+  - 직접 등록·수정·삭제
+===================================================== */
 
-
-    const importElements =
-      getLimestoneImportElements();
-
-
-    const {
-      limestoneTab,
-      refreshButton,
-      openEditorButton,
-      quickRangeButtons,
-      searchForm,
-      closeEditorButton,
-      cancelEditorButton,
-      editorForm,
-      receiptTableBody
-    } = elements;
+function bindLimestoneReceiptEvents() {
+  const elements =
+    getLimestoneReceiptElements();
 
 
-const {
-  importButton,
-
-  searchButton:
-    searchImportButton,
-
-  cancelButton:
-    cancelImportButton,
-
-  applyButton:
-    applyImportButton
-} = importElements;
+  const importElements =
+    getLimestoneImportElements();
 
 
+  const {
+    limestoneTab,
+    refreshButton,
+    openEditorButton,
 
-    if (
-      !limestoneTab ||
-      !elements.view
-    ) {
-      return;
+    periodMoveButtons,
+    moveToTodayButton,
+    groupModeButtons,
+
+    searchForm,
+    startDateInput,
+    endDateInput,
+
+    closeEditorButton,
+    cancelEditorButton,
+    editorForm,
+    receiptTableBody
+  } =
+    elements;
+
+
+  const {
+    importButton,
+
+    searchButton:
+      searchImportButton,
+
+    cancelButton:
+      cancelImportButton,
+
+    applyButton:
+      applyImportButton
+  } =
+    importElements;
+
+
+  if (
+    !limestoneTab ||
+    !elements.view
+  ) {
+    return;
+  }
+
+
+  if (
+    limestoneTab.dataset
+      .limestoneFeatureBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  /* ===================================================
+    기본 설정
+
+    기간:
+    오늘 포함 최근 7일
+
+    집계:
+    일별
+  ==================================================== */
+
+  setDefaultLimestoneDateRange();
+
+
+  setLimestoneGroupMode(
+    "daily",
+    {
+      render:
+        false
     }
+  );
 
 
-    if (
-      limestoneTab.dataset
-        .limestoneFeatureBound ===
-        "true"
-    ) {
-      return;
+  /* ===================================================
+    석회석 탭 열기
+  ==================================================== */
+
+  limestoneTab.addEventListener(
+    "click",
+    () => {
+      window.setTimeout(
+        () => {
+          loadLimestoneReceipts();
+        },
+        0
+      );
     }
+  );
+
+
+  /* ===================================================
+    새로고침
+  ==================================================== */
+
+  refreshButton?.addEventListener(
+    "click",
+    loadLimestoneReceipts
+  );
+
+
+  /* ===================================================
+    기간 이전·다음 이동
+  ==================================================== */
+
+  periodMoveButtons.forEach(
+    button => {
+      button.addEventListener(
+        "click",
+        async () => {
+          const moveDayCount =
+            Number(
+              button.dataset
+                .limestoneMoveDays
+            );
+
+
+          await moveLimestoneDateRange(
+            moveDayCount
+          );
+        }
+      );
+    }
+  );
+
+
+  /* ===================================================
+    오늘 이동
+  ==================================================== */
+
+  moveToTodayButton
+    ?.addEventListener(
+      "click",
+      moveLimestoneDateRangeToToday
+    );
+
+
+  /* ===================================================
+    일별·주별·월별 집계 방식
+  ==================================================== */
+
+  groupModeButtons.forEach(
+    button => {
+      button.addEventListener(
+        "click",
+        () => {
+          setLimestoneGroupMode(
+            button.dataset
+              .limestoneGroupMode
+          );
+        }
+      );
+    }
+  );
+
+
+  /* ===================================================
+    날짜 직접 변경 시 상단 기간 표시 갱신
+
+    실제 서버 조회는 조회 버튼을 눌렀을 때 실행한다.
+  ==================================================== */
+
+  startDateInput
+    ?.addEventListener(
+      "change",
+      updateLimestonePeriodDisplay
+    );
+
+
+  endDateInput
+    ?.addEventListener(
+      "change",
+      updateLimestonePeriodDisplay
+    );
+
+
+  /* ===================================================
+    직접 기간 조회
+  ==================================================== */
+
+  searchForm?.addEventListener(
+    "submit",
+    async event => {
+      event.preventDefault();
+
+
+      closeLimestoneImportPanel();
+
+
+      updateLimestonePeriodDisplay();
+
+
+      await loadLimestoneReceipts();
+    }
+  );
+
+
+  /* ===================================================
+    직접 입고기록 등록
+  ==================================================== */
+
+  openEditorButton?.addEventListener(
+    "click",
+    () => {
+      closeLimestoneImportPanel();
+
+
+      openLimestoneReceiptEditor();
+    }
+  );
+
+
+  closeEditorButton?.addEventListener(
+    "click",
+    closeLimestoneReceiptEditor
+  );
+
+
+  cancelEditorButton?.addEventListener(
+    "click",
+    closeLimestoneReceiptEditor
+  );
+
+
+  editorForm?.addEventListener(
+    "submit",
+    saveLimestoneReceipt
+  );
+
+
+  receiptTableBody?.addEventListener(
+    "click",
+    handleLimestoneReceiptTableClick
+  );
+
+
+  /* ===================================================
+    업무일지에서 가져오기
+  ==================================================== */
+
+  importButton?.addEventListener(
+    "click",
+    openLimestoneImportPanel
+  );
+
+
+  searchImportButton?.addEventListener(
+    "click",
+    searchLimestoneImportCandidates
+  );
+
+
+  cancelImportButton?.addEventListener(
+    "click",
+    closeLimestoneImportPanel
+  );
+
+
+  applyImportButton?.addEventListener(
+    "click",
+    applyLimestoneImportCandidates
+  );
+
+
+  limestoneTab.dataset
+    .limestoneFeatureBound =
+    "true";
+}
 
 
     /* ===================================================
