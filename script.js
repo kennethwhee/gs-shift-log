@@ -31518,33 +31518,61 @@ const createCompactLineHtml = (
 /* =========================================================
   인수인계사항 편집 모드 최종본
 
-  테이블 TD를 숨기거나 다시 표시하지 않는다.
+  적용 대상:
+  - TM 발행 내역
+  - 인계사항
+  - 비고
 
-  각 행 내부 GRID만 변경한다.
-
-  일반:
-  내용
-
-  편집:
-  체크 | 내용 | 수정·삭제
+  편집 종료 시:
+  - 모든 체크박스 숨김
+  - 모든 수정·삭제 버튼 숨김
+  - 선택 상태 초기화
 ========================================================= */
 
 function setLogEntryEditMode(
   isEditing
 ) {
+  const editMode =
+    isEditing === true;
+
+
   const panel =
     elements.logEntryListPanel;
 
 
-  if (
-    panel
-  ) {
-    panel.classList.toggle(
-      "is-edit-mode",
-      isEditing
+  const editorModal =
+    elements.logEditorModal ||
+    document.getElementById(
+      "logEditorModal"
     );
-  }
 
+
+  /* =====================================================
+    편집 상태 클래스
+
+    기존 인수인계 패널 클래스는 유지하고
+    업무일지 모달에도 편집 상태를 함께 기록한다.
+  ====================================================== */
+
+  panel
+    ?.classList
+    .toggle(
+      "is-edit-mode",
+      editMode
+    );
+
+
+  editorModal
+    ?.classList
+    .toggle(
+      "is-log-entry-edit-mode",
+      editMode
+    );
+
+
+  /* =====================================================
+    편집 / 완료 버튼 전환
+  ====================================================== */
 
   if (
     elements.openLogEntryEditModeButton
@@ -31552,7 +31580,7 @@ function setLogEntryEditMode(
     elements
       .openLogEntryEditModeButton
       .hidden =
-      isEditing;
+      editMode;
   }
 
 
@@ -31562,9 +31590,13 @@ function setLogEntryEditMode(
     elements
       .cancelLogEntryEditModeButton
       .hidden =
-      !isEditing;
+      !editMode;
   }
 
+
+  /* =====================================================
+    선택 항목 삭제 버튼
+  ====================================================== */
 
   if (
     elements.deleteSelectedLogEntriesButton
@@ -31572,11 +31604,11 @@ function setLogEntryEditMode(
     elements
       .deleteSelectedLogEntriesButton
       .hidden =
-      !isEditing;
+      !editMode;
 
 
     if (
-      !isEditing
+      !editMode
     ) {
       elements
         .deleteSelectedLogEntriesButton
@@ -31587,70 +31619,125 @@ function setLogEntryEditMode(
 
 
   /* =====================================================
-    각 업무 행 내부 구조만 변경
+    편집모드를 적용할 목록
+
+    기존에는 logEntryListPanel 내부만 처리해
+    비고 목록이 빠지는 문제가 있었다.
+
+    이제 각 tbody를 직접 지정한다.
   ====================================================== */
 
-  panel
-    ?.querySelectorAll(
-      ".log-entry-row-shell"
-    )
-    .forEach(
-      (rowShell) => {
-        rowShell.style
-          .setProperty(
-            "grid-template-columns",
+  const entryTableBodies = [
+    elements.tmIssueEntryTableBody,
 
-            isEditing
-              ? "32px minmax(0, 1fr) 78px"
-              : "minmax(0, 1fr)",
+    elements.logEntryTableBody,
 
-            "important"
-          );
+    elements.noteEntryTableBody
+  ].filter(Boolean);
 
 
-        const selectArea =
-          rowShell.querySelector(
-            ".log-entry-row-select"
-          );
+  entryTableBodies.forEach(
+    tableBody => {
+      const isNoteTable =
+        tableBody.id ===
+        "noteEntryTableBody";
 
 
-        const actionArea =
-          rowShell.querySelector(
-            ".log-entry-row-actions"
-          );
+      tableBody
+        .querySelectorAll(
+          ".log-entry-row-shell"
+        )
+        .forEach(
+          rowShell => {
+            /*
+              일반 상태:
+              내용 한 칸
 
-
-        if (
-          selectArea
-        ) {
-          selectArea.hidden =
-            !isEditing;
-        }
-
-
-        if (
-          actionArea
-        ) {
-          actionArea.hidden =
-            !isEditing;
-
-          actionArea.style
-            .setProperty(
+              편집 상태:
+              체크 | 내용 | 관리
+            */
+            rowShell.style.setProperty(
               "display",
+              "grid",
+              "important"
+            );
 
-              isEditing
-                ? "flex"
-                : "none",
+
+            rowShell.style.setProperty(
+              "grid-template-columns",
+
+              editMode
+                ? (
+                    isNoteTable
+                      ? "28px minmax(0, 1fr) auto"
+                      : "32px minmax(0, 1fr) 78px"
+                  )
+                : "minmax(0, 1fr)",
 
               "important"
             );
-        }
-      }
-    );
+
+
+            /* 체크박스 영역 */
+
+            const selectArea =
+              rowShell.querySelector(
+                ".log-entry-row-select"
+              );
+
+
+            if (
+              selectArea
+            ) {
+              selectArea.hidden =
+                !editMode;
+
+
+              selectArea.style.setProperty(
+                "display",
+
+                editMode
+                  ? "flex"
+                  : "none",
+
+                "important"
+              );
+            }
+
+
+            /* 수정·삭제 영역 */
+
+            const actionArea =
+              rowShell.querySelector(
+                ".log-entry-row-actions"
+              );
+
+
+            if (
+              actionArea
+            ) {
+              actionArea.hidden =
+                !editMode;
+
+
+              actionArea.style.setProperty(
+                "display",
+
+                editMode
+                  ? "flex"
+                  : "none",
+
+                "important"
+              );
+            }
+          }
+        );
+    }
+  );
 
 
   /* =====================================================
-    보직별 전체 체크박스 표시
+    파트장 보직별 전체 선택 체크박스
   ====================================================== */
 
   panel
@@ -31658,27 +31745,57 @@ function setLogEntryEditMode(
       ".log-entry-role-select"
     )
     .forEach(
-      (roleSelect) => {
+      roleSelect => {
         roleSelect.hidden =
-          !isEditing;
+          !editMode;
 
 
-        roleSelect.style
-          .setProperty(
-            "display",
+        roleSelect.style.setProperty(
+          "display",
 
-            isEditing
-              ? "inline-flex"
-              : "none",
+          editMode
+            ? "inline-flex"
+            : "none",
 
-            "important"
-          );
+          "important"
+        );
       }
     );
 
 
+  /* =====================================================
+    전체 선택 체크박스 초기화
+  ====================================================== */
+
+  [
+    elements.selectAllTmEntriesCheckbox,
+
+    elements.selectAllLogEntriesCheckbox,
+
+    elements.selectAllNoteEntriesCheckbox
+  ]
+    .filter(Boolean)
+    .forEach(
+      checkbox => {
+        if (
+          !editMode
+        ) {
+          checkbox.checked =
+            false;
+
+          checkbox.indeterminate =
+            false;
+        }
+      }
+    );
+
+
+  /* =====================================================
+    편집 종료
+  ====================================================== */
+
   if (
-    !isEditing
+    !editMode
   ) {
     clearLogEntrySelections();
 

@@ -56213,3 +56213,134 @@ button:focus-visible {
       9px !important;
   }
 }
+
+/* =========================================================
+   업무일지 비고 편집모드 최종 보정
+
+   일반 상태:
+   - 체크박스 숨김
+   - 수정·삭제 숨김
+   - 내용 한 칸 사용
+
+   편집 상태:
+   - 체크박스 표시
+   - 수정·삭제 표시
+========================================================= */
+
+
+/* =========================================================
+   편집모드가 아닐 때
+========================================================= */
+
+#logEditorModal:not(
+  .is-log-entry-edit-mode
+)
+#noteEntryTableBody
+.log-entry-row-select,
+
+#logEditorModal:not(
+  .is-log-entry-edit-mode
+)
+#noteEntryTableBody
+.log-entry-row-actions {
+  display:
+    none !important;
+
+  visibility:
+    hidden !important;
+}
+
+
+/* 비고 내용은 한 칸 전체 사용 */
+
+#logEditorModal:not(
+  .is-log-entry-edit-mode
+)
+#noteEntryTableBody
+.log-entry-row-shell {
+  display:
+    grid !important;
+
+  grid-template-columns:
+    minmax(0, 1fr) !important;
+}
+
+
+/* 혹시 남아 있는 선택 셀도 숨김 */
+
+#logEditorModal:not(
+  .is-log-entry-edit-mode
+)
+#noteEntryTableBody
+.log-entry-edit-only-cell,
+
+#logEditorModal:not(
+  .is-log-entry-edit-mode
+)
+table:has(
+  #noteEntryTableBody
+)
+.log-entry-edit-only-column {
+  display:
+    none !important;
+}
+
+
+/* =========================================================
+   편집모드일 때
+========================================================= */
+
+#logEditorModal.is-log-entry-edit-mode
+#noteEntryTableBody
+.log-entry-row-shell {
+  display:
+    grid !important;
+
+  grid-template-columns:
+    28px
+    minmax(0, 1fr)
+    auto !important;
+
+  align-items:
+    start !important;
+
+  column-gap:
+    7px !important;
+}
+
+
+#logEditorModal.is-log-entry-edit-mode
+#noteEntryTableBody
+.log-entry-row-select {
+  display:
+    flex !important;
+
+  visibility:
+    visible !important;
+
+  align-items:
+    flex-start !important;
+
+  justify-content:
+    center !important;
+}
+
+
+#logEditorModal.is-log-entry-edit-mode
+#noteEntryTableBody
+.log-entry-row-actions {
+  display:
+    flex !important;
+
+  visibility:
+    visible !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    flex-end !important;
+
+  gap:
+    4px !important;
+}
