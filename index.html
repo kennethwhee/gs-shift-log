@@ -335,86 +335,117 @@
   - 회사명
 ========================================================== -->
 <header class="app-header">
+
   <div class="app-header__inner">
 
-    <!-- =====================================================
-      왼쪽 브랜드
-    ====================================================== -->
-    <a
-      href="#"
-      class="brand app-brand"
-      id="appHeaderBrand"
-      aria-label="GS Shift Log 홈"
-    >
 
-      <!-- 회사 로고 -->
-      <span
-        class="brand__mark app-brand__logo"
-        id="appHeaderBrandLogo"
-        aria-hidden="true"
+    <!-- =====================================================
+      왼쪽: 브랜드 + 전체공지
+    ====================================================== -->
+
+    <div class="header-left-group">
+
+
+      <!-- 브랜드 -->
+
+      <a
+        href="#"
+        class="brand app-brand"
+        id="appHeaderBrand"
+        aria-label="GS Shift Log 홈"
       >
 
-        <!-- 로고 미등록 시 기본 표시 -->
+
+        <!-- 회사 로고 -->
+
         <span
-          class="app-brand__fallback"
-          id="appHeaderBrandFallback"
+          class="brand__mark app-brand__logo"
+          id="appHeaderBrandLogo"
+          aria-hidden="true"
         >
-          GS
+
+
+          <!-- 로고 미등록 시 기본 표시 -->
+
+          <span
+            class="app-brand__fallback"
+            id="appHeaderBrandFallback"
+          >
+            GS
+          </span>
+
+
+          <!-- 관리자 업로드 로고 -->
+
+          <img
+            class="app-brand__logo-image"
+            id="appHeaderBrandLogoImage"
+            src=""
+            alt="회사 로고"
+            hidden
+          >
+
+
         </span>
 
-        <!-- 관리자 업로드 로고 -->
-        <img
-          class="app-brand__logo-image"
-          id="appHeaderBrandLogoImage"
-          src=""
-          alt="회사 로고"
-          hidden
-        />
 
-      </span>
+        <!-- 프로그램명·회사명 -->
 
+        <span class="brand__text app-brand__text">
 
-      <!-- 프로그램명·회사명 -->
-      <span class="brand__text app-brand__text">
+          <strong id="appHeaderProgramName">
+            GS Shift Log
+          </strong>
 
-        <strong id="appHeaderProgramName">
-          GS Shift Log
-        </strong>
+          <small id="appHeaderCompanyName">
+            GS 포천그린에너지
+          </small>
 
-        <small id="appHeaderCompanyName">
-          GS 포천그린에너지
-        </small>
-
-      </span>
-
-    </a>
+        </span>
 
 
-    <!-- =====================================================
-      오른쪽 메뉴
-    ====================================================== -->
-    <div class="header-actions">
+      </a>
+
+
+      <!-- 전체공지 -->
 
       <button
         type="button"
-        class="header-action"
+        class="
+          header-action
+          header-action--brand-notice
+        "
         id="noticeButton"
         aria-label="전체공지 열기"
       >
         전체공지
       </button>
 
-        <button
-    type="button"
-    class="
-      header-action
-      header-action--efficiency
-    "
-    id="efficiencyTeamButton"
-    aria-label="효율팀 메뉴 열기"
-  >
-    효율팀
-  </button>
+
+    </div>
+
+
+    <!-- =====================================================
+      오른쪽 메뉴
+
+      점검일지 버튼은 launcher가 이 영역에 자동 생성
+    ====================================================== -->
+
+    <div class="header-actions">
+
+
+      <button
+        type="button"
+        class="
+          header-action
+          header-action--efficiency
+        "
+        id="efficiencyTeamButton"
+        aria-label="효율팀 메뉴 열기"
+      >
+        효율팀
+      </button>
+
 
       <button
         type="button"
@@ -448,9 +479,12 @@
 
       </div>
 
+
     </div>
 
+
   </div>
+
 </header>
 
 
