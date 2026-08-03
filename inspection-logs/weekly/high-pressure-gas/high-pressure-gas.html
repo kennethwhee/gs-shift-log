@@ -16,11 +16,11 @@
 
   <link
     rel="stylesheet"
-    href="high-pressure-gas.css?v=20260803-4"
+    href="high-pressure-gas.css?v=20260803-5"
   >
 
   <script
-    src="high-pressure-gas.js?v=20260803-4"
+    src="high-pressure-gas.js?v=20260803-5"
     defer
   ></script>
 
@@ -81,7 +81,7 @@
       type="button"
       id="gasCheckHistoryButton"
     >
-      저장 기록
+      일지 보관함
     </button>
 
     <button
@@ -103,7 +103,193 @@
 </header>
 
 
+    
+
     <!-- =====================================================
+      저장된 점검일지 게시판형 보관함
+    ====================================================== -->
+
+    <section
+      class="gas-archive-view screen-only"
+      id="gasArchiveView"
+      hidden
+    >
+
+      <header class="gas-archive-header">
+
+        <div class="gas-archive-header__left">
+
+          <button
+            type="button"
+            class="gas-archive-back-button"
+            id="gasArchiveBackButton"
+          >
+            ← 점검표 작성
+          </button>
+
+          <div>
+
+            <p class="gas-archive-header__eyebrow">
+              WEEKLY INSPECTION ARCHIVE
+            </p>
+
+            <h2>
+              고압가스 점검일지 보관함
+            </h2>
+
+            <p>
+              저장된 점검일지를 조회하고 수정하거나 인쇄할 수 있습니다.
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <button
+          type="button"
+          class="gas-archive-refresh-button"
+          id="gasArchiveRefreshButton"
+        >
+          새로고침
+        </button>
+
+      </header>
+
+
+      <section class="gas-archive-filter">
+
+        <label>
+
+          <span>
+            시작일
+          </span>
+
+          <input
+            type="date"
+            id="gasArchiveFromDate"
+          >
+
+        </label>
+
+
+        <label>
+
+          <span>
+            종료일
+          </span>
+
+          <input
+            type="date"
+            id="gasArchiveToDate"
+          >
+
+        </label>
+
+
+        <label class="gas-archive-filter__search">
+
+          <span>
+            검색
+          </span>
+
+          <input
+            type="search"
+            id="gasArchiveSearchInput"
+            placeholder="점검일자, 점검원, 작성자, 상태 검색"
+          >
+
+        </label>
+
+
+        <div class="gas-archive-filter__actions">
+
+          <button
+            type="button"
+            id="gasArchiveSearchButton"
+          >
+            조회
+          </button>
+
+          <button
+            type="button"
+            id="gasArchiveResetButton"
+          >
+            초기화
+          </button>
+
+        </div>
+
+      </section>
+
+
+      <div class="gas-archive-summary">
+
+        <strong>
+          저장된 일지
+        </strong>
+
+        <span id="gasArchiveCount">
+          총 0건
+        </span>
+
+        <small>
+          최신 점검일자순
+        </small>
+
+      </div>
+
+
+      <div class="gas-archive-table-wrap">
+
+        <table class="gas-archive-table">
+
+          <colgroup>
+            <col class="gas-archive-col-number">
+            <col class="gas-archive-col-date">
+            <col class="gas-archive-col-shift">
+            <col class="gas-archive-col-person">
+            <col class="gas-archive-col-result">
+            <col class="gas-archive-col-status">
+            <col class="gas-archive-col-updated">
+            <col class="gas-archive-col-revision">
+            <col class="gas-archive-col-actions">
+          </colgroup>
+
+          <thead>
+
+            <tr>
+              <th>번호</th>
+              <th>점검일자</th>
+              <th>근무</th>
+              <th>점검원 / 작성자</th>
+              <th>점검결과</th>
+              <th>상태</th>
+              <th>최종수정</th>
+              <th>Revision</th>
+              <th>관리</th>
+            </tr>
+
+          </thead>
+
+          <tbody id="gasArchiveTableBody"></tbody>
+
+        </table>
+
+
+        <div
+          class="gas-archive-empty"
+          id="gasArchiveEmpty"
+          hidden
+        >
+          저장된 점검일지가 없습니다.
+        </div>
+
+      </div>
+
+    </section>
+
+<!-- =====================================================
       실제 점검표
     ====================================================== -->
 
@@ -811,60 +997,7 @@
 
 </section>
 
-    <!-- =====================================================
-  저장 기록 팝업
-====================================================== -->
 
-<section
-  class="gas-history-modal screen-only"
-  id="gasHistoryModal"
-  hidden
->
-
-  <div class="gas-history-modal__panel">
-
-    <header class="gas-history-modal__header">
-
-      <div>
-
-        <strong>
-          고압가스 점검일지 저장 기록
-        </strong>
-
-        <small>
-          저장된 일지를 선택하면 상세보기·수정·인쇄가 가능합니다.
-        </small>
-
-      </div>
-
-      <button
-        type="button"
-        id="gasHistoryCloseButton"
-        aria-label="저장 기록 닫기"
-      >
-        ×
-      </button>
-
-    </header>
-
-
-    <div
-      class="gas-history-modal__body"
-      id="gasHistoryList"
-    >
-
-      <div
-        class="gas-history-empty"
-        id="gasHistoryEmpty"
-      >
-        저장된 점검일지가 없습니다.
-      </div>
-
-    </div>
-
-  </div>
-
-</section>
 
     <!-- =====================================================
       인쇄 미리보기 팝업

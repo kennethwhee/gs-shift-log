@@ -7,8 +7,8 @@
   - Cloudflare D1 공용 저장
   - 날짜별 저장·불러오기
   - revision 충돌 방지
-  - 저장 기록 조회
-  - 저장 기록 상세 열기·인쇄
+  - 게시판형 일지 보관함 조회
+  - 저장 기록 상세 열기·수정·인쇄
   - 최고관리자 점검항목·확인내용 편집
   - 브라우저 복구용 임시 초안
   - 인쇄 미리보기·실제 인쇄
@@ -172,24 +172,64 @@ function initializeHighPressureGasCheck() {
       "gasCheckSaveState"
     );
 
-  const historyModal =
-    document.getElementById(
-      "gasHistoryModal"
+  const toolbar =
+    document.querySelector(
+      ".gas-check-toolbar"
     );
 
-  const historyList =
+  const archiveView =
     document.getElementById(
-      "gasHistoryList"
+      "gasArchiveView"
     );
 
-  const historyEmpty =
+  const archiveBackButton =
     document.getElementById(
-      "gasHistoryEmpty"
+      "gasArchiveBackButton"
     );
 
-  const historyCloseButton =
+  const archiveRefreshButton =
     document.getElementById(
-      "gasHistoryCloseButton"
+      "gasArchiveRefreshButton"
+    );
+
+  const archiveFromDate =
+    document.getElementById(
+      "gasArchiveFromDate"
+    );
+
+  const archiveToDate =
+    document.getElementById(
+      "gasArchiveToDate"
+    );
+
+  const archiveSearchInput =
+    document.getElementById(
+      "gasArchiveSearchInput"
+    );
+
+  const archiveSearchButton =
+    document.getElementById(
+      "gasArchiveSearchButton"
+    );
+
+  const archiveResetButton =
+    document.getElementById(
+      "gasArchiveResetButton"
+    );
+
+  const archiveCount =
+    document.getElementById(
+      "gasArchiveCount"
+    );
+
+  const archiveTableBody =
+    document.getElementById(
+      "gasArchiveTableBody"
+    );
+
+  const archiveEmpty =
+    document.getElementById(
+      "gasArchiveEmpty"
     );
 
   const templateModal =
@@ -270,6 +310,9 @@ function initializeHighPressureGasCheck() {
 
   let draftSaveTimer =
     null;
+
+  let archiveAllLogs =
+    [];
 
 
   /* =======================================================
@@ -381,6 +424,76 @@ function initializeHighPressureGasCheck() {
       );
 
     return `${year}-${month}-${day}`;
+  }
+
+
+  function getDateMonthsAgoValue(
+    months
+  ) {
+    const date =
+      new Date();
+
+    date.setMonth(
+      date.getMonth() -
+      Number(
+        months ||
+        0
+      )
+    );
+
+    const year =
+      date.getFullYear();
+
+    const month =
+      String(
+        date.getMonth() +
+        1
+      ).padStart(
+        2,
+        "0"
+      );
+
+    const day =
+      String(
+        date.getDate()
+      ).padStart(
+        2,
+        "0"
+      );
+
+    return `${year}-${month}-${day}`;
+  }
+
+
+  function normalizeShiftLabel(
+    shiftValue
+  ) {
+    const normalized =
+      normalizeText(
+        shiftValue
+      )
+        .toUpperCase()
+        .replace(
+          /[^A-Z]/g,
+          ""
+        );
+
+    if (
+      normalized ===
+        "DS"
+    ) {
+      return "D/S";
+    }
+
+    if (
+      normalized ===
+        "NS"
+    ) {
+      return "N/S";
+    }
+
+    return shiftValue ||
+      "-";
   }
 
 
@@ -1578,116 +1691,357 @@ function initializeHighPressureGasCheck() {
 
 
   /* =======================================================
-    저장 기록 목록
+    게시판형 일지 보관함
   ======================================================= */
 
-  function renderHistoryList(
-    logs
+  function setArchiveBusy(
+    isBusy
   ) {
+    [
+      archiveRefreshButton,
+      archiveSearchButton,
+      archiveResetButton
+    ].forEach(
+      button => {
+        if (
+          button
+        ) {
+          button.disabled =
+            Boolean(
+              isBusy
+            );
+        }
+      }
+    );
+  }
+
+
+  function showArchiveView() {
     if (
-      !historyList ||
-      !historyEmpty
+      !archiveView
     ) {
       return;
     }
 
-    const normalizedLogs =
-      Array.isArray(
-        logs
-      )
-        ? logs
-        : [];
+    if (
+      toolbar
+    ) {
+      toolbar.hidden =
+        true;
+    }
 
-    historyList
-      .querySelectorAll(
-        ".gas-history-card"
+    sheet.hidden =
+      true;
+
+    archiveView.hidden =
+      false;
+
+    window.scrollTo({
+      top:
+        0,
+      behavior:
+        "smooth"
+    });
+  }
+
+
+  function closeArchiveView() {
+    if (
+      !archiveView
+    ) {
+      return;
+    }
+
+    archiveView.hidden =
+      true;
+
+    if (
+      toolbar
+    ) {
+      toolbar.hidden =
+        false;
+    }
+
+    sheet.hidden =
+      false;
+
+    window.scrollTo({
+      top:
+        0,
+      behavior:
+        "smooth"
+    });
+  }
+
+
+  function getArchiveSearchText(
+    log
+  ) {
+    return [
+      log?.inspectionDate,
+      formatHistoryDate(
+        log?.inspectionDate
+      ),
+      log?.shift,
+      log?.authorName,
+      log?.lastModifiedByName,
+      log?.status,
+      log?.form?.inspectorName,
+      log?.form?.overallResult
+    ]
+      .map(
+        value => {
+          return normalizeText(
+            value
+          ).toLowerCase();
+        }
       )
-      .forEach(
-        card => {
-          card.remove();
+      .join(
+        " "
+      );
+  }
+
+
+  function getFilteredArchiveLogs() {
+    const keyword =
+      normalizeText(
+        archiveSearchInput?.value
+      ).toLowerCase();
+
+    return archiveAllLogs
+      .filter(
+        log => {
+          if (
+            !keyword
+          ) {
+            return true;
+          }
+
+          return getArchiveSearchText(
+            log
+          ).includes(
+            keyword
+          );
+        }
+      )
+      .sort(
+        (
+          first,
+          second
+        ) => {
+          return String(
+            second?.inspectionDate ||
+            ""
+          ).localeCompare(
+            String(
+              first?.inspectionDate ||
+              ""
+            )
+          );
         }
       );
+  }
 
-    historyEmpty.hidden =
-      normalizedLogs.length >
+
+  function renderArchiveBoard() {
+    if (
+      !archiveTableBody ||
+      !archiveEmpty
+    ) {
+      return;
+    }
+
+    const logs =
+      getFilteredArchiveLogs();
+
+    archiveTableBody.innerHTML =
+      "";
+
+    if (
+      archiveCount
+    ) {
+      archiveCount.textContent =
+        `총 ${logs.length}건`;
+    }
+
+    archiveEmpty.hidden =
+      logs.length >
       0;
 
-    normalizedLogs.forEach(
-      log => {
-        const card =
+    logs.forEach(
+      (
+        log,
+        index
+      ) => {
+        const row =
           document.createElement(
-            "article"
+            "tr"
           );
 
-        card.className =
-          "gas-history-card";
+        const number =
+          logs.length -
+          index;
 
-        card.innerHTML = `
-          <div class="gas-history-card__info">
-            <div class="gas-history-card__title">
-              <span>${escapeHtml(formatHistoryDate(log.inspectionDate))}</span>
-              <span class="gas-history-card__status">${escapeHtml(log.status || "저장완료")}</span>
-            </div>
-            <div class="gas-history-card__meta">
-              작성자 ${escapeHtml(log.authorName || "미확인")}
-              · 최종수정 ${escapeHtml(log.lastModifiedByName || log.authorName || "미확인")}
-              · ${escapeHtml(formatDateTime(log.updatedAt))}
-              · revision ${escapeHtml(String(log.serverRevision || 1))}
-            </div>
-          </div>
+        const inspectorName =
+          normalizeText(
+            log?.form?.inspectorName
+          ) ||
+          normalizeText(
+            log?.authorName
+          ) ||
+          "미확인";
 
-          <div class="gas-history-card__actions">
-            <button
-              type="button"
-              data-gas-history-open="${escapeHtml(log.id)}"
+        const authorName =
+          normalizeText(
+            log?.authorName
+          ) ||
+          "미확인";
+
+        const overallResult =
+          normalizeText(
+            log?.form?.overallResult
+          ) ||
+          "-";
+
+        row.innerHTML = `
+          <td>${escapeHtml(String(number))}</td>
+
+          <td>
+            <span class="gas-archive-table__date">
+              ${escapeHtml(formatHistoryDate(log.inspectionDate))}
+            </span>
+          </td>
+
+          <td>
+            ${escapeHtml(normalizeShiftLabel(log.shift))}
+          </td>
+
+          <td>
+            <span class="gas-archive-table__person">
+              <strong>${escapeHtml(inspectorName)}</strong>
+              <small>작성 ${escapeHtml(authorName)}</small>
+            </span>
+          </td>
+
+          <td>
+            <span
+              class="gas-archive-result"
+              title="${escapeHtml(overallResult)}"
             >
-              열기
-            </button>
+              ${escapeHtml(overallResult)}
+            </span>
+          </td>
 
-            <button
-              type="button"
-              data-gas-history-print="${escapeHtml(log.id)}"
-            >
-              인쇄
-            </button>
-          </div>
+          <td>
+            <span class="gas-archive-status">
+              ${escapeHtml(log.status || "저장완료")}
+            </span>
+          </td>
+
+          <td>
+            ${escapeHtml(formatDateTime(log.updatedAt) || "-")}
+          </td>
+
+          <td>
+            ${escapeHtml(String(log.serverRevision || 1))}
+          </td>
+
+          <td>
+            <div class="gas-archive-actions">
+
+              <button
+                type="button"
+                data-gas-archive-open="${escapeHtml(log.id)}"
+              >
+                보기·수정
+              </button>
+
+              <button
+                type="button"
+                data-gas-archive-print="${escapeHtml(log.id)}"
+              >
+                인쇄
+              </button>
+
+            </div>
+          </td>
         `;
 
-        historyList.appendChild(
-          card
+        archiveTableBody.appendChild(
+          row
         );
       }
     );
   }
 
 
-  async function openHistoryModal() {
+  function getArchiveRequestUrl() {
+    const requestUrl =
+      new URL(
+        HIGH_PRESSURE_GAS_API_URL,
+        window.location.origin
+      );
+
+    const from =
+      normalizeText(
+        archiveFromDate?.value
+      );
+
+    const to =
+      normalizeText(
+        archiveToDate?.value
+      );
+
     if (
-      !historyModal
+      from
+    ) {
+      requestUrl.searchParams.set(
+        "from",
+        from
+      );
+    }
+
+    if (
+      to
+    ) {
+      requestUrl.searchParams.set(
+        "to",
+        to
+      );
+    }
+
+    return (
+      requestUrl.pathname +
+      requestUrl.search
+    );
+  }
+
+
+  async function loadArchiveBoard() {
+    if (
+      !archiveView
     ) {
       return;
     }
 
-    historyModal.hidden =
-      false;
-
-    document.body.style.overflow =
-      "hidden";
+    setArchiveBusy(
+      true
+    );
 
     if (
-      historyEmpty
+      archiveEmpty
     ) {
-      historyEmpty.hidden =
+      archiveEmpty.hidden =
         false;
 
-      historyEmpty.textContent =
-        "저장 기록을 불러오는 중입니다.";
+      archiveEmpty.textContent =
+        "저장된 점검일지를 불러오는 중입니다.";
     }
 
     try {
       const payload =
         await requestApi(
-          HIGH_PRESSURE_GAS_API_URL
+          getArchiveRequestUrl()
         );
 
       canEditTemplate =
@@ -1698,46 +2052,117 @@ function initializeHighPressureGasCheck() {
 
       refreshTemplateEditButton();
 
+      archiveAllLogs =
+        Array.isArray(
+          payload.logs
+        )
+          ? payload.logs
+          : [];
+
       if (
-        historyEmpty
+        archiveEmpty
       ) {
-        historyEmpty.textContent =
-          "저장된 점검일지가 없습니다.";
+        archiveEmpty.textContent =
+          "조회 조건에 맞는 점검일지가 없습니다.";
       }
 
-      renderHistoryList(
-        payload.logs
-      );
+      renderArchiveBoard();
 
     } catch (
       error
     ) {
+      archiveAllLogs =
+        [];
+
       if (
-        historyEmpty
+        archiveTableBody
       ) {
-        historyEmpty.hidden =
+        archiveTableBody.innerHTML =
+          "";
+      }
+
+      if (
+        archiveCount
+      ) {
+        archiveCount.textContent =
+          "총 0건";
+      }
+
+      if (
+        archiveEmpty
+      ) {
+        archiveEmpty.hidden =
           false;
 
-        historyEmpty.textContent =
+        archiveEmpty.textContent =
           error.message ||
-          "저장 기록을 불러오지 못했습니다.";
+          "점검일지 보관함을 불러오지 못했습니다.";
       }
+
+    } finally {
+      setArchiveBusy(
+        false
+      );
     }
   }
 
 
-  function closeHistoryModal() {
+  async function openArchiveView() {
     if (
-      !historyModal
+      !archiveView
     ) {
       return;
     }
 
-    historyModal.hidden =
-      true;
+    if (
+      archiveFromDate &&
+      !archiveFromDate.value
+    ) {
+      archiveFromDate.value =
+        getDateMonthsAgoValue(
+          6
+        );
+    }
 
-    document.body.style.overflow =
-      "";
+    if (
+      archiveToDate &&
+      !archiveToDate.value
+    ) {
+      archiveToDate.value =
+        getTodayDateValue();
+    }
+
+    showArchiveView();
+
+    await loadArchiveBoard();
+  }
+
+
+  async function resetArchiveBoard() {
+    if (
+      archiveFromDate
+    ) {
+      archiveFromDate.value =
+        getDateMonthsAgoValue(
+          6
+        );
+    }
+
+    if (
+      archiveToDate
+    ) {
+      archiveToDate.value =
+        getTodayDateValue();
+    }
+
+    if (
+      archiveSearchInput
+    ) {
+      archiveSearchInput.value =
+        "";
+    }
+
+    await loadArchiveBoard();
   }
 
 
@@ -1789,7 +2214,7 @@ function initializeHighPressureGasCheck() {
         payload.log
       );
 
-      closeHistoryModal();
+      closeArchiveView();
 
       refreshTemplateEditButton();
 
@@ -2259,41 +2684,67 @@ function initializeHighPressureGasCheck() {
   historyButton?.addEventListener(
     "click",
     () => {
-      openHistoryModal();
+      openArchiveView();
     }
   );
 
 
-  templateEditButton?.addEventListener(
+  archiveBackButton?.addEventListener(
     "click",
     () => {
-      openTemplateModal();
+      closeArchiveView();
     }
   );
 
 
-  historyCloseButton?.addEventListener(
+  archiveRefreshButton?.addEventListener(
     "click",
     () => {
-      closeHistoryModal();
+      loadArchiveBoard();
     }
   );
 
 
-  historyModal?.addEventListener(
+  archiveSearchButton?.addEventListener(
     "click",
+    () => {
+      loadArchiveBoard();
+    }
+  );
+
+
+  archiveResetButton?.addEventListener(
+    "click",
+    () => {
+      resetArchiveBoard();
+    }
+  );
+
+
+  archiveSearchInput?.addEventListener(
+    "input",
+    () => {
+      renderArchiveBoard();
+    }
+  );
+
+
+  archiveSearchInput?.addEventListener(
+    "keydown",
     event => {
       if (
-        event.target ===
-        historyModal
+        event.key ===
+        "Enter"
       ) {
-        closeHistoryModal();
+        event.preventDefault();
+
+        loadArchiveBoard();
       }
     }
   );
 
 
-  historyList?.addEventListener(
+  archiveTableBody?.addEventListener(
     "click",
     event => {
       const target =
@@ -2304,7 +2755,7 @@ function initializeHighPressureGasCheck() {
 
       const openButton =
         target?.closest(
-          "[data-gas-history-open]"
+          "[data-gas-archive-open]"
         );
 
       if (
@@ -2312,7 +2763,7 @@ function initializeHighPressureGasCheck() {
       ) {
         openHistoryLog(
           openButton.getAttribute(
-            "data-gas-history-open"
+            "data-gas-archive-open"
           ),
           false
         );
@@ -2320,17 +2771,17 @@ function initializeHighPressureGasCheck() {
         return;
       }
 
-      const printHistoryButton =
+      const printButton =
         target?.closest(
-          "[data-gas-history-print]"
+          "[data-gas-archive-print]"
         );
 
       if (
-        printHistoryButton
+        printButton
       ) {
         openHistoryLog(
-          printHistoryButton.getAttribute(
-            "data-gas-history-print"
+          printButton.getAttribute(
+            "data-gas-archive-print"
           ),
           true
         );
@@ -2442,10 +2893,10 @@ function initializeHighPressureGasCheck() {
       }
 
       if (
-        historyModal &&
-        !historyModal.hidden
+        archiveView &&
+        !archiveView.hidden
       ) {
-        closeHistoryModal();
+        closeArchiveView();
       }
     }
   );
