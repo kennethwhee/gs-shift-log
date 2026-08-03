@@ -73531,6 +73531,299 @@ function openEfficiencyTeamModal() {
 })();
 
 /* =========================================================
+  효율팀 - 일일업무현황
+
+  1단계:
+  HTML 요소 연결
+========================================================= */
+
+function getEfficiencyDailyWorkElements() {
+  const view =
+    document.getElementById(
+      "efficiencyDailyWorkView"
+    );
+
+
+  const form =
+    document.getElementById(
+      "efficiencyDailyWorkForm"
+    );
+
+
+  const paper =
+    document.getElementById(
+      "efficiencyDailyWorkPaper"
+    );
+
+
+  return {
+    /* ===================================================
+      효율팀 팝업 및 작성 화면
+    ==================================================== */
+
+    teamOpenButton:
+      document.getElementById(
+        "efficiencyTeamButton"
+      ),
+
+    teamModal:
+      document.getElementById(
+        "efficiencyTeamModal"
+      ),
+
+    dailyWorkTab:
+      document.getElementById(
+        "efficiencyDailyWorkTab"
+      ),
+
+    view,
+
+    dashboard:
+      document.getElementById(
+        "efficiencyDailyWorkDashboard"
+      ),
+
+    editor:
+      document.getElementById(
+        "efficiencyDailyWorkEditor"
+      ),
+
+
+    /* ===================================================
+      상단 작업 버튼
+    ==================================================== */
+
+    toggleArchiveButton:
+      document.getElementById(
+        "toggleEfficiencyDailyWorkArchiveButton"
+      ),
+
+    newRecordButton:
+      document.getElementById(
+        "newEfficiencyDailyWorkButton"
+      ),
+
+
+    /* ===================================================
+      날짜별 보관함
+    ==================================================== */
+
+    archivePanel:
+      document.getElementById(
+        "efficiencyDailyWorkArchivePanel"
+      ),
+
+    archiveTitle:
+      document.getElementById(
+        "efficiencyDailyWorkArchiveTitle"
+      ),
+
+    archiveCount:
+      document.getElementById(
+        "efficiencyDailyWorkArchiveCount"
+      ),
+
+    refreshButton:
+      document.getElementById(
+        "refreshEfficiencyDailyWorkButton"
+      ),
+
+    folderTree:
+      document.getElementById(
+        "efficiencyDailyWorkFolderTree"
+      ),
+
+    archiveEmptyState:
+      document.getElementById(
+        "efficiencyDailyWorkArchiveEmptyState"
+      ),
+
+
+    /* ===================================================
+      작성 폼 및 기록 식별값
+    ==================================================== */
+
+    form,
+
+    recordIdInput:
+      document.getElementById(
+        "efficiencyDailyWorkRecordId"
+      ),
+
+    versionInput:
+      document.getElementById(
+        "efficiencyDailyWorkVersion"
+      ),
+
+
+    /* ===================================================
+      날짜 이동 및 기록 상태
+    ==================================================== */
+
+    previousDateButton:
+      document.getElementById(
+        "previousEfficiencyDailyWorkDateButton"
+      ),
+
+    nextDateButton:
+      document.getElementById(
+        "nextEfficiencyDailyWorkDateButton"
+      ),
+
+    moveToTodayButton:
+      document.getElementById(
+        "moveEfficiencyDailyWorkToTodayButton"
+      ),
+
+    dateInput:
+      document.getElementById(
+        "efficiencyDailyWorkDate"
+      ),
+
+    statusBadge:
+      document.getElementById(
+        "efficiencyDailyWorkStatusBadge"
+      ),
+
+    authorLabel:
+      document.getElementById(
+        "efficiencyDailyWorkAuthor"
+      ),
+
+    updatedAtLabel:
+      document.getElementById(
+        "efficiencyDailyWorkUpdatedAt"
+      ),
+
+
+    /* ===================================================
+      A4 문서
+    ==================================================== */
+
+    paperScroll:
+      view?.querySelector(
+        ".efficiency-daily-work-paper-scroll"
+      ) ||
+      null,
+
+    paper,
+
+    documentTitle:
+      document.getElementById(
+        "efficiencyDailyWorkDocumentTitle"
+      ),
+
+    formattedDate:
+      document.getElementById(
+        "efficiencyDailyWorkFormattedDate"
+      ),
+
+
+    /* ===================================================
+      주요 전달 및 지시사항
+    ==================================================== */
+
+    noticeInput:
+      document.getElementById(
+        "efficiencyDailyWorkNotice"
+      ),
+
+    tmMeetingInput:
+      document.getElementById(
+        "efficiencyDailyWorkTmMeeting"
+      ),
+
+    teamInstructionInput:
+      document.getElementById(
+        "efficiencyDailyWorkTeamInstruction"
+      ),
+
+
+    /* ===================================================
+      주요 업무 현황
+    ==================================================== */
+
+    generationReportCompletedInput:
+      document.getElementById(
+        "efficiencyDailyWorkGenerationReportCompleted"
+      ),
+
+    rows: [
+      ...(
+        paper?.querySelectorAll(
+          "[data-efficiency-daily-work-row]"
+        ) ||
+        []
+      )
+    ],
+
+    rowFields: [
+      ...(
+        paper?.querySelectorAll(
+          "[data-efficiency-daily-work-field]"
+        ) ||
+        []
+      )
+    ],
+
+    otherNotesInput:
+      document.getElementById(
+        "efficiencyDailyWorkOtherNotes"
+      ),
+
+
+    /* ===================================================
+      A4 초과 안내
+    ==================================================== */
+
+    overflowWarning:
+      document.getElementById(
+        "efficiencyDailyWorkPageOverflowWarning"
+      ),
+
+
+    /* ===================================================
+      하단 상태 및 작업 버튼
+    ==================================================== */
+
+    deleteButton:
+      document.getElementById(
+        "deleteEfficiencyDailyWorkButton"
+      ),
+
+    messageElement:
+      document.getElementById(
+        "efficiencyDailyWorkMessage"
+      ),
+
+    errorElement:
+      document.getElementById(
+        "efficiencyDailyWorkError"
+      ),
+
+    cancelButton:
+      document.getElementById(
+        "cancelEfficiencyDailyWorkEditorButton"
+      ),
+
+    previewPdfButton:
+      document.getElementById(
+        "previewEfficiencyDailyWorkPdfButton"
+      ),
+
+    printButton:
+      document.getElementById(
+        "printEfficiencyDailyWorkButton"
+      ),
+
+    saveButton:
+      document.getElementById(
+        "saveEfficiencyDailyWorkButton"
+      )
+  };
+}
+
+/* =========================================================
   효율팀 - 석회석 입고 현황
 
   API:
@@ -84202,32 +84495,99 @@ function bindLimestoneReceiptEvents() {
     - 제목을 TM/BM/CM 발행 내역으로 변경
   ====================================================== */
 
-  const createLogRowHtmlBeforeIssueFix =
-    createLogRowHtml;
+const createLogRowHtmlBeforeIssueFix =
+  createLogRowHtml;
 
 
-  createLogRowHtml =
-    function createLogRowHtml(
-      log
-    ) {
-      return runWithIssueDisplayCollector(
-        () => {
-          const rowHtml =
-            createLogRowHtmlBeforeIssueFix(
-              log
+createLogRowHtml =
+  function createLogRowHtml(
+    log
+  ) {
+    return runWithIssueDisplayCollector(
+      () => {
+        const rowHtml =
+          createLogRowHtmlBeforeIssueFix(
+            log
+          );
+
+
+        const template =
+          document.createElement(
+            "template"
+          );
+
+
+        template.innerHTML = `
+          <table>
+            <tbody>
+              ${String(
+                rowHtml ||
+                ""
+              )}
+            </tbody>
+          </table>
+        `;
+
+
+        /*
+          미리보기 제목만 변경한다.
+
+          업무 내용 안에 같은 문구가 있어도
+          실제 내용은 변경하지 않는다.
+        */
+        template.content
+          .querySelectorAll(
+            ".log-preview__title"
+          )
+          .forEach(
+            titleElement => {
+              const compactTitle =
+                String(
+                  titleElement.textContent ||
+                  ""
+                )
+                  .trim()
+                  .toUpperCase()
+                  .replace(
+                    /\s+/g,
+                    ""
+                  );
+
+
+              if (
+                ![
+                  "TM발행내역",
+                  "TM/BM/CM발행내역"
+                ].includes(
+                  compactTitle
+                )
+              ) {
+                return;
+              }
+
+
+              titleElement.textContent =
+                "발행내역";
+            }
+          );
+
+
+        const rowElement =
+          template.content
+            .querySelector(
+              "tr"
             );
 
 
-          return String(
-            rowHtml ||
-            ""
-          ).replaceAll(
-            "TM 발행 내역",
-            "TM/BM/CM 발행 내역"
-          );
-        }
-      );
-    };
+        return rowElement
+          ? rowElement.outerHTML
+          : String(
+              rowHtml ||
+              ""
+            );
+      }
+    );
+  };
 
 
   /* =====================================================
@@ -84240,86 +84600,78 @@ function bindLimestoneReceiptEvents() {
     - 기존 버튼·첨부파일·권한 기능은 그대로 유지
   ====================================================== */
 
-  const openLogDetailBeforeIssueFix =
-    openLogDetail;
+const openLogDetailBeforeIssueFix =
+  openLogDetail;
 
 
-  openLogDetail =
-    function openLogDetail(
-      log
-    ) {
-      return runWithIssueDisplayCollector(
-        () => {
-          const result =
-            openLogDetailBeforeIssueFix(
-              log
-            );
+openLogDetail =
+  function openLogDetail(
+    log
+  ) {
+    return runWithIssueDisplayCollector(
+      () => {
+        const result =
+          openLogDetailBeforeIssueFix(
+            log
+          );
 
 
-          const detailRoot =
-            elements?.logDetailContent;
+        const detailRoot =
+          elements?.logDetailContent;
 
 
+        if (
+          detailRoot
+        ) {
           /*
-            상세보기 HTML이 생성된 뒤
-            기존 제목만 변경한다.
+            상세보기의 발행 구역 제목만
+            발행내역으로 변경한다.
           */
-          if (
-            detailRoot
-          ) {
-            const textWalker =
-              document.createTreeWalker(
-                detailRoot,
-                NodeFilter.SHOW_TEXT
-              );
-
-
-            const textNodes =
-              [];
-
-
-            while (
-              textWalker.nextNode()
-            ) {
-              textNodes.push(
-                textWalker.currentNode
-              );
-            }
-
-
-            textNodes.forEach(
-              textNode => {
-                const originalText =
+          detailRoot
+            .querySelectorAll(
+              `
+                .shift-log-detail-section__header h3,
+                .log-report-section__header h3
+              `
+            )
+            .forEach(
+              titleElement => {
+                const compactTitle =
                   String(
-                    textNode.nodeValue ||
+                    titleElement.textContent ||
                     ""
-                  );
+                  )
+                    .trim()
+                    .toUpperCase()
+                    .replace(
+                      /\s+/g,
+                      ""
+                    );
 
 
                 if (
-                  !originalText.includes(
-                    "TM 발행 내역"
+                  ![
+                    "TM발행내역",
+                    "TM/BM/CM발행내역"
+                  ].includes(
+                    compactTitle
                   )
                 ) {
                   return;
                 }
 
 
-                textNode.nodeValue =
-                  originalText.replaceAll(
-                    "TM 발행 내역",
-                    "TM/BM/CM 발행 내역"
-                  );
+                titleElement.textContent =
+                  "발행내역";
               }
             );
-          }
-
-
-          return result;
         }
-      );
-    };
 
+
+        return result;
+      }
+    );
+  };
 
   /* =====================================================
     모바일 업무일지 미리보기 전체 함수 교체
