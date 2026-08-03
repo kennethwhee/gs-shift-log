@@ -61177,3 +61177,82 @@ thead th {
     min-width: 92px !important;
   }
 }
+
+/* =========================================================
+  효율팀 석회석 하단 잘림 방지
+
+  - 효율팀 본문만 내부 스크롤
+  - 상세 표는 제목 + 4개 행 높이로 고정
+  - 마지막 행이 중간에서 잘리지 않도록 처리
+========================================================= */
+
+#efficiencyTeamModal
+.efficiency-team-modal__body {
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+
+#efficiencyTeamModal
+.efficiency-team-workspace {
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView {
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-dashboard {
+  min-height: 0 !important;
+
+  padding-bottom: 18px !important;
+
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+
+  scrollbar-gutter: stable;
+}
+
+
+#efficiencyTeamModal
+.limestone-section-card:last-child {
+  margin-bottom: 4px !important;
+}
+
+
+/*
+  표 제목 36px + 상세 행 41px × 4개
+
+  총 200px
+*/
+#efficiencyTeamModal
+.limestone-section-card:has(
+  .limestone-receipt-table
+)
+.limestone-table-wrap {
+  height: 200px !important;
+  max-height: 200px !important;
+
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-receipt-table
+tbody tr {
+  height: 41px !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-receipt-table
+td {
+  height: 41px !important;
+}
