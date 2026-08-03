@@ -29,8 +29,7 @@ body {
 }
 
 button,
-input,
-textarea {
+input {
   font:
     inherit;
 }
@@ -213,7 +212,7 @@ button {
     0 auto;
 
   padding:
-    22mm 0 16mm;
+    20mm 0 10mm;
 
   background:
     #ffffff;
@@ -221,6 +220,7 @@ button {
   box-shadow:
     0 6px 25px rgba(15, 23, 42, 0.13);
 }
+
 
 
 /* 원본처럼 점검표 내용을 좁게 가운데 배치 */
@@ -314,7 +314,7 @@ button {
 
 /* =========================================================
   제목·결재란
-  원본 점검표 배치
+  A4 한 장 인쇄 최적화
 ========================================================= */
 
 .gas-check-title-row {
@@ -322,16 +322,16 @@ button {
     grid;
 
   grid-template-columns:
-    36mm 1fr 36mm;
+    32mm 1fr 32mm;
 
   align-items:
     start;
 
   min-height:
-    34mm;
+    29mm;
 
   margin-bottom:
-    10mm;
+    6mm;
 }
 
 
@@ -361,13 +361,13 @@ button {
     4px;
 
   font-size:
-    21px;
+    20px;
 
   font-weight:
     900;
 
   letter-spacing:
-    0.04em;
+    0.035em;
 
   white-space:
     nowrap;
@@ -376,22 +376,22 @@ button {
 
 .gas-check-approval-table {
   width:
-    36mm !important;
+    32mm !important;
 
   justify-self:
     end;
 
   font-size:
-    9px;
+    8px;
 }
 
 
 .gas-check-approval-table th {
   height:
-    12mm;
+    9mm;
 
   padding:
-    2px;
+    1px;
 
   background:
     #ffffff;
@@ -400,7 +400,7 @@ button {
     center;
 
   line-height:
-    1.25;
+    1.2;
 
   font-weight:
     900;
@@ -409,7 +409,7 @@ button {
 
 .gas-check-approval-table td {
   height:
-    18mm;
+    14mm;
 
   padding:
     0;
@@ -418,19 +418,17 @@ button {
 
 .gas-check-approval-table input {
   min-height:
-    18mm;
+    14mm;
 
   padding:
-    2px;
+    1px;
 
   background:
     transparent;
 
   font-size:
-    9px;
+    8px;
 }
-
-
 /* =========================================================
   공통 섹션
 ========================================================= */
@@ -479,7 +477,7 @@ button {
 
 /* =========================================================
   점검일자·일반현황
-  원본 점검표 크기
+  원본 비율 + A4 한 장 최적화
 ========================================================= */
 
 .gas-check-section:first-of-type {
@@ -500,7 +498,7 @@ button {
     center;
 
   margin-bottom:
-    5mm;
+    3mm;
 }
 
 
@@ -516,7 +514,7 @@ button {
     0;
 
   font-size:
-    11px;
+    10px;
 }
 
 
@@ -531,16 +529,19 @@ button {
     center;
 
   gap:
-    5px;
+    3px;
 
   color:
     #111111;
 
   font-size:
-    9px;
+    8px;
 
   font-weight:
-    700;
+    500;
+
+  line-height:
+    1;
 
   white-space:
     nowrap;
@@ -549,13 +550,13 @@ button {
 
 .gas-check-date-field input {
   width:
-    33mm;
+    31mm;
 
   min-height:
-    7mm;
+    6mm;
 
   padding:
-    1px 3px;
+    0 2px;
 
   border:
     0;
@@ -564,7 +565,10 @@ button {
     #fffceb;
 
   font-size:
-    9px;
+    8px;
+
+  font-weight:
+    500;
 }
 
 
@@ -574,20 +578,20 @@ button {
 
 .gas-check-overview-table {
   font-size:
-    9px;
+    8.5px;
 }
 
 
 .gas-check-overview-table th,
 .gas-check-overview-table td {
   height:
-    11mm;
+    9.5mm;
 }
 
 
 .gas-check-overview-table th {
   padding:
-    3px;
+    2px;
 
   background:
     #ffffff;
@@ -602,7 +606,7 @@ button {
 
 .gas-check-overview-table td {
   padding:
-    0 5px;
+    0 4px;
 
   text-align:
     center;
@@ -644,33 +648,31 @@ button {
 
 .gas-check-overview-table input {
   min-height:
-    10.5mm;
+    9mm;
 
   background:
     #fffceb;
 
   font-size:
-    9px;
+    8.5px;
 }
-
 /* =========================================================
   점검내용 표
-  원본 점검표 크기·간격
+  A4 한 장 인쇄 최적화
 ========================================================= */
 
-/* 두 번째 섹션 위쪽 간격 */
 .gas-check-section:nth-of-type(2) {
   margin-top:
-    11mm;
+    7mm;
 }
 
 
 .gas-check-section:nth-of-type(2) h3 {
   margin:
-    0 0 5mm;
+    0 0 3mm;
 
   font-size:
-    11px;
+    10px;
 
   font-weight:
     900;
@@ -705,17 +707,17 @@ button {
 /* 표 전체 */
 .gas-check-detail-table {
   font-size:
-    8.8px;
+    8.2px;
 }
 
 
 /* 제목 행 */
 .gas-check-detail-table thead th {
   height:
-    11mm;
+    8.5mm;
 
   padding:
-    2px 4px;
+    1px 3px;
 
   background:
     #d8d8d8;
@@ -727,7 +729,7 @@ button {
     middle;
 
   font-size:
-    8.8px;
+    8.2px;
 
   font-weight:
     700;
@@ -737,22 +739,22 @@ button {
 /* 내용 행 */
 .gas-check-detail-table tbody td {
   height:
-    10.5mm;
+    8.4mm;
 
   padding:
-    1.8mm 1.5mm;
+    1mm 1.2mm;
 
   vertical-align:
     middle;
 
   font-size:
-    8.8px;
+    8.2px;
 
   font-weight:
     500;
 
   line-height:
-    1.35;
+    1.25;
 
   word-break:
     keep-all;
@@ -797,10 +799,10 @@ button {
 /* 확인내용 */
 .gas-check-detail-table tbody td:nth-child(3) {
   padding-left:
-    2mm;
+    1.5mm;
 
   padding-right:
-    1.5mm;
+    1.2mm;
 
   text-align:
     left;
@@ -822,10 +824,10 @@ button {
     100%;
 
   min-height:
-    10mm;
+    8mm;
 
   padding:
-    2px;
+    1px;
 
   background:
     #fffceb;
@@ -834,21 +836,21 @@ button {
     center;
 
   font-size:
-    8.8px;
+    8.2px;
 
   font-weight:
     700;
 }
 
 
-/* 내용이 두 줄인 행은 조금 높게 */
+/* 내용이 두 줄인 행 */
 .gas-check-detail-table tbody tr:nth-child(3) td,
 .gas-check-detail-table tbody tr:nth-child(5) td,
 .gas-check-detail-table tbody tr:nth-child(9) td,
 .gas-check-detail-table tbody tr:nth-child(11) td,
 .gas-check-detail-table tbody tr:nth-child(12) td {
   height:
-    14mm;
+    10.8mm;
 }
 
 
@@ -858,10 +860,8 @@ button {
 .gas-check-detail-table tbody tr:nth-child(11) input,
 .gas-check-detail-table tbody tr:nth-child(12) input {
   min-height:
-    13.5mm;
+    10.4mm;
 }
-
-
 /* =========================================================
   하단 확인란
 ========================================================= */
@@ -1175,7 +1175,7 @@ button {
 
 .gas-check-confirmation-row td {
   height:
-    30px;
+    7.5mm;
 
   padding:
     0 !important;
@@ -1193,7 +1193,7 @@ button {
     15% 35% 20% 30%;
 
   min-height:
-    30px;
+    7.5mm;
 }
 
 
@@ -1244,7 +1244,7 @@ button {
     100%;
 
   min-height:
-    29px;
+    7mm;
 
   padding:
     2px 5px;
@@ -1881,468 +1881,6 @@ button {
 
 }
 
-
-/* =========================================================
-  점검표 내용 편집 팝업
-========================================================= */
-
-.gas-template-modal {
-  position:
-    fixed;
-
-  z-index:
-    10010;
-
-  inset:
-    0;
-
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    center;
-
-  padding:
-    22px;
-
-  background:
-    rgba(15, 23, 42, 0.72);
-}
-
-
-.gas-template-modal__panel {
-  display:
-    flex;
-
-  overflow:
-    hidden;
-
-  width:
-    min(920px, 100%);
-
-  max-height:
-    92vh;
-
-  flex-direction:
-    column;
-
-  border-radius:
-    14px;
-
-  background:
-    #ffffff;
-
-  box-shadow:
-    0 22px 60px rgba(0, 0, 0, 0.32);
-}
-
-
-/* =========================================================
-  편집 팝업 상단
-========================================================= */
-
-.gas-template-modal__header {
-  display:
-    flex;
-
-  min-height:
-    68px;
-
-  align-items:
-    center;
-
-  justify-content:
-    space-between;
-
-  gap:
-    16px;
-
-  padding:
-    14px 18px;
-
-  border-bottom:
-    1px solid #d7e0e9;
-
-  background:
-    #f8fafc;
-}
-
-
-.gas-template-modal__header > div {
-  display:
-    grid;
-
-  min-width:
-    0;
-
-  gap:
-    4px;
-}
-
-
-.gas-template-modal__header strong {
-  color:
-    #1f3044;
-
-  font-size:
-    15px;
-
-  font-weight:
-    900;
-}
-
-
-.gas-template-modal__header small {
-  color:
-    #748397;
-
-  font-size:
-    11px;
-
-  font-weight:
-    600;
-}
-
-
-#gasTemplateCloseButton {
-  display:
-    grid;
-
-  width:
-    36px;
-
-  height:
-    36px;
-
-  flex:
-    0 0 36px;
-
-  place-items:
-    center;
-
-  padding:
-    0;
-
-  border:
-    0;
-
-  border-radius:
-    8px;
-
-  background:
-    #e9eef4;
-
-  color:
-    #46586d;
-
-  font-size:
-    24px;
-
-  line-height:
-    1;
-}
-
-
-/* =========================================================
-  주의 안내
-========================================================= */
-
-.gas-template-modal__notice {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  gap:
-    8px;
-
-  padding:
-    10px 18px;
-
-  border-bottom:
-    1px solid #eadfae;
-
-  background:
-    #fff9df;
-
-  color:
-    #6d5a18;
-
-  font-size:
-    11px;
-}
-
-
-.gas-template-modal__notice strong {
-  flex:
-    0 0 auto;
-
-  font-weight:
-    900;
-}
-
-
-.gas-template-modal__notice span {
-  font-weight:
-    700;
-}
-
-
-/* =========================================================
-  편집 목록
-========================================================= */
-
-.gas-template-modal__body {
-  display:
-    grid;
-
-  overflow-y:
-    auto;
-
-  gap:
-    10px;
-
-  padding:
-    16px;
-
-  background:
-    #eef3f7;
-}
-
-
-/* 각 점검항목 */
-.gas-template-edit-row {
-  display:
-    grid;
-
-  grid-template-columns:
-    44px
-    minmax(150px, 0.7fr)
-    minmax(260px, 1.7fr);
-
-  gap:
-    8px;
-
-  align-items:
-    stretch;
-
-  padding:
-    10px;
-
-  border:
-    1px solid #d5dfe9;
-
-  border-radius:
-    10px;
-
-  background:
-    #ffffff;
-}
-
-
-.gas-template-edit-row__number {
-  display:
-    grid;
-
-  min-height:
-    42px;
-
-  place-items:
-    center;
-
-  border:
-    1px solid #d4dee8;
-
-  border-radius:
-    7px;
-
-  background:
-    #f3f6f9;
-
-  color:
-    #43566d;
-
-  font-size:
-    12px;
-
-  font-weight:
-    900;
-}
-
-
-.gas-template-edit-row input,
-.gas-template-edit-row textarea {
-  width:
-    100%;
-
-  min-width:
-    0;
-
-  border:
-    1px solid #bdcad8;
-
-  border-radius:
-    7px;
-
-  background:
-    #ffffff;
-
-  color:
-    #23364b;
-
-  font-size:
-    11px;
-
-  font-weight:
-    700;
-
-  outline:
-    none;
-}
-
-
-.gas-template-edit-row input {
-  min-height:
-    42px;
-
-  padding:
-    8px 10px;
-}
-
-
-.gas-template-edit-row textarea {
-  min-height:
-    64px;
-
-  padding:
-    9px 10px;
-
-  line-height:
-    1.5;
-
-  resize:
-    vertical;
-}
-
-
-.gas-template-edit-row input:focus,
-.gas-template-edit-row textarea:focus {
-  border-color:
-    #3d7fbd;
-
-  box-shadow:
-    0 0 0 3px rgba(61, 127, 189, 0.12);
-}
-
-
-/* =========================================================
-  편집 팝업 하단
-========================================================= */
-
-.gas-template-modal__footer {
-  display:
-    flex;
-
-  min-height:
-    62px;
-
-  align-items:
-    center;
-
-  justify-content:
-    flex-end;
-
-  gap:
-    8px;
-
-  padding:
-    0 18px;
-
-  border-top:
-    1px solid #d7e0e9;
-
-  background:
-    #ffffff;
-}
-
-
-.gas-template-modal__footer button {
-  min-height:
-    38px;
-
-  padding:
-    0 18px;
-
-  border:
-    1px solid #bcc9d7;
-
-  border-radius:
-    8px;
-
-  background:
-    #ffffff;
-
-  color:
-    #42566c;
-
-  font-size:
-    11px;
-
-  font-weight:
-    900;
-}
-
-
-#gasTemplateApplyButton {
-  border-color:
-    #286fae;
-
-  background:
-    #286fae;
-
-  color:
-    #ffffff;
-}
-
-
-/* =========================================================
-  내용 편집 팝업 모바일
-========================================================= */
-
-@media (
-  max-width:
-    700px
-) {
-
-  .gas-template-modal {
-    padding:
-      10px;
-  }
-
-
-  .gas-template-modal__panel {
-    max-height:
-      95vh;
-  }
-
-
-  .gas-template-edit-row {
-    grid-template-columns:
-      38px 1fr;
-  }
-
-
-  .gas-template-edit-row textarea {
-    grid-column:
-      1 / -1;
-  }
-
-}
-
 @media print {
 
   html,
@@ -2350,26 +1888,38 @@ button {
     width:
       210mm;
 
+    height:
+      297mm;
+
     min-height:
       297mm;
+
+    overflow:
+      hidden;
 
     background:
       #ffffff;
   }
+
 
   body {
     margin:
       0;
   }
 
+
   .screen-only {
     display:
       none !important;
   }
 
+
   .gas-check-app {
     width:
       210mm;
+
+    height:
+      297mm;
 
     min-height:
       297mm;
@@ -2378,22 +1928,30 @@ button {
       0;
   }
 
-.gas-check-sheet {
-  width:
-    210mm;
 
-  min-height:
-    297mm;
+  .gas-check-sheet {
+    width:
+      210mm;
 
-  margin:
-    0;
+    height:
+      297mm;
 
-  padding:
-    22mm 0 16mm;
+    min-height:
+      297mm;
 
-  box-shadow:
-    none;
-}
+    margin:
+      0;
+
+    padding:
+      20mm 0 8mm;
+
+    overflow:
+      hidden;
+
+    box-shadow:
+      none;
+  }
+
 
   .gas-check-sheet input {
     background:
@@ -2403,13 +1961,37 @@ button {
       none !important;
   }
 
+
+  /*
+    표 전체에 page-break-inside: avoid를 적용하면
+    표가 통째로 두 번째 장으로 밀려납니다.
+  */
   .gas-check-detail-table {
     page-break-inside:
-      avoid;
+      auto;
+
+    break-inside:
+      auto;
   }
+
 
   .gas-check-detail-table tr {
     page-break-inside:
+      avoid;
+
+    break-inside:
+      avoid;
+  }
+
+
+  .gas-check-title-row,
+  .gas-check-section,
+  .gas-check-overview-table,
+  .gas-check-confirmation-row {
+    page-break-inside:
+      avoid;
+
+    break-inside:
       avoid;
   }
 
