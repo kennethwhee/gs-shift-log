@@ -935,3 +935,73 @@
 .inspection-calendar-cycle {
   display: none !important;
 }
+
+/* =========================================================
+  전체 점검주기 점검명 + 담당 한 줄 정렬
+========================================================= */
+
+#inspectionCalendarCycleList
+.inspection-cycle-title-line {
+  display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-wrap: wrap !important;
+
+  gap: 6px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+#inspectionCalendarCycleList
+.inspection-cycle-title-line
+> strong,
+
+#inspectionCalendarCycleList
+.inspection-cycle-title-line
+> h3 {
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+/* 담당 표시를 점검명 바로 오른쪽에 배치 */
+
+#inspectionCalendarCycleList
+.inspection-cycle-inline-assignee {
+  display: inline-flex !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: max-content !important;
+
+  flex: 0 0 auto !important;
+
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-wrap: wrap !important;
+
+  gap: 4px !important;
+
+  margin: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+
+/* 점검일지 열기 버튼 최종 숨김 보강 */
+
+#inspectionCalendarCycleList
+.inspection-calendar-log-button,
+
+#inspectionCalendarCycleList
+[data-calendar-open-log] {
+  display: none !important;
+}

@@ -1441,3 +1441,542 @@ if (document.readyState === "loading") {
 } else {
   startInspectionCalendarDashboard();
 }
+
+/* =========================================================
+  전체 점검주기 목록 표시 정리
+
+  적용 내용:
+  1. "수정됨" 배지 제거
+  2. "담당" 표시를 점검명 오른쪽으로 이동
+  3. "점검일지 열기" 버튼 제거
+
+  주의:
+  - 일정 수정 데이터와 revision은 삭제하지 않는다.
+  - 전체 점검주기 목록의 화면 표시만 정리한다.
+========================================================= */
+
+function initializeInspectionCycleListDisplayCleanup() {
+  /*
+    중복 실행 방지
+  */
+  if (
+    window
+      .__inspectionCycleListDisplayCleanupStarted ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__inspectionCycleListDisplayCleanupStarted =
+    true;
+
+
+  const cycleList =
+    document.getElementById(
+      "inspectionCalendarCycleList"
+    );
+
+
+  if (
+    !cycleList
+  ) {
+    console.warn(
+      "전체 점검주기 목록을 찾지 못했습니다."
+    );
+
+
+    return;
+  }
+
+
+  let cleanupFrameId =
+    0;
+
+
+  /* =====================================================
+    화면 문구 정리
+  ====================================================== */
+
+  function normalizeCycleText(
+    value
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+  }
+
+
+  /* =====================================================
+    점검명 요소 찾기
+  ====================================================== */
+
+  function findInspectionCycleTitle(
+    row
+  ) {
+    const candidates = [
+      ...row.querySelectorAll(
+        `
+          [data-inspection-title],
+          .inspection-calendar-cycle-item__title,
+          .inspection-schedule-title,
+          h3,
+          strong
+        `
+      )
+    ];
+
+
+    return (
+      candidates.find(
+        element => {
+          const text =
+            normalizeCycleText(
+              element.textContent
+            );
+
+
+          if (
+            !text
+          ) {
+            return false;
+          }
+
+
+          return ![
+            "수정됨",
+            "담당",
+            "점검일지 열기",
+            "일간",
+            "주간",
+            "월간",
+            "분기",
+            "기타",
+            "수정"
+          ].includes(
+            text
+          );
+        }
+      ) ||
+      null
+    );
+  }
+
+
+  /* =====================================================
+    담당 표시 영역 찾기
+  ====================================================== */
+
+  function findInspectionCycleAssignee(
+    row,
+    titleElement
+  ) {
+    const candidates = [
+      ...row.querySelectorAll(
+        `
+          span,
+          small,
+          p,
+          div
+        `
+      )
+    ]
+      .filter(
+        element => {
+          const text =
+            normalizeCycleText(
+              element.textContent
+            );
+
+
+          if (
+            !text.startsWith(
+              "담당"
+            ) ||
+            text.length >
+              50
+          ) {
+            return false;
+          }
+
+
+          /*
+            점검명까지 포함하고 있는 큰 영역은 제외한다.
+          */
+          if (
+            titleElement &&
+            element.contains(
+              titleElement
+            )
+          ) {
+            return false;
+          }
+
+
+          if (
+            element.querySelector(
+              "button"
+            )
+          ) {
+            return false;
+          }
+
+
+          return true;
+        }
+      );
+
+
+    /*
+      "담당 TO"처럼 담당자까지 포함된 요소를 우선 사용한다.
+    */
+    const combinedElement =
+      candidates.find(
+        element => {
+          return (
+            normalizeCycleText(
+              element.textContent
+            ) !==
+            "담당"
+          );
+        }
+      );
+
+
+    if (
+      combinedElement
+    ) {
+      return combinedElement;
+    }
+
+
+    const labelElement =
+      candidates.find(
+        element => {
+          return (
+            normalizeCycleText(
+              element.textContent
+            ) ===
+            "담당"
+          );
+        }
+      );
+
+
+    if (
+      !labelElement
+    ) {
+      return null;
+    }
+
+
+    const parentElement =
+      labelElement.parentElement;
+
+
+    /*
+      담당 배지와 보직명이 같은 전용 부모에 들어 있다면
+      부모 전체를 이동한다.
+    */
+    if (
+      parentElement &&
+      parentElement !==
+        row &&
+      ![
+        "TD",
+        "TR",
+        "ARTICLE"
+      ].includes(
+        parentElement.tagName
+      ) &&
+      !(
+        titleElement &&
+        parentElement.contains(
+          titleElement
+        )
+      )
+    ) {
+      const parentText =
+        normalizeCycleText(
+          parentElement.textContent
+        );
+
+
+      if (
+        parentText.startsWith(
+          "담당"
+        ) &&
+        parentText.length <=
+          50
+      ) {
+        return parentElement;
+      }
+    }
+
+
+    return labelElement;
+  }
+
+
+  /* =====================================================
+    한 행의 표시 정리
+  ====================================================== */
+
+  function cleanupInspectionCycleRow(
+    row
+  ) {
+    /*
+      [수정됨] 배지 제거
+    */
+    row
+      .querySelectorAll(
+        `
+          span,
+          small,
+          em,
+          b
+        `
+      )
+      .forEach(
+        element => {
+          if (
+            normalizeCycleText(
+              element.textContent
+            ) ===
+            "수정됨"
+          ) {
+            element.remove();
+          }
+        }
+      );
+
+
+    /*
+      점검일지 열기 버튼 제거
+    */
+    row
+      .querySelectorAll(
+        `
+          button,
+          a
+        `
+      )
+      .forEach(
+        element => {
+          if (
+            normalizeCycleText(
+              element.textContent
+            ) ===
+            "점검일지 열기"
+          ) {
+            element.remove();
+          }
+        }
+      );
+
+
+    const titleElement =
+      findInspectionCycleTitle(
+        row
+      );
+
+
+    if (
+      !titleElement
+    ) {
+      return;
+    }
+
+
+    const assigneeElement =
+      findInspectionCycleAssignee(
+        row,
+        titleElement
+      );
+
+
+    if (
+      !assigneeElement
+    ) {
+      return;
+    }
+
+
+    /*
+      이미 정리된 경우 중복 이동하지 않는다.
+    */
+    let titleLine =
+      titleElement.closest(
+        ".inspection-cycle-title-line"
+      );
+
+
+    if (
+      !titleLine
+    ) {
+      titleLine =
+        document.createElement(
+          "div"
+        );
+
+
+      titleLine.className =
+        "inspection-cycle-title-line";
+
+
+      titleElement
+        .parentElement
+        ?.insertBefore(
+          titleLine,
+          titleElement
+        );
+
+
+      titleLine.appendChild(
+        titleElement
+      );
+    }
+
+
+    assigneeElement.classList.add(
+      "inspection-cycle-inline-assignee"
+    );
+
+
+    if (
+      !titleLine.contains(
+        assigneeElement
+      )
+    ) {
+      titleLine.appendChild(
+        assigneeElement
+      );
+    }
+  }
+
+
+  /* =====================================================
+    전체 목록 정리
+  ====================================================== */
+
+  function cleanupInspectionCycleList() {
+    const tableRows = [
+      ...cycleList.querySelectorAll(
+        "tbody tr"
+      )
+    ];
+
+
+    const cardRows = [
+      ...cycleList.querySelectorAll(
+        `
+          .inspection-calendar-cycle-item,
+          article
+        `
+      )
+    ];
+
+
+    const rows =
+      tableRows.length
+        ? tableRows
+        : cardRows;
+
+
+    rows.forEach(
+      cleanupInspectionCycleRow
+    );
+
+
+    /*
+      혹시 별도 클래스 버튼으로 남아 있는 경우도 숨긴다.
+    */
+    cycleList
+      .querySelectorAll(
+        `
+          .inspection-calendar-log-button,
+          [data-calendar-open-log]
+        `
+      )
+      .forEach(
+        button => {
+          button.remove();
+        }
+      );
+  }
+
+
+  /* =====================================================
+    목록이 다시 그려질 때 재적용
+  ====================================================== */
+
+  function requestInspectionCycleCleanup() {
+    if (
+      cleanupFrameId
+    ) {
+      return;
+    }
+
+
+    cleanupFrameId =
+      window.requestAnimationFrame(
+        () => {
+          cleanupFrameId =
+            0;
+
+
+          cleanupInspectionCycleList();
+        }
+      );
+  }
+
+
+  const observer =
+    new MutationObserver(
+      requestInspectionCycleCleanup
+    );
+
+
+  observer.observe(
+    cycleList,
+    {
+      childList:
+        true,
+
+      subtree:
+        true
+    }
+  );
+
+
+  requestInspectionCycleCleanup();
+}
+
+
+/* =========================================================
+  실행
+========================================================= */
+
+if (
+  document.readyState ===
+  "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeInspectionCycleListDisplayCleanup,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeInspectionCycleListDisplayCleanup();
+}
