@@ -66123,3 +66123,374 @@ tr.is-inline-remark-editing
     animation-iteration-count: 1 !important;
   }
 }
+
+/* =========================================================
+  공지사항 댓글 컴팩트 디자인
+
+  - 작성자 | 내용 | 작성시간 | 수정·삭제 한 줄
+  - 중복 댓글 제목 제거
+  - 댓글 입력창도 한 줄로 축소
+  - 전체공지·보직공지 공통
+========================================================= */
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-panel {
+  padding: 8px;
+}
+
+
+/* 펼친 영역 안의 중복 “댓글 1” 제목 제거 */
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-panel__header {
+  display: none;
+}
+
+
+/* 댓글 목록 */
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-list {
+  display: block;
+
+  max-height: 260px;
+
+  gap: 0;
+  padding: 0;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+
+/* 일반 댓글 한 줄 배치 */
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-item:not(
+  .is-editing
+) {
+  display: grid;
+
+  grid-template-columns:
+    minmax(92px, 128px)
+    minmax(0, 1fr)
+    auto
+    auto;
+
+  grid-template-areas:
+    "author content date actions";
+
+  min-width: 0;
+  min-height: 38px;
+
+  align-items: center;
+
+  gap: 8px;
+
+  padding: 5px 8px;
+
+  border: 0;
+  border-bottom: 1px solid #e7edf3;
+  border-radius: 0;
+
+  background: #ffffff;
+  box-shadow: none;
+}
+
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-item:not(
+  .is-editing
+):last-child {
+  border-bottom: 0;
+}
+
+
+/* 작성자와 작성시간을 각각 한 줄 칸으로 분리 */
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-item:not(
+  .is-editing
+) .notice-comment-item__meta {
+  display: contents;
+}
+
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-item:not(
+  .is-editing
+) .notice-comment-item__author {
+  grid-area: author;
+
+  width: 100%;
+  min-width: 0;
+
+  overflow: hidden;
+
+  font-size: 10px;
+  line-height: 1.35;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* 댓글 내용 */
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-item:not(
+  .is-editing
+) .notice-comment-item__content {
+  grid-area: content;
+
+  min-width: 0;
+
+  margin: 0;
+
+  color: #34445a;
+
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.45;
+
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+
+/* 작성시간 */
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-item:not(
+  .is-editing
+) .notice-comment-item__date {
+  grid-area: date;
+
+  font-size: 8px;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+
+/* 수정·삭제 버튼 */
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-item:not(
+  .is-editing
+) .notice-comment-item__actions {
+  grid-area: actions;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 3px;
+
+  margin: 0;
+}
+
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-item:not(
+  .is-editing
+) .notice-comment-item__action {
+  min-width: 34px;
+  min-height: 24px;
+
+  padding: 0 6px;
+
+  border-radius: 5px;
+
+  font-size: 8px;
+}
+
+
+/* 댓글 등록창도 한 줄로 축소 */
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-create-form {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+
+  gap: 6px;
+
+  margin-top: 7px;
+  padding-top: 7px;
+}
+
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-create-form__input {
+  height: 36px;
+  min-height: 36px !important;
+  max-height: 72px;
+
+  padding: 7px 9px !important;
+
+  line-height: 1.4 !important;
+}
+
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-create-form__footer {
+  gap: 6px;
+
+  margin-top: 0;
+}
+
+
+:where(
+  #roleNoticeModal,
+  #globalNoticeModal
+) .notice-comment-create-form__submit {
+  min-width: 52px;
+  min-height: 36px;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width: 760px
+) {
+  :where(
+    #roleNoticeModal,
+    #globalNoticeModal
+  ) .notice-comment-panel {
+    padding: 7px;
+  }
+
+
+  :where(
+    #roleNoticeModal,
+    #globalNoticeModal
+  ) .notice-comment-list {
+    max-height: 230px;
+
+    overflow-y: auto;
+  }
+
+
+  :where(
+    #roleNoticeModal,
+    #globalNoticeModal
+  ) .notice-comment-item:not(
+    .is-editing
+  ) {
+    grid-template-columns:
+      minmax(68px, 90px)
+      minmax(0, 1fr)
+      auto;
+
+    grid-template-areas:
+      "author content actions";
+
+    min-height: 38px;
+
+    gap: 6px;
+
+    padding: 5px 7px;
+  }
+
+
+  :where(
+    #roleNoticeModal,
+    #globalNoticeModal
+  ) .notice-comment-item:not(
+    .is-editing
+  ) .notice-comment-item__date {
+    display: none;
+  }
+
+
+  :where(
+    #roleNoticeModal,
+    #globalNoticeModal
+  ) .notice-comment-item:not(
+    .is-editing
+  ) .notice-comment-item__content {
+    overflow: hidden;
+
+    font-size: 11px;
+
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+
+  :where(
+    #roleNoticeModal,
+    #globalNoticeModal
+  ) .notice-comment-item:not(
+    .is-editing
+  ) .notice-comment-item__action {
+    min-width: 31px;
+    min-height: 28px;
+
+    padding: 0 5px;
+
+    font-size: 8px;
+  }
+
+
+  :where(
+    #roleNoticeModal,
+    #globalNoticeModal
+  ) .notice-comment-create-form__input {
+    height: 40px;
+    min-height: 40px !important;
+
+    padding: 7px 9px !important;
+  }
+
+
+  :where(
+    #roleNoticeModal,
+    #globalNoticeModal
+  ) .notice-comment-create-form__submit {
+    min-height: 40px;
+  }
+}
