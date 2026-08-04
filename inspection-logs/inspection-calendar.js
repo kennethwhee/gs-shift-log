@@ -93,6 +93,15 @@ let visibleCalendarCategories = new Set([
   let statusLoading = false;
   let statusErrorMessage = "";
 
+  /*
+  메인 업무일지에서 선택한 날짜·근무
+
+  값이 전달되기 전에는
+  실제 현재 근무를 기준으로 사용한다.
+*/
+let roleSummaryContextOverride =
+  null;
+
 
   /* =====================================================
     달력 구분 체크 필터
@@ -407,29 +416,253 @@ let visibleCalendarCategories = new Set([
     return roleOrder.filter(role => assignedRoleSet.has(role));
   }
 
-  function getRoleTodayShiftContext() {
-    const now = new Date();
-    const workDate = new Date(
+/* =====================================================
+  보직별 점검 기준 날짜·근무
+
+  우선순위:
+  1. 메인 업무일지에서 선택한 날짜·근무
+  2. 실제 현재 날짜·근무
+====================================================== */
+
+function getRoleTodayShiftContext() {
+  /*
+    메인 업무일지에서 날짜·근무가 전달된 경우
+  */
+  if (
+    roleSummaryContextOverride?.workDate &&
+    roleSummaryContextOverride?.shift
+  ) {
+    return {
+      workDate:
+        roleSummaryContextOverride.workDate,
+
+      shift:
+        roleSummaryContextOverride.shift,
+
+      shiftLabel:
+        getShiftLabel(
+          roleSummaryContextOverride.shift
+        )
+    };
+  }
+
+
+  /*
+    전달된 값이 없을 때만
+    실제 현재 근무를 계산한다.
+  */
+  const now =
+    new Date();
+
+
+  const workDate =
+    new Date(
       now.getFullYear(),
       now.getMonth(),
       now.getDate()
     );
 
-    let shift = "DS";
 
-    if (now.getHours() >= 19) {
-      shift = "NS";
-    } else if (now.getHours() < 7) {
-      shift = "NS";
-      workDate.setDate(workDate.getDate() - 1);
-    }
+  let shift =
+    "DS";
 
-    return {
-      workDate: formatDateValue(workDate),
-      shift,
-      shiftLabel: getShiftLabel(shift)
-    };
+
+  if (
+    now.getHours() >=
+    19
+  ) {
+    shift =
+      "NS";
+
+  } else if (
+    now.getHours() <
+    7
+  ) {
+    shift =
+      "NS";
+
+
+    workDate.setDate(
+      workDate.getDate() -
+      1
+    );
   }
+
+
+  return {
+    workDate:
+      formatDateValue(
+        workDate
+      ),
+
+    shift,
+
+    shiftLabel:
+      getShiftLabel(
+        shift
+      )
+  };
+}
+
+
+/* =====================================================
+  이전 날짜 점검 표시 즉시 초기화
+====================================================== */
+
+function publishEmptyRoleInspectionSummary(
+  context
+) {
+  if (
+    !window.parent ||
+    window.parent ===
+      window
+  ) {
+    return;
+  }
+
+
+  window.parent.postMessage(
+    {
+      type:
+        "gs-shift-log:inspection-role-today-summary",
+
+      available:
+        true,
+
+      loading:
+        true,
+
+      workDate:
+        context.workDate,
+
+      shift:
+        context.shift,
+
+      shiftLabel:
+        context.shiftLabel,
+
+      roles:
+        roleOrder.map(
+          role => {
+            return {
+              role,
+
+              totalCount:
+                0,
+
+              completedCount:
+                0,
+
+              pendingCount:
+                0,
+
+              items:
+                []
+            };
+          }
+        )
+    },
+
+    window.location.origin
+  );
+}
+
+
+/* =====================================================
+  메인 업무일지 선택 날짜·근무 적용
+====================================================== */
+
+async function applyRoleInspectionContext(
+  workDateValue,
+  shiftValue
+) {
+  const parsedDate =
+    parseDateValue(
+      workDateValue
+    );
+
+
+  const normalizedShift =
+    normalizeShift(
+      shiftValue
+    );
+
+
+  if (
+    !parsedDate ||
+    !normalizedShift
+  ) {
+    return;
+  }
+
+
+  const normalizedWorkDate =
+    formatDateValue(
+      parsedDate
+    );
+
+
+  roleSummaryContextOverride = {
+    workDate:
+      normalizedWorkDate,
+
+    shift:
+      normalizedShift
+  };
+
+
+  /*
+    점검일지 전체보기를 열었을 때도
+    업무일지에서 선택한 날짜가 보이게 한다.
+  */
+  selectedDateValue =
+    normalizedWorkDate;
+
+
+  monthCursor =
+    new Date(
+      parsedDate.getFullYear(),
+      parsedDate.getMonth(),
+      1
+    );
+
+
+  const context =
+    getRoleTodayShiftContext();
+
+
+  /*
+    기존 날짜의 점검 배지를 먼저 지운다.
+  */
+  publishEmptyRoleInspectionSummary(
+    context
+  );
+
+
+  /*
+    이전 완료 기록 조회가 진행 중이면
+    보직별 점검만 먼저 다시 계산한다.
+  */
+  if (
+    statusLoading
+  ) {
+    renderCalendar();
+    renderSelectedDate();
+
+
+    await publishRoleTodaySummary();
+
+
+    return;
+  }
+
+
+  /*
+    선택 날짜의 완료 기록과
+    보직별 점검을 다시 조회한다.
+  */
+  await refreshStatus();
+}
 
   async function loadRoleTodayCompletionMap(workDate) {
     const url = new URL(STATUS_API, window.location.origin);
@@ -1818,14 +2051,79 @@ function renderCalendar() {
     }
   });
 
-  window.addEventListener("message", event => {
+/* =====================================================
+  메인 업무일지와 점검 캘린더 통신
+====================================================== */
+
+window.addEventListener(
+  "message",
+  event => {
     if (
-      event.origin === window.location.origin &&
-      event.data?.type === "gs-shift-log:refresh-inspection-schedule"
+      event.origin !==
+      window.location.origin
     ) {
-      refreshStatus();
+      return;
     }
-  });
+
+
+    const messageType =
+      String(
+        event.data?.type ||
+        ""
+      ).trim();
+
+
+    /*
+      메인 업무일지에서 선택한
+      날짜·근무 적용
+    */
+    if (
+      messageType ===
+      "gs-shift-log:set-inspection-context"
+    ) {
+      void applyRoleInspectionContext(
+        event.data?.workDate,
+        event.data?.shift
+      );
+
+
+      return;
+    }
+
+
+    /*
+      점검 일정 수정 후 새로고침
+    */
+    if (
+      messageType ===
+      "gs-shift-log:refresh-inspection-schedule"
+    ) {
+      void refreshStatus();
+    }
+  }
+);
+
+
+/*
+  iframe 로딩 완료를 메인 업무일지에 전달한다.
+
+  메인 업무일지는 이 메시지를 받으면
+  현재 선택 날짜·근무를 다시 전송한다.
+*/
+if (
+  window.parent &&
+  window.parent !==
+    window
+) {
+  window.parent.postMessage(
+    {
+      type:
+        "gs-shift-log:inspection-calendar-ready"
+    },
+
+    window.location.origin
+  );
+}
 
   window.setInterval(
     () => {
