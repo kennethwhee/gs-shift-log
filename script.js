@@ -103475,12 +103475,11 @@ dailyBodyUnit2:
     }
 
 
-    const namePattern =
-      target ===
-        "armRoll"
-        ? "(?:arm\\s*[-_/]?\\s*roll|armroll)(?:\\s*box)?"
-        : "(?:scrap|scap)\\s*[-_/]?\\s*box";
-
+const namePattern =
+  target ===
+    "armRoll"
+    ? "(?:arm\\s*[-_/]?\\s*roll|armroll)(?:\\s*box)?"
+    : "(?:scrap|scap)(?:\\s*[-_/]?\\s*box)?";
 
     const pattern =
       new RegExp(
@@ -103611,7 +103610,7 @@ dailyBodyUnit2:
 function getArmRollBoxTargetsFromText(
   value
 ) {
-  const compactText =
+  const text =
     String(
       value ||
       ""
@@ -103619,23 +103618,13 @@ function getArmRollBoxTargetsFromText(
       .normalize(
         "NFKC"
       )
-      .toLowerCase()
-      .replace(
-        /[\u200B-\u200D\u2060\uFEFF]/g,
-        ""
-      )
-      .replace(
-        /[^a-z0-9가-힣]/g,
-        ""
-      );
-
+      .toLowerCase();
 
   const targets = [];
 
-
   if (
-    compactText.includes(
-      "armroll"
+    /(?:arm\s*[-_/]?\s*roll|armroll)(?:\s*box)?/i.test(
+      text
     )
   ) {
     targets.push(
@@ -103643,16 +103632,9 @@ function getArmRollBoxTargetsFromText(
     );
   }
 
-
-  /*
-    과거 오타 Scap Box도 지원한다.
-  */
   if (
-    compactText.includes(
-      "scrapbox"
-    ) ||
-    compactText.includes(
-      "scapbox"
+    /(?:scrap|scap)(?:\s*[-_/]?\s*box)?/i.test(
+      text
     )
   ) {
     targets.push(
@@ -103660,10 +103642,8 @@ function getArmRollBoxTargetsFromText(
     );
   }
 
-
   return targets;
 }
-
 
 /* =====================================================
   실제 교체 완료 판별

@@ -70578,7 +70578,6 @@ select {
 
 
 /* 일자 */
-
 .arm-roll-box-unit-daily-table
 th:nth-child(1),
 .arm-roll-box-unit-daily-table
@@ -70586,34 +70585,28 @@ td:nth-child(1) {
   width: 18%;
 }
 
-
 /* ARM ROLL */
-
 .arm-roll-box-unit-daily-table
 th:nth-child(2),
 .arm-roll-box-unit-daily-table
 td:nth-child(2) {
-  width: 29%;
+  width: 35%;
 }
 
-
 /* SCRAP */
-
 .arm-roll-box-unit-daily-table
 th:nth-child(3),
 .arm-roll-box-unit-daily-table
 td:nth-child(3) {
-  width: 29%;
+  width: 35%;
 }
 
-
 /* 교체 */
-
 .arm-roll-box-unit-daily-table
 th:nth-child(4),
 .arm-roll-box-unit-daily-table
 td:nth-child(4) {
-  width: 24%;
+  width: 12%;
 }
 
 
@@ -70699,10 +70692,12 @@ td:nth-child(4) {
 ========================================================= */
 
 .arm-roll-box-unit-event-cell {
-  line-height: 1.4;
+  padding: 6px 4px !important;
+  line-height: 1.2;
   text-align: center;
+  white-space: nowrap;
   word-break: keep-all;
-  overflow-wrap: anywhere;
+  overflow: hidden;
 }
 
 .arm-roll-box-unit-event-cell
