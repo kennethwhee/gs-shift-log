@@ -32505,9 +32505,95 @@ function addDirectRemarkEntry() {
   );
 }
 
+/* =========================================================
+  비고 Enter 추가 확인
+
+  첫 번째 Enter:
+  - 추가 확인창 표시
+
+  두 번째 Enter:
+  - 확인창의 추가 버튼 실행
+
+  Shift + Enter:
+  - 비고 입력창 줄바꿈 유지
+========================================================= */
+
+async function confirmAndAddDirectRemarkEntry() {
+  const contentInput =
+    document.getElementById(
+      "directRemarkContent"
+    );
+
+
+  const content =
+    String(
+      contentInput?.value ||
+      ""
+    )
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .trim();
+
+
+  if (
+    !content
+  ) {
+    showToast(
+      "비고 내용을 입력해 주세요."
+    );
+
+
+    contentInput?.focus();
+
+
+    return false;
+  }
+
+
+  const shouldContinue =
+    await showCompactConfirm({
+      title:
+        "비고 추가",
+
+      message:
+        "입력한 비고 내용을 추가할까요?",
+
+      confirmText:
+        "추가",
+
+      cancelText:
+        "취소"
+    });
+
+
+  if (
+    !shouldContinue
+  ) {
+    contentInput?.focus();
+
+
+    return false;
+  }
+
+
+  addDirectRemarkEntry();
+
+
+  return true;
+}
 
 /* =========================================================
   비고 전용 입력 기능 초기화
+
+  동작:
+  - 내용 추가 버튼: 기존처럼 입력창 열기
+  - 추가 버튼: 기존처럼 즉시 추가
+  - Enter: 확인창 열기
+  - 확인창에서 Enter: 추가 확정
+  - Shift + Enter: 줄바꿈
+  - 한글 조합 중 Enter: 글자 확정만 처리
 ========================================================= */
 
 function initializeDirectRemarkInput() {
@@ -32545,11 +32631,19 @@ function initializeDirectRemarkInput() {
   }
 
 
+  /* =====================================================
+    비고 입력창 열기
+  ====================================================== */
+
   openButton.addEventListener(
     "click",
     openDirectRemarkInput
   );
 
+
+  /* =====================================================
+    비고 입력 취소
+  ====================================================== */
 
   cancelButton?.addEventListener(
     "click",
@@ -32561,35 +32655,79 @@ function initializeDirectRemarkInput() {
   );
 
 
+  /* =====================================================
+    추가 버튼
+
+    버튼을 직접 누르는 기존 동작은 유지한다.
+  ====================================================== */
+
   saveButton?.addEventListener(
     "click",
     addDirectRemarkEntry
   );
 
 
-  /*
-    Ctrl + Enter 또는 Command + Enter로 추가
-    일반 Enter는 줄바꿈 유지
-  */
+  /* =====================================================
+    비고 내용 입력창 Enter 동작
+
+    Enter:
+    확인창 표시
+
+    확인창에서 Enter:
+    추가 확정
+
+    Shift + Enter:
+    줄바꿈
+
+    한글 조합 중 Enter:
+    글자 확정만 처리
+  ====================================================== */
+
   contentInput?.addEventListener(
     "keydown",
-    event => {
+
+    async event => {
       if (
         event.key !==
-          "Enter" ||
-        !(
-          event.ctrlKey ||
-          event.metaKey
-        )
+          "Enter"
       ) {
         return;
       }
 
 
+      /*
+        한글 입력 조합 중 Enter는
+        추가 동작으로 사용하지 않는다.
+      */
+      if (
+        event.isComposing ||
+        event.keyCode ===
+          229
+      ) {
+        return;
+      }
+
+
+      /*
+        Shift + Enter는 줄바꿈으로 유지한다.
+      */
+      if (
+        event.shiftKey
+      ) {
+        return;
+      }
+
+
+      /*
+        일반 Enter,
+        Ctrl + Enter,
+        Command + Enter 모두
+        확인창을 거쳐 추가한다.
+      */
       event.preventDefault();
 
 
-      addDirectRemarkEntry();
+      await confirmAndAddDirectRemarkEntry();
     }
   );
 
@@ -32598,7 +32736,6 @@ function initializeDirectRemarkInput() {
     .directRemarkBound =
     "true";
 }
-
 
 document.addEventListener(
   "DOMContentLoaded",
