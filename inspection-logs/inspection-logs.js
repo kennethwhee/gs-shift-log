@@ -6563,53 +6563,39 @@ function initializeInspectionLogHub() {
     );
   }
 
-
   /* =====================================================
     D1 완료 기록 조회
+
+    조회 범위:
+    - 오늘
+    - 지연 점검 계산에 필요한 최근 기간
+
+    점검일지 허브는 월간 달력의 monthCursor를
+    사용하지 않는다.
   ====================================================== */
 
-  async function loadStatusRecords(
-    options = {}
-  ) {
-    const signal =
-      options?.signal ||
-      undefined;
-
-
-    const monthStart =
+  async function loadStatusRecords() {
+    const todayValue =
       formatDateValue(
-        new Date(
-          monthCursor.getFullYear(),
-          monthCursor.getMonth(),
-          1
-        )
-      );
-
-
-    const monthEnd =
-      formatDateValue(
-        new Date(
-          monthCursor.getFullYear(),
-          monthCursor.getMonth() +
-            1,
-          0
-        )
+        new Date()
       );
 
 
     const startDate =
-      monthStart <
-        TRACKING_START_DATE
-        ? TRACKING_START_DATE
-        : monthStart;
+      getStatusQueryStartDate(
+        todayValue
+      );
 
 
     if (
       startDate >
-        monthEnd
+        todayValue
     ) {
-      statusMap =
-        new Map();
+      statusItems =
+        [];
+
+
+      rebuildStatusMap();
 
 
       statusErrorMessage =
@@ -6635,7 +6621,7 @@ function initializeInspectionLogHub() {
 
     url.searchParams.set(
       "endDate",
-      monthEnd
+      todayValue
     );
 
 
@@ -6659,15 +6645,7 @@ function initializeInspectionLogHub() {
             getAuthHeaders(),
 
           cache:
-            "no-store",
-
-          ...(
-            signal
-              ? {
-                  signal
-                }
-              : {}
-          )
+            "no-store"
         }
       );
 
@@ -6678,7 +6656,7 @@ function initializeInspectionLogHub() {
       );
 
 
-    const items =
+    statusItems =
       Array.isArray(
         result.items
       )
@@ -6686,23 +6664,7 @@ function initializeInspectionLogHub() {
         : [];
 
 
-    statusMap =
-      new Map();
-
-
-    items.forEach(
-      item => {
-        statusMap.set(
-          createStatusKey(
-            item.scheduleId,
-            item.dueDate,
-            item.shift
-          ),
-
-          item
-        );
-      }
-    );
+    rebuildStatusMap();
 
 
     statusErrorMessage =
@@ -7880,9 +7842,12 @@ function initializeInspectionLogHub() {
           `;
   }
 
-
   /* =====================================================
     완료 기록 새로고침
+
+    - 완료 기록을 다시 조회한다.
+    - 오늘 점검과 지연 점검을 다시 계산한다.
+    - 월간 달력 전용 요소에는 접근하지 않는다.
   ====================================================== */
 
   async function refreshStatus() {
@@ -7897,145 +7862,47 @@ function initializeInspectionLogHub() {
       true;
 
 
-    calendarGrid.setAttribute(
+    todayList?.setAttribute(
       "aria-busy",
       "true"
     );
 
 
-    selectedList.setAttribute(
-      "aria-busy",
-      "true"
-    );
-
-
-    /*
-      D1 완료 기록을 기다리지 않고
-      기본 점검 일정부터 즉시 표시한다.
-
-      이 코드로 인해 API가 느려도
-      달력과 선택 날짜 목록은 바로 나타난다.
-    */
     try {
-      renderAll();
+      await loadStatusRecords();
 
     } catch (
       error
     ) {
       console.error(
-        "점검 달력 기본 일정 출력 실패:",
-        error
-      );
-    }
-
-
-    const abortController =
-      typeof AbortController ===
-        "function"
-        ? new AbortController()
-        : null;
-
-
-    let timeoutId =
-      0;
-
-
-    /*
-      완료 기록 API가 8초 이상 응답하지 않으면
-      요청을 중단하고 기본 일정으로 계속 사용한다.
-    */
-    if (
-      abortController
-    ) {
-      timeoutId =
-        window.setTimeout(
-          () => {
-            abortController.abort();
-          },
-
-          8000
-        );
-    }
-
-
-    try {
-      await loadStatusRecords({
-        signal:
-          abortController?.signal
-      });
-
-    } catch (
-      error
-    ) {
-      console.error(
-        "달력 점검 완료 기록 조회 실패:",
+        "점검 완료 기록 불러오기 실패:",
         error
       );
 
 
-      /*
-        완료 기록을 못 가져와도
-        기본 점검 일정은 유지한다.
-      */
-      statusMap =
-        new Map();
+      statusItems =
+        [];
+
+
+      rebuildStatusMap();
 
 
       statusErrorMessage =
-        error?.name ===
-          "AbortError"
-          ? "완료 기록 조회가 지연되어 기본 일정으로 표시합니다."
-          : (
-              error instanceof Error
-                ? error.message
-                : "점검 완료 기록을 불러오지 못했습니다."
-            );
+        error instanceof Error
+          ? error.message
+          : "점검 완료 기록을 불러오지 못했습니다.";
 
     } finally {
-      if (
-        timeoutId
-      ) {
-        window.clearTimeout(
-          timeoutId
-        );
-      }
-
-
       statusLoading =
         false;
 
 
-      calendarGrid.removeAttribute(
+      todayList?.removeAttribute(
         "aria-busy"
       );
 
 
-      selectedList.removeAttribute(
-        "aria-busy"
-      );
-
-
-      /*
-        완료 기록을 반영하여 다시 출력한다.
-      */
-      try {
-        renderAll();
-
-      } catch (
-        error
-      ) {
-        console.error(
-          "점검 달력 최종 출력 실패:",
-          error
-        );
-      }
-
-
-      /*
-        상위 업무일지의 보직별 현황 조회는
-        달력 출력을 막지 않도록 별도로 실행한다.
-      */
-      void publishRoleTodaySummary();
+      renderTodaySchedules();
     }
   }
 

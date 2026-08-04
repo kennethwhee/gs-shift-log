@@ -105169,32 +105169,44 @@ const ARM_ROLL_BOX_SERIES = Object.freeze([
     }
 
 
-    if (
-      increaseElement
-    ) {
-      increaseElement.textContent =
-        hasArmRollBoxNumericValue(
-          record?.delta
-        )
-          ? `${record.dayGap}일간 ${formatArmRollBoxSigned(
-              record.delta
-            )}`
-          : "비교 기록 없음";
-    }
+if (
+  increaseElement
+) {
+  const recentIncrease =
+    hasArmRollBoxNumericValue(
+      record?.delta
+    ) &&
+    Number(
+      record.delta
+    ) > 0;
+
+  increaseElement.textContent =
+    recentIncrease
+      ? `${record.dayGap}일간 ${formatArmRollBoxSigned(
+          record.delta
+        )}`
+      : "비교 기록 없음";
+}
 
 
-    if (
-      averageElement
-    ) {
-      averageElement.textContent =
-        hasArmRollBoxNumericValue(
-          record?.averagePerDay
-        )
-          ? `${formatArmRollBoxSigned(
-              record.averagePerDay
-            )}/일`
-          : "비교 기록 없음";
-    }
+if (
+  averageElement
+) {
+  const recentAverageIncrease =
+    hasArmRollBoxNumericValue(
+      record?.averagePerDay
+    ) &&
+    Number(
+      record.averagePerDay
+    ) > 0;
+
+  averageElement.textContent =
+    recentAverageIncrease
+      ? `${formatArmRollBoxSigned(
+          record.averagePerDay
+        )}/일`
+      : "비교 기록 없음";
+}
 
 
     const replacement =
