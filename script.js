@@ -88989,6 +88989,1392 @@ function initializeEfficiencyDailyWorkPrint() {
 initializeEfficiencyDailyWorkPrint();
 
 /* =========================================================
+  효율팀 - 일일업무현황
+  15단계: 입력칸 글자 서식 적용·저장·복원·PDF 연결
+========================================================= */
+
+(function installEfficiencyDailyWorkFormatFeature() {
+  if (window.__efficiencyDailyWorkFormatFeatureInstalled) {
+    return;
+  }
+
+  window.__efficiencyDailyWorkFormatFeatureInstalled =
+    true;
+
+  const FIELD_NAMES = Object.freeze([
+    "notice",
+    "tmMeeting",
+    "teamInstruction",
+
+    "efficiencyOverallAssignee",
+    "efficiencyOverallTasks",
+    "efficiencyOverallRemarks",
+
+    "efficiency1Assignee",
+    "efficiency1Tasks",
+    "efficiency1Remarks",
+
+    "efficiency2Assignee",
+    "efficiency2Tasks",
+    "efficiency2Remarks",
+
+    "efficiency3Assignee",
+    "efficiency3Tasks",
+    "efficiency3Remarks",
+
+    "purchaseAdminAssignee",
+    "purchaseAdminTasks",
+    "purchaseAdminRemarks",
+
+    "dayMembers",
+    "dayTasks",
+    "dayRemarks",
+
+    "nightMembers",
+    "nightTasks",
+    "nightRemarks",
+
+    "otherNotes"
+  ]);
+
+  const FONT_FAMILIES = Object.freeze({
+    pretendard:
+      'Pretendard, "Noto Sans KR", "Malgun Gothic", sans-serif',
+
+    "malgun-gothic":
+      '"Malgun Gothic", "맑은 고딕", sans-serif',
+
+    "nanum-gothic":
+      '"Nanum Gothic", "나눔고딕", sans-serif',
+
+    dotum:
+      'Dotum, "돋움", sans-serif',
+
+    gulim:
+      'Gulim, "굴림", sans-serif',
+
+    batang:
+      'Batang, "바탕", serif'
+  });
+
+  const FONT_SIZES = Object.freeze([
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    14,
+    16
+  ]);
+
+  const STYLE_PROPERTIES = Object.freeze([
+    "font-family",
+    "font-size",
+    "font-weight",
+    "color"
+  ]);
+
+  const state = {
+    target: null
+  };
+
+
+  function getFormatElements() {
+    return {
+      ...getEfficiencyDailyWorkElements(),
+
+      toolbar:
+        document.getElementById(
+          "efficiencyDailyWorkFormatToolbar"
+        ),
+
+      targetLabel:
+        document.getElementById(
+          "efficiencyDailyWorkFormatTargetLabel"
+        ),
+
+      fontFamily:
+        document.getElementById(
+          "efficiencyDailyWorkFontFamily"
+        ),
+
+      fontSize:
+        document.getElementById(
+          "efficiencyDailyWorkFontSize"
+        ),
+
+      boldButton:
+        document.getElementById(
+          "toggleEfficiencyDailyWorkBoldButton"
+        ),
+
+      textColor:
+        document.getElementById(
+          "efficiencyDailyWorkTextColor"
+        ),
+
+      textColorValue:
+        document.getElementById(
+          "efficiencyDailyWorkTextColorValue"
+        ),
+
+      resetButton:
+        document.getElementById(
+          "resetEfficiencyDailyWorkFormatButton"
+        )
+    };
+  }
+
+
+  function getFormatControls(
+    elements =
+      getFormatElements()
+  ) {
+    return [
+      ...(
+        elements.paper?.querySelectorAll(
+          'input[type="text"][name], textarea[name]'
+        ) ||
+        []
+      )
+    ].filter(
+      control => {
+        return FIELD_NAMES.includes(
+          control.name
+        );
+      }
+    );
+  }
+
+
+  function isFormatControl(
+    control,
+    elements =
+      getFormatElements()
+  ) {
+    return Boolean(
+      control &&
+      elements.paper?.contains(
+        control
+      ) &&
+      control.matches?.(
+        'input[type="text"][name], textarea[name]'
+      ) &&
+      FIELD_NAMES.includes(
+        control.name
+      )
+    );
+  }
+
+
+  function normalizeFontFamily(
+    value
+  ) {
+    const token =
+      String(
+        value ||
+        ""
+      ).trim();
+
+    return Object.prototype
+      .hasOwnProperty
+      .call(
+        FONT_FAMILIES,
+        token
+      )
+        ? token
+        : "";
+  }
+
+
+  function normalizeFontSize(
+    value
+  ) {
+    const numericValue =
+      Number(
+        String(
+          value ??
+          ""
+        )
+          .replace(
+            /px$/i,
+            ""
+          )
+          .trim()
+      );
+
+    return FONT_SIZES.includes(
+      numericValue
+    )
+      ? numericValue
+      : null;
+  }
+
+
+  function normalizeTextColor(
+    value
+  ) {
+    const color =
+      String(
+        value ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+    return /^#[0-9a-f]{6}$/.test(
+      color
+    )
+      ? color
+      : "";
+  }
+
+
+  function normalizeBoldValue(
+    source
+  ) {
+    if (
+      !source ||
+      !Object.prototype
+        .hasOwnProperty
+        .call(
+          source,
+          "bold"
+        )
+    ) {
+      return undefined;
+    }
+
+    const value =
+      String(
+        source.bold
+      )
+        .trim()
+        .toLowerCase();
+
+    if (
+      source.bold ===
+        true ||
+      [
+        "1",
+        "true",
+        "bold"
+      ].includes(
+        value
+      )
+    ) {
+      return true;
+    }
+
+    if (
+      source.bold ===
+        false ||
+      [
+        "0",
+        "false",
+        "normal"
+      ].includes(
+        value
+      )
+    ) {
+      return false;
+    }
+
+    return undefined;
+  }
+
+
+  function normalizeFieldFormat(
+    source
+  ) {
+    const parsed =
+      parseEfficiencyDailyWorkStructuredValue(
+        source,
+        {}
+      );
+
+    const safe =
+      parsed &&
+      !Array.isArray(
+        parsed
+      )
+        ? parsed
+        : {};
+
+    const format = {};
+
+    const fontFamily =
+      normalizeFontFamily(
+        safe.fontFamily ??
+        safe.font_family
+      );
+
+    const fontSize =
+      normalizeFontSize(
+        safe.fontSize ??
+        safe.font_size
+      );
+
+    const bold =
+      normalizeBoldValue(
+        safe
+      );
+
+    const textColor =
+      normalizeTextColor(
+        safe.textColor ??
+        safe.text_color ??
+        safe.color
+      );
+
+    if (fontFamily) {
+      format.fontFamily =
+        fontFamily;
+    }
+
+    if (
+      fontSize !==
+        null
+    ) {
+      format.fontSize =
+        fontSize;
+    }
+
+    if (
+      bold !==
+        undefined
+    ) {
+      format.bold =
+        bold;
+    }
+
+    if (textColor) {
+      format.textColor =
+        textColor;
+    }
+
+    return format;
+  }
+
+
+  function normalizeFieldFormats(
+    source
+  ) {
+    const parsed =
+      parseEfficiencyDailyWorkStructuredValue(
+        source,
+        {}
+      );
+
+    const safe =
+      parsed &&
+      !Array.isArray(
+        parsed
+      )
+        ? parsed
+        : {};
+
+    const result = {};
+
+    FIELD_NAMES.forEach(
+      fieldName => {
+        const format =
+          normalizeFieldFormat(
+            safe[fieldName]
+          );
+
+        if (
+          Object.keys(
+            format
+          ).length
+        ) {
+          result[fieldName] =
+            format;
+        }
+      }
+    );
+
+    return result;
+  }
+
+
+  function readControlFormat(
+    control
+  ) {
+    if (!control) {
+      return {};
+    }
+
+    const source = {
+      fontFamily:
+        control.dataset
+          .efficiencyDailyWorkFormatFontFamily,
+
+      fontSize:
+        control.dataset
+          .efficiencyDailyWorkFormatFontSize,
+
+      textColor:
+        control.dataset
+          .efficiencyDailyWorkFormatTextColor
+    };
+
+    if (
+      control.hasAttribute(
+        "data-efficiency-daily-work-format-bold"
+      )
+    ) {
+      source.bold =
+        control.dataset
+          .efficiencyDailyWorkFormatBold;
+    }
+
+    return normalizeFieldFormat(
+      source
+    );
+  }
+
+
+  function writeControlFormat(
+    control,
+    source
+  ) {
+    if (!control) {
+      return {};
+    }
+
+    const format =
+      normalizeFieldFormat(
+        source
+      );
+
+    if (
+      format.fontFamily
+    ) {
+      control.dataset
+        .efficiencyDailyWorkFormatFontFamily =
+        format.fontFamily;
+
+      control.style.setProperty(
+        "font-family",
+        FONT_FAMILIES[
+          format.fontFamily
+        ],
+        "important"
+      );
+
+    } else {
+      delete control.dataset
+        .efficiencyDailyWorkFormatFontFamily;
+
+      control.style.removeProperty(
+        "font-family"
+      );
+    }
+
+    if (
+      format.fontSize !==
+        undefined
+    ) {
+      control.dataset
+        .efficiencyDailyWorkFormatFontSize =
+        String(
+          format.fontSize
+        );
+
+      control.style.setProperty(
+        "font-size",
+        `${format.fontSize}px`,
+        "important"
+      );
+
+    } else {
+      delete control.dataset
+        .efficiencyDailyWorkFormatFontSize;
+
+      control.style.removeProperty(
+        "font-size"
+      );
+    }
+
+    if (
+      Object.prototype
+        .hasOwnProperty
+        .call(
+          format,
+          "bold"
+        )
+    ) {
+      control.dataset
+        .efficiencyDailyWorkFormatBold =
+        String(
+          format.bold
+        );
+
+      control.style.setProperty(
+        "font-weight",
+        format.bold
+          ? "900"
+          : "500",
+        "important"
+      );
+
+    } else {
+      delete control.dataset
+        .efficiencyDailyWorkFormatBold;
+
+      control.style.removeProperty(
+        "font-weight"
+      );
+    }
+
+    if (
+      format.textColor
+    ) {
+      control.dataset
+        .efficiencyDailyWorkFormatTextColor =
+        format.textColor;
+
+      control.style.setProperty(
+        "color",
+        format.textColor,
+        "important"
+      );
+
+    } else {
+      delete control.dataset
+        .efficiencyDailyWorkFormatTextColor;
+
+      control.style.removeProperty(
+        "color"
+      );
+    }
+
+    return format;
+  }
+
+
+  function collectFieldFormats(
+    elements =
+      getFormatElements()
+  ) {
+    const source = {};
+
+    getFormatControls(
+      elements
+    ).forEach(
+      control => {
+        const format =
+          readControlFormat(
+            control
+          );
+
+        if (
+          Object.keys(
+            format
+          ).length
+        ) {
+          source[
+            control.name
+          ] =
+            format;
+        }
+      }
+    );
+
+    return normalizeFieldFormats(
+      source
+    );
+  }
+
+
+  function clearTarget(
+    elements =
+      getFormatElements()
+  ) {
+    getFormatControls(
+      elements
+    ).forEach(
+      control => {
+        control.removeAttribute(
+          "data-efficiency-daily-work-format-target"
+        );
+      }
+    );
+
+    state.target =
+      null;
+
+    renderToolbar(
+      elements
+    );
+  }
+
+
+  function clearAllFormats(
+    elements =
+      getFormatElements()
+  ) {
+    getFormatControls(
+      elements
+    ).forEach(
+      control => {
+        writeControlFormat(
+          control,
+          {}
+        );
+      }
+    );
+
+    clearTarget(
+      elements
+    );
+  }
+
+
+  function applyFieldFormats(
+    source,
+    elements =
+      getFormatElements()
+  ) {
+    const formats =
+      normalizeFieldFormats(
+        source
+      );
+
+    getFormatControls(
+      elements
+    ).forEach(
+      control => {
+        writeControlFormat(
+          control,
+          formats[
+            control.name
+          ] ||
+          {}
+        );
+      }
+    );
+
+    clearTarget(
+      elements
+    );
+
+    return formats;
+  }
+
+
+  function getTargetLabel(
+    control
+  ) {
+    const fixedLabels = {
+      notice:
+        "공지사항",
+
+      tmMeeting:
+        "TM 회의",
+
+      teamInstruction:
+        "설비운영팀 전달사항",
+
+      otherNotes:
+        "기타사항"
+    };
+
+    return (
+      fixedLabels[
+        control?.name
+      ] ||
+      control?.getAttribute?.(
+        "aria-label"
+      ) ||
+      control?.name ||
+      "선택한 입력칸"
+    );
+  }
+
+
+  function renderToolbar(
+    elements =
+      getFormatElements()
+  ) {
+    if (
+      !elements.toolbar
+    ) {
+      return false;
+    }
+
+    const target =
+      isFormatControl(
+        state.target,
+        elements
+      )
+        ? state.target
+        : null;
+
+    state.target =
+      target;
+
+    const isBusy =
+      efficiencyDailyWorkState
+        .isLoading ||
+      efficiencyDailyWorkState
+        .isSaving ||
+      efficiencyDailyWorkDateTransitionPending;
+
+    const canEdit =
+      Boolean(
+        target
+      ) &&
+      !isBusy;
+
+    const format =
+      readControlFormat(
+        target
+      );
+
+    const color =
+      format.textColor ||
+      "#111111";
+
+    elements.toolbar.dataset
+      .formatTargetState =
+      target
+        ? "ready"
+        : "empty";
+
+    if (
+      elements.targetLabel
+    ) {
+      elements.targetLabel
+        .textContent =
+        target
+          ? getTargetLabel(
+              target
+            )
+          : "입력칸을 먼저 클릭하세요.";
+    }
+
+    if (
+      elements.fontFamily
+    ) {
+      elements.fontFamily.value =
+        format.fontFamily ||
+        "";
+
+      elements.fontFamily.disabled =
+        !canEdit;
+    }
+
+    if (
+      elements.fontSize
+    ) {
+      elements.fontSize.value =
+        format.fontSize ===
+          undefined
+          ? ""
+          : String(
+              format.fontSize
+            );
+
+      elements.fontSize.disabled =
+        !canEdit;
+    }
+
+    if (
+      elements.boldButton
+    ) {
+      elements.boldButton
+        .setAttribute(
+          "aria-pressed",
+          String(
+            format.bold ===
+              true
+          )
+        );
+
+      elements.boldButton.disabled =
+        !canEdit;
+    }
+
+    if (
+      elements.textColor
+    ) {
+      elements.textColor.value =
+        color;
+
+      elements.textColor.disabled =
+        !canEdit;
+    }
+
+    if (
+      elements.textColorValue
+    ) {
+      elements.textColorValue.value =
+        color.toUpperCase();
+
+      elements.textColorValue.textContent =
+        color.toUpperCase();
+    }
+
+    if (
+      elements.resetButton
+    ) {
+      elements.resetButton.disabled =
+        !canEdit ||
+        !Object.keys(
+          format
+        ).length;
+    }
+
+    return true;
+  }
+
+
+  function setTarget(
+    control
+  ) {
+    const elements =
+      getFormatElements();
+
+    if (
+      !isFormatControl(
+        control,
+        elements
+      )
+    ) {
+      return false;
+    }
+
+    getFormatControls(
+      elements
+    ).forEach(
+      candidate => {
+        candidate.removeAttribute(
+          "data-efficiency-daily-work-format-target"
+        );
+      }
+    );
+
+    control.setAttribute(
+      "data-efficiency-daily-work-format-target",
+      "true"
+    );
+
+    state.target =
+      control;
+
+    renderToolbar(
+      elements
+    );
+
+    return true;
+  }
+
+
+  function notifyFormatChanged() {
+    if (
+      typeof clearEfficiencyDailyWorkSaveFeedbackOnEdit ===
+        "function"
+    ) {
+      clearEfficiencyDailyWorkSaveFeedbackOnEdit();
+    }
+
+    if (
+      typeof refreshEfficiencyDailyWorkDirtyState ===
+        "function"
+    ) {
+      refreshEfficiencyDailyWorkDirtyState();
+    }
+
+    if (
+      typeof refreshEfficiencyDailyWorkPageOverflowState ===
+        "function"
+    ) {
+      refreshEfficiencyDailyWorkPageOverflowState();
+    }
+  }
+
+
+  function updateTargetFormat(
+    patch
+  ) {
+    const elements =
+      getFormatElements();
+
+    if (
+      efficiencyDailyWorkState
+        .isLoading ||
+      efficiencyDailyWorkState
+        .isSaving ||
+      efficiencyDailyWorkDateTransitionPending
+    ) {
+      renderToolbar(
+        elements
+      );
+
+      return false;
+    }
+
+    if (
+      !isFormatControl(
+        state.target,
+        elements
+      )
+    ) {
+      clearTarget(
+        elements
+      );
+
+      return false;
+    }
+
+    const before =
+      JSON.stringify(
+        readControlFormat(
+          state.target
+        )
+      );
+
+    const applied =
+      writeControlFormat(
+        state.target,
+        {
+          ...readControlFormat(
+            state.target
+          ),
+
+          ...patch
+        }
+      );
+
+    const changed =
+      before !==
+      JSON.stringify(
+        applied
+      );
+
+    if (changed) {
+      notifyFormatChanged();
+    }
+
+    renderToolbar(
+      elements
+    );
+
+    return changed;
+  }
+
+
+  function bindToolbarEvents() {
+    const elements =
+      getFormatElements();
+
+    if (
+      !elements.form ||
+      !elements.paper ||
+      !elements.toolbar
+    ) {
+      return false;
+    }
+
+    const selectTarget =
+      event => {
+        setTarget(
+          event.target
+        );
+      };
+
+    elements.paper.addEventListener(
+      "pointerdown",
+      selectTarget
+    );
+
+    elements.paper.addEventListener(
+      "focusin",
+      selectTarget
+    );
+
+    elements.fontFamily
+      ?.addEventListener(
+        "change",
+        event => {
+          updateTargetFormat({
+            fontFamily:
+              event.target.value
+          });
+        }
+      );
+
+    elements.fontSize
+      ?.addEventListener(
+        "change",
+        event => {
+          updateTargetFormat({
+            fontSize:
+              event.target.value
+          });
+        }
+      );
+
+    elements.boldButton
+      ?.addEventListener(
+        "click",
+        () => {
+          const current =
+            readControlFormat(
+              state.target
+            );
+
+          updateTargetFormat({
+            bold:
+              current.bold ===
+                true
+                ? false
+                : true
+          });
+        }
+      );
+
+    elements.textColor
+      ?.addEventListener(
+        "input",
+        event => {
+          updateTargetFormat({
+            textColor:
+              event.target.value
+          });
+        }
+      );
+
+    elements.resetButton
+      ?.addEventListener(
+        "click",
+        () => {
+          if (
+            !state.target
+          ) {
+            return;
+          }
+
+          const before =
+            JSON.stringify(
+              readControlFormat(
+                state.target
+              )
+            );
+
+          writeControlFormat(
+            state.target,
+            {}
+          );
+
+          if (
+            before !==
+              "{}"
+          ) {
+            notifyFormatChanged();
+          }
+
+          renderToolbar(
+            elements
+          );
+        }
+      );
+
+    elements.form.addEventListener(
+      "reset",
+      () => {
+        clearAllFormats(
+          elements
+        );
+      }
+    );
+
+    renderToolbar(
+      elements
+    );
+
+    return true;
+  }
+
+
+  function getRecordFieldFormats(
+    record
+  ) {
+    const sourceRecord =
+      parseEfficiencyDailyWorkStructuredValue(
+        record,
+        {}
+      );
+
+    const contentSource =
+      getEfficiencyDailyWorkContentSource(
+        sourceRecord ||
+        {}
+      );
+
+    return normalizeFieldFormats(
+      getEfficiencyDailyWorkFirstDefined(
+        [
+          sourceRecord,
+          contentSource
+        ],
+        [
+          "fieldFormats",
+          "field_formats",
+          "formats"
+        ],
+        {}
+      )
+    );
+  }
+
+
+  const originalNormalizeRecord =
+    normalizeEfficiencyDailyWorkRecord;
+
+  normalizeEfficiencyDailyWorkRecord =
+    function (
+      record
+    ) {
+      const normalized =
+        originalNormalizeRecord(
+          record
+        );
+
+      return normalized
+        ? {
+            ...normalized,
+
+            fieldFormats:
+              getRecordFieldFormats(
+                record
+              )
+          }
+        : null;
+    };
+
+
+  const originalCollectEditorData =
+    collectEfficiencyDailyWorkEditorData;
+
+  collectEfficiencyDailyWorkEditorData =
+    function () {
+      return {
+        ...originalCollectEditorData(),
+
+        fieldFormats:
+          collectFieldFormats()
+      };
+    };
+
+
+  const originalBuildSavePayload =
+    buildEfficiencyDailyWorkSavePayload;
+
+  buildEfficiencyDailyWorkSavePayload =
+    function (
+      sourceData =
+        collectEfficiencyDailyWorkEditorData()
+    ) {
+      const payload =
+        originalBuildSavePayload(
+          sourceData
+        );
+
+      if (
+        payload?.content
+      ) {
+        payload.content
+          .fieldFormats =
+          normalizeFieldFormats(
+            sourceData
+              ?.fieldFormats
+          );
+      }
+
+      return payload;
+    };
+
+
+  const originalComparableContent =
+    getEfficiencyDailyWorkComparableContent;
+
+  getEfficiencyDailyWorkComparableContent =
+    function (
+      sourceData
+    ) {
+      return {
+        ...originalComparableContent(
+          sourceData
+        ),
+
+        fieldFormats:
+          getRecordFieldFormats(
+            sourceData
+          )
+      };
+    };
+
+
+  if (
+    typeof populateEfficiencyDailyWorkEditorFromRecord ===
+      "function"
+  ) {
+    const originalPopulateEditor =
+      populateEfficiencyDailyWorkEditorFromRecord;
+
+    populateEfficiencyDailyWorkEditorFromRecord =
+      function (
+        record
+      ) {
+        const normalized =
+          normalizeEfficiencyDailyWorkRecord(
+            record
+          );
+
+        const result =
+          originalPopulateEditor(
+            normalized ||
+            record
+          );
+
+        applyFieldFormats(
+          normalized
+            ?.fieldFormats ||
+          {}
+        );
+
+        return result;
+      };
+  }
+
+
+  const originalSetLoading =
+    setEfficiencyDailyWorkLoading;
+
+  setEfficiencyDailyWorkLoading =
+    function (
+      isLoading
+    ) {
+      const result =
+        originalSetLoading(
+          isLoading
+        );
+
+      renderToolbar();
+
+      return result;
+    };
+
+
+  const originalSetSaving =
+    setEfficiencyDailyWorkSaving;
+
+  setEfficiencyDailyWorkSaving =
+    function (
+      isSaving
+    ) {
+      const result =
+        originalSetSaving(
+          isSaving
+        );
+
+      renderToolbar();
+
+      return result;
+    };
+
+
+  const originalStaticizeControl =
+    staticizeEfficiencyDailyWorkControl;
+
+  staticizeEfficiencyDailyWorkControl =
+    function (
+      sourceControl,
+      clonedControl,
+      targetDocument
+    ) {
+      if (
+        !isFormatControl(
+          sourceControl
+        ) ||
+        !clonedControl
+          ?.parentNode
+      ) {
+        return originalStaticizeControl(
+          sourceControl,
+          clonedControl,
+          targetDocument
+        );
+      }
+
+      const marker =
+        targetDocument
+          .createComment(
+            "daily-work-format"
+          );
+
+      clonedControl
+        .parentNode
+        .insertBefore(
+          marker,
+          clonedControl
+        );
+
+      const result =
+        originalStaticizeControl(
+          sourceControl,
+          clonedControl,
+          targetDocument
+        );
+
+      const output =
+        marker.nextSibling;
+
+      if (
+        output?.style
+      ) {
+        STYLE_PROPERTIES
+          .forEach(
+            propertyName => {
+              const value =
+                sourceControl
+                  .style
+                  .getPropertyValue(
+                    propertyName
+                  )
+                  .trim();
+
+              if (!value) {
+                return;
+              }
+
+              output.style.setProperty(
+                propertyName,
+                value,
+                sourceControl
+                  .style
+                  .getPropertyPriority(
+                    propertyName
+                  )
+              );
+            }
+          );
+      }
+
+      marker.remove();
+
+      return result;
+    };
+
+
+  bindToolbarEvents();
+})();
+
+/* =========================================================
   효율팀 - 석회석 입고 현황
 
   API:

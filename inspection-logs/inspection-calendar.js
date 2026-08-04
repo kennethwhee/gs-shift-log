@@ -15,6 +15,8 @@ function initializeInspectionCalendarDashboard() {
   const dashboard = document.getElementById("inspectionScheduleDashboard");
   const calendarTitle = document.getElementById("inspectionCalendarTitle");
   const calendarGrid = document.getElementById("inspectionCalendarGrid");
+  const calendarCard = dashboard?.querySelector(".inspection-calendar-card") || null;
+  const calendarToolbar = dashboard?.querySelector(".inspection-calendar-toolbar") || null;
   const previousButton = document.getElementById("inspectionCalendarPreviousButton");
   const nextButton = document.getElementById("inspectionCalendarNextButton");
   const todayButton = document.getElementById("inspectionCalendarTodayButton");
@@ -48,11 +50,129 @@ function initializeInspectionCalendarDashboard() {
     other: 5
   };
 
+  const calendarFilterCategories = [
+    "daily",
+    "weekly",
+    "monthly",
+    "quarterly",
+    "other"
+  ];
+
+  /*
+    달력 기본 표시:
+    - 주간
+    - 월간
+
+    일일·분기·기타는 사용자가 체크했을 때 표시한다.
+  */
+  let visibleCalendarCategories = new Set([
+    "weekly",
+    "monthly"
+  ]);
+
   let monthCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   let selectedDateValue = formatDateValue(new Date());
   let statusMap = new Map();
   let statusLoading = false;
   let statusErrorMessage = "";
+
+
+  /* =====================================================
+    달력 구분 체크 필터
+
+    기본:
+    - 주간 체크
+    - 월간 체크
+  ====================================================== */
+
+  function createCalendarCategoryFilter() {
+    if (
+      !calendarCard ||
+      !calendarToolbar
+    ) {
+      return null;
+    }
+
+    const existingFilter = document.getElementById(
+      "inspectionCalendarCategoryFilter"
+    );
+
+    if (existingFilter) {
+      return existingFilter;
+    }
+
+    const filterElement = document.createElement("div");
+
+    filterElement.className = "inspection-calendar-category-filter";
+    filterElement.id = "inspectionCalendarCategoryFilter";
+
+    filterElement.innerHTML = `
+      <div class="inspection-calendar-category-filter__title">
+        <strong>달력 표시</strong>
+        <span>체크한 점검 구분만 달력과 날짜별 목록에 표시됩니다.</span>
+      </div>
+
+      <div class="inspection-calendar-category-filter__checks">
+        ${calendarFilterCategories.map(category => {
+          return `
+            <label class="is-${category}">
+              <input
+                type="checkbox"
+                value="${category}"
+                data-inspection-calendar-category-filter
+                ${visibleCalendarCategories.has(category) ? "checked" : ""}
+              >
+
+              <span>
+                ${categoryLabels[category] || "기타"}
+              </span>
+            </label>
+          `;
+        }).join("")}
+      </div>
+    `;
+
+    calendarToolbar.insertAdjacentElement(
+      "afterend",
+      filterElement
+    );
+
+    filterElement.addEventListener(
+      "change",
+      event => {
+        const input = event.target instanceof HTMLInputElement
+          ? event.target
+          : null;
+
+        if (
+          !input ||
+          !input.matches("[data-inspection-calendar-category-filter]")
+        ) {
+          return;
+        }
+
+        visibleCalendarCategories = new Set(
+          [
+            ...filterElement.querySelectorAll(
+              "[data-inspection-calendar-category-filter]:checked"
+            )
+          ].map(item => String(item.value || "").trim())
+        );
+
+        renderCalendar();
+        renderSelectedDate();
+      }
+    );
+
+    return filterElement;
+  }
+
+
+  function isCalendarCategoryVisible(scheduleItem) {
+    return visibleCalendarCategories.has(
+      String(scheduleItem?.category || "").trim()
+    );
+  }
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -205,19 +325,30 @@ function initializeInspectionCalendarDashboard() {
   function getDateData(dateValue) {
     const result = getInspectionSchedulesForDate(dateValue);
 
-    const required = result.dueItems
+    const visibleDueItems = result.dueItems.filter(
+      isCalendarCategoryVisible
+    );
+
+    const visibleConditionalItems = result.conditionalItems.filter(
+      isCalendarCategoryVisible
+    );
+
+    const required = visibleDueItems
       .filter(item => item.referenceOnly !== true)
       .flatMap(item => expandOccurrences(item, dateValue));
 
-    const reference = result.dueItems
+    const reference = visibleDueItems
       .filter(item => item.referenceOnly === true)
       .flatMap(item => expandOccurrences(item, dateValue));
 
-    const conditional = result.conditionalItems
+    const conditional = visibleConditionalItems
       .flatMap(item => expandOccurrences(item, dateValue));
 
     return {
-      scheduleItems: [...result.dueItems, ...result.conditionalItems],
+      scheduleItems: [
+        ...visibleDueItems,
+        ...visibleConditionalItems
+      ],
       required,
       reference,
       conditional
@@ -420,6 +551,11 @@ function initializeInspectionCalendarDashboard() {
         completedCount === dateData.required.length
       );
 
+      const hasPartialCompletion = (
+        completedCount > 0 &&
+        pendingCount > 0
+      );
+
       const classes = [
         "inspection-calendar-day",
         isOutside ? "is-outside" : "",
@@ -447,11 +583,24 @@ function initializeInspectionCalendarDashboard() {
         statusText = `미완료 ${pendingCount}건`;
       } else if (isComplete) {
         statusText = "완료";
+      } else if (hasPartialCompletion) {
+        statusText = `완료 ${completedCount}/${dateData.required.length}`;
       } else if (isToday && pendingCount > 0) {
         statusText = `미완료 ${pendingCount}건`;
       } else if (dateData.scheduleItems.length) {
         statusText = `예정 ${dateData.scheduleItems.length}건`;
       }
+
+      const completionMarkHtml = completedCount > 0
+        ? `
+            <span
+              class="inspection-calendar-day__completion-mark ${isComplete ? "is-complete" : "is-partial"}"
+              aria-label="${isComplete ? "전체 완료" : `일부 완료 ${completedCount}/${dateData.required.length}`}"
+            >
+              ${isComplete ? "✓" : `✓ ${completedCount}/${dateData.required.length}`}
+            </span>
+          `
+        : "";
 
       cells.push(`
         <button
@@ -464,6 +613,8 @@ function initializeInspectionCalendarDashboard() {
           )}"
         >
           <span class="inspection-calendar-day__number">${date.getDate()}</span>
+
+          ${completionMarkHtml}
 
           <span class="inspection-calendar-day__items">
             ${previewHtml}
@@ -992,6 +1143,8 @@ function initializeInspectionCalendarDashboard() {
       refreshStatus();
     }
   });
+
+  createCalendarCategoryFilter();
 
   dashboard.hidden = false;
 

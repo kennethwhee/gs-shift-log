@@ -1,5 +1,5 @@
 /* =========================================================
-  점검일지 왼쪽 접이식 메뉴와 PDF형 점검표
+  점검일지 왼쪽 접이식 메뉴와 PDF형 점검주기표
 ========================================================= */
 
 .inspection-workspace {
@@ -18,7 +18,7 @@
 }
 
 .inspection-sidebar__intro {
-  padding: 13px;
+  padding: 14px;
   border: 1px solid #d4dfeb;
   border-radius: 12px;
   background: #ffffff;
@@ -28,15 +28,16 @@
 .inspection-sidebar__intro strong {
   display: block;
   color: #203b55;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
 }
 
 .inspection-sidebar__intro span {
   display: block;
-  margin-top: 4px;
-  color: #7b8b9b;
-  font-size: 9px;
+  margin-top: 5px;
+  color: #718396;
+  font-size: 10px;
+  font-weight: 700;
   line-height: 1.5;
 }
 
@@ -50,13 +51,13 @@
 
 .inspection-sidebar-group > summary {
   display: flex;
-  min-height: 45px;
+  min-height: 47px;
   align-items: center;
   gap: 9px;
   padding: 0 12px;
   list-style: none;
   color: #29445e;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   cursor: pointer;
   user-select: none;
@@ -88,15 +89,15 @@
 .inspection-sidebar-submenu button,
 .inspection-sidebar-empty {
   width: 100%;
-  min-height: 34px;
-  padding: 7px 9px;
+  min-height: 36px;
+  padding: 8px 10px;
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #5d7185;
+  color: #536b82;
   font: inherit;
-  font-size: 10px;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 850;
   line-height: 1.4;
   text-align: left;
 }
@@ -116,8 +117,8 @@
 }
 
 .inspection-sidebar-empty {
-  color: #9aa6b2;
-  font-weight: 700;
+  color: #929eaa;
+  font-weight: 750;
 }
 
 .inspection-workspace__content {
@@ -129,7 +130,7 @@
 }
 
 /* =========================================================
-  PDF 원본형 점검주기 표
+  PDF 원본형 점검주기표
 ========================================================= */
 
 .inspection-schedule-table-panel {
@@ -148,16 +149,20 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 15px 17px;
+  gap: 16px;
+  padding: 16px 18px;
   border-bottom: 1px solid #dce4ec;
   background: linear-gradient(135deg, #ffffff, #f4f8fc);
 }
 
+.inspection-schedule-table-header__title {
+  min-width: 0;
+}
+
 .inspection-schedule-table-header p {
-  margin: 0 0 3px;
+  margin: 0 0 4px;
   color: #2a69a7;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.12em;
 }
@@ -165,16 +170,58 @@
 .inspection-schedule-table-header h2 {
   margin: 0;
   color: #20384f;
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 900;
   line-height: 1.35;
 }
 
-.inspection-schedule-table-header span {
-  color: #6d8093;
-  font-size: 9px;
-  font-weight: 800;
+.inspection-schedule-table-header__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.inspection-schedule-table-header__actions > span {
+  color: #60768b;
+  font-size: 10px;
+  font-weight: 850;
   white-space: nowrap;
+}
+
+.inspection-schedule-table-new-button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid #2d73b8;
+  border-radius: 7px;
+  background: #2d73b8;
+  color: #ffffff;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.inspection-schedule-table-message {
+  padding: 10px 13px;
+  border-bottom: 1px solid #dbe5ee;
+  background: #edf6ff;
+  color: #356d9f;
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1.5;
+}
+
+.inspection-schedule-table-message[data-state="error"] {
+  border-color: #e4b4b4;
+  background: #fff1f1;
+  color: #a23f3f;
+}
+
+.inspection-schedule-table-message[data-state="saving"] {
+  background: #eef6ff;
+  color: #2f6d9f;
 }
 
 .inspection-schedule-table-scroll {
@@ -184,31 +231,33 @@
 
 .inspection-schedule-table {
   width: 100%;
-  min-width: 1040px;
+  min-width: 1400px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
-  color: #263a4e;
-  font-size: 9px;
+  color: #23384d;
+  font-size: 10.5px;
+  font-weight: 700;
 }
 
-.inspection-schedule-table col:nth-child(1) { width: 58px; }
-.inspection-schedule-table col:nth-child(2) { width: 105px; }
+.inspection-schedule-table col:nth-child(1) { width: 68px; }
+.inspection-schedule-table col:nth-child(2) { width: 120px; }
 .inspection-schedule-table col:nth-child(3),
-.inspection-schedule-table col:nth-child(4) { width: 42px; }
-.inspection-schedule-table col:nth-child(5) { width: 330px; }
-.inspection-schedule-table col:nth-child(6) { width: 95px; }
-.inspection-schedule-table col:nth-child(7) { width: 92px; }
-.inspection-schedule-table col:nth-child(8) { width: 92px; }
-.inspection-schedule-table col:nth-child(9) { width: 230px; }
+.inspection-schedule-table col:nth-child(4) { width: 46px; }
+.inspection-schedule-table col:nth-child(5) { width: 430px; }
+.inspection-schedule-table col:nth-child(6) { width: 110px; }
+.inspection-schedule-table col:nth-child(7) { width: 110px; }
+.inspection-schedule-table col:nth-child(8) { width: 110px; }
+.inspection-schedule-table col:nth-child(9) { width: 250px; }
+.inspection-schedule-table col:nth-child(10) { width: 92px; }
 
 .inspection-schedule-table th,
 .inspection-schedule-table td {
-  padding: 7px 8px;
+  padding: 8px 9px;
   border-right: 1px solid #aeb9c4;
   border-bottom: 1px solid #aeb9c4;
   background: #ffffff;
-  line-height: 1.45;
+  line-height: 1.5;
   vertical-align: middle;
   word-break: keep-all;
   overflow-wrap: anywhere;
@@ -216,8 +265,9 @@
 
 .inspection-schedule-table thead th {
   position: sticky;
-  background: #eef2f6;
-  color: #24384b;
+  background: #e9eff5;
+  color: #1f3448;
+  font-size: 11px;
   font-weight: 900;
   text-align: center;
 }
@@ -225,11 +275,13 @@
 .inspection-schedule-table thead tr:first-child th {
   top: 0;
   z-index: 6;
+  height: 40px;
 }
 
 .inspection-schedule-table thead tr:nth-child(2) th {
-  top: 31px;
+  top: 40px;
   z-index: 5;
+  height: 34px;
 }
 
 .inspection-schedule-table tr > :first-child {
@@ -237,9 +289,9 @@
 }
 
 .inspection-schedule-table-category {
-  background: #f1f4f7 !important;
-  color: #243b53;
-  font-size: 10px;
+  background: #eef2f6 !important;
+  color: #203a53;
+  font-size: 11px;
   font-weight: 900;
   text-align: center;
 }
@@ -247,39 +299,97 @@
 .inspection-schedule-table-cycle,
 .inspection-schedule-table-shift {
   text-align: center;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .inspection-schedule-table-shift {
-  color: #1f5f9e;
-  font-size: 11px;
+  color: #175f9f;
+  font-size: 13px;
+}
+
+.inspection-schedule-table-title-line {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .inspection-schedule-table-title-cell strong {
   display: block;
-  color: #22384d;
-  font-size: 9px;
+  color: #1f3449;
+  font-size: 11.5px;
   font-weight: 900;
+  line-height: 1.45;
+}
+
+.inspection-schedule-table-state {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border: 1px solid #ccd7e1;
+  border-radius: 999px;
+  background: #f2f5f8;
+  color: #65778a;
+  font-size: 8px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.inspection-schedule-table-state.is-edited {
+  border-color: #b6d0e8;
+  background: #eaf4fd;
+  color: #2d6da5;
+}
+
+.inspection-schedule-table-state.is-custom {
+  border-color: #b9ddc6;
+  background: #eaf7ef;
+  color: #2c7850;
+}
+
+.inspection-schedule-table-state.is-inactive {
+  border-color: #e3b5b5;
+  background: #fff0f0;
+  color: #a83f3f;
+}
+
+.inspection-schedule-table-log-button,
+.inspection-schedule-table-edit-button,
+.inspection-schedule-inline-save-button,
+.inspection-schedule-inline-cancel-button,
+.inspection-schedule-inline-delete-button {
+  display: inline-flex;
+  min-height: 29px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 9.5px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .inspection-schedule-table-log-button {
-  display: inline-flex;
-  min-height: 25px;
-  align-items: center;
-  justify-content: center;
-  margin-top: 5px;
-  padding: 0 7px;
+  margin-top: 6px;
   border: 1px solid #8fb4d7;
-  border-radius: 6px;
   background: #edf5fd;
   color: #235e97;
-  font-size: 8px;
-  font-weight: 900;
-  cursor: pointer;
+}
+
+.inspection-schedule-table-edit-button {
+  border: 1px solid #b9c9d8;
+  background: #f7f9fb;
+  color: #435f79;
 }
 
 .inspection-schedule-table-note {
-  color: #665537;
+  color: #62543b;
+  font-weight: 750;
 }
 
 .inspection-schedule-table tr.is-conditional td {
@@ -288,14 +398,21 @@
 
 .inspection-schedule-table tr.is-reference td {
   background: #f7f8fa;
-  color: #818a94;
+  color: #78838f;
+}
+
+.inspection-schedule-table tr.is-inactive td {
+  background: #fff7f7;
+  color: #8b7474;
+  opacity: 0.82;
 }
 
 .inspection-schedule-table-empty {
   padding: 42px 16px !important;
-  color: #7f8d9b;
+  color: #748596;
   text-align: center;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 850;
 }
 
 .inspection-schedule-table-footnote {
@@ -304,11 +421,210 @@
   border-top: 1px solid #dce4ec;
   background: #fff8f3;
   color: #b34444;
-  font-size: 9px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 850;
 }
 
-@media (max-width: 900px) {
+.inspection-schedule-table-manage-cell {
+  text-align: center;
+}
+
+/* =========================================================
+  점검주기표 행 안 직접 편집
+========================================================= */
+
+.inspection-schedule-table-editor-row > th,
+.inspection-schedule-table-editor-row > td {
+  background: #f2f8fe;
+  vertical-align: top;
+}
+
+.inspection-schedule-table-editor-row.is-busy {
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+.inspection-schedule-inline-input,
+.inspection-schedule-inline-textarea,
+.inspection-schedule-inline-advanced input,
+.inspection-schedule-inline-advanced select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid #aebfd0;
+  border-radius: 6px;
+  outline: 0;
+  background: #ffffff;
+  color: #20384f;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.inspection-schedule-inline-input,
+.inspection-schedule-inline-advanced input,
+.inspection-schedule-inline-advanced select {
+  height: 33px;
+  padding: 0 8px;
+}
+
+.inspection-schedule-inline-input.is-title {
+  height: 36px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.inspection-schedule-inline-textarea {
+  min-height: 86px;
+  padding: 8px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.inspection-schedule-inline-input:focus,
+.inspection-schedule-inline-textarea:focus,
+.inspection-schedule-inline-advanced input:focus,
+.inspection-schedule-inline-advanced select:focus {
+  border-color: #4c89c2;
+  box-shadow: 0 0 0 3px rgba(76, 137, 194, 0.12);
+}
+
+.inspection-schedule-inline-shift-check {
+  display: grid;
+  min-height: 42px;
+  place-content: center;
+  gap: 3px;
+  color: #275f92;
+  font-size: 9px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.inspection-schedule-inline-shift-check input {
+  margin: 0 auto;
+  accent-color: #2f75b7;
+}
+
+.inspection-schedule-inline-advanced {
+  margin-top: 7px;
+  overflow: hidden;
+  border: 1px solid #bfd1e2;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.inspection-schedule-inline-advanced > summary {
+  padding: 7px 9px;
+  list-style: none;
+  background: #eaf3fc;
+  color: #2d638f;
+  font-size: 9px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.inspection-schedule-inline-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.inspection-schedule-inline-advanced > summary::before {
+  content: "▾";
+  margin-right: 5px;
+}
+
+.inspection-schedule-inline-advanced__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  padding: 9px;
+}
+
+.inspection-schedule-inline-advanced__grid label {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.inspection-schedule-inline-advanced__grid label > span,
+.inspection-schedule-inline-option-row > strong {
+  color: #506a83;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.inspection-schedule-inline-advanced input[readonly] {
+  background: #eef2f5;
+  color: #7b8895;
+}
+
+.inspection-schedule-inline-option-row {
+  display: grid;
+  grid-template-columns: 65px minmax(0, 1fr);
+  align-items: start;
+  gap: 7px;
+  padding: 7px 9px;
+  border-top: 1px solid #e4ebf1;
+}
+
+.inspection-schedule-inline-option-row > div {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.inspection-schedule-inline-option-row > div.is-months {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.inspection-schedule-inline-check {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 1px solid #d2dee8;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #526a80;
+  font-size: 8px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.inspection-schedule-inline-check input {
+  width: auto;
+  height: auto;
+  margin: 0;
+  accent-color: #2e74b6;
+}
+
+.inspection-schedule-inline-manage-buttons {
+  display: grid;
+  gap: 5px;
+}
+
+.inspection-schedule-inline-save-button {
+  border: 1px solid #4f9c70;
+  background: #e9f7ef;
+  color: #176f49;
+}
+
+.inspection-schedule-inline-cancel-button {
+  border: 1px solid #bdcbd8;
+  background: #ffffff;
+  color: #50667b;
+}
+
+.inspection-schedule-inline-delete-button {
+  border: 1px solid #e2aaaa;
+  background: #fff0f0;
+  color: #aa3d3d;
+}
+
+@media (max-width: 1000px) {
   .inspection-workspace {
     grid-template-columns: 190px minmax(0, 1fr);
     gap: 11px;
@@ -336,6 +652,11 @@
   .inspection-schedule-table-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .inspection-schedule-table-header__actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .inspection-schedule-table-scroll {

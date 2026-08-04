@@ -89,6 +89,107 @@
   color: #1f629f;
 }
 
+/* 달력 표시 구분 필터 */
+
+.inspection-calendar-category-filter {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #dfe7ef;
+  background: #ffffff;
+}
+
+.inspection-calendar-category-filter__title {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.inspection-calendar-category-filter__title strong {
+  color: #2a425a;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.inspection-calendar-category-filter__title span {
+  color: #7a8b9d;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.inspection-calendar-category-filter__checks {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inspection-calendar-category-filter__checks label {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid #d1dce6;
+  border-radius: 8px;
+  background: #f7f9fb;
+  color: #53697f;
+  font-size: 9px;
+  font-weight: 900;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
+}
+
+.inspection-calendar-category-filter__checks label:hover {
+  border-color: #92b3d2;
+  background: #f0f6fc;
+  transform: translateY(-1px);
+}
+
+.inspection-calendar-category-filter__checks input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #2f75b7;
+}
+
+.inspection-calendar-category-filter__checks label.is-daily:has(input:checked) {
+  border-color: #9fc3e5;
+  background: #edf6ff;
+  color: #2a659c;
+}
+
+.inspection-calendar-category-filter__checks label.is-weekly:has(input:checked) {
+  border-color: #9dceb1;
+  background: #edf8f1;
+  color: #34774f;
+}
+
+.inspection-calendar-category-filter__checks label.is-monthly:has(input:checked),
+.inspection-calendar-category-filter__checks label.is-quarterly:has(input:checked) {
+  border-color: #c8b4dd;
+  background: #f4effa;
+  color: #6c4a91;
+}
+
+.inspection-calendar-category-filter__checks label.is-other:has(input:checked) {
+  border-color: #bdc7d1;
+  background: #f1f4f7;
+  color: #626f7d;
+}
+
 /* 요일 */
 
 .inspection-calendar-weekdays {
@@ -208,6 +309,43 @@
   left: 0;
   height: 3px;
   background: #d89321;
+}
+
+.inspection-calendar-day__completion-mark {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: inline-flex;
+  min-width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border: 1px solid #9fc9b0;
+  border-radius: 999px;
+  background: #e8f6ee;
+  color: #19704e;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(23, 128, 88, 0.13);
+}
+
+.inspection-calendar-day__completion-mark.is-complete {
+  width: 22px;
+  padding: 0;
+  border-color: #75b991;
+  background: #21825c;
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.inspection-calendar-day__completion-mark.is-partial {
+  border-color: #9fbfdd;
+  background: #edf5fd;
+  color: #28689f;
 }
 
 .inspection-calendar-day__number {
@@ -699,6 +837,32 @@
     min-width: 0;
   }
 
+  .inspection-calendar-category-filter {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+    padding: 9px 10px;
+  }
+
+  .inspection-calendar-category-filter__checks {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .inspection-calendar-category-filter__checks label {
+    min-width: 0;
+    min-height: 29px;
+    padding: 0 4px;
+    font-size: 8px;
+  }
+
+  .inspection-calendar-category-filter__checks input {
+    width: 12px;
+    height: 12px;
+  }
+
   .inspection-calendar-day {
     min-height: 76px;
     padding: 4px;
@@ -707,6 +871,20 @@
   .inspection-calendar-day__number {
     width: 22px;
     height: 22px;
+    font-size: 10px;
+  }
+
+  .inspection-calendar-day__completion-mark {
+    top: 4px;
+    right: 4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    font-size: 6px;
+  }
+
+  .inspection-calendar-day__completion-mark.is-complete {
+    width: 18px;
     font-size: 10px;
   }
 
@@ -748,4 +926,12 @@
   .inspection-calendar-cycle-item__action .inspection-calendar-log-button {
     width: 100%;
   }
+}
+
+
+/* =========================================================
+  왼쪽 점검주기 메뉴 사용 시 중복 하단 메뉴 숨김
+========================================================= */
+.inspection-calendar-cycle {
+  display: none !important;
 }

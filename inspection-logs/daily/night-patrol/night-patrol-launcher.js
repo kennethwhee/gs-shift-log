@@ -20,20 +20,17 @@
 
   window.__gsNightPatrolLauncherInstalled = true;
 
-const MODAL_ID =
-  "nightPatrolModal";
+  const MODAL_ID =
+    "nightPatrolModal";
 
+  const BUTTON_ID =
+    "nightPatrolButton";
 
-const BUTTON_ID =
-  "nightPatrolButton";
+  const FRAME_ID =
+    "nightPatrolFrame";
 
-
-const FRAME_ID =
-  "nightPatrolFrame";
-
-
-const PAGE_URL =
-  "inspection-logs/inspection-logs.html?v=20260804-7";
+  const PAGE_URL =
+    "inspection-logs/inspection-logs.html?v=20260804-final1";
 
   const AUTH_STORAGE_KEY =
     "gsShiftLog.currentUser";
@@ -478,7 +475,8 @@ function canCurrentUserUseNightPatrol() {
     }
 
     modal.classList.remove(
-      "is-open"
+      "is-open",
+      "is-inspection-expanded"
     );
 
     modal.setAttribute(
@@ -509,142 +507,131 @@ function canCurrentUserUseNightPatrol() {
       ?.remove();
   }
 
-/* =====================================================
-  점검일지 상단 메뉴 생성
+  /* =====================================================
+    점검일지 상단 메뉴 생성
 
-  표시:
-  - 숫자 배지 없이 메뉴명만 표시
-====================================================== */
+    표시:
+    - 숫자 배지 없이 메뉴명만 표시
+  ====================================================== */
 
-function createMenuButton() {
-  const headerActions =
-    document.querySelector(
-      ".header-actions"
-    );
-
-
-  if (
-    !headerActions
-  ) {
-    return false;
-  }
+  function createMenuButton() {
+    const headerActions =
+      document.querySelector(
+        ".header-actions"
+      );
 
 
-  const existingButton =
-    document.getElementById(
-      BUTTON_ID
-    );
+    if (
+      !headerActions
+    ) {
+      return false;
+    }
 
 
-  if (
-    existingButton
-  ) {
-    /*
-      이전 버전에서 만들어진 숫자 배지와
-      알림 상태 클래스를 정리한다.
-    */
-    existingButton
-      .querySelector(
-        ".night-patrol-header-button__badge"
-      )
-      ?.remove();
+    const existingButton =
+      document.getElementById(
+        BUTTON_ID
+      );
 
 
-    existingButton.classList.remove(
-      "has-inspection-alerts",
-      "has-overdue-inspections"
-    );
+    if (
+      existingButton
+    ) {
+      existingButton.classList.remove(
+        "has-inspection-alerts",
+        "has-overdue-inspections"
+      );
 
 
-    existingButton.removeAttribute(
-      "data-inspection-pending-count"
-    );
+      existingButton.removeAttribute(
+        "data-inspection-pending-count"
+      );
 
 
-    existingButton.removeAttribute(
-      "data-inspection-overdue-count"
-    );
+      existingButton.removeAttribute(
+        "data-inspection-overdue-count"
+      );
 
 
-    existingButton.setAttribute(
+      existingButton.setAttribute(
+        "aria-label",
+        "점검일지 열기"
+      );
+
+
+      existingButton.title =
+        "점검일지";
+
+
+      return true;
+    }
+
+
+    const button =
+      document.createElement(
+        "button"
+      );
+
+
+    button.type =
+      "button";
+
+
+    button.id =
+      BUTTON_ID;
+
+
+    button.className =
+      "header-action night-patrol-header-button";
+
+
+    button.innerHTML = `
+      <span class="night-patrol-header-button__label">
+        점검일지
+      </span>
+    `;
+
+
+    button.setAttribute(
       "aria-label",
       "점검일지 열기"
     );
 
 
-    existingButton.title =
+    button.title =
       "점검일지";
+
+
+    const noticeButton =
+      document.getElementById(
+        "noticeButton"
+      );
+
+
+    if (
+      noticeButton?.parentElement ===
+        headerActions
+    ) {
+      headerActions.insertBefore(
+        button,
+        noticeButton
+      );
+
+    } else {
+      headerActions.prepend(
+        button
+      );
+    }
+
+
+    button.addEventListener(
+      "click",
+      openNightPatrolModal
+    );
 
 
     return true;
   }
-
-
-  const button =
-    document.createElement(
-      "button"
-    );
-
-
-  button.type =
-    "button";
-
-
-  button.id =
-    BUTTON_ID;
-
-
-  button.className =
-    "header-action night-patrol-header-button";
-
-
-  button.innerHTML = `
-    <span class="night-patrol-header-button__label">
-      점검일지
-    </span>
-  `;
-
-
-  button.setAttribute(
-    "aria-label",
-    "점검일지 열기"
-  );
-
-
-  button.title =
-    "점검일지";
-
-
-  const noticeButton =
-    document.getElementById(
-      "noticeButton"
-    );
-
-
-  if (
-    noticeButton?.parentElement ===
-      headerActions
-  ) {
-    headerActions.insertBefore(
-      button,
-      noticeButton
-    );
-
-  } else {
-    headerActions.prepend(
-      button
-    );
-  }
-
-
-  button.addEventListener(
-    "click",
-    openNightPatrolModal
-  );
-
-
-  return true;
-}
 
 /* =====================================================
   점검일지 팝업 생성
@@ -752,6 +739,8 @@ function createModal() {
           title="점검일지"
           src="${PAGE_URL}"
           loading="eager"
+          allow="fullscreen"
+          allowfullscreen
         >
         </iframe>
 
@@ -855,11 +844,12 @@ function createModal() {
     );
   }
 
-/* =====================================================
+  /* =====================================================
   점검일지 iframe 메시지 처리
 
-  숫자 배지는 사용하지 않으며
-  점검일지 닫기 요청만 처리한다.
+  지원:
+  - 점검일지 팝업 닫기
+  - 오늘 미완료·지연 건수 갱신
 ====================================================== */
 
 function handleNightPatrolLauncherMessage(
@@ -873,6 +863,19 @@ function handleNightPatrolLauncherMessage(
   }
 
 
+  const frame =
+    getFrame();
+
+
+  if (
+    !frame?.contentWindow ||
+    event.source !==
+      frame.contentWindow
+  ) {
+    return;
+  }
+
+
   const messageType =
     String(
       event.data?.type ||
@@ -881,14 +884,32 @@ function handleNightPatrolLauncherMessage(
 
 
   if (
-    messageType !==
+    messageType ===
       "gs-night-patrol:close"
+  ) {
+    closeNightPatrolModal();
+
+    return;
+  }
+
+
+  if (
+    messageType !==
+      "gs-shift-log:inspection-view-mode"
   ) {
     return;
   }
 
 
-  closeNightPatrolModal();
+  const modal =
+    getModal();
+
+
+  modal?.classList.toggle(
+    "is-inspection-expanded",
+    event.data?.expanded ===
+      true
+  );
 }
 
 /* =====================================================

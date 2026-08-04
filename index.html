@@ -25,7 +25,7 @@
 
 <!-- 야간순찰 메뉴 및 팝업 실행기 -->
 <script
-  src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260804-8"
+  src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260804-9"
   defer
 ></script>
 
@@ -3823,18 +3823,27 @@
   </button>
 
 
-  <!-- Arm Roll -->
-  <button
-    type="button"
-    class="efficiency-team-tab"
-    id="efficiencyArmRollTab"
-    data-efficiency-tab="arm-roll"
-    role="tab"
-    aria-selected="false"
-    aria-controls="efficiencyArmRollView"
+<!-- ARM ROLL BOX -->
+<button
+  type="button"
+  class="efficiency-team-tab"
+  id="efficiencyArmRollTab"
+  data-efficiency-tab="arm-roll"
+  role="tab"
+  aria-selected="false"
+  aria-controls="efficiencyArmRollView"
+>
+  <span>ARM ROLL BOX</span>
+
+  <strong
+    class="arm-roll-box-tab-alert-badge"
+    id="armRollBoxTabAlertBadge"
+    aria-label="70% 이상 BOX 개수"
+    hidden
   >
-    Arm Roll
-  </button>
+    0
+  </strong>
+</button>
 
 </nav>
 
@@ -5838,17 +5847,419 @@
 
 </article>
 
-  <!-- =================================================
-    Arm Roll
-  ================================================== -->
-  <article
-    class="efficiency-team-view"
-    id="efficiencyArmRollView"
-    data-efficiency-view="arm-roll"
-    role="tabpanel"
-    aria-labelledby="efficiencyArmRollTab"
-    hidden
-  >
+<!-- =================================================
+  ARM ROLL · SCRAP BOX 현황
+================================================== -->
+<article
+  class="efficiency-team-view arm-roll-box-management-view"
+  id="efficiencyArmRollView"
+  data-efficiency-view="arm-roll"
+  role="tabpanel"
+  aria-labelledby="efficiencyArmRollTab"
+  hidden
+>
+  <header class="efficiency-team-view__heading arm-roll-box-view-heading">
+    <div>
+      <span>ARM ROLL · SCRAP BOX</span>
+      <h3>ARM ROLL · SCRAP BOX 현황</h3>
+
+      <p class="arm-roll-box-view-description">
+        업무일지의 레벨을 날짜별로 분석하고 증가량과 교체 주기를 확인합니다.
+      </p>
+    </div>
+
+    <div class="arm-roll-box-heading-actions">
+      <button
+        type="button"
+        class="secondary-button arm-roll-box-refresh-button"
+        id="refreshArmRollBoxButton"
+      >
+        새로고침
+      </button>
+
+      <button
+        type="button"
+        class="primary-button arm-roll-box-sync-button"
+        id="syncArmRollBoxFromShiftLogsButton"
+      >
+        업무일지 최신화
+      </button>
+    </div>
+  </header>
+
+  <div class="arm-roll-box-dashboard" id="armRollBoxDashboard">
+
+    <!-- 70% 이상 경보 -->
+    <section
+      class="arm-roll-box-threshold-alert"
+      id="armRollBoxThresholdAlert"
+      role="alert"
+      aria-live="assertive"
+      hidden
+    >
+      <span class="arm-roll-box-threshold-alert__icon">!</span>
+
+      <div class="arm-roll-box-threshold-alert__content">
+        <span>BOX LEVEL WARNING</span>
+
+        <strong id="armRollBoxThresholdAlertTitle">
+          70% 이상 BOX가 있습니다.
+        </strong>
+
+        <p id="armRollBoxThresholdAlertMessage">
+          최신 레벨을 확인해주세요.
+        </p>
+      </div>
+
+      <strong
+        class="arm-roll-box-threshold-alert__value"
+        id="armRollBoxThresholdAlertValue"
+      >
+        70%
+      </strong>
+    </section>
+
+    <!-- 조회 기간 -->
+    <section class="arm-roll-box-query-card">
+      <div
+        class="arm-roll-box-quick-range"
+        role="group"
+        aria-label="빠른 조회 기간"
+      >
+        <button
+          type="button"
+          class="arm-roll-box-range-button"
+          data-arm-roll-box-range-days="7"
+        >
+          최근 7일
+        </button>
+
+        <button
+          type="button"
+          class="arm-roll-box-range-button is-active"
+          data-arm-roll-box-range-days="30"
+        >
+          최근 30일
+        </button>
+
+        <button
+          type="button"
+          class="arm-roll-box-range-button"
+          data-arm-roll-box-range-days="90"
+        >
+          최근 90일
+        </button>
+      </div>
+
+      <form
+        class="arm-roll-box-search-form"
+        id="armRollBoxSearchForm"
+      >
+        <label class="form-field">
+          <span class="form-field__label">시작일</span>
+          <input type="date" id="armRollBoxStartDate" required />
+        </label>
+
+        <label class="form-field">
+          <span class="form-field__label">종료일</span>
+          <input type="date" id="armRollBoxEndDate" required />
+        </label>
+
+        <button
+          type="submit"
+          class="primary-button arm-roll-box-search-button"
+          id="searchArmRollBoxButton"
+        >
+          조회
+        </button>
+      </form>
+
+      <div
+        class="arm-roll-box-active-range"
+        id="armRollBoxActiveRange"
+      >
+        <span>조회 기간</span>
+        <strong id="armRollBoxActiveRangeLabel">-</strong>
+        <small id="armRollBoxActiveRangeCount">0일</small>
+      </div>
+    </section>
+
+    <!-- 현재 BOX 레벨 -->
+    <section
+      class="arm-roll-box-current-grid"
+      aria-label="현재 BOX 레벨"
+    >
+      <article
+        class="arm-roll-box-current-card is-arm-roll"
+        id="armRollCurrentCard"
+      >
+        <header class="arm-roll-box-current-card__header">
+          <div>
+            <span>CURRENT LEVEL</span>
+            <strong>ARM ROLL BOX</strong>
+          </div>
+
+          <span
+            class="arm-roll-box-level-state"
+            id="armRollBoxLevelState"
+          >
+            기록 없음
+          </span>
+        </header>
+
+        <div class="arm-roll-box-current-level">
+          <strong id="armRollBoxCurrentLevel">-</strong>
+          <span>%</span>
+        </div>
+
+        <div
+          class="arm-roll-box-level-track"
+          id="armRollBoxLevelProgress"
+          role="progressbar"
+          aria-label="ARM ROLL BOX 레벨"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <span
+            class="arm-roll-box-level-fill"
+            id="armRollBoxLevelFill"
+          ></span>
+
+          <i
+            class="arm-roll-box-level-threshold"
+            aria-hidden="true"
+          ></i>
+        </div>
+
+        <dl class="arm-roll-box-current-metrics">
+          <div>
+            <dt>직전 측정 대비</dt>
+            <dd id="armRollBoxDailyIncrease">-</dd>
+          </div>
+
+          <div>
+            <dt>일평균 증가</dt>
+            <dd id="armRollBoxAverageIncrease">-</dd>
+          </div>
+
+          <div>
+            <dt>교체 후 경과</dt>
+            <dd id="armRollBoxDaysSinceReplacement">-</dd>
+          </div>
+
+          <div>
+            <dt>최근 측정</dt>
+            <dd id="armRollBoxLastRecordedAt">-</dd>
+          </div>
+        </dl>
+      </article>
+
+      <article
+        class="arm-roll-box-current-card is-scrap"
+        id="scrapCurrentCard"
+      >
+        <header class="arm-roll-box-current-card__header">
+          <div>
+            <span>CURRENT LEVEL</span>
+            <strong>SCRAP BOX</strong>
+          </div>
+
+          <span
+            class="arm-roll-box-level-state"
+            id="scrapBoxLevelState"
+          >
+            기록 없음
+          </span>
+        </header>
+
+        <div class="arm-roll-box-current-level">
+          <strong id="scrapBoxCurrentLevel">-</strong>
+          <span>%</span>
+        </div>
+
+        <div
+          class="arm-roll-box-level-track"
+          id="scrapBoxLevelProgress"
+          role="progressbar"
+          aria-label="SCRAP BOX 레벨"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <span
+            class="arm-roll-box-level-fill"
+            id="scrapBoxLevelFill"
+          ></span>
+
+          <i
+            class="arm-roll-box-level-threshold"
+            aria-hidden="true"
+          ></i>
+        </div>
+
+        <dl class="arm-roll-box-current-metrics">
+          <div>
+            <dt>직전 측정 대비</dt>
+            <dd id="scrapBoxDailyIncrease">-</dd>
+          </div>
+
+          <div>
+            <dt>일평균 증가</dt>
+            <dd id="scrapBoxAverageIncrease">-</dd>
+          </div>
+
+          <div>
+            <dt>교체 후 경과</dt>
+            <dd id="scrapBoxDaysSinceReplacement">-</dd>
+          </div>
+
+          <div>
+            <dt>최근 측정</dt>
+            <dd id="scrapBoxLastRecordedAt">-</dd>
+          </div>
+        </dl>
+      </article>
+    </section>
+
+    <!-- 증가 추이 그래프 -->
+    <section class="arm-roll-box-section-card arm-roll-box-chart-card">
+      <header class="arm-roll-box-section-header">
+        <div>
+          <span>LEVEL TREND</span>
+          <h4>BOX 레벨 증가 추이</h4>
+        </div>
+
+        <div
+          class="arm-roll-box-chart-legend"
+          aria-label="그래프 범례"
+        >
+          <span class="is-arm-roll">ARM ROLL</span>
+          <span class="is-scrap">SCRAP</span>
+          <span class="is-threshold">70% 경보선</span>
+          <span class="is-replacement">교체</span>
+        </div>
+      </header>
+
+      <div
+        class="arm-roll-box-trend-chart"
+        id="armRollBoxTrendChart"
+        role="img"
+        aria-label="ARM ROLL BOX와 SCRAP BOX 날짜별 레벨 그래프"
+      >
+        <div class="arm-roll-box-chart-empty">
+          조회된 BOX 레벨 기록이 없습니다.
+        </div>
+      </div>
+    </section>
+
+    <!-- 날짜별 BOX 레벨 -->
+    <section
+      class="arm-roll-box-section-card arm-roll-box-daily-history-card"
+    >
+      <header class="arm-roll-box-section-header">
+        <div>
+          <span>DAILY LEVEL HISTORY</span>
+          <h4>날짜별 BOX 레벨</h4>
+        </div>
+
+        <strong
+          class="arm-roll-box-section-count"
+          id="armRollBoxDailyCount"
+        >
+          0일
+        </strong>
+      </header>
+
+      <div class="arm-roll-box-table-wrap">
+        <table class="arm-roll-box-table arm-roll-box-daily-table">
+          <thead>
+            <tr>
+              <th scope="col">일자</th>
+              <th scope="col">ARM ROLL</th>
+              <th scope="col">변화 · 일평균</th>
+              <th scope="col">SCRAP</th>
+              <th scope="col">변화 · 일평균</th>
+              <th scope="col">교체 인식</th>
+              <th scope="col">출처</th>
+            </tr>
+          </thead>
+
+          <tbody id="armRollBoxDailyTableBody">
+            <tr class="arm-roll-box-empty-table-row">
+              <td colspan="7">
+                조회된 BOX 레벨 기록이 없습니다.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 교체 이력 · 사용 주기 -->
+    <section
+      class="arm-roll-box-section-card arm-roll-box-replacement-history-card"
+    >
+      <header class="arm-roll-box-section-header">
+        <div>
+          <span>REPLACEMENT CYCLE</span>
+          <h4>교체 이력 · 사용 주기</h4>
+        </div>
+
+        <strong
+          class="arm-roll-box-section-count"
+          id="armRollBoxReplacementCount"
+        >
+          0건
+        </strong>
+      </header>
+
+      <div class="arm-roll-box-table-wrap">
+        <table
+          class="arm-roll-box-table arm-roll-box-replacement-table"
+        >
+          <thead>
+            <tr>
+              <th scope="col">대상</th>
+              <th scope="col">교체일</th>
+              <th scope="col">이전 교체일</th>
+              <th scope="col">사용 기간</th>
+              <th scope="col">교체 직전</th>
+              <th scope="col">기간 증가량</th>
+              <th scope="col">일평균 증가</th>
+              <th scope="col">감지 업무내용</th>
+            </tr>
+          </thead>
+
+          <tbody id="armRollBoxReplacementTableBody">
+            <tr class="arm-roll-box-empty-table-row">
+              <td colspan="8">
+                인식된 BOX 교체 기록이 없습니다.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div
+      class="arm-roll-box-loading"
+      id="armRollBoxLoading"
+      role="status"
+      aria-live="polite"
+      hidden
+    >
+      ARM ROLL · SCRAP BOX 기록을 분석하는 중입니다.
+    </div>
+
+    <p
+      class="arm-roll-box-message"
+      id="armRollBoxMessage"
+      role="alert"
+      hidden
+    ></p>
+  </div>
+</article>
 
     <div class="efficiency-team-view__heading">
 

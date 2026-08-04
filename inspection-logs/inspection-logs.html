@@ -1,1415 +1,270 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
-
-  <title>점검일지</title>
-
-<link
-  rel="stylesheet"
-  href="inspection-logs.css?v=20260804-4"
->
-
-<link
-  rel="stylesheet"
-  href="inspection-calendar.css?v=20260804-2"
->
-
-<link
-  rel="stylesheet"
-  href="inspection-navigation.css?v=20260804-2"
->
-
-
-<script
-  src="inspection-logs.js?v=20260804-4"
-  defer
-></script>
-
-<script
-  src="inspection-calendar.js?v=20260804-1"
-  defer
-></script>
-
-<script
-  src="inspection-navigation.js?v=20260804-1"
-  defer
-></script>
-</head>
-
-<body>
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>
+   점검일지
+  </title>
+  <link href="inspection-logs.css?v=20260804-final1" rel="stylesheet"/>
+  <link href="inspection-calendar.css?v=20260804-final1" rel="stylesheet"/>
+  <link href="inspection-navigation.css?v=20260804-final1" rel="stylesheet"/>
+  <link href="inspection-view-tools.css?v=20260804-final1" rel="stylesheet"/>
+  <script defer="True" src="inspection-logs.js?v=20260804-final1">
+  </script>
+  <script defer="True" src="inspection-calendar.js?v=20260804-final1">
+  </script>
+  <script defer="True" src="inspection-navigation.js?v=20260804-final1">
+  </script>
+  <script defer="True" src="inspection-view-tools.js?v=20260804-final1">
+  </script>
+ </head>
+ <body>
   <main class="inspection-log-hub">
-
-<header class="inspection-log-header">
-
-  <div class="inspection-log-header__title">
-
-    <p class="inspection-log-header__eyebrow">
+   <header class="inspection-log-header">
+    <div class="inspection-log-header__title">
+     <p class="inspection-log-header__eyebrow">
       GS SHIFT LOG
-    </p>
-
-    <h1>
+     </p>
+     <h1>
       점검일지
-    </h1>
-
-  </div>
-
-
-  <div class="inspection-log-header__actions">
-
-    <button
-      type="button"
-      class="inspection-schedule-manage-button"
-      id="inspectionScheduleManageButton"
-      hidden
-    >
-      <span
-        class="inspection-schedule-manage-button__icon"
-        aria-hidden="true"
-      >
-        ⚙
-      </span>
-
-      <span>
-        점검 일정 관리
-      </span>
-    </button>
-
-  </div>
-
-</header>
-
-
-<!-- =====================================================
+     </h1>
+    </div>
+   </header>
+   <!-- =====================================================
   월간 달력형 점검 일정
 ====================================================== -->
-
-<section
-  class="inspection-calendar-dashboard"
-  id="inspectionScheduleDashboard"
-  hidden
->
-
-  <!-- ===================================================
+   <section class="inspection-calendar-dashboard" hidden="" id="inspectionScheduleDashboard">
+    <!-- ===================================================
     월간 달력
   ==================================================== -->
-
-  <section class="inspection-calendar-card">
-
-    <header class="inspection-calendar-toolbar">
-
+    <section class="inspection-calendar-card">
+     <header class="inspection-calendar-toolbar">
       <div class="inspection-calendar-toolbar__title">
-
-        <p>
-          INSPECTION CALENDAR
-        </p>
-
-        <strong>
-          월간 점검 일정
-        </strong>
-
+       <p>
+        INSPECTION CALENDAR
+       </p>
+       <strong>
+        월간 점검 일정
+       </strong>
       </div>
-
-
       <div class="inspection-calendar-navigation">
-
-        <button
-          type="button"
-          id="inspectionCalendarPreviousButton"
-          aria-label="이전 달"
-        >
-          ‹
-        </button>
-
-
-        <button
-          type="button"
-          class="inspection-calendar-month-button"
-          id="inspectionCalendarTitle"
-          disabled
-        >
-          기준 월
-        </button>
-
-
-        <button
-          type="button"
-          id="inspectionCalendarNextButton"
-          aria-label="다음 달"
-        >
-          ›
-        </button>
-
-
-        <button
-          type="button"
-          class="inspection-calendar-today-button"
-          id="inspectionCalendarTodayButton"
-        >
-          오늘
-        </button>
-
+       <button aria-label="이전 달" id="inspectionCalendarPreviousButton" type="button">
+        &lsaquo;
+       </button>
+       <button class="inspection-calendar-month-button" disabled="" id="inspectionCalendarTitle" type="button">
+        기준 월
+       </button>
+       <button aria-label="다음 달" id="inspectionCalendarNextButton" type="button">
+        &rsaquo;
+       </button>
+       <button class="inspection-calendar-today-button" id="inspectionCalendarTodayButton" type="button">
+        오늘
+       </button>
       </div>
-
-    </header>
-
-
-    <div
-      class="inspection-calendar-weekdays"
-      aria-hidden="true"
-    >
-      <span>일</span>
-      <span>월</span>
-      <span>화</span>
-      <span>수</span>
-      <span>목</span>
-      <span>금</span>
-      <span>토</span>
-    </div>
-
-
-    <div
-      class="inspection-calendar-grid"
-      id="inspectionCalendarGrid"
-      role="grid"
-      aria-label="월간 점검 일정 달력"
-    >
-
+     </header>
+     <div aria-hidden="true" class="inspection-calendar-weekdays">
+      <span>
+       일
+      </span>
+      <span>
+       월
+      </span>
+      <span>
+       화
+      </span>
+      <span>
+       수
+      </span>
+      <span>
+       목
+      </span>
+      <span>
+       금
+      </span>
+      <span>
+       토
+      </span>
+     </div>
+     <div aria-label="월간 점검 일정 달력" class="inspection-calendar-grid" id="inspectionCalendarGrid" role="grid">
       <div class="inspection-calendar-empty">
-        달력을 준비하고 있습니다.
+       달력을 준비하고 있습니다.
       </div>
-
-    </div>
-
-  </section>
-
-
-  <!-- ===================================================
+     </div>
+    </section>
+    <!-- ===================================================
     선택 날짜 점검
   ==================================================== -->
-
-  <section class="inspection-calendar-selected">
-
-    <header class="inspection-calendar-selected__header">
-
+    <section class="inspection-calendar-selected">
+     <header class="inspection-calendar-selected__header">
       <div>
-
-        <strong id="inspectionCalendarSelectedTitle">
-          선택 날짜
-        </strong>
-
-        <span id="inspectionCalendarSelectedSummary">
-          점검 일정을 확인하고 있습니다.
-        </span>
-
+       <strong id="inspectionCalendarSelectedTitle">
+        선택 날짜
+       </strong>
+       <span id="inspectionCalendarSelectedSummary">
+        점검 일정을 확인하고 있습니다.
+       </span>
       </div>
-
-    </header>
-
-
-    <div
-      class="inspection-calendar-selected-list"
-      id="inspectionCalendarSelectedList"
-    >
-
+     </header>
+     <div class="inspection-calendar-selected-list" id="inspectionCalendarSelectedList">
       <div class="inspection-calendar-empty">
-        선택한 날짜의 점검 일정을 불러오고 있습니다.
+       선택한 날짜의 점검 일정을 불러오고 있습니다.
       </div>
-
-    </div>
-
-  </section>
-
-
-  <!-- ===================================================
+     </div>
+    </section>
+    <!-- ===================================================
     접이식 점검주기
   ==================================================== -->
-
-  <details
-    class="inspection-calendar-cycle"
-    id="inspectionCalendarCycleDetails"
-  >
-
-    <summary>
-
+    <details class="inspection-calendar-cycle" id="inspectionCalendarCycleDetails">
+     <summary>
       <span class="inspection-calendar-cycle__summary-text">
-
-        <strong>
-          점검주기
-        </strong>
-
-        <small>
-          일일·주간·월간·분기 점검 기준 펼쳐보기
-        </small>
-
+       <strong>
+        점검주기
+       </strong>
+       <small>
+        일일&middot;주간&middot;월간&middot;분기 점검 기준 펼쳐보기
+       </small>
       </span>
-
-
-      <span
-        class="inspection-calendar-cycle__count"
-        id="inspectionCalendarCycleCount"
-      >
-        0
+      <span class="inspection-calendar-cycle__count" id="inspectionCalendarCycleCount">
+       0
       </span>
-
-    </summary>
-
-
-    <div class="inspection-calendar-cycle__body">
-
+     </summary>
+     <div class="inspection-calendar-cycle__body">
       <div class="inspection-calendar-cycle__toolbar">
-
-        <select
-          id="inspectionCalendarCycleCategory"
-          aria-label="점검주기 구분"
-        >
-
-          <option value="">
-            전체 점검주기
-          </option>
-
-          <option value="daily">
-            일일
-          </option>
-
-          <option value="weekly">
-            주간
-          </option>
-
-          <option value="monthly">
-            월간
-          </option>
-
-          <option value="quarterly">
-            분기
-          </option>
-
-          <option value="other">
-            기타
-          </option>
-
-        </select>
-
+       <select aria-label="점검주기 구분" id="inspectionCalendarCycleCategory">
+        <option value="">
+         전체 점검주기
+        </option>
+        <option value="daily">
+         일일
+        </option>
+        <option value="weekly">
+         주간
+        </option>
+        <option value="monthly">
+         월간
+        </option>
+        <option value="quarterly">
+         분기
+        </option>
+        <option value="other">
+         기타
+        </option>
+       </select>
       </div>
-
-
-      <div
-        class="inspection-calendar-cycle-list"
-        id="inspectionCalendarCycleList"
-      >
-
-        <div class="inspection-calendar-empty">
-          점검주기를 불러오고 있습니다.
-        </div>
-
+      <div class="inspection-calendar-cycle-list" id="inspectionCalendarCycleList">
+       <div class="inspection-calendar-empty">
+        점검주기를 불러오고 있습니다.
+       </div>
       </div>
-
-    </div>
-
-  </details>
-
-</section>
-
-    <!-- =====================================================
+     </div>
+    </details>
+   </section>
+   <!-- =====================================================
       기존 점검일지 목록
 
       일일점검일지
       주간점검일지
       월간점검일지
     ====================================================== -->
-
-    <nav
-      class="inspection-log-tabs"
-      aria-label="점검일지 분류"
-    >
-
-      <button
-        type="button"
-        class="inspection-log-tab is-active"
-        data-inspection-category="daily"
-        aria-selected="true"
-      >
-        일일점검일지
-      </button>
-
-      <button
-        type="button"
-        class="inspection-log-tab"
-        data-inspection-category="weekly"
-        aria-selected="false"
-      >
-        주간점검일지
-      </button>
-
-      <button
-        type="button"
-        class="inspection-log-tab"
-        data-inspection-category="monthly"
-        aria-selected="false"
-      >
-        월간점검일지
-      </button>
-    </nav>
-
-
-    <section
-      class="inspection-log-list"
-      id="inspectionLogList"
-    >
-
-      <!-- 일일점검일지 -->
-      <button
-        type="button"
-        class="inspection-log-card"
-        data-inspection-log="night-patrol"
-        data-inspection-category-item="daily"
-        data-inspection-path="daily/night-patrol/night-patrol.html?v=20260803-6"
-      >
-        <span class="inspection-log-card__icon">
-          🌙
-        </span>
-
-        <span class="inspection-log-card__text">
-          <strong>
-            야간 순찰 점검일지
-          </strong>
-
-          <small>
-            야간 현장 순찰 및 이상 유무 기록
-          </small>
-        </span>
-
-        <span
-          class="inspection-log-card__arrow"
-          aria-hidden="true"
-        >
-          ›
-        </span>
-      </button>
-
-
-      <!-- 주간점검일지 -->
-      <button
-        type="button"
-        class="inspection-log-card"
-        data-inspection-log="high-pressure-gas"
-        data-inspection-category-item="weekly"
-        data-inspection-path="weekly/high-pressure-gas/high-pressure-gas.html?v=20260804-1"
-        hidden
-      >
-        <span class="inspection-log-card__icon">
-          🧯
-        </span>
-
-        <span class="inspection-log-card__text">
-          <strong>
-            고압가스 저장시설 주간점검표
-          </strong>
-
-          <small>
-            매주 일요일 D/S · CO2 저장시설 점검
-          </small>
-        </span>
-
-        <span
-          class="inspection-log-card__arrow"
-          aria-hidden="true"
-        >
-          ›
-        </span>
-      </button>
-
-      <!-- =====================================================
+   <nav aria-label="점검일지 분류" class="inspection-log-tabs">
+    <button aria-selected="true" class="inspection-log-tab is-active" data-inspection-category="daily" type="button">
+     일일점검일지
+    </button>
+    <button aria-selected="false" class="inspection-log-tab" data-inspection-category="weekly" type="button">
+     주간점검일지
+    </button>
+    <button aria-selected="false" class="inspection-log-tab" data-inspection-category="monthly" type="button">
+     월간점검일지
+    </button>
+   </nav>
+   <section class="inspection-log-list" id="inspectionLogList">
+    <!-- 일일점검일지 -->
+    <button class="inspection-log-card" data-inspection-category-item="daily" data-inspection-log="night-patrol" data-inspection-path="daily/night-patrol/night-patrol.html?v=20260803-6" type="button">
+     <span class="inspection-log-card__icon">
+      🌙
+     </span>
+     <span class="inspection-log-card__text">
+      <strong>
+       야간 순찰 점검일지
+      </strong>
+      <small>
+       야간 현장 순찰 및 이상 유무 기록
+      </small>
+     </span>
+     <span aria-hidden="true" class="inspection-log-card__arrow">
+      &rsaquo;
+     </span>
+    </button>
+    <!-- 주간점검일지 -->
+    <button class="inspection-log-card" data-inspection-category-item="weekly" data-inspection-log="high-pressure-gas" data-inspection-path="weekly/high-pressure-gas/high-pressure-gas.html?v=20260804-1" hidden="" type="button">
+     <span class="inspection-log-card__icon">
+      🧯
+     </span>
+     <span class="inspection-log-card__text">
+      <strong>
+       고압가스 저장시설 주간점검표
+      </strong>
+      <small>
+       매주 일요일 D/S &middot; CO2 저장시설 점검
+      </small>
+     </span>
+     <span aria-hidden="true" class="inspection-log-card__arrow">
+      &rsaquo;
+     </span>
+    </button>
+    <!-- =====================================================
   LNG 주간점검 일지
 ====================================================== -->
-
-<button
-  type="button"
-  class="inspection-log-card"
-  data-inspection-log="lng-weekly"
-  data-inspection-category-item="weekly"
-  data-inspection-path="weekly/lng-weekly/lng-weekly.html?v=20260803-1"
->
-
-  <span class="inspection-log-card__icon">
-    🔥
-  </span>
-
-  <span class="inspection-log-card__text">
-
-    <strong>
-      LNG System 주간점검 일지
-    </strong>
-
-    <small>
-      매주 일요일 D/S · LNG 설비 주간점검
-    </small>
-
-  </span>
-
-  <span class="inspection-log-card__arrow">
-    ›
-  </span>
-
-</button>
-
-<!-- Soot Blower 주간점검일지 -->
-<button
-  type="button"
-  class="inspection-log-card"
-  data-inspection-log="soot-blower-weekly"
-  data-inspection-category-item="weekly"
-  data-inspection-path="weekly/soot-blower/soot-blower-weekly.html?v=20260804-1"
-  hidden
->
-  <span class="inspection-log-card__icon">
-    ♨️
-  </span>
-
-  <span class="inspection-log-card__text">
-    <strong>
-      Soot Blower 주간점검일지
-    </strong>
-
-    <small>
-      매주 월요일 N/S · 1·2호기 Soot Blower 점검
-    </small>
-  </span>
-
-  <span
-    class="inspection-log-card__arrow"
-    aria-hidden="true"
-  >
-    ›
-  </span>
-</button>
-
-      <div
-        class="inspection-log-empty"
-        id="inspectionLogEmpty"
-        hidden
-      >
-        등록된 점검일지가 없습니다.
-      </div>
-    </section>
-
-
-    <section
-      class="inspection-log-viewer"
-      id="inspectionLogViewer"
-      hidden
-    >
-      <div class="inspection-log-viewer__header">
-        <button
-          type="button"
-          id="inspectionLogBackButton"
-        >
-          ← 목록
-        </button>
-
-        <strong id="inspectionLogViewerTitle">
-          점검일지
-        </strong>
-      </div>
-
-      <iframe
-        id="inspectionLogFrame"
-        title="점검일지 화면"
-        src="about:blank"
-      ></iframe>
-    </section>
-
-<!-- =====================================================
-  최고관리자 점검 일정 관리 팝업
-====================================================== -->
-
-<div
-  class="inspection-schedule-manager-modal"
-  id="inspectionScheduleManagerModal"
-  aria-hidden="true"
-  hidden
->
-
-  <button
-    type="button"
-    class="inspection-schedule-manager-modal__backdrop"
-    data-close-inspection-schedule-manager
-    aria-label="점검 일정 관리창 닫기"
-  ></button>
-
-
-  <section
-    class="inspection-schedule-manager-dialog"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="inspectionScheduleManagerTitle"
-  >
-
-    <header class="inspection-schedule-manager-header">
-
-      <div>
-
-        <p>
-          SUPER ADMIN
-        </p>
-
-        <h2 id="inspectionScheduleManagerTitle">
-          점검 일정 관리
-        </h2>
-
-        <span>
-          기본 일정을 수정하거나 새로운 점검 일정을 등록합니다.
-        </span>
-
-      </div>
-
-
-      <button
-        type="button"
-        class="inspection-schedule-manager-close"
-        id="inspectionScheduleManagerCloseButton"
-        data-close-inspection-schedule-manager
-        aria-label="점검 일정 관리창 닫기"
-      >
-        ×
-      </button>
-
-    </header>
-
-
-    <div class="inspection-schedule-manager-body">
-
-      <!-- =================================================
-        왼쪽 일정 목록
-      ================================================== -->
-
-      <aside class="inspection-schedule-manager-list-panel">
-
-        <div class="inspection-schedule-manager-list-header">
-
-          <div>
-
-            <strong>
-              등록 일정
-            </strong>
-
-            <span>
-              총
-
-              <b id="inspectionScheduleManagerCount">
-                0
-              </b>
-
-              건
-            </span>
-
-          </div>
-
-
-          <div class="inspection-schedule-manager-list-actions">
-
-            <button
-              type="button"
-              id="inspectionScheduleManagerRefreshButton"
-              disabled
-            >
-              새로고침
-            </button>
-
-            <button
-              type="button"
-              class="is-primary"
-              id="inspectionScheduleNewButton"
-              disabled
-            >
-              + 새 일정
-            </button>
-
-          </div>
-
-        </div>
-
-
-        <div
-          class="inspection-schedule-manager-list"
-          id="inspectionScheduleManagerList"
-        >
-
-          <div class="inspection-schedule-manager-loading">
-
-            <strong>
-              일정 관리 화면 준비 완료
-            </strong>
-
-            <span>
-              다음 단계에서 D1 일정 목록을 연결합니다.
-            </span>
-
-          </div>
-
-        </div>
-
-
-        <div
-          class="inspection-schedule-manager-empty"
-          id="inspectionScheduleManagerEmpty"
-          hidden
-        >
-          등록된 점검 일정이 없습니다.
-        </div>
-
-      </aside>
-
-
-      <!-- =================================================
-        오른쪽 일정 편집
-      ================================================== -->
-
-      <section class="inspection-schedule-manager-editor">
-
-        <div class="inspection-schedule-manager-editor-header">
-
-          <div>
-
-            <span id="inspectionScheduleEditorMode">
-              일정 선택
-            </span>
-
-            <h3 id="inspectionScheduleEditorTitle">
-              수정할 일정을 선택해 주세요.
-            </h3>
-
-          </div>
-
-
-          <span
-            class="inspection-schedule-manager-editor-badge"
-            id="inspectionScheduleEditorBadge"
-          >
-            기본 일정
-          </span>
-
-        </div>
-
-
-        <form
-          class="inspection-schedule-editor-form"
-          id="inspectionScheduleEditorForm"
-          autocomplete="off"
-        >
-
-          <input
-            type="hidden"
-            id="inspectionScheduleEditorOriginalId"
-          >
-
-          <input
-            type="hidden"
-            id="inspectionScheduleEditorRevision"
-            value="0"
-          >
-
-          <input
-            type="hidden"
-            id="inspectionScheduleEditorIsCustom"
-            value="false"
-          >
-
-
-          <div class="inspection-schedule-editor-grid">
-
-            <label class="inspection-schedule-editor-field">
-
-              <span>
-                일정 ID
-              </span>
-
-              <input
-                type="text"
-                id="inspectionScheduleEditorId"
-                maxlength="120"
-                placeholder="예: weekly-equipment-check"
-                pattern="[a-z0-9][a-z0-9_-]{2,119}"
-                disabled
-              >
-
-              <small>
-                영문 소문자·숫자·하이픈·밑줄만 사용
-              </small>
-
-            </label>
-
-
-            <label class="inspection-schedule-editor-field">
-
-              <span>
-                점검 구분
-              </span>
-
-              <select
-                id="inspectionScheduleEditorCategory"
-                disabled
-              >
-                <option value="daily">
-                  일일
-                </option>
-
-                <option value="weekly">
-                  주간
-                </option>
-
-                <option value="monthly">
-                  월간
-                </option>
-
-                <option value="quarterly">
-                  분기
-                </option>
-
-                <option value="other">
-                  기타
-                </option>
-              </select>
-
-            </label>
-
-
-            <label
-              class="
-                inspection-schedule-editor-field
-                is-wide
-              "
-            >
-
-              <span>
-                점검명
-              </span>
-
-              <input
-                type="text"
-                id="inspectionScheduleEditorName"
-                maxlength="300"
-                placeholder="점검 일정명을 입력해 주세요."
-                disabled
-              >
-
-            </label>
-
-
-            <label
-              class="
-                inspection-schedule-editor-field
-                is-wide
-              "
-            >
-
-              <span>
-                주기 표시
-              </span>
-
-              <input
-                type="text"
-                id="inspectionScheduleEditorLabel"
-                maxlength="160"
-                placeholder="예: 매주 일요일"
-                disabled
-              >
-
-            </label>
-
-          </div>
-
-
-          <!-- 근무 -->
-
-          <fieldset
-            class="inspection-schedule-editor-group"
-            disabled
-          >
-
-            <legend>
-              대상 근무
-            </legend>
-
-            <div class="inspection-schedule-editor-checks">
-
-              <label>
-
-                <input
-                  type="checkbox"
-                  id="inspectionScheduleShiftDs"
-                  value="D/S"
-                >
-
-                <span>
-                  D/S
-                </span>
-
-              </label>
-
-
-              <label>
-
-                <input
-                  type="checkbox"
-                  id="inspectionScheduleShiftNs"
-                  value="N/S"
-                >
-
-                <span>
-                  N/S
-                </span>
-
-              </label>
-
-            </div>
-
-          </fieldset>
-
-
-          <!-- 주기 유형 -->
-
-          <div class="inspection-schedule-editor-grid">
-
-            <label class="inspection-schedule-editor-field">
-
-              <span>
-                일정 계산 유형
-              </span>
-
-              <select
-                id="inspectionScheduleRuleType"
-                disabled
-              >
-                <option value="daily">
-                  매일
-                </option>
-
-                <option value="weekdays">
-                  지정 요일 반복
-                </option>
-
-                <option value="weekly">
-                  매주 지정 요일
-                </option>
-
-                <option value="monthlyDate">
-                  매월 지정일
-                </option>
-
-                <option value="monthlyWeek">
-                  매월 지정 주차·요일
-                </option>
-
-                <option value="monthlyFloating">
-                  월간 유동 일정
-                </option>
-
-                <option value="adHoc">
-                  수시·조건부
-                </option>
-              </select>
-
-            </label>
-
-
-            <label class="inspection-schedule-editor-field">
-
-              <span>
-                매월 지정일
-              </span>
-
-              <input
-                type="number"
-                id="inspectionScheduleRuleDay"
-                min="1"
-                max="31"
-                placeholder="1~31"
-                disabled
-              >
-
-            </label>
-
-          </div>
-
-
-          <!-- 요일 -->
-
-          <fieldset
-            class="inspection-schedule-editor-group"
-            id="inspectionScheduleRuleDaysField"
-            disabled
-          >
-
-            <legend>
-              적용 요일
-            </legend>
-
-            <div
-              class="
-                inspection-schedule-editor-checks
-                is-seven
-              "
-            >
-
-              <label>
-                <input
-                  type="checkbox"
-                  data-inspection-schedule-day
-                  value="0"
-                >
-                <span>일</span>
-              </label>
-
-              <label>
-                <input
-                  type="checkbox"
-                  data-inspection-schedule-day
-                  value="1"
-                >
-                <span>월</span>
-              </label>
-
-              <label>
-                <input
-                  type="checkbox"
-                  data-inspection-schedule-day
-                  value="2"
-                >
-                <span>화</span>
-              </label>
-
-              <label>
-                <input
-                  type="checkbox"
-                  data-inspection-schedule-day
-                  value="3"
-                >
-                <span>수</span>
-              </label>
-
-              <label>
-                <input
-                  type="checkbox"
-                  data-inspection-schedule-day
-                  value="4"
-                >
-                <span>목</span>
-              </label>
-
-              <label>
-                <input
-                  type="checkbox"
-                  data-inspection-schedule-day
-                  value="5"
-                >
-                <span>금</span>
-              </label>
-
-              <label>
-                <input
-                  type="checkbox"
-                  data-inspection-schedule-day
-                  value="6"
-                >
-                <span>토</span>
-              </label>
-
-            </div>
-
-          </fieldset>
-
-
-          <!-- 주차 -->
-
-          <fieldset
-            class="inspection-schedule-editor-group"
-            id="inspectionScheduleRuleWeeksField"
-            disabled
-          >
-
-            <legend>
-              적용 주차
-            </legend>
-
-            <div class="inspection-schedule-editor-checks">
-
-              <label>
-                <input
-                  type="checkbox"
-                  data-inspection-schedule-week
-                  value="1"
-                >
-                <span>1주차</span>
-              </label>
-
-              <label>
-                <input
-                  type="checkbox"
-                  data-inspection-schedule-week
-                  value="2"
-                >
-                <span>2주차</span>
-              </label>
-
-              <label>
-                <input
-                  type="checkbox"
-                  data-inspection-schedule-week
-                  value="3"
-                >
-                <span>3주차</span>
-              </label>
-
-              <label>
-                <input
-                  type="checkbox"
-                  data-inspection-schedule-week
-                  value="4"
-                >
-                <span>4주차</span>
-              </label>
-
-              <label>
-                <input
-                  type="checkbox"
-                  data-inspection-schedule-week
-                  value="5"
-                >
-                <span>5주차</span>
-              </label>
-
-            </div>
-
-          </fieldset>
-
-
-          <!-- 적용 월 -->
-
-          <fieldset
-            class="inspection-schedule-editor-group"
-            id="inspectionScheduleRuleMonthsField"
-            disabled
-          >
-
-            <legend>
-              적용 월
-              <small>
-                선택하지 않으면 매월 적용
-              </small>
-            </legend>
-
-            <div
-              class="
-                inspection-schedule-editor-checks
-                is-months
-              "
-            >
-
-              <label>
-                <input type="checkbox" data-inspection-schedule-month value="1">
-                <span>1월</span>
-              </label>
-
-              <label>
-                <input type="checkbox" data-inspection-schedule-month value="2">
-                <span>2월</span>
-              </label>
-
-              <label>
-                <input type="checkbox" data-inspection-schedule-month value="3">
-                <span>3월</span>
-              </label>
-
-              <label>
-                <input type="checkbox" data-inspection-schedule-month value="4">
-                <span>4월</span>
-              </label>
-
-              <label>
-                <input type="checkbox" data-inspection-schedule-month value="5">
-                <span>5월</span>
-              </label>
-
-              <label>
-                <input type="checkbox" data-inspection-schedule-month value="6">
-                <span>6월</span>
-              </label>
-
-              <label>
-                <input type="checkbox" data-inspection-schedule-month value="7">
-                <span>7월</span>
-              </label>
-
-              <label>
-                <input type="checkbox" data-inspection-schedule-month value="8">
-                <span>8월</span>
-              </label>
-
-              <label>
-                <input type="checkbox" data-inspection-schedule-month value="9">
-                <span>9월</span>
-              </label>
-
-              <label>
-                <input type="checkbox" data-inspection-schedule-month value="10">
-                <span>10월</span>
-              </label>
-
-              <label>
-                <input type="checkbox" data-inspection-schedule-month value="11">
-                <span>11월</span>
-              </label>
-
-              <label>
-                <input type="checkbox" data-inspection-schedule-month value="12">
-                <span>12월</span>
-              </label>
-
-            </div>
-
-          </fieldset>
-
-
-          <!-- 기타 정보 -->
-
-          <div class="inspection-schedule-editor-grid">
-
-            <label class="inspection-schedule-editor-field">
-
-              <span>
-                점검 위치
-              </span>
-
-              <input
-                type="text"
-                id="inspectionScheduleEditorPosition"
-                maxlength="200"
-                placeholder="예: Local"
-                disabled
-              >
-
-            </label>
-
-
-            <label class="inspection-schedule-editor-field">
-
-              <span>
-                결재
-              </span>
-
-              <input
-                type="text"
-                id="inspectionScheduleEditorApproval"
-                maxlength="200"
-                placeholder="결재 대상"
-                disabled
-              >
-
-            </label>
-
-
-            <label class="inspection-schedule-editor-field">
-
-              <span>
-                공유
-              </span>
-
-              <input
-                type="text"
-                id="inspectionScheduleEditorShare"
-                maxlength="200"
-                placeholder="공유 대상"
-                disabled
-              >
-
-            </label>
-
-
-            <label class="inspection-schedule-editor-field">
-
-              <span>
-                연결 점검일지 키
-              </span>
-
-              <input
-                type="text"
-                id="inspectionScheduleEditorLogKey"
-                maxlength="120"
-                placeholder="예: high-pressure-gas"
-                disabled
-              >
-
-            </label>
-
-
-            <label
-              class="
-                inspection-schedule-editor-field
-                is-wide
-              "
-            >
-
-              <span>
-                점검일지 제목 검색어
-              </span>
-
-              <input
-                type="text"
-                id="inspectionScheduleEditorTitleKeyword"
-                maxlength="120"
-                placeholder="점검일지 카드 연결에 사용할 검색어"
-                disabled
-              >
-
-            </label>
-
-
-            <label
-              class="
-                inspection-schedule-editor-field
-                is-wide
-              "
-            >
-
-              <span>
-                비고
-              </span>
-
-              <textarea
-                id="inspectionScheduleEditorNote"
-                maxlength="1000"
-                placeholder="점검 일정 관련 참고사항"
-                disabled
-              ></textarea>
-
-            </label>
-
-          </div>
-
-
-          <!-- 설정 -->
-
-          <fieldset
-            class="inspection-schedule-editor-group"
-            disabled
-          >
-
-            <legend>
-              일정 설정
-            </legend>
-
-            <div
-              class="
-                inspection-schedule-editor-checks
-                is-options
-              "
-            >
-
-              <label>
-
-                <input
-                  type="checkbox"
-                  id="inspectionScheduleEditorActive"
-                  checked
-                >
-
-                <span>
-                  일정 사용
-                </span>
-
-              </label>
-
-
-              <label>
-
-                <input
-                  type="checkbox"
-                  id="inspectionScheduleEditorConditional"
-                >
-
-                <span>
-                  조건부 일정
-                </span>
-
-              </label>
-
-
-              <label>
-
-                <input
-                  type="checkbox"
-                  id="inspectionScheduleEditorReferenceOnly"
-                >
-
-                <span>
-                  참고용 일정
-                </span>
-
-              </label>
-
-            </div>
-
-          </fieldset>
-
-
-          <div
-            class="inspection-schedule-editor-message"
-            id="inspectionScheduleEditorMessage"
-            hidden
-          ></div>
-
-
-          <footer class="inspection-schedule-editor-footer">
-
-            <button
-              type="button"
-              class="is-danger"
-              id="inspectionScheduleRestoreButton"
-              disabled
-              hidden
-            >
-              기본값 복원
-            </button>
-
-
-            <span class="inspection-schedule-editor-footer__spacer"></span>
-
-
-            <button
-              type="button"
-              id="inspectionScheduleEditorResetButton"
-              disabled
-            >
-              입력 초기화
-            </button>
-
-
-            <button
-              type="submit"
-              class="is-primary"
-              id="inspectionScheduleSaveButton"
-              disabled
-            >
-              일정 저장
-            </button>
-
-          </footer>
-
-        </form>
-
-      </section>
-
+    <button class="inspection-log-card" data-inspection-category-item="weekly" data-inspection-log="lng-weekly" data-inspection-path="weekly/lng-weekly/lng-weekly.html?v=20260803-1" type="button">
+     <span class="inspection-log-card__icon">
+      🔥
+     </span>
+     <span class="inspection-log-card__text">
+      <strong>
+       LNG System 주간점검 일지
+      </strong>
+      <small>
+       매주 일요일 D/S &middot; LNG 설비 주간점검
+      </small>
+     </span>
+     <span class="inspection-log-card__arrow">
+      &rsaquo;
+     </span>
+    </button>
+    <!-- Soot Blower 주간점검일지 -->
+    <button class="inspection-log-card" data-inspection-category-item="weekly" data-inspection-log="soot-blower-weekly" data-inspection-path="weekly/soot-blower/soot-blower-weekly.html?v=20260804-1" hidden="" type="button">
+     <span class="inspection-log-card__icon">
+      ♨️
+     </span>
+     <span class="inspection-log-card__text">
+      <strong>
+       Soot Blower 주간점검일지
+      </strong>
+      <small>
+       매주 월요일 N/S &middot; 1&middot;2호기 Soot Blower 점검
+      </small>
+     </span>
+     <span aria-hidden="true" class="inspection-log-card__arrow">
+      &rsaquo;
+     </span>
+    </button>
+    <div class="inspection-log-empty" hidden="" id="inspectionLogEmpty">
+     등록된 점검일지가 없습니다.
     </div>
-
-  </section>
-
-</div>
-
-  </main>
-</body>
+   </section>
+   <section class="inspection-log-viewer" hidden="" id="inspectionLogViewer">
+    <div class="inspection-log-viewer__header">
+     <button id="inspectionLogBackButton" type="button">
+      &larr; 목록
+     </button>
+     <strong id="inspectionLogViewerTitle">
+      점검일지
+     </strong>
+    </div>
+    <iframe allow="fullscreen" allowfullscreen="" id="inspectionLogFrame" src="about:blank" title="점검일지 화면">
+    </iframe>
+   </section>
+</main>
+ </body>
 </html>

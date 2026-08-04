@@ -1,0 +1,154 @@
+/* =========================================================
+  점검일지 공통 확대·크게 보기 도구
+========================================================= */
+
+.inspection-workspace__content {
+  min-width: 0;
+  max-width: 100%;
+  overflow: auto;
+}
+
+.inspection-view-tools {
+  position: fixed;
+  z-index: 29000;
+  right: 16px;
+  bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid #bfcddd;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 24px rgba(23, 47, 72, 0.2);
+  backdrop-filter: blur(8px);
+}
+
+.inspection-view-tools__button,
+.inspection-view-tools__zoom {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cad6e2;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #294a69;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.inspection-view-tools__button {
+  width: 32px;
+}
+
+.inspection-view-tools__zoom {
+  min-width: 51px;
+  padding: 0 8px;
+  font-size: 10px;
+}
+
+.inspection-view-tools__button:hover,
+.inspection-view-tools__zoom:hover {
+  border-color: #6d9dca;
+  background: #eaf4fd;
+  color: #185a94;
+}
+
+.inspection-view-tools__button.is-fullscreen {
+  font-size: 18px;
+}
+
+.inspection-view-tools__button.is-fullscreen[aria-pressed="true"] {
+  border-color: #2d73b8;
+  background: #2d73b8;
+  color: #ffffff;
+}
+
+.inspection-view-tools__divider {
+  width: 1px;
+  height: 23px;
+  margin: 0 2px;
+  background: #d7e0e9;
+}
+
+/* =========================================================
+  크게 보기
+========================================================= */
+
+body.inspection-focus-mode {
+  overflow: hidden;
+  background: #f3f6fa;
+}
+
+body.inspection-focus-mode .inspection-log-hub {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 0;
+}
+
+body.inspection-focus-mode .inspection-log-header,
+body.inspection-focus-mode .inspection-sidebar {
+  display: none !important;
+}
+
+body.inspection-focus-mode .inspection-workspace {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+body.inspection-focus-mode .inspection-workspace__content {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  padding: 12px;
+}
+
+body.inspection-focus-mode .inspection-log-viewer {
+  width: 100%;
+  height: calc(100vh - 24px);
+  border-radius: 0;
+}
+
+body.inspection-focus-mode .inspection-schedule-table-scroll {
+  max-height: calc(100vh - 132px);
+}
+
+body.inspection-focus-mode .inspection-calendar-dashboard {
+  margin-bottom: 60px;
+}
+
+body.inspection-focus-mode .inspection-schedule-table-panel {
+  margin-bottom: 60px;
+}
+
+@media (max-width: 680px) {
+  .inspection-view-tools {
+    right: 10px;
+    bottom: 10px;
+    padding: 5px;
+  }
+
+  .inspection-view-tools__button,
+  .inspection-view-tools__zoom {
+    height: 30px;
+  }
+
+  .inspection-view-tools__button {
+    width: 30px;
+  }
+
+  body.inspection-focus-mode .inspection-workspace__content {
+    padding: 6px;
+  }
+
+  body.inspection-focus-mode .inspection-log-viewer {
+    height: calc(100vh - 12px);
+  }
+}
