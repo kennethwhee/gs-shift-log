@@ -70865,3 +70865,303 @@ textarea:focus {
   }
 
 }
+
+/* =========================================================
+  효율팀 일일업무현황 셀 편집 최종 보정
+
+  변경:
+  - textarea 가짜 가로줄 제거
+  - 글씨와 줄 불일치 제거
+  - 표 칸 전체를 하나의 편집 셀로 사용
+  - 선택한 셀을 엑셀처럼 파란 테두리로 표시
+========================================================= */
+
+
+/* 표 안 입력 셀 */
+
+#efficiencyTeamModal
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-table
+td {
+  position: relative;
+
+  padding: 0 !important;
+
+  vertical-align: top !important;
+
+  background: #ffffff;
+}
+
+
+/* 주요 업무·비고 입력칸 */
+
+#efficiencyTeamModal
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-table
+td
+textarea {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  box-sizing: border-box !important;
+
+  margin: 0 !important;
+
+  padding:
+    7px
+    9px !important;
+
+  overflow-x: hidden !important;
+  overflow-y: auto;
+
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  background-color: #ffffff !important;
+
+  /*
+    기존 가짜 노트 줄 완전 제거
+  */
+  background-image: none !important;
+  background-size: auto !important;
+  background-position: 0 0 !important;
+
+  color: #111111 !important;
+
+  font-family:
+    inherit !important;
+
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  line-height: 1.5 !important;
+
+  text-align: left !important;
+
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+
+  resize: none !important;
+
+  outline: none !important;
+
+  box-shadow: none !important;
+}
+
+
+/* 마우스를 올린 셀 */
+
+#efficiencyTeamModal
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-table
+td:hover {
+  background: #f7fbff !important;
+}
+
+
+/* 현재 편집 중인 셀 */
+
+#efficiencyTeamModal
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-table
+td:focus-within {
+  z-index: 5;
+
+  background: #edf6ff !important;
+
+  box-shadow:
+    inset 0 0 0 2px
+    #2871c4 !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-table
+td:focus-within
+textarea {
+  background: #edf6ff !important;
+}
+
+
+/* 크게 보기 상태에서는 입력 글씨 확대 */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-table
+td
+textarea {
+  padding:
+    8px
+    10px !important;
+
+  font-size: 12px !important;
+  line-height: 1.55 !important;
+}
+
+
+/* 담당자·근무자 입력칸도 셀 선택 표시 */
+
+#efficiencyTeamModal
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-table
+th:focus-within {
+  position: relative;
+
+  z-index: 5;
+
+  background: #edf6ff !important;
+
+  box-shadow:
+    inset 0 0 0 2px
+    #2871c4 !important;
+}
+
+
+/* 인쇄·PDF에는 선택 효과 제거 */
+
+@media print {
+
+  #efficiencyDailyWorkPaper
+  .efficiency-daily-work-table
+  td:focus-within,
+
+  #efficiencyDailyWorkPaper
+  .efficiency-daily-work-table
+  th:focus-within {
+    background: #ffffff !important;
+
+    box-shadow: none !important;
+  }
+
+}
+
+/* =========================================================
+  효율팀 일일업무현황 내부 확대·축소 도구
+========================================================= */
+
+.efficiency-daily-work-zoom-toolbar {
+  display: none;
+
+  align-items: center;
+
+  gap: 4px;
+
+  padding: 3px;
+
+  border: 1px solid #c8d5e4;
+  border-radius: 9px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 3px 10px
+    rgba(32, 64, 104, 0.07);
+}
+
+
+#efficiencyTeamModal.is-daily-work-expanded
+.efficiency-daily-work-zoom-toolbar {
+  display: inline-flex;
+}
+
+
+.efficiency-daily-work-zoom-toolbar[hidden] {
+  display: none !important;
+}
+
+
+.efficiency-daily-work-zoom-button {
+  display: inline-flex;
+
+  min-width: 32px;
+  height: 30px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 8px;
+
+  border: 1px solid transparent;
+  border-radius: 6px;
+
+  background: #f5f8fb;
+  color: #344a64;
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+}
+
+
+.efficiency-daily-work-zoom-button:hover {
+  border-color: #a9c1dc;
+
+  background: #eaf3fc;
+  color: #1f5fae;
+}
+
+
+.efficiency-daily-work-zoom-button:disabled {
+  cursor: not-allowed;
+
+  opacity: 0.38;
+}
+
+
+.efficiency-daily-work-zoom-button.is-value {
+  min-width: 55px;
+
+  background: #ffffff;
+}
+
+
+.efficiency-daily-work-zoom-button.is-fit {
+  min-width: 62px;
+}
+
+
+.efficiency-daily-work-zoom-button.is-fit.is-active {
+  border-color: #72a2d7;
+
+  background: #e5f0fc;
+  color: #15599f;
+}
+
+
+/* =========================================================
+  작성 용지에만 확대 비율 적용
+
+  상단 날짜·서식 도구와 하단 저장 버튼은
+  확대하지 않는다.
+========================================================= */
+
+@media screen {
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  #efficiencyDailyWorkPaper {
+    zoom:
+      var(
+        --efficiency-daily-work-zoom,
+        1
+      );
+  }
+
+}
+
+
+/* 인쇄·PDF에서는 반드시 100% */
+
+@media print {
+
+  #efficiencyDailyWorkPaper {
+    zoom: 1 !important;
+  }
+
+}

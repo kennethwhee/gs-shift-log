@@ -116330,3 +116330,1389 @@ if (
 } else {
   initializeEfficiencyDailyWorkSpreadsheetRangeSelection();
 }
+
+/* =========================================================
+  메인 업무일지 선택 날짜·근무 → 점검 캘린더 전달
+
+  동작:
+  - 날짜 또는 근무가 바뀔 때마다 선택 기준 전달
+  - 점검 iframe이 늦게 만들어져도 자동 재전송
+  - 이전 날짜 응답은 화면에 반영하지 않음
+========================================================= */
+
+(function initializeSelectedInspectionContextBridge() {
+  if (
+    window.__selectedInspectionContextBridgeInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window.__selectedInspectionContextBridgeInstalled =
+    true;
+
+
+  const SET_CONTEXT_MESSAGE =
+    "gs-shift-log:set-inspection-context";
+
+
+  const CALENDAR_READY_MESSAGE =
+    "gs-shift-log:inspection-calendar-ready";
+
+
+  const SUMMARY_MESSAGE =
+    "gs-shift-log:inspection-role-today-summary";
+
+
+  const ROLE_ORDER = [
+    "파트장",
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  let sendFrameId =
+    0;
+
+
+  /* =====================================================
+    근무값 정리
+  ====================================================== */
+
+  function normalizeInspectionContextShift(
+    value
+  ) {
+    const shift =
+      String(
+        value ||
+        ""
+      )
+        .trim()
+        .toUpperCase()
+        .replaceAll(
+          "/",
+          ""
+        )
+        .replace(
+          /\s+/g,
+          ""
+        );
+
+
+    if (
+      [
+        "D",
+        "DS"
+      ].includes(
+        shift
+      )
+    ) {
+      return "DS";
+    }
+
+
+    if (
+      [
+        "N",
+        "NS"
+      ].includes(
+        shift
+      )
+    ) {
+      return "NS";
+    }
+
+
+    return "";
+  }
+
+
+  /* =====================================================
+    현재 메인 업무일지 선택 기준
+  ====================================================== */
+
+  function getSelectedInspectionContext() {
+    if (
+      typeof appState ===
+      "undefined"
+    ) {
+      return null;
+    }
+
+
+    const selectedDate =
+      appState.selectedDate instanceof
+        Date
+        ? new Date(
+            appState.selectedDate
+          )
+        : new Date(
+            appState.selectedDate
+          );
+
+
+    if (
+      Number.isNaN(
+        selectedDate.getTime()
+      )
+    ) {
+      return null;
+    }
+
+
+    const workDate =
+      typeof formatInputDate ===
+        "function"
+        ? formatInputDate(
+            selectedDate
+          )
+        : [
+            selectedDate.getFullYear(),
+
+            String(
+              selectedDate.getMonth() +
+              1
+            ).padStart(
+              2,
+              "0"
+            ),
+
+            String(
+              selectedDate.getDate()
+            ).padStart(
+              2,
+              "0"
+            )
+          ].join(
+            "-"
+          );
+
+
+    const shift =
+      normalizeInspectionContextShift(
+        appState.selectedShift
+      );
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        workDate
+      ) ||
+      !shift
+    ) {
+      return null;
+    }
+
+
+    return {
+      workDate,
+
+      shift,
+
+      shiftLabel:
+        shift ===
+        "DS"
+          ? "D/S"
+          : "N/S"
+    };
+  }
+
+
+  /* =====================================================
+    이전 날짜의 점검 배지 즉시 초기화
+
+    새 날짜 자료가 도착하기 전까지
+    이전 날짜의 점검이 남아 보이지 않게 한다.
+  ====================================================== */
+
+  function clearPreviousInspectionSummary(
+    context
+  ) {
+    window.postMessage(
+      {
+        type:
+          SUMMARY_MESSAGE,
+
+        available:
+          true,
+
+        loading:
+          true,
+
+        workDate:
+          context.workDate,
+
+        shift:
+          context.shift,
+
+        shiftLabel:
+          context.shiftLabel,
+
+        roles:
+          ROLE_ORDER.map(
+            role => {
+              return {
+                role,
+
+                totalCount:
+                  0,
+
+                completedCount:
+                  0,
+
+                pendingCount:
+                  0,
+
+                items:
+                  []
+              };
+            }
+          )
+      },
+
+      window.location.origin
+    );
+  }
+
+
+  /* =====================================================
+    모든 iframe에 선택 날짜·근무 전달
+
+    점검일지 iframe의 ID가 변경되더라도
+    같은 출처의 iframe이면 메시지를 받을 수 있다.
+  ====================================================== */
+
+  function sendSelectedInspectionContext(
+    options = {}
+  ) {
+    const context =
+      getSelectedInspectionContext();
+
+
+    if (
+      !context
+    ) {
+      return false;
+    }
+
+
+    if (
+      options.clearPrevious !==
+      false
+    ) {
+      clearPreviousInspectionSummary(
+        context
+      );
+    }
+
+
+    const message = {
+      type:
+        SET_CONTEXT_MESSAGE,
+
+      workDate:
+        context.workDate,
+
+      shift:
+        context.shift
+    };
+
+
+    document
+      .querySelectorAll(
+        "iframe"
+      )
+      .forEach(
+        frame => {
+          try {
+            frame.contentWindow
+              ?.postMessage(
+                message,
+                window.location.origin
+              );
+
+          } catch (
+            error
+          ) {
+            console.warn(
+              "점검 기준 전달 실패:",
+              error
+            );
+          }
+        }
+      );
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    한 화면 갱신에서 중복 전송 방지
+  ====================================================== */
+
+  function requestSelectedInspectionContextSend(
+    options = {}
+  ) {
+    if (
+      sendFrameId
+    ) {
+      window.cancelAnimationFrame(
+        sendFrameId
+      );
+    }
+
+
+    sendFrameId =
+      window.requestAnimationFrame(
+        () => {
+          sendFrameId =
+            0;
+
+
+          sendSelectedInspectionContext(
+            options
+          );
+        }
+      );
+  }
+
+
+  /* =====================================================
+    이전 날짜·근무 응답 차단
+
+    날짜를 빠르게 이동했을 때
+    이전 날짜의 늦은 응답이 새 화면을 덮지 못하게 한다.
+  ====================================================== */
+
+  window.addEventListener(
+    "message",
+    event => {
+      if (
+        event.origin !==
+        window.location.origin
+      ) {
+        return;
+      }
+
+
+      const messageType =
+        String(
+          event.data?.type ||
+          ""
+        ).trim();
+
+
+      if (
+        messageType ===
+        SUMMARY_MESSAGE
+      ) {
+        const currentContext =
+          getSelectedInspectionContext();
+
+
+        if (
+          !currentContext
+        ) {
+          return;
+        }
+
+
+        const receivedWorkDate =
+          String(
+            event.data?.workDate ||
+            ""
+          ).trim();
+
+
+        const receivedShift =
+          normalizeInspectionContextShift(
+            event.data?.shift
+          );
+
+
+        if (
+          receivedWorkDate !==
+            currentContext.workDate ||
+          receivedShift !==
+            currentContext.shift
+        ) {
+          event.stopImmediatePropagation();
+
+          event.stopPropagation();
+        }
+
+
+        return;
+      }
+
+
+      /*
+        점검 캘린더 로딩 완료 후
+        현재 날짜·근무를 다시 전달한다.
+      */
+      if (
+        messageType ===
+        CALENDAR_READY_MESSAGE
+      ) {
+        requestSelectedInspectionContextSend({
+          clearPrevious:
+            true
+        });
+      }
+    },
+
+    true
+  );
+
+
+  /* =====================================================
+    화면 날짜·근무 표시 후 자동 전달
+
+    적용:
+    - 이전·다음 이동
+    - 오늘 이동
+    - 날짜 직접 선택
+    - D/S·N/S 변경
+  ====================================================== */
+
+  if (
+    typeof renderSelectedDate ===
+    "function"
+  ) {
+    const originalRenderSelectedDate =
+      renderSelectedDate;
+
+
+    renderSelectedDate =
+      function renderSelectedDateWithInspectionContext(
+        ...args
+      ) {
+        const result =
+          originalRenderSelectedDate.apply(
+            this,
+            args
+          );
+
+
+        requestSelectedInspectionContextSend({
+          clearPrevious:
+            true
+        });
+
+
+        return result;
+      };
+  }
+
+
+  /* =====================================================
+    iframe가 늦게 로드되는 경우 재전송
+  ====================================================== */
+
+  document.addEventListener(
+    "load",
+    event => {
+      if (
+        event.target instanceof
+        HTMLIFrameElement
+      ) {
+        requestSelectedInspectionContextSend({
+          clearPrevious:
+            false
+        });
+      }
+    },
+
+    true
+  );
+
+
+  const iframeObserver =
+    new MutationObserver(
+      mutations => {
+        const iframeAdded =
+          mutations.some(
+            mutation => {
+              return [
+                ...mutation.addedNodes
+              ].some(
+                node => {
+                  return (
+                    node instanceof
+                      HTMLIFrameElement ||
+                    (
+                      node instanceof
+                        Element &&
+                      Boolean(
+                        node.querySelector(
+                          "iframe"
+                        )
+                      )
+                    )
+                  );
+                }
+              );
+            }
+          );
+
+
+        if (
+          iframeAdded
+        ) {
+          requestSelectedInspectionContextSend({
+            clearPrevious:
+              false
+          });
+        }
+      }
+    );
+
+
+  iframeObserver.observe(
+    document.documentElement,
+    {
+      childList:
+        true,
+
+      subtree:
+        true
+    }
+  );
+
+
+  /* =====================================================
+    최초 실행
+  ====================================================== */
+
+  function initializeCurrentInspectionContext() {
+    requestSelectedInspectionContextSend({
+      clearPrevious:
+        true
+    });
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeCurrentInspectionContext,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeCurrentInspectionContext();
+  }
+
+
+  /*
+    콘솔에서 수동 재전송할 때 사용할 수 있다.
+  */
+  window.sendSelectedInspectionContext =
+    function sendSelectedInspectionContextManually() {
+      return sendSelectedInspectionContext({
+        clearPrevious:
+          true
+      });
+    };
+})();
+
+/* =========================================================
+  효율팀 일일업무현황 내부 확대·축소
+
+  기능:
+  - 10% 단위 확대·축소
+  - 100% 원래 크기
+  - 화면 폭 맞춤
+  - Ctrl + 마우스 휠
+  - PDF·인쇄 크기에는 영향 없음
+========================================================= */
+
+(function installEfficiencyDailyWorkZoom() {
+  if (
+    window.__efficiencyDailyWorkZoomInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__efficiencyDailyWorkZoomInstalled =
+    true;
+
+
+  const MINIMUM_ZOOM =
+    50;
+
+
+  const MAXIMUM_ZOOM =
+    180;
+
+
+  const ZOOM_STEP =
+    10;
+
+
+  let currentZoom =
+    100;
+
+
+  let currentZoomMode =
+    "manual";
+
+
+  let resizeTimer =
+    null;
+
+
+  function getEfficiencyDailyWorkZoomElements() {
+    return {
+      modal:
+        document.getElementById(
+          "efficiencyTeamModal"
+        ),
+
+      headingActions:
+        document.querySelector(
+          ".efficiency-daily-work-heading-actions"
+        ),
+
+      paperScroll:
+        document.querySelector(
+          ".efficiency-daily-work-paper-scroll"
+        ),
+
+      paper:
+        document.getElementById(
+          "efficiencyDailyWorkPaper"
+        ),
+
+      toolbar:
+        document.getElementById(
+          "efficiencyDailyWorkZoomToolbar"
+        ),
+
+      decreaseButton:
+        document.getElementById(
+          "decreaseEfficiencyDailyWorkZoomButton"
+        ),
+
+      resetButton:
+        document.getElementById(
+          "resetEfficiencyDailyWorkZoomButton"
+        ),
+
+      increaseButton:
+        document.getElementById(
+          "increaseEfficiencyDailyWorkZoomButton"
+        ),
+
+      fitButton:
+        document.getElementById(
+          "fitEfficiencyDailyWorkZoomButton"
+        )
+    };
+  }
+
+
+  function clampEfficiencyDailyWorkZoom(
+    value
+  ) {
+    const numberValue =
+      Number(
+        value
+      );
+
+
+    if (
+      !Number.isFinite(
+        numberValue
+      )
+    ) {
+      return 100;
+    }
+
+
+    return Math.min(
+      MAXIMUM_ZOOM,
+
+      Math.max(
+        MINIMUM_ZOOM,
+        Math.round(
+          numberValue
+        )
+      )
+    );
+  }
+
+
+  function updateEfficiencyDailyWorkZoomToolbar() {
+    const {
+      resetButton,
+      decreaseButton,
+      increaseButton,
+      fitButton
+    } =
+      getEfficiencyDailyWorkZoomElements();
+
+
+    if (
+      resetButton
+    ) {
+      resetButton.textContent =
+        `${currentZoom}%`;
+
+      resetButton.title =
+        "100% 원래 크기로 돌아갑니다.";
+    }
+
+
+    if (
+      decreaseButton
+    ) {
+      decreaseButton.disabled =
+        currentZoom <=
+        MINIMUM_ZOOM;
+    }
+
+
+    if (
+      increaseButton
+    ) {
+      increaseButton.disabled =
+        currentZoom >=
+        MAXIMUM_ZOOM;
+    }
+
+
+    fitButton?.classList.toggle(
+      "is-active",
+
+      currentZoomMode ===
+        "fit"
+    );
+
+
+    fitButton?.setAttribute(
+      "aria-pressed",
+
+      String(
+        currentZoomMode ===
+          "fit"
+      )
+    );
+  }
+
+
+  function applyEfficiencyDailyWorkZoom(
+    nextZoom,
+    options = {}
+  ) {
+    const {
+      paper,
+      paperScroll
+    } =
+      getEfficiencyDailyWorkZoomElements();
+
+
+    if (
+      !paper ||
+      !paperScroll
+    ) {
+      return false;
+    }
+
+
+    const normalizedZoom =
+      clampEfficiencyDailyWorkZoom(
+        nextZoom
+      );
+
+
+    const preserveCenter =
+      options.preserveCenter !==
+      false;
+
+
+    let horizontalRatio =
+      0;
+
+
+    let verticalRatio =
+      0;
+
+
+    if (
+      preserveCenter
+    ) {
+      horizontalRatio =
+        paperScroll.scrollWidth >
+          0
+          ? (
+              paperScroll.scrollLeft +
+              paperScroll.clientWidth /
+                2
+            ) /
+            paperScroll.scrollWidth
+          : 0;
+
+
+      verticalRatio =
+        paperScroll.scrollHeight >
+          0
+          ? (
+              paperScroll.scrollTop +
+              paperScroll.clientHeight /
+                2
+            ) /
+            paperScroll.scrollHeight
+          : 0;
+    }
+
+
+    currentZoom =
+      normalizedZoom;
+
+
+    currentZoomMode =
+      options.mode ===
+        "fit"
+        ? "fit"
+        : "manual";
+
+
+    paper.style.setProperty(
+      "--efficiency-daily-work-zoom",
+
+      String(
+        currentZoom /
+        100
+      )
+    );
+
+
+    updateEfficiencyDailyWorkZoomToolbar();
+
+
+    if (
+      preserveCenter
+    ) {
+      window.requestAnimationFrame(
+        () => {
+          paperScroll.scrollLeft =
+            Math.max(
+              0,
+
+              horizontalRatio *
+                paperScroll.scrollWidth -
+                paperScroll.clientWidth /
+                  2
+            );
+
+
+          paperScroll.scrollTop =
+            Math.max(
+              0,
+
+              verticalRatio *
+                paperScroll.scrollHeight -
+                paperScroll.clientHeight /
+                  2
+            );
+        }
+      );
+    }
+
+
+    return true;
+  }
+
+
+  function fitEfficiencyDailyWorkToWidth() {
+    const {
+      paper,
+      paperScroll
+    } =
+      getEfficiencyDailyWorkZoomElements();
+
+
+    if (
+      !paper ||
+      !paperScroll
+    ) {
+      return false;
+    }
+
+
+    /*
+      용지의 100% 원래 너비를 먼저 측정한다.
+    */
+    paper.style.setProperty(
+      "--efficiency-daily-work-zoom",
+      "1"
+    );
+
+
+    const naturalWidth =
+      paper.getBoundingClientRect()
+        .width;
+
+
+    const availableWidth =
+      Math.max(
+        320,
+
+        paperScroll.clientWidth -
+          32
+      );
+
+
+    if (
+      !naturalWidth
+    ) {
+      return false;
+    }
+
+
+    const fittedZoom =
+      Math.floor(
+        (
+          availableWidth /
+          naturalWidth
+        ) *
+          100
+      );
+
+
+    return applyEfficiencyDailyWorkZoom(
+      fittedZoom,
+
+      {
+        mode:
+          "fit",
+
+        preserveCenter:
+          false
+      }
+    );
+  }
+
+
+  function createEfficiencyDailyWorkZoomToolbar() {
+    const {
+      headingActions,
+      toolbar
+    } =
+      getEfficiencyDailyWorkZoomElements();
+
+
+    if (
+      toolbar
+    ) {
+      return toolbar;
+    }
+
+
+    if (
+      !headingActions
+    ) {
+      return null;
+    }
+
+
+    const zoomToolbar =
+      document.createElement(
+        "div"
+      );
+
+
+    zoomToolbar.className =
+      "efficiency-daily-work-zoom-toolbar";
+
+
+    zoomToolbar.id =
+      "efficiencyDailyWorkZoomToolbar";
+
+
+    zoomToolbar.hidden =
+      true;
+
+
+    zoomToolbar.setAttribute(
+      "role",
+      "group"
+    );
+
+
+    zoomToolbar.setAttribute(
+      "aria-label",
+      "작성 화면 확대 축소"
+    );
+
+
+    zoomToolbar.innerHTML = `
+      <button
+        type="button"
+        class="efficiency-daily-work-zoom-button"
+        id="decreaseEfficiencyDailyWorkZoomButton"
+        aria-label="작성 화면 축소"
+        title="10% 축소"
+      >
+        −
+      </button>
+
+      <button
+        type="button"
+        class="
+          efficiency-daily-work-zoom-button
+          is-value
+        "
+        id="resetEfficiencyDailyWorkZoomButton"
+        aria-label="작성 화면 원래 크기"
+      >
+        100%
+      </button>
+
+      <button
+        type="button"
+        class="efficiency-daily-work-zoom-button"
+        id="increaseEfficiencyDailyWorkZoomButton"
+        aria-label="작성 화면 확대"
+        title="10% 확대"
+      >
+        ＋
+      </button>
+
+      <button
+        type="button"
+        class="
+          efficiency-daily-work-zoom-button
+          is-fit
+        "
+        id="fitEfficiencyDailyWorkZoomButton"
+        aria-pressed="false"
+      >
+        폭 맞춤
+      </button>
+    `;
+
+
+    headingActions.prepend(
+      zoomToolbar
+    );
+
+
+    return zoomToolbar;
+  }
+
+
+  function syncEfficiencyDailyWorkZoomVisibility() {
+    const {
+      modal,
+      toolbar
+    } =
+      getEfficiencyDailyWorkZoomElements();
+
+
+    if (
+      !modal ||
+      !toolbar
+    ) {
+      return;
+    }
+
+
+    const expanded =
+      modal.classList.contains(
+        "is-daily-work-expanded"
+      );
+
+
+    toolbar.hidden =
+      !expanded;
+
+
+    if (
+      !expanded
+    ) {
+      return;
+    }
+
+
+    if (
+      currentZoomMode ===
+        "fit"
+    ) {
+      window.requestAnimationFrame(
+        fitEfficiencyDailyWorkToWidth
+      );
+
+    } else {
+      applyEfficiencyDailyWorkZoom(
+        currentZoom,
+
+        {
+          preserveCenter:
+            false
+        }
+      );
+    }
+  }
+
+
+  function bindEfficiencyDailyWorkZoomEvents() {
+    const {
+      modal,
+      paperScroll,
+      decreaseButton,
+      resetButton,
+      increaseButton,
+      fitButton
+    } =
+      getEfficiencyDailyWorkZoomElements();
+
+
+    if (
+      !modal ||
+      !paperScroll
+    ) {
+      return false;
+    }
+
+
+    if (
+      modal.dataset
+        .efficiencyDailyWorkZoomBound ===
+          "true"
+    ) {
+      syncEfficiencyDailyWorkZoomVisibility();
+
+      return true;
+    }
+
+
+    decreaseButton?.addEventListener(
+      "click",
+
+      () => {
+        applyEfficiencyDailyWorkZoom(
+          currentZoom -
+            ZOOM_STEP
+        );
+      }
+    );
+
+
+    resetButton?.addEventListener(
+      "click",
+
+      () => {
+        applyEfficiencyDailyWorkZoom(
+          100,
+
+          {
+            preserveCenter:
+              false
+          }
+        );
+      }
+    );
+
+
+    increaseButton?.addEventListener(
+      "click",
+
+      () => {
+        applyEfficiencyDailyWorkZoom(
+          currentZoom +
+            ZOOM_STEP
+        );
+      }
+    );
+
+
+    fitButton?.addEventListener(
+      "click",
+
+      fitEfficiencyDailyWorkToWidth
+    );
+
+
+    /*
+      작성 용지 안에서 Ctrl + 휠 확대·축소
+    */
+    paperScroll.addEventListener(
+      "wheel",
+
+      event => {
+        if (
+          !event.ctrlKey ||
+          !modal.classList.contains(
+            "is-daily-work-expanded"
+          )
+        ) {
+          return;
+        }
+
+
+        event.preventDefault();
+
+
+        applyEfficiencyDailyWorkZoom(
+          currentZoom +
+          (
+            event.deltaY <
+              0
+              ? ZOOM_STEP
+              : -ZOOM_STEP
+          )
+        );
+      },
+
+      {
+        passive:
+          false
+      }
+    );
+
+
+    /*
+      크게 보기 상태 변경 감지
+    */
+    const expandedObserver =
+      new MutationObserver(
+        syncEfficiencyDailyWorkZoomVisibility
+      );
+
+
+    expandedObserver.observe(
+      modal,
+
+      {
+        attributes:
+          true,
+
+        attributeFilter: [
+          "class"
+        ]
+      }
+    );
+
+
+    /*
+      폭 맞춤 상태에서 브라우저 크기가 바뀌면 재계산
+    */
+    window.addEventListener(
+      "resize",
+
+      () => {
+        window.clearTimeout(
+          resizeTimer
+        );
+
+
+        resizeTimer =
+          window.setTimeout(
+            () => {
+              if (
+                currentZoomMode ===
+                  "fit" &&
+                modal.classList.contains(
+                  "is-daily-work-expanded"
+                )
+              ) {
+                fitEfficiencyDailyWorkToWidth();
+              }
+            },
+
+            120
+          );
+      }
+    );
+
+
+    modal.dataset
+      .efficiencyDailyWorkZoomBound =
+      "true";
+
+
+    syncEfficiencyDailyWorkZoomVisibility();
+
+
+    return true;
+  }
+
+
+  function initializeEfficiencyDailyWorkZoom() {
+    let attemptCount =
+      0;
+
+
+    const maximumAttempts =
+      60;
+
+
+    const attemptInstall =
+      () => {
+        createEfficiencyDailyWorkZoomToolbar();
+
+
+        if (
+          bindEfficiencyDailyWorkZoomEvents()
+        ) {
+          updateEfficiencyDailyWorkZoomToolbar();
+
+          return;
+        }
+
+
+        attemptCount +=
+          1;
+
+
+        if (
+          attemptCount <
+          maximumAttempts
+        ) {
+          window.setTimeout(
+            attemptInstall,
+            100
+          );
+        }
+      };
+
+
+    attemptInstall();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+
+      initializeEfficiencyDailyWorkZoom,
+
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeEfficiencyDailyWorkZoom();
+  }
+})();
