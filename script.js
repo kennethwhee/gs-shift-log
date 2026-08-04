@@ -100417,3 +100417,239 @@ openLogDetail =
     bindInlineRemarkEditor();
   }
 })();
+
+/* =========================================================
+  발행 내역 화면 표기 최종 통일
+
+  화면 제목만 "발행 내역"으로 통일하며,
+  TM·BM·CM의 실제 저장 구분은 그대로 유지한다.
+========================================================= */
+
+(function installIssueEntryLabelFix() {
+  if (
+    window
+      .__gsShiftLogIssueEntryLabelFixInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__gsShiftLogIssueEntryLabelFixInstalled =
+    true;
+
+
+  const previousIssueLabels = [
+    "TM/BM/CM 발행 내역",
+    "TM/BM/CM 발행내역",
+    "TM·BM·CM 발행 내역",
+    "TM · BM · CM 발행 내역",
+    "TM 발행 내역",
+    "TM 발행내역"
+  ];
+
+
+  function normalizeIssueEntryLabel(
+    value
+  ) {
+    return previousIssueLabels.reduce(
+      (
+        normalizedText,
+        previousLabel
+      ) => {
+        return normalizedText.replaceAll(
+          previousLabel,
+          "발행 내역"
+        );
+      },
+      String(
+        value ||
+        ""
+      )
+    );
+  }
+
+
+  function normalizeIssueEntryTextNode(
+    textNode
+  ) {
+    if (
+      !textNode ||
+      textNode.nodeType !==
+        Node.TEXT_NODE
+    ) {
+      return;
+    }
+
+
+    const currentText =
+      String(
+        textNode.nodeValue ||
+        ""
+      );
+
+
+    const normalizedText =
+      normalizeIssueEntryLabel(
+        currentText
+      );
+
+
+    if (
+      normalizedText !==
+      currentText
+    ) {
+      textNode.nodeValue =
+        normalizedText;
+    }
+  }
+
+
+  function normalizeIssueEntryLabelsIn(
+    root
+  ) {
+    if (
+      !root
+    ) {
+      return;
+    }
+
+
+    if (
+      root.nodeType ===
+        Node.TEXT_NODE
+    ) {
+      normalizeIssueEntryTextNode(
+        root
+      );
+
+
+      return;
+    }
+
+
+    if (
+      root.nodeType !==
+        Node.ELEMENT_NODE &&
+      root.nodeType !==
+        Node.DOCUMENT_NODE &&
+      root.nodeType !==
+        Node.DOCUMENT_FRAGMENT_NODE
+    ) {
+      return;
+    }
+
+
+    const textWalker =
+      document.createTreeWalker(
+        root,
+        NodeFilter.SHOW_TEXT
+      );
+
+
+    const textNodes =
+      [];
+
+
+    while (
+      textWalker.nextNode()
+    ) {
+      textNodes.push(
+        textWalker.currentNode
+      );
+    }
+
+
+    textNodes.forEach(
+      normalizeIssueEntryTextNode
+    );
+  }
+
+
+  function startIssueEntryLabelFix() {
+    if (
+      !document.body
+    ) {
+      return;
+    }
+
+
+    /*
+      현재 표시 중인 화면부터 정리한다.
+    */
+
+    normalizeIssueEntryLabelsIn(
+      document.body
+    );
+
+
+    /*
+      업무일지 목록·상세보기·조회 화면이
+      다시 그려질 때도 표기를 자동으로 통일한다.
+    */
+
+    const issueLabelObserver =
+      new MutationObserver(
+        mutations => {
+          mutations.forEach(
+            mutation => {
+              if (
+                mutation.type ===
+                  "characterData"
+              ) {
+                normalizeIssueEntryTextNode(
+                  mutation.target
+                );
+
+
+                return;
+              }
+
+
+              mutation.addedNodes.forEach(
+                addedNode => {
+                  normalizeIssueEntryLabelsIn(
+                    addedNode
+                  );
+                }
+              );
+            }
+          );
+        }
+      );
+
+
+    issueLabelObserver.observe(
+      document.body,
+      {
+        childList:
+          true,
+
+        subtree:
+          true,
+
+        characterData:
+          true
+      }
+    );
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      startIssueEntryLabelFix,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    startIssueEntryLabelFix();
+  }
+})();
