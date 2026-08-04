@@ -66494,3 +66494,504 @@ tr.is-inline-remark-editing
     min-height: 40px;
   }
 }
+
+/* =========================================================
+  석회석 입고 현황 글씨 확대 최종본
+========================================================= */
+
+
+/* 상단 제목 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.efficiency-team-view__heading > div > span {
+  font-size: 10px;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.efficiency-team-view__heading h3 {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-view-description {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+
+/* 상단 기능 버튼 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-heading-actions button {
+  min-height: 40px;
+
+  font-size: 12px;
+}
+
+
+/* 날짜 이동 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-current-day-button strong {
+  font-size: 16px;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-today-badge {
+  font-size: 10px;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-open-period-button {
+  font-size: 12px;
+}
+
+
+/* 합계 카드 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-summary-card > span {
+  font-size: 12px;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-summary-card > strong {
+  font-size: 29px;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-summary-card > small {
+  font-size: 11px;
+}
+
+
+/* 일별 입고량·입고기록 제목 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-section-header {
+  min-height: 62px;
+
+  padding: 12px 15px;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-section-header span {
+  font-size: 10px;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-section-header h4 {
+  font-size: 16px;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-section-count {
+  min-height: 26px;
+
+  font-size: 10px;
+}
+
+
+/* 표 제목 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-table th {
+  height: 40px;
+
+  padding: 8px 7px;
+
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+
+/* 표 내용 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-table td {
+  height: 46px;
+
+  padding: 10px 7px;
+
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+
+/* 입고기록 상세 행 높이 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-receipt-table tbody tr {
+  min-height: 46px !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-receipt-table td {
+  min-height: 46px !important;
+
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+}
+
+
+/* 수정·삭제 버튼 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-row-actions {
+  gap: 3px;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-edit-button,
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-delete-button {
+  min-height: 30px;
+
+  padding: 0 5px;
+
+  font-size: 10px;
+}
+
+
+/* 빈 기록·로딩 안내 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-empty-table-row td,
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-loading {
+  font-size: 12px;
+}
+
+
+/* 모바일 */
+
+@media screen and (max-width: 768px) {
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .efficiency-team-view__heading h3 {
+    font-size: 21px;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-description {
+    font-size: 12px;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-summary-card > strong {
+    font-size: 24px;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-table th {
+    font-size: 10px;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-table td {
+    font-size: 11px;
+  }
+
+}
+
+/* =========================================================
+  업무 항목 현재 줄 수정 디자인
+
+  적용:
+  - 발행 내역
+  - 인계사항
+  - 비고
+  - PC / 모바일
+========================================================= */
+
+#logEditorModal
+tr.is-inline-entry-panel-editing
+>
+.log-entry-unified-cell {
+  padding: 7px 9px !important;
+
+  border-top:
+    1px solid #ecd28f !important;
+
+  border-bottom:
+    1px solid #ecd28f !important;
+
+  background:
+    #fff8e8 !important;
+
+  box-shadow:
+    inset 3px 0 0
+    #d6a13b !important;
+
+  vertical-align:
+    top !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+
+/* 선택한 줄 안의 입력 패널 */
+
+#logEditorModal
+tr.is-inline-entry-panel-editing
+>
+.log-entry-unified-cell
+>
+#logEntryInputPanel {
+  display:
+    block !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  max-width:
+    none !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    10px 12px 11px !important;
+
+  border:
+    1px solid #e3bd67 !important;
+
+  border-radius:
+    8px !important;
+
+  background:
+    #fffdf7 !important;
+
+  box-shadow:
+    0 2px 8px
+    rgba(111, 78, 17, 0.08) !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+
+/* 입력 요소 간격 */
+
+#logEditorModal
+tr.is-inline-entry-panel-editing
+#logEntryInputPanel
+.log-entry-input-top-row {
+  gap:
+    7px !important;
+}
+
+
+#logEditorModal
+tr.is-inline-entry-panel-editing
+#logEntryInputPanel
+.log-entry-content-field {
+  margin-top:
+    7px !important;
+}
+
+
+/* 내용 입력창 */
+
+#logEditorModal
+tr.is-inline-entry-panel-editing
+#logEntryInputPanel
+#logEntryContent {
+  min-height:
+    64px !important;
+
+  max-height:
+    140px !important;
+
+  border-color:
+    #d8bd7e !important;
+
+  background:
+    #ffffff !important;
+}
+
+
+#logEditorModal
+tr.is-inline-entry-panel-editing
+#logEntryInputPanel
+#logEntryContent:focus {
+  border-color:
+    #c7932f !important;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(199, 147, 47, 0.12) !important;
+}
+
+
+/* 수정 중에는 안내 문구를 숨겨 높이 축소 */
+
+#logEditorModal
+tr.is-inline-entry-panel-editing
+#logEntryInputPanel
+.log-entry-content-help {
+  display:
+    none !important;
+}
+
+
+/* 수정 완료 버튼 */
+
+#logEditorModal
+tr.is-inline-entry-panel-editing
+#addLogEntryButton {
+  border-color:
+    #d39d37 !important;
+
+  background:
+    #f7e3b4 !important;
+
+  color:
+    #83530a !important;
+}
+
+
+/* 취소 버튼 */
+
+#logEditorModal
+tr.is-inline-entry-panel-editing
+#cancelLogEntryEditButton {
+  border-color:
+    #cbd3dd !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #566477 !important;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+
+  #logEditorModal
+  tr.is-inline-entry-panel-editing
+  >
+  .log-entry-unified-cell {
+    padding:
+      5px !important;
+  }
+
+
+  #logEditorModal
+  tr.is-inline-entry-panel-editing
+  >
+  .log-entry-unified-cell
+  >
+  #logEntryInputPanel {
+    padding:
+      8px !important;
+
+    border-radius:
+      7px !important;
+  }
+
+
+  #logEditorModal
+  tr.is-inline-entry-panel-editing
+  #logEntryInputPanel
+  .log-entry-input-top-row {
+    gap:
+      6px !important;
+  }
+
+
+  #logEditorModal
+  tr.is-inline-entry-panel-editing
+  #logEntryInputPanel
+  #logEntryContent {
+    min-height:
+      72px !important;
+
+    font-size:
+      14px !important;
+  }
+
+
+  #logEditorModal
+  tr.is-inline-entry-panel-editing
+  #logEntryInputPanel
+  .log-entry-input-actions {
+    width:
+      100% !important;
+
+    justify-content:
+      stretch !important;
+  }
+
+
+  #logEditorModal
+  tr.is-inline-entry-panel-editing
+  #logEntryInputPanel
+  .log-entry-input-actions
+  button {
+    flex:
+      1 1 0 !important;
+
+    width:
+      auto !important;
+
+    min-width:
+      0 !important;
+  }
+}

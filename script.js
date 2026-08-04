@@ -79588,6 +79588,71 @@ function addEfficiencyDailyWorkDateDays(
 }
 
 /* =========================================================
+  일일업무현황 화면 표시용 날짜
+
+  예:
+  2026-08-04 → 2026년 08월 04일 (화)
+========================================================= */
+
+function formatEfficiencyDailyWorkDisplayDate(
+  value
+) {
+  const parsedDate =
+    parseEfficiencyDailyWorkDateValue(
+      value
+    );
+
+
+  if (
+    !parsedDate
+  ) {
+    return "";
+  }
+
+
+  const weekdayLabels = [
+    "일",
+    "월",
+    "화",
+    "수",
+    "목",
+    "금",
+    "토"
+  ];
+
+
+  return [
+    `${String(
+      parsedDate.getFullYear()
+    ).padStart(
+      4,
+      "0"
+    )}년`,
+
+    `${String(
+      parsedDate.getMonth() +
+      1
+    ).padStart(
+      2,
+      "0"
+    )}월`,
+
+    `${String(
+      parsedDate.getDate()
+    ).padStart(
+      2,
+      "0"
+    )}일`,
+
+    `(${weekdayLabels[
+      parsedDate.getDay()
+    ]})`
+  ].join(
+    " "
+  );
+}
+
+/* =========================================================
   일일업무현황 A4 문서 표시용 날짜
 
   반환 예:
@@ -81889,6 +81954,124 @@ function initializeEfficiencyDailyWorkNewRecord(
 
 
   return selectedDate;
+}
+
+/* =========================================================
+  저장 기록을 일일업무현황 작성 화면에 반영
+========================================================= */
+
+function populateEfficiencyDailyWorkEditorFromRecord(
+  record
+) {
+  const normalizedRecord =
+    normalizeEfficiencyDailyWorkRecord(
+      record
+    );
+
+
+  if (
+    !normalizedRecord?.id ||
+    !normalizedRecord.workDate
+  ) {
+    return null;
+  }
+
+
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  clearEfficiencyDailyWorkEditorFieldValues(
+    elements
+  );
+
+
+  clearEfficiencyDailyWorkEditorFeedback(
+    elements
+  );
+
+
+  setEfficiencyDailyWorkControlValue(
+    elements.noticeInput,
+    normalizedRecord.notice
+  );
+
+
+  setEfficiencyDailyWorkControlValue(
+    elements.tmMeetingInput,
+    normalizedRecord.tmMeeting
+  );
+
+
+  setEfficiencyDailyWorkControlValue(
+    elements.teamInstructionInput,
+    normalizedRecord.teamInstruction
+  );
+
+
+  setEfficiencyDailyWorkControlValue(
+    elements.generationReportCompletedInput,
+    normalizedRecord.generationReportCompleted
+  );
+
+
+  setEfficiencyDailyWorkControlValue(
+    elements.otherNotesInput,
+    normalizedRecord.otherNotes
+  );
+
+
+  const rowElementMap =
+    getEfficiencyDailyWorkRowElementMap(
+      elements
+    );
+
+
+  const recordRowMap =
+    getEfficiencyDailyWorkRecordRowMap(
+      normalizedRecord.rows
+    );
+
+
+  EFFICIENCY_DAILY_WORK_ROW_SCHEMA
+    .forEach(
+      definition => {
+        writeEfficiencyDailyWorkRowToElement(
+          rowElementMap.get(
+            definition.rowKey
+          ) ||
+          null,
+
+          recordRowMap.get(
+            definition.rowKey
+          ) ||
+          {}
+        );
+      }
+    );
+
+
+  setEfficiencyDailyWorkActiveRecord(
+    normalizedRecord,
+    {
+      dateValue:
+        normalizedRecord.workDate,
+
+      isDirty:
+        false
+    }
+  );
+
+
+  if (
+    typeof refreshEfficiencyDailyWorkPageOverflowState ===
+      "function"
+  ) {
+    refreshEfficiencyDailyWorkPageOverflowState();
+  }
+
+
+  return normalizedRecord;
 }
 
 
