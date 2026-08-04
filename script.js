@@ -105565,7 +105565,7 @@ function renderArmRollBoxWarnings(
         levelMessage,
 
         scheduleMessage
-          ? `업무일지 참고 · ${scheduleMessage}`
+          ? scheduleMessage
           : ""
       ]
         .filter(
@@ -107655,7 +107655,7 @@ function renderArmRollBoxMainAlert() {
     `BOX 교체 권고: ${levelMessage}`,
 
     scheduleMessage
-      ? `업무일지 참고: ${scheduleMessage}`
+      ? scheduleMessage
       : ""
   ]
     .filter(
@@ -107678,7 +107678,7 @@ function renderArmRollBoxMainAlert() {
     levelMessage,
 
     scheduleMessage
-      ? `업무일지 참고 · ${scheduleMessage}`
+      ? scheduleMessage
       : ""
   ]
     .filter(
@@ -107701,10 +107701,7 @@ function renderArmRollBoxMainAlert() {
     alertReference
   ) {
     alertReference.textContent =
-      scheduleMessage
-        ? `업무일지 참고 · ${scheduleMessage}`
-        : "";
-
+      scheduleMessage || "";
 
     alertReference.hidden =
       !scheduleMessage;

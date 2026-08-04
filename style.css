@@ -69871,3 +69871,397 @@ body.is-efficiency-daily-work-printing
     line-height: 1.3;
   }
 }
+
+/* =========================================================
+  효율팀 일일업무현황 크게 보기
+
+  적용 내용:
+  - 효율팀 팝업 전체 화면 사용
+  - 왼쪽 효율팀 메뉴 숨김
+  - 날짜별 보관함 숨김
+  - 작성 용지를 화면 폭에 맞게 확장
+  - PDF 및 인쇄 A4 크기는 변경하지 않음
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  /* =====================================================
+    페이지 스크롤 잠금
+  ====================================================== */
+
+  body.is-efficiency-daily-work-expanded {
+    overflow: hidden !important;
+  }
+
+
+  /* =====================================================
+    효율팀 팝업 전체 화면
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded {
+    inset: 0 !important;
+
+    align-items: stretch !important;
+    justify-content: stretch !important;
+
+    padding: 0 !important;
+  }
+
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-team-panel {
+    width: 100vw !important;
+    max-width: none !important;
+
+    height: 100dvh !important;
+    max-height: none !important;
+
+    margin: 0 !important;
+
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+
+
+  /* =====================================================
+    팝업 상단 컴팩트하게
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-team-modal__header {
+    min-height: 54px !important;
+
+    padding: 8px 16px !important;
+  }
+
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-team-modal__header
+  .modal-header__eyebrow {
+    margin-bottom: 0 !important;
+
+    font-size: 8px !important;
+  }
+
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-team-modal__header
+  .modal-header__title {
+    font-size: 18px !important;
+  }
+
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-team-modal__header
+  .modal-close-button {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+
+  /* =====================================================
+    팝업 본문
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-team-modal__body {
+    display: block !important;
+
+    min-width: 0 !important;
+    min-height: 0 !important;
+
+    flex: 1 1 auto !important;
+
+    padding: 8px !important;
+
+    overflow: hidden !important;
+  }
+
+
+  /* =====================================================
+    왼쪽 효율팀 메뉴 숨김
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-team-tabs {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    작업 공간 전체 폭 사용
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-team-workspace {
+    width: 100% !important;
+    height: 100% !important;
+
+    min-width: 0 !important;
+    min-height: 0 !important;
+  }
+
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  #efficiencyDailyWorkView {
+    display: flex !important;
+
+    width: 100% !important;
+    height: 100% !important;
+
+    min-width: 0 !important;
+    min-height: 0 !important;
+
+    flex-direction: column !important;
+
+    overflow: hidden !important;
+  }
+
+
+  /* =====================================================
+    일일업무현황 제목 영역 축소
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-heading {
+    min-height: 62px !important;
+
+    flex: 0 0 auto !important;
+
+    padding: 9px 14px !important;
+  }
+
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-heading h3 {
+    font-size: 18px !important;
+  }
+
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-description {
+    display: none !important;
+  }
+
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-heading-actions {
+    display: flex !important;
+
+    align-items: center !important;
+    justify-content: flex-end !important;
+
+    gap: 7px !important;
+  }
+
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-heading-actions button {
+    min-height: 34px !important;
+
+    padding: 0 12px !important;
+
+    font-size: 10px !important;
+  }
+
+
+  /* 크게 보기 활성 버튼 */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-expand-button {
+    border-color: #1f5fae !important;
+
+    background: #1f5fae !important;
+    color: #ffffff !important;
+  }
+
+
+  /* =====================================================
+    날짜별 보관함 완전히 숨김
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-archive {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    작성 대시보드 전체 확장
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-dashboard {
+    display: grid !important;
+
+    width: 100% !important;
+
+    min-width: 0 !important;
+    min-height: 0 !important;
+
+    flex: 1 1 auto !important;
+
+    grid-template-columns:
+      minmax(0, 1fr) !important;
+
+    grid-template-rows:
+      minmax(0, 1fr) !important;
+
+    gap: 0 !important;
+
+    padding: 0 !important;
+
+    overflow: hidden !important;
+  }
+
+
+  /* =====================================================
+    편집기 전체 높이 사용
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-editor {
+    width: 100% !important;
+    height: 100% !important;
+
+    min-width: 0 !important;
+    min-height: 0 !important;
+
+    border-radius: 10px !important;
+
+    overflow: hidden !important;
+  }
+
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-form {
+    display: flex !important;
+
+    width: 100% !important;
+    height: 100% !important;
+
+    min-width: 0 !important;
+    min-height: 0 !important;
+
+    flex-direction: column !important;
+  }
+
+
+  /* =====================================================
+    날짜 및 서식 도구 영역
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-date-toolbar {
+    flex: 0 0 auto !important;
+
+    padding: 8px 12px !important;
+  }
+
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-format-toolbar {
+    flex: 0 0 auto !important;
+  }
+
+
+  /* =====================================================
+    작성 용지 스크롤 영역
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-paper-scroll {
+    width: 100% !important;
+
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    flex: 1 1 auto !important;
+
+    padding: 14px !important;
+
+    overflow: auto !important;
+
+    background: #dfe5ec !important;
+  }
+
+
+  /* =====================================================
+    화면 작성용 용지 확장
+
+    인쇄 시에는 기존 210mm 규칙이 다시 적용된다.
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-paper {
+    width:
+      min(
+        1380px,
+        calc(100vw - 44px)
+      ) !important;
+
+    min-width: 1040px !important;
+    max-width: none !important;
+
+    height: auto !important;
+
+    min-height:
+      calc(
+        100dvh -
+        245px
+      ) !important;
+
+    margin: 0 auto !important;
+
+    padding: 24px 28px !important;
+
+    overflow: visible !important;
+
+    font-size: 11px !important;
+
+    box-shadow:
+      0 10px 28px
+      rgba(20, 33, 52, 0.17) !important;
+  }
+
+
+  /* =====================================================
+    입력 글씨 확대
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-paper input,
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-paper select,
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-paper textarea {
+    font-size: 11px !important;
+  }
+
+
+  /* =====================================================
+    하단 저장 버튼 영역
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-daily-work-form-actions {
+    min-height: 54px !important;
+
+    flex: 0 0 auto !important;
+
+    padding: 8px 11px !important;
+  }
+
+
+  /* =====================================================
+    효율팀 팝업 최하단 안내 영역 숨김
+  ====================================================== */
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  .efficiency-team-modal__footer {
+    display: none !important;
+  }
+}
