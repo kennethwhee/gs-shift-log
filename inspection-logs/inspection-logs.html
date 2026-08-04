@@ -9,16 +9,26 @@
 
   <title>점검일지</title>
 
-  <link
-    rel="stylesheet"
-    href="inspection-logs.css?v=20260804-4"
-  >
+<link
+  rel="stylesheet"
+  href="inspection-logs.css?v=20260804-4"
+>
 
-  
-  <script
-    src="inspection-logs.js?v=20260804-4"
-    defer
-  ></script>
+<link
+  rel="stylesheet"
+  href="inspection-calendar.css?v=20260804-1"
+>
+
+
+<script
+  src="inspection-logs.js?v=20260804-4"
+  defer
+></script>
+
+<script
+  src="inspection-calendar.js?v=20260804-1"
+  defer
+></script>
 </head>
 
 <body>
@@ -64,364 +74,235 @@
 </header>
 
 
-    <!-- =====================================================
-      오늘 점검 및 점검 일정
+<!-- =====================================================
+  월간 달력형 점검 일정
+====================================================== -->
 
-      기능 연결 전에는 숨김 상태로 유지한다.
-      다음 JavaScript 단계에서 날짜에 맞는 점검을 계산하고
-      화면을 표시한다.
-    ====================================================== -->
+<section
+  class="inspection-calendar-dashboard"
+  id="inspectionScheduleDashboard"
+  hidden
+>
 
-    <section
-      class="inspection-schedule-dashboard"
-      id="inspectionScheduleDashboard"
-      hidden
-    >
+  <!-- ===================================================
+    월간 달력
+  ==================================================== -->
 
-      <!-- ===================================================
-        오늘 점검 상단
-      ==================================================== -->
+  <section class="inspection-calendar-card">
 
-      <header class="inspection-today-header">
+    <header class="inspection-calendar-toolbar">
 
-        <div>
+      <div class="inspection-calendar-toolbar__title">
 
-          <p class="inspection-today-header__eyebrow">
-            TODAY'S INSPECTION
-          </p>
+        <p>
+          INSPECTION CALENDAR
+        </p>
 
-          <h2>
-            오늘 점검
-          </h2>
+        <strong>
+          월간 점검 일정
+        </strong>
 
-          <p
-            class="inspection-today-header__date"
-            id="inspectionTodayHeaderDate"
-          >
-            날짜 확인 중
-          </p>
+      </div>
 
-        </div>
+
+      <div class="inspection-calendar-navigation">
+
+        <button
+          type="button"
+          id="inspectionCalendarPreviousButton"
+          aria-label="이전 달"
+        >
+          ‹
+        </button>
 
 
         <button
           type="button"
-          class="inspection-schedule-open-button"
-          id="openInspectionScheduleButton"
+          class="inspection-calendar-month-button"
+          id="inspectionCalendarTitle"
+          disabled
         >
-          전체 점검 일정
+          기준 월
         </button>
 
-      </header>
 
-
-      <!-- ===================================================
-        오늘 점검 집계
-
-        예정:
-        오늘 수행 대상 전체
-
-        미완료:
-        아직 완료 처리되지 않은 점검
-
-        완료:
-        완료 처리된 점검
-
-        지연:
-        이전 날짜까지 완료되지 않은 점검
-      ==================================================== -->
-
-      <div class="inspection-today-summary">
-
-        <article
-          class="
-            inspection-today-summary-card
-            is-total
-          "
+        <button
+          type="button"
+          id="inspectionCalendarNextButton"
+          aria-label="다음 달"
         >
-
-          <span>
-            오늘 예정
-          </span>
-
-          <strong id="inspectionTodayTotalCount">
-            0
-          </strong>
-
-          <small>
-            건
-          </small>
-
-        </article>
+          ›
+        </button>
 
 
-        <article
-          class="
-            inspection-today-summary-card
-            is-pending
-          "
+        <button
+          type="button"
+          class="inspection-calendar-today-button"
+          id="inspectionCalendarTodayButton"
         >
-
-          <span>
-            미완료
-          </span>
-
-          <strong id="inspectionTodayPendingCount">
-            0
-          </strong>
-
-          <small>
-            건
-          </small>
-
-        </article>
-
-
-        <article
-          class="
-            inspection-today-summary-card
-            is-complete
-          "
-        >
-
-          <span>
-            완료
-          </span>
-
-          <strong id="inspectionTodayCompletedCount">
-            0
-          </strong>
-
-          <small>
-            건
-          </small>
-
-        </article>
-
-
-        <article
-          class="
-            inspection-today-summary-card
-            is-overdue
-          "
-        >
-
-          <span>
-            지연
-          </span>
-
-          <strong id="inspectionTodayOverdueCount">
-            0
-          </strong>
-
-          <small>
-            건
-          </small>
-
-        </article>
+          오늘
+        </button>
 
       </div>
 
+    </header>
 
-      <!-- ===================================================
-        점검 알림
 
-        오늘 미완료 또는 지연 점검이 있을 때 표시한다.
-      ==================================================== -->
+    <div
+      class="inspection-calendar-weekdays"
+      aria-hidden="true"
+    >
+      <span>일</span>
+      <span>월</span>
+      <span>화</span>
+      <span>수</span>
+      <span>목</span>
+      <span>금</span>
+      <span>토</span>
+    </div>
 
-      <div
-        class="inspection-today-alert"
-        id="inspectionTodayAlert"
-        role="status"
-        hidden
-      >
 
-        <span
-          class="inspection-today-alert__icon"
-          aria-hidden="true"
-        >
-          !
+    <div
+      class="inspection-calendar-grid"
+      id="inspectionCalendarGrid"
+      role="grid"
+      aria-label="월간 점검 일정 달력"
+    >
+
+      <div class="inspection-calendar-empty">
+        달력을 준비하고 있습니다.
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- ===================================================
+    선택 날짜 점검
+  ==================================================== -->
+
+  <section class="inspection-calendar-selected">
+
+    <header class="inspection-calendar-selected__header">
+
+      <div>
+
+        <strong id="inspectionCalendarSelectedTitle">
+          선택 날짜
+        </strong>
+
+        <span id="inspectionCalendarSelectedSummary">
+          점검 일정을 확인하고 있습니다.
         </span>
 
+      </div>
 
-        <div>
+    </header>
 
-          <strong>
-            점검 알림
-          </strong>
 
-          <p id="inspectionTodayAlertText">
-          </p>
+    <div
+      class="inspection-calendar-selected-list"
+      id="inspectionCalendarSelectedList"
+    >
 
-        </div>
+      <div class="inspection-calendar-empty">
+        선택한 날짜의 점검 일정을 불러오고 있습니다.
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- ===================================================
+    접이식 점검주기
+  ==================================================== -->
+
+  <details
+    class="inspection-calendar-cycle"
+    id="inspectionCalendarCycleDetails"
+  >
+
+    <summary>
+
+      <span class="inspection-calendar-cycle__summary-text">
+
+        <strong>
+          점검주기
+        </strong>
+
+        <small>
+          일일·주간·월간·분기 점검 기준 펼쳐보기
+        </small>
+
+      </span>
+
+
+      <span
+        class="inspection-calendar-cycle__count"
+        id="inspectionCalendarCycleCount"
+      >
+        0
+      </span>
+
+    </summary>
+
+
+    <div class="inspection-calendar-cycle__body">
+
+      <div class="inspection-calendar-cycle__toolbar">
+
+        <select
+          id="inspectionCalendarCycleCategory"
+          aria-label="점검주기 구분"
+        >
+
+          <option value="">
+            전체 점검주기
+          </option>
+
+          <option value="daily">
+            일일
+          </option>
+
+          <option value="weekly">
+            주간
+          </option>
+
+          <option value="monthly">
+            월간
+          </option>
+
+          <option value="quarterly">
+            분기
+          </option>
+
+          <option value="other">
+            기타
+          </option>
+
+        </select>
 
       </div>
 
 
-      <!-- ===================================================
-        오늘 점검 목록
-
-        JavaScript에서 날짜·요일·주차를 계산하여 생성한다.
-      ==================================================== -->
-
-      <section class="inspection-today-section">
-
-        <header class="inspection-today-section__header">
-
-          <div>
-
-            <strong>
-              오늘 수행할 점검
-            </strong>
-
-            <small>
-              점검 주기와 근무 기준에 따라 자동 표시됩니다.
-            </small>
-
-          </div>
-
-        </header>
-
-
-        <div
-          class="inspection-today-list"
-          id="inspectionTodayList"
-        >
-
-          <div class="inspection-schedule-loading">
-
-            오늘 점검 일정을 확인하고 있습니다.
-
-          </div>
-
-        </div>
-
-      </section>
-
-
-      <!-- ===================================================
-        전체 점검 일정
-
-        평상시에는 숨기고
-        전체 점검 일정 버튼을 누르면 표시한다.
-      ==================================================== -->
-
-      <section
-        class="inspection-schedule-panel"
-        id="inspectionSchedulePanel"
-        hidden
+      <div
+        class="inspection-calendar-cycle-list"
+        id="inspectionCalendarCycleList"
       >
 
-        <header class="inspection-schedule-panel__header">
-
-          <div>
-
-            <p>
-              INSPECTION SCHEDULE
-            </p>
-
-            <h3>
-              전체 점검 일정
-            </h3>
-
-            <small>
-              일간·주간·월간·분기 점검 주기를 확인합니다.
-            </small>
-
-          </div>
-
-
-          <button
-            type="button"
-            class="inspection-schedule-close-button"
-            id="closeInspectionScheduleButton"
-          >
-            오늘 점검으로 돌아가기
-          </button>
-
-        </header>
-
-
-        <!-- =================================================
-          일정 조회 조건
-        ================================================== -->
-
-        <div class="inspection-schedule-filters">
-
-          <label>
-
-            <span>
-              기준 월
-            </span>
-
-            <input
-              type="month"
-              id="inspectionScheduleMonth"
-            >
-
-          </label>
-
-
-          <label>
-
-            <span>
-              점검 구분
-            </span>
-
-            <select id="inspectionScheduleCategory">
-
-              <option value="">
-                전체
-              </option>
-
-              <option value="daily">
-                일간
-              </option>
-
-              <option value="weekly">
-                주간
-              </option>
-
-              <option value="monthly">
-                월간
-              </option>
-
-              <option value="quarterly">
-                분기
-              </option>
-
-              <option value="other">
-                기타
-              </option>
-
-            </select>
-
-          </label>
-
+        <div class="inspection-calendar-empty">
+          점검주기를 불러오고 있습니다.
         </div>
 
+      </div>
 
-        <!-- =================================================
-          전체 일정 목록
-        ================================================== -->
+    </div>
 
-        <div
-          class="inspection-schedule-list"
-          id="inspectionScheduleList"
-        >
+  </details>
 
-          <div class="inspection-schedule-loading">
-
-            점검 일정을 불러오고 있습니다.
-
-          </div>
-
-        </div>
-
-      </section>
-
-    </section>
-
+</section>
 
     <!-- =====================================================
       기존 점검일지 목록

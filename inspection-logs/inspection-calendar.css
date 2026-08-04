@@ -1,0 +1,751 @@
+/* =========================================================
+  월간 달력형 점검 일정
+========================================================= */
+
+.inspection-calendar-dashboard {
+  display: grid;
+  width: 100%;
+  gap: 14px;
+  margin: 0 0 18px;
+}
+
+.inspection-calendar-dashboard[hidden] {
+  display: none !important;
+}
+
+.inspection-calendar-card,
+.inspection-calendar-selected,
+.inspection-calendar-cycle {
+  overflow: hidden;
+  border: 1px solid #d4dfeb;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(24, 50, 78, 0.05);
+}
+
+/* 달력 상단 */
+
+.inspection-calendar-toolbar {
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 16px;
+  border-bottom: 1px solid #e0e7ef;
+  background: linear-gradient(135deg, #ffffff, #f4f8fc);
+}
+
+.inspection-calendar-toolbar__title p {
+  margin: 0 0 3px;
+  color: #2b69aa;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.inspection-calendar-toolbar__title strong {
+  display: block;
+  color: #1c344d;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.inspection-calendar-navigation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inspection-calendar-navigation button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border: 1px solid #c5d4e3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #365471;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.inspection-calendar-navigation button:hover {
+  border-color: #79a5cf;
+  background: #eef6fd;
+}
+
+.inspection-calendar-navigation .inspection-calendar-month-button {
+  min-width: 128px;
+  color: #173f68;
+  font-size: 13px;
+}
+
+.inspection-calendar-navigation .inspection-calendar-today-button {
+  border-color: #7da9d2;
+  background: #edf6ff;
+  color: #1f629f;
+}
+
+/* 요일 */
+
+.inspection-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-bottom: 1px solid #dfe7ef;
+  background: #f8fafc;
+}
+
+.inspection-calendar-weekdays span {
+  padding: 9px 4px;
+  color: #63758a;
+  font-size: 10px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.inspection-calendar-weekdays span:first-child {
+  color: #b64d4d;
+}
+
+.inspection-calendar-weekdays span:last-child {
+  color: #3974aa;
+}
+
+/* 달력 날짜 */
+
+.inspection-calendar-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  background: #dfe7ef;
+  gap: 1px;
+}
+
+.inspection-calendar-day {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 112px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  padding: 8px;
+  border: 0;
+  outline: 0;
+  background: #ffffff;
+  color: #2c435a;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.inspection-calendar-day:hover {
+  z-index: 1;
+  background: #f4f9fe;
+  box-shadow: inset 0 0 0 2px #91b8dc;
+}
+
+.inspection-calendar-day:nth-child(7n + 1) .inspection-calendar-day__number {
+  color: #b44b4b;
+}
+
+.inspection-calendar-day:nth-child(7n) .inspection-calendar-day__number {
+  color: #3972a8;
+}
+
+.inspection-calendar-day.is-outside {
+  background: #f7f9fb;
+  opacity: 0.58;
+}
+
+.inspection-calendar-day.is-today {
+  background: #f0f7ff;
+  box-shadow: inset 0 0 0 2px #4f8ec9;
+}
+
+.inspection-calendar-day.is-selected {
+  z-index: 2;
+  background: #eaf4ff;
+  box-shadow: inset 0 0 0 3px #246eb4;
+}
+
+.inspection-calendar-day.has-overdue {
+  background: #fff5f5;
+}
+
+.inspection-calendar-day.has-overdue::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: #c94d4d;
+}
+
+.inspection-calendar-day.is-complete {
+  background: #f2faf6;
+}
+
+.inspection-calendar-day.is-complete::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: #21825c;
+}
+
+.inspection-calendar-day.has-conditional:not(.has-overdue):not(.is-complete)::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: #d89321;
+}
+
+.inspection-calendar-day__number {
+  display: inline-flex;
+  width: 27px;
+  height: 27px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #243b52;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.inspection-calendar-day.is-today .inspection-calendar-day__number {
+  background: #2d73b6;
+  color: #ffffff;
+}
+
+.inspection-calendar-day__items {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.inspection-calendar-day__item {
+  display: block;
+  overflow: hidden;
+  padding: 3px 5px;
+  border-left: 2px solid #7899b9;
+  border-radius: 3px;
+  background: #f3f6f9;
+  color: #485f75;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspection-calendar-day__item.is-daily {
+  border-left-color: #4d89c5;
+  background: #edf5fd;
+  color: #2f6597;
+}
+
+.inspection-calendar-day__item.is-weekly {
+  border-left-color: #47a06c;
+  background: #edf8f1;
+  color: #34774f;
+}
+
+.inspection-calendar-day__item.is-monthly,
+.inspection-calendar-day__item.is-quarterly {
+  border-left-color: #8762b2;
+  background: #f4effa;
+  color: #6c4a91;
+}
+
+.inspection-calendar-day__item.is-more,
+.inspection-calendar-day__item.is-reference {
+  border-left-color: #9aa7b3;
+  background: #f4f5f7;
+  color: #747f8a;
+}
+
+.inspection-calendar-day__status {
+  margin-top: auto;
+  color: #78889a;
+  font-size: 8px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.inspection-calendar-day.has-overdue .inspection-calendar-day__status {
+  color: #b23f3f;
+}
+
+.inspection-calendar-day.is-complete .inspection-calendar-day__status {
+  color: #19704e;
+}
+
+/* 선택 날짜 */
+
+.inspection-calendar-selected__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 15px;
+  border-bottom: 1px solid #e1e8ef;
+  background: #f8fafc;
+}
+
+.inspection-calendar-selected__header strong {
+  display: block;
+  color: #223a53;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.inspection-calendar-selected__header span {
+  display: block;
+  margin-top: 3px;
+  color: #708197;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.inspection-calendar-selected-list {
+  display: grid;
+  gap: 7px;
+  padding: 11px;
+}
+
+.inspection-calendar-selected-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 12px;
+  border: 1px solid #d8e1ea;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.inspection-calendar-selected-item.is-overdue {
+  border-color: #e3abab;
+  background: #fff6f6;
+}
+
+.inspection-calendar-selected-item.is-completed {
+  border-color: #acd5bd;
+  background: #f3faf6;
+}
+
+.inspection-calendar-selected-item.is-conditional {
+  border-color: #e7c67e;
+  background: #fffaf0;
+}
+
+.inspection-calendar-selected-item.is-reference {
+  background: #f7f8fa;
+  opacity: 0.82;
+}
+
+.inspection-calendar-selected-item__content {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 4px;
+}
+
+.inspection-calendar-selected-item__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.inspection-calendar-selected-item__content > strong {
+  color: #263b51;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+.inspection-calendar-selected-item__meta {
+  color: #65778a;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.inspection-calendar-selected-item__content > small {
+  color: #886421;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.inspection-calendar-selected-item__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inspection-calendar-category,
+.inspection-calendar-state {
+  display: inline-flex;
+  min-height: 19px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border: 1px solid #ccd8e3;
+  border-radius: 999px;
+  background: #f3f6f9;
+  color: #5a7085;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.inspection-calendar-category.is-daily {
+  border-color: #b7d0e8;
+  background: #eaf3fc;
+  color: #2a659c;
+}
+
+.inspection-calendar-category.is-weekly {
+  border-color: #b8dcc6;
+  background: #eaf7ef;
+  color: #2c7752;
+}
+
+.inspection-calendar-category.is-monthly,
+.inspection-calendar-category.is-quarterly {
+  border-color: #d4c1e6;
+  background: #f3eef9;
+  color: #704c95;
+}
+
+.inspection-calendar-state.is-overdue {
+  border-color: #e1aaaa;
+  background: #fdecec;
+  color: #b84040;
+}
+
+.inspection-calendar-state.is-completed {
+  border-color: #a6d1b7;
+  background: #e9f6ee;
+  color: #1a7450;
+}
+
+.inspection-calendar-state.is-conditional {
+  border-color: #e0bd70;
+  background: #fff5dc;
+  color: #90600f;
+}
+
+.inspection-calendar-state.is-today {
+  border-color: #a5c6e5;
+  background: #edf6ff;
+  color: #2868a6;
+}
+
+.inspection-calendar-log-button,
+.inspection-calendar-complete-button,
+.inspection-calendar-cancel-button {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 9px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.inspection-calendar-log-button {
+  border: 1px solid #91b5d9;
+  background: #edf5fd;
+  color: #245f98;
+}
+
+.inspection-calendar-complete-button {
+  border: 1px solid #78b892;
+  background: #eaf7ef;
+  color: #176f4b;
+}
+
+.inspection-calendar-selected-item.is-overdue .inspection-calendar-complete-button {
+  border-color: #d98585;
+  background: #fff0f0;
+  color: #aa3636;
+}
+
+.inspection-calendar-cancel-button {
+  border: 1px solid #c9d3dc;
+  background: #ffffff;
+  color: #647488;
+}
+
+.inspection-calendar-completion-info,
+.inspection-calendar-reference {
+  color: #587061;
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.inspection-calendar-log-button:disabled,
+.inspection-calendar-complete-button:disabled,
+.inspection-calendar-cancel-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+/* 점검주기 접이식 메뉴 */
+
+.inspection-calendar-cycle > summary {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 15px;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.inspection-calendar-cycle > summary::-webkit-details-marker {
+  display: none;
+}
+
+.inspection-calendar-cycle > summary::before {
+  content: "▸";
+  color: #4778a8;
+  font-size: 14px;
+  font-weight: 900;
+  transition: transform 0.16s ease;
+}
+
+.inspection-calendar-cycle[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.inspection-calendar-cycle__summary-text {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+}
+
+.inspection-calendar-cycle__summary-text strong {
+  color: #243b53;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.inspection-calendar-cycle__summary-text small {
+  color: #78899b;
+  font-size: 9px;
+}
+
+.inspection-calendar-cycle__count {
+  display: inline-flex;
+  min-width: 28px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #edf4fb;
+  color: #316a9f;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.inspection-calendar-cycle__body {
+  border-top: 1px solid #e1e8ef;
+}
+
+.inspection-calendar-cycle__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 9px 11px;
+  background: #f8fafc;
+}
+
+.inspection-calendar-cycle__toolbar select {
+  width: 150px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #c6d4e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #3c566f;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.inspection-calendar-cycle-list {
+  display: grid;
+}
+
+.inspection-calendar-cycle-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid #edf1f5;
+}
+
+.inspection-calendar-cycle-item:first-child {
+  border-top: 0;
+}
+
+.inspection-calendar-cycle-item__content {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.inspection-calendar-cycle-item__content strong {
+  overflow: hidden;
+  color: #2a4056;
+  font-size: 11px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspection-calendar-cycle-item__content span {
+  color: #687a8d;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.inspection-calendar-cycle-item__content small {
+  color: #886421;
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.inspection-calendar-cycle-item__action > span {
+  color: #9aa5b0;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.inspection-calendar-empty {
+  padding: 28px 14px;
+  color: #7d8b9a;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.inspection-calendar-grid[aria-busy="true"],
+.inspection-calendar-selected-list[aria-busy="true"] {
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+/* 태블릿 */
+
+@media (max-width: 900px) {
+  .inspection-calendar-day {
+    min-height: 96px;
+    padding: 6px;
+  }
+
+  .inspection-calendar-day__item {
+    font-size: 7px;
+  }
+
+  .inspection-calendar-selected-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .inspection-calendar-selected-item__actions {
+    width: 100%;
+  }
+}
+
+/* 모바일 */
+
+@media (max-width: 680px) {
+  .inspection-calendar-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 9px;
+    padding: 12px;
+  }
+
+  .inspection-calendar-navigation {
+    width: 100%;
+  }
+
+  .inspection-calendar-navigation .inspection-calendar-month-button {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .inspection-calendar-day {
+    min-height: 76px;
+    padding: 4px;
+  }
+
+  .inspection-calendar-day__number {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+  }
+
+  .inspection-calendar-day__item {
+    padding: 2px 3px;
+    font-size: 6px;
+  }
+
+  .inspection-calendar-day__status {
+    font-size: 6px;
+  }
+
+  .inspection-calendar-selected__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .inspection-calendar-selected-item__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inspection-calendar-log-button,
+  .inspection-calendar-complete-button,
+  .inspection-calendar-cancel-button,
+  .inspection-calendar-completion-info {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .inspection-calendar-cycle-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .inspection-calendar-cycle-item__action {
+    grid-column: 1 / -1;
+  }
+
+  .inspection-calendar-cycle-item__action .inspection-calendar-log-button {
+    width: 100%;
+  }
+}

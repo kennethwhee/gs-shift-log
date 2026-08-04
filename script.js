@@ -100374,3 +100374,219 @@ openLogDetail =
     startIssueEntryLabelFix();
   }
 })();
+
+/* =========================================================
+  발행 내역 화면 표기 복구
+
+  기존 코드가 남아 있으면 중복 실행하지 않는다.
+========================================================= */
+
+(function installIssueEntryLabelFixRestore() {
+  if (
+    window
+      .__gsShiftLogIssueEntryLabelFixInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__gsShiftLogIssueEntryLabelFixInstalled =
+    true;
+
+
+  const previousIssueLabels = [
+    "TM/BM/CM 발행 내역",
+    "TM/BM/CM 발행내역",
+    "TM·BM·CM 발행 내역",
+    "TM · BM · CM 발행 내역",
+    "TM 발행 내역",
+    "TM 발행내역"
+  ];
+
+
+  function normalizeIssueEntryLabel(
+    value
+  ) {
+    return previousIssueLabels.reduce(
+      (
+        normalizedText,
+        previousLabel
+      ) => {
+        return normalizedText.replaceAll(
+          previousLabel,
+          "발행 내역"
+        );
+      },
+      String(
+        value ||
+        ""
+      )
+    );
+  }
+
+
+  function normalizeIssueEntryTextNode(
+    textNode
+  ) {
+    if (
+      !textNode ||
+      textNode.nodeType !==
+        Node.TEXT_NODE
+    ) {
+      return;
+    }
+
+
+    const currentText =
+      String(
+        textNode.nodeValue ||
+        ""
+      );
+
+
+    const normalizedText =
+      normalizeIssueEntryLabel(
+        currentText
+      );
+
+
+    if (
+      normalizedText !==
+      currentText
+    ) {
+      textNode.nodeValue =
+        normalizedText;
+    }
+  }
+
+
+  function normalizeIssueEntryLabelsIn(
+    root
+  ) {
+    if (!root) {
+      return;
+    }
+
+
+    if (
+      root.nodeType ===
+        Node.TEXT_NODE
+    ) {
+      normalizeIssueEntryTextNode(
+        root
+      );
+
+      return;
+    }
+
+
+    if (
+      ![
+        Node.ELEMENT_NODE,
+        Node.DOCUMENT_NODE,
+        Node.DOCUMENT_FRAGMENT_NODE
+      ].includes(
+        root.nodeType
+      )
+    ) {
+      return;
+    }
+
+
+    const textWalker =
+      document.createTreeWalker(
+        root,
+        NodeFilter.SHOW_TEXT
+      );
+
+
+    const textNodes = [];
+
+
+    while (
+      textWalker.nextNode()
+    ) {
+      textNodes.push(
+        textWalker.currentNode
+      );
+    }
+
+
+    textNodes.forEach(
+      normalizeIssueEntryTextNode
+    );
+  }
+
+
+  function startIssueEntryLabelFix() {
+    if (!document.body) {
+      return;
+    }
+
+
+    normalizeIssueEntryLabelsIn(
+      document.body
+    );
+
+
+    const issueLabelObserver =
+      new MutationObserver(
+        mutations => {
+          mutations.forEach(
+            mutation => {
+              if (
+                mutation.type ===
+                  "characterData"
+              ) {
+                normalizeIssueEntryTextNode(
+                  mutation.target
+                );
+
+                return;
+              }
+
+
+              mutation.addedNodes.forEach(
+                normalizeIssueEntryLabelsIn
+              );
+            }
+          );
+        }
+      );
+
+
+    issueLabelObserver.observe(
+      document.body,
+      {
+        childList:
+          true,
+
+        subtree:
+          true,
+
+        characterData:
+          true
+      }
+    );
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      startIssueEntryLabelFix,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    startIssueEntryLabelFix();
+  }
+})();
