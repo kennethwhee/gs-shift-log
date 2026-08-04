@@ -69172,6 +69172,7 @@ body.is-efficiency-daily-work-printing
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 
@@ -69708,6 +69709,7 @@ body.is-efficiency-daily-work-printing
 
     -webkit-box-orient: vertical !important;
     -webkit-line-clamp: 2 !important;
+    line-clamp: 2;
   }
 
 
@@ -69865,6 +69867,7 @@ body.is-efficiency-daily-work-printing
 
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .arm-roll-box-main-alert__reference[hidden] {
