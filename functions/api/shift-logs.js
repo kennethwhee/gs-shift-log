@@ -5778,8 +5778,8 @@ export async function onRequestPost(
             trigger:
               action ===
                 "migrate"
-                ? "migration-create"
-                : "realtime-create",
+                  ? "migration-create"
+                  : "realtime-create",
 
             containerRevision:
               savedLog.serverRevision,
@@ -5791,12 +5791,11 @@ export async function onRequestPost(
 
 
         /* =================================================
-          석회석 입고기록 자동 동기화
+          석회석 입고기록 즉시 자동 저장
 
-          신규 업무일지가 D1에 저장되면
-          결재 상태와 관계없이 바로 반영한다.
+          업무일지가 D1에 저장된 직후 실행한다.
 
-          대상 상태:
+          적용 상태:
           - 임시저장
           - 결재요청
           - 결재완료
@@ -5816,6 +5815,17 @@ export async function onRequestPost(
               user
             }
           );
+
+
+        if (
+          limestoneSync.ok !==
+            true
+        ) {
+          console.error(
+            "신규 업무일지 석회석 자동 동기화 실패:",
+            limestoneSync
+          );
+        }
 
 
         return jsonResponse(
@@ -5955,10 +5965,10 @@ export async function onRequestPost(
 
 
     /* =====================================================
-      석회석 입고기록 자동 동기화
+      석회석 입고기록 즉시 자동 저장
 
-      업무일지 저장·수정·결재·결재취소 후
-      같은 날짜와 근무의 아래 보직을 다시 비교한다.
+      임시저장·수정·결재요청·결재완료·결재취소
+      모든 저장 작업 직후 석회석 기록을 재구성한다.
 
       1호기:
       BCO1 > BO1
@@ -5980,6 +5990,17 @@ export async function onRequestPost(
           user
         }
       );
+
+
+    if (
+      limestoneSync.ok !==
+        true
+    ) {
+      console.error(
+        "업무일지 석회석 자동 동기화 실패:",
+        limestoneSync
+      );
+    }
 
 
     return jsonResponse({
