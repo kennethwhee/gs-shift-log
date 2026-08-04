@@ -98341,9 +98341,6 @@ function extractLimestoneReceiptsFromEntry(
       entry?.text ||
       ""
     )
-      .normalize(
-        "NFKC"
-      )
       .replace(
         /\r\n?/g,
         "\n"
@@ -98389,38 +98386,23 @@ function extractLimestoneReceiptsFromEntry(
       lineIndex
     ) => {
       /*
-        예정·계획·취소 문구는
-        실제 입고로 등록하지 않는다.
+        지원 형식
+
+        Limestone 입고(30.34)
+        Limestone 입고 30.34
+        Limestone 입고 30.34ton
+        석회석 입고량 30.34톤
+        석회석 입고 완료 (30.34)
+        30.34t Limestone 입고
       */
-      if (
-        /(?:입고|반입)\s*(?:예정|계획|대기|검토|취소|미실시)/i.test(
-          line
-        )
-      ) {
-        return;
-      }
-
-
       const patterns = [
-        /*
-          명칭이 먼저 나오는 형식
+        /(?:lime\s*stone|석회석)[^\r\n]{0,60}?입고(?:\s*(?:량|완료))?[^0-9\r\n]{0,30}?(\d{1,3}(?:[.,]\d{1,2})?)(?:\s*(?:tons?|t|톤))?(?![:\d.])/gi,
 
-          Limestone 입고(30.34)
-          석회석 입고 30.34톤
-        */
-        /(?:lime\s*[-_]?\s*stone|석회석)[^\r\n]{0,60}?(?:입고|반입)(?:량|완료)?[^0-9\r\n]{0,30}?\(?\s*(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:(?:tons?|t)(?![a-z])|톤)?\s*\)?(?=$|[\s,;:./)\]}>])/gi,
-
-        /*
-          수량이 먼저 나오는 형식은
-          오인 방지를 위해 단위를 필수로 한다.
-
-          30.34 ton Limestone 입고
-        */
-        /(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:tons?|t|톤)[^\r\n]{0,50}?(?:lime\s*[-_]?\s*stone|석회석)[^\r\n]{0,30}?(?:입고|반입)(?:량|완료)?/gi
+        /(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:tons?|t|톤)[^\r\n]{0,50}?(?:lime\s*stone|석회석)[^\r\n]{0,30}?입고(?:\s*(?:량|완료))?/gi
       ];
 
 
-      const lineItemMap =
+      const lineItems =
         new Map();
 
 
@@ -98438,52 +98420,19 @@ function extractLimestoneReceiptsFromEntry(
             ) !==
             null
           ) {
-            const quantityTon =
-              normalizeLimestoneQuantity(
-                String(
-                  quantityMatch[1] ||
-                  ""
-                ).replace(
-                  ",",
-                  "."
-                )
-              );
-
-
-            if (
-              !Number.isFinite(
-                Number(
-                  quantityTon
-                )
-              ) ||
-              Number(
-                quantityTon
-              ) <
-                0.01 ||
-              Number(
-                quantityTon
-              ) >
-                999.99
-            ) {
-              continue;
-            }
-
-
-            /*
-              항목의 별도 시간값을 우선하고,
-              없으면 문장 안의 시간을 사용한다.
-            */
             const receiptTime =
-              entryTime ||
               findLastLimestoneTime(
                 line.slice(
                   0,
                   quantityMatch.index
                 )
               ) ||
+
               findLastLimestoneTime(
                 line
-              );
+              ) ||
+
+              entryTime;
 
 
             if (
@@ -98493,12 +98442,38 @@ function extractLimestoneReceiptsFromEntry(
             }
 
 
+            const quantityTon =
+              Number(
+                normalizeLimestoneQuantity(
+                  String(
+                    quantityMatch[1] ||
+                    ""
+                  ).replace(
+                    ",",
+                    "."
+                  )
+                )
+              );
+
+
+            if (
+              !Number.isFinite(
+                quantityTon
+              ) ||
+
+              quantityTon <
+                0.01 ||
+
+              quantityTon >
+                999.99
+            ) {
+              continue;
+            }
+
+
             const itemKey = [
               receiptTime,
-
-              Number(
-                quantityTon
-              ).toFixed(
+              quantityTon.toFixed(
                 2
               )
             ].join(
@@ -98507,33 +98482,32 @@ function extractLimestoneReceiptsFromEntry(
 
 
             if (
-              !lineItemMap.has(
+              lineItems.has(
                 itemKey
               )
             ) {
-              lineItemMap.set(
-                itemKey,
-
-                {
-                  receiptTime,
-
-                  quantityTon:
-                    Number(
-                      quantityTon
-                    ),
-
-                  sourceText:
-                    line
-                }
-              );
+              continue;
             }
+
+
+            lineItems.set(
+              itemKey,
+              {
+                receiptTime,
+
+                quantityTon,
+
+                sourceText:
+                  line
+              }
+            );
           }
         }
       );
 
 
       [
-        ...lineItemMap.values()
+        ...lineItems.values()
       ].forEach(
         (
           item,
