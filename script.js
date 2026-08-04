@@ -103725,39 +103725,75 @@ function isConfirmedArmRollBoxReplacement(
 }
 
 
-  const ARM_ROLL_BOX_SERIES = Object.freeze([
-    {
-      key: "armRoll",
-      unit: 1,
-      role: "BO1",
-      target: "armRoll",
-      label: "ARM ROLL BOX 1호기"
-    },
+const ARM_ROLL_BOX_SERIES = Object.freeze([
+  {
+    key:
+      "armRoll",
 
-    {
-      key: "armRollUnit2",
-      unit: 2,
-      role: "BO2",
-      target: "armRoll",
-      label: "ARM ROLL BOX 2호기"
-    },
+    unit:
+      1,
 
-    {
-      key: "scrap",
-      unit: 1,
-      role: "BO1",
-      target: "scrap",
-      label: "SCRAP BOX 1호기"
-    },
+    role:
+      "BO1",
 
-    {
-      key: "scrapUnit2",
-      unit: 2,
-      role: "BO2",
-      target: "scrap",
-      label: "SCRAP BOX 2호기"
-    }
-  ]);
+    target:
+      "armRoll",
+
+    label:
+      "1호기 ARM ROLL BOX"
+  },
+
+  {
+    key:
+      "armRollUnit2",
+
+    unit:
+      2,
+
+    role:
+      "BO2",
+
+    target:
+      "armRoll",
+
+    label:
+      "2호기 ARM ROLL BOX"
+  },
+
+  {
+    key:
+      "scrap",
+
+    unit:
+      1,
+
+    role:
+      "BO1",
+
+    target:
+      "scrap",
+
+    label:
+      "1호기 SCRAP BOX"
+  },
+
+  {
+    key:
+      "scrapUnit2",
+
+    unit:
+      2,
+
+    role:
+      "BO2",
+
+    target:
+      "scrap",
+
+    label:
+      "2호기 SCRAP BOX"
+  }
+]);
 
 
   function hasArmRollBoxNumericValue(
@@ -105670,167 +105706,319 @@ function renderArmRollBoxWarnings(
   }
 
 
-  function renderArmRollBoxDailyTable() {
-    const elements =
-      getArmRollBoxElements();
+/* =====================================================
+  날짜별 BOX 레벨 표
+
+  배치:
+  - 왼쪽: 1호기
+  - 오른쪽: 2호기
+  - 날짜마다 한 행만 사용
+
+  1호기:
+  - armRoll
+  - scrap
+  - BO1 업무일지
+
+  2호기:
+  - armRollUnit2
+  - scrapUnit2
+  - BO2 업무일지
+===================================================== */
+
+function renderArmRollBoxDailyTable() {
+  const elements =
+    getArmRollBoxElements();
+
+
+  if (
+    elements.dailyCount
+  ) {
+    elements.dailyCount.textContent =
+      `${state.dailyRows.length}일`;
+  }
+
+
+  if (
+    !elements.dailyBody
+  ) {
+    return;
+  }
+
+
+  if (
+    !state.dailyRows.length
+  ) {
+    elements.dailyBody.innerHTML = `
+      <tr class="arm-roll-box-empty-table-row">
+        <td colspan="13">
+          조회된 BOX 레벨 기록이 없습니다.
+        </td>
+      </tr>
+    `;
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    호기별 교체 인식 셀
+  ==================================================== */
+
+  const createUnitEventCell = (
+    dateValue,
+    targetKeys
+  ) => {
+    const events =
+      state.replacementEvents.filter(
+        event => {
+          return (
+            event.date ===
+              dateValue &&
+            targetKeys.includes(
+              event.target
+            )
+          );
+        }
+      );
 
 
     if (
-      elements.dailyCount
+      !events.length
     ) {
-      elements.dailyCount.textContent =
-        `${state.dailyRows.length}일`;
-    }
-
-
-    if (
-      !elements.dailyBody
-    ) {
-      return;
-    }
-
-
-    if (
-      !state.dailyRows.length
-    ) {
-      elements.dailyBody.innerHTML = `
-        <tr class="arm-roll-box-empty-table-row">
-          <td colspan="7">
-            조회된 BOX 레벨 기록이 없습니다.
-          </td>
-        </tr>
+      return `
+        <td class="arm-roll-box-daily-event-cell">
+          -
+        </td>
       `;
-
-
-      return;
     }
 
 
-    elements.dailyBody.innerHTML =
-      [
-        ...state.dailyRows
-      ]
-        .reverse()
+    const eventHtml =
+      events
         .map(
-          row => {
-            const events =
-              state.replacementEvents.filter(
-                event => {
-                  return event.date ===
-                    row.date;
-                }
-              );
+          event => {
+            const confirmed =
+              event.detectionType ===
+              "confirmed";
 
 
-            const eventHtml =
-              events.length
-                ? events
-                    .map(
-                      event => {
-                        return `
-                          <span
-                            class="${
-                              event.detectionType ===
-                                "confirmed"
-                                ? "is-replacement"
-                                : "is-suspected"
-                            }"
-                          >
-                            ${escapeArmRollBoxHtml(
-                              getArmRollBoxTargetLabel(
-                                event.target
-                              )
-                            )}
-                            ·
-                            ${
-                              event.detectionType ===
-                                "confirmed"
-                                ? "교체"
-                                : "교체 의심"
-                            }
-                          </span>
-                        `;
-                      }
-                    )
-                    .join(
-                      "<br>"
-                    )
-                : "-";
-
-
-            const sources = [
-              row.armRoll,
-              row.scrap
-            ]
-              .filter(
-                Boolean
+            const boxLabel =
+              String(
+                event.target ||
+                ""
+              ).startsWith(
+                "armRoll"
               )
-              .map(
-                record => {
-                  return [
-                    record.shift,
-                    record.author
-                  ]
-                    .filter(
-                      Boolean
-                    )
-                    .join(
-                      " · "
-                    );
-                }
-              );
+                ? "ARM ROLL BOX"
+                : "SCRAP BOX";
 
 
             return `
-              <tr>
-                <td>
-                  <strong>
-                    ${escapeArmRollBoxHtml(
-                      row.date
-                    )}
-                  </strong>
-                </td>
-
-                ${createArmRollBoxLevelCell(
-                  row.armRoll
-                )}
-
-                ${createArmRollBoxChangeCell(
-                  row.armRoll
-                )}
-
-                ${createArmRollBoxLevelCell(
-                  row.scrap
-                )}
-
-                ${createArmRollBoxChangeCell(
-                  row.scrap
-                )}
-
-                <td>
-                  ${eventHtml}
-                </td>
-
-                <td>
-                  ${escapeArmRollBoxHtml(
-                    [
-                      ...new Set(
-                        sources
-                      )
-                    ].join(
-                      " / "
-                    ) ||
-                    "BO1 업무일지"
-                  )}
-                </td>
-              </tr>
+              <span
+                class="${
+                  confirmed
+                    ? "is-replacement"
+                    : "is-suspected"
+                }"
+              >
+                ${boxLabel}
+                ·
+                ${
+                  confirmed
+                    ? "교체"
+                    : "교체 의심"
+                }
+              </span>
             `;
           }
         )
         .join(
-          ""
+          "<br>"
         );
-  }
+
+
+    return `
+      <td class="arm-roll-box-daily-event-cell">
+        ${eventHtml}
+      </td>
+    `;
+  };
+
+
+  /* ===================================================
+    호기별 출처 셀
+  ==================================================== */
+
+  const createUnitSourceCell = (
+    records,
+    fallbackRole
+  ) => {
+    const sources =
+      (
+        Array.isArray(
+          records
+        )
+          ? records
+          : []
+      )
+        .filter(
+          Boolean
+        )
+        .map(
+          record => {
+            return [
+              record.shift,
+              record.author
+            ]
+              .filter(
+                Boolean
+              )
+              .join(
+                " · "
+              );
+          }
+        );
+
+
+    const sourceText =
+      [
+        ...new Set(
+          sources
+        )
+      ].join(
+        " / "
+      ) ||
+      `${fallbackRole} 업무일지`;
+
+
+    return `
+      <td class="arm-roll-box-daily-source-cell">
+        ${escapeArmRollBoxHtml(
+          sourceText
+        )}
+      </td>
+    `;
+  };
+
+
+  /* ===================================================
+    날짜별 한 줄 출력
+  ==================================================== */
+
+  elements.dailyBody.innerHTML =
+    [
+      ...state.dailyRows
+    ]
+      .reverse()
+      .map(
+        row => {
+          return `
+            <tr class="arm-roll-box-daily-row">
+
+              <!-- 일자 -->
+              <td class="arm-roll-box-daily-date-cell">
+
+                <strong>
+                  ${escapeArmRollBoxHtml(
+                    row.date
+                  )}
+                </strong>
+
+              </td>
+
+
+              <!-- =====================================
+                1호기
+              ====================================== -->
+
+              ${createArmRollBoxLevelCell(
+                row.armRoll
+              )}
+
+
+              ${createArmRollBoxChangeCell(
+                row.armRoll
+              )}
+
+
+              ${createArmRollBoxLevelCell(
+                row.scrap
+              )}
+
+
+              ${createArmRollBoxChangeCell(
+                row.scrap
+              )}
+
+
+              ${createUnitEventCell(
+                row.date,
+                [
+                  "armRoll",
+                  "scrap"
+                ]
+              )}
+
+
+              ${createUnitSourceCell(
+                [
+                  row.armRoll,
+                  row.scrap
+                ],
+                "BO1"
+              )}
+
+
+              <!-- =====================================
+                2호기
+              ====================================== -->
+
+              ${createArmRollBoxLevelCell(
+                row.armRollUnit2
+              )}
+
+
+              ${createArmRollBoxChangeCell(
+                row.armRollUnit2
+              )}
+
+
+              ${createArmRollBoxLevelCell(
+                row.scrapUnit2
+              )}
+
+
+              ${createArmRollBoxChangeCell(
+                row.scrapUnit2
+              )}
+
+
+              ${createUnitEventCell(
+                row.date,
+                [
+                  "armRollUnit2",
+                  "scrapUnit2"
+                ]
+              )}
+
+
+              ${createUnitSourceCell(
+                [
+                  row.armRollUnit2,
+                  row.scrapUnit2
+                ],
+                "BO2"
+              )}
+
+            </tr>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+}
 
 
   /* =====================================================
@@ -109690,3 +109878,1160 @@ if (
     startDetailRequestApprovalFinal();
   }
 })();
+
+/* =========================================================
+  효율팀 일일업무현황 엑셀 방식 키보드 편집
+
+  키보드:
+  - Tab: 다음 입력칸
+  - Shift + Tab: 이전 입력칸
+  - Enter: 아래쪽 같은 열 입력칸
+  - Shift + Enter: 위쪽 같은 열 입력칸
+  - Alt + Enter: textarea 내부 줄바꿈
+  - 방향키: 커서가 입력칸 끝에 있을 때 인접 셀 이동
+
+  적용 범위:
+  - 효율팀 일일업무현황 A4 작성 용지 내부
+  - input, select, textarea
+========================================================= */
+
+function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
+  const paper =
+    document.getElementById(
+      "efficiencyDailyWorkPaper"
+    );
+
+
+  if (
+    !paper
+  ) {
+    return;
+  }
+
+
+  /*
+    이벤트 중복 등록 방지
+  */
+  if (
+    paper.dataset
+      .spreadsheetNavigationBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  const EDITABLE_SELECTOR = [
+    'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([disabled]):not([readonly])',
+    'select:not([disabled])',
+    'textarea:not([disabled]):not([readonly])'
+  ].join(",");
+
+
+  /* =====================================================
+    현재 사용할 수 있는 입력칸인지 확인
+  ====================================================== */
+
+  function isEfficiencySpreadsheetControlVisible(
+    control
+  ) {
+    if (
+      !(
+        control instanceof
+        HTMLElement
+      )
+    ) {
+      return false;
+    }
+
+
+    if (
+      control.hidden ||
+      control.closest(
+        "[hidden]"
+      )
+    ) {
+      return false;
+    }
+
+
+    const computedStyle =
+      window.getComputedStyle(
+        control
+      );
+
+
+    return (
+      computedStyle.display !==
+        "none" &&
+      computedStyle.visibility !==
+        "hidden"
+    );
+  }
+
+
+  /* =====================================================
+    지정 영역의 입력칸 목록
+  ====================================================== */
+
+  function getEfficiencySpreadsheetControls(
+    rootElement = paper
+  ) {
+    return [
+      ...rootElement.querySelectorAll(
+        EDITABLE_SELECTOR
+      )
+    ].filter(
+      isEfficiencySpreadsheetControlVisible
+    );
+  }
+
+
+  /* =====================================================
+    셀 안의 입력칸 목록
+  ====================================================== */
+
+  function getEfficiencySpreadsheetCellControls(
+    cell
+  ) {
+    if (
+      !cell
+    ) {
+      return [];
+    }
+
+
+    return getEfficiencySpreadsheetControls(
+      cell
+    );
+  }
+
+
+  /* =====================================================
+    선택된 셀 표시 제거
+  ====================================================== */
+
+  function clearEfficiencySpreadsheetActiveCell() {
+    paper
+      .querySelectorAll(
+        ".is-efficiency-spreadsheet-active"
+      )
+      .forEach(
+        element => {
+          element.classList.remove(
+            "is-efficiency-spreadsheet-active"
+          );
+        }
+      );
+  }
+
+
+  /* =====================================================
+    입력칸 선택 및 화면 안으로 이동
+  ====================================================== */
+
+  function focusEfficiencySpreadsheetControl(
+    control
+  ) {
+    if (
+      !control ||
+      !isEfficiencySpreadsheetControlVisible(
+        control
+      )
+    ) {
+      return false;
+    }
+
+
+    clearEfficiencySpreadsheetActiveCell();
+
+
+    const activeCell =
+      control.closest(
+        `
+          td,
+          th,
+          .efficiency-daily-work-instruction-field,
+          .efficiency-daily-work-other-field
+        `
+      );
+
+
+    activeCell?.classList.add(
+      "is-efficiency-spreadsheet-active"
+    );
+
+
+    control.focus({
+      preventScroll:
+        true
+    });
+
+
+    /*
+      키보드로 다른 셀에 진입하면
+      기존 내용을 바로 교체할 수 있도록 전체 선택한다.
+    */
+    if (
+      control instanceof
+        HTMLTextAreaElement
+    ) {
+      control.setSelectionRange(
+        0,
+        control.value.length
+      );
+
+    } else if (
+      control instanceof
+        HTMLInputElement &&
+      [
+        "text",
+        "search",
+        "email",
+        "tel",
+        "url",
+        "number"
+      ].includes(
+        control.type
+      )
+    ) {
+      try {
+        control.select();
+      } catch {
+        /*
+          일부 input 유형은 select()를 지원하지 않는다.
+        */
+      }
+    }
+
+
+    control.scrollIntoView({
+      block:
+        "nearest",
+
+      inline:
+        "nearest"
+    });
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    문서 순서 기준 이전·다음 입력칸
+  ====================================================== */
+
+  function moveEfficiencySpreadsheetByOrder(
+    currentControl,
+    offset
+  ) {
+    const controls =
+      getEfficiencySpreadsheetControls();
+
+
+    const currentIndex =
+      controls.indexOf(
+        currentControl
+      );
+
+
+    if (
+      currentIndex <
+      0
+    ) {
+      return false;
+    }
+
+
+    const nextIndex =
+      currentIndex +
+      offset;
+
+
+    if (
+      nextIndex <
+        0 ||
+      nextIndex >=
+        controls.length
+    ) {
+      return false;
+    }
+
+
+    return focusEfficiencySpreadsheetControl(
+      controls[
+        nextIndex
+      ]
+    );
+  }
+
+
+  /* =====================================================
+    표의 rowspan·colspan을 반영한 셀 위치 계산
+  ====================================================== */
+
+  function createEfficiencySpreadsheetTableGrid(
+    table
+  ) {
+    const rows = [
+      ...table.rows
+    ];
+
+
+    const slots = [];
+    const cellMetadata =
+      new Map();
+
+
+    rows.forEach(
+      (
+        row,
+        rowIndex
+      ) => {
+        if (
+          !slots[
+            rowIndex
+          ]
+        ) {
+          slots[
+            rowIndex
+          ] =
+            [];
+        }
+
+
+        let columnIndex =
+          0;
+
+
+        [
+          ...row.cells
+        ].forEach(
+          cell => {
+            while (
+              slots[
+                rowIndex
+              ][
+                columnIndex
+              ]
+            ) {
+              columnIndex +=
+                1;
+            }
+
+
+            const rowSpan =
+              Math.max(
+                1,
+                Number(
+                  cell.rowSpan
+                ) ||
+                  1
+              );
+
+
+            const columnSpan =
+              Math.max(
+                1,
+                Number(
+                  cell.colSpan
+                ) ||
+                  1
+              );
+
+
+            cellMetadata.set(
+              cell,
+              {
+                rowIndex,
+                columnIndex,
+                rowSpan,
+                columnSpan
+              }
+            );
+
+
+            for (
+              let targetRowIndex =
+                rowIndex;
+
+              targetRowIndex <
+                rowIndex +
+                  rowSpan;
+
+              targetRowIndex +=
+                1
+            ) {
+              if (
+                !slots[
+                  targetRowIndex
+                ]
+              ) {
+                slots[
+                  targetRowIndex
+                ] =
+                  [];
+              }
+
+
+              for (
+                let targetColumnIndex =
+                  columnIndex;
+
+                targetColumnIndex <
+                  columnIndex +
+                    columnSpan;
+
+                targetColumnIndex +=
+                  1
+              ) {
+                slots[
+                  targetRowIndex
+                ][
+                  targetColumnIndex
+                ] =
+                  cell;
+              }
+            }
+
+
+            columnIndex +=
+              columnSpan;
+          }
+        );
+      }
+    );
+
+
+    return {
+      rows,
+      slots,
+      cellMetadata
+    };
+  }
+
+
+  /* =====================================================
+    현재 열과 후보 셀 사이 거리
+  ====================================================== */
+
+  function getEfficiencySpreadsheetCellDistance(
+    metadata,
+    preferredColumn
+  ) {
+    if (
+      !metadata
+    ) {
+      return Number
+        .MAX_SAFE_INTEGER;
+    }
+
+
+    const startColumn =
+      metadata.columnIndex;
+
+
+    const endColumn =
+      metadata.columnIndex +
+      metadata.columnSpan -
+      1;
+
+
+    if (
+      preferredColumn <
+      startColumn
+    ) {
+      return (
+        startColumn -
+        preferredColumn
+      );
+    }
+
+
+    if (
+      preferredColumn >
+      endColumn
+    ) {
+      return (
+        preferredColumn -
+        endColumn
+      );
+    }
+
+
+    return 0;
+  }
+
+
+  /* =====================================================
+    위·아래 같은 열 입력칸 찾기
+  ====================================================== */
+
+  function findEfficiencySpreadsheetVerticalTarget(
+    currentControl,
+    direction
+  ) {
+    const table =
+      currentControl.closest(
+        "table.efficiency-daily-work-table"
+      );
+
+
+    const currentCell =
+      currentControl.closest(
+        "td, th"
+      );
+
+
+    if (
+      !table ||
+      !currentCell
+    ) {
+      return null;
+    }
+
+
+    const tableGrid =
+      createEfficiencySpreadsheetTableGrid(
+        table
+      );
+
+
+    const currentMetadata =
+      tableGrid.cellMetadata.get(
+        currentCell
+      );
+
+
+    if (
+      !currentMetadata
+    ) {
+      return null;
+    }
+
+
+    const currentCellControls =
+      getEfficiencySpreadsheetCellControls(
+        currentCell
+      );
+
+
+    const currentControlIndex =
+      Math.max(
+        0,
+        currentCellControls.indexOf(
+          currentControl
+        )
+      );
+
+
+    const preferredColumn =
+      currentMetadata.columnIndex;
+
+
+    for (
+      let rowIndex =
+        currentMetadata.rowIndex +
+        direction;
+
+      rowIndex >=
+        0 &&
+      rowIndex <
+        tableGrid.rows.length;
+
+      rowIndex +=
+        direction
+    ) {
+      const rowSlots =
+        tableGrid.slots[
+          rowIndex
+        ] ||
+        [];
+
+
+      const candidateCells = [
+        ...new Set(
+          rowSlots.filter(
+            Boolean
+          )
+        )
+      ]
+        .filter(
+          cell => {
+            return (
+              cell !==
+                currentCell &&
+              getEfficiencySpreadsheetCellControls(
+                cell
+              ).length >
+                0
+            );
+          }
+        )
+        .sort(
+          (
+            firstCell,
+            secondCell
+          ) => {
+            const firstDistance =
+              getEfficiencySpreadsheetCellDistance(
+                tableGrid.cellMetadata.get(
+                  firstCell
+                ),
+                preferredColumn
+              );
+
+
+            const secondDistance =
+              getEfficiencySpreadsheetCellDistance(
+                tableGrid.cellMetadata.get(
+                  secondCell
+                ),
+                preferredColumn
+              );
+
+
+            return (
+              firstDistance -
+              secondDistance
+            );
+          }
+        );
+
+
+      if (
+        !candidateCells.length
+      ) {
+        continue;
+      }
+
+
+      const targetCell =
+        candidateCells[
+          0
+        ];
+
+
+      const targetControls =
+        getEfficiencySpreadsheetCellControls(
+          targetCell
+        );
+
+
+      const targetControl =
+        targetControls[
+          Math.min(
+            currentControlIndex,
+            targetControls.length -
+              1
+          )
+        ] ||
+        targetControls[
+          0
+        ];
+
+
+      if (
+        targetControl
+      ) {
+        return targetControl;
+      }
+    }
+
+
+    return null;
+  }
+
+
+  /* =====================================================
+    같은 행의 왼쪽·오른쪽 입력칸 찾기
+  ====================================================== */
+
+  function findEfficiencySpreadsheetHorizontalTarget(
+    currentControl,
+    direction
+  ) {
+    const currentRow =
+      currentControl.closest(
+        "tr"
+      );
+
+
+    if (
+      !currentRow
+    ) {
+      return null;
+    }
+
+
+    const rowControls =
+      getEfficiencySpreadsheetControls(
+        currentRow
+      );
+
+
+    const currentIndex =
+      rowControls.indexOf(
+        currentControl
+      );
+
+
+    if (
+      currentIndex <
+      0
+    ) {
+      return null;
+    }
+
+
+    return (
+      rowControls[
+        currentIndex +
+          direction
+      ] ||
+      null
+    );
+  }
+
+
+  /* =====================================================
+    텍스트 입력칸 여부
+  ====================================================== */
+
+  function isEfficiencySpreadsheetTextControl(
+    control
+  ) {
+    if (
+      control instanceof
+      HTMLTextAreaElement
+    ) {
+      return true;
+    }
+
+
+    if (
+      !(
+        control instanceof
+        HTMLInputElement
+      )
+    ) {
+      return false;
+    }
+
+
+    return [
+      "text",
+      "search",
+      "email",
+      "tel",
+      "url"
+    ].includes(
+      control.type
+    );
+  }
+
+
+  /* =====================================================
+    방향키로 셀 이동이 가능한 상태인지 확인
+
+    입력 중에는 방향키가 글자 커서 이동에 사용된다.
+
+    왼쪽:
+    커서가 맨 앞일 때 셀 이동
+
+    오른쪽:
+    커서가 맨 끝일 때 셀 이동
+
+    위:
+    첫 번째 줄일 때 셀 이동
+
+    아래:
+    마지막 줄일 때 셀 이동
+  ====================================================== */
+
+  function shouldMoveEfficiencySpreadsheetByArrow(
+    control,
+    key
+  ) {
+    if (
+      !isEfficiencySpreadsheetTextControl(
+        control
+      )
+    ) {
+      return false;
+    }
+
+
+    const selectionStart =
+      control.selectionStart;
+
+
+    const selectionEnd =
+      control.selectionEnd;
+
+
+    if (
+      selectionStart ===
+        null ||
+      selectionEnd ===
+        null ||
+      selectionStart !==
+        selectionEnd
+    ) {
+      return false;
+    }
+
+
+    const value =
+      String(
+        control.value ||
+        ""
+      );
+
+
+    if (
+      key ===
+      "ArrowLeft"
+    ) {
+      return (
+        selectionStart ===
+        0
+      );
+    }
+
+
+    if (
+      key ===
+      "ArrowRight"
+    ) {
+      return (
+        selectionEnd ===
+        value.length
+      );
+    }
+
+
+    if (
+      key ===
+      "ArrowUp"
+    ) {
+      return !value
+        .slice(
+          0,
+          selectionStart
+        )
+        .includes(
+          "\n"
+        );
+    }
+
+
+    if (
+      key ===
+      "ArrowDown"
+    ) {
+      return !value
+        .slice(
+          selectionEnd
+        )
+        .includes(
+          "\n"
+        );
+    }
+
+
+    return false;
+  }
+
+
+  /* =====================================================
+    입력칸 클릭·포커스 시 현재 셀 표시
+  ====================================================== */
+
+  paper.addEventListener(
+    "focusin",
+    event => {
+      const control =
+        event.target instanceof
+          Element
+          ? event.target.closest(
+              EDITABLE_SELECTOR
+            )
+          : null;
+
+
+      if (
+        !control
+      ) {
+        return;
+      }
+
+
+      clearEfficiencySpreadsheetActiveCell();
+
+
+      control
+        .closest(
+          `
+            td,
+            th,
+            .efficiency-daily-work-instruction-field,
+            .efficiency-daily-work-other-field
+          `
+        )
+        ?.classList
+        .add(
+          "is-efficiency-spreadsheet-active"
+        );
+    }
+  );
+
+
+  /* =====================================================
+    키보드 이벤트
+  ====================================================== */
+
+  paper.addEventListener(
+    "keydown",
+    event => {
+      const control =
+        event.target instanceof
+          Element
+          ? event.target.closest(
+              EDITABLE_SELECTOR
+            )
+          : null;
+
+
+      if (
+        !control
+      ) {
+        return;
+      }
+
+
+      /*
+        한글 조합 중 Enter는 글자 확정에 사용되므로
+        셀 이동을 실행하지 않는다.
+      */
+      if (
+        event.isComposing ||
+        event.keyCode ===
+          229
+      ) {
+        return;
+      }
+
+
+      /* =================================================
+        Tab · Shift + Tab
+      ================================================== */
+
+      if (
+        event.key ===
+        "Tab"
+      ) {
+        event.preventDefault();
+
+
+        moveEfficiencySpreadsheetByOrder(
+          control,
+          event.shiftKey
+            ? -1
+            : 1
+        );
+
+
+        return;
+      }
+
+
+      /* =================================================
+        Enter · Shift + Enter
+
+        textarea 줄바꿈:
+        Alt + Enter
+      ================================================== */
+
+      if (
+        event.key ===
+        "Enter"
+      ) {
+        if (
+          event.altKey &&
+          control instanceof
+            HTMLTextAreaElement
+        ) {
+          /*
+            기본 textarea 줄바꿈을 그대로 사용한다.
+          */
+          return;
+        }
+
+
+        if (
+          event.ctrlKey ||
+          event.metaKey
+        ) {
+          return;
+        }
+
+
+        event.preventDefault();
+
+
+        const direction =
+          event.shiftKey
+            ? -1
+            : 1;
+
+
+        const verticalTarget =
+          findEfficiencySpreadsheetVerticalTarget(
+            control,
+            direction
+          );
+
+
+        if (
+          verticalTarget
+        ) {
+          focusEfficiencySpreadsheetControl(
+            verticalTarget
+          );
+
+          return;
+        }
+
+
+        moveEfficiencySpreadsheetByOrder(
+          control,
+          direction
+        );
+
+
+        return;
+      }
+
+
+      /* =================================================
+        방향키
+
+        Ctrl·Alt·Shift 조합은 기존 입력 동작 유지
+      ================================================== */
+
+      if (
+        ![
+          "ArrowLeft",
+          "ArrowRight",
+          "ArrowUp",
+          "ArrowDown"
+        ].includes(
+          event.key
+        )
+      ) {
+        return;
+      }
+
+
+      if (
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        event.shiftKey
+      ) {
+        return;
+      }
+
+
+      if (
+        !shouldMoveEfficiencySpreadsheetByArrow(
+          control,
+          event.key
+        )
+      ) {
+        return;
+      }
+
+
+      event.preventDefault();
+
+
+      const isHorizontal =
+        event.key ===
+          "ArrowLeft" ||
+        event.key ===
+          "ArrowRight";
+
+
+      const direction =
+        event.key ===
+          "ArrowLeft" ||
+        event.key ===
+          "ArrowUp"
+          ? -1
+          : 1;
+
+
+      const targetControl =
+        isHorizontal
+          ? findEfficiencySpreadsheetHorizontalTarget(
+              control,
+              direction
+            )
+          : findEfficiencySpreadsheetVerticalTarget(
+              control,
+              direction
+            );
+
+
+      if (
+        targetControl
+      ) {
+        focusEfficiencySpreadsheetControl(
+          targetControl
+        );
+
+        return;
+      }
+
+
+      /*
+        표의 첫 행·마지막 행에서는
+        문서 순서상 이전·다음 입력칸으로 이동한다.
+      */
+      moveEfficiencySpreadsheetByOrder(
+        control,
+        direction
+      );
+    }
+  );
+
+
+  paper.dataset
+    .spreadsheetNavigationBound =
+    "true";
+}
+
+
+/* =========================================================
+  초기 실행
+========================================================= */
+
+if (
+  document.readyState ===
+  "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeEfficiencyDailyWorkSpreadsheetNavigation,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeEfficiencyDailyWorkSpreadsheetNavigation();
+}

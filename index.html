@@ -24,7 +24,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260805-boxschedule1"
+    href="style.css?v=20260805-boxunit2"
   >
 
 
@@ -41,7 +41,7 @@
     기존 업무일지 JavaScript
   ====================================================== -->
   <script
-    src="script.js?v=20260805-boxschedule1"
+    src="script.js?v=20260805-boxunit2"
     defer
   ></script>
 
@@ -6621,27 +6621,129 @@
       </header>
 
       <div class="arm-roll-box-table-wrap">
-        <table class="arm-roll-box-table arm-roll-box-daily-table">
-          <thead>
-            <tr>
-              <th scope="col">일자</th>
-              <th scope="col">ARM ROLL</th>
-              <th scope="col">변화 · 일평균</th>
-              <th scope="col">SCRAP</th>
-              <th scope="col">변화 · 일평균</th>
-              <th scope="col">교체 인식</th>
-              <th scope="col">출처</th>
-            </tr>
-          </thead>
 
-          <tbody id="armRollBoxDailyTableBody">
-            <tr class="arm-roll-box-empty-table-row">
-              <td colspan="7">
-                조회된 BOX 레벨 기록이 없습니다.
-              </td>
-            </tr>
-          </tbody>
-        </table>
+<table
+  class="
+    arm-roll-box-table
+    arm-roll-box-daily-table
+    arm-roll-box-daily-table--by-unit
+  "
+>
+  <thead>
+
+    <!-- 호기 구분 -->
+    <tr class="arm-roll-box-daily-unit-heading-row">
+
+      <th
+        scope="col"
+        rowspan="2"
+        class="arm-roll-box-daily-date-heading"
+      >
+        일자
+      </th>
+
+
+      <th
+        scope="colgroup"
+        colspan="6"
+        class="
+          arm-roll-box-daily-unit-heading
+          is-unit-1
+        "
+      >
+        1호기
+      </th>
+
+
+      <th
+        scope="colgroup"
+        colspan="6"
+        class="
+          arm-roll-box-daily-unit-heading
+          is-unit-2
+        "
+      >
+        2호기
+      </th>
+
+    </tr>
+
+
+    <!-- 호기별 세부 항목 -->
+    <tr>
+
+      <!-- 1호기 -->
+      <th scope="col">
+        ARM ROLL
+      </th>
+
+      <th scope="col">
+        변화 · 일평균
+      </th>
+
+      <th scope="col">
+        SCRAP
+      </th>
+
+      <th scope="col">
+        변화 · 일평균
+      </th>
+
+      <th scope="col">
+        교체 인식
+      </th>
+
+      <th scope="col">
+        출처
+      </th>
+
+
+      <!-- 2호기 -->
+      <th
+        scope="col"
+        class="arm-roll-box-unit-two-start"
+      >
+        ARM ROLL
+      </th>
+
+      <th scope="col">
+        변화 · 일평균
+      </th>
+
+      <th scope="col">
+        SCRAP
+      </th>
+
+      <th scope="col">
+        변화 · 일평균
+      </th>
+
+      <th scope="col">
+        교체 인식
+      </th>
+
+      <th scope="col">
+        출처
+      </th>
+
+    </tr>
+
+  </thead>
+
+
+  <tbody id="armRollBoxDailyTableBody">
+
+    <tr class="arm-roll-box-empty-table-row">
+
+      <td colspan="13">
+        조회된 BOX 레벨 기록이 없습니다.
+      </td>
+
+    </tr>
+
+  </tbody>
+</table>
+
       </div>
     </section>
 

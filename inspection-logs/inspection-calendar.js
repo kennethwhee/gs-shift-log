@@ -1855,22 +1855,169 @@ dashboard.hidden =
 }
 
 /* =========================================================
-  점검 일정 관리자 변경사항 적용 후 달력 실행
+  점검 일정 기본 데이터 준비 후 달력 실행
+
+  관리자 API 완료 여부가 아니라
+  기본 일정 함수가 준비됐는지를 확인한다.
+
+  관리자 변경 일정은 나중에 갱신 메시지로 반영한다.
 ========================================================= */
 
 async function waitForInspectionCalendarScheduleReady() {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
+  for (
+    let attempt =
+      0;
+
+    attempt <
+      60;
+
+    attempt +=
+      1
+  ) {
+    const scheduleMasterReady =
+      typeof INSPECTION_SCHEDULE_MASTER !==
+        "undefined" &&
+
+      Array.isArray(
+        INSPECTION_SCHEDULE_MASTER
+      );
+
+
+    const scheduleFunctionsReady =
+      typeof getInspectionSchedulesForDate ===
+        "function" &&
+
+      typeof createInspectionScheduleDate ===
+        "function";
+
+
+    const elementsReady =
+      Boolean(
+        document.getElementById(
+          "inspectionScheduleDashboard"
+        )
+      ) &&
+
+      Boolean(
+        document.getElementById(
+          "inspectionCalendarGrid"
+        )
+      ) &&
+
+      Boolean(
+        document.getElementById(
+          "inspectionCalendarSelectedList"
+        )
+      );
+
+
     if (
-      typeof inspectionScheduleOverrideState !== "undefined" &&
-      inspectionScheduleOverrideState.loaded === true
+      scheduleMasterReady &&
+      scheduleFunctionsReady &&
+      elementsReady
     ) {
-      return;
+      return true;
     }
 
-    await new Promise(resolve => {
-      window.setTimeout(resolve, 100);
-    });
+
+    await new Promise(
+      resolve => {
+        window.setTimeout(
+          resolve,
+          100
+        );
+      }
+    );
   }
+
+
+  return false;
+}
+
+
+async function startInspectionCalendarDashboard() {
+  if (
+    window.__gsInspectionCalendarDashboardStarted ===
+      true
+  ) {
+    return;
+  }
+
+
+  const ready =
+    await waitForInspectionCalendarScheduleReady();
+
+
+  if (
+    !ready
+  ) {
+    console.error(
+      "점검 달력 실행에 필요한 기본 일정 데이터를 찾지 못했습니다."
+    );
+
+
+    const calendarGrid =
+      document.getElementById(
+        "inspectionCalendarGrid"
+      );
+
+
+    const selectedList =
+      document.getElementById(
+        "inspectionCalendarSelectedList"
+      );
+
+
+    if (
+      calendarGrid
+    ) {
+      calendarGrid.innerHTML = `
+        <div class="inspection-calendar-empty">
+          점검 일정 기본 데이터를 불러오지 못했습니다.
+        </div>
+      `;
+    }
+
+
+    if (
+      selectedList
+    ) {
+      selectedList.innerHTML = `
+        <div class="inspection-calendar-empty">
+          점검 일정 파일 연결 상태를 확인해 주세요.
+        </div>
+      `;
+    }
+
+
+    return;
+  }
+
+
+  window.__gsInspectionCalendarDashboardStarted =
+    true;
+
+
+  initializeInspectionCalendarDashboard();
+}
+
+
+if (
+  document.readyState ===
+    "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    startInspectionCalendarDashboard,
+
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  startInspectionCalendarDashboard();
 }
 
 async function startInspectionCalendarDashboard() {
