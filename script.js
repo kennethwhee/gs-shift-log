@@ -106251,77 +106251,72 @@ const ARM_ROLL_BOX_SERIES = Object.freeze([
     - 70% 이상 빨간색
   ====================================================== */
 
-  function getArmRollBoxLevelState(
-    level
+function getArmRollBoxLevelState(
+  level
+) {
+  if (
+    !hasArmRollBoxNumericValue(
+      level
+    )
   ) {
-    if (
-      !hasArmRollBoxNumericValue(
-        level
-      )
-    ) {
-      return {
-        label:
-          "기록 없음",
-
-        className:
-          ""
-      };
-    }
-
-
-    const numericLevel =
-      Number(
-        level
-      );
-
-
-    /*
-      70% 이상
-
-      문구는 요청 필요로 통일하고
-      빨간 경고 색상을 사용한다.
-    */
-    if (
-      numericLevel >=
-        WARNING_LEVEL
-    ) {
-      return {
-        label:
-          "요청 필요",
-
-        className:
-          "is-warning"
-      };
-    }
-
-
-    /*
-      50~69%
-
-      주황색 요청 필요 상태
-    */
-    if (
-      numericLevel >=
-        REPLACEMENT_RECOMMEND_LEVEL
-    ) {
-      return {
-        label:
-          "요청 필요",
-
-        className:
-          "is-caution"
-      };
-    }
-
-
     return {
       label:
-        "정상",
+        "기록 없음",
 
       className:
-        "is-normal"
+        ""
     };
   }
+
+
+  /*
+    70% 이상:
+    빨간 경고
+  */
+  if (
+    Number(
+      level
+    ) >=
+      WARNING_LEVEL
+  ) {
+    return {
+      label:
+        "경고",
+
+      className:
+        "is-warning"
+    };
+  }
+
+
+  /*
+    50~69%:
+    교체 요청 필요
+  */
+  if (
+    Number(
+      level
+    ) >=
+      REPLACEMENT_RECOMMEND_LEVEL
+  ) {
+    return {
+      label:
+        "요청 필요",
+
+      className:
+        "is-caution"
+    };
+  }
+
+
+  return {
+    label:
+      "정상",
+
+    className:
+      "is-normal"
+  };
+}
 
 
   function renderArmRollBoxCurrentCard(
@@ -106447,17 +106442,42 @@ const ARM_ROLL_BOX_SERIES = Object.freeze([
     }
 
 
-    card?.classList.toggle(
-      "is-warning",
+/*
+  50~69%:
+  요청 필요
+*/
+card?.classList.toggle(
+  "is-recommend",
 
-      hasArmRollBoxNumericValue(
-        level
-      ) &&
-      Number(
-        level
-      ) >=
-        WARNING_LEVEL
-    );
+  hasArmRollBoxNumericValue(
+    level
+  ) &&
+  Number(
+    level
+  ) >=
+    REPLACEMENT_RECOMMEND_LEVEL &&
+  Number(
+    level
+  ) <
+    WARNING_LEVEL
+);
+
+
+/*
+  70% 이상:
+  경고
+*/
+card?.classList.toggle(
+  "is-warning",
+
+  hasArmRollBoxNumericValue(
+    level
+  ) &&
+  Number(
+    level
+  ) >=
+    WARNING_LEVEL
+);
 
 
     progressElement?.setAttribute(
@@ -107607,71 +107627,93 @@ function renderArmRollBoxDailyTable() {
     };
 
 
-    const gridLines =
-      [
-        0,
-        25,
-        50,
-        70,
-        75,
-        100
-      ]
-        .map(
-          level => {
-            const threshold =
-              level ===
-              WARNING_LEVEL;
+const gridLines =
+  [
+    0,
+    25,
+    50,
+    70,
+    75,
+    100
+  ]
+    .map(
+      level => {
+        const requestThreshold =
+          level ===
+            REPLACEMENT_RECOMMEND_LEVEL;
 
 
-            return `
-              <line
-                x1="${padding.left}"
-                y1="${getY(
-                  level
-                )}"
-                x2="${width - padding.right}"
-                y2="${getY(
-                  level
-                )}"
-                stroke="${
-                  threshold
-                    ? "#d74c4c"
-                    : "#dfe6ec"
-                }"
-                stroke-width="${
-                  threshold
-                    ? 2
-                    : 1
-                }"
-                stroke-dasharray="${
-                  threshold
-                    ? "6 5"
-                    : "0"
-                }"
-              />
+        const warningThreshold =
+          level ===
+            WARNING_LEVEL;
 
-              <text
-                x="${padding.left - 8}"
-                y="${getY(
-                  level
-                ) + 4}"
-                text-anchor="end"
-                fill="${
-                  threshold
-                    ? "#c43f3f"
-                    : "#7a8998"
-                }"
-                font-size="9"
-                font-weight="800"
-              >
-                ${level}%
-              </text>
-            `;
-          }
-        )
-        .join(
-          ""
-        );
+
+        const highlightedThreshold =
+          requestThreshold ||
+          warningThreshold;
+
+
+        const lineColor =
+          warningThreshold
+            ? "#d74c4c"
+            : requestThreshold
+              ? "#df9328"
+              : "#dfe6ec";
+
+
+        const textColor =
+          warningThreshold
+            ? "#c43f3f"
+            : requestThreshold
+              ? "#b66b0d"
+              : "#7a8998";
+
+
+        return `
+          <line
+            x1="${padding.left}"
+            y1="${getY(
+              level
+            )}"
+            x2="${width - padding.right}"
+            y2="${getY(
+              level
+            )}"
+            stroke="${lineColor}"
+            stroke-width="${
+              highlightedThreshold
+                ? 2
+                : 1
+            }"
+            stroke-dasharray="${
+              highlightedThreshold
+                ? "6 5"
+                : "0"
+            }"
+          />
+
+          <text
+            x="${padding.left - 8}"
+            y="${getY(
+              level
+            ) + 4}"
+            text-anchor="end"
+            fill="${textColor}"
+            font-size="9"
+            font-weight="${
+              highlightedThreshold
+                ? 900
+                : 800
+            }"
+          >
+            ${level}%
+          </text>
+        `;
+      }
+    )
+    .join(
+      ""
+    );
 
 
     const labelStep =

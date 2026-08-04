@@ -71768,3 +71768,211 @@ textarea.efficiency-daily-work-line-source[
 
   cursor: help;
 }
+
+/* =========================================================
+  점검 완료 출처 표시
+========================================================= */
+
+.inspection-calendar-completion-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.inspection-calendar-completion-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 25px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.inspection-calendar-completion-badge.is-manual {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+}
+
+.inspection-calendar-completion-badge.is-automatic {
+  color: #1e40af;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+}
+
+.inspection-calendar-completion-block
+.inspection-calendar-completion-info {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.inspection-calendar-completion-evidence {
+  display: block;
+  max-width: 330px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.inspection-calendar-completion-help {
+  max-width: 330px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .inspection-calendar-completion-block {
+    width: 100%;
+    min-width: 0;
+    align-items: stretch;
+  }
+
+  .inspection-calendar-completion-block
+  .inspection-calendar-completion-info,
+  .inspection-calendar-completion-help {
+    text-align: left;
+  }
+
+  .inspection-calendar-completion-evidence {
+    max-width: none;
+  }
+
+  .inspection-calendar-completion-block
+  .inspection-calendar-cancel-button {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+  ARM ROLL · SCRAP BOX
+
+  50% 요청 필요 표시
+  70% 경보 표시
+========================================================= */
+
+
+/* =====================================================
+  50~69% 카드 상태
+====================================================== */
+
+.arm-roll-box-current-card.is-recommend
+.arm-roll-box-current-level strong {
+  color: #b66d10 !important;
+}
+
+
+.arm-roll-box-current-card.is-recommend
+.arm-roll-box-level-fill {
+  background:
+    linear-gradient(
+      90deg,
+      #efbd65,
+      #d98a1d
+    ) !important;
+}
+
+
+/* =====================================================
+  현재 레벨 막대의 50% 요청선
+
+  기존 70% 선은 그대로 유지한다.
+====================================================== */
+
+.arm-roll-box-level-track::before {
+  content: "";
+
+  position: absolute;
+
+  z-index: 3;
+
+  top: -3px;
+  bottom: -3px;
+  left: 50%;
+
+  width: 2px;
+
+  border-radius: 2px;
+
+  background: #df9328;
+
+  pointer-events: none;
+}
+
+
+.arm-roll-box-level-track::after {
+  content: "50 요청";
+
+  position: absolute;
+
+  z-index: 4;
+
+  top: -16px;
+  left: 50%;
+
+  color: #b66b0d;
+
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+
+  transform:
+    translateX(
+      -50%
+    );
+
+  pointer-events: none;
+}
+
+
+/*
+  막대보다 기준선이 위에 표시되게 한다.
+*/
+
+.arm-roll-box-level-fill {
+  position: relative;
+
+  z-index: 1;
+}
+
+
+.arm-roll-box-level-threshold {
+  z-index: 4;
+}
+
+
+/* =====================================================
+  그래프 범례 50% 요청선
+====================================================== */
+
+.arm-roll-box-chart-legend
+.is-request::before {
+  background: #df9328;
+}
+
+
+/* 요청 필요 범례 글씨 */
+
+.arm-roll-box-chart-legend
+.is-request {
+  color: #a9640e;
+}
