@@ -1068,3 +1068,127 @@
   }
 
 }
+
+/* =========================================================
+  점검일지 최초 빈 화면 안내
+========================================================= */
+
+.inspection-workspace-empty {
+  display: grid;
+
+  width: 100%;
+  min-width: 0;
+  min-height:
+    calc(
+      100vh - 160px
+    );
+
+  place-items: center;
+
+  padding: 36px;
+}
+
+
+.inspection-workspace-empty[hidden] {
+  display: none !important;
+}
+
+
+.inspection-workspace-empty__card {
+  width: 100%;
+  max-width: 500px;
+
+  padding:
+    34px
+    30px;
+
+  border:
+    1px dashed
+    #c4d3e3;
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #f8fbff 0%,
+      #ffffff 100%
+    );
+
+  text-align: center;
+
+  box-shadow:
+    0 10px 28px
+    rgba(
+      31,
+      74,
+      116,
+      0.06
+    );
+}
+
+
+.inspection-workspace-empty__eyebrow {
+  display: block;
+
+  margin-bottom: 9px;
+
+  color: #3976b5;
+
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+}
+
+
+.inspection-workspace-empty__card strong {
+  display: block;
+
+  color: #243950;
+
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+
+.inspection-workspace-empty__card p {
+  margin:
+    9px
+    0
+    0;
+
+  color: #718196;
+
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.7;
+
+  word-break: keep-all;
+}
+
+
+@media (max-width: 680px) {
+
+  .inspection-workspace-empty {
+    min-height:
+      calc(
+        100vh - 190px
+      );
+
+    padding: 20px;
+  }
+
+
+  .inspection-workspace-empty__card {
+    padding:
+      27px
+      20px;
+  }
+
+
+  .inspection-workspace-empty__card strong {
+    font-size: 17px;
+  }
+
+}

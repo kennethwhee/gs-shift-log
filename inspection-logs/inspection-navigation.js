@@ -282,6 +282,47 @@ function initializeInspectionWorkspaceNavigation() {
   content.className =
     "inspection-workspace__content";
 
+/*
+  왼쪽 메뉴 선택 전 안내 화면
+*/
+const emptyGuide =
+  document.createElement(
+    "section"
+  );
+
+
+emptyGuide.className =
+  "inspection-workspace-empty";
+
+
+emptyGuide.id =
+  "inspectionWorkspaceEmpty";
+
+
+emptyGuide.setAttribute(
+  "aria-live",
+  "polite"
+);
+
+
+emptyGuide.innerHTML = `
+  <div class="inspection-workspace-empty__card">
+
+    <span class="inspection-workspace-empty__eyebrow">
+      SELECT MENU
+    </span>
+
+    <strong>
+      확인할 메뉴를 선택하세요
+    </strong>
+
+    <p>
+      왼쪽 메뉴에서 점검주기 또는 점검일지를 선택하면
+      해당 내용이 표시됩니다.
+    </p>
+
+  </div>
+`;    
 
   const tablePanel =
     document.createElement(
@@ -411,12 +452,76 @@ function initializeInspectionWorkspaceNavigation() {
   );
 
 
-  content.append(
-    dashboard,
-    tablePanel,
-    registry,
-    viewer
+content.append(
+  emptyGuide,
+  dashboard,
+  tablePanel,
+  registry,
+  viewer
+);
+
+
+/*
+  달력·점검표·점검일지가 열리면
+  안내 문구를 자동으로 숨긴다.
+*/
+function updateInspectionEmptyGuide() {
+  const hasVisibleContent =
+    [
+      dashboard,
+      tablePanel,
+      viewer
+    ].some(
+      element => {
+        return (
+          element &&
+          element.hidden ===
+            false
+        );
+      }
+    );
+
+
+  emptyGuide.hidden =
+    hasVisibleContent;
+}
+
+
+const inspectionEmptyGuideObserver =
+  new MutationObserver(
+    updateInspectionEmptyGuide
   );
+
+
+[
+  dashboard,
+  tablePanel,
+  viewer
+].forEach(
+  element => {
+    if (
+      !element
+    ) {
+      return;
+    }
+
+
+    inspectionEmptyGuideObserver.observe(
+      element,
+      {
+        attributes:
+          true,
+
+        attributeFilter: [
+          "hidden"
+        ]
+      }
+    );
+  }
+);
+
+
+updateInspectionEmptyGuide();
 
 
   workspace.append(

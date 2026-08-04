@@ -108968,70 +108968,95 @@ function bindArmRollBoxEvents() {
     상세보기에서 결재요청 가능한 상태
   ====================================================== */
 
-  function canRequestApprovalFromDetail(
-    log
+function canRequestApprovalFromDetail(
+  log
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
   ) {
-    if (
-      !log ||
-      typeof log !==
-        "object"
-    ) {
-      return false;
-    }
+    return false;
+  }
 
 
-    if (
-      typeof isReadOnlyLegacyShiftLog ===
-        "function" &&
-      isReadOnlyLegacyShiftLog(
-        log
-      )
-    ) {
-      return false;
-    }
+  /*
+    과거 연동 업무일지는
+    상세보기에서 결재요청하지 않는다.
+  */
+  if (
+    typeof isReadOnlyLegacyShiftLog ===
+      "function" &&
+    isReadOnlyLegacyShiftLog(
+      log
+    )
+  ) {
+    return false;
+  }
 
 
-    /*
-      파트장 업무일지는
-      파트원 결재요청 대상이 아니다.
-    */
-    if (
-      normalizeMemberLogRole(
-        log.role
-      ) ===
-        "파트장"
-    ) {
-      return false;
-    }
+  /*
+    파트장 업무일지는
+    일반 결재요청 대상에서 제외한다.
+  */
+  if (
+    normalizeMemberLogRole(
+      log.role
+    ) ===
+      "파트장"
+  ) {
+    return false;
+  }
 
 
-    /*
-      본인이 작성한 업무일지만
-      상세보기에서 결재요청할 수 있다.
-    */
-    if (
-      !isCurrentUserShiftLogAuthor(
-        log
-      )
-    ) {
-      return false;
-    }
+  const currentStatus =
+    normalizeShiftLogApprovalStatus(
+      log.status
+    );
 
 
-    const currentStatus =
-      normalizeShiftLogApprovalStatus(
-        log.status
-      );
-
-
-    return [
+  /*
+    임시저장 또는 저장완료 상태에서만
+    결재요청할 수 있다.
+  */
+  if (
+    ![
       "임시저장",
       "저장완료"
     ].includes(
       currentStatus
-    );
+    )
+  ) {
+    return false;
   }
 
+
+  /*
+    일반 사용자:
+    본인이 작성한 업무일지
+
+    최고관리자:
+    모든 일반 보직 업무일지
+  */
+  const isAuthor =
+    typeof isCurrentUserShiftLogAuthor ===
+      "function" &&
+    isCurrentUserShiftLogAuthor(
+      log
+    );
+
+
+  const isSuperAdmin =
+    typeof isCurrentUserSuperAdmin ===
+      "function" &&
+    isCurrentUserSuperAdmin();
+
+
+  return (
+    isAuthor ||
+    isSuperAdmin
+  );
+}
 
   /* =====================================================
     상세보기 버튼 위치 정리
