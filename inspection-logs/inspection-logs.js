@@ -4580,357 +4580,12 @@ async function saveInspectionScheduleManagerItem() {
   }
 
 
-  const item =
-    collectInspectionScheduleEditorItem();
-
-
-  const validationMessage =
-    validateInspectionScheduleEditorItem(
-      item
-    );
-
-
-  if (
-    validationMessage
-  ) {
-    setInspectionScheduleEditorMessage(
-      validationMessage,
-      "error"
-    );
-
-
-    return;
-  }
-
-
-  const revision =
-    Number(
-      document
-        .getElementById(
-          "inspectionScheduleEditorRevision"
-        )
-        ?.value ||
-      0
-    );
-
-
-  const isCustom =
-    document
-      .getElementById(
-        "inspectionScheduleEditorIsCustom"
-      )
-      ?.value ===
-    "true";
-
-
-  const isActive =
-    document
-      .getElementById(
-        "inspectionScheduleEditorActive"
-      )
-      ?.checked ===
-    true;
-
-
   /*
-    신규 일정인지 저장 전에 보관한다.
+    편집창에서 입력한 일정 데이터
 
-    서버 저장 후에는 편집 모드로 변경되므로
-    저장 전 상태를 별도로 기억해야 한다.
+    item 변수는 이 함수 안에서
+    단 한 번만 선언한다.
   */
-  const wasNewSchedule =
-    inspectionScheduleManagerState
-      .mode ===
-    "new";
-
-
-  inspectionScheduleManagerState
-    .busy =
-    true;
-
-
-  setInspectionScheduleEditorMessage(
-    "점검 일정을 저장하는 중입니다.",
-    "saving"
-  );
-
-
-  setInspectionScheduleEditorEnabled(
-    false
-  );
-
-
-  try {
-    const response =
-      await fetch(
-        INSPECTION_SCHEDULE_API_URL,
-
-        {
-          method:
-            "POST",
-
-          headers:
-            getInspectionScheduleAuthHeaders({
-              "Content-Type":
-                "application/json"
-            }),
-
-          cache:
-            "no-store",
-
-          body:
-            JSON.stringify({
-              item,
-
-              expectedRevision:
-                revision >
-                  0
-                  ? revision
-                  : null,
-
-              isActive,
-
-              isCustom
-            })
-        }
-      );
-
-
-    const result =
-      await readInspectionScheduleApiResponse(
-        response
-      );
-
-
-    /*
-      서버가 반환한 ID를 우선 사용한다.
-
-      서버 응답에 ID가 없으면
-      현재 입력된 일정 ID를 사용한다.
-    */
-    const savedId =
-      String(
-        result?.item?.id ||
-        item.id ||
-        ""
-      ).trim();
-
-
-    /*
-      페이지를 새로고침하지 않고
-      서버의 최신 일정만 다시 불러온다.
-
-      갱신 대상:
-      - 담당 근무
-      - 담당 보직
-      - revision
-      - 수정자
-      - 수정 시간
-      - 일정 사용 상태
-    */
-    await loadInspectionScheduleOverrides();
-
-
-    inspectionScheduleManagerState
-      .items =
-      buildInspectionScheduleManagerItems();
-
-
-    /*
-      저장한 일정을 계속 선택 상태로 유지한다.
-    */
-    inspectionScheduleManagerState
-      .selectedId =
-      savedId;
-
-
-    /*
-      편집창을 다시 활성화하기 전에
-      busy 상태를 먼저 해제한다.
-    */
-    inspectionScheduleManagerState
-      .busy =
-      false;
-
-
-    const savedItem =
-      inspectionScheduleManagerState
-        .items
-        .find(
-          scheduleItem => {
-            return (
-              String(
-                scheduleItem?.id ||
-                ""
-              ).trim() ===
-              savedId
-            );
-          }
-        ) ||
-      null;
-
-
-    if (
-      savedItem
-    ) {
-      /*
-        저장한 일정 편집창을 그대로 유지한다.
-
-        담당 근무 및 담당 보직 체크박스도
-        서버 저장값으로 다시 표시된다.
-      */
-      fillInspectionScheduleEditor(
-        savedItem
-      );
-
-    } else {
-      /*
-        저장 후 재조회 과정에서 일시적으로
-        저장 항목을 찾지 못한 경우에도
-        현재 입력 내용을 초기화하지 않는다.
-      */
-      fillInspectionScheduleEditor({
-        ...item,
-
-        isActive,
-
-        isCustom:
-          wasNewSchedule
-            ? true
-            : isCustom,
-
-        hasOverride:
-          true,
-
-        revision:
-          Number(
-            result?.item?.revision
-          ) ||
-          Math.max(
-            1,
-            revision +
-            1
-          )
-      });
-    }
-
-
-    /*
-      왼쪽 일정 목록도 최신 상태로 다시 표시한다.
-    */
-    renderInspectionScheduleManagerList();
-
-
-    /*
-      alert 팝업 대신 편집창 안에
-      저장 완료 메시지를 표시한다.
-    */
-    setInspectionScheduleEditorMessage(
-      result.message ||
-      (
-        wasNewSchedule
-          ? "점검 일정을 등록했습니다."
-          : "점검 일정을 수정했습니다."
-      ),
-
-      "success"
-    );
-
-
-    /*
-      현재 점검일지 화면의
-      달력 및 점검주기를 즉시 갱신한다.
-    */
-    const refreshMessage = {
-      type:
-        "gs-shift-log:refresh-inspection-schedule",
-
-      scheduleId:
-        savedId
-    };
-
-
-    window.dispatchEvent(
-      new MessageEvent(
-        "message",
-
-        {
-          data:
-            refreshMessage,
-
-          origin:
-            window.location.origin
-        }
-      )
-    );
-
-
-    /*
-      상위 GS Shift Log 화면의
-      오늘 점검 숫자와 알림도 갱신한다.
-    */
-    try {
-      if (
-        window.parent &&
-        window.parent !==
-          window
-      ) {
-        window.parent.postMessage(
-          refreshMessage,
-          window.location.origin
-        );
-      }
-
-    } catch (
-      error
-    ) {
-      console.warn(
-        "점검 일정 갱신 정보를 상위 화면에 전달하지 못했습니다.",
-        error
-      );
-    }
-
-  } catch (
-    error
-  ) {
-    console.error(
-      "점검 일정 저장 실패:",
-      error
-    );
-
-
-    inspectionScheduleManagerState
-      .busy =
-      false;
-
-
-    setInspectionScheduleEditorMessage(
-      error instanceof Error
-        ? error.message
-        : "점검 일정을 저장하지 못했습니다.",
-
-      "error"
-    );
-
-
-    /*
-      저장 실패 시에는 현재 입력 내용을 유지하고
-      다시 수정할 수 있도록 편집창만 활성화한다.
-    */
-    setInspectionScheduleEditorEnabled(
-      true,
-      {
-        isNew:
-          wasNewSchedule
-      }
-    );
-
-
-    updateInspectionScheduleRuleEditorState();
-  }
-
-
-
   const item =
     collectInspectionScheduleEditorItem();
 
@@ -5056,13 +4711,7 @@ async function saveInspectionScheduleManagerItem() {
 
 
     /*
-      서버에서 다시 조회하여 다음 정보를 갱신한다.
-
-      - 담당 보직
-      - revision
-      - 수정자
-      - 수정 일시
-      - 사용 상태
+      서버 저장 후 최신 변경사항을 다시 조회한다.
     */
     await loadInspectionScheduleOverrides();
 
@@ -5077,15 +4726,17 @@ async function saveInspectionScheduleManagerItem() {
       savedId;
 
 
-    /*
-      편집창을 다시 활성화하기 전에
-      busy 상태를 먼저 해제한다.
-    */
     inspectionScheduleManagerState
       .busy =
       false;
 
 
+    /*
+      저장 결과로 다시 찾은 일정은
+      savedItem이라는 별도 이름을 사용한다.
+
+      item을 다시 선언하지 않는다.
+    */
     const savedItem =
       inspectionScheduleManagerState
         .items
@@ -5106,21 +4757,11 @@ async function saveInspectionScheduleManagerItem() {
     if (
       savedItem
     ) {
-      /*
-        저장한 일정의 편집창을 그대로 유지한다.
-
-        담당 보직 체크박스와 revision도
-        서버 저장값으로 다시 표시된다.
-      */
       fillInspectionScheduleEditor(
         savedItem
       );
 
     } else {
-      /*
-        저장 후 재조회에서 일시적으로 찾지 못한 경우에도
-        현재 작성 내용을 닫지 않고 유지한다.
-      */
       fillInspectionScheduleEditor({
         ...item,
 
@@ -5141,7 +4782,7 @@ async function saveInspectionScheduleManagerItem() {
           Math.max(
             1,
             revision +
-            1
+              1
           )
       });
     }
@@ -5163,7 +4804,7 @@ async function saveInspectionScheduleManagerItem() {
 
 
     /*
-      같은 점검일지 화면의 달력과 점검주기를 갱신한다.
+      달력·점검주기표 갱신
     */
     const refreshMessage = {
       type:
@@ -5190,8 +4831,7 @@ async function saveInspectionScheduleManagerItem() {
 
 
     /*
-      상위 GS Shift Log 화면의
-      보직별 오늘 점검 버튼도 다시 계산한다.
+      상위 업무일지 화면에도 변경사항 전달
     */
     try {
       if (
@@ -5249,7 +4889,6 @@ async function saveInspectionScheduleManagerItem() {
     updateInspectionScheduleRuleEditorState();
   }
 }
-
 
 /* =========================================================
   기본값 복원 또는 사용자 일정 삭제

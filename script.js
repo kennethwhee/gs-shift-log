@@ -111997,3 +111997,470 @@ if (
 } else {
   initializeEfficiencyDailyWorkSpreadsheetPaste();
 }
+
+/* =========================================================
+  효율팀 일일업무현황 자동 행 높이
+
+  동작:
+  - 크게 보기 상태에서만 적용
+  - 입력 내용에 맞춰 textarea 높이 자동 증가
+  - 날짜 이동·과거 기록 불러오기 후 다시 계산
+  - 원래 크기로 돌아가면 기존 높이 복구
+========================================================= */
+
+function initializeEfficiencyDailyWorkAutoRowHeight() {
+  const paper =
+    document.getElementById(
+      "efficiencyDailyWorkPaper"
+    );
+
+
+  const teamModal =
+    document.getElementById(
+      "efficiencyTeamModal"
+    );
+
+
+  const expandButton =
+    document.getElementById(
+      "toggleEfficiencyDailyWorkExpandedButton"
+    );
+
+
+  if (
+    !paper ||
+    !teamModal
+  ) {
+    return;
+  }
+
+
+  /*
+    이벤트 중복 등록 방지
+  */
+  if (
+    paper.dataset
+      .autoRowHeightBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  let resizeFrameId =
+    0;
+
+
+  /* =====================================================
+    크게 보기 상태 확인
+  ====================================================== */
+
+  function isEfficiencyDailyWorkExpanded() {
+    return teamModal.classList.contains(
+      "is-daily-work-expanded"
+    );
+  }
+
+
+  /* =====================================================
+    textarea 목록
+  ====================================================== */
+
+  function getEfficiencyDailyWorkTextareas() {
+    return [
+      ...paper.querySelectorAll(
+        "textarea:not([disabled])"
+      )
+    ];
+  }
+
+
+  /* =====================================================
+    textarea 원래 최소 높이 저장
+  ====================================================== */
+
+  function getEfficiencyDailyWorkTextareaMinimumHeight(
+    textarea
+  ) {
+    const savedMinimumHeight =
+      Number(
+        textarea.dataset
+          .efficiencyMinimumHeight
+      );
+
+
+    if (
+      Number.isFinite(
+        savedMinimumHeight
+      ) &&
+      savedMinimumHeight >
+        0
+    ) {
+      return savedMinimumHeight;
+    }
+
+
+    const currentHeight =
+      textarea.getBoundingClientRect()
+        .height;
+
+
+    const computedStyle =
+      window.getComputedStyle(
+        textarea
+      );
+
+
+    const cssMinimumHeight =
+      Number.parseFloat(
+        computedStyle.minHeight
+      ) ||
+      0;
+
+
+    const minimumHeight =
+      Math.max(
+        currentHeight,
+        cssMinimumHeight,
+        34
+      );
+
+
+    textarea.dataset
+      .efficiencyMinimumHeight =
+      String(
+        Math.ceil(
+          minimumHeight
+        )
+      );
+
+
+    return minimumHeight;
+  }
+
+
+  /* =====================================================
+    textarea 한 개 높이 계산
+  ====================================================== */
+
+  function resizeEfficiencyDailyWorkTextarea(
+    textarea
+  ) {
+    if (
+      !(
+        textarea instanceof
+        HTMLTextAreaElement
+      )
+    ) {
+      return;
+    }
+
+
+    /*
+      원래 크기 상태에서는
+      JavaScript가 적용한 높이를 제거한다.
+    */
+    if (
+      !isEfficiencyDailyWorkExpanded()
+    ) {
+      textarea.style.removeProperty(
+        "height"
+      );
+
+
+      textarea.style.removeProperty(
+        "overflow-y"
+      );
+
+
+      return;
+    }
+
+
+    const minimumHeight =
+      getEfficiencyDailyWorkTextareaMinimumHeight(
+        textarea
+      );
+
+
+    /*
+      먼저 높이를 초기화해야
+      내용이 줄어들었을 때도 다시 작아진다.
+    */
+    textarea.style.height =
+      "auto";
+
+
+    textarea.style.overflowY =
+      "hidden";
+
+
+    const nextHeight =
+      Math.max(
+        minimumHeight,
+        textarea.scrollHeight +
+          2
+      );
+
+
+    textarea.style.height =
+      `${Math.ceil(
+        nextHeight
+      )}px`;
+  }
+
+
+  /* =====================================================
+    전체 textarea 높이 다시 계산
+  ====================================================== */
+
+  function resizeAllEfficiencyDailyWorkTextareas() {
+    resizeFrameId =
+      0;
+
+
+    getEfficiencyDailyWorkTextareas()
+      .forEach(
+        resizeEfficiencyDailyWorkTextarea
+      );
+  }
+
+
+  /* =====================================================
+    한 프레임에 한 번만 실행
+  ====================================================== */
+
+  function requestEfficiencyDailyWorkTextareaResize() {
+    if (
+      resizeFrameId
+    ) {
+      return;
+    }
+
+
+    resizeFrameId =
+      window.requestAnimationFrame(
+        resizeAllEfficiencyDailyWorkTextareas
+      );
+  }
+
+
+  /* =====================================================
+    직접 입력
+  ====================================================== */
+
+  paper.addEventListener(
+    "input",
+    event => {
+      const textarea =
+        event.target instanceof
+          HTMLTextAreaElement
+          ? event.target
+          : null;
+
+
+      if (
+        !textarea
+      ) {
+        return;
+      }
+
+
+      requestEfficiencyDailyWorkTextareaResize();
+    }
+  );
+
+
+  /* =====================================================
+    붙여넣기·select 변경 후
+  ====================================================== */
+
+  paper.addEventListener(
+    "change",
+    requestEfficiencyDailyWorkTextareaResize
+  );
+
+
+  paper.addEventListener(
+    "paste",
+    () => {
+      window.setTimeout(
+        requestEfficiencyDailyWorkTextareaResize,
+        0
+      );
+    }
+  );
+
+
+  /* =====================================================
+    입력칸에 진입했을 때도 다시 계산
+  ====================================================== */
+
+  paper.addEventListener(
+    "focusin",
+    event => {
+      if (
+        event.target instanceof
+        HTMLTextAreaElement
+      ) {
+        requestEfficiencyDailyWorkTextareaResize();
+      }
+    }
+  );
+
+
+  /* =====================================================
+    크게 보기 버튼 전환 후 계산
+  ====================================================== */
+
+  expandButton?.addEventListener(
+    "click",
+    () => {
+      window.setTimeout(
+        requestEfficiencyDailyWorkTextareaResize,
+        0
+      );
+    }
+  );
+
+
+  /* =====================================================
+    날짜 이동·새 일지·과거 기록 불러오기 후 계산
+  ====================================================== */
+
+  [
+    "newEfficiencyDailyWorkButton",
+
+    "previousEfficiencyDailyWorkDateButton",
+
+    "nextEfficiencyDailyWorkDateButton",
+
+    "moveEfficiencyDailyWorkToTodayButton",
+
+    "refreshEfficiencyDailyWorkButton"
+  ]
+    .forEach(
+      buttonId => {
+        const button =
+          document.getElementById(
+            buttonId
+          );
+
+
+        button?.addEventListener(
+          "click",
+          () => {
+            /*
+              서버 자료와 입력값이 화면에 반영된 뒤
+              높이를 다시 계산한다.
+            */
+            window.setTimeout(
+              requestEfficiencyDailyWorkTextareaResize,
+              120
+            );
+          }
+        );
+      }
+    );
+
+
+  /* =====================================================
+    보관함에서 날짜 기록을 선택한 경우
+  ====================================================== */
+
+  document
+    .getElementById(
+      "efficiencyDailyWorkFolderTree"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+        window.setTimeout(
+          requestEfficiencyDailyWorkTextareaResize,
+          120
+        );
+      }
+    );
+
+
+  /* =====================================================
+    팝업 확대 클래스 변경 감지
+  ====================================================== */
+
+  const modalObserver =
+    new MutationObserver(
+      mutations => {
+        const classChanged =
+          mutations.some(
+            mutation => {
+              return (
+                mutation.type ===
+                  "attributes" &&
+                mutation.attributeName ===
+                  "class"
+              );
+            }
+          );
+
+
+        if (
+          classChanged
+        ) {
+          requestEfficiencyDailyWorkTextareaResize();
+        }
+      }
+    );
+
+
+  modalObserver.observe(
+    teamModal,
+    {
+      attributes:
+        true,
+
+      attributeFilter: [
+        "class"
+      ]
+    }
+  );
+
+
+  /* =====================================================
+    화면 너비 변경 시 줄바꿈 높이 재계산
+  ====================================================== */
+
+  window.addEventListener(
+    "resize",
+    requestEfficiencyDailyWorkTextareaResize
+  );
+
+
+  paper.dataset
+    .autoRowHeightBound =
+    "true";
+
+
+  requestEfficiencyDailyWorkTextareaResize();
+}
+
+
+/* =========================================================
+  초기 실행
+========================================================= */
+
+if (
+  document.readyState ===
+  "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeEfficiencyDailyWorkAutoRowHeight,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeEfficiencyDailyWorkAutoRowHeight();
+}
