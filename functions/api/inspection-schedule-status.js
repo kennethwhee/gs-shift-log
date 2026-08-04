@@ -549,18 +549,27 @@ async function readJsonBody(
   }
 }
 
-
 /* =========================================================
-  D1 테이블 생성
+  D1 완료 상태 테이블 생성·업그레이드
 
-  API가 처음 실행될 때 자동 생성한다.
+  completion_source:
+  - manual    : 사용자가 완료 버튼을 눌러 완료
+  - shift_log : 업무일지 내용 자동인식으로 완료
+
+  기존 완료 자료:
+  - 자동으로 manual로 유지
+  - 삭제하거나 초기화하지 않음
 ========================================================= */
 
 async function ensureTable(
   database
 ) {
-  await database.batch([
-    database.prepare(`
+  /*
+    신규 D1에서는 자동완료 출처 칸까지
+    처음부터 포함하여 생성한다.
+  */
+  await database
+    .prepare(`
       CREATE TABLE IF NOT EXISTS inspection_schedule_status (
         id TEXT PRIMARY KEY,
 
@@ -576,6 +585,14 @@ async function ensureTable(
         completed_by_name TEXT NOT NULL DEFAULT '',
         completed_at TEXT NOT NULL DEFAULT '',
 
+        completion_source TEXT NOT NULL DEFAULT 'manual',
+
+        source_log_id TEXT NOT NULL DEFAULT '',
+        source_entry_key TEXT NOT NULL DEFAULT '',
+        source_role TEXT NOT NULL DEFAULT '',
+        source_author TEXT NOT NULL DEFAULT '',
+        source_text TEXT NOT NULL DEFAULT '',
+
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
 
@@ -587,9 +604,176 @@ async function ensureTable(
           shift
         )
       )
-    `),
+    `)
+    .run();
 
 
+  /*
+    기존 테이블에 새 칸이 없는 경우
+    필요한 칸만 추가한다.
+  */
+  const tableInfoResult =
+    await database
+      .prepare(`
+        PRAGMA table_info(
+          inspection_schedule_status
+        )
+      `)
+      .all();
+
+
+  const existingColumns =
+    new Set(
+      (
+        Array.isArray(
+          tableInfoResult.results
+        )
+          ? tableInfoResult.results
+          : []
+      )
+        .map(
+          column => {
+            return normalizeText(
+              column?.name
+            );
+          }
+        )
+        .filter(
+          Boolean
+        )
+    );
+
+
+  const requiredColumns = [
+    {
+      name:
+        "completion_source",
+
+      definition:
+        "TEXT NOT NULL DEFAULT 'manual'"
+    },
+
+    {
+      name:
+        "source_log_id",
+
+      definition:
+        "TEXT NOT NULL DEFAULT ''"
+    },
+
+    {
+      name:
+        "source_entry_key",
+
+      definition:
+        "TEXT NOT NULL DEFAULT ''"
+    },
+
+    {
+      name:
+        "source_role",
+
+      definition:
+        "TEXT NOT NULL DEFAULT ''"
+    },
+
+    {
+      name:
+        "source_author",
+
+      definition:
+        "TEXT NOT NULL DEFAULT ''"
+    },
+
+    {
+      name:
+        "source_text",
+
+      definition:
+        "TEXT NOT NULL DEFAULT ''"
+    }
+  ];
+
+
+  for (
+    const column of
+    requiredColumns
+  ) {
+    if (
+      existingColumns.has(
+        column.name
+      )
+    ) {
+      continue;
+    }
+
+
+    try {
+      await database
+        .prepare(`
+          ALTER TABLE
+            inspection_schedule_status
+
+          ADD COLUMN
+            ${column.name}
+            ${column.definition}
+        `)
+        .run();
+
+    } catch (
+      error
+    ) {
+      /*
+        동시에 두 요청이 실행되어
+        다른 요청이 먼저 칸을 만든 경우는 무시한다.
+      */
+      const errorMessage =
+        String(
+          error?.message ||
+          error ||
+          ""
+        ).toLowerCase();
+
+
+      if (
+        !errorMessage.includes(
+          "duplicate column"
+        )
+      ) {
+        throw error;
+      }
+    }
+  }
+
+
+  /*
+    기존 완료 자료는 모두 사용자가 직접 완료한
+    수동 완료 자료로 보존한다.
+  */
+  await database
+    .prepare(`
+      UPDATE inspection_schedule_status
+
+      SET completion_source =
+        'manual'
+
+      WHERE
+        completion_source IS NULL
+        OR TRIM(
+          completion_source
+        ) = ''
+        OR completion_source NOT IN (
+          'manual',
+          'shift_log'
+        )
+    `)
+    .run();
+
+
+  /*
+    조회·자동동기화용 인덱스
+  */
+  await database.batch([
     database.prepare(`
       CREATE INDEX IF NOT EXISTS
         idx_inspection_schedule_status_due_date
@@ -597,18 +781,40 @@ async function ensureTable(
       ON inspection_schedule_status (
         due_date DESC
       )
+    `),
+
+
+    database.prepare(`
+      CREATE INDEX IF NOT EXISTS
+        idx_inspection_schedule_status_source
+
+      ON inspection_schedule_status (
+        completion_source,
+        source_log_id
+      )
     `)
   ]);
 }
 
-
 /* =========================================================
   DB 행 → 화면 데이터
+
+  수동·업무일지 자동완료 출처를
+  화면에서도 확인할 수 있게 전달한다.
 ========================================================= */
 
 function convertRow(
   row
 ) {
+  const completionSource =
+    normalizeText(
+      row.completion_source
+    ).toLowerCase() ===
+      "shift_log"
+        ? "shift_log"
+        : "manual";
+
+
   return {
     id:
       normalizeText(
@@ -663,6 +869,48 @@ function convertRow(
         row.completed_at
       ),
 
+
+    /*
+      완료 출처
+    */
+
+    completionSource,
+
+    isAutomatic:
+      completionSource ===
+      "shift_log",
+
+
+    /*
+      업무일지 자동완료 출처
+    */
+
+    sourceLogId:
+      normalizeText(
+        row.source_log_id
+      ),
+
+    sourceEntryKey:
+      normalizeText(
+        row.source_entry_key
+      ),
+
+    sourceRole:
+      normalizeText(
+        row.source_role
+      ),
+
+    sourceAuthor:
+      normalizeText(
+        row.source_author
+      ),
+
+    sourceText:
+      normalizeText(
+        row.source_text
+      ),
+
+
     updatedAt:
       normalizeText(
         row.updated_at
@@ -675,7 +923,6 @@ function convertRow(
       1
   };
 }
-
 
 /* =========================================================
   완료 대상 입력 검사
@@ -1001,11 +1248,16 @@ export async function onRequestGet(
   }
 }
 
-
 /* =========================================================
   POST /api/inspection-schedule-status
 
-  점검 완료 처리
+  사용자가 직접 완료 처리
+
+  처리:
+  - 신규 수동 완료 저장
+  - 기존 수동 완료 갱신
+  - 자동 완료를 사용자가 다시 완료하면 수동 완료로 전환
+  - 자동완료 출처 정보 초기화
 ========================================================= */
 
 export async function onRequestPost(
@@ -1073,6 +1325,11 @@ export async function onRequestPost(
       );
 
 
+    const convertedFromAutomatic =
+      existing?.completionSource ===
+      "shift_log";
+
+
     const timestamp =
       new Date()
         .toISOString();
@@ -1093,6 +1350,14 @@ export async function onRequestPost(
             completed_by_id = ?,
             completed_by_name = ?,
             completed_at = ?,
+
+            completion_source = 'manual',
+
+            source_log_id = '',
+            source_entry_key = '',
+            source_role = '',
+            source_author = '',
+            source_text = '',
 
             updated_at = ?,
 
@@ -1133,6 +1398,14 @@ export async function onRequestPost(
             completed_by_name,
             completed_at,
 
+            completion_source,
+
+            source_log_id,
+            source_entry_key,
+            source_role,
+            source_author,
+            source_text,
+
             created_at,
             updated_at,
 
@@ -1152,6 +1425,14 @@ export async function onRequestPost(
             ?,
             ?,
             ?,
+
+            'manual',
+
+            '',
+            '',
+            '',
+            '',
+            '',
 
             ?,
             ?,
@@ -1195,11 +1476,15 @@ export async function onRequestPost(
         created:
           !existing,
 
+        convertedFromAutomatic,
+
         item:
           savedItem,
 
         message:
-          "점검을 완료 처리했습니다."
+          convertedFromAutomatic
+            ? "업무일지 자동완료 기록을 수동 완료로 전환했습니다."
+            : "점검을 완료 처리했습니다."
       },
 
       existing
@@ -1231,11 +1516,15 @@ export async function onRequestPost(
   }
 }
 
-
 /* =========================================================
   DELETE /api/inspection-schedule-status
 
-  점검 완료 취소
+  수동 완료 취소:
+  - 완료 기록 삭제 가능
+
+  업무일지 자동 완료:
+  - 화면에서 직접 취소 불가
+  - 원본 업무일지를 수정·삭제하면 자동 재계산
 ========================================================= */
 
 export async function onRequestDelete(
@@ -1331,12 +1620,43 @@ export async function onRequestDelete(
     }
 
 
+    /*
+      업무일지 자동완료 기록 보호
+
+      자동완료 근거가 되는 업무일지 문구를
+      수정하거나 삭제해야 자동완료가 해제된다.
+    */
+    if (
+      existing.completionSource ===
+      "shift_log"
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          automatic:
+            true,
+
+          item:
+            existing,
+
+          message:
+            "업무일지에서 자동 완료된 점검입니다. 원본 업무일지의 점검 내용을 수정하거나 삭제하면 자동으로 다시 반영됩니다."
+        },
+        409
+      );
+    }
+
+
     const result =
       await context.env.DB
         .prepare(`
           DELETE FROM inspection_schedule_status
 
-          WHERE id = ?
+          WHERE
+            id = ?
+            AND completion_source = 'manual'
         `)
         .bind(
           existing.id
@@ -1348,7 +1668,7 @@ export async function onRequestDelete(
       Number(
         result?.meta?.changes
       ) !==
-        1
+      1
     ) {
       return jsonResponse(
         {
