@@ -39413,7 +39413,7 @@ function createLogRowHtml(log) {
 
 
   /* =====================================================
-    2. TM 발행 내역
+    2. 발행 내역
   ====================================================== */
 
   const tmEntries =
@@ -39440,7 +39440,7 @@ function createLogRowHtml(log) {
       pushEntryGroup({
         title:
           index === 0
-            ? "TM 발행 내역"
+            ? "발행 내역"
             : "",
 
         entry,
@@ -39462,7 +39462,6 @@ function createLogRowHtml(log) {
       });
     }
   );
-
 
   /* =====================================================
     3. 인계사항 및 보직별 업무일지
@@ -79588,6 +79587,71 @@ function addEfficiencyDailyWorkDateDays(
   );
 }
 
+/* =========================================================
+  일일업무현황 A4 문서 표시용 날짜
+
+  반환 예:
+  2026년 08월 04일 화요일
+========================================================= */
+
+function formatEfficiencyDailyWorkDisplayDate(
+  dateValue
+) {
+  const parsedDate =
+    parseEfficiencyDailyWorkDateValue(
+      dateValue
+    );
+
+
+  if (
+    !parsedDate
+  ) {
+    return "";
+  }
+
+
+  const weekdays = [
+    "일요일",
+    "월요일",
+    "화요일",
+    "수요일",
+    "목요일",
+    "금요일",
+    "토요일"
+  ];
+
+
+  return [
+    parsedDate.getFullYear(),
+    "년 ",
+
+    String(
+      parsedDate.getMonth() +
+      1
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    "월 ",
+
+    String(
+      parsedDate.getDate()
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    "일 ",
+
+    weekdays[
+      parsedDate.getDay()
+    ]
+  ].join(
+    ""
+  );
+}
+
 
 /* =========================================================
   효율팀 - 일일업무현황
@@ -99750,672 +99814,329 @@ openLogDetail =
 })();
 
 /* =========================================================
-  비고 항목 제자리 수정 최종본
+  업무 항목 현재 줄 수정
 
-  동작:
-  - 비고의 수정 버튼 클릭
-  - 현재 줄이 textarea로 변경
-  - 저장 또는 취소
-  - 상단 공통 업무 입력창은 사용하지 않음
+  기존 상단 입력 패널을 복제하지 않고
+  수정할 때만 선택한 줄 안으로 이동한다.
 
-  적용:
-  - 모든 보직
+  따라서 기존의 구분·시간·현재시간·TAG·
+  네비게이터 이력 제외·검증·저장 로직을 그대로 쓴다.
 ========================================================= */
 
-(function installInlineRemarkEditor() {
-  let editingRemarkIndex =
-    -1;
-
-
-  /* =====================================================
-    비고 항목 여부
-  ====================================================== */
-
-  function isInlineRemarkEntry(
-    entry
-  ) {
-    return (
-      String(
-        entry?.category ||
-        ""
-      ).trim() ===
-      "비고"
-    );
+(function installInlineLogEntryPanelEditor() {
+  if (window.__inlineLogEntryPanelEditorInstalled) {
+    return;
   }
 
+  window.__inlineLogEntryPanelEditorInstalled = true;
 
-  /* =====================================================
-    비고 테이블
-  ====================================================== */
+  const inputPanel = elements.logEntryInputPanel;
 
-  function getInlineRemarkTableBody() {
-    return document.getElementById(
-      "noteEntryTableBody"
-    );
+  if (!inputPanel || !inputPanel.parentNode) {
+    return;
   }
 
+  const panelHomeMarker = document.createComment(
+    "log-entry-input-panel-home"
+  );
 
-  /* =====================================================
-    textarea 높이 자동 조절
-  ====================================================== */
+  inputPanel.parentNode.insertBefore(
+    panelHomeMarker,
+    inputPanel
+  );
 
-  function resizeInlineRemarkTextarea(
-    textarea
-  ) {
+  let editingEntryReference = null;
+
+  function restoreLogEntryInputPanel() {
     if (
-      !textarea
+      panelHomeMarker.parentNode &&
+      inputPanel.parentNode !== panelHomeMarker.parentNode
     ) {
-      return;
+      panelHomeMarker.parentNode.insertBefore(
+        inputPanel,
+        panelHomeMarker.nextSibling
+      );
+    }
+  }
+
+  function findEditingEntryIndex() {
+    if (!editingEntryReference) {
+      return -1;
     }
 
-
-    textarea.style.height =
-      "auto";
-
-
-    const nextHeight =
-      Math.min(
-        180,
-        Math.max(
-          58,
-          textarea.scrollHeight
-        )
-      );
-
-
-    textarea.style.height =
-      `${nextHeight}px`;
+    return appState.editorEntries.indexOf(
+      editingEntryReference
+    );
   }
 
+  function syncEditingEntryIndex() {
+    const currentIndex = findEditingEntryIndex();
 
-  /* =====================================================
-    비고 제자리 수정 취소
-  ====================================================== */
-
-  function cancelInlineRemarkEdit() {
-    editingRemarkIndex =
-      -1;
-
-
-    renderLogEntryTable();
-  }
-
-
-  /* =====================================================
-    비고 제자리 수정 저장
-  ====================================================== */
-
-  function saveInlineRemarkEdit(
-    targetRow
-  ) {
-    const entryIndex =
-      Number(
-        targetRow?.dataset
-          ?.entryIndex
-      );
-
-
-    const textarea =
-      targetRow?.querySelector(
-        "[data-inline-remark-textarea]"
-      );
-
-
-    if (
-      !Number.isInteger(
-        entryIndex
-      ) ||
-      !appState.editorEntries[
-        entryIndex
-      ]
-    ) {
+    if (currentIndex < 0) {
       showToast(
-        "수정할 비고를 찾을 수 없습니다."
+        "수정 중인 업무 항목을 찾을 수 없습니다."
       );
 
-
-      return;
+      return false;
     }
 
+    appState.editingEntryIndex = currentIndex;
 
-    const content =
-      String(
-        textarea?.value ||
-        ""
-      )
-        .replace(
-          /\r\n/g,
-          "\n"
-        )
-        .replace(
-          /\r/g,
-          "\n"
-        )
-        .trim();
-
-
-    if (
-      !content
-    ) {
-      showToast(
-        "비고 내용을 입력해 주세요."
-      );
-
-
-      textarea?.focus();
-
-
-      return;
-    }
-
-
-    /*
-      기존 출처·작성 정보는 유지하고
-      비고 내용만 변경한다.
-    */
-    appState.editorEntries[
-      entryIndex
-    ] = {
-      ...appState.editorEntries[
-        entryIndex
-      ],
-
-      category:
-        "비고",
-
-      /*
-        비고는 자유 텍스트이므로
-        시간과 TAG를 사용하지 않는다.
-      */
-      time:
-        "",
-
-      tag:
-        "",
-
-      content
-    };
-
-
-    editingRemarkIndex =
-      -1;
-
-
-    /*
-      목록과 기존 log.note 문자열을
-      함께 다시 동기화한다.
-    */
-    renderLogEntryTable();
-
-
-    if (
-      typeof updateMemberLogImportStatus ===
-        "function"
-    ) {
-      updateMemberLogImportStatus();
-    }
-
-
-    showToast(
-      "비고를 수정했습니다."
-    );
+    return true;
   }
 
+  function findEntryRow(entryIndex) {
+    return [
+      elements.tmIssueEntryTableBody,
+      elements.logEntryTableBody,
+      elements.noteEntryTableBody
+    ]
+      .filter(Boolean)
+      .map((tableBody) => {
+        return tableBody.querySelector(
+          `tr[data-entry-index="${entryIndex}"]`
+        );
+      })
+      .find(Boolean);
+  }
 
-  /* =====================================================
-    비고 제자리 수정 시작
-  ====================================================== */
-
-  function startInlineRemarkEdit(
+  function mountInputPanelInEntryRow(
     entryIndex
   ) {
-    const tableBody =
-      getInlineRemarkTableBody();
-
-
-    const entry =
-      appState.editorEntries[
-        entryIndex
-      ];
-
-
-    if (
-      !tableBody ||
-      !isInlineRemarkEntry(
-        entry
-      )
-    ) {
-      return;
-    }
-
-
-    /*
-      다른 비고를 수정 중이었다면
-      먼저 기존 편집 상태를 종료한다.
-    */
-    if (
-      editingRemarkIndex >=
-        0 &&
-      editingRemarkIndex !==
-        entryIndex
-    ) {
-      renderLogEntryTable();
-    }
-
-
-    editingRemarkIndex =
-      entryIndex;
-
-
     const targetRow =
-      tableBody.querySelector(
-        `tr[data-entry-index="${entryIndex}"]`
+      findEntryRow(entryIndex);
+
+    const targetCell =
+      targetRow?.querySelector(
+        ".log-entry-unified-cell"
       );
 
-
-    if (
-      !targetRow
-    ) {
-      editingRemarkIndex =
-        -1;
-
+    if (!targetRow || !targetCell) {
+      restoreLogEntryInputPanel();
 
       showToast(
-        "수정할 비고 행을 찾을 수 없습니다."
+        "수정할 업무 항목 줄을 찾을 수 없습니다."
       );
-
 
       return;
     }
-
-
-    const rowShell =
-      targetRow.querySelector(
-        "[data-entry-row-shell]"
-      );
-
-
-    const contentHost =
-      targetRow.querySelector(
-        ".log-entry-row-content"
-      );
-
-
-    const actionHost =
-      targetRow.querySelector(
-        ".log-entry-row-actions"
-      );
-
-
-    if (
-      !rowShell ||
-      !contentHost ||
-      !actionHost
-    ) {
-      editingRemarkIndex =
-        -1;
-
-
-      showToast(
-        "비고 수정 화면을 만들 수 없습니다."
-      );
-
-
-      return;
-    }
-
-
-    const displayNumber =
-      String(
-        targetRow
-          .querySelector(
-            ".log-entry-document-number"
-          )
-          ?.textContent ||
-        ""
-      ).trim();
-
 
     targetRow.classList.add(
-      "is-inline-remark-editing"
+      "is-inline-entry-panel-editing"
     );
 
-
-    rowShell.style
-      .gridTemplateColumns =
-      "32px minmax(0, 1fr) 108px";
-
-
-    contentHost.innerHTML = `
-      <div class="inline-remark-editor">
-
-        <span class="inline-remark-number">
-          ${escapeHtml(
-            displayNumber
-          )}
-        </span>
-
-        <textarea
-          class="inline-remark-textarea"
-          data-inline-remark-textarea
-          rows="2"
-          maxlength="2000"
-          aria-label="비고 내용 수정"
-        >${escapeHtml(
-          entry.content ||
-          ""
-        )}</textarea>
-
-      </div>
-    `;
-
-
-    actionHost.hidden =
-      false;
-
-
-    actionHost.removeAttribute(
-      "hidden"
-    );
-
-
-    actionHost.classList.add(
-      "inline-remark-actions"
-    );
-
-
-    actionHost.innerHTML = `
-      <button
-        type="button"
-        class="inline-remark-save-button"
-        data-inline-remark-action="save"
-      >
-        저장
-      </button>
-
-      <button
-        type="button"
-        class="inline-remark-cancel-button"
-        data-inline-remark-action="cancel"
-      >
-        취소
-      </button>
-    `;
-
-
-    const textarea =
-      contentHost.querySelector(
-        "[data-inline-remark-textarea]"
-      );
-
-
-    resizeInlineRemarkTextarea(
-      textarea
-    );
-
-
-    window.setTimeout(
-      () => {
-        textarea?.focus();
-
-        textarea?.setSelectionRange(
-          textarea.value.length,
-          textarea.value.length
-        );
-      },
-      0
+    targetCell.replaceChildren(
+      inputPanel
     );
   }
 
+  /*
+    목록을 다시 그리기 전에 입력 패널을
+    원래 자리로 옮긴다.
 
-  /* =====================================================
-    비고 테이블 이벤트 연결
+    tbody가 다시 출력될 때
+    입력 패널까지 삭제되는 것을 막는다.
+  */
+  const originalRenderLogEntryTable =
+    renderLogEntryTable;
 
-    capture 단계에서 기존 수정 이벤트보다
-    먼저 처리하여 상단 입력창 이동을 막는다.
-  ====================================================== */
-
-  function bindInlineRemarkEditor() {
-    const tableBody =
-      getInlineRemarkTableBody();
-
-
-    if (
-      !tableBody ||
-      tableBody.dataset
-        .inlineRemarkEditorBound ===
-        "true"
+  renderLogEntryTable =
+    function renderLogEntryTableWithInlinePanel(
+      ...args
     ) {
-      return;
-    }
+      restoreLogEntryInputPanel();
 
+      return originalRenderLogEntryTable.apply(
+        this,
+        args
+      );
+    };
 
-    tableBody.addEventListener(
-      "click",
-      event => {
-        const inlineActionButton =
-          event.target.closest(
-            "[data-inline-remark-action]"
-          );
+  /*
+    기존 수정 기능은 그대로 사용하고
+    상단으로 이동하는 동작만 막는다.
+  */
+  const originalStartLogEntryEdit =
+    startLogEntryEdit;
 
+  startLogEntryEdit =
+    function startLogEntryEditInline(
+      entryIndex
+    ) {
+      const entry =
+        appState.editorEntries[
+          entryIndex
+        ];
 
-        if (
-          inlineActionButton
-        ) {
-          event.preventDefault();
+      if (!entry) {
+        showToast(
+          "수정할 업무 항목을 찾을 수 없습니다."
+        );
 
-          event.stopPropagation();
+        return;
+      }
 
-          event.stopImmediatePropagation();
+      /*
+        같은 항목의 수정 이벤트가
+        중복 실행되는 것을 막는다.
+      */
+      if (
+        editingEntryReference === entry &&
+        inputPanel.closest(
+          "tr.is-inline-entry-panel-editing"
+        )
+      ) {
+        elements.logEntryContent
+          ?.focus();
 
+        return;
+      }
 
-          const targetRow =
-            inlineActionButton.closest(
-              "tr[data-entry-index]"
-            );
+      editingEntryReference = entry;
 
+      const originalScrollIntoView =
+        inputPanel.scrollIntoView;
 
-          const action =
-            inlineActionButton.dataset
-              .inlineRemarkAction;
-
-
-          if (
-            action ===
-            "save"
-          ) {
-            saveInlineRemarkEdit(
-              targetRow
-            );
-
-
-            return;
-          }
-
-
-          if (
-            action ===
-            "cancel"
-          ) {
-            cancelInlineRemarkEdit();
-          }
-
-
-          return;
-        }
-
-
+      try {
         /*
-          기존 비고 수정 버튼을 가로채서
-          상단 공통 입력창 대신 제자리 수정한다.
+          기존 코드의 상단 자동 이동을
+          이번 수정 중에만 차단한다.
         */
-        const editButton =
-          event.target.closest(
-            '[data-entry-action="edit"]'
-          );
+        inputPanel.scrollIntoView =
+          () => {};
 
-
-        if (
-          !editButton
-        ) {
-          return;
-        }
-
-
-        const entryIndex =
-          Number(
-            editButton.dataset
-              .entryIndex
-          );
-
-
-        const entry =
-          appState.editorEntries[
-            entryIndex
-          ];
-
-
-        if (
-          !Number.isInteger(
-            entryIndex
-          ) ||
-          !isInlineRemarkEntry(
-            entry
-          )
-        ) {
-          return;
-        }
-
-
-        event.preventDefault();
-
-        event.stopPropagation();
-
-        event.stopImmediatePropagation();
-
-
-        startInlineRemarkEdit(
+        originalStartLogEntryEdit(
           entryIndex
         );
-      },
-      true
-    );
 
+      } finally {
+        if (originalScrollIntoView) {
+          inputPanel.scrollIntoView =
+            originalScrollIntoView;
 
-    /*
-      입력 내용에 맞춰 높이 자동 조절
-    */
-    tableBody.addEventListener(
-      "input",
-      event => {
-        const textarea =
-          event.target.closest(
-            "[data-inline-remark-textarea]"
-          );
-
-
-        if (
-          textarea
-        ) {
-          resizeInlineRemarkTextarea(
-            textarea
-          );
+        } else {
+          delete inputPanel.scrollIntoView;
         }
       }
-    );
 
+      const currentIndex =
+        findEditingEntryIndex();
 
-    /*
-      Ctrl + Enter:
-      저장
+      if (currentIndex < 0) {
+        editingEntryReference = null;
 
-      Escape:
-      취소
+        restoreLogEntryInputPanel();
 
-      일반 Enter:
-      줄바꿈
-    */
-    tableBody.addEventListener(
-      "keydown",
-      event => {
-        const textarea =
-          event.target.closest(
-            "[data-inline-remark-textarea]"
-          );
-
-
-        if (
-          !textarea
-        ) {
-          return;
-        }
-
-
-        if (
-          event.key ===
-          "Escape"
-        ) {
-          event.preventDefault();
-
-          event.stopPropagation();
-
-
-          cancelInlineRemarkEdit();
-
-
-          return;
-        }
-
-
-        if (
-          event.key ===
-            "Enter" &&
-          (
-            event.ctrlKey ||
-            event.metaKey
-          )
-        ) {
-          event.preventDefault();
-
-          event.stopPropagation();
-
-
-          const targetRow =
-            textarea.closest(
-              "tr[data-entry-index]"
-            );
-
-
-          saveInlineRemarkEdit(
-            targetRow
-          );
-        }
+        return;
       }
-    );
 
+      appState.editingEntryIndex =
+        currentIndex;
 
-    tableBody.dataset
-      .inlineRemarkEditorBound =
-      "true";
-  }
+      mountInputPanelInEntryRow(
+        currentIndex
+      );
+    };
 
+  /*
+    저장·취소·다른 일지 열기 등으로
+    입력창이 초기화되면 제자리 수정도 종료한다.
+  */
+  const originalResetLogEntryInput =
+    resetLogEntryInput;
 
-  if (
-    document.readyState ===
-    "loading"
-  ) {
-    document.addEventListener(
-      "DOMContentLoaded",
-      bindInlineRemarkEditor,
-      {
-        once:
-          true
+  resetLogEntryInput =
+    function resetLogEntryInputWithInlinePanel(
+      ...args
+    ) {
+      restoreLogEntryInputPanel();
+
+      editingEntryReference = null;
+
+      return originalResetLogEntryInput.apply(
+        this,
+        args
+      );
+    };
+
+  /*
+    Enter 확인창을 거쳐 저장하는 경우에도
+    현재 항목의 실제 배열 위치를 다시 확인한다.
+  */
+  const originalAddOrUpdateLogEntry =
+    addOrUpdateLogEntry;
+
+  addOrUpdateLogEntry =
+    function addOrUpdateLogEntryWithInlinePanel(
+      ...args
+    ) {
+      if (
+        editingEntryReference &&
+        !syncEditingEntryIndex()
+      ) {
+        return;
       }
-    );
 
-  } else {
-    bindInlineRemarkEditor();
-  }
+      return originalAddOrUpdateLogEntry.apply(
+        this,
+        args
+      );
+    };
+
+  /*
+    수정 완료 버튼을 누르기 직전
+    실제 항목 위치를 다시 확인한다.
+
+    화면의 시간 정렬이 바뀌더라도
+    다른 항목이 수정되는 것을 막는다.
+  */
+  inputPanel.addEventListener(
+    "click",
+    (event) => {
+      if (
+        !editingEntryReference ||
+        !event.target.closest(
+          "#addLogEntryButton"
+        )
+      ) {
+        return;
+      }
+
+      if (!syncEditingEntryIndex()) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+      }
+    },
+    true
+  );
+
+  /*
+    내용 입력 후 Enter로 수정하는 경우
+  */
+  inputPanel.addEventListener(
+    "keydown",
+    (event) => {
+      if (
+        !editingEntryReference ||
+        event.target !==
+          elements.logEntryContent ||
+        event.key !== "Enter" ||
+        event.shiftKey ||
+        event.isComposing ||
+        event.keyCode === 229
+      ) {
+        return;
+      }
+
+      if (!syncEditingEntryIndex()) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+      }
+    },
+    true
+  );
 })();
 
 /* =========================================================

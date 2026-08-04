@@ -20,21 +20,20 @@
 
   window.__gsNightPatrolLauncherInstalled = true;
 
-  const MODAL_ID = "nightPatrolModal";
-  const BUTTON_ID = "nightPatrolButton";
-  const FRAME_ID = "nightPatrolFrame";
-  const BADGE_ID =
-  "inspectionScheduleHeaderBadge";
+const MODAL_ID =
+  "nightPatrolModal";
 
 
-let latestInspectionPendingCount =
-  0;
+const BUTTON_ID =
+  "nightPatrolButton";
 
 
-let latestInspectionOverdueCount =
-  0;
-  const PAGE_URL =
-    "inspection-logs/inspection-logs.html?v=20260804-4";
+const FRAME_ID =
+  "nightPatrolFrame";
+
+
+const PAGE_URL =
+  "inspection-logs/inspection-logs.html?v=20260804-4";
 
   const AUTH_STORAGE_KEY =
     "gsShiftLog.currentUser";
@@ -510,166 +509,11 @@ function canCurrentUserUseNightPatrol() {
       ?.remove();
   }
 
-  /* =====================================================
-  점검 일정 건수 정리
-====================================================== */
-
-function normalizeInspectionScheduleCount(
-  value
-) {
-  const count =
-    Number(
-      value
-    );
-
-
-  if (
-    !Number.isFinite(
-      count
-    )
-  ) {
-    return 0;
-  }
-
-
-  return Math.max(
-    0,
-    Math.floor(
-      count
-    )
-  );
-}
-
-
-/* =====================================================
-  점검일지 상단 메뉴 배지 갱신
-
-  배지 숫자:
-  오늘 미완료 + 이전 지연
-
-  표시:
-  - 0건이면 숨김
-  - 1~99건은 숫자 표시
-  - 100건 이상은 99+ 표시
-====================================================== */
-
-function updateInspectionScheduleMenuBadge(
-  pendingCount =
-    latestInspectionPendingCount,
-
-  overdueCount =
-    latestInspectionOverdueCount
-) {
-  latestInspectionPendingCount =
-    normalizeInspectionScheduleCount(
-      pendingCount
-    );
-
-
-  latestInspectionOverdueCount =
-    normalizeInspectionScheduleCount(
-      overdueCount
-    );
-
-
-  const totalCount =
-    latestInspectionPendingCount +
-    latestInspectionOverdueCount;
-
-
-  const button =
-    document.getElementById(
-      BUTTON_ID
-    );
-
-
-  const badge =
-    document.getElementById(
-      BADGE_ID
-    );
-
-
-  if (
-    badge
-  ) {
-    badge.textContent =
-      totalCount >
-        99
-        ? "99+"
-        : String(
-            totalCount
-          );
-
-
-    badge.hidden =
-      totalCount ===
-        0;
-  }
-
-
-  if (
-    !button
-  ) {
-    return;
-  }
-
-
-  button.classList.toggle(
-    "has-inspection-alerts",
-    totalCount >
-      0
-  );
-
-
-  button.classList.toggle(
-    "has-overdue-inspections",
-    latestInspectionOverdueCount >
-      0
-  );
-
-
-  button.dataset
-    .inspectionPendingCount =
-    String(
-      latestInspectionPendingCount
-    );
-
-
-  button.dataset
-    .inspectionOverdueCount =
-    String(
-      latestInspectionOverdueCount
-    );
-
-
-  const accessibilityLabel =
-    totalCount >
-      0
-      ? [
-          "점검일지 열기",
-          `오늘 미완료 ${latestInspectionPendingCount}건`,
-          `지연 ${latestInspectionOverdueCount}건`
-        ].join(
-          ", "
-        )
-      : "점검일지 열기, 미완료 점검 없음";
-
-
-  button.setAttribute(
-    "aria-label",
-    accessibilityLabel
-  );
-
-
-  button.title =
-    accessibilityLabel;
-}
-
 /* =====================================================
   점검일지 상단 메뉴 생성
 
   표시:
-  점검일지 [미완료+지연 건수]
+  - 숫자 배지 없이 메뉴명만 표시
 ====================================================== */
 
 function createMenuButton() {
@@ -695,7 +539,42 @@ function createMenuButton() {
   if (
     existingButton
   ) {
-    updateInspectionScheduleMenuBadge();
+    /*
+      이전 버전에서 만들어진 숫자 배지와
+      알림 상태 클래스를 정리한다.
+    */
+    existingButton
+      .querySelector(
+        ".night-patrol-header-button__badge"
+      )
+      ?.remove();
+
+
+    existingButton.classList.remove(
+      "has-inspection-alerts",
+      "has-overdue-inspections"
+    );
+
+
+    existingButton.removeAttribute(
+      "data-inspection-pending-count"
+    );
+
+
+    existingButton.removeAttribute(
+      "data-inspection-overdue-count"
+    );
+
+
+    existingButton.setAttribute(
+      "aria-label",
+      "점검일지 열기"
+    );
+
+
+    existingButton.title =
+      "점검일지";
+
 
     return true;
   }
@@ -723,22 +602,17 @@ function createMenuButton() {
     <span class="night-patrol-header-button__label">
       점검일지
     </span>
-
-    <span
-      class="night-patrol-header-button__badge"
-      id="${BADGE_ID}"
-      aria-hidden="true"
-      hidden
-    >
-      0
-    </span>
   `;
 
 
   button.setAttribute(
     "aria-label",
-    "점검일지 열기, 완료 상태 확인 중"
+    "점검일지 열기"
   );
+
+
+  button.title =
+    "점검일지";
 
 
   const noticeButton =
@@ -767,9 +641,6 @@ function createMenuButton() {
     "click",
     openNightPatrolModal
   );
-
-
-  updateInspectionScheduleMenuBadge();
 
 
   return true;
@@ -984,12 +855,11 @@ function createModal() {
     );
   }
 
-  /* =====================================================
+/* =====================================================
   점검일지 iframe 메시지 처리
 
-  지원:
-  - 점검일지 팝업 닫기
-  - 오늘 미완료·지연 건수 갱신
+  숫자 배지는 사용하지 않으며
+  점검일지 닫기 요청만 처리한다.
 ====================================================== */
 
 function handleNightPatrolLauncherMessage(
@@ -1010,52 +880,15 @@ function handleNightPatrolLauncherMessage(
     ).trim();
 
 
-  /* =================================================
-    점검일지 닫기
-  ================================================= */
-
-  if (
-    messageType ===
-      "gs-night-patrol:close"
-  ) {
-    closeNightPatrolModal();
-
-    return;
-  }
-
-
-  /* =================================================
-    점검 일정 건수
-  ================================================= */
-
   if (
     messageType !==
-      "gs-shift-log:inspection-schedule-counts"
+      "gs-night-patrol:close"
   ) {
     return;
   }
 
 
-  /*
-    현재 점검일지 iframe이 보낸 메시지만 허용한다.
-  */
-  const frame =
-    getFrame();
-
-
-  if (
-    !frame?.contentWindow ||
-    event.source !==
-      frame.contentWindow
-  ) {
-    return;
-  }
-
-
-  updateInspectionScheduleMenuBadge(
-    event.data?.pendingCount,
-    event.data?.overdueCount
-  );
+  closeNightPatrolModal();
 }
 
 /* =====================================================
