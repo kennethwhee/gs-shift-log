@@ -55453,10 +55453,125 @@ window.addEventListener(
 );
 
 /* =========================================================
+  점검주기표 완료 상태 즉시 새로고침
+
+  업무일지 API의 자동완료 동기화가 끝난 뒤:
+  - 점검일지 iframe 완료 상태 다시 조회
+  - 월간 달력 갱신
+  - 보직 카드의 오늘 점검 갱신
+
+  약간의 간격을 두고 여러 번 전달하여
+  iframe 로딩 또는 기존 조회와 겹쳐도 반영되게 한다.
+========================================================= */
+
+function refreshInspectionScheduleAfterShiftLogChange(
+  syncResult = null,
+  context = {}
+) {
+  if (
+    syncResult?.ok ===
+      false
+  ) {
+    console.warn(
+      "점검 자동완료 동기화 결과:",
+      syncResult
+    );
+  }
+
+
+  const workDate =
+    String(
+      syncResult?.workDate ||
+      context.workDate ||
+      ""
+    ).trim();
+
+
+  const shift =
+    String(
+      syncResult?.shift ||
+      context.shift ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replaceAll(
+        "/",
+        ""
+      );
+
+
+  const message = {
+    type:
+      "gs-shift-log:refresh-inspection-schedule",
+
+    reason:
+      "shift-log-auto-completion",
+
+    workDate,
+
+    shift,
+
+    timestamp:
+      Date.now()
+  };
+
+
+  const sendRefreshMessage =
+    () => {
+      document
+        .querySelectorAll(
+          "iframe"
+        )
+        .forEach(
+          frame => {
+            try {
+              frame.contentWindow
+                ?.postMessage(
+                  message,
+                  window.location.origin
+                );
+
+            } catch (
+              error
+            ) {
+              console.warn(
+                "점검 일정 새로고침 전달 실패:",
+                error
+              );
+            }
+          }
+        );
+    };
+
+
+  /*
+    즉시 전달
+  */
+  sendRefreshMessage();
+
+
+  /*
+    기존 점검 조회와 겹친 경우를 대비한 재전달
+  */
+  window.setTimeout(
+    sendRefreshMessage,
+    150
+  );
+
+
+  window.setTimeout(
+    sendRefreshMessage,
+    500
+  );
+}
+
+/* =========================================================
   D1 공용 업무일지 저장·수정
 
-  점검 캘린더에서 전달받은
-  해당 날짜·근무의 점검 목록을 함께 전송한다.
+  저장 후:
+  - 점검명 유사도 자동완료 실행
+  - 점검 달력과 오늘 점검 즉시 갱신
 ========================================================= */
 
 async function saveShiftLogToServer(
@@ -55486,13 +55601,13 @@ async function saveShiftLogToServer(
 
 
   /*
-    배열을 전달받은 경우에만 포함한다.
+    배열을 전달받은 경우에만 서버에 포함한다.
 
-    빈 배열:
-    해당 날짜·근무에 점검 없음
+    []:
+    해당 날짜·근무에 예정된 점검 없음
 
     null:
-    캘린더에서 아직 점검 목록을 받지 못함
+    캘린더 자료를 아직 받지 못함
   */
   if (
     Array.isArray(
@@ -55517,6 +55632,22 @@ async function saveShiftLogToServer(
     );
 
 
+  /*
+    서버의 자동완료 동기화가 끝난 뒤
+    점검 화면을 최신 상태로 갱신한다.
+  */
+  refreshInspectionScheduleAfterShiftLogChange(
+    result.inspectionScheduleSync,
+    {
+      workDate:
+        log?.date,
+
+      shift:
+        log?.shift
+    }
+  );
+
+
   return normalizeSharedShiftLog(
     result.log
   );
@@ -55525,8 +55656,11 @@ async function saveShiftLogToServer(
 /* =========================================================
   D1 공용 업무일지 삭제
 
-  삭제 후 자동완료를 재검사할 수 있도록
-  해당 날짜·근무 점검 목록도 전달한다.
+  삭제 후:
+  - 같은 날짜·근무의 모든 업무일지 재검사
+  - 근거가 없어진 자동완료 해제
+  - 다른 업무일지 근거가 있으면 완료 유지
+  - 점검 화면 즉시 갱신
 ========================================================= */
 
 async function deleteShiftLogFromServer(
@@ -55632,6 +55766,18 @@ async function deleteShiftLogFromServer(
           requestBody
       }
     );
+
+
+  refreshInspectionScheduleAfterShiftLogChange(
+    result.inspectionScheduleSync,
+    {
+      workDate:
+        log.date,
+
+      shift:
+        log.shift
+    }
+  );
 
 
   return String(

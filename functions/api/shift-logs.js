@@ -825,6 +825,2635 @@ function validateLogInput(
 }
 
 /* =========================================================
+  점검주기표 업무일지 자동완료 서버 기준
+
+  적용 대상:
+  - 날짜가 명확하게 정해진 일간·주간·월간·분기 점검
+  - 조건부 일정도 실제 수행 문구가 있으면 완료
+
+  제외:
+  - 교대근무 업무일지 자체
+  - 타부서 참고 일정
+  - 날짜가 정해지지 않은 매월 유동 일정
+  - 수시 일정
+
+  담당 보직:
+  - 무관
+  - 어떤 보직의 업무일지에서든 수행 문구가 있으면 인정
+========================================================= */
+
+const INSPECTION_AUTO_COMPLETION_DEFAULT_SCHEDULES = [
+  {
+    id:
+      "daily-night-patrol",
+
+    title:
+      "야간 순찰 점검 일지",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "daily"
+    }
+  },
+
+
+  {
+    id:
+      "daily-freeze-prevention",
+
+    title:
+      "동파방지 점검일지(동결, 동파 취약개소)",
+
+    shifts: [
+      "NS"
+    ],
+
+    conditional:
+      true,
+
+    rule: {
+      type:
+        "daily"
+    }
+  },
+
+
+  {
+    id:
+      "daily-fbhe-vbelt",
+
+    title:
+      "FBHE, Seal Pot Blower V-Belt 상태 점검",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "daily"
+    }
+  },
+
+
+  {
+    id:
+      "daily-suction-filter",
+
+    title:
+      "회전기기 Suction Filter 상태 점검",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "daily"
+    }
+  },
+
+
+  {
+    id:
+      "daily-pump-strainer-dp",
+
+    title:
+      "6.9kV Pump Suction Strainer DP 점검",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "daily"
+    }
+  },
+
+
+  {
+    id:
+      "daily-silo-co",
+
+    title:
+      "Day Silo(Bio, Coal) CO 수치 점검 (CO₂ Tank Level 점검)",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "daily"
+    }
+  },
+
+
+  {
+    id:
+      "daily-air-pollution-dp",
+
+    title:
+      "대기오염방지시설 DP 점검 및 운전정보시스템 입력",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "daily"
+    }
+  },
+
+
+  {
+    id:
+      "daily-bio-hopper",
+
+    title:
+      "Bio Hopper Bin 내부 점검 및 청소",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "daily"
+    }
+  },
+
+
+  {
+    id:
+      "daily-bed-ash-discharge",
+
+    title:
+      "주보일러 연소실 Bed Ash 배출(4회/일)",
+
+    shifts: [
+      "DS",
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "daily"
+    }
+  },
+
+
+  {
+    id:
+      "daily-boiler-air-comp",
+
+    title:
+      "Boiler Air Comp. #B&C 무부하 30분 운전",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "daily"
+    }
+  },
+
+
+  {
+    id:
+      "weekly-lng-system",
+
+    title:
+      "LNG System 점검",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "weekly",
+
+      days: [
+        0
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "weekly-high-pressure-gas",
+
+    title:
+      "고압가스 저장시설 주간점검",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "weekly",
+
+      days: [
+        0
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "weekly-soot-blower",
+
+    title:
+      "보일러 Soot Blower 점검",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "weekly",
+
+      days: [
+        0
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "weekly-aux-air-comp",
+
+    title:
+      "Aux BLR Air-Comp 기동 Test 및 회전기기 Hand Turning",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "weekly",
+
+      days: [
+        6
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "weekly-bed-ash-screen",
+
+    title:
+      "Bed Ash Vibrating Screen 청소",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "weekly",
+
+      days: [
+        2,
+        5
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "weekly-lime-slurry-flushing",
+
+    title:
+      "Lime Slurry Density Meter Flushing 및 Lime Slurry Feed Tank 상부 Screen 이물질 청소",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "weekly",
+
+      days: [
+        4
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "weekly-bed-ash-be",
+
+    title:
+      "Bed Ash Bucket Elevator 하부 점검(청소)",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "weekly",
+
+      days: [
+        1
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "weekly-bag-filter-offline",
+
+    title:
+      "Bag Filter Off-Line Mode 진행",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "weekly",
+
+      days: [
+        2
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "weekly-fly-ash-sampling",
+
+    title:
+      "Fly Ash Sampling",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "weekly",
+
+      days: [
+        1
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "weekly-sda-hopper-ash",
+
+    title:
+      "SDA Hopper Ash 배출(톤백 2개/회·호기)",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "weekly",
+
+      days: [
+        2,
+        5
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "weekly-sda-return-line",
+
+    title:
+      "SDA Lime Slurry Return Line 점검",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "weekly",
+
+      days: [
+        1,
+        4
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "weekly-silo-vent-velocity",
+
+    title:
+      "1,2호기 유기성고형연료 Silo Vent Line Duct 유속 측정",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "weekly",
+
+      days: [
+        0
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "weekly-cooling-tower-damper",
+
+    title:
+      "냉각탑 Damper 작동 Test",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "weekly",
+
+      days: [
+        0
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "monthly-extinguisher",
+
+    title:
+      "소화기 점검",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "monthlyDate",
+
+      day:
+        4
+    }
+  },
+
+
+  {
+    id:
+      "monthly-emergency-generator",
+
+    title:
+      "비상발전기 기동 점검",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "monthlyWeek",
+
+      weeks: [
+        3
+      ],
+
+      days: [
+        0
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "monthly-main-boiler-rotation",
+
+    title:
+      "주보일러 회전기기 교체 점검",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "monthlyWeek",
+
+      weeks: [
+        3
+      ],
+
+      days: [
+        0
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "monthly-turbine-oil-gsc",
+
+    title:
+      "터빈/발전기 Oil&GSC계통 회전기기 교체운전 점검",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "monthlyWeek",
+
+      months: [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12
+      ],
+
+      weeks: [
+        4
+      ],
+
+      days: [
+        0
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "monthly-turbine-bop",
+
+    title:
+      "터빈/발전기 BOP계통, 보조보일러, HVAC 및 급탕 Sys. 회전기기 교체운전 점검",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "monthlyWeek",
+
+      weeks: [
+        4
+      ],
+
+      days: [
+        0
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "monthly-sda-atomizer-hours",
+
+    title:
+      "SDA Atomizer 가동 시간(Wheel 교체주기) 점검",
+
+    shifts: [
+      "NS"
+    ],
+
+    rule: {
+      type:
+        "monthlyWeek",
+
+      weeks: [
+        2,
+        4
+      ],
+
+      days: [
+        5
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "monthly-atomizer-wheel",
+
+    title:
+      "Atomizer Wheel 점검 및 Support Cone 부위 Cleaning TM발행",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "monthlyWeek",
+
+      weeks: [
+        2
+      ],
+
+      days: [
+        1
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "monthly-silo-vent-filter",
+
+    title:
+      "Fly Ash Silo, Lime Silo 상부 Vent Filter/Fan 점검",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "monthlyWeek",
+
+      weeks: [
+        2,
+        4
+      ],
+
+      days: [
+        5
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "monthly-steam-unit-heater",
+
+    title:
+      "Steam Unit Heater(보일러, 터빈 etc) 점검",
+
+    shifts: [
+      "NS"
+    ],
+
+    conditional:
+      true,
+
+    rule: {
+      type:
+        "monthlyWeek",
+
+      months: [
+        12,
+        1,
+        2,
+        3
+      ],
+
+      weeks: [
+        4
+      ],
+
+      days: [
+        0
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "monthly-service-air-drain",
+
+    title:
+      "동절기 Service Air Line 응축수 Drain",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "monthlyWeek",
+
+      months: [
+        12,
+        1,
+        2,
+        3
+      ],
+
+      weeks: [
+        1,
+        3
+      ],
+
+      days: [
+        6
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "quarterly-co2-release",
+
+    title:
+      "CO2 구역별 방출 Test",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "monthlyWeek",
+
+      months: [
+        3,
+        6,
+        9,
+        12
+      ],
+
+      weeks: [
+        3
+      ],
+
+      days: [
+        3
+      ]
+    }
+  },
+
+
+  {
+    id:
+      "other-bio-storage-silo",
+
+    title:
+      "Bio Storage silo 내부 육안 점검",
+
+    shifts: [
+      "DS"
+    ],
+
+    rule: {
+      type:
+        "monthlyWeek",
+
+      weeks: [
+        3
+      ],
+
+      days: [
+        5
+      ]
+    }
+  }
+];
+
+
+/* =========================================================
+  점검명별 업무일지 인식 문구
+
+  같은 뜻의 약칭·영문·현장 표현을 묶는다.
+========================================================= */
+
+const INSPECTION_AUTO_COMPLETION_ALIASES = {
+  "daily-night-patrol": [
+    "야간 순찰",
+    "야간 현장 순찰"
+  ],
+
+  "daily-freeze-prevention": [
+    "동파 방지",
+    "동파 취약",
+    "동결 취약"
+  ],
+
+  "daily-fbhe-vbelt": [
+    "FBHE V BELT",
+    "FBHE A V BELT",
+    "FBHE B V BELT",
+    "FBHE C V BELT",
+    "SEAL POT BLOWER V BELT",
+    "FBHE 벨트"
+  ],
+
+  "daily-suction-filter": [
+    "SUCTION FILTER",
+    "흡입 FILTER",
+    "흡입 필터"
+  ],
+
+  "daily-pump-strainer-dp": [
+    "PUMP SUCTION STRAINER DP",
+    "PUMP STRAINER DP",
+    "BFP STRAINER DP",
+    "MCWP STRAINER DP",
+    "ACWP STRAINER DP",
+    "COP STRAINER DP",
+    "CCWP STRAINER DP",
+    "펌프 STRAINER DP"
+  ],
+
+  "daily-silo-co": [
+    "DAY SILO CO",
+    "BIO SILO CO",
+    "COAL SILO CO",
+    "CO2 TANK LEVEL"
+  ],
+
+  "daily-air-pollution-dp": [
+    "대기오염방지시설 DP",
+    "운전정보시스템 입력"
+  ],
+
+  "daily-bio-hopper": [
+    "BIO HOPPER BIN",
+    "BIO HOPPER"
+  ],
+
+  "daily-bed-ash-discharge": [
+    "BED ASH 배출",
+    "BED ASH DISCHARGE"
+  ],
+
+  "daily-boiler-air-comp": [
+    "BOILER AIR COMP",
+    "BLR AIR COMP",
+    "보일러 AIR COMP"
+  ],
+
+  "weekly-lng-system": [
+    "LNG SYSTEM",
+    "LNG 설비"
+  ],
+
+  "weekly-high-pressure-gas": [
+    "고압가스 저장시설",
+    "CO2 고압가스 저장시설",
+    "고압가스 주간"
+  ],
+
+  "weekly-soot-blower": [
+    "SOOT BLOWER",
+    "매연 취입기"
+  ],
+
+  "weekly-aux-air-comp": [
+    "AUX BLR AIR COMP",
+    "AUX BOILER AIR COMP",
+    "HAND TURNING"
+  ],
+
+  "weekly-bed-ash-screen": [
+    "BED ASH VIBRATING SCREEN",
+    "BED ASH SCREEN"
+  ],
+
+  "weekly-lime-slurry-flushing": [
+    "LIME SLURRY DENSITY METER",
+    "LIME SLURRY D M",
+    "LIME SLURRY FLUSHING",
+    "LIME SLURRY FEED TANK"
+  ],
+
+  "weekly-bed-ash-be": [
+    "BED ASH BUCKET ELEVATOR",
+    "BED ASH B E",
+    "BE601"
+  ],
+
+  "weekly-bag-filter-offline": [
+    "BAG FILTER OFF LINE",
+    "BAG FILTER OFFLINE"
+  ],
+
+  "weekly-fly-ash-sampling": [
+    "FLY ASH SAMPLING",
+    "FLYASH SAMPLING"
+  ],
+
+  "weekly-sda-hopper-ash": [
+    "SDA HOPPER ASH",
+    "SDA HOPPER 배출"
+  ],
+
+  "weekly-sda-return-line": [
+    "SDA LIME SLURRY RETURN",
+    "SDA SLURRY RETURN"
+  ],
+
+  "weekly-silo-vent-velocity": [
+    "SILO VENT LINE DUCT",
+    "SILO VENT DUCT",
+    "SILO VENT 유속"
+  ],
+
+  "weekly-cooling-tower-damper": [
+    "냉각탑 DAMPER",
+    "COOLING TOWER DAMPER"
+  ],
+
+  "monthly-extinguisher": [
+    "소화기"
+  ],
+
+  "monthly-emergency-generator": [
+    "비상발전기",
+    "EMERGENCY GENERATOR"
+  ],
+
+  "monthly-main-boiler-rotation": [
+    "주보일러 회전기기",
+    "MAIN BOILER 회전기기"
+  ],
+
+  "monthly-turbine-oil-gsc": [
+    "OIL GSC",
+    "OIL&GSC",
+    "터빈 발전기 OIL"
+  ],
+
+  "monthly-turbine-bop": [
+    "터빈 발전기 BOP",
+    "보조보일러 HVAC",
+    "급탕 SYS 회전기기"
+  ],
+
+  "monthly-sda-atomizer-hours": [
+    "SDA ATOMIZER 가동 시간",
+    "ATOMIZER 가동 시간",
+    "WHEEL 교체주기"
+  ],
+
+  "monthly-atomizer-wheel": [
+    "ATOMIZER WHEEL",
+    "SUPPORT CONE"
+  ],
+
+  "monthly-silo-vent-filter": [
+    "FLY ASH SILO VENT FILTER",
+    "LIME SILO VENT FILTER",
+    "SILO VENT FILTER FAN"
+  ],
+
+  "monthly-steam-unit-heater": [
+    "STEAM UNIT HEATER",
+    "UNIT HEATER"
+  ],
+
+  "monthly-service-air-drain": [
+    "SERVICE AIR LINE",
+    "SERVICE AIR 응축수"
+  ],
+
+  "quarterly-co2-release": [
+    "CO2 구역별 방출",
+    "CO2 방출 TEST"
+  ],
+
+  "other-bio-storage-silo": [
+    "BIO STORAGE SILO",
+    "BIO 저장 SILO"
+  ]
+};
+
+
+/* =========================================================
+  실제 수행 문구
+
+  아래 단어가 있어야 자동 완료 후보가 된다.
+========================================================= */
+
+const INSPECTION_AUTO_COMPLETION_ACTION_PATTERN =
+  /(점검|확인|청소|세척|FLUSHING|플러싱|측정|TEST|시험|기동|가동|운전|배출|DISCHARGE|SAMPLING|DRAIN|드레인|교체|HAND\s*TURNING|OFF\s*LINE|입력|실시|시행|완료|진행|작동|정상|양호|이상\s*없음|이상없음)/i;
+
+
+/* =========================================================
+  확실한 수행 완료 문구
+
+  예:
+  - 점검 실시
+  - 청소 완료
+  - 측정함
+  - 정상 확인
+  - 이상 없음
+========================================================= */
+
+const INSPECTION_AUTO_COMPLETION_DEFINITE_PATTERN =
+  /((점검|확인|청소|세척|측정|TEST|시험|기동|가동|운전|배출|DISCHARGE|SAMPLING|DRAIN|드레인|교체|HAND\s*TURNING|FLUSHING|플러싱)(?:을|를)?\s*(실시|시행|완료|함)|정상\s*확인|작동\s*확인|이상\s*없음|이상없음|양호)/i;
+
+
+/* =========================================================
+  완료로 처리하지 않는 문구
+
+  예:
+  - 점검 예정
+  - 청소 필요
+  - 점검 요청
+  - 미실시
+  - 작업 불가
+
+  단, "점검 완료 후 정비 요청"처럼
+  실제 완료가 명확하면 완료를 우선한다.
+========================================================= */
+
+const INSPECTION_AUTO_COMPLETION_NEGATIVE_PATTERN =
+  /(미실시|미완료|미점검|미확인|못함|불가|보류|취소|예정|계획|요청|필요|대기|준비\s*중|작업\s*전|점검\s*전)/i;
+
+
+/* =========================================================
+  점검명 자동 비교 시 제외할 일반 단어
+========================================================= */
+
+const INSPECTION_AUTO_COMPLETION_TITLE_STOP_WORDS =
+  new Set([
+    "점검",
+    "일지",
+    "상태",
+    "내부",
+    "외부",
+    "부위",
+    "구역별",
+    "주간",
+    "일일",
+    "매일",
+    "매주",
+    "매월",
+    "기동",
+    "작동",
+    "운전",
+    "진행",
+    "청소",
+    "측정",
+    "TEST",
+    "시험",
+    "실시",
+    "시행",
+    "완료",
+    "교체",
+    "교체운전",
+    "가동",
+    "시간",
+    "상부",
+    "하부",
+    "수치",
+    "LINE",
+    "MODE",
+    "SYSTEM",
+    "SYS",
+    "및",
+    "부",
+    "회전기기"
+  ]);
+
+/* =========================================================
+  점검주기표 자동완료 날짜·문구 비교
+
+  기능:
+  - 화면과 동일한 월 주차 계산
+  - 해당 날짜의 점검 일정 선별
+  - D/S·N/S 근무 확인
+  - 관리자 수정·추가·사용 중지 일정 반영
+  - 모든 보직의 업무내용 수집
+  - 실제 수행 문구만 완료 후보로 판정
+  - 이전 근무에서 자동으로 가져온 내용은 제외
+
+  이 단계에서는 완료 후보만 만든다.
+  실제 D1 완료 기록 생성·수정·삭제는 다음 단계에서 연결한다.
+========================================================= */
+
+
+/* =========================================================
+  점검명·업무내용 비교용 문자열 정리
+
+  예:
+  - CO₂ → CO2
+  - Oil&GSC → OIL GSC
+  - Off-Line → OFF LINE
+  - 여러 공백 → 한 칸
+========================================================= */
+
+function normalizeInspectionAutoCompletionText(
+  value
+) {
+  return String(
+    value ??
+    ""
+  )
+    .normalize(
+      "NFKC"
+    )
+    .replace(
+      /[\u200B-\u200D\u2060\uFEFF]/g,
+      ""
+    )
+    .toUpperCase()
+    .replace(
+      /[^0-9A-Z가-힣]+/g,
+      " "
+    )
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+}
+
+
+/*
+  점검명에서 제외할 일반 단어도
+  동일한 방식으로 미리 정리한다.
+*/
+const INSPECTION_AUTO_COMPLETION_NORMALIZED_STOP_WORDS =
+  new Set(
+    [
+      ...INSPECTION_AUTO_COMPLETION_TITLE_STOP_WORDS
+    ]
+      .map(
+        normalizeInspectionAutoCompletionText
+      )
+      .filter(
+        Boolean
+      )
+  );
+
+
+/* =========================================================
+  서버용 날짜 생성
+
+  UTC 날짜를 사용하여
+  Cloudflare 서버 시간대에 따른 날짜 밀림을 방지한다.
+========================================================= */
+
+function createInspectionAutoCompletionDate(
+  value
+) {
+  const text =
+    normalizeText(
+      value
+    );
+
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      text
+    )
+  ) {
+    return null;
+  }
+
+
+  const [
+    year,
+    month,
+    day
+  ] =
+    text
+      .split(
+        "-"
+      )
+      .map(
+        Number
+      );
+
+
+  const date =
+    new Date(
+      Date.UTC(
+        year,
+        month - 1,
+        day
+      )
+    );
+
+
+  return (
+    date.getUTCFullYear() ===
+      year &&
+    date.getUTCMonth() ===
+      month - 1 &&
+    date.getUTCDate() ===
+      day
+  )
+    ? date
+    : null;
+}
+
+
+/* =========================================================
+  월 주차 계산
+
+  화면 점검주기표와 같은 기준:
+
+  - 월 1일이 일~금요일이면 해당 주를 첫째 주
+  - 월 1일이 토요일이면 다음 일요일부터 첫째 주
+========================================================= */
+
+function getInspectionAutoCompletionWeekOfMonth(
+  dateValue
+) {
+  const date =
+    createInspectionAutoCompletionDate(
+      dateValue
+    );
+
+
+  if (
+    !date
+  ) {
+    return 0;
+  }
+
+
+  const year =
+    date.getUTCFullYear();
+
+
+  const monthIndex =
+    date.getUTCMonth();
+
+
+  const firstDay =
+    new Date(
+      Date.UTC(
+        year,
+        monthIndex,
+        1
+      )
+    );
+
+
+  let firstWeekStart;
+
+
+  /*
+    1일이 토요일이면
+    다음 날인 2일부터 첫째 주
+  */
+  if (
+    firstDay.getUTCDay() ===
+      6
+  ) {
+    firstWeekStart =
+      new Date(
+        Date.UTC(
+          year,
+          monthIndex,
+          2
+        )
+      );
+
+  } else {
+    /*
+      1일이 일~금요일이면
+      1일이 포함된 일요일부터 첫째 주
+    */
+    firstWeekStart =
+      new Date(
+        Date.UTC(
+          year,
+          monthIndex,
+          1 -
+            firstDay.getUTCDay()
+        )
+      );
+  }
+
+
+  const currentWeekStart =
+    new Date(
+      Date.UTC(
+        year,
+        monthIndex,
+        date.getUTCDate() -
+          date.getUTCDay()
+      )
+    );
+
+
+  return (
+    Math.floor(
+      (
+        currentWeekStart.getTime() -
+        firstWeekStart.getTime()
+      ) /
+      604800000
+    ) +
+    1
+  );
+}
+
+
+/* =========================================================
+  적용 월 확인
+
+  예:
+  - 동절기: 12·1·2·3월
+  - 분기: 3·6·9·12월
+  - 짝수월: 2·4·6·8·10·12월
+========================================================= */
+
+function isInspectionAutoCompletionActiveInMonth(
+  scheduleItem,
+  monthNumber
+) {
+  const months =
+    Array.isArray(
+      scheduleItem
+        ?.rule
+        ?.months
+    )
+      ? scheduleItem.rule.months
+          .map(
+            Number
+          )
+          .filter(
+            Number.isInteger
+          )
+      : [];
+
+
+  return (
+    months.length ===
+      0 ||
+    months.includes(
+      Number(
+        monthNumber
+      )
+    )
+  );
+}
+
+
+/* =========================================================
+  해당 날짜에 실행할 점검인지 확인
+========================================================= */
+
+function isInspectionAutoCompletionDueOnDate(
+  scheduleItem,
+  dateValue
+) {
+  const date =
+    createInspectionAutoCompletionDate(
+      dateValue
+    );
+
+
+  const rule =
+    scheduleItem
+      ?.rule;
+
+
+  if (
+    !date ||
+    !rule ||
+    typeof rule !==
+      "object"
+  ) {
+    return false;
+  }
+
+
+  const monthNumber =
+    date.getUTCMonth() +
+    1;
+
+
+  const weekday =
+    date.getUTCDay();
+
+
+  if (
+    !isInspectionAutoCompletionActiveInMonth(
+      scheduleItem,
+      monthNumber
+    )
+  ) {
+    return false;
+  }
+
+
+  const ruleType =
+    normalizeText(
+      rule.type
+    );
+
+
+  /*
+    매일
+  */
+  if (
+    ruleType ===
+      "daily"
+  ) {
+    return true;
+  }
+
+
+  /*
+    지정 요일
+  */
+  if (
+    [
+      "weekdays",
+      "weekly"
+    ].includes(
+      ruleType
+    )
+  ) {
+    return (
+      Array.isArray(
+        rule.days
+      ) &&
+      rule.days
+        .map(
+          Number
+        )
+        .includes(
+          weekday
+        )
+    );
+  }
+
+
+  /*
+    매월 지정 날짜
+  */
+  if (
+    ruleType ===
+      "monthlyDate"
+  ) {
+    return (
+      date.getUTCDate() ===
+      Number(
+        rule.day
+      )
+    );
+  }
+
+
+  /*
+    매월 지정 주차·요일
+  */
+  if (
+    ruleType ===
+      "monthlyWeek"
+  ) {
+    const weekNumber =
+      getInspectionAutoCompletionWeekOfMonth(
+        dateValue
+      );
+
+
+    return (
+      Array.isArray(
+        rule.weeks
+      ) &&
+      rule.weeks
+        .map(
+          Number
+        )
+        .includes(
+          weekNumber
+        ) &&
+
+      Array.isArray(
+        rule.days
+      ) &&
+      rule.days
+        .map(
+          Number
+        )
+        .includes(
+          weekday
+        )
+    );
+  }
+
+
+  /*
+    monthlyFloating·adHoc처럼
+    정확한 예정일이 없는 일정은 자동완료하지 않는다.
+  */
+  return false;
+}
+
+
+/* =========================================================
+  일정의 완료 대상 근무 확인
+
+  반환:
+  - "DS"
+  - "NS"
+  - ""    : 별도 근무 지정 없음
+  - null  : 현재 업무일지 근무와 다른 일정
+========================================================= */
+
+function getInspectionAutoCompletionDueShift(
+  scheduleItem,
+  workShift
+) {
+  const normalizedWorkShift =
+    normalizeShift(
+      workShift
+    );
+
+
+  const scheduleShifts =
+    [
+      ...new Set(
+        (
+          Array.isArray(
+            scheduleItem?.shifts
+          )
+            ? scheduleItem.shifts
+            : []
+        )
+          .map(
+            normalizeShift
+          )
+          .filter(
+            Boolean
+          )
+      )
+    ];
+
+
+  /*
+    근무가 지정되지 않은 일정은
+    완료 기록에도 빈 근무값을 사용한다.
+  */
+  if (
+    scheduleShifts.length ===
+      0
+  ) {
+    return "";
+  }
+
+
+  return scheduleShifts.includes(
+    normalizedWorkShift
+  )
+    ? normalizedWorkShift
+    : null;
+}
+
+
+/* =========================================================
+  D1 점검 일정 JSON 읽기
+========================================================= */
+
+function parseInspectionAutoCompletionScheduleJson(
+  value
+) {
+  const parsed =
+    parseJsonObject(
+      value
+    );
+
+
+  return (
+    parsed &&
+    typeof parsed ===
+      "object" &&
+    !Array.isArray(
+      parsed
+    )
+  )
+    ? parsed
+    : {};
+}
+
+
+/* =========================================================
+  서버의 실제 점검주기표 생성
+
+  기본 일정:
+  - 앞 단계에서 추가한
+    INSPECTION_AUTO_COMPLETION_DEFAULT_SCHEDULES
+
+  관리자 변경:
+  - inspection_schedule_overrides
+  - 활성 변경 일정은 기본 일정 교체
+  - 사용 중지 일정은 제거
+  - 사용자 추가 일정은 새로 포함
+========================================================= */
+
+async function loadInspectionAutoCompletionEffectiveSchedules(
+  database
+) {
+  const effectiveScheduleMap =
+    new Map();
+
+
+  /*
+    서버 기본 일정 복사
+  */
+  INSPECTION_AUTO_COMPLETION_DEFAULT_SCHEDULES
+    .forEach(
+      scheduleItem => {
+        const id =
+          normalizeText(
+            scheduleItem?.id
+          );
+
+
+        if (
+          !id
+        ) {
+          return;
+        }
+
+
+        effectiveScheduleMap.set(
+          id,
+
+          JSON.parse(
+            JSON.stringify(
+              scheduleItem
+            )
+          )
+        );
+      }
+    );
+
+
+  try {
+    const result =
+      await database
+        .prepare(`
+          SELECT
+            id,
+            schedule_json,
+            is_active,
+            is_custom
+
+          FROM inspection_schedule_overrides
+        `)
+        .all();
+
+
+    const rows =
+      Array.isArray(
+        result.results
+      )
+        ? result.results
+        : [];
+
+
+    rows.forEach(
+      row => {
+        const id =
+          normalizeText(
+            row.id
+          );
+
+
+        if (
+          !id
+        ) {
+          return;
+        }
+
+
+        /*
+          사용 중지된 기본·추가 일정 제거
+        */
+        if (
+          Number(
+            row.is_active
+          ) !==
+            1
+        ) {
+          effectiveScheduleMap.delete(
+            id
+          );
+
+
+          return;
+        }
+
+
+        const scheduleItem =
+          parseInspectionAutoCompletionScheduleJson(
+            row.schedule_json
+          );
+
+
+        if (
+          !normalizeText(
+            scheduleItem.id ||
+            id
+          ) ||
+          !normalizeText(
+            scheduleItem.title
+          )
+        ) {
+          return;
+        }
+
+
+        /*
+          수정된 기본 일정 또는 사용자 추가 일정 반영
+        */
+        effectiveScheduleMap.set(
+          id,
+
+          {
+            ...scheduleItem,
+
+            id,
+
+            autoCompletionIsCustom:
+              Number(
+                row.is_custom
+              ) ===
+              1
+          }
+        );
+      }
+    );
+
+  } catch (
+    error
+  ) {
+    const message =
+      String(
+        error?.message ||
+        error ||
+        ""
+      );
+
+
+    /*
+      점검 일정 관리 API가 아직 한 번도 실행되지 않아
+      테이블이 없는 경우에는 기본 일정만 사용한다.
+    */
+    if (
+      !/no such table/i.test(
+        message
+      )
+    ) {
+      console.warn(
+        "점검 자동완료 일정 변경사항 조회 실패:",
+        error
+      );
+    }
+  }
+
+
+  return [
+    ...effectiveScheduleMap.values()
+  ];
+}
+
+
+/* =========================================================
+  해당 날짜·근무의 점검 일정 선별
+========================================================= */
+
+function getInspectionAutoCompletionDueSchedules(
+  schedules,
+  workDate,
+  workShift
+) {
+  return (
+    Array.isArray(
+      schedules
+    )
+      ? schedules
+      : []
+  )
+    .filter(
+      scheduleItem => {
+        return (
+          normalizeText(
+            scheduleItem?.id
+          ) &&
+
+          /*
+            업무일지 자체는 자동완료 대상 제외
+          */
+          scheduleItem.id !==
+            "daily-shift-log" &&
+
+          /*
+            타부서 참고 일정 제외
+          */
+          scheduleItem.referenceOnly !==
+            true &&
+
+          isInspectionAutoCompletionDueOnDate(
+            scheduleItem,
+            workDate
+          ) &&
+
+          getInspectionAutoCompletionDueShift(
+            scheduleItem,
+            workShift
+          ) !==
+            null
+        );
+      }
+    )
+    .map(
+      scheduleItem => {
+        return {
+          ...scheduleItem,
+
+          dueShift:
+            getInspectionAutoCompletionDueShift(
+              scheduleItem,
+              workShift
+            )
+        };
+      }
+    );
+}
+
+
+/* =========================================================
+  점검명에서 비교 토큰 추출
+
+  예:
+  Bed Ash Vibrating Screen 청소
+  → BED, ASH, VIBRATING, SCREEN
+========================================================= */
+
+function getInspectionAutoCompletionTitleTokens(
+  scheduleItem
+) {
+  const normalizedTitle =
+    normalizeInspectionAutoCompletionText(
+      scheduleItem?.title
+    );
+
+
+  return [
+    ...new Set(
+      normalizedTitle
+        .split(
+          " "
+        )
+        .map(
+          token => {
+            return token.trim();
+          }
+        )
+        .filter(
+          token => {
+            return (
+              token.length >=
+                2 &&
+
+              !/^[0-9]+$/.test(
+                token
+              ) &&
+
+              !INSPECTION_AUTO_COMPLETION_NORMALIZED_STOP_WORDS
+                .has(
+                  token
+                )
+            );
+          }
+        )
+    )
+  ];
+}
+
+
+/* =========================================================
+  일정별 별칭 목록 생성
+========================================================= */
+
+function getInspectionAutoCompletionAliases(
+  scheduleItem
+) {
+  const scheduleId =
+    normalizeText(
+      scheduleItem?.id
+    );
+
+
+  const aliases =
+    Array.isArray(
+      INSPECTION_AUTO_COMPLETION_ALIASES[
+        scheduleId
+      ]
+    )
+      ? INSPECTION_AUTO_COMPLETION_ALIASES[
+          scheduleId
+        ]
+      : [];
+
+
+  const titleKeyword =
+    normalizeText(
+      scheduleItem?.titleKeyword
+    );
+
+
+  return [
+    ...new Set(
+      [
+        ...aliases,
+        titleKeyword
+      ]
+        .map(
+          normalizeInspectionAutoCompletionText
+        )
+        .filter(
+          Boolean
+        )
+    )
+  ];
+}
+
+
+/* =========================================================
+  실제 수행 문구 확인
+
+  완료 인정:
+  - 점검 실시
+  - 청소 완료
+  - Bed Ash 배출
+  - Soot Blower 실시
+  - 정상 확인
+  - 이상 없음
+
+  완료 제외:
+  - 점검 예정
+  - 청소 필요
+  - 교체 요청
+  - 미실시
+  - 작업 불가
+
+  한 문장 안에 확실한 완료 문구가 있으면
+  예정·요청 단어가 함께 있어도 완료를 우선한다.
+========================================================= */
+
+function hasInspectionAutoCompletionExecutionText(
+  value
+) {
+  const text =
+    normalizeText(
+      value
+    );
+
+
+  if (
+    !text ||
+    !INSPECTION_AUTO_COMPLETION_ACTION_PATTERN.test(
+      text
+    )
+  ) {
+    return false;
+  }
+
+
+  const definite =
+    INSPECTION_AUTO_COMPLETION_DEFINITE_PATTERN.test(
+      text
+    );
+
+
+  const negative =
+    INSPECTION_AUTO_COMPLETION_NEGATIVE_PATTERN.test(
+      text
+    );
+
+
+  return (
+    definite ||
+    !negative
+  );
+}
+
+
+/* =========================================================
+  업무내용 1건과 점검 일정 비교
+
+  우선순위:
+  1. 등록된 별칭
+  2. 일정의 titleKeyword
+  3. 사용자 추가 일정은 점검명 주요 토큰 비교
+
+  기본 일정은 유사한 설비끼리 오인식하지 않도록
+  별칭이 등록된 경우 토큰 비교로 넘어가지 않는다.
+========================================================= */
+
+function findInspectionAutoCompletionTextMatch(
+  scheduleItem,
+  sourceText
+) {
+  const rawText =
+    normalizeText(
+      sourceText
+    );
+
+
+  if (
+    !hasInspectionAutoCompletionExecutionText(
+      rawText
+    )
+  ) {
+    return null;
+  }
+
+
+  const normalizedText =
+    normalizeInspectionAutoCompletionText(
+      rawText
+    );
+
+
+  if (
+    !normalizedText
+  ) {
+    return null;
+  }
+
+
+  const aliases =
+    getInspectionAutoCompletionAliases(
+      scheduleItem
+    );
+
+
+  const matchedAlias =
+    aliases.find(
+      alias => {
+        return normalizedText.includes(
+          alias
+        );
+      }
+    ) ||
+    "";
+
+
+  if (
+    matchedAlias
+  ) {
+    return {
+      matchType:
+        "alias",
+
+      matchedKeyword:
+        matchedAlias,
+
+      score:
+        100
+    };
+  }
+
+
+  /*
+    기본 일정의 별칭이 존재하지만
+    별칭이 맞지 않으면 다른 일정으로 판단한다.
+  */
+  if (
+    aliases.length >
+      0 &&
+    scheduleItem
+      ?.autoCompletionIsCustom !==
+      true
+  ) {
+    return null;
+  }
+
+
+  /*
+    사용자 추가 일정 또는 별칭이 없는 일정은
+    점검명의 핵심 단어를 비교한다.
+  */
+  const titleTokens =
+    getInspectionAutoCompletionTitleTokens(
+      scheduleItem
+    );
+
+
+  if (
+    titleTokens.length ===
+      0
+  ) {
+    return null;
+  }
+
+
+  const sourceTokens =
+    normalizedText.split(
+      " "
+    );
+
+
+  const matchedTokens =
+    titleTokens.filter(
+      token => {
+        return sourceTokens.includes(
+          token
+        );
+      }
+    );
+
+
+  const matchRatio =
+    matchedTokens.length /
+    titleTokens.length;
+
+
+  const matched =
+    titleTokens.length ===
+      1
+      ? (
+          matchedTokens.length ===
+            1 &&
+          titleTokens[0].length >=
+            3
+        )
+
+      : titleTokens.length ===
+          2
+        ? matchedTokens.length ===
+            2
+
+        : (
+            matchedTokens.length >=
+              3 ||
+
+            (
+              matchedTokens.length >=
+                2 &&
+              matchRatio >=
+                0.5
+            )
+          );
+
+
+  if (
+    !matched
+  ) {
+    return null;
+  }
+
+
+  return {
+    matchType:
+      "title-token",
+
+    matchedKeyword:
+      matchedTokens.join(
+        " "
+      ),
+
+    score:
+      Math.round(
+        matchRatio *
+        100
+      )
+  };
+}
+
+
+/* =========================================================
+  업무일지에서 자동완료 검사 대상 내용 수집
+
+  확인 배열:
+  - entries
+  - tmEntries
+  - handoverEntries
+  - remarkEntries
+
+  제외:
+  - 이전 근무 자동 가져오기 내용
+  - inheritedFromDate가 있는 항목
+
+  파트장 취합 내용:
+  - 최초 원본 업무일지·보직·작성자를 유지
+========================================================= */
+
+function collectInspectionAutoCompletionSourceEntries(
+  log
+) {
+  const result =
+    [];
+
+
+  const usedKeys =
+    new Set();
+
+
+  const collections = [
+    [
+      "entries",
+      log?.entries
+    ],
+    [
+      "tmEntries",
+      log?.tmEntries
+    ],
+    [
+      "handoverEntries",
+      log?.handoverEntries
+    ],
+    [
+      "remarkEntries",
+      log?.remarkEntries
+    ]
+  ];
+
+
+  collections.forEach(
+    (
+      [
+        collectionName,
+        source
+      ]
+    ) => {
+      (
+        Array.isArray(
+          source
+        )
+          ? source
+          : []
+      ).forEach(
+        (
+          rawEntry,
+          entryIndex
+        ) => {
+          const entry =
+            rawEntry &&
+            typeof rawEntry ===
+              "object" &&
+            !Array.isArray(
+              rawEntry
+            )
+              ? rawEntry
+              : {
+                  content:
+                    String(
+                      rawEntry ||
+                      ""
+                    )
+                };
+
+
+          const content =
+            normalizeText(
+              entry.content ||
+              entry.text ||
+              entry.description ||
+              entry.value
+            );
+
+
+          if (
+            !content
+          ) {
+            return;
+          }
+
+
+          const sourceType =
+            normalizeText(
+              entry.source
+            ).toLowerCase();
+
+
+          /*
+            이전 일지에서 자동으로 가져온 내용은
+            현재 근무자가 수행한 점검으로 인정하지 않는다.
+          */
+          if (
+            sourceType.includes(
+              "previous-shift"
+            ) ||
+            normalizeText(
+              entry.inheritedFromDate
+            )
+          ) {
+            return;
+          }
+
+
+          const sourceLogId =
+            normalizeText(
+              entry.importedFromLogId ||
+              log?.id
+            );
+
+
+          if (
+            !sourceLogId
+          ) {
+            return;
+          }
+
+
+          const stableEntryId =
+            normalizeText(
+              entry.id
+            ) ||
+            (
+              Number.isInteger(
+                Number(
+                  entry.importedFromEntryIndex
+                )
+              )
+                ? `imported-${Number(
+                    entry.importedFromEntryIndex
+                  )}`
+
+                : `${collectionName}-${entryIndex}`
+            );
+
+
+          const sourceEntryKey = [
+            sourceLogId,
+            stableEntryId
+          ].join(
+            "||"
+          );
+
+
+          const contentKey = [
+            sourceEntryKey,
+
+            normalizeInspectionAutoCompletionText(
+              content
+            )
+          ].join(
+            "||"
+          );
+
+
+          if (
+            usedKeys.has(
+              contentKey
+            )
+          ) {
+            return;
+          }
+
+
+          usedKeys.add(
+            contentKey
+          );
+
+
+          result.push({
+            sourceLogId,
+
+            sourceEntryKey,
+
+            sourceRole:
+              normalizeLogRole(
+                entry.importedFromRole ||
+                log?.role
+              ),
+
+            sourceAuthorId:
+              normalizeEmployeeNo(
+                entry.importedFromAuthorId ||
+                log?.authorId
+              ),
+
+            sourceAuthor:
+              normalizeText(
+                entry.importedFromAuthor ||
+                log?.author
+              ),
+
+            sourceText:
+              content.slice(
+                0,
+                1000
+              ),
+
+            sourceUpdatedAt:
+              normalizeText(
+                log?.updatedAt ||
+                log?.createdAt
+              ),
+
+            collectionName,
+
+            entryIndex
+          });
+        }
+      );
+    }
+  );
+
+
+  return result;
+}
+
+
+/* =========================================================
+  같은 날짜·근무 전체 업무일지에서 자동완료 후보 생성
+
+  어떤 보직의 업무일지든 한 건이라도 일치하면
+  해당 점검을 완료 후보로 만든다.
+
+  같은 점검이 여러 업무일지에 있으면
+  가장 최근에 저장된 업무일지를 출처로 사용한다.
+========================================================= */
+
+function buildInspectionAutoCompletionCandidates(
+  logs,
+  schedules,
+  workDate,
+  workShift
+) {
+  const dueSchedules =
+    getInspectionAutoCompletionDueSchedules(
+      schedules,
+      workDate,
+      workShift
+    );
+
+
+  const sourceEntries =
+    (
+      Array.isArray(
+        logs
+      )
+        ? logs
+        : []
+    )
+      .flatMap(
+        collectInspectionAutoCompletionSourceEntries
+      )
+      .sort(
+        (
+          firstEntry,
+          secondEntry
+        ) => {
+          return String(
+            secondEntry.sourceUpdatedAt ||
+            ""
+          ).localeCompare(
+            String(
+              firstEntry.sourceUpdatedAt ||
+              ""
+            )
+          );
+        }
+      );
+
+
+  const candidates =
+    [];
+
+
+  dueSchedules.forEach(
+    scheduleItem => {
+      let selectedMatch =
+        null;
+
+
+      for (
+        const sourceEntry of
+        sourceEntries
+      ) {
+        const match =
+          findInspectionAutoCompletionTextMatch(
+            scheduleItem,
+            sourceEntry.sourceText
+          );
+
+
+        if (
+          !match
+        ) {
+          continue;
+        }
+
+
+        selectedMatch = {
+          ...sourceEntry,
+          ...match
+        };
+
+
+        break;
+      }
+
+
+      if (
+        !selectedMatch
+      ) {
+        return;
+      }
+
+
+      candidates.push({
+        scheduleId:
+          normalizeText(
+            scheduleItem.id
+          ),
+
+        scheduleTitle:
+          normalizeText(
+            scheduleItem.title
+          ),
+
+        dueDate:
+          normalizeText(
+            workDate
+          ),
+
+        shift:
+          scheduleItem.dueShift,
+
+        sourceLogId:
+          selectedMatch.sourceLogId,
+
+        sourceEntryKey:
+          selectedMatch.sourceEntryKey,
+
+        sourceRole:
+          selectedMatch.sourceRole,
+
+        sourceAuthorId:
+          selectedMatch.sourceAuthorId,
+
+        sourceAuthor:
+          selectedMatch.sourceAuthor,
+
+        sourceText:
+          selectedMatch.sourceText,
+
+        sourceUpdatedAt:
+          selectedMatch.sourceUpdatedAt,
+
+        matchType:
+          selectedMatch.matchType,
+
+        matchedKeyword:
+          selectedMatch.matchedKeyword,
+
+        matchScore:
+          selectedMatch.score
+      });
+    }
+  );
+
+
+  return candidates;
+}
+
+/* =========================================================
   석회석 입고기록 업무일지 자동 동기화
 
   - 업무일지가 D1에 저장되기만 하면 반영
@@ -2142,6 +4771,1408 @@ async function synchronizeLimestoneReceiptsForShiftContext(
         error instanceof Error
           ? error.message
           : "석회석 자동 동기화 오류"
+    };
+  }
+}
+
+/* =========================================================
+  점검주기표 업무일지 자동완료
+
+  처리:
+  - 같은 날짜·근무의 모든 보직 업무일지를 다시 조회
+  - 점검명과 업무내용의 핵심 단어·문구 유사도 비교
+  - 예정·필요·미실시 문구는 완료에서 제외
+  - 가장 유사한 업무내용 1건을 자동완료 근거로 사용
+  - 완료 상태 API를 호출하여 생성·수정·해제
+========================================================= */
+
+const INSPECTION_AUTO_STATUS_PATH =
+  "/api/inspection-schedule-status";
+
+const INSPECTION_AUTO_MIN_SCORE =
+  0.64;
+
+const INSPECTION_AUTO_STOP_WORDS =
+  new Set([
+    "점검",
+    "확인",
+    "상태",
+    "업무",
+    "작업",
+    "설비",
+    "관련",
+    "정기",
+    "일일",
+    "주간",
+    "월간",
+    "분기",
+    "반기",
+    "연간",
+    "매일",
+    "매주",
+    "매월",
+    "실시",
+    "시행",
+    "수행",
+    "완료",
+    "결과",
+    "이상",
+    "유무",
+    "및",
+    "또는",
+    "대한",
+    "the",
+    "and",
+    "or",
+    "for",
+    "with",
+    "check",
+    "inspection",
+    "daily",
+    "weekly",
+    "monthly"
+  ]);
+
+const INSPECTION_AUTO_ACTION_PATTERN =
+  /(?:점검|확인|검사|측정|시험|테스트|실시|시행|수행|완료|처리|조치|청소|세정|세척|flushing|flush|교체|보수|정비|체크|check|검교정|교정|이상\s*없|이상\s*무|양호|정상)/i;
+
+const INSPECTION_AUTO_NEGATIVE_PATTERNS = [
+  /미\s*(?:실시|수행|점검|완료|확인|처리)/i,
+
+  /(?:점검|확인|검사|작업)?\s*(?:예정|계획|보류|미정)/i,
+
+  /(?:추후|차후|다음\s*근무|익일)\s*(?:실시|진행|점검|확인|예정)?/i,
+
+  /(?:실시|수행|점검|확인|처리)\s*(?:필요|요망)/i,
+
+  /(?:요청|조치|교체|정비)\s*(?:필요|요망)/i,
+
+  /(?:해야\s*(?:함|됨)|하지\s*못|못\s*함|불가)/i
+];
+
+
+/* =========================================================
+  자동완료 비교 문자열 정리
+========================================================= */
+
+function normalizeInspectionAutoText(
+  value
+) {
+  return normalizeText(
+    value
+  )
+    .normalize(
+      "NFKC"
+    )
+    .toLowerCase()
+    .replace(
+      /fire\s*extinguisher/g,
+      " 소화기 "
+    )
+    .replace(
+      /d\s*[\/.-]\s*m\b/g,
+      " density meter "
+    )
+    .replace(
+      /density\s*m(?:eter)?\b/g,
+      " density meter "
+    )
+    .replace(
+      /lime\s*slurry/g,
+      " lime slurry "
+    )
+    .replace(
+      /arm\s*[- ]?roll/g,
+      " armroll "
+    )
+    .replace(
+      /scrap\s*[- ]?box/g,
+      " scrapbox "
+    )
+    .replace(
+      /&/g,
+      " and "
+    )
+    .replace(
+      /[^\p{L}\p{N}]+/gu,
+      " "
+    )
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+}
+
+
+function createInspectionAutoCompactText(
+  value
+) {
+  return normalizeInspectionAutoText(
+    value
+  ).replace(
+    /\s+/g,
+    ""
+  );
+}
+
+
+function getInspectionAutoTokens(
+  value
+) {
+  return [
+    ...new Set(
+      normalizeInspectionAutoText(
+        value
+      )
+        .split(
+          " "
+        )
+        .map(
+          token => {
+            return token.trim();
+          }
+        )
+        .filter(
+          token => {
+            return (
+              token.length >=
+                2 &&
+
+              !/^\d+$/.test(
+                token
+              ) &&
+
+              !INSPECTION_AUTO_STOP_WORDS.has(
+                token
+              )
+            );
+          }
+        )
+    )
+  ];
+}
+
+
+/* =========================================================
+  두 글자 묶음 유사도
+========================================================= */
+
+function createInspectionAutoBigrams(
+  value
+) {
+  const compactText =
+    createInspectionAutoCompactText(
+      value
+    );
+
+
+  if (
+    compactText.length <
+      2
+  ) {
+    return [];
+  }
+
+
+  const bigrams =
+    [];
+
+
+  for (
+    let index = 0;
+    index <
+      compactText.length -
+      1;
+    index += 1
+  ) {
+    bigrams.push(
+      compactText.slice(
+        index,
+        index +
+          2
+      )
+    );
+  }
+
+
+  return bigrams;
+}
+
+
+function calculateInspectionAutoDiceScore(
+  firstValue,
+  secondValue
+) {
+  const firstBigrams =
+    createInspectionAutoBigrams(
+      firstValue
+    );
+
+
+  const secondBigrams =
+    createInspectionAutoBigrams(
+      secondValue
+    );
+
+
+  if (
+    firstBigrams.length ===
+      0 ||
+    secondBigrams.length ===
+      0
+  ) {
+    return 0;
+  }
+
+
+  const secondCounts =
+    new Map();
+
+
+  secondBigrams.forEach(
+    bigram => {
+      secondCounts.set(
+        bigram,
+
+        (
+          secondCounts.get(
+            bigram
+          ) ||
+          0
+        ) +
+          1
+      );
+    }
+  );
+
+
+  let intersectionCount =
+    0;
+
+
+  firstBigrams.forEach(
+    bigram => {
+      const remainingCount =
+        secondCounts.get(
+          bigram
+        ) ||
+        0;
+
+
+      if (
+        remainingCount <
+          1
+      ) {
+        return;
+      }
+
+
+      intersectionCount +=
+        1;
+
+
+      secondCounts.set(
+        bigram,
+        remainingCount -
+          1
+      );
+    }
+  );
+
+
+  return (
+    2 *
+    intersectionCount
+  ) /
+  (
+    firstBigrams.length +
+    secondBigrams.length
+  );
+}
+
+
+/* =========================================================
+  실제 수행 문구인지 확인
+========================================================= */
+
+function hasInspectionAutoCompletionEvidence(
+  sourceText
+) {
+  const text =
+    normalizeText(
+      sourceText
+    );
+
+
+  if (
+    !text ||
+    !INSPECTION_AUTO_ACTION_PATTERN.test(
+      text
+    )
+  ) {
+    return false;
+  }
+
+
+  return !INSPECTION_AUTO_NEGATIVE_PATTERNS.some(
+    pattern => {
+      return pattern.test(
+        text
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+  점검명과 업무내용 유사도
+========================================================= */
+
+function calculateInspectionAutoMatchScore(
+  scheduleTitle,
+  sourceText
+) {
+  if (
+    !hasInspectionAutoCompletionEvidence(
+      sourceText
+    )
+  ) {
+    return 0;
+  }
+
+
+  const titleCompact =
+    createInspectionAutoCompactText(
+      scheduleTitle
+    );
+
+
+  const sourceCompact =
+    createInspectionAutoCompactText(
+      sourceText
+    );
+
+
+  if (
+    !titleCompact ||
+    !sourceCompact
+  ) {
+    return 0;
+  }
+
+
+  /*
+    점검명이 문장 안에 그대로 있으면
+    가장 확실한 완료 근거다.
+  */
+  if (
+    titleCompact.length >=
+      4 &&
+
+    sourceCompact.includes(
+      titleCompact
+    )
+  ) {
+    return 1;
+  }
+
+
+  const titleTokens =
+    getInspectionAutoTokens(
+      scheduleTitle
+    );
+
+
+  const sourceTokens =
+    new Set(
+      getInspectionAutoTokens(
+        sourceText
+      )
+    );
+
+
+  const matchedTokens =
+    titleTokens.filter(
+      token => {
+        return sourceTokens.has(
+          token
+        );
+      }
+    );
+
+
+  const matchedCount =
+    matchedTokens.length;
+
+
+  const recall =
+    titleTokens.length >
+      0
+      ? matchedCount /
+        titleTokens.length
+      : 0;
+
+
+  const precision =
+    sourceTokens.size >
+      0
+      ? matchedCount /
+        sourceTokens.size
+      : 0;
+
+
+  let tokenScore =
+    recall *
+      0.82 +
+
+    precision *
+      0.18;
+
+
+  /*
+    소화기 점검처럼 핵심 명사가 하나인 경우
+  */
+  if (
+    titleTokens.length ===
+      1 &&
+
+    matchedCount ===
+      1
+  ) {
+    tokenScore =
+      0.92;
+  }
+
+
+  /*
+    핵심 단어가 여러 개면
+    최소 두 단어가 일치해야 한다.
+  */
+  if (
+    titleTokens.length >=
+      2 &&
+
+    matchedCount <
+      2
+  ) {
+    tokenScore =
+      0;
+  }
+
+
+  const diceScore =
+    calculateInspectionAutoDiceScore(
+      scheduleTitle,
+      sourceText
+    );
+
+
+  return Math.max(
+    tokenScore,
+    diceScore
+  );
+}
+
+
+/* =========================================================
+  업무일지 내용 수집
+========================================================= */
+
+function collectInspectionAutoSourceEntries(
+  log
+) {
+  const result =
+    [];
+
+
+  const usedKeys =
+    new Set();
+
+
+  const collections = [
+    [
+      "entries",
+      log?.entries
+    ],
+
+    [
+      "tmEntries",
+      log?.tmEntries
+    ],
+
+    [
+      "handoverEntries",
+      log?.handoverEntries
+    ],
+
+    [
+      "remarkEntries",
+      log?.remarkEntries
+    ]
+  ];
+
+
+  const appendText = (
+    sourceText,
+    collectionName,
+    entry,
+    entryIndex
+  ) => {
+    const lines =
+      String(
+        sourceText ||
+        ""
+      )
+        .replace(
+          /\r\n?/g,
+          "\n"
+        )
+        .split(
+          "\n"
+        )
+        .map(
+          line => {
+            return line.trim();
+          }
+        )
+        .filter(
+          Boolean
+        );
+
+
+    lines.forEach(
+      (
+        line,
+        lineIndex
+      ) => {
+        const normalizedLine =
+          normalizeInspectionAutoText(
+            line
+          );
+
+
+        if (
+          !normalizedLine
+        ) {
+          return;
+        }
+
+
+        const duplicateKey = [
+          normalizeText(
+            log?.id
+          ),
+
+          normalizedLine
+        ].join(
+          "||"
+        );
+
+
+        if (
+          usedKeys.has(
+            duplicateKey
+          )
+        ) {
+          return;
+        }
+
+
+        usedKeys.add(
+          duplicateKey
+        );
+
+
+        const entryId =
+          normalizeText(
+            entry?.id
+          );
+
+
+        const sourceEntryKey = [
+          normalizeText(
+            log?.id
+          ),
+
+          collectionName,
+
+          entryId ||
+            String(
+              entryIndex
+            ),
+
+          String(
+            lineIndex
+          )
+        ].join(
+          "||"
+        );
+
+
+        result.push({
+          sourceLogId:
+            normalizeText(
+              log?.id
+            ),
+
+          sourceEntryKey,
+
+          sourceRole:
+            normalizeLogRole(
+              log?.role
+            ),
+
+          sourceAuthor:
+            normalizeText(
+              log?.author
+            ),
+
+          sourceAuthorId:
+            normalizeEmployeeNo(
+              log?.authorId
+            ),
+
+          sourceText:
+            line.slice(
+              0,
+              1000
+            ),
+
+          sourceUpdatedAt:
+            normalizeText(
+              log?.updatedAt ||
+              log?.createdAt
+            )
+        });
+      }
+    );
+  };
+
+
+  collections.forEach(
+    (
+      [
+        collectionName,
+        rawEntries
+      ]
+    ) => {
+      (
+        Array.isArray(
+          rawEntries
+        )
+          ? rawEntries
+          : []
+      ).forEach(
+        (
+          rawEntry,
+          entryIndex
+        ) => {
+          const entry =
+            rawEntry &&
+            typeof rawEntry ===
+              "object" &&
+            !Array.isArray(
+              rawEntry
+            )
+              ? rawEntry
+              : {
+                  content:
+                    String(
+                      rawEntry ||
+                      ""
+                    )
+                };
+
+
+          const sourceType =
+            normalizeText(
+              entry?.source
+            ).toLowerCase();
+
+
+          /*
+            이전 근무에서 자동으로 가져온 문구는
+            현재 근무 완료 근거로 사용하지 않는다.
+          */
+          if (
+            sourceType.includes(
+              "previous-shift"
+            ) ||
+
+            normalizeText(
+              entry?.inheritedFromDate
+            )
+          ) {
+            return;
+          }
+
+
+          appendText(
+            entry?.content ||
+              entry?.text ||
+              entry?.description ||
+              "",
+
+            collectionName,
+
+            entry,
+
+            entryIndex
+          );
+        }
+      );
+    }
+  );
+
+
+  /*
+    구버전 단일 비고 문자열 호환
+  */
+  [
+    [
+      "note",
+      log?.note
+    ],
+
+    [
+      "remark",
+      log?.remark
+    ],
+
+    [
+      "remarks",
+      log?.remarks
+    ]
+  ].forEach(
+    (
+      [
+        fieldName,
+        fieldValue
+      ],
+      fieldIndex
+    ) => {
+      if (
+        typeof fieldValue !==
+          "string"
+      ) {
+        return;
+      }
+
+
+      appendText(
+        fieldValue,
+
+        fieldName,
+
+        {
+          id:
+            fieldName
+        },
+
+        fieldIndex
+      );
+    }
+  );
+
+
+  return result;
+}
+
+
+/* =========================================================
+  클라이언트에서 전달된 실제 점검 목록 정리
+========================================================= */
+
+function normalizeInspectionAutoOccurrences(
+  rawOccurrences,
+  workDate,
+  shift
+) {
+  if (
+    !Array.isArray(
+      rawOccurrences
+    )
+  ) {
+    return null;
+  }
+
+
+  const uniqueOccurrences =
+    new Map();
+
+
+  rawOccurrences
+    .slice(
+      0,
+      300
+    )
+    .forEach(
+      rawOccurrence => {
+        if (
+          !rawOccurrence ||
+          typeof rawOccurrence !==
+            "object" ||
+          Array.isArray(
+            rawOccurrence
+          )
+        ) {
+          return;
+        }
+
+
+        const scheduleId =
+          normalizeText(
+            rawOccurrence.scheduleId ||
+            rawOccurrence.id
+          );
+
+
+        const scheduleTitle =
+          normalizeText(
+            rawOccurrence.scheduleTitle ||
+            rawOccurrence.title
+          );
+
+
+        const dueDate =
+          normalizeText(
+            rawOccurrence.dueDate ||
+            workDate
+          );
+
+
+        const occurrenceShift =
+          rawOccurrence.shift ===
+            null ||
+
+          rawOccurrence.shift ===
+            undefined ||
+
+          normalizeText(
+            rawOccurrence.shift
+          ) ===
+            ""
+              ? ""
+              : normalizeShift(
+                  rawOccurrence.shift
+                );
+
+
+        if (
+          !scheduleId ||
+          !scheduleTitle ||
+
+          dueDate !==
+            workDate ||
+
+          !isValidIsoDate(
+            dueDate
+          )
+        ) {
+          return;
+        }
+
+
+        if (
+          occurrenceShift &&
+          occurrenceShift !==
+            shift
+        ) {
+          return;
+        }
+
+
+        const key = [
+          scheduleId,
+          dueDate,
+          occurrenceShift
+        ].join(
+          "||"
+        );
+
+
+        if (
+          uniqueOccurrences.has(
+            key
+          )
+        ) {
+          return;
+        }
+
+
+        uniqueOccurrences.set(
+          key,
+          {
+            scheduleId:
+              scheduleId.slice(
+                0,
+                120
+              ),
+
+            scheduleTitle:
+              scheduleTitle.slice(
+                0,
+                300
+              ),
+
+            dueDate,
+
+            shift:
+              occurrenceShift
+          }
+        );
+      }
+    );
+
+
+  return [
+    ...uniqueOccurrences.values()
+  ];
+}
+
+
+/* =========================================================
+  일정별 가장 유사한 업무내용 선택
+========================================================= */
+
+function buildInspectionAutoMatches(
+  occurrences,
+  logs
+) {
+  const sourceEntries =
+    (
+      Array.isArray(
+        logs
+      )
+        ? logs
+        : []
+    ).flatMap(
+      log => {
+        return collectInspectionAutoSourceEntries(
+          log
+        );
+      }
+    );
+
+
+  return occurrences
+    .map(
+      occurrence => {
+        let bestMatch =
+          null;
+
+
+        sourceEntries.forEach(
+          sourceEntry => {
+            const score =
+              calculateInspectionAutoMatchScore(
+                occurrence.scheduleTitle,
+                sourceEntry.sourceText
+              );
+
+
+            if (
+              score <
+                INSPECTION_AUTO_MIN_SCORE ||
+
+              (
+                bestMatch &&
+                score <=
+                  bestMatch.score
+              )
+            ) {
+              return;
+            }
+
+
+            bestMatch = {
+              ...sourceEntry,
+
+              score
+            };
+          }
+        );
+
+
+        if (
+          !bestMatch
+        ) {
+          return null;
+        }
+
+
+        return {
+          scheduleId:
+            occurrence.scheduleId,
+
+          scheduleTitle:
+            occurrence.scheduleTitle,
+
+          dueDate:
+            occurrence.dueDate,
+
+          shift:
+            occurrence.shift,
+
+          sourceLogId:
+            bestMatch.sourceLogId,
+
+          sourceEntryKey:
+            bestMatch.sourceEntryKey,
+
+          sourceRole:
+            bestMatch.sourceRole,
+
+          sourceAuthor:
+            bestMatch.sourceAuthor,
+
+          sourceAuthorId:
+            bestMatch.sourceAuthorId,
+
+          sourceText:
+            bestMatch.sourceText,
+
+          matchScore:
+            Math.round(
+              bestMatch.score *
+              1000
+            ) /
+            1000
+        };
+      }
+    )
+    .filter(
+      Boolean
+    )
+    .sort(
+      (
+        firstMatch,
+        secondMatch
+      ) => {
+        return (
+          secondMatch.matchScore -
+          firstMatch.matchScore
+        );
+      }
+    );
+}
+
+
+/* =========================================================
+  완료 상태 API 호출
+========================================================= */
+
+async function postInspectionAutoStatusSync(
+  context,
+  payload
+) {
+  const endpoint =
+    new URL(
+      INSPECTION_AUTO_STATUS_PATH,
+      context.request.url
+    );
+
+
+  const authorization =
+    normalizeText(
+      context.request.headers.get(
+        "Authorization"
+      )
+    );
+
+
+  const response =
+    await fetch(
+      endpoint.toString(),
+      {
+        method:
+          "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json; charset=utf-8",
+
+          "Accept":
+            "application/json",
+
+          "Cache-Control":
+            "no-store",
+
+          ...(
+            authorization
+              ? {
+                  Authorization:
+                    authorization
+                }
+              : {}
+          )
+        },
+
+        body:
+          JSON.stringify(
+            payload
+          )
+      }
+    );
+
+
+  const responseText =
+    await response.text();
+
+
+  let responseData =
+    null;
+
+
+  if (
+    responseText
+  ) {
+    try {
+      responseData =
+        JSON.parse(
+          responseText
+        );
+
+    } catch {
+      responseData =
+        null;
+    }
+  }
+
+
+  if (
+    !response.ok ||
+    responseData?.ok !==
+      true
+  ) {
+    return {
+      ok:
+        false,
+
+      skipped:
+        false,
+
+      status:
+        response.status,
+
+      message:
+        normalizeText(
+          responseData?.message
+        ) ||
+        `점검 자동완료 동기화 요청 실패 (HTTP ${response.status})`
+    };
+  }
+
+
+  return responseData;
+}
+
+
+/* =========================================================
+  같은 날짜·근무 전체 재검사
+========================================================= */
+
+async function synchronizeInspectionSchedulesForShiftContext(
+  context,
+  options = {}
+) {
+  const database =
+    context?.env?.DB;
+
+
+  const workDate =
+    normalizeText(
+      options.workDate
+    );
+
+
+  const shift =
+    normalizeShift(
+      options.shift
+    );
+
+
+  const occurrences =
+    normalizeInspectionAutoOccurrences(
+      options.scheduleOccurrences,
+      workDate,
+      shift
+    );
+
+
+  /*
+    null은 캘린더 목록을 아직 전달받지 못한 상태다.
+
+    이때 기존 자동완료를 삭제하면 안 되므로
+    동기화를 건너뛴다.
+  */
+  if (
+    !database ||
+
+    !isValidIsoDate(
+      workDate
+    ) ||
+
+    !VALID_SHIFTS.has(
+      shift
+    ) ||
+
+    occurrences ===
+      null
+  ) {
+    return {
+      ok:
+        true,
+
+      skipped:
+        true,
+
+      reason:
+        occurrences ===
+          null
+          ? "schedule-not-ready"
+          : "invalid-context",
+
+      workDate,
+
+      shift
+    };
+  }
+
+
+  try {
+    const logResult =
+      await database
+        .prepare(`
+          SELECT
+            *
+
+          FROM shift_logs
+
+          WHERE
+            work_date = ?
+            AND shift = ?
+        `)
+        .bind(
+          workDate,
+          shift
+        )
+        .all();
+
+
+    const logs =
+      (
+        Array.isArray(
+          logResult.results
+        )
+          ? logResult.results
+          : []
+      ).map(
+        convertRowToLog
+      );
+
+
+    const currentSourceLogIds =
+      logs
+        .map(
+          log => {
+            return normalizeText(
+              log?.id
+            );
+          }
+        )
+        .filter(
+          Boolean
+        );
+
+
+    const removedSourceLogIds =
+      (
+        Array.isArray(
+          options.removedSourceLogIds
+        )
+          ? options.removedSourceLogIds
+          : []
+      )
+        .map(
+          normalizeText
+        )
+        .filter(
+          Boolean
+        );
+
+
+    const matches =
+      buildInspectionAutoMatches(
+        occurrences,
+        logs
+      );
+
+
+    const syncResult =
+      await postInspectionAutoStatusSync(
+        context,
+        {
+          action:
+            "sync-shift-log",
+
+          workDate,
+
+          shift,
+
+          matches,
+
+          managedSourceLogIds:
+            currentSourceLogIds,
+
+          removedSourceLogIds
+        }
+      );
+
+
+    return {
+      ...syncResult,
+
+      workDate,
+
+      shift,
+
+      scheduleCount:
+        occurrences.length,
+
+      logCount:
+        logs.length,
+
+      detectedCount:
+        matches.length
+    };
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "점검주기표 업무일지 자동완료 실패:",
+      error
+    );
+
+
+    return {
+      ok:
+        false,
+
+      skipped:
+        false,
+
+      workDate,
+
+      shift,
+
+      message:
+        error instanceof
+          Error
+          ? error.message
+          : "점검주기표 자동완료 처리 중 오류가 발생했습니다."
     };
   }
 }
@@ -5827,6 +9858,38 @@ export async function onRequestPost(
           );
         }
 
+                /* =================================================
+          점검주기표 자동완료
+
+          같은 날짜·근무의 모든 보직 업무일지를
+          다시 검사한다.
+        ================================================= */
+
+        const inspectionScheduleSync =
+          await synchronizeInspectionSchedulesForShiftContext(
+            context,
+            {
+              workDate:
+                savedLog.date,
+
+              shift:
+                savedLog.shift,
+
+              scheduleOccurrences:
+                body.inspectionScheduleOccurrences
+            }
+          );
+
+
+        if (
+          inspectionScheduleSync.ok !==
+            true
+        ) {
+          console.error(
+            "신규 업무일지 점검 자동완료 실패:",
+            inspectionScheduleSync
+          );
+        }
 
         return jsonResponse(
           {
@@ -5839,7 +9902,9 @@ export async function onRequestPost(
             log:
               savedLog,
 
-            limestoneSync
+            limestoneSync,
+
+            inspectionScheduleSync
           },
           201
         );
@@ -6002,6 +10067,42 @@ export async function onRequestPost(
       );
     }
 
+        /* =====================================================
+      점검주기표 자동완료 재검사
+
+      적용:
+      - 임시저장
+      - 내용 수정
+      - 결재요청
+      - 결재완료
+      - 결재취소
+    ====================================================== */
+
+    const inspectionScheduleSync =
+      await synchronizeInspectionSchedulesForShiftContext(
+        context,
+        {
+          workDate:
+            savedLog.date,
+
+          shift:
+            savedLog.shift,
+
+          scheduleOccurrences:
+            body.inspectionScheduleOccurrences
+        }
+      );
+
+
+    if (
+      inspectionScheduleSync.ok !==
+        true
+    ) {
+      console.error(
+        "업무일지 점검 자동완료 실패:",
+        inspectionScheduleSync
+      );
+    }
 
     return jsonResponse({
       ok:
@@ -6013,7 +10114,9 @@ export async function onRequestPost(
       log:
         savedLog,
 
-      limestoneSync
+      limestoneSync,
+
+      inspectionScheduleSync
     });
 
   } catch (
@@ -6081,6 +10184,36 @@ export async function onRequestDelete(
     const user =
       authentication.user;
 
+          /*
+      삭제 후 점검 자동완료를 재검사하기 위한
+      해당 날짜·근무의 점검 목록
+    */
+
+    let deleteBody =
+      {};
+
+
+    try {
+      const parsedDeleteBody =
+        await context.request.json();
+
+
+      if (
+        parsedDeleteBody &&
+        typeof parsedDeleteBody ===
+          "object" &&
+        !Array.isArray(
+          parsedDeleteBody
+        )
+      ) {
+        deleteBody =
+          parsedDeleteBody;
+      }
+
+    } catch {
+      deleteBody =
+        {};
+    }
 
     const url =
       new URL(
@@ -6355,6 +10488,44 @@ export async function onRequestDelete(
         }
       );
 
+          /* =====================================================
+      삭제 후 점검주기표 자동완료 재검사
+
+      삭제된 업무일지의 문구로 자동완료된 기록은
+      같은 날짜·근무의 다른 업무일지 근거를 다시 찾는다.
+
+      다른 근거가 없으면 자동완료를 해제한다.
+    ====================================================== */
+
+    const inspectionScheduleSync =
+      await synchronizeInspectionSchedulesForShiftContext(
+        context,
+        {
+          workDate:
+            existingLog.date,
+
+          shift:
+            existingLog.shift,
+
+          scheduleOccurrences:
+            deleteBody.inspectionScheduleOccurrences,
+
+          removedSourceLogIds: [
+            existingLog.id
+          ]
+        }
+      );
+
+
+    if (
+      inspectionScheduleSync.ok !==
+        true
+    ) {
+      console.error(
+        "업무일지 삭제 후 점검 자동완료 실패:",
+        inspectionScheduleSync
+      );
+    }
 
     return jsonResponse({
       ok:
@@ -6363,7 +10534,9 @@ export async function onRequestDelete(
       deletedId:
         id,
 
-      limestoneSync
+      limestoneSync,
+
+      inspectionScheduleSync
     });
 
   } catch (

@@ -91,6 +91,13 @@ let visibleCalendarCategories = new Set([
   let selectedDateValue = formatDateValue(new Date());
   let statusMap = new Map();
   let statusLoading = false;
+
+/*
+  업무일지 저장과 기존 상태 조회가 겹쳤을 때
+  새로고침 요청이 사라지지 않도록 보관한다.
+*/
+let statusRefreshRequested = false;
+
   let statusErrorMessage = "";
 
   /*
@@ -2169,31 +2176,113 @@ function renderCalendar() {
     renderCycleList();
   }
 
-  async function refreshStatus() {
-    if (statusLoading) {
-      return;
-    }
 
-    statusLoading = true;
-    calendarGrid.setAttribute("aria-busy", "true");
-    selectedList.setAttribute("aria-busy", "true");
+  /* =========================================================
+  점검 완료 상태 새로고침
 
-    try {
-      await loadStatusRecords();
-    } catch (error) {
-      console.error("달력 점검 완료 기록 조회 실패:", error);
-      statusMap = new Map();
-      statusErrorMessage = error instanceof Error
+  조회 중 다시 요청이 들어오면:
+  - 요청을 버리지 않는다.
+  - 현재 조회가 끝난 뒤 한 번 더 조회한다.
+========================================================= */
+
+async function refreshStatus() {
+  if (
+    statusLoading
+  ) {
+    statusRefreshRequested =
+      true;
+
+    return;
+  }
+
+
+  statusLoading =
+    true;
+
+  statusRefreshRequested =
+    false;
+
+
+  calendarGrid.setAttribute(
+    "aria-busy",
+    "true"
+  );
+
+  selectedList.setAttribute(
+    "aria-busy",
+    "true"
+  );
+
+
+  try {
+    await loadStatusRecords();
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "달력 점검 완료 기록 조회 실패:",
+      error
+    );
+
+
+    statusMap =
+      new Map();
+
+
+    statusErrorMessage =
+      error instanceof
+        Error
         ? error.message
         : "점검 완료 기록을 불러오지 못했습니다.";
-    } finally {
-      statusLoading = false;
-      calendarGrid.removeAttribute("aria-busy");
-      selectedList.removeAttribute("aria-busy");
-      renderAll();
-      await publishRoleTodaySummary();
+
+  } finally {
+    statusLoading =
+      false;
+
+
+    calendarGrid.removeAttribute(
+      "aria-busy"
+    );
+
+    selectedList.removeAttribute(
+      "aria-busy"
+    );
+
+
+    /*
+      월간 달력과 선택 날짜 상세를 갱신한다.
+    */
+    renderAll();
+
+
+    /*
+      메인 업무일지의 보직별 오늘 점검도
+      새 완료 상태로 다시 전달한다.
+    */
+    await publishRoleTodaySummary();
+
+
+    /*
+      조회 중 들어온 새로고침 요청이 있으면
+      최신 상태를 한 번 더 조회한다.
+    */
+    if (
+      statusRefreshRequested
+    ) {
+      statusRefreshRequested =
+        false;
+
+
+      window.setTimeout(
+        () => {
+          void refreshStatus();
+        },
+        0
+      );
     }
   }
+}
 
   async function completeSchedule(button) {
     const scheduleId = String(button.dataset.calendarComplete || "").trim();
