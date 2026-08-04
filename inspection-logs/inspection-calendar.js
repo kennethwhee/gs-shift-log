@@ -68,17 +68,24 @@ function initializeInspectionCalendarDashboard() {
     "other"
   ];
 
-  /*
-    달력 기본 표시:
-    - 주간
-    - 월간
+/*
+  달력 기본 표시:
+  - 일일
+  - 주간
+  - 월간
+  - 분기
+  - 기타
 
-    일일·분기·기타는 사용자가 체크했을 때 표시한다.
-  */
-  let visibleCalendarCategories = new Set([
-    "weekly",
-    "monthly"
-  ]);
+  모든 점검 구분을 처음부터 체크하여
+  해당 날짜의 점검을 빠짐없이 표시한다.
+*/
+let visibleCalendarCategories = new Set([
+  "daily",
+  "weekly",
+  "monthly",
+  "quarterly",
+  "other"
+]);
 
   let monthCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   let selectedDateValue = formatDateValue(new Date());
