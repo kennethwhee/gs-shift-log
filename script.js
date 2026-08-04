@@ -104409,7 +104409,7 @@ function getArmRollBoxElements() {
 
               if (
                 delta <=
-                  -SUSPECTED_DROP &&
+                  -REPLACEMENT_DROP &&
                 !confirmedMap.has(
                   eventKey
                 )
