@@ -1,6 +1,305 @@
 "use strict";
 
 /* =========================================================
+  효율팀 일일업무현황 크게 보기 최종본
+
+  파일 최상단에서 클릭 이벤트를 먼저 연결하여
+  아래쪽 다른 기능에서 오류가 발생해도 작동하게 한다.
+========================================================= */
+
+(function initializeEfficiencyDailyWorkExpandedModeFinal() {
+  if (
+    window
+      .__efficiencyDailyWorkExpandedModeFinalInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyDailyWorkExpandedModeFinalInstalled =
+    true;
+
+
+  let archiveWasVisible =
+    true;
+
+
+  /* =====================================================
+    확대 상태 적용
+  ====================================================== */
+
+  function setEfficiencyDailyWorkExpandedMode(
+    shouldExpand
+  ) {
+    const teamModal =
+      document.getElementById(
+        "efficiencyTeamModal"
+      );
+
+
+    const expandButton =
+      document.getElementById(
+        "toggleEfficiencyDailyWorkExpandedButton"
+      );
+
+
+    const view =
+      document.getElementById(
+        "efficiencyDailyWorkView"
+      );
+
+
+    const dashboard =
+      document.getElementById(
+        "efficiencyDailyWorkDashboard"
+      );
+
+
+    const archivePanel =
+      document.getElementById(
+        "efficiencyDailyWorkArchivePanel"
+      );
+
+
+    const archiveButton =
+      document.getElementById(
+        "toggleEfficiencyDailyWorkArchiveButton"
+      );
+
+
+    const paperScroll =
+      view?.querySelector(
+        ".efficiency-daily-work-paper-scroll"
+      ) ||
+      null;
+
+
+    if (
+      !teamModal ||
+      !expandButton
+    ) {
+      return;
+    }
+
+
+    const isExpanded =
+      Boolean(
+        shouldExpand
+      );
+
+
+    /* 확대 전 보관함 상태 기억 */
+
+    if (
+      isExpanded &&
+      archivePanel
+    ) {
+      archiveWasVisible =
+        !archivePanel.hidden;
+    }
+
+
+    /* 확대 클래스 */
+
+    teamModal.classList.toggle(
+      "is-daily-work-expanded",
+      isExpanded
+    );
+
+
+    view?.classList.toggle(
+      "is-expanded",
+      isExpanded
+    );
+
+
+    dashboard?.classList.toggle(
+      "is-expanded",
+      isExpanded
+    );
+
+
+    document.body.classList.toggle(
+      "is-efficiency-daily-work-expanded",
+      isExpanded
+    );
+
+
+    /* 버튼 상태 */
+
+    expandButton.setAttribute(
+      "aria-pressed",
+      String(
+        isExpanded
+      )
+    );
+
+
+    expandButton.textContent =
+      isExpanded
+        ? "원래 크기"
+        : "크게 보기";
+
+
+    expandButton.setAttribute(
+      "aria-label",
+      isExpanded
+        ? "일일업무현황 원래 크기로 보기"
+        : "일일업무현황 크게 보기"
+    );
+
+
+    /* 날짜별 보관함 */
+
+    if (
+      archivePanel
+    ) {
+      archivePanel.hidden =
+        isExpanded
+          ? true
+          : !archiveWasVisible;
+
+
+      archivePanel.setAttribute(
+        "aria-hidden",
+        String(
+          archivePanel.hidden
+        )
+      );
+    }
+
+
+    /* 보관함 버튼 */
+
+    if (
+      archiveButton
+    ) {
+      archiveButton.hidden =
+        isExpanded;
+
+
+      archiveButton.setAttribute(
+        "aria-expanded",
+        String(
+          !isExpanded &&
+          archiveWasVisible
+        )
+      );
+    }
+
+
+    /* 기존 대시보드 보관함 클래스 동기화 */
+
+    dashboard?.classList.toggle(
+      "is-archive-hidden",
+      isExpanded ||
+      !archiveWasVisible
+    );
+
+
+    if (
+      isExpanded
+    ) {
+      window.requestAnimationFrame(
+        () => {
+          paperScroll?.scrollTo({
+            top:
+              0,
+
+            left:
+              0,
+
+            behavior:
+              "smooth"
+          });
+        }
+      );
+    }
+  }
+
+
+  /* =====================================================
+    클릭 이벤트
+
+    HTML이 나중에 표시되더라도 작동하도록
+    document에 이벤트를 연결한다.
+  ====================================================== */
+
+  document.addEventListener(
+    "click",
+    event => {
+      const target =
+        event.target instanceof
+          Element
+          ? event.target
+          : null;
+
+
+      const expandButton =
+        target?.closest(
+          "#toggleEfficiencyDailyWorkExpandedButton"
+        );
+
+
+      if (
+        expandButton
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        const isCurrentlyExpanded =
+          expandButton.getAttribute(
+            "aria-pressed"
+          ) ===
+          "true";
+
+
+        setEfficiencyDailyWorkExpandedMode(
+          !isCurrentlyExpanded
+        );
+
+
+        return;
+      }
+
+
+      /*
+        효율팀 팝업 닫기 버튼을 누르면
+        확대 상태도 함께 해제한다.
+      */
+
+      const closeButton =
+        target?.closest(
+          `
+            #closeEfficiencyTeamModalButton,
+            #closeEfficiencyTeamModalFooterButton
+          `
+        );
+
+
+      if (
+        closeButton
+      ) {
+        setEfficiencyDailyWorkExpandedMode(
+          false
+        );
+      }
+    },
+    true
+  );
+
+
+  /* 외부에서도 확대 해제 가능 */
+
+  window
+    .setEfficiencyDailyWorkExpandedMode =
+    setEfficiencyDailyWorkExpandedMode;
+})();
+
+/* =========================================================
   로그인 시스템
 ========================================================= */
 
@@ -108623,379 +108922,6 @@ function bindArmRollBoxEvents() {
   }
 })();
 
-/* =========================================================
-  효율팀 일일업무현황 크게 보기
-
-  크게 보기:
-  - 날짜별 보관함 임시 숨김
-  - 효율팀 팝업에 확대 클래스 적용
-  - 버튼 문구를 "원래 크기"로 변경
-
-  원래 크기:
-  - 확대 전 보관함 상태 복구
-  - 확대 클래스 제거
-========================================================= */
-
-function initializeEfficiencyDailyWorkExpandedMode() {
-  const expandButton =
-    document.getElementById(
-      "toggleEfficiencyDailyWorkExpandedButton"
-    );
-
-
-  const teamModal =
-    document.getElementById(
-      "efficiencyTeamModal"
-    );
-
-
-  if (
-    !expandButton ||
-    !teamModal ||
-    typeof getEfficiencyDailyWorkElements !==
-      "function"
-  ) {
-    return;
-  }
-
-
-  /*
-    이벤트 중복 연결 방지
-  */
-  if (
-    expandButton.dataset
-      .expandedModeBound ===
-      "true"
-  ) {
-    return;
-  }
-
-
-  /*
-    크게 보기 전 보관함 표시 상태
-  */
-  let archiveWasVisible =
-    true;
-
-
-  /* =====================================================
-    크게 보기 상태 적용
-  ====================================================== */
-
-  function setEfficiencyDailyWorkExpandedMode(
-    shouldExpand
-  ) {
-    const elements =
-      getEfficiencyDailyWorkElements();
-
-
-    const isExpanded =
-      Boolean(
-        shouldExpand
-      );
-
-
-    /*
-      확대 상태 클래스
-    */
-    teamModal.classList.toggle(
-      "is-daily-work-expanded",
-      isExpanded
-    );
-
-
-    elements.view
-      ?.classList
-      .toggle(
-        "is-expanded",
-        isExpanded
-      );
-
-
-    elements.dashboard
-      ?.classList
-      .toggle(
-        "is-expanded",
-        isExpanded
-      );
-
-
-    document.body.classList.toggle(
-      "is-efficiency-daily-work-expanded",
-      isExpanded
-    );
-
-
-    /*
-      버튼 표시
-    */
-    expandButton.setAttribute(
-      "aria-pressed",
-      String(
-        isExpanded
-      )
-    );
-
-
-    expandButton.setAttribute(
-      "aria-label",
-      isExpanded
-        ? "일일업무현황 원래 크기로 보기"
-        : "일일업무현황 크게 보기"
-    );
-
-
-    expandButton.textContent =
-      isExpanded
-        ? "원래 크기"
-        : "크게 보기";
-
-
-    /* ===================================================
-      크게 보기 시작
-    ==================================================== */
-
-    if (
-      isExpanded
-    ) {
-      /*
-        현재 보관함 표시 상태 기억
-      */
-      if (
-        typeof efficiencyDailyWorkState !==
-          "undefined"
-      ) {
-        archiveWasVisible =
-          Boolean(
-            efficiencyDailyWorkState
-              .isArchiveVisible
-          );
-
-        efficiencyDailyWorkState
-          .isArchiveVisible =
-          false;
-
-      } else {
-        archiveWasVisible =
-          !Boolean(
-            elements.archivePanel
-              ?.hidden
-          );
-      }
-
-
-      /*
-        기존 보관함 표시 함수 사용
-      */
-      if (
-        typeof renderEfficiencyDailyWorkArchiveVisibility ===
-          "function"
-      ) {
-        renderEfficiencyDailyWorkArchiveVisibility();
-
-      } else {
-        if (
-          elements.archivePanel
-        ) {
-          elements.archivePanel.hidden =
-            true;
-
-          elements.archivePanel.setAttribute(
-            "aria-hidden",
-            "true"
-          );
-        }
-
-
-        elements.dashboard
-          ?.classList
-          .add(
-            "is-archive-hidden"
-          );
-      }
-
-
-      /*
-        크게 보기 중에는 보관함 버튼 숨김
-      */
-      if (
-        elements.toggleArchiveButton
-      ) {
-        elements.toggleArchiveButton.hidden =
-          true;
-      }
-
-
-      /*
-        작성 화면 시작 위치로 이동
-      */
-      window.requestAnimationFrame(
-        () => {
-          elements.paperScroll
-            ?.scrollTo?.({
-              top:
-                0,
-
-              left:
-                0,
-
-              behavior:
-                "smooth"
-            });
-        }
-      );
-
-
-      return;
-    }
-
-
-    /* ===================================================
-      원래 크기로 복귀
-    ==================================================== */
-
-    if (
-      typeof efficiencyDailyWorkState !==
-        "undefined"
-    ) {
-      efficiencyDailyWorkState
-        .isArchiveVisible =
-        archiveWasVisible;
-    }
-
-
-    if (
-      typeof renderEfficiencyDailyWorkArchiveVisibility ===
-        "function"
-    ) {
-      renderEfficiencyDailyWorkArchiveVisibility();
-
-    } else {
-      if (
-        elements.archivePanel
-      ) {
-        elements.archivePanel.hidden =
-          !archiveWasVisible;
-
-        elements.archivePanel.setAttribute(
-          "aria-hidden",
-          String(
-            !archiveWasVisible
-          )
-        );
-      }
-
-
-      elements.dashboard
-        ?.classList
-        .toggle(
-          "is-archive-hidden",
-          !archiveWasVisible
-        );
-    }
-
-
-    if (
-      elements.toggleArchiveButton
-    ) {
-      elements.toggleArchiveButton.hidden =
-        false;
-    }
-  }
-
-
-  /* =====================================================
-    크게 보기 버튼
-  ====================================================== */
-
-  expandButton.addEventListener(
-    "click",
-    () => {
-      const isCurrentlyExpanded =
-        expandButton.getAttribute(
-          "aria-pressed"
-        ) ===
-        "true";
-
-
-      setEfficiencyDailyWorkExpandedMode(
-        !isCurrentlyExpanded
-      );
-    }
-  );
-
-
-  /* =====================================================
-    효율팀 팝업이 닫히면 확대 상태 자동 해제
-  ====================================================== */
-
-  const modalObserver =
-    new MutationObserver(
-      () => {
-        const modalIsOpen =
-          teamModal.classList.contains(
-            "is-open"
-          ) &&
-          teamModal.getAttribute(
-            "aria-hidden"
-          ) !==
-            "true";
-
-
-        if (
-          !modalIsOpen &&
-          teamModal.classList.contains(
-            "is-daily-work-expanded"
-          )
-        ) {
-          setEfficiencyDailyWorkExpandedMode(
-            false
-          );
-        }
-      }
-    );
-
-
-  modalObserver.observe(
-    teamModal,
-    {
-      attributes:
-        true,
-
-      attributeFilter: [
-        "class",
-        "aria-hidden"
-      ]
-    }
-  );
-
-
-  expandButton.dataset
-    .expandedModeBound =
-    "true";
-}
-
-
-/* =========================================================
-  초기 실행
-========================================================= */
-
-if (
-  document.readyState ===
-    "loading"
-) {
-  document.addEventListener(
-    "DOMContentLoaded",
-    initializeEfficiencyDailyWorkExpandedMode,
-    {
-      once:
-        true
-    }
-  );
-
-} else {
-  initializeEfficiencyDailyWorkExpandedMode();
-}
 
 /* =========================================================
   업무일지 상세보기 즉시 결재요청 최종본
