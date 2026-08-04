@@ -99997,545 +99997,883 @@ openLogDetail =
 })();
 
 /* =========================================================
-  업무 항목 현재 줄 수정
+  업무 항목 현재 줄 수정 최종본
 
-  기존 상단 입력 패널을 복제하지 않고
-  수정할 때만 선택한 줄 안으로 이동한다.
-
-  따라서 기존의 구분·시간·현재시간·TAG·
-  네비게이터 이력 제외·검증·저장 로직을 그대로 쓴다.
+  - DOM 초기화 후 설치
+  - 화면 자동 이동 차단
+  - 클릭한 줄의 위치 유지
 ========================================================= */
 
-(function installInlineLogEntryPanelEditor() {
-  if (window.__inlineLogEntryPanelEditorInstalled) {
-    return;
-  }
+(function scheduleInlineLogEntryPanelEditor() {
+  let installAttempts = 0;
 
-  window.__inlineLogEntryPanelEditorInstalled = true;
 
-  const inputPanel = elements.logEntryInputPanel;
+  function install() {
+    const inputPanel =
+      document.getElementById(
+        "logEntryInputPanel"
+      );
 
-  if (!inputPanel || !inputPanel.parentNode) {
-    return;
-  }
 
-  const panelHomeMarker = document.createComment(
-    "log-entry-input-panel-home"
-  );
+    const tableBodies = [
+      document.getElementById(
+        "tmIssueEntryTableBody"
+      ),
 
-  inputPanel.parentNode.insertBefore(
-    panelHomeMarker,
-    inputPanel
-  );
+      document.getElementById(
+        "logEntryTableBody"
+      ),
 
-  let editingEntryReference = null;
+      document.getElementById(
+        "noteEntryTableBody"
+      )
+    ].filter(Boolean);
 
-  function restoreLogEntryInputPanel() {
+
     if (
-      panelHomeMarker.parentNode &&
-      inputPanel.parentNode !== panelHomeMarker.parentNode
+      !inputPanel ||
+      !inputPanel.parentNode ||
+      !tableBodies.length ||
+      typeof startLogEntryEdit !==
+        "function" ||
+      typeof resetLogEntryInput !==
+        "function" ||
+      typeof renderLogEntryTable !==
+        "function" ||
+      typeof addOrUpdateLogEntry !==
+        "function"
     ) {
-      panelHomeMarker.parentNode.insertBefore(
-        inputPanel,
-        panelHomeMarker.nextSibling
-      );
-    }
-  }
-
-  function findEditingEntryIndex() {
-    if (!editingEntryReference) {
-      return -1;
-    }
-
-    return appState.editorEntries.indexOf(
-      editingEntryReference
-    );
-  }
-
-  function syncEditingEntryIndex() {
-    const currentIndex = findEditingEntryIndex();
-
-    if (currentIndex < 0) {
-      showToast(
-        "수정 중인 업무 항목을 찾을 수 없습니다."
-      );
-
       return false;
     }
 
-    appState.editingEntryIndex = currentIndex;
 
-    return true;
-  }
-
-  function findEntryRow(entryIndex) {
-    return [
-      elements.tmIssueEntryTableBody,
-      elements.logEntryTableBody,
-      elements.noteEntryTableBody
-    ]
-      .filter(Boolean)
-      .map((tableBody) => {
-        return tableBody.querySelector(
-          `tr[data-entry-index="${entryIndex}"]`
-        );
-      })
-      .find(Boolean);
-  }
-
-  function mountInputPanelInEntryRow(
-    entryIndex
-  ) {
-    const targetRow =
-      findEntryRow(entryIndex);
-
-    const targetCell =
-      targetRow?.querySelector(
-        ".log-entry-unified-cell"
-      );
-
-    if (!targetRow || !targetCell) {
-      restoreLogEntryInputPanel();
-
-      showToast(
-        "수정할 업무 항목 줄을 찾을 수 없습니다."
-      );
-
-      return;
+    if (
+      inputPanel.dataset
+        .inlineEntryPanelEditorV3 ===
+      "true"
+    ) {
+      return true;
     }
 
-    targetRow.classList.add(
-      "is-inline-entry-panel-editing"
+
+    inputPanel.dataset
+      .inlineEntryPanelEditorV3 =
+      "true";
+
+
+    const modalBody =
+      inputPanel.closest(
+        "#logEditorModal .modal-body"
+      );
+
+
+    /*
+      입력창이 줄 안으로 이동해도
+      원래 상단 공간이 무너지지 않도록 유지한다.
+    */
+    const homeSpacer =
+      document.createElement(
+        "div"
+      );
+
+
+    homeSpacer.className =
+      "log-entry-input-panel-home-spacer";
+
+    homeSpacer.hidden =
+      true;
+
+    homeSpacer.setAttribute(
+      "aria-hidden",
+      "true"
     );
 
-    targetCell.replaceChildren(
+    homeSpacer.style.cssText =
+      `
+        width: 100%;
+        height: 0;
+        pointer-events: none;
+      `;
+
+
+    inputPanel.parentNode.insertBefore(
+      homeSpacer,
       inputPanel
     );
-  }
 
-  /*
-    목록을 다시 그리기 전에 입력 패널을
-    원래 자리로 옮긴다.
 
-    tbody가 다시 출력될 때
-    입력 패널까지 삭제되는 것을 막는다.
-  */
-  const originalRenderLogEntryTable =
-    renderLogEntryTable;
+    const previousScrollStyle =
+      modalBody
+        ? {
+            overflowAnchor:
+              modalBody.style
+                .overflowAnchor,
 
-  renderLogEntryTable =
-    function renderLogEntryTableWithInlinePanel(
-      ...args
+            scrollBehavior:
+              modalBody.style
+                .scrollBehavior
+          }
+        : null;
+
+
+    let editingEntryReference =
+      null;
+
+    let mountedRow =
+      null;
+
+    let focusGuardActive =
+      false;
+
+    let focusGuardTimer =
+      0;
+
+    let anchorSequence =
+      0;
+
+
+    function findEntryIndex(
+      entryReference =
+        editingEntryReference
     ) {
-      restoreLogEntryInputPanel();
-
-      return originalRenderLogEntryTable.apply(
-        this,
-        args
-      );
-    };
-
-  /*
-    기존 수정 기능은 그대로 사용하고
-    상단으로 이동하는 동작만 막는다.
-  */
-  const originalStartLogEntryEdit =
-    startLogEntryEdit;
-
-  startLogEntryEdit =
-    function startLogEntryEditInline(
-      entryIndex
-    ) {
-      const entry =
-        appState.editorEntries[
-          entryIndex
-        ];
-
-      if (!entry) {
-        showToast(
-          "수정할 업무 항목을 찾을 수 없습니다."
-        );
-
-        return;
-      }
-
-      /*
-        같은 항목의 수정 이벤트가
-        중복 실행되는 것을 막는다.
-      */
       if (
-        editingEntryReference === entry &&
-        inputPanel.closest(
-          "tr.is-inline-entry-panel-editing"
+        !entryReference ||
+        !Array.isArray(
+          appState.editorEntries
         )
       ) {
-        elements.logEntryContent
-          ?.focus();
-
-        return;
+        return -1;
       }
 
-      editingEntryReference = entry;
 
-      const originalScrollIntoView =
-        inputPanel.scrollIntoView;
+      return appState.editorEntries.indexOf(
+        entryReference
+      );
+    }
 
-      try {
-        /*
-          기존 코드의 상단 자동 이동을
-          이번 수정 중에만 차단한다.
-        */
-        inputPanel.scrollIntoView =
-          () => {};
 
-        originalStartLogEntryEdit(
-          entryIndex
-        );
+    function findEntryRow(
+      entryIndex
+    ) {
+      return (
+        tableBodies
+          .map(
+            tableBody => {
+              return tableBody.querySelector(
+                `tr[data-entry-index="${entryIndex}"]`
+              );
+            }
+          )
+          .find(Boolean) ||
+        null
+      );
+    }
 
-      } finally {
-        if (originalScrollIntoView) {
-          inputPanel.scrollIntoView =
-            originalScrollIntoView;
 
-        } else {
-          delete inputPanel.scrollIntoView;
-        }
-      }
-
+    function syncEditingEntryIndex(
+      showError = true
+    ) {
       const currentIndex =
-        findEditingEntryIndex();
+        findEntryIndex();
+
 
       if (currentIndex < 0) {
-        editingEntryReference = null;
+        if (showError) {
+          showToast(
+            "수정 중인 업무 항목을 찾을 수 없습니다."
+          );
+        }
 
-        restoreLogEntryInputPanel();
 
-        return;
+        return false;
       }
+
 
       appState.editingEntryIndex =
         currentIndex;
 
-      mountInputPanelInEntryRow(
-        currentIndex
-      );
-    };
 
-  /*
-    저장·취소·다른 일지 열기 등으로
-    입력창이 초기화되면 제자리 수정도 종료한다.
-  */
-  const originalResetLogEntryInput =
-    resetLogEntryInput;
+      return true;
+    }
 
-  resetLogEntryInput =
-    function resetLogEntryInputWithInlinePanel(
-      ...args
-    ) {
-      restoreLogEntryInputPanel();
 
-      editingEntryReference = null;
+    function lockModalScroll() {
+      if (!modalBody) {
+        return;
+      }
 
-      return originalResetLogEntryInput.apply(
-        this,
-        args
-      );
-    };
 
-  /*
-    Enter 확인창을 거쳐 저장하는 경우에도
-    현재 항목의 실제 배열 위치를 다시 확인한다.
-  */
-  const originalAddOrUpdateLogEntry =
-    addOrUpdateLogEntry;
+      modalBody.style.overflowAnchor =
+        "none";
 
-  addOrUpdateLogEntry =
-    function addOrUpdateLogEntryWithInlinePanel(
-      ...args
-    ) {
+      modalBody.style.scrollBehavior =
+        "auto";
+    }
+
+
+    function unlockModalScroll() {
       if (
-        editingEntryReference &&
-        !syncEditingEntryIndex()
+        !modalBody ||
+        !previousScrollStyle
       ) {
         return;
       }
 
-      return originalAddOrUpdateLogEntry.apply(
-        this,
-        args
+
+      modalBody.style.overflowAnchor =
+        previousScrollStyle
+          .overflowAnchor;
+
+      modalBody.style.scrollBehavior =
+        previousScrollStyle
+          .scrollBehavior;
+    }
+
+
+    /*
+      기존 함수 안의 지연 focus와
+      저장 후 상단 focus로 인한 이동을 막는다.
+    */
+    function startFocusGuard(
+      duration = 320
+    ) {
+      focusGuardActive =
+        true;
+
+
+      window.clearTimeout(
+        focusGuardTimer
       );
-    };
 
-  /*
-    수정 완료 버튼을 누르기 직전
-    실제 항목 위치를 다시 확인한다.
 
-    화면의 시간 정렬이 바뀌더라도
-    다른 항목이 수정되는 것을 막는다.
-  */
-  inputPanel.addEventListener(
-    "click",
-    (event) => {
+      focusGuardTimer =
+        window.setTimeout(
+          () => {
+            focusGuardActive =
+              false;
+
+            focusGuardTimer =
+              0;
+          },
+          duration
+        );
+    }
+
+
+    [
+      document.getElementById(
+        "logEntryTime"
+      ),
+
+      document.getElementById(
+        "logEntryContent"
+      )
+    ]
+      .filter(Boolean)
+      .forEach(
+        field => {
+          const nativeFocus =
+            field.focus.bind(
+              field
+            );
+
+
+          field.focus =
+            function focusWithoutPageMove(
+              options
+            ) {
+              if (!focusGuardActive) {
+                return (
+                  options &&
+                  typeof options ===
+                    "object"
+                    ? nativeFocus(
+                        options
+                      )
+                    : nativeFocus()
+                );
+              }
+
+
+              /*
+                저장·취소 뒤 남은
+                지연 focus는 실행하지 않는다.
+              */
+              if (
+                !editingEntryReference
+              ) {
+                return undefined;
+              }
+
+
+              return nativeFocus({
+                ...(
+                  options &&
+                  typeof options ===
+                    "object"
+                    ? options
+                    : {}
+                ),
+
+                preventScroll:
+                  true
+              });
+            };
+        }
+      );
+
+
+    function showHomeSpacer() {
+      const panelHeight =
+        Math.max(
+          1,
+          inputPanel
+            .getBoundingClientRect()
+            .height
+        );
+
+
+      homeSpacer.style.height =
+        `${panelHeight}px`;
+
+      homeSpacer.hidden =
+        false;
+    }
+
+
+    function hideHomeSpacer() {
+      homeSpacer.hidden =
+        true;
+
+      homeSpacer.style.height =
+        "0px";
+    }
+
+
+    function restoreInputPanelHome() {
+      mountedRow?.classList.remove(
+        "is-inline-entry-panel-editing"
+      );
+
+
       if (
-        !editingEntryReference ||
-        !event.target.closest(
-          "#addLogEntryButton"
+        homeSpacer.parentNode &&
+        homeSpacer.nextSibling !==
+          inputPanel
+      ) {
+        const savedScrollTop =
+          modalBody?.scrollTop ||
+          0;
+
+
+        homeSpacer.parentNode.insertBefore(
+          inputPanel,
+          homeSpacer.nextSibling
+        );
+
+
+        hideHomeSpacer();
+
+
+        if (modalBody) {
+          modalBody.scrollTop =
+            savedScrollTop;
+        }
+
+      } else {
+        hideHomeSpacer();
+      }
+
+
+      mountedRow =
+        null;
+    }
+
+
+    function keepRowAtSamePosition(
+      targetRow,
+      expectedTop
+    ) {
+      if (
+        !targetRow?.isConnected ||
+        !Number.isFinite(
+          expectedTop
         )
       ) {
         return;
       }
 
-      if (!syncEditingEntryIndex()) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-      }
-    },
-    true
-  );
 
-  /*
-    내용 입력 후 Enter로 수정하는 경우
-  */
-  inputPanel.addEventListener(
-    "keydown",
-    (event) => {
+      const difference =
+        targetRow
+          .getBoundingClientRect()
+          .top -
+        expectedTop;
+
+
       if (
-        !editingEntryReference ||
-        event.target !==
-          elements.logEntryContent ||
-        event.key !== "Enter" ||
-        event.shiftKey ||
-        event.isComposing ||
-        event.keyCode === 229
+        Math.abs(
+          difference
+        ) < 0.5
       ) {
         return;
       }
 
-      if (!syncEditingEntryIndex()) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
+
+      if (modalBody) {
+        modalBody.scrollTop +=
+          difference;
+
+      } else {
+        window.scrollBy({
+          top:
+            difference,
+
+          left:
+            0,
+
+          behavior:
+            "auto"
+        });
       }
-    },
-    true
-  );
-})();
-
-/* =========================================================
-  발행 내역 화면 표기 최종 통일
-
-  화면 제목만 "발행 내역"으로 통일하며,
-  TM·BM·CM의 실제 저장 구분은 그대로 유지한다.
-========================================================= */
-
-(function installIssueEntryLabelFix() {
-  if (
-    window
-      .__gsShiftLogIssueEntryLabelFixInstalled ===
-    true
-  ) {
-    return;
-  }
+    }
 
 
-  window
-    .__gsShiftLogIssueEntryLabelFixInstalled =
-    true;
+    function stabilizeRowPosition(
+      targetRow,
+      expectedTop
+    ) {
+      const currentSequence =
+        ++anchorSequence;
 
 
-  const previousIssueLabels = [
-    "TM/BM/CM 발행 내역",
-    "TM/BM/CM 발행내역",
-    "TM·BM·CM 발행 내역",
-    "TM · BM · CM 발행 내역",
-    "TM 발행 내역",
-    "TM 발행내역"
-  ];
+      const stabilize = () => {
+        if (
+          currentSequence !==
+          anchorSequence
+        ) {
+          return;
+        }
 
 
-  function normalizeIssueEntryLabel(
-    value
-  ) {
-    return previousIssueLabels.reduce(
-      (
-        normalizedText,
-        previousLabel
-      ) => {
-        return normalizedText.replaceAll(
-          previousLabel,
-          "발행 내역"
+        keepRowAtSamePosition(
+          targetRow,
+          expectedTop
         );
-      },
-      String(
-        value ||
-        ""
-      )
-    );
-  }
+      };
 
 
-  function normalizeIssueEntryTextNode(
-    textNode
-  ) {
-    if (
-      !textNode ||
-      textNode.nodeType !==
-        Node.TEXT_NODE
-    ) {
-      return;
-    }
+      stabilize();
 
 
-    const currentText =
-      String(
-        textNode.nodeValue ||
-        ""
-      );
+      window.requestAnimationFrame(
+        () => {
+          stabilize();
 
-
-    const normalizedText =
-      normalizeIssueEntryLabel(
-        currentText
-      );
-
-
-    if (
-      normalizedText !==
-      currentText
-    ) {
-      textNode.nodeValue =
-        normalizedText;
-    }
-  }
-
-
-  function normalizeIssueEntryLabelsIn(
-    root
-  ) {
-    if (
-      !root
-    ) {
-      return;
-    }
-
-
-    if (
-      root.nodeType ===
-        Node.TEXT_NODE
-    ) {
-      normalizeIssueEntryTextNode(
-        root
-      );
-
-
-      return;
-    }
-
-
-    if (
-      root.nodeType !==
-        Node.ELEMENT_NODE &&
-      root.nodeType !==
-        Node.DOCUMENT_NODE &&
-      root.nodeType !==
-        Node.DOCUMENT_FRAGMENT_NODE
-    ) {
-      return;
-    }
-
-
-    const textWalker =
-      document.createTreeWalker(
-        root,
-        NodeFilter.SHOW_TEXT
-      );
-
-
-    const textNodes =
-      [];
-
-
-    while (
-      textWalker.nextNode()
-    ) {
-      textNodes.push(
-        textWalker.currentNode
-      );
-    }
-
-
-    textNodes.forEach(
-      normalizeIssueEntryTextNode
-    );
-  }
-
-
-  function startIssueEntryLabelFix() {
-    if (
-      !document.body
-    ) {
-      return;
-    }
-
-
-    /*
-      현재 표시 중인 화면부터 정리한다.
-    */
-
-    normalizeIssueEntryLabelsIn(
-      document.body
-    );
-
-
-    /*
-      업무일지 목록·상세보기·조회 화면이
-      다시 그려질 때도 표기를 자동으로 통일한다.
-    */
-
-    const issueLabelObserver =
-      new MutationObserver(
-        mutations => {
-          mutations.forEach(
-            mutation => {
-              if (
-                mutation.type ===
-                  "characterData"
-              ) {
-                normalizeIssueEntryTextNode(
-                  mutation.target
-                );
-
-
-                return;
-              }
-
-
-              mutation.addedNodes.forEach(
-                addedNode => {
-                  normalizeIssueEntryLabelsIn(
-                    addedNode
-                  );
-                }
-              );
-            }
+          window.requestAnimationFrame(
+            stabilize
           );
         }
       );
 
 
-    issueLabelObserver.observe(
-      document.body,
-      {
-        childList:
-          true,
+      /*
+        기존 함수의 180ms 지연 focus 이후에도
+        같은 위치를 유지한다.
+      */
+      window.setTimeout(
+        stabilize,
+        220
+      );
+    }
 
-        subtree:
-          true,
 
-        characterData:
-          true
+    function mountInputPanel(
+      entryIndex,
+      expectedTop
+    ) {
+      const targetRow =
+        findEntryRow(
+          entryIndex
+        );
+
+
+      const targetCell =
+        targetRow?.querySelector(
+          ".log-entry-unified-cell"
+        );
+
+
+      if (
+        !targetRow ||
+        !targetCell
+      ) {
+        restoreInputPanelHome();
+
+        return null;
       }
+
+
+      const stableTop =
+        Number.isFinite(
+          expectedTop
+        )
+          ? expectedTop
+          : targetRow
+              .getBoundingClientRect()
+              .top;
+
+
+      lockModalScroll();
+
+      showHomeSpacer();
+
+
+      targetRow.classList.add(
+        "is-inline-entry-panel-editing"
+      );
+
+
+      targetCell.replaceChildren(
+        inputPanel
+      );
+
+
+      mountedRow =
+        targetRow;
+
+
+      const focusTarget =
+        document.getElementById(
+          "logEntryTime"
+        ) ||
+        document.getElementById(
+          "logEntryContent"
+        );
+
+
+      focusTarget?.focus({
+        preventScroll:
+          true
+      });
+
+
+      stabilizeRowPosition(
+        targetRow,
+        stableTop
+      );
+
+
+      return targetRow;
+    }
+
+
+    /*
+      목록을 다시 그리기 전에는
+      입력 패널을 원래 자리로 복원한다.
+    */
+    const renderBeforeInline =
+      renderLogEntryTable;
+
+
+    renderLogEntryTable =
+      function renderLogEntryTableWithInlineEditor(
+        ...args
+      ) {
+        restoreInputPanelHome();
+
+
+        return renderBeforeInline.apply(
+          this,
+          args
+        );
+      };
+
+
+    /*
+      기존 Navigator 제외 설정까지 유지하기 위해
+      현재 최종 startLogEntryEdit를 감싼다.
+    */
+    const startEditBeforeInline =
+      startLogEntryEdit;
+
+
+    startLogEntryEdit =
+      function startLogEntryEditInline(
+        entryIndex
+      ) {
+        const entry =
+          appState.editorEntries[
+            entryIndex
+          ];
+
+
+        if (!entry) {
+          showToast(
+            "수정할 업무 항목을 찾을 수 없습니다."
+          );
+
+          return;
+        }
+
+
+        const clickedRow =
+          findEntryRow(
+            entryIndex
+          );
+
+
+        const clickedRowTop =
+          clickedRow
+            ?.getBoundingClientRect()
+            .top;
+
+
+        editingEntryReference =
+          entry;
+
+
+        startFocusGuard();
+
+        lockModalScroll();
+
+
+        /*
+          기존 명시적 scrollIntoView 차단
+        */
+        const hadOwnScrollMethod =
+          Object.prototype
+            .hasOwnProperty
+            .call(
+              inputPanel,
+              "scrollIntoView"
+            );
+
+
+        const previousScrollMethod =
+          inputPanel.scrollIntoView;
+
+
+        try {
+          inputPanel.scrollIntoView =
+            () => {};
+
+
+          startEditBeforeInline(
+            entryIndex
+          );
+
+        } finally {
+          if (hadOwnScrollMethod) {
+            inputPanel.scrollIntoView =
+              previousScrollMethod;
+
+          } else {
+            delete inputPanel
+              .scrollIntoView;
+          }
+        }
+
+
+        if (
+          !syncEditingEntryIndex(
+            false
+          )
+        ) {
+          editingEntryReference =
+            null;
+
+          restoreInputPanelHome();
+
+          unlockModalScroll();
+
+          return;
+        }
+
+
+        if (
+          !mountInputPanel(
+            appState.editingEntryIndex,
+            clickedRowTop
+          )
+        ) {
+          editingEntryReference =
+            null;
+
+          unlockModalScroll();
+
+
+          showToast(
+            "수정할 업무 항목 줄을 찾을 수 없습니다."
+          );
+        }
+      };
+
+
+    const resetBeforeInline =
+      resetLogEntryInput;
+
+
+    resetLogEntryInput =
+      function resetLogEntryInputWithInlineEditor(
+        ...args
+      ) {
+        const wasEditing =
+          Boolean(
+            editingEntryReference ||
+            mountedRow
+          );
+
+
+        ++anchorSequence;
+
+        restoreInputPanelHome();
+
+        editingEntryReference =
+          null;
+
+
+        if (wasEditing) {
+          startFocusGuard();
+        }
+
+
+        const result =
+          resetBeforeInline.apply(
+            this,
+            args
+          );
+
+
+        unlockModalScroll();
+
+
+        return result;
+      };
+
+
+    const saveBeforeInline =
+      addOrUpdateLogEntry;
+
+
+    addOrUpdateLogEntry =
+      function addOrUpdateLogEntryWithInlineEditor(
+        ...args
+      ) {
+        if (
+          editingEntryReference &&
+          !syncEditingEntryIndex()
+        ) {
+          return;
+        }
+
+
+        if (
+          editingEntryReference
+        ) {
+          startFocusGuard();
+        }
+
+
+        return saveBeforeInline.apply(
+          this,
+          args
+        );
+      };
+
+
+    /*
+      N/S 정렬로 배열 위치가 바뀌어도
+      실제 수정 대상 객체를 다시 찾는다.
+    */
+    inputPanel.addEventListener(
+      "click",
+      event => {
+        if (
+          !editingEntryReference ||
+          !event.target.closest(
+            "#addLogEntryButton"
+          )
+        ) {
+          return;
+        }
+
+
+        if (
+          !syncEditingEntryIndex()
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+        }
+      },
+      true
+    );
+
+
+    inputPanel.addEventListener(
+      "keydown",
+      event => {
+        if (
+          !editingEntryReference ||
+          event.target.id !==
+            "logEntryContent" ||
+          event.key !==
+            "Enter" ||
+          event.shiftKey ||
+          event.isComposing ||
+          event.keyCode ===
+            229
+        ) {
+          return;
+        }
+
+
+        if (
+          !syncEditingEntryIndex()
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+        }
+      },
+      true
+    );
+
+
+    return true;
+  }
+
+
+  /*
+    기존 DOMContentLoaded 초기화와
+    cacheElements()가 끝난 다음 설치한다.
+  */
+  function tryInstall() {
+    if (install()) {
+      return;
+    }
+
+
+    installAttempts +=
+      1;
+
+
+    if (
+      installAttempts < 20
+    ) {
+      window.setTimeout(
+        tryInstall,
+        50
+      );
+    }
+  }
+
+
+  function startInstall() {
+    window.setTimeout(
+      tryInstall,
+      0
     );
   }
 
@@ -100546,7 +100884,7 @@ openLogDetail =
   ) {
     document.addEventListener(
       "DOMContentLoaded",
-      startIssueEntryLabelFix,
+      startInstall,
       {
         once:
           true
@@ -100554,7 +100892,7 @@ openLogDetail =
     );
 
   } else {
-    startIssueEntryLabelFix();
+    startInstall();
   }
 })();
 

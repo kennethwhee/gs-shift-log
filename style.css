@@ -67083,3 +67083,740 @@ tr.is-inline-entry-panel-editing
       0 !important;
   }
 }
+
+/* =========================================================
+  일일업무현황 입력칸 글자 서식 도구
+========================================================= */
+
+#efficiencyTeamModal .efficiency-daily-work-format-toolbar,
+#efficiencyTeamModal .efficiency-daily-work-format-toolbar * {
+  box-sizing: border-box;
+}
+
+
+#efficiencyTeamModal .efficiency-daily-work-format-toolbar {
+  display: flex;
+
+  width: 100%;
+  min-width: 0;
+
+  flex: 0 0 auto;
+
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+
+  gap: 9px 14px;
+
+  padding: 9px 12px;
+
+  border-bottom: 1px solid #d7e0e9;
+
+  background:
+    linear-gradient(
+      180deg,
+      #fbfdff 0%,
+      #f5f9fd 100%
+    );
+}
+
+
+/* =========================================================
+  서식 도구 제목 및 선택한 입력칸
+========================================================= */
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__status {
+  display: flex;
+
+  min-width: 200px;
+  max-width: 360px;
+
+  flex: 1 1 230px;
+  flex-direction: column;
+
+  gap: 5px;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__heading {
+  display: flex;
+
+  min-width: 0;
+
+  align-items: baseline;
+  flex-wrap: wrap;
+
+  gap: 2px 7px;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__heading strong {
+  color: #27384f;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.3;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__heading span {
+  color: #7a8797;
+
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__target {
+  display: flex;
+
+  width: 100%;
+  min-width: 0;
+  min-height: 27px;
+
+  align-items: center;
+
+  gap: 6px;
+
+  padding: 3px 7px;
+
+  border: 1px solid #d8e1ea;
+  border-radius: 6px;
+
+  background: #f2f5f8;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__target > span {
+  flex: 0 0 auto;
+
+  color: #7d8998;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__target > strong {
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: #687587;
+
+  font-size: 9px;
+  font-weight: 850;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/*
+  JavaScript에서 입력칸이 선택되면
+  data-format-target-state="ready"로 변경한다.
+*/
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar[
+    data-format-target-state="ready"
+  ]
+  .efficiency-daily-work-format-toolbar__target {
+  border-color: #9fc2e5;
+  background: #eaf4fe;
+
+  box-shadow:
+    inset
+    3px
+    0
+    0
+    #2f6fd4;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar[
+    data-format-target-state="ready"
+  ]
+  .efficiency-daily-work-format-toolbar__target > span {
+  color: #52779d;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar[
+    data-format-target-state="ready"
+  ]
+  .efficiency-daily-work-format-toolbar__target > strong {
+  color: #175b9f;
+}
+
+
+/* =========================================================
+  서식 조작부
+========================================================= */
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__controls {
+  display: flex;
+
+  min-width: 0;
+
+  flex: 1 1 510px;
+
+  align-items: flex-end;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+
+  gap: 6px;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__field {
+  display: flex;
+
+  min-width: 0;
+
+  flex: 0 0 auto;
+  flex-direction: column;
+
+  gap: 3px;
+
+  margin: 0;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__field
+  > span:first-child {
+  color: #66758a;
+
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+
+/* =========================================================
+  글꼴 및 크기 선택
+========================================================= */
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__select {
+  height: 34px;
+  min-height: 34px;
+
+  padding: 0 27px 0 8px;
+
+  border: 1px solid #c8d4e1;
+  border-radius: 7px;
+
+  outline: none;
+
+  background: #ffffff;
+  color: #34465d;
+
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 850;
+
+  cursor: pointer;
+}
+
+
+#efficiencyTeamModal #efficiencyDailyWorkFontFamily {
+  width: 126px;
+}
+
+
+#efficiencyTeamModal #efficiencyDailyWorkFontSize {
+  width: 78px;
+}
+
+
+/* =========================================================
+  굵게 및 기본값 복원 버튼
+========================================================= */
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__button {
+  display: inline-flex;
+
+  min-width: 70px;
+  min-height: 34px;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 5px;
+
+  padding: 0 10px;
+
+  border: 1px solid #c8d4e1;
+  border-radius: 7px;
+
+  background: #ffffff;
+  color: #34465d;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 850;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__button > strong {
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__button.is-reset {
+  min-width: 88px;
+
+  border-color: #d5cfc5;
+
+  background: #fffdfa;
+  color: #6d6253;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__button[
+    aria-pressed="true"
+  ] {
+  border-color: #1f5fae;
+
+  background: #1f5fae;
+  color: #ffffff;
+
+  box-shadow:
+    inset
+    0
+    -2px
+    0
+    #174d8d;
+}
+
+
+/* =========================================================
+  글자색 선택
+========================================================= */
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__color-control {
+  display: flex;
+
+  width: 126px;
+  height: 34px;
+  min-width: 0;
+
+  align-items: center;
+
+  gap: 6px;
+
+  padding: 3px 7px;
+
+  border: 1px solid #c8d4e1;
+  border-radius: 7px;
+
+  background: #ffffff;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__color-input {
+  width: 30px;
+  height: 24px;
+
+  flex: 0 0 30px;
+
+  padding: 0;
+
+  overflow: hidden;
+
+  border: 0;
+  border-radius: 4px;
+
+  background: transparent;
+
+  cursor: pointer;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__color-input::-webkit-color-swatch {
+  border: 1px solid #aeb9c6;
+  border-radius: 4px;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__color-input::-moz-color-swatch {
+  border: 1px solid #aeb9c6;
+  border-radius: 4px;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__color-control output {
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: #536277;
+
+  font-family:
+    Consolas,
+    monospace;
+
+  font-size: 8px;
+  font-weight: 800;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  마우스 및 키보드 상태
+========================================================= */
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__select:hover:not(:disabled),
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__button:hover:not(:disabled) {
+  border-color: #8fb0d2;
+  background-color: #f3f8fd;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__color-control:not(
+    :has(input:disabled)
+  ):hover {
+  border-color: #8fb0d2;
+  background-color: #f3f8fd;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__select:focus-visible,
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__button:focus-visible {
+  outline: 3px solid rgba(31, 95, 174, 0.18);
+  outline-offset: 2px;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__color-control:focus-within {
+  border-color: #5e94cb;
+
+  box-shadow:
+    0
+    0
+    0
+    3px
+    rgba(
+      31,
+      95,
+      174,
+      0.12
+    );
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__color-input:focus-visible {
+  outline: none;
+}
+
+
+/* =========================================================
+  비활성 상태
+========================================================= */
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar
+  :is(button, select, input):disabled {
+  cursor: not-allowed;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__select:disabled,
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__button:disabled {
+  border-color: #d8e0e8;
+
+  background: #eef2f6;
+  color: #909caa;
+
+  box-shadow: none;
+
+  opacity: 1;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar__color-control:has(
+    input:disabled
+  ) {
+  border-color: #d8e0e8;
+
+  background: #eef2f6;
+  color: #909caa;
+
+  opacity: 0.72;
+}
+
+
+/* =========================================================
+  현재 서식 적용 대상으로 선택된 입력칸
+
+  JavaScript에서
+  data-efficiency-daily-work-format-target="true"를 부여한다.
+========================================================= */
+
+#efficiencyTeamModal
+  .efficiency-daily-work-paper
+  :is(
+    input[type="text"],
+    textarea
+  )[
+    data-efficiency-daily-work-format-target="true"
+  ] {
+  background-color: #f8fbff !important;
+
+  box-shadow:
+    inset
+    0
+    0
+    0
+    1px
+    #2f6fd4 !important;
+}
+
+
+#efficiencyTeamModal
+  .efficiency-daily-work-paper
+  :is(
+    input[type="text"],
+    textarea
+  )[
+    data-efficiency-daily-work-format-target="true"
+  ]:focus {
+  box-shadow:
+    inset
+    0
+    0
+    0
+    1px
+    #2f6fd4,
+    0
+    0
+    0
+    2px
+    rgba(
+      47,
+      111,
+      212,
+      0.16
+    ) !important;
+}
+
+
+/* =========================================================
+  태블릿 및 좁은 PC
+========================================================= */
+
+@media screen and (max-width: 1180px) {
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    flex-wrap: nowrap;
+
+    gap: 9px;
+
+    padding: 9px;
+  }
+
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__status {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+
+    flex: 0 0 auto;
+  }
+
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__controls {
+    width: 100%;
+
+    flex: 0 0 auto;
+
+    justify-content: flex-start;
+  }
+}
+
+
+/* =========================================================
+  모바일 서식 도구
+========================================================= */
+
+@media screen and (max-width: 760px) {
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar {
+    gap: 9px;
+
+    padding: 9px;
+  }
+
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__target {
+    min-height: 32px;
+  }
+
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__target > strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__controls {
+    display: grid;
+
+    grid-template-columns:
+      minmax(0, 1.2fr)
+      minmax(108px, 0.8fr);
+
+    gap: 7px;
+  }
+
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__field,
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__button,
+  #efficiencyTeamModal #efficiencyDailyWorkFontFamily,
+  #efficiencyTeamModal #efficiencyDailyWorkFontSize,
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__color-control {
+    width: 100%;
+    min-width: 0;
+  }
+
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__select,
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__button,
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__color-control {
+    height: 40px;
+    min-height: 40px;
+  }
+
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__select {
+    font-size: 12px;
+  }
+
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__button {
+    font-size: 11px;
+  }
+
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar__button.is-reset {
+    grid-column: 1 / -1;
+  }
+}
+
+
+/* =========================================================
+  인쇄 및 PDF에서는 서식 도구·선택 표시 숨김
+========================================================= */
+
+body.is-efficiency-daily-work-printing
+  #efficiencyTeamModal
+  .efficiency-daily-work-format-toolbar {
+  display: none !important;
+}
+
+
+body.is-efficiency-daily-work-printing
+  #efficiencyTeamModal
+  .efficiency-daily-work-paper
+  [
+    data-efficiency-daily-work-format-target="true"
+  ] {
+  box-shadow: none !important;
+}
+
+
+@media print {
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar {
+    display: none !important;
+  }
+
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-paper
+    [
+      data-efficiency-daily-work-format-target="true"
+    ] {
+    box-shadow: none !important;
+  }
+}
+
+
+/* =========================================================
+  움직임 최소화 설정
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  #efficiencyTeamModal
+    .efficiency-daily-work-format-toolbar * {
+    transition-duration: 0.01ms !important;
+  }
+}

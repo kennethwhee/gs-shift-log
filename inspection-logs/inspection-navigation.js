@@ -1,3 +1,5 @@
+"use strict";
+
 function initializeInspectionWorkspaceNavigation() {
   if (window.__gsInspectionWorkspaceNavigationStarted === true) {
     return;
@@ -12,6 +14,7 @@ function initializeInspectionWorkspaceNavigation() {
   const backButton = document.getElementById("inspectionLogBackButton");
   const managerModal = document.getElementById("inspectionScheduleManagerModal");
   const logCards = [...document.querySelectorAll("[data-inspection-category-item]")];
+  const categoryTabButtons = [...document.querySelectorAll("[data-inspection-category]")];
 
   if (!hub || !dashboard || !tabNavigation || !logList || !viewer) {
     console.error("점검일지 왼쪽 메뉴를 구성할 필수 요소가 없습니다.");
@@ -298,35 +301,99 @@ function initializeInspectionWorkspaceNavigation() {
       return;
     }
 
+    const category =
+      String(
+        card.dataset.inspectionCategoryItem ||
+        "daily"
+      ).trim();
+
+    const categoryTabButton =
+      categoryTabButtons.find(
+        button => {
+          return (
+            String(
+              button.dataset.inspectionCategory ||
+              ""
+            ).trim() ===
+            category
+          );
+        }
+      ) ||
+      null;
+
+    const logKey =
+      String(
+        card.dataset.inspectionLog ||
+        ""
+      ).trim();
+
+    const effectiveSourceButton =
+      sourceButton ||
+      logButtons.find(
+        button => {
+          return (
+            String(
+              button.dataset.inspectionSidebarLog ||
+              ""
+            ).trim() ===
+            logKey
+          );
+        }
+      ) ||
+      null;
+
     tablePanel.hidden = true;
     dashboard.hidden = true;
 
-    if (sourceButton) {
-      setActiveButton(sourceButton);
+    if (
+      effectiveSourceButton
+    ) {
+      setActiveButton(
+        effectiveSourceButton
+      );
     }
 
-    card.click();
+    /*
+      기존 허브는 현재 선택된 분류에 속한 카드만
+      열도록 검사한다.
+
+      주간 메뉴를 누른 상태에서 주간 카드가 hidden이면
+      클릭이 무시되므로 먼저 해당 분류 탭을 실행한다.
+    */
+    categoryTabButton?.click();
+
+    window.requestAnimationFrame(
+      () => {
+        tablePanel.hidden =
+          true;
+
+        dashboard.hidden =
+          true;
+
+        card.click();
+      }
+    );
   }
 
   function renderScheduleTable(category = "") {
     const normalizedCategory = String(category || "").trim();
-    const items = INSPECTION_SCHEDULE_MASTER
-      .filter(item => !normalizedCategory || item.category === normalizedCategory)
-      .slice()
-      .sort((firstItem, secondItem) => {
-        return (
-          (categoryOrder[firstItem.category] || 99) -
-            (categoryOrder[secondItem.category] || 99) ||
-          String(firstItem.scheduleLabel || "").localeCompare(
-            String(secondItem.scheduleLabel || ""),
-            "ko"
-          ) ||
-          String(firstItem.title || "").localeCompare(
-            String(secondItem.title || ""),
-            "ko"
-          )
-        );
-      });
+    /*
+      원본 PDF 표의 행 순서를 유지한다.
+      INSPECTION_SCHEDULE_MASTER가 원본 순서로 작성되어 있으므로
+      별도 가나다순 정렬을 하지 않는다.
+    */
+    const items =
+      INSPECTION_SCHEDULE_MASTER
+        .filter(
+          item => {
+            return (
+              !normalizedCategory ||
+              item.category ===
+                normalizedCategory
+            );
+          }
+        )
+        .slice();
 
     if (tableTitle) {
       tableTitle.textContent = normalizedCategory

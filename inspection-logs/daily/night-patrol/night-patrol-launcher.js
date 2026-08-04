@@ -33,7 +33,7 @@ const FRAME_ID =
 
 
 const PAGE_URL =
-  "inspection-logs/inspection-logs.html?v=20260804-6";
+  "inspection-logs/inspection-logs.html?v=20260804-7";
 
   const AUTH_STORAGE_KEY =
     "gsShiftLog.currentUser";

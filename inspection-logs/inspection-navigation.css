@@ -216,12 +216,20 @@
 
 .inspection-schedule-table thead th {
   position: sticky;
-  top: 0;
-  z-index: 4;
   background: #eef2f6;
   color: #24384b;
   font-weight: 900;
   text-align: center;
+}
+
+.inspection-schedule-table thead tr:first-child th {
+  top: 0;
+  z-index: 6;
+}
+
+.inspection-schedule-table thead tr:nth-child(2) th {
+  top: 31px;
+  z-index: 5;
 }
 
 .inspection-schedule-table tr > :first-child {
