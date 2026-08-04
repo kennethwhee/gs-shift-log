@@ -3178,30 +3178,73 @@ function initializeInspectionWorkspaceNavigation() {
 
 /* =========================================================
   관리자 일정과 달력 준비 후 실행
+
+  - 필요한 HTML 요소가 준비될 때까지 기다린다.
+  - 관리자 일정 조회가 끝나면 왼쪽 메뉴를 만든다.
+  - 일정 조회가 늦어져도 최대 8초 후에는 메뉴를 표시한다.
+  - 최초 화면에서는 어떤 본문도 자동으로 열지 않는다.
 ========================================================= */
 
 async function waitForInspectionWorkspaceReady() {
+  const maximumAttempts =
+    80;
+
+
   for (
     let attempt =
       0;
+
     attempt <
-      80;
+      maximumAttempts;
+
     attempt +=
       1
   ) {
-    if (
-      typeof inspectionScheduleOverrideState !==
-        "undefined" &&
-      inspectionScheduleOverrideState.loaded ===
-        true &&
-      document.getElementById(
-        "inspectionScheduleDashboard"
+    const hasRequiredElements =
+      Boolean(
+        document.querySelector(
+          ".inspection-log-hub"
+        )
       ) &&
-      document.getElementById(
-        "inspectionLogList"
-      )
+
+      Boolean(
+        document.getElementById(
+          "inspectionScheduleDashboard"
+        )
+      ) &&
+
+      Boolean(
+        document.querySelector(
+          ".inspection-log-tabs"
+        )
+      ) &&
+
+      Boolean(
+        document.getElementById(
+          "inspectionLogList"
+        )
+      ) &&
+
+      Boolean(
+        document.getElementById(
+          "inspectionLogViewer"
+        )
+      );
+
+
+    const scheduleStateReady =
+      typeof inspectionScheduleOverrideState ===
+        "undefined" ||
+
+      inspectionScheduleOverrideState.loaded ===
+        true;
+
+
+    if (
+      hasRequiredElements &&
+      scheduleStateReady
     ) {
-      return;
+      return true;
     }
 
 
@@ -3214,11 +3257,61 @@ async function waitForInspectionWorkspaceReady() {
       }
     );
   }
+
+
+  /*
+    일정 API 응답이 늦더라도
+    기본 HTML 요소만 준비되어 있으면
+    왼쪽 메뉴 화면은 실행한다.
+  */
+
+  return Boolean(
+    document.querySelector(
+      ".inspection-log-hub"
+    ) &&
+
+    document.getElementById(
+      "inspectionScheduleDashboard"
+    ) &&
+
+    document.querySelector(
+      ".inspection-log-tabs"
+    ) &&
+
+    document.getElementById(
+      "inspectionLogList"
+    ) &&
+
+    document.getElementById(
+      "inspectionLogViewer"
+    )
+  );
 }
 
 
 async function startInspectionWorkspaceNavigation() {
-  await waitForInspectionWorkspaceReady();
+  if (
+    window.__gsInspectionWorkspaceNavigationStarted ===
+      true
+  ) {
+    return;
+  }
+
+
+  const ready =
+    await waitForInspectionWorkspaceReady();
+
+
+  if (
+    !ready
+  ) {
+    console.error(
+      "점검일지 왼쪽 메뉴 실행에 필요한 화면 요소를 찾지 못했습니다."
+    );
+
+    return;
+  }
+
 
   initializeInspectionWorkspaceNavigation();
 }
@@ -3226,7 +3319,7 @@ async function startInspectionWorkspaceNavigation() {
 
 if (
   document.readyState ===
-  "loading"
+    "loading"
 ) {
   document.addEventListener(
     "DOMContentLoaded",
@@ -3240,7 +3333,5 @@ if (
 } else {
   startInspectionWorkspaceNavigation();
 }
-
-
 
 
