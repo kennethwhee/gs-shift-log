@@ -69711,35 +69711,51 @@ body.is-efficiency-daily-work-printing
   }
 
 
-  /* =====================================================
-    건수
+/* =====================================================
+  건수
 
-    오른쪽 아래 작은 배지로 표시
-  ====================================================== */
+  오른쪽 상단 작은 배지로 표시
+====================================================== */
 
-  .arm-roll-box-main-alert__count {
-    position: absolute !important;
+.arm-roll-box-main-alert__count {
+  position: absolute !important;
 
-    right: 7px !important;
-    bottom: 6px !important;
+  top: 6px !important;
+  right: 7px !important;
+  bottom: auto !important;
 
-    min-width: 27px !important;
-    min-height: 18px !important;
+  min-width: 27px !important;
+  min-height: 18px !important;
 
-    padding:
-      0
-      5px !important;
+  padding:
+    0
+    5px !important;
 
-    font-size: 8px !important;
-  }
+  border-radius: 999px !important;
+
+  font-size: 8px !important;
+  line-height: 1 !important;
+
+  z-index: 2 !important;
+}
 
 
-  /*
-    건수 배지가 들어갈 공간 확보
-  */
-  .arm-roll-box-main-alert__content strong {
-    padding-right: 30px !important;
-  }
+/*
+  상단의 BOX 교체 권고 문구와
+  건수 배지가 겹치지 않도록 여백 확보
+*/
+.arm-roll-box-main-alert__content small {
+  padding-right: 31px !important;
+}
+
+
+/*
+  본문과 일정 문구는 오른쪽 공간을
+  모두 사용할 수 있도록 기존 여백 제거
+*/
+.arm-roll-box-main-alert__content strong {
+  padding-right: 0 !important;
+}
 }
 
 /* =====================================================
@@ -70560,4 +70576,76 @@ td:nth-child(n + 8):nth-child(-n + 13) {
   .arm-roll-box-daily-table--by-unit {
     min-width: 1420px;
   }
+}
+
+/* =========================================================
+  효율팀 일일업무현황 자동 행 높이
+
+  적용 범위:
+  - 크게 보기 상태
+  - textarea 내용에 맞춰 높이 자동 확장
+  - 사용자가 직접 크기를 잡아당기는 기능은 비활성화
+========================================================= */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+textarea {
+  overflow-y: hidden !important;
+
+  max-height: none !important;
+
+  resize: none !important;
+
+  transition:
+    height 0.08s ease;
+}
+
+
+/* 내용이 늘어날 때 표 행도 함께 확장 */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-table
+tr {
+  height: auto !important;
+}
+
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-table
+th,
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-table
+td {
+  height: auto !important;
+
+  vertical-align: top !important;
+}
+
+
+/* 담당자·근무자 입력칸은 기존 높이 유지 */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+input,
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+select {
+  height: auto;
+}
+
+
+/* 인쇄할 때 자동 높이 효과 제거 */
+
+@media print {
+
+  #efficiencyDailyWorkPaper
+  textarea {
+    transition: none !important;
+  }
+
 }
