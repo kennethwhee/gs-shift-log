@@ -5985,142 +5985,428 @@
     </section>
 
     <!-- 현재 BOX 레벨 -->
-    <section
-      class="arm-roll-box-current-grid"
-      aria-label="현재 BOX 레벨"
+    <!-- =================================================
+  현재 BOX 레벨
+
+  1호기:
+  - BO1 운전현황
+  - ARM ROLL BOX
+  - SCRAP BOX
+
+  2호기:
+  - BO2 운전현황
+  - ARM ROLL BOX
+  - SCRAP BOX
+================================================== -->
+<section
+  class="arm-roll-box-current-grid"
+  aria-label="1호기·2호기 현재 BOX 레벨"
+>
+
+  <!-- =================================================
+    1호기 ARM ROLL BOX
+  ================================================== -->
+  <article
+    class="
+      arm-roll-box-current-card
+      is-arm-roll
+      is-unit-1
+    "
+    id="armRollUnit1CurrentCard"
+    data-box-unit="1"
+    data-box-target="arm-roll"
+  >
+    <header class="arm-roll-box-current-card__header">
+      <div>
+        <span>CURRENT LEVEL</span>
+
+        <div class="arm-roll-box-title-line">
+          <strong>ARM ROLL BOX</strong>
+
+          <b class="arm-roll-box-unit-badge">
+            1호기
+          </b>
+        </div>
+      </div>
+
+      <span
+        class="arm-roll-box-level-state"
+        id="armRollUnit1LevelState"
+      >
+        기록 없음
+      </span>
+    </header>
+
+    <div class="arm-roll-box-current-level">
+      <strong id="armRollUnit1CurrentLevel">-</strong>
+      <span>%</span>
+    </div>
+
+    <div
+      class="arm-roll-box-level-track"
+      id="armRollUnit1Progress"
+      role="progressbar"
+      aria-label="1호기 ARM ROLL BOX 레벨"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="0"
     >
-      <article
-        class="arm-roll-box-current-card is-arm-roll"
-        id="armRollCurrentCard"
+      <span
+        class="arm-roll-box-level-fill"
+        id="armRollUnit1Fill"
+      ></span>
+
+      <i
+        class="arm-roll-box-level-threshold"
+        aria-hidden="true"
+      ></i>
+    </div>
+
+    <dl class="arm-roll-box-current-metrics">
+      <div>
+        <dt>직전 측정 대비</dt>
+
+        <dd id="armRollUnit1Increase">
+          비교 기록 없음
+        </dd>
+      </div>
+
+      <div>
+        <dt>일평균 증가</dt>
+
+        <dd id="armRollUnit1AverageIncrease">
+          비교 기록 없음
+        </dd>
+      </div>
+
+      <div>
+        <dt>교체 후 경과</dt>
+
+        <dd class="arm-roll-box-replacement-metric">
+          <strong id="armRollUnit1DaysSinceReplacement">
+            -
+          </strong>
+
+          <small id="armRollUnit1ReplacementComment">
+            교체 기록 없음
+          </small>
+        </dd>
+      </div>
+
+      <div>
+        <dt>최근 측정</dt>
+
+        <dd id="armRollUnit1LastRecordedAt">
+          -
+        </dd>
+      </div>
+    </dl>
+  </article>
+
+
+  <!-- =================================================
+    2호기 ARM ROLL BOX
+  ================================================== -->
+  <article
+    class="
+      arm-roll-box-current-card
+      is-arm-roll
+      is-unit-2
+    "
+    id="armRollUnit2CurrentCard"
+    data-box-unit="2"
+    data-box-target="arm-roll"
+  >
+    <header class="arm-roll-box-current-card__header">
+      <div>
+        <span>CURRENT LEVEL</span>
+
+        <div class="arm-roll-box-title-line">
+          <strong>ARM ROLL BOX</strong>
+
+          <b class="arm-roll-box-unit-badge">
+            2호기
+          </b>
+        </div>
+      </div>
+
+      <span
+        class="arm-roll-box-level-state"
+        id="armRollUnit2LevelState"
       >
-        <header class="arm-roll-box-current-card__header">
-          <div>
-            <span>CURRENT LEVEL</span>
-            <strong>ARM ROLL BOX</strong>
-          </div>
+        기록 없음
+      </span>
+    </header>
 
-          <span
-            class="arm-roll-box-level-state"
-            id="armRollBoxLevelState"
-          >
-            기록 없음
-          </span>
-        </header>
+    <div class="arm-roll-box-current-level">
+      <strong id="armRollUnit2CurrentLevel">-</strong>
+      <span>%</span>
+    </div>
 
-        <div class="arm-roll-box-current-level">
-          <strong id="armRollBoxCurrentLevel">-</strong>
-          <span>%</span>
+    <div
+      class="arm-roll-box-level-track"
+      id="armRollUnit2Progress"
+      role="progressbar"
+      aria-label="2호기 ARM ROLL BOX 레벨"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="0"
+    >
+      <span
+        class="arm-roll-box-level-fill"
+        id="armRollUnit2Fill"
+      ></span>
+
+      <i
+        class="arm-roll-box-level-threshold"
+        aria-hidden="true"
+      ></i>
+    </div>
+
+    <dl class="arm-roll-box-current-metrics">
+      <div>
+        <dt>직전 측정 대비</dt>
+
+        <dd id="armRollUnit2Increase">
+          비교 기록 없음
+        </dd>
+      </div>
+
+      <div>
+        <dt>일평균 증가</dt>
+
+        <dd id="armRollUnit2AverageIncrease">
+          비교 기록 없음
+        </dd>
+      </div>
+
+      <div>
+        <dt>교체 후 경과</dt>
+
+        <dd class="arm-roll-box-replacement-metric">
+          <strong id="armRollUnit2DaysSinceReplacement">
+            -
+          </strong>
+
+          <small id="armRollUnit2ReplacementComment">
+            교체 기록 없음
+          </small>
+        </dd>
+      </div>
+
+      <div>
+        <dt>최근 측정</dt>
+
+        <dd id="armRollUnit2LastRecordedAt">
+          -
+        </dd>
+      </div>
+    </dl>
+  </article>
+
+
+  <!-- =================================================
+    1호기 SCRAP BOX
+  ================================================== -->
+  <article
+    class="
+      arm-roll-box-current-card
+      is-scrap
+      is-unit-1
+    "
+    id="scrapUnit1CurrentCard"
+    data-box-unit="1"
+    data-box-target="scrap"
+  >
+    <header class="arm-roll-box-current-card__header">
+      <div>
+        <span>CURRENT LEVEL</span>
+
+        <div class="arm-roll-box-title-line">
+          <strong>SCRAP BOX</strong>
+
+          <b class="arm-roll-box-unit-badge">
+            1호기
+          </b>
         </div>
+      </div>
 
-        <div
-          class="arm-roll-box-level-track"
-          id="armRollBoxLevelProgress"
-          role="progressbar"
-          aria-label="ARM ROLL BOX 레벨"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-valuenow="0"
-        >
-          <span
-            class="arm-roll-box-level-fill"
-            id="armRollBoxLevelFill"
-          ></span>
-
-          <i
-            class="arm-roll-box-level-threshold"
-            aria-hidden="true"
-          ></i>
-        </div>
-
-        <dl class="arm-roll-box-current-metrics">
-          <div>
-            <dt>직전 측정 대비</dt>
-            <dd id="armRollBoxDailyIncrease">-</dd>
-          </div>
-
-          <div>
-            <dt>일평균 증가</dt>
-            <dd id="armRollBoxAverageIncrease">-</dd>
-          </div>
-
-          <div>
-            <dt>교체 후 경과</dt>
-            <dd id="armRollBoxDaysSinceReplacement">-</dd>
-          </div>
-
-          <div>
-            <dt>최근 측정</dt>
-            <dd id="armRollBoxLastRecordedAt">-</dd>
-          </div>
-        </dl>
-      </article>
-
-      <article
-        class="arm-roll-box-current-card is-scrap"
-        id="scrapCurrentCard"
+      <span
+        class="arm-roll-box-level-state"
+        id="scrapUnit1LevelState"
       >
-        <header class="arm-roll-box-current-card__header">
-          <div>
-            <span>CURRENT LEVEL</span>
-            <strong>SCRAP BOX</strong>
-          </div>
+        기록 없음
+      </span>
+    </header>
 
-          <span
-            class="arm-roll-box-level-state"
-            id="scrapBoxLevelState"
-          >
-            기록 없음
-          </span>
-        </header>
+    <div class="arm-roll-box-current-level">
+      <strong id="scrapUnit1CurrentLevel">-</strong>
+      <span>%</span>
+    </div>
 
-        <div class="arm-roll-box-current-level">
-          <strong id="scrapBoxCurrentLevel">-</strong>
-          <span>%</span>
+    <div
+      class="arm-roll-box-level-track"
+      id="scrapUnit1Progress"
+      role="progressbar"
+      aria-label="1호기 SCRAP BOX 레벨"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="0"
+    >
+      <span
+        class="arm-roll-box-level-fill"
+        id="scrapUnit1Fill"
+      ></span>
+
+      <i
+        class="arm-roll-box-level-threshold"
+        aria-hidden="true"
+      ></i>
+    </div>
+
+    <dl class="arm-roll-box-current-metrics">
+      <div>
+        <dt>직전 측정 대비</dt>
+
+        <dd id="scrapUnit1Increase">
+          비교 기록 없음
+        </dd>
+      </div>
+
+      <div>
+        <dt>일평균 증가</dt>
+
+        <dd id="scrapUnit1AverageIncrease">
+          비교 기록 없음
+        </dd>
+      </div>
+
+      <div>
+        <dt>교체 후 경과</dt>
+
+        <dd class="arm-roll-box-replacement-metric">
+          <strong id="scrapUnit1DaysSinceReplacement">
+            -
+          </strong>
+
+          <small id="scrapUnit1ReplacementComment">
+            교체 기록 없음
+          </small>
+        </dd>
+      </div>
+
+      <div>
+        <dt>최근 측정</dt>
+
+        <dd id="scrapUnit1LastRecordedAt">
+          -
+        </dd>
+      </div>
+    </dl>
+  </article>
+
+
+  <!-- =================================================
+    2호기 SCRAP BOX
+  ================================================== -->
+  <article
+    class="
+      arm-roll-box-current-card
+      is-scrap
+      is-unit-2
+    "
+    id="scrapUnit2CurrentCard"
+    data-box-unit="2"
+    data-box-target="scrap"
+  >
+    <header class="arm-roll-box-current-card__header">
+      <div>
+        <span>CURRENT LEVEL</span>
+
+        <div class="arm-roll-box-title-line">
+          <strong>SCRAP BOX</strong>
+
+          <b class="arm-roll-box-unit-badge">
+            2호기
+          </b>
         </div>
+      </div>
 
-        <div
-          class="arm-roll-box-level-track"
-          id="scrapBoxLevelProgress"
-          role="progressbar"
-          aria-label="SCRAP BOX 레벨"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-valuenow="0"
-        >
-          <span
-            class="arm-roll-box-level-fill"
-            id="scrapBoxLevelFill"
-          ></span>
+      <span
+        class="arm-roll-box-level-state"
+        id="scrapUnit2LevelState"
+      >
+        기록 없음
+      </span>
+    </header>
 
-          <i
-            class="arm-roll-box-level-threshold"
-            aria-hidden="true"
-          ></i>
-        </div>
+    <div class="arm-roll-box-current-level">
+      <strong id="scrapUnit2CurrentLevel">-</strong>
+      <span>%</span>
+    </div>
 
-        <dl class="arm-roll-box-current-metrics">
-          <div>
-            <dt>직전 측정 대비</dt>
-            <dd id="scrapBoxDailyIncrease">-</dd>
-          </div>
+    <div
+      class="arm-roll-box-level-track"
+      id="scrapUnit2Progress"
+      role="progressbar"
+      aria-label="2호기 SCRAP BOX 레벨"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="0"
+    >
+      <span
+        class="arm-roll-box-level-fill"
+        id="scrapUnit2Fill"
+      ></span>
 
-          <div>
-            <dt>일평균 증가</dt>
-            <dd id="scrapBoxAverageIncrease">-</dd>
-          </div>
+      <i
+        class="arm-roll-box-level-threshold"
+        aria-hidden="true"
+      ></i>
+    </div>
 
-          <div>
-            <dt>교체 후 경과</dt>
-            <dd id="scrapBoxDaysSinceReplacement">-</dd>
-          </div>
+    <dl class="arm-roll-box-current-metrics">
+      <div>
+        <dt>직전 측정 대비</dt>
 
-          <div>
-            <dt>최근 측정</dt>
-            <dd id="scrapBoxLastRecordedAt">-</dd>
-          </div>
-        </dl>
-      </article>
-    </section>
+        <dd id="scrapUnit2Increase">
+          비교 기록 없음
+        </dd>
+      </div>
+
+      <div>
+        <dt>일평균 증가</dt>
+
+        <dd id="scrapUnit2AverageIncrease">
+          비교 기록 없음
+        </dd>
+      </div>
+
+      <div>
+        <dt>교체 후 경과</dt>
+
+        <dd class="arm-roll-box-replacement-metric">
+          <strong id="scrapUnit2DaysSinceReplacement">
+            -
+          </strong>
+
+          <small id="scrapUnit2ReplacementComment">
+            교체 기록 없음
+          </small>
+        </dd>
+      </div>
+
+      <div>
+        <dt>최근 측정</dt>
+
+        <dd id="scrapUnit2LastRecordedAt">
+          -
+        </dd>
+      </div>
+    </dl>
+  </article>
+
+</section>
 
     <!-- 증가 추이 그래프 -->
     <section class="arm-roll-box-section-card arm-roll-box-chart-card">
