@@ -2012,6 +2012,10 @@ function createStatusActionHtml(
     /*
       업무일지 자동완료
     */
+
+          /*
+      업무일지 자동완료
+    */
     if (
       isAutomatic
     ) {
@@ -2040,6 +2044,14 @@ function createStatusActionHtml(
             0,
             300
           );
+
+
+      const sourceLogId =
+        String(
+          completion.sourceLogId ||
+          completion.source_log_id ||
+          ""
+        ).trim();
 
 
       const sourceMeta =
@@ -2107,6 +2119,30 @@ function createStatusActionHtml(
               : ""
           }
 
+          ${
+            sourceLogId
+              ? `
+                  <button
+                    type="button"
+                    class="
+                      inspection-calendar-source-log-button
+                    "
+                    data-open-source-shift-log="${escapeHtml(
+                      sourceLogId
+                    )}"
+                    data-source-work-date="${escapeHtml(
+                      occurrence.dueDate
+                    )}"
+                    data-source-shift="${escapeHtml(
+                      occurrence.shift
+                    )}"
+                  >
+                    근거 업무일지 열기
+                  </button>
+                `
+              : ""
+          }
+
           <small
             class="
               inspection-calendar-completion-help
@@ -2118,7 +2154,6 @@ function createStatusActionHtml(
         </div>
       `;
     }
-
 
     /*
       사용자가 직접 완료한 수동 완료
@@ -2629,29 +2664,166 @@ async function refreshStatus() {
     }
   }
 
-  function handleActionClick(event) {
-    const target = event.target instanceof Element ? event.target : null;
+/* =========================================================
+  점검 달력 버튼 처리
+========================================================= */
 
-    const logButton = target?.closest("[data-calendar-open-log]");
-    if (logButton) {
-      const scheduleItem = INSPECTION_SCHEDULE_MASTER.find(item => {
-        return item.id === String(logButton.dataset.calendarOpenLog || "");
-      });
-      openLinkedLog(scheduleItem);
+function handleActionClick(
+  event
+) {
+  const target =
+    event.target instanceof
+      Element
+      ? event.target
+      : null;
+
+
+  /* =====================================================
+    자동완료 근거 업무일지 열기
+  ====================================================== */
+
+  const sourceLogButton =
+    target?.closest(
+      "[data-open-source-shift-log]"
+    );
+
+
+  if (
+    sourceLogButton
+  ) {
+    const sourceLogId =
+      String(
+        sourceLogButton.dataset
+          .openSourceShiftLog ||
+        ""
+      ).trim();
+
+
+    const workDate =
+      String(
+        sourceLogButton.dataset
+          .sourceWorkDate ||
+        ""
+      ).trim();
+
+
+    const shift =
+      normalizeShift(
+        sourceLogButton.dataset
+          .sourceShift
+      );
+
+
+    if (
+      !sourceLogId
+    ) {
+      window.alert(
+        "근거 업무일지 ID를 확인할 수 없습니다."
+      );
+
+
       return;
     }
 
-    const completeButton = target?.closest("[data-calendar-complete]");
-    if (completeButton) {
-      completeSchedule(completeButton);
-      return;
-    }
 
-    const cancelButton = target?.closest("[data-calendar-cancel]");
-    if (cancelButton) {
-      cancelCompletion(cancelButton);
-    }
+    window.parent.postMessage(
+      {
+        type:
+          "gs-shift-log:open-source-log",
+
+        logId:
+          sourceLogId,
+
+        workDate,
+
+        shift
+      },
+
+      window.location.origin
+    );
+
+
+    return;
   }
+
+
+  /* =====================================================
+    전용 점검일지 열기
+  ====================================================== */
+
+  const logButton =
+    target?.closest(
+      "[data-calendar-open-log]"
+    );
+
+
+  if (
+    logButton
+  ) {
+    const scheduleItem =
+      INSPECTION_SCHEDULE_MASTER.find(
+        item => {
+          return (
+            item.id ===
+            String(
+              logButton.dataset
+                .calendarOpenLog ||
+              ""
+            )
+          );
+        }
+      );
+
+
+    openLinkedLog(
+      scheduleItem
+    );
+
+
+    return;
+  }
+
+
+  /* =====================================================
+    수동 완료
+  ====================================================== */
+
+  const completeButton =
+    target?.closest(
+      "[data-calendar-complete]"
+    );
+
+
+  if (
+    completeButton
+  ) {
+    void completeSchedule(
+      completeButton
+    );
+
+
+    return;
+  }
+
+
+  /* =====================================================
+    수동 완료 취소
+  ====================================================== */
+
+  const cancelButton =
+    target?.closest(
+      "[data-calendar-cancel]"
+    );
+
+
+  if (
+    cancelButton
+  ) {
+    void cancelCompletion(
+      cancelButton
+    );
+  }
+}
 
   calendarGrid.addEventListener("click", event => {
     const target = event.target instanceof Element ? event.target : null;

@@ -121381,3 +121381,324 @@ if (
     initialize();
   }
 })();
+
+/* =========================================================
+  점검 자동완료 근거 업무일지 열기
+
+  점검일지 iframe에서 전달된 sourceLogId로
+  실제 업무일지를 찾아 상세보기로 연다.
+========================================================= */
+
+(function initializeInspectionSourceLogBridge() {
+  if (
+    window
+      .__inspectionSourceLogBridgeInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__inspectionSourceLogBridgeInstalled =
+    true;
+
+
+  let openingSourceLog =
+    false;
+
+
+  /* =====================================================
+    점검일지 팝업 닫기
+  ====================================================== */
+
+  function closeInspectionSourceFrameModal(
+    sourceWindow
+  ) {
+    const sourceFrame = [
+      ...document.querySelectorAll(
+        "iframe"
+      )
+    ].find(
+      frame => {
+        return (
+          frame.contentWindow ===
+          sourceWindow
+        );
+      }
+    );
+
+
+    const hostModal =
+      sourceFrame?.closest(
+        ".modal-backdrop.is-open"
+      ) ||
+      null;
+
+
+    if (
+      !hostModal
+    ) {
+      return;
+    }
+
+
+    if (
+      typeof closeModal ===
+        "function"
+    ) {
+      closeModal(
+        hostModal
+      );
+
+
+      return;
+    }
+
+
+    hostModal.classList.remove(
+      "is-open"
+    );
+
+
+    hostModal.setAttribute(
+      "aria-hidden",
+      "true"
+    );
+  }
+
+
+  /* =====================================================
+    업무일지 조회 및 상세보기
+  ====================================================== */
+
+  async function openInspectionSourceLog(
+    message,
+    sourceWindow
+  ) {
+    if (
+      openingSourceLog
+    ) {
+      return;
+    }
+
+
+    const logId =
+      String(
+        message?.logId ||
+        ""
+      ).trim();
+
+
+    const workDate =
+      String(
+        message?.workDate ||
+        ""
+      ).trim();
+
+
+    const shift =
+      String(
+        message?.shift ||
+        ""
+      )
+        .trim()
+        .toUpperCase()
+        .replace(
+          /[^A-Z]/g,
+          ""
+        );
+
+
+    if (
+      !logId
+    ) {
+      showToast(
+        "근거 업무일지 ID를 확인할 수 없습니다."
+      );
+
+
+      return;
+    }
+
+
+    openingSourceLog =
+      true;
+
+
+    try {
+      const currentLogs =
+        typeof appState !==
+          "undefined" &&
+        Array.isArray(
+          appState.logs
+        )
+          ? appState.logs
+          : [];
+
+
+      /*
+        현재 화면에 이미 불러온 업무일지에서 먼저 찾는다.
+      */
+      let sourceLog =
+        currentLogs.find(
+          log => {
+            return (
+              String(
+                log?.id ||
+                ""
+              ).trim() ===
+              logId
+            );
+          }
+        ) ||
+        null;
+
+
+      /*
+        현재 화면에 없으면
+        날짜·근무 조건으로 D1에서 다시 조회한다.
+      */
+      if (
+        !sourceLog &&
+        /^\d{4}-\d{2}-\d{2}$/.test(
+          workDate
+        ) &&
+        [
+          "DS",
+          "NS"
+        ].includes(
+          shift
+        )
+      ) {
+        const query = [
+          `date=${encodeURIComponent(
+            workDate
+          )}`,
+
+          `shift=${encodeURIComponent(
+            shift
+          )}`,
+
+          `_=${Date.now()}`
+        ].join(
+          "&"
+        );
+
+
+        const loadedLogs =
+          await loadSharedShiftLogsFromServer(
+            `?${query}`
+          );
+
+
+        sourceLog =
+          loadedLogs.find(
+            log => {
+              return (
+                String(
+                  log?.id ||
+                  ""
+                ).trim() ===
+                logId
+              );
+            }
+          ) ||
+          null;
+
+
+        if (
+          sourceLog &&
+          typeof replaceSharedShiftLogInState ===
+            "function"
+        ) {
+          sourceLog =
+            replaceSharedShiftLogInState(
+              sourceLog
+            ) ||
+            sourceLog;
+        }
+      }
+
+
+      if (
+        !sourceLog
+      ) {
+        showToast(
+          "근거가 된 업무일지를 찾을 수 없습니다."
+        );
+
+
+        return;
+      }
+
+
+      /*
+        점검일지 팝업을 닫은 뒤
+        업무일지 상세창을 연다.
+      */
+      closeInspectionSourceFrameModal(
+        sourceWindow
+      );
+
+
+      openLogDetail(
+        sourceLog
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "근거 업무일지 열기 실패:",
+        error
+      );
+
+
+      showToast(
+        error instanceof
+          Error
+          ? error.message
+          : "근거 업무일지를 열지 못했습니다."
+      );
+
+    } finally {
+      openingSourceLog =
+        false;
+    }
+  }
+
+
+  /* =====================================================
+    점검일지 iframe 메시지 수신
+  ====================================================== */
+
+  window.addEventListener(
+    "message",
+    event => {
+      if (
+        event.origin !==
+        window.location.origin
+      ) {
+        return;
+      }
+
+
+      if (
+        String(
+          event.data?.type ||
+          ""
+        ).trim() !==
+          "gs-shift-log:open-source-log"
+      ) {
+        return;
+      }
+
+
+      void openInspectionSourceLog(
+        event.data,
+        event.source
+      );
+    }
+  );
+})();
