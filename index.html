@@ -25,7 +25,7 @@
 
 <!-- 야간순찰 메뉴 및 팝업 실행기 -->
 <script
-  src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260804-6"
+  src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260804-7"
   defer
 ></script>
 
@@ -3955,6 +3955,146 @@
             <span id="efficiencyDailyWorkUpdatedAt"></span>
           </div>
         </div>
+
+        <!-- =============================================
+          입력칸 글자 서식 도구
+        ============================================== -->
+        <section
+          class="efficiency-daily-work-format-toolbar"
+          id="efficiencyDailyWorkFormatToolbar"
+          data-efficiency-daily-work-format-toolbar
+          data-format-target-state="empty"
+          aria-labelledby="efficiencyDailyWorkFormatToolbarTitle"
+        >
+          <div class="efficiency-daily-work-format-toolbar__status">
+            <div class="efficiency-daily-work-format-toolbar__heading">
+              <strong id="efficiencyDailyWorkFormatToolbarTitle">
+                글자 서식
+              </strong>
+
+              <span>
+                선택한 입력칸 전체에 적용됩니다.
+              </span>
+            </div>
+
+            <div
+              class="efficiency-daily-work-format-toolbar__target"
+              role="status"
+              aria-live="polite"
+            >
+              <span>적용 대상</span>
+
+              <strong id="efficiencyDailyWorkFormatTargetLabel">
+                입력칸을 먼저 클릭하세요.
+              </strong>
+            </div>
+          </div>
+
+          <div
+            class="efficiency-daily-work-format-toolbar__controls"
+            role="toolbar"
+            aria-label="글꼴, 크기, 굵기 및 글자색"
+            aria-controls="efficiencyDailyWorkPaper"
+          >
+            <!-- 글꼴 -->
+            <label class="efficiency-daily-work-format-toolbar__field">
+              <span>글꼴</span>
+
+              <select
+                class="efficiency-daily-work-format-toolbar__select"
+                id="efficiencyDailyWorkFontFamily"
+                data-efficiency-daily-work-format-command="font-family"
+                disabled
+              >
+                <option value="">기본 글꼴</option>
+                <option value="pretendard">프리텐다드</option>
+                <option value="malgun-gothic">맑은 고딕</option>
+                <option value="nanum-gothic">나눔고딕</option>
+                <option value="dotum">돋움</option>
+                <option value="gulim">굴림</option>
+                <option value="batang">바탕</option>
+              </select>
+            </label>
+
+            <!-- 글자 크기 -->
+            <label class="efficiency-daily-work-format-toolbar__field">
+              <span>크기</span>
+
+              <select
+                class="efficiency-daily-work-format-toolbar__select"
+                id="efficiencyDailyWorkFontSize"
+                data-efficiency-daily-work-format-command="font-size"
+                disabled
+              >
+                <option value="">기본 크기</option>
+                <option value="7">7px</option>
+                <option value="8">8px</option>
+                <option value="9">9px</option>
+                <option value="10">10px</option>
+                <option value="11">11px</option>
+                <option value="12">12px</option>
+                <option value="14">14px</option>
+                <option value="16">16px</option>
+              </select>
+            </label>
+
+            <!-- 굵게 -->
+            <button
+              type="button"
+              class="efficiency-daily-work-format-toolbar__button"
+              id="toggleEfficiencyDailyWorkBoldButton"
+              data-efficiency-daily-work-format-command="bold"
+              aria-pressed="false"
+              disabled
+            >
+              <strong aria-hidden="true">B</strong>
+              <span>굵게</span>
+            </button>
+
+            <!-- 글자색 -->
+            <label
+              class="
+                efficiency-daily-work-format-toolbar__field
+                is-color
+              "
+            >
+              <span>글자색</span>
+
+              <span class="efficiency-daily-work-format-toolbar__color-control">
+                <input
+                  type="color"
+                  class="efficiency-daily-work-format-toolbar__color-input"
+                  id="efficiencyDailyWorkTextColor"
+                  value="#111111"
+                  data-efficiency-daily-work-format-command="text-color"
+                  aria-label="글자색 선택"
+                  disabled
+                />
+
+                <output
+                  id="efficiencyDailyWorkTextColorValue"
+                  for="efficiencyDailyWorkTextColor"
+                >
+                  #111111
+                </output>
+              </span>
+            </label>
+
+            <!-- 기본값 복원 -->
+            <button
+              type="button"
+              class="
+                efficiency-daily-work-format-toolbar__button
+                is-reset
+              "
+              id="resetEfficiencyDailyWorkFormatButton"
+              data-efficiency-daily-work-format-command="reset"
+              disabled
+            >
+              기본값 복원
+            </button>
+          </div>
+        </section>
 
         <!-- =============================================
           실제 A4 양식
