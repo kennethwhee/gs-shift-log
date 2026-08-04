@@ -486,6 +486,73 @@ function initializeInspectionWorkspaceNavigation() {
   };
 
 
+  const assignedRoleOptions = [
+    {
+      value:
+        "파트장",
+
+      label:
+        "파트장"
+    },
+
+    {
+      value:
+        "TGO",
+
+      label:
+        "TGO"
+    },
+
+    {
+      value:
+        "BCO1",
+
+      label:
+        "BCO1"
+    },
+
+    {
+      value:
+        "BCO2",
+
+      label:
+        "BCO2"
+    },
+
+    {
+      value:
+        "TO",
+
+      label:
+        "TO"
+    },
+
+    {
+      value:
+        "BO1",
+
+      label:
+        "BO1"
+    },
+
+    {
+      value:
+        "BO2",
+
+      label:
+        "BO2"
+    }
+  ];
+
+
+  const assignedRoleOrder =
+    assignedRoleOptions.map(
+      option => {
+        return option.value;
+      }
+    );
+
+
   /* =====================================================
     공통 처리
   ====================================================== */
@@ -1211,6 +1278,22 @@ function initializeInspectionWorkspaceNavigation() {
           </div>
         </div>
 
+        <div class="inspection-schedule-inline-option-row is-assigned-roles">
+          <strong>담당 보직</strong>
+
+          <div class="is-roles">
+            ${createNumberChecksHtml(
+              "role",
+              item.assignedRoles,
+              assignedRoleOptions
+            )}
+          </div>
+
+          <small>
+            선택한 보직 카드에 오늘 점검 버튼과 완료 현황이 자동 표시됩니다.
+          </small>
+        </div>
+
         <div class="inspection-schedule-inline-option-row">
           <strong>일정 설정</strong>
 
@@ -1633,6 +1716,9 @@ function initializeInspectionWorkspaceNavigation() {
               "D/S"
             ],
 
+            assignedRoles:
+              [],
+
             position:
               "Local",
 
@@ -1728,6 +1814,19 @@ function initializeInspectionWorkspaceNavigation() {
                 : [];
 
 
+            const assignedRoles =
+              assignedRoleOrder.filter(
+                role => {
+                  return Array.isArray(
+                    item.assignedRoles
+                  ) &&
+                  item.assignedRoles.includes(
+                    role
+                  );
+                }
+              );
+
+
             const rowClasses = [
               item.conditional ===
                 true
@@ -1799,6 +1898,19 @@ function initializeInspectionWorkspaceNavigation() {
                   <div class="inspection-schedule-table-title-line">
                     <strong>${escapeHtml(item.title || "-")}</strong>
                     ${createStateBadgeHtml(item)}
+                  </div>
+
+                  <div
+                    class="inspection-schedule-table-assigned-roles ${assignedRoles.length ? "" : "is-empty"}"
+                  >
+                    <span>담당</span>
+                    <b>
+                      ${escapeHtml(
+                        assignedRoles.length
+                          ? assignedRoles.join(" · ")
+                          : "미지정"
+                      )}
+                    </b>
                   </div>
 
                   ${linkedCard ? `
@@ -1897,6 +2009,34 @@ function initializeInspectionWorkspaceNavigation() {
   }
 
 
+  function getCheckedStrings(
+    row,
+    selector
+  ) {
+    return [
+      ...row.querySelectorAll(
+        selector
+      )
+    ]
+      .filter(
+        input => {
+          return input.checked;
+        }
+      )
+      .map(
+        input => {
+          return String(
+            input.value ||
+            ""
+          ).trim();
+        }
+      )
+      .filter(
+        Boolean
+      );
+  }
+
+
   function collectInlineEditorItem(
     row
   ) {
@@ -1936,6 +2076,19 @@ function initializeInspectionWorkspaceNavigation() {
       getCheckedNumbers(
         row,
         "[data-inline-month]"
+      );
+
+
+    const assignedRoles =
+      assignedRoleOrder.filter(
+        role => {
+          return getCheckedStrings(
+            row,
+            "[data-inline-role]"
+          ).includes(
+            role
+          );
+        }
       );
 
 
@@ -2041,6 +2194,8 @@ function initializeInspectionWorkspaceNavigation() {
         ).trim(),
 
       shifts,
+
+      assignedRoles,
 
       position:
         String(
@@ -2835,6 +2990,72 @@ function initializeInspectionWorkspaceNavigation() {
           editorRow
         );
       }
+    }
+  );
+
+
+  window.addEventListener(
+    "message",
+    event => {
+      if (
+        event.origin !==
+          window.location.origin ||
+        (
+          window.parent !==
+            window &&
+          event.source !==
+            window.parent
+        ) ||
+        event.data?.type !==
+          "gs-shift-log:open-inspection-schedule"
+      ) {
+        return;
+      }
+
+
+      const scheduleId =
+        String(
+          event.data?.scheduleId ||
+          ""
+        ).trim();
+
+
+      if (
+        !scheduleId
+      ) {
+        return;
+      }
+
+
+      const scheduleItem =
+        getManagerItems().find(
+          item => {
+            return item.id ===
+              scheduleId;
+          }
+        );
+
+
+      const linkedCard =
+        getLinkedCard(
+          scheduleItem
+        );
+
+
+      if (
+        !linkedCard
+      ) {
+        window.alert(
+          "연결된 전용 점검일지가 없습니다."
+        );
+
+        return;
+      }
+
+
+      openLogCard(
+        linkedCard
+      );
     }
   );
 

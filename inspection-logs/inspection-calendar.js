@@ -50,6 +50,16 @@ function initializeInspectionCalendarDashboard() {
     other: 5
   };
 
+  const roleOrder = [
+    "파트장",
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
   const calendarFilterCategories = [
     "daily",
     "weekly",
@@ -353,6 +363,226 @@ function initializeInspectionCalendarDashboard() {
       reference,
       conditional
     };
+  }
+
+  function normalizeAssignedRole(value) {
+    const originalValue = String(value || "").trim();
+    const comparableValue = originalValue
+      .toUpperCase()
+      .replace(/[\s_\-/]+/g, "");
+
+    const roleMap = {
+      "파트장": "파트장",
+      "PARTLEADER": "파트장",
+      "SHIFTLEADER": "파트장",
+      "LEADER": "파트장",
+      "TGO": "TGO",
+      "BCO1": "BCO1",
+      "BCO2": "BCO2",
+      "TO": "TO",
+      "BO1": "BO1",
+      "BO2": "BO2"
+    };
+
+    return roleMap[originalValue] || roleMap[comparableValue] || "";
+  }
+
+  function getAssignedRoles(scheduleItem) {
+    const assignedRoleSet = new Set(
+      (Array.isArray(scheduleItem?.assignedRoles)
+        ? scheduleItem.assignedRoles
+        : []
+      )
+        .map(normalizeAssignedRole)
+        .filter(Boolean)
+    );
+
+    return roleOrder.filter(role => assignedRoleSet.has(role));
+  }
+
+  function getRoleTodayShiftContext() {
+    const now = new Date();
+    const workDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+
+    let shift = "DS";
+
+    if (now.getHours() >= 19) {
+      shift = "NS";
+    } else if (now.getHours() < 7) {
+      shift = "NS";
+      workDate.setDate(workDate.getDate() - 1);
+    }
+
+    return {
+      workDate: formatDateValue(workDate),
+      shift,
+      shiftLabel: getShiftLabel(shift)
+    };
+  }
+
+  async function loadRoleTodayCompletionMap(workDate) {
+    const url = new URL(STATUS_API, window.location.origin);
+    url.searchParams.set("startDate", workDate);
+    url.searchParams.set("endDate", workDate);
+    url.searchParams.set("_", String(Date.now()));
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: getAuthHeaders(),
+      cache: "no-store"
+    });
+
+    const result = await readApiResponse(response);
+    const completionMap = new Map();
+
+    (Array.isArray(result.items) ? result.items : []).forEach(item => {
+      completionMap.set(
+        createStatusKey(item.scheduleId, item.dueDate, item.shift),
+        item
+      );
+    });
+
+    return completionMap;
+  }
+
+  async function publishRoleTodaySummary() {
+    if (!window.parent || window.parent === window) {
+      return;
+    }
+
+    const context = getRoleTodayShiftContext();
+
+    try {
+      const completionMap = await loadRoleTodayCompletionMap(
+        context.workDate
+      );
+
+      const scheduleResult = getInspectionSchedulesForDate(
+        context.workDate
+      );
+
+      const todayScheduleItems = [
+        ...scheduleResult.dueItems.filter(item => {
+          return item.referenceOnly !== true;
+        }),
+        ...scheduleResult.conditionalItems.filter(item => {
+          return item.referenceOnly !== true;
+        })
+      ];
+
+      const occurrences = todayScheduleItems
+        .flatMap(scheduleItem => {
+          return expandOccurrences(scheduleItem, context.workDate);
+        })
+        .filter(occurrence => {
+          const occurrenceShift = normalizeShift(occurrence.shift);
+
+          return !occurrenceShift || occurrenceShift === context.shift;
+        });
+
+      const uniqueOccurrences = [
+        ...new Map(
+          occurrences.map(occurrence => {
+            const scheduleItem = occurrence.scheduleItem;
+            const key = createStatusKey(
+              scheduleItem.id,
+              occurrence.dueDate,
+              occurrence.shift
+            );
+
+            return [key, occurrence];
+          })
+        ).values()
+      ];
+
+      const roles = roleOrder.map(role => {
+        const roleItems = uniqueOccurrences
+          .filter(occurrence => {
+            return getAssignedRoles(
+              occurrence.scheduleItem
+            ).includes(role);
+          })
+          .map(occurrence => {
+            const scheduleItem = occurrence.scheduleItem;
+            const completion = completionMap.get(
+              createStatusKey(
+                scheduleItem.id,
+                occurrence.dueDate,
+                occurrence.shift
+              )
+            ) || null;
+
+            return {
+              scheduleId: String(scheduleItem.id || ""),
+              title: String(scheduleItem.title || "점검 일정"),
+              category: String(scheduleItem.category || "other"),
+              scheduleLabel: String(scheduleItem.scheduleLabel || ""),
+              dueDate: occurrence.dueDate,
+              shift: normalizeShift(occurrence.shift),
+              shiftLabel: getShiftLabel(occurrence.shift),
+              position: String(scheduleItem.position || ""),
+              note: String(scheduleItem.note || ""),
+              conditional: scheduleItem.conditional === true,
+              completed: Boolean(completion),
+              completedByName: String(completion?.completedByName || ""),
+              completedAt: String(completion?.completedAt || ""),
+              canOpenLog: Boolean(getLinkedCard(scheduleItem))
+            };
+          })
+          .sort((firstItem, secondItem) => {
+            return (
+              (categoryOrder[firstItem.category] || 99) -
+                (categoryOrder[secondItem.category] || 99) ||
+              firstItem.title.localeCompare(secondItem.title, "ko")
+            );
+          });
+
+        const completedCount = roleItems.filter(item => {
+          return item.completed;
+        }).length;
+
+        return {
+          role,
+          totalCount: roleItems.length,
+          completedCount,
+          pendingCount: roleItems.length - completedCount,
+          items: roleItems
+        };
+      });
+
+      window.parent.postMessage(
+        {
+          type: "gs-shift-log:inspection-role-today-summary",
+          available: true,
+          workDate: context.workDate,
+          shift: context.shift,
+          shiftLabel: context.shiftLabel,
+          roles
+        },
+        window.location.origin
+      );
+    } catch (error) {
+      console.error("보직별 오늘 점검 현황 조회 실패:", error);
+
+      window.parent.postMessage(
+        {
+          type: "gs-shift-log:inspection-role-today-summary",
+          available: false,
+          workDate: context.workDate,
+          shift: context.shift,
+          shiftLabel: context.shiftLabel,
+          errorMessage: error instanceof Error
+            ? error.message
+            : "오늘 점검 현황을 불러오지 못했습니다.",
+          roles: []
+        },
+        window.location.origin
+      );
+    }
   }
 
   async function loadStatusRecords() {
@@ -946,6 +1176,7 @@ function initializeInspectionCalendarDashboard() {
       calendarGrid.removeAttribute("aria-busy");
       selectedList.removeAttribute("aria-busy");
       renderAll();
+      await publishRoleTodaySummary();
     }
   }
 
@@ -1143,6 +1374,13 @@ function initializeInspectionCalendarDashboard() {
       refreshStatus();
     }
   });
+
+  window.setInterval(
+    () => {
+      publishRoleTodaySummary();
+    },
+    300000
+  );
 
   createCalendarCategoryFilter();
 

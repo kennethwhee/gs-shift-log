@@ -1,5 +1,5 @@
 /* =========================================================
-  GS Shift Log - 점검일지 팝업 외곽 최종본
+  GS Shift Log - 점검일지 팝업 외곽
 ========================================================= */
 
 .night-patrol-header-button {
@@ -15,8 +15,12 @@
   background: #eaf6ff;
   color: #0a5e9a;
   white-space: nowrap;
-  transition: border-color 0.16s ease, background 0.16s ease,
-    color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.12s ease;
 }
 
 .night-patrol-header-button:hover {
@@ -71,9 +75,7 @@
   background: #eef4f9;
 }
 
-/* =========================================================
-  오른쪽 아래 크게 보기와 연동된 팝업 확장
-========================================================= */
+/* 오른쪽 아래 크게 보기와 연동 */
 
 .night-patrol-modal.is-inspection-expanded {
   padding: 0 !important;
@@ -91,10 +93,464 @@
   display: none;
 }
 
+/* =========================================================
+  보직 카드 상단 버튼 묶음
+
+  기존 공지 버튼과 오늘 점검 버튼을 같은 줄에 배치한다.
+========================================================= */
+
+#statusView
+#shiftMemberGrid
+.shift-member-card-wrap {
+  grid-template-rows:
+    26px
+    minmax(0, 1fr) !important;
+
+  row-gap: 4px !important;
+}
+
+#statusView
+#shiftMemberGrid
+.role-card-top-actions {
+  position: relative;
+  z-index: 4;
+
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 26px;
+
+  grid-row: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+
+  overflow: visible;
+}
+
+#statusView
+#shiftMemberGrid
+.role-card-top-actions
+.role-notice-button {
+  position: static !important;
+  inset: auto !important;
+
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  max-height: 24px !important;
+
+  align-self: center !important;
+  justify-self: auto !important;
+
+  margin: 0 !important;
+}
+
+#statusView
+#shiftMemberGrid
+.role-card-top-actions
+.role-notice-placeholder {
+  display: block !important;
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  max-height: 24px !important;
+  margin: 0 !important;
+  visibility: hidden !important;
+}
+
+.role-today-inspection-button {
+  display: inline-flex;
+  min-width: 76px;
+  max-width: calc(100% - 44px);
+  height: 24px;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 7px;
+  overflow: hidden;
+  border: 1px solid #dec583;
+  border-radius: 6px;
+  background: #fff8df;
+  color: #815b0d;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(87, 65, 15, 0.07);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.12s ease;
+}
+
+.role-today-inspection-button[hidden] {
+  display: none !important;
+}
+
+.role-today-inspection-button > b {
+  display: inline-flex;
+  min-width: 16px;
+  min-height: 16px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: inherit;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.role-today-inspection-button.is-pending {
+  border-color: #dfc16d;
+  background: #fff4cf;
+  color: #80570b;
+}
+
+.role-today-inspection-button.is-partial {
+  border-color: #e2aa69;
+  background: #fff0dd;
+  color: #9a550f;
+}
+
+.role-today-inspection-button.is-complete {
+  border-color: #9bceb1;
+  background: #eaf7f0;
+  color: #19724e;
+}
+
+.role-today-inspection-button:hover,
+.role-today-inspection-button:focus-visible {
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.role-today-inspection-button.is-pending:hover,
+.role-today-inspection-button.is-pending:focus-visible {
+  border-color: #c99c31;
+  background: #ffeeb3;
+}
+
+.role-today-inspection-button.is-partial:hover,
+.role-today-inspection-button.is-partial:focus-visible {
+  border-color: #cf843d;
+  background: #ffe5c4;
+}
+
+.role-today-inspection-button.is-complete:hover,
+.role-today-inspection-button.is-complete:focus-visible {
+  border-color: #67ad86;
+  background: #ddf2e6;
+}
+
+/* =========================================================
+  보직별 오늘 점검 팝업
+========================================================= */
+
+.inspection-role-today-modal {
+  z-index: 620 !important;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 29, 43, 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.inspection-role-today-modal.is-open {
+  display: flex !important;
+}
+
+.inspection-role-today-panel {
+  display: flex;
+  width: min(760px, calc(100vw - 40px));
+  max-height: min(820px, calc(100dvh - 40px));
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #cbd9e6;
+  border-radius: 16px;
+  background: #f4f7fa;
+  box-shadow: 0 26px 70px rgba(10, 27, 43, 0.32);
+}
+
+.inspection-role-today-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 17px 19px;
+  border-bottom: 1px solid #d8e2eb;
+  background: #ffffff;
+}
+
+.inspection-role-today-header > div {
+  min-width: 0;
+}
+
+.inspection-role-today-header p {
+  margin: 0 0 3px;
+  color: #3573ad;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.inspection-role-today-header h2 {
+  margin: 0;
+  color: #18334e;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+}
+
+.inspection-role-today-header span {
+  display: block;
+  margin-top: 4px;
+  color: #718296;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.inspection-role-today-close {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d3dde6;
+  border-radius: 9px;
+  background: #f7f9fb;
+  color: #52697e;
+  font: inherit;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.inspection-role-today-summary {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  padding: 11px 14px;
+  border-bottom: 1px solid #e0e7ee;
+  background: #f8fafc;
+}
+
+.inspection-role-today-summary > span {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid #d7e1ea;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #5d7185;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.inspection-role-today-summary b {
+  color: #235f98;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.inspection-role-today-list {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  gap: 8px;
+  overflow: auto;
+  padding: 13px;
+}
+
+.inspection-role-today-item {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid #d7e1ea;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.inspection-role-today-item.is-pending {
+  border-color: #e4c77b;
+  background: #fffbef;
+}
+
+.inspection-role-today-item.is-conditional {
+  border-color: #e0b773;
+  background: #fff7e8;
+}
+
+.inspection-role-today-item.is-complete {
+  border-color: #acd5bd;
+  background: #f2faf5;
+}
+
+.inspection-role-today-item__mark {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #d19b29;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.inspection-role-today-item.is-conditional
+.inspection-role-today-item__mark {
+  background: #c9842a;
+}
+
+.inspection-role-today-item.is-complete
+.inspection-role-today-item__mark {
+  background: #23815b;
+}
+
+.inspection-role-today-item__content {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.inspection-role-today-item__badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.inspection-role-today-item__badges span,
+.inspection-role-today-item__badges em {
+  display: inline-flex;
+  min-height: 19px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border: 1px solid #d5dfe8;
+  border-radius: 999px;
+  background: #f5f7f9;
+  color: #60758a;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.inspection-role-today-item__content > strong {
+  color: #263c52;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.inspection-role-today-item__meta {
+  color: #66788a;
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.inspection-role-today-item__content > small {
+  color: #84621f;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.inspection-role-today-item__content > small.is-completion {
+  color: #277052;
+}
+
+.inspection-role-today-item__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.inspection-role-today-item__actions button,
+.inspection-role-today-footer button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border: 1px solid #93b7da;
+  border-radius: 7px;
+  background: #edf5fd;
+  color: #1d5f9c;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.inspection-role-today-empty {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  color: #7d8b99;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.inspection-role-today-footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  padding: 11px 13px;
+  border-top: 1px solid #dbe4ec;
+  background: #ffffff;
+}
+
+.inspection-role-today-footer
+.inspection-role-today-done-button {
+  border-color: #c8d3de;
+  background: #ffffff;
+  color: #596d80;
+}
+
+/* =========================================================
+  모바일
+========================================================= */
+
 @media (max-width: 768px) {
-  .night-patrol-header-button,
+  .night-patrol-header-button {
+    min-width: 70px;
+    min-height: 32px;
+    padding: 0 8px;
+  }
+
+  .night-patrol-header-button__label {
+    font-size: 10px;
+  }
+
   .night-patrol-modal {
-    display: none !important;
+    padding: 0 !important;
   }
 
   .night-patrol-panel {
@@ -106,16 +562,136 @@
   }
 
   .night-patrol-modal__header {
-    padding: 12px 14px;
+    padding: 11px 13px;
   }
 
-  .night-patrol-header-button {
+  #statusView
+  #shiftMemberGrid
+  .shift-member-card-wrap {
+    grid-template-rows:
+      19px
+      minmax(0, 1fr) !important;
+
+    row-gap: 2px !important;
+  }
+
+  #statusView
+  #shiftMemberGrid
+  .role-card-top-actions {
+    display: grid;
+    min-height: 19px;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: end;
+    gap: 1px;
+  }
+
+  #statusView
+  #shiftMemberGrid
+  .role-card-top-actions
+  .role-notice-button {
+    width: 20px !important;
+    min-width: 20px !important;
+    max-width: 20px !important;
+    height: 17px !important;
+    min-height: 17px !important;
+    max-height: 17px !important;
+    align-self: end !important;
+    font-size: 7px !important;
+  }
+
+  #statusView
+  #shiftMemberGrid
+  .role-card-top-actions
+  .role-notice-button__label {
+    font-size: 7px !important;
+  }
+
+  #statusView
+  #shiftMemberGrid
+  .role-card-top-actions
+  .role-notice-placeholder {
+    width: 20px !important;
+    min-width: 20px !important;
+    max-width: 20px !important;
+    height: 17px !important;
+    min-height: 17px !important;
+    max-height: 17px !important;
+  }
+
+  .role-today-inspection-button {
+    width: 100%;
     min-width: 0;
-    padding-right: 9px;
-    padding-left: 9px;
+    max-width: none;
+    height: 17px;
+    min-height: 17px;
+    padding: 0 2px;
+    gap: 1px;
+    border-radius: 4px;
+    font-size: 6.5px;
+    letter-spacing: -0.04em;
   }
 
-  .night-patrol-header-button__label {
-    font-size: 11px;
+  .role-today-inspection-button__prefix {
+    display: none;
+  }
+
+  .role-today-inspection-button > b {
+    min-width: 11px;
+    min-height: 12px;
+    padding: 0 2px;
+    font-size: 6px;
+  }
+
+  .inspection-role-today-modal {
+    padding: 0;
+  }
+
+  .inspection-role-today-panel {
+    width: 100vw;
+    height: 100dvh;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .inspection-role-today-header {
+    padding: 13px 14px;
+  }
+
+  .inspection-role-today-header h2 {
+    font-size: 18px;
+  }
+
+  .inspection-role-today-summary {
+    padding: 9px 10px;
+  }
+
+  .inspection-role-today-summary > span {
+    min-height: 31px;
+    font-size: 9px;
+  }
+
+  .inspection-role-today-list {
+    padding: 10px;
+  }
+
+  .inspection-role-today-item {
+    grid-template-columns: 27px minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .inspection-role-today-item__actions {
+    grid-column: 1 / -1;
+  }
+
+  .inspection-role-today-item__actions button {
+    width: 100%;
+    min-height: 34px;
+  }
+
+  .inspection-role-today-footer button {
+    flex: 1 1 0;
+    min-height: 36px;
   }
 }

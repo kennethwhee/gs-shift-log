@@ -3,1049 +3,1004 @@
 /* =========================================================
   GS Shift Log - 점검일지 실행기
 
-  사용 조건:
-  - PC 화면에서만 사용 가능
-  - 최고관리자 또는 로그인 사용자의 보직이 TO, BO1, BO2인 경우 사용 가능
-
-  원칙:
-  - 기존 script.js와 완전히 분리
-  - 권한이 없는 사용자에게는 메뉴 자체를 생성하지 않음
-  - 실제 순찰 기능은 iframe의 night-patrol.html에서 실행
+  기능:
+  - 로그인한 모든 사용자에게 점검일지 메뉴 표시
+  - 점검일지 팝업 생성
+  - 각 보직 카드에 오늘 점검 현황 표시
+  - 모든 사용자가 모든 보직의 오늘 점검 확인 가능
 ========================================================= */
 
-(function initializeNightPatrolLauncher() {
+(function initializeInspectionLogLauncher() {
   if (window.__gsNightPatrolLauncherInstalled === true) {
     return;
   }
 
   window.__gsNightPatrolLauncherInstalled = true;
 
-  const MODAL_ID =
-    "nightPatrolModal";
-
-  const BUTTON_ID =
-    "nightPatrolButton";
-
-  const FRAME_ID =
-    "nightPatrolFrame";
-
+  const MODAL_ID = "nightPatrolModal";
+  const BUTTON_ID = "nightPatrolButton";
+  const FRAME_ID = "nightPatrolFrame";
+  const ROLE_MODAL_ID = "inspectionRoleTodayModal";
+  const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
   const PAGE_URL =
-    "inspection-logs/inspection-logs.html?v=20260804-final1";
+    "inspection-logs/inspection-logs.html?v=20260804-role1";
 
-  const AUTH_STORAGE_KEY =
-    "gsShiftLog.currentUser";
+  const ROLE_ORDER = [
+    "파트장",
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
 
-  const FORCED_SUPER_ADMIN_EMPLOYEE_NO =
-    "2014081";
+  let roleTodaySummary = {
+    available: false,
+    workDate: "",
+    shift: "",
+    shiftLabel: "",
+    errorMessage: "",
+    roles: []
+  };
 
-  const DESKTOP_MEDIA_QUERY =
-    "(min-width: 769px)";
+  let shiftMemberObserver = null;
+  let observedShiftMemberGrid = null;
+  let renderQueued = false;
 
-  const ALLOWED_POSITIONS =
-    new Set([
-      "TO",
-      "BO1",
-      "BO2"
-    ]);
-
-  const desktopMedia =
-    window.matchMedia(
-      DESKTOP_MEDIA_QUERY
-    );
-
-
-  /* =====================================================
-    현재 로그인 사용자
-  ====================================================== */
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
 
   function getCurrentUser() {
-    if (
-      typeof window.loadCurrentUser ===
-        "function"
-    ) {
+    if (typeof window.loadCurrentUser === "function") {
       try {
         return window.loadCurrentUser();
       } catch (error) {
-        console.warn(
-          "야간순찰 로그인 사용자 확인 실패:",
-          error
-        );
+        console.warn("점검일지 로그인 사용자 확인 실패:", error);
       }
     }
 
     try {
-      const savedUser =
-        window.localStorage.getItem(
-          AUTH_STORAGE_KEY
-        );
-
-      return savedUser
-        ? JSON.parse(savedUser)
-        : null;
-
+      const savedUser = window.localStorage.getItem(AUTH_STORAGE_KEY);
+      return savedUser ? JSON.parse(savedUser) : null;
     } catch (error) {
-      console.warn(
-        "야간순찰 로그인 정보 읽기 실패:",
-        error
-      );
-
+      console.warn("점검일지 로그인 정보 읽기 실패:", error);
       return null;
     }
   }
 
+  function canCurrentUserUseInspectionLogs() {
+    const appShell = document.getElementById("appShell");
+    const currentUser = getCurrentUser();
 
-  /* =====================================================
-    보직 정리
-  ====================================================== */
+    return Boolean(
+      currentUser &&
+      appShell &&
+      appShell.hidden !== true
+    );
+  }
 
-  function normalizePosition(
-    value
-  ) {
-    const normalizedValue =
-      String(
-        value ||
-        ""
-      )
-        .trim()
-        .toUpperCase()
-        .replace(
-          /[\s_-]+/g,
-          ""
-        );
+  function normalizeRole(value) {
+    const originalValue = String(value || "").trim();
+    const comparableValue = originalValue
+      .toUpperCase()
+      .replace(/[\s_\-/]+/g, "");
 
-    const positionMap = {
-      TO:
-        "TO",
-
-      BO1:
-        "BO1",
-
-      BO2:
-        "BO2"
+    const roleMap = {
+      "파트장": "파트장",
+      PARTLEADER: "파트장",
+      SHIFTLEADER: "파트장",
+      LEADER: "파트장",
+      TGO: "TGO",
+      BCO1: "BCO1",
+      BCO2: "BCO2",
+      TO: "TO",
+      BO1: "BO1",
+      BO2: "BO2"
     };
 
-    return (
-      positionMap[
-        normalizedValue
-      ] ||
-      ""
-    );
+    return roleMap[originalValue] || roleMap[comparableValue] || "";
   }
 
-
-  function getCurrentUserPosition() {
-    /*
-      업무일지 본체가 이미 사용하는 보직 판정 함수를
-      가장 먼저 사용한다.
-    */
-    if (
-      typeof window.getCurrentUserRoleNoticePosition ===
-        "function"
-    ) {
-      try {
-        const currentPosition =
-          normalizePosition(
-            window.getCurrentUserRoleNoticePosition()
-          );
-
-        if (
-          currentPosition
-        ) {
-          return currentPosition;
-        }
-      } catch (error) {
-        console.warn(
-          "야간순찰 보직 함수 확인 실패:",
-          error
-        );
-      }
-    }
-
-    const currentUser =
-      getCurrentUser();
-
-    if (
-      !currentUser
-    ) {
-      return "";
-    }
-
-    /*
-      서버·이전 버전별 보직 필드명을 모두 지원한다.
-      role은 일반적으로 user/admin/super_admin이지만,
-      TO·BO1·BO2가 직접 들어오는 예외도 함께 확인한다.
-    */
-    const positionCandidates = [
-      currentUser.position,
-      currentUser.jobPosition,
-      currentUser.job_position,
-      currentUser.jobRole,
-      currentUser.job_role,
-      currentUser.duty,
-      currentUser.dutyName,
-      currentUser.duty_name,
-      currentUser.workPosition,
-      currentUser.work_position,
-      currentUser.workRole,
-      currentUser.work_role,
-      currentUser.shiftPosition,
-      currentUser.shift_position,
-      currentUser.shiftRole,
-      currentUser.shift_role,
-      currentUser.logRole,
-      currentUser.log_role,
-      currentUser.defaultPosition,
-      currentUser.default_position,
-      currentUser.assignedPosition,
-      currentUser.assigned_position,
-      currentUser.memberPosition,
-      currentUser.member_position,
-      currentUser.memberRole,
-      currentUser.member_role,
-      currentUser.role
-    ];
-
-    for (
-      const candidate of
-      positionCandidates
-    ) {
-      const normalizedPosition =
-        normalizePosition(
-          candidate
-        );
-
-      if (
-        normalizedPosition
-      ) {
-        return normalizedPosition;
-      }
-    }
-
-    return "";
+  function getMainModal() {
+    return document.getElementById(MODAL_ID);
   }
-
-
-  /* =====================================================
-    최고관리자 판정
-
-    지원:
-    - 업무일지 본체의 isCurrentUserSuperAdmin()
-    - 사번 2014081
-    - adminLevel 2 이상
-    - isSuperAdmin 플래그
-    - role 계열 필드의 super_admin
-  ====================================================== */
-
-  function isCurrentUserNightPatrolSuperAdmin() {
-    if (
-      typeof window.isCurrentUserSuperAdmin ===
-        "function"
-    ) {
-      try {
-        if (
-          window.isCurrentUserSuperAdmin()
-        ) {
-          return true;
-        }
-      } catch (error) {
-        console.warn(
-          "야간순찰 최고관리자 함수 확인 실패:",
-          error
-        );
-      }
-    }
-
-    const currentUser =
-      getCurrentUser();
-
-    if (
-      !currentUser
-    ) {
-      return false;
-    }
-
-    const employeeNo =
-      String(
-        currentUser.employeeNo ||
-        currentUser.employee_no ||
-        currentUser.employeeId ||
-        currentUser.employee_id ||
-        ""
-      ).trim();
-
-    if (
-      employeeNo ===
-      FORCED_SUPER_ADMIN_EMPLOYEE_NO
-    ) {
-      return true;
-    }
-
-    if (
-      Number(
-        currentUser.adminLevel ??
-        currentUser.admin_level ??
-        0
-      ) >= 2
-    ) {
-      return true;
-    }
-
-    const superAdminFlag =
-      currentUser.isSuperAdmin ??
-      currentUser.is_super_admin ??
-      false;
-
-    if (
-      superAdminFlag === true ||
-      Number(superAdminFlag) === 1 ||
-      String(superAdminFlag)
-        .trim()
-        .toLowerCase() === "true"
-    ) {
-      return true;
-    }
-
-    const accountRoleCandidates = [
-      currentUser.role,
-      currentUser.userRole,
-      currentUser.user_role,
-      currentUser.defaultRole,
-      currentUser.default_role,
-      currentUser.permission,
-      currentUser.authority,
-      currentUser.accessRole,
-      currentUser.access_role
-    ];
-
-    return accountRoleCandidates.some(
-      value => {
-        const role =
-          String(
-            value ||
-            ""
-          )
-            .trim()
-            .toLowerCase()
-            .replace(/[\s-]+/g, "_");
-
-        return [
-          "super_admin",
-          "superadmin",
-          "최고관리자"
-        ].includes(role);
-      }
-    );
-  }
-
-
-/* =====================================================
-  점검일지 최종 사용 권한
-
-  허용:
-  - GS Shift Log에 로그인한 모든 사용자
-  - 모든 보직
-  - PC·모바일
-
-  차단:
-  - 로그인하지 않은 사용자
-===================================================== */
-
-function canCurrentUserUseNightPatrol() {
-  const appShell =
-    document.getElementById(
-      "appShell"
-    );
-
-
-  const currentUser =
-    getCurrentUser();
-
-
-  return Boolean(
-    currentUser &&
-    appShell &&
-    appShell.hidden !==
-      true
-  );
-}
-
-
-  function getModal() {
-    return document.getElementById(
-      MODAL_ID
-    );
-  }
-
 
   function getFrame() {
-    return document.getElementById(
-      FRAME_ID
-    );
+    return document.getElementById(FRAME_ID);
   }
 
-
-  function isAnotherModalOpen() {
-    return [
-      ...document.querySelectorAll(
-        ".modal-backdrop.is-open"
-      )
-    ].some(
-      modal => {
-        return (
-          modal.id !==
-          MODAL_ID
-        );
-      }
-    );
+  function getRoleModal() {
+    return document.getElementById(ROLE_MODAL_ID);
   }
 
+  function syncBodyModalState() {
+    const hasOpenModal = [
+      ...document.querySelectorAll(".modal-backdrop.is-open")
+    ].some(modal => modal instanceof HTMLElement);
 
-  function openNightPatrolModal() {
-    if (
-      !canCurrentUserUseNightPatrol()
-    ) {
-      syncNightPatrolAccess();
+    document.body.classList.toggle("modal-open", hasOpenModal);
+  }
 
+  function openInspectionLogModal() {
+    if (!canCurrentUserUseInspectionLogs()) {
+      syncInspectionLogAccess();
       return;
     }
 
-    const modal =
-      getModal();
+    const modal = getMainModal();
+    const frame = getFrame();
 
-    const frame =
-      getFrame();
-
-    if (
-      !modal ||
-      !frame
-    ) {
-      console.error(
-        "야간 순찰 팝업 요소를 찾을 수 없습니다."
-      );
-
+    if (!modal || !frame) {
+      console.error("점검일지 팝업 요소를 찾을 수 없습니다.");
       return;
     }
 
-    if (
-      frame.getAttribute(
-        "src"
-      ) !==
-      PAGE_URL
-    ) {
-      frame.setAttribute(
-        "src",
-        PAGE_URL
-      );
+    if (frame.getAttribute("src") !== PAGE_URL) {
+      frame.dataset.inspectionLoaded = "false";
+      frame.setAttribute("src", PAGE_URL);
     }
 
-    modal.classList.add(
-      "is-open"
-    );
+    modal.classList.add("is-open");
+    modal.setAttribute("aria-hidden", "false");
+    syncBodyModalState();
 
-    modal.setAttribute(
-      "aria-hidden",
-      "false"
-    );
-
-    document.body.classList.add(
-      "modal-open"
-    );
-
-    window.setTimeout(
-      () => {
-        document
-          .getElementById(
-            "closeNightPatrolButton"
-          )
-          ?.focus();
-      },
-      0
-    );
+    window.setTimeout(() => {
+      document.getElementById("closeNightPatrolButton")?.focus();
+    }, 0);
   }
 
+  function closeInspectionLogModal() {
+    const modal = getMainModal();
 
-  function closeNightPatrolModal() {
-    const modal =
-      getModal();
-
-    if (
-      !modal
-    ) {
+    if (!modal) {
       return;
     }
 
-    modal.classList.remove(
-      "is-open",
-      "is-inspection-expanded"
-    );
+    modal.classList.remove("is-open", "is-inspection-expanded");
+    modal.setAttribute("aria-hidden", "true");
+    syncBodyModalState();
+  }
 
-    modal.setAttribute(
-      "aria-hidden",
-      "true"
-    );
+  function closeRoleTodayModal() {
+    const modal = getRoleModal();
 
-    if (
-      !isAnotherModalOpen()
-    ) {
-      document.body.classList.remove(
-        "modal-open"
-      );
+    if (!modal) {
+      return;
     }
+
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+    syncBodyModalState();
   }
-
-
-  function removeNightPatrolElements() {
-    closeNightPatrolModal();
-
-    document
-      .getElementById(
-        BUTTON_ID
-      )
-      ?.remove();
-
-    getModal()
-      ?.remove();
-  }
-
-  /* =====================================================
-    점검일지 상단 메뉴 생성
-
-    표시:
-    - 숫자 배지 없이 메뉴명만 표시
-  ====================================================== */
 
   function createMenuButton() {
-    const headerActions =
-      document.querySelector(
-        ".header-actions"
-      );
+    const headerActions = document.querySelector(".header-actions");
 
-
-    if (
-      !headerActions
-    ) {
+    if (!headerActions) {
       return false;
     }
 
+    const existingButton = document.getElementById(BUTTON_ID);
 
-    const existingButton =
-      document.getElementById(
-        BUTTON_ID
-      );
-
-
-    if (
-      existingButton
-    ) {
-      existingButton.classList.remove(
-        "has-inspection-alerts",
-        "has-overdue-inspections"
-      );
-
-
-      existingButton.removeAttribute(
-        "data-inspection-pending-count"
-      );
-
-
-      existingButton.removeAttribute(
-        "data-inspection-overdue-count"
-      );
-
-
-      existingButton.setAttribute(
-        "aria-label",
-        "점검일지 열기"
-      );
-
-
-      existingButton.title =
-        "점검일지";
-
-
+    if (existingButton) {
+      existingButton.setAttribute("aria-label", "점검일지 열기");
+      existingButton.title = "점검일지";
       return true;
     }
 
-
-    const button =
-      document.createElement(
-        "button"
-      );
-
-
-    button.type =
-      "button";
-
-
-    button.id =
-      BUTTON_ID;
-
-
-    button.className =
-      "header-action night-patrol-header-button";
-
-
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = BUTTON_ID;
+    button.className = "header-action night-patrol-header-button";
     button.innerHTML = `
       <span class="night-patrol-header-button__label">
         점검일지
       </span>
     `;
+    button.setAttribute("aria-label", "점검일지 열기");
+    button.title = "점검일지";
 
+    const noticeButton = document.getElementById("noticeButton");
 
-    button.setAttribute(
-      "aria-label",
-      "점검일지 열기"
-    );
-
-
-    button.title =
-      "점검일지";
-
-
-    const noticeButton =
-      document.getElementById(
-        "noticeButton"
-      );
-
-
-    if (
-      noticeButton?.parentElement ===
-        headerActions
-    ) {
-      headerActions.insertBefore(
-        button,
-        noticeButton
-      );
-
+    if (noticeButton?.parentElement === headerActions) {
+      headerActions.insertBefore(button, noticeButton);
     } else {
-      headerActions.prepend(
-        button
-      );
+      headerActions.prepend(button);
     }
 
-
-    button.addEventListener(
-      "click",
-      openNightPatrolModal
-    );
-
-
+    button.addEventListener("click", openInspectionLogModal);
     return true;
   }
 
-/* =====================================================
-  점검일지 팝업 생성
+  function createInspectionLogModal() {
+    const existingModal = getMainModal();
 
-  iframe은 메뉴 생성 시 미리 불러온다.
+    if (existingModal) {
+      const existingFrame = getFrame();
 
-  이유:
-  점검일지 창을 열지 않아도
-  오늘 미완료·지연 건수를 받아야 하기 때문이다.
-====================================================== */
+      if (existingFrame && existingFrame.getAttribute("src") !== PAGE_URL) {
+        existingFrame.dataset.inspectionLoaded = "false";
+        existingFrame.setAttribute("src", PAGE_URL);
+      }
 
-function createModal() {
-  const existingModal =
-    getModal();
-
-
-  if (
-    existingModal
-  ) {
-    const existingFrame =
-      getFrame();
-
-
-    if (
-      existingFrame &&
-      existingFrame.getAttribute(
-        "src"
-      ) !==
-        PAGE_URL
-    ) {
-      existingFrame.setAttribute(
-        "src",
-        PAGE_URL
-      );
+      return true;
     }
 
+    const modal = document.createElement("div");
+    modal.id = MODAL_ID;
+    modal.className = "modal-backdrop night-patrol-modal";
+    modal.setAttribute("aria-hidden", "true");
 
-    return true;
-  }
+    modal.innerHTML = `
+      <section
+        class="modal-panel night-patrol-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="nightPatrolModalTitle"
+      >
+        <header class="modal-header night-patrol-modal__header">
+          <div>
+            <p class="modal-header__eyebrow">INSPECTION LOGS</p>
+            <h2 class="modal-header__title" id="nightPatrolModalTitle">
+              점검일지
+            </h2>
+          </div>
 
-
-  const modal =
-    document.createElement(
-      "div"
-    );
-
-
-  modal.id =
-    MODAL_ID;
-
-
-  modal.className =
-    "modal-backdrop night-patrol-modal";
-
-
-  modal.setAttribute(
-    "aria-hidden",
-    "true"
-  );
-
-
-  modal.innerHTML = `
-    <section
-      class="modal-panel night-patrol-panel"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="nightPatrolModalTitle"
-    >
-
-      <header class="modal-header night-patrol-modal__header">
-
-        <div>
-
-          <p class="modal-header__eyebrow">
-            INSPECTION LOGS
-          </p>
-
-          <h2
-            class="modal-header__title"
-            id="nightPatrolModalTitle"
+          <button
+            type="button"
+            class="modal-close-button"
+            id="closeNightPatrolButton"
+            aria-label="점검일지 닫기"
           >
-            점검일지
-          </h2>
+            ×
+          </button>
+        </header>
 
+        <div class="night-patrol-modal__body">
+          <iframe
+            id="${FRAME_ID}"
+            class="night-patrol-frame"
+            title="점검일지"
+            src="${PAGE_URL}"
+            loading="eager"
+            allow="fullscreen"
+            allowfullscreen
+          ></iframe>
         </div>
+      </section>
+    `;
 
+    document.body.appendChild(modal);
 
-        <button
-          type="button"
-          class="modal-close-button"
-          id="closeNightPatrolButton"
-          aria-label="점검일지 닫기"
-        >
-          ×
-        </button>
+    const frame = getFrame();
 
-      </header>
+    frame?.addEventListener("load", () => {
+      frame.dataset.inspectionLoaded = "true";
+    });
 
+    document
+      .getElementById("closeNightPatrolButton")
+      ?.addEventListener("click", closeInspectionLogModal);
 
-      <div class="night-patrol-modal__body">
-
-        <iframe
-          id="${FRAME_ID}"
-          class="night-patrol-frame"
-          title="점검일지"
-          src="${PAGE_URL}"
-          loading="eager"
-          allow="fullscreen"
-          allowfullscreen
-        >
-        </iframe>
-
-      </div>
-
-    </section>
-  `;
-
-
-  document.body.appendChild(
-    modal
-  );
-
-
-  document
-    .getElementById(
-      "closeNightPatrolButton"
-    )
-    ?.addEventListener(
-      "click",
-      closeNightPatrolModal
-    );
-
-
-  /*
-    현장 입력 중 배경을 잘못 눌러도
-    팝업이 닫히지 않게 한다.
-  */
-  modal.addEventListener(
-    "click",
-    event => {
-      if (
-        event.target ===
-          modal
-      ) {
+    modal.addEventListener("click", event => {
+      if (event.target === modal) {
         event.preventDefault();
-
         event.stopPropagation();
       }
-    }
-  );
+    });
 
-
-  return true;
-}
-
-
-  /* =====================================================
-    화면·로그인·보직 상태에 맞춰 메뉴 동기화
-  ====================================================== */
-
-  function syncNightPatrolAccess() {
-    if (
-      !canCurrentUserUseNightPatrol()
-    ) {
-      removeNightPatrolElements();
-
-      return false;
-    }
-
-    const menuReady =
-      createMenuButton();
-
-    const modalReady =
-      createModal();
-
-    return (
-      menuReady &&
-      modalReady
-    );
+    return true;
   }
 
+  function createRoleTodayModal() {
+    if (getRoleModal()) {
+      return true;
+    }
 
-  function observeLoginState() {
-    const appShell =
-      document.getElementById(
-        "appShell"
+    const modal = document.createElement("div");
+    modal.id = ROLE_MODAL_ID;
+    modal.className = "modal-backdrop inspection-role-today-modal";
+    modal.setAttribute("aria-hidden", "true");
+
+    modal.innerHTML = `
+      <section
+        class="inspection-role-today-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="inspectionRoleTodayTitle"
+      >
+        <header class="inspection-role-today-header">
+          <div>
+            <p>TODAY'S INSPECTION</p>
+            <h2 id="inspectionRoleTodayTitle">오늘 점검</h2>
+            <span id="inspectionRoleTodayContext"></span>
+          </div>
+
+          <button
+            type="button"
+            class="inspection-role-today-close"
+            id="inspectionRoleTodayCloseButton"
+            aria-label="오늘 점검 닫기"
+          >
+            ×
+          </button>
+        </header>
+
+        <div class="inspection-role-today-summary" id="inspectionRoleTodaySummary">
+        </div>
+
+        <div class="inspection-role-today-list" id="inspectionRoleTodayList">
+        </div>
+
+        <footer class="inspection-role-today-footer">
+          <button
+            type="button"
+            class="inspection-role-today-all-button"
+            id="inspectionRoleTodayAllButton"
+          >
+            점검일지 전체 보기
+          </button>
+
+          <button
+            type="button"
+            class="inspection-role-today-done-button"
+            id="inspectionRoleTodayDoneButton"
+          >
+            닫기
+          </button>
+        </footer>
+      </section>
+    `;
+
+    document.body.appendChild(modal);
+
+    document
+      .getElementById("inspectionRoleTodayCloseButton")
+      ?.addEventListener("click", closeRoleTodayModal);
+
+    document
+      .getElementById("inspectionRoleTodayDoneButton")
+      ?.addEventListener("click", closeRoleTodayModal);
+
+    document
+      .getElementById("inspectionRoleTodayAllButton")
+      ?.addEventListener("click", () => {
+        closeRoleTodayModal();
+        openInspectionLogModal();
+      });
+
+    modal.addEventListener("click", event => {
+      if (event.target === modal) {
+        closeRoleTodayModal();
+      }
+    });
+
+    modal.addEventListener("click", event => {
+      const target = event.target instanceof Element ? event.target : null;
+      const openButton = target?.closest(
+        "[data-open-role-inspection-schedule]"
       );
 
-    if (
-      !appShell
-    ) {
-      return;
-    }
-
-    const observer =
-      new MutationObserver(
-        syncNightPatrolAccess
-      );
-
-    observer.observe(
-      appShell,
-      {
-        attributes:
-          true,
-
-        attributeFilter: [
-          "hidden"
-        ]
-      }
-    );
-  }
-
-  /* =====================================================
-  점검일지 iframe 메시지 처리
-
-  지원:
-  - 점검일지 팝업 닫기
-  - 오늘 미완료·지연 건수 갱신
-====================================================== */
-
-function handleNightPatrolLauncherMessage(
-  event
-) {
-  if (
-    event.origin !==
-      window.location.origin
-  ) {
-    return;
-  }
-
-
-  const frame =
-    getFrame();
-
-
-  if (
-    !frame?.contentWindow ||
-    event.source !==
-      frame.contentWindow
-  ) {
-    return;
-  }
-
-
-  const messageType =
-    String(
-      event.data?.type ||
-      ""
-    ).trim();
-
-
-  if (
-    messageType ===
-      "gs-night-patrol:close"
-  ) {
-    closeNightPatrolModal();
-
-    return;
-  }
-
-
-  if (
-    messageType !==
-      "gs-shift-log:inspection-view-mode"
-  ) {
-    return;
-  }
-
-
-  const modal =
-    getModal();
-
-
-  modal?.classList.toggle(
-    "is-inspection-expanded",
-    event.data?.expanded ===
-      true
-  );
-}
-
-/* =====================================================
-  점검일지 실행기 설치
-
-  처리:
-  - 로그인·권한 상태에 맞춰 메뉴 생성
-  - 로그인 화면 변경 감시
-  - 점검일지 iframe 메시지 연결
-  - 초기 로딩 지연에 대비해 재확인
-====================================================== */
-
-function scheduleInstall() {
-  syncNightPatrolAccess();
-
-
-  observeLoginState();
-
-
-  /*
-    점검일지 iframe 메시지는 한 번만 연결한다.
-  */
-  if (
-    window
-      .__gsInspectionScheduleMessageBound !==
-      true
-  ) {
-    window.addEventListener(
-      "message",
-      handleNightPatrolLauncherMessage
-    );
-
-
-    window
-      .__gsInspectionScheduleMessageBound =
-      true;
-  }
-
-
-  let attempts =
-    0;
-
-
-  const timer =
-    window.setInterval(
-      () => {
-        attempts +=
-          1;
-
-
-        syncNightPatrolAccess();
-
-
-        if (
-          attempts >=
-            40
-        ) {
-          window.clearInterval(
-            timer
-          );
-        }
-      },
-      250
-    );
-}
-
-
-  document.addEventListener(
-    "keydown",
-    event => {
-      if (
-        event.key !==
-        "Escape"
-      ) {
-        return;
-      }
-
-      if (
-        !getModal()
-          ?.classList
-          .contains(
-            "is-open"
-          )
-      ) {
+      if (!openButton) {
         return;
       }
 
       event.preventDefault();
-
       event.stopPropagation();
 
-      closeNightPatrolModal();
+      const scheduleId = String(
+        openButton.dataset.openRoleInspectionSchedule || ""
+      ).trim();
+
+      if (!scheduleId) {
+        return;
+      }
+
+      closeRoleTodayModal();
+      openInspectionSchedule(scheduleId);
+    });
+
+    return true;
+  }
+
+  function findDirectChild(element, predicate) {
+    return [...element.children].find(predicate) || null;
+  }
+
+  function ensureRoleTopActions(roleWrap) {
+    let actions = findDirectChild(roleWrap, child => {
+      return child.classList.contains("role-card-top-actions");
+    });
+
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.className = "role-card-top-actions";
+      roleWrap.insertBefore(actions, roleWrap.firstElementChild);
+    }
+
+    const directNoticeControl = findDirectChild(roleWrap, child => {
+      return (
+        child.matches("[data-role-notice-button]") ||
+        child.classList.contains("role-notice-placeholder")
+      );
+    });
+
+    if (directNoticeControl) {
+      actions.appendChild(directNoticeControl);
+    }
+
+    let todayButton = actions.querySelector(
+      ":scope > [data-role-today-inspection]"
+    );
+
+    if (!todayButton) {
+      const role = normalizeRole(roleWrap.dataset.roleCardWrap);
+
+      todayButton = document.createElement("button");
+      todayButton.type = "button";
+      todayButton.className = "role-today-inspection-button";
+      todayButton.dataset.roleTodayInspection = role;
+      todayButton.hidden = true;
+      todayButton.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        openRoleTodayModal(role);
+      });
+
+      actions.appendChild(todayButton);
+    }
+
+    return todayButton;
+  }
+
+  function queueRoleButtonRender() {
+    if (renderQueued) {
+      return;
+    }
+
+    renderQueued = true;
+
+    window.requestAnimationFrame(() => {
+      renderQueued = false;
+      renderRoleInspectionButtons();
+    });
+  }
+
+  function getRoleSummary(role) {
+    return roleTodaySummary.roles.find(item => {
+      return normalizeRole(item?.role) === role;
+    }) || null;
+  }
+
+  function renderRoleInspectionButtons() {
+    if (!canCurrentUserUseInspectionLogs()) {
+      return;
+    }
+
+    const roleWraps = [
+      ...document.querySelectorAll("[data-role-card-wrap]")
+    ];
+
+    roleWraps.forEach(roleWrap => {
+      const role = normalizeRole(roleWrap.dataset.roleCardWrap);
+      const button = ensureRoleTopActions(roleWrap);
+      const summary = getRoleSummary(role);
+      const totalCount = Number(summary?.totalCount || 0);
+      const completedCount = Number(summary?.completedCount || 0);
+      const pendingCount = Math.max(
+        0,
+        Number(summary?.pendingCount ?? totalCount - completedCount)
+      );
+
+      button.classList.remove(
+        "is-pending",
+        "is-partial",
+        "is-complete"
+      );
+
+      if (
+        roleTodaySummary.available !== true ||
+        !summary ||
+        totalCount < 1
+      ) {
+        if (button.dataset.renderKey !== "hidden") {
+          button.hidden = true;
+          button.textContent = "";
+          button.removeAttribute("aria-label");
+          button.dataset.renderKey = "hidden";
+        }
+
+        return;
+      }
+
+      let labelHtml = "";
+      let ariaLabel = "";
+      let stateKey = "pending";
+
+      if (completedCount >= totalCount) {
+        stateKey = "complete";
+        button.classList.add("is-complete");
+        labelHtml = `
+          <span class="role-today-inspection-button__prefix">오늘 </span>
+          <span>점검</span>
+          <b>✓</b>
+        `;
+        ariaLabel = `${role} 오늘 점검 ${totalCount}건 모두 완료`;
+      } else if (completedCount > 0) {
+        stateKey = "partial";
+        button.classList.add("is-partial");
+        labelHtml = `
+          <span class="role-today-inspection-button__prefix">오늘 </span>
+          <span>점검</span>
+          <b>${completedCount}/${totalCount}</b>
+        `;
+        ariaLabel = `${role} 오늘 점검 ${totalCount}건 중 ${completedCount}건 완료`;
+      } else {
+        stateKey = "pending";
+        button.classList.add("is-pending");
+        labelHtml = `
+          <span class="role-today-inspection-button__prefix">오늘 </span>
+          <span>점검</span>
+          <b>${pendingCount}</b>
+        `;
+        ariaLabel = `${role} 오늘 미완료 점검 ${pendingCount}건`;
+      }
+
+      const renderKey = [
+        stateKey,
+        completedCount,
+        pendingCount,
+        totalCount,
+        roleTodaySummary.workDate,
+        roleTodaySummary.shift
+      ].join("|");
+
+      if (button.dataset.renderKey !== renderKey) {
+        button.innerHTML = labelHtml;
+        button.dataset.renderKey = renderKey;
+      }
+
+      button.hidden = false;
+      button.setAttribute("aria-label", ariaLabel);
+      button.title = ariaLabel;
+    });
+  }
+
+  function formatCompletedAt(value) {
+    const date = new Date(value || 0);
+
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+
+    return new Intl.DateTimeFormat("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    }).format(date);
+  }
+
+  function createRoleInspectionItemHtml(item) {
+    const completed = item.completed === true;
+    const conditional = item.conditional === true;
+    const stateClass = completed
+      ? "is-complete"
+      : conditional
+        ? "is-conditional"
+        : "is-pending";
+    const stateLabel = completed
+      ? "완료"
+      : conditional
+        ? "조건 확인"
+        : "미완료";
+    const completedAt = formatCompletedAt(item.completedAt);
+
+    return `
+      <article class="inspection-role-today-item ${stateClass}">
+        <span class="inspection-role-today-item__mark" aria-hidden="true">
+          ${completed ? "✓" : conditional ? "?" : "!"}
+        </span>
+
+        <div class="inspection-role-today-item__content">
+          <div class="inspection-role-today-item__badges">
+            <span>${escapeHtml(stateLabel)}</span>
+            <em>${escapeHtml(item.categoryLabel || "점검")}</em>
+          </div>
+
+          <strong>${escapeHtml(item.title || "점검 일정")}</strong>
+
+          <span class="inspection-role-today-item__meta">
+            ${escapeHtml(item.shiftLabel || roleTodaySummary.shiftLabel || "")}
+            ${item.position ? ` · ${escapeHtml(item.position)}` : ""}
+            ${item.scheduleLabel ? ` · ${escapeHtml(item.scheduleLabel)}` : ""}
+          </span>
+
+          ${item.note ? `
+            <small>${escapeHtml(item.note)}</small>
+          ` : ""}
+
+          ${completed && item.completedByName ? `
+            <small class="is-completion">
+              ${escapeHtml(item.completedByName)} 완료
+              ${completedAt ? ` · ${escapeHtml(completedAt)}` : ""}
+            </small>
+          ` : ""}
+        </div>
+
+        <div class="inspection-role-today-item__actions">
+          ${item.canOpenLog ? `
+            <button
+              type="button"
+              data-open-role-inspection-schedule="${escapeHtml(item.scheduleId)}"
+            >
+              점검일지 열기
+            </button>
+          ` : ""}
+        </div>
+      </article>
+    `;
+  }
+
+  function openRoleTodayModal(roleValue) {
+    const role = normalizeRole(roleValue);
+    const summary = getRoleSummary(role);
+
+    if (
+      roleTodaySummary.available !== true ||
+      !summary ||
+      Number(summary.totalCount || 0) < 1
+    ) {
+      return;
+    }
+
+    createRoleTodayModal();
+
+    const modal = getRoleModal();
+    const titleElement = document.getElementById("inspectionRoleTodayTitle");
+    const contextElement = document.getElementById("inspectionRoleTodayContext");
+    const summaryElement = document.getElementById("inspectionRoleTodaySummary");
+    const listElement = document.getElementById("inspectionRoleTodayList");
+
+    const totalCount = Number(summary.totalCount || 0);
+    const completedCount = Number(summary.completedCount || 0);
+    const pendingCount = Math.max(0, totalCount - completedCount);
+
+    if (titleElement) {
+      titleElement.textContent = `${role} 오늘 점검`;
+    }
+
+    if (contextElement) {
+      contextElement.textContent = [
+        roleTodaySummary.workDate,
+        roleTodaySummary.shiftLabel
+      ].filter(Boolean).join(" · ");
+    }
+
+    if (summaryElement) {
+      summaryElement.innerHTML = `
+        <span>전체 <b>${totalCount}</b>건</span>
+        <span>완료 <b>${completedCount}</b>건</span>
+        <span>미완료 <b>${pendingCount}</b>건</span>
+      `;
+    }
+
+    if (listElement) {
+      listElement.innerHTML = Array.isArray(summary.items) && summary.items.length
+        ? summary.items.map(createRoleInspectionItemHtml).join("")
+        : `
+            <div class="inspection-role-today-empty">
+              오늘 예정된 점검이 없습니다.
+            </div>
+          `;
+    }
+
+    modal?.classList.add("is-open");
+    modal?.setAttribute("aria-hidden", "false");
+    syncBodyModalState();
+
+    window.setTimeout(() => {
+      document.getElementById("inspectionRoleTodayCloseButton")?.focus();
+    }, 0);
+  }
+
+  function postOpenScheduleMessage(scheduleId) {
+    const frame = getFrame();
+
+    frame?.contentWindow?.postMessage(
+      {
+        type: "gs-shift-log:open-inspection-schedule",
+        scheduleId
+      },
+      window.location.origin
+    );
+  }
+
+  function openInspectionSchedule(scheduleId) {
+    createInspectionLogModal();
+
+    const frame = getFrame();
+
+    if (!frame) {
+      return;
+    }
+
+    if (frame.getAttribute("src") !== PAGE_URL) {
+      frame.dataset.inspectionLoaded = "false";
+      frame.setAttribute("src", PAGE_URL);
+    }
+
+    if (frame.dataset.inspectionLoaded === "true") {
+      openInspectionLogModal();
+      window.setTimeout(() => {
+        postOpenScheduleMessage(scheduleId);
+      }, 50);
+      return;
+    }
+
+    frame.addEventListener(
+      "load",
+      () => {
+        postOpenScheduleMessage(scheduleId);
+      },
+      { once: true }
+    );
+
+    openInspectionLogModal();
+  }
+
+  function normalizeRoleTodaySummary(rawData) {
+    const rawRoles = Array.isArray(rawData?.roles) ? rawData.roles : [];
+
+    const roles = ROLE_ORDER.map(role => {
+      const rawRole = rawRoles.find(item => {
+        return normalizeRole(item?.role) === role;
+      }) || {};
+
+      const items = (Array.isArray(rawRole.items) ? rawRole.items : [])
+        .map(item => {
+          const category = String(item?.category || "other").trim();
+          const categoryLabels = {
+            daily: "일일",
+            weekly: "주간",
+            monthly: "월간",
+            quarterly: "분기",
+            other: "기타"
+          };
+
+          return {
+            scheduleId: String(item?.scheduleId || "").trim(),
+            title: String(item?.title || "점검 일정").trim(),
+            category,
+            categoryLabel: categoryLabels[category] || "기타",
+            scheduleLabel: String(item?.scheduleLabel || "").trim(),
+            dueDate: String(item?.dueDate || "").trim(),
+            shift: String(item?.shift || "").trim(),
+            shiftLabel: String(item?.shiftLabel || "").trim(),
+            position: String(item?.position || "").trim(),
+            note: String(item?.note || "").trim(),
+            conditional: item?.conditional === true,
+            completed: item?.completed === true,
+            completedByName: String(item?.completedByName || "").trim(),
+            completedAt: String(item?.completedAt || "").trim(),
+            canOpenLog: item?.canOpenLog === true
+          };
+        })
+        .filter(item => item.scheduleId && item.title);
+
+      const completedCount = items.filter(item => item.completed).length;
+
+      return {
+        role,
+        totalCount: items.length,
+        completedCount,
+        pendingCount: items.length - completedCount,
+        items
+      };
+    });
+
+    return {
+      available: rawData?.available === true,
+      workDate: String(rawData?.workDate || "").trim(),
+      shift: String(rawData?.shift || "").trim(),
+      shiftLabel: String(rawData?.shiftLabel || "").trim(),
+      errorMessage: String(rawData?.errorMessage || "").trim(),
+      roles
+    };
+  }
+
+  function handleInspectionLauncherMessage(event) {
+    if (event.origin !== window.location.origin) {
+      return;
+    }
+
+    const frame = getFrame();
+
+    if (!frame?.contentWindow || event.source !== frame.contentWindow) {
+      return;
+    }
+
+    const messageType = String(event.data?.type || "").trim();
+
+    if (messageType === "gs-night-patrol:close") {
+      closeInspectionLogModal();
+      return;
+    }
+
+    if (messageType === "gs-shift-log:inspection-role-today-summary") {
+      roleTodaySummary = normalizeRoleTodaySummary(event.data);
+      queueRoleButtonRender();
+      return;
+    }
+
+    if (messageType === "gs-shift-log:inspection-view-mode") {
+      getMainModal()?.classList.toggle(
+        "is-inspection-expanded",
+        event.data?.expanded === true
+      );
+    }
+  }
+
+  function unwrapRoleTopActions() {
+    document.querySelectorAll(".role-card-top-actions").forEach(actions => {
+      const roleWrap = actions.parentElement;
+
+      if (!roleWrap) {
+        actions.remove();
+        return;
+      }
+
+      const noticeControl = [...actions.children].find(child => {
+        return (
+          child.matches("[data-role-notice-button]") ||
+          child.classList.contains("role-notice-placeholder")
+        );
+      });
+
+      if (noticeControl) {
+        roleWrap.insertBefore(noticeControl, actions);
+      }
+
+      actions.remove();
+    });
+  }
+
+  function removeInspectionLogElements() {
+    closeRoleTodayModal();
+    closeInspectionLogModal();
+
+    document.getElementById(BUTTON_ID)?.remove();
+    getMainModal()?.remove();
+    getRoleModal()?.remove();
+    unwrapRoleTopActions();
+
+    roleTodaySummary = {
+      available: false,
+      workDate: "",
+      shift: "",
+      shiftLabel: "",
+      errorMessage: "",
+      roles: []
+    };
+  }
+
+  function observeLoginState() {
+    const appShell = document.getElementById("appShell");
+
+    if (!appShell || appShell.dataset.inspectionAccessObserved === "true") {
+      return;
+    }
+
+    appShell.dataset.inspectionAccessObserved = "true";
+
+    const observer = new MutationObserver(syncInspectionLogAccess);
+    observer.observe(appShell, {
+      attributes: true,
+      attributeFilter: ["hidden"]
+    });
+  }
+
+  function observeShiftMemberGrid() {
+    const grid = document.getElementById("shiftMemberGrid");
+
+    if (!grid) {
+      return;
+    }
+
+    if (
+      shiftMemberObserver &&
+      observedShiftMemberGrid === grid
+    ) {
+      return;
+    }
+
+    shiftMemberObserver?.disconnect();
+    shiftMemberObserver = new MutationObserver(queueRoleButtonRender);
+    observedShiftMemberGrid = grid;
+
+    shiftMemberObserver.observe(grid, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  function syncInspectionLogAccess() {
+    if (!canCurrentUserUseInspectionLogs()) {
+      removeInspectionLogElements();
+      return false;
+    }
+
+    const menuReady = createMenuButton();
+    const modalReady = createInspectionLogModal();
+    const roleModalReady = createRoleTodayModal();
+
+    observeShiftMemberGrid();
+    queueRoleButtonRender();
+
+    return menuReady && modalReady && roleModalReady;
+  }
+
+  function scheduleInstall() {
+    syncInspectionLogAccess();
+    observeLoginState();
+
+    if (window.__gsInspectionScheduleMessageBound !== true) {
+      window.addEventListener("message", handleInspectionLauncherMessage);
+      window.__gsInspectionScheduleMessageBound = true;
+    }
+
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      syncInspectionLogAccess();
+
+      if (attempts >= 40) {
+        window.clearInterval(timer);
+      }
+    }, 250);
+  }
+
+  document.addEventListener(
+    "keydown",
+    event => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      if (getRoleModal()?.classList.contains("is-open")) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeRoleTodayModal();
+        return;
+      }
+
+      if (getMainModal()?.classList.contains("is-open")) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeInspectionLogModal();
+      }
     },
     true
   );
 
-
-
-  window.addEventListener(
-    "storage",
-    event => {
-      if (
-        event.key ===
-        AUTH_STORAGE_KEY
-      ) {
-        syncNightPatrolAccess();
-      }
+  window.addEventListener("storage", event => {
+    if (event.key === AUTH_STORAGE_KEY) {
+      syncInspectionLogAccess();
     }
-  );
+  });
 
+  window.addEventListener("focus", syncInspectionLogAccess);
 
-  window.addEventListener(
-    "focus",
-    syncNightPatrolAccess
-  );
-
-
-  desktopMedia.addEventListener(
-    "change",
-    syncNightPatrolAccess
-  );
-
-
-  if (
-    document.readyState ===
-      "loading"
-  ) {
-    document.addEventListener(
-      "DOMContentLoaded",
-      scheduleInstall,
-      {
-        once:
-          true
-      }
-    );
-
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", scheduleInstall, {
+      once: true
+    });
   } else {
     scheduleInstall();
   }

@@ -663,3 +663,90 @@
     max-height: none;
   }
 }
+
+/* =========================================================
+  점검 일정 담당 보직
+========================================================= */
+
+.inspection-schedule-inline-option-row.is-assigned-roles {
+  grid-template-columns: 65px minmax(0, 1fr);
+}
+
+.inspection-schedule-inline-option-row.is-assigned-roles > div.is-roles {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.inspection-schedule-inline-option-row.is-assigned-roles > small {
+  grid-column: 2;
+  color: #728397;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.inspection-schedule-table-assigned-roles {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+  color: #355b7d;
+  font-size: 8.5px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.inspection-schedule-table-assigned-roles > span {
+  display: inline-flex;
+  min-height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border: 1px solid #b9cee2;
+  border-radius: 999px;
+  background: #edf5fc;
+  color: #2b659b;
+  font-size: 7.5px;
+  font-weight: 900;
+}
+
+.inspection-schedule-table-assigned-roles > b {
+  min-width: 0;
+  color: #355b7d;
+  font-size: inherit;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.inspection-schedule-table-assigned-roles.is-empty > span {
+  border-color: #d4dbe3;
+  background: #f4f6f8;
+  color: #788594;
+}
+
+.inspection-schedule-table-assigned-roles.is-empty > b {
+  color: #8a96a3;
+}
+
+@media (max-width: 900px) {
+  .inspection-schedule-inline-option-row.is-assigned-roles > div.is-roles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .inspection-schedule-inline-option-row.is-assigned-roles {
+    grid-template-columns: 1fr;
+  }
+
+  .inspection-schedule-inline-option-row.is-assigned-roles > small {
+    grid-column: 1;
+  }
+
+  .inspection-schedule-inline-option-row.is-assigned-roles > div.is-roles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
