@@ -680,187 +680,632 @@ function initializeInspectionCalendarDashboard() {
     });
   }
 
-  function getPreviewLines(scheduleItems) {
-    const uniqueItems = [...new Map(
-      scheduleItems.map(item => [item.id, item])
-    ).values()];
+/* =========================================================
+  캘린더용 점검명 약칭
 
-    const specificItems = uniqueItems
-      .filter(item => item.category !== "daily" && item.referenceOnly !== true)
-      .sort((firstItem, secondItem) => {
-        return (
-          (categoryOrder[firstItem.category] || 99) -
-          (categoryOrder[secondItem.category] || 99)
-        ) || String(firstItem.title || "").localeCompare(
-          String(secondItem.title || ""),
-          "ko"
-        );
-      });
+  - 상세 목록에서는 원래 점검명을 그대로 사용
+  - 월간 캘린더에서만 간략한 이름 사용
+  - 약칭이 길면 마지막에 말줄임표 표시
+  - 마우스를 올리면 전체 점검명 표시
+========================================================= */
 
-    const dailyCount = uniqueItems.filter(item => {
-      return item.category === "daily" && item.referenceOnly !== true;
-    }).length;
+function getCalendarShortTitle(value) {
+  const originalTitle = String(
+    value || ""
+  )
+    .replace(/\s+/g, " ")
+    .trim();
 
-    const referenceCount = uniqueItems.filter(item => {
-      return item.referenceOnly === true;
-    }).length;
 
-    const lines = specificItems.slice(0, 2).map(item => ({
-      text: item.title,
-      type: item.category
-    }));
-
-    if (dailyCount > 0 && lines.length < 3) {
-      lines.push({
-        text: `일일점검 ${dailyCount}건`,
-        type: "daily"
-      });
-    }
-
-    const representedCount = Math.min(specificItems.length, 2) + dailyCount;
-    const hiddenCount = Math.max(0, uniqueItems.length - representedCount);
-
-    if (hiddenCount > 0 && lines.length < 3) {
-      lines.push({
-        text: `외 ${hiddenCount}건`,
-        type: "more"
-      });
-    }
-
-    if (!lines.length && referenceCount > 0) {
-      lines.push({
-        text: `참고 일정 ${referenceCount}건`,
-        type: "reference"
-      });
-    }
-
-    return lines;
+  if (!originalTitle) {
+    return "점검";
   }
 
-  function renderCalendar() {
-    const todayValue = formatDateValue(new Date());
-    const firstDay = new Date(
+
+  /*
+    자주 사용하는 긴 점검명은
+    이해하기 쉬운 약칭으로 우선 변환한다.
+  */
+
+  const exactAliases = [
+    {
+      pattern:
+        /^1\s*[,·]\s*2호기\s+유기성고형연료\s+Silo\s+Vent\s+Line\s+점검$/i,
+
+      title:
+        "1·2호기 Silo Vent 점검"
+    },
+
+    {
+      pattern:
+        /^고압가스\s+저장시설\s+주간점검(?:표)?$/i,
+
+      title:
+        "고압가스 주간점검"
+    },
+
+    {
+      pattern:
+        /^Bed\s+Ash\s+Bucket\s+Elevator\s+하부\s+점검\s*\(청소\)$/i,
+
+      title:
+        "Bed Ash B/E 하부점검"
+    },
+
+    {
+      pattern:
+        /^Aux\s+BLR\s+Air-?Comp(?:ressor)?\s+기능\s+Test\s+및\s+회전기기\s+Hand\s+Turning$/i,
+
+      title:
+        "Aux BLR Air-Comp Test"
+    },
+
+    {
+      pattern:
+        /^Lime\s+Slurry\s+Density\s+Meter\s+Flushing$/i,
+
+      title:
+        "Lime Slurry D/M Flushing"
+    }
+  ];
+
+
+  const exactAlias =
+    exactAliases.find(
+      item => {
+        return item.pattern.test(
+          originalTitle
+        );
+      }
+    );
+
+
+  if (exactAlias) {
+    return exactAlias.title;
+  }
+
+
+  /*
+    그 외 점검명은 공통 단어를 자동 축약한다.
+  */
+
+  let shortTitle =
+    originalTitle
+      .replace(
+        /1\s*[,·]\s*2호기/gi,
+        "1·2호기"
+      )
+      .replace(
+        /3\s*[,·]\s*4호기/gi,
+        "3·4호기"
+      )
+      .replace(
+        /유기성고형연료\s+/gi,
+        ""
+      )
+      .replace(
+        /Silo\s+Vent\s+Line/gi,
+        "Silo Vent"
+      )
+      .replace(
+        /Fly\s+Ash\s+Silo\s*,\s*Lime\s+Silo/gi,
+        "Fly/Lime Silo"
+      )
+      .replace(
+        /Bucket\s+Elevator/gi,
+        "B/E"
+      )
+      .replace(
+        /Density\s+Meter/gi,
+        "D/M"
+      )
+      .replace(
+        /Air[\s-]*Compressor/gi,
+        "Air-Comp"
+      )
+      .replace(
+        /Air[\s-]*Comp\./gi,
+        "Air-Comp"
+      )
+      .replace(
+        /\bBoiler\b/gi,
+        "BLR"
+      )
+      .replace(
+        /Off-Line\s+Mode\s+진행/gi,
+        "Off-Line"
+      )
+      .replace(
+        /기능\s+Test\s+및\s+회전기기\s+Hand\s+Turning/gi,
+        "기능 Test"
+      )
+      .replace(
+        /상부\s+Screen\s+이물질\s+청소/gi,
+        "상부 Screen 청소"
+      )
+      .replace(
+        /하부\s+점검\s*\(청소\)/gi,
+        "하부점검"
+      )
+      .replace(
+        /저장시설\s+주간점검표/gi,
+        "주간점검"
+      )
+      .replace(
+        /주간점검\s+일지/gi,
+        "주간점검"
+      )
+      .replace(
+        /주간점검일지/gi,
+        "주간점검"
+      )
+      .replace(
+        /점검\s+일지/gi,
+        "점검"
+      )
+      .replace(
+        /점검일지/gi,
+        "점검"
+      )
+      .replace(
+        /Return\s+Line/gi,
+        "Return"
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+
+
+  /*
+    약칭 변환 후 같은 단어가 반복된 경우 정리한다.
+  */
+
+  shortTitle =
+    shortTitle
+      .replace(
+        /점검\s+점검/g,
+        "점검"
+      )
+      .replace(
+        /Air-Comp\s+Air-Comp/gi,
+        "Air-Comp"
+      )
+      .trim();
+
+
+  /*
+    자동 축약 후에도 너무 긴 경우
+    캘린더에서는 30자까지만 표시한다.
+
+    전체 이름은 title 속성과
+    아래 선택 날짜 상세 목록에서 확인할 수 있다.
+  */
+
+  const characters = [
+    ...shortTitle
+  ];
+
+  const maximumLength =
+    30;
+
+
+  if (
+    characters.length >
+    maximumLength
+  ) {
+    return (
+      characters
+        .slice(
+          0,
+          maximumLength - 1
+        )
+        .join("") +
+      "…"
+    );
+  }
+
+
+  return (
+    shortTitle ||
+    originalTitle
+  );
+}
+
+
+/* =========================================================
+  날짜별 캘린더 표시 항목 생성
+
+  - 외 N건으로 숨기지 않는다.
+  - 일일점검 N건으로 묶지 않는다.
+  - 해당 날짜의 모든 점검을 개별 표시한다.
+========================================================= */
+
+function getCalendarLines(scheduleItems) {
+  const uniqueItems = [
+    ...new Map(
+      scheduleItems.map(
+        item => {
+          const uniqueKey =
+            String(
+              item.id ||
+              item.title ||
+              ""
+            ).trim();
+
+
+          return [
+            uniqueKey,
+            item
+          ];
+        }
+      )
+    ).values()
+  ];
+
+
+  return uniqueItems
+    .slice()
+    .sort(
+      (
+        firstItem,
+        secondItem
+      ) => {
+        return (
+          (
+            categoryOrder[
+              firstItem.category
+            ] ||
+            99
+          ) -
+          (
+            categoryOrder[
+              secondItem.category
+            ] ||
+            99
+          )
+        ) ||
+        String(
+          firstItem.title ||
+          ""
+        ).localeCompare(
+          String(
+            secondItem.title ||
+            ""
+          ),
+          "ko"
+        );
+      }
+    )
+    .map(
+      item => {
+        const originalTitle =
+          String(
+            item.title ||
+            "점검"
+          ).trim();
+
+
+        return {
+          text:
+            getCalendarShortTitle(
+              originalTitle
+            ),
+
+          fullText:
+            originalTitle,
+
+          type:
+            item.referenceOnly ===
+            true
+              ? "reference"
+              : (
+                  item.category ||
+                  "other"
+                )
+        };
+      }
+    );
+}
+
+
+/* =========================================================
+  월간 캘린더 출력
+========================================================= */
+
+function renderCalendar() {
+  const todayValue =
+    formatDateValue(
+      new Date()
+    );
+
+
+  const firstDay =
+    new Date(
       monthCursor.getFullYear(),
       monthCursor.getMonth(),
       1
     );
 
-    const gridStart = new Date(
+
+  const gridStart =
+    new Date(
       firstDay.getFullYear(),
       firstDay.getMonth(),
-      1 - firstDay.getDay()
+      1 -
+        firstDay.getDay()
     );
 
-    if (calendarTitle) {
-      calendarTitle.textContent = formatMonthTitle(monthCursor);
-    }
 
-    const cells = [];
+  if (
+    calendarTitle
+  ) {
+    calendarTitle.textContent =
+      formatMonthTitle(
+        monthCursor
+      );
+  }
 
-    for (let index = 0; index < 42; index += 1) {
-      const date = new Date(
+
+  const cells = [];
+
+
+  for (
+    let index = 0;
+    index < 42;
+    index += 1
+  ) {
+    const date =
+      new Date(
         gridStart.getFullYear(),
         gridStart.getMonth(),
-        gridStart.getDate() + index
+        gridStart.getDate() +
+          index
       );
 
-      const dateValue = formatDateValue(date);
-      const dateData = getDateData(dateValue);
-      const completedCount = dateData.required.filter(getCompletion).length;
-      const pendingCount = dateData.required.length - completedCount;
-      const isOutside = date.getMonth() !== monthCursor.getMonth();
-      const isToday = dateValue === todayValue;
-      const isSelected = dateValue === selectedDateValue;
-      const isPastTracked = (
-        dateValue >= TRACKING_START_DATE &&
-        dateValue < todayValue
-      );
-      const isOverdue = isPastTracked && pendingCount > 0;
-      const isComplete = (
-        dateData.required.length > 0 &&
-        completedCount === dateData.required.length
+
+    const dateValue =
+      formatDateValue(
+        date
       );
 
-      const hasPartialCompletion = (
-        completedCount > 0 &&
-        pendingCount > 0
+
+    const dateData =
+      getDateData(
+        dateValue
       );
 
-      const classes = [
-        "inspection-calendar-day",
-        isOutside ? "is-outside" : "",
-        isToday ? "is-today" : "",
-        isSelected ? "is-selected" : "",
-        dateData.scheduleItems.length ? "has-schedule" : "",
-        isOverdue ? "has-overdue" : "",
-        isComplete ? "is-complete" : "",
-        dateData.conditional.length ? "has-conditional" : ""
-      ].filter(Boolean).join(" ");
 
-      const previewHtml = getPreviewLines(dateData.scheduleItems)
-        .map(line => {
-          return `
-            <span class="inspection-calendar-day__item is-${escapeHtml(line.type)}">
-              ${escapeHtml(line.text)}
-            </span>
-          `;
-        })
+    const completedCount =
+      dateData.required.filter(
+        getCompletion
+      ).length;
+
+
+    const pendingCount =
+      dateData.required.length -
+      completedCount;
+
+
+    const isOutside =
+      date.getMonth() !==
+      monthCursor.getMonth();
+
+
+    const isToday =
+      dateValue ===
+      todayValue;
+
+
+    const isSelected =
+      dateValue ===
+      selectedDateValue;
+
+
+    const isPastTracked =
+      dateValue >=
+        TRACKING_START_DATE &&
+      dateValue <
+        todayValue;
+
+
+    const isOverdue =
+      isPastTracked &&
+      pendingCount >
+        0;
+
+
+    const isComplete =
+      dateData.required.length >
+        0 &&
+      completedCount ===
+        dateData.required.length;
+
+
+    const classes = [
+      "inspection-calendar-day",
+
+      isOutside
+        ? "is-outside"
+        : "",
+
+      isToday
+        ? "is-today"
+        : "",
+
+      isSelected
+        ? "is-selected"
+        : "",
+
+      dateData.scheduleItems.length
+        ? "has-schedule"
+        : "",
+
+      isOverdue
+        ? "has-overdue"
+        : "",
+
+      isComplete
+        ? "is-complete"
+        : "",
+
+      dateData.conditional.length
+        ? "has-conditional"
+        : ""
+    ]
+      .filter(
+        Boolean
+      )
+      .join(" ");
+
+
+    /*
+      모든 점검 일정을 개별 표시한다.
+    */
+
+    const calendarLines =
+      getCalendarLines(
+        dateData.scheduleItems
+      );
+
+
+    const previewHtml =
+      calendarLines
+        .map(
+          line => {
+            return `
+              <span
+                class="
+                  inspection-calendar-day__item
+                  is-${escapeHtml(
+                    line.type
+                  )}
+                "
+                title="${escapeHtml(
+                  line.fullText
+                )}"
+                aria-label="${escapeHtml(
+                  line.fullText
+                )}"
+              >
+                ${escapeHtml(
+                  line.text
+                )}
+              </span>
+            `;
+          }
+        )
         .join("");
 
-      let statusText = "";
 
-      if (isOverdue) {
-        statusText = `미완료 ${pendingCount}건`;
-      } else if (isComplete) {
-        statusText = "완료";
-      } else if (hasPartialCompletion) {
-        statusText = `완료 ${completedCount}/${dateData.required.length}`;
-      } else if (isToday && pendingCount > 0) {
-        statusText = `미완료 ${pendingCount}건`;
-      } else if (dateData.scheduleItems.length) {
-        statusText = `예정 ${dateData.scheduleItems.length}건`;
-      }
+    /*
+      예정 N건 표시는 모든 일정이 위에 보이므로 삭제한다.
 
-      const completionMarkHtml = completedCount > 0
-        ? `
-            <span
-              class="inspection-calendar-day__completion-mark ${isComplete ? "is-complete" : "is-partial"}"
-              aria-label="${isComplete ? "전체 완료" : `일부 완료 ${completedCount}/${dateData.required.length}`}"
-            >
-              ${isComplete ? "✓" : `✓ ${completedCount}/${dateData.required.length}`}
-            </span>
-          `
-        : "";
+      미완료·완료처럼 실제 상태 확인이 필요한 경우만
+      하단에 표시한다.
+    */
 
-      cells.push(`
-        <button
-          type="button"
-          class="${classes}"
-          data-inspection-calendar-date="${escapeHtml(dateValue)}"
-          aria-selected="${isSelected ? "true" : "false"}"
-          aria-label="${escapeHtml(
-            `${formatLongDate(date)}${statusText ? `, ${statusText}` : ""}`
-          )}"
-        >
-          <span class="inspection-calendar-day__number">${date.getDate()}</span>
+    let statusText =
+      "";
 
-          ${completionMarkHtml}
 
-          <span class="inspection-calendar-day__items">
-            ${previewHtml}
-          </span>
+    if (
+      isOverdue
+    ) {
+      statusText =
+        `미완료 ${pendingCount}건`;
 
-          ${statusText ? `
-            <span class="inspection-calendar-day__status">
-              ${escapeHtml(statusText)}
-            </span>
-          ` : ""}
-        </button>
-      `);
+    } else if (
+      isComplete
+    ) {
+      statusText =
+        "완료";
+
+    } else if (
+      isToday &&
+      pendingCount >
+        0
+    ) {
+      statusText =
+        `미완료 ${pendingCount}건`;
+
+    } else if (
+      !dateData.required.length &&
+      dateData.conditional.length
+    ) {
+      statusText =
+        "조건 확인";
     }
 
-    calendarGrid.innerHTML = cells.join("");
+
+    const totalScheduleCount =
+      calendarLines.length;
+
+
+    cells.push(`
+      <button
+        type="button"
+        class="${classes}"
+        data-inspection-calendar-date="${escapeHtml(
+          dateValue
+        )}"
+        aria-selected="${
+          isSelected
+            ? "true"
+            : "false"
+        }"
+        aria-label="${escapeHtml(
+          [
+            formatLongDate(
+              date
+            ),
+
+            totalScheduleCount
+              ? `점검 ${totalScheduleCount}건`
+              : "점검 없음",
+
+            statusText
+          ]
+            .filter(
+              Boolean
+            )
+            .join(", ")
+        )}"
+      >
+        <span
+          class="inspection-calendar-day__number"
+        >
+          ${date.getDate()}
+        </span>
+
+        <span
+          class="inspection-calendar-day__items"
+        >
+          ${previewHtml}
+        </span>
+
+        ${
+          statusText
+            ? `
+                <span
+                  class="inspection-calendar-day__status"
+                >
+                  ${escapeHtml(
+                    statusText
+                  )}
+                </span>
+              `
+            : ""
+        }
+      </button>
+    `);
   }
+
+
+  calendarGrid.innerHTML =
+    cells.join("");
+}
 
   function getOccurrenceState(occurrence, options = {}) {
     if (getCompletion(occurrence)) {

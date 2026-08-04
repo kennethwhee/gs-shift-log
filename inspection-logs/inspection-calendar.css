@@ -215,216 +215,338 @@
   color: #3974aa;
 }
 
-/* 달력 날짜 */
+/* =========================================================
+  달력 날짜
+
+  - 날짜별 모든 점검 표시
+  - 같은 주의 날짜 칸 높이 동일
+  - 일정 개수에 따라 행 높이 자동 확장
+========================================================= */
 
 .inspection-calendar-grid {
   position: relative;
+
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  background: #dfe7ef;
+
+  grid-template-columns:
+    repeat(
+      7,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  grid-auto-rows:
+    minmax(
+      122px,
+      auto
+    );
+
+  align-items: stretch;
+
   gap: 1px;
+
+  background: #dfe7ef;
 }
+
 
 .inspection-calendar-day {
   position: relative;
+
   display: flex;
+
+  width: 100%;
   min-width: 0;
-  min-height: 112px;
+  min-height: 122px;
+  height: 100%;
+
   flex-direction: column;
   align-items: stretch;
-  gap: 5px;
-  padding: 8px;
+
+  gap: 4px;
+
+  padding: 7px;
+
   border: 0;
   outline: 0;
+
   background: #ffffff;
+
   color: #2c435a;
+
   text-align: left;
+
   cursor: pointer;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 }
+
 
 .inspection-calendar-day:hover {
   z-index: 1;
+
   background: #f4f9fe;
-  box-shadow: inset 0 0 0 2px #91b8dc;
+
+  box-shadow:
+    inset 0 0 0 2px
+    #91b8dc;
 }
 
-.inspection-calendar-day:nth-child(7n + 1) .inspection-calendar-day__number {
+
+.inspection-calendar-day:nth-child(7n + 1)
+.inspection-calendar-day__number {
   color: #b44b4b;
 }
 
-.inspection-calendar-day:nth-child(7n) .inspection-calendar-day__number {
+
+.inspection-calendar-day:nth-child(7n)
+.inspection-calendar-day__number {
   color: #3972a8;
 }
 
+
 .inspection-calendar-day.is-outside {
   background: #f7f9fb;
+
   opacity: 0.58;
 }
 
+
 .inspection-calendar-day.is-today {
   background: #f0f7ff;
-  box-shadow: inset 0 0 0 2px #4f8ec9;
+
+  box-shadow:
+    inset 0 0 0 2px
+    #4f8ec9;
 }
+
 
 .inspection-calendar-day.is-selected {
   z-index: 2;
+
   background: #eaf4ff;
-  box-shadow: inset 0 0 0 3px #246eb4;
+
+  box-shadow:
+    inset 0 0 0 3px
+    #246eb4;
 }
+
 
 .inspection-calendar-day.has-overdue {
   background: #fff5f5;
 }
 
+
 .inspection-calendar-day.has-overdue::before {
   content: "";
+
   position: absolute;
+
   top: 0;
   right: 0;
   left: 0;
+
   height: 3px;
+
   background: #c94d4d;
 }
+
 
 .inspection-calendar-day.is-complete {
   background: #f2faf6;
 }
 
+
 .inspection-calendar-day.is-complete::before {
   content: "";
+
   position: absolute;
+
   top: 0;
   right: 0;
   left: 0;
+
   height: 3px;
+
   background: #21825c;
 }
 
-.inspection-calendar-day.has-conditional:not(.has-overdue):not(.is-complete)::before {
+
+.inspection-calendar-day.has-conditional:not(
+  .has-overdue
+):not(
+  .is-complete
+)::before {
   content: "";
+
   position: absolute;
+
   top: 0;
   right: 0;
   left: 0;
+
   height: 3px;
+
   background: #d89321;
 }
 
-.inspection-calendar-day__completion-mark {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 2;
-  display: inline-flex;
-  min-width: 22px;
-  height: 22px;
-  align-items: center;
-  justify-content: center;
-  padding: 0 6px;
-  border: 1px solid #9fc9b0;
-  border-radius: 999px;
-  background: #e8f6ee;
-  color: #19704e;
-  font-size: 8px;
-  font-weight: 900;
-  line-height: 1;
-  white-space: nowrap;
-  box-shadow: 0 2px 6px rgba(23, 128, 88, 0.13);
-}
 
-.inspection-calendar-day__completion-mark.is-complete {
-  width: 22px;
-  padding: 0;
-  border-color: #75b991;
-  background: #21825c;
-  color: #ffffff;
-  font-size: 12px;
-}
-
-.inspection-calendar-day__completion-mark.is-partial {
-  border-color: #9fbfdd;
-  background: #edf5fd;
-  color: #28689f;
-}
+/* 날짜 숫자 */
 
 .inspection-calendar-day__number {
   display: inline-flex;
-  width: 27px;
-  height: 27px;
+
+  width: 24px;
+  height: 24px;
+
+  flex: 0 0 auto;
+
   align-items: center;
   justify-content: center;
+
   border-radius: 50%;
+
   color: #243b52;
-  font-size: 12px;
+
+  font-size: 11px;
   font-weight: 900;
 }
 
-.inspection-calendar-day.is-today .inspection-calendar-day__number {
+
+.inspection-calendar-day.is-today
+.inspection-calendar-day__number {
   background: #2d73b6;
+
   color: #ffffff;
 }
 
+
+/* 점검 항목 목록 */
+
 .inspection-calendar-day__items {
-  display: grid;
+  display: flex;
+
   min-width: 0;
-  gap: 3px;
+
+  flex: 0 0 auto;
+  flex-direction: column;
+
+  gap: 2px;
 }
+
 
 .inspection-calendar-day__item {
   display: block;
+
   overflow: hidden;
+
+  width: 100%;
+  min-width: 0;
+
   padding: 3px 5px;
-  border-left: 2px solid #7899b9;
+
+  border-left:
+    2px solid
+    #7899b9;
+
   border-radius: 3px;
+
   background: #f3f6f9;
+
   color: #485f75;
+
   font-size: 8px;
   font-weight: 800;
   line-height: 1.25;
+
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+
+/* 일일 점검 */
+
 .inspection-calendar-day__item.is-daily {
   border-left-color: #4d89c5;
+
   background: #edf5fd;
+
   color: #2f6597;
 }
 
+
+/* 주간 점검 */
+
 .inspection-calendar-day__item.is-weekly {
   border-left-color: #47a06c;
+
   background: #edf8f1;
+
   color: #34774f;
 }
+
+
+/* 월간·분기 점검 */
 
 .inspection-calendar-day__item.is-monthly,
 .inspection-calendar-day__item.is-quarterly {
   border-left-color: #8762b2;
+
   background: #f4effa;
+
   color: #6c4a91;
 }
 
-.inspection-calendar-day__item.is-more,
+
+/* 기타 점검 */
+
+.inspection-calendar-day__item.is-other {
+  border-left-color: #d18a32;
+
+  background: #fff7e9;
+
+  color: #875a21;
+}
+
+
+/* 참고 일정 */
+
 .inspection-calendar-day__item.is-reference {
   border-left-color: #9aa7b3;
+
   background: #f4f5f7;
+
   color: #747f8a;
 }
 
+
+/* 완료·미완료 상태 */
+
 .inspection-calendar-day__status {
   margin-top: auto;
+
+  padding-top: 2px;
+
   color: #78889a;
+
   font-size: 8px;
   font-weight: 900;
+
   text-align: right;
 }
 
-.inspection-calendar-day.has-overdue .inspection-calendar-day__status {
+
+.inspection-calendar-day.has-overdue
+.inspection-calendar-day__status {
   color: #b23f3f;
 }
 
-.inspection-calendar-day.is-complete .inspection-calendar-day__status {
+
+.inspection-calendar-day.is-complete
+.inspection-calendar-day__status {
   color: #19704e;
 }
 
