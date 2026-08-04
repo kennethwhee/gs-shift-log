@@ -7023,7 +7023,17 @@ function initializeInspectionLogHub() {
 
 
   /* =====================================================
-    완료·완료취소 버튼
+    완료 상태 및 완료 취소 버튼
+
+    수동 완료:
+    - 완료자·완료시각 표시
+    - 완료 취소 버튼 표시
+
+    업무일지 자동완료:
+    - 자동완료·출처 보직·작성자 표시
+    - 근거 업무내용을 마우스 설명으로 표시
+    - 완료 취소 버튼 표시하지 않음
+    - 원본 업무일지를 수정하면 자동 재계산
   ====================================================== */
 
   function createStatusActionHtml(
@@ -7050,11 +7060,17 @@ function initializeInspectionLogHub() {
     if (
       completion
     ) {
-      const completedBy =
+      const isAutomatic =
+        completion.isAutomatic ===
+          true ||
+
         String(
-          completion.completedByName ||
-          "완료자 확인 불가"
-        ).trim();
+          completion.completionSource ||
+          ""
+        )
+          .trim()
+          .toLowerCase() ===
+          "shift_log";
 
 
       const completedAt =
@@ -7063,9 +7079,119 @@ function initializeInspectionLogHub() {
         );
 
 
+      /* ===================================================
+        업무일지 자동완료
+      ==================================================== */
+
+      if (
+        isAutomatic
+      ) {
+        const sourceRole =
+          String(
+            completion.sourceRole ||
+            ""
+          ).trim();
+
+
+        const sourceAuthor =
+          String(
+            completion.sourceAuthor ||
+            ""
+          ).trim();
+
+
+        const sourceName =
+          [
+            sourceRole,
+            sourceAuthor
+          ]
+            .filter(
+              Boolean
+            )
+            .join(
+              " "
+            );
+
+
+        const automaticLabel =
+          sourceName
+            ? `자동완료 · ${sourceName}`
+            : "자동완료 · 업무일지 연동";
+
+
+        const sourceText =
+          String(
+            completion.sourceText ||
+            ""
+          ).trim();
+
+
+        const automaticTitle =
+          [
+            "업무일지 내용으로 자동 완료되었습니다.",
+
+            sourceText
+              ? `완료 근거: ${sourceText}`
+              : "",
+
+            "원본 업무일지를 수정하거나 삭제하면 자동으로 다시 계산됩니다."
+          ]
+            .filter(
+              Boolean
+            )
+            .join(
+              "\n"
+            );
+
+
+        return `
+          <span
+            class="
+              inspection-schedule-completion-info
+              is-automatic
+            "
+            title="${escapeHtml(
+              automaticTitle
+            )}"
+          >
+            ${escapeHtml(
+              automaticLabel
+            )}
+
+            ${
+              completedAt
+                ? ` · ${escapeHtml(
+                    completedAt
+                  )}`
+                : ""
+            }
+          </span>
+
+          <span
+            class="inspection-schedule-auto-completion-label"
+            title="${escapeHtml(
+              automaticTitle
+            )}"
+          >
+            업무일지 연동
+          </span>
+        `;
+      }
+
+
+      /* ===================================================
+        사용자가 직접 처리한 수동 완료
+      ==================================================== */
+
+      const completedBy =
+        String(
+          completion.completedByName ||
+          "완료자 확인 불가"
+        ).trim();
+
+
       return `
         <span class="inspection-schedule-completion-info">
-
           ${escapeHtml(
             completedBy
           )}
@@ -7077,9 +7203,7 @@ function initializeInspectionLogHub() {
                 )}`
               : ""
           }
-
         </span>
-
 
         <button
           type="button"

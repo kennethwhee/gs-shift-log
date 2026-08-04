@@ -10722,35 +10722,154 @@ export async function onRequestPost(
     }
 
 
-    const action =
-      normalizeText(
-        body.action ||
-        "save"
-      )
-        .toLowerCase();
+/* =====================================================
+  요청 작업 구분
+====================================================== */
+
+const action =
+  normalizeText(
+    body.action ||
+    "save"
+  )
+    .toLowerCase();
 
 
-    if (
-      ![
-        "save",
-        "migrate",
-        "approve",
-        "cancel"
-      ].includes(
-        action
-      )
-    ) {
-      return jsonResponse(
-        {
-          ok:
-            false,
+/* =====================================================
+  기존 저장 업무일지 점검 자동완료 재검사
 
-          message:
-            "지원하지 않는 업무일지 작업입니다."
-        },
-        400
-      );
-    }
+  업무일지를 다시 저장하지 않아도
+  해당 날짜·근무의 모든 보직 일지를 조회하여
+  점검명 유사 문구를 다시 판정한다.
+====================================================== */
+
+if (
+  action ===
+    "resync-inspection"
+) {
+  const workDate =
+    normalizeText(
+      body.workDate ||
+      body.work_date
+    );
+
+
+  const shift =
+    normalizeShift(
+      body.shift
+    );
+
+
+  if (
+    !isValidIsoDate(
+      workDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "점검 자동완료 재검사 날짜를 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  if (
+    !VALID_SHIFTS.has(
+      shift
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "점검 자동완료 재검사 근무를 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const inspectionScheduleSync =
+    await synchronizeInspectionSchedulesForShiftContext(
+      context,
+      {
+        workDate,
+
+        shift,
+
+        scheduleOccurrences:
+          body.inspectionScheduleOccurrences
+      }
+    );
+
+
+  if (
+    inspectionScheduleSync.ok ===
+      false
+  ) {
+    console.error(
+      "기존 업무일지 점검 자동완료 재검사 실패:",
+      inspectionScheduleSync
+    );
+  }
+
+
+  return jsonResponse(
+    {
+      ok:
+        inspectionScheduleSync.ok !==
+        false,
+
+      resynced:
+        inspectionScheduleSync.skipped !==
+        true,
+
+      workDate,
+
+      shift,
+
+      inspectionScheduleSync
+    },
+
+    inspectionScheduleSync.ok ===
+      false
+        ? 500
+        : 200
+  );
+}
+
+
+/* =====================================================
+  일반 업무일지 저장·결재 작업
+====================================================== */
+
+if (
+  ![
+    "save",
+    "migrate",
+    "approve",
+    "cancel"
+  ].includes(
+    action
+  )
+) {
+  return jsonResponse(
+    {
+      ok:
+        false,
+
+      message:
+        "지원하지 않는 업무일지 작업입니다."
+    },
+    400
+  );
+}
 
 
     const validation =
@@ -11713,7 +11832,9 @@ export async function onRequestDelete(
 
       limestoneSync,
 
-      inspectionScheduleSync
+      inspectionScheduleSync,
+
+      inspectionAutoCompletionSync
     });
 
   } catch (

@@ -55419,9 +55419,337 @@ function getInspectionScheduleOccurrencesForShiftLog(
   );
 }
 
+/* =========================================================
+  기존 업무일지 점검 자동완료 재검사 상태
+
+  목적:
+  - 해당 날짜를 열면 이미 저장된 업무일지도 검사
+  - 같은 일정 자료가 반복 전달되어도 중복 요청 방지
+  - 점검 새로고침 메시지가 무한 반복되지 않게 처리
+========================================================= */
+
+const inspectionAutoResyncRequestState =
+  new Map();
+
+
+const INSPECTION_AUTO_RESYNC_INTERVAL_MS =
+  30000;
+
+
+/* =========================================================
+  점검 일정 스냅샷 비교값 생성
+========================================================= */
+
+function createInspectionAutoResyncFingerprint(
+  snapshot
+) {
+  const occurrences =
+    Array.isArray(
+      snapshot?.occurrences
+    )
+      ? snapshot.occurrences
+      : [];
+
+
+  const normalizedItems =
+    occurrences
+      .map(
+        occurrence => {
+          return [
+            String(
+              occurrence?.scheduleId ||
+              ""
+            ).trim(),
+
+            String(
+              occurrence?.scheduleTitle ||
+              ""
+            )
+              .trim()
+              .replace(
+                /\s+/g,
+                " "
+              ),
+
+            String(
+              occurrence?.dueDate ||
+              snapshot?.workDate ||
+              ""
+            ).trim(),
+
+            normalizeShiftLogInspectionScheduleShift(
+              occurrence?.shift,
+              true
+            )
+          ].join(
+            "||"
+          );
+        }
+      )
+      .filter(
+        item => {
+          return Boolean(
+            item
+          );
+        }
+      )
+      .sort();
+
+
+  return JSON.stringify(
+    normalizedItems
+  );
+}
+
+
+/* =========================================================
+  기존 업무일지 자동완료 실제 재검사
+========================================================= */
+
+async function runInspectionAutoResync(
+  contextKey
+) {
+  const snapshot =
+    inspectionScheduleOccurrenceState.get(
+      contextKey
+    );
+
+
+  if (
+    !snapshot ||
+    !Array.isArray(
+      snapshot.occurrences
+    )
+  ) {
+    return;
+  }
+
+
+  const requestState =
+    inspectionAutoResyncRequestState.get(
+      contextKey
+    ) || {
+      inFlight:
+        false,
+
+      rerunRequested:
+        false,
+
+      fingerprint:
+        "",
+
+      completedAt:
+        0
+    };
+
+
+  inspectionAutoResyncRequestState.set(
+    contextKey,
+    requestState
+  );
+
+
+  /*
+    이미 재검사 중이면
+    현재 작업이 끝난 후 한 번 더 실행한다.
+  */
+  if (
+    requestState.inFlight
+  ) {
+    requestState.rerunRequested =
+      true;
+
+    return;
+  }
+
+
+  const fingerprint =
+    createInspectionAutoResyncFingerprint(
+      snapshot
+    );
+
+
+  const currentTime =
+    Date.now();
+
+
+  /*
+    같은 점검 목록으로 최근 재검사를 완료했다면
+    반복 요청을 보내지 않는다.
+  */
+  if (
+    requestState.fingerprint ===
+      fingerprint &&
+
+    currentTime -
+      Number(
+        requestState.completedAt ||
+        0
+      ) <
+      INSPECTION_AUTO_RESYNC_INTERVAL_MS
+  ) {
+    return;
+  }
+
+
+  requestState.inFlight =
+    true;
+
+  requestState.rerunRequested =
+    false;
+
+
+  try {
+    const result =
+      await requestShiftLogApi(
+        "",
+        {
+          method:
+            "POST",
+
+          body: {
+            action:
+              "resync-inspection",
+
+            workDate:
+              snapshot.workDate,
+
+            shift:
+              snapshot.shift,
+
+            inspectionScheduleOccurrences:
+              snapshot.occurrences
+          }
+        }
+      );
+
+
+    const syncResult =
+      result?.inspectionScheduleSync ||
+      null;
+
+
+    requestState.fingerprint =
+      fingerprint;
+
+    requestState.completedAt =
+      Date.now();
+
+
+    const changedCount =
+      Number(
+        syncResult?.createdCount ||
+        0
+      ) +
+
+      Number(
+        syncResult?.updatedCount ||
+        0
+      ) +
+
+      Number(
+        syncResult?.deletedCount ||
+        0
+      );
+
+
+    /*
+      실제 완료 상태가 변경된 경우에만
+      점검 달력과 오늘 점검을 다시 조회한다.
+    */
+    if (
+      syncResult?.ok ===
+        true &&
+
+      changedCount >
+        0 &&
+
+      typeof refreshInspectionScheduleAfterShiftLogChange ===
+        "function"
+    ) {
+      refreshInspectionScheduleAfterShiftLogChange(
+        syncResult,
+        {
+          workDate:
+            snapshot.workDate,
+
+          shift:
+            snapshot.shift
+        }
+      );
+    }
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "기존 업무일지 점검 자동완료 재검사 실패:",
+      error
+    );
+
+  } finally {
+    requestState.inFlight =
+      false;
+
+
+    /*
+      검사 도중 새로운 일정 스냅샷을 받았다면
+      최신 자료로 한 번 더 검사한다.
+    */
+    if (
+      requestState.rerunRequested
+    ) {
+      requestState.rerunRequested =
+        false;
+
+
+      window.setTimeout(
+        () => {
+          void runInspectionAutoResync(
+            contextKey
+          );
+        },
+        0
+      );
+    }
+  }
+}
+
+
+/* =========================================================
+  날짜·근무별 기존 업무일지 재검사 요청
+========================================================= */
+
+function requestExistingShiftLogInspectionResync(
+  workDateValue,
+  shiftValue
+) {
+  const contextKey =
+    createShiftLogInspectionScheduleContextKey(
+      workDateValue,
+      shiftValue
+    );
+
+
+  if (
+    !contextKey
+  ) {
+    return;
+  }
+
+
+  void runInspectionAutoResync(
+    contextKey
+  );
+}
+
 
 /* =========================================================
   점검 캘린더 메시지 수신
+
+  순서:
+  1. 해당 날짜·근무의 점검 목록 저장
+  2. 이미 저장된 모든 보직 업무일지 재검사
 ========================================================= */
 
 window.addEventListener(
@@ -55446,8 +55774,26 @@ window.addEventListener(
     }
 
 
-    saveShiftLogInspectionScheduleSnapshot(
-      event.data
+    const saved =
+      saveShiftLogInspectionScheduleSnapshot(
+        event.data
+      );
+
+
+    /*
+      로딩 중 임시 초기화 메시지이거나
+      점검 목록이 없는 메시지는 재검사하지 않는다.
+    */
+    if (
+      !saved
+    ) {
+      return;
+    }
+
+
+    requestExistingShiftLogInspectionResync(
+      event.data?.workDate,
+      event.data?.shift
     );
   }
 );

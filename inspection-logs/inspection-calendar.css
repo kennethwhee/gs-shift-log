@@ -1127,3 +1127,33 @@
 [data-calendar-open-log] {
   display: none !important;
 }
+
+/* =========================================================
+  월간 달력 업무일지 자동완료 표시
+========================================================= */
+
+.inspection-calendar-completion-info.is-automatic {
+  color: #176447;
+  font-weight: 900;
+}
+
+.inspection-calendar-auto-completion-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 27px;
+  padding: 4px 8px;
+
+  border: 1px solid #9ecfb8;
+  border-radius: 999px;
+
+  background: #eaf8f1;
+
+  color: #176447;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.2;
+
+  cursor: help;
+}

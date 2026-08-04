@@ -1913,59 +1913,252 @@ function renderCalendar() {
     return "scheduled";
   }
 
-  function createStatusActionHtml(occurrence, options = {}) {
-    const completion = getCompletion(occurrence);
-    const scheduleItem = occurrence.scheduleItem;
+  /* =====================================================
+    월간 달력 완료 상태
 
-    if (scheduleItem.referenceOnly === true) {
-      return `<span class="inspection-calendar-reference">타부서 참고</span>`;
+    수동 완료:
+    - 완료자 표시
+    - 완료 취소 가능
+
+    업무일지 자동완료:
+    - 자동완료 출처 표시
+    - 완료 취소 버튼 숨김
+  ====================================================== */
+
+  function createStatusActionHtml(
+    occurrence,
+    options = {}
+  ) {
+    const completion =
+      getCompletion(
+        occurrence
+      );
+
+
+    const scheduleItem =
+      occurrence.scheduleItem;
+
+
+    if (
+      scheduleItem.referenceOnly ===
+        true
+    ) {
+      return `
+        <span class="inspection-calendar-reference">
+          타부서 참고
+        </span>
+      `;
     }
 
-    if (completion) {
-      const completedDate = new Date(completion.completedAt || 0);
-      const completedAt = Number.isNaN(completedDate.getTime())
-        ? ""
-        : new Intl.DateTimeFormat("ko-KR", {
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false
-          }).format(completedDate);
+
+    if (
+      completion
+    ) {
+      const completedDate =
+        new Date(
+          completion.completedAt ||
+          0
+        );
+
+
+      const completedAt =
+        Number.isNaN(
+          completedDate.getTime()
+        )
+          ? ""
+          : new Intl.DateTimeFormat(
+              "ko-KR",
+              {
+                month:
+                  "2-digit",
+
+                day:
+                  "2-digit",
+
+                hour:
+                  "2-digit",
+
+                minute:
+                  "2-digit",
+
+                hour12:
+                  false
+              }
+            ).format(
+              completedDate
+            );
+
+
+      const isAutomatic =
+        completion.isAutomatic ===
+          true ||
+
+        String(
+          completion.completionSource ||
+          ""
+        )
+          .trim()
+          .toLowerCase() ===
+          "shift_log";
+
+
+      /* ===================================================
+        업무일지 자동완료
+      ==================================================== */
+
+      if (
+        isAutomatic
+      ) {
+        const sourceName =
+          [
+            String(
+              completion.sourceRole ||
+              ""
+            ).trim(),
+
+            String(
+              completion.sourceAuthor ||
+              ""
+            ).trim()
+          ]
+            .filter(
+              Boolean
+            )
+            .join(
+              " "
+            );
+
+
+        const automaticLabel =
+          sourceName
+            ? `자동완료 · ${sourceName}`
+            : "자동완료 · 업무일지 연동";
+
+
+        const sourceText =
+          String(
+            completion.sourceText ||
+            ""
+          ).trim();
+
+
+        const automaticTitle =
+          [
+            "업무일지 내용으로 자동 완료되었습니다.",
+
+            sourceText
+              ? `완료 근거: ${sourceText}`
+              : "",
+
+            "원본 업무일지 변경 시 자동으로 다시 계산됩니다."
+          ]
+            .filter(
+              Boolean
+            )
+            .join(
+              "\n"
+            );
+
+
+        return `
+          <span
+            class="
+              inspection-calendar-completion-info
+              is-automatic
+            "
+            title="${escapeHtml(
+              automaticTitle
+            )}"
+          >
+            ${escapeHtml(
+              automaticLabel
+            )}
+
+            ${
+              completedAt
+                ? ` · ${escapeHtml(
+                    completedAt
+                  )}`
+                : ""
+            }
+          </span>
+
+          <span
+            class="inspection-calendar-auto-completion-label"
+            title="${escapeHtml(
+              automaticTitle
+            )}"
+          >
+            업무일지 연동
+          </span>
+        `;
+      }
+
+
+      /* ===================================================
+        수동 완료
+      ==================================================== */
 
       return `
         <span class="inspection-calendar-completion-info">
-          ${escapeHtml(completion.completedByName || "완료자 확인 불가")}
-          ${completedAt ? ` · ${escapeHtml(completedAt)}` : ""}
+          ${escapeHtml(
+            completion.completedByName ||
+            "완료자 확인 불가"
+          )}
+
+          ${
+            completedAt
+              ? ` · ${escapeHtml(
+                  completedAt
+                )}`
+              : ""
+          }
         </span>
 
         <button
           type="button"
           class="inspection-calendar-cancel-button"
-          data-calendar-cancel="${escapeHtml(scheduleItem.id)}"
-          data-due-date="${escapeHtml(occurrence.dueDate)}"
-          data-shift="${escapeHtml(occurrence.shift)}"
+          data-calendar-cancel="${escapeHtml(
+            scheduleItem.id
+          )}"
+          data-due-date="${escapeHtml(
+            occurrence.dueDate
+          )}"
+          data-shift="${escapeHtml(
+            occurrence.shift
+          )}"
         >
           완료 취소
         </button>
       `;
     }
 
-    const label = options.conditional
-      ? "해당 시 완료"
-      : options.overdue
-        ? "지연 점검 완료"
-        : "완료 처리";
+
+    const label =
+      options.conditional
+        ? "해당 시 완료"
+        : options.overdue
+          ? "지연 점검 완료"
+          : "완료 처리";
+
 
     return `
       <button
         type="button"
         class="inspection-calendar-complete-button"
-        data-calendar-complete="${escapeHtml(scheduleItem.id)}"
-        data-due-date="${escapeHtml(occurrence.dueDate)}"
-        data-shift="${escapeHtml(occurrence.shift)}"
+        data-calendar-complete="${escapeHtml(
+          scheduleItem.id
+        )}"
+        data-due-date="${escapeHtml(
+          occurrence.dueDate
+        )}"
+        data-shift="${escapeHtml(
+          occurrence.shift
+        )}"
       >
-        ${escapeHtml(label)}
+        ${escapeHtml(
+          label
+        )}
       </button>
     `;
   }
