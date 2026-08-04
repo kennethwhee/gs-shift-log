@@ -1,0 +1,1399 @@
+"use strict";
+
+/* =========================================================
+  점검 일정 완료 상태 공용 API
+
+  배포 경로:
+  functions/api/inspection-schedule-status.js
+
+  API:
+  GET    /api/inspection-schedule-status
+  POST   /api/inspection-schedule-status
+  DELETE /api/inspection-schedule-status
+
+  저장 원칙:
+  - 완료 기록만 D1에 저장
+  - 미완료·지연은 일정과 완료 기록을 비교하여 계산
+  - 일정 ID + 예정일 + 근무별 1건 유지
+========================================================= */
+
+const FORCED_SUPER_ADMIN_EMPLOYEE_NO =
+  "2014081";
+
+const MAX_QUERY_DAYS =
+  400;
+
+
+/* =========================================================
+  공통 응답
+========================================================= */
+
+function jsonResponse(
+  data,
+  status = 200
+) {
+  return Response.json(
+    data,
+    {
+      status,
+
+      headers: {
+        "Cache-Control":
+          "no-store, no-cache, must-revalidate",
+
+        "X-Content-Type-Options":
+          "nosniff"
+      }
+    }
+  );
+}
+
+
+/* =========================================================
+  문자열 정리
+========================================================= */
+
+function normalizeText(
+  value
+) {
+  return String(
+    value ??
+    ""
+  ).trim();
+}
+
+
+function normalizeEmployeeNo(
+  value
+) {
+  return normalizeText(
+    value
+  ).replace(
+    /\s+/g,
+    ""
+  );
+}
+
+
+function normalizeRole(
+  value
+) {
+  const role =
+    normalizeText(
+      value
+    )
+      .toLowerCase()
+      .replace(
+        /[\s-]+/g,
+        "_"
+      );
+
+
+  if (
+    [
+      "super_admin",
+      "superadmin"
+    ].includes(
+      role
+    )
+  ) {
+    return "super_admin";
+  }
+
+
+  if (
+    [
+      "admin",
+      "leader"
+    ].includes(
+      role
+    )
+  ) {
+    return "admin";
+  }
+
+
+  return "user";
+}
+
+
+/* =========================================================
+  근무 정리
+
+  저장값:
+  - DS
+  - NS
+  - 빈 값
+========================================================= */
+
+function normalizeShift(
+  value,
+  allowEmpty = true
+) {
+  const shift =
+    normalizeText(
+      value
+    )
+      .toUpperCase()
+      .replace(
+        /[^A-Z]/g,
+        ""
+      );
+
+
+  if (
+    !shift &&
+    allowEmpty
+  ) {
+    return "";
+  }
+
+
+  if (
+    [
+      "D",
+      "DS"
+    ].includes(
+      shift
+    )
+  ) {
+    return "DS";
+  }
+
+
+  if (
+    [
+      "N",
+      "NS"
+    ].includes(
+      shift
+    )
+  ) {
+    return "NS";
+  }
+
+
+  return null;
+}
+
+
+/* =========================================================
+  날짜 검사
+========================================================= */
+
+function isValidIsoDate(
+  value
+) {
+  const date =
+    normalizeText(
+      value
+    );
+
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      date
+    )
+  ) {
+    return false;
+  }
+
+
+  const parsedDate =
+    new Date(
+      `${date}T00:00:00.000Z`
+    );
+
+
+  return (
+    !Number.isNaN(
+      parsedDate.getTime()
+    ) &&
+
+    parsedDate
+      .toISOString()
+      .slice(
+        0,
+        10
+      ) ===
+      date
+  );
+}
+
+
+function getDateRangeDayCount(
+  startDate,
+  endDate
+) {
+  const startTime =
+    new Date(
+      `${startDate}T00:00:00.000Z`
+    ).getTime();
+
+
+  const endTime =
+    new Date(
+      `${endDate}T00:00:00.000Z`
+    ).getTime();
+
+
+  if (
+    !Number.isFinite(
+      startTime
+    ) ||
+    !Number.isFinite(
+      endTime
+    ) ||
+    startTime >
+      endTime
+  ) {
+    return 0;
+  }
+
+
+  return (
+    Math.floor(
+      (
+        endTime -
+        startTime
+      ) /
+      86400000
+    ) +
+    1
+  );
+}
+
+
+function getKoreaToday() {
+  return new Date(
+    Date.now() +
+    9 *
+    60 *
+    60 *
+    1000
+  )
+    .toISOString()
+    .slice(
+      0,
+      10
+    );
+}
+
+
+/* =========================================================
+  로그인 세션 토큰
+========================================================= */
+
+function getBearerToken(
+  request
+) {
+  const authorization =
+    normalizeText(
+      request.headers.get(
+        "Authorization"
+      )
+    );
+
+
+  const matchedToken =
+    authorization.match(
+      /^Bearer\s+(.+)$/i
+    );
+
+
+  return normalizeText(
+    matchedToken?.[1]
+  );
+}
+
+
+function bytesToHex(
+  bytes
+) {
+  return [
+    ...bytes
+  ]
+    .map(
+      byte => {
+        return byte
+          .toString(
+            16
+          )
+          .padStart(
+            2,
+            "0"
+          );
+      }
+    )
+    .join(
+      ""
+    );
+}
+
+
+async function hashToken(
+  token
+) {
+  const digest =
+    await crypto.subtle.digest(
+      "SHA-256",
+
+      new TextEncoder()
+        .encode(
+          token
+        )
+    );
+
+
+  return bytesToHex(
+    new Uint8Array(
+      digest
+    )
+  );
+}
+
+
+/* =========================================================
+  로그인 사용자 확인
+========================================================= */
+
+async function getAuthenticatedUser(
+  context
+) {
+  if (
+    !context.env.DB
+  ) {
+    return {
+      error:
+        jsonResponse(
+          {
+            ok:
+              false,
+
+            message:
+              "D1 바인딩 DB가 등록되지 않았습니다."
+          },
+          500
+        )
+    };
+  }
+
+
+  const token =
+    getBearerToken(
+      context.request
+    );
+
+
+  if (
+    !token
+  ) {
+    return {
+      error:
+        jsonResponse(
+          {
+            ok:
+              false,
+
+            message:
+              "로그인이 필요합니다."
+          },
+          401
+        )
+    };
+  }
+
+
+  const tokenHash =
+    await hashToken(
+      token
+    );
+
+
+  const session =
+    await context.env.DB
+      .prepare(`
+        SELECT
+          session.employee_no,
+          session.expires_at,
+
+          user.name,
+          user.role,
+          user.is_active
+
+        FROM shift_log_sessions AS session
+
+        INNER JOIN users AS user
+          ON user.employee_no =
+             session.employee_no
+
+        WHERE session.token_hash = ?
+
+        LIMIT 1
+      `)
+      .bind(
+        tokenHash
+      )
+      .first();
+
+
+  const now =
+    new Date();
+
+
+  const expiresAt =
+    new Date(
+      session?.expires_at ||
+      0
+    );
+
+
+  if (
+    !session ||
+    Number(
+      session.is_active
+    ) !==
+      1 ||
+    Number.isNaN(
+      expiresAt.getTime()
+    ) ||
+    expiresAt <=
+      now
+  ) {
+    return {
+      error:
+        jsonResponse(
+          {
+            ok:
+              false,
+
+            message:
+              "로그인 세션이 만료되었습니다. 다시 로그인해 주세요."
+          },
+          401
+        )
+    };
+  }
+
+
+  const employeeNo =
+    normalizeEmployeeNo(
+      session.employee_no
+    );
+
+
+  const role =
+    employeeNo ===
+      FORCED_SUPER_ADMIN_EMPLOYEE_NO
+        ? "super_admin"
+        : normalizeRole(
+            session.role
+          );
+
+
+  await context.env.DB
+    .prepare(`
+      UPDATE shift_log_sessions
+
+      SET last_used_at = ?
+
+      WHERE token_hash = ?
+    `)
+    .bind(
+      now.toISOString(),
+      tokenHash
+    )
+    .run();
+
+
+  return {
+    user: {
+      employeeNo,
+
+      name:
+        normalizeText(
+          session.name
+        ),
+
+      role
+    }
+  };
+}
+
+
+/* =========================================================
+  JSON 요청 읽기
+========================================================= */
+
+async function readJsonBody(
+  request
+) {
+  try {
+    const body =
+      await request.json();
+
+
+    return (
+      body &&
+      typeof body ===
+        "object" &&
+      !Array.isArray(
+        body
+      )
+    )
+      ? body
+      : {};
+
+  } catch {
+    return {};
+  }
+}
+
+
+/* =========================================================
+  D1 테이블 생성
+
+  API가 처음 실행될 때 자동 생성한다.
+========================================================= */
+
+async function ensureTable(
+  database
+) {
+  await database.batch([
+    database.prepare(`
+      CREATE TABLE IF NOT EXISTS inspection_schedule_status (
+        id TEXT PRIMARY KEY,
+
+        schedule_id TEXT NOT NULL,
+        due_date TEXT NOT NULL,
+        shift TEXT NOT NULL DEFAULT '',
+        schedule_title TEXT NOT NULL DEFAULT '',
+
+        status TEXT NOT NULL DEFAULT '완료',
+        note TEXT NOT NULL DEFAULT '',
+
+        completed_by_id TEXT NOT NULL DEFAULT '',
+        completed_by_name TEXT NOT NULL DEFAULT '',
+        completed_at TEXT NOT NULL DEFAULT '',
+
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+
+        revision INTEGER NOT NULL DEFAULT 1,
+
+        UNIQUE (
+          schedule_id,
+          due_date,
+          shift
+        )
+      )
+    `),
+
+
+    database.prepare(`
+      CREATE INDEX IF NOT EXISTS
+        idx_inspection_schedule_status_due_date
+
+      ON inspection_schedule_status (
+        due_date DESC
+      )
+    `)
+  ]);
+}
+
+
+/* =========================================================
+  DB 행 → 화면 데이터
+========================================================= */
+
+function convertRow(
+  row
+) {
+  return {
+    id:
+      normalizeText(
+        row.id
+      ),
+
+    scheduleId:
+      normalizeText(
+        row.schedule_id
+      ),
+
+    dueDate:
+      normalizeText(
+        row.due_date
+      ),
+
+    shift:
+      normalizeShift(
+        row.shift,
+        true
+      ) ||
+      "",
+
+    scheduleTitle:
+      normalizeText(
+        row.schedule_title
+      ),
+
+    status:
+      normalizeText(
+        row.status
+      ) ||
+      "완료",
+
+    note:
+      normalizeText(
+        row.note
+      ),
+
+    completedById:
+      normalizeEmployeeNo(
+        row.completed_by_id
+      ),
+
+    completedByName:
+      normalizeText(
+        row.completed_by_name
+      ),
+
+    completedAt:
+      normalizeText(
+        row.completed_at
+      ),
+
+    updatedAt:
+      normalizeText(
+        row.updated_at
+      ),
+
+    revision:
+      Number(
+        row.revision
+      ) ||
+      1
+  };
+}
+
+
+/* =========================================================
+  완료 대상 입력 검사
+========================================================= */
+
+function validateTarget(
+  raw
+) {
+  const scheduleId =
+    normalizeText(
+      raw.scheduleId ||
+      raw.schedule_id
+    );
+
+
+  const dueDate =
+    normalizeText(
+      raw.dueDate ||
+      raw.due_date
+    );
+
+
+  const shift =
+    normalizeShift(
+      raw.shift,
+      true
+    );
+
+
+  const scheduleTitle =
+    normalizeText(
+      raw.scheduleTitle ||
+      raw.schedule_title ||
+      scheduleId
+    );
+
+
+  const note =
+    normalizeText(
+      raw.note
+    );
+
+
+  if (
+    !scheduleId ||
+    scheduleId.length >
+      120
+  ) {
+    return {
+      error:
+        "점검 일정 ID를 확인해 주세요."
+    };
+  }
+
+
+  if (
+    !isValidIsoDate(
+      dueDate
+    )
+  ) {
+    return {
+      error:
+        "점검 예정일을 확인해 주세요."
+    };
+  }
+
+
+  if (
+    shift ===
+      null
+  ) {
+    return {
+      error:
+        "점검 근무는 D/S 또는 N/S로 입력해 주세요."
+    };
+  }
+
+
+  if (
+    !scheduleTitle ||
+    scheduleTitle.length >
+      300
+  ) {
+    return {
+      error:
+        "점검명은 300자 이하로 입력해 주세요."
+    };
+  }
+
+
+  if (
+    note.length >
+      1000
+  ) {
+    return {
+      error:
+        "완료 메모는 1000자 이하로 입력해 주세요."
+    };
+  }
+
+
+  return {
+    item: {
+      scheduleId,
+      dueDate,
+      shift,
+      scheduleTitle,
+      note
+    }
+  };
+}
+
+
+/* =========================================================
+  완료 기록 1건 조회
+========================================================= */
+
+async function findRecord(
+  database,
+  target
+) {
+  const row =
+    await database
+      .prepare(`
+        SELECT
+          *
+
+        FROM inspection_schedule_status
+
+        WHERE
+          schedule_id = ?
+          AND due_date = ?
+          AND shift = ?
+
+        LIMIT 1
+      `)
+      .bind(
+        target.scheduleId,
+        target.dueDate,
+        target.shift
+      )
+      .first();
+
+
+  return row
+    ? convertRow(
+        row
+      )
+    : null;
+}
+
+
+/* =========================================================
+  GET /api/inspection-schedule-status
+
+  완료 기록 조회
+========================================================= */
+
+export async function onRequestGet(
+  context
+) {
+  try {
+    const authentication =
+      await getAuthenticatedUser(
+        context
+      );
+
+
+    if (
+      authentication.error
+    ) {
+      return authentication.error;
+    }
+
+
+    await ensureTable(
+      context.env.DB
+    );
+
+
+    const requestUrl =
+      new URL(
+        context.request.url
+      );
+
+
+    const today =
+      getKoreaToday();
+
+
+    const startDate =
+      normalizeText(
+        requestUrl.searchParams.get(
+          "startDate"
+        )
+      ) ||
+      today;
+
+
+    const endDate =
+      normalizeText(
+        requestUrl.searchParams.get(
+          "endDate"
+        )
+      ) ||
+      startDate;
+
+
+    if (
+      !isValidIsoDate(
+        startDate
+      ) ||
+      !isValidIsoDate(
+        endDate
+      )
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            "조회 시작일과 종료일을 확인해 주세요."
+        },
+        400
+      );
+    }
+
+
+    const dayCount =
+      getDateRangeDayCount(
+        startDate,
+        endDate
+      );
+
+
+    if (
+      dayCount <
+        1 ||
+      dayCount >
+        MAX_QUERY_DAYS
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            `점검 완료 기록은 한 번에 최대 ${MAX_QUERY_DAYS}일까지 조회할 수 있습니다.`
+        },
+        400
+      );
+    }
+
+
+    const result =
+      await context.env.DB
+        .prepare(`
+          SELECT
+            *
+
+          FROM inspection_schedule_status
+
+          WHERE
+            due_date >= ?
+            AND due_date <= ?
+
+          ORDER BY
+            due_date DESC,
+            schedule_title ASC,
+            shift ASC
+        `)
+        .bind(
+          startDate,
+          endDate
+        )
+        .all();
+
+
+    const items =
+      (
+        Array.isArray(
+          result.results
+        )
+          ? result.results
+          : []
+      ).map(
+        convertRow
+      );
+
+
+    return jsonResponse({
+      ok:
+        true,
+
+      count:
+        items.length,
+
+      items
+    });
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "점검 완료 기록 조회 오류:",
+      error
+    );
+
+
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          error instanceof Error
+            ? error.message
+            : "점검 완료 기록을 불러오지 못했습니다."
+      },
+      500
+    );
+  }
+}
+
+
+/* =========================================================
+  POST /api/inspection-schedule-status
+
+  점검 완료 처리
+========================================================= */
+
+export async function onRequestPost(
+  context
+) {
+  try {
+    const authentication =
+      await getAuthenticatedUser(
+        context
+      );
+
+
+    if (
+      authentication.error
+    ) {
+      return authentication.error;
+    }
+
+
+    await ensureTable(
+      context.env.DB
+    );
+
+
+    const body =
+      await readJsonBody(
+        context.request
+      );
+
+
+    const validation =
+      validateTarget(
+        body
+      );
+
+
+    if (
+      validation.error
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            validation.error
+        },
+        400
+      );
+    }
+
+
+    const item =
+      validation.item;
+
+
+    const user =
+      authentication.user;
+
+
+    const existing =
+      await findRecord(
+        context.env.DB,
+        item
+      );
+
+
+    const timestamp =
+      new Date()
+        .toISOString();
+
+
+    if (
+      existing
+    ) {
+      await context.env.DB
+        .prepare(`
+          UPDATE inspection_schedule_status
+
+          SET
+            schedule_title = ?,
+            status = '완료',
+            note = ?,
+
+            completed_by_id = ?,
+            completed_by_name = ?,
+            completed_at = ?,
+
+            updated_at = ?,
+
+            revision =
+              revision + 1
+
+          WHERE id = ?
+        `)
+        .bind(
+          item.scheduleTitle,
+          item.note,
+
+          user.employeeNo,
+          user.name,
+          timestamp,
+
+          timestamp,
+
+          existing.id
+        )
+        .run();
+
+    } else {
+      await context.env.DB
+        .prepare(`
+          INSERT INTO inspection_schedule_status (
+            id,
+
+            schedule_id,
+            due_date,
+            shift,
+            schedule_title,
+
+            status,
+            note,
+
+            completed_by_id,
+            completed_by_name,
+            completed_at,
+
+            created_at,
+            updated_at,
+
+            revision
+          )
+          VALUES (
+            ?,
+
+            ?,
+            ?,
+            ?,
+            ?,
+
+            '완료',
+            ?,
+
+            ?,
+            ?,
+            ?,
+
+            ?,
+            ?,
+
+            1
+          )
+        `)
+        .bind(
+          crypto.randomUUID(),
+
+          item.scheduleId,
+          item.dueDate,
+          item.shift,
+          item.scheduleTitle,
+
+          item.note,
+
+          user.employeeNo,
+          user.name,
+          timestamp,
+
+          timestamp,
+          timestamp
+        )
+        .run();
+    }
+
+
+    const savedItem =
+      await findRecord(
+        context.env.DB,
+        item
+      );
+
+
+    return jsonResponse(
+      {
+        ok:
+          true,
+
+        created:
+          !existing,
+
+        item:
+          savedItem,
+
+        message:
+          "점검을 완료 처리했습니다."
+      },
+
+      existing
+        ? 200
+        : 201
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "점검 완료 처리 오류:",
+      error
+    );
+
+
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          error instanceof Error
+            ? error.message
+            : "점검을 완료 처리하지 못했습니다."
+      },
+      500
+    );
+  }
+}
+
+
+/* =========================================================
+  DELETE /api/inspection-schedule-status
+
+  점검 완료 취소
+========================================================= */
+
+export async function onRequestDelete(
+  context
+) {
+  try {
+    const authentication =
+      await getAuthenticatedUser(
+        context
+      );
+
+
+    if (
+      authentication.error
+    ) {
+      return authentication.error;
+    }
+
+
+    await ensureTable(
+      context.env.DB
+    );
+
+
+    const requestUrl =
+      new URL(
+        context.request.url
+      );
+
+
+    const validation =
+      validateTarget({
+        scheduleId:
+          requestUrl.searchParams.get(
+            "scheduleId"
+          ),
+
+        dueDate:
+          requestUrl.searchParams.get(
+            "dueDate"
+          ),
+
+        shift:
+          requestUrl.searchParams.get(
+            "shift"
+          ),
+
+        scheduleTitle:
+          "완료 취소"
+      });
+
+
+    if (
+      validation.error
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            validation.error
+        },
+        400
+      );
+    }
+
+
+    const item =
+      validation.item;
+
+
+    const existing =
+      await findRecord(
+        context.env.DB,
+        item
+      );
+
+
+    if (
+      !existing
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            "이미 완료 취소되었거나 완료 기록이 없습니다."
+        },
+        404
+      );
+    }
+
+
+    const result =
+      await context.env.DB
+        .prepare(`
+          DELETE FROM inspection_schedule_status
+
+          WHERE id = ?
+        `)
+        .bind(
+          existing.id
+        )
+        .run();
+
+
+    if (
+      Number(
+        result?.meta?.changes
+      ) !==
+        1
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            "점검 완료 상태가 변경되었습니다. 다시 조회해 주세요."
+        },
+        409
+      );
+    }
+
+
+    return jsonResponse({
+      ok:
+        true,
+
+      deletedItem:
+        existing,
+
+      message:
+        "점검 완료를 취소했습니다."
+    });
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "점검 완료 취소 오류:",
+      error
+    );
+
+
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          error instanceof Error
+            ? error.message
+            : "점검 완료를 취소하지 못했습니다."
+      },
+      500
+    );
+  }
+}

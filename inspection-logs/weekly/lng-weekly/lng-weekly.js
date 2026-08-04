@@ -736,6 +736,227 @@ function initializeLngWeeklyInspection() {
       };
   }
 
+    /* =======================================================
+    LNG 주간점검 일정 자동 연동
+
+    저장:
+    - LNG 주간점검 일지 저장 완료
+    - weekly-lng-system 일정 자동 완료
+
+    삭제:
+    - 해당 날짜의 일정 완료 자동 취소
+  ======================================================= */
+
+  const LNG_SCHEDULE_STATUS_API_URL =
+    "/api/inspection-schedule-status";
+
+
+  const LNG_SCHEDULE_ID =
+    "weekly-lng-system";
+
+
+  const LNG_SCHEDULE_TITLE =
+    "LNG System 점검";
+
+
+  const LNG_SCHEDULE_SHIFT =
+    "DS";
+
+
+  /* =====================================================
+    점검일지 허브에 일정 상태 갱신 요청
+  ====================================================== */
+
+  function notifyLngScheduleRefresh() {
+    if (
+      !window.parent ||
+      window.parent ===
+        window
+    ) {
+      return;
+    }
+
+
+    window.parent.postMessage(
+      {
+        type:
+          "gs-shift-log:refresh-inspection-schedule"
+      },
+
+      window.location.origin
+    );
+  }
+
+
+  /* =====================================================
+    LNG 주간점검 일정 완료 처리
+  ====================================================== */
+
+  async function completeLngScheduleStatus(
+    inspectionDateValue
+  ) {
+    const dateValue =
+      normalizeText(
+        inspectionDateValue
+      );
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        dateValue
+      )
+    ) {
+      throw new Error(
+        "점검 일정에 반영할 LNG 점검일자를 확인할 수 없습니다."
+      );
+    }
+
+
+    const payload =
+      await requestApi(
+        LNG_SCHEDULE_STATUS_API_URL,
+
+        {
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              scheduleId:
+                LNG_SCHEDULE_ID,
+
+              dueDate:
+                dateValue,
+
+              shift:
+                LNG_SCHEDULE_SHIFT,
+
+              scheduleTitle:
+                LNG_SCHEDULE_TITLE,
+
+              note:
+                "LNG System 주간점검 일지 저장완료"
+            })
+        }
+      );
+
+
+    notifyLngScheduleRefresh();
+
+
+    return payload;
+  }
+
+
+  /* =====================================================
+    LNG 주간점검 일정 완료 취소
+
+    완료 기록이 없는 404 응답은
+    이미 미완료인 정상 상태로 처리한다.
+  ====================================================== */
+
+  async function cancelLngScheduleStatus(
+    inspectionDateValue
+  ) {
+    const dateValue =
+      normalizeText(
+        inspectionDateValue
+      );
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        dateValue
+      )
+    ) {
+      throw new Error(
+        "완료 취소할 LNG 점검일자를 확인할 수 없습니다."
+      );
+    }
+
+
+    const requestUrl =
+      new URL(
+        LNG_SCHEDULE_STATUS_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "scheduleId",
+      LNG_SCHEDULE_ID
+    );
+
+
+    requestUrl.searchParams.set(
+      "dueDate",
+      dateValue
+    );
+
+
+    requestUrl.searchParams.set(
+      "shift",
+      LNG_SCHEDULE_SHIFT
+    );
+
+
+    try {
+      const payload =
+        await requestApi(
+          requestUrl.toString(),
+
+          {
+            method:
+              "DELETE",
+
+            cache:
+              "no-store"
+          }
+        );
+
+
+      notifyLngScheduleRefresh();
+
+
+      return payload;
+
+    } catch (
+      error
+    ) {
+      /*
+        완료 기록이 없는 경우에는
+        이미 미완료 상태이므로 정상 처리한다.
+      */
+      if (
+        Number(
+          error?.status
+        ) ===
+          404
+      ) {
+        notifyLngScheduleRefresh();
+
+
+        return {
+          ok:
+            true,
+
+          missing:
+            true
+        };
+      }
+
+
+      throw error;
+    }
+  }
 
   /* =======================================================
     원본 표의 빈 구분 칸 자동 생성
@@ -1381,7 +1602,12 @@ function ensureAreaCells() {
 
 
   /* =======================================================
-    D1 저장
+    LNG 주간점검 일지 D1 저장 및 일정 자동 완료
+
+    처리 순서:
+    1. LNG 점검일지 D1 저장
+    2. weekly-lng-system 일정 완료 처리
+    3. 점검일지 메뉴 건수 즉시 갱신
   ======================================================= */
 
   async function saveInspectionLog() {
@@ -1390,6 +1616,7 @@ function ensureAreaCells() {
         inspectionDate.value
       );
 
+
     if (
       !dateValue
     ) {
@@ -1397,54 +1624,73 @@ function ensureAreaCells() {
         "점검일자를 선택해 주세요."
       );
 
+
       return;
     }
+
 
     const log = {
       id:
         currentLogId,
+
       inspectionDate:
         dateValue,
+
       shift:
         "DS",
+
       status:
         "저장완료",
+
       form:
         collectFormData(),
+
       templateItems:
         cloneTemplateItems(
           currentTemplateItems
         )
     };
 
+
     setToolbarBusy(
       true
     );
+
 
     setSaveState(
       "D1에 저장하는 중...",
       "saving"
     );
 
+
     try {
+      /* =================================================
+        LNG 점검일지 D1 저장
+      ================================================= */
+
       const payload =
         await requestApi(
           LNG_WEEKLY_API_URL,
+
           {
             method:
               "POST",
+
             headers: {
               "Content-Type":
                 "application/json"
             },
+
             body:
               JSON.stringify({
                 log,
+
                 expectedRevision:
                   currentRevision
               })
           }
         );
+
 
       canEditTemplate =
         Boolean(
@@ -1452,9 +1698,11 @@ function ensureAreaCells() {
         ) ||
         canEditTemplate;
 
+
       applyLogToForm(
         payload.log
       );
+
 
       latestServerTemplate =
         cloneTemplateItems(
@@ -1462,15 +1710,99 @@ function ensureAreaCells() {
           currentTemplateItems
         );
 
+
       removeRecoveryDraft(
         dateValue
       );
 
-      window.alert(
-        payload.created
-          ? "LNG 주간점검 일지가 저장되었습니다."
-          : "LNG 주간점검 일지가 수정 저장되었습니다."
+
+      /* =================================================
+        점검 일정 자동 완료
+
+        LNG 일지가 정상 저장된 다음에 실행한다.
+        일정 연동이 실패해도 LNG 일지 저장은 유지한다.
+      ================================================= */
+
+      let scheduleSyncError =
+        null;
+
+
+      setSaveState(
+        "저장 완료 · 점검 일정 반영 중...",
+        "saving"
       );
+
+
+      try {
+        await completeLngScheduleStatus(
+          dateValue
+        );
+
+      } catch (
+        error
+      ) {
+        scheduleSyncError =
+          error;
+
+
+        console.error(
+          "LNG 주간점검 일정 자동 완료 실패:",
+          error
+        );
+      }
+
+
+      /* =================================================
+        저장 결과 안내
+      ================================================= */
+
+      if (
+        scheduleSyncError
+      ) {
+        setSaveState(
+          `저장 완료 · 일정 연동 실패 · revision ${currentRevision}`,
+          "error"
+        );
+
+
+        window.alert(
+          [
+            payload.created
+              ? "LNG 주간점검 일지는 저장되었습니다."
+              : "LNG 주간점검 일지는 수정 저장되었습니다.",
+
+            "",
+
+            "다만 점검 일정의 완료 상태는 자동 반영하지 못했습니다.",
+
+            scheduleSyncError.message ||
+            "점검 일정 연동 오류"
+          ].join(
+            "\n"
+          )
+        );
+
+      } else {
+        setSaveState(
+          `저장 완료 · 일정 완료 · revision ${currentRevision}`,
+          "saved"
+        );
+
+
+        window.alert(
+          [
+            payload.created
+              ? "LNG 주간점검 일지가 저장되었습니다."
+              : "LNG 주간점검 일지가 수정 저장되었습니다.",
+
+            "",
+
+            "해당 날짜의 LNG System 점검 일정도 자동 완료 처리했습니다."
+          ].join(
+            "\n"
+          )
+        );
+      }
 
     } catch (
       error
@@ -1479,6 +1811,7 @@ function ensureAreaCells() {
         "LNG 점검일지 저장 실패:",
         error
       );
+
 
       if (
         error.status ===
@@ -1489,6 +1822,7 @@ function ensureAreaCells() {
           window.confirm(
             `${error.message}\n\n서버의 최신 내용을 불러오시겠습니까?`
           );
+
 
         if (
           useServerData
@@ -1505,6 +1839,7 @@ function ensureAreaCells() {
           "error"
         );
 
+
         window.alert(
           error.message ||
           "LNG 주간점검 일지를 저장하지 못했습니다."
@@ -1515,6 +1850,7 @@ function ensureAreaCells() {
       setToolbarBusy(
         false
       );
+
 
       refreshTemplateEditButton();
     }
@@ -1881,6 +2217,15 @@ function ensureAreaCells() {
   }
 
 
+  /* =======================================================
+    LNG 주간점검 일지 삭제 및 일정 완료 자동 취소
+
+    처리 순서:
+    1. LNG 점검일지 D1 삭제
+    2. 해당 날짜 일정 완료 취소
+    3. 점검일지 메뉴 건수 즉시 갱신
+  ======================================================= */
+
   async function deleteArchiveLog(
     logId,
     expectedRevision,
@@ -1892,15 +2237,24 @@ function ensureAreaCells() {
         logId
       );
 
+
     const revision =
       Number(
         expectedRevision
       );
 
-    const dateLabel =
-      formatBoardDate(
+
+    const normalizedInspectionDate =
+      normalizeText(
         inspectionDateValue
       );
+
+
+    const dateLabel =
+      formatBoardDate(
+        normalizedInspectionDate
+      );
+
 
     if (
       !normalizedId ||
@@ -1914,8 +2268,10 @@ function ensureAreaCells() {
         "삭제할 점검일지 정보를 확인하지 못했습니다."
       );
 
+
       return;
     }
+
 
     if (
       !window.confirm(
@@ -1925,36 +2281,52 @@ function ensureAreaCells() {
       return;
     }
 
+
     if (
       deleteButton
     ) {
       deleteButton.disabled =
         true;
 
+
       deleteButton.textContent =
         "삭제 중";
     }
 
+
     try {
+      /* =================================================
+        LNG 점검일지 D1 삭제
+      ================================================= */
+
       const payload =
         await requestApi(
           LNG_WEEKLY_API_URL,
+
           {
             method:
               "DELETE",
+
             headers: {
               "Content-Type":
                 "application/json"
             },
+
             body:
               JSON.stringify({
                 id:
                   normalizedId,
+
                 expectedRevision:
                   revision
               })
           }
         );
+
+
+      /* =================================================
+        보관함 목록에서 삭제
+      ================================================= */
 
       archiveAllLogs =
         archiveAllLogs.filter(
@@ -1966,7 +2338,13 @@ function ensureAreaCells() {
           }
         );
 
+
       renderArchiveBoard();
+
+
+      /* =================================================
+        현재 열어둔 일지를 삭제한 경우
+      ================================================= */
 
       if (
         currentLogId ===
@@ -1975,21 +2353,84 @@ function ensureAreaCells() {
         currentLogId =
           "";
 
+
         currentRevision =
           0;
 
+
         isDirty =
           false;
+
 
         await loadLogForDate(
           inspectionDate.value
         );
       }
 
-      window.alert(
-        payload.message ||
-        "LNG 주간점검 일지가 삭제되었습니다."
-      );
+
+      /* =================================================
+        점검 일정 완료 자동 취소
+
+        일정 연동 실패가 발생해도
+        이미 삭제된 LNG 일지는 복원하지 않는다.
+      ================================================= */
+
+      let scheduleSyncError =
+        null;
+
+
+      try {
+        await cancelLngScheduleStatus(
+          normalizedInspectionDate
+        );
+
+      } catch (
+        error
+      ) {
+        scheduleSyncError =
+          error;
+
+
+        console.error(
+          "LNG 주간점검 일정 완료 취소 실패:",
+          error
+        );
+      }
+
+
+      if (
+        scheduleSyncError
+      ) {
+        window.alert(
+          [
+            payload.message ||
+            "LNG 주간점검 일지가 삭제되었습니다.",
+
+            "",
+
+            "다만 점검 일정 완료 상태는 자동 취소하지 못했습니다.",
+
+            scheduleSyncError.message ||
+            "점검 일정 연동 오류"
+          ].join(
+            "\n"
+          )
+        );
+
+      } else {
+        window.alert(
+          [
+            payload.message ||
+            "LNG 주간점검 일지가 삭제되었습니다.",
+
+            "",
+
+            "해당 날짜의 LNG System 점검 일정도 미완료 상태로 변경했습니다."
+          ].join(
+            "\n"
+          )
+        );
+      }
 
     } catch (
       error
@@ -1998,6 +2439,7 @@ function ensureAreaCells() {
         error.message ||
         "LNG 주간점검 일지를 삭제하지 못했습니다."
       );
+
 
       if (
         error.status ===
@@ -2013,6 +2455,7 @@ function ensureAreaCells() {
       ) {
         deleteButton.disabled =
           false;
+
 
         deleteButton.textContent =
           "삭제";

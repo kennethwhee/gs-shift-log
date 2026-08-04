@@ -587,8 +587,20 @@ function loadCurrentUser() {
   }
 }
 
-
 function clearCurrentUser() {
+  /*
+    정상 로그아웃뿐 아니라
+    세션 만료로 로그인 정보가 삭제되는 경우에도
+    이전 사용자의 댓글 상태를 함께 초기화한다.
+  */
+  if (
+    typeof resetNoticeCommentState ===
+      "function"
+  ) {
+    resetNoticeCommentState();
+  }
+
+
   localStorage.removeItem(
     AUTH_STORAGE_KEY
   );
@@ -1229,6 +1241,26 @@ async function handleShiftLogLogin(
         employeeId,
         password
       );
+
+
+    /*
+      로그인 성공 후 새 사용자 화면을 열기 전에
+      이전 사용자의 댓글 상태를 초기화한다.
+
+      초기화 대상:
+      - 댓글 개수
+      - 불러온 댓글 목록
+      - 작성 중인 댓글
+      - 수정 중인 댓글
+      - 진행 중인 등록·수정·삭제 요청 상태
+      - 이전 사용자의 오류 메시지
+    */
+    if (
+      typeof resetNoticeCommentState ===
+        "function"
+    ) {
+      resetNoticeCommentState();
+    }
 
 
     /* =====================================================
@@ -2560,7 +2592,8 @@ async function loadEmployeeManagement() {
 
     if (
       !response.ok ||
-      result.ok === false
+      result.ok === false ||
+      result.success === false
     ) {
       throw new Error(
         result.message ||
@@ -2574,7 +2607,11 @@ async function loadEmployeeManagement() {
         result.approvedUsers
       )
         ? result.approvedUsers
-        : [];
+        : Array.isArray(
+            result.users
+          )
+          ? result.users
+          : [];
 
     employeeManagementUsers =
       approvedUsers.map(
@@ -2598,6 +2635,15 @@ async function loadEmployeeManagement() {
                 user.role ||
                 "user"
               ),
+
+            position:
+              String(
+                user.position ||
+                user.jobPosition ||
+                user.job_position ||
+                user.duty ||
+                ""
+              ).trim(),
 
             isActive:
               Number(
@@ -18539,6 +18585,198 @@ function importAllMemberLogs() {
 }
 
 /* =========================================================
+  근무 기준 업무 항목 시간 정렬
+
+  D/S:
+  일반 시간순
+
+  N/S:
+  19:00 → 23:59 → 00:00 → 06:59
+
+  시간 미기재:
+  항상 마지막, 기존 등록 순서 유지
+========================================================= */
+
+function getShiftLogEntrySortMinutes(
+  timeValue,
+  shiftValue
+) {
+  const rawTime =
+    String(
+      timeValue ||
+      ""
+    ).trim();
+
+
+  if (!rawTime) {
+    return null;
+  }
+
+
+  const parsedTime =
+    parseLeadingLogTimeExpression(
+      rawTime
+    );
+
+
+  const firstTime =
+    String(
+      parsedTime?.times?.[0] ||
+      ""
+    ).trim();
+
+
+  if (!firstTime) {
+    return null;
+  }
+
+
+  const [
+    hourText,
+    minuteText
+  ] =
+    firstTime.split(":");
+
+
+  const hour =
+    Number(
+      hourText
+    );
+
+
+  const minute =
+    Number(
+      minuteText
+    );
+
+
+  if (
+    !Number.isInteger(
+      hour
+    ) ||
+    !Number.isInteger(
+      minute
+    )
+  ) {
+    return null;
+  }
+
+
+  let sortMinutes =
+    hour * 60 +
+    minute;
+
+
+  const normalizedShift =
+    String(
+      shiftValue ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /[^A-Z]/g,
+        ""
+      );
+
+
+  /*
+    N/S는 19:00을 하루의 시작으로 본다.
+
+    22:00 → 1320
+    02:00 → 1560
+  */
+  if (
+    normalizedShift ===
+      "NS" &&
+    sortMinutes <
+      19 * 60
+  ) {
+    sortMinutes +=
+      24 * 60;
+  }
+
+
+  return sortMinutes;
+}
+
+
+function compareShiftLogEntriesByTime(
+  entryA,
+  entryB,
+  shiftValue
+) {
+  const sortTimeA =
+    getShiftLogEntrySortMinutes(
+      entryA?.time,
+      shiftValue
+    );
+
+
+  const sortTimeB =
+    getShiftLogEntrySortMinutes(
+      entryB?.time,
+      shiftValue
+    );
+
+
+  const hasTimeA =
+    Number.isFinite(
+      sortTimeA
+    );
+
+
+  const hasTimeB =
+    Number.isFinite(
+      sortTimeB
+    );
+
+
+  /*
+    시간이 있는 항목을 먼저 배치한다.
+  */
+  if (
+    hasTimeA &&
+    !hasTimeB
+  ) {
+    return -1;
+  }
+
+
+  if (
+    !hasTimeA &&
+    hasTimeB
+  ) {
+    return 1;
+  }
+
+
+  /*
+    둘 다 시간이 있으면
+    근무 기준 시간순으로 정렬한다.
+  */
+  if (
+    hasTimeA &&
+    hasTimeB &&
+    sortTimeA !==
+      sortTimeB
+  ) {
+    return (
+      sortTimeA -
+      sortTimeB
+    );
+  }
+
+
+  /*
+    같은 시간이거나 둘 다 시간 없음:
+    기존 등록 순서를 유지한다.
+  */
+  return 0;
+}
+
+
+/* =========================================================
   가져온 내역 정렬
 ========================================================= */
 
@@ -18553,61 +18791,126 @@ function sortImportedLogEntries() {
     파트장: 7
   };
 
-  appState.editorEntries.sort(
-    (entryA, entryB) => {
-      const roleA =
-        normalizeMemberLogRole(
-          entryA.importedFromRole ||
-          "파트장"
-        );
 
-      const roleB =
-        normalizeMemberLogRole(
-          entryB.importedFromRole ||
-          "파트장"
-        );
+  const currentShift =
+    String(
+      elements.logShift?.value ||
+      appState.selectedShift ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
 
-      const roleDifference =
+
+  const currentRole =
+    normalizeMemberLogRole(
+      elements.logRole?.value ||
+      ""
+    );
+
+
+  const sourceEntries =
+    Array.isArray(
+      appState.editorEntries
+    )
+      ? appState.editorEntries
+      : [];
+
+
+  appState.editorEntries =
+    sourceEntries
+      .map(
         (
-          roleOrder[roleA] ||
-          99
-        ) -
+          entry,
+          originalIndex
+        ) => {
+          return {
+            entry,
+            originalIndex
+          };
+        }
+      )
+      .sort(
         (
-          roleOrder[roleB] ||
-          99
-        );
+          itemA,
+          itemB
+        ) => {
+          const roleA =
+            normalizeMemberLogRole(
+              itemA.entry
+                ?.importedFromRole ||
+              currentRole ||
+              "파트장"
+            );
 
-      if (
-        roleDifference !== 0
-      ) {
-        return roleDifference;
-      }
 
-      const timeDifference =
-        String(
-          entryA.time || ""
-        ).localeCompare(
-          String(
-            entryB.time || ""
-          )
-        );
+          const roleB =
+            normalizeMemberLogRole(
+              itemB.entry
+                ?.importedFromRole ||
+              currentRole ||
+              "파트장"
+            );
 
-      if (
-        timeDifference !== 0
-      ) {
-        return timeDifference;
-      }
 
-      return String(
-        entryA.content || ""
-      ).localeCompare(
-        String(
-          entryB.content || ""
-        )
+          const roleDifference =
+            (
+              roleOrder[
+                roleA
+              ] ||
+              99
+            ) -
+            (
+              roleOrder[
+                roleB
+              ] ||
+              99
+            );
+
+
+          if (
+            roleDifference !==
+            0
+          ) {
+            return roleDifference;
+          }
+
+
+          const timeDifference =
+            compareShiftLogEntriesByTime(
+              itemA.entry,
+              itemB.entry,
+              currentShift
+            );
+
+
+          if (
+            timeDifference !==
+            0
+          ) {
+            return timeDifference;
+          }
+
+
+          /*
+            내용으로 다시 정렬하지 않는다.
+
+            같은 시간 또는 시간 미기재 항목은
+            기존 등록 순서를 그대로 유지한다.
+          */
+          return (
+            itemA.originalIndex -
+            itemB.originalIndex
+          );
+        }
+      )
+      .map(
+        item => {
+          return item.entry;
+        }
       );
-    }
-  );
 }
+
 /* =========================================================
   보직별 운전현황 관리 최종본
 
@@ -31092,59 +31395,46 @@ function renderLogEntryTable() {
 
 
   /* =====================================================
-    시간순 정렬
+    근무 기준 시간순 정렬
+
+    D/S:
+    일반 시간순
+
+    N/S:
+    19:00~23:59 → 00:00~07:00
+
+    시간 미기재:
+    항상 마지막, 기존 등록 순서 유지
   ====================================================== */
+
+  const currentEntryShift =
+    String(
+      elements.logShift?.value ||
+      editorContextLog?.shift ||
+      appState.selectedShift ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
 
   const sortEntries = (
     itemA,
     itemB
   ) => {
-    const timeA =
-      String(
-        itemA.entry?.time ||
-        ""
-      ).trim();
-
-
-    const timeB =
-      String(
-        itemB.entry?.time ||
-        ""
-      ).trim();
+    const timeDifference =
+      compareShiftLogEntriesByTime(
+        itemA.entry,
+        itemB.entry,
+        currentEntryShift
+      );
 
 
     if (
-      timeA &&
-      !timeB
+      timeDifference !==
+      0
     ) {
-      return -1;
-    }
-
-
-    if (
-      !timeA &&
-      timeB
-    ) {
-      return 1;
-    }
-
-
-    if (
-      timeA &&
-      timeB
-    ) {
-      const timeDifference =
-        timeA.localeCompare(
-          timeB
-        );
-
-
-      if (
-        timeDifference !==
-        0
-      ) {
-        return timeDifference;
-      }
+      return timeDifference;
     }
 
 
@@ -31153,7 +31443,6 @@ function renderLogEntryTable() {
       itemB.originalIndex
     );
   };
-
 
 /* =====================================================
   TM·BM·CM 발행 / 인계·작업 / 비고 분리
@@ -31647,9 +31936,15 @@ const ordinaryEntries =
               roleIndex
             ) => {
               const roleEntries =
-                groupedEntries[
-                  role
-                ];
+                Array.isArray(
+                  groupedEntries[
+                    role
+                  ]
+                )
+                  ? groupedEntries[
+                      role
+                    ]
+                  : [];
 
 
               return `
@@ -31944,19 +32239,37 @@ const ordinaryEntries =
 function createLogEntryCategoryBadgeHtml(
   entry
 ) {
+  /*
+    통합 발행 화면에서는 category가
+    임시로 "TM 발행"으로 변경될 수 있으므로
+    원래 발행 구분을 먼저 확인한다.
+  */
   const category =
     normalizeLogEntryCategory(
+      entry?.originalIssueCategory ||
       entry?.category
     );
 
 
+  const isIssue =
+    isIssueLogEntryCategory(
+      category
+    );
+
+
+  const isWork =
+    isWorkLogEntryCategory(
+      category
+    );
+
+
+  /*
+    일반 인계사항과 비고에는
+    구분 배지를 표시하지 않는다.
+  */
   if (
-    !isIssueLogEntryCategory(
-      category
-    ) &&
-    !isWorkLogEntryCategory(
-      category
-    )
+    !isIssue &&
+    !isWork
   ) {
     return "";
   }
@@ -31977,9 +32290,7 @@ function createLogEntryCategoryBadgeHtml(
 
 
   const type =
-    isIssueLogEntryCategory(
-      category
-    )
+    isIssue
       ? "issue"
       : "work";
 
@@ -36056,9 +36367,6 @@ function createMobileLogPreviewItemHtml(
 
   /*
     줄마다 불필요한 공백을 정리한다.
-
-    빈 줄은 모바일 미리보기에서는 제거하여
-    세로 공간을 최소화한다.
   */
   const contentText =
     String(
@@ -36106,12 +36414,14 @@ function createMobileLogPreviewItemHtml(
 
 
   /*
-    inline 요소 사이에 템플릿 줄바꿈을 넣지 않는다.
-
-    이전처럼 span 안쪽을 여러 줄로 작성하면
-    white-space 설정에 따라 들여쓰기 공백이
-    실제 화면에 나타날 수 있다.
+    TM·BM·CM 발행·작업 구분 배지
   */
+  const categoryBadgeHtml =
+    createLogEntryCategoryBadgeHtml(
+      entry
+    );
+
+
   const timeHtml =
     timeText
       ? `<span class="mobile-log-preview-item__time">${escapeHtml(
@@ -36128,9 +36438,7 @@ function createMobileLogPreviewItemHtml(
 
   /*
     카드 전체가 button이므로
-    TAG를 또 button으로 만들지 않는다.
-
-    클릭 처리는 기존 data-log-tag 이벤트가 담당한다.
+    TAG는 span으로 출력한다.
   */
   const tagHtml =
     tagText
@@ -36154,7 +36462,7 @@ function createMobileLogPreviewItemHtml(
 
       <div class="mobile-log-preview-item__main">
 
-        <div class="mobile-log-preview-item__line">${timeHtml}${contentHtml}${tagHtml}</div>
+        <div class="mobile-log-preview-item__line">${categoryBadgeHtml}${timeHtml}${contentHtml}${tagHtml}</div>
 
       </div>
 
@@ -36177,10 +36485,13 @@ function createMobileLogPreviewItemHtml(
 function createMobileLogSectionHtml(
   title,
   entries,
-  sectionType
+  sectionType,
+  shiftValue = ""
 ) {
   const safeEntries =
-    Array.isArray(entries)
+    Array.isArray(
+      entries
+    )
       ? entries.filter(
           entry => {
             return Boolean(
@@ -36193,17 +36504,21 @@ function createMobileLogSectionHtml(
         )
       : [];
 
+
   if (!safeEntries.length) {
     return "";
   }
+
 
   const isLeaderRoleGroupedSection =
     sectionType ===
       "handover" &&
     String(
-      title || ""
+      title ||
+      ""
     ).trim() ===
       "인계 및 업무";
+
 
   /*
     일반 보직과 운전현황·TM·비고는
@@ -36223,7 +36538,9 @@ function createMobileLogSectionHtml(
           class="mobile-log-preview-section__header"
         >
           <strong>
-            ${escapeHtml(title)}
+            ${escapeHtml(
+              title
+            )}
           </strong>
 
           <span>
@@ -36253,6 +36570,7 @@ function createMobileLogSectionHtml(
     `;
   }
 
+
   const roleOrder = [
     "TGO",
     "BCO1",
@@ -36263,18 +36581,34 @@ function createMobileLogSectionHtml(
     "파트장"
   ];
 
+
   const roleClassMap = {
-    TGO: "is-tgo",
-    BCO1: "is-bco1",
-    BCO2: "is-bco2",
-    TO: "is-to",
-    BO1: "is-bo1",
-    BO2: "is-bo2",
-    파트장: "is-leader"
+    TGO:
+      "is-tgo",
+
+    BCO1:
+      "is-bco1",
+
+    BCO2:
+      "is-bco2",
+
+    TO:
+      "is-to",
+
+    BO1:
+      "is-bo1",
+
+    BO2:
+      "is-bo2",
+
+    파트장:
+      "is-leader"
   };
+
 
   const groupedEntryMap =
     new Map();
+
 
   safeEntries.forEach(
     entry => {
@@ -36286,9 +36620,11 @@ function createMobileLogSectionHtml(
           ""
         );
 
+
       const safeRole =
         normalizedRole ||
         "파트장";
+
 
       if (
         !groupedEntryMap.has(
@@ -36301,11 +36637,17 @@ function createMobileLogSectionHtml(
         );
       }
 
+
       groupedEntryMap
-        .get(safeRole)
-        .push(entry);
+        .get(
+          safeRole
+        )
+        .push(
+          entry
+        );
     }
   );
+
 
   const orderedRoles = [
     ...roleOrder.filter(
@@ -36331,6 +36673,7 @@ function createMobileLogSectionHtml(
     )
   ];
 
+
   const groupedRoleHtml =
     orderedRoles
       .map(
@@ -36339,16 +36682,24 @@ function createMobileLogSectionHtml(
             sortDetailEntriesByTime(
               groupedEntryMap.get(
                 role
-              ) || []
+              ) || [],
+              shiftValue
             );
 
-          if (!roleEntries.length) {
+
+          if (
+            !roleEntries.length
+          ) {
             return "";
           }
 
+
           const roleClass =
-            roleClassMap[role] ||
+            roleClassMap[
+              role
+            ] ||
             "is-other";
+
 
           return `
             <section
@@ -36407,6 +36758,7 @@ function createMobileLogSectionHtml(
       )
       .join("");
 
+
   return `
     <section
       class="
@@ -36419,7 +36771,9 @@ function createMobileLogSectionHtml(
         class="mobile-log-preview-section__header"
       >
         <strong>
-          ${escapeHtml(title)}
+          ${escapeHtml(
+            title
+          )}
         </strong>
 
         <span>
@@ -36652,41 +37006,50 @@ function createMobileLogCardHtml(
 
 
   const tmEntries =
-    entries.filter(
-      entry => {
-        return (
-          getMobileLogEntrySection(
-            entry
-          ) ===
-          "tm"
-        );
-      }
+    sortDetailEntriesByTime(
+      entries.filter(
+        entry => {
+          return (
+            getMobileLogEntrySection(
+              entry
+            ) ===
+            "tm"
+          );
+        }
+      ),
+      log?.shift || ""
     );
 
 
   const handoverEntries =
-    entries.filter(
-      entry => {
-        return (
-          getMobileLogEntrySection(
-            entry
-          ) ===
-          "handover"
-        );
-      }
+    sortDetailEntriesByTime(
+      entries.filter(
+        entry => {
+          return (
+            getMobileLogEntrySection(
+              entry
+            ) ===
+            "handover"
+          );
+        }
+      ),
+      log?.shift || ""
     );
 
 
   const noteEntries =
-    entries.filter(
-      entry => {
-        return (
-          getMobileLogEntrySection(
-            entry
-          ) ===
-          "note"
-        );
-      }
+    sortDetailEntriesByTime(
+      entries.filter(
+        entry => {
+          return (
+            getMobileLogEntrySection(
+              entry
+            ) ===
+            "note"
+          );
+        }
+      ),
+      log?.shift || ""
     );
 
 
@@ -36904,7 +37267,8 @@ const isDeletable =
               ? createMobileLogSectionHtml(
                   "운전현황",
                   operationItems,
-                  "operation"
+                  "operation",
+                  log?.shift || ""
                 )
               : ""
           }
@@ -36913,7 +37277,8 @@ const isDeletable =
           ${createMobileLogSectionHtml(
             "TM 발행",
             tmEntries,
-            "tm"
+            "tm",
+            log?.shift || ""
           )}
 
 
@@ -36922,14 +37287,16 @@ const isDeletable =
               ? "인계 및 업무"
               : "인계사항",
             handoverEntries,
-            "handover"
+            "handover",
+            log?.shift || ""
           )}
 
 
           ${createMobileLogSectionHtml(
             "비고",
             noteEntries,
-            "note"
+            "note",
+            log?.shift || ""
           )}
 
 
@@ -38902,6 +39269,7 @@ function createLogRowHtml(log) {
   /*
     목록 미리보기 항목 추가
   */
+ 
   const pushEntryGroup = ({
     title = "",
     entry = {},
@@ -38916,10 +39284,20 @@ function createLogRowHtml(log) {
   }) => {
     const tagText =
       String(
-        entry?.tag || ""
+        entry?.tag ||
+        ""
       )
         .trim()
         .toUpperCase();
+
+
+    /*
+      TM·BM·CM 발행·작업 구분 배지
+    */
+    const categoryBadgeHtml =
+      createLogEntryCategoryBadgeHtml(
+        entry
+      );
 
 
     previewGroups.push({
@@ -38933,10 +39311,13 @@ function createLogRowHtml(log) {
 
       numberClass,
 
+      categoryBadgeHtml,
+
       time:
         showTime
           ? String(
-              entry?.time || ""
+              entry?.time ||
+              ""
             ).trim()
           : "",
 
@@ -38958,7 +39339,6 @@ function createLogRowHtml(log) {
       categoryClass
     });
   };
-
 
   /* =====================================================
     1. 파트장 운전현황
@@ -39047,7 +39427,8 @@ function createLogRowHtml(log) {
             "TM 발행"
           );
         }
-      )
+      ),
+      log?.shift || ""
     );
 
 
@@ -39190,12 +39571,13 @@ function createLogRowHtml(log) {
       role,
       roleIndex
     ) => {
-      const roleEntries =
-        sortDetailEntriesByTime(
-          groupedEntries[
-            role
-          ]
-        );
+const roleEntries =
+  sortDetailEntriesByTime(
+    groupedEntries[
+      role
+    ],
+    log?.shift || ""
+  );
 
 
       if (
@@ -39426,6 +39808,9 @@ function createLogRowHtml(log) {
               `
               : ""
           }
+
+
+          ${group.categoryBadgeHtml || ""}
 
 
           ${
@@ -40057,70 +40442,76 @@ function getStatusClass(
 }
 
 function sortDetailEntriesByTime(
-  entries
+  entries,
+  shiftValue = ""
 ) {
-  return [...entries].sort(
-    (entryA, entryB) => {
-      const timeA =
-        String(
-          entryA.time || ""
-        ).trim();
+  const sourceEntries =
+    Array.isArray(
+      entries
+    )
+      ? entries
+      : [];
 
-      const timeB =
-        String(
-          entryB.time || ""
-        ).trim();
 
-      const hasTimeA =
-        Boolean(timeA);
+  const resolvedShift =
+    String(
+      shiftValue ||
+      elements.logShift?.value ||
+      appState.selectedShift ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
 
-      const hasTimeB =
-        Boolean(timeB);
 
-      /*
-        시간이 있는 항목을 먼저 배치한다.
-      */
-      if (
-        hasTimeA &&
-        !hasTimeB
-      ) {
-        return -1;
+  return sourceEntries
+    .map(
+      (
+        entry,
+        originalIndex
+      ) => {
+        return {
+          entry,
+          originalIndex
+        };
       }
-
-      if (
-        !hasTimeA &&
-        hasTimeB
-      ) {
-        return 1;
-      }
-
-      /*
-        둘 다 시간이 있으면
-        오래된 시간부터 정렬한다.
-      */
-      if (
-        hasTimeA &&
-        hasTimeB
-      ) {
+    )
+    .sort(
+      (
+        itemA,
+        itemB
+      ) => {
         const timeDifference =
-          timeA.localeCompare(
-            timeB
+          compareShiftLogEntriesByTime(
+            itemA.entry,
+            itemB.entry,
+            resolvedShift
           );
 
+
         if (
-          timeDifference !== 0
+          timeDifference !==
+          0
         ) {
           return timeDifference;
         }
-      }
 
-      /*
-        시간이 없거나 같은 시간이면
-        원래 등록 순서를 유지한다.
-      */
-      return 0;
-    }
-  );
+
+        /*
+          같은 시간이거나 둘 다 시간 미기재면
+          기존 등록 순서를 유지한다.
+        */
+        return (
+          itemA.originalIndex -
+          itemB.originalIndex
+        );
+      }
+    )
+    .map(
+      item => {
+        return item.entry;
+      }
+    );
 }
 
 function createRoleGroupedEntriesHtml(
@@ -44544,7 +44935,8 @@ function openLogDetail(
             "TM 발행"
           );
         }
-      )
+      ),
+      log?.shift || ""
     );
 
 
@@ -44674,6 +45066,25 @@ function openLogDetail(
       "-";
 
 
+    const tagHtml =
+      showTag &&
+      tagText
+        ? `
+          <button
+            type="button"
+            class="detail-work-row__tag"
+            data-detail-tag="${escapeHtml(
+              tagText
+            )}"
+          >
+            [${escapeHtml(
+              tagText
+            )}]
+          </button>
+        `
+        : "";
+
+
     const continuationHtml =
       contentLines.length
         ? `
@@ -44688,10 +45099,19 @@ function openLogDetail(
                   );
                 }
               )
-              .join("<br>")}
+              .join("<br>")}${tagHtml}
           </span>
         `
         : "";
+
+
+    /*
+      TM·BM·CM 발행·작업 구분 배지
+    */
+    const categoryBadgeHtml =
+      createLogEntryCategoryBadgeHtml(
+        entry
+      );
 
 
     return `
@@ -44720,6 +45140,9 @@ function openLogDetail(
           class="detail-work-row__main"
         >
 
+          ${categoryBadgeHtml}
+
+
           ${
             showTime &&
             timeText
@@ -44736,26 +45159,6 @@ function openLogDetail(
           }
 
 
-          ${
-            showTag &&
-            tagText
-              ? `
-                <button
-                  type="button"
-                  class="detail-work-row__tag"
-                  data-detail-tag="${escapeHtml(
-                    tagText
-                  )}"
-                >
-                  [${escapeHtml(
-                    tagText
-                  )}]
-                </button>
-              `
-              : ""
-          }
-
-
           <span
             class="detail-work-row__text"
           >
@@ -44765,14 +45168,17 @@ function openLogDetail(
           </span>
 
 
-          ${continuationHtml}
+          ${
+            contentLines.length
+              ? continuationHtml
+              : tagHtml
+          }
 
         </span>
 
       </div>
     `;
   }
-
 
   /* =====================================================
     운전현황
@@ -57830,6 +58236,4880 @@ if (
 }
 
 /* =========================================================
+  공지사항 댓글 API 공통 기능
+
+  전체공지:
+  - noticeType = "global"
+
+  보직공지:
+  - noticeType = "role"
+========================================================= */
+
+const NOTICE_COMMENT_API_URL =
+  "/api/notice-comments";
+
+
+const NOTICE_COMMENT_TYPES =
+  new Set([
+    "global",
+    "role"
+  ]);
+
+
+const NOTICE_COMMENT_MAX_LENGTH =
+  1000;
+
+
+/* =========================================================
+  댓글 API 오류
+========================================================= */
+
+class NoticeCommentApiError extends Error {
+  constructor(
+    message,
+    options = {}
+  ) {
+    super(
+      message
+    );
+
+
+    this.name =
+      "NoticeCommentApiError";
+
+
+    this.status =
+      Number(
+        options.status ||
+        0
+      );
+
+
+    this.isConflict =
+      this.status ===
+        409 ||
+      options.isConflict ===
+        true;
+
+
+    this.currentComment =
+      options.currentComment ||
+      null;
+  }
+}
+
+
+/* =========================================================
+  댓글 종류 정규화
+========================================================= */
+
+function normalizeNoticeCommentType(
+  value
+) {
+  const noticeType =
+    String(
+      value ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  return NOTICE_COMMENT_TYPES.has(
+    noticeType
+  )
+    ? noticeType
+    : "";
+}
+
+
+/* =========================================================
+  댓글 대상 ID 정규화
+========================================================= */
+
+function normalizeNoticeCommentTargetId(
+  value
+) {
+  const noticeId =
+    String(
+      value ||
+      ""
+    ).trim();
+
+
+  if (
+    !noticeId ||
+    noticeId.length >
+      128 ||
+    /[\u0000-\u001F\u007F]/.test(
+      noticeId
+    )
+  ) {
+    return "";
+  }
+
+
+  return noticeId;
+}
+
+
+/* =========================================================
+  댓글 내용 정규화
+========================================================= */
+
+function normalizeNoticeCommentContent(
+  value
+) {
+  return String(
+    value ||
+    ""
+  )
+    .replace(
+      /\r\n/g,
+      "\n"
+    )
+    .replace(
+      /\r/g,
+      "\n"
+    )
+    .trim();
+}
+
+
+/* =========================================================
+  댓글 데이터 정규화
+========================================================= */
+
+function normalizeNoticeComment(
+  comment
+) {
+  const sourceComment =
+    comment &&
+    typeof comment ===
+      "object"
+      ? comment
+      : {};
+
+
+  const revision =
+    Math.max(
+      1,
+      Number(
+        sourceComment.revision ||
+        1
+      ) ||
+      1
+    );
+
+
+  const isMine =
+    sourceComment.isMine ===
+      true ||
+    sourceComment.is_mine ===
+      true ||
+    Number(
+      sourceComment.isMine ??
+      sourceComment.is_mine ??
+      0
+    ) ===
+      1;
+
+
+  const canEdit =
+    sourceComment.canEdit ===
+      true ||
+    sourceComment.can_edit ===
+      true ||
+    Number(
+      sourceComment.canEdit ??
+      sourceComment.can_edit ??
+      0
+    ) ===
+      1;
+
+
+  const canDelete =
+    sourceComment.canDelete ===
+      true ||
+    sourceComment.can_delete ===
+      true ||
+    Number(
+      sourceComment.canDelete ??
+      sourceComment.can_delete ??
+      0
+    ) ===
+      1;
+
+
+  return {
+    id:
+      String(
+        sourceComment.id ||
+        sourceComment.commentId ||
+        sourceComment.comment_id ||
+        ""
+      ).trim(),
+
+    noticeType:
+      normalizeNoticeCommentType(
+        sourceComment.noticeType ||
+        sourceComment.notice_type
+      ),
+
+    noticeId:
+      normalizeNoticeCommentTargetId(
+        sourceComment.noticeId ||
+        sourceComment.notice_id
+      ),
+
+    content:
+      normalizeNoticeCommentContent(
+        sourceComment.content
+      ),
+
+    createdBy:
+      String(
+        sourceComment.createdBy ||
+        sourceComment.created_by ||
+        ""
+      ).trim(),
+
+    createdByName:
+      String(
+        sourceComment.createdByName ||
+        sourceComment.created_by_name ||
+        ""
+      ).trim(),
+
+    createdByPosition:
+      String(
+        sourceComment.createdByPosition ||
+        sourceComment.created_by_position ||
+        ""
+      ).trim(),
+
+    createdAt:
+      String(
+        sourceComment.createdAt ||
+        sourceComment.created_at ||
+        ""
+      ).trim(),
+
+    updatedBy:
+      String(
+        sourceComment.updatedBy ||
+        sourceComment.updated_by ||
+        ""
+      ).trim(),
+
+    updatedByName:
+      String(
+        sourceComment.updatedByName ||
+        sourceComment.updated_by_name ||
+        ""
+      ).trim(),
+
+    updatedAt:
+      String(
+        sourceComment.updatedAt ||
+        sourceComment.updated_at ||
+        sourceComment.createdAt ||
+        sourceComment.created_at ||
+        ""
+      ).trim(),
+
+    revision,
+
+    isEdited:
+      sourceComment.isEdited ===
+        true ||
+      sourceComment.is_edited ===
+        true ||
+      revision >
+        1,
+
+    isMine,
+
+    canEdit,
+
+    canDelete
+  };
+}
+
+
+/* =========================================================
+  댓글 대상 검증
+========================================================= */
+
+function validateNoticeCommentTarget(
+  noticeTypeValue,
+  noticeIdValue
+) {
+  const noticeType =
+    normalizeNoticeCommentType(
+      noticeTypeValue
+    );
+
+
+  const noticeId =
+    normalizeNoticeCommentTargetId(
+      noticeIdValue
+    );
+
+
+  if (
+    !noticeType
+  ) {
+    throw new NoticeCommentApiError(
+      "공지 종류가 올바르지 않습니다.",
+      {
+        status:
+          400
+      }
+    );
+  }
+
+
+  if (
+    !noticeId
+  ) {
+    throw new NoticeCommentApiError(
+      "공지사항 ID가 올바르지 않습니다.",
+      {
+        status:
+          400
+      }
+    );
+  }
+
+
+  return {
+    noticeType,
+    noticeId
+  };
+}
+
+
+/* =========================================================
+  댓글 내용 검증
+========================================================= */
+
+function validateNoticeCommentContent(
+  value
+) {
+  const content =
+    normalizeNoticeCommentContent(
+      value
+    );
+
+
+  if (
+    !content
+  ) {
+    throw new NoticeCommentApiError(
+      "댓글 내용을 입력해 주세요.",
+      {
+        status:
+          400
+      }
+    );
+  }
+
+
+  if (
+    content.length >
+      NOTICE_COMMENT_MAX_LENGTH
+  ) {
+    throw new NoticeCommentApiError(
+      `댓글은 최대 ${NOTICE_COMMENT_MAX_LENGTH}자까지 입력할 수 있습니다.`,
+      {
+        status:
+          400
+      }
+    );
+  }
+
+
+  return content;
+}
+
+
+/* =========================================================
+  댓글 등록 중복 방지 요청 ID
+========================================================= */
+
+function createNoticeCommentClientRequestId() {
+  const randomId =
+    typeof globalThis.crypto
+      ?.randomUUID ===
+      "function"
+      ? globalThis.crypto
+          .randomUUID()
+      : [
+          Date.now(),
+          Math.random()
+            .toString(
+              36
+            )
+            .slice(
+              2
+            )
+        ].join("-");
+
+
+  return [
+    "notice-comment",
+    Date.now(),
+    randomId
+  ]
+    .join(":")
+    .slice(
+      0,
+      160
+    );
+}
+
+
+/* =========================================================
+  댓글 API 공통 요청
+========================================================= */
+
+async function requestNoticeCommentApi(
+  options = {}
+) {
+  const method =
+    String(
+      options.method ||
+      "GET"
+    ).toUpperCase();
+
+
+  const requestUrl =
+    new URL(
+      NOTICE_COMMENT_API_URL,
+      window.location.origin
+    );
+
+
+  const searchParams =
+    options.searchParams &&
+    typeof options.searchParams ===
+      "object"
+      ? options.searchParams
+      : {};
+
+
+  Object.entries(
+    searchParams
+  ).forEach(
+    ([
+      key,
+      value
+    ]) => {
+      if (
+        value ===
+          undefined ||
+        value ===
+          null ||
+        value ===
+          ""
+      ) {
+        return;
+      }
+
+
+      requestUrl.searchParams.set(
+        key,
+        String(
+          value
+        )
+      );
+    }
+  );
+
+
+  if (
+    method ===
+      "GET"
+  ) {
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+  }
+
+
+  const hasBody =
+    options.body !==
+      undefined;
+
+
+  const requestOptions = {
+    method,
+
+    headers:
+      getShiftLogAuthHeaders(
+        hasBody
+          ? {
+              "Content-Type":
+                "application/json"
+            }
+          : {}
+      ),
+
+    cache:
+      "no-store"
+  };
+
+
+  if (
+    hasBody
+  ) {
+    requestOptions.body =
+      JSON.stringify(
+        options.body
+      );
+  }
+
+
+  let response;
+
+
+  try {
+    response =
+      await fetch(
+        requestUrl.toString(),
+        requestOptions
+      );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "댓글 서버 연결 실패:",
+      error
+    );
+
+
+    throw new NoticeCommentApiError(
+      "댓글 서버에 연결할 수 없습니다."
+    );
+  }
+
+
+  const responseText =
+    await response.text();
+
+
+  let result = {};
+
+
+  if (
+    responseText.trim()
+  ) {
+    try {
+      result =
+        JSON.parse(
+          responseText
+        );
+
+    } catch {
+      if (
+        response.status ===
+          401
+      ) {
+        clearCurrentUser();
+
+
+        openLoginScreen();
+      }
+
+
+      throw new NoticeCommentApiError(
+        "댓글 서버 응답 형식이 올바르지 않습니다.",
+        {
+          status:
+            response.status
+        }
+      );
+    }
+  }
+
+
+  if (
+    response.status ===
+      401
+  ) {
+    clearCurrentUser();
+
+
+    openLoginScreen();
+  }
+
+
+  if (
+    !response.ok ||
+    result.ok ===
+      false ||
+    result.success ===
+      false
+  ) {
+    const currentComment =
+      result.currentComment &&
+      typeof result.currentComment ===
+        "object"
+        ? normalizeNoticeComment(
+            result.currentComment
+          )
+        : null;
+
+
+    throw new NoticeCommentApiError(
+      result.message ||
+      result.error ||
+      `댓글 요청 실패 (HTTP ${response.status})`,
+      {
+        status:
+          response.status,
+
+        isConflict:
+          result.conflict ===
+          true,
+
+        currentComment
+      }
+    );
+  }
+
+
+  return result;
+}
+
+
+/* =========================================================
+  댓글 개수 일괄 조회
+
+  noticeType 생략:
+  - 전체공지 + 보직공지 모두 조회
+========================================================= */
+
+async function loadNoticeCommentCounts(
+  noticeTypeValue =
+    ""
+) {
+  const rawNoticeType =
+    String(
+      noticeTypeValue ||
+      ""
+    ).trim();
+
+
+  const noticeType =
+    rawNoticeType
+      ? normalizeNoticeCommentType(
+          rawNoticeType
+        )
+      : "";
+
+
+  if (
+    rawNoticeType &&
+    !noticeType
+  ) {
+    throw new NoticeCommentApiError(
+      "공지 종류가 올바르지 않습니다.",
+      {
+        status:
+          400
+      }
+    );
+  }
+
+
+  const result =
+    await requestNoticeCommentApi({
+      method:
+        "GET",
+
+      searchParams: {
+        mode:
+          "counts",
+
+        noticeType
+      }
+    });
+
+
+  const counts =
+    Array.isArray(
+      result.counts
+    )
+      ? result.counts
+      : [];
+
+
+  return counts
+    .map(
+      item => {
+        return {
+          noticeType:
+            normalizeNoticeCommentType(
+              item?.noticeType ||
+              item?.notice_type
+            ),
+
+          noticeId:
+            normalizeNoticeCommentTargetId(
+              item?.noticeId ||
+              item?.notice_id
+            ),
+
+          count:
+            Math.max(
+              0,
+              Number(
+                item?.count ??
+                item?.commentCount ??
+                item?.comment_count ??
+                0
+              ) ||
+              0
+            )
+        };
+      }
+    )
+    .filter(
+      item => {
+        return Boolean(
+          item.noticeType &&
+          item.noticeId
+        );
+      }
+    );
+}
+
+
+/* =========================================================
+  특정 공지 댓글 목록 조회
+========================================================= */
+
+async function loadNoticeComments(
+  noticeTypeValue,
+  noticeIdValue
+) {
+  const {
+    noticeType,
+    noticeId
+  } =
+    validateNoticeCommentTarget(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  const result =
+    await requestNoticeCommentApi({
+      method:
+        "GET",
+
+      searchParams: {
+        noticeType,
+        noticeId
+      }
+    });
+
+
+  const comments =
+    (
+      Array.isArray(
+        result.comments
+      )
+        ? result.comments
+        : []
+    )
+      .map(
+        normalizeNoticeComment
+      )
+      .filter(
+        comment => {
+          return Boolean(
+            comment.id &&
+            comment.noticeType ===
+              noticeType &&
+            comment.noticeId ===
+              noticeId
+          );
+        }
+      );
+
+
+  return {
+    noticeType,
+    noticeId,
+    comments,
+
+    totalCount:
+      Math.max(
+        0,
+        Number(
+          result.totalCount ??
+          comments.length
+        ) ||
+        0
+      )
+  };
+}
+
+
+/* =========================================================
+  새 댓글 등록
+========================================================= */
+
+async function createNoticeComment(
+  options = {}
+) {
+  const {
+    noticeType,
+    noticeId
+  } =
+    validateNoticeCommentTarget(
+      options.noticeType,
+      options.noticeId
+    );
+
+
+  const content =
+    validateNoticeCommentContent(
+      options.content
+    );
+
+
+  const clientRequestId =
+    String(
+      options.clientRequestId ||
+      createNoticeCommentClientRequestId()
+    )
+      .trim()
+      .slice(
+        0,
+        160
+      );
+
+
+  const result =
+    await requestNoticeCommentApi({
+      method:
+        "POST",
+
+      body: {
+        noticeType,
+        noticeId,
+        content,
+        clientRequestId
+      }
+    });
+
+
+  const comment =
+    normalizeNoticeComment(
+      result.comment
+    );
+
+
+  if (
+    !comment.id
+  ) {
+    throw new NoticeCommentApiError(
+      "등록된 댓글 정보를 확인할 수 없습니다.",
+      {
+        status:
+          500
+      }
+    );
+  }
+
+
+  return {
+    comment,
+    clientRequestId,
+
+    created:
+      result.created !==
+        false,
+
+    duplicate:
+      result.duplicate ===
+        true,
+
+    totalCount:
+      Math.max(
+        0,
+        Number(
+          result.totalCount ??
+          0
+        ) ||
+        0
+      )
+  };
+}
+
+
+/* =========================================================
+  본인 댓글 수정
+========================================================= */
+
+async function updateNoticeComment(
+  options = {}
+) {
+  const id =
+    normalizeNoticeCommentTargetId(
+      options.id
+    );
+
+
+  const content =
+    validateNoticeCommentContent(
+      options.content
+    );
+
+
+  const expectedRevision =
+    Number(
+      options.expectedRevision ??
+      options.revision
+    );
+
+
+  if (
+    !id
+  ) {
+    throw new NoticeCommentApiError(
+      "수정할 댓글 ID가 올바르지 않습니다.",
+      {
+        status:
+          400
+      }
+    );
+  }
+
+
+  if (
+    !Number.isInteger(
+      expectedRevision
+    ) ||
+    expectedRevision <
+      1
+  ) {
+    throw new NoticeCommentApiError(
+      "댓글 수정 버전이 올바르지 않습니다.",
+      {
+        status:
+          400
+      }
+    );
+  }
+
+
+  const result =
+    await requestNoticeCommentApi({
+      method:
+        "PUT",
+
+      body: {
+        id,
+        content,
+        expectedRevision
+      }
+    });
+
+
+  const comment =
+    normalizeNoticeComment(
+      result.comment
+    );
+
+
+  if (
+    !comment.id
+  ) {
+    throw new NoticeCommentApiError(
+      "수정된 댓글 정보를 확인할 수 없습니다.",
+      {
+        status:
+          500
+      }
+    );
+  }
+
+
+  return comment;
+}
+
+
+/* =========================================================
+  댓글 삭제
+========================================================= */
+
+async function deleteNoticeComment(
+  options = {}
+) {
+  const id =
+    normalizeNoticeCommentTargetId(
+      options.id
+    );
+
+
+  const revision =
+    Number(
+      options.revision ??
+      options.expectedRevision
+    );
+
+
+  if (
+    !id
+  ) {
+    throw new NoticeCommentApiError(
+      "삭제할 댓글 ID가 올바르지 않습니다.",
+      {
+        status:
+          400
+      }
+    );
+  }
+
+
+  if (
+    !Number.isInteger(
+      revision
+    ) ||
+    revision <
+      1
+  ) {
+    throw new NoticeCommentApiError(
+      "댓글 삭제 버전이 올바르지 않습니다.",
+      {
+        status:
+          400
+      }
+    );
+  }
+
+
+  const result =
+    await requestNoticeCommentApi({
+      method:
+        "DELETE",
+
+      searchParams: {
+        id,
+        revision
+      }
+    });
+
+
+  return {
+    deletedId:
+      String(
+        result.deletedId ||
+        id
+      ).trim(),
+
+    noticeType:
+      normalizeNoticeCommentType(
+        result.noticeType ||
+        result.notice_type
+      ),
+
+    noticeId:
+      normalizeNoticeCommentTargetId(
+        result.noticeId ||
+        result.notice_id
+      ),
+
+    totalCount:
+      Math.max(
+        0,
+        Number(
+          result.totalCount ??
+          0
+        ) ||
+        0
+      )
+  };
+}
+
+/* =========================================================
+  공지사항 댓글 상태 + 공통 렌더링 기능
+
+  전체공지:
+  - noticeType = "global"
+
+  보직공지:
+  - noticeType = "role"
+
+  이 블록의 역할:
+  - 공지별 댓글 목록·개수·입력값·수정 상태 저장
+  - 댓글 영역 공통 HTML 생성
+  - 로딩·빈 목록·오류·수정 중 화면 출력
+  - API 조회 결과를 화면 상태에 반영
+========================================================= */
+
+const noticeCommentState = {
+  counts: new Map(),
+
+  targets: new Map(),
+
+  isLoadingCounts: false,
+
+  countsLoaded: false,
+
+  countErrorMessage: "",
+
+  countRequestSequence: 0,
+
+  countLoadPromise: null,
+
+  generation: 0,
+
+  eventsBound: false,
+};
+
+
+/* =========================================================
+  공지 댓글 대상 키
+========================================================= */
+
+function getNoticeCommentTargetKey(
+  noticeTypeValue,
+  noticeIdValue
+) {
+  const noticeType =
+    normalizeNoticeCommentType(
+      noticeTypeValue
+    );
+
+
+  const noticeId =
+    normalizeNoticeCommentTargetId(
+      noticeIdValue
+    );
+
+
+  if (
+    !noticeType ||
+    !noticeId
+  ) {
+    return "";
+  }
+
+
+  return JSON.stringify([
+    noticeType,
+    noticeId
+  ]);
+}
+
+
+/* =========================================================
+  공지별 댓글 상태 생성·조회
+========================================================= */
+
+function getOrCreateNoticeCommentTargetState(
+  noticeTypeValue,
+  noticeIdValue
+) {
+  const noticeType =
+    normalizeNoticeCommentType(
+      noticeTypeValue
+    );
+
+
+  const noticeId =
+    normalizeNoticeCommentTargetId(
+      noticeIdValue
+    );
+
+
+  const targetKey =
+    getNoticeCommentTargetKey(
+      noticeType,
+      noticeId
+    );
+
+
+  if (
+    !targetKey
+  ) {
+    return null;
+  }
+
+
+  if (
+    !noticeCommentState.targets.has(
+      targetKey
+    )
+  ) {
+    noticeCommentState.targets.set(
+      targetKey,
+      {
+        noticeType,
+        noticeId,
+
+        comments: [],
+
+        totalCount:
+          noticeCommentState.counts.get(
+            targetKey
+          ) ||
+          0,
+
+        isOpen: false,
+
+        isLoading: false,
+
+        hasLoaded: false,
+
+        errorMessage: "",
+
+        draftContent: "",
+
+        createClientRequestId: "",
+
+        editingCommentId: "",
+
+        editingDraft: "",
+
+        pendingAction: "",
+
+        pendingCommentId: "",
+
+        requestSequence: 0,
+
+        loadPromise: null
+      }
+    );
+  }
+
+
+  return noticeCommentState.targets.get(
+    targetKey
+  );
+}
+
+
+/* =========================================================
+  댓글 개수 조회·저장
+========================================================= */
+
+function getNoticeCommentCount(
+  noticeTypeValue,
+  noticeIdValue
+) {
+  const targetKey =
+    getNoticeCommentTargetKey(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  if (
+    !targetKey
+  ) {
+    return 0;
+  }
+
+
+  if (
+    noticeCommentState.counts.has(
+      targetKey
+    )
+  ) {
+    return Math.max(
+      0,
+      Number(
+        noticeCommentState.counts.get(
+          targetKey
+        )
+      ) ||
+      0
+    );
+  }
+
+
+  return Math.max(
+    0,
+    Number(
+      noticeCommentState.targets.get(
+        targetKey
+      )?.totalCount ||
+      0
+    ) ||
+    0
+  );
+}
+
+
+function setNoticeCommentCount(
+  noticeTypeValue,
+  noticeIdValue,
+  countValue
+) {
+  const targetKey =
+    getNoticeCommentTargetKey(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  if (
+    !targetKey
+  ) {
+    return 0;
+  }
+
+
+  const count =
+    Math.max(
+      0,
+      Math.trunc(
+        Number(
+          countValue
+        ) ||
+        0
+      )
+    );
+
+
+  noticeCommentState.counts.set(
+    targetKey,
+    count
+  );
+
+
+  const targetState =
+    noticeCommentState.targets.get(
+      targetKey
+    );
+
+
+  if (
+    targetState
+  ) {
+    targetState.totalCount =
+      count;
+  }
+
+
+  return count;
+}
+
+
+function replaceNoticeCommentCounts(
+  countItems,
+  noticeTypeValue = ""
+) {
+  const rawNoticeType =
+    String(
+      noticeTypeValue ||
+      ""
+    ).trim();
+
+
+  const noticeType =
+    rawNoticeType
+      ? normalizeNoticeCommentType(
+          rawNoticeType
+        )
+      : "";
+
+
+  if (
+    rawNoticeType &&
+    !noticeType
+  ) {
+    return;
+  }
+
+
+  if (
+    noticeType
+  ) {
+    [
+      ...noticeCommentState.counts.keys()
+    ].forEach(
+      targetKey => {
+        const targetState =
+          noticeCommentState.targets.get(
+            targetKey
+          );
+
+
+        let targetType =
+          targetState?.noticeType ||
+          "";
+
+
+        if (
+          !targetType
+        ) {
+          try {
+            targetType =
+              JSON.parse(
+                targetKey
+              )?.[0] ||
+              "";
+
+          } catch {
+            targetType =
+              "";
+          }
+        }
+
+
+        if (
+          targetType ===
+            noticeType
+        ) {
+          noticeCommentState.counts.delete(
+            targetKey
+          );
+
+
+          if (
+            targetState
+          ) {
+            targetState.totalCount =
+              0;
+          }
+        }
+      }
+    );
+
+  } else {
+    noticeCommentState.counts.clear();
+
+
+    noticeCommentState.targets.forEach(
+      targetState => {
+        targetState.totalCount =
+          0;
+      }
+    );
+  }
+
+
+  (
+    Array.isArray(
+      countItems
+    )
+      ? countItems
+      : []
+  ).forEach(
+    item => {
+      setNoticeCommentCount(
+        item?.noticeType ||
+        item?.notice_type,
+
+        item?.noticeId ||
+        item?.notice_id,
+
+        item?.count ??
+        item?.commentCount ??
+        item?.comment_count ??
+        0
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+  댓글 작성일시 표시
+========================================================= */
+
+function formatNoticeCommentDateTime(
+  value
+) {
+  const date =
+    new Date(
+      value
+    );
+
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "-";
+  }
+
+
+  return [
+    date.getFullYear(),
+    ".",
+
+    String(
+      date.getMonth() +
+      1
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    ".",
+
+    String(
+      date.getDate()
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    " ",
+
+    String(
+      date.getHours()
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    ":",
+
+    String(
+      date.getMinutes()
+    ).padStart(
+      2,
+      "0"
+    )
+  ].join("");
+}
+
+
+/* =========================================================
+  댓글 작성자 표시
+========================================================= */
+
+function getNoticeCommentAuthorText(
+  comment
+) {
+  const authorName =
+    String(
+      comment?.createdByName ||
+      comment?.createdBy ||
+      "작성자 미확인"
+    ).trim();
+
+
+  const position =
+    String(
+      comment?.createdByPosition ||
+      ""
+    ).trim();
+
+
+  return position
+    ? `${authorName} · ${position}`
+    : authorName;
+}
+
+
+/* =========================================================
+  댓글 영역 DOM ID
+========================================================= */
+
+function createNoticeCommentPanelId(
+  noticeTypeValue,
+  noticeIdValue
+) {
+  const targetKey =
+    getNoticeCommentTargetKey(
+      noticeTypeValue,
+      noticeIdValue
+    ) ||
+    "notice-comment";
+
+
+  let hash =
+    2166136261;
+
+
+  for (
+    let index = 0;
+    index < targetKey.length;
+    index += 1
+  ) {
+    hash ^=
+      targetKey.charCodeAt(
+        index
+      );
+
+
+    hash =
+      Math.imul(
+        hash,
+        16777619
+      );
+  }
+
+
+  return [
+    "noticeCommentPanel",
+
+    normalizeNoticeCommentType(
+      noticeTypeValue
+    ) ||
+    "notice",
+
+    (
+      hash >>>
+      0
+    ).toString(
+      36
+    )
+  ].join("-");
+}
+
+
+/* =========================================================
+  댓글 1개 HTML
+========================================================= */
+
+function createNoticeCommentItemHtml(
+  comment,
+  targetState
+) {
+  const isEditing =
+    targetState.editingCommentId ===
+      comment.id;
+
+
+  const isPending =
+    targetState.pendingCommentId ===
+      comment.id;
+
+
+  const isBusy =
+    Boolean(
+      targetState.pendingAction
+    );
+
+
+  const authorText =
+    getNoticeCommentAuthorText(
+      comment
+    );
+
+
+  const dateText =
+    formatNoticeCommentDateTime(
+      comment.updatedAt ||
+      comment.createdAt
+    );
+
+
+  if (
+    isEditing
+  ) {
+    const editingDraft =
+      normalizeNoticeCommentContent(
+        targetState.editingDraft
+      ).slice(
+        0,
+        NOTICE_COMMENT_MAX_LENGTH
+      );
+
+
+    return `
+      <article
+        class="notice-comment-item is-editing"
+        data-notice-comment-item="${escapeHtml(
+          comment.id
+        )}"
+      >
+
+        <div class="notice-comment-item__meta">
+
+          <strong class="notice-comment-item__author">
+            ${escapeHtml(
+              authorText
+            )}
+          </strong>
+
+
+          <span class="notice-comment-item__date">
+            ${escapeHtml(
+              dateText
+            )}
+          </span>
+
+        </div>
+
+
+        <form
+          class="notice-comment-edit-form"
+          data-notice-comment-edit-form="${escapeHtml(
+            comment.id
+          )}"
+          data-notice-comment-revision="${escapeHtml(
+            comment.revision
+          )}"
+        >
+
+          <textarea
+            class="notice-comment-edit-form__input"
+            data-notice-comment-edit-input
+            maxlength="${NOTICE_COMMENT_MAX_LENGTH}"
+            rows="3"
+            aria-label="댓글 수정 내용"
+            ${isBusy ? "disabled" : ""}
+          >${escapeHtml(
+            editingDraft
+          )}</textarea>
+
+
+          <div class="notice-comment-edit-form__footer">
+
+            <span
+              class="notice-comment-edit-form__count"
+              data-notice-comment-edit-length
+            >
+              ${editingDraft.length}/${NOTICE_COMMENT_MAX_LENGTH}
+            </span>
+
+
+            <div class="notice-comment-edit-form__actions">
+
+              <button
+                type="button"
+                class="notice-comment-button is-cancel"
+                data-notice-comment-cancel-edit="${escapeHtml(
+                  comment.id
+                )}"
+                ${isBusy ? "disabled" : ""}
+              >
+                취소
+              </button>
+
+
+              <button
+                type="submit"
+                class="notice-comment-button is-save"
+                ${
+                  isBusy ||
+                  !editingDraft
+                    ? "disabled"
+                    : ""
+                }
+              >
+                ${
+                  isPending &&
+                  targetState.pendingAction ===
+                    "update"
+                    ? "저장 중"
+                    : "저장"
+                }
+              </button>
+
+            </div>
+
+          </div>
+
+        </form>
+
+      </article>
+    `;
+  }
+
+
+  return `
+    <article
+      class="
+        notice-comment-item
+        ${isPending ? "is-pending" : ""}
+      "
+      data-notice-comment-item="${escapeHtml(
+        comment.id
+      )}"
+    >
+
+      <div class="notice-comment-item__meta">
+
+        <strong class="notice-comment-item__author">
+          ${escapeHtml(
+            authorText
+          )}
+        </strong>
+
+
+        <span class="notice-comment-item__date">
+          ${escapeHtml(
+            dateText
+          )}
+
+          ${comment.isEdited ? " · 수정됨" : ""}
+        </span>
+
+      </div>
+
+
+      <p class="notice-comment-item__content">${escapeHtml(
+        comment.content
+      )}</p>
+
+
+      ${
+        comment.canEdit ||
+        comment.canDelete
+          ? `
+            <div class="notice-comment-item__actions">
+
+              ${
+                comment.canEdit
+                  ? `
+                    <button
+                      type="button"
+                      class="notice-comment-item__action"
+                      data-notice-comment-edit="${escapeHtml(
+                        comment.id
+                      )}"
+                      ${isBusy ? "disabled" : ""}
+                    >
+                      수정
+                    </button>
+                  `
+                  : ""
+              }
+
+
+              ${
+                comment.canDelete
+                  ? `
+                    <button
+                      type="button"
+                      class="notice-comment-item__action is-delete"
+                      data-notice-comment-delete="${escapeHtml(
+                        comment.id
+                      )}"
+                      ${isBusy ? "disabled" : ""}
+                    >
+                      ${
+                        isPending &&
+                        targetState.pendingAction ===
+                          "delete"
+                          ? "삭제 중"
+                          : "삭제"
+                      }
+                    </button>
+                  `
+                  : ""
+              }
+
+            </div>
+          `
+          : ""
+      }
+
+    </article>
+  `;
+}
+
+
+/* =========================================================
+  댓글 패널 내부 HTML
+========================================================= */
+
+function createNoticeCommentPanelContentHtml(
+  targetState
+) {
+  const comments =
+    Array.isArray(
+      targetState.comments
+    )
+      ? targetState.comments
+      : [];
+
+
+  const isBusy =
+    Boolean(
+      targetState.pendingAction
+    );
+
+
+  const draftContent =
+    String(
+      targetState.draftContent ||
+      ""
+    ).slice(
+      0,
+      NOTICE_COMMENT_MAX_LENGTH
+    );
+
+
+  let listHtml =
+    "";
+
+
+  if (
+    targetState.isLoading &&
+    !targetState.hasLoaded
+  ) {
+    listHtml = `
+      <div
+        class="notice-comment-status is-loading"
+        role="status"
+      >
+        댓글을 불러오는 중입니다.
+      </div>
+    `;
+
+  } else if (
+    comments.length
+  ) {
+    listHtml = `
+      <div
+        class="notice-comment-list"
+        role="list"
+      >
+        ${comments
+          .map(
+            comment => {
+              return createNoticeCommentItemHtml(
+                comment,
+                targetState
+              );
+            }
+          )
+          .join("")}
+      </div>
+    `;
+
+  } else {
+    listHtml = `
+      <div class="notice-comment-status is-empty">
+        아직 등록된 댓글이 없습니다.
+      </div>
+    `;
+  }
+
+
+  const errorHtml =
+    targetState.errorMessage
+      ? `
+        <div
+          class="notice-comment-status is-error"
+          role="alert"
+        >
+          <span>
+            ${escapeHtml(
+              targetState.errorMessage
+            )}
+          </span>
+
+          <button
+            type="button"
+            class="notice-comment-status__retry"
+            data-notice-comment-retry
+            ${
+              targetState.isLoading ||
+              isBusy
+                ? "disabled"
+                : ""
+            }
+          >
+            다시 불러오기
+          </button>
+        </div>
+      `
+      : "";
+
+
+  const refreshingHtml =
+    targetState.isLoading &&
+    targetState.hasLoaded
+      ? `
+        <p
+          class="notice-comment-refreshing"
+          role="status"
+        >
+          댓글을 새로 불러오는 중입니다.
+        </p>
+      `
+      : "";
+
+
+  return `
+    <div class="notice-comment-panel__header">
+
+      <strong class="notice-comment-panel__title">
+        댓글
+      </strong>
+
+      <span
+        class="notice-comment-panel__total"
+        data-notice-comment-count
+      >
+        ${targetState.totalCount}
+      </span>
+
+    </div>
+
+
+    ${errorHtml}
+
+    ${refreshingHtml}
+
+    ${listHtml}
+
+
+    <form
+      class="notice-comment-create-form"
+      data-notice-comment-create-form
+    >
+
+      <textarea
+        class="notice-comment-create-form__input"
+        data-notice-comment-input
+        maxlength="${NOTICE_COMMENT_MAX_LENGTH}"
+        rows="3"
+        placeholder="댓글을 입력해 주세요."
+        aria-label="새 댓글 내용"
+        ${isBusy ? "disabled" : ""}
+      >${escapeHtml(
+        draftContent
+      )}</textarea>
+
+
+      <div class="notice-comment-create-form__footer">
+
+        <span
+          class="notice-comment-create-form__count"
+          data-notice-comment-length
+        >
+          ${draftContent.length}/${NOTICE_COMMENT_MAX_LENGTH}
+        </span>
+
+
+        <button
+          type="submit"
+          class="notice-comment-create-form__submit"
+          ${
+            isBusy ||
+            !draftContent.trim()
+              ? "disabled"
+              : ""
+          }
+        >
+          ${
+            targetState.pendingAction ===
+              "create"
+              ? "등록 중"
+              : "등록"
+          }
+        </button>
+
+      </div>
+
+    </form>
+  `;
+}
+
+
+/* =========================================================
+  공지 카드에 넣을 댓글 영역 HTML
+========================================================= */
+
+function createNoticeCommentSectionHtml(
+  noticeTypeValue,
+  noticeIdValue
+) {
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  if (
+    !targetState
+  ) {
+    return "";
+  }
+
+
+  const panelId =
+    createNoticeCommentPanelId(
+      targetState.noticeType,
+      targetState.noticeId
+    );
+
+
+  const count =
+    getNoticeCommentCount(
+      targetState.noticeType,
+      targetState.noticeId
+    );
+
+
+  targetState.totalCount =
+    count;
+
+
+  return `
+    <section
+      class="
+        notice-comment-section
+        ${targetState.isOpen ? "is-open" : ""}
+      "
+      data-notice-comment-root
+      data-notice-comment-type="${escapeHtml(
+        targetState.noticeType
+      )}"
+      data-notice-comment-id="${escapeHtml(
+        targetState.noticeId
+      )}"
+    >
+
+      <button
+        type="button"
+        class="notice-comment-toggle"
+        data-notice-comment-toggle
+        aria-expanded="${targetState.isOpen ? "true" : "false"}"
+        aria-controls="${escapeHtml(
+          panelId
+        )}"
+      >
+        <span class="notice-comment-toggle__label">
+          댓글
+        </span>
+
+        <span
+          class="notice-comment-toggle__count"
+          data-notice-comment-count
+        >
+          ${count}
+        </span>
+      </button>
+
+
+      <div
+        id="${escapeHtml(
+          panelId
+        )}"
+        class="notice-comment-panel"
+        data-notice-comment-panel
+        ${targetState.isOpen ? "" : "hidden"}
+      >
+        ${createNoticeCommentPanelContentHtml(
+          targetState
+        )}
+      </div>
+
+    </section>
+  `;
+}
+
+
+/* =========================================================
+  댓글 DOM에서 대상 정보 확인
+========================================================= */
+
+function getNoticeCommentTargetFromElement(
+  element
+) {
+  const root =
+    element?.closest?.(
+      "[data-notice-comment-root]"
+    );
+
+
+  if (
+    !root
+  ) {
+    return null;
+  }
+
+
+  const noticeType =
+    normalizeNoticeCommentType(
+      root.dataset.noticeCommentType
+    );
+
+
+  const noticeId =
+    normalizeNoticeCommentTargetId(
+      root.dataset.noticeCommentId
+    );
+
+
+  if (
+    !noticeType ||
+    !noticeId
+  ) {
+    return null;
+  }
+
+
+  return {
+    root,
+    noticeType,
+    noticeId,
+
+    targetState:
+      getOrCreateNoticeCommentTargetState(
+        noticeType,
+        noticeId
+      )
+  };
+}
+
+
+/* =========================================================
+  현재 입력 중인 댓글을 상태에 보존
+========================================================= */
+
+function captureNoticeCommentDrafts(
+  root,
+  targetState
+) {
+  if (
+    !root ||
+    !targetState
+  ) {
+    return;
+  }
+
+
+  const createInput =
+    root.querySelector(
+      "[data-notice-comment-input]"
+    );
+
+
+  if (
+    createInput
+  ) {
+    targetState.draftContent =
+      String(
+        createInput.value ||
+        ""
+      ).slice(
+        0,
+        NOTICE_COMMENT_MAX_LENGTH
+      );
+  }
+
+
+  const editInput =
+    root.querySelector(
+      "[data-notice-comment-edit-input]"
+    );
+
+
+  if (
+    editInput &&
+    targetState.editingCommentId
+  ) {
+    targetState.editingDraft =
+      String(
+        editInput.value ||
+        ""
+      ).slice(
+        0,
+        NOTICE_COMMENT_MAX_LENGTH
+      );
+  }
+}
+
+
+/* =========================================================
+  특정 공지의 댓글 영역 찾기
+========================================================= */
+
+function getNoticeCommentRoots(
+  noticeTypeValue,
+  noticeIdValue
+) {
+  const noticeType =
+    normalizeNoticeCommentType(
+      noticeTypeValue
+    );
+
+
+  const noticeId =
+    normalizeNoticeCommentTargetId(
+      noticeIdValue
+    );
+
+
+  if (
+    !noticeType ||
+    !noticeId
+  ) {
+    return [];
+  }
+
+
+  return [
+    ...document.querySelectorAll(
+      "[data-notice-comment-root]"
+    )
+  ].filter(
+    root => {
+      return (
+        normalizeNoticeCommentType(
+          root.dataset.noticeCommentType
+        ) ===
+          noticeType &&
+        normalizeNoticeCommentTargetId(
+          root.dataset.noticeCommentId
+        ) ===
+          noticeId
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+  특정 공지 댓글 영역 다시 출력
+========================================================= */
+
+function renderNoticeCommentTarget(
+  noticeTypeValue,
+  noticeIdValue,
+  options = {}
+) {
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  if (
+    !targetState
+  ) {
+    return;
+  }
+
+
+  const roots =
+    getNoticeCommentRoots(
+      targetState.noticeType,
+      targetState.noticeId
+    );
+
+
+  if (
+    !roots.length
+  ) {
+    return;
+  }
+
+
+  const activeRoot =
+    roots.find(
+      root => {
+        return root.contains(
+          document.activeElement
+        );
+      }
+    ) ||
+    roots[0];
+
+
+  captureNoticeCommentDrafts(
+    activeRoot,
+    targetState
+  );
+
+
+  const panelId =
+    createNoticeCommentPanelId(
+      targetState.noticeType,
+      targetState.noticeId
+    );
+
+
+  roots.forEach(
+    root => {
+      root.classList.toggle(
+        "is-open",
+        targetState.isOpen
+      );
+
+
+      root.classList.toggle(
+        "is-loading",
+        targetState.isLoading
+      );
+
+
+      root.classList.toggle(
+        "has-error",
+        Boolean(
+          targetState.errorMessage
+        )
+      );
+
+
+      root
+        .querySelectorAll(
+          "[data-notice-comment-count]"
+        )
+        .forEach(
+          countElement => {
+            countElement.textContent =
+              String(
+                targetState.totalCount
+              );
+          }
+        );
+
+
+      const toggleButton =
+        root.querySelector(
+          "[data-notice-comment-toggle]"
+        );
+
+
+      if (
+        toggleButton
+      ) {
+        toggleButton.setAttribute(
+          "aria-expanded",
+          targetState.isOpen
+            ? "true"
+            : "false"
+        );
+
+
+        toggleButton.setAttribute(
+          "aria-controls",
+          panelId
+        );
+      }
+
+
+      const panel =
+        root.querySelector(
+          "[data-notice-comment-panel]"
+        );
+
+
+      if (
+        panel
+      ) {
+        panel.id =
+          panelId;
+
+
+        panel.hidden =
+          !targetState.isOpen;
+
+
+        panel.innerHTML =
+          createNoticeCommentPanelContentHtml(
+            targetState
+          );
+      }
+    }
+  );
+
+
+  const focusTarget =
+    String(
+      options.focus ||
+      ""
+    );
+
+
+  if (
+    focusTarget &&
+    targetState.isOpen
+  ) {
+    window.requestAnimationFrame(
+      () => {
+        const refreshedRoot =
+          getNoticeCommentRoots(
+            targetState.noticeType,
+            targetState.noticeId
+          )[0];
+
+
+        const input =
+          focusTarget ===
+            "edit"
+            ? refreshedRoot?.querySelector(
+                "[data-notice-comment-edit-input]"
+              )
+            : refreshedRoot?.querySelector(
+                "[data-notice-comment-input]"
+              );
+
+
+        input?.focus();
+      }
+    );
+  }
+}
+
+
+/* =========================================================
+  화면에 있는 모든 댓글 개수 갱신
+========================================================= */
+
+function renderAllNoticeCommentCounts() {
+  document
+    .querySelectorAll(
+      "[data-notice-comment-root]"
+    )
+    .forEach(
+      root => {
+        const target =
+          getNoticeCommentTargetFromElement(
+            root
+          );
+
+
+        if (
+          !target
+        ) {
+          return;
+        }
+
+
+        const count =
+          getNoticeCommentCount(
+            target.noticeType,
+            target.noticeId
+          );
+
+
+        target.targetState.totalCount =
+          count;
+
+
+        root
+          .querySelectorAll(
+            "[data-notice-comment-count]"
+          )
+          .forEach(
+            countElement => {
+              countElement.textContent =
+                String(
+                  count
+                );
+            }
+          );
+      }
+    );
+}
+
+
+/* =========================================================
+  화면에 있는 열린 댓글 영역 다시 출력
+========================================================= */
+
+function renderAllOpenNoticeCommentTargets() {
+  const renderedTargetKeys =
+    new Set();
+
+
+  document
+    .querySelectorAll(
+      "[data-notice-comment-root]"
+    )
+    .forEach(
+      root => {
+        const target =
+          getNoticeCommentTargetFromElement(
+            root
+          );
+
+
+        if (
+          !target ||
+          !target.targetState.isOpen
+        ) {
+          return;
+        }
+
+
+        const targetKey =
+          getNoticeCommentTargetKey(
+            target.noticeType,
+            target.noticeId
+          );
+
+
+        if (
+          renderedTargetKeys.has(
+            targetKey
+          )
+        ) {
+          return;
+        }
+
+
+        renderedTargetKeys.add(
+          targetKey
+        );
+
+
+        renderNoticeCommentTarget(
+          target.noticeType,
+          target.noticeId
+        );
+      }
+    );
+
+
+  renderAllNoticeCommentCounts();
+}
+
+
+/* =========================================================
+  댓글 영역 열기·닫기
+========================================================= */
+
+function setNoticeCommentTargetOpen(
+  noticeTypeValue,
+  noticeIdValue,
+  isOpen
+) {
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  if (
+    !targetState
+  ) {
+    return null;
+  }
+
+
+  targetState.isOpen =
+    Boolean(
+      isOpen
+    );
+
+
+  targetState.errorMessage =
+    targetState.isOpen
+      ? targetState.errorMessage
+      : "";
+
+
+  renderNoticeCommentTarget(
+    targetState.noticeType,
+    targetState.noticeId,
+    {
+      focus:
+        targetState.isOpen &&
+        targetState.hasLoaded
+          ? "create"
+          : ""
+    }
+  );
+
+
+  return targetState;
+}
+
+
+function toggleNoticeCommentTarget(
+  noticeTypeValue,
+  noticeIdValue
+) {
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  if (
+    !targetState
+  ) {
+    return null;
+  }
+
+
+  return setNoticeCommentTargetOpen(
+    targetState.noticeType,
+    targetState.noticeId,
+    !targetState.isOpen
+  );
+}
+
+
+/* =========================================================
+  댓글 목록 상태 반영
+========================================================= */
+
+function setNoticeCommentsForTarget(
+  noticeTypeValue,
+  noticeIdValue,
+  commentsValue,
+  totalCountValue
+) {
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  if (
+    !targetState
+  ) {
+    return null;
+  }
+
+
+  const comments =
+    (
+      Array.isArray(
+        commentsValue
+      )
+        ? commentsValue
+        : []
+    )
+      .map(
+        normalizeNoticeComment
+      )
+      .filter(
+        comment => {
+          return (
+            comment.id &&
+            comment.noticeType ===
+              targetState.noticeType &&
+            comment.noticeId ===
+              targetState.noticeId
+          );
+        }
+      )
+      .sort(
+        (
+          firstComment,
+          secondComment
+        ) => {
+          const createdDifference =
+            String(
+              firstComment.createdAt ||
+              ""
+            ).localeCompare(
+              String(
+                secondComment.createdAt ||
+                ""
+              )
+            );
+
+
+          if (
+            createdDifference !==
+              0
+          ) {
+            return createdDifference;
+          }
+
+
+          return firstComment.id.localeCompare(
+            secondComment.id
+          );
+        }
+      );
+
+
+  targetState.comments =
+    comments;
+
+
+  targetState.hasLoaded =
+    true;
+
+
+  const totalCount =
+    totalCountValue ===
+      undefined
+      ? comments.length
+      : Math.max(
+          comments.length,
+          Number(
+            totalCountValue
+          ) ||
+          0
+        );
+
+
+  setNoticeCommentCount(
+    targetState.noticeType,
+    targetState.noticeId,
+    totalCount
+  );
+
+
+  if (
+    targetState.editingCommentId &&
+    !comments.some(
+      comment => {
+        return comment.id ===
+          targetState.editingCommentId;
+      }
+    )
+  ) {
+    targetState.editingCommentId =
+      "";
+
+
+    targetState.editingDraft =
+      "";
+  }
+
+
+  return targetState;
+}
+
+
+function upsertNoticeCommentInState(
+  commentValue,
+  totalCountValue
+) {
+  const comment =
+    normalizeNoticeComment(
+      commentValue
+    );
+
+
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      comment.noticeType,
+      comment.noticeId
+    );
+
+
+  if (
+    !targetState ||
+    !comment.id
+  ) {
+    return null;
+  }
+
+
+  const existingIndex =
+    targetState.comments.findIndex(
+      currentComment => {
+        return currentComment.id ===
+          comment.id;
+      }
+    );
+
+
+  if (
+    existingIndex >=
+      0
+  ) {
+    targetState.comments[
+      existingIndex
+    ] =
+      comment;
+
+  } else {
+    targetState.comments.push(
+      comment
+    );
+  }
+
+
+  targetState.comments.sort(
+    (
+      firstComment,
+      secondComment
+    ) => {
+      return String(
+        firstComment.createdAt ||
+        ""
+      ).localeCompare(
+        String(
+          secondComment.createdAt ||
+          ""
+        )
+      );
+    }
+  );
+
+
+  targetState.hasLoaded =
+    true;
+
+
+  setNoticeCommentCount(
+    targetState.noticeType,
+    targetState.noticeId,
+
+    totalCountValue ===
+      undefined
+      ? targetState.comments.length
+      : totalCountValue
+  );
+
+
+  return targetState;
+}
+
+
+function removeNoticeCommentFromState(
+  noticeTypeValue,
+  noticeIdValue,
+  commentIdValue,
+  totalCountValue
+) {
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  const commentId =
+    normalizeNoticeCommentTargetId(
+      commentIdValue
+    );
+
+
+  if (
+    !targetState ||
+    !commentId
+  ) {
+    return null;
+  }
+
+
+  targetState.comments =
+    targetState.comments.filter(
+      comment => {
+        return comment.id !==
+          commentId;
+      }
+    );
+
+
+  if (
+    targetState.editingCommentId ===
+      commentId
+  ) {
+    targetState.editingCommentId =
+      "";
+
+
+    targetState.editingDraft =
+      "";
+  }
+
+
+  setNoticeCommentCount(
+    targetState.noticeType,
+    targetState.noticeId,
+
+    totalCountValue ===
+      undefined
+      ? targetState.comments.length
+      : totalCountValue
+  );
+
+
+  return targetState;
+}
+
+
+/* =========================================================
+  댓글 입력·수정·처리 중 상태
+========================================================= */
+
+function setNoticeCommentDraft(
+  noticeTypeValue,
+  noticeIdValue,
+  value
+) {
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  if (
+    !targetState
+  ) {
+    return "";
+  }
+
+
+  targetState.draftContent =
+    String(
+      value ||
+      ""
+    ).slice(
+      0,
+      NOTICE_COMMENT_MAX_LENGTH
+    );
+
+
+  return targetState.draftContent;
+}
+
+
+function beginNoticeCommentEdit(
+  noticeTypeValue,
+  noticeIdValue,
+  commentIdValue
+) {
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  const commentId =
+    normalizeNoticeCommentTargetId(
+      commentIdValue
+    );
+
+
+  const comment =
+    targetState?.comments.find(
+      currentComment => {
+        return currentComment.id ===
+          commentId;
+      }
+    );
+
+
+  if (
+    !targetState ||
+    !comment ||
+    !comment.canEdit
+  ) {
+    return null;
+  }
+
+
+  targetState.editingCommentId =
+    comment.id;
+
+
+  targetState.editingDraft =
+    comment.content;
+
+
+  targetState.errorMessage =
+    "";
+
+
+  renderNoticeCommentTarget(
+    targetState.noticeType,
+    targetState.noticeId,
+    {
+      focus:
+        "edit"
+    }
+  );
+
+
+  return comment;
+}
+
+
+function cancelNoticeCommentEdit(
+  noticeTypeValue,
+  noticeIdValue
+) {
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  if (
+    !targetState
+  ) {
+    return;
+  }
+
+
+  targetState.editingCommentId =
+    "";
+
+
+  targetState.editingDraft =
+    "";
+
+
+  renderNoticeCommentTarget(
+    targetState.noticeType,
+    targetState.noticeId
+  );
+}
+
+
+function setNoticeCommentPendingState(
+  noticeTypeValue,
+  noticeIdValue,
+  action = "",
+  commentId = ""
+) {
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  if (
+    !targetState
+  ) {
+    return null;
+  }
+
+
+  targetState.pendingAction =
+    String(
+      action ||
+      ""
+    );
+
+
+  targetState.pendingCommentId =
+    normalizeNoticeCommentTargetId(
+      commentId
+    );
+
+
+  renderNoticeCommentTarget(
+    targetState.noticeType,
+    targetState.noticeId
+  );
+
+
+  return targetState;
+}
+
+
+function getNoticeCommentCreateRequestId(
+  noticeTypeValue,
+  noticeIdValue
+) {
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  if (
+    !targetState
+  ) {
+    return "";
+  }
+
+
+  if (
+    !targetState.createClientRequestId
+  ) {
+    targetState.createClientRequestId =
+      createNoticeCommentClientRequestId();
+  }
+
+
+  return targetState.createClientRequestId;
+}
+
+
+function clearNoticeCommentCreateRequestId(
+  noticeTypeValue,
+  noticeIdValue
+) {
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  if (
+    targetState
+  ) {
+    targetState.createClientRequestId =
+      "";
+  }
+}
+
+
+/* =========================================================
+  댓글 개수 서버 조회
+========================================================= */
+
+async function refreshNoticeCommentCounts(
+  noticeTypeValue = ""
+) {
+  const rawNoticeType =
+    String(
+      noticeTypeValue ||
+      ""
+    ).trim();
+
+
+  const noticeType =
+    rawNoticeType
+      ? normalizeNoticeCommentType(
+          rawNoticeType
+        )
+      : "";
+
+
+  if (
+    rawNoticeType &&
+    !noticeType
+  ) {
+    return [];
+  }
+
+
+  if (
+    noticeCommentState.isLoadingCounts &&
+    noticeCommentState.countLoadPromise
+  ) {
+    return noticeCommentState.countLoadPromise;
+  }
+
+
+  noticeCommentState.isLoadingCounts =
+    true;
+
+
+  noticeCommentState.countErrorMessage =
+    "";
+
+
+  noticeCommentState.countRequestSequence +=
+    1;
+
+
+  const requestSequence =
+    noticeCommentState.countRequestSequence;
+
+
+  const generation =
+    noticeCommentState.generation;
+
+
+  const loadPromise =
+    (
+      async () => {
+        try {
+          const counts =
+            await loadNoticeCommentCounts(
+              noticeType
+            );
+
+
+          if (
+            generation !==
+              noticeCommentState.generation ||
+            requestSequence !==
+              noticeCommentState.countRequestSequence
+          ) {
+            return counts;
+          }
+
+
+          replaceNoticeCommentCounts(
+            counts,
+            noticeType
+          );
+
+
+          noticeCommentState.countsLoaded =
+            true;
+
+
+          renderAllNoticeCommentCounts();
+
+
+          return counts;
+
+        } catch (
+          error
+        ) {
+          console.error(
+            "공지 댓글 개수 조회 실패:",
+            error
+          );
+
+
+          if (
+            generation ===
+              noticeCommentState.generation &&
+            requestSequence ===
+              noticeCommentState.countRequestSequence
+          ) {
+            noticeCommentState.countErrorMessage =
+              error?.message ||
+              "댓글 개수를 불러오지 못했습니다.";
+          }
+
+
+          return [];
+
+        } finally {
+          if (
+            generation ===
+              noticeCommentState.generation &&
+            requestSequence ===
+              noticeCommentState.countRequestSequence
+          ) {
+            noticeCommentState.isLoadingCounts =
+              false;
+
+
+            noticeCommentState.countLoadPromise =
+              null;
+          }
+        }
+      }
+    )();
+
+
+  noticeCommentState.countLoadPromise =
+    loadPromise;
+
+
+  return loadPromise;
+}
+
+
+/* =========================================================
+  특정 공지 댓글 서버 조회
+========================================================= */
+
+async function refreshNoticeComments(
+  noticeTypeValue,
+  noticeIdValue,
+  options = {}
+) {
+  const {
+    noticeType,
+    noticeId
+  } =
+    validateNoticeCommentTarget(
+      noticeTypeValue,
+      noticeIdValue
+    );
+
+
+  const targetState =
+    getOrCreateNoticeCommentTargetState(
+      noticeType,
+      noticeId
+    );
+
+
+  if (
+    targetState.isLoading &&
+    targetState.loadPromise
+  ) {
+    return targetState.loadPromise;
+  }
+
+
+  if (
+    targetState.hasLoaded &&
+    options.force !==
+      true
+  ) {
+    renderNoticeCommentTarget(
+      noticeType,
+      noticeId
+    );
+
+
+    return targetState;
+  }
+
+
+  targetState.isLoading =
+    true;
+
+
+  targetState.errorMessage =
+    "";
+
+
+  targetState.requestSequence +=
+    1;
+
+
+  const requestSequence =
+    targetState.requestSequence;
+
+
+  const generation =
+    noticeCommentState.generation;
+
+
+  renderNoticeCommentTarget(
+    noticeType,
+    noticeId
+  );
+
+
+  const loadPromise =
+    (
+      async () => {
+        try {
+          const result =
+            await loadNoticeComments(
+              noticeType,
+              noticeId
+            );
+
+
+          if (
+            generation !==
+              noticeCommentState.generation ||
+            requestSequence !==
+              targetState.requestSequence
+          ) {
+            return targetState;
+          }
+
+
+          setNoticeCommentsForTarget(
+            noticeType,
+            noticeId,
+            result.comments,
+            result.totalCount
+          );
+
+
+          targetState.errorMessage =
+            "";
+
+
+          return targetState;
+
+        } catch (
+          error
+        ) {
+          console.error(
+            "공지 댓글 목록 조회 실패:",
+            error
+          );
+
+
+          if (
+            generation ===
+              noticeCommentState.generation &&
+            requestSequence ===
+              targetState.requestSequence
+          ) {
+            targetState.errorMessage =
+              error?.message ||
+              "댓글을 불러오지 못했습니다.";
+          }
+
+
+          return targetState;
+
+        } finally {
+          if (
+            generation ===
+              noticeCommentState.generation &&
+            requestSequence ===
+              targetState.requestSequence
+          ) {
+            targetState.isLoading =
+              false;
+
+
+            targetState.loadPromise =
+              null;
+
+
+            renderNoticeCommentTarget(
+              noticeType,
+              noticeId
+            );
+          }
+        }
+      }
+    )();
+
+
+  targetState.loadPromise =
+    loadPromise;
+
+
+  return loadPromise;
+}
+
+
+/* =========================================================
+  댓글 상태 초기화
+
+  로그아웃 또는 사용자 변경 시 사용한다.
+========================================================= */
+
+function resetNoticeCommentState() {
+  noticeCommentState.generation +=
+    1;
+
+
+  noticeCommentState.countRequestSequence +=
+    1;
+
+
+  noticeCommentState.counts.clear();
+
+
+  noticeCommentState.targets.clear();
+
+
+  noticeCommentState.isLoadingCounts =
+    false;
+
+
+  noticeCommentState.countsLoaded =
+    false;
+
+
+  noticeCommentState.countErrorMessage =
+    "";
+
+
+  noticeCommentState.countLoadPromise =
+    null;
+}
+
+/* =========================================================
+  공지사항 댓글 공통 이벤트
+
+  - 댓글 영역 열기·닫기
+  - 목록 다시 불러오기
+  - 입력 글자 수 표시
+  - 등록·수정·삭제
+========================================================= */
+
+function getNoticeCommentById(
+  targetState,
+  commentIdValue
+) {
+  const commentId =
+    normalizeNoticeCommentTargetId(
+      commentIdValue
+    );
+
+  if (
+    !targetState ||
+    !commentId
+  ) {
+    return null;
+  }
+
+  return (
+    targetState.comments.find(
+      comment => {
+        return comment.id ===
+          commentId;
+      }
+    ) ||
+    null
+  );
+}
+
+
+function initializeNoticeCommentEventState(
+  targetState
+) {
+  if (
+    !targetState
+  ) {
+    return null;
+  }
+
+  if (
+    !Number.isInteger(
+      targetState.editingRevision
+    )
+  ) {
+    targetState.editingRevision =
+      0;
+  }
+
+  return targetState;
+}
+
+
+function clearNoticeCommentCreateInputDom(
+  noticeTypeValue,
+  noticeIdValue
+) {
+  getNoticeCommentRoots(
+    noticeTypeValue,
+    noticeIdValue
+  ).forEach(
+    root => {
+      const input =
+        root.querySelector(
+          "[data-notice-comment-input]"
+        );
+
+      if (
+        input
+      ) {
+        input.value =
+          "";
+      }
+    }
+  );
+}
+
+
+function invalidateNoticeCommentCountRequest() {
+  noticeCommentState.countRequestSequence +=
+    1;
+
+  noticeCommentState.isLoadingCounts =
+    false;
+
+  noticeCommentState.countLoadPromise =
+    null;
+
+  noticeCommentState.countErrorMessage =
+    "";
+}
+
+
+function showNoticeCommentError(
+  noticeTypeValue,
+  noticeIdValue,
+  error,
+  options = {}
+) {
+  const targetState =
+    initializeNoticeCommentEventState(
+      getOrCreateNoticeCommentTargetState(
+        noticeTypeValue,
+        noticeIdValue
+      )
+    );
+
+  if (
+    !targetState
+  ) {
+    return;
+  }
+
+  targetState.errorMessage =
+    error?.message ||
+    String(
+      error ||
+      "댓글 처리 중 오류가 발생했습니다."
+    );
+
+  renderNoticeCommentTarget(
+    targetState.noticeType,
+    targetState.noticeId,
+    options
+  );
+}
+
+
+function handleNoticeCommentInput(
+  event
+) {
+  const input =
+    event.target;
+
+  if (
+    !input?.matches?.(
+      "[data-notice-comment-input], " +
+      "[data-notice-comment-edit-input]"
+    )
+  ) {
+    return;
+  }
+
+  const target =
+    getNoticeCommentTargetFromElement(
+      input
+    );
+
+  if (
+    !target?.targetState
+  ) {
+    return;
+  }
+
+  const targetState =
+    initializeNoticeCommentEventState(
+      target.targetState
+    );
+
+  const value =
+    String(
+      input.value ||
+      ""
+    ).slice(
+      0,
+      NOTICE_COMMENT_MAX_LENGTH
+    );
+
+  if (
+    input.value !==
+      value
+  ) {
+    input.value =
+      value;
+  }
+
+  if (
+    input.matches(
+      "[data-notice-comment-edit-input]"
+    )
+  ) {
+    targetState.editingDraft =
+      value;
+
+    const form =
+      input.closest(
+        "[data-notice-comment-edit-form]"
+      );
+
+    const lengthElement =
+      form?.querySelector(
+        "[data-notice-comment-edit-length]"
+      );
+
+    const submitButton =
+      form?.querySelector(
+        'button[type="submit"]'
+      );
+
+    if (
+      lengthElement
+    ) {
+      lengthElement.textContent =
+        `${value.length}/${NOTICE_COMMENT_MAX_LENGTH}`;
+    }
+
+    if (
+      submitButton
+    ) {
+      submitButton.disabled =
+        Boolean(
+          targetState.pendingAction ||
+          targetState.isLoading
+        ) ||
+        !normalizeNoticeCommentContent(
+          value
+        );
+    }
+
+    return;
+  }
+
+  const previousValue =
+    targetState.draftContent;
+
+  setNoticeCommentDraft(
+    target.noticeType,
+    target.noticeId,
+    value
+  );
+
+  /*
+    등록 실패 후 내용을 변경했다면
+    이전 중복 방지 요청 ID는 폐기한다.
+
+    내용을 바꾸지 않고 재시도할 때는
+    기존 요청 ID를 그대로 유지한다.
+  */
+  if (
+    previousValue !==
+      value &&
+    targetState.createClientRequestId &&
+    !targetState.pendingAction
+  ) {
+    clearNoticeCommentCreateRequestId(
+      target.noticeType,
+      target.noticeId
+    );
+  }
+
+  const form =
+    input.closest(
+      "[data-notice-comment-create-form]"
+    );
+
+  const lengthElement =
+    form?.querySelector(
+      "[data-notice-comment-length]"
+    );
+
+  const submitButton =
+    form?.querySelector(
+      'button[type="submit"]'
+    );
+
+  if (
+    lengthElement
+  ) {
+    lengthElement.textContent =
+      `${value.length}/${NOTICE_COMMENT_MAX_LENGTH}`;
+  }
+
+  if (
+    submitButton
+  ) {
+    submitButton.disabled =
+      Boolean(
+        targetState.pendingAction ||
+        targetState.isLoading
+      ) ||
+      !normalizeNoticeCommentContent(
+        value
+      );
+  }
+}
+
+
+async function submitNoticeCommentCreate(
+  form
+) {
+  const target =
+    getNoticeCommentTargetFromElement(
+      form
+    );
+
+  if (
+    !target?.targetState ||
+    target.targetState.pendingAction
+  ) {
+    return;
+  }
+
+  const targetState =
+    initializeNoticeCommentEventState(
+      target.targetState
+    );
+
+  const input =
+    form.querySelector(
+      "[data-notice-comment-input]"
+    );
+
+  const inputValue =
+    input
+      ? input.value
+      : targetState.draftContent;
+
+  setNoticeCommentDraft(
+    target.noticeType,
+    target.noticeId,
+    inputValue
+  );
+
+  let content =
+    "";
+
+  try {
+    content =
+      validateNoticeCommentContent(
+        targetState.draftContent
+      );
+
+  } catch (
+    error
+  ) {
+    showNoticeCommentError(
+      target.noticeType,
+      target.noticeId,
+      error,
+      {
+        focus:
+          "create"
+      }
+    );
+
+    return;
+  }
+
+  const generation =
+    noticeCommentState.generation;
+
+  /*
+    댓글 목록을 불러오는 중이라면
+    목록 조회가 끝난 다음 등록한다.
+  */
+  if (
+    targetState.isLoading &&
+    targetState.loadPromise
+  ) {
+    const loadPromise =
+      targetState.loadPromise;
+
+    setNoticeCommentPendingState(
+      target.noticeType,
+      target.noticeId,
+      "create-wait"
+    );
+
+    await loadPromise;
+
+    if (
+      generation !==
+        noticeCommentState.generation
+    ) {
+      return;
+    }
+
+    if (
+      !targetState.hasLoaded
+    ) {
+      targetState.pendingAction =
+        "";
+
+      targetState.pendingCommentId =
+        "";
+
+      renderNoticeCommentTarget(
+        target.noticeType,
+        target.noticeId
+      );
+
+      return;
+    }
+  }
+
+  const clientRequestId =
+    getNoticeCommentCreateRequestId(
+      target.noticeType,
+      target.noticeId
+    );
+
+  targetState.errorMessage =
+    "";
+
+  setNoticeCommentPendingState(
+    target.noticeType,
+    target.noticeId,
+    "create"
+  );
+
+  try {
+    const result =
+      await createNoticeComment({
+        noticeType:
+          target.noticeType,
+
+        noticeId:
+          target.noticeId,
+
+        content,
+
+        clientRequestId
+      });
+
+    if (
+      generation !==
+        noticeCommentState.generation
+    ) {
+      return;
+    }
+
+    invalidateNoticeCommentCountRequest();
+
+    upsertNoticeCommentInState(
+      result.comment,
+      result.totalCount
+    );
+
+    targetState.draftContent =
+      "";
+
+    targetState.errorMessage =
+      "";
+
+    clearNoticeCommentCreateRequestId(
+      target.noticeType,
+      target.noticeId
+    );
+
+    /*
+      성공 후 기존 textarea 값이 다시 상태에
+      들어오는 것을 막기 위해 DOM 값도 비운다.
+    */
+    clearNoticeCommentCreateInputDom(
+      target.noticeType,
+      target.noticeId
+    );
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        "댓글이 등록되었습니다."
+      );
+    }
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "공지 댓글 등록 실패:",
+      error
+    );
+
+    if (
+      generation ===
+        noticeCommentState.generation
+    ) {
+      targetState.errorMessage =
+        error?.message ||
+        "댓글을 등록하지 못했습니다.";
+    }
+
+  } finally {
+    if (
+      generation ===
+        noticeCommentState.generation
+    ) {
+      targetState.pendingAction =
+        "";
+
+      targetState.pendingCommentId =
+        "";
+
+      renderNoticeCommentTarget(
+        target.noticeType,
+        target.noticeId,
+        {
+          focus:
+            "create"
+        }
+      );
+    }
+  }
+}
+
+
+async function submitNoticeCommentEdit(
+  form
+) {
+  const target =
+    getNoticeCommentTargetFromElement(
+      form
+    );
+
+  if (
+    !target?.targetState ||
+    target.targetState.pendingAction
+  ) {
+    return;
+  }
+
+  const targetState =
+    initializeNoticeCommentEventState(
+      target.targetState
+    );
+
+  const commentId =
+    normalizeNoticeCommentTargetId(
+      form.dataset.noticeCommentEditForm
+    );
+
+  const input =
+    form.querySelector(
+      "[data-notice-comment-edit-input]"
+    );
+
+  targetState.editingDraft =
+    String(
+      input
+        ? input.value
+        : targetState.editingDraft ||
+          ""
+    ).slice(
+      0,
+      NOTICE_COMMENT_MAX_LENGTH
+    );
+
+  let content =
+    "";
+
+  try {
+    content =
+      validateNoticeCommentContent(
+        targetState.editingDraft
+      );
+
+  } catch (
+    error
+  ) {
+    showNoticeCommentError(
+      target.noticeType,
+      target.noticeId,
+      error,
+      {
+        focus:
+          "edit"
+      }
+    );
+
+    return;
+  }
+
+  const generation =
+    noticeCommentState.generation;
+
+  if (
+    targetState.isLoading &&
+    targetState.loadPromise
+  ) {
+    const loadPromise =
+      targetState.loadPromise;
+
+    setNoticeCommentPendingState(
+      target.noticeType,
+      target.noticeId,
+      "update-wait",
+      commentId
+    );
+
+    await loadPromise;
+
+    if (
+      generation !==
+        noticeCommentState.generation
+    ) {
+      return;
+    }
+  }
+
+  const comment =
+    getNoticeCommentById(
+      targetState,
+      commentId
+    );
+
+  if (
+    !comment ||
+    !comment.canEdit
+  ) {
+    targetState.pendingAction =
+      "";
+
+    targetState.pendingCommentId =
+      "";
+
+    targetState.editingRevision =
+      0;
+
+    showNoticeCommentError(
+      target.noticeType,
+      target.noticeId,
+      "수정할 수 있는 댓글이 아닙니다."
+    );
+
+    return;
+  }
+
+  const expectedRevision =
+    Number(
+      targetState.editingRevision ||
+      comment.revision
+    );
+
+  targetState.errorMessage =
+    "";
+
+  setNoticeCommentPendingState(
+    target.noticeType,
+    target.noticeId,
+    "update",
+    comment.id
+  );
+
+  try {
+    const updatedComment =
+      await updateNoticeComment({
+        id:
+          comment.id,
+
+        content,
+
+        expectedRevision
+      });
+
+    if (
+      generation !==
+        noticeCommentState.generation
+    ) {
+      return;
+    }
+
+    upsertNoticeCommentInState(
+      updatedComment,
+      targetState.totalCount
+    );
+
+    targetState.editingCommentId =
+      "";
+
+    targetState.editingDraft =
+      "";
+
+    targetState.editingRevision =
+      0;
+
+    targetState.errorMessage =
+      "";
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        "댓글이 수정되었습니다."
+      );
+    }
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "공지 댓글 수정 실패:",
+      error
+    );
+
+    if (
+      generation ===
+        noticeCommentState.generation
+    ) {
+      if (
+        error?.isConflict &&
+        error.currentComment
+      ) {
+        upsertNoticeCommentInState(
+          error.currentComment,
+          targetState.totalCount
+        );
+
+        if (
+          error.currentComment.canEdit
+        ) {
+          targetState.editingCommentId =
+            error.currentComment.id;
+
+          targetState.editingRevision =
+            error.currentComment.revision;
+
+          targetState.errorMessage =
+            "다른 화면에서 댓글이 먼저 수정되었습니다. " +
+            "입력한 내용은 유지했습니다. 현재 내용으로 다시 반영하려면 저장을 다시 눌러 주세요.";
+
+        } else {
+          targetState.editingCommentId =
+            "";
+
+          targetState.editingDraft =
+            "";
+
+          targetState.editingRevision =
+            0;
+
+          targetState.errorMessage =
+            "댓글이 변경되어 더 이상 수정할 수 없습니다.";
+        }
+
+      } else {
+        targetState.errorMessage =
+          error?.message ||
+          "댓글을 수정하지 못했습니다.";
+      }
+    }
+
+  } finally {
+    if (
+      generation ===
+        noticeCommentState.generation
+    ) {
+      targetState.pendingAction =
+        "";
+
+      targetState.pendingCommentId =
+        "";
+
+      renderNoticeCommentTarget(
+        target.noticeType,
+        target.noticeId,
+        {
+          focus:
+            targetState.editingCommentId
+              ? "edit"
+              : ""
+        }
+      );
+    }
+  }
+}
+
+
+async function removeNoticeComment(
+  noticeTypeValue,
+  noticeIdValue,
+  commentIdValue
+) {
+  const targetState =
+    initializeNoticeCommentEventState(
+      getOrCreateNoticeCommentTargetState(
+        noticeTypeValue,
+        noticeIdValue
+      )
+    );
+
+  if (
+    !targetState ||
+    targetState.pendingAction
+  ) {
+    return;
+  }
+
+  const firstComment =
+    getNoticeCommentById(
+      targetState,
+      commentIdValue
+    );
+
+  if (
+    !firstComment ||
+    !firstComment.canDelete
+  ) {
+    showNoticeCommentError(
+      noticeTypeValue,
+      noticeIdValue,
+      "삭제할 수 있는 댓글이 아닙니다."
+    );
+
+    return;
+  }
+
+  const generation =
+    noticeCommentState.generation;
+
+  /*
+    비동기 확인창이 떠 있는 동안
+    삭제 버튼 중복 클릭을 막는다.
+  */
+  setNoticeCommentPendingState(
+    targetState.noticeType,
+    targetState.noticeId,
+    "delete-confirm",
+    firstComment.id
+  );
+
+  let shouldDelete =
+    false;
+
+  try {
+    shouldDelete =
+      typeof showCompactConfirm ===
+        "function"
+        ? await showCompactConfirm({
+            title:
+              "댓글 삭제",
+
+            message:
+              "이 댓글을 삭제하시겠습니까? 삭제한 댓글은 복구할 수 없습니다.",
+
+            confirmText:
+              "삭제",
+
+            cancelText:
+              "취소"
+          })
+        : window.confirm(
+            "이 댓글을 삭제하시겠습니까?\n" +
+            "삭제한 댓글은 복구할 수 없습니다."
+          );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "댓글 삭제 확인창 오류:",
+      error
+    );
+  }
+
+  if (
+    generation !==
+      noticeCommentState.generation
+  ) {
+    return;
+  }
+
+  if (
+    !shouldDelete
+  ) {
+    targetState.pendingAction =
+      "";
+
+    targetState.pendingCommentId =
+      "";
+
+    renderNoticeCommentTarget(
+      targetState.noticeType,
+      targetState.noticeId
+    );
+
+    return;
+  }
+
+  if (
+    targetState.isLoading &&
+    targetState.loadPromise
+  ) {
+    const loadPromise =
+      targetState.loadPromise;
+
+    setNoticeCommentPendingState(
+      targetState.noticeType,
+      targetState.noticeId,
+      "delete-wait",
+      firstComment.id
+    );
+
+    await loadPromise;
+
+    if (
+      generation !==
+        noticeCommentState.generation
+    ) {
+      return;
+    }
+  }
+
+  const comment =
+    getNoticeCommentById(
+      targetState,
+      firstComment.id
+    );
+
+  if (
+    !comment ||
+    !comment.canDelete
+  ) {
+    targetState.pendingAction =
+      "";
+
+    targetState.pendingCommentId =
+      "";
+
+    showNoticeCommentError(
+      targetState.noticeType,
+      targetState.noticeId,
+      "댓글이 변경되어 현재 상태에서는 삭제할 수 없습니다."
+    );
+
+    return;
+  }
+
+  targetState.errorMessage =
+    "";
+
+  setNoticeCommentPendingState(
+    targetState.noticeType,
+    targetState.noticeId,
+    "delete",
+    comment.id
+  );
+
+  try {
+    const result =
+      await deleteNoticeComment({
+        id:
+          comment.id,
+
+        revision:
+          comment.revision
+      });
+
+    if (
+      generation !==
+        noticeCommentState.generation
+    ) {
+      return;
+    }
+
+    const deletedId =
+      result.deletedId ||
+      comment.id;
+
+    const deletedCommentWasEditing =
+      targetState.editingCommentId ===
+        deletedId;
+
+    invalidateNoticeCommentCountRequest();
+
+    removeNoticeCommentFromState(
+      result.noticeType ||
+      targetState.noticeType,
+
+      result.noticeId ||
+      targetState.noticeId,
+
+      deletedId,
+
+      result.totalCount
+    );
+
+    if (
+      deletedCommentWasEditing
+    ) {
+      targetState.editingRevision =
+        0;
+    }
+
+    targetState.errorMessage =
+      "";
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        "댓글이 삭제되었습니다."
+      );
+    }
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "공지 댓글 삭제 실패:",
+      error
+    );
+
+    if (
+      generation ===
+        noticeCommentState.generation
+    ) {
+      if (
+        error?.isConflict &&
+        error.currentComment
+      ) {
+        upsertNoticeCommentInState(
+          error.currentComment,
+          targetState.totalCount
+        );
+
+        targetState.errorMessage =
+          error.message ||
+          "댓글이 다른 곳에서 먼저 수정되었습니다. 최신 내용을 확인한 뒤 다시 삭제해 주세요.";
+
+      } else {
+        targetState.errorMessage =
+          error?.message ||
+          "댓글을 삭제하지 못했습니다.";
+      }
+    }
+
+  } finally {
+    if (
+      generation ===
+        noticeCommentState.generation
+    ) {
+      targetState.pendingAction =
+        "";
+
+      targetState.pendingCommentId =
+        "";
+
+      renderNoticeCommentTarget(
+        targetState.noticeType,
+        targetState.noticeId
+      );
+    }
+  }
+}
+
+
+function handleNoticeCommentClick(
+  event
+) {
+  const clickedElement =
+    event.target;
+
+  if (
+    !clickedElement?.closest
+  ) {
+    return;
+  }
+
+  const actionElement =
+    clickedElement.closest(
+      "[data-notice-comment-toggle], " +
+      "[data-notice-comment-retry], " +
+      "[data-notice-comment-edit], " +
+      "[data-notice-comment-cancel-edit], " +
+      "[data-notice-comment-delete]"
+    );
+
+  if (
+    !actionElement
+  ) {
+    return;
+  }
+
+  const target =
+    getNoticeCommentTargetFromElement(
+      actionElement
+    );
+
+  if (
+    !target?.targetState
+  ) {
+    return;
+  }
+
+  const targetState =
+    initializeNoticeCommentEventState(
+      target.targetState
+    );
+
+  event.preventDefault();
+
+  if (
+    actionElement.matches(
+      "[data-notice-comment-toggle]"
+    )
+  ) {
+    const toggledState =
+      toggleNoticeCommentTarget(
+        target.noticeType,
+        target.noticeId
+      );
+
+    if (
+      toggledState?.isOpen
+    ) {
+      const generation =
+        noticeCommentState.generation;
+
+      void refreshNoticeComments(
+        target.noticeType,
+        target.noticeId
+      ).then(
+        loadedState => {
+          if (
+            generation ===
+              noticeCommentState.generation &&
+            loadedState?.isOpen &&
+            loadedState.hasLoaded
+          ) {
+            renderNoticeCommentTarget(
+              target.noticeType,
+              target.noticeId,
+              {
+                focus:
+                  "create"
+              }
+            );
+          }
+        }
+      );
+    }
+
+    return;
+  }
+
+  if (
+    actionElement.matches(
+      "[data-notice-comment-retry]"
+    )
+  ) {
+    void refreshNoticeComments(
+      target.noticeType,
+      target.noticeId,
+      {
+        force:
+          true
+      }
+    );
+
+    return;
+  }
+
+  if (
+    actionElement.matches(
+      "[data-notice-comment-edit]"
+    )
+  ) {
+    const comment =
+      getNoticeCommentById(
+        targetState,
+        actionElement.dataset.noticeCommentEdit
+      );
+
+    if (
+      comment?.canEdit
+    ) {
+      targetState.editingRevision =
+        comment.revision;
+
+      beginNoticeCommentEdit(
+        target.noticeType,
+        target.noticeId,
+        comment.id
+      );
+    }
+
+    return;
+  }
+
+  if (
+    actionElement.matches(
+      "[data-notice-comment-cancel-edit]"
+    )
+  ) {
+    targetState.editingRevision =
+      0;
+
+    cancelNoticeCommentEdit(
+      target.noticeType,
+      target.noticeId
+    );
+
+    return;
+  }
+
+  if (
+    actionElement.matches(
+      "[data-notice-comment-delete]"
+    )
+  ) {
+    void removeNoticeComment(
+      target.noticeType,
+      target.noticeId,
+      actionElement.dataset.noticeCommentDelete
+    );
+  }
+}
+
+
+function handleNoticeCommentSubmit(
+  event
+) {
+  const form =
+    event.target;
+
+  if (
+    form?.matches?.(
+      "[data-notice-comment-create-form]"
+    )
+  ) {
+    event.preventDefault();
+
+    void submitNoticeCommentCreate(
+      form
+    );
+
+    return;
+  }
+
+  if (
+    form?.matches?.(
+      "[data-notice-comment-edit-form]"
+    )
+  ) {
+    event.preventDefault();
+
+    void submitNoticeCommentEdit(
+      form
+    );
+  }
+}
+
+
+function bindNoticeCommentEvents() {
+  if (
+    noticeCommentState.eventsBound
+  ) {
+    return;
+  }
+
+  noticeCommentState.eventsBound =
+    true;
+
+  /*
+    공지 카드는 목록 렌더링 때마다 교체되므로
+    document 이벤트 위임 방식으로 한 번만 연결한다.
+  */
+  document.addEventListener(
+    "click",
+    handleNoticeCommentClick
+  );
+
+  document.addEventListener(
+    "input",
+    handleNoticeCommentInput
+  );
+
+  document.addEventListener(
+    "submit",
+    handleNoticeCommentSubmit
+  );
+}
+
+
+bindNoticeCommentEvents();
+
+/* =========================================================
+  공지 댓글 개수 최초 일괄 조회
+
+  - 전체공지와 보직공지 개수를 한 번에 조회
+  - 이미 조회했다면 현재 화면에 저장된 개수만 반영
+  - 조회 실패 시 다음 공지창 열기에서 다시 시도
+========================================================= */
+
+async function ensureNoticeCommentCountsLoaded() {
+  if (
+    noticeCommentState.countsLoaded
+  ) {
+    renderAllNoticeCommentCounts();
+
+    return;
+  }
+
+
+  await refreshNoticeCommentCounts();
+}
+
+/* =========================================================
   보직별 공지사항 프런트엔드 기능
 
   대상 보직:
@@ -59078,6 +64358,7 @@ async function openRoleNoticeModal(
   roleNoticeState.currentRole =
     normalizedRole;
 
+
   roleNoticeState.currentFilter =
     "active";
 
@@ -59116,88 +64397,81 @@ async function openRoleNoticeModal(
     );
 
 
-/*
-  보직 공지 새 공지 버튼
+  /*
+    보직 공지 새 공지 버튼
 
-  표시:
-  - 최고관리자
-  - 파트장 계정
-  - 현재 공지 대상과 같은 보직 사용자
-
-  숨김:
-  - 다른 보직의 일반 사용자
-*/
-if (
-  noticeElements
-    .openRoleNoticeEditorButton
-) {
-  const addButton =
-    noticeElements
-      .openRoleNoticeEditorButton;
-
-
-  const canManageCurrentRole =
-    canCurrentUserManageRoleNotice(
-      normalizedRole
-    );
-
-
-  addButton.hidden =
-    !canManageCurrentRole;
-
-
-  addButton.disabled =
-    !canManageCurrentRole;
-
-
-  addButton.setAttribute(
-    "aria-hidden",
-    String(
-      !canManageCurrentRole
-    )
-  );
-
+    표시:
+    - 최고관리자
+    - 파트장 계정
+    - 현재 공지 대상과 같은 보직 사용자
+  */
 
   if (
-    canManageCurrentRole
+    noticeElements
+      .openRoleNoticeEditorButton
   ) {
-    /*
-      과거에 설정된 hidden과
-      인라인 스타일을 확실히 해제한다.
-    */
-    addButton.removeAttribute(
-      "hidden"
-    );
+    const addButton =
+      noticeElements
+        .openRoleNoticeEditorButton;
 
 
-    addButton.style.removeProperty(
-      "display"
-    );
+    const canManageCurrentRole =
+      canCurrentUserManageRoleNotice(
+        normalizedRole
+      );
 
 
-    addButton.style.removeProperty(
-      "visibility"
-    );
+    addButton.hidden =
+      !canManageCurrentRole;
 
 
-    addButton.style.removeProperty(
-      "opacity"
-    );
+    addButton.disabled =
+      !canManageCurrentRole;
 
-  } else {
+
     addButton.setAttribute(
-      "hidden",
-      ""
+      "aria-hidden",
+      String(
+        !canManageCurrentRole
+      )
     );
+
+
+    if (
+      canManageCurrentRole
+    ) {
+      addButton.removeAttribute(
+        "hidden"
+      );
+
+
+      addButton.style.removeProperty(
+        "display"
+      );
+
+
+      addButton.style.removeProperty(
+        "visibility"
+      );
+
+
+      addButton.style.removeProperty(
+        "opacity"
+      );
+
+    } else {
+      addButton.setAttribute(
+        "hidden",
+        ""
+      );
+    }
   }
-}
+
 
   /*
-    API 응답을 기다리기 전에 모달부터 연다.
-
-    서버 조회가 느리거나 실패하더라도
-    버튼 클릭 자체는 즉시 확인할 수 있다.
+    API 응답 전에 모달부터 표시한다.
   */
+
   if (
     typeof openModal ===
       "function"
@@ -59214,12 +64488,14 @@ if (
         "is-open"
       );
 
+
     noticeElements
       .roleNoticeModal
       .setAttribute(
         "aria-hidden",
         "false"
       );
+
 
     document.body.classList.add(
       "modal-open"
@@ -59256,7 +64532,15 @@ if (
   }
 
 
+  /*
+    공지 카드를 먼저 표시한 다음
+    댓글 개수를 각 카드에 반영한다.
+  */
+
   renderCurrentRoleNoticeList();
+
+
+  await ensureNoticeCommentCountsLoaded();
 }
 
 /* =========================================================
@@ -59351,6 +64635,13 @@ function createRoleNoticeCardHtml(
     formatRoleNoticeDateTime(
       notice.updatedAt ||
       notice.createdAt
+    );
+
+
+  const commentSectionHtml =
+    createNoticeCommentSectionHtml(
+      "role",
+      notice.id
     );
 
 
@@ -59475,6 +64766,9 @@ function createRoleNoticeCardHtml(
           `
           : ""
       }
+
+
+      ${commentSectionHtml}
 
     </article>
   `;
@@ -62141,47 +67435,47 @@ function createGlobalNoticeCardHtml(
         );
 
 
-/* =========================================================
-  전체공지 내용 앞 공백 정리
+  /* =========================================================
+    전체공지 내용 앞 공백 정리
 
-  제거:
-  - 일반 공백
-  - 탭
-  - 줄마다 들어간 앞 공백
-  - 복사·붙여넣기로 들어온 특수 공백
-  - 보이지 않는 Zero Width Space
+    제거:
+    - 일반 공백
+    - 탭
+    - 줄마다 들어간 앞 공백
+    - 복사·붙여넣기로 들어온 특수 공백
+    - 보이지 않는 Zero Width Space
 
-  줄바꿈은 그대로 유지한다.
-========================================================= */
+    줄바꿈은 그대로 유지한다.
+  ========================================================= */
 
-const contentText =
-  String(
-    notice.content ||
-    ""
-  )
-    .replace(
-      /\r\n?/g,
-      "\n"
+  const contentText =
+    String(
+      notice.content ||
+      ""
     )
-    .split(
-      "\n"
-    )
-    .map(
-      line => {
-        return String(
-          line ||
-          ""
-        ).replace(
-          /^[\t \u00A0\u1680\u2000-\u200B\u202F\u205F\u3000\uFEFF]+/gu,
-          ""
-        );
-      }
-    )
-    .join(
-      "\n"
-    )
-    .trim() ||
-  "등록된 공지 내용이 없습니다.";
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .split(
+        "\n"
+      )
+      .map(
+        line => {
+          return String(
+            line ||
+            ""
+          ).replace(
+            /^[\t \u00A0\u1680\u2000-\u200B\u202F\u205F\u3000\uFEFF]+/gu,
+            ""
+          );
+        }
+      )
+      .join(
+        "\n"
+      )
+      .trim() ||
+    "등록된 공지 내용이 없습니다.";
 
 
   const attachments =
@@ -62233,6 +67527,13 @@ const contentText =
         </div>
       `
       : "";
+
+
+  const commentSectionHtml =
+    createNoticeCommentSectionHtml(
+      "global",
+      notice.id
+    );
 
 
   return `
@@ -62328,7 +67629,7 @@ const contentText =
 
             <span class="global-notice-card__content-preview">${escapeHtml(
               contentText
-              )}</span>
+            )}</span>
 
 
             <span class="global-notice-card__content-toggle">
@@ -62354,8 +67655,8 @@ const contentText =
 
 
           <div class="global-notice-card__content-full">${escapeHtml(
-              contentText
-            )}</div>
+            contentText
+          )}</div>
 
         </details>
 
@@ -62407,10 +67708,12 @@ const contentText =
           : ""
       }
 
+
+      ${commentSectionHtml}
+
     </article>
   `;
 }
-
 
 /* =========================================================
   전체공지 목록 출력
@@ -62599,7 +67902,8 @@ async function openGlobalNoticeModal() {
     "active";
 
 
-  noticeElements.filterButtons
+  noticeElements
+    .filterButtons
     .forEach(
       button => {
         button.classList.toggle(
@@ -62613,7 +67917,8 @@ async function openGlobalNoticeModal() {
 
 
   if (
-    noticeElements.openGlobalNoticeEditorButton
+    noticeElements
+      .openGlobalNoticeEditorButton
   ) {
     noticeElements
       .openGlobalNoticeEditorButton
@@ -62630,7 +67935,8 @@ async function openGlobalNoticeModal() {
   if (
     noticeElements.globalNoticeList
   ) {
-    noticeElements.globalNoticeList
+    noticeElements
+      .globalNoticeList
       .setAttribute(
         "aria-busy",
         "true"
@@ -62638,22 +67944,35 @@ async function openGlobalNoticeModal() {
   }
 
 
-  await loadGlobalNotices();
+  try {
+    await loadGlobalNotices();
 
-
-  if (
-    noticeElements.globalNoticeList
-  ) {
-    noticeElements.globalNoticeList
-      .setAttribute(
-        "aria-busy",
-        "false"
-      );
+  } finally {
+    if (
+      noticeElements.globalNoticeList
+    ) {
+      noticeElements
+        .globalNoticeList
+        .setAttribute(
+          "aria-busy",
+          "false"
+        );
+    }
   }
 
 
+  /*
+    공지 카드를 먼저 표시한 다음
+    댓글 개수를 각 카드에 반영한다.
+  */
+
   renderGlobalNoticeList();
+
+
+  await ensureNoticeCommentCountsLoaded();
 }
+
+
 
 
 /* =========================================================
@@ -74271,13 +79590,4431 @@ function addEfficiencyDailyWorkDateDays(
 
 
 /* =========================================================
-  A4 문서 표시용 날짜
+  효율팀 - 일일업무현황
 
-  반환 예:
-  2026년 08월 03일 월요일
+  3단계:
+  저장 기록 데이터 정리 및 작성 화면 상태 표시
 ========================================================= */
 
-function formatEfficiencyDailyWorkDisplayDate(
+const EFFICIENCY_DAILY_WORK_RECORD_STATUS =
+  Object.freeze({
+    NEW: "new",
+    SAVED: "saved"
+  });
+
+
+const EFFICIENCY_DAILY_WORK_ROW_SCHEMA =
+  Object.freeze([
+    {
+      rowKey: "efficiency-overall",
+
+      flat: {
+        assignee: "efficiencyOverallAssignee",
+        tasks: "efficiencyOverallTasks",
+        remarks: "efficiencyOverallRemarks"
+      }
+    },
+
+    {
+      rowKey: "efficiency-1",
+
+      flat: {
+        assignee: "efficiency1Assignee",
+        tasks: "efficiency1Tasks",
+        remarks: "efficiency1Remarks"
+      }
+    },
+
+    {
+      rowKey: "efficiency-2",
+
+      flat: {
+        assignee: "efficiency2Assignee",
+        tasks: "efficiency2Tasks",
+        remarks: "efficiency2Remarks"
+      }
+    },
+
+    {
+      rowKey: "efficiency-3",
+
+      flat: {
+        assignee: "efficiency3Assignee",
+        tasks: "efficiency3Tasks",
+        remarks: "efficiency3Remarks"
+      }
+    },
+
+    {
+      rowKey: "purchase-admin",
+
+      flat: {
+        assignee: "purchaseAdminAssignee",
+        tasks: "purchaseAdminTasks",
+        remarks: "purchaseAdminRemarks"
+      }
+    },
+
+    {
+      rowKey: "operation-day",
+
+      flat: {
+        part: "dayPart",
+        members: "dayMembers",
+        tasks: "dayTasks",
+        remarks: "dayRemarks"
+      }
+    },
+
+    {
+      rowKey: "operation-night",
+
+      flat: {
+        part: "nightPart",
+        members: "nightMembers",
+        tasks: "nightTasks",
+        remarks: "nightRemarks"
+      }
+    }
+  ]);
+
+
+const EFFICIENCY_DAILY_WORK_STATUS_CLASSES =
+  Object.freeze([
+    "is-empty",
+    "is-writing",
+    "is-saved",
+    "is-approved",
+    "is-requested",
+    "is-complete"
+  ]);
+
+
+/* =========================================================
+  여러 객체와 호환 필드 중 첫 번째 값 찾기
+========================================================= */
+
+function getEfficiencyDailyWorkFirstDefined(
+  sources,
+  fieldNames,
+  fallback = ""
+) {
+  for (
+    const source of
+      sources
+  ) {
+    if (
+      !source ||
+      typeof source !==
+        "object" ||
+      Array.isArray(
+        source
+      )
+    ) {
+      continue;
+    }
+
+
+    for (
+      const fieldName of
+        fieldNames
+    ) {
+      if (
+        Object.prototype
+          .hasOwnProperty
+          .call(
+            source,
+            fieldName
+          ) &&
+        source[fieldName] !==
+          undefined &&
+        source[fieldName] !==
+          null
+      ) {
+        return source[
+          fieldName
+        ];
+      }
+    }
+  }
+
+
+  return fallback;
+}
+
+
+/* =========================================================
+  객체 또는 JSON 문자열 안전 변환
+========================================================= */
+
+function parseEfficiencyDailyWorkStructuredValue(
+  value,
+  fallback = null
+) {
+  if (
+    value &&
+    typeof value ===
+      "object"
+  ) {
+    return value;
+  }
+
+
+  if (
+    typeof value !==
+      "string" ||
+    !value.trim()
+  ) {
+    return fallback;
+  }
+
+
+  try {
+    const parsedValue =
+      JSON.parse(
+        value
+      );
+
+
+    return (
+      parsedValue &&
+      typeof parsedValue ===
+        "object"
+    )
+      ? parsedValue
+      : fallback;
+
+  } catch {
+    return fallback;
+  }
+}
+
+
+function convertEfficiencyDailyWorkCamelToSnake(
+  value
+) {
+  return String(
+    value ||
+    ""
+  ).replace(
+    /[A-Z]/g,
+    character => {
+      return (
+        `_${character.toLowerCase()}`
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+  텍스트·체크값·파트값 정리
+========================================================= */
+
+function normalizeEfficiencyDailyWorkText(
+  value
+) {
+  return String(
+    value ??
+    ""
+  ).replace(
+    /\r\n?/g,
+    "\n"
+  );
+}
+
+
+function normalizeEfficiencyDailyWorkShortText(
+  value
+) {
+  return normalizeEfficiencyDailyWorkText(
+    value
+  ).trim();
+}
+
+
+function normalizeEfficiencyDailyWorkBoolean(
+  value
+) {
+  if (
+    typeof value ===
+      "boolean"
+  ) {
+    return value;
+  }
+
+
+  if (
+    typeof value ===
+      "number"
+  ) {
+    return value !==
+      0;
+  }
+
+
+  return [
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+    "완료"
+  ].includes(
+    String(
+      value ??
+      ""
+    )
+      .trim()
+      .toLowerCase()
+  );
+}
+
+
+function normalizeEfficiencyDailyWorkPart(
+  value
+) {
+  const normalizedValue =
+    String(
+      value ??
+      ""
+    )
+      .trim()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  const partMatch =
+    /^([1-4])(?:파트|조)?$/
+      .exec(
+        normalizedValue
+      );
+
+
+  return partMatch
+    ? partMatch[1]
+    : "";
+}
+
+
+function normalizeEfficiencyDailyWorkVersion(
+  value
+) {
+  const numericValue =
+    Number(
+      value
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return 0;
+  }
+
+
+  return Math.max(
+    0,
+    Math.trunc(
+      numericValue
+    )
+  );
+}
+
+
+/* =========================================================
+  저장 데이터 안의 실제 문서 내용 찾기
+========================================================= */
+
+function getEfficiencyDailyWorkContentSource(
+  sourceRecord
+) {
+  const candidates = [
+    sourceRecord?.content,
+    sourceRecord?.contentJson,
+    sourceRecord?.content_json,
+    sourceRecord?.payload,
+    sourceRecord?.payloadJson,
+    sourceRecord?.payload_json,
+    sourceRecord?.formData,
+    sourceRecord?.form_data,
+    sourceRecord?.data
+  ];
+
+
+  for (
+    const candidate of
+      candidates
+  ) {
+    const parsedCandidate =
+      parseEfficiencyDailyWorkStructuredValue(
+        candidate
+      );
+
+
+    if (
+      parsedCandidate &&
+      !Array.isArray(
+        parsedCandidate
+      )
+    ) {
+      return parsedCandidate;
+    }
+  }
+
+
+  return {};
+}
+
+
+/* =========================================================
+  행 키 호환 처리
+========================================================= */
+
+function normalizeEfficiencyDailyWorkRowKey(
+  value
+) {
+  const normalizedValue =
+    String(
+      value ??
+      ""
+    )
+      .trim()
+      .toLowerCase()
+      .replace(
+        /[\s_]+/g,
+        "-"
+      );
+
+
+  const aliasMap = {
+    "efficiencyoverall":
+      "efficiency-overall",
+
+    "efficiency-overall":
+      "efficiency-overall",
+
+    "efficiency1":
+      "efficiency-1",
+
+    "efficiency-1":
+      "efficiency-1",
+
+    "efficiency2":
+      "efficiency-2",
+
+    "efficiency-2":
+      "efficiency-2",
+
+    "efficiency3":
+      "efficiency-3",
+
+    "efficiency-3":
+      "efficiency-3",
+
+    "purchaseadmin":
+      "purchase-admin",
+
+    "purchase-admin":
+      "purchase-admin",
+
+    "operationday":
+      "operation-day",
+
+    "operation-day":
+      "operation-day",
+
+    "day":
+      "operation-day",
+
+    "operationnight":
+      "operation-night",
+
+    "operation-night":
+      "operation-night",
+
+    "night":
+      "operation-night"
+  };
+
+
+  return (
+    aliasMap[
+      normalizedValue
+    ] ||
+    ""
+  );
+}
+
+
+function findEfficiencyDailyWorkSourceRow(
+  sourceRows,
+  rowKey
+) {
+  if (
+    Array.isArray(
+      sourceRows
+    )
+  ) {
+    return (
+      sourceRows.find(
+        row => {
+          return (
+            normalizeEfficiencyDailyWorkRowKey(
+              row?.rowKey ??
+              row?.row_key ??
+              row?.key ??
+              row?.type
+            ) ===
+            rowKey
+          );
+        }
+      ) ||
+      {}
+    );
+  }
+
+
+  if (
+    !sourceRows ||
+    typeof sourceRows !==
+      "object"
+  ) {
+    return {};
+  }
+
+
+  const matchedEntry =
+    Object.entries(
+      sourceRows
+    ).find(
+      ([sourceKey]) => {
+        return (
+          normalizeEfficiencyDailyWorkRowKey(
+            sourceKey
+          ) ===
+          rowKey
+        );
+      }
+    );
+
+
+  return (
+    matchedEntry &&
+    matchedEntry[1] &&
+    typeof matchedEntry[1] ===
+      "object"
+  )
+    ? matchedEntry[1]
+    : {};
+}
+
+
+/* =========================================================
+  업무 행 7개 정리
+
+  camelCase·snake_case·행 배열·행 객체를 모두 허용한다.
+========================================================= */
+
+function normalizeEfficiencyDailyWorkRows(
+  sourceRecord,
+  contentSource
+) {
+  const rawRows =
+    parseEfficiencyDailyWorkStructuredValue(
+      getEfficiencyDailyWorkFirstDefined(
+        [
+          contentSource,
+          sourceRecord
+        ],
+        [
+          "rows",
+          "workRows",
+          "work_rows",
+          "workItems",
+          "work_items"
+        ],
+        []
+      ),
+      []
+    );
+
+
+  return EFFICIENCY_DAILY_WORK_ROW_SCHEMA
+    .map(
+      definition => {
+        const sourceRow =
+          findEfficiencyDailyWorkSourceRow(
+            rawRows,
+            definition.rowKey
+          );
+
+
+        const normalizedRow = {
+          rowKey:
+            definition.rowKey,
+
+          assignee:
+            "",
+
+          part:
+            "",
+
+          members:
+            "",
+
+          tasks:
+            "",
+
+          remarks:
+            ""
+        };
+
+
+        Object.entries(
+          definition.flat
+        ).forEach(
+          (
+            [
+              fieldName,
+              flatFieldName
+            ]
+          ) => {
+            const rawValue =
+              getEfficiencyDailyWorkFirstDefined(
+                [
+                  sourceRow
+                ],
+                [
+                  fieldName,
+                  convertEfficiencyDailyWorkCamelToSnake(
+                    fieldName
+                  )
+                ],
+                undefined
+              );
+
+
+            const fallbackValue =
+              getEfficiencyDailyWorkFirstDefined(
+                [
+                  contentSource,
+                  sourceRecord
+                ],
+                [
+                  flatFieldName,
+                  convertEfficiencyDailyWorkCamelToSnake(
+                    flatFieldName
+                  )
+                ],
+                ""
+              );
+
+
+            const selectedValue =
+              rawValue !==
+                undefined
+                ? rawValue
+                : fallbackValue;
+
+
+            if (
+              fieldName ===
+                "part"
+            ) {
+              normalizedRow[
+                fieldName
+              ] =
+                normalizeEfficiencyDailyWorkPart(
+                  selectedValue
+                );
+
+            } else if (
+              fieldName ===
+                "assignee" ||
+              fieldName ===
+                "members"
+            ) {
+              normalizedRow[
+                fieldName
+              ] =
+                normalizeEfficiencyDailyWorkShortText(
+                  selectedValue
+                );
+
+            } else {
+              normalizedRow[
+                fieldName
+              ] =
+                normalizeEfficiencyDailyWorkText(
+                  selectedValue
+                );
+            }
+          }
+        );
+
+
+        return normalizedRow;
+      }
+    );
+}
+
+
+/* =========================================================
+  저장 기록 1건 정리
+========================================================= */
+
+function normalizeEfficiencyDailyWorkRecord(
+  record
+) {
+  const sourceRecord =
+    parseEfficiencyDailyWorkStructuredValue(
+      record
+    );
+
+
+  if (
+    !sourceRecord ||
+    Array.isArray(
+      sourceRecord
+    )
+  ) {
+    return null;
+  }
+
+
+  const contentSource =
+    getEfficiencyDailyWorkContentSource(
+      sourceRecord
+    );
+
+
+  const getValue = (
+    fieldNames,
+    fallback = ""
+  ) => {
+    return getEfficiencyDailyWorkFirstDefined(
+      [
+        sourceRecord,
+        contentSource
+      ],
+      fieldNames,
+      fallback
+    );
+  };
+
+
+  const id =
+    normalizeEfficiencyDailyWorkShortText(
+      getValue([
+        "id",
+        "dailyWorkId",
+        "daily_work_id",
+        "recordId",
+        "record_id"
+      ])
+    );
+
+
+  const workDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      String(
+        getValue([
+          "workDate",
+          "work_date",
+          "date"
+        ]) ??
+        ""
+      ).slice(
+        0,
+        10
+      )
+    );
+
+
+  const createdAt =
+    normalizeEfficiencyDailyWorkShortText(
+      getValue([
+        "createdAt",
+        "created_at"
+      ])
+    );
+
+
+  const updatedAt =
+    normalizeEfficiencyDailyWorkShortText(
+      getValue(
+        [
+          "updatedAt",
+          "updated_at"
+        ],
+        createdAt
+      )
+    );
+
+
+  return {
+    id,
+
+    workDate,
+
+    version:
+      normalizeEfficiencyDailyWorkVersion(
+        getValue(
+          [
+            "version",
+            "revision",
+            "revisionNo",
+            "revision_no"
+          ],
+          0
+        )
+      ),
+
+    schemaVersion:
+      normalizeEfficiencyDailyWorkVersion(
+        getValue(
+          [
+            "schemaVersion",
+            "schema_version"
+          ],
+          1
+        )
+      ) ||
+      1,
+
+    status:
+      id
+        ? EFFICIENCY_DAILY_WORK_RECORD_STATUS
+            .SAVED
+        : EFFICIENCY_DAILY_WORK_RECORD_STATUS
+            .NEW,
+
+    notice:
+      normalizeEfficiencyDailyWorkText(
+        getValue([
+          "notice"
+        ])
+      ),
+
+    tmMeeting:
+      normalizeEfficiencyDailyWorkText(
+        getValue([
+          "tmMeeting",
+          "tm_meeting"
+        ])
+      ),
+
+    teamInstruction:
+      normalizeEfficiencyDailyWorkText(
+        getValue([
+          "teamInstruction",
+          "team_instruction"
+        ])
+      ),
+
+    generationReportCompleted:
+      normalizeEfficiencyDailyWorkBoolean(
+        getValue(
+          [
+            "generationReportCompleted",
+            "generation_report_completed"
+          ],
+          false
+        )
+      ),
+
+    rows:
+      normalizeEfficiencyDailyWorkRows(
+        sourceRecord,
+        contentSource
+      ),
+
+    otherNotes:
+      normalizeEfficiencyDailyWorkText(
+        getValue([
+          "otherNotes",
+          "other_notes"
+        ])
+      ),
+
+    createdById:
+      normalizeEfficiencyDailyWorkShortText(
+        getValue([
+          "createdById",
+          "created_by_id",
+          "authorId",
+          "author_id"
+        ])
+      ),
+
+    createdByName:
+      normalizeEfficiencyDailyWorkShortText(
+        getValue([
+          "createdByName",
+          "created_by_name",
+          "authorName",
+          "author_name",
+          "author",
+          "writerName",
+          "writer_name"
+        ])
+      ),
+
+    updatedById:
+      normalizeEfficiencyDailyWorkShortText(
+        getValue([
+          "updatedById",
+          "updated_by_id"
+        ])
+      ),
+
+    updatedByName:
+      normalizeEfficiencyDailyWorkShortText(
+        getValue([
+          "updatedByName",
+          "updated_by_name"
+        ])
+      ),
+
+    createdAt,
+
+    updatedAt
+  };
+}
+
+
+/* =========================================================
+  API 응답 안의 기록 배열 찾기
+========================================================= */
+
+function extractEfficiencyDailyWorkRecordItems(
+  source,
+  depth = 0
+) {
+  if (
+    depth >
+      4
+  ) {
+    return [];
+  }
+
+
+  const parsedSource =
+    parseEfficiencyDailyWorkStructuredValue(
+      source
+    );
+
+
+  if (
+    Array.isArray(
+      parsedSource
+    )
+  ) {
+    return parsedSource;
+  }
+
+
+  if (
+    !parsedSource ||
+    typeof parsedSource !==
+      "object"
+  ) {
+    return [];
+  }
+
+
+  const isSingleRecord = [
+    "workDate",
+    "work_date",
+    "date"
+  ].some(
+    fieldName => {
+      return Object.prototype
+        .hasOwnProperty
+        .call(
+          parsedSource,
+          fieldName
+        );
+    }
+  );
+
+
+  if (
+    isSingleRecord
+  ) {
+    return [
+      parsedSource
+    ];
+  }
+
+
+  const collectionFields = [
+    "items",
+    "records",
+    "dailyWorkRecords",
+    "daily_work_records",
+    "item",
+    "record",
+    "data",
+    "result"
+  ];
+
+
+  for (
+    const fieldName of
+      collectionFields
+  ) {
+    if (
+      !Object.prototype
+        .hasOwnProperty
+        .call(
+          parsedSource,
+          fieldName
+        )
+    ) {
+      continue;
+    }
+
+
+    const nestedItems =
+      extractEfficiencyDailyWorkRecordItems(
+        parsedSource[
+          fieldName
+        ],
+        depth +
+          1
+      );
+
+
+    if (
+      nestedItems.length >
+        0
+    ) {
+      return nestedItems;
+    }
+  }
+
+
+  return [];
+}
+
+
+/* =========================================================
+  서버 시간값 정리
+
+  D1의 YYYY-MM-DD HH:mm:ss 형식은 UTC로 해석한다.
+========================================================= */
+
+function getEfficiencyDailyWorkTimestamp(
+  value
+) {
+  let normalizedValue =
+    String(
+      value ??
+      ""
+    ).trim();
+
+
+  if (
+    !normalizedValue
+  ) {
+    return 0;
+  }
+
+
+  if (
+    /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?$/
+      .test(
+        normalizedValue
+      )
+  ) {
+    normalizedValue =
+      `${normalizedValue.replace(
+        /\s+/,
+        "T"
+      )}Z`;
+  }
+
+
+  const timestamp =
+    new Date(
+      normalizedValue
+    ).getTime();
+
+
+  return Number.isNaN(
+    timestamp
+  )
+    ? 0
+    : timestamp;
+}
+
+
+function formatEfficiencyDailyWorkUpdatedAt(
+  value
+) {
+  const timestamp =
+    getEfficiencyDailyWorkTimestamp(
+      value
+    );
+
+
+  if (
+    !timestamp
+  ) {
+    return "";
+  }
+
+
+  const date =
+    new Date(
+      timestamp
+    );
+
+
+  return [
+    formatEfficiencyDailyWorkDateValue(
+      date
+    ),
+    " ",
+    String(
+      date.getHours()
+    ).padStart(
+      2,
+      "0"
+    ),
+    ":",
+    String(
+      date.getMinutes()
+    ).padStart(
+      2,
+      "0"
+    )
+  ].join(
+    ""
+  );
+}
+
+
+/* =========================================================
+  저장 기록 목록 정리
+
+  날짜당 가장 최신 기록 1건만 유지한다.
+========================================================= */
+
+function compareEfficiencyDailyWorkRecordFreshness(
+  firstRecord,
+  secondRecord
+) {
+  const versionDifference =
+    firstRecord.version -
+    secondRecord.version;
+
+
+  if (
+    versionDifference !==
+      0
+  ) {
+    return versionDifference;
+  }
+
+
+  return (
+    getEfficiencyDailyWorkTimestamp(
+      firstRecord.updatedAt ||
+      firstRecord.createdAt
+    ) -
+    getEfficiencyDailyWorkTimestamp(
+      secondRecord.updatedAt ||
+      secondRecord.createdAt
+    )
+  );
+}
+
+
+function normalizeEfficiencyDailyWorkRecordList(
+  source
+) {
+  const recordMap =
+    new Map();
+
+
+  extractEfficiencyDailyWorkRecordItems(
+    source
+  )
+    .map(
+      normalizeEfficiencyDailyWorkRecord
+    )
+    .filter(
+      record => {
+        return Boolean(
+          record &&
+          record.workDate
+        );
+      }
+    )
+    .forEach(
+      record => {
+        const currentRecord =
+          recordMap.get(
+            record.workDate
+          );
+
+
+        if (
+          !currentRecord ||
+          compareEfficiencyDailyWorkRecordFreshness(
+            record,
+            currentRecord
+          ) >
+            0
+        ) {
+          recordMap.set(
+            record.workDate,
+            record
+          );
+        }
+      }
+    );
+
+
+  return [
+    ...recordMap.values()
+  ].sort(
+    (
+      firstRecord,
+      secondRecord
+    ) => {
+      return secondRecord
+        .workDate
+        .localeCompare(
+          firstRecord.workDate
+        );
+    }
+  );
+}
+
+
+function setEfficiencyDailyWorkItems(
+  source
+) {
+  efficiencyDailyWorkState.items =
+    normalizeEfficiencyDailyWorkRecordList(
+      source
+    );
+
+
+  return efficiencyDailyWorkState
+    .items;
+}
+
+
+function findEfficiencyDailyWorkRecordByDate(
+  dateValue
+) {
+  const normalizedDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      dateValue
+    );
+
+
+  return (
+    efficiencyDailyWorkState
+      .items.find(
+        record => {
+          return (
+            record.workDate ===
+            normalizedDate
+          );
+        }
+      ) ||
+    null
+  );
+}
+
+
+/* =========================================================
+  현재 로그인 사용자
+========================================================= */
+
+function getEfficiencyDailyWorkCurrentUserIdentity() {
+  if (
+    typeof getCurrentShiftLogUserIdentity ===
+      "function"
+  ) {
+    const currentIdentity =
+      getCurrentShiftLogUserIdentity();
+
+
+    if (
+      currentIdentity?.name ||
+      currentIdentity?.employeeNo
+    ) {
+      return {
+        employeeNo:
+          String(
+            currentIdentity.employeeNo ||
+            ""
+          ).trim(),
+
+        name:
+          String(
+            currentIdentity.name ||
+            ""
+          ).trim(),
+
+        role:
+          String(
+            currentIdentity.role ||
+            ""
+          ).trim()
+      };
+    }
+  }
+
+
+  const currentUser =
+    typeof loadCurrentUser ===
+      "function"
+      ? loadCurrentUser()
+      : null;
+
+
+  return {
+    employeeNo:
+      String(
+        currentUser?.employeeNo ||
+        currentUser?.employee_no ||
+        currentUser?.employeeId ||
+        currentUser?.employee_id ||
+        ""
+      ).trim(),
+
+    name:
+      String(
+        currentUser?.name ||
+        currentUser?.employeeName ||
+        currentUser?.employee_name ||
+        ""
+      ).trim(),
+
+    role:
+      String(
+        currentUser?.role ||
+        currentUser?.userRole ||
+        currentUser?.user_role ||
+        ""
+      ).trim()
+  };
+}
+
+
+/* =========================================================
+  작성 화면 상태 배지
+========================================================= */
+
+function getEfficiencyDailyWorkEditorStatusMeta(
+  isExistingRecord
+) {
+  if (
+    efficiencyDailyWorkState
+      .isSaving
+  ) {
+    return {
+      text:
+        "저장 중",
+
+      className:
+        "is-writing"
+    };
+  }
+
+
+  if (
+    efficiencyDailyWorkState
+      .isLoading
+  ) {
+    return {
+      text:
+        "불러오는 중",
+
+      className:
+        "is-writing"
+    };
+  }
+
+
+  if (
+    isExistingRecord &&
+    efficiencyDailyWorkState
+      .isDirty
+  ) {
+    return {
+      text:
+        "수정 중",
+
+      className:
+        "is-writing"
+    };
+  }
+
+
+  if (
+    isExistingRecord
+  ) {
+    return {
+      text:
+        "저장됨",
+
+      className:
+        "is-saved"
+    };
+  }
+
+
+  return {
+    text:
+      efficiencyDailyWorkState
+        .isDirty
+        ? "새 일지 작성 중"
+        : "새 일지",
+
+    className:
+      "is-writing"
+  };
+}
+
+
+/* =========================================================
+  작성 화면 날짜·작성자·상태 표시
+
+  입력 내용, 이벤트, API는 아직 변경하지 않는다.
+========================================================= */
+
+function renderEfficiencyDailyWorkEditorMeta() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  const activeRecord =
+    efficiencyDailyWorkState
+      .activeRecord
+      ? normalizeEfficiencyDailyWorkRecord(
+          efficiencyDailyWorkState
+            .activeRecord
+        )
+      : null;
+
+
+  const isExistingRecord =
+    efficiencyDailyWorkState
+      .editorMode ===
+        EFFICIENCY_DAILY_WORK_EDITOR_MODE
+          .EXISTING &&
+    Boolean(
+      activeRecord?.id
+    );
+
+
+  const selectedDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      efficiencyDailyWorkState
+        .selectedDate ||
+      activeRecord?.workDate
+    ) ||
+    getEfficiencyDailyWorkTodayValue();
+
+
+  efficiencyDailyWorkState
+    .selectedDate =
+    selectedDate;
+
+
+  if (
+    elements.dateInput
+  ) {
+    elements.dateInput.value =
+      selectedDate;
+  }
+
+
+  if (
+    elements.formattedDate
+  ) {
+    elements.formattedDate
+      .textContent =
+      formatEfficiencyDailyWorkDisplayDate(
+        selectedDate
+      ) ||
+      "작성일을 선택하세요";
+
+
+    elements.formattedDate
+      .setAttribute(
+        "datetime",
+        selectedDate
+      );
+  }
+
+
+  if (
+    elements.recordIdInput
+  ) {
+    elements.recordIdInput.value =
+      isExistingRecord
+        ? activeRecord.id
+        : "";
+  }
+
+
+  if (
+    elements.versionInput
+  ) {
+    elements.versionInput.value =
+      String(
+        isExistingRecord
+          ? activeRecord.version
+          : 0
+      );
+  }
+
+
+  if (
+    elements.form
+  ) {
+    elements.form.dataset
+      .editorMode =
+      efficiencyDailyWorkState
+        .editorMode;
+
+
+    elements.form.dataset
+      .dirty =
+      String(
+        efficiencyDailyWorkState
+          .isDirty
+      );
+
+
+    elements.form.setAttribute(
+      "aria-busy",
+      String(
+        efficiencyDailyWorkState
+          .isLoading ||
+        efficiencyDailyWorkState
+          .isSaving
+      )
+    );
+  }
+
+
+  const statusMeta =
+    getEfficiencyDailyWorkEditorStatusMeta(
+      isExistingRecord
+    );
+
+
+  if (
+    elements.statusBadge
+  ) {
+    elements.statusBadge
+      .classList
+      .remove(
+        ...EFFICIENCY_DAILY_WORK_STATUS_CLASSES
+      );
+
+
+    elements.statusBadge
+      .classList
+      .add(
+        statusMeta.className
+      );
+
+
+    elements.statusBadge
+      .dataset
+      .recordStatus =
+      isExistingRecord
+        ? EFFICIENCY_DAILY_WORK_RECORD_STATUS
+            .SAVED
+        : EFFICIENCY_DAILY_WORK_RECORD_STATUS
+            .NEW;
+
+
+    elements.statusBadge
+      .textContent =
+      statusMeta.text;
+  }
+
+
+  const currentUser =
+    getEfficiencyDailyWorkCurrentUserIdentity();
+
+
+  const authorName =
+    isExistingRecord
+      ? (
+          activeRecord.createdByName ||
+          activeRecord.updatedByName
+        )
+      : currentUser.name;
+
+
+  if (
+    elements.authorLabel
+  ) {
+    elements.authorLabel
+      .textContent =
+      authorName
+        ? `작성자 · ${authorName}`
+        : "작성자 미지정";
+  }
+
+
+  const updatedAtText =
+    isExistingRecord
+      ? formatEfficiencyDailyWorkUpdatedAt(
+          activeRecord.updatedAt ||
+          activeRecord.createdAt
+        )
+      : "";
+
+
+  if (
+    elements.updatedAtLabel
+  ) {
+    elements.updatedAtLabel
+      .textContent =
+      updatedAtText
+        ? `최종 수정 · ${updatedAtText}`
+        : "";
+  }
+
+
+  if (
+    elements.deleteButton
+  ) {
+    elements.deleteButton.hidden =
+      !isExistingRecord;
+
+
+    elements.deleteButton.disabled =
+      efficiencyDailyWorkState
+        .isLoading ||
+      efficiencyDailyWorkState
+        .isSaving;
+  }
+
+
+  if (
+    elements.paper
+  ) {
+    elements.paper.dataset
+      .workDate =
+      selectedDate;
+
+
+    elements.paper.dataset
+      .recordState =
+      isExistingRecord
+        ? (
+            efficiencyDailyWorkState
+              .isDirty
+              ? "dirty"
+              : "saved"
+          )
+        : "new";
+  }
+
+
+  return {
+    activeRecord,
+    isExistingRecord,
+    selectedDate,
+    statusMeta
+  };
+}
+
+
+/* =========================================================
+  현재 작성 화면에 저장 기록 연결
+========================================================= */
+
+function setEfficiencyDailyWorkActiveRecord(
+  record = null,
+  options = {}
+) {
+  const normalizedRecord =
+    normalizeEfficiencyDailyWorkRecord(
+      record
+    );
+
+
+  const isExistingRecord =
+    Boolean(
+      normalizedRecord?.id &&
+      normalizedRecord?.workDate
+    );
+
+
+  efficiencyDailyWorkState
+    .activeRecord =
+    isExistingRecord
+      ? normalizedRecord
+      : null;
+
+
+  efficiencyDailyWorkState
+    .selectedDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      options.dateValue ??
+      normalizedRecord?.workDate ??
+      efficiencyDailyWorkState
+        .selectedDate
+    ) ||
+    getEfficiencyDailyWorkTodayValue();
+
+
+  efficiencyDailyWorkState
+    .editorMode =
+    isExistingRecord
+      ? EFFICIENCY_DAILY_WORK_EDITOR_MODE
+          .EXISTING
+      : EFFICIENCY_DAILY_WORK_EDITOR_MODE
+          .NEW;
+
+
+  efficiencyDailyWorkState
+    .isDirty =
+    Boolean(
+      options.isDirty
+    );
+
+
+  renderEfficiencyDailyWorkEditorMeta();
+
+
+  return efficiencyDailyWorkState
+    .activeRecord;
+}
+
+
+function setEfficiencyDailyWorkDirtyState(
+  isDirty
+) {
+  efficiencyDailyWorkState
+    .isDirty =
+    Boolean(
+      isDirty
+    );
+
+
+  renderEfficiencyDailyWorkEditorMeta();
+}
+
+/* =========================================================
+  효율팀 - 일일업무현황
+
+  4단계:
+  새 일지 초기화 및 저장 기록 입력칸 반영
+========================================================= */
+
+/* =========================================================
+  입력 요소 값 설정
+
+  이벤트를 발생시키지 않으므로
+  저장 기록을 불러올 때 수정 상태가 되지 않는다.
+========================================================= */
+
+function setEfficiencyDailyWorkControlValue(
+  control,
+  value
+) {
+  if (
+    !control
+  ) {
+    return false;
+  }
+
+
+  const tagName =
+    String(
+      control.tagName ||
+      ""
+    ).toLowerCase();
+
+
+  const inputType =
+    String(
+      control.type ||
+      ""
+    ).toLowerCase();
+
+
+  if (
+    inputType ===
+      "checkbox"
+  ) {
+    control.checked =
+      normalizeEfficiencyDailyWorkBoolean(
+        value
+      );
+
+
+    control.setCustomValidity?.(
+      ""
+    );
+
+
+    control.removeAttribute?.(
+      "aria-invalid"
+    );
+
+
+    return true;
+  }
+
+
+  if (
+    inputType ===
+      "radio"
+  ) {
+    control.checked =
+      String(
+        control.value ??
+        ""
+      ) ===
+      String(
+        value ??
+        ""
+      );
+
+
+    control.setCustomValidity?.(
+      ""
+    );
+
+
+    control.removeAttribute?.(
+      "aria-invalid"
+    );
+
+
+    return true;
+  }
+
+
+  if (
+    tagName ===
+      "select"
+  ) {
+    const normalizedValue =
+      String(
+        value ??
+        ""
+      ).trim();
+
+
+    const hasMatchingOption =
+      [
+        ...(
+          control.options ||
+          []
+        )
+      ].some(
+        option => {
+          return (
+            option.value ===
+            normalizedValue
+          );
+        }
+      );
+
+
+    control.value =
+      hasMatchingOption
+        ? normalizedValue
+        : "";
+
+  } else {
+    control.value =
+      normalizeEfficiencyDailyWorkText(
+        value
+      );
+  }
+
+
+  control.setCustomValidity?.(
+    ""
+  );
+
+
+  control.removeAttribute?.(
+    "aria-invalid"
+  );
+
+
+  return true;
+}
+
+
+/* =========================================================
+  HTML 업무 행 찾기
+
+  행의 표시 순서가 아니라
+  data-efficiency-daily-work-row-key로 연결한다.
+========================================================= */
+
+function getEfficiencyDailyWorkRowElementMap(
+  elements =
+    getEfficiencyDailyWorkElements()
+) {
+  const rowElementMap =
+    new Map();
+
+
+  const rows =
+    Array.isArray(
+      elements?.rows
+    )
+      ? elements.rows
+      : [];
+
+
+  rows.forEach(
+    rowElement => {
+      const rowKey =
+        normalizeEfficiencyDailyWorkRowKey(
+          rowElement?.dataset
+            ?.efficiencyDailyWorkRowKey
+        );
+
+
+      if (
+        !rowKey ||
+        rowElementMap.has(
+          rowKey
+        )
+      ) {
+        return;
+      }
+
+
+      rowElementMap.set(
+        rowKey,
+        rowElement
+      );
+    }
+  );
+
+
+  return rowElementMap;
+}
+
+
+/* =========================================================
+  저장 기록의 업무 행 찾기
+========================================================= */
+
+function getEfficiencyDailyWorkRecordRowMap(
+  rows
+) {
+  const recordRowMap =
+    new Map();
+
+
+  if (
+    !Array.isArray(
+      rows
+    )
+  ) {
+    return recordRowMap;
+  }
+
+
+  rows.forEach(
+    row => {
+      if (
+        !row ||
+        typeof row !==
+          "object"
+      ) {
+        return;
+      }
+
+
+      const rowKey =
+        normalizeEfficiencyDailyWorkRowKey(
+          row.rowKey ??
+          row.row_key ??
+          row.key
+        );
+
+
+      if (
+        !rowKey
+      ) {
+        return;
+      }
+
+
+      recordRowMap.set(
+        rowKey,
+        row
+      );
+    }
+  );
+
+
+  return recordRowMap;
+}
+
+
+/* =========================================================
+  업무 행 1개의 입력칸 채우기
+========================================================= */
+
+function writeEfficiencyDailyWorkRowToElement(
+  rowElement,
+  rowData = {}
+) {
+  if (
+    !rowElement
+  ) {
+    return;
+  }
+
+
+  const fields = [
+    ...rowElement.querySelectorAll(
+      "[data-efficiency-daily-work-field]"
+    )
+  ];
+
+
+  fields.forEach(
+    fieldElement => {
+      const fieldName =
+        String(
+          fieldElement.dataset
+            .efficiencyDailyWorkField ||
+          ""
+        ).trim();
+
+
+      let fieldValue =
+        Object.prototype
+          .hasOwnProperty
+          .call(
+            rowData,
+            fieldName
+          )
+          ? rowData[
+              fieldName
+            ]
+          : "";
+
+
+      if (
+        fieldName ===
+          "part"
+      ) {
+        fieldValue =
+          normalizeEfficiencyDailyWorkPart(
+            fieldValue
+          );
+
+      } else if (
+        fieldName ===
+          "assignee" ||
+        fieldName ===
+          "members"
+      ) {
+        fieldValue =
+          normalizeEfficiencyDailyWorkShortText(
+            fieldValue
+          );
+
+      } else {
+        fieldValue =
+          normalizeEfficiencyDailyWorkText(
+            fieldValue
+          );
+      }
+
+
+      setEfficiencyDailyWorkControlValue(
+        fieldElement,
+        fieldValue
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+  기존 안내·오류 표시 초기화
+========================================================= */
+
+function clearEfficiencyDailyWorkEditorFeedback(
+  elements =
+    getEfficiencyDailyWorkElements()
+) {
+  if (
+    elements.messageElement
+  ) {
+    elements.messageElement
+      .textContent =
+      "";
+  }
+
+
+  if (
+    elements.errorElement
+  ) {
+    elements.errorElement
+      .textContent =
+      "";
+
+
+    elements.errorElement.hidden =
+      true;
+  }
+
+
+  if (
+    elements.overflowWarning
+  ) {
+    elements.overflowWarning.hidden =
+      true;
+  }
+}
+
+
+/* =========================================================
+  작성칸 전체 비우기
+
+  상태값은 변경하지 않고
+  실제 입력 요소만 초기화한다.
+========================================================= */
+
+function clearEfficiencyDailyWorkEditorFieldValues(
+  elements =
+    getEfficiencyDailyWorkElements()
+) {
+  if (
+    elements.form
+  ) {
+    elements.form.reset();
+  }
+
+
+  [
+    elements.noticeInput,
+    elements.tmMeetingInput,
+    elements.teamInstructionInput,
+    elements.otherNotesInput
+  ].forEach(
+    control => {
+      setEfficiencyDailyWorkControlValue(
+        control,
+        ""
+      );
+    }
+  );
+
+
+  setEfficiencyDailyWorkControlValue(
+    elements
+      .generationReportCompletedInput,
+    false
+  );
+
+
+  const rowElementMap =
+    getEfficiencyDailyWorkRowElementMap(
+      elements
+    );
+
+
+  rowElementMap.forEach(
+    rowElement => {
+      writeEfficiencyDailyWorkRowToElement(
+        rowElement,
+        {}
+      );
+    }
+  );
+
+
+  setEfficiencyDailyWorkControlValue(
+    elements.recordIdInput,
+    ""
+  );
+
+
+  setEfficiencyDailyWorkControlValue(
+    elements.versionInput,
+    "0"
+  );
+
+
+  setEfficiencyDailyWorkControlValue(
+    elements.dateInput,
+    ""
+  );
+
+
+  if (
+    elements.paperScroll
+  ) {
+    elements.paperScroll.scrollTop =
+      0;
+
+
+    elements.paperScroll.scrollLeft =
+      0;
+  }
+}
+
+
+/* =========================================================
+  새 일지 작성 화면 초기화
+========================================================= */
+
+function initializeEfficiencyDailyWorkNewRecord(
+  dateValue =
+    getEfficiencyDailyWorkTodayValue()
+) {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  const selectedDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      dateValue
+    ) ||
+    getEfficiencyDailyWorkTodayValue();
+
+
+  clearEfficiencyDailyWorkEditorFieldValues(
+    elements
+  );
+
+
+  clearEfficiencyDailyWorkEditorFeedback(
+    elements
+  );
+
+
+  setEfficiencyDailyWorkActiveRecord(
+    null,
+    {
+      dateValue:
+        selectedDate,
+
+      isDirty:
+        false
+    }
+  );
+
+
+  return selectedDate;
+}
+
+
+/* =========================================================
+  효율팀 - 일일업무현황
+
+  5단계:
+  현재 작성 내용 수집 및 수정 상태 감지
+========================================================= */
+
+const efficiencyDailyWorkDirtyTrackingForms =
+  new WeakSet();
+
+
+/* =========================================================
+  입력 요소의 현재 값 읽기
+========================================================= */
+
+function readEfficiencyDailyWorkControlValue(
+  control
+) {
+  if (
+    !control
+  ) {
+    return "";
+  }
+
+
+  const inputType =
+    String(
+      control.type ||
+      ""
+    ).toLowerCase();
+
+
+  if (
+    inputType ===
+      "checkbox"
+  ) {
+    return Boolean(
+      control.checked
+    );
+  }
+
+
+  if (
+    inputType ===
+      "radio"
+  ) {
+    return control.checked
+      ? String(
+          control.value ??
+          ""
+        )
+      : "";
+  }
+
+
+  return normalizeEfficiencyDailyWorkText(
+    control.value
+  );
+}
+
+
+/* =========================================================
+  화면의 업무 행 1개 수집
+========================================================= */
+
+function collectEfficiencyDailyWorkRowData(
+  rowElement,
+  rowKey
+) {
+  const normalizedRowKey =
+    normalizeEfficiencyDailyWorkRowKey(
+      rowKey
+    );
+
+
+  const rowData = {
+    rowKey:
+      normalizedRowKey,
+
+    assignee:
+      "",
+
+    part:
+      "",
+
+    members:
+      "",
+
+    tasks:
+      "",
+
+    remarks:
+      ""
+  };
+
+
+  if (
+    !rowElement ||
+    !normalizedRowKey
+  ) {
+    return rowData;
+  }
+
+
+  [
+    ...rowElement.querySelectorAll(
+      "[data-efficiency-daily-work-field]"
+    )
+  ].forEach(
+    fieldElement => {
+      const fieldName =
+        String(
+          fieldElement.dataset
+            .efficiencyDailyWorkField ||
+          ""
+        ).trim();
+
+
+      if (
+        !Object.prototype
+          .hasOwnProperty
+          .call(
+            rowData,
+            fieldName
+          ) ||
+        fieldName ===
+          "rowKey"
+      ) {
+        return;
+      }
+
+
+      const rawValue =
+        readEfficiencyDailyWorkControlValue(
+          fieldElement
+        );
+
+
+      if (
+        fieldName ===
+          "part"
+      ) {
+        rowData[fieldName] =
+          normalizeEfficiencyDailyWorkPart(
+            rawValue
+          );
+
+      } else if (
+        fieldName ===
+          "assignee" ||
+        fieldName ===
+          "members"
+      ) {
+        rowData[fieldName] =
+          normalizeEfficiencyDailyWorkShortText(
+            rawValue
+          );
+
+      } else {
+        rowData[fieldName] =
+          normalizeEfficiencyDailyWorkText(
+            rawValue
+          );
+      }
+    }
+  );
+
+
+  return rowData;
+}
+
+
+/* =========================================================
+  화면의 업무 행 7개 수집
+
+  HTML 표시 순서와 관계없이
+  고정 스키마 순서로 반환한다.
+========================================================= */
+
+function collectEfficiencyDailyWorkRows(
+  elements =
+    getEfficiencyDailyWorkElements()
+) {
+  const rowElementMap =
+    getEfficiencyDailyWorkRowElementMap(
+      elements
+    );
+
+
+  return EFFICIENCY_DAILY_WORK_ROW_SCHEMA
+    .map(
+      definition => {
+        return collectEfficiencyDailyWorkRowData(
+          rowElementMap.get(
+            definition.rowKey
+          ) ||
+          null,
+          definition.rowKey
+        );
+      }
+    );
+}
+
+
+/* =========================================================
+  작성 화면 전체 수집
+
+  서버 저장 직전 검증과 payload 생성의
+  단일 기준 데이터로 사용한다.
+========================================================= */
+
+function collectEfficiencyDailyWorkEditorData() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  const activeRecord =
+    efficiencyDailyWorkState
+      .activeRecord
+      ? normalizeEfficiencyDailyWorkRecord(
+          efficiencyDailyWorkState
+            .activeRecord
+        )
+      : null;
+
+
+  const rawDateValue =
+    elements.dateInput
+      ? elements.dateInput.value
+      : efficiencyDailyWorkState
+          .selectedDate;
+
+
+  const isExistingRecord =
+    efficiencyDailyWorkState
+      .editorMode ===
+        EFFICIENCY_DAILY_WORK_EDITOR_MODE
+          .EXISTING &&
+    Boolean(
+      activeRecord?.id
+    );
+
+
+  return {
+    id:
+      isExistingRecord
+        ? activeRecord.id
+        : "",
+
+    workDate:
+      normalizeEfficiencyDailyWorkDateValue(
+        rawDateValue
+      ),
+
+    version:
+      isExistingRecord
+        ? activeRecord.version
+        : 0,
+
+    schemaVersion:
+      normalizeEfficiencyDailyWorkVersion(
+        activeRecord?.schemaVersion ??
+        1
+      ) ||
+      1,
+
+    notice:
+      normalizeEfficiencyDailyWorkText(
+        readEfficiencyDailyWorkControlValue(
+          elements.noticeInput
+        )
+      ),
+
+    tmMeeting:
+      normalizeEfficiencyDailyWorkText(
+        readEfficiencyDailyWorkControlValue(
+          elements.tmMeetingInput
+        )
+      ),
+
+    teamInstruction:
+      normalizeEfficiencyDailyWorkText(
+        readEfficiencyDailyWorkControlValue(
+          elements.teamInstructionInput
+        )
+      ),
+
+    generationReportCompleted:
+      normalizeEfficiencyDailyWorkBoolean(
+        readEfficiencyDailyWorkControlValue(
+          elements
+            .generationReportCompletedInput
+        )
+      ),
+
+    rows:
+      collectEfficiencyDailyWorkRows(
+        elements
+      ),
+
+    otherNotes:
+      normalizeEfficiencyDailyWorkText(
+        readEfficiencyDailyWorkControlValue(
+          elements.otherNotesInput
+        )
+      )
+  };
+}
+
+
+/* =========================================================
+  API 저장용 payload 생성
+
+  기록 식별 정보와 실제 문서 내용을 분리한다.
+========================================================= */
+
+function buildEfficiencyDailyWorkSavePayload(
+  sourceData =
+    collectEfficiencyDailyWorkEditorData()
+) {
+  const normalizedRecord =
+    normalizeEfficiencyDailyWorkRecord(
+      sourceData
+    );
+
+
+  if (
+    !normalizedRecord
+  ) {
+    return null;
+  }
+
+
+  const payload = {
+    workDate:
+      normalizedRecord.workDate,
+
+    version:
+      normalizedRecord.version,
+
+    schemaVersion:
+      normalizedRecord.schemaVersion,
+
+    content: {
+      notice:
+        normalizedRecord.notice,
+
+      tmMeeting:
+        normalizedRecord.tmMeeting,
+
+      teamInstruction:
+        normalizedRecord.teamInstruction,
+
+      generationReportCompleted:
+        normalizedRecord
+          .generationReportCompleted,
+
+      rows:
+        normalizedRecord.rows.map(
+          row => {
+            return {
+              rowKey:
+                row.rowKey,
+
+              assignee:
+                row.assignee,
+
+              part:
+                row.part,
+
+              members:
+                row.members,
+
+              tasks:
+                row.tasks,
+
+              remarks:
+                row.remarks
+            };
+          }
+        ),
+
+      otherNotes:
+        normalizedRecord.otherNotes
+    }
+  };
+
+
+  if (
+    normalizedRecord.id
+  ) {
+    payload.id =
+      normalizedRecord.id;
+  }
+
+
+  return payload;
+}
+
+
+/* =========================================================
+  내용 비교 전용 객체
+
+  아래 값은 수정 여부 비교에서 제외한다.
+  - 기록 ID
+  - 작성일
+  - version
+  - schemaVersion
+
+  작성일 변경은 기록 이동으로 처리하고
+  문서 내용 수정으로 보지 않는다.
+========================================================= */
+
+function getEfficiencyDailyWorkComparableContent(
+  sourceData
+) {
+  const normalizedRecord =
+    normalizeEfficiencyDailyWorkRecord(
+      sourceData
+    );
+
+
+  const record =
+    normalizedRecord ||
+    normalizeEfficiencyDailyWorkRecord({
+      workDate:
+        getEfficiencyDailyWorkTodayValue()
+    });
+
+
+  return {
+    notice:
+      record?.notice ||
+      "",
+
+    tmMeeting:
+      record?.tmMeeting ||
+      "",
+
+    teamInstruction:
+      record?.teamInstruction ||
+      "",
+
+    generationReportCompleted:
+      Boolean(
+        record
+          ?.generationReportCompleted
+      ),
+
+    rows:
+      (
+        record?.rows ||
+        []
+      ).map(
+        row => {
+          return {
+            rowKey:
+              row.rowKey,
+
+            assignee:
+              row.assignee,
+
+            part:
+              row.part,
+
+            members:
+              row.members,
+
+            tasks:
+              row.tasks,
+
+            remarks:
+              row.remarks
+          };
+        }
+      ),
+
+    otherNotes:
+      record?.otherNotes ||
+      ""
+  };
+}
+
+
+function createEfficiencyDailyWorkContentSignature(
+  sourceData
+) {
+  return JSON.stringify(
+    getEfficiencyDailyWorkComparableContent(
+      sourceData
+    )
+  );
+}
+
+
+/* =========================================================
+  수정 여부 비교 기준
+
+  기존 저장 기록:
+  activeRecord의 원본 내용
+
+  새 일지:
+  모든 입력값이 비어 있는 문서
+========================================================= */
+
+function getEfficiencyDailyWorkDirtyBaseline() {
+  const activeRecord =
+    normalizeEfficiencyDailyWorkRecord(
+      efficiencyDailyWorkState
+        .activeRecord
+    );
+
+
+  if (
+    efficiencyDailyWorkState
+      .editorMode ===
+        EFFICIENCY_DAILY_WORK_EDITOR_MODE
+          .EXISTING &&
+    activeRecord?.id
+  ) {
+    return activeRecord;
+  }
+
+
+  return normalizeEfficiencyDailyWorkRecord({
+    workDate:
+      efficiencyDailyWorkState
+        .selectedDate ||
+      getEfficiencyDailyWorkTodayValue(),
+
+    schemaVersion:
+      1,
+
+    rows:
+      []
+  });
+}
+
+
+function calculateEfficiencyDailyWorkDirtyState() {
+  const currentData =
+    collectEfficiencyDailyWorkEditorData();
+
+
+  const baselineData =
+    getEfficiencyDailyWorkDirtyBaseline();
+
+
+  return (
+    createEfficiencyDailyWorkContentSignature(
+      currentData
+    ) !==
+    createEfficiencyDailyWorkContentSignature(
+      baselineData
+    )
+  );
+}
+
+
+function refreshEfficiencyDailyWorkDirtyState() {
+  const nextDirtyState =
+    calculateEfficiencyDailyWorkDirtyState();
+
+
+  if (
+    efficiencyDailyWorkState
+      .isDirty !==
+      nextDirtyState
+  ) {
+    setEfficiencyDailyWorkDirtyState(
+      nextDirtyState
+    );
+  }
+
+
+  return nextDirtyState;
+}
+
+
+/* =========================================================
+  실제 입력 내용 존재 여부
+
+  이후 취소·날짜 이동 시
+  저장하지 않은 빈 문서인지 구분할 때 사용한다.
+========================================================= */
+
+function hasEfficiencyDailyWorkContent(
+  sourceData =
+    collectEfficiencyDailyWorkEditorData()
+) {
+  const content =
+    getEfficiencyDailyWorkComparableContent(
+      sourceData
+    );
+
+
+  if (
+    content
+      .generationReportCompleted
+  ) {
+    return true;
+  }
+
+
+  if (
+    [
+      content.notice,
+      content.tmMeeting,
+      content.teamInstruction,
+      content.otherNotes
+    ].some(
+      value => {
+        return Boolean(
+          String(
+            value ||
+            ""
+          ).trim()
+        );
+      }
+    )
+  ) {
+    return true;
+  }
+
+
+  return content.rows.some(
+    row => {
+      return [
+        row.assignee,
+        row.part,
+        row.members,
+        row.tasks,
+        row.remarks
+      ].some(
+        value => {
+          return Boolean(
+            String(
+              value ||
+              ""
+            ).trim()
+          );
+        }
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+  사용자 입력으로 추적할 요소 확인
+
+  A4 문서 안의 입력값만 수정 여부에 포함한다.
+  날짜·숨김값·하단 버튼은 제외한다.
+========================================================= */
+
+function isEfficiencyDailyWorkTrackedControl(
+  target,
+  elements =
+    getEfficiencyDailyWorkElements()
+) {
+  if (
+    !target ||
+    typeof target.matches !==
+      "function" ||
+    !elements.paper ||
+    !elements.paper.contains(
+      target
+    ) ||
+    !target.matches(
+      "input, textarea, select"
+    )
+  ) {
+    return false;
+  }
+
+
+  const inputType =
+    String(
+      target.type ||
+      ""
+    ).toLowerCase();
+
+
+  return ![
+    "button",
+    "submit",
+    "reset",
+    "hidden"
+  ].includes(
+    inputType
+  );
+}
+
+
+function handleEfficiencyDailyWorkTrackedChange(
+  event
+) {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  const target =
+    event?.target;
+
+
+  if (
+    !isEfficiencyDailyWorkTrackedControl(
+      target,
+      elements
+    )
+  ) {
+    return;
+  }
+
+
+  refreshEfficiencyDailyWorkDirtyState();
+}
+
+
+/* =========================================================
+  수정 상태 감지 이벤트 연결
+
+  중복 호출되어도 같은 form에는 한 번만 연결한다.
+========================================================= */
+
+function bindEfficiencyDailyWorkDirtyTracking() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  if (
+    !elements.form ||
+    efficiencyDailyWorkDirtyTrackingForms
+      .has(
+        elements.form
+      )
+  ) {
+    return false;
+  }
+
+
+  elements.form.addEventListener(
+    "input",
+    handleEfficiencyDailyWorkTrackedChange
+  );
+
+
+  elements.form.addEventListener(
+    "change",
+    handleEfficiencyDailyWorkTrackedChange
+  );
+
+
+  efficiencyDailyWorkDirtyTrackingForms
+    .add(
+      elements.form
+    );
+
+
+  return true;
+}
+
+
+bindEfficiencyDailyWorkDirtyTracking();
+
+/* =========================================================
+  효율팀 - 일일업무현황
+
+  6단계:
+  날짜 이동·보관함 선택 및 미저장 변경 확인
+========================================================= */
+
+const efficiencyDailyWorkNavigationBoundViews =
+  new WeakSet();
+
+
+let efficiencyDailyWorkDateTransitionPending =
+  false;
+
+
+/* =========================================================
+  작성 화면 안내 및 오류 표시
+========================================================= */
+
+function showEfficiencyDailyWorkEditorError(
+  message
+) {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  if (
+    elements.errorElement
+  ) {
+    elements.errorElement
+      .textContent =
+      String(
+        message ||
+        ""
+      );
+
+
+    elements.errorElement.hidden =
+      !elements.errorElement
+        .textContent;
+  }
+}
+
+
+/* =========================================================
+  현재 선택 날짜 입력값 복구
+
+  날짜 입력 후 이동을 취소했거나
+  잘못된 날짜가 들어온 경우 사용한다.
+========================================================= */
+
+function restoreEfficiencyDailyWorkSelectedDateControl() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  const selectedDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      efficiencyDailyWorkState
+        .selectedDate
+    ) ||
+    getEfficiencyDailyWorkTodayValue();
+
+
+  efficiencyDailyWorkState
+    .selectedDate =
+    selectedDate;
+
+
+  if (
+    elements.dateInput
+  ) {
+    elements.dateInput.value =
+      selectedDate;
+  }
+
+
+  if (
+    elements.formattedDate
+  ) {
+    elements.formattedDate
+      .textContent =
+      formatEfficiencyDailyWorkDisplayDate(
+        selectedDate
+      ) ||
+      "작성일을 선택하세요";
+
+
+    elements.formattedDate
+      .setAttribute(
+        "datetime",
+        selectedDate
+      );
+  }
+
+
+  return selectedDate;
+}
+
+
+/* =========================================================
+  저장하지 않은 변경사항 확인
+
+  공통 확인창이 있으면 기존 디자인을 사용하고,
+  없을 때만 브라우저 확인창을 사용한다.
+========================================================= */
+
+async function confirmEfficiencyDailyWorkDiscardChanges(
+  options = {}
+) {
+  const hasUnsavedChanges =
+    refreshEfficiencyDailyWorkDirtyState();
+
+
+  if (
+    !hasUnsavedChanges
+  ) {
+    return true;
+  }
+
+
+  const title =
+    String(
+      options.title ||
+      "작성 내용 변경"
+    );
+
+
+  const message =
+    String(
+      options.message ||
+      "아직 저장하지 않은 내용이 있습니다. 이동하면 입력한 내용이 사라집니다."
+    );
+
+
+  const confirmText =
+    String(
+      options.confirmText ||
+      "이동"
+    );
+
+
+  if (
+    typeof showCompactConfirm ===
+      "function"
+  ) {
+    try {
+      return Boolean(
+        await showCompactConfirm({
+          title,
+
+          message,
+
+          confirmText,
+
+          cancelText:
+            "계속 작성"
+        })
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "일일업무현황 변경 확인창 오류:",
+        error
+      );
+    }
+  }
+
+
+  if (
+    typeof window !==
+      "undefined" &&
+    typeof window.confirm ===
+      "function"
+  ) {
+    return window.confirm(
+      message
+    );
+  }
+
+
+  return false;
+}
+
+
+/* =========================================================
+  보관함에서 현재 날짜 선택 표시
+
+  이후 보관함 렌더링 단계에서는 날짜 버튼에
+  data-efficiency-daily-work-date를 넣는다.
+========================================================= */
+
+function syncEfficiencyDailyWorkArchiveSelection(
+  dateValue =
+    efficiencyDailyWorkState
+      .selectedDate
+) {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  const requestedDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      dateValue
+    );
+
+
+  const activeRecord =
+    normalizeEfficiencyDailyWorkRecord(
+      efficiencyDailyWorkState
+        .activeRecord
+    );
+
+
+  const activeRecordId =
+    activeRecord?.id ||
+    "";
+
+
+  const selectedDate =
+    activeRecordId &&
+    activeRecord.workDate ===
+      requestedDate
+      ? activeRecord.workDate
+      : "";
+
+
+  const recordButtons = [
+    ...(
+      elements.folderTree
+        ?.querySelectorAll(
+          ".efficiency-daily-work-record-button[data-efficiency-daily-work-date]"
+        ) ||
+      []
+    )
+  ];
+
+
+  let activeButton =
+    null;
+
+
+  recordButtons.forEach(
+    button => {
+      const buttonDate =
+        normalizeEfficiencyDailyWorkDateValue(
+          button.dataset
+            .efficiencyDailyWorkDate
+        );
+
+
+      const isActive =
+        Boolean(
+          activeRecordId &&
+          selectedDate &&
+          buttonDate ===
+            selectedDate &&
+          (
+            !button.dataset
+              .efficiencyDailyWorkRecordId ||
+            button.dataset
+              .efficiencyDailyWorkRecordId ===
+              activeRecordId
+          )
+        );
+
+
+      button.classList.toggle(
+        "is-active",
+        isActive
+      );
+
+
+      if (
+        isActive
+      ) {
+        button.setAttribute(
+          "aria-current",
+          "date"
+        );
+
+
+        activeButton =
+          activeButton ||
+          button;
+
+      } else {
+        button.removeAttribute(
+          "aria-current"
+        );
+      }
+    }
+  );
+
+
+  if (
+    activeButton
+  ) {
+    const yearGroup =
+      activeButton.closest(
+        ".efficiency-daily-work-year-group"
+      );
+
+
+    const monthGroup =
+      activeButton.closest(
+        ".efficiency-daily-work-month-group"
+      );
+
+
+    yearGroup?.classList.add(
+      "is-open"
+    );
+
+
+    monthGroup?.classList.add(
+      "is-open"
+    );
+
+
+    yearGroup
+      ?.querySelector(
+        ".efficiency-daily-work-folder-button"
+      )
+      ?.setAttribute(
+        "aria-expanded",
+        "true"
+      );
+
+
+    monthGroup
+      ?.querySelector(
+        ".efficiency-daily-work-month-button"
+      )
+      ?.setAttribute(
+        "aria-expanded",
+        "true"
+      );
+  }
+
+
+  return activeButton;
+}
+
+
+/* =========================================================
+  요청한 날짜가 현재 작성 화면과 같은 기록인지 확인
+
+  날짜뿐 아니라 기록 ID와 version도 비교한다.
+========================================================= */
+
+function isSameEfficiencyDailyWorkEditorTarget(
+  dateValue,
+  record
+) {
+  const targetDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      dateValue
+    );
+
+
+  const currentDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      efficiencyDailyWorkState
+        .selectedDate
+    );
+
+
+  if (
+    !targetDate ||
+    targetDate !==
+      currentDate
+  ) {
+    return false;
+  }
+
+
+  const currentRecord =
+    normalizeEfficiencyDailyWorkRecord(
+      efficiencyDailyWorkState
+        .activeRecord
+    );
+
+
+  const targetRecord =
+    normalizeEfficiencyDailyWorkRecord(
+      record
+    );
+
+
+  const currentId =
+    currentRecord?.id ||
+    "";
+
+
+  const targetId =
+    targetRecord?.id ||
+    "";
+
+
+  if (
+    currentId !==
+      targetId
+  ) {
+    return false;
+  }
+
+
+  if (
+    !currentId
+  ) {
+    return true;
+  }
+
+
+  return (
+    currentRecord.version ===
+    targetRecord.version
+  );
+}
+
+
+/* =========================================================
+  날짜별 작성 화면 전환
+
+  해당 날짜의 저장 기록 있음:
+  저장본을 작성칸에 표시
+
+  저장 기록 없음:
+  해당 날짜의 빈 새 일지 표시
+========================================================= */
+
+async function openEfficiencyDailyWorkDate(
+  dateValue,
+  options = {}
+) {
+  const targetDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      dateValue
+    );
+
+
+  if (
+    !targetDate
+  ) {
+    restoreEfficiencyDailyWorkSelectedDateControl();
+
+
+    showEfficiencyDailyWorkEditorError(
+      "올바른 작성일을 선택해주세요."
+    );
+
+
+    return false;
+  }
+
+
+  if (
+    efficiencyDailyWorkState
+      .isLoading ||
+    efficiencyDailyWorkState
+      .isSaving ||
+    efficiencyDailyWorkDateTransitionPending
+  ) {
+    restoreEfficiencyDailyWorkSelectedDateControl();
+
+
+    return false;
+  }
+
+
+  efficiencyDailyWorkDateTransitionPending =
+    true;
+
+
+  try {
+    const providedRecord =
+      normalizeEfficiencyDailyWorkRecord(
+        options.record
+      );
+
+
+    const targetRecord =
+      providedRecord?.workDate ===
+        targetDate
+        ? providedRecord
+        : findEfficiencyDailyWorkRecordByDate(
+            targetDate
+          );
+
+
+    const isSameTarget =
+      isSameEfficiencyDailyWorkEditorTarget(
+        targetDate,
+        targetRecord
+      );
+
+
+    if (
+      isSameTarget &&
+      !options.forceReload
+    ) {
+      renderEfficiencyDailyWorkEditorMeta();
+
+
+      syncEfficiencyDailyWorkArchiveSelection(
+        targetDate
+      );
+
+
+      return true;
+    }
+
+
+    if (
+      !options.skipDiscardConfirmation
+    ) {
+      const shouldMove =
+        await confirmEfficiencyDailyWorkDiscardChanges({
+          title:
+            options.confirmTitle ||
+            "작성 내용 변경",
+
+          message:
+            options.confirmMessage ||
+            "아직 저장하지 않은 내용이 있습니다. 다른 날짜로 이동하면 입력한 내용이 사라집니다.",
+
+          confirmText:
+            options.confirmText ||
+            "이동"
+        });
+
+
+      if (
+        !shouldMove
+      ) {
+        renderEfficiencyDailyWorkEditorMeta();
+
+
+        syncEfficiencyDailyWorkArchiveSelection();
+
+
+        return false;
+      }
+    }
+
+
+    clearEfficiencyDailyWorkEditorFeedback();
+
+
+    if (
+      targetRecord?.id
+    ) {
+      populateEfficiencyDailyWorkEditorFromRecord(
+        targetRecord
+      );
+
+    } else {
+      initializeEfficiencyDailyWorkNewRecord(
+        targetDate
+      );
+    }
+
+
+    syncEfficiencyDailyWorkArchiveSelection(
+      targetDate
+    );
+
+
+    return true;
+
+  } finally {
+    efficiencyDailyWorkDateTransitionPending =
+      false;
+  }
+}
+
+
+/* =========================================================
+  날짜 이동 버튼 처리
+========================================================= */
+
+function getEfficiencyDailyWorkNavigationBaseDate() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  return (
+    normalizeEfficiencyDailyWorkDateValue(
+      efficiencyDailyWorkState
+        .selectedDate
+    ) ||
+    normalizeEfficiencyDailyWorkDateValue(
+      elements.dateInput
+        ?.value
+    ) ||
+    getEfficiencyDailyWorkTodayValue()
+  );
+}
+
+
+async function moveEfficiencyDailyWorkDate(
+  dayCount
+) {
+  const targetDate =
+    addEfficiencyDailyWorkDateDays(
+      getEfficiencyDailyWorkNavigationBaseDate(),
+      dayCount
+    );
+
+
+  return openEfficiencyDailyWorkDate(
+    targetDate,
+    {
+      confirmTitle:
+        "날짜 이동",
+
+      confirmMessage:
+        "아직 저장하지 않은 내용이 있습니다. 다른 날짜로 이동하면 입력한 내용이 사라집니다.",
+
+      confirmText:
+        "이동"
+    }
+  );
+}
+
+
+async function handlePreviousEfficiencyDailyWorkDate() {
+  await moveEfficiencyDailyWorkDate(
+    -1
+  );
+}
+
+
+async function handleNextEfficiencyDailyWorkDate() {
+  await moveEfficiencyDailyWorkDate(
+    1
+  );
+}
+
+
+async function handleMoveEfficiencyDailyWorkToToday() {
+  await openEfficiencyDailyWorkDate(
+    getEfficiencyDailyWorkTodayValue(),
+    {
+      confirmTitle:
+        "오늘 날짜로 이동",
+
+      confirmMessage:
+        "아직 저장하지 않은 내용이 있습니다. 오늘 날짜로 이동하면 입력한 내용이 사라집니다.",
+
+      confirmText:
+        "오늘로 이동"
+    }
+  );
+}
+
+
+async function handleEfficiencyDailyWorkDateInputChange(
+  event
+) {
+  const requestedDate =
+    event?.currentTarget
+      ?.value ||
+    "";
+
+
+  await openEfficiencyDailyWorkDate(
+    requestedDate,
+    {
+      confirmTitle:
+        "작성일 변경",
+
+      confirmMessage:
+        "아직 저장하지 않은 내용이 있습니다. 작성일을 변경하면 입력한 내용이 사라집니다.",
+
+      confirmText:
+        "날짜 변경"
+    }
+  );
+}
+
+
+/* =========================================================
+  새 일지
+
+  오늘 저장본이 있으면 저장본을 열고,
+  없을 때만 오늘 날짜의 빈 일지를 연다.
+  같은 날짜의 중복 기록은 만들지 않는다.
+========================================================= */
+
+async function handleNewEfficiencyDailyWorkRecord() {
+  await openEfficiencyDailyWorkDate(
+    getEfficiencyDailyWorkTodayValue(),
+    {
+      forceReload:
+        true,
+
+      confirmTitle:
+        "새 일지",
+
+      confirmMessage:
+        "아직 저장하지 않은 내용이 있습니다. 새 일지를 열면 입력한 내용이 사라집니다.",
+
+      confirmText:
+        "새 일지"
+    }
+  );
+}
+
+
+/* =========================================================
+  취소
+
+  기존 기록:
+  저장된 원본으로 복구
+
+  새 기록:
+  선택 날짜의 빈 문서로 복구
+========================================================= */
+
+async function handleCancelEfficiencyDailyWorkEditor() {
+  if (
+    efficiencyDailyWorkState
+      .isLoading ||
+    efficiencyDailyWorkState
+      .isSaving ||
+    efficiencyDailyWorkDateTransitionPending
+  ) {
+    restoreEfficiencyDailyWorkSelectedDateControl();
+
+
+    return false;
+  }
+
+
+  efficiencyDailyWorkDateTransitionPending =
+    true;
+
+
+  try {
+    const shouldCancel =
+      await confirmEfficiencyDailyWorkDiscardChanges({
+        title:
+          "작성 취소",
+
+        message:
+          "아직 저장하지 않은 내용이 있습니다. 수정 내용을 취소하시겠습니까?",
+
+        confirmText:
+          "취소"
+      });
+
+
+    if (
+      !shouldCancel
+    ) {
+      return false;
+    }
+
+
+    let recordToRestore =
+      normalizeEfficiencyDailyWorkRecord(
+        efficiencyDailyWorkState
+          .activeRecord
+      );
+
+
+    const selectedDate =
+      normalizeEfficiencyDailyWorkDateValue(
+        efficiencyDailyWorkState
+          .selectedDate
+      );
+
+
+    if (
+      recordToRestore?.workDate !==
+        selectedDate
+    ) {
+      recordToRestore =
+        null;
+    }
+
+
+    if (
+      !recordToRestore?.id
+    ) {
+      recordToRestore =
+        findEfficiencyDailyWorkRecordByDate(
+          selectedDate
+        );
+    }
+
+
+    if (
+      recordToRestore?.id
+    ) {
+      populateEfficiencyDailyWorkEditorFromRecord(
+        recordToRestore
+      );
+
+    } else {
+      initializeEfficiencyDailyWorkNewRecord(
+        selectedDate ||
+        getEfficiencyDailyWorkTodayValue()
+      );
+    }
+
+
+    syncEfficiencyDailyWorkArchiveSelection();
+
+
+    return true;
+
+  } finally {
+    efficiencyDailyWorkDateTransitionPending =
+      false;
+  }
+}
+
+
+/* =========================================================
+  보관함 기록 선택
+========================================================= */
+
+async function handleEfficiencyDailyWorkArchiveClick(
+  event
+) {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  const recordButton =
+    event?.target
+      ?.closest?.(
+        ".efficiency-daily-work-record-button[data-efficiency-daily-work-date]"
+      );
+
+
+  if (
+    !recordButton ||
+    !elements.folderTree
+      ?.contains(
+        recordButton
+      )
+  ) {
+    return;
+  }
+
+
+  event.preventDefault();
+
+
+  const targetDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      recordButton.dataset
+        .efficiencyDailyWorkDate
+    );
+
+
+  const targetRecordId =
+    normalizeEfficiencyDailyWorkShortText(
+      recordButton.dataset
+        .efficiencyDailyWorkRecordId
+    );
+
+
+  const targetRecord =
+    efficiencyDailyWorkState
+      .items.find(
+        record => {
+          if (
+            targetRecordId
+          ) {
+            return (
+              record.id ===
+              targetRecordId
+            );
+          }
+
+
+          return (
+            record.workDate ===
+            targetDate
+          );
+        }
+      ) ||
+    null;
+
+
+  await openEfficiencyDailyWorkDate(
+    targetDate,
+    {
+      record:
+        targetRecord,
+
+      confirmTitle:
+        "저장 기록 열기",
+
+      confirmMessage:
+        "아직 저장하지 않은 내용이 있습니다. 저장 기록을 열면 입력한 내용이 사라집니다.",
+
+      confirmText:
+        "기록 열기"
+    }
+  );
+}
+
+
+/* =========================================================
+  날짜별 보관함 표시 및 숨김
+========================================================= */
+
+function renderEfficiencyDailyWorkArchiveVisibility() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  const isVisible =
+    Boolean(
+      efficiencyDailyWorkState
+        .isArchiveVisible
+    );
+
+
+  if (
+    elements.archivePanel
+  ) {
+    elements.archivePanel.hidden =
+      !isVisible;
+
+
+    elements.archivePanel
+      .setAttribute(
+        "aria-hidden",
+        String(
+          !isVisible
+        )
+      );
+  }
+
+
+  elements.dashboard
+    ?.classList
+    .toggle(
+      "is-archive-hidden",
+      !isVisible
+    );
+
+
+  if (
+    elements.toggleArchiveButton
+  ) {
+    elements.toggleArchiveButton
+      .setAttribute(
+        "aria-expanded",
+        String(
+          isVisible
+        )
+      );
+
+
+    elements.toggleArchiveButton
+      .setAttribute(
+        "aria-label",
+        isVisible
+          ? "날짜별 보관함 닫기"
+          : "날짜별 보관함 열기"
+      );
+  }
+
+
+  return isVisible;
+}
+
+
+function toggleEfficiencyDailyWorkArchive() {
+  efficiencyDailyWorkState
+    .isArchiveVisible =
+    !efficiencyDailyWorkState
+      .isArchiveVisible;
+
+
+  return renderEfficiencyDailyWorkArchiveVisibility();
+}
+
+
+/* =========================================================
+  이벤트 연결
+
+  같은 화면에는 한 번만 연결한다.
+========================================================= */
+
+function bindEfficiencyDailyWorkNavigationEvents() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  if (
+    !elements.view ||
+    efficiencyDailyWorkNavigationBoundViews
+      .has(
+        elements.view
+      )
+  ) {
+    return false;
+  }
+
+
+  elements.previousDateButton
+    ?.addEventListener(
+      "click",
+      handlePreviousEfficiencyDailyWorkDate
+    );
+
+
+  elements.nextDateButton
+    ?.addEventListener(
+      "click",
+      handleNextEfficiencyDailyWorkDate
+    );
+
+
+  elements.moveToTodayButton
+    ?.addEventListener(
+      "click",
+      handleMoveEfficiencyDailyWorkToToday
+    );
+
+
+  elements.dateInput
+    ?.addEventListener(
+      "change",
+      handleEfficiencyDailyWorkDateInputChange
+    );
+
+
+  elements.newRecordButton
+    ?.addEventListener(
+      "click",
+      handleNewEfficiencyDailyWorkRecord
+    );
+
+
+  elements.cancelButton
+    ?.addEventListener(
+      "click",
+      handleCancelEfficiencyDailyWorkEditor
+    );
+
+
+  elements.folderTree
+    ?.addEventListener(
+      "click",
+      handleEfficiencyDailyWorkArchiveClick
+    );
+
+
+  elements.toggleArchiveButton
+    ?.addEventListener(
+      "click",
+      toggleEfficiencyDailyWorkArchive
+    );
+
+
+  efficiencyDailyWorkNavigationBoundViews
+    .add(
+      elements.view
+    );
+
+
+  return true;
+}
+
+
+/* =========================================================
+  최초 작성 화면 준비
+========================================================= */
+
+function initializeEfficiencyDailyWorkNavigation() {
+  bindEfficiencyDailyWorkNavigationEvents();
+
+
+  renderEfficiencyDailyWorkArchiveVisibility();
+
+
+  if (
+    normalizeEfficiencyDailyWorkDateValue(
+      efficiencyDailyWorkState
+        .selectedDate
+    )
+  ) {
+    renderEfficiencyDailyWorkEditorMeta();
+
+
+    syncEfficiencyDailyWorkArchiveSelection();
+
+
+    return;
+  }
+
+
+  const initialDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      efficiencyDailyWorkState
+        .selectedDate
+    ) ||
+    normalizeEfficiencyDailyWorkDateValue(
+      getEfficiencyDailyWorkElements()
+        .dateInput
+        ?.value
+    ) ||
+    getEfficiencyDailyWorkTodayValue();
+
+
+  const initialRecord =
+    findEfficiencyDailyWorkRecordByDate(
+      initialDate
+    );
+
+
+  if (
+    initialRecord?.id
+  ) {
+    populateEfficiencyDailyWorkEditorFromRecord(
+      initialRecord
+    );
+
+  } else {
+    initializeEfficiencyDailyWorkNewRecord(
+      initialDate
+    );
+  }
+
+
+  syncEfficiencyDailyWorkArchiveSelection(
+    initialDate
+  );
+}
+
+
+initializeEfficiencyDailyWorkNavigation();
+
+/* =========================================================
+  효율팀 - 일일업무현황
+
+  7단계:
+  연도·월·날짜별 보관함 렌더링 및 폴더 열기·닫기
+========================================================= */
+
+const efficiencyDailyWorkArchiveFolderBoundTrees =
+  new WeakSet();
+
+
+let efficiencyDailyWorkArchiveHasRenderedRecords =
+  false;
+
+
+/* =========================================================
+  보관함에 표시할 저장 기록
+
+  올바른 기록 ID와 날짜가 있는 항목만
+  최신 날짜 → 최신 version 순으로 정렬한다.
+========================================================= */
+
+function getEfficiencyDailyWorkArchiveRecords() {
+  const sourceItems =
+    Array.isArray(
+      efficiencyDailyWorkState.items
+    )
+      ? efficiencyDailyWorkState.items
+      : [];
+
+
+  return sourceItems
+    .map(
+      item =>
+        normalizeEfficiencyDailyWorkRecord(
+          item
+        )
+    )
+    .filter(
+      record =>
+        Boolean(
+          record?.id &&
+          record.workDate
+        )
+    )
+    .sort(
+      (
+        firstRecord,
+        secondRecord
+      ) => {
+        const dateOrder =
+          secondRecord.workDate.localeCompare(
+            firstRecord.workDate
+          );
+
+
+        if (
+          dateOrder !== 0
+        ) {
+          return dateOrder;
+        }
+
+
+        const versionOrder =
+          Number(
+            secondRecord.version || 0
+          ) -
+          Number(
+            firstRecord.version || 0
+          );
+
+
+        if (
+          versionOrder !== 0
+        ) {
+          return versionOrder;
+        }
+
+
+        return String(
+          firstRecord.id
+        ).localeCompare(
+          String(
+            secondRecord.id
+          )
+        );
+      }
+    );
+}
+
+
+/* =========================================================
+  연도 → 월 → 날짜 기록 구조 만들기
+========================================================= */
+
+function groupEfficiencyDailyWorkArchiveRecords(
+  records
+) {
+  const yearMap =
+    new Map();
+
+
+  records.forEach(
+    record => {
+      const yearValue =
+        record.workDate.slice(
+          0,
+          4
+        );
+
+
+      const monthValue =
+        record.workDate.slice(
+          0,
+          7
+        );
+
+
+      if (
+        !yearMap.has(
+          yearValue
+        )
+      ) {
+        yearMap.set(
+          yearValue,
+          {
+            yearValue,
+            recordCount: 0,
+            monthMap: new Map()
+          }
+        );
+      }
+
+
+      const yearGroup =
+        yearMap.get(
+          yearValue
+        );
+
+
+      if (
+        !yearGroup.monthMap.has(
+          monthValue
+        )
+      ) {
+        yearGroup.monthMap.set(
+          monthValue,
+          {
+            monthValue,
+            records: []
+          }
+        );
+      }
+
+
+      yearGroup.recordCount += 1;
+
+
+      yearGroup.monthMap
+        .get(
+          monthValue
+        )
+        .records.push(
+          record
+        );
+    }
+  );
+
+
+  return [
+    ...yearMap.values()
+  ].map(
+    yearGroup => ({
+      yearValue:
+        yearGroup.yearValue,
+
+      recordCount:
+        yearGroup.recordCount,
+
+      months: [
+        ...yearGroup.monthMap.values()
+      ]
+    })
+  );
+}
+
+
+/* =========================================================
+  다시 렌더링하기 전 폴더 열림 상태 기억
+========================================================= */
+
+function getEfficiencyDailyWorkArchiveOpenState(
+  folderTree
+) {
+  const openYears =
+    new Set();
+
+
+  const openMonths =
+    new Set();
+
+
+  if (
+    !folderTree
+  ) {
+    return {
+      openYears,
+      openMonths
+    };
+  }
+
+
+  folderTree
+    .querySelectorAll(
+      ".efficiency-daily-work-year-group.is-open[data-efficiency-daily-work-year]"
+    )
+    .forEach(
+      groupElement => {
+        const yearValue =
+          String(
+            groupElement.dataset
+              .efficiencyDailyWorkYear ||
+            ""
+          ).trim();
+
+
+        if (
+          yearValue
+        ) {
+          openYears.add(
+            yearValue
+          );
+        }
+      }
+    );
+
+
+  folderTree
+    .querySelectorAll(
+      ".efficiency-daily-work-month-group.is-open[data-efficiency-daily-work-month]"
+    )
+    .forEach(
+      groupElement => {
+        const monthValue =
+          String(
+            groupElement.dataset
+              .efficiencyDailyWorkMonth ||
+            ""
+          ).trim();
+
+
+        if (
+          monthValue
+        ) {
+          openMonths.add(
+            monthValue
+          );
+        }
+      }
+    );
+
+
+  return {
+    openYears,
+    openMonths
+  };
+}
+
+
+/* =========================================================
+  날짜 기록 버튼 표시값
+
+  예:
+  04일 / 화요일
+========================================================= */
+
+function getEfficiencyDailyWorkArchiveDateLabel(
   dateValue
 ) {
   const parsedDate =
@@ -74289,11 +84026,14 @@ function formatEfficiencyDailyWorkDisplayDate(
   if (
     !parsedDate
   ) {
-    return "";
+    return {
+      dayLabel: dateValue,
+      weekdayLabel: ""
+    };
   }
 
 
-  const weekdays = [
+  const weekdayLabels = [
     "일요일",
     "월요일",
     "화요일",
@@ -74304,36 +84044,4702 @@ function formatEfficiencyDailyWorkDisplayDate(
   ];
 
 
-  return [
-    parsedDate.getFullYear(),
-    "년 ",
+  return {
+    dayLabel:
+      `${String(
+        parsedDate.getDate()
+      ).padStart(
+        2,
+        "0"
+      )}일`,
 
+    weekdayLabel:
+      weekdayLabels[
+        parsedDate.getDay()
+      ]
+  };
+}
+
+
+/* =========================================================
+  연도·월 폴더 버튼 만들기
+========================================================= */
+
+function createEfficiencyDailyWorkArchiveFolderButton(
+  options = {}
+) {
+  const button =
+    document.createElement(
+      "button"
+    );
+
+
+  button.type = "button";
+
+
+  button.className =
     String(
-      parsedDate.getMonth() +
-      1
-    ).padStart(
-      2,
-      "0"
-    ),
+      options.className || ""
+    );
 
-    "월 ",
 
+  button.setAttribute(
+    "aria-expanded",
     String(
-      parsedDate.getDate()
-    ).padStart(
-      2,
-      "0"
-    ),
+      Boolean(
+        options.isOpen
+      )
+    )
+  );
 
-    "일 ",
 
-    weekdays[
-      parsedDate.getDay()
-    ]
-  ].join(
-    ""
+  if (
+    options.controlsId
+  ) {
+    button.setAttribute(
+      "aria-controls",
+      options.controlsId
+    );
+  }
+
+
+  const labelElement =
+    document.createElement(
+      "span"
+    );
+
+
+  labelElement.textContent =
+    String(
+      options.label || ""
+    );
+
+
+  const countElement =
+    document.createElement(
+      "small"
+    );
+
+
+  countElement.textContent =
+    `${Number(
+      options.count || 0
+    )}건`;
+
+
+  button.append(
+    labelElement,
+    countElement
+  );
+
+
+  return button;
+}
+
+
+/* =========================================================
+  날짜 기록 버튼 만들기
+
+  6단계 기록 선택 함수가 사용하는
+  날짜와 기록 ID를 data 속성에 넣는다.
+========================================================= */
+
+function createEfficiencyDailyWorkArchiveRecordButton(
+  record
+) {
+  const button =
+    document.createElement(
+      "button"
+    );
+
+
+  const dateLabel =
+    getEfficiencyDailyWorkArchiveDateLabel(
+      record.workDate
+    );
+
+
+  button.type = "button";
+
+
+  button.className =
+    "efficiency-daily-work-record-button";
+
+
+  button.dataset
+    .efficiencyDailyWorkDate =
+    record.workDate;
+
+
+  button.dataset
+    .efficiencyDailyWorkRecordId =
+    String(
+      record.id
+    );
+
+
+  button.setAttribute(
+    "aria-label",
+    `${
+      formatEfficiencyDailyWorkDisplayDate(
+        record.workDate
+      ) ||
+      record.workDate
+    } 저장 기록 열기`
+  );
+
+
+  const dayElement =
+    document.createElement(
+      "span"
+    );
+
+
+  dayElement.textContent =
+    dateLabel.dayLabel;
+
+
+  const weekdayElement =
+    document.createElement(
+      "small"
+    );
+
+
+  weekdayElement.textContent =
+    dateLabel.weekdayLabel;
+
+
+  button.append(
+    dayElement,
+    weekdayElement
+  );
+
+
+  return button;
+}
+
+
+/* =========================================================
+  보관함 전체 렌더링
+========================================================= */
+
+function renderEfficiencyDailyWorkArchive() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  const records =
+    getEfficiencyDailyWorkArchiveRecords();
+
+
+  const recordCount =
+    records.length;
+
+
+  if (
+    elements.archiveCount
+  ) {
+    elements.archiveCount.textContent =
+      `${recordCount}건`;
+  }
+
+
+  if (
+    elements.archiveEmptyState
+  ) {
+    elements.archiveEmptyState.hidden =
+      recordCount > 0;
+  }
+
+
+  if (
+    !elements.folderTree
+  ) {
+    return recordCount;
+  }
+
+
+  const openState =
+    getEfficiencyDailyWorkArchiveOpenState(
+      elements.folderTree
+    );
+
+
+  elements.folderTree.hidden =
+    recordCount === 0;
+
+
+  if (
+    recordCount === 0
+  ) {
+    elements.folderTree
+      .replaceChildren();
+
+
+    efficiencyDailyWorkArchiveHasRenderedRecords =
+      false;
+
+
+    return 0;
+  }
+
+
+  const archiveGroups =
+    groupEfficiencyDailyWorkArchiveRecords(
+      records
+    );
+
+
+  const activeRecord =
+    normalizeEfficiencyDailyWorkRecord(
+      efficiencyDailyWorkState
+        .activeRecord
+    );
+
+
+  const hasActiveArchiveRecord =
+    Boolean(
+      activeRecord?.id &&
+      records.some(
+        record =>
+          record.id ===
+            activeRecord.id &&
+          record.workDate ===
+            activeRecord.workDate
+      )
+    );
+
+
+  const activeDate =
+    hasActiveArchiveRecord
+      ? activeRecord.workDate
+      : "";
+
+
+  const shouldOpenLatest =
+    !efficiencyDailyWorkArchiveHasRenderedRecords &&
+    !activeDate &&
+    openState.openYears.size === 0 &&
+    openState.openMonths.size === 0;
+
+
+  const fragment =
+    document.createDocumentFragment();
+
+
+  archiveGroups.forEach(
+    (
+      yearData,
+      yearIndex
+    ) => {
+      const yearGroup =
+        document.createElement(
+          "section"
+        );
+
+
+      const monthList =
+        document.createElement(
+          "div"
+        );
+
+
+      const monthListId =
+        `efficiencyDailyWorkArchiveYear-${yearData.yearValue}`;
+
+
+      const isYearOpen =
+        openState.openYears.has(
+          yearData.yearValue
+        ) ||
+        activeDate.startsWith(
+          `${yearData.yearValue}-`
+        ) ||
+        (
+          shouldOpenLatest &&
+          yearIndex === 0
+        );
+
+
+      yearGroup.className =
+        "efficiency-daily-work-year-group";
+
+
+      yearGroup.classList.toggle(
+        "is-open",
+        isYearOpen
+      );
+
+
+      yearGroup.dataset
+        .efficiencyDailyWorkYear =
+        yearData.yearValue;
+
+
+      const yearButton =
+        createEfficiencyDailyWorkArchiveFolderButton({
+          className:
+            "efficiency-daily-work-folder-button",
+
+          label:
+            `${yearData.yearValue}년`,
+
+          count:
+            yearData.recordCount,
+
+          controlsId:
+            monthListId,
+
+          isOpen:
+            isYearOpen
+        });
+
+
+      monthList.className =
+        "efficiency-daily-work-month-list";
+
+
+      monthList.id =
+        monthListId;
+
+
+      yearData.months.forEach(
+        (
+          monthData,
+          monthIndex
+        ) => {
+          const monthGroup =
+            document.createElement(
+              "section"
+            );
+
+
+          const dateList =
+            document.createElement(
+              "div"
+            );
+
+
+          const monthValue =
+            monthData.monthValue;
+
+
+          const dateListId =
+            `efficiencyDailyWorkArchiveMonth-${monthValue}`;
+
+
+          const isMonthOpen =
+            openState.openMonths.has(
+              monthValue
+            ) ||
+            activeDate.startsWith(
+              `${monthValue}-`
+            ) ||
+            (
+              shouldOpenLatest &&
+              yearIndex === 0 &&
+              monthIndex === 0
+            );
+
+
+          monthGroup.className =
+            "efficiency-daily-work-month-group";
+
+
+          monthGroup.classList.toggle(
+            "is-open",
+            isMonthOpen
+          );
+
+
+          monthGroup.dataset
+            .efficiencyDailyWorkMonth =
+            monthValue;
+
+
+          const monthButton =
+            createEfficiencyDailyWorkArchiveFolderButton({
+              className:
+                "efficiency-daily-work-month-button",
+
+              label:
+                `${monthValue.slice(
+                  5,
+                  7
+                )}월`,
+
+              count:
+                monthData.records.length,
+
+              controlsId:
+                dateListId,
+
+              isOpen:
+                isMonthOpen
+            });
+
+
+          dateList.className =
+            "efficiency-daily-work-date-list";
+
+
+          dateList.id =
+            dateListId;
+
+
+          monthData.records.forEach(
+            record => {
+              dateList.append(
+                createEfficiencyDailyWorkArchiveRecordButton(
+                  record
+                )
+              );
+            }
+          );
+
+
+          monthGroup.append(
+            monthButton,
+            dateList
+          );
+
+
+          monthList.append(
+            monthGroup
+          );
+        }
+      );
+
+
+      yearGroup.append(
+        yearButton,
+        monthList
+      );
+
+
+      fragment.append(
+        yearGroup
+      );
+    }
+  );
+
+
+  elements.folderTree
+    .replaceChildren(
+      fragment
+    );
+
+
+  efficiencyDailyWorkArchiveHasRenderedRecords =
+    true;
+
+
+  /*
+    6단계의 현재 기록 선택 표시 함수는
+    새 DOM을 완성한 뒤 호출한다.
+  */
+  syncEfficiencyDailyWorkArchiveSelection();
+
+
+  return recordCount;
+}
+
+
+/* =========================================================
+  폴더 열기·닫기
+========================================================= */
+
+function setEfficiencyDailyWorkArchiveGroupOpen(
+  groupElement,
+  buttonElement,
+  isOpen
+) {
+  if (
+    !groupElement ||
+    !buttonElement
+  ) {
+    return false;
+  }
+
+
+  groupElement.classList.toggle(
+    "is-open",
+    isOpen
+  );
+
+
+  buttonElement.setAttribute(
+    "aria-expanded",
+    String(
+      isOpen
+    )
+  );
+
+
+  return isOpen;
+}
+
+
+function handleEfficiencyDailyWorkArchiveFolderClick(
+  event
+) {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  const folderButton =
+    event?.target
+      ?.closest?.(
+        ".efficiency-daily-work-folder-button, .efficiency-daily-work-month-button"
+      );
+
+
+  if (
+    !folderButton ||
+    !elements.folderTree
+      ?.contains(
+        folderButton
+      )
+  ) {
+    return;
+  }
+
+
+  const isYearButton =
+    folderButton.classList.contains(
+      "efficiency-daily-work-folder-button"
+    );
+
+
+  const expectedGroupClass =
+    isYearButton
+      ? "efficiency-daily-work-year-group"
+      : "efficiency-daily-work-month-group";
+
+
+  const groupElement =
+    folderButton.parentElement;
+
+
+  if (
+    !groupElement?.classList.contains(
+      expectedGroupClass
+    )
+  ) {
+    return;
+  }
+
+
+  event.preventDefault();
+
+
+  setEfficiencyDailyWorkArchiveGroupOpen(
+    groupElement,
+    folderButton,
+    !groupElement.classList.contains(
+      "is-open"
+    )
   );
 }
+
+
+/* =========================================================
+  폴더 이벤트 연결
+
+  6단계의 기록 선택 이벤트와 같은 트리를 사용하지만
+  서로 다른 버튼만 처리하므로 충돌하지 않는다.
+========================================================= */
+
+function bindEfficiencyDailyWorkArchiveFolderEvents() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  if (
+    !elements.folderTree ||
+    efficiencyDailyWorkArchiveFolderBoundTrees.has(
+      elements.folderTree
+    )
+  ) {
+    return false;
+  }
+
+
+  elements.folderTree.addEventListener(
+    "click",
+    handleEfficiencyDailyWorkArchiveFolderClick
+  );
+
+
+  efficiencyDailyWorkArchiveFolderBoundTrees.add(
+    elements.folderTree
+  );
+
+
+  return true;
+}
+
+
+bindEfficiencyDailyWorkArchiveFolderEvents();
+
+
+renderEfficiencyDailyWorkArchive();
+
+/* =========================================================
+  효율팀 - 일일업무현황
+
+  8단계:
+  서버 저장 기록 목록 조회 및 새로고침 연결
+========================================================= */
+
+const EFFICIENCY_DAILY_WORK_API_URL =
+  "/api/efficiency-daily-work";
+
+
+const efficiencyDailyWorkServerBoundViews =
+  new WeakSet();
+
+
+const efficiencyDailyWorkLoadingControlStates =
+  new WeakMap();
+
+
+/* =========================================================
+  API 요청 헤더
+
+  기존 GS Shift Log 로그인 세션을 그대로 사용한다.
+========================================================= */
+
+function getEfficiencyDailyWorkApiHeaders(
+  extraHeaders = {}
+) {
+  if (
+    typeof getShiftLogAuthHeaders ===
+      "function"
+  ) {
+    return getShiftLogAuthHeaders({
+      Accept:
+        "application/json",
+
+      ...extraHeaders
+    });
+  }
+
+
+  return {
+    Accept:
+      "application/json",
+
+    ...extraHeaders
+  };
+}
+
+
+/* =========================================================
+  일일업무현황 API 공통 요청
+========================================================= */
+
+async function requestEfficiencyDailyWorkApi(
+  requestUrl,
+  options = {}
+) {
+  const response =
+    await fetch(
+      requestUrl,
+      {
+        cache:
+          "no-store",
+
+        ...options
+      }
+    );
+
+
+  const responseText =
+    await response.text();
+
+
+  let result = {};
+
+
+  if (
+    responseText.trim()
+  ) {
+    try {
+      result =
+        JSON.parse(
+          responseText
+        );
+
+    } catch {
+      throw new Error(
+        `일일업무현황 서버 응답 형식이 올바르지 않습니다. HTTP ${response.status}`
+      );
+    }
+  }
+
+
+  if (
+    response.status ===
+      401
+  ) {
+    if (
+      typeof clearCurrentUser ===
+        "function"
+    ) {
+      clearCurrentUser();
+    }
+
+
+    if (
+      typeof openLoginScreen ===
+        "function"
+    ) {
+      openLoginScreen();
+    }
+  }
+
+
+  if (
+    !response.ok ||
+    result?.ok ===
+      false ||
+    result?.success ===
+      false
+  ) {
+    const error =
+      new Error(
+        result?.message ||
+        result?.error ||
+        `일일업무현황 서버 요청에 실패했습니다. HTTP ${response.status}`
+      );
+
+
+    error.status =
+      response.status;
+
+
+    error.result =
+      result;
+
+
+    throw error;
+  }
+
+
+  return result;
+}
+
+
+/* =========================================================
+  서버 응답에서 기록 배열 찾기
+
+  기본 응답:
+  { ok: true, items: [] }
+
+  이전·시험 응답 구조도 안전하게 허용한다.
+========================================================= */
+
+function extractEfficiencyDailyWorkApiItems(
+  result
+) {
+  if (
+    Array.isArray(
+      result
+    )
+  ) {
+    return result;
+  }
+
+
+  const candidates = [
+    result?.items,
+    result?.records,
+    result?.dailyWorks,
+    result?.daily_works,
+    result?.data,
+    result?.data?.items,
+    result?.data?.records,
+    result?.data?.dailyWorks,
+    result?.data?.daily_works
+  ];
+
+
+  const matchedItems =
+    candidates.find(
+      candidate =>
+        Array.isArray(
+          candidate
+        )
+    );
+
+
+  if (
+    !matchedItems
+  ) {
+    throw new Error(
+      "일일업무현황 서버의 목록 응답 형식이 올바르지 않습니다."
+    );
+  }
+
+
+  return matchedItems;
+}
+
+
+/* =========================================================
+  서버 기록 정렬 기준
+
+  1. 최신 작성일
+  2. 높은 version
+  3. 최신 수정일
+========================================================= */
+
+function compareEfficiencyDailyWorkServerRecords(
+  firstRecord,
+  secondRecord
+) {
+  const dateOrder =
+    secondRecord.workDate.localeCompare(
+      firstRecord.workDate
+    );
+
+
+  if (
+    dateOrder !==
+      0
+  ) {
+    return dateOrder;
+  }
+
+
+  const versionOrder =
+    Number(
+      secondRecord.version || 0
+    ) -
+    Number(
+      firstRecord.version || 0
+    );
+
+
+  if (
+    versionOrder !==
+      0
+  ) {
+    return versionOrder;
+  }
+
+
+  const updatedAtOrder =
+    String(
+      secondRecord.updatedAt ||
+      ""
+    ).localeCompare(
+      String(
+        firstRecord.updatedAt ||
+        ""
+      )
+    );
+
+
+  if (
+    updatedAtOrder !==
+      0
+  ) {
+    return updatedAtOrder;
+  }
+
+
+  return String(
+    firstRecord.id
+  ).localeCompare(
+    String(
+      secondRecord.id
+    )
+  );
+}
+
+
+/* =========================================================
+  서버 기록 정규화 및 날짜별 중복 제거
+
+  일일업무현황은 날짜별 1건이므로
+  같은 날짜가 여러 건이면 가장 높은 version을 사용한다.
+========================================================= */
+
+function normalizeEfficiencyDailyWorkApiItems(
+  result
+) {
+  const normalizedRecords =
+    extractEfficiencyDailyWorkApiItems(
+      result
+    )
+      .map(
+        item =>
+          normalizeEfficiencyDailyWorkRecord(
+            item
+          )
+      )
+      .filter(
+        record =>
+          Boolean(
+            record?.id &&
+            record.workDate
+          )
+      )
+      .sort(
+        compareEfficiencyDailyWorkServerRecords
+      );
+
+
+  const recordByDate =
+    new Map();
+
+
+  normalizedRecords.forEach(
+    record => {
+      if (
+        !recordByDate.has(
+          record.workDate
+        )
+      ) {
+        recordByDate.set(
+          record.workDate,
+          record
+        );
+      }
+    }
+  );
+
+
+  return [
+    ...recordByDate.values()
+  ];
+}
+
+
+/* =========================================================
+  서버 조회 오류 표시
+
+  저장·입력 검증 오류와 구분해
+  조회 성공 시 조회 오류만 지운다.
+========================================================= */
+
+function showEfficiencyDailyWorkLoadError(
+  message
+) {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  showEfficiencyDailyWorkEditorError(
+    message
+  );
+
+
+  if (
+    elements.errorElement
+  ) {
+    elements.errorElement.dataset
+      .efficiencyDailyWorkErrorSource =
+      "load";
+  }
+}
+
+
+function clearEfficiencyDailyWorkLoadError() {
+  const {
+    errorElement
+  } =
+    getEfficiencyDailyWorkElements();
+
+
+  if (
+    !errorElement ||
+    errorElement.dataset
+      .efficiencyDailyWorkErrorSource !==
+      "load"
+  ) {
+    return false;
+  }
+
+
+  errorElement.textContent =
+    "";
+
+
+  errorElement.hidden =
+    true;
+
+
+  delete errorElement.dataset
+    .efficiencyDailyWorkErrorSource;
+
+
+  return true;
+}
+
+
+/* =========================================================
+  서버 목록 조회 중 화면 상태
+========================================================= */
+
+function setEfficiencyDailyWorkLoading(
+  isLoading
+) {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  const nextLoadingState =
+    isLoading ===
+      true;
+
+
+  efficiencyDailyWorkState
+    .isLoading =
+    nextLoadingState;
+
+
+  if (
+    elements.archivePanel
+  ) {
+    elements.archivePanel.setAttribute(
+      "aria-busy",
+      String(
+        nextLoadingState
+      )
+    );
+  }
+
+
+  if (
+    elements.folderTree
+  ) {
+    elements.folderTree.setAttribute(
+      "aria-busy",
+      String(
+        nextLoadingState
+      )
+    );
+  }
+
+
+  if (
+    elements.refreshButton
+  ) {
+    elements.refreshButton.disabled =
+      nextLoadingState;
+
+
+    elements.refreshButton.textContent =
+      nextLoadingState
+        ? "불러오는 중..."
+        : "새로고침";
+  }
+
+
+  [
+    elements.previousDateButton,
+    elements.nextDateButton,
+    elements.moveToTodayButton,
+    elements.dateInput,
+    elements.newRecordButton,
+    elements.cancelButton,
+    elements.saveButton
+  ]
+    .filter(
+      Boolean
+    )
+    .forEach(
+      control => {
+        if (
+          nextLoadingState
+        ) {
+          if (
+            !efficiencyDailyWorkLoadingControlStates
+              .has(
+                control
+              )
+          ) {
+            efficiencyDailyWorkLoadingControlStates
+              .set(
+                control,
+                control.disabled ===
+                  true
+              );
+          }
+
+
+          control.disabled =
+            true;
+
+        } else {
+          const wasDisabled =
+            efficiencyDailyWorkLoadingControlStates
+              .get(
+                control
+              );
+
+
+          control.disabled =
+            wasDisabled ===
+              true;
+
+
+          efficiencyDailyWorkLoadingControlStates
+            .delete(
+              control
+            );
+        }
+      }
+    );
+
+
+  elements.folderTree
+    ?.querySelectorAll(
+      "button"
+    )
+    .forEach(
+      button => {
+        button.disabled =
+          nextLoadingState;
+      }
+    );
+
+
+  if (
+    elements.archiveEmptyState
+  ) {
+    if (
+      nextLoadingState
+    ) {
+      elements.archiveEmptyState.hidden =
+        true;
+
+    } else {
+      elements.archiveEmptyState.hidden =
+        getEfficiencyDailyWorkArchiveRecords()
+          .length >
+        0;
+    }
+  }
+
+
+  return nextLoadingState;
+}
+
+
+/* =========================================================
+  서버 목록을 현재 작성 화면에 반영
+
+  미저장 변경 있음:
+  보관함만 최신화하고 작성 내용은 유지
+
+  미저장 변경 없음:
+  선택 날짜의 최신 저장본 또는 빈 일지 표시
+========================================================= */
+
+function applyEfficiencyDailyWorkServerRecords(
+  records
+) {
+  const selectedDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      efficiencyDailyWorkState
+        .selectedDate
+    ) ||
+    getEfficiencyDailyWorkTodayValue();
+
+
+  const hasUnsavedChanges =
+    refreshEfficiencyDailyWorkDirtyState();
+
+
+  efficiencyDailyWorkState.items =
+    Array.isArray(
+      records
+    )
+      ? records
+      : [];
+
+
+  efficiencyDailyWorkState.hasLoaded =
+    true;
+
+
+  if (
+    !hasUnsavedChanges
+  ) {
+    const selectedRecord =
+      findEfficiencyDailyWorkRecordByDate(
+        selectedDate
+      );
+
+
+    if (
+      selectedRecord?.id
+    ) {
+      populateEfficiencyDailyWorkEditorFromRecord(
+        selectedRecord
+      );
+
+    } else {
+      initializeEfficiencyDailyWorkNewRecord(
+        selectedDate
+      );
+    }
+  }
+
+
+  renderEfficiencyDailyWorkArchive();
+
+
+  syncEfficiencyDailyWorkArchiveSelection();
+
+
+  return {
+    recordCount:
+      efficiencyDailyWorkState.items
+        .length,
+
+    hasUnsavedChanges
+  };
+}
+
+
+/* =========================================================
+  서버 저장 기록 전체 조회
+
+  조회 실패 시 기존 보관함과 작성 내용은 유지한다.
+========================================================= */
+
+async function loadEfficiencyDailyWorkRecords() {
+  if (
+    efficiencyDailyWorkState
+      .isLoading ||
+    efficiencyDailyWorkState
+      .isSaving
+  ) {
+    return false;
+  }
+
+
+  const requestUrl =
+    new URL(
+      EFFICIENCY_DAILY_WORK_API_URL,
+      window.location.origin
+    );
+
+
+  requestUrl.searchParams.set(
+    "_",
+    String(
+      Date.now()
+    )
+  );
+
+
+  setEfficiencyDailyWorkLoading(
+    true
+  );
+
+
+  try {
+    const result =
+      await requestEfficiencyDailyWorkApi(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            getEfficiencyDailyWorkApiHeaders()
+        }
+      );
+
+
+    const records =
+      normalizeEfficiencyDailyWorkApiItems(
+        result
+      );
+
+
+    clearEfficiencyDailyWorkLoadError();
+
+
+    return applyEfficiencyDailyWorkServerRecords(
+      records
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "일일업무현황 저장 기록 조회 실패:",
+      error
+    );
+
+
+    showEfficiencyDailyWorkLoadError(
+      error.message ||
+      "일일업무현황 저장 기록을 불러오지 못했습니다."
+    );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        error.message ||
+        "일일업무현황 저장 기록을 불러오지 못했습니다."
+      );
+    }
+
+
+    return false;
+
+  } finally {
+    setEfficiencyDailyWorkLoading(
+      false
+    );
+  }
+}
+
+
+/* =========================================================
+  새로고침 및 최초 조회
+========================================================= */
+
+async function handleEfficiencyDailyWorkRefresh() {
+  await loadEfficiencyDailyWorkRecords();
+}
+
+
+async function loadEfficiencyDailyWorkRecordsOnce() {
+  if (
+    efficiencyDailyWorkState
+      .hasLoaded ||
+    efficiencyDailyWorkState
+      .isLoading ||
+    efficiencyDailyWorkState
+      .isSaving
+  ) {
+    return false;
+  }
+
+
+  if (
+    typeof loadCurrentUser ===
+      "function" &&
+    !loadCurrentUser()
+  ) {
+    return false;
+  }
+
+
+  return loadEfficiencyDailyWorkRecords();
+}
+
+
+/* =========================================================
+  서버 조회 이벤트 연결
+
+  페이지를 처음 읽을 때 바로 요청하지 않고,
+  로그인 사용자가 효율팀 화면을 열 때 최초 조회한다.
+========================================================= */
+
+function bindEfficiencyDailyWorkServerEvents() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  if (
+    !elements.view ||
+    efficiencyDailyWorkServerBoundViews.has(
+      elements.view
+    )
+  ) {
+    return false;
+  }
+
+
+  elements.refreshButton
+    ?.addEventListener(
+      "click",
+      handleEfficiencyDailyWorkRefresh
+    );
+
+
+  elements.teamOpenButton
+    ?.addEventListener(
+      "click",
+      () => {
+        window.setTimeout(
+          loadEfficiencyDailyWorkRecordsOnce,
+          0
+        );
+      }
+    );
+
+
+  elements.dailyWorkTab
+    ?.addEventListener(
+      "click",
+      () => {
+        window.setTimeout(
+          loadEfficiencyDailyWorkRecordsOnce,
+          0
+        );
+      }
+    );
+
+
+  efficiencyDailyWorkServerBoundViews.add(
+    elements.view
+  );
+
+
+  return true;
+}
+
+
+/* =========================================================
+  최초 서버 조회 준비
+========================================================= */
+
+function initializeEfficiencyDailyWorkServerRecords() {
+  return bindEfficiencyDailyWorkServerEvents();
+}
+
+
+initializeEfficiencyDailyWorkServerRecords();
+
+/* =========================================================
+  효율팀 - 일일업무현황
+
+  11단계:
+  저장 버튼 및 서버 POST·PUT 연결
+
+  규칙:
+  - 새 기록은 POST
+  - 기존 기록은 PUT
+  - 저장 성공 시 서버가 반환한 id·version을 즉시 반영
+  - 409 충돌 시 작성 중 내용은 자동으로 덮어쓰지 않음
+========================================================= */
+
+const efficiencyDailyWorkSaveBoundForms =
+  new WeakSet();
+
+
+const efficiencyDailyWorkSavingControlStates =
+  new WeakMap();
+
+
+const efficiencyDailyWorkSavingControls =
+  new Set();
+
+
+/* =========================================================
+  저장 중 화면 잠금
+========================================================= */
+
+function getEfficiencyDailyWorkSavingControls(
+  elements =
+    getEfficiencyDailyWorkElements()
+) {
+  return [
+    ...new Set([
+      ...(
+        elements.form
+          ?.querySelectorAll(
+            "input, select, textarea, button"
+          ) ||
+        []
+      ),
+
+      elements.refreshButton,
+      elements.newRecordButton,
+      elements.toggleArchiveButton
+    ].filter(Boolean))
+  ];
+}
+
+
+function setEfficiencyDailyWorkSaving(
+  isSaving
+) {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  const nextSavingState =
+    isSaving === true;
+
+
+  efficiencyDailyWorkState.isSaving =
+    nextSavingState;
+
+
+  elements.form?.setAttribute(
+    "aria-busy",
+    String(nextSavingState)
+  );
+
+
+  if (nextSavingState) {
+    getEfficiencyDailyWorkSavingControls(
+      elements
+    ).forEach(
+      control => {
+        if (
+          !efficiencyDailyWorkSavingControlStates
+            .has(control)
+        ) {
+          efficiencyDailyWorkSavingControlStates
+            .set(
+              control,
+              {
+                disabled:
+                  control.disabled === true,
+
+                textContent:
+                  control === elements.saveButton
+                    ? control.textContent
+                    : null
+              }
+            );
+        }
+
+
+        efficiencyDailyWorkSavingControls
+          .add(control);
+
+
+        control.disabled =
+          true;
+      }
+    );
+
+
+    if (elements.saveButton) {
+      elements.saveButton.textContent =
+        "저장 중...";
+    }
+
+
+    return true;
+  }
+
+
+  efficiencyDailyWorkSavingControls
+    .forEach(
+      control => {
+        const previousState =
+          efficiencyDailyWorkSavingControlStates
+            .get(control);
+
+
+        if (previousState) {
+          control.disabled =
+            previousState.disabled;
+
+
+          if (
+            previousState.textContent !==
+              null
+          ) {
+            control.textContent =
+              previousState.textContent;
+          }
+        }
+
+
+        efficiencyDailyWorkSavingControlStates
+          .delete(control);
+      }
+    );
+
+
+  efficiencyDailyWorkSavingControls
+    .clear();
+
+
+  return false;
+}
+
+
+/* =========================================================
+  저장 안내 및 오류 표시
+========================================================= */
+
+function showEfficiencyDailyWorkSaveMessage(
+  message
+) {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  if (elements.errorElement) {
+    elements.errorElement.textContent =
+      "";
+
+
+    elements.errorElement.hidden =
+      true;
+
+
+    delete elements.errorElement.dataset
+      .efficiencyDailyWorkErrorSource;
+  }
+
+
+  if (elements.messageElement) {
+    elements.messageElement.textContent =
+      String(message || "");
+  }
+}
+
+
+function showEfficiencyDailyWorkSaveError(
+  message
+) {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  if (elements.messageElement) {
+    elements.messageElement.textContent =
+      "";
+  }
+
+
+  showEfficiencyDailyWorkEditorError(
+    message
+  );
+
+
+  if (elements.errorElement) {
+    elements.errorElement.dataset
+      .efficiencyDailyWorkErrorSource =
+      "save";
+  }
+}
+
+
+/* =========================================================
+  저장 요청 구성
+
+  5단계의 buildEfficiencyDailyWorkSavePayload()가 만든
+  문서 본문은 그대로 사용하고, 서버 요청 메타값만 확정한다.
+========================================================= */
+
+function createEfficiencyDailyWorkWriteRequest() {
+  if (
+    typeof buildEfficiencyDailyWorkSavePayload !==
+      "function"
+  ) {
+    throw new Error(
+      "일일업무현황 저장 데이터 수집 기능을 찾을 수 없습니다."
+    );
+  }
+
+
+  const editorData =
+    typeof collectEfficiencyDailyWorkEditorData ===
+      "function"
+      ? collectEfficiencyDailyWorkEditorData()
+      : undefined;
+
+
+  const sourcePayload =
+    buildEfficiencyDailyWorkSavePayload(
+      editorData
+    );
+
+
+  if (
+    !sourcePayload ||
+    typeof sourcePayload !== "object" ||
+    Array.isArray(sourcePayload)
+  ) {
+    throw new Error(
+      "저장할 일일업무현황 데이터 형식이 올바르지 않습니다."
+    );
+  }
+
+
+  const workDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      sourcePayload.workDate ??
+      sourcePayload.work_date ??
+      efficiencyDailyWorkState.selectedDate
+    );
+
+
+  if (!workDate) {
+    throw new Error(
+      "작성일을 올바르게 선택해주세요."
+    );
+  }
+
+
+  const activeRecord =
+    normalizeEfficiencyDailyWorkRecord(
+      efficiencyDailyWorkState.activeRecord
+    );
+
+
+  const sourceRecordId =
+    sourcePayload.recordId ??
+    sourcePayload.record_id ??
+    sourcePayload.id;
+
+
+  const recordId =
+    normalizeEfficiencyDailyWorkShortText(
+      sourceRecordId ||
+      (
+        activeRecord?.workDate === workDate
+          ? activeRecord.id
+          : ""
+      )
+    );
+
+
+  if (
+    recordId &&
+    (
+      !activeRecord?.id ||
+      activeRecord.id !== recordId ||
+      activeRecord.workDate !== workDate
+    )
+  ) {
+    throw new Error(
+      "현재 기록과 작성일 정보가 일치하지 않습니다. 날짜 이동을 마친 뒤 다시 저장해주세요."
+    );
+  }
+
+
+  const version =
+    recordId
+      ? Number(
+          sourcePayload.version ??
+          activeRecord?.version
+        )
+      : 0;
+
+
+  if (
+    recordId &&
+    (
+      !Number.isInteger(version) ||
+      version < 1
+    )
+  ) {
+    throw new Error(
+      "현재 저장 기록의 version 정보가 올바르지 않습니다. 새로고침한 뒤 다시 시도해주세요."
+    );
+  }
+
+
+  const payload = {
+    ...sourcePayload,
+
+    workDate,
+
+    version
+  };
+
+
+  delete payload.work_date;
+  delete payload.record_id;
+
+
+  if (recordId) {
+    payload.recordId =
+      recordId;
+
+
+    delete payload.id;
+
+  } else {
+    delete payload.recordId;
+    delete payload.id;
+  }
+
+
+  return {
+    method:
+      recordId
+        ? "PUT"
+        : "POST",
+
+    recordId,
+
+    payload
+  };
+}
+
+
+/* =========================================================
+  서버 응답 기록 1건 정리
+========================================================= */
+
+function getEfficiencyDailyWorkWriteResponseItem(
+  result
+) {
+  const sourceItem =
+    result?.item ??
+    result?.record ??
+    result?.data?.item ??
+    result?.data?.record;
+
+
+  const normalizedItem =
+    normalizeEfficiencyDailyWorkRecord(
+      sourceItem
+    );
+
+
+  return (
+    normalizedItem?.id &&
+    normalizedItem.workDate &&
+    Number.isInteger(
+      normalizedItem.version
+    ) &&
+    normalizedItem.version >= 1
+  )
+    ? normalizedItem
+    : null;
+}
+
+
+/* =========================================================
+  서버 기록을 보관함 상태에 추가 또는 교체
+
+  같은 id 또는 같은 날짜의 이전 기록은 제거한다.
+========================================================= */
+
+function upsertEfficiencyDailyWorkServerRecord(
+  record
+) {
+  const normalizedRecord =
+    normalizeEfficiencyDailyWorkRecord(
+      record
+    );
+
+
+  if (
+    !normalizedRecord?.id ||
+    !normalizedRecord.workDate
+  ) {
+    return null;
+  }
+
+
+  const retainedRecords =
+    (
+      Array.isArray(
+        efficiencyDailyWorkState.items
+      )
+        ? efficiencyDailyWorkState.items
+        : []
+    )
+      .map(
+        item => {
+          return normalizeEfficiencyDailyWorkRecord(
+            item
+          );
+        }
+      )
+      .filter(
+        item => {
+          return Boolean(
+            item?.id &&
+            item.id !==
+              normalizedRecord.id &&
+            item.workDate !==
+              normalizedRecord.workDate
+          );
+        }
+      );
+
+
+  efficiencyDailyWorkState.items = [
+    ...retainedRecords,
+
+    normalizedRecord
+  ].sort(
+    compareEfficiencyDailyWorkServerRecords
+  );
+
+
+  return normalizedRecord;
+}
+
+
+function renderEfficiencyDailyWorkStoredRecord(
+  record,
+  options = {}
+) {
+  const normalizedRecord =
+    upsertEfficiencyDailyWorkServerRecord(
+      record
+    );
+
+
+  if (!normalizedRecord) {
+    return null;
+  }
+
+
+  renderEfficiencyDailyWorkArchive();
+
+
+  if (options.populateEditor === true) {
+    populateEfficiencyDailyWorkEditorFromRecord(
+      normalizedRecord
+    );
+  }
+
+
+  syncEfficiencyDailyWorkArchiveSelection(
+    normalizedRecord.workDate
+  );
+
+
+  return normalizedRecord;
+}
+
+
+/* =========================================================
+  409 저장 충돌 처리
+
+  서버 최신본은 보관함에만 반영한다.
+  작성 중인 입력값은 사용자가 선택하기 전까지 유지한다.
+========================================================= */
+
+function isEfficiencyDailyWorkWriteConflict(
+  error
+) {
+  const code =
+    String(
+      error?.result?.code ||
+      ""
+    ).trim();
+
+
+  return (
+    Number(error?.status) === 409 &&
+    [
+      "DATE_ALREADY_EXISTS",
+      "VERSION_CONFLICT",
+      "WORK_DATE_MISMATCH"
+    ].includes(code)
+  );
+}
+
+
+async function handleEfficiencyDailyWorkWriteConflict(
+  error
+) {
+  if (
+    !isEfficiencyDailyWorkWriteConflict(
+      error
+    )
+  ) {
+    return false;
+  }
+
+
+  const result =
+    error.result ||
+    {};
+
+
+  const latestRecord =
+    getEfficiencyDailyWorkWriteResponseItem(
+      result
+    );
+
+
+  if (latestRecord) {
+    renderEfficiencyDailyWorkStoredRecord(
+      latestRecord,
+      {
+        populateEditor:
+          false
+      }
+    );
+  }
+
+
+  const conflictMessage =
+    String(
+      result.message ||
+      error.message ||
+      "다른 사용자가 먼저 이 기록을 저장했습니다."
+    );
+
+
+  showEfficiencyDailyWorkSaveError(
+    `${conflictMessage} 현재 작성 중인 내용은 그대로 유지했습니다.`
+  );
+
+
+  if (
+    typeof showToast === "function"
+  ) {
+    showToast(
+      conflictMessage
+    );
+  }
+
+
+  if (!latestRecord) {
+    return true;
+  }
+
+
+  const shouldLoadLatest =
+    await confirmEfficiencyDailyWorkDiscardChanges({
+      title:
+        "저장 충돌",
+
+      message:
+        "서버에 더 최신 기록이 있습니다. 최신 기록을 불러오면 현재 작성 중인 내용은 사라집니다.",
+
+      confirmText:
+        "최신 기록 불러오기"
+    });
+
+
+  if (!shouldLoadLatest) {
+    return true;
+  }
+
+
+  populateEfficiencyDailyWorkEditorFromRecord(
+    latestRecord
+  );
+
+
+  renderEfficiencyDailyWorkArchive();
+
+
+  syncEfficiencyDailyWorkArchiveSelection(
+    latestRecord.workDate
+  );
+
+
+  showEfficiencyDailyWorkSaveMessage(
+    "서버의 최신 기록을 불러왔습니다."
+  );
+
+
+  return true;
+}
+
+
+/* =========================================================
+  저장 제출
+========================================================= */
+
+async function handleEfficiencyDailyWorkSubmit(
+  event
+) {
+  event?.preventDefault?.();
+
+
+  if (
+    efficiencyDailyWorkState.isLoading ||
+    efficiencyDailyWorkState.isSaving ||
+    efficiencyDailyWorkDateTransitionPending
+  ) {
+    return false;
+  }
+
+
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  if (!elements.form) {
+    return false;
+  }
+
+
+  if (
+    !elements.form.checkValidity()
+  ) {
+    elements.form.reportValidity();
+
+
+    showEfficiencyDailyWorkSaveError(
+      "필수 입력값을 확인해주세요."
+    );
+
+
+    return false;
+  }
+
+
+  let writeRequest;
+
+
+  try {
+    writeRequest =
+      createEfficiencyDailyWorkWriteRequest();
+
+  } catch (error) {
+    showEfficiencyDailyWorkSaveError(
+      error.message ||
+      "저장할 내용을 확인해주세요."
+    );
+
+
+    return false;
+  }
+
+
+  if (
+    writeRequest.method === "PUT" &&
+    !refreshEfficiencyDailyWorkDirtyState()
+  ) {
+    showEfficiencyDailyWorkSaveMessage(
+      "변경된 내용이 없습니다."
+    );
+
+
+    return true;
+  }
+
+
+  clearEfficiencyDailyWorkSaveFeedbackOnEdit();
+
+
+  setEfficiencyDailyWorkSaving(
+    true
+  );
+
+
+  try {
+    const result =
+      await requestEfficiencyDailyWorkApi(
+        EFFICIENCY_DAILY_WORK_API_URL,
+        {
+          method:
+            writeRequest.method,
+
+          headers:
+            getEfficiencyDailyWorkApiHeaders({
+              "Content-Type":
+                "application/json"
+            }),
+
+          body:
+            JSON.stringify(
+              writeRequest.payload
+            )
+        }
+      );
+
+
+    const savedRecord =
+      getEfficiencyDailyWorkWriteResponseItem(
+        result
+      );
+
+
+    if (!savedRecord) {
+      throw new Error(
+        "저장 후 서버 기록을 확인하지 못했습니다. 새로고침한 뒤 확인해주세요."
+      );
+    }
+
+
+    if (
+      savedRecord.workDate !==
+        writeRequest.payload.workDate ||
+      (
+        writeRequest.method === "PUT" &&
+        savedRecord.id !==
+          writeRequest.recordId
+      ) ||
+      (
+        writeRequest.method === "POST" &&
+        savedRecord.version !== 1
+      ) ||
+      (
+        writeRequest.method === "PUT" &&
+        savedRecord.version !==
+          writeRequest.payload.version + 1
+      )
+    ) {
+      throw new Error(
+        "저장 후 서버 기록 정보가 요청 내용과 일치하지 않습니다. 새로고침한 뒤 확인해주세요."
+      );
+    }
+
+
+    renderEfficiencyDailyWorkStoredRecord(
+      savedRecord,
+      {
+        populateEditor:
+          true
+      }
+    );
+
+
+    const successMessage =
+      writeRequest.method === "POST"
+        ? "일일업무현황을 저장했습니다."
+        : "일일업무현황 수정 내용을 저장했습니다.";
+
+
+    showEfficiencyDailyWorkSaveMessage(
+      successMessage
+    );
+
+
+    if (
+      typeof showToast === "function"
+    ) {
+      showToast(
+        successMessage
+      );
+    }
+
+
+    return savedRecord;
+
+  } catch (error) {
+    console.error(
+      "일일업무현황 저장 실패:",
+      error
+    );
+
+
+    if (
+      await handleEfficiencyDailyWorkWriteConflict(
+        error
+      )
+    ) {
+      return false;
+    }
+
+
+    const errorMessage =
+      error.message ||
+      "일일업무현황을 저장하지 못했습니다.";
+
+
+    showEfficiencyDailyWorkSaveError(
+      errorMessage
+    );
+
+
+    if (
+      typeof showToast === "function"
+    ) {
+      showToast(
+        errorMessage
+      );
+    }
+
+
+    return false;
+
+  } finally {
+    setEfficiencyDailyWorkSaving(
+      false
+    );
+
+
+    renderEfficiencyDailyWorkEditorMeta();
+
+
+    syncEfficiencyDailyWorkArchiveSelection();
+  }
+}
+
+
+/* =========================================================
+  입력을 다시 시작하면 이전 저장 결과 문구만 정리
+
+  조회 오류는 지우지 않는다.
+========================================================= */
+
+function clearEfficiencyDailyWorkSaveFeedbackOnEdit() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  if (elements.messageElement) {
+    elements.messageElement.textContent =
+      "";
+  }
+
+
+  if (
+    elements.errorElement?.dataset
+      .efficiencyDailyWorkErrorSource !==
+      "save"
+  ) {
+    return;
+  }
+
+
+  elements.errorElement.textContent =
+    "";
+
+
+  elements.errorElement.hidden =
+    true;
+
+
+  delete elements.errorElement.dataset
+    .efficiencyDailyWorkErrorSource;
+}
+
+
+/* =========================================================
+  저장 이벤트 연결
+========================================================= */
+
+function bindEfficiencyDailyWorkSaveEvents() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  if (
+    !elements.form ||
+    efficiencyDailyWorkSaveBoundForms
+      .has(elements.form)
+  ) {
+    return false;
+  }
+
+
+  elements.form.addEventListener(
+    "submit",
+    handleEfficiencyDailyWorkSubmit
+  );
+
+
+  elements.form.addEventListener(
+    "input",
+    clearEfficiencyDailyWorkSaveFeedbackOnEdit
+  );
+
+
+  elements.form.addEventListener(
+    "change",
+    clearEfficiencyDailyWorkSaveFeedbackOnEdit
+  );
+
+
+  efficiencyDailyWorkSaveBoundForms
+    .add(elements.form);
+
+
+  return true;
+}
+
+
+function initializeEfficiencyDailyWorkSave() {
+  return bindEfficiencyDailyWorkSaveEvents();
+}
+
+
+initializeEfficiencyDailyWorkSave();
+
+/* =========================================================
+  효율팀 - 일일업무현황
+
+  13단계:
+  삭제 버튼 및 DELETE API 연결
+
+  규칙:
+  - 모든 로그인 사용자가 삭제 가능
+  - 현재 기록의 id, workDate, version을 모두 전송
+  - 409 충돌 시 작성 중 내용은 자동으로 덮어쓰지 않음
+  - 404는 이미 삭제된 기록으로 보고 화면을 최신 상태로 정리
+========================================================= */
+
+const efficiencyDailyWorkDeleteBoundButtons =
+  new WeakSet();
+
+
+const efficiencyDailyWorkDeletingButtonLabels =
+  new WeakMap();
+
+
+const efficiencyDailyWorkDeletingSaveButtonLabels =
+  new WeakMap();
+
+
+/* =========================================================
+  삭제 요청 구성
+========================================================= */
+
+function createEfficiencyDailyWorkDeleteRequest() {
+  const activeRecord =
+    normalizeEfficiencyDailyWorkRecord(
+      efficiencyDailyWorkState.activeRecord
+    );
+
+
+  if (
+    !activeRecord?.id ||
+    !activeRecord.workDate
+  ) {
+    throw new Error(
+      "삭제할 저장 기록을 찾을 수 없습니다."
+    );
+  }
+
+
+  const recordId =
+    String(
+      activeRecord.id
+    ).trim();
+
+
+  const workDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      activeRecord.workDate
+    );
+
+
+  const version =
+    Number(
+      activeRecord.version
+    );
+
+
+  const selectedDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      efficiencyDailyWorkState.selectedDate
+    );
+
+
+  if (
+    !recordId ||
+    !workDate ||
+    !Number.isInteger(version) ||
+    version < 1
+  ) {
+    throw new Error(
+      "삭제할 기록 정보가 올바르지 않습니다. 새로고침한 뒤 다시 시도해주세요."
+    );
+  }
+
+
+  if (
+    !selectedDate ||
+    selectedDate !== workDate
+  ) {
+    throw new Error(
+      "현재 기록과 작성일 정보가 일치하지 않습니다. 날짜 이동을 마친 뒤 다시 시도해주세요."
+    );
+  }
+
+
+  return {
+    recordId,
+
+    workDate,
+
+    version,
+
+    payload: {
+      recordId,
+
+      workDate,
+
+      version
+    }
+  };
+}
+
+
+/* =========================================================
+  삭제 전 확인
+
+  삭제는 미수정 상태에서도 항상 한 번 확인한다.
+========================================================= */
+
+async function confirmEfficiencyDailyWorkDelete(
+  deleteRequest
+) {
+  const hasUnsavedChanges =
+    refreshEfficiencyDailyWorkDirtyState();
+
+
+  const message =
+    hasUnsavedChanges
+      ? `${deleteRequest.workDate} 저장 기록을 삭제하시겠습니까? 현재 수정 중인 내용도 함께 사라지며, 삭제 후에는 복구할 수 없습니다.`
+      : `${deleteRequest.workDate} 저장 기록을 삭제하시겠습니까? 삭제 후에는 복구할 수 없습니다.`;
+
+
+  if (
+    typeof showCompactConfirm ===
+      "function"
+  ) {
+    try {
+      return Boolean(
+        await showCompactConfirm({
+          title:
+            "일일업무현황 삭제",
+
+          message,
+
+          confirmText:
+            "삭제",
+
+          cancelText:
+            "취소"
+        })
+      );
+
+    } catch (error) {
+      console.error(
+        "일일업무현황 삭제 확인창 오류:",
+        error
+      );
+    }
+  }
+
+
+  if (
+    typeof window !== "undefined" &&
+    typeof window.confirm === "function"
+  ) {
+    return window.confirm(
+      message
+    );
+  }
+
+
+  return false;
+}
+
+
+/* =========================================================
+  삭제 중 화면 잠금
+
+  11단계의 저장 잠금 기능을 함께 사용해
+  삭제 중 저장·날짜 이동·새로고침을 막는다.
+========================================================= */
+
+function setEfficiencyDailyWorkDeleting(
+  isDeleting
+) {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  const nextDeletingState =
+    isDeleting === true;
+
+
+  if (nextDeletingState) {
+    if (
+      elements.saveButton &&
+      !efficiencyDailyWorkDeletingSaveButtonLabels
+        .has(elements.saveButton)
+    ) {
+      efficiencyDailyWorkDeletingSaveButtonLabels
+        .set(
+          elements.saveButton,
+          elements.saveButton.textContent
+        );
+    }
+
+
+    if (
+      elements.deleteButton &&
+      !efficiencyDailyWorkDeletingButtonLabels
+        .has(elements.deleteButton)
+    ) {
+      efficiencyDailyWorkDeletingButtonLabels
+        .set(
+          elements.deleteButton,
+          elements.deleteButton.textContent
+        );
+    }
+
+
+    setEfficiencyDailyWorkSaving(
+      true
+    );
+
+
+    const previousSaveButtonLabel =
+      elements.saveButton
+        ? efficiencyDailyWorkDeletingSaveButtonLabels
+            .get(elements.saveButton)
+        : undefined;
+
+
+    if (
+      elements.saveButton &&
+      previousSaveButtonLabel !==
+        undefined
+    ) {
+      elements.saveButton.textContent =
+        previousSaveButtonLabel;
+    }
+
+
+    if (elements.deleteButton) {
+      elements.deleteButton.textContent =
+        "삭제 중...";
+    }
+
+
+    return true;
+  }
+
+
+  setEfficiencyDailyWorkSaving(
+    false
+  );
+
+
+  if (elements.saveButton) {
+    efficiencyDailyWorkDeletingSaveButtonLabels
+      .delete(elements.saveButton);
+  }
+
+
+  if (elements.deleteButton) {
+    const previousLabel =
+      efficiencyDailyWorkDeletingButtonLabels
+        .get(elements.deleteButton);
+
+
+    if (
+      previousLabel !== undefined
+    ) {
+      elements.deleteButton.textContent =
+        previousLabel;
+    }
+
+
+    efficiencyDailyWorkDeletingButtonLabels
+      .delete(elements.deleteButton);
+  }
+
+
+  return false;
+}
+
+
+/* =========================================================
+  보관함에서 삭제 기록 제거
+========================================================= */
+
+function removeEfficiencyDailyWorkServerRecord(
+  deleteRequest
+) {
+  const sourceItems =
+    Array.isArray(
+      efficiencyDailyWorkState.items
+    )
+      ? efficiencyDailyWorkState.items
+      : [];
+
+
+  const retainedItems =
+    sourceItems
+      .map(
+        item => {
+          return normalizeEfficiencyDailyWorkRecord(
+            item
+          );
+        }
+      )
+      .filter(
+        item => {
+          return Boolean(
+            item?.id &&
+            !(
+              item.id ===
+                deleteRequest.recordId &&
+              item.workDate ===
+                deleteRequest.workDate
+            )
+          );
+        }
+      );
+
+
+  efficiencyDailyWorkState.items =
+    retainedItems;
+
+
+  return retainedItems;
+}
+
+
+/* =========================================================
+  삭제 완료 상태를 화면에 반영
+
+  삭제한 날짜는 다른 날짜로 이동하지 않고
+  같은 날짜의 빈 새 일지로 초기화한다.
+========================================================= */
+
+function applyEfficiencyDailyWorkDeletedState(
+  deleteRequest,
+  message
+) {
+  removeEfficiencyDailyWorkServerRecord(
+    deleteRequest
+  );
+
+
+  initializeEfficiencyDailyWorkNewRecord(
+    deleteRequest.workDate
+  );
+
+
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  if (elements.deleteButton) {
+    elements.deleteButton.hidden =
+      true;
+  }
+
+
+  renderEfficiencyDailyWorkArchive();
+
+
+  renderEfficiencyDailyWorkEditorMeta();
+
+
+  syncEfficiencyDailyWorkArchiveSelection(
+    deleteRequest.workDate
+  );
+
+
+  showEfficiencyDailyWorkSaveMessage(
+    message
+  );
+
+
+  return true;
+}
+
+
+/* =========================================================
+  409 삭제 충돌 처리
+
+  서버 최신본은 먼저 보관함에만 반영한다.
+  사용자가 직접 선택하기 전에는 작성칸을 덮어쓰지 않는다.
+========================================================= */
+
+function isEfficiencyDailyWorkDeleteConflict(
+  error
+) {
+  const code =
+    String(
+      error?.result?.code ||
+      ""
+    ).trim();
+
+
+  return (
+    Number(error?.status) === 409 &&
+    [
+      "RECORD_REPLACED",
+      "WORK_DATE_MISMATCH",
+      "VERSION_CONFLICT"
+    ].includes(code)
+  );
+}
+
+
+async function confirmEfficiencyDailyWorkLoadLatestAfterDeleteConflict(
+  latestRecord
+) {
+  const message =
+    `${latestRecord.workDate} 날짜에 서버의 최신 기록이 있습니다. 최신 기록을 불러오면 현재 작성 중인 내용은 사라집니다.`;
+
+
+  if (
+    typeof showCompactConfirm ===
+      "function"
+  ) {
+    try {
+      return Boolean(
+        await showCompactConfirm({
+          title:
+            "삭제 충돌",
+
+          message,
+
+          confirmText:
+            "최신 기록 불러오기",
+
+          cancelText:
+            "현재 내용 유지"
+        })
+      );
+
+    } catch (error) {
+      console.error(
+        "일일업무현황 최신 기록 확인창 오류:",
+        error
+      );
+    }
+  }
+
+
+  if (
+    typeof window !== "undefined" &&
+    typeof window.confirm === "function"
+  ) {
+    return window.confirm(
+      message
+    );
+  }
+
+
+  return false;
+}
+
+
+async function handleEfficiencyDailyWorkDeleteConflict(
+  error
+) {
+  if (
+    !isEfficiencyDailyWorkDeleteConflict(
+      error
+    )
+  ) {
+    return false;
+  }
+
+
+  const result =
+    error.result ||
+    {};
+
+
+  const latestRecord =
+    getEfficiencyDailyWorkWriteResponseItem(
+      result
+    );
+
+
+  if (latestRecord) {
+    renderEfficiencyDailyWorkStoredRecord(
+      latestRecord,
+      {
+        populateEditor:
+          false
+      }
+    );
+  }
+
+
+  const conflictMessage =
+    String(
+      result.message ||
+      error.message ||
+      "다른 사용자가 먼저 이 기록을 변경했습니다."
+    );
+
+
+  showEfficiencyDailyWorkSaveError(
+    `${conflictMessage} 현재 작성 중인 내용은 그대로 유지했습니다.`
+  );
+
+
+  if (
+    typeof showToast ===
+      "function"
+  ) {
+    showToast(
+      conflictMessage
+    );
+  }
+
+
+  if (!latestRecord) {
+    return true;
+  }
+
+
+  const shouldLoadLatest =
+    await confirmEfficiencyDailyWorkLoadLatestAfterDeleteConflict(
+      latestRecord
+    );
+
+
+  if (!shouldLoadLatest) {
+    return true;
+  }
+
+
+  populateEfficiencyDailyWorkEditorFromRecord(
+    latestRecord
+  );
+
+
+  renderEfficiencyDailyWorkArchive();
+
+
+  syncEfficiencyDailyWorkArchiveSelection(
+    latestRecord.workDate
+  );
+
+
+  showEfficiencyDailyWorkSaveMessage(
+    "서버의 최신 기록을 불러왔습니다. 내용을 확인한 뒤 다시 삭제해주세요."
+  );
+
+
+  return true;
+}
+
+
+/* =========================================================
+  404 처리
+
+  서버에 기록이 이미 없으므로
+  보관함의 오래된 항목을 제거하고 같은 날짜의 빈 일지로 바꾼다.
+========================================================= */
+
+function isEfficiencyDailyWorkDeleteNotFound(
+  error
+) {
+  return (
+    Number(error?.status) === 404 &&
+    String(
+      error?.result?.code ||
+      ""
+    ).trim() ===
+      "RECORD_NOT_FOUND"
+  );
+}
+
+
+function handleEfficiencyDailyWorkDeleteNotFound(
+  error,
+  deleteRequest
+) {
+  if (
+    !isEfficiencyDailyWorkDeleteNotFound(
+      error
+    )
+  ) {
+    return false;
+  }
+
+
+  const message =
+    "이 기록은 서버에서 이미 삭제되어 화면을 최신 상태로 정리했습니다.";
+
+
+  applyEfficiencyDailyWorkDeletedState(
+    deleteRequest,
+    message
+  );
+
+
+  if (
+    typeof showToast ===
+      "function"
+  ) {
+    showToast(
+      message
+    );
+  }
+
+
+  return true;
+}
+
+
+/* =========================================================
+  삭제 버튼 처리
+========================================================= */
+
+async function handleEfficiencyDailyWorkDelete(
+  event
+) {
+  event?.preventDefault?.();
+
+
+  if (
+    efficiencyDailyWorkState.isLoading ||
+    efficiencyDailyWorkState.isSaving ||
+    efficiencyDailyWorkDateTransitionPending
+  ) {
+    return false;
+  }
+
+
+  let deleteRequest;
+
+
+  try {
+    deleteRequest =
+      createEfficiencyDailyWorkDeleteRequest();
+
+  } catch (error) {
+    showEfficiencyDailyWorkSaveError(
+      error.message ||
+      "삭제할 기록을 확인해주세요."
+    );
+
+
+    return false;
+  }
+
+
+  efficiencyDailyWorkDateTransitionPending =
+    true;
+
+
+  let deleteRequestStarted =
+    false;
+
+
+  try {
+    const shouldDelete =
+      await confirmEfficiencyDailyWorkDelete(
+        deleteRequest
+      );
+
+
+    if (!shouldDelete) {
+      return false;
+    }
+
+
+    let latestDeleteRequest;
+
+
+    try {
+      latestDeleteRequest =
+        createEfficiencyDailyWorkDeleteRequest();
+
+    } catch (error) {
+      showEfficiencyDailyWorkSaveError(
+        error.message ||
+        "삭제 확인 중 기록 상태가 변경되었습니다. 다시 시도해주세요."
+      );
+
+
+      return false;
+    }
+
+
+    if (
+      efficiencyDailyWorkState.isLoading ||
+      efficiencyDailyWorkState.isSaving ||
+      latestDeleteRequest.recordId !==
+        deleteRequest.recordId ||
+      latestDeleteRequest.workDate !==
+        deleteRequest.workDate ||
+      latestDeleteRequest.version !==
+        deleteRequest.version
+    ) {
+      showEfficiencyDailyWorkSaveError(
+        "삭제 확인 중 기록 상태가 변경되었습니다. 현재 기록을 확인한 뒤 다시 삭제해주세요."
+      );
+
+
+      return false;
+    }
+
+
+    clearEfficiencyDailyWorkSaveFeedbackOnEdit();
+
+
+    setEfficiencyDailyWorkDeleting(
+      true
+    );
+
+
+    deleteRequestStarted =
+      true;
+
+
+    const result =
+      await requestEfficiencyDailyWorkApi(
+        EFFICIENCY_DAILY_WORK_API_URL,
+        {
+          method:
+            "DELETE",
+
+          headers:
+            getEfficiencyDailyWorkApiHeaders({
+              "Content-Type":
+                "application/json"
+            }),
+
+          body:
+            JSON.stringify(
+              deleteRequest.payload
+            )
+        }
+      );
+
+
+    if (
+      result?.deleted !== true ||
+      String(
+        result.recordId ||
+        ""
+      ).trim() !==
+        deleteRequest.recordId ||
+      normalizeEfficiencyDailyWorkDateValue(
+        result.workDate
+      ) !==
+        deleteRequest.workDate ||
+      Number(
+        result.deletedVersion
+      ) !==
+        deleteRequest.version
+    ) {
+      throw new Error(
+        "삭제 후 서버 응답이 요청한 기록과 일치하지 않습니다. 새로고침한 뒤 확인해주세요."
+      );
+    }
+
+
+    const successMessage =
+      "일일업무현황 기록을 삭제했습니다.";
+
+
+    applyEfficiencyDailyWorkDeletedState(
+      deleteRequest,
+      successMessage
+    );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        successMessage
+      );
+    }
+
+
+    return true;
+
+  } catch (error) {
+    console.error(
+      "일일업무현황 삭제 실패:",
+      error
+    );
+
+
+    if (
+      await handleEfficiencyDailyWorkDeleteConflict(
+        error
+      )
+    ) {
+      return false;
+    }
+
+
+    if (
+      handleEfficiencyDailyWorkDeleteNotFound(
+        error,
+        deleteRequest
+      )
+    ) {
+      return true;
+    }
+
+
+    const errorMessage =
+      error.message ||
+      "일일업무현황 기록을 삭제하지 못했습니다.";
+
+
+    showEfficiencyDailyWorkSaveError(
+      errorMessage
+    );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        errorMessage
+      );
+    }
+
+
+    return false;
+
+  } finally {
+    if (deleteRequestStarted) {
+      setEfficiencyDailyWorkDeleting(
+        false
+      );
+    }
+
+
+    efficiencyDailyWorkDateTransitionPending =
+      false;
+
+
+    renderEfficiencyDailyWorkEditorMeta();
+
+
+    syncEfficiencyDailyWorkArchiveSelection();
+  }
+}
+
+
+/* =========================================================
+  삭제 이벤트 연결
+========================================================= */
+
+function bindEfficiencyDailyWorkDeleteEvents() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+
+  if (
+    !elements.deleteButton ||
+    efficiencyDailyWorkDeleteBoundButtons
+      .has(elements.deleteButton)
+  ) {
+    return false;
+  }
+
+
+  elements.deleteButton.addEventListener(
+    "click",
+    handleEfficiencyDailyWorkDelete
+  );
+
+
+  efficiencyDailyWorkDeleteBoundButtons
+    .add(elements.deleteButton);
+
+
+  return true;
+}
+
+
+function initializeEfficiencyDailyWorkDelete() {
+  return bindEfficiencyDailyWorkDeleteEvents();
+}
+
+
+initializeEfficiencyDailyWorkDelete();
+
+/* =========================================================
+  효율팀 - 일일업무현황
+
+  14단계:
+  PDF 미리보기 및 인쇄 연결
+
+  - 저장 전 내용도 현재 입력칸 그대로 출력
+  - A4 세로 1페이지 미리보기
+  - 입력칸을 정적 텍스트로 변환해 스크롤·placeholder 제거
+========================================================= */
+
+const EFFICIENCY_DAILY_WORK_PREVIEW_WINDOW_NAME =
+  "GS_EFFICIENCY_DAILY_WORK_PREVIEW";
+
+const EFFICIENCY_DAILY_WORK_PREVIEW_STYLE = `
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    min-width: 0 !important;
+    min-height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #e8edf3 !important;
+  }
+
+  body.efficiency-daily-work-preview-body {
+    overflow: auto !important;
+    color: #111111;
+    font-family: "Malgun Gothic", "Noto Sans KR", Arial, sans-serif;
+  }
+
+  .efficiency-daily-work-popup-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    min-height: 58px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 10px 18px;
+    border-bottom: 1px solid #ccd7e2;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 4px 14px rgba(27, 42, 61, 0.1);
+  }
+
+  .efficiency-daily-work-popup-toolbar__text strong,
+  .efficiency-daily-work-popup-toolbar__text span {
+    display: block;
+  }
+
+  .efficiency-daily-work-popup-toolbar__text strong {
+    color: #253a52;
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .efficiency-daily-work-popup-toolbar__text span {
+    margin-top: 2px;
+    color: #68798c;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .efficiency-daily-work-popup-toolbar__text span.is-warning {
+    color: #b04444;
+  }
+
+  .efficiency-daily-work-popup-toolbar__actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+  }
+
+  .efficiency-daily-work-popup-toolbar button {
+    min-height: 36px;
+    padding: 0 13px;
+    border: 1px solid #c5d0dc;
+    border-radius: 7px;
+    background: #ffffff;
+    color: #30445b;
+    font-size: 11px;
+    font-weight: 850;
+    cursor: pointer;
+  }
+
+  .efficiency-daily-work-popup-toolbar button.is-primary {
+    border-color: #1f5fae;
+    background: #1f5fae;
+    color: #ffffff;
+  }
+
+  .efficiency-daily-work-popup-toolbar button:disabled {
+    cursor: wait;
+    opacity: 0.58;
+  }
+
+  body.efficiency-daily-work-preview-body > #efficiencyTeamModal {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    width: 100% !important;
+    min-width: calc(210mm + 48px) !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    background: #e8edf3 !important;
+  }
+
+  .efficiency-daily-work-popup-stage {
+    display: flex;
+    width: 100%;
+    min-width: calc(210mm + 48px);
+    min-height: calc(297mm + 48px);
+    justify-content: center;
+    padding: 24px;
+    background: #e8edf3;
+  }
+
+  #efficiencyTeamModal .efficiency-daily-work-paper {
+    display: block !important;
+    width: 210mm !important;
+    min-width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    border: 1px solid #cbd2da !important;
+    background: #ffffff !important;
+    box-shadow: 0 12px 32px rgba(20, 33, 52, 0.16) !important;
+  }
+
+  #efficiencyTeamModal .efficiency-daily-work-static-control {
+    display: block;
+    overflow: hidden !important;
+    color: #111111;
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+  }
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-instruction-field
+    .efficiency-daily-work-static-control {
+    width: 100%;
+    padding: 2px 4px;
+    font-size: 8px;
+    font-weight: 600;
+    line-height: 1.48;
+  }
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-instruction-field.is-notice
+    .efficiency-daily-work-static-control {
+    color: #0645e5;
+    font-weight: 800;
+  }
+
+  #efficiencyTeamModal #efficiencyDailyWorkNotice {
+    height: 43px;
+  }
+
+  #efficiencyTeamModal #efficiencyDailyWorkTmMeeting,
+  #efficiencyTeamModal #efficiencyDailyWorkTeamInstruction {
+    height: 65px;
+  }
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-table__role-cell
+    .efficiency-daily-work-static-control {
+    display: flex;
+    width: 100%;
+    min-height: 20px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+    padding: 1px 2px;
+    font-size: 8px;
+    font-weight: 750;
+    line-height: 1.25;
+    text-align: center;
+  }
+
+  #efficiencyTeamModal
+    [data-efficiency-daily-work-field="part"] {
+    background: #fff59a;
+    font-weight: 900;
+  }
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-table__role-cell.is-purchase-admin
+    .efficiency-daily-work-static-control {
+    color: #777777;
+    font-style: italic;
+  }
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-table
+    td
+    .efficiency-daily-work-static-control {
+    width: 100%;
+    height: 100%;
+    padding: 3px 5px;
+    background-color: #ffffff;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(1.48em - 1px),
+      #666666 calc(1.48em - 1px),
+      #666666 1.48em
+    );
+    background-position: 0 2px;
+    font-size: 7.7px;
+    font-weight: 600;
+    line-height: 1.48;
+  }
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-table__efficiency-body
+    .efficiency-daily-work-static-control {
+    height: 51px;
+  }
+
+  #efficiencyTeamModal
+    [data-efficiency-daily-work-row-key="operation-day"]
+    td
+    .efficiency-daily-work-static-control {
+    height: 185px;
+  }
+
+  #efficiencyTeamModal
+    [data-efficiency-daily-work-row-key="operation-night"]
+    td
+    .efficiency-daily-work-static-control {
+    height: 99px;
+  }
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-other-field
+    .efficiency-daily-work-static-control {
+    width: 100%;
+    height: 78px;
+    padding: 3px 5px;
+    border: 2px solid #111111;
+    background-color: #ffffff;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(1.48em - 1px),
+      #666666 calc(1.48em - 1px),
+      #666666 1.48em
+    );
+    background-position: 0 3px;
+    font-size: 7.7px;
+    font-weight: 600;
+    line-height: 1.48;
+  }
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-generation-check__box {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    color: #111111;
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  #efficiencyTeamModal
+    .efficiency-daily-work-generation-check__box.is-checked {
+    border-color: #00a950;
+    background: #00b956;
+  }
+
+  @media screen and (max-width: 850px) {
+    .efficiency-daily-work-popup-toolbar {
+      position: relative;
+      align-items: stretch;
+      flex-direction: column;
+      padding: 10px;
+    }
+
+    .efficiency-daily-work-popup-toolbar__actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .efficiency-daily-work-popup-stage {
+      justify-content: flex-start;
+    }
+  }
+
+  @media print {
+    html,
+    body,
+    body.efficiency-daily-work-preview-body {
+      width: 210mm !important;
+      min-width: 0 !important;
+      height: 297mm !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      background: #ffffff !important;
+    }
+
+    .efficiency-daily-work-popup-toolbar {
+      display: none !important;
+    }
+
+    body.efficiency-daily-work-preview-body > #efficiencyTeamModal,
+    .efficiency-daily-work-popup-stage,
+    #efficiencyTeamModal .efficiency-daily-work-paper {
+      display: block !important;
+      width: 210mm !important;
+      min-width: 210mm !important;
+      height: 297mm !important;
+      min-height: 297mm !important;
+      max-height: 297mm !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      border: 0 !important;
+      background: #ffffff !important;
+      box-shadow: none !important;
+    }
+
+    #efficiencyTeamModal .efficiency-daily-work-paper {
+      padding: 10mm 10mm 9mm !important;
+      print-color-adjust: exact !important;
+      -webkit-print-color-adjust: exact !important;
+    }
+  }
+`;
+
+const efficiencyDailyWorkPrintBoundButtons =
+  new WeakSet();
+
+const efficiencyDailyWorkPrintBoundForms =
+  new WeakSet();
+
+const efficiencyDailyWorkPrintingWindows =
+  new WeakSet();
+
+let efficiencyDailyWorkPrintOpening =
+  false;
+
+let efficiencyDailyWorkPrintWindowSequence =
+  0;
+
+/* =========================================================
+  인쇄 오류 및 A4 초과 표시
+========================================================= */
+
+function showEfficiencyDailyWorkPrintError(
+  message
+) {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+  if (elements.messageElement) {
+    elements.messageElement.textContent =
+      "";
+  }
+
+  showEfficiencyDailyWorkEditorError(
+    message
+  );
+
+  if (elements.errorElement) {
+    elements.errorElement.dataset
+      .efficiencyDailyWorkErrorSource =
+      "print";
+  }
+}
+
+function clearEfficiencyDailyWorkPrintError() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+  if (
+    elements.errorElement?.dataset
+      .efficiencyDailyWorkErrorSource !==
+    "print"
+  ) {
+    return false;
+  }
+
+  elements.errorElement.textContent =
+    "";
+
+  elements.errorElement.hidden =
+    true;
+
+  delete elements.errorElement.dataset
+    .efficiencyDailyWorkErrorSource;
+
+  return true;
+}
+
+function refreshEfficiencyDailyWorkPageOverflowState() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+  if (!elements.paper) {
+    return false;
+  }
+
+  const overflowingTextarea = [
+    ...elements.paper.querySelectorAll(
+      "textarea"
+    )
+  ].some(
+    control => {
+      return (
+        control.scrollHeight >
+          control.clientHeight + 2 ||
+        control.scrollWidth >
+          control.clientWidth + 2
+      );
+    }
+  );
+
+  const overflowingPaper =
+    elements.paper.scrollHeight >
+      elements.paper.clientHeight + 2 ||
+    elements.paper.scrollWidth >
+      elements.paper.clientWidth + 2;
+
+  const hasOverflow =
+    overflowingTextarea ||
+    overflowingPaper;
+
+  elements.paper.classList.toggle(
+    "is-overflowing",
+    hasOverflow
+  );
+
+  if (elements.overflowWarning) {
+    elements.overflowWarning.hidden =
+      !hasOverflow;
+  }
+
+  return hasOverflow;
+}
+
+/* =========================================================
+  현재 인쇄 대상 확인
+========================================================= */
+
+function createEfficiencyDailyWorkPrintContext() {
+  if (
+    efficiencyDailyWorkState.isLoading ||
+    efficiencyDailyWorkState.isSaving ||
+    efficiencyDailyWorkDateTransitionPending
+  ) {
+    throw new Error(
+      "현재 기록 처리가 끝난 뒤 다시 시도해주세요."
+    );
+  }
+
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+  const workDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      elements.dateInput?.value
+    );
+
+  const selectedDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      efficiencyDailyWorkState.selectedDate
+    );
+
+  if (!elements.paper) {
+    throw new Error(
+      "인쇄할 일일업무현황 양식을 찾을 수 없습니다."
+    );
+  }
+
+  if (!workDate) {
+    throw new Error(
+      "작성일을 올바르게 선택해주세요."
+    );
+  }
+
+  if (
+    selectedDate &&
+    selectedDate !== workDate
+  ) {
+    throw new Error(
+      "현재 기록과 작성일 정보가 일치하지 않습니다. 날짜 이동을 마친 뒤 다시 시도해주세요."
+    );
+  }
+
+  return {
+    elements,
+
+    workDate,
+
+    formattedDate:
+      formatEfficiencyDailyWorkDisplayDate(
+        workDate
+      ) ||
+      workDate,
+
+    hasOverflow:
+      refreshEfficiencyDailyWorkPageOverflowState()
+  };
+}
+
+/* =========================================================
+  입력 요소를 정적 출력값으로 변환
+========================================================= */
+
+function staticizeEfficiencyDailyWorkControl(
+  sourceControl,
+  clonedControl,
+  targetDocument
+) {
+  const type =
+    String(
+      sourceControl.type ||
+      ""
+    ).toLowerCase();
+
+  if (type === "hidden") {
+    clonedControl.remove();
+
+    return;
+  }
+
+  if (
+    type === "checkbox" ||
+    type === "radio"
+  ) {
+    const visual =
+      clonedControl.nextElementSibling;
+
+    if (
+      visual?.classList.contains(
+        "efficiency-daily-work-generation-check__box"
+      )
+    ) {
+      visual.textContent =
+        sourceControl.checked
+          ? "✓"
+          : "";
+
+      visual.classList.toggle(
+        "is-checked",
+        sourceControl.checked
+      );
+
+      visual.setAttribute(
+        "role",
+        "checkbox"
+      );
+
+      visual.setAttribute(
+        "aria-checked",
+        String(
+          sourceControl.checked
+        )
+      );
+
+      clonedControl.remove();
+
+      return;
+    }
+
+    const check =
+      targetDocument.createElement(
+        "span"
+      );
+
+    check.textContent =
+      sourceControl.checked
+        ? "☑"
+        : "☐";
+
+    clonedControl.replaceWith(
+      check
+    );
+
+    return;
+  }
+
+  const isTextarea =
+    sourceControl.tagName ===
+    "TEXTAREA";
+
+  const isSelect =
+    sourceControl.tagName ===
+    "SELECT";
+
+  const output =
+    targetDocument.createElement(
+      isTextarea
+        ? "div"
+        : "span"
+    );
+
+  output.className = [
+    "efficiency-daily-work-static-control",
+
+    isTextarea
+      ? "is-static-textarea"
+      : "",
+
+    isSelect
+      ? "is-static-select"
+      : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  let value =
+    "";
+
+  if (isSelect) {
+    value =
+      sourceControl.value
+        ? [
+            ...sourceControl.selectedOptions
+          ]
+            .map(
+              option => {
+                return String(
+                  option.textContent ||
+                  ""
+                ).trim();
+              }
+            )
+            .filter(Boolean)
+            .join(", ")
+        : "";
+
+  } else {
+    value =
+      String(
+        sourceControl.value ??
+        ""
+      ).replace(
+        /\r\n?/g,
+        "\n"
+      );
+  }
+
+  output.textContent =
+    value ||
+    "\u00a0";
+
+  if (clonedControl.id) {
+    output.id =
+      clonedControl.id;
+  }
+
+  const fieldName =
+    sourceControl.dataset
+      ?.efficiencyDailyWorkField;
+
+  if (fieldName) {
+    output.dataset
+      .efficiencyDailyWorkField =
+      fieldName;
+  }
+
+  const ariaLabel =
+    sourceControl.getAttribute(
+      "aria-label"
+    );
+
+  if (ariaLabel) {
+    output.setAttribute(
+      "aria-label",
+      ariaLabel
+    );
+  }
+
+  output.setAttribute(
+    "aria-readonly",
+    "true"
+  );
+
+  clonedControl.replaceWith(
+    output
+  );
+}
+
+function createEfficiencyDailyWorkStaticPaper(
+  printContext,
+  targetDocument
+) {
+  const sourcePaper =
+    printContext.elements.paper;
+
+  const clonedPaper =
+    targetDocument.importNode(
+      sourcePaper,
+      true
+    );
+
+  const sourceControls = [
+    ...sourcePaper.querySelectorAll(
+      "input, select, textarea"
+    )
+  ];
+
+  const clonedControls = [
+    ...clonedPaper.querySelectorAll(
+      "input, select, textarea"
+    )
+  ];
+
+  if (
+    sourceControls.length !==
+    clonedControls.length
+  ) {
+    throw new Error(
+      "인쇄용 입력 요소를 정확히 복제하지 못했습니다."
+    );
+  }
+
+  sourceControls.forEach(
+    (
+      sourceControl,
+      index
+    ) => {
+      staticizeEfficiencyDailyWorkControl(
+        sourceControl,
+        clonedControls[index],
+        targetDocument
+      );
+    }
+  );
+
+  clonedPaper.classList.remove(
+    "is-overflowing"
+  );
+
+  const clonedDate =
+    clonedPaper.querySelector(
+      "#efficiencyDailyWorkFormattedDate"
+    );
+
+  if (clonedDate) {
+    clonedDate.textContent =
+      printContext.formattedDate;
+
+    clonedDate.setAttribute(
+      "datetime",
+      printContext.workDate
+    );
+  }
+
+  return clonedPaper;
+}
+
+/* =========================================================
+  스타일시트와 폰트 준비
+========================================================= */
+
+function copyEfficiencyDailyWorkStylesToPreviewDocument(
+  targetDocument
+) {
+  const readyPromises = [
+    ...document.querySelectorAll(
+      'link[rel~="stylesheet"][href], style'
+    )
+  ].map(
+    sourceNode => {
+      if (
+        sourceNode.tagName ===
+        "STYLE"
+      ) {
+        const style =
+          targetDocument.createElement(
+            "style"
+          );
+
+        style.textContent =
+          sourceNode.textContent ||
+          "";
+
+        targetDocument.head.append(
+          style
+        );
+
+        return Promise.resolve();
+      }
+
+      const link =
+        targetDocument.createElement(
+          "link"
+        );
+
+      link.rel =
+        "stylesheet";
+
+      link.href =
+        sourceNode.href;
+
+      const ready =
+        new Promise(
+          resolve => {
+            let finished =
+              false;
+
+            const finish =
+              () => {
+                if (finished) {
+                  return;
+                }
+
+                finished =
+                  true;
+
+                resolve();
+              };
+
+            link.addEventListener(
+              "load",
+              finish,
+              {
+                once:
+                  true
+              }
+            );
+
+            link.addEventListener(
+              "error",
+              finish,
+              {
+                once:
+                  true
+              }
+            );
+
+            window.setTimeout(
+              finish,
+              2500
+            );
+          }
+        );
+
+      targetDocument.head.append(
+        link
+      );
+
+      return ready;
+    }
+  );
+
+  const previewStyle =
+    targetDocument.createElement(
+      "style"
+    );
+
+  previewStyle.textContent =
+    EFFICIENCY_DAILY_WORK_PREVIEW_STYLE;
+
+  targetDocument.head.append(
+    previewStyle
+  );
+
+  return Promise.all(
+    readyPromises
+  );
+}
+
+async function waitEfficiencyDailyWorkPreviewReady(
+  previewWindow,
+  stylesheetReady
+) {
+  await stylesheetReady;
+
+  try {
+    await previewWindow.document.fonts
+      ?.ready;
+
+  } catch (error) {
+    console.error(
+      "일일업무현황 미리보기 폰트 확인 오류:",
+      error
+    );
+  }
+
+  await new Promise(
+    resolve => {
+      previewWindow.requestAnimationFrame(
+        () => {
+          previewWindow.requestAnimationFrame(
+            resolve
+          );
+        }
+      );
+    }
+  );
+}
+
+/* =========================================================
+  미리보기 상단 버튼 및 실제 인쇄
+========================================================= */
+
+function createEfficiencyDailyWorkPreviewToolbar(
+  previewWindow,
+  printContext
+) {
+  const doc =
+    previewWindow.document;
+
+  const toolbar =
+    doc.createElement(
+      "header"
+    );
+
+  toolbar.className =
+    "efficiency-daily-work-popup-toolbar";
+
+  const textGroup =
+    doc.createElement(
+      "div"
+    );
+
+  textGroup.className =
+    "efficiency-daily-work-popup-toolbar__text";
+
+  const title =
+    doc.createElement(
+      "strong"
+    );
+
+  title.textContent =
+    `${printContext.formattedDate} PDF 미리보기`;
+
+  const description =
+    doc.createElement(
+      "span"
+    );
+
+  description.textContent =
+    printContext.hasOverflow
+      ? "입력 내용이 A4 한 페이지를 초과했습니다. 잘리는 부분이 없는지 확인해주세요."
+      : "인쇄 창에서 ‘PDF로 저장’을 선택하면 PDF 파일로 저장할 수 있습니다.";
+
+  description.classList.toggle(
+    "is-warning",
+    printContext.hasOverflow
+  );
+
+  textGroup.append(
+    title,
+    description
+  );
+
+  const actions =
+    doc.createElement(
+      "div"
+    );
+
+  actions.className =
+    "efficiency-daily-work-popup-toolbar__actions";
+
+  const printButton =
+    doc.createElement(
+      "button"
+    );
+
+  printButton.type =
+    "button";
+
+  printButton.className =
+    "is-primary";
+
+  printButton.textContent =
+    "인쇄 · PDF 저장";
+
+  printButton.disabled =
+    true;
+
+  const closeButton =
+    doc.createElement(
+      "button"
+    );
+
+  closeButton.type =
+    "button";
+
+  closeButton.textContent =
+    "닫기";
+
+  closeButton.addEventListener(
+    "click",
+    () => {
+      previewWindow.close();
+    }
+  );
+
+  actions.append(
+    printButton,
+    closeButton
+  );
+
+  toolbar.append(
+    textGroup,
+    actions
+  );
+
+  return {
+    toolbar,
+
+    printButton
+  };
+}
+
+async function printEfficiencyDailyWorkPopup(
+  previewWindow,
+  readyPromise,
+  closeAfterPrint
+) {
+  if (
+    !previewWindow ||
+    previewWindow.closed ||
+    efficiencyDailyWorkPrintingWindows
+      .has(previewWindow)
+  ) {
+    return false;
+  }
+
+  efficiencyDailyWorkPrintingWindows
+    .add(previewWindow);
+
+  try {
+    await readyPromise;
+
+    if (previewWindow.closed) {
+      return false;
+    }
+
+    if (closeAfterPrint) {
+      previewWindow.addEventListener(
+        "afterprint",
+        () => {
+          window.setTimeout(
+            () => {
+              if (!previewWindow.closed) {
+                previewWindow.close();
+              }
+            },
+            150
+          );
+        },
+        {
+          once:
+            true
+        }
+      );
+    }
+
+    previewWindow.focus();
+
+    previewWindow.print();
+
+    return true;
+
+  } catch (error) {
+    console.error(
+      "일일업무현황 인쇄 실패:",
+      error
+    );
+
+    showEfficiencyDailyWorkPrintError(
+      "인쇄 화면을 준비하지 못했습니다. 다시 시도해주세요."
+    );
+
+    return false;
+
+  } finally {
+    efficiencyDailyWorkPrintingWindows
+      .delete(previewWindow);
+  }
+}
+
+/* =========================================================
+  A4 미리보기 창 생성
+========================================================= */
+
+function openEfficiencyDailyWorkPrintWindow(
+  autoPrint
+) {
+  if (efficiencyDailyWorkPrintOpening) {
+    return null;
+  }
+
+  let printContext;
+
+  try {
+    printContext =
+      createEfficiencyDailyWorkPrintContext();
+
+  } catch (error) {
+    showEfficiencyDailyWorkPrintError(
+      error.message ||
+      "인쇄할 내용을 확인해주세요."
+    );
+
+    return null;
+  }
+
+  efficiencyDailyWorkPrintOpening =
+    true;
+
+  const windowName =
+    autoPrint
+      ? `GS_EFFICIENCY_DAILY_WORK_PRINT_${++efficiencyDailyWorkPrintWindowSequence}`
+      : EFFICIENCY_DAILY_WORK_PREVIEW_WINDOW_NAME;
+
+  let previewWindow =
+    null;
+
+  try {
+    previewWindow =
+      window.open(
+        "about:blank",
+        windowName,
+        "popup=yes,width=1100,height=900,resizable=yes,scrollbars=yes"
+      );
+
+    if (
+      !previewWindow ||
+      previewWindow.closed
+    ) {
+      showEfficiencyDailyWorkPrintError(
+        "팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요."
+      );
+
+      if (
+        typeof showToast ===
+        "function"
+      ) {
+        showToast(
+          "팝업 차단을 해제해주세요."
+        );
+      }
+
+      return null;
+    }
+
+    const doc =
+      previewWindow.document;
+
+    doc.open();
+
+    doc.write(
+      '<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body></body></html>'
+    );
+
+    doc.close();
+
+    doc.title =
+      `설비운영팀 일일 업무 현황 - ${printContext.workDate}`;
+
+    doc.body.className =
+      "efficiency-daily-work-preview-body is-efficiency-daily-work-printing";
+
+    const stylesheetReady =
+      copyEfficiencyDailyWorkStylesToPreviewDocument(
+        doc
+      );
+
+    const toolbar =
+      createEfficiencyDailyWorkPreviewToolbar(
+        previewWindow,
+        printContext
+      );
+
+    const modalRoot =
+      doc.createElement(
+        "main"
+      );
+
+    modalRoot.id =
+      "efficiencyTeamModal";
+
+    const stage =
+      doc.createElement(
+        "div"
+      );
+
+    stage.className =
+      "efficiency-daily-work-popup-stage";
+
+    stage.append(
+      createEfficiencyDailyWorkStaticPaper(
+        printContext,
+        doc
+      )
+    );
+
+    modalRoot.append(
+      stage
+    );
+
+    doc.body.append(
+      toolbar.toolbar,
+      modalRoot
+    );
+
+    const readyPromise =
+      waitEfficiencyDailyWorkPreviewReady(
+        previewWindow,
+        stylesheetReady
+      );
+
+    readyPromise.then(
+      () => {
+        if (!previewWindow.closed) {
+          toolbar.printButton.disabled =
+            false;
+        }
+      }
+    );
+
+    toolbar.printButton.addEventListener(
+      "click",
+      () => {
+        printEfficiencyDailyWorkPopup(
+          previewWindow,
+          readyPromise,
+          false
+        );
+      }
+    );
+
+    if (printContext.hasOverflow) {
+      showEfficiencyDailyWorkPrintError(
+        "입력 내용이 A4 한 페이지를 초과했습니다. 미리보기에서 잘리는 부분이 없는지 확인해주세요."
+      );
+
+    } else {
+      clearEfficiencyDailyWorkPrintError();
+    }
+
+    previewWindow.focus();
+
+    if (autoPrint) {
+      printEfficiencyDailyWorkPopup(
+        previewWindow,
+        readyPromise,
+        true
+      );
+    }
+
+    return previewWindow;
+
+  } catch (error) {
+    console.error(
+      "일일업무현황 미리보기 생성 실패:",
+      error
+    );
+
+    if (
+      previewWindow &&
+      !previewWindow.closed
+    ) {
+      previewWindow.close();
+    }
+
+    showEfficiencyDailyWorkPrintError(
+      error.message ||
+      "PDF 미리보기를 만들지 못했습니다."
+    );
+
+    return null;
+
+  } finally {
+    window.setTimeout(
+      () => {
+        efficiencyDailyWorkPrintOpening =
+          false;
+      },
+      350
+    );
+  }
+}
+
+/* =========================================================
+  버튼 이벤트 연결
+========================================================= */
+
+function bindEfficiencyDailyWorkPrintEvents() {
+  const elements =
+    getEfficiencyDailyWorkElements();
+
+  [
+    [
+      elements.previewPdfButton,
+
+      event => {
+        event.preventDefault();
+
+        openEfficiencyDailyWorkPrintWindow(
+          false
+        );
+      }
+    ],
+
+    [
+      elements.printButton,
+
+      event => {
+        event.preventDefault();
+
+        openEfficiencyDailyWorkPrintWindow(
+          true
+        );
+      }
+    ]
+  ].forEach(
+    (
+      [
+        button,
+        handler
+      ]
+    ) => {
+      if (
+        !button ||
+        efficiencyDailyWorkPrintBoundButtons
+          .has(button)
+      ) {
+        return;
+      }
+
+      button.addEventListener(
+        "click",
+        handler
+      );
+
+      efficiencyDailyWorkPrintBoundButtons
+        .add(button);
+    }
+  );
+
+  if (
+    elements.form &&
+    !efficiencyDailyWorkPrintBoundForms
+      .has(elements.form)
+  ) {
+    const refreshOverflow =
+      () => {
+        clearEfficiencyDailyWorkPrintError();
+
+        refreshEfficiencyDailyWorkPageOverflowState();
+      };
+
+    elements.form.addEventListener(
+      "input",
+      refreshOverflow
+    );
+
+    elements.form.addEventListener(
+      "change",
+      refreshOverflow
+    );
+
+    efficiencyDailyWorkPrintBoundForms
+      .add(elements.form);
+  }
+
+  refreshEfficiencyDailyWorkPageOverflowState();
+
+  return true;
+}
+
+function initializeEfficiencyDailyWorkPrint() {
+  return bindEfficiencyDailyWorkPrintEvents();
+}
+
+initializeEfficiencyDailyWorkPrint();
 
 /* =========================================================
   효율팀 - 석회석 입고 현황

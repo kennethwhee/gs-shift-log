@@ -65384,3 +65384,742 @@ tr.is-inline-remark-editing
     break-inside: avoid;
   }
 }
+
+/* =========================================================
+  전체공지 · 보직공지 댓글 공통 디자인
+
+  적용 대상:
+  - 전체공지 댓글
+  - 보직공지 댓글
+  - PC / 모바일 공통
+========================================================= */
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-section {
+  --notice-comment-accent: #2f6ea7;
+  --notice-comment-accent-dark: #245884;
+  --notice-comment-accent-soft: #edf5fc;
+  --notice-comment-border: #d8e2ed;
+  --notice-comment-text: #29394f;
+  --notice-comment-muted: #7a8798;
+
+  grid-column: 1 / -1;
+
+  width: 100%;
+  min-width: 0;
+
+  margin-top: 2px;
+  padding-top: 10px;
+
+  border-top: 1px solid #e4eaf1;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-section,
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-section *,
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-section *::before,
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-section *::after {
+  box-sizing: border-box;
+}
+
+/*
+  만료 공지의 본문은 기존처럼 흐리게 유지하고,
+  댓글 영역은 정상 명도로 사용할 수 있게 한다.
+*/
+
+#roleNoticeModal .role-notice-card.is-expired,
+#globalNoticeModal .global-notice-card.is-expired {
+  opacity: 1;
+}
+
+#roleNoticeModal .role-notice-card.is-expired > :not(.notice-comment-section),
+#globalNoticeModal
+  .global-notice-card.is-expired
+  > :not(.notice-comment-section) {
+  opacity: 0.72;
+}
+
+/* =========================================================
+  댓글 열기 · 닫기 버튼
+========================================================= */
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-toggle {
+  display: flex;
+
+  width: 100%;
+  min-height: 36px;
+
+  align-items: center;
+  justify-content: flex-start;
+
+  gap: 7px;
+
+  margin: 0;
+  padding: 0 11px;
+
+  border: 1px solid var(--notice-comment-border);
+  border-radius: 8px;
+
+  background: #f8fafc;
+  color: var(--notice-comment-text);
+
+  font: inherit;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-toggle:hover {
+  border-color: #a9c2da;
+  background: #f1f7fc;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-toggle:focus-visible {
+  outline: 3px solid rgba(47, 110, 167, 0.2);
+  outline-offset: 2px;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-toggle__label {
+  color: #3a4b61;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-toggle__count {
+  display: inline-flex;
+
+  min-width: 22px;
+  min-height: 22px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 7px;
+
+  border-radius: 999px;
+
+  background: #e6eef7;
+  color: #42617f;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-toggle::after {
+  content: "";
+
+  width: 7px;
+  height: 7px;
+
+  margin-left: auto;
+  margin-right: 2px;
+
+  border-right: 2px solid #6f8194;
+  border-bottom: 2px solid #6f8194;
+
+  transform: rotate(45deg) translateY(-2px);
+  transform-origin: center;
+
+  transition: transform 0.15s ease;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-section.is-open
+  .notice-comment-toggle {
+  border-color: #a9c5df;
+  background: var(--notice-comment-accent-soft);
+  color: var(--notice-comment-accent-dark);
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-section.is-open
+  .notice-comment-toggle::after {
+  transform: rotate(225deg) translate(-1px, -1px);
+}
+
+/* =========================================================
+  댓글 패널
+========================================================= */
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-panel[hidden] {
+  display: none !important;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-panel {
+  min-width: 0;
+
+  margin-top: 8px;
+  padding: 12px;
+
+  border: 1px solid var(--notice-comment-border);
+  border-radius: 9px;
+
+  background: #f7f9fc;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-panel__header {
+  display: flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+  margin-bottom: 9px;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-panel__title {
+  color: #26384f;
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-panel__total {
+  display: inline-flex;
+
+  min-width: 21px;
+  min-height: 21px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 6px;
+
+  border-radius: 999px;
+
+  background: #dfeaf5;
+  color: #315d87;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* =========================================================
+  로딩 · 빈 목록 · 오류 상태
+========================================================= */
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-status {
+  display: flex;
+
+  min-height: 58px;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  padding: 11px;
+
+  border: 1px dashed #ccd7e3;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: var(--notice-comment-muted);
+
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.55;
+
+  text-align: center;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-status.is-loading::before,
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-refreshing::before {
+  content: "";
+
+  width: 13px;
+  height: 13px;
+
+  flex: 0 0 auto;
+
+  border: 2px solid #c6d5e4;
+  border-top-color: var(--notice-comment-accent);
+  border-radius: 50%;
+
+  animation: notice-comment-spin 0.8s linear infinite;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-status.is-error {
+  min-height: auto;
+
+  justify-content: space-between;
+
+  margin-bottom: 8px;
+
+  border-style: solid;
+  border-color: #efcaca;
+
+  background: #fff6f6;
+  color: #a33c3c;
+
+  text-align: left;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-status__retry {
+  min-width: 76px;
+  min-height: 29px;
+
+  flex: 0 0 auto;
+
+  padding: 0 9px;
+
+  border: 1px solid #dfa2a2;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #a33c3c;
+
+  font: inherit;
+  font-size: 9px;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-refreshing {
+  display: flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+  margin: 0 0 8px;
+
+  color: #6c7d90;
+
+  font-size: 9px;
+  font-weight: 750;
+}
+
+@keyframes notice-comment-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =========================================================
+  댓글 목록 · 댓글 1개
+========================================================= */
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-list {
+  display: grid;
+
+  max-height: 340px;
+
+  gap: 7px;
+
+  padding-right: 2px;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  overscroll-behavior: contain;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item {
+  min-width: 0;
+
+  padding: 10px 11px;
+
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item.is-pending {
+  opacity: 0.62;
+  pointer-events: none;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item.is-editing {
+  border-color: #a8c5df;
+  background: #f8fbfe;
+  box-shadow: 0 0 0 2px rgba(47, 110, 167, 0.07);
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item__meta {
+  display: flex;
+
+  min-width: 0;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 8px;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item__author {
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: #30445d;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.4;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item__date {
+  flex: 0 0 auto;
+
+  color: #909bab;
+
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.4;
+
+  white-space: nowrap;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item__content {
+  margin: 7px 0 0;
+
+  color: #34445a;
+
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.65;
+
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item__actions {
+  display: flex;
+
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 4px;
+
+  margin-top: 7px;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item__action {
+  min-width: 42px;
+  min-height: 26px;
+
+  padding: 0 7px;
+
+  border: 1px solid #c7d6e5;
+  border-radius: 6px;
+
+  background: #f5f9fd;
+  color: #35648f;
+
+  font: inherit;
+  font-size: 9px;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-item__action.is-delete {
+  border-color: #edc4c4;
+  background: #fff7f7;
+  color: #b34747;
+}
+
+/* =========================================================
+  댓글 등록 · 수정 입력창
+========================================================= */
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-create-form {
+  margin-top: 9px;
+  padding-top: 9px;
+
+  border-top: 1px solid #dfe6ee;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-edit-form {
+  margin-top: 8px;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-create-form__input,
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-edit-form__input {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+  min-height: 76px !important;
+  max-height: 180px;
+
+  margin: 0;
+  padding: 9px 10px !important;
+
+  resize: vertical;
+
+  border: 1px solid #cbd7e4;
+  border-radius: 7px;
+
+  outline: none;
+
+  background: #ffffff;
+  color: #26384f !important;
+
+  font-family: inherit !important;
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  line-height: 1.6 !important;
+
+  letter-spacing: 0;
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-create-form__input::placeholder,
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-edit-form__input::placeholder {
+  color: #98a3b2 !important;
+
+  font-size: 11px !important;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-create-form__input:focus,
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-edit-form__input:focus {
+  border-color: #76a4cf !important;
+  box-shadow: 0 0 0 3px rgba(47, 110, 167, 0.12) !important;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-create-form__input:disabled,
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-edit-form__input:disabled {
+  background: #eef2f6;
+  color: #8a96a5 !important;
+
+  cursor: not-allowed;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-create-form__footer,
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-edit-form__footer {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 8px;
+
+  margin-top: 7px;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-create-form__count,
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-edit-form__count {
+  color: #8995a5;
+
+  font-size: 8px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-edit-form__actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 5px;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-create-form__submit,
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-button {
+  display: inline-flex;
+
+  min-width: 58px;
+  min-height: 30px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 10px;
+
+  border-radius: 6px;
+
+  font: inherit;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-create-form__submit,
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-button.is-save {
+  border: 1px solid #2f6ea7;
+  background: #2f6ea7;
+  color: #ffffff;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal) .notice-comment-button.is-cancel {
+  border: 1px solid #c9d3df;
+  background: #ffffff;
+  color: #59697d;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-create-form__submit:hover:not(:disabled),
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-button.is-save:hover:not(:disabled) {
+  border-color: #245884;
+  background: #245884;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-item__action:hover:not(:disabled),
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-button.is-cancel:hover:not(:disabled),
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-status__retry:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-create-form__submit:focus-visible,
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-button:focus-visible,
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-item__action:focus-visible,
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-status__retry:focus-visible {
+  outline: 3px solid rgba(47, 110, 167, 0.2);
+  outline-offset: 2px;
+}
+
+:where(#roleNoticeModal, #globalNoticeModal)
+  .notice-comment-section
+  button:disabled {
+  opacity: 0.5;
+
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* =========================================================
+  모바일 댓글 디자인
+========================================================= */
+
+@media (max-width: 760px) {
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-section {
+    margin-top: 1px;
+    padding-top: 9px;
+  }
+
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-toggle {
+    min-height: 40px;
+
+    padding: 0 10px;
+  }
+
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-toggle__label {
+    font-size: 12px;
+  }
+
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-panel {
+    margin-top: 7px;
+    padding: 10px;
+  }
+
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-list {
+    max-height: none;
+
+    gap: 7px;
+
+    padding-right: 0;
+
+    overflow: visible;
+  }
+
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item {
+    padding: 10px;
+  }
+
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item__meta {
+    align-items: flex-start;
+    flex-direction: column;
+
+    gap: 2px;
+  }
+
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item__author {
+    width: 100%;
+
+    font-size: 11px;
+  }
+
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item__date {
+    font-size: 9px;
+  }
+
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item__content {
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  :where(#roleNoticeModal, #globalNoticeModal)
+    .notice-comment-create-form__input,
+  :where(#roleNoticeModal, #globalNoticeModal)
+    .notice-comment-edit-form__input {
+    min-height: 84px !important;
+
+    padding: 10px 11px !important;
+
+    font-size: 16px !important;
+
+    line-height: 1.55 !important;
+
+    resize: none;
+  }
+
+  :where(#roleNoticeModal, #globalNoticeModal)
+    .notice-comment-create-form__submit,
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-button,
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-item__action,
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-status__retry {
+    min-height: 36px;
+
+    font-size: 10px;
+  }
+
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-status.is-error {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-status__retry {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(#roleNoticeModal, #globalNoticeModal) .notice-comment-section * {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

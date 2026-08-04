@@ -357,7 +357,8 @@ export async function onRequestGet(
     /* ==================================================
       가입 완료 로그인 계정 조회
 
-      GET /api/employees?type=users
+      users 계정 정보와
+      employees 보직 정보를 함께 반환한다.
     ================================================== */
 
     if (
@@ -368,19 +369,26 @@ export async function onRequestGet(
         await context.env.DB
           .prepare(`
             SELECT
-              id,
-              employee_no,
-              name,
-              role,
-              is_active,
-              approved_at,
-              approved_by,
-              last_login_at,
-              created_at
-            FROM users
+              u.id,
+              u.employee_no,
+              u.name,
+              u.role,
+              u.is_active,
+              u.approved_at,
+              u.approved_by,
+              u.last_login_at,
+              u.created_at,
+              COALESCE(
+                e.position,
+                ''
+              ) AS position
+            FROM users AS u
+            LEFT JOIN employees AS e
+              ON e.employee_no =
+                 u.employee_no
             ORDER BY
-              name COLLATE NOCASE ASC,
-              employee_no ASC
+              u.name COLLATE NOCASE ASC,
+              u.employee_no ASC
           `)
           .all();
 
@@ -418,6 +426,12 @@ export async function onRequestGet(
                 String(
                   user.role ||
                   "user"
+                ),
+
+              position:
+                String(
+                  user.position ||
+                  ""
                 ),
 
               isActive:
@@ -467,27 +481,24 @@ export async function onRequestGet(
 
 
     /* ==================================================
-      직원 명단 조회
-
-      GET /api/employees
-      GET /api/employees?type=employees
+      가입 대상 직원 명단 조회
     ================================================== */
 
-const employeeQueryResult =
-  await context.env.DB
-    .prepare(`
-      SELECT
-        employee_no,
-        name,
-        default_role,
-        position,
-        is_allowed
-      FROM employees
-      ORDER BY
-        name COLLATE NOCASE ASC,
-        employee_no ASC
-    `)
-    .all();
+    const employeeQueryResult =
+      await context.env.DB
+        .prepare(`
+          SELECT
+            employee_no,
+            name,
+            default_role,
+            position,
+            is_allowed
+          FROM employees
+          ORDER BY
+            name COLLATE NOCASE ASC,
+            employee_no ASC
+        `)
+        .all();
 
 
     const employees =
@@ -498,45 +509,41 @@ const employeeQueryResult =
         : [];
 
 
-const normalizedEmployees =
-  employees.map(
-    employee => {
-      return {
-        employeeNo:
-          String(
-            employee.employee_no ||
-            ""
-          ),
+    const normalizedEmployees =
+      employees.map(
+        employee => {
+          return {
+            employeeNo:
+              String(
+                employee.employee_no ||
+                ""
+              ),
 
+            name:
+              String(
+                employee.name ||
+                ""
+              ),
 
-        name:
-          String(
-            employee.name ||
-            ""
-          ),
+            defaultRole:
+              String(
+                employee.default_role ||
+                "user"
+              ),
 
+            position:
+              String(
+                employee.position ||
+                ""
+              ),
 
-        defaultRole:
-          String(
-            employee.default_role ||
-            "user"
-          ),
-
-
-        position:
-          String(
-            employee.position ||
-            ""
-          ),
-
-
-        isAllowed:
-          Number(
-            employee.is_allowed
-          ) === 1
-      };
-    }
-  );
+            isAllowed:
+              Number(
+                employee.is_allowed
+              ) === 1
+          };
+        }
+      );
 
 
     return jsonResponse({

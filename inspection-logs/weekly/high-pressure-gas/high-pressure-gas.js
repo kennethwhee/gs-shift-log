@@ -769,6 +769,227 @@ function initializeHighPressureGasCheck() {
       };
   }
 
+    /* =======================================================
+    고압가스 주간점검 일정 자동 연동
+
+    저장:
+    - 고압가스 점검일지 저장완료
+    - weekly-high-pressure-gas 일정 자동 완료
+
+    삭제:
+    - 해당 날짜 일정 완료 자동 취소
+  ======================================================= */
+
+  const HIGH_PRESSURE_GAS_SCHEDULE_API_URL =
+    "/api/inspection-schedule-status";
+
+
+  const HIGH_PRESSURE_GAS_SCHEDULE_ID =
+    "weekly-high-pressure-gas";
+
+
+  const HIGH_PRESSURE_GAS_SCHEDULE_TITLE =
+    "고압가스 저장시설 주간점검";
+
+
+  const HIGH_PRESSURE_GAS_SCHEDULE_SHIFT =
+    "DS";
+
+
+  /* =====================================================
+    점검일지 허브 완료 상태 새로고침
+  ====================================================== */
+
+  function notifyHighPressureGasScheduleRefresh() {
+    if (
+      !window.parent ||
+      window.parent ===
+        window
+    ) {
+      return;
+    }
+
+
+    window.parent.postMessage(
+      {
+        type:
+          "gs-shift-log:refresh-inspection-schedule"
+      },
+
+      window.location.origin
+    );
+  }
+
+
+  /* =====================================================
+    고압가스 주간점검 일정 완료 처리
+  ====================================================== */
+
+  async function completeHighPressureGasScheduleStatus(
+    inspectionDateValue
+  ) {
+    const dateValue =
+      normalizeText(
+        inspectionDateValue
+      );
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        dateValue
+      )
+    ) {
+      throw new Error(
+        "점검 일정에 반영할 고압가스 점검일자를 확인할 수 없습니다."
+      );
+    }
+
+
+    const payload =
+      await requestApi(
+        HIGH_PRESSURE_GAS_SCHEDULE_API_URL,
+
+        {
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              scheduleId:
+                HIGH_PRESSURE_GAS_SCHEDULE_ID,
+
+              dueDate:
+                dateValue,
+
+              shift:
+                HIGH_PRESSURE_GAS_SCHEDULE_SHIFT,
+
+              scheduleTitle:
+                HIGH_PRESSURE_GAS_SCHEDULE_TITLE,
+
+              note:
+                "고압가스 저장시설 주간점검일지 저장완료"
+            })
+        }
+      );
+
+
+    notifyHighPressureGasScheduleRefresh();
+
+
+    return payload;
+  }
+
+
+  /* =====================================================
+    고압가스 주간점검 일정 완료 취소
+
+    404:
+    완료 기록이 없는 정상적인 미완료 상태
+  ====================================================== */
+
+  async function cancelHighPressureGasScheduleStatus(
+    inspectionDateValue
+  ) {
+    const dateValue =
+      normalizeText(
+        inspectionDateValue
+      );
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        dateValue
+      )
+    ) {
+      throw new Error(
+        "완료 취소할 고압가스 점검일자를 확인할 수 없습니다."
+      );
+    }
+
+
+    const requestUrl =
+      new URL(
+        HIGH_PRESSURE_GAS_SCHEDULE_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "scheduleId",
+      HIGH_PRESSURE_GAS_SCHEDULE_ID
+    );
+
+
+    requestUrl.searchParams.set(
+      "dueDate",
+      dateValue
+    );
+
+
+    requestUrl.searchParams.set(
+      "shift",
+      HIGH_PRESSURE_GAS_SCHEDULE_SHIFT
+    );
+
+
+    try {
+      const payload =
+        await requestApi(
+          requestUrl.toString(),
+
+          {
+            method:
+              "DELETE",
+
+            cache:
+              "no-store"
+          }
+        );
+
+
+      notifyHighPressureGasScheduleRefresh();
+
+
+      return payload;
+
+    } catch (
+      error
+    ) {
+      /*
+        완료 기록이 없다면
+        이미 미완료 상태이므로 정상 처리한다.
+      */
+      if (
+        Number(
+          error?.status
+        ) ===
+          404
+      ) {
+        notifyHighPressureGasScheduleRefresh();
+
+
+        return {
+          ok:
+            true,
+
+          missing:
+            true
+        };
+      }
+
+
+      throw error;
+    }
+  }
 
   /* =======================================================
     저장 상태 표시
@@ -1545,7 +1766,12 @@ function initializeHighPressureGasCheck() {
 
 
   /* =======================================================
-    D1 일지 저장
+    고압가스 점검일지 저장 및 일정 자동 완료
+
+    처리:
+    1. 고압가스 점검일지 D1 저장
+    2. weekly-high-pressure-gas 일정 완료 처리
+    3. 점검일지 상단 건수 즉시 갱신
   ======================================================= */
 
   async function saveInspectionLog() {
@@ -1554,6 +1780,7 @@ function initializeHighPressureGasCheck() {
         inspectionDate.value
       );
 
+
     if (
       !dateValue
     ) {
@@ -1561,54 +1788,73 @@ function initializeHighPressureGasCheck() {
         "점검일자를 선택해 주세요."
       );
 
+
       return;
     }
+
 
     const log = {
       id:
         currentLogId,
+
       inspectionDate:
         dateValue,
+
       shift:
         "DS",
+
       status:
         "저장완료",
+
       form:
         collectFormData(),
+
       templateItems:
         cloneTemplateItems(
           currentTemplateItems
         )
     };
 
+
     setToolbarBusy(
       true
     );
+
 
     setSaveState(
       "D1에 저장하는 중...",
       "saving"
     );
 
+
     try {
+      /* =================================================
+        고압가스 점검일지 D1 저장
+      ================================================= */
+
       const payload =
         await requestApi(
           HIGH_PRESSURE_GAS_API_URL,
+
           {
             method:
               "POST",
+
             headers: {
               "Content-Type":
                 "application/json"
             },
+
             body:
               JSON.stringify({
                 log,
+
                 expectedRevision:
                   currentRevision
               })
           }
         );
+
 
       canEditTemplate =
         Boolean(
@@ -1616,9 +1862,11 @@ function initializeHighPressureGasCheck() {
         ) ||
         canEditTemplate;
 
+
       applyLogToForm(
         payload.log
       );
+
 
       latestServerTemplate =
         cloneTemplateItems(
@@ -1626,15 +1874,99 @@ function initializeHighPressureGasCheck() {
           currentTemplateItems
         );
 
+
       removeRecoveryDraft(
         dateValue
       );
 
-      window.alert(
-        payload.created
-          ? "고압가스 주간점검일지가 저장되었습니다."
-          : "고압가스 주간점검일지가 수정 저장되었습니다."
+
+      /* =================================================
+        점검 일정 자동 완료
+
+        일정 연동이 실패해도
+        저장된 고압가스 점검일지는 유지한다.
+      ================================================= */
+
+      let scheduleSyncError =
+        null;
+
+
+      setSaveState(
+        "저장 완료 · 점검 일정 반영 중...",
+        "saving"
       );
+
+
+      try {
+        await completeHighPressureGasScheduleStatus(
+          dateValue
+        );
+
+      } catch (
+        error
+      ) {
+        scheduleSyncError =
+          error;
+
+
+        console.error(
+          "고압가스 점검 일정 자동 완료 실패:",
+          error
+        );
+      }
+
+
+      /* =================================================
+        저장 결과
+      ================================================= */
+
+      if (
+        scheduleSyncError
+      ) {
+        setSaveState(
+          `저장 완료 · 일정 연동 실패 · revision ${currentRevision}`,
+          "error"
+        );
+
+
+        window.alert(
+          [
+            payload.created
+              ? "고압가스 주간점검일지는 저장되었습니다."
+              : "고압가스 주간점검일지는 수정 저장되었습니다.",
+
+            "",
+
+            "다만 점검 일정 완료 상태는 자동 반영하지 못했습니다.",
+
+            scheduleSyncError.message ||
+            "점검 일정 연동 오류"
+          ].join(
+            "\n"
+          )
+        );
+
+      } else {
+        setSaveState(
+          `저장 완료 · 일정 완료 · revision ${currentRevision}`,
+          "saved"
+        );
+
+
+        window.alert(
+          [
+            payload.created
+              ? "고압가스 주간점검일지가 저장되었습니다."
+              : "고압가스 주간점검일지가 수정 저장되었습니다.",
+
+            "",
+
+            "해당 날짜의 고압가스 저장시설 주간점검 일정도 자동 완료 처리했습니다."
+          ].join(
+            "\n"
+          )
+        );
+      }
 
     } catch (
       error
@@ -1643,6 +1975,7 @@ function initializeHighPressureGasCheck() {
         "고압가스 점검일지 저장 실패:",
         error
       );
+
 
       if (
         error.status ===
@@ -1654,12 +1987,14 @@ function initializeHighPressureGasCheck() {
             `${error.message}\n\n서버의 최신 내용을 불러오시겠습니까?`
           );
 
+
         if (
           useServerData
         ) {
           applyLogToForm(
             error.payload.currentLog
           );
+
         } else {
           setSaveState(
             "저장 충돌 · 최신 내용 확인 필요",
@@ -1674,6 +2009,7 @@ function initializeHighPressureGasCheck() {
           "error"
         );
 
+
         window.alert(
           error.message ||
           "고압가스 점검일지를 저장하지 못했습니다."
@@ -1684,6 +2020,7 @@ function initializeHighPressureGasCheck() {
       setToolbarBusy(
         false
       );
+
 
       refreshTemplateEditButton();
     }
@@ -2305,6 +2642,15 @@ function renderArchiveBoard() {
   }
 
 
+  /* =======================================================
+    고압가스 점검일지 삭제 및 일정 완료 자동 취소
+
+    처리:
+    1. 고압가스 점검일지 D1 삭제
+    2. weekly-high-pressure-gas 일정 완료 취소
+    3. 점검일지 상단 건수 즉시 갱신
+  ======================================================= */
+
   async function deleteArchiveLog(
     logId,
     expectedRevision,
@@ -2316,20 +2662,24 @@ function renderArchiveBoard() {
         logId
       );
 
+
     const revision =
       Number(
         expectedRevision
       );
+
 
     const normalizedDate =
       normalizeText(
         inspectionDateValue
       );
 
+
     const dateLabel =
       formatHistoryDate(
         normalizedDate
       );
+
 
     if (
       !normalizedId ||
@@ -2337,19 +2687,32 @@ function renderArchiveBoard() {
         revision
       ) ||
       revision <
-        1
+        1 ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        normalizedDate
+      )
     ) {
       window.alert(
         "삭제할 점검일지 정보를 확인하지 못했습니다."
       );
 
+
       return;
     }
 
+
     const confirmed =
       window.confirm(
-        `${dateLabel} 고압가스 점검일지를 삭제하시겠습니까?\n\n삭제하면 보관함 목록에서 제거됩니다.`
+        [
+          `${dateLabel} 고압가스 점검일지를 삭제하시겠습니까?`,
+          "",
+          "삭제하면 보관함에서 제거되고",
+          "해당 날짜의 점검 일정은 미완료 상태로 돌아갑니다."
+        ].join(
+          "\n"
+        )
       );
+
 
     if (
       !confirmed
@@ -2357,48 +2720,72 @@ function renderArchiveBoard() {
       return;
     }
 
+
     if (
       deleteButton
     ) {
       deleteButton.disabled =
         true;
 
+
       deleteButton.textContent =
         "삭제 중";
     }
 
+
     try {
+      /* =================================================
+        고압가스 점검일지 D1 삭제
+      ================================================= */
+
       const payload =
         await requestApi(
           HIGH_PRESSURE_GAS_API_URL,
+
           {
             method:
               "DELETE",
+
             headers: {
               "Content-Type":
                 "application/json"
             },
+
             body:
               JSON.stringify({
                 id:
                   normalizedId,
+
                 expectedRevision:
                   revision
               })
           }
         );
 
+
+      /* =================================================
+        보관함 목록에서 제거
+      ================================================= */
+
       archiveAllLogs =
         archiveAllLogs.filter(
           log => {
-            return normalizeText(
-              log?.id
-            ) !==
-              normalizedId;
+            return (
+              normalizeText(
+                log?.id
+              ) !==
+              normalizedId
+            );
           }
         );
 
+
       renderArchiveBoard();
+
+
+      /* =================================================
+        현재 열어둔 점검일지를 삭제한 경우
+      ================================================= */
 
       if (
         currentLogId ===
@@ -2407,15 +2794,19 @@ function renderArchiveBoard() {
         currentLogId =
           "";
 
+
         currentRevision =
           0;
+
 
         isDirty =
           false;
 
+
         removeRecoveryDraft(
           normalizedDate
         );
+
 
         if (
           inspectionDate.value ===
@@ -2427,10 +2818,70 @@ function renderArchiveBoard() {
         }
       }
 
-      window.alert(
-        payload.message ||
-        "고압가스 점검일지가 삭제되었습니다."
-      );
+
+      /* =================================================
+        점검 일정 완료 자동 취소
+
+        일정 연동에 실패하더라도
+        이미 삭제된 고압가스 일지는 복원하지 않는다.
+      ================================================= */
+
+      let scheduleSyncError =
+        null;
+
+
+      try {
+        await cancelHighPressureGasScheduleStatus(
+          normalizedDate
+        );
+
+      } catch (
+        error
+      ) {
+        scheduleSyncError =
+          error;
+
+
+        console.error(
+          "고압가스 점검 일정 완료 취소 실패:",
+          error
+        );
+      }
+
+
+      if (
+        scheduleSyncError
+      ) {
+        window.alert(
+          [
+            payload.message ||
+            "고압가스 점검일지가 삭제되었습니다.",
+
+            "",
+
+            "다만 점검 일정 완료 상태는 자동 취소하지 못했습니다.",
+
+            scheduleSyncError.message ||
+            "점검 일정 연동 오류"
+          ].join(
+            "\n"
+          )
+        );
+
+      } else {
+        window.alert(
+          [
+            payload.message ||
+            "고압가스 점검일지가 삭제되었습니다.",
+
+            "",
+
+            "해당 날짜의 고압가스 저장시설 주간점검 일정도 미완료 상태로 변경했습니다."
+          ].join(
+            "\n"
+          )
+        );
+      }
 
     } catch (
       error
@@ -2440,6 +2891,7 @@ function renderArchiveBoard() {
         error
       );
 
+
       if (
         error.status ===
           409
@@ -2447,6 +2899,7 @@ function renderArchiveBoard() {
         window.alert(
           `${error.message}\n\n보관함을 새로고침한 뒤 다시 시도해 주세요.`
         );
+
 
         await loadArchiveBoard();
 
@@ -2464,6 +2917,7 @@ function renderArchiveBoard() {
       ) {
         deleteButton.disabled =
           false;
+
 
         deleteButton.textContent =
           "삭제";

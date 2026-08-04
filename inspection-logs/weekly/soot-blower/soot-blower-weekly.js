@@ -352,47 +352,303 @@ function initializeSootBlowerWeeklyInspection() {
   }
 
 
-  async function requestApi(url, options = {}) {
-    const token = getSessionToken();
+  /* =======================================================
+    Soot Blower 주간점검 일정 자동 연동
 
-    if (!token) {
+    점검일지:
+    - 매주 월요일 N/S
+
+    점검 일정표:
+    - 매주 일요일 N/S
+
+    날짜 연결:
+    - 월요일 점검일지 저장
+      → 직전 일요일 일정 완료
+    - 그 외 날짜
+      → 선택한 날짜 그대로 일정 반영
+  ======================================================= */
+
+  const SOOT_SCHEDULE_STATUS_API_URL =
+    "/api/inspection-schedule-status";
+
+
+  const SOOT_SCHEDULE_ID =
+    "weekly-soot-blower";
+
+
+  const SOOT_SCHEDULE_TITLE =
+    "보일러 Soot Blower 점검";
+
+
+  const SOOT_SCHEDULE_SHIFT =
+    "NS";
+
+
+  /* =====================================================
+    Date 객체 → YYYY-MM-DD
+  ====================================================== */
+
+  function formatSootScheduleDateValue(
+    date
+  ) {
+    return [
+      date.getFullYear(),
+
+      String(
+        date.getMonth() + 1
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        date.getDate()
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    );
+  }
+
+
+  /* =====================================================
+    Soot Blower 일정 기준일 계산
+
+    월요일 점검일지:
+    직전 일요일 일정에 연결한다.
+
+    예:
+    2026-08-10 월요일
+    → 2026-08-09 일요일
+  ====================================================== */
+
+  function getSootScheduleDueDate(
+    inspectionDateValue
+  ) {
+    const date =
+      parseDateValue(
+        inspectionDateValue
+      );
+
+
+    if (
+      !date
+    ) {
       throw new Error(
-        "로그인 정보가 없습니다. 업무일지에서 다시 로그인해 주세요."
+        "점검 일정에 반영할 Soot Blower 점검일자를 확인할 수 없습니다."
       );
     }
 
-    const response = await fetch(
-      url,
+
+    if (
+      date.getDay() ===
+        1
+    ) {
+      date.setDate(
+        date.getDate() - 1
+      );
+    }
+
+
+    return formatSootScheduleDateValue(
+      date
+    );
+  }
+
+
+  /* =====================================================
+    점검일지 허브 완료 상태 새로고침
+  ====================================================== */
+
+  function notifySootScheduleRefresh() {
+    if (
+      !window.parent ||
+      window.parent ===
+        window
+    ) {
+      return;
+    }
+
+
+    window.parent.postMessage(
       {
-        ...options,
-        headers: {
-          Accept: "application/json",
-          ...(options.headers || {}),
-          Authorization: `Bearer ${token}`
+        type:
+          "gs-shift-log:refresh-inspection-schedule"
+      },
+
+      window.location.origin
+    );
+  }
+
+
+  /* =====================================================
+    Soot Blower 점검 일정 완료 처리
+  ====================================================== */
+
+  async function completeSootScheduleStatus(
+    inspectionDateValue
+  ) {
+    const inspectionDateText =
+      normalizeText(
+        inspectionDateValue
+      );
+
+
+    const dueDate =
+      getSootScheduleDueDate(
+        inspectionDateText
+      );
+
+
+    const payload =
+      await requestApi(
+        SOOT_SCHEDULE_STATUS_API_URL,
+
+        {
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              scheduleId:
+                SOOT_SCHEDULE_ID,
+
+              dueDate,
+
+              shift:
+                SOOT_SCHEDULE_SHIFT,
+
+              scheduleTitle:
+                SOOT_SCHEDULE_TITLE,
+
+              note:
+                [
+                  "Soot Blower 주간점검일지 저장완료",
+                  `점검일지 날짜 ${inspectionDateText}`
+                ].join(
+                  " · "
+                )
+            })
         }
-      }
+      );
+
+
+    notifySootScheduleRefresh();
+
+
+    return {
+      ...payload,
+
+      dueDate
+    };
+  }
+
+
+  /* =====================================================
+    Soot Blower 점검 일정 완료 취소
+
+    404:
+    완료 기록이 없는 정상적인 미완료 상태
+  ====================================================== */
+
+  async function cancelSootScheduleStatus(
+    inspectionDateValue
+  ) {
+    const dueDate =
+      getSootScheduleDueDate(
+        inspectionDateValue
+      );
+
+
+    const requestUrl =
+      new URL(
+        SOOT_SCHEDULE_STATUS_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "scheduleId",
+      SOOT_SCHEDULE_ID
     );
 
-    let payload = null;
+
+    requestUrl.searchParams.set(
+      "dueDate",
+      dueDate
+    );
+
+
+    requestUrl.searchParams.set(
+      "shift",
+      SOOT_SCHEDULE_SHIFT
+    );
+
 
     try {
-      payload = await response.json();
-    } catch {
-      payload = null;
-    }
+      const payload =
+        await requestApi(
+          requestUrl.toString(),
 
-    if (!response.ok || payload?.ok === false) {
-      const error = new Error(
-        payload?.message ||
-        `요청에 실패했습니다. (${response.status})`
-      );
+          {
+            method:
+              "DELETE",
 
-      error.status = response.status;
-      error.payload = payload;
+            cache:
+              "no-store"
+          }
+        );
+
+
+      notifySootScheduleRefresh();
+
+
+      return {
+        ...payload,
+
+        dueDate
+      };
+
+    } catch (
+      error
+    ) {
+      /*
+        완료 기록이 없다면
+        이미 미완료 상태이므로 정상 처리한다.
+      */
+      if (
+        Number(
+          error?.status
+        ) ===
+          404
+      ) {
+        notifySootScheduleRefresh();
+
+
+        return {
+          ok:
+            true,
+
+          missing:
+            true,
+
+          dueDate
+        };
+      }
+
+
       throw error;
     }
-
-    return payload || { ok: true };
   }
 
 
@@ -842,66 +1098,230 @@ function initializeSootBlowerWeeklyInspection() {
   }
 
 
-  async function saveInspectionLog() {
-    const dateValue = normalizeText(inspectionDate.value);
+  /* =======================================================
+    Soot Blower 점검일지 저장 및 일정 자동 완료
 
-    if (!dateValue) {
-      window.alert("점검일자를 선택해 주세요.");
+    처리:
+    1. Soot Blower 점검일지 D1 저장
+    2. 일요일 N/S 점검 일정 완료 처리
+    3. 점검일지 상단 건수 즉시 갱신
+  ======================================================= */
+
+  async function saveInspectionLog() {
+    const dateValue =
+      normalizeText(
+        inspectionDate.value
+      );
+
+
+    if (
+      !dateValue
+    ) {
+      window.alert(
+        "점검일자를 선택해 주세요."
+      );
+
+
       return;
     }
 
+
     const log = {
-      id: currentLogId,
-      inspectionDate: dateValue,
-      shift: "NS",
-      status: "저장완료",
-      form: collectFormData()
+      id:
+        currentLogId,
+
+      inspectionDate:
+        dateValue,
+
+      shift:
+        "NS",
+
+      status:
+        "저장완료",
+
+      form:
+        collectFormData()
     };
 
-    setToolbarBusy(true);
-    setSaveState("D1에 저장하는 중...", "saving");
+
+    setToolbarBusy(
+      true
+    );
+
+
+    setSaveState(
+      "D1에 저장하는 중...",
+      "saving"
+    );
+
 
     try {
-      const payload = await requestApi(
-        SOOT_BLOWER_WEEKLY_API_URL,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            log,
-            expectedRevision: currentRevision
-          })
-        }
-      );
+      /* =================================================
+        Soot Blower 점검일지 D1 저장
+      ================================================= */
 
-      applyLogToForm(payload.log);
-      removeRecoveryDraft(dateValue);
+      const payload =
+        await requestApi(
+          SOOT_BLOWER_WEEKLY_API_URL,
 
-      window.alert(
-        payload.created
-          ? "Soot Blower 주간점검일지가 저장되었습니다."
-          : "Soot Blower 주간점검일지가 수정 저장되었습니다."
-      );
+          {
+            method:
+              "POST",
 
-    } catch (error) {
-      console.error("Soot Blower 점검일지 저장 실패:", error);
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
 
-      if (error.status === 409 && error.payload?.currentLog) {
-        const useServerData = window.confirm(
-          `${error.message}\n\n서버의 최신 내용을 불러오시겠습니까?`
+            body:
+              JSON.stringify({
+                log,
+
+                expectedRevision:
+                  currentRevision
+              })
+          }
         );
 
-        if (useServerData) {
-          applyLogToForm(error.payload.currentLog);
+
+      applyLogToForm(
+        payload.log
+      );
+
+
+      removeRecoveryDraft(
+        dateValue
+      );
+
+
+      /* =================================================
+        점검 일정 완료 자동 반영
+
+        일정 연동에 실패해도
+        저장된 Soot Blower 일지는 유지한다.
+      ================================================= */
+
+      let scheduleResult =
+        null;
+
+
+      let scheduleSyncError =
+        null;
+
+
+      setSaveState(
+        "저장 완료 · 점검 일정 반영 중...",
+        "saving"
+      );
+
+
+      try {
+        scheduleResult =
+          await completeSootScheduleStatus(
+            dateValue
+          );
+
+      } catch (
+        error
+      ) {
+        scheduleSyncError =
+          error;
+
+
+        console.error(
+          "Soot Blower 점검 일정 자동 완료 실패:",
+          error
+        );
+      }
+
+
+      /* =================================================
+        저장 결과
+      ================================================= */
+
+      if (
+        scheduleSyncError
+      ) {
+        setSaveState(
+          `저장 완료 · 일정 연동 실패 · revision ${currentRevision}`,
+          "error"
+        );
+
+
+        window.alert(
+          [
+            payload.created
+              ? "Soot Blower 주간점검일지는 저장되었습니다."
+              : "Soot Blower 주간점검일지는 수정 저장되었습니다.",
+
+            "",
+
+            "다만 점검 일정 완료 상태는 자동 반영하지 못했습니다.",
+
+            scheduleSyncError.message ||
+            "점검 일정 연동 오류"
+          ].join(
+            "\n"
+          )
+        );
+
+      } else {
+        setSaveState(
+          `저장 완료 · 일정 완료 · revision ${currentRevision}`,
+          "saved"
+        );
+
+
+        window.alert(
+          [
+            payload.created
+              ? "Soot Blower 주간점검일지가 저장되었습니다."
+              : "Soot Blower 주간점검일지가 수정 저장되었습니다.",
+
+            "",
+
+            `점검 일정 기준일 ${scheduleResult?.dueDate || dateValue} N/S도 자동 완료 처리했습니다.`
+          ].join(
+            "\n"
+          )
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "Soot Blower 점검일지 저장 실패:",
+        error
+      );
+
+
+      if (
+        error.status ===
+          409 &&
+        error.payload?.currentLog
+      ) {
+        const useServerData =
+          window.confirm(
+            `${error.message}\n\n서버의 최신 내용을 불러오시겠습니까?`
+          );
+
+
+        if (
+          useServerData
+        ) {
+          applyLogToForm(
+            error.payload.currentLog
+          );
         }
 
       } else {
         setSaveState(
-          error.message || "저장 중 오류가 발생했습니다.",
+          error.message ||
+          "저장 중 오류가 발생했습니다.",
           "error"
         );
+
 
         window.alert(
           error.message ||
@@ -910,7 +1330,9 @@ function initializeSootBlowerWeeklyInspection() {
       }
 
     } finally {
-      setToolbarBusy(false);
+      setToolbarBusy(
+        false
+      );
     }
   }
 
@@ -1132,24 +1554,62 @@ function initializeSootBlowerWeeklyInspection() {
   }
 
 
+  /* =======================================================
+    Soot Blower 점검일지 삭제 및 일정 완료 자동 취소
+
+    처리:
+    1. Soot Blower 점검일지 D1 삭제
+    2. 연결된 일요일 일정 완료 취소
+    3. 점검일지 상단 건수 즉시 갱신
+  ======================================================= */
+
   async function deleteArchiveLog(
     logId,
     expectedRevision,
     inspectionDateValue,
     deleteButton = null
   ) {
-    const normalizedId = normalizeText(logId);
-    const revision = Number(expectedRevision);
-    const dateLabel = formatBoardDate(inspectionDateValue);
+    const normalizedId =
+      normalizeText(
+        logId
+      );
+
+
+    const revision =
+      Number(
+        expectedRevision
+      );
+
+
+    const normalizedInspectionDate =
+      normalizeText(
+        inspectionDateValue
+      );
+
+
+    const dateLabel =
+      formatBoardDate(
+        normalizedInspectionDate
+      );
+
 
     if (
       !normalizedId ||
-      !Number.isInteger(revision) ||
-      revision < 1
+      !Number.isInteger(
+        revision
+      ) ||
+      revision <
+        1 ||
+      !normalizedInspectionDate
     ) {
-      window.alert("삭제할 점검일지 정보를 확인하지 못했습니다.");
+      window.alert(
+        "삭제할 점검일지 정보를 확인하지 못했습니다."
+      );
+
+
       return;
     }
+
 
     if (
       !window.confirm(
@@ -1159,63 +1619,206 @@ function initializeSootBlowerWeeklyInspection() {
       return;
     }
 
-    if (deleteButton) {
-      deleteButton.disabled = true;
-      deleteButton.textContent = "삭제 중";
+
+    if (
+      deleteButton
+    ) {
+      deleteButton.disabled =
+        true;
+
+
+      deleteButton.textContent =
+        "삭제 중";
     }
 
-    try {
-      const payload = await requestApi(
-        SOOT_BLOWER_WEEKLY_API_URL,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            id: normalizedId,
-            expectedRevision: revision
-          })
-        }
-      );
 
-      archiveAllLogs = archiveAllLogs.filter(log => {
-        return normalizeText(log?.id) !== normalizedId;
-      });
+    try {
+      /* =================================================
+        Soot Blower 점검일지 D1 삭제
+      ================================================= */
+
+      const payload =
+        await requestApi(
+          SOOT_BLOWER_WEEKLY_API_URL,
+
+          {
+            method:
+              "DELETE",
+
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+
+            body:
+              JSON.stringify({
+                id:
+                  normalizedId,
+
+                expectedRevision:
+                  revision
+              })
+          }
+        );
+
+
+      /* =================================================
+        보관함 목록에서 제거
+      ================================================= */
+
+      archiveAllLogs =
+        archiveAllLogs.filter(
+          log => {
+            return (
+              normalizeText(
+                log?.id
+              ) !==
+              normalizedId
+            );
+          }
+        );
+
 
       renderArchiveBoard();
 
-      if (currentLogId === normalizedId) {
-        currentLogId = "";
-        currentRevision = 0;
-        isDirty = false;
-        removeRecoveryDraft(inspectionDate.value);
 
-        isApplyingData = true;
+      /* =================================================
+        현재 열려 있는 점검일지를 삭제한 경우
+      ================================================= */
+
+      if (
+        currentLogId ===
+          normalizedId
+      ) {
+        currentLogId =
+          "";
+
+
+        currentRevision =
+          0;
+
+
+        isDirty =
+          false;
+
+
+        removeRecoveryDraft(
+          normalizedInspectionDate
+        );
+
+
+        isApplyingData =
+          true;
+
+
         clearFormForNewDate();
-        isApplyingData = false;
-        setSaveState("새 일지 · 저장되지 않음");
+
+
+        isApplyingData =
+          false;
+
+
+        setSaveState(
+          "새 일지 · 저장되지 않음"
+        );
       }
 
-      window.alert(
-        payload.message ||
-        "Soot Blower 주간점검일지가 삭제되었습니다."
-      );
 
-    } catch (error) {
+      /* =================================================
+        점검 일정 완료 자동 취소
+
+        일정 연동에 실패해도
+        이미 삭제된 Soot Blower 일지는 복원하지 않는다.
+      ================================================= */
+
+      let scheduleResult =
+        null;
+
+
+      let scheduleSyncError =
+        null;
+
+
+      try {
+        scheduleResult =
+          await cancelSootScheduleStatus(
+            normalizedInspectionDate
+          );
+
+      } catch (
+        error
+      ) {
+        scheduleSyncError =
+          error;
+
+
+        console.error(
+          "Soot Blower 점검 일정 완료 취소 실패:",
+          error
+        );
+      }
+
+
+      if (
+        scheduleSyncError
+      ) {
+        window.alert(
+          [
+            payload.message ||
+            "Soot Blower 주간점검일지가 삭제되었습니다.",
+
+            "",
+
+            "다만 점검 일정 완료 상태는 자동 취소하지 못했습니다.",
+
+            scheduleSyncError.message ||
+            "점검 일정 연동 오류"
+          ].join(
+            "\n"
+          )
+        );
+
+      } else {
+        window.alert(
+          [
+            payload.message ||
+            "Soot Blower 주간점검일지가 삭제되었습니다.",
+
+            "",
+
+            `점검 일정 기준일 ${scheduleResult?.dueDate || normalizedInspectionDate} N/S도 미완료 상태로 변경했습니다.`
+          ].join(
+            "\n"
+          )
+        );
+      }
+
+    } catch (
+      error
+    ) {
       window.alert(
         error.message ||
         "Soot Blower 주간점검일지를 삭제하지 못했습니다."
       );
 
-      if (error.status === 409) {
+
+      if (
+        error.status ===
+          409
+      ) {
         await loadArchiveBoard();
       }
 
     } finally {
-      if (deleteButton?.isConnected) {
-        deleteButton.disabled = false;
-        deleteButton.textContent = "삭제";
+      if (
+        deleteButton?.isConnected
+      ) {
+        deleteButton.disabled =
+          false;
+
+
+        deleteButton.textContent =
+          "삭제";
       }
     }
   }

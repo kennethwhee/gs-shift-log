@@ -71,3 +71,285 @@
     display: none !important;
   }
 }
+
+/* =========================================================
+  점검일지 상단 메뉴 알림 배지
+
+  표시:
+  - 오늘 미완료만 있으면 파란색
+  - 지연 점검이 있으면 빨간색
+  - 미완료·지연이 모두 0건이면 배지 숨김
+========================================================= */
+
+
+/* =========================================================
+  점검일지 메뉴 버튼
+========================================================= */
+
+.night-patrol-header-button {
+  position: relative;
+
+  display: inline-flex;
+
+  min-width: 86px;
+  min-height: 36px;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  padding-right: 11px;
+  padding-left: 11px;
+
+  border: 1px solid #8fc2e5;
+  border-radius: 8px;
+
+  background: #eaf6ff;
+  color: #0a5e9a;
+
+  white-space: nowrap;
+
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.12s ease;
+}
+
+
+.night-patrol-header-button:hover {
+  border-color: #60a8d8;
+
+  background: #dcefff;
+  color: #084f82;
+}
+
+
+.night-patrol-header-button:active {
+  transform: translateY(1px);
+}
+
+
+/* =========================================================
+  메뉴 글자
+========================================================= */
+
+.night-patrol-header-button__label {
+  display: inline-block;
+
+  color: inherit;
+
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  미완료·지연 건수 배지
+========================================================= */
+
+.night-patrol-header-button__badge {
+  display: inline-flex;
+
+  min-width: 21px;
+  height: 21px;
+
+  align-items: center;
+  justify-content: center;
+
+  flex: 0 0 auto;
+
+  padding: 0 6px;
+
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+
+  background: #1f6fbe;
+  color: #ffffff;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+
+  font-variant-numeric:
+    tabular-nums;
+
+  box-shadow:
+    0 3px 8px
+    rgba(
+      31,
+      95,
+      174,
+      0.25
+    );
+}
+
+
+.night-patrol-header-button__badge[hidden] {
+  display: none !important;
+}
+
+
+/* =========================================================
+  오늘 미완료 점검 존재
+========================================================= */
+
+.night-patrol-header-button.has-inspection-alerts {
+  border-color: #6fa8d8;
+
+  background:
+    linear-gradient(
+      135deg,
+      #edf7ff,
+      #e5f2fd
+    );
+
+  color: #0b5e9d;
+
+  box-shadow:
+    0 3px 10px
+    rgba(
+      31,
+      95,
+      174,
+      0.1
+    );
+}
+
+
+.night-patrol-header-button.has-inspection-alerts:hover {
+  border-color: #438cc8;
+
+  background:
+    linear-gradient(
+      135deg,
+      #e3f2fd,
+      #d7ebfa
+    );
+}
+
+
+/* =========================================================
+  지연 점검 존재
+
+  지연 점검이 한 건이라도 있으면
+  미완료 파란색보다 빨간색을 우선 적용한다.
+========================================================= */
+
+.night-patrol-header-button.has-overdue-inspections {
+  border-color: #df8d8d;
+
+  background:
+    linear-gradient(
+      135deg,
+      #fff5f5,
+      #fdecec
+    );
+
+  color: #b43c3c;
+
+  box-shadow:
+    0 3px 10px
+    rgba(
+      200,
+      76,
+      76,
+      0.11
+    );
+}
+
+
+.night-patrol-header-button.has-overdue-inspections:hover {
+  border-color: #cb6262;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffeded,
+      #fbdede
+    );
+
+  color: #9f2e2e;
+}
+
+
+.night-patrol-header-button.has-overdue-inspections
+.night-patrol-header-button__badge {
+  background: #c84c4c;
+
+  box-shadow:
+    0 3px 8px
+    rgba(
+      200,
+      76,
+      76,
+      0.28
+    );
+}
+
+
+/* =========================================================
+  키보드 포커스
+========================================================= */
+
+.night-patrol-header-button:focus-visible {
+  outline:
+    3px solid
+    rgba(
+      31,
+      95,
+      174,
+      0.2
+    );
+
+  outline-offset: 2px;
+}
+
+
+.night-patrol-header-button.has-overdue-inspections:focus-visible {
+  outline-color:
+    rgba(
+      200,
+      76,
+      76,
+      0.22
+    );
+}
+
+
+/* =========================================================
+  작은 화면
+========================================================= */
+
+@media (max-width: 768px) {
+
+  .night-patrol-header-button {
+    min-width: 0;
+
+    gap: 5px;
+
+    padding-right: 9px;
+    padding-left: 9px;
+  }
+
+
+  .night-patrol-header-button__label {
+    font-size: 11px;
+  }
+
+
+  .night-patrol-header-button__badge {
+    min-width: 19px;
+    height: 19px;
+
+    padding: 0 5px;
+
+    font-size: 9px;
+  }
+
+}

@@ -1762,12 +1762,425 @@ function validatePatrolForCompletion() {
   return true;
 }
 
+/* =========================================================
+  야간 순찰 점검 일정 자동 연동
+
+  점검완료 저장:
+  - 오늘 점검의 야간 순찰 항목 자동 완료
+
+  작성중 저장:
+  - 같은 날짜의 다른 완료 목록이 없을 때 자동 완료 취소
+========================================================= */
+
+const NIGHT_PATROL_SCHEDULE_STATUS_API =
+  "/api/inspection-schedule-status";
+
+const NIGHT_PATROL_SCHEDULE_ID =
+  "daily-night-patrol";
+
+const NIGHT_PATROL_SCHEDULE_TITLE =
+  "야간 순찰 점검 일지";
+
+const NIGHT_PATROL_SCHEDULE_SHIFT =
+  "NS";
+
+
+function getNightPatrolScheduleSessionToken() {
+  const currentUser =
+    loadNightPatrolCurrentUser();
+
+  return String(
+    currentUser?.sessionToken ||
+    currentUser?.session_token ||
+    ""
+  ).trim();
+}
+
+
+function getNightPatrolScheduleAuthHeaders(
+  extraHeaders = {}
+) {
+  const token =
+    getNightPatrolScheduleSessionToken();
+
+  return {
+    Accept:
+      "application/json",
+
+    ...extraHeaders,
+
+    ...(
+      token
+        ? {
+            Authorization:
+              `Bearer ${token}`
+          }
+        : {}
+    )
+  };
+}
+
+
+function hasOtherCompletedNightPatrolRecord(
+  dateValue,
+  excludedListNumber
+) {
+  const normalizedDate =
+    String(
+      dateValue ||
+      ""
+    ).trim();
+
+  const excludedNumber =
+    Number(
+      excludedListNumber
+    );
+
+  if (
+    !normalizedDate
+  ) {
+    return false;
+  }
+
+  for (
+    let listNumber = 1;
+    listNumber <= 4;
+    listNumber += 1
+  ) {
+    if (
+      listNumber ===
+      excludedNumber
+    ) {
+      continue;
+    }
+
+    try {
+      const savedText =
+        window.localStorage.getItem(
+          getPatrolStorageKey(
+            normalizedDate,
+            listNumber
+          )
+        );
+
+      if (
+        !savedText
+      ) {
+        continue;
+      }
+
+      const savedRecord =
+        JSON.parse(
+          savedText
+        );
+
+      if (
+        String(
+          savedRecord?.documentStatus ||
+          ""
+        ).trim() ===
+          "점검완료"
+      ) {
+        return true;
+      }
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        `${normalizedDate} 목록 ${listNumber} 완료 상태 확인 실패:`,
+        error
+      );
+    }
+  }
+
+  return false;
+}
+
+
+function notifyNightPatrolScheduleRefresh() {
+  if (
+    window.parent &&
+    window.parent !==
+      window
+  ) {
+    window.parent.postMessage(
+      {
+        type:
+          "gs-shift-log:refresh-inspection-schedule"
+      },
+
+      window.location.origin
+    );
+  }
+}
+
+
+async function readNightPatrolScheduleApiResponse(
+  response,
+  options = {}
+) {
+  const {
+    allowNotFound =
+      false
+  } = options;
+
+  const responseText =
+    await response.text();
+
+  let result = {};
+
+  if (
+    responseText.trim()
+  ) {
+    try {
+      result =
+        JSON.parse(
+          responseText
+        );
+
+    } catch {
+      throw new Error(
+        "점검 일정 서버 응답 형식이 올바르지 않습니다."
+      );
+    }
+  }
+
+  /*
+    작성중 저장 시 기존 완료 기록이 없으면
+    DELETE API가 404를 반환할 수 있다.
+
+    이미 미완료인 정상 상태이므로
+    오류로 처리하지 않는다.
+  */
+  if (
+    allowNotFound &&
+    response.status ===
+      404
+  ) {
+    return {
+      ok:
+        true,
+
+      missing:
+        true
+    };
+  }
+
+  if (
+    !response.ok ||
+    result.ok ===
+      false
+  ) {
+    throw new Error(
+      result.message ||
+      result.error ||
+      `점검 일정 연동에 실패했습니다. (HTTP ${response.status})`
+    );
+  }
+
+  return result;
+}
+
+
+async function synchronizeNightPatrolScheduleStatus(
+  options = {}
+) {
+  const dateValue =
+    String(
+      options.dateValue ||
+      nightPatrolState.date ||
+      ""
+    ).trim();
+
+  const listNumber =
+    Number(
+      options.listNumber ??
+      nightPatrolState.listNumber ??
+      1
+    );
+
+  const documentStatus =
+    String(
+      options.documentStatus ||
+      nightPatrolState.documentStatus ||
+      "작성중"
+    ).trim();
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      dateValue
+    )
+  ) {
+    throw new Error(
+      "점검 일정에 반영할 야간 순찰 날짜를 확인할 수 없습니다."
+    );
+  }
+
+  if (
+    !getNightPatrolScheduleSessionToken()
+  ) {
+    throw new Error(
+      "로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요."
+    );
+  }
+
+
+  /* =====================================================
+    점검완료 → 일정 완료 처리
+  ====================================================== */
+
+  if (
+    documentStatus ===
+      "점검완료"
+  ) {
+    const response =
+      await fetch(
+        NIGHT_PATROL_SCHEDULE_STATUS_API,
+        {
+          method:
+            "POST",
+
+          headers:
+            getNightPatrolScheduleAuthHeaders({
+              "Content-Type":
+                "application/json"
+            }),
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              scheduleId:
+                NIGHT_PATROL_SCHEDULE_ID,
+
+              dueDate:
+                dateValue,
+
+              shift:
+                NIGHT_PATROL_SCHEDULE_SHIFT,
+
+              scheduleTitle:
+                NIGHT_PATROL_SCHEDULE_TITLE,
+
+              note:
+                `야간 순찰 목록 ${listNumber} 점검완료`
+            })
+        }
+      );
+
+    const result =
+      await readNightPatrolScheduleApiResponse(
+        response
+      );
+
+    notifyNightPatrolScheduleRefresh();
+
+    return {
+      ...result,
+
+      action:
+        "completed"
+    };
+  }
+
+
+  /* =====================================================
+    같은 날짜의 다른 목록이 완료 상태이면 유지
+
+    예:
+    목록 1 = 점검완료
+    목록 2 = 작성중
+
+    목록 2를 저장해도 일정 완료는 취소하지 않는다.
+  ====================================================== */
+
+  if (
+    hasOtherCompletedNightPatrolRecord(
+      dateValue,
+      listNumber
+    )
+  ) {
+    notifyNightPatrolScheduleRefresh();
+
+    return {
+      ok:
+        true,
+
+      skipped:
+        true,
+
+      action:
+        "preserved"
+    };
+  }
+
+
+  /* =====================================================
+    작성중 → 일정 완료 취소
+  ====================================================== */
+
+  const requestUrl =
+    new URL(
+      NIGHT_PATROL_SCHEDULE_STATUS_API,
+      window.location.origin
+    );
+
+  requestUrl.searchParams.set(
+    "scheduleId",
+    NIGHT_PATROL_SCHEDULE_ID
+  );
+
+  requestUrl.searchParams.set(
+    "dueDate",
+    dateValue
+  );
+
+  requestUrl.searchParams.set(
+    "shift",
+    NIGHT_PATROL_SCHEDULE_SHIFT
+  );
+
+  const response =
+    await fetch(
+      requestUrl.toString(),
+      {
+        method:
+          "DELETE",
+
+        headers:
+          getNightPatrolScheduleAuthHeaders(),
+
+        cache:
+          "no-store"
+      }
+    );
+
+  const result =
+    await readNightPatrolScheduleApiResponse(
+      response,
+      {
+        allowNotFound:
+          true
+      }
+    );
+
+  notifyNightPatrolScheduleRefresh();
+
+  return {
+    ...result,
+
+    action:
+      "canceled"
+  };
+}
 
 /* =========================================================
   저장
 ========================================================= */
 
-function saveNightPatrolRecord(
+async function saveNightPatrolRecord(
   options = {}
 ) {
   const {
@@ -1775,50 +2188,96 @@ function saveNightPatrolRecord(
       false
   } = options;
 
-
   collectPatrolScreenValues();
 
-
   if (
-    nightPatrolState
-      .documentStatus ===
+    nightPatrolState.documentStatus ===
       "점검완료" &&
     !validatePatrolForCompletion()
   ) {
-    document
-      .getElementById(
+    const statusSelect =
+      document.getElementById(
         "patrolDocumentStatus"
-      )
-      .value =
+      );
+
+    if (
+      statusSelect
+    ) {
+      statusSelect.value =
+        "작성중";
+    }
+
+    nightPatrolState.documentStatus =
       "작성중";
-
-
-    nightPatrolState
-      .documentStatus =
-      "작성중";
-
 
     return false;
   }
 
 
+  /* =====================================================
+    기존 저장 상태 확인
+
+    자동저장 때마다 API를 호출하지 않고
+    점검 상태가 변경된 경우에만 연동한다.
+  ====================================================== */
+
+  const storageKey =
+    getPatrolStorageKey(
+      nightPatrolState.date,
+      nightPatrolState.listNumber
+    );
+
+  let previousDocumentStatus =
+    "";
+
+  try {
+    const previousText =
+      window.localStorage.getItem(
+        storageKey
+      );
+
+    if (
+      previousText
+    ) {
+      const previousRecord =
+        JSON.parse(
+          previousText
+        );
+
+      previousDocumentStatus =
+        String(
+          previousRecord?.documentStatus ||
+          ""
+        ).trim();
+    }
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "기존 야간 순찰 저장 상태 확인 실패:",
+      error
+    );
+  }
+
+
+  /* =====================================================
+    저장 시간
+  ====================================================== */
+
   const now =
     new Date()
       .toISOString();
 
-
   nightPatrolState.updatedAt =
     now;
 
-
   if (
-    nightPatrolState
-      .documentStatus ===
+    nightPatrolState.documentStatus ===
       "점검완료"
   ) {
     nightPatrolState.completedAt =
-      nightPatrolState
-        .completedAt ||
+      nightPatrolState.completedAt ||
       now;
 
   } else {
@@ -1826,16 +2285,16 @@ function saveNightPatrolRecord(
       "";
   }
 
-
   savePatrolMembers();
 
 
+  /* =====================================================
+    야간 순찰일지 저장
+  ====================================================== */
+
   try {
     window.localStorage.setItem(
-      getPatrolStorageKey(
-        nightPatrolState.date,
-        nightPatrolState.listNumber
-      ),
+      storageKey,
 
       JSON.stringify(
         createPatrolRecord()
@@ -1850,46 +2309,181 @@ function saveNightPatrolRecord(
       error
     );
 
-
     window.alert(
       "야간 순찰 점검일지를 저장하지 못했습니다."
     );
 
-
     return false;
   }
-
 
   nightPatrolSavedSnapshot =
     createPatrolSnapshot();
 
 
-  setPatrolSaveState(
-    nightPatrolState
-      .documentStatus ===
-      "점검완료"
-        ? "점검완료"
-        : "저장됨",
+  /* =====================================================
+    점검 일정 동기화 여부
 
-    "saved"
-  );
+    직접 저장:
+    항상 동기화
 
+    자동 저장:
+    작성중 ↔ 점검완료 상태가 바뀐 경우에만 동기화
+  ====================================================== */
+
+  const shouldSyncSchedule =
+    !silent ||
+    previousDocumentStatus !==
+      nightPatrolState.documentStatus;
+
+  let syncResult =
+    null;
+
+  let syncError =
+    null;
 
   if (
-    !silent
+    shouldSyncSchedule
   ) {
-    window.alert(
-      nightPatrolState
-        .documentStatus ===
+    setPatrolSaveState(
+      nightPatrolState.documentStatus ===
         "점검완료"
-          ? "야간 순찰 점검일지를 완료 저장했습니다."
-          : "야간 순찰 점검일지를 저장했습니다."
+          ? "점검완료 · 일정 반영 중"
+          : "저장됨 · 일정 확인 중",
+
+      "saved"
+    );
+
+    try {
+      syncResult =
+        await synchronizeNightPatrolScheduleStatus({
+          dateValue:
+            nightPatrolState.date,
+
+          listNumber:
+            nightPatrolState.listNumber,
+
+          documentStatus:
+            nightPatrolState.documentStatus
+        });
+
+    } catch (
+      error
+    ) {
+      syncError =
+        error;
+
+      console.error(
+        "야간 순찰 점검 일정 자동 연동 실패:",
+        error
+      );
+    }
+  }
+
+
+  /* =====================================================
+    저장 상태 표시
+  ====================================================== */
+
+  if (
+    syncError
+  ) {
+    setPatrolSaveState(
+      nightPatrolState.documentStatus ===
+        "점검완료"
+          ? "점검완료 · 일정 연동 실패"
+          : "저장됨 · 일정 연동 실패",
+
+      "saved"
+    );
+
+  } else {
+    setPatrolSaveState(
+      nightPatrolState.documentStatus ===
+        "점검완료"
+          ? "점검완료"
+          : "저장됨",
+
+      "saved"
     );
   }
 
 
-  renderPatrolSummary();
+  /* =====================================================
+    직접 저장 결과 안내
+  ====================================================== */
 
+  if (
+    !silent
+  ) {
+    if (
+      syncError
+    ) {
+      window.alert(
+        [
+          nightPatrolState.documentStatus ===
+            "점검완료"
+              ? "야간 순찰 점검일지는 완료 저장되었습니다."
+              : "야간 순찰 점검일지는 저장되었습니다.",
+
+          "",
+
+          "다만 오늘 점검 일정 상태는 자동 반영하지 못했습니다.",
+
+          syncError.message ||
+          "점검 일정 연동 오류"
+        ].join(
+          "\n"
+        )
+      );
+
+    } else if (
+      nightPatrolState.documentStatus ===
+        "점검완료"
+    ) {
+      window.alert(
+        [
+          "야간 순찰 점검일지를 완료 저장했습니다.",
+
+          "",
+
+          "오늘 점검 일정도 자동으로 완료 처리했습니다."
+        ].join(
+          "\n"
+        )
+      );
+
+    } else if (
+      syncResult?.action ===
+        "preserved"
+    ) {
+      window.alert(
+        [
+          "야간 순찰 점검일지를 저장했습니다.",
+
+          "",
+
+          "같은 날짜의 다른 순찰 목록이 완료 상태이므로 오늘 점검 완료 상태는 유지했습니다."
+        ].join(
+          "\n"
+        )
+      );
+
+    } else {
+      window.alert(
+        [
+          "야간 순찰 점검일지를 저장했습니다.",
+
+          "",
+
+          "오늘 점검 일정은 미완료 상태로 반영했습니다."
+        ].join(
+          "\n"
+        )
+      );
+    }
+  }
+
+  renderPatrolSummary();
 
   return true;
 }

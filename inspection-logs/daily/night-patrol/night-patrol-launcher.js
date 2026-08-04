@@ -23,8 +23,18 @@
   const MODAL_ID = "nightPatrolModal";
   const BUTTON_ID = "nightPatrolButton";
   const FRAME_ID = "nightPatrolFrame";
+  const BADGE_ID =
+  "inspectionScheduleHeaderBadge";
+
+
+let latestInspectionPendingCount =
+  0;
+
+
+let latestInspectionOverdueCount =
+  0;
   const PAGE_URL =
-    "inspection-logs/inspection-logs.html?v=20260803-3";
+    "inspection-logs/inspection-logs.html?v=20260804-4";
 
   const AUTH_STORAGE_KEY =
     "gsShiftLog.currentUser";
@@ -500,173 +510,422 @@ function canCurrentUserUseNightPatrol() {
       ?.remove();
   }
 
+  /* =====================================================
+  점검 일정 건수 정리
+====================================================== */
 
-  function createMenuButton() {
-    const headerActions =
-      document.querySelector(
-        ".header-actions"
-      );
-
-    if (
-      !headerActions
-    ) {
-      return false;
-    }
-
-    if (
-      document.getElementById(
-        BUTTON_ID
-      )
-    ) {
-      return true;
-    }
-
-    const button =
-      document.createElement(
-        "button"
-      );
-
-    button.type =
-      "button";
-
-    button.id =
-      BUTTON_ID;
-
-    button.className =
-      "header-action night-patrol-header-button";
-
-    button.textContent =
-      "점검일지";
-
-    button.setAttribute(
-      "aria-label",
-      "점검일지 열기"
+function normalizeInspectionScheduleCount(
+  value
+) {
+  const count =
+    Number(
+      value
     );
 
-    const noticeButton =
-      document.getElementById(
-        "noticeButton"
-      );
 
-    if (
-      noticeButton?.parentElement ===
-        headerActions
-    ) {
-      headerActions.insertBefore(
-        button,
-        noticeButton
-      );
+  if (
+    !Number.isFinite(
+      count
+    )
+  ) {
+    return 0;
+  }
 
-    } else {
-      headerActions.prepend(
-        button
-      );
-    }
 
-    button.addEventListener(
-      "click",
-      openNightPatrolModal
+  return Math.max(
+    0,
+    Math.floor(
+      count
+    )
+  );
+}
+
+
+/* =====================================================
+  점검일지 상단 메뉴 배지 갱신
+
+  배지 숫자:
+  오늘 미완료 + 이전 지연
+
+  표시:
+  - 0건이면 숨김
+  - 1~99건은 숫자 표시
+  - 100건 이상은 99+ 표시
+====================================================== */
+
+function updateInspectionScheduleMenuBadge(
+  pendingCount =
+    latestInspectionPendingCount,
+
+  overdueCount =
+    latestInspectionOverdueCount
+) {
+  latestInspectionPendingCount =
+    normalizeInspectionScheduleCount(
+      pendingCount
     );
+
+
+  latestInspectionOverdueCount =
+    normalizeInspectionScheduleCount(
+      overdueCount
+    );
+
+
+  const totalCount =
+    latestInspectionPendingCount +
+    latestInspectionOverdueCount;
+
+
+  const button =
+    document.getElementById(
+      BUTTON_ID
+    );
+
+
+  const badge =
+    document.getElementById(
+      BADGE_ID
+    );
+
+
+  if (
+    badge
+  ) {
+    badge.textContent =
+      totalCount >
+        99
+        ? "99+"
+        : String(
+            totalCount
+          );
+
+
+    badge.hidden =
+      totalCount ===
+        0;
+  }
+
+
+  if (
+    !button
+  ) {
+    return;
+  }
+
+
+  button.classList.toggle(
+    "has-inspection-alerts",
+    totalCount >
+      0
+  );
+
+
+  button.classList.toggle(
+    "has-overdue-inspections",
+    latestInspectionOverdueCount >
+      0
+  );
+
+
+  button.dataset
+    .inspectionPendingCount =
+    String(
+      latestInspectionPendingCount
+    );
+
+
+  button.dataset
+    .inspectionOverdueCount =
+    String(
+      latestInspectionOverdueCount
+    );
+
+
+  const accessibilityLabel =
+    totalCount >
+      0
+      ? [
+          "점검일지 열기",
+          `오늘 미완료 ${latestInspectionPendingCount}건`,
+          `지연 ${latestInspectionOverdueCount}건`
+        ].join(
+          ", "
+        )
+      : "점검일지 열기, 미완료 점검 없음";
+
+
+  button.setAttribute(
+    "aria-label",
+    accessibilityLabel
+  );
+
+
+  button.title =
+    accessibilityLabel;
+}
+
+/* =====================================================
+  점검일지 상단 메뉴 생성
+
+  표시:
+  점검일지 [미완료+지연 건수]
+====================================================== */
+
+function createMenuButton() {
+  const headerActions =
+    document.querySelector(
+      ".header-actions"
+    );
+
+
+  if (
+    !headerActions
+  ) {
+    return false;
+  }
+
+
+  const existingButton =
+    document.getElementById(
+      BUTTON_ID
+    );
+
+
+  if (
+    existingButton
+  ) {
+    updateInspectionScheduleMenuBadge();
 
     return true;
   }
 
 
-  function createModal() {
-    if (
-      getModal()
-    ) {
-      return true;
-    }
-
-    const modal =
-      document.createElement(
-        "div"
-      );
-
-    modal.id =
-      MODAL_ID;
-
-    modal.className =
-      "modal-backdrop night-patrol-modal";
-
-    modal.setAttribute(
-      "aria-hidden",
-      "true"
+  const button =
+    document.createElement(
+      "button"
     );
 
-    modal.innerHTML = `
-      <section
-        class="modal-panel night-patrol-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="nightPatrolModalTitle"
-      >
-        <header class="modal-header night-patrol-modal__header">
-          <div>
-            <p class="modal-header__eyebrow">INSPECTION LOGS</p>
-            <h2
-              class="modal-header__title"
-              id="nightPatrolModalTitle"
-            >
-              점검일지
-            </h2>
-          </div>
 
-          <button
-            type="button"
-            class="modal-close-button"
-            id="closeNightPatrolButton"
-            aria-label="점검일지 닫기"
+  button.type =
+    "button";
+
+
+  button.id =
+    BUTTON_ID;
+
+
+  button.className =
+    "header-action night-patrol-header-button";
+
+
+  button.innerHTML = `
+    <span class="night-patrol-header-button__label">
+      점검일지
+    </span>
+
+    <span
+      class="night-patrol-header-button__badge"
+      id="${BADGE_ID}"
+      aria-hidden="true"
+      hidden
+    >
+      0
+    </span>
+  `;
+
+
+  button.setAttribute(
+    "aria-label",
+    "점검일지 열기, 완료 상태 확인 중"
+  );
+
+
+  const noticeButton =
+    document.getElementById(
+      "noticeButton"
+    );
+
+
+  if (
+    noticeButton?.parentElement ===
+      headerActions
+  ) {
+    headerActions.insertBefore(
+      button,
+      noticeButton
+    );
+
+  } else {
+    headerActions.prepend(
+      button
+    );
+  }
+
+
+  button.addEventListener(
+    "click",
+    openNightPatrolModal
+  );
+
+
+  updateInspectionScheduleMenuBadge();
+
+
+  return true;
+}
+
+/* =====================================================
+  점검일지 팝업 생성
+
+  iframe은 메뉴 생성 시 미리 불러온다.
+
+  이유:
+  점검일지 창을 열지 않아도
+  오늘 미완료·지연 건수를 받아야 하기 때문이다.
+====================================================== */
+
+function createModal() {
+  const existingModal =
+    getModal();
+
+
+  if (
+    existingModal
+  ) {
+    const existingFrame =
+      getFrame();
+
+
+    if (
+      existingFrame &&
+      existingFrame.getAttribute(
+        "src"
+      ) !==
+        PAGE_URL
+    ) {
+      existingFrame.setAttribute(
+        "src",
+        PAGE_URL
+      );
+    }
+
+
+    return true;
+  }
+
+
+  const modal =
+    document.createElement(
+      "div"
+    );
+
+
+  modal.id =
+    MODAL_ID;
+
+
+  modal.className =
+    "modal-backdrop night-patrol-modal";
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+
+  modal.innerHTML = `
+    <section
+      class="modal-panel night-patrol-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="nightPatrolModalTitle"
+    >
+
+      <header class="modal-header night-patrol-modal__header">
+
+        <div>
+
+          <p class="modal-header__eyebrow">
+            INSPECTION LOGS
+          </p>
+
+          <h2
+            class="modal-header__title"
+            id="nightPatrolModalTitle"
           >
-            ×
-          </button>
-        </header>
+            점검일지
+          </h2>
 
-        <div class="night-patrol-modal__body">
-          <iframe
-            id="${FRAME_ID}"
-            class="night-patrol-frame"
-            title="점검일지"
-            loading="lazy"
-          ></iframe>
         </div>
-      </section>
-    `;
 
-    document.body.appendChild(
-      modal
-    );
 
-    document
-      .getElementById(
-        "closeNightPatrolButton"
-      )
-      ?.addEventListener(
-        "click",
-        closeNightPatrolModal
-      );
+        <button
+          type="button"
+          class="modal-close-button"
+          id="closeNightPatrolButton"
+          aria-label="점검일지 닫기"
+        >
+          ×
+        </button>
 
-    /*
-      바깥 배경 클릭으로는 닫히지 않게 한다.
-      현장 입력 중 실수로 닫히는 것을 방지한다.
-    */
-    modal.addEventListener(
+      </header>
+
+
+      <div class="night-patrol-modal__body">
+
+        <iframe
+          id="${FRAME_ID}"
+          class="night-patrol-frame"
+          title="점검일지"
+          src="${PAGE_URL}"
+          loading="eager"
+        >
+        </iframe>
+
+      </div>
+
+    </section>
+  `;
+
+
+  document.body.appendChild(
+    modal
+  );
+
+
+  document
+    .getElementById(
+      "closeNightPatrolButton"
+    )
+    ?.addEventListener(
       "click",
-      event => {
-        if (
-          event.target ===
-          modal
-        ) {
-          event.preventDefault();
-
-          event.stopPropagation();
-        }
-      }
+      closeNightPatrolModal
     );
 
-    return true;
-  }
+
+  /*
+    현장 입력 중 배경을 잘못 눌러도
+    팝업이 닫히지 않게 한다.
+  */
+  modal.addEventListener(
+    "click",
+    event => {
+      if (
+        event.target ===
+          modal
+      ) {
+        event.preventDefault();
+
+        event.stopPropagation();
+      }
+    }
+  );
+
+
+  return true;
+}
 
 
   /* =====================================================
@@ -725,35 +984,143 @@ function canCurrentUserUseNightPatrol() {
     );
   }
 
+  /* =====================================================
+  점검일지 iframe 메시지 처리
 
-  function scheduleInstall() {
-    syncNightPatrolAccess();
+  지원:
+  - 점검일지 팝업 닫기
+  - 오늘 미완료·지연 건수 갱신
+====================================================== */
 
-    observeLoginState();
-
-    let attempts =
-      0;
-
-    const timer =
-      window.setInterval(
-        () => {
-          attempts +=
-            1;
-
-          syncNightPatrolAccess();
-
-          if (
-            attempts >=
-              40
-          ) {
-            window.clearInterval(
-              timer
-            );
-          }
-        },
-        250
-      );
+function handleNightPatrolLauncherMessage(
+  event
+) {
+  if (
+    event.origin !==
+      window.location.origin
+  ) {
+    return;
   }
+
+
+  const messageType =
+    String(
+      event.data?.type ||
+      ""
+    ).trim();
+
+
+  /* =================================================
+    점검일지 닫기
+  ================================================= */
+
+  if (
+    messageType ===
+      "gs-night-patrol:close"
+  ) {
+    closeNightPatrolModal();
+
+    return;
+  }
+
+
+  /* =================================================
+    점검 일정 건수
+  ================================================= */
+
+  if (
+    messageType !==
+      "gs-shift-log:inspection-schedule-counts"
+  ) {
+    return;
+  }
+
+
+  /*
+    현재 점검일지 iframe이 보낸 메시지만 허용한다.
+  */
+  const frame =
+    getFrame();
+
+
+  if (
+    !frame?.contentWindow ||
+    event.source !==
+      frame.contentWindow
+  ) {
+    return;
+  }
+
+
+  updateInspectionScheduleMenuBadge(
+    event.data?.pendingCount,
+    event.data?.overdueCount
+  );
+}
+
+/* =====================================================
+  점검일지 실행기 설치
+
+  처리:
+  - 로그인·권한 상태에 맞춰 메뉴 생성
+  - 로그인 화면 변경 감시
+  - 점검일지 iframe 메시지 연결
+  - 초기 로딩 지연에 대비해 재확인
+====================================================== */
+
+function scheduleInstall() {
+  syncNightPatrolAccess();
+
+
+  observeLoginState();
+
+
+  /*
+    점검일지 iframe 메시지는 한 번만 연결한다.
+  */
+  if (
+    window
+      .__gsInspectionScheduleMessageBound !==
+      true
+  ) {
+    window.addEventListener(
+      "message",
+      handleNightPatrolLauncherMessage
+    );
+
+
+    window
+      .__gsInspectionScheduleMessageBound =
+      true;
+  }
+
+
+  let attempts =
+    0;
+
+
+  const timer =
+    window.setInterval(
+      () => {
+        attempts +=
+          1;
+
+
+        syncNightPatrolAccess();
+
+
+        if (
+          attempts >=
+            40
+        ) {
+          window.clearInterval(
+            timer
+          );
+        }
+      },
+      250
+    );
+}
 
 
   document.addEventListener(
@@ -785,25 +1152,6 @@ function canCurrentUserUseNightPatrol() {
     true
   );
 
-
-  window.addEventListener(
-    "message",
-    event => {
-      if (
-        event.origin !==
-        window.location.origin
-      ) {
-        return;
-      }
-
-      if (
-        event.data?.type ===
-        "gs-night-patrol:close"
-      ) {
-        closeNightPatrolModal();
-      }
-    }
-  );
 
 
   window.addEventListener(
