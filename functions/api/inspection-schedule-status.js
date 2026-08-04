@@ -1249,6 +1249,859 @@ export async function onRequestGet(
 }
 
 /* =========================================================
+  업무일지 점검 자동완료 동기화
+
+  처리 원칙:
+  - 같은 날짜·근무의 모든 보직 업무일지를 검사한 결과를 받는다.
+  - 점검 일정별 가장 적합한 근거 문구 한 건을 저장한다.
+  - 기존 수동 완료 기록은 절대로 수정하거나 삭제하지 않는다.
+  - 업무일지 수정·삭제로 근거가 사라지면 자동완료만 삭제한다.
+========================================================= */
+
+function createShiftLogCompletionKey(
+  target
+) {
+  return [
+    normalizeText(
+      target?.scheduleId ||
+      target?.schedule_id
+    ),
+
+    normalizeText(
+      target?.dueDate ||
+      target?.due_date
+    ),
+
+    normalizeShift(
+      target?.shift,
+      true
+    ) ||
+    ""
+  ].join(
+    "||"
+  );
+}
+
+
+/* =========================================================
+  자동완료 후보 1건 정리
+========================================================= */
+
+function normalizeShiftLogCompletionMatch(
+  rawMatch,
+  context
+) {
+  const source =
+    rawMatch &&
+    typeof rawMatch ===
+      "object" &&
+    !Array.isArray(
+      rawMatch
+    )
+      ? rawMatch
+      : {};
+
+
+  const scheduleId =
+    normalizeText(
+      source.scheduleId ||
+      source.schedule_id
+    );
+
+
+  const dueDate =
+    normalizeText(
+      source.dueDate ||
+      source.due_date ||
+      context.workDate
+    );
+
+
+  const shift =
+    normalizeShift(
+      source.shift,
+      true
+    );
+
+
+  const scheduleTitle =
+    normalizeText(
+      source.scheduleTitle ||
+      source.schedule_title
+    );
+
+
+  const sourceLogId =
+    normalizeText(
+      source.sourceLogId ||
+      source.source_log_id
+    );
+
+
+  const sourceEntryKey =
+    normalizeText(
+      source.sourceEntryKey ||
+      source.source_entry_key
+    ) ||
+    [
+      sourceLogId,
+      scheduleId
+    ].join(
+      "||"
+    );
+
+
+  const sourceRole =
+    normalizeText(
+      source.sourceRole ||
+      source.source_role
+    );
+
+
+  const sourceAuthor =
+    normalizeText(
+      source.sourceAuthor ||
+      source.source_author
+    );
+
+
+  const sourceAuthorId =
+    normalizeEmployeeNo(
+      source.sourceAuthorId ||
+      source.source_author_id
+    );
+
+
+  const sourceText =
+    normalizeText(
+      source.sourceText ||
+      source.source_text
+    );
+
+
+  if (
+    !scheduleId ||
+    scheduleId.length >
+      120
+  ) {
+    return {
+      error:
+        "자동완료할 점검 일정 ID를 확인해 주세요."
+    };
+  }
+
+
+  if (
+    dueDate !==
+      context.workDate ||
+    !isValidIsoDate(
+      dueDate
+    )
+  ) {
+    return {
+      error:
+        "자동완료 점검일은 업무일지 날짜와 같아야 합니다."
+    };
+  }
+
+
+  if (
+    shift ===
+    null
+  ) {
+    return {
+      error:
+        "자동완료 점검 근무값이 올바르지 않습니다."
+    };
+  }
+
+
+  /*
+    근무가 지정된 점검은
+    현재 업무일지 근무와 일치해야 한다.
+
+    shift가 빈 값인 일정은
+    근무 공통 일정으로 허용한다.
+  */
+  if (
+    shift &&
+    shift !==
+      context.shift
+  ) {
+    return {
+      error:
+        "자동완료 점검 근무가 업무일지 근무와 다릅니다."
+    };
+  }
+
+
+  if (
+    !scheduleTitle ||
+    scheduleTitle.length >
+      300
+  ) {
+    return {
+      error:
+        "자동완료 점검명을 확인해 주세요."
+    };
+  }
+
+
+  if (
+    !sourceLogId ||
+    sourceLogId.length >
+      120
+  ) {
+    return {
+      error:
+        "자동완료 근거 업무일지 ID를 확인해 주세요."
+    };
+  }
+
+
+  if (
+    !sourceText
+  ) {
+    return {
+      error:
+        "자동완료 근거가 되는 업무일지 문구가 없습니다."
+    };
+  }
+
+
+  return {
+    item: {
+      scheduleId,
+
+      dueDate,
+
+      shift:
+        shift ||
+        "",
+
+      scheduleTitle,
+
+      sourceLogId,
+
+      sourceEntryKey:
+        sourceEntryKey.slice(
+          0,
+          300
+        ),
+
+      sourceRole:
+        sourceRole.slice(
+          0,
+          60
+        ),
+
+      sourceAuthor:
+        sourceAuthor.slice(
+          0,
+          100
+        ),
+
+      sourceAuthorId:
+        sourceAuthorId.slice(
+          0,
+          60
+        ),
+
+      sourceText:
+        sourceText.slice(
+          0,
+          1000
+        )
+    }
+  };
+}
+
+
+/* =========================================================
+  업무일지 자동완료 D1 동기화
+========================================================= */
+
+async function synchronizeShiftLogInspectionCompletions(
+  database,
+  rawBody,
+  currentUser
+) {
+  const workDate =
+    normalizeText(
+      rawBody?.workDate ||
+      rawBody?.work_date
+    );
+
+
+  const shift =
+    normalizeShift(
+      rawBody?.shift,
+      false
+    );
+
+
+  if (
+    !isValidIsoDate(
+      workDate
+    )
+  ) {
+    return {
+      ok:
+        false,
+
+      status:
+        400,
+
+      message:
+        "업무일지 점검 자동완료 날짜를 확인해 주세요."
+    };
+  }
+
+
+  if (
+    !shift
+  ) {
+    return {
+      ok:
+        false,
+
+      status:
+        400,
+
+      message:
+        "업무일지 점검 자동완료 근무를 확인해 주세요."
+    };
+  }
+
+
+  const context = {
+    workDate,
+
+    shift
+  };
+
+
+  const rawMatches =
+    Array.isArray(
+      rawBody?.matches
+    )
+      ? rawBody.matches
+      : [];
+
+
+  if (
+    rawMatches.length >
+    300
+  ) {
+    return {
+      ok:
+        false,
+
+      status:
+        400,
+
+      message:
+        "한 번에 동기화할 수 있는 점검 건수를 초과했습니다."
+    };
+  }
+
+
+  /*
+    관리 대상 업무일지 ID
+
+    current:
+    현재 같은 날짜·근무에 남아 있는 업무일지
+
+    removed:
+    방금 삭제된 업무일지
+  */
+  const managedSourceLogIds =
+    new Set(
+      [
+        ...(
+          Array.isArray(
+            rawBody?.managedSourceLogIds
+          )
+            ? rawBody.managedSourceLogIds
+            : []
+        ),
+
+        ...(
+          Array.isArray(
+            rawBody?.removedSourceLogIds
+          )
+            ? rawBody.removedSourceLogIds
+            : []
+        )
+      ]
+        .map(
+          normalizeText
+        )
+        .filter(
+          Boolean
+        )
+    );
+
+
+  /*
+    후보 정규화 및 점검별 중복 제거
+
+    호출 측에서 점수가 높은 근거부터 보내므로
+    같은 점검은 첫 번째 근거를 사용한다.
+  */
+  const matchMap =
+    new Map();
+
+
+  for (
+    const rawMatch of
+    rawMatches
+  ) {
+    const normalized =
+      normalizeShiftLogCompletionMatch(
+        rawMatch,
+        context
+      );
+
+
+    if (
+      normalized.error
+    ) {
+      return {
+        ok:
+          false,
+
+        status:
+          400,
+
+        message:
+          normalized.error
+      };
+    }
+
+
+    const candidate =
+      normalized.item;
+
+
+    const key =
+      createShiftLogCompletionKey(
+        candidate
+      );
+
+
+    managedSourceLogIds.add(
+      candidate.sourceLogId
+    );
+
+
+    if (
+      !matchMap.has(
+        key
+      )
+    ) {
+      matchMap.set(
+        key,
+        candidate
+      );
+    }
+  }
+
+
+  if (
+    managedSourceLogIds.size ===
+      0
+  ) {
+    return {
+      ok:
+        true,
+
+      skipped:
+        true,
+
+      workDate,
+
+      shift,
+
+      matchedCount:
+        0,
+
+      createdCount:
+        0,
+
+      updatedCount:
+        0,
+
+      deletedCount:
+        0,
+
+      manualProtectedCount:
+        0
+    };
+  }
+
+
+  const timestamp =
+    new Date()
+      .toISOString();
+
+
+  let createdCount =
+    0;
+
+
+  let updatedCount =
+    0;
+
+
+  let deletedCount =
+    0;
+
+
+  let manualProtectedCount =
+    0;
+
+
+  /* =====================================================
+    자동완료 생성·수정
+
+    기존 수동 완료:
+    - 그대로 유지
+    - 자동완료로 바꾸지 않음
+  ====================================================== */
+
+  for (
+    const candidate of
+    matchMap.values()
+  ) {
+    const existing =
+      await findRecord(
+        database,
+        candidate
+      );
+
+
+    if (
+      existing?.completionSource ===
+        "manual"
+    ) {
+      manualProtectedCount +=
+        1;
+
+
+      continue;
+    }
+
+
+    const completedById =
+      candidate.sourceAuthorId ||
+      normalizeEmployeeNo(
+        currentUser?.employeeNo
+      );
+
+
+    const completedByName =
+      candidate.sourceAuthor ||
+      normalizeText(
+        currentUser?.name
+      ) ||
+      "업무일지 자동인식";
+
+
+    if (
+      existing
+    ) {
+      const updateResult =
+        await database
+          .prepare(`
+            UPDATE inspection_schedule_status
+
+            SET
+              schedule_title = ?,
+              status = '완료',
+              note = '업무일지 자동인식',
+
+              completed_by_id = ?,
+              completed_by_name = ?,
+              completed_at = ?,
+
+              completion_source = 'shift_log',
+
+              source_log_id = ?,
+              source_entry_key = ?,
+              source_role = ?,
+              source_author = ?,
+              source_text = ?,
+
+              updated_at = ?,
+
+              revision =
+                revision + 1
+
+            WHERE
+              id = ?
+              AND completion_source = 'shift_log'
+          `)
+          .bind(
+            candidate.scheduleTitle,
+
+            completedById,
+            completedByName,
+            timestamp,
+
+            candidate.sourceLogId,
+            candidate.sourceEntryKey,
+            candidate.sourceRole,
+            candidate.sourceAuthor,
+            candidate.sourceText,
+
+            timestamp,
+
+            existing.id
+          )
+          .run();
+
+
+      if (
+        Number(
+          updateResult?.meta?.changes ||
+          0
+        ) ===
+          1
+      ) {
+        updatedCount +=
+          1;
+      }
+
+
+      continue;
+    }
+
+
+    await database
+      .prepare(`
+        INSERT INTO inspection_schedule_status (
+          id,
+
+          schedule_id,
+          due_date,
+          shift,
+          schedule_title,
+
+          status,
+          note,
+
+          completed_by_id,
+          completed_by_name,
+          completed_at,
+
+          completion_source,
+
+          source_log_id,
+          source_entry_key,
+          source_role,
+          source_author,
+          source_text,
+
+          created_at,
+          updated_at,
+
+          revision
+        )
+        VALUES (
+          ?,
+
+          ?,
+          ?,
+          ?,
+          ?,
+
+          '완료',
+          '업무일지 자동인식',
+
+          ?,
+          ?,
+          ?,
+
+          'shift_log',
+
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+
+          ?,
+          ?,
+
+          1
+        )
+      `)
+      .bind(
+        crypto.randomUUID(),
+
+        candidate.scheduleId,
+        candidate.dueDate,
+        candidate.shift,
+        candidate.scheduleTitle,
+
+        completedById,
+        completedByName,
+        timestamp,
+
+        candidate.sourceLogId,
+        candidate.sourceEntryKey,
+        candidate.sourceRole,
+        candidate.sourceAuthor,
+        candidate.sourceText,
+
+        timestamp,
+        timestamp
+      )
+      .run();
+
+
+    createdCount +=
+      1;
+  }
+
+
+  /* =====================================================
+    근거가 사라진 자동완료 삭제
+
+    삭제 조건:
+    - 업무일지 자동완료 기록
+    - 이번 재검사 대상 업무일지에서 만들어진 기록
+    - 현재 매칭 결과에는 없는 점검
+
+    수동 완료는 조회·삭제 대상에 포함하지 않는다.
+  ====================================================== */
+
+  const automaticResult =
+    await database
+      .prepare(`
+        SELECT
+          *
+
+        FROM inspection_schedule_status
+
+        WHERE
+          due_date = ?
+          AND completion_source = 'shift_log'
+      `)
+      .bind(
+        workDate
+      )
+      .all();
+
+
+  const automaticRows =
+    Array.isArray(
+      automaticResult.results
+    )
+      ? automaticResult.results
+      : [];
+
+
+  for (
+    const row of
+    automaticRows
+  ) {
+    const sourceLogId =
+      normalizeText(
+        row.source_log_id
+      );
+
+
+    if (
+      !managedSourceLogIds.has(
+        sourceLogId
+      )
+    ) {
+      continue;
+    }
+
+
+    const rowKey =
+      createShiftLogCompletionKey({
+        scheduleId:
+          row.schedule_id,
+
+        dueDate:
+          row.due_date,
+
+        shift:
+          row.shift
+      });
+
+
+    if (
+      matchMap.has(
+        rowKey
+      )
+    ) {
+      continue;
+    }
+
+
+    const deleteResult =
+      await database
+        .prepare(`
+          DELETE FROM inspection_schedule_status
+
+          WHERE
+            id = ?
+            AND completion_source = 'shift_log'
+        `)
+        .bind(
+          normalizeText(
+            row.id
+          )
+        )
+        .run();
+
+
+    if (
+      Number(
+        deleteResult?.meta?.changes ||
+        0
+      ) ===
+        1
+    ) {
+      deletedCount +=
+        1;
+    }
+  }
+
+
+  return {
+    ok:
+      true,
+
+    skipped:
+      false,
+
+    automatic:
+      true,
+
+    workDate,
+
+    shift,
+
+    matchedCount:
+      matchMap.size,
+
+    createdCount,
+
+    updatedCount,
+
+    deletedCount,
+
+    manualProtectedCount
+  };
+}
+
+/* =========================================================
   POST /api/inspection-schedule-status
 
   사용자가 직접 완료 처리
@@ -1287,6 +2140,44 @@ export async function onRequestPost(
         context.request
       );
 
+    /* =====================================================
+      업무일지 내용 자동인식 동기화
+
+      수동 완료 처리와 분리하여 실행한다.
+    ====================================================== */
+
+    const requestedAction =
+      normalizeText(
+        body.action
+      ).toLowerCase();
+
+
+    if (
+      requestedAction ===
+        "sync-shift-log"
+    ) {
+      const syncResult =
+        await synchronizeShiftLogInspectionCompletions(
+          context.env.DB,
+          body,
+          authentication.user
+        );
+
+
+      return jsonResponse(
+        syncResult,
+
+        syncResult.ok
+          ? 200
+          : (
+              Number(
+                syncResult.status
+              ) ||
+              400
+            )
+      );
+    }
+      
 
     const validation =
       validateTarget(

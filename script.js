@@ -55004,15 +55004,506 @@ async function loadSharedShiftLogsFromServer(
     .filter(Boolean);
 }
 
+/* =========================================================
+  업무일지 자동완료용 점검 일정 스냅샷
+
+  저장 기준:
+  - 선택 날짜
+  - 선택 근무
+
+  캘린더에서 계산한 최종 일정만 사용한다.
+  기본 일정과 관리자 수정 일정이 모두 반영된 결과다.
+========================================================= */
+
+const inspectionScheduleOccurrenceState =
+  new Map();
+
+
+function normalizeShiftLogInspectionScheduleShift(
+  value,
+  allowEmpty = false
+) {
+  const shift =
+    String(
+      value ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /[^A-Z]/g,
+        ""
+      );
+
+
+  if (
+    !shift &&
+    allowEmpty
+  ) {
+    return "";
+  }
+
+
+  if (
+    [
+      "D",
+      "DS"
+    ].includes(
+      shift
+    )
+  ) {
+    return "DS";
+  }
+
+
+  if (
+    [
+      "N",
+      "NS"
+    ].includes(
+      shift
+    )
+  ) {
+    return "NS";
+  }
+
+
+  return "";
+}
+
+
+function createShiftLogInspectionScheduleContextKey(
+  workDate,
+  shift
+) {
+  const normalizedDate =
+    String(
+      workDate ||
+      ""
+    ).trim();
+
+
+  const normalizedShift =
+    normalizeShiftLogInspectionScheduleShift(
+      shift
+    );
+
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      normalizedDate
+    ) ||
+    !normalizedShift
+  ) {
+    return "";
+  }
+
+
+  return [
+    normalizedDate,
+    normalizedShift
+  ].join(
+    "||"
+  );
+}
+
+
+/* =========================================================
+  캘린더에서 전달받은 점검 일정 저장
+========================================================= */
+
+function saveShiftLogInspectionScheduleSnapshot(
+  message
+) {
+  const workDate =
+    String(
+      message?.workDate ||
+      ""
+    ).trim();
+
+
+  const shift =
+    normalizeShiftLogInspectionScheduleShift(
+      message?.shift
+    );
+
+
+  const contextKey =
+    createShiftLogInspectionScheduleContextKey(
+      workDate,
+      shift
+    );
+
+
+  if (
+    !contextKey ||
+    !Array.isArray(
+      message?.scheduleOccurrences
+    )
+  ) {
+    return false;
+  }
+
+
+  const uniqueOccurrences =
+    new Map();
+
+
+  message.scheduleOccurrences
+    .slice(
+      0,
+      300
+    )
+    .forEach(
+      rawOccurrence => {
+        if (
+          !rawOccurrence ||
+          typeof rawOccurrence !==
+            "object" ||
+          Array.isArray(
+            rawOccurrence
+          )
+        ) {
+          return;
+        }
+
+
+        const scheduleId =
+          String(
+            rawOccurrence.scheduleId ||
+            rawOccurrence.id ||
+            ""
+          ).trim();
+
+
+        const scheduleTitle =
+          String(
+            rawOccurrence.scheduleTitle ||
+            rawOccurrence.title ||
+            ""
+          ).trim();
+
+
+        const dueDate =
+          String(
+            rawOccurrence.dueDate ||
+            workDate
+          ).trim();
+
+
+        const occurrenceShift =
+          normalizeShiftLogInspectionScheduleShift(
+            rawOccurrence.shift,
+            true
+          );
+
+
+        if (
+          !scheduleId ||
+          !scheduleTitle ||
+          dueDate !==
+            workDate
+        ) {
+          return;
+        }
+
+
+        /*
+          근무 지정 일정은 현재 선택 근무와 같아야 한다.
+
+          빈 근무값은 D/S·N/S 공통 일정이다.
+        */
+        if (
+          occurrenceShift &&
+          occurrenceShift !==
+            shift
+        ) {
+          return;
+        }
+
+
+        const occurrenceKey = [
+          scheduleId,
+          dueDate,
+          occurrenceShift
+        ].join(
+          "||"
+        );
+
+
+        if (
+          uniqueOccurrences.has(
+            occurrenceKey
+          )
+        ) {
+          return;
+        }
+
+
+        uniqueOccurrences.set(
+          occurrenceKey,
+          {
+            scheduleId:
+              scheduleId.slice(
+                0,
+                120
+              ),
+
+            scheduleTitle:
+              scheduleTitle.slice(
+                0,
+                300
+              ),
+
+            dueDate,
+
+            shift:
+              occurrenceShift,
+
+            category:
+              String(
+                rawOccurrence.category ||
+                "other"
+              )
+                .trim()
+                .slice(
+                  0,
+                  30
+                ),
+
+            scheduleLabel:
+              String(
+                rawOccurrence.scheduleLabel ||
+                ""
+              )
+                .trim()
+                .slice(
+                  0,
+                  100
+                ),
+
+            position:
+              String(
+                rawOccurrence.position ||
+                ""
+              )
+                .trim()
+                .slice(
+                  0,
+                  100
+                ),
+
+            note:
+              String(
+                rawOccurrence.note ||
+                ""
+              )
+                .trim()
+                .slice(
+                  0,
+                  300
+                ),
+
+            conditional:
+              rawOccurrence.conditional ===
+                true,
+
+            assignedRoles:
+              (
+                Array.isArray(
+                  rawOccurrence.assignedRoles
+                )
+                  ? rawOccurrence.assignedRoles
+                  : []
+              )
+                .map(
+                  role => {
+                    return String(
+                      role ||
+                      ""
+                    ).trim();
+                  }
+                )
+                .filter(
+                  Boolean
+                )
+          }
+        );
+      }
+    );
+
+
+  inspectionScheduleOccurrenceState.set(
+    contextKey,
+    {
+      workDate,
+
+      shift,
+
+      occurrences: [
+        ...uniqueOccurrences.values()
+      ],
+
+      receivedAt:
+        Date.now()
+    }
+  );
+
+
+  return true;
+}
+
+
+/* =========================================================
+  업무일지 날짜·근무에 해당하는 점검 목록
+========================================================= */
+
+function getInspectionScheduleOccurrencesForShiftLog(
+  log
+) {
+  const contextKey =
+    createShiftLogInspectionScheduleContextKey(
+      log?.date,
+      log?.shift
+    );
+
+
+  if (
+    !contextKey
+  ) {
+    return null;
+  }
+
+
+  const snapshot =
+    inspectionScheduleOccurrenceState.get(
+      contextKey
+    );
+
+
+  /*
+    null:
+    점검 목록을 아직 전달받지 못함
+
+    []:
+    해당 날짜·근무에 실제 점검이 없음
+
+    두 상태를 구분해야 자동완료 기록이
+    잘못 삭제되지 않는다.
+  */
+  if (
+    !snapshot ||
+    !Array.isArray(
+      snapshot.occurrences
+    )
+  ) {
+    return null;
+  }
+
+
+  return snapshot.occurrences.map(
+    occurrence => {
+      return {
+        ...occurrence,
+
+        assignedRoles:
+          Array.isArray(
+            occurrence.assignedRoles
+          )
+            ? [
+                ...occurrence.assignedRoles
+              ]
+            : []
+      };
+    }
+  );
+}
+
+
+/* =========================================================
+  점검 캘린더 메시지 수신
+========================================================= */
+
+window.addEventListener(
+  "message",
+  event => {
+    if (
+      event.origin !==
+      window.location.origin
+    ) {
+      return;
+    }
+
+
+    if (
+      String(
+        event.data?.type ||
+        ""
+      ).trim() !==
+        "gs-shift-log:inspection-role-today-summary"
+    ) {
+      return;
+    }
+
+
+    saveShiftLogInspectionScheduleSnapshot(
+      event.data
+    );
+  }
+);
 
 /* =========================================================
   D1 공용 업무일지 저장·수정
+
+  점검 캘린더에서 전달받은
+  해당 날짜·근무의 점검 목록을 함께 전송한다.
 ========================================================= */
 
 async function saveShiftLogToServer(
   log,
   options = {}
 ) {
+  const requestBody = {
+    action:
+      options.action ||
+      "save",
+
+    expectedRevision:
+      Number(
+        options.expectedRevision ??
+        log?.serverRevision ??
+        0
+      ),
+
+    log
+  };
+
+
+  const inspectionScheduleOccurrences =
+    getInspectionScheduleOccurrencesForShiftLog(
+      log
+    );
+
+
+  /*
+    배열을 전달받은 경우에만 포함한다.
+
+    빈 배열:
+    해당 날짜·근무에 점검 없음
+
+    null:
+    캘린더에서 아직 점검 목록을 받지 못함
+  */
+  if (
+    Array.isArray(
+      inspectionScheduleOccurrences
+    )
+  ) {
+    requestBody.inspectionScheduleOccurrences =
+      inspectionScheduleOccurrences;
+  }
+
+
   const result =
     await requestShiftLogApi(
       "",
@@ -55020,23 +55511,8 @@ async function saveShiftLogToServer(
         method:
           "POST",
 
-
-        body: {
-          action:
-            options.action ||
-            "save",
-
-
-          expectedRevision:
-            Number(
-              options.expectedRevision ??
-              log?.serverRevision ??
-              0
-            ),
-
-
-          log
-        }
+        body:
+          requestBody
       }
     );
 
@@ -55048,6 +55524,9 @@ async function saveShiftLogToServer(
 
 /* =========================================================
   D1 공용 업무일지 삭제
+
+  삭제 후 자동완료를 재검사할 수 있도록
+  해당 날짜·근무 점검 목록도 전달한다.
 ========================================================= */
 
 async function deleteShiftLogFromServer(
@@ -55090,7 +55569,8 @@ async function deleteShiftLogFromServer(
     !Number.isInteger(
       serverRevision
     ) ||
-    serverRevision < 1
+    serverRevision <
+      1
   ) {
     throw new ShiftLogApiError(
       "업무일지의 서버 버전을 확인할 수 없습니다."
@@ -55110,12 +55590,46 @@ async function deleteShiftLogFromServer(
     });
 
 
+  const requestBody = {
+    workDate:
+      String(
+        log.date ||
+        ""
+      ).trim(),
+
+    shift:
+      String(
+        log.shift ||
+        ""
+      ).trim()
+  };
+
+
+  const inspectionScheduleOccurrences =
+    getInspectionScheduleOccurrencesForShiftLog(
+      log
+    );
+
+
+  if (
+    Array.isArray(
+      inspectionScheduleOccurrences
+    )
+  ) {
+    requestBody.inspectionScheduleOccurrences =
+      inspectionScheduleOccurrences;
+  }
+
+
   const result =
     await requestShiftLogApi(
       `?${searchParams.toString()}`,
       {
         method:
-          "DELETE"
+          "DELETE",
+
+        body:
+          requestBody
       }
     );
 
@@ -105231,6 +105745,20 @@ const ARM_ROLL_BOX_SERIES = Object.freeze([
   }
 
 
+  /* =====================================================
+    ARM ROLL · SCRAP BOX 현재 상태
+
+    0~49%:
+    - 정상
+
+    50% 이상:
+    - 요청 필요
+
+    색상:
+    - 50~69% 주황색
+    - 70% 이상 빨간색
+  ====================================================== */
+
   function getArmRollBoxLevelState(
     level
   ) {
@@ -105249,15 +105777,25 @@ const ARM_ROLL_BOX_SERIES = Object.freeze([
     }
 
 
-    if (
+    const numericLevel =
       Number(
         level
-      ) >=
+      );
+
+
+    /*
+      70% 이상
+
+      문구는 요청 필요로 통일하고
+      빨간 경고 색상을 사용한다.
+    */
+    if (
+      numericLevel >=
         WARNING_LEVEL
     ) {
       return {
         label:
-          "경고",
+          "요청 필요",
 
         className:
           "is-warning"
@@ -105265,15 +105803,18 @@ const ARM_ROLL_BOX_SERIES = Object.freeze([
     }
 
 
+    /*
+      50~69%
+
+      주황색 요청 필요 상태
+    */
     if (
-      Number(
-        level
-      ) >=
-        60
+      numericLevel >=
+        REPLACEMENT_RECOMMEND_LEVEL
     ) {
       return {
         label:
-          "주의",
+          "요청 필요",
 
         className:
           "is-caution"
@@ -107869,11 +108410,20 @@ function getArmRollBoxMainRecommendationItems() {
 }
 
 /* =========================================================
-  메인 근무자 현황 우측 BOX 알림
+  메인 근무자 현황 오른쪽 BOX 요청 필요 알림
+
+  표시 기준:
+  - ARM ROLL BOX 또는 SCRAP BOX 50% 이상
 
   표시:
-  - BOX 레벨
-  - 업무일지에서 확인한 배차·반출·교체 일정
+  - 대상
+  - 현재 수치
+  - 요청 필요
+  - 업무일지의 배차·반출·교체 예정 정보
+
+  색상:
+  - 최고 수치 50~69%: 주황색
+  - 최고 수치 70% 이상: 빨간색
 ========================================================= */
 
 function renderArmRollBoxMainAlert() {
@@ -107908,16 +108458,20 @@ function renderArmRollBoxMainAlert() {
   }
 
 
-  const recommendationItems =
+  /*
+    REPLACEMENT_RECOMMEND_LEVEL 이상인
+    모든 호기·BOX를 가져온다.
+  */
+  const requestItems =
     getArmRollBoxMainRecommendationItems();
 
 
   /*
-    50% 이상 BOX가 없으면 알림 숨김
+    50% 이상인 BOX가 없으면 알림 숨김
   */
   if (
-    recommendationItems.length ===
-    0
+    requestItems.length ===
+      0
   ) {
     alertButton.hidden =
       true;
@@ -107929,15 +108483,35 @@ function renderArmRollBoxMainAlert() {
     );
 
 
+    alertButton.removeAttribute(
+      "title"
+    );
+
+
+    if (
+      alertText
+    ) {
+      alertText.textContent =
+        "";
+    }
+
+
     if (
       alertReference
     ) {
       alertReference.textContent =
         "";
 
-
       alertReference.hidden =
         true;
+    }
+
+
+    if (
+      alertCount
+    ) {
+      alertCount.textContent =
+        "0건";
     }
 
 
@@ -107945,20 +108519,38 @@ function renderArmRollBoxMainAlert() {
   }
 
 
+  /*
+    requestItems는 높은 수치 순으로
+    정렬되어 있으므로 첫 번째가 최고 수치다.
+  */
   const highestLevel =
     Number(
-      recommendationItems[0]
+      requestItems[0]
         .level
     );
 
 
+  /*
+    예:
+
+    ARM ROLL BOX 1호기 55% · 요청 필요
+    SCRAP BOX 2호기 70% · 요청 필요
+  */
   const levelMessage =
-    recommendationItems
+    requestItems
       .map(
         item => {
-          return `${item.label} ${formatArmRollBoxNumber(
-            item.level
-          )}%`;
+          return [
+            item.label,
+
+            `${formatArmRollBoxNumber(
+              item.level
+            )}%`,
+
+            "요청 필요"
+          ].join(
+            " "
+          );
         }
       )
       .join(
@@ -107967,10 +108559,11 @@ function renderArmRollBoxMainAlert() {
 
 
   /*
-    교체 권고 대상 중 일정이 확인된 항목
+    업무일지에서 감지된
+    배차·반출·교체 예정 항목
   */
   const scheduledItems =
-    recommendationItems.filter(
+    requestItems.filter(
       item => {
         return Boolean(
           item.schedule
@@ -107979,12 +108572,6 @@ function renderArmRollBoxMainAlert() {
     );
 
 
-  /*
-    일정이 한 건이면 대상명 반복 생략
-
-    예:
-    업무일지 참고 · 배차 요청 · 8/5(수) 반출 예정
-  */
   const scheduleMessage =
     scheduledItems.length ===
       1
@@ -107995,10 +108582,23 @@ function renderArmRollBoxMainAlert() {
       : scheduledItems
           .map(
             item => {
-              return `${item.label} · ${formatArmRollBoxScheduleReference(
-                item.schedule
-              )}`;
+              return [
+                item.label,
+
+                formatArmRollBoxScheduleReference(
+                  item.schedule
+                )
+              ]
+                .filter(
+                  Boolean
+                )
+                .join(
+                  " · "
+                );
             }
+          )
+          .filter(
+            Boolean
           )
           .join(
             " / "
@@ -108011,10 +108611,11 @@ function renderArmRollBoxMainAlert() {
 
   /*
     50~69%:
-    주황색 교체 권고
+    주황색 요청 필요
   */
   alertButton.classList.toggle(
     "is-recommend",
+
     highestLevel <
       WARNING_LEVEL
   );
@@ -108022,17 +108623,18 @@ function renderArmRollBoxMainAlert() {
 
   /*
     70% 이상:
-    빨간색 즉시 확인
+    빨간색 요청 필요
   */
   alertButton.classList.toggle(
     "is-critical",
+
     highestLevel >=
       WARNING_LEVEL
   );
 
 
   const accessibleMessage = [
-    `BOX 교체 권고: ${levelMessage}`,
+    `BOX 요청 필요: ${levelMessage}`,
 
     scheduleMessage
       ? scheduleMessage
@@ -108081,7 +108683,8 @@ function renderArmRollBoxMainAlert() {
     alertReference
   ) {
     alertReference.textContent =
-      scheduleMessage || "";
+      scheduleMessage ||
+      "";
 
     alertReference.hidden =
       !scheduleMessage;
@@ -108092,7 +108695,7 @@ function renderArmRollBoxMainAlert() {
     alertCount
   ) {
     alertCount.textContent =
-      `${recommendationItems.length}건`;
+      `${requestItems.length}건`;
   }
 }
 
@@ -117714,5 +118317,2533 @@ if (
 
   } else {
     initializeEfficiencyDailyWorkZoom();
+  }
+})();
+
+/* =========================================================
+  효율팀 일일업무현황 실제 행 단위 셀 편집
+========================================================= */
+
+(function installEfficiencyDailyWorkLineEditor() {
+  if (
+    window.__efficiencyDailyWorkLineEditorInstalled
+  ) {
+    return;
+  }
+
+  window.__efficiencyDailyWorkLineEditorInstalled =
+    true;
+
+
+  const SOURCE_SELECTOR = [
+    '#efficiencyDailyWorkPaper textarea[data-efficiency-daily-work-field="tasks"]',
+    '#efficiencyDailyWorkPaper textarea[data-efficiency-daily-work-field="remarks"]'
+  ].join(
+    ", "
+  );
+
+
+  const syncingSources =
+    new WeakSet();
+
+
+  let refreshTimer =
+    null;
+
+
+  function splitLines(
+    value
+  ) {
+    const text =
+      String(
+        value ??
+        ""
+      ).replace(
+        /\r\n?/g,
+        "\n"
+      );
+
+
+    return text
+      ? text.split(
+          "\n"
+        )
+      : [];
+  }
+
+
+  function getMinimumRows(
+    source
+  ) {
+    return Math.max(
+      1,
+
+      parseInt(
+        source.getAttribute(
+          "rows"
+        ) ||
+        "1",
+
+        10
+      ) ||
+      1
+    );
+  }
+
+
+  function getRowSources(
+    row
+  ) {
+    return {
+      tasks:
+        row?.querySelector(
+          'textarea[data-efficiency-daily-work-field="tasks"]'
+        ) ||
+        null,
+
+      remarks:
+        row?.querySelector(
+          'textarea[data-efficiency-daily-work-field="remarks"]'
+        ) ||
+        null
+    };
+  }
+
+
+  function getEditor(
+    source
+  ) {
+    const next =
+      source?.nextElementSibling;
+
+
+    return next?.classList.contains(
+      "efficiency-daily-work-line-editor"
+    )
+      ? next
+      : null;
+  }
+
+
+  function createEditor(
+    source
+  ) {
+    let editor =
+      getEditor(
+        source
+      );
+
+
+    if (
+      editor
+    ) {
+      return editor;
+    }
+
+
+    editor =
+      document.createElement(
+        "div"
+      );
+
+
+    editor.className =
+      "efficiency-daily-work-line-editor";
+
+
+    editor.dataset
+      .efficiencyDailyWorkLineField =
+      source.dataset
+        .efficiencyDailyWorkField ||
+      "";
+
+
+    editor.setAttribute(
+      "role",
+      "grid"
+    );
+
+
+    source.classList.add(
+      "efficiency-daily-work-line-source"
+    );
+
+
+    source.insertAdjacentElement(
+      "afterend",
+      editor
+    );
+
+
+    return editor;
+  }
+
+
+  function createCell(
+    source,
+    index
+  ) {
+    const input =
+      document.createElement(
+        "input"
+      );
+
+
+    input.type =
+      "text";
+
+
+    input.className =
+      "efficiency-daily-work-line-cell";
+
+
+    input.dataset
+      .efficiencyDailyWorkLineIndex =
+      String(
+        index
+      );
+
+
+    input.setAttribute(
+      "role",
+      "gridcell"
+    );
+
+
+    input.setAttribute(
+      "aria-label",
+
+      `${
+        source.getAttribute(
+          "aria-label"
+        ) ||
+        "업무"
+      } ${index + 1}행`
+    );
+
+
+    input.autocomplete =
+      "off";
+
+
+    input.spellcheck =
+      false;
+
+
+    return input;
+  }
+
+
+  function ensureCellCount(
+    source,
+    count,
+    forceShrink =
+      false
+  ) {
+    const editor =
+      createEditor(
+        source
+      );
+
+
+    const targetCount =
+      Math.max(
+        getMinimumRows(
+          source
+        ),
+
+        Number(
+          count
+        ) ||
+        0
+      );
+
+
+    while (
+      editor.children.length <
+      targetCount
+    ) {
+      editor.appendChild(
+        createCell(
+          source,
+          editor.children.length
+        )
+      );
+    }
+
+
+    while (
+      editor.children.length >
+        targetCount &&
+      (
+        forceShrink ||
+        editor.lastElementChild
+          ?.value ===
+          ""
+      )
+    ) {
+      editor.lastElementChild.remove();
+    }
+
+
+    [
+      ...editor.children
+    ].forEach(
+      (
+        input,
+        index
+      ) => {
+        input.dataset
+          .efficiencyDailyWorkLineIndex =
+          String(
+            index
+          );
+
+
+        input.setAttribute(
+          "aria-label",
+
+          `${
+            source.getAttribute(
+              "aria-label"
+            ) ||
+            "업무"
+          } ${index + 1}행`
+        );
+      }
+    );
+
+
+    return editor;
+  }
+
+
+  function applySourceFormat(
+    source
+  ) {
+    const editor =
+      getEditor(
+        source
+      );
+
+
+    if (
+      !editor
+    ) {
+      return;
+    }
+
+
+    editor.style.setProperty(
+      "--line-font-family",
+
+      source.style.getPropertyValue(
+        "font-family"
+      ) ||
+      "inherit"
+    );
+
+
+    editor.style.setProperty(
+      "--line-font-size",
+
+      source.style.getPropertyValue(
+        "font-size"
+      ) ||
+      "12px"
+    );
+
+
+    editor.style.setProperty(
+      "--line-font-weight",
+
+      source.style.getPropertyValue(
+        "font-weight"
+      ) ||
+      "600"
+    );
+
+
+    editor.style.setProperty(
+      "--line-text-color",
+
+      source.style.getPropertyValue(
+        "color"
+      ) ||
+      "#111111"
+    );
+
+
+    const disabled =
+      source.disabled ||
+      source.readOnly;
+
+
+    [
+      ...editor.children
+    ].forEach(
+      input => {
+        input.disabled =
+          disabled;
+      }
+    );
+  }
+
+
+  function syncRowFromSources(
+    row,
+    options = {}
+  ) {
+    if (
+      !row
+    ) {
+      return;
+    }
+
+
+    const sources =
+      getRowSources(
+        row
+      );
+
+
+    const available = [
+      sources.tasks,
+      sources.remarks
+    ].filter(
+      Boolean
+    );
+
+
+    if (
+      !available.length
+    ) {
+      return;
+    }
+
+
+    const reset =
+      options.resetLineCount ===
+      true;
+
+
+    const forcedCount =
+      Math.max(
+        0,
+
+        Number(
+          options.forcedCount
+        ) ||
+        0
+      );
+
+
+    const lineCount =
+      Math.max(
+        forcedCount,
+
+        ...available.map(
+          source => {
+            return Math.max(
+              getMinimumRows(
+                source
+              ),
+
+              splitLines(
+                source.value
+              ).length,
+
+              reset
+                ? 0
+                : getEditor(
+                    source
+                  )?.children
+                    .length ||
+                  0
+            );
+          }
+        )
+      );
+
+
+    available.forEach(
+      source => {
+        const lines =
+          splitLines(
+            source.value
+          );
+
+
+        const editor =
+          ensureCellCount(
+            source,
+            lineCount,
+            reset
+          );
+
+
+        [
+          ...editor.children
+        ].forEach(
+          (
+            input,
+            index
+          ) => {
+            if (
+              document.activeElement !==
+                input ||
+              options.forceValues ===
+                true
+            ) {
+              input.value =
+                lines[index] ||
+                "";
+            }
+          }
+        );
+
+
+        applySourceFormat(
+          source
+        );
+      }
+    );
+  }
+
+
+  function syncSourceFromEditor(
+    source
+  ) {
+    const editor =
+      getEditor(
+        source
+      );
+
+
+    if (
+      !editor
+    ) {
+      return;
+    }
+
+
+    const lines = [
+      ...editor.children
+    ].map(
+      input => {
+        return String(
+          input.value ||
+          ""
+        );
+      }
+    );
+
+
+    while (
+      lines.length &&
+      lines[
+        lines.length -
+        1
+      ] ===
+        ""
+    ) {
+      lines.pop();
+    }
+
+
+    const value =
+      lines.join(
+        "\n"
+      );
+
+
+    if (
+      source.value ===
+      value
+    ) {
+      return;
+    }
+
+
+    syncingSources.add(
+      source
+    );
+
+
+    source.value =
+      value;
+
+
+    source.dispatchEvent(
+      new Event(
+        "input",
+        {
+          bubbles:
+            true
+        }
+      )
+    );
+
+
+    syncingSources.delete(
+      source
+    );
+  }
+
+
+  function refreshAll(
+    options = {}
+  ) {
+    document
+      .querySelectorAll(
+        "#efficiencyDailyWorkPaper [data-efficiency-daily-work-row]"
+      )
+      .forEach(
+        row => {
+          syncRowFromSources(
+            row,
+            options
+          );
+        }
+      );
+  }
+
+
+  function scheduleRefresh(
+    options = {}
+  ) {
+    clearTimeout(
+      refreshTimer
+    );
+
+
+    refreshTimer =
+      setTimeout(
+        () => {
+          refreshAll(
+            options
+          );
+        },
+
+        0
+      );
+  }
+
+
+  function getSourceFromCell(
+    input
+  ) {
+    const source =
+      input
+        ?.closest(
+          ".efficiency-daily-work-line-editor"
+        )
+        ?.previousElementSibling;
+
+
+    return source?.matches(
+      SOURCE_SELECTOR
+    )
+      ? source
+      : null;
+  }
+
+
+  function getLogicalCells() {
+    const cells =
+      [];
+
+
+    document
+      .querySelectorAll(
+        "#efficiencyDailyWorkPaper [data-efficiency-daily-work-row]"
+      )
+      .forEach(
+        row => {
+          const sources =
+            getRowSources(
+              row
+            );
+
+
+          const tasks =
+            sources.tasks
+              ? [
+                  ...(
+                    getEditor(
+                      sources.tasks
+                    )?.children ||
+                    []
+                  )
+                ]
+              : [];
+
+
+          const remarks =
+            sources.remarks
+              ? [
+                  ...(
+                    getEditor(
+                      sources.remarks
+                    )?.children ||
+                    []
+                  )
+                ]
+              : [];
+
+
+          const count =
+            Math.max(
+              tasks.length,
+              remarks.length
+            );
+
+
+          for (
+            let index =
+              0;
+
+            index <
+              count;
+
+            index +=
+              1
+          ) {
+            if (
+              tasks[index]
+            ) {
+              cells.push(
+                tasks[index]
+              );
+            }
+
+
+            if (
+              remarks[index]
+            ) {
+              cells.push(
+                remarks[index]
+              );
+            }
+          }
+        }
+      );
+
+
+    return cells.filter(
+      cell => {
+        return !cell.disabled;
+      }
+    );
+  }
+
+
+  function focusSibling(
+    input,
+    direction
+  ) {
+    const cells =
+      getLogicalCells();
+
+
+    const currentIndex =
+      cells.indexOf(
+        input
+      );
+
+
+    const target =
+      cells[
+        currentIndex +
+        direction
+      ];
+
+
+    if (
+      !target
+    ) {
+      return;
+    }
+
+
+    target.focus();
+    target.select();
+  }
+
+
+  function focusVertical(
+    source,
+    lineIndex,
+    direction
+  ) {
+    const row =
+      source.closest(
+        "[data-efficiency-daily-work-row]"
+      );
+
+
+    const targetIndex =
+      lineIndex +
+      direction;
+
+
+    if (
+      !row ||
+      targetIndex <
+        0
+    ) {
+      return;
+    }
+
+
+    if (
+      targetIndex >=
+      (
+        getEditor(
+          source
+        )?.children.length ||
+        0
+      )
+    ) {
+      syncRowFromSources(
+        row,
+        {
+          forcedCount:
+            targetIndex +
+            1
+        }
+      );
+    }
+
+
+    const target =
+      getEditor(
+        source
+      )?.querySelector(
+        `[data-efficiency-daily-work-line-index="${targetIndex}"]`
+      );
+
+
+    if (
+      !target
+    ) {
+      return;
+    }
+
+
+    target.focus();
+    target.select();
+  }
+
+
+  function handleInput(
+    event
+  ) {
+    const target =
+      event.target;
+
+
+    if (
+      target.matches?.(
+        SOURCE_SELECTOR
+      )
+    ) {
+      if (
+        !syncingSources.has(
+          target
+        )
+      ) {
+        syncRowFromSources(
+          target.closest(
+            "[data-efficiency-daily-work-row]"
+          ),
+
+          {
+            forceValues:
+              true
+          }
+        );
+      }
+
+
+      return;
+    }
+
+
+    const input =
+      target.closest?.(
+        ".efficiency-daily-work-line-cell"
+      );
+
+
+    const source =
+      getSourceFromCell(
+        input
+      );
+
+
+    if (
+      source
+    ) {
+      syncSourceFromEditor(
+        source
+      );
+    }
+  }
+
+
+  function handleFocus(
+    event
+  ) {
+    const input =
+      event.target.closest?.(
+        ".efficiency-daily-work-line-cell"
+      );
+
+
+    const source =
+      getSourceFromCell(
+        input
+      );
+
+
+    source?.dispatchEvent(
+      new FocusEvent(
+        "focusin",
+        {
+          bubbles:
+            true
+        }
+      )
+    );
+  }
+
+
+  function handleKeydown(
+    event
+  ) {
+    const input =
+      event.target.closest?.(
+        ".efficiency-daily-work-line-cell"
+      );
+
+
+    const source =
+      getSourceFromCell(
+        input
+      );
+
+
+    if (
+      !input ||
+      !source
+    ) {
+      return;
+    }
+
+
+    const lineIndex =
+      Number(
+        input.dataset
+          .efficiencyDailyWorkLineIndex
+      ) ||
+      0;
+
+
+    if (
+      event.key ===
+      "Enter"
+    ) {
+      event.preventDefault();
+
+
+      syncSourceFromEditor(
+        source
+      );
+
+
+      focusVertical(
+        source,
+        lineIndex,
+        event.shiftKey
+          ? -1
+          : 1
+      );
+
+
+      return;
+    }
+
+
+    if (
+      event.key ===
+      "Tab"
+    ) {
+      event.preventDefault();
+
+
+      syncSourceFromEditor(
+        source
+      );
+
+
+      focusSibling(
+        input,
+        event.shiftKey
+          ? -1
+          : 1
+      );
+    }
+  }
+
+
+  function handlePaste(
+    event
+  ) {
+    const input =
+      event.target.closest?.(
+        ".efficiency-daily-work-line-cell"
+      );
+
+
+    const source =
+      getSourceFromCell(
+        input
+      );
+
+
+    const text =
+      event.clipboardData
+        ?.getData(
+          "text/plain"
+        ) ||
+      "";
+
+
+    if (
+      !input ||
+      !source ||
+      !/[\t\r\n]/.test(
+        text
+      )
+    ) {
+      return;
+    }
+
+
+    const row =
+      source.closest(
+        "[data-efficiency-daily-work-row]"
+      );
+
+
+    if (
+      !row
+    ) {
+      return;
+    }
+
+
+    event.preventDefault();
+
+
+    const rowSources =
+      getRowSources(
+        row
+      );
+
+
+    const columns = [
+      rowSources.tasks,
+      rowSources.remarks
+    ].filter(
+      Boolean
+    );
+
+
+    const startColumn =
+      columns.indexOf(
+        source
+      );
+
+
+    const startLine =
+      Number(
+        input.dataset
+          .efficiencyDailyWorkLineIndex
+      ) ||
+      0;
+
+
+    const matrix =
+      text
+        .replace(
+          /\r\n?/g,
+          "\n"
+        )
+        .split(
+          "\n"
+        )
+        .map(
+          line => {
+            return line.split(
+              "\t"
+            );
+          }
+        );
+
+
+    if (
+      matrix.length >
+        1 &&
+      matrix[
+        matrix.length -
+        1
+      ].length ===
+        1 &&
+      matrix[
+        matrix.length -
+        1
+      ][0] ===
+        ""
+    ) {
+      matrix.pop();
+    }
+
+
+    syncRowFromSources(
+      row,
+      {
+        forcedCount:
+          startLine +
+          matrix.length
+      }
+    );
+
+
+    const touched =
+      new Set();
+
+
+    matrix.forEach(
+      (
+        values,
+        rowOffset
+      ) => {
+        values.forEach(
+          (
+            value,
+            columnOffset
+          ) => {
+            const targetSource =
+              columns[
+                startColumn +
+                columnOffset
+              ];
+
+
+            const targetInput =
+              getEditor(
+                targetSource
+              )?.querySelector(
+                `[data-efficiency-daily-work-line-index="${startLine + rowOffset}"]`
+              );
+
+
+            if (
+              !targetInput
+            ) {
+              return;
+            }
+
+
+            targetInput.value =
+              value;
+
+
+            touched.add(
+              targetSource
+            );
+          }
+        );
+      }
+    );
+
+
+    touched.forEach(
+      targetSource => {
+        syncSourceFromEditor(
+          targetSource
+        );
+      }
+    );
+
+
+    input.focus();
+  }
+
+
+  function bindEvents() {
+    const paper =
+      document.getElementById(
+        "efficiencyDailyWorkPaper"
+      );
+
+
+    if (
+      !paper
+    ) {
+      return false;
+    }
+
+
+    if (
+      paper.dataset
+        .efficiencyDailyWorkLineEditorBound ===
+      "true"
+    ) {
+      return true;
+    }
+
+
+    paper.addEventListener(
+      "input",
+      handleInput
+    );
+
+
+    paper.addEventListener(
+      "focusin",
+      handleFocus
+    );
+
+
+    paper.addEventListener(
+      "keydown",
+      handleKeydown
+    );
+
+
+    paper.addEventListener(
+      "paste",
+      handlePaste
+    );
+
+
+    new MutationObserver(
+      mutations => {
+        mutations.forEach(
+          mutation => {
+            if (
+              mutation.target.matches?.(
+                SOURCE_SELECTOR
+              )
+            ) {
+              applySourceFormat(
+                mutation.target
+              );
+            }
+          }
+        );
+      }
+    ).observe(
+      paper,
+      {
+        subtree:
+          true,
+
+        attributes:
+          true,
+
+        attributeFilter: [
+          "style",
+          "disabled",
+          "readonly",
+          "data-efficiency-daily-work-format-target"
+        ]
+      }
+    );
+
+
+    paper.dataset
+      .efficiencyDailyWorkLineEditorBound =
+      "true";
+
+
+    return true;
+  }
+
+
+  function wrapValueSetter() {
+    if (
+      typeof setEfficiencyDailyWorkControlValue !==
+        "function" ||
+      setEfficiencyDailyWorkControlValue
+        .__lineEditorWrapped
+    ) {
+      return;
+    }
+
+
+    const original =
+      setEfficiencyDailyWorkControlValue;
+
+
+    const wrapped =
+      function (
+        control,
+        value
+      ) {
+        const result =
+          original(
+            control,
+            value
+          );
+
+
+        if (
+          control?.matches?.(
+            SOURCE_SELECTOR
+          )
+        ) {
+          scheduleRefresh({
+            resetLineCount:
+              true,
+
+            forceValues:
+              true
+          });
+        }
+
+
+        return result;
+      };
+
+
+    wrapped.__lineEditorWrapped =
+      true;
+
+
+    setEfficiencyDailyWorkControlValue =
+      wrapped;
+  }
+
+
+  function initialize() {
+    const paper =
+      document.getElementById(
+        "efficiencyDailyWorkPaper"
+      );
+
+
+    if (
+      !paper
+    ) {
+      setTimeout(
+        initialize,
+        100
+      );
+
+
+      return;
+    }
+
+
+    bindEvents();
+
+    wrapValueSetter();
+
+
+    refreshAll({
+      resetLineCount:
+        true,
+
+      forceValues:
+        true
+    });
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
+
+/* =========================================================
+  효율팀 일일업무현황 행 추가·삭제 도구
+
+  기능:
+  - 선택한 줄 위에 추가
+  - 선택한 줄 아래에 추가
+  - 선택한 줄 삭제
+  - 주요 업무와 비고 줄을 함께 추가·삭제
+  - 기존 textarea 저장값과 자동 동기화
+========================================================= */
+
+(function installEfficiencyDailyWorkRowControls() {
+  if (
+    window.__efficiencyDailyWorkRowControlsInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__efficiencyDailyWorkRowControlsInstalled =
+    true;
+
+
+  const CELL_SELECTOR =
+    ".efficiency-daily-work-line-cell";
+
+
+  const EDITOR_SELECTOR =
+    ".efficiency-daily-work-line-editor";
+
+
+  let activeCell =
+    null;
+
+
+  /* =====================================================
+    공통 요소
+  ====================================================== */
+
+  function getElements() {
+    return {
+      modal:
+        document.getElementById(
+          "efficiencyTeamModal"
+        ),
+
+      paper:
+        document.getElementById(
+          "efficiencyDailyWorkPaper"
+        ),
+
+      toolbarHost:
+        document.querySelector(
+          `
+            #efficiencyDailyWorkFormatToolbar
+            .efficiency-daily-work-format-toolbar__controls
+          `
+        ),
+
+      toolbar:
+        document.getElementById(
+          "efficiencyDailyWorkRowToolbar"
+        ),
+
+      insertAboveButton:
+        document.getElementById(
+          "insertEfficiencyDailyWorkRowAboveButton"
+        ),
+
+      insertBelowButton:
+        document.getElementById(
+          "insertEfficiencyDailyWorkRowBelowButton"
+        ),
+
+      deleteButton:
+        document.getElementById(
+          "deleteEfficiencyDailyWorkRowButton"
+        )
+    };
+  }
+
+
+  function getLineIndex(
+    cell
+  ) {
+    return Math.max(
+      0,
+
+      Number(
+        cell?.dataset
+          .efficiencyDailyWorkLineIndex
+      ) ||
+      0
+    );
+  }
+
+
+  function getEditorSource(
+    editor
+  ) {
+    const source =
+      editor?.previousElementSibling;
+
+
+    return source instanceof
+        HTMLTextAreaElement
+      ? source
+      : null;
+  }
+
+
+  function getRowEditors(
+    row
+  ) {
+    if (
+      !row
+    ) {
+      return [];
+    }
+
+
+    return [
+      ...row.querySelectorAll(
+        EDITOR_SELECTOR
+      )
+    ];
+  }
+
+
+  function getMinimumLineCount(
+    editors
+  ) {
+    return Math.max(
+      1,
+
+      ...editors.map(
+        editor => {
+          const source =
+            getEditorSource(
+              editor
+            );
+
+
+          return Math.max(
+            1,
+
+            Number(
+              source?.getAttribute(
+                "rows"
+              )
+            ) ||
+            1
+          );
+        }
+      )
+    );
+  }
+
+
+  /* =====================================================
+    입력 셀 생성
+  ====================================================== */
+
+  function createLineCell(
+    editor,
+    index
+  ) {
+    const source =
+      getEditorSource(
+        editor
+      );
+
+
+    const exampleCell =
+      editor.querySelector(
+        CELL_SELECTOR
+      );
+
+
+    const cell =
+      exampleCell
+        ? exampleCell.cloneNode(
+            false
+          )
+        : document.createElement(
+            "input"
+          );
+
+
+    cell.type =
+      "text";
+
+
+    cell.className =
+      "efficiency-daily-work-line-cell";
+
+
+    cell.value =
+      "";
+
+
+    cell.autocomplete =
+      "off";
+
+
+    cell.spellcheck =
+      false;
+
+
+    cell.disabled =
+      Boolean(
+        source?.disabled ||
+        source?.readOnly
+      );
+
+
+    cell.setAttribute(
+      "role",
+      "gridcell"
+    );
+
+
+    cell.dataset
+      .efficiencyDailyWorkLineIndex =
+      String(
+        index
+      );
+
+
+    cell.setAttribute(
+      "aria-label",
+
+      `${
+        source?.getAttribute(
+          "aria-label"
+        ) ||
+        "업무"
+      } ${index + 1}행`
+    );
+
+
+    return cell;
+  }
+
+
+  /* =====================================================
+    줄 번호 재정리
+  ====================================================== */
+
+  function reindexEditor(
+    editor
+  ) {
+    const source =
+      getEditorSource(
+        editor
+      );
+
+
+    [
+      ...editor.querySelectorAll(
+        CELL_SELECTOR
+      )
+    ].forEach(
+      (
+        cell,
+        index
+      ) => {
+        cell.dataset
+          .efficiencyDailyWorkLineIndex =
+          String(
+            index
+          );
+
+
+        cell.setAttribute(
+          "aria-label",
+
+          `${
+            source?.getAttribute(
+              "aria-label"
+            ) ||
+            "업무"
+          } ${index + 1}행`
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    실제 셀 내용을 저장용 textarea에 반영
+  ====================================================== */
+
+  function syncEditorToSource(
+    editor
+  ) {
+    const source =
+      getEditorSource(
+        editor
+      );
+
+
+    if (
+      !source
+    ) {
+      return;
+    }
+
+
+    const lines = [
+      ...editor.querySelectorAll(
+        CELL_SELECTOR
+      )
+    ].map(
+      cell => {
+        return String(
+          cell.value ||
+          ""
+        );
+      }
+    );
+
+
+    /*
+      뒤쪽의 빈 줄만 제거한다.
+      중간에 있는 빈 줄은 유지한다.
+    */
+    while (
+      lines.length &&
+      lines[
+        lines.length -
+        1
+      ] ===
+        ""
+    ) {
+      lines.pop();
+    }
+
+
+    source.value =
+      lines.join(
+        "\n"
+      );
+
+
+    source.dispatchEvent(
+      new Event(
+        "input",
+        {
+          bubbles:
+            true
+        }
+      )
+    );
+  }
+
+
+  function syncRowEditors(
+    row
+  ) {
+    getRowEditors(
+      row
+    ).forEach(
+      editor => {
+        reindexEditor(
+          editor
+        );
+
+
+        syncEditorToSource(
+          editor
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    선택 행 표시
+  ====================================================== */
+
+  function clearSelectedLines() {
+    const {
+      paper
+    } =
+      getElements();
+
+
+    paper
+      ?.querySelectorAll(
+        `${CELL_SELECTOR}.is-row-selected`
+      )
+      .forEach(
+        cell => {
+          cell.classList.remove(
+            "is-row-selected"
+          );
+        }
+      );
+  }
+
+
+  function selectLineCell(
+    cell,
+    options = {}
+  ) {
+    if (
+      !cell?.matches?.(
+        CELL_SELECTOR
+      )
+    ) {
+      activeCell =
+        null;
+
+
+      clearSelectedLines();
+
+
+      updateToolbarState();
+
+
+      return;
+    }
+
+
+    activeCell =
+      cell;
+
+
+    clearSelectedLines();
+
+
+    const row =
+      cell.closest(
+        "[data-efficiency-daily-work-row]"
+      );
+
+
+    const lineIndex =
+      getLineIndex(
+        cell
+      );
+
+
+    row
+      ?.querySelectorAll(
+        `
+          ${CELL_SELECTOR}
+          [data-efficiency-daily-work-line-index="${lineIndex}"]
+        `
+      );
+
+
+    row
+      ?.querySelectorAll(
+        CELL_SELECTOR
+      )
+      .forEach(
+        targetCell => {
+          targetCell.classList.toggle(
+            "is-row-selected",
+
+            getLineIndex(
+              targetCell
+            ) ===
+              lineIndex
+          );
+        }
+      );
+
+
+    updateToolbarState();
+
+
+    if (
+      options.focus ===
+        true
+    ) {
+      window.requestAnimationFrame(
+        () => {
+          cell.focus();
+
+
+          cell.select();
+        }
+      );
+    }
+  }
+
+
+  /* =====================================================
+    행 추가
+  ====================================================== */
+
+  function insertLine(
+    position
+  ) {
+    if (
+      !activeCell?.isConnected
+    ) {
+      return;
+    }
+
+
+    const row =
+      activeCell.closest(
+        "[data-efficiency-daily-work-row]"
+      );
+
+
+    const activeEditor =
+      activeCell.closest(
+        EDITOR_SELECTOR
+      );
+
+
+    if (
+      !row ||
+      !activeEditor
+    ) {
+      return;
+    }
+
+
+    const currentIndex =
+      getLineIndex(
+        activeCell
+      );
+
+
+    const insertIndex =
+      position ===
+        "above"
+        ? currentIndex
+        : currentIndex +
+          1;
+
+
+    const editors =
+      getRowEditors(
+        row
+      );
+
+
+    editors.forEach(
+      editor => {
+        const cells = [
+          ...editor.querySelectorAll(
+            CELL_SELECTOR
+          )
+        ];
+
+
+        const newCell =
+          createLineCell(
+            editor,
+            insertIndex
+          );
+
+
+        const referenceCell =
+          cells[
+            insertIndex
+          ] ||
+          null;
+
+
+        editor.insertBefore(
+          newCell,
+          referenceCell
+        );
+
+
+        reindexEditor(
+          editor
+        );
+      }
+    );
+
+
+    syncRowEditors(
+      row
+    );
+
+
+    const nextCell =
+      activeEditor.querySelector(
+        `
+          ${CELL_SELECTOR}
+          [data-efficiency-daily-work-line-index="${insertIndex}"]
+        `
+      ) ||
+      activeEditor.children[
+        insertIndex
+      ];
+
+
+    selectLineCell(
+      nextCell,
+
+      {
+        focus:
+          true
+      }
+    );
+  }
+
+
+  /* =====================================================
+    행 삭제
+  ====================================================== */
+
+  function deleteSelectedLine() {
+    if (
+      !activeCell?.isConnected
+    ) {
+      return;
+    }
+
+
+    const row =
+      activeCell.closest(
+        "[data-efficiency-daily-work-row]"
+      );
+
+
+    const activeEditor =
+      activeCell.closest(
+        EDITOR_SELECTOR
+      );
+
+
+    if (
+      !row ||
+      !activeEditor
+    ) {
+      return;
+    }
+
+
+    const editors =
+      getRowEditors(
+        row
+      );
+
+
+    const currentIndex =
+      getLineIndex(
+        activeCell
+      );
+
+
+    const currentLineCount =
+      Math.max(
+        0,
+
+        ...editors.map(
+          editor => {
+            return editor.querySelectorAll(
+              CELL_SELECTOR
+            ).length;
+          }
+        )
+      );
+
+
+    const minimumLineCount =
+      getMinimumLineCount(
+        editors
+      );
+
+
+    /*
+      기본 줄 개수 이하에서는
+      줄 자체를 없애지 않고 내용만 비운다.
+    */
+    if (
+      currentLineCount <=
+        minimumLineCount
+    ) {
+      editors.forEach(
+        editor => {
+          const cell =
+            editor.querySelector(
+              `
+                ${CELL_SELECTOR}
+                [data-efficiency-daily-work-line-index="${currentIndex}"]
+              `
+            ) ||
+            editor.children[
+              currentIndex
+            ];
+
+
+          if (
+            cell
+          ) {
+            cell.value =
+              "";
+          }
+        }
+      );
+
+
+      syncRowEditors(
+        row
+      );
+
+
+      const remainingCell =
+        activeEditor.children[
+          currentIndex
+        ] ||
+        activeEditor.lastElementChild;
+
+
+      selectLineCell(
+        remainingCell,
+
+        {
+          focus:
+            true
+        }
+      );
+
+
+      return;
+    }
+
+
+    editors.forEach(
+      editor => {
+        const cell =
+          editor.children[
+            currentIndex
+          ];
+
+
+        cell?.remove();
+
+
+        reindexEditor(
+          editor
+        );
+      }
+    );
+
+
+    syncRowEditors(
+      row
+    );
+
+
+    const nextIndex =
+      Math.max(
+        0,
+
+        Math.min(
+          currentIndex,
+
+          activeEditor.children.length -
+            1
+        )
+      );
+
+
+    const nextCell =
+      activeEditor.children[
+        nextIndex
+      ] ||
+      null;
+
+
+    selectLineCell(
+      nextCell,
+
+      {
+        focus:
+          true
+      }
+    );
+  }
+
+
+  /* =====================================================
+    도구 상태
+  ====================================================== */
+
+  function updateToolbarState() {
+    const {
+      modal,
+      toolbar,
+      insertAboveButton,
+      insertBelowButton,
+      deleteButton
+    } =
+      getElements();
+
+
+    const available =
+      Boolean(
+        modal?.classList.contains(
+          "is-daily-work-expanded"
+        ) &&
+        activeCell?.isConnected
+      );
+
+
+    if (
+      toolbar
+    ) {
+      toolbar.dataset.state =
+        available
+          ? "ready"
+          : "empty";
+    }
+
+
+    [
+      insertAboveButton,
+      insertBelowButton,
+      deleteButton
+    ].forEach(
+      button => {
+        if (
+          button
+        ) {
+          button.disabled =
+            !available;
+        }
+      }
+    );
+  }
+
+
+  /* =====================================================
+    도구 생성
+  ====================================================== */
+
+  function createToolbar() {
+    const {
+      toolbarHost,
+      toolbar
+    } =
+      getElements();
+
+
+    if (
+      toolbar
+    ) {
+      return toolbar;
+    }
+
+
+    if (
+      !toolbarHost
+    ) {
+      return null;
+    }
+
+
+    const group =
+      document.createElement(
+        "div"
+      );
+
+
+    group.className =
+      "efficiency-daily-work-row-toolbar";
+
+
+    group.id =
+      "efficiencyDailyWorkRowToolbar";
+
+
+    group.dataset.state =
+      "empty";
+
+
+    group.setAttribute(
+      "role",
+      "group"
+    );
+
+
+    group.setAttribute(
+      "aria-label",
+      "선택한 줄 추가 및 삭제"
+    );
+
+
+    group.innerHTML = `
+      <span class="efficiency-daily-work-row-toolbar__label">
+        행 편집
+      </span>
+
+      <button
+        type="button"
+        class="efficiency-daily-work-row-toolbar__button"
+        id="insertEfficiencyDailyWorkRowAboveButton"
+        disabled
+      >
+        ＋ 위
+      </button>
+
+      <button
+        type="button"
+        class="efficiency-daily-work-row-toolbar__button"
+        id="insertEfficiencyDailyWorkRowBelowButton"
+        disabled
+      >
+        ＋ 아래
+      </button>
+
+      <button
+        type="button"
+        class="
+          efficiency-daily-work-row-toolbar__button
+          is-delete
+        "
+        id="deleteEfficiencyDailyWorkRowButton"
+        disabled
+      >
+        행 삭제
+      </button>
+    `;
+
+
+    toolbarHost.appendChild(
+      group
+    );
+
+
+    /*
+      버튼을 눌러도 선택 셀 포커스가
+      먼저 해제되지 않게 한다.
+    */
+    group.addEventListener(
+      "mousedown",
+      event => {
+        event.preventDefault();
+      }
+    );
+
+
+    return group;
+  }
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function bindEvents() {
+    const {
+      modal,
+      paper,
+      insertAboveButton,
+      insertBelowButton,
+      deleteButton
+    } =
+      getElements();
+
+
+    if (
+      !modal ||
+      !paper
+    ) {
+      return false;
+    }
+
+
+    if (
+      paper.dataset
+        .efficiencyDailyWorkRowControlsBound ===
+          "true"
+    ) {
+      updateToolbarState();
+
+
+      return true;
+    }
+
+
+    paper.addEventListener(
+      "focusin",
+      event => {
+        const cell =
+          event.target.closest?.(
+            CELL_SELECTOR
+          );
+
+
+        if (
+          cell
+        ) {
+          selectLineCell(
+            cell
+          );
+        }
+      }
+    );
+
+
+    paper.addEventListener(
+      "click",
+      event => {
+        const cell =
+          event.target.closest?.(
+            CELL_SELECTOR
+          );
+
+
+        if (
+          cell
+        ) {
+          selectLineCell(
+            cell
+          );
+        }
+      }
+    );
+
+
+    insertAboveButton
+      ?.addEventListener(
+        "click",
+        () => {
+          insertLine(
+            "above"
+          );
+        }
+      );
+
+
+    insertBelowButton
+      ?.addEventListener(
+        "click",
+        () => {
+          insertLine(
+            "below"
+          );
+        }
+      );
+
+
+    deleteButton
+      ?.addEventListener(
+        "click",
+        deleteSelectedLine
+      );
+
+
+    new MutationObserver(
+      () => {
+        if (
+          activeCell &&
+          !activeCell.isConnected
+        ) {
+          activeCell =
+            null;
+        }
+
+
+        updateToolbarState();
+      }
+    ).observe(
+      paper,
+      {
+        childList:
+          true,
+
+        subtree:
+          true
+      }
+    );
+
+
+    new MutationObserver(
+      updateToolbarState
+    ).observe(
+      modal,
+      {
+        attributes:
+          true,
+
+        attributeFilter: [
+          "class"
+        ]
+      }
+    );
+
+
+    paper.dataset
+      .efficiencyDailyWorkRowControlsBound =
+      "true";
+
+
+    updateToolbarState();
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    실행
+  ====================================================== */
+
+  function initialize() {
+    let attempts =
+      0;
+
+
+    const attemptInstall =
+      () => {
+        createToolbar();
+
+
+        if (
+          bindEvents()
+        ) {
+          return;
+        }
+
+
+        attempts +=
+          1;
+
+
+        if (
+          attempts <
+            80
+        ) {
+          window.setTimeout(
+            attemptInstall,
+            100
+          );
+        }
+      };
+
+
+    attemptInstall();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
   }
 })();

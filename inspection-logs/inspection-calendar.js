@@ -689,141 +689,471 @@ async function applyRoleInspectionContext(
     return completionMap;
   }
 
-  async function publishRoleTodaySummary() {
-    if (!window.parent || window.parent === window) {
-      return;
-    }
+/* =========================================================
+  선택 날짜·근무 점검 현황 전달
 
-    const context = getRoleTodayShiftContext();
+  전달 내용:
+  - 보직별 오늘 점검
+  - 업무일지 자동완료 판정용 전체 점검 목록
 
-    try {
-      const completionMap = await loadRoleTodayCompletionMap(
+  전체 점검 목록은 담당 보직과 관계없이 전달한다.
+  어떤 보직의 업무일지에서든 점검 수행 문구를
+  인식할 수 있도록 하기 위함이다.
+========================================================= */
+
+async function publishRoleTodaySummary() {
+  if (
+    !window.parent ||
+    window.parent ===
+      window
+  ) {
+    return;
+  }
+
+
+  const context =
+    getRoleTodayShiftContext();
+
+
+  let scheduleOccurrences =
+    [];
+
+
+  try {
+    const scheduleResult =
+      getInspectionSchedulesForDate(
         context.workDate
       );
 
-      const scheduleResult = getInspectionSchedulesForDate(
-        context.workDate
-      );
 
-      const todayScheduleItems = [
-        ...scheduleResult.dueItems.filter(item => {
-          return item.referenceOnly !== true;
-        }),
-        ...scheduleResult.conditionalItems.filter(item => {
-          return item.referenceOnly !== true;
-        })
-      ];
+    /*
+      타부서 참고 일정은 자동완료 대상에서 제외한다.
 
-      const occurrences = todayScheduleItems
-        .flatMap(scheduleItem => {
-          return expandOccurrences(scheduleItem, context.workDate);
-        })
-        .filter(occurrence => {
-          const occurrenceShift = normalizeShift(occurrence.shift);
+      포함:
+      - 날짜가 확정된 점검
+      - 조건부 점검
+    */
+    const todayScheduleItems = [
+      ...scheduleResult.dueItems.filter(
+        item => {
+          return (
+            item.referenceOnly !==
+            true
+          );
+        }
+      ),
 
-          return !occurrenceShift || occurrenceShift === context.shift;
-        });
+      ...scheduleResult.conditionalItems.filter(
+        item => {
+          return (
+            item.referenceOnly !==
+            true
+          );
+        }
+      )
+    ];
 
-      const uniqueOccurrences = [
-        ...new Map(
-          occurrences.map(occurrence => {
-            const scheduleItem = occurrence.scheduleItem;
-            const key = createStatusKey(
-              scheduleItem.id,
-              occurrence.dueDate,
-              occurrence.shift
+
+    /*
+      일정에 D/S·N/S가 모두 지정된 경우
+      현재 선택 근무에 해당하는 일정만 남긴다.
+
+      근무가 비어 있는 일정은
+      D/S·N/S 공통 일정으로 유지한다.
+    */
+    const occurrences =
+      todayScheduleItems
+        .flatMap(
+          scheduleItem => {
+            return expandOccurrences(
+              scheduleItem,
+              context.workDate
             );
+          }
+        )
+        .filter(
+          occurrence => {
+            const occurrenceShift =
+              normalizeShift(
+                occurrence.shift
+              );
 
-            return [key, occurrence];
-          })
-        ).values()
-      ];
 
-      const roles = roleOrder.map(role => {
-        const roleItems = uniqueOccurrences
-          .filter(occurrence => {
-            return getAssignedRoles(
-              occurrence.scheduleItem
-            ).includes(role);
-          })
-          .map(occurrence => {
-            const scheduleItem = occurrence.scheduleItem;
-            const completion = completionMap.get(
+            return (
+              !occurrenceShift ||
+              occurrenceShift ===
+                context.shift
+            );
+          }
+        );
+
+
+    /*
+      일정 ID + 날짜 + 근무 기준 중복 제거
+    */
+    const uniqueOccurrences = [
+      ...new Map(
+        occurrences.map(
+          occurrence => {
+            const scheduleItem =
+              occurrence.scheduleItem;
+
+
+            const key =
               createStatusKey(
                 scheduleItem.id,
                 occurrence.dueDate,
                 occurrence.shift
+              );
+
+
+            return [
+              key,
+              occurrence
+            ];
+          }
+        )
+      ).values()
+    ];
+
+
+    /*
+      업무일지 자동완료 서버에 전달할
+      최종 점검 목록
+
+      assignedRoles는 화면 표시용 정보이며,
+      자동완료 판정에서는 보직 제한을 걸지 않는다.
+    */
+    scheduleOccurrences =
+      uniqueOccurrences.map(
+        occurrence => {
+          const scheduleItem =
+            occurrence.scheduleItem;
+
+
+          return {
+            scheduleId:
+              String(
+                scheduleItem.id ||
+                ""
+              ).trim(),
+
+            scheduleTitle:
+              String(
+                scheduleItem.title ||
+                "점검 일정"
+              ).trim(),
+
+            dueDate:
+              String(
+                occurrence.dueDate ||
+                context.workDate
+              ).trim(),
+
+            shift:
+              normalizeShift(
+                occurrence.shift
+              ),
+
+            category:
+              String(
+                scheduleItem.category ||
+                "other"
+              ).trim(),
+
+            scheduleLabel:
+              String(
+                scheduleItem.scheduleLabel ||
+                ""
+              ).trim(),
+
+            position:
+              String(
+                scheduleItem.position ||
+                ""
+              ).trim(),
+
+            note:
+              String(
+                scheduleItem.note ||
+                ""
+              ).trim(),
+
+            conditional:
+              scheduleItem.conditional ===
+                true,
+
+            assignedRoles:
+              getAssignedRoles(
+                scheduleItem
               )
-            ) || null;
-
-            return {
-              scheduleId: String(scheduleItem.id || ""),
-              title: String(scheduleItem.title || "점검 일정"),
-              category: String(scheduleItem.category || "other"),
-              scheduleLabel: String(scheduleItem.scheduleLabel || ""),
-              dueDate: occurrence.dueDate,
-              shift: normalizeShift(occurrence.shift),
-              shiftLabel: getShiftLabel(occurrence.shift),
-              position: String(scheduleItem.position || ""),
-              note: String(scheduleItem.note || ""),
-              conditional: scheduleItem.conditional === true,
-              completed: Boolean(completion),
-              completedByName: String(completion?.completedByName || ""),
-              completedAt: String(completion?.completedAt || ""),
-              canOpenLog: Boolean(getLinkedCard(scheduleItem))
-            };
-          })
-          .sort((firstItem, secondItem) => {
-            return (
-              (categoryOrder[firstItem.category] || 99) -
-                (categoryOrder[secondItem.category] || 99) ||
-              firstItem.title.localeCompare(secondItem.title, "ko")
-            );
-          });
-
-        const completedCount = roleItems.filter(item => {
-          return item.completed;
-        }).length;
-
-        return {
-          role,
-          totalCount: roleItems.length,
-          completedCount,
-          pendingCount: roleItems.length - completedCount,
-          items: roleItems
-        };
-      });
-
-      window.parent.postMessage(
-        {
-          type: "gs-shift-log:inspection-role-today-summary",
-          available: true,
-          workDate: context.workDate,
-          shift: context.shift,
-          shiftLabel: context.shiftLabel,
-          roles
-        },
-        window.location.origin
+          };
+        }
+      )
+      .filter(
+        occurrence => {
+          return Boolean(
+            occurrence.scheduleId &&
+            occurrence.scheduleTitle &&
+            occurrence.dueDate
+          );
+        }
       );
-    } catch (error) {
-      console.error("보직별 오늘 점검 현황 조회 실패:", error);
 
-      window.parent.postMessage(
-        {
-          type: "gs-shift-log:inspection-role-today-summary",
-          available: false,
-          workDate: context.workDate,
-          shift: context.shift,
-          shiftLabel: context.shiftLabel,
-          errorMessage: error instanceof Error
+
+    /*
+      완료 상태 조회
+
+      이 조회가 실패해도 위에서 만든
+      scheduleOccurrences는 메인 화면에 전달한다.
+    */
+    const completionMap =
+      await loadRoleTodayCompletionMap(
+        context.workDate
+      );
+
+
+    const roles =
+      roleOrder.map(
+        role => {
+          const roleItems =
+            uniqueOccurrences
+              .filter(
+                occurrence => {
+                  return getAssignedRoles(
+                    occurrence.scheduleItem
+                  ).includes(
+                    role
+                  );
+                }
+              )
+              .map(
+                occurrence => {
+                  const scheduleItem =
+                    occurrence.scheduleItem;
+
+
+                  const completion =
+                    completionMap.get(
+                      createStatusKey(
+                        scheduleItem.id,
+                        occurrence.dueDate,
+                        occurrence.shift
+                      )
+                    ) ||
+                    null;
+
+
+                  return {
+                    scheduleId:
+                      String(
+                        scheduleItem.id ||
+                        ""
+                      ),
+
+                    title:
+                      String(
+                        scheduleItem.title ||
+                        "점검 일정"
+                      ),
+
+                    category:
+                      String(
+                        scheduleItem.category ||
+                        "other"
+                      ),
+
+                    scheduleLabel:
+                      String(
+                        scheduleItem.scheduleLabel ||
+                        ""
+                      ),
+
+                    dueDate:
+                      occurrence.dueDate,
+
+                    shift:
+                      normalizeShift(
+                        occurrence.shift
+                      ),
+
+                    shiftLabel:
+                      getShiftLabel(
+                        occurrence.shift
+                      ),
+
+                    position:
+                      String(
+                        scheduleItem.position ||
+                        ""
+                      ),
+
+                    note:
+                      String(
+                        scheduleItem.note ||
+                        ""
+                      ),
+
+                    conditional:
+                      scheduleItem.conditional ===
+                        true,
+
+                    completed:
+                      Boolean(
+                        completion
+                      ),
+
+                    completedByName:
+                      String(
+                        completion
+                          ?.completedByName ||
+                        ""
+                      ),
+
+                    completedAt:
+                      String(
+                        completion
+                          ?.completedAt ||
+                        ""
+                      ),
+
+                    canOpenLog:
+                      Boolean(
+                        getLinkedCard(
+                          scheduleItem
+                        )
+                      )
+                  };
+                }
+              )
+              .sort(
+                (
+                  firstItem,
+                  secondItem
+                ) => {
+                  return (
+                    (
+                      categoryOrder[
+                        firstItem.category
+                      ] ||
+                      99
+                    ) -
+                    (
+                      categoryOrder[
+                        secondItem.category
+                      ] ||
+                      99
+                    )
+                  ) ||
+                  firstItem.title.localeCompare(
+                    secondItem.title,
+                    "ko"
+                  );
+                }
+              );
+
+
+          const completedCount =
+            roleItems.filter(
+              item => {
+                return item.completed;
+              }
+            ).length;
+
+
+          return {
+            role,
+
+            totalCount:
+              roleItems.length,
+
+            completedCount,
+
+            pendingCount:
+              roleItems.length -
+              completedCount,
+
+            items:
+              roleItems
+          };
+        }
+      );
+
+
+    window.parent.postMessage(
+      {
+        type:
+          "gs-shift-log:inspection-role-today-summary",
+
+        available:
+          true,
+
+        workDate:
+          context.workDate,
+
+        shift:
+          context.shift,
+
+        shiftLabel:
+          context.shiftLabel,
+
+        roles,
+
+        /*
+          업무일지 자동완료용 전체 점검 목록
+        */
+        scheduleOccurrences
+      },
+
+      window.location.origin
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "보직별 오늘 점검 현황 조회 실패:",
+      error
+    );
+
+
+    /*
+      완료 상태 조회가 실패해도
+      계산에 성공한 점검 목록은 전달한다.
+    */
+    window.parent.postMessage(
+      {
+        type:
+          "gs-shift-log:inspection-role-today-summary",
+
+        available:
+          false,
+
+        workDate:
+          context.workDate,
+
+        shift:
+          context.shift,
+
+        shiftLabel:
+          context.shiftLabel,
+
+        errorMessage:
+          error instanceof
+            Error
             ? error.message
             : "오늘 점검 현황을 불러오지 못했습니다.",
-          roles: []
-        },
-        window.location.origin
-      );
-    }
+
+        roles:
+          [],
+
+        scheduleOccurrences
+      },
+
+      window.location.origin
+    );
   }
+}
 
   async function loadStatusRecords() {
     const monthStart = formatDateValue(

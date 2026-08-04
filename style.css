@@ -71230,3 +71230,511 @@ th:focus-within {
     left: auto;
   }
 }
+
+/* =========================================================
+  효율팀 일일업무현황 실제 행 단위 셀 편집
+
+  평상시:
+  - 기존 textarea 사용
+
+  크게 보기:
+  - 기존 textarea는 저장용으로 숨김
+  - 한 줄당 하나의 실제 입력 셀 표시
+========================================================= */
+
+
+/* =====================================================
+  기본 상태에서는 행 단위 편집기 숨김
+====================================================== */
+
+#efficiencyTeamModal
+.efficiency-daily-work-line-editor {
+  display: none;
+}
+
+
+/* =====================================================
+  크게 보기에서 기존 저장용 textarea 숨김
+====================================================== */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+textarea.efficiency-daily-work-line-source {
+  position: absolute !important;
+
+  width: 1px !important;
+  min-width: 1px !important;
+  height: 1px !important;
+  min-height: 1px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  overflow: hidden !important;
+
+  border: 0 !important;
+
+  opacity: 0 !important;
+
+  pointer-events: none !important;
+
+  clip-path: inset(50%) !important;
+}
+
+
+/* =====================================================
+  행 단위 편집 셀이 들어가는 표 칸
+====================================================== */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-table
+td:has(
+  > textarea.efficiency-daily-work-line-source
+) {
+  position: relative;
+
+  height: auto !important;
+  min-height: 0 !important;
+
+  padding: 0 !important;
+
+  vertical-align: top !important;
+
+  background: #ffffff !important;
+}
+
+
+/* =====================================================
+  크게 보기에서는 기존 고정 행 높이 해제
+====================================================== */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-table
+tr[data-efficiency-daily-work-row] {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+
+/* =====================================================
+  실제 행 단위 편집기
+====================================================== */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-line-editor {
+  display: grid !important;
+
+  width: 100%;
+  min-width: 0;
+
+  align-content: start;
+
+  background: #ffffff;
+
+  color:
+    var(
+      --line-text-color,
+      #111111
+    );
+
+  font-family:
+    var(
+      --line-font-family,
+      inherit
+    );
+
+  font-size:
+    var(
+      --line-font-size,
+      12px
+    );
+
+  font-weight:
+    var(
+      --line-font-weight,
+      600
+    );
+}
+
+
+/* =====================================================
+  한 줄당 하나의 실제 입력 셀
+====================================================== */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-line-cell {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  height: 31px !important;
+  min-height: 31px !important;
+
+  margin: 0 !important;
+
+  padding:
+    0
+    9px !important;
+
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+
+  border: 0 !important;
+  border-bottom:
+    1px solid
+    #c7d1dc !important;
+
+  border-radius: 0 !important;
+
+  background: #ffffff !important;
+
+  color:
+    var(
+      --line-text-color,
+      #111111
+    ) !important;
+
+  font-family:
+    var(
+      --line-font-family,
+      inherit
+    ) !important;
+
+  font-size:
+    var(
+      --line-font-size,
+      12px
+    ) !important;
+
+  font-weight:
+    var(
+      --line-font-weight,
+      600
+    ) !important;
+
+  line-height: 30px !important;
+
+  text-align: left !important;
+
+  white-space: nowrap !important;
+
+  outline: none !important;
+
+  box-shadow: none !important;
+
+  appearance: none;
+}
+
+
+/* 마지막 셀도 표 바깥선과 겹치지 않게 처리 */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-line-cell:last-child {
+  border-bottom: 0 !important;
+}
+
+
+/* =====================================================
+  마우스를 올린 셀
+====================================================== */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-line-cell:hover {
+  background: #f5faff !important;
+}
+
+
+/* =====================================================
+  현재 입력 중인 셀
+====================================================== */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-line-cell:focus {
+  position: relative;
+
+  z-index: 4;
+
+  background: #eaf4ff !important;
+
+  box-shadow:
+    inset 0 0 0 2px
+    #1769c2 !important;
+}
+
+
+/* =====================================================
+  글자 서식 대상으로 선택된 열
+====================================================== */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+textarea.efficiency-daily-work-line-source[
+  data-efficiency-daily-work-format-target="true"
+]
++
+.efficiency-daily-work-line-editor {
+  position: relative;
+
+  z-index: 2;
+
+  box-shadow:
+    inset 0 0 0 2px
+    #2f6fd4;
+}
+
+
+/* =====================================================
+  저장 중·비활성 상태
+====================================================== */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-line-cell:disabled {
+  cursor: not-allowed;
+
+  background: #f1f4f7 !important;
+  color: #8b96a4 !important;
+}
+
+
+/* =====================================================
+  작은 화면에서도 셀 최소 너비 유지
+====================================================== */
+
+@media screen and (max-width: 900px) {
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  #efficiencyDailyWorkPaper
+  .efficiency-daily-work-line-cell {
+    min-width: 160px !important;
+  }
+
+}
+
+
+/* =====================================================
+  인쇄·PDF
+
+  행 단위 편집기는 출력하지 않고
+  기존 textarea 값을 정적 문구로 출력한다.
+====================================================== */
+
+@media print {
+
+  #efficiencyDailyWorkPaper
+  .efficiency-daily-work-line-editor {
+    display: none !important;
+  }
+
+
+  #efficiencyDailyWorkPaper
+  textarea.efficiency-daily-work-line-source {
+    position: static !important;
+
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 100% !important;
+
+    opacity: 1 !important;
+
+    pointer-events: auto !important;
+
+    clip-path: none !important;
+  }
+
+}
+
+/* =========================================================
+  실제 셀 편집 최종 보정
+========================================================= */
+
+@media screen {
+
+  #efficiencyTeamModal.is-daily-work-expanded
+  #efficiencyDailyWorkPaper
+  textarea.efficiency-daily-work-line-source {
+    display: none !important;
+  }
+
+}
+
+
+#efficiencyTeamModal
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-line-editor,
+
+#efficiencyTeamModal
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-line-cell {
+  box-sizing: border-box !important;
+}
+
+
+/* 인쇄할 때는 원본 저장 내용을 출력 */
+
+@media print {
+
+  #efficiencyDailyWorkPaper
+  textarea.efficiency-daily-work-line-source {
+    display: block !important;
+  }
+
+}
+
+/* =========================================================
+  효율팀 일일업무현황 행 추가·삭제 도구
+========================================================= */
+
+.efficiency-daily-work-row-toolbar {
+  display: none;
+
+  align-items: center;
+
+  gap: 5px;
+
+  margin-left: 6px;
+
+  padding:
+    3px
+    4px;
+
+  border:
+    1px solid
+    #c8d5e4;
+
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+
+#efficiencyTeamModal.is-daily-work-expanded
+.efficiency-daily-work-row-toolbar {
+  display: inline-flex;
+}
+
+
+.efficiency-daily-work-row-toolbar__label {
+  padding:
+    0
+    5px;
+
+  color: #60748b;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+.efficiency-daily-work-row-toolbar__button {
+  display: inline-flex;
+
+  min-width: 52px;
+  height: 29px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    0
+    8px;
+
+  border:
+    1px solid
+    #cad7e5;
+
+  border-radius: 6px;
+
+  background: #f7faff;
+  color: #315474;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+}
+
+
+.efficiency-daily-work-row-toolbar__button:hover:not(:disabled) {
+  border-color: #6e9ed3;
+
+  background: #eaf3fc;
+  color: #175eaa;
+}
+
+
+.efficiency-daily-work-row-toolbar__button.is-delete {
+  border-color: #e6c5c5;
+
+  background: #fff7f7;
+  color: #a94747;
+}
+
+
+.efficiency-daily-work-row-toolbar__button.is-delete:hover:not(:disabled) {
+  border-color: #d67d7d;
+
+  background: #ffeded;
+  color: #9e2929;
+}
+
+
+.efficiency-daily-work-row-toolbar__button:disabled {
+  cursor: not-allowed;
+
+  opacity: 0.4;
+}
+
+
+/* 선택한 줄의 주요 업무·비고를 함께 표시 */
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-line-cell.is-row-selected {
+  background: #f1f7ff !important;
+
+  box-shadow:
+    inset 0 1px 0
+    #87add8,
+
+    inset 0 -1px 0
+    #87add8;
+}
+
+
+#efficiencyTeamModal.is-daily-work-expanded
+#efficiencyDailyWorkPaper
+.efficiency-daily-work-line-cell.is-row-selected:focus {
+  position: relative;
+
+  z-index: 5;
+
+  background: #e8f3ff !important;
+
+  box-shadow:
+    inset 0 0 0 2px
+    #1769c2 !important;
+}
+
+
+/* 인쇄할 때 행 편집 도구 숨김 */
+
+@media print {
+
+  .efficiency-daily-work-row-toolbar {
+    display: none !important;
+  }
+
+}
