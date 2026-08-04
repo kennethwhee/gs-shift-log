@@ -2353,9 +2353,314 @@ function initializeInspectionWorkspaceNavigation() {
     return "";
   }
 
-
   /* =====================================================
     표 안 저장·복원·삭제
+
+    적용:
+    - 저장 후 페이지 전체 새로고침 금지
+    - 현재 열어둔 점검주기표 유지
+    - 현재 선택한 전체·일간·주간·월간 구분 유지
+    - 기존 표 스크롤 위치 유지
+    - 서버 최신 데이터만 다시 불러와 표 갱신
+  ====================================================== */
+
+
+  /* =====================================================
+    현재 선택된 점검주기표 메뉴 버튼 찾기
+  ====================================================== */
+
+  function getCurrentScheduleTableMenuButton() {
+    const currentCategory =
+      String(
+        activeTableCategory ||
+        ""
+      ).trim();
+
+
+    return (
+      viewButtons.find(
+        button => {
+          const view =
+            String(
+              button.dataset
+                .inspectionSidebarView ||
+              ""
+            ).trim();
+
+
+          const category =
+            String(
+              button.dataset
+                .inspectionScheduleCategory ||
+              ""
+            ).trim();
+
+
+          return (
+            view ===
+              "schedule-table" &&
+            category ===
+              currentCategory
+          );
+        }
+      ) ||
+      null
+    );
+  }
+
+
+  /* =====================================================
+    저장·복원·삭제 후 현재 점검주기표 갱신
+
+    페이지 전체를 다시 불러오지 않는다.
+  ====================================================== */
+
+  async function refreshCurrentScheduleTableAfterChange(
+    options = {}
+  ) {
+    const focusId =
+      String(
+        options.focusId ||
+        ""
+      ).trim();
+
+
+    const previousScrollTop =
+      Math.max(
+        0,
+
+        Number(
+          options.scrollTop
+        ) ||
+        0
+      );
+
+
+    const successMessage =
+      String(
+        options.message ||
+        "점검 일정을 반영했습니다."
+      ).trim();
+
+
+    let refreshWarning =
+      "";
+
+
+    /*
+      inspection-logs.js의 일정 조회 함수를 사용해
+      D1 최신 자료만 다시 가져온다.
+    */
+    if (
+      typeof loadInspectionScheduleOverrides ===
+        "function"
+    ) {
+      try {
+        await loadInspectionScheduleOverrides();
+
+      } catch (
+        error
+      ) {
+        console.warn(
+          "점검 일정 저장 후 최신 목록 조회 실패:",
+          error
+        );
+
+
+        refreshWarning =
+          "저장은 완료됐지만 최신 목록 조회가 지연되고 있습니다.";
+      }
+    }
+
+
+    activeEditorId =
+      "";
+
+
+    managerBusy =
+      false;
+
+
+    /*
+      달력·점검일지는 숨기고
+      현재 점검주기표를 계속 표시한다.
+    */
+    hideViewer();
+
+
+    dashboard.hidden =
+      true;
+
+
+    tablePanel.hidden =
+      false;
+
+
+    /*
+      현재 선택된 전체·일간·주간·월간 구분으로
+      표를 다시 출력한다.
+    */
+    renderScheduleTable(
+      activeTableCategory
+    );
+
+
+    const currentMenuButton =
+      getCurrentScheduleTableMenuButton();
+
+
+    if (
+      currentMenuButton
+    ) {
+      setActiveButton(
+        currentMenuButton
+      );
+
+
+      /*
+        점검주기 접이식 메뉴가 닫히지 않게 유지한다.
+      */
+      const parentGroup =
+        currentMenuButton.closest(
+          ".inspection-sidebar-group"
+        );
+
+
+      if (
+        parentGroup
+      ) {
+        parentGroup.open =
+          true;
+      }
+    }
+
+
+    /*
+      현재 화면 종류도 유지한다.
+    */
+    saveLastView(
+      "schedule-table",
+      activeTableCategory
+    );
+
+
+    setTableMessage(
+      refreshWarning ||
+      successMessage,
+
+      refreshWarning
+        ? "warning"
+        : "success"
+    );
+
+
+    /*
+      표를 다시 그린 뒤
+      기존 스크롤 위치를 복구한다.
+    */
+    window.requestAnimationFrame(
+      () => {
+        const tableScroll =
+          tablePanel.querySelector(
+            ".inspection-schedule-table-scroll"
+          );
+
+
+        if (
+          tableScroll
+        ) {
+          tableScroll.scrollTop =
+            previousScrollTop;
+        }
+
+
+        /*
+          저장 또는 복원된 행이 현재 구분에 남아 있으면
+          화면 안에 보이도록 한다.
+        */
+        if (
+          focusId
+        ) {
+          const targetRow =
+            tableBody.querySelector(
+              `[data-schedule-id="${focusId}"]`
+            );
+
+
+          targetRow?.scrollIntoView({
+            block:
+              "nearest",
+
+            behavior:
+              "smooth"
+          });
+        }
+      }
+    );
+
+
+    /*
+      달력과 보직별 점검 현황도 갱신한다.
+    */
+    const refreshMessage = {
+      type:
+        "gs-shift-log:refresh-inspection-schedule",
+
+      scheduleId:
+        focusId
+    };
+
+
+    try {
+      window.dispatchEvent(
+        new MessageEvent(
+          "message",
+
+          {
+            data:
+              refreshMessage,
+
+            origin:
+              window.location.origin
+          }
+        )
+      );
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "점검 일정 내부 갱신 메시지 전달 실패:",
+        error
+      );
+    }
+
+
+    try {
+      if (
+        window.parent &&
+        window.parent !==
+          window
+      ) {
+        window.parent.postMessage(
+          refreshMessage,
+          window.location.origin
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "점검 일정 상위 화면 갱신 메시지 전달 실패:",
+        error
+      );
+    }
+  }
+
+
+  /* =====================================================
+    점검 일정 저장
   ====================================================== */
 
   async function saveInlineEditor(
@@ -2394,6 +2699,7 @@ function initializeInspectionWorkspaceNavigation() {
         "error"
       );
 
+
       return;
     }
 
@@ -2415,7 +2721,23 @@ function initializeInspectionWorkspaceNavigation() {
       row.querySelector(
         "[data-inline-active]"
       )?.checked ===
-        true;
+      true;
+
+
+    const tableScroll =
+      row.closest(
+        ".inspection-schedule-table-scroll"
+      ) ||
+      tablePanel.querySelector(
+        ".inspection-schedule-table-scroll"
+      );
+
+
+    const previousScrollTop =
+      Number(
+        tableScroll?.scrollTop
+      ) ||
+      0;
 
 
     managerBusy =
@@ -2437,6 +2759,7 @@ function initializeInspectionWorkspaceNavigation() {
       const response =
         await fetch(
           SCHEDULE_API_URL,
+
           {
             method:
               "POST",
@@ -2461,6 +2784,7 @@ function initializeInspectionWorkspaceNavigation() {
                     : null,
 
                 isActive,
+
                 isCustom
               })
           }
@@ -2473,13 +2797,46 @@ function initializeInspectionWorkspaceNavigation() {
         );
 
 
+      const savedId =
+        String(
+          result?.item?.id ||
+          item.id ||
+          ""
+        ).trim();
+
+
+      const resultMessage =
+        String(
+          result.message ||
+          (
+            isNew
+              ? "점검 일정을 등록했습니다."
+              : "점검 일정을 수정했습니다."
+          )
+        ).trim();
+
+
+      /*
+        window.location.reload()을 사용하지 않는다.
+
+        서버 자료만 다시 불러온 뒤
+        현재 점검주기표를 그대로 유지한다.
+      */
+      await refreshCurrentScheduleTableAfterChange({
+        focusId:
+          savedId,
+
+        scrollTop:
+          previousScrollTop,
+
+        message:
+          resultMessage
+      });
+
+
       window.alert(
-        result.message ||
-        "점검 일정을 저장했습니다."
+        resultMessage
       );
-
-
-      window.location.reload();
 
     } catch (
       error
@@ -2494,6 +2851,7 @@ function initializeInspectionWorkspaceNavigation() {
         error instanceof Error
           ? error.message
           : "점검 일정을 저장하지 못했습니다.",
+
         "error"
       );
 
@@ -2501,12 +2859,17 @@ function initializeInspectionWorkspaceNavigation() {
       managerBusy =
         false;
 
+
       row.classList.remove(
         "is-busy"
       );
     }
   }
 
+
+  /* =====================================================
+    기본값 복원 또는 사용자 일정 삭제
+  ====================================================== */
 
   async function restoreOrDeleteInlineEditor(
     row
@@ -2536,7 +2899,7 @@ function initializeInspectionWorkspaceNavigation() {
 
     const isCustom =
       row.dataset.inlineIsCustom ===
-        "true";
+      "true";
 
 
     const title =
@@ -2572,6 +2935,22 @@ function initializeInspectionWorkspaceNavigation() {
     }
 
 
+    const tableScroll =
+      row.closest(
+        ".inspection-schedule-table-scroll"
+      ) ||
+      tablePanel.querySelector(
+        ".inspection-schedule-table-scroll"
+      );
+
+
+    const previousScrollTop =
+      Number(
+        tableScroll?.scrollTop
+      ) ||
+      0;
+
+
     managerBusy =
       true;
 
@@ -2585,6 +2964,7 @@ function initializeInspectionWorkspaceNavigation() {
       isCustom
         ? "점검 일정을 삭제하는 중입니다."
         : "기본 일정으로 복원하는 중입니다.",
+
       "saving"
     );
 
@@ -2602,6 +2982,7 @@ function initializeInspectionWorkspaceNavigation() {
         id
       );
 
+
       url.searchParams.set(
         "revision",
         String(
@@ -2613,6 +2994,7 @@ function initializeInspectionWorkspaceNavigation() {
       const response =
         await fetch(
           url.toString(),
+
           {
             method:
               "DELETE",
@@ -2632,17 +3014,40 @@ function initializeInspectionWorkspaceNavigation() {
         );
 
 
-      window.alert(
-        result.message ||
-        (
+      const resultMessage =
+        String(
+          result.message ||
+          (
+            isCustom
+              ? "점검 일정을 삭제했습니다."
+              : "기본 일정으로 복원했습니다."
+          )
+        ).trim();
+
+
+      /*
+        사용자 추가 일정은 삭제되므로 focusId를 비운다.
+
+        기본 일정 복원은 같은 ID의 기본 일정이 다시 나타나므로
+        해당 행으로 돌아간다.
+      */
+      await refreshCurrentScheduleTableAfterChange({
+        focusId:
           isCustom
-            ? "점검 일정을 삭제했습니다."
-            : "기본 일정으로 복원했습니다."
-        )
+            ? ""
+            : id,
+
+        scrollTop:
+          previousScrollTop,
+
+        message:
+          resultMessage
+      });
+
+
+      window.alert(
+        resultMessage
       );
-
-
-      window.location.reload();
 
     } catch (
       error
@@ -2657,12 +3062,14 @@ function initializeInspectionWorkspaceNavigation() {
         error instanceof Error
           ? error.message
           : "점검 일정을 복원하거나 삭제하지 못했습니다.",
+
         "error"
       );
 
 
       managerBusy =
         false;
+
 
       row.classList.remove(
         "is-busy"
