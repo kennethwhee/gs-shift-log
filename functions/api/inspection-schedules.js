@@ -55,6 +55,24 @@ const VALID_RULE_TYPES =
   ]);
 
 
+const INSPECTION_ASSIGNED_ROLE_ORDER =
+  Object.freeze([
+    "파트장",
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ]);
+
+
+const VALID_ASSIGNED_ROLES =
+  new Set(
+    INSPECTION_ASSIGNED_ROLE_ORDER
+  );
+
+
 /* =========================================================
   공통 응답
 ========================================================= */
@@ -654,6 +672,92 @@ function normalizeShiftArray(
   return normalized;
 }
 
+/* =========================================================
+  담당 보직 배열 정리
+
+  저장 순서:
+  - 파트장
+  - TGO
+  - BCO1
+  - BCO2
+  - TO
+  - BO1
+  - BO2
+========================================================= */
+
+function normalizeAssignedRoleArray(
+  value
+) {
+  const source =
+    Array.isArray(
+      value
+    )
+      ? value
+      : [];
+
+
+  const selectedRoles =
+    new Set();
+
+
+  source.forEach(
+    item => {
+      const rawRole =
+        normalizeText(
+          item
+        );
+
+
+      if (
+        !rawRole
+      ) {
+        return;
+      }
+
+
+      if (
+        rawRole ===
+          "파트장"
+      ) {
+        selectedRoles.add(
+          "파트장"
+        );
+
+        return;
+      }
+
+
+      const normalizedRole =
+        rawRole
+          .toUpperCase()
+          .replace(
+            /\s+/g,
+            ""
+          );
+
+
+      if (
+        VALID_ASSIGNED_ROLES.has(
+          normalizedRole
+        )
+      ) {
+        selectedRoles.add(
+          normalizedRole
+        );
+      }
+    }
+  );
+
+
+  return INSPECTION_ASSIGNED_ROLE_ORDER.filter(
+    role => {
+      return selectedRoles.has(
+        role
+      );
+    }
+  );
+}
+
 
 /* =========================================================
   일정 ID 정리
@@ -777,6 +881,18 @@ function validateScheduleItem(
   const shifts =
     normalizeShiftArray(
       source.shifts
+    );
+
+
+  /*
+    점검 담당 보직
+
+    화면에서 전달된 assignedRoles를
+    허용된 일곱 보직만 남기고 고정 순서로 저장한다.
+  */
+  const assignedRoles =
+    normalizeAssignedRoleArray(
+      source.assignedRoles
     );
 
 
@@ -961,6 +1077,12 @@ function validateScheduleItem(
 
     shifts,
 
+    /*
+      담당 보직은 schedule_json에 함께 저장한다.
+      값이 없는 기존 일정은 빈 배열로 저장된다.
+    */
+    assignedRoles,
+
     position,
 
     approval,
@@ -1110,6 +1232,15 @@ function convertRow(
     id:
       normalizeText(
         row.id
+      ),
+
+    /*
+      기존 D1 데이터에 assignedRoles가 없더라도
+      화면에는 항상 배열로 전달한다.
+    */
+    assignedRoles:
+      normalizeAssignedRoleArray(
+        scheduleItem.assignedRoles
       ),
 
     isActive:
