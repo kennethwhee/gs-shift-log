@@ -1,34 +1,58 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
   <meta
     name="description"
     content="GS 포천그린에너지 교대근무 업무일지 시스템"
-  />
-  <title>GS Shift Log</title>
+  >
 
-<link rel="stylesheet" href="style.css" />
+  <title>
+    GS Shift Log
+  </title>
 
-<!-- 야간순찰 팝업 외곽 CSS -->
-<link
-  rel="stylesheet"
-  href="style.css?v=20260804-armroll2"
-/>
 
-<!-- 기존 업무일지 -->
-<script
-  src="script.js?v=20260804-armroll3"
-  defer
-></script>
+  <!-- =====================================================
+    기존 업무일지 CSS
+  ====================================================== -->
+  <link
+    rel="stylesheet"
+    href="style.css?v=20260805-boxalert1"
+  >
 
-<!-- 야간순찰 메뉴 및 팝업 실행기 -->
-<script
-  src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260804-role1"
-  defer
-></script>
 
+  <!-- =====================================================
+    점검일지 팝업 외곽 CSS
+  ====================================================== -->
+  <link
+    rel="stylesheet"
+    href="inspection-logs/daily/night-patrol/night-patrol-shell.css?v=20260805-viewfix3"
+  >
+
+
+  <!-- =====================================================
+    기존 업무일지 JavaScript
+  ====================================================== -->
+  <script
+    src="script.js?v=20260805-boxalert1"
+    defer
+  ></script>
+
+
+  <!-- =====================================================
+    점검일지 메뉴 및 팝업 실행기
+  ====================================================== -->
+  <script
+    src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260805-viewfix4"
+    defer
+  ></script>
 </head>
 
 <body>
@@ -546,7 +570,67 @@
     </h1>
   </div>
 
+<!-- =====================================================
+  근무자 현황 우측 정보
+
+  왼쪽:
+  - ARM ROLL · SCRAP BOX 교체 권고
+
+  오른쪽:
+  - 현재 날짜와 근무
+====================================================== -->
+<div class="shift-heading-right">
+
+  <!-- =================================================
+    BOX 교체 권고
+
+    표시 기준:
+    - 50% 이상일 때만 표시
+    - JavaScript에서 내용과 색상을 변경
+  ================================================== -->
+  <button
+    type="button"
+    class="arm-roll-box-main-alert"
+    id="armRollBoxMainAlert"
+    aria-label="ARM ROLL 및 SCRAP BOX 교체 권고 확인"
+    aria-live="polite"
+    hidden
+  >
+
+    <span
+      class="arm-roll-box-main-alert__icon"
+      aria-hidden="true"
+    >
+      !
+    </span>
+
+
+    <span class="arm-roll-box-main-alert__content">
+
+      <small>
+        BOX 교체 권고
+      </small>
+
+      <strong id="armRollBoxMainAlertText">
+        50% 이상 BOX가 있습니다.
+      </strong>
+
+    </span>
+
+
+    <span
+      class="arm-roll-box-main-alert__count"
+      id="armRollBoxMainAlertCount"
+    >
+      0건
+    </span>
+
+  </button>
+
+
+  <!-- 현재 날짜·근무 -->
   <div class="shift-summary">
+
     <span class="shift-summary__label">
       현재 근무
     </span>
@@ -557,7 +641,11 @@
     >
       2026년 07월 20일 월요일 N/S
     </strong>
+
   </div>
+
+</div>
+
 </div>
 
 <!-- =========================================================

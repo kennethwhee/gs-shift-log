@@ -3220,3 +3220,444 @@ if (
 } else {
   startInspectionWorkspaceNavigation();
 }
+
+/* =========================================================
+  점검일지 빈 화면 자동 복구
+
+  다음 상태를 확인한다.
+
+  - 달력 숨김
+  - 점검표 숨김
+  - 전용 점검일지 숨김
+
+  세 화면이 모두 숨겨져 있으면
+  월간 달력을 기본 화면으로 다시 표시한다.
+========================================================= */
+
+(function installInspectionBlankViewRecovery() {
+  if (
+    window.__gsInspectionBlankViewRecoveryInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__gsInspectionBlankViewRecoveryInstalled =
+    true;
+
+
+  function isInspectionElementVisible(
+    element
+  ) {
+    if (
+      !element ||
+      element.hidden ===
+        true
+    ) {
+      return false;
+    }
+
+
+    return (
+      window
+        .getComputedStyle(
+          element
+        )
+        .display !==
+      "none"
+    );
+  }
+
+
+  function recoverInspectionBlankView() {
+    const dashboard =
+      document.getElementById(
+        "inspectionScheduleDashboard"
+      );
+
+
+    const tablePanel =
+      document.getElementById(
+        "inspectionScheduleTablePanel"
+      );
+
+
+    const viewer =
+      document.getElementById(
+        "inspectionLogViewer"
+      );
+
+
+    const content =
+      document.querySelector(
+        ".inspection-workspace__content"
+      );
+
+
+    const hasVisibleMainView =
+      isInspectionElementVisible(
+        dashboard
+      ) ||
+      isInspectionElementVisible(
+        tablePanel
+      ) ||
+      isInspectionElementVisible(
+        viewer
+      );
+
+
+    /*
+      표시 중인 본문이 하나도 없으면
+      월간 달력을 기본 화면으로 복구한다.
+    */
+    if (
+      !hasVisibleMainView &&
+      dashboard
+    ) {
+      dashboard.hidden =
+        false;
+
+
+      dashboard.removeAttribute(
+        "hidden"
+      );
+    }
+
+
+    /*
+      이전 확대·스크롤 상태 때문에
+      본문 왼쪽이 보이지 않는 경우를 방지한다.
+    */
+    if (
+      content
+    ) {
+      content.scrollLeft =
+        0;
+
+
+      content.scrollTop =
+        0;
+    }
+  }
+
+
+  window.addEventListener(
+    "load",
+    () => {
+      window.setTimeout(
+        recoverInspectionBlankView,
+        800
+      );
+
+
+      window.setTimeout(
+        recoverInspectionBlankView,
+        2000
+      );
+    },
+    {
+      once:
+        true
+    }
+  );
+
+
+  window.addEventListener(
+    "pageshow",
+    () => {
+      window.setTimeout(
+        recoverInspectionBlankView,
+        100
+      );
+    }
+  );
+})();
+
+/* =========================================================
+  점검일지 오른쪽 빈 화면 자동 복구
+
+  문제:
+  - 왼쪽 메뉴는 정상 표시
+  - 오른쪽 월간 달력·목록·전용 일지가 모두 hidden 상태
+  - 결과적으로 오른쪽이 흰 화면으로 표시됨
+
+  처리:
+  - 표시 중인 화면이 하나도 없을 때만
+    월간 달력을 기본 화면으로 복구
+  - 다른 점검일지나 목록을 열었을 때는 건드리지 않음
+========================================================= */
+
+(function installInspectionDefaultViewRecovery() {
+  if (
+    window.__gsInspectionDefaultViewRecoveryInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__gsInspectionDefaultViewRecoveryInstalled =
+    true;
+
+
+  function isInspectionViewVisible(
+    element
+  ) {
+    if (
+      !element ||
+      element.hidden ===
+        true
+    ) {
+      return false;
+    }
+
+
+    const computedStyle =
+      window.getComputedStyle(
+        element
+      );
+
+
+    return (
+      computedStyle.display !==
+        "none" &&
+      computedStyle.visibility !==
+        "hidden"
+    );
+  }
+
+
+  function recoverInspectionDefaultView() {
+    const dashboard =
+      document.getElementById(
+        "inspectionScheduleDashboard"
+      );
+
+
+    const logList =
+      document.getElementById(
+        "inspectionLogList"
+      );
+
+
+    const viewer =
+      document.getElementById(
+        "inspectionLogViewer"
+      );
+
+
+    const scheduleTablePanel =
+      document.getElementById(
+        "inspectionScheduleTablePanel"
+      );
+
+
+    /*
+      이미 표시 중인 화면이 있으면
+      현재 사용자의 선택을 그대로 유지한다.
+    */
+    const hasVisibleView =
+      isInspectionViewVisible(
+        dashboard
+      ) ||
+      isInspectionViewVisible(
+        logList
+      ) ||
+      isInspectionViewVisible(
+        viewer
+      ) ||
+      isInspectionViewVisible(
+        scheduleTablePanel
+      );
+
+
+    if (
+      hasVisibleView ||
+      !dashboard
+    ) {
+      return false;
+    }
+
+
+    /*
+      오른쪽 화면이 모두 비어 있을 때만
+      월간 달력을 기본 화면으로 표시한다.
+    */
+    dashboard.hidden =
+      false;
+
+
+    dashboard.removeAttribute(
+      "hidden"
+    );
+
+
+    /*
+      전용 점검일지 iframe은 닫힌 상태로 유지한다.
+    */
+    if (
+      viewer
+    ) {
+      viewer.hidden =
+        true;
+    }
+
+
+    /*
+      왼쪽 메뉴에서 월간 달력 버튼을
+      선택 상태로 맞춘다.
+    */
+    const navigationButtons = [
+      ...document.querySelectorAll(
+        `
+          [data-inspection-navigation-view],
+          [data-inspection-nav-view],
+          [data-inspection-navigation]
+        `
+      )
+    ];
+
+
+    navigationButtons.forEach(
+      button => {
+        const viewValue =
+          String(
+            button.dataset
+              .inspectionNavigationView ||
+            button.dataset
+              .inspectionNavView ||
+            button.dataset
+              .inspectionNavigation ||
+            ""
+          )
+            .trim()
+            .toLowerCase();
+
+
+        const isCalendarButton =
+          [
+            "calendar",
+            "monthly-calendar",
+            "schedule-calendar"
+          ].includes(
+            viewValue
+          ) ||
+          String(
+            button.textContent ||
+            ""
+          )
+            .replace(
+              /\s+/g,
+              ""
+            )
+            .includes(
+              "월간달력"
+            );
+
+
+        button.classList.toggle(
+          "is-active",
+          isCalendarButton
+        );
+
+
+        if (
+          button.hasAttribute(
+            "aria-selected"
+          )
+        ) {
+          button.setAttribute(
+            "aria-selected",
+            isCalendarButton
+              ? "true"
+              : "false"
+          );
+        }
+      }
+    );
+
+
+    /*
+      확대 또는 이전 스크롤 위치 때문에
+      달력 시작 부분이 보이지 않는 경우를 방지한다.
+    */
+    const contentArea =
+      document.querySelector(
+        `
+          .inspection-workspace__content,
+          .inspection-navigation-content,
+          .inspection-log-hub
+        `
+      );
+
+
+    if (
+      contentArea
+    ) {
+      contentArea.scrollLeft =
+        0;
+
+
+      contentArea.scrollTop =
+        0;
+    }
+
+
+    return true;
+  }
+
+
+  function scheduleInspectionViewRecovery() {
+    /*
+      다른 점검일지 JavaScript의 실행 순서를 고려해
+      여러 번 확인한다.
+    */
+    [
+      0,
+      150,
+      500,
+      1200,
+      2500
+    ].forEach(
+      delay => {
+        window.setTimeout(
+          recoverInspectionDefaultView,
+          delay
+        );
+      }
+    );
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      scheduleInspectionViewRecovery,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    scheduleInspectionViewRecovery();
+  }
+
+
+  window.addEventListener(
+    "pageshow",
+    scheduleInspectionViewRecovery
+  );
+
+
+  /*
+    팝업을 다시 열었을 때 부모 화면에서
+    복구 요청을 보낼 수 있도록 공개한다.
+  */
+  window.recoverInspectionDefaultView =
+    recoverInspectionDefaultView;
+})();

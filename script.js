@@ -102606,6 +102606,8 @@ openLogDetail =
   window.__armRollBoxFeatureInstalled =
     true;
 
+    const REPLACEMENT_RECOMMEND_LEVEL =
+  50;
 
   const WARNING_LEVEL =
     70;
@@ -106186,49 +106188,620 @@ function getArmRollBoxElements() {
     `;
   }
 
+  /* =========================================================
+  실제 측정값 변화 기준 증가량 재계산
+
+  처리 방식:
+  - 같은 수치가 다음 업무일지에 반복되면
+    새로운 측정으로 계산하지 않는다.
+  - 마지막으로 수치가 변했던 측정값을 유지한다.
+  - 새로운 수치가 확인됐을 때만 변화량을 계산한다.
+
+  예:
+  8월 1일 10%
+  8월 2일 10%
+  8월 3일 25%
+  8월 4일 25%
+
+  최종 표시:
+  2일간 +15%p
+  일평균 +7.5%p/일
+========================================================= */
+
+function recalculateArmRollBoxDistinctChanges() {
+  ARM_ROLL_BOX_SERIES.forEach(
+    series => {
+      let previousDistinct =
+        null;
+
+
+      let latestCalculatedChange =
+        null;
+
+
+      state.dailyRows.forEach(
+        row => {
+          const record =
+            row[
+              series.key
+            ];
+
+
+          if (
+            !record ||
+            !hasArmRollBoxNumericValue(
+              record.level
+            )
+          ) {
+            return;
+          }
+
+
+          const currentLevel =
+            Number(
+              record.level
+            );
+
+
+          /*
+            기존 분석 결과를 먼저 초기화한다.
+          */
+          record.dayGap =
+            null;
+
+
+          record.delta =
+            null;
+
+
+          record.averagePerDay =
+            null;
+
+
+          record.comparisonDate =
+            "";
+
+
+          record.measurementDate =
+            row.date;
+
+
+          record.isRepeatedSnapshot =
+            false;
+
+
+          /*
+            첫 번째 측정값
+          */
+          if (
+            !previousDistinct
+          ) {
+            previousDistinct = {
+              date:
+                row.date,
+
+              level:
+                currentLevel
+            };
+
+
+            return;
+          }
+
+
+          /*
+            직전 실제 측정과 수치가 같으면
+            업무일지에 반복 기재된 값으로 처리한다.
+
+            직전에 계산한 증가량이 있다면
+            현재 카드에도 같은 결과를 유지한다.
+          */
+          if (
+            currentLevel ===
+            previousDistinct.level
+          ) {
+            if (
+              latestCalculatedChange
+            ) {
+              Object.assign(
+                record,
+
+                latestCalculatedChange,
+
+                {
+                  measurementDate:
+                    latestCalculatedChange
+                      .measurementDate,
+
+                  isRepeatedSnapshot:
+                    true
+                }
+              );
+
+            } else {
+              record.measurementDate =
+                previousDistinct.date;
+
+
+              record.isRepeatedSnapshot =
+                true;
+            }
+
+
+            return;
+          }
+
+
+          /*
+            실제 수치가 변경된 경우
+          */
+          const dayGap =
+            Math.max(
+              1,
+
+              getArmRollBoxDayDifference(
+                previousDistinct.date,
+                row.date
+              )
+            );
+
+
+          const delta =
+            Math.round(
+              (
+                currentLevel -
+                previousDistinct.level
+              ) *
+              10
+            ) /
+            10;
+
+
+          const averagePerDay =
+            Math.round(
+              (
+                delta /
+                dayGap
+              ) *
+              100
+            ) /
+            100;
+
+
+          latestCalculatedChange = {
+            dayGap,
+
+            delta,
+
+            averagePerDay,
+
+            comparisonDate:
+              previousDistinct.date,
+
+            measurementDate:
+              row.date,
+
+            isRepeatedSnapshot:
+              false
+          };
+
+
+          Object.assign(
+            record,
+            latestCalculatedChange
+          );
+
+
+          previousDistinct = {
+            date:
+              row.date,
+
+            level:
+              currentLevel
+          };
+        }
+      );
+    }
+  );
+}
+
+
+/* =========================================================
+  메인 화면 교체 권고 대상
+
+  50% 이상:
+  - 교체 권고
+
+  70% 이상:
+  - 즉시 확인
+========================================================= */
+
+function getArmRollBoxMainRecommendationItems() {
+  return ARM_ROLL_BOX_SERIES
+    .map(
+      series => {
+        return {
+          key:
+            series.key,
+
+          label:
+            series.label,
+
+          level:
+            state.current[
+              series.key
+            ]?.level
+        };
+      }
+    )
+    .filter(
+      item => {
+        return (
+          hasArmRollBoxNumericValue(
+            item.level
+          ) &&
+          Number(
+            item.level
+          ) >=
+            REPLACEMENT_RECOMMEND_LEVEL
+        );
+      }
+    )
+    .sort(
+      (
+        firstItem,
+        secondItem
+      ) => {
+        return (
+          Number(
+            secondItem.level
+          ) -
+          Number(
+            firstItem.level
+          )
+        );
+      }
+    );
+}
+
+
+/* =========================================================
+  메인 근무자 현황 우측 알림 출력
+========================================================= */
+
+function renderArmRollBoxMainAlert() {
+  const alertButton =
+    document.getElementById(
+      "armRollBoxMainAlert"
+    );
+
+
+  const alertText =
+    document.getElementById(
+      "armRollBoxMainAlertText"
+    );
+
+
+  const alertCount =
+    document.getElementById(
+      "armRollBoxMainAlertCount"
+    );
+
+
+  if (
+    !alertButton
+  ) {
+    return;
+  }
+
+
+  const recommendationItems =
+    getArmRollBoxMainRecommendationItems();
+
+
+  /*
+    50% 이상 BOX가 없으면 숨긴다.
+  */
+  if (
+    recommendationItems.length ===
+    0
+  ) {
+    alertButton.hidden =
+      true;
+
+
+    alertButton.classList.remove(
+      "is-recommend",
+      "is-critical"
+    );
+
+
+    return;
+  }
+
+
+  const highestLevel =
+    Number(
+      recommendationItems[0]
+        .level
+    );
+
+
+  const message =
+    recommendationItems
+      .map(
+        item => {
+          return `${item.label} ${formatArmRollBoxNumber(
+            item.level
+          )}%`;
+        }
+      )
+      .join(
+        " · "
+      );
+
+
+  alertButton.hidden =
+    false;
+
+
+  /*
+    50~69%:
+    주황색 교체 권고
+  */
+  alertButton.classList.toggle(
+    "is-recommend",
+
+    highestLevel <
+      WARNING_LEVEL
+  );
+
+
+  /*
+    70% 이상:
+    빨간색 즉시 확인
+  */
+  alertButton.classList.toggle(
+    "is-critical",
+
+    highestLevel >=
+      WARNING_LEVEL
+  );
+
+
+  alertButton.setAttribute(
+    "aria-label",
+    `BOX 교체 권고: ${message}`
+  );
+
+
+  alertButton.title =
+    [
+      "클릭하면 ARM ROLL · SCRAP BOX 현황을 엽니다.",
+      message
+    ].join(
+      "\n"
+    );
+
+
+  if (
+    alertText
+  ) {
+    alertText.textContent =
+      message;
+  }
+
+
+  if (
+    alertCount
+  ) {
+    alertCount.textContent =
+      `${recommendationItems.length}건`;
+  }
+}
+
+
+/* =========================================================
+  메인 알림 클릭
+
+  효율팀 팝업을 열고
+  ARM ROLL BOX 메뉴로 바로 이동한다.
+========================================================= */
+
+function openArmRollBoxFromMainAlert() {
+  if (
+    typeof window
+      .openEfficiencyTeamModal ===
+      "function"
+  ) {
+    window.openEfficiencyTeamModal();
+  }
+
+
+  window.setTimeout(
+    () => {
+      if (
+        typeof window
+          .switchEfficiencyTeamView ===
+          "function"
+      ) {
+        window.switchEfficiencyTeamView(
+          "arm-roll"
+        );
+      }
+
+
+      const stale =
+        Date.now() -
+        state.loadedAt >
+        300000;
+
+
+      if (
+        !state.loaded ||
+        stale
+      ) {
+        loadArmRollBoxData({
+          notify:
+            false
+        });
+      }
+    },
+
+    0
+  );
+}
+
+
+/* =========================================================
+  로그인 후 메인 알림 자동 분석
+
+  로그인 화면에 머물러 있을 때는 대기하고,
+  로그인 세션과 메인 화면이 확인되면
+  최근 30일 업무일지를 자동 분석한다.
+========================================================= */
+
+function startArmRollBoxMainAlertAutoLoad() {
+  let attemptCount =
+    0;
+
+
+  const maximumAttempts =
+    120;
+
+
+  const attemptLoad =
+    () => {
+      if (
+        state.loaded ||
+        state.loading
+      ) {
+        return;
+      }
+
+
+      const appShell =
+        document.getElementById(
+          "appShell"
+        );
+
+
+      const currentUser =
+        typeof loadCurrentUser ===
+          "function"
+          ? loadCurrentUser()
+          : null;
+
+
+      const sessionToken =
+        typeof getShiftLogSessionToken ===
+          "function"
+          ? getShiftLogSessionToken()
+          : "";
+
+
+      /*
+        로그인 완료 후 분석 실행
+      */
+      if (
+        currentUser &&
+        sessionToken &&
+        appShell &&
+        !appShell.hidden
+      ) {
+        loadArmRollBoxData({
+          notify:
+            false
+        });
+
+
+        return;
+      }
+
+
+      attemptCount +=
+        1;
+
+
+      /*
+        최대 2분간 로그인 완료 상태를 확인한다.
+      */
+      if (
+        attemptCount <
+        maximumAttempts
+      ) {
+        window.setTimeout(
+          attemptLoad,
+          1000
+        );
+      }
+    };
+
+
+  window.setTimeout(
+    attemptLoad,
+    600
+  );
+}
 
   /* =====================================================
     대시보드 전체 출력
   ====================================================== */
 
-  function renderArmRollBoxDashboard(
-    options = {}
-  ) {
-    ARM_ROLL_BOX_SERIES.forEach(
-      series => {
+function renderArmRollBoxDashboard(
+  options = {}
+) {
+  /*
+    동일 수치가 매일 반복된 자료를 제외하고
+    실제 수치 변화 기준으로 증가량을 다시 계산한다.
+  */
+  recalculateArmRollBoxDistinctChanges();
+
+
+  ARM_ROLL_BOX_SERIES.forEach(
+    series => {
+      state.current[
+        series.key
+      ] =
+        getLatestArmRollBoxRecord(
+          series.key
+        );
+
+
+      renderArmRollBoxCurrentCard(
+        series.key,
+
         state.current[
           series.key
-        ] =
-          getLatestArmRollBoxRecord(
-            series.key
-          );
+        ]
+      );
+    }
+  );
 
 
-        renderArmRollBoxCurrentCard(
-          series.key,
-
-          state.current[
-            series.key
-          ]
-        );
-      }
-    );
+  /*
+    근무자 현황 우측 50% 교체 권고
+  */
+  renderArmRollBoxMainAlert();
 
 
-    renderArmRollBoxWarnings(
-      options.notify ===
-        true
-    );
+  /*
+    효율팀 화면 내부 70% 빨간 경고
+  */
+  renderArmRollBoxWarnings(
+    options.notify ===
+      true
+  );
 
 
-    renderArmRollBoxChart();
+  renderArmRollBoxChart();
 
 
-    renderArmRollBoxDailyTable();
+  renderArmRollBoxDailyTable();
 
 
-    renderArmRollBoxReplacementTable();
-  }
+  renderArmRollBoxReplacementTable();
+}
 
 
   /* =====================================================
@@ -106649,142 +107222,177 @@ function getArmRollBoxElements() {
     이벤트 연결
   ====================================================== */
 
-  function bindArmRollBoxEvents() {
-    const elements =
-      getArmRollBoxElements();
+function bindArmRollBoxEvents() {
+  const elements =
+    getArmRollBoxElements();
 
 
-    if (
-      !elements.view ||
-      elements.view.dataset
-        .armRollBoxBound ===
-        "true"
-    ) {
-      return;
+  const mainAlert =
+    document.getElementById(
+      "armRollBoxMainAlert"
+    );
+
+
+  if (
+    !elements.view ||
+    elements.view.dataset
+      .armRollBoxBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  /*
+    기본 조회 기간
+  */
+  setArmRollBoxRange(
+    30,
+    false
+  );
+
+
+  /*
+    최근 7일·30일·90일
+  */
+  elements.ranges.forEach(
+    button => {
+      button.addEventListener(
+        "click",
+        () => {
+          setArmRollBoxRange(
+            button.dataset
+              .armRollBoxRangeDays,
+
+            true
+          );
+        }
+      );
     }
+  );
 
 
-    setArmRollBoxRange(
-      30,
-      false
-    );
+  elements.start?.addEventListener(
+    "change",
+    clearArmRollBoxRangeSelection
+  );
 
 
-    elements.ranges.forEach(
-      button => {
-        button.addEventListener(
-          "click",
-          () => {
-            setArmRollBoxRange(
-              button.dataset
-                .armRollBoxRangeDays,
-              true
-            );
-          }
-        );
-      }
-    );
+  elements.end?.addEventListener(
+    "change",
+    clearArmRollBoxRangeSelection
+  );
 
 
-    elements.start?.addEventListener(
-      "change",
-      clearArmRollBoxRangeSelection
-    );
+  elements.form?.addEventListener(
+    "submit",
+    event => {
+      event.preventDefault();
 
 
-    elements.end?.addEventListener(
-      "change",
-      clearArmRollBoxRangeSelection
-    );
+      loadArmRollBoxData();
+    }
+  );
 
 
-    elements.form?.addEventListener(
-      "submit",
-      event => {
-        event.preventDefault();
+  elements.refreshButton?.addEventListener(
+    "click",
+    () => {
+      loadArmRollBoxData();
+    }
+  );
 
 
-        loadArmRollBoxData();
-      }
-    );
+  elements.syncButton?.addEventListener(
+    "click",
+    () => {
+      loadArmRollBoxData({
+        notify:
+          true,
+
+        success:
+          true
+      });
+    }
+  );
 
 
-    elements.refreshButton?.addEventListener(
-      "click",
-      () => {
-        loadArmRollBoxData();
-      }
-    );
+  /*
+    ARM ROLL 탭을 열 때
+    5분이 지난 자료는 다시 분석한다.
+  */
+  elements.tab?.addEventListener(
+    "click",
+    () => {
+      const stale =
+        Date.now() -
+        state.loadedAt >
+        300000;
 
 
-    elements.syncButton?.addEventListener(
-      "click",
-      () => {
+      if (
+        !state.loaded ||
+        stale
+      ) {
         loadArmRollBoxData({
           notify:
-            true,
-
-          success:
             true
         });
       }
-    );
+    }
+  );
 
 
-    /*
-      Arm Roll 탭을 열 때
-      아직 조회하지 않았거나 5분이 지났으면 다시 조회한다.
-    */
-    elements.tab?.addEventListener(
-      "click",
-      () => {
-        const stale =
-          Date.now() -
-          state.loadedAt >
-          300000;
+  /*
+    효율팀 팝업을 열었을 때 최신화
+  */
+  elements.openButton?.addEventListener(
+    "click",
+    () => {
+      window.setTimeout(
+        () => {
+          const stale =
+            Date.now() -
+            state.loadedAt >
+            300000;
 
 
-        if (
-          !state.loaded ||
-          stale
-        ) {
-          loadArmRollBoxData({
-            notify:
-              true
-          });
-        }
-      }
-    );
+          if (
+            !state.loaded ||
+            stale
+          ) {
+            loadArmRollBoxData({
+              notify:
+                false
+            });
+          }
+        },
+
+        0
+      );
+    }
+  );
 
 
-    /*
-      효율팀 팝업을 열면
-      탭 배지와 70% 경고를 위해 최초 한 번 분석한다.
-    */
-    elements.openButton?.addEventListener(
-      "click",
-      () => {
-        window.setTimeout(
-          () => {
-            if (
-              !state.loaded
-            ) {
-              loadArmRollBoxData({
-                notify:
-                  true
-              });
-            }
-          },
-          0
-        );
-      }
-    );
+  /*
+    메인 근무자 현황 우측 알림 클릭
+  */
+  mainAlert?.addEventListener(
+    "click",
+    openArmRollBoxFromMainAlert
+  );
 
 
-    elements.view.dataset
-      .armRollBoxBound =
-      "true";
-  }
+  elements.view.dataset
+    .armRollBoxBound =
+    "true";
+
+
+  /*
+    로그인 완료 후 메인 알림 자동 조회
+  */
+  startArmRollBoxMainAlertAutoLoad();
+}
 
 
   /* =====================================================

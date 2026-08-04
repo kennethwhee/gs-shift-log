@@ -695,3 +695,223 @@
     min-height: 36px;
   }
 }
+
+/* =========================================================
+  점검일지 팝업 크기 강제 복구
+
+  문제:
+  - 외부 공통 모달 CSS와 충돌하여
+    점검일지 팝업 높이가 작게 표시되는 현상
+  - iframe 본문이 흰 공간처럼 보이는 현상
+
+  적용:
+  - PC 화면 대부분 사용
+  - 헤더를 제외한 나머지 영역을 iframe이 채움
+========================================================= */
+
+#nightPatrolModal.night-patrol-modal.is-open {
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+}
+
+
+#nightPatrolModal
+.night-patrol-panel {
+  display: flex !important;
+  width:
+    min(
+      1480px,
+      calc(100vw - 32px)
+    ) !important;
+  max-width:
+    calc(100vw - 32px) !important;
+  height:
+    calc(100dvh - 32px) !important;
+  max-height:
+    calc(100dvh - 32px) !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+
+#nightPatrolModal
+.night-patrol-modal__header {
+  flex: 0 0 auto !important;
+}
+
+
+#nightPatrolModal
+.night-patrol-modal__body {
+  display: flex !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  flex: 1 1 auto !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+
+#nightPatrolModal
+.night-patrol-frame {
+  display: block !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  flex: 1 1 auto !important;
+  border: 0 !important;
+}
+
+
+/* =========================================================
+  작은 화면
+========================================================= */
+
+@media (max-width: 760px) {
+  #nightPatrolModal.night-patrol-modal.is-open {
+    padding: 0 !important;
+  }
+
+
+  #nightPatrolModal
+  .night-patrol-panel {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* =========================================================
+  점검일지 팝업 크기 최종 강제 보정
+
+  목적:
+  - 공통 modal-panel CSS 충돌 방지
+  - 점검일지 iframe이 남은 높이를 전부 사용
+  - PC 화면 대부분을 점검일지로 표시
+========================================================= */
+
+#nightPatrolModal.night-patrol-modal.is-open {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+}
+
+
+#nightPatrolModal
+.night-patrol-panel {
+  display: flex !important;
+
+  width:
+    min(
+      1480px,
+      calc(100vw - 32px)
+    ) !important;
+
+  max-width:
+    calc(100vw - 32px) !important;
+
+  height:
+    calc(100dvh - 32px) !important;
+
+  max-height:
+    calc(100dvh - 32px) !important;
+
+  flex-direction: column !important;
+
+  overflow: hidden !important;
+}
+
+
+#nightPatrolModal
+.night-patrol-modal__header {
+  flex: 0 0 auto !important;
+}
+
+
+#nightPatrolModal
+.night-patrol-modal__body {
+  display: flex !important;
+
+  min-width: 0 !important;
+  min-height: 0 !important;
+
+  width: 100% !important;
+  height: auto !important;
+
+  flex: 1 1 auto !important;
+
+  padding: 0 !important;
+
+  overflow: hidden !important;
+
+  background: #eef4f9 !important;
+}
+
+
+#nightPatrolModal
+.night-patrol-frame {
+  display: block !important;
+
+  min-width: 0 !important;
+  min-height: 0 !important;
+
+  width: 100% !important;
+  height: 100% !important;
+
+  flex: 1 1 auto !important;
+
+  border: 0 !important;
+
+  background: #eef4f9 !important;
+}
+
+
+/* =========================================================
+  크게 보기 상태
+========================================================= */
+
+#nightPatrolModal.night-patrol-modal.is-inspection-expanded {
+  padding: 0 !important;
+}
+
+
+#nightPatrolModal.night-patrol-modal.is-inspection-expanded
+.night-patrol-panel {
+  width: 100vw !important;
+  max-width: 100vw !important;
+
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+
+  border-radius: 0 !important;
+}
+
+
+/* =========================================================
+  모바일 크기 보정
+
+  기존 모바일 표시·숨김 권한은 그대로 유지한다.
+========================================================= */
+
+@media (max-width: 768px) {
+  #nightPatrolModal.night-patrol-modal.is-open {
+    padding: 0 !important;
+  }
+
+
+  #nightPatrolModal
+  .night-patrol-panel {
+    width: 100vw !important;
+    max-width: 100vw !important;
+
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+
+    border-radius: 0 !important;
+  }
+}
