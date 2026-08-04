@@ -920,42 +920,195 @@ function collectLimestoneSyncEntries(log) {
   return result;
 }
 
-function extractLimestoneSyncItems(entry) {
-  const content = String(entry?.content || entry?.text || "")
-    .replace(/\r\n?/g, "\n")
-    .trim();
-  if (!content) return [];
+/* =========================================================
+  업무일지 저장 시 석회석 자동 동기화 문구 분석
 
-  const entryTime = findLimestoneSyncTime(entry?.time);
-  const result = [];
+  숫자 뒤 단위가 없어도 ton으로 처리한다.
+========================================================= */
 
-  content.split("\n").map(line => line.trim()).filter(Boolean).forEach((line, lineIndex) => {
-    const patterns = [
-      /(?:lime\s*stone|석회석)[^\r\n]{0,60}?입고(?:량|완료)?[^0-9\r\n]{0,30}?(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:tons?|t|톤)/gi,
-      /(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:tons?|t|톤)[^\r\n]{0,50}?(?:lime\s*stone|석회석)[^\r\n]{0,30}?입고(?:량|완료)?/gi
-    ];
+function extractLimestoneSyncItems(
+  entry
+) {
+  const content =
+    String(
+      entry?.content ||
+      entry?.text ||
+      ""
+    )
+      .normalize(
+        "NFKC"
+      )
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .trim();
 
-    const lineItems = new Map();
-    patterns.forEach(pattern => {
-      let match;
-      while ((match = pattern.exec(line)) !== null) {
-        const quantityTon = normalizeLimestoneSyncQuantity(match[1]);
-        const receiptTime = findLimestoneSyncTime(line.slice(0, match.index))
-          || findLimestoneSyncTime(line)
-          || entryTime;
-        if (quantityTon === null || !receiptTime) continue;
-        lineItems.set(`${receiptTime}||${quantityTon.toFixed(2)}`, {
-          receiptTime,
-          quantityTon,
-          sourceText: line
-        });
+
+  if (
+    !content
+  ) {
+    return [];
+  }
+
+
+  const entryTime =
+    findLimestoneSyncTime(
+      entry?.time
+    );
+
+
+  const result =
+    [];
+
+
+  content
+    .split(
+      "\n"
+    )
+    .map(
+      line => {
+        return line.trim();
       }
-    });
+    )
+    .filter(
+      Boolean
+    )
+    .forEach(
+      (
+        line,
+        lineIndex
+      ) => {
+        if (
+          /(?:입고|반입)\s*(?:예정|계획|대기|검토|취소|미실시)/i.test(
+            line
+          )
+        ) {
+          return;
+        }
 
-    [...lineItems.values()].forEach((item, matchIndex) => {
-      result.push({ ...item, lineIndex, matchIndex });
-    });
-  });
+
+        const patterns = [
+          /*
+            Limestone 입고(30.34)
+            석회석 입고 30.34톤
+          */
+          /(?:lime\s*[-_]?\s*stone|석회석)[^\r\n]{0,60}?(?:입고|반입)(?:량|완료)?[^0-9\r\n]{0,30}?\(?\s*(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:(?:tons?|t)(?![a-z])|톤)?\s*\)?(?=$|[\s,;:./)\]}>])/gi,
+
+          /*
+            30.34 ton Limestone 입고
+          */
+          /(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:tons?|t|톤)[^\r\n]{0,50}?(?:lime\s*[-_]?\s*stone|석회석)[^\r\n]{0,30}?(?:입고|반입)(?:량|완료)?/gi
+        ];
+
+
+        const lineItems =
+          new Map();
+
+
+        patterns.forEach(
+          pattern => {
+            let match;
+
+
+            while (
+              (
+                match =
+                  pattern.exec(
+                    line
+                  )
+              ) !==
+              null
+            ) {
+              const quantityTon =
+                normalizeLimestoneSyncQuantity(
+                  String(
+                    match[1] ||
+                    ""
+                  ).replace(
+                    ",",
+                    "."
+                  )
+                );
+
+
+              const receiptTime =
+                entryTime ||
+                findLimestoneSyncTime(
+                  line.slice(
+                    0,
+                    match.index
+                  )
+                ) ||
+                findLimestoneSyncTime(
+                  line
+                );
+
+
+              if (
+                quantityTon ===
+                  null ||
+                !receiptTime
+              ) {
+                continue;
+              }
+
+
+              const itemKey = [
+                receiptTime,
+
+                Number(
+                  quantityTon
+                ).toFixed(
+                  2
+                )
+              ].join(
+                "||"
+              );
+
+
+              if (
+                !lineItems.has(
+                  itemKey
+                )
+              ) {
+                lineItems.set(
+                  itemKey,
+
+                  {
+                    receiptTime,
+
+                    quantityTon,
+
+                    sourceText:
+                      line
+                  }
+                );
+              }
+            }
+          }
+        );
+
+
+        [
+          ...lineItems.values()
+        ].forEach(
+          (
+            item,
+            matchIndex
+          ) => {
+            result.push({
+              ...item,
+
+              lineIndex,
+
+              matchIndex
+            });
+          }
+        );
+      }
+    );
+
 
   return result;
 }

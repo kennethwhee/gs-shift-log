@@ -30853,21 +30853,20 @@ function addOrUpdateLogEntry() {
 }
 
 /* =========================================================
-  석회석 입고 시간 필수 검증
+  석회석 입고 문구 감지
 
-  적용 예:
-  - Limestone 입고 (30.26 ton)
-  - 석회석 입고 (30.26톤)
+  인식:
+  - Limestone 입고(30.34)
+  - Limestone 입고(30.34 ton)
+  - Limestone 입고 30.34 t
+  - 석회석 입고 30.34톤
+  - 석회석 반입 30.34
 
-  인정되는 시간:
-  - 현재시간 체크
-  - 21:40
-  - 2140
+  숫자 뒤 단위가 없으면 ton으로 간주한다.
 ========================================================= */
 
 const LIMESTONE_RECEIPT_CONTENT_PATTERN =
-  /(?:\blime[\s-]*stone\b|석회석)\s*입고(?:량|완료)?\s*(?:[:：=]\s*)?\(?\s*\d{1,3}(?:[.,]\d{1,2})?\s*(?:tons?|t|톤)(?![a-z가-힣])\s*\)?/iu;
-
+  /(?:\blime[\s-]*stone\b|석회석)\s*(?:입고|반입)(?:량|완료)?\s*(?:[:：=]\s*)?\(?\s*\d{1,3}(?:[.,]\d{1,2})?\s*(?:(?:tons?|t)(?![a-z])|톤)?\s*\)?/iu;
 
 function hasLimestoneReceiptContent(
   value
@@ -98314,170 +98313,247 @@ function deduplicateLimestoneSourceLogs(
   }
 
 
-  /* =====================================================
-    석회석 입고 문구 분석
+/* =========================================================
+  업무일지 석회석 입고 문구 분석 최종본
 
-    지원 예:
-    - 14:45 Limestone 입고 (30.2ton)
-    - Limestone 입고 30.2 t
-    - 석회석 입고량 30.2톤
-  ====================================================== */
+  단위가 없는 숫자도 ton으로 처리한다.
 
-  function extractLimestoneReceiptsFromEntry(
-    entry
-  ) {
-    const content =
-      String(
-        entry?.content ||
-        entry?.text ||
-        ""
+  인식 예:
+  - 21:30 Limestone 입고(30.34)
+  - Limestone 입고 (30.34 ton)
+  - Limestone 입고 30.34 t
+  - 석회석 입고량 30.34톤
+  - 석회석 반입 : 30.34
+  - 30.34 ton Limestone 입고
+
+  제외 예:
+  - Limestone 입고 예정
+  - 석회석 입고 계획
+  - 석회석 입고 취소
+========================================================= */
+
+function extractLimestoneReceiptsFromEntry(
+  entry
+) {
+  const content =
+    String(
+      entry?.content ||
+      entry?.text ||
+      ""
+    )
+      .normalize(
+        "NFKC"
       )
-        .replace(
-          /\r\n?/g,
-          "\n"
-        )
-        .trim();
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .trim();
 
 
-    if (
-      !content
-    ) {
-      return [];
-    }
+  if (
+    !content
+  ) {
+    return [];
+  }
 
 
-    const entryTime =
-      findLastLimestoneTime(
-        entry?.time
+  const entryTime =
+    findLastLimestoneTime(
+      entry?.time
+    );
+
+
+  const result =
+    [];
+
+
+  const lines =
+    content
+      .split(
+        "\n"
+      )
+      .map(
+        line => {
+          return line.trim();
+        }
+      )
+      .filter(
+        Boolean
       );
 
 
-    const result =
-      [];
-
-
-    const lines =
-      content
-        .split(
-          "\n"
+  lines.forEach(
+    (
+      line,
+      lineIndex
+    ) => {
+      /*
+        예정·계획·취소 문구는
+        실제 입고로 등록하지 않는다.
+      */
+      if (
+        /(?:입고|반입)\s*(?:예정|계획|대기|검토|취소|미실시)/i.test(
+          line
         )
-        .map(
-          line => {
-            return line.trim();
-          }
-        )
-        .filter(
-          Boolean
-        );
+      ) {
+        return;
+      }
 
 
-    lines.forEach(
-      (
-        line,
-        lineIndex
-      ) => {
+      const patterns = [
         /*
-          석회석 또는 Limestone 뒤에
-          입고라는 단어가 나오고,
-          그 뒤의 ton 수량을 찾는다.
+          명칭이 먼저 나오는 형식
+
+          Limestone 입고(30.34)
+          석회석 입고 30.34톤
         */
-        const quantityPattern =
-          /(?:lime\s*stone|석회석)[^0-9\r\n]{0,24}?입고(?:량)?[^0-9\r\n]{0,30}?(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:tons?|t|톤)/gi;
+        /(?:lime\s*[-_]?\s*stone|석회석)[^\r\n]{0,60}?(?:입고|반입)(?:량|완료)?[^0-9\r\n]{0,30}?\(?\s*(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:(?:tons?|t)(?![a-z])|톤)?\s*\)?(?=$|[\s,;:./)\]}>])/gi,
+
+        /*
+          수량이 먼저 나오는 형식은
+          오인 방지를 위해 단위를 필수로 한다.
+
+          30.34 ton Limestone 입고
+        */
+        /(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:tons?|t|톤)[^\r\n]{0,50}?(?:lime\s*[-_]?\s*stone|석회석)[^\r\n]{0,30}?(?:입고|반입)(?:량|완료)?/gi
+      ];
 
 
-        let quantityMatch;
-
-        let matchIndex =
-          0;
+      const lineItemMap =
+        new Map();
 
 
-        while (
-          (
-            quantityMatch =
-              quantityPattern.exec(
+      patterns.forEach(
+        pattern => {
+          let quantityMatch;
+
+
+          while (
+            (
+              quantityMatch =
+                pattern.exec(
+                  line
+                )
+            ) !==
+            null
+          ) {
+            const quantityTon =
+              normalizeLimestoneQuantity(
+                String(
+                  quantityMatch[1] ||
+                  ""
+                ).replace(
+                  ",",
+                  "."
+                )
+              );
+
+
+            if (
+              !Number.isFinite(
+                Number(
+                  quantityTon
+                )
+              ) ||
+              Number(
+                quantityTon
+              ) <
+                0.01 ||
+              Number(
+                quantityTon
+              ) >
+                999.99
+            ) {
+              continue;
+            }
+
+
+            /*
+              항목의 별도 시간값을 우선하고,
+              없으면 문장 안의 시간을 사용한다.
+            */
+            const receiptTime =
+              entryTime ||
+              findLastLimestoneTime(
+                line.slice(
+                  0,
+                  quantityMatch.index
+                )
+              ) ||
+              findLastLimestoneTime(
                 line
+              );
+
+
+            if (
+              !receiptTime
+            ) {
+              continue;
+            }
+
+
+            const itemKey = [
+              receiptTime,
+
+              Number(
+                quantityTon
+              ).toFixed(
+                2
               )
-          ) !==
-          null
-        ) {
-          /*
-            현재 수량 앞쪽에 있는 가장 가까운 시간을 사용한다.
-          */
-          const textBeforeQuantity =
-            line.slice(
-              0,
-              quantityMatch.index
+            ].join(
+              "||"
             );
 
 
-          const receiptTime =
-            findLastLimestoneTime(
-              textBeforeQuantity
-            ) ||
-            findLastLimestoneTime(
-              line
-            ) ||
-            entryTime;
-
-
-          if (
-            !receiptTime
-          ) {
-            matchIndex +=
-              1;
-
-            continue;
-          }
-
-
-          const quantityTon =
-            normalizeLimestoneQuantity(
-              String(
-                quantityMatch[1] ||
-                ""
-              ).replace(
-                ",",
-                "."
+            if (
+              !lineItemMap.has(
+                itemKey
               )
-            );
+            ) {
+              lineItemMap.set(
+                itemKey,
 
+                {
+                  receiptTime,
 
-          if (
-            quantityTon <
-              0.01 ||
-            quantityTon >
-              999.99
-          ) {
-            matchIndex +=
-              1;
+                  quantityTon:
+                    Number(
+                      quantityTon
+                    ),
 
-            continue;
+                  sourceText:
+                    line
+                }
+              );
+            }
           }
+        }
+      );
 
 
+      [
+        ...lineItemMap.values()
+      ].forEach(
+        (
+          item,
+          matchIndex
+        ) => {
           result.push({
-            receiptTime,
-
-            quantityTon,
-
-            sourceText:
-              line,
+            ...item,
 
             lineIndex,
 
             matchIndex
           });
-
-
-          matchIndex +=
-            1;
         }
-      }
-    );
+      );
+    }
+  );
 
 
-    return result;
-  }
+  return result;
+}
 
 
   /* =====================================================
