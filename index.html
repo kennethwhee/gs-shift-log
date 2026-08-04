@@ -3991,15 +3991,50 @@
       </p>
     </div>
 
-    <div class="efficiency-daily-work-heading-actions" role="group" aria-label="일일업무현황 작업">
-      <button type="button" class="secondary-button" id="toggleEfficiencyDailyWorkArchiveButton" aria-controls="efficiencyDailyWorkArchivePanel" aria-expanded="true">
-        날짜별 보관함
-      </button>
+<div
+  class="efficiency-daily-work-heading-actions"
+  role="group"
+  aria-label="일일업무현황 작업"
+>
 
-      <button type="button" class="primary-button" id="newEfficiencyDailyWorkButton">
-        ＋ 새 일지
-      </button>
-    </div>
+  <!-- 작성 화면 크게 보기 -->
+  <button
+    type="button"
+    class="
+      secondary-button
+      efficiency-daily-work-expand-button
+    "
+    id="toggleEfficiencyDailyWorkExpandedButton"
+    aria-controls="efficiencyDailyWorkDashboard"
+    aria-pressed="false"
+  >
+    크게 보기
+  </button>
+
+
+  <!-- 날짜별 보관함 -->
+  <button
+    type="button"
+    class="secondary-button"
+    id="toggleEfficiencyDailyWorkArchiveButton"
+    aria-controls="efficiencyDailyWorkArchivePanel"
+    aria-expanded="true"
+  >
+    날짜별 보관함
+  </button>
+
+
+  <!-- 새 일지 -->
+  <button
+    type="button"
+    class="primary-button"
+    id="newEfficiencyDailyWorkButton"
+  >
+    ＋ 새 일지
+  </button>
+
+</div>
+
   </header>
 
   <!-- =================================================

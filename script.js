@@ -107549,3 +107549,1152 @@ function bindArmRollBoxEvents() {
     bindArmRollBoxEvents();
   }
 })();
+
+/* =========================================================
+  효율팀 일일업무현황 크게 보기
+
+  크게 보기:
+  - 날짜별 보관함 임시 숨김
+  - 효율팀 팝업에 확대 클래스 적용
+  - 버튼 문구를 "원래 크기"로 변경
+
+  원래 크기:
+  - 확대 전 보관함 상태 복구
+  - 확대 클래스 제거
+========================================================= */
+
+function initializeEfficiencyDailyWorkExpandedMode() {
+  const expandButton =
+    document.getElementById(
+      "toggleEfficiencyDailyWorkExpandedButton"
+    );
+
+
+  const teamModal =
+    document.getElementById(
+      "efficiencyTeamModal"
+    );
+
+
+  if (
+    !expandButton ||
+    !teamModal ||
+    typeof getEfficiencyDailyWorkElements !==
+      "function"
+  ) {
+    return;
+  }
+
+
+  /*
+    이벤트 중복 연결 방지
+  */
+  if (
+    expandButton.dataset
+      .expandedModeBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  /*
+    크게 보기 전 보관함 표시 상태
+  */
+  let archiveWasVisible =
+    true;
+
+
+  /* =====================================================
+    크게 보기 상태 적용
+  ====================================================== */
+
+  function setEfficiencyDailyWorkExpandedMode(
+    shouldExpand
+  ) {
+    const elements =
+      getEfficiencyDailyWorkElements();
+
+
+    const isExpanded =
+      Boolean(
+        shouldExpand
+      );
+
+
+    /*
+      확대 상태 클래스
+    */
+    teamModal.classList.toggle(
+      "is-daily-work-expanded",
+      isExpanded
+    );
+
+
+    elements.view
+      ?.classList
+      .toggle(
+        "is-expanded",
+        isExpanded
+      );
+
+
+    elements.dashboard
+      ?.classList
+      .toggle(
+        "is-expanded",
+        isExpanded
+      );
+
+
+    document.body.classList.toggle(
+      "is-efficiency-daily-work-expanded",
+      isExpanded
+    );
+
+
+    /*
+      버튼 표시
+    */
+    expandButton.setAttribute(
+      "aria-pressed",
+      String(
+        isExpanded
+      )
+    );
+
+
+    expandButton.setAttribute(
+      "aria-label",
+      isExpanded
+        ? "일일업무현황 원래 크기로 보기"
+        : "일일업무현황 크게 보기"
+    );
+
+
+    expandButton.textContent =
+      isExpanded
+        ? "원래 크기"
+        : "크게 보기";
+
+
+    /* ===================================================
+      크게 보기 시작
+    ==================================================== */
+
+    if (
+      isExpanded
+    ) {
+      /*
+        현재 보관함 표시 상태 기억
+      */
+      if (
+        typeof efficiencyDailyWorkState !==
+          "undefined"
+      ) {
+        archiveWasVisible =
+          Boolean(
+            efficiencyDailyWorkState
+              .isArchiveVisible
+          );
+
+        efficiencyDailyWorkState
+          .isArchiveVisible =
+          false;
+
+      } else {
+        archiveWasVisible =
+          !Boolean(
+            elements.archivePanel
+              ?.hidden
+          );
+      }
+
+
+      /*
+        기존 보관함 표시 함수 사용
+      */
+      if (
+        typeof renderEfficiencyDailyWorkArchiveVisibility ===
+          "function"
+      ) {
+        renderEfficiencyDailyWorkArchiveVisibility();
+
+      } else {
+        if (
+          elements.archivePanel
+        ) {
+          elements.archivePanel.hidden =
+            true;
+
+          elements.archivePanel.setAttribute(
+            "aria-hidden",
+            "true"
+          );
+        }
+
+
+        elements.dashboard
+          ?.classList
+          .add(
+            "is-archive-hidden"
+          );
+      }
+
+
+      /*
+        크게 보기 중에는 보관함 버튼 숨김
+      */
+      if (
+        elements.toggleArchiveButton
+      ) {
+        elements.toggleArchiveButton.hidden =
+          true;
+      }
+
+
+      /*
+        작성 화면 시작 위치로 이동
+      */
+      window.requestAnimationFrame(
+        () => {
+          elements.paperScroll
+            ?.scrollTo?.({
+              top:
+                0,
+
+              left:
+                0,
+
+              behavior:
+                "smooth"
+            });
+        }
+      );
+
+
+      return;
+    }
+
+
+    /* ===================================================
+      원래 크기로 복귀
+    ==================================================== */
+
+    if (
+      typeof efficiencyDailyWorkState !==
+        "undefined"
+    ) {
+      efficiencyDailyWorkState
+        .isArchiveVisible =
+        archiveWasVisible;
+    }
+
+
+    if (
+      typeof renderEfficiencyDailyWorkArchiveVisibility ===
+        "function"
+    ) {
+      renderEfficiencyDailyWorkArchiveVisibility();
+
+    } else {
+      if (
+        elements.archivePanel
+      ) {
+        elements.archivePanel.hidden =
+          !archiveWasVisible;
+
+        elements.archivePanel.setAttribute(
+          "aria-hidden",
+          String(
+            !archiveWasVisible
+          )
+        );
+      }
+
+
+      elements.dashboard
+        ?.classList
+        .toggle(
+          "is-archive-hidden",
+          !archiveWasVisible
+        );
+    }
+
+
+    if (
+      elements.toggleArchiveButton
+    ) {
+      elements.toggleArchiveButton.hidden =
+        false;
+    }
+  }
+
+
+  /* =====================================================
+    크게 보기 버튼
+  ====================================================== */
+
+  expandButton.addEventListener(
+    "click",
+    () => {
+      const isCurrentlyExpanded =
+        expandButton.getAttribute(
+          "aria-pressed"
+        ) ===
+        "true";
+
+
+      setEfficiencyDailyWorkExpandedMode(
+        !isCurrentlyExpanded
+      );
+    }
+  );
+
+
+  /* =====================================================
+    효율팀 팝업이 닫히면 확대 상태 자동 해제
+  ====================================================== */
+
+  const modalObserver =
+    new MutationObserver(
+      () => {
+        const modalIsOpen =
+          teamModal.classList.contains(
+            "is-open"
+          ) &&
+          teamModal.getAttribute(
+            "aria-hidden"
+          ) !==
+            "true";
+
+
+        if (
+          !modalIsOpen &&
+          teamModal.classList.contains(
+            "is-daily-work-expanded"
+          )
+        ) {
+          setEfficiencyDailyWorkExpandedMode(
+            false
+          );
+        }
+      }
+    );
+
+
+  modalObserver.observe(
+    teamModal,
+    {
+      attributes:
+        true,
+
+      attributeFilter: [
+        "class",
+        "aria-hidden"
+      ]
+    }
+  );
+
+
+  expandButton.dataset
+    .expandedModeBound =
+    "true";
+}
+
+
+/* =========================================================
+  초기 실행
+========================================================= */
+
+if (
+  document.readyState ===
+    "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeEfficiencyDailyWorkExpandedMode,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeEfficiencyDailyWorkExpandedMode();
+}
+
+/* =========================================================
+  업무일지 상세보기 즉시 결재요청 최종본
+
+  일반 보직 본인:
+  - 임시저장: 수정 | 결재요청 | 닫기
+  - 결재요청: 결재취소 | 닫기
+  - 결재완료: 상태 변경 버튼 없음
+
+  파트장·최고관리자:
+  - 기존 결재완료 기능 유지
+
+  버튼 위치:
+  - 수정 버튼과 닫기 버튼 사이
+
+  저장:
+  - D1 공용 업무일지 즉시 갱신
+  - revision 충돌 확인
+========================================================= */
+
+(function initializeShiftLogDetailRequestApprovalFinal() {
+  if (
+    window
+      .__shiftLogDetailRequestApprovalFinalInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__shiftLogDetailRequestApprovalFinalInstalled =
+    true;
+
+
+  const updateDetailButtonsBeforeRequestApproval =
+    typeof updateShiftLogDetailActionButtons ===
+      "function"
+      ? updateShiftLogDetailActionButtons
+      : null;
+
+
+  /* =====================================================
+    상세보기에서 결재요청 가능한 상태
+  ====================================================== */
+
+  function canRequestApprovalFromDetail(
+    log
+  ) {
+    if (
+      !log ||
+      typeof log !==
+        "object"
+    ) {
+      return false;
+    }
+
+
+    if (
+      typeof isReadOnlyLegacyShiftLog ===
+        "function" &&
+      isReadOnlyLegacyShiftLog(
+        log
+      )
+    ) {
+      return false;
+    }
+
+
+    /*
+      파트장 업무일지는
+      파트원 결재요청 대상이 아니다.
+    */
+    if (
+      normalizeMemberLogRole(
+        log.role
+      ) ===
+        "파트장"
+    ) {
+      return false;
+    }
+
+
+    /*
+      본인이 작성한 업무일지만
+      상세보기에서 결재요청할 수 있다.
+    */
+    if (
+      !isCurrentUserShiftLogAuthor(
+        log
+      )
+    ) {
+      return false;
+    }
+
+
+    const currentStatus =
+      normalizeShiftLogApprovalStatus(
+        log.status
+      );
+
+
+    return [
+      "임시저장",
+      "저장완료"
+    ].includes(
+      currentStatus
+    );
+  }
+
+
+  /* =====================================================
+    상세보기 버튼 위치 정리
+
+    기존 결재 버튼을:
+    수정 버튼 바로 뒤,
+    닫기 버튼 바로 앞으로 이동한다.
+  ====================================================== */
+
+  function moveDetailApprovalButton() {
+    const approvalButton =
+      document.getElementById(
+        "approveFromDetailButton"
+      );
+
+
+    const editButton =
+      document.getElementById(
+        "editFromDetailButton"
+      );
+
+
+    const closeButton =
+      document.getElementById(
+        "closeLogDetailFooterButton"
+      );
+
+
+    if (
+      !approvalButton
+    ) {
+      return null;
+    }
+
+
+    if (
+      editButton
+    ) {
+      editButton.insertAdjacentElement(
+        "afterend",
+        approvalButton
+      );
+
+    } else if (
+      closeButton
+    ) {
+      closeButton.insertAdjacentElement(
+        "beforebegin",
+        approvalButton
+      );
+    }
+
+
+    return approvalButton;
+  }
+
+
+  /* =====================================================
+    상세보기 하단 버튼 최종 표시
+
+    기존:
+    - 결재완료
+    - 결재취소
+    - 수정
+    - 삭제
+
+    추가:
+    - 일반 보직 본인의 임시저장 상태에서 결재요청
+  ====================================================== */
+
+  updateShiftLogDetailActionButtons =
+    function updateShiftLogDetailActionButtons(
+      log
+    ) {
+      updateDetailButtonsBeforeRequestApproval
+        ?.(
+          log
+        );
+
+
+      const approvalButton =
+        moveDetailApprovalButton();
+
+
+      if (
+        !approvalButton
+      ) {
+        return;
+      }
+
+
+      const canRequest =
+        canRequestApprovalFromDetail(
+          log
+        );
+
+
+      /*
+        일반 보직 본인의 임시저장 업무일지
+      */
+      if (
+        canRequest
+      ) {
+        approvalButton.hidden =
+          false;
+
+
+        approvalButton.disabled =
+          false;
+
+
+        approvalButton.removeAttribute(
+          "hidden"
+        );
+
+
+        approvalButton.removeAttribute(
+          "aria-disabled"
+        );
+
+
+        approvalButton.setAttribute(
+          "aria-hidden",
+          "false"
+        );
+
+
+        approvalButton.textContent =
+          "결재요청";
+
+
+        approvalButton.dataset
+          .detailApprovalAction =
+          "request";
+
+
+        approvalButton.classList.add(
+          "is-request-approval"
+        );
+
+
+        return;
+      }
+
+
+      approvalButton.classList.remove(
+        "is-request-approval"
+      );
+
+
+      /*
+        기존 함수가 파트장용 결재 버튼을
+        표시한 상태라면 결재완료로 유지한다.
+      */
+      if (
+        approvalButton.hidden ===
+          false &&
+        approvalButton.disabled ===
+          false
+      ) {
+        approvalButton.textContent =
+          "결재완료";
+
+
+        approvalButton.dataset
+          .detailApprovalAction =
+          "approve";
+
+
+        return;
+      }
+
+
+      delete approvalButton.dataset
+        .detailApprovalAction;
+    };
+
+
+  /* =====================================================
+    상세보기에서 결재요청 실행
+
+    임시저장 → 결재요청
+
+    업무내용은 변경하지 않고
+    상태와 결재이력만 갱신한다.
+  ====================================================== */
+
+  async function requestCurrentDetailShiftLogApproval() {
+    const targetLog =
+      typeof getCurrentDetailShiftLog ===
+        "function"
+        ? getCurrentDetailShiftLog()
+        : null;
+
+
+    if (
+      !targetLog
+    ) {
+      showToast(
+        "결재요청할 업무일지를 찾을 수 없습니다."
+      );
+
+
+      return null;
+    }
+
+
+    if (
+      !canRequestApprovalFromDetail(
+        targetLog
+      )
+    ) {
+      const currentStatus =
+        normalizeShiftLogApprovalStatus(
+          targetLog.status
+        );
+
+
+      if (
+        currentStatus ===
+          "결재요청"
+      ) {
+        showToast(
+          "이미 결재요청된 업무일지입니다."
+        );
+
+      } else if (
+        currentStatus ===
+          "결재완료"
+      ) {
+        showToast(
+          "이미 결재가 완료된 업무일지입니다."
+        );
+
+      } else {
+        showToast(
+          "현재 상태에서는 결재요청할 수 없습니다."
+        );
+      }
+
+
+      return null;
+    }
+
+
+    const shouldRequest =
+      window.confirm(
+        [
+          "이 업무일지를 결재요청하시겠습니까?",
+          "",
+          `작성일: ${targetLog.date || "-"}`,
+          `근무: ${getShiftDisplayName(
+            targetLog.shift
+          )}`,
+          `보직: ${targetLog.role || "-"}`,
+          `작성자: ${targetLog.author || "-"}`
+        ].join(
+          "\n"
+        )
+      );
+
+
+    if (
+      !shouldRequest
+    ) {
+      return null;
+    }
+
+
+    const requestButton =
+      document.getElementById(
+        "approveFromDetailButton"
+      );
+
+
+    const originalButtonText =
+      String(
+        requestButton?.textContent ||
+        "결재요청"
+      ).trim();
+
+
+    if (
+      requestButton
+    ) {
+      requestButton.disabled =
+        true;
+
+
+      requestButton.textContent =
+        "요청 중...";
+    }
+
+
+    const previousStatus =
+      normalizeShiftLogApprovalStatus(
+        targetLog.status
+      );
+
+
+    const requestLog = {
+      ...targetLog,
+
+
+      status:
+        "결재요청",
+
+
+      updatedAt:
+        new Date()
+          .toISOString(),
+
+
+      /*
+        기존 결재이력 배열을 복제하여
+        원본 업무일지를 직접 변경하지 않는다.
+      */
+      approvalHistory:
+        Array.isArray(
+          targetLog.approvalHistory
+        )
+          ? targetLog.approvalHistory.map(
+              historyItem => {
+                return {
+                  ...historyItem
+                };
+              }
+            )
+          : []
+    };
+
+
+    /*
+      기존 결재이력 함수가 있으면
+      상세보기 결재요청도 이력에 남긴다.
+    */
+    if (
+      typeof appendShiftLogApprovalHistory ===
+        "function"
+    ) {
+      appendShiftLogApprovalHistory(
+        requestLog,
+        "결재요청",
+        {
+          previousStatus,
+
+          nextStatus:
+            "결재요청"
+        }
+      );
+    }
+
+
+    try {
+      /*
+        작성창의 결재요청과 동일하게
+        action은 save를 사용하고,
+        status를 결재요청으로 전달한다.
+      */
+      const savedLog =
+        await saveShiftLogToServer(
+          requestLog,
+          {
+            action:
+              "save",
+
+
+            expectedRevision:
+              Number(
+                targetLog.serverRevision
+              ) ||
+              0
+          }
+        );
+
+
+      if (
+        !savedLog
+      ) {
+        throw new Error(
+          "결재요청된 업무일지를 확인할 수 없습니다."
+        );
+      }
+
+
+      replaceSharedShiftLogInState(
+        savedLog
+      );
+
+
+      if (
+        typeof renderLogTable ===
+          "function"
+      ) {
+        renderLogTable();
+      }
+
+
+      if (
+        typeof updateShiftMemberCardStates ===
+          "function"
+      ) {
+        updateShiftMemberCardStates();
+      }
+
+
+      /*
+        상세창은 닫지 않고
+        결재요청 상태로 다시 표시한다.
+      */
+      openLogDetail(
+        savedLog
+      );
+
+
+      showToast(
+        "업무일지를 결재요청했습니다."
+      );
+
+
+      return savedLog;
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "상세보기 업무일지 결재요청 실패:",
+        error
+      );
+
+
+      if (
+        typeof ShiftLogApiError !==
+          "undefined" &&
+        error instanceof
+          ShiftLogApiError &&
+        error.isConflict &&
+        typeof handleShiftLogConflict ===
+          "function"
+      ) {
+        handleShiftLogConflict(
+          error
+        );
+
+      } else {
+        showToast(
+          error?.message ||
+          "업무일지를 결재요청하지 못했습니다."
+        );
+      }
+
+
+      return null;
+
+    } finally {
+      const currentButton =
+        document.getElementById(
+          "approveFromDetailButton"
+        );
+
+
+      if (
+        currentButton
+      ) {
+        currentButton.disabled =
+          false;
+
+
+        currentButton.textContent =
+          originalButtonText;
+      }
+
+
+      const currentLog =
+        typeof getCurrentDetailShiftLog ===
+          "function"
+          ? getCurrentDetailShiftLog()
+          : null;
+
+
+      if (
+        currentLog
+      ) {
+        updateShiftLogDetailActionButtons(
+          currentLog
+        );
+      }
+    }
+  }
+
+
+  /* =====================================================
+    상세보기 공용 결재 버튼 클릭
+
+    일반 보직 임시저장:
+    - 결재요청
+
+    파트장 결재요청 확인:
+    - 결재완료
+  ====================================================== */
+
+  function handleDetailApprovalPrimaryAction() {
+    const targetLog =
+      typeof getCurrentDetailShiftLog ===
+        "function"
+        ? getCurrentDetailShiftLog()
+        : null;
+
+
+    if (
+      canRequestApprovalFromDetail(
+        targetLog
+      )
+    ) {
+      requestCurrentDetailShiftLogApproval();
+
+
+      return;
+    }
+
+
+    if (
+      typeof completeCurrentDetailShiftLogApproval ===
+        "function"
+    ) {
+      completeCurrentDetailShiftLogApproval();
+    }
+  }
+
+
+  /* =====================================================
+    기존 중복 이벤트 제거 후 최종 이벤트 연결
+  ====================================================== */
+
+  function bindDetailApprovalPrimaryButton() {
+    const oldButton =
+      moveDetailApprovalButton();
+
+
+    if (
+      !oldButton
+    ) {
+      console.error(
+        "업무일지 상세보기 결재 버튼을 찾지 못했습니다."
+      );
+
+
+      return;
+    }
+
+
+    /*
+      기존 결재확인·결재완료 이벤트를 모두 제거한다.
+    */
+    const newButton =
+      oldButton.cloneNode(
+        true
+      );
+
+
+    oldButton.replaceWith(
+      newButton
+    );
+
+
+    const editButton =
+      document.getElementById(
+        "editFromDetailButton"
+      );
+
+
+    const closeButton =
+      document.getElementById(
+        "closeLogDetailFooterButton"
+      );
+
+
+    /*
+      최종 위치:
+      수정 → 결재요청 → 닫기
+    */
+    if (
+      editButton
+    ) {
+      editButton.insertAdjacentElement(
+        "afterend",
+        newButton
+      );
+
+    } else if (
+      closeButton
+    ) {
+      closeButton.insertAdjacentElement(
+        "beforebegin",
+        newButton
+      );
+    }
+
+
+    if (
+      typeof elements ===
+        "object" &&
+      elements
+    ) {
+      elements.approveFromDetailButton =
+        newButton;
+    }
+
+
+    newButton.addEventListener(
+      "click",
+      handleDetailApprovalPrimaryAction
+    );
+
+
+    const currentLog =
+      typeof getCurrentDetailShiftLog ===
+        "function"
+        ? getCurrentDetailShiftLog()
+        : null;
+
+
+    if (
+      currentLog
+    ) {
+      updateShiftLogDetailActionButtons(
+        currentLog
+      );
+    }
+  }
+
+
+  /* =====================================================
+    실행
+
+    기존 상세보기 이벤트들이 먼저 연결된 다음
+    마지막에 다시 연결하여 중복 클릭을 방지한다.
+  ====================================================== */
+
+  function startDetailRequestApprovalFinal() {
+    window.requestAnimationFrame(
+      () => {
+        bindDetailApprovalPrimaryButton();
+      }
+    );
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      startDetailRequestApprovalFinal,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    startDetailRequestApprovalFinal();
+  }
+})();
