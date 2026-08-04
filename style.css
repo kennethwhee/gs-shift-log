@@ -70486,9 +70486,6 @@ select {
 
   오른쪽:
   - 2호기
-
-  두 표를 독립적으로 배치하며
-  내부 세로 스크롤은 만들지 않는다.
 ========================================================= */
 
 .arm-roll-box-unit-history-grid {
@@ -70543,17 +70540,11 @@ select {
   font-weight: 800;
 }
 
-
-/* 1호기 */
-
 .arm-roll-box-unit-history.is-unit-1
 .arm-roll-box-unit-history__header {
   background: #eaf3fc;
   color: #245f9d;
 }
-
-
-/* 2호기 */
 
 .arm-roll-box-unit-history.is-unit-2
 .arm-roll-box-unit-history__header {
@@ -70563,10 +70554,7 @@ select {
 
 
 /* =========================================================
-  기존 공통 overflow 제거
-
-  모달 본문이 스크롤되므로
-  날짜별 표 안에는 별도 세로 스크롤을 만들지 않는다.
+  표 래퍼
 ========================================================= */
 
 .arm-roll-box-unit-table-wrap {
@@ -70586,7 +70574,7 @@ select {
 }
 
 
-/* 날짜 */
+/* 일자 */
 
 .arm-roll-box-unit-daily-table
 th:nth-child(1),
@@ -70602,7 +70590,7 @@ td:nth-child(1) {
 th:nth-child(2),
 .arm-roll-box-unit-daily-table
 td:nth-child(2) {
-  width: 20%;
+  width: 29%;
 }
 
 
@@ -70612,11 +70600,11 @@ td:nth-child(2) {
 th:nth-child(3),
 .arm-roll-box-unit-daily-table
 td:nth-child(3) {
-  width: 20%;
+  width: 29%;
 }
 
 
-/* 교체 인식 */
+/* 교체 */
 
 .arm-roll-box-unit-daily-table
 th:nth-child(4),
@@ -70626,18 +70614,8 @@ td:nth-child(4) {
 }
 
 
-/* 출처 */
-
-.arm-roll-box-unit-daily-table
-th:nth-child(5),
-.arm-roll-box-unit-daily-table
-td:nth-child(5) {
-  width: 18%;
-}
-
-
 /* =========================================================
-  표 공통 셀
+  셀 공통
 ========================================================= */
 
 .arm-roll-box-unit-daily-table th {
@@ -70673,7 +70651,7 @@ td:nth-child(5) {
 
 
 /* =========================================================
-  레벨·변화량
+  레벨/증가량
 ========================================================= */
 
 .arm-roll-box-unit-metric-cell strong {
@@ -70714,11 +70692,12 @@ td:nth-child(5) {
 
 
 /* =========================================================
-  교체 인식
+  교체
 ========================================================= */
 
 .arm-roll-box-unit-event-cell {
   line-height: 1.4;
+  text-align: center;
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
@@ -70737,23 +70716,7 @@ td:nth-child(5) {
 
 
 /* =========================================================
-  출처
-========================================================= */
-
-.arm-roll-box-unit-source-cell {
-  color: #51657b;
-  font-size: 8px !important;
-  line-height: 1.4;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-
-
-/* =========================================================
   좁은 화면
-
-  PC에서는 좌우 배치,
-  작은 화면만 위아래 배치
 ========================================================= */
 
 @media (max-width: 900px) {

@@ -6604,23 +6604,13 @@
 
 <!-- 날짜별 BOX 레벨 -->
 <section
-  class="
-    arm-roll-box-section-card
-    arm-roll-box-daily-history-card
-  "
+  class="arm-roll-box-section-card arm-roll-box-daily-history-card"
 >
   <header class="arm-roll-box-section-header">
-
     <div>
-      <span>
-        DAILY LEVEL HISTORY
-      </span>
-
-      <h4>
-        날짜별 BOX 레벨
-      </h4>
+      <span>DAILY LEVEL HISTORY</span>
+      <h4>날짜별 BOX 레벨</h4>
     </div>
-
 
     <strong
       class="arm-roll-box-section-count"
@@ -6628,110 +6618,76 @@
     >
       0일
     </strong>
-
   </header>
 
-
-  <!-- =================================================
-    호기별 날짜 BOX 레벨
-
-    왼쪽:
-    - 1호기 BO1 자료
-
-    오른쪽:
-    - 2호기 BO2 자료
-  ================================================== -->
   <div class="arm-roll-box-unit-history-grid">
-
-
-    <!-- ===============================================
-      1호기
-    ================================================ -->
-    <section
-      class="
-        arm-roll-box-unit-history
-        is-unit-1
-      "
-      aria-labelledby="armRollBoxUnit1HistoryTitle"
-    >
-
+    <!-- 1호기 -->
+    <section class="arm-roll-box-unit-history is-unit-1">
       <header class="arm-roll-box-unit-history__header">
-
         <div>
-
-          <strong id="armRollBoxUnit1HistoryTitle">
-            1호기
-          </strong>
-
-          <span>
-            BO1 업무일지 기준
-          </span>
-
+          <strong>1호기</strong>
+          <span>BO1 업무일지 기준</span>
         </div>
-
       </header>
 
-
-      <div
-        class="
-          arm-roll-box-table-wrap
-          arm-roll-box-unit-table-wrap
-        "
-      >
-
+      <div class="arm-roll-box-unit-table-wrap">
         <table
-          class="
-            arm-roll-box-table
-            arm-roll-box-unit-daily-table
-          "
+          class="arm-roll-box-table arm-roll-box-unit-daily-table"
         >
-
           <thead>
-
             <tr>
-
-              <th scope="col">
-                일자
-              </th>
-
-              <th scope="col">
-                ARM ROLL
-              </th>
-
-              <th scope="col">
-                SCRAP
-              </th>
-
-              <th scope="col">
-                교체 인식
-              </th>
-
-              <th scope="col">
-                출처
-              </th>
-
+              <th scope="col">일자</th>
+              <th scope="col">ARM ROLL</th>
+              <th scope="col">SCRAP</th>
+              <th scope="col">교체</th>
             </tr>
-
           </thead>
 
-
           <tbody id="armRollBoxUnit1DailyTableBody">
-
             <tr class="arm-roll-box-empty-table-row">
-
-              <td colspan="5">
-                1호기 기록이 없습니다.
+              <td colspan="4">
+                조회된 BOX 레벨 기록이 없습니다.
               </td>
-
             </tr>
-
           </tbody>
-
         </table>
-
       </div>
-
     </section>
+
+    <!-- 2호기 -->
+    <section class="arm-roll-box-unit-history is-unit-2">
+      <header class="arm-roll-box-unit-history__header">
+        <div>
+          <strong>2호기</strong>
+          <span>BO2 업무일지 기준</span>
+        </div>
+      </header>
+
+      <div class="arm-roll-box-unit-table-wrap">
+        <table
+          class="arm-roll-box-table arm-roll-box-unit-daily-table"
+        >
+          <thead>
+            <tr>
+              <th scope="col">일자</th>
+              <th scope="col">ARM ROLL</th>
+              <th scope="col">SCRAP</th>
+              <th scope="col">교체</th>
+            </tr>
+          </thead>
+
+          <tbody id="armRollBoxUnit2DailyTableBody">
+            <tr class="arm-roll-box-empty-table-row">
+              <td colspan="4">
+                조회된 BOX 레벨 기록이 없습니다.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</section>
 
 
     <!-- ===============================================
