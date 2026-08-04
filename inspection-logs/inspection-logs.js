@@ -4560,9 +4560,15 @@ function validateInspectionScheduleEditorItem(
   return "";
 }
 
-
 /* =========================================================
-  점검 일정 저장
+  점검 일정 저장 최종본
+
+  저장 성공 후:
+  - 페이지 새로고침하지 않음
+  - 현재 편집 일정 유지
+  - 최신 revision 반영
+  - 담당 보직 체크 유지
+  - 일정 목록과 달력 즉시 갱신
 ========================================================= */
 
 async function saveInspectionScheduleManagerItem() {
@@ -4626,6 +4632,12 @@ async function saveInspectionScheduleManagerItem() {
     true;
 
 
+  const wasNewSchedule =
+    inspectionScheduleManagerState
+      .mode ===
+    "new";
+
+
   inspectionScheduleManagerState
     .busy =
     true;
@@ -4684,13 +4696,172 @@ async function saveInspectionScheduleManagerItem() {
       );
 
 
-    window.alert(
+    const savedId =
+      String(
+        result?.item?.id ||
+        item.id ||
+        ""
+      ).trim();
+
+
+    /*
+      서버에서 다시 조회하여 다음 정보를 갱신한다.
+
+      - 담당 보직
+      - revision
+      - 수정자
+      - 수정 일시
+      - 사용 상태
+    */
+    await loadInspectionScheduleOverrides();
+
+
+    inspectionScheduleManagerState
+      .items =
+      buildInspectionScheduleManagerItems();
+
+
+    inspectionScheduleManagerState
+      .selectedId =
+      savedId;
+
+
+    /*
+      편집창을 다시 활성화하기 전에
+      busy 상태를 먼저 해제한다.
+    */
+    inspectionScheduleManagerState
+      .busy =
+      false;
+
+
+    const savedItem =
+      inspectionScheduleManagerState
+        .items
+        .find(
+          scheduleItem => {
+            return (
+              String(
+                scheduleItem?.id ||
+                ""
+              ).trim() ===
+              savedId
+            );
+          }
+        ) ||
+      null;
+
+
+    if (
+      savedItem
+    ) {
+      /*
+        저장한 일정의 편집창을 그대로 유지한다.
+
+        담당 보직 체크박스와 revision도
+        서버 저장값으로 다시 표시된다.
+      */
+      fillInspectionScheduleEditor(
+        savedItem
+      );
+
+    } else {
+      /*
+        저장 후 재조회에서 일시적으로 찾지 못한 경우에도
+        현재 작성 내용을 닫지 않고 유지한다.
+      */
+      fillInspectionScheduleEditor({
+        ...item,
+
+        isActive,
+
+        isCustom:
+          wasNewSchedule
+            ? true
+            : isCustom,
+
+        hasOverride:
+          true,
+
+        revision:
+          Number(
+            result?.item?.revision
+          ) ||
+          Math.max(
+            1,
+            revision +
+            1
+          )
+      });
+    }
+
+
+    renderInspectionScheduleManagerList();
+
+
+    setInspectionScheduleEditorMessage(
       result.message ||
-      "점검 일정을 저장했습니다."
+      (
+        wasNewSchedule
+          ? "점검 일정을 등록했습니다."
+          : "점검 일정을 수정했습니다."
+      ),
+
+      "success"
     );
 
 
-    window.location.reload();
+    /*
+      같은 점검일지 화면의 달력과 점검주기를 갱신한다.
+    */
+    const refreshMessage = {
+      type:
+        "gs-shift-log:refresh-inspection-schedule",
+
+      scheduleId:
+        savedId
+    };
+
+
+    window.dispatchEvent(
+      new MessageEvent(
+        "message",
+
+        {
+          data:
+            refreshMessage,
+
+          origin:
+            window.location.origin
+        }
+      )
+    );
+
+
+    /*
+      상위 GS Shift Log 화면의
+      보직별 오늘 점검 버튼도 다시 계산한다.
+    */
+    try {
+      if (
+        window.parent &&
+        window.parent !==
+          window
+      ) {
+        window.parent.postMessage(
+          refreshMessage,
+          window.location.origin
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "점검 일정 갱신 정보를 상위 화면에 전달하지 못했습니다.",
+        error
+      );
+    }
 
   } catch (
     error
@@ -4699,6 +4870,11 @@ async function saveInspectionScheduleManagerItem() {
       "점검 일정 저장 실패:",
       error
     );
+
+
+    inspectionScheduleManagerState
+      .busy =
+      false;
 
 
     setInspectionScheduleEditorMessage(
@@ -4710,18 +4886,11 @@ async function saveInspectionScheduleManagerItem() {
     );
 
 
-    inspectionScheduleManagerState
-      .busy =
-      false;
-
-
     setInspectionScheduleEditorEnabled(
       true,
       {
         isNew:
-          inspectionScheduleManagerState
-            .mode ===
-          "new"
+          wasNewSchedule
       }
     );
 

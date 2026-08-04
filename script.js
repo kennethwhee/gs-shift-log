@@ -102658,128 +102658,132 @@ openLogDetail =
     HTML 요소
   ====================================================== */
 
-  function getArmRollBoxElements() {
-    const byId =
-      id => {
-        return document.getElementById(
-          id
-        );
-      };
-
-
-    return {
-      openButton:
-        byId(
-          "efficiencyTeamButton"
-        ),
-
-      tab:
-        byId(
-          "efficiencyArmRollTab"
-        ),
-
-      view:
-        byId(
-          "efficiencyArmRollView"
-        ),
-
-      refreshButton:
-        byId(
-          "refreshArmRollBoxButton"
-        ),
-
-      syncButton:
-        byId(
-          "syncArmRollBoxFromShiftLogsButton"
-        ),
-
-      form:
-        byId(
-          "armRollBoxSearchForm"
-        ),
-
-      start:
-        byId(
-          "armRollBoxStartDate"
-        ),
-
-      end:
-        byId(
-          "armRollBoxEndDate"
-        ),
-
-      ranges: [
-        ...document.querySelectorAll(
-          "[data-arm-roll-box-range-days]"
-        )
-      ],
-
-      rangeLabel:
-        byId(
-          "armRollBoxActiveRangeLabel"
-        ),
-
-      rangeCount:
-        byId(
-          "armRollBoxActiveRangeCount"
-        ),
-
-      alert:
-        byId(
-          "armRollBoxThresholdAlert"
-        ),
-
-      alertTitle:
-        byId(
-          "armRollBoxThresholdAlertTitle"
-        ),
-
-      alertMessage:
-        byId(
-          "armRollBoxThresholdAlertMessage"
-        ),
-
-      alertValue:
-        byId(
-          "armRollBoxThresholdAlertValue"
-        ),
-
-      chart:
-        byId(
-          "armRollBoxTrendChart"
-        ),
-
-      dailyCount:
-        byId(
-          "armRollBoxDailyCount"
-        ),
-
-      dailyBody:
-        byId(
-          "armRollBoxDailyTableBody"
-        ),
-
-      replacementCount:
-        byId(
-          "armRollBoxReplacementCount"
-        ),
-
-      replacementBody:
-        byId(
-          "armRollBoxReplacementTableBody"
-        ),
-
-      loading:
-        byId(
-          "armRollBoxLoading"
-        ),
-
-      message:
-        byId(
-          "armRollBoxMessage"
-        )
+function getArmRollBoxElements() {
+  const byId =
+    id => {
+      return document.getElementById(
+        id
+      );
     };
-  }
+
+
+  return {
+    openButton:
+      byId(
+        "efficiencyTeamButton"
+      ),
+
+    tab:
+      byId(
+        "efficiencyArmRollTab"
+      ),
+
+    view:
+      byId(
+        "efficiencyArmRollView"
+      ),
+
+    refreshButton:
+      byId(
+        "refreshArmRollBoxButton"
+      ),
+
+    syncButton:
+      byId(
+        "syncArmRollBoxFromShiftLogsButton"
+      ),
+
+    form:
+      byId(
+        "armRollBoxSearchForm"
+      ),
+
+    start:
+      byId(
+        "armRollBoxStartDate"
+      ),
+
+    end:
+      byId(
+        "armRollBoxEndDate"
+      ),
+
+    ranges: [
+      ...document.querySelectorAll(
+        "[data-arm-roll-box-range-days]"
+      )
+    ],
+
+    rangeLabel:
+      byId(
+        "armRollBoxActiveRangeLabel"
+      ),
+
+    rangeCount:
+      byId(
+        "armRollBoxActiveRangeCount"
+      ),
+
+    alert:
+      byId(
+        "armRollBoxThresholdAlert"
+      ),
+
+    alertTitle:
+      byId(
+        "armRollBoxThresholdAlertTitle"
+      ),
+
+    alertMessage:
+      byId(
+        ),
+
+    alertMessage:
+      byId(
+        "armRollBoxThresholdAlertMessage"
+      ),
+
+    alertValue:
+      byId(
+        "armRollBoxThresholdAlertValue"
+      ),
+
+    chart:
+      byId(
+        "armRollBoxTrendChart"
+      ),
+
+    dailyCount:
+      byId(
+        "armRollBoxDailyCount"
+      ),
+
+    dailyBody:
+      byId(
+        "armRollBoxDailyTableBody"
+      ),
+
+    replacementCount:
+      byId(
+        "armRollBoxReplacementCount"
+      ),
+
+    replacementBody:
+      byId(
+        "armRollBoxReplacementTableBody"
+      ),
+
+    loading:
+      byId(
+        "armRollBoxLoading"
+      ),
+
+    message:
+      byId(
+        "armRollBoxMessage"
+      )
+  };
+}
 
 
   /* =====================================================
@@ -103561,6 +103565,88 @@ openLogDetail =
   }
 
 
+  const ARM_ROLL_BOX_SERIES = Object.freeze([
+    {
+      key: "armRoll",
+      unit: 1,
+      role: "BO1",
+      target: "armRoll",
+      label: "ARM ROLL BOX 1호기"
+    },
+
+    {
+      key: "armRollUnit2",
+      unit: 2,
+      role: "BO2",
+      target: "armRoll",
+      label: "ARM ROLL BOX 2호기"
+    },
+
+    {
+      key: "scrap",
+      unit: 1,
+      role: "BO1",
+      target: "scrap",
+      label: "SCRAP BOX 1호기"
+    },
+
+    {
+      key: "scrapUnit2",
+      unit: 2,
+      role: "BO2",
+      target: "scrap",
+      label: "SCRAP BOX 2호기"
+    }
+  ]);
+
+
+  function hasArmRollBoxNumericValue(
+    value
+  ) {
+    return (
+      value !==
+        null &&
+      value !==
+        undefined &&
+      value !==
+        "" &&
+      Number.isFinite(
+        Number(
+          value
+        )
+      )
+    );
+  }
+
+
+  function getArmRollBoxSeriesKey(
+    role,
+    target
+  ) {
+    const normalizedRole =
+      normalizeArmRollBoxRole(
+        role
+      );
+
+
+    if (
+      normalizedRole ===
+        "BO2"
+    ) {
+      return target ===
+        "armRoll"
+        ? "armRollUnit2"
+        : "scrapUnit2";
+    }
+
+
+    return target ===
+      "armRoll"
+      ? "armRoll"
+      : "scrap";
+  }
+
+
   function extractArmRollBoxReplacementEvents(
     log
   ) {
@@ -103571,8 +103657,20 @@ openLogDetail =
       );
 
 
+    const role =
+      normalizeArmRollBoxRole(
+        log?.role
+      );
+
+
     if (
-      !source
+      !source ||
+      ![
+        "BO1",
+        "BO2"
+      ].includes(
+        role
+      )
     ) {
       return [];
     }
@@ -103606,7 +103704,22 @@ openLogDetail =
           ).map(
             target => {
               return {
-                target,
+                target:
+                  getArmRollBoxSeriesKey(
+                    role,
+                    target
+                  ),
+
+                baseTarget:
+                  target,
+
+                unit:
+                  role ===
+                    "BO2"
+                    ? 2
+                    : 1,
+
+                role,
 
                 date:
                   String(
@@ -103644,13 +103757,6 @@ openLogDetail =
   }
 
 
-  /* =====================================================
-    신규·과거 D1 업무일지 중복 제거
-
-    동일 날짜·근무에 신규 D1 자료가 있으면
-    과거 변환 자료보다 신규 자료를 우선한다.
-  ====================================================== */
-
   function createArmRollBoxSourceLogKey(
     log
   ) {
@@ -103664,7 +103770,9 @@ openLogDetail =
         log?.shift
       ),
 
-      "BO1"
+      normalizeArmRollBoxRole(
+        log?.role
+      )
     ].join(
       "||"
     );
@@ -103677,6 +103785,7 @@ openLogDetail =
     const parsed =
       new Date(
         log?.updatedAt ||
+        log?.operationStatusUpdatedAt ||
         log?.createdAt ||
         0
       ).getTime();
@@ -103694,13 +103803,13 @@ openLogDetail =
     sharedLogs,
     legacyLogs
   ) {
-    const map =
+    const logMap =
       new Map();
 
 
     const appendLogs = (
       logs,
-      prefer
+      sourcePriority
     ) => {
       (
         Array.isArray(
@@ -103711,15 +103820,23 @@ openLogDetail =
       )
         .filter(
           log => {
+            const role =
+              normalizeArmRollBoxRole(
+                log?.role
+              );
+
+
             return (
               String(
                 log?.date ||
                 ""
               ).trim() &&
-              normalizeArmRollBoxRole(
-                log?.role
-              ) ===
-                "BO1"
+              [
+                "BO1",
+                "BO2"
+              ].includes(
+                role
+              )
             );
           }
         )
@@ -103732,24 +103849,37 @@ openLogDetail =
 
 
             const current =
-              map.get(
+              logMap.get(
                 key
               );
 
 
+            const candidate = {
+              log,
+
+              sourcePriority,
+
+              modifiedTime:
+                getArmRollBoxLogModifiedTime(
+                  log
+                )
+            };
+
+
             if (
               !current ||
-              prefer ||
-              getArmRollBoxLogModifiedTime(
-                log
-              ) >
-                getArmRollBoxLogModifiedTime(
-                  current
-                )
+              candidate.sourcePriority >
+                current.sourcePriority ||
+              (
+                candidate.sourcePriority ===
+                  current.sourcePriority &&
+                candidate.modifiedTime >=
+                  current.modifiedTime
+              )
             ) {
-              map.set(
+              logMap.set(
                 key,
-                log
+                candidate
               );
             }
           }
@@ -103757,54 +103887,83 @@ openLogDetail =
     };
 
 
+    /*
+      과거 업무일지를 먼저 넣고
+      신규 D1 업무일지를 우선 적용한다.
+    */
     appendLogs(
       legacyLogs,
-      false
+      1
     );
 
 
     appendLogs(
       sharedLogs,
-      true
+      2
     );
 
 
     return [
-      ...map.values()
-    ].sort(
-      (
-        firstLog,
-        secondLog
-      ) => {
-        const dateOrder =
-          String(
-            firstLog?.date ||
-            ""
-          ).localeCompare(
+      ...logMap.values()
+    ]
+      .map(
+        item => {
+          return item.log;
+        }
+      )
+      .sort(
+        (
+          firstLog,
+          secondLog
+        ) => {
+          const dateOrder =
             String(
-              secondLog?.date ||
+              firstLog?.date ||
               ""
+            ).localeCompare(
+              String(
+                secondLog?.date ||
+                ""
+              )
+            );
+
+
+          if (
+            dateOrder
+          ) {
+            return dateOrder;
+          }
+
+
+          const roleOrder =
+            normalizeArmRollBoxRole(
+              firstLog?.role
+            ).localeCompare(
+              normalizeArmRollBoxRole(
+                secondLog?.role
+              )
+            );
+
+
+          if (
+            roleOrder
+          ) {
+            return roleOrder;
+          }
+
+
+          return (
+            getArmRollBoxLogModifiedTime(
+              firstLog
+            ) -
+            getArmRollBoxLogModifiedTime(
+              secondLog
             )
           );
-
-
-        return (
-          dateOrder ||
-          getArmRollBoxLogModifiedTime(
-            firstLog
-          ) -
-          getArmRollBoxLogModifiedTime(
-            secondLog
-          )
-        );
-      }
-    );
+        }
+      );
   }
 
-
-  /* =====================================================
-    날짜별 레벨 분석
-  ====================================================== */
 
   function analyzeArmRollBoxLogs(
     logs,
@@ -103835,7 +103994,13 @@ openLogDetail =
             armRoll:
               null,
 
+            armRollUnit2:
+              null,
+
             scrap:
+              null,
+
+            scrapUnit2:
               null
           }
         );
@@ -103848,7 +104013,43 @@ openLogDetail =
     };
 
 
-    logs.forEach(
+    const setLatestRecord = (
+      row,
+      seriesKey,
+      record
+    ) => {
+      const current =
+        row[
+          seriesKey
+        ];
+
+
+      if (
+        !current ||
+        Number(
+          record.modifiedTime ||
+          0
+        ) >=
+          Number(
+            current.modifiedTime ||
+            0
+          )
+      ) {
+        row[
+          seriesKey
+        ] =
+          record;
+      }
+    };
+
+
+    (
+      Array.isArray(
+        logs
+      )
+        ? logs
+        : []
+    ).forEach(
       log => {
         const date =
           String(
@@ -103857,15 +104058,33 @@ openLogDetail =
           ).trim();
 
 
+        const role =
+          normalizeArmRollBoxRole(
+            log?.role
+          );
+
+
         if (
           !date ||
           date <
             startDate ||
           date >
-            endDate
+            endDate ||
+          ![
+            "BO1",
+            "BO2"
+          ].includes(
+            role
+          )
         ) {
           return;
         }
+
+
+        const row =
+          ensureRow(
+            date
+          );
 
 
         const operationText =
@@ -103882,6 +104101,14 @@ openLogDetail =
               ""
             ).trim(),
 
+          role,
+
+          unit:
+            role ===
+              "BO2"
+              ? 2
+              : 1,
+
           shift:
             normalizeArmRollBoxShift(
               log?.shift
@@ -103896,50 +104123,56 @@ openLogDetail =
           updatedAt:
             String(
               log?.updatedAt ||
+              log?.operationStatusUpdatedAt ||
               log?.createdAt ||
               ""
-            ).trim()
+            ).trim(),
+
+          modifiedTime:
+            getArmRollBoxLogModifiedTime(
+              log
+            )
         };
 
 
-        const row =
-          ensureRow(
-            date
-          );
+        [
+          "armRoll",
+          "scrap"
+        ].forEach(
+          baseTarget => {
+            const extracted =
+              extractArmRollBoxLevel(
+                operationText,
+                baseTarget
+              );
 
 
-        const armRoll =
-          extractArmRollBoxLevel(
-            operationText,
-            "armRoll"
-          );
+            if (
+              !extracted
+            ) {
+              return;
+            }
 
 
-        const scrap =
-          extractArmRollBoxLevel(
-            operationText,
-            "scrap"
-          );
+            const seriesKey =
+              getArmRollBoxSeriesKey(
+                role,
+                baseTarget
+              );
 
 
-        if (
-          armRoll
-        ) {
-          row.armRoll = {
-            ...armRoll,
-            ...sourceInfo
-          };
-        }
+            setLatestRecord(
+              row,
+              seriesKey,
+              {
+                ...extracted,
+                ...sourceInfo,
 
-
-        if (
-          scrap
-        ) {
-          row.scrap = {
-            ...scrap,
-            ...sourceInfo
-          };
-        }
+                seriesKey
+              }
+            );
+          }
+        );
 
 
         extractArmRollBoxReplacementEvents(
@@ -103961,9 +104194,14 @@ openLogDetail =
     ]
       .filter(
         row => {
-          return Boolean(
-            row.armRoll ||
-            row.scrap
+          return ARM_ROLL_BOX_SERIES.some(
+            series => {
+              return Boolean(
+                row[
+                  series.key
+                ]
+              );
+            }
           );
         }
       )
@@ -103979,14 +104217,12 @@ openLogDetail =
       );
 
 
-    const suspectedEvents = [];
+    const suspectedEvents =
+      [];
 
 
-    [
-      "armRoll",
-      "scrap"
-    ].forEach(
-      target => {
+    ARM_ROLL_BOX_SERIES.forEach(
+      series => {
         let previous =
           null;
 
@@ -103995,7 +104231,7 @@ openLogDetail =
           row => {
             const record =
               row[
-                target
+                series.key
               ];
 
 
@@ -104009,7 +104245,7 @@ openLogDetail =
             if (
               previous
             ) {
-              const gap =
+              const dayGap =
                 Math.max(
                   1,
 
@@ -104032,7 +104268,7 @@ openLogDetail =
 
 
               record.dayGap =
-                gap;
+                dayGap;
 
 
               record.delta =
@@ -104043,7 +104279,7 @@ openLogDetail =
                 Math.round(
                   (
                     delta /
-                    gap
+                    dayGap
                   ) *
                   100
                 ) /
@@ -104051,7 +104287,7 @@ openLogDetail =
 
 
               const eventKey =
-                `${target}||${row.date}`;
+                `${series.key}||${row.date}`;
 
 
               if (
@@ -104062,7 +104298,17 @@ openLogDetail =
                 )
               ) {
                 suspectedEvents.push({
-                  target,
+                  target:
+                    series.key,
+
+                  baseTarget:
+                    series.target,
+
+                  unit:
+                    series.unit,
+
+                  role:
+                    series.role,
 
                   date:
                     row.date,
@@ -104145,8 +104391,12 @@ openLogDetail =
         secondEvent
       ) => {
         const targetOrder =
-          firstEvent.target.localeCompare(
-            secondEvent.target
+          String(
+            firstEvent.target
+          ).localeCompare(
+            String(
+              secondEvent.target
+            )
           );
 
 
@@ -104159,10 +104409,6 @@ openLogDetail =
       }
     );
 
-
-    /* ===================================================
-      교체 주기·증가량 계산
-    ==================================================== */
 
     replacementEvents.forEach(
       event => {
@@ -104262,20 +104508,20 @@ openLogDetail =
 
 
         const cycleIncrease =
-          Number.isFinite(
-            Number(
-              preLevel
-            )
+          hasArmRollBoxNumericValue(
+            preLevel
           ) &&
-          Number.isFinite(
-            Number(
-              startLevel
-            )
+          hasArmRollBoxNumericValue(
+            startLevel
           )
             ? Math.round(
                 (
-                  preLevel -
-                  startLevel
+                  Number(
+                    preLevel
+                  ) -
+                  Number(
+                    startLevel
+                  )
                 ) *
                 10
               ) /
@@ -104301,16 +104547,16 @@ openLogDetail =
 
 
         event.cycleAverage =
-          Number.isFinite(
-            Number(
-              cycleIncrease
-            )
+          hasArmRollBoxNumericValue(
+            cycleIncrease
           ) &&
           usageDays >
             0
             ? Math.round(
                 (
-                  cycleIncrease /
+                  Number(
+                    cycleIncrease
+                  ) /
                   usageDays
                 ) *
                 100
@@ -104329,19 +104575,15 @@ openLogDetail =
   }
 
 
-  /* =====================================================
-    최신 레벨
-  ====================================================== */
-
   function getLatestArmRollBoxRecord(
-    target
+    seriesKey
   ) {
     const rows =
       state.dailyRows.filter(
         row => {
           return Boolean(
             row[
-              target
+              seriesKey
             ]
           );
         }
@@ -104358,7 +104600,7 @@ openLogDetail =
     return row
       ? {
           ...row[
-            target
+            seriesKey
           ],
 
           date:
@@ -104369,7 +104611,7 @@ openLogDetail =
 
 
   function getLatestConfirmedReplacement(
-    target,
+    seriesKey,
     maximumDate
   ) {
     const items =
@@ -104377,7 +104619,7 @@ openLogDetail =
         event => {
           return (
             event.target ===
-              target &&
+              seriesKey &&
             event.detectionType ===
               "confirmed" &&
             (
@@ -104399,84 +104641,81 @@ openLogDetail =
 
 
   function getArmRollBoxTargetLabel(
-    target
+    seriesKey
   ) {
-    return target ===
-      "armRoll"
-      ? "ARM ROLL BOX"
-      : "SCRAP BOX";
+    return (
+      ARM_ROLL_BOX_SERIES.find(
+        series => {
+          return series.key ===
+            seriesKey;
+        }
+      )?.label ||
+      seriesKey
+    );
   }
 
 
-  /* =====================================================
-    현재 레벨 카드 ID
-  ====================================================== */
-
   function getArmRollBoxCardIds(
-    target
+    seriesKey
   ) {
+    const prefixMap = {
+      armRoll:
+        "armRollUnit1",
+
+      armRollUnit2:
+        "armRollUnit2",
+
+      scrap:
+        "scrapUnit1",
+
+      scrapUnit2:
+        "scrapUnit2"
+    };
+
+
+    const prefix =
+      prefixMap[
+        seriesKey
+      ];
+
+
     if (
-      target ===
-      "armRoll"
+      !prefix
     ) {
-      return {
-        card:
-          "armRollCurrentCard",
-
-        level:
-          "armRollBoxCurrentLevel",
-
-        status:
-          "armRollBoxLevelState",
-
-        progress:
-          "armRollBoxLevelProgress",
-
-        fill:
-          "armRollBoxLevelFill",
-
-        increase:
-          "armRollBoxDailyIncrease",
-
-        average:
-          "armRollBoxAverageIncrease",
-
-        days:
-          "armRollBoxDaysSinceReplacement",
-
-        recorded:
-          "armRollBoxLastRecordedAt"
-      };
+      return null;
     }
 
 
     return {
       card:
-        "scrapCurrentCard",
+        `${prefix}CurrentCard`,
 
       level:
-        "scrapBoxCurrentLevel",
+        `${prefix}CurrentLevel`,
 
       status:
-        "scrapBoxLevelState",
+        `${prefix}LevelState`,
 
       progress:
-        "scrapBoxLevelProgress",
+        `${prefix}Progress`,
 
       fill:
-        "scrapBoxLevelFill",
+        `${prefix}Fill`,
 
       increase:
-        "scrapBoxDailyIncrease",
+        `${prefix}Increase`,
 
       average:
-        "scrapBoxAverageIncrease",
+        `${prefix}AverageIncrease`,
 
       days:
-        "scrapBoxDaysSinceReplacement",
+        `${prefix}DaysSinceReplacement`,
+
+      replacementComment:
+        `${prefix}ReplacementComment`,
 
       recorded:
-        "scrapBoxLastRecordedAt"
+        `${prefix}LastRecordedAt`
     };
   }
 
@@ -104485,10 +104724,9 @@ openLogDetail =
     level
   ) {
     if (
-      level ===
-        null ||
-      level ===
-        undefined
+      !hasArmRollBoxNumericValue(
+        level
+      )
     ) {
       return {
         label:
@@ -104501,8 +104739,10 @@ openLogDetail =
 
 
     if (
-      level >=
-      WARNING_LEVEL
+      Number(
+        level
+      ) >=
+        WARNING_LEVEL
     ) {
       return {
         label:
@@ -104515,8 +104755,10 @@ openLogDetail =
 
 
     if (
-      level >=
-      60
+      Number(
+        level
+      ) >=
+        60
     ) {
       return {
         label:
@@ -104538,30 +104780,25 @@ openLogDetail =
   }
 
 
-  /* =====================================================
-    현재 레벨 카드 출력
-  ====================================================== */
-
   function renderArmRollBoxCurrentCard(
-    target,
+    seriesKey,
     record
   ) {
     const ids =
       getArmRollBoxCardIds(
-        target
+        seriesKey
       );
 
 
-    const byId =
-      id => {
-        return document.getElementById(
-          id
-        );
-      };
+    if (
+      !ids
+    ) {
+      return;
+    }
 
 
     const card =
-      byId(
+      document.getElementById(
         ids.card
       );
 
@@ -104577,37 +104814,82 @@ openLogDetail =
       );
 
 
+    const levelElement =
+      document.getElementById(
+        ids.level
+      );
+
+
+    const statusElement =
+      document.getElementById(
+        ids.status
+      );
+
+
+    const progressElement =
+      document.getElementById(
+        ids.progress
+      );
+
+
+    const fillElement =
+      document.getElementById(
+        ids.fill
+      );
+
+
+    const increaseElement =
+      document.getElementById(
+        ids.increase
+      );
+
+
+    const averageElement =
+      document.getElementById(
+        ids.average
+      );
+
+
+    const daysElement =
+      document.getElementById(
+        ids.days
+      );
+
+
+    const replacementCommentElement =
+      document.getElementById(
+        ids.replacementComment
+      );
+
+
+    const recordedElement =
+      document.getElementById(
+        ids.recorded
+      );
+
+
     if (
-      byId(
-        ids.level
-      )
+      levelElement
     ) {
-      byId(
-        ids.level
-      ).textContent =
-        level ===
-          null
-          ? "-"
-          : formatArmRollBoxNumber(
+      levelElement.textContent =
+        hasArmRollBoxNumericValue(
+          level
+        )
+          ? formatArmRollBoxNumber(
               level
-            );
+            )
+          : "-";
     }
 
 
     if (
-      byId(
-        ids.status
-      )
+      statusElement
     ) {
-      byId(
-        ids.status
-      ).textContent =
+      statusElement.textContent =
         status.label;
 
 
-      byId(
-        ids.status
-      ).className =
+      statusElement.className =
         [
           "arm-roll-box-level-state",
           status.className
@@ -104624,103 +104906,98 @@ openLogDetail =
     card?.classList.toggle(
       "is-warning",
 
-      level !==
-        null &&
-      level >=
+      hasArmRollBoxNumericValue(
+        level
+      ) &&
+      Number(
+        level
+      ) >=
         WARNING_LEVEL
     );
 
 
-    byId(
-      ids.progress
-    )?.setAttribute(
+    progressElement?.setAttribute(
       "aria-valuenow",
+
       String(
-        level ??
-        0
+        hasArmRollBoxNumericValue(
+          level
+        )
+          ? Number(
+              level
+            )
+          : 0
       )
     );
 
 
     if (
-      byId(
-        ids.fill
-      )
+      fillElement
     ) {
-      byId(
-        ids.fill
-      ).style.width =
-        `${Math.max(
-          0,
+      const width =
+        hasArmRollBoxNumericValue(
+          level
+        )
+          ? Math.max(
+              0,
 
-          Math.min(
-            100,
+              Math.min(
+                100,
 
-            Number(
-              level ||
-              0
+                Number(
+                  level
+                )
+              )
             )
-          )
-        )}%`;
+          : 0;
+
+
+      fillElement.style.width =
+        `${width}%`;
     }
 
 
     if (
-      byId(
-        ids.increase
-      )
+      increaseElement
     ) {
-      byId(
-        ids.increase
-      ).textContent =
-        Number.isFinite(
-          Number(
-            record?.delta
-          )
+      increaseElement.textContent =
+        hasArmRollBoxNumericValue(
+          record?.delta
         )
           ? `${record.dayGap}일간 ${formatArmRollBoxSigned(
               record.delta
             )}`
-          : "-";
+          : "비교 기록 없음";
     }
 
 
     if (
-      byId(
-        ids.average
-      )
+      averageElement
     ) {
-      byId(
-        ids.average
-      ).textContent =
-        Number.isFinite(
-          Number(
-            record?.averagePerDay
-          )
+      averageElement.textContent =
+        hasArmRollBoxNumericValue(
+          record?.averagePerDay
         )
           ? `${formatArmRollBoxSigned(
               record.averagePerDay
             )}/일`
-          : "-";
+          : "비교 기록 없음";
     }
 
 
     const replacement =
       getLatestConfirmedReplacement(
-        target,
+        seriesKey,
+
         record?.date ||
-        ""
+        state.endDate
       );
 
 
     if (
-      byId(
-        ids.days
-      )
+      daysElement
     ) {
-      byId(
-        ids.days
-      ).textContent =
+      daysElement.textContent =
         replacement &&
         record?.date
           ? `${Math.max(
@@ -104736,19 +105013,29 @@ openLogDetail =
 
 
     if (
-      byId(
-        ids.recorded
-      )
+      replacementCommentElement
     ) {
-      byId(
-        ids.recorded
-      ).textContent =
+      replacementCommentElement.textContent =
+        replacement
+          ? `${replacement.date} · ${replacement.sourceText || "교체 완료"}`
+          : "교체 기록 없음";
+
+
+      replacementCommentElement.title =
+        replacement?.sourceText ||
+        "";
+    }
+
+
+    if (
+      recordedElement
+    ) {
+      recordedElement.textContent =
         record?.date
-          ? `${record.date} ${record.shift || ""}`.trim()
+          ? `${record.date} ${record.shift || ""} · ${record.role || ""}`.trim()
           : "-";
     }
   }
-
 
   /* =====================================================
     탭 배지 생성
@@ -104925,39 +105212,34 @@ openLogDetail =
       getArmRollBoxElements();
 
 
-    const items = [];
+    const warningItems =
+      ARM_ROLL_BOX_SERIES
+        .map(
+          series => {
+            return {
+              label:
+                series.label,
 
-
-    if (
-      state.current.armRoll
-        ?.level >=
-      WARNING_LEVEL
-    ) {
-      items.push({
-        label:
-          "ARM ROLL BOX",
-
-        level:
-          state.current.armRoll
-            .level
-      });
-    }
-
-
-    if (
-      state.current.scrap
-        ?.level >=
-      WARNING_LEVEL
-    ) {
-      items.push({
-        label:
-          "SCRAP BOX",
-
-        level:
-          state.current.scrap
-            .level
-      });
-    }
+              level:
+                state.current[
+                  series.key
+                ]?.level
+            };
+          }
+        )
+        .filter(
+          item => {
+            return (
+              hasArmRollBoxNumericValue(
+                item.level
+              ) &&
+              Number(
+                item.level
+              ) >=
+                WARNING_LEVEL
+            );
+          }
+        );
 
 
     const badge =
@@ -104968,13 +105250,14 @@ openLogDetail =
       badge
     ) {
       badge.hidden =
-        !items.length;
+        warningItems.length ===
+        0;
 
 
       badge.textContent =
-        items.length
+        warningItems.length
           ? String(
-              items.length
+              warningItems.length
             )
           : "";
     }
@@ -104982,7 +105265,8 @@ openLogDetail =
 
     elements.tab?.classList.toggle(
       "has-warning",
-      items.length >
+
+      warningItems.length >
         0
     );
 
@@ -104991,24 +105275,29 @@ openLogDetail =
       elements.alert
     ) {
       elements.alert.hidden =
-        !items.length;
+        warningItems.length ===
+        0;
     }
 
 
     if (
-      items.length
+      warningItems.length
     ) {
       const highest =
         [
-          ...items
+          ...warningItems
         ].sort(
           (
             firstItem,
             secondItem
           ) => {
             return (
-              secondItem.level -
-              firstItem.level
+              Number(
+                secondItem.level
+              ) -
+              Number(
+                firstItem.level
+              )
             );
           }
         )[0];
@@ -105018,7 +105307,7 @@ openLogDetail =
         elements.alertTitle
       ) {
         elements.alertTitle.textContent =
-          `${items.length}개 BOX가 70% 이상입니다.`;
+          `${warningItems.length}개 BOX가 70% 이상입니다.`;
       }
 
 
@@ -105026,7 +105315,7 @@ openLogDetail =
         elements.alertMessage
       ) {
         elements.alertMessage.textContent =
-          items
+          warningItems
             .map(
               item => {
                 return `${item.label} ${formatArmRollBoxNumber(
@@ -105053,10 +105342,10 @@ openLogDetail =
 
     if (
       notify &&
-      items.length
+      warningItems.length
     ) {
-      showArmRollBoxWarningPopup(
-        items
+      void showArmRollBoxWarningPopup(
+        warningItems
       );
     }
   }
@@ -105905,33 +106194,30 @@ openLogDetail =
   function renderArmRollBoxDashboard(
     options = {}
   ) {
-    state.current.armRoll =
-      getLatestArmRollBoxRecord(
-        "armRoll"
-      );
+    ARM_ROLL_BOX_SERIES.forEach(
+      series => {
+        state.current[
+          series.key
+        ] =
+          getLatestArmRollBoxRecord(
+            series.key
+          );
 
 
-    state.current.scrap =
-      getLatestArmRollBoxRecord(
-        "scrap"
-      );
+        renderArmRollBoxCurrentCard(
+          series.key,
 
-
-    renderArmRollBoxCurrentCard(
-      "armRoll",
-      state.current.armRoll
-    );
-
-
-    renderArmRollBoxCurrentCard(
-      "scrap",
-      state.current.scrap
+          state.current[
+            series.key
+          ]
+        );
+      }
     );
 
 
     renderArmRollBoxWarnings(
       options.notify ===
-      true
+        true
     );
 
 

@@ -68923,3 +68923,326 @@ body.is-efficiency-daily-work-printing
     width: 100%;
   }
 }
+
+/* =========================================================
+  ARM ROLL · SCRAP BOX 1·2호기 컴팩트 최종 보정
+
+  PC:
+  - 카드 4개 한 줄
+  - 카드 높이 및 여백 축소
+  - 내부 제목과 결과값 확대
+
+  태블릿:
+  - 카드 2개씩
+
+  모바일:
+  - 카드 1개씩
+========================================================= */
+
+.arm-roll-box-dashboard {
+  gap: 10px;
+  margin-top: 11px;
+}
+
+
+/* =========================================================
+  조회 영역
+========================================================= */
+
+.arm-roll-box-query-card {
+  gap: 9px;
+  padding: 10px 12px;
+}
+
+.arm-roll-box-range-button {
+  min-height: 32px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
+.arm-roll-box-search-form input,
+.arm-roll-box-search-button {
+  height: 34px;
+  min-height: 34px;
+  font-size: 12px;
+}
+
+.arm-roll-box-active-range span,
+.arm-roll-box-active-range small {
+  font-size: 10px;
+}
+
+.arm-roll-box-active-range strong {
+  font-size: 12px;
+}
+
+
+/* =========================================================
+  카드 4개
+========================================================= */
+
+.arm-roll-box-current-grid {
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(
+        0,
+        1fr
+      )
+    );
+  gap: 8px;
+}
+
+.arm-roll-box-current-card {
+  padding: 12px 12px 11px;
+  border-radius: 10px;
+}
+
+.arm-roll-box-current-card::before {
+  width: 3px;
+}
+
+
+/* =========================================================
+  카드 상단
+========================================================= */
+
+.arm-roll-box-current-card__header {
+  gap: 8px;
+}
+
+.arm-roll-box-current-card__header > div {
+  min-width: 0;
+}
+
+.arm-roll-box-current-card__header > div > span {
+  margin-bottom: 3px;
+  font-size: 10px;
+}
+
+.arm-roll-box-title-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.arm-roll-box-title-line > strong,
+.arm-roll-box-current-card__header
+> div
+> strong {
+  color: #273f57;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.arm-roll-box-unit-badge {
+  display: inline-flex;
+  min-height: 21px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  border: 1px solid #c4d4e4;
+  border-radius: 999px;
+  background: #f1f6fb;
+  color: #365d83;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.arm-roll-box-level-state {
+  min-height: 22px;
+  padding: 0 7px;
+  font-size: 10px;
+}
+
+
+/* =========================================================
+  현재 레벨
+========================================================= */
+
+.arm-roll-box-current-level {
+  margin: 10px 0 9px;
+}
+
+.arm-roll-box-current-level strong {
+  font-size: 34px;
+}
+
+.arm-roll-box-current-level span {
+  padding-bottom: 2px;
+  font-size: 15px;
+}
+
+.arm-roll-box-level-track {
+  height: 9px;
+}
+
+.arm-roll-box-level-threshold {
+  top: -3px;
+  bottom: -3px;
+}
+
+.arm-roll-box-level-threshold::after {
+  top: -15px;
+  font-size: 9px;
+}
+
+
+/* =========================================================
+  카드 내부 지표
+
+  직전 측정 대비
+  일평균 증가
+  교체 후 경과
+  최근 측정
+========================================================= */
+
+.arm-roll-box-current-metrics {
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(
+        0,
+        1fr
+      )
+    );
+  gap: 6px;
+  margin-top: 11px;
+}
+
+.arm-roll-box-current-metrics > div {
+  min-height: 55px;
+  padding: 7px 8px;
+  border-radius: 7px;
+}
+
+.arm-roll-box-current-metrics dt {
+  margin-bottom: 3px;
+  color: #6f7f91;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.arm-roll-box-current-metrics dd {
+  margin: 0;
+  overflow: visible;
+  color: #2e4861;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.35;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+  교체일과 교체 코멘트
+========================================================= */
+
+.arm-roll-box-replacement-metric {
+  display: block;
+}
+
+.arm-roll-box-replacement-metric > strong {
+  display: block;
+  color: #2e4861;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.arm-roll-box-replacement-metric > small {
+  display: -webkit-box;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #68788a;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+
+/* =========================================================
+  하단 구역 글씨 확대
+========================================================= */
+
+.arm-roll-box-section-header {
+  min-height: 50px;
+  padding: 9px 12px;
+}
+
+.arm-roll-box-section-header > div > span {
+  font-size: 9px;
+}
+
+.arm-roll-box-section-header h4 {
+  font-size: 15px;
+}
+
+.arm-roll-box-section-count {
+  min-height: 24px;
+  font-size: 10px;
+}
+
+.arm-roll-box-chart-legend span,
+.arm-roll-box-table th {
+  font-size: 10px;
+}
+
+.arm-roll-box-table td {
+  font-size: 11px;
+}
+
+
+/* =========================================================
+  태블릿
+========================================================= */
+
+@media (max-width: 1180px) {
+  .arm-roll-box-current-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 760px) {
+  .arm-roll-box-current-grid {
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      );
+  }
+
+  .arm-roll-box-current-card {
+    padding: 12px;
+  }
+
+  .arm-roll-box-current-level strong {
+    font-size: 32px;
+  }
+}
