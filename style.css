@@ -71165,3 +71165,68 @@ th:focus-within {
   }
 
 }
+
+/* =========================================================
+  월간 달력 점검명 전체보기
+
+  기본:
+  - 달력에서는 한 줄 약칭 유지
+
+  PC:
+  - 마우스를 올리면 전체 점검명을 즉시 표시
+
+  모바일:
+  - 날짜를 선택하면 하단 선택 날짜 목록에서 전체 확인
+========================================================= */
+
+@media (hover: hover) and (pointer: fine) {
+  .inspection-calendar-day {
+    overflow: visible;
+  }
+
+  .inspection-calendar-day__item {
+    position: relative;
+  }
+
+  .inspection-calendar-day__item:hover {
+    z-index: 50;
+    overflow: visible;
+  }
+
+  .inspection-calendar-day__item:hover::after {
+    content: attr(title);
+
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 100;
+
+    width: max-content;
+    max-width: 320px;
+
+    padding: 7px 9px;
+    border: 1px solid #b9cadb;
+    border-radius: 7px;
+
+    background: #ffffff;
+    box-shadow: 0 8px 22px rgba(27, 53, 80, 0.2);
+
+    color: #213b55;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.45;
+    white-space: normal;
+
+    pointer-events: none;
+  }
+
+  /*
+    달력 오른쪽 두 칸에서는
+    팝업이 화면 밖으로 나가지 않게 오른쪽 정렬
+  */
+  .inspection-calendar-day:nth-child(7n) .inspection-calendar-day__item:hover::after,
+  .inspection-calendar-day:nth-child(7n - 1) .inspection-calendar-day__item:hover::after {
+    right: 0;
+    left: auto;
+  }
+}
