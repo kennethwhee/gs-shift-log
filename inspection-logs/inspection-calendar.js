@@ -1384,7 +1384,15 @@ function initializeInspectionCalendarDashboard() {
 
   createCalendarCategoryFilter();
 
-  dashboard.hidden = false;
+/*
+  달력 데이터는 미리 준비하지만
+  최초 화면에서는 표시하지 않는다.
+
+  왼쪽의 '월간 달력' 버튼을 눌렀을 때
+  inspection-navigation.js가 표시한다.
+*/
+dashboard.hidden =
+  true;
 
   if (cycleDetails) {
     cycleDetails.open = false;

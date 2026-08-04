@@ -750,3 +750,321 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* =========================================================
+  전체 점검표 PC 컴팩트 최종 보정
+
+  변경:
+  - 왼쪽 메뉴 폭 축소
+  - 1400px 고정 최소폭 해제
+  - 현재 화면 안에 전체 열 표시
+  - 셀 내부 줄바꿈 허용
+  - D/S·N/S 적용 동그라미 확대
+========================================================= */
+
+@media (min-width: 980px) {
+
+  /* =====================================================
+    왼쪽 메뉴를 줄여 표 공간 확보
+  ====================================================== */
+
+  .inspection-workspace {
+    grid-template-columns:
+      190px
+      minmax(
+        0,
+        1fr
+      ) !important;
+
+    gap: 11px !important;
+  }
+
+
+  /* =====================================================
+    표 상단
+  ====================================================== */
+
+  .inspection-schedule-table-header {
+    gap: 10px !important;
+    padding: 11px 13px !important;
+  }
+
+
+  .inspection-schedule-table-header p {
+    margin-bottom: 3px !important;
+    font-size: 9px !important;
+  }
+
+
+  .inspection-schedule-table-header h2 {
+    font-size: 17px !important;
+    line-height: 1.3 !important;
+  }
+
+
+  .inspection-schedule-table-header__actions {
+    gap: 6px !important;
+  }
+
+
+  .inspection-schedule-table-header__actions > span {
+    font-size: 9px !important;
+  }
+
+
+  .inspection-schedule-table-new-button {
+    min-height: 32px !important;
+    padding: 0 10px !important;
+    font-size: 9px !important;
+  }
+
+
+  /* =====================================================
+    가로 스크롤 제거
+
+    세로 스크롤은 유지한다.
+  ====================================================== */
+
+  .inspection-schedule-table-scroll {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+
+    max-height:
+      calc(
+        100dvh -
+        182px
+      ) !important;
+  }
+
+
+  /* =====================================================
+    표 전체 폭
+
+    기존 min-width: 1400px 해제
+  ====================================================== */
+
+  .inspection-schedule-table {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    table-layout: fixed !important;
+
+    font-size: 9.5px !important;
+  }
+
+
+  /* =====================================================
+    열 너비
+
+    1. 구분
+    2. 점검주기
+    3. D/S
+    4. N/S
+    5. 점검사항
+    6. 담당
+    7. 결재
+    8. 공유
+    9. 비고
+    10. 관리
+  ====================================================== */
+
+  .inspection-schedule-table col:nth-child(1) {
+    width: 5% !important;
+  }
+
+
+  .inspection-schedule-table col:nth-child(2) {
+    width: 8% !important;
+  }
+
+
+  .inspection-schedule-table col:nth-child(3),
+  .inspection-schedule-table col:nth-child(4) {
+    width: 4% !important;
+  }
+
+
+  .inspection-schedule-table col:nth-child(5) {
+    width: 35% !important;
+  }
+
+
+  .inspection-schedule-table col:nth-child(6) {
+    width: 9% !important;
+  }
+
+
+  .inspection-schedule-table col:nth-child(7) {
+    width: 8% !important;
+  }
+
+
+  .inspection-schedule-table col:nth-child(8) {
+    width: 8% !important;
+  }
+
+
+  .inspection-schedule-table col:nth-child(9) {
+    width: 14% !important;
+  }
+
+
+  .inspection-schedule-table col:nth-child(10) {
+    width: 5% !important;
+  }
+
+
+  /* =====================================================
+    셀 크기
+  ====================================================== */
+
+  .inspection-schedule-table th,
+  .inspection-schedule-table td {
+    padding: 6px 5px !important;
+
+    font-size: 9.5px !important;
+    line-height: 1.38 !important;
+
+    white-space: normal !important;
+    word-break: keep-all !important;
+    overflow-wrap: anywhere !important;
+  }
+
+
+  .inspection-schedule-table thead th {
+    font-size: 10px !important;
+  }
+
+
+  .inspection-schedule-table thead tr:first-child th {
+    height: 35px !important;
+  }
+
+
+  .inspection-schedule-table thead tr:nth-child(2) th {
+    top: 35px !important;
+    height: 30px !important;
+  }
+
+
+  /* =====================================================
+    점검 구분·주기
+  ====================================================== */
+
+  .inspection-schedule-table-category {
+    font-size: 10px !important;
+  }
+
+
+  .inspection-schedule-table-cycle {
+    font-size: 9.5px !important;
+    line-height: 1.35 !important;
+  }
+
+
+  /* =====================================================
+    D/S · N/S 적용 동그라미 확대
+
+    기존 ● 문자는 유지하면서 크기만 확대한다.
+  ====================================================== */
+
+  .inspection-schedule-table-shift {
+    padding-right: 2px !important;
+    padding-left: 2px !important;
+
+    color: #1765a9 !important;
+
+    font-family:
+      Arial,
+      sans-serif !important;
+
+    font-size: 28px !important;
+    font-weight: 900 !important;
+    line-height: 0.75 !important;
+
+    text-align: center !important;
+    vertical-align: middle !important;
+  }
+
+
+  /* =====================================================
+    점검사항
+  ====================================================== */
+
+  .inspection-schedule-table-title-cell {
+    padding-right: 7px !important;
+    padding-left: 7px !important;
+  }
+
+
+  .inspection-schedule-table-title-cell strong {
+    font-size: 10.5px !important;
+    line-height: 1.4 !important;
+  }
+
+
+  .inspection-schedule-table-title-line {
+    gap: 4px !important;
+  }
+
+
+  .inspection-schedule-table-state {
+    min-height: 18px !important;
+    padding: 0 5px !important;
+    font-size: 7px !important;
+  }
+
+
+  /* =====================================================
+    담당 보직
+  ====================================================== */
+
+  .inspection-schedule-table-assigned-roles {
+    gap: 3px !important;
+    margin-top: 4px !important;
+  }
+
+
+  .inspection-schedule-table-assigned-roles > span,
+  .inspection-schedule-table-assigned-roles > b {
+    font-size: 7.5px !important;
+  }
+
+
+  /* =====================================================
+    버튼
+  ====================================================== */
+
+  .inspection-schedule-table-log-button,
+  .inspection-schedule-table-edit-button {
+    min-height: 28px !important;
+    padding: 0 7px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 8px !important;
+  }
+
+
+  .inspection-schedule-table-manage-cell {
+    padding-right: 3px !important;
+    padding-left: 3px !important;
+  }
+
+
+  /* =====================================================
+    비고
+  ====================================================== */
+
+  .inspection-schedule-table-note {
+    font-size: 9px !important;
+    line-height: 1.4 !important;
+  }
+
+
+  .inspection-schedule-table-footnote {
+    padding: 7px 10px !important;
+    font-size: 8px !important;
+  }
+
+}

@@ -161,7 +161,7 @@ function initializeInspectionWorkspaceNavigation() {
       <span>점검주기와 등록된 점검일지를 선택합니다.</span>
     </div>
 
-    <details class="inspection-sidebar-group" open>
+    <details class="inspection-sidebar-group">
       <summary>점검주기</summary>
 
       <div class="inspection-sidebar-submenu">
@@ -2664,7 +2664,85 @@ function initializeInspectionWorkspaceNavigation() {
     }
   }
 
+  /* =====================================================
+    점검일지 최초 빈 화면
 
+    처음 팝업을 열었을 때:
+    - 월간 달력 숨김
+    - 전체 점검표 숨김
+    - 전용 점검일지 숨김
+    - 왼쪽 메뉴 선택 해제
+    - 왼쪽 접이식 메뉴 모두 닫힘
+
+    사용자가 왼쪽 메뉴를 눌러야
+    해당 화면이 표시된다.
+  ====================================================== */
+
+  function showEmptyInspectionWorkspace() {
+    activeEditorId =
+      "";
+
+
+    managerBusy =
+      false;
+
+
+    hideViewer();
+
+
+    tablePanel.hidden =
+      true;
+
+
+    dashboard.hidden =
+      true;
+
+
+    setTableMessage(
+      ""
+    );
+
+
+    /*
+      모든 왼쪽 메뉴 버튼 선택 해제
+    */
+    setActiveButton(
+      null
+    );
+
+
+    /*
+      점검주기·일일점검·주간점검·월간점검
+      접이식 메뉴를 모두 닫는다.
+    */
+    sidebar
+      .querySelectorAll(
+        ".inspection-sidebar-group"
+      )
+      .forEach(
+        group => {
+          group.open =
+            false;
+        }
+      );
+
+
+    /*
+      이전에 열었던 메뉴를 자동 복원하지 않는다.
+    */
+    try {
+      window.sessionStorage.removeItem(
+        VIEW_STORAGE_KEY
+      );
+
+    } catch {
+      /*
+        sessionStorage를 사용할 수 없어도
+        화면 동작에는 영향 없음
+      */
+    }
+  }
+  
   /* =====================================================
     화면 전환
   ====================================================== */
@@ -3089,70 +3167,12 @@ function initializeInspectionWorkspaceNavigation() {
 
   /* =====================================================
     최초 화면
+
+    아무 화면도 자동으로 열지 않는다.
+    사용자가 왼쪽 메뉴를 눌러야 표시한다.
   ====================================================== */
 
-  const savedView =
-    readLastView();
-
-
-  if (
-    savedView?.view ===
-      "schedule-table"
-  ) {
-    const category =
-      String(
-        savedView.category ||
-        ""
-      ).trim();
-
-
-    const targetButton =
-      viewButtons.find(
-        button => {
-          return (
-            button.dataset.inspectionSidebarView ===
-              "schedule-table" &&
-            String(
-              button.dataset.inspectionScheduleCategory ||
-              ""
-            ).trim() ===
-              category
-          );
-        }
-      );
-
-
-    showScheduleTable(
-      category,
-      targetButton ||
-      viewButtons.find(
-        button => {
-          return (
-            button.dataset.inspectionSidebarView ===
-            "schedule-table"
-          );
-        }
-      ) ||
-      null
-    );
-
-  } else {
-    const initialCalendarButton =
-      viewButtons.find(
-        button => {
-          return (
-            button.dataset.inspectionSidebarView ===
-            "calendar"
-          );
-        }
-      );
-
-
-    showCalendar(
-      initialCalendarButton ||
-      null
-    );
-  }
+  showEmptyInspectionWorkspace();
 }
 
 
@@ -3374,290 +3394,4 @@ if (
   );
 })();
 
-/* =========================================================
-  점검일지 오른쪽 빈 화면 자동 복구
 
-  문제:
-  - 왼쪽 메뉴는 정상 표시
-  - 오른쪽 월간 달력·목록·전용 일지가 모두 hidden 상태
-  - 결과적으로 오른쪽이 흰 화면으로 표시됨
-
-  처리:
-  - 표시 중인 화면이 하나도 없을 때만
-    월간 달력을 기본 화면으로 복구
-  - 다른 점검일지나 목록을 열었을 때는 건드리지 않음
-========================================================= */
-
-(function installInspectionDefaultViewRecovery() {
-  if (
-    window.__gsInspectionDefaultViewRecoveryInstalled ===
-      true
-  ) {
-    return;
-  }
-
-
-  window.__gsInspectionDefaultViewRecoveryInstalled =
-    true;
-
-
-  function isInspectionViewVisible(
-    element
-  ) {
-    if (
-      !element ||
-      element.hidden ===
-        true
-    ) {
-      return false;
-    }
-
-
-    const computedStyle =
-      window.getComputedStyle(
-        element
-      );
-
-
-    return (
-      computedStyle.display !==
-        "none" &&
-      computedStyle.visibility !==
-        "hidden"
-    );
-  }
-
-
-  function recoverInspectionDefaultView() {
-    const dashboard =
-      document.getElementById(
-        "inspectionScheduleDashboard"
-      );
-
-
-    const logList =
-      document.getElementById(
-        "inspectionLogList"
-      );
-
-
-    const viewer =
-      document.getElementById(
-        "inspectionLogViewer"
-      );
-
-
-    const scheduleTablePanel =
-      document.getElementById(
-        "inspectionScheduleTablePanel"
-      );
-
-
-    /*
-      이미 표시 중인 화면이 있으면
-      현재 사용자의 선택을 그대로 유지한다.
-    */
-    const hasVisibleView =
-      isInspectionViewVisible(
-        dashboard
-      ) ||
-      isInspectionViewVisible(
-        logList
-      ) ||
-      isInspectionViewVisible(
-        viewer
-      ) ||
-      isInspectionViewVisible(
-        scheduleTablePanel
-      );
-
-
-    if (
-      hasVisibleView ||
-      !dashboard
-    ) {
-      return false;
-    }
-
-
-    /*
-      오른쪽 화면이 모두 비어 있을 때만
-      월간 달력을 기본 화면으로 표시한다.
-    */
-    dashboard.hidden =
-      false;
-
-
-    dashboard.removeAttribute(
-      "hidden"
-    );
-
-
-    /*
-      전용 점검일지 iframe은 닫힌 상태로 유지한다.
-    */
-    if (
-      viewer
-    ) {
-      viewer.hidden =
-        true;
-    }
-
-
-    /*
-      왼쪽 메뉴에서 월간 달력 버튼을
-      선택 상태로 맞춘다.
-    */
-    const navigationButtons = [
-      ...document.querySelectorAll(
-        `
-          [data-inspection-navigation-view],
-          [data-inspection-nav-view],
-          [data-inspection-navigation]
-        `
-      )
-    ];
-
-
-    navigationButtons.forEach(
-      button => {
-        const viewValue =
-          String(
-            button.dataset
-              .inspectionNavigationView ||
-            button.dataset
-              .inspectionNavView ||
-            button.dataset
-              .inspectionNavigation ||
-            ""
-          )
-            .trim()
-            .toLowerCase();
-
-
-        const isCalendarButton =
-          [
-            "calendar",
-            "monthly-calendar",
-            "schedule-calendar"
-          ].includes(
-            viewValue
-          ) ||
-          String(
-            button.textContent ||
-            ""
-          )
-            .replace(
-              /\s+/g,
-              ""
-            )
-            .includes(
-              "월간달력"
-            );
-
-
-        button.classList.toggle(
-          "is-active",
-          isCalendarButton
-        );
-
-
-        if (
-          button.hasAttribute(
-            "aria-selected"
-          )
-        ) {
-          button.setAttribute(
-            "aria-selected",
-            isCalendarButton
-              ? "true"
-              : "false"
-          );
-        }
-      }
-    );
-
-
-    /*
-      확대 또는 이전 스크롤 위치 때문에
-      달력 시작 부분이 보이지 않는 경우를 방지한다.
-    */
-    const contentArea =
-      document.querySelector(
-        `
-          .inspection-workspace__content,
-          .inspection-navigation-content,
-          .inspection-log-hub
-        `
-      );
-
-
-    if (
-      contentArea
-    ) {
-      contentArea.scrollLeft =
-        0;
-
-
-      contentArea.scrollTop =
-        0;
-    }
-
-
-    return true;
-  }
-
-
-  function scheduleInspectionViewRecovery() {
-    /*
-      다른 점검일지 JavaScript의 실행 순서를 고려해
-      여러 번 확인한다.
-    */
-    [
-      0,
-      150,
-      500,
-      1200,
-      2500
-    ].forEach(
-      delay => {
-        window.setTimeout(
-          recoverInspectionDefaultView,
-          delay
-        );
-      }
-    );
-  }
-
-
-  if (
-    document.readyState ===
-      "loading"
-  ) {
-    document.addEventListener(
-      "DOMContentLoaded",
-      scheduleInspectionViewRecovery,
-      {
-        once:
-          true
-      }
-    );
-
-  } else {
-    scheduleInspectionViewRecovery();
-  }
-
-
-  window.addEventListener(
-    "pageshow",
-    scheduleInspectionViewRecovery
-  );
-
-
-  /*
-    팝업을 다시 열었을 때 부모 화면에서
-    복구 요청을 보낼 수 있도록 공개한다.
-  */
-  window.recoverInspectionDefaultView =
-    recoverInspectionDefaultView;
-})();
