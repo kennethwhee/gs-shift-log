@@ -102580,3 +102580,3955 @@ openLogDetail =
     startIssueEntryLabelFix();
   }
 })();
+
+/* =========================================================
+  효율팀 - ARM ROLL · SCRAP BOX 분석
+
+  별도 DB를 만들지 않고 기존 D1 업무일지를 직접 분석한다.
+
+  기능:
+  - BO1 운전현황에서 ARM ROLL·SCRAP BOX % 추출
+  - 측정 간격 기준 변화량·일평균 계산
+  - 교체 완료·교체함·교체됨만 확정 교체로 인식
+  - 교체 예정·필요·검토·진행 중 제외
+  - 30%p 이상 급감 시 교체 의심
+  - 최신 레벨 70% 이상이면 탭 배지·경고 배너·팝업 표시
+========================================================= */
+
+(function installArmRollBoxFeature() {
+  if (
+    window.__armRollBoxFeatureInstalled
+  ) {
+    return;
+  }
+
+
+  window.__armRollBoxFeatureInstalled =
+    true;
+
+
+  const WARNING_LEVEL =
+    70;
+
+
+  const SUSPECTED_DROP =
+    30;
+
+
+  const WARNING_SESSION_KEY =
+    "gsShiftLog.armRollBoxWarning";
+
+
+  const state = {
+    startDate:
+      "",
+
+    endDate:
+      "",
+
+    sourceLogs:
+      [],
+
+    dailyRows:
+      [],
+
+    replacementEvents:
+      [],
+
+    current: {
+      armRoll:
+        null,
+
+      scrap:
+        null
+    },
+
+    loading:
+      false,
+
+    loaded:
+      false,
+
+    loadedAt:
+      0
+  };
+
+
+  /* =====================================================
+    HTML 요소
+  ====================================================== */
+
+  function getArmRollBoxElements() {
+    const byId =
+      id => {
+        return document.getElementById(
+          id
+        );
+      };
+
+
+    return {
+      openButton:
+        byId(
+          "efficiencyTeamButton"
+        ),
+
+      tab:
+        byId(
+          "efficiencyArmRollTab"
+        ),
+
+      view:
+        byId(
+          "efficiencyArmRollView"
+        ),
+
+      refreshButton:
+        byId(
+          "refreshArmRollBoxButton"
+        ),
+
+      syncButton:
+        byId(
+          "syncArmRollBoxFromShiftLogsButton"
+        ),
+
+      form:
+        byId(
+          "armRollBoxSearchForm"
+        ),
+
+      start:
+        byId(
+          "armRollBoxStartDate"
+        ),
+
+      end:
+        byId(
+          "armRollBoxEndDate"
+        ),
+
+      ranges: [
+        ...document.querySelectorAll(
+          "[data-arm-roll-box-range-days]"
+        )
+      ],
+
+      rangeLabel:
+        byId(
+          "armRollBoxActiveRangeLabel"
+        ),
+
+      rangeCount:
+        byId(
+          "armRollBoxActiveRangeCount"
+        ),
+
+      alert:
+        byId(
+          "armRollBoxThresholdAlert"
+        ),
+
+      alertTitle:
+        byId(
+          "armRollBoxThresholdAlertTitle"
+        ),
+
+      alertMessage:
+        byId(
+          "armRollBoxThresholdAlertMessage"
+        ),
+
+      alertValue:
+        byId(
+          "armRollBoxThresholdAlertValue"
+        ),
+
+      chart:
+        byId(
+          "armRollBoxTrendChart"
+        ),
+
+      dailyCount:
+        byId(
+          "armRollBoxDailyCount"
+        ),
+
+      dailyBody:
+        byId(
+          "armRollBoxDailyTableBody"
+        ),
+
+      replacementCount:
+        byId(
+          "armRollBoxReplacementCount"
+        ),
+
+      replacementBody:
+        byId(
+          "armRollBoxReplacementTableBody"
+        ),
+
+      loading:
+        byId(
+          "armRollBoxLoading"
+        ),
+
+      message:
+        byId(
+          "armRollBoxMessage"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    HTML 특수문자 처리
+  ====================================================== */
+
+  function escapeArmRollBoxHtml(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replaceAll(
+        "&",
+        "&amp;"
+      )
+      .replaceAll(
+        "<",
+        "&lt;"
+      )
+      .replaceAll(
+        ">",
+        "&gt;"
+      )
+      .replaceAll(
+        '"',
+        "&quot;"
+      )
+      .replaceAll(
+        "'",
+        "&#039;"
+      );
+  }
+
+
+  /* =====================================================
+    날짜 처리
+  ====================================================== */
+
+  function parseArmRollBoxDate(
+    value
+  ) {
+    const text =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        text
+      )
+    ) {
+      return null;
+    }
+
+
+    const date =
+      new Date(
+        `${text}T00:00:00`
+      );
+
+
+    return Number.isNaN(
+      date.getTime()
+    )
+      ? null
+      : date;
+  }
+
+
+  function formatArmRollBoxDate(
+    date
+  ) {
+    return [
+      date.getFullYear(),
+
+      String(
+        date.getMonth() +
+        1
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        date.getDate()
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    );
+  }
+
+
+  function addArmRollBoxDays(
+    value,
+    amount
+  ) {
+    const date =
+      parseArmRollBoxDate(
+        value
+      );
+
+
+    if (
+      !date
+    ) {
+      return "";
+    }
+
+
+    date.setDate(
+      date.getDate() +
+      Number(
+        amount ||
+        0
+      )
+    );
+
+
+    return formatArmRollBoxDate(
+      date
+    );
+  }
+
+
+  function getArmRollBoxDayDifference(
+    firstDate,
+    secondDate
+  ) {
+    const start =
+      parseArmRollBoxDate(
+        firstDate
+      );
+
+
+    const end =
+      parseArmRollBoxDate(
+        secondDate
+      );
+
+
+    if (
+      !start ||
+      !end
+    ) {
+      return 0;
+    }
+
+
+    return Math.round(
+      (
+        end.getTime() -
+        start.getTime()
+      ) /
+      86400000
+    );
+  }
+
+
+  /* =====================================================
+    보직·근무 정규화
+  ====================================================== */
+
+  function normalizeArmRollBoxRole(
+    value
+  ) {
+    if (
+      typeof normalizeMemberLogRole ===
+      "function"
+    ) {
+      return normalizeMemberLogRole(
+        value
+      );
+    }
+
+
+    return String(
+      value ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+  }
+
+
+  function normalizeArmRollBoxShift(
+    value
+  ) {
+    const shift =
+      String(
+        value ||
+        ""
+      )
+        .trim()
+        .toUpperCase()
+        .replace(
+          /[^A-Z]/g,
+          ""
+        );
+
+
+    return (
+      shift ===
+        "NS" ||
+      shift ===
+        "N"
+    )
+      ? "NS"
+      : "DS";
+  }
+
+
+  /* =====================================================
+    숫자 표시
+  ====================================================== */
+
+  function formatArmRollBoxNumber(
+    value,
+    digits = 1
+  ) {
+    const parsed =
+      Number(
+        value
+      );
+
+
+    if (
+      !Number.isFinite(
+        parsed
+      )
+    ) {
+      return "-";
+    }
+
+
+    return parsed.toLocaleString(
+      "ko-KR",
+      {
+        minimumFractionDigits:
+          Number.isInteger(
+            parsed
+          )
+            ? 0
+            : digits,
+
+        maximumFractionDigits:
+          digits
+      }
+    );
+  }
+
+
+  function formatArmRollBoxSigned(
+    value
+  ) {
+    const parsed =
+      Number(
+        value
+      );
+
+
+    if (
+      !Number.isFinite(
+        parsed
+      )
+    ) {
+      return "-";
+    }
+
+
+    const sign =
+      parsed >
+        0
+        ? "+"
+        : "";
+
+
+    return (
+      `${sign}${formatArmRollBoxNumber(
+        parsed
+      )}%p`
+    );
+  }
+
+
+  /* =====================================================
+    로딩·메시지
+  ====================================================== */
+
+  function setArmRollBoxLoading(
+    loading
+  ) {
+    const elements =
+      getArmRollBoxElements();
+
+
+    state.loading =
+      Boolean(
+        loading
+      );
+
+
+    if (
+      elements.loading
+    ) {
+      elements.loading.hidden =
+        !state.loading;
+    }
+
+
+    if (
+      elements.refreshButton
+    ) {
+      elements.refreshButton.disabled =
+        state.loading;
+    }
+
+
+    if (
+      elements.syncButton
+    ) {
+      elements.syncButton.disabled =
+        state.loading;
+    }
+  }
+
+
+  function showArmRollBoxMessage(
+    message = "",
+    type = "info"
+  ) {
+    const target =
+      getArmRollBoxElements()
+        .message;
+
+
+    if (
+      !target
+    ) {
+      return;
+    }
+
+
+    const text =
+      String(
+        message ||
+        ""
+      ).trim();
+
+
+    target.textContent =
+      text;
+
+
+    target.hidden =
+      !text;
+
+
+    target.classList.remove(
+      "is-error",
+      "is-success",
+      "is-warning"
+    );
+
+
+    if (
+      text &&
+      [
+        "error",
+        "success",
+        "warning"
+      ].includes(
+        type
+      )
+    ) {
+      target.classList.add(
+        `is-${type}`
+      );
+    }
+  }
+
+
+  /* =====================================================
+    업무일지 문자열 수집
+  ====================================================== */
+
+  function appendArmRollBoxText(
+    parts,
+    value
+  ) {
+    const text =
+      String(
+        value ||
+        ""
+      )
+        .replace(
+          /<br\s*\/?>/gi,
+          "\n"
+        )
+        .replace(
+          /\\n/g,
+          "\n"
+        )
+        .replace(
+          /\r\n?/g,
+          "\n"
+        )
+        .trim();
+
+
+    if (
+      text
+    ) {
+      parts.push(
+        text
+      );
+    }
+  }
+
+
+  function collectArmRollBoxLogText(
+    log,
+    operationOnly =
+      false
+  ) {
+    const parts = [];
+
+
+    appendArmRollBoxText(
+      parts,
+      log?.operationStatus
+    );
+
+
+    appendArmRollBoxText(
+      parts,
+      log?.operationStatusContent
+    );
+
+
+    const operationItems =
+      Array.isArray(
+        log?.operationItems
+      )
+        ? log.operationItems
+        : Array.isArray(
+            log?.operationStatusItems
+          )
+          ? log.operationStatusItems
+          : [];
+
+
+    operationItems.forEach(
+      item => {
+        appendArmRollBoxText(
+          parts,
+
+          [
+            item?.name,
+            item?.content
+          ]
+            .filter(
+              Boolean
+            )
+            .join(
+              " : "
+            )
+        );
+      }
+    );
+
+
+    if (
+      !operationOnly
+    ) {
+      [
+        log?.entries,
+        log?.tmEntries,
+        log?.handoverEntries,
+        log?.remarkEntries
+      ].forEach(
+        collection => {
+          (
+            Array.isArray(
+              collection
+            )
+              ? collection
+              : []
+          ).forEach(
+            entry => {
+              appendArmRollBoxText(
+                parts,
+
+                entry?.content ||
+                entry?.text ||
+                entry
+              );
+            }
+          );
+        }
+      );
+
+
+      appendArmRollBoxText(
+        parts,
+        log?.note
+      );
+    }
+
+
+    return [
+      ...new Set(
+        parts
+      )
+    ].join(
+      "\n"
+    );
+  }
+
+
+  /* =====================================================
+    BOX 레벨 추출
+
+    지원 예:
+    ARM ROLL BOX 40%
+    Arm Roll Box LV : 40%
+    ARMROLL LEVEL 40%
+
+    SCRAP BOX 50%
+    Scrap Box LV : 50%
+    Scap Box 50%
+  ====================================================== */
+
+  function extractArmRollBoxLevel(
+    text,
+    target
+  ) {
+    const source =
+      String(
+        text ||
+        ""
+      )
+        .replace(
+          /\r\n?/g,
+          "\n"
+        )
+        .trim();
+
+
+    if (
+      !source
+    ) {
+      return null;
+    }
+
+
+    const namePattern =
+      target ===
+        "armRoll"
+        ? "(?:arm\\s*[-_/]?\\s*roll|armroll)(?:\\s*box)?"
+        : "(?:scrap|scap)\\s*[-_/]?\\s*box";
+
+
+    const pattern =
+      new RegExp(
+        `${namePattern}(?:\\s*(?:lv|level|레벨))?[^0-9%\\r\\n]{0,24}(\\d{1,3}(?:[.,]\\d+)?)\\s*%`,
+        "gi"
+      );
+
+
+    const matches = [
+      ...source.matchAll(
+        pattern
+      )
+    ];
+
+
+    for (
+      let index =
+        matches.length -
+        1;
+      index >=
+        0;
+      index -=
+        1
+    ) {
+      const match =
+        matches[
+          index
+        ];
+
+
+      const level =
+        Number(
+          String(
+            match[1] ||
+            ""
+          ).replace(
+            ",",
+            "."
+          )
+        );
+
+
+      if (
+        !Number.isFinite(
+          level
+        ) ||
+        level <
+          0 ||
+        level >
+          100
+      ) {
+        continue;
+      }
+
+
+      const position =
+        Number(
+          match.index ||
+          0
+        );
+
+
+      const lineStart =
+        source.lastIndexOf(
+          "\n",
+          position
+        ) +
+        1;
+
+
+      const nextBreak =
+        source.indexOf(
+          "\n",
+          position
+        );
+
+
+      const lineEnd =
+        nextBreak ===
+          -1
+          ? source.length
+          : nextBreak;
+
+
+      return {
+        level:
+          Math.round(
+            level *
+            10
+          ) /
+          10,
+
+        sourceText:
+          source
+            .slice(
+              lineStart,
+              lineEnd
+            )
+            .trim()
+      };
+    }
+
+
+    return null;
+  }
+
+
+  /* =====================================================
+    교체 문구 대상 확인
+  ====================================================== */
+
+  function getArmRollBoxTargetsFromText(
+    value
+  ) {
+    const text =
+      String(
+        value ||
+        ""
+      )
+        .normalize(
+          "NFKC"
+        )
+        .toLowerCase();
+
+
+    const targets = [];
+
+
+    if (
+      /(?:arm\s*[-_/]?\s*roll|armroll)(?:\s*box)?/i.test(
+        text
+      )
+    ) {
+      targets.push(
+        "armRoll"
+      );
+    }
+
+
+    if (
+      /(?:scrap|scap)\s*[-_/]?\s*box/i.test(
+        text
+      )
+    ) {
+      targets.push(
+        "scrap"
+      );
+    }
+
+
+    return targets;
+  }
+
+
+  /* =====================================================
+    교체 완료 문구 판정
+
+    확정:
+    - 교체 완료
+    - 교체함
+    - 교체됨
+    - 교체하였음
+    - 교체했음
+
+    제외:
+    - 교체 예정
+    - 교체 필요
+    - 교체 검토
+    - 교체 계획
+    - 교체 진행 중
+  ====================================================== */
+
+  function isConfirmedArmRollBoxReplacement(
+    value
+  ) {
+    const text =
+      String(
+        value ||
+        ""
+      )
+        .normalize(
+          "NFKC"
+        )
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .trim();
+
+
+    const excluded =
+      /교체\s*(?:예정|필요|검토|계획|요청|협의|대기|준비\s*중|진행\s*중)|교체가\s*(?:필요|예정)|교체를\s*(?:검토|계획|진행)/i.test(
+        text
+      );
+
+
+    if (
+      excluded
+    ) {
+      return false;
+    }
+
+
+    return /교체\s*(?:완료|함|하였음|했음|됨|되었음|실시\s*완료|실시함)|교체가\s*(?:완료|됨|되었음)|교체\s*완료됨/i.test(
+      text
+    );
+  }
+
+
+  function extractArmRollBoxReplacementEvents(
+    log
+  ) {
+    const source =
+      collectArmRollBoxLogText(
+        log,
+        false
+      );
+
+
+    if (
+      !source
+    ) {
+      return [];
+    }
+
+
+    return source
+      .split(
+        /\n+|(?<=[.!?。])\s+/u
+      )
+      .map(
+        text => {
+          return text.trim();
+        }
+      )
+      .filter(
+        Boolean
+      )
+      .flatMap(
+        text => {
+          if (
+            !isConfirmedArmRollBoxReplacement(
+              text
+            )
+          ) {
+            return [];
+          }
+
+
+          return getArmRollBoxTargetsFromText(
+            text
+          ).map(
+            target => {
+              return {
+                target,
+
+                date:
+                  String(
+                    log?.date ||
+                    ""
+                  ).trim(),
+
+                detectionType:
+                  "confirmed",
+
+                sourceText:
+                  text,
+
+                logId:
+                  String(
+                    log?.id ||
+                    ""
+                  ).trim(),
+
+                shift:
+                  normalizeArmRollBoxShift(
+                    log?.shift
+                  ),
+
+                author:
+                  String(
+                    log?.author ||
+                    ""
+                  ).trim()
+              };
+            }
+          );
+        }
+      );
+  }
+
+
+  /* =====================================================
+    신규·과거 D1 업무일지 중복 제거
+
+    동일 날짜·근무에 신규 D1 자료가 있으면
+    과거 변환 자료보다 신규 자료를 우선한다.
+  ====================================================== */
+
+  function createArmRollBoxSourceLogKey(
+    log
+  ) {
+    return [
+      String(
+        log?.date ||
+        ""
+      ).trim(),
+
+      normalizeArmRollBoxShift(
+        log?.shift
+      ),
+
+      "BO1"
+    ].join(
+      "||"
+    );
+  }
+
+
+  function getArmRollBoxLogModifiedTime(
+    log
+  ) {
+    const parsed =
+      new Date(
+        log?.updatedAt ||
+        log?.createdAt ||
+        0
+      ).getTime();
+
+
+    return Number.isFinite(
+      parsed
+    )
+      ? parsed
+      : 0;
+  }
+
+
+  function deduplicateArmRollBoxSourceLogs(
+    sharedLogs,
+    legacyLogs
+  ) {
+    const map =
+      new Map();
+
+
+    const appendLogs = (
+      logs,
+      prefer
+    ) => {
+      (
+        Array.isArray(
+          logs
+        )
+          ? logs
+          : []
+      )
+        .filter(
+          log => {
+            return (
+              String(
+                log?.date ||
+                ""
+              ).trim() &&
+              normalizeArmRollBoxRole(
+                log?.role
+              ) ===
+                "BO1"
+            );
+          }
+        )
+        .forEach(
+          log => {
+            const key =
+              createArmRollBoxSourceLogKey(
+                log
+              );
+
+
+            const current =
+              map.get(
+                key
+              );
+
+
+            if (
+              !current ||
+              prefer ||
+              getArmRollBoxLogModifiedTime(
+                log
+              ) >
+                getArmRollBoxLogModifiedTime(
+                  current
+                )
+            ) {
+              map.set(
+                key,
+                log
+              );
+            }
+          }
+        );
+    };
+
+
+    appendLogs(
+      legacyLogs,
+      false
+    );
+
+
+    appendLogs(
+      sharedLogs,
+      true
+    );
+
+
+    return [
+      ...map.values()
+    ].sort(
+      (
+        firstLog,
+        secondLog
+      ) => {
+        const dateOrder =
+          String(
+            firstLog?.date ||
+            ""
+          ).localeCompare(
+            String(
+              secondLog?.date ||
+              ""
+            )
+          );
+
+
+        return (
+          dateOrder ||
+          getArmRollBoxLogModifiedTime(
+            firstLog
+          ) -
+          getArmRollBoxLogModifiedTime(
+            secondLog
+          )
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    날짜별 레벨 분석
+  ====================================================== */
+
+  function analyzeArmRollBoxLogs(
+    logs,
+    startDate,
+    endDate
+  ) {
+    const dailyMap =
+      new Map();
+
+
+    const confirmedMap =
+      new Map();
+
+
+    const ensureRow = (
+      date
+    ) => {
+      if (
+        !dailyMap.has(
+          date
+        )
+      ) {
+        dailyMap.set(
+          date,
+          {
+            date,
+
+            armRoll:
+              null,
+
+            scrap:
+              null
+          }
+        );
+      }
+
+
+      return dailyMap.get(
+        date
+      );
+    };
+
+
+    logs.forEach(
+      log => {
+        const date =
+          String(
+            log?.date ||
+            ""
+          ).trim();
+
+
+        if (
+          !date ||
+          date <
+            startDate ||
+          date >
+            endDate
+        ) {
+          return;
+        }
+
+
+        const operationText =
+          collectArmRollBoxLogText(
+            log,
+            true
+          );
+
+
+        const sourceInfo = {
+          logId:
+            String(
+              log?.id ||
+              ""
+            ).trim(),
+
+          shift:
+            normalizeArmRollBoxShift(
+              log?.shift
+            ),
+
+          author:
+            String(
+              log?.author ||
+              ""
+            ).trim(),
+
+          updatedAt:
+            String(
+              log?.updatedAt ||
+              log?.createdAt ||
+              ""
+            ).trim()
+        };
+
+
+        const row =
+          ensureRow(
+            date
+          );
+
+
+        const armRoll =
+          extractArmRollBoxLevel(
+            operationText,
+            "armRoll"
+          );
+
+
+        const scrap =
+          extractArmRollBoxLevel(
+            operationText,
+            "scrap"
+          );
+
+
+        if (
+          armRoll
+        ) {
+          row.armRoll = {
+            ...armRoll,
+            ...sourceInfo
+          };
+        }
+
+
+        if (
+          scrap
+        ) {
+          row.scrap = {
+            ...scrap,
+            ...sourceInfo
+          };
+        }
+
+
+        extractArmRollBoxReplacementEvents(
+          log
+        ).forEach(
+          event => {
+            confirmedMap.set(
+              `${event.target}||${event.date}`,
+              event
+            );
+          }
+        );
+      }
+    );
+
+
+    const dailyRows = [
+      ...dailyMap.values()
+    ]
+      .filter(
+        row => {
+          return Boolean(
+            row.armRoll ||
+            row.scrap
+          );
+        }
+      )
+      .sort(
+        (
+          firstRow,
+          secondRow
+        ) => {
+          return firstRow.date.localeCompare(
+            secondRow.date
+          );
+        }
+      );
+
+
+    const suspectedEvents = [];
+
+
+    [
+      "armRoll",
+      "scrap"
+    ].forEach(
+      target => {
+        let previous =
+          null;
+
+
+        dailyRows.forEach(
+          row => {
+            const record =
+              row[
+                target
+              ];
+
+
+            if (
+              !record
+            ) {
+              return;
+            }
+
+
+            if (
+              previous
+            ) {
+              const gap =
+                Math.max(
+                  1,
+
+                  getArmRollBoxDayDifference(
+                    previous.date,
+                    row.date
+                  )
+                );
+
+
+              const delta =
+                Math.round(
+                  (
+                    record.level -
+                    previous.level
+                  ) *
+                  10
+                ) /
+                10;
+
+
+              record.dayGap =
+                gap;
+
+
+              record.delta =
+                delta;
+
+
+              record.averagePerDay =
+                Math.round(
+                  (
+                    delta /
+                    gap
+                  ) *
+                  100
+                ) /
+                100;
+
+
+              const eventKey =
+                `${target}||${row.date}`;
+
+
+              if (
+                delta <=
+                  -SUSPECTED_DROP &&
+                !confirmedMap.has(
+                  eventKey
+                )
+              ) {
+                suspectedEvents.push({
+                  target,
+
+                  date:
+                    row.date,
+
+                  detectionType:
+                    "suspected",
+
+                  sourceText:
+                    `직전 ${formatArmRollBoxNumber(
+                      previous.level
+                    )}% → ${formatArmRollBoxNumber(
+                      record.level
+                    )}% (${formatArmRollBoxSigned(
+                      delta
+                    )})`,
+
+                  logId:
+                    record.logId,
+
+                  shift:
+                    record.shift,
+
+                  author:
+                    record.author
+                });
+              }
+            }
+
+
+            previous = {
+              ...record,
+
+              date:
+                row.date
+            };
+          }
+        );
+      }
+    );
+
+
+    const eventMap =
+      new Map();
+
+
+    [
+      ...confirmedMap.values(),
+      ...suspectedEvents
+    ].forEach(
+      event => {
+        const key =
+          `${event.target}||${event.date}`;
+
+
+        const current =
+          eventMap.get(
+            key
+          );
+
+
+        if (
+          !current ||
+          event.detectionType ===
+            "confirmed"
+        ) {
+          eventMap.set(
+            key,
+            event
+          );
+        }
+      }
+    );
+
+
+    const replacementEvents = [
+      ...eventMap.values()
+    ].sort(
+      (
+        firstEvent,
+        secondEvent
+      ) => {
+        const targetOrder =
+          firstEvent.target.localeCompare(
+            secondEvent.target
+          );
+
+
+        return (
+          targetOrder ||
+          firstEvent.date.localeCompare(
+            secondEvent.date
+          )
+        );
+      }
+    );
+
+
+    /* ===================================================
+      교체 주기·증가량 계산
+    ==================================================== */
+
+    replacementEvents.forEach(
+      event => {
+        const targetRows =
+          dailyRows.filter(
+            row => {
+              return Boolean(
+                row[
+                  event.target
+                ]
+              );
+            }
+          );
+
+
+        const priorEvents =
+          replacementEvents.filter(
+            item => {
+              return (
+                item.target ===
+                  event.target &&
+                item.date <
+                  event.date
+              );
+            }
+          );
+
+
+        const priorEvent =
+          priorEvents[
+            priorEvents.length -
+            1
+          ] ||
+          null;
+
+
+        const rowsBefore =
+          targetRows.filter(
+            row => {
+              return row.date <
+                event.date;
+            }
+          );
+
+
+        const preRow =
+          rowsBefore[
+            rowsBefore.length -
+            1
+          ] ||
+          null;
+
+
+        const cycleRows =
+          rowsBefore.filter(
+            row => {
+              return (
+                !priorEvent ||
+                row.date >
+                  priorEvent.date
+              );
+            }
+          );
+
+
+        const startRow =
+          cycleRows[0] ||
+          null;
+
+
+        const usageDays =
+          priorEvent
+            ? getArmRollBoxDayDifference(
+                priorEvent.date,
+                event.date
+              )
+            : startRow
+              ? getArmRollBoxDayDifference(
+                  startRow.date,
+                  event.date
+                )
+              : 0;
+
+
+        const preLevel =
+          preRow?.[
+            event.target
+          ]?.level ??
+          null;
+
+
+        const startLevel =
+          startRow?.[
+            event.target
+          ]?.level ??
+          null;
+
+
+        const cycleIncrease =
+          Number.isFinite(
+            Number(
+              preLevel
+            )
+          ) &&
+          Number.isFinite(
+            Number(
+              startLevel
+            )
+          )
+            ? Math.round(
+                (
+                  preLevel -
+                  startLevel
+                ) *
+                10
+              ) /
+              10
+            : null;
+
+
+        event.previousReplacementDate =
+          priorEvent?.date ||
+          "";
+
+
+        event.usageDays =
+          usageDays;
+
+
+        event.preReplacementLevel =
+          preLevel;
+
+
+        event.cycleIncrease =
+          cycleIncrease;
+
+
+        event.cycleAverage =
+          Number.isFinite(
+            Number(
+              cycleIncrease
+            )
+          ) &&
+          usageDays >
+            0
+            ? Math.round(
+                (
+                  cycleIncrease /
+                  usageDays
+                ) *
+                100
+              ) /
+              100
+            : null;
+      }
+    );
+
+
+    return {
+      dailyRows,
+
+      replacementEvents
+    };
+  }
+
+
+  /* =====================================================
+    최신 레벨
+  ====================================================== */
+
+  function getLatestArmRollBoxRecord(
+    target
+  ) {
+    const rows =
+      state.dailyRows.filter(
+        row => {
+          return Boolean(
+            row[
+              target
+            ]
+          );
+        }
+      );
+
+
+    const row =
+      rows[
+        rows.length -
+        1
+      ];
+
+
+    return row
+      ? {
+          ...row[
+            target
+          ],
+
+          date:
+            row.date
+        }
+      : null;
+  }
+
+
+  function getLatestConfirmedReplacement(
+    target,
+    maximumDate
+  ) {
+    const items =
+      state.replacementEvents.filter(
+        event => {
+          return (
+            event.target ===
+              target &&
+            event.detectionType ===
+              "confirmed" &&
+            (
+              !maximumDate ||
+              event.date <=
+                maximumDate
+            )
+          );
+        }
+      );
+
+
+    return items[
+      items.length -
+      1
+    ] ||
+    null;
+  }
+
+
+  function getArmRollBoxTargetLabel(
+    target
+  ) {
+    return target ===
+      "armRoll"
+      ? "ARM ROLL BOX"
+      : "SCRAP BOX";
+  }
+
+
+  /* =====================================================
+    현재 레벨 카드 ID
+  ====================================================== */
+
+  function getArmRollBoxCardIds(
+    target
+  ) {
+    if (
+      target ===
+      "armRoll"
+    ) {
+      return {
+        card:
+          "armRollCurrentCard",
+
+        level:
+          "armRollBoxCurrentLevel",
+
+        status:
+          "armRollBoxLevelState",
+
+        progress:
+          "armRollBoxLevelProgress",
+
+        fill:
+          "armRollBoxLevelFill",
+
+        increase:
+          "armRollBoxDailyIncrease",
+
+        average:
+          "armRollBoxAverageIncrease",
+
+        days:
+          "armRollBoxDaysSinceReplacement",
+
+        recorded:
+          "armRollBoxLastRecordedAt"
+      };
+    }
+
+
+    return {
+      card:
+        "scrapCurrentCard",
+
+      level:
+        "scrapBoxCurrentLevel",
+
+      status:
+        "scrapBoxLevelState",
+
+      progress:
+        "scrapBoxLevelProgress",
+
+      fill:
+        "scrapBoxLevelFill",
+
+      increase:
+        "scrapBoxDailyIncrease",
+
+      average:
+        "scrapBoxAverageIncrease",
+
+      days:
+        "scrapBoxDaysSinceReplacement",
+
+      recorded:
+        "scrapBoxLastRecordedAt"
+    };
+  }
+
+
+  function getArmRollBoxLevelState(
+    level
+  ) {
+    if (
+      level ===
+        null ||
+      level ===
+        undefined
+    ) {
+      return {
+        label:
+          "기록 없음",
+
+        className:
+          ""
+      };
+    }
+
+
+    if (
+      level >=
+      WARNING_LEVEL
+    ) {
+      return {
+        label:
+          "경고",
+
+        className:
+          "is-warning"
+      };
+    }
+
+
+    if (
+      level >=
+      60
+    ) {
+      return {
+        label:
+          "주의",
+
+        className:
+          "is-caution"
+      };
+    }
+
+
+    return {
+      label:
+        "정상",
+
+      className:
+        "is-normal"
+    };
+  }
+
+
+  /* =====================================================
+    현재 레벨 카드 출력
+  ====================================================== */
+
+  function renderArmRollBoxCurrentCard(
+    target,
+    record
+  ) {
+    const ids =
+      getArmRollBoxCardIds(
+        target
+      );
+
+
+    const byId =
+      id => {
+        return document.getElementById(
+          id
+        );
+      };
+
+
+    const card =
+      byId(
+        ids.card
+      );
+
+
+    const level =
+      record?.level ??
+      null;
+
+
+    const status =
+      getArmRollBoxLevelState(
+        level
+      );
+
+
+    if (
+      byId(
+        ids.level
+      )
+    ) {
+      byId(
+        ids.level
+      ).textContent =
+        level ===
+          null
+          ? "-"
+          : formatArmRollBoxNumber(
+              level
+            );
+    }
+
+
+    if (
+      byId(
+        ids.status
+      )
+    ) {
+      byId(
+        ids.status
+      ).textContent =
+        status.label;
+
+
+      byId(
+        ids.status
+      ).className =
+        [
+          "arm-roll-box-level-state",
+          status.className
+        ]
+          .filter(
+            Boolean
+          )
+          .join(
+            " "
+          );
+    }
+
+
+    card?.classList.toggle(
+      "is-warning",
+
+      level !==
+        null &&
+      level >=
+        WARNING_LEVEL
+    );
+
+
+    byId(
+      ids.progress
+    )?.setAttribute(
+      "aria-valuenow",
+      String(
+        level ??
+        0
+      )
+    );
+
+
+    if (
+      byId(
+        ids.fill
+      )
+    ) {
+      byId(
+        ids.fill
+      ).style.width =
+        `${Math.max(
+          0,
+
+          Math.min(
+            100,
+
+            Number(
+              level ||
+              0
+            )
+          )
+        )}%`;
+    }
+
+
+    if (
+      byId(
+        ids.increase
+      )
+    ) {
+      byId(
+        ids.increase
+      ).textContent =
+        Number.isFinite(
+          Number(
+            record?.delta
+          )
+        )
+          ? `${record.dayGap}일간 ${formatArmRollBoxSigned(
+              record.delta
+            )}`
+          : "-";
+    }
+
+
+    if (
+      byId(
+        ids.average
+      )
+    ) {
+      byId(
+        ids.average
+      ).textContent =
+        Number.isFinite(
+          Number(
+            record?.averagePerDay
+          )
+        )
+          ? `${formatArmRollBoxSigned(
+              record.averagePerDay
+            )}/일`
+          : "-";
+    }
+
+
+    const replacement =
+      getLatestConfirmedReplacement(
+        target,
+        record?.date ||
+        ""
+      );
+
+
+    if (
+      byId(
+        ids.days
+      )
+    ) {
+      byId(
+        ids.days
+      ).textContent =
+        replacement &&
+        record?.date
+          ? `${Math.max(
+              0,
+
+              getArmRollBoxDayDifference(
+                replacement.date,
+                record.date
+              )
+            )}일`
+          : "-";
+    }
+
+
+    if (
+      byId(
+        ids.recorded
+      )
+    ) {
+      byId(
+        ids.recorded
+      ).textContent =
+        record?.date
+          ? `${record.date} ${record.shift || ""}`.trim()
+          : "-";
+    }
+  }
+
+
+  /* =====================================================
+    탭 배지 생성
+  ====================================================== */
+
+  function ensureArmRollBoxTabBadge() {
+    const tab =
+      getArmRollBoxElements()
+        .tab;
+
+
+    if (
+      !tab
+    ) {
+      return null;
+    }
+
+
+    let badge =
+      document.getElementById(
+        "efficiencyArmRollTabBadge"
+      );
+
+
+    if (
+      badge
+    ) {
+      return badge;
+    }
+
+
+    badge =
+      document.createElement(
+        "span"
+      );
+
+
+    badge.id =
+      "efficiencyArmRollTabBadge";
+
+
+    badge.hidden =
+      true;
+
+
+    badge.setAttribute(
+      "aria-label",
+      "BOX 레벨 경고 건수"
+    );
+
+
+    tab.appendChild(
+      badge
+    );
+
+
+    return badge;
+  }
+
+
+  /* =====================================================
+    경고 팝업
+
+    같은 레벨 경고는 브라우저 세션당 한 번만 표시한다.
+  ====================================================== */
+
+  async function showArmRollBoxWarningPopup(
+    items
+  ) {
+    if (
+      !items.length
+    ) {
+      return;
+    }
+
+
+    const warningText =
+      items
+        .map(
+          item => {
+            return `${item.label} ${formatArmRollBoxNumber(
+              item.level
+            )}%`;
+          }
+        )
+        .join(
+          " · "
+        );
+
+
+    const warningKey =
+      `${state.endDate}||${warningText}`;
+
+
+    try {
+      if (
+        sessionStorage.getItem(
+          WARNING_SESSION_KEY
+        ) ===
+        warningKey
+      ) {
+        return;
+      }
+
+
+      sessionStorage.setItem(
+        WARNING_SESSION_KEY,
+        warningKey
+      );
+
+    } catch {
+      /*
+        세션 저장 실패 시에도
+        경고는 정상 표시한다.
+      */
+    }
+
+
+    if (
+      typeof showToast ===
+      "function"
+    ) {
+      showToast(
+        `BOX 레벨 경고: ${warningText}`
+      );
+    }
+
+
+    if (
+      typeof showCompactConfirm ===
+      "function"
+    ) {
+      await showCompactConfirm({
+        title:
+          "BOX 레벨 경고",
+
+        message:
+          `${warningText}\n70% 이상 BOX의 교체 여부를 확인해 주세요.`,
+
+        confirmText:
+          "확인",
+
+        cancelText:
+          "닫기"
+      });
+
+
+      return;
+    }
+
+
+    window.alert(
+      [
+        "BOX 레벨 경고",
+        "",
+        warningText,
+        "",
+        "70% 이상 BOX의 교체 여부를 확인해 주세요."
+      ].join(
+        "\n"
+      )
+    );
+  }
+
+
+  /* =====================================================
+    경보 배너·탭 배지
+  ====================================================== */
+
+  function renderArmRollBoxWarnings(
+    notify
+  ) {
+    const elements =
+      getArmRollBoxElements();
+
+
+    const items = [];
+
+
+    if (
+      state.current.armRoll
+        ?.level >=
+      WARNING_LEVEL
+    ) {
+      items.push({
+        label:
+          "ARM ROLL BOX",
+
+        level:
+          state.current.armRoll
+            .level
+      });
+    }
+
+
+    if (
+      state.current.scrap
+        ?.level >=
+      WARNING_LEVEL
+    ) {
+      items.push({
+        label:
+          "SCRAP BOX",
+
+        level:
+          state.current.scrap
+            .level
+      });
+    }
+
+
+    const badge =
+      ensureArmRollBoxTabBadge();
+
+
+    if (
+      badge
+    ) {
+      badge.hidden =
+        !items.length;
+
+
+      badge.textContent =
+        items.length
+          ? String(
+              items.length
+            )
+          : "";
+    }
+
+
+    elements.tab?.classList.toggle(
+      "has-warning",
+      items.length >
+        0
+    );
+
+
+    if (
+      elements.alert
+    ) {
+      elements.alert.hidden =
+        !items.length;
+    }
+
+
+    if (
+      items.length
+    ) {
+      const highest =
+        [
+          ...items
+        ].sort(
+          (
+            firstItem,
+            secondItem
+          ) => {
+            return (
+              secondItem.level -
+              firstItem.level
+            );
+          }
+        )[0];
+
+
+      if (
+        elements.alertTitle
+      ) {
+        elements.alertTitle.textContent =
+          `${items.length}개 BOX가 70% 이상입니다.`;
+      }
+
+
+      if (
+        elements.alertMessage
+      ) {
+        elements.alertMessage.textContent =
+          items
+            .map(
+              item => {
+                return `${item.label} ${formatArmRollBoxNumber(
+                  item.level
+                )}%`;
+              }
+            )
+            .join(
+              " · "
+            );
+      }
+
+
+      if (
+        elements.alertValue
+      ) {
+        elements.alertValue.textContent =
+          `${formatArmRollBoxNumber(
+            highest.level
+          )}%`;
+      }
+    }
+
+
+    if (
+      notify &&
+      items.length
+    ) {
+      showArmRollBoxWarningPopup(
+        items
+      );
+    }
+  }
+
+
+  /* =====================================================
+    날짜별 기록 표
+  ====================================================== */
+
+  function createArmRollBoxLevelCell(
+    record
+  ) {
+    if (
+      !record
+    ) {
+      return "<td>-</td>";
+    }
+
+
+    const className =
+      record.level >=
+        WARNING_LEVEL
+        ? "is-level-warning"
+        : "is-level-normal";
+
+
+    return `
+      <td class="${className}">
+        ${escapeArmRollBoxHtml(
+          formatArmRollBoxNumber(
+            record.level
+          )
+        )}%
+      </td>
+    `;
+  }
+
+
+  function createArmRollBoxChangeCell(
+    record
+  ) {
+    if (
+      !record ||
+      !Number.isFinite(
+        Number(
+          record.delta
+        )
+      )
+    ) {
+      return "<td>-</td>";
+    }
+
+
+    return `
+      <td>
+        <strong>
+          ${escapeArmRollBoxHtml(
+            `${record.dayGap}일간 ${formatArmRollBoxSigned(
+              record.delta
+            )}`
+          )}
+        </strong>
+
+        <br>
+
+        <small>
+          ${escapeArmRollBoxHtml(
+            `${formatArmRollBoxSigned(
+              record.averagePerDay
+            )}/일`
+          )}
+        </small>
+      </td>
+    `;
+  }
+
+
+  function renderArmRollBoxDailyTable() {
+    const elements =
+      getArmRollBoxElements();
+
+
+    if (
+      elements.dailyCount
+    ) {
+      elements.dailyCount.textContent =
+        `${state.dailyRows.length}일`;
+    }
+
+
+    if (
+      !elements.dailyBody
+    ) {
+      return;
+    }
+
+
+    if (
+      !state.dailyRows.length
+    ) {
+      elements.dailyBody.innerHTML = `
+        <tr class="arm-roll-box-empty-table-row">
+          <td colspan="7">
+            조회된 BOX 레벨 기록이 없습니다.
+          </td>
+        </tr>
+      `;
+
+
+      return;
+    }
+
+
+    elements.dailyBody.innerHTML =
+      [
+        ...state.dailyRows
+      ]
+        .reverse()
+        .map(
+          row => {
+            const events =
+              state.replacementEvents.filter(
+                event => {
+                  return event.date ===
+                    row.date;
+                }
+              );
+
+
+            const eventHtml =
+              events.length
+                ? events
+                    .map(
+                      event => {
+                        return `
+                          <span
+                            class="${
+                              event.detectionType ===
+                                "confirmed"
+                                ? "is-replacement"
+                                : "is-suspected"
+                            }"
+                          >
+                            ${escapeArmRollBoxHtml(
+                              getArmRollBoxTargetLabel(
+                                event.target
+                              )
+                            )}
+                            ·
+                            ${
+                              event.detectionType ===
+                                "confirmed"
+                                ? "교체"
+                                : "교체 의심"
+                            }
+                          </span>
+                        `;
+                      }
+                    )
+                    .join(
+                      "<br>"
+                    )
+                : "-";
+
+
+            const sources = [
+              row.armRoll,
+              row.scrap
+            ]
+              .filter(
+                Boolean
+              )
+              .map(
+                record => {
+                  return [
+                    record.shift,
+                    record.author
+                  ]
+                    .filter(
+                      Boolean
+                    )
+                    .join(
+                      " · "
+                    );
+                }
+              );
+
+
+            return `
+              <tr>
+                <td>
+                  <strong>
+                    ${escapeArmRollBoxHtml(
+                      row.date
+                    )}
+                  </strong>
+                </td>
+
+                ${createArmRollBoxLevelCell(
+                  row.armRoll
+                )}
+
+                ${createArmRollBoxChangeCell(
+                  row.armRoll
+                )}
+
+                ${createArmRollBoxLevelCell(
+                  row.scrap
+                )}
+
+                ${createArmRollBoxChangeCell(
+                  row.scrap
+                )}
+
+                <td>
+                  ${eventHtml}
+                </td>
+
+                <td>
+                  ${escapeArmRollBoxHtml(
+                    [
+                      ...new Set(
+                        sources
+                      )
+                    ].join(
+                      " / "
+                    ) ||
+                    "BO1 업무일지"
+                  )}
+                </td>
+              </tr>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+  }
+
+
+  /* =====================================================
+    교체 이력 표
+  ====================================================== */
+
+  function renderArmRollBoxReplacementTable() {
+    const elements =
+      getArmRollBoxElements();
+
+
+    if (
+      elements.replacementCount
+    ) {
+      elements.replacementCount.textContent =
+        `${state.replacementEvents.length}건`;
+    }
+
+
+    if (
+      !elements.replacementBody
+    ) {
+      return;
+    }
+
+
+    if (
+      !state.replacementEvents.length
+    ) {
+      elements.replacementBody.innerHTML = `
+        <tr class="arm-roll-box-empty-table-row">
+          <td colspan="8">
+            인식된 BOX 교체 기록이 없습니다.
+          </td>
+        </tr>
+      `;
+
+
+      return;
+    }
+
+
+    elements.replacementBody.innerHTML =
+      [
+        ...state.replacementEvents
+      ]
+        .sort(
+          (
+            firstEvent,
+            secondEvent
+          ) => {
+            return secondEvent.date.localeCompare(
+              firstEvent.date
+            );
+          }
+        )
+        .map(
+          event => {
+            const confirmed =
+              event.detectionType ===
+              "confirmed";
+
+
+            return `
+              <tr>
+                <td>
+                  <strong>
+                    ${escapeArmRollBoxHtml(
+                      getArmRollBoxTargetLabel(
+                        event.target
+                      )
+                    )}
+                  </strong>
+
+                  <br>
+
+                  <small
+                    class="${
+                      confirmed
+                        ? "is-replacement"
+                        : "is-suspected"
+                    }"
+                  >
+                    ${
+                      confirmed
+                        ? "교체 확정"
+                        : "교체 의심"
+                    }
+                  </small>
+                </td>
+
+                <td>
+                  ${escapeArmRollBoxHtml(
+                    event.date
+                  )}
+                </td>
+
+                <td>
+                  ${escapeArmRollBoxHtml(
+                    event.previousReplacementDate ||
+                    "-"
+                  )}
+                </td>
+
+                <td>
+                  ${
+                    event.usageDays >
+                      0
+                      ? `${event.usageDays}일`
+                      : "-"
+                  }
+                </td>
+
+                <td>
+                  ${
+                    Number.isFinite(
+                      Number(
+                        event.preReplacementLevel
+                      )
+                    )
+                      ? `${formatArmRollBoxNumber(
+                          event.preReplacementLevel
+                        )}%`
+                      : "-"
+                  }
+                </td>
+
+                <td>
+                  ${
+                    Number.isFinite(
+                      Number(
+                        event.cycleIncrease
+                      )
+                    )
+                      ? formatArmRollBoxSigned(
+                          event.cycleIncrease
+                        )
+                      : "-"
+                  }
+                </td>
+
+                <td>
+                  ${
+                    Number.isFinite(
+                      Number(
+                        event.cycleAverage
+                      )
+                    )
+                      ? `${formatArmRollBoxSigned(
+                          event.cycleAverage
+                        )}/일`
+                      : "-"
+                  }
+                </td>
+
+                <td>
+                  ${escapeArmRollBoxHtml(
+                    event.sourceText ||
+                    "수치 급감 감지"
+                  )}
+                </td>
+              </tr>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+  }
+
+
+  /* =====================================================
+    SVG 증가 추이 그래프
+  ====================================================== */
+
+  function renderArmRollBoxChart() {
+    const chart =
+      getArmRollBoxElements()
+        .chart;
+
+
+    if (
+      !chart
+    ) {
+      return;
+    }
+
+
+    const rows =
+      state.dailyRows;
+
+
+    if (
+      !rows.length
+    ) {
+      chart.innerHTML = `
+        <div class="arm-roll-box-chart-empty">
+          조회된 BOX 레벨 기록이 없습니다.
+        </div>
+      `;
+
+
+      return;
+    }
+
+
+    const width =
+      Math.max(
+        760,
+
+        rows.length *
+        74
+      );
+
+
+    const height =
+      260;
+
+
+    const padding = {
+      top:
+        20,
+
+      right:
+        24,
+
+      bottom:
+        42,
+
+      left:
+        46
+    };
+
+
+    const plotWidth =
+      width -
+      padding.left -
+      padding.right;
+
+
+    const plotHeight =
+      height -
+      padding.top -
+      padding.bottom;
+
+
+    const getX = (
+      index
+    ) => {
+      return rows.length ===
+        1
+        ? padding.left +
+          plotWidth /
+          2
+        : padding.left +
+          index /
+          (
+            rows.length -
+            1
+          ) *
+          plotWidth;
+    };
+
+
+    const getY = (
+      level
+    ) => {
+      return padding.top +
+      (
+        1 -
+        Number(
+          level
+        ) /
+        100
+      ) *
+      plotHeight;
+    };
+
+
+    const createPoints = (
+      target
+    ) => {
+      return rows
+        .map(
+          (
+            row,
+            index
+          ) => {
+            return row[
+              target
+            ]
+              ? `${getX(
+                  index
+                )},${getY(
+                  row[
+                    target
+                  ].level
+                )}`
+              : "";
+          }
+        )
+        .filter(
+          Boolean
+        )
+        .join(
+          " "
+        );
+    };
+
+
+    const createCircles = (
+      target,
+      color
+    ) => {
+      return rows
+        .map(
+          (
+            row,
+            index
+          ) => {
+            const record =
+              row[
+                target
+              ];
+
+
+            if (
+              !record
+            ) {
+              return "";
+            }
+
+
+            return `
+              <circle
+                cx="${getX(
+                  index
+                )}"
+                cy="${getY(
+                  record.level
+                )}"
+                r="4"
+                fill="${color}"
+                stroke="#ffffff"
+                stroke-width="2"
+              >
+                <title>
+                  ${row.date} · ${getArmRollBoxTargetLabel(
+                    target
+                  )} ${formatArmRollBoxNumber(
+                    record.level
+                  )}%
+                </title>
+              </circle>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+    };
+
+
+    const gridLines =
+      [
+        0,
+        25,
+        50,
+        70,
+        75,
+        100
+      ]
+        .map(
+          level => {
+            const threshold =
+              level ===
+              WARNING_LEVEL;
+
+
+            return `
+              <line
+                x1="${padding.left}"
+                y1="${getY(
+                  level
+                )}"
+                x2="${width - padding.right}"
+                y2="${getY(
+                  level
+                )}"
+                stroke="${
+                  threshold
+                    ? "#d74c4c"
+                    : "#dfe6ec"
+                }"
+                stroke-width="${
+                  threshold
+                    ? 2
+                    : 1
+                }"
+                stroke-dasharray="${
+                  threshold
+                    ? "6 5"
+                    : "0"
+                }"
+              />
+
+              <text
+                x="${padding.left - 8}"
+                y="${getY(
+                  level
+                ) + 4}"
+                text-anchor="end"
+                fill="${
+                  threshold
+                    ? "#c43f3f"
+                    : "#7a8998"
+                }"
+                font-size="9"
+                font-weight="800"
+              >
+                ${level}%
+              </text>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+
+
+    const labelStep =
+      Math.max(
+        1,
+
+        Math.ceil(
+          rows.length /
+          8
+        )
+      );
+
+
+    const dateLabels =
+      rows
+        .map(
+          (
+            row,
+            index
+          ) => {
+            if (
+              index %
+                labelStep !==
+                0 &&
+              index !==
+                rows.length -
+                1
+            ) {
+              return "";
+            }
+
+
+            return `
+              <text
+                x="${getX(
+                  index
+                )}"
+                y="${height - 15}"
+                text-anchor="middle"
+                fill="#718191"
+                font-size="9"
+                font-weight="700"
+              >
+                ${row.date.slice(
+                  5
+                )}
+              </text>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+
+
+    const replacementLines =
+      state.replacementEvents
+        .map(
+          event => {
+            const index =
+              rows.findIndex(
+                row => {
+                  return row.date ===
+                    event.date;
+                }
+              );
+
+
+            if (
+              index <
+              0
+            ) {
+              return "";
+            }
+
+
+            const color =
+              event.detectionType ===
+                "confirmed"
+                ? "#23865f"
+                : "#c68a24";
+
+
+            return `
+              <line
+                x1="${getX(
+                  index
+                )}"
+                y1="${padding.top}"
+                x2="${getX(
+                  index
+                )}"
+                y2="${height - padding.bottom}"
+                stroke="${color}"
+                stroke-width="1.5"
+                stroke-dasharray="4 4"
+              />
+
+              <circle
+                cx="${getX(
+                  index
+                )}"
+                cy="${padding.top + 7}"
+                r="5"
+                fill="${color}"
+              >
+                <title>
+                  ${event.date} · ${getArmRollBoxTargetLabel(
+                    event.target
+                  )} · ${
+                    event.detectionType ===
+                      "confirmed"
+                      ? "교체"
+                      : "교체 의심"
+                  }
+                </title>
+              </circle>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+
+
+    chart.innerHTML = `
+      <svg
+        width="${width}"
+        height="${height}"
+        viewBox="0 0 ${width} ${height}"
+        role="img"
+        aria-label="ARM ROLL BOX와 SCRAP BOX 레벨 추이"
+      >
+        ${gridLines}
+
+        <polyline
+          points="${createPoints(
+            "armRoll"
+          )}"
+          fill="none"
+          stroke="#3e82bc"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+
+        <polyline
+          points="${createPoints(
+            "scrap"
+          )}"
+          fill="none"
+          stroke="#9564ba"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+
+        ${createCircles(
+          "armRoll",
+          "#3e82bc"
+        )}
+
+        ${createCircles(
+          "scrap",
+          "#9564ba"
+        )}
+
+        ${replacementLines}
+
+        ${dateLabels}
+      </svg>
+    `;
+  }
+
+
+  /* =====================================================
+    대시보드 전체 출력
+  ====================================================== */
+
+  function renderArmRollBoxDashboard(
+    options = {}
+  ) {
+    state.current.armRoll =
+      getLatestArmRollBoxRecord(
+        "armRoll"
+      );
+
+
+    state.current.scrap =
+      getLatestArmRollBoxRecord(
+        "scrap"
+      );
+
+
+    renderArmRollBoxCurrentCard(
+      "armRoll",
+      state.current.armRoll
+    );
+
+
+    renderArmRollBoxCurrentCard(
+      "scrap",
+      state.current.scrap
+    );
+
+
+    renderArmRollBoxWarnings(
+      options.notify ===
+      true
+    );
+
+
+    renderArmRollBoxChart();
+
+
+    renderArmRollBoxDailyTable();
+
+
+    renderArmRollBoxReplacementTable();
+  }
+
+
+  /* =====================================================
+    D1 업무일지 조회
+
+    신규 업무일지:
+    /api/shift-logs
+
+    과거 업무일지:
+    /api/legacy-logs
+
+    별도 ARM ROLL 저장 API는 사용하지 않는다.
+  ====================================================== */
+
+  async function loadArmRollBoxSourceLogs(
+    startDate,
+    endDate
+  ) {
+    if (
+      typeof loadSharedShiftLogsFromServer !==
+      "function"
+    ) {
+      throw new Error(
+        "공용 업무일지 조회 기능을 찾을 수 없습니다."
+      );
+    }
+
+
+    const params =
+      new URLSearchParams({
+        from:
+          startDate,
+
+        to:
+          endDate
+      });
+
+
+    const results =
+      await Promise.allSettled([
+        loadSharedShiftLogsFromServer(
+          `?${params.toString()}`
+        ),
+
+        typeof loadLegacyLogsForSearchRange ===
+          "function"
+          ? loadLegacyLogsForSearchRange(
+              startDate,
+              endDate
+            )
+          : Promise.resolve(
+              []
+            )
+      ]);
+
+
+    if (
+      results[0].status ===
+        "rejected"
+    ) {
+      console.error(
+        "신규 BO1 업무일지 조회 실패:",
+        results[0].reason
+      );
+    }
+
+
+    if (
+      results[1].status ===
+        "rejected"
+    ) {
+      console.error(
+        "과거 BO1 업무일지 조회 실패:",
+        results[1].reason
+      );
+    }
+
+
+    if (
+      results.every(
+        result => {
+          return result.status ===
+            "rejected";
+        }
+      )
+    ) {
+      throw new Error(
+        "신규·과거 BO1 업무일지를 모두 불러오지 못했습니다."
+      );
+    }
+
+
+    const sharedLogs =
+      results[0].status ===
+        "fulfilled" &&
+      Array.isArray(
+        results[0].value
+      )
+        ? results[0].value
+        : [];
+
+
+    const legacyLogs =
+      results[1].status ===
+        "fulfilled" &&
+      Array.isArray(
+        results[1].value
+      )
+        ? results[1].value
+        : [];
+
+
+    return deduplicateArmRollBoxSourceLogs(
+      sharedLogs,
+      legacyLogs
+    );
+  }
+
+
+  /* =====================================================
+    업무일지 분석 실행
+  ====================================================== */
+
+  async function loadArmRollBoxData(
+    options = {}
+  ) {
+    if (
+      state.loading
+    ) {
+      return;
+    }
+
+
+    const elements =
+      getArmRollBoxElements();
+
+
+    const startDate =
+      String(
+        elements.start?.value ||
+        state.startDate ||
+        ""
+      ).trim();
+
+
+    const endDate =
+      String(
+        elements.end?.value ||
+        state.endDate ||
+        ""
+      ).trim();
+
+
+    if (
+      !parseArmRollBoxDate(
+        startDate
+      ) ||
+      !parseArmRollBoxDate(
+        endDate
+      )
+    ) {
+      showArmRollBoxMessage(
+        "조회 시작일과 종료일을 확인해 주세요.",
+        "error"
+      );
+
+
+      return;
+    }
+
+
+    if (
+      startDate >
+      endDate
+    ) {
+      showArmRollBoxMessage(
+        "시작일은 종료일보다 늦을 수 없습니다.",
+        "error"
+      );
+
+
+      return;
+    }
+
+
+    state.startDate =
+      startDate;
+
+
+    state.endDate =
+      endDate;
+
+
+    setArmRollBoxLoading(
+      true
+    );
+
+
+    showArmRollBoxMessage(
+      ""
+    );
+
+
+    try {
+      const logs =
+        await loadArmRollBoxSourceLogs(
+          startDate,
+          endDate
+        );
+
+
+      const analysis =
+        analyzeArmRollBoxLogs(
+          logs,
+          startDate,
+          endDate
+        );
+
+
+      state.sourceLogs =
+        logs;
+
+
+      state.dailyRows =
+        analysis.dailyRows;
+
+
+      state.replacementEvents =
+        analysis.replacementEvents;
+
+
+      state.loaded =
+        true;
+
+
+      state.loadedAt =
+        Date.now();
+
+
+      if (
+        elements.rangeLabel
+      ) {
+        elements.rangeLabel.textContent =
+          `${startDate} ~ ${endDate}`;
+      }
+
+
+      if (
+        elements.rangeCount
+      ) {
+        elements.rangeCount.textContent =
+          `${getArmRollBoxDayDifference(
+            startDate,
+            endDate
+          ) + 1}일`;
+      }
+
+
+      renderArmRollBoxDashboard({
+        notify:
+          options.notify ===
+          true
+      });
+
+
+      if (
+        options.success ===
+        true
+      ) {
+        showArmRollBoxMessage(
+          `BO1 업무일지 ${logs.length}건을 분석하여 BOX 레벨 ${analysis.dailyRows.length}일 기록을 최신화했습니다.`,
+          "success"
+        );
+
+
+        if (
+          typeof showToast ===
+          "function"
+        ) {
+          showToast(
+            "ARM ROLL · SCRAP BOX 업무일지를 최신화했습니다."
+          );
+        }
+
+      } else if (
+        !analysis.dailyRows.length
+      ) {
+        showArmRollBoxMessage(
+          "선택한 기간의 BO1 운전현황에서 BOX 레벨을 찾지 못했습니다.",
+          "warning"
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "ARM ROLL · SCRAP BOX 분석 실패:",
+        error
+      );
+
+
+      showArmRollBoxMessage(
+        error?.message ||
+        "ARM ROLL · SCRAP BOX 기록을 분석하지 못했습니다.",
+        "error"
+      );
+
+    } finally {
+      setArmRollBoxLoading(
+        false
+      );
+    }
+  }
+
+
+  /* =====================================================
+    빠른 조회 기간
+  ====================================================== */
+
+  function setArmRollBoxRange(
+    days,
+    load =
+      false
+  ) {
+    const elements =
+      getArmRollBoxElements();
+
+
+    const rangeDays =
+      Math.max(
+        1,
+
+        Number(
+          days ||
+          30
+        )
+      );
+
+
+    const endDate =
+      formatArmRollBoxDate(
+        new Date()
+      );
+
+
+    const startDate =
+      addArmRollBoxDays(
+        endDate,
+        -(
+          rangeDays -
+          1
+        )
+      );
+
+
+    if (
+      elements.start
+    ) {
+      elements.start.value =
+        startDate;
+    }
+
+
+    if (
+      elements.end
+    ) {
+      elements.end.value =
+        endDate;
+    }
+
+
+    state.startDate =
+      startDate;
+
+
+    state.endDate =
+      endDate;
+
+
+    elements.ranges.forEach(
+      button => {
+        button.classList.toggle(
+          "is-active",
+
+          Number(
+            button.dataset
+              .armRollBoxRangeDays
+          ) ===
+          rangeDays
+        );
+      }
+    );
+
+
+    if (
+      load
+    ) {
+      loadArmRollBoxData();
+    }
+  }
+
+
+  function clearArmRollBoxRangeSelection() {
+    getArmRollBoxElements()
+      .ranges
+      .forEach(
+        button => {
+          button.classList.remove(
+            "is-active"
+          );
+        }
+      );
+  }
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function bindArmRollBoxEvents() {
+    const elements =
+      getArmRollBoxElements();
+
+
+    if (
+      !elements.view ||
+      elements.view.dataset
+        .armRollBoxBound ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    setArmRollBoxRange(
+      30,
+      false
+    );
+
+
+    elements.ranges.forEach(
+      button => {
+        button.addEventListener(
+          "click",
+          () => {
+            setArmRollBoxRange(
+              button.dataset
+                .armRollBoxRangeDays,
+              true
+            );
+          }
+        );
+      }
+    );
+
+
+    elements.start?.addEventListener(
+      "change",
+      clearArmRollBoxRangeSelection
+    );
+
+
+    elements.end?.addEventListener(
+      "change",
+      clearArmRollBoxRangeSelection
+    );
+
+
+    elements.form?.addEventListener(
+      "submit",
+      event => {
+        event.preventDefault();
+
+
+        loadArmRollBoxData();
+      }
+    );
+
+
+    elements.refreshButton?.addEventListener(
+      "click",
+      () => {
+        loadArmRollBoxData();
+      }
+    );
+
+
+    elements.syncButton?.addEventListener(
+      "click",
+      () => {
+        loadArmRollBoxData({
+          notify:
+            true,
+
+          success:
+            true
+        });
+      }
+    );
+
+
+    /*
+      Arm Roll 탭을 열 때
+      아직 조회하지 않았거나 5분이 지났으면 다시 조회한다.
+    */
+    elements.tab?.addEventListener(
+      "click",
+      () => {
+        const stale =
+          Date.now() -
+          state.loadedAt >
+          300000;
+
+
+        if (
+          !state.loaded ||
+          stale
+        ) {
+          loadArmRollBoxData({
+            notify:
+              true
+          });
+        }
+      }
+    );
+
+
+    /*
+      효율팀 팝업을 열면
+      탭 배지와 70% 경고를 위해 최초 한 번 분석한다.
+    */
+    elements.openButton?.addEventListener(
+      "click",
+      () => {
+        window.setTimeout(
+          () => {
+            if (
+              !state.loaded
+            ) {
+              loadArmRollBoxData({
+                notify:
+                  true
+              });
+            }
+          },
+          0
+        );
+      }
+    );
+
+
+    elements.view.dataset
+      .armRollBoxBound =
+      "true";
+  }
+
+
+  /* =====================================================
+    외부 새로고침
+  ====================================================== */
+
+  window.refreshArmRollBoxDashboard =
+    function refreshArmRollBoxDashboard() {
+      return loadArmRollBoxData();
+    };
+
+
+  /* =====================================================
+    최초 실행
+  ====================================================== */
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      bindArmRollBoxEvents,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    bindArmRollBoxEvents();
+  }
+})();
