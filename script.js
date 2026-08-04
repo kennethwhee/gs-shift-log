@@ -102699,8 +102699,14 @@ openLogDetail =
     70;
 
 
-  const SUSPECTED_DROP =
-    30;
+/*
+  자동 교체 확정 기준
+
+  직전 기록보다 30%p 이상 감소하면
+  별도의 교체 문구가 없어도 교체된 것으로 확정한다.
+*/
+const REPLACEMENT_DROP =
+  30;
 
 
   const WARNING_SESSION_KEY =
@@ -104305,6 +104311,16 @@ function getArmRollBoxElements() {
       );
 
 
+    /* =====================================================
+      수치 급감 자동 교체 확정
+
+      직전 측정값보다 30%p 이상 감소하면
+      업무내용에 교체 문구가 없어도 교체 확정으로 처리한다.
+
+      기존 변수명 suspectedEvents는
+      아래쪽 연결 코드 오류 방지를 위해 그대로 유지한다.
+    ====================================================== */
+
     const suspectedEvents =
       [];
 
@@ -104355,6 +104371,11 @@ function getArmRollBoxElements() {
                 10;
 
 
+              /*
+                직전 기록과 현재 기록 사이의
+                측정 간격과 변화량을 저장한다.
+              */
+
               record.dayGap =
                 dayGap;
 
@@ -104377,6 +104398,14 @@ function getArmRollBoxElements() {
               const eventKey =
                 `${series.key}||${row.date}`;
 
+
+              /*
+                수치가 기준 이상 급감하면
+                교체 의심이 아니라 교체 확정으로 등록한다.
+
+                같은 날짜·같은 대상이 업무내용으로 이미
+                교체 확정된 경우에는 중복 등록하지 않는다.
+              */
 
               if (
                 delta <=
@@ -104401,11 +104430,19 @@ function getArmRollBoxElements() {
                   date:
                     row.date,
 
+                  /*
+                    기존 suspected를 사용하지 않고
+                    즉시 confirmed로 처리한다.
+                  */
+
                   detectionType:
-                    "suspected",
+                    "confirmed",
+
+                  detectionReason:
+                    "level-drop",
 
                   sourceText:
-                    `직전 ${formatArmRollBoxNumber(
+                    `수치 급감 자동 교체 확정 · 직전 ${formatArmRollBoxNumber(
                       previous.level
                     )}% → ${formatArmRollBoxNumber(
                       record.level
