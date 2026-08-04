@@ -1541,7 +1541,11 @@ function initializeInspectionWorkspaceNavigation() {
 
 
   /* =====================================================
-    점검주기표 출력
+    점검주기표 상태·담당 보직 배지
+
+    - "수정됨" 배지는 표시하지 않는다.
+    - 사용 중지·추가 일정 상태는 유지한다.
+    - 담당 보직은 점검명 오른쪽에 표시한다.
   ====================================================== */
 
   function createStateBadgeHtml(
@@ -1571,19 +1575,39 @@ function initializeInspectionWorkspaceNavigation() {
     }
 
 
-    if (
-      item.hasOverride ===
-        true
-    ) {
-      return `
-        <span class="inspection-schedule-table-state is-edited">
-          수정됨
-        </span>
-      `;
-    }
-
-
+    /*
+      hasOverride 상태여도
+      "수정됨" 배지는 표시하지 않는다.
+    */
     return "";
+  }
+
+
+  function createAssignedRoleBadgeHtml(
+    assignedRoles
+  ) {
+    const roleText =
+      Array.isArray(
+        assignedRoles
+      ) &&
+      assignedRoles.length
+        ? assignedRoles.join(
+            " · "
+          )
+        : "미지정";
+
+
+    /*
+      기존 수정됨 배지와 동일한 모양을 사용하되
+      내용은 담당 보직으로 표시한다.
+    */
+    return `
+      <span class="inspection-schedule-table-state is-edited">
+        담당 ${escapeHtml(
+          roleText
+        )}
+      </span>
+    `;
   }
 
 
@@ -1799,13 +1823,6 @@ function initializeInspectionWorkspaceNavigation() {
               return;
             }
 
-
-            const linkedCard =
-              getLinkedCard(
-                item
-              );
-
-
             const shifts =
               Array.isArray(
                 item.shifts
@@ -1896,32 +1913,21 @@ function initializeInspectionWorkspaceNavigation() {
 
                 <td class="inspection-schedule-table-title-cell">
                   <div class="inspection-schedule-table-title-line">
-                    <strong>${escapeHtml(item.title || "-")}</strong>
-                    ${createStateBadgeHtml(item)}
-                  </div>
-
-                  <div
-                    class="inspection-schedule-table-assigned-roles ${assignedRoles.length ? "" : "is-empty"}"
-                  >
-                    <span>담당</span>
-                    <b>
+                    <strong>
                       ${escapeHtml(
-                        assignedRoles.length
-                          ? assignedRoles.join(" · ")
-                          : "미지정"
+                        item.title ||
+                        "-"
                       )}
-                    </b>
-                  </div>
+                    </strong>
 
-                  ${linkedCard ? `
-                    <button
-                      type="button"
-                      class="inspection-schedule-table-log-button"
-                      data-inspection-table-open-log="${escapeHtml(item.id)}"
-                    >
-                      점검일지 열기
-                    </button>
-                  ` : ""}
+                    ${createAssignedRoleBadgeHtml(
+                      assignedRoles
+                    )}
+
+                    ${createStateBadgeHtml(
+                      item
+                    )}
+                  </div>
                 </td>
 
                 <td>${escapeHtml(item.position || "-")}</td>

@@ -114908,3 +114908,1675 @@ if (
 } else {
   initializeEfficiencyDailyWorkSpreadsheetHistory();
 }
+
+/* =========================================================
+  효율팀 일일업무현황 여러 셀 선택
+
+  조작:
+  - 일반 클릭:
+    한 셀 선택
+
+  - Shift + 클릭:
+    기준 셀부터 클릭한 셀까지 범위 선택
+
+  - Ctrl 또는 Command + 클릭:
+    셀 선택 추가·해제
+
+  - Ctrl + Shift + A:
+    현재 표의 모든 입력 셀 선택
+
+  - Ctrl + C:
+    선택한 범위를 탭·줄바꿈 형식으로 복사
+
+  - Ctrl + X:
+    선택한 범위를 복사한 후 내용 삭제
+
+  - Delete:
+    선택한 여러 셀 내용 삭제
+
+  - Escape:
+    범위 선택 해제
+========================================================= */
+
+function initializeEfficiencyDailyWorkSpreadsheetRangeSelection() {
+  const paper =
+    document.getElementById(
+      "efficiencyDailyWorkPaper"
+    );
+
+
+  if (
+    !paper ||
+    paper.dataset
+      .spreadsheetRangeSelectionBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  const EDITABLE_SELECTOR = [
+    'input:not([type="hidden"]):not([disabled]):not([readonly])',
+
+    'select:not([disabled])',
+
+    'textarea:not([disabled]):not([readonly])'
+  ].join(
+    ","
+  );
+
+
+  let selectedCells =
+    new Set();
+
+
+  let anchorCell =
+    null;
+
+
+  let pointerModifierActive =
+    false;
+
+
+  /* =====================================================
+    안내 메시지
+  ====================================================== */
+
+  function showEfficiencyRangeMessage(
+    message
+  ) {
+    if (
+      typeof showToast ===
+      "function"
+    ) {
+      showToast(
+        message
+      );
+
+
+      return;
+    }
+
+
+    const messageElement =
+      document.getElementById(
+        "efficiencyDailyWorkMessage"
+      );
+
+
+    if (
+      messageElement
+    ) {
+      messageElement.textContent =
+        String(
+          message ||
+          ""
+        );
+    }
+  }
+
+
+  /* =====================================================
+    입력칸 표시 여부
+  ====================================================== */
+
+  function isEfficiencyRangeControlVisible(
+    control
+  ) {
+    if (
+      !(
+        control instanceof
+        HTMLElement
+      ) ||
+      control.hidden ||
+      control.closest(
+        "[hidden]"
+      )
+    ) {
+      return false;
+    }
+
+
+    const style =
+      window.getComputedStyle(
+        control
+      );
+
+
+    return (
+      style.display !==
+        "none" &&
+      style.visibility !==
+        "hidden"
+    );
+  }
+
+
+  /* =====================================================
+    셀 내부 입력칸 목록
+  ====================================================== */
+
+  function getEfficiencyRangeCellControls(
+    cell
+  ) {
+    if (
+      !cell
+    ) {
+      return [];
+    }
+
+
+    return [
+      ...cell.querySelectorAll(
+        EDITABLE_SELECTOR
+      )
+    ].filter(
+      isEfficiencyRangeControlVisible
+    );
+  }
+
+
+  function getEfficiencyRangePrimaryControl(
+    cell
+  ) {
+    return (
+      getEfficiencyRangeCellControls(
+        cell
+      )[0] ||
+      null
+    );
+  }
+
+
+  /* =====================================================
+    입력 가능한 표 셀인지 확인
+  ====================================================== */
+
+  function isEfficiencyRangeEditableCell(
+    cell
+  ) {
+    return Boolean(
+      cell &&
+      cell.matches(
+        "td, th"
+      ) &&
+      cell.closest(
+        "table.efficiency-daily-work-table"
+      ) &&
+      getEfficiencyRangePrimaryControl(
+        cell
+      )
+    );
+  }
+
+
+  /* =====================================================
+    rowspan·colspan을 반영한 표 그리드
+  ====================================================== */
+
+  function createEfficiencyRangeTableGrid(
+    table
+  ) {
+    const rows = [
+      ...table.rows
+    ];
+
+
+    const slots = [];
+
+
+    const metadataMap =
+      new Map();
+
+
+    rows.forEach(
+      (
+        row,
+        rowIndex
+      ) => {
+        if (
+          !slots[
+            rowIndex
+          ]
+        ) {
+          slots[
+            rowIndex
+          ] =
+            [];
+        }
+
+
+        let columnIndex =
+          0;
+
+
+        [
+          ...row.cells
+        ].forEach(
+          cell => {
+            while (
+              slots[
+                rowIndex
+              ][
+                columnIndex
+              ]
+            ) {
+              columnIndex +=
+                1;
+            }
+
+
+            const rowSpan =
+              Math.max(
+                1,
+                Number(
+                  cell.rowSpan
+                ) ||
+                  1
+              );
+
+
+            const columnSpan =
+              Math.max(
+                1,
+                Number(
+                  cell.colSpan
+                ) ||
+                  1
+              );
+
+
+            metadataMap.set(
+              cell,
+              {
+                rowIndex,
+                columnIndex,
+                rowSpan,
+                columnSpan,
+
+                lastRowIndex:
+                  rowIndex +
+                  rowSpan -
+                  1,
+
+                lastColumnIndex:
+                  columnIndex +
+                  columnSpan -
+                  1
+              }
+            );
+
+
+            for (
+              let targetRowIndex =
+                rowIndex;
+
+              targetRowIndex <
+                rowIndex +
+                  rowSpan;
+
+              targetRowIndex +=
+                1
+            ) {
+              if (
+                !slots[
+                  targetRowIndex
+                ]
+              ) {
+                slots[
+                  targetRowIndex
+                ] =
+                  [];
+              }
+
+
+              for (
+                let targetColumnIndex =
+                  columnIndex;
+
+                targetColumnIndex <
+                  columnIndex +
+                    columnSpan;
+
+                targetColumnIndex +=
+                  1
+              ) {
+                slots[
+                  targetRowIndex
+                ][
+                  targetColumnIndex
+                ] =
+                  cell;
+              }
+            }
+
+
+            columnIndex +=
+              columnSpan;
+          }
+        );
+      }
+    );
+
+
+    return {
+      rows,
+      slots,
+      metadataMap
+    };
+  }
+
+
+  /* =====================================================
+    선택 표시 갱신
+  ====================================================== */
+
+  function renderEfficiencyRangeSelection() {
+    paper
+      .querySelectorAll(
+        ".is-efficiency-spreadsheet-selected"
+      )
+      .forEach(
+        cell => {
+          cell.classList.remove(
+            "is-efficiency-spreadsheet-selected"
+          );
+
+
+          cell.removeAttribute(
+            "aria-selected"
+          );
+        }
+      );
+
+
+    selectedCells.forEach(
+      cell => {
+        cell.classList.add(
+          "is-efficiency-spreadsheet-selected"
+        );
+
+
+        cell.setAttribute(
+          "aria-selected",
+          "true"
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    선택 초기화
+  ====================================================== */
+
+  function clearEfficiencyRangeSelection(
+    options = {}
+  ) {
+    selectedCells.clear();
+
+
+    if (
+      options.keepAnchor !==
+      true
+    ) {
+      anchorCell =
+        null;
+    }
+
+
+    renderEfficiencyRangeSelection();
+  }
+
+
+  /* =====================================================
+    셀 하나 선택
+  ====================================================== */
+
+  function selectSingleEfficiencyRangeCell(
+    cell
+  ) {
+    if (
+      !isEfficiencyRangeEditableCell(
+        cell
+      )
+    ) {
+      clearEfficiencyRangeSelection();
+
+      return;
+    }
+
+
+    selectedCells =
+      new Set([
+        cell
+      ]);
+
+
+    anchorCell =
+      cell;
+
+
+    renderEfficiencyRangeSelection();
+  }
+
+
+  /* =====================================================
+    선택 셀 추가·해제
+  ====================================================== */
+
+  function toggleEfficiencyRangeCell(
+    cell
+  ) {
+    if (
+      !isEfficiencyRangeEditableCell(
+        cell
+      )
+    ) {
+      return;
+    }
+
+
+    const currentTable =
+      cell.closest(
+        "table"
+      );
+
+
+    const selectedTable =
+      [
+        ...selectedCells
+      ][0]
+        ?.closest(
+          "table"
+        ) ||
+      null;
+
+
+    /*
+      서로 다른 표의 셀은 동시에 선택하지 않는다.
+    */
+    if (
+      selectedTable &&
+      selectedTable !==
+        currentTable
+    ) {
+      selectedCells =
+        new Set([
+          cell
+        ]);
+
+    } else if (
+      selectedCells.has(
+        cell
+      )
+    ) {
+      selectedCells.delete(
+        cell
+      );
+
+    } else {
+      selectedCells.add(
+        cell
+      );
+    }
+
+
+    anchorCell =
+      cell;
+
+
+    renderEfficiencyRangeSelection();
+  }
+
+
+  /* =====================================================
+    셀 범위 선택
+  ====================================================== */
+
+  function selectEfficiencyRangeBetween(
+    startCell,
+    endCell
+  ) {
+    if (
+      !isEfficiencyRangeEditableCell(
+        startCell
+      ) ||
+      !isEfficiencyRangeEditableCell(
+        endCell
+      )
+    ) {
+      return;
+    }
+
+
+    const startTable =
+      startCell.closest(
+        "table"
+      );
+
+
+    const endTable =
+      endCell.closest(
+        "table"
+      );
+
+
+    /*
+      다른 표를 Shift 클릭하면
+      해당 셀 하나만 선택한다.
+    */
+    if (
+      !startTable ||
+      startTable !==
+        endTable
+    ) {
+      selectSingleEfficiencyRangeCell(
+        endCell
+      );
+
+
+      return;
+    }
+
+
+    const tableGrid =
+      createEfficiencyRangeTableGrid(
+        startTable
+      );
+
+
+    const startMetadata =
+      tableGrid.metadataMap.get(
+        startCell
+      );
+
+
+    const endMetadata =
+      tableGrid.metadataMap.get(
+        endCell
+      );
+
+
+    if (
+      !startMetadata ||
+      !endMetadata
+    ) {
+      selectSingleEfficiencyRangeCell(
+        endCell
+      );
+
+
+      return;
+    }
+
+
+    const minimumRow =
+      Math.min(
+        startMetadata.rowIndex,
+        endMetadata.rowIndex
+      );
+
+
+    const maximumRow =
+      Math.max(
+        startMetadata.lastRowIndex,
+        endMetadata.lastRowIndex
+      );
+
+
+    const minimumColumn =
+      Math.min(
+        startMetadata.columnIndex,
+        endMetadata.columnIndex
+      );
+
+
+    const maximumColumn =
+      Math.max(
+        startMetadata.lastColumnIndex,
+        endMetadata.lastColumnIndex
+      );
+
+
+    const nextSelectedCells =
+      new Set();
+
+
+    tableGrid.metadataMap.forEach(
+      (
+        metadata,
+        cell
+      ) => {
+        if (
+          !isEfficiencyRangeEditableCell(
+            cell
+          )
+        ) {
+          return;
+        }
+
+
+        const rowIntersects =
+          metadata.rowIndex <=
+            maximumRow &&
+          metadata.lastRowIndex >=
+            minimumRow;
+
+
+        const columnIntersects =
+          metadata.columnIndex <=
+            maximumColumn &&
+          metadata.lastColumnIndex >=
+            minimumColumn;
+
+
+        if (
+          rowIntersects &&
+          columnIntersects
+        ) {
+          nextSelectedCells.add(
+            cell
+          );
+        }
+      }
+    );
+
+
+    selectedCells =
+      nextSelectedCells;
+
+
+    renderEfficiencyRangeSelection();
+  }
+
+
+  /* =====================================================
+    현재 표 전체 선택
+  ====================================================== */
+
+  function selectAllEfficiencyRangeCells(
+    table
+  ) {
+    if (
+      !table
+    ) {
+      return;
+    }
+
+
+    selectedCells =
+      new Set(
+        [
+          ...table.querySelectorAll(
+            "td, th"
+          )
+        ].filter(
+          isEfficiencyRangeEditableCell
+        )
+      );
+
+
+    if (
+      !anchorCell ||
+      anchorCell.closest(
+        "table"
+      ) !==
+        table
+    ) {
+      anchorCell =
+        [
+          ...selectedCells
+        ][0] ||
+        null;
+    }
+
+
+    renderEfficiencyRangeSelection();
+
+
+    showEfficiencyRangeMessage(
+      `${selectedCells.size}개 셀을 선택했습니다.`
+    );
+  }
+
+
+  /* =====================================================
+    입력칸의 표시값 읽기
+  ====================================================== */
+
+  function readEfficiencyRangeControlValue(
+    control
+  ) {
+    if (
+      control instanceof
+      HTMLInputElement
+    ) {
+      if (
+        control.type ===
+          "checkbox" ||
+        control.type ===
+          "radio"
+      ) {
+        return control.checked
+          ? (
+              control.value ||
+              "✓"
+            )
+          : "";
+      }
+
+
+      return String(
+        control.value ??
+        ""
+      );
+    }
+
+
+    if (
+      control instanceof
+      HTMLSelectElement
+    ) {
+      return String(
+        control.selectedOptions[
+          0
+        ]?.textContent ||
+        control.value ||
+        ""
+      ).trim();
+    }
+
+
+    if (
+      control instanceof
+      HTMLTextAreaElement
+    ) {
+      return String(
+        control.value ??
+        ""
+      );
+    }
+
+
+    return "";
+  }
+
+
+  /* =====================================================
+    선택한 셀을 TSV 문자열로 변환
+
+    엑셀에 그대로 붙여넣을 수 있도록:
+    - 열: 탭
+    - 행: 줄바꿈
+  ====================================================== */
+
+  function createEfficiencyRangeClipboardText() {
+    const selectionArray = [
+      ...selectedCells
+    ];
+
+
+    if (
+      !selectionArray.length
+    ) {
+      return "";
+    }
+
+
+    const table =
+      selectionArray[
+        0
+      ].closest(
+        "table"
+      );
+
+
+    if (
+      !table ||
+      selectionArray.some(
+        cell => {
+          return cell.closest(
+            "table"
+          ) !==
+            table;
+        }
+      )
+    ) {
+      return "";
+    }
+
+
+    const tableGrid =
+      createEfficiencyRangeTableGrid(
+        table
+      );
+
+
+    const metadataList =
+      selectionArray
+        .map(
+          cell => {
+            return tableGrid
+              .metadataMap
+              .get(
+                cell
+              );
+          }
+        )
+        .filter(
+          Boolean
+        );
+
+
+    if (
+      !metadataList.length
+    ) {
+      return "";
+    }
+
+
+    const minimumRow =
+      Math.min(
+        ...metadataList.map(
+          metadata => {
+            return metadata.rowIndex;
+          }
+        )
+      );
+
+
+    const maximumRow =
+      Math.max(
+        ...metadataList.map(
+          metadata => {
+            return metadata.lastRowIndex;
+          }
+        )
+      );
+
+
+    const minimumColumn =
+      Math.min(
+        ...metadataList.map(
+          metadata => {
+            return metadata.columnIndex;
+          }
+        )
+      );
+
+
+    const maximumColumn =
+      Math.max(
+        ...metadataList.map(
+          metadata => {
+            return metadata.lastColumnIndex;
+          }
+        )
+      );
+
+
+    const outputRows =
+      [];
+
+
+    for (
+      let rowIndex =
+        minimumRow;
+
+      rowIndex <=
+        maximumRow;
+
+      rowIndex +=
+        1
+    ) {
+      const outputColumns =
+        [];
+
+
+      for (
+        let columnIndex =
+          minimumColumn;
+
+        columnIndex <=
+          maximumColumn;
+
+        columnIndex +=
+          1
+      ) {
+        const cell =
+          tableGrid.slots[
+            rowIndex
+          ]?.[
+            columnIndex
+          ] ||
+          null;
+
+
+        if (
+          !cell ||
+          !selectedCells.has(
+            cell
+          )
+        ) {
+          outputColumns.push(
+            ""
+          );
+
+
+          continue;
+        }
+
+
+        const metadata =
+          tableGrid.metadataMap.get(
+            cell
+          );
+
+
+        /*
+          rowspan·colspan 셀은
+          셀의 시작 위치에서만 값을 출력한다.
+        */
+        if (
+          metadata?.rowIndex !==
+            rowIndex ||
+          metadata?.columnIndex !==
+            columnIndex
+        ) {
+          outputColumns.push(
+            ""
+          );
+
+
+          continue;
+        }
+
+
+        const control =
+          getEfficiencyRangePrimaryControl(
+            cell
+          );
+
+
+        outputColumns.push(
+          readEfficiencyRangeControlValue(
+            control
+          )
+        );
+      }
+
+
+      outputRows.push(
+        outputColumns.join(
+          "\t"
+        )
+      );
+    }
+
+
+    return outputRows.join(
+      "\n"
+    );
+  }
+
+
+  /* =====================================================
+    입력칸 값 삭제
+  ====================================================== */
+
+  function clearEfficiencyRangeControl(
+    control
+  ) {
+    if (
+      control instanceof
+      HTMLInputElement
+    ) {
+      if (
+        control.type ===
+          "checkbox" ||
+        control.type ===
+          "radio"
+      ) {
+        if (
+          !control.checked
+        ) {
+          return false;
+        }
+
+
+        control.checked =
+          false;
+
+      } else {
+        if (
+          !control.value
+        ) {
+          return false;
+        }
+
+
+        control.value =
+          "";
+      }
+
+    } else if (
+      control instanceof
+      HTMLTextAreaElement
+    ) {
+      if (
+        !control.value
+      ) {
+        return false;
+      }
+
+
+      control.value =
+        "";
+
+    } else if (
+      control instanceof
+      HTMLSelectElement
+    ) {
+      const emptyOption =
+        [
+          ...control.options
+        ].find(
+          option => {
+            return String(
+              option.value
+            ) ===
+              "";
+          }
+        );
+
+
+      /*
+        빈 선택지가 없는 근무파트 등의 select는
+        Delete로 초기화하지 않는다.
+      */
+      if (
+        !emptyOption ||
+        control.value ===
+          ""
+      ) {
+        return false;
+      }
+
+
+      control.value =
+        "";
+
+    } else {
+      return false;
+    }
+
+
+    control.dispatchEvent(
+      new Event(
+        "input",
+        {
+          bubbles:
+            true
+        }
+      )
+    );
+
+
+    control.dispatchEvent(
+      new Event(
+        "change",
+        {
+          bubbles:
+            true
+        }
+      )
+    );
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    선택 범위 내용 삭제
+  ====================================================== */
+
+  function clearEfficiencyRangeSelectedValues() {
+    let clearedCount =
+      0;
+
+
+    selectedCells.forEach(
+      cell => {
+        getEfficiencyRangeCellControls(
+          cell
+        ).forEach(
+          control => {
+            if (
+              clearEfficiencyRangeControl(
+                control
+              )
+            ) {
+              clearedCount +=
+                1;
+            }
+          }
+        );
+      }
+    );
+
+
+    if (
+      clearedCount >
+      0
+    ) {
+      showEfficiencyRangeMessage(
+        `${clearedCount}개 입력값을 삭제했습니다.`
+      );
+
+    } else {
+      showEfficiencyRangeMessage(
+        "삭제할 입력값이 없습니다."
+      );
+    }
+  }
+
+
+  /* =====================================================
+    클립보드에 선택 내용 기록
+  ====================================================== */
+
+  function writeEfficiencyRangeClipboard(
+    event,
+    text
+  ) {
+    if (
+      event.clipboardData
+    ) {
+      event.clipboardData.setData(
+        "text/plain",
+        text
+      );
+
+
+      return true;
+    }
+
+
+    if (
+      navigator.clipboard?.writeText
+    ) {
+      navigator.clipboard
+        .writeText(
+          text
+        )
+        .catch(
+          error => {
+            console.warn(
+              "셀 범위 클립보드 복사 실패:",
+              error
+            );
+          }
+        );
+
+
+      return true;
+    }
+
+
+    return false;
+  }
+
+
+  /* =====================================================
+    포인터 입력 시작
+
+    Shift·Ctrl 클릭 중 발생하는 focusin에서
+    기존 선택 범위가 지워지지 않도록 사용한다.
+  ====================================================== */
+
+  paper.addEventListener(
+    "pointerdown",
+    event => {
+      const cell =
+        event.target instanceof
+          Element
+          ? event.target.closest(
+              "td, th"
+            )
+          : null;
+
+
+      pointerModifierActive =
+        Boolean(
+          isEfficiencyRangeEditableCell(
+            cell
+          ) &&
+          (
+            event.shiftKey ||
+            event.ctrlKey ||
+            event.metaKey
+          )
+        );
+    },
+    true
+  );
+
+
+  /* =====================================================
+    일반 포커스 이동
+
+    Tab·Enter·방향키로 이동한 경우
+    해당 셀 하나만 선택한다.
+  ====================================================== */
+
+  paper.addEventListener(
+    "focusin",
+    event => {
+      if (
+        pointerModifierActive
+      ) {
+        return;
+      }
+
+
+      const control =
+        event.target instanceof
+          Element
+          ? event.target.closest(
+              EDITABLE_SELECTOR
+            )
+          : null;
+
+
+      const cell =
+        control?.closest(
+          "td, th"
+        ) ||
+        null;
+
+
+      if (
+        isEfficiencyRangeEditableCell(
+          cell
+        )
+      ) {
+        selectSingleEfficiencyRangeCell(
+          cell
+        );
+      }
+    }
+  );
+
+
+  /* =====================================================
+    셀 클릭 선택
+  ====================================================== */
+
+  paper.addEventListener(
+    "click",
+    event => {
+      const cell =
+        event.target instanceof
+          Element
+          ? event.target.closest(
+              "td, th"
+            )
+          : null;
+
+
+      if (
+        !isEfficiencyRangeEditableCell(
+          cell
+        )
+      ) {
+        pointerModifierActive =
+          false;
+
+
+        return;
+      }
+
+
+      if (
+        event.shiftKey &&
+        anchorCell
+      ) {
+        event.preventDefault();
+
+
+        selectEfficiencyRangeBetween(
+          anchorCell,
+          cell
+        );
+
+      } else if (
+        event.ctrlKey ||
+        event.metaKey
+      ) {
+        event.preventDefault();
+
+
+        toggleEfficiencyRangeCell(
+          cell
+        );
+
+      } else {
+        selectSingleEfficiencyRangeCell(
+          cell
+        );
+      }
+
+
+      pointerModifierActive =
+        false;
+    }
+  );
+
+
+  paper.addEventListener(
+    "pointercancel",
+    () => {
+      pointerModifierActive =
+        false;
+    }
+  );
+
+
+  /* =====================================================
+    복사
+  ====================================================== */
+
+  paper.addEventListener(
+    "copy",
+    event => {
+      /*
+        한 셀만 선택한 경우에는
+        입력칸의 일반 글자 복사를 유지한다.
+      */
+      if (
+        selectedCells.size <=
+        1
+      ) {
+        return;
+      }
+
+
+      const clipboardText =
+        createEfficiencyRangeClipboardText();
+
+
+      if (
+        !clipboardText
+      ) {
+        return;
+      }
+
+
+      event.preventDefault();
+
+
+      writeEfficiencyRangeClipboard(
+        event,
+        clipboardText
+      );
+
+
+      showEfficiencyRangeMessage(
+        `${selectedCells.size}개 셀을 복사했습니다.`
+      );
+    }
+  );
+
+
+  /* =====================================================
+    잘라내기
+  ====================================================== */
+
+  paper.addEventListener(
+    "cut",
+    event => {
+      if (
+        selectedCells.size <=
+        1
+      ) {
+        return;
+      }
+
+
+      const clipboardText =
+        createEfficiencyRangeClipboardText();
+
+
+      if (
+        !clipboardText
+      ) {
+        return;
+      }
+
+
+      event.preventDefault();
+
+
+      writeEfficiencyRangeClipboard(
+        event,
+        clipboardText
+      );
+
+
+      clearEfficiencyRangeSelectedValues();
+
+
+      showEfficiencyRangeMessage(
+        `${selectedCells.size}개 셀을 잘라냈습니다.`
+      );
+    }
+  );
+
+
+  /* =====================================================
+    키보드 명령
+  ====================================================== */
+
+  paper.addEventListener(
+    "keydown",
+    event => {
+      if (
+        event.isComposing ||
+        event.keyCode ===
+          229
+      ) {
+        return;
+      }
+
+
+      const control =
+        event.target instanceof
+          Element
+          ? event.target.closest(
+              EDITABLE_SELECTOR
+            )
+          : null;
+
+
+      const currentCell =
+        control?.closest(
+          "td, th"
+        ) ||
+        null;
+
+
+      const currentTable =
+        currentCell?.closest(
+          "table.efficiency-daily-work-table"
+        ) ||
+        null;
+
+
+      /* =================================================
+        Ctrl + Shift + A
+
+        현재 표 전체 선택
+      ================================================== */
+
+      if (
+        (
+          event.ctrlKey ||
+          event.metaKey
+        ) &&
+        event.shiftKey &&
+        String(
+          event.key ||
+          ""
+        ).toLowerCase() ===
+          "a" &&
+        currentTable
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        selectAllEfficiencyRangeCells(
+          currentTable
+        );
+
+
+        return;
+      }
+
+
+      /* =================================================
+        Delete
+
+        여러 셀이 선택된 경우에만
+        범위 전체 내용을 삭제한다.
+
+        한 셀만 선택된 상태에서는
+        입력칸의 기본 Delete 동작을 유지한다.
+      ================================================== */
+
+      if (
+        event.key ===
+          "Delete" &&
+        selectedCells.size >
+          1
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        clearEfficiencyRangeSelectedValues();
+
+
+        return;
+      }
+
+
+      /* =================================================
+        Escape
+
+        범위 선택을 현재 셀 하나로 축소한다.
+      ================================================== */
+
+      if (
+        event.key ===
+          "Escape" &&
+        selectedCells.size >
+          1
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        if (
+          isEfficiencyRangeEditableCell(
+            currentCell
+          )
+        ) {
+          selectSingleEfficiencyRangeCell(
+            currentCell
+          );
+
+        } else {
+          clearEfficiencyRangeSelection();
+        }
+
+
+        showEfficiencyRangeMessage(
+          "여러 셀 선택을 해제했습니다."
+        );
+      }
+    }
+  );
+
+
+  /* =====================================================
+    날짜나 기록을 변경하면 선택 범위 초기화
+  ====================================================== */
+
+  [
+    "newEfficiencyDailyWorkButton",
+
+    "previousEfficiencyDailyWorkDateButton",
+
+    "nextEfficiencyDailyWorkDateButton",
+
+    "moveEfficiencyDailyWorkToTodayButton",
+
+    "refreshEfficiencyDailyWorkButton"
+  ]
+    .forEach(
+      buttonId => {
+        document
+          .getElementById(
+            buttonId
+          )
+          ?.addEventListener(
+            "click",
+            () => {
+              clearEfficiencyRangeSelection();
+            }
+          );
+      }
+    );
+
+
+  document
+    .getElementById(
+      "efficiencyDailyWorkFolderTree"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+        clearEfficiencyRangeSelection();
+      }
+    );
+
+
+  paper.dataset
+    .spreadsheetRangeSelectionBound =
+    "true";
+}
+
+
+/* =========================================================
+  초기 실행
+========================================================= */
+
+if (
+  document.readyState ===
+  "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeEfficiencyDailyWorkSpreadsheetRangeSelection,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeEfficiencyDailyWorkSpreadsheetRangeSelection();
+}
