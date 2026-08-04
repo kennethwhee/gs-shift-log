@@ -111035,3 +111035,965 @@ if (
 } else {
   initializeEfficiencyDailyWorkSpreadsheetNavigation();
 }
+
+/* =========================================================
+  효율팀 일일업무현황 엑셀 범위 붙여넣기
+
+  지원:
+  - 엑셀 여러 셀 복사 후 Ctrl + V
+  - 행은 아래쪽으로 이동
+  - 열은 오른쪽으로 이동
+  - 빈 셀도 그대로 반영
+  - select는 option 값 또는 표시 글자로 선택
+  - 기존 저장 감지를 위해 input/change 이벤트 발생
+
+  적용 대상:
+  - table.efficiency-daily-work-table 내부
+========================================================= */
+
+function initializeEfficiencyDailyWorkSpreadsheetPaste() {
+  const paper =
+    document.getElementById(
+      "efficiencyDailyWorkPaper"
+    );
+
+
+  if (
+    !paper ||
+    paper.dataset
+      .spreadsheetPasteBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  const EDITABLE_SELECTOR = [
+    'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([disabled]):not([readonly])',
+    "select:not([disabled])",
+    "textarea:not([disabled]):not([readonly])"
+  ].join(",");
+
+
+  /* =====================================================
+    입력칸 표시 여부
+  ====================================================== */
+
+  function isEfficiencySpreadsheetPasteControlVisible(
+    control
+  ) {
+    if (
+      !(
+        control instanceof
+        HTMLElement
+      ) ||
+      control.hidden ||
+      control.closest(
+        "[hidden]"
+      )
+    ) {
+      return false;
+    }
+
+
+    const style =
+      window.getComputedStyle(
+        control
+      );
+
+
+    return (
+      style.display !==
+        "none" &&
+      style.visibility !==
+        "hidden"
+    );
+  }
+
+
+  /* =====================================================
+    셀 내부에서 사용할 입력칸 찾기
+  ====================================================== */
+
+  function getEfficiencySpreadsheetPasteCellControl(
+    cell
+  ) {
+    if (
+      !cell
+    ) {
+      return null;
+    }
+
+
+    return (
+      [
+        ...cell.querySelectorAll(
+          EDITABLE_SELECTOR
+        )
+      ].find(
+        isEfficiencySpreadsheetPasteControlVisible
+      ) ||
+      null
+    );
+  }
+
+
+  /* =====================================================
+    rowspan·colspan을 포함한 표 위치 계산
+  ====================================================== */
+
+  function createEfficiencySpreadsheetPasteGrid(
+    table
+  ) {
+    const rows = [
+      ...table.rows
+    ];
+
+
+    const slots = [];
+    const cellMetadata =
+      new Map();
+
+
+    rows.forEach(
+      (
+        row,
+        rowIndex
+      ) => {
+        if (
+          !slots[
+            rowIndex
+          ]
+        ) {
+          slots[
+            rowIndex
+          ] =
+            [];
+        }
+
+
+        let columnIndex =
+          0;
+
+
+        [
+          ...row.cells
+        ].forEach(
+          cell => {
+            while (
+              slots[
+                rowIndex
+              ][
+                columnIndex
+              ]
+            ) {
+              columnIndex +=
+                1;
+            }
+
+
+            const rowSpan =
+              Math.max(
+                1,
+                Number(
+                  cell.rowSpan
+                ) ||
+                  1
+              );
+
+
+            const columnSpan =
+              Math.max(
+                1,
+                Number(
+                  cell.colSpan
+                ) ||
+                  1
+              );
+
+
+            cellMetadata.set(
+              cell,
+              {
+                rowIndex,
+                columnIndex,
+                rowSpan,
+                columnSpan
+              }
+            );
+
+
+            for (
+              let targetRowIndex =
+                rowIndex;
+
+              targetRowIndex <
+                rowIndex +
+                  rowSpan;
+
+              targetRowIndex +=
+                1
+            ) {
+              if (
+                !slots[
+                  targetRowIndex
+                ]
+              ) {
+                slots[
+                  targetRowIndex
+                ] =
+                  [];
+              }
+
+
+              for (
+                let targetColumnIndex =
+                  columnIndex;
+
+                targetColumnIndex <
+                  columnIndex +
+                    columnSpan;
+
+                targetColumnIndex +=
+                  1
+              ) {
+                slots[
+                  targetRowIndex
+                ][
+                  targetColumnIndex
+                ] =
+                  cell;
+              }
+            }
+
+
+            columnIndex +=
+              columnSpan;
+          }
+        );
+      }
+    );
+
+
+    /*
+      각 행에서 실제 입력 가능한 셀만 정리한다.
+
+      rowspan 셀은 시작 행에서만 포함한다.
+    */
+    const editableCellsByRow =
+      rows.map(
+        (
+          row,
+          rowIndex
+        ) => {
+          return [
+            ...new Set(
+              (
+                slots[
+                  rowIndex
+                ] ||
+                []
+              ).filter(
+                Boolean
+              )
+            )
+          ]
+            .filter(
+              cell => {
+                const metadata =
+                  cellMetadata.get(
+                    cell
+                  );
+
+
+                return (
+                  metadata?.rowIndex ===
+                    rowIndex &&
+                  Boolean(
+                    getEfficiencySpreadsheetPasteCellControl(
+                      cell
+                    )
+                  )
+                );
+              }
+            )
+            .sort(
+              (
+                firstCell,
+                secondCell
+              ) => {
+                return (
+                  (
+                    cellMetadata.get(
+                      firstCell
+                    )?.columnIndex ||
+                    0
+                  ) -
+                  (
+                    cellMetadata.get(
+                      secondCell
+                    )?.columnIndex ||
+                    0
+                  )
+                );
+              }
+            );
+        }
+      );
+
+
+    return {
+      rows,
+      slots,
+      cellMetadata,
+      editableCellsByRow
+    };
+  }
+
+
+  /* =====================================================
+    클립보드 문자열 → 행·열 배열
+  ====================================================== */
+
+  function parseEfficiencySpreadsheetClipboard(
+    clipboardText
+  ) {
+    const normalizedText =
+      String(
+        clipboardText ||
+        ""
+      )
+        .replace(
+          /\r\n?/g,
+          "\n"
+        );
+
+
+    const rows =
+      normalizedText.split(
+        "\n"
+      );
+
+
+    /*
+      엑셀 복사값 마지막에 붙는 빈 줄만 제거한다.
+    */
+    if (
+      rows.length >
+        1 &&
+      rows[
+        rows.length -
+          1
+      ] ===
+        ""
+    ) {
+      rows.pop();
+    }
+
+
+    return rows.map(
+      row => {
+        return row.split(
+          "\t"
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    select 값 찾기
+  ====================================================== */
+
+  function setEfficiencySpreadsheetSelectValue(
+    select,
+    rawValue
+  ) {
+    const value =
+      String(
+        rawValue ??
+        ""
+      ).trim();
+
+
+    const options = [
+      ...select.options
+    ];
+
+
+    const exactValueOption =
+      options.find(
+        option => {
+          return (
+            String(
+              option.value
+            ).trim() ===
+            value
+          );
+        }
+      );
+
+
+    const textOption =
+      options.find(
+        option => {
+          return (
+            String(
+              option.textContent ||
+              ""
+            ).trim() ===
+            value
+          );
+        }
+      );
+
+
+    const targetOption =
+      exactValueOption ||
+      textOption;
+
+
+    if (
+      !targetOption
+    ) {
+      return false;
+    }
+
+
+    select.value =
+      targetOption.value;
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    입력칸에 값 적용
+  ====================================================== */
+
+  function setEfficiencySpreadsheetControlValue(
+    control,
+    rawValue
+  ) {
+    const value =
+      String(
+        rawValue ??
+        ""
+      );
+
+
+    let valueApplied =
+      false;
+
+
+    if (
+      control instanceof
+      HTMLSelectElement
+    ) {
+      valueApplied =
+        setEfficiencySpreadsheetSelectValue(
+          control,
+          value
+        );
+
+    } else if (
+      control instanceof
+        HTMLInputElement ||
+      control instanceof
+        HTMLTextAreaElement
+    ) {
+      control.value =
+        value;
+
+      valueApplied =
+        true;
+    }
+
+
+    if (
+      !valueApplied
+    ) {
+      return false;
+    }
+
+
+    /*
+      기존 변경 감지 및 저장 상태 갱신
+    */
+    control.dispatchEvent(
+      new Event(
+        "input",
+        {
+          bubbles:
+            true
+        }
+      )
+    );
+
+
+    control.dispatchEvent(
+      new Event(
+        "change",
+        {
+          bubbles:
+            true
+        }
+      )
+    );
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    붙여넣기한 셀 표시
+  ====================================================== */
+
+  function flashEfficiencySpreadsheetPastedCells(
+    cells
+  ) {
+    const uniqueCells = [
+      ...new Set(
+        cells
+      )
+    ];
+
+
+    uniqueCells.forEach(
+      cell => {
+        cell.classList.remove(
+          "is-efficiency-spreadsheet-pasted"
+        );
+
+
+        /*
+          같은 클래스를 연속으로 적용해도
+          애니메이션이 다시 시작되게 한다.
+        */
+        void cell.offsetWidth;
+
+
+        cell.classList.add(
+          "is-efficiency-spreadsheet-pasted"
+        );
+      }
+    );
+
+
+    window.setTimeout(
+      () => {
+        uniqueCells.forEach(
+          cell => {
+            cell.classList.remove(
+              "is-efficiency-spreadsheet-pasted"
+            );
+          }
+        );
+      },
+      950
+    );
+  }
+
+
+  /* =====================================================
+    붙여넣기 이벤트
+  ====================================================== */
+
+  paper.addEventListener(
+    "paste",
+    event => {
+      const control =
+        event.target instanceof
+          Element
+          ? event.target.closest(
+              EDITABLE_SELECTOR
+            )
+          : null;
+
+
+      if (
+        !control ||
+        !isEfficiencySpreadsheetPasteControlVisible(
+          control
+        )
+      ) {
+        return;
+      }
+
+
+      const table =
+        control.closest(
+          "table.efficiency-daily-work-table"
+        );
+
+
+      const startCell =
+        control.closest(
+          "td, th"
+        );
+
+
+      if (
+        !table ||
+        !startCell
+      ) {
+        return;
+      }
+
+
+      const clipboardText =
+        event.clipboardData
+          ?.getData(
+            "text/plain"
+          ) ||
+        "";
+
+
+      if (
+        !clipboardText
+      ) {
+        return;
+      }
+
+
+      const containsTab =
+        clipboardText.includes(
+          "\t"
+        );
+
+
+      const containsMultipleLines =
+        /\r?\n/.test(
+          clipboardText.replace(
+            /\r?\n$/,
+            ""
+          )
+        );
+
+
+      /*
+        일반 한 칸 붙여넣기는 브라우저 기본 동작을 유지한다.
+
+        textarea에 줄바꿈 문장만 붙여넣는 경우도
+        한 셀의 여러 줄 내용으로 처리한다.
+      */
+      if (
+        !containsTab &&
+        (
+          !containsMultipleLines ||
+          control instanceof
+            HTMLTextAreaElement
+        )
+      ) {
+        return;
+      }
+
+
+      const clipboardMatrix =
+        parseEfficiencySpreadsheetClipboard(
+          clipboardText
+        );
+
+
+      const hasMultipleCells =
+        clipboardMatrix.length >
+          1 ||
+        clipboardMatrix.some(
+          row => {
+            return row.length >
+              1;
+          }
+        );
+
+
+      if (
+        !hasMultipleCells
+      ) {
+        return;
+      }
+
+
+      event.preventDefault();
+
+
+      const tableGrid =
+        createEfficiencySpreadsheetPasteGrid(
+          table
+        );
+
+
+      const startMetadata =
+        tableGrid.cellMetadata.get(
+          startCell
+        );
+
+
+      if (
+        !startMetadata
+      ) {
+        return;
+      }
+
+
+      const filledControls = [];
+      const filledCells = [];
+
+
+      let previousTargetRowIndex =
+        startMetadata.rowIndex -
+        1;
+
+
+      clipboardMatrix.forEach(
+        (
+          sourceValues,
+          sourceRowIndex
+        ) => {
+          let targetRowIndex =
+            sourceRowIndex ===
+              0
+              ? startMetadata.rowIndex
+              : previousTargetRowIndex +
+                1;
+
+
+          /*
+            입력칸이 없는 제목 행은 건너뛴다.
+          */
+          while (
+            targetRowIndex <
+              tableGrid.rows.length &&
+            !tableGrid.editableCellsByRow[
+              targetRowIndex
+            ]?.length
+          ) {
+            targetRowIndex +=
+              1;
+          }
+
+
+          if (
+            targetRowIndex >=
+            tableGrid.rows.length
+          ) {
+            return;
+          }
+
+
+          const editableCells =
+            tableGrid.editableCellsByRow[
+              targetRowIndex
+            ] ||
+            [];
+
+
+          let targetStartIndex =
+            -1;
+
+
+          if (
+            sourceRowIndex ===
+            0
+          ) {
+            targetStartIndex =
+              editableCells.indexOf(
+                startCell
+              );
+          }
+
+
+          /*
+            다음 행부터는 시작 셀과 같은 열 또는
+            그 오른쪽에서 가장 가까운 입력 셀을 찾는다.
+          */
+          if (
+            targetStartIndex <
+            0
+          ) {
+            targetStartIndex =
+              editableCells.findIndex(
+                cell => {
+                  const metadata =
+                    tableGrid.cellMetadata.get(
+                      cell
+                    );
+
+
+                  if (
+                    !metadata
+                  ) {
+                    return false;
+                  }
+
+
+                  const lastColumn =
+                    metadata.columnIndex +
+                    metadata.columnSpan -
+                    1;
+
+
+                  return (
+                    lastColumn >=
+                    startMetadata.columnIndex
+                  );
+                }
+              );
+          }
+
+
+          if (
+            targetStartIndex <
+            0
+          ) {
+            previousTargetRowIndex =
+              targetRowIndex;
+
+            return;
+          }
+
+
+          sourceValues.forEach(
+            (
+              sourceValue,
+              sourceColumnIndex
+            ) => {
+              const targetCell =
+                editableCells[
+                  targetStartIndex +
+                  sourceColumnIndex
+                ];
+
+
+              if (
+                !targetCell
+              ) {
+                return;
+              }
+
+
+              const targetControl =
+                getEfficiencySpreadsheetPasteCellControl(
+                  targetCell
+                );
+
+
+              if (
+                !targetControl
+              ) {
+                return;
+              }
+
+
+              const applied =
+                setEfficiencySpreadsheetControlValue(
+                  targetControl,
+                  sourceValue
+                );
+
+
+              if (
+                applied
+              ) {
+                filledControls.push(
+                  targetControl
+                );
+
+
+                filledCells.push(
+                  targetCell
+                );
+              }
+            }
+          );
+
+
+          previousTargetRowIndex =
+            targetRowIndex;
+        }
+      );
+
+
+      if (
+        !filledControls.length
+      ) {
+        if (
+          typeof showToast ===
+          "function"
+        ) {
+          showToast(
+            "붙여넣을 수 있는 입력 셀이 없습니다."
+          );
+        }
+
+
+        return;
+      }
+
+
+      flashEfficiencySpreadsheetPastedCells(
+        filledCells
+      );
+
+
+      const lastControl =
+        filledControls[
+          filledControls.length -
+          1
+        ];
+
+
+      lastControl.focus({
+        preventScroll:
+          true
+      });
+
+
+      lastControl.scrollIntoView({
+        block:
+          "nearest",
+
+        inline:
+          "nearest"
+      });
+
+
+      if (
+        typeof showToast ===
+        "function"
+      ) {
+        showToast(
+          `${filledControls.length}개 셀에 붙여넣었습니다.`
+        );
+      }
+    }
+  );
+
+
+  paper.dataset
+    .spreadsheetPasteBound =
+    "true";
+}
+
+
+/* =========================================================
+  초기 실행
+========================================================= */
+
+if (
+  document.readyState ===
+  "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeEfficiencyDailyWorkSpreadsheetPaste,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeEfficiencyDailyWorkSpreadsheetPaste();
+}
