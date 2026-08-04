@@ -69826,3 +69826,48 @@ body.is-efficiency-daily-work-printing
     font-size: 18px;
   }
 }
+
+/* =========================================================
+  BOX 교체 권고 - 업무일지 일정 참고문구
+========================================================= */
+
+.arm-roll-box-main-alert__reference {
+  display: -webkit-box;
+  margin-top: 3px;
+  overflow: hidden;
+
+  color: inherit;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.35;
+
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+
+  opacity: 0.88;
+
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.arm-roll-box-main-alert__reference[hidden] {
+  display: none !important;
+}
+
+
+/*
+  ARM ROLL BOX 상세 경고창에서
+  레벨과 업무일지 참고문구를 두 줄로 표시한다.
+*/
+.arm-roll-box-threshold-alert__content p {
+  white-space: pre-line;
+}
+
+
+@media (max-width: 760px) {
+  .arm-roll-box-main-alert__reference {
+    font-size: 8px;
+    line-height: 1.3;
+  }
+}

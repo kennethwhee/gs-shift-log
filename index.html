@@ -24,7 +24,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260805-boxalert2"
+    href="style.css?v=20260805-boxschedule1"
   >
 
 
@@ -41,7 +41,7 @@
     기존 업무일지 JavaScript
   ====================================================== -->
   <script
-    src="script.js?v=20260805-limestone1"
+    src="script.js?v=20260805-boxschedule1"
     defer
   ></script>
 
@@ -605,17 +605,25 @@
     </span>
 
 
-    <span class="arm-roll-box-main-alert__content">
+<span class="arm-roll-box-main-alert__content">
 
-      <small>
-        BOX 교체 권고
-      </small>
+  <small>
+    BOX 교체 권고
+  </small>
 
-      <strong id="armRollBoxMainAlertText">
-        50% 이상 BOX가 있습니다.
-      </strong>
+  <strong id="armRollBoxMainAlertText">
+    50% 이상 BOX가 있습니다.
+  </strong>
 
-    </span>
+  <!-- 업무일지에서 확인한 배차·반출·교체 예정 -->
+  <span
+    class="arm-roll-box-main-alert__reference"
+    id="armRollBoxMainAlertReference"
+    hidden
+  >
+  </span>
+
+</span>
 
 
     <span

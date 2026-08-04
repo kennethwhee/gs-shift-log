@@ -73569,53 +73569,79 @@ updateLogEditorActionButtons =
   };
 
 
-  /* =====================================================
-    모든 저장 성공 후 버튼 상태 재계산
+/* =====================================================
+  업무일지 저장 후 화면 갱신
 
-    임시저장 성공:
-    → editingId와 appState에 저장본이 생김
-    → 결재요청 버튼 표시
-  ====================================================== */
+  BO1·BO2 일지 저장 시:
+  - ARM ROLL · SCRAP BOX 즉시 재분석
+  - 배차·반출 일정 참고문구 즉시 반영
+===================================================== */
 
-  if (
-    saveCurrentLogBeforeMemberFlow
-  ) {
-    saveCurrentLog =
-      async function saveCurrentLog(
-        requestedStatus,
-        options = {}
+if (
+  saveCurrentLogBeforeMemberFlow
+) {
+  saveCurrentLog =
+    async function saveCurrentLog(
+      requestedStatus,
+      options = {}
+    ) {
+      const savedLog =
+        await saveCurrentLogBeforeMemberFlow(
+          requestedStatus,
+          options
+        );
+
+
+      if (
+        savedLog
       ) {
-        const savedLog =
-          await saveCurrentLogBeforeMemberFlow(
-            requestedStatus,
-            options
-          );
-
-
         if (
-          savedLog
+          elements?.logEditorForm
         ) {
-          if (
-            elements?.logEditorForm
-          ) {
-            elements.logEditorForm
-              .dataset
-              .editingId =
-              String(
-                savedLog.id ||
-                ""
-              );
-          }
-
-
-          updateLogEditorActionButtons();
+          elements.logEditorForm
+            .dataset
+            .editingId =
+            String(
+              savedLog.id ||
+              ""
+            );
         }
 
 
-        return savedLog;
-      };
-  }
+        updateLogEditorActionButtons();
 
+
+        const savedRole =
+          normalizeMemberLogRole(
+            savedLog.role
+          );
+
+
+        /*
+          BO1·BO2 업무일지에서 BOX 레벨 또는
+          배차·반출·교체 일정이 저장되면
+          즉시 다시 분석한다.
+        */
+        if (
+          [
+            "BO1",
+            "BO2"
+          ].includes(
+            savedRole
+          ) &&
+          typeof window
+            .refreshArmRollBoxDashboard ===
+            "function"
+        ) {
+          void window
+            .refreshArmRollBoxDashboard();
+        }
+      }
+
+
+      return savedLog;
+    };
+}
 
   /* =====================================================
     기존 클릭 이벤트 제거용 버튼 교체
@@ -103557,106 +103583,146 @@ function getArmRollBoxElements() {
   }
 
 
-  /* =====================================================
-    교체 문구 대상 확인
-  ====================================================== */
+/* =====================================================
+  문장에서 BOX 대상 판별
 
-  function getArmRollBoxTargetsFromText(
-    value
-  ) {
-    const text =
-      String(
-        value ||
+  무시:
+  - 영문 대소문자
+  - 띄어쓰기
+  - 줄바꿈
+  - 하이픈·슬래시·특수문자
+
+  인식 예:
+  ARM ROLL BOX
+  ARMROLLBOX
+  ARM-ROLL BOX
+  A R M R O L L B O X
+
+  SCRAP BOX
+  SCRAPBOX
+  SCAP BOX
+===================================================== */
+
+function getArmRollBoxTargetsFromText(
+  value
+) {
+  const compactText =
+    String(
+      value ||
+      ""
+    )
+      .normalize(
+        "NFKC"
+      )
+      .toLowerCase()
+      .replace(
+        /[\u200B-\u200D\u2060\uFEFF]/g,
         ""
       )
-        .normalize(
-          "NFKC"
-        )
-        .toLowerCase();
-
-
-    const targets = [];
-
-
-    if (
-      /(?:arm\s*[-_/]?\s*roll|armroll)(?:\s*box)?/i.test(
-        text
-      )
-    ) {
-      targets.push(
-        "armRoll"
-      );
-    }
-
-
-    if (
-      /(?:scrap|scap)\s*[-_/]?\s*box/i.test(
-        text
-      )
-    ) {
-      targets.push(
-        "scrap"
-      );
-    }
-
-
-    return targets;
-  }
-
-
-  /* =====================================================
-    교체 완료 문구 판정
-
-    확정:
-    - 교체 완료
-    - 교체함
-    - 교체됨
-    - 교체하였음
-    - 교체했음
-
-    제외:
-    - 교체 예정
-    - 교체 필요
-    - 교체 검토
-    - 교체 계획
-    - 교체 진행 중
-  ====================================================== */
-
-  function isConfirmedArmRollBoxReplacement(
-    value
-  ) {
-    const text =
-      String(
-        value ||
+      .replace(
+        /[^a-z0-9가-힣]/g,
         ""
-      )
-        .normalize(
-          "NFKC"
-        )
-        .replace(
-          /\s+/g,
-          " "
-        )
-        .trim();
-
-
-    const excluded =
-      /교체\s*(?:예정|필요|검토|계획|요청|협의|대기|준비\s*중|진행\s*중)|교체가\s*(?:필요|예정)|교체를\s*(?:검토|계획|진행)/i.test(
-        text
       );
 
 
-    if (
-      excluded
-    ) {
-      return false;
-    }
+  const targets = [];
 
 
-    return /교체\s*(?:완료|함|하였음|했음|됨|되었음|실시\s*완료|실시함)|교체가\s*(?:완료|됨|되었음)|교체\s*완료됨/i.test(
-      text
+  if (
+    compactText.includes(
+      "armroll"
+    )
+  ) {
+    targets.push(
+      "armRoll"
     );
   }
+
+
+  /*
+    과거 오타 Scap Box도 지원한다.
+  */
+  if (
+    compactText.includes(
+      "scrapbox"
+    ) ||
+    compactText.includes(
+      "scapbox"
+    )
+  ) {
+    targets.push(
+      "scrap"
+    );
+  }
+
+
+  return targets;
+}
+
+
+/* =====================================================
+  실제 교체 완료 판별
+
+  실제 교체로 인정:
+  - 교체 완료
+  - 교체함
+  - 교체하였음
+  - 교체됨
+  - 교체 실시 완료
+
+  실제 교체에서 제외:
+  - 교체 예정
+  - 교체 계획
+  - 교체 요청
+  - 교체 필요
+  - 교체 검토
+  - 교체 준비 중
+  - 교체 진행 중
+
+  띄어쓰기와 특수문자는 무시한다.
+===================================================== */
+
+function isConfirmedArmRollBoxReplacement(
+  value
+) {
+  const compactText =
+    String(
+      value ||
+      ""
+    )
+      .normalize(
+        "NFKC"
+      )
+      .toLowerCase()
+      .replace(
+        /[\u200B-\u200D\u2060\uFEFF]/g,
+        ""
+      )
+      .replace(
+        /[^a-z0-9가-힣]/g,
+        ""
+      );
+
+
+  const excluded =
+    /교체(?:가|를)?(?:예정|필요|검토|계획|요청|협의|대기|준비중|진행중)/
+      .test(
+        compactText
+      );
+
+
+  if (
+    excluded
+  ) {
+    return false;
+  }
+
+
+  return /교체(?:가|를)?(?:완료|함|하였음|했음|됨|되었음|실시완료|실시함|완료됨)/
+    .test(
+      compactText
+    );
+}
 
 
   const ARM_ROLL_BOX_SERIES = Object.freeze([
@@ -105326,155 +105392,211 @@ function getArmRollBoxElements() {
   }
 
 
-  /* =====================================================
-    경보 배너·탭 배지
-  ====================================================== */
+/* =========================================================
+  70% 이상 BOX 상세 경고
 
-  function renderArmRollBoxWarnings(
-    notify
+  표시:
+  - 현재 레벨
+  - 업무일지 배차·반출·교체 예정
+========================================================= */
+
+function renderArmRollBoxWarnings(
+  notify
+) {
+  const elements =
+    getArmRollBoxElements();
+
+
+  const warningItems =
+    ARM_ROLL_BOX_SERIES
+      .map(
+        series => {
+          return {
+            key:
+              series.key,
+
+            label:
+              series.label,
+
+            level:
+              state.current[
+                series.key
+              ]?.level,
+
+            schedule:
+              getLatestArmRollBoxSchedule(
+                series.key,
+                state.endDate
+              )
+          };
+        }
+      )
+      .filter(
+        item => {
+          return (
+            hasArmRollBoxNumericValue(
+              item.level
+            ) &&
+            Number(
+              item.level
+            ) >=
+              WARNING_LEVEL
+          );
+        }
+      );
+
+
+  const badge =
+    ensureArmRollBoxTabBadge();
+
+
+  if (
+    badge
   ) {
-    const elements =
-      getArmRollBoxElements();
+    badge.hidden =
+      warningItems.length ===
+      0;
 
 
-    const warningItems =
-      ARM_ROLL_BOX_SERIES
+    badge.textContent =
+      warningItems.length
+        ? String(
+            warningItems.length
+          )
+        : "";
+  }
+
+
+  elements.tab?.classList.toggle(
+    "has-warning",
+    warningItems.length >
+      0
+  );
+
+
+  if (
+    elements.alert
+  ) {
+    elements.alert.hidden =
+      warningItems.length ===
+      0;
+  }
+
+
+  if (
+    warningItems.length
+  ) {
+    const highest =
+      [
+        ...warningItems
+      ].sort(
+        (
+          firstItem,
+          secondItem
+        ) => {
+          return (
+            Number(
+              secondItem.level
+            ) -
+            Number(
+              firstItem.level
+            )
+          );
+        }
+      )[0];
+
+
+    const levelMessage =
+      warningItems
         .map(
-          series => {
-            return {
-              label:
-                series.label,
-
-              level:
-                state.current[
-                  series.key
-                ]?.level
-            };
+          item => {
+            return `${item.label} ${formatArmRollBoxNumber(
+              item.level
+            )}%`;
           }
         )
-        .filter(
-          item => {
-            return (
-              hasArmRollBoxNumericValue(
-                item.level
-              ) &&
-              Number(
-                item.level
-              ) >=
-                WARNING_LEVEL
-            );
-          }
+        .join(
+          " · "
         );
 
 
-    const badge =
-      ensureArmRollBoxTabBadge();
+    const scheduledItems =
+      warningItems.filter(
+        item => {
+          return Boolean(
+            item.schedule
+          );
+        }
+      );
 
 
-    if (
-      badge
-    ) {
-      badge.hidden =
-        warningItems.length ===
-        0;
-
-
-      badge.textContent =
-        warningItems.length
-          ? String(
-              warningItems.length
-            )
-          : "";
-    }
-
-
-    elements.tab?.classList.toggle(
-      "has-warning",
-
-      warningItems.length >
-        0
-    );
-
-
-    if (
-      elements.alert
-    ) {
-      elements.alert.hidden =
-        warningItems.length ===
-        0;
-    }
-
-
-    if (
-      warningItems.length
-    ) {
-      const highest =
-        [
-          ...warningItems
-        ].sort(
-          (
-            firstItem,
-            secondItem
-          ) => {
-            return (
-              Number(
-                secondItem.level
-              ) -
-              Number(
-                firstItem.level
-              )
-            );
-          }
-        )[0];
-
-
-      if (
-        elements.alertTitle
-      ) {
-        elements.alertTitle.textContent =
-          `${warningItems.length}개 BOX가 70% 이상입니다.`;
-      }
-
-
-      if (
-        elements.alertMessage
-      ) {
-        elements.alertMessage.textContent =
-          warningItems
+    const scheduleMessage =
+      scheduledItems.length ===
+        1
+        ? formatArmRollBoxScheduleReference(
+            scheduledItems[0]
+              .schedule
+          )
+        : scheduledItems
             .map(
               item => {
-                return `${item.label} ${formatArmRollBoxNumber(
-                  item.level
-                )}%`;
+                return `${item.label} · ${formatArmRollBoxScheduleReference(
+                  item.schedule
+                )}`;
               }
             )
             .join(
-              " · "
+              " / "
             );
-      }
 
 
-      if (
-        elements.alertValue
-      ) {
-        elements.alertValue.textContent =
-          `${formatArmRollBoxNumber(
-            highest.level
-          )}%`;
-      }
+    if (
+      elements.alertTitle
+    ) {
+      elements.alertTitle.textContent =
+        `${warningItems.length}개 BOX가 70% 이상입니다.`;
     }
 
 
     if (
-      notify &&
-      warningItems.length
+      elements.alertMessage
     ) {
-      void showArmRollBoxWarningPopup(
-        warningItems
-      );
+      elements.alertMessage.textContent = [
+        levelMessage,
+
+        scheduleMessage
+          ? `업무일지 참고 · ${scheduleMessage}`
+          : ""
+      ]
+        .filter(
+          Boolean
+        )
+        .join(
+          "\n"
+        );
+    }
+
+
+    if (
+      elements.alertValue
+    ) {
+      elements.alertValue.textContent =
+        `${formatArmRollBoxNumber(
+          highest.level
+        )}%`;
     }
   }
 
+
+  if (
+    notify &&
+    warningItems.length
+  ) {
+    void showArmRollBoxWarningPopup(
+      warningItems
+    );
+  }
+}
 
   /* =====================================================
     날짜별 기록 표
@@ -106528,6 +106650,776 @@ function recalculateArmRollBoxDistinctChanges() {
   );
 }
 
+/* =====================================================
+  업무일지에서 BOX 배차·반출·교체 일정 추출
+
+  조회 대상:
+  - 운전현황
+  - 일반 업무항목
+  - 인계사항
+  - TM/BM/CM
+  - 비고
+  - 기존 note
+
+  대상 보직:
+  - BO1 → 1호기
+  - BO2 → 2호기
+
+  지원 표현:
+  - 배차 요청
+  - 배차 완료
+  - 반출 예정
+  - 반출 계획
+  - 교체 예정
+  - 교체 계획
+  - 교체 요청
+
+  지원 날짜:
+  - 8/5
+  - 8/5(수)
+  - 8월 5일
+  - 2026-08-05
+  - 2026. 8. 5
+===================================================== */
+
+function getLatestArmRollBoxSchedule(
+  seriesKey,
+  maximumDate =
+    state.endDate
+) {
+  const series =
+    ARM_ROLL_BOX_SERIES.find(
+      item => {
+        return (
+          item.key ===
+          seriesKey
+        );
+      }
+    );
+
+
+  if (
+    !series
+  ) {
+    return null;
+  }
+
+
+  /* ===================================================
+    판별용 문자열 정리
+
+    모든 공백·특수문자를 제거한다.
+  ==================================================== */
+
+  const normalizeScheduleText = (
+    value
+  ) => {
+    return String(
+      value ||
+      ""
+    )
+      .normalize(
+        "NFKC"
+      )
+      .toLowerCase()
+      .replace(
+        /[\u200B-\u200D\u2060\uFEFF]/g,
+        ""
+      )
+      .replace(
+        /[^a-z0-9가-힣%]/g,
+        ""
+      );
+  };
+
+
+  /* ===================================================
+    업무일지 한 건의 모든 문구 수집
+  ==================================================== */
+
+  const collectScheduleTextBlocks = (
+    log
+  ) => {
+    const blocks = [];
+
+
+    const append = (
+      value
+    ) => {
+      const parts = [];
+
+
+      appendArmRollBoxText(
+        parts,
+        value
+      );
+
+
+      blocks.push(
+        ...parts
+      );
+    };
+
+
+    append(
+      log?.operationStatus
+    );
+
+
+    append(
+      log?.operationStatusContent
+    );
+
+
+    const operationItems =
+      Array.isArray(
+        log?.operationItems
+      )
+        ? log.operationItems
+        : Array.isArray(
+            log?.operationStatusItems
+          )
+          ? log.operationStatusItems
+          : [];
+
+
+    operationItems.forEach(
+      item => {
+        append(
+          [
+            item?.name,
+            item?.content
+          ]
+            .filter(
+              Boolean
+            )
+            .join(
+              " : "
+            )
+        );
+      }
+    );
+
+
+    [
+      log?.entries,
+      log?.tmEntries,
+      log?.handoverEntries,
+      log?.remarkEntries
+    ].forEach(
+      collection => {
+        (
+          Array.isArray(
+            collection
+          )
+            ? collection
+            : []
+        ).forEach(
+          entry => {
+            append(
+              entry?.content ||
+              entry?.text ||
+              entry
+            );
+          }
+        );
+      }
+    );
+
+
+    append(
+      log?.note
+    );
+
+
+    return [
+      ...new Set(
+        blocks
+      )
+    ];
+  };
+
+
+  /* ===================================================
+    일정 날짜 추출
+  ==================================================== */
+
+  const extractPlannedDate = (
+    value,
+    logDate
+  ) => {
+    const sourceText =
+      String(
+        value ||
+        ""
+      ).normalize(
+        "NFKC"
+      );
+
+
+    const sourceDate =
+      parseArmRollBoxDate(
+        logDate
+      );
+
+
+    const createDateInformation = (
+      year,
+      month,
+      day
+    ) => {
+      const normalizedYear =
+        Number(
+          year
+        );
+
+
+      const normalizedMonth =
+        Number(
+          month
+        );
+
+
+      const normalizedDay =
+        Number(
+          day
+        );
+
+
+      const date =
+        new Date(
+          normalizedYear,
+          normalizedMonth -
+            1,
+          normalizedDay
+        );
+
+
+      /*
+        2월 31일처럼 존재하지 않는 날짜 제외
+      */
+      if (
+        date.getFullYear() !==
+          normalizedYear ||
+        date.getMonth() !==
+          normalizedMonth -
+            1 ||
+        date.getDate() !==
+          normalizedDay
+      ) {
+        return null;
+      }
+
+
+      const weekdays = [
+        "일",
+        "월",
+        "화",
+        "수",
+        "목",
+        "금",
+        "토"
+      ];
+
+
+      return {
+        value:
+          formatArmRollBoxDate(
+            date
+          ),
+
+        label:
+          `${normalizedMonth}/${normalizedDay}(${weekdays[
+            date.getDay()
+          ]})`
+      };
+    };
+
+
+    /*
+      연도가 포함된 날짜
+
+      2026-08-05
+      2026. 8. 5
+      2026년 8월 5일
+    */
+    const fullDateMatches = [
+      ...sourceText.matchAll(
+        /(20\d{2})\s*(?:년|[.\/-])\s*(\d{1,2})\s*(?:월|[.\/-])\s*(\d{1,2})\s*일?/g
+      )
+    ];
+
+
+    if (
+      fullDateMatches.length
+    ) {
+      const matchedDate =
+        fullDateMatches[
+          fullDateMatches.length -
+          1
+        ];
+
+
+      return createDateInformation(
+        matchedDate[1],
+        matchedDate[2],
+        matchedDate[3]
+      );
+    }
+
+
+    /*
+      연도가 없는 날짜
+
+      8/5
+      8 / 5 (수)
+      8월 5일
+    */
+    const shortDateMatches = [
+      ...sourceText.matchAll(
+        /(?:^|[^0-9])(\d{1,2})\s*(?:월|[.\/-])\s*(\d{1,2})\s*일?(?:\s*\(\s*[일월화수목금토]\s*\))?/g
+      )
+    ];
+
+
+    if (
+      !shortDateMatches.length
+    ) {
+      return null;
+    }
+
+
+    const matchedDate =
+      shortDateMatches[
+        shortDateMatches.length -
+        1
+      ];
+
+
+    const month =
+      Number(
+        matchedDate[1]
+      );
+
+
+    const day =
+      Number(
+        matchedDate[2]
+      );
+
+
+    let year =
+      sourceDate
+        ? sourceDate.getFullYear()
+        : new Date()
+            .getFullYear();
+
+
+    let dateInformation =
+      createDateInformation(
+        year,
+        month,
+        day
+      );
+
+
+    if (
+      !dateInformation
+    ) {
+      return null;
+    }
+
+
+    /*
+      연말 업무일지에 다음 해 1월 일정이 적힌 경우
+
+      예:
+      2026-12-31 업무일지
+      → 1/2 반출 예정
+      → 2027-01-02로 처리
+    */
+    if (
+      sourceDate &&
+      getArmRollBoxDayDifference(
+        dateInformation.value,
+        formatArmRollBoxDate(
+          sourceDate
+        )
+      ) >
+        120
+    ) {
+      dateInformation =
+        createDateInformation(
+          year +
+            1,
+          month,
+          day
+        );
+    }
+
+
+    return dateInformation;
+  };
+
+
+  /*
+    이미 실제 교체가 완료된 후에는
+    이전 배차·반출 예정 문구를 표시하지 않는다.
+  */
+  const latestReplacement =
+    getLatestConfirmedReplacement(
+      seriesKey,
+      maximumDate
+    );
+
+
+  const scheduleEvents = [];
+
+
+  (
+    Array.isArray(
+      state.sourceLogs
+    )
+      ? state.sourceLogs
+      : []
+  ).forEach(
+    log => {
+      const role =
+        normalizeArmRollBoxRole(
+          log?.role
+        );
+
+
+      const logDate =
+        String(
+          log?.date ||
+          ""
+        ).trim();
+
+
+      /*
+        1호기:
+        BO1 일지만 확인
+
+        2호기:
+        BO2 일지만 확인
+      */
+      if (
+        role !==
+          series.role ||
+        !logDate ||
+        (
+          maximumDate &&
+          logDate >
+            maximumDate
+        ) ||
+        (
+          latestReplacement &&
+          logDate <=
+            latestReplacement.date
+        )
+      ) {
+        return;
+      }
+
+
+      collectScheduleTextBlocks(
+        log
+      ).forEach(
+        (
+          sourceText,
+          blockIndex
+        ) => {
+          const compactText =
+            normalizeScheduleText(
+              sourceText
+            );
+
+
+          const matchesTarget =
+            series.target ===
+              "armRoll"
+              ? compactText.includes(
+                  "armroll"
+                )
+              : (
+                  compactText.includes(
+                    "scrapbox"
+                  ) ||
+                  compactText.includes(
+                    "scapbox"
+                  )
+                );
+
+
+          /*
+            해당 BOX가 아니거나
+            실제 교체 완료 문구이면 일정에서 제외
+          */
+          if (
+            !matchesTarget ||
+            isConfirmedArmRollBoxReplacement(
+              sourceText
+            )
+          ) {
+            return;
+          }
+
+
+          const hasDispatch =
+            compactText.includes(
+              "배차"
+            );
+
+
+          const hasPlannedAction =
+            /(?:반출|교체)(?:예정|계획|일정|요청|협의|준비)/
+              .test(
+                compactText
+              );
+
+
+          if (
+            !hasDispatch &&
+            !hasPlannedAction
+          ) {
+            return;
+          }
+
+
+          /* =============================================
+            배차 상태
+          ============================================== */
+
+          let dispatchLabel =
+            "";
+
+
+          if (
+            /배차요청(?:완료|됨|했음|하였음|함)/
+              .test(
+                compactText
+              )
+          ) {
+            dispatchLabel =
+              "배차 요청 완료";
+
+          } else if (
+            /배차(?:를)?(?:완료|확정|배정|됨|함|했음|하였음|했|하였)/
+              .test(
+                compactText
+              )
+          ) {
+            dispatchLabel =
+              "배차 완료";
+
+          } else if (
+            compactText.includes(
+              "배차요청"
+            )
+          ) {
+            dispatchLabel =
+              "배차 요청";
+
+          } else if (
+            hasDispatch
+          ) {
+            dispatchLabel =
+              "배차 확인";
+          }
+
+
+          /* =============================================
+            예정 작업
+          ============================================== */
+
+          let actionLabel =
+            "";
+
+
+          if (
+            compactText.includes(
+              "반출예정"
+            )
+          ) {
+            actionLabel =
+              "반출 예정";
+
+          } else if (
+            compactText.includes(
+              "반출계획"
+            ) ||
+            compactText.includes(
+              "반출일정"
+            )
+          ) {
+            actionLabel =
+              "반출 계획";
+
+          } else if (
+            compactText.includes(
+              "교체예정"
+            )
+          ) {
+            actionLabel =
+              "교체 예정";
+
+          } else if (
+            compactText.includes(
+              "교체계획"
+            ) ||
+            compactText.includes(
+              "교체일정"
+            )
+          ) {
+            actionLabel =
+              "교체 계획";
+
+          } else if (
+            compactText.includes(
+              "교체요청"
+            )
+          ) {
+            actionLabel =
+              "교체 요청";
+          }
+
+
+          const plannedDate =
+            extractPlannedDate(
+              sourceText,
+              logDate
+            );
+
+
+          const referenceParts = [
+            dispatchLabel,
+
+            plannedDate
+              ? `${plannedDate.label} ${actionLabel || "일정"}`
+              : actionLabel
+          ].filter(
+            Boolean
+          );
+
+
+          if (
+            !referenceParts.length
+          ) {
+            return;
+          }
+
+
+          scheduleEvents.push({
+            target:
+              seriesKey,
+
+            date:
+              logDate,
+
+            plannedDate:
+              plannedDate?.value ||
+              "",
+
+            plannedDateLabel:
+              plannedDate?.label ||
+              "",
+
+            referenceText:
+              referenceParts.join(
+                " · "
+              ),
+
+            sourceText:
+              String(
+                sourceText ||
+                ""
+              ).trim(),
+
+            modifiedTime:
+              getArmRollBoxLogModifiedTime(
+                log
+              ),
+
+            blockIndex
+          });
+        }
+      );
+    }
+  );
+
+
+  /*
+    가장 최근 업무일지의 일정 사용
+  */
+  scheduleEvents.sort(
+    (
+      firstEvent,
+      secondEvent
+    ) => {
+      const dateOrder =
+        firstEvent.date.localeCompare(
+          secondEvent.date
+        );
+
+
+      if (
+        dateOrder !==
+        0
+      ) {
+        return dateOrder;
+      }
+
+
+      const modifiedOrder =
+        Number(
+          firstEvent.modifiedTime ||
+          0
+        ) -
+        Number(
+          secondEvent.modifiedTime ||
+          0
+        );
+
+
+      if (
+        modifiedOrder !==
+        0
+      ) {
+        return modifiedOrder;
+      }
+
+
+      return (
+        firstEvent.blockIndex -
+        secondEvent.blockIndex
+      );
+    }
+  );
+
+
+  return (
+    scheduleEvents[
+      scheduleEvents.length -
+      1
+    ] ||
+    null
+  );
+}
+
+
+/* =====================================================
+  BOX 일정 화면 표시용 문구
+===================================================== */
+
+function formatArmRollBoxScheduleReference(
+  schedule
+) {
+  return String(
+    schedule?.referenceText ||
+    ""
+  ).trim();
+}
 
 /* =========================================================
   메인 화면 교체 권고 대상
@@ -106537,6 +107429,9 @@ function recalculateArmRollBoxDistinctChanges() {
 
   70% 이상:
   - 즉시 확인
+
+  업무일지에 배차·반출·교체 예정이 있으면
+  schedule 정보도 함께 반환한다.
 ========================================================= */
 
 function getArmRollBoxMainRecommendationItems() {
@@ -106553,7 +107448,13 @@ function getArmRollBoxMainRecommendationItems() {
           level:
             state.current[
               series.key
-            ]?.level
+            ]?.level,
+
+          schedule:
+            getLatestArmRollBoxSchedule(
+              series.key,
+              state.endDate
+            )
         };
       }
     )
@@ -106587,9 +107488,12 @@ function getArmRollBoxMainRecommendationItems() {
     );
 }
 
-
 /* =========================================================
-  메인 근무자 현황 우측 알림 출력
+  메인 근무자 현황 우측 BOX 알림
+
+  표시:
+  - BOX 레벨
+  - 업무일지에서 확인한 배차·반출·교체 일정
 ========================================================= */
 
 function renderArmRollBoxMainAlert() {
@@ -106602,6 +107506,12 @@ function renderArmRollBoxMainAlert() {
   const alertText =
     document.getElementById(
       "armRollBoxMainAlertText"
+    );
+
+
+  const alertReference =
+    document.getElementById(
+      "armRollBoxMainAlertReference"
     );
 
 
@@ -106623,7 +107533,7 @@ function renderArmRollBoxMainAlert() {
 
 
   /*
-    50% 이상 BOX가 없으면 숨긴다.
+    50% 이상 BOX가 없으면 알림 숨김
   */
   if (
     recommendationItems.length ===
@@ -106639,6 +107549,18 @@ function renderArmRollBoxMainAlert() {
     );
 
 
+    if (
+      alertReference
+    ) {
+      alertReference.textContent =
+        "";
+
+
+      alertReference.hidden =
+        true;
+    }
+
+
     return;
   }
 
@@ -106650,7 +107572,7 @@ function renderArmRollBoxMainAlert() {
     );
 
 
-  const message =
+  const levelMessage =
     recommendationItems
       .map(
         item => {
@@ -106664,6 +107586,45 @@ function renderArmRollBoxMainAlert() {
       );
 
 
+  /*
+    교체 권고 대상 중 일정이 확인된 항목
+  */
+  const scheduledItems =
+    recommendationItems.filter(
+      item => {
+        return Boolean(
+          item.schedule
+        );
+      }
+    );
+
+
+  /*
+    일정이 한 건이면 대상명 반복 생략
+
+    예:
+    업무일지 참고 · 배차 요청 · 8/5(수) 반출 예정
+  */
+  const scheduleMessage =
+    scheduledItems.length ===
+      1
+      ? formatArmRollBoxScheduleReference(
+          scheduledItems[0]
+            .schedule
+        )
+      : scheduledItems
+          .map(
+            item => {
+              return `${item.label} · ${formatArmRollBoxScheduleReference(
+                item.schedule
+              )}`;
+            }
+          )
+          .join(
+            " / "
+          );
+
+
   alertButton.hidden =
     false;
 
@@ -106674,7 +107635,6 @@ function renderArmRollBoxMainAlert() {
   */
   alertButton.classList.toggle(
     "is-recommend",
-
     highestLevel <
       WARNING_LEVEL
   );
@@ -106686,23 +107646,45 @@ function renderArmRollBoxMainAlert() {
   */
   alertButton.classList.toggle(
     "is-critical",
-
     highestLevel >=
       WARNING_LEVEL
   );
 
 
+  const accessibleMessage = [
+    `BOX 교체 권고: ${levelMessage}`,
+
+    scheduleMessage
+      ? `업무일지 참고: ${scheduleMessage}`
+      : ""
+  ]
+    .filter(
+      Boolean
+    )
+    .join(
+      ". "
+    );
+
+
   alertButton.setAttribute(
     "aria-label",
-    `BOX 교체 권고: ${message}`
+    accessibleMessage
   );
 
 
-  alertButton.title =
-    [
-      "클릭하면 ARM ROLL · SCRAP BOX 현황을 엽니다.",
-      message
-    ].join(
+  alertButton.title = [
+    "클릭하면 ARM ROLL · SCRAP BOX 현황을 엽니다.",
+
+    levelMessage,
+
+    scheduleMessage
+      ? `업무일지 참고 · ${scheduleMessage}`
+      : ""
+  ]
+    .filter(
+      Boolean
+    )
+    .join(
       "\n"
     );
 
@@ -106711,7 +107693,21 @@ function renderArmRollBoxMainAlert() {
     alertText
   ) {
     alertText.textContent =
-      message;
+      levelMessage;
+  }
+
+
+  if (
+    alertReference
+  ) {
+    alertReference.textContent =
+      scheduleMessage
+        ? `업무일지 참고 · ${scheduleMessage}`
+        : "";
+
+
+    alertReference.hidden =
+      !scheduleMessage;
   }
 
 
@@ -106722,7 +107718,6 @@ function renderArmRollBoxMainAlert() {
       `${recommendationItems.length}건`;
   }
 }
-
 
 /* =========================================================
   메인 알림 클릭
