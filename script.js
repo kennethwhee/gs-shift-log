@@ -78687,7 +78687,9 @@ function refreshMemberFooterButtons() {
   - limestone
   - arm-roll
 
-  잘못된 메뉴값은 일일업무현황으로 처리한다.
+  빈 값:
+  - 아무 메뉴도 선택하지 않음
+  - 모든 오른쪽 내용을 숨김
 ===================================================== */
 
 function switchEfficiencyTeamView(
@@ -78715,20 +78717,33 @@ function switchEfficiencyTeamView(
     ).trim();
 
 
+  /*
+    유효한 메뉴값일 때만 화면을 선택한다.
+
+    빈 값 또는 잘못된 값:
+    - 선택된 메뉴 없음
+    - 모든 화면 숨김
+  */
   const selectedView =
     validViews.has(
       normalizedView
     )
       ? normalizedView
-      : "daily-work";
+      : "";
 
 
   tabs.forEach(
-    tab => {
+    (
+      tab,
+      tabIndex
+    ) => {
       const isSelected =
+        Boolean(
+          selectedView
+        ) &&
         tab.dataset
           .efficiencyTab ===
-        selectedView;
+          selectedView;
 
 
       tab.classList.toggle(
@@ -78745,8 +78760,17 @@ function switchEfficiencyTeamView(
       );
 
 
+      /*
+        아무 메뉴도 선택되지 않았을 때는
+        첫 번째 메뉴에 키보드 포커스만 허용한다.
+        화면 내용은 표시하지 않는다.
+      */
       tab.tabIndex =
-        isSelected
+        isSelected ||
+        (
+          !selectedView &&
+          tabIndex === 0
+        )
           ? 0
           : -1;
     }
@@ -78756,9 +78780,12 @@ function switchEfficiencyTeamView(
   views.forEach(
     view => {
       const isSelected =
+        Boolean(
+          selectedView
+        ) &&
         view.dataset
           .efficiencyView ===
-        selectedView;
+          selectedView;
 
 
       view.classList.toggle(
@@ -78781,12 +78808,15 @@ function switchEfficiencyTeamView(
   );
 }
 
-
 /* =====================================================
   효율팀 팝업 열기
 
   모든 로그인 사용자 사용 가능
-  기본 메뉴: 일일업무현황
+
+  최초 화면:
+  - 선택된 메뉴 없음
+  - 오른쪽 내용 전체 숨김
+  - 왼쪽 메뉴를 눌러야 내용 표시
 ===================================================== */
 
 function openEfficiencyTeamModal() {
@@ -78820,11 +78850,14 @@ function openEfficiencyTeamModal() {
 
 
   /*
-    팝업을 열 때마다
-    일일업무현황을 기본 메뉴로 표시한다.
+    팝업을 열 때마다 선택 상태를 초기화한다.
+
+    결과:
+    - 왼쪽 메뉴 선택 표시 없음
+    - 오른쪽 모든 내용 숨김
   */
   switchEfficiencyTeamView(
-    "daily-work"
+    ""
   );
 
 

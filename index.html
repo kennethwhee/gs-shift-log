@@ -3880,21 +3880,19 @@
   aria-label="효율팀 메뉴"
 >
 
-  <!-- 일일업무현황 -->
-  <button
-    type="button"
-    class="
-      efficiency-team-tab
-      is-active
-    "
-    id="efficiencyDailyWorkTab"
-    data-efficiency-tab="daily-work"
-    role="tab"
-    aria-selected="true"
-    aria-controls="efficiencyDailyWorkView"
-  >
-    일일업무현황
-  </button>
+<!-- 일일업무현황 -->
+<button
+  type="button"
+  class="efficiency-team-tab"
+  id="efficiencyDailyWorkTab"
+  data-efficiency-tab="daily-work"
+  role="tab"
+  aria-selected="false"
+  aria-controls="efficiencyDailyWorkView"
+  tabindex="0"
+>
+  일일업무현황
+</button>
 
 
   <!-- 석회석 -->
@@ -3944,10 +3942,24 @@
   <!-- =================================================
     일일업무현황
   ================================================== -->
-<article class="efficiency-team-view efficiency-daily-work-view is-active" id="efficiencyDailyWorkView" data-efficiency-view="daily-work" role="tabpanel" aria-labelledby="efficiencyDailyWorkTab">
+
+<article
+  class="
+    efficiency-team-view
+    efficiency-daily-work-view
+  "
+  id="efficiencyDailyWorkView"
+  data-efficiency-view="daily-work"
+  role="tabpanel"
+  aria-labelledby="efficiencyDailyWorkTab"
+  aria-hidden="true"
+  hidden
+>
+
   <!-- =================================================
     상단
   ================================================== -->
+  
   <header class="efficiency-team-view__heading efficiency-daily-work-heading">
     <div>
       <span> DAILY WORK STATUS </span>
