@@ -33795,28 +33795,68 @@ function renderLogEntryTable() {
     복구한 값은 editorEntries에도 반영되어
     이후 저장할 때 유지된다.
   */
-  if (
-    isLeaderLog
-  ) {
-    entries.forEach(
-      entry => {
-        const resolvedRole =
-          resolveDetailEntrySourceRole(
-            entry,
-            editorContextLog
-          );
 
 
-        if (
-          resolvedRole
-        ) {
-          entry.importedFromRole =
-            resolvedRole;
-        }
+if (
+  isLeaderLog
+) {
+  entries.forEach(
+    entry => {
+      const category =
+        normalizeCategory(
+          entry?.category
+        );
+
+
+      const entrySource =
+        String(
+          entry?.source ||
+          ""
+        ).trim();
+
+
+      /*
+        파트장이 비고에서 직접 추가한 내용은
+        팀원 업무와 문장이 같아도
+        BO1 / BO2 / TGO 등으로 다시 분류하지 않는다.
+      */
+      if (
+        category ===
+          "비고" &&
+        [
+          "direct-remark",
+          "leader-manual"
+        ].includes(
+          entrySource
+        )
+      ) {
+        entry.category =
+          "비고";
+
+        entry.importedFromRole =
+          "파트장";
+
+
+        return;
       }
-    );
-  }
 
+
+      const resolvedRole =
+        resolveDetailEntrySourceRole(
+          entry,
+          editorContextLog
+        );
+
+
+      if (
+        resolvedRole
+      ) {
+        entry.importedFromRole =
+          resolvedRole;
+      }
+    }
+  );
+}
 
   const indexedEntries =
     entries.map(
@@ -34886,16 +34926,6 @@ function closeDirectRemarkInput(
   }
 }
 
-
-/* =========================================================
-  비고 내용 직접 추가
-
-  모든 보직 공통:
-  - category: 비고
-  - 시간 없음
-  - TAG 없음
-========================================================= */
-
 function addDirectRemarkEntry() {
   const contentInput =
     document.getElementById(
@@ -34903,7 +34933,7 @@ function addDirectRemarkEntry() {
     );
 
 
-  const content =
+  let content =
     String(
       contentInput?.value ||
       ""
@@ -34911,6 +34941,26 @@ function addDirectRemarkEntry() {
       .replace(
         /\r\n?/g,
         "\n"
+      )
+      .trim();
+
+
+  /*
+    사용자가 직접 입력한 번호는 제거한다.
+
+    예:
+    3. 내용
+    3) 내용
+    3 - 내용
+    ③ 내용
+
+    화면 번호는 프로그램이 자동으로 붙인다.
+  */
+  content =
+    content
+      .replace(
+        /^\s*(?:\d+\s*[.)\-:：]\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*)/u,
+        ""
       )
       .trim();
 
@@ -34940,6 +34990,31 @@ function addDirectRemarkEntry() {
   }
 
 
+  const currentRole =
+    normalizeMemberLogRole(
+      elements.logRole?.value ||
+      document.getElementById(
+        "logRole"
+      )?.value ||
+      ""
+    );
+
+
+  const currentAuthor =
+    String(
+      elements.logAuthor?.value ||
+      document.getElementById(
+        "logAuthor"
+      )?.value ||
+      ""
+    ).trim();
+
+
+  const isLeaderRemark =
+    currentRole ===
+      "파트장";
+
+
   appState.editorEntries.push({
     id: [
       "direct-remark",
@@ -34963,11 +35038,19 @@ function addDirectRemarkEntry() {
     attachmentName:
       "",
 
+    /*
+      파트장이 비고칸에서 직접 적은 내용은
+      반드시 파트장 직접 작성으로 기록한다.
+
+      BO2 등 팀원 업무와 내용이 같더라도
+      출처가 바뀌지 않게 한다.
+    */
     importedFromRole:
+      currentRole ||
       "",
 
     importedFromAuthor:
-      "",
+      currentAuthor,
 
     importedFromLogId:
       "",
@@ -34976,14 +35059,16 @@ function addDirectRemarkEntry() {
       null,
 
     source:
-      "direct-remark"
+      isLeaderRemark
+        ? "leader-manual"
+        : "direct-remark"
   });
 
 
-  /*
-    목록, 건수, 저장용 JSON,
-    기존 note 문자열을 함께 갱신한다.
-  */
+  appState.editingEntryIndex =
+    -1;
+
+
   renderLogEntryTable();
 
 
@@ -41581,44 +41666,51 @@ function collectLogEntriesForDisplay(
             return false;
           }
 
+/*
+  파트장이 명확하게 직접 작성한 항목
 
-          /*
-            출처가 파트장으로 잘못 저장돼 있더라도
-            팀원 원본 전체와 내용이 같으면 제거한다.
-
-            비교에는 TO·BO1·BO2 일반 업무도 포함된다.
-          */
-          const duplicatesAnyMemberEntry =
-            allMemberSourceEntries.some(
-              memberEntry => {
-                return isSameLeaderSavedEntryAsMemberEntry(
-                  entry,
-                  memberEntry
-                );
-              }
-            );
-
-
-          if (
-            duplicatesAnyMemberEntry
-          ) {
-            return false;
-          }
+  direct-remark는
+  기존 버전에서 저장된 비고 호환용으로도 유지한다.
+*/
+const isExplicitLeaderSource =
+  [
+    "leader-manual",
+    "legacy-leader-own",
+    "previous-shift-handover",
+    "direct-remark"
+  ].includes(
+    source
+  );
 
 
-          const isExplicitLeaderSource =
-            [
-              "leader-manual",
-              "legacy-leader-own",
-              "previous-shift-handover"
-            ].includes(
-              source
-            );
+const duplicatesAnyMemberEntry =
+  allMemberSourceEntries.some(
+    memberEntry => {
+      return isSameLeaderSavedEntryAsMemberEntry(
+        entry,
+        memberEntry
+      );
+    }
+  );
 
 
-          /*
-            실제 파트장 직접 입력으로 판단되는 항목만 유지
-          */
+/*
+  팀원 업무와 내용이 같더라도
+
+  파트장이 직접 작성한 것으로
+  명확하게 표시된 항목은 삭제하지 않는다.
+
+  특히:
+  비고에 BO1/BO2 업무내용을 다시 적는 경우를 보호한다.
+*/
+if (
+  duplicatesAnyMemberEntry &&
+  !isExplicitLeaderSource
+) {
+  return false;
+}
+
+
           return (
             sourceRole ===
               "파트장" ||
