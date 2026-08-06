@@ -107388,30 +107388,53 @@ function createArmRollBoxUnitEventCell(
               ).trim();
 
 
-            return `
-              <span
-                class="${className}"
-                ${
-                  sourceText
-                    ? `
-                      title="${escapeArmRollBoxHtml(
-                        sourceText
-                      )}"
-                    `
-                    : ""
-                }
-              >
-                <strong>
-                  ${escapeArmRollBoxHtml(
-                    boxLabel
-                  )}
-                </strong>
+return `
+  <span
+    class="${className}"
+    ${
+      sourceText
+        ? `
+          title="${escapeArmRollBoxHtml(
+            sourceText
+          )}"
+        `
+        : ""
+    }
+    style="
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      line-height:1.15;
+      gap:2px;
+    "
+  >
 
-                ${escapeArmRollBoxHtml(
-                  stateLabel
-                )}
-              </span>
-            `;
+    <strong
+      style="
+        font-size:11px;
+        font-weight:800;
+        white-space:nowrap;
+      "
+    >
+      ${escapeArmRollBoxHtml(
+        boxLabel
+      )}
+    </strong>
+
+    <span
+      style="
+        font-size:10px;
+        font-weight:700;
+      "
+    >
+      ${escapeArmRollBoxHtml(
+        stateLabel
+      )}
+    </span>
+
+  </span>
+`;
           }
         )
         .join("<br>")}

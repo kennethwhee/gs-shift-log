@@ -70712,6 +70712,19 @@ td:nth-child(4) {
   font-weight: 900;
 }
 
+.arm-roll-box-unit-event-cell{
+    text-align:center;
+    vertical-align:middle;
+}
+
+.arm-roll-box-unit-event-cell .is-replacement,
+.arm-roll-box-unit-event-cell .is-suspected{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    min-height:34px;
+}
 
 /* =========================================================
   좁은 화면
