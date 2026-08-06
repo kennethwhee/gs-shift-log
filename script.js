@@ -127334,25 +127334,298 @@ function cleanMorningMeetingSectionRows(
   }
 
 /* =====================================================
-  오전회의 자료 분석 결과
+  안전·환경·기계·전기제어팀 분석 결과 출력
 
-  화면 미리보기는 사용하지 않는다.
-  분석 결과는 내부 상태와 최종 엑셀 생성에만 사용한다.
+  교대파트와 운탄일지는 이 영역에 표시하지 않는다.
 ===================================================== */
 
-function renderMorningMeetingAnalysisPreview() {
-  return;
+function renderMorningMeetingAnalysisPreview(
+  analysisResults
+) {
+  const {
+    preview,
+    previewList,
+    previewCount
+  } =
+    getMorningMeetingAnalyzerElements();
+
+
+  if (
+    !preview ||
+    !previewList
+  ) {
+    return;
+  }
+
+
+  const safeResults =
+    Array.isArray(
+      analysisResults
+    )
+      ? analysisResults
+      : [];
+
+
+  previewList.innerHTML =
+    safeResults
+      .map(
+        result => {
+          return `
+            <article
+              class="efficiency-morning-meeting-preview-card"
+              data-morning-meeting-preview-team="${escapeMorningMeetingHtml(
+                result.teamKey
+              )}"
+            >
+
+              <header
+                class="efficiency-morning-meeting-preview-card__header"
+              >
+
+                <div>
+
+                  <strong>
+                    ${escapeMorningMeetingHtml(
+                      result.teamName
+                    )}
+                  </strong>
+
+                  <small>
+                    ${escapeMorningMeetingHtml(
+                      result.fileName
+                    )}
+                  </small>
+
+                </div>
+
+
+                <span>
+                  ${
+                    result.reportDate
+                      ? escapeMorningMeetingHtml(
+                          result.reportDate
+                        )
+                      : "날짜 미확인"
+                  }
+                </span>
+
+              </header>
+
+
+              <!-- 전일 특이사항 -->
+
+              <div
+                class="efficiency-morning-meeting-preview-section"
+              >
+
+                <div
+                  class="efficiency-morning-meeting-preview-section__title"
+                >
+
+                  <strong>
+                    전일 특이사항
+                  </strong>
+
+                  <span>
+                    ${result.previousCount}건
+                  </span>
+
+                </div>
+
+
+                <textarea
+                  data-morning-meeting-analysis-team="${escapeMorningMeetingHtml(
+                    result.teamKey
+                  )}"
+                  data-morning-meeting-analysis-section="previousText"
+                  spellcheck="false"
+                >${escapeMorningMeetingHtml(
+                  result.previousText
+                )}</textarea>
+
+              </div>
+
+
+              <!-- 예정사항 -->
+
+              <div
+                class="efficiency-morning-meeting-preview-section"
+              >
+
+                <div
+                  class="efficiency-morning-meeting-preview-section__title"
+                >
+
+                  <strong>
+                    예정사항
+                  </strong>
+
+                  <span>
+                    ${result.scheduleCount}건
+                  </span>
+
+                </div>
+
+
+                <textarea
+                  data-morning-meeting-analysis-team="${escapeMorningMeetingHtml(
+                    result.teamKey
+                  )}"
+                  data-morning-meeting-analysis-section="scheduleText"
+                  spellcheck="false"
+                >${escapeMorningMeetingHtml(
+                  result.scheduleText
+                )}</textarea>
+
+              </div>
+
+            </article>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+
+
+  preview.hidden =
+    safeResults.length ===
+    0;
+
+
+  if (
+    previewCount
+  ) {
+    previewCount.textContent =
+      `${safeResults.length}개 팀`;
+  }
 }
 
 /* =====================================================
-  오전회의 미리보기 편집
+  4개 팀 분석 결과 직접 수정
 
-  미리보기 화면을 사용하지 않으므로
-  이벤트를 연결하지 않는다.
+  textarea를 수정하면 최종 엑셀에 사용할
+  내부 분석 결과도 즉시 변경한다.
 ===================================================== */
 
 function bindMorningMeetingPreviewEditing() {
-  return;
+  const {
+    previewList
+  } =
+    getMorningMeetingAnalyzerElements();
+
+
+  if (
+    !previewList ||
+    previewList.dataset
+      .analysisEditInitialized ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  previewList.dataset
+    .analysisEditInitialized =
+    "true";
+
+
+  previewList.addEventListener(
+    "input",
+
+    event => {
+      const textarea =
+        event.target instanceof
+          Element
+          ? event.target.closest(
+              "textarea[data-morning-meeting-analysis-team]"
+            )
+          : null;
+
+
+      if (
+        !textarea
+      ) {
+        return;
+      }
+
+
+      const teamKey =
+        textarea.dataset
+          .morningMeetingAnalysisTeam;
+
+
+      const sectionKey =
+        textarea.dataset
+          .morningMeetingAnalysisSection;
+
+
+      const uploadState =
+        getMorningMeetingUploadState();
+
+
+      const result =
+        uploadState.analysis?.[
+          teamKey
+        ];
+
+
+      if (
+        !result ||
+        !sectionKey
+      ) {
+        return;
+      }
+
+
+      result[
+        sectionKey
+      ] =
+        textarea.value;
+
+
+      if (
+        sectionKey ===
+          "previousText"
+      ) {
+        result.previousCount =
+          textarea.value
+            .split(
+              "\n"
+            )
+            .map(
+              line => {
+                return line.trim();
+              }
+            )
+            .filter(
+              Boolean
+            )
+            .length;
+      }
+
+
+      if (
+        sectionKey ===
+          "scheduleText"
+      ) {
+        result.scheduleCount =
+          textarea.value
+            .split(
+              "\n"
+            )
+            .map(
+              line => {
+                return line.trim();
+              }
+            )
+            .filter(
+              Boolean
+            )
+            .length;
+      }
+    }
+  );
 }
 
   /* =====================================================
@@ -144993,7 +145266,145 @@ function handleChange(
   }
 
 
+/* =====================================================
+  운탄일지·TM 선택 이벤트 연결
 
+  자료 분석 완료 후:
+  - 왼쪽 운탄 업무 목록 갱신
+  - 오른쪽 업무일지·운탄일지 TM 목록 갱신
+===================================================== */
+
+function bindEvents() {
+  const elements =
+    getElements();
+
+
+  /*
+    운탄일지 일반 업무 개별 선택
+  */
+
+  elements.workList
+    ?.addEventListener(
+      "change",
+      handleChange
+    );
+
+
+  /*
+    TM 사항 개별 선택
+  */
+
+  elements.tmList
+    ?.addEventListener(
+      "change",
+      handleChange
+    );
+
+
+  /*
+    전체 선택·선택 초기화
+  */
+
+  elements.panel
+    ?.addEventListener(
+      "click",
+      handleClick
+    );
+
+
+  /*
+    자료 분석 버튼
+
+    기존 운탄일지 분석기가 먼저 파일을 분석한 뒤
+    새 2열 목록에 결과를 표시한다.
+  */
+
+  elements.analyzeButton
+    ?.addEventListener(
+      "click",
+
+      () => {
+        window.setTimeout(
+          refreshAfterAnalysis,
+          0
+        );
+      }
+    );
+
+
+  /*
+    새 운탄일지를 첨부하면
+    기존 목록을 초기 상태로 갱신한다.
+  */
+
+  elements.coalInput
+    ?.addEventListener(
+      "change",
+
+      () => {
+        window.setTimeout(
+          renderAll,
+          0
+        );
+      }
+    );
+
+
+  /*
+    전체 초기화
+  */
+
+  elements.resetButton
+    ?.addEventListener(
+      "click",
+
+      () => {
+        window.setTimeout(
+          renderAll,
+          0
+        );
+      }
+    );
+
+
+  /*
+    교대파트 업무일지 불러오기 완료 후
+    오른쪽 업무일지 발행내역을 다시 표시한다.
+  */
+
+  document.addEventListener(
+    "efficiencyMorningMeetingShiftLogsLoaded",
+    scheduleRender
+  );
+
+
+  /*
+    교대파트 목록 내용이 변경될 때
+    TM 목록도 함께 갱신한다.
+  */
+
+  if (
+    elements.shiftPanel
+  ) {
+    const observer =
+      new MutationObserver(
+        scheduleRender
+      );
+
+
+    observer.observe(
+      elements.shiftPanel,
+
+      {
+        childList:
+          true,
+
+        subtree:
+          true
+      }
+    );
+  }
+}
 
   /* =====================================================
     초기화

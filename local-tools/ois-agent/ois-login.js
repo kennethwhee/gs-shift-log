@@ -23,13 +23,12 @@ const {
 /* =========================================================
   OIS 에이전트 로컬 환경변수 자동 로딩
 
-  파일:
-  local-tools/ois-agent/.env
-
-  특징:
-  - PowerShell에서 환경변수를 매번 입력하지 않아도 됨
-  - 이미 Windows 환경변수가 있으면 그 값을 우선 사용
-  - 아이디·비밀번호·에이전트 키를 JS에 직접 적지 않음
+  대응:
+  - UTF-8 BOM 제거
+  - KEY 앞뒤 공백 제거
+  - 따옴표 제거
+  - 필수 설정 누락 확인
+  - 비밀번호 실제 값은 로그에 출력하지 않음
 ========================================================= */
 
 function loadOisAgentLocalEnvironment() {
@@ -45,19 +44,31 @@ function loadOisAgentLocalEnvironment() {
       environmentFilePath
     )
   ) {
-    console.warn(
+    throw new Error(
       `.env 파일을 찾지 못했습니다: ${environmentFilePath}`
     );
-
-    return;
   }
 
 
-  const environmentText =
+  let environmentText =
     fs.readFileSync(
       environmentFilePath,
       "utf8"
     );
+
+
+  /*
+    메모장에서 UTF-8로 저장할 때
+    파일 첫 부분에 붙을 수 있는 BOM을 제거한다.
+  */
+  environmentText =
+    environmentText.replace(
+      /^\uFEFF/,
+      ""
+    );
+
+
+  const loadedKeys = [];
 
 
   environmentText
@@ -66,11 +77,16 @@ function loadOisAgentLocalEnvironment() {
     )
     .forEach(
       rawLine => {
-        const line =
+        let line =
           String(
             rawLine ||
             ""
-          ).trim();
+          )
+            .replace(
+              /^\uFEFF/,
+              ""
+            )
+            .trim();
 
 
         if (
@@ -81,6 +97,17 @@ function loadOisAgentLocalEnvironment() {
         ) {
           return;
         }
+
+
+        /*
+          export OIS_ID=...
+          형태로 적혀 있어도 허용한다.
+        */
+        line =
+          line.replace(
+            /^export\s+/i,
+            ""
+          );
 
 
         const equalIndex =
@@ -103,6 +130,10 @@ function loadOisAgentLocalEnvironment() {
               0,
               equalIndex
             )
+            .replace(
+              /^\uFEFF/,
+              ""
+            )
             .trim();
 
 
@@ -114,8 +145,22 @@ function loadOisAgentLocalEnvironment() {
             .trim();
 
 
+        if (
+          !/^[A-Za-z_][A-Za-z0-9_]*$/.test(
+            key
+          )
+        ) {
+          console.warn(
+            `올바르지 않은 .env 설정 이름을 건너뜁니다: ${key}`
+          );
+
+
+          return;
+        }
+
+
         /*
-          양쪽 따옴표 제거
+          "값" 또는 '값'의 양쪽 따옴표 제거
         */
         if (
           (
@@ -143,10 +188,6 @@ function loadOisAgentLocalEnvironment() {
         }
 
 
-        /*
-          Windows에 이미 설정된 값이 있으면
-          그 값을 우선 사용한다.
-        */
         if (
           !process.env[
             key
@@ -157,17 +198,66 @@ function loadOisAgentLocalEnvironment() {
           ] =
             value;
         }
+
+
+        loadedKeys.push(
+          key
+        );
       }
     );
+
+
+  const requiredKeys = [
+    "OIS_ID",
+    "OIS_PASSWORD",
+    "OIS_AGENT_KEY"
+  ];
+
+
+  const missingKeys =
+    requiredKeys.filter(
+      key => {
+        return !String(
+          process.env[
+            key
+          ] ||
+          ""
+        ).trim();
+      }
+    );
+
+
+  if (
+    missingKeys.length >
+      0
+  ) {
+    throw new Error(
+      [
+        ".env 필수 설정이 비어 있습니다.",
+        `누락 항목: ${missingKeys.join(", ")}`,
+        `파일 위치: ${environmentFilePath}`
+      ].join(
+        "\n"
+      )
+    );
+  }
 
 
   console.log(
     "OIS 에이전트 로컬 설정을 불러왔습니다."
   );
+
+
+  console.log(
+    "확인된 설정:",
+    loadedKeys.join(
+      ", "
+    )
+  );
 }
 
 
-loadOisAgentLocalEnvironment();  
+loadOisAgentLocalEnvironment();
 
 const DEFAULT_SHIFT_LOG_BASE_URL =
   "https://gs-shift-log.pages.dev";
