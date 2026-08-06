@@ -538,15 +538,37 @@ async function findOisTableByTexts(
   return null;
 }
 
-
 /* =========================================================
-  표에서 특정 문구가 있는 행의 셀 목록 가져오기
+  표에서 특정 문구가 있는 행의 셀 값 가져오기
+
+  OIS 표 지원:
+  - 일반 td 텍스트
+  - input.value
+  - textarea.value
+  - select 선택값
+  - data-value
+  - data-text
+
+  숫자가 문구와 같은 셀에 있어도
+  순수 숫자 토큰을 별도로 추출한다.
+
+  예:
+  "장자산단 7,880.000"
+  →
+  "장자산단 7,880.000"
+  "7,880.000"
 ========================================================= */
 
 async function getOisTableRowCells(
   table,
   rowKeyword
 ) {
+  const normalizedKeyword =
+    normalizeOisText(
+      rowKeyword
+    );
+
+
   const rows =
     table.locator(
       "tr"
@@ -570,69 +592,412 @@ async function getOisTableRowCells(
       );
 
 
-    const rowText =
-      normalizeOisText(
-        await row
-          .innerText()
-          .catch(
-            () => ""
-          )
-      );
+    const rowResult =
+      await row
+        .evaluate(
+          (
+            rowElement,
+            keyword
+          ) => {
+            const normalizeText = (
+              value
+            ) => {
+              return String(
+                value ??
+                ""
+              )
+                .replace(
+                  /\u00a0/g,
+                  " "
+                )
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .trim();
+            };
+
+
+            /*
+              tr 바로 아래에 있는 th·td만 사용한다.
+
+              셀 내부에 또 다른 table이 있어도
+              그 하위 td를 중복 수집하지 않는다.
+            */
+
+            const cellElements = [
+              ...rowElement.children
+            ].filter(
+              element => {
+                return [
+                  "TH",
+                  "TD"
+                ].includes(
+                  element.tagName
+                );
+              }
+            );
+
+
+            const rowValues =
+              [];
+
+
+            cellElements.forEach(
+              cellElement => {
+                const cellValues =
+                  [];
+
+
+                const seenValues =
+                  new Set();
+
+
+                const appendValue = (
+                  rawValue
+                ) => {
+                  const value =
+                    normalizeText(
+                      rawValue
+                    );
+
+
+                  if (
+                    !value ||
+                    seenValues.has(
+                      value
+                    )
+                  ) {
+                    return;
+                  }
+
+
+                  seenValues.add(
+                    value
+                  );
+
+
+                  cellValues.push(
+                    value
+                  );
+                };
+
+
+                const appendNumericTokens = (
+                  rawValue
+                ) => {
+                  const sourceText =
+                    normalizeText(
+                      rawValue
+                    );
+
+
+                  if (
+                    !sourceText
+                  ) {
+                    return;
+                  }
+
+
+                  sourceText
+                    .split(
+                      /[\s|:：()[\]{}]+/
+                    )
+                    .map(
+                      token => {
+                        return normalizeText(
+                          token
+                        );
+                      }
+                    )
+                    .filter(
+                      token => {
+                        return /^-?[\d,]+(?:\.\d+)?$/.test(
+                          token
+                        );
+                      }
+                    )
+                    .forEach(
+                      appendValue
+                    );
+                };
+
+
+                /*
+                  화면에 표시되는 일반 텍스트
+                */
+
+                const visibleText =
+                  normalizeText(
+                    cellElement.innerText ||
+                    cellElement.textContent ||
+                    ""
+                  );
+
+
+                if (
+                  visibleText
+                ) {
+                  visibleText
+                    .split(
+                      /\r?\n/
+                    )
+                    .forEach(
+                      textLine => {
+                        appendValue(
+                          textLine
+                        );
+
+
+                        appendNumericTokens(
+                          textLine
+                        );
+                      }
+                    );
+                }
+
+
+                /*
+                  input·textarea·select의 실제 값
+
+                  input 값은 innerText에 포함되지 않으므로
+                  별도로 읽는다.
+                */
+
+                cellElement
+                  .querySelectorAll(
+                    `
+                      input,
+                      textarea,
+                      select
+                    `
+                  )
+                  .forEach(
+                    control => {
+                      if (
+                        control instanceof
+                          HTMLInputElement
+                      ) {
+                        const inputType =
+                          String(
+                            control.type ||
+                            ""
+                          ).toLowerCase();
+
+
+                        if (
+                          [
+                            "button",
+                            "submit",
+                            "reset",
+                            "checkbox",
+                            "radio",
+                            "image",
+                            "file"
+                          ].includes(
+                            inputType
+                          )
+                        ) {
+                          return;
+                        }
+
+
+                        appendValue(
+                          control.value
+                        );
+
+
+                        appendNumericTokens(
+                          control.value
+                        );
+
+
+                        return;
+                      }
+
+
+                      if (
+                        control instanceof
+                          HTMLTextAreaElement
+                      ) {
+                        appendValue(
+                          control.value
+                        );
+
+
+                        appendNumericTokens(
+                          control.value
+                        );
+
+
+                        return;
+                      }
+
+
+                      if (
+                        control instanceof
+                          HTMLSelectElement
+                      ) {
+                        const selectedText =
+                          normalizeText(
+                            control
+                              .selectedOptions?.[0]
+                              ?.textContent ||
+                            control.value
+                          );
+
+
+                        appendValue(
+                          selectedText
+                        );
+
+
+                        appendNumericTokens(
+                          selectedText
+                        );
+                      }
+                    }
+                  );
+
+
+                /*
+                  TossPlatform 또는 사내 그리드에서
+                  데이터 속성에 값이 들어 있는 경우
+                */
+
+                cellElement
+                  .querySelectorAll(
+                    `
+                      [data-value],
+                      [data-text]
+                    `
+                  )
+                  .forEach(
+                    valueElement => {
+                      const dataValue =
+                        valueElement.getAttribute(
+                          "data-value"
+                        );
+
+
+                      const dataText =
+                        valueElement.getAttribute(
+                          "data-text"
+                        );
+
+
+                      appendValue(
+                        dataValue
+                      );
+
+
+                      appendNumericTokens(
+                        dataValue
+                      );
+
+
+                      appendValue(
+                        dataText
+                      );
+
+
+                      appendNumericTokens(
+                        dataText
+                      );
+                    }
+                  );
+
+
+                rowValues.push(
+                  ...cellValues
+                );
+              }
+            );
+
+
+            /*
+              행 검색에는 일반 텍스트와
+              input 등의 실제 값을 모두 사용한다.
+            */
+
+            const rowSearchText =
+              normalizeText(
+                [
+                  rowElement.innerText,
+                  rowElement.textContent,
+                  ...rowValues
+                ].join(
+                  " "
+                )
+              );
+
+
+            return {
+              matched:
+                rowSearchText.includes(
+                  keyword
+                ),
+
+              values:
+                rowValues,
+
+              searchText:
+                rowSearchText
+            };
+          },
+
+          normalizedKeyword
+        )
+        .catch(
+          error => {
+            return {
+              matched:
+                false,
+
+              values:
+                [],
+
+              searchText:
+                "",
+
+              error:
+                error?.message ||
+                String(
+                  error
+                )
+            };
+          }
+        );
 
 
     if (
-      !rowText.includes(
-        rowKeyword
-      )
+      !rowResult.matched
     ) {
       continue;
     }
 
 
-    const cells =
-      row.locator(
-        "th, td"
-      );
+    /*
+      실제 추출값 확인용 로그
+
+      다음 오류 발생 시 이 로그를 보면
+      OIS 표 구조를 바로 확인할 수 있다.
+    */
+
+    console.log(
+      `OIS "${normalizedKeyword}" 행 셀:`,
+      rowResult.values
+    );
 
 
-    const cellCount =
-      await cells.count();
-
-
-    const cellTexts = [];
-
-
-    for (
-      let cellIndex = 0;
-      cellIndex <
-        cellCount;
-      cellIndex +=
-        1
-    ) {
-      cellTexts.push(
-        normalizeOisText(
-          await cells
-            .nth(
-              cellIndex
-            )
-            .innerText()
-            .catch(
-              () => ""
-            )
-        )
-      );
-    }
-
-
-    return cellTexts;
+    return rowResult.values;
   }
 
 
   throw new Error(
-    `"${rowKeyword}" 행을 찾지 못했습니다.`
+    `"${normalizedKeyword}" 행을 찾지 못했습니다.`
   );
 }
-
 
 /* =========================================================
   셀 목록에서 숫자만 추출
