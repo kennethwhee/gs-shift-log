@@ -591,6 +591,400 @@ function convertRowToLog(
   };
 }
 
+/* =========================================================
+  신규 업무일지 실제 첨부파일 연결
+
+  저장:
+  - 실제 파일: R2 ATTACHMENTS
+  - 파일 정보: D1 shift_log_attachments
+
+  업무일지를 불러올 때
+  log.attachments 배열에 실제 첨부파일 객체를 넣는다.
+========================================================= */
+
+
+/* =========================================================
+  첨부파일 DB 행 → 화면용 객체
+========================================================= */
+
+function convertShiftLogAttachmentRow(
+  row
+) {
+  if (
+    !row ||
+    typeof row !==
+      "object"
+  ) {
+    return null;
+  }
+
+
+  const attachmentId =
+    normalizeText(
+      row.id
+    );
+
+
+  if (
+    !attachmentId
+  ) {
+    return null;
+  }
+
+
+  const fileName =
+    normalizeText(
+      row.original_name
+    ) ||
+    "첨부파일";
+
+
+  const fileUrl =
+    `/api/shift-log-files?id=${encodeURIComponent(
+      attachmentId
+    )}`;
+
+
+  return {
+    id:
+      attachmentId,
+
+    attachmentId,
+
+    logId:
+      normalizeText(
+        row.log_id
+      ),
+
+    name:
+      fileName,
+
+    fileName,
+
+    storedName:
+      normalizeText(
+        row.stored_name
+      ),
+
+    mimeType:
+      normalizeText(
+        row.content_type
+      ) ||
+      "application/octet-stream",
+
+    fileSize:
+      Number(
+        row.file_size ||
+        0
+      ),
+
+    uploadedById:
+      normalizeEmployeeNo(
+        row.uploaded_by_id
+      ),
+
+    uploadedByName:
+      normalizeText(
+        row.uploaded_by_name
+      ),
+
+    createdAt:
+      normalizeText(
+        row.created_at
+      ),
+
+    updatedAt:
+      normalizeText(
+        row.updated_at
+      ),
+
+    /*
+      실제 파일 조회 주소
+    */
+    url:
+      fileUrl,
+
+    previewUrl:
+      fileUrl,
+
+    downloadUrl:
+      `${fileUrl}&download=1`
+  };
+}
+
+
+/* =========================================================
+  여러 업무일지의 첨부파일 한 번에 조회
+
+  이유:
+  업무일지마다 SELECT를 따로 실행하면
+  조회 건수가 많을 때 D1 요청이 지나치게 많아진다.
+
+  업무일지 ID를 묶어서 조회한다.
+========================================================= */
+
+async function attachShiftLogAttachments(
+  database,
+  logs
+) {
+  const safeLogs =
+    (
+      Array.isArray(
+        logs
+      )
+        ? logs
+        : []
+    )
+      .filter(
+        log => {
+          return (
+            log &&
+            typeof log ===
+              "object"
+          );
+        }
+      );
+
+
+  if (
+    !database ||
+    safeLogs.length ===
+      0
+  ) {
+    return safeLogs;
+  }
+
+
+  const logIds =
+    [
+      ...new Set(
+        safeLogs
+          .map(
+            log => {
+              return normalizeText(
+                log.id
+              );
+            }
+          )
+          .filter(
+            Boolean
+          )
+      )
+    ];
+
+
+  if (
+    logIds.length ===
+      0
+  ) {
+    return safeLogs;
+  }
+
+
+  const attachmentMap =
+    new Map();
+
+
+  logIds.forEach(
+    logId => {
+      attachmentMap.set(
+        logId,
+        []
+      );
+    }
+  );
+
+
+  /*
+    D1 바인딩 개수가 지나치게 커지지 않도록
+    400개씩 나누어 조회한다.
+  */
+  const chunkSize =
+    400;
+
+
+  for (
+    let startIndex = 0;
+    startIndex <
+      logIds.length;
+    startIndex +=
+      chunkSize
+  ) {
+    const currentLogIds =
+      logIds.slice(
+        startIndex,
+        startIndex +
+          chunkSize
+      );
+
+
+    const placeholders =
+      currentLogIds
+        .map(
+          () => "?"
+        )
+        .join(
+          ", "
+        );
+
+
+    const result =
+      await database
+        .prepare(`
+          SELECT
+            id,
+            log_id,
+
+            r2_key,
+
+            original_name,
+            stored_name,
+
+            content_type,
+            file_size,
+
+            uploaded_by_id,
+            uploaded_by_name,
+
+            created_at,
+            updated_at
+
+          FROM shift_log_attachments
+
+          WHERE
+            log_id IN (
+              ${placeholders}
+            )
+
+          ORDER BY
+            created_at ASC,
+            original_name ASC
+        `)
+        .bind(
+          ...currentLogIds
+        )
+        .all();
+
+
+    const rows =
+      Array.isArray(
+        result.results
+      )
+        ? result.results
+        : [];
+
+
+    rows.forEach(
+      row => {
+        const logId =
+          normalizeText(
+            row.log_id
+          );
+
+
+        if (
+          !logId
+        ) {
+          return;
+        }
+
+
+        const attachment =
+          convertShiftLogAttachmentRow(
+            row
+          );
+
+
+        if (
+          !attachment
+        ) {
+          return;
+        }
+
+
+        if (
+          !attachmentMap.has(
+            logId
+          )
+        ) {
+          attachmentMap.set(
+            logId,
+            []
+          );
+        }
+
+
+        attachmentMap
+          .get(
+            logId
+          )
+          .push(
+            attachment
+          );
+      }
+    );
+  }
+
+
+  /*
+    shift_log_attachments를
+    신규 업무일지 첨부파일의 최종 기준으로 사용한다.
+
+    예전 log_json에 파일명 문자열만 남아 있더라도
+    실제 R2 파일이 없으면 열 수 없는 첨부파일이므로
+    화면 attachments에는 넣지 않는다.
+  */
+  return safeLogs.map(
+    log => {
+      const logId =
+        normalizeText(
+          log.id
+        );
+
+
+      return {
+        ...log,
+
+        attachments:
+          attachmentMap.get(
+            logId
+          ) ||
+          []
+      };
+    }
+  );
+}
+
+
+/* =========================================================
+  업무일지 1건 첨부파일 연결
+========================================================= */
+
+async function attachShiftLogAttachmentsToOne(
+  database,
+  log
+) {
+  if (
+    !log
+  ) {
+    return null;
+  }
+
+
+  const attachedLogs =
+    await attachShiftLogAttachments(
+      database,
+      [
+        log
+      ]
+    );
+
+
+  return (
+    attachedLogs[0] ||
+    log
+  );
+}
 
 async function findLogById(
   database,
@@ -601,8 +995,12 @@ async function findLogById(
       .prepare(`
         SELECT
           *
+
         FROM shift_logs
-        WHERE id = ?
+
+        WHERE
+          id = ?
+
         LIMIT 1
       `)
       .bind(
@@ -610,11 +1008,24 @@ async function findLogById(
       )
       .first();
 
-  return row
-    ? convertRowToLog(
-        row
-      )
-    : null;
+
+  if (
+    !row
+  ) {
+    return null;
+  }
+
+
+  const log =
+    convertRowToLog(
+      row
+    );
+
+
+  return attachShiftLogAttachmentsToOne(
+    database,
+    log
+  );
 }
 
 
@@ -629,11 +1040,14 @@ async function findLogByGroup(
       .prepare(`
         SELECT
           *
+
         FROM shift_logs
+
         WHERE
-          work_date = ? AND
-          shift = ? AND
-          role = ?
+          work_date = ?
+          AND shift = ?
+          AND role = ?
+
         LIMIT 1
       `)
       .bind(
@@ -643,13 +1057,25 @@ async function findLogByGroup(
       )
       .first();
 
-  return row
-    ? convertRowToLog(
-        row
-      )
-    : null;
-}
 
+  if (
+    !row
+  ) {
+    return null;
+  }
+
+
+  const log =
+    convertRowToLog(
+      row
+    );
+
+
+  return attachShiftLogAttachmentsToOne(
+    database,
+    log
+  );
+}
 
 function removeServerOnlyFields(
   log
@@ -10706,16 +11132,20 @@ export async function onRequestGet(
         )
         .all();
 
-    const logs =
-      (
-        Array.isArray(
-          result.results
-        )
-          ? result.results
-          : []
-      ).map(
-        convertRowToLog
-      );
+const logs =
+  await attachShiftLogAttachments(
+    context.env.DB,
+
+    (
+      Array.isArray(
+        result.results
+      )
+        ? result.results
+        : []
+    ).map(
+      convertRowToLog
+    )
+  );
 
     return jsonResponse({
       ok:
