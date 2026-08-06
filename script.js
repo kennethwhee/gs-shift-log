@@ -159824,3 +159824,381 @@ function renderPreview() {
     initialize();
   }
 })();
+
+/* =========================================================
+  오전회의 취합
+  석회석 날짜 이동 버튼 연결
+
+  오전회의 버튼:
+  - 전날
+  - 오늘
+  - 다음날
+
+  실제 동작:
+  기존 석회석 → 사용량 계산 기능의
+  날짜 버튼을 그대로 실행한다.
+
+  따라서 기존 기능의:
+  - 입고량 조회
+  - OIS 재고
+  - 저장된 계산 결과 복원
+  - 사용량 계산
+
+  을 그대로 사용한다.
+========================================================= */
+
+(function initializeMorningMeetingLimestoneDateNavigation() {
+  "use strict";
+
+
+  if (
+    window
+      .__morningMeetingLimestoneDateNavigationInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__morningMeetingLimestoneDateNavigationInstalled =
+    true;
+
+
+  let initializationAttempt =
+    0;
+
+
+  /* =====================================================
+    요소
+  ====================================================== */
+
+  function getElements() {
+    return {
+      /* 오전회의 버튼 */
+
+      morningPreviousButton:
+        document.getElementById(
+          "efficiencyMorningMeetingLimestonePreviousButton"
+        ),
+
+      morningTodayButton:
+        document.getElementById(
+          "efficiencyMorningMeetingLimestoneTodayButton"
+        ),
+
+      morningNextButton:
+        document.getElementById(
+          "efficiencyMorningMeetingLimestoneNextButton"
+        ),
+
+
+      /* 기존 석회석 사용량 계산 버튼 */
+
+      originalPreviousButton:
+        document.getElementById(
+          "limestoneUsagePreviousDateButton"
+        ),
+
+      originalTodayButton:
+        document.getElementById(
+          "limestoneUsageTodayButton"
+        ),
+
+      originalNextButton:
+        document.getElementById(
+          "limestoneUsageNextDateButton"
+        ),
+
+      originalDateInput:
+        document.getElementById(
+          "limestoneUsageDate"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    오전회의 미리보기 다시 갱신
+  ====================================================== */
+
+  function refreshMorningMeetingPreview() {
+    [
+      0,
+      150,
+      500,
+      1000,
+      2000
+    ].forEach(
+      delay => {
+        window.setTimeout(
+          () => {
+            if (
+              typeof window
+                .renderEfficiencyMorningMeetingAutoPreview ===
+                "function"
+            ) {
+              window
+                .renderEfficiencyMorningMeetingAutoPreview();
+            }
+
+
+            if (
+              typeof window
+                .updateEfficiencyMorningMeetingCreateButton ===
+                "function"
+            ) {
+              window
+                .updateEfficiencyMorningMeetingCreateButton();
+            }
+          },
+          delay
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    기존 석회석 버튼 실행
+
+    새 기능을 다시 계산하지 않고
+    원래 버튼의 click 이벤트를 그대로 사용한다.
+  ====================================================== */
+
+  function clickOriginalLimestoneButton(
+    originalButton
+  ) {
+    if (
+      !originalButton
+    ) {
+      console.warn(
+        "기존 석회석 사용량 날짜 버튼을 찾지 못했습니다."
+      );
+
+
+      return;
+    }
+
+
+    if (
+      originalButton.disabled
+    ) {
+      return;
+    }
+
+
+    originalButton.click();
+
+
+    refreshMorningMeetingPreview();
+  }
+
+
+  /* =====================================================
+    현재 날짜 표시 즉시 동기화
+  ====================================================== */
+
+  function syncMorningMeetingLimestoneDate() {
+    const {
+      originalDateInput
+    } =
+      getElements();
+
+
+    const previewDate =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoLimestoneDate"
+      );
+
+
+    if (
+      !previewDate
+    ) {
+      return;
+    }
+
+
+    const currentDate =
+      String(
+        originalDateInput?.value ||
+        ""
+      ).trim();
+
+
+    previewDate.textContent =
+      currentDate ||
+      "-";
+  }
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function bindEvents() {
+    const elements =
+      getElements();
+
+
+    /*
+      기존 석회석 기능은 HTML을 JS로 나중에 생성하므로
+      아직 생성되지 않았으면 재시도한다.
+    */
+
+    if (
+      !elements.morningPreviousButton ||
+      !elements.morningTodayButton ||
+      !elements.morningNextButton ||
+      !elements.originalPreviousButton ||
+      !elements.originalTodayButton ||
+      !elements.originalNextButton ||
+      !elements.originalDateInput
+    ) {
+      return false;
+    }
+
+
+    if (
+      elements.morningPreviousButton
+        .dataset
+        .limestoneDateNavigationBound ===
+        "true"
+    ) {
+      return true;
+    }
+
+
+    /* ===================================================
+      전날
+    ==================================================== */
+
+    elements.morningPreviousButton
+      .addEventListener(
+        "click",
+        () => {
+          clickOriginalLimestoneButton(
+            elements.originalPreviousButton
+          );
+        }
+      );
+
+
+    /* ===================================================
+      오늘
+    ==================================================== */
+
+    elements.morningTodayButton
+      .addEventListener(
+        "click",
+        () => {
+          clickOriginalLimestoneButton(
+            elements.originalTodayButton
+          );
+        }
+      );
+
+
+    /* ===================================================
+      다음날
+    ==================================================== */
+
+    elements.morningNextButton
+      .addEventListener(
+        "click",
+        () => {
+          clickOriginalLimestoneButton(
+            elements.originalNextButton
+          );
+        }
+      );
+
+
+    /* ===================================================
+      기존 날짜값이 바뀌면
+      오전회의 미리보기도 갱신
+    ==================================================== */
+
+    elements.originalDateInput
+      .addEventListener(
+        "change",
+        () => {
+          syncMorningMeetingLimestoneDate();
+
+          refreshMorningMeetingPreview();
+        }
+      );
+
+
+    elements.morningPreviousButton
+      .dataset
+      .limestoneDateNavigationBound =
+      "true";
+
+
+    elements.morningTodayButton
+      .dataset
+      .limestoneDateNavigationBound =
+      "true";
+
+
+    elements.morningNextButton
+      .dataset
+      .limestoneDateNavigationBound =
+      "true";
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initialize() {
+    if (
+      !bindEvents()
+    ) {
+      initializationAttempt +=
+        1;
+
+
+      if (
+        initializationAttempt <
+          60
+      ) {
+        window.setTimeout(
+          initialize,
+          250
+        );
+      }
+
+
+      return;
+    }
+
+
+    syncMorningMeetingLimestoneDate();
+
+    refreshMorningMeetingPreview();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();

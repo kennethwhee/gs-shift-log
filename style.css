@@ -86966,3 +86966,209 @@ td.is-total {
     margin-top: 2px;
   }
 }
+
+/* =========================================================
+  오전회의 취합
+  석회석 날짜 이동 버튼
+
+  [‹ 전날] [오늘] [다음날 ›]
+
+  기존 석회석 사용량 계산 기능을 그대로 조작한다.
+========================================================= */
+
+
+/* =========================================================
+  석회석 카드 우측 메타 영역
+
+  날짜 버튼
+  ↓
+  현재 날짜 + 상태
+========================================================= */
+
+.efficiency-morning-meeting-auto-card.is-limestone
+  .efficiency-morning-meeting-auto-card__meta {
+  min-width: 0;
+
+  gap: 4px;
+}
+
+
+/* =========================================================
+  날짜 이동 버튼 묶음
+========================================================= */
+
+.efficiency-morning-meeting-limestone-date-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 3px;
+
+  min-width: 0;
+}
+
+
+/* =========================================================
+  날짜 이동 버튼
+========================================================= */
+
+.efficiency-morning-meeting-limestone-date-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 0;
+  min-height: 21px;
+
+  padding:
+    3px
+    6px;
+
+  border: 1px solid #d4dde7;
+  border-radius: 5px;
+
+  outline: none;
+
+  background: #ffffff;
+
+  color: #5c6f83;
+
+  font-family: inherit;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+
+.efficiency-morning-meeting-limestone-date-button:hover {
+  border-color: #b8c9da;
+
+  background: #f4f8fc;
+
+  color: #315d89;
+}
+
+
+/* =========================================================
+  오늘 버튼 강조
+========================================================= */
+
+.efficiency-morning-meeting-limestone-date-button.is-today {
+  border-color: #b9cfe4;
+
+  background: #edf5fc;
+
+  color: #286699;
+}
+
+
+.efficiency-morning-meeting-limestone-date-button.is-today:hover {
+  border-color: #8fb4d8;
+
+  background: #e2f0fc;
+}
+
+
+/* =========================================================
+  버튼 비활성화
+========================================================= */
+
+.efficiency-morning-meeting-limestone-date-button:disabled {
+  opacity: 0.45;
+
+  cursor: default;
+}
+
+
+/* =========================================================
+  날짜 + 조회상태 한 줄
+========================================================= */
+
+.efficiency-morning-meeting-limestone-date-state {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 5px;
+
+  width: 100%;
+}
+
+
+.efficiency-morning-meeting-limestone-date-state > small {
+  min-width: 0;
+
+  color: #728297;
+
+  font-size: 8px;
+  font-weight: 750;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  화면이 조금 좁아지면 버튼 문구 축소
+========================================================= */
+
+@media (
+  max-width: 1200px
+) {
+  .efficiency-morning-meeting-limestone-date-button {
+    padding:
+      3px
+      5px;
+
+    font-size: 7.5px;
+  }
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width: 700px
+) {
+  .efficiency-morning-meeting-auto-card.is-limestone
+    .efficiency-morning-meeting-auto-card__header {
+    align-items: flex-start;
+  }
+
+
+  .efficiency-morning-meeting-auto-card.is-limestone
+    .efficiency-morning-meeting-auto-card__meta {
+    width: auto;
+  }
+
+
+  .efficiency-morning-meeting-limestone-date-nav {
+    gap: 2px;
+  }
+
+
+  .efficiency-morning-meeting-limestone-date-button {
+    min-height: 22px;
+
+    padding:
+      3px
+      6px;
+
+    font-size: 8px;
+  }
+
+
+  .efficiency-morning-meeting-limestone-date-state {
+    gap: 4px;
+  }
+}
