@@ -79143,3 +79143,70 @@ button:disabled {
     width: 100%;
   }
 }
+
+/* =========================================================
+  오전회의 취합 - 기준 취합본 카드 너비 확대
+
+  PC:
+  - 카드 너비 확대
+  - 긴 파일명은 최대 2줄 표시
+
+  태블릿·모바일:
+  - 기존처럼 가로 전체 사용
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-template-status {
+  flex:
+    0
+    0
+    clamp(
+      310px,
+      32vw,
+      390px
+    ) !important;
+
+  width:
+    clamp(
+      310px,
+      32vw,
+      390px
+    ) !important;
+
+  max-width: 42% !important;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-template-upload
+#efficiencyMorningMeetingTemplateStatus {
+  display: -webkit-box !important;
+
+  width: 100% !important;
+  min-height: 30px !important;
+
+  overflow: hidden !important;
+
+  line-height: 1.4 !important;
+
+  text-overflow: ellipsis !important;
+  white-space: normal !important;
+
+  overflow-wrap: anywhere !important;
+  word-break: break-all !important;
+
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+}
+
+
+@media (max-width: 1000px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-template-status {
+    flex: 0 0 auto !important;
+
+    width: 100% !important;
+    max-width: none !important;
+  }
+}
