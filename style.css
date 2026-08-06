@@ -82404,3 +82404,213 @@ tr.is-negative
       21px !important;
   }
 }
+
+/* =========================================================
+  오전회의 취합 - 통합 미리보기
+
+  교대파트·운탄일지는 가로 전체 사용
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-card--special {
+  grid-column:
+    1 /
+    -1;
+}
+
+
+/* =========================================================
+  교대파트 카드
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-card--shift {
+  border-color: #b9d2eb;
+
+  background: #f6faff;
+}
+
+
+/* =========================================================
+  운탄일지 카드
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-card--coal {
+  border-color: #dec99f;
+
+  background: #fffdf8;
+}
+
+
+/* =========================================================
+  읽기 전용 선택 결과
+
+  별도 textarea를 사용하지 않는다.
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-readonly {
+  min-height: 70px;
+  padding: 11px 12px;
+
+  border: 1px solid #d2dce7;
+  border-radius: 8px;
+
+  background: #ffffff;
+
+  color: #293f58;
+
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.7;
+
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+  운탄일지 자동 추출 수치
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-value-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap: 7px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-value {
+  display: flex;
+
+  min-width: 0;
+  min-height: 58px;
+  padding: 9px 10px;
+
+  flex-direction: column;
+
+  align-items: flex-start;
+  justify-content: center;
+
+  gap: 4px;
+
+  border: 1px solid #e0e5eb;
+  border-radius: 7px;
+
+  background: #ffffff;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-value
+> span {
+  color: #7a8796;
+
+  font-size: 9px;
+  font-weight: 800;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-value
+> strong {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: #2d4056;
+
+  font-size: 11px;
+  font-weight: 900;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  선택 항목 없음
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-empty {
+  padding: 18px 12px;
+
+  border: 1px dashed #cdd8e3;
+  border-radius: 8px;
+
+  background: #fafbfd;
+
+  color: #8996a5;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  text-align: center;
+}
+
+
+/* =========================================================
+  태블릿
+========================================================= */
+
+@media (max-width: 1050px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-preview-value-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 760px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-preview-value-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-preview-readonly {
+    min-height: 55px;
+
+    padding: 9px;
+
+    font-size: 10px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-preview-value {
+    min-height: 52px;
+  }
+}

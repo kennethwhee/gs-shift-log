@@ -141259,3 +141259,1184 @@ function refreshReportDate() {
     initializeLimestoneOisRequestClient();
   }
 })();
+
+/* =========================================================
+  오전회의 취합 - 통합 미리보기
+
+  표시 순서:
+  1. 교대파트
+  2. 운탄일지 자동 수치 + 연료설비 선택 내용
+  3. 안전팀
+  4. 환경팀
+  5. 기계팀
+  6. 전기제어팀
+
+  운탄일지·교대파트:
+  - 별도 결과 textarea 사용 안 함
+  - 선택 결과를 읽기 전용으로 표시
+
+  4개 팀:
+  - 기존처럼 textarea에서 직접 수정 가능
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingCombinedPreview() {
+  "use strict";
+
+
+  const TEAM_ORDER = [
+    {
+      key:
+        "safety",
+
+      name:
+        "안전팀"
+    },
+
+    {
+      key:
+        "environment",
+
+      name:
+        "환경팀"
+    },
+
+    {
+      key:
+        "mechanical",
+
+      name:
+        "기계팀"
+    },
+
+    {
+      key:
+        "electrical",
+
+      name:
+        "전기제어팀"
+    }
+  ];
+
+
+  let renderTimer =
+    null;
+
+
+  let isRendering =
+    false;
+
+
+  /* =====================================================
+    상태
+  ====================================================== */
+
+  function getState() {
+    return (
+      window
+        .efficiencyMorningMeetingUploadState ||
+      {}
+    );
+  }
+
+
+  /* =====================================================
+    문자열
+  ====================================================== */
+
+  function normalizeText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .trim();
+  }
+
+
+  function escapeHtml(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replaceAll(
+        "&",
+        "&amp;"
+      )
+      .replaceAll(
+        "<",
+        "&lt;"
+      )
+      .replaceAll(
+        ">",
+        "&gt;"
+      )
+      .replaceAll(
+        '"',
+        "&quot;"
+      )
+      .replaceAll(
+        "'",
+        "&#039;"
+      );
+  }
+
+
+  function countTextLines(
+    value
+  ) {
+    return normalizeText(
+      value
+    )
+      .split(
+        "\n"
+      )
+      .map(
+        line => {
+          return line.trim();
+        }
+      )
+      .filter(
+        Boolean
+      )
+      .length;
+  }
+
+
+  function formatNumber(
+    value,
+    maximumFractionDigits =
+      0
+  ) {
+    const numericValue =
+      Number(
+        value
+      );
+
+
+    if (
+      !Number.isFinite(
+        numericValue
+      )
+    ) {
+      return "-";
+    }
+
+
+    return new Intl.NumberFormat(
+      "ko-KR",
+
+      {
+        maximumFractionDigits
+      }
+    ).format(
+      numericValue
+    );
+  }
+
+
+  /* =====================================================
+    운탄일지 수치 문구
+  ====================================================== */
+
+  function getCoalValueRows(
+    values
+  ) {
+    const source =
+      values &&
+      typeof values ===
+        "object"
+        ? values
+        : {};
+
+
+    const coalSiloA =
+      Number.isFinite(
+        Number(
+          source.coalSiloA
+            ?.height
+        )
+      ) &&
+      Number.isFinite(
+        Number(
+          source.coalSiloA
+            ?.inventory
+        )
+      )
+        ? `${formatNumber(
+            source.coalSiloA.height,
+            1
+          )}m / ${formatNumber(
+            source.coalSiloA.inventory
+          )}ton`
+        : "-";
+
+
+    const coalSiloB =
+      Number.isFinite(
+        Number(
+          source.coalSiloB
+            ?.height
+        )
+      ) &&
+      Number.isFinite(
+        Number(
+          source.coalSiloB
+            ?.inventory
+        )
+      )
+        ? `${formatNumber(
+            source.coalSiloB.height,
+            1
+          )}m / ${formatNumber(
+            source.coalSiloB.inventory
+          )}ton`
+        : "-";
+
+
+    const coalTotal =
+      Number.isFinite(
+        Number(
+          source.coalInventoryTotal
+        )
+      )
+        ? `${formatNumber(
+            source.coalInventoryTotal
+          )}ton`
+        : "-";
+
+
+    const coalReceipt =
+      Number.isFinite(
+        Number(
+          source.coalReceipt
+            ?.vehicles
+        )
+      ) &&
+      Number.isFinite(
+        Number(
+          source.coalReceipt
+            ?.quantity
+        )
+      )
+        ? `${formatNumber(
+            source.coalReceipt.vehicles
+          )}대 / ${formatNumber(
+            source.coalReceipt.quantity
+          )}ton`
+        : "-";
+
+
+    const bioInventory =
+      Number.isFinite(
+        Number(
+          source.bioInventory
+            ?.height
+        )
+      ) &&
+      Number.isFinite(
+        Number(
+          source.bioInventory
+            ?.inventory
+        )
+      )
+        ? `${formatNumber(
+            source.bioInventory.height,
+            1
+          )}m / ${formatNumber(
+            source.bioInventory.inventory
+          )}ton`
+        : "-";
+
+
+    const bioReceipt =
+      Number.isFinite(
+        Number(
+          source.bioReceipt
+            ?.vehicles
+        )
+      ) &&
+      Number.isFinite(
+        Number(
+          source.bioReceipt
+            ?.quantity
+        )
+      )
+        ? `${formatNumber(
+            source.bioReceipt.vehicles
+          )}대 / ${formatNumber(
+            source.bioReceipt.quantity
+          )}ton`
+        : "-";
+
+
+    const flyAshDispatch =
+      Number.isFinite(
+        Number(
+          source.flyAshDispatch
+            ?.vehicles
+        )
+      ) &&
+      Number.isFinite(
+        Number(
+          source.flyAshDispatch
+            ?.quantityTon
+        )
+      )
+        ? `${formatNumber(
+            source.flyAshDispatch.vehicles
+          )}대 / ${formatNumber(
+            source.flyAshDispatch.quantityTon,
+            2
+          )}ton`
+        : "-";
+
+
+    return [
+      {
+        label:
+          "유연탄 Silo A",
+
+        value:
+          coalSiloA
+      },
+
+      {
+        label:
+          "유연탄 Silo B",
+
+        value:
+          coalSiloB
+      },
+
+      {
+        label:
+          "유연탄 재고 합계",
+
+        value:
+          coalTotal
+      },
+
+      {
+        label:
+          "유연탄 입고",
+
+        value:
+          coalReceipt
+      },
+
+      {
+        label:
+          "Bio-SRF 재고",
+
+        value:
+          bioInventory
+      },
+
+      {
+        label:
+          "Bio-SRF 입고",
+
+        value:
+          bioReceipt
+      },
+
+      {
+        label:
+          "Fly Ash 반출",
+
+        value:
+          flyAshDispatch
+      }
+    ];
+  }
+
+
+  /* =====================================================
+    교대파트 카드
+  ====================================================== */
+
+  function buildShiftPreviewCard(
+    state
+  ) {
+    const shiftText =
+      normalizeText(
+        state.shiftPart
+          ?.text
+      );
+
+
+    if (
+      !shiftText
+    ) {
+      return "";
+    }
+
+
+    const selectedCount =
+      state.shiftPart
+        ?.selectedIds instanceof
+        Set
+        ? state.shiftPart
+            .selectedIds
+            .size
+        : countTextLines(
+            shiftText
+          );
+
+
+    return `
+      <article
+        class="
+          efficiency-morning-meeting-preview-card
+          efficiency-morning-meeting-preview-card--special
+          efficiency-morning-meeting-preview-card--shift
+        "
+        data-morning-meeting-combined-preview="shift"
+      >
+
+        <header class="efficiency-morning-meeting-preview-card__header">
+
+          <div>
+
+            <strong>
+              교대파트
+            </strong>
+
+            <small>
+              업무일지에서 선택한 내용
+            </small>
+
+          </div>
+
+
+          <span>
+            ${selectedCount}건
+          </span>
+
+        </header>
+
+
+        <div class="efficiency-morning-meeting-preview-section">
+
+          <div class="efficiency-morning-meeting-preview-section__title">
+
+            <strong>
+              ◇ 교대 파트
+            </strong>
+
+            <span>
+              최종 취합 반영
+            </span>
+
+          </div>
+
+
+          <div class="efficiency-morning-meeting-preview-readonly">
+            ${escapeHtml(
+              shiftText
+            )}
+          </div>
+
+        </div>
+
+      </article>
+    `;
+  }
+
+
+  /* =====================================================
+    운탄일지 카드
+  ====================================================== */
+
+  function buildCoalPreviewCard(
+    state
+  ) {
+    const coalSelection =
+      state.coalSelection &&
+      typeof state.coalSelection ===
+        "object"
+        ? state.coalSelection
+        : {};
+
+
+    const selectedItems =
+      Array.isArray(
+        coalSelection
+          .selectedItems
+      )
+        ? coalSelection
+            .selectedItems
+        : [];
+
+
+    const selectedText =
+      normalizeText(
+        coalSelection
+          .selectedText
+      );
+
+
+    const isAnalyzed =
+      coalSelection
+        .analyzed ===
+      true;
+
+
+    if (
+      !isAnalyzed &&
+      !selectedText
+    ) {
+      return "";
+    }
+
+
+    const valueRows =
+      getCoalValueRows(
+        coalSelection
+          .values
+      );
+
+
+    const valueHtml =
+      valueRows
+        .map(
+          item => {
+            return `
+              <div class="efficiency-morning-meeting-preview-value">
+
+                <span>
+                  ${escapeHtml(
+                    item.label
+                  )}
+                </span>
+
+                <strong>
+                  ${escapeHtml(
+                    item.value
+                  )}
+                </strong>
+
+              </div>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+
+
+    return `
+      <article
+        class="
+          efficiency-morning-meeting-preview-card
+          efficiency-morning-meeting-preview-card--special
+          efficiency-morning-meeting-preview-card--coal
+        "
+        data-morning-meeting-combined-preview="coal"
+      >
+
+        <header class="efficiency-morning-meeting-preview-card__header">
+
+          <div>
+
+            <strong>
+              운탄일지
+            </strong>
+
+            <small>
+              ${
+                escapeHtml(
+                  coalSelection.fileName ||
+                  state.coalLogFile
+                    ?.name ||
+                  "운탄일지 분석 결과"
+                )
+              }
+            </small>
+
+          </div>
+
+
+          <span>
+            ${selectedItems.length}건 선택
+          </span>
+
+        </header>
+
+
+        <div class="efficiency-morning-meeting-preview-section">
+
+          <div class="efficiency-morning-meeting-preview-section__title">
+
+            <strong>
+              자동 추출 수치
+            </strong>
+
+            <span>
+              최종 취합 상단 반영
+            </span>
+
+          </div>
+
+
+          <div class="efficiency-morning-meeting-preview-value-grid">
+            ${valueHtml}
+          </div>
+
+        </div>
+
+
+        <div class="efficiency-morning-meeting-preview-section">
+
+          <div class="efficiency-morning-meeting-preview-section__title">
+
+            <strong>
+              ◇ 연료 설비
+            </strong>
+
+            <span>
+              ${selectedItems.length}건
+            </span>
+
+          </div>
+
+
+          ${
+            selectedText
+              ? `
+                <div class="efficiency-morning-meeting-preview-readonly">
+                  ${escapeHtml(
+                    selectedText
+                  )}
+                </div>
+              `
+              : `
+                <div class="efficiency-morning-meeting-preview-empty">
+                  연료설비에 넣을 운탄일지 내용을 선택해 주세요.
+                </div>
+              `
+          }
+
+        </div>
+
+      </article>
+    `;
+  }
+
+
+  /* =====================================================
+    안전·환경·기계·전기제어팀 카드
+
+    기존 data 속성을 그대로 사용하므로
+    미리보기 textarea 수정 기능도 유지된다.
+  ====================================================== */
+
+  function buildTeamPreviewCard(
+    result,
+    fallbackName
+  ) {
+    const teamName =
+      normalizeText(
+        result.teamName
+      ) ||
+      fallbackName;
+
+
+    const previousText =
+      normalizeText(
+        result.previousText
+      );
+
+
+    const scheduleText =
+      normalizeText(
+        result.scheduleText
+      );
+
+
+    const previousCount =
+      countTextLines(
+        previousText
+      );
+
+
+    const scheduleCount =
+      countTextLines(
+        scheduleText
+      );
+
+
+    return `
+      <article
+        class="efficiency-morning-meeting-preview-card"
+        data-morning-meeting-preview-team="${escapeHtml(
+          result.teamKey
+        )}"
+      >
+
+        <header class="efficiency-morning-meeting-preview-card__header">
+
+          <div>
+
+            <strong>
+              ${escapeHtml(
+                teamName
+              )}
+            </strong>
+
+            <small>
+              ${escapeHtml(
+                result.fileName ||
+                ""
+              )}
+            </small>
+
+          </div>
+
+
+          <span>
+            ${
+              result.reportDate
+                ? escapeHtml(
+                    result.reportDate
+                  )
+                : "날짜 미확인"
+            }
+          </span>
+
+        </header>
+
+
+        <div class="efficiency-morning-meeting-preview-section">
+
+          <div class="efficiency-morning-meeting-preview-section__title">
+
+            <strong>
+              전일 특이사항
+            </strong>
+
+            <span>
+              ${previousCount}건
+            </span>
+
+          </div>
+
+
+          <textarea
+            data-morning-meeting-analysis-team="${escapeHtml(
+              result.teamKey
+            )}"
+            data-morning-meeting-analysis-section="previousText"
+            spellcheck="false"
+          >${escapeHtml(
+            previousText
+          )}</textarea>
+
+        </div>
+
+
+        <div class="efficiency-morning-meeting-preview-section">
+
+          <div class="efficiency-morning-meeting-preview-section__title">
+
+            <strong>
+              예정사항
+            </strong>
+
+            <span>
+              ${scheduleCount}건
+            </span>
+
+          </div>
+
+
+          <textarea
+            data-morning-meeting-analysis-team="${escapeHtml(
+              result.teamKey
+            )}"
+            data-morning-meeting-analysis-section="scheduleText"
+            spellcheck="false"
+          >${escapeHtml(
+            scheduleText
+          )}</textarea>
+
+        </div>
+
+      </article>
+    `;
+  }
+
+
+  /* =====================================================
+    통합 미리보기 출력
+  ====================================================== */
+
+  function renderCombinedPreview() {
+    const preview =
+      document.getElementById(
+        "efficiencyMorningMeetingPreview"
+      );
+
+
+    const previewList =
+      document.getElementById(
+        "efficiencyMorningMeetingPreviewList"
+      );
+
+
+    const previewCount =
+      document.getElementById(
+        "efficiencyMorningMeetingPreviewCount"
+      );
+
+
+    if (
+      !preview ||
+      !previewList
+    ) {
+      return;
+    }
+
+
+    const state =
+      getState();
+
+
+    const cards =
+      [];
+
+
+    const shiftCard =
+      buildShiftPreviewCard(
+        state
+      );
+
+
+    if (
+      shiftCard
+    ) {
+      cards.push(
+        shiftCard
+      );
+    }
+
+
+    const coalCard =
+      buildCoalPreviewCard(
+        state
+      );
+
+
+    if (
+      coalCard
+    ) {
+      cards.push(
+        coalCard
+      );
+    }
+
+
+    TEAM_ORDER.forEach(
+      config => {
+        const result =
+          state.analysis?.[
+            config.key
+          ];
+
+
+        if (
+          !result
+        ) {
+          return;
+        }
+
+
+        cards.push(
+          buildTeamPreviewCard(
+            result,
+            config.name
+          )
+        );
+      }
+    );
+
+
+    isRendering =
+      true;
+
+
+    if (
+      cards.length ===
+        0
+    ) {
+      previewList.innerHTML =
+        "";
+
+
+      preview.hidden =
+        true;
+
+
+      if (
+        previewCount
+      ) {
+        previewCount.textContent =
+          "0개 구역";
+      }
+
+
+      window.setTimeout(
+        () => {
+          isRendering =
+            false;
+        },
+        0
+      );
+
+
+      return;
+    }
+
+
+    previewList.innerHTML =
+      cards.join(
+        ""
+      );
+
+
+    preview.hidden =
+      false;
+
+
+    if (
+      previewCount
+    ) {
+      previewCount.textContent =
+        `${cards.length}개 구역`;
+    }
+
+
+    window.setTimeout(
+      () => {
+        isRendering =
+          false;
+      },
+      0
+    );
+  }
+
+
+  function scheduleRender() {
+    window.clearTimeout(
+      renderTimer
+    );
+
+
+    renderTimer =
+      window.setTimeout(
+        renderCombinedPreview,
+        0
+      );
+  }
+
+
+  /* =====================================================
+    다른 기능에서 목록을 다시 그릴 때 감지
+  ====================================================== */
+
+  function observeElement(
+    element
+  ) {
+    if (
+      !element
+    ) {
+      return;
+    }
+
+
+    const observer =
+      new MutationObserver(
+        () => {
+          if (
+            isRendering
+          ) {
+            return;
+          }
+
+
+          scheduleRender();
+        }
+      );
+
+
+    observer.observe(
+      element,
+      {
+        childList:
+          true,
+
+        subtree:
+          true
+      }
+    );
+  }
+
+
+  /* =====================================================
+    선택 변경 감지
+  ====================================================== */
+
+  function bindEvents() {
+    document.addEventListener(
+      "change",
+
+      event => {
+        const target =
+          event.target instanceof
+            Element
+            ? event.target
+            : null;
+
+
+        if (
+          !target
+        ) {
+          return;
+        }
+
+
+        if (
+          target.closest(
+            `
+              [data-morning-meeting-shift-item],
+              [data-morning-meeting-coal-item-id],
+              #efficiencyMorningMeetingCoalLogFile
+            `
+          )
+        ) {
+          scheduleRender();
+        }
+      }
+    );
+
+
+    document.addEventListener(
+      "click",
+
+      event => {
+        const target =
+          event.target instanceof
+            Element
+            ? event.target
+            : null;
+
+
+        if (
+          !target
+        ) {
+          return;
+        }
+
+
+        if (
+          target.closest(
+            `
+              [data-morning-meeting-select-shift],
+              [data-morning-meeting-coal-select-group],
+              #clearEfficiencyMorningMeetingShiftSelectionButton,
+              #clearEfficiencyMorningMeetingCoalSelectionButton,
+              #loadEfficiencyMorningMeetingShiftLogsButton,
+              #analyzeEfficiencyMorningMeetingButton,
+              #resetEfficiencyMorningMeetingButton
+            `
+          )
+        ) {
+          scheduleRender();
+        }
+      }
+    );
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initialize() {
+    const view =
+      document.getElementById(
+        "efficiencyMorningMeetingView"
+      );
+
+
+    if (
+      !view ||
+      view.dataset
+        .combinedPreviewInitialized ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    view.dataset
+      .combinedPreviewInitialized =
+      "true";
+
+
+    bindEvents();
+
+
+    observeElement(
+      document.getElementById(
+        "efficiencyMorningMeetingPreviewList"
+      )
+    );
+
+
+    observeElement(
+      document.getElementById(
+        "efficiencyMorningMeetingCoalSelectionPanel"
+      )
+    );
+
+
+    observeElement(
+      document.getElementById(
+        "efficiencyMorningMeetingShiftPanel"
+      )
+    );
+
+
+    window.refreshEfficiencyMorningMeetingCombinedPreview =
+      scheduleRender;
+
+
+    scheduleRender();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
