@@ -150180,77 +150180,105 @@ function bindEvents() {
       : "";
   }
 
+function resolveWaterTargetDate() {
+  const state =
+    getState();
+
+
+  const {
+    panel,
+    shiftDate
+  } =
+    getElements();
+
 
   /* =====================================================
-    OIS 조회 기준일 확인
+    0. 오전회의 자동 수치 공용 기준일
 
-    우선순위:
-    1. 교대파트 조회가 확정한 reportDate
-    2. 팀별 엑셀 분석일
-    3. 교대파트 화면 기준일 표시
+    전날 / 오늘 / 다음날 버튼으로 날짜를 이동하면
+    이 값이 가장 높은 우선순위를 가진다.
 
-    이 날짜가 오전회의 대상일의 전일 자료다.
+    공용 기준일:
+    - 수처리 = 그대로 사용
+    - 석회석 = 그대로 사용
+    - Gear / Pinion = +1일
   ====================================================== */
 
-  function resolveWaterTargetDate() {
-    const state =
-      getState();
+  const commonBaseDate =
+    normalizeText(
+      panel?.dataset
+        .morningMeetingAutoBaseDate
+    );
 
 
-    const shiftReportDate =
+  if (
+    isValidDate(
+      commonBaseDate
+    )
+  ) {
+    return commonBaseDate;
+  }
+
+
+  /* =====================================================
+    1. 교대파트 업무일지 기준일
+  ====================================================== */
+
+  const shiftReportDate =
+    normalizeText(
+      state.shiftPart
+        ?.reportDate
+    );
+
+
+  if (
+    isValidDate(
+      shiftReportDate
+    )
+  ) {
+    return shiftReportDate;
+  }
+
+
+  /* =====================================================
+    2. 팀별 엑셀 분석일
+  ====================================================== */
+
+  const analysisResults =
+    Object.values(
+      state.analysis ||
+      {}
+    );
+
+
+  for (
+    const result
+    of analysisResults
+  ) {
+    const reportDate =
       normalizeText(
-        state.shiftPart
-          ?.reportDate
+        result?.reportDate
       );
 
 
     if (
       isValidDate(
-        shiftReportDate
+        reportDate
       )
     ) {
-      return shiftReportDate;
+      return reportDate;
     }
-
-
-    const analysisResults =
-      Object.values(
-        state.analysis ||
-        {}
-      );
-
-
-    for (
-      const result
-      of analysisResults
-    ) {
-      const reportDate =
-        normalizeText(
-          result?.reportDate
-        );
-
-
-      if (
-        isValidDate(
-          reportDate
-        )
-      ) {
-        return reportDate;
-      }
-    }
-
-
-    const {
-      shiftDate
-    } =
-      getElements();
-
-
-    return extractDateFromText(
-      shiftDate?.textContent
-    );
   }
 
+
+  /* =====================================================
+    3. 교대파트 화면 표시일
+  ====================================================== */
+
+  return extractDateFromText(
+    shiftDate?.textContent
+  );
+}
 
   /* =====================================================
     숫자
