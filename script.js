@@ -134021,3 +134021,2391 @@ function refreshReportDate() {
     initialize();
   }
 })();
+
+/* =========================================================
+  오전회의 취합 - 운탄일지 분석 및 선택
+
+  추출 내용:
+  1. <N/S> 번호별 주요작업
+  2. <D/S> [정비 사항] 번호별 항목
+  3. <D/S> [특이 사항] 번호별 항목
+  4. [연료분진팀 금일 작업] 번호별 항목
+
+  번호 아래의 "- 하위 문장"은
+  부모 항목 한 개에 묶어서 처리한다.
+
+  자동 수치:
+  - 유연탄 Silo A/B 높이·재고량·합계
+  - 유연탄 입고 차량수·입고량
+  - Bio-SRF 높이·재고량
+  - Bio-SRF 입고 차량수·입고량
+  - Fly Ash 반출 차량수·반출량
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingCoalAnalyzer() {
+  "use strict";
+
+
+  const GROUPS = {
+    night: {
+      label:
+        "N/S 주요작업",
+
+      listId:
+        "efficiencyMorningMeetingCoalNightList"
+    },
+
+
+    maintenance: {
+      label:
+        "D/S 정비 사항",
+
+      listId:
+        "efficiencyMorningMeetingCoalMaintenanceList"
+    },
+
+
+    issue: {
+      label:
+        "D/S 특이 사항",
+
+      listId:
+        "efficiencyMorningMeetingCoalIssueList"
+    },
+
+
+    "fuel-dust": {
+      label:
+        "연료분진팀 금일 작업",
+
+      listId:
+        "efficiencyMorningMeetingCoalFuelDustList"
+    }
+  };
+
+
+  /* =====================================================
+    운탄일지 선택 상태 기본값
+  ====================================================== */
+
+  function createEmptySelection() {
+    return {
+      analyzed:
+        false,
+
+      fileName:
+        "",
+
+      sheetName:
+        "",
+
+      items:
+        [],
+
+      selectedIds:
+        new Set(),
+
+      selectedItems:
+        [],
+
+      selectedText:
+        "",
+
+      values: {
+        coalSiloA:
+          null,
+
+        coalSiloB:
+          null,
+
+        coalInventoryTotal:
+          null,
+
+        coalReceipt:
+          null,
+
+        bioInventory:
+          null,
+
+        bioReceipt:
+          null,
+
+        flyAshDispatch:
+          null
+      }
+    };
+  }
+
+
+  /* =====================================================
+    오전회의 전체 상태
+  ====================================================== */
+
+  function getState() {
+    if (
+      !window
+        .efficiencyMorningMeetingUploadState
+    ) {
+      window.efficiencyMorningMeetingUploadState = {
+        files:
+          {},
+
+        analysis:
+          {}
+      };
+    }
+
+
+    const state =
+      window
+        .efficiencyMorningMeetingUploadState;
+
+
+    if (
+      !state.coalSelection ||
+      typeof state.coalSelection !==
+        "object"
+    ) {
+      state.coalSelection =
+        createEmptySelection();
+    }
+
+
+    if (
+      !(
+        state.coalSelection
+          .selectedIds instanceof
+        Set
+      )
+    ) {
+      state.coalSelection
+        .selectedIds =
+        new Set(
+          Array.isArray(
+            state.coalSelection
+              .selectedIds
+          )
+            ? state.coalSelection
+                .selectedIds
+            : []
+        );
+    }
+
+
+    return state;
+  }
+
+
+  /* =====================================================
+    화면 요소
+  ====================================================== */
+
+  function getElements() {
+    return {
+      panel:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalSelectionPanel"
+        ),
+
+      analyzeButton:
+        document.getElementById(
+          "analyzeEfficiencyMorningMeetingButton"
+        ),
+
+      resetButton:
+        document.getElementById(
+          "resetEfficiencyMorningMeetingButton"
+        ),
+
+      coalInput:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalLogFile"
+        ),
+
+      coalCard:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalLogCard"
+        ),
+
+      selectedCount:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalSelectedCount"
+        ),
+
+      clearButton:
+        document.getElementById(
+          "clearEfficiencyMorningMeetingCoalSelectionButton"
+        ),
+
+      valueStatus:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalValueStatus"
+        ),
+
+      coalSiloA:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalSiloA"
+        ),
+
+      coalSiloB:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalSiloB"
+        ),
+
+      coalInventoryTotal:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalInventoryTotal"
+        ),
+
+      coalReceipt:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalReceipt"
+        ),
+
+      bioInventory:
+        document.getElementById(
+          "efficiencyMorningMeetingBioInventory"
+        ),
+
+      bioReceipt:
+        document.getElementById(
+          "efficiencyMorningMeetingBioReceipt"
+        ),
+
+      flyAshDispatch:
+        document.getElementById(
+          "efficiencyMorningMeetingFlyAshDispatch"
+        ),
+
+      error:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalError"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    문자열 정리
+  ====================================================== */
+
+  function normalizeText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .replace(
+        /\u00a0/g,
+        " "
+      )
+      .trim();
+  }
+
+
+  function normalizeSearchText(
+    value
+  ) {
+    return normalizeText(
+      value
+    )
+      .replace(
+        /\s+/g,
+        ""
+      )
+      .toLowerCase();
+  }
+
+
+  function escapeHtml(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replaceAll(
+        "&",
+        "&amp;"
+      )
+      .replaceAll(
+        "<",
+        "&lt;"
+      )
+      .replaceAll(
+        ">",
+        "&gt;"
+      )
+      .replaceAll(
+        '"',
+        "&quot;"
+      )
+      .replaceAll(
+        "'",
+        "&#039;"
+      );
+  }
+
+
+  /* =====================================================
+    오류 표시
+  ====================================================== */
+
+  function hideError() {
+    const {
+      error
+    } =
+      getElements();
+
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+
+    error.textContent =
+      "";
+
+
+    error.hidden =
+      true;
+  }
+
+
+  function showError(
+    message
+  ) {
+    const {
+      error
+    } =
+      getElements();
+
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+
+    error.textContent =
+      String(
+        message ||
+        "운탄일지 분석 중 오류가 발생했습니다."
+      );
+
+
+    error.hidden =
+      false;
+  }
+
+
+  /* =====================================================
+    셀 값 읽기
+  ====================================================== */
+
+  function getCellText(
+    worksheet,
+    address
+  ) {
+    const cell =
+      worksheet?.[
+        address
+      ];
+
+
+    if (
+      !cell
+    ) {
+      return "";
+    }
+
+
+    return normalizeText(
+      cell.w ??
+      cell.v ??
+      ""
+    );
+  }
+
+
+  function getCellNumber(
+    worksheet,
+    address
+  ) {
+    const cell =
+      worksheet?.[
+        address
+      ];
+
+
+    if (
+      !cell
+    ) {
+      return null;
+    }
+
+
+    const directValue =
+      Number(
+        cell.v
+      );
+
+
+    if (
+      Number.isFinite(
+        directValue
+      )
+    ) {
+      return directValue;
+    }
+
+
+    const parsedValue =
+      Number(
+        String(
+          cell.w ??
+          cell.v ??
+          ""
+        )
+          .replaceAll(
+            ",",
+            ""
+          )
+          .replace(
+            /[^0-9.+-]/g,
+            ""
+          )
+      );
+
+
+    return Number.isFinite(
+      parsedValue
+    )
+      ? parsedValue
+      : null;
+  }
+
+
+  function getCellEntries(
+    worksheet
+  ) {
+    return Object.keys(
+      worksheet ||
+      {}
+    )
+      .filter(
+        address => {
+          return /^[A-Z]+\d+$/i.test(
+            address
+          );
+        }
+      )
+      .map(
+        address => {
+          return {
+            address,
+
+            text:
+              getCellText(
+                worksheet,
+                address
+              )
+          };
+        }
+      )
+      .filter(
+        entry => {
+          return Boolean(
+            entry.text
+          );
+        }
+      );
+  }
+
+
+  /* =====================================================
+    연료설비 운전일지 시트 찾기
+  ====================================================== */
+
+  function findCoalWorksheet(
+    workbook
+  ) {
+    const exactWorksheet =
+      workbook.Sheets?.[
+        "연료설비 운전일지"
+      ];
+
+
+    if (
+      exactWorksheet
+    ) {
+      return {
+        sheetName:
+          "연료설비 운전일지",
+
+        worksheet:
+          exactWorksheet
+      };
+    }
+
+
+    for (
+      const sheetName
+      of workbook.SheetNames ||
+      []
+    ) {
+      const worksheet =
+        workbook.Sheets?.[
+          sheetName
+        ];
+
+
+      const matched =
+        getCellEntries(
+          worksheet
+        ).some(
+          entry => {
+            const text =
+              normalizeSearchText(
+                entry.text
+              );
+
+
+            return (
+              text.includes(
+                "<n/s>"
+              ) &&
+              text.includes(
+                "<d/s>"
+              )
+            );
+          }
+        );
+
+
+      if (
+        matched
+      ) {
+        return {
+          sheetName,
+          worksheet
+        };
+      }
+    }
+
+
+    throw new Error(
+      "운탄일지의 '연료설비 운전일지' 시트를 찾지 못했습니다."
+    );
+  }
+
+
+  function findCell(
+    worksheet,
+    predicate
+  ) {
+    return (
+      getCellEntries(
+        worksheet
+      ).find(
+        predicate
+      ) ||
+      null
+    );
+  }
+
+
+  /* =====================================================
+    제목 셀 아래의 실제 내용 찾기
+
+    예:
+    B102 = [연료분진팀 금일 작업]
+    B103 = 번호별 작업내용
+  ====================================================== */
+
+  function findTextBelowCell(
+    worksheet,
+    headingAddress,
+    maximumDistance =
+      12
+  ) {
+    if (
+      !headingAddress ||
+      typeof XLSX ===
+        "undefined"
+    ) {
+      return "";
+    }
+
+
+    const headingPosition =
+      XLSX.utils.decode_cell(
+        headingAddress
+      );
+
+
+    for (
+      let offset =
+        1;
+
+      offset <=
+        maximumDistance;
+
+      offset +=
+        1
+    ) {
+      const address =
+        XLSX.utils.encode_cell({
+          c:
+            headingPosition.c,
+
+          r:
+            headingPosition.r +
+            offset
+        });
+
+
+      const text =
+        getCellText(
+          worksheet,
+          address
+        );
+
+
+      if (
+        text
+      ) {
+        return text;
+      }
+    }
+
+
+    return "";
+  }
+
+
+  /* =====================================================
+    특정 제목 사이의 문자열 추출
+  ====================================================== */
+
+  function extractSection(
+    source,
+    startPattern,
+    endPattern =
+      null
+  ) {
+    const text =
+      normalizeText(
+        source
+      );
+
+
+    const startMatch =
+      text.match(
+        startPattern
+      );
+
+
+    if (
+      !startMatch ||
+      typeof startMatch.index !==
+        "number"
+    ) {
+      return "";
+    }
+
+
+    const remainingText =
+      text.slice(
+        startMatch.index +
+        startMatch[0].length
+      );
+
+
+    if (
+      !endPattern
+    ) {
+      return remainingText.trim();
+    }
+
+
+    const endMatch =
+      remainingText.match(
+        endPattern
+      );
+
+
+    if (
+      !endMatch ||
+      typeof endMatch.index !==
+        "number"
+    ) {
+      return remainingText.trim();
+    }
+
+
+    return remainingText
+      .slice(
+        0,
+        endMatch.index
+      )
+      .trim();
+  }
+
+
+  /* =====================================================
+    번호별 항목 분리
+
+    예:
+    2. BC-102A Belt 손상 확인
+     - 정비 전까지 기동 제한
+
+    결과:
+    부모 1건 + 하위 문장 배열
+  ====================================================== */
+
+  function parseNumberedItems(
+    source,
+    groupKey
+  ) {
+    const lines =
+      normalizeText(
+        source
+      )
+        .split(
+          "\n"
+        )
+        .map(
+          line => {
+            return line.trim();
+          }
+        )
+        .filter(
+          Boolean
+        );
+
+
+    const items =
+      [];
+
+
+    let currentItem =
+      null;
+
+
+    const commitCurrentItem =
+      () => {
+        if (
+          !currentItem?.text
+        ) {
+          return;
+        }
+
+
+        currentItem.id =
+          `coal-${groupKey}-${currentItem.number}-${items.length}`;
+
+
+        items.push(
+          currentItem
+        );
+
+
+        currentItem =
+          null;
+      };
+
+
+    lines.forEach(
+      line => {
+        const numberMatch =
+          line.match(
+            /^(\d+)\s*[.)]\s*(.+)$/
+          );
+
+
+        if (
+          numberMatch
+        ) {
+          commitCurrentItem();
+
+
+          currentItem = {
+            id:
+              "",
+
+            groupKey,
+
+            groupLabel:
+              GROUPS[
+                groupKey
+              ]?.label ||
+              "운탄일지",
+
+            number:
+              Number(
+                numberMatch[
+                  1
+                ]
+              ),
+
+            text:
+              numberMatch[
+                2
+              ].trim(),
+
+            subLines:
+              []
+          };
+
+
+          return;
+        }
+
+
+        if (
+          !currentItem
+        ) {
+          return;
+        }
+
+
+        const isSubLine =
+          /^[-–—•]\s*/.test(
+            line
+          );
+
+
+        const continuationText =
+          line
+            .replace(
+              /^[-–—•]\s*/,
+              ""
+            )
+            .trim();
+
+
+        if (
+          !continuationText
+        ) {
+          return;
+        }
+
+
+        if (
+          isSubLine
+        ) {
+          currentItem.subLines.push(
+            continuationText
+          );
+
+
+          return;
+        }
+
+
+        /*
+          셀 안에서 문장이 자동으로
+          줄바꿈된 경우 앞 문장에 이어 붙인다.
+        */
+
+        if (
+          currentItem.subLines.length >
+          0
+        ) {
+          const lastIndex =
+            currentItem.subLines.length -
+            1;
+
+
+          currentItem.subLines[
+            lastIndex
+          ] =
+            `${currentItem.subLines[lastIndex]} ${continuationText}`
+              .trim();
+
+        } else {
+          currentItem.text =
+            `${currentItem.text} ${continuationText}`
+              .trim();
+        }
+      }
+    );
+
+
+    commitCurrentItem();
+
+
+    return items;
+  }
+
+
+  /* =====================================================
+    네 구역 업무내용 추출
+  ====================================================== */
+
+  function extractWorkItems(
+    worksheet
+  ) {
+    const mainEntry =
+      findCell(
+        worksheet,
+
+        entry => {
+          const text =
+            normalizeSearchText(
+              entry.text
+            );
+
+
+          return (
+            text.includes(
+              "<n/s>"
+            ) &&
+            text.includes(
+              "<d/s>"
+            ) &&
+            text.includes(
+              "[정비사항]"
+            ) &&
+            text.includes(
+              "[특이사항]"
+            )
+          );
+        }
+      );
+
+
+    if (
+      !mainEntry
+    ) {
+      throw new Error(
+        "운탄일지에서 N/S·D/S 주요작업 영역을 찾지 못했습니다."
+      );
+    }
+
+
+    const nightText =
+      extractSection(
+        mainEntry.text,
+
+        /<\s*N\s*\/\s*S\s*>/i,
+
+        /<\s*D\s*\/\s*S\s*>/i
+      );
+
+
+    const dayText =
+      extractSection(
+        mainEntry.text,
+
+        /<\s*D\s*\/\s*S\s*>/i
+      );
+
+
+    const maintenanceText =
+      extractSection(
+        dayText,
+
+        /\[\s*정비\s*사항\s*\]/i,
+
+        /\[\s*특이\s*사항\s*\]/i
+      );
+
+
+    const issueText =
+      extractSection(
+        dayText,
+
+        /\[\s*특이\s*사항\s*\]/i
+      );
+
+
+    const fuelDustHeading =
+      findCell(
+        worksheet,
+
+        entry => {
+          return (
+            normalizeSearchText(
+              entry.text
+            ) ===
+            "[연료분진팀금일작업]"
+          );
+        }
+      );
+
+
+    const fuelDustText =
+      fuelDustHeading
+        ? findTextBelowCell(
+            worksheet,
+            fuelDustHeading.address
+          )
+        : "";
+
+
+    const groupItems = {
+      night:
+        parseNumberedItems(
+          nightText,
+          "night"
+        ),
+
+      maintenance:
+        parseNumberedItems(
+          maintenanceText,
+          "maintenance"
+        ),
+
+      issue:
+        parseNumberedItems(
+          issueText,
+          "issue"
+        ),
+
+      "fuel-dust":
+        parseNumberedItems(
+          fuelDustText,
+          "fuel-dust"
+        )
+    };
+
+
+    const items =
+      Object.keys(
+        GROUPS
+      )
+        .flatMap(
+          groupKey => {
+            return (
+              groupItems[
+                groupKey
+              ] ||
+              []
+            );
+          }
+        );
+
+
+    if (
+      !items.length
+    ) {
+      throw new Error(
+        "운탄일지에서 선택할 업무내용을 찾지 못했습니다."
+      );
+    }
+
+
+    return {
+      groupItems,
+      items
+    };
+  }
+
+
+  /* =====================================================
+    수치 정보 추출
+
+    현재 운탄일지 양식 기준:
+    O19 / Q19 : 유연탄 Silo A
+    S19 / U19 : 유연탄 Silo B
+    P31 / P32 : 유연탄 입고량 / 차량
+    G38 / I38 : Bio 재고량 / 높이
+    K44 / M44 : Bio 입고량 / 차량
+    K46 / K48 : Fly Ash 차량 / kg
+  ====================================================== */
+
+  function extractNumericValues(
+    worksheet
+  ) {
+    const coalAInventory =
+      getCellNumber(
+        worksheet,
+        "O19"
+      );
+
+
+    const coalAHeight =
+      getCellNumber(
+        worksheet,
+        "Q19"
+      );
+
+
+    const coalBInventory =
+      getCellNumber(
+        worksheet,
+        "S19"
+      );
+
+
+    const coalBHeight =
+      getCellNumber(
+        worksheet,
+        "U19"
+      );
+
+
+    const directVehicles =
+      getCellNumber(
+        worksheet,
+        "P32"
+      );
+
+
+    const vehicleA =
+      getCellNumber(
+        worksheet,
+        "N31"
+      );
+
+
+    const vehicleB =
+      getCellNumber(
+        worksheet,
+        "N32"
+      );
+
+
+    const coalVehicles =
+      Number.isFinite(
+        directVehicles
+      )
+        ? directVehicles
+        : (
+            Number.isFinite(
+              vehicleA
+            ) &&
+            Number.isFinite(
+              vehicleB
+            )
+              ? vehicleA +
+                vehicleB
+              : null
+          );
+
+
+    const flyAshKg =
+      getCellNumber(
+        worksheet,
+        "K48"
+      );
+
+
+    return {
+      coalSiloA: {
+        height:
+          coalAHeight,
+
+        inventory:
+          coalAInventory
+      },
+
+
+      coalSiloB: {
+        height:
+          coalBHeight,
+
+        inventory:
+          coalBInventory
+      },
+
+
+      coalInventoryTotal:
+        Number.isFinite(
+          coalAInventory
+        ) &&
+        Number.isFinite(
+          coalBInventory
+        )
+          ? coalAInventory +
+            coalBInventory
+          : null,
+
+
+      coalReceipt: {
+        vehicles:
+          coalVehicles,
+
+        quantity:
+          getCellNumber(
+            worksheet,
+            "P31"
+          )
+      },
+
+
+      bioInventory: {
+        height:
+          getCellNumber(
+            worksheet,
+            "I38"
+          ),
+
+        inventory:
+          getCellNumber(
+            worksheet,
+            "G38"
+          )
+      },
+
+
+      bioReceipt: {
+        vehicles:
+          getCellNumber(
+            worksheet,
+            "M44"
+          ),
+
+        quantity:
+          getCellNumber(
+            worksheet,
+            "K44"
+          )
+      },
+
+
+      flyAshDispatch: {
+        vehicles:
+          getCellNumber(
+            worksheet,
+            "K46"
+          ),
+
+        quantityKg:
+          flyAshKg,
+
+        quantityTon:
+          Number.isFinite(
+            flyAshKg
+          )
+            ? flyAshKg /
+              1000
+            : null
+      }
+    };
+  }
+
+
+  function formatNumber(
+    value,
+    maximumFractionDigits =
+      0
+  ) {
+    if (
+      !Number.isFinite(
+        value
+      )
+    ) {
+      return "-";
+    }
+
+
+    return new Intl.NumberFormat(
+      "ko-KR",
+
+      {
+        maximumFractionDigits
+      }
+    ).format(
+      value
+    );
+  }
+
+
+  /* =====================================================
+    수치 카드 출력
+  ====================================================== */
+
+  function renderValues(
+    values
+  ) {
+    const elements =
+      getElements();
+
+
+    const setText = (
+      element,
+      text
+    ) => {
+      if (
+        element
+      ) {
+        element.textContent =
+          text;
+      }
+    };
+
+
+    const texts = {
+      coalSiloA:
+        Number.isFinite(
+          values.coalSiloA?.height
+        ) &&
+        Number.isFinite(
+          values.coalSiloA?.inventory
+        )
+          ? `${formatNumber(
+              values.coalSiloA.height,
+              1
+            )}m / ${formatNumber(
+              values.coalSiloA.inventory
+            )}ton`
+          : "-",
+
+
+      coalSiloB:
+        Number.isFinite(
+          values.coalSiloB?.height
+        ) &&
+        Number.isFinite(
+          values.coalSiloB?.inventory
+        )
+          ? `${formatNumber(
+              values.coalSiloB.height,
+              1
+            )}m / ${formatNumber(
+              values.coalSiloB.inventory
+            )}ton`
+          : "-",
+
+
+      coalInventoryTotal:
+        Number.isFinite(
+          values.coalInventoryTotal
+        )
+          ? `${formatNumber(
+              values.coalInventoryTotal
+            )}ton`
+          : "-",
+
+
+      coalReceipt:
+        Number.isFinite(
+          values.coalReceipt?.vehicles
+        ) &&
+        Number.isFinite(
+          values.coalReceipt?.quantity
+        )
+          ? `${formatNumber(
+              values.coalReceipt.vehicles
+            )}대 / ${formatNumber(
+              values.coalReceipt.quantity
+            )}ton`
+          : "-",
+
+
+      bioInventory:
+        Number.isFinite(
+          values.bioInventory?.height
+        ) &&
+        Number.isFinite(
+          values.bioInventory?.inventory
+        )
+          ? `${formatNumber(
+              values.bioInventory.height,
+              1
+            )}m / ${formatNumber(
+              values.bioInventory.inventory
+            )}ton`
+          : "-",
+
+
+      bioReceipt:
+        Number.isFinite(
+          values.bioReceipt?.vehicles
+        ) &&
+        Number.isFinite(
+          values.bioReceipt?.quantity
+        )
+          ? `${formatNumber(
+              values.bioReceipt.vehicles
+            )}대 / ${formatNumber(
+              values.bioReceipt.quantity
+            )}ton`
+          : "-",
+
+
+      flyAshDispatch:
+        Number.isFinite(
+          values.flyAshDispatch?.vehicles
+        ) &&
+        Number.isFinite(
+          values.flyAshDispatch?.quantityTon
+        )
+          ? `${formatNumber(
+              values.flyAshDispatch.vehicles
+            )}대 / ${formatNumber(
+              values.flyAshDispatch.quantityTon,
+              2
+            )}ton`
+          : "-"
+    };
+
+
+    setText(
+      elements.coalSiloA,
+      texts.coalSiloA
+    );
+
+
+    setText(
+      elements.coalSiloB,
+      texts.coalSiloB
+    );
+
+
+    setText(
+      elements.coalInventoryTotal,
+      texts.coalInventoryTotal
+    );
+
+
+    setText(
+      elements.coalReceipt,
+      texts.coalReceipt
+    );
+
+
+    setText(
+      elements.bioInventory,
+      texts.bioInventory
+    );
+
+
+    setText(
+      elements.bioReceipt,
+      texts.bioReceipt
+    );
+
+
+    setText(
+      elements.flyAshDispatch,
+      texts.flyAshDispatch
+    );
+
+
+    const count =
+      Object.values(
+        texts
+      )
+        .filter(
+          text => {
+            return text !==
+              "-";
+          }
+        )
+        .length;
+
+
+    if (
+      elements.valueStatus
+    ) {
+      elements.valueStatus
+        .classList
+        .remove(
+          "is-complete",
+          "is-error"
+        );
+
+
+      elements.valueStatus.textContent =
+        count ===
+          7
+          ? "수치 7개 추출 완료"
+          : `수치 ${count}/7개 추출`;
+
+
+      elements.valueStatus
+        .classList
+        .add(
+          count ===
+            7
+            ? "is-complete"
+            : "is-error"
+        );
+    }
+  }
+
+
+  /* =====================================================
+    그룹별 체크 목록 출력
+  ====================================================== */
+
+  function renderGroup(
+    groupKey
+  ) {
+    const selection =
+      getState()
+        .coalSelection;
+
+
+    const config =
+      GROUPS[
+        groupKey
+      ];
+
+
+    const list =
+      document.getElementById(
+        config.listId
+      );
+
+
+    if (
+      !list
+    ) {
+      return;
+    }
+
+
+    const items =
+      selection.items.filter(
+        item => {
+          return item.groupKey ===
+            groupKey;
+        }
+      );
+
+
+    if (
+      !items.length
+    ) {
+      list.innerHTML = `
+        <p class="efficiency-morning-meeting-coal-empty">
+          추출된 항목이 없습니다.
+        </p>
+      `;
+
+
+      return;
+    }
+
+
+    list.innerHTML =
+      items
+        .map(
+          item => {
+            const subLines =
+              item.subLines.length
+                ? `
+                  <span class="efficiency-morning-meeting-coal-item__sub-lines">
+
+                    ${item.subLines
+                      .map(
+                        line => {
+                          return `
+                            <span class="efficiency-morning-meeting-coal-item__sub-line">
+                              - ${escapeHtml(
+                                line
+                              )}
+                            </span>
+                          `;
+                        }
+                      )
+                      .join(
+                        ""
+                      )}
+
+                  </span>
+                `
+                : "";
+
+
+            return `
+              <label class="efficiency-morning-meeting-coal-item">
+
+                <input
+                  type="checkbox"
+                  data-morning-meeting-coal-item-id="${escapeHtml(
+                    item.id
+                  )}"
+                  ${
+                    selection.selectedIds.has(
+                      item.id
+                    )
+                      ? "checked"
+                      : ""
+                  }
+                />
+
+
+                <span class="efficiency-morning-meeting-coal-item__content">
+
+                  <span class="efficiency-morning-meeting-coal-item__meta">
+
+                    <span class="efficiency-morning-meeting-coal-item__number">
+                      ${escapeHtml(
+                        item.number
+                      )}
+                    </span>
+
+                    <span class="efficiency-morning-meeting-coal-item__group">
+                      ${escapeHtml(
+                        item.groupLabel
+                      )}
+                    </span>
+
+                  </span>
+
+
+                  <span class="efficiency-morning-meeting-coal-item__text">
+                    ${escapeHtml(
+                      item.text
+                    )}
+                  </span>
+
+
+                  ${subLines}
+
+                </span>
+
+              </label>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+  }
+
+
+  /* =====================================================
+    전체 선택 버튼 상태
+  ====================================================== */
+
+  function updateGroupButtons() {
+    const selection =
+      getState()
+        .coalSelection;
+
+
+    document
+      .querySelectorAll(
+        "[data-morning-meeting-coal-select-group]"
+      )
+      .forEach(
+        button => {
+          const groupKey =
+            String(
+              button.dataset
+                .morningMeetingCoalSelectGroup ||
+              ""
+            );
+
+
+          const items =
+            selection.items.filter(
+              item => {
+                return item.groupKey ===
+                  groupKey;
+              }
+            );
+
+
+          const allSelected =
+            items.length >
+              0 &&
+            items.every(
+              item => {
+                return selection
+                  .selectedIds
+                  .has(
+                    item.id
+                  );
+              }
+            );
+
+
+          button.disabled =
+            items.length ===
+            0;
+
+
+          button.textContent =
+            allSelected
+              ? "전체 해제"
+              : "전체 선택";
+        }
+      );
+  }
+
+
+  /* =====================================================
+    선택 결과 내부 상태 저장
+
+    별도 textarea는 사용하지 않는다.
+  ====================================================== */
+
+  function updateSelectedState() {
+    const selection =
+      getState()
+        .coalSelection;
+
+
+    const selectedItems =
+      selection.items.filter(
+        item => {
+          return selection
+            .selectedIds
+            .has(
+              item.id
+            );
+        }
+      );
+
+
+    selection.selectedItems =
+      selectedItems.map(
+        item => {
+          return {
+            ...item,
+
+            subLines:
+              [
+                ...item.subLines
+              ]
+          };
+        }
+      );
+
+
+    selection.selectedText =
+      selectedItems
+        .map(
+          (
+            item,
+            index
+          ) => {
+            return [
+              `${index + 1}) ${item.text}`,
+
+              ...item.subLines.map(
+                line => {
+                  return `   - ${line}`;
+                }
+              )
+            ].join(
+              "\n"
+            );
+          }
+        )
+        .join(
+          "\n"
+        );
+
+
+    const {
+      selectedCount,
+      clearButton
+    } =
+      getElements();
+
+
+    if (
+      selectedCount
+    ) {
+      selectedCount.textContent =
+        `${selectedItems.length}건 선택`;
+    }
+
+
+    if (
+      clearButton
+    ) {
+      clearButton.disabled =
+        selectedItems.length ===
+        0;
+    }
+
+
+    updateGroupButtons();
+
+
+    if (
+      typeof window
+        .updateEfficiencyMorningMeetingCreateButton ===
+        "function"
+    ) {
+      window
+        .updateEfficiencyMorningMeetingCreateButton();
+    }
+  }
+
+
+  function renderSelection() {
+    Object.keys(
+      GROUPS
+    ).forEach(
+      renderGroup
+    );
+
+
+    updateSelectedState();
+  }
+
+
+  /* =====================================================
+    운탄일지 분석 결과 초기화
+  ====================================================== */
+
+  function resetSelection() {
+    const state =
+      getState();
+
+
+    state.coalSelection =
+      createEmptySelection();
+
+
+    Object.values(
+      GROUPS
+    ).forEach(
+      config => {
+        const list =
+          document.getElementById(
+            config.listId
+          );
+
+
+        if (
+          list
+        ) {
+          list.innerHTML = `
+            <p class="efficiency-morning-meeting-coal-empty">
+              운탄일지를 분석하면 선택할 업무가 표시됩니다.
+            </p>
+          `;
+        }
+      }
+    );
+
+
+    const elements =
+      getElements();
+
+
+    [
+      elements.coalSiloA,
+      elements.coalSiloB,
+      elements.coalInventoryTotal,
+      elements.coalReceipt,
+      elements.bioInventory,
+      elements.bioReceipt,
+      elements.flyAshDispatch
+    ].forEach(
+      element => {
+        if (
+          element
+        ) {
+          element.textContent =
+            "-";
+        }
+      }
+    );
+
+
+    if (
+      elements.valueStatus
+    ) {
+      elements.valueStatus.textContent =
+        "운탄일지 분석 전";
+
+
+      elements.valueStatus
+        .classList
+        .remove(
+          "is-complete",
+          "is-error"
+        );
+    }
+
+
+    hideError();
+
+    updateSelectedState();
+  }
+
+
+  /* =====================================================
+    운탄일지 실제 분석
+  ====================================================== */
+
+  async function analyzeCoalLogFile() {
+    const state =
+      getState();
+
+
+    const elements =
+      getElements();
+
+
+    hideError();
+
+
+    if (
+      typeof XLSX ===
+        "undefined"
+    ) {
+      showError(
+        "엑셀 분석 라이브러리를 불러오지 못했습니다."
+      );
+
+
+      return null;
+    }
+
+
+    if (
+      !state.coalLogFile
+    ) {
+      showError(
+        "운탄일지 파일을 먼저 첨부해 주세요."
+      );
+
+
+      return null;
+    }
+
+
+    if (
+      elements.valueStatus
+    ) {
+      elements.valueStatus.textContent =
+        "운탄일지 분석 중...";
+
+
+      elements.valueStatus
+        .classList
+        .remove(
+          "is-complete",
+          "is-error"
+        );
+    }
+
+
+    try {
+      const arrayBuffer =
+        await state
+          .coalLogFile
+          .arrayBuffer();
+
+
+      const workbook =
+        XLSX.read(
+          arrayBuffer,
+
+          {
+            type:
+              "array",
+
+            cellFormula:
+              true,
+
+            cellText:
+              true,
+
+            cellDates:
+              false
+          }
+        );
+
+
+      const {
+        sheetName,
+        worksheet
+      } =
+        findCoalWorksheet(
+          workbook
+        );
+
+
+      const workResult =
+        extractWorkItems(
+          worksheet
+        );
+
+
+      const values =
+        extractNumericValues(
+          worksheet
+        );
+
+
+      state.coalSelection = {
+        analyzed:
+          true,
+
+        fileName:
+          String(
+            state.coalLogFile.name ||
+            ""
+          ),
+
+        sheetName,
+
+        items:
+          workResult.items,
+
+        selectedIds:
+          new Set(),
+
+        selectedItems:
+          [],
+
+        selectedText:
+          "",
+
+        values
+      };
+
+
+      renderValues(
+        values
+      );
+
+
+      renderSelection();
+
+
+      console.log(
+        "운탄일지 분석 완료",
+        {
+          fileName:
+            state.coalLogFile.name,
+
+          sheetName,
+
+          itemCount:
+            workResult.items.length,
+
+          values
+        }
+      );
+
+
+      return state.coalSelection;
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "운탄일지 분석 실패",
+        error
+      );
+
+
+      resetSelection();
+
+
+      showError(
+        error?.message ||
+        "운탄일지를 분석하지 못했습니다."
+      );
+
+
+      if (
+        elements.valueStatus
+      ) {
+        elements.valueStatus.textContent =
+          "운탄일지 분석 실패";
+
+
+        elements.valueStatus
+          .classList
+          .add(
+            "is-error"
+          );
+      }
+
+
+      return null;
+    }
+  }
+
+
+  /* =====================================================
+    개별 체크박스
+  ====================================================== */
+
+  function handleChange(
+    event
+  ) {
+    const checkbox =
+      event.target instanceof
+        Element
+        ? event.target.closest(
+            "[data-morning-meeting-coal-item-id]"
+          )
+        : null;
+
+
+    if (
+      !checkbox
+    ) {
+      return;
+    }
+
+
+    const selection =
+      getState()
+        .coalSelection;
+
+
+    const itemId =
+      String(
+        checkbox.dataset
+          .morningMeetingCoalItemId ||
+        ""
+      );
+
+
+    if (
+      !itemId
+    ) {
+      return;
+    }
+
+
+    if (
+      checkbox.checked
+    ) {
+      selection.selectedIds.add(
+        itemId
+      );
+
+    } else {
+      selection.selectedIds.delete(
+        itemId
+      );
+    }
+
+
+    updateSelectedState();
+  }
+
+
+  /* =====================================================
+    전체 선택·전체 해제·선택 초기화
+  ====================================================== */
+
+  function handleClick(
+    event
+  ) {
+    const target =
+      event.target instanceof
+        Element
+        ? event.target
+        : null;
+
+
+    const groupButton =
+      target?.closest(
+        "[data-morning-meeting-coal-select-group]"
+      );
+
+
+    if (
+      groupButton
+    ) {
+      const selection =
+        getState()
+          .coalSelection;
+
+
+      const groupKey =
+        String(
+          groupButton.dataset
+            .morningMeetingCoalSelectGroup ||
+          ""
+        );
+
+
+      const items =
+        selection.items.filter(
+          item => {
+            return item.groupKey ===
+              groupKey;
+          }
+        );
+
+
+      const allSelected =
+        items.length >
+          0 &&
+        items.every(
+          item => {
+            return selection
+              .selectedIds
+              .has(
+                item.id
+              );
+          }
+        );
+
+
+      items.forEach(
+        item => {
+          if (
+            allSelected
+          ) {
+            selection.selectedIds.delete(
+              item.id
+            );
+
+          } else {
+            selection.selectedIds.add(
+              item.id
+            );
+          }
+        }
+      );
+
+
+      renderSelection();
+
+      return;
+    }
+
+
+    const clearButton =
+      target?.closest(
+        "#clearEfficiencyMorningMeetingCoalSelectionButton"
+      );
+
+
+    if (
+      clearButton
+    ) {
+      getState()
+        .coalSelection
+        .selectedIds
+        .clear();
+
+
+      renderSelection();
+    }
+  }
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function initialize() {
+    const elements =
+      getElements();
+
+
+    if (
+      !elements.panel ||
+      elements.panel.dataset
+        .coalAnalyzerInitialized ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    elements.panel.dataset
+      .coalAnalyzerInitialized =
+      "true";
+
+
+    elements.panel.addEventListener(
+      "change",
+      handleChange
+    );
+
+
+    elements.panel.addEventListener(
+      "click",
+      handleClick
+    );
+
+
+    /*
+      기존 안전·환경·기계·전기제어팀과
+      같은 자료 분석 버튼을 사용한다.
+    */
+
+    elements.analyzeButton
+      ?.addEventListener(
+        "click",
+        analyzeCoalLogFile
+      );
+
+
+    elements.resetButton
+      ?.addEventListener(
+        "click",
+        resetSelection
+      );
+
+
+    /*
+      새 운탄일지를 선택하면
+      이전 분석 결과를 즉시 제거한다.
+    */
+
+    elements.coalInput
+      ?.addEventListener(
+        "change",
+        resetSelection
+      );
+
+
+    elements.coalCard
+      ?.addEventListener(
+        "drop",
+        () => {
+          window.setTimeout(
+            resetSelection,
+            0
+          );
+        }
+      );
+
+
+    updateSelectedState();
+  }
+
+
+  /* =====================================================
+    외부 기능 공개
+  ====================================================== */
+
+  window.analyzeEfficiencyMorningMeetingCoalLog =
+    analyzeCoalLogFile;
+
+
+  window.resetEfficiencyMorningMeetingCoalSelection =
+    resetSelection;
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
