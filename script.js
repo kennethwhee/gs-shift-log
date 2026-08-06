@@ -160078,18 +160078,26 @@ function renderPreview() {
       );
   }
 
+/* =====================================================
+  외부 미리보기 갱신
 
-  /* =====================================================
-    외부에서도 강제 갱신 가능
-  ====================================================== */
+  중요:
+  false를 사용한다.
 
-  window
-    .renderEfficiencyMorningMeetingBoilerTemperatures =
-    function renderEfficiencyMorningMeetingBoilerTemperatures() {
-      renderValuesFromState(
-        true
-      );
-    };
+  이유:
+  - 자동 미리보기가 1초마다 갱신됨
+  - 사용자가 수정한 온도값은 유지
+  - 최초 자동 추출값 automaticValue는 유지
+  - is-edited 표시도 유지
+===================================================== */
+
+window
+  .renderEfficiencyMorningMeetingBoilerTemperatures =
+  function renderEfficiencyMorningMeetingBoilerTemperatures() {
+    renderValuesFromState(
+      false
+    );
+  };
 
 
   if (
