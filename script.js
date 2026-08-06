@@ -54702,18 +54702,6 @@ function completeCurrentDetailShiftLogApproval() {
   );
 }
 
-
-/* =========================================================
-  결재취소 가능 여부
-
-  파트원:
-  - 본인의 결재요청 상태만 가능
-
-  파트장:
-  - 결재요청
-  - 결재완료
-========================================================= */
-
 function canCurrentUserCancelShiftLogApproval(
   log
 ) {
@@ -54733,17 +54721,50 @@ function canCurrentUserCancelShiftLogApproval(
     );
 
 
-  /*
-    파트장 업무일지는
-    결재 대상이 아니다.
-  */
+  const normalizedStatus =
+    normalizeShiftLogApprovalStatus(
+      log.status
+    );
+
+
+  const isLeaderOrSuperAdmin =
+    isCurrentShiftLogLeader() ||
+    isCurrentUserSuperAdmin();
+
+
+  /* =====================================================
+    파트장 본인 업무일지
+
+    결재완료 상태:
+    - 작성한 파트장 본인
+    - 최고관리자
+
+    결재취소 가능
+  ====================================================== */
+
   if (
     normalizedLogRole ===
       "파트장"
   ) {
-    return false;
+    return (
+      normalizedStatus ===
+        "결재완료" &&
+
+      isLeaderOrSuperAdmin &&
+
+      (
+        isCurrentUserShiftLogAuthor(
+          log
+        ) ||
+        isCurrentUserSuperAdmin()
+      )
+    );
   }
 
+
+  /* =====================================================
+    일반 보직
+  ====================================================== */
 
   const memberRoles = [
     "TGO",
@@ -54764,19 +54785,12 @@ function canCurrentUserCancelShiftLogApproval(
   }
 
 
-  const normalizedStatus =
-    normalizeShiftLogApprovalStatus(
-      log.status
-    );
+  /* =====================================================
+    일반 보직 결재요청
 
+    작성자 본인이 결재요청 취소 가능
+  ====================================================== */
 
-  /*
-    결재요청 상태
-
-    - 결재요청한 현재 작성자 본인만 취소 가능
-    - 다른 일반회원은 취소 불가
-    - 파트장과 최고관리자도 취소 불가
-  */
   if (
     normalizedStatus ===
       "결재요청"
@@ -54787,20 +54801,18 @@ function canCurrentUserCancelShiftLogApproval(
   }
 
 
-  /*
-    결재완료 상태
+  /* =====================================================
+    일반 보직 결재완료
 
-    - 파트장 또는 최고관리자만
-      완료된 결재를 취소할 수 있다.
-  */
+    파트장 또는 최고관리자만
+    결재완료 취소 가능
+  ====================================================== */
+
   if (
     normalizedStatus ===
       "결재완료"
   ) {
-    return (
-      isCurrentShiftLogLeader() ||
-      isCurrentUserSuperAdmin()
-    );
+    return isLeaderOrSuperAdmin;
   }
 
 
