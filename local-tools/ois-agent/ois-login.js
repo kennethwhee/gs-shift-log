@@ -20,6 +20,154 @@ const {
     "playwright"
   );
 
+/* =========================================================
+  OIS 에이전트 로컬 환경변수 자동 로딩
+
+  파일:
+  local-tools/ois-agent/.env
+
+  특징:
+  - PowerShell에서 환경변수를 매번 입력하지 않아도 됨
+  - 이미 Windows 환경변수가 있으면 그 값을 우선 사용
+  - 아이디·비밀번호·에이전트 키를 JS에 직접 적지 않음
+========================================================= */
+
+function loadOisAgentLocalEnvironment() {
+  const environmentFilePath =
+    path.join(
+      __dirname,
+      ".env"
+    );
+
+
+  if (
+    !fs.existsSync(
+      environmentFilePath
+    )
+  ) {
+    console.warn(
+      `.env 파일을 찾지 못했습니다: ${environmentFilePath}`
+    );
+
+    return;
+  }
+
+
+  const environmentText =
+    fs.readFileSync(
+      environmentFilePath,
+      "utf8"
+    );
+
+
+  environmentText
+    .split(
+      /\r?\n/
+    )
+    .forEach(
+      rawLine => {
+        const line =
+          String(
+            rawLine ||
+            ""
+          ).trim();
+
+
+        if (
+          !line ||
+          line.startsWith(
+            "#"
+          )
+        ) {
+          return;
+        }
+
+
+        const equalIndex =
+          line.indexOf(
+            "="
+          );
+
+
+        if (
+          equalIndex <=
+          0
+        ) {
+          return;
+        }
+
+
+        const key =
+          line
+            .slice(
+              0,
+              equalIndex
+            )
+            .trim();
+
+
+        let value =
+          line
+            .slice(
+              equalIndex + 1
+            )
+            .trim();
+
+
+        /*
+          양쪽 따옴표 제거
+        */
+        if (
+          (
+            value.startsWith(
+              '"'
+            ) &&
+            value.endsWith(
+              '"'
+            )
+          ) ||
+          (
+            value.startsWith(
+              "'"
+            ) &&
+            value.endsWith(
+              "'"
+            )
+          )
+        ) {
+          value =
+            value.slice(
+              1,
+              -1
+            );
+        }
+
+
+        /*
+          Windows에 이미 설정된 값이 있으면
+          그 값을 우선 사용한다.
+        */
+        if (
+          !process.env[
+            key
+          ]
+        ) {
+          process.env[
+            key
+          ] =
+            value;
+        }
+      }
+    );
+
+
+  console.log(
+    "OIS 에이전트 로컬 설정을 불러왔습니다."
+  );
+}
+
+
+loadOisAgentLocalEnvironment();  
 
 const DEFAULT_SHIFT_LOG_BASE_URL =
   "https://gs-shift-log.pages.dev";
