@@ -1914,17 +1914,303 @@ function renderCalendar() {
   }
 
 /* =========================================================
-  점검 완료 상태 버튼·정보
+  점검 완료 시간 표시
+========================================================= */
 
-  수동 완료:
-  - 완료자 표시
-  - 완료 취소 가능
+function formatInspectionCalendarCompletionDateTime(
+  value
+) {
+  const date =
+    new Date(
+      value ||
+      0
+    );
 
-  업무일지 자동완료:
-  - 자동완료 표시
-  - 근거 보직·작성자·문구 표시
-  - 화면에서 완료 취소 불가
-  - 원본 업무일지 수정·삭제로 다시 계산
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "";
+  }
+
+
+  return new Intl.DateTimeFormat(
+    "ko-KR",
+    {
+      year:
+        "2-digit",
+
+      month:
+        "2-digit",
+
+      day:
+        "2-digit",
+
+      hour:
+        "2-digit",
+
+      minute:
+        "2-digit",
+
+      hour12:
+        false
+    }
+  ).format(
+    date
+  );
+}
+
+
+/* =========================================================
+  완료 정보 출력
+
+  자동완료:
+  - 근거 업무일지 보직·작성자·문구 표시
+  - 근거 업무일지 열기 버튼 표시
+  - 완료 취소 버튼은 표시하지 않음
+
+  수동완료:
+  - 완료자·완료시간 표시
+  - 완료 취소 버튼 표시
+========================================================= */
+
+function createInspectionCalendarCompletionHtml(
+  occurrence,
+  completion
+) {
+  const scheduleItem =
+    occurrence.scheduleItem;
+
+
+  const completedAt =
+    formatInspectionCalendarCompletionDateTime(
+      completion?.completedAt
+    );
+
+
+  const isAutomatic =
+    completion?.isAutomatic ===
+      true ||
+
+    String(
+      completion?.completionSource ||
+      ""
+    )
+      .trim()
+      .toLowerCase() ===
+        "shift_log";
+
+
+  /* =====================================================
+    업무일지 자동완료
+  ====================================================== */
+
+  if (
+    isAutomatic
+  ) {
+    const sourceLogId =
+      String(
+        completion?.sourceLogId ||
+        ""
+      ).trim();
+
+
+    const sourceRole =
+      String(
+        completion?.sourceRole ||
+        ""
+      ).trim();
+
+
+    const sourceAuthor =
+      String(
+        completion?.sourceAuthor ||
+        completion?.completedByName ||
+        ""
+      ).trim();
+
+
+    const sourceText =
+      String(
+        completion?.sourceText ||
+        ""
+      ).trim();
+
+
+    const sourceMeta = [
+      sourceRole,
+      sourceAuthor,
+      completedAt
+    ]
+      .filter(
+        Boolean
+      )
+      .join(
+        " · "
+      );
+
+
+    return `
+      <div
+        class="
+          inspection-calendar-completion
+          is-automatic
+        "
+      >
+
+        <div class="inspection-calendar-completion__heading">
+
+          <span class="inspection-calendar-completion__badge">
+            업무일지 자동완료
+          </span>
+
+          ${
+            sourceMeta
+              ? `
+                <span class="inspection-calendar-completion__meta">
+                  ${escapeHtml(
+                    sourceMeta
+                  )}
+                </span>
+              `
+              : ""
+          }
+
+        </div>
+
+
+        ${
+          sourceText
+            ? `
+              <p class="inspection-calendar-completion__source-text">
+
+                <b>
+                  근거
+                </b>
+
+                <span>
+                  ${escapeHtml(
+                    sourceText
+                  )}
+                </span>
+
+              </p>
+            `
+            : ""
+        }
+
+
+        <div class="inspection-calendar-completion__footer">
+
+          ${
+            sourceLogId
+              ? `
+                <button
+                  type="button"
+                  class="inspection-calendar-source-log-button"
+                  data-calendar-open-source-log="${escapeHtml(
+                    sourceLogId
+                  )}"
+                  data-work-date="${escapeHtml(
+                    occurrence.dueDate
+                  )}"
+                  data-shift="${escapeHtml(
+                    occurrence.shift
+                  )}"
+                >
+                  근거 업무일지 열기
+                </button>
+              `
+              : ""
+          }
+
+
+          <span class="inspection-calendar-completion__guide">
+            원본 업무일지를 수정하거나 삭제하면 완료 상태가 자동으로 다시 계산됩니다.
+          </span>
+
+        </div>
+
+      </div>
+    `;
+  }
+
+
+  /* =====================================================
+    사용자 수동완료
+  ====================================================== */
+
+  const completedBy =
+    String(
+      completion?.completedByName ||
+      "완료자 확인 불가"
+    ).trim();
+
+
+  const completionMeta = [
+    completedBy,
+    completedAt
+  ]
+    .filter(
+      Boolean
+    )
+    .join(
+      " · "
+    );
+
+
+  return `
+    <div
+      class="
+        inspection-calendar-completion
+        is-manual
+      "
+    >
+
+      <div class="inspection-calendar-completion__heading">
+
+        <span class="inspection-calendar-completion__badge">
+          수동 완료
+        </span>
+
+        <span class="inspection-calendar-completion__meta">
+          ${escapeHtml(
+            completionMeta
+          )}
+        </span>
+
+      </div>
+
+
+      <div class="inspection-calendar-completion__footer">
+
+        <button
+          type="button"
+          class="inspection-calendar-cancel-button"
+          data-calendar-cancel="${escapeHtml(
+            scheduleItem.id
+          )}"
+          data-due-date="${escapeHtml(
+            occurrence.dueDate
+          )}"
+          data-shift="${escapeHtml(
+            occurrence.shift
+          )}"
+        >
+          완료 취소
+        </button>
+
+      </div>
+
+    </div>
+  `;
+}
+
+
+/* =========================================================
+  완료·완료취소 버튼 출력
 ========================================================= */
 
 function createStatusActionHtml(
@@ -1941,282 +2227,37 @@ function createStatusActionHtml(
     occurrence.scheduleItem;
 
 
+  /*
+    타부서 참고 일정
+  */
   if (
     scheduleItem.referenceOnly ===
       true
   ) {
     return `
-      <span
-        class="inspection-calendar-reference"
-      >
+      <span class="inspection-calendar-reference">
         타부서 참고
       </span>
     `;
   }
 
 
+  /*
+    완료된 일정
+  */
   if (
     completion
   ) {
-    const completionSource =
-      String(
-        completion.completionSource ||
-        ""
-      )
-        .trim()
-        .toLowerCase();
-
-
-    const isAutomatic =
-      completion.isAutomatic ===
-        true ||
-      completionSource ===
-        "shift_log";
-
-
-    const completedDate =
-      new Date(
-        completion.completedAt ||
-        0
-      );
-
-
-    const completedAt =
-      Number.isNaN(
-        completedDate.getTime()
-      )
-        ? ""
-        : new Intl.DateTimeFormat(
-            "ko-KR",
-            {
-              month:
-                "2-digit",
-
-              day:
-                "2-digit",
-
-              hour:
-                "2-digit",
-
-              minute:
-                "2-digit",
-
-              hour12:
-                false
-            }
-          ).format(
-            completedDate
-          );
-
-
-    /*
-      업무일지 자동완료
-    */
-
-          /*
-      업무일지 자동완료
-    */
-    if (
-      isAutomatic
-    ) {
-      const sourceRole =
-        String(
-          completion.sourceRole ||
-          ""
-        ).trim();
-
-
-      const sourceAuthor =
-        String(
-          completion.sourceAuthor ||
-          completion.completedByName ||
-          ""
-        ).trim();
-
-
-      const sourceText =
-        String(
-          completion.sourceText ||
-          ""
-        )
-          .trim()
-          .slice(
-            0,
-            300
-          );
-
-
-      const sourceLogId =
-        String(
-          completion.sourceLogId ||
-          completion.source_log_id ||
-          ""
-        ).trim();
-
-
-      const sourceMeta =
-        [
-          sourceRole,
-          sourceAuthor,
-          completedAt
-        ]
-          .filter(
-            Boolean
-          )
-          .join(
-            " · "
-          );
-
-
-      return `
-        <div
-          class="
-            inspection-calendar-completion-block
-            is-automatic
-          "
-        >
-          <span
-            class="
-              inspection-calendar-completion-badge
-              is-automatic
-            "
-          >
-            업무일지 자동완료
-          </span>
-
-          ${
-            sourceMeta
-              ? `
-                  <span
-                    class="
-                      inspection-calendar-completion-info
-                    "
-                  >
-                    ${escapeHtml(
-                      sourceMeta
-                    )}
-                  </span>
-                `
-              : ""
-          }
-
-          ${
-            sourceText
-              ? `
-                  <span
-                    class="
-                      inspection-calendar-completion-evidence
-                    "
-                    title="${escapeHtml(
-                      sourceText
-                    )}"
-                  >
-                    근거: ${escapeHtml(
-                      sourceText
-                    )}
-                  </span>
-                `
-              : ""
-          }
-
-          ${
-            sourceLogId
-              ? `
-                  <button
-                    type="button"
-                    class="
-                      inspection-calendar-source-log-button
-                    "
-                    data-open-source-shift-log="${escapeHtml(
-                      sourceLogId
-                    )}"
-                    data-source-work-date="${escapeHtml(
-                      occurrence.dueDate
-                    )}"
-                    data-source-shift="${escapeHtml(
-                      occurrence.shift
-                    )}"
-                  >
-                    근거 업무일지 열기
-                  </button>
-                `
-              : ""
-          }
-
-          <small
-            class="
-              inspection-calendar-completion-help
-            "
-          >
-            원본 업무일지를 수정하거나 삭제하면
-            완료 상태가 자동으로 다시 계산됩니다.
-          </small>
-        </div>
-      `;
-    }
-
-    /*
-      사용자가 직접 완료한 수동 완료
-    */
-    return `
-      <div
-        class="
-          inspection-calendar-completion-block
-          is-manual
-        "
-      >
-        <span
-          class="
-            inspection-calendar-completion-badge
-            is-manual
-          "
-        >
-          수동 완료
-        </span>
-
-        <span
-          class="
-            inspection-calendar-completion-info
-          "
-        >
-          ${escapeHtml(
-            completion.completedByName ||
-            "완료자 확인 불가"
-          )}
-
-          ${
-            completedAt
-              ? `
-                  · ${escapeHtml(
-                    completedAt
-                  )}
-                `
-              : ""
-          }
-        </span>
-
-        <button
-          type="button"
-          class="
-            inspection-calendar-cancel-button
-          "
-          data-calendar-cancel="${escapeHtml(
-            scheduleItem.id
-          )}"
-          data-due-date="${escapeHtml(
-            occurrence.dueDate
-          )}"
-          data-shift="${escapeHtml(
-            occurrence.shift
-          )}"
-        >
-          완료 취소
-        </button>
-      </div>
-    `;
+    return createInspectionCalendarCompletionHtml(
+      occurrence,
+      completion
+    );
   }
 
 
+  /*
+    미완료 일정
+  */
   const label =
     options.conditional
       ? "해당 시 완료"
@@ -2228,9 +2269,7 @@ function createStatusActionHtml(
   return `
     <button
       type="button"
-      class="
-        inspection-calendar-complete-button
-      "
+      class="inspection-calendar-complete-button"
       data-calendar-complete="${escapeHtml(
         scheduleItem.id
       )}"
@@ -2248,141 +2287,611 @@ function createStatusActionHtml(
   `;
 }
 
-  function createSelectedItemHtml(occurrence, options = {}) {
-    const scheduleItem = occurrence.scheduleItem;
-    const state = getOccurrenceState(occurrence, options);
-    const stateLabels = {
-      completed: "완료",
-      reference: "참고",
-      conditional: "조건 확인",
-      overdue: "지연",
-      today: "오늘 예정",
-      scheduled: "예정"
-    };
 
-    const linkedCard = getLinkedCard(scheduleItem);
+/* =========================================================
+  선택 날짜 점검 카드 출력
 
-    return `
-      <article class="inspection-calendar-selected-item is-${escapeHtml(state)}">
-        <div class="inspection-calendar-selected-item__content">
-          <div class="inspection-calendar-selected-item__badges">
-            <span class="inspection-calendar-category is-${escapeHtml(scheduleItem.category)}">
-              ${escapeHtml(categoryLabels[scheduleItem.category] || "기타")}
-            </span>
+  구성:
+  - 구분·상태 배지
+  - 점검명
+  - 근무·위치·주기
+  - 참고사항
+  - 완료 상태 또는 자동완료 근거
+  - 점검일지 열기
+========================================================= */
 
-            <span class="inspection-calendar-state is-${escapeHtml(state)}">
-              ${escapeHtml(stateLabels[state] || "예정")}
-            </span>
-          </div>
+function createSelectedItemHtml(
+  occurrence,
+  options = {}
+) {
+  const scheduleItem =
+    occurrence.scheduleItem;
 
-          <strong>${escapeHtml(scheduleItem.title)}</strong>
 
-          <span class="inspection-calendar-selected-item__meta">
-            ${escapeHtml(getShiftLabel(occurrence.shift))}
-            · ${escapeHtml(scheduleItem.position || "위치 미지정")}
-            · ${escapeHtml(scheduleItem.scheduleLabel || "주기 미지정")}
+  const completion =
+    getCompletion(
+      occurrence
+    );
+
+
+  const state =
+    getOccurrenceState(
+      occurrence,
+      options
+    );
+
+
+  const stateLabels = {
+    completed:
+      "완료",
+
+    reference:
+      "참고",
+
+    conditional:
+      "조건 확인",
+
+    overdue:
+      "지연",
+
+    today:
+      "오늘 예정",
+
+    scheduled:
+      "예정"
+  };
+
+
+  const linkedCard =
+    getLinkedCard(
+      scheduleItem
+    );
+
+
+  const isAutomatic =
+    completion?.isAutomatic ===
+      true ||
+
+    String(
+      completion?.completionSource ||
+      ""
+    )
+      .trim()
+      .toLowerCase() ===
+        "shift_log";
+
+
+  return `
+    <article
+      class="
+        inspection-calendar-selected-item
+        is-${escapeHtml(
+          state
+        )}
+        ${
+          isAutomatic
+            ? "is-automatic-completion"
+            : ""
+        }
+      "
+    >
+
+      <div class="inspection-calendar-selected-item__body">
+
+        <div class="inspection-calendar-selected-item__badges">
+
+          <span
+            class="
+              inspection-calendar-category
+              is-${escapeHtml(
+                scheduleItem.category
+              )}
+            "
+          >
+            ${escapeHtml(
+              categoryLabels[
+                scheduleItem.category
+              ] ||
+              "기타"
+            )}
           </span>
 
-          ${scheduleItem.note ? `
-            <small>${escapeHtml(scheduleItem.note)}</small>
-          ` : ""}
+
+          <span
+            class="
+              inspection-calendar-state
+              is-${escapeHtml(
+                state
+              )}
+            "
+          >
+            ${escapeHtml(
+              stateLabels[
+                state
+              ] ||
+              "예정"
+            )}
+          </span>
+
         </div>
 
-        <div class="inspection-calendar-selected-item__actions">
-          ${linkedCard ? `
-            <button
-              type="button"
-              class="inspection-calendar-log-button"
-              data-calendar-open-log="${escapeHtml(scheduleItem.id)}"
-            >
-              점검일지 열기
-            </button>
-          ` : ""}
 
-          ${createStatusActionHtml(occurrence, {
-            ...options,
-            overdue: state === "overdue"
-          })}
+        <strong class="inspection-calendar-selected-item__title">
+          ${escapeHtml(
+            scheduleItem.title
+          )}
+        </strong>
+
+
+        <div class="inspection-calendar-selected-item__meta">
+
+          <span>
+            <b>근무</b>
+
+            ${escapeHtml(
+              getShiftLabel(
+                occurrence.shift
+              )
+            )}
+          </span>
+
+
+          <span>
+            <b>위치</b>
+
+            ${escapeHtml(
+              scheduleItem.position ||
+              "위치 미지정"
+            )}
+          </span>
+
+
+          <span>
+            <b>주기</b>
+
+            ${escapeHtml(
+              scheduleItem.scheduleLabel ||
+              "주기 미지정"
+            )}
+          </span>
+
         </div>
-      </article>
-    `;
+
+
+        ${
+          scheduleItem.note
+            ? `
+              <p class="inspection-calendar-selected-item__note">
+                ${escapeHtml(
+                  scheduleItem.note
+                )}
+              </p>
+            `
+            : ""
+        }
+
+      </div>
+
+
+      <div class="inspection-calendar-selected-item__footer">
+
+        <div class="inspection-calendar-selected-item__result">
+
+          ${createStatusActionHtml(
+            occurrence,
+            {
+              ...options,
+
+              overdue:
+                state ===
+                "overdue"
+            }
+          )}
+
+        </div>
+
+
+        ${
+          linkedCard
+            ? `
+              <div class="inspection-calendar-selected-item__actions">
+
+                <button
+                  type="button"
+                  class="inspection-calendar-log-button"
+                  data-calendar-open-log="${escapeHtml(
+                    scheduleItem.id
+                  )}"
+                >
+                  점검일지 열기
+                </button>
+
+              </div>
+            `
+            : ""
+        }
+
+      </div>
+
+    </article>
+  `;
+}
+
+
+/* =========================================================
+  선택 날짜 구역으로 이동
+
+  날짜를 누르면 달력 아래의 목록이 바로 보이도록 한다.
+========================================================= */
+
+function focusInspectionCalendarSelectedSection() {
+  const section =
+    document.getElementById(
+      "inspectionCalendarSelectedSection"
+    );
+
+
+  if (
+    !section
+  ) {
+    return;
   }
 
-  function renderSelectedDate() {
-    const selectedDate = parseDateValue(selectedDateValue);
 
-    if (!selectedDate) {
-      return;
-    }
+  /*
+    강조 효과를 다시 실행하기 위해
+    기존 클래스를 먼저 제거한다.
+  */
+  section.classList.remove(
+    "is-focus-pulse"
+  );
 
-    const dateData = getDateData(selectedDateValue);
-    const completedCount = dateData.required.filter(getCompletion).length;
-    const pendingCount = dateData.required.length - completedCount;
 
-    if (selectedTitle) {
-      selectedTitle.textContent = formatLongDate(selectedDate);
-    }
+  void section.offsetWidth;
 
-    if (selectedSummary) {
-      const parts = [
-        `점검 ${dateData.required.length}건`,
-        `완료 ${completedCount}건`,
-        `미완료 ${pendingCount}건`
-      ];
 
-      if (dateData.conditional.length) {
-        parts.push(`조건 확인 ${dateData.conditional.length}건`);
-      }
+  section.classList.add(
+    "is-focus-pulse"
+  );
 
-      if (dateData.reference.length) {
-        parts.push(`참고 ${dateData.reference.length}건`);
-      }
 
-      if (statusErrorMessage) {
-        parts.push(statusErrorMessage);
-      }
+  section.scrollIntoView({
+    behavior:
+      "smooth",
 
-      selectedSummary.textContent = parts.join(" · ");
-    }
+    block:
+      "start",
 
-    const items = [
-      ...dateData.required.map(occurrence => ({ occurrence })),
-      ...dateData.conditional.map(occurrence => ({ occurrence, conditional: true })),
-      ...dateData.reference.map(occurrence => ({ occurrence, reference: true }))
-    ].sort((firstItem, secondItem) => {
-      const stateOrder = {
-        overdue: 1,
-        today: 2,
-        scheduled: 3,
-        conditional: 4,
-        reference: 5,
-        completed: 6
-      };
+    inline:
+      "nearest"
+  });
 
-      const firstState = getOccurrenceState(firstItem.occurrence, firstItem);
-      const secondState = getOccurrenceState(secondItem.occurrence, secondItem);
-      const firstSchedule = firstItem.occurrence.scheduleItem;
-      const secondSchedule = secondItem.occurrence.scheduleItem;
 
-      return (
-        (stateOrder[firstState] || 99) - (stateOrder[secondState] || 99) ||
-        (categoryOrder[firstSchedule.category] || 99) -
-          (categoryOrder[secondSchedule.category] || 99) ||
-        String(firstSchedule.title || "").localeCompare(
-          String(secondSchedule.title || ""),
-          "ko"
-        )
+  window.setTimeout(
+    () => {
+      section.classList.remove(
+        "is-focus-pulse"
       );
-    });
+    },
 
-    selectedList.innerHTML = items.length
-      ? items.map(item => createSelectedItemHtml(item.occurrence, item)).join("")
+    1000
+  );
+}
+
+
+/* =========================================================
+  선택 날짜 점검 목록 출력
+========================================================= */
+
+function renderSelectedDate() {
+  const selectedDate =
+    parseDateValue(
+      selectedDateValue
+    );
+
+
+  if (
+    !selectedDate
+  ) {
+    return;
+  }
+
+
+  const dateData =
+    getDateData(
+      selectedDateValue
+    );
+
+
+  const totalCount =
+    dateData.required.length;
+
+
+  const completedCount =
+    dateData.required.filter(
+      getCompletion
+    ).length;
+
+
+  const pendingCount =
+    totalCount -
+    completedCount;
+
+
+  /* =====================================================
+    날짜 제목
+  ====================================================== */
+
+  if (
+    selectedTitle
+  ) {
+    selectedTitle.textContent =
+      formatLongDate(
+        selectedDate
+      );
+  }
+
+
+  /* =====================================================
+    날짜 하단 설명
+  ====================================================== */
+
+  if (
+    selectedSummary
+  ) {
+    const summaryParts = [
+      `필수 점검 ${totalCount}건`
+    ];
+
+
+    if (
+      dateData.conditional.length
+    ) {
+      summaryParts.push(
+        `조건 확인 ${dateData.conditional.length}건`
+      );
+    }
+
+
+    if (
+      dateData.reference.length
+    ) {
+      summaryParts.push(
+        `참고 ${dateData.reference.length}건`
+      );
+    }
+
+
+    if (
+      statusErrorMessage
+    ) {
+      summaryParts.push(
+        statusErrorMessage
+      );
+    }
+
+
+    selectedSummary.textContent =
+      summaryParts.join(
+        " · "
+      );
+  }
+
+
+  /* =====================================================
+    상단 현황 숫자
+  ====================================================== */
+
+  const totalCountElement =
+    document.getElementById(
+      "inspectionCalendarSelectedTotalCount"
+    );
+
+
+  const pendingCountElement =
+    document.getElementById(
+      "inspectionCalendarSelectedPendingCount"
+    );
+
+
+  const completedCountElement =
+    document.getElementById(
+      "inspectionCalendarSelectedCompletedCount"
+    );
+
+
+  if (
+    totalCountElement
+  ) {
+    totalCountElement.textContent =
+      String(
+        totalCount
+      );
+  }
+
+
+  if (
+    pendingCountElement
+  ) {
+    pendingCountElement.textContent =
+      String(
+        pendingCount
+      );
+  }
+
+
+  if (
+    completedCountElement
+  ) {
+    completedCountElement.textContent =
+      String(
+        completedCount
+      );
+  }
+
+
+  /* =====================================================
+    일정 정렬
+
+    순서:
+    1. 지연
+    2. 오늘 예정
+    3. 예정
+    4. 조건 확인
+    5. 참고
+    6. 완료
+  ====================================================== */
+
+  const items = [
+    ...dateData.required.map(
+      occurrence => {
+        return {
+          occurrence
+        };
+      }
+    ),
+
+    ...dateData.conditional.map(
+      occurrence => {
+        return {
+          occurrence,
+
+          conditional:
+            true
+        };
+      }
+    ),
+
+    ...dateData.reference.map(
+      occurrence => {
+        return {
+          occurrence,
+
+          reference:
+            true
+        };
+      }
+    )
+  ]
+    .sort(
+      (
+        firstItem,
+        secondItem
+      ) => {
+        const stateOrder = {
+          overdue:
+            1,
+
+          today:
+            2,
+
+          scheduled:
+            3,
+
+          conditional:
+            4,
+
+          reference:
+            5,
+
+          completed:
+            6
+        };
+
+
+        const firstState =
+          getOccurrenceState(
+            firstItem.occurrence,
+            firstItem
+          );
+
+
+        const secondState =
+          getOccurrenceState(
+            secondItem.occurrence,
+            secondItem
+          );
+
+
+        const firstSchedule =
+          firstItem
+            .occurrence
+            .scheduleItem;
+
+
+        const secondSchedule =
+          secondItem
+            .occurrence
+            .scheduleItem;
+
+
+        return (
+          (
+            stateOrder[
+              firstState
+            ] ||
+            99
+          ) -
+          (
+            stateOrder[
+              secondState
+            ] ||
+            99
+          ) ||
+
+          (
+            categoryOrder[
+              firstSchedule.category
+            ] ||
+            99
+          ) -
+          (
+            categoryOrder[
+              secondSchedule.category
+            ] ||
+            99
+          ) ||
+
+          String(
+            firstSchedule.title ||
+            ""
+          ).localeCompare(
+            String(
+              secondSchedule.title ||
+              ""
+            ),
+
+            "ko"
+          )
+        );
+      }
+    );
+
+
+  /* =====================================================
+    목록 출력
+  ====================================================== */
+
+  selectedList.innerHTML =
+    items.length
+      ? items
+          .map(
+            item => {
+              return createSelectedItemHtml(
+                item.occurrence,
+                item
+              );
+            }
+          )
+          .join(
+            ""
+          )
       : `
           <div class="inspection-calendar-empty">
             선택한 날짜에 예정된 점검이 없습니다.
           </div>
         `;
-  }
+}
 
   function renderCycleList() {
     const category = String(cycleCategory?.value || "").trim();
@@ -2665,7 +3174,7 @@ async function refreshStatus() {
   }
 
 /* =========================================================
-  점검 달력 버튼 처리
+  점검 일정 버튼 처리
 ========================================================= */
 
 function handleActionClick(
@@ -2684,17 +3193,17 @@ function handleActionClick(
 
   const sourceLogButton =
     target?.closest(
-      "[data-open-source-shift-log]"
+      "[data-calendar-open-source-log]"
     );
 
 
   if (
     sourceLogButton
   ) {
-    const sourceLogId =
+    const logId =
       String(
         sourceLogButton.dataset
-          .openSourceShiftLog ||
+          .calendarOpenSourceLog ||
         ""
       ).trim();
 
@@ -2702,7 +3211,7 @@ function handleActionClick(
     const workDate =
       String(
         sourceLogButton.dataset
-          .sourceWorkDate ||
+          .workDate ||
         ""
       ).trim();
 
@@ -2710,15 +3219,15 @@ function handleActionClick(
     const shift =
       normalizeShift(
         sourceLogButton.dataset
-          .sourceShift
+          .shift
       );
 
 
     if (
-      !sourceLogId
+      !logId
     ) {
       window.alert(
-        "근거 업무일지 ID를 확인할 수 없습니다."
+        "근거 업무일지 정보를 확인할 수 없습니다."
       );
 
 
@@ -2726,13 +3235,32 @@ function handleActionClick(
     }
 
 
-    window.parent.postMessage(
+    const targetWindow =
+      window.parent &&
+      window.parent !==
+        window
+        ? window.parent
+        : window.opener;
+
+
+    if (
+      !targetWindow
+    ) {
+      window.alert(
+        "근거 업무일지를 열 수 있는 메인 화면을 찾지 못했습니다."
+      );
+
+
+      return;
+    }
+
+
+    targetWindow.postMessage(
       {
         type:
           "gs-shift-log:open-source-log",
 
-        logId:
-          sourceLogId,
+        logId,
 
         workDate,
 
@@ -2748,7 +3276,7 @@ function handleActionClick(
 
 
   /* =====================================================
-    전용 점검일지 열기
+    연결 점검일지 열기
   ====================================================== */
 
   const logButton =
@@ -2785,7 +3313,7 @@ function handleActionClick(
 
 
   /* =====================================================
-    수동 완료
+    완료 처리
   ====================================================== */
 
   const completeButton =
@@ -2797,7 +3325,7 @@ function handleActionClick(
   if (
     completeButton
   ) {
-    void completeSchedule(
+    completeSchedule(
       completeButton
     );
 
@@ -2819,43 +3347,118 @@ function handleActionClick(
   if (
     cancelButton
   ) {
-    void cancelCompletion(
+    cancelCompletion(
       cancelButton
     );
   }
 }
 
-  calendarGrid.addEventListener("click", event => {
-    const target = event.target instanceof Element ? event.target : null;
-    const dateButton = target?.closest("[data-inspection-calendar-date]");
+/* =========================================================
+  월간 달력 날짜 클릭
 
-    if (!dateButton) {
-      return;
-    }
+  처리:
+  - 선택 날짜 변경
+  - 선택 날짜 카드 목록 다시 출력
+  - 다른 달 날짜면 해당 월로 이동
+  - 선택 날짜 목록 위치로 자동 이동
+========================================================= */
 
-    const nextDateValue = String(
-      dateButton.dataset.inspectionCalendarDate || ""
-    ).trim();
-    const nextDate = parseDateValue(nextDateValue);
+calendarGrid.addEventListener(
+  "click",
 
-    if (!nextDate) {
-      return;
-    }
+  event => {
+    const target =
+      event.target instanceof
+        Element
+        ? event.target
+        : null;
 
-    selectedDateValue = nextDateValue;
+
+    const dateButton =
+      target?.closest(
+        "[data-inspection-calendar-date]"
+      );
+
 
     if (
-      nextDate.getFullYear() !== monthCursor.getFullYear() ||
-      nextDate.getMonth() !== monthCursor.getMonth()
+      !dateButton
     ) {
-      monthCursor = new Date(nextDate.getFullYear(), nextDate.getMonth(), 1);
-      refreshStatus();
       return;
     }
 
+
+    const nextDateValue =
+      String(
+        dateButton.dataset
+          .inspectionCalendarDate ||
+        ""
+      ).trim();
+
+
+    const nextDate =
+      parseDateValue(
+        nextDateValue
+      );
+
+
+    if (
+      !nextDate
+    ) {
+      return;
+    }
+
+
+    selectedDateValue =
+      nextDateValue;
+
+
+    /* =====================================================
+      이전 달 또는 다음 달 날짜를 누른 경우
+    ====================================================== */
+
+    if (
+      nextDate.getFullYear() !==
+        monthCursor.getFullYear() ||
+
+      nextDate.getMonth() !==
+        monthCursor.getMonth()
+    ) {
+      monthCursor =
+        new Date(
+          nextDate.getFullYear(),
+          nextDate.getMonth(),
+          1
+        );
+
+
+      void refreshStatus()
+        .then(
+          () => {
+            focusInspectionCalendarSelectedSection();
+          }
+        );
+
+
+      return;
+    }
+
+
+    /* =====================================================
+      현재 달 날짜를 누른 경우
+    ====================================================== */
+
     renderCalendar();
+
     renderSelectedDate();
-  });
+
+
+    window.requestAnimationFrame(
+      () => {
+        focusInspectionCalendarSelectedSection();
+      }
+    );
+  }
+);
 
   previousButton?.addEventListener("click", () => {
     monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1);

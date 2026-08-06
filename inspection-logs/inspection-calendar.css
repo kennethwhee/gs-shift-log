@@ -1157,3 +1157,1032 @@
 
   cursor: help;
 }
+
+/* =========================================================
+  선택 날짜 점검 목록 최종 디자인
+
+  구성:
+  - 선택 날짜 제목
+  - 전체·미완료·완료 현황
+  - 점검 일정 카드
+  - 자동완료 근거
+  - 수동완료 및 완료 처리 버튼
+========================================================= */
+
+
+/* =========================================================
+  선택 날짜 전체 영역
+========================================================= */
+
+.inspection-calendar-selected {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  width: 100%;
+  margin-top: 18px;
+  padding: 0;
+
+  scroll-margin-top: 18px;
+}
+
+
+/* 날짜 클릭 후 강조 효과 */
+
+.inspection-calendar-selected.is-focus-pulse {
+  animation:
+    inspectionCalendarSelectedPulse
+    0.9s
+    ease;
+}
+
+
+@keyframes inspectionCalendarSelectedPulse {
+  0% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+
+  35% {
+    transform: translateY(-2px);
+    filter: brightness(1.025);
+  }
+
+  100% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+}
+
+
+/* =========================================================
+  선택 날짜 제목 영역
+========================================================= */
+
+.inspection-calendar-selected__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+
+  min-width: 0;
+  padding: 17px 18px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f8fbff 0%,
+      #f3f7fd 100%
+    );
+
+  border: 1px solid #d8e3f1;
+  border-radius: 13px;
+  box-shadow:
+    0 5px 15px
+    rgba(26, 60, 104, 0.06);
+}
+
+
+.inspection-calendar-selected__heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+
+  min-width: 0;
+}
+
+
+.inspection-calendar-selected__eyebrow {
+  margin: 0;
+
+  color: #2d68b8;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.16em;
+}
+
+
+#inspectionCalendarSelectedTitle {
+  display: block;
+
+  max-width: 100%;
+  margin: 0;
+
+  color: #17253c;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.35;
+
+  overflow-wrap: anywhere;
+}
+
+
+#inspectionCalendarSelectedSummary {
+  display: block;
+
+  max-width: 100%;
+  margin-top: 1px;
+
+  color: #718096;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+  전체·미완료·완료 숫자
+========================================================= */
+
+.inspection-calendar-selected__counts {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+
+  flex: 0 0 auto;
+}
+
+
+.inspection-calendar-selected__counts > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+
+  min-height: 32px;
+  padding: 6px 10px;
+
+  border: 1px solid transparent;
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+
+.inspection-calendar-selected__counts > span b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 850;
+}
+
+
+.inspection-calendar-selected__counts .is-total {
+  color: #235b9f;
+  background: #edf5ff;
+  border-color: #cfe0f7;
+}
+
+
+.inspection-calendar-selected__counts .is-pending {
+  color: #b4483d;
+  background: #fff2f0;
+  border-color: #f2cbc6;
+}
+
+
+.inspection-calendar-selected__counts .is-completed {
+  color: #237149;
+  background: #ebf8f1;
+  border-color: #c5e8d4;
+}
+
+
+/* =========================================================
+  선택 날짜 카드 목록
+========================================================= */
+
+.inspection-calendar-selected-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+
+  width: 100%;
+  min-width: 0;
+}
+
+
+/* =========================================================
+  점검 카드 기본형
+========================================================= */
+
+.inspection-calendar-selected-item {
+  position: relative;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 13px;
+
+  width: 100%;
+  min-width: 0;
+  padding: 16px 17px;
+
+  background: #ffffff;
+  border: 1px solid #d8e1ed;
+  border-left: 4px solid #8ba4c4;
+  border-radius: 12px;
+
+  box-shadow:
+    0 4px 12px
+    rgba(25, 53, 89, 0.055);
+
+  overflow: hidden;
+}
+
+
+/* 예정 */
+
+.inspection-calendar-selected-item.is-scheduled {
+  background: #ffffff;
+  border-left-color: #477fca;
+}
+
+
+/* 오늘 예정 */
+
+.inspection-calendar-selected-item.is-today {
+  background: #fffdf7;
+  border-color: #eedfb2;
+  border-left-color: #d59d1d;
+}
+
+
+/* 지연 */
+
+.inspection-calendar-selected-item.is-overdue {
+  background: #fff8f7;
+  border-color: #efc7c2;
+  border-left-color: #d6584d;
+}
+
+
+/* 조건 확인 */
+
+.inspection-calendar-selected-item.is-conditional {
+  background: #fbf8ff;
+  border-color: #dfd0f0;
+  border-left-color: #8858b8;
+}
+
+
+/* 참고 */
+
+.inspection-calendar-selected-item.is-reference {
+  background: #f8fafc;
+  border-color: #dce3eb;
+  border-left-color: #8897a9;
+}
+
+
+/* 완료 */
+
+.inspection-calendar-selected-item.is-completed {
+  background:
+    linear-gradient(
+      135deg,
+      #f5fcf8 0%,
+      #f8fdfb 100%
+    );
+
+  border-color: #c7e5d4;
+  border-left-color: #36a36c;
+}
+
+
+/* 업무일지 자동완료 카드 */
+
+.inspection-calendar-selected-item.is-automatic-completion {
+  border-left-color: #249a63;
+}
+
+
+/* =========================================================
+  카드 본문
+========================================================= */
+
+.inspection-calendar-selected-item__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+
+  min-width: 0;
+}
+
+
+.inspection-calendar-selected-item__badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+
+  min-width: 0;
+}
+
+
+/* =========================================================
+  주기 구분 배지
+========================================================= */
+
+.inspection-calendar-category,
+.inspection-calendar-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 22px;
+  padding: 4px 8px;
+
+  border: 1px solid transparent;
+  border-radius: 999px;
+
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+
+.inspection-calendar-category {
+  color: #365b8c;
+  background: #edf4fd;
+  border-color: #cfdef1;
+}
+
+
+.inspection-calendar-category.is-daily {
+  color: #9a5c05;
+  background: #fff5df;
+  border-color: #efd8a9;
+}
+
+
+.inspection-calendar-category.is-weekly {
+  color: #247247;
+  background: #ebf8f0;
+  border-color: #c7e5d3;
+}
+
+
+.inspection-calendar-category.is-monthly {
+  color: #6f45a2;
+  background: #f4edfc;
+  border-color: #ddcef0;
+}
+
+
+.inspection-calendar-category.is-quarterly {
+  color: #9a4a55;
+  background: #fff0f2;
+  border-color: #efccd1;
+}
+
+
+.inspection-calendar-category.is-other {
+  color: #52647b;
+  background: #f1f4f8;
+  border-color: #d7dfe8;
+}
+
+
+/* =========================================================
+  상태 배지
+========================================================= */
+
+.inspection-calendar-state {
+  color: #53657d;
+  background: #f3f6f9;
+  border-color: #dbe2e9;
+}
+
+
+.inspection-calendar-state.is-completed {
+  color: #1f7b4b;
+  background: #eaf8f0;
+  border-color: #bfe4ce;
+}
+
+
+.inspection-calendar-state.is-overdue {
+  color: #b23e35;
+  background: #fff0ee;
+  border-color: #f0c3be;
+}
+
+
+.inspection-calendar-state.is-today {
+  color: #a46900;
+  background: #fff4d9;
+  border-color: #ebd29c;
+}
+
+
+.inspection-calendar-state.is-conditional {
+  color: #7543a5;
+  background: #f5edfc;
+  border-color: #decdf0;
+}
+
+
+.inspection-calendar-state.is-reference {
+  color: #5d6b7d;
+  background: #f0f3f6;
+  border-color: #d5dde6;
+}
+
+
+/* =========================================================
+  점검명
+========================================================= */
+
+.inspection-calendar-selected-item__title {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+
+  color: #172943;
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.45;
+  letter-spacing: -0.015em;
+
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+
+/* =========================================================
+  근무·위치·주기
+========================================================= */
+
+.inspection-calendar-selected-item__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+
+  width: 100%;
+  min-width: 0;
+
+  color: #65758a;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+
+.inspection-calendar-selected-item__meta span {
+  position: relative;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  min-width: 0;
+}
+
+
+.inspection-calendar-selected-item__meta span:not(:last-child)::after {
+  content: "";
+
+  position: absolute;
+  top: 50%;
+  right: -8px;
+
+  width: 3px;
+  height: 3px;
+
+  background: #a9b6c6;
+  border-radius: 50%;
+
+  transform: translateY(-50%);
+}
+
+
+.inspection-calendar-selected-item__meta b {
+  color: #42536a;
+  font-weight: 800;
+}
+
+
+/* =========================================================
+  참고사항
+========================================================= */
+
+.inspection-calendar-selected-item__note {
+  width: 100%;
+  margin: 1px 0 0;
+  padding: 8px 10px;
+
+  color: #765117;
+  background: #fff9e9;
+  border: 1px solid #f0e0b8;
+  border-radius: 8px;
+
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.55;
+
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+
+/* =========================================================
+  카드 하단 영역
+========================================================= */
+
+.inspection-calendar-selected-item__footer {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  align-items: end;
+  gap: 10px;
+
+  min-width: 0;
+  padding-top: 12px;
+
+  border-top: 1px solid #e4eaf1;
+}
+
+
+.inspection-calendar-selected-item__result {
+  min-width: 0;
+}
+
+
+.inspection-calendar-selected-item__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  min-width: 0;
+}
+
+
+/* =========================================================
+  자동완료·수동완료 정보
+========================================================= */
+
+.inspection-calendar-completion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  width: 100%;
+  min-width: 0;
+  padding: 11px 12px;
+
+  border: 1px solid;
+  border-radius: 9px;
+}
+
+
+.inspection-calendar-completion.is-automatic {
+  color: #205f41;
+  background: #ecf9f2;
+  border-color: #c3e7d2;
+}
+
+
+.inspection-calendar-completion.is-manual {
+  color: #315c92;
+  background: #eff6ff;
+  border-color: #cbdcf2;
+}
+
+
+.inspection-calendar-completion__heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 9px;
+
+  min-width: 0;
+}
+
+
+.inspection-calendar-completion__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 23px;
+  padding: 4px 8px;
+
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+
+.inspection-calendar-completion__meta {
+  min-width: 0;
+
+  color: #5e6d7e;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.45;
+
+  overflow-wrap: anywhere;
+}
+
+
+/* 자동완료 근거 문구 */
+
+.inspection-calendar-completion__source-text {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px;
+
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 9px;
+
+  color: #33465d;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(61, 133, 94, 0.2);
+  border-radius: 7px;
+
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+
+.inspection-calendar-completion__source-text b {
+  color: #23714a;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+
+.inspection-calendar-completion__source-text span {
+  min-width: 0;
+
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+
+/* 완료 하단 버튼·안내 */
+
+.inspection-calendar-completion__footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px 10px;
+
+  min-width: 0;
+}
+
+
+.inspection-calendar-completion__guide {
+  flex: 1 1 260px;
+  min-width: 0;
+
+  color: #6d7b8b;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+  버튼 공통
+========================================================= */
+
+.inspection-calendar-complete-button,
+.inspection-calendar-cancel-button,
+.inspection-calendar-log-button,
+.inspection-calendar-source-log-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+
+  min-height: 34px;
+  padding: 7px 11px;
+
+  border: 1px solid;
+  border-radius: 7px;
+
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+
+  white-space: nowrap;
+  cursor: pointer;
+
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+
+.inspection-calendar-complete-button:hover,
+.inspection-calendar-cancel-button:hover,
+.inspection-calendar-log-button:hover,
+.inspection-calendar-source-log-button:hover {
+  transform: translateY(-1px);
+}
+
+
+.inspection-calendar-complete-button:active,
+.inspection-calendar-cancel-button:active,
+.inspection-calendar-log-button:active,
+.inspection-calendar-source-log-button:active {
+  transform: translateY(0);
+}
+
+
+.inspection-calendar-complete-button {
+  color: #ffffff;
+  background: #2871c7;
+  border-color: #2871c7;
+  box-shadow:
+    0 3px 8px
+    rgba(40, 113, 199, 0.18);
+}
+
+
+.inspection-calendar-complete-button:hover {
+  background: #205fa9;
+  border-color: #205fa9;
+}
+
+
+.inspection-calendar-log-button {
+  color: #255f9f;
+  background: #ffffff;
+  border-color: #b8d0eb;
+}
+
+
+.inspection-calendar-log-button:hover {
+  background: #edf6ff;
+  border-color: #8fb6df;
+}
+
+
+.inspection-calendar-source-log-button {
+  color: #176943;
+  background: #ffffff;
+  border-color: #9fd0b4;
+}
+
+
+.inspection-calendar-source-log-button:hover {
+  background: #f3fcf7;
+  border-color: #75ba93;
+}
+
+
+.inspection-calendar-cancel-button {
+  color: #b44339;
+  background: #ffffff;
+  border-color: #e7aea8;
+}
+
+
+.inspection-calendar-cancel-button:hover {
+  background: #fff3f2;
+  border-color: #d9877f;
+}
+
+
+/* 타부서 참고 */
+
+.inspection-calendar-reference {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 30px;
+  padding: 6px 10px;
+
+  color: #5f6e80;
+  background: #f0f3f7;
+  border: 1px solid #d5dde6;
+  border-radius: 7px;
+
+  font-size: 11px;
+  font-weight: 750;
+}
+
+
+/* =========================================================
+  빈 일정 안내
+========================================================= */
+
+.inspection-calendar-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  min-height: 92px;
+  padding: 20px;
+
+  color: #79889a;
+  background: #f8fafc;
+  border: 1px dashed #cfd9e5;
+  border-radius: 11px;
+
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.55;
+  text-align: center;
+}
+
+
+/* =========================================================
+  태블릿
+========================================================= */
+
+@media (max-width: 900px) {
+
+  .inspection-calendar-selected__header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+
+  .inspection-calendar-selected__counts {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+
+  .inspection-calendar-selected-item__footer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+
+  .inspection-calendar-selected-item__actions {
+    justify-content: flex-start;
+  }
+
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 640px) {
+
+  .inspection-calendar-selected {
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+
+  .inspection-calendar-selected__header {
+    padding: 14px;
+    border-radius: 10px;
+  }
+
+
+  #inspectionCalendarSelectedTitle {
+    font-size: 16px;
+  }
+
+
+  .inspection-calendar-selected__counts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+
+  .inspection-calendar-selected__counts > span {
+    width: 100%;
+    min-width: 0;
+    padding: 6px 5px;
+  }
+
+
+  .inspection-calendar-selected-item {
+    gap: 11px;
+    padding: 14px 13px;
+    border-radius: 10px;
+  }
+
+
+  .inspection-calendar-selected-item__title {
+    font-size: 14px;
+  }
+
+
+  .inspection-calendar-selected-item__meta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+  }
+
+
+  .inspection-calendar-selected-item__meta span {
+    width: 100%;
+  }
+
+
+  .inspection-calendar-selected-item__meta span::after {
+    display: none;
+  }
+
+
+  .inspection-calendar-completion__source-text {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+  }
+
+
+  .inspection-calendar-completion__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+
+  .inspection-calendar-completion__guide {
+    flex: initial;
+    width: 100%;
+  }
+
+
+  .inspection-calendar-selected-item__actions {
+    width: 100%;
+  }
+
+
+  .inspection-calendar-complete-button,
+  .inspection-calendar-cancel-button,
+  .inspection-calendar-log-button,
+  .inspection-calendar-source-log-button {
+    width: 100%;
+    min-height: 38px;
+  }
+
+}
+
+
+/* =========================================================
+  모션 최소화 설정
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  .inspection-calendar-selected.is-focus-pulse {
+    animation: none;
+  }
+
+
+  .inspection-calendar-complete-button,
+  .inspection-calendar-cancel-button,
+  .inspection-calendar-log-button,
+  .inspection-calendar-source-log-button {
+    transition: none;
+  }
+
+}
