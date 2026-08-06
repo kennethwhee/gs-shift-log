@@ -131054,14 +131054,17 @@ function calculateMorningMeetingDynamicRowHeight(
   );
 }
 
-/* =====================================================
+/* =========================================================
   기존 팀 행의 서식을 복제해서 새 행 생성
 
-  적용:
-  - 기존 테두리·배경·셀 스타일 유지
+  보완:
+  - 원본 행에 B열 셀이 없으면 자동 생성
+  - 같은 행의 가까운 셀 서식을 우선 사용
+  - 같은 행에 서식이 없으면 주변 행의 B열 서식 사용
+  - 서식 기준이 없어도 기본 셀로 계속 생성
   - 긴 문장은 행 높이 자동 증가
-  - B:AD 병합 영역에 내용 입력
-===================================================== */
+  - B열 병합 영역에 내용 입력
+========================================================= */
 
 function cloneMorningMeetingDynamicRow(
   worksheetDocument,
@@ -131069,6 +131072,26 @@ function cloneMorningMeetingDynamicRow(
   targetRowNumber,
   text
 ) {
+  if (
+    !worksheetDocument ||
+    !templateRowElement
+  ) {
+    throw new Error(
+      `행 ${targetRowNumber}을 만들 기준 행이 없습니다.`
+    );
+  }
+
+
+  /*
+    주변 행 서식을 찾을 때 사용할
+    원본 기준 행 번호
+  */
+  const templateRowNumber =
+    getMorningMeetingRowNumber(
+      templateRowElement
+    );
+
+
   const rowElement =
     templateRowElement.cloneNode(
       true
@@ -131086,7 +131109,6 @@ function cloneMorningMeetingDynamicRow(
   /*
     원본 행이 숨김 처리된 경우 해제
   */
-
   rowElement.removeAttribute(
     "hidden"
   );
@@ -131095,7 +131117,6 @@ function cloneMorningMeetingDynamicRow(
   /*
     긴 문장 행 높이 자동 계산
   */
-
   const calculatedRowHeight =
     calculateMorningMeetingDynamicRowHeight(
       text
@@ -131117,6 +131138,9 @@ function cloneMorningMeetingDynamicRow(
   );
 
 
+  /*
+    복제된 기존 셀의 행 번호 변경
+  */
   const cellElements =
     getMorningMeetingDirectXmlChildren(
       rowElement,
@@ -131146,7 +131170,10 @@ function cloneMorningMeetingDynamicRow(
   );
 
 
-  const columnBCell =
+  /*
+    복제된 행에서 B열 셀 확인
+  */
+  let columnBCell =
     cellElements.find(
       cellElement => {
         return (
@@ -131158,18 +131185,319 @@ function cloneMorningMeetingDynamicRow(
           "B"
         );
       }
-    );
+    ) ||
+    null;
 
+
+  /* =====================================================
+    B열 셀이 없는 빈 행 보완
+  ====================================================== */
 
   if (
     !columnBCell
   ) {
-    throw new Error(
-      `행 ${targetRowNumber}의 B열 서식 기준을 찾지 못했습니다.`
+    const columnBNumber =
+      getMorningMeetingColumnNumber(
+        "B"
+      );
+
+
+    /*
+      1순위:
+      같은 행에서 B열과 가장 가까우며
+      서식 번호가 있는 셀을 찾는다.
+    */
+    const sameRowStyleCandidates =
+      cellElements
+        .map(
+          cellElement => {
+            const columnName =
+              getMorningMeetingCellColumn(
+                cellElement.getAttribute(
+                  "r"
+                )
+              );
+
+
+            const columnNumber =
+              getMorningMeetingColumnNumber(
+                columnName
+              );
+
+
+            return {
+              cellElement,
+              columnNumber,
+              distance:
+                Number.isFinite(
+                  columnNumber
+                )
+                  ? Math.abs(
+                      columnNumber -
+                      columnBNumber
+                    )
+                  : Number.MAX_SAFE_INTEGER
+            };
+          }
+        )
+        .filter(
+          candidate => {
+            return (
+              candidate.cellElement
+                .hasAttribute(
+                  "s"
+                ) &&
+              Number.isFinite(
+                candidate.columnNumber
+              )
+            );
+          }
+        )
+        .sort(
+          (
+            firstCandidate,
+            secondCandidate
+          ) => {
+            return (
+              firstCandidate.distance -
+              secondCandidate.distance
+            );
+          }
+        );
+
+
+    let styleSourceCell =
+      sameRowStyleCandidates[
+        0
+      ]?.cellElement ||
+      null;
+
+
+    /*
+      2순위:
+      같은 행에 서식 셀이 없으면
+      원본 기준 행과 가까운 행의 B열 셀을 찾는다.
+    */
+    if (
+      !styleSourceCell
+    ) {
+      const sheetDataElement =
+        templateRowElement.parentNode;
+
+
+      const nearbyRows =
+        sheetDataElement
+          ? getMorningMeetingDirectXmlChildren(
+              sheetDataElement,
+              "row"
+            )
+              .map(
+                rowCandidate => {
+                  const rowNumber =
+                    getMorningMeetingRowNumber(
+                      rowCandidate
+                    );
+
+
+                  return {
+                    rowElement:
+                      rowCandidate,
+
+                    rowNumber,
+
+                    distance:
+                      Math.abs(
+                        rowNumber -
+                        templateRowNumber
+                      )
+                  };
+                }
+              )
+              .filter(
+                rowCandidate => {
+                  return (
+                    Number.isFinite(
+                      rowCandidate.rowNumber
+                    ) &&
+                    rowCandidate.rowNumber !==
+                      templateRowNumber
+                  );
+                }
+              )
+              .sort(
+                (
+                  firstRow,
+                  secondRow
+                ) => {
+                  /*
+                    가까운 행 우선
+
+                    거리가 같으면 위쪽 행을 먼저 사용
+                  */
+                  if (
+                    firstRow.distance !==
+                    secondRow.distance
+                  ) {
+                    return (
+                      firstRow.distance -
+                      secondRow.distance
+                    );
+                  }
+
+
+                  return (
+                    firstRow.rowNumber -
+                    secondRow.rowNumber
+                  );
+                }
+              )
+          : [];
+
+
+      for (
+        const nearbyRow of
+        nearbyRows
+      ) {
+        const nearbyBCell =
+          getMorningMeetingDirectXmlChildren(
+            nearbyRow.rowElement,
+            "c"
+          )
+            .find(
+              cellElement => {
+                return (
+                  getMorningMeetingCellColumn(
+                    cellElement.getAttribute(
+                      "r"
+                    )
+                  ) ===
+                  "B"
+                );
+              }
+            ) ||
+          null;
+
+
+        if (
+          nearbyBCell
+        ) {
+          styleSourceCell =
+            nearbyBCell;
+
+
+          break;
+        }
+      }
+    }
+
+
+    /*
+      B열 셀 신규 생성
+    */
+    columnBCell =
+      worksheetDocument.createElementNS(
+        MAIN_XML_NAMESPACE,
+        "c"
+      );
+
+
+    columnBCell.setAttribute(
+      "r",
+      `B${targetRowNumber}`
+    );
+
+
+    /*
+      찾은 셀의 서식 번호만 복사한다.
+
+      값·수식·공유문자열 번호는 복사하지 않는다.
+    */
+    const sourceStyleIndex =
+      String(
+        styleSourceCell?.getAttribute(
+          "s"
+        ) ||
+        templateRowElement.getAttribute(
+          "s"
+        ) ||
+        ""
+      ).trim();
+
+
+    if (
+      sourceStyleIndex
+    ) {
+      columnBCell.setAttribute(
+        "s",
+        sourceStyleIndex
+      );
+    }
+
+
+    /*
+      워크시트 XML 셀은 열 순서대로 배치한다.
+
+      A셀 다음, C셀 이전 위치에
+      새 B셀을 삽입한다.
+    */
+    const firstCellAfterColumnB =
+      cellElements.find(
+        cellElement => {
+          const columnName =
+            getMorningMeetingCellColumn(
+              cellElement.getAttribute(
+                "r"
+              )
+            );
+
+
+          const columnNumber =
+            getMorningMeetingColumnNumber(
+              columnName
+            );
+
+
+          return (
+            Number.isFinite(
+              columnNumber
+            ) &&
+            columnNumber >
+              columnBNumber
+          );
+        }
+      ) ||
+      null;
+
+
+    rowElement.insertBefore(
+      columnBCell,
+      firstCellAfterColumnB
+    );
+
+
+    console.warn(
+      `오전회의 행 ${targetRowNumber}: B열 셀이 없어 자동 생성했습니다.`,
+      {
+        templateRowNumber,
+
+        styleSource:
+          styleSourceCell?.getAttribute(
+            "r"
+          ) ||
+          "기본 서식",
+
+        styleIndex:
+          sourceStyleIndex ||
+          "없음"
+      }
     );
   }
 
 
+  /*
+    새로 생성하거나 기존에 있던 B셀에
+    실제 내용을 입력한다.
+  */
   setMorningMeetingDynamicCellText(
     worksheetDocument,
     columnBCell,
