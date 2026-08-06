@@ -104305,10 +104305,6 @@ function getArmRollBoxElements() {
 
     alertMessage:
       byId(
-        ),
-
-    alertMessage:
-      byId(
         "armRollBoxThresholdAlertMessage"
       ),
 
@@ -104322,16 +104318,15 @@ function getArmRollBoxElements() {
         "armRollBoxTrendChart"
       ),
 
-dailyCount:
-  byId(
-    "armRollBoxDailyCount"
-  ),
+    dailyCount:
+      byId(
+        "armRollBoxDailyCount"
+      ),
 
-dailyCompactBody:
-  byId(
-    "armRollBoxDailyCompactTableBody"
-  ),
-
+    dailyCompactBody:
+      byId(
+        "armRollBoxDailyCompactTableBody"
+      ),
 
     replacementCount:
       byId(
@@ -104354,7 +104349,6 @@ dailyCompactBody:
       )
   };
 }
-
 
   /* =====================================================
     HTML 특수문자 처리
@@ -107127,9 +107121,24 @@ function renderArmRollBoxWarnings(
   날짜별 기록 표
 ===================================================== */
 
-function createArmRollBoxUnitMetricCell(
-  record
+/* =====================================================
+  날짜별 BOX 레벨 통합표
+
+  표시:
+  일자 | 1호기 ARM | 1호기 SCRAP | 2호기 ARM | 2호기 SCRAP
+===================================================== */
+
+function createArmRollBoxCompactDailyMetricCell(
+  record,
+  type
 ) {
+  const typeClass =
+    type ===
+      "scrap"
+      ? "is-scrap"
+      : "is-arm-roll";
+
+
   if (
     !record ||
     !hasArmRollBoxNumericValue(
@@ -107139,328 +107148,181 @@ function createArmRollBoxUnitMetricCell(
     return `
       <td
         class="
-          arm-roll-box-unit-metric-cell
+          arm-roll-box-compact-metric-cell
+          ${typeClass}
           is-empty
         "
       >
         <strong>-</strong>
+        <small>기록 없음</small>
       </td>
     `;
   }
 
-  const classes = [
-    "arm-roll-box-unit-metric-cell"
-  ];
 
-  if (
-    Number(record.level) >=
-    WARNING_LEVEL
-  ) {
-    classes.push(
-      "is-warning"
+  const level =
+    Number(
+      record.level
     );
-  } else {
-    classes.push(
-      "is-normal"
-    );
-  }
 
-  const changeText =
+
+  const levelClass =
+    level >=
+      WARNING_LEVEL
+      ? "is-warning"
+      : level >=
+          REPLACEMENT_RECOMMEND_LEVEL
+        ? "is-request"
+        : "is-normal";
+
+
+  const hasDelta =
     hasArmRollBoxNumericValue(
       record.delta
-    )
-      ? `${record.dayGap}일간 ${formatArmRollBoxSigned(
-          record.delta
-        )}`
-      : "비교 기록 없음";
+    );
 
-  const averageText =
+
+  const hasAverage =
     hasArmRollBoxNumericValue(
       record.averagePerDay
-    )
+    );
+
+
+  const deltaText =
+    hasDelta
+      ? formatArmRollBoxSigned(
+          record.delta
+        )
+      : "";
+
+
+  const averageText =
+    hasAverage
       ? `${formatArmRollBoxSigned(
           record.averagePerDay
         )}/일`
       : "";
 
+
+  const dayGap =
+    Number(
+      record.dayGap
+    );
+
+
+  const detailText = [
+    Number.isFinite(
+      dayGap
+    ) &&
+    dayGap >
+      0
+      ? `${dayGap}일간`
+      : "",
+
+    deltaText,
+
+    averageText
+  ]
+    .filter(
+      Boolean
+    )
+    .join(
+      " · "
+    ) ||
+    "비교 기록 없음";
+
+
+  const statusLabel =
+    level >=
+      WARNING_LEVEL
+      ? "경고"
+      : level >=
+          REPLACEMENT_RECOMMEND_LEVEL
+        ? "요청"
+        : "";
+
+
   return `
-    <td class="${classes.join(" ")}">
-      <strong>
-        ${escapeArmRollBoxHtml(
-          formatArmRollBoxNumber(
-            record.level
-          )
-        )}%
-      </strong>
+    <td
+      class="
+        arm-roll-box-compact-metric-cell
+        ${typeClass}
+        ${levelClass}
+      "
+      title="${escapeArmRollBoxHtml(
+        `${formatArmRollBoxNumber(
+          level
+        )}% · ${detailText}`
+      )}"
+    >
+      <div
+        class="arm-roll-box-compact-level-row"
+      >
+        <strong>
+          ${escapeArmRollBoxHtml(
+            formatArmRollBoxNumber(
+              level
+            )
+          )}%
+        </strong>
+
+        ${
+          statusLabel
+            ? `
+                <i>
+                  ${escapeArmRollBoxHtml(
+                    statusLabel
+                  )}
+                </i>
+              `
+            : ""
+        }
+      </div>
 
       <small>
-        ${escapeArmRollBoxHtml(
-          changeText
-        )}
+        ${
+          hasDelta
+            ? `
+                <span>
+                  ${escapeArmRollBoxHtml(
+                    deltaText
+                  )}
+                </span>
+              `
+            : ""
+        }
+
+        ${
+          hasAverage
+            ? `
+                <span>
+                  ${escapeArmRollBoxHtml(
+                    averageText
+                  )}
+                </span>
+              `
+            : ""
+        }
+
+        ${
+          !hasDelta &&
+          !hasAverage
+            ? "비교 없음"
+            : ""
+        }
       </small>
-
-      ${
-        averageText
-          ? `
-            <em>
-              ${escapeArmRollBoxHtml(
-                averageText
-              )}
-            </em>
-          `
-          : ""
-      }
     </td>
   `;
 }
 
-/* =====================================================
-  호기별 교체 표시 셀
 
-  표시 예:
-  - ARM ROLL 교체
-  - SCRAP 교체
-  - ARM ROLL 교체 의심
-  - SCRAP 교체 의심
-
-  같은 날짜에 두 BOX가 모두 교체된 경우:
-  ARM ROLL 교체
-  SCRAP 교체
-===================================================== */
-
-function createArmRollBoxUnitEventCell(
-  row,
-  unit
-) {
-  const events =
-    state.replacementEvents.filter(
-      event => {
-        return (
-          event.date ===
-            row.date &&
-          event.unit ===
-            unit
-        );
-      }
-    );
-
-
-  if (
-    !events.length
-  ) {
-    return `
-      <td class="arm-roll-box-unit-event-cell">
-        -
-      </td>
-    `;
-  }
-
-
-  /*
-    같은 날짜·같은 BOX·같은 판정이
-    여러 업무일지에서 중복 검출된 경우
-    한 번만 표시한다.
-  */
-  const uniqueEvents =
-    events.filter(
-      (
-        event,
-        eventIndex,
-        eventList
-      ) => {
-        return (
-          eventList.findIndex(
-            compareEvent => {
-              return (
-                compareEvent.target ===
-                  event.target &&
-                compareEvent.detectionType ===
-                  event.detectionType
-              );
-            }
-          ) ===
-          eventIndex
-        );
-      }
-    );
-
-
-  const getEventBoxLabel = (
-    event
-  ) => {
-    const target =
-      String(
-        event?.target ||
-        event?.baseTarget ||
-        ""
-      ).trim();
-
-
-    if (
-      target ===
-        "armRoll" ||
-      target ===
-        "armRollUnit2" ||
-      target ===
-        "armRollBox"
-    ) {
-      return "ARM ROLL";
-    }
-
-
-    if (
-      target ===
-        "scrap" ||
-      target ===
-        "scrapUnit2" ||
-      target ===
-        "scrapBox"
-    ) {
-      return "SCRAP";
-    }
-
-
-    /*
-      target 값이 예상과 다를 경우에도
-      기존 라벨 함수로 최대한 보완한다.
-    */
-    const fullLabel =
-      String(
-        getArmRollBoxTargetLabel(
-          target
-        ) ||
-        ""
-      )
-        .replace(
-          /^\s*[12]호기\s*/i,
-          ""
-        )
-        .replace(
-          /\s*BOX\s*$/i,
-          ""
-        )
-        .trim();
-
-
-    return (
-      fullLabel ||
-      "BOX"
-    );
-  };
-
-
-  return `
-    <td class="arm-roll-box-unit-event-cell">
-      ${uniqueEvents
-        .map(
-          event => {
-            const isConfirmed =
-              event.detectionType ===
-              "confirmed";
-
-
-            const className =
-              isConfirmed
-                ? "is-replacement"
-                : "is-suspected";
-
-
-            const boxLabel =
-              getEventBoxLabel(
-                event
-              );
-
-
-            const stateLabel =
-              isConfirmed
-                ? "교체"
-                : "교체 의심";
-
-
-            const sourceText =
-              String(
-                event?.sourceText ||
-                ""
-              ).trim();
-
-
-return `
-  <span
-    class="${className}"
-    ${
-      sourceText
-        ? `
-          title="${escapeArmRollBoxHtml(
-            sourceText
-          )}"
-        `
-        : ""
-    }
-    style="
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      line-height:1.15;
-      gap:2px;
-    "
-  >
-
-    <strong
-      style="
-        font-size:11px;
-        font-weight:800;
-        white-space:nowrap;
-      "
-    >
-      ${escapeArmRollBoxHtml(
-        boxLabel
-      )}
-    </strong>
-
-    <span
-      style="
-        font-size:10px;
-        font-weight:700;
-      "
-    >
-      ${escapeArmRollBoxHtml(
-        stateLabel
-      )}
-    </span>
-
-  </span>
-`;
-          }
-        )
-        .join("<br>")}
-    </td>
-  `;
-}
-
-/* =========================================================
-  ARM ROLL · SCRAP BOX 호기별 날짜 목록 출력
-
-  날짜 표시:
-  2026
-  08-02
-
-  - 날짜를 연도와 월-일로 분리
-  - 날짜 글씨 확대용 요소 추가
-  - 기존 ARM ROLL / SCRAP / 교체 기능 유지
-========================================================= */
-
-function renderArmRollBoxUnitDailyRows(
-  unit
-) {
+function renderArmRollBoxDailyTable() {
   const elements =
     getArmRollBoxElements();
 
 
   const body =
-    unit === 1
-      ? elements.dailyBodyUnit1
-      : elements.dailyBodyUnit2;
+    elements.dailyCompactBody;
 
 
   if (
@@ -107470,53 +107332,33 @@ function renderArmRollBoxUnitDailyRows(
   }
 
 
-  const armRollKey =
-    unit === 1
-      ? "armRoll"
-      : "armRollUnit2";
-
-
-  const scrapKey =
-    unit === 1
-      ? "scrap"
-      : "scrapUnit2";
-
-
+  /*
+    네 종류 가운데 실제 레벨값이
+    하나라도 있는 날짜만 표시한다.
+  */
   const rows =
-    [
-      ...state.dailyRows
-    ]
+    (
+      Array.isArray(
+        state.dailyRows
+      )
+        ? [
+            ...state.dailyRows
+          ]
+        : []
+    )
       .filter(
         row => {
-          const hasRecord =
-            Boolean(
-              row[
-                armRollKey
-              ]
-            ) ||
-            Boolean(
-              row[
-                scrapKey
-              ]
-            );
-
-
-          const hasEvent =
-            state.replacementEvents.some(
-              event => {
-                return (
-                  event.date ===
-                    row.date &&
-                  event.unit ===
-                    unit
-                );
-              }
-            );
-
-
-          return (
-            hasRecord ||
-            hasEvent
+          return [
+            row?.armRoll,
+            row?.scrap,
+            row?.armRollUnit2,
+            row?.scrapUnit2
+          ].some(
+            record => {
+              return hasArmRollBoxNumericValue(
+                record?.level
+              );
+            }
           );
         }
       )
@@ -107524,15 +107366,24 @@ function renderArmRollBoxUnitDailyRows(
 
 
   if (
+    elements.dailyCount
+  ) {
+    elements.dailyCount.textContent =
+      `${rows.length}일`;
+  }
+
+
+  if (
     !rows.length
   ) {
     body.innerHTML = `
       <tr class="arm-roll-box-empty-table-row">
-        <td colspan="4">
+        <td colspan="5">
           조회된 BOX 레벨 기록이 없습니다.
         </td>
       </tr>
     `;
+
 
     return;
   }
@@ -107549,282 +107400,500 @@ function renderArmRollBoxUnitDailyRows(
             ).trim();
 
 
-          /*
-            YYYY-MM-DD 형식 분리
-
-            예:
-            2026-08-02
-
-            yearText:
-            2026
-
-            monthDayText:
-            08-02
-          */
           const dateMatch =
             fullDate.match(
-              /^(\d{4})-(\d{2}-\d{2})$/
+              /^(\d{4})-(\d{2})-(\d{2})$/
             );
 
 
           const yearText =
             dateMatch
-              ? dateMatch[1]
-              : fullDate;
+              ? dateMatch[1].slice(
+                  2
+                )
+              : "";
 
 
           const monthDayText =
             dateMatch
-              ? dateMatch[2]
-              : "";
+              ? `${dateMatch[2]}.${dateMatch[3]}`
+              : fullDate;
 
 
           return `
-            <tr class="arm-roll-box-unit-data-row">
+            <tr>
 
-              <td
-                class="arm-roll-box-unit-date-cell"
+              <th
+                scope="row"
+                class="arm-roll-box-compact-date-cell"
                 title="${escapeArmRollBoxHtml(
                   fullDate
                 )}"
               >
-                <span
-                  class="arm-roll-box-unit-date-year"
-                >
+                <small>
                   ${escapeArmRollBoxHtml(
                     yearText
                   )}
-                </span>
+                </small>
 
-                ${
-                  monthDayText
-                    ? `
-                      <strong
-                        class="arm-roll-box-unit-date-month-day"
-                      >
-                        ${escapeArmRollBoxHtml(
-                          monthDayText
-                        )}
-                      </strong>
-                    `
-                    : ""
-                }
-              </td>
+                <strong>
+                  ${escapeArmRollBoxHtml(
+                    monthDayText
+                  )}
+                </strong>
+              </th>
 
 
-              ${createArmRollBoxUnitMetricCell(
-                row[
-                  armRollKey
-                ]
+              ${createArmRollBoxCompactDailyMetricCell(
+                row.armRoll,
+                "arm-roll"
               )}
 
 
-              ${createArmRollBoxUnitMetricCell(
-                row[
-                  scrapKey
-                ]
+              ${createArmRollBoxCompactDailyMetricCell(
+                row.scrap,
+                "scrap"
               )}
 
 
-              ${createArmRollBoxUnitEventCell(
-                row,
-                unit
+              ${createArmRollBoxCompactDailyMetricCell(
+                row.armRollUnit2,
+                "arm-roll"
+              )}
+
+
+              ${createArmRollBoxCompactDailyMetricCell(
+                row.scrapUnit2,
+                "scrap"
               )}
 
             </tr>
           `;
         }
       )
-      .join("");
+      .join(
+        ""
+      );
 }
 
-function renderArmRollBoxDailyTable() {
+/* =====================================================
+  교체 이력 · 사용 주기 카드
+
+  PC:
+  - 2열 카드
+
+  모바일:
+  - 1열 카드
+  - 가로 스크롤 없음
+===================================================== */
+
+function renderArmRollBoxReplacementTable() {
   const elements =
     getArmRollBoxElements();
 
+
+  const replacementEvents =
+    Array.isArray(
+      state.replacementEvents
+    )
+      ? [
+          ...state.replacementEvents
+        ]
+      : [];
+
+
   if (
-    elements.dailyCount
+    elements.replacementCount
   ) {
-    elements.dailyCount.textContent =
-      `${state.dailyRows.length}일`;
+    elements.replacementCount.textContent =
+      `${replacementEvents.length}건`;
   }
 
-  renderArmRollBoxUnitDailyRows(
-    1
-  );
 
-  renderArmRollBoxUnitDailyRows(
-    2
-  );
-}
+  const container =
+    elements.replacementBody;
 
-  /* =====================================================
-    교체 이력 표
-  ====================================================== */
 
-  function renderArmRollBoxReplacementTable() {
-    const elements =
-      getArmRollBoxElements();
+  if (
+    !container
+  ) {
+    return;
+  }
+
+
+  if (
+    replacementEvents.length ===
+      0
+  ) {
+    container.innerHTML = `
+      <div class="arm-roll-box-replacement-empty">
+        인식된 BOX 교체 기록이 없습니다.
+      </div>
+    `;
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    날짜 짧게 표시
+
+    2026-08-04
+    → 26.08.04
+  ==================================================== */
+
+  const formatCompactDate = (
+    value
+  ) => {
+    const dateText =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    const match =
+      dateText.match(
+        /^(\d{4})-(\d{2})-(\d{2})$/
+      );
 
 
     if (
-      elements.replacementCount
+      !match
     ) {
-      elements.replacementCount.textContent =
-        `${state.replacementEvents.length}건`;
+      return (
+        dateText ||
+        "-"
+      );
     }
 
 
-    if (
-      !elements.replacementBody
-    ) {
-      return;
-    }
+    return [
+      match[1].slice(
+        2
+      ),
+      match[2],
+      match[3]
+    ].join(
+      "."
+    );
+  };
 
 
-    if (
-      !state.replacementEvents.length
-    ) {
-      elements.replacementBody.innerHTML = `
-        <tr class="arm-roll-box-empty-table-row">
-          <td colspan="8">
-            인식된 BOX 교체 기록이 없습니다.
-          </td>
-        </tr>
-      `;
+  container.innerHTML =
+    replacementEvents
+      .sort(
+        (
+          firstEvent,
+          secondEvent
+        ) => {
+          return String(
+            secondEvent?.date ||
+            ""
+          ).localeCompare(
+            String(
+              firstEvent?.date ||
+              ""
+            )
+          );
+        }
+      )
+      .map(
+        event => {
+          const target =
+            String(
+              event?.target ||
+              ""
+            ).trim();
 
 
-      return;
-    }
+          const unit =
+            Number(
+              event?.unit
+            ) ===
+              2 ||
+            target ===
+              "armRollUnit2" ||
+            target ===
+              "scrapUnit2"
+              ? 2
+              : 1;
 
 
-    elements.replacementBody.innerHTML =
-      [
-        ...state.replacementEvents
-      ]
-        .sort(
-          (
-            firstEvent,
-            secondEvent
-          ) => {
-            return secondEvent.date.localeCompare(
-              firstEvent.date
-            );
-          }
-        )
-        .map(
-          event => {
-            const confirmed =
-              event.detectionType ===
+          const isScrap =
+            target
+              .toLowerCase()
+              .includes(
+                "scrap"
+              );
+
+
+          const boxLabel =
+            isScrap
+              ? "SCRAP"
+              : "ARM ROLL";
+
+
+          const boxClass =
+            isScrap
+              ? "is-scrap"
+              : "is-arm-roll";
+
+
+          const confirmed =
+            event?.detectionType ===
               "confirmed";
 
 
-            return `
-              <tr>
-                <td>
+          const statusClass =
+            confirmed
+              ? "is-confirmed"
+              : "is-suspected";
+
+
+          const statusLabel =
+            confirmed
+              ? "교체 확정"
+              : "교체 의심";
+
+
+          const replacementDate =
+            formatCompactDate(
+              event?.date
+            );
+
+
+          const previousDate =
+            formatCompactDate(
+              event
+                ?.previousReplacementDate
+            );
+
+
+          const usageDays =
+            Number(
+              event?.usageDays
+            ) >
+              0
+              ? `${Number(
+                  event.usageDays
+                )}일`
+              : "-";
+
+
+          const hasPreLevel =
+            hasArmRollBoxNumericValue(
+              event
+                ?.preReplacementLevel
+            );
+
+
+          const hasCycleIncrease =
+            hasArmRollBoxNumericValue(
+              event?.cycleIncrease
+            );
+
+
+          const hasCycleAverage =
+            hasArmRollBoxNumericValue(
+              event?.cycleAverage
+            );
+
+
+          const preLevelText =
+            hasPreLevel
+              ? `${formatArmRollBoxNumber(
+                  event
+                    .preReplacementLevel
+                )}%`
+              : "-";
+
+
+          const increaseText =
+            hasCycleIncrease
+              ? `${formatArmRollBoxSigned(
+                  event.cycleIncrease
+                )}%p`
+              : "-";
+
+
+          const averageText =
+            hasCycleAverage
+              ? `${formatArmRollBoxSigned(
+                  event.cycleAverage
+                )}%p/일`
+              : "-";
+
+
+          const sourceText =
+            String(
+              event?.sourceText ||
+              "수치 급감 감지"
+            ).trim();
+
+
+          return `
+            <article
+              class="
+                arm-roll-box-replacement-card
+                ${boxClass}
+                ${statusClass}
+              "
+            >
+
+              <!-- 카드 상단 -->
+              <header
+                class="arm-roll-box-replacement-card__header"
+              >
+
+                <div
+                  class="arm-roll-box-replacement-card__identity"
+                >
+
+                  <span>
+                    ${unit}호기
+                  </span>
+
                   <strong>
                     ${escapeArmRollBoxHtml(
-                      getArmRollBoxTargetLabel(
-                        event.target
-                      )
+                      boxLabel
                     )}
                   </strong>
 
-                  <br>
+                </div>
 
-                  <small
-                    class="${
-                      confirmed
-                        ? "is-replacement"
-                        : "is-suspected"
-                    }"
-                  >
-                    ${
-                      confirmed
-                        ? "교체 확정"
-                        : "교체 의심"
-                    }
+
+                <div
+                  class="arm-roll-box-replacement-card__status"
+                >
+
+                  <small>
+                    ${escapeArmRollBoxHtml(
+                      statusLabel
+                    )}
                   </small>
-                </td>
 
-                <td>
+                  <time
+                    datetime="${escapeArmRollBoxHtml(
+                      event?.date ||
+                      ""
+                    )}"
+                  >
+                    ${escapeArmRollBoxHtml(
+                      replacementDate
+                    )}
+                  </time>
+
+                </div>
+
+              </header>
+
+
+              <!-- 날짜와 사용 기간 -->
+              <div
+                class="arm-roll-box-replacement-card__period"
+              >
+
+                <div>
+                  <span>
+                    이전 교체일
+                  </span>
+
+                  <strong>
+                    ${escapeArmRollBoxHtml(
+                      previousDate
+                    )}
+                  </strong>
+                </div>
+
+
+                <div>
+                  <span>
+                    사용 기간
+                  </span>
+
+                  <strong>
+                    ${escapeArmRollBoxHtml(
+                      usageDays
+                    )}
+                  </strong>
+                </div>
+
+              </div>
+
+
+              <!-- 사용 주기 지표 -->
+              <dl
+                class="arm-roll-box-replacement-card__metrics"
+              >
+
+                <div>
+                  <dt>
+                    교체 직전
+                  </dt>
+
+                  <dd>
+                    ${escapeArmRollBoxHtml(
+                      preLevelText
+                    )}
+                  </dd>
+                </div>
+
+
+                <div>
+                  <dt>
+                    기간 증가
+                  </dt>
+
+                  <dd>
+                    ${escapeArmRollBoxHtml(
+                      increaseText
+                    )}
+                  </dd>
+                </div>
+
+
+                <div>
+                  <dt>
+                    일평균
+                  </dt>
+
+                  <dd>
+                    ${escapeArmRollBoxHtml(
+                      averageText
+                    )}
+                  </dd>
+                </div>
+
+              </dl>
+
+
+              <!-- 감지 근거 -->
+              <div
+                class="arm-roll-box-replacement-card__source"
+              >
+
+                <span>
+                  감지 업무내용
+                </span>
+
+                <p>
                   ${escapeArmRollBoxHtml(
-                    event.date
+                    sourceText
                   )}
-                </td>
+                </p>
 
-                <td>
-                  ${escapeArmRollBoxHtml(
-                    event.previousReplacementDate ||
-                    "-"
-                  )}
-                </td>
+              </div>
 
-                <td>
-                  ${
-                    event.usageDays >
-                      0
-                      ? `${event.usageDays}일`
-                      : "-"
-                  }
-                </td>
-
-                <td>
-                  ${
-                    Number.isFinite(
-                      Number(
-                        event.preReplacementLevel
-                      )
-                    )
-                      ? `${formatArmRollBoxNumber(
-                          event.preReplacementLevel
-                        )}%`
-                      : "-"
-                  }
-                </td>
-
-                <td>
-                  ${
-                    Number.isFinite(
-                      Number(
-                        event.cycleIncrease
-                      )
-                    )
-                      ? formatArmRollBoxSigned(
-                          event.cycleIncrease
-                        )
-                      : "-"
-                  }
-                </td>
-
-                <td>
-                  ${
-                    Number.isFinite(
-                      Number(
-                        event.cycleAverage
-                      )
-                    )
-                      ? `${formatArmRollBoxSigned(
-                          event.cycleAverage
-                        )}/일`
-                      : "-"
-                  }
-                </td>
-
-                <td>
-                  ${escapeArmRollBoxHtml(
-                    event.sourceText ||
-                    "수치 급감 감지"
-                  )}
-                </td>
-              </tr>
-            `;
-          }
-        )
-        .join(
-          ""
-        );
-  }
+            </article>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+}
 
 
   /* =====================================================

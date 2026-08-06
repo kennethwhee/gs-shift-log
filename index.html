@@ -24,7 +24,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260806-mobile-inspection1"
+    src="script.js?v=20260806-armroll-mobile-final1"
   >
 
 
@@ -6756,32 +6756,24 @@
         </strong>
       </header>
 
-      <div class="arm-roll-box-table-wrap">
-        <table
-          class="arm-roll-box-table arm-roll-box-replacement-table"
-        >
-          <thead>
-            <tr>
-              <th scope="col">대상</th>
-              <th scope="col">교체일</th>
-              <th scope="col">이전 교체일</th>
-              <th scope="col">사용 기간</th>
-              <th scope="col">교체 직전</th>
-              <th scope="col">기간 증가량</th>
-              <th scope="col">일평균 증가</th>
-              <th scope="col">감지 업무내용</th>
-            </tr>
-          </thead>
+<!-- =================================================
+  교체 이력 카드 목록
 
-          <tbody id="armRollBoxReplacementTableBody">
-            <tr class="arm-roll-box-empty-table-row">
-              <td colspan="8">
-                인식된 BOX 교체 기록이 없습니다.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+  교체 1건을 카드 1개로 표시하여
+  모바일에서도 가로 스크롤 없이 확인한다.
+================================================== -->
+<div
+  class="arm-roll-box-replacement-list"
+  id="armRollBoxReplacementTableBody"
+  aria-live="polite"
+>
+
+  <div class="arm-roll-box-replacement-empty">
+    인식된 BOX 교체 기록이 없습니다.
+  </div>
+
+</div>
+
     </section>
 
     <div
