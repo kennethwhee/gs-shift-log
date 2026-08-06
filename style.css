@@ -87172,3 +87172,293 @@ td.is-total {
     gap: 4px;
   }
 }
+
+/* =========================================================
+  파트장 TGO · BCO1 · BCO2 보직별 + 직접추가
+========================================================= */
+
+
+/* 기존 상단 "추가 위치"는 완전히 숨김 */
+#logEntryTargetRoleField {
+  display: none !important;
+}
+
+
+/* =========================================================
+  보직 제목 옆 작은 +
+========================================================= */
+
+#logEntryTableBody
+.leader-role-quick-add-button {
+  display: inline-flex !important;
+
+  flex: 0 0 22px;
+
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  min-height: 22px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0 0 0 2px;
+  padding: 0;
+
+  border: 1px solid #a9c4e2;
+  border-radius: 6px;
+
+  background: #ffffff;
+
+  color: #1763c5;
+
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+
+#logEntryTableBody
+.leader-role-quick-add-button:hover {
+  border-color: #1763c5;
+
+  background: #eaf3ff;
+
+  color: #0d4e9d;
+}
+
+
+/* =========================================================
+  + 누른 뒤 나오는 입력줄
+========================================================= */
+
+#logEntryTableBody
+.leader-role-quick-add-row
+> td {
+  padding: 0 !important;
+
+  border-top: 0 !important;
+  border-bottom: 1px solid #d9e4ef !important;
+
+  background: #f7faff !important;
+}
+
+
+#logEntryTableBody
+.leader-role-quick-add-editor {
+  padding: 9px 12px 10px;
+
+  background: #f7faff;
+}
+
+
+#logEntryTableBody
+.leader-role-quick-add-editor__top {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 8px;
+
+  margin-bottom: 7px;
+}
+
+
+#logEntryTableBody
+.leader-role-quick-add-editor__top
+strong {
+  color: #31577f;
+
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+/* 닫기 X */
+#logEntryTableBody
+.leader-role-quick-add-cancel {
+  display: inline-flex;
+
+  width: 24px;
+  height: 24px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: 0;
+
+  background: transparent;
+
+  color: #7c8998;
+
+  font-size: 18px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+
+/* =========================================================
+  입력줄
+========================================================= */
+
+#logEntryTableBody
+.leader-role-quick-add-editor__input-row {
+  display: grid;
+
+  grid-template-columns:
+    92px
+    66px
+    minmax(0, 1fr)
+    58px;
+
+  align-items: stretch;
+
+  gap: 6px;
+}
+
+
+/* 시간 */
+#logEntryTableBody
+.leader-role-quick-add-time {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+
+  padding: 0 9px;
+
+  border: 1px solid #c8d6e5;
+  border-radius: 7px;
+
+  background: #ffffff;
+
+  color: #26384f;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  outline: none;
+}
+
+
+/* 내용 */
+#logEntryTableBody
+.leader-role-quick-add-content {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  max-height: 110px;
+
+  padding: 8px 10px;
+
+  border: 1px solid #c8d6e5;
+  border-radius: 7px;
+
+  background: #ffffff;
+
+  color: #26384f;
+
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+
+  resize: vertical;
+  outline: none;
+}
+
+
+#logEntryTableBody
+.leader-role-quick-add-time:focus,
+#logEntryTableBody
+.leader-role-quick-add-content:focus {
+  border-color: #6c9ed1;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(31, 95, 174, 0.08);
+}
+
+
+/* 현재시간 */
+#logEntryTableBody
+.leader-role-quick-add-now {
+  min-width: 0;
+  height: 36px;
+
+  padding: 0 7px;
+
+  border: 1px solid #c9d7e5;
+  border-radius: 7px;
+
+  background: #ffffff;
+
+  color: #52677f;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+
+/* 추가 */
+#logEntryTableBody
+.leader-role-quick-add-save {
+  min-width: 0;
+  height: 36px;
+
+  padding: 0 10px;
+
+  border: 1px solid #1763c5;
+  border-radius: 7px;
+
+  background: #1763c5;
+
+  color: #ffffff;
+
+  font-size: 11px;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 700px) {
+
+  #logEntryTableBody
+  .leader-role-quick-add-editor__input-row {
+    grid-template-columns:
+      82px
+      62px
+      minmax(0, 1fr);
+  }
+
+
+  #logEntryTableBody
+  .leader-role-quick-add-content {
+    grid-column:
+      1 / -1;
+
+    min-height: 56px;
+  }
+
+
+  #logEntryTableBody
+  .leader-role-quick-add-save {
+    grid-column:
+      3;
+
+    grid-row:
+      1;
+  }
+
+}

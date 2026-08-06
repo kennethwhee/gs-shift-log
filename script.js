@@ -161001,3 +161001,1634 @@ window
     initialize();
   }
 })();
+
+/* =========================================================
+  파트장 TGO · BCO1 · BCO2 보직별 직접 추가 최종본
+
+  화면:
+  [TGO 업무일지] 1건  [+]
+  [BCO1 업무일지] 4건 [+]
+  [BCO2 업무일지] 3건 [+]
+
+  기능:
+  - + 클릭 시 해당 보직 바로 아래 입력창
+  - 파트장이 직접 추가한 내용은 해당 보직에 저장
+  - 최신화해도 유지
+  - 일괄취합해도 유지
+  - 임시저장 후 다시 열어도 유지
+========================================================= */
+
+(function installLeaderRoleQuickAddFeature() {
+  if (
+    window
+      .__leaderRoleQuickAddFeatureInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__leaderRoleQuickAddFeatureInstalled =
+    true;
+
+
+  const LEADER_ROLE_QUICK_ADD_ROLES = [
+    "TGO",
+    "BCO1",
+    "BCO2"
+  ];
+
+
+  const LEADER_ROLE_MANUAL_SOURCE =
+    "leader-role-manual";
+
+
+  /* =====================================================
+    보직 정리
+  ====================================================== */
+
+  function normalizeLeaderQuickAddRole(
+    value
+  ) {
+    if (
+      typeof normalizeMemberLogRole ===
+        "function"
+    ) {
+      return normalizeMemberLogRole(
+        value
+      );
+    }
+
+
+    return String(
+      value ||
+      ""
+    ).trim();
+  }
+
+
+  /* =====================================================
+    현재 파트장 작성창인지
+  ====================================================== */
+
+  function isLeaderQuickAddEditor() {
+    const role =
+      normalizeLeaderQuickAddRole(
+        document.getElementById(
+          "logRole"
+        )?.value ||
+        ""
+      );
+
+
+    return (
+      role ===
+      "파트장"
+    );
+  }
+
+
+  /* =====================================================
+    이전에 만들었던
+    상단 "추가 위치" 선택칸은 사용하지 않는다.
+  ====================================================== */
+
+  function hideOldLeaderTargetRoleField() {
+    const field =
+      document.getElementById(
+        "logEntryTargetRoleField"
+      );
+
+
+    const select =
+      document.getElementById(
+        "logEntryTargetRole"
+      );
+
+
+    /*
+      숨은 값 때문에 기존 상단 +추가가
+      TGO/BCO1/BCO2로 잘못 들어가지 않도록
+      항상 파트장으로 되돌린다.
+    */
+    if (
+      select
+    ) {
+      select.value =
+        "파트장";
+    }
+
+
+    if (
+      field
+    ) {
+      field.hidden =
+        true;
+
+      field.style.display =
+        "none";
+
+      field.setAttribute(
+        "aria-hidden",
+        "true"
+      );
+    }
+  }
+
+
+  /* =====================================================
+    파트장 보직 직접 추가 항목 판정
+  ====================================================== */
+
+  function isLeaderRoleManualEntry(
+    entry
+  ) {
+    if (
+      !entry ||
+      typeof entry !==
+        "object"
+    ) {
+      return false;
+    }
+
+
+    const source =
+      String(
+        entry.source ||
+        ""
+      ).trim();
+
+
+    const role =
+      normalizeLeaderQuickAddRole(
+        entry.importedFromRole ||
+        ""
+      );
+
+
+    return (
+      source ===
+        LEADER_ROLE_MANUAL_SOURCE &&
+      LEADER_ROLE_QUICK_ADD_ROLES.includes(
+        role
+      )
+    );
+  }
+
+
+  /* =====================================================
+    항목 비교용 KEY
+  ====================================================== */
+
+  function createLeaderRoleManualEntryKey(
+    entry
+  ) {
+    const id =
+      String(
+        entry?.id ||
+        ""
+      ).trim();
+
+
+    if (
+      id
+    ) {
+      return (
+        `ID||${id}`
+      );
+    }
+
+
+    return [
+      normalizeLeaderQuickAddRole(
+        entry?.importedFromRole ||
+        ""
+      ),
+
+      String(
+        entry?.time ||
+        ""
+      ).trim(),
+
+      String(
+        entry?.category ||
+        ""
+      ).trim(),
+
+      String(
+        entry?.tag ||
+        ""
+      )
+        .trim()
+        .toUpperCase(),
+
+      String(
+        entry?.content ||
+        ""
+      )
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .trim()
+    ].join(
+      "||"
+    );
+  }
+
+
+  /* =====================================================
+    파트장 직접 추가 항목 백업
+  ====================================================== */
+
+  function backupLeaderRoleManualEntries() {
+    const entries =
+      Array.isArray(
+        appState?.editorEntries
+      )
+        ? appState.editorEntries
+        : [];
+
+
+    return entries
+      .filter(
+        isLeaderRoleManualEntry
+      )
+      .map(
+        entry => {
+          return {
+            ...entry
+          };
+        }
+      );
+  }
+
+
+  /* =====================================================
+    파트장 직접 추가 항목 복원
+  ====================================================== */
+
+  function restoreLeaderRoleManualEntries(
+    backupEntries
+  ) {
+    if (
+      !Array.isArray(
+        backupEntries
+      ) ||
+      backupEntries.length ===
+        0
+    ) {
+      return 0;
+    }
+
+
+    if (
+      !Array.isArray(
+        appState.editorEntries
+      )
+    ) {
+      appState.editorEntries =
+        [];
+    }
+
+
+    const existingKeys =
+      new Set(
+        appState.editorEntries.map(
+          entry => {
+            return createLeaderRoleManualEntryKey(
+              entry
+            );
+          }
+        )
+      );
+
+
+    let restoredCount =
+      0;
+
+
+    backupEntries.forEach(
+      backupEntry => {
+        const key =
+          createLeaderRoleManualEntryKey(
+            backupEntry
+          );
+
+
+        if (
+          existingKeys.has(
+            key
+          )
+        ) {
+          return;
+        }
+
+
+        const role =
+          normalizeLeaderQuickAddRole(
+            backupEntry
+              .importedFromRole
+          );
+
+
+        appState.editorEntries.push({
+          ...backupEntry,
+
+          importedFromRole:
+            role,
+
+          importedFromLogId:
+            "",
+
+          importedFromEntryIndex:
+            null,
+
+          source:
+            LEADER_ROLE_MANUAL_SOURCE
+        });
+
+
+        existingKeys.add(
+          key
+        );
+
+
+        restoredCount +=
+          1;
+      }
+    );
+
+
+    return restoredCount;
+  }
+
+
+  /* =====================================================
+    + 버튼 생성
+  ====================================================== */
+
+  function createLeaderRoleQuickAddButtons() {
+    hideOldLeaderTargetRoleField();
+
+
+    if (
+      !isLeaderQuickAddEditor()
+    ) {
+      return;
+    }
+
+
+    const tableBody =
+      document.getElementById(
+        "logEntryTableBody"
+      );
+
+
+    if (
+      !tableBody
+    ) {
+      return;
+    }
+
+
+    const roleRows =
+      tableBody.querySelectorAll(
+        `
+          .log-entry-role-divider-row
+          [data-role-group],
+          .log-entry-role-divider-row[data-role-group]
+        `
+      );
+
+
+    /*
+      위 selector 구조 차이를 고려해
+      실제 TR만 다시 찾는다.
+    */
+    tableBody
+      .querySelectorAll(
+        ".log-entry-role-divider-row[data-role-group]"
+      )
+      .forEach(
+        roleRow => {
+          const role =
+            normalizeLeaderQuickAddRole(
+              roleRow.dataset
+                .roleGroup
+            );
+
+
+          if (
+            !LEADER_ROLE_QUICK_ADD_ROLES.includes(
+              role
+            )
+          ) {
+            return;
+          }
+
+
+          const divider =
+            roleRow.querySelector(
+              ".log-entry-role-divider"
+            );
+
+
+          if (
+            !divider
+          ) {
+            return;
+          }
+
+
+          /*
+            이미 버튼이 있으면 추가하지 않는다.
+          */
+          if (
+            divider.querySelector(
+              ".leader-role-quick-add-button"
+            )
+          ) {
+            return;
+          }
+
+
+          const button =
+            document.createElement(
+              "button"
+            );
+
+
+          button.type =
+            "button";
+
+
+          button.className =
+            "leader-role-quick-add-button";
+
+
+          button.dataset
+            .leaderRoleQuickAdd =
+            role;
+
+
+          button.textContent =
+            "+";
+
+
+          button.title =
+            `${role} 업무 직접 추가`;
+
+
+          button.setAttribute(
+            "aria-label",
+            `${role} 업무 직접 추가`
+          );
+
+
+          divider.appendChild(
+            button
+          );
+        }
+      );
+  }
+
+
+  /* =====================================================
+    기존 열린 입력창 닫기
+  ====================================================== */
+
+  function closeLeaderRoleQuickAddEditor() {
+    document
+      .querySelectorAll(
+        ".leader-role-quick-add-row"
+      )
+      .forEach(
+        row => {
+          row.remove();
+        }
+      );
+  }
+
+
+  /* =====================================================
+    해당 보직 아래 입력창 열기
+  ====================================================== */
+
+  function openLeaderRoleQuickAddEditor(
+    role,
+    roleRow
+  ) {
+    const normalizedRole =
+      normalizeLeaderQuickAddRole(
+        role
+      );
+
+
+    if (
+      !LEADER_ROLE_QUICK_ADD_ROLES.includes(
+        normalizedRole
+      )
+    ) {
+      return;
+    }
+
+
+    /*
+      같은 보직 입력창을 다시 누르면 닫는다.
+    */
+    const currentEditor =
+      document.querySelector(
+        ".leader-role-quick-add-row"
+      );
+
+
+    if (
+      currentEditor &&
+      normalizeLeaderQuickAddRole(
+        currentEditor.dataset
+          .leaderRole
+      ) ===
+        normalizedRole
+    ) {
+      currentEditor.remove();
+
+      return;
+    }
+
+
+    closeLeaderRoleQuickAddEditor();
+
+
+    const roleCell =
+      roleRow.querySelector(
+        "td"
+      );
+
+
+    const columnCount =
+      Number(
+        roleCell?.colSpan ||
+        4
+      ) ||
+      4;
+
+
+    const editorRow =
+      document.createElement(
+        "tr"
+      );
+
+
+    editorRow.className =
+      "leader-role-quick-add-row";
+
+
+    editorRow.dataset
+      .leaderRole =
+      normalizedRole;
+
+
+    const editorCell =
+      document.createElement(
+        "td"
+      );
+
+
+    editorCell.colSpan =
+      columnCount;
+
+
+    editorCell.innerHTML = `
+      <div class="leader-role-quick-add-editor">
+
+        <div class="leader-role-quick-add-editor__top">
+
+          <strong>
+            ${normalizedRole} 업무 추가
+          </strong>
+
+          <button
+            type="button"
+            class="leader-role-quick-add-cancel"
+            aria-label="추가 입력 닫기"
+          >
+            ×
+          </button>
+
+        </div>
+
+
+        <div class="leader-role-quick-add-editor__input-row">
+
+          <input
+            type="text"
+            class="leader-role-quick-add-time"
+            placeholder="시간"
+            autocomplete="off"
+          />
+
+
+          <button
+            type="button"
+            class="leader-role-quick-add-now"
+          >
+            현재시간
+          </button>
+
+
+          <textarea
+            class="leader-role-quick-add-content"
+            rows="2"
+            placeholder="${normalizedRole} 업무일지에 추가할 내용을 입력하세요."
+          ></textarea>
+
+
+          <button
+            type="button"
+            class="leader-role-quick-add-save"
+          >
+            추가
+          </button>
+
+        </div>
+
+      </div>
+    `;
+
+
+    editorRow.appendChild(
+      editorCell
+    );
+
+
+    roleRow.insertAdjacentElement(
+      "afterend",
+      editorRow
+    );
+
+
+    window.requestAnimationFrame(
+      () => {
+        editorRow
+          .querySelector(
+            ".leader-role-quick-add-content"
+          )
+          ?.focus();
+      }
+    );
+  }
+
+
+  /* =====================================================
+    직접 추가 저장
+  ====================================================== */
+
+  function saveLeaderRoleQuickAdd(
+    editorRow
+  ) {
+    if (
+      !editorRow
+    ) {
+      return;
+    }
+
+
+    const role =
+      normalizeLeaderQuickAddRole(
+        editorRow.dataset
+          .leaderRole
+      );
+
+
+    if (
+      !LEADER_ROLE_QUICK_ADD_ROLES.includes(
+        role
+      )
+    ) {
+      return;
+    }
+
+
+    const timeInput =
+      editorRow.querySelector(
+        ".leader-role-quick-add-time"
+      );
+
+
+    const contentInput =
+      editorRow.querySelector(
+        ".leader-role-quick-add-content"
+      );
+
+
+    const time =
+      String(
+        timeInput?.value ||
+        ""
+      ).trim();
+
+
+    const content =
+      String(
+        contentInput?.value ||
+        ""
+      )
+        /*
+          사용자가 실수로 번호를 직접 적어도
+          화면에서 번호가 중복되지 않게 한다.
+        */
+        .replace(
+          /^\s*(?:\d+\s*[.)\-:：]\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*)/u,
+          ""
+        )
+        .trim();
+
+
+    if (
+      !content
+    ) {
+      if (
+        typeof showToast ===
+          "function"
+      ) {
+        showToast(
+          "추가할 업무 내용을 입력해 주세요."
+        );
+      }
+
+
+      contentInput?.focus();
+
+      return;
+    }
+
+
+    const author =
+      String(
+        document.getElementById(
+          "logAuthor"
+        )?.value ||
+        ""
+      ).trim();
+
+
+    const newEntry = {
+      id:
+        typeof createId ===
+          "function"
+          ? createId()
+          : (
+              "leader-role-" +
+              Date.now() +
+              "-" +
+              Math.random()
+                .toString(16)
+                .slice(2)
+            ),
+
+      time,
+
+      category:
+        "인계사항",
+
+      tag:
+        "",
+
+      content,
+
+      attachmentName:
+        "",
+
+
+      /*
+        화면에서는 해당 보직 아래에 표시한다.
+      */
+      importedFromRole:
+        role,
+
+
+      /*
+        작성자는 파트장
+      */
+      importedFromAuthor:
+        author,
+
+
+      /*
+        팀원 업무일지 원본에서 가져온 것이 아니므로
+        원본 업무일지 ID는 절대 넣지 않는다.
+      */
+      importedFromLogId:
+        "",
+
+      importedFromEntryIndex:
+        null,
+
+
+      /*
+        이 값으로 최신화/일괄취합에서
+        파트장 직접 추가 업무임을 구분한다.
+      */
+      source:
+        LEADER_ROLE_MANUAL_SOURCE
+    };
+
+
+    if (
+      !Array.isArray(
+        appState.editorEntries
+      )
+    ) {
+      appState.editorEntries =
+        [];
+    }
+
+
+    appState.editorEntries.push(
+      newEntry
+    );
+
+
+    if (
+      typeof sortImportedLogEntries ===
+        "function"
+    ) {
+      sortImportedLogEntries();
+    }
+
+
+    if (
+      typeof renderLogEntryTable ===
+        "function"
+    ) {
+      renderLogEntryTable();
+    }
+
+
+    if (
+      typeof updateMemberLogImportStatus ===
+        "function"
+    ) {
+      updateMemberLogImportStatus();
+    }
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        `${role} 업무일지에 파트장 업무를 추가했습니다.`
+      );
+    }
+  }
+
+
+  /* =====================================================
+    버튼 클릭
+  ====================================================== */
+
+  document.addEventListener(
+    "click",
+    event => {
+      const target =
+        event.target instanceof
+          Element
+          ? event.target
+          : null;
+
+
+      if (
+        !target
+      ) {
+        return;
+      }
+
+
+      /* -----------------------------------------------
+        보직 + 버튼
+      ------------------------------------------------ */
+
+      const quickAddButton =
+        target.closest(
+          ".leader-role-quick-add-button"
+        );
+
+
+      if (
+        quickAddButton
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        const role =
+          quickAddButton.dataset
+            .leaderRoleQuickAdd;
+
+
+        const roleRow =
+          quickAddButton.closest(
+            ".log-entry-role-divider-row"
+          );
+
+
+        if (
+          roleRow
+        ) {
+          openLeaderRoleQuickAddEditor(
+            role,
+            roleRow
+          );
+        }
+
+
+        return;
+      }
+
+
+      /* -----------------------------------------------
+        현재시간
+      ------------------------------------------------ */
+
+      const nowButton =
+        target.closest(
+          ".leader-role-quick-add-now"
+        );
+
+
+      if (
+        nowButton
+      ) {
+        event.preventDefault();
+
+
+        const editorRow =
+          nowButton.closest(
+            ".leader-role-quick-add-row"
+          );
+
+
+        const timeInput =
+          editorRow?.querySelector(
+            ".leader-role-quick-add-time"
+          );
+
+
+        if (
+          timeInput
+        ) {
+          if (
+            typeof getCurrentTimeValue ===
+              "function"
+          ) {
+            timeInput.value =
+              getCurrentTimeValue();
+
+          } else {
+            const now =
+              new Date();
+
+
+            timeInput.value = [
+              String(
+                now.getHours()
+              ).padStart(
+                2,
+                "0"
+              ),
+
+              String(
+                now.getMinutes()
+              ).padStart(
+                2,
+                "0"
+              )
+            ].join(
+              ":"
+            );
+          }
+        }
+
+
+        return;
+      }
+
+
+      /* -----------------------------------------------
+        추가 저장
+      ------------------------------------------------ */
+
+      const saveButton =
+        target.closest(
+          ".leader-role-quick-add-save"
+        );
+
+
+      if (
+        saveButton
+      ) {
+        event.preventDefault();
+
+
+        saveLeaderRoleQuickAdd(
+          saveButton.closest(
+            ".leader-role-quick-add-row"
+          )
+        );
+
+
+        return;
+      }
+
+
+      /* -----------------------------------------------
+        취소
+      ------------------------------------------------ */
+
+      const cancelButton =
+        target.closest(
+          ".leader-role-quick-add-cancel"
+        );
+
+
+      if (
+        cancelButton
+      ) {
+        event.preventDefault();
+
+
+        closeLeaderRoleQuickAddEditor();
+      }
+    },
+    true
+  );
+
+
+  /* =====================================================
+    Ctrl + Enter로도 추가
+  ====================================================== */
+
+  document.addEventListener(
+    "keydown",
+    event => {
+      const target =
+        event.target;
+
+
+      if (
+        !(target instanceof Element)
+      ) {
+        return;
+      }
+
+
+      if (
+        !target.classList.contains(
+          "leader-role-quick-add-content"
+        )
+      ) {
+        return;
+      }
+
+
+      if (
+        event.key !==
+          "Enter" ||
+        !(
+          event.ctrlKey ||
+          event.metaKey
+        )
+      ) {
+        return;
+      }
+
+
+      event.preventDefault();
+
+
+      saveLeaderRoleQuickAdd(
+        target.closest(
+          ".leader-role-quick-add-row"
+        )
+      );
+    }
+  );
+
+
+  /* =====================================================
+    개별 최신화 보호
+
+    기존 최신화 과정에서
+    "BCO1 + 원본ID 없음" 같은 항목을
+    제거하려고 하더라도 다시 복원한다.
+  ====================================================== */
+
+  if (
+    typeof removeImportedEntriesForMemberLog ===
+      "function" &&
+    removeImportedEntriesForMemberLog
+      .__leaderRoleQuickAddProtected !==
+      true
+  ) {
+    const originalRemoveImportedEntriesForMemberLog =
+      removeImportedEntriesForMemberLog;
+
+
+    const protectedRemoveFunction =
+      function protectedRemoveImportedEntriesForMemberLog(
+        ...args
+      ) {
+        const backup =
+          backupLeaderRoleManualEntries();
+
+
+        const originalResult =
+          originalRemoveImportedEntriesForMemberLog
+            .apply(
+              this,
+              args
+            );
+
+
+        const restoredCount =
+          restoreLeaderRoleManualEntries(
+            backup
+          );
+
+
+        return Math.max(
+          0,
+          Number(
+            originalResult ||
+            0
+          ) -
+          restoredCount
+        );
+      };
+
+
+    protectedRemoveFunction
+      .__leaderRoleQuickAddProtected =
+      true;
+
+
+    removeImportedEntriesForMemberLog =
+      protectedRemoveFunction;
+  }
+
+
+  /* =====================================================
+    일괄취합 보호
+  ====================================================== */
+
+  if (
+    typeof importAllMemberLogs ===
+      "function" &&
+    importAllMemberLogs
+      .__leaderRoleQuickAddProtected !==
+      true
+  ) {
+    const originalImportAllMemberLogs =
+      importAllMemberLogs;
+
+
+    const protectedImportAllFunction =
+      function protectedImportAllMemberLogs(
+        ...args
+      ) {
+        const backup =
+          backupLeaderRoleManualEntries();
+
+
+        const finishProtection =
+          result => {
+            const restoredCount =
+              restoreLeaderRoleManualEntries(
+                backup
+              );
+
+
+            if (
+              restoredCount >
+              0
+            ) {
+              if (
+                typeof sortImportedLogEntries ===
+                  "function"
+              ) {
+                sortImportedLogEntries();
+              }
+
+
+              if (
+                typeof renderLogEntryTable ===
+                  "function"
+              ) {
+                renderLogEntryTable();
+              }
+
+
+              if (
+                typeof updateMemberLogImportStatus ===
+                  "function"
+              ) {
+                updateMemberLogImportStatus();
+              }
+            }
+
+
+            return result;
+          };
+
+
+        const result =
+          originalImportAllMemberLogs
+            .apply(
+              this,
+              args
+            );
+
+
+        /*
+          현재 함수가 동기식이어도,
+          나중에 async로 바뀌어도 둘 다 대응한다.
+        */
+        if (
+          result &&
+          typeof result.then ===
+            "function"
+        ) {
+          return result.then(
+            finishProtection
+          );
+        }
+
+
+        return finishProtection(
+          result
+        );
+      };
+
+
+    protectedImportAllFunction
+      .__leaderRoleQuickAddProtected =
+      true;
+
+
+    importAllMemberLogs =
+      protectedImportAllFunction;
+  }
+
+
+  /* =====================================================
+    가져온 내역 건수
+
+    파트장 직접 추가는
+    "가져온 내역" 건수에 포함하지 않는다.
+  ====================================================== */
+
+  if (
+    typeof updateMemberLogImportCount ===
+      "function"
+  ) {
+    updateMemberLogImportCount =
+      function updateMemberLogImportCountWithLeaderQuickAdd() {
+        if (
+          !elements
+            ?.memberLogImportCount
+        ) {
+          return;
+        }
+
+
+        const importedCount =
+          (
+            Array.isArray(
+              appState?.editorEntries
+            )
+              ? appState.editorEntries
+              : []
+          ).filter(
+            entry => {
+              if (
+                isLeaderRoleManualEntry(
+                  entry
+                )
+              ) {
+                return false;
+              }
+
+
+              return Boolean(
+                entry
+                  ?.importedFromRole
+              );
+            }
+          ).length;
+
+
+        elements
+          .memberLogImportCount
+          .textContent =
+          `가져온 내역 ${importedCount}건`;
+      };
+  }
+
+
+  /* =====================================================
+    상세보기/목록에서도
+    파트장 보직 직접 추가 내용 유지
+  ====================================================== */
+
+  if (
+    typeof collectLogEntriesForDisplay ===
+      "function" &&
+    collectLogEntriesForDisplay
+      .__leaderRoleQuickAddProtected !==
+      true
+  ) {
+    const originalCollectLogEntriesForDisplay =
+      collectLogEntriesForDisplay;
+
+
+    const protectedCollectDisplayFunction =
+      function collectLogEntriesForDisplayWithLeaderQuickAdd(
+        log
+      ) {
+        const originalEntries =
+          originalCollectLogEntriesForDisplay(
+            log
+          );
+
+
+        const resultEntries =
+          Array.isArray(
+            originalEntries
+          )
+            ? [
+                ...originalEntries
+              ]
+            : [];
+
+
+        if (
+          normalizeLeaderQuickAddRole(
+            log?.role ||
+            ""
+          ) !==
+            "파트장"
+        ) {
+          return resultEntries;
+        }
+
+
+        const savedManualMap =
+          new Map();
+
+
+        [
+          log?.entries,
+          log?.handoverEntries,
+          log?.tmEntries,
+          log?.remarkEntries
+        ].forEach(
+          collection => {
+            if (
+              !Array.isArray(
+                collection
+              )
+            ) {
+              return;
+            }
+
+
+            collection.forEach(
+              entry => {
+                if (
+                  !isLeaderRoleManualEntry(
+                    entry
+                  )
+                ) {
+                  return;
+                }
+
+
+                savedManualMap.set(
+                  createLeaderRoleManualEntryKey(
+                    entry
+                  ),
+                  {
+                    ...entry,
+
+                    importedFromRole:
+                      normalizeLeaderQuickAddRole(
+                        entry
+                          .importedFromRole
+                      ),
+
+                    importedFromLogId:
+                      "",
+
+                    importedFromEntryIndex:
+                      null,
+
+                    source:
+                      LEADER_ROLE_MANUAL_SOURCE
+                  }
+                );
+              }
+            );
+          }
+        );
+
+
+        if (
+          savedManualMap.size ===
+            0
+        ) {
+          return resultEntries;
+        }
+
+
+        const existingKeys =
+          new Set(
+            resultEntries.map(
+              entry => {
+                return createLeaderRoleManualEntryKey(
+                  entry
+                );
+              }
+            )
+          );
+
+
+        savedManualMap.forEach(
+          (
+            manualEntry,
+            key
+          ) => {
+            if (
+              existingKeys.has(
+                key
+              )
+            ) {
+              return;
+            }
+
+
+            resultEntries.push(
+              manualEntry
+            );
+
+
+            existingKeys.add(
+              key
+            );
+          }
+        );
+
+
+        return resultEntries;
+      };
+
+
+    protectedCollectDisplayFunction
+      .__leaderRoleQuickAddProtected =
+      true;
+
+
+    collectLogEntriesForDisplay =
+      protectedCollectDisplayFunction;
+  }
+
+
+  /* =====================================================
+    목록이 다시 렌더링될 때마다
+    + 버튼 자동 복구
+  ====================================================== */
+
+  function initializeLeaderRoleQuickAddObserver() {
+    hideOldLeaderTargetRoleField();
+
+
+    const tableBody =
+      document.getElementById(
+        "logEntryTableBody"
+      );
+
+
+    if (
+      !tableBody
+    ) {
+      return false;
+    }
+
+
+    if (
+      tableBody.dataset
+        .leaderRoleQuickAddObserved !==
+        "true"
+    ) {
+      const observer =
+        new MutationObserver(
+          () => {
+            createLeaderRoleQuickAddButtons();
+          }
+        );
+
+
+      observer.observe(
+        tableBody,
+        {
+          childList:
+            true,
+
+          subtree:
+            true
+        }
+      );
+
+
+      tableBody.dataset
+        .leaderRoleQuickAddObserved =
+        "true";
+    }
+
+
+    createLeaderRoleQuickAddButtons();
+
+
+    return true;
+  }
+
+
+  /*
+    보직이 바뀌었을 때도 버튼 다시 확인
+  */
+  document.addEventListener(
+    "change",
+    event => {
+      if (
+        event.target?.id ===
+        "logRole"
+      ) {
+        window.setTimeout(
+          createLeaderRoleQuickAddButtons,
+          0
+        );
+      }
+    }
+  );
+
+
+  /* =====================================================
+    초기 실행
+  ====================================================== */
+
+  function initializeLeaderRoleQuickAdd() {
+    let attemptCount =
+      0;
+
+
+    const timer =
+      window.setInterval(
+        () => {
+          attemptCount +=
+            1;
+
+
+          if (
+            initializeLeaderRoleQuickAddObserver() ||
+            attemptCount >=
+              50
+          ) {
+            window.clearInterval(
+              timer
+            );
+          }
+        },
+        100
+      );
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeLeaderRoleQuickAdd,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeLeaderRoleQuickAdd();
+  }
+})();
