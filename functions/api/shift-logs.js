@@ -9258,25 +9258,35 @@ function scheduleNavigatorInspectionSync(
 }
 
 /* =========================================================
-  기존 업무일지 수정 가능 여부
+  기존 업무일지 수정 가능 여부 최종본
 
   최고관리자:
-  - 모든 상태 수정 가능
-
-  파트장:
-  - 본인의 파트장 업무일지만 가능
-  - 임시저장 가능
-  - 기존 저장완료 자료 호환
-  - 결재완료는 먼저 결재취소
+  - 모든 업무일지 수정 가능
 
   일반 보직:
-  - 임시저장 상태만 수정 가능
+  - 작성자·로그인 보직과 관계없이
+    임시저장 상태 수정 가능
+
+  파트장 업무일지:
+  - 파트장 계정이면 작성자와 관계없이
+    임시저장·저장완료 상태 수정 가능
+
+  결재요청·결재완료:
+  - 기존 결재취소 절차 유지
 ========================================================= */
 
 function canEditExistingLog(
   existingLog,
   user
 ) {
+  if (
+    !existingLog ||
+    !user
+  ) {
+    return false;
+  }
+
+
   /*
     최고관리자는 모든 업무일지 수정 가능
   */
@@ -9299,27 +9309,19 @@ function canEditExistingLog(
     );
 
 
-  const isAuthor =
-    normalizeEmployeeNo(
-      existingLog.authorId
-    ) ===
-      normalizeEmployeeNo(
-        user.employeeNo
-      );
+  /* =====================================================
+    파트장 업무일지
 
+    기존 작성자 사번은 비교하지 않는다.
+  ====================================================== */
 
-  /*
-    파트장 계정
-  */
   if (
-    user.role ===
-      "admin"
+    logRole ===
+      "파트장"
   ) {
     return (
-      logRole ===
-        "파트장" &&
-
-      isAuthor &&
+      user.role ===
+        "admin" &&
 
       [
         "임시저장",
@@ -9331,16 +9333,11 @@ function canEditExistingLog(
   }
 
 
-  /*
-    일반회원은 파트장 업무일지 수정 불가
-  */
-  if (
-    logRole ===
-      "파트장"
-  ) {
-    return false;
-  }
+  /* =====================================================
+    일반 보직 업무일지
 
+    계정 권한이나 기존 작성자를 비교하지 않는다.
+  ====================================================== */
 
   const editableMemberRoles = [
     "TGO",
@@ -9755,6 +9752,22 @@ async function applyCreateRules(
   return log;
 }
 
+/* =========================================================
+  기존 업무일지 저장 규칙 최종본
+
+  작성자가 다른 업무일지를 수정한 경우:
+  - 최초 작성자 → originalAuthor에 보존
+  - 현재 저장한 사용자 → author로 변경
+  - lastModifiedBy에도 현재 사용자 기록
+
+  적용:
+  - 일반 보직 임시저장
+  - 파트장 임시저장·저장완료
+
+  최고관리자가 파트장 일지를 수정하는 경우:
+  - 기존 파트장 작성자 유지
+========================================================= */
+
 function applySaveRules(
   incomingLog,
   existingLog,
@@ -9772,8 +9785,10 @@ function applySaveRules(
         "현재 계정으로는 이 업무일지를 수정할 수 없습니다."
       );
 
+
     error.status =
       403;
+
 
     throw error;
   }
@@ -9818,10 +9833,35 @@ function applySaveRules(
     );
 
 
+  /*
+    일반 보직 임시저장
+  */
   const isEditableMemberDraft =
     isMemberLog &&
+
     existingStatus ===
       "임시저장";
+
+
+  /*
+    다른 파트장이 수정할 수 있는
+    파트장 임시저장·저장완료 자료
+
+    최고관리자는 기존 작성자를 유지하므로
+    이 조건에서는 제외한다.
+  */
+  const isEditableLeaderDraft =
+    isLeaderLog &&
+
+    user.role ===
+      "admin" &&
+
+    [
+      "임시저장",
+      "저장완료"
+    ].includes(
+      existingStatus
+    );
 
 
   const previousAuthorId =
@@ -9839,12 +9879,21 @@ function applySaveRules(
   const isDifferentAuthor =
     previousAuthorId
       ? previousAuthorId !==
-          user.employeeNo
+          normalizeEmployeeNo(
+            user.employeeNo
+          )
       : (
           previousAuthorName &&
           previousAuthorName !==
-            user.name
+            normalizeText(
+              user.name
+            )
         );
+
+
+  const shouldChangeAuthor =
+    isEditableMemberDraft ||
+    isEditableLeaderDraft;
 
 
   const log = {
@@ -9874,30 +9923,32 @@ function applySaveRules(
   };
 
 
-  /*
+  /* =====================================================
     기존 최초 작성자 정보 유지
-  */
+  ====================================================== */
+
   log.originalAuthor =
     existingLog.originalAuthor ||
     "";
 
+
   log.originalAuthorId =
     existingLog.originalAuthorId ||
     "";
+
 
   log.originalAuthorRole =
     existingLog.originalAuthorRole ||
     "";
 
 
-  /*
-    다른 사용자가 임시저장 일지를 이어서 저장하면
-    기존 작성자를 최초 작성자로 보존한다.
+  /* =====================================================
+    작성자가 바뀌는 최초 시점에
+    기존 작성자를 원 작성자로 보존
+  ====================================================== */
 
-    최고관리자도 동일하게 적용한다.
-  */
   if (
-    isEditableMemberDraft &&
+    shouldChangeAuthor &&
     isDifferentAuthor
   ) {
     log.originalAuthor =
@@ -9905,10 +9956,12 @@ function applySaveRules(
       existingLog.author ||
       "";
 
+
     log.originalAuthorId =
       log.originalAuthorId ||
       existingLog.authorId ||
       "";
+
 
     log.originalAuthorRole =
       log.originalAuthorRole ||
@@ -9917,18 +9970,27 @@ function applySaveRules(
   }
 
 
-  /*
-    일반 보직 임시저장 자료는
-    실제 저장한 사용자를 현재 작성자로 변경한다.
-  */
+  /* =====================================================
+    현재 저장한 사람을 작성자로 변경
+
+    일반 보직:
+    - 로그인 권한과 관계없이 실제 저장자 적용
+
+    파트장:
+    - 파트장 계정이 수정한 경우 실제 저장자 적용
+    - 최고관리자 수정은 기존 작성자 유지
+  ====================================================== */
+
   if (
-    isEditableMemberDraft
+    shouldChangeAuthor
   ) {
     log.author =
       user.name;
 
+
     log.authorId =
       user.employeeNo;
+
 
     log.authorRole =
       user.role;
@@ -9938,9 +10000,11 @@ function applySaveRules(
       existingLog.author ||
       user.name;
 
+
     log.authorId =
       existingLog.authorId ||
       user.employeeNo;
+
 
     log.authorRole =
       existingLog.authorRole ||
@@ -9948,25 +10012,27 @@ function applySaveRules(
   }
 
 
-  /*
-    파트장 업무일지는 일반 저장으로
-    결재 상태를 변경하지 않는다.
-  */
+  /* =====================================================
+    상태 유지 및 전환
+  ====================================================== */
+
   if (
     isLeaderLog
   ) {
+    /*
+      파트장 업무일지는 일반 저장으로
+      결재 상태를 변경하지 않는다.
+    */
     log.status =
       existingStatus;
 
-
-  /*
-    일반 보직 임시저장은
-    최고관리자 여부와 관계없이
-    임시저장 또는 결재요청으로 전환한다.
-  */
   } else if (
     isEditableMemberDraft
   ) {
+    /*
+      일반 보직 임시저장은
+      임시저장 또는 결재요청으로 전환 가능
+    */
     log.status =
       [
         "임시저장",
@@ -9977,25 +10043,27 @@ function applySaveRules(
         ? requestedStatus
         : existingStatus;
 
-
-  /*
-    결재요청·결재완료 상태는
-    일반 저장으로 변경하지 않는다.
-  */
   } else {
     log.status =
       existingStatus;
   }
 
 
+  /* =====================================================
+    최종 수정자 기록
+  ====================================================== */
+
   log.lastModifiedBy =
     user.name;
+
 
   log.lastModifiedById =
     user.employeeNo;
 
+
   log.lastModifiedByRole =
     user.role;
+
 
   log.updatedAt =
     now;

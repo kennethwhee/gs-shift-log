@@ -51584,28 +51584,14 @@ function canCurrentUserEditShiftLog(
 
 
 /* =========================================================
-  업무일지 수정 불가 사유 안내 최종본
+  업무일지 수정 불가 사유 표시 최종본
+
+  작성자가 다르다는 이유로 차단하지 않는다.
 ========================================================= */
 
 function showShiftLogEditDeniedMessage(
   log
 ) {
-  if (
-    !log ||
-    typeof log !==
-      "object"
-  ) {
-    showToast(
-      "업무일지 정보를 확인할 수 없습니다."
-    );
-
-    return;
-  }
-
-
-  /*
-    과거 업무일지
-  */
   if (
     isReadOnlyLegacyShiftLog(
       log
@@ -51615,49 +51601,39 @@ function showShiftLogEditDeniedMessage(
       "과거 업무일지는 조회만 가능하며 수정할 수 없습니다."
     );
 
+
     return;
   }
 
 
-  const currentUser =
-    getCurrentShiftLogUserIdentity();
-
-
-  if (
-    !String(
-      currentUser?.employeeNo ||
-      ""
-    ).trim() ||
-    !String(
-      currentUser?.name ||
-      ""
-    ).trim()
-  ) {
-    showToast(
-      "로그인 사용자 정보를 확인할 수 없습니다. 다시 로그인해 주세요."
+  const normalizedLogRole =
+    normalizeMemberLogRole(
+      log?.role
     );
-
-    return;
-  }
 
 
   const normalizedStatus =
     normalizeShiftLogApprovalStatus(
-      log.status
+      log?.status
     );
 
 
   /*
-    임시저장은 누구나 이어쓸 수 있으므로
-    이 메시지까지 도달하면 비정상 상태다.
+    파트장 업무일지는
+    파트장 또는 최고관리자 계정만 수정 가능
   */
   if (
-    normalizedStatus ===
-    "임시저장"
+    normalizedLogRole ===
+      "파트장" &&
+
+    !isCurrentShiftLogLeader() &&
+
+    !isCurrentUserSuperAdmin()
   ) {
     showToast(
-      "업무일지를 이어서 작성할 수 없습니다. 화면을 새로고침해 주세요."
+      "파트장 업무일지는 파트장 계정만 수정할 수 있습니다."
     );
+
 
     return;
   }
@@ -51665,23 +51641,12 @@ function showShiftLogEditDeniedMessage(
 
   if (
     normalizedStatus ===
-    "결재요청"
+      "결재요청"
   ) {
     showToast(
       "결재요청 중인 업무일지입니다. 결재요청을 취소한 후 수정해 주세요."
     );
 
-    return;
-  }
-
-
-  if (
-    normalizedStatus ===
-    "결재완료"
-  ) {
-    showToast(
-      "결재가 완료된 업무일지입니다. 결재취소 후 수정할 수 있습니다."
-    );
 
     return;
   }
@@ -51689,11 +51654,12 @@ function showShiftLogEditDeniedMessage(
 
   if (
     normalizedStatus ===
-    "저장완료"
+      "결재완료"
   ) {
     showToast(
-      "저장완료된 파트장 업무일지는 작성자 또는 최고관리자만 수정할 수 있습니다."
+      "결재가 완료된 업무일지입니다. 결재를 취소한 후 수정해 주세요."
     );
+
 
     return;
   }
@@ -51769,27 +51735,40 @@ const deleteLogByIdBeforeApprovalLock =
 
 
 /* =========================================================
-  결재 잠금이 적용된 업무일지 삭제
+  업무일지 삭제 권한 최종본
+
+  수정 가능 여부와 삭제 가능 여부를 분리한다.
+
+  수정:
+  - 작성자가 달라도 허용 가능
+
+  삭제:
+  - 기존 삭제 전용 권한 규칙 유지
+  - 최고관리자
+  - 현재 삭제 권한이 있는 작성자
+  - 허용된 상태에서만 가능
 ========================================================= */
 
 deleteLogById =
   function deleteLogById(
     logId
   ) {
+    const normalizedLogId =
+      String(
+        logId ||
+        ""
+      ).trim();
+
+
     const targetLog =
       appState.logs.find(
-        (
-          log
-        ) => {
+        log => {
           return (
             String(
               log?.id ||
               ""
             ).trim() ===
-            String(
-              logId ||
-              ""
-            ).trim()
+            normalizedLogId
           );
         }
       );
@@ -51802,25 +51781,95 @@ deleteLogById =
         "삭제할 업무일지를 찾을 수 없습니다."
       );
 
+
       return;
     }
 
 
+    /*
+      삭제는 수정 권한 함수가 아니라
+      삭제 전용 권한 함수로 검사한다.
+    */
     if (
-      !canCurrentUserEditShiftLog(
+      !canCurrentUserDeleteShiftLogFromDetail(
         targetLog
       )
     ) {
-      showShiftLogEditDeniedMessage(
-        targetLog
+      const normalizedStatus =
+        normalizeShiftLogApprovalStatus(
+          targetLog.status
+        );
+
+
+      if (
+        isReadOnlyLegacyShiftLog(
+          targetLog
+        )
+      ) {
+        showToast(
+          "과거 업무일지는 삭제할 수 없습니다."
+        );
+
+
+        return;
+      }
+
+
+      if (
+        normalizedStatus ===
+          "결재요청"
+      ) {
+        showToast(
+          "결재요청을 취소한 후 삭제할 수 있습니다."
+        );
+
+
+        return;
+      }
+
+
+      if (
+        normalizedStatus ===
+          "결재완료"
+      ) {
+        showToast(
+          "결재가 완료된 업무일지는 삭제할 수 없습니다."
+        );
+
+
+        return;
+      }
+
+
+      if (
+        !isCurrentUserShiftLogAuthor(
+          targetLog
+        ) &&
+        !isCurrentUserSuperAdmin()
+      ) {
+        showToast(
+          "다른 작성자의 업무일지는 수정할 수 있지만 삭제할 수는 없습니다."
+        );
+
+
+        return;
+      }
+
+
+      showToast(
+        "현재 상태에서는 이 업무일지를 삭제할 수 없습니다."
       );
+
 
       return;
     }
 
 
+    /*
+      기존 실제 삭제 기능 실행
+    */
     deleteLogByIdBeforeApprovalLock(
-      logId
+      normalizedLogId
     );
   };
 
@@ -57278,12 +57327,23 @@ deleteLogById =
 
 
 /* =========================================================
-  업무일지 수정 권한
+  업무일지 수정 가능 여부 최종본
 
-  - 최고관리자: 모든 보직과 상태 수정 가능
-  - 일반 사용자: 본인이 작성한 임시저장 일지만 가능
-  - 파트장: 본인의 저장완료 일지 수정 가능
-  - 과거 연동 일지: 수정 불가
+  최고관리자:
+  - 모든 신규 업무일지 수정 가능
+  - 관리 가능한 과거 업무일지 수정 가능
+
+  일반 보직:
+  - 작성자와 관계없이 임시저장 상태 수정 가능
+  - 파트장 계정도 일반 보직 임시저장 수정 가능
+
+  파트장 업무일지:
+  - 파트장 계정이면 작성자와 관계없이 수정 가능
+  - 임시저장·저장완료 상태만 수정 가능
+
+  유지:
+  - 결재요청·결재완료 상태는 직접 수정 불가
+  - 삭제 권한은 별도 함수에서 기존대로 제한
 ========================================================= */
 
 canCurrentUserEditShiftLog =
@@ -57299,45 +57359,43 @@ canCurrentUserEditShiftLog =
     }
 
 
-    const isSuperAdmin =
-      isCurrentUserSuperAdmin();
+    /* =====================================================
+      최고관리자
+    ====================================================== */
 
-
-    /*
-      공용 D1 업무일지는 최고관리자가
-      작성자·보직·결재 상태와 관계없이 수정 가능
-    */
     if (
-      isSuperAdmin &&
-      isSharedD1ShiftLog(
-        log
-      )
+      isCurrentUserSuperAdmin()
     ) {
+      if (
+        isReadOnlyLegacyShiftLog(
+          log
+        )
+      ) {
+        return (
+          typeof isSuperAdminManageableLegacyLog ===
+            "function" &&
+
+          isSuperAdminManageableLegacyLog(
+            log
+          )
+        );
+      }
+
+
       return true;
     }
 
 
-    /*
-      7월 21일까지의 과거 연동 업무일지는
-      조회 전용
-    */
+    /* =====================================================
+      과거 연동 업무일지는 조회 전용
+    ====================================================== */
+
     if (
       isReadOnlyLegacyShiftLog(
         log
       )
     ) {
       return false;
-    }
-
-
-    /*
-      공용 D1 판정값이 없는 신규 업무일지도
-      최고관리자는 수정 가능
-    */
-    if (
-      isSuperAdmin
-    ) {
-      return true;
     }
 
 
@@ -57359,16 +57417,10 @@ canCurrentUserEditShiftLog =
     }
 
 
-    /*
-      일반 사용자는 본인 업무일지만 수정 가능
-    */
-    if (
-      !isCurrentUserShiftLogAuthor(
-        log
-      )
-    ) {
-      return false;
-    }
+    const normalizedLogRole =
+      normalizeMemberLogRole(
+        log.role
+      );
 
 
     const normalizedStatus =
@@ -57377,22 +57429,61 @@ canCurrentUserEditShiftLog =
       );
 
 
+    /* =====================================================
+      파트장 업무일지
+
+      작성자 비교를 하지 않는다.
+
+      파트장 계정이면:
+      - 임시저장
+      - 저장완료
+
+      상태에서 수정할 수 있다.
+    ====================================================== */
+
     if (
-      normalizedStatus ===
-        "임시저장"
+      normalizedLogRole ===
+        "파트장"
     ) {
-      return true;
+      return (
+        isCurrentShiftLogLeader() &&
+
+        [
+          "임시저장",
+          "저장완료"
+        ].includes(
+          normalizedStatus
+        )
+      );
     }
 
 
+    /* =====================================================
+      일반 보직 업무일지
+
+      현재 로그인 계정의 보직이나
+      기존 작성자를 비교하지 않는다.
+
+      임시저장 상태에서만 수정 가능하다.
+    ====================================================== */
+
+    const editableMemberRoles = [
+      "TGO",
+      "BCO1",
+      "BCO2",
+      "TO",
+      "BO1",
+      "BO2"
+    ];
+
+
     return (
-      isCurrentShiftLogLeader() &&
-      normalizeMemberLogRole(
-        log.role
-      ) ===
-        "파트장" &&
+      editableMemberRoles.includes(
+        normalizedLogRole
+      ) &&
+
       normalizedStatus ===
-        "저장완료"
+        "임시저장"
     );
   };
 
@@ -107127,6 +107218,20 @@ function createArmRollBoxUnitMetricCell(
   `;
 }
 
+/* =====================================================
+  호기별 교체 표시 셀
+
+  표시 예:
+  - ARM ROLL 교체
+  - SCRAP 교체
+  - ARM ROLL 교체 의심
+  - SCRAP 교체 의심
+
+  같은 날짜에 두 BOX가 모두 교체된 경우:
+  ARM ROLL 교체
+  SCRAP 교체
+===================================================== */
+
 function createArmRollBoxUnitEventCell(
   row,
   unit
@@ -107143,6 +107248,7 @@ function createArmRollBoxUnitEventCell(
       }
     );
 
+
   if (
     !events.length
   ) {
@@ -107153,26 +107259,157 @@ function createArmRollBoxUnitEventCell(
     `;
   }
 
+
+  /*
+    같은 날짜·같은 BOX·같은 판정이
+    여러 업무일지에서 중복 검출된 경우
+    한 번만 표시한다.
+  */
+  const uniqueEvents =
+    events.filter(
+      (
+        event,
+        eventIndex,
+        eventList
+      ) => {
+        return (
+          eventList.findIndex(
+            compareEvent => {
+              return (
+                compareEvent.target ===
+                  event.target &&
+                compareEvent.detectionType ===
+                  event.detectionType
+              );
+            }
+          ) ===
+          eventIndex
+        );
+      }
+    );
+
+
+  const getEventBoxLabel = (
+    event
+  ) => {
+    const target =
+      String(
+        event?.target ||
+        event?.baseTarget ||
+        ""
+      ).trim();
+
+
+    if (
+      target ===
+        "armRoll" ||
+      target ===
+        "armRollUnit2" ||
+      target ===
+        "armRollBox"
+    ) {
+      return "ARM ROLL";
+    }
+
+
+    if (
+      target ===
+        "scrap" ||
+      target ===
+        "scrapUnit2" ||
+      target ===
+        "scrapBox"
+    ) {
+      return "SCRAP";
+    }
+
+
+    /*
+      target 값이 예상과 다를 경우에도
+      기존 라벨 함수로 최대한 보완한다.
+    */
+    const fullLabel =
+      String(
+        getArmRollBoxTargetLabel(
+          target
+        ) ||
+        ""
+      )
+        .replace(
+          /^\s*[12]호기\s*/i,
+          ""
+        )
+        .replace(
+          /\s*BOX\s*$/i,
+          ""
+        )
+        .trim();
+
+
+    return (
+      fullLabel ||
+      "BOX"
+    );
+  };
+
+
   return `
     <td class="arm-roll-box-unit-event-cell">
-      ${events
+      ${uniqueEvents
         .map(
           event => {
-            const className =
+            const isConfirmed =
               event.detectionType ===
-              "confirmed"
+              "confirmed";
+
+
+            const className =
+              isConfirmed
                 ? "is-replacement"
                 : "is-suspected";
 
-            const text =
-              event.detectionType ===
-              "confirmed"
+
+            const boxLabel =
+              getEventBoxLabel(
+                event
+              );
+
+
+            const stateLabel =
+              isConfirmed
                 ? "교체"
                 : "교체 의심";
 
+
+            const sourceText =
+              String(
+                event?.sourceText ||
+                ""
+              ).trim();
+
+
             return `
-              <span class="${className}">
-                ${text}
+              <span
+                class="${className}"
+                ${
+                  sourceText
+                    ? `
+                      title="${escapeArmRollBoxHtml(
+                        sourceText
+                      )}"
+                    `
+                    : ""
+                }
+              >
+                <strong>
+                  ${escapeArmRollBoxHtml(
+                    boxLabel
+                  )}
+                </strong>
+
+                ${escapeArmRollBoxHtml(
+                  stateLabel
+                )}
               </span>
             `;
           }
