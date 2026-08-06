@@ -162766,3 +162766,210 @@ if (
     initializeLeaderRoleQuickAdd();
   }
 })();
+
+/* =========================================================
+  파트장 본인 업무일지
+  결재완료 → 결재취소 버튼 표시 최종 보완
+
+  파트장 본인이 자신의 업무일지를 결재완료한 경우:
+
+  인쇄 | 결재취소                         닫기
+
+  결재취소 후:
+  - 상태 → 임시저장
+  - 다시 수정 가능
+========================================================= */
+
+(function installLeaderDetailApprovalCancelButtonFix() {
+  if (
+    window
+      .__leaderDetailApprovalCancelButtonFixInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__leaderDetailApprovalCancelButtonFixInstalled =
+    true;
+
+
+  if (
+    typeof updateShiftLogDetailActionButtons !==
+      "function"
+  ) {
+    return;
+  }
+
+
+  const originalUpdateShiftLogDetailActionButtons =
+    updateShiftLogDetailActionButtons;
+
+
+  updateShiftLogDetailActionButtons =
+    function updateShiftLogDetailActionButtonsWithLeaderCancel(
+      log
+    ) {
+      /*
+        기존 버튼 표시 규칙을 먼저 그대로 실행한다.
+      */
+      originalUpdateShiftLogDetailActionButtons(
+        log
+      );
+
+
+      if (
+        !log ||
+        typeof log !==
+          "object"
+      ) {
+        return;
+      }
+
+
+      /*
+        과거 업무일지는 제외
+      */
+      if (
+        typeof isReadOnlyLegacyShiftLog ===
+          "function" &&
+        isReadOnlyLegacyShiftLog(
+          log
+        )
+      ) {
+        return;
+      }
+
+
+      const normalizedRole =
+        normalizeMemberLogRole(
+          log.role
+        );
+
+
+      const normalizedStatus =
+        normalizeShiftLogApprovalStatus(
+          log.status
+        );
+
+
+      /*
+        이번 보완은
+        파트장 업무일지 + 결재완료 상태에만 적용
+      */
+      if (
+        normalizedRole !==
+          "파트장" ||
+        normalizedStatus !==
+          "결재완료"
+      ) {
+        return;
+      }
+
+
+      /*
+        실제 결재취소 권한 확인
+
+        파트장 본인 또는 최고관리자만 통과
+      */
+      const canCancelApproval =
+        typeof canCurrentUserCancelShiftLogApproval ===
+          "function" &&
+        canCurrentUserCancelShiftLogApproval(
+          log
+        );
+
+
+      if (
+        !canCancelApproval
+      ) {
+        return;
+      }
+
+
+      /* =====================================================
+        결재취소 버튼 확보
+      ====================================================== */
+
+      let cancelButton =
+        document.getElementById(
+          "cancelApprovalFromDetailButton"
+        );
+
+
+      if (
+        !cancelButton &&
+        typeof ensureCancelApprovalDetailButton ===
+          "function"
+      ) {
+        cancelButton =
+          ensureCancelApprovalDetailButton();
+      }
+
+
+      if (
+        !cancelButton
+      ) {
+        return;
+      }
+
+
+      /* =====================================================
+        버튼 표시
+      ====================================================== */
+
+      cancelButton.hidden =
+        false;
+
+
+      cancelButton.disabled =
+        false;
+
+
+      cancelButton.removeAttribute(
+        "hidden"
+      );
+
+
+      cancelButton.removeAttribute(
+        "aria-disabled"
+      );
+
+
+      cancelButton.style.removeProperty(
+        "display"
+      );
+
+
+      cancelButton.textContent =
+        "결재취소";
+
+
+      cancelButton.title =
+        "결재완료를 취소하고 업무일지를 다시 수정합니다.";
+
+
+      /* =====================================================
+        버튼 위치
+
+        오른쪽:
+        결재취소 | 닫기
+      ====================================================== */
+
+      const closeButton =
+        document.getElementById(
+          "closeLogDetailFooterButton"
+        );
+
+
+      if (
+        closeButton
+      ) {
+        closeButton.insertAdjacentElement(
+          "beforebegin",
+          cancelButton
+        );
+      }
+    };
+})();
