@@ -38,6 +38,21 @@ const DEFAULT_REQUEST_TYPE =
 const REQUEST_TIMEOUT_MINUTES =
   10;
 
+/*
+  기간 일괄 계산:
+  한 번에 최대 62일까지 허용한다.
+*/
+const MAXIMUM_LIMESTONE_USAGE_BATCH_DAYS =
+  62;
+
+
+/*
+  기간 요청은 대기열에서 오래 기다릴 수 있으므로
+  개별 요청 유효기간을 48시간으로 설정한다.
+*/
+const LIMESTONE_USAGE_BATCH_QUEUE_HOURS =
+  48;  
+
 
 /* =========================================================
   공통 응답
@@ -200,6 +215,114 @@ function addIsoDateDays(
       0,
       10
     );
+}
+
+/* =========================================================
+  기간 일수 계산
+========================================================= */
+
+function getLimestoneUsageBatchDayCount(
+  startDate,
+  endDate
+) {
+  if (
+    !isValidIsoDate(
+      startDate
+    ) ||
+    !isValidIsoDate(
+      endDate
+    )
+  ) {
+    return 0;
+  }
+
+
+  const startTime =
+    new Date(
+      `${startDate}T00:00:00.000Z`
+    ).getTime();
+
+
+  const endTime =
+    new Date(
+      `${endDate}T00:00:00.000Z`
+    ).getTime();
+
+
+  if (
+    startTime >
+    endTime
+  ) {
+    return 0;
+  }
+
+
+  return (
+    Math.floor(
+      (
+        endTime -
+        startTime
+      ) /
+      86400000
+    ) +
+    1
+  );
+}
+
+
+/* =========================================================
+  시작일~종료일 날짜 배열 생성
+
+  예:
+  2026-08-01 ~ 2026-08-03
+
+  결과:
+  [
+    "2026-08-01",
+    "2026-08-02",
+    "2026-08-03"
+  ]
+========================================================= */
+
+function createLimestoneUsageBatchDates(
+  startDate,
+  endDate
+) {
+  const dayCount =
+    getLimestoneUsageBatchDayCount(
+      startDate,
+      endDate
+    );
+
+
+  if (
+    dayCount <
+      1
+  ) {
+    return [];
+  }
+
+
+  const dates = [];
+
+
+  for (
+    let dayIndex = 0;
+    dayIndex <
+      dayCount;
+    dayIndex +=
+      1
+  ) {
+    dates.push(
+      addIsoDateDays(
+        startDate,
+        dayIndex
+      )
+    );
+  }
+
+
+  return dates;
 }
 
 
@@ -1553,6 +1676,497 @@ async function findRequestById(
   );
 }
 
+/* =========================================================
+  기간 계산 DB 행 → API 응답
+========================================================= */
+
+function convertLimestoneUsageBatchRow(
+  row
+) {
+  if (
+    !row
+  ) {
+    return null;
+  }
+
+
+  return {
+    id:
+      normalizeText(
+        row.id
+      ),
+
+    startDate:
+      normalizeText(
+        row.start_date
+      ),
+
+    endDate:
+      normalizeText(
+        row.end_date
+      ),
+
+    totalDays:
+      Number(
+        row.total_days
+      ) ||
+      0,
+
+    status:
+      normalizeText(
+        row.status
+      ),
+
+    requestedById:
+      normalizeText(
+        row.requested_by_id
+      ),
+
+    requestedByName:
+      normalizeText(
+        row.requested_by_name
+      ),
+
+    createdAt:
+      normalizeText(
+        row.created_at
+      ),
+
+    completedAt:
+      normalizeText(
+        row.completed_at
+      ),
+
+    updatedAt:
+      normalizeText(
+        row.updated_at
+      ),
+
+    lastError:
+      normalizeText(
+        row.last_error
+      )
+  };
+}
+
+
+/* =========================================================
+  기간 계산 작업 한 건 조회
+========================================================= */
+
+async function findLimestoneUsageBatchById(
+  database,
+  batchId
+) {
+  const row =
+    await database
+      .prepare(`
+        SELECT
+          *
+
+        FROM limestone_usage_batches
+
+        WHERE id = ?
+
+        LIMIT 1
+      `)
+      .bind(
+        batchId
+      )
+      .first();
+
+
+  return convertLimestoneUsageBatchRow(
+    row
+  );
+}
+
+
+/* =========================================================
+  OIS 요청이 속한 기간 계산 작업 조회
+========================================================= */
+
+async function findLimestoneUsageBatchLinkByRequestId(
+  database,
+  requestId
+) {
+  const row =
+    await database
+      .prepare(`
+        SELECT
+          batch_id,
+          usage_date
+
+        FROM limestone_usage_batch_items
+
+        WHERE ois_request_id = ?
+
+        LIMIT 1
+      `)
+      .bind(
+        requestId
+      )
+      .first();
+
+
+  if (
+    !row
+  ) {
+    return null;
+  }
+
+
+  return {
+    batchId:
+      normalizeText(
+        row.batch_id
+      ),
+
+    usageDate:
+      normalizeText(
+        row.usage_date
+      )
+  };
+}
+
+
+/* =========================================================
+  기간 계산 진행 상태 갱신·조회
+========================================================= */
+
+async function refreshLimestoneUsageBatchStatus(
+  database,
+  batchId
+) {
+  const existingBatch =
+    await findLimestoneUsageBatchById(
+      database,
+      batchId
+    );
+
+
+  if (
+    !existingBatch
+  ) {
+    return null;
+  }
+
+
+  const queryResult =
+    await database
+      .prepare(`
+        SELECT
+          item.usage_date,
+          item.ois_request_id,
+
+          request.status,
+          request.error_message,
+          request.requested_at,
+          request.started_at,
+          request.completed_at,
+          request.agent_id
+
+        FROM limestone_usage_batch_items
+          AS item
+
+        INNER JOIN ois_data_requests
+          AS request
+
+          ON request.id =
+             item.ois_request_id
+
+        WHERE item.batch_id = ?
+
+        ORDER BY
+          item.usage_date ASC
+      `)
+      .bind(
+        batchId
+      )
+      .all();
+
+
+  const rows =
+    Array.isArray(
+      queryResult.results
+    )
+      ? queryResult.results
+      : [];
+
+
+  const items =
+    rows.map(
+      row => {
+        return {
+          usageDate:
+            normalizeText(
+              row.usage_date
+            ),
+
+          requestId:
+            normalizeText(
+              row.ois_request_id
+            ),
+
+          status:
+            normalizeText(
+              row.status
+            ),
+
+          errorMessage:
+            normalizeText(
+              row.error_message
+            ),
+
+          requestedAt:
+            normalizeText(
+              row.requested_at
+            ),
+
+          startedAt:
+            normalizeText(
+              row.started_at
+            ),
+
+          completedAt:
+            normalizeText(
+              row.completed_at
+            ),
+
+          agentId:
+            normalizeText(
+              row.agent_id
+            )
+        };
+      }
+    );
+
+
+  const counts = {
+    pending:
+      0,
+
+    processing:
+      0,
+
+    complete:
+      0,
+
+    failed:
+      0
+  };
+
+
+  items.forEach(
+    item => {
+      if (
+        Object.prototype
+          .hasOwnProperty
+          .call(
+            counts,
+            item.status
+          )
+      ) {
+        counts[
+          item.status
+        ] +=
+          1;
+      }
+    }
+  );
+
+
+  const completedCount =
+    counts.complete;
+
+
+  const failedCount =
+    counts.failed;
+
+
+  const processedCount =
+    completedCount +
+    failedCount;
+
+
+  const remainingCount =
+    counts.pending +
+    counts.processing;
+
+
+  let status =
+    "pending";
+
+
+  if (
+    items.length <
+      1
+  ) {
+    status =
+      "failed";
+
+  } else if (
+    remainingCount >
+      0
+  ) {
+    status =
+      counts.processing >
+        0 ||
+      processedCount >
+        0
+        ? "processing"
+        : "pending";
+
+  } else if (
+    completedCount ===
+      items.length
+  ) {
+    status =
+      "complete";
+
+  } else if (
+    failedCount ===
+      items.length
+  ) {
+    status =
+      "failed";
+
+  } else {
+    status =
+      "partial_failed";
+  }
+
+
+  const isFinished =
+    [
+      "complete",
+      "failed",
+      "partial_failed"
+    ].includes(
+      status
+    );
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  const completedAt =
+    isFinished
+      ? (
+          existingBatch.completedAt ||
+          now
+        )
+      : "";
+
+
+  const failedItems =
+    items.filter(
+      item => {
+        return item.status ===
+          "failed";
+      }
+    );
+
+
+  const lastError =
+    failedItems.length >
+      0
+      ? normalizeText(
+          failedItems[
+            failedItems.length -
+            1
+          ].errorMessage
+        )
+      : "";
+
+
+  await database
+    .prepare(`
+      UPDATE limestone_usage_batches
+
+      SET
+        status = ?,
+        completed_at = ?,
+        updated_at = ?,
+        last_error = ?
+
+      WHERE id = ?
+    `)
+    .bind(
+      status,
+      completedAt,
+      now,
+      lastError,
+      batchId
+    )
+    .run();
+
+
+  const updatedBatch =
+    await findLimestoneUsageBatchById(
+      database,
+      batchId
+    );
+
+
+  const totalDays =
+    Math.max(
+      Number(
+        updatedBatch?.totalDays ||
+        items.length ||
+        0
+      ),
+      0
+    );
+
+
+  const progressPercent =
+    totalDays >
+      0
+      ? Math.min(
+          100,
+
+          Math.round(
+            (
+              processedCount /
+              totalDays
+            ) *
+            100
+          )
+        )
+      : 0;
+
+
+  return {
+    batch:
+      updatedBatch,
+
+    progress: {
+      totalDays,
+
+      processedCount,
+
+      completedCount,
+
+      failedCount,
+
+      pendingCount:
+        counts.pending,
+
+      processingCount:
+        counts.processing,
+
+      remainingCount,
+
+      percent:
+        progressPercent
+    },
+
+    items
+  };
+}
 
 /* =========================================================
   만료된 요청 정리
@@ -1735,6 +2349,95 @@ async function handleLimestoneUsageRecordsGet(
             unitTwoUsage
           : null
     }
+  });
+}
+
+/* =========================================================
+  기간 계산 진행 상태 조회
+
+  GET:
+  /api/ois-data-requests
+    ?action=usage_batch
+    &batchId=배치ID
+========================================================= */
+
+async function handleLimestoneUsageBatchGet(
+  context,
+  requestUrl
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  await expireOldRequests(
+    context.env.DB
+  );
+
+
+  const batchId =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "batchId"
+      ) ||
+      requestUrl.searchParams.get(
+        "id"
+      )
+    );
+
+
+  if (
+    !batchId
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "조회할 기간 계산 작업 ID가 없습니다."
+      },
+      400
+    );
+  }
+
+
+  const progress =
+    await refreshLimestoneUsageBatchStatus(
+      context.env.DB,
+      batchId
+    );
+
+
+  if (
+    !progress
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "기간 계산 작업을 찾을 수 없습니다."
+      },
+      404
+    );
+  }
+
+
+  return jsonResponse({
+    ok:
+      true,
+
+    ...progress
   });
 }
 
@@ -2024,16 +2727,38 @@ export async function onRequestGet(
           "_"
         );
 
-    if (
-  action ===
-    "usage_records"
-) {
-  return await handleLimestoneUsageRecordsGet(
-    context,
-    requestUrl
-  );
-}    
 
+    /*
+      저장된 날짜별 사용량
+    */
+    if (
+      action ===
+        "usage_records"
+    ) {
+      return await handleLimestoneUsageRecordsGet(
+        context,
+        requestUrl
+      );
+    }
+
+
+    /*
+      기간 계산 진행률
+    */
+    if (
+      action ===
+        "usage_batch"
+    ) {
+      return await handleLimestoneUsageBatchGet(
+        context,
+        requestUrl
+      );
+    }
+
+
+    /*
+      회사 PC 다음 요청
+    */
     if (
       action ===
         "next"
@@ -2045,6 +2770,9 @@ export async function onRequestGet(
     }
 
 
+    /*
+      일반 OIS 요청 상태
+    */
     return await handleUserGet(
       context,
       requestUrl
@@ -2075,6 +2803,418 @@ export async function onRequestGet(
   }
 }
 
+/* =========================================================
+  기간 전체 OIS 계산 요청 생성
+
+  POST:
+  {
+    action: "create_usage_batch",
+    startDate: "2026-08-01",
+    endDate: "2026-08-31"
+  }
+
+  처리:
+  - 날짜별 OIS 요청 생성
+  - 날짜별 요청과 배치 작업 연결
+  - 화면을 닫아도 회사 PC 에이전트가 계속 처리
+========================================================= */
+
+async function createLimestoneUsageBatchRequest(
+  context,
+  body
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const user =
+    authentication.user;
+
+
+  const startDate =
+    normalizeText(
+      body.startDate ||
+      body.start_date
+    );
+
+
+  const endDate =
+    normalizeText(
+      body.endDate ||
+      body.end_date
+    );
+
+
+  if (
+    !isValidIsoDate(
+      startDate
+    ) ||
+    !isValidIsoDate(
+      endDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "기간 계산 시작일과 종료일을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const dates =
+    createLimestoneUsageBatchDates(
+      startDate,
+      endDate
+    );
+
+
+  if (
+    dates.length <
+      1
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "시작일은 종료일보다 늦을 수 없습니다."
+      },
+      400
+    );
+  }
+
+
+  if (
+    dates.length >
+      MAXIMUM_LIMESTONE_USAGE_BATCH_DAYS
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          `기간 사용량 계산은 한 번에 최대 ${MAXIMUM_LIMESTONE_USAGE_BATCH_DAYS}일까지 실행할 수 있습니다.`
+      },
+      400
+    );
+  }
+
+
+  await expireOldRequests(
+    context.env.DB
+  );
+
+
+  /*
+    같은 사용자가 같은 기간을 이미 처리 중이면
+    중복 작업을 만들지 않고 기존 작업을 반환한다.
+  */
+  const existingRow =
+    await context.env.DB
+      .prepare(`
+        SELECT
+          *
+
+        FROM limestone_usage_batches
+
+        WHERE
+          start_date = ?
+          AND end_date = ?
+          AND requested_by_id = ?
+          AND status IN (
+            'pending',
+            'processing'
+          )
+
+        ORDER BY
+          created_at DESC
+
+        LIMIT 1
+      `)
+      .bind(
+        startDate,
+        endDate,
+        user.employeeNo
+      )
+      .first();
+
+
+  if (
+    existingRow
+  ) {
+    const existingBatch =
+      convertLimestoneUsageBatchRow(
+        existingRow
+      );
+
+
+    const existingProgress =
+      await refreshLimestoneUsageBatchStatus(
+        context.env.DB,
+        existingBatch.id
+      );
+
+
+    return jsonResponse({
+      ok:
+        true,
+
+      reused:
+        true,
+
+      ...existingProgress,
+
+      message:
+        "같은 기간의 사용량 계산을 이미 진행하고 있습니다."
+    });
+  }
+
+
+  const batchId =
+    crypto.randomUUID();
+
+
+  const baseTime =
+    Date.now();
+
+
+  const createdAt =
+    new Date(
+      baseTime
+    ).toISOString();
+
+
+  const statements = [];
+
+
+  statements.push(
+    context.env.DB
+      .prepare(`
+        INSERT INTO limestone_usage_batches (
+          id,
+
+          start_date,
+          end_date,
+          total_days,
+
+          status,
+
+          requested_by_id,
+          requested_by_name,
+
+          created_at,
+          completed_at,
+          updated_at,
+
+          last_error
+        )
+        VALUES (
+          ?,
+
+          ?,
+          ?,
+          ?,
+
+          'pending',
+
+          ?,
+          ?,
+
+          ?,
+          '',
+          ?,
+
+          ''
+        )
+      `)
+      .bind(
+        batchId,
+
+        startDate,
+        endDate,
+        dates.length,
+
+        user.employeeNo,
+        user.name,
+
+        createdAt,
+        createdAt
+      )
+  );
+
+
+  dates.forEach(
+    (
+      usageDate,
+      dateIndex
+    ) => {
+      const requestId =
+        crypto.randomUUID();
+
+
+      /*
+        날짜 순서대로 대기열에서 처리되도록
+        요청 시각을 1ms씩 증가시킨다.
+      */
+      const requestedAt =
+        new Date(
+          baseTime +
+          dateIndex
+        ).toISOString();
+
+
+      const expiresAt =
+        new Date(
+          baseTime +
+          (
+            LIMESTONE_USAGE_BATCH_QUEUE_HOURS *
+            60 *
+            60 *
+            1000
+          ) +
+          dateIndex
+        ).toISOString();
+
+
+      statements.push(
+        context.env.DB
+          .prepare(`
+            INSERT INTO ois_data_requests (
+              id,
+
+              request_type,
+              target_date,
+              status,
+
+              requested_by_id,
+              requested_by_name,
+
+              requested_at,
+              started_at,
+              completed_at,
+
+              agent_id,
+
+              result_json,
+              error_message,
+
+              expires_at,
+              updated_at
+            )
+            VALUES (
+              ?,
+
+              'limestone_stock',
+              ?,
+              'pending',
+
+              ?,
+              ?,
+
+              ?,
+              NULL,
+              NULL,
+
+              '',
+
+              NULL,
+              '',
+
+              ?,
+              ?
+            )
+          `)
+          .bind(
+            requestId,
+
+            usageDate,
+
+            user.employeeNo,
+            user.name,
+
+            requestedAt,
+
+            expiresAt,
+            requestedAt
+          )
+      );
+
+
+      statements.push(
+        context.env.DB
+          .prepare(`
+            INSERT INTO limestone_usage_batch_items (
+              batch_id,
+              usage_date,
+              ois_request_id,
+              created_at
+            )
+            VALUES (
+              ?,
+              ?,
+              ?,
+              ?
+            )
+          `)
+          .bind(
+            batchId,
+            usageDate,
+            requestId,
+            requestedAt
+          )
+      );
+    }
+  );
+
+
+  /*
+    배치 작업과 날짜별 요청을
+    하나의 D1 작업으로 저장한다.
+  */
+  await context.env.DB.batch(
+    statements
+  );
+
+
+  const progress =
+    await refreshLimestoneUsageBatchStatus(
+      context.env.DB,
+      batchId
+    );
+
+
+  return jsonResponse(
+    {
+      ok:
+        true,
+
+      reused:
+        false,
+
+      ...progress,
+
+      message:
+        `${dates.length}일의 석회석 사용량 계산 요청을 등록했습니다.`
+    },
+    201
+  );
+}
 
 /* =========================================================
   업무일지에서 새 OIS 요청 생성
@@ -2369,6 +3509,8 @@ async function createUserRequest(
   );
 }
 
+
+
 /* =========================================================
   회사 PC 처리 완료
 
@@ -2508,25 +3650,36 @@ async function completeAgentRequest(
       저장 실패 시 요청이 complete로 바뀌지 않으므로
       계산값 없는 완료 요청이 생기지 않는다.
     */
-    limestoneUsageRecords =
-      await saveLimestoneUsageRecords(
-        context.env.DB,
-        {
-          requestItem:
-            existingRequest,
 
-          normalizedResult,
+const batchLink =
+  await findLimestoneUsageBatchLinkByRequestId(
+    context.env.DB,
+    requestId
+  );
 
-          agentId:
-            authentication.agentId,
 
-          calculationMode:
-            "single",
+limestoneUsageRecords =
+  await saveLimestoneUsageRecords(
+    context.env.DB,
+    {
+      requestItem:
+        existingRequest,
 
-          batchId:
-            ""
-        }
-      );
+      normalizedResult,
+
+      agentId:
+        authentication.agentId,
+
+      calculationMode:
+        batchLink
+          ? "batch"
+          : "single",
+
+      batchId:
+        batchLink?.batchId ||
+        ""
+    }
+  );      
 
   } else {
     normalizedResult =
@@ -2788,6 +3941,9 @@ export async function onRequestPost(
         );
 
 
+    /*
+      회사 PC 조회 완료
+    */
     if (
       action ===
         "complete"
@@ -2799,6 +3955,9 @@ export async function onRequestPost(
     }
 
 
+    /*
+      회사 PC 조회 실패
+    */
     if (
       action ===
         "fail"
@@ -2810,6 +3969,23 @@ export async function onRequestPost(
     }
 
 
+    /*
+      기간 전체 사용량 계산
+    */
+    if (
+      action ===
+        "create_usage_batch"
+    ) {
+      return await createLimestoneUsageBatchRequest(
+        context,
+        body
+      );
+    }
+
+
+    /*
+      단일 날짜 OIS 조회
+    */
     return await createUserRequest(
       context,
       body

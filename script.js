@@ -1219,11 +1219,17 @@ if (
 }
 
 
-  /* =====================================================
-    소메뉴 전환
-  ====================================================== */
+/*
+  setLimestoneUsageDate 함수 종료
+*/
+}
 
-  function switchLimestoneSubview(
+
+/* =====================================================
+  소메뉴 전환
+====================================================== */
+
+function switchLimestoneSubview(
     requestedView
   ) {
     const normalizedView =
@@ -143005,6 +143011,7 @@ async function loadSavedLimestoneUsageRecords(
     setLimestoneOisRequestStatus(
       "complete",
       "OIS 조회·사용량 자동 저장 완료",
+      
       [
         `1호기 ${formatLimestoneOisNumber(
           normalizedResult
@@ -145786,6 +145793,1650 @@ function bindEvents() {
       "DOMContentLoaded",
       initialize,
 
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
+
+/* =========================================================
+  오전회의 취합
+  OIS 수처리 현황 요청 클라이언트
+
+  조회:
+  POST /api/ois-data-requests
+  requestType: water_environment
+
+  기준일:
+  - 팀 자료 분석일
+  - 교대파트 조회 기준일
+  - 오전회의 대상일의 전일 자료
+
+  표시:
+  - 장자산단 원수 유입량
+  - 순수 생산량
+  - 순수 사용량
+  - 원수 TANK 저장량·저장율
+  - 여과수 TANK 저장량·저장율
+  - 순수 TANK 저장량·저장율
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingWaterOisClient() {
+  "use strict";
+
+
+  if (
+    window
+      .__efficiencyMorningMeetingWaterOisClientInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyMorningMeetingWaterOisClientInstalled =
+    true;
+
+
+  const OIS_REQUEST_API_URL =
+    "/api/ois-data-requests";
+
+
+  const POLL_INTERVAL =
+    1500;
+
+
+  const MAXIMUM_WAIT =
+    10 *
+    60 *
+    1000;
+
+
+  let activeRequestId =
+    "";
+
+
+  let activeRunToken =
+    0;
+
+
+  let initializationAttempt =
+    0;
+
+
+  /* =====================================================
+    화면 요소
+  ====================================================== */
+
+  function getElements() {
+    return {
+      panel:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterPanel"
+        ),
+
+      targetDate:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterDate"
+        ),
+
+      status:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterStatus"
+        ),
+
+      loadButton:
+        document.getElementById(
+          "loadEfficiencyMorningMeetingWaterButton"
+        ),
+
+      error:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterError"
+        ),
+
+      rawWaterInflow:
+        document.getElementById(
+          "efficiencyMorningMeetingRawWaterInflow"
+        ),
+
+      demiProduction:
+        document.getElementById(
+          "efficiencyMorningMeetingDemiProduction"
+        ),
+
+      pureWaterUsage:
+        document.getElementById(
+          "efficiencyMorningMeetingPureWaterUsage"
+        ),
+
+      rawWaterTankAmount:
+        document.getElementById(
+          "efficiencyMorningMeetingRawWaterTankAmount"
+        ),
+
+      rawWaterTankRate:
+        document.getElementById(
+          "efficiencyMorningMeetingRawWaterTankRate"
+        ),
+
+      filteredWaterTankAmount:
+        document.getElementById(
+          "efficiencyMorningMeetingFilteredWaterTankAmount"
+        ),
+
+      filteredWaterTankRate:
+        document.getElementById(
+          "efficiencyMorningMeetingFilteredWaterTankRate"
+        ),
+
+      demiWaterTankAmount:
+        document.getElementById(
+          "efficiencyMorningMeetingDemiWaterTankAmount"
+        ),
+
+      demiWaterTankRate:
+        document.getElementById(
+          "efficiencyMorningMeetingDemiWaterTankRate"
+        ),
+
+      analyzeButton:
+        document.getElementById(
+          "analyzeEfficiencyMorningMeetingButton"
+        ),
+
+      loadShiftButton:
+        document.getElementById(
+          "loadEfficiencyMorningMeetingShiftLogsButton"
+        ),
+
+      shiftDate:
+        document.getElementById(
+          "efficiencyMorningMeetingShiftDate"
+        ),
+
+      resetButton:
+        document.getElementById(
+          "resetEfficiencyMorningMeetingButton"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    오전회의 공용 상태
+  ====================================================== */
+
+  function getState() {
+    if (
+      !window
+        .efficiencyMorningMeetingUploadState
+    ) {
+      window.efficiencyMorningMeetingUploadState = {
+        files:
+          {},
+
+        analysis:
+          {}
+      };
+    }
+
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  /* =====================================================
+    문자열·날짜
+  ====================================================== */
+
+  function normalizeText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    ).trim();
+  }
+
+
+  function isValidDate(
+    value
+  ) {
+    const normalizedDate =
+      normalizeText(
+        value
+      );
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        normalizedDate
+      )
+    ) {
+      return false;
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${normalizedDate}T00:00:00`
+      );
+
+
+    if (
+      Number.isNaN(
+        parsedDate.getTime()
+      )
+    ) {
+      return false;
+    }
+
+
+    return [
+      parsedDate.getFullYear(),
+
+      String(
+        parsedDate.getMonth() +
+        1
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        parsedDate.getDate()
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    ) ===
+      normalizedDate;
+  }
+
+
+  function extractDateFromText(
+    value
+  ) {
+    const matchedDate =
+      normalizeText(
+        value
+      ).match(
+        /\d{4}-\d{2}-\d{2}/
+      )?.[0] ||
+      "";
+
+
+    return isValidDate(
+      matchedDate
+    )
+      ? matchedDate
+      : "";
+  }
+
+
+  /* =====================================================
+    OIS 조회 기준일 확인
+
+    우선순위:
+    1. 교대파트 조회가 확정한 reportDate
+    2. 팀별 엑셀 분석일
+    3. 교대파트 화면 기준일 표시
+
+    이 날짜가 오전회의 대상일의 전일 자료다.
+  ====================================================== */
+
+  function resolveWaterTargetDate() {
+    const state =
+      getState();
+
+
+    const shiftReportDate =
+      normalizeText(
+        state.shiftPart
+          ?.reportDate
+      );
+
+
+    if (
+      isValidDate(
+        shiftReportDate
+      )
+    ) {
+      return shiftReportDate;
+    }
+
+
+    const analysisResults =
+      Object.values(
+        state.analysis ||
+        {}
+      );
+
+
+    for (
+      const result
+      of analysisResults
+    ) {
+      const reportDate =
+        normalizeText(
+          result?.reportDate
+        );
+
+
+      if (
+        isValidDate(
+          reportDate
+        )
+      ) {
+        return reportDate;
+      }
+    }
+
+
+    const {
+      shiftDate
+    } =
+      getElements();
+
+
+    return extractDateFromText(
+      shiftDate?.textContent
+    );
+  }
+
+
+  /* =====================================================
+    숫자
+  ====================================================== */
+
+  function normalizeNumber(
+    value
+  ) {
+    const normalizedValue =
+      String(
+        value ??
+        ""
+      )
+        .replaceAll(
+          ",",
+          ""
+        )
+        .trim();
+
+
+    if (
+      !normalizedValue
+    ) {
+      return null;
+    }
+
+
+    const numericValue =
+      Number(
+        normalizedValue
+      );
+
+
+    return Number.isFinite(
+      numericValue
+    )
+      ? Math.round(
+          numericValue *
+          1000
+        ) /
+        1000
+      : null;
+  }
+
+
+  function formatNumber(
+    value
+  ) {
+    const numericValue =
+      normalizeNumber(
+        value
+      );
+
+
+    if (
+      numericValue ===
+        null
+    ) {
+      return "-";
+    }
+
+
+    return numericValue.toLocaleString(
+      "ko-KR",
+      {
+        minimumFractionDigits:
+          3,
+
+        maximumFractionDigits:
+          3
+      }
+    );
+  }
+
+
+  /* =====================================================
+    상태 표시
+  ====================================================== */
+
+  function setStatus(
+    status,
+    message
+  ) {
+    const {
+      panel,
+      status: statusElement
+    } =
+      getElements();
+
+
+    if (
+      panel
+    ) {
+      panel.dataset
+        .waterStatus =
+        normalizeText(
+          status
+        ) ||
+        "idle";
+    }
+
+
+    if (
+      statusElement
+    ) {
+      statusElement.textContent =
+        normalizeText(
+          message
+        );
+    }
+  }
+
+
+  function hideError() {
+    const {
+      error
+    } =
+      getElements();
+
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+
+    error.textContent =
+      "";
+
+
+    error.hidden =
+      true;
+  }
+
+
+  function showError(
+    message
+  ) {
+    const {
+      error
+    } =
+      getElements();
+
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+
+    error.textContent =
+      normalizeText(
+        message
+      ) ||
+      "OIS 수처리 자료를 불러오지 못했습니다.";
+
+
+    error.hidden =
+      false;
+  }
+
+
+  /* =====================================================
+    화면 값 초기화
+  ====================================================== */
+
+  function clearWaterValues() {
+    const elements =
+      getElements();
+
+
+    [
+      elements.rawWaterInflow,
+      elements.demiProduction,
+      elements.pureWaterUsage,
+      elements.rawWaterTankAmount,
+      elements.rawWaterTankRate,
+      elements.filteredWaterTankAmount,
+      elements.filteredWaterTankRate,
+      elements.demiWaterTankAmount,
+      elements.demiWaterTankRate
+    ]
+      .filter(
+        Boolean
+      )
+      .forEach(
+        element => {
+          element.textContent =
+            "-";
+        }
+      );
+  }
+
+
+  function resetWaterResult(
+    options = {}
+  ) {
+    const {
+      keepDate =
+        true
+    } = options;
+
+
+    activeRunToken +=
+      1;
+
+
+    activeRequestId =
+      "";
+
+
+    const state =
+      getState();
+
+
+    delete state
+      .waterTreatment;
+
+
+    clearWaterValues();
+
+    hideError();
+
+
+    const {
+      panel,
+      targetDate,
+      loadButton
+    } =
+      getElements();
+
+
+    if (
+      panel
+    ) {
+      delete panel.dataset
+        .oisRequestId;
+
+
+      delete panel.dataset
+        .oisCollectedAt;
+
+
+      delete panel.dataset
+        .oisAgentId;
+    }
+
+
+    if (
+      !keepDate &&
+      targetDate
+    ) {
+      targetDate.textContent =
+        "기준일 확인 전";
+    }
+
+
+    if (
+      loadButton
+    ) {
+      loadButton.textContent =
+        "OIS 수처리 불러오기";
+    }
+
+
+    setStatus(
+      "idle",
+      "OIS 조회 전"
+    );
+  }
+
+
+  /* =====================================================
+    기준일 화면 동기화
+  ====================================================== */
+
+  function synchronizeTargetDate() {
+    const targetDate =
+      resolveWaterTargetDate();
+
+
+    const {
+      panel,
+      targetDate:
+        targetDateElement,
+      loadButton
+    } =
+      getElements();
+
+
+    const previousTargetDate =
+      normalizeText(
+        panel?.dataset
+          .waterTargetDate
+      );
+
+
+    if (
+      targetDateElement
+    ) {
+      targetDateElement.textContent =
+        targetDate
+          ? `${targetDate} · 오전회의 전일`
+          : "기준일 확인 전";
+    }
+
+
+    if (
+      loadButton
+    ) {
+      loadButton.disabled =
+        !targetDate;
+
+
+      loadButton.title =
+        targetDate
+          ? `${targetDate} OIS 환경일지를 조회합니다.`
+          : "팀 자료 분석 또는 업무일지 불러오기를 먼저 실행해 주세요.";
+    }
+
+
+    if (
+      panel
+    ) {
+      panel.dataset
+        .waterTargetDate =
+        targetDate;
+    }
+
+
+    /*
+      기준일이 달라지면
+      이전 날짜 결과를 화면에서 제거한다.
+    */
+
+    if (
+      previousTargetDate &&
+      targetDate &&
+      previousTargetDate !==
+        targetDate
+    ) {
+      resetWaterResult({
+        keepDate:
+          true
+      });
+
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .waterTargetDate =
+          targetDate;
+      }
+    }
+
+
+    if (
+      !targetDate
+    ) {
+      setStatus(
+        "idle",
+        "기준일 확인 필요"
+      );
+    }
+
+
+    return targetDate;
+  }
+
+
+  /* =====================================================
+    API 응답
+  ====================================================== */
+
+  async function readApiResponse(
+    response,
+    fallbackMessage
+  ) {
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "OIS 요청 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        fallbackMessage ||
+        `OIS 요청에 실패했습니다. (HTTP ${response.status})`
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    수처리 요청 생성
+  ====================================================== */
+
+  async function createWaterRequest(
+    targetDate
+  ) {
+    const response =
+      await fetch(
+        OIS_REQUEST_API_URL,
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              requestType:
+                "water_environment",
+
+              targetDate,
+
+              forceRefresh:
+                true
+            })
+        }
+      );
+
+
+    return await readApiResponse(
+      response,
+      "OIS 수처리 조회 요청을 만들지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    요청 한 건 조회
+  ====================================================== */
+
+  async function getWaterRequest(
+    requestId
+  ) {
+    const requestUrl =
+      new URL(
+        OIS_REQUEST_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "id",
+      requestId
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    return await readApiResponse(
+      response,
+      "OIS 수처리 조회 상태를 확인하지 못했습니다."
+    );
+  }
+
+
+  function wait(
+    milliseconds
+  ) {
+    return new Promise(
+      resolve => {
+        window.setTimeout(
+          resolve,
+          milliseconds
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    수처리 결과 검증
+  ====================================================== */
+
+  function normalizeWaterResult(
+    requestItem,
+    expectedDate
+  ) {
+    const result =
+      requestItem?.result;
+
+
+    if (
+      !result ||
+      typeof result !==
+        "object" ||
+      Array.isArray(
+        result
+      )
+    ) {
+      throw new Error(
+        "OIS 수처리 조회 결과가 비어 있습니다."
+      );
+    }
+
+
+    const normalizedResult = {
+      source:
+        normalizeText(
+          result.source
+        ) ||
+        "OIS 일일 운전일지(환경)",
+
+      sourceDate:
+        normalizeText(
+          result.sourceDate ||
+          result.targetDate ||
+          requestItem.targetDate
+        ),
+
+      collectedAt:
+        normalizeText(
+          result.collectedAt ||
+          requestItem.completedAt
+        ),
+
+      agentId:
+        normalizeText(
+          requestItem.agentId
+        ),
+
+      rawWaterInflow:
+        normalizeNumber(
+          result.rawWaterInflow
+        ),
+
+      demiProduction:
+        normalizeNumber(
+          result.demiProduction
+        ),
+
+      pureWaterUsage:
+        normalizeNumber(
+          result.pureWaterUsage
+        ),
+
+      rawWaterTankAmount:
+        normalizeNumber(
+          result.rawWaterTankAmount
+        ),
+
+      rawWaterTankRate:
+        normalizeNumber(
+          result.rawWaterTankRate
+        ),
+
+      filteredWaterTankAmount:
+        normalizeNumber(
+          result.filteredWaterTankAmount
+        ),
+
+      filteredWaterTankRate:
+        normalizeNumber(
+          result.filteredWaterTankRate
+        ),
+
+      demiWaterTankAmount:
+        normalizeNumber(
+          result.demiWaterTankAmount
+        ),
+
+      demiWaterTankRate:
+        normalizeNumber(
+          result.demiWaterTankRate
+        )
+    };
+
+
+    const requiredValues = [
+      normalizedResult.rawWaterInflow,
+      normalizedResult.demiProduction,
+      normalizedResult.pureWaterUsage,
+      normalizedResult.rawWaterTankAmount,
+      normalizedResult.rawWaterTankRate,
+      normalizedResult.filteredWaterTankAmount,
+      normalizedResult.filteredWaterTankRate,
+      normalizedResult.demiWaterTankAmount,
+      normalizedResult.demiWaterTankRate
+    ];
+
+
+    if (
+      requiredValues.some(
+        value => {
+          return value ===
+            null;
+        }
+      )
+    ) {
+      throw new Error(
+        "OIS 수처리 9개 값 중 일부를 읽지 못했습니다."
+      );
+    }
+
+
+    if (
+      normalizedResult.sourceDate &&
+      normalizedResult.sourceDate !==
+        expectedDate
+    ) {
+      throw new Error(
+        [
+          "OIS 환경일지 조회 날짜가 다릅니다.",
+          `요청일: ${expectedDate}`,
+          `조회 결과: ${normalizedResult.sourceDate}`
+        ].join(
+          " "
+        )
+      );
+    }
+
+
+    return normalizedResult;
+  }
+
+
+  /* =====================================================
+    수처리 결과 화면 반영
+  ====================================================== */
+
+  function applyWaterResult(
+    requestItem,
+    expectedDate
+  ) {
+    const result =
+      normalizeWaterResult(
+        requestItem,
+        expectedDate
+      );
+
+
+    const elements =
+      getElements();
+
+
+    const valueMappings = [
+      [
+        elements.rawWaterInflow,
+        result.rawWaterInflow
+      ],
+
+      [
+        elements.demiProduction,
+        result.demiProduction
+      ],
+
+      [
+        elements.pureWaterUsage,
+        result.pureWaterUsage
+      ],
+
+      [
+        elements.rawWaterTankAmount,
+        result.rawWaterTankAmount
+      ],
+
+      [
+        elements.rawWaterTankRate,
+        result.rawWaterTankRate
+      ],
+
+      [
+        elements.filteredWaterTankAmount,
+        result.filteredWaterTankAmount
+      ],
+
+      [
+        elements.filteredWaterTankRate,
+        result.filteredWaterTankRate
+      ],
+
+      [
+        elements.demiWaterTankAmount,
+        result.demiWaterTankAmount
+      ],
+
+      [
+        elements.demiWaterTankRate,
+        result.demiWaterTankRate
+      ]
+    ];
+
+
+    valueMappings.forEach(
+      ([
+        element,
+        value
+      ]) => {
+        if (
+          element
+        ) {
+          element.textContent =
+            formatNumber(
+              value
+            );
+        }
+      }
+    );
+
+
+    const state =
+      getState();
+
+
+    state.waterTreatment = {
+      ...result,
+
+      requestId:
+        normalizeText(
+          requestItem.id
+        )
+    };
+
+
+    if (
+      elements.panel
+    ) {
+      elements.panel.dataset
+        .oisRequestId =
+        normalizeText(
+          requestItem.id
+        );
+
+
+      elements.panel.dataset
+        .oisCollectedAt =
+        result.collectedAt;
+
+
+      elements.panel.dataset
+        .oisAgentId =
+        result.agentId;
+    }
+
+
+    setStatus(
+      "complete",
+      "수처리 9개 값 조회 완료"
+    );
+
+
+    if (
+      elements.loadButton
+    ) {
+      elements.loadButton.textContent =
+        "OIS 수처리 다시 불러오기";
+    }
+
+
+    if (
+      typeof window
+        .updateEfficiencyMorningMeetingCreateButton ===
+        "function"
+    ) {
+      window
+        .updateEfficiencyMorningMeetingCreateButton();
+    }
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        `${expectedDate} OIS 수처리 현황을 불러왔습니다.`
+      );
+    }
+  }
+
+
+  /* =====================================================
+    회사 PC 처리 완료 대기
+  ====================================================== */
+
+  async function waitForCompletion(
+    requestId,
+    targetDate,
+    runToken
+  ) {
+    const startedAt =
+      Date.now();
+
+
+    while (
+      Date.now() -
+        startedAt <
+      MAXIMUM_WAIT
+    ) {
+      if (
+        runToken !==
+          activeRunToken
+      ) {
+        return null;
+      }
+
+
+      const responseResult =
+        await getWaterRequest(
+          requestId
+        );
+
+
+      const requestItem =
+        responseResult.item;
+
+
+      if (
+        !requestItem
+      ) {
+        throw new Error(
+          "OIS 수처리 요청 정보를 찾을 수 없습니다."
+        );
+      }
+
+
+      const requestStatus =
+        normalizeText(
+          requestItem.status
+        ).toLowerCase();
+
+
+      if (
+        requestStatus ===
+          "complete"
+      ) {
+        return requestItem;
+      }
+
+
+      if (
+        requestStatus ===
+          "failed"
+      ) {
+        throw new Error(
+          requestItem.errorMessage ||
+          "회사 PC에서 수처리 자료를 조회하지 못했습니다."
+        );
+      }
+
+
+      if (
+        requestStatus ===
+          "processing"
+      ) {
+        setStatus(
+          "loading",
+          requestItem.agentId
+            ? `OIS 환경일지 조회 중 · ${requestItem.agentId}`
+            : "OIS 환경일지 조회 중"
+        );
+
+      } else {
+        setStatus(
+          "loading",
+          "회사 PC 연결 대기 중"
+        );
+      }
+
+
+      await wait(
+        POLL_INTERVAL
+      );
+    }
+
+
+    throw new Error(
+      "OIS 수처리 자료의 응답 시간이 초과되었습니다."
+    );
+  }
+
+
+  /* =====================================================
+    OIS 수처리 불러오기
+  ====================================================== */
+
+  async function loadWaterTreatment() {
+    const targetDate =
+      synchronizeTargetDate();
+
+
+    const {
+      loadButton
+    } =
+      getElements();
+
+
+    hideError();
+
+
+    if (
+      !targetDate
+    ) {
+      showError(
+        "팀 자료를 분석하거나 업무일지를 불러와 기준일을 먼저 확인해 주세요."
+      );
+
+
+      return;
+    }
+
+
+    const runToken =
+      activeRunToken +
+      1;
+
+
+    activeRunToken =
+      runToken;
+
+
+    activeRequestId =
+      "";
+
+
+    if (
+      loadButton
+    ) {
+      loadButton.disabled =
+        true;
+
+
+      loadButton.textContent =
+        "OIS 요청 중...";
+    }
+
+
+    setStatus(
+      "loading",
+      `${targetDate} 수처리 조회 요청 중`
+    );
+
+
+    try {
+      const createResult =
+        await createWaterRequest(
+          targetDate
+        );
+
+
+      const requestItem =
+        createResult.item;
+
+
+      if (
+        !requestItem?.id
+      ) {
+        throw new Error(
+          "생성된 OIS 수처리 요청 ID를 확인할 수 없습니다."
+        );
+      }
+
+
+      activeRequestId =
+        normalizeText(
+          requestItem.id
+        );
+
+
+      if (
+        loadButton
+      ) {
+        loadButton.textContent =
+          "OIS 조회 중...";
+      }
+
+
+      let completedItem =
+        requestItem;
+
+
+      if (
+        normalizeText(
+          requestItem.status
+        ).toLowerCase() !==
+          "complete"
+      ) {
+        completedItem =
+          await waitForCompletion(
+            activeRequestId,
+            targetDate,
+            runToken
+          );
+      }
+
+
+      if (
+        !completedItem ||
+        runToken !==
+          activeRunToken
+      ) {
+        return;
+      }
+
+
+      applyWaterResult(
+        completedItem,
+        targetDate
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "오전회의 OIS 수처리 조회 실패:",
+        error
+      );
+
+
+      setStatus(
+        "error",
+        "OIS 수처리 조회 실패"
+      );
+
+
+      showError(
+        error?.message ||
+        "OIS 수처리 자료를 불러오지 못했습니다."
+      );
+
+
+      if (
+        loadButton
+      ) {
+        loadButton.textContent =
+          "OIS 수처리 다시 시도";
+      }
+
+    } finally {
+      if (
+        loadButton
+      ) {
+        loadButton.disabled =
+          !resolveWaterTargetDate();
+      }
+    }
+  }
+
+
+  /* =====================================================
+    기준일 변경 감지
+  ====================================================== */
+
+  function scheduleTargetDateSync() {
+    window.setTimeout(
+      synchronizeTargetDate,
+      0
+    );
+
+
+    window.setTimeout(
+      synchronizeTargetDate,
+      500
+    );
+
+
+    window.setTimeout(
+      synchronizeTargetDate,
+      1500
+    );
+  }
+
+
+  /* =====================================================
+    이벤트
+  ====================================================== */
+
+  function bindEvents() {
+    const elements =
+      getElements();
+
+
+    if (
+      !elements.panel ||
+      elements.panel.dataset
+        .waterOisBound ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    elements.loadButton
+      ?.addEventListener(
+        "click",
+        loadWaterTreatment
+      );
+
+
+    elements.analyzeButton
+      ?.addEventListener(
+        "click",
+        scheduleTargetDateSync
+      );
+
+
+    elements.loadShiftButton
+      ?.addEventListener(
+        "click",
+        scheduleTargetDateSync
+      );
+
+
+    elements.resetButton
+      ?.addEventListener(
+        "click",
+        () => {
+          resetWaterResult({
+            keepDate:
+              true
+          });
+
+
+          scheduleTargetDateSync();
+        }
+      );
+
+
+    if (
+      elements.shiftDate
+    ) {
+      const observer =
+        new MutationObserver(
+          synchronizeTargetDate
+        );
+
+
+      observer.observe(
+        elements.shiftDate,
+        {
+          childList:
+            true,
+
+          subtree:
+            true,
+
+          characterData:
+            true
+        }
+      );
+    }
+
+
+    elements.panel.dataset
+      .waterOisBound =
+      "true";
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initialize() {
+    const {
+      panel
+    } =
+      getElements();
+
+
+    if (
+      !panel
+    ) {
+      initializationAttempt +=
+        1;
+
+
+      if (
+        initializationAttempt <
+        40
+      ) {
+        window.setTimeout(
+          initialize,
+          250
+        );
+      }
+
+
+      return;
+    }
+
+
+    bindEvents();
+
+    clearWaterValues();
+
+    synchronizeTargetDate();
+  }
+
+
+  window
+    .loadEfficiencyMorningMeetingWaterTreatment =
+    loadWaterTreatment;
+
+
+  window
+    .resetEfficiencyMorningMeetingWaterTreatment =
+    resetWaterResult;
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
       {
         once:
           true
