@@ -127401,6 +127401,22 @@ function splitMorningMeetingDynamicFontRuns(
   return runs;
 }
 
+/* =====================================================
+  오전회의 취합 셀 글꼴 적용
+
+  원본 엑셀의 정상 리치 텍스트 구조와 동일하게 생성
+
+  한글:
+  - 바탕
+  - 문자 집합 129
+
+  영문·숫자·기호:
+  - Times New Roman
+
+  공통:
+  - 12pt
+  - 검정색
+===================================================== */
 
 function setMorningMeetingDynamicCellText(
   worksheetDocument,
@@ -127430,6 +127446,7 @@ function setMorningMeetingDynamicCellText(
       "t"
     );
 
+
     return;
   }
 
@@ -127447,9 +127464,23 @@ function setMorningMeetingDynamicCellText(
     );
 
 
-  splitMorningMeetingDynamicFontRuns(
-    text
-  ).forEach(
+  /*
+    팀 제목과 구분 제목만 굵게 표시
+  */
+
+  const shouldUseBold =
+    /^\s*(?:[2-5]\s*\.\s*(?:안전팀|환경팀|기계팀|전기제어팀)|◇)/i.test(
+      text
+    );
+
+
+  const runs =
+    splitMorningMeetingDynamicFontRuns(
+      text
+    );
+
+
+  runs.forEach(
     run => {
       const runElement =
         worksheetDocument.createElementNS(
@@ -127465,6 +127496,69 @@ function setMorningMeetingDynamicCellText(
         );
 
 
+      /*
+        원본 엑셀과 같은 순서로 속성을 만든다.
+
+        b
+        sz
+        color
+        rFont
+        family
+        charset
+      */
+
+      if (
+        shouldUseBold
+      ) {
+        const boldElement =
+          worksheetDocument.createElementNS(
+            MAIN_XML_NAMESPACE,
+            "b"
+          );
+
+
+        runPropertiesElement.appendChild(
+          boldElement
+        );
+      }
+
+
+      const sizeElement =
+        worksheetDocument.createElementNS(
+          MAIN_XML_NAMESPACE,
+          "sz"
+        );
+
+
+      sizeElement.setAttribute(
+        "val",
+        "12"
+      );
+
+
+      runPropertiesElement.appendChild(
+        sizeElement
+      );
+
+
+      const colorElement =
+        worksheetDocument.createElementNS(
+          MAIN_XML_NAMESPACE,
+          "color"
+        );
+
+
+      colorElement.setAttribute(
+        "theme",
+        "1"
+      );
+
+
+      runPropertiesElement.appendChild(
+        colorElement
+      );
+
+
       const fontElement =
         worksheetDocument.createElementNS(
           MAIN_XML_NAMESPACE,
@@ -127472,11 +127566,23 @@ function setMorningMeetingDynamicCellText(
         );
 
 
-      const charsetElement =
-        worksheetDocument.createElementNS(
-          MAIN_XML_NAMESPACE,
-          "charset"
-        );
+      /*
+        원본 파일은 영문명 Batang이 아니라
+        한글 폰트명 '바탕'을 사용한다.
+      */
+
+      fontElement.setAttribute(
+        "val",
+
+        run.isHangul
+          ? "바탕"
+          : "Times New Roman"
+      );
+
+
+      runPropertiesElement.appendChild(
+        fontElement
+      );
 
 
       const familyElement =
@@ -127486,35 +127592,44 @@ function setMorningMeetingDynamicCellText(
         );
 
 
+      familyElement.setAttribute(
+        "val",
+        "1"
+      );
+
+
+      runPropertiesElement.appendChild(
+        familyElement
+      );
+
+
+      if (
+        run.isHangul
+      ) {
+        const charsetElement =
+          worksheetDocument.createElementNS(
+            MAIN_XML_NAMESPACE,
+            "charset"
+          );
+
+
+        charsetElement.setAttribute(
+          "val",
+          "129"
+        );
+
+
+        runPropertiesElement.appendChild(
+          charsetElement
+        );
+      }
+
+
       const textElement =
         worksheetDocument.createElementNS(
           MAIN_XML_NAMESPACE,
           "t"
         );
-
-
-      fontElement.setAttribute(
-        "val",
-
-        run.isHangul
-          ? "Batang"
-          : "Times New Roman"
-      );
-
-
-      charsetElement.setAttribute(
-        "val",
-
-        run.isHangul
-          ? "129"
-          : "0"
-      );
-
-
-      familyElement.setAttribute(
-        "val",
-        "1"
-      );
 
 
       textElement.setAttributeNS(
@@ -127526,21 +127641,6 @@ function setMorningMeetingDynamicCellText(
 
       textElement.textContent =
         run.text;
-
-
-      runPropertiesElement.appendChild(
-        fontElement
-      );
-
-
-      runPropertiesElement.appendChild(
-        charsetElement
-      );
-
-
-      runPropertiesElement.appendChild(
-        familyElement
-      );
 
 
       runElement.appendChild(
