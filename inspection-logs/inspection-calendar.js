@@ -20,9 +20,34 @@ function initializeInspectionCalendarDashboard() {
   const previousButton = document.getElementById("inspectionCalendarPreviousButton");
   const nextButton = document.getElementById("inspectionCalendarNextButton");
   const todayButton = document.getElementById("inspectionCalendarTodayButton");
-  const selectedTitle = document.getElementById("inspectionCalendarSelectedTitle");
-  const selectedSummary = document.getElementById("inspectionCalendarSelectedSummary");
-  const selectedList = document.getElementById("inspectionCalendarSelectedList");
+
+/* =========================================================
+  선택 날짜 점검 영역 DOM
+========================================================= */
+
+const selectedSection =
+  document.getElementById(
+    "inspectionCalendarSelectedSection"
+  );
+
+
+const selectedTitle =
+  document.getElementById(
+    "inspectionCalendarSelectedTitle"
+  );
+
+
+const selectedSummary =
+  document.getElementById(
+    "inspectionCalendarSelectedSummary"
+  );
+
+
+const selectedList =
+  document.getElementById(
+    "inspectionCalendarSelectedList"
+  );
+
   const cycleDetails = document.getElementById("inspectionCalendarCycleDetails");
   const cycleCount = document.getElementById("inspectionCalendarCycleCount");
   const cycleCategory = document.getElementById("inspectionCalendarCycleCategory");
