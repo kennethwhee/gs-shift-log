@@ -128172,11 +128172,13 @@ function applyMorningMeetingTemplateFile(
 /* =====================================================
   최종 엑셀 만들기 버튼 활성화 조건
 
-  조건:
+  필수:
   1. 일일발전현황 첨부
   2. 운탄일지 첨부
   3. 안전·환경·기계·전기제어팀 분석 완료
-  4. 교대파트 업무 선택 완료
+  4. 운탄일지 분석 완료
+  5. 운탄일지 내용 한 건 이상 선택
+  6. 교대파트 업무 한 건 이상 선택
 ===================================================== */
 
 function updateMorningMeetingCreateButton() {
@@ -128207,6 +128209,16 @@ function updateMorningMeetingCreateButton() {
     ).trim();
 
 
+  const coalSelectedItems =
+    Array.isArray(
+      state.coalSelection
+        ?.selectedItems
+    )
+      ? state.coalSelection
+          .selectedItems
+      : [];
+
+
   const hasTemplateFile =
     Boolean(
       state.templateFile
@@ -128221,7 +128233,18 @@ function updateMorningMeetingCreateButton() {
 
   const hasAllTeamAnalysis =
     analyzedTeamCount ===
-      TEAM_ORDER.length;
+    TEAM_ORDER.length;
+
+
+  const hasCoalAnalysis =
+    state.coalSelection
+      ?.analyzed ===
+    true;
+
+
+  const hasCoalSelection =
+    coalSelectedItems.length >
+    0;
 
 
   const hasShiftPartText =
@@ -128234,12 +128257,10 @@ function updateMorningMeetingCreateButton() {
     hasTemplateFile &&
     hasCoalLogFile &&
     hasAllTeamAnalysis &&
+    hasCoalAnalysis &&
+    hasCoalSelection &&
     hasShiftPartText;
 
-
-  /* =====================================================
-    최종 엑셀 버튼 상태
-  ====================================================== */
 
   if (
     elements.createButton
@@ -128250,8 +128271,8 @@ function updateMorningMeetingCreateButton() {
 
 
   /*
-    팀 자료 분석 전에는 첨부 기능에서 출력한
-    안내 문구를 그대로 유지한다.
+    팀 자료 분석 전에는
+    기존 첨부 안내 문구를 유지한다.
   */
 
   if (
@@ -128285,6 +128306,28 @@ function updateMorningMeetingCreateButton() {
 
 
   if (
+    !hasCoalAnalysis
+  ) {
+    elements.message.textContent =
+      "운탄일지 분석이 완료되지 않았습니다. 자료 분석을 다시 눌러주세요.";
+
+
+    return;
+  }
+
+
+  if (
+    !hasCoalSelection
+  ) {
+    elements.message.textContent =
+      "운탄일지에서 연료설비에 넣을 내용을 선택해 주세요.";
+
+
+    return;
+  }
+
+
+  if (
     !hasShiftPartText
   ) {
     elements.message.textContent =
@@ -128299,8 +128342,9 @@ function updateMorningMeetingCreateButton() {
     "모든 자료가 준비되었습니다. 최종 엑셀 만들기를 눌러주세요.";
 }
 
-  window.updateEfficiencyMorningMeetingCreateButton =
-    updateMorningMeetingCreateButton;
+
+window.updateEfficiencyMorningMeetingCreateButton =
+  updateMorningMeetingCreateButton;
 
 
   /* =====================================================
@@ -132663,19 +132707,1358 @@ function replaceMorningMeetingShiftPartArea(
   };
 }
 
+/* =========================================================
+  오전회의 취합 - 운탄일지 최종 엑셀 반영
+
+  반영 대상:
+  1. 운탄일지 자동 추출 수치
+  2. 선택한 운탄일지 업무내용
+  3. 첫 번째 "◇ 연료 설비" 구역
+
+  주의:
+  - 아래쪽 "6. TM 사항 > ◇ 연료 설비"는 수정하지 않는다.
+  - 유연탄 재고 합계 셀은 기존 수식을 유지한다.
+========================================================= */
+
+
+/* =====================================================
+  워크시트에서 주소로 셀 찾기
+===================================================== */
+
+function findMorningMeetingWorksheetCellByAddress(
+  worksheetDocument,
+  address
+) {
+  const normalizedAddress =
+    String(
+      address ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  if (
+    !normalizedAddress
+  ) {
+    return null;
+  }
+
+
+  return (
+    Array.from(
+      worksheetDocument
+        .getElementsByTagNameNS(
+          MAIN_XML_NAMESPACE,
+          "c"
+        )
+    ).find(
+      cellElement => {
+        return (
+          String(
+            cellElement.getAttribute(
+              "r"
+            ) ||
+            ""
+          )
+            .trim()
+            .toUpperCase() ===
+          normalizedAddress
+        );
+      }
+    ) ||
+    null
+  );
+}
+
+
+/* =====================================================
+  숫자 셀 값 입력
+
+  기존 유지:
+  - 셀 스타일
+  - 테두리
+  - 표시 형식
+
+  변경:
+  - 기존 수식·값 제거
+  - 새 숫자 입력
+
+  sourceValue가 없으면:
+  - 이전 날짜 값이 남지 않도록 셀 내용을 비운다.
+===================================================== */
+
+function setMorningMeetingNumericCellValue(
+  worksheetDocument,
+  address,
+  sourceValue
+) {
+  const cellElement =
+    findMorningMeetingWorksheetCellByAddress(
+      worksheetDocument,
+      address
+    );
+
+
+  if (
+    !cellElement
+  ) {
+    return {
+      found:
+        false,
+
+      written:
+        false,
+
+      cleared:
+        false
+    };
+  }
+
+
+  while (
+    cellElement.firstChild
+  ) {
+    cellElement.removeChild(
+      cellElement.firstChild
+    );
+  }
+
+
+  cellElement.removeAttribute(
+    "t"
+  );
+
+
+  const hasSourceValue =
+    sourceValue !==
+      null &&
+    sourceValue !==
+      undefined &&
+    String(
+      sourceValue
+    ).trim() !==
+      "";
+
+
+  const numericValue =
+    hasSourceValue
+      ? Number(
+          sourceValue
+        )
+      : Number.NaN;
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return {
+      found:
+        true,
+
+      written:
+        false,
+
+      cleared:
+        true
+    };
+  }
+
+
+  const valueElement =
+    worksheetDocument
+      .createElementNS(
+        MAIN_XML_NAMESPACE,
+        "v"
+      );
+
+
+  valueElement.textContent =
+    String(
+      numericValue
+    );
+
+
+  cellElement.appendChild(
+    valueElement
+  );
+
+
+  return {
+    found:
+      true,
+
+    written:
+      true,
+
+    cleared:
+      false
+  };
+}
+
+
+/* =====================================================
+  운탄일지 수치 → 일일발전운전현황 상단 반영
+
+  취합본 셀:
+  C13  유연탄 Silo A 높이
+  F13  유연탄 Silo A 재고량
+  C14  유연탄 Silo B 높이
+  F14  유연탄 Silo B 재고량
+
+  J13  유연탄 재고 합계
+  - 기존 =F13+F14 수식 유지
+
+  L13  유연탄 입고 차량
+  L14  유연탄 입고량
+
+  N13  Bio-SRF 높이
+  N14  Bio-SRF 재고량
+
+  V13  Bio-SRF 입고 차량
+  V14  Bio-SRF 입고량
+
+  X21  Fly Ash 반출 차량
+  X22  Fly Ash 반출량 ton
+===================================================== */
+
+function applyMorningMeetingCoalNumericValues(
+  worksheetDocument,
+  rawValues
+) {
+  const values =
+    rawValues &&
+    typeof rawValues ===
+      "object"
+      ? rawValues
+      : {};
+
+
+  const mappings = [
+    {
+      address:
+        "C13",
+
+      value:
+        values.coalSiloA
+          ?.height
+    },
+
+    {
+      address:
+        "F13",
+
+      value:
+        values.coalSiloA
+          ?.inventory
+    },
+
+    {
+      address:
+        "C14",
+
+      value:
+        values.coalSiloB
+          ?.height
+    },
+
+    {
+      address:
+        "F14",
+
+      value:
+        values.coalSiloB
+          ?.inventory
+    },
+
+    {
+      address:
+        "L13",
+
+      value:
+        values.coalReceipt
+          ?.vehicles
+    },
+
+    {
+      address:
+        "L14",
+
+      value:
+        values.coalReceipt
+          ?.quantity
+    },
+
+    {
+      address:
+        "N13",
+
+      value:
+        values.bioInventory
+          ?.height
+    },
+
+    {
+      address:
+        "N14",
+
+      value:
+        values.bioInventory
+          ?.inventory
+    },
+
+    {
+      address:
+        "V13",
+
+      value:
+        values.bioReceipt
+          ?.vehicles
+    },
+
+    {
+      address:
+        "V14",
+
+      value:
+        values.bioReceipt
+          ?.quantity
+    },
+
+    {
+      address:
+        "X21",
+
+      value:
+        values.flyAshDispatch
+          ?.vehicles
+    },
+
+    {
+      address:
+        "X22",
+
+      value:
+        values.flyAshDispatch
+          ?.quantityTon
+    }
+  ];
+
+
+  let appliedCount =
+    0;
+
+
+  let clearedCount =
+    0;
+
+
+  const missingAddresses =
+    [];
+
+
+  mappings.forEach(
+    mapping => {
+      const result =
+        setMorningMeetingNumericCellValue(
+          worksheetDocument,
+          mapping.address,
+          mapping.value
+        );
+
+
+      if (
+        !result.found
+      ) {
+        missingAddresses.push(
+          mapping.address
+        );
+
+
+        return;
+      }
+
+
+      if (
+        result.written
+      ) {
+        appliedCount +=
+          1;
+      }
+
+
+      if (
+        result.cleared
+      ) {
+        clearedCount +=
+          1;
+      }
+    }
+  );
+
+
+  if (
+    missingAddresses.length >
+    0
+  ) {
+    throw new Error(
+      `기준 취합본에서 운탄일지 수치 입력 셀을 찾지 못했습니다: ${missingAddresses.join(
+        ", "
+      )}`
+    );
+  }
+
+
+  return {
+    appliedCount,
+    clearedCount,
+
+    totalCount:
+      mappings.length
+  };
+}
+
+
+/* =====================================================
+  특정 행에서 B열 병합의 마지막 열 확인
+
+  08.06 양식:
+  B:AD
+
+  08.07 확장 양식:
+  B:AO
+
+  원본 양식의 병합 폭을 자동으로 유지한다.
+===================================================== */
+
+function getMorningMeetingPrimaryMergeEndColumnForRow(
+  worksheetDocument,
+  rowNumber,
+  fallbackColumn =
+    "AD"
+) {
+  const mergeCellsElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !mergeCellsElement
+  ) {
+    return fallbackColumn;
+  }
+
+
+  const matchedRange =
+    getMorningMeetingDirectXmlChildren(
+      mergeCellsElement,
+      "mergeCell"
+    )
+      .map(
+        mergeElement => {
+          return parseMorningMeetingMergeReference(
+            mergeElement.getAttribute(
+              "ref"
+            )
+          );
+        }
+      )
+      .find(
+        mergeRange => {
+          return (
+            mergeRange &&
+            mergeRange.startColumn ===
+              "B" &&
+            mergeRange.startRow ===
+              rowNumber &&
+            mergeRange.endRow ===
+              rowNumber
+          );
+        }
+      );
+
+
+  return (
+    matchedRange
+      ?.endColumn ||
+    fallbackColumn
+  );
+}
+
+
+/* =====================================================
+  첫 번째 연료설비 구역 탐색
+
+  탐색 순서:
+  ◇ 교대 파트
+  ↓
+  ◇ 연료 설비
+  ↓
+  2. 안전팀
+
+  따라서 아래 TM 사항의 연료설비는 선택되지 않는다.
+===================================================== */
+
+function inspectMorningMeetingFuelAreaLayout(
+  worksheetDocument,
+  sharedStrings
+) {
+  const sheetData =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "sheetData"
+      )[0];
+
+
+  if (
+    !sheetData
+  ) {
+    throw new Error(
+      "기준 취합본의 시트 행 정보를 찾지 못했습니다."
+    );
+  }
+
+
+  const rowRecords =
+    getMorningMeetingDirectXmlChildren(
+      sheetData,
+      "row"
+    )
+      .map(
+        rowElement => {
+          return {
+            element:
+              rowElement,
+
+            rowNumber:
+              getMorningMeetingRowNumber(
+                rowElement
+              ),
+
+            text:
+              getMorningMeetingRowColumnBText(
+                rowElement,
+                sharedStrings
+              )
+          };
+        }
+      )
+      .sort(
+        (
+          firstRecord,
+          secondRecord
+        ) => {
+          return (
+            firstRecord.rowNumber -
+            secondRecord.rowNumber
+          );
+        }
+      );
+
+
+  const shiftHeadingRecord =
+    findMorningMeetingRowRecord(
+      rowRecords,
+      /^◇\s*교대\s*파트$/i
+    );
+
+
+  if (
+    !shiftHeadingRecord
+  ) {
+    throw new Error(
+      "기준 취합본에서 '◇ 교대 파트' 구역을 찾지 못했습니다."
+    );
+  }
+
+
+  const fuelHeadingRecord =
+    findMorningMeetingRowRecord(
+      rowRecords,
+      /^◇\s*연료\s*설비$/i,
+      shiftHeadingRecord
+        .rowNumber +
+        1
+    );
+
+
+  if (
+    !fuelHeadingRecord
+  ) {
+    throw new Error(
+      "기준 취합본에서 첫 번째 '◇ 연료 설비' 구역을 찾지 못했습니다."
+    );
+  }
+
+
+  const safetyHeadingRecord =
+    findMorningMeetingRowRecord(
+      rowRecords,
+      /^2\s*[.)]\s*안전팀$/i,
+      fuelHeadingRecord
+        .rowNumber +
+        1
+    );
+
+
+  if (
+    !safetyHeadingRecord
+  ) {
+    throw new Error(
+      "기준 취합본에서 '2. 안전팀' 구역을 찾지 못했습니다."
+    );
+  }
+
+
+  const fuelAreaRecords =
+    rowRecords.filter(
+      record => {
+        return (
+          record.rowNumber >=
+            fuelHeadingRecord
+              .rowNumber &&
+
+          record.rowNumber <
+            safetyHeadingRecord
+              .rowNumber
+        );
+      }
+    );
+
+
+  const contentTemplateRecord =
+    fuelAreaRecords.find(
+      record => {
+        return (
+          record.rowNumber >
+            fuelHeadingRecord
+              .rowNumber &&
+
+          Boolean(
+            record.text
+          )
+        );
+      }
+    );
+
+
+  const blankTemplateRecord =
+    [
+      ...fuelAreaRecords
+    ]
+      .reverse()
+      .find(
+        record => {
+          return !record.text;
+        }
+      );
+
+
+  if (
+    !contentTemplateRecord
+  ) {
+    throw new Error(
+      "연료설비 업무내용 행의 서식 기준을 찾지 못했습니다."
+    );
+  }
+
+
+  if (
+    !blankTemplateRecord
+  ) {
+    throw new Error(
+      "연료설비 마지막 빈 행의 서식 기준을 찾지 못했습니다."
+    );
+  }
+
+
+  const headingMergeEndColumn =
+    getMorningMeetingPrimaryMergeEndColumnForRow(
+      worksheetDocument,
+      fuelHeadingRecord
+        .rowNumber
+    );
+
+
+  const contentMergeEndColumn =
+    getMorningMeetingPrimaryMergeEndColumnForRow(
+      worksheetDocument,
+      contentTemplateRecord
+        .rowNumber,
+      headingMergeEndColumn
+    );
+
+
+  const blankMergeEndColumn =
+    getMorningMeetingPrimaryMergeEndColumnForRow(
+      worksheetDocument,
+      blankTemplateRecord
+        .rowNumber,
+      contentMergeEndColumn
+    );
+
+
+  return {
+    sheetData,
+    rowRecords,
+
+    fuelStartRow:
+      fuelHeadingRecord
+        .rowNumber,
+
+    safetyStartRow:
+      safetyHeadingRecord
+        .rowNumber,
+
+    safetyHeadingRowElement:
+      safetyHeadingRecord
+        .element,
+
+    templates: {
+      heading: {
+        element:
+          fuelHeadingRecord
+            .element,
+
+        mergeEndColumn:
+          headingMergeEndColumn
+      },
+
+      content: {
+        element:
+          contentTemplateRecord
+            .element,
+
+        mergeEndColumn:
+          contentMergeEndColumn
+      },
+
+      blank: {
+        element:
+          blankTemplateRecord
+            .element,
+
+        mergeEndColumn:
+          blankMergeEndColumn
+      }
+    }
+  };
+}
+
+
+/* =====================================================
+  선택한 운탄일지 항목으로 연료설비 행 생성
+
+  한 체크 항목:
+  1) 부모 문장
+     - 하위 문장
+     - 하위 문장
+
+  전체가 엑셀 한 행에 들어가며
+  줄 수에 따라 행 높이가 자동 증가한다.
+===================================================== */
+
+function buildMorningMeetingFuelAreaRows(
+  layout,
+  coalSelection
+) {
+  const selectedItems =
+    Array.isArray(
+      coalSelection
+        ?.selectedItems
+    )
+      ? coalSelection
+          .selectedItems
+          .filter(
+            item => {
+              return Boolean(
+                String(
+                  item?.text ||
+                  ""
+                ).trim()
+              );
+            }
+          )
+      : [];
+
+
+  if (
+    selectedItems.length ===
+      0
+  ) {
+    throw new Error(
+      "운탄일지에서 연료설비 업무내용을 한 건 이상 선택해 주세요."
+    );
+  }
+
+
+  const rowDefinitions = [
+    {
+      template:
+        layout.templates
+          .heading
+          .element,
+
+      mergeEndColumn:
+        layout.templates
+          .heading
+          .mergeEndColumn,
+
+      text:
+        " ◇ 연료 설비"
+    },
+
+    ...selectedItems.map(
+      (
+        item,
+        itemIndex
+      ) => {
+        const mainText =
+          String(
+            item.text ||
+            ""
+          ).trim();
+
+
+        const subLines =
+          Array.isArray(
+            item.subLines
+          )
+            ? item.subLines
+                .map(
+                  line => {
+                    return String(
+                      line ||
+                      ""
+                    )
+                      .replace(
+                        /^[-–—•]\s*/,
+                        ""
+                      )
+                      .trim();
+                  }
+                )
+                .filter(
+                  Boolean
+                )
+            : [];
+
+
+        const outputText = [
+          `${itemIndex + 1}) ${mainText}`,
+
+          ...subLines.map(
+            line => {
+              return `   - ${line}`;
+            }
+          )
+        ].join(
+          "\n"
+        );
+
+
+        return {
+          template:
+            layout.templates
+              .content
+              .element,
+
+          mergeEndColumn:
+            layout.templates
+              .content
+              .mergeEndColumn,
+
+          text:
+            outputText
+        };
+      }
+    ),
+
+    {
+      template:
+        layout.templates
+          .blank
+          .element,
+
+      mergeEndColumn:
+        layout.templates
+          .blank
+          .mergeEndColumn,
+
+      text:
+        ""
+    }
+  ];
+
+
+  const rows =
+    rowDefinitions.map(
+      (
+        definition,
+        rowIndex
+      ) => {
+        const rowNumber =
+          layout.fuelStartRow +
+          rowIndex;
+
+
+        return {
+          rowNumber,
+
+          mergeEndColumn:
+            definition
+              .mergeEndColumn,
+
+          element:
+            cloneMorningMeetingDynamicRow(
+              layout
+                .sheetData
+                .ownerDocument,
+
+              definition.template,
+
+              rowNumber,
+
+              definition.text
+            )
+        };
+      }
+    );
+
+
+  return {
+    rows,
+
+    selectedCount:
+      selectedItems.length
+  };
+}
+
+
+/* =====================================================
+  연료설비 병합 셀 재배치
+===================================================== */
+
+function updateMorningMeetingFuelAreaMerges(
+  worksheetDocument,
+  layout,
+  newRows,
+  delta
+) {
+  const mergeCellsElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !mergeCellsElement
+  ) {
+    throw new Error(
+      "기준 취합본의 병합 셀 정보를 찾지 못했습니다."
+    );
+  }
+
+
+  getMorningMeetingDirectXmlChildren(
+    mergeCellsElement,
+    "mergeCell"
+  ).forEach(
+    mergeElement => {
+      const mergeRange =
+        parseMorningMeetingMergeReference(
+          mergeElement.getAttribute(
+            "ref"
+          )
+        );
+
+
+      if (
+        !mergeRange
+      ) {
+        return;
+      }
+
+
+      /*
+        기존 첫 번째 연료설비 B열 병합 제거
+      */
+
+      if (
+        mergeRange.startRow >=
+          layout.fuelStartRow &&
+
+        mergeRange.endRow <
+          layout.safetyStartRow &&
+
+        mergeRange.startColumn ===
+          "B"
+      ) {
+        mergeCellsElement.removeChild(
+          mergeElement
+        );
+
+
+        return;
+      }
+
+
+      /*
+        안전팀부터 아래 병합 셀 이동
+      */
+
+      if (
+        mergeRange.startRow >=
+        layout.safetyStartRow
+      ) {
+        mergeRange.startRow +=
+          delta;
+
+
+        mergeRange.endRow +=
+          delta;
+
+
+        mergeElement.setAttribute(
+          "ref",
+
+          formatMorningMeetingMergeReference(
+            mergeRange
+          )
+        );
+
+
+        return;
+      }
+
+
+      /*
+        구역 경계를 가로지르는 병합은
+        데이터 손상을 방지하기 위해 중단한다.
+      */
+
+      if (
+        mergeRange.startRow <
+          layout.safetyStartRow &&
+
+        mergeRange.endRow >=
+          layout.safetyStartRow
+      ) {
+        throw new Error(
+          `병합 셀 ${mergeElement.getAttribute(
+            "ref"
+          )}이 연료설비와 안전팀 경계를 가로지르고 있습니다.`
+        );
+      }
+    }
+  );
+
+
+  newRows.forEach(
+    rowDefinition => {
+      const mergeElement =
+        worksheetDocument
+          .createElementNS(
+            MAIN_XML_NAMESPACE,
+            "mergeCell"
+          );
+
+
+      mergeElement.setAttribute(
+        "ref",
+
+        `B${rowDefinition.rowNumber}:${rowDefinition.mergeEndColumn}${rowDefinition.rowNumber}`
+      );
+
+
+      mergeCellsElement.appendChild(
+        mergeElement
+      );
+    }
+  );
+
+
+  mergeCellsElement.setAttribute(
+    "count",
+
+    String(
+      getMorningMeetingDirectXmlChildren(
+        mergeCellsElement,
+        "mergeCell"
+      ).length
+    )
+  );
+}
+
+
+/* =====================================================
+  첫 번째 연료설비 영역 교체
+===================================================== */
+
+function replaceMorningMeetingFuelArea(
+  worksheetDocument,
+  sharedStrings,
+  coalSelection
+) {
+  const layout =
+    inspectMorningMeetingFuelAreaLayout(
+      worksheetDocument,
+      sharedStrings
+    );
+
+
+  const buildResult =
+    buildMorningMeetingFuelAreaRows(
+      layout,
+      coalSelection
+    );
+
+
+  const oldRowCount =
+    layout.safetyStartRow -
+    layout.fuelStartRow;
+
+
+  const newRowCount =
+    buildResult.rows.length;
+
+
+  const delta =
+    newRowCount -
+    oldRowCount;
+
+
+  /*
+    안전팀부터 아래 모든 행 이동
+  */
+
+  layout.rowRecords
+    .filter(
+      record => {
+        return (
+          record.rowNumber >=
+          layout.safetyStartRow
+        );
+      }
+    )
+    .forEach(
+      record => {
+        shiftMorningMeetingExistingRow(
+          record.element,
+          delta
+        );
+      }
+    );
+
+
+  /*
+    기존 연료설비 구역 제거
+  */
+
+  layout.rowRecords
+    .filter(
+      record => {
+        return (
+          record.rowNumber >=
+            layout.fuelStartRow &&
+
+          record.rowNumber <
+            layout.safetyStartRow
+        );
+      }
+    )
+    .forEach(
+      record => {
+        layout.sheetData.removeChild(
+          record.element
+        );
+      }
+    );
+
+
+  /*
+    새 연료설비 구역 삽입
+  */
+
+  buildResult.rows.forEach(
+    rowDefinition => {
+      layout.sheetData.insertBefore(
+        rowDefinition.element,
+        layout
+          .safetyHeadingRowElement
+      );
+    }
+  );
+
+
+  updateMorningMeetingFuelAreaMerges(
+    worksheetDocument,
+    layout,
+    buildResult.rows,
+    delta
+  );
+
+
+  updateMorningMeetingRowsDimensionAfter(
+    worksheetDocument,
+    layout.safetyStartRow,
+    delta
+  );
+
+
+  updateMorningMeetingRowBreaksAfter(
+    worksheetDocument,
+    layout.safetyStartRow,
+    delta
+  );
+
+
+  return {
+    delta,
+
+    selectedCount:
+      buildResult
+        .selectedCount,
+
+    newSafetyStartRow:
+      layout.safetyStartRow +
+      delta
+  };
+}
+
+
+/* =====================================================
+  엑셀 수식 전체 재계산 설정
+
+  유연탄 재고 합계:
+  =F13+F14
+
+  숫자를 변경한 뒤 엑셀을 열 때
+  수식 결과도 새 값으로 계산하게 한다.
+===================================================== */
+
+async function forceMorningMeetingWorkbookRecalculation(
+  zip
+) {
+  const workbookFile =
+    zip.file(
+      "xl/workbook.xml"
+    );
+
+
+  if (
+    !workbookFile
+  ) {
+    throw new Error(
+      "기준 취합본의 workbook.xml을 찾지 못했습니다."
+    );
+  }
+
+
+  const workbookDocument =
+    parseMorningMeetingXml(
+      await workbookFile.async(
+        "string"
+      ),
+
+      "통합문서"
+    );
+
+
+  const workbookRoot =
+    workbookDocument
+      .documentElement;
+
+
+  let calcPr =
+    workbookDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "calcPr"
+      )[0];
+
+
+  if (
+    !calcPr
+  ) {
+    calcPr =
+      workbookDocument
+        .createElementNS(
+          MAIN_XML_NAMESPACE,
+          "calcPr"
+        );
+
+
+    const extList =
+      workbookDocument
+        .getElementsByTagNameNS(
+          MAIN_XML_NAMESPACE,
+          "extLst"
+        )[0];
+
+
+    workbookRoot.insertBefore(
+      calcPr,
+      extList ||
+      null
+    );
+  }
+
+
+  calcPr.setAttribute(
+    "calcMode",
+    "auto"
+  );
+
+
+  calcPr.setAttribute(
+    "fullCalcOnLoad",
+    "1"
+  );
+
+
+  calcPr.setAttribute(
+    "forceFullCalc",
+    "1"
+  );
+
+
+  calcPr.setAttribute(
+    "calcId",
+    "0"
+  );
+
+
+  zip.file(
+    "xl/workbook.xml",
+
+    new XMLSerializer()
+      .serializeToString(
+        workbookDocument
+      )
+  );
+} 
+
 /* =====================================================
   최종 엑셀 생성
 
   처리 순서:
-  1. 기준 취합본 확인
-  2. 4개 팀 분석 결과 확인
-  3. 교대파트 선택 내용 확인
-  4. 교대파트 내용 반영
-  5. 연료설비 이하 행 자동 이동
-  6. 안전팀~전기제어팀 내용 수에 맞춰 재배치
-  7. TM 사항 및 인쇄 영역 이동
-  8. sharedStrings.xml 저장
-  9. 최종 XLSX 다운로드
+  1. 필수 첨부·분석·선택 확인
+  2. 운탄일지 수치 상단 반영
+  3. 교대파트 선택 내용 반영
+  4. 운탄일지 선택 내용을 연료설비에 반영
+  5. 안전팀~전기제어팀 동적 반영
+  6. TM 사항 및 인쇄 영역 이동
+  7. 수식 전체 재계산
+  8. 최종 XLSX 다운로드
 ===================================================== */
 
 async function createMorningMeetingWorkbook() {
@@ -132690,18 +134073,8 @@ async function createMorningMeetingWorkbook() {
   hideMorningMeetingWorkbookError();
 
 
-  /*
-    미리보기 textarea에서 직접 수정한
-    안전·환경·기계·전기제어팀 내용을
-    최종 상태에 반영한다.
-  */
-
   synchronizeMorningMeetingPreviewText();
 
-
-  /* =====================================================
-    교대파트 선택 내용 확인
-  ====================================================== */
 
   const shiftPartText =
     String(
@@ -132710,20 +134083,26 @@ async function createMorningMeetingWorkbook() {
     ).trim();
 
 
-  if (
-    !shiftPartText
-  ) {
-    showMorningMeetingWorkbookError(
-      "교대파트 업무일지에서 오전회의에 넣을 내용을 먼저 선택해 주세요."
-    );
+  const coalSelection =
+    state.coalSelection &&
+    typeof state.coalSelection ===
+      "object"
+      ? state.coalSelection
+      : {};
 
 
-    return;
-  }
+  const coalSelectedItems =
+    Array.isArray(
+      coalSelection
+        .selectedItems
+    )
+      ? coalSelection
+          .selectedItems
+      : [];
 
 
   /* =====================================================
-    필수 라이브러리 확인
+    필수 기능 확인
   ====================================================== */
 
   if (
@@ -132731,7 +134110,7 @@ async function createMorningMeetingWorkbook() {
     "undefined"
   ) {
     showMorningMeetingWorkbookError(
-      "JSZip 라이브러리를 불러오지 못했습니다. index.html 연결을 확인해 주세요."
+      "JSZip 라이브러리를 불러오지 못했습니다."
     );
 
 
@@ -132739,15 +134118,61 @@ async function createMorningMeetingWorkbook() {
   }
 
 
-  /* =====================================================
-    기준 취합본 확인
-  ====================================================== */
-
   if (
     !state.templateFile
   ) {
     showMorningMeetingWorkbookError(
-      "현재 날짜의 기준 취합본을 먼저 첨부해 주세요."
+      "일일발전현황 기준 취합본을 먼저 첨부해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  if (
+    !state.coalLogFile
+  ) {
+    showMorningMeetingWorkbookError(
+      "운탄일지를 먼저 첨부해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  if (
+    coalSelection.analyzed !==
+    true
+  ) {
+    showMorningMeetingWorkbookError(
+      "운탄일지 자료 분석을 먼저 완료해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  if (
+    coalSelectedItems.length ===
+    0
+  ) {
+    showMorningMeetingWorkbookError(
+      "운탄일지에서 연료설비에 넣을 내용을 한 건 이상 선택해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  if (
+    !shiftPartText
+  ) {
+    showMorningMeetingWorkbookError(
+      "교대파트 업무일지에서 오전회의에 넣을 내용을 선택해 주세요."
     );
 
 
@@ -132786,7 +134211,7 @@ async function createMorningMeetingWorkbook() {
 
 
   /* =====================================================
-    팀별 자료 작성 날짜 확인
+    팀별 자료 날짜 확인
   ====================================================== */
 
   const reportDates =
@@ -132847,11 +134272,6 @@ async function createMorningMeetingWorkbook() {
   }
 
 
-  /*
-    팀별 원본 자료의 작성일이 전일이므로
-    오전회의 취합본 날짜는 다음 날로 사용한다.
-  */
-
   const scheduleDate =
     addMorningMeetingDateDays(
       previousDate,
@@ -132860,7 +134280,7 @@ async function createMorningMeetingWorkbook() {
 
 
   /* =====================================================
-    버튼과 진행 안내
+    버튼 진행 상태
   ====================================================== */
 
   const originalButtonText =
@@ -132885,13 +134305,13 @@ async function createMorningMeetingWorkbook() {
     elements.message
   ) {
     elements.message.textContent =
-      "교대파트와 팀별 자료를 기준 취합본에 입력하고 있습니다.";
+      "운탄일지 수치·연료설비·교대파트·팀별 자료를 입력하고 있습니다.";
   }
 
 
   try {
     /* ===================================================
-      기준 XLSX 압축 파일 열기
+      기준 XLSX 열기
     ==================================================== */
 
     const templateBuffer =
@@ -132905,10 +134325,6 @@ async function createMorningMeetingWorkbook() {
         templateBuffer
       );
 
-
-    /* ===================================================
-      일일 발전운영현황 시트 찾기
-    ==================================================== */
 
     const worksheetPath =
       await findMorningMeetingWorksheetPath(
@@ -132932,10 +134348,7 @@ async function createMorningMeetingWorkbook() {
 
 
     /* ===================================================
-      원본 공유 문자열 읽기
-
-      새로 입력되는 내용도 원본과 동일하게
-      sharedStrings.xml 방식으로 저장한다.
+      공유 문자열 읽기
     ==================================================== */
 
     const sharedStringsFile =
@@ -132953,15 +134366,11 @@ async function createMorningMeetingWorkbook() {
     }
 
 
-    const sharedStringsXmlText =
-      await sharedStringsFile.async(
-        "string"
-      );
-
-
     const sharedStrings =
       parseMorningMeetingSharedStrings(
-        sharedStringsXmlText
+        await sharedStringsFile.async(
+          "string"
+        )
       );
 
 
@@ -132969,27 +134378,32 @@ async function createMorningMeetingWorkbook() {
       워크시트 XML 읽기
     ==================================================== */
 
-    const worksheetXmlText =
-      await worksheetFile.async(
-        "string"
-      );
-
-
     const worksheetDocument =
       parseMorningMeetingXml(
-        worksheetXmlText,
+        await worksheetFile.async(
+          "string"
+        ),
+
         "일일 발전운영현황 시트"
       );
 
 
     /* ===================================================
-      1차: 교대파트 내용 반영
+      1차: 운탄일지 수치 반영
 
-      선택한 TGO·BCO1·BCO2 업무를
-      기존 '◇ 교대 파트' 아래에 입력한다.
+      유연탄 재고 합계 J13의 수식은 그대로 유지한다.
+    ==================================================== */
 
-      선택 건수가 기존 내용보다 많거나 적으면
-      연료 설비부터 아래 구역을 자동 이동한다.
+    const numericResult =
+      applyMorningMeetingCoalNumericValues(
+        worksheetDocument,
+        coalSelection.values ||
+        {}
+      );
+
+
+    /* ===================================================
+      2차: 교대파트 반영
     ==================================================== */
 
     const shiftPartResult =
@@ -133001,10 +134415,22 @@ async function createMorningMeetingWorkbook() {
 
 
     /* ===================================================
-      2차: 안전팀~전기제어팀 현재 위치 재탐색
+      3차: 운탄일지 선택 내용 → 연료설비 반영
 
-      교대파트 행 이동이 먼저 적용되었으므로
-      이동된 시트에서 팀별 위치를 다시 찾는다.
+      교대파트에서 행 이동이 끝난 다음
+      이동된 연료설비 위치를 다시 탐색한다.
+    ==================================================== */
+
+    const fuelResult =
+      replaceMorningMeetingFuelArea(
+        worksheetDocument,
+        sharedStrings,
+        coalSelection
+      );
+
+
+    /* ===================================================
+      4차: 안전팀~전기제어팀 위치 재탐색
     ==================================================== */
 
     const layout =
@@ -133013,11 +134439,6 @@ async function createMorningMeetingWorkbook() {
         sharedStrings
       );
 
-
-    /* ===================================================
-      안전팀~전기제어팀 실제 내용 수에 맞춰
-      새 행 목록 생성
-    ==================================================== */
 
     const buildResult =
       buildMorningMeetingDynamicRows(
@@ -133028,14 +134449,6 @@ async function createMorningMeetingWorkbook() {
       );
 
 
-    /* ===================================================
-      기존 고정 팀 구간을 제거하고
-      새 동적 팀 구간 삽입
-
-      전기제어팀 다음의 TM 사항도
-      자동으로 아래 또는 위로 이동한다.
-    ==================================================== */
-
     const dynamicResult =
       replaceMorningMeetingDynamicTeamArea(
         worksheetDocument,
@@ -133045,7 +134458,7 @@ async function createMorningMeetingWorkbook() {
 
 
     /* ===================================================
-      수정된 워크시트 XML 저장
+      수정된 워크시트 저장
     ==================================================== */
 
     zip.file(
@@ -133059,23 +134472,23 @@ async function createMorningMeetingWorkbook() {
 
 
     /* ===================================================
-      전체 행 이동량 계산
+      전체 행 이동량
 
-      교대파트 이동량
+      교대파트
       +
-      안전·환경·기계·전기제어팀 이동량
+      연료설비
+      +
+      4개 팀
     ==================================================== */
 
     const totalRowDelta =
       shiftPartResult.delta +
+      fuelResult.delta +
       dynamicResult.delta;
 
 
     /*
-      sharedStrings.xml 저장 및
-      인쇄 영역 마지막 행 이동
-
-      행 이동량이 0이어도 새 공유 문자열은 저장된다.
+      sharedStrings 저장 및 인쇄 영역 이동
     */
 
     await updateMorningMeetingWorkbookPrintArea(
@@ -133084,8 +134497,18 @@ async function createMorningMeetingWorkbook() {
     );
 
 
+    /*
+      상단 숫자가 변경되었으므로
+      모든 수식을 다시 계산하게 한다.
+    */
+
+    await forceMorningMeetingWorkbookRecalculation(
+      zip
+    );
+
+
     /* ===================================================
-      최종 XLSX 생성
+      최종 파일 생성
     ==================================================== */
 
     const resultBlob =
@@ -133121,7 +134544,7 @@ async function createMorningMeetingWorkbook() {
 
 
     /* ===================================================
-      생성 완료 안내
+      완료 메시지
     ==================================================== */
 
     if (
@@ -133140,7 +134563,7 @@ async function createMorningMeetingWorkbook() {
 
 
       elements.message.textContent =
-        `${outputFileName} 생성 완료 · 교대파트 ${shiftPartResult.selectedCount}건 · ${movementText}`;
+        `${outputFileName} 생성 완료 · 교대파트 ${shiftPartResult.selectedCount}건 · 연료설비 ${fuelResult.selectedCount}건 · 운탄 수치 ${numericResult.appliedCount}/${numericResult.totalCount}개 · ${movementText}`;
     }
 
   } catch (
@@ -133166,10 +134589,6 @@ async function createMorningMeetingWorkbook() {
     }
 
   } finally {
-    /* ===================================================
-      버튼 원상 복구
-    ==================================================== */
-
     if (
       elements.createButton
     ) {
