@@ -86458,3 +86458,511 @@ td.is-total {
     min-width: 0;
   }
 }
+
+/* =========================================================
+  오전회의 취합
+  1·2호기 BOILER TEMPERATURE 미리보기
+
+  - 자동 수치 미리보기 3개 카드 아래 전체 폭
+  - FBHE Left / Right
+  - Wall Screw A / B / C / D
+  - 온도 직접 수정 가능
+========================================================= */
+
+
+/* =========================================================
+  카드 전체 폭
+
+  기존 자동 미리보기 grid 안에서
+  두 번째 줄 전체를 사용한다.
+========================================================= */
+
+.efficiency-morning-meeting-boiler-card {
+  grid-column: 1 / -1;
+
+  min-width: 0;
+}
+
+
+.efficiency-morning-meeting-auto-card.is-boiler::before {
+  background: #d17632;
+}
+
+
+.efficiency-morning-meeting-boiler-card
+  .efficiency-morning-meeting-auto-card__header {
+  align-items: center;
+}
+
+
+/* =========================================================
+  온도 표 영역
+========================================================= */
+
+.efficiency-morning-meeting-boiler-table {
+  width: 100%;
+
+  padding: 7px 10px 8px 12px;
+
+  background: #fffdfb;
+}
+
+
+/* =========================================================
+  공통 행
+
+  구분 + 온도 6개
+========================================================= */
+
+.efficiency-morning-meeting-boiler-row {
+  display: grid;
+
+  grid-template-columns:
+    minmax(62px, 0.75fr)
+    repeat(
+      6,
+      minmax(78px, 1fr)
+    );
+
+  align-items: center;
+
+  min-width: 0;
+}
+
+
+/* =========================================================
+  헤더
+========================================================= */
+
+.efficiency-morning-meeting-boiler-row.is-header {
+  min-height: 27px;
+
+  border: 1px solid #e3e8ef;
+  border-radius: 7px 7px 0 0;
+
+  background: #f5f7fa;
+}
+
+
+.efficiency-morning-meeting-boiler-row.is-header > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 0;
+  min-height: 27px;
+
+  padding: 3px 5px;
+
+  border-right: 1px solid #e3e8ef;
+
+  color: #68798c;
+
+  font-size: 9px;
+  font-weight: 800;
+
+  text-align: center;
+  white-space: nowrap;
+}
+
+
+.efficiency-morning-meeting-boiler-row.is-header
+  > span:last-child {
+  border-right: 0;
+}
+
+
+/* =========================================================
+  1호기 / 2호기 행
+========================================================= */
+
+.efficiency-morning-meeting-boiler-row.is-unit {
+  min-height: 39px;
+
+  border-right: 1px solid #e3e8ef;
+  border-bottom: 1px solid #e3e8ef;
+  border-left: 1px solid #e3e8ef;
+
+  background: #ffffff;
+}
+
+
+.efficiency-morning-meeting-boiler-row.is-unit:last-child {
+  border-radius: 0 0 7px 7px;
+}
+
+
+/* =========================================================
+  호기명
+========================================================= */
+
+.efficiency-morning-meeting-boiler-row.is-unit > strong {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  align-self: stretch;
+
+  min-width: 0;
+
+  border-right: 1px solid #e3e8ef;
+
+  background: #fafbfc;
+
+  color: #243950;
+
+  font-size: 11px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  입력 셀
+========================================================= */
+
+.efficiency-morning-meeting-boiler-row.is-unit > label {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+
+  align-self: stretch;
+
+  min-width: 0;
+
+  padding: 4px 6px;
+
+  border-right: 1px solid #edf0f4;
+}
+
+
+.efficiency-morning-meeting-boiler-row.is-unit
+  > label:last-child {
+  border-right: 0;
+}
+
+
+/* =========================================================
+  온도 입력창
+========================================================= */
+
+.efficiency-morning-meeting-boiler-row input[
+  data-boiler-temperature-input
+] {
+  box-sizing: border-box;
+
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+
+  padding:
+    4px
+    24px
+    4px
+    6px;
+
+  border: 1px solid transparent;
+  border-radius: 5px;
+
+  outline: none;
+
+  background: transparent;
+
+  color: #1c3552;
+
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1;
+
+  text-align: right;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+
+/* =========================================================
+  마우스를 올렸을 때
+  "수정 가능한 값"임을 보여준다.
+========================================================= */
+
+.efficiency-morning-meeting-boiler-row input[
+  data-boiler-temperature-input
+]:hover {
+  border-color: #cbd8e6;
+
+  background: #f8fbff;
+}
+
+
+/* =========================================================
+  수정 중
+========================================================= */
+
+.efficiency-morning-meeting-boiler-row input[
+  data-boiler-temperature-input
+]:focus {
+  border-color: #76a7d8;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(
+      82,
+      144,
+      203,
+      0.12
+    );
+}
+
+
+/* =========================================================
+  ℃
+========================================================= */
+
+.efficiency-morning-meeting-boiler-row.is-unit
+  > label
+  > small {
+  position: absolute;
+
+  top: 50%;
+  right: 10px;
+
+  transform: translateY(-50%);
+
+  pointer-events: none;
+
+  color: #7c8b9c;
+
+  font-size: 9px;
+  font-weight: 700;
+}
+
+
+/* =========================================================
+  number input 기본 ▲▼ 버튼 제거
+
+  값 편집 시 불필요한 증감버튼 제거
+========================================================= */
+
+.efficiency-morning-meeting-boiler-row
+  input[type="number"]::-webkit-inner-spin-button,
+.efficiency-morning-meeting-boiler-row
+  input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+
+  -webkit-appearance: none;
+}
+
+
+.efficiency-morning-meeting-boiler-row
+  input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+
+/* =========================================================
+  카드 하단 안내
+========================================================= */
+
+.efficiency-morning-meeting-boiler-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  padding:
+    6px
+    11px
+    7px
+    12px;
+
+  border-top: 1px solid #edf0f4;
+
+  background: #fafbfd;
+}
+
+
+.efficiency-morning-meeting-boiler-card__footer > span {
+  color: #7a899a;
+
+  font-size: 9px;
+  font-weight: 650;
+}
+
+
+.efficiency-morning-meeting-boiler-card__footer > strong {
+  color: #4075a6;
+
+  font-size: 9px;
+  font-weight: 800;
+
+  text-align: right;
+}
+
+
+/* =========================================================
+  자동 입력 완료 후 사용할 상태
+
+  다음 JS 단계에서 클래스 추가
+========================================================= */
+
+.efficiency-morning-meeting-boiler-card.is-loaded
+  input[data-boiler-temperature-input] {
+  background: #fbfefc;
+}
+
+
+/* =========================================================
+  사용자가 직접 수정한 온도
+
+  다음 JS 단계에서 is-edited 클래스 추가
+========================================================= */
+
+.efficiency-morning-meeting-boiler-row
+  input[data-boiler-temperature-input].is-edited {
+  border-color: #dba965;
+
+  background: #fff9ee;
+
+  color: #8b5319;
+}
+
+
+/* =========================================================
+  값 누락
+
+  다음 JS 단계에서 is-missing 클래스 추가
+========================================================= */
+
+.efficiency-morning-meeting-boiler-row
+  input[data-boiler-temperature-input].is-missing {
+  border-color: #e5a3a3;
+
+  background: #fff4f4;
+
+  color: #bd4040;
+}
+
+
+/* =========================================================
+  태블릿
+========================================================= */
+
+@media (
+  max-width: 1050px
+) {
+  .efficiency-morning-meeting-boiler-row {
+    grid-template-columns:
+      60px
+      repeat(
+        6,
+        minmax(68px, 1fr)
+      );
+  }
+
+
+  .efficiency-morning-meeting-boiler-row input[
+    data-boiler-temperature-input
+  ] {
+    font-size: 11px;
+  }
+}
+
+
+/* =========================================================
+  모바일
+
+  온도 6개를 지나치게 작게 압축하지 않고
+  표 영역만 좌우 이동 가능하게 한다.
+========================================================= */
+
+@media (
+  max-width: 700px
+) {
+  .efficiency-morning-meeting-boiler-card {
+    overflow: hidden;
+  }
+
+
+  .efficiency-morning-meeting-boiler-table {
+    overflow-x: auto;
+
+    padding:
+      7px
+      9px
+      8px
+      10px;
+
+    -webkit-overflow-scrolling: touch;
+  }
+
+
+  .efficiency-morning-meeting-boiler-row {
+    width: 650px;
+
+    grid-template-columns:
+      62px
+      repeat(
+        6,
+        98px
+      );
+  }
+
+
+  .efficiency-morning-meeting-boiler-row.is-header > span {
+    font-size: 9px;
+  }
+
+
+  .efficiency-morning-meeting-boiler-row.is-unit {
+    min-height: 41px;
+  }
+
+
+  .efficiency-morning-meeting-boiler-row.is-unit > strong {
+    font-size: 11px;
+  }
+
+
+  .efficiency-morning-meeting-boiler-row input[
+    data-boiler-temperature-input
+  ] {
+    height: 29px;
+
+    font-size: 12px;
+  }
+
+
+  .efficiency-morning-meeting-boiler-card__footer {
+    display: block;
+
+    padding:
+      6px
+      10px
+      7px;
+  }
+
+
+  .efficiency-morning-meeting-boiler-card__footer > span,
+  .efficiency-morning-meeting-boiler-card__footer > strong {
+    display: block;
+
+    font-size: 9px;
+    line-height: 1.4;
+
+    text-align: left;
+  }
+
+
+  .efficiency-morning-meeting-boiler-card__footer > strong {
+    margin-top: 2px;
+  }
+}

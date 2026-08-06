@@ -21031,7 +21031,12 @@ function importAllMemberLogs() {
   일반 시간순
 
   N/S:
-  19:00 → 23:59 → 00:00 → 06:59
+  근무 시작 전 기록
+  → 19:00 ~ 23:59
+  → 00:00 ~ 06:59
+
+  N/S 날짜 전환 기준:
+  00:00 ~ 06:59만 다음 날 시간으로 계산한다.
 
   시간 미기재:
   항상 마지막, 기존 등록 순서 유지
@@ -21048,11 +21053,21 @@ function getShiftLogEntrySortMinutes(
     ).trim();
 
 
-  if (!rawTime) {
+  if (
+    !rawTime
+  ) {
     return null;
   }
 
 
+  /*
+    여러 시간이 입력된 경우에도
+    첫 번째 시간을 정렬 기준으로 사용한다.
+
+    예:
+    00:19, 01:15, 02:49
+    → 00:19 기준
+  */
   const parsedTime =
     parseLeadingLogTimeExpression(
       rawTime
@@ -21066,7 +21081,9 @@ function getShiftLogEntrySortMinutes(
     ).trim();
 
 
-  if (!firstTime) {
+  if (
+    !firstTime
+  ) {
     return null;
   }
 
@@ -21075,7 +21092,9 @@ function getShiftLogEntrySortMinutes(
     hourText,
     minuteText
   ] =
-    firstTime.split(":");
+    firstTime.split(
+      ":"
+    );
 
 
   const hour =
@@ -21096,7 +21115,15 @@ function getShiftLogEntrySortMinutes(
     ) ||
     !Number.isInteger(
       minute
-    )
+    ) ||
+    hour <
+      0 ||
+    hour >
+      23 ||
+    minute <
+      0 ||
+    minute >
+      59
   ) {
     return null;
   }
@@ -21121,16 +21148,24 @@ function getShiftLogEntrySortMinutes(
 
 
   /*
-    N/S는 19:00을 하루의 시작으로 본다.
+    N/S 근무는 19:00부터 다음 날 07:00까지다.
 
-    22:00 → 1320
-    02:00 → 1560
+    날짜가 넘어간 것으로 처리해야 하는 시간은
+    00:00 ~ 06:59뿐이다.
+
+    예:
+    18:56 → 1136
+    19:00 → 1140
+    23:59 → 1439
+    00:19 → 1459
+    02:27 → 1587
+    06:59 → 1859
   */
   if (
     normalizedShift ===
       "NS" &&
     sortMinutes <
-      19 * 60
+      7 * 60
   ) {
     sortMinutes +=
       24 * 60;
@@ -21139,7 +21174,6 @@ function getShiftLogEntrySortMinutes(
 
   return sortMinutes;
 }
-
 
 function compareShiftLogEntriesByTime(
   entryA,
@@ -41611,166 +41645,209 @@ function collectLogEntriesForDisplay(
     파트장 직접 업무로 잘못 저장됐더라도 제거된다.
   ====================================================== */
 
-  const recoveredSavedEntries =
-    collectEntriesFromLog(
-      log
-    )
-      .filter(
-        entry => {
-          const sourceRole =
-            normalizeMemberLogRole(
-              entry?.importedFromRole ||
-              ""
-            );
+/* =====================================================
+  파트장 저장본에서 팀원 취합 내용 제거
+
+  보완:
+  - 파트장이 직접 작성한 비고는 최우선 보호
+  - BO1·BO2 등 팀원 업무와 내용이 같아도 비고 유지
+  - 팀원 업무 중복 제거는 기존대로 유지
+===================================================== */
+
+const recoveredSavedEntries =
+  collectEntriesFromLog(
+    log
+  )
+    .filter(
+      entry => {
+        const sourceRole =
+          normalizeMemberLogRole(
+            entry?.importedFromRole ||
+            ""
+          );
 
 
-          const sourceLogId =
-            String(
-              entry?.importedFromLogId ||
-              ""
-            ).trim();
+        const sourceLogId =
+          String(
+            entry?.importedFromLogId ||
+            ""
+          ).trim();
 
 
-          const source =
-            String(
-              entry?.source ||
-              ""
-            ).trim();
+        const source =
+          String(
+            entry?.source ||
+            ""
+          ).trim();
 
 
-          /*
-            팀원 원본 일지 ID가 연결돼 있으면
-            파트장 직접 업무가 아니다.
-          */
-          if (
-            sourceLogId &&
-            memberSourceLogIds.has(
-              sourceLogId
-            )
-          ) {
-            return false;
-          }
+        const category =
+          normalizeCategory(
+            entry?.category,
+            "인계사항"
+          );
 
 
-          /*
-            출처 보직이 팀원으로 명확하면 제거한다.
-
-            화면에 다시 표시할 항목은
-            memberDisplayEntries에서 새로 가져온다.
-          */
-          if (
-            allMemberRoles.includes(
-              sourceRole
-            )
-          ) {
-            return false;
-          }
-
-/*
-  파트장이 명확하게 직접 작성한 항목
-
-  direct-remark는
-  기존 버전에서 저장된 비고 호환용으로도 유지한다.
-*/
-const isExplicitLeaderSource =
-  [
-    "leader-manual",
-    "legacy-leader-own",
-    "previous-shift-handover",
-    "direct-remark"
-  ].includes(
-    source
-  );
-
-
-const duplicatesAnyMemberEntry =
-  allMemberSourceEntries.some(
-    memberEntry => {
-      return isSameLeaderSavedEntryAsMemberEntry(
-        entry,
-        memberEntry
-      );
-    }
-  );
-
-
-/*
-  팀원 업무와 내용이 같더라도
-
-  파트장이 직접 작성한 것으로
-  명확하게 표시된 항목은 삭제하지 않는다.
-
-  특히:
-  비고에 BO1/BO2 업무내용을 다시 적는 경우를 보호한다.
-*/
-if (
-  duplicatesAnyMemberEntry &&
-  !isExplicitLeaderSource
-) {
-  return false;
-}
-
-
-          return (
+        /*
+          파트장이 비고에서 직접 작성한 항목은
+          다른 팀원의 업무내용과 같더라도
+          무조건 파트장 비고로 유지한다.
+        */
+        const isLeaderRemark =
+          category ===
+            "비고" &&
+          (
             sourceRole ===
               "파트장" ||
-            isExplicitLeaderSource ||
+
             sourceLogId ===
               leaderLogId ||
+
+            [
+              "leader-manual",
+              "direct-remark",
+              "saved-note"
+            ].includes(
+              source
+            ) ||
+
             (
               !sourceRole &&
               !sourceLogId
             )
           );
+
+
+        if (
+          isLeaderRemark
+        ) {
+          return true;
         }
-      )
-      .map(
-        (
-          entry,
-          entryIndex
-        ) => {
-          const entrySourceLogId =
+
+
+        /*
+          팀원 원본 일지 ID가 연결된 항목은
+          파트장 직접 업무가 아니다.
+        */
+        if (
+          sourceLogId &&
+          memberSourceLogIds.has(
+            sourceLogId
+          )
+        ) {
+          return false;
+        }
+
+
+        /*
+          출처 보직이 팀원으로 명확하면
+          파트장 저장본에서는 제외한다.
+        */
+        if (
+          allMemberRoles.includes(
+            sourceRole
+          )
+        ) {
+          return false;
+        }
+
+
+        /*
+          팀원 원본 전체와 내용이 같은
+          파트장 저장 항목은 중복 제거한다.
+
+          단, 위에서 비고는 이미 보호했다.
+        */
+        const duplicatesAnyMemberEntry =
+          allMemberSourceEntries.some(
+            memberEntry => {
+              return isSameLeaderSavedEntryAsMemberEntry(
+                entry,
+                memberEntry
+              );
+            }
+          );
+
+
+        if (
+          duplicatesAnyMemberEntry
+        ) {
+          return false;
+        }
+
+
+        const isExplicitLeaderSource =
+          [
+            "leader-manual",
+            "legacy-leader-own",
+            "previous-shift-handover",
+            "direct-remark",
+            "saved-note"
+          ].includes(
+            source
+          );
+
+
+        return (
+          sourceRole ===
+            "파트장" ||
+          isExplicitLeaderSource ||
+          sourceLogId ===
+            leaderLogId ||
+          (
+            !sourceRole &&
+            !sourceLogId
+          )
+        );
+      }
+    )
+    .map(
+      (
+        entry,
+        entryIndex
+      ) => {
+        const entrySourceLogId =
+          String(
+            entry?.importedFromLogId ||
+            ""
+          ).trim();
+
+
+        return {
+          ...entry,
+
+          /*
+            파트장 저장본에서 복구된 항목은
+            파트장 직접 항목으로 고정한다.
+          */
+          importedFromRole:
+            "파트장",
+
+          importedFromAuthor:
             String(
-              entry?.importedFromLogId ||
+              entry?.importedFromAuthor ||
+              log.author ||
               ""
-            ).trim();
+            ).trim(),
 
+          importedFromLogId:
+            entrySourceLogId ===
+              leaderLogId
+              ? ""
+              : entrySourceLogId,
 
-          return {
-            ...entry,
+          importedFromEntryIndex:
+            entry?.importedFromEntryIndex ??
+            entryIndex,
 
-            importedFromRole:
-              "파트장",
-
-            importedFromAuthor:
-              String(
-                entry?.importedFromAuthor ||
-                log.author ||
-                ""
-              ).trim(),
-
-            /*
-              파트장 일지 자체 ID는
-              팀원 원본 ID가 아니므로 비운다.
-            */
-            importedFromLogId:
-              entrySourceLogId ===
-                leaderLogId
-                ? ""
-                : entrySourceLogId,
-
-            importedFromEntryIndex:
-              entry?.importedFromEntryIndex ??
-              entryIndex,
-
-            source:
-              String(
-                entry?.source ||
-                "leader-manual"
-              ).trim()
-          };
-        }
-      );
+          source:
+            String(
+              entry?.source ||
+              "leader-manual"
+            ).trim()
+        };
+      }
+    );  
 
 
   /*
@@ -158456,6 +158533,1287 @@ function renderPreview() {
     document.addEventListener(
       "DOMContentLoaded",
       initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
+
+/* =========================================================
+  오전회의 취합
+  BO1 · BO2 보일러 온도 미리보기 + 직접 수정
+
+  자동 원본:
+  window.efficiencyMorningMeetingUploadState
+    .boilerTemperatures
+
+  기능:
+  - 현재 N/S BO1 · BO2 자동 추출값 표시
+  - FBHE Left / Right
+  - Wall Screw A / B / C / D
+  - 총 12개 값 직접 수정 가능
+  - 수정값을 state.boilerTemperatures에 즉시 저장
+  - 최종 엑셀에는 수정된 값 사용
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingBoilerTemperatureEditor() {
+  "use strict";
+
+
+  if (
+    window
+      .__efficiencyMorningMeetingBoilerTemperatureEditorInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyMorningMeetingBoilerTemperatureEditorInstalled =
+    true;
+
+
+  /* =====================================================
+    입력칸 정의
+  ====================================================== */
+
+  const INPUT_DEFINITIONS = [
+    {
+      id:
+        "efficiencyMorningMeetingBoiler1FbheLeft",
+
+      unitKey:
+        "unitOne",
+
+      valueKey:
+        "fbheLeft",
+
+      label:
+        "1호기 FBHE Left"
+    },
+
+    {
+      id:
+        "efficiencyMorningMeetingBoiler1FbheRight",
+
+      unitKey:
+        "unitOne",
+
+      valueKey:
+        "fbheRight",
+
+      label:
+        "1호기 FBHE Right"
+    },
+
+    {
+      id:
+        "efficiencyMorningMeetingBoiler1WallA",
+
+      unitKey:
+        "unitOne",
+
+      valueKey:
+        "wallScrew.A",
+
+      label:
+        "1호기 Wall Screw A"
+    },
+
+    {
+      id:
+        "efficiencyMorningMeetingBoiler1WallB",
+
+      unitKey:
+        "unitOne",
+
+      valueKey:
+        "wallScrew.B",
+
+      label:
+        "1호기 Wall Screw B"
+    },
+
+    {
+      id:
+        "efficiencyMorningMeetingBoiler1WallC",
+
+      unitKey:
+        "unitOne",
+
+      valueKey:
+        "wallScrew.C",
+
+      label:
+        "1호기 Wall Screw C"
+    },
+
+    {
+      id:
+        "efficiencyMorningMeetingBoiler1WallD",
+
+      unitKey:
+        "unitOne",
+
+      valueKey:
+        "wallScrew.D",
+
+      label:
+        "1호기 Wall Screw D"
+    },
+
+    {
+      id:
+        "efficiencyMorningMeetingBoiler2FbheLeft",
+
+      unitKey:
+        "unitTwo",
+
+      valueKey:
+        "fbheLeft",
+
+      label:
+        "2호기 FBHE Left"
+    },
+
+    {
+      id:
+        "efficiencyMorningMeetingBoiler2FbheRight",
+
+      unitKey:
+        "unitTwo",
+
+      valueKey:
+        "fbheRight",
+
+      label:
+        "2호기 FBHE Right"
+    },
+
+    {
+      id:
+        "efficiencyMorningMeetingBoiler2WallA",
+
+      unitKey:
+        "unitTwo",
+
+      valueKey:
+        "wallScrew.A",
+
+      label:
+        "2호기 Wall Screw A"
+    },
+
+    {
+      id:
+        "efficiencyMorningMeetingBoiler2WallB",
+
+      unitKey:
+        "unitTwo",
+
+      valueKey:
+        "wallScrew.B",
+
+      label:
+        "2호기 Wall Screw B"
+    },
+
+    {
+      id:
+        "efficiencyMorningMeetingBoiler2WallC",
+
+      unitKey:
+        "unitTwo",
+
+      valueKey:
+        "wallScrew.C",
+
+      label:
+        "2호기 Wall Screw C"
+    },
+
+    {
+      id:
+        "efficiencyMorningMeetingBoiler2WallD",
+
+      unitKey:
+        "unitTwo",
+
+      valueKey:
+        "wallScrew.D",
+
+      label:
+        "2호기 Wall Screw D"
+    }
+  ];
+
+
+  /* =====================================================
+    공용 상태
+  ====================================================== */
+
+  function getState() {
+    if (
+      !window
+        .efficiencyMorningMeetingUploadState
+    ) {
+      window.efficiencyMorningMeetingUploadState = {
+        files:
+          {},
+
+        analysis:
+          {}
+      };
+    }
+
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  /* =====================================================
+    화면 요소
+  ====================================================== */
+
+  function getElements() {
+    return {
+      card:
+        document.querySelector(
+          ".efficiency-morning-meeting-boiler-card"
+        ),
+
+      date:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoBoilerDate"
+        ),
+
+      status:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoBoilerStatus"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    숫자 변환
+
+    빈칸은 0으로 처리하지 않는다.
+  ====================================================== */
+
+  function parseTemperatureNumber(
+    value
+  ) {
+    const normalizedValue =
+      String(
+        value ??
+        ""
+      )
+        .replace(
+          /℃|°C/gi,
+          ""
+        )
+        .replaceAll(
+          ",",
+          ""
+        )
+        .trim();
+
+
+    if (
+      normalizedValue ===
+        ""
+    ) {
+      return null;
+    }
+
+
+    const numericValue =
+      Number(
+        normalizedValue
+      );
+
+
+    return Number.isFinite(
+      numericValue
+    )
+      ? numericValue
+      : null;
+  }
+
+
+  /* =====================================================
+    단위 상태 객체 보장
+  ====================================================== */
+
+  function ensureBoilerUnit(
+    boilerTemperatures,
+    unitKey
+  ) {
+    if (
+      !boilerTemperatures[
+        unitKey
+      ] ||
+      typeof boilerTemperatures[
+        unitKey
+      ] !==
+        "object"
+    ) {
+      boilerTemperatures[
+        unitKey
+      ] =
+        unitKey ===
+          "unitOne"
+          ? {
+              role:
+                "BO1",
+
+              label:
+                "1호기",
+
+              wallScrew:
+                {}
+            }
+          : {
+              role:
+                "BO2",
+
+              label:
+                "2호기",
+
+              wallScrew:
+                {}
+            };
+    }
+
+
+    if (
+      !boilerTemperatures[
+        unitKey
+      ].wallScrew ||
+      typeof boilerTemperatures[
+        unitKey
+      ].wallScrew !==
+        "object"
+    ) {
+      boilerTemperatures[
+        unitKey
+      ].wallScrew =
+        {};
+    }
+
+
+    return boilerTemperatures[
+      unitKey
+    ];
+  }
+
+
+  /* =====================================================
+    온도 상태가 없는 경우 기본 상태 생성
+
+    자동 추출 실패 시에도
+    사용자가 직접 12개 값을 입력할 수 있다.
+  ====================================================== */
+
+  function ensureBoilerTemperatureState() {
+    const state =
+      getState();
+
+
+    if (
+      !state.boilerTemperatures ||
+      typeof state.boilerTemperatures !==
+        "object"
+    ) {
+      state.boilerTemperatures = {
+        reportDate:
+          String(
+            state.shiftPart
+              ?.reportDate ||
+            state.shiftPart
+              ?.loadedDate ||
+            ""
+          ).trim(),
+
+        sourceShift:
+          "NS",
+
+        unitOne: {
+          role:
+            "BO1",
+
+          label:
+            "1호기",
+
+          fbheLeft:
+            null,
+
+          fbheRight:
+            null,
+
+          wallScrew: {
+            A:
+              null,
+
+            B:
+              null,
+
+            C:
+              null,
+
+            D:
+              null
+          }
+        },
+
+        unitTwo: {
+          role:
+            "BO2",
+
+          label:
+            "2호기",
+
+          fbheLeft:
+            null,
+
+          fbheRight:
+            null,
+
+          wallScrew: {
+            A:
+              null,
+
+            B:
+              null,
+
+            C:
+              null,
+
+            D:
+              null
+          }
+        },
+
+        missing:
+          [],
+
+        complete:
+          false,
+
+        manuallyCreated:
+          true
+      };
+    }
+
+
+    ensureBoilerUnit(
+      state.boilerTemperatures,
+      "unitOne"
+    );
+
+
+    ensureBoilerUnit(
+      state.boilerTemperatures,
+      "unitTwo"
+    );
+
+
+    return state
+      .boilerTemperatures;
+  }
+
+
+  /* =====================================================
+    상태에서 값 읽기
+  ====================================================== */
+
+  function getTemperatureValue(
+    boilerTemperatures,
+    definition
+  ) {
+    const unit =
+      boilerTemperatures?.[
+        definition.unitKey
+      ];
+
+
+    if (
+      !unit
+    ) {
+      return null;
+    }
+
+
+    if (
+      definition.valueKey.startsWith(
+        "wallScrew."
+      )
+    ) {
+      const wallKey =
+        definition.valueKey.split(
+          "."
+        )[1];
+
+
+      return parseTemperatureNumber(
+        unit.wallScrew?.[
+          wallKey
+        ]
+      );
+    }
+
+
+    return parseTemperatureNumber(
+      unit[
+        definition.valueKey
+      ]
+    );
+  }
+
+
+  /* =====================================================
+    상태에 값 저장
+  ====================================================== */
+
+  function setTemperatureValue(
+    boilerTemperatures,
+    definition,
+    value
+  ) {
+    const unit =
+      ensureBoilerUnit(
+        boilerTemperatures,
+        definition.unitKey
+      );
+
+
+    if (
+      definition.valueKey.startsWith(
+        "wallScrew."
+      )
+    ) {
+      const wallKey =
+        definition.valueKey.split(
+          "."
+        )[1];
+
+
+      unit.wallScrew[
+        wallKey
+      ] =
+        value;
+
+
+      return;
+    }
+
+
+    unit[
+      definition.valueKey
+    ] =
+      value;
+  }
+
+
+  /* =====================================================
+    missing / complete 다시 계산
+
+    사용자가 누락값을 직접 입력하면
+    complete = true로 바뀔 수 있다.
+  ====================================================== */
+
+  function recalculateBoilerTemperatureStatus(
+    boilerTemperatures
+  ) {
+    const missing =
+      [];
+
+
+    INPUT_DEFINITIONS.forEach(
+      definition => {
+        const value =
+          getTemperatureValue(
+            boilerTemperatures,
+            definition
+          );
+
+
+        if (
+          value ===
+            null
+        ) {
+          missing.push(
+            definition.label
+          );
+        }
+      }
+    );
+
+
+    boilerTemperatures.missing =
+      missing;
+
+
+    boilerTemperatures.complete =
+      missing.length ===
+      0;
+
+
+    return boilerTemperatures
+      .complete;
+  }
+
+
+  /* =====================================================
+    상태 배지
+  ====================================================== */
+
+  function setStatusBadge(
+    status,
+    label
+  ) {
+    const {
+      status:
+        statusElement
+    } =
+      getElements();
+
+
+    if (
+      !statusElement
+    ) {
+      return;
+    }
+
+
+    statusElement.classList.remove(
+      "is-loading",
+      "is-complete",
+      "is-error"
+    );
+
+
+    if (
+      status ===
+        "complete"
+    ) {
+      statusElement.classList.add(
+        "is-complete"
+      );
+
+    } else if (
+      status ===
+        "error"
+    ) {
+      statusElement.classList.add(
+        "is-error"
+      );
+
+    } else if (
+      status ===
+        "loading"
+    ) {
+      statusElement.classList.add(
+        "is-loading"
+      );
+    }
+
+
+    statusElement.textContent =
+      label;
+  }
+
+
+  /* =====================================================
+    수정된 입력칸이 있는지
+  ====================================================== */
+
+  function hasEditedTemperatureInput() {
+    return INPUT_DEFINITIONS.some(
+      definition => {
+        return document
+          .getElementById(
+            definition.id
+          )
+          ?.classList
+          .contains(
+            "is-edited"
+          ) ===
+          true;
+      }
+    );
+  }
+
+
+  /* =====================================================
+    카드 상태만 다시 그리기
+  ====================================================== */
+
+  function renderStatus() {
+    const state =
+      getState();
+
+
+    const boilerTemperatures =
+      state.boilerTemperatures;
+
+
+    const {
+      card,
+      date
+    } =
+      getElements();
+
+
+    if (
+      !boilerTemperatures ||
+      typeof boilerTemperatures !==
+        "object"
+    ) {
+      card?.classList.remove(
+        "is-loaded"
+      );
+
+
+      if (
+        date
+      ) {
+        date.textContent =
+          "-";
+      }
+
+
+      setStatusBadge(
+        "idle",
+        "조회 대기"
+      );
+
+
+      return;
+    }
+
+
+    recalculateBoilerTemperatureStatus(
+      boilerTemperatures
+    );
+
+
+    if (
+      date
+    ) {
+      date.textContent =
+        String(
+          boilerTemperatures
+            .reportDate ||
+          "-"
+        );
+    }
+
+
+    card?.classList.add(
+      "is-loaded"
+    );
+
+
+    if (
+      boilerTemperatures.complete
+    ) {
+      if (
+        hasEditedTemperatureInput()
+      ) {
+        setStatusBadge(
+          "complete",
+          "수정됨"
+        );
+
+      } else {
+        setStatusBadge(
+          "complete",
+          "조회 완료"
+        );
+      }
+
+    } else {
+      setStatusBadge(
+        "error",
+        "확인 필요"
+      );
+    }
+  }
+
+
+  /* =====================================================
+    자동 추출값 → 입력창 표시
+
+    resetAutomaticBaseline = true:
+    새 업무일지를 불러온 경우
+    해당 값을 새로운 자동 원본값으로 저장한다.
+  ====================================================== */
+
+  function renderValuesFromState(
+    resetAutomaticBaseline =
+      false
+  ) {
+    const state =
+      getState();
+
+
+    const boilerTemperatures =
+      state.boilerTemperatures;
+
+
+    if (
+      !boilerTemperatures ||
+      typeof boilerTemperatures !==
+        "object"
+    ) {
+      INPUT_DEFINITIONS.forEach(
+        definition => {
+          const input =
+            document.getElementById(
+              definition.id
+            );
+
+
+          if (
+            !input
+          ) {
+            return;
+          }
+
+
+          input.value =
+            "";
+
+
+          input.classList.remove(
+            "is-edited",
+            "is-missing"
+          );
+
+
+          delete input.dataset
+            .automaticValue;
+        }
+      );
+
+
+      renderStatus();
+
+
+      return;
+    }
+
+
+    recalculateBoilerTemperatureStatus(
+      boilerTemperatures
+    );
+
+
+    INPUT_DEFINITIONS.forEach(
+      definition => {
+        const input =
+          document.getElementById(
+            definition.id
+          );
+
+
+        if (
+          !input
+        ) {
+          return;
+        }
+
+
+        const numericValue =
+          getTemperatureValue(
+            boilerTemperatures,
+            definition
+          );
+
+
+        if (
+          numericValue ===
+            null
+        ) {
+          input.value =
+            "";
+
+
+          input.classList.add(
+            "is-missing"
+          );
+
+        } else {
+          input.value =
+            String(
+              numericValue
+            );
+
+
+          input.classList.remove(
+            "is-missing"
+          );
+        }
+
+
+        if (
+          resetAutomaticBaseline
+        ) {
+          if (
+            numericValue ===
+              null
+          ) {
+            delete input.dataset
+              .automaticValue;
+
+          } else {
+            input.dataset
+              .automaticValue =
+              String(
+                numericValue
+              );
+          }
+
+
+          input.classList.remove(
+            "is-edited"
+          );
+        }
+      }
+    );
+
+
+    renderStatus();
+  }
+
+
+  /* =====================================================
+    사용자가 수정한 입력값 상태 저장
+  ====================================================== */
+
+  function handleTemperatureInput(
+    input
+  ) {
+    const definition =
+      INPUT_DEFINITIONS.find(
+        item => {
+          return item.id ===
+            input.id;
+        }
+      );
+
+
+    if (
+      !definition
+    ) {
+      return;
+    }
+
+
+    const boilerTemperatures =
+      ensureBoilerTemperatureState();
+
+
+    const numericValue =
+      parseTemperatureNumber(
+        input.value
+      );
+
+
+    setTemperatureValue(
+      boilerTemperatures,
+      definition,
+      numericValue
+    );
+
+
+    /* ===================================================
+      원래 자동값과 비교하여 수정 표시
+    ==================================================== */
+
+    const automaticValue =
+      parseTemperatureNumber(
+        input.dataset
+          .automaticValue
+      );
+
+
+    if (
+      numericValue ===
+        null
+    ) {
+      input.classList.add(
+        "is-missing"
+      );
+
+
+      input.classList.add(
+        "is-edited"
+      );
+
+    } else {
+      input.classList.remove(
+        "is-missing"
+      );
+
+
+      if (
+        automaticValue ===
+          null ||
+        numericValue !==
+          automaticValue
+      ) {
+        input.classList.add(
+          "is-edited"
+        );
+
+      } else {
+        input.classList.remove(
+          "is-edited"
+        );
+      }
+    }
+
+
+    recalculateBoilerTemperatureStatus(
+      boilerTemperatures
+    );
+
+
+    boilerTemperatures.userEdited =
+      hasEditedTemperatureInput();
+
+
+    boilerTemperatures
+      .lastEditedAt =
+      new Date()
+        .toISOString();
+
+
+    renderStatus();
+
+
+    /* ===================================================
+      최종 엑셀 버튼 즉시 재검사
+    ==================================================== */
+
+    if (
+      typeof window
+        .updateEfficiencyMorningMeetingCreateButton ===
+        "function"
+    ) {
+      window
+        .updateEfficiencyMorningMeetingCreateButton();
+    }
+
+
+    document.dispatchEvent(
+      new CustomEvent(
+        "efficiencyMorningMeetingBoilerTemperaturesChanged",
+
+        {
+          detail: {
+            complete:
+              boilerTemperatures
+                .complete,
+
+            missing:
+              [
+                ...boilerTemperatures
+                  .missing
+              ],
+
+            userEdited:
+              boilerTemperatures
+                .userEdited
+          }
+        }
+      )
+    );
+  }
+
+
+  /* =====================================================
+    입력칸 이벤트 연결
+  ====================================================== */
+
+  function bindInputEvents() {
+    INPUT_DEFINITIONS.forEach(
+      definition => {
+        const input =
+          document.getElementById(
+            definition.id
+          );
+
+
+        if (
+          !input ||
+          input.dataset
+            .boilerEditorBound ===
+            "true"
+        ) {
+          return;
+        }
+
+
+        input.addEventListener(
+          "input",
+          () => {
+            handleTemperatureInput(
+              input
+            );
+          }
+        );
+
+
+        /*
+          포커스가 빠질 때 숫자 표현 정리
+        */
+
+        input.addEventListener(
+          "blur",
+          () => {
+            const numericValue =
+              parseTemperatureNumber(
+                input.value
+              );
+
+
+            if (
+              numericValue !==
+                null
+            ) {
+              input.value =
+                String(
+                  numericValue
+                );
+            }
+          }
+        );
+
+
+        input.dataset
+          .boilerEditorBound =
+          "true";
+      }
+    );
+  }
+
+
+  /* =====================================================
+    새 BO1 · BO2 업무일지 로드
+
+    loadShiftPartLogs()가 완료되면 발생하는
+    기존 이벤트를 이용한다.
+
+    새 자동자료이므로:
+    - 입력창 새로 채우기
+    - is-edited 초기화
+    - automaticValue 갱신
+  ====================================================== */
+
+  function handleShiftLogsLoaded() {
+    window.setTimeout(
+      () => {
+        renderValuesFromState(
+          true
+        );
+
+
+        if (
+          typeof window
+            .updateEfficiencyMorningMeetingCreateButton ===
+            "function"
+        ) {
+          window
+            .updateEfficiencyMorningMeetingCreateButton();
+        }
+      },
+      0
+    );
+  }
+
+
+  /* =====================================================
+    전체 초기화 후 화면 초기화
+  ====================================================== */
+
+  function handleReset() {
+    window.setTimeout(
+      () => {
+        renderValuesFromState(
+          true
+        );
+      },
+      0
+    );
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initialize() {
+    bindInputEvents();
+
+
+    /*
+      페이지 진입 시 이미 BO1·BO2 데이터가 있다면 표시
+    */
+
+    renderValuesFromState(
+      true
+    );
+
+
+    document.addEventListener(
+      "efficiencyMorningMeetingShiftLogsLoaded",
+      handleShiftLogsLoaded
+    );
+
+
+    document
+      .getElementById(
+        "resetEfficiencyMorningMeetingButton"
+      )
+      ?.addEventListener(
+        "click",
+        handleReset
+      );
+  }
+
+
+  /* =====================================================
+    외부에서도 강제 갱신 가능
+  ====================================================== */
+
+  window
+    .renderEfficiencyMorningMeetingBoilerTemperatures =
+    function renderEfficiencyMorningMeetingBoilerTemperatures() {
+      renderValuesFromState(
+        true
+      );
+    };
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+
       {
         once:
           true
