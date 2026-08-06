@@ -73985,33 +73985,53 @@ textarea.efficiency-daily-work-line-source[
 
 
 /* =========================================================
-  미리보기·상세보기 발행 구분 배지
+  미리보기·상세보기 TM·BM·CM 구분 표시
 
   유지:
-  - [TM발행] 글씨
+  - [TM발행], [TM작업] 글씨
   - TM/BM/CM별 글씨 색상
 
   제거:
   - 테두리
   - 배경
   - 네모 박스
+
+  적용:
+  - 발행
+  - 작업
 ========================================================= */
 
 #logTableBody
 .log-entry-kind-badge.is-issue,
 
+#logTableBody
+.log-entry-kind-badge.is-work,
+
 #searchResultBody
 .log-entry-kind-badge.is-issue,
 
+#searchResultBody
+.log-entry-kind-badge.is-work,
+
 #mobileSearchCardList
 .log-entry-kind-badge.is-issue,
+
+#mobileSearchCardList
+.log-entry-kind-badge.is-work,
 
 #statusView
 .mobile-log-card-list
 .log-entry-kind-badge.is-issue,
 
+#statusView
+.mobile-log-card-list
+.log-entry-kind-badge.is-work,
+
 #logDetailModal
-.log-entry-kind-badge.is-issue {
+.log-entry-kind-badge.is-issue,
+
+#logDetailModal
+.log-entry-kind-badge.is-work {
   min-width: 0 !important;
   min-height: 0 !important;
 
@@ -74022,7 +74042,6 @@ textarea.efficiency-daily-work-line-source[
   border-radius: 0 !important;
 
   background: transparent !important;
-
   box-shadow: none !important;
 
   line-height: inherit !important;
