@@ -134047,6 +134047,1144 @@ async function forceMorningMeetingWorkbookRecalculation(
   );
 } 
 
+/* =========================================================
+  오전회의 취합 - TM 사항 최종 엑셀 반영
+
+  선택 화면은 한 칸에서 함께 표시하지만
+  최종 엑셀에서는 출처에 따라 자동 분류한다.
+
+  교대파트 TM:
+  6. TM 사항
+  → ◇ 설비 운영
+
+  운탄일지 TM:
+  6. TM 사항
+  → ◇ 연료 설비
+========================================================= */
+
+
+/* =====================================================
+  특정 행의 B열 병합 마지막 열 확인
+
+  현재 양식:
+  B:AO
+
+  양식 폭이 변경되어도 기존 병합 폭을 유지한다.
+===================================================== */
+
+function getMorningMeetingTmMergeEndColumnForRow(
+  worksheetDocument,
+  rowNumber,
+  fallbackColumn =
+    "AO"
+) {
+  const mergeCellsElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !mergeCellsElement
+  ) {
+    return fallbackColumn;
+  }
+
+
+  const matchedRange =
+    getMorningMeetingDirectXmlChildren(
+      mergeCellsElement,
+      "mergeCell"
+    )
+      .map(
+        mergeElement => {
+          return parseMorningMeetingMergeReference(
+            mergeElement.getAttribute(
+              "ref"
+            )
+          );
+        }
+      )
+      .find(
+        mergeRange => {
+          return (
+            mergeRange &&
+            mergeRange.startColumn ===
+              "B" &&
+            mergeRange.startRow ===
+              rowNumber &&
+            mergeRange.endRow ===
+              rowNumber
+          );
+        }
+      );
+
+
+  return (
+    matchedRange?.endColumn ||
+    fallbackColumn
+  );
+}
+
+
+/* =====================================================
+  TM 사항 기존 위치와 행 서식 탐색
+
+  기준 구조:
+
+  6. TM 사항
+  ◇ 설비 운영
+  설비 운영 TM 내용
+  빈 행
+  ◇ 연료 설비
+  연료 설비 TM 내용
+  빈 행
+===================================================== */
+
+function inspectMorningMeetingTmAreaLayout(
+  worksheetDocument,
+  sharedStrings
+) {
+  const sheetData =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "sheetData"
+      )[0];
+
+
+  if (
+    !sheetData
+  ) {
+    throw new Error(
+      "기준 취합본의 시트 행 정보를 찾지 못했습니다."
+    );
+  }
+
+
+  const rowRecords =
+    getMorningMeetingDirectXmlChildren(
+      sheetData,
+      "row"
+    )
+      .map(
+        rowElement => {
+          return {
+            element:
+              rowElement,
+
+            rowNumber:
+              getMorningMeetingRowNumber(
+                rowElement
+              ),
+
+            text:
+              getMorningMeetingRowColumnBText(
+                rowElement,
+                sharedStrings
+              )
+          };
+        }
+      )
+      .sort(
+        (
+          firstRecord,
+          secondRecord
+        ) => {
+          return (
+            firstRecord.rowNumber -
+            secondRecord.rowNumber
+          );
+        }
+      );
+
+
+  const tmTitleRecord =
+    findMorningMeetingRowRecord(
+      rowRecords,
+      /^6\s*[.)]\s*TM\s*사항$/i
+    );
+
+
+  if (
+    !tmTitleRecord
+  ) {
+    throw new Error(
+      "기준 취합본에서 '6. TM 사항' 구역을 찾지 못했습니다."
+    );
+  }
+
+
+  const operationHeadingRecord =
+    findMorningMeetingRowRecord(
+      rowRecords,
+      /^◇\s*설비\s*운영$/i,
+      tmTitleRecord.rowNumber +
+        1
+    );
+
+
+  if (
+    !operationHeadingRecord
+  ) {
+    throw new Error(
+      "기준 취합본에서 TM 사항의 '◇ 설비 운영' 구역을 찾지 못했습니다."
+    );
+  }
+
+
+  const fuelHeadingRecord =
+    findMorningMeetingRowRecord(
+      rowRecords,
+      /^◇\s*연료\s*설비$/i,
+      operationHeadingRecord
+        .rowNumber +
+        1
+    );
+
+
+  if (
+    !fuelHeadingRecord
+  ) {
+    throw new Error(
+      "기준 취합본에서 TM 사항의 '◇ 연료 설비' 구역을 찾지 못했습니다."
+    );
+  }
+
+
+  const lastRowNumber =
+    rowRecords.reduce(
+      (
+        maximumRow,
+        record
+      ) => {
+        return Math.max(
+          maximumRow,
+          record.rowNumber
+        );
+      },
+      fuelHeadingRecord
+        .rowNumber
+    );
+
+
+  /* =====================================================
+    설비 운영 TM 내용 행
+  ====================================================== */
+
+  const operationContentRecord =
+    rowRecords.find(
+      record => {
+        return (
+          record.rowNumber >
+            operationHeadingRecord
+              .rowNumber &&
+
+          record.rowNumber <
+            fuelHeadingRecord
+              .rowNumber &&
+
+          Boolean(
+            record.text
+          )
+        );
+      }
+    );
+
+
+  /* =====================================================
+    설비 운영과 연료 설비 사이의 빈 행
+  ====================================================== */
+
+  const separatorBlankRecord =
+    [
+      ...rowRecords
+    ]
+      .reverse()
+      .find(
+        record => {
+          return (
+            record.rowNumber >
+              operationHeadingRecord
+                .rowNumber &&
+
+            record.rowNumber <
+              fuelHeadingRecord
+                .rowNumber &&
+
+            !record.text
+          );
+        }
+      );
+
+
+  /* =====================================================
+    연료 설비 TM 내용 행
+  ====================================================== */
+
+  const fuelContentRecord =
+    rowRecords.find(
+      record => {
+        return (
+          record.rowNumber >
+            fuelHeadingRecord
+              .rowNumber &&
+
+          record.rowNumber <=
+            lastRowNumber &&
+
+          Boolean(
+            record.text
+          )
+        );
+      }
+    );
+
+
+  /* =====================================================
+    최종 빈 행
+
+    기존 양식에서 연료설비 내용 아래의
+    마지막 빈 행을 사용한다.
+  ====================================================== */
+
+  const finalBlankRecord =
+    [
+      ...rowRecords
+    ]
+      .reverse()
+      .find(
+        record => {
+          return (
+            record.rowNumber >
+              fuelHeadingRecord
+                .rowNumber &&
+
+            !record.text
+          );
+        }
+      ) ||
+    separatorBlankRecord;
+
+
+  if (
+    !operationContentRecord
+  ) {
+    throw new Error(
+      "TM 설비 운영 내용 행의 서식 기준을 찾지 못했습니다."
+    );
+  }
+
+
+  if (
+    !separatorBlankRecord
+  ) {
+    throw new Error(
+      "TM 설비 운영과 연료 설비 사이의 빈 행을 찾지 못했습니다."
+    );
+  }
+
+
+  if (
+    !fuelContentRecord
+  ) {
+    throw new Error(
+      "TM 연료 설비 내용 행의 서식 기준을 찾지 못했습니다."
+    );
+  }
+
+
+  if (
+    !finalBlankRecord
+  ) {
+    throw new Error(
+      "TM 사항 마지막 빈 행의 서식 기준을 찾지 못했습니다."
+    );
+  }
+
+
+  return {
+    sheetData,
+    rowRecords,
+
+    tmTitleRow:
+      tmTitleRecord
+        .rowNumber,
+
+    bodyStartRow:
+      operationHeadingRecord
+        .rowNumber,
+
+    bodyEndRow:
+      lastRowNumber,
+
+    templates: {
+      operationHeading: {
+        element:
+          operationHeadingRecord
+            .element,
+
+        mergeEndColumn:
+          getMorningMeetingTmMergeEndColumnForRow(
+            worksheetDocument,
+            operationHeadingRecord
+              .rowNumber
+          )
+      },
+
+      operationContent: {
+        element:
+          operationContentRecord
+            .element,
+
+        mergeEndColumn:
+          getMorningMeetingTmMergeEndColumnForRow(
+            worksheetDocument,
+            operationContentRecord
+              .rowNumber
+          )
+      },
+
+      separatorBlank: {
+        element:
+          separatorBlankRecord
+            .element,
+
+        mergeEndColumn:
+          getMorningMeetingTmMergeEndColumnForRow(
+            worksheetDocument,
+            separatorBlankRecord
+              .rowNumber
+          )
+      },
+
+      fuelHeading: {
+        element:
+          fuelHeadingRecord
+            .element,
+
+        mergeEndColumn:
+          getMorningMeetingTmMergeEndColumnForRow(
+            worksheetDocument,
+            fuelHeadingRecord
+              .rowNumber
+          )
+      },
+
+      fuelContent: {
+        element:
+          fuelContentRecord
+            .element,
+
+        mergeEndColumn:
+          getMorningMeetingTmMergeEndColumnForRow(
+            worksheetDocument,
+            fuelContentRecord
+              .rowNumber
+          )
+      },
+
+      finalBlank: {
+        element:
+          finalBlankRecord
+            .element,
+
+        mergeEndColumn:
+          getMorningMeetingTmMergeEndColumnForRow(
+            worksheetDocument,
+            finalBlankRecord
+              .rowNumber
+          )
+      }
+    }
+  };
+}
+
+
+/* =====================================================
+  선택한 TM 항목을 출처별로 분리
+
+  교대파트:
+  sourceType = shift
+
+  운탄일지:
+  sourceType = coal
+===================================================== */
+
+function classifyMorningMeetingTmItems(
+  selectedTmItems
+) {
+  const operationItems =
+    [];
+
+
+  const fuelItems =
+    [];
+
+
+  (
+    Array.isArray(
+      selectedTmItems
+    )
+      ? selectedTmItems
+      : []
+  ).forEach(
+    item => {
+      const sourceType =
+        String(
+          item?.sourceType ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+
+      const sourceLabel =
+        String(
+          item?.sourceLabel ||
+          ""
+        )
+          .trim();
+
+
+      const isShiftItem =
+        sourceType ===
+          "shift" ||
+
+        sourceLabel.includes(
+          "교대파트"
+        ) ||
+
+        Boolean(
+          item?.shift
+        );
+
+
+      if (
+        isShiftItem
+      ) {
+        operationItems.push(
+          item
+        );
+
+
+        return;
+      }
+
+
+      fuelItems.push(
+        item
+      );
+    }
+  );
+
+
+  return {
+    operationItems,
+    fuelItems
+  };
+}
+
+
+/* =====================================================
+  TM 항목을 최종 엑셀 문구로 변환
+
+  예:
+  1) 08:30 BC-102A Belt 점검 요청
+     - 추가 손상 진행 중
+===================================================== */
+
+function formatMorningMeetingTmItemText(
+  item,
+  itemIndex
+) {
+  const time =
+    String(
+      item?.time ||
+      ""
+    ).trim();
+
+
+  const mainText =
+    String(
+      item?.content ||
+      item?.text ||
+      ""
+    )
+      .replace(
+        /^\s*\d+\s*[.)]\s*/,
+        ""
+      )
+      .trim();
+
+
+  const subLines =
+    Array.isArray(
+      item?.subLines
+    )
+      ? item.subLines
+          .map(
+            line => {
+              return String(
+                line ||
+                ""
+              )
+                .replace(
+                  /^[-–—•]\s*/,
+                  ""
+                )
+                .trim();
+            }
+          )
+          .filter(
+            Boolean
+          )
+      : [];
+
+
+  const firstLine = [
+    `${itemIndex + 1})`,
+
+    time,
+
+    mainText
+  ]
+    .filter(
+      Boolean
+    )
+    .join(
+      " "
+    );
+
+
+  return [
+    firstLine,
+
+    ...subLines.map(
+      line => {
+        return `   - ${line}`;
+      }
+    )
+  ].join(
+    "\n"
+  );
+}
+
+
+/* =====================================================
+  TM 사항 새 행 생성
+
+  선택 항목이 없는 구역도 제목은 유지하고
+  아래에 빈 행 한 줄을 둔다.
+===================================================== */
+
+function buildMorningMeetingTmAreaRows(
+  layout,
+  selectedTmItems
+) {
+  const {
+    operationItems,
+    fuelItems
+  } =
+    classifyMorningMeetingTmItems(
+      selectedTmItems
+    );
+
+
+  const operationDefinitions =
+    operationItems.length >
+      0
+      ? operationItems.map(
+          (
+            item,
+            itemIndex
+          ) => {
+            return {
+              template:
+                layout.templates
+                  .operationContent,
+
+              text:
+                formatMorningMeetingTmItemText(
+                  item,
+                  itemIndex
+                )
+            };
+          }
+        )
+      : [
+          {
+            template:
+              layout.templates
+                .operationContent,
+
+            text:
+              ""
+          }
+        ];
+
+
+  const fuelDefinitions =
+    fuelItems.length >
+      0
+      ? fuelItems.map(
+          (
+            item,
+            itemIndex
+          ) => {
+            return {
+              template:
+                layout.templates
+                  .fuelContent,
+
+              text:
+                formatMorningMeetingTmItemText(
+                  item,
+                  itemIndex
+                )
+            };
+          }
+        )
+      : [
+          {
+            template:
+              layout.templates
+                .fuelContent,
+
+            text:
+              ""
+          }
+        ];
+
+
+  const rowDefinitions = [
+    {
+      template:
+        layout.templates
+          .operationHeading,
+
+      text:
+        " ◇ 설비 운영"
+    },
+
+    ...operationDefinitions,
+
+    {
+      template:
+        layout.templates
+          .separatorBlank,
+
+      text:
+        ""
+    },
+
+    {
+      template:
+        layout.templates
+          .fuelHeading,
+
+      text:
+        " ◇ 연료 설비"
+    },
+
+    ...fuelDefinitions,
+
+    {
+      template:
+        layout.templates
+          .finalBlank,
+
+      text:
+        ""
+    }
+  ];
+
+
+  const rows =
+    rowDefinitions.map(
+      (
+        definition,
+        rowIndex
+      ) => {
+        const rowNumber =
+          layout.bodyStartRow +
+          rowIndex;
+
+
+        return {
+          rowNumber,
+
+          mergeEndColumn:
+            definition
+              .template
+              .mergeEndColumn,
+
+          element:
+            cloneMorningMeetingDynamicRow(
+              layout
+                .sheetData
+                .ownerDocument,
+
+              definition
+                .template
+                .element,
+
+              rowNumber,
+
+              definition.text
+            )
+        };
+      }
+    );
+
+
+  return {
+    rows,
+
+    operationCount:
+      operationItems.length,
+
+    fuelCount:
+      fuelItems.length
+  };
+}
+
+
+/* =====================================================
+  TM 사항 병합 셀 교체
+
+  기존 TM 본문 병합:
+  제거
+
+  새 TM 본문 병합:
+  기존 B:AO 등의 폭을 그대로 복원
+===================================================== */
+
+function updateMorningMeetingTmAreaMerges(
+  worksheetDocument,
+  layout,
+  newRows
+) {
+  const mergeCellsElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !mergeCellsElement
+  ) {
+    throw new Error(
+      "기준 취합본의 병합 셀 정보를 찾지 못했습니다."
+    );
+  }
+
+
+  getMorningMeetingDirectXmlChildren(
+    mergeCellsElement,
+    "mergeCell"
+  ).forEach(
+    mergeElement => {
+      const mergeRange =
+        parseMorningMeetingMergeReference(
+          mergeElement.getAttribute(
+            "ref"
+          )
+        );
+
+
+      if (
+        !mergeRange
+      ) {
+        return;
+      }
+
+
+      const isInsideTmBody =
+        mergeRange.startRow >=
+          layout.bodyStartRow &&
+
+        mergeRange.endRow <=
+          layout.bodyEndRow;
+
+
+      if (
+        isInsideTmBody
+      ) {
+        mergeCellsElement.removeChild(
+          mergeElement
+        );
+
+
+        return;
+      }
+
+
+      const crossesTmBoundary =
+        mergeRange.startRow <
+          layout.bodyStartRow &&
+
+        mergeRange.endRow >=
+          layout.bodyStartRow;
+
+
+      if (
+        crossesTmBoundary
+      ) {
+        throw new Error(
+          `병합 셀 ${mergeElement.getAttribute(
+            "ref"
+          )}이 TM 사항 경계를 가로지르고 있습니다.`
+        );
+      }
+    }
+  );
+
+
+  newRows.forEach(
+    rowDefinition => {
+      const mergeElement =
+        worksheetDocument
+          .createElementNS(
+            MAIN_XML_NAMESPACE,
+            "mergeCell"
+          );
+
+
+      mergeElement.setAttribute(
+        "ref",
+
+        `B${rowDefinition.rowNumber}:${rowDefinition.mergeEndColumn}${rowDefinition.rowNumber}`
+      );
+
+
+      mergeCellsElement.appendChild(
+        mergeElement
+      );
+    }
+  );
+
+
+  mergeCellsElement.setAttribute(
+    "count",
+
+    String(
+      getMorningMeetingDirectXmlChildren(
+        mergeCellsElement,
+        "mergeCell"
+      ).length
+    )
+  );
+}
+
+
+/* =====================================================
+  워크시트 dimension을 실제 마지막 행으로 보정
+===================================================== */
+
+function updateMorningMeetingWorksheetActualDimension(
+  worksheetDocument
+) {
+  const dimensionElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "dimension"
+      )[0];
+
+
+  if (
+    !dimensionElement
+  ) {
+    return;
+  }
+
+
+  const rowNumbers =
+    Array.from(
+      worksheetDocument
+        .getElementsByTagNameNS(
+          MAIN_XML_NAMESPACE,
+          "row"
+        )
+    )
+      .map(
+        rowElement => {
+          return Number(
+            rowElement.getAttribute(
+              "r"
+            ) ||
+            0
+          );
+        }
+      )
+      .filter(
+        Number.isFinite
+      );
+
+
+  const lastRowNumber =
+    rowNumbers.length >
+      0
+      ? Math.max(
+          ...rowNumbers
+        )
+      : 1;
+
+
+  const oldReference =
+    String(
+      dimensionElement.getAttribute(
+        "ref"
+      ) ||
+      "A1:AO1"
+    );
+
+
+  const match =
+    oldReference.match(
+      /^([A-Z]+\d+):([A-Z]+)\d+$/i
+    );
+
+
+  const startReference =
+    match?.[
+      1
+    ] ||
+    "A1";
+
+
+  const endColumn =
+    match?.[
+      2
+    ] ||
+    "AO";
+
+
+  dimensionElement.setAttribute(
+    "ref",
+
+    `${startReference}:${endColumn}${lastRowNumber}`
+  );
+}
+
+
+/* =====================================================
+  기존 TM 본문을 선택 결과로 전체 교체
+===================================================== */
+
+function replaceMorningMeetingTmArea(
+  worksheetDocument,
+  sharedStrings,
+  selectedTmItems
+) {
+  const layout =
+    inspectMorningMeetingTmAreaLayout(
+      worksheetDocument,
+      sharedStrings
+    );
+
+
+  const buildResult =
+    buildMorningMeetingTmAreaRows(
+      layout,
+      selectedTmItems
+    );
+
+
+  const oldBodyRowCount =
+    layout.bodyEndRow -
+    layout.bodyStartRow +
+    1;
+
+
+  const newBodyRowCount =
+    buildResult.rows.length;
+
+
+  const delta =
+    newBodyRowCount -
+    oldBodyRowCount;
+
+
+  /* =====================================================
+    기존 TM 본문 행 제거
+
+    "6. TM 사항" 제목 행은 유지한다.
+  ====================================================== */
+
+  layout.rowRecords
+    .filter(
+      record => {
+        return (
+          record.rowNumber >=
+            layout.bodyStartRow &&
+
+          record.rowNumber <=
+            layout.bodyEndRow
+        );
+      }
+    )
+    .forEach(
+      record => {
+        layout.sheetData.removeChild(
+          record.element
+        );
+      }
+    );
+
+
+  /* =====================================================
+    새 TM 본문 행 추가
+
+    TM 사항은 시트 마지막 구역이므로
+    순서대로 마지막에 추가한다.
+  ====================================================== */
+
+  buildResult.rows.forEach(
+    rowDefinition => {
+      layout.sheetData.appendChild(
+        rowDefinition.element
+      );
+    }
+  );
+
+
+  updateMorningMeetingTmAreaMerges(
+    worksheetDocument,
+    layout,
+    buildResult.rows
+  );
+
+
+  updateMorningMeetingWorksheetActualDimension(
+    worksheetDocument
+  );
+
+
+  return {
+    delta,
+
+    operationCount:
+      buildResult
+        .operationCount,
+
+    fuelCount:
+      buildResult
+        .fuelCount,
+
+    totalCount:
+      buildResult
+        .operationCount +
+      buildResult
+        .fuelCount
+  };
+}
+
 /* =====================================================
   최종 엑셀 생성
 
@@ -134449,17 +135587,45 @@ async function createMorningMeetingWorkbook() {
       );
 
 
-    const dynamicResult =
-      replaceMorningMeetingDynamicTeamArea(
-        worksheetDocument,
-        layout,
-        buildResult
-      );
+const dynamicResult =
+  replaceMorningMeetingDynamicTeamArea(
+    worksheetDocument,
+    layout,
+    buildResult
+  );
 
 
-    /* ===================================================
-      수정된 워크시트 저장
-    ==================================================== */
+/* ===================================================
+  5차: 선택한 TM 사항 반영
+
+  교대파트 TM:
+  → 6. TM 사항 > ◇ 설비 운영
+
+  운탄일지 TM:
+  → 6. TM 사항 > ◇ 연료 설비
+
+  앞 단계에서 팀별 행이 이동했으므로
+  현재 위치를 다시 탐색해서 교체한다.
+==================================================== */
+
+const tmResult =
+  replaceMorningMeetingTmArea(
+    worksheetDocument,
+    sharedStrings,
+
+    Array.isArray(
+      coalSelection
+        .selectedTmItems
+    )
+      ? coalSelection
+          .selectedTmItems
+      : []
+  );
+
+
+/* ===================================================
+  수정된 워크시트 저장
+==================================================== */
 
     zip.file(
       worksheetPath,
@@ -134484,7 +135650,8 @@ async function createMorningMeetingWorkbook() {
     const totalRowDelta =
       shiftPartResult.delta +
       fuelResult.delta +
-      dynamicResult.delta;
+      dynamicResult.delta +
+      tmResult.delta;;
 
 
     /*
@@ -134562,9 +135729,15 @@ async function createMorningMeetingWorkbook() {
               )}행 위로 축소`;
 
 
-      elements.message.textContent =
-        `${outputFileName} 생성 완료 · 교대파트 ${shiftPartResult.selectedCount}건 · 연료설비 ${fuelResult.selectedCount}건 · 운탄 수치 ${numericResult.appliedCount}/${numericResult.totalCount}개 · ${movementText}`;
-    }
+elements.message.textContent =
+  `${outputFileName} 생성 완료 · ` +
+  `교대파트 ${shiftPartResult.selectedCount}건 · ` +
+  `연료설비 ${fuelResult.selectedCount}건 · ` +
+  `TM 설비운영 ${tmResult.operationCount}건 · ` +
+  `TM 연료설비 ${tmResult.fuelCount}건 · ` +
+  `운탄 수치 ${numericResult.appliedCount}/${numericResult.totalCount}개 · ` +
+  `${movementText}`;
+  }
 
   } catch (
     error
@@ -135828,138 +137001,260 @@ function collectLogEntries(
   ];
 }
 
-  function buildSelectableItems(
-    dayLogs,
-    nightLogs
-  ) {
-    const allItems =
-      [];
+/* =====================================================
+  교대파트 TM 항목 판별
 
+  TM 발행·TM 작업은 교대파트 일반 업무에서 제외하고
+  운탄일지 화면 오른쪽 TM 사항으로 이동한다.
+===================================================== */
+
+function isMorningMeetingShiftTmItem(
+  item
+) {
+  const category =
+    normalizeText(
+      item?.category
+    )
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  const content =
+    normalizeText(
+      item?.content
+    )
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  return (
+    category.startsWith(
+      "TM"
+    ) ||
+    content.includes(
+      "TM발행"
+    ) ||
+    content.includes(
+      "TM작업"
+    )
+  );
+}
+
+
+/* =====================================================
+  교대파트 선택 항목 생성
+
+  일반 업무:
+  - 기존 교대파트 업무 선택에 표시
+
+  TM 항목:
+  - state.shiftPart.tmItems에 별도 저장
+  - 운탄일지 화면 오른쪽 TM 사항에 표시
+===================================================== */
+
+function buildSelectableItems(
+  dayLogs,
+  nightLogs
+) {
+  const allItems =
+    [];
+
+
+  [
+    [
+      "DS",
+      dayLogs
+    ],
 
     [
-      [
-        "DS",
-        dayLogs
-      ],
-
-      [
-        "NS",
-        nightLogs
-      ]
-    ].forEach(
-      ([
-        shift,
-        logs
-      ]) => {
-        (
-          Array.isArray(
-            logs
-          )
-            ? logs
-            : []
+      "NS",
+      nightLogs
+    ]
+  ].forEach(
+    ([
+      shift,
+      logs
+    ]) => {
+      (
+        Array.isArray(
+          logs
         )
-          .filter(
-            log => {
-              return TARGET_ROLES.includes(
-                normalizeRole(
-                  log?.role
-                )
-              );
-            }
-          )
-          .forEach(
-            log => {
-              allItems.push(
-                ...collectLogEntries(
-                  log,
-                  shift
-                )
-              );
-            }
-          );
-      }
-    );
-
-
-    allItems.sort(
-      (
-        first,
-        second
-      ) => {
-        const shiftDifference =
-          (
-            SHIFT_ORDER[
-              first.shift
-            ] ||
-            99
-          ) -
-          (
-            SHIFT_ORDER[
-              second.shift
-            ] ||
-            99
-          );
-
-
-        if (
-          shiftDifference !==
-          0
-        ) {
-          return shiftDifference;
-        }
-
-
-        const roleDifference =
-          (
-            ROLE_ORDER[
-              first.role
-            ] ||
-            99
-          ) -
-          (
-            ROLE_ORDER[
-              second.role
-            ] ||
-            99
-          );
-
-
-        if (
-          roleDifference !==
-          0
-        ) {
-          return roleDifference;
-        }
-
-
-        return String(
-          first.time ||
-          ""
-        ).localeCompare(
-          String(
-            second.time ||
-            ""
-          )
+          ? logs
+          : []
+      )
+        .filter(
+          log => {
+            return TARGET_ROLES.includes(
+              normalizeRole(
+                log?.role
+              )
+            );
+          }
+        )
+        .forEach(
+          log => {
+            allItems.push(
+              ...collectLogEntries(
+                log,
+                shift
+              )
+            );
+          }
         );
+    }
+  );
+
+
+  allItems.sort(
+    (
+      first,
+      second
+    ) => {
+      const shiftDifference =
+        (
+          SHIFT_ORDER[
+            first.shift
+          ] ||
+          99
+        ) -
+        (
+          SHIFT_ORDER[
+            second.shift
+          ] ||
+          99
+        );
+
+
+      if (
+        shiftDifference !==
+        0
+      ) {
+        return shiftDifference;
       }
-    );
 
 
-    return allItems.map(
-      (
-        item,
-        itemIndex
-      ) => {
-        return {
+      const roleDifference =
+        (
+          ROLE_ORDER[
+            first.role
+          ] ||
+          99
+        ) -
+        (
+          ROLE_ORDER[
+            second.role
+          ] ||
+          99
+        );
+
+
+      if (
+        roleDifference !==
+        0
+      ) {
+        return roleDifference;
+      }
+
+
+      return String(
+        first.time ||
+        ""
+      ).localeCompare(
+        String(
+          second.time ||
+          ""
+        )
+      );
+    }
+  );
+
+
+  const workItems =
+    [];
+
+
+  const tmItems =
+    [];
+
+
+  allItems.forEach(
+    item => {
+      if (
+        isMorningMeetingShiftTmItem(
+          item
+        )
+      ) {
+        tmItems.push({
           ...item,
 
           id:
-            `morning-shift-item-${itemIndex}`
-        };
-      }
-    );
-  }
+            `morning-shift-tm-item-${tmItems.length}`,
 
+          sourceType:
+            "shift",
+
+          sourceLabel:
+            "교대파트 TM 발행사항"
+        });
+
+
+        return;
+      }
+
+
+      workItems.push({
+        ...item,
+
+        id:
+          `morning-shift-item-${workItems.length}`
+      });
+    }
+  );
+
+
+  const state =
+    getState();
+
+
+  state.shiftPart.tmItems =
+    tmItems;
+
+
+  /*
+    운탄일지 오른쪽 TM 목록에
+    교대파트 TM이 갱신되었다는 이벤트를 보낸다.
+  */
+
+  window.setTimeout(
+    () => {
+      document.dispatchEvent(
+        new CustomEvent(
+          "efficiencyMorningMeetingShiftLogsLoaded",
+
+          {
+            detail: {
+              workCount:
+                workItems.length,
+
+              tmCount:
+                tmItems.length
+            }
+          }
+        )
+      );
+    },
+    0
+  );
+
+
+  return workItems;
+}
 
   function renderShiftList(
     shift,
@@ -141750,186 +143045,499 @@ function refreshReportDate() {
     `;
   }
 
+/* =====================================================
+  운탄일지·TM 통합 미리보기
+
+  표시:
+  1. 운탄일지 자동 추출 수치
+  2. 선택한 운탄일지 업무
+  3. 교대파트 TM → 설비 운영
+  4. 운탄일지 TM → 연료 설비
+===================================================== */
+
+function buildCoalPreviewCard(
+  state
+) {
+  const coalSelection =
+    state.coalSelection &&
+    typeof state.coalSelection ===
+      "object"
+      ? state.coalSelection
+      : {};
+
+
+  const selectedWorkItems =
+    Array.isArray(
+      coalSelection
+        .selectedItems
+    )
+      ? coalSelection
+          .selectedItems
+      : [];
+
+
+  const selectedTmItems =
+    Array.isArray(
+      coalSelection
+        .selectedTmItems
+    )
+      ? coalSelection
+          .selectedTmItems
+      : [];
+
+
+  const selectedWorkText =
+    normalizeText(
+      coalSelection
+        .selectedText
+    );
+
+
+  const isAnalyzed =
+    coalSelection
+      .analyzed ===
+    true;
+
+
+  if (
+    !isAnalyzed &&
+    selectedWorkItems.length ===
+      0 &&
+    selectedTmItems.length ===
+      0
+  ) {
+    return "";
+  }
+
 
   /* =====================================================
-    운탄일지 카드
+    TM 항목 출처별 분류
   ====================================================== */
 
-  function buildCoalPreviewCard(
-    state
-  ) {
-    const coalSelection =
-      state.coalSelection &&
-      typeof state.coalSelection ===
-        "object"
-        ? state.coalSelection
-        : {};
+  const operationTmItems =
+    [];
 
 
-    const selectedItems =
-      Array.isArray(
-        coalSelection
-          .selectedItems
-      )
-        ? coalSelection
-            .selectedItems
-        : [];
+  const fuelTmItems =
+    [];
 
 
-    const selectedText =
-      normalizeText(
-        coalSelection
-          .selectedText
-      );
-
-
-    const isAnalyzed =
-      coalSelection
-        .analyzed ===
-      true;
-
-
-    if (
-      !isAnalyzed &&
-      !selectedText
-    ) {
-      return "";
-    }
-
-
-    const valueRows =
-      getCoalValueRows(
-        coalSelection
-          .values
-      );
-
-
-    const valueHtml =
-      valueRows
-        .map(
-          item => {
-            return `
-              <div class="efficiency-morning-meeting-preview-value">
-
-                <span>
-                  ${escapeHtml(
-                    item.label
-                  )}
-                </span>
-
-                <strong>
-                  ${escapeHtml(
-                    item.value
-                  )}
-                </strong>
-
-              </div>
-            `;
-          }
+  selectedTmItems.forEach(
+    item => {
+      const sourceType =
+        normalizeText(
+          item?.sourceType
         )
-        .join(
-          ""
+          .toLowerCase();
+
+
+      const sourceLabel =
+        normalizeText(
+          item?.sourceLabel
         );
 
 
-    return `
-      <article
-        class="
-          efficiency-morning-meeting-preview-card
-          efficiency-morning-meeting-preview-card--special
-          efficiency-morning-meeting-preview-card--coal
-        "
-        data-morning-meeting-combined-preview="coal"
+      const isShiftTm =
+        sourceType ===
+          "shift" ||
+
+        sourceLabel.includes(
+          "교대파트"
+        ) ||
+
+        Boolean(
+          item?.shift
+        );
+
+
+      if (
+        isShiftTm
+      ) {
+        operationTmItems.push(
+          item
+        );
+
+      } else {
+        fuelTmItems.push(
+          item
+        );
+      }
+    }
+  );
+
+
+  /* =====================================================
+    TM 미리보기 문구 생성
+  ====================================================== */
+
+  const formatTmPreviewText =
+    items => {
+      return items
+        .map(
+          (
+            item,
+            index
+          ) => {
+            const time =
+              normalizeText(
+                item?.time
+              );
+
+
+            const mainText =
+              normalizeText(
+                item?.content ||
+                item?.text
+              )
+                .replace(
+                  /^\s*\d+\s*[.)]\s*/,
+                  ""
+                );
+
+
+            const subLines =
+              Array.isArray(
+                item?.subLines
+              )
+                ? item.subLines
+                    .map(
+                      line => {
+                        return normalizeText(
+                          line
+                        )
+                          .replace(
+                            /^[-–—•]\s*/,
+                            ""
+                          );
+                      }
+                    )
+                    .filter(
+                      Boolean
+                    )
+                : [];
+
+
+            return [
+              `${index + 1}) ${
+                time
+                  ? `${time} `
+                  : ""
+              }${mainText}`,
+
+              ...subLines.map(
+                line => {
+                  return `   - ${line}`;
+                }
+              )
+            ].join(
+              "\n"
+            );
+          }
+        )
+        .join(
+          "\n"
+        );
+    };
+
+
+  const operationTmText =
+    formatTmPreviewText(
+      operationTmItems
+    );
+
+
+  const fuelTmText =
+    formatTmPreviewText(
+      fuelTmItems
+    );
+
+
+  /* =====================================================
+    자동 추출 수치
+  ====================================================== */
+
+  const valueRows =
+    getCoalValueRows(
+      coalSelection
+        .values
+    );
+
+
+  const valueHtml =
+    valueRows
+      .map(
+        item => {
+          return `
+            <div
+              class="efficiency-morning-meeting-preview-value"
+            >
+
+              <span>
+                ${escapeHtml(
+                  item.label
+                )}
+              </span>
+
+              <strong>
+                ${escapeHtml(
+                  item.value
+                )}
+              </strong>
+
+            </div>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+
+
+  return `
+    <article
+      class="
+        efficiency-morning-meeting-preview-card
+        efficiency-morning-meeting-preview-card--special
+        efficiency-morning-meeting-preview-card--coal
+      "
+      data-morning-meeting-combined-preview="coal"
+    >
+
+      <!-- ===============================================
+        상단
+      ================================================ -->
+
+      <header
+        class="efficiency-morning-meeting-preview-card__header"
       >
 
-        <header class="efficiency-morning-meeting-preview-card__header">
+        <div>
 
-          <div>
+          <strong>
+            운탄일지 · TM 사항
+          </strong>
 
-            <strong>
-              운탄일지
-            </strong>
+          <small>
+            ${
+              escapeHtml(
+                coalSelection.fileName ||
+                state.coalLogFile
+                  ?.name ||
+                "운탄일지 분석 결과"
+              )
+            }
+          </small>
 
-            <small>
-              ${
-                escapeHtml(
-                  coalSelection.fileName ||
-                  state.coalLogFile
-                    ?.name ||
-                  "운탄일지 분석 결과"
-                )
-              }
-            </small>
+        </div>
 
-          </div>
 
+        <span>
+          연료 ${selectedWorkItems.length}건 ·
+          TM ${selectedTmItems.length}건
+        </span>
+
+      </header>
+
+
+      <!-- ===============================================
+        자동 추출 수치
+      ================================================ -->
+
+      <div
+        class="efficiency-morning-meeting-preview-section"
+      >
+
+        <div
+          class="efficiency-morning-meeting-preview-section__title"
+        >
+
+          <strong>
+            자동 추출 수치
+          </strong>
 
           <span>
-            ${selectedItems.length}건 선택
+            최종 취합 상단 반영
           </span>
 
-        </header>
+        </div>
 
 
-        <div class="efficiency-morning-meeting-preview-section">
+        <div
+          class="efficiency-morning-meeting-preview-value-grid"
+        >
+          ${valueHtml}
+        </div>
 
-          <div class="efficiency-morning-meeting-preview-section__title">
-
-            <strong>
-              자동 추출 수치
-            </strong>
-
-            <span>
-              최종 취합 상단 반영
-            </span>
-
-          </div>
+      </div>
 
 
-          <div class="efficiency-morning-meeting-preview-value-grid">
-            ${valueHtml}
-          </div>
+      <!-- ===============================================
+        일반 연료설비 업무
+      ================================================ -->
+
+      <div
+        class="efficiency-morning-meeting-preview-section"
+      >
+
+        <div
+          class="efficiency-morning-meeting-preview-section__title"
+        >
+
+          <strong>
+            ◇ 연료 설비
+          </strong>
+
+          <span>
+            ${selectedWorkItems.length}건
+          </span>
 
         </div>
 
 
-        <div class="efficiency-morning-meeting-preview-section">
+        ${
+          selectedWorkText
+            ? `
+              <div
+                class="efficiency-morning-meeting-preview-readonly"
+              >
+                ${escapeHtml(
+                  selectedWorkText
+                )}
+              </div>
+            `
+            : `
+              <div
+                class="efficiency-morning-meeting-preview-empty"
+              >
+                연료설비 업무내용을 선택해 주세요.
+              </div>
+            `
+        }
 
-          <div class="efficiency-morning-meeting-preview-section__title">
-
-            <strong>
-              ◇ 연료 설비
-            </strong>
-
-            <span>
-              ${selectedItems.length}건
-            </span>
-
-          </div>
+      </div>
 
 
-          ${
-            selectedText
-              ? `
-                <div class="efficiency-morning-meeting-preview-readonly">
-                  ${escapeHtml(
-                    selectedText
-                  )}
-                </div>
-              `
-              : `
-                <div class="efficiency-morning-meeting-preview-empty">
-                  연료설비에 넣을 운탄일지 내용을 선택해 주세요.
-                </div>
-              `
-          }
+      <!-- ===============================================
+        TM 사항
+      ================================================ -->
+
+      <div
+        class="efficiency-morning-meeting-preview-section"
+      >
+
+        <div
+          class="efficiency-morning-meeting-preview-section__title"
+        >
+
+          <strong>
+            6. TM 사항
+          </strong>
+
+          <span>
+            총 ${selectedTmItems.length}건
+          </span>
 
         </div>
 
-      </article>
-    `;
-  }
 
+        <div
+          class="efficiency-morning-meeting-preview-tm-grid"
+        >
+
+          <!-- 설비 운영 TM -->
+
+          <section
+            class="efficiency-morning-meeting-preview-tm-box"
+          >
+
+            <header
+              class="efficiency-morning-meeting-preview-tm-box__header"
+            >
+
+              <strong>
+                ◇ 설비 운영
+              </strong>
+
+              <span>
+                ${operationTmItems.length}건
+              </span>
+
+            </header>
+
+
+            ${
+              operationTmText
+                ? `
+                  <div
+                    class="efficiency-morning-meeting-preview-readonly"
+                  >
+                    ${escapeHtml(
+                      operationTmText
+                    )}
+                  </div>
+                `
+                : `
+                  <div
+                    class="efficiency-morning-meeting-preview-empty"
+                  >
+                    선택한 교대파트 TM 사항이 없습니다.
+                  </div>
+                `
+            }
+
+          </section>
+
+
+          <!-- 연료 설비 TM -->
+
+          <section
+            class="efficiency-morning-meeting-preview-tm-box"
+          >
+
+            <header
+              class="efficiency-morning-meeting-preview-tm-box__header"
+            >
+
+              <strong>
+                ◇ 연료 설비
+              </strong>
+
+              <span>
+                ${fuelTmItems.length}건
+              </span>
+
+            </header>
+
+
+            ${
+              fuelTmText
+                ? `
+                  <div
+                    class="efficiency-morning-meeting-preview-readonly"
+                  >
+                    ${escapeHtml(
+                      fuelTmText
+                    )}
+                  </div>
+                `
+                : `
+                  <div
+                    class="efficiency-morning-meeting-preview-empty"
+                  >
+                    선택한 운탄일지 TM 사항이 없습니다.
+                  </div>
+                `
+            }
+
+          </section>
+
+        </div>
+
+      </div>
+
+    </article>
+  `;
+}
 
   /* =====================================================
     안전·환경·기계·전기제어팀 카드
@@ -142430,6 +144038,2107 @@ function refreshReportDate() {
     document.addEventListener(
       "DOMContentLoaded",
       initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
+
+/* =========================================================
+  오전회의 취합
+  운탄일지 업무 · TM 사항 2열 선택
+
+  왼쪽:
+  1. N/S 주요작업
+  2. D/S 특이 사항
+  3. D/S 정비 사항
+  4. 연료분진팀 금일 작업
+
+  오른쪽:
+  1. 교대파트 TM 발행사항
+  2. 운탄일지 TM 및 RED TAG 발행사항
+
+  운탄일지 수치:
+  - 기존 분석 결과에 유지
+  - 이 선택 화면에는 표시하지 않음
+  - 취합 미리보기 및 최종 엑셀에서 사용
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingCoalTwoColumnSelector() {
+  "use strict";
+
+
+  const WORK_GROUPS = [
+    {
+      key:
+        "night",
+
+      label:
+        "N/S 주요작업"
+    },
+
+    {
+      key:
+        "issue",
+
+      label:
+        "D/S 특이 사항"
+    },
+
+    {
+      key:
+        "maintenance",
+
+      label:
+        "D/S 정비 사항"
+    },
+
+    {
+      key:
+        "fuel-dust",
+
+      label:
+        "연료분진팀 금일 작업"
+    }
+  ];
+
+
+  let renderTimer =
+    null;
+
+
+  /* =====================================================
+    문자열
+  ====================================================== */
+
+  function normalizeText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .replace(
+        /\u00a0/g,
+        " "
+      )
+      .trim();
+  }
+
+
+  function normalizeSearchText(
+    value
+  ) {
+    return normalizeText(
+      value
+    )
+      .replace(
+        /\s+/g,
+        ""
+      )
+      .toLowerCase();
+  }
+
+
+  function escapeHtml(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replaceAll(
+        "&",
+        "&amp;"
+      )
+      .replaceAll(
+        "<",
+        "&lt;"
+      )
+      .replaceAll(
+        ">",
+        "&gt;"
+      )
+      .replaceAll(
+        '"',
+        "&quot;"
+      )
+      .replaceAll(
+        "'",
+        "&#039;"
+      );
+  }
+
+
+  /* =====================================================
+    상태
+  ====================================================== */
+
+  function getState() {
+    if (
+      !window
+        .efficiencyMorningMeetingUploadState
+    ) {
+      window.efficiencyMorningMeetingUploadState = {
+        files:
+          {},
+
+        analysis:
+          {}
+      };
+    }
+
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  function ensureSet(
+    value
+  ) {
+    if (
+      value instanceof
+      Set
+    ) {
+      return value;
+    }
+
+
+    return new Set(
+      Array.isArray(
+        value
+      )
+        ? value
+        : []
+    );
+  }
+
+
+  function getSelection() {
+    const state =
+      getState();
+
+
+    if (
+      !state.coalSelection ||
+      typeof state.coalSelection !==
+        "object"
+    ) {
+      state.coalSelection =
+        {};
+    }
+
+
+    const selection =
+      state.coalSelection;
+
+
+    selection.items =
+      Array.isArray(
+        selection.items
+      )
+        ? selection.items
+        : [];
+
+
+    selection.coalTmItems =
+      Array.isArray(
+        selection.coalTmItems
+      )
+        ? selection.coalTmItems
+        : [];
+
+
+    /*
+      기존 운탄일지 분석기의 selectedIds를
+      왼쪽 운탄업무 선택 상태로 그대로 연결한다.
+    */
+
+    selection.selectedWorkIds =
+      ensureSet(
+        selection.selectedWorkIds ||
+        selection.selectedIds
+      );
+
+
+    selection.selectedTmIds =
+      ensureSet(
+        selection.selectedTmIds
+      );
+
+
+    selection.selectedIds =
+      selection.selectedWorkIds;
+
+
+    selection.selectedItems =
+      Array.isArray(
+        selection.selectedItems
+      )
+        ? selection.selectedItems
+        : [];
+
+
+    selection.selectedTmItems =
+      Array.isArray(
+        selection.selectedTmItems
+      )
+        ? selection.selectedTmItems
+        : [];
+
+
+    selection.selectedText =
+      normalizeText(
+        selection.selectedText
+      );
+
+
+    selection.selectedTmText =
+      normalizeText(
+        selection.selectedTmText
+      );
+
+
+    return selection;
+  }
+
+
+  /* =====================================================
+    화면 요소
+  ====================================================== */
+
+  function getElements() {
+    return {
+      panel:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalSelectionPanel"
+        ),
+
+      workList:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalWorkList"
+        ),
+
+      tmList:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalTmList"
+        ),
+
+      status:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalSelectionStatus"
+        ),
+
+      count:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalSelectedCount"
+        ),
+
+      clearButton:
+        document.getElementById(
+          "clearEfficiencyMorningMeetingCoalSelectionButton"
+        ),
+
+      analyzeButton:
+        document.getElementById(
+          "analyzeEfficiencyMorningMeetingButton"
+        ),
+
+      resetButton:
+        document.getElementById(
+          "resetEfficiencyMorningMeetingButton"
+        ),
+
+      coalInput:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalLogFile"
+        ),
+
+      shiftPanel:
+        document.getElementById(
+          "efficiencyMorningMeetingShiftPanel"
+        ),
+
+      error:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalError"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    오류
+  ====================================================== */
+
+  function showError(
+    message
+  ) {
+    const {
+      error
+    } =
+      getElements();
+
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+
+    error.textContent =
+      normalizeText(
+        message
+      );
+
+
+    error.hidden =
+      false;
+  }
+
+
+  function hideError() {
+    const {
+      error
+    } =
+      getElements();
+
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+
+    error.textContent =
+      "";
+
+
+    error.hidden =
+      true;
+  }
+
+
+  /* =====================================================
+    번호별 TM 항목 분리
+  ====================================================== */
+
+  function parseNumberedItems(
+    source,
+    sourceType
+  ) {
+    const lines =
+      normalizeText(
+        source
+      )
+        .split(
+          "\n"
+        )
+        .map(
+          line => {
+            return line.trim();
+          }
+        )
+        .filter(
+          Boolean
+        );
+
+
+    const items =
+      [];
+
+
+    let currentItem =
+      null;
+
+
+    const commit =
+      () => {
+        if (
+          !currentItem?.text
+        ) {
+          return;
+        }
+
+
+        currentItem.id =
+          `${sourceType}-${currentItem.number}-${items.length}`;
+
+
+        items.push(
+          currentItem
+        );
+
+
+        currentItem =
+          null;
+      };
+
+
+    lines.forEach(
+      line => {
+        const numberMatch =
+          line.match(
+            /^(\d+)\s*[.)]\s*(.+)$/
+          );
+
+
+        if (
+          numberMatch
+        ) {
+          commit();
+
+
+          currentItem = {
+            id:
+              "",
+
+            number:
+              Number(
+                numberMatch[
+                  1
+                ]
+              ),
+
+            text:
+              numberMatch[
+                2
+              ].trim(),
+
+            content:
+              numberMatch[
+                2
+              ].trim(),
+
+            subLines:
+              [],
+
+            sourceType:
+              "coal",
+
+            sourceLabel:
+              "운탄일지 TM 발행사항"
+          };
+
+
+          return;
+        }
+
+
+        if (
+          !currentItem
+        ) {
+          return;
+        }
+
+
+        const continuation =
+          line
+            .replace(
+              /^[-–—•]\s*/,
+              ""
+            )
+            .trim();
+
+
+        if (
+          continuation
+        ) {
+          currentItem.subLines.push(
+            continuation
+          );
+        }
+      }
+    );
+
+
+    commit();
+
+
+    return items;
+  }
+
+
+  /* =====================================================
+    엑셀 셀
+  ====================================================== */
+
+  function getWorksheetCellText(
+    worksheet,
+    address
+  ) {
+    const cell =
+      worksheet?.[
+        address
+      ];
+
+
+    return normalizeText(
+      cell?.w ??
+      cell?.v ??
+      ""
+    );
+  }
+
+
+  function findCoalWorksheet(
+    workbook
+  ) {
+    if (
+      workbook.Sheets?.[
+        "연료설비 운전일지"
+      ]
+    ) {
+      return workbook.Sheets[
+        "연료설비 운전일지"
+      ];
+    }
+
+
+    for (
+      const sheetName
+      of workbook.SheetNames ||
+      []
+    ) {
+      const worksheet =
+        workbook.Sheets?.[
+          sheetName
+        ];
+
+
+      if (
+        !worksheet
+      ) {
+        continue;
+      }
+
+
+      const rows =
+        XLSX.utils.sheet_to_json(
+          worksheet,
+
+          {
+            header:
+              1,
+
+            raw:
+              false,
+
+            defval:
+              ""
+          }
+        );
+
+
+      const joinedText =
+        normalizeSearchText(
+          rows
+            .flat()
+            .join(
+              "\n"
+            )
+        );
+
+
+      if (
+        joinedText.includes(
+          "<n/s>"
+        ) &&
+        joinedText.includes(
+          "redtag"
+        )
+      ) {
+        return worksheet;
+      }
+    }
+
+
+    throw new Error(
+      "운탄일지의 '연료설비 운전일지' 시트를 찾지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    운탄일지 TM 및 RED TAG 발행 영역 찾기
+
+    현재 기준 파일:
+    A65 : TM 및 RED TAG 발행
+    B66 : 번호별 TM 내용
+
+    셀 위치가 조금 이동해도 제목 주변에서 다시 찾는다.
+  ====================================================== */
+
+  function findDedicatedCoalTmText(
+    worksheet
+  ) {
+    const entries =
+      Object.keys(
+        worksheet ||
+        {}
+      )
+        .filter(
+          address => {
+            return /^[A-Z]+\d+$/i.test(
+              address
+            );
+          }
+        )
+        .map(
+          address => {
+            return {
+              address,
+
+              text:
+                getWorksheetCellText(
+                  worksheet,
+                  address
+                )
+            };
+          }
+        )
+        .filter(
+          entry => {
+            return Boolean(
+              entry.text
+            );
+          }
+        );
+
+
+    const heading =
+      entries.find(
+        entry => {
+          const key =
+            normalizeSearchText(
+              entry.text
+            );
+
+
+          return (
+            key.includes(
+              "tm"
+            ) &&
+            key.includes(
+              "redtag"
+            ) &&
+            key.includes(
+              "발행"
+            )
+          );
+        }
+      );
+
+
+    if (
+      heading &&
+      typeof XLSX !==
+        "undefined"
+    ) {
+      const position =
+        XLSX.utils.decode_cell(
+          heading.address
+        );
+
+
+      for (
+        let rowOffset =
+          0;
+
+        rowOffset <=
+          4;
+
+        rowOffset +=
+          1
+      ) {
+        for (
+          let columnOffset =
+            0;
+
+          columnOffset <=
+            8;
+
+          columnOffset +=
+            1
+        ) {
+          const address =
+            XLSX.utils.encode_cell({
+              r:
+                position.r +
+                rowOffset,
+
+              c:
+                position.c +
+                columnOffset
+            });
+
+
+          const text =
+            getWorksheetCellText(
+              worksheet,
+              address
+            );
+
+
+          if (
+            /^\s*1\s*[.)]\s*/.test(
+              text
+            )
+          ) {
+            return text;
+          }
+        }
+      }
+    }
+
+
+    /*
+      현재 운탄일지 양식의 예비 주소
+    */
+
+    return getWorksheetCellText(
+      worksheet,
+      "B66"
+    );
+  }
+
+
+  /* =====================================================
+    운탄일지 TM 실제 추출
+  ====================================================== */
+
+  async function extractCoalTmItems(
+    file
+  ) {
+    if (
+      !file
+    ) {
+      return [];
+    }
+
+
+    if (
+      typeof XLSX ===
+        "undefined"
+    ) {
+      throw new Error(
+        "엑셀 분석 라이브러리를 불러오지 못했습니다."
+      );
+    }
+
+
+    const workbook =
+      XLSX.read(
+        await file.arrayBuffer(),
+
+        {
+          type:
+            "array",
+
+          cellText:
+            true,
+
+          cellFormula:
+            true
+        }
+      );
+
+
+    const worksheet =
+      findCoalWorksheet(
+        workbook
+      );
+
+
+    const dedicatedText =
+      findDedicatedCoalTmText(
+        worksheet
+      );
+
+
+    const dedicatedItems =
+      parseNumberedItems(
+        dedicatedText,
+        "coal-tm"
+      );
+
+
+    if (
+      dedicatedItems.length >
+      0
+    ) {
+      return dedicatedItems;
+    }
+
+
+    /*
+      TM 및 RED TAG 전용 영역을 못 찾은 경우
+      업무내용에서 'TM 발행' 문구를 임시 추출한다.
+    */
+
+    return getSelection()
+      .items
+      .filter(
+        item => {
+          return /TM\s*발행/i.test(
+            normalizeText(
+              item.text
+            )
+          );
+        }
+      )
+      .map(
+        (
+          item,
+          index
+        ) => {
+          return {
+            id:
+              `coal-tm-fallback-${index}`,
+
+            number:
+              index +
+              1,
+
+            text:
+              normalizeText(
+                item.text
+              ),
+
+            content:
+              normalizeText(
+                item.text
+              ),
+
+            subLines:
+              Array.isArray(
+                item.subLines
+              )
+                ? [
+                    ...item.subLines
+                  ]
+                : [],
+
+            sourceType:
+              "coal",
+
+            sourceLabel:
+              "운탄일지 TM 발행사항"
+          };
+        }
+      );
+  }
+
+
+  /* =====================================================
+    항목 조회
+  ====================================================== */
+
+  function getWorkItems() {
+    return getSelection()
+      .items;
+  }
+
+
+  function getShiftTmItems() {
+    const tmItems =
+      getState()
+        .shiftPart
+        ?.tmItems;
+
+
+    return Array.isArray(
+      tmItems
+    )
+      ? tmItems
+      : [];
+  }
+
+
+  function getAllTmItems() {
+    return [
+      ...getShiftTmItems(),
+
+      ...getSelection()
+        .coalTmItems
+    ];
+  }
+
+
+  /* =====================================================
+    항목 문구
+  ====================================================== */
+
+  function formatItemText(
+    item
+  ) {
+    const mainText =
+      normalizeText(
+        item.content ||
+        item.text
+      );
+
+
+    const subLines =
+      Array.isArray(
+        item.subLines
+      )
+        ? item.subLines
+            .map(
+              normalizeText
+            )
+            .filter(
+              Boolean
+            )
+        : [];
+
+
+    return [
+      mainText,
+
+      ...subLines.map(
+        line => {
+          return `- ${line}`;
+        }
+      )
+    ]
+      .filter(
+        Boolean
+      )
+      .join(
+        "\n"
+      );
+  }
+
+
+  /* =====================================================
+    체크박스 한 건
+  ====================================================== */
+
+  function buildCheckboxHtml(
+    item,
+    type
+  ) {
+    const selection =
+      getSelection();
+
+
+    const isWork =
+      type ===
+      "work";
+
+
+    const checked =
+      isWork
+        ? selection
+            .selectedWorkIds
+            .has(
+              item.id
+            )
+        : selection
+            .selectedTmIds
+            .has(
+              item.id
+            );
+
+
+    const dataAttribute =
+      isWork
+        ? "data-morning-meeting-coal-work-item"
+        : "data-morning-meeting-coal-tm-item";
+
+
+    const meta =
+      [];
+
+
+    if (
+      item.number
+    ) {
+      meta.push(
+        String(
+          item.number
+        )
+      );
+    }
+
+
+    if (
+      item.shift
+    ) {
+      meta.push(
+        item.shift ===
+          "DS"
+          ? "D/S"
+          : "N/S"
+      );
+    }
+
+
+    if (
+      item.role
+    ) {
+      meta.push(
+        item.role
+      );
+    }
+
+
+    if (
+      item.time
+    ) {
+      meta.push(
+        item.time
+      );
+    }
+
+
+    if (
+      item.category &&
+      !meta.includes(
+        item.category
+      )
+    ) {
+      meta.push(
+        item.category
+      );
+    }
+
+
+    const textHtml =
+      formatItemText(
+        item
+      )
+        .split(
+          "\n"
+        )
+        .map(
+          escapeHtml
+        )
+        .join(
+          "<br>"
+        );
+
+
+    return `
+      <label
+        class="efficiency-morning-meeting-shift-item"
+      >
+
+        <input
+          type="checkbox"
+          ${dataAttribute}="${escapeHtml(
+            item.id
+          )}"
+          ${
+            checked
+              ? "checked"
+              : ""
+          }
+        />
+
+
+        <span
+          class="efficiency-morning-meeting-shift-item__content"
+        >
+
+          <span
+            class="efficiency-morning-meeting-shift-item__meta"
+          >
+
+            ${meta
+              .map(
+                value => {
+                  return `
+                    <span>
+                      ${escapeHtml(
+                        value
+                      )}
+                    </span>
+                  `;
+                }
+              )
+              .join(
+                ""
+              )}
+
+          </span>
+
+
+          <p>
+            ${textHtml}
+          </p>
+
+        </span>
+
+      </label>
+    `;
+  }
+
+
+  /* =====================================================
+    분류 구역
+  ====================================================== */
+
+  function renderSection(
+    label,
+    items,
+    type
+  ) {
+    return `
+      <section
+        class="efficiency-morning-meeting-shift-role"
+      >
+
+        <header
+          class="efficiency-morning-meeting-shift-role__header"
+        >
+
+          <strong>
+            ${escapeHtml(
+              label
+            )}
+          </strong>
+
+          <span>
+            ${items.length}건
+          </span>
+
+        </header>
+
+
+        ${
+          items.length
+            ? items
+                .map(
+                  item => {
+                    return buildCheckboxHtml(
+                      item,
+                      type
+                    );
+                  }
+                )
+                .join(
+                  ""
+                )
+            : `
+              <p
+                class="efficiency-morning-meeting-shift-empty"
+              >
+                해당 항목이 없습니다.
+              </p>
+            `
+        }
+
+      </section>
+    `;
+  }
+
+
+  /* =====================================================
+    왼쪽 운탄일지 업무 목록
+  ====================================================== */
+
+  function renderWorkList() {
+    const {
+      workList
+    } =
+      getElements();
+
+
+    if (
+      !workList
+    ) {
+      return;
+    }
+
+
+    const workItems =
+      getWorkItems();
+
+
+    if (
+      !workItems.length
+    ) {
+      workList.innerHTML = `
+        <p
+          class="efficiency-morning-meeting-shift-empty"
+        >
+          운탄일지를 분석하면 선택할 업무가 표시됩니다.
+        </p>
+      `;
+
+
+      return;
+    }
+
+
+    workList.innerHTML =
+      WORK_GROUPS
+        .map(
+          group => {
+            const items =
+              workItems.filter(
+                item => {
+                  return item.groupKey ===
+                    group.key;
+                }
+              );
+
+
+            return renderSection(
+              group.label,
+              items,
+              "work"
+            );
+          }
+        )
+        .join(
+          ""
+        );
+  }
+
+
+  /* =====================================================
+    오른쪽 TM 목록
+  ====================================================== */
+
+  function renderTmList() {
+    const {
+      tmList
+    } =
+      getElements();
+
+
+    if (
+      !tmList
+    ) {
+      return;
+    }
+
+
+    const shiftItems =
+      getShiftTmItems();
+
+
+    const coalItems =
+      getSelection()
+        .coalTmItems;
+
+
+    if (
+      !shiftItems.length &&
+      !coalItems.length
+    ) {
+      tmList.innerHTML = `
+        <p
+          class="efficiency-morning-meeting-shift-empty"
+        >
+          교대파트 업무일지를 불러오고 운탄일지를 분석하면
+          TM 발행사항이 표시됩니다.
+        </p>
+      `;
+
+
+      return;
+    }
+
+
+    tmList.innerHTML = [
+      renderSection(
+        "교대파트 TM 발행사항",
+        shiftItems,
+        "tm"
+      ),
+
+      renderSection(
+        "운탄일지 TM 발행사항",
+        coalItems,
+        "tm"
+      )
+    ].join(
+      ""
+    );
+  }
+
+
+  /* =====================================================
+    전체 선택 버튼
+  ====================================================== */
+
+  function updateColumnButtons() {
+    const selection =
+      getSelection();
+
+
+    const workItems =
+      getWorkItems();
+
+
+    const tmItems =
+      getAllTmItems();
+
+
+    document
+      .querySelectorAll(
+        "[data-morning-meeting-coal-select-column]"
+      )
+      .forEach(
+        button => {
+          const column =
+            button.dataset
+              .morningMeetingCoalSelectColumn;
+
+
+          const items =
+            column ===
+              "tm"
+              ? tmItems
+              : workItems;
+
+
+          const selectedIds =
+            column ===
+              "tm"
+              ? selection
+                  .selectedTmIds
+              : selection
+                  .selectedWorkIds;
+
+
+          const allSelected =
+            items.length >
+              0 &&
+            items.every(
+              item => {
+                return selectedIds.has(
+                  item.id
+                );
+              }
+            );
+
+
+          button.disabled =
+            items.length ===
+            0;
+
+
+          button.textContent =
+            allSelected
+              ? "전체 해제"
+              : "전체 선택";
+        }
+      );
+  }
+
+
+  /* =====================================================
+    선택 결과 상태 갱신
+
+    selectedItems / selectedText:
+    - 첫 번째 ◇ 연료 설비에 사용
+
+    selectedTmItems / selectedTmText:
+    - 6. TM 사항 > ◇ 연료 설비에 사용
+  ====================================================== */
+
+  function updateSelectionState() {
+    const selection =
+      getSelection();
+
+
+    const workItems =
+      getWorkItems();
+
+
+    const tmItems =
+      getAllTmItems();
+
+
+    selection.selectedItems =
+      workItems.filter(
+        item => {
+          return selection
+            .selectedWorkIds
+            .has(
+              item.id
+            );
+        }
+      );
+
+
+    selection.selectedTmItems =
+      tmItems.filter(
+        item => {
+          return selection
+            .selectedTmIds
+            .has(
+              item.id
+            );
+        }
+      );
+
+
+    selection.selectedText =
+      selection.selectedItems
+        .map(
+          (
+            item,
+            index
+          ) => {
+            const subLines =
+              Array.isArray(
+                item.subLines
+              )
+                ? item.subLines
+                    .map(
+                      normalizeText
+                    )
+                    .filter(
+                      Boolean
+                    )
+                : [];
+
+
+            return [
+              `${index + 1}) ${normalizeText(
+                item.text ||
+                item.content
+              )}`,
+
+              ...subLines.map(
+                line => {
+                  return `   - ${line}`;
+                }
+              )
+            ].join(
+              "\n"
+            );
+          }
+        )
+        .join(
+          "\n"
+        );
+
+
+    selection.selectedTmText =
+      selection.selectedTmItems
+        .map(
+          (
+            item,
+            index
+          ) => {
+            const time =
+              normalizeText(
+                item.time
+              );
+
+
+            const content =
+              normalizeText(
+                item.content ||
+                item.text
+              );
+
+
+            const subLines =
+              Array.isArray(
+                item.subLines
+              )
+                ? item.subLines
+                    .map(
+                      normalizeText
+                    )
+                    .filter(
+                      Boolean
+                    )
+                : [];
+
+
+            return [
+              `${index + 1}) ${
+                time
+                  ? `${time} `
+                  : ""
+              }${content}`,
+
+              ...subLines.map(
+                line => {
+                  return `   - ${line}`;
+                }
+              )
+            ].join(
+              "\n"
+            );
+          }
+        )
+        .join(
+          "\n"
+        );
+
+
+    /*
+      기존 최종 엑셀 기능 호환
+    */
+
+    selection.selectedIds =
+      selection.selectedWorkIds;
+
+
+    const {
+      count,
+      clearButton,
+      status
+    } =
+      getElements();
+
+
+    if (
+      count
+    ) {
+      count.textContent =
+        `연료 ${selection.selectedItems.length}건 · ` +
+        `TM ${selection.selectedTmItems.length}건`;
+    }
+
+
+    if (
+      clearButton
+    ) {
+      clearButton.disabled =
+        selection.selectedItems.length ===
+          0 &&
+        selection.selectedTmItems.length ===
+          0;
+    }
+
+
+    if (
+      status
+    ) {
+      const totalTmCount =
+        tmItems.length;
+
+
+      status.textContent =
+        selection.analyzed
+          ? `운탄 ${workItems.length}건 · TM ${totalTmCount}건`
+          : `운탄일지 분석 전 · 교대 TM ${getShiftTmItems().length}건`;
+    }
+
+
+    updateColumnButtons();
+
+
+    if (
+      typeof window
+        .updateEfficiencyMorningMeetingCreateButton ===
+        "function"
+    ) {
+      window
+        .updateEfficiencyMorningMeetingCreateButton();
+    }
+
+
+    if (
+      typeof window
+        .refreshEfficiencyMorningMeetingCombinedPreview ===
+        "function"
+    ) {
+      window
+        .refreshEfficiencyMorningMeetingCombinedPreview();
+    }
+  }
+
+
+  function renderAll() {
+    renderWorkList();
+
+    renderTmList();
+
+    updateSelectionState();
+  }
+
+
+  /* =====================================================
+    기존 운탄 분석 완료 대기
+  ====================================================== */
+
+  function waitForCoalAnalysis(
+    timeoutMilliseconds =
+      15000
+  ) {
+    const startedAt =
+      Date.now();
+
+
+    return new Promise(
+      resolve => {
+        const check =
+          () => {
+            if (
+              getSelection()
+                .analyzed ===
+              true
+            ) {
+              resolve(
+                true
+              );
+
+
+              return;
+            }
+
+
+            if (
+              Date.now() -
+                startedAt >=
+              timeoutMilliseconds
+            ) {
+              resolve(
+                false
+              );
+
+
+              return;
+            }
+
+
+            window.setTimeout(
+              check,
+              80
+            );
+          };
+
+
+        check();
+      }
+    );
+  }
+
+
+  /* =====================================================
+    자료 분석 후 TM 영역 추가 분석
+  ====================================================== */
+
+  async function refreshAfterAnalysis() {
+    hideError();
+
+
+    const completed =
+      await waitForCoalAnalysis();
+
+
+    if (
+      !completed
+    ) {
+      showError(
+        "운탄일지 분석 결과를 확인하지 못했습니다."
+      );
+
+
+      renderAll();
+
+
+      return;
+    }
+
+
+    try {
+      const selection =
+        getSelection();
+
+
+      selection.coalTmItems =
+        await extractCoalTmItems(
+          getState()
+            .coalLogFile
+        );
+
+
+      selection.selectedWorkIds =
+        new Set();
+
+
+      selection.selectedTmIds =
+        new Set();
+
+
+      selection.selectedIds =
+        selection.selectedWorkIds;
+
+
+      renderAll();
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "운탄일지 TM 분석 실패",
+        error
+      );
+
+
+      showError(
+        error?.message ||
+        "운탄일지 TM 발행사항을 분석하지 못했습니다."
+      );
+
+
+      renderAll();
+    }
+  }
+
+
+  function scheduleRender() {
+    window.clearTimeout(
+      renderTimer
+    );
+
+
+    renderTimer =
+      window.setTimeout(
+        renderAll,
+        0
+      );
+  }
+
+
+  /* =====================================================
+    개별 체크
+  ====================================================== */
+
+  function handleChange(
+    event
+  ) {
+    const target =
+      event.target instanceof
+        Element
+        ? event.target
+        : null;
+
+
+    const workCheckbox =
+      target?.closest(
+        "[data-morning-meeting-coal-work-item]"
+      );
+
+
+    const tmCheckbox =
+      target?.closest(
+        "[data-morning-meeting-coal-tm-item]"
+      );
+
+
+    if (
+      !workCheckbox &&
+      !tmCheckbox
+    ) {
+      return;
+    }
+
+
+    const selection =
+      getSelection();
+
+
+    const checkbox =
+      workCheckbox ||
+      tmCheckbox;
+
+
+    const itemId =
+      workCheckbox
+        ? workCheckbox.dataset
+            .morningMeetingCoalWorkItem
+        : tmCheckbox.dataset
+            .morningMeetingCoalTmItem;
+
+
+    const selectedIds =
+      workCheckbox
+        ? selection
+            .selectedWorkIds
+        : selection
+            .selectedTmIds;
+
+
+    if (
+      checkbox.checked
+    ) {
+      selectedIds.add(
+        itemId
+      );
+
+    } else {
+      selectedIds.delete(
+        itemId
+      );
+    }
+
+
+    updateSelectionState();
+  }
+
+
+  /* =====================================================
+    전체 선택·초기화
+  ====================================================== */
+
+  function handleClick(
+    event
+  ) {
+    const target =
+      event.target instanceof
+        Element
+        ? event.target
+        : null;
+
+
+    const selectButton =
+      target?.closest(
+        "[data-morning-meeting-coal-select-column]"
+      );
+
+
+    if (
+      selectButton
+    ) {
+      const selection =
+        getSelection();
+
+
+      const column =
+        selectButton.dataset
+          .morningMeetingCoalSelectColumn;
+
+
+      const items =
+        column ===
+          "tm"
+          ? getAllTmItems()
+          : getWorkItems();
+
+
+      const selectedIds =
+        column ===
+          "tm"
+          ? selection
+              .selectedTmIds
+          : selection
+              .selectedWorkIds;
+
+
+      const allSelected =
+        items.length >
+          0 &&
+        items.every(
+          item => {
+            return selectedIds.has(
+              item.id
+            );
+          }
+        );
+
+
+      items.forEach(
+        item => {
+          if (
+            allSelected
+          ) {
+            selectedIds.delete(
+              item.id
+            );
+
+          } else {
+            selectedIds.add(
+              item.id
+            );
+          }
+        }
+      );
+
+
+      renderAll();
+
+
+      return;
+    }
+
+
+    if (
+      target?.closest(
+        "#clearEfficiencyMorningMeetingCoalSelectionButton"
+      )
+    ) {
+      const selection =
+        getSelection();
+
+
+      selection.selectedWorkIds.clear();
+
+      selection.selectedTmIds.clear();
+
+
+      renderAll();
+    }
+  }
+
+
+  /* =====================================================
+    이벤트
+  ====================================================== */
+
+  function bindEvents() {
+    const elements =
+      getElements();
+
+
+    elements.panel
+      ?.addEventListener(
+        "change",
+        handleChange
+      );
+
+
+    elements.panel
+      ?.addEventListener(
+        "click",
+        handleClick
+      );
+
+
+    /*
+      기존 운탄일지 분석 함수가 먼저 실행된 뒤
+      결과를 읽어 새 2열 화면으로 출력한다.
+    */
+
+    elements.analyzeButton
+      ?.addEventListener(
+        "click",
+
+        () => {
+          window.setTimeout(
+            refreshAfterAnalysis,
+            0
+          );
+        }
+      );
+
+
+    elements.coalInput
+      ?.addEventListener(
+        "change",
+
+        () => {
+          window.setTimeout(
+            renderAll,
+            0
+          );
+        }
+      );
+
+
+    elements.resetButton
+      ?.addEventListener(
+        "click",
+
+        () => {
+          window.setTimeout(
+            renderAll,
+            0
+          );
+        }
+      );
+
+
+    document.addEventListener(
+      "efficiencyMorningMeetingShiftLogsLoaded",
+      scheduleRender
+    );
+
+
+    /*
+      교대파트 목록이 다시 그려지면
+      오른쪽 TM 목록도 갱신한다.
+    */
+
+    if (
+      elements.shiftPanel
+    ) {
+      const observer =
+        new MutationObserver(
+          scheduleRender
+        );
+
+
+      observer.observe(
+        elements.shiftPanel,
+
+        {
+          childList:
+            true,
+
+          subtree:
+            true
+        }
+      );
+    }
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initialize() {
+    const {
+      panel
+    } =
+      getElements();
+
+
+    if (
+      !panel ||
+      panel.dataset
+        .coalTwoColumnInitialized ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    panel.dataset
+      .coalTwoColumnInitialized =
+      "true";
+
+
+    bindEvents();
+
+    renderAll();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+
       {
         once:
           true

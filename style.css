@@ -82614,3 +82614,219 @@ tr.is-negative
     min-height: 52px;
   }
 }
+
+/* =========================================================
+  오전회의 운탄일지 · TM 선택
+  교대파트 화면과 동일한 2열 디자인
+========================================================= */
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingCoalSelectionStatus {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-height: 34px;
+  padding: 0 11px;
+
+  border: 1px solid #c8d8e9;
+  border-radius: 8px;
+
+  background: #f3f8fd;
+
+  color: #365f8e;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingCoalSelectedCount {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-height: 34px;
+  padding: 0 11px;
+
+  border: 1px solid #d5dfeb;
+  border-radius: 8px;
+
+  background: #ffffff;
+
+  color: #55718e;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+/*
+  왼쪽 한 칸 안에 운탄일지 분류 4개가 들어가므로
+  교대파트 목록보다 높이를 조금 늘린다.
+*/
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-selection-panel
+.efficiency-morning-meeting-shift-list {
+  min-height: 330px;
+  max-height: 430px;
+}
+
+
+/*
+  운탄일지 하위 문장 줄바꿈
+*/
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-selection-panel
+.efficiency-morning-meeting-shift-item__content
+p {
+  white-space: normal;
+
+  line-height: 1.65;
+}
+
+
+@media (max-width: 900px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-selection-panel
+  .efficiency-morning-meeting-shift-list {
+    min-height: 240px;
+    max-height: 350px;
+  }
+}
+
+/* =========================================================
+  오전회의 취합 미리보기
+  TM 사항 2열 표시
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-tm-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  align-items: stretch;
+
+  gap: 10px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-tm-box {
+  min-width: 0;
+  padding: 10px;
+
+  border: 1px solid #d7e1ec;
+  border-radius: 8px;
+
+  background: #fbfdff;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-tm-box__header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  margin-bottom: 8px;
+  padding-bottom: 7px;
+
+  border-bottom: 1px solid #e0e7ef;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-tm-box__header
+strong {
+  color: #304a67;
+
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-tm-box__header
+span {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-width: 36px;
+  height: 23px;
+  padding: 0 7px;
+
+  border: 1px solid #ccd9e6;
+  border-radius: 999px;
+
+  background: #ffffff;
+
+  color: #607b98;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+/*
+  TM 미리보기는 내용이 적어도
+  좌우 높이가 크게 달라지지 않게 한다.
+*/
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-tm-box
+.efficiency-morning-meeting-preview-readonly,
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-preview-tm-box
+.efficiency-morning-meeting-preview-empty {
+  min-height: 76px;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 760px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-preview-tm-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-preview-tm-box
+  .efficiency-morning-meeting-preview-readonly,
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-preview-tm-box
+  .efficiency-morning-meeting-preview-empty {
+    min-height: 55px;
+  }
+}
