@@ -126681,6 +126681,22 @@ function normalizeMorningMeetingTemplateText(
     .trim();
 }
 
+/* =========================================================
+  오전회의 취합 공유 문자열 상태
+
+  중요:
+  - 원본 엑셀은 sharedStrings.xml을 사용한다.
+  - 새로 입력하는 내용도 반드시 같은 방식을 사용한다.
+  - inlineStr 방식은 더 이상 사용하지 않는다.
+========================================================= */
+
+let activeMorningMeetingSharedStringsContext =
+  null;
+
+
+/* =====================================================
+  기존 sharedStrings.xml 읽기
+===================================================== */
 
 function parseMorningMeetingSharedStrings(
   sharedStringsXmlText
@@ -126688,7 +126704,9 @@ function parseMorningMeetingSharedStrings(
   if (
     !sharedStringsXmlText
   ) {
-    return [];
+    throw new Error(
+      "기준 취합본에서 sharedStrings.xml을 찾지 못했습니다."
+    );
   }
 
 
@@ -126699,36 +126717,489 @@ function parseMorningMeetingSharedStrings(
     );
 
 
-  return Array.from(
+  const rootElement =
     documentObject
       .getElementsByTagNameNS(
         MAIN_XML_NAMESPACE,
-        "si"
-      )
-  ).map(
-    sharedStringElement => {
-      return Array.from(
-        sharedStringElement
-          .getElementsByTagNameNS(
-            MAIN_XML_NAMESPACE,
-            "t"
-          )
-      )
-        .map(
-          textElement => {
-            return (
-              textElement.textContent ||
-              ""
-            );
-          }
+        "sst"
+      )[0];
+
+
+  if (
+    !rootElement
+  ) {
+    throw new Error(
+      "기준 취합본의 공유 문자열 구조를 찾지 못했습니다."
+    );
+  }
+
+
+  const sharedStringItems =
+    Array.from(
+      rootElement
+        .getElementsByTagNameNS(
+          MAIN_XML_NAMESPACE,
+          "si"
         )
-        .join(
-          ""
-        );
-    }
-  );
+    );
+
+
+  const values =
+    sharedStringItems.map(
+      sharedStringElement => {
+        return Array.from(
+          sharedStringElement
+            .getElementsByTagNameNS(
+              MAIN_XML_NAMESPACE,
+              "t"
+            )
+        )
+          .map(
+            textElement => {
+              return (
+                textElement.textContent ||
+                ""
+              );
+            }
+          )
+          .join(
+            ""
+          );
+      }
+    );
+
+
+  const phoneticTemplate =
+    documentObject
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "phoneticPr"
+      )[0] ||
+    null;
+
+
+  activeMorningMeetingSharedStringsContext = {
+    document:
+      documentObject,
+
+    root:
+      rootElement,
+
+    values,
+
+    phoneticTemplate,
+
+    appendedCount:
+      0
+  };
+
+
+  return values;
 }
 
+
+/* =====================================================
+  공유 문자열 리치 텍스트 Run 생성
+
+  한글:
+  - 바탕
+  - charset 129
+
+  나머지:
+  - Times New Roman
+===================================================== */
+
+function createMorningMeetingSharedStringRun(
+  sharedStringsDocument,
+  run,
+  useBold
+) {
+  const runElement =
+    sharedStringsDocument.createElementNS(
+      MAIN_XML_NAMESPACE,
+      "r"
+    );
+
+
+  const runPropertiesElement =
+    sharedStringsDocument.createElementNS(
+      MAIN_XML_NAMESPACE,
+      "rPr"
+    );
+
+
+  if (
+    useBold
+  ) {
+    const boldElement =
+      sharedStringsDocument.createElementNS(
+        MAIN_XML_NAMESPACE,
+        "b"
+      );
+
+
+    runPropertiesElement.appendChild(
+      boldElement
+    );
+  }
+
+
+  const sizeElement =
+    sharedStringsDocument.createElementNS(
+      MAIN_XML_NAMESPACE,
+      "sz"
+    );
+
+
+  sizeElement.setAttribute(
+    "val",
+    "12"
+  );
+
+
+  runPropertiesElement.appendChild(
+    sizeElement
+  );
+
+
+  const colorElement =
+    sharedStringsDocument.createElementNS(
+      MAIN_XML_NAMESPACE,
+      "color"
+    );
+
+
+  colorElement.setAttribute(
+    "theme",
+    "1"
+  );
+
+
+  runPropertiesElement.appendChild(
+    colorElement
+  );
+
+
+  const fontElement =
+    sharedStringsDocument.createElementNS(
+      MAIN_XML_NAMESPACE,
+      "rFont"
+    );
+
+
+  fontElement.setAttribute(
+    "val",
+
+    run.isHangul
+      ? "바탕"
+      : "Times New Roman"
+  );
+
+
+  runPropertiesElement.appendChild(
+    fontElement
+  );
+
+
+  const familyElement =
+    sharedStringsDocument.createElementNS(
+      MAIN_XML_NAMESPACE,
+      "family"
+    );
+
+
+  familyElement.setAttribute(
+    "val",
+    "1"
+  );
+
+
+  runPropertiesElement.appendChild(
+    familyElement
+  );
+
+
+  if (
+    run.isHangul
+  ) {
+    const charsetElement =
+      sharedStringsDocument.createElementNS(
+        MAIN_XML_NAMESPACE,
+        "charset"
+      );
+
+
+    charsetElement.setAttribute(
+      "val",
+      "129"
+    );
+
+
+    runPropertiesElement.appendChild(
+      charsetElement
+    );
+  }
+
+
+  const textElement =
+    sharedStringsDocument.createElementNS(
+      MAIN_XML_NAMESPACE,
+      "t"
+    );
+
+
+  textElement.setAttributeNS(
+    "http://www.w3.org/XML/1998/namespace",
+    "xml:space",
+    "preserve"
+  );
+
+
+  textElement.textContent =
+    run.text;
+
+
+  runElement.appendChild(
+    runPropertiesElement
+  );
+
+
+  runElement.appendChild(
+    textElement
+  );
+
+
+  return runElement;
+}
+
+
+/* =====================================================
+  새 공유 문자열 추가
+
+  반환:
+  - sharedStrings.xml의 문자열 번호
+===================================================== */
+
+function appendMorningMeetingSharedString(
+  value
+) {
+  const context =
+    activeMorningMeetingSharedStringsContext;
+
+
+  if (
+    !context
+  ) {
+    throw new Error(
+      "공유 문자열이 초기화되지 않았습니다."
+    );
+  }
+
+
+  const text =
+    String(
+      value ??
+      ""
+    );
+
+
+  const stringIndex =
+    context.values.length;
+
+
+  const sharedStringElement =
+    context.document.createElementNS(
+      MAIN_XML_NAMESPACE,
+      "si"
+    );
+
+
+  const useBold =
+    /^\s*(?:[2-5]\s*\.\s*(?:안전팀|환경팀|기계팀|전기제어팀)|◇)/i.test(
+      text
+    );
+
+
+  const runs =
+    splitMorningMeetingDynamicFontRuns(
+      text
+    );
+
+
+  runs.forEach(
+    run => {
+      sharedStringElement.appendChild(
+        createMorningMeetingSharedStringRun(
+          context.document,
+          run,
+          useBold
+        )
+      );
+    }
+  );
+
+
+  /*
+    원본 엑셀에 있는 phoneticPr 구조도 그대로 복제한다.
+  */
+
+  if (
+    context.phoneticTemplate
+  ) {
+    sharedStringElement.appendChild(
+      context.phoneticTemplate.cloneNode(
+        true
+      )
+    );
+  }
+
+
+  context.root.appendChild(
+    sharedStringElement
+  );
+
+
+  context.values.push(
+    text
+  );
+
+
+  context.appendedCount +=
+    1;
+
+
+  return stringIndex;
+}
+
+
+/* =====================================================
+  현재 통합문서의 공유 문자열 참조 개수 계산
+===================================================== */
+
+async function countMorningMeetingSharedStringReferences(
+  zip
+) {
+  const worksheetPaths =
+    Object.keys(
+      zip.files
+    ).filter(
+      filePath => {
+        return /^xl\/worksheets\/[^/]+\.xml$/i.test(
+          filePath
+        );
+      }
+    );
+
+
+  let referenceCount =
+    0;
+
+
+  for (
+    const worksheetPath
+    of worksheetPaths
+  ) {
+    const worksheetFile =
+      zip.file(
+        worksheetPath
+      );
+
+
+    if (
+      !worksheetFile
+    ) {
+      continue;
+    }
+
+
+    const worksheetXml =
+      await worksheetFile.async(
+        "string"
+      );
+
+
+    const matches =
+      worksheetXml.match(
+        /<c\b(?=[^>]*\bt="s")[^>]*>/g
+      );
+
+
+    referenceCount +=
+      matches?.length ||
+      0;
+  }
+
+
+  return referenceCount;
+}
+
+
+/* =====================================================
+  수정된 sharedStrings.xml을 XLSX에 다시 저장
+===================================================== */
+
+async function flushMorningMeetingSharedStrings(
+  zip
+) {
+  const context =
+    activeMorningMeetingSharedStringsContext;
+
+
+  if (
+    !context
+  ) {
+    throw new Error(
+      "저장할 공유 문자열 정보가 없습니다."
+    );
+  }
+
+
+  const uniqueCount =
+    Array.from(
+      context.root.childNodes
+    ).filter(
+      node => {
+        return (
+          node.nodeType ===
+            1 &&
+          node.localName ===
+            "si"
+        );
+      }
+    ).length;
+
+
+  const referenceCount =
+    await countMorningMeetingSharedStringReferences(
+      zip
+    );
+
+
+  context.root.setAttribute(
+    "uniqueCount",
+    String(
+      uniqueCount
+    )
+  );
+
+
+  context.root.setAttribute(
+    "count",
+    String(
+      referenceCount
+    )
+  );
+
+
+  zip.file(
+    "xl/sharedStrings.xml",
+
+    new XMLSerializer()
+      .serializeToString(
+        context.document
+      )
+  );
+}
 
 function getMorningMeetingCellTextFromXml(
   cellElement,
@@ -127402,20 +127873,16 @@ function splitMorningMeetingDynamicFontRuns(
 }
 
 /* =====================================================
-  오전회의 취합 셀 글꼴 적용
+  오전회의 취합 셀 내용 입력
 
-  원본 엑셀의 정상 리치 텍스트 구조와 동일하게 생성
+  이전:
+  - inlineStr 사용
+  - 일부 프로그램에서 마지막 글자 묶음만 출력됨
 
-  한글:
-  - 바탕
-  - 문자 집합 129
-
-  영문·숫자·기호:
-  - Times New Roman
-
-  공통:
-  - 12pt
-  - 검정색
+  변경:
+  - 원본 엑셀과 동일한 sharedStrings 방식
+  - 한글 바탕
+  - 나머지 Times New Roman
 ===================================================== */
 
 function setMorningMeetingDynamicCellText(
@@ -127451,217 +127918,41 @@ function setMorningMeetingDynamicCellText(
   }
 
 
-  cellElement.setAttribute(
-    "t",
-    "inlineStr"
-  );
-
-
-  const inlineStringElement =
-    worksheetDocument.createElementNS(
-      MAIN_XML_NAMESPACE,
-      "is"
+  const sharedStringIndex =
+    appendMorningMeetingSharedString(
+      text
     );
 
 
   /*
-    팀 제목과 구분 제목만 굵게 표시
+    원본 엑셀과 동일하게:
+
+    <c t="s">
+      <v>공유문자열번호</v>
+    </c>
   */
 
-  const shouldUseBold =
-    /^\s*(?:[2-5]\s*\.\s*(?:안전팀|환경팀|기계팀|전기제어팀)|◇)/i.test(
-      text
-    );
-
-
-  const runs =
-    splitMorningMeetingDynamicFontRuns(
-      text
-    );
-
-
-  runs.forEach(
-    run => {
-      const runElement =
-        worksheetDocument.createElementNS(
-          MAIN_XML_NAMESPACE,
-          "r"
-        );
-
-
-      const runPropertiesElement =
-        worksheetDocument.createElementNS(
-          MAIN_XML_NAMESPACE,
-          "rPr"
-        );
-
-
-      /*
-        원본 엑셀과 같은 순서로 속성을 만든다.
-
-        b
-        sz
-        color
-        rFont
-        family
-        charset
-      */
-
-      if (
-        shouldUseBold
-      ) {
-        const boldElement =
-          worksheetDocument.createElementNS(
-            MAIN_XML_NAMESPACE,
-            "b"
-          );
-
-
-        runPropertiesElement.appendChild(
-          boldElement
-        );
-      }
-
-
-      const sizeElement =
-        worksheetDocument.createElementNS(
-          MAIN_XML_NAMESPACE,
-          "sz"
-        );
-
-
-      sizeElement.setAttribute(
-        "val",
-        "12"
-      );
-
-
-      runPropertiesElement.appendChild(
-        sizeElement
-      );
-
-
-      const colorElement =
-        worksheetDocument.createElementNS(
-          MAIN_XML_NAMESPACE,
-          "color"
-        );
-
-
-      colorElement.setAttribute(
-        "theme",
-        "1"
-      );
-
-
-      runPropertiesElement.appendChild(
-        colorElement
-      );
-
-
-      const fontElement =
-        worksheetDocument.createElementNS(
-          MAIN_XML_NAMESPACE,
-          "rFont"
-        );
-
-
-      /*
-        원본 파일은 영문명 Batang이 아니라
-        한글 폰트명 '바탕'을 사용한다.
-      */
-
-      fontElement.setAttribute(
-        "val",
-
-        run.isHangul
-          ? "바탕"
-          : "Times New Roman"
-      );
-
-
-      runPropertiesElement.appendChild(
-        fontElement
-      );
-
-
-      const familyElement =
-        worksheetDocument.createElementNS(
-          MAIN_XML_NAMESPACE,
-          "family"
-        );
-
-
-      familyElement.setAttribute(
-        "val",
-        "1"
-      );
-
-
-      runPropertiesElement.appendChild(
-        familyElement
-      );
-
-
-      if (
-        run.isHangul
-      ) {
-        const charsetElement =
-          worksheetDocument.createElementNS(
-            MAIN_XML_NAMESPACE,
-            "charset"
-          );
-
-
-        charsetElement.setAttribute(
-          "val",
-          "129"
-        );
-
-
-        runPropertiesElement.appendChild(
-          charsetElement
-        );
-      }
-
-
-      const textElement =
-        worksheetDocument.createElementNS(
-          MAIN_XML_NAMESPACE,
-          "t"
-        );
-
-
-      textElement.setAttributeNS(
-        "http://www.w3.org/XML/1998/namespace",
-        "xml:space",
-        "preserve"
-      );
-
-
-      textElement.textContent =
-        run.text;
-
-
-      runElement.appendChild(
-        runPropertiesElement
-      );
-
-
-      runElement.appendChild(
-        textElement
-      );
-
-
-      inlineStringElement.appendChild(
-        runElement
-      );
-    }
+  cellElement.setAttribute(
+    "t",
+    "s"
   );
 
 
+  const valueElement =
+    worksheetDocument.createElementNS(
+      MAIN_XML_NAMESPACE,
+      "v"
+    );
+
+
+  valueElement.textContent =
+    String(
+      sharedStringIndex
+    );
+
+
   cellElement.appendChild(
-    inlineStringElement
+    valueElement
   );
 }
 
@@ -128734,15 +129025,29 @@ function replaceMorningMeetingDynamicTeamArea(
   };
 }
 
-
 /* =====================================================
   통합문서 인쇄 영역 확장·축소
+
+  추가:
+  - 행 이동량이 0이어도 sharedStrings.xml 저장
 ===================================================== */
 
 async function updateMorningMeetingWorkbookPrintArea(
   zip,
   delta
 ) {
+  /*
+    반드시 먼저 실행한다.
+
+    이번 자료처럼 행 이동량이 0이어도
+    새로 생성한 공유 문자열은 저장해야 한다.
+  */
+
+  await flushMorningMeetingSharedStrings(
+    zip
+  );
+
+
   if (
     !delta
   ) {
@@ -128857,7 +129162,7 @@ async function updateMorningMeetingWorkbookPrintArea(
         workbookDocument
       )
   );
-}  
+}
 
 /* =====================================================
   최종 엑셀 생성 - 팀별 행 동적 재배치
