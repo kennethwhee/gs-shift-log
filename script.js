@@ -127665,9 +127665,244 @@ function setMorningMeetingDynamicCellText(
   );
 }
 
+/* =====================================================
+  오전회의 취합 행 높이 자동 계산
+
+  기준:
+  - 기본 높이: 20.1
+  - 긴 문장: 줄 수에 맞춰 높이 증가
+  - 팀 제목·구분 제목: 기본 높이 유지
+  - 최대 높이: 86
+===================================================== */
+
+function calculateMorningMeetingDynamicTextUnits(
+  value
+) {
+  const text =
+    String(
+      value ??
+      ""
+    );
+
+
+  let totalUnits =
+    0;
+
+
+  for (
+    const character
+    of text
+  ) {
+    /*
+      한글은 영문보다 가로 폭이 크므로
+      2배 정도로 계산한다.
+    */
+
+    if (
+      isMorningMeetingDynamicHangulCharacter(
+        character
+      )
+    ) {
+      totalUnits +=
+        2;
+
+
+      continue;
+    }
+
+
+    /*
+      한글 외의 전각 문자
+    */
+
+    if (
+      /[^\u0000-\u00ff]/.test(
+        character
+      )
+    ) {
+      totalUnits +=
+        2;
+
+
+      continue;
+    }
+
+
+    /*
+      공백
+    */
+
+    if (
+      /\s/.test(
+        character
+      )
+    ) {
+      totalUnits +=
+        0.55;
+
+
+      continue;
+    }
+
+
+    /*
+      영문 대문자
+    */
+
+    if (
+      /[A-Z]/.test(
+        character
+      )
+    ) {
+      totalUnits +=
+        1.15;
+
+
+      continue;
+    }
+
+
+    /*
+      숫자·영문 소문자
+    */
+
+    if (
+      /[a-z0-9]/.test(
+        character
+      )
+    ) {
+      totalUnits +=
+        1;
+
+
+      continue;
+    }
+
+
+    /*
+      괄호·기호
+    */
+
+    totalUnits +=
+      0.8;
+  }
+
+
+  return totalUnits;
+}
+
+
+function calculateMorningMeetingDynamicRowHeight(
+  value
+) {
+  const BASE_ROW_HEIGHT =
+    20.1;
+
+
+  const EXTRA_LINE_HEIGHT =
+    16.5;
+
+
+  const MAX_ROW_HEIGHT =
+    86;
+
+
+  /*
+    B열부터 AD열까지 병합된 셀에서
+    한 줄에 표시 가능한 대략적인 문자 폭
+  */
+
+  const TEXT_UNITS_PER_LINE =
+    140;
+
+
+  const text =
+    String(
+      value ??
+      ""
+    )
+      .replace(
+        /\r\n?/g,
+        "\n"
+      );
+
+
+  if (
+    !text.trim()
+  ) {
+    return BASE_ROW_HEIGHT;
+  }
+
+
+  /*
+    팀 제목과 구분 제목은 항상 한 줄
+  */
+
+  const isSectionHeading =
+    /^\s*(?:[2-5]\s*\.\s*(?:안전팀|환경팀|기계팀|전기제어팀)|◇)/i.test(
+      text
+    );
+
+
+  if (
+    isSectionHeading
+  ) {
+    return BASE_ROW_HEIGHT;
+  }
+
+
+  let visualLineCount =
+    0;
+
+
+  text
+    .split(
+      "\n"
+    )
+    .forEach(
+      line => {
+        const textUnits =
+          calculateMorningMeetingDynamicTextUnits(
+            line
+          );
+
+
+        visualLineCount +=
+          Math.max(
+            1,
+
+            Math.ceil(
+              textUnits /
+              TEXT_UNITS_PER_LINE
+            )
+          );
+      }
+    );
+
+
+  const calculatedHeight =
+    BASE_ROW_HEIGHT +
+    Math.max(
+      0,
+      visualLineCount -
+      1
+    ) *
+    EXTRA_LINE_HEIGHT;
+
+
+  return Math.min(
+    MAX_ROW_HEIGHT,
+    calculatedHeight
+  );
+}
 
 /* =====================================================
   기존 팀 행의 서식을 복제해서 새 행 생성
+
+  적용:
+  - 기존 테두리·배경·셀 스타일 유지
+  - 긴 문장은 행 높이 자동 증가
+  - B:AD 병합 영역에 내용 입력
 ===================================================== */
 
 function cloneMorningMeetingDynamicRow(
@@ -127687,6 +127922,40 @@ function cloneMorningMeetingDynamicRow(
     String(
       targetRowNumber
     )
+  );
+
+
+  /*
+    원본 행이 숨김 처리된 경우 해제
+  */
+
+  rowElement.removeAttribute(
+    "hidden"
+  );
+
+
+  /*
+    긴 문장 행 높이 자동 계산
+  */
+
+  const calculatedRowHeight =
+    calculateMorningMeetingDynamicRowHeight(
+      text
+    );
+
+
+  rowElement.setAttribute(
+    "ht",
+    calculatedRowHeight
+      .toFixed(
+        1
+      )
+  );
+
+
+  rowElement.setAttribute(
+    "customHeight",
+    "1"
   );
 
 
@@ -127727,7 +127996,8 @@ function cloneMorningMeetingDynamicRow(
             cellElement.getAttribute(
               "r"
             )
-          ) === "B"
+          ) ===
+          "B"
         );
       }
     );
@@ -127751,7 +128021,6 @@ function cloneMorningMeetingDynamicRow(
 
   return rowElement;
 }
-
 
 /* =====================================================
   네 팀 내용을 실제 줄 수만큼 생성
