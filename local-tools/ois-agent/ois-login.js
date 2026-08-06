@@ -1365,15 +1365,628 @@ async function openOisEnvironmentDailyLog(
 }
 
 /* =========================================================
+  특정 행에서 제목 뒤에 있는 숫자만 가져오기
+
+  예:
+  [
+    "동두천",
+    "0.000",
+    "8,978.000",
+    "1,944.000",
+    "7,063.100",
+    "저장량(m3)",
+    "3,382.326",
+    "9,453.110",
+    "5,631.713"
+  ]
+
+  "저장량" 뒤 숫자 3개:
+  3,382.326
+  9,453.110
+  5,631.713
+========================================================= */
+
+function getOisNumericValuesAfterKeyword(
+  cellTexts,
+  keyword,
+  requiredCount
+) {
+  const safeCellTexts =
+    Array.isArray(
+      cellTexts
+    )
+      ? cellTexts
+      : [];
+
+
+  const normalizedKeyword =
+    normalizeOisText(
+      keyword
+    );
+
+
+  const keywordIndex =
+    safeCellTexts.findIndex(
+      cellText => {
+        return normalizeOisText(
+          cellText
+        ).includes(
+          normalizedKeyword
+        );
+      }
+    );
+
+
+  if (
+    keywordIndex <
+      0
+  ) {
+    throw new Error(
+      `"${normalizedKeyword}" 셀을 찾지 못했습니다.`
+    );
+  }
+
+
+  const numericValues = [];
+
+
+  for (
+    let index =
+      keywordIndex +
+      1;
+
+    index <
+      safeCellTexts.length;
+
+    index +=
+      1
+  ) {
+    const numericValue =
+      parseOisNumericCell(
+        safeCellTexts[
+          index
+        ]
+      );
+
+
+    if (
+      numericValue ===
+        null
+    ) {
+      continue;
+    }
+
+
+    numericValues.push(
+      numericValue
+    );
+
+
+    if (
+      numericValues.length >=
+      requiredCount
+    ) {
+      break;
+    }
+  }
+
+
+  if (
+    numericValues.length <
+      requiredCount
+  ) {
+    throw new Error(
+      `"${normalizedKeyword}" 뒤의 숫자 ${requiredCount}개를 읽지 못했습니다.`
+    );
+  }
+
+
+  return numericValues;
+}
+
+
+/* =========================================================
+  특정 제목의 바로 아래에 있는 숫자 찾기
+
+  사용:
+  순수사용량
+  ↓
+  1,720.000
+
+  같은 행 오른쪽 숫자가 아니라
+  화면상 바로 아래 값을 찾는다.
+========================================================= */
+
+async function findOisNumericValueBelowKeyword(
+  table,
+  keyword
+) {
+  const normalizedKeyword =
+    normalizeOisText(
+      keyword
+    );
+
+
+  const rawValue =
+    await table.evaluate(
+      (
+        tableElement,
+        keywordText
+      ) => {
+        const normalizeText = (
+          value
+        ) => {
+          return String(
+            value ??
+            ""
+          )
+            .replace(
+              /\u00a0/g,
+              " "
+            )
+            .replace(
+              /\s+/g,
+              " "
+            )
+            .trim();
+        };
+
+
+        const parsePureNumber = (
+          value
+        ) => {
+          const normalizedValue =
+            normalizeText(
+              value
+            )
+              .replace(
+                /,/g,
+                ""
+              );
+
+
+          if (
+            !/^-?\d+(?:\.\d+)?$/.test(
+              normalizedValue
+            )
+          ) {
+            return null;
+          }
+
+
+          const numericValue =
+            Number(
+              normalizedValue
+            );
+
+
+          return Number.isFinite(
+            numericValue
+          )
+            ? numericValue
+            : null;
+        };
+
+
+        const getElementText = (
+          element
+        ) => {
+          if (
+            element instanceof
+              HTMLInputElement ||
+            element instanceof
+              HTMLTextAreaElement
+          ) {
+            return normalizeText(
+              element.value
+            );
+          }
+
+
+          if (
+            element instanceof
+              HTMLSelectElement
+          ) {
+            return normalizeText(
+              element
+                .selectedOptions?.[0]
+                ?.textContent ||
+              element.value
+            );
+          }
+
+
+          const dataValue =
+            normalizeText(
+              element.getAttribute?.(
+                "data-value"
+              )
+            );
+
+
+          if (
+            dataValue
+          ) {
+            return dataValue;
+          }
+
+
+          const dataText =
+            normalizeText(
+              element.getAttribute?.(
+                "data-text"
+              )
+            );
+
+
+          if (
+            dataText
+          ) {
+            return dataText;
+          }
+
+
+          return normalizeText(
+            element.innerText ||
+            element.textContent ||
+            ""
+          );
+        };
+
+
+        const getRectangle = (
+          element
+        ) => {
+          if (
+            !(element instanceof
+              Element)
+          ) {
+            return null;
+          }
+
+
+          const rectangle =
+            element.getBoundingClientRect();
+
+
+          if (
+            rectangle.width <=
+              0 ||
+            rectangle.height <=
+              0
+          ) {
+            return null;
+          }
+
+
+          const style =
+            window.getComputedStyle(
+              element
+            );
+
+
+          if (
+            style.display ===
+              "none" ||
+            style.visibility ===
+              "hidden" ||
+            Number(
+              style.opacity
+            ) ===
+              0
+          ) {
+            return null;
+          }
+
+
+          return {
+            left:
+              rectangle.left,
+
+            right:
+              rectangle.right,
+
+            top:
+              rectangle.top,
+
+            bottom:
+              rectangle.bottom,
+
+            width:
+              rectangle.width,
+
+            height:
+              rectangle.height,
+
+            centerX:
+              rectangle.left +
+              rectangle.width /
+              2,
+
+            centerY:
+              rectangle.top +
+              rectangle.height /
+              2
+          };
+        };
+
+
+        const allElements = [
+          tableElement,
+
+          ...tableElement.querySelectorAll(
+            "*"
+          )
+        ];
+
+
+        /* =================================================
+          순수사용량 제목 후보
+        ================================================= */
+
+        const labelCandidates =
+          allElements
+            .map(
+              element => {
+                const text =
+                  getElementText(
+                    element
+                  );
+
+
+                const rectangle =
+                  getRectangle(
+                    element
+                  );
+
+
+                if (
+                  !text ||
+                  !rectangle ||
+                  !text.includes(
+                    keywordText
+                  )
+                ) {
+                  return null;
+                }
+
+
+                return {
+                  element,
+                  text,
+                  rectangle,
+
+                  exact:
+                    text ===
+                    keywordText,
+
+                  area:
+                    rectangle.width *
+                    rectangle.height
+                };
+              }
+            )
+            .filter(
+              Boolean
+            )
+            .sort(
+              (
+                first,
+                second
+              ) => {
+                if (
+                  first.exact !==
+                  second.exact
+                ) {
+                  return first.exact
+                    ? -1
+                    : 1;
+                }
+
+
+                return (
+                  first.area -
+                  second.area
+                );
+              }
+            );
+
+
+        for (
+          const labelCandidate
+          of labelCandidates
+        ) {
+          const numericCandidates =
+            allElements
+              .map(
+                element => {
+                  const text =
+                    getElementText(
+                      element
+                    );
+
+
+                  const numericValue =
+                    parsePureNumber(
+                      text
+                    );
+
+
+                  const rectangle =
+                    getRectangle(
+                      element
+                    );
+
+
+                  if (
+                    numericValue ===
+                      null ||
+                    !rectangle
+                  ) {
+                    return null;
+                  }
+
+
+                  /*
+                    제목보다 아래쪽 숫자만 허용한다.
+                    같은 행 오른쪽의 0 값은 제외된다.
+                  */
+
+                  if (
+                    rectangle.centerY <=
+                    labelCandidate
+                      .rectangle
+                      .centerY +
+                    2
+                  ) {
+                    return null;
+                  }
+
+
+                  const horizontalDifference =
+                    Math.abs(
+                      rectangle.centerX -
+                      labelCandidate
+                        .rectangle
+                        .centerX
+                    );
+
+
+                  const verticalDifference =
+                    rectangle.centerY -
+                    labelCandidate
+                      .rectangle
+                      .centerY;
+
+
+                  const allowedHorizontalDifference =
+                    Math.max(
+                      55,
+
+                      labelCandidate
+                        .rectangle
+                        .width *
+                      0.8
+                    );
+
+
+                  if (
+                    horizontalDifference >
+                      allowedHorizontalDifference ||
+                    verticalDifference >
+                      120
+                  ) {
+                    return null;
+                  }
+
+
+                  return {
+                    value:
+                      numericValue,
+
+                    text,
+
+                    horizontalDifference,
+                    verticalDifference,
+
+                    area:
+                      rectangle.width *
+                      rectangle.height
+                  };
+                }
+              )
+              .filter(
+                Boolean
+              )
+              .sort(
+                (
+                  first,
+                  second
+                ) => {
+                  const verticalDifference =
+                    first.verticalDifference -
+                    second.verticalDifference;
+
+
+                  if (
+                    Math.abs(
+                      verticalDifference
+                    ) >
+                    2
+                  ) {
+                    return verticalDifference;
+                  }
+
+
+                  const horizontalDifference =
+                    first.horizontalDifference -
+                    second.horizontalDifference;
+
+
+                  if (
+                    Math.abs(
+                      horizontalDifference
+                    ) >
+                    2
+                  ) {
+                    return horizontalDifference;
+                  }
+
+
+                  return (
+                    first.area -
+                    second.area
+                  );
+                }
+              );
+
+
+          if (
+            numericCandidates.length >
+            0
+          ) {
+            return numericCandidates[
+              0
+            ].value;
+          }
+        }
+
+
+        return null;
+      },
+
+      normalizedKeyword
+    );
+
+
+  const numericValue =
+    parseOisNumericCell(
+      rawValue
+    );
+
+
+  if (
+    numericValue ===
+      null
+  ) {
+    throw new Error(
+      `"${normalizedKeyword}" 바로 아래 숫자를 읽지 못했습니다.`
+    );
+  }
+
+
+  return numericValue;
+}
+
+/* =========================================================
   OIS 수처리 자료 읽기
 
-  추출:
-  - 장자산단 원수 입고량
-  - 순수 생산량
-  - 순수 사용량
-  - 원수 TANK 저장량·저장율
-  - 여과수 TANK 저장량·저장율
-  - 순수 TANK 저장량·저장율
+  정확한 위치 기준:
+  - 장자산단 뒤 첫 번째 숫자
+  - 저장량 뒤 숫자 3개
+  - 저장율 뒤 숫자 3개
+  - 순수 생산량은 순수사용량 왼쪽
+  - 순수 사용량은 순수사용량 바로 아래
 ========================================================= */
 
 async function extractOisWaterTreatmentValues(
@@ -1386,7 +1999,7 @@ async function extractOisWaterTreatmentValues(
 
 
   /* =====================================================
-    1. 원수 표
+    1. 원수·저장조 표
   ====================================================== */
 
   const rawWaterTable =
@@ -1431,52 +2044,47 @@ async function extractOisWaterTreatmentValues(
     );
 
 
-  const industrialComplexNumbers =
-    getOisNumericCells(
-      industrialComplexCells
+  /*
+    장자산단 왼쪽·오른쪽의 다른 숫자를 제외하고
+    장자산단 뒤 첫 번째 숫자만 사용한다.
+  */
+
+  const [
+    rawWaterInflow
+  ] =
+    getOisNumericValuesAfterKeyword(
+      industrialComplexCells,
+      "장자산단",
+      1
     );
 
+
+  /*
+    저장량(m3) 뒤의 세 숫자
+
+    원수 → 여과수 → 순수
+  */
 
   const storageAmounts =
-    getOisNumericCells(
-      storageAmountCells
+    getOisNumericValuesAfterKeyword(
+      storageAmountCells,
+      "저장량",
+      3
     );
 
+
+  /*
+    저장율(%) 뒤의 세 숫자
+
+    원수 → 여과수 → 순수
+  */
 
   const storageRates =
-    getOisNumericCells(
-      storageRateCells
-    );
-
-
-  if (
-    industrialComplexNumbers.length <
-      1
-  ) {
-    throw new Error(
-      "장자산단 원수 입고량을 읽지 못했습니다."
-    );
-  }
-
-
-  if (
-    storageAmounts.length <
+    getOisNumericValuesAfterKeyword(
+      storageRateCells,
+      "저장율",
       3
-  ) {
-    throw new Error(
-      "원수·여과수·순수 TANK 저장량을 읽지 못했습니다."
     );
-  }
-
-
-  if (
-    storageRates.length <
-      3
-  ) {
-    throw new Error(
-      "원수·여과수·순수 TANK 저장율을 읽지 못했습니다."
-    );
-  }
 
 
   /* =====================================================
@@ -1513,7 +2121,9 @@ async function extractOisWaterTreatmentValues(
   const pureWaterUsageIndex =
     pureWaterSummaryCells.findIndex(
       cellText => {
-        return cellText.includes(
+        return normalizeOisText(
+          cellText
+        ).includes(
           "순수사용량"
         );
       }
@@ -1530,15 +2140,16 @@ async function extractOisWaterTreatmentValues(
   }
 
 
+  /*
+    순수 생산량:
+    순수사용량 제목의 바로 왼쪽 숫자
+
+    예:
+    1,632.000 | 순수사용량
+  */
+
   const demiProduction =
     findNearestOisNumberBefore(
-      pureWaterSummaryCells,
-      pureWaterUsageIndex
-    );
-
-
-  const pureWaterUsage =
-    findNearestOisNumberAfter(
       pureWaterSummaryCells,
       pureWaterUsageIndex
     );
@@ -1554,14 +2165,20 @@ async function extractOisWaterTreatmentValues(
   }
 
 
-  if (
-    pureWaterUsage ===
-      null
-  ) {
-    throw new Error(
-      "순수 사용량을 읽지 못했습니다."
+  /*
+    순수 사용량:
+    순수사용량 제목의 바로 아래 숫자
+
+    예:
+    순수사용량
+    1,720.000
+  */
+
+  const pureWaterUsage =
+    await findOisNumericValueBelowKeyword(
+      demiWaterTable,
+      "순수사용량"
     );
-  }
 
 
   /* =====================================================
@@ -1596,7 +2213,7 @@ async function extractOisWaterTreatmentValues(
       : "";
 
 
-  return {
+  const result = {
     source:
       "OIS 일일 운전일지(환경)",
 
@@ -1606,10 +2223,7 @@ async function extractOisWaterTreatmentValues(
       new Date()
         .toISOString(),
 
-    rawWaterInflow:
-      industrialComplexNumbers[
-        0
-      ],
+    rawWaterInflow,
 
     demiProduction,
 
@@ -1645,8 +2259,16 @@ async function extractOisWaterTreatmentValues(
         2
       ]
   };
-}
 
+
+  console.log(
+    "OIS 수처리 최종 추출값:",
+    result
+  );
+
+
+  return result;
+}
 
 /* =========================================================
   추출 결과 JSON 저장
