@@ -894,6 +894,401 @@ function saveOisWaterTreatmentValues(
   return outputPath;
 }
 
+/* =========================================================
+  OIS 일일 운전일지(환경) 기준일 변경 및 조회
+========================================================= */
+
+async function setOisEnvironmentDate(
+  page,
+  targetDate
+) {
+  const normalizedDate =
+    String(
+      targetDate ||
+      ""
+    )
+      .trim()
+      .replace(
+        /-/g,
+        "/"
+      );
+
+
+  if (
+    !/^\d{4}\/\d{2}\/\d{2}$/.test(
+      normalizedDate
+    )
+  ) {
+    throw new Error(
+      "OIS 조회일은 YYYY-MM-DD 형식으로 입력해 주세요."
+    );
+  }
+
+
+  const environmentFrame =
+    await openOisEnvironmentDailyLog(
+      page
+    );
+
+
+  console.log(
+    `OIS 기준일을 ${normalizedDate}로 변경합니다.`
+  );
+
+
+  /* =====================================================
+    현재 YYYY/MM/DD 형식의 값이 들어 있는 날짜 입력칸 검색
+  ====================================================== */
+
+  const inputs =
+    environmentFrame.locator(
+      "input"
+    );
+
+
+  const inputCount =
+    await inputs.count();
+
+
+  let dateInput =
+    null;
+
+
+  for (
+    let index = 0;
+    index <
+      inputCount;
+    index +=
+      1
+  ) {
+    const input =
+      inputs.nth(
+        index
+      );
+
+
+    const inputType =
+      String(
+        await input
+          .getAttribute(
+            "type"
+          )
+          .catch(
+            () => ""
+          ) ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    if (
+      [
+        "hidden",
+        "button",
+        "submit",
+        "checkbox",
+        "radio"
+      ].includes(
+        inputType
+      )
+    ) {
+      continue;
+    }
+
+
+    const currentValue =
+      String(
+        await input
+          .inputValue()
+          .catch(
+            () => ""
+          )
+      ).trim();
+
+
+    if (
+      /^\d{4}\/\d{2}\/\d{2}$/.test(
+        currentValue
+      )
+    ) {
+      dateInput =
+        input;
+
+
+      break;
+    }
+  }
+
+
+  /* =====================================================
+    값 기준 검색 실패 시 '기준일' 뒤 입력칸 검색
+  ====================================================== */
+
+  if (
+    !dateInput
+  ) {
+    const labelBasedInput =
+      environmentFrame.locator(
+        `
+          xpath=
+          //*[contains(
+            normalize-space(.),
+            "기준일"
+          )]
+          /following::input[1]
+        `
+      );
+
+
+    if (
+      await labelBasedInput
+        .count()
+        .catch(
+          () => 0
+        ) >
+        0
+    ) {
+      dateInput =
+        labelBasedInput.first();
+    }
+  }
+
+
+  if (
+    !dateInput
+  ) {
+    throw new Error(
+      "OIS 기준일 입력칸을 찾지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    TossPlatform 입력값 변경 이벤트까지 발생
+  ====================================================== */
+
+  await dateInput.evaluate(
+    (
+      element,
+      value
+    ) => {
+      element.focus();
+
+
+      element.value =
+        value;
+
+
+      element.dispatchEvent(
+        new Event(
+          "input",
+          {
+            bubbles:
+              true
+          }
+        )
+      );
+
+
+      element.dispatchEvent(
+        new Event(
+          "change",
+          {
+            bubbles:
+              true
+          }
+        )
+      );
+
+
+      element.blur();
+    },
+    normalizedDate
+  );
+
+
+  /* =====================================================
+    조회 버튼 찾기
+  ====================================================== */
+
+  const queryCandidates = [
+    environmentFrame.getByRole(
+      "button",
+      {
+        name:
+          "조회",
+
+        exact:
+          true
+      }
+    ),
+
+    environmentFrame.locator(
+      'input[type="button"][value="조회"]'
+    ),
+
+    environmentFrame.locator(
+      'input[type="submit"][value="조회"]'
+    ),
+
+    environmentFrame.getByText(
+      "조회",
+      {
+        exact:
+          true
+      }
+    )
+  ];
+
+
+  let queryButton =
+    null;
+
+
+  for (
+    const candidate of
+    queryCandidates
+  ) {
+    const candidateCount =
+      await candidate
+        .count()
+        .catch(
+          () => 0
+        );
+
+
+    for (
+      let index = 0;
+      index <
+        candidateCount;
+      index +=
+        1
+    ) {
+      const target =
+        candidate.nth(
+          index
+        );
+
+
+      const isVisible =
+        await target
+          .isVisible()
+          .catch(
+            () => false
+          );
+
+
+      if (
+        isVisible
+      ) {
+        queryButton =
+          target;
+
+
+        break;
+      }
+    }
+
+
+    if (
+      queryButton
+    ) {
+      break;
+    }
+  }
+
+
+  if (
+    !queryButton
+  ) {
+    throw new Error(
+      "OIS 조회 버튼을 찾지 못했습니다."
+    );
+  }
+
+
+  await queryButton.click({
+    timeout:
+      10000,
+
+    force:
+      true
+  });
+
+
+  /* =====================================================
+    조회 결과 날짜 확인
+
+    예:
+    2026년 08월 04일
+  ====================================================== */
+
+  const [
+    year,
+    month,
+    day
+  ] =
+    normalizedDate.split(
+      "/"
+    );
+
+
+  const expectedDateText =
+    `${year}년 ${month}월 ${day}일`;
+
+
+  const timeoutMilliseconds =
+    30000;
+
+
+  const startedAt =
+    Date.now();
+
+
+  while (
+    Date.now() -
+      startedAt <
+    timeoutMilliseconds
+  ) {
+    const bodyText =
+      normalizeOisText(
+        await environmentFrame
+          .locator(
+            "body"
+          )
+          .innerText()
+          .catch(
+            () => ""
+          )
+      );
+
+
+    if (
+      bodyText.includes(
+        expectedDateText
+      )
+    ) {
+      console.log(
+        `${expectedDateText} 환경자료 조회가 완료되었습니다.`
+      );
+
+
+      return environmentFrame;
+    }
+
+
+    await page.waitForTimeout(
+      500
+    );
+  }
+
+
+  throw new Error(
+    `${expectedDateText} 조회 결과가 화면에 표시되지 않았습니다.`
+  );
+}
+
 async function loginOis() {
   const userId =
     String(
@@ -907,6 +1302,13 @@ async function loginOis() {
       process.env.OIS_PASSWORD ||
       ""
     );
+
+
+  const targetDate =
+    String(
+      process.env.OIS_TARGET_DATE ||
+      "2026-08-04"
+    ).trim();
 
 
   if (
@@ -1009,13 +1411,48 @@ async function loginOis() {
 
 
     /* ===================================================
-      환경 화면 열기 및 수처리 값 수집
+      2026-08-04 환경자료 조회
+    ==================================================== */
+
+    await setOisEnvironmentDate(
+      page,
+      targetDate
+    );
+
+
+    /* ===================================================
+      수처리 값 읽기
     ==================================================== */
 
     const waterValues =
       await extractOisWaterTreatmentValues(
         page
       );
+
+
+    /*
+      화면에서 읽은 기준일과 요청일이 다르면
+      잘못된 날짜 자료가 저장되지 않게 중단한다.
+    */
+    if (
+      waterValues.sourceDate &&
+      waterValues.sourceDate !==
+        targetDate
+    ) {
+      throw new Error(
+        [
+          "OIS 조회 날짜가 일치하지 않습니다.",
+          `요청 날짜: ${targetDate}`,
+          `읽은 날짜: ${waterValues.sourceDate}`
+        ].join(
+          "\n"
+        )
+      );
+    }
+
+
+    waterValues.requestedDate =
+      targetDate;
 
 
     const outputPath =
@@ -1025,13 +1462,29 @@ async function loginOis() {
 
 
     console.log(
-      "수처리 자료를 읽었습니다."
+      ""
+    );
+
+
+    console.log(
+      "=========================================="
+    );
+
+
+    console.log(
+      `${targetDate} 수처리 환경데이터`
+    );
+
+
+    console.log(
+      "=========================================="
     );
 
 
     console.table({
       "기준일":
-        waterValues.sourceDate,
+        waterValues.sourceDate ||
+        targetDate,
 
       "원수 입고량":
         waterValues.rawWaterInflow,
@@ -1063,7 +1516,7 @@ async function loginOis() {
 
 
     console.log(
-      "저장 위치:",
+      "JSON 저장 위치:",
       outputPath
     );
 
@@ -1075,18 +1528,17 @@ async function loginOis() {
 
 
     /*
-      결과를 눈으로 확인할 수 있도록
-      3초 후 브라우저를 닫는다.
+      화면 확인 후 종료
     */
     await page.waitForTimeout(
-      3000
+      5000
     );
 
   } catch (
     error
   ) {
     console.error(
-      "OIS 수처리 자료 수집 오류:",
+      "OIS 환경자료 조회 오류:",
       error
     );
 

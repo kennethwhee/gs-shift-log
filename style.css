@@ -80360,3 +80360,964 @@ small {
       -1 !important;
   }
 }
+
+/* =========================================================
+  오전회의 취합 - 운탄일지 내용 선택
+
+  구성:
+  1. 운탄일지 수치 자동 추출
+  2. N/S 주요작업
+  3. D/S 정비 사항
+  4. D/S 특이 사항
+  5. 연료분진팀 금일 작업
+
+  선택 결과 textarea는 사용하지 않는다.
+========================================================= */
+
+
+/* =========================================================
+  운탄일지 선택 전체 패널
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-panel {
+  width: 100%;
+
+  margin: 0 0 14px;
+  padding: 18px;
+
+  border: 1px solid #d7e2ed;
+  border-radius: 12px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 4px 14px
+    rgba(
+      35,
+      64,
+      96,
+      0.05
+    );
+}
+
+
+/* =========================================================
+  패널 상단
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-panel__header {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 18px;
+
+  margin-bottom: 15px;
+  padding-bottom: 13px;
+
+  border-bottom: 1px solid #e1e9f1;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-panel__header
+> div:first-child {
+  min-width: 0;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-panel__header
+> div:first-child
+> span {
+  display: block;
+
+  margin-bottom: 4px;
+
+  color: #a56a12;
+
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-panel__header h4 {
+  margin: 0;
+
+  color: #263d57;
+
+  font-size: 17px;
+  font-weight: 900;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-panel__header p {
+  margin: 6px 0 0;
+
+  color: #718196;
+
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+
+/* =========================================================
+  선택 건수·초기화
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-panel__tools {
+  display: flex;
+
+  flex: 0 0 auto;
+
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+
+  gap: 8px;
+}
+
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingCoalSelectedCount {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-width: 72px;
+  height: 34px;
+  padding: 0 10px;
+
+  border: 1px solid #dec99f;
+  border-radius: 8px;
+
+  background: #fff9ed;
+
+  color: #96620f;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyMorningMeetingView
+#clearEfficiencyMorningMeetingCoalSelectionButton {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-width: 76px;
+  height: 34px;
+  padding: 0 10px;
+
+  border: 1px solid #bdcad8;
+  border-radius: 7px;
+
+  background: #ffffff;
+
+  color: #5d7084;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyMorningMeetingView
+#clearEfficiencyMorningMeetingCoalSelectionButton:hover:not(:disabled) {
+  border-color: #9aabbf;
+
+  background: #f7f9fb;
+}
+
+
+#efficiencyMorningMeetingView
+#clearEfficiencyMorningMeetingCoalSelectionButton:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+
+/* =========================================================
+  운탄일지 수치 자동 추출
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-summary {
+  margin-bottom: 14px;
+  padding: 13px;
+
+  border: 1px solid #e1d5bd;
+  border-radius: 10px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #fffdf8,
+      #ffffff
+    );
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-summary__header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-bottom: 11px;
+  padding-bottom: 10px;
+
+  border-bottom: 1px solid #ebe1cf;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-summary__header
+> div {
+  min-width: 0;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-summary__header
+> div
+> span {
+  display: block;
+
+  margin-bottom: 3px;
+
+  color: #a36c19;
+
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-summary__header
+> div
+> strong {
+  color: #4e432f;
+
+  font-size: 13px;
+  font-weight: 900;
+}
+
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingCoalValueStatus {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-height: 27px;
+  padding: 0 9px;
+
+  border: 1px solid #ded2bd;
+  border-radius: 999px;
+
+  background: #ffffff;
+
+  color: #85765e;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingCoalValueStatus.is-complete {
+  border-color: #9bcdb0;
+
+  background: #edf8f1;
+
+  color: #247348;
+}
+
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingCoalValueStatus.is-error {
+  border-color: #e3b1b1;
+
+  background: #fff1f1;
+
+  color: #b33d3d;
+}
+
+
+/* =========================================================
+  수치 카드
+
+  PC:
+  4열
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-summary-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap: 8px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-summary-card {
+  display: flex;
+
+  min-width: 0;
+  min-height: 66px;
+
+  flex-direction: column;
+
+  align-items: flex-start;
+  justify-content: center;
+
+  gap: 5px;
+
+  padding: 10px 11px;
+
+  border: 1px solid #e0e5eb;
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-summary-card
+> span {
+  color: #7b8796;
+
+  font-size: 9px;
+  font-weight: 800;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-summary-card
+> strong {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: #2d4056;
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.35;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  운탄일지 선택 목록
+
+  PC:
+  2열 × 2행
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  align-items: stretch;
+
+  gap: 12px;
+}
+
+
+/* =========================================================
+  선택 목록 한 구역
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-column {
+  min-width: 0;
+
+  overflow: hidden;
+
+  border: 1px solid #d8e2ec;
+  border-radius: 9px;
+
+  background: #fbfdff;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-column__header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  min-height: 58px;
+  padding: 10px 12px;
+
+  border-bottom: 1px solid #dce5ee;
+
+  background: #f4f7fa;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-column__header
+> div {
+  display: flex;
+
+  min-width: 0;
+
+  flex-direction: column;
+
+  gap: 2px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-column__header
+span {
+  color: #87745a;
+
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-column__header
+strong {
+  overflow: hidden;
+
+  color: #35495e;
+
+  font-size: 14px;
+  font-weight: 900;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-column__header
+button {
+  flex: 0 0 auto;
+
+  height: 28px;
+  padding: 0 9px;
+
+  border: 1px solid #c7ae80;
+  border-radius: 6px;
+
+  background: #ffffff;
+
+  color: #8d611b;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-column__header
+button:hover:not(:disabled) {
+  border-color: #a97a2a;
+
+  background: #fff8ea;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-column__header
+button:disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+
+/* =========================================================
+  목록 영역
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-list {
+  min-height: 110px;
+  max-height: 340px;
+
+  padding: 10px;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+
+/* =========================================================
+  운탄일지 선택 항목
+
+  JavaScript 생성 구조:
+
+  label.coal-item
+    input
+    div.coal-item__content
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-item {
+  display: grid;
+
+  grid-template-columns:
+    20px
+    minmax(
+      0,
+      1fr
+    );
+
+  align-items: flex-start;
+
+  gap: 7px;
+
+  margin-bottom: 6px;
+  padding: 9px;
+
+  border: 1px solid #d7e2ec;
+  border-radius: 7px;
+
+  background: #ffffff;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-item:last-child {
+  margin-bottom: 0;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-item:hover {
+  border-color: #d0b278;
+
+  background: #fffdf8;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-item:has(
+  input:checked
+) {
+  border-color: #c18b32;
+
+  background: #fff7e8;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(
+      193,
+      139,
+      50,
+      0.08
+    );
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-item
+input {
+  width: 15px;
+  height: 15px;
+  margin: 2px 0 0;
+
+  accent-color: #b77917;
+
+  cursor: pointer;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-item__content {
+  min-width: 0;
+}
+
+
+/* =========================================================
+  번호·분류 표시
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-item__meta {
+  display: flex;
+
+  align-items: center;
+  flex-wrap: wrap;
+
+  gap: 5px;
+
+  margin-bottom: 4px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-item__number {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-width: 22px;
+  min-height: 20px;
+  padding: 0 6px;
+
+  border-radius: 5px;
+
+  background: #fff0d3;
+
+  color: #98620e;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-item__group {
+  color: #718196;
+
+  font-size: 9px;
+  font-weight: 800;
+}
+
+
+/* =========================================================
+  부모 업무내용
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-item__text {
+  margin: 0;
+
+  color: #283d54;
+
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.55;
+
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+  하위 문장
+
+  예:
+  - 정비 전까지 설비 기동 제한됨
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-item__sub-lines {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 2px;
+
+  margin-top: 5px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-item__sub-line {
+  display: block;
+
+  margin: 0;
+  padding-left: 10px;
+
+  color: #5f7084;
+
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.5;
+
+  text-indent: -8px;
+
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+  빈 목록
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-empty {
+  margin: 0;
+  padding: 28px 10px;
+
+  color: #8997a7;
+
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.55;
+
+  text-align: center;
+}
+
+
+/* =========================================================
+  오류 메시지
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-error {
+  margin: 10px 0 0;
+
+  color: #c33e3e;
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-error[hidden] {
+  display: none !important;
+}
+
+
+/* =========================================================
+  태블릿
+========================================================= */
+
+@media (max-width: 1050px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-summary-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-panel__header {
+    flex-direction: column;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-panel__tools {
+    width: 100%;
+
+    justify-content: flex-start;
+  }
+}
+
+
+/* =========================================================
+  작은 태블릿
+========================================================= */
+
+@media (max-width: 900px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-grid {
+    grid-template-columns: 1fr;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-list {
+    max-height: 300px;
+  }
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 760px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-panel {
+    margin-bottom: 10px;
+    padding: 12px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-panel__header {
+    gap: 10px;
+
+    margin-bottom: 11px;
+    padding-bottom: 10px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-panel__header h4 {
+    font-size: 15px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-panel__header p {
+    font-size: 10px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-panel__tools {
+    display: grid;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+
+    gap: 6px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  #efficiencyMorningMeetingCoalSelectedCount,
+
+  #efficiencyMorningMeetingView
+  #clearEfficiencyMorningMeetingCoalSelectionButton {
+    width: 100%;
+    min-width: 0;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-summary {
+    padding: 10px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-summary__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-summary-card {
+    min-height: 55px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-column__header {
+    min-height: 54px;
+    padding: 9px 10px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-column__header
+  strong {
+    font-size: 12px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-list {
+    min-height: 90px;
+    max-height: 270px;
+    padding: 8px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-item {
+    padding: 8px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-item__text {
+    font-size: 10px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-coal-item__sub-line {
+    font-size: 9px;
+  }
+}
