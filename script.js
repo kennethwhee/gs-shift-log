@@ -122973,3 +122973,851 @@ if (
     .updateIssueAggregateDisplayTitles =
     scheduleIssueAggregateTitleUpdate;
 })();
+
+/* =========================================================
+  효율팀 오전회의 취합
+  팀별 엑셀 파일 선택·드래그 앤 드롭
+
+  지원:
+  - 카드 클릭 후 파일 선택
+  - 카드 위로 XLSX 파일 드래그
+  - 파일명 표시
+  - 첨부 개수 표시
+  - 4개 파일 완료 시 자료 분석 버튼 활성화
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingFileUpload() {
+  "use strict";
+
+
+  const TEAM_CONFIG = {
+    safety: {
+      name:
+        "안전팀",
+
+      inputId:
+        "efficiencyMorningMeetingSafetyFile",
+
+      statusId:
+        "efficiencyMorningMeetingSafetyStatus"
+    },
+
+    environment: {
+      name:
+        "환경팀",
+
+      inputId:
+        "efficiencyMorningMeetingEnvironmentFile",
+
+      statusId:
+        "efficiencyMorningMeetingEnvironmentStatus"
+    },
+
+    mechanical: {
+      name:
+        "기계팀",
+
+      inputId:
+        "efficiencyMorningMeetingMechanicalFile",
+
+      statusId:
+        "efficiencyMorningMeetingMechanicalStatus"
+    },
+
+    electrical: {
+      name:
+        "전기제어팀",
+
+      inputId:
+        "efficiencyMorningMeetingElectricalFile",
+
+      statusId:
+        "efficiencyMorningMeetingElectricalStatus"
+    }
+  };
+
+
+  const uploadState =
+    window.efficiencyMorningMeetingUploadState ||
+    {
+      files: {}
+    };
+
+
+  window.efficiencyMorningMeetingUploadState =
+    uploadState;
+
+
+  function isExcelWorkbookFile(
+    file
+  ) {
+    if (
+      !file
+    ) {
+      return false;
+    }
+
+
+    const fileName =
+      String(
+        file.name ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    return fileName.endsWith(
+      ".xlsx"
+    );
+  }
+
+
+  function getMorningMeetingElements() {
+    return {
+      view:
+        document.getElementById(
+          "efficiencyMorningMeetingView"
+        ),
+
+      uploadCount:
+        document.getElementById(
+          "efficiencyMorningMeetingUploadCount"
+        ),
+
+      analyzeButton:
+        document.getElementById(
+          "analyzeEfficiencyMorningMeetingButton"
+        ),
+
+      createButton:
+        document.getElementById(
+          "createEfficiencyMorningMeetingWorkbookButton"
+        ),
+
+      resetButton:
+        document.getElementById(
+          "resetEfficiencyMorningMeetingButton"
+        ),
+
+      message:
+        document.getElementById(
+          "efficiencyMorningMeetingMessage"
+        ),
+
+      error:
+        document.getElementById(
+          "efficiencyMorningMeetingError"
+        ),
+
+      preview:
+        document.getElementById(
+          "efficiencyMorningMeetingPreview"
+        ),
+
+      previewList:
+        document.getElementById(
+          "efficiencyMorningMeetingPreviewList"
+        ),
+
+      previewCount:
+        document.getElementById(
+          "efficiencyMorningMeetingPreviewCount"
+        )
+    };
+  }
+
+
+  function hideMorningMeetingUploadError() {
+    const {
+      error
+    } =
+      getMorningMeetingElements();
+
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+
+    error.textContent =
+      "";
+
+
+    error.hidden =
+      true;
+  }
+
+
+  function showMorningMeetingUploadError(
+    message
+  ) {
+    const {
+      error
+    } =
+      getMorningMeetingElements();
+
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+
+    error.textContent =
+      String(
+        message ||
+        "파일을 확인해 주세요."
+      );
+
+
+    error.hidden =
+      false;
+  }
+
+
+  function updateMorningMeetingUploadSummary() {
+    const {
+      uploadCount,
+      analyzeButton,
+      createButton,
+      message
+    } =
+      getMorningMeetingElements();
+
+
+    const uploadedCount =
+      Object.keys(
+        TEAM_CONFIG
+      )
+        .filter(
+          teamKey => {
+            return Boolean(
+              uploadState.files[
+                teamKey
+              ]
+            );
+          }
+        )
+        .length;
+
+
+    if (
+      uploadCount
+    ) {
+      uploadCount.textContent =
+        `${uploadedCount} / 4`;
+    }
+
+
+    if (
+      analyzeButton
+    ) {
+      analyzeButton.disabled =
+        uploadedCount !==
+        4;
+    }
+
+
+    /*
+      파일이 바뀌면 기존 분석 결과는 무효이므로
+      최종 엑셀 만들기는 다시 비활성화한다.
+    */
+
+    if (
+      createButton
+    ) {
+      createButton.disabled =
+        true;
+    }
+
+
+    if (
+      message
+    ) {
+      if (
+        uploadedCount ===
+        0
+      ) {
+        message.textContent =
+          "4개 팀의 엑셀 파일을 첨부해 주세요.";
+      } else if (
+        uploadedCount <
+        4
+      ) {
+        message.textContent =
+          `${uploadedCount}개 팀 첨부 완료 · ${
+            4 -
+            uploadedCount
+          }개 팀의 파일이 더 필요합니다.`;
+      } else {
+        message.textContent =
+          "4개 팀의 파일 첨부가 완료되었습니다. 자료 분석을 눌러주세요.";
+      }
+    }
+  }
+
+
+  function setFileInputFile(
+    input,
+    file
+  ) {
+    if (
+      !input ||
+      !file
+    ) {
+      return;
+    }
+
+
+    try {
+      const transfer =
+        new DataTransfer();
+
+
+      transfer.items.add(
+        file
+      );
+
+
+      input.files =
+        transfer.files;
+    } catch (
+      error
+    ) {
+      /*
+        일부 브라우저에서는 input.files 설정을
+        지원하지 않을 수 있다.
+
+        실제 파일은 uploadState에 별도로 저장하므로
+        취합 기능에는 문제가 없다.
+      */
+    }
+  }
+
+
+  function applyMorningMeetingTeamFile(
+    teamKey,
+    file
+  ) {
+    const config =
+      TEAM_CONFIG[
+        teamKey
+      ];
+
+
+    if (
+      !config
+    ) {
+      return;
+    }
+
+
+    hideMorningMeetingUploadError();
+
+
+    if (
+      !isExcelWorkbookFile(
+        file
+      )
+    ) {
+      showMorningMeetingUploadError(
+        `${config.name} 자료는 XLSX 엑셀 파일만 첨부할 수 있습니다.`
+      );
+
+
+      return;
+    }
+
+
+    const input =
+      document.getElementById(
+        config.inputId
+      );
+
+
+    const status =
+      document.getElementById(
+        config.statusId
+      );
+
+
+    const card =
+      document.querySelector(
+        `[data-morning-meeting-team-card="${teamKey}"]`
+      );
+
+
+    uploadState.files[
+      teamKey
+    ] =
+      file;
+
+
+    setFileInputFile(
+      input,
+      file
+    );
+
+
+    if (
+      card
+    ) {
+      card.classList.remove(
+        "is-dragover"
+      );
+
+
+      card.classList.add(
+        "is-selected",
+        "is-complete"
+      );
+
+
+      const action =
+        card.querySelector(
+          ".efficiency-morning-meeting-upload-card__action"
+        );
+
+
+      if (
+        action
+      ) {
+        action.textContent =
+          "첨부 완료";
+      }
+    }
+
+
+    if (
+      status
+    ) {
+      status.textContent =
+        file.name;
+
+
+      status.title =
+        file.name;
+    }
+
+
+    updateMorningMeetingUploadSummary();
+  }
+
+
+  function resetMorningMeetingFiles() {
+    const elements =
+      getMorningMeetingElements();
+
+
+    uploadState.files =
+      {};
+
+
+    Object.entries(
+      TEAM_CONFIG
+    )
+      .forEach(
+        ([
+          teamKey,
+          config
+        ]) => {
+          const input =
+            document.getElementById(
+              config.inputId
+            );
+
+
+          const status =
+            document.getElementById(
+              config.statusId
+            );
+
+
+          const card =
+            document.querySelector(
+              `[data-morning-meeting-team-card="${teamKey}"]`
+            );
+
+
+          if (
+            input
+          ) {
+            input.value =
+              "";
+          }
+
+
+          if (
+            status
+          ) {
+            status.textContent =
+              "엑셀 파일을 선택하거나 끌어다 놓으세요.";
+
+
+            status.removeAttribute(
+              "title"
+            );
+          }
+
+
+          if (
+            card
+          ) {
+            card.classList.remove(
+              "is-selected",
+              "is-complete",
+              "is-dragover"
+            );
+
+
+            const action =
+              card.querySelector(
+                ".efficiency-morning-meeting-upload-card__action"
+              );
+
+
+            if (
+              action
+            ) {
+              action.textContent =
+                "선택 · 드롭";
+            }
+          }
+        }
+      );
+
+
+    if (
+      elements.preview
+    ) {
+      elements.preview.hidden =
+        true;
+    }
+
+
+    if (
+      elements.previewList
+    ) {
+      elements.previewList.innerHTML =
+        "";
+    }
+
+
+    if (
+      elements.previewCount
+    ) {
+      elements.previewCount.textContent =
+        "0개 팀";
+    }
+
+
+    if (
+      elements.createButton
+    ) {
+      elements.createButton.disabled =
+        true;
+    }
+
+
+    hideMorningMeetingUploadError();
+
+    updateMorningMeetingUploadSummary();
+  }
+
+
+  function bindMorningMeetingTeamCard(
+    teamKey,
+    config
+  ) {
+    const card =
+      document.querySelector(
+        `[data-morning-meeting-team-card="${teamKey}"]`
+      );
+
+
+    const input =
+      document.getElementById(
+        config.inputId
+      );
+
+
+    if (
+      !card ||
+      !input
+    ) {
+      return;
+    }
+
+
+    let dragEnterCount =
+      0;
+
+
+    input.addEventListener(
+      "change",
+
+      () => {
+        const selectedFile =
+          input.files?.[
+            0
+          ];
+
+
+        if (
+          selectedFile
+        ) {
+          applyMorningMeetingTeamFile(
+            teamKey,
+            selectedFile
+          );
+        }
+      }
+    );
+
+
+    card.addEventListener(
+      "dragenter",
+
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        dragEnterCount +=
+          1;
+
+
+        card.classList.add(
+          "is-dragover"
+        );
+      }
+    );
+
+
+    card.addEventListener(
+      "dragover",
+
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        if (
+          event.dataTransfer
+        ) {
+          event.dataTransfer.dropEffect =
+            "copy";
+        }
+
+
+        card.classList.add(
+          "is-dragover"
+        );
+      }
+    );
+
+
+    card.addEventListener(
+      "dragleave",
+
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        dragEnterCount =
+          Math.max(
+            0,
+
+            dragEnterCount -
+            1
+          );
+
+
+        if (
+          dragEnterCount ===
+          0
+        ) {
+          card.classList.remove(
+            "is-dragover"
+          );
+        }
+      }
+    );
+
+
+    card.addEventListener(
+      "drop",
+
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        dragEnterCount =
+          0;
+
+
+        card.classList.remove(
+          "is-dragover"
+        );
+
+
+        const droppedFiles =
+          Array.from(
+            event.dataTransfer?.files ||
+            []
+          );
+
+
+        const droppedFile =
+          droppedFiles[
+            0
+          ];
+
+
+        if (
+          !droppedFile
+        ) {
+          showMorningMeetingUploadError(
+            `${config.name} 카드에 엑셀 파일을 놓아주세요.`
+          );
+
+
+          return;
+        }
+
+
+        applyMorningMeetingTeamFile(
+          teamKey,
+          droppedFile
+        );
+      }
+    );
+  }
+
+
+  function preventBrowserFromOpeningDroppedFile() {
+    const view =
+      document.getElementById(
+        "efficiencyMorningMeetingView"
+      );
+
+
+    if (
+      !view
+    ) {
+      return;
+    }
+
+
+    view.addEventListener(
+      "dragover",
+
+      event => {
+        event.preventDefault();
+      }
+    );
+
+
+    view.addEventListener(
+      "drop",
+
+      event => {
+        /*
+          팀 카드 바깥에 파일을 놓으면 브라우저가
+          해당 파일을 새 화면으로 열지 않게 방지한다.
+        */
+
+        const teamCard =
+          event.target.closest(
+            "[data-morning-meeting-team-card]"
+          );
+
+
+        if (
+          !teamCard
+        ) {
+          event.preventDefault();
+
+
+          showMorningMeetingUploadError(
+            "파일을 해당 팀 카드 위에 끌어다 놓아주세요."
+          );
+        }
+      }
+    );
+  }
+
+
+  function initialize() {
+    const {
+      view,
+      resetButton
+    } =
+      getMorningMeetingElements();
+
+
+    if (
+      !view ||
+      view.dataset
+        .morningMeetingUploadInitialized ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    view.dataset
+      .morningMeetingUploadInitialized =
+      "true";
+
+
+    Object.entries(
+      TEAM_CONFIG
+    )
+      .forEach(
+        ([
+          teamKey,
+          config
+        ]) => {
+          bindMorningMeetingTeamCard(
+            teamKey,
+            config
+          );
+        }
+      );
+
+
+    preventBrowserFromOpeningDroppedFile();
+
+
+    resetButton?.addEventListener(
+      "click",
+      resetMorningMeetingFiles
+    );
+
+
+    updateMorningMeetingUploadSummary();
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once: true
+      }
+    );
+  } else {
+    initialize();
+  }
+})();
