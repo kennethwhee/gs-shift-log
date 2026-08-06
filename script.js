@@ -108054,7 +108054,7 @@ function renderArmRollBoxChart() {
 
 
   /* =====================================================
-    그래프 선 종류
+    그래프 색상 최종 기준
 
     파랑 실선:
     1호기 ARM ROLL
@@ -108119,10 +108119,6 @@ function renderArmRollBoxChart() {
       label:
         "2호기 SCRAP",
 
-      /*
-        50% 요청선의 주황색과 겹치지 않도록
-        분홍색으로 분리한다.
-      */
       color:
         "#d95f9f",
 
@@ -108133,10 +108129,13 @@ function renderArmRollBoxChart() {
 
 
   /* =====================================================
-    그래프 범례
+    범례 출력
 
-    CSS 중복 선언의 영향을 최소화하기 위해
-    중요 스타일은 JavaScript에서 직접 적용한다.
+    중요:
+    별도 i 태그를 만들지 않는다.
+
+    기존 CSS의 span::before 한 개만 사용해서
+    그래프 선과 범례 색상이 정확히 일치하게 한다.
   ====================================================== */
 
   const legend =
@@ -108187,41 +108186,34 @@ function renderArmRollBoxChart() {
                 : "-";
 
 
+            const lineClass =
+              series.dash
+                ? "is-dashed"
+                : "is-solid";
+
+
             return `
               <span
-                class="arm-roll-box-chart-legend-item"
-                data-arm-roll-chart-legend-item
+                class="
+                  arm-roll-box-combined-legend-item
+                  ${lineClass}
+                "
+                style="
+                  --arm-roll-legend-color:
+                  ${series.color};
+                "
               >
-
-                <i
-                  data-arm-roll-chart-legend-swatch
-                  data-legend-line-type="${
-                    series.dash
-                      ? "dashed"
-                      : "solid"
-                  }"
-                  data-legend-color="${series.color}"
-                  aria-hidden="true"
-                ></i>
-
-
-                <b
-                  data-arm-roll-chart-legend-label
-                >
+                <b>
                   ${escapeArmRollBoxHtml(
                     series.label
                   )}
                 </b>
 
-
-                <strong
-                  data-arm-roll-chart-legend-value
-                >
+                <strong>
                   현재 ${escapeArmRollBoxHtml(
                     latestLevelText
                   )}
                 </strong>
-
               </span>
             `;
           }
@@ -108237,510 +108229,55 @@ function renderArmRollBoxChart() {
 
       <span
         class="
-          arm-roll-box-chart-legend-item
+          arm-roll-box-combined-legend-line
+          is-reference-line
           is-request
+          is-dashed
         "
-        data-arm-roll-chart-legend-item
+        style="
+          --arm-roll-legend-color:
+          #d68a23;
+        "
       >
-
-        <i
-          data-arm-roll-chart-legend-swatch
-          data-legend-line-type="dashed"
-          data-legend-color="#d68a23"
-          aria-hidden="true"
-        ></i>
-
-        <b
-          data-arm-roll-chart-legend-label
-        >
+        <b>
           50% 요청선
         </b>
-
       </span>
 
 
       <span
         class="
-          arm-roll-box-chart-legend-item
+          arm-roll-box-combined-legend-line
+          is-reference-line
           is-warning
+          is-dashed
         "
-        data-arm-roll-chart-legend-item
+        style="
+          --arm-roll-legend-color:
+          #d34b4b;
+        "
       >
-
-        <i
-          data-arm-roll-chart-legend-swatch
-          data-legend-line-type="dashed"
-          data-legend-color="#d34b4b"
-          aria-hidden="true"
-        ></i>
-
-        <b
-          data-arm-roll-chart-legend-label
-        >
+        <b>
           70% 경보선
         </b>
-
       </span>
 
 
       <span
         class="
-          arm-roll-box-chart-legend-item
-          is-replacement
+          arm-roll-box-combined-legend-marker
+          is-replacement-marker
         "
-        data-arm-roll-chart-legend-item
+        style="
+          --arm-roll-legend-color:
+          #249064;
+        "
       >
-
-        <i
-          data-arm-roll-chart-legend-swatch
-          data-legend-line-type="marker"
-          data-legend-color="#249064"
-          aria-hidden="true"
-        ></i>
-
-        <b
-          data-arm-roll-chart-legend-label
-        >
+        <b>
           교체일
         </b>
-
       </span>
     `;
-
-
-    const isMobile =
-      window.matchMedia(
-        "(max-width: 760px)"
-      ).matches;
-
-
-    /* 범례 전체 */
-
-    legend.style.setProperty(
-      "display",
-      "flex",
-      "important"
-    );
-
-
-    legend.style.setProperty(
-      "align-items",
-      "center",
-      "important"
-    );
-
-
-    legend.style.setProperty(
-      "justify-content",
-      isMobile
-        ? "flex-start"
-        : "flex-end",
-      "important"
-    );
-
-
-    legend.style.setProperty(
-      "flex-wrap",
-      "wrap",
-      "important"
-    );
-
-
-    legend.style.setProperty(
-      "gap",
-      isMobile
-        ? "5px"
-        : "8px",
-      "important"
-    );
-
-
-    legend.style.setProperty(
-      "max-width",
-      isMobile
-        ? "100%"
-        : "calc(100% - 180px)",
-      "important"
-    );
-
-
-    /* 범례 각 항목 */
-
-    legend
-      .querySelectorAll(
-        "[data-arm-roll-chart-legend-item]"
-      )
-      .forEach(
-        item => {
-          item.style.setProperty(
-            "display",
-            "inline-flex",
-            "important"
-          );
-
-
-          item.style.setProperty(
-            "align-items",
-            "center",
-            "important"
-          );
-
-
-          item.style.setProperty(
-            "justify-content",
-            "center",
-            "important"
-          );
-
-
-          item.style.setProperty(
-            "gap",
-            isMobile
-              ? "5px"
-              : "7px",
-            "important"
-          );
-
-
-          item.style.setProperty(
-            "min-height",
-            isMobile
-              ? "25px"
-              : "31px",
-            "important"
-          );
-
-
-          item.style.setProperty(
-            "padding",
-            isMobile
-              ? "0 7px"
-              : "0 10px",
-            "important"
-          );
-
-
-          item.style.setProperty(
-            "border",
-            "1px solid #d6e0e9",
-            "important"
-          );
-
-
-          item.style.setProperty(
-            "border-radius",
-            "7px",
-            "important"
-          );
-
-
-          item.style.setProperty(
-            "background",
-            "#ffffff",
-            "important"
-          );
-
-
-          item.style.setProperty(
-            "white-space",
-            "nowrap",
-            "important"
-          );
-
-
-          item.style.setProperty(
-            "box-shadow",
-            "0 1px 3px rgba(30, 54, 78, 0.05)",
-            "important"
-          );
-        }
-      );
-
-
-    /* 색상 선과 교체 원 */
-
-    legend
-      .querySelectorAll(
-        "[data-arm-roll-chart-legend-swatch]"
-      )
-      .forEach(
-        swatch => {
-          const lineType =
-            String(
-              swatch.dataset
-                .legendLineType ||
-              "solid"
-            );
-
-
-          const color =
-            String(
-              swatch.dataset
-                .legendColor ||
-              "#8795a5"
-            );
-
-
-          swatch.style.setProperty(
-            "display",
-            "inline-block",
-            "important"
-          );
-
-
-          swatch.style.setProperty(
-            "flex",
-            "0 0 auto",
-            "important"
-          );
-
-
-          if (
-            lineType ===
-              "marker"
-          ) {
-            swatch.style.setProperty(
-              "width",
-              isMobile
-                ? "9px"
-                : "11px",
-              "important"
-            );
-
-
-            swatch.style.setProperty(
-              "height",
-              isMobile
-                ? "9px"
-                : "11px",
-              "important"
-            );
-
-
-            swatch.style.setProperty(
-              "border-radius",
-              "50%",
-              "important"
-            );
-
-
-            swatch.style.setProperty(
-              "background",
-              color,
-              "important"
-            );
-
-
-            swatch.style.setProperty(
-              "box-shadow",
-              `0 0 0 3px ${color}22`,
-              "important"
-            );
-
-
-            return;
-          }
-
-
-          swatch.style.setProperty(
-            "width",
-            isMobile
-              ? "18px"
-              : "23px",
-            "important"
-          );
-
-
-          swatch.style.setProperty(
-            "height",
-            isMobile
-              ? "3px"
-              : "4px",
-            "important"
-          );
-
-
-          swatch.style.setProperty(
-            "border-radius",
-            "999px",
-            "important"
-          );
-
-
-          if (
-            lineType ===
-              "dashed"
-          ) {
-            swatch.style.setProperty(
-              "background-image",
-              `
-                repeating-linear-gradient(
-                  to right,
-                  ${color} 0,
-                  ${color} 5px,
-                  transparent 5px,
-                  transparent 8px
-                )
-              `,
-              "important"
-            );
-
-
-            swatch.style.setProperty(
-              "background-color",
-              "transparent",
-              "important"
-            );
-
-          } else {
-            swatch.style.setProperty(
-              "background",
-              color,
-              "important"
-            );
-          }
-        }
-      );
-
-
-    /* 범례 이름 */
-
-    legend
-      .querySelectorAll(
-        "[data-arm-roll-chart-legend-label]"
-      )
-      .forEach(
-        label => {
-          label.style.setProperty(
-            "margin",
-            "0",
-            "important"
-          );
-
-
-          label.style.setProperty(
-            "padding",
-            "0",
-            "important"
-          );
-
-
-          label.style.setProperty(
-            "color",
-            "#2d425a",
-            "important"
-          );
-
-
-          label.style.setProperty(
-            "font-size",
-            isMobile
-              ? "10px"
-              : "12px",
-            "important"
-          );
-
-
-          label.style.setProperty(
-            "font-weight",
-            "900",
-            "important"
-          );
-
-
-          label.style.setProperty(
-            "line-height",
-            "1",
-            "important"
-          );
-        }
-      );
-
-
-    /* 현재 레벨 */
-
-    legend
-      .querySelectorAll(
-        "[data-arm-roll-chart-legend-value]"
-      )
-      .forEach(
-        value => {
-          value.style.setProperty(
-            "display",
-            "inline-flex",
-            "important"
-          );
-
-
-          value.style.setProperty(
-            "align-items",
-            "center",
-            "important"
-          );
-
-
-          value.style.setProperty(
-            "min-height",
-            isMobile
-              ? "17px"
-              : "21px",
-            "important"
-          );
-
-
-          value.style.setProperty(
-            "padding",
-            isMobile
-              ? "0 4px"
-              : "0 7px",
-            "important"
-          );
-
-
-          value.style.setProperty(
-            "border-radius",
-            "999px",
-            "important"
-          );
-
-
-          value.style.setProperty(
-            "background",
-            "#eef3f7",
-            "important"
-          );
-
-
-          value.style.setProperty(
-            "color",
-            "#40536a",
-            "important"
-          );
-
-
-          value.style.setProperty(
-            "font-size",
-            isMobile
-              ? "8px"
-              : "10px",
-            "important"
-          );
-
-
-          value.style.setProperty(
-            "font-weight",
-            "900",
-            "important"
-          );
-
-
-          value.style.setProperty(
-            "line-height",
-            "1",
-            "important"
-          );
-        }
-      );
   }
 
 
@@ -108802,6 +108339,10 @@ function renderArmRollBoxChart() {
     padding.bottom;
 
 
+  /* =====================================================
+    X 좌표
+  ====================================================== */
+
   const getX = (
     index
   ) => {
@@ -108830,6 +108371,10 @@ function renderArmRollBoxChart() {
     );
   };
 
+
+  /* =====================================================
+    Y 좌표
+  ====================================================== */
 
   const getY = (
     rawLevel
@@ -108864,11 +108409,11 @@ function renderArmRollBoxChart() {
   /* =====================================================
     수평 기준선
 
-    주황:
-    50% 요청선
+    주황 점선:
+    50% 요청
 
-    빨강:
-    70% 경보선
+    빨강 점선:
+    70% 경보
   ====================================================== */
 
   const gridLevels = [
@@ -109123,7 +108668,7 @@ function renderArmRollBoxChart() {
   /* =====================================================
     교체일 표시
 
-    초록 점과 세로 점선으로 표시한다.
+    초록 세로 점선과 초록 원
   ====================================================== */
 
   const replacementDateSet =
@@ -109211,7 +108756,7 @@ function renderArmRollBoxChart() {
   /* =====================================================
     날짜 표시
 
-    최대 7개 정도만 표시한다.
+    최대 7개 정도만 출력한다.
   ====================================================== */
 
   const dateInterval =
