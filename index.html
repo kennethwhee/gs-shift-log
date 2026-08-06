@@ -23,7 +23,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260807-coal-list-same-as-shift1"
+    href="style.css?v=20260807-morning-auto-final1"
   >
 
 
@@ -57,7 +57,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260807-morning-water-workbook1"
+  src="script.js?v=20260807-morning-auto-final1"
   defer
 ></script>
 
@@ -5820,22 +5820,72 @@
         </div>
 
 
-        <div class="efficiency-morning-meeting-auto-card__meta">
+<div class="efficiency-morning-meeting-auto-card__meta">
 
-          <small
-            id="efficiencyMorningMeetingAutoWaterDate"
-          >
-            -
-          </small>
+  <!-- =============================================
+    기존 석회석 사용량 기능 날짜 조작
+  ============================================== -->
 
-          <span
-            class="efficiency-morning-meeting-auto-card__badge"
-            id="efficiencyMorningMeetingAutoWaterStatus"
-          >
-            조회 대기
-          </span>
+  <div
+    class="efficiency-morning-meeting-limestone-date-nav"
+  >
 
-        </div>
+    <button
+      type="button"
+      class="efficiency-morning-meeting-limestone-date-button"
+      id="efficiencyMorningMeetingLimestonePreviousButton"
+      title="전날 석회석 사용량"
+    >
+      ‹ 전날
+    </button>
+
+
+    <button
+      type="button"
+      class="
+        efficiency-morning-meeting-limestone-date-button
+        is-today
+      "
+      id="efficiencyMorningMeetingLimestoneTodayButton"
+      title="오늘 석회석 사용량"
+    >
+      오늘
+    </button>
+
+
+    <button
+      type="button"
+      class="efficiency-morning-meeting-limestone-date-button"
+      id="efficiencyMorningMeetingLimestoneNextButton"
+      title="다음날 석회석 사용량"
+    >
+      다음날 ›
+    </button>
+
+  </div>
+
+
+  <div
+    class="efficiency-morning-meeting-limestone-date-state"
+  >
+
+    <small
+      id="efficiencyMorningMeetingAutoLimestoneDate"
+    >
+      -
+    </small>
+
+
+    <span
+      class="efficiency-morning-meeting-auto-card__badge"
+      id="efficiencyMorningMeetingAutoLimestoneStatus"
+    >
+      조회 대기
+    </span>
+
+  </div>
+
+</div>
 
       </header>
 
