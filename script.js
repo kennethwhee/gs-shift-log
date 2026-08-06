@@ -136732,16 +136732,22 @@ function getAnalyzedReportDate() {
   }
 
 /* =====================================================
-  TGO·BCO1·BCO2 업무내용 수집
+  교대파트 일반 업무 수집
+
+  표시 보직:
+  - TGO
+  - BCO1
+  - BCO2
 
   포함:
-  - handoverEntries 일반 업무
-  - tmEntries TM·BM·CM 발행 및 작업
-  - 기존 entries 호환 자료
+  - 일반 업무
+  - 인계사항
 
   제외:
   - 비고
-  - 이전 근무에서 자동으로 가져온 중복 항목
+  - TM·BM·CM 발행
+  - TM·BM·CM 작업
+  - 전 근무에서 자동으로 가져온 항목
 ===================================================== */
 
 function collectLogEntries(
@@ -136761,11 +136767,6 @@ function collectLogEntries(
   }
 
 
-  /*
-    일반 업무를 먼저 보여주고
-    발행·작업 항목을 그다음에 보여준다.
-  */
-
   const sources = [
     {
       name:
@@ -136773,14 +136774,6 @@ function collectLogEntries(
 
       items:
         log?.handoverEntries
-    },
-
-    {
-      name:
-        "tmEntries",
-
-      items:
-        log?.tmEntries
     },
 
     {
@@ -136805,193 +136798,199 @@ function collectLogEntries(
         )
           ? source.items
           : []
-      )
-        .forEach(
-          (
-            rawEntry,
-            entryIndex
-          ) => {
-            const entry =
-              rawEntry &&
-              typeof rawEntry ===
-                "object" &&
-              !Array.isArray(
-                rawEntry
-              )
-                ? rawEntry
-                : {
-                    content:
-                      String(
-                        rawEntry ||
-                        ""
-                      )
-                  };
+      ).forEach(
+        (
+          rawEntry,
+          entryIndex
+        ) => {
+          const entry =
+            rawEntry &&
+            typeof rawEntry ===
+              "object" &&
+            !Array.isArray(
+              rawEntry
+            )
+              ? rawEntry
+              : {
+                  content:
+                    String(
+                      rawEntry ||
+                      ""
+                    )
+                };
 
 
-            const content =
-              normalizeText(
-                entry.content ||
-                entry.text
+          const content =
+            normalizeText(
+              entry.content ||
+              entry.text
+            );
+
+
+          if (
+            !content
+          ) {
+            return;
+          }
+
+
+          const rawCategory =
+            normalizeText(
+              entry.category
+            );
+
+
+          const compactCategory =
+            rawCategory
+              .toUpperCase()
+              .replace(
+                /\s+/g,
+                ""
               );
 
 
-            if (
-              !content
-            ) {
-              return;
-            }
+          /* 비고 제외 */
+
+          if (
+            compactCategory.includes(
+              "비고"
+            )
+          ) {
+            return;
+          }
 
 
-            const rawCategory =
-              normalizeText(
-                entry.category
-              );
+          /*
+            발행 내역과 작업 항목 제외
+
+            발행 내역은 오른쪽 TM 사항에서
+            별도로 가져온다.
+          */
+
+          if (
+            /^(TM|BM|CM)(발행|작업)/.test(
+              compactCategory
+            )
+          ) {
+            return;
+          }
 
 
-            /*
-              비고만 제외한다.
+          /* 이전 근무 자동 가져오기 항목 제외 */
 
-              인계사항은 현재 구조에서 일반 업무내용을
-              저장하는 분류이므로 제외하면 안 된다.
-            */
-
-            if (
-              /비고/.test(
-                rawCategory
-              )
-            ) {
-              return;
-            }
+          const sourceType =
+            normalizeText(
+              entry.source
+            )
+              .toLowerCase();
 
 
-            /*
-              전 근무에서 자동으로 가져온 항목은
-              중복 선택 방지를 위해 제외한다.
-            */
-
-            const sourceType =
-              normalizeText(
-                entry.source
-              )
-                .toLowerCase();
-
-
-            if (
-              sourceType.includes(
-                "previous-shift"
-              ) ||
-              normalizeText(
-                entry.inheritedFromDate
-              )
-            ) {
-              return;
-            }
+          if (
+            sourceType.includes(
+              "previous-shift"
+            ) ||
+            normalizeText(
+              entry.inheritedFromDate
+            )
+          ) {
+            return;
+          }
 
 
-            const time =
-              normalizeText(
-                entry.time
-              );
+          const time =
+            normalizeText(
+              entry.time
+            );
 
 
-            const tag =
-              normalizeText(
-                entry.tag
-              )
-                .toUpperCase();
+          const tag =
+            normalizeText(
+              entry.tag
+            )
+              .toUpperCase();
 
 
-            let category =
-              rawCategory;
+          let category =
+            rawCategory;
 
 
-            /*
-              화면에는 인계사항 대신
-              업무로 표시한다.
-            */
-
-            if (
-              /인계사항/.test(
-                category
-              )
-            ) {
-              category =
-                "업무";
-            }
+          if (
+            /인계사항/.test(
+              category
+            ) ||
+            !category
+          ) {
+            category =
+              "업무";
+          }
 
 
-            if (
-              !category
-            ) {
-              category =
-                source.name ===
-                  "tmEntries"
-                  ? "발행·작업"
-                  : "업무";
-            }
+          const duplicateKey = [
+            role,
+            time,
+            tag,
 
-
-            const duplicateKey = [
-              time,
-              tag,
-              content.replace(
+            content
+              .replace(
                 /\s+/g,
                 " "
               )
-            ].join(
-              "||"
-            );
+              .toLowerCase()
+          ].join(
+            "||"
+          );
 
 
-            if (
-              uniqueItems.has(
-                duplicateKey
-              )
-            ) {
-              return;
-            }
-
-
-            uniqueItems.set(
-              duplicateKey,
-              {
-                shift,
-                role,
-
-                author:
-                  normalizeText(
-                    log?.author
-                  ),
-
-                status:
-                  normalizeText(
-                    log?.status
-                  ),
-
-                time,
-                tag,
-                category,
-                content,
-
-                sourceLogId:
-                  normalizeText(
-                    log?.id
-                  ),
-
-                sourceEntryId:
-                  normalizeText(
-                    entry?.id
-                  ),
-
-                sourceCollection:
-                  source.name,
-
-                sourceIndex:
-                  entryIndex
-              }
-            );
+          if (
+            uniqueItems.has(
+              duplicateKey
+            )
+          ) {
+            return;
           }
-        );
+
+
+          uniqueItems.set(
+            duplicateKey,
+
+            {
+              shift,
+              role,
+
+              author:
+                normalizeText(
+                  log?.author
+                ),
+
+              status:
+                normalizeText(
+                  log?.status
+                ),
+
+              time,
+              tag,
+              category,
+              content,
+
+              sourceLogId:
+                normalizeText(
+                  log?.id
+                ),
+
+              sourceEntryId:
+                normalizeText(
+                  entry?.id
+                ),
+
+              sourceCollection:
+                source.name,
+
+              sourceIndex:
+                entryIndex
+            }
+          );
+        }
+      );
     }
   );
 
@@ -137001,20 +137000,30 @@ function collectLogEntries(
   ];
 }
 
-/* =====================================================
-  교대파트 TM 항목 판별
 
-  TM 발행·TM 작업은 교대파트 일반 업무에서 제외하고
-  운탄일지 화면 오른쪽 TM 사항으로 이동한다.
+/* =====================================================
+  발행 구분 정규화
+
+  포함:
+  - TM 발행
+  - BM 발행
+  - CM 발행
+
+  제외:
+  - TM 작업
+  - BM 작업
+  - CM 작업
 ===================================================== */
 
-function isMorningMeetingShiftTmItem(
-  item
+function normalizeMorningMeetingPublishedCategory(
+  category
 ) {
-  const category =
-    normalizeText(
-      item?.category
+  const compactCategory =
+    String(
+      category ||
+      ""
     )
+      .trim()
       .toUpperCase()
       .replace(
         /\s+/g,
@@ -137022,30 +137031,834 @@ function isMorningMeetingShiftTmItem(
       );
 
 
-  const content =
-    normalizeText(
-      item?.content
-    )
-      .toUpperCase()
-      .replace(
-        /\s+/g,
-        ""
-      );
-
-
-  return (
-    category.startsWith(
-      "TM"
-    ) ||
-    content.includes(
+  if (
+    compactCategory.startsWith(
       "TM발행"
-    ) ||
-    content.includes(
-      "TM작업"
     )
-  );
+  ) {
+    return "TM 발행";
+  }
+
+
+  if (
+    compactCategory.startsWith(
+      "BM발행"
+    )
+  ) {
+    return "BM 발행";
+  }
+
+
+  if (
+    compactCategory.startsWith(
+      "CM발행"
+    )
+  ) {
+    return "CM 발행";
+  }
+
+
+  return "";
 }
 
+
+/* =====================================================
+  모든 보직의 발행 내역 수집
+
+  대상:
+  - 파트장
+  - TGO
+  - BCO1
+  - BCO2
+  - TO
+  - BO1
+  - BO2
+===================================================== */
+
+function collectMorningMeetingPublishedEntries(
+  log,
+  shift
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    return [];
+  }
+
+
+  const allowedRoles = [
+    "파트장",
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  /*
+    현재 분리 배열과 과거 entries 구조를
+    모두 처리하기 위해 기존 공통 함수를 사용한다.
+  */
+
+  const sourceEntries =
+    typeof getMemberLogEntriesForImport ===
+      "function"
+      ? getMemberLogEntriesForImport(
+          log
+        )
+      : [
+          ...(
+            Array.isArray(
+              log.tmEntries
+            )
+              ? log.tmEntries.map(
+                  entry => {
+                    return {
+                      ...entry,
+
+                      category:
+                        entry?.category ||
+                        "TM 발행"
+                    };
+                  }
+                )
+              : []
+          ),
+
+          ...(
+            Array.isArray(
+              log.entries
+            )
+              ? log.entries
+              : []
+          )
+        ];
+
+
+  const result =
+    [];
+
+
+  sourceEntries.forEach(
+    (
+      rawEntry,
+      entryIndex
+    ) => {
+      const entry =
+        rawEntry &&
+        typeof rawEntry ===
+          "object"
+          ? rawEntry
+          : {
+              content:
+                String(
+                  rawEntry ||
+                  ""
+                )
+            };
+
+
+      const category =
+        normalizeMorningMeetingPublishedCategory(
+          entry.category
+        );
+
+
+      /*
+        TM·BM·CM 발행만 허용한다.
+
+        TM·BM·CM 작업은 category가 빈 값이 되므로
+        이 위치에서 자동 제외된다.
+      */
+
+      if (
+        !category
+      ) {
+        return;
+      }
+
+
+      const content =
+        normalizeText(
+          entry.content ||
+          entry.text
+        );
+
+
+      if (
+        !content
+      ) {
+        return;
+      }
+
+
+      const sourceType =
+        normalizeText(
+          entry.source
+        )
+          .toLowerCase();
+
+
+      if (
+        sourceType.includes(
+          "previous-shift"
+        ) ||
+        normalizeText(
+          entry.inheritedFromDate
+        )
+      ) {
+        return;
+      }
+
+
+      const role =
+        normalizeMemberLogRole(
+          entry.importedFromRole ||
+          entry.role ||
+          log.role ||
+          ""
+        );
+
+
+      if (
+        !allowedRoles.includes(
+          role
+        )
+      ) {
+        return;
+      }
+
+
+      result.push({
+        shift,
+        role,
+
+        author:
+          normalizeText(
+            entry.importedFromAuthor ||
+            log.author
+          ),
+
+        time:
+          normalizeText(
+            entry.time
+          ),
+
+        tag:
+          normalizeText(
+            entry.tag
+          )
+            .toUpperCase(),
+
+        category,
+        content,
+
+        sourceType:
+          "shift",
+
+        sourceLabel:
+          "업무일지 발행내역",
+
+        sourceLogId:
+          normalizeText(
+            entry.importedFromLogId ||
+            log.id
+          ),
+
+        sourceEntryId:
+          normalizeText(
+            entry.id
+          ),
+
+        sourceIndex:
+          entryIndex,
+
+        subLines:
+          []
+      });
+    }
+  );
+
+
+  return result;
+}
+
+
+/* =====================================================
+  발행 내역 내용 유사도
+===================================================== */
+
+function calculateMorningMeetingPublishedSimilarity(
+  firstContent,
+  secondContent
+) {
+  if (
+    typeof calculateLegacyContentSimilarity ===
+      "function"
+  ) {
+    return calculateLegacyContentSimilarity(
+      firstContent,
+      secondContent
+    );
+  }
+
+
+  const normalizeComparisonText =
+    value => {
+      return String(
+        value ||
+        ""
+      )
+        .toLowerCase()
+        .replace(
+          /^\s*\d+\s*[.)\-:]\s*/,
+          ""
+        )
+        .replace(
+          /\b(?:[01]?\d|2[0-3]):[0-5]\d\b/g,
+          ""
+        )
+        .replace(
+          /[^a-z0-9가-힣]/g,
+          ""
+        )
+        .trim();
+    };
+
+
+  const firstText =
+    normalizeComparisonText(
+      firstContent
+    );
+
+
+  const secondText =
+    normalizeComparisonText(
+      secondContent
+    );
+
+
+  if (
+    !firstText ||
+    !secondText
+  ) {
+    return 0;
+  }
+
+
+  if (
+    firstText ===
+    secondText
+  ) {
+    return 1;
+  }
+
+
+  const shorterText =
+    firstText.length <=
+      secondText.length
+      ? firstText
+      : secondText;
+
+
+  const longerText =
+    firstText.length >
+      secondText.length
+      ? firstText
+      : secondText;
+
+
+  if (
+    longerText.includes(
+      shorterText
+    )
+  ) {
+    return (
+      shorterText.length /
+      Math.max(
+        longerText.length,
+        1
+      )
+    );
+  }
+
+
+  return 0;
+}
+
+
+/* =====================================================
+  발행 내역 상·하위 보직 중복 제거
+
+  TGO  > TO
+  BCO1 > BO1
+  BCO2 > BO2
+
+  조건:
+  - 같은 근무
+  - 같은 발행 구분
+  - 내용 유사도 70% 이상
+
+  결과:
+  - 하위 보직 항목 제외
+  - 상위 보직 항목 유지
+===================================================== */
+
+function filterMorningMeetingPublishedEntries(
+  entries
+) {
+  const roleOrder = {
+    파트장:
+      1,
+
+    TGO:
+      2,
+
+    BCO1:
+      3,
+
+    BCO2:
+      4,
+
+    TO:
+      5,
+
+    BO1:
+      6,
+
+    BO2:
+      7
+  };
+
+
+  const upperRoleMap = {
+    TO:
+      "TGO",
+
+    BO1:
+      "BCO1",
+
+    BO2:
+      "BCO2"
+  };
+
+
+  const sourceEntries =
+    Array.isArray(
+      entries
+    )
+      ? entries
+      : [];
+
+
+  /* 같은 보직 내부의 완전 중복 제거 */
+
+  const uniqueMap =
+    new Map();
+
+
+  sourceEntries.forEach(
+    entry => {
+      const normalizedContent =
+        typeof normalizeMemberImportContent ===
+          "function"
+          ? normalizeMemberImportContent(
+              entry.content
+            )
+          : String(
+              entry.content ||
+              ""
+            )
+              .toLowerCase()
+              .replace(
+                /\s+/g,
+                " "
+              )
+              .trim();
+
+
+      const uniqueKey = [
+        entry.shift,
+        entry.role,
+        entry.category,
+        entry.time,
+        entry.tag,
+        normalizedContent
+      ].join(
+        "||"
+      );
+
+
+      if (
+        !uniqueMap.has(
+          uniqueKey
+        )
+      ) {
+        uniqueMap.set(
+          uniqueKey,
+          entry
+        );
+      }
+    }
+  );
+
+
+  const uniqueEntries = [
+    ...uniqueMap.values()
+  ];
+
+
+  const filteredEntries =
+    uniqueEntries.filter(
+      entry => {
+        const upperRole =
+          upperRoleMap[
+            entry.role
+          ];
+
+
+        /*
+          파트장·TGO·BCO1·BCO2는
+          하위 보직이 아니므로 그대로 유지한다.
+        */
+
+        if (
+          !upperRole
+        ) {
+          return true;
+        }
+
+
+        const hasSimilarUpperEntry =
+          uniqueEntries.some(
+            upperEntry => {
+              if (
+                upperEntry.role !==
+                  upperRole ||
+                upperEntry.shift !==
+                  entry.shift ||
+                upperEntry.category !==
+                  entry.category
+              ) {
+                return false;
+              }
+
+
+              const similarity =
+                calculateMorningMeetingPublishedSimilarity(
+                  upperEntry.content,
+                  entry.content
+                );
+
+
+              return similarity >=
+                0.7;
+            }
+          );
+
+
+        return !hasSimilarUpperEntry;
+      }
+    );
+
+
+  filteredEntries.sort(
+    (
+      first,
+      second
+    ) => {
+      const shiftDifference =
+        (
+          SHIFT_ORDER[
+            first.shift
+          ] ||
+          99
+        ) -
+        (
+          SHIFT_ORDER[
+            second.shift
+          ] ||
+          99
+        );
+
+
+      if (
+        shiftDifference !==
+          0
+      ) {
+        return shiftDifference;
+      }
+
+
+      const roleDifference =
+        (
+          roleOrder[
+            first.role
+          ] ||
+          99
+        ) -
+        (
+          roleOrder[
+            second.role
+          ] ||
+          99
+        );
+
+
+      if (
+        roleDifference !==
+          0
+      ) {
+        return roleDifference;
+      }
+
+
+      const categoryDifference =
+        String(
+          first.category ||
+          ""
+        ).localeCompare(
+          String(
+            second.category ||
+            ""
+          )
+        );
+
+
+      if (
+        categoryDifference !==
+          0
+      ) {
+        return categoryDifference;
+      }
+
+
+      return String(
+        first.time ||
+        ""
+      ).localeCompare(
+        String(
+          second.time ||
+          ""
+        )
+      );
+    }
+  );
+
+
+  return filteredEntries;
+}
+
+
+/* =====================================================
+  교대파트 일반 업무 + 전체 보직 발행 내역 생성
+===================================================== */
+
+function buildSelectableItems(
+  dayLogs,
+  nightLogs
+) {
+  const workItems =
+    [];
+
+
+  const publishedItems =
+    [];
+
+
+  [
+    [
+      "DS",
+      dayLogs
+    ],
+
+    [
+      "NS",
+      nightLogs
+    ]
+  ].forEach(
+    ([
+      shift,
+      logs
+    ]) => {
+      (
+        Array.isArray(
+          logs
+        )
+          ? logs
+          : []
+      ).forEach(
+        log => {
+          /*
+            교대파트 왼쪽 일반 업무:
+            TGO·BCO1·BCO2만
+          */
+
+          if (
+            TARGET_ROLES.includes(
+              normalizeRole(
+                log?.role
+              )
+            )
+          ) {
+            workItems.push(
+              ...collectLogEntries(
+                log,
+                shift
+              )
+            );
+          }
+
+
+          /*
+            오른쪽 TM 사항:
+            모든 보직의 발행 내역
+          */
+
+          publishedItems.push(
+            ...collectMorningMeetingPublishedEntries(
+              log,
+              shift
+            )
+          );
+        }
+      );
+    }
+  );
+
+
+  workItems.sort(
+    (
+      first,
+      second
+    ) => {
+      const shiftDifference =
+        (
+          SHIFT_ORDER[
+            first.shift
+          ] ||
+          99
+        ) -
+        (
+          SHIFT_ORDER[
+            second.shift
+          ] ||
+          99
+        );
+
+
+      if (
+        shiftDifference !==
+          0
+      ) {
+        return shiftDifference;
+      }
+
+
+      const roleDifference =
+        (
+          ROLE_ORDER[
+            first.role
+          ] ||
+          99
+        ) -
+        (
+          ROLE_ORDER[
+            second.role
+          ] ||
+          99
+        );
+
+
+      if (
+        roleDifference !==
+          0
+      ) {
+        return roleDifference;
+      }
+
+
+      return String(
+        first.time ||
+        ""
+      ).localeCompare(
+        String(
+          second.time ||
+          ""
+        )
+      );
+    }
+  );
+
+
+  const filteredPublishedItems =
+    filterMorningMeetingPublishedEntries(
+      publishedItems
+    );
+
+
+  const state =
+    getState();
+
+
+  state.shiftPart.tmItems =
+    filteredPublishedItems.map(
+      (
+        item,
+        itemIndex
+      ) => {
+        return {
+          ...item,
+
+          id:
+            `morning-published-item-${itemIndex}`
+        };
+      }
+    );
+
+
+  window.setTimeout(
+    () => {
+      document.dispatchEvent(
+        new CustomEvent(
+          "efficiencyMorningMeetingShiftLogsLoaded",
+
+          {
+            detail: {
+              workCount:
+                workItems.length,
+
+              tmCount:
+                state.shiftPart
+                  .tmItems
+                  .length
+            }
+          }
+        )
+      );
+    },
+    0
+  );
+
+
+  return workItems.map(
+    (
+      item,
+      itemIndex
+    ) => {
+      return {
+        ...item,
+
+        id:
+          `morning-shift-item-${itemIndex}`
+      };
+    }
+  );
+}
 
 /* =====================================================
   교대파트 선택 항목 생성
@@ -137200,7 +138013,7 @@ function buildSelectableItems(
             "shift",
 
           sourceLabel:
-            "교대파트 TM 발행사항"
+            "업무일지 발행내역"
         });
 
 
@@ -145358,7 +146171,7 @@ function buildCoalPreviewCard(
 
     tmList.innerHTML = [
       renderSection(
-        "교대파트 TM 발행사항",
+        "업무일지 발행내역",
         shiftItems,
         "tm"
       ),

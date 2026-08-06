@@ -21,13 +21,6 @@ const {
   );
 
 
-/* =========================================================
-  OIS 연동 프로그램 설정
-
-  업무일지 주소가 달라졌다면
-  PowerShell의 SHIFT_LOG_BASE_URL로 변경할 수 있다.
-========================================================= */
-
 const DEFAULT_SHIFT_LOG_BASE_URL =
   "https://gs-shift-log.pages.dev";
 
@@ -82,18 +75,6 @@ const OIS_UNIT_DEFINITIONS = [
       "203HRJ01CW201XQ01"
   }
 ];
-
-const fs =
-  require(
-    "node:fs"
-  );
-
-
-const path =
-  require(
-    "node:path"
-  );
-
 
 /* =========================================================
   OIS 문자열 정리
