@@ -11436,6 +11436,8 @@ document.addEventListener(
 
     cacheMemberLogImportElements();
 
+    initializeLogEntryTargetRoleVisibility();
+
 
     /*
       조회 화면 기본 기간:
@@ -11796,6 +11798,20 @@ saveOperationStatusButton:
         "logEntryCategory"
       ),
 
+    /* =====================================================
+  파트장 직접 업무 추가 위치
+===================================================== */
+
+logEntryTargetRoleField:
+  document.getElementById(
+    "logEntryTargetRoleField"
+  ),
+
+logEntryTargetRole:
+  document.getElementById(
+    "logEntryTargetRole"
+  ),  
+
     logEntryTag:
       document.getElementById(
         "logEntryTag"
@@ -12088,6 +12104,252 @@ searchEmptyState:
         "appToast"
       )
   };
+}
+
+/* =========================================================
+  파트장 업무 직접 추가 위치 표시
+
+  파트장 업무일지:
+  - 파트장
+  - TGO
+  - BCO1
+  - BCO2
+  선택 가능
+
+  일반 보직:
+  - 추가 위치 선택창 숨김
+========================================================= */
+
+function updateLogEntryTargetRoleVisibility() {
+  const targetRoleField =
+    elements.logEntryTargetRoleField ||
+    document.getElementById(
+      "logEntryTargetRoleField"
+    );
+
+
+  const targetRoleSelect =
+    elements.logEntryTargetRole ||
+    document.getElementById(
+      "logEntryTargetRole"
+    );
+
+
+  const currentLogRole =
+    normalizeMemberLogRole(
+      elements.logRole?.value ||
+      document.getElementById(
+        "logRole"
+      )?.value ||
+      ""
+    );
+
+
+  const isLeaderLog =
+    currentLogRole ===
+      "파트장";
+
+
+  if (
+    !targetRoleField
+  ) {
+    return;
+  }
+
+
+  /*
+    파트장 업무일지에서만 표시
+  */
+  targetRoleField.hidden =
+    !isLeaderLog;
+
+
+  targetRoleField.classList.toggle(
+    "is-visible",
+    isLeaderLog
+  );
+
+
+  if (
+    !targetRoleSelect
+  ) {
+    return;
+  }
+
+
+  targetRoleSelect.disabled =
+    !isLeaderLog;
+
+
+  /*
+    일반 업무일지를 열었다가
+    다시 파트장 업무일지를 열었을 때
+    이전 선택값이 남지 않도록 한다.
+  */
+  if (
+    !isLeaderLog
+  ) {
+    targetRoleSelect.value =
+      "파트장";
+
+
+    return;
+  }
+
+
+  /*
+    잘못된 값이 들어가 있으면
+    파트장을 기본값으로 사용한다.
+  */
+  const allowedTargetRoles = [
+    "파트장",
+    "TGO",
+    "BCO1",
+    "BCO2"
+  ];
+
+
+  const currentTargetRole =
+    normalizeMemberLogRole(
+      targetRoleSelect.value
+    );
+
+
+  if (
+    !allowedTargetRoles.includes(
+      currentTargetRole
+    )
+  ) {
+    targetRoleSelect.value =
+      "파트장";
+  }
+}
+
+
+/* =========================================================
+  파트장 추가 위치 표시 자동 연결
+
+  이유:
+  logRole은 수정창을 열 때
+  JavaScript에서 직접 값이 변경될 수 있다.
+
+  따라서:
+  - 보직 직접 변경
+  - 수정창 열림
+  두 경우 모두 다시 확인한다.
+========================================================= */
+
+function initializeLogEntryTargetRoleVisibility() {
+  const logRole =
+    elements.logRole ||
+    document.getElementById(
+      "logRole"
+    );
+
+
+  const logEditorModal =
+    elements.logEditorModal ||
+    document.getElementById(
+      "logEditorModal"
+    );
+
+
+  /*
+    HTML 요소를 elements에도 다시 연결한다.
+  */
+  elements.logEntryTargetRoleField =
+    document.getElementById(
+      "logEntryTargetRoleField"
+    );
+
+
+  elements.logEntryTargetRole =
+    document.getElementById(
+      "logEntryTargetRole"
+    );
+
+
+  /*
+    보직을 직접 변경하는 경우
+  */
+  if (
+    logRole &&
+    logRole.dataset
+      .targetRoleVisibilityBound !==
+      "true"
+  ) {
+    logRole.addEventListener(
+      "change",
+      updateLogEntryTargetRoleVisibility
+    );
+
+
+    logRole.dataset
+      .targetRoleVisibilityBound =
+      "true";
+  }
+
+
+  /*
+    수정창이 열릴 때마다 현재 보직을 다시 확인한다.
+
+    프로그램에서 logRole.value를
+    직접 바꿔도 정상 작동한다.
+  */
+  if (
+    logEditorModal &&
+    logEditorModal.dataset
+      .targetRoleVisibilityObserverBound !==
+      "true"
+  ) {
+    const observer =
+      new MutationObserver(
+        () => {
+          const isOpen =
+            logEditorModal.classList.contains(
+              "is-open"
+            ) ||
+            logEditorModal.getAttribute(
+              "aria-hidden"
+            ) ===
+              "false";
+
+
+          if (
+            !isOpen
+          ) {
+            return;
+          }
+
+
+          window.requestAnimationFrame(
+            updateLogEntryTargetRoleVisibility
+          );
+        }
+      );
+
+
+    observer.observe(
+      logEditorModal,
+      {
+        attributes:
+          true,
+
+        attributeFilter: [
+          "class",
+          "aria-hidden"
+        ]
+      }
+    );
+
+
+    logEditorModal.dataset
+      .targetRoleVisibilityObserverBound =
+      "true";
+  }
+
+
+  updateLogEntryTargetRoleVisibility();
 }
 
 /* =========================================================
@@ -32035,7 +32297,24 @@ function resetLogEntryInput(options = {}) {
       row.classList.remove("is-editing");
     });
 
+/*
+  새 항목 입력으로 돌아가면
+  파트장 추가 위치는 기본값 "파트장"
+*/
+if (
+  elements.logEntryTargetRole
+) {
+  elements.logEntryTargetRole.value =
+    "파트장";
+}
+
+
+updateLogEntryTargetRoleVisibility();    
+
   updateTagFieldVisibility();
+
+
+
 }
 
 /* =========================================================
@@ -32984,23 +33263,19 @@ async function confirmAndAddLogEntry() {
 /* =========================================================
   업무 항목 추가·수정 최종본
 
-  TAG 입력 규칙:
-  - TM 발행
-  - TM 작업
-  - BM 발행
-  - BM 작업
-  - CM 발행
-  - CM 작업
+  파트장:
+  추가 위치 선택 가능
+  - 파트장
+  - TGO
+  - BCO1
+  - BCO2
 
-  위 구분은 TAG 입력창을 표시하지만
-  TAG 번호는 선택사항이다.
+  일반 보직:
+  자기 보직으로 저장
 
-  TAG를 입력한 경우:
-  - 대문자로 저장
-  - Facility Navigator 연결 가능
-
-  TAG를 입력하지 않은 경우:
-  - 빈 값으로 정상 추가·수정
+  중요:
+  - 파트장이 TGO/BCO1/BCO2에 직접 추가한 항목은
+    팀원 원본을 가져온 항목과 별도로 구분한다.
 ========================================================= */
 
 function addOrUpdateLogEntry() {
@@ -33012,12 +33287,6 @@ function addOrUpdateLogEntry() {
     ).trim();
 
 
-  /*
-    TM·BM·CM 관련 구분에서는
-    TAG 입력창은 계속 표시한다.
-
-    단, TAG는 필수가 아니라 선택사항이다.
-  */
   const supportsTag =
     category.startsWith(
       "TM"
@@ -33042,18 +33311,6 @@ function addOrUpdateLogEntry() {
       : "";
 
 
-  /*
-    내용 앞의 시간을 자동 분석한다.
-
-    예:
-    08:00 설비 점검
-    → time: 08:00
-    → content: 설비 점검
-
-    0800 1000 설비 점검
-    → time: 08:00, 10:00
-    → content: 설비 점검
-  */
   const resolvedInput =
     resolveLogEntryTimeAndContent();
 
@@ -33088,20 +33345,6 @@ function addOrUpdateLogEntry() {
   }
 
 
-  /*
-    TAG 필수 검사는 하지 않는다.
-
-    TAG가 비어 있어도 아래 구분 모두 정상 저장된다.
-
-    - TM 발행
-    - TM 작업
-    - BM 발행
-    - BM 작업
-    - CM 발행
-    - CM 작업
-  */
-
-
   if (
     !content
   ) {
@@ -33129,7 +33372,7 @@ function addOrUpdateLogEntry() {
 
   const isEditing =
     appState.editingEntryIndex >=
-    0;
+      0;
 
 
   const previousEntry =
@@ -33148,21 +33391,6 @@ function addOrUpdateLogEntry() {
       : {};
 
 
-  const rawSourceIndex =
-    previousEntryData
-      ?.importedFromEntryIndex;
-
-
-  const importedFromEntryIndex =
-    rawSourceIndex === "" ||
-    rawSourceIndex === null ||
-    rawSourceIndex === undefined
-      ? null
-      : Number(
-          rawSourceIndex
-        );
-
-
   const currentEditorRole =
     normalizeMemberLogRole(
       elements.logRole?.value ||
@@ -33176,6 +33404,67 @@ function addOrUpdateLogEntry() {
       ""
     ).trim();
 
+
+  /* =====================================================
+    파트장 추가 위치
+  ====================================================== */
+
+  const allowedLeaderTargetRoles = [
+    "파트장",
+    "TGO",
+    "BCO1",
+    "BCO2"
+  ];
+
+
+  let selectedTargetRole =
+    currentEditorRole;
+
+
+  if (
+    currentEditorRole ===
+      "파트장"
+  ) {
+    selectedTargetRole =
+      normalizeMemberLogRole(
+        elements.logEntryTargetRole
+          ?.value ||
+        "파트장"
+      );
+
+
+    if (
+      !allowedLeaderTargetRoles.includes(
+        selectedTargetRole
+      )
+    ) {
+      selectedTargetRole =
+        "파트장";
+    }
+  }
+
+
+  /*
+    비고는 보직별 업무 영역으로 보내지 않는다.
+
+    추가 위치가 BCO2로 선택되어 있어도
+    구분이 비고라면 항상 파트장 비고로 저장한다.
+  */
+  if (
+    category ===
+      "비고"
+  ) {
+    selectedTargetRole =
+      currentEditorRole ===
+        "파트장"
+        ? "파트장"
+        : currentEditorRole;
+  }
+
+
+  /* =====================================================
+    기존 항목 출처
+  ====================================================== */
 
   const previousSourceRole =
     normalizeMemberLogRole(
@@ -33201,6 +33490,25 @@ function addOrUpdateLogEntry() {
     ).trim();
 
 
+  const rawSourceIndex =
+    previousEntryData
+      .importedFromEntryIndex;
+
+
+  const importedFromEntryIndex =
+    rawSourceIndex === "" ||
+    rawSourceIndex === null ||
+    rawSourceIndex === undefined
+      ? null
+      : Number(
+          rawSourceIndex
+        );
+
+
+  /* =====================================================
+    실제 팀원 원본에서 취합된 항목인지 확인
+  ====================================================== */
+
   const knownMemberImportSources =
     new Set([
       "member-import",
@@ -33219,14 +33527,6 @@ function addOrUpdateLogEntry() {
   ];
 
 
-  /*
-    파트장 작성창에서 사용자가 직접 추가한 항목은
-    팀원 취합 항목과 구분하여 명확히 표시한다.
-
-    기존 항목 수정 시:
-    - 팀원 원본 ID가 있으면 팀원 취합 항목 유지
-    - 팀원 원본 정보가 없으면 파트장 직접 작성으로 복구
-  */
   const isImportedMemberEntry =
     memberRoles.includes(
       previousSourceRole
@@ -33241,11 +33541,110 @@ function addOrUpdateLogEntry() {
     );
 
 
-  const isLeaderManualEntry =
-    currentEditorRole ===
-      "파트장" &&
-    !isImportedMemberEntry;
+  /* =====================================================
+    저장할 출처 정보 결정
+  ====================================================== */
 
+  let finalSourceRole =
+    currentEditorRole;
+
+
+  let finalSourceAuthor =
+    currentAuthor;
+
+
+  let finalSourceLogId =
+    "";
+
+
+  let finalSourceEntryIndex =
+    null;
+
+
+  let finalSource =
+    "member-manual";
+
+
+  /*
+    파트장 수정창
+  */
+  if (
+    currentEditorRole ===
+      "파트장"
+  ) {
+    /*
+      실제 TGO/BCO1/BCO2 원본에서
+      취합해 온 항목을 수정하는 경우에는
+      원본 출처를 유지한다.
+    */
+    if (
+      isImportedMemberEntry
+    ) {
+      finalSourceRole =
+        previousSourceRole;
+
+
+      finalSourceAuthor =
+        String(
+          previousEntryData
+            .importedFromAuthor ||
+          ""
+        ).trim();
+
+
+      finalSourceLogId =
+        previousSourceLogId;
+
+
+      finalSourceEntryIndex =
+        Number.isInteger(
+          importedFromEntryIndex
+        ) &&
+        importedFromEntryIndex >=
+          0
+          ? importedFromEntryIndex
+          : null;
+
+
+      finalSource =
+        previousSource ||
+        "member-import";
+
+    } else {
+      /*
+        파트장이 직접 입력하는 신규 업무
+
+        추가 위치에 따라
+        파트장/TGO/BCO1/BCO2로 분류한다.
+      */
+      finalSourceRole =
+        selectedTargetRole;
+
+
+      finalSourceAuthor =
+        currentAuthor;
+
+
+      finalSourceLogId =
+        "";
+
+
+      finalSourceEntryIndex =
+        null;
+
+
+      finalSource =
+        selectedTargetRole ===
+          "파트장"
+          ? "leader-manual"
+          : "leader-role-manual";
+    }
+  }
+
+
+  /* =====================================================
+    저장 객체
+  ====================================================== */
 
   const entry = {
     ...previousEntryData,
@@ -33254,8 +33653,8 @@ function addOrUpdateLogEntry() {
     id:
       resolveLogEntryId(
         previousEntryData,
-        previousSourceLogId,
-        importedFromEntryIndex
+        finalSourceLogId,
+        finalSourceEntryIndex
       ),
 
 
@@ -33266,9 +33665,6 @@ function addOrUpdateLogEntry() {
     category,
 
 
-    /*
-      TAG 미입력 시 빈 문자열로 저장한다.
-    */
     tag,
 
 
@@ -33276,58 +33672,41 @@ function addOrUpdateLogEntry() {
 
 
     importedFromRole:
-      isLeaderManualEntry
-        ? "파트장"
-        : (
-            previousSourceRole ||
-            currentEditorRole
-          ),
+      finalSourceRole,
 
 
     importedFromAuthor:
-      isLeaderManualEntry
-        ? (
-            String(
-              previousEntryData
-                .importedFromAuthor ||
-              currentAuthor
-            ).trim()
-          )
-        : String(
-            previousEntryData
-              .importedFromAuthor ||
-            ""
-          ).trim(),
+      finalSourceAuthor,
 
 
     importedFromLogId:
-      isLeaderManualEntry
-        ? ""
-        : previousSourceLogId,
+      finalSourceLogId,
 
 
     importedFromEntryIndex:
-      isLeaderManualEntry
-        ? null
-        : (
-            Number.isInteger(
-              importedFromEntryIndex
-            ) &&
-            importedFromEntryIndex >= 0
-              ? importedFromEntryIndex
-              : null
-          ),
+      finalSourceEntryIndex,
 
 
     source:
-      isLeaderManualEntry
-        ? "leader-manual"
-        : (
-            previousSource ||
-            "member-manual"
-          )
+      finalSource,
+
+
+    /*
+      파트장이 어느 보직에 직접 넣었는지
+      명확하게 별도 기록한다.
+    */
+    leaderTargetRole:
+      currentEditorRole ===
+        "파트장" &&
+      !isImportedMemberEntry
+        ? selectedTargetRole
+        : ""
   };
 
+
+  /* =====================================================
+    수정 / 추가
+  ====================================================== */
 
   if (
     isEditing
@@ -33340,7 +33719,10 @@ function addOrUpdateLogEntry() {
 
 
     showToast(
-      "작업 내역을 수정했습니다."
+      currentEditorRole ===
+        "파트장"
+        ? `${finalSourceRole} 업무내용을 수정했습니다.`
+        : "작업 내역을 수정했습니다."
     );
 
   } else {
@@ -33349,11 +33731,24 @@ function addOrUpdateLogEntry() {
     );
 
 
-    showToast(
-      normalizedTime
-        ? `${normalizedTime} 작업 내역을 추가했습니다.`
-        : "시간 없이 작업 내역을 추가했습니다."
-    );
+    if (
+      currentEditorRole ===
+        "파트장"
+    ) {
+      showToast(
+        category ===
+          "비고"
+          ? "비고 내용을 추가했습니다."
+          : `${finalSourceRole} 업무내용을 추가했습니다.`
+      );
+
+    } else {
+      showToast(
+        normalizedTime
+          ? `${normalizedTime} 작업 내역을 추가했습니다.`
+          : "시간 없이 작업 내역을 추가했습니다."
+      );
+    }
   }
 
 
@@ -36475,15 +36870,26 @@ function handleLogEntryTableClick(event) {
   }
 }
 
+/* =========================================================
+  업무 항목 수정 시작
 
-function startLogEntryEdit(entryIndex) {
+  파트장 수정창에서는
+  기존 항목이 어느 보직에 속하는지도
+  추가 위치 선택창에 복원한다.
+========================================================= */
+
+function startLogEntryEdit(
+  entryIndex
+) {
   const entry =
     appState.editorEntries[
       entryIndex
     ];
 
 
-  if (!entry) {
+  if (
+    !entry
+  ) {
     return;
   }
 
@@ -36496,84 +36902,154 @@ function startLogEntryEdit(entryIndex) {
     elements.logEntryTime
   ) {
     elements.logEntryTime.value =
-      String(
-        entry.time ||
-        ""
-      ).trim();
+      entry.time ||
+      "";
   }
 
 
   if (
     elements.useCurrentTimeCheckbox
   ) {
-    elements.useCurrentTimeCheckbox.checked =
+    elements
+      .useCurrentTimeCheckbox
+      .checked =
       false;
   }
 
 
-  elements.logEntryCategory.value =
-    entry.category ||
-    "인계사항";
+  if (
+    elements.logEntryCategory
+  ) {
+    elements.logEntryCategory.value =
+      entry.category ||
+      "인계사항";
+  }
 
 
-  elements.logEntryTag.value =
-    entry.tag ||
-    "";
+  if (
+    elements.logEntryTag
+  ) {
+    elements.logEntryTag.value =
+      entry.tag ||
+      "";
+  }
 
 
-  elements.logEntryContent.value =
-    entry.content ||
-    "";
+  if (
+    elements.logEntryContent
+  ) {
+    elements.logEntryContent.value =
+      entry.content ||
+      "";
+  }
 
 
-  elements.addLogEntryButton.textContent =
-    "수정 완료";
+  /* =====================================================
+    파트장 추가 위치 복원
+  ====================================================== */
+
+  const currentEditorRole =
+    normalizeMemberLogRole(
+      elements.logRole?.value ||
+      ""
+    );
 
 
-  elements.cancelLogEntryEditButton.hidden =
-    false;
+  if (
+    currentEditorRole ===
+      "파트장" &&
+    elements.logEntryTargetRole
+  ) {
+    const allowedTargetRoles = [
+      "파트장",
+      "TGO",
+      "BCO1",
+      "BCO2"
+    ];
 
 
-  elements.logEntryInputPanel.classList.add(
-    "is-editing"
-  );
+    let targetRole =
+      normalizeMemberLogRole(
+        entry.leaderTargetRole ||
+        entry.importedFromRole ||
+        "파트장"
+      );
+
+
+    /*
+      비고는 무조건 파트장
+    */
+    if (
+      String(
+        entry.category ||
+        ""
+      ).trim() ===
+        "비고"
+    ) {
+      targetRole =
+        "파트장";
+    }
+
+
+    if (
+      !allowedTargetRoles.includes(
+        targetRole
+      )
+    ) {
+      targetRole =
+        "파트장";
+    }
+
+
+    elements.logEntryTargetRole.value =
+      targetRole;
+  }
+
+
+  if (
+    elements.addLogEntryButton
+  ) {
+    elements.addLogEntryButton.textContent =
+      "수정 완료";
+  }
+
+
+  if (
+    elements.cancelLogEntryEditButton
+  ) {
+    elements.cancelLogEntryEditButton.hidden =
+      false;
+  }
+
+
+  elements.logEntryInputPanel
+    ?.classList
+    .add(
+      "is-editing"
+    );
 
 
   updateTagFieldVisibility();
 
+
+  updateLogEntryTargetRoleVisibility();
+
+
   renderLogEntryTable();
 
 
-  elements.logEntryInputPanel.scrollIntoView({
-    behavior:
-      "smooth",
+  elements.logEntryInputPanel
+    ?.scrollIntoView({
+      behavior:
+        "smooth",
 
-    block:
-      "center"
-  });
-
-
-  /*
-    기존 시간이 바로 수정 가능하도록
-    시간 입력칸을 먼저 선택한다.
-  */
-  window.setTimeout(
-    () => {
-      if (
-        elements.logEntryTime
-      ) {
-        elements.logEntryTime.focus();
-        elements.logEntryTime.select();
-
-        return;
-      }
+      block:
+        "center"
+    });
 
 
-      elements.logEntryContent
-        ?.focus();
-    },
-    180
-  );
+  elements.logEntryContent
+    ?.focus();
 }
 
 
@@ -41680,6 +42156,23 @@ const recoveredSavedEntries =
             ""
           ).trim();
 
+/*
+  파트장이 TGO / BCO1 / BCO2 위치에
+  직접 작성한 항목은 팀원 원본이 아니다.
+
+  importedFromRole이 TGO 등으로 되어 있어도
+  삭제하지 않고 파트장 저장 항목으로 유지한다.
+*/
+const isLeaderRoleManual =
+  source ===
+    "leader-role-manual";
+
+
+if (
+  isLeaderRoleManual
+) {
+  return true;
+}          
 
         const category =
           normalizeCategory(
@@ -41820,8 +42313,20 @@ const recoveredSavedEntries =
             파트장 저장본에서 복구된 항목은
             파트장 직접 항목으로 고정한다.
           */
-          importedFromRole:
-            "파트장",
+
+
+            importedFromRole:
+  String(
+    entry?.source ||
+    ""
+  ).trim() ===
+    "leader-role-manual"
+    ? normalizeMemberLogRole(
+        entry?.leaderTargetRole ||
+        entry?.importedFromRole ||
+        "파트장"
+      )
+    : "파트장",
 
           importedFromAuthor:
             String(
