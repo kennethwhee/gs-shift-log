@@ -411,37 +411,57 @@
   }
 
 
-  function formatLimestoneUsageNumber(
-    value,
-    digits = 3
-  ) {
-    const numericValue =
-      Number(
-        value
-      );
+/* =========================================================
+  석회석 숫자 표시
 
+  규칙:
+  - 반올림하지 않음
+  - 소수점 둘째 자리 아래는 절삭
+  - 항상 소수점 두 자리 표시
 
-    if (
-      !Number.isFinite(
-        numericValue
-      )
-    ) {
-      return "-";
-    }
+  예:
+  331.179 → 331.17
+  72.098  → 72.09
+  5       → 5.00
+========================================================= */
 
-
-    return numericValue.toLocaleString(
-      "ko-KR",
-      {
-        minimumFractionDigits:
-          digits,
-
-        maximumFractionDigits:
-          digits
-      }
+function formatLimestoneUsageNumber(
+  value
+) {
+  const numericValue =
+    Number(
+      value
     );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return "-";
   }
 
+
+  const truncatedValue =
+    Math.trunc(
+      numericValue *
+      100
+    ) /
+    100;
+
+
+  return truncatedValue.toLocaleString(
+    "ko-KR",
+    {
+      minimumFractionDigits:
+        2,
+
+      maximumFractionDigits:
+        2
+    }
+  );
+}
 
   /* =====================================================
     상태 표시
