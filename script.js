@@ -107581,24 +107581,27 @@ function renderArmRollBoxReplacementTable() {
   };
 
 
-  container.innerHTML =
-    replacementEvents
-      .sort(
-        (
-          firstEvent,
-          secondEvent
-        ) => {
-          return String(
-            secondEvent?.date ||
+  const sortedEvents =
+    replacementEvents.sort(
+      (
+        firstEvent,
+        secondEvent
+      ) => {
+        return String(
+          secondEvent?.date ||
+          ""
+        ).localeCompare(
+          String(
+            firstEvent?.date ||
             ""
-          ).localeCompare(
-            String(
-              firstEvent?.date ||
-              ""
-            )
-          );
-        }
-      )
+          )
+        );
+      }
+    );
+
+
+  const rowHtml =
+    sortedEvents
       .map(
         event => {
           const target =
@@ -107736,98 +107739,88 @@ function renderArmRollBoxReplacementTable() {
           return `
             <article
               class="
-                arm-roll-box-replacement-card
+                arm-roll-box-replacement-row
                 ${boxClass}
                 ${statusClass}
               "
             >
 
-              <!-- 카드 상단 -->
-              <header
-                class="arm-roll-box-replacement-card__header"
-              >
-
-                <div
-                  class="arm-roll-box-replacement-card__identity"
-                >
-
-                  <span>
-                    ${unit}호기
-                  </span>
-
-                  <strong>
-                    ${escapeArmRollBoxHtml(
-                      boxLabel
-                    )}
-                  </strong>
-
-                </div>
-
-
-                <div
-                  class="arm-roll-box-replacement-card__status"
-                >
-
-                  <small>
-                    ${escapeArmRollBoxHtml(
-                      statusLabel
-                    )}
-                  </small>
-
-                  <time
-                    datetime="${escapeArmRollBoxHtml(
-                      event?.date ||
-                      ""
-                    )}"
-                  >
-                    ${escapeArmRollBoxHtml(
-                      replacementDate
-                    )}
-                  </time>
-
-                </div>
-
-              </header>
-
-
-              <!-- 날짜와 사용 기간 -->
               <div
-                class="arm-roll-box-replacement-card__period"
+                class="arm-roll-box-replacement-row__identity"
               >
+                <span>
+                  ${unit}호기
+                </span>
 
-                <div>
-                  <span>
-                    이전 교체일
-                  </span>
-
-                  <strong>
-                    ${escapeArmRollBoxHtml(
-                      previousDate
-                    )}
-                  </strong>
-                </div>
-
-
-                <div>
-                  <span>
-                    사용 기간
-                  </span>
-
-                  <strong>
-                    ${escapeArmRollBoxHtml(
-                      usageDays
-                    )}
-                  </strong>
-                </div>
-
+                <strong>
+                  ${escapeArmRollBoxHtml(
+                    boxLabel
+                  )}
+                </strong>
               </div>
 
 
-              <!-- 사용 주기 지표 -->
-              <dl
-                class="arm-roll-box-replacement-card__metrics"
+              <div
+                class="arm-roll-box-replacement-row__date"
               >
+                <small>
+                  ${escapeArmRollBoxHtml(
+                    statusLabel
+                  )}
+                </small>
 
+                <time
+                  datetime="${escapeArmRollBoxHtml(
+                    event?.date ||
+                    ""
+                  )}"
+                >
+                  ${escapeArmRollBoxHtml(
+                    replacementDate
+                  )}
+                </time>
+              </div>
+
+
+              <div
+                class="
+                  arm-roll-box-replacement-row__cell
+                  is-previous
+                "
+              >
+                <span>
+                  이전 교체일
+                </span>
+
+                <strong>
+                  ${escapeArmRollBoxHtml(
+                    previousDate
+                  )}
+                </strong>
+              </div>
+
+
+              <div
+                class="
+                  arm-roll-box-replacement-row__cell
+                  is-usage
+                "
+              >
+                <span>
+                  사용 기간
+                </span>
+
+                <strong>
+                  ${escapeArmRollBoxHtml(
+                    usageDays
+                  )}
+                </strong>
+              </div>
+
+
+              <dl
+                class="arm-roll-box-replacement-row__metrics"
+              >
                 <div>
                   <dt>
                     교체 직전
@@ -107865,15 +107858,15 @@ function renderArmRollBoxReplacementTable() {
                     )}
                   </dd>
                 </div>
-
               </dl>
 
 
-              <!-- 감지 근거 -->
               <div
-                class="arm-roll-box-replacement-card__source"
+                class="arm-roll-box-replacement-row__source"
+                title="${escapeArmRollBoxHtml(
+                  sourceText
+                )}"
               >
-
                 <span>
                   감지 업무내용
                 </span>
@@ -107883,7 +107876,6 @@ function renderArmRollBoxReplacementTable() {
                     sourceText
                   )}
                 </p>
-
               </div>
 
             </article>
@@ -107893,8 +107885,24 @@ function renderArmRollBoxReplacementTable() {
       .join(
         ""
       );
-}
 
+
+  container.innerHTML = `
+    <div
+      class="arm-roll-box-replacement-list__header"
+      aria-hidden="true"
+    >
+      <span>BOX</span>
+      <span>교체일</span>
+      <span>이전 교체일</span>
+      <span>사용 기간</span>
+      <span>교체 지표</span>
+      <span>감지 업무내용</span>
+    </div>
+
+    ${rowHtml}
+  `;
+}
 
 /* =========================================================
   BOX 레벨 통합 증가 추이

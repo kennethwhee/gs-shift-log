@@ -75786,21 +75786,20 @@ span {
 }
 
 /* =========================================================
-  날짜별 BOX 레벨 4종 통합표 최종 디자인
+  ARM ROLL · SCRAP BOX 이력 최종본
 
-  표시:
-  일자 | 1ARM | 1SCRAP | 2ARM | 2SCRAP
+  1. 날짜별 BOX 레벨
+     - PC에서만 글자 확대
+     - 모바일 크기는 기존처럼 컴팩트하게 유지
 
-  목표:
-  - 가로 스크롤 없음
-  - 1·2호기 네 종류 한눈에 표시
-  - 모바일 글씨 축소
-  - 50% 요청, 70% 경고 구분
+  2. 교체 이력 · 사용 주기
+     - PC: 교체 1건당 한 줄 리스트
+     - 모바일: 항목별 카드형 재배치
 ========================================================= */
 
 
 /* =========================================================
-  표 외곽
+  날짜별 BOX 레벨 통합표
 ========================================================= */
 
 #efficiencyArmRollView
@@ -75820,10 +75819,6 @@ span {
 }
 
 
-/* =========================================================
-  표 전체
-========================================================= */
-
 #efficiencyArmRollView
 .arm-roll-box-compact-daily-table {
   width: 100% !important;
@@ -75841,8 +75836,6 @@ span {
 }
 
 
-/* 날짜 17%, 네 BOX 각 20.75% */
-
 #efficiencyArmRollView
 .arm-roll-box-compact-daily-table
 .is-date-column {
@@ -75858,15 +75851,13 @@ span {
 
 
 /* =========================================================
-  표 제목
+  제목 행
 ========================================================= */
 
 #efficiencyArmRollView
 .arm-roll-box-compact-daily-table
 thead th {
-  height: 42px !important;
-
-  padding: 5px 2px !important;
+  padding: 5px 3px !important;
 
   border-right: 1px solid #d8e2eb !important;
   border-bottom: 1px solid #cedae5 !important;
@@ -75874,7 +75865,6 @@ thead th {
   background: #edf3f8 !important;
   color: #4e6279 !important;
 
-  font-size: 9px !important;
   font-weight: 900 !important;
   line-height: 1.15 !important;
 
@@ -75888,7 +75878,11 @@ thead th {
 
 #efficiencyArmRollView
 .arm-roll-box-compact-daily-table
-thead th:last-child {
+thead th:last-child,
+
+#efficiencyArmRollView
+.arm-roll-box-compact-daily-table
+tbody td:last-child {
   border-right: 0 !important;
 }
 
@@ -75911,7 +75905,6 @@ thead th span {
 
   color: #75869a !important;
 
-  font-size: 8px !important;
   font-weight: 800 !important;
 }
 
@@ -75919,12 +75912,9 @@ thead th span {
 #efficiencyArmRollView
 .arm-roll-box-compact-daily-table
 thead th strong {
-  font-size: 9px !important;
   font-weight: 900 !important;
 }
 
-
-/* ARM 제목 */
 
 #efficiencyArmRollView
 .arm-roll-box-compact-daily-table
@@ -75932,8 +75922,6 @@ thead th strong {
   color: #286ca6 !important;
 }
 
-
-/* SCRAP 제목 */
 
 #efficiencyArmRollView
 .arm-roll-box-compact-daily-table
@@ -75943,7 +75931,7 @@ thead th strong {
 
 
 /* =========================================================
-  공통 행·셀
+  공통 행과 셀
 ========================================================= */
 
 #efficiencyArmRollView
@@ -75955,10 +75943,7 @@ tbody th,
 tbody td {
   box-sizing: border-box !important;
 
-  height: 54px !important;
-  min-height: 54px !important;
-
-  padding: 5px 2px !important;
+  padding: 6px 3px !important;
 
   border-right: 1px solid #e0e7ee !important;
   border-bottom: 1px solid #e0e7ee !important;
@@ -75974,26 +75959,17 @@ tbody td {
 
 #efficiencyArmRollView
 .arm-roll-box-compact-daily-table
-tbody td:last-child {
-  border-right: 0 !important;
-}
-
+tbody tr:nth-child(even) th,
 
 #efficiencyArmRollView
 .arm-roll-box-compact-daily-table
-tbody tr:nth-child(even)
-th,
-
-#efficiencyArmRollView
-.arm-roll-box-compact-daily-table
-tbody tr:nth-child(even)
-td {
+tbody tr:nth-child(even) td {
   background-color: #fbfcfe;
 }
 
 
 /* =========================================================
-  날짜 칸
+  날짜
 ========================================================= */
 
 #efficiencyArmRollView
@@ -76021,11 +75997,10 @@ td {
 
 #efficiencyArmRollView
 .arm-roll-box-compact-date-cell small {
-  margin-bottom: 2px !important;
+  margin-bottom: 3px !important;
 
   color: #8491a0 !important;
 
-  font-size: 7px !important;
   font-weight: 800 !important;
   line-height: 1 !important;
 }
@@ -76035,7 +76010,6 @@ td {
 .arm-roll-box-compact-date-cell strong {
   color: #30475f !important;
 
-  font-size: 11px !important;
   font-weight: 900 !important;
   line-height: 1.1 !important;
 }
@@ -76063,7 +76037,7 @@ td {
   align-items: center !important;
   justify-content: center !important;
 
-  gap: 3px !important;
+  gap: 4px !important;
 
   margin: 0 !important;
   padding: 0 !important;
@@ -76083,7 +76057,6 @@ td {
   margin: 0 !important;
   padding: 0 !important;
 
-  font-size: 14px !important;
   font-weight: 900 !important;
   line-height: 1 !important;
 
@@ -76103,16 +76076,11 @@ td {
 
   flex: 0 0 auto !important;
 
-  min-height: 14px !important;
-
   align-items: center !important;
   justify-content: center !important;
 
-  padding: 1px 3px !important;
-
   border-radius: 999px !important;
 
-  font-size: 6px !important;
   font-weight: 900 !important;
   font-style: normal !important;
   line-height: 1 !important;
@@ -76136,20 +76104,19 @@ td {
   align-items: center !important;
   justify-content: center !important;
 
-  gap: 2px !important;
+  gap: 3px !important;
 
-  margin-top: 4px !important;
+  margin-top: 5px !important;
   padding: 0 !important;
 
   overflow: hidden !important;
 
   color: #65778c !important;
 
-  font-size: 7px !important;
   font-weight: 800 !important;
   line-height: 1.15 !important;
 
-  letter-spacing: -0.03em !important;
+  letter-spacing: -0.02em !important;
 
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
@@ -76158,8 +76125,7 @@ td {
 
 #efficiencyArmRollView
 .arm-roll-box-compact-metric-cell
-> small
-span {
+> small span {
   min-width: 0 !important;
 
   overflow: hidden !important;
@@ -76171,18 +76137,17 @@ span {
 
 #efficiencyArmRollView
 .arm-roll-box-compact-metric-cell
-> small
-span + span::before {
+> small span + span::before {
   content: "·";
 
-  margin-right: 2px;
+  margin-right: 3px;
 
   color: #a0aab5;
 }
 
 
 /* =========================================================
-  정상 상태
+  정상
 ========================================================= */
 
 #efficiencyArmRollView
@@ -76196,33 +76161,19 @@ span + span::before {
 }
 
 
-/* ARM 정상칸 왼쪽 표시 */
-
 #efficiencyArmRollView
 .arm-roll-box-compact-metric-cell.is-arm-roll.is-normal {
   box-shadow:
     inset 2px 0 0
-    rgba(
-      62,
-      130,
-      188,
-      0.22
-    );
+    rgba(62, 130, 188, 0.22);
 }
 
-
-/* SCRAP 정상칸 왼쪽 표시 */
 
 #efficiencyArmRollView
 .arm-roll-box-compact-metric-cell.is-scrap.is-normal {
   box-shadow:
     inset 2px 0 0
-    rgba(
-      149,
-      100,
-      186,
-      0.22
-    );
+    rgba(149, 100, 186, 0.22);
 }
 
 
@@ -76285,32 +76236,18 @@ span + span::before {
 ========================================================= */
 
 #efficiencyArmRollView
-.arm-roll-box-compact-metric-cell.is-empty {
-  color: #9ca7b3 !important;
-}
-
+.arm-roll-box-compact-metric-cell.is-empty,
 
 #efficiencyArmRollView
 .arm-roll-box-compact-metric-cell.is-empty
-> strong {
-  color: #9ca7b3 !important;
-
-  font-size: 13px !important;
-}
-
+> strong,
 
 #efficiencyArmRollView
 .arm-roll-box-compact-metric-cell.is-empty
 > small {
-  color: #a2acb7 !important;
-
-  font-size: 7px !important;
+  color: #9ca7b3 !important;
 }
 
-
-/* =========================================================
-  빈 표 메시지
-========================================================= */
 
 #efficiencyArmRollView
 .arm-roll-box-compact-daily-table
@@ -76319,7 +76256,7 @@ span + span::before {
 
   color: #8996a5 !important;
 
-  font-size: 10px !important;
+  font-size: 11px !important;
   font-weight: 700 !important;
 
   text-align: center !important;
@@ -76327,7 +76264,138 @@ span + span::before {
 
 
 /* =========================================================
-  모바일 최종 컴팩트화
+  날짜별 BOX 레벨
+  PC 전용 글자 확대
+========================================================= */
+
+@media (min-width: 761px) {
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-history-card
+  .arm-roll-box-section-header {
+    min-height: 58px !important;
+
+    padding: 11px 14px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-history-card
+  .arm-roll-box-section-header
+  > div > span {
+    font-size: 10px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-history-card
+  .arm-roll-box-section-header h4 {
+    font-size: 18px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-history-card
+  .arm-roll-box-section-count {
+    min-height: 26px !important;
+
+    padding: 0 9px !important;
+
+    font-size: 11px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-daily-table
+  thead th {
+    height: 52px !important;
+
+    padding: 7px 4px !important;
+
+    font-size: 11px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-daily-table
+  thead th span {
+    font-size: 9px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-daily-table
+  thead th strong {
+    font-size: 12px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-daily-table
+  tbody th,
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-daily-table
+  tbody td {
+    height: 68px !important;
+    min-height: 68px !important;
+
+    padding: 8px 4px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-date-cell small {
+    font-size: 9px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-date-cell strong {
+    font-size: 14px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-level-row strong,
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-metric-cell
+  > strong {
+    font-size: 18px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-level-row i {
+    min-height: 17px !important;
+
+    padding: 2px 5px !important;
+
+    font-size: 8px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-metric-cell
+  > small {
+    margin-top: 6px !important;
+
+    font-size: 10px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-compact-metric-cell.is-empty
+  > strong {
+    font-size: 17px !important;
+  }
+}
+
+
+/* =========================================================
+  날짜별 BOX 레벨
+  모바일 크기 유지
 ========================================================= */
 
 @media (max-width: 760px) {
@@ -76356,20 +76424,6 @@ span + span::before {
     padding: 0 6px !important;
 
     font-size: 8px !important;
-  }
-
-
-  #efficiencyArmRollView
-  .arm-roll-box-compact-daily-table
-  .is-date-column {
-    width: 17% !important;
-  }
-
-
-  #efficiencyArmRollView
-  .arm-roll-box-compact-daily-table
-  .is-level-column {
-    width: 20.75% !important;
   }
 
 
@@ -76463,146 +76517,218 @@ span + span::before {
 
     letter-spacing: -0.06em !important;
   }
-
-
-  #efficiencyArmRollView
-  .arm-roll-box-compact-metric-cell
-  > small
-  span + span::before {
-    margin-right: 1px !important;
-  }
 }
 
-/* =========================================================
-  교체 이력 · 사용 주기 카드형 최종 디자인
-
-  기존 8열 가로 표를 제거하고
-  교체 1건을 카드 1개로 표시한다.
-========================================================= */
-
 
 /* =========================================================
-  목록
+  교체 이력 · 사용 주기
+  PC 한 줄 리스트
 ========================================================= */
 
 #efficiencyArmRollView
+.arm-roll-box-replacement-history-card {
+  min-height: 0 !important;
+  max-height: none !important;
+
+  overflow: visible !important;
+}
+
+
+#efficiencyArmRollView
 .arm-roll-box-replacement-list {
-  display: grid !important;
-
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(0, 1fr)
-    ) !important;
-
-  gap: 9px !important;
+  display: flex !important;
 
   width: 100% !important;
   min-width: 0 !important;
 
-  padding: 10px !important;
+  flex-direction: column !important;
+
+  gap: 0 !important;
+
+  padding: 0 !important;
 
   overflow: visible !important;
 
-  background: #f5f8fb !important;
+  background: #ffffff !important;
 }
 
 
-/* =========================================================
-  교체 카드
-========================================================= */
+#efficiencyArmRollView
+.arm-roll-box-replacement-list__header,
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card {
+.arm-roll-box-replacement-row {
+  display: grid !important;
+
+  grid-template-columns:
+    14%
+    11%
+    11%
+    9%
+    27%
+    28% !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+
+/* 목록 제목 */
+
+#efficiencyArmRollView
+.arm-roll-box-replacement-list__header {
+  min-height: 38px !important;
+
+  align-items: center !important;
+
+  border-top: 1px solid #dbe4ed !important;
+  border-bottom: 1px solid #cedae5 !important;
+
+  background: #edf3f8 !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-replacement-list__header span {
+  display: flex !important;
+
+  height: 100% !important;
   min-width: 0 !important;
 
-  padding: 10px !important;
+  align-items: center !important;
+  justify-content: center !important;
 
-  border: 1px solid #d9e3ec !important;
-  border-left-width: 4px !important;
-  border-radius: 10px !important;
+  padding: 7px 6px !important;
+
+  border-right: 1px solid #d8e2eb !important;
+
+  color: #586b80 !important;
+
+  font-size: 10px !important;
+  font-weight: 900 !important;
+
+  text-align: center !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-replacement-list__header
+span:last-child {
+  border-right: 0 !important;
+}
+
+
+/* 교체 1건 */
+
+#efficiencyArmRollView
+.arm-roll-box-replacement-row {
+  position: relative !important;
+
+  min-height: 70px !important;
+
+  align-items: stretch !important;
+
+  border-bottom: 1px solid #dfe7ef !important;
+  border-left: 4px solid #3e82bc !important;
 
   background: #ffffff !important;
-
-  box-shadow:
-    0 2px 7px
-    rgba(
-      15,
-      23,
-      42,
-      0.04
-    ) !important;
 }
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card.is-arm-roll {
-  border-left-color: #3e82bc !important;
+.arm-roll-box-replacement-row:nth-of-type(odd) {
+  background: #fbfcfe !important;
 }
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card.is-scrap {
+.arm-roll-box-replacement-row.is-scrap {
   border-left-color: #9564ba !important;
 }
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card.is-suspected {
+.arm-roll-box-replacement-row.is-suspected {
   background: #fffbf2 !important;
 }
 
 
-/* =========================================================
-  카드 상단
-========================================================= */
+/* 공통 칸 */
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__header {
+.arm-roll-box-replacement-row__identity,
+
+#efficiencyArmRollView
+.arm-roll-box-replacement-row__date,
+
+#efficiencyArmRollView
+.arm-roll-box-replacement-row__cell,
+
+#efficiencyArmRollView
+.arm-roll-box-replacement-row__metrics,
+
+#efficiencyArmRollView
+.arm-roll-box-replacement-row__source {
+  box-sizing: border-box !important;
+
+  min-width: 0 !important;
+
+  margin: 0 !important;
+  padding: 9px 8px !important;
+
+  border-right: 1px solid #e0e7ee !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-replacement-row__source {
+  border-right: 0 !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-replacement-row__identity,
+
+#efficiencyArmRollView
+.arm-roll-box-replacement-row__date,
+
+#efficiencyArmRollView
+.arm-roll-box-replacement-row__cell {
   display: flex !important;
 
-  min-width: 0 !important;
+  flex-direction: column !important;
 
-  align-items: flex-start !important;
-  justify-content: space-between !important;
+  align-items: center !important;
+  justify-content: center !important;
 
-  gap: 8px !important;
-
-  padding-bottom: 8px !important;
-
-  border-bottom: 1px solid #e1e8ef !important;
+  text-align: center !important;
 }
 
 
-#efficiencyArmRollView
-.arm-roll-box-replacement-card__identity {
-  display: grid !important;
-
-  min-width: 0 !important;
-
-  gap: 1px !important;
-}
-
+/* BOX 이름 */
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__identity span {
+.arm-roll-box-replacement-row__identity span {
+  margin-bottom: 2px !important;
+
   color: #75869a !important;
 
-  font-size: 8px !important;
+  font-size: 9px !important;
   font-weight: 900 !important;
-  line-height: 1.2 !important;
 }
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__identity strong {
+.arm-roll-box-replacement-row__identity strong {
+  max-width: 100% !important;
+
   overflow: hidden !important;
 
-  color: #283d56 !important;
+  color: #286ca6 !important;
 
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 900 !important;
-  line-height: 1.25 !important;
+  line-height: 1.2 !important;
 
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
@@ -76610,45 +76736,25 @@ span + span::before {
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card.is-arm-roll
-.arm-roll-box-replacement-card__identity strong {
-  color: #286ca6 !important;
-}
-
-
-#efficiencyArmRollView
-.arm-roll-box-replacement-card.is-scrap
-.arm-roll-box-replacement-card__identity strong {
+.arm-roll-box-replacement-row.is-scrap
+.arm-roll-box-replacement-row__identity strong {
   color: #7650a0 !important;
 }
 
 
-/* =========================================================
-  상태와 교체일
-========================================================= */
+/* 교체일 */
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__status {
-  display: grid !important;
-
-  flex: 0 0 auto !important;
-
-  justify-items: end !important;
-
-  gap: 3px !important;
-}
-
-
-#efficiencyArmRollView
-.arm-roll-box-replacement-card__status small {
+.arm-roll-box-replacement-row__date small {
   display: inline-flex !important;
 
-  min-height: 19px !important;
+  min-height: 20px !important;
 
   align-items: center !important;
   justify-content: center !important;
 
-  padding: 0 6px !important;
+  margin-bottom: 4px !important;
+  padding: 0 7px !important;
 
   border: 1px solid #9bd1b4 !important;
   border-radius: 999px !important;
@@ -76656,7 +76762,7 @@ span + span::before {
   background: #e9f8ef !important;
   color: #20794e !important;
 
-  font-size: 7px !important;
+  font-size: 8px !important;
   font-weight: 900 !important;
   line-height: 1 !important;
 
@@ -76665,8 +76771,8 @@ span + span::before {
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card.is-suspected
-.arm-roll-box-replacement-card__status small {
+.arm-roll-box-replacement-row.is-suspected
+.arm-roll-box-replacement-row__date small {
   border-color: #e6c77f !important;
 
   background: #fff4d9 !important;
@@ -76675,93 +76781,43 @@ span + span::before {
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__status time {
+.arm-roll-box-replacement-row__date time {
   color: #334b65 !important;
 
-  font-size: 10px !important;
+  font-size: 11px !important;
   font-weight: 900 !important;
-  line-height: 1.2 !important;
 
-  font-variant-numeric:
-    tabular-nums !important;
+  font-variant-numeric: tabular-nums !important;
 
   white-space: nowrap !important;
 }
 
 
-/* =========================================================
-  이전 교체일·사용 기간
-========================================================= */
+/* 이전 교체일과 사용기간 */
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__period {
-  display: grid !important;
-
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(0, 1fr)
-    ) !important;
-
-  gap: 5px !important;
-
-  margin-top: 8px !important;
+.arm-roll-box-replacement-row__cell span {
+  display: none !important;
 }
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__period > div {
-  min-width: 0 !important;
-
-  padding: 6px !important;
-
-  border: 1px solid #e1e8ef !important;
-  border-radius: 7px !important;
-
-  background: #f8fafc !important;
-
-  text-align: center !important;
-}
-
-
-#efficiencyArmRollView
-.arm-roll-box-replacement-card__period span,
-
-#efficiencyArmRollView
-.arm-roll-box-replacement-card__period strong {
-  display: block !important;
-}
-
-
-#efficiencyArmRollView
-.arm-roll-box-replacement-card__period span {
-  margin-bottom: 2px !important;
-
-  color: #7b8999 !important;
-
-  font-size: 7px !important;
-  font-weight: 800 !important;
-}
-
-
-#efficiencyArmRollView
-.arm-roll-box-replacement-card__period strong {
+.arm-roll-box-replacement-row__cell strong {
   color: #31465e !important;
 
-  font-size: 10px !important;
+  font-size: 11px !important;
   font-weight: 900 !important;
 
-  font-variant-numeric:
-    tabular-nums !important;
+  font-variant-numeric: tabular-nums !important;
+
+  white-space: nowrap !important;
 }
 
 
-/* =========================================================
-  교체 지표
-========================================================= */
+/* 교체 지표 */
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__metrics {
+.arm-roll-box-replacement-row__metrics {
   display: grid !important;
 
   grid-template-columns:
@@ -76770,17 +76826,25 @@ span + span::before {
       minmax(0, 1fr)
     ) !important;
 
-  gap: 5px !important;
+  align-items: stretch !important;
 
-  margin: 5px 0 0 !important;
+  gap: 5px !important;
 }
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__metrics > div {
+.arm-roll-box-replacement-row__metrics
+> div {
+  display: flex !important;
+
   min-width: 0 !important;
 
-  padding: 6px 3px !important;
+  flex-direction: column !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  padding: 5px 3px !important;
 
   border: 1px solid #e1e8ef !important;
   border-radius: 7px !important;
@@ -76792,87 +76856,81 @@ span + span::before {
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__metrics dt {
-  margin: 0 0 2px !important;
+.arm-roll-box-replacement-row__metrics dt {
+  margin: 0 0 3px !important;
 
   color: #7b8999 !important;
 
-  font-size: 7px !important;
+  font-size: 8px !important;
   font-weight: 800 !important;
   line-height: 1.2 !important;
 }
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__metrics dd {
+.arm-roll-box-replacement-row__metrics dd {
+  max-width: 100% !important;
+
   overflow: hidden !important;
 
   margin: 0 !important;
 
   color: #263d57 !important;
 
-  font-size: 10px !important;
+  font-size: 11px !important;
   font-weight: 900 !important;
   line-height: 1.2 !important;
 
-  font-variant-numeric:
-    tabular-nums !important;
+  font-variant-numeric: tabular-nums !important;
 
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
 }
 
 
-/* =========================================================
-  감지 업무내용
-========================================================= */
+/* 감지 업무내용 */
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__source {
-  margin-top: 6px !important;
-  padding-top: 6px !important;
+.arm-roll-box-replacement-row__source {
+  display: flex !important;
 
-  border-top: 1px dashed #d8e1ea !important;
+  min-width: 0 !important;
+
+  flex-direction: column !important;
+
+  justify-content: center !important;
 }
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__source span {
-  display: block !important;
-
-  margin-bottom: 3px !important;
-
-  color: #7b8999 !important;
-
-  font-size: 7px !important;
-  font-weight: 900 !important;
+.arm-roll-box-replacement-row__source span {
+  display: none !important;
 }
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-card__source p {
+.arm-roll-box-replacement-row__source p {
+  min-width: 0 !important;
+
+  overflow: hidden !important;
+
   margin: 0 !important;
 
   color: #405269 !important;
 
-  font-size: 9px !important;
+  font-size: 10px !important;
   font-weight: 700 !important;
-  line-height: 1.4 !important;
+  line-height: 1.45 !important;
 
-  white-space: normal !important;
-  word-break: break-word !important;
-  overflow-wrap: anywhere !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
 
-/* =========================================================
-  빈 목록
-========================================================= */
+/* 빈 목록 */
 
 #efficiencyArmRollView
 .arm-roll-box-replacement-empty {
-  grid-column: 1 / -1 !important;
-
   display: grid !important;
 
   min-height: 90px !important;
@@ -76881,98 +76939,163 @@ span + span::before {
 
   color: #8b97a5 !important;
 
-  font-size: 10px !important;
+  font-size: 11px !important;
   font-weight: 700 !important;
+
   text-align: center !important;
 }
 
 
 /* =========================================================
+  교체 이력
   모바일
 ========================================================= */
 
 @media (max-width: 760px) {
 
-  /*
-    기존 모바일 표 높이·가로 스크롤 선언 해제
-  */
-
-  #efficiencyArmRollView
-  .arm-roll-box-replacement-history-card {
-    min-height: 0 !important;
-    max-height: none !important;
-
-    overflow: visible !important;
-  }
-
-
   #efficiencyArmRollView
   .arm-roll-box-replacement-list {
-    grid-template-columns:
-      1fr !important;
-
-    gap: 6px !important;
+    gap: 7px !important;
 
     padding: 7px !important;
 
-    overflow: visible !important;
+    background: #f5f8fb !important;
   }
 
 
   #efficiencyArmRollView
-  .arm-roll-box-replacement-card {
+  .arm-roll-box-replacement-list__header {
+    display: none !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      ) !important;
+
+    min-height: 0 !important;
+
+    border: 1px solid #d9e3ec !important;
+    border-left: 3px solid #3e82bc !important;
+    border-radius: 8px !important;
+
+    overflow: hidden !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row.is-scrap {
+    border-left-color: #9564ba !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__identity,
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__date,
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__cell,
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__metrics,
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__source {
     padding: 8px !important;
 
-    border-left-width: 3px !important;
-    border-radius: 8px !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid #e3e9ef !important;
   }
 
 
   #efficiencyArmRollView
-  .arm-roll-box-replacement-card__header {
-    padding-bottom: 6px !important;
+  .arm-roll-box-replacement-row__identity,
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__cell.is-previous {
+    border-right: 1px solid #e3e9ef !important;
   }
 
 
   #efficiencyArmRollView
-  .arm-roll-box-replacement-card__identity strong {
-    font-size: 11px !important;
+  .arm-roll-box-replacement-row__identity strong {
+    font-size: 12px !important;
   }
 
 
   #efficiencyArmRollView
-  .arm-roll-box-replacement-card__status time {
+  .arm-roll-box-replacement-row__date time,
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__cell strong {
+    font-size: 10px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__cell span,
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__source span {
+    display: block !important;
+
+    margin-bottom: 3px !important;
+
+    color: #7b8999 !important;
+
+    font-size: 7px !important;
+    font-weight: 800 !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__metrics,
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__source {
+    grid-column: 1 / -1 !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__metrics {
+    gap: 4px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__metrics dt {
+    font-size: 7px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-row__metrics dd {
     font-size: 9px !important;
   }
 
 
   #efficiencyArmRollView
-  .arm-roll-box-replacement-card__period {
-    margin-top: 6px !important;
+  .arm-roll-box-replacement-row__source {
+    border-bottom: 0 !important;
   }
 
 
   #efficiencyArmRollView
-  .arm-roll-box-replacement-card__period > div,
+  .arm-roll-box-replacement-row__source p {
+    overflow: visible !important;
 
-  #efficiencyArmRollView
-  .arm-roll-box-replacement-card__metrics > div {
-    padding: 5px 2px !important;
-  }
-
-
-  #efficiencyArmRollView
-  .arm-roll-box-replacement-card__period strong,
-
-  #efficiencyArmRollView
-  .arm-roll-box-replacement-card__metrics dd {
     font-size: 9px !important;
-  }
 
-
-  #efficiencyArmRollView
-  .arm-roll-box-replacement-card__source p {
-    font-size: 8px !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
   }
 }
 
