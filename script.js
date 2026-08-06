@@ -144178,14 +144178,19 @@ async function extractCoalTmItems(
       );
   }
 
-
 /* =====================================================
-  운탄일지·TM 체크박스 한 건 출력
+  운탄일지·TM 선택 항목
 
-  변경:
-  - 번호와 내용을 같은 줄에 표시
-  - 하위 문장은 그 아래에 표시
-  - 번호만 별도 한 줄을 차지하지 않음
+  교대파트 업무 선택 항목과 동일한 구조를 사용한다.
+
+  공통 구조:
+  체크박스
+  → 메타정보
+  → 업무내용
+
+  운탄일지 번호:
+  별도 배지로 표시하지 않고
+  내용 바로 앞에 표시한다.
 ===================================================== */
 
 function buildCheckboxHtml(
@@ -144221,55 +144226,94 @@ function buildCheckboxHtml(
       : "data-morning-meeting-coal-tm-item";
 
 
-  /*
-    번호는 메타에 넣지 않고
-    실제 내용 바로 옆에 표시한다.
-  */
+  /* =====================================================
+    상단 메타정보
 
-  const meta =
+    운탄일지 업무:
+    - 업무
+
+    TM 사항:
+    - D/S 또는 N/S
+    - 보직
+    - 시간
+    - TM·BM·CM 발행
+  ====================================================== */
+
+  const metaValues =
     [];
 
 
   if (
-    item.shift
+    isWork
   ) {
-    meta.push(
-      item.shift ===
-        "DS"
-        ? "D/S"
-        : "N/S"
+    metaValues.push(
+      "업무"
     );
-  }
+
+  } else {
+    if (
+      item.shift
+    ) {
+      metaValues.push(
+        item.shift ===
+          "DS"
+          ? "D/S"
+          : "N/S"
+      );
+    }
 
 
-  if (
-    item.role
-  ) {
-    meta.push(
+    if (
       item.role
-    );
-  }
+    ) {
+      metaValues.push(
+        normalizeText(
+          item.role
+        )
+      );
+    }
 
 
-  if (
-    item.time
-  ) {
-    meta.push(
+    if (
       item.time
+    ) {
+      metaValues.push(
+        normalizeText(
+          item.time
+        )
+      );
+    }
+
+
+    metaValues.push(
+      normalizeText(
+        item.category
+      ) ||
+      "TM 발행"
     );
   }
 
 
-  if (
-    item.category &&
-    !meta.includes(
-      item.category
+  /* =====================================================
+    번호와 본문
+
+    예:
+    1. N2 System 교체기동
+  ====================================================== */
+
+  const rawNumber =
+    String(
+      item.number ??
+      ""
+    ).trim();
+
+
+  const numberPrefix =
+    /^\d+$/.test(
+      rawNumber
     )
-  ) {
-    meta.push(
-      item.category
-    );
-  }
+      ? `${rawNumber}. `
+      : "";
 
 
   const mainText =
@@ -144301,15 +144345,27 @@ function buildCheckboxHtml(
       : [];
 
 
+  const contentLines = [
+    `${numberPrefix}${mainText}`,
+
+    ...subLines.map(
+      line => {
+        return `- ${line}`;
+      }
+    )
+  ].filter(
+    Boolean
+  );
+
+
   const metaHtml =
-    meta.length >
-      0
+    metaValues.length
       ? `
         <span
           class="efficiency-morning-meeting-shift-item__meta"
         >
 
-          ${meta
+          ${metaValues
             .map(
               value => {
                 return `
@@ -144330,53 +144386,18 @@ function buildCheckboxHtml(
       : "";
 
 
-  const numberHtml =
-    Number.isFinite(
-      Number(
-        item.number
+  const contentHtml =
+    contentLines
+      .map(
+        line => {
+          return escapeHtml(
+            line
+          );
+        }
       )
-    )
-      ? `
-        <strong
-          class="efficiency-morning-meeting-shift-item__number"
-        >
-          ${escapeHtml(
-            item.number
-          )}
-        </strong>
-      `
-      : "";
-
-
-  const subLineHtml =
-    subLines.length >
-      0
-      ? `
-        <span
-          class="efficiency-morning-meeting-shift-item__sub-lines"
-        >
-
-          ${subLines
-            .map(
-              line => {
-                return `
-                  <span
-                    class="efficiency-morning-meeting-shift-item__sub-line"
-                  >
-                    - ${escapeHtml(
-                      line
-                    )}
-                  </span>
-                `;
-              }
-            )
-            .join(
-              ""
-            )}
-
-        </span>
-      `
-      : "";
+      .join(
+        "<br>"
+      );
 
 
   return `
@@ -144404,24 +144425,9 @@ function buildCheckboxHtml(
         ${metaHtml}
 
 
-        <span
-          class="efficiency-morning-meeting-shift-item__main-line"
-        >
-
-          ${numberHtml}
-
-          <span
-            class="efficiency-morning-meeting-shift-item__main-text"
-          >
-            ${escapeHtml(
-              mainText
-            )}
-          </span>
-
-        </span>
-
-
-        ${subLineHtml}
+        <p>
+          ${contentHtml}
+        </p>
 
       </span>
 

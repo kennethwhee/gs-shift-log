@@ -59,3 +59,73 @@ GS Shift Log OIS 연동 프로그램
 석회석 요청 확인 주기: 5초
 OIS 로그인이 완료되었습니다.
 업무일지의 OIS 요청을 기다립니다.
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 ID: 73b6fc0d-b6a3-4e69-9541-52ad074f7cbc
+조회일: 2026-08-05
+------------------------------------------
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 331.179,
+  endStock: 353.743,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-05 · 전일 331.179 ton · 24시 353.743 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 311.591,
+  endStock: 320.269,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-05 · 전일 311.591 ton · 24시 320.269 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 331.179 │
+│ 1호기 종료 재고 │ 353.743 │
+│ 2호기 시작 재고 │ 311.591 │
+│ 2호기 종료 재고 │ 320.269 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 ID: 80b5b3ae-90fc-405c-9202-cc2bf0329c29
+조회일: 2026-08-06
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 353.743,
+  endStock: 374.819,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-06 · 전일 353.743 ton · 24시 374.819 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 320.269,
+  endStock: 346.552,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-06 · 전일 320.269 ton · 24시 346.552 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 353.743 │
+│ 1호기 종료 재고 │ 374.819 │
+│ 2호기 시작 재고 │ 320.269 │
+│ 2호기 종료 재고 │ 346.552 │
+└─────────────────┴─────────┘
