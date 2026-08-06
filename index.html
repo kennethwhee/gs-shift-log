@@ -35,14 +35,31 @@
     href="inspection-logs/daily/night-patrol/night-patrol-shell.css?v=20260805-viewfix3"
   >
 
+<!-- =====================================================
+  XLSX 파일 내부 수정용
+====================================================== -->
+<script
+  src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
+  defer
+></script>
 
-  <!-- =====================================================
-    기존 업무일지 JavaScript
-  ====================================================== -->
-  <script
-    src="script.js?v=20260806-armroll-final2"
-    defer
-  ></script>
+
+<!-- =====================================================
+  팀별 엑셀 분석용
+====================================================== -->
+<script
+  src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
+  defer
+></script>
+
+
+<!-- =====================================================
+  기존 업무일지 JavaScript
+====================================================== -->
+<script
+  src="script.js?v=20260806-morning-workbook1"
+  defer
+></script>
 
 
   <!-- =====================================================
@@ -4626,22 +4643,49 @@
 
     </div>
 
+<!-- =================================================
+  기준 취합본 첨부
 
-    <div class="efficiency-morning-meeting-template-status">
+  해당 날짜의 일일발전운전현황 파일을 첨부한다.
+  상단 운전현황·수식·서식은 이 파일을 그대로 사용한다.
+================================================== -->
 
-      <span>
-        기준 양식
-      </span>
+<label
+  class="
+    efficiency-morning-meeting-template-status
+    efficiency-morning-meeting-template-upload
+  "
+  id="efficiencyMorningMeetingTemplateCard"
+>
 
-      <strong>
-        일일발전운전현황
-      </strong>
+  <input
+    type="file"
+    id="efficiencyMorningMeetingTemplateFile"
+    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    hidden
+  />
 
-      <small>
-        상단 수식·계산식·서식 유지
-      </small>
 
-    </div>
+  <span>
+    기준 취합본
+  </span>
+
+
+  <strong>
+    일일발전운전현황
+  </strong>
+
+
+  <small id="efficiencyMorningMeetingTemplateStatus">
+    현재 날짜의 기준 취합본을 선택하거나 끌어다 놓으세요.
+  </small>
+
+
+  <em id="efficiencyMorningMeetingTemplateAction">
+    파일 선택 · 드롭
+  </em>
+
+</label>
 
   </header>
 
