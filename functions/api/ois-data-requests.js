@@ -709,9 +709,13 @@ async function authenticateOisAgent(
   };
 }
 
-
 /* =========================================================
-  요청 형식 정리
+  OIS 요청 유형 정리
+
+  지원:
+  - limestone_stock
+  - water_environment
+  - turbine_gear_pinion
 ========================================================= */
 
 function normalizeRequestType(
@@ -730,14 +734,14 @@ function normalizeRequestType(
 
   return [
     "limestone_stock",
-    "water_environment"
+    "water_environment",
+    "turbine_gear_pinion"
   ].includes(
     requestType
   )
     ? requestType
     : DEFAULT_REQUEST_TYPE;
 }
-
 
 /* =========================================================
   숫자 정리

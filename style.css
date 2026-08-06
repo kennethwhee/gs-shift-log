@@ -85870,3 +85870,591 @@ td.is-total {
       20px !important;
   }
 }
+
+/* =========================================================
+  오전회의 취합
+  자동 수치 미리보기
+
+  PC:
+  - 수처리
+  - 석회석
+  - Gear Wheel / Pinion
+  가로 3개 카드
+
+  Mobile:
+  - 세로 배치
+========================================================= */
+
+.efficiency-morning-meeting-auto-preview {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #dbe5f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+
+/* =========================================================
+  미리보기 상단
+========================================================= */
+
+.efficiency-morning-meeting-auto-preview__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+
+.efficiency-morning-meeting-auto-preview__header > div {
+  min-width: 0;
+}
+
+
+.efficiency-morning-meeting-auto-preview__header > div > span {
+  display: block;
+  margin-bottom: 2px;
+
+  color: #2f6fae;
+
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+
+.efficiency-morning-meeting-auto-preview__header h4 {
+  margin: 0;
+
+  color: #172b4d;
+
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+
+.efficiency-morning-meeting-auto-preview__header p {
+  margin: 3px 0 0;
+
+  color: #6b7d91;
+
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+
+.efficiency-morning-meeting-auto-preview__status {
+  flex: 0 0 auto;
+
+  padding: 5px 9px;
+
+  border: 1px solid #d5e0ec;
+  border-radius: 999px;
+
+  background: #f7f9fc;
+
+  color: #65758b;
+
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  3열 카드
+========================================================= */
+
+.efficiency-morning-meeting-auto-preview__grid {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+
+  gap: 9px;
+}
+
+
+/* =========================================================
+  공통 카드
+========================================================= */
+
+.efficiency-morning-meeting-auto-card {
+  position: relative;
+  overflow: hidden;
+
+  min-width: 0;
+
+  border: 1px solid #dce5ef;
+  border-radius: 10px;
+
+  background: #fbfcfe;
+}
+
+
+.efficiency-morning-meeting-auto-card::before {
+  content: "";
+
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+
+  width: 3px;
+
+  background: #6b91bb;
+}
+
+
+.efficiency-morning-meeting-auto-card.is-water::before {
+  background: #28a96b;
+}
+
+
+.efficiency-morning-meeting-auto-card.is-limestone::before {
+  background: #c38a32;
+}
+
+
+.efficiency-morning-meeting-auto-card.is-gear-pinion::before {
+  background: #5d6fc7;
+}
+
+
+/* =========================================================
+  카드 헤더
+========================================================= */
+
+.efficiency-morning-meeting-auto-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 8px;
+
+  padding: 9px 10px 7px 12px;
+
+  border-bottom: 1px solid #e7edf4;
+  background: #ffffff;
+}
+
+
+.efficiency-morning-meeting-auto-card__header > div:first-child {
+  min-width: 0;
+}
+
+
+.efficiency-morning-meeting-auto-card__header > div:first-child > span {
+  display: block;
+  margin-bottom: 1px;
+
+  color: #6d7d90;
+
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+}
+
+
+.efficiency-morning-meeting-auto-card__header > div:first-child > strong {
+  display: block;
+
+  overflow: hidden;
+
+  color: #23354d;
+
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  날짜 + 상태
+========================================================= */
+
+.efficiency-morning-meeting-auto-card__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+
+  gap: 3px;
+
+  flex: 0 0 auto;
+}
+
+
+.efficiency-morning-meeting-auto-card__meta small {
+  color: #738398;
+
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+
+.efficiency-morning-meeting-auto-card__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 20px;
+
+  padding: 3px 7px;
+
+  border: 1px solid #d8e1eb;
+  border-radius: 999px;
+
+  background: #f6f8fb;
+
+  color: #738398;
+
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  상태별 배지
+  JS에서 다음 클래스를 붙일 예정
+
+  is-loading
+  is-complete
+  is-error
+========================================================= */
+
+.efficiency-morning-meeting-auto-card__badge.is-loading {
+  border-color: #b9d2ec;
+  background: #eef6ff;
+  color: #3677b7;
+}
+
+
+.efficiency-morning-meeting-auto-card__badge.is-complete {
+  border-color: #a9d9bd;
+  background: #effaf4;
+  color: #238652;
+}
+
+
+.efficiency-morning-meeting-auto-card__badge.is-error {
+  border-color: #efb4b4;
+  background: #fff3f3;
+  color: #c34949;
+}
+
+
+/* =========================================================
+  카드 내용
+========================================================= */
+
+.efficiency-morning-meeting-auto-card__body {
+  display: flex;
+  flex-direction: column;
+
+  padding: 4px 10px 6px 12px;
+}
+
+
+/* =========================================================
+  한 줄 데이터
+
+  왼쪽:
+  항목명
+
+  오른쪽:
+  수치
+========================================================= */
+
+.efficiency-morning-meeting-auto-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 8px;
+
+  min-height: 27px;
+
+  border-bottom: 1px dashed #e8edf3;
+}
+
+
+.efficiency-morning-meeting-auto-row:last-child {
+  border-bottom: 0;
+}
+
+
+.efficiency-morning-meeting-auto-row > span {
+  flex: 1 1 auto;
+
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: #63758a;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.efficiency-morning-meeting-auto-row > strong {
+  flex: 0 0 auto;
+
+  color: #1f3552;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  text-align: right;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  강조 행
+========================================================= */
+
+.efficiency-morning-meeting-auto-row.is-emphasis {
+  margin: 3px -4px 0;
+
+  padding: 0 4px;
+
+  border-bottom: 0;
+  border-radius: 6px;
+
+  background: #f1f4ff;
+}
+
+
+.efficiency-morning-meeting-auto-row.is-emphasis > span {
+  color: #5668b5;
+}
+
+
+.efficiency-morning-meeting-auto-row.is-emphasis > strong {
+  color: #3449a8;
+
+  font-size: 12px;
+}
+
+
+/* =========================================================
+  카드별 은은한 배경
+========================================================= */
+
+.efficiency-morning-meeting-auto-card.is-water
+  .efficiency-morning-meeting-auto-card__body {
+  background: #fbfefc;
+}
+
+
+.efficiency-morning-meeting-auto-card.is-limestone
+  .efficiency-morning-meeting-auto-card__body {
+  background: #fffdf9;
+}
+
+
+.efficiency-morning-meeting-auto-card.is-gear-pinion
+  .efficiency-morning-meeting-auto-card__body {
+  background: #fcfcff;
+}
+
+
+/* =========================================================
+  태블릿
+========================================================= */
+
+@media (
+  max-width: 1050px
+) {
+  .efficiency-morning-meeting-auto-preview__grid {
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(0, 1fr);
+  }
+
+
+  .efficiency-morning-meeting-auto-card.is-gear-pinion {
+    grid-column: 1 / -1;
+  }
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width: 700px
+) {
+  .efficiency-morning-meeting-auto-preview {
+    margin-top: 10px;
+    padding: 10px;
+
+    border-radius: 10px;
+  }
+
+
+  .efficiency-morning-meeting-auto-preview__header {
+    align-items: flex-start;
+
+    margin-bottom: 8px;
+  }
+
+
+  .efficiency-morning-meeting-auto-preview__header p {
+    display: none;
+  }
+
+
+  .efficiency-morning-meeting-auto-preview__grid {
+    grid-template-columns: 1fr;
+
+    gap: 7px;
+  }
+
+
+  .efficiency-morning-meeting-auto-card.is-gear-pinion {
+    grid-column: auto;
+  }
+
+
+  .efficiency-morning-meeting-auto-card__header {
+    padding:
+      8px
+      9px
+      6px
+      11px;
+  }
+
+
+  .efficiency-morning-meeting-auto-card__body {
+    padding:
+      3px
+      9px
+      5px
+      11px;
+  }
+
+
+  .efficiency-morning-meeting-auto-row {
+    min-height: 25px;
+  }
+
+
+  .efficiency-morning-meeting-auto-row > span {
+    font-size: 10px;
+  }
+
+
+  .efficiency-morning-meeting-auto-row > strong {
+    font-size: 11px;
+  }
+}
+
+/* =========================================================
+  오전회의 취합
+  기존 대형 수처리 패널 숨김
+
+  주의:
+  JS 상태 저장용으로 DOM 자체는 유지한다.
+========================================================= */
+
+#efficiencyMorningMeetingWaterPanel {
+  display: none !important;
+}
+
+
+/* =========================================================
+  자동 수치 미리보기 상단 우측
+
+  전체 상태 + OIS 다시 조회
+========================================================= */
+
+.efficiency-morning-meeting-auto-preview__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 7px;
+
+  flex: 0 0 auto;
+}
+
+
+/* 기존 수처리 버튼을 이쪽으로 실제 이동시킨다. */
+
+.efficiency-morning-meeting-auto-preview__actions
+  #loadEfficiencyMorningMeetingWaterButton {
+  min-height: 30px;
+
+  padding: 6px 10px;
+
+  border: 1px solid #9ebfe3;
+  border-radius: 7px;
+
+  background: #f5f9fe;
+
+  color: #24649f;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+}
+
+
+.efficiency-morning-meeting-auto-preview__actions
+  #loadEfficiencyMorningMeetingWaterButton:hover {
+  border-color: #75a6d6;
+  background: #eaf4ff;
+}
+
+
+.efficiency-morning-meeting-auto-preview__actions
+  #loadEfficiencyMorningMeetingWaterButton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width: 700px
+) {
+  .efficiency-morning-meeting-auto-preview__header {
+    flex-wrap: wrap;
+  }
+
+
+  .efficiency-morning-meeting-auto-preview__actions {
+    width: 100%;
+
+    justify-content: space-between;
+  }
+
+
+  .efficiency-morning-meeting-auto-preview__actions
+    #loadEfficiencyMorningMeetingWaterButton {
+    flex: 1 1 auto;
+
+    min-width: 0;
+  }
+}

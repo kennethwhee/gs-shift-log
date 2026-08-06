@@ -315,6 +315,37 @@ const OIS_UNIT_DEFINITIONS = [
 ];
 
 /* =========================================================
+  터빈 Gear Wheel / Pinion 조회 정의
+
+  BOARD LOGSHEET (TGO)의 전일 값:
+  decimal_pnt
+========================================================= */
+
+const OIS_TURBINE_GEAR_PINION_DEFINITION = {
+  sheetLabel:
+    "BOARD LOGSHEET (TGO)",
+
+  valueField:
+    "decimal_pnt",
+
+  gearWheel: {
+    label:
+      "Gear Wheel",
+
+    tag:
+      "MAD11FG905-ZE01_V2"
+  },
+
+  pinion: {
+    label:
+      "Pinion",
+
+    tag:
+      "MAD41FY905-ZE01_V2"
+  }
+};
+
+/* =========================================================
   OIS 문자열 정리
 ========================================================= */
 
@@ -3452,8 +3483,9 @@ async function requestOisAgentApi(
   지원:
   - water_environment
   - limestone_stock
+  - turbine_gear_pinion
 
-  두 요청 유형을 번갈아 확인한다.
+  세 요청 유형을 번갈아 확인한다.
 ========================================================= */
 
 async function getNextOisAgentRequest(
@@ -3461,7 +3493,8 @@ async function getNextOisAgentRequest(
 ) {
   const requestTypes = [
     "water_environment",
-    "limestone_stock"
+    "limestone_stock",
+    "turbine_gear_pinion"
   ];
 
 
@@ -3543,7 +3576,6 @@ async function getNextOisAgentRequest(
   return null;
 }
 
-
 /* =========================================================
   요청 유형 정규화
 ========================================================= */
@@ -3570,7 +3602,6 @@ function getOisAgentRequestType(
   );
 }
 
-
 /* =========================================================
   요청 유형 표시 이름
 ========================================================= */
@@ -3594,9 +3625,16 @@ function getOisAgentRequestLabel(
   }
 
 
+  if (
+    requestType ===
+      "turbine_gear_pinion"
+  ) {
+    return "Gear Wheel / Pinion";
+  }
+
+
   return requestType;
 }
-
 
 /* =========================================================
   요청 유형별 OIS 자료 수집
@@ -3644,11 +3682,22 @@ async function collectOisAgentRequestResult(
   }
 
 
+  if (
+    requestType ===
+      "turbine_gear_pinion"
+  ) {
+    return await collectOisTurbineGearPinionValues(
+      page,
+      config,
+      targetDate
+    );
+  }
+
+
   throw new Error(
     `지원하지 않는 OIS 요청 유형입니다: ${requestType}`
   );
 }
-
 
 /* =========================================================
   요청 결과 콘솔 출력
@@ -3720,6 +3769,35 @@ function printOisAgentRequestResult(
         result
           .unitTwo
           .endStock
+    });
+
+
+    return;
+  }
+
+
+  if (
+    requestType ===
+      "turbine_gear_pinion"
+  ) {
+    console.table({
+      "조회일":
+        result.targetDate,
+
+      "조회 열":
+        result.valueColumn,
+
+      "Gear Wheel":
+        result.gearWheel,
+
+      "Pinion":
+        result.pinion,
+
+      "Gear Wheel TAG":
+        result.gearWheelTag,
+
+      "Pinion TAG":
+        result.pinionTag
     });
   }
 }
@@ -6179,6 +6257,632 @@ async function captureOisLogSheetStockFromApi(
 }
 
 /* =========================================================
+  OIS LOG SHEET API 응답에서
+  Gear Wheel / Pinion 전일 값 읽기
+
+  조회 화면:
+  BOARD LOGSHEET (TGO)
+
+  응답:
+  POST /ajax/data
+  oi.LogSheetService.listLogSheetSearch
+
+  사용 필드:
+  decimal_pnt = 전일 값
+========================================================= */
+
+async function captureOisTurbineGearPinionFromApi(
+  page,
+  triggerSearch
+) {
+  const definitions = [
+    {
+      resultKey:
+        "gearWheel",
+
+      label:
+        OIS_TURBINE_GEAR_PINION_DEFINITION
+          .gearWheel
+          .label,
+
+      tag:
+        OIS_TURBINE_GEAR_PINION_DEFINITION
+          .gearWheel
+          .tag
+    },
+
+    {
+      resultKey:
+        "pinion",
+
+      label:
+        OIS_TURBINE_GEAR_PINION_DEFINITION
+          .pinion
+          .label,
+
+      tag:
+        OIS_TURBINE_GEAR_PINION_DEFINITION
+          .pinion
+          .tag
+    }
+  ];
+
+
+  return await new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+      let isSettled =
+        false;
+
+
+      let timeoutId =
+        null;
+
+
+      const capturedValues = {};
+
+
+      const clearRequestTimeout = () => {
+        if (
+          timeoutId
+        ) {
+          clearTimeout(
+            timeoutId
+          );
+
+
+          timeoutId =
+            null;
+        }
+      };
+
+
+      const cleanup = () => {
+        clearRequestTimeout();
+
+
+        page.off(
+          "response",
+          handleResponse
+        );
+      };
+
+
+      const finishResolve = (
+        value
+      ) => {
+        if (
+          isSettled
+        ) {
+          return;
+        }
+
+
+        isSettled =
+          true;
+
+
+        cleanup();
+
+
+        resolve(
+          value
+        );
+      };
+
+
+      const finishReject = (
+        error
+      ) => {
+        if (
+          isSettled
+        ) {
+          return;
+        }
+
+
+        isSettled =
+          true;
+
+
+        cleanup();
+
+
+        reject(
+          error
+        );
+      };
+
+
+      const handleResponse =
+        async response => {
+          try {
+            const responseUrl =
+              String(
+                response.url() ||
+                ""
+              );
+
+
+            const request =
+              response.request();
+
+
+            const requestMethod =
+              String(
+                request.method() ||
+                ""
+              ).toUpperCase();
+
+
+            const requestBody =
+              String(
+                request.postData() ||
+                ""
+              );
+
+
+            /* =============================================
+              LOG SHEET 조회 응답만 확인
+            ============================================== */
+
+            if (
+              !responseUrl.includes(
+                "/ajax/data"
+              ) ||
+              requestMethod !==
+                "POST" ||
+              !requestBody.includes(
+                "oi.LogSheetService.listLogSheetSearch"
+              )
+            ) {
+              return;
+            }
+
+
+            const responseText =
+              await response.text();
+
+
+            if (
+              !responseText.trim()
+            ) {
+              return;
+            }
+
+
+            let responseData = {};
+
+
+            try {
+              responseData =
+                JSON.parse(
+                  responseText
+                );
+
+            } catch {
+              return;
+            }
+
+
+            const resultRows =
+              Array.isArray(
+                responseData.result
+              )
+                ? responseData.result
+                : [];
+
+
+            /* =============================================
+              두 TAG를 응답에서 각각 찾기
+            ============================================== */
+
+            for (
+              const definition of
+              definitions
+            ) {
+              if (
+                capturedValues[
+                  definition.resultKey
+                ]
+              ) {
+                continue;
+              }
+
+
+              const normalizedTargetTag =
+                normalizeOisAgentText(
+                  definition.tag
+                ).toUpperCase();
+
+
+              const targetRow =
+                resultRows.find(
+                  row => {
+                    const rowTag =
+                      normalizeOisAgentText(
+                        row?.tag_no
+                      ).toUpperCase();
+
+
+                    return (
+                      rowTag ===
+                      normalizedTargetTag
+                    );
+                  }
+                ) ||
+                null;
+
+
+              if (
+                !targetRow
+              ) {
+                continue;
+              }
+
+
+              const value =
+                parseOisAgentNumber(
+                  targetRow[
+                    OIS_TURBINE_GEAR_PINION_DEFINITION
+                      .valueField
+                  ]
+                );
+
+
+              if (
+                value ===
+                  null
+              ) {
+                finishReject(
+                  new Error(
+                    `${definition.label}의 전일 값이 올바르지 않습니다.`
+                  )
+                );
+
+
+                return;
+              }
+
+
+              capturedValues[
+                definition.resultKey
+              ] = {
+                value,
+
+                tag:
+                  normalizeOisAgentText(
+                    targetRow.tag_no
+                  ),
+
+                itemName:
+                  normalizeOisAgentText(
+                    targetRow.mid_name
+                  ),
+
+                unit:
+                  normalizeOisAgentText(
+                    targetRow.unit_code
+                  ),
+
+                valueField:
+                  OIS_TURBINE_GEAR_PINION_DEFINITION
+                    .valueField
+              };
+
+
+              console.log(
+                "OIS TGO 전일 자료 확인:",
+                {
+                  label:
+                    definition.label,
+
+                  tag:
+                    definition.tag,
+
+                  itemName:
+                    capturedValues[
+                      definition.resultKey
+                    ].itemName,
+
+                  value,
+
+                  field:
+                    OIS_TURBINE_GEAR_PINION_DEFINITION
+                      .valueField
+                }
+              );
+            }
+
+
+            /* =============================================
+              두 값이 모두 확인되면 완료
+            ============================================== */
+
+            if (
+              capturedValues.gearWheel &&
+              capturedValues.pinion
+            ) {
+              finishResolve({
+                gearWheel:
+                  capturedValues
+                    .gearWheel,
+
+                pinion:
+                  capturedValues
+                    .pinion
+              });
+            }
+
+          } catch (
+            error
+          ) {
+            finishReject(
+              error
+            );
+          }
+        };
+
+
+      /*
+        조회 버튼보다 응답 감시를 먼저 시작한다.
+      */
+
+      page.on(
+        "response",
+        handleResponse
+      );
+
+
+      timeoutId =
+        setTimeout(
+          () => {
+            const missingLabels =
+              definitions
+                .filter(
+                  definition => {
+                    return !capturedValues[
+                      definition.resultKey
+                    ];
+                  }
+                )
+                .map(
+                  definition => {
+                    return definition.label;
+                  }
+                );
+
+
+            finishReject(
+              new Error(
+                [
+                  "OIS TGO LOG SHEET에서 전일 값을 읽지 못했습니다.",
+                  `누락: ${missingLabels.join(", ")}`
+                ].join(
+                  " "
+                )
+              )
+            );
+          },
+          OIS_QUERY_TIMEOUT
+        );
+
+
+      Promise.resolve()
+        .then(
+          triggerSearch
+        )
+        .catch(
+          finishReject
+        );
+    }
+  );
+}
+
+
+/* =========================================================
+  선택일 Gear Wheel / Pinion 수집
+
+  조회:
+  - 설비운영팀
+  - BOARD LOGSHEET (TGO)
+  - 선택일
+  - 전일 열
+
+  결과:
+  {
+    gearWheel: 0.771,
+    pinion: 1.957
+  }
+========================================================= */
+
+async function collectOisTurbineGearPinionValues(
+  page,
+  config,
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "Gear Wheel / Pinion 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  await ensureOisAgentLoggedIn(
+    page,
+    config
+  );
+
+
+  let frame =
+    await openOisLogSheetLookup(
+      page
+    );
+
+
+  /* =====================================================
+    부서 선택
+
+    화면에 부서 선택란이 없는 경우도 있으므로
+    required는 false로 처리한다.
+  ====================================================== */
+
+  await selectOisOptionByLabel(
+    frame,
+    "설비운영팀",
+    false
+  );
+
+
+  frame =
+    await findOisLogSheetFrame(
+      page
+    ) ||
+    frame;
+
+
+  /* =====================================================
+    BOARD LOGSHEET (TGO) 선택
+  ====================================================== */
+
+  await selectOisOptionByLabel(
+    frame,
+    OIS_TURBINE_GEAR_PINION_DEFINITION
+      .sheetLabel,
+    true
+  );
+
+
+  await page.waitForTimeout(
+    500
+  );
+
+
+  frame =
+    await findOisLogSheetFrame(
+      page
+    ) ||
+    frame;
+
+
+  /* =====================================================
+    조회일 입력
+  ====================================================== */
+
+  await setOisLogSheetDate(
+    frame,
+    targetDate
+  );
+
+
+  await page.waitForTimeout(
+    200
+  );
+
+
+  /* =====================================================
+    조회 버튼 클릭 후 API 응답에서 두 값 추출
+  ====================================================== */
+
+  const capturedValues =
+    await captureOisTurbineGearPinionFromApi(
+      page,
+      async () => {
+        await clickOisLogSheetSearchButton(
+          frame
+        );
+      }
+    );
+
+
+  const result = {
+    source:
+      "OIS BOARD LOGSHEET (TGO)",
+
+    targetDate,
+
+    sourceDate:
+      targetDate,
+
+    sheetLabel:
+      OIS_TURBINE_GEAR_PINION_DEFINITION
+        .sheetLabel,
+
+    valueColumn:
+      "전일",
+
+    valueField:
+      OIS_TURBINE_GEAR_PINION_DEFINITION
+        .valueField,
+
+    gearWheel:
+      capturedValues
+        .gearWheel
+        .value,
+
+    pinion:
+      capturedValues
+        .pinion
+        .value,
+
+    gearWheelTag:
+      capturedValues
+        .gearWheel
+        .tag,
+
+    pinionTag:
+      capturedValues
+        .pinion
+        .tag,
+
+    gearWheelItemName:
+      capturedValues
+        .gearWheel
+        .itemName,
+
+    pinionItemName:
+      capturedValues
+        .pinion
+        .itemName,
+
+    gearWheelUnit:
+      capturedValues
+        .gearWheel
+        .unit,
+
+    pinionUnit:
+      capturedValues
+        .pinion
+        .unit,
+
+    collectedAt:
+      new Date()
+        .toISOString()
+  };
+
+
+  console.log(
+    [
+      "OIS TGO 조회 완료",
+      targetDate,
+      `Gear Wheel ${result.gearWheel}`,
+      `Pinion ${result.pinion}`
+    ].join(
+      " · "
+    )
+  );
+
+
+  return result;
+}
+
+/* =========================================================
   호기별 석회석 전일·24시 재고 조회
 
   화면의 표를 읽지 않고,
@@ -6466,6 +7170,7 @@ async function saveOisAgentErrorScreenshot(
   지원 요청:
   - 석회석 재고
   - 수처리 현황
+  - Gear Wheel / Pinion
 ========================================================= */
 
 async function loginOis() {
@@ -6508,7 +7213,7 @@ async function loginOis() {
 
   console.log(
     "지원 요청:",
-    "석회석 재고 · 수처리 현황"
+    "석회석 재고 · 수처리 현황 · Gear Wheel / Pinion"
   );
 
 

@@ -57,7 +57,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260807-coal-list-same-as-shift1"
+  src="script.js?v=20260807-morning-water-workbook1"
   defer
 ></script>
 
@@ -5733,6 +5733,408 @@
     hidden
   >
   </p>
+
+</section>
+
+<!-- =================================================
+  5. 자동 수치 미리보기
+
+  오전회의 최종 엑셀에 자동 반영되는 값:
+
+  1. 수처리 현황
+  2. 석회석 재고 · 입고 · 사용량
+  3. Gear Wheel / Pinion
+
+  실제 값은 script.js에서 자동 연결한다.
+================================================== -->
+
+<section
+  class="efficiency-morning-meeting-auto-preview"
+  id="efficiencyMorningMeetingAutoPreview"
+>
+
+  <!-- =================================================
+    상단
+  ================================================== -->
+
+  <header class="efficiency-morning-meeting-auto-preview__header">
+
+    <div>
+
+      <span>
+        AUTO DATA PREVIEW
+      </span>
+
+      <h4>
+        자동 수치 미리보기
+      </h4>
+
+      <p>
+        OIS와 업무자료에서 자동으로 가져온
+        오전회의 반영값을 확인합니다.
+      </p>
+
+    </div>
+
+
+    <strong
+      class="efficiency-morning-meeting-auto-preview__status"
+      id="efficiencyMorningMeetingAutoPreviewStatus"
+    >
+      조회 대기
+    </strong>
+
+  </header>
+
+
+  <!-- =================================================
+    카드 3개
+  ================================================== -->
+
+  <div class="efficiency-morning-meeting-auto-preview__grid">
+
+
+    <!-- =================================================
+      1. 수처리
+    ================================================== -->
+
+    <article
+      class="
+        efficiency-morning-meeting-auto-card
+        is-water
+      "
+    >
+
+      <header class="efficiency-morning-meeting-auto-card__header">
+
+        <div>
+
+          <span>
+            WATER TREATMENT
+          </span>
+
+          <strong>
+            수처리 현황
+          </strong>
+
+        </div>
+
+
+        <div class="efficiency-morning-meeting-auto-card__meta">
+
+          <small
+            id="efficiencyMorningMeetingAutoWaterDate"
+          >
+            -
+          </small>
+
+          <span
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoWaterStatus"
+          >
+            조회 대기
+          </span>
+
+        </div>
+
+      </header>
+
+
+      <div class="efficiency-morning-meeting-auto-card__body">
+
+        <div class="efficiency-morning-meeting-auto-row">
+
+          <span>
+            원수 유입
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoWaterRawInflow"
+          >
+            -
+          </strong>
+
+        </div>
+
+
+        <div class="efficiency-morning-meeting-auto-row">
+
+          <span>
+            순수 생산 / 사용
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoWaterDemiFlow"
+          >
+            - / -
+          </strong>
+
+        </div>
+
+
+        <div class="efficiency-morning-meeting-auto-row">
+
+          <span>
+            원수 TANK
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoWaterRawTank"
+          >
+            - / -%
+          </strong>
+
+        </div>
+
+
+        <div class="efficiency-morning-meeting-auto-row">
+
+          <span>
+            여과수 TANK
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoWaterFilteredTank"
+          >
+            - / -%
+          </strong>
+
+        </div>
+
+
+        <div class="efficiency-morning-meeting-auto-row">
+
+          <span>
+            순수 TANK
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoWaterDemiTank"
+          >
+            - / -%
+          </strong>
+
+        </div>
+
+      </div>
+
+    </article>
+
+
+    <!-- =================================================
+      2. 석회석
+    ================================================== -->
+
+    <article
+      class="
+        efficiency-morning-meeting-auto-card
+        is-limestone
+      "
+    >
+
+      <header class="efficiency-morning-meeting-auto-card__header">
+
+        <div>
+
+          <span>
+            LIMESTONE
+          </span>
+
+          <strong>
+            석회석 재고
+          </strong>
+
+        </div>
+
+
+        <div class="efficiency-morning-meeting-auto-card__meta">
+
+          <small
+            id="efficiencyMorningMeetingAutoLimestoneDate"
+          >
+            -
+          </small>
+
+          <span
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoLimestoneStatus"
+          >
+            조회 대기
+          </span>
+
+        </div>
+
+      </header>
+
+
+      <div class="efficiency-morning-meeting-auto-card__body">
+
+        <div class="efficiency-morning-meeting-auto-row">
+
+          <span>
+            1호기 재고
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoLimestoneUnitOneStock"
+          >
+            - → -
+          </strong>
+
+        </div>
+
+
+        <div class="efficiency-morning-meeting-auto-row">
+
+          <span>
+            2호기 재고
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoLimestoneUnitTwoStock"
+          >
+            - → -
+          </strong>
+
+        </div>
+
+
+        <div class="efficiency-morning-meeting-auto-row">
+
+          <span>
+            입고량 1 / 2호기
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoLimestoneReceipt"
+          >
+            - / -
+          </strong>
+
+        </div>
+
+
+        <div class="efficiency-morning-meeting-auto-row">
+
+          <span>
+            사용량 1 / 2호기
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoLimestoneUsage"
+          >
+            - / -
+          </strong>
+
+        </div>
+
+      </div>
+
+    </article>
+
+
+    <!-- =================================================
+      3. Gear Wheel / Pinion
+    ================================================== -->
+
+    <article
+      class="
+        efficiency-morning-meeting-auto-card
+        is-gear-pinion
+      "
+    >
+
+      <header class="efficiency-morning-meeting-auto-card__header">
+
+        <div>
+
+          <span>
+            TURBINE
+          </span>
+
+          <strong>
+            Gear Wheel / Pinion
+          </strong>
+
+        </div>
+
+
+        <div class="efficiency-morning-meeting-auto-card__meta">
+
+          <small
+            id="efficiencyMorningMeetingAutoGearPinionDate"
+          >
+            -
+          </small>
+
+          <span
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoGearPinionStatus"
+          >
+            조회 대기
+          </span>
+
+        </div>
+
+      </header>
+
+
+      <div class="efficiency-morning-meeting-auto-card__body">
+
+        <div class="efficiency-morning-meeting-auto-row">
+
+          <span>
+            Gear Wheel
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoGearWheel"
+          >
+            -
+          </strong>
+
+        </div>
+
+
+        <div class="efficiency-morning-meeting-auto-row">
+
+          <span>
+            Pinion
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoPinion"
+          >
+            -
+          </strong>
+
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+            is-emphasis
+          "
+        >
+
+          <span>
+            엑셀 반영값
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoGearPinionCombined"
+          >
+            - / -
+          </strong>
+
+        </div>
+
+      </div>
+
+    </article>
+
+  </div>
 
 </section>
 

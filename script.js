@@ -128280,13 +128280,25 @@ function applyMorningMeetingTemplateFile(
 /* =====================================================
   최종 엑셀 만들기 버튼 활성화 조건
 
-  필수:
+  기존 필수:
   1. 일일발전현황 첨부
   2. 운탄일지 첨부
   3. 안전·환경·기계·전기제어팀 분석 완료
   4. 운탄일지 분석 완료
-  5. 운탄일지 내용 한 건 이상 선택
-  6. 교대파트 업무 한 건 이상 선택
+  5. 운탄일지 내용 선택
+  6. 교대파트 업무 선택
+
+  자동자료 필수:
+  7. 수처리 9개 값
+  8. BO1·BO2 보일러 온도 12개
+  9. 석회석 재고·입고·사용량
+  10. Gear Wheel / Pinion
+
+  날짜:
+  - 수처리      = 오전회의 대상일 전일
+  - BO1·BO2     = 오전회의 대상일 전일 N/S
+  - 석회석      = 오전회의 대상일 전일
+  - Gear/Pinion = 오전회의 대상일 당일
 ===================================================== */
 
 function updateMorningMeetingCreateButton() {
@@ -128297,6 +128309,188 @@ function updateMorningMeetingCreateButton() {
   const state =
     getMorningMeetingWorkbookState();
 
+
+  /* ===================================================
+    숫자값 검사
+
+    허용:
+    0
+    0.000
+    1,234.567
+    84.558 %
+    38.70 t
+  ==================================================== */
+
+  const parseRequiredNumber =
+    value => {
+      const normalizedValue =
+        String(
+          value ??
+          ""
+        )
+          .replaceAll(
+            ",",
+            ""
+          )
+          .trim();
+
+
+      if (
+        !normalizedValue ||
+        normalizedValue ===
+          "-"
+      ) {
+        return null;
+      }
+
+
+      const numberMatch =
+        normalizedValue.match(
+          /-?\d+(?:\.\d+)?/
+        );
+
+
+      if (
+        !numberMatch
+      ) {
+        return null;
+      }
+
+
+      const numericValue =
+        Number(
+          numberMatch[0]
+        );
+
+
+      return Number.isFinite(
+        numericValue
+      )
+        ? numericValue
+        : null;
+    };
+
+
+  /* ===================================================
+    DOM 숫자값 읽기
+  ==================================================== */
+
+  const getElementNumber =
+    elementId => {
+      const targetElement =
+        document.getElementById(
+          elementId
+        );
+
+
+      if (
+        !targetElement
+      ) {
+        return null;
+      }
+
+
+      const rawValue =
+        targetElement instanceof
+          HTMLInputElement ||
+        targetElement instanceof
+          HTMLTextAreaElement ||
+        targetElement instanceof
+          HTMLSelectElement
+          ? targetElement.value
+          : targetElement.textContent;
+
+
+      return parseRequiredNumber(
+        rawValue
+      );
+    };
+
+
+  /* ===================================================
+    날짜 검사
+  ==================================================== */
+
+  const isValidIsoDate =
+    value => {
+      const normalizedDate =
+        String(
+          value ||
+          ""
+        ).trim();
+
+
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(
+          normalizedDate
+        )
+      ) {
+        return false;
+      }
+
+
+      const parsedDate =
+        new Date(
+          `${normalizedDate}T00:00:00.000Z`
+        );
+
+
+      return (
+        !Number.isNaN(
+          parsedDate.getTime()
+        ) &&
+        parsedDate
+          .toISOString()
+          .slice(
+            0,
+            10
+          ) ===
+          normalizedDate
+      );
+    };
+
+
+  const addIsoDateDays =
+    (
+      dateValue,
+      dayCount
+    ) => {
+      if (
+        !isValidIsoDate(
+          dateValue
+        )
+      ) {
+        return "";
+      }
+
+
+      const parsedDate =
+        new Date(
+          `${dateValue}T00:00:00.000Z`
+        );
+
+
+      parsedDate.setUTCDate(
+        parsedDate.getUTCDate() +
+        Number(
+          dayCount ||
+          0
+        )
+      );
+
+
+      return parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        );
+    };
+
+
+  /* ===================================================
+    기존 오전회의 자료
+  ==================================================== */
 
   const analyzedTeamCount =
     TEAM_ORDER.filter(
@@ -128361,13 +128555,346 @@ function updateMorningMeetingCreateButton() {
     );
 
 
+  /* ===================================================
+    오전회의 전일 기준일
+
+    교대파트 업무일지 날짜를 최우선으로 사용한다.
+  ==================================================== */
+
+  const expectedPreviousDate =
+    String(
+      state.shiftPart?.reportDate ||
+      state.shiftPart?.loadedDate ||
+      state.waterTreatment?.sourceDate ||
+      state.waterTreatment?.targetDate ||
+      ""
+    ).trim();
+
+
+  const hasExpectedPreviousDate =
+    isValidIsoDate(
+      expectedPreviousDate
+    );
+
+
+  const expectedMeetingDate =
+    hasExpectedPreviousDate
+      ? addIsoDateDays(
+          expectedPreviousDate,
+          1
+        )
+      : "";
+
+
+  /* ===================================================
+    1. 수처리 9개 값
+  ==================================================== */
+
+  const waterTreatment =
+    state.waterTreatment &&
+    typeof state.waterTreatment ===
+      "object"
+      ? state.waterTreatment
+      : null;
+
+
+  const waterRequiredValues =
+    waterTreatment
+      ? [
+          waterTreatment
+            .rawWaterInflow,
+
+          waterTreatment
+            .demiProduction,
+
+          waterTreatment
+            .pureWaterUsage,
+
+          waterTreatment
+            .rawWaterTankAmount,
+
+          waterTreatment
+            .rawWaterTankRate,
+
+          waterTreatment
+            .filteredWaterTankAmount,
+
+          waterTreatment
+            .filteredWaterTankRate,
+
+          waterTreatment
+            .demiWaterTankAmount,
+
+          waterTreatment
+            .demiWaterTankRate
+        ]
+      : [];
+
+
+  const hasWaterTreatment =
+    Boolean(
+      waterTreatment
+    ) &&
+    waterRequiredValues.length ===
+      9 &&
+    waterRequiredValues.every(
+      value => {
+        return (
+          parseRequiredNumber(
+            value
+          ) !==
+          null
+        );
+      }
+    );
+
+
+  const waterDate =
+    String(
+      waterTreatment?.sourceDate ||
+      waterTreatment?.targetDate ||
+      ""
+    ).trim();
+
+
+  const hasCorrectWaterDate =
+    hasExpectedPreviousDate &&
+    isValidIsoDate(
+      waterDate
+    ) &&
+    waterDate ===
+      expectedPreviousDate;
+
+
+  /* ===================================================
+    2. BO1·BO2 온도
+  ==================================================== */
+
+  const boilerTemperatures =
+    state.boilerTemperatures &&
+    typeof state.boilerTemperatures ===
+      "object"
+      ? state.boilerTemperatures
+      : null;
+
+
+  const hasBoilerTemperatures =
+    Boolean(
+      boilerTemperatures
+    ) &&
+    boilerTemperatures
+      .complete ===
+      true;
+
+
+  const boilerDate =
+    String(
+      boilerTemperatures
+        ?.reportDate ||
+      ""
+    ).trim();
+
+
+  const hasCorrectBoilerDate =
+    hasExpectedPreviousDate &&
+    isValidIsoDate(
+      boilerDate
+    ) &&
+    boilerDate ===
+      expectedPreviousDate;
+
+
+  /* ===================================================
+    3. 석회석
+
+    기존 석회석 사용량 계산 화면의
+    실제 값을 그대로 검사한다.
+  ==================================================== */
+
+  const limestoneView =
+    document.getElementById(
+      "limestoneUsageCalculatorView"
+    );
+
+
+  const limestoneDate =
+    String(
+      document.getElementById(
+        "limestoneUsageDate"
+      )?.value ||
+      ""
+    ).trim();
+
+
+  const limestoneStatus =
+    String(
+      limestoneView
+        ?.dataset
+        .limestoneUsageStatus ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const limestoneValues = {
+    unitOneStart:
+      getElementNumber(
+        "limestoneUsageUnitOneStartStock"
+      ),
+
+    unitOneReceipt:
+      getElementNumber(
+        "limestoneUsageUnitOneReceipt"
+      ),
+
+    unitOneEnd:
+      getElementNumber(
+        "limestoneUsageUnitOneEndStock"
+      ),
+
+    unitOneUsage:
+      getElementNumber(
+        "limestoneUsageUnitOneUsage"
+      ),
+
+    unitTwoStart:
+      getElementNumber(
+        "limestoneUsageUnitTwoStartStock"
+      ),
+
+    unitTwoReceipt:
+      getElementNumber(
+        "limestoneUsageUnitTwoReceipt"
+      ),
+
+    unitTwoEnd:
+      getElementNumber(
+        "limestoneUsageUnitTwoEndStock"
+      ),
+
+    unitTwoUsage:
+      getElementNumber(
+        "limestoneUsageUnitTwoUsage"
+      )
+  };
+
+
+  const hasLimestoneValues =
+    Object.values(
+      limestoneValues
+    ).every(
+      value => {
+        return value !==
+          null;
+      }
+    );
+
+
+  const limestoneIsBusy =
+    limestoneStatus ===
+    "loading";
+
+
+  const limestoneHasError =
+    limestoneStatus ===
+    "error";
+
+
+  const hasLimestoneData =
+    hasLimestoneValues &&
+    !limestoneIsBusy &&
+    !limestoneHasError;
+
+
+  const hasCorrectLimestoneDate =
+    hasExpectedPreviousDate &&
+    isValidIsoDate(
+      limestoneDate
+    ) &&
+    limestoneDate ===
+      expectedPreviousDate;
+
+
+  /* ===================================================
+    4. Gear Wheel / Pinion
+  ==================================================== */
+
+  const gearPinion =
+    state.gearPinion &&
+    typeof state.gearPinion ===
+      "object"
+      ? state.gearPinion
+      : null;
+
+
+  const gearWheelValue =
+    parseRequiredNumber(
+      gearPinion
+        ?.gearWheel
+    );
+
+
+  const pinionValue =
+    parseRequiredNumber(
+      gearPinion
+        ?.pinion
+    );
+
+
+  const hasGearPinion =
+    Boolean(
+      gearPinion
+    ) &&
+    gearWheelValue !==
+      null &&
+    pinionValue !==
+      null;
+
+
+  const gearPinionDate =
+    String(
+      gearPinion?.targetDate ||
+      gearPinion?.sourceDate ||
+      ""
+    ).trim();
+
+
+  const hasCorrectGearPinionDate =
+    Boolean(
+      expectedMeetingDate
+    ) &&
+    isValidIsoDate(
+      gearPinionDate
+    ) &&
+    gearPinionDate ===
+      expectedMeetingDate;
+
+
+  /* ===================================================
+    최종 활성화 조건
+  ==================================================== */
+
   const canCreate =
     hasTemplateFile &&
     hasCoalLogFile &&
     hasAllTeamAnalysis &&
     hasCoalAnalysis &&
     hasCoalSelection &&
-    hasShiftPartText;
+    hasShiftPartText &&
+    hasExpectedPreviousDate &&
+
+    hasWaterTreatment &&
+    hasCorrectWaterDate &&
+
+    hasBoilerTemperatures &&
+    hasCorrectBoilerDate &&
+
+    hasLimestoneData &&
+    hasCorrectLimestoneDate &&
+
+    hasGearPinion &&
+    hasCorrectGearPinionDate;
 
 
   if (
@@ -128378,10 +128905,11 @@ function updateMorningMeetingCreateButton() {
   }
 
 
-  /*
-    팀 자료 분석 전에는
-    기존 첨부 안내 문구를 유지한다.
-  */
+  /* ===================================================
+    안내 문구
+
+    기존 자료 → 자동자료 순서로 확인한다.
+  ==================================================== */
 
   if (
     !elements.message ||
@@ -128446,10 +128974,162 @@ function updateMorningMeetingCreateButton() {
   }
 
 
-  elements.message.textContent =
-    "모든 자료가 준비되었습니다. 최종 엑셀 만들기를 눌러주세요.";
-}
+  if (
+    !hasExpectedPreviousDate
+  ) {
+    elements.message.textContent =
+      "오전회의 기준일을 확인할 수 없습니다. 업무일지를 다시 불러와 주세요.";
 
+
+    return;
+  }
+
+
+  /* ===================================================
+    수처리
+  ==================================================== */
+
+  if (
+    !hasWaterTreatment
+  ) {
+    elements.message.textContent =
+      "수처리 자료가 준비되지 않았습니다. OIS 자동자료 다시 조회를 눌러주세요.";
+
+
+    return;
+  }
+
+
+  if (
+    !hasCorrectWaterDate
+  ) {
+    elements.message.textContent =
+      `수처리 조회일을 확인해 주세요. 필요일: ${expectedPreviousDate}`;
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    BO1·BO2 온도
+  ==================================================== */
+
+  if (
+    !hasBoilerTemperatures
+  ) {
+    const missingLabels =
+      Array.isArray(
+        boilerTemperatures
+          ?.missing
+      )
+        ? boilerTemperatures
+            .missing
+        : [];
+
+
+    elements.message.textContent =
+      missingLabels.length
+        ? `BO1·BO2 온도 누락: ${missingLabels.join(", ")}`
+        : "BO1·BO2의 FBHE·Wall Screw 온도를 확인하지 못했습니다. 업무일지를 다시 불러와 주세요.";
+
+
+    return;
+  }
+
+
+  if (
+    !hasCorrectBoilerDate
+  ) {
+    elements.message.textContent =
+      `BO1·BO2 온도 업무일지 날짜를 확인해 주세요. 필요일: ${expectedPreviousDate}`;
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    석회석
+  ==================================================== */
+
+  if (
+    limestoneIsBusy
+  ) {
+    elements.message.textContent =
+      "석회석 재고·입고량을 불러오는 중입니다.";
+
+
+    return;
+  }
+
+
+  if (
+    limestoneHasError
+  ) {
+    elements.message.textContent =
+      "석회석 자료 조회에 실패했습니다. 석회석 사용량 자료를 다시 확인해 주세요.";
+
+
+    return;
+  }
+
+
+  if (
+    !hasLimestoneData
+  ) {
+    elements.message.textContent =
+      "석회석 재고·입고량·사용량이 준비되지 않았습니다.";
+
+
+    return;
+  }
+
+
+  if (
+    !hasCorrectLimestoneDate
+  ) {
+    elements.message.textContent =
+      `석회석 계산 기준일을 확인해 주세요. 필요일: ${expectedPreviousDate}`;
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    Gear Wheel / Pinion
+  ==================================================== */
+
+  if (
+    !hasGearPinion
+  ) {
+    elements.message.textContent =
+      "Gear Wheel / Pinion 자료가 준비되지 않았습니다. OIS 자동자료 다시 조회를 눌러주세요.";
+
+
+    return;
+  }
+
+
+  if (
+    !hasCorrectGearPinionDate
+  ) {
+    elements.message.textContent =
+      `Gear Wheel / Pinion 조회일을 확인해 주세요. 필요일: ${expectedMeetingDate}`;
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    모두 완료
+  ==================================================== */
+
+  elements.message.textContent =
+    "모든 자료와 자동 수치가 준비되었습니다. 최종 엑셀 만들기를 눌러주세요.";
+}
 
 window.updateEfficiencyMorningMeetingCreateButton =
   updateMorningMeetingCreateButton;
@@ -133334,6 +134014,1354 @@ function setMorningMeetingNumericCellValue(
   };
 }
 
+/* =====================================================
+  오전회의 엑셀 문자열 셀 입력
+
+  기존 셀의:
+  - 서식
+  - 테두리
+  - 병합 구조
+
+  는 유지하고 값만 inline string으로 교체한다.
+===================================================== */
+
+function setMorningMeetingInlineStringCellValue(
+  worksheetDocument,
+  address,
+  value
+) {
+  const cellElement =
+    findMorningMeetingWorksheetCellByAddress(
+      worksheetDocument,
+      address
+    );
+
+
+  if (
+    !cellElement
+  ) {
+    return {
+      found:
+        false,
+
+      written:
+        false,
+
+      address
+    };
+  }
+
+
+  const stringValue =
+    String(
+      value ??
+      ""
+    );
+
+
+  /*
+    기존 값·수식·문자열 노드 제거
+  */
+
+  [
+    "f",
+    "v",
+    "is"
+  ].forEach(
+    childName => {
+      getMorningMeetingDirectXmlChildren(
+        cellElement,
+        childName
+      )
+        .forEach(
+          childElement => {
+            childElement.remove();
+          }
+        );
+    }
+  );
+
+
+  /*
+    셀 형식을 inline string으로 변경한다.
+  */
+
+  cellElement.setAttribute(
+    "t",
+    "inlineStr"
+  );
+
+
+  const spreadsheetNamespace =
+    cellElement.namespaceURI ||
+    "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+
+  const inlineStringElement =
+    worksheetDocument
+      .createElementNS(
+        spreadsheetNamespace,
+        "is"
+      );
+
+
+  const textElement =
+    worksheetDocument
+      .createElementNS(
+        spreadsheetNamespace,
+        "t"
+      );
+
+
+  /*
+    문자열 앞뒤 공백이 존재하는 경우에도
+    Excel에서 공백이 삭제되지 않도록 한다.
+  */
+
+  if (
+    stringValue !==
+    stringValue.trim()
+  ) {
+    textElement.setAttributeNS(
+      "http://www.w3.org/XML/1998/namespace",
+      "xml:space",
+      "preserve"
+    );
+  }
+
+
+  textElement.textContent =
+    stringValue;
+
+
+  inlineStringElement.appendChild(
+    textElement
+  );
+
+
+  cellElement.appendChild(
+    inlineStringElement
+  );
+
+
+  return {
+    found:
+      true,
+
+    written:
+      true,
+
+    address,
+
+    value:
+      stringValue
+  };
+}
+
+/* =====================================================
+  Gear Wheel / Pinion 필수 숫자 검사
+===================================================== */
+
+function normalizeMorningMeetingGearPinionNumber(
+  value,
+  label
+) {
+  const numericValue =
+    Number(
+      String(
+        value ??
+        ""
+      )
+        .replaceAll(
+          ",",
+          ""
+        )
+        .trim()
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    throw new Error(
+      `OIS에서 "${label}" 값을 확인하지 못했습니다.`
+    );
+  }
+
+
+  return numericValue;
+}
+
+
+/* =====================================================
+  Gear Wheel / Pinion → 최종 오전회의 엑셀
+
+  입력 형식:
+  Gear Wheel / Pinion
+
+  예:
+  0.771 / 1.957
+  → 0.77 / 1.96
+
+  셀:
+  AL23
+
+  단위:
+  AO23의 기존 mm/s 표기는 그대로 유지
+===================================================== */
+
+function applyMorningMeetingGearPinionValues(
+  worksheetDocument,
+  gearPinion
+) {
+  if (
+    !gearPinion ||
+    typeof gearPinion !==
+      "object"
+  ) {
+    throw new Error(
+      "Gear Wheel / Pinion OIS 자료가 없습니다."
+    );
+  }
+
+
+  const gearWheel =
+    normalizeMorningMeetingGearPinionNumber(
+      gearPinion.gearWheel,
+      "Gear Wheel"
+    );
+
+
+  const pinion =
+    normalizeMorningMeetingGearPinionNumber(
+      gearPinion.pinion,
+      "Pinion"
+    );
+
+
+  const displayValue = [
+    gearWheel.toFixed(
+      2
+    ),
+
+    pinion.toFixed(
+      2
+    )
+  ].join(
+    " / "
+  );
+
+
+  const writeResult =
+    setMorningMeetingInlineStringCellValue(
+      worksheetDocument,
+      "AL23",
+      displayValue
+    );
+
+
+  if (
+    !writeResult.found ||
+    !writeResult.written
+  ) {
+    throw new Error(
+      "Gear Wheel / Pinion 셀 AL23에 값을 입력하지 못했습니다."
+    );
+  }
+
+
+  return {
+    appliedCount:
+      1,
+
+    totalCount:
+      1,
+
+    gearWheel,
+
+    pinion,
+
+    displayValue
+  };
+}
+
+/* =====================================================
+  오전회의 석회석 숫자 읽기
+
+  지원:
+  38.08
+  38.08 t
+  1,234.50 t
+===================================================== */
+
+function parseMorningMeetingLimestoneWorkbookNumber(
+  value,
+  label
+) {
+  const normalizedText =
+    String(
+      value ??
+      ""
+    )
+      .replaceAll(
+        ",",
+        ""
+      )
+      .trim();
+
+
+  const match =
+    normalizedText.match(
+      /-?\d+(?:\.\d+)?/
+    );
+
+
+  if (
+    !match
+  ) {
+    throw new Error(
+      `석회석 "${label}" 값을 확인하지 못했습니다.`
+    );
+  }
+
+
+  const numericValue =
+    Number(
+      match[0]
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    throw new Error(
+      `석회석 "${label}" 값이 올바르지 않습니다.`
+    );
+  }
+
+
+  return numericValue;
+}
+
+
+/* =====================================================
+  현재 석회석 사용량 계산 화면 값 수집
+
+  날짜:
+  limestoneUsageDate
+
+  1호기:
+  - 입고량
+  - 사용량
+
+  2호기:
+  - 입고량
+  - 사용량
+===================================================== */
+
+function getMorningMeetingLimestoneWorkbookValues() {
+  const date =
+    String(
+      document.getElementById(
+        "limestoneUsageDate"
+      )?.value ||
+      ""
+    ).trim();
+
+
+  const unitOneReceiptText =
+    document.getElementById(
+      "limestoneUsageUnitOneReceipt"
+    )?.textContent;
+
+
+  const unitTwoReceiptText =
+    document.getElementById(
+      "limestoneUsageUnitTwoReceipt"
+    )?.textContent;
+
+
+  const unitOneUsageText =
+    document.getElementById(
+      "limestoneUsageUnitOneUsage"
+    )?.textContent;
+
+
+  const unitTwoUsageText =
+    document.getElementById(
+      "limestoneUsageUnitTwoUsage"
+    )?.textContent;
+
+
+  return {
+    date,
+
+    unitOneReceipt:
+      parseMorningMeetingLimestoneWorkbookNumber(
+        unitOneReceiptText,
+        "1호기 입고량"
+      ),
+
+    unitTwoReceipt:
+      parseMorningMeetingLimestoneWorkbookNumber(
+        unitTwoReceiptText,
+        "2호기 입고량"
+      ),
+
+    unitOneUsage:
+      parseMorningMeetingLimestoneWorkbookNumber(
+        unitOneUsageText,
+        "1호기 사용량"
+      ),
+
+    unitTwoUsage:
+      parseMorningMeetingLimestoneWorkbookNumber(
+        unitTwoUsageText,
+        "2호기 사용량"
+      )
+  };
+}
+
+
+/* =====================================================
+  석회석 → 최종 오전회의 엑셀 반영
+
+  사용량:
+  AE15 = 1호기
+  AE16 = 2호기
+
+  합계:
+  AJ16 기존 수식 유지
+  =AE15+AE16
+
+  입고량:
+  X15 제목 셀에 두 번째 줄로 표시
+===================================================== */
+
+function applyMorningMeetingLimestoneValues(
+  worksheetDocument,
+  limestoneValues
+) {
+  if (
+    !limestoneValues ||
+    typeof limestoneValues !==
+      "object"
+  ) {
+    throw new Error(
+      "석회석 자료가 없습니다."
+    );
+  }
+
+
+  const unitOneReceipt =
+    parseMorningMeetingLimestoneWorkbookNumber(
+      limestoneValues.unitOneReceipt,
+      "1호기 입고량"
+    );
+
+
+  const unitTwoReceipt =
+    parseMorningMeetingLimestoneWorkbookNumber(
+      limestoneValues.unitTwoReceipt,
+      "2호기 입고량"
+    );
+
+
+  const unitOneUsage =
+    parseMorningMeetingLimestoneWorkbookNumber(
+      limestoneValues.unitOneUsage,
+      "1호기 사용량"
+    );
+
+
+  const unitTwoUsage =
+    parseMorningMeetingLimestoneWorkbookNumber(
+      limestoneValues.unitTwoUsage,
+      "2호기 사용량"
+    );
+
+
+  /* ===================================================
+    1호기 사용량
+  ==================================================== */
+
+  const unitOneResult =
+    setMorningMeetingNumericCellValue(
+      worksheetDocument,
+      "AE15",
+      unitOneUsage
+    );
+
+
+  if (
+    !unitOneResult.found ||
+    !unitOneResult.written
+  ) {
+    throw new Error(
+      "석회석 1호기 사용량을 AE15에 입력하지 못했습니다."
+    );
+  }
+
+
+  /* ===================================================
+    2호기 사용량
+  ==================================================== */
+
+  const unitTwoResult =
+    setMorningMeetingNumericCellValue(
+      worksheetDocument,
+      "AE16",
+      unitTwoUsage
+    );
+
+
+  if (
+    !unitTwoResult.found ||
+    !unitTwoResult.written
+  ) {
+    throw new Error(
+      "석회석 2호기 사용량을 AE16에 입력하지 못했습니다."
+    );
+  }
+
+
+  /* ===================================================
+    입고량 표시
+
+    기존 큰 제목 칸에 두 번째 줄로 표시한다.
+  ==================================================== */
+
+  const receiptText = [
+    "Lime Stone 사용량",
+
+    `입고 1호기 ${unitOneReceipt.toFixed(
+      2
+    )}t · 2호기 ${unitTwoReceipt.toFixed(
+      2
+    )}t`
+  ].join(
+    "\n"
+  );
+
+
+  const receiptResult =
+    setMorningMeetingInlineStringCellValue(
+      worksheetDocument,
+      "X15",
+      receiptText
+    );
+
+
+  if (
+    !receiptResult.found ||
+    !receiptResult.written
+  ) {
+    throw new Error(
+      "석회석 입고량 문구를 X15에 입력하지 못했습니다."
+    );
+  }
+
+
+  /*
+    AJ16은 기존 엑셀 수식
+
+    =AE15+AE16
+
+    그대로 유지한다.
+  */
+
+
+  return {
+    appliedCount:
+      3,
+
+    totalCount:
+      3,
+
+    unitOneReceipt,
+
+    unitTwoReceipt,
+
+    unitOneUsage,
+
+    unitTwoUsage,
+
+    totalUsage:
+      unitOneUsage +
+      unitTwoUsage
+  };
+}
+
+/* =====================================================
+  엑셀 숫자 셀의 현재 값 읽기
+
+  사용:
+  - 기존 전일 값을 읽어 전전일 칸으로 이동
+===================================================== */
+
+function getMorningMeetingNumericCellValue(
+  worksheetDocument,
+  address
+) {
+  const cellElement =
+    findMorningMeetingWorksheetCellByAddress(
+      worksheetDocument,
+      address
+    );
+
+
+  if (
+    !cellElement
+  ) {
+    return null;
+  }
+
+
+  const valueElement =
+    getMorningMeetingDirectXmlChildren(
+      cellElement,
+      "v"
+    )[0];
+
+
+  if (
+    !valueElement
+  ) {
+    return null;
+  }
+
+
+  const numericValue =
+    Number(
+      String(
+        valueElement.textContent ||
+        ""
+      )
+        .replaceAll(
+          ",",
+          ""
+        )
+        .trim()
+    );
+
+
+  return Number.isFinite(
+    numericValue
+  )
+    ? numericValue
+    : null;
+}
+
+
+/* =====================================================
+  필수 숫자값 검사
+
+  OIS 값이 하나라도 비어 있으면
+  오래된 템플릿 값으로 엑셀을 만들지 않는다.
+===================================================== */
+
+function normalizeMorningMeetingRequiredNumber(
+  value,
+  label
+) {
+  const numericValue =
+    Number(
+      String(
+        value ??
+        ""
+      )
+        .replaceAll(
+          ",",
+          ""
+        )
+        .trim()
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    throw new Error(
+      `수처리 값 "${label}"을 확인할 수 없습니다. OIS 수처리를 다시 불러와 주세요.`
+    );
+  }
+
+
+  return numericValue;
+}
+
+
+/* =====================================================
+  OIS 수처리 값 → 최종 오전회의 엑셀 반영
+
+  1. 기존 전일 값:
+     AJ → AH 전전일 칸으로 이동
+
+  2. 새 OIS 값:
+     전일 칸에 입력
+
+  전전일 이동:
+  AJ18 → AH18  장자산단 원수 유입량
+  AJ19 → AH19  순수 생산량
+  AJ20 → AH20  원수 TANK 저장량
+  AJ21 → AH21  여과수 TANK 저장량
+  AJ22 → AH22  순수 TANK 저장량
+
+  새 전일 입력:
+  AJ18  장자산단 원수 유입량
+  AJ19  순수 생산량
+  AM19  순수 사용량
+  AJ20  원수 TANK 저장량
+  AM20  원수 TANK 저장율
+  AJ21  여과수 TANK 저장량
+  AM21  여과수 TANK 저장율
+  AJ22  순수 TANK 저장량
+  AM22  순수 TANK 저장율
+===================================================== */
+
+function applyMorningMeetingWaterTreatmentValues(
+  worksheetDocument,
+  waterTreatment
+) {
+  if (
+    !waterTreatment ||
+    typeof waterTreatment !==
+      "object"
+  ) {
+    throw new Error(
+      "OIS 수처리 현황을 먼저 불러와 주세요."
+    );
+  }
+
+
+  /* ===================================================
+    새 OIS 수처리 9개 값 검사
+  ==================================================== */
+
+  const normalizedValues = {
+    rawWaterInflow:
+      normalizeMorningMeetingRequiredNumber(
+        waterTreatment.rawWaterInflow,
+        "장자산단 원수 유입량"
+      ),
+
+    demiProduction:
+      normalizeMorningMeetingRequiredNumber(
+        waterTreatment.demiProduction,
+        "순수 생산량"
+      ),
+
+    pureWaterUsage:
+      normalizeMorningMeetingRequiredNumber(
+        waterTreatment.pureWaterUsage,
+        "순수 사용량"
+      ),
+
+    rawWaterTankAmount:
+      normalizeMorningMeetingRequiredNumber(
+        waterTreatment.rawWaterTankAmount,
+        "원수 TANK 저장량"
+      ),
+
+    rawWaterTankRate:
+      normalizeMorningMeetingRequiredNumber(
+        waterTreatment.rawWaterTankRate,
+        "원수 TANK 저장율"
+      ),
+
+    filteredWaterTankAmount:
+      normalizeMorningMeetingRequiredNumber(
+        waterTreatment.filteredWaterTankAmount,
+        "여과수 TANK 저장량"
+      ),
+
+    filteredWaterTankRate:
+      normalizeMorningMeetingRequiredNumber(
+        waterTreatment.filteredWaterTankRate,
+        "여과수 TANK 저장율"
+      ),
+
+    demiWaterTankAmount:
+      normalizeMorningMeetingRequiredNumber(
+        waterTreatment.demiWaterTankAmount,
+        "순수 TANK 저장량"
+      ),
+
+    demiWaterTankRate:
+      normalizeMorningMeetingRequiredNumber(
+        waterTreatment.demiWaterTankRate,
+        "순수 TANK 저장율"
+      )
+  };
+
+
+  /* ===================================================
+    템플릿의 기존 전일 값 읽기
+
+    새 값을 쓰기 전에 먼저 읽어야 한다.
+  ==================================================== */
+
+  const previousCurrentValues = {
+    rawWaterInflow:
+      getMorningMeetingNumericCellValue(
+        worksheetDocument,
+        "AJ18"
+      ),
+
+    demiProduction:
+      getMorningMeetingNumericCellValue(
+        worksheetDocument,
+        "AJ19"
+      ),
+
+    rawWaterTankAmount:
+      getMorningMeetingNumericCellValue(
+        worksheetDocument,
+        "AJ20"
+      ),
+
+    filteredWaterTankAmount:
+      getMorningMeetingNumericCellValue(
+        worksheetDocument,
+        "AJ21"
+      ),
+
+    demiWaterTankAmount:
+      getMorningMeetingNumericCellValue(
+        worksheetDocument,
+        "AJ22"
+      )
+  };
+
+
+  const missingTemplateValues =
+    Object.entries(
+      previousCurrentValues
+    )
+      .filter(
+        ([
+          ,
+          value
+        ]) => {
+          return !Number.isFinite(
+            value
+          );
+        }
+      );
+
+
+  if (
+    missingTemplateValues.length >
+    0
+  ) {
+    throw new Error(
+      "기준 일일발전현황에서 기존 수처리 전일 값을 읽지 못했습니다."
+    );
+  }
+
+
+  /* ===================================================
+    기존 전일 → 전전일 이동
+  ==================================================== */
+
+  const moveMappings = [
+    {
+      from:
+        "AJ18",
+
+      to:
+        "AH18",
+
+      value:
+        previousCurrentValues
+          .rawWaterInflow
+    },
+
+    {
+      from:
+        "AJ19",
+
+      to:
+        "AH19",
+
+      value:
+        previousCurrentValues
+          .demiProduction
+    },
+
+    {
+      from:
+        "AJ20",
+
+      to:
+        "AH20",
+
+      value:
+        previousCurrentValues
+          .rawWaterTankAmount
+    },
+
+    {
+      from:
+        "AJ21",
+
+      to:
+        "AH21",
+
+      value:
+        previousCurrentValues
+          .filteredWaterTankAmount
+    },
+
+    {
+      from:
+        "AJ22",
+
+      to:
+        "AH22",
+
+      value:
+        previousCurrentValues
+          .demiWaterTankAmount
+    }
+  ];
+
+
+  moveMappings.forEach(
+    mapping => {
+      const writeResult =
+        setMorningMeetingNumericCellValue(
+          worksheetDocument,
+          mapping.to,
+          mapping.value
+        );
+
+
+      if (
+        !writeResult.found ||
+        !writeResult.written
+      ) {
+        throw new Error(
+          `수처리 전전일 셀 ${mapping.to}에 값을 입력하지 못했습니다.`
+        );
+      }
+    }
+  );
+
+
+  /* ===================================================
+    새 OIS 값 → 전일 입력
+  ==================================================== */
+
+  const currentMappings = [
+    {
+      address:
+        "AJ18",
+
+      value:
+        normalizedValues
+          .rawWaterInflow
+    },
+
+    {
+      address:
+        "AJ19",
+
+      value:
+        normalizedValues
+          .demiProduction
+    },
+
+    {
+      address:
+        "AM19",
+
+      value:
+        normalizedValues
+          .pureWaterUsage
+    },
+
+    {
+      address:
+        "AJ20",
+
+      value:
+        normalizedValues
+          .rawWaterTankAmount
+    },
+
+    {
+      address:
+        "AM20",
+
+      value:
+        normalizedValues
+          .rawWaterTankRate
+    },
+
+    {
+      address:
+        "AJ21",
+
+      value:
+        normalizedValues
+          .filteredWaterTankAmount
+    },
+
+    {
+      address:
+        "AM21",
+
+      value:
+        normalizedValues
+          .filteredWaterTankRate
+    },
+
+    {
+      address:
+        "AJ22",
+
+      value:
+        normalizedValues
+          .demiWaterTankAmount
+    },
+
+    {
+      address:
+        "AM22",
+
+      value:
+        normalizedValues
+          .demiWaterTankRate
+    }
+  ];
+
+
+  currentMappings.forEach(
+    mapping => {
+      const writeResult =
+        setMorningMeetingNumericCellValue(
+          worksheetDocument,
+          mapping.address,
+          mapping.value
+        );
+
+
+      if (
+        !writeResult.found ||
+        !writeResult.written
+      ) {
+        throw new Error(
+          `수처리 전일 셀 ${mapping.address}에 값을 입력하지 못했습니다.`
+        );
+      }
+    }
+  );
+
+
+  return {
+    movedCount:
+      moveMappings.length,
+
+    appliedCount:
+      currentMappings.length,
+
+    totalCount:
+      currentMappings.length
+  };
+}
+
+
+/* =====================================================
+  오전회의 BO1·BO2 온도 필수값 검사
+===================================================== */
+
+function normalizeMorningMeetingBoilerTemperatureNumber(
+  value,
+  label
+) {
+  const numericValue =
+    Number(
+      String(
+        value ??
+        ""
+      )
+        .replaceAll(
+          ",",
+          ""
+        )
+        .replace(
+          /℃|°C/gi,
+          ""
+        )
+        .trim()
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    throw new Error(
+      `업무일지에서 "${label}" 온도를 확인하지 못했습니다.`
+    );
+  }
+
+
+  return numericValue;
+}
+
+
+/* =====================================================
+  BO1·BO2 운전현황 온도 → 최종 오전회의 엑셀
+
+  BO1:
+  - 1호기 FBHE Left / Right
+  - Wall Screw A / B / C / D
+
+  BO2:
+  - 2호기 FBHE Left / Right
+  - Wall Screw A / B / C / D
+
+  셀:
+  1호기 FBHE L/R:
+  J15 / S15
+
+  2호기 FBHE L/R:
+  J16 / S16
+
+  1호기 Wall Screw A/B/C/D:
+  F21 / J21 / M21 / T21
+
+  2호기 Wall Screw A/B/C/D:
+  F22 / J22 / M22 / T22
+===================================================== */
+
+function applyMorningMeetingBoilerTemperatureValues(
+  worksheetDocument,
+  boilerTemperatures
+) {
+  if (
+    !boilerTemperatures ||
+    typeof boilerTemperatures !==
+      "object"
+  ) {
+    throw new Error(
+      "BO1·BO2 온도 자료가 없습니다. 업무일지를 다시 불러와 주세요."
+    );
+  }
+
+
+  const unitOne =
+    boilerTemperatures.unitOne;
+
+
+  const unitTwo =
+    boilerTemperatures.unitTwo;
+
+
+  if (
+    !unitOne
+  ) {
+    throw new Error(
+      "현재 N/S의 BO1 운전현황을 찾지 못했습니다."
+    );
+  }
+
+
+  if (
+    !unitTwo
+  ) {
+    throw new Error(
+      "현재 N/S의 BO2 운전현황을 찾지 못했습니다."
+    );
+  }
+
+
+  /* ===================================================
+    온도 12개 검사 및 셀 연결
+  ==================================================== */
+
+  const mappings = [
+    {
+      address:
+        "J15",
+
+      label:
+        "1호기 FBHE Left",
+
+      value:
+        unitOne.fbheLeft
+    },
+
+    {
+      address:
+        "S15",
+
+      label:
+        "1호기 FBHE Right",
+
+      value:
+        unitOne.fbheRight
+    },
+
+    {
+      address:
+        "J16",
+
+      label:
+        "2호기 FBHE Left",
+
+      value:
+        unitTwo.fbheLeft
+    },
+
+    {
+      address:
+        "S16",
+
+      label:
+        "2호기 FBHE Right",
+
+      value:
+        unitTwo.fbheRight
+    },
+
+    {
+      address:
+        "F21",
+
+      label:
+        "1호기 Wall Screw A",
+
+      value:
+        unitOne.wallScrew?.A
+    },
+
+    {
+      address:
+        "J21",
+
+      label:
+        "1호기 Wall Screw B",
+
+      value:
+        unitOne.wallScrew?.B
+    },
+
+    {
+      address:
+        "M21",
+
+      label:
+        "1호기 Wall Screw C",
+
+      value:
+        unitOne.wallScrew?.C
+    },
+
+    {
+      address:
+        "T21",
+
+      label:
+        "1호기 Wall Screw D",
+
+      value:
+        unitOne.wallScrew?.D
+    },
+
+    {
+      address:
+        "F22",
+
+      label:
+        "2호기 Wall Screw A",
+
+      value:
+        unitTwo.wallScrew?.A
+    },
+
+    {
+      address:
+        "J22",
+
+      label:
+        "2호기 Wall Screw B",
+
+      value:
+        unitTwo.wallScrew?.B
+    },
+
+    {
+      address:
+        "M22",
+
+      label:
+        "2호기 Wall Screw C",
+
+      value:
+        unitTwo.wallScrew?.C
+    },
+
+    {
+      address:
+        "T22",
+
+      label:
+        "2호기 Wall Screw D",
+
+      value:
+        unitTwo.wallScrew?.D
+    }
+  ];
+
+
+  mappings.forEach(
+    mapping => {
+      const numericValue =
+        normalizeMorningMeetingBoilerTemperatureNumber(
+          mapping.value,
+          mapping.label
+        );
+
+
+      const writeResult =
+        setMorningMeetingNumericCellValue(
+          worksheetDocument,
+          mapping.address,
+          numericValue
+        );
+
+
+      if (
+        !writeResult.found ||
+        !writeResult.written
+      ) {
+        throw new Error(
+          `${mapping.label} 셀 ${mapping.address}에 온도를 입력하지 못했습니다.`
+        );
+      }
+    }
+  );
+
+
+  return {
+    appliedCount:
+      mappings.length,
+
+    totalCount:
+      mappings.length
+  };
+}
+
 
 /* =====================================================
   운탄일지 수치 → 일일발전운전현황 상단 반영
@@ -135674,6 +137702,54 @@ async function createMorningMeetingWorkbook() {
           .selectedItems
       : [];
 
+/* =====================================================
+  OIS 수처리 현황
+
+  최종 엑셀에 반영할 수처리 9개 값
+===================================================== */
+
+const waterTreatment =
+  state.waterTreatment &&
+  typeof state.waterTreatment ===
+    "object"
+    ? state.waterTreatment
+    : null;
+
+const boilerTemperatures =
+  state.boilerTemperatures &&
+  typeof state.boilerTemperatures ===
+    "object"
+    ? state.boilerTemperatures
+    : null;    
+
+const gearPinion =
+  state.gearPinion &&
+  typeof state.gearPinion ===
+    "object"
+    ? state.gearPinion
+    : null;    
+
+let limestoneValues =
+  null;
+
+
+try {
+  limestoneValues =
+    getMorningMeetingLimestoneWorkbookValues();
+
+} catch (
+  error
+) {
+  showMorningMeetingWorkbookError(
+    error instanceof
+      Error
+      ? error.message
+      : "석회석 자료를 확인하지 못했습니다."
+  );
+
+
+  return;
+}    
 
   /* =====================================================
     필수 기능 확인
@@ -135752,6 +137828,63 @@ async function createMorningMeetingWorkbook() {
 
     return;
   }
+
+  if (
+  !waterTreatment
+) {
+  showMorningMeetingWorkbookError(
+    "OIS 수처리 현황을 먼저 불러와 주세요."
+  );
+
+
+  return;
+}
+
+if (
+  !boilerTemperatures
+) {
+  showMorningMeetingWorkbookError(
+    "BO1·BO2 온도 자료가 없습니다. 업무일지 불러오기를 다시 실행해 주세요."
+  );
+
+
+  return;
+}
+
+
+if (
+  boilerTemperatures.complete !==
+    true
+) {
+  const missingLabels =
+    Array.isArray(
+      boilerTemperatures.missing
+    )
+      ? boilerTemperatures
+          .missing
+      : [];
+
+
+  showMorningMeetingWorkbookError(
+    missingLabels.length
+      ? `BO1·BO2 온도 누락: ${missingLabels.join(", ")}`
+      : "BO1·BO2의 FBHE·Wall Screw 온도를 모두 확인하지 못했습니다."
+  );
+
+
+  return;
+}
+
+if (
+  !gearPinion
+) {
+  showMorningMeetingWorkbookError(
+    "Gear Wheel / Pinion OIS 자료가 없습니다. OIS 수처리 불러오기를 다시 실행해 주세요."
+  );
+
+
+  return;
+}
 
 
   /* =====================================================
@@ -135851,6 +137984,144 @@ async function createMorningMeetingWorkbook() {
       previousDate,
       1
     );
+
+    const expectedWaterSourceDate =
+  previousDate
+    .toISOString()
+    .slice(
+      0,
+      10
+    );
+
+/* ===================================================
+  석회석 기준일 검사
+
+  오전회의 대상일의 전일과 같아야 한다.
+=================================================== */
+
+const limestoneDate =
+  String(
+    limestoneValues.date ||
+    ""
+  ).trim();
+
+
+if (
+  !limestoneDate ||
+  limestoneDate !==
+    expectedWaterSourceDate
+) {
+  showMorningMeetingWorkbookError(
+    [
+      "석회석 사용량 계산 날짜가 오전회의 자료 날짜와 다릅니다.",
+      `필요일: ${expectedWaterSourceDate}`,
+      `계산일: ${limestoneDate || "-"}`
+    ].join(
+      " "
+    )
+  );
+
+
+  return;
+}    
+
+const waterSourceDate =
+  String(
+    waterTreatment.sourceDate ||
+    waterTreatment.targetDate ||
+    ""
+  ).trim();
+
+
+if (
+  waterSourceDate &&
+  waterSourceDate !==
+    expectedWaterSourceDate
+) {
+  showMorningMeetingWorkbookError(
+    [
+      "OIS 수처리 조회 날짜가 오전회의 자료 날짜와 다릅니다.",
+      `필요일: ${expectedWaterSourceDate}`,
+      `조회일: ${waterSourceDate}`
+    ].join(
+      " "
+    )
+  );
+
+
+  return;
+}
+
+const boilerReportDate =
+  String(
+    boilerTemperatures.reportDate ||
+    ""
+  ).trim();
+
+/* ===================================================
+  Gear Wheel / Pinion 조회일 검사
+
+  수처리·BO1·BO2:
+  오전회의 대상일 전일
+
+  Gear / Pinion:
+  오전회의 대상일 당일 LOG SHEET의 전일 열
+=================================================== */
+
+const expectedGearPinionDate =
+  scheduleDate
+    .toISOString()
+    .slice(
+      0,
+      10
+    );
+
+
+const gearPinionDate =
+  String(
+    gearPinion.targetDate ||
+    gearPinion.sourceDate ||
+    ""
+  ).trim();
+
+
+if (
+  gearPinionDate &&
+  gearPinionDate !==
+    expectedGearPinionDate
+) {
+  showMorningMeetingWorkbookError(
+    [
+      "Gear Wheel / Pinion 조회 날짜가 오전회의 대상일과 다릅니다.",
+      `필요일: ${expectedGearPinionDate}`,
+      `조회일: ${gearPinionDate}`
+    ].join(
+      " "
+    )
+  );
+
+
+  return;
+}  
+
+if (
+  boilerReportDate &&
+  boilerReportDate !==
+    expectedWaterSourceDate
+) {
+  showMorningMeetingWorkbookError(
+    [
+      "BO1·BO2 온도 업무일지 날짜가 오전회의 자료 날짜와 다릅니다.",
+      `필요일: ${expectedWaterSourceDate}`,
+      `업무일지: ${boilerReportDate}`
+    ].join(
+      " "
+    )
+  );
+
+
+  return;
+}
 
 
   /* =====================================================
@@ -135975,6 +138246,57 @@ async function createMorningMeetingWorkbook() {
         {}
       );
 
+      /* ===================================================
+  2차: OIS 수처리 값 반영
+
+  기존 전일:
+  → 전전일로 이동
+
+  새 OIS 값:
+  → 전일에 입력
+==================================================== */
+
+const waterResult =
+  applyMorningMeetingWaterTreatmentValues(
+    worksheetDocument,
+    waterTreatment
+  );
+
+/* ===================================================
+  현재 N/S BO1·BO2 온도 반영
+
+  기존 템플릿 온도는 이동하지 않고
+  새 온도로 바로 교체한다.
+==================================================== */
+
+const boilerTemperatureResult =
+  applyMorningMeetingBoilerTemperatureValues(
+    worksheetDocument,
+    boilerTemperatures
+  );  
+
+/* ===================================================
+  OIS Gear Wheel / Pinion 반영
+
+  AL23:
+  0.77 / 1.96
+=================================================== */
+
+const gearPinionResult =
+  applyMorningMeetingGearPinionValues(
+    worksheetDocument,
+    gearPinion
+  );
+
+/* ===================================================
+  석회석 입고량 · 사용량 반영
+=================================================== */
+
+const limestoneResult =
+  applyMorningMeetingLimestoneValues(
+    worksheetDocument,
+    limestoneValues
+  );
 
     /* ===================================================
       2차: 교대파트 반영
@@ -136172,6 +138494,10 @@ elements.message.textContent =
   `TM 설비운영 ${tmResult.operationCount}건 · ` +
   `TM 연료설비 ${tmResult.fuelCount}건 · ` +
   `운탄 수치 ${numericResult.appliedCount}/${numericResult.totalCount}개 · ` +
+  `수처리 ${waterResult.appliedCount}/${waterResult.totalCount}개 · ` +
+  `보일러 온도 ${boilerTemperatureResult.appliedCount}/${boilerTemperatureResult.totalCount}개 · ` +
+  `석회석 ${limestoneResult.appliedCount}/${limestoneResult.totalCount}개 · ` +
+  `Gear/Pinion ${gearPinionResult.appliedCount}/${gearPinionResult.totalCount}개 · ` +
   `${movementText}`;
   }
 
@@ -138682,6 +141008,553 @@ function updateSelectedText(
   }
 
 
+/* =====================================================
+  오전회의 BO1·BO2 운전현황 온도 추출
+
+  현재 N/S:
+  - BO1 → 1호기
+  - BO2 → 2호기
+
+  추출:
+  - FBHE 격벽 Temp L / R
+  - Coal Wall Screw Feeder Temp A / B / C / D
+===================================================== */
+
+function normalizeMorningMeetingBoilerRole(
+  value
+) {
+  const role =
+    String(
+      value ??
+      ""
+    )
+      .trim()
+      .replace(
+        /\s+/g,
+        ""
+      )
+      .toUpperCase();
+
+
+  return [
+    "BO1",
+    "BO2"
+  ].includes(
+    role
+  )
+    ? role
+    : "";
+}
+
+
+/* =====================================================
+  업무일지 수정시간
+
+  동일 보직 일지가 여러 개면
+  가장 최근 수정본을 사용한다.
+===================================================== */
+
+function getMorningMeetingBoilerLogTime(
+  log
+) {
+  const time =
+    new Date(
+      log?.updatedAt ||
+      log?.updated_at ||
+      log?.createdAt ||
+      log?.created_at ||
+      0
+    ).getTime();
+
+
+  return Number.isFinite(
+    time
+  )
+    ? time
+    : 0;
+}
+
+
+/* =====================================================
+  업무일지 운전현황 원문
+
+  우선순위:
+  1. operationStatus
+  2. operation_status
+  3. operationStatusContent
+  4. 설비별 배열
+===================================================== */
+
+function getMorningMeetingBoilerOperationText(
+  log
+) {
+  const directText =
+    [
+      log?.operationStatus,
+      log?.operation_status,
+      log?.operationStatusContent,
+      log?.operation_status_content
+    ]
+      .map(
+        value => {
+          return String(
+            value ??
+            ""
+          ).trim();
+        }
+      )
+      .find(
+        Boolean
+      ) ||
+      "";
+
+
+  if (
+    directText
+  ) {
+    return directText
+      .replace(
+        /<br\s*\/?>/gi,
+        "\n"
+      )
+      .replace(
+        /\\n/g,
+        "\n"
+      )
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .trim();
+  }
+
+
+  const operationItems =
+    [
+      log?.operationStatusItems,
+      log?.operationItems,
+      log?.items
+    ].find(
+      items => {
+        return (
+          Array.isArray(
+            items
+          ) &&
+          items.length >
+            0
+        );
+      }
+    ) ||
+    [];
+
+
+  return operationItems
+    .map(
+      item => {
+        if (
+          typeof item ===
+            "string"
+        ) {
+          return item;
+        }
+
+
+        return String(
+          item?.content ||
+          item?.text ||
+          ""
+        ).trim();
+      }
+    )
+    .filter(
+      Boolean
+    )
+    .join(
+      "\n"
+    );
+}
+
+
+/* =====================================================
+  현재 N/S의 가장 최근 BO1·BO2 일지 찾기
+===================================================== */
+
+function findLatestMorningMeetingBoilerLog(
+  logs,
+  requestedRole
+) {
+  const targetRole =
+    normalizeMorningMeetingBoilerRole(
+      requestedRole
+    );
+
+
+  if (
+    !targetRole
+  ) {
+    return null;
+  }
+
+
+  return (
+    (
+      Array.isArray(
+        logs
+      )
+        ? logs
+        : []
+    )
+      .filter(
+        log => {
+          return (
+            normalizeMorningMeetingBoilerRole(
+              log?.role
+            ) ===
+              targetRole &&
+
+            Boolean(
+              getMorningMeetingBoilerOperationText(
+                log
+              )
+            )
+          );
+        }
+      )
+      .sort(
+        (
+          firstLog,
+          secondLog
+        ) => {
+          return (
+            getMorningMeetingBoilerLogTime(
+              secondLog
+            ) -
+            getMorningMeetingBoilerLogTime(
+              firstLog
+            )
+          );
+        }
+      )[0] ||
+    null
+  );
+}
+
+
+/* =====================================================
+  온도 원문 정리
+===================================================== */
+
+function normalizeMorningMeetingTemperatureText(
+  value
+) {
+  return String(
+    value ??
+    ""
+  )
+    .normalize(
+      "NFKC"
+    )
+    .replace(
+      /<br\s*\/?>/gi,
+      "\n"
+    )
+    .replace(
+      /\\n/g,
+      "\n"
+    )
+    .replace(
+      /\r\n?/g,
+      "\n"
+    )
+    .replace(
+      /℃/g,
+      "°C"
+    )
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+}
+
+
+/* =====================================================
+  운전현황 한 건의 온도 분석
+
+  주의:
+  "Seal Pot To FBHE Temp"가 아니라
+  "FBHE 격벽 Temp"만 인식한다.
+===================================================== */
+
+function parseMorningMeetingBoilerTemperatureText(
+  rawText
+) {
+  const sourceText =
+    normalizeMorningMeetingTemperatureText(
+      rawText
+    );
+
+
+  const fbheMatch =
+    sourceText.match(
+      /FBHE\s*(?:격벽|PARTITION)\s*TEMP(?:ERATURE)?\s*L\s*[:：]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*R\s*[:：]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?/i
+    );
+
+
+  const wallScrewMatch =
+    sourceText.match(
+      /(?:COAL\s*)?WALL\s*SCREW(?:\s*FEEDER)?\s*TEMP(?:ERATURE)?\s*A\s*[:：]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*B\s*[:：]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*C\s*[:：]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*D\s*[:：]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?/i
+    );
+
+
+  const parseMatchedNumber =
+    value => {
+      const numericValue =
+        Number(
+          value
+        );
+
+
+      return Number.isFinite(
+        numericValue
+      )
+        ? numericValue
+        : null;
+    };
+
+
+  return {
+    fbheLeft:
+      parseMatchedNumber(
+        fbheMatch?.[1]
+      ),
+
+    fbheRight:
+      parseMatchedNumber(
+        fbheMatch?.[2]
+      ),
+
+    wallScrew: {
+      A:
+        parseMatchedNumber(
+          wallScrewMatch?.[1]
+        ),
+
+      B:
+        parseMatchedNumber(
+          wallScrewMatch?.[2]
+        ),
+
+      C:
+        parseMatchedNumber(
+          wallScrewMatch?.[3]
+        ),
+
+      D:
+        parseMatchedNumber(
+          wallScrewMatch?.[4]
+        )
+    },
+
+    sourceText
+  };
+}
+
+
+/* =====================================================
+  BO1·BO2 온도 전체 추출
+===================================================== */
+
+function extractMorningMeetingBoilerTemperatures(
+  nightLogs,
+  reportDate
+) {
+  const result = {
+    reportDate:
+      String(
+        reportDate ||
+        ""
+      ).trim(),
+
+    sourceShift:
+      "NS",
+
+    unitOne:
+      null,
+
+    unitTwo:
+      null,
+
+    missing:
+      [],
+
+    complete:
+      false
+  };
+
+
+  const definitions = [
+    {
+      role:
+        "BO1",
+
+      label:
+        "1호기",
+
+      resultKey:
+        "unitOne"
+    },
+
+    {
+      role:
+        "BO2",
+
+      label:
+        "2호기",
+
+      resultKey:
+        "unitTwo"
+    }
+  ];
+
+
+  definitions.forEach(
+    definition => {
+      const sourceLog =
+        findLatestMorningMeetingBoilerLog(
+          nightLogs,
+          definition.role
+        );
+
+
+      const parsed =
+        parseMorningMeetingBoilerTemperatureText(
+          getMorningMeetingBoilerOperationText(
+            sourceLog
+          )
+        );
+
+
+      const unitResult = {
+        role:
+          definition.role,
+
+        label:
+          definition.label,
+
+        sourceLogId:
+          String(
+            sourceLog?.id ||
+            ""
+          ).trim(),
+
+        sourceAuthor:
+          String(
+            sourceLog?.author ||
+            ""
+          ).trim(),
+
+        sourceUpdatedAt:
+          String(
+            sourceLog?.updatedAt ||
+            sourceLog?.updated_at ||
+            sourceLog?.createdAt ||
+            sourceLog?.created_at ||
+            ""
+          ).trim(),
+
+        fbheLeft:
+          parsed.fbheLeft,
+
+        fbheRight:
+          parsed.fbheRight,
+
+        wallScrew: {
+          A:
+            parsed.wallScrew.A,
+
+          B:
+            parsed.wallScrew.B,
+
+          C:
+            parsed.wallScrew.C,
+
+          D:
+            parsed.wallScrew.D
+        },
+
+        sourceText:
+          parsed.sourceText
+      };
+
+
+      result[
+        definition.resultKey
+      ] =
+        unitResult;
+
+
+      const valueChecks = [
+        [
+          `${definition.label} FBHE Left`,
+          unitResult.fbheLeft
+        ],
+
+        [
+          `${definition.label} FBHE Right`,
+          unitResult.fbheRight
+        ],
+
+        [
+          `${definition.label} Wall Screw A`,
+          unitResult.wallScrew.A
+        ],
+
+        [
+          `${definition.label} Wall Screw B`,
+          unitResult.wallScrew.B
+        ],
+
+        [
+          `${definition.label} Wall Screw C`,
+          unitResult.wallScrew.C
+        ],
+
+        [
+          `${definition.label} Wall Screw D`,
+          unitResult.wallScrew.D
+        ]
+      ];
+
+
+      valueChecks.forEach(
+        ([
+          label,
+          value
+        ]) => {
+          if (
+            !Number.isFinite(
+              value
+            )
+          ) {
+            result.missing.push(
+              label
+            );
+          }
+        }
+      );
+    }
+  );
+
+
+  result.complete =
+    result.missing.length ===
+    0;
+
+
+  return result;
+}
+
   async function loadShiftPartLogs() {
     const elements =
       getElements();
@@ -138767,11 +141640,54 @@ function updateSelectedText(
         ]);
 
 
-      state.shiftPart.items =
-        buildSelectableItems(
-          dayLogs,
-          nightLogs
-        );
+/* ===================================================
+  조회한 업무일지 원본 보관
+
+  BO1·BO2 온도 추출과 이후 자동 수치 반영에 사용
+==================================================== */
+
+state.shiftPart.dayLogs =
+  Array.isArray(
+    dayLogs
+  )
+    ? dayLogs
+    : [];
+
+
+state.shiftPart.nightLogs =
+  Array.isArray(
+    nightLogs
+  )
+    ? nightLogs
+    : [];
+
+
+/* ===================================================
+  현재 N/S BO1·BO2 온도 추출
+==================================================== */
+
+state.boilerTemperatures =
+  extractMorningMeetingBoilerTemperatures(
+    state.shiftPart.nightLogs,
+    reportDate
+  );
+
+
+console.log(
+  "오전회의 BO1·BO2 온도 추출 결과:",
+  state.boilerTemperatures
+);
+
+
+/* ===================================================
+  기존 교대파트 선택목록 생성
+==================================================== */
+
+state.shiftPart.items =
+  buildSelectableItems(
+    dayLogs,
+    nightLogs
+  );
 
 
       state.shiftPart.selectedIds =
@@ -138957,85 +141873,203 @@ function refreshReportDate() {
   }
 
 
-  function resetShiftPart() {
-    const state =
-      getState();
+/* =====================================================
+  교대파트 업무 선택 전체 초기화
+
+  초기화 대상:
+  - 조회 기준일
+  - D/S·N/S 원본 업무일지
+  - 교대파트 선택 목록
+  - 업무일지 발행내역
+  - 선택 상태와 취합 문구
+  - BO1·BO2 보일러 온도 추출 결과
+===================================================== */
+
+function resetShiftPart() {
+  const state =
+    getState();
 
 
-    state.shiftPart = {
-      reportDate:
-        "",
+  /* ===================================================
+    교대파트 상태 초기화
+  ==================================================== */
 
-      loadedDate:
-        "",
+  state.shiftPart = {
+    reportDate:
+      "",
 
-      items:
-        [],
+    loadedDate:
+      "",
 
-      selectedIds:
-        new Set(),
+    /*
+      조회한 원본 업무일지
 
-      text:
-        ""
-    };
+      이후 BO1·BO2 온도 추출에 사용한다.
+    */
 
+    dayLogs:
+      [],
 
-    const elements =
-      getElements();
+    nightLogs:
+      [],
 
+    /*
+      교대파트 일반 업무 선택 목록
+    */
 
-    if (
-      elements.date
-    ) {
-      elements.date.textContent =
-        "기준 일자 확인 전";
-    }
+    items:
+      [],
 
+    /*
+      모든 보직의 TM·BM·CM 발행내역
 
-    if (
-      elements.loadButton
-    ) {
-      elements.loadButton.disabled =
-        true;
-    }
+      운탄일지 화면 오른쪽 TM 사항에서 사용한다.
+    */
 
+    tmItems:
+      [],
 
-    if (
-      elements.dayList
-    ) {
-      elements.dayList.innerHTML = `
-        <p class="efficiency-morning-meeting-shift-empty">
-          팀 자료를 분석하면 업무일지를 자동으로 불러옵니다.
-        </p>
-      `;
-    }
+    selectedIds:
+      new Set(),
+
+    text:
+      ""
+  };
 
 
-    if (
-      elements.nightList
-    ) {
-      elements.nightList.innerHTML = `
-        <p class="efficiency-morning-meeting-shift-empty">
-          팀 자료를 분석하면 업무일지를 자동으로 불러옵니다.
-        </p>
-      `;
-    }
+  /* ===================================================
+    BO1·BO2 온도 추출 결과 초기화
+  ==================================================== */
+
+  delete state
+    .boilerTemperatures;
 
 
-    if (
-      elements.textarea
-    ) {
-      elements.textarea.value =
-        "";
-    }
+  const elements =
+    getElements();
 
 
-    updateSelectedText(
-      false
+  /* ===================================================
+    조회 기준일 초기화
+  ==================================================== */
+
+  if (
+    elements.date
+  ) {
+    elements.date.textContent =
+      "기준 일자 확인 전";
+  }
+
+
+  /* ===================================================
+    업무일지 불러오기 버튼 초기화
+  ==================================================== */
+
+  if (
+    elements.loadButton
+  ) {
+    elements.loadButton.disabled =
+      true;
+  }
+
+
+  /* ===================================================
+    전날 D/S 목록 초기화
+  ==================================================== */
+
+  if (
+    elements.dayList
+  ) {
+    elements.dayList.innerHTML = `
+      <p class="efficiency-morning-meeting-shift-empty">
+        팀 자료를 분석하면 업무일지를 자동으로 불러옵니다.
+      </p>
+    `;
+  }
+
+
+  /* ===================================================
+    현재 N/S 목록 초기화
+  ==================================================== */
+
+  if (
+    elements.nightList
+  ) {
+    elements.nightList.innerHTML = `
+      <p class="efficiency-morning-meeting-shift-empty">
+        팀 자료를 분석하면 업무일지를 자동으로 불러옵니다.
+      </p>
+    `;
+  }
+
+
+  /* ===================================================
+    전체 선택 버튼 초기화
+  ==================================================== */
+
+  elements.panel
+    ?.querySelectorAll(
+      "[data-morning-meeting-select-shift]"
+    )
+    .forEach(
+      button => {
+        button.textContent =
+          "전체 선택";
+
+
+        button.disabled =
+          true;
+      }
     );
 
-    hideError();
+
+  /* ===================================================
+    기존 숨김 textarea 호환 초기화
+  ==================================================== */
+
+  if (
+    elements.textarea
+  ) {
+    elements.textarea.value =
+      "";
   }
+
+
+  /* ===================================================
+    선택 건수·초기화 버튼·엑셀 버튼 상태 갱신
+  ==================================================== */
+
+  updateSelectedText(
+    false
+  );
+
+
+  /* ===================================================
+    운탄일지 화면 오른쪽 업무일지 발행내역 초기화
+
+    해당 이벤트를 받은 운탄일지·TM 선택 기능이
+    tmItems가 비어 있는 상태로 목록을 다시 그린다.
+  ==================================================== */
+
+  document.dispatchEvent(
+    new CustomEvent(
+      "efficiencyMorningMeetingShiftLogsLoaded",
+
+      {
+        detail: {
+          workCount:
+            0,
+
+          tmCount:
+            0
+        }
+      }
+    )
+  );
+
+
+  hideError();
+}
 
 
   function bindEvents() {
@@ -147777,6 +150811,1385 @@ function bindEvents() {
 })();
 
 /* =========================================================
+  오전회의 취합
+  OIS Gear Wheel / Pinion 요청 클라이언트
+
+  실행:
+  - OIS 수처리 불러오기 버튼을 누를 때 함께 조회
+
+  날짜:
+  - 수처리 기준일은 오전회의 대상일의 전일
+  - Gear / Pinion은 그 다음 날인 오전회의 대상일 조회
+  - OIS BOARD LOGSHEET (TGO)의 전일 열 사용
+
+  저장:
+  window.efficiencyMorningMeetingUploadState.gearPinion
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingGearPinionOisClient() {
+  "use strict";
+
+
+  if (
+    window
+      .__efficiencyMorningMeetingGearPinionOisClientInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyMorningMeetingGearPinionOisClientInstalled =
+    true;
+
+
+  const OIS_REQUEST_API_URL =
+    "/api/ois-data-requests";
+
+
+  const POLL_INTERVAL =
+    1500;
+
+
+  const MAXIMUM_WAIT =
+    10 *
+    60 *
+    1000;
+
+
+  let activeRequestId =
+    "";
+
+
+  let activeRunToken =
+    0;
+
+
+  let initializationAttempt =
+    0;
+
+
+  /* =====================================================
+    오전회의 공용 상태
+  ====================================================== */
+
+  function getState() {
+    if (
+      !window
+        .efficiencyMorningMeetingUploadState
+    ) {
+      window.efficiencyMorningMeetingUploadState = {
+        files:
+          {},
+
+        analysis:
+          {}
+      };
+    }
+
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  /* =====================================================
+    화면 요소
+  ====================================================== */
+
+  function getElements() {
+    return {
+      panel:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterPanel"
+        ),
+
+      waterDate:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterDate"
+        ),
+
+      loadButton:
+        document.getElementById(
+          "loadEfficiencyMorningMeetingWaterButton"
+        ),
+
+      analyzeButton:
+        document.getElementById(
+          "analyzeEfficiencyMorningMeetingButton"
+        ),
+
+      loadShiftButton:
+        document.getElementById(
+          "loadEfficiencyMorningMeetingShiftLogsButton"
+        ),
+
+      shiftDate:
+        document.getElementById(
+          "efficiencyMorningMeetingShiftDate"
+        ),
+
+      resetButton:
+        document.getElementById(
+          "resetEfficiencyMorningMeetingButton"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    문자열
+  ====================================================== */
+
+  function normalizeText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    ).trim();
+  }
+
+
+  /* =====================================================
+    날짜 검사
+  ====================================================== */
+
+  function isValidDate(
+    value
+  ) {
+    const normalizedDate =
+      normalizeText(
+        value
+      );
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        normalizedDate
+      )
+    ) {
+      return false;
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${normalizedDate}T00:00:00.000Z`
+      );
+
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        normalizedDate
+    );
+  }
+
+
+  /* =====================================================
+    날짜 더하기
+  ====================================================== */
+
+  function addDateDays(
+    dateValue,
+    dayCount
+  ) {
+    if (
+      !isValidDate(
+        dateValue
+      )
+    ) {
+      return "";
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${dateValue}T00:00:00.000Z`
+      );
+
+
+    parsedDate.setUTCDate(
+      parsedDate.getUTCDate() +
+      Number(
+        dayCount ||
+        0
+      )
+    );
+
+
+    return parsedDate
+      .toISOString()
+      .slice(
+        0,
+        10
+      );
+  }
+
+
+  /* =====================================================
+    화면 문구에서 날짜 읽기
+
+    예:
+    2026-08-06 · 오전회의 전일
+  ====================================================== */
+
+  function extractDateFromText(
+    value
+  ) {
+    const match =
+      normalizeText(
+        value
+      ).match(
+        /\d{4}-\d{2}-\d{2}/
+      );
+
+
+    return isValidDate(
+      match?.[0]
+    )
+      ? match[0]
+      : "";
+  }
+
+
+  /* =====================================================
+    수처리 기준일 확인
+
+    수처리:
+    오전회의 대상일의 전일
+
+    우선순위:
+    1. 수처리 조회 완료 결과
+    2. 교대파트 업무일지 기준일
+    3. 수처리 패널 저장 날짜
+    4. 수처리 화면 날짜 문구
+  ====================================================== */
+
+  function resolveWaterSourceDate() {
+    const state =
+      getState();
+
+
+    const {
+      panel,
+      waterDate
+    } =
+      getElements();
+
+
+    const candidates = [
+      state.waterTreatment
+        ?.sourceDate,
+
+      state.waterTreatment
+        ?.targetDate,
+
+      state.shiftPart
+        ?.reportDate,
+
+      state.shiftPart
+        ?.loadedDate,
+
+      panel?.dataset
+        .waterTargetDate,
+
+      extractDateFromText(
+        waterDate?.textContent
+      )
+    ];
+
+
+    return (
+      candidates
+        .map(
+          normalizeText
+        )
+        .find(
+          isValidDate
+        ) ||
+      ""
+    );
+  }
+
+
+  /* =====================================================
+    Gear / Pinion 조회일
+
+    수처리 기준일 + 1일
+
+    예:
+    수처리 2026-08-06
+    Gear / Pinion 2026-08-07
+  ====================================================== */
+
+  function resolveGearPinionTargetDate() {
+    const waterSourceDate =
+      resolveWaterSourceDate();
+
+
+    return waterSourceDate
+      ? addDateDays(
+          waterSourceDate,
+          1
+        )
+      : "";
+  }
+
+
+  /* =====================================================
+    API 응답
+  ====================================================== */
+
+  async function readApiResponse(
+    response,
+    fallbackMessage
+  ) {
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "Gear Wheel / Pinion OIS 요청 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        fallbackMessage ||
+        `Gear Wheel / Pinion OIS 요청에 실패했습니다. (HTTP ${response.status})`
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    Gear / Pinion 요청 생성
+  ====================================================== */
+
+  async function createGearPinionRequest(
+    targetDate
+  ) {
+    const response =
+      await fetch(
+        OIS_REQUEST_API_URL,
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              requestType:
+                "turbine_gear_pinion",
+
+              targetDate,
+
+              forceRefresh:
+                true
+            })
+        }
+      );
+
+
+    return await readApiResponse(
+      response,
+      "Gear Wheel / Pinion OIS 조회 요청을 만들지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    요청 한 건 상태 조회
+  ====================================================== */
+
+  async function getGearPinionRequest(
+    requestId
+  ) {
+    const requestUrl =
+      new URL(
+        OIS_REQUEST_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "id",
+      requestId
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    return await readApiResponse(
+      response,
+      "Gear Wheel / Pinion OIS 요청 상태를 확인하지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    대기
+  ====================================================== */
+
+  function wait(
+    milliseconds
+  ) {
+    return new Promise(
+      resolve => {
+        window.setTimeout(
+          resolve,
+          milliseconds
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    회사 PC OIS 조회 완료 대기
+  ====================================================== */
+
+  async function waitForCompletion(
+    requestId,
+    targetDate,
+    runToken
+  ) {
+    const startedAt =
+      Date.now();
+
+
+    while (
+      Date.now() -
+        startedAt <
+      MAXIMUM_WAIT
+    ) {
+      if (
+        runToken !==
+          activeRunToken
+      ) {
+        return null;
+      }
+
+
+      const requestResult =
+        await getGearPinionRequest(
+          requestId
+        );
+
+
+      const requestItem =
+        requestResult.item;
+
+
+      if (
+        !requestItem
+      ) {
+        throw new Error(
+          "Gear Wheel / Pinion OIS 요청을 찾을 수 없습니다."
+        );
+      }
+
+
+      const requestStatus =
+        normalizeText(
+          requestItem.status
+        ).toLowerCase();
+
+
+      if (
+        requestStatus ===
+          "complete"
+      ) {
+        return requestItem;
+      }
+
+
+      if (
+        requestStatus ===
+          "failed"
+      ) {
+        throw new Error(
+          normalizeText(
+            requestItem.errorMessage
+          ) ||
+          `${targetDate} Gear Wheel / Pinion OIS 조회에 실패했습니다.`
+        );
+      }
+
+
+      await wait(
+        POLL_INTERVAL
+      );
+    }
+
+
+    throw new Error(
+      `${targetDate} Gear Wheel / Pinion OIS 조회 응답 시간이 초과되었습니다.`
+    );
+  }
+
+
+  /* =====================================================
+    숫자 정리
+  ====================================================== */
+
+  function normalizeNumber(
+    value
+  ) {
+    const normalizedValue =
+      normalizeText(
+        value
+      )
+        .replaceAll(
+          ",",
+          ""
+        );
+
+
+    if (
+      normalizedValue ===
+        ""
+    ) {
+      return null;
+    }
+
+
+    const numericValue =
+      Number(
+        normalizedValue
+      );
+
+
+    return Number.isFinite(
+      numericValue
+    )
+      ? numericValue
+      : null;
+  }
+
+
+  /* =====================================================
+    Gear / Pinion 결과 검사
+  ====================================================== */
+
+  function normalizeGearPinionResult(
+    requestItem,
+    expectedDate
+  ) {
+    const result =
+      requestItem?.result &&
+      typeof requestItem.result ===
+        "object"
+        ? requestItem.result
+        : {};
+
+
+    const gearWheel =
+      normalizeNumber(
+        result.gearWheel ??
+        result.gear ??
+        result.gear_wheel
+      );
+
+
+    const pinion =
+      normalizeNumber(
+        result.pinion ??
+        result.pinionValue ??
+        result.pinion_value
+      );
+
+
+    if (
+      gearWheel ===
+        null
+    ) {
+      throw new Error(
+        "Gear Wheel 전일 값을 확인하지 못했습니다."
+      );
+    }
+
+
+    if (
+      pinion ===
+        null
+    ) {
+      throw new Error(
+        "Pinion 전일 값을 확인하지 못했습니다."
+      );
+    }
+
+
+    const sourceDate =
+      normalizeText(
+        result.sourceDate ||
+        result.targetDate ||
+        requestItem.targetDate
+      );
+
+
+    if (
+      sourceDate &&
+      sourceDate !==
+        expectedDate
+    ) {
+      throw new Error(
+        [
+          "Gear Wheel / Pinion 조회 날짜가 다릅니다.",
+          `요청일: ${expectedDate}`,
+          `조회 결과: ${sourceDate}`
+        ].join(
+          " "
+        )
+      );
+    }
+
+
+    return {
+      source:
+        normalizeText(
+          result.source
+        ) ||
+        "OIS BOARD LOGSHEET (TGO)",
+
+      targetDate:
+        expectedDate,
+
+      sourceDate:
+        sourceDate ||
+        expectedDate,
+
+      sheetLabel:
+        normalizeText(
+          result.sheetLabel
+        ) ||
+        "BOARD LOGSHEET (TGO)",
+
+      valueColumn:
+        normalizeText(
+          result.valueColumn
+        ) ||
+        "전일",
+
+      valueField:
+        normalizeText(
+          result.valueField
+        ) ||
+        "decimal_pnt",
+
+      gearWheel,
+
+      pinion,
+
+      gearWheelTag:
+        normalizeText(
+          result.gearWheelTag
+        ),
+
+      pinionTag:
+        normalizeText(
+          result.pinionTag
+        ),
+
+      gearWheelItemName:
+        normalizeText(
+          result.gearWheelItemName
+        ),
+
+      pinionItemName:
+        normalizeText(
+          result.pinionItemName
+        ),
+
+      gearWheelUnit:
+        normalizeText(
+          result.gearWheelUnit
+        ),
+
+      pinionUnit:
+        normalizeText(
+          result.pinionUnit
+        ),
+
+      collectedAt:
+        normalizeText(
+          result.collectedAt
+        ),
+
+      agentId:
+        normalizeText(
+          requestItem.agentId
+        )
+    };
+  }
+
+
+  /* =====================================================
+    결과 상태 저장
+  ====================================================== */
+
+  function applyGearPinionResult(
+    requestItem,
+    expectedDate
+  ) {
+    const result =
+      normalizeGearPinionResult(
+        requestItem,
+        expectedDate
+      );
+
+
+    const state =
+      getState();
+
+
+    state.gearPinion = {
+      ...result,
+
+      requestId:
+        normalizeText(
+          requestItem.id
+        )
+    };
+
+
+    delete state
+      .gearPinionError;
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    if (
+      panel
+    ) {
+      panel.dataset
+        .gearPinionStatus =
+        "complete";
+
+
+      panel.dataset
+        .gearPinionTargetDate =
+        expectedDate;
+
+
+      panel.dataset
+        .gearPinionRequestId =
+        normalizeText(
+          requestItem.id
+        );
+
+
+      panel.dataset
+        .gearPinionCollectedAt =
+        result.collectedAt;
+
+
+      panel.dataset
+        .gearPinionAgentId =
+        result.agentId;
+    }
+
+
+    console.log(
+      "오전회의 Gear Wheel / Pinion 조회 완료:",
+      state.gearPinion
+    );
+
+
+    document.dispatchEvent(
+      new CustomEvent(
+        "efficiencyMorningMeetingGearPinionLoaded",
+
+        {
+          detail: {
+            targetDate:
+              expectedDate,
+
+            gearWheel:
+              result.gearWheel,
+
+            pinion:
+              result.pinion
+          }
+        }
+      )
+    );
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    Gear / Pinion OIS 불러오기
+  ====================================================== */
+
+  async function loadGearPinion() {
+    const targetDate =
+      synchronizeTargetDate();
+
+
+    if (
+      !targetDate
+    ) {
+      console.warn(
+        "Gear Wheel / Pinion 조회일을 확인하지 못했습니다."
+      );
+
+
+      return null;
+    }
+
+
+    const runToken =
+      activeRunToken +
+      1;
+
+
+    activeRunToken =
+      runToken;
+
+
+    activeRequestId =
+      "";
+
+
+    const state =
+      getState();
+
+
+    delete state
+      .gearPinion;
+
+
+    delete state
+      .gearPinionError;
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    if (
+      panel
+    ) {
+      panel.dataset
+        .gearPinionStatus =
+        "loading";
+
+
+      panel.dataset
+        .gearPinionTargetDate =
+        targetDate;
+
+
+      delete panel.dataset
+        .gearPinionRequestId;
+
+
+      delete panel.dataset
+        .gearPinionCollectedAt;
+
+
+      delete panel.dataset
+        .gearPinionAgentId;
+    }
+
+
+    console.log(
+      `${targetDate} Gear Wheel / Pinion OIS 조회 요청 중`
+    );
+
+
+    try {
+      const createResult =
+        await createGearPinionRequest(
+          targetDate
+        );
+
+
+      const requestItem =
+        createResult.item;
+
+
+      if (
+        !requestItem?.id
+      ) {
+        throw new Error(
+          "생성된 Gear Wheel / Pinion OIS 요청 ID를 확인할 수 없습니다."
+        );
+      }
+
+
+      activeRequestId =
+        normalizeText(
+          requestItem.id
+        );
+
+
+      let completedItem =
+        requestItem;
+
+
+      if (
+        normalizeText(
+          requestItem.status
+        ).toLowerCase() !==
+          "complete"
+      ) {
+        completedItem =
+          await waitForCompletion(
+            activeRequestId,
+            targetDate,
+            runToken
+          );
+      }
+
+
+      if (
+        !completedItem ||
+        runToken !==
+          activeRunToken
+      ) {
+        return null;
+      }
+
+
+      return applyGearPinionResult(
+        completedItem,
+        targetDate
+      );
+
+    } catch (
+      error
+    ) {
+      const errorMessage =
+        error instanceof
+          Error
+          ? error.message
+          : "Gear Wheel / Pinion OIS 자료를 불러오지 못했습니다.";
+
+
+      console.error(
+        "오전회의 Gear Wheel / Pinion 조회 실패:",
+        error
+      );
+
+
+      if (
+        runToken !==
+          activeRunToken
+      ) {
+        return null;
+      }
+
+
+      state.gearPinionError =
+        errorMessage;
+
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .gearPinionStatus =
+          "error";
+      }
+
+
+      return null;
+    }
+  }
+
+
+  /* =====================================================
+    Gear / Pinion 결과 초기화
+  ====================================================== */
+
+  function resetGearPinionResult(
+    options = {}
+  ) {
+    const {
+      keepTargetDate =
+        false
+    } =
+      options;
+
+
+    activeRunToken +=
+      1;
+
+
+    activeRequestId =
+      "";
+
+
+    const state =
+      getState();
+
+
+    delete state
+      .gearPinion;
+
+
+    delete state
+      .gearPinionError;
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    if (
+      panel
+    ) {
+      delete panel.dataset
+        .gearPinionStatus;
+
+
+      delete panel.dataset
+        .gearPinionRequestId;
+
+
+      delete panel.dataset
+        .gearPinionCollectedAt;
+
+
+      delete panel.dataset
+        .gearPinionAgentId;
+
+
+      if (
+        !keepTargetDate
+      ) {
+        delete panel.dataset
+          .gearPinionTargetDate;
+      }
+    }
+  }
+
+
+  /* =====================================================
+    기준일 동기화
+
+    기준일이 바뀌면 이전 Gear / Pinion 결과 삭제
+  ====================================================== */
+
+  function synchronizeTargetDate() {
+    const targetDate =
+      resolveGearPinionTargetDate();
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    const previousTargetDate =
+      normalizeText(
+        panel?.dataset
+          .gearPinionTargetDate
+      );
+
+
+    if (
+      previousTargetDate &&
+      targetDate &&
+      previousTargetDate !==
+        targetDate
+    ) {
+      resetGearPinionResult();
+    }
+
+
+    if (
+      panel
+    ) {
+      if (
+        targetDate
+      ) {
+        panel.dataset
+          .gearPinionTargetDate =
+          targetDate;
+
+      } else {
+        delete panel.dataset
+          .gearPinionTargetDate;
+      }
+    }
+
+
+    return targetDate;
+  }
+
+
+  /* =====================================================
+    날짜 변경 확인 예약
+  ====================================================== */
+
+  function scheduleTargetDateSync() {
+    window.setTimeout(
+      synchronizeTargetDate,
+      0
+    );
+
+
+    window.setTimeout(
+      synchronizeTargetDate,
+      500
+    );
+
+
+    window.setTimeout(
+      synchronizeTargetDate,
+      1500
+    );
+  }
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function bindEvents() {
+    const elements =
+      getElements();
+
+
+    if (
+      !elements.loadButton ||
+      elements.loadButton.dataset
+        .gearPinionOisBound ===
+        "true"
+    ) {
+      return false;
+    }
+
+
+    /*
+      수처리 OIS 버튼을 누르면
+      Gear / Pinion도 동시에 요청한다.
+
+      수처리 기능과 서로 다른 요청 ID를 사용하므로
+      두 기능은 독립적으로 완료된다.
+    */
+
+    elements.loadButton.addEventListener(
+      "click",
+      () => {
+        void loadGearPinion();
+      }
+    );
+
+
+    elements.analyzeButton
+      ?.addEventListener(
+        "click",
+        scheduleTargetDateSync
+      );
+
+
+    elements.loadShiftButton
+      ?.addEventListener(
+        "click",
+        scheduleTargetDateSync
+      );
+
+
+    elements.resetButton
+      ?.addEventListener(
+        "click",
+        () => {
+          resetGearPinionResult();
+
+          scheduleTargetDateSync();
+        }
+      );
+
+
+    if (
+      elements.shiftDate
+    ) {
+      const observer =
+        new MutationObserver(
+          synchronizeTargetDate
+        );
+
+
+      observer.observe(
+        elements.shiftDate,
+        {
+          childList:
+            true,
+
+          subtree:
+            true,
+
+          characterData:
+            true
+        }
+      );
+    }
+
+
+    elements.loadButton.dataset
+      .gearPinionOisBound =
+      "true";
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initialize() {
+    if (
+      !bindEvents()
+    ) {
+      initializationAttempt +=
+        1;
+
+
+      if (
+        initializationAttempt <
+          40
+      ) {
+        window.setTimeout(
+          initialize,
+          250
+        );
+      }
+
+
+      return;
+    }
+
+
+    synchronizeTargetDate();
+  }
+
+
+  window
+    .loadEfficiencyMorningMeetingGearPinion =
+    loadGearPinion;
+
+
+  window
+    .resetEfficiencyMorningMeetingGearPinion =
+    resetGearPinionResult;
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
+
+/* =========================================================
   석회석 기간 전체 계산·저장 화면
 
   기능:
@@ -151947,5 +156360,2017 @@ function bindEvents() {
 
   } else {
     waitForLimestoneUsageFinalLayout();
+  }
+})();
+
+/* =========================================================
+  오전회의 취합
+  자동 수치 미리보기 값 연결
+
+  표시:
+  1. 수처리 현황
+  2. 석회석 재고 · 입고 · 사용량
+  3. Gear Wheel / Pinion
+
+  원본 데이터:
+  - 수처리:
+    window.efficiencyMorningMeetingUploadState.waterTreatment
+
+  - 석회석:
+    기존 석회석 사용량 계산 화면의 실제 값
+
+  - Gear / Pinion:
+    window.efficiencyMorningMeetingUploadState.gearPinion
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingAutoPreviewValues() {
+  "use strict";
+
+
+  if (
+    window
+      .__efficiencyMorningMeetingAutoPreviewValuesInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyMorningMeetingAutoPreviewValuesInstalled =
+    true;
+
+
+  let refreshIntervalId =
+    null;
+
+
+  /* =====================================================
+    공용 상태
+  ====================================================== */
+
+  function getState() {
+    return (
+      window
+        .efficiencyMorningMeetingUploadState ||
+      {}
+    );
+  }
+
+
+  /* =====================================================
+    화면 요소
+  ====================================================== */
+
+  function getElements() {
+    return {
+      /* ===============================================
+        전체
+      ================================================ */
+
+      preview:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoPreview"
+        ),
+
+      overallStatus:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoPreviewStatus"
+        ),
+
+
+      /* ===============================================
+        수처리 원본
+      ================================================ */
+
+      waterSourcePanel:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterPanel"
+        ),
+
+
+      /* ===============================================
+        수처리 미리보기
+      ================================================ */
+
+      waterDate:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoWaterDate"
+        ),
+
+      waterStatus:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoWaterStatus"
+        ),
+
+      waterRawInflow:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoWaterRawInflow"
+        ),
+
+      waterDemiFlow:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoWaterDemiFlow"
+        ),
+
+      waterRawTank:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoWaterRawTank"
+        ),
+
+      waterFilteredTank:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoWaterFilteredTank"
+        ),
+
+      waterDemiTank:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoWaterDemiTank"
+        ),
+
+
+      /* ===============================================
+        석회석 원본
+      ================================================ */
+
+      limestoneSourceView:
+        document.getElementById(
+          "limestoneUsageCalculatorView"
+        ),
+
+      limestoneSourceDate:
+        document.getElementById(
+          "limestoneUsageDate"
+        ),
+
+      limestoneUnitOneStart:
+        document.getElementById(
+          "limestoneUsageUnitOneStartStock"
+        ),
+
+      limestoneUnitOneReceipt:
+        document.getElementById(
+          "limestoneUsageUnitOneReceipt"
+        ),
+
+      limestoneUnitOneEnd:
+        document.getElementById(
+          "limestoneUsageUnitOneEndStock"
+        ),
+
+      limestoneUnitOneUsage:
+        document.getElementById(
+          "limestoneUsageUnitOneUsage"
+        ),
+
+      limestoneUnitTwoStart:
+        document.getElementById(
+          "limestoneUsageUnitTwoStartStock"
+        ),
+
+      limestoneUnitTwoReceipt:
+        document.getElementById(
+          "limestoneUsageUnitTwoReceipt"
+        ),
+
+      limestoneUnitTwoEnd:
+        document.getElementById(
+          "limestoneUsageUnitTwoEndStock"
+        ),
+
+      limestoneUnitTwoUsage:
+        document.getElementById(
+          "limestoneUsageUnitTwoUsage"
+        ),
+
+
+      /* ===============================================
+        석회석 미리보기
+      ================================================ */
+
+      limestoneDate:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoLimestoneDate"
+        ),
+
+      limestoneStatus:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoLimestoneStatus"
+        ),
+
+      limestoneUnitOneStock:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoLimestoneUnitOneStock"
+        ),
+
+      limestoneUnitTwoStock:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoLimestoneUnitTwoStock"
+        ),
+
+      limestoneReceipt:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoLimestoneReceipt"
+        ),
+
+      limestoneUsage:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoLimestoneUsage"
+        ),
+
+
+      /* ===============================================
+        Gear / Pinion
+      ================================================ */
+
+      gearPinionDate:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoGearPinionDate"
+        ),
+
+      gearPinionStatus:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoGearPinionStatus"
+        ),
+
+      gearWheel:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoGearWheel"
+        ),
+
+      pinion:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoPinion"
+        ),
+
+      gearPinionCombined:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoGearPinionCombined"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    문자열
+  ====================================================== */
+
+  function normalizeText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    ).trim();
+  }
+
+
+  /* =====================================================
+    숫자 읽기
+
+    지원:
+    1234.56
+    1,234.56
+    1,234.56 t
+    84.558 %
+  ====================================================== */
+
+  function parseNumber(
+    value
+  ) {
+    const normalizedValue =
+      normalizeText(
+        value
+      )
+        .replaceAll(
+          ",",
+          ""
+        );
+
+
+    if (
+      !normalizedValue ||
+      normalizedValue ===
+        "-"
+    ) {
+      return null;
+    }
+
+
+    const match =
+      normalizedValue.match(
+        /-?\d+(?:\.\d+)?/
+      );
+
+
+    if (
+      !match
+    ) {
+      return null;
+    }
+
+
+    const numericValue =
+      Number(
+        match[0]
+      );
+
+
+    return Number.isFinite(
+      numericValue
+    )
+      ? numericValue
+      : null;
+  }
+
+
+  /* =====================================================
+    일반 숫자 표시
+
+    수처리:
+    소수점 3자리
+  ====================================================== */
+
+  function formatNumber(
+    value,
+    digits = 3
+  ) {
+    const numericValue =
+      Number(
+        value
+      );
+
+
+    if (
+      !Number.isFinite(
+        numericValue
+      )
+    ) {
+      return "-";
+    }
+
+
+    return numericValue.toLocaleString(
+      "ko-KR",
+      {
+        minimumFractionDigits:
+          digits,
+
+        maximumFractionDigits:
+          digits
+      }
+    );
+  }
+
+
+  /* =====================================================
+    석회석 숫자 표시
+
+    기존 석회석 계산 화면과 동일:
+    소수점 둘째 자리 아래 절삭
+  ====================================================== */
+
+  function formatLimestoneNumber(
+    value
+  ) {
+    const numericValue =
+      Number(
+        value
+      );
+
+
+    if (
+      !Number.isFinite(
+        numericValue
+      )
+    ) {
+      return "-";
+    }
+
+
+    const truncatedValue =
+      Math.trunc(
+        numericValue *
+        100
+      ) /
+      100;
+
+
+    return truncatedValue.toLocaleString(
+      "ko-KR",
+      {
+        minimumFractionDigits:
+          2,
+
+        maximumFractionDigits:
+          2
+      }
+    );
+  }
+
+
+  /* =====================================================
+    텍스트 적용
+  ====================================================== */
+
+  function setText(
+    element,
+    value
+  ) {
+    if (
+      !element
+    ) {
+      return;
+    }
+
+
+    const nextValue =
+      String(
+        value ??
+        "-"
+      );
+
+
+    if (
+      element.textContent !==
+      nextValue
+    ) {
+      element.textContent =
+        nextValue;
+    }
+  }
+
+
+  /* =====================================================
+    상태 배지
+  ====================================================== */
+
+  function setBadge(
+    element,
+    status,
+    label
+  ) {
+    if (
+      !element
+    ) {
+      return;
+    }
+
+
+    element.classList.remove(
+      "is-loading",
+      "is-complete",
+      "is-error"
+    );
+
+
+    if (
+      status ===
+        "loading"
+    ) {
+      element.classList.add(
+        "is-loading"
+      );
+
+    } else if (
+      status ===
+        "complete"
+    ) {
+      element.classList.add(
+        "is-complete"
+      );
+
+    } else if (
+      status ===
+        "error"
+    ) {
+      element.classList.add(
+        "is-error"
+      );
+    }
+
+
+    setText(
+      element,
+      label
+    );
+  }
+
+
+  /* =====================================================
+    오전회의 전일 기준일
+
+    우선순위:
+    1. 수처리 조회 날짜
+    2. 교대파트 reportDate
+    3. 교대파트 loadedDate
+  ====================================================== */
+
+  function getExpectedPreviousDate() {
+    const state =
+      getState();
+
+
+    const water =
+      state.waterTreatment &&
+      typeof state.waterTreatment ===
+        "object"
+        ? state.waterTreatment
+        : null;
+
+
+    return normalizeText(
+      water?.sourceDate ||
+      water?.targetDate ||
+      state.shiftPart?.reportDate ||
+      state.shiftPart?.loadedDate ||
+      ""
+    );
+  }
+
+
+  /* =====================================================
+    수처리 데이터
+  ====================================================== */
+
+  function getWaterData() {
+    const state =
+      getState();
+
+
+    const elements =
+      getElements();
+
+
+    const water =
+      state.waterTreatment &&
+      typeof state.waterTreatment ===
+        "object"
+        ? state.waterTreatment
+        : null;
+
+
+    const rawStatus =
+      normalizeText(
+        elements.waterSourcePanel
+          ?.dataset
+          .waterStatus
+      ).toLowerCase();
+
+
+    if (
+      !water
+    ) {
+      return {
+        status:
+          rawStatus ===
+            "loading"
+            ? "loading"
+            : rawStatus ===
+                "error"
+              ? "error"
+              : "idle",
+
+        date:
+          normalizeText(
+            elements.waterSourcePanel
+              ?.dataset
+              .waterTargetDate
+          )
+      };
+    }
+
+
+    const rawWaterInflow =
+      parseNumber(
+        water.rawWaterInflow
+      );
+
+
+    const demiProduction =
+      parseNumber(
+        water.demiProduction
+      );
+
+
+    const pureWaterUsage =
+      parseNumber(
+        water.pureWaterUsage
+      );
+
+
+    const rawWaterTankAmount =
+      parseNumber(
+        water.rawWaterTankAmount
+      );
+
+
+    const rawWaterTankRate =
+      parseNumber(
+        water.rawWaterTankRate
+      );
+
+
+    const filteredWaterTankAmount =
+      parseNumber(
+        water.filteredWaterTankAmount
+      );
+
+
+    const filteredWaterTankRate =
+      parseNumber(
+        water.filteredWaterTankRate
+      );
+
+
+    const demiWaterTankAmount =
+      parseNumber(
+        water.demiWaterTankAmount
+      );
+
+
+    const demiWaterTankRate =
+      parseNumber(
+        water.demiWaterTankRate
+      );
+
+
+    const requiredValues = [
+      rawWaterInflow,
+      demiProduction,
+      pureWaterUsage,
+      rawWaterTankAmount,
+      rawWaterTankRate,
+      filteredWaterTankAmount,
+      filteredWaterTankRate,
+      demiWaterTankAmount,
+      demiWaterTankRate
+    ];
+
+
+    const isComplete =
+      requiredValues.every(
+        value => {
+          return value !==
+            null;
+        }
+      );
+
+
+    let status =
+      "idle";
+
+
+    if (
+      rawStatus ===
+        "error"
+    ) {
+      status =
+        "error";
+
+    } else if (
+      rawStatus ===
+        "loading"
+    ) {
+      status =
+        "loading";
+
+    } else if (
+      isComplete
+    ) {
+      status =
+        "complete";
+    }
+
+
+    return {
+      status,
+
+      date:
+        normalizeText(
+          water.sourceDate ||
+          water.targetDate ||
+          elements.waterSourcePanel
+            ?.dataset
+            .waterTargetDate
+        ),
+
+      rawWaterInflow,
+
+      demiProduction,
+
+      pureWaterUsage,
+
+      rawWaterTankAmount,
+
+      rawWaterTankRate,
+
+      filteredWaterTankAmount,
+
+      filteredWaterTankRate,
+
+      demiWaterTankAmount,
+
+      demiWaterTankRate
+    };
+  }
+
+
+  /* =====================================================
+    석회석 데이터
+
+    기존 계산 화면에서 직접 읽는다.
+  ====================================================== */
+
+  function getLimestoneData() {
+    const elements =
+      getElements();
+
+
+    const date =
+      normalizeText(
+        elements
+          .limestoneSourceDate
+          ?.value
+      );
+
+
+    const unitOneStart =
+      parseNumber(
+        elements
+          .limestoneUnitOneStart
+          ?.value
+      );
+
+
+    const unitOneReceipt =
+      parseNumber(
+        elements
+          .limestoneUnitOneReceipt
+          ?.textContent
+      );
+
+
+    const unitOneEnd =
+      parseNumber(
+        elements
+          .limestoneUnitOneEnd
+          ?.value
+      );
+
+
+    const unitOneUsage =
+      parseNumber(
+        elements
+          .limestoneUnitOneUsage
+          ?.textContent
+      );
+
+
+    const unitTwoStart =
+      parseNumber(
+        elements
+          .limestoneUnitTwoStart
+          ?.value
+      );
+
+
+    const unitTwoReceipt =
+      parseNumber(
+        elements
+          .limestoneUnitTwoReceipt
+          ?.textContent
+      );
+
+
+    const unitTwoEnd =
+      parseNumber(
+        elements
+          .limestoneUnitTwoEnd
+          ?.value
+      );
+
+
+    const unitTwoUsage =
+      parseNumber(
+        elements
+          .limestoneUnitTwoUsage
+          ?.textContent
+      );
+
+
+    const rawStatus =
+      normalizeText(
+        elements
+          .limestoneSourceView
+          ?.dataset
+          .limestoneUsageStatus
+      ).toLowerCase();
+
+
+    const requiredValues = [
+      unitOneStart,
+      unitOneReceipt,
+      unitOneEnd,
+      unitOneUsage,
+      unitTwoStart,
+      unitTwoReceipt,
+      unitTwoEnd,
+      unitTwoUsage
+    ];
+
+
+    const hasCompleteValues =
+      requiredValues.every(
+        value => {
+          return value !==
+            null;
+        }
+      );
+
+
+    const expectedDate =
+      getExpectedPreviousDate();
+
+
+    const hasDateMismatch =
+      Boolean(
+        expectedDate &&
+        date &&
+        expectedDate !==
+          date
+      );
+
+
+    let status =
+      "idle";
+
+
+    if (
+      rawStatus ===
+        "error" ||
+      hasDateMismatch
+    ) {
+      status =
+        "error";
+
+    } else if (
+      rawStatus ===
+        "loading"
+    ) {
+      status =
+        "loading";
+
+    } else if (
+      hasCompleteValues
+    ) {
+      status =
+        "complete";
+    }
+
+
+    return {
+      status,
+
+      hasDateMismatch,
+
+      expectedDate,
+
+      date,
+
+      unitOneStart,
+
+      unitOneReceipt,
+
+      unitOneEnd,
+
+      unitOneUsage,
+
+      unitTwoStart,
+
+      unitTwoReceipt,
+
+      unitTwoEnd,
+
+      unitTwoUsage
+    };
+  }
+
+
+  /* =====================================================
+    Gear Wheel / Pinion 데이터
+  ====================================================== */
+
+  function getGearPinionData() {
+    const state =
+      getState();
+
+
+    const elements =
+      getElements();
+
+
+    const gearPinion =
+      state.gearPinion &&
+      typeof state.gearPinion ===
+        "object"
+        ? state.gearPinion
+        : null;
+
+
+    const rawStatus =
+      normalizeText(
+        elements.waterSourcePanel
+          ?.dataset
+          .gearPinionStatus
+      ).toLowerCase();
+
+
+    if (
+      !gearPinion
+    ) {
+      return {
+        status:
+          rawStatus ===
+            "loading"
+            ? "loading"
+            : rawStatus ===
+                "error"
+              ? "error"
+              : "idle",
+
+        date:
+          normalizeText(
+            elements.waterSourcePanel
+              ?.dataset
+              .gearPinionTargetDate
+          )
+      };
+    }
+
+
+    const gearWheel =
+      parseNumber(
+        gearPinion.gearWheel
+      );
+
+
+    const pinion =
+      parseNumber(
+        gearPinion.pinion
+      );
+
+
+    const isComplete =
+      gearWheel !==
+        null &&
+      pinion !==
+        null;
+
+
+    let status =
+      "idle";
+
+
+    if (
+      rawStatus ===
+        "error"
+    ) {
+      status =
+        "error";
+
+    } else if (
+      rawStatus ===
+        "loading"
+    ) {
+      status =
+        "loading";
+
+    } else if (
+      isComplete
+    ) {
+      status =
+        "complete";
+    }
+
+
+    return {
+      status,
+
+      date:
+        normalizeText(
+          gearPinion.targetDate ||
+          gearPinion.sourceDate ||
+          elements.waterSourcePanel
+            ?.dataset
+            .gearPinionTargetDate
+        ),
+
+      gearWheel,
+
+      pinion
+    };
+  }
+
+
+  /* =====================================================
+    수처리 미리보기 출력
+  ====================================================== */
+
+  function renderWaterPreview(
+    data
+  ) {
+    const elements =
+      getElements();
+
+
+    setText(
+      elements.waterDate,
+      data.date ||
+      "-"
+    );
+
+
+    if (
+      data.status ===
+        "complete"
+    ) {
+      setBadge(
+        elements.waterStatus,
+        "complete",
+        "조회 완료"
+      );
+
+    } else if (
+      data.status ===
+        "loading"
+    ) {
+      setBadge(
+        elements.waterStatus,
+        "loading",
+        "조회 중"
+      );
+
+    } else if (
+      data.status ===
+        "error"
+    ) {
+      setBadge(
+        elements.waterStatus,
+        "error",
+        "조회 실패"
+      );
+
+    } else {
+      setBadge(
+        elements.waterStatus,
+        "idle",
+        "조회 대기"
+      );
+    }
+
+
+    setText(
+      elements.waterRawInflow,
+
+      data.rawWaterInflow ===
+        null ||
+      data.rawWaterInflow ===
+        undefined
+        ? "-"
+        : formatNumber(
+            data.rawWaterInflow
+          )
+    );
+
+
+    const hasDemiFlow =
+      data.demiProduction !==
+        null &&
+      data.demiProduction !==
+        undefined &&
+      data.pureWaterUsage !==
+        null &&
+      data.pureWaterUsage !==
+        undefined;
+
+
+    setText(
+      elements.waterDemiFlow,
+
+      hasDemiFlow
+        ? `${formatNumber(
+            data.demiProduction
+          )} / ${formatNumber(
+            data.pureWaterUsage
+          )}`
+        : "- / -"
+    );
+
+
+    const hasRawTank =
+      data.rawWaterTankAmount !==
+        null &&
+      data.rawWaterTankAmount !==
+        undefined &&
+      data.rawWaterTankRate !==
+        null &&
+      data.rawWaterTankRate !==
+        undefined;
+
+
+    setText(
+      elements.waterRawTank,
+
+      hasRawTank
+        ? `${formatNumber(
+            data.rawWaterTankAmount
+          )} / ${formatNumber(
+            data.rawWaterTankRate
+          )}%`
+        : "- / -%"
+    );
+
+
+    const hasFilteredTank =
+      data.filteredWaterTankAmount !==
+        null &&
+      data.filteredWaterTankAmount !==
+        undefined &&
+      data.filteredWaterTankRate !==
+        null &&
+      data.filteredWaterTankRate !==
+        undefined;
+
+
+    setText(
+      elements.waterFilteredTank,
+
+      hasFilteredTank
+        ? `${formatNumber(
+            data.filteredWaterTankAmount
+          )} / ${formatNumber(
+            data.filteredWaterTankRate
+          )}%`
+        : "- / -%"
+    );
+
+
+    const hasDemiTank =
+      data.demiWaterTankAmount !==
+        null &&
+      data.demiWaterTankAmount !==
+        undefined &&
+      data.demiWaterTankRate !==
+        null &&
+      data.demiWaterTankRate !==
+        undefined;
+
+
+    setText(
+      elements.waterDemiTank,
+
+      hasDemiTank
+        ? `${formatNumber(
+            data.demiWaterTankAmount
+          )} / ${formatNumber(
+            data.demiWaterTankRate
+          )}%`
+        : "- / -%"
+    );
+  }
+
+
+  /* =====================================================
+    석회석 미리보기 출력
+  ====================================================== */
+
+  function renderLimestonePreview(
+    data
+  ) {
+    const elements =
+      getElements();
+
+
+    setText(
+      elements.limestoneDate,
+      data.date ||
+      "-"
+    );
+
+
+    if (
+      data.hasDateMismatch
+    ) {
+      setBadge(
+        elements.limestoneStatus,
+        "error",
+        "날짜 확인"
+      );
+
+    } else if (
+      data.status ===
+        "complete"
+    ) {
+      setBadge(
+        elements.limestoneStatus,
+        "complete",
+        "계산 완료"
+      );
+
+    } else if (
+      data.status ===
+        "loading"
+    ) {
+      setBadge(
+        elements.limestoneStatus,
+        "loading",
+        "조회 중"
+      );
+
+    } else if (
+      data.status ===
+        "error"
+    ) {
+      setBadge(
+        elements.limestoneStatus,
+        "error",
+        "조회 실패"
+      );
+
+    } else {
+      setBadge(
+        elements.limestoneStatus,
+        "idle",
+        "계산 대기"
+      );
+    }
+
+
+    const hasUnitOneStock =
+      data.unitOneStart !==
+        null &&
+      data.unitOneEnd !==
+        null;
+
+
+    setText(
+      elements.limestoneUnitOneStock,
+
+      hasUnitOneStock
+        ? `${formatLimestoneNumber(
+            data.unitOneStart
+          )} → ${formatLimestoneNumber(
+            data.unitOneEnd
+          )}`
+        : "- → -"
+    );
+
+
+    const hasUnitTwoStock =
+      data.unitTwoStart !==
+        null &&
+      data.unitTwoEnd !==
+        null;
+
+
+    setText(
+      elements.limestoneUnitTwoStock,
+
+      hasUnitTwoStock
+        ? `${formatLimestoneNumber(
+            data.unitTwoStart
+          )} → ${formatLimestoneNumber(
+            data.unitTwoEnd
+          )}`
+        : "- → -"
+    );
+
+
+    const hasReceipt =
+      data.unitOneReceipt !==
+        null &&
+      data.unitTwoReceipt !==
+        null;
+
+
+    setText(
+      elements.limestoneReceipt,
+
+      hasReceipt
+        ? `${formatLimestoneNumber(
+            data.unitOneReceipt
+          )} / ${formatLimestoneNumber(
+            data.unitTwoReceipt
+          )} t`
+        : "- / -"
+    );
+
+
+    const hasUsage =
+      data.unitOneUsage !==
+        null &&
+      data.unitTwoUsage !==
+        null;
+
+
+    setText(
+      elements.limestoneUsage,
+
+      hasUsage
+        ? `${formatLimestoneNumber(
+            data.unitOneUsage
+          )} / ${formatLimestoneNumber(
+            data.unitTwoUsage
+          )} t`
+        : "- / -"
+    );
+  }
+
+
+  /* =====================================================
+    Gear / Pinion 미리보기 출력
+  ====================================================== */
+
+  function renderGearPinionPreview(
+    data
+  ) {
+    const elements =
+      getElements();
+
+
+    setText(
+      elements.gearPinionDate,
+      data.date ||
+      "-"
+    );
+
+
+    if (
+      data.status ===
+        "complete"
+    ) {
+      setBadge(
+        elements.gearPinionStatus,
+        "complete",
+        "조회 완료"
+      );
+
+    } else if (
+      data.status ===
+        "loading"
+    ) {
+      setBadge(
+        elements.gearPinionStatus,
+        "loading",
+        "조회 중"
+      );
+
+    } else if (
+      data.status ===
+        "error"
+    ) {
+      setBadge(
+        elements.gearPinionStatus,
+        "error",
+        "조회 실패"
+      );
+
+    } else {
+      setBadge(
+        elements.gearPinionStatus,
+        "idle",
+        "조회 대기"
+      );
+    }
+
+
+    setText(
+      elements.gearWheel,
+
+      data.gearWheel ===
+        null ||
+      data.gearWheel ===
+        undefined
+        ? "-"
+        : formatNumber(
+            data.gearWheel,
+            3
+          )
+    );
+
+
+    setText(
+      elements.pinion,
+
+      data.pinion ===
+        null ||
+      data.pinion ===
+        undefined
+        ? "-"
+        : formatNumber(
+            data.pinion,
+            3
+          )
+    );
+
+
+    const hasBoth =
+      data.gearWheel !==
+        null &&
+      data.gearWheel !==
+        undefined &&
+      data.pinion !==
+        null &&
+      data.pinion !==
+        undefined;
+
+
+    setText(
+      elements.gearPinionCombined,
+
+      hasBoth
+        ? `${formatNumber(
+            data.gearWheel,
+            2
+          )} / ${formatNumber(
+            data.pinion,
+            2
+          )}`
+        : "- / -"
+    );
+  }
+
+
+  /* =====================================================
+    전체 상태
+  ====================================================== */
+
+  function renderOverallStatus(
+    waterData,
+    limestoneData,
+    gearPinionData
+  ) {
+    const {
+      preview,
+      overallStatus
+    } =
+      getElements();
+
+
+    if (
+      !overallStatus
+    ) {
+      return;
+    }
+
+
+    const statuses = [
+      waterData.status,
+      limestoneData.status,
+      gearPinionData.status
+    ];
+
+
+    let overallState =
+      "idle";
+
+
+    let overallLabel =
+      "조회 대기";
+
+
+    if (
+      statuses.includes(
+        "error"
+      )
+    ) {
+      overallState =
+        "error";
+
+      overallLabel =
+        "확인 필요";
+
+    } else if (
+      statuses.includes(
+        "loading"
+      )
+    ) {
+      overallState =
+        "loading";
+
+      overallLabel =
+        "자료 조회 중";
+
+    } else if (
+      statuses.every(
+        status => {
+          return status ===
+            "complete";
+        }
+      )
+    ) {
+      overallState =
+        "complete";
+
+      overallLabel =
+        "전체 완료";
+
+    } else if (
+      statuses.some(
+        status => {
+          return status ===
+            "complete";
+        }
+      )
+    ) {
+      overallState =
+        "partial";
+
+      overallLabel =
+        "일부 완료";
+    }
+
+
+    setText(
+      overallStatus,
+      overallLabel
+    );
+
+
+    if (
+      preview
+    ) {
+      preview.dataset
+        .status =
+        overallState;
+    }
+  }
+
+/* =====================================================
+  전체 자동 수치 미리보기 갱신
+
+  미리보기 갱신 후:
+  최종 엑셀 만들기 버튼 조건도 다시 검사한다.
+===================================================== */
+
+function renderPreview() {
+  const {
+    preview
+  } =
+    getElements();
+
+
+  if (
+    !preview
+  ) {
+    return;
+  }
+
+
+  const waterData =
+    getWaterData();
+
+
+  const limestoneData =
+    getLimestoneData();
+
+
+  const gearPinionData =
+    getGearPinionData();
+
+
+  renderWaterPreview(
+    waterData
+  );
+
+
+  renderLimestonePreview(
+    limestoneData
+  );
+
+
+  renderGearPinionPreview(
+    gearPinionData
+  );
+
+
+  renderOverallStatus(
+    waterData,
+    limestoneData,
+    gearPinionData
+  );
+
+
+  /* ===================================================
+    자동자료 상태가 바뀔 때마다
+    최종 엑셀 버튼도 즉시 재판정
+  ==================================================== */
+
+  if (
+    typeof window
+      .updateEfficiencyMorningMeetingCreateButton ===
+      "function"
+  ) {
+    window
+      .updateEfficiencyMorningMeetingCreateButton();
+  }
+}
+
+  /* =====================================================
+    약간 늦게 다시 갱신
+
+    비동기 조회 직후
+    실제 상태 저장 시점 차이를 보정한다.
+  ====================================================== */
+
+  function scheduleRender() {
+    [
+      0,
+      150,
+      500,
+      1200
+    ].forEach(
+      delay => {
+        window.setTimeout(
+          renderPreview,
+          delay
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function bindEvents() {
+    /*
+      수처리 조회 완료
+    */
+
+    document.addEventListener(
+      "efficiencyMorningMeetingWaterLoaded",
+      scheduleRender
+    );
+
+
+    /*
+      Gear / Pinion 조회 완료
+    */
+
+    document.addEventListener(
+      "efficiencyMorningMeetingGearPinionLoaded",
+      scheduleRender
+    );
+
+
+    /*
+      주요 버튼
+    */
+
+    document.addEventListener(
+      "click",
+      event => {
+        const target =
+          event.target instanceof
+            Element
+            ? event.target
+            : null;
+
+
+        if (
+          !target
+        ) {
+          return;
+        }
+
+
+        const relevantButton =
+          target.closest(
+            [
+              "#loadEfficiencyMorningMeetingWaterButton",
+              "#loadLimestoneUsageOisButton",
+              "#refreshLimestoneUsageReceiptButton",
+              "#resetEfficiencyMorningMeetingButton",
+              "#analyzeEfficiencyMorningMeetingButton",
+              "#loadEfficiencyMorningMeetingShiftLogsButton"
+            ].join(
+              ","
+            )
+          );
+
+
+        if (
+          relevantButton
+        ) {
+          scheduleRender();
+        }
+      }
+    );
+
+
+    /*
+      석회석 재고 수동 수정 또는
+      날짜 변경 시 즉시 반영
+    */
+
+    document.addEventListener(
+      "input",
+      event => {
+        const target =
+          event.target;
+
+
+        if (
+          !(
+            target instanceof
+            HTMLInputElement
+          )
+        ) {
+          return;
+        }
+
+
+        if (
+          [
+            "limestoneUsageDate",
+            "limestoneUsageUnitOneStartStock",
+            "limestoneUsageUnitOneEndStock",
+            "limestoneUsageUnitTwoStartStock",
+            "limestoneUsageUnitTwoEndStock"
+          ].includes(
+            target.id
+          )
+        ) {
+          scheduleRender();
+        }
+      }
+    );
+
+
+    document.addEventListener(
+      "change",
+      event => {
+        const target =
+          event.target;
+
+
+        if (
+          !(
+            target instanceof
+            HTMLInputElement
+          )
+        ) {
+          return;
+        }
+
+
+        if (
+          [
+            "limestoneUsageDate",
+            "limestoneUsageUnitOneStartStock",
+            "limestoneUsageUnitOneEndStock",
+            "limestoneUsageUnitTwoStartStock",
+            "limestoneUsageUnitTwoEndStock"
+          ].includes(
+            target.id
+          )
+        ) {
+          scheduleRender();
+        }
+      }
+    );
+  }
+
+
+  /* =====================================================
+    초기화
+
+    1초마다도 확인한다.
+
+    이유:
+    - 수처리 OIS 비동기 완료
+    - 석회석 OIS 비동기 완료
+    - Gear / Pinion 비동기 완료
+
+    세 기능의 완료 시점이 서로 다르기 때문이다.
+  ====================================================== */
+
+  function initialize() {
+    bindEvents();
+
+
+    renderPreview();
+
+
+    if (
+      refreshIntervalId ===
+        null
+    ) {
+      refreshIntervalId =
+        window.setInterval(
+          renderPreview,
+          1000
+        );
+    }
+
+
+    scheduleRender();
+  }
+
+
+  window
+    .renderEfficiencyMorningMeetingAutoPreview =
+    renderPreview;
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
+
+/* =========================================================
+  오전회의 취합
+  기존 OIS 수처리 조회 버튼 이동
+
+  기존 대형 수처리 패널:
+  - DOM에는 유지
+  - 화면에서는 숨김
+
+  기존 버튼:
+  - 자동 수치 미리보기 헤더로 실제 이동
+  - 수처리 + Gear Wheel / Pinion 동시 조회
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingAutoPreviewControls() {
+  "use strict";
+
+
+  if (
+    window
+      .__efficiencyMorningMeetingAutoPreviewControlsInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyMorningMeetingAutoPreviewControlsInstalled =
+    true;
+
+
+  let initializationAttempt =
+    0;
+
+
+  function initialize() {
+    const previewHeader =
+      document.querySelector(
+        "#efficiencyMorningMeetingAutoPreview " +
+        ".efficiency-morning-meeting-auto-preview__header"
+      );
+
+
+    const overallStatus =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoPreviewStatus"
+      );
+
+
+    const loadButton =
+      document.getElementById(
+        "loadEfficiencyMorningMeetingWaterButton"
+      );
+
+
+    /*
+      오전회의 화면이 아직 만들어지지 않았다면
+      잠시 후 다시 시도한다.
+    */
+
+    if (
+      !previewHeader ||
+      !overallStatus ||
+      !loadButton
+    ) {
+      initializationAttempt +=
+        1;
+
+
+      if (
+        initializationAttempt <
+          40
+      ) {
+        window.setTimeout(
+          initialize,
+          250
+        );
+      }
+
+
+      return;
+    }
+
+
+    /* ===================================================
+      우측 컨트롤 영역 생성
+    ==================================================== */
+
+    let actionContainer =
+      previewHeader.querySelector(
+        ".efficiency-morning-meeting-auto-preview__actions"
+      );
+
+
+    if (
+      !actionContainer
+    ) {
+      actionContainer =
+        document.createElement(
+          "div"
+        );
+
+
+      actionContainer.className =
+        "efficiency-morning-meeting-auto-preview__actions";
+
+
+      /*
+        기존 전체 상태 배지를 새 영역으로 이동
+      */
+
+      actionContainer.appendChild(
+        overallStatus
+      );
+
+
+      previewHeader.appendChild(
+        actionContainer
+      );
+    }
+
+
+    /* ===================================================
+      기존 OIS 버튼 이동
+
+      clone하지 않고 실제 element를 이동한다.
+      따라서 기존 click 이벤트도 그대로 유지된다.
+    ==================================================== */
+
+    if (
+      loadButton.parentElement !==
+        actionContainer
+    ) {
+      actionContainer.appendChild(
+        loadButton
+      );
+    }
+
+
+    /*
+      이제 이 버튼은 수처리만이 아니라
+      Gear / Pinion도 같이 요청하므로 이름 변경
+    */
+
+    loadButton.textContent =
+      "OIS 자동자료 다시 조회";
+
+
+    loadButton.title =
+      "수처리 현황과 Gear Wheel / Pinion OIS 자료를 다시 조회합니다.";
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
   }
 })();
