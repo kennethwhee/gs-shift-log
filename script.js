@@ -124353,70 +124353,133 @@ if (
     return -1;
   }
 
+/* =====================================================
+  팀별 엑셀 추출 내용 정리
 
-  function cleanMorningMeetingSectionRows(
-    rows
-  ) {
-    return rows
-      .map(
-        normalizeMorningMeetingText
-      )
-      .filter(
-        line => {
-          const searchText =
-            normalizeMorningMeetingSearchText(
-              line
-            );
+  번호 형식 통일:
+  - 1. 내용 → 1) 내용
+  - 2. 내용 → 2) 내용
+  - 기존 1) 내용은 그대로 유지
 
+  소수:
+  - 1.5 bar
+  - 2.3 MW
 
-          if (
-            !searchText
-          ) {
-            return false;
-          }
+  위와 같은 숫자는 번호로 변경하지 않는다.
+===================================================== */
 
-
-          if (
-            /일일업무[_\s-]*20\d{2}/i.test(
-              searchText
-            )
-          ) {
-            return false;
-          }
+function cleanMorningMeetingSectionRows(
+  rows
+) {
+  return rows
+    .map(
+      normalizeMorningMeetingText
+    )
+    .filter(
+      line => {
+        const searchText =
+          normalizeMorningMeetingSearchText(
+            line
+          );
 
 
-          if (
-            /^[1-5]\s*[.)]\s*(안전팀|환경팀|기계팀|전기제어팀)$/i.test(
-              searchText
-            )
-          ) {
-            return false;
-          }
-
-
-          if (
-            /^(?:◇|◆|▣)?\s*전일\s*특이사항/i.test(
-              searchText
-            )
-          ) {
-            return false;
-          }
-
-
-          if (
-            /^(?:◇|◆|▣)?\s*예정\s*사항/i.test(
-              searchText
-            )
-          ) {
-            return false;
-          }
-
-
-          return true;
+        if (
+          !searchText
+        ) {
+          return false;
         }
-      );
-  }
 
+
+        if (
+          /일일업무[_\s-]*20\d{2}/i.test(
+            searchText
+          )
+        ) {
+          return false;
+        }
+
+
+        if (
+          /^[1-5]\s*[.)]\s*(안전팀|환경팀|기계팀|전기제어팀)$/i.test(
+            searchText
+          )
+        ) {
+          return false;
+        }
+
+
+        if (
+          /^(?:◇|◆|▣)?\s*전일\s*특이사항/i.test(
+            searchText
+          )
+        ) {
+          return false;
+        }
+
+
+        if (
+          /^(?:◇|◆|▣)?\s*예정\s*사항/i.test(
+            searchText
+          )
+        ) {
+          return false;
+        }
+
+
+        return true;
+      }
+    )
+    .map(
+      line => {
+        /*
+          기존 1) 형식 정리
+        */
+
+        const parenthesisNumberMatch =
+          line.match(
+            /^(\s*)(\d+)\s*\)\s*(.+)$/
+          );
+
+
+        if (
+          parenthesisNumberMatch
+        ) {
+          return (
+            `${parenthesisNumberMatch[1]}` +
+            `${parenthesisNumberMatch[2]}) ` +
+            `${parenthesisNumberMatch[3].trim()}`
+          );
+        }
+
+
+        /*
+          기계팀의 1. 형식을 1) 형식으로 변경한다.
+
+          점 뒤에 공백이 있는 경우만 번호로 처리하여
+          1.5, 2.3 같은 소수는 변경하지 않는다.
+        */
+
+        const dotNumberMatch =
+          line.match(
+            /^(\s*)(\d+)\s*\.\s+(.+)$/
+          );
+
+
+        if (
+          dotNumberMatch
+        ) {
+          return (
+            `${dotNumberMatch[1]}` +
+            `${dotNumberMatch[2]}) ` +
+            `${dotNumberMatch[3].trim()}`
+          );
+        }
+
+
+        return line;
+      }
+    );
+}
 
   /* =====================================================
     전일 특이사항·예정사항 추출
@@ -125176,63 +125239,74 @@ if (
   "use strict";
 
 
-  const TEAM_LAYOUT = {
-    safety: {
-      teamName:
-        "안전팀",
+/* =====================================================
+  오전회의 최종 취합본 팀별 입력 범위
 
-      sectionNumber:
-        2,
+  주의:
+  - B91부터는 TM 사항
+  - 팀 자료가 B90을 넘어가면 안 됨
+===================================================== */
 
-      startRow:
-        34,
+const TEAM_LAYOUT = {
+  safety: {
+    teamName:
+      "안전팀",
 
-      endRow:
-        50
-    },
+    sectionNumber:
+      2,
 
-    environment: {
-      teamName:
-        "환경팀",
+    startRow:
+      34,
 
-      sectionNumber:
-        3,
+    endRow:
+      50
+  },
 
-      startRow:
-        51,
 
-      endRow:
-        61
-    },
+  environment: {
+    teamName:
+      "환경팀",
 
-    mechanical: {
-      teamName:
-        "기계팀",
+    sectionNumber:
+      3,
 
-      sectionNumber:
-        4,
+    startRow:
+      51,
 
-      startRow:
-        62,
+    endRow:
+      61
+  },
 
-      endRow:
-        75
-    },
 
-    electrical: {
-      teamName:
-        "전기제어팀",
+  mechanical: {
+    teamName:
+      "기계팀",
 
-      sectionNumber:
-        5,
+    sectionNumber:
+      4,
 
-      startRow:
-        76,
+    startRow:
+      62,
 
-      endRow:
-        95
-    }
-  };
+    endRow:
+      75
+  },
+
+
+  electrical: {
+    teamName:
+      "전기제어팀",
+
+    sectionNumber:
+      5,
+
+    startRow:
+      76,
+
+    endRow:
+      90
+  }
+};
 
 
   const TEAM_ORDER = [
@@ -125747,78 +125821,90 @@ if (
       );
   }
 
+/* =====================================================
+  최종 엑셀에 입력할 문구 정리
 
-  /* =====================================================
-    출력 문구 정리
-  ====================================================== */
+  번호 스타일:
+  - 1. 내용 → 1) 내용
+  - 1) 내용 → 1) 내용
+===================================================== */
 
-  function normalizeMorningMeetingOutputLine(
-    value
-  ) {
-    const line =
-      String(
-        value ||
-        ""
+function normalizeMorningMeetingOutputLine(
+  value
+) {
+  const line =
+    String(
+      value ||
+      ""
+    )
+      .replace(
+        /\u00a0/g,
+        " "
       )
-        .replace(
-          /\u00a0/g,
-          " "
-        )
-        .trim();
+      .trim();
 
 
-    if (
-      !line
-    ) {
-      return "";
-    }
-
-
-    /*
-      1. 내용
-      1) 내용
-      모두 최종 양식의 1) 형식으로 통일
-    */
-
-    const numberMatch =
-      line.match(
-        /^(\d+)\s*[.)]\s*(.*)$/
-      );
-
-
-    if (
-      numberMatch
-    ) {
-      return ` ${numberMatch[
-        1
-      ]}) ${numberMatch[
-        2
-      ].trim()}`;
-    }
-
-
-    /*
-      하위 설명
-    */
-
-    const subItemMatch =
-      line.match(
-        /^[-•·]\s*(.*)$/
-      );
-
-
-    if (
-      subItemMatch
-    ) {
-      return `   - ${subItemMatch[
-        1
-      ].trim()}`;
-    }
-
-
-    return ` ${line}`;
+  if (
+    !line
+  ) {
+    return "";
   }
 
+
+  const parenthesisNumberMatch =
+    line.match(
+      /^(\d+)\s*\)\s*(.+)$/
+    );
+
+
+  if (
+    parenthesisNumberMatch
+  ) {
+    return (
+      ` ${parenthesisNumberMatch[1]}) ` +
+      `${parenthesisNumberMatch[2].trim()}`
+    );
+  }
+
+
+  /*
+    점 뒤에 공백이 있어야 목록 번호로 판단한다.
+    1.5 bar 같은 소수는 변경하지 않는다.
+  */
+
+  const dotNumberMatch =
+    line.match(
+      /^(\d+)\s*\.\s+(.+)$/
+    );
+
+
+  if (
+    dotNumberMatch
+  ) {
+    return (
+      ` ${dotNumberMatch[1]}) ` +
+      `${dotNumberMatch[2].trim()}`
+    );
+  }
+
+
+  const subItemMatch =
+    line.match(
+      /^[-•·]\s*(.*)$/
+    );
+
+
+  if (
+    subItemMatch
+  ) {
+    return `   - ${subItemMatch[
+      1
+    ].trim()}`;
+  }
+
+
+  return ` ${line}`;
+}
 
   function splitMorningMeetingOutputLines(
     value
@@ -125959,77 +126045,144 @@ if (
   }
 
 
-  function replaceMorningMeetingCellText(
-    worksheetXml,
-    cellReference,
-    value
+/* =====================================================
+  기존 엑셀 셀 내용 교체
+
+  수정 사항:
+  - 내용이 없는 <c ... /> 셀을 먼저 처리
+  - 빈 셀이 다음 셀까지 삼키는 문제 방지
+  - 기존 style 번호와 셀 위치 유지
+===================================================== */
+
+function replaceMorningMeetingCellText(
+  worksheetXml,
+  cellReference,
+  value
+) {
+  const escapedReference =
+    String(
+      cellReference ||
+      ""
+    ).replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&"
+    );
+
+
+  /*
+    반드시 self-closing 셀을 먼저 처리해야 한다.
+
+    예:
+    <c r="B35" s="109"/>
+
+    기존 코드는 이것을 일반 셀로 잘못 인식하여
+    뒤쪽 B36의 </c>까지 함께 제거했다.
+  */
+
+  const selfClosingCellPattern =
+    new RegExp(
+      `<c\\b(?=[^>]*\\br="${escapedReference}")([^>]*)\\/>`,
+      "g"
+    );
+
+
+  const normalCellPattern =
+    new RegExp(
+      `<c\\b(?=[^>]*\\br="${escapedReference}")([^>]*)>([\\s\\S]*?)<\\/c>`,
+      "g"
+    );
+
+
+  let replaced =
+    false;
+
+
+  function createCellXml(
+    attributes
   ) {
-    const escapedReference =
-      cellReference.replace(
-        /[.*+?^${}()|[\]\\]/g,
-        "\\$&"
-      );
+    replaced =
+      true;
 
 
-    const normalCellPattern =
-      new RegExp(
-        `<c\\b(?=[^>]*\\br="${escapedReference}")([^>]*)>[\\s\\S]*?<\\/c>`,
-        "g"
-      );
-
-
-    const emptyCellPattern =
-      new RegExp(
-        `<c\\b(?=[^>]*\\br="${escapedReference}")([^>]*)\\/>`,
-        "g"
-      );
-
-
-    let replaced =
-      false;
-
-
-    function createCellXml(
-      attributes
-    ) {
-      replaced =
-        true;
-
-
-      const cleanedAttributes =
-        String(
-          attributes ||
-          ""
-        ).replace(
+    const cleanedAttributes =
+      String(
+        attributes ||
+        ""
+      )
+        .replace(
           /\s+t="[^"]*"/g,
+          ""
+        )
+        .replace(
+          /\/\s*$/,
           ""
         );
 
 
-      if (
-        value ===
+    const text =
+      String(
+        value ??
         ""
-      ) {
-        return `<c${cleanedAttributes}/>`;
-      }
-
-
-      return (
-        `<c${cleanedAttributes} t="inlineStr">` +
-          `<is>` +
-            `<t xml:space="preserve">` +
-              `${escapeMorningMeetingXml(
-                value
-              )}` +
-            `</t>` +
-          `</is>` +
-        `</c>`
       );
+
+
+    /*
+      빈 내용이면 기존 스타일을 유지한
+      빈 셀로 만든다.
+    */
+
+    if (
+      text ===
+      ""
+    ) {
+      return `<c${cleanedAttributes}/>`;
     }
 
 
-    let updatedXml =
-      worksheetXml.replace(
+    return (
+      `<c${cleanedAttributes} t="inlineStr">` +
+        `<is>` +
+          `<t xml:space="preserve">` +
+            `${escapeMorningMeetingXml(
+              text
+            )}` +
+          `</t>` +
+        `</is>` +
+      `</c>`
+    );
+  }
+
+
+  /*
+    1차:
+    빈 셀 형식부터 정확히 교체
+  */
+
+  let updatedXml =
+    worksheetXml.replace(
+      selfClosingCellPattern,
+
+      (
+        match,
+        attributes
+      ) => {
+        return createCellXml(
+          attributes
+        );
+      }
+    );
+
+
+  /*
+    2차:
+    값이 들어 있는 일반 셀 교체
+  */
+
+  if (
+    !replaced
+  ) {
+    updatedXml =
+      updatedXml.replace(
         normalCellPattern,
 
         (
@@ -126041,38 +126194,20 @@ if (
           );
         }
       );
-
-
-    if (
-      !replaced
-    ) {
-      updatedXml =
-        updatedXml.replace(
-          emptyCellPattern,
-
-          (
-            match,
-            attributes
-          ) => {
-            return createCellXml(
-              attributes
-            );
-          }
-        );
-    }
-
-
-    if (
-      !replaced
-    ) {
-      throw new Error(
-        `기준 취합본에서 ${cellReference} 셀을 찾지 못했습니다. 기준 양식을 확인해 주세요.`
-      );
-    }
-
-
-    return updatedXml;
   }
+
+
+  if (
+    !replaced
+  ) {
+    throw new Error(
+      `기준 취합본에서 ${cellReference} 셀을 찾지 못했습니다. 기준 양식을 확인해 주세요.`
+    );
+  }
+
+
+  return updatedXml;
+}
 
 
   /* =====================================================
