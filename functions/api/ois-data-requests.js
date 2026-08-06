@@ -641,13 +641,16 @@ function normalizeOisNumber(
 }
 
 /* =========================================================
-  석회석 숫자 원본 유지
+  석회석 사용량 숫자 정리
 
-  DB 저장:
-  - 계산된 실제 숫자를 그대로 저장
-  - 소수점 둘째 자리 반올림·절삭하지 않음
+  규칙:
+  - 반올림하지 않음
+  - 소수점 둘째 자리 아래 절삭
+  - 부동소수점 오차 보정
 
-  화면 표시 형식은 브라우저에서 별도로 처리한다.
+  예:
+  38.70400000000001 → 38.70
+  33.89699999999999 → 33.89
 ========================================================= */
 
 function normalizeLimestoneUsageNumber(
@@ -659,11 +662,36 @@ function normalizeLimestoneUsageNumber(
     );
 
 
-  return Number.isFinite(
-    numericValue
-  )
-    ? numericValue
-    : null;
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return null;
+  }
+
+
+  /*
+    33.89가 내부적으로
+    33.889999999999처럼 표현되는 문제를 보정한다.
+  */
+  const floatingPointCorrection =
+    Math.sign(
+      numericValue
+    ) *
+    0.000000001;
+
+
+  return (
+    Math.trunc(
+      (
+        numericValue +
+        floatingPointCorrection
+      ) *
+      100
+    ) /
+    100
+  );
 }
 
 /* =========================================================
