@@ -23,7 +23,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260806-armroll-final2"
+    href="style.css?v=20260806-morning-sixfiles1"
   >
 
 
@@ -57,7 +57,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260806-morning-shift-loadfix1"
+  src="script.js?v=20260806-morning-sixfiles1"
   defer
 ></script>
 
@@ -4593,13 +4593,20 @@
 <!-- =================================================
   오전회의 취합
 
-  동작:
-  - 안전팀 엑셀 첨부
-  - 환경팀 엑셀 첨부
-  - 기계팀 엑셀 첨부
-  - 전기제어팀 엑셀 첨부
-  - 팀별 전일 특이사항·예정사항 자동 추출
-  - 기존 일일발전운전현황 양식에 자동 취합
+  화면 순서:
+  1. 오전회의 취합
+  2. 팀별 자료 첨부
+  3. 교대파트 업무 선택
+  4. 취합 내용 미리보기
+  5. 최종 엑셀 생성
+
+  첨부 자료:
+  1. 일일발전현황
+  2. 운탄일지
+  3. 안전팀
+  4. 환경팀
+  5. 기계팀
+  6. 전기제어팀
 ================================================== -->
 
 <article
@@ -4616,7 +4623,7 @@
 >
 
   <!-- =================================================
-    상단
+    1. 오전회의 취합 상단
   ================================================== -->
 
   <header
@@ -4637,298 +4644,21 @@
       </h3>
 
       <p class="efficiency-morning-meeting-description">
-        안전팀·환경팀·기계팀·전기제어팀의 일일현황을
-        첨부하여 오전회의 자료를 자동으로 만듭니다.
+        일일발전현황·운탄일지와 4개 팀의 자료를 첨부하여
+        오전회의 자료를 자동으로 만듭니다.
       </p>
-
-    </div>
-
-<!-- =================================================
-  기준 취합본 첨부
-
-  해당 날짜의 일일발전운전현황 파일을 첨부한다.
-  상단 운전현황·수식·서식은 이 파일을 그대로 사용한다.
-================================================== -->
-
-<label
-  class="
-    efficiency-morning-meeting-template-status
-    efficiency-morning-meeting-template-upload
-  "
-  id="efficiencyMorningMeetingTemplateCard"
->
-
-  <input
-    type="file"
-    id="efficiencyMorningMeetingTemplateFile"
-    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    hidden
-  />
-
-
-  <span>
-    기준 취합본
-  </span>
-
-
-  <strong>
-    일일발전운전현황
-  </strong>
-
-
-  <small id="efficiencyMorningMeetingTemplateStatus">
-    현재 날짜의 기준 취합본을 선택하거나 끌어다 놓으세요.
-  </small>
-
-
-  <em id="efficiencyMorningMeetingTemplateAction">
-    파일 선택 · 드롭
-  </em>
-
-</label>
-
-  </header>
-
-<!-- =================================================
-  교대파트 업무 선택
-
-  기준:
-  - 팀 자료의 작성 날짜
-  - 같은 날짜 D/S
-  - 같은 날짜 N/S
-  - TGO / BCO1 / BCO2 업무내용
-================================================== -->
-
-<section
-  class="efficiency-morning-meeting-shift-panel"
-  id="efficiencyMorningMeetingShiftPanel"
->
-
-  <header
-    class="efficiency-morning-meeting-shift-panel__header"
-  >
-
-    <div>
-
-      <span>
-        SHIFT LOG SELECTION
-      </span>
-
-      <h4>
-        교대파트 업무 선택
-      </h4>
-
-      <p>
-        전날 D/S와 현재 N/S의
-        TGO·BCO1·BCO2 업무내용 중
-        오전회의 자료에 넣을 항목을 선택하세요.
-      </p>
-
-    </div>
-
-
-    <div
-      class="efficiency-morning-meeting-shift-panel__tools"
-    >
-
-      <strong
-        id="efficiencyMorningMeetingShiftDate"
-      >
-        기준 일자 확인 전
-      </strong>
-
-
-      <button
-        type="button"
-        class="secondary-button"
-        id="loadEfficiencyMorningMeetingShiftLogsButton"
-        disabled
-      >
-        업무일지 불러오기
-      </button>
 
     </div>
 
   </header>
 
-
-  <!-- D/S · N/S 업무 목록 -->
-
-  <div
-    class="efficiency-morning-meeting-shift-grid"
-  >
-
-    <!-- 전날 D/S -->
-
-    <section
-      class="
-        efficiency-morning-meeting-shift-column
-        is-day-shift
-      "
-    >
-
-      <header
-        class="efficiency-morning-meeting-shift-column__header"
-      >
-
-        <div>
-
-          <span>
-            PREVIOUS DAY
-          </span>
-
-          <strong>
-            전날 D/S
-          </strong>
-
-        </div>
-
-
-        <button
-          type="button"
-          data-morning-meeting-select-shift="DS"
-          disabled
-        >
-          전체 선택
-        </button>
-
-      </header>
-
-
-      <div
-        class="efficiency-morning-meeting-shift-list"
-        id="efficiencyMorningMeetingDayShiftList"
-      >
-
-        <p class="efficiency-morning-meeting-shift-empty">
-          팀 자료를 분석하면 업무일지를 자동으로 불러옵니다.
-        </p>
-
-      </div>
-
-    </section>
-
-
-    <!-- 현재 N/S -->
-
-    <section
-      class="
-        efficiency-morning-meeting-shift-column
-        is-night-shift
-      "
-    >
-
-      <header
-        class="efficiency-morning-meeting-shift-column__header"
-      >
-
-        <div>
-
-          <span>
-            CURRENT SHIFT
-          </span>
-
-          <strong>
-            현재 N/S
-          </strong>
-
-        </div>
-
-
-        <button
-          type="button"
-          data-morning-meeting-select-shift="NS"
-          disabled
-        >
-          전체 선택
-        </button>
-
-      </header>
-
-
-      <div
-        class="efficiency-morning-meeting-shift-list"
-        id="efficiencyMorningMeetingNightShiftList"
-      >
-
-        <p class="efficiency-morning-meeting-shift-empty">
-          팀 자료를 분석하면 업무일지를 자동으로 불러옵니다.
-        </p>
-
-      </div>
-
-    </section>
-
-  </div>
-
-
-  <!-- 선택 결과 -->
-
-  <section
-    class="efficiency-morning-meeting-shift-result"
-  >
-
-    <header>
-
-      <div>
-
-        <span>
-          SELECTED ITEMS
-        </span>
-
-        <strong>
-          교대파트 업무내용
-        </strong>
-
-      </div>
-
-
-      <div
-        class="efficiency-morning-meeting-shift-result__tools"
-      >
-
-        <span
-          id="efficiencyMorningMeetingShiftSelectedCount"
-        >
-          0건 선택
-        </span>
-
-
-        <button
-          type="button"
-          id="clearEfficiencyMorningMeetingShiftSelectionButton"
-          disabled
-        >
-          선택 초기화
-        </button>
-
-      </div>
-
-    </header>
-
-
-    <textarea
-      id="efficiencyMorningMeetingShiftText"
-      rows="6"
-      spellcheck="false"
-      placeholder="D/S와 N/S 업무내용을 선택하면 이곳에 자동으로 정리됩니다. 선택 후 내용을 직접 수정할 수도 있습니다."
-    ></textarea>
-
-  </section>
-
-
-  <p
-    class="efficiency-morning-meeting-shift-error"
-    id="efficiencyMorningMeetingShiftError"
-    role="alert"
-    hidden
-  >
-  </p>
-
-</section>  
 
   <!-- =================================================
-    팀별 자료 첨부
+    2. 팀별 자료 첨부
+
+    PC:
+    일일발전현황 | 운탄일지 | 안전팀
+    환경팀       | 기계팀   | 전기제어팀
   ================================================== -->
 
   <section class="efficiency-morning-meeting-panel">
@@ -4946,14 +4676,14 @@
         </h4>
 
         <p>
-          파일을 클릭해서 선택하거나 해당 팀 카드 위로 끌어다 놓으세요.
+          파일을 선택하거나 해당 자료 카드 위로 끌어다 놓으세요.
         </p>
 
       </div>
 
 
       <strong id="efficiencyMorningMeetingUploadCount">
-        0 / 4
+        0 / 6
       </strong>
 
     </header>
@@ -4961,7 +4691,103 @@
 
     <div class="efficiency-morning-meeting-upload-grid">
 
-      <!-- 안전팀 -->
+
+      <!-- =================================================
+        1. 일일발전현황
+      ================================================== -->
+
+      <label
+        class="efficiency-morning-meeting-upload-card"
+        id="efficiencyMorningMeetingTemplateCard"
+        data-morning-meeting-special-card="template"
+      >
+
+        <input
+          type="file"
+          id="efficiencyMorningMeetingTemplateFile"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+        />
+
+
+        <span class="efficiency-morning-meeting-upload-card__order">
+          1
+        </span>
+
+
+        <span class="efficiency-morning-meeting-upload-card__content">
+
+          <strong>
+            일일발전현황
+          </strong>
+
+          <small id="efficiencyMorningMeetingTemplateStatus">
+            기준 취합본을 선택하세요.
+          </small>
+
+        </span>
+
+
+        <span
+          class="efficiency-morning-meeting-upload-card__action"
+          id="efficiencyMorningMeetingTemplateAction"
+        >
+          선택 · 드롭
+        </span>
+
+      </label>
+
+
+      <!-- =================================================
+        2. 운탄일지
+      ================================================== -->
+
+      <label
+        class="efficiency-morning-meeting-upload-card"
+        id="efficiencyMorningMeetingCoalLogCard"
+        data-morning-meeting-special-card="coal-log"
+      >
+
+        <input
+          type="file"
+          id="efficiencyMorningMeetingCoalLogFile"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+        />
+
+
+        <span class="efficiency-morning-meeting-upload-card__order">
+          2
+        </span>
+
+
+        <span class="efficiency-morning-meeting-upload-card__content">
+
+          <strong>
+            운탄일지
+          </strong>
+
+          <small id="efficiencyMorningMeetingCoalLogStatus">
+            운탄일지를 선택하세요.
+          </small>
+
+        </span>
+
+
+        <span
+          class="efficiency-morning-meeting-upload-card__action"
+          id="efficiencyMorningMeetingCoalLogAction"
+        >
+          선택 · 드롭
+        </span>
+
+      </label>
+
+
+      <!-- =================================================
+        3. 안전팀
+      ================================================== -->
+
       <label
         class="efficiency-morning-meeting-upload-card"
         data-morning-meeting-team-card="safety"
@@ -4976,7 +4802,7 @@
 
 
         <span class="efficiency-morning-meeting-upload-card__order">
-          1
+          3
         </span>
 
 
@@ -5000,7 +4826,10 @@
       </label>
 
 
-      <!-- 환경팀 -->
+      <!-- =================================================
+        4. 환경팀
+      ================================================== -->
+
       <label
         class="efficiency-morning-meeting-upload-card"
         data-morning-meeting-team-card="environment"
@@ -5015,7 +4844,7 @@
 
 
         <span class="efficiency-morning-meeting-upload-card__order">
-          2
+          4
         </span>
 
 
@@ -5033,13 +4862,16 @@
 
 
         <span class="efficiency-morning-meeting-upload-card__action">
-          파일 선택
+          선택 · 드롭
         </span>
 
       </label>
 
 
-      <!-- 기계팀 -->
+      <!-- =================================================
+        5. 기계팀
+      ================================================== -->
+
       <label
         class="efficiency-morning-meeting-upload-card"
         data-morning-meeting-team-card="mechanical"
@@ -5054,7 +4886,7 @@
 
 
         <span class="efficiency-morning-meeting-upload-card__order">
-          3
+          5
         </span>
 
 
@@ -5072,13 +4904,16 @@
 
 
         <span class="efficiency-morning-meeting-upload-card__action">
-          파일 선택
+          선택 · 드롭
         </span>
 
       </label>
 
 
-      <!-- 전기제어팀 -->
+      <!-- =================================================
+        6. 전기제어팀
+      ================================================== -->
+
       <label
         class="efficiency-morning-meeting-upload-card"
         data-morning-meeting-team-card="electrical"
@@ -5093,7 +4928,7 @@
 
 
         <span class="efficiency-morning-meeting-upload-card__order">
-          4
+          6
         </span>
 
 
@@ -5111,7 +4946,7 @@
 
 
         <span class="efficiency-morning-meeting-upload-card__action">
-          파일 선택
+          선택 · 드롭
         </span>
 
       </label>
@@ -5122,7 +4957,193 @@
 
 
   <!-- =================================================
-    추출 결과 미리보기
+    3. 교대파트 업무 선택
+
+    교대파트 업무내용 입력창은 사용하지 않는다.
+
+    체크한 항목은 JavaScript 내부의:
+    state.shiftPart.text
+
+    값으로 자동 저장한다.
+  ================================================== -->
+
+  <section
+    class="efficiency-morning-meeting-shift-panel"
+    id="efficiencyMorningMeetingShiftPanel"
+  >
+
+    <header class="efficiency-morning-meeting-shift-panel__header">
+
+      <div>
+
+        <span>
+          SHIFT LOG SELECTION
+        </span>
+
+        <h4>
+          교대파트 업무 선택
+        </h4>
+
+        <p>
+          전날 D/S와 현재 N/S의
+          TGO·BCO1·BCO2 업무내용 중
+          오전회의 자료에 넣을 항목을 선택하세요.
+        </p>
+
+      </div>
+
+
+      <div class="efficiency-morning-meeting-shift-panel__tools">
+
+        <strong id="efficiencyMorningMeetingShiftDate">
+          기준 일자 확인 전
+        </strong>
+
+
+        <span id="efficiencyMorningMeetingShiftSelectedCount">
+          0건 선택
+        </span>
+
+
+        <button
+          type="button"
+          id="clearEfficiencyMorningMeetingShiftSelectionButton"
+          disabled
+        >
+          선택 초기화
+        </button>
+
+
+        <button
+          type="button"
+          class="secondary-button"
+          id="loadEfficiencyMorningMeetingShiftLogsButton"
+          disabled
+        >
+          업무일지 불러오기
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <div class="efficiency-morning-meeting-shift-grid">
+
+
+      <!-- 전날 D/S -->
+
+      <section
+        class="
+          efficiency-morning-meeting-shift-column
+          is-day-shift
+        "
+      >
+
+        <header class="efficiency-morning-meeting-shift-column__header">
+
+          <div>
+
+            <span>
+              PREVIOUS DAY
+            </span>
+
+            <strong>
+              전날 D/S
+            </strong>
+
+          </div>
+
+
+          <button
+            type="button"
+            data-morning-meeting-select-shift="DS"
+            disabled
+          >
+            전체 선택
+          </button>
+
+        </header>
+
+
+        <div
+          class="efficiency-morning-meeting-shift-list"
+          id="efficiencyMorningMeetingDayShiftList"
+        >
+
+          <p class="efficiency-morning-meeting-shift-empty">
+            업무일지를 불러오면 선택 가능한 항목이 표시됩니다.
+          </p>
+
+        </div>
+
+      </section>
+
+
+      <!-- 현재 N/S -->
+
+      <section
+        class="
+          efficiency-morning-meeting-shift-column
+          is-night-shift
+        "
+      >
+
+        <header class="efficiency-morning-meeting-shift-column__header">
+
+          <div>
+
+            <span>
+              CURRENT SHIFT
+            </span>
+
+            <strong>
+              현재 N/S
+            </strong>
+
+          </div>
+
+
+          <button
+            type="button"
+            data-morning-meeting-select-shift="NS"
+            disabled
+          >
+            전체 선택
+          </button>
+
+        </header>
+
+
+        <div
+          class="efficiency-morning-meeting-shift-list"
+          id="efficiencyMorningMeetingNightShiftList"
+        >
+
+          <p class="efficiency-morning-meeting-shift-empty">
+            업무일지를 불러오면 선택 가능한 항목이 표시됩니다.
+          </p>
+
+        </div>
+
+      </section>
+
+    </div>
+
+
+    <p
+      class="efficiency-morning-meeting-shift-error"
+      id="efficiencyMorningMeetingShiftError"
+      role="alert"
+      hidden
+    >
+    </p>
+
+  </section>
+
+
+  <!-- =================================================
+    4. 취합 내용 미리보기
   ================================================== -->
 
   <section
@@ -5163,7 +5184,7 @@
 
 
   <!-- =================================================
-    처리 결과 및 버튼
+    5. 처리 결과 및 버튼
   ================================================== -->
 
   <footer class="efficiency-morning-meeting-actions">
@@ -5174,7 +5195,7 @@
         id="efficiencyMorningMeetingMessage"
         aria-live="polite"
       >
-        4개 팀의 엑셀 파일을 첨부해 주세요.
+        일일발전현황·운탄일지와 4개 팀 자료를 첨부해 주세요.
       </span>
 
 

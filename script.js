@@ -123625,88 +123625,177 @@ if (
       false;
   }
 
+/* =====================================================
+  오전회의 첨부 현황 갱신
 
-  function updateMorningMeetingUploadSummary() {
-    const {
-      uploadCount,
-      analyzeButton,
-      createButton,
-      message
-    } =
-      getMorningMeetingElements();
+  전체 6개 파일:
+  1. 일일발전현황
+  2. 운탄일지
+  3. 안전팀
+  4. 환경팀
+  5. 기계팀
+  6. 전기제어팀
+
+  자료 분석 버튼:
+  - 6개 파일을 모두 첨부하면 활성화
+===================================================== */
+
+function updateMorningMeetingUploadSummary() {
+  const {
+    uploadCount,
+    analyzeButton,
+    createButton,
+    message
+  } =
+    getMorningMeetingElements();
 
 
-    const uploadedCount =
-      Object.keys(
-        TEAM_CONFIG
+  const state =
+    window
+      .efficiencyMorningMeetingUploadState ||
+    uploadState;
+
+
+  const teamUploadedCount =
+    Object.keys(
+      TEAM_CONFIG
+    )
+      .filter(
+        teamKey => {
+          return Boolean(
+            state.files?.[
+              teamKey
+            ]
+          );
+        }
       )
-        .filter(
-          teamKey => {
-            return Boolean(
-              uploadState.files[
-                teamKey
-              ]
-            );
-          }
-        )
-        .length;
+      .length;
 
 
-    if (
-      uploadCount
-    ) {
-      uploadCount.textContent =
-        `${uploadedCount} / 4`;
-    }
+  const hasTemplateFile =
+    Boolean(
+      state.templateFile
+    );
 
 
-    if (
-      analyzeButton
-    ) {
-      analyzeButton.disabled =
-        uploadedCount !==
-        4;
-    }
+  const hasCoalLogFile =
+    Boolean(
+      state.coalLogFile
+    );
 
 
-    /*
-      파일이 바뀌면 기존 분석 결과는 무효이므로
-      최종 엑셀 만들기는 다시 비활성화한다.
-    */
+  const totalUploadedCount =
+    teamUploadedCount +
+    (
+      hasTemplateFile
+        ? 1
+        : 0
+    ) +
+    (
+      hasCoalLogFile
+        ? 1
+        : 0
+    );
 
-    if (
-      createButton
-    ) {
-      createButton.disabled =
-        true;
-    }
+
+  const hasAllSixFiles =
+    teamUploadedCount ===
+      4 &&
+    hasTemplateFile &&
+    hasCoalLogFile;
 
 
-    if (
-      message
-    ) {
-      if (
-        uploadedCount ===
-        0
-      ) {
-        message.textContent =
-          "4개 팀의 엑셀 파일을 첨부해 주세요.";
-      } else if (
-        uploadedCount <
-        4
-      ) {
-        message.textContent =
-          `${uploadedCount}개 팀 첨부 완료 · ${
-            4 -
-            uploadedCount
-          }개 팀의 파일이 더 필요합니다.`;
-      } else {
-        message.textContent =
-          "4개 팀의 파일 첨부가 완료되었습니다. 자료 분석을 눌러주세요.";
-      }
-    }
+  /* =====================================================
+    첨부 개수
+  ====================================================== */
+
+  if (
+    uploadCount
+  ) {
+    uploadCount.textContent =
+      `${totalUploadedCount} / 6`;
   }
 
+
+  /* =====================================================
+    자료 분석 버튼
+
+    여섯 파일을 모두 첨부해야 활성화한다.
+  ====================================================== */
+
+  if (
+    analyzeButton
+  ) {
+    analyzeButton.disabled =
+      !hasAllSixFiles;
+  }
+
+
+  /*
+    첨부파일이 바뀌면 기존 분석 결과를
+    다시 확인해야 하므로 최종 생성 버튼은
+    우선 비활성화한다.
+  */
+
+  if (
+    createButton
+  ) {
+    createButton.disabled =
+      true;
+  }
+
+
+  /* =====================================================
+    단계별 안내 문구
+  ====================================================== */
+
+  if (
+    message
+  ) {
+    if (
+      totalUploadedCount ===
+        0
+    ) {
+      message.textContent =
+        "일일발전현황·운탄일지와 4개 팀 자료를 첨부해 주세요.";
+
+    } else if (
+      teamUploadedCount <
+        4
+    ) {
+      message.textContent =
+        `4개 팀 자료 중 ${teamUploadedCount}개 첨부 완료 · ${
+          4 -
+          teamUploadedCount
+        }개 팀 자료가 더 필요합니다.`;
+
+    } else if (
+      !hasTemplateFile
+    ) {
+      message.textContent =
+        "4개 팀 자료 첨부 완료 · 일일발전현황을 첨부해 주세요.";
+
+    } else if (
+      !hasCoalLogFile
+    ) {
+      message.textContent =
+        "일일발전현황과 4개 팀 자료 첨부 완료 · 운탄일지를 첨부해 주세요.";
+
+    } else {
+      message.textContent =
+        "6개 파일 첨부가 완료되었습니다. 자료 분석을 눌러주세요.";
+    }
+  }
+}
+
+
+/*
+  다른 오전회의 기능에서도
+  첨부 개수를 갱신할 수 있도록 공개한다.
+*/
+
+window.updateEfficiencyMorningMeetingUploadSummary =
+  updateMorningMeetingUploadSummary;
 
   function setFileInputFile(
     input,
@@ -125899,87 +125988,102 @@ function cleanMorningMeetingSectionRows(
       );
   }
 
+/* =====================================================
+  일일발전현황 기준 취합본 적용
 
-  /* =====================================================
-    기준 취합본 적용
-  ====================================================== */
+  저장:
+  - 브라우저 메모리만 사용
+  - D1 및 R2 전송 없음
+===================================================== */
 
-  function applyMorningMeetingTemplateFile(
-    file
+function applyMorningMeetingTemplateFile(
+  file
+) {
+  const elements =
+    getMorningMeetingWorkbookElements();
+
+
+  const state =
+    getMorningMeetingWorkbookState();
+
+
+  hideMorningMeetingWorkbookError();
+
+
+  if (
+    !isMorningMeetingXlsxFile(
+      file
+    )
   ) {
-    const elements =
-      getMorningMeetingWorkbookElements();
+    showMorningMeetingWorkbookError(
+      "일일발전현황은 XLSX 엑셀 파일만 선택할 수 있습니다."
+    );
 
 
-    const state =
-      getMorningMeetingWorkbookState();
-
-
-    hideMorningMeetingWorkbookError();
-
-
-    if (
-      !isMorningMeetingXlsxFile(
-        file
-      )
-    ) {
-      showMorningMeetingWorkbookError(
-        "기준 취합본은 XLSX 엑셀 파일만 선택할 수 있습니다."
-      );
-
-
-      return;
-    }
-
-
-    state.templateFile =
-      file;
-
-
-    elements.templateCard
-      ?.classList
-      .remove(
-        "is-dragover"
-      );
-
-
-    elements.templateCard
-      ?.classList
-      .add(
-        "is-complete"
-      );
-
-
-    if (
-      elements.templateStatus
-    ) {
-      elements.templateStatus.textContent =
-        file.name;
-
-
-      elements.templateStatus.title =
-        file.name;
-    }
-
-
-    if (
-      elements.templateAction
-    ) {
-      elements.templateAction.textContent =
-        "기준 취합본 완료";
-    }
-
-
-    updateMorningMeetingCreateButton();
+    return;
   }
+
+
+  state.templateFile =
+    file;
+
+
+  elements.templateCard
+    ?.classList
+    .remove(
+      "is-dragover"
+    );
+
+
+  elements.templateCard
+    ?.classList
+    .add(
+      "is-selected",
+      "is-complete"
+    );
+
+
+  if (
+    elements.templateStatus
+  ) {
+    elements.templateStatus.textContent =
+      file.name;
+
+
+    elements.templateStatus.title =
+      file.name;
+  }
+
+
+  if (
+    elements.templateAction
+  ) {
+    elements.templateAction.textContent =
+      "첨부 완료";
+  }
+
+
+  if (
+    typeof window
+      .updateEfficiencyMorningMeetingUploadSummary ===
+      "function"
+  ) {
+    window
+      .updateEfficiencyMorningMeetingUploadSummary();
+  }
+
+
+  updateMorningMeetingCreateButton();
+}
 
 /* =====================================================
   최종 엑셀 만들기 버튼 활성화 조건
 
   조건:
-  1. 기준 취합본 첨부
-  2. 안전·환경·기계·전기제어팀 분석 완료
-  3. 교대파트 업무내용 선택 또는 직접 입력
+  1. 일일발전현황 첨부
+  2. 운탄일지 첨부
+  3. 안전·환경·기계·전기제어팀 분석 완료
+  4. 교대파트 업무 선택 완료
 ===================================================== */
 
 function updateMorningMeetingCreateButton() {
@@ -126016,9 +126120,15 @@ function updateMorningMeetingCreateButton() {
     );
 
 
+  const hasCoalLogFile =
+    Boolean(
+      state.coalLogFile
+    );
+
+
   const hasAllTeamAnalysis =
     analyzedTeamCount ===
-    TEAM_ORDER.length;
+      TEAM_ORDER.length;
 
 
   const hasShiftPartText =
@@ -126029,12 +126139,13 @@ function updateMorningMeetingCreateButton() {
 
   const canCreate =
     hasTemplateFile &&
+    hasCoalLogFile &&
     hasAllTeamAnalysis &&
     hasShiftPartText;
 
 
   /* =====================================================
-    최종 엑셀 만들기 버튼 상태
+    최종 엑셀 버튼 상태
   ====================================================== */
 
   if (
@@ -126045,11 +126156,10 @@ function updateMorningMeetingCreateButton() {
   }
 
 
-  /* =====================================================
-    단계별 안내 문구
-
-    팀 자료 분석 전에는 기존 첨부 안내 문구를 유지한다.
-  ====================================================== */
+  /*
+    팀 자료 분석 전에는 첨부 기능에서 출력한
+    안내 문구를 그대로 유지한다.
+  */
 
   if (
     !elements.message ||
@@ -126063,7 +126173,18 @@ function updateMorningMeetingCreateButton() {
     !hasTemplateFile
   ) {
     elements.message.textContent =
-      "자료 분석이 완료되었습니다. 기준 취합본을 첨부해 주세요.";
+      "자료 분석이 완료되었습니다. 일일발전현황을 첨부해 주세요.";
+
+
+    return;
+  }
+
+
+  if (
+    !hasCoalLogFile
+  ) {
+    elements.message.textContent =
+      "자료 분석이 완료되었습니다. 운탄일지를 첨부해 주세요.";
 
 
     return;
@@ -131118,68 +131239,82 @@ async function createMorningMeetingWorkbook() {
     );
   }
 
+/* =====================================================
+  일일발전현황 기준 취합본 초기화
+===================================================== */
 
-  /* =====================================================
-    기준 취합본 초기화
-  ====================================================== */
-
-  function resetMorningMeetingTemplateFile() {
-    const elements =
-      getMorningMeetingWorkbookElements();
-
-
-    const state =
-      getMorningMeetingWorkbookState();
+function resetMorningMeetingTemplateFile() {
+  const elements =
+    getMorningMeetingWorkbookElements();
 
 
-    state.templateFile =
-      null;
+  const state =
+    getMorningMeetingWorkbookState();
 
 
-    state.analysis =
-      {};
+  state.templateFile =
+    null;
 
 
-    if (
-      elements.templateInput
-    ) {
-      elements.templateInput.value =
-        "";
-    }
+  /*
+    전체 초기화 버튼으로 호출되므로
+    기존 팀 분석 결과도 함께 초기화한다.
+  */
+
+  state.analysis =
+    {};
 
 
-    elements.templateCard
-      ?.classList
-      .remove(
-        "is-complete",
-        "is-dragover"
-      );
-
-
-    if (
-      elements.templateStatus
-    ) {
-      elements.templateStatus.textContent =
-        "현재 날짜의 기준 취합본을 선택하거나 끌어다 놓으세요.";
-
-
-      elements.templateStatus.removeAttribute(
-        "title"
-      );
-    }
-
-
-    if (
-      elements.templateAction
-    ) {
-      elements.templateAction.textContent =
-        "파일 선택 · 드롭";
-    }
-
-
-    updateMorningMeetingCreateButton();
+  if (
+    elements.templateInput
+  ) {
+    elements.templateInput.value =
+      "";
   }
 
+
+  elements.templateCard
+    ?.classList
+    .remove(
+      "is-selected",
+      "is-complete",
+      "is-dragover"
+    );
+
+
+  if (
+    elements.templateStatus
+  ) {
+    elements.templateStatus.textContent =
+      "기준 취합본을 선택하세요.";
+
+
+    elements.templateStatus.removeAttribute(
+      "title"
+    );
+  }
+
+
+  if (
+    elements.templateAction
+  ) {
+    elements.templateAction.textContent =
+      "선택 · 드롭";
+  }
+
+
+  if (
+    typeof window
+      .updateEfficiencyMorningMeetingUploadSummary ===
+      "function"
+  ) {
+    window
+      .updateEfficiencyMorningMeetingUploadSummary();
+  }
+
+
+  updateMorningMeetingCreateButton();
+}
 
   /* =====================================================
     분석 완료 감지
@@ -133308,6 +133443,570 @@ function refreshReportDate() {
   if (
     document.readyState ===
     "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
+
+/* =========================================================
+  오전회의 취합 - 운탄일지 첨부
+
+  지원:
+  - 카드 클릭 후 파일 선택
+  - 카드 위로 파일 드래그 앤 드롭
+  - 첨부 파일명 표시
+  - 전체 초기화
+
+  저장:
+  - 브라우저 메모리만 사용
+  - D1 및 R2 전송 없음
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingCoalLogUpload() {
+  "use strict";
+
+
+  function getState() {
+    if (
+      !window.efficiencyMorningMeetingUploadState
+    ) {
+      window.efficiencyMorningMeetingUploadState = {
+        files:
+          {},
+
+        analysis:
+          {},
+
+        templateFile:
+          null,
+
+        coalLogFile:
+          null
+      };
+    }
+
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  function getElements() {
+    return {
+      card:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalLogCard"
+        ),
+
+      input:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalLogFile"
+        ),
+
+      status:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalLogStatus"
+        ),
+
+      action:
+        document.getElementById(
+          "efficiencyMorningMeetingCoalLogAction"
+        ),
+
+      resetButton:
+        document.getElementById(
+          "resetEfficiencyMorningMeetingButton"
+        ),
+
+      error:
+        document.getElementById(
+          "efficiencyMorningMeetingError"
+        )
+    };
+  }
+
+
+  function isXlsxFile(
+    file
+  ) {
+    if (
+      !file
+    ) {
+      return false;
+    }
+
+
+    return String(
+      file.name ||
+      ""
+    )
+      .trim()
+      .toLowerCase()
+      .endsWith(
+        ".xlsx"
+      );
+  }
+
+
+  function hideError() {
+    const {
+      error
+    } =
+      getElements();
+
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+
+    error.textContent =
+      "";
+
+
+    error.hidden =
+      true;
+  }
+
+
+  function showError(
+    message
+  ) {
+    const {
+      error
+    } =
+      getElements();
+
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+
+    error.textContent =
+      String(
+        message ||
+        "운탄일지 파일을 확인해 주세요."
+      );
+
+
+    error.hidden =
+      false;
+  }
+
+
+  function setInputFile(
+    input,
+    file
+  ) {
+    if (
+      !input ||
+      !file
+    ) {
+      return;
+    }
+
+
+    try {
+      const transfer =
+        new DataTransfer();
+
+
+      transfer.items.add(
+        file
+      );
+
+
+      input.files =
+        transfer.files;
+
+    } catch (
+      error
+    ) {
+      /*
+        일부 브라우저는 input.files 설정을
+        허용하지 않을 수 있다.
+
+        실제 파일은 state.coalLogFile에
+        별도로 저장하므로 취합에는 문제가 없다.
+      */
+    }
+  }
+
+
+  function refreshMorningMeetingState() {
+    if (
+      typeof window
+        .updateEfficiencyMorningMeetingUploadSummary ===
+        "function"
+    ) {
+      window
+        .updateEfficiencyMorningMeetingUploadSummary();
+    }
+
+
+    if (
+      typeof window
+        .updateEfficiencyMorningMeetingCreateButton ===
+        "function"
+    ) {
+      window
+        .updateEfficiencyMorningMeetingCreateButton();
+    }
+  }
+
+
+  function applyCoalLogFile(
+    file
+  ) {
+    const elements =
+      getElements();
+
+
+    const state =
+      getState();
+
+
+    hideError();
+
+
+    if (
+      !isXlsxFile(
+        file
+      )
+    ) {
+      showError(
+        "운탄일지는 XLSX 엑셀 파일만 첨부할 수 있습니다."
+      );
+
+
+      return;
+    }
+
+
+    state.coalLogFile =
+      file;
+
+
+    setInputFile(
+      elements.input,
+      file
+    );
+
+
+    elements.card
+      ?.classList
+      .remove(
+        "is-dragover"
+      );
+
+
+    elements.card
+      ?.classList
+      .add(
+        "is-selected",
+        "is-complete"
+      );
+
+
+    if (
+      elements.status
+    ) {
+      elements.status.textContent =
+        file.name;
+
+
+      elements.status.title =
+        file.name;
+    }
+
+
+    if (
+      elements.action
+    ) {
+      elements.action.textContent =
+        "첨부 완료";
+    }
+
+
+    refreshMorningMeetingState();
+  }
+
+
+  function resetCoalLogFile() {
+    const elements =
+      getElements();
+
+
+    const state =
+      getState();
+
+
+    state.coalLogFile =
+      null;
+
+
+    if (
+      elements.input
+    ) {
+      elements.input.value =
+        "";
+    }
+
+
+    elements.card
+      ?.classList
+      .remove(
+        "is-selected",
+        "is-complete",
+        "is-dragover"
+      );
+
+
+    if (
+      elements.status
+    ) {
+      elements.status.textContent =
+        "운탄일지를 선택하세요.";
+
+
+      elements.status.removeAttribute(
+        "title"
+      );
+    }
+
+
+    if (
+      elements.action
+    ) {
+      elements.action.textContent =
+        "선택 · 드롭";
+    }
+
+
+    refreshMorningMeetingState();
+  }
+
+
+  function bindCoalLogUpload() {
+    const elements =
+      getElements();
+
+
+    if (
+      !elements.card ||
+      !elements.input
+    ) {
+      return;
+    }
+
+
+    let dragEnterCount =
+      0;
+
+
+    /* 파일 선택 */
+
+    elements.input.addEventListener(
+      "change",
+
+      () => {
+        const file =
+          elements.input
+            .files?.[
+              0
+            ];
+
+
+        if (
+          file
+        ) {
+          applyCoalLogFile(
+            file
+          );
+        }
+      }
+    );
+
+
+    /* 드래그 진입 */
+
+    elements.card.addEventListener(
+      "dragenter",
+
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        dragEnterCount +=
+          1;
+
+
+        elements.card.classList.add(
+          "is-dragover"
+        );
+      }
+    );
+
+
+    /* 드래그 중 */
+
+    elements.card.addEventListener(
+      "dragover",
+
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        if (
+          event.dataTransfer
+        ) {
+          event.dataTransfer.dropEffect =
+            "copy";
+        }
+
+
+        elements.card.classList.add(
+          "is-dragover"
+        );
+      }
+    );
+
+
+    /* 드래그 이탈 */
+
+    elements.card.addEventListener(
+      "dragleave",
+
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        dragEnterCount =
+          Math.max(
+            0,
+
+            dragEnterCount -
+            1
+          );
+
+
+        if (
+          dragEnterCount ===
+            0
+        ) {
+          elements.card.classList.remove(
+            "is-dragover"
+          );
+        }
+      }
+    );
+
+
+    /* 파일 놓기 */
+
+    elements.card.addEventListener(
+      "drop",
+
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        dragEnterCount =
+          0;
+
+
+        elements.card.classList.remove(
+          "is-dragover"
+        );
+
+
+        const file =
+          event
+            .dataTransfer
+            ?.files?.[
+              0
+            ];
+
+
+        if (
+          !file
+        ) {
+          showError(
+            "운탄일지 카드에 XLSX 파일을 놓아주세요."
+          );
+
+
+          return;
+        }
+
+
+        applyCoalLogFile(
+          file
+        );
+      }
+    );
+
+
+    /* 전체 초기화 */
+
+    elements.resetButton
+      ?.addEventListener(
+        "click",
+        resetCoalLogFile
+      );
+  }
+
+
+  function initialize() {
+    const {
+      card
+    } =
+      getElements();
+
+
+    if (
+      !card ||
+      card.dataset
+        .coalLogUploadInitialized ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    card.dataset
+      .coalLogUploadInitialized =
+      "true";
+
+
+    bindCoalLogUpload();
+
+    refreshMorningMeetingState();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
   ) {
     document.addEventListener(
       "DOMContentLoaded",
