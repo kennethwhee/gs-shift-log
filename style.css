@@ -76956,3 +76956,163 @@ span + span::before {
     font-size: 8px !important;
   }
 }
+
+/* =========================================================
+  BOX 레벨 통합 그래프
+
+  하나의 그래프에 네 개 추이선을 표시한다.
+========================================================= */
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend {
+  display: flex !important;
+
+  width: auto !important;
+
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+
+  gap: 6px 12px !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend
+span {
+  position: relative !important;
+
+  display: inline-flex !important;
+
+  align-items: center !important;
+
+  gap: 4px !important;
+
+  padding-left: 16px !important;
+
+  color: #52657b !important;
+
+  font-size: 9px !important;
+  font-weight: 800 !important;
+
+  white-space: nowrap !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend
+span::before {
+  content: "" !important;
+
+  position: absolute !important;
+
+  top: 50% !important;
+  left: 0 !important;
+
+  width: 11px !important;
+  height: 3px !important;
+
+  border-radius: 999px !important;
+
+  background:
+    var(
+      --arm-roll-legend-color,
+      #8795a5
+    ) !important;
+
+  transform:
+    translateY(
+      -50%
+    ) !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend
+span strong {
+  color: #203750 !important;
+
+  font-size: inherit !important;
+  font-weight: 900 !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-trend-chart {
+  display: block !important;
+
+  width: 100% !important;
+  min-height: 300px !important;
+  height: auto !important;
+  max-height: none !important;
+
+  padding: 12px !important;
+
+  overflow: hidden !important;
+
+  background: #ffffff !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-combined-chart {
+  display: block !important;
+
+  width: 100% !important;
+  height: 275px !important;
+
+  overflow: visible !important;
+}
+
+
+@media (max-width: 760px) {
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-card
+  .arm-roll-box-section-header {
+    align-items: flex-start !important;
+
+    flex-direction: column !important;
+
+    gap: 6px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend {
+    justify-content: flex-start !important;
+
+    gap: 4px 8px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  span {
+    padding-left: 12px !important;
+
+    font-size: 7px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  span::before {
+    width: 8px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-trend-chart {
+    min-height: 230px !important;
+
+    padding: 6px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-combined-chart {
+    height: 220px !important;
+  }
+}
