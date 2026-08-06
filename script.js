@@ -30806,6 +30806,28 @@ async function confirmAndAddLogEntry() {
   addOrUpdateLogEntry();
 }
 
+/* =========================================================
+  업무 항목 추가·수정 최종본
+
+  TAG 입력 규칙:
+  - TM 발행
+  - TM 작업
+  - BM 발행
+  - BM 작업
+  - CM 발행
+  - CM 작업
+
+  위 구분은 TAG 입력창을 표시하지만
+  TAG 번호는 선택사항이다.
+
+  TAG를 입력한 경우:
+  - 대문자로 저장
+  - Facility Navigator 연결 가능
+
+  TAG를 입력하지 않은 경우:
+  - 빈 값으로 정상 추가·수정
+========================================================= */
+
 function addOrUpdateLogEntry() {
   const category =
     String(
@@ -30815,7 +30837,13 @@ function addOrUpdateLogEntry() {
     ).trim();
 
 
-  const needsTag =
+  /*
+    TM·BM·CM 관련 구분에서는
+    TAG 입력창은 계속 표시한다.
+
+    단, TAG는 필수가 아니라 선택사항이다.
+  */
+  const supportsTag =
     category.startsWith(
       "TM"
     ) ||
@@ -30828,7 +30856,7 @@ function addOrUpdateLogEntry() {
 
 
   const tag =
-    needsTag
+    supportsTag
       ? String(
           elements.logEntryTag
             ?.value ||
@@ -30869,34 +30897,39 @@ function addOrUpdateLogEntry() {
     ).trim();
 
 
-  if (!category) {
+  if (
+    !category
+  ) {
     showToast(
       "구분을 선택해 주세요."
     );
 
+
     elements.logEntryCategory
       ?.focus();
 
+
     return;
   }
+
+
+  /*
+    TAG 필수 검사는 하지 않는다.
+
+    TAG가 비어 있어도 아래 구분 모두 정상 저장된다.
+
+    - TM 발행
+    - TM 작업
+    - BM 발행
+    - BM 작업
+    - CM 발행
+    - CM 작업
+  */
 
 
   if (
-    needsTag &&
-    !tag
+    !content
   ) {
-    showToast(
-      `${category} 내역은 TAG를 입력해 주세요.`
-    );
-
-    elements.logEntryTag
-      ?.focus();
-
-    return;
-  }
-
-
-  if (!content) {
     if (
       normalizedTime
     ) {
@@ -30910,8 +30943,10 @@ function addOrUpdateLogEntry() {
       );
     }
 
+
     elements.logEntryContent
       ?.focus();
+
 
     return;
   }
@@ -31040,6 +31075,7 @@ function addOrUpdateLogEntry() {
   const entry = {
     ...previousEntryData,
 
+
     id:
       resolveLogEntryId(
         previousEntryData,
@@ -31047,14 +31083,22 @@ function addOrUpdateLogEntry() {
         importedFromEntryIndex
       ),
 
+
     time:
       normalizedTime,
 
+
     category,
 
+
+    /*
+      TAG 미입력 시 빈 문자열로 저장한다.
+    */
     tag,
 
+
     content,
+
 
     importedFromRole:
       isLeaderManualEntry
@@ -31063,6 +31107,7 @@ function addOrUpdateLogEntry() {
             previousSourceRole ||
             currentEditorRole
           ),
+
 
     importedFromAuthor:
       isLeaderManualEntry
@@ -31079,10 +31124,12 @@ function addOrUpdateLogEntry() {
             ""
           ).trim(),
 
+
     importedFromLogId:
       isLeaderManualEntry
         ? ""
         : previousSourceLogId,
+
 
     importedFromEntryIndex:
       isLeaderManualEntry
@@ -31096,6 +31143,7 @@ function addOrUpdateLogEntry() {
               : null
           ),
 
+
     source:
       isLeaderManualEntry
         ? "leader-manual"
@@ -31106,12 +31154,15 @@ function addOrUpdateLogEntry() {
   };
 
 
-  if (isEditing) {
+  if (
+    isEditing
+  ) {
     appState.editorEntries.splice(
       appState.editingEntryIndex,
       1,
       entry
     );
+
 
     showToast(
       "작업 내역을 수정했습니다."
@@ -31122,6 +31173,7 @@ function addOrUpdateLogEntry() {
       entry
     );
 
+
     showToast(
       normalizedTime
         ? `${normalizedTime} 작업 내역을 추가했습니다.`
@@ -31131,6 +31183,7 @@ function addOrUpdateLogEntry() {
 
 
   sortImportedLogEntries();
+
 
   renderLogEntryTable();
 
