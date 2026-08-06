@@ -131638,40 +131638,188 @@ async function createMorningMeetingWorkbook() {
       true;
   }
 
+/* =====================================================
+  교대파트 조회 기준 일자
 
-  function getAnalyzedReportDate() {
-    const state =
-      getState();
+  우선순위:
+  1. 팀별 엑셀 분석 날짜
+  2. 현재 업무일지 근무 기준 날짜
+  3. 현재 시각 기준 근무 날짜
+
+  00:00 ~ 06:59:
+  - 전날 N/S의 근무일자로 처리
+===================================================== */
+
+function getAnalyzedReportDate() {
+  const state =
+    getState();
 
 
-    const results =
-      Object.values(
-        state.analysis ||
-        {}
+  /* =====================================================
+    1순위:
+    팀별 엑셀 분석 결과의 날짜
+  ====================================================== */
+
+  const analysisResults =
+    Object.values(
+      state.analysis ||
+      {}
+    );
+
+
+  for (
+    const result
+    of analysisResults
+  ) {
+    const analyzedDate =
+      normalizeReportDate(
+        result?.reportDate
       );
 
 
-    for (
-      const result
-      of results
+    if (
+      analyzedDate
     ) {
-      const date =
-        normalizeReportDate(
-          result?.reportDate
-        );
-
-
-      if (
-        date
-      ) {
-        return date;
-      }
+      return analyzedDate;
     }
-
-
-    return "";
   }
 
+
+  /* =====================================================
+    2순위:
+    메인 업무일지에서 현재 선택한 날짜
+  ====================================================== */
+
+  if (
+    typeof appState !==
+      "undefined" &&
+    appState?.selectedDate instanceof
+      Date &&
+    !Number.isNaN(
+      appState.selectedDate.getTime()
+    )
+  ) {
+    return [
+      appState.selectedDate
+        .getFullYear(),
+
+      String(
+        appState.selectedDate
+          .getMonth() +
+          1
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        appState.selectedDate
+          .getDate()
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    );
+  }
+
+
+  /* =====================================================
+    3순위:
+    현재 근무 기준 날짜
+  ====================================================== */
+
+  if (
+    typeof getCurrentShiftContext ===
+      "function"
+  ) {
+    const currentContext =
+      getCurrentShiftContext(
+        new Date()
+      );
+
+
+    const contextDate =
+      currentContext?.date;
+
+
+    if (
+      contextDate instanceof
+        Date &&
+      !Number.isNaN(
+        contextDate.getTime()
+      )
+    ) {
+      return [
+        contextDate.getFullYear(),
+
+        String(
+          contextDate.getMonth() +
+          1
+        ).padStart(
+          2,
+          "0"
+        ),
+
+        String(
+          contextDate.getDate()
+        ).padStart(
+          2,
+          "0"
+        )
+      ].join(
+        "-"
+      );
+    }
+  }
+
+
+  /* =====================================================
+    최종 대체값
+  ====================================================== */
+
+  const now =
+    new Date();
+
+
+  /*
+    00:00 ~ 06:59는
+    전날 N/S 근무일자로 처리한다.
+  */
+
+  if (
+    now.getHours() <
+    7
+  ) {
+    now.setDate(
+      now.getDate() -
+      1
+    );
+  }
+
+
+  return [
+    now.getFullYear(),
+
+    String(
+      now.getMonth() +
+      1
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    String(
+      now.getDate()
+    ).padStart(
+      2,
+      "0"
+    )
+  ].join(
+    "-"
+  );
+}
 
   async function requestShiftLogs(
     date,
@@ -131763,187 +131911,275 @@ async function createMorningMeetingWorkbook() {
       : [];
   }
 
+/* =====================================================
+  TGO·BCO1·BCO2 업무내용 수집
 
-  function collectLogEntries(
-    log,
-    shift
-  ) {
-    const role =
-      normalizeRole(
-        log?.role
-      );
+  포함:
+  - handoverEntries 일반 업무
+  - tmEntries TM·BM·CM 발행 및 작업
+  - 기존 entries 호환 자료
 
+  제외:
+  - 비고
+  - 이전 근무에서 자동으로 가져온 중복 항목
+===================================================== */
 
-    if (
-      !role
-    ) {
-      return [];
-    }
-
-
-    const sources = [
-      {
-        name:
-          "entries",
-
-        items:
-          log?.entries
-      },
-
-      {
-        name:
-          "tmEntries",
-
-        items:
-          log?.tmEntries
-      }
-    ];
-
-
-    const uniqueItems =
-      new Map();
-
-
-    sources.forEach(
-      source => {
-        (
-          Array.isArray(
-            source.items
-          )
-            ? source.items
-            : []
-        )
-          .forEach(
-            (
-              rawEntry,
-              entryIndex
-            ) => {
-              const entry =
-                rawEntry &&
-                typeof rawEntry ===
-                  "object" &&
-                !Array.isArray(
-                  rawEntry
-                )
-                  ? rawEntry
-                  : {
-                      content:
-                        String(
-                          rawEntry ||
-                          ""
-                        )
-                    };
-
-
-              const content =
-                normalizeText(
-                  entry.content ||
-                  entry.text
-                );
-
-
-              if (
-                !content
-              ) {
-                return;
-              }
-
-
-              const category =
-                normalizeText(
-                  entry.category
-                );
-
-
-              /*
-                인계사항과 비고는
-                교대파트 업무 선택에서 제외한다.
-              */
-
-              if (
-                /인계|비고/.test(
-                  category
-                )
-              ) {
-                return;
-              }
-
-
-              const time =
-                normalizeText(
-                  entry.time
-                );
-
-
-              const duplicateKey = [
-                time,
-                category,
-                content.replace(
-                  /\s+/g,
-                  " "
-                )
-              ].join(
-                "||"
-              );
-
-
-              if (
-                uniqueItems.has(
-                  duplicateKey
-                )
-              ) {
-                return;
-              }
-
-
-              uniqueItems.set(
-                duplicateKey,
-                {
-                  shift,
-                  role,
-
-                  author:
-                    normalizeText(
-                      log?.author
-                    ),
-
-                  status:
-                    normalizeText(
-                      log?.status
-                    ),
-
-                  time,
-                  category,
-                  content,
-
-                  sourceLogId:
-                    normalizeText(
-                      log?.id
-                    ),
-
-                  sourceEntryId:
-                    normalizeText(
-                      entry?.id
-                    ),
-
-                  sourceCollection:
-                    source.name,
-
-                  sourceIndex:
-                    entryIndex
-                }
-              );
-            }
-          );
-      }
+function collectLogEntries(
+  log,
+  shift
+) {
+  const role =
+    normalizeRole(
+      log?.role
     );
 
 
-    return [
-      ...uniqueItems.values()
-    ];
+  if (
+    !role
+  ) {
+    return [];
   }
 
+
+  /*
+    일반 업무를 먼저 보여주고
+    발행·작업 항목을 그다음에 보여준다.
+  */
+
+  const sources = [
+    {
+      name:
+        "handoverEntries",
+
+      items:
+        log?.handoverEntries
+    },
+
+    {
+      name:
+        "tmEntries",
+
+      items:
+        log?.tmEntries
+    },
+
+    {
+      name:
+        "entries",
+
+      items:
+        log?.entries
+    }
+  ];
+
+
+  const uniqueItems =
+    new Map();
+
+
+  sources.forEach(
+    source => {
+      (
+        Array.isArray(
+          source.items
+        )
+          ? source.items
+          : []
+      )
+        .forEach(
+          (
+            rawEntry,
+            entryIndex
+          ) => {
+            const entry =
+              rawEntry &&
+              typeof rawEntry ===
+                "object" &&
+              !Array.isArray(
+                rawEntry
+              )
+                ? rawEntry
+                : {
+                    content:
+                      String(
+                        rawEntry ||
+                        ""
+                      )
+                  };
+
+
+            const content =
+              normalizeText(
+                entry.content ||
+                entry.text
+              );
+
+
+            if (
+              !content
+            ) {
+              return;
+            }
+
+
+            const rawCategory =
+              normalizeText(
+                entry.category
+              );
+
+
+            /*
+              비고만 제외한다.
+
+              인계사항은 현재 구조에서 일반 업무내용을
+              저장하는 분류이므로 제외하면 안 된다.
+            */
+
+            if (
+              /비고/.test(
+                rawCategory
+              )
+            ) {
+              return;
+            }
+
+
+            /*
+              전 근무에서 자동으로 가져온 항목은
+              중복 선택 방지를 위해 제외한다.
+            */
+
+            const sourceType =
+              normalizeText(
+                entry.source
+              )
+                .toLowerCase();
+
+
+            if (
+              sourceType.includes(
+                "previous-shift"
+              ) ||
+              normalizeText(
+                entry.inheritedFromDate
+              )
+            ) {
+              return;
+            }
+
+
+            const time =
+              normalizeText(
+                entry.time
+              );
+
+
+            const tag =
+              normalizeText(
+                entry.tag
+              )
+                .toUpperCase();
+
+
+            let category =
+              rawCategory;
+
+
+            /*
+              화면에는 인계사항 대신
+              업무로 표시한다.
+            */
+
+            if (
+              /인계사항/.test(
+                category
+              )
+            ) {
+              category =
+                "업무";
+            }
+
+
+            if (
+              !category
+            ) {
+              category =
+                source.name ===
+                  "tmEntries"
+                  ? "발행·작업"
+                  : "업무";
+            }
+
+
+            const duplicateKey = [
+              time,
+              tag,
+              content.replace(
+                /\s+/g,
+                " "
+              )
+            ].join(
+              "||"
+            );
+
+
+            if (
+              uniqueItems.has(
+                duplicateKey
+              )
+            ) {
+              return;
+            }
+
+
+            uniqueItems.set(
+              duplicateKey,
+              {
+                shift,
+                role,
+
+                author:
+                  normalizeText(
+                    log?.author
+                  ),
+
+                status:
+                  normalizeText(
+                    log?.status
+                  ),
+
+                time,
+                tag,
+                category,
+                content,
+
+                sourceLogId:
+                  normalizeText(
+                    log?.id
+                  ),
+
+                sourceEntryId:
+                  normalizeText(
+                    entry?.id
+                  ),
+
+                sourceCollection:
+                  source.name,
+
+                sourceIndex:
+                  entryIndex
+              }
+            );
+          }
+        );
+    }
+  );
+
+
+  return [
+    ...uniqueItems.values()
+  ];
+}
 
   function buildSelectableItems(
     dayLogs,
@@ -132613,31 +132849,40 @@ function updateSelectedText(
     }
   }
 
+/* =====================================================
+  교대파트 기준 날짜 갱신 및 자동 조회
 
-  function refreshReportDate() {
-    const elements =
-      getElements();
+  변경:
+  - 팀 자료 분석 전에도 현재 근무일자로 조회
+  - 화면을 열면 D/S와 N/S 자동 조회
+  - 팀 자료를 분석해 날짜가 달라지면 다시 조회
+===================================================== */
+
+function refreshReportDate() {
+  const elements =
+    getElements();
 
 
-    const state =
-      getState();
+  const state =
+    getState();
 
 
-    const reportDate =
-      getAnalyzedReportDate();
+  const reportDate =
+    getAnalyzedReportDate();
 
 
+  if (
+    !reportDate
+  ) {
     state.shiftPart.reportDate =
-      reportDate;
+      "";
 
 
     if (
       elements.date
     ) {
       elements.date.textContent =
-        reportDate
-          ? `${reportDate} · D/S + N/S`
-          : "기준 일자 확인 전";
+        "기준 일자를 확인할 수 없습니다.";
     }
 
 
@@ -132645,19 +132890,57 @@ function updateSelectedText(
       elements.loadButton
     ) {
       elements.loadButton.disabled =
-        !reportDate;
+        true;
     }
 
 
-    if (
-      reportDate &&
-      state.shiftPart.loadedDate !==
-        reportDate
-    ) {
-      loadShiftPartLogs();
-    }
+    return;
   }
 
+
+  state.shiftPart.reportDate =
+    reportDate;
+
+
+  if (
+    elements.date
+  ) {
+    elements.date.textContent =
+      `${reportDate} · D/S + N/S`;
+  }
+
+
+  if (
+    elements.loadButton
+  ) {
+    elements.loadButton.disabled =
+      false;
+  }
+
+
+  /*
+    날짜가 바뀌었거나
+    아직 한 번도 조회하지 않았다면 자동 조회한다.
+  */
+
+  const shouldLoad =
+    state.shiftPart.loadedDate !==
+      reportDate ||
+
+    !Array.isArray(
+      state.shiftPart.items
+    ) ||
+
+    state.shiftPart.items.length ===
+      0;
+
+
+  if (
+    shouldLoad
+  ) {
+    loadShiftPartLogs();
+  }
+}
 
   function clearSelection() {
     const state =
