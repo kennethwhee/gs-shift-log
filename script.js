@@ -126046,12 +126046,219 @@ function normalizeMorningMeetingOutputLine(
 
 
 /* =====================================================
+  오전회의 취합 엑셀 글꼴 구분
+
+  한글:
+  - 바탕 Batang
+
+  영문·숫자·기호:
+  - Times New Roman
+
+  한 셀에 한글과 영문이 함께 있어도
+  문자 종류별로 폰트를 분리해서 저장한다.
+===================================================== */
+
+function isMorningMeetingHangulCharacter(
+  character
+) {
+  return /[\u1100-\u11ff\u3130-\u318f\uA960-\uA97F\uAC00-\uD7AF\uD7B0-\uD7FF]/.test(
+    String(
+      character ||
+      ""
+    )
+  );
+}
+
+
+function splitMorningMeetingFontRuns(
+  value
+) {
+  const text =
+    String(
+      value ??
+      ""
+    );
+
+
+  if (
+    !text
+  ) {
+    return [];
+  }
+
+
+  const runs =
+    [];
+
+
+  let currentText =
+    "";
+
+
+  let currentIsHangul =
+    null;
+
+
+  for (
+    const character
+    of text
+  ) {
+    const isHangul =
+      isMorningMeetingHangulCharacter(
+        character
+      );
+
+
+    if (
+      currentIsHangul ===
+      null
+    ) {
+      currentIsHangul =
+        isHangul;
+
+
+      currentText =
+        character;
+
+
+      continue;
+    }
+
+
+    if (
+      isHangul ===
+      currentIsHangul
+    ) {
+      currentText +=
+        character;
+
+
+      continue;
+    }
+
+
+    runs.push({
+      text:
+        currentText,
+
+      isHangul:
+        currentIsHangul
+    });
+
+
+    currentText =
+      character;
+
+
+    currentIsHangul =
+      isHangul;
+  }
+
+
+  if (
+    currentText
+  ) {
+    runs.push({
+      text:
+        currentText,
+
+      isHangul:
+        currentIsHangul
+    });
+  }
+
+
+  return runs;
+}
+
+
+/* =====================================================
+  Excel inline rich text 생성
+
+  rFont:
+  - Batang
+  - Times New Roman
+
+  셀의 기존:
+  - 글자 크기
+  - 정렬
+  - 테두리
+  - 배경
+  - 줄바꿈
+  - 스타일 번호
+
+  위 항목은 그대로 유지한다.
+===================================================== */
+
+function createMorningMeetingRichTextXml(
+  value
+) {
+  const runs =
+    splitMorningMeetingFontRuns(
+      value
+    );
+
+
+  if (
+    runs.length ===
+    0
+  ) {
+    return "<is></is>";
+  }
+
+
+  const runXml =
+    runs
+      .map(
+        run => {
+          const fontXml =
+            run.isHangul
+              ? `
+                  <rFont val="Batang"/>
+                  <charset val="129"/>
+                  <family val="1"/>
+                `
+              : `
+                  <rFont val="Times New Roman"/>
+                  <charset val="0"/>
+                  <family val="1"/>
+                `;
+
+
+          return (
+            `<r>` +
+              `<rPr>` +
+                `${fontXml}` +
+              `</rPr>` +
+              `<t xml:space="preserve">` +
+                `${escapeMorningMeetingXml(
+                  run.text
+                )}` +
+              `</t>` +
+            `</r>`
+          );
+        }
+      )
+      .join(
+        ""
+      );
+
+
+  return (
+    `<is>` +
+      `${runXml}` +
+    `</is>`
+  );
+}  
+
+/* =====================================================
   기존 엑셀 셀 내용 교체
 
-  수정 사항:
-  - 내용이 없는 <c ... /> 셀을 먼저 처리
-  - 빈 셀이 다음 셀까지 삼키는 문제 방지
-  - 기존 style 번호와 셀 위치 유지
+  적용:
+  - 한글은 바탕
+  - 영문·숫자·기호는 Times New Roman
+  - 기존 셀 style 번호 유지
+  - 빈 셀이 다음 셀까지 지우는 문제 방지
 ===================================================== */
 
 function replaceMorningMeetingCellText(
@@ -126070,13 +126277,11 @@ function replaceMorningMeetingCellText(
 
 
   /*
-    반드시 self-closing 셀을 먼저 처리해야 한다.
+    내용이 없는 셀:
 
-    예:
     <c r="B35" s="109"/>
 
-    기존 코드는 이것을 일반 셀로 잘못 인식하여
-    뒤쪽 B36의 </c>까지 함께 제거했다.
+    일반 셀보다 먼저 처리해야 한다.
   */
 
   const selfClosingCellPattern =
@@ -126085,6 +126290,12 @@ function replaceMorningMeetingCellText(
       "g"
     );
 
+
+  /*
+    값이 들어 있는 셀:
+
+    <c r="B36" s="109">...</c>
+  */
 
   const normalCellPattern =
     new RegExp(
@@ -126127,8 +126338,8 @@ function replaceMorningMeetingCellText(
 
 
     /*
-      빈 내용이면 기존 스타일을 유지한
-      빈 셀로 만든다.
+      내용이 비어 있으면 기존 스타일 번호를
+      보존한 빈 셀로 만든다.
     */
 
     if (
@@ -126139,15 +126350,21 @@ function replaceMorningMeetingCellText(
     }
 
 
+    /*
+      내용이 있으면 inlineStr 리치 텍스트로 만든다.
+
+      한글:
+      Batang
+
+      나머지:
+      Times New Roman
+    */
+
     return (
       `<c${cleanedAttributes} t="inlineStr">` +
-        `<is>` +
-          `<t xml:space="preserve">` +
-            `${escapeMorningMeetingXml(
-              text
-            )}` +
-          `</t>` +
-        `</is>` +
+        `${createMorningMeetingRichTextXml(
+          text
+        )}` +
       `</c>`
     );
   }
@@ -126155,7 +126372,7 @@ function replaceMorningMeetingCellText(
 
   /*
     1차:
-    빈 셀 형식부터 정확히 교체
+    self-closing 셀부터 교체
   */
 
   let updatedXml =
@@ -126208,7 +126425,6 @@ function replaceMorningMeetingCellText(
 
   return updatedXml;
 }
-
 
   /* =====================================================
     XML 파싱
