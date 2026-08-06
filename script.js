@@ -147447,3 +147447,2173 @@ function bindEvents() {
     initialize();
   }
 })();
+
+/* =========================================================
+  석회석 기간 전체 계산·저장 화면
+
+  기능:
+  - 기간 시작일·종료일 선택
+  - 최근 7일
+  - 이번 달
+  - 지난 달
+  - 기간 전체 OIS 계산 요청
+  - 진행률 자동 조회
+  - 새로고침 후 진행 중 작업 복원
+========================================================= */
+
+(function installLimestoneUsageBatchFeature() {
+  if (
+    window
+      .__limestoneUsageBatchFeatureInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__limestoneUsageBatchFeatureInstalled =
+    true;
+
+
+  const LIMESTONE_USAGE_BATCH_API_URL =
+    "/api/ois-data-requests";
+
+
+  const LIMESTONE_USAGE_BATCH_MAX_DAYS =
+    62;
+
+
+  const LIMESTONE_USAGE_BATCH_POLL_INTERVAL =
+    3000;
+
+
+  let limestoneUsageBatchPollTimer =
+    null;
+
+
+  let limestoneUsageActiveBatchId =
+    "";
+
+
+  let limestoneUsageBatchInitialized =
+    false;
+
+
+  let limestoneUsageLastNotifiedBatchId =
+    "";
+
+
+  /* =====================================================
+    로그인 사용자별 진행 작업 저장 키
+  ====================================================== */
+
+  function getLimestoneUsageBatchStorageKey() {
+    let employeeNo =
+      "";
+
+
+    try {
+      const currentUser =
+        typeof loadCurrentUser ===
+          "function"
+          ? loadCurrentUser()
+          : null;
+
+
+      employeeNo =
+        String(
+          currentUser?.employeeNo ||
+          currentUser?.employee_no ||
+          currentUser?.employeeId ||
+          currentUser?.employee_id ||
+          ""
+        ).trim();
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "석회석 기간 계산 사용자 확인 실패:",
+        error
+      );
+    }
+
+
+    return [
+      "gsShiftLog.limestoneUsageBatchId",
+      employeeNo ||
+      "shared"
+    ].join(
+      "."
+    );
+  }
+
+
+  /* =====================================================
+    HTML 요소
+  ====================================================== */
+
+  function getLimestoneUsageBatchElements() {
+    return {
+      usageView:
+        document.getElementById(
+          "limestoneUsageCalculatorView"
+        ),
+
+      dateCard:
+        document.querySelector(
+          `
+            #limestoneUsageCalculatorView
+            .limestone-usage-date-card
+          `
+        ),
+
+      panel:
+        document.getElementById(
+          "limestoneUsageBatchPanel"
+        ),
+
+      startDateInput:
+        document.getElementById(
+          "limestoneUsageBatchStartDate"
+        ),
+
+      endDateInput:
+        document.getElementById(
+          "limestoneUsageBatchEndDate"
+        ),
+
+      presetButtons: [
+        ...document.querySelectorAll(
+          "[data-limestone-usage-batch-preset]"
+        )
+      ],
+
+      runButton:
+        document.getElementById(
+          "runLimestoneUsageBatchButton"
+        ),
+
+      statusBadge:
+        document.getElementById(
+          "limestoneUsageBatchStatusBadge"
+        ),
+
+      progressPanel:
+        document.getElementById(
+          "limestoneUsageBatchProgress"
+        ),
+
+      progressTitle:
+        document.getElementById(
+          "limestoneUsageBatchProgressTitle"
+        ),
+
+      progressDescription:
+        document.getElementById(
+          "limestoneUsageBatchProgressDescription"
+        ),
+
+      progressPercent:
+        document.getElementById(
+          "limestoneUsageBatchProgressPercent"
+        ),
+
+      progressBar:
+        document.getElementById(
+          "limestoneUsageBatchProgressBar"
+        ),
+
+      totalCount:
+        document.getElementById(
+          "limestoneUsageBatchTotalCount"
+        ),
+
+      processedCount:
+        document.getElementById(
+          "limestoneUsageBatchProcessedCount"
+        ),
+
+      completeCount:
+        document.getElementById(
+          "limestoneUsageBatchCompleteCount"
+        ),
+
+      failedCount:
+        document.getElementById(
+          "limestoneUsageBatchFailedCount"
+        ),
+
+      remainingCount:
+        document.getElementById(
+          "limestoneUsageBatchRemainingCount"
+        ),
+
+      currentItem:
+        document.getElementById(
+          "limestoneUsageBatchCurrentItem"
+        ),
+
+      failedList:
+        document.getElementById(
+          "limestoneUsageBatchFailedList"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    날짜 변환
+  ====================================================== */
+
+  function formatLimestoneUsageBatchDate(
+    date
+  ) {
+    if (
+      !(date instanceof Date) ||
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return "";
+    }
+
+
+    return [
+      date.getFullYear(),
+
+      String(
+        date.getMonth() +
+        1
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        date.getDate()
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    );
+  }
+
+
+  function parseLimestoneUsageBatchDate(
+    value
+  ) {
+    const normalizedValue =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    const match =
+      normalizedValue.match(
+        /^(\d{4})-(\d{2})-(\d{2})$/
+      );
+
+
+    if (
+      !match
+    ) {
+      return null;
+    }
+
+
+    const parsedDate =
+      new Date(
+        Number(
+          match[1]
+        ),
+
+        Number(
+          match[2]
+        ) -
+        1,
+
+        Number(
+          match[3]
+        )
+      );
+
+
+    if (
+      Number.isNaN(
+        parsedDate.getTime()
+      ) ||
+      parsedDate.getFullYear() !==
+        Number(
+          match[1]
+        ) ||
+      parsedDate.getMonth() !==
+        Number(
+          match[2]
+        ) -
+        1 ||
+      parsedDate.getDate() !==
+        Number(
+          match[3]
+        )
+    ) {
+      return null;
+    }
+
+
+    return parsedDate;
+  }
+
+
+  function addLimestoneUsageBatchDays(
+    value,
+    dayCount
+  ) {
+    const parsedDate =
+      parseLimestoneUsageBatchDate(
+        value
+      );
+
+
+    if (
+      !parsedDate
+    ) {
+      return "";
+    }
+
+
+    parsedDate.setDate(
+      parsedDate.getDate() +
+      Number(
+        dayCount ||
+        0
+      )
+    );
+
+
+    return formatLimestoneUsageBatchDate(
+      parsedDate
+    );
+  }
+
+
+  /* =====================================================
+    마지막으로 계산 가능한 날짜
+
+    당일 24시 재고가 필요하므로
+    기본 최대 날짜는 어제다.
+  ====================================================== */
+
+  function getLatestCompleteLimestoneUsageDate() {
+    const latestDate =
+      new Date();
+
+
+    latestDate.setHours(
+      0,
+      0,
+      0,
+      0
+    );
+
+
+    latestDate.setDate(
+      latestDate.getDate() -
+      1
+    );
+
+
+    return formatLimestoneUsageBatchDate(
+      latestDate
+    );
+  }
+
+
+  /* =====================================================
+    기간 일수
+  ====================================================== */
+
+  function getLimestoneUsageBatchDayCount(
+    startDate,
+    endDate
+  ) {
+    const parsedStart =
+      parseLimestoneUsageBatchDate(
+        startDate
+      );
+
+
+    const parsedEnd =
+      parseLimestoneUsageBatchDate(
+        endDate
+      );
+
+
+    if (
+      !parsedStart ||
+      !parsedEnd
+    ) {
+      return 0;
+    }
+
+
+    const startTime =
+      Date.UTC(
+        parsedStart.getFullYear(),
+        parsedStart.getMonth(),
+        parsedStart.getDate()
+      );
+
+
+    const endTime =
+      Date.UTC(
+        parsedEnd.getFullYear(),
+        parsedEnd.getMonth(),
+        parsedEnd.getDate()
+      );
+
+
+    if (
+      startTime >
+      endTime
+    ) {
+      return 0;
+    }
+
+
+    return (
+      Math.floor(
+        (
+          endTime -
+          startTime
+        ) /
+        86400000
+      ) +
+      1
+    );
+  }
+
+
+  /* =====================================================
+    HTML 특수문자 처리
+  ====================================================== */
+
+  function escapeLimestoneUsageBatchHtml(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replaceAll(
+        "&",
+        "&amp;"
+      )
+      .replaceAll(
+        "<",
+        "&lt;"
+      )
+      .replaceAll(
+        ">",
+        "&gt;"
+      )
+      .replaceAll(
+        '"',
+        "&quot;"
+      )
+      .replaceAll(
+        "'",
+        "&#039;"
+      );
+  }
+
+
+  /* =====================================================
+    기간 선택
+  ====================================================== */
+
+  function setLimestoneUsageBatchRange(
+    startDate,
+    endDate
+  ) {
+    const {
+      startDateInput,
+      endDateInput
+    } =
+      getLimestoneUsageBatchElements();
+
+
+    if (
+      startDateInput
+    ) {
+      startDateInput.value =
+        startDate;
+    }
+
+
+    if (
+      endDateInput
+    ) {
+      endDateInput.value =
+        endDate;
+    }
+  }
+
+
+  function applyLimestoneUsageBatchPreset(
+    preset
+  ) {
+    const latestDateValue =
+      getLatestCompleteLimestoneUsageDate();
+
+
+    const latestDate =
+      parseLimestoneUsageBatchDate(
+        latestDateValue
+      );
+
+
+    if (
+      !latestDate
+    ) {
+      return;
+    }
+
+
+    let startDate =
+      latestDateValue;
+
+
+    let endDate =
+      latestDateValue;
+
+
+    if (
+      preset ===
+        "last_7_days"
+    ) {
+      startDate =
+        addLimestoneUsageBatchDays(
+          latestDateValue,
+          -6
+        );
+
+    } else if (
+      preset ===
+        "last_month"
+    ) {
+      const previousMonthFirst =
+        new Date(
+          latestDate.getFullYear(),
+          latestDate.getMonth() -
+          1,
+          1
+        );
+
+
+      const previousMonthLast =
+        new Date(
+          latestDate.getFullYear(),
+          latestDate.getMonth(),
+          0
+        );
+
+
+      startDate =
+        formatLimestoneUsageBatchDate(
+          previousMonthFirst
+        );
+
+
+      endDate =
+        formatLimestoneUsageBatchDate(
+          previousMonthLast
+        );
+
+    } else {
+      const currentMonthFirst =
+        new Date(
+          latestDate.getFullYear(),
+          latestDate.getMonth(),
+          1
+        );
+
+
+      startDate =
+        formatLimestoneUsageBatchDate(
+          currentMonthFirst
+        );
+
+
+      endDate =
+        latestDateValue;
+    }
+
+
+    setLimestoneUsageBatchRange(
+      startDate,
+      endDate
+    );
+
+
+    const {
+      presetButtons
+    } =
+      getLimestoneUsageBatchElements();
+
+
+    presetButtons.forEach(
+      button => {
+        button.classList.toggle(
+          "is-active",
+          button.dataset
+            .limestoneUsageBatchPreset ===
+            preset
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    API 응답 읽기
+  ====================================================== */
+
+  async function readLimestoneUsageBatchApiResponse(
+    response,
+    fallbackMessage
+  ) {
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "석회석 기간 계산 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        fallbackMessage ||
+        `석회석 기간 계산 요청 실패 (HTTP ${response.status})`
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    기간 계산 요청 생성
+  ====================================================== */
+
+  async function createLimestoneUsageBatch(
+    startDate,
+    endDate
+  ) {
+    const response =
+      await fetch(
+        LIMESTONE_USAGE_BATCH_API_URL,
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              action:
+                "create_usage_batch",
+
+              startDate,
+
+              endDate
+            })
+        }
+      );
+
+
+    return await readLimestoneUsageBatchApiResponse(
+      response,
+      "기간 전체 계산 요청을 등록하지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    기간 계산 진행 상태 조회
+  ====================================================== */
+
+  async function getLimestoneUsageBatch(
+    batchId
+  ) {
+    const requestUrl =
+      new URL(
+        LIMESTONE_USAGE_BATCH_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "action",
+      "usage_batch"
+    );
+
+
+    requestUrl.searchParams.set(
+      "batchId",
+      batchId
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    return await readLimestoneUsageBatchApiResponse(
+      response,
+      "기간 계산 진행 상태를 불러오지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    상태 배지
+  ====================================================== */
+
+  function getLimestoneUsageBatchStatusLabel(
+    status
+  ) {
+    const labels = {
+      pending:
+        "대기",
+
+      processing:
+        "진행 중",
+
+      complete:
+        "완료",
+
+      partial_failed:
+        "일부 실패",
+
+      failed:
+        "실패"
+    };
+
+
+    return (
+      labels[
+        status
+      ] ||
+      "대기"
+    );
+  }
+
+
+  /* =====================================================
+    진행 상태 화면 출력
+  ====================================================== */
+
+  function renderLimestoneUsageBatchProgress(
+    result
+  ) {
+    const {
+      runButton,
+      statusBadge,
+      progressPanel,
+      progressTitle,
+      progressDescription,
+      progressPercent,
+      progressBar,
+      totalCount,
+      processedCount,
+      completeCount,
+      failedCount,
+      remainingCount,
+      currentItem,
+      failedList
+    } =
+      getLimestoneUsageBatchElements();
+
+
+    const batch =
+      result?.batch ||
+      {};
+
+
+    const progress =
+      result?.progress ||
+      {};
+
+
+    const items =
+      Array.isArray(
+        result?.items
+      )
+        ? result.items
+        : [];
+
+
+    const status =
+      String(
+        batch.status ||
+        "pending"
+      )
+        .trim()
+        .toLowerCase();
+
+
+    const totalDays =
+      Number(
+        progress.totalDays ||
+        batch.totalDays ||
+        items.length ||
+        0
+      );
+
+
+    const processedDays =
+      Number(
+        progress.processedCount ||
+        0
+      );
+
+
+    const completedDays =
+      Number(
+        progress.completedCount ||
+        0
+      );
+
+
+    const failedDays =
+      Number(
+        progress.failedCount ||
+        0
+      );
+
+
+    const remainingDays =
+      Number(
+        progress.remainingCount ??
+        Math.max(
+          totalDays -
+          processedDays,
+          0
+        )
+      );
+
+
+    const percent =
+      Math.max(
+        0,
+
+        Math.min(
+          100,
+          Number(
+            progress.percent ||
+            0
+          )
+        )
+      );
+
+
+    const isRunning =
+      [
+        "pending",
+        "processing"
+      ].includes(
+        status
+      );
+
+
+    if (
+      statusBadge
+    ) {
+      statusBadge.textContent =
+        getLimestoneUsageBatchStatusLabel(
+          status
+        );
+
+
+      statusBadge.dataset.status =
+        status;
+    }
+
+
+    if (
+      progressPanel
+    ) {
+      progressPanel.hidden =
+        false;
+
+
+      progressPanel.dataset.status =
+        status;
+    }
+
+
+    if (
+      progressPercent
+    ) {
+      progressPercent.textContent =
+        `${percent}%`;
+    }
+
+
+    if (
+      progressBar
+    ) {
+      progressBar.style.width =
+        `${percent}%`;
+    }
+
+
+    if (
+      totalCount
+    ) {
+      totalCount.textContent =
+        `${totalDays}일`;
+    }
+
+
+    if (
+      processedCount
+    ) {
+      processedCount.textContent =
+        `${processedDays}일`;
+    }
+
+
+    if (
+      completeCount
+    ) {
+      completeCount.textContent =
+        `${completedDays}일`;
+    }
+
+
+    if (
+      failedCount
+    ) {
+      failedCount.textContent =
+        `${failedDays}일`;
+    }
+
+
+    if (
+      remainingCount
+    ) {
+      remainingCount.textContent =
+        `${remainingDays}일`;
+    }
+
+
+    if (
+      runButton
+    ) {
+      runButton.disabled =
+        isRunning;
+
+
+      runButton.textContent =
+        isRunning
+          ? "기간 계산 진행 중..."
+          : "기간 전체 계산 및 저장";
+    }
+
+
+    const processingItem =
+      items.find(
+        item => {
+          return item.status ===
+            "processing";
+        }
+      ) ||
+      null;
+
+
+    const pendingItem =
+      items.find(
+        item => {
+          return item.status ===
+            "pending";
+        }
+      ) ||
+      null;
+
+
+    if (
+      progressTitle
+    ) {
+      if (
+        status ===
+          "complete"
+      ) {
+        progressTitle.textContent =
+          "기간 계산 및 저장 완료";
+
+      } else if (
+        status ===
+          "partial_failed"
+      ) {
+        progressTitle.textContent =
+          "기간 계산 일부 완료";
+
+      } else if (
+        status ===
+          "failed"
+      ) {
+        progressTitle.textContent =
+          "기간 계산 실패";
+
+      } else if (
+        status ===
+          "processing"
+      ) {
+        progressTitle.textContent =
+          "석회석 사용량 계산 중";
+
+      } else {
+        progressTitle.textContent =
+          "회사 PC 처리 대기 중";
+      }
+    }
+
+
+    if (
+      progressDescription
+    ) {
+      progressDescription.textContent =
+        [
+          batch.startDate &&
+          batch.endDate
+            ? `${batch.startDate} ~ ${batch.endDate}`
+            : "",
+
+          `${processedDays} / ${totalDays}일 처리`,
+
+          failedDays >
+            0
+            ? `실패 ${failedDays}일`
+            : ""
+        ]
+          .filter(
+            Boolean
+          )
+          .join(
+            " · "
+          );
+    }
+
+
+    if (
+      currentItem
+    ) {
+      if (
+        processingItem
+      ) {
+        currentItem.textContent =
+          `${processingItem.usageDate} OIS 자료를 조회하고 있습니다.`;
+
+      } else if (
+        pendingItem
+      ) {
+        currentItem.textContent =
+          `${pendingItem.usageDate} 조회가 대기 중입니다.`;
+
+      } else if (
+        status ===
+          "complete"
+      ) {
+        currentItem.textContent =
+          "선택한 기간의 날짜별 사용량이 모두 저장되었습니다.";
+
+      } else if (
+        status ===
+          "partial_failed"
+      ) {
+        currentItem.textContent =
+          "정상 처리된 날짜는 저장되었으며 실패 날짜는 아래에서 확인할 수 있습니다.";
+
+      } else if (
+        status ===
+          "failed"
+      ) {
+        currentItem.textContent =
+          batch.lastError ||
+          "기간 계산을 완료하지 못했습니다.";
+
+      } else {
+        currentItem.textContent =
+          "";
+      }
+    }
+
+
+    const failedItems =
+      items.filter(
+        item => {
+          return item.status ===
+            "failed";
+        }
+      );
+
+
+    if (
+      failedList
+    ) {
+      failedList.hidden =
+        failedItems.length ===
+        0;
+
+
+      failedList.innerHTML =
+        failedItems.length >
+          0
+          ? `
+              <strong>
+                실패 날짜
+              </strong>
+
+              <div class="limestone-usage-batch-failed-items">
+
+                ${failedItems
+                  .map(
+                    item => {
+                      return `
+                        <span>
+                          ${escapeLimestoneUsageBatchHtml(
+                            item.usageDate
+                          )}
+
+                          ${
+                            item.errorMessage
+                              ? ` · ${escapeLimestoneUsageBatchHtml(
+                                  item.errorMessage
+                                )}`
+                              : ""
+                          }
+                        </span>
+                      `;
+                    }
+                  )
+                  .join(
+                    ""
+                  )}
+
+              </div>
+            `
+          : "";
+    }
+
+
+    return {
+      status,
+
+      isFinished:
+        [
+          "complete",
+          "partial_failed",
+          "failed"
+        ].includes(
+          status
+        )
+    };
+  }
+
+
+  /* =====================================================
+    현재 선택일 저장 결과 복원
+  ====================================================== */
+
+  async function refreshCurrentLimestoneUsageAfterBatch() {
+    const selectedDate =
+      String(
+        document.getElementById(
+          "limestoneUsageDate"
+        )?.value ||
+        ""
+      ).trim();
+
+
+    if (
+      !selectedDate ||
+      typeof window
+        .loadSavedLimestoneUsageRecords !==
+        "function"
+    ) {
+      return;
+    }
+
+
+    await window
+      .loadSavedLimestoneUsageRecords(
+        selectedDate,
+        {
+          silentWhenMissing:
+            true
+        }
+      )
+      .catch(
+        error => {
+          console.warn(
+            "기간 계산 후 현재 날짜 복원 실패:",
+            error
+          );
+        }
+      );
+  }
+
+
+  /* =====================================================
+    진행 상태 반복 조회 중지
+  ====================================================== */
+
+  function stopLimestoneUsageBatchPolling() {
+    if (
+      limestoneUsageBatchPollTimer
+    ) {
+      window.clearTimeout(
+        limestoneUsageBatchPollTimer
+      );
+
+
+      limestoneUsageBatchPollTimer =
+        null;
+    }
+  }
+
+
+  /* =====================================================
+    진행 상태 반복 조회
+  ====================================================== */
+
+  async function pollLimestoneUsageBatch() {
+    if (
+      !limestoneUsageActiveBatchId
+    ) {
+      return;
+    }
+
+
+    stopLimestoneUsageBatchPolling();
+
+
+    try {
+      const result =
+        await getLimestoneUsageBatch(
+          limestoneUsageActiveBatchId
+        );
+
+
+      const rendered =
+        renderLimestoneUsageBatchProgress(
+          result
+        );
+
+
+      if (
+        rendered.isFinished
+      ) {
+        stopLimestoneUsageBatchPolling();
+
+
+        await refreshCurrentLimestoneUsageAfterBatch();
+
+
+        if (
+          limestoneUsageLastNotifiedBatchId !==
+            limestoneUsageActiveBatchId
+        ) {
+          limestoneUsageLastNotifiedBatchId =
+            limestoneUsageActiveBatchId;
+
+
+          if (
+            typeof showToast ===
+              "function"
+          ) {
+            if (
+              rendered.status ===
+                "complete"
+            ) {
+              showToast(
+                "기간 전체 석회석 사용량 계산과 저장이 완료되었습니다."
+              );
+
+            } else {
+              showToast(
+                "기간 계산이 완료되었습니다. 실패 날짜를 확인해 주세요."
+              );
+            }
+          }
+        }
+
+
+        return;
+      }
+
+
+      limestoneUsageBatchPollTimer =
+        window.setTimeout(
+          pollLimestoneUsageBatch,
+          LIMESTONE_USAGE_BATCH_POLL_INTERVAL
+        );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "석회석 기간 계산 상태 조회 실패:",
+        error
+      );
+
+
+      const {
+        progressTitle,
+        progressDescription
+      } =
+        getLimestoneUsageBatchElements();
+
+
+      if (
+        progressTitle
+      ) {
+        progressTitle.textContent =
+          "진행 상태 재확인 중";
+      }
+
+
+      if (
+        progressDescription
+      ) {
+        progressDescription.textContent =
+          error?.message ||
+          "기간 계산 상태를 잠시 후 다시 확인합니다.";
+      }
+
+
+      limestoneUsageBatchPollTimer =
+        window.setTimeout(
+          pollLimestoneUsageBatch,
+          LIMESTONE_USAGE_BATCH_POLL_INTERVAL *
+          2
+        );
+    }
+  }
+
+
+  /* =====================================================
+    기간 전체 계산 시작
+  ====================================================== */
+
+  async function runLimestoneUsageBatch() {
+    const {
+      startDateInput,
+      endDateInput,
+      runButton,
+      progressPanel,
+      progressTitle,
+      progressDescription
+    } =
+      getLimestoneUsageBatchElements();
+
+
+    const startDate =
+      String(
+        startDateInput?.value ||
+        ""
+      ).trim();
+
+
+    const endDate =
+      String(
+        endDateInput?.value ||
+        ""
+      ).trim();
+
+
+    const latestCompleteDate =
+      getLatestCompleteLimestoneUsageDate();
+
+
+    const dayCount =
+      getLimestoneUsageBatchDayCount(
+        startDate,
+        endDate
+      );
+
+
+    if (
+      !startDate ||
+      !endDate ||
+      dayCount <
+        1
+    ) {
+      window.alert(
+        "기간 계산 시작일과 종료일을 확인해 주세요."
+      );
+
+
+      return;
+    }
+
+
+    if (
+      endDate >
+      latestCompleteDate
+    ) {
+      window.alert(
+        [
+          "종료일은 마지막으로 24시 재고가 확정된 날짜까지만 선택할 수 있습니다.",
+          "",
+          `선택 가능한 마지막 날짜: ${latestCompleteDate}`
+        ].join(
+          "\n"
+        )
+      );
+
+
+      return;
+    }
+
+
+    if (
+      dayCount >
+      LIMESTONE_USAGE_BATCH_MAX_DAYS
+    ) {
+      window.alert(
+        `한 번에 최대 ${LIMESTONE_USAGE_BATCH_MAX_DAYS}일까지 계산할 수 있습니다.`
+      );
+
+
+      return;
+    }
+
+
+    const shouldRun =
+      window.confirm(
+        [
+          "선택한 기간의 석회석 사용량을 계산하고 저장하시겠습니까?",
+          "",
+          `${startDate} ~ ${endDate}`,
+          `총 ${dayCount}일`,
+          "",
+          "날짜별 OIS 자료를 순서대로 조회합니다.",
+          "기존 저장 날짜는 최신 자료로 갱신됩니다."
+        ].join(
+          "\n"
+        )
+      );
+
+
+    if (
+      !shouldRun
+    ) {
+      return;
+    }
+
+
+    if (
+      runButton
+    ) {
+      runButton.disabled =
+        true;
+
+
+      runButton.textContent =
+        "요청 등록 중...";
+    }
+
+
+    if (
+      progressPanel
+    ) {
+      progressPanel.hidden =
+        false;
+    }
+
+
+    if (
+      progressTitle
+    ) {
+      progressTitle.textContent =
+        "기간 계산 요청 등록 중";
+    }
+
+
+    if (
+      progressDescription
+    ) {
+      progressDescription.textContent =
+        `${startDate} ~ ${endDate} 요청을 서버에 등록하고 있습니다.`;
+    }
+
+
+    try {
+      const result =
+        await createLimestoneUsageBatch(
+          startDate,
+          endDate
+        );
+
+
+      const batchId =
+        String(
+          result?.batch?.id ||
+          ""
+        ).trim();
+
+
+      if (
+        !batchId
+      ) {
+        throw new Error(
+          "기간 계산 작업 ID를 확인할 수 없습니다."
+        );
+      }
+
+
+      limestoneUsageActiveBatchId =
+        batchId;
+
+
+      localStorage.setItem(
+        getLimestoneUsageBatchStorageKey(),
+        batchId
+      );
+
+
+      renderLimestoneUsageBatchProgress(
+        result
+      );
+
+
+      await pollLimestoneUsageBatch();
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "석회석 기간 전체 계산 요청 실패:",
+        error
+      );
+
+
+      if (
+        progressTitle
+      ) {
+        progressTitle.textContent =
+          "기간 계산 요청 실패";
+      }
+
+
+      if (
+        progressDescription
+      ) {
+        progressDescription.textContent =
+          error?.message ||
+          "기간 계산 요청을 등록하지 못했습니다.";
+      }
+
+
+      if (
+        runButton
+      ) {
+        runButton.disabled =
+          false;
+
+
+        runButton.textContent =
+          "기간 전체 계산 및 저장";
+      }
+
+
+      if (
+        typeof showToast ===
+          "function"
+      ) {
+        showToast(
+          error?.message ||
+          "기간 계산 요청에 실패했습니다."
+        );
+      }
+    }
+  }
+
+
+  /* =====================================================
+    화면 생성
+  ====================================================== */
+
+  function createLimestoneUsageBatchHtml() {
+    const {
+      usageView,
+      dateCard
+    } =
+      getLimestoneUsageBatchElements();
+
+
+    if (
+      !usageView ||
+      !dateCard
+    ) {
+      return false;
+    }
+
+
+    if (
+      document.getElementById(
+        "limestoneUsageBatchPanel"
+      )
+    ) {
+      return true;
+    }
+
+
+    dateCard.insertAdjacentHTML(
+      "afterend",
+
+      `
+        <section
+          class="limestone-usage-batch-panel"
+          id="limestoneUsageBatchPanel"
+        >
+
+          <header class="limestone-usage-batch-header">
+
+            <div>
+
+              <span>
+                PERIOD CALCULATION
+              </span>
+
+              <h4>
+                기간 전체 계산 및 저장
+              </h4>
+
+              <p>
+                선택한 기간의 날짜별 OIS 재고를 조회하고 사용량을 자동 저장합니다.
+              </p>
+
+            </div>
+
+
+            <strong
+              class="limestone-usage-batch-status-badge"
+              id="limestoneUsageBatchStatusBadge"
+              data-status="ready"
+            >
+              대기
+            </strong>
+
+          </header>
+
+
+          <div class="limestone-usage-batch-controls">
+
+            <label class="limestone-usage-batch-date-field">
+
+              <span>
+                시작일
+              </span>
+
+              <input
+                type="date"
+                id="limestoneUsageBatchStartDate"
+              />
+
+            </label>
+
+
+            <span class="limestone-usage-batch-range-divider">
+              ~
+            </span>
+
+
+            <label class="limestone-usage-batch-date-field">
+
+              <span>
+                종료일
+              </span>
+
+              <input
+                type="date"
+                id="limestoneUsageBatchEndDate"
+              />
+
+            </label>
+
+
+            <div class="limestone-usage-batch-presets">
+
+              <button
+                type="button"
+                data-limestone-usage-batch-preset="last_7_days"
+              >
+                최근 7일
+              </button>
+
+              <button
+                type="button"
+                data-limestone-usage-batch-preset="this_month"
+              >
+                이번 달
+              </button>
+
+              <button
+                type="button"
+                data-limestone-usage-batch-preset="last_month"
+              >
+                지난 달
+              </button>
+
+            </div>
+
+
+            <button
+              type="button"
+              class="primary-button limestone-usage-batch-run-button"
+              id="runLimestoneUsageBatchButton"
+            >
+              기간 전체 계산 및 저장
+            </button>
+
+          </div>
+
+
+          <section
+            class="limestone-usage-batch-progress"
+            id="limestoneUsageBatchProgress"
+            data-status="ready"
+            hidden
+          >
+
+            <div class="limestone-usage-batch-progress-header">
+
+              <div>
+
+                <strong id="limestoneUsageBatchProgressTitle">
+                  기간 계산 준비
+                </strong>
+
+                <small id="limestoneUsageBatchProgressDescription">
+                시작일과 종료일을 선택해 주세요.
+                </small>
+
+              </div>
+
+
+              <span id="limestoneUsageBatchProgressPercent">
+                0%
+              </span>
+
+            </div>
+
+
+            <div class="limestone-usage-batch-progress-track">
+
+              <span
+                id="limestoneUsageBatchProgressBar"
+                style="width: 0%"
+              >
+              </span>
+
+            </div>
+
+
+            <div class="limestone-usage-batch-progress-stats">
+
+              <div>
+
+                <span>
+                  전체
+                </span>
+
+                <strong id="limestoneUsageBatchTotalCount">
+                  0일
+                </strong>
+
+              </div>
+
+
+              <div>
+
+                <span>
+                  처리
+                </span>
+
+                <strong id="limestoneUsageBatchProcessedCount">
+                  0일
+                </strong>
+
+              </div>
+
+
+              <div>
+
+                <span>
+                  완료
+                </span>
+
+                <strong id="limestoneUsageBatchCompleteCount">
+                  0일
+                </strong>
+
+              </div>
+
+
+              <div>
+
+                <span>
+                  실패
+                </span>
+
+                <strong id="limestoneUsageBatchFailedCount">
+                  0일
+                </strong>
+
+              </div>
+
+
+              <div>
+
+                <span>
+                  남음
+                </span>
+
+                <strong id="limestoneUsageBatchRemainingCount">
+                  0일
+                </strong>
+
+              </div>
+
+            </div>
+
+
+            <p
+              class="limestone-usage-batch-current-item"
+              id="limestoneUsageBatchCurrentItem"
+            >
+            </p>
+
+
+            <div
+              class="limestone-usage-batch-failed-list"
+              id="limestoneUsageBatchFailedList"
+              hidden
+            >
+            </div>
+
+          </section>
+
+        </section>
+      `
+    );
+
+
+    const latestCompleteDate =
+      getLatestCompleteLimestoneUsageDate();
+
+
+    const {
+      startDateInput,
+      endDateInput
+    } =
+      getLimestoneUsageBatchElements();
+
+
+    if (
+      startDateInput
+    ) {
+      startDateInput.max =
+        latestCompleteDate;
+    }
+
+
+    if (
+      endDateInput
+    ) {
+      endDateInput.max =
+        latestCompleteDate;
+    }
+
+
+    applyLimestoneUsageBatchPreset(
+      "this_month"
+    );
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function bindLimestoneUsageBatchEvents() {
+    const {
+      panel,
+      presetButtons,
+      runButton,
+      startDateInput,
+      endDateInput
+    } =
+      getLimestoneUsageBatchElements();
+
+
+    if (
+      !panel ||
+      panel.dataset
+        .limestoneUsageBatchBound ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    presetButtons.forEach(
+      button => {
+        button.addEventListener(
+          "click",
+          () => {
+            applyLimestoneUsageBatchPreset(
+              button.dataset
+                .limestoneUsageBatchPreset
+            );
+          }
+        );
+      }
+    );
+
+
+    runButton?.addEventListener(
+      "click",
+      runLimestoneUsageBatch
+    );
+
+
+    [
+      startDateInput,
+      endDateInput
+    ]
+      .filter(
+        Boolean
+      )
+      .forEach(
+        input => {
+          input.addEventListener(
+            "change",
+            () => {
+              presetButtons.forEach(
+                button => {
+                  button.classList.remove(
+                    "is-active"
+                  );
+                }
+              );
+            }
+          );
+        }
+      );
+
+
+    panel.dataset
+      .limestoneUsageBatchBound =
+      "true";
+  }
+
+
+  /* =====================================================
+    새로고침 후 기존 진행 작업 복원
+  ====================================================== */
+
+  async function restoreLimestoneUsageBatch() {
+    const savedBatchId =
+      String(
+        localStorage.getItem(
+          getLimestoneUsageBatchStorageKey()
+        ) ||
+        ""
+      ).trim();
+
+
+    if (
+      !savedBatchId
+    ) {
+      return;
+    }
+
+
+    limestoneUsageActiveBatchId =
+      savedBatchId;
+
+
+    await pollLimestoneUsageBatch();
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initializeLimestoneUsageBatchFeature() {
+    if (
+      limestoneUsageBatchInitialized
+    ) {
+      return;
+    }
+
+
+    const created =
+      createLimestoneUsageBatchHtml();
+
+
+    if (
+      !created
+    ) {
+      return;
+    }
+
+
+    limestoneUsageBatchInitialized =
+      true;
+
+
+    bindLimestoneUsageBatchEvents();
+
+
+    restoreLimestoneUsageBatch()
+      .catch(
+        error => {
+          console.warn(
+            "저장된 석회석 기간 계산 복원 실패:",
+            error
+          );
+        }
+      );
+  }
+
+
+  /* =====================================================
+    기존 사용량 화면이 동적으로 생성된 후 초기화
+  ====================================================== */
+
+  function waitForLimestoneUsageBatchTarget() {
+    let attemptCount =
+      0;
+
+
+    const waitTimer =
+      window.setInterval(
+        () => {
+          attemptCount +=
+            1;
+
+
+          initializeLimestoneUsageBatchFeature();
+
+
+          if (
+            limestoneUsageBatchInitialized ||
+            attemptCount >=
+              50
+          ) {
+            window.clearInterval(
+              waitTimer
+            );
+          }
+        },
+        200
+      );
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      waitForLimestoneUsageBatchTarget,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    waitForLimestoneUsageBatchTarget();
+  }
+})();

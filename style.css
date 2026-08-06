@@ -83499,3 +83499,940 @@ em {
     font-size: 17px;
   }
 }
+
+/* =========================================================
+  석회석 기간 전체 계산 및 저장
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-batch-panel {
+  margin-top:
+    12px;
+
+  padding:
+    15px;
+
+  border:
+    1px solid
+    #cad8e7;
+
+  border-radius:
+    12px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0
+    4px
+    14px
+    rgba(
+      33,
+      59,
+      92,
+      0.05
+    );
+}
+
+
+/* =========================================================
+  제목
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-batch-header {
+  display:
+    flex;
+
+  align-items:
+    flex-start;
+
+  justify-content:
+    space-between;
+
+  gap:
+    16px;
+
+  margin-bottom:
+    13px;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-header
+> div
+> span {
+  display:
+    block;
+
+  margin-bottom:
+    3px;
+
+  color:
+    #1f5fae;
+
+  font-size:
+    9px;
+
+  font-weight:
+    900;
+
+  letter-spacing:
+    0.15em;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-header
+h4 {
+  margin:
+    0;
+
+  color:
+    #24364e;
+
+  font-size:
+    16px;
+
+  font-weight:
+    900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-header
+p {
+  margin:
+    3px
+    0
+    0;
+
+  color:
+    #738095;
+
+  font-size:
+    10px;
+
+  font-weight:
+    650;
+}
+
+
+/* =========================================================
+  상태 배지
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-batch-status-badge {
+  display:
+    inline-flex;
+
+  min-width:
+    62px;
+
+  min-height:
+    27px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    10px;
+
+  border:
+    1px solid
+    #cbd5e1;
+
+  border-radius:
+    999px;
+
+  background:
+    #f1f5f9;
+
+  color:
+    #64748b;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+
+  white-space:
+    nowrap;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-status-badge[
+  data-status="pending"
+],
+#efficiencyTeamModal
+.limestone-usage-batch-status-badge[
+  data-status="processing"
+] {
+  border-color:
+    #f0c677;
+
+  background:
+    #fff7e8;
+
+  color:
+    #9a610d;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-status-badge[
+  data-status="complete"
+] {
+  border-color:
+    #9fd4b6;
+
+  background:
+    #e8f8ef;
+
+  color:
+    #16804f;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-status-badge[
+  data-status="partial_failed"
+] {
+  border-color:
+    #e5c179;
+
+  background:
+    #fff4df;
+
+  color:
+    #9a610d;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-status-badge[
+  data-status="failed"
+] {
+  border-color:
+    #e6aaaa;
+
+  background:
+    #fdecec;
+
+  color:
+    #b43c3c;
+}
+
+
+/* =========================================================
+  기간 선택 영역
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-batch-controls {
+  display:
+    grid;
+
+  grid-template-columns:
+    minmax(
+      135px,
+      1fr
+    )
+    18px
+    minmax(
+      135px,
+      1fr
+    )
+    auto
+    auto;
+
+  align-items:
+    end;
+
+  gap:
+    9px;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-date-field {
+  display:
+    flex;
+
+  min-width:
+    0;
+
+  flex-direction:
+    column;
+
+  gap:
+    4px;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-date-field
+> span {
+  color:
+    #657489;
+
+  font-size:
+    9px;
+
+  font-weight:
+    900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-date-field
+input {
+  width:
+    100%;
+
+  min-height:
+    38px;
+
+  padding:
+    0
+    10px;
+
+  border:
+    1px solid
+    #c8d5e3;
+
+  border-radius:
+    8px;
+
+  background:
+    #ffffff;
+
+  color:
+    #27384f;
+
+  font-size:
+    11px;
+
+  font-weight:
+    800;
+
+  outline:
+    none;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-date-field
+input:focus {
+  border-color:
+    #70a0d3;
+
+  box-shadow:
+    0
+    0
+    0
+    3px
+    rgba(
+      31,
+      95,
+      174,
+      0.09
+    );
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-range-divider {
+  display:
+    flex;
+
+  min-height:
+    38px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  color:
+    #8290a2;
+
+  font-weight:
+    900;
+}
+
+
+/* =========================================================
+  빠른 기간 버튼
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-batch-presets {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  gap:
+    5px;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-presets
+button {
+  min-height:
+    38px;
+
+  padding:
+    0
+    10px;
+
+  border:
+    1px solid
+    #cbd7e4;
+
+  border-radius:
+    8px;
+
+  background:
+    #ffffff;
+
+  color:
+    #56667c;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+
+  white-space:
+    nowrap;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-presets
+button:hover,
+#efficiencyTeamModal
+.limestone-usage-batch-presets
+button.is-active {
+  border-color:
+    #7ea7d3;
+
+  background:
+    #eaf3fd;
+
+  color:
+    #1f5fae;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-run-button {
+  min-height:
+    38px;
+
+  padding:
+    0
+    14px;
+
+  font-size:
+    10px;
+
+  white-space:
+    nowrap;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-run-button:disabled {
+  cursor:
+    wait;
+
+  opacity:
+    0.58;
+}
+
+
+/* =========================================================
+  진행률
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-batch-progress {
+  margin-top:
+    14px;
+
+  padding:
+    13px;
+
+  border:
+    1px solid
+    #d5e1ed;
+
+  border-radius:
+    10px;
+
+  background:
+    #f8fafc;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-progress-header {
+  display:
+    flex;
+
+  align-items:
+    flex-start;
+
+  justify-content:
+    space-between;
+
+  gap:
+    14px;
+
+  margin-bottom:
+    9px;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-progress-header
+strong {
+  display:
+    block;
+
+  color:
+    #2a3c53;
+
+  font-size:
+    12px;
+
+  font-weight:
+    900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-progress-header
+small {
+  display:
+    block;
+
+  margin-top:
+    2px;
+
+  color:
+    #768397;
+
+  font-size:
+    9px;
+
+  font-weight:
+    650;
+}
+
+
+#efficiencyTeamModal
+#limestoneUsageBatchProgressPercent {
+  color:
+    #1f5fae;
+
+  font-size:
+    15px;
+
+  font-weight:
+    900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-progress-track {
+  height:
+    9px;
+
+  overflow:
+    hidden;
+
+  border-radius:
+    999px;
+
+  background:
+    #dfe7f0;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-progress-track
+> span {
+  display:
+    block;
+
+  height:
+    100%;
+
+  border-radius:
+    inherit;
+
+  background:
+    linear-gradient(
+      90deg,
+      #1f5fae,
+      #3d83cf
+    );
+
+  transition:
+    width
+    0.28s
+    ease;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-progress[
+  data-status="complete"
+]
+.limestone-usage-batch-progress-track
+> span {
+  background:
+    linear-gradient(
+      90deg,
+      #17865f,
+      #37a87e
+    );
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-progress[
+  data-status="failed"
+]
+.limestone-usage-batch-progress-track
+> span {
+  background:
+    #c84c4c;
+}
+
+
+/* =========================================================
+  진행 통계
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-batch-progress-stats {
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(
+      5,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap:
+    7px;
+
+  margin-top:
+    11px;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-progress-stats
+> div {
+  padding:
+    8px;
+
+  border:
+    1px solid
+    #dce5ee;
+
+  border-radius:
+    8px;
+
+  background:
+    #ffffff;
+
+  text-align:
+    center;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-progress-stats
+span {
+  display:
+    block;
+
+  color:
+    #7d8999;
+
+  font-size:
+    8px;
+
+  font-weight:
+    800;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-progress-stats
+strong {
+  display:
+    block;
+
+  margin-top:
+    2px;
+
+  color:
+    #26384f;
+
+  font-size:
+    12px;
+
+  font-weight:
+    900;
+}
+
+
+/* =========================================================
+  현재 처리 날짜
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-batch-current-item {
+  min-height:
+    17px;
+
+  margin:
+    9px
+    0
+    0;
+
+  color:
+    #596a80;
+
+  font-size:
+    9px;
+
+  font-weight:
+    700;
+}
+
+
+/* =========================================================
+  실패 날짜
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-batch-failed-list {
+  margin-top:
+    9px;
+
+  padding:
+    9px;
+
+  border:
+    1px solid
+    #ebbbbb;
+
+  border-radius:
+    8px;
+
+  background:
+    #fff7f7;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-failed-list
+> strong {
+  display:
+    block;
+
+  margin-bottom:
+    5px;
+
+  color:
+    #af3838;
+
+  font-size:
+    9px;
+
+  font-weight:
+    900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-failed-items {
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  gap:
+    4px;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-batch-failed-items
+span {
+  color:
+    #8f3f3f;
+
+  font-size:
+    9px;
+
+  font-weight:
+    650;
+
+  line-height:
+    1.45;
+}
+
+
+/* =========================================================
+  작은 화면
+========================================================= */
+
+@media (
+  max-width:
+  1000px
+) {
+  #efficiencyTeamModal
+  .limestone-usage-batch-controls {
+    grid-template-columns:
+      minmax(
+        130px,
+        1fr
+      )
+      18px
+      minmax(
+        130px,
+        1fr
+      );
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-batch-presets,
+  #efficiencyTeamModal
+  .limestone-usage-batch-run-button {
+    grid-column:
+      1 /
+      -1;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-batch-run-button {
+    width:
+      100%;
+  }
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width:
+  760px
+) {
+  #efficiencyTeamModal
+  .limestone-usage-batch-panel {
+    padding:
+      12px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-batch-header {
+    align-items:
+      stretch;
+
+    flex-direction:
+      column;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-batch-status-badge {
+    align-self:
+      flex-start;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-batch-controls {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-batch-range-divider {
+    display:
+      none;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-batch-presets {
+    display:
+      grid;
+
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-batch-presets
+  button {
+    width:
+      100%;
+
+    padding:
+      0
+      4px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-batch-progress-stats {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+}

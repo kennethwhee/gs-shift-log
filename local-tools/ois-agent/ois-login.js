@@ -735,23 +735,29 @@ function findNearestOisNumberAfter(
   return null;
 }
 
-
 /* =========================================================
-  일일 운전일지(환경) 메뉴 열기
+  OIS 일일 운전일지(환경) 화면 열기
+
+  탐색 순서:
+  1. 운영정보
+  2. 일일현황
+  3. 일일 운전일지(환경)
+
+  이미 환경일지가 열려 있으면 현재 화면을 재사용한다.
 ========================================================= */
 
 async function openOisEnvironmentDailyLog(
   page
 ) {
-  /*
-    이미 환경 화면이 열려 있으면
-    메뉴를 다시 누르지 않는다.
-  */
+  /* =====================================================
+    이미 환경일지가 열려 있으면 재사용
+  ====================================================== */
+
   const alreadyOpenedFrame =
     await findOisFrameContainingText(
       page,
       "1. 원수 (RAW WATER)",
-      2000
+      1500
     );
 
 
@@ -763,100 +769,216 @@ async function openOisEnvironmentDailyLog(
 
 
   console.log(
-    "일일 운전일지(환경) 메뉴를 엽니다."
+    "OIS 일일 운전일지(환경) 화면을 엽니다."
   );
 
 
-  let menuClicked =
-    false;
+  /* =====================================================
+    왼쪽 메뉴 프레임
+  ====================================================== */
+
+  let menuFrame =
+    await findOisNavigationFrame(
+      page,
+      OIS_QUERY_TIMEOUT
+    );
 
 
-  for (
-    const frame of
-    page.frames()
+  if (
+    !menuFrame
   ) {
-    const menuLocator =
-      frame.getByText(
+    throw new Error(
+      "OIS 왼쪽 메뉴 영역을 찾지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    환경일지 메뉴가 이미 보이는지 확인
+  ====================================================== */
+
+  let environmentMenu =
+    await findVisibleOisNavigationItem(
+      menuFrame,
+      [
         "일일 운전일지(환경)",
-        {
-          exact:
-            true
-        }
+        "일일 운전일지 (환경)"
+      ],
+      1000
+    );
+
+
+  /* =====================================================
+    환경일지가 안 보이면 운영정보 선택
+  ====================================================== */
+
+  if (
+    !environmentMenu
+  ) {
+    const operationMenu =
+      await findVisibleOisNavigationItem(
+        menuFrame,
+        "운영정보",
+        1500
       );
 
 
-    const menuCount =
-      await menuLocator
-        .count()
-        .catch(
-          () => 0
-        );
-
-
-    for (
-      let index = 0;
-      index <
-        menuCount;
-      index +=
-        1
+    if (
+      operationMenu
     ) {
-      const menu =
-        menuLocator.nth(
-          index
+      await clickOisNavigationItem(
+        menuFrame,
+        "운영정보",
+        "운영정보"
+      );
+
+
+      menuFrame =
+        await findOisNavigationFrame(
+          page,
+          OIS_QUERY_TIMEOUT
         );
-
-
-      const isVisible =
-        await menu
-          .isVisible()
-          .catch(
-            () => false
-          );
 
 
       if (
-        !isVisible
+        !menuFrame
       ) {
-        continue;
+        throw new Error(
+          "운영정보 메뉴를 연 뒤 왼쪽 메뉴를 찾지 못했습니다."
+        );
       }
 
 
-      await menu.click({
-        timeout:
-          10000
-      });
-
-
-      menuClicked =
-        true;
-
-
-      break;
+      environmentMenu =
+        await findVisibleOisNavigationItem(
+          menuFrame,
+          [
+            "일일 운전일지(환경)",
+            "일일 운전일지 (환경)"
+          ],
+          1000
+        );
     }
+  }
+
+
+  /* =====================================================
+    환경일지가 아직 안 보이면 일일현황 펼치기
+  ====================================================== */
+
+  if (
+    !environmentMenu
+  ) {
+    const dailyStatusMenu =
+      await findVisibleOisNavigationItem(
+        menuFrame,
+        [
+          "일일현황",
+          "일일 현황"
+        ],
+        10000
+      );
 
 
     if (
-      menuClicked
+      !dailyStatusMenu
     ) {
-      break;
+      throw new Error(
+        "OIS의 일일현황 메뉴를 찾지 못했습니다."
+      );
     }
+
+
+    const dailyStatusClicked =
+      await clickOisNavigationItem(
+        menuFrame,
+        [
+          "일일현황",
+          "일일 현황"
+        ],
+        "일일현황"
+      );
+
+
+    if (
+      !dailyStatusClicked
+    ) {
+      throw new Error(
+        "OIS의 일일현황 메뉴를 열지 못했습니다."
+      );
+    }
+
+
+    menuFrame =
+      await findOisNavigationFrame(
+        page,
+        OIS_QUERY_TIMEOUT
+      );
+
+
+    if (
+      !menuFrame
+    ) {
+      throw new Error(
+        "일일현황 메뉴를 연 뒤 왼쪽 메뉴를 찾지 못했습니다."
+      );
+    }
+
+
+    environmentMenu =
+      await findVisibleOisNavigationItem(
+        menuFrame,
+        [
+          "일일 운전일지(환경)",
+          "일일 운전일지 (환경)"
+        ],
+        10000
+      );
   }
 
 
   if (
-    !menuClicked
+    !environmentMenu
   ) {
     throw new Error(
-      "일일 운전일지(환경) 메뉴를 찾지 못했습니다."
+      "OIS의 일일 운전일지(환경) 메뉴를 찾지 못했습니다."
     );
   }
 
+
+  /* =====================================================
+    환경일지 메뉴 클릭
+  ====================================================== */
+
+  const environmentMenuClicked =
+    await clickOisNavigationItem(
+      menuFrame,
+      [
+        "일일 운전일지(환경)",
+        "일일 운전일지 (환경)"
+      ],
+      "일일 운전일지(환경)"
+    );
+
+
+  if (
+    !environmentMenuClicked
+  ) {
+    throw new Error(
+      "일일 운전일지(환경) 메뉴를 클릭하지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    환경일지 화면 로딩
+  ====================================================== */
 
   const environmentFrame =
     await findOisFrameContainingText(
       page,
       "1. 원수 (RAW WATER)",
-      30000
+      OIS_QUERY_TIMEOUT
     );
 
 
@@ -876,7 +998,6 @@ async function openOisEnvironmentDailyLog(
 
   return environmentFrame;
 }
-
 
 /* =========================================================
   OIS 수처리 자료 읽기
@@ -1586,6 +1707,335 @@ async function setOisEnvironmentDate(
 }
 
 /* =========================================================
+  OIS 환경일지 재계산 버튼 클릭
+========================================================= */
+
+async function clickOisEnvironmentRecalculateButton(
+  page
+) {
+  const environmentFrame =
+    await openOisEnvironmentDailyLog(
+      page
+    );
+
+
+  const candidates = [
+    environmentFrame.getByRole(
+      "button",
+      {
+        name:
+          "재계산",
+
+        exact:
+          true
+      }
+    ),
+
+    environmentFrame.locator(
+      'input[type="button"][value="재계산"]'
+    ),
+
+    environmentFrame.locator(
+      'input[type="submit"][value="재계산"]'
+    ),
+
+    environmentFrame.getByText(
+      "재계산",
+      {
+        exact:
+          true
+      }
+    )
+  ];
+
+
+  let recalculateButton =
+    null;
+
+
+  for (
+    const candidate of
+    candidates
+  ) {
+    const candidateCount =
+      await candidate
+        .count()
+        .catch(
+          () => 0
+        );
+
+
+    for (
+      let index = 0;
+      index <
+        candidateCount;
+      index +=
+        1
+    ) {
+      const target =
+        candidate.nth(
+          index
+        );
+
+
+      const isVisible =
+        await target
+          .isVisible()
+          .catch(
+            () => false
+          );
+
+
+      if (
+        !isVisible
+      ) {
+        continue;
+      }
+
+
+      recalculateButton =
+        target;
+
+
+      break;
+    }
+
+
+    if (
+      recalculateButton
+    ) {
+      break;
+    }
+  }
+
+
+  if (
+    !recalculateButton
+  ) {
+    throw new Error(
+      "OIS 환경일지의 재계산 버튼을 찾지 못했습니다."
+    );
+  }
+
+
+  try {
+    await recalculateButton.click({
+      timeout:
+        10000,
+
+      force:
+        true
+    });
+
+  } catch {
+    await recalculateButton.evaluate(
+      element => {
+        const clickableElement =
+          element.closest(
+            `
+              button,
+              input,
+              a,
+              [onclick],
+              [role="button"]
+            `
+          ) ||
+          element;
+
+
+        clickableElement.dispatchEvent(
+          new MouseEvent(
+            "click",
+            {
+              bubbles:
+                true,
+
+              cancelable:
+                true,
+
+              view:
+                window
+            }
+          )
+        );
+      }
+    );
+  }
+
+
+  console.log(
+    "OIS 환경일지 재계산 버튼을 클릭했습니다."
+  );
+
+
+  await page.waitForTimeout(
+    1000
+  );
+
+
+  return environmentFrame;
+}
+
+
+/* =========================================================
+  재계산 완료 후 수처리 9개 값 대기
+========================================================= */
+
+async function waitForOisWaterTreatmentValues(
+  page,
+  targetDate
+) {
+  const startedAt =
+    Date.now();
+
+
+  let lastError =
+    null;
+
+
+  while (
+    Date.now() -
+      startedAt <
+    OIS_QUERY_TIMEOUT
+  ) {
+    try {
+      const values =
+        await extractOisWaterTreatmentValues(
+          page
+        );
+
+
+      const sourceDate =
+        normalizeOisAgentText(
+          values?.sourceDate
+        );
+
+
+      if (
+        sourceDate &&
+        sourceDate !==
+          targetDate
+      ) {
+        throw new Error(
+          [
+            "OIS 환경일지 기준일이 다릅니다.",
+            `요청일 ${targetDate}`,
+            `화면일 ${sourceDate}`
+          ].join(
+            " · "
+          )
+        );
+      }
+
+
+      return {
+        ...values,
+
+        targetDate,
+
+        sourceDate:
+          sourceDate ||
+          targetDate,
+
+        collectedAt:
+          normalizeOisAgentText(
+            values?.collectedAt
+          ) ||
+          new Date()
+            .toISOString()
+      };
+
+    } catch (
+      error
+    ) {
+      lastError =
+        error;
+
+
+      await page.waitForTimeout(
+        500
+      );
+    }
+  }
+
+
+  throw (
+    lastError ||
+    new Error(
+      "OIS 수처리 값을 제한 시간 안에 읽지 못했습니다."
+    )
+  );
+}
+
+
+/* =========================================================
+  선택일 OIS 수처리 현황 수집
+
+  처리:
+  1. OIS 로그인 확인
+  2. 일일 운전일지(환경) 열기
+  3. 기준일 변경
+  4. 조회
+  5. 재계산
+  6. 수처리 9개 값 추출
+========================================================= */
+
+async function collectOisWaterTreatmentValues(
+  page,
+  config,
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "OIS 수처리 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  await ensureOisAgentLoggedIn(
+    page,
+    config
+  );
+
+
+  await setOisEnvironmentDate(
+    page,
+    targetDate
+  );
+
+
+  await clickOisEnvironmentRecalculateButton(
+    page
+  );
+
+
+  const result =
+    await waitForOisWaterTreatmentValues(
+      page,
+      targetDate
+    );
+
+
+  const outputPath =
+    saveOisWaterTreatmentValues(
+      result
+    );
+
+
+  console.log(
+    "OIS 수처리 결과 JSON 저장:",
+    outputPath
+  );
+
+
+  return result;
+}
+
+/* =========================================================
   잠시 대기
 ========================================================= */
 
@@ -2009,40 +2459,283 @@ async function requestOisAgentApi(
   return result;
 }
 
-
 /* =========================================================
   다음 대기 요청 가져오기
+
+  지원:
+  - water_environment
+  - limestone_stock
+
+  두 요청 유형을 번갈아 확인한다.
 ========================================================= */
 
 async function getNextOisAgentRequest(
   config
 ) {
-  const result =
-    await requestOisAgentApi(
-      config,
+  const requestTypes = [
+    "water_environment",
+    "limestone_stock"
+  ];
 
-      getOisAgentApiUrl(
+
+  const startIndex =
+    Number(
+      getNextOisAgentRequest
+        .nextTypeIndex ||
+      0
+    ) %
+    requestTypes.length;
+
+
+  for (
+    let offset = 0;
+    offset <
+      requestTypes.length;
+    offset +=
+      1
+  ) {
+    const requestTypeIndex =
+      (
+        startIndex +
+        offset
+      ) %
+      requestTypes.length;
+
+
+    const requestType =
+      requestTypes[
+        requestTypeIndex
+      ];
+
+
+    const result =
+      await requestOisAgentApi(
         config,
-        {
-          action:
-            "next",
 
-          requestType:
-            "limestone_stock",
+        getOisAgentApiUrl(
+          config,
+          {
+            action:
+              "next",
 
-          _:
-            Date.now()
-        }
-      )
-    );
+            requestType,
 
+            _:
+              Date.now()
+          }
+        )
+      );
+
+
+    if (
+      result.item
+    ) {
+      getNextOisAgentRequest
+        .nextTypeIndex =
+        (
+          requestTypeIndex +
+          1
+        ) %
+        requestTypes.length;
+
+
+      return result.item;
+    }
+  }
+
+
+  getNextOisAgentRequest
+    .nextTypeIndex =
+    (
+      startIndex +
+      1
+    ) %
+    requestTypes.length;
+
+
+  return null;
+}
+
+
+/* =========================================================
+  요청 유형 정규화
+========================================================= */
+
+function getOisAgentRequestType(
+  requestItem
+) {
+  const requestType =
+    normalizeOisAgentText(
+      requestItem?.requestType ||
+      requestItem?.request_type
+    )
+      .toLowerCase();
+
+
+  /*
+    기존 석회석 요청에는 유형이 없을 수도 있으므로
+    limestone_stock을 기본값으로 사용한다.
+  */
 
   return (
-    result.item ||
-    null
+    requestType ||
+    "limestone_stock"
   );
 }
 
+
+/* =========================================================
+  요청 유형 표시 이름
+========================================================= */
+
+function getOisAgentRequestLabel(
+  requestType
+) {
+  if (
+    requestType ===
+      "water_environment"
+  ) {
+    return "수처리 현황";
+  }
+
+
+  if (
+    requestType ===
+      "limestone_stock"
+  ) {
+    return "석회석 재고";
+  }
+
+
+  return requestType;
+}
+
+
+/* =========================================================
+  요청 유형별 OIS 자료 수집
+========================================================= */
+
+async function collectOisAgentRequestResult(
+  page,
+  config,
+  requestItem
+) {
+  const requestType =
+    getOisAgentRequestType(
+      requestItem
+    );
+
+
+  const targetDate =
+    normalizeOisAgentText(
+      requestItem?.targetDate ||
+      requestItem?.target_date
+    );
+
+
+  if (
+    requestType ===
+      "water_environment"
+  ) {
+    return await collectOisWaterTreatmentValues(
+      page,
+      config,
+      targetDate
+    );
+  }
+
+
+  if (
+    requestType ===
+      "limestone_stock"
+  ) {
+    return await collectOisLimestoneStocks(
+      page,
+      config,
+      targetDate
+    );
+  }
+
+
+  throw new Error(
+    `지원하지 않는 OIS 요청 유형입니다: ${requestType}`
+  );
+}
+
+
+/* =========================================================
+  요청 결과 콘솔 출력
+========================================================= */
+
+function printOisAgentRequestResult(
+  requestType,
+  result
+) {
+  if (
+    requestType ===
+      "water_environment"
+  ) {
+    console.table({
+      "장자산단 원수 유입량":
+        result.rawWaterInflow,
+
+      "원수 TANK 저장량":
+        result.rawWaterTankAmount,
+
+      "원수 TANK 저장율":
+        result.rawWaterTankRate,
+
+      "여과수 TANK 저장량":
+        result.filteredWaterTankAmount,
+
+      "여과수 TANK 저장율":
+        result.filteredWaterTankRate,
+
+      "순수 TANK 저장량":
+        result.demiWaterTankAmount,
+
+      "순수 TANK 저장율":
+        result.demiWaterTankRate,
+
+      "순수 생산량":
+        result.demiProduction,
+
+      "순수 사용량":
+        result.pureWaterUsage
+    });
+
+
+    return;
+  }
+
+
+  if (
+    requestType ===
+      "limestone_stock"
+  ) {
+    console.table({
+      "1호기 시작 재고":
+        result
+          .unitOne
+          .startStock,
+
+      "1호기 종료 재고":
+        result
+          .unitOne
+          .endStock,
+
+      "2호기 시작 재고":
+        result
+          .unitTwo
+          .startStock,
+
+      "2호기 종료 재고":
+        result
+          .unitTwo
+          .endStock
+    });
+  }
+}
 
 /* =========================================================
   요청 완료 전송
@@ -4783,10 +5476,9 @@ async function saveOisAgentErrorScreenshot(
 /* =========================================================
   OIS 상시 연동 에이전트
 
-  PowerShell을 닫기 전까지:
-  - 5초마다 업무일지 요청 확인
-  - 요청이 있으면 OIS 자동 조회
-  - 결과를 업무일지 서버로 전송
+  지원 요청:
+  - 석회석 재고
+  - 수처리 현황
 ========================================================= */
 
 async function loginOis() {
@@ -4822,8 +5514,14 @@ async function loginOis() {
 
 
   console.log(
-    "석회석 요청 확인 주기:",
+    "OIS 요청 확인 주기:",
     `${OIS_AGENT_POLL_INTERVAL / 1000}초`
+  );
+
+
+  console.log(
+    "지원 요청:",
+    "석회석 재고 · 수처리 현황"
   );
 
 
@@ -4833,8 +5531,10 @@ async function loginOis() {
         "msedge",
 
       headless:
-        true
+        false,
 
+      slowMo:
+        60
     });
 
 
@@ -4982,9 +5682,22 @@ async function loginOis() {
         );
 
 
+      const requestType =
+        getOisAgentRequestType(
+          requestItem
+        );
+
+
+      const requestLabel =
+        getOisAgentRequestLabel(
+          requestType
+        );
+
+
       const targetDate =
         normalizeOisAgentText(
-          requestItem.targetDate
+          requestItem.targetDate ||
+          requestItem.target_date
         );
 
 
@@ -4999,7 +5712,13 @@ async function loginOis() {
 
 
       console.log(
-        "석회석 재고 조회 요청을 받았습니다."
+        `${requestLabel} 조회 요청을 받았습니다.`
+      );
+
+
+      console.log(
+        "요청 유형:",
+        requestType
       );
 
 
@@ -5022,10 +5741,10 @@ async function loginOis() {
 
       try {
         const result =
-          await collectOisLimestoneStocks(
+          await collectOisAgentRequestResult(
             page,
             config,
-            targetDate
+            requestItem
           );
 
 
@@ -5043,37 +5762,20 @@ async function loginOis() {
 
 
         console.log(
-          "OIS 석회석 재고 조회가 완료되었습니다."
+          `OIS ${requestLabel} 조회가 완료되었습니다.`
         );
 
 
-        console.table({
-          "1호기 시작 재고":
-            result
-              .unitOne
-              .startStock,
-
-          "1호기 종료 재고":
-            result
-              .unitOne
-              .endStock,
-
-          "2호기 시작 재고":
-            result
-              .unitTwo
-              .startStock,
-
-          "2호기 종료 재고":
-            result
-              .unitTwo
-              .endStock
-        });
+        printOisAgentRequestResult(
+          requestType,
+          result
+        );
 
       } catch (
         error
       ) {
         console.error(
-          "OIS 요청 처리 실패:",
+          `OIS ${requestLabel} 요청 처리 실패:`,
           error
         );
 

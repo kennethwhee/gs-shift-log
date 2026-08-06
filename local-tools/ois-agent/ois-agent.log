@@ -129,3 +129,102 @@ OIS 석회석 재고 조회가 완료되었습니다.
 │ 2호기 시작 재고 │ 320.269 │
 │ 2호기 종료 재고 │ 346.552 │
 └─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 ID: 09005f3a-96a1-4fb6-8c03-75d44bdbf977
+조회일: 2026-08-06
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 353.743,
+  endStock: 374.819,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-06 · 전일 353.743 ton · 24시 374.819 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 320.269,
+  endStock: 346.552,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-06 · 전일 320.269 ton · 24시 346.552 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 353.743 │
+│ 1호기 종료 재고 │ 374.819 │
+│ 2호기 시작 재고 │ 320.269 │
+│ 2호기 종료 재고 │ 346.552 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 ID: 5b2e28a6-2017-4d0f-a8e2-6e2aa30ababf
+조회일: 2026-08-06
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 353.743,
+  endStock: 374.819,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-06 · 전일 353.743 ton · 24시 374.819 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 320.269,
+  endStock: 346.552,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-06 · 전일 320.269 ton · 24시 346.552 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 353.743 │
+│ 1호기 종료 재고 │ 374.819 │
+│ 2호기 시작 재고 │ 320.269 │
+│ 2호기 종료 재고 │ 346.552 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 ID: 7f6dd444-2155-41c2-b9c8-a471e834d720
+조회일: 2026-08-06
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 353.743,
+  endStock: 374.819,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-06 · 전일 353.743 ton · 24시 374.819 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 320.269,
+  endStock: 346.552,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-06 · 전일 320.269 ton · 24시 346.552 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 353.743 │
+│ 1호기 종료 재고 │ 374.819 │
+│ 2호기 시작 재고 │ 320.269 │
+│ 2호기 종료 재고 │ 346.552 │
+└─────────────────┴─────────┘
