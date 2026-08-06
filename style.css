@@ -75207,3 +75207,561 @@ textarea.efficiency-daily-work-line-source[
   }
 
 }
+
+/* =========================================================
+  ARM ROLL 모바일 조회 조건 최종 컴팩트화
+========================================================= */
+
+@media (max-width: 760px) {
+
+  #efficiencyArmRollView
+  .arm-roll-box-query-card {
+    gap: 7px !important;
+    padding: 9px 10px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-quick-range {
+    gap: 5px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-range-button {
+    height: 32px !important;
+    min-height: 32px !important;
+
+    padding: 0 4px !important;
+
+    font-size: 10px !important;
+  }
+
+
+  /* 시작일 | 종료일 | 조회 */
+
+  #efficiencyArmRollView
+  .arm-roll-box-search-form {
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(0, 1fr)
+      64px !important;
+
+    align-items: end !important;
+
+    gap: 5px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-search-form
+  .form-field {
+    gap: 3px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-search-form
+  .form-field__label {
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-search-form
+  input[type="date"] {
+    width: 100% !important;
+
+    height: 33px !important;
+    min-height: 33px !important;
+    max-height: 33px !important;
+
+    padding: 0 5px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 11px !important;
+    line-height: 33px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-search-button {
+    grid-column: auto !important;
+
+    width: 64px !important;
+    min-width: 64px !important;
+
+    height: 33px !important;
+    min-height: 33px !important;
+    max-height: 33px !important;
+
+    padding: 0 5px !important;
+
+    font-size: 10px !important;
+  }
+
+
+  /* 조회 기간 한 줄 */
+
+  #efficiencyArmRollView
+  .arm-roll-box-active-range {
+    display: flex !important;
+
+    min-width: 0 !important;
+
+    align-items: center !important;
+    flex-wrap: wrap !important;
+
+    gap: 4px 7px !important;
+
+    padding: 7px 0 0 !important;
+
+    border-top: 1px solid #e0e6ec !important;
+    border-left: 0 !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-active-range span,
+  #efficiencyArmRollView
+  .arm-roll-box-active-range small {
+    font-size: 9px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-active-range strong {
+    min-width: 0 !important;
+
+    font-size: 10px !important;
+
+    white-space: normal !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-active-range small {
+    margin-left: auto !important;
+  }
+}
+
+/* =========================================================
+  ARM ROLL 증가 추이 4분할 미니 그래프
+========================================================= */
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend {
+  display: none !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-trend-chart {
+  min-height: 0 !important;
+
+  padding: 10px !important;
+
+  overflow: visible !important;
+
+  background: #f7f9fc !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(0, 1fr)
+    );
+
+  gap: 8px;
+
+  width: 100%;
+  min-width: 0;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart {
+  min-width: 0;
+
+  padding: 10px;
+
+  overflow: hidden;
+
+  border: 1px solid #dbe4ed;
+  border-left-width: 4px;
+  border-radius: 10px;
+
+  background: #ffffff;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart.is-arm-roll {
+  border-left-color: #3e82bc;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart.is-scrap {
+  border-left-color: #9564ba;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart.is-request-level {
+  background: #fffaf2;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart.is-warning-level {
+  background: #fff5f5;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart.is-request-level
+.arm-roll-box-mini-chart__header
+b {
+  color: #b66d0d;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart.is-warning-level
+.arm-roll-box-mini-chart__header
+b {
+  color: #c33f3f;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__header {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 6px;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__header
+>
+div {
+  display: grid;
+
+  min-width: 0;
+
+  gap: 1px;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__header
+span {
+  color: #718197;
+
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__header
+strong {
+  overflow: hidden;
+
+  color: #293b52;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.25;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__header
+b {
+  flex: 0 0 auto;
+
+  color: #263b55;
+
+  font-size: 19px;
+  font-weight: 950;
+  line-height: 1;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__summary {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 5px;
+
+  margin-top: 6px;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__summary
+span,
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__summary
+small {
+  overflow: hidden;
+
+  color: #607187;
+
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.2;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__summary
+span {
+  color: #36516f;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__plot {
+  position: relative;
+
+  width: 100%;
+  height: 88px;
+
+  margin-top: 7px;
+
+  overflow: hidden;
+
+  border: 1px solid #e1e8ef;
+  border-radius: 7px;
+
+  background: #fbfcfe;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__plot
+svg {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__plot
+>
+span {
+  position: absolute;
+  right: 3px;
+  z-index: 2;
+
+  padding: 0 2px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.86
+    );
+
+  font-size: 7px;
+  font-weight: 900;
+  line-height: 1.2;
+
+  pointer-events: none;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__plot
+.is-request-line {
+  top: 48%;
+
+  color: #b66d0d;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__plot
+.is-warning-line {
+  top: 28%;
+
+  color: #c33f3f;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__dates {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  margin-top: 3px;
+
+  color: #8390a0;
+
+  font-size: 7px;
+  font-weight: 800;
+  line-height: 1;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-mini-chart__empty {
+  display: grid;
+
+  min-height: 112px;
+
+  place-content: center;
+
+  color: #8b97a6;
+
+  font-size: 9px;
+  font-weight: 800;
+  text-align: center;
+}
+
+
+@media (max-width: 1180px) {
+  #efficiencyArmRollView
+  .arm-roll-box-mini-chart-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+
+@media (max-width: 760px) {
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-card
+  .arm-roll-box-section-header {
+    min-height: 42px !important;
+
+    padding: 7px 10px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-card
+  .arm-roll-box-section-header
+  h4 {
+    font-size: 13px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-trend-chart {
+    padding: 7px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-mini-chart-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      ) !important;
+
+    gap: 6px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-mini-chart {
+    padding: 7px !important;
+
+    border-left-width:
+      3px !important;
+
+    border-radius:
+      8px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-mini-chart__header
+  strong {
+    font-size: 9px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-mini-chart__header
+  b {
+    font-size: 16px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-mini-chart__summary {
+    margin-top: 4px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-mini-chart__summary
+  span,
+
+  #efficiencyArmRollView
+  .arm-roll-box-mini-chart__summary
+  small {
+    font-size: 7px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-mini-chart__plot {
+    height: 70px !important;
+
+    margin-top: 5px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-mini-chart__empty {
+    min-height: 88px !important;
+
+    font-size: 8px !important;
+  }
+}

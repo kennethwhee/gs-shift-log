@@ -104327,15 +104327,11 @@ dailyCount:
     "armRollBoxDailyCount"
   ),
 
-dailyBodyUnit1:
+dailyCompactBody:
   byId(
-    "armRollBoxUnit1DailyTableBody"
+    "armRollBoxDailyCompactTableBody"
   ),
 
-dailyBodyUnit2:
-  byId(
-    "armRollBoxUnit2DailyTableBody"
-  ),
 
     replacementCount:
       byId(
@@ -107835,89 +107831,215 @@ function renderArmRollBoxDailyTable() {
     SVG 증가 추이 그래프
   ====================================================== */
 
-  function renderArmRollBoxChart() {
-    const chart =
-      getArmRollBoxElements()
-        .chart;
+function renderArmRollBoxChart() {
+  const chart =
+    getArmRollBoxElements()
+      .chart;
 
 
+  if (
+    !chart
+  ) {
+    return;
+  }
+
+
+  const rows =
+    Array.isArray(
+      state.dailyRows
+    )
+      ? state.dailyRows
+      : [];
+
+
+  /*
+    모바일 표시 순서
+
+    1호기 ARM ROLL | 1호기 SCRAP
+    2호기 ARM ROLL | 2호기 SCRAP
+  */
+  const displaySeries = [
+    "armRoll",
+    "scrap",
+    "armRollUnit2",
+    "scrapUnit2"
+  ]
+    .map(
+      key => {
+        return ARM_ROLL_BOX_SERIES.find(
+          series => {
+            return series.key ===
+              key;
+          }
+        );
+      }
+    )
+    .filter(
+      Boolean
+    );
+
+
+  const createCard = (
+    series
+  ) => {
+    const records =
+      rows
+        .map(
+          row => {
+            return {
+              date:
+                String(
+                  row?.date ||
+                  ""
+                ).trim(),
+
+              record:
+                row?.[
+                  series.key
+                ] ||
+                null
+            };
+          }
+        )
+        .filter(
+          item => {
+            return (
+              item.date &&
+              item.record &&
+              hasArmRollBoxNumericValue(
+                item.record.level
+              )
+            );
+          }
+        );
+
+
+    const typeLabel =
+      series.target ===
+        "armRoll"
+        ? "ARM ROLL"
+        : "SCRAP";
+
+
+    const typeClass =
+      series.target ===
+        "armRoll"
+        ? "is-arm-roll"
+        : "is-scrap";
+
+
+    /*
+      해당 BOX 기록 없음
+    */
     if (
-      !chart
+      records.length ===
+      0
     ) {
-      return;
-    }
+      return `
+        <article
+          class="
+            arm-roll-box-mini-chart
+            ${typeClass}
+            is-empty
+          "
+        >
+          <header
+            class="arm-roll-box-mini-chart__header"
+          >
+            <div>
+              <span>
+                ${series.unit}호기
+              </span>
 
+              <strong>
+                ${typeLabel}
+              </strong>
+            </div>
 
-    const rows =
-      state.dailyRows;
+            <b>
+              -
+            </b>
+          </header>
 
-
-    if (
-      !rows.length
-    ) {
-      chart.innerHTML = `
-        <div class="arm-roll-box-chart-empty">
-          조회된 BOX 레벨 기록이 없습니다.
-        </div>
+          <div
+            class="arm-roll-box-mini-chart__empty"
+          >
+            조회 기록 없음
+          </div>
+        </article>
       `;
-
-
-      return;
     }
 
 
-    const width =
-      Math.max(
-        760,
+    const first =
+      records[0];
 
-        rows.length *
-        74
+
+    const latest =
+      records[
+        records.length -
+        1
+      ];
+
+
+    const latestLevel =
+      Number(
+        latest.record.level
       );
 
 
+    const periodChange =
+      latestLevel -
+      Number(
+        first.record.level
+      );
+
+
+    const levelClass =
+      latestLevel >=
+        WARNING_LEVEL
+        ? "is-warning-level"
+        : latestLevel >=
+            REPLACEMENT_RECOMMEND_LEVEL
+          ? "is-request-level"
+          : "";
+
+
+    const width =
+      320;
+
+
     const height =
-      260;
+      112;
 
 
-    const padding = {
-      top:
-        20,
-
-      right:
-        24,
-
-      bottom:
-        42,
-
-      left:
-        46
-    };
+    const padding =
+      8;
 
 
     const plotWidth =
       width -
-      padding.left -
-      padding.right;
+      padding *
+      2;
 
 
     const plotHeight =
       height -
-      padding.top -
-      padding.bottom;
+      padding *
+      2;
 
 
     const getX = (
       index
     ) => {
-      return rows.length ===
+      return records.length ===
         1
-        ? padding.left +
-          plotWidth /
+        ? width /
           2
-        : padding.left +
+        : padding +
           index /
           (
-            rows.length -
+            records.length -
             1
           ) *
           plotWidth;
@@ -107927,70 +108049,162 @@ function renderArmRollBoxDailyTable() {
     const getY = (
       level
     ) => {
-      return padding.top +
-      (
-        1 -
-        Number(
-          level
-        ) /
-        100
-      ) *
-      plotHeight;
-    };
+      const safeLevel =
+        Math.max(
+          0,
 
-
-    const createPoints = (
-      target
-    ) => {
-      return rows
-        .map(
-          (
-            row,
-            index
-          ) => {
-            return row[
-              target
-            ]
-              ? `${getX(
-                  index
-                )},${getY(
-                  row[
-                    target
-                  ].level
-                )}`
-              : "";
-          }
-        )
-        .filter(
-          Boolean
-        )
-        .join(
-          " "
+          Math.min(
+            100,
+            Number(
+              level
+            ) ||
+            0
+          )
         );
+
+
+      return padding +
+        (
+          1 -
+          safeLevel /
+          100
+        ) *
+        plotHeight;
     };
 
 
-    const createCircles = (
-      target,
-      color
-    ) => {
-      return rows
+    const lineColor =
+      series.target ===
+        "armRoll"
+        ? "#3e82bc"
+        : "#9564ba";
+
+
+    const gradientId =
+      `arm-roll-mini-gradient-${series.key}`;
+
+
+    const points =
+      records.map(
+        (
+          item,
+          index
+        ) => {
+          return `${getX(
+            index
+          )},${getY(
+            item.record.level
+          )}`;
+        }
+      );
+
+
+    const areaPath = [
+      `M ${getX(
+        0
+      )} ${height - padding}`,
+
+      ...points.map(
+        point => {
+          return `L ${point.replace(
+            ",",
+            " "
+          )}`;
+        }
+      ),
+
+      `L ${getX(
+        records.length -
+        1
+      )} ${height - padding}`,
+
+      "Z"
+    ].join(
+      " "
+    );
+
+
+    /*
+      0 · 25 · 50 · 70 · 100 기준선
+
+      50:
+      요청 필요
+
+      70:
+      경고
+    */
+    const gridLines = [
+      0,
+      25,
+      50,
+      70,
+      100
+    ]
+      .map(
+        level => {
+          const isWarning =
+            level ===
+            WARNING_LEVEL;
+
+
+          const isRequest =
+            level ===
+            REPLACEMENT_RECOMMEND_LEVEL;
+
+
+          const color =
+            isWarning
+              ? "#d74c4c"
+              : isRequest
+                ? "#d98a21"
+                : "#dfe6ec";
+
+
+          return `
+            <line
+              x1="${padding}"
+              y1="${getY(
+                level
+              )}"
+              x2="${width - padding}"
+              y2="${getY(
+                level
+              )}"
+              stroke="${color}"
+              stroke-width="${
+                isWarning
+                  ? 1.5
+                  : isRequest
+                    ? 1.3
+                    : 1
+              }"
+              stroke-dasharray="${
+                isWarning ||
+                isRequest
+                  ? "5 4"
+                  : "0"
+              }"
+              vector-effect="non-scaling-stroke"
+            />
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+
+
+    const circles =
+      records
         .map(
           (
-            row,
+            item,
             index
           ) => {
-            const record =
-              row[
-                target
-              ];
-
-
-            if (
-              !record
-            ) {
-              return "";
-            }
+            const isLatest =
+              index ===
+              records.length -
+              1;
 
 
             return `
@@ -107999,18 +108213,26 @@ function renderArmRollBoxDailyTable() {
                   index
                 )}"
                 cy="${getY(
-                  record.level
+                  item.record.level
                 )}"
-                r="4"
-                fill="${color}"
+                r="${
+                  isLatest
+                    ? 4.5
+                    : 2.2
+                }"
+                fill="${lineColor}"
                 stroke="#ffffff"
-                stroke-width="2"
+                stroke-width="${
+                  isLatest
+                    ? 2
+                    : 1
+                }"
               >
                 <title>
-                  ${row.date} · ${getArmRollBoxTargetLabel(
-                    target
-                  )} ${formatArmRollBoxNumber(
-                    record.level
+                  ${item.date}
+                  ·
+                  ${formatArmRollBoxNumber(
+                    item.record.level
                   )}%
                 </title>
               </circle>
@@ -108020,159 +108242,31 @@ function renderArmRollBoxDailyTable() {
         .join(
           ""
         );
-    };
 
 
-const gridLines =
-  [
-    0,
-    25,
-    50,
-    70,
-    75,
-    100
-  ]
-    .map(
-      level => {
-        const requestThreshold =
-          level ===
-            REPLACEMENT_RECOMMEND_LEVEL;
-
-
-        const warningThreshold =
-          level ===
-            WARNING_LEVEL;
-
-
-        const highlightedThreshold =
-          requestThreshold ||
-          warningThreshold;
-
-
-        const lineColor =
-          warningThreshold
-            ? "#d74c4c"
-            : requestThreshold
-              ? "#df9328"
-              : "#dfe6ec";
-
-
-        const textColor =
-          warningThreshold
-            ? "#c43f3f"
-            : requestThreshold
-              ? "#b66b0d"
-              : "#7a8998";
-
-
-        return `
-          <line
-            x1="${padding.left}"
-            y1="${getY(
-              level
-            )}"
-            x2="${width - padding.right}"
-            y2="${getY(
-              level
-            )}"
-            stroke="${lineColor}"
-            stroke-width="${
-              highlightedThreshold
-                ? 2
-                : 1
-            }"
-            stroke-dasharray="${
-              highlightedThreshold
-                ? "6 5"
-                : "0"
-            }"
-          />
-
-          <text
-            x="${padding.left - 8}"
-            y="${getY(
-              level
-            ) + 4}"
-            text-anchor="end"
-            fill="${textColor}"
-            font-size="9"
-            font-weight="${
-              highlightedThreshold
-                ? 900
-                : 800
-            }"
-          >
-            ${level}%
-          </text>
-        `;
-      }
-    )
-    .join(
-      ""
-    );
-
-
-    const labelStep =
-      Math.max(
-        1,
-
-        Math.ceil(
-          rows.length /
-          8
+    /*
+      해당 BOX의 교체일만 표시
+    */
+    const replacementMarks =
+      (
+        Array.isArray(
+          state.replacementEvents
         )
-      );
-
-
-    const dateLabels =
-      rows
-        .map(
-          (
-            row,
-            index
-          ) => {
-            if (
-              index %
-                labelStep !==
-                0 &&
-              index !==
-                rows.length -
-                1
-            ) {
-              return "";
-            }
-
-
-            return `
-              <text
-                x="${getX(
-                  index
-                )}"
-                y="${height - 15}"
-                text-anchor="middle"
-                fill="#718191"
-                font-size="9"
-                font-weight="700"
-              >
-                ${row.date.slice(
-                  5
-                )}
-              </text>
-            `;
+          ? state.replacementEvents
+          : []
+      )
+        .filter(
+          event => {
+            return event.target ===
+              series.key;
           }
         )
-        .join(
-          ""
-        );
-
-
-    const replacementLines =
-      state.replacementEvents
         .map(
           event => {
             const index =
-              rows.findIndex(
-                row => {
-                  return row.date ===
+              records.findIndex(
+                item => {
+                  return item.date ===
                     event.date;
                 }
               );
@@ -108198,33 +108292,27 @@ const gridLines =
                 x1="${getX(
                   index
                 )}"
-                y1="${padding.top}"
+                y1="${padding}"
                 x2="${getX(
                   index
                 )}"
-                y2="${height - padding.bottom}"
+                y2="${height - padding}"
                 stroke="${color}"
                 stroke-width="1.5"
                 stroke-dasharray="4 4"
+                vector-effect="non-scaling-stroke"
               />
 
               <circle
                 cx="${getX(
                   index
                 )}"
-                cy="${padding.top + 7}"
-                r="5"
+                cy="${padding + 4}"
+                r="3.5"
                 fill="${color}"
               >
                 <title>
-                  ${event.date} · ${getArmRollBoxTargetLabel(
-                    event.target
-                  )} · ${
-                    event.detectionType ===
-                      "confirmed"
-                      ? "교체"
-                      : "교체 의심"
-                  }
+                  ${event.date} · 교체
                 </title>
               </circle>
             `;
@@ -108235,54 +108323,154 @@ const gridLines =
         );
 
 
-    chart.innerHTML = `
-      <svg
-        width="${width}"
-        height="${height}"
-        viewBox="0 0 ${width} ${height}"
-        role="img"
-        aria-label="ARM ROLL BOX와 SCRAP BOX 레벨 추이"
+    return `
+      <article
+        class="
+          arm-roll-box-mini-chart
+          ${typeClass}
+          ${levelClass}
+        "
       >
-        ${gridLines}
+        <header
+          class="arm-roll-box-mini-chart__header"
+        >
+          <div>
+            <span>
+              ${series.unit}호기
+            </span>
 
-        <polyline
-          points="${createPoints(
-            "armRoll"
-          )}"
-          fill="none"
-          stroke="#3e82bc"
-          stroke-width="3"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
+            <strong>
+              ${typeLabel}
+            </strong>
+          </div>
 
-        <polyline
-          points="${createPoints(
-            "scrap"
-          )}"
-          fill="none"
-          stroke="#9564ba"
-          stroke-width="3"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
+          <b>
+            ${formatArmRollBoxNumber(
+              latestLevel
+            )}%
+          </b>
+        </header>
 
-        ${createCircles(
-          "armRoll",
-          "#3e82bc"
-        )}
 
-        ${createCircles(
-          "scrap",
-          "#9564ba"
-        )}
+        <div
+          class="arm-roll-box-mini-chart__summary"
+        >
+          <span>
+            기간
+            ${formatArmRollBoxSigned(
+              periodChange
+            )}
+          </span>
 
-        ${replacementLines}
+          <small>
+            ${records.length}회 측정
+          </small>
+        </div>
 
-        ${dateLabels}
-      </svg>
+
+        <div
+          class="arm-roll-box-mini-chart__plot"
+        >
+          <span class="is-request-line">
+            50
+          </span>
+
+          <span class="is-warning-line">
+            70
+          </span>
+
+          <svg
+            viewBox="0 0 ${width} ${height}"
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="${escapeArmRollBoxHtml(
+              series.label
+            )} 레벨 추이"
+          >
+            <defs>
+              <linearGradient
+                id="${gradientId}"
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop
+                  offset="0%"
+                  stop-color="${lineColor}"
+                  stop-opacity="0.28"
+                />
+
+                <stop
+                  offset="100%"
+                  stop-color="${lineColor}"
+                  stop-opacity="0.03"
+                />
+              </linearGradient>
+            </defs>
+
+            ${gridLines}
+
+            <path
+              d="${areaPath}"
+              fill="url(#${gradientId})"
+            />
+
+            <polyline
+              points="${points.join(
+                " "
+              )}"
+              fill="none"
+              stroke="${lineColor}"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              vector-effect="non-scaling-stroke"
+            />
+
+            ${circles}
+
+            ${replacementMarks}
+          </svg>
+        </div>
+
+
+        <footer
+          class="arm-roll-box-mini-chart__dates"
+        >
+          <span>
+            ${escapeArmRollBoxHtml(
+              first.date.slice(
+                5
+              )
+            )}
+          </span>
+
+          <span>
+            ${escapeArmRollBoxHtml(
+              latest.date.slice(
+                5
+              )
+            )}
+          </span>
+        </footer>
+      </article>
     `;
-  }
+  };
+
+
+  chart.innerHTML = `
+    <div class="arm-roll-box-mini-chart-grid">
+      ${displaySeries
+        .map(
+          createCard
+        )
+        .join(
+          ""
+        )}
+    </div>
+  `;
+}
 
   /* =========================================================
   실제 측정값 변화 기준 증가량 재계산

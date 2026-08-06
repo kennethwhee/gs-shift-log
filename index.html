@@ -6618,11 +6618,22 @@
       </div>
     </section>
 
-<!-- 날짜별 BOX 레벨 -->
+<!-- =================================================
+  날짜별 BOX 레벨 통합표
+
+  한 날짜에:
+  - 1호기 ARM ROLL
+  - 1호기 SCRAP
+  - 2호기 ARM ROLL
+  - 2호기 SCRAP
+
+  네 가지 레벨을 한눈에 표시한다.
+================================================== -->
 <section
   class="
     arm-roll-box-section-card
     arm-roll-box-daily-history-card
+    arm-roll-box-compact-history-card
   "
 >
   <header class="arm-roll-box-section-header">
@@ -6648,161 +6659,80 @@
   </header>
 
 
-  <div class="arm-roll-box-unit-history-grid">
+  <div class="arm-roll-box-compact-table-wrap">
 
-
-    <!-- 1호기 -->
-    <section
-      class="
-        arm-roll-box-unit-history
-        is-unit-1
-      "
-      aria-labelledby="armRollBoxUnit1HistoryTitle"
+    <table
+      class="arm-roll-box-compact-daily-table"
+      aria-label="1호기와 2호기 날짜별 ARM ROLL 및 SCRAP BOX 레벨"
     >
 
-      <header class="arm-roll-box-unit-history__header">
-
-        <div>
-
-          <strong id="armRollBoxUnit1HistoryTitle">
-            1호기
-          </strong>
-
-          <span>
-            BO1 업무일지 기준
-          </span>
-
-        </div>
-
-      </header>
+      <colgroup>
+        <col class="is-date-column" />
+        <col class="is-level-column" />
+        <col class="is-level-column" />
+        <col class="is-level-column" />
+        <col class="is-level-column" />
+      </colgroup>
 
 
-      <div class="arm-roll-box-unit-table-wrap">
+      <thead>
+        <tr>
 
-        <table
-          class="
-            arm-roll-box-table
-            arm-roll-box-unit-daily-table
-          "
-        >
-
-          <thead>
-            <tr>
-
-              <th scope="col">
-                일자
-              </th>
-
-              <th scope="col">
-                ARM ROLL
-              </th>
-
-              <th scope="col">
-                SCRAP
-              </th>
-
-              <th scope="col">
-                교체
-              </th>
-
-            </tr>
-          </thead>
+          <th scope="col">
+            일자
+          </th>
 
 
-          <tbody id="armRollBoxUnit1DailyTableBody">
-
-            <tr class="arm-roll-box-empty-table-row">
-
-              <td colspan="4">
-                조회된 BOX 레벨 기록이 없습니다.
-              </td>
-
-            </tr>
-
-          </tbody>
-
-        </table>
-
-      </div>
-
-    </section>
+          <th
+            scope="col"
+            class="is-arm-roll-heading"
+          >
+            <span>1호기</span>
+            <strong>ARM</strong>
+          </th>
 
 
-    <!-- 2호기 -->
-    <section
-      class="
-        arm-roll-box-unit-history
-        is-unit-2
-      "
-      aria-labelledby="armRollBoxUnit2HistoryTitle"
-    >
-
-      <header class="arm-roll-box-unit-history__header">
-
-        <div>
-
-          <strong id="armRollBoxUnit2HistoryTitle">
-            2호기
-          </strong>
-
-          <span>
-            BO2 업무일지 기준
-          </span>
-
-        </div>
-
-      </header>
+          <th
+            scope="col"
+            class="is-scrap-heading"
+          >
+            <span>1호기</span>
+            <strong>SCRAP</strong>
+          </th>
 
 
-      <div class="arm-roll-box-unit-table-wrap">
-
-        <table
-          class="
-            arm-roll-box-table
-            arm-roll-box-unit-daily-table
-          "
-        >
-
-          <thead>
-            <tr>
-
-              <th scope="col">
-                일자
-              </th>
-
-              <th scope="col">
-                ARM ROLL
-              </th>
-
-              <th scope="col">
-                SCRAP
-              </th>
-
-              <th scope="col">
-                교체
-              </th>
-
-            </tr>
-          </thead>
+          <th
+            scope="col"
+            class="is-arm-roll-heading"
+          >
+            <span>2호기</span>
+            <strong>ARM</strong>
+          </th>
 
 
-          <tbody id="armRollBoxUnit2DailyTableBody">
+          <th
+            scope="col"
+            class="is-scrap-heading"
+          >
+            <span>2호기</span>
+            <strong>SCRAP</strong>
+          </th>
 
-            <tr class="arm-roll-box-empty-table-row">
+        </tr>
+      </thead>
 
-              <td colspan="4">
-                조회된 BOX 레벨 기록이 없습니다.
-              </td>
 
-            </tr>
+      <tbody id="armRollBoxDailyCompactTableBody">
 
-          </tbody>
+        <tr class="arm-roll-box-empty-table-row">
+          <td colspan="5">
+            조회된 BOX 레벨 기록이 없습니다.
+          </td>
+        </tr>
 
-        </table>
+      </tbody>
 
-      </div>
-
-    </section>
+    </table>
 
   </div>
 
