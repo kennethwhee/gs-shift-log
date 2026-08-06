@@ -3902,6 +3902,20 @@
   일일업무현황
 </button>
 
+<!-- ===================================================
+  오전회의 취합
+==================================================== -->
+<button
+  type="button"
+  class="efficiency-team-tab"
+  id="efficiencyMorningMeetingTab"
+  data-efficiency-tab="morning-meeting"
+  role="tab"
+  aria-selected="false"
+  aria-controls="efficiencyMorningMeetingView"
+>
+  오전회의 취합
+</button>
 
   <!-- 석회석 -->
   <button
@@ -4557,6 +4571,376 @@
       </form>
     </section>
   </div>
+</article>
+
+<!-- =================================================
+  오전회의 취합
+
+  동작:
+  - 안전팀 엑셀 첨부
+  - 환경팀 엑셀 첨부
+  - 기계팀 엑셀 첨부
+  - 전기제어팀 엑셀 첨부
+  - 팀별 전일 특이사항·예정사항 자동 추출
+  - 기존 일일발전운전현황 양식에 자동 취합
+================================================== -->
+
+<article
+  class="
+    efficiency-team-view
+    efficiency-morning-meeting-view
+  "
+  id="efficiencyMorningMeetingView"
+  data-efficiency-view="morning-meeting"
+  role="tabpanel"
+  aria-labelledby="efficiencyMorningMeetingTab"
+  aria-hidden="true"
+  hidden
+>
+
+  <!-- =================================================
+    상단
+  ================================================== -->
+
+  <header
+    class="
+      efficiency-team-view__heading
+      efficiency-morning-meeting-heading
+    "
+  >
+
+    <div>
+
+      <span>
+        MORNING MEETING REPORT
+      </span>
+
+      <h3>
+        오전회의 취합
+      </h3>
+
+      <p class="efficiency-morning-meeting-description">
+        안전팀·환경팀·기계팀·전기제어팀의 일일현황을
+        첨부하여 오전회의 자료를 자동으로 만듭니다.
+      </p>
+
+    </div>
+
+
+    <div class="efficiency-morning-meeting-template-status">
+
+      <span>
+        기준 양식
+      </span>
+
+      <strong>
+        일일발전운전현황
+      </strong>
+
+      <small>
+        상단 수식·계산식·서식 유지
+      </small>
+
+    </div>
+
+  </header>
+
+
+  <!-- =================================================
+    팀별 자료 첨부
+  ================================================== -->
+
+  <section class="efficiency-morning-meeting-panel">
+
+    <header class="efficiency-morning-meeting-panel__header">
+
+      <div>
+
+        <span>
+          TEAM FILES
+        </span>
+
+        <h4>
+          팀별 자료 첨부
+        </h4>
+
+        <p>
+          4개 팀에서 받은 엑셀 파일을 각각 선택하세요.
+        </p>
+
+      </div>
+
+
+      <strong id="efficiencyMorningMeetingUploadCount">
+        0 / 4
+      </strong>
+
+    </header>
+
+
+    <div class="efficiency-morning-meeting-upload-grid">
+
+      <!-- 안전팀 -->
+      <label
+        class="efficiency-morning-meeting-upload-card"
+        data-morning-meeting-team-card="safety"
+      >
+
+        <input
+          type="file"
+          id="efficiencyMorningMeetingSafetyFile"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+        />
+
+
+        <span class="efficiency-morning-meeting-upload-card__order">
+          1
+        </span>
+
+
+        <span class="efficiency-morning-meeting-upload-card__content">
+
+          <strong>
+            안전팀
+          </strong>
+
+          <small id="efficiencyMorningMeetingSafetyStatus">
+            엑셀 파일을 선택하세요.
+          </small>
+
+        </span>
+
+
+        <span class="efficiency-morning-meeting-upload-card__action">
+          파일 선택
+        </span>
+
+      </label>
+
+
+      <!-- 환경팀 -->
+      <label
+        class="efficiency-morning-meeting-upload-card"
+        data-morning-meeting-team-card="environment"
+      >
+
+        <input
+          type="file"
+          id="efficiencyMorningMeetingEnvironmentFile"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+        />
+
+
+        <span class="efficiency-morning-meeting-upload-card__order">
+          2
+        </span>
+
+
+        <span class="efficiency-morning-meeting-upload-card__content">
+
+          <strong>
+            환경팀
+          </strong>
+
+          <small id="efficiencyMorningMeetingEnvironmentStatus">
+            엑셀 파일을 선택하세요.
+          </small>
+
+        </span>
+
+
+        <span class="efficiency-morning-meeting-upload-card__action">
+          파일 선택
+        </span>
+
+      </label>
+
+
+      <!-- 기계팀 -->
+      <label
+        class="efficiency-morning-meeting-upload-card"
+        data-morning-meeting-team-card="mechanical"
+      >
+
+        <input
+          type="file"
+          id="efficiencyMorningMeetingMechanicalFile"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+        />
+
+
+        <span class="efficiency-morning-meeting-upload-card__order">
+          3
+        </span>
+
+
+        <span class="efficiency-morning-meeting-upload-card__content">
+
+          <strong>
+            기계팀
+          </strong>
+
+          <small id="efficiencyMorningMeetingMechanicalStatus">
+            엑셀 파일을 선택하세요.
+          </small>
+
+        </span>
+
+
+        <span class="efficiency-morning-meeting-upload-card__action">
+          파일 선택
+        </span>
+
+      </label>
+
+
+      <!-- 전기제어팀 -->
+      <label
+        class="efficiency-morning-meeting-upload-card"
+        data-morning-meeting-team-card="electrical"
+      >
+
+        <input
+          type="file"
+          id="efficiencyMorningMeetingElectricalFile"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+        />
+
+
+        <span class="efficiency-morning-meeting-upload-card__order">
+          4
+        </span>
+
+
+        <span class="efficiency-morning-meeting-upload-card__content">
+
+          <strong>
+            전기제어팀
+          </strong>
+
+          <small id="efficiencyMorningMeetingElectricalStatus">
+            엑셀 파일을 선택하세요.
+          </small>
+
+        </span>
+
+
+        <span class="efficiency-morning-meeting-upload-card__action">
+          파일 선택
+        </span>
+
+      </label>
+
+    </div>
+
+  </section>
+
+
+  <!-- =================================================
+    추출 결과 미리보기
+  ================================================== -->
+
+  <section
+    class="efficiency-morning-meeting-preview"
+    id="efficiencyMorningMeetingPreview"
+    hidden
+  >
+
+    <header class="efficiency-morning-meeting-preview__header">
+
+      <div>
+
+        <span>
+          EXTRACTION PREVIEW
+        </span>
+
+        <h4>
+          취합 내용 미리보기
+        </h4>
+
+      </div>
+
+
+      <strong id="efficiencyMorningMeetingPreviewCount">
+        0개 팀
+      </strong>
+
+    </header>
+
+
+    <div
+      class="efficiency-morning-meeting-preview-list"
+      id="efficiencyMorningMeetingPreviewList"
+    >
+    </div>
+
+  </section>
+
+
+  <!-- =================================================
+    처리 결과 및 버튼
+  ================================================== -->
+
+  <footer class="efficiency-morning-meeting-actions">
+
+    <div class="efficiency-morning-meeting-actions__message">
+
+      <span
+        id="efficiencyMorningMeetingMessage"
+        aria-live="polite"
+      >
+        4개 팀의 엑셀 파일을 첨부해 주세요.
+      </span>
+
+
+      <span
+        id="efficiencyMorningMeetingError"
+        role="alert"
+        hidden
+      >
+      </span>
+
+    </div>
+
+
+    <div class="efficiency-morning-meeting-actions__buttons">
+
+      <button
+        type="button"
+        class="secondary-button"
+        id="resetEfficiencyMorningMeetingButton"
+      >
+        초기화
+      </button>
+
+
+      <button
+        type="button"
+        class="secondary-button"
+        id="analyzeEfficiencyMorningMeetingButton"
+        disabled
+      >
+        자료 분석
+      </button>
+
+
+      <button
+        type="button"
+        class="primary-button"
+        id="createEfficiencyMorningMeetingWorkbookButton"
+        disabled
+      >
+        최종 엑셀 만들기
+      </button>
+
+    </div>
+
+  </footer>
+
 </article>
 
 <!-- =================================================

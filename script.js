@@ -80153,18 +80153,18 @@ function refreshMemberFooterButtons() {
     };
   }
 
-
 /* =====================================================
   효율팀 메뉴 전환
 
   메뉴:
   - daily-work
+  - morning-meeting
   - limestone
   - arm-roll
 
   동작:
-  - 메뉴 미선택 시: 안내 문구 표시
-  - 메뉴 선택 시: 해당 화면 표시
+  - 메뉴 미선택 시 안내 문구 표시
+  - 메뉴 선택 시 해당 화면 표시
 ===================================================== */
 
 function switchEfficiencyTeamView(
@@ -80186,6 +80186,7 @@ function switchEfficiencyTeamView(
   const validViews =
     new Set([
       "daily-work",
+      "morning-meeting",
       "limestone",
       "arm-roll"
     ]);
@@ -80193,7 +80194,8 @@ function switchEfficiencyTeamView(
 
   const normalizedView =
     String(
-      requestedView || ""
+      requestedView ||
+      ""
     ).trim();
 
 
@@ -80237,7 +80239,8 @@ function switchEfficiencyTeamView(
         isSelected ||
         (
           !selectedView &&
-          tabIndex === 0
+          tabIndex ===
+            0
         )
           ? 0
           : -1;
