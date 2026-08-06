@@ -5841,6 +5841,73 @@
     class="efficiency-morning-meeting-auto-preview__grid"
   >
 
+<!-- =================================================
+  자동자료 공용 기준일 이동
+
+  기준일:
+  - 수처리       = 선택일
+  - 석회석       = 선택일
+  - Gear/Pinion  = 선택일 + 1일
+
+  세 자료가 함께 이동한다.
+================================================== -->
+
+<div
+  class="efficiency-morning-meeting-auto-common-date"
+>
+
+  <div
+    class="efficiency-morning-meeting-auto-common-date__center"
+  >
+
+    <span
+      class="efficiency-morning-meeting-auto-common-date__label"
+    >
+      자료 기준일
+    </span>
+
+
+    <div
+      class="efficiency-morning-meeting-limestone-date-nav"
+    >
+
+      <button
+        type="button"
+        class="efficiency-morning-meeting-limestone-date-button"
+        id="efficiencyMorningMeetingLimestonePreviousButton"
+        title="자동자료 기준일을 하루 전으로 이동"
+      >
+        ‹ 전날
+      </button>
+
+
+      <button
+        type="button"
+        class="
+          efficiency-morning-meeting-limestone-date-button
+          is-today
+        "
+        id="efficiencyMorningMeetingLimestoneTodayButton"
+        title="자동자료 기준일을 오늘로 이동"
+      >
+        오늘
+      </button>
+
+
+      <button
+        type="button"
+        class="efficiency-morning-meeting-limestone-date-button"
+        id="efficiencyMorningMeetingLimestoneNextButton"
+        title="자동자료 기준일을 하루 뒤로 이동"
+      >
+        다음날 ›
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
 
     <!-- =================================================
       1. 수처리
@@ -6039,52 +6106,6 @@
         <div
           class="efficiency-morning-meeting-auto-card__meta"
         >
-
-          <!-- ===========================================
-            석회석 날짜 이동
-
-            기존 석회석 사용량 계산 기능과 연결됨
-          ============================================ -->
-
-          <div
-            class="efficiency-morning-meeting-limestone-date-nav"
-          >
-
-            <button
-              type="button"
-              class="efficiency-morning-meeting-limestone-date-button"
-              id="efficiencyMorningMeetingLimestonePreviousButton"
-              title="전날 석회석 사용량"
-            >
-              ‹ 전날
-            </button>
-
-
-            <button
-              type="button"
-              class="
-                efficiency-morning-meeting-limestone-date-button
-                is-today
-              "
-              id="efficiencyMorningMeetingLimestoneTodayButton"
-              title="오늘 석회석 사용량"
-            >
-              오늘
-            </button>
-
-
-            <button
-              type="button"
-              class="efficiency-morning-meeting-limestone-date-button"
-              id="efficiencyMorningMeetingLimestoneNextButton"
-              title="다음날 석회석 사용량"
-            >
-              다음날 ›
-            </button>
-
-          </div>
-
-
           <!-- ===========================================
             석회석 날짜 · 상태
           ============================================ -->

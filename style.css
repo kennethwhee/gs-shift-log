@@ -87589,3 +87589,130 @@ strong {
 #cancelApprovalFromDetailButton:active {
   transform: translateY(0);
 }
+
+/* =========================================================
+  오전회의 자동자료
+  공용 기준일 이동
+
+  위치:
+  수처리 | 석회석 | Gear/Pinion
+          ↑
+       가운데 상단
+
+  버튼 자체는 기존 석회석 날짜 버튼 디자인 재사용
+========================================================= */
+
+.efficiency-morning-meeting-auto-common-date {
+  grid-column: 1 / -1;
+
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  min-width: 0;
+  margin: 0 0 -2px;
+}
+
+
+.efficiency-morning-meeting-auto-common-date__center {
+  grid-column: 2;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  min-width: 0;
+  min-height: 27px;
+}
+
+
+.efficiency-morning-meeting-auto-common-date__label {
+  flex: 0 0 auto;
+
+  color: #68798c;
+
+  font-size: 9px;
+  font-weight: 850;
+
+  white-space: nowrap;
+}
+
+
+/* 공용 영역에서는 가운데 정렬 */
+
+.efficiency-morning-meeting-auto-common-date
+.efficiency-morning-meeting-limestone-date-nav {
+  justify-content: center;
+}
+
+
+/* =========================================================
+  석회석 카드
+
+  날짜 이동 버튼은 밖으로 이동했으므로
+  카드 내부에는 현재 날짜 + 상태만 표시
+========================================================= */
+
+.efficiency-morning-meeting-auto-card.is-limestone
+.efficiency-morning-meeting-auto-card__meta {
+  min-width: 0;
+}
+
+
+.efficiency-morning-meeting-auto-card.is-limestone
+.efficiency-morning-meeting-limestone-date-state {
+  justify-content: flex-end;
+}
+
+
+/* =========================================================
+  태블릿
+========================================================= */
+
+@media (
+  max-width: 1050px
+) {
+  .efficiency-morning-meeting-auto-common-date {
+    grid-template-columns: 1fr;
+  }
+
+
+  .efficiency-morning-meeting-auto-common-date__center {
+    grid-column: 1;
+  }
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width: 700px
+) {
+  .efficiency-morning-meeting-auto-common-date {
+    grid-column: 1 / -1;
+
+    margin-bottom: 0;
+  }
+
+
+  .efficiency-morning-meeting-auto-common-date__center {
+    width: 100%;
+
+    justify-content: center;
+
+    gap: 6px;
+  }
+
+
+  .efficiency-morning-meeting-auto-common-date__label {
+    font-size: 8px;
+  }
+}

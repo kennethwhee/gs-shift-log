@@ -151824,66 +151824,94 @@ function resolveWaterTargetDate() {
       : "";
   }
 
+/* =====================================================
+  Gear / Pinion용 수처리 기준일 확인
+
+  공용 기준일이 있으면 무조건 최우선 사용
+
+  공용 기준일:
+  - 수처리     = 기준일
+  - 석회석     = 기준일
+  - Gear/Pinion = 기준일 + 1일
+===================================================== */
+
+function resolveWaterSourceDate() {
+  const state =
+    getState();
+
+
+  const {
+    panel,
+    waterDate
+  } =
+    getElements();
+
 
   /* =====================================================
-    수처리 기준일 확인
+    0. 오전회의 자동자료 공용 기준일
 
-    수처리:
-    오전회의 대상일의 전일
+    전날 / 오늘 / 다음날 버튼을 누르면
+    이 값이 가장 높은 우선순위를 가진다.
 
-    우선순위:
-    1. 수처리 조회 완료 결과
-    2. 교대파트 업무일지 기준일
-    3. 수처리 패널 저장 날짜
-    4. 수처리 화면 날짜 문구
+    중요:
+    기존 state.waterTreatment의 과거 조회값보다
+    먼저 확인해야 날짜 이동이 정상 작동한다.
   ====================================================== */
 
-  function resolveWaterSourceDate() {
-    const state =
-      getState();
-
-
-    const {
-      panel,
-      waterDate
-    } =
-      getElements();
-
-
-    const candidates = [
-      state.waterTreatment
-        ?.sourceDate,
-
-      state.waterTreatment
-        ?.targetDate,
-
-      state.shiftPart
-        ?.reportDate,
-
-      state.shiftPart
-        ?.loadedDate,
-
+  const commonBaseDate =
+    normalizeText(
       panel?.dataset
-        .waterTargetDate,
-
-      extractDateFromText(
-        waterDate?.textContent
-      )
-    ];
-
-
-    return (
-      candidates
-        .map(
-          normalizeText
-        )
-        .find(
-          isValidDate
-        ) ||
-      ""
+        .morningMeetingAutoBaseDate
     );
+
+
+  if (
+    isValidDate(
+      commonBaseDate
+    )
+  ) {
+    return commonBaseDate;
   }
 
+
+  /* =====================================================
+    공용 날짜가 아직 만들어지지 않은 경우
+    기존 기준값 사용
+  ====================================================== */
+
+  const candidates = [
+    state.waterTreatment
+      ?.sourceDate,
+
+    state.waterTreatment
+      ?.targetDate,
+
+    state.shiftPart
+      ?.reportDate,
+
+    state.shiftPart
+      ?.loadedDate,
+
+    panel?.dataset
+      .waterTargetDate,
+
+    extractDateFromText(
+      waterDate?.textContent
+    )
+  ];
+
+
+  return (
+    candidates
+      .map(
+        normalizeText
+      )
+      .find(
+        isValidDate
+      ) ||
+    ""
+  );
+}
 
   /* =====================================================
     Gear / Pinion 조회일
@@ -160654,33 +160682,39 @@ window
 
 /* =========================================================
   오전회의 취합
-  석회석 날짜 이동 버튼 연결
+  자동 수치 공용 날짜 이동 최종본
 
-  오전회의 버튼:
+  버튼:
   - 전날
   - 오늘
   - 다음날
 
-  실제 동작:
-  기존 석회석 → 사용량 계산 기능의
-  날짜 버튼을 그대로 실행한다.
+  날짜 관계:
+  수처리       = 공용 기준일
+  석회석       = 공용 기준일
+  Gear / Pinion = 공용 기준일 + 1일
 
-  따라서 기존 기능의:
-  - 입고량 조회
-  - OIS 재고
-  - 저장된 계산 결과 복원
-  - 사용량 계산
+  예:
+  공용 기준일 2026-08-06
 
-  을 그대로 사용한다.
+  수처리       2026-08-06
+  석회석       2026-08-06
+  Gear/Pinion  2026-08-07
+
+  조회:
+  세 자료를 서로 기다리지 않고 독립 실행한다.
+
+  따라서:
+  먼저 완료된 자료부터 즉시 저장·반영된다.
 ========================================================= */
 
-(function initializeMorningMeetingLimestoneDateNavigation() {
+(function initializeMorningMeetingAutoDateNavigation() {
   "use strict";
 
 
   if (
     window
-      .__morningMeetingLimestoneDateNavigationInstalled ===
+      .__morningMeetingAutoDateNavigationInstalled ===
     true
   ) {
     return;
@@ -160688,7 +160722,7 @@ window
 
 
   window
-    .__morningMeetingLimestoneDateNavigationInstalled =
+    .__morningMeetingAutoDateNavigationInstalled =
     true;
 
 
@@ -160697,56 +160731,312 @@ window
 
 
   /* =====================================================
+    상태
+  ====================================================== */
+
+  function getState() {
+    return (
+      window
+        .efficiencyMorningMeetingUploadState ||
+      {}
+    );
+  }
+
+
+  /* =====================================================
     요소
   ====================================================== */
 
   function getElements() {
     return {
-      /* 오전회의 버튼 */
-
-      morningPreviousButton:
+      previousButton:
         document.getElementById(
           "efficiencyMorningMeetingLimestonePreviousButton"
         ),
 
-      morningTodayButton:
+      todayButton:
         document.getElementById(
           "efficiencyMorningMeetingLimestoneTodayButton"
         ),
 
-      morningNextButton:
+      nextButton:
         document.getElementById(
           "efficiencyMorningMeetingLimestoneNextButton"
         ),
 
-
-      /* 기존 석회석 사용량 계산 버튼 */
-
-      originalPreviousButton:
-        document.getElementById(
-          "limestoneUsagePreviousDateButton"
-        ),
-
-      originalTodayButton:
-        document.getElementById(
-          "limestoneUsageTodayButton"
-        ),
-
-      originalNextButton:
-        document.getElementById(
-          "limestoneUsageNextDateButton"
-        ),
-
-      originalDateInput:
+      limestoneDateInput:
         document.getElementById(
           "limestoneUsageDate"
+        ),
+
+      /*
+        앞 단계에서 수처리·Gear가
+        공용 기준일을 읽도록 연결한 패널
+      */
+
+      commonPanel:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterPanel"
+        ),
+
+      waterDate:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoWaterDate"
+        ),
+
+      limestoneDate:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoLimestoneDate"
+        ),
+
+      gearPinionDate:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoGearPinionDate"
         )
     };
   }
 
 
   /* =====================================================
-    오전회의 미리보기 다시 갱신
+    날짜 검사
+  ====================================================== */
+
+  function isValidDate(
+    value
+  ) {
+    const normalizedDate =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        normalizedDate
+      )
+    ) {
+      return false;
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${normalizedDate}T00:00:00.000Z`
+      );
+
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        normalizedDate
+    );
+  }
+
+
+  /* =====================================================
+    날짜 ± 이동
+  ====================================================== */
+
+  function addDateDays(
+    dateValue,
+    dayCount
+  ) {
+    if (
+      !isValidDate(
+        dateValue
+      )
+    ) {
+      return "";
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${dateValue}T00:00:00.000Z`
+      );
+
+
+    parsedDate.setUTCDate(
+      parsedDate.getUTCDate() +
+      Number(
+        dayCount ||
+        0
+      )
+    );
+
+
+    return parsedDate
+      .toISOString()
+      .slice(
+        0,
+        10
+      );
+  }
+
+
+  /* =====================================================
+    오늘 날짜
+  ====================================================== */
+
+  function getTodayDate() {
+    const now =
+      new Date();
+
+
+    return [
+      now.getFullYear(),
+
+      String(
+        now.getMonth() +
+        1
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        now.getDate()
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    );
+  }
+
+
+  /* =====================================================
+    현재 공용 기준일
+
+    우선순위:
+    1. 사용자가 이동한 공용 기준일
+    2. 교대파트 업무일지 기준일
+    3. 기존 수처리 조회일
+    4. 석회석 계산일
+    5. 오늘
+  ====================================================== */
+
+  function resolveCommonBaseDate() {
+    const elements =
+      getElements();
+
+
+    const state =
+      getState();
+
+
+    const candidates = [
+      elements.commonPanel
+        ?.dataset
+        .morningMeetingAutoBaseDate,
+
+      state.shiftPart
+        ?.reportDate,
+
+      state.shiftPart
+        ?.loadedDate,
+
+      state.waterTreatment
+        ?.sourceDate,
+
+      state.waterTreatment
+        ?.targetDate,
+
+      elements.limestoneDateInput
+        ?.value,
+
+      getTodayDate()
+    ];
+
+
+    return (
+      candidates
+        .map(
+          value => {
+            return String(
+              value ||
+              ""
+            ).trim();
+          }
+        )
+        .find(
+          isValidDate
+        ) ||
+      ""
+    );
+  }
+
+
+  /* =====================================================
+    카드 날짜 즉시 표시
+
+    수처리 / 석회석:
+    같은 날짜
+
+    Gear / Pinion:
+    +1일
+  ====================================================== */
+
+  function renderCommonDates(
+    baseDate
+  ) {
+    if (
+      !isValidDate(
+        baseDate
+      )
+    ) {
+      return;
+    }
+
+
+    const elements =
+      getElements();
+
+
+    const gearDate =
+      addDateDays(
+        baseDate,
+        1
+      );
+
+
+    if (
+      elements.waterDate
+    ) {
+      elements.waterDate.textContent =
+        baseDate;
+    }
+
+
+    if (
+      elements.limestoneDate
+    ) {
+      elements.limestoneDate.textContent =
+        baseDate;
+    }
+
+
+    if (
+      elements.gearPinionDate
+    ) {
+      elements.gearPinionDate.textContent =
+        gearDate ||
+        "-";
+    }
+  }
+
+
+  /* =====================================================
+    자동 미리보기 재갱신
   ====================================================== */
 
   function refreshMorningMeetingPreview() {
@@ -160754,8 +161044,8 @@ window
       0,
       150,
       500,
-      1000,
-      2000
+      1200,
+      2500
     ].forEach(
       delay => {
         window.setTimeout(
@@ -160787,20 +161077,33 @@ window
 
 
   /* =====================================================
-    기존 석회석 버튼 실행
+    개별 조회 실행
 
-    새 기능을 다시 계산하지 않고
-    원래 버튼의 click 이벤트를 그대로 사용한다.
+    중요:
+    Promise.all을 사용하지 않는다.
+
+    즉:
+    수처리 완료
+    → 바로 저장·표시
+
+    Gear 완료
+    → 바로 저장·표시
+
+    석회석 완료
+    → 바로 저장·표시
   ====================================================== */
 
-  function clickOriginalLimestoneButton(
-    originalButton
+  function runIndependentLookup(
+    label,
+    loader,
+    delay = 0
   ) {
     if (
-      !originalButton
+      typeof loader !==
+        "function"
     ) {
       console.warn(
-        "기존 석회석 사용량 날짜 버튼을 찾지 못했습니다."
+        `${label} 조회 함수를 찾지 못했습니다.`
       );
 
 
@@ -160808,56 +161111,220 @@ window
     }
 
 
-    if (
-      originalButton.disabled
-    ) {
-      return;
-    }
+    window.setTimeout(
+      () => {
+        try {
+          const result =
+            loader();
 
 
-    originalButton.click();
+          if (
+            result &&
+            typeof result.catch ===
+              "function"
+          ) {
+            result.catch(
+              error => {
+                console.error(
+                  `${label} 자동 조회 실패:`,
+                  error
+                );
+              }
+            );
+          }
 
-
-    refreshMorningMeetingPreview();
+        } catch (
+          error
+        ) {
+          console.error(
+            `${label} 자동 조회 실패:`,
+            error
+          );
+        }
+      },
+      delay
+    );
   }
 
 
-  /* =====================================================
-    현재 날짜 표시 즉시 동기화
-  ====================================================== */
+/* =====================================================
+  공용 기준일 적용
 
-  function syncMorningMeetingLimestoneDate() {
-    const {
-      originalDateInput
-    } =
-      getElements();
+  순서:
+  1. 공용 날짜 저장
+  2. 석회석 기존 기능 날짜 변경
+  3. 저장된 수처리/Gear 값 즉시 복원
+  4. 저장값이 없는 자료만 OIS 신규 조회
+
+  석회석은 기존 D1 날짜별 복원을 그대로 사용한다.
+===================================================== */
+
+function applyCommonBaseDate(
+  requestedDate,
+  options = {}
+) {
+  const {
+    load =
+      true
+  } = options;
 
 
-    const previewDate =
-      document.getElementById(
-        "efficiencyMorningMeetingAutoLimestoneDate"
+  const normalizedDate =
+    String(
+      requestedDate ||
+      ""
+    ).trim();
+
+
+  if (
+    !isValidDate(
+      normalizedDate
+    )
+  ) {
+    return;
+  }
+
+
+  const elements =
+    getElements();
+
+
+  /* ===================================================
+    공용 날짜 저장
+  ==================================================== */
+
+  if (
+    elements.commonPanel
+  ) {
+    elements.commonPanel.dataset
+      .morningMeetingAutoBaseDate =
+      normalizedDate;
+  }
+
+
+  /* ===================================================
+    화면 날짜 먼저 표시
+  ==================================================== */
+
+  renderCommonDates(
+    normalizedDate
+  );
+
+
+  /* ===================================================
+    석회석
+
+    기존 석회석 날짜 변경 기능이 자동으로:
+    - 입고량 조회
+    - D1 저장 재고 복원
+    - 사용량 복원
+
+    을 수행한다.
+  ==================================================== */
+
+  if (
+    elements.limestoneDateInput &&
+    elements.limestoneDateInput.value !==
+      normalizedDate
+  ) {
+    elements.limestoneDateInput.value =
+      normalizedDate;
+
+
+    elements.limestoneDateInput
+      .dispatchEvent(
+        new Event(
+          "change",
+          {
+            bubbles:
+              true
+          }
+        )
       );
-
-
-    if (
-      !previewDate
-    ) {
-      return;
-    }
-
-
-    const currentDate =
-      String(
-        originalDateInput?.value ||
-        ""
-      ).trim();
-
-
-    previewDate.textContent =
-      currentDate ||
-      "-";
   }
 
+
+  /* ===================================================
+    수처리 / Gear 저장값 즉시 복원
+  ==================================================== */
+
+  const restoreResult =
+    typeof window
+      .restoreEfficiencyMorningMeetingAutoDataCache ===
+      "function"
+      ? window
+          .restoreEfficiencyMorningMeetingAutoDataCache(
+            normalizedDate
+          )
+      : {
+          waterRestored:
+            false,
+
+          gearPinionRestored:
+            false
+        };
+
+
+  refreshMorningMeetingPreview();
+
+
+  if (
+    !load
+  ) {
+    return;
+  }
+
+
+  /* ===================================================
+    저장된 수처리가 없을 때만 OIS 조회
+  ==================================================== */
+
+  if (
+    !restoreResult
+      .waterRestored
+  ) {
+    runIndependentLookup(
+      "수처리",
+      window
+        .loadEfficiencyMorningMeetingWaterTreatment,
+      0
+    );
+  }
+
+
+  /* ===================================================
+    저장된 Gear / Pinion이 없을 때만 OIS 조회
+  ==================================================== */
+
+  if (
+    !restoreResult
+      .gearPinionRestored
+  ) {
+    runIndependentLookup(
+      "Gear Wheel / Pinion",
+      window
+        .loadEfficiencyMorningMeetingGearPinion,
+      0
+    );
+  }
+
+
+  /* ===================================================
+    석회석 OIS
+
+    D1 복원이 먼저 진행될 시간을 준 뒤
+    최신 재고 조회를 실행한다.
+
+    조회 결과가 나오면 기존 석회석 기능이 다시 저장한다.
+  ==================================================== */
+
+  runIndependentLookup(
+    "석회석",
+    window
+      .loadLimestoneOisStock,
+    500
+  );
+}
 
   /* =====================================================
     이벤트 연결
@@ -160869,27 +161336,26 @@ window
 
 
     /*
-      기존 석회석 기능은 HTML을 JS로 나중에 생성하므로
-      아직 생성되지 않았으면 재시도한다.
+      석회석 사용량 계산 HTML은
+      JavaScript에서 나중에 생성되므로
+      필요한 요소가 만들어질 때까지 기다린다.
     */
 
     if (
-      !elements.morningPreviousButton ||
-      !elements.morningTodayButton ||
-      !elements.morningNextButton ||
-      !elements.originalPreviousButton ||
-      !elements.originalTodayButton ||
-      !elements.originalNextButton ||
-      !elements.originalDateInput
+      !elements.previousButton ||
+      !elements.todayButton ||
+      !elements.nextButton ||
+      !elements.limestoneDateInput ||
+      !elements.commonPanel
     ) {
       return false;
     }
 
 
     if (
-      elements.morningPreviousButton
+      elements.previousButton
         .dataset
-        .limestoneDateNavigationBound ===
+        .morningMeetingCommonDateBound ===
         "true"
     ) {
       return true;
@@ -160900,12 +161366,19 @@ window
       전날
     ==================================================== */
 
-    elements.morningPreviousButton
+    elements.previousButton
       .addEventListener(
         "click",
         () => {
-          clickOriginalLimestoneButton(
-            elements.originalPreviousButton
+          const currentDate =
+            resolveCommonBaseDate();
+
+
+          applyCommonBaseDate(
+            addDateDays(
+              currentDate,
+              -1
+            )
           );
         }
       );
@@ -160915,12 +161388,12 @@ window
       오늘
     ==================================================== */
 
-    elements.morningTodayButton
+    elements.todayButton
       .addEventListener(
         "click",
         () => {
-          clickOriginalLimestoneButton(
-            elements.originalTodayButton
+          applyCommonBaseDate(
+            getTodayDate()
           );
         }
       );
@@ -160930,48 +161403,81 @@ window
       다음날
     ==================================================== */
 
-    elements.morningNextButton
+    elements.nextButton
       .addEventListener(
         "click",
         () => {
-          clickOriginalLimestoneButton(
-            elements.originalNextButton
+          const currentDate =
+            resolveCommonBaseDate();
+
+
+          applyCommonBaseDate(
+            addDateDays(
+              currentDate,
+              1
+            )
           );
         }
       );
 
 
     /* ===================================================
-      기존 날짜값이 바뀌면
-      오전회의 미리보기도 갱신
+      교대파트 업무일지 기준일이 확정되면
+      공용 기준일도 동일 날짜로 동기화
+
+      이 경우 OIS 3종 자동조회까지는 하지 않는다.
+      날짜만 맞춘다.
     ==================================================== */
 
-    elements.originalDateInput
-      .addEventListener(
-        "change",
-        () => {
-          syncMorningMeetingLimestoneDate();
+    document.addEventListener(
+      "efficiencyMorningMeetingShiftLogsLoaded",
+      () => {
+        const state =
+          getState();
 
-          refreshMorningMeetingPreview();
+
+        const reportDate =
+          String(
+            state.shiftPart
+              ?.reportDate ||
+            state.shiftPart
+              ?.loadedDate ||
+            ""
+          ).trim();
+
+
+        if (
+          !isValidDate(
+            reportDate
+          )
+        ) {
+          return;
         }
-      );
 
 
-    elements.morningPreviousButton
-      .dataset
-      .limestoneDateNavigationBound =
+        applyCommonBaseDate(
+          reportDate,
+          {
+            load:
+              false
+          }
+        );
+      }
+    );
+
+
+    elements.previousButton.dataset
+      .morningMeetingCommonDateBound =
       "true";
 
 
-    elements.morningTodayButton
-      .dataset
-      .limestoneDateNavigationBound =
+    elements.todayButton.dataset
+      .morningMeetingCommonDateBound =
       "true";
 
 
-    elements.morningNextButton
-      .dataset
-      .limestoneDateNavigationBound =
+    elements.nextButton.dataset
+      .morningMeetingCommonDateBound =
       "true";
 
 
@@ -161006,7 +161512,27 @@ window
     }
 
 
-    syncMorningMeetingLimestoneDate();
+    const initialDate =
+      resolveCommonBaseDate();
+
+
+    if (
+      initialDate
+    ) {
+      applyCommonBaseDate(
+        initialDate,
+        {
+          /*
+            처음 페이지를 열었다고
+            자동 OIS 조회까지 실행하지는 않는다.
+          */
+
+          load:
+            false
+        }
+      );
+    }
+
 
     refreshMorningMeetingPreview();
   }
@@ -163000,4 +163526,685 @@ if (
         );
       }
     };
+})();
+
+/* =========================================================
+  오전회의 자동자료 날짜별 저장 · 복원
+
+  저장:
+  - 수처리
+  - Gear Wheel / Pinion
+
+  석회석:
+  - 기존 D1 저장 · 복원 기능 그대로 사용
+
+  동작:
+  조회가 하나씩 완료되는 즉시 저장한다.
+
+  예:
+  수처리 완료
+  → 바로 2026-08-06 수처리 저장
+
+  Gear 완료
+  → 바로 2026-08-07 Gear 저장
+
+  이후 날짜를 이동했다 다시 돌아오면
+  OIS 재조회 전 저장값을 즉시 복원한다.
+========================================================= */
+
+(function initializeMorningMeetingAutoDataCache() {
+  "use strict";
+
+
+  if (
+    window
+      .__morningMeetingAutoDataCacheInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__morningMeetingAutoDataCacheInstalled =
+    true;
+
+
+  const STORAGE_KEY =
+    "gsShiftLog.morningMeetingAutoDataCache.v1";
+
+
+  /* =====================================================
+    상태
+  ====================================================== */
+
+  function getState() {
+    if (
+      !window
+        .efficiencyMorningMeetingUploadState
+    ) {
+      window.efficiencyMorningMeetingUploadState = {
+        files:
+          {},
+
+        analysis:
+          {}
+      };
+    }
+
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  /* =====================================================
+    날짜 검사
+  ====================================================== */
+
+  function isValidDate(
+    value
+  ) {
+    const normalizedDate =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        normalizedDate
+      )
+    ) {
+      return false;
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${normalizedDate}T00:00:00.000Z`
+      );
+
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        normalizedDate
+    );
+  }
+
+
+  /* =====================================================
+    날짜 이동Date
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        normalizedDate
+    );
+  }
+
+
+  /* =====================================================
+    날짜 이동
+  ====================================================== */
+
+  function addDateDays(
+    value,
+    days
+  ) {
+    if (
+      !isValidDate(
+        value
+      )
+    ) {
+      return "";
+    }
+
+
+    const date =
+      new Date(
+        `${value}T00:00:00.000Z`
+      );
+
+
+    date.setUTCDate(
+      date.getUTCDate() +
+      Number(
+        days ||
+        0
+      )
+    );
+
+
+    return date
+      .toISOString()
+      .slice(
+        0,
+        10
+      );
+  }
+
+
+  /* =====================================================
+    캐시 읽기
+  ====================================================== */
+
+  function loadCache() {
+    const rawValue =
+      localStorage.getItem(
+        STORAGE_KEY
+      );
+
+
+    if (
+      !rawValue
+    ) {
+      return {
+        water:
+          {},
+
+        gearPinion:
+          {}
+      };
+    }
+
+
+    try {
+      const parsedValue =
+        JSON.parse(
+          rawValue
+        );
+
+
+      return {
+        water:
+          parsedValue?.water &&
+          typeof parsedValue.water ===
+            "object"
+            ? parsedValue.water
+            : {},
+
+        gearPinion:
+          parsedValue?.gearPinion &&
+          typeof parsedValue.gearPinion ===
+            "object"
+            ? parsedValue.gearPinion
+            : {}
+      };
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "오전회의 자동자료 저장값을 읽지 못했습니다.",
+        error
+      );
+
+
+      localStorage.removeItem(
+        STORAGE_KEY
+      );
+
+
+      return {
+        water:
+          {},
+
+        gearPinion:
+          {}
+      };
+    }
+  }
+
+
+  /* =====================================================
+    캐시 저장
+  ====================================================== */
+
+  function saveCache(
+    cache
+  ) {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+
+        JSON.stringify(
+          cache
+        )
+      );
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "오전회의 자동자료 저장 실패:",
+        error
+      );
+    }
+  }
+
+
+  /* =====================================================
+    수처리 조회 완료 즉시 저장
+  ====================================================== */
+
+  function saveWaterResult() {
+    const state =
+      getState();
+
+
+    const water =
+      state.waterTreatment;
+
+
+    if (
+      !water ||
+      typeof water !==
+        "object"
+    ) {
+      return false;
+    }
+
+
+    const date =
+      String(
+        water.sourceDate ||
+        water.targetDate ||
+        ""
+      ).trim();
+
+
+    if (
+      !isValidDate(
+        date
+      )
+    ) {
+      return false;
+    }
+
+
+    const cache =
+      loadCache();
+
+
+    cache.water[
+      date
+    ] = {
+      ...water,
+
+      cachedAt:
+        new Date()
+          .toISOString()
+    };
+
+
+    saveCache(
+      cache
+    );
+
+
+    console.log(
+      `오전회의 수처리 ${date} 저장 완료`
+    );
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    Gear / Pinion 조회 완료 즉시 저장
+  ====================================================== */
+
+  function saveGearPinionResult() {
+    const state =
+      getState();
+
+
+    const gearPinion =
+      state.gearPinion;
+
+
+    if (
+      !gearPinion ||
+      typeof gearPinion !==
+        "object"
+    ) {
+      return false;
+    }
+
+
+    const date =
+      String(
+        gearPinion.targetDate ||
+        gearPinion.sourceDate ||
+        ""
+      ).trim();
+
+
+    if (
+      !isValidDate(
+        date
+      )
+    ) {
+      return false;
+    }
+
+
+    const cache =
+      loadCache();
+
+
+    cache.gearPinion[
+      date
+    ] = {
+      ...gearPinion,
+
+      cachedAt:
+        new Date()
+          .toISOString()
+    };
+
+
+    saveCache(
+      cache
+    );
+
+
+    console.log(
+      `오전회의 Gear/Pinion ${date} 저장 완료`
+    );
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    날짜별 저장값 복원
+
+    baseDate:
+    수처리 / 석회석 기준일
+
+    Gear:
+    baseDate + 1일
+  ====================================================== */
+
+  function restoreAutoData(
+    baseDate
+  ) {
+    const normalizedBaseDate =
+      String(
+        baseDate ||
+        ""
+      ).trim();
+
+
+    if (
+      !isValidDate(
+        normalizedBaseDate
+      )
+    ) {
+      return {
+        waterRestored:
+          false,
+
+        gearPinionRestored:
+          false
+      };
+    }
+
+
+    const gearDate =
+      addDateDays(
+        normalizedBaseDate,
+        1
+      );
+
+
+    const cache =
+      loadCache();
+
+
+    const state =
+      getState();
+
+
+    const panel =
+      document.getElementById(
+        "efficiencyMorningMeetingWaterPanel"
+      );
+
+
+    let waterRestored =
+      false;
+
+
+    let gearPinionRestored =
+      false;
+
+
+    /* ===================================================
+      수처리 복원
+    ==================================================== */
+
+    const savedWater =
+      cache.water[
+        normalizedBaseDate
+      ];
+
+
+    if (
+      savedWater &&
+      typeof savedWater ===
+        "object"
+    ) {
+      state.waterTreatment = {
+        ...savedWater
+      };
+
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .waterStatus =
+          "complete";
+
+
+        panel.dataset
+          .waterTargetDate =
+          normalizedBaseDate;
+
+
+        panel.dataset
+          .oisTargetDate =
+          normalizedBaseDate;
+
+
+        if (
+          savedWater.requestId
+        ) {
+          panel.dataset
+            .oisRequestId =
+            String(
+              savedWater.requestId
+            );
+        }
+
+
+        if (
+          savedWater.collectedAt
+        ) {
+          panel.dataset
+            .oisCollectedAt =
+            String(
+              savedWater.collectedAt
+            );
+        }
+      }
+
+
+      waterRestored =
+        true;
+
+
+      console.log(
+        `오전회의 수처리 ${normalizedBaseDate} 저장값 복원`
+      );
+    }
+
+
+    /* ===================================================
+      Gear / Pinion 복원
+    ==================================================== */
+
+    const savedGear =
+      cache.gearPinion[
+        gearDate
+      ];
+
+
+    if (
+      savedGear &&
+      typeof savedGear ===
+        "object"
+    ) {
+      state.gearPinion = {
+        ...savedGear
+      };
+
+
+      delete state
+        .gearPinionError;
+
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .gearPinionStatus =
+          "complete";
+
+
+        panel.dataset
+          .gearPinionTargetDate =
+          gearDate;
+
+
+        if (
+          savedGear.requestId
+        ) {
+          panel.dataset
+            .gearPinionRequestId =
+            String(
+              savedGear.requestId
+            );
+        }
+
+
+        if (
+          savedGear.collectedAt
+        ) {
+          panel.dataset
+            .gearPinionCollectedAt =
+            String(
+              savedGear.collectedAt
+            );
+        }
+      }
+
+
+      gearPinionRestored =
+        true;
+
+
+      console.log(
+        `오전회의 Gear/Pinion ${gearDate} 저장값 복원`
+      );
+    }
+
+
+    /* ===================================================
+      화면 즉시 갱신
+    ==================================================== */
+
+    if (
+      typeof window
+        .renderEfficiencyMorningMeetingAutoPreview ===
+        "function"
+    ) {
+      window
+        .renderEfficiencyMorningMeetingAutoPreview();
+    }
+
+
+    if (
+      typeof window
+        .updateEfficiencyMorningMeetingCreateButton ===
+        "function"
+    ) {
+      window
+        .updateEfficiencyMorningMeetingCreateButton();
+    }
+
+
+    return {
+      waterRestored,
+
+      gearPinionRestored,
+
+      baseDate:
+        normalizedBaseDate,
+
+      gearDate
+    };
+  }
+
+
+  /* =====================================================
+    조회 완료 이벤트
+
+    각 자료가 끝나는 즉시 저장한다.
+  ====================================================== */
+
+  document.addEventListener(
+    "efficiencyMorningMeetingWaterLoaded",
+    saveWaterResult
+  );
+
+
+  document.addEventListener(
+    "efficiencyMorningMeetingGearPinionLoaded",
+    saveGearPinionResult
+  );
+
+
+  /* =====================================================
+    외부 공개
+  ====================================================== */
+
+  window
+    .restoreEfficiencyMorningMeetingAutoDataCache =
+    restoreAutoData;
+
+
+  window
+    .saveEfficiencyMorningMeetingWaterCache =
+    saveWaterResult;
+
+
+  window
+    .saveEfficiencyMorningMeetingGearPinionCache =
+    saveGearPinionResult;
 })();
