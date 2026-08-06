@@ -82830,3 +82830,139 @@ span {
     min-height: 55px;
   }
 }
+
+/* =========================================================
+  오전회의 취합
+  운탄일지 항목 번호·내용 한 줄 정렬
+========================================================= */
+
+
+/*
+  번호와 실제 내용을 같은 줄에 표시
+*/
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-selection-panel
+.efficiency-morning-meeting-shift-item__main-line {
+  display: flex;
+
+  width: 100%;
+  min-width: 0;
+
+  align-items: flex-start;
+
+  gap: 7px;
+}
+
+
+/*
+  번호
+*/
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-selection-panel
+.efficiency-morning-meeting-shift-item__number {
+  display: inline-flex;
+
+  flex: 0 0 23px;
+
+  align-items: center;
+  justify-content: center;
+
+  min-width: 23px;
+  height: 21px;
+
+  margin: 0;
+
+  border-radius: 5px;
+
+  background: #fff0d3;
+
+  color: #98620e;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+
+/*
+  번호 오른쪽 업무내용
+*/
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-selection-panel
+.efficiency-morning-meeting-shift-item__main-text {
+  display: block;
+
+  flex: 1 1 auto;
+
+  min-width: 0;
+
+  color: #283d54;
+
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.55;
+
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+
+/*
+  하위 문장
+*/
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-selection-panel
+.efficiency-morning-meeting-shift-item__sub-lines {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 2px;
+
+  margin-top: 4px;
+  padding-left: 30px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-selection-panel
+.efficiency-morning-meeting-shift-item__sub-line {
+  display: block;
+
+  color: #5c6f85;
+
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.5;
+
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+
+/*
+  위쪽 보직·근무·발행 구분 메타가 있을 때만 표시
+*/
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-selection-panel
+.efficiency-morning-meeting-shift-item__meta:empty {
+  display: none;
+}
+
+
+/*
+  카드 세로 공간 축소
+*/
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-coal-selection-panel
+.efficiency-morning-meeting-shift-item {
+  padding: 7px 8px;
+}

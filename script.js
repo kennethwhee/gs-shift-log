@@ -145274,277 +145274,261 @@ function buildCoalPreviewCard(
     );
   }
 
+/* =====================================================
+  운탄일지 TM 및 RED TAG 발행 전용 영역 찾기
 
-  /* =====================================================
-    운탄일지 TM 및 RED TAG 발행 영역 찾기
+  원칙:
+  - TM 및 RED TAG 발행 제목 아래만 검사
+  - 다음 "금일 주요작업" 구역 전까지만 검사
+  - 전용 칸이 비어 있으면 빈 문자열 반환
+  - 일반 작업의 "TM 발행" 문구는 가져오지 않음
+===================================================== */
 
-    현재 기준 파일:
-    A65 : TM 및 RED TAG 발행
-    B66 : 번호별 TM 내용
-
-    셀 위치가 조금 이동해도 제목 주변에서 다시 찾는다.
-  ====================================================== */
-
-  function findDedicatedCoalTmText(
-    worksheet
+function findDedicatedCoalTmText(
+  worksheet
+) {
+  if (
+    !worksheet ||
+    typeof XLSX ===
+      "undefined"
   ) {
-    const entries =
-      Object.keys(
-        worksheet ||
-        {}
-      )
-        .filter(
-          address => {
-            return /^[A-Z]+\d+$/i.test(
-              address
-            );
-          }
-        )
-        .map(
-          address => {
-            return {
-              address,
-
-              text:
-                getWorksheetCellText(
-                  worksheet,
-                  address
-                )
-            };
-          }
-        )
-        .filter(
-          entry => {
-            return Boolean(
-              entry.text
-            );
-          }
-        );
-
-
-    const heading =
-      entries.find(
-        entry => {
-          const key =
-            normalizeSearchText(
-              entry.text
-            );
-
-
-          return (
-            key.includes(
-              "tm"
-            ) &&
-            key.includes(
-              "redtag"
-            ) &&
-            key.includes(
-              "발행"
-            )
-          );
-        }
-      );
-
-
-    if (
-      heading &&
-      typeof XLSX !==
-        "undefined"
-    ) {
-      const position =
-        XLSX.utils.decode_cell(
-          heading.address
-        );
-
-
-      for (
-        let rowOffset =
-          0;
-
-        rowOffset <=
-          4;
-
-        rowOffset +=
-          1
-      ) {
-        for (
-          let columnOffset =
-            0;
-
-          columnOffset <=
-            8;
-
-          columnOffset +=
-            1
-        ) {
-          const address =
-            XLSX.utils.encode_cell({
-              r:
-                position.r +
-                rowOffset,
-
-              c:
-                position.c +
-                columnOffset
-            });
-
-
-          const text =
-            getWorksheetCellText(
-              worksheet,
-              address
-            );
-
-
-          if (
-            /^\s*1\s*[.)]\s*/.test(
-              text
-            )
-          ) {
-            return text;
-          }
-        }
-      }
-    }
-
-
-    /*
-      현재 운탄일지 양식의 예비 주소
-    */
-
-    return getWorksheetCellText(
-      worksheet,
-      "B66"
-    );
+    return "";
   }
 
 
-  /* =====================================================
-    운탄일지 TM 실제 추출
-  ====================================================== */
-
-  async function extractCoalTmItems(
-    file
-  ) {
-    if (
-      !file
-    ) {
-      return [];
-    }
-
-
-    if (
-      typeof XLSX ===
-        "undefined"
-    ) {
-      throw new Error(
-        "엑셀 분석 라이브러리를 불러오지 못했습니다."
-      );
-    }
-
-
-    const workbook =
-      XLSX.read(
-        await file.arrayBuffer(),
-
-        {
-          type:
-            "array",
-
-          cellText:
-            true,
-
-          cellFormula:
-            true
-        }
-      );
-
-
-    const worksheet =
-      findCoalWorksheet(
-        workbook
-      );
-
-
-    const dedicatedText =
-      findDedicatedCoalTmText(
-        worksheet
-      );
-
-
-    const dedicatedItems =
-      parseNumberedItems(
-        dedicatedText,
-        "coal-tm"
-      );
-
-
-    if (
-      dedicatedItems.length >
-      0
-    ) {
-      return dedicatedItems;
-    }
-
-
-    /*
-      TM 및 RED TAG 전용 영역을 못 찾은 경우
-      업무내용에서 'TM 발행' 문구를 임시 추출한다.
-    */
-
-    return getSelection()
-      .items
+  const entries =
+    Object.keys(
+      worksheet
+    )
       .filter(
-        item => {
-          return /TM\s*발행/i.test(
-            normalizeText(
-              item.text
-            )
+        address => {
+          return /^[A-Z]+\d+$/i.test(
+            address
           );
         }
       )
       .map(
-        (
-          item,
-          index
-        ) => {
-          return {
-            id:
-              `coal-tm-fallback-${index}`,
+        address => {
+          const position =
+            XLSX.utils.decode_cell(
+              address
+            );
 
-            number:
-              index +
-              1,
+
+          return {
+            address,
+
+            row:
+              position.r,
+
+            column:
+              position.c,
 
             text:
-              normalizeText(
-                item.text
-              ),
-
-            content:
-              normalizeText(
-                item.text
-              ),
-
-            subLines:
-              Array.isArray(
-                item.subLines
+              getWorksheetCellText(
+                worksheet,
+                address
               )
-                ? [
-                    ...item.subLines
-                  ]
-                : [],
-
-            sourceType:
-              "coal",
-
-            sourceLabel:
-              "운탄일지 TM 발행사항"
           };
         }
+      )
+      .filter(
+        entry => {
+          return Boolean(
+            entry.text
+          );
+        }
+      )
+      .sort(
+        (
+          first,
+          second
+        ) => {
+          return (
+            first.row -
+              second.row ||
+            first.column -
+              second.column
+          );
+        }
       );
+
+
+  const heading =
+    entries.find(
+      entry => {
+        const key =
+          normalizeSearchText(
+            entry.text
+          );
+
+
+        return (
+          key.includes(
+            "tm"
+          ) &&
+          key.includes(
+            "redtag"
+          ) &&
+          key.includes(
+            "발행"
+          )
+        );
+      }
+    );
+
+
+  if (
+    !heading
+  ) {
+    return "";
   }
 
+
+  /*
+    TM 영역 다음에 나오는
+    "금일 주요작업" 제목을 경계로 사용한다.
+  */
+
+  const nextWorkHeading =
+    entries.find(
+      entry => {
+        if (
+          entry.row <=
+          heading.row
+        ) {
+          return false;
+        }
+
+
+        return normalizeSearchText(
+          entry.text
+        ).includes(
+          "금일주요작업"
+        );
+      }
+    );
+
+
+  const lastTmRow =
+    nextWorkHeading
+      ? nextWorkHeading.row -
+        1
+      : heading.row +
+        6;
+
+
+  const tmCandidates =
+    entries.filter(
+      entry => {
+        return (
+          entry.address !==
+            heading.address &&
+
+          entry.row >=
+            heading.row &&
+
+          entry.row <=
+            lastTmRow &&
+
+          /^\s*1\s*[.)]\s*\S+/.test(
+            entry.text
+          )
+        );
+      }
+    );
+
+
+  if (
+    tmCandidates.length ===
+      0
+  ) {
+    return "";
+  }
+
+
+  return tmCandidates[
+    0
+  ].text;
+}
+
+/* =====================================================
+  운탄일지 TM 실제 추출
+
+  중요:
+  - TM 및 RED TAG 발행 전용 칸만 사용
+  - 전용 칸이 비어 있으면 0건
+  - 일반 주요작업의 "TM 발행" 문구는 제외
+===================================================== */
+
+async function extractCoalTmItems(
+  file
+) {
+  if (
+    !file
+  ) {
+    return [];
+  }
+
+
+  if (
+    typeof XLSX ===
+      "undefined"
+  ) {
+    throw new Error(
+      "엑셀 분석 라이브러리를 불러오지 못했습니다."
+    );
+  }
+
+
+  const workbook =
+    XLSX.read(
+      await file.arrayBuffer(),
+
+      {
+        type:
+          "array",
+
+        cellText:
+          true,
+
+        cellFormula:
+          true
+      }
+    );
+
+
+  const worksheet =
+    findCoalWorksheet(
+      workbook
+    );
+
+
+  const dedicatedText =
+    normalizeText(
+      findDedicatedCoalTmText(
+        worksheet
+      )
+    );
+
+
+  /*
+    전용 TM 칸이 비어 있으면
+    반드시 0건으로 처리한다.
+  */
+
+  if (
+    !dedicatedText
+  ) {
+    return [];
+  }
+
+
+  return parseNumberedItems(
+    dedicatedText,
+    "coal-tm"
+  );
+}
 
   /* =====================================================
     항목 조회
@@ -145627,170 +145611,255 @@ function buildCoalPreviewCard(
   }
 
 
-  /* =====================================================
-    체크박스 한 건
-  ====================================================== */
+/* =====================================================
+  운탄일지·TM 체크박스 한 건 출력
 
-  function buildCheckboxHtml(
-    item,
-    type
+  변경:
+  - 번호와 내용을 같은 줄에 표시
+  - 하위 문장은 그 아래에 표시
+  - 번호만 별도 한 줄을 차지하지 않음
+===================================================== */
+
+function buildCheckboxHtml(
+  item,
+  type
+) {
+  const selection =
+    getSelection();
+
+
+  const isWork =
+    type ===
+    "work";
+
+
+  const checked =
+    isWork
+      ? selection
+          .selectedWorkIds
+          .has(
+            item.id
+          )
+      : selection
+          .selectedTmIds
+          .has(
+            item.id
+          );
+
+
+  const dataAttribute =
+    isWork
+      ? "data-morning-meeting-coal-work-item"
+      : "data-morning-meeting-coal-tm-item";
+
+
+  /*
+    번호는 메타에 넣지 않고
+    실제 내용 바로 옆에 표시한다.
+  */
+
+  const meta =
+    [];
+
+
+  if (
+    item.shift
   ) {
-    const selection =
-      getSelection();
+    meta.push(
+      item.shift ===
+        "DS"
+        ? "D/S"
+        : "N/S"
+    );
+  }
 
 
-    const isWork =
-      type ===
-      "work";
-
-
-    const checked =
-      isWork
-        ? selection
-            .selectedWorkIds
-            .has(
-              item.id
-            )
-        : selection
-            .selectedTmIds
-            .has(
-              item.id
-            );
-
-
-    const dataAttribute =
-      isWork
-        ? "data-morning-meeting-coal-work-item"
-        : "data-morning-meeting-coal-tm-item";
-
-
-    const meta =
-      [];
-
-
-    if (
-      item.number
-    ) {
-      meta.push(
-        String(
-          item.number
-        )
-      );
-    }
-
-
-    if (
-      item.shift
-    ) {
-      meta.push(
-        item.shift ===
-          "DS"
-          ? "D/S"
-          : "N/S"
-      );
-    }
-
-
-    if (
+  if (
+    item.role
+  ) {
+    meta.push(
       item.role
-    ) {
-      meta.push(
-        item.role
-      );
-    }
+    );
+  }
 
 
-    if (
+  if (
+    item.time
+  ) {
+    meta.push(
       item.time
-    ) {
-      meta.push(
-        item.time
-      );
-    }
+    );
+  }
 
 
-    if (
-      item.category &&
-      !meta.includes(
-        item.category
+  if (
+    item.category &&
+    !meta.includes(
+      item.category
+    )
+  ) {
+    meta.push(
+      item.category
+    );
+  }
+
+
+  const mainText =
+    normalizeText(
+      item.content ||
+      item.text
+    );
+
+
+  const subLines =
+    Array.isArray(
+      item.subLines
+    )
+      ? item.subLines
+          .map(
+            line => {
+              return normalizeText(
+                line
+              )
+                .replace(
+                  /^[-–—•]\s*/,
+                  ""
+                );
+            }
+          )
+          .filter(
+            Boolean
+          )
+      : [];
+
+
+  const metaHtml =
+    meta.length >
+      0
+      ? `
+        <span
+          class="efficiency-morning-meeting-shift-item__meta"
+        >
+
+          ${meta
+            .map(
+              value => {
+                return `
+                  <span>
+                    ${escapeHtml(
+                      value
+                    )}
+                  </span>
+                `;
+              }
+            )
+            .join(
+              ""
+            )}
+
+        </span>
+      `
+      : "";
+
+
+  const numberHtml =
+    Number.isFinite(
+      Number(
+        item.number
       )
-    ) {
-      meta.push(
-        item.category
-      );
-    }
+    )
+      ? `
+        <strong
+          class="efficiency-morning-meeting-shift-item__number"
+        >
+          ${escapeHtml(
+            item.number
+          )}
+        </strong>
+      `
+      : "";
 
 
-    const textHtml =
-      formatItemText(
-        item
-      )
-        .split(
-          "\n"
-        )
-        .map(
-          escapeHtml
-        )
-        .join(
-          "<br>"
-        );
+  const subLineHtml =
+    subLines.length >
+      0
+      ? `
+        <span
+          class="efficiency-morning-meeting-shift-item__sub-lines"
+        >
+
+          ${subLines
+            .map(
+              line => {
+                return `
+                  <span
+                    class="efficiency-morning-meeting-shift-item__sub-line"
+                  >
+                    - ${escapeHtml(
+                      line
+                    )}
+                  </span>
+                `;
+              }
+            )
+            .join(
+              ""
+            )}
+
+        </span>
+      `
+      : "";
 
 
-    return `
-      <label
-        class="efficiency-morning-meeting-shift-item"
+  return `
+    <label
+      class="efficiency-morning-meeting-shift-item"
+    >
+
+      <input
+        type="checkbox"
+        ${dataAttribute}="${escapeHtml(
+          item.id
+        )}"
+        ${
+          checked
+            ? "checked"
+            : ""
+        }
+      />
+
+
+      <span
+        class="efficiency-morning-meeting-shift-item__content"
       >
 
-        <input
-          type="checkbox"
-          ${dataAttribute}="${escapeHtml(
-            item.id
-          )}"
-          ${
-            checked
-              ? "checked"
-              : ""
-          }
-        />
+        ${metaHtml}
 
 
         <span
-          class="efficiency-morning-meeting-shift-item__content"
+          class="efficiency-morning-meeting-shift-item__main-line"
         >
 
+          ${numberHtml}
+
           <span
-            class="efficiency-morning-meeting-shift-item__meta"
+            class="efficiency-morning-meeting-shift-item__main-text"
           >
-
-            ${meta
-              .map(
-                value => {
-                  return `
-                    <span>
-                      ${escapeHtml(
-                        value
-                      )}
-                    </span>
-                  `;
-                }
-              )
-              .join(
-                ""
-              )}
-
+            ${escapeHtml(
+              mainText
+            )}
           </span>
-
-
-          <p>
-            ${textHtml}
-          </p>
 
         </span>
 
-      </label>
-    `;
-  }
 
+        ${subLineHtml}
+
+      </span>
+
+    </label>
+  `;
+}
 
   /* =====================================================
     분류 구역
@@ -146420,81 +146489,109 @@ function buildCoalPreviewCard(
   }
 
 
-  /* =====================================================
-    개별 체크
-  ====================================================== */
+/* =====================================================
+  운탄일지·TM 개별 체크
 
-  function handleChange(
-    event
+  개별 체크 후:
+  - 선택 상태 저장
+  - 목록을 즉시 다시 출력
+  - 체크 표시와 건수를 확실하게 동기화
+===================================================== */
+
+function handleChange(
+  event
+) {
+  const target =
+    event.target instanceof
+      HTMLInputElement
+      ? event.target
+      : null;
+
+
+  if (
+    !target
   ) {
-    const target =
-      event.target instanceof
-        Element
-        ? event.target
-        : null;
-
-
-    const workCheckbox =
-      target?.closest(
-        "[data-morning-meeting-coal-work-item]"
-      );
-
-
-    const tmCheckbox =
-      target?.closest(
-        "[data-morning-meeting-coal-tm-item]"
-      );
-
-
-    if (
-      !workCheckbox &&
-      !tmCheckbox
-    ) {
-      return;
-    }
-
-
-    const selection =
-      getSelection();
-
-
-    const checkbox =
-      workCheckbox ||
-      tmCheckbox;
-
-
-    const itemId =
-      workCheckbox
-        ? workCheckbox.dataset
-            .morningMeetingCoalWorkItem
-        : tmCheckbox.dataset
-            .morningMeetingCoalTmItem;
-
-
-    const selectedIds =
-      workCheckbox
-        ? selection
-            .selectedWorkIds
-        : selection
-            .selectedTmIds;
-
-
-    if (
-      checkbox.checked
-    ) {
-      selectedIds.add(
-        itemId
-      );
-
-    } else {
-      selectedIds.delete(
-        itemId
-      );
-    }
-
-
-    updateSelectionState();
+    return;
   }
+
+
+  const isWorkCheckbox =
+    target.matches(
+      "input[data-morning-meeting-coal-work-item]"
+    );
+
+
+  const isTmCheckbox =
+    target.matches(
+      "input[data-morning-meeting-coal-tm-item]"
+    );
+
+
+  if (
+    !isWorkCheckbox &&
+    !isTmCheckbox
+  ) {
+    return;
+  }
+
+
+  event.stopPropagation();
+
+
+  const selection =
+    getSelection();
+
+
+  const itemId =
+    isWorkCheckbox
+      ? String(
+          target.dataset
+            .morningMeetingCoalWorkItem ||
+          ""
+        )
+      : String(
+          target.dataset
+            .morningMeetingCoalTmItem ||
+          ""
+        );
+
+
+  if (
+    !itemId
+  ) {
+    return;
+  }
+
+
+  const selectedIds =
+    isWorkCheckbox
+      ? selection
+          .selectedWorkIds
+      : selection
+          .selectedTmIds;
+
+
+  if (
+    target.checked
+  ) {
+    selectedIds.add(
+      itemId
+    );
+
+  } else {
+    selectedIds.delete(
+      itemId
+    );
+  }
+
+
+  /*
+    체크 상태를 state 기준으로 다시 그려
+    개별 체크 표시가 풀리지 않도록 한다.
+  */
+
+  renderAll();
+}
 
 
   /* =====================================================
@@ -146601,107 +146698,118 @@ function buildCoalPreviewCard(
   }
 
 
-  /* =====================================================
-    이벤트
-  ====================================================== */
+/* =====================================================
+  운탄일지·TM 선택 이벤트 연결
+===================================================== */
 
-  function bindEvents() {
-    const elements =
-      getElements();
-
-
-    elements.panel
-      ?.addEventListener(
-        "change",
-        handleChange
-      );
+function bindEvents() {
+  const elements =
+    getElements();
 
 
-    elements.panel
-      ?.addEventListener(
-        "click",
-        handleClick
-      );
+  /*
+    개별 체크는 각 목록에 직접 연결한다.
 
+    상위 패널의 다른 이벤트와 섞이지 않도록
+    왼쪽·오른쪽 목록을 각각 사용한다.
+  */
 
-    /*
-      기존 운탄일지 분석 함수가 먼저 실행된 뒤
-      결과를 읽어 새 2열 화면으로 출력한다.
-    */
-
-    elements.analyzeButton
-      ?.addEventListener(
-        "click",
-
-        () => {
-          window.setTimeout(
-            refreshAfterAnalysis,
-            0
-          );
-        }
-      );
-
-
-    elements.coalInput
-      ?.addEventListener(
-        "change",
-
-        () => {
-          window.setTimeout(
-            renderAll,
-            0
-          );
-        }
-      );
-
-
-    elements.resetButton
-      ?.addEventListener(
-        "click",
-
-        () => {
-          window.setTimeout(
-            renderAll,
-            0
-          );
-        }
-      );
-
-
-    document.addEventListener(
-      "efficiencyMorningMeetingShiftLogsLoaded",
-      scheduleRender
+  elements.workList
+    ?.addEventListener(
+      "change",
+      handleChange
     );
 
 
-    /*
-      교대파트 목록이 다시 그려지면
-      오른쪽 TM 목록도 갱신한다.
-    */
+  elements.tmList
+    ?.addEventListener(
+      "change",
+      handleChange
+    );
 
-    if (
-      elements.shiftPanel
-    ) {
-      const observer =
-        new MutationObserver(
-          scheduleRender
+
+  /*
+    전체 선택과 선택 초기화
+  */
+
+  elements.panel
+    ?.addEventListener(
+      "click",
+      handleClick
+    );
+
+
+  /*
+    자료 분석 후 새 2열 화면 갱신
+  */
+
+  elements.analyzeButton
+    ?.addEventListener(
+      "click",
+
+      () => {
+        window.setTimeout(
+          refreshAfterAnalysis,
+          0
         );
+      }
+    );
 
 
-      observer.observe(
-        elements.shiftPanel,
+  elements.coalInput
+    ?.addEventListener(
+      "change",
 
-        {
-          childList:
-            true,
+      () => {
+        window.setTimeout(
+          renderAll,
+          0
+        );
+      }
+    );
 
-          subtree:
-            true
-        }
+
+  elements.resetButton
+    ?.addEventListener(
+      "click",
+
+      () => {
+        window.setTimeout(
+          renderAll,
+          0
+        );
+      }
+    );
+
+
+  document.addEventListener(
+    "efficiencyMorningMeetingShiftLogsLoaded",
+    scheduleRender
+  );
+
+
+  if (
+    elements.shiftPanel
+  ) {
+    const observer =
+      new MutationObserver(
+        scheduleRender
       );
-    }
-  }
 
+
+    observer.observe(
+      elements.shiftPanel,
+
+      {
+        childList:
+          true,
+
+        subtree:
+          true
+      }
+    );
+  }
+}
 
   /* =====================================================
     초기화
