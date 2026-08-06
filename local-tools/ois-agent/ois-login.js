@@ -3927,17 +3927,347 @@ async function waitForOisLimestoneDayStocks(
 }
 
 /* =========================================================
-  호기·날짜별 석회석 전일 재고 조회
+  OIS LOG SHEET 조회 API 응답에서 TAG 자료 읽기
+
+  OIS 요청:
+  POST /ajax/data
+
+  cmd:
+  oi.LogSheetService.listLogSheetSearch
+
+  필드:
+  decimal_pnt = 전일 재고
+  hd_24       = 24시 재고
 ========================================================= */
 
+async function captureOisLogSheetStockFromApi(
+  page,
+  targetTag,
+  triggerSearch
+) {
+  const normalizedTargetTag =
+    normalizeOisAgentText(
+      targetTag
+    ).toUpperCase();
+
+
+  return await new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+      let isSettled =
+        false;
+
+
+      const cleanup = () => {
+        windowClearTimeout();
+
+
+        page.off(
+          "response",
+          handleResponse
+        );
+      };
+
+
+      let timeoutId =
+        null;
+
+
+      const windowClearTimeout = () => {
+        if (
+          timeoutId
+        ) {
+          clearTimeout(
+            timeoutId
+          );
+
+
+          timeoutId =
+            null;
+        }
+      };
+
+
+      const finishResolve = (
+        value
+      ) => {
+        if (
+          isSettled
+        ) {
+          return;
+        }
+
+
+        isSettled =
+          true;
+
+
+        cleanup();
+
+
+        resolve(
+          value
+        );
+      };
+
+
+      const finishReject = (
+        error
+      ) => {
+        if (
+          isSettled
+        ) {
+          return;
+        }
+
+
+        isSettled =
+          true;
+
+
+        cleanup();
+
+
+        reject(
+          error
+        );
+      };
+
+
+      const handleResponse =
+        async response => {
+          try {
+            const responseUrl =
+              String(
+                response.url() ||
+                ""
+              );
+
+
+            const request =
+              response.request();
+
+
+            const requestMethod =
+              String(
+                request.method() ||
+                ""
+              ).toUpperCase();
+
+
+            const requestBody =
+              String(
+                request.postData() ||
+                ""
+              );
+
+
+            /*
+              LOG SHEET 조회 요청만 확인한다.
+            */
+            if (
+              !responseUrl.includes(
+                "/ajax/data"
+              ) ||
+              requestMethod !==
+                "POST" ||
+              !requestBody.includes(
+                "oi.LogSheetService.listLogSheetSearch"
+              )
+            ) {
+              return;
+            }
+
+
+            const responseText =
+              await response.text();
+
+
+            if (
+              !responseText.trim()
+            ) {
+              return;
+            }
+
+
+            let responseData = {};
+
+
+            try {
+              responseData =
+                JSON.parse(
+                  responseText
+                );
+
+            } catch {
+              return;
+            }
+
+
+            const resultRows =
+              Array.isArray(
+                responseData.result
+              )
+                ? responseData.result
+                : [];
+
+
+            const targetRow =
+              resultRows.find(
+                row => {
+                  const rowTag =
+                    normalizeOisAgentText(
+                      row?.tag_no
+                    ).toUpperCase();
+
+
+                  return (
+                    rowTag ===
+                    normalizedTargetTag
+                  );
+                }
+              ) ||
+              null;
+
+
+            /*
+              다른 조회 응답이면 계속 기다린다.
+            */
+            if (
+              !targetRow
+            ) {
+              return;
+            }
+
+
+            const startStock =
+              parseOisAgentNumber(
+                targetRow.decimal_pnt
+              );
+
+
+            const endStock =
+              parseOisAgentNumber(
+                targetRow.hd_24
+              );
+
+
+            if (
+              startStock ===
+                null ||
+              endStock ===
+                null
+            ) {
+              finishReject(
+                new Error(
+                  `${targetTag}의 전일 또는 24시 재고값이 올바르지 않습니다.`
+                )
+              );
+
+
+              return;
+            }
+
+
+            console.log(
+              "OIS LOG SHEET API 자료 확인:",
+              {
+                tag:
+                  targetTag,
+
+                itemName:
+                  normalizeOisAgentText(
+                    targetRow.mid_name
+                  ),
+
+                startStock,
+
+                endStock,
+
+                startField:
+                  "decimal_pnt",
+
+                endField:
+                  "hd_24"
+              }
+            );
+
+
+            finishResolve({
+              startStock,
+
+              endStock,
+
+              tag:
+                normalizeOisAgentText(
+                  targetRow.tag_no
+                ),
+
+              itemName:
+                normalizeOisAgentText(
+                  targetRow.mid_name
+                ),
+
+              unit:
+                normalizeOisAgentText(
+                  targetRow.unit_code
+                )
+            });
+
+          } catch (
+            error
+          ) {
+            finishReject(
+              error
+            );
+          }
+        };
+
+
+      /*
+        조회 버튼을 누르기 전에
+        응답 감시를 먼저 시작한다.
+      */
+      page.on(
+        "response",
+        handleResponse
+      );
+
+
+      timeoutId =
+        setTimeout(
+          () => {
+            finishReject(
+              new Error(
+                `${targetTag}가 포함된 OIS LOG SHEET 응답을 받지 못했습니다.`
+              )
+            );
+          },
+          OIS_QUERY_TIMEOUT
+        );
+
+
+      Promise.resolve()
+        .then(
+          triggerSearch
+        )
+        .catch(
+          finishReject
+        );
+    }
+  );
+}
+
 /* =========================================================
-  호기별 선택일 석회석 재고 조회
+  호기별 석회석 전일·24시 재고 조회
 
-  한 번의 날짜 조회에서:
-  - 전일 재고
-  - 24시 재고
+  화면의 표를 읽지 않고,
+  조회 버튼 클릭 후 발생하는 OIS API 응답에서 읽는다.
 
-  두 값을 모두 읽는다.
+  decimal_pnt = 전일
+  hd_24       = 24시
 ========================================================= */
 
 async function queryOisLimestonePreviousStock(
@@ -3951,6 +4281,10 @@ async function queryOisLimestonePreviousStock(
     );
 
 
+  /*
+    부서명:
+    설비운영팀
+  */
   await selectOisOptionByLabel(
     frame,
     "설비운영팀",
@@ -3965,14 +4299,23 @@ async function queryOisLimestonePreviousStock(
     frame;
 
 
+  /*
+    1호기:
+    BOARD LOGSHEET (BCO1)
+
+    2호기:
+    BOARD LOGSHEET (BCO2)
+  */
   await selectOisOptionByLabel(
     frame,
-    unitDefinition
-      .sheetLabel,
+    unitDefinition.sheetLabel,
     true
   );
 
 
+  /*
+    SHEET 선택에 따른 화면 갱신 대기
+  */
   await page.waitForTimeout(
     500
   );
@@ -3985,93 +4328,33 @@ async function queryOisLimestonePreviousStock(
     frame;
 
 
+  /*
+    조회 날짜 입력
+  */
   await setOisLogSheetDate(
     frame,
     targetDate
   );
 
 
-  await clickOisLogSheetSearchButton(
-    frame
+  await page.waitForTimeout(
+    200
   );
 
 
   /*
-    그리드 전체 로딩
+    응답 감시를 먼저 시작한 뒤
+    조회 버튼을 클릭한다.
   */
-  await page.waitForTimeout(
-    1600
-  );
-
-
-  frame =
-    await findOisLogSheetFrame(
-      page
-    ) ||
-    frame;
-
-
-  /*
-    24시 열은 오른쪽에 있으므로
-    그리드 가로 스크롤을 마지막까지 이동한다.
-  */
-  await frame.evaluate(
-    () => {
-      const scrollCandidates = [
-        ...document.querySelectorAll(
-          "*"
-        )
-      ]
-        .filter(
-          element => {
-            return (
-              element.scrollWidth >
-                element.clientWidth +
-                50 &&
-              element.clientWidth >
-                300 &&
-              element.clientHeight >
-                100
-            );
-          }
-        )
-        .sort(
-          (
-            first,
-            second
-          ) => {
-            return (
-              second.scrollWidth -
-              first.scrollWidth
-            );
-          }
-        );
-
-
-      const gridScroller =
-        scrollCandidates[0] ||
-        null;
-
-
-      if (
-        gridScroller
-      ) {
-        gridScroller.scrollLeft =
-          gridScroller.scrollWidth;
-      }
-    }
-  );
-
-
-  await page.waitForTimeout(
-    500
-  );
-
-
   const stocks =
-    await waitForOisLimestoneDayStocks(
-      frame,
-      unitDefinition.tag
+    await captureOisLogSheetStockFromApi(
+      page,
+      unitDefinition.tag,
+      async () => {
+        await clickOisLogSheetSearchButton(
+          frame
+        );
+      }
     );
 
 
@@ -4087,7 +4370,13 @@ async function queryOisLimestonePreviousStock(
   );
 
 
-  return stocks;
+  return {
+    startStock:
+      stocks.startStock,
+
+    endStock:
+      stocks.endStock
+  };
 }
 
 /* =========================================================
@@ -4306,10 +4595,8 @@ async function loginOis() {
         "msedge",
 
       headless:
-        false,
+        true
 
-      slowMo:
-        60
     });
 
 

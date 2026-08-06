@@ -23,7 +23,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260807-coal-selection-fix1"
+    href="style.css?v=20260807-team-preview-only1"
   >
 
 
@@ -57,7 +57,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260807-coal-selection-fix1"
+  src="script.js?v=20260807-team-preview-only1"
   defer
 ></script>
 
@@ -4982,10 +4982,6 @@
   id="efficiencyMorningMeetingCoalSelectionPanel"
 >
 
-  <!-- =================================================
-    상단 제목·선택 상태
-  ================================================== -->
-
   <header
     class="efficiency-morning-meeting-shift-panel__header"
   >
@@ -5018,13 +5014,11 @@
         운탄일지 분석 전
       </strong>
 
-
       <span
         id="efficiencyMorningMeetingCoalSelectedCount"
       >
         연료 0건 · TM 0건
       </span>
-
 
       <button
         type="button"
@@ -5039,18 +5033,9 @@
   </header>
 
 
-  <!-- =================================================
-    운탄일지 업무 · TM 사항 2열
-  ================================================== -->
+  <div class="efficiency-morning-meeting-shift-grid">
 
-  <div
-    class="efficiency-morning-meeting-shift-grid"
-  >
-
-    <!-- =================================================
-      왼쪽: 운탄일지 업무 선택
-    ================================================== -->
-
+    <!-- 왼쪽: 운탄일지 업무 선택 -->
     <section
       class="
         efficiency-morning-meeting-shift-column
@@ -5074,7 +5059,6 @@
 
         </div>
 
-
         <button
           type="button"
           data-morning-meeting-coal-select-column="work"
@@ -5085,34 +5069,19 @@
 
       </header>
 
-
-      <!--
-        JavaScript 출력 순서:
-
-        1. N/S 주요작업
-        2. D/S 특이 사항
-        3. D/S 정비 사항
-        4. 연료분진팀 금일 작업
-      -->
-
       <div
         class="efficiency-morning-meeting-shift-list"
         id="efficiencyMorningMeetingCoalWorkList"
       >
-
         <p class="efficiency-morning-meeting-shift-empty">
           운탄일지를 분석하면 선택할 업무가 표시됩니다.
         </p>
-
       </div>
 
     </section>
 
 
-    <!-- =================================================
-      오른쪽: TM 사항 선택
-    ================================================== -->
-
+    <!-- 오른쪽: TM 사항 -->
     <section
       class="
         efficiency-morning-meeting-shift-column
@@ -5136,7 +5105,6 @@
 
         </div>
 
-
         <button
           type="button"
           data-morning-meeting-coal-select-column="tm"
@@ -5147,40 +5115,20 @@
 
       </header>
 
-
-      <!--
-        JavaScript 출력 구분:
-
-        1. 교대파트 TM 발행사항
-           - 전날 D/S
-           - 현재 N/S
-           - TGO / BCO1 / BCO2
-
-        2. 운탄일지 TM 발행사항
-           - TM 및 RED TAG 발행 구역
-           - 업무내용 중 TM 발행 문구가 있는 항목
-      -->
-
       <div
         class="efficiency-morning-meeting-shift-list"
         id="efficiencyMorningMeetingCoalTmList"
       >
-
         <p class="efficiency-morning-meeting-shift-empty">
-          운탄일지와 교대파트 업무일지를 분석하면
+          교대파트 업무일지를 불러오고 운탄일지를 분석하면
           TM 발행사항이 표시됩니다.
         </p>
-
       </div>
 
     </section>
 
   </div>
 
-
-  <!-- =================================================
-    오류 표시
-  ================================================== -->
 
   <p
     class="efficiency-morning-meeting-shift-error"
@@ -5191,7 +5139,6 @@
   </p>
 
 </section>
-
 
 
   <!-- =================================================
@@ -5379,47 +5326,60 @@
 
   </section>
 
+<!-- =================================================
+  4. 팀별 자료 분석 결과
 
-  <!-- =================================================
-    4. 취합 내용 미리보기
-  ================================================== -->
+  표시 대상:
+  - 안전팀
+  - 환경팀
+  - 기계팀
+  - 전기제어팀
 
-  <section
-    class="efficiency-morning-meeting-preview"
-    id="efficiencyMorningMeetingPreview"
-    hidden
-  >
+  표시하지 않는 대상:
+  - 교대파트
+  - 운탄일지
+  - 운탄일지 자동 추출 수치
+================================================== -->
 
-    <header class="efficiency-morning-meeting-preview__header">
+<section
+  class="efficiency-morning-meeting-preview"
+  id="efficiencyMorningMeetingPreview"
+  hidden
+>
 
-      <div>
+  <header class="efficiency-morning-meeting-preview__header">
 
-        <span>
-          EXTRACTION PREVIEW
-        </span>
+    <div>
 
-        <h4>
-          취합 내용 미리보기
-        </h4>
+      <span>
+        TEAM EXTRACTION RESULT
+      </span>
 
-      </div>
+      <h4>
+        팀별 자료 분석 결과
+      </h4>
 
+      <p>
+        4개 팀 자료에서 추출된 내용을 확인하고 직접 수정할 수 있습니다.
+      </p>
 
-      <strong id="efficiencyMorningMeetingPreviewCount">
-        0개 팀
-      </strong>
-
-    </header>
-
-
-    <div
-      class="efficiency-morning-meeting-preview-list"
-      id="efficiencyMorningMeetingPreviewList"
-    >
     </div>
 
-  </section>
 
+    <strong id="efficiencyMorningMeetingPreviewCount">
+      0개 팀
+    </strong>
+
+  </header>
+
+
+  <div
+    class="efficiency-morning-meeting-preview-list"
+    id="efficiencyMorningMeetingPreviewList"
+  >
+  </div>
+
+</section>
 
   <!-- =================================================
     5. 처리 결과 및 버튼

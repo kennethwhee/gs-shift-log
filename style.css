@@ -82668,43 +82668,6 @@ tr.is-negative
 }
 
 
-/*
-  왼쪽 한 칸 안에 운탄일지 분류 4개가 들어가므로
-  교대파트 목록보다 높이를 조금 늘린다.
-*/
-
-#efficiencyMorningMeetingView
-.efficiency-morning-meeting-coal-selection-panel
-.efficiency-morning-meeting-shift-list {
-  min-height: 330px;
-  max-height: 430px;
-}
-
-
-/*
-  운탄일지 하위 문장 줄바꿈
-*/
-
-#efficiencyMorningMeetingView
-.efficiency-morning-meeting-coal-selection-panel
-.efficiency-morning-meeting-shift-item__content
-p {
-  white-space: normal;
-
-  line-height: 1.65;
-}
-
-
-@media (max-width: 900px) {
-
-  #efficiencyMorningMeetingView
-  .efficiency-morning-meeting-coal-selection-panel
-  .efficiency-morning-meeting-shift-list {
-    min-height: 240px;
-    max-height: 350px;
-  }
-}
-
 /* =========================================================
   오전회의 취합 미리보기
   TM 사항 2열 표시
