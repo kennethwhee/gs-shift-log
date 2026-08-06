@@ -57764,10 +57764,28 @@ async function changeShiftLogApprovalOnServer(
   - 결재 이력과 결재자 정보는 서버에서 기록
 ========================================================= */
 
+/* =========================================================
+  업무일지 상세보기 결재완료 최종본
+
+  일반 보직:
+  - 결재요청 상태에서 파트장·최고관리자가 결재완료
+
+  파트장 업무일지:
+  - 임시저장·저장완료 상태에서 결재완료
+  - 별도의 결재요청 과정 없이 바로 결재완료
+
+  저장:
+  - D1 공용 업무일지
+  - revision 충돌 검사
+========================================================= */
+
 completeCurrentDetailShiftLogApproval =
   async function completeCurrentDetailShiftLogApproval() {
     const targetLog =
-      getCurrentDetailShiftLog();
+      typeof getCurrentDetailShiftLog ===
+        "function"
+        ? getCurrentDetailShiftLog()
+        : null;
 
 
     if (
@@ -57782,11 +57800,45 @@ completeCurrentDetailShiftLogApproval =
     }
 
 
+    /* =====================================================
+      과거 연동 업무일지 제외
+    ====================================================== */
+
     if (
-      !(
-        isCurrentShiftLogLeader() ||
-        isCurrentUserSuperAdmin()
+      typeof isReadOnlyLegacyShiftLog ===
+        "function" &&
+      isReadOnlyLegacyShiftLog(
+        targetLog
       )
+    ) {
+      showToast(
+        "과거 업무일지는 결재 상태를 변경할 수 없습니다."
+      );
+
+
+      return null;
+    }
+
+
+    /* =====================================================
+      현재 사용자 권한
+    ====================================================== */
+
+    const isLeaderAccount =
+      typeof isCurrentShiftLogLeader ===
+        "function" &&
+      isCurrentShiftLogLeader();
+
+
+    const isSuperAdmin =
+      typeof isCurrentUserSuperAdmin ===
+        "function" &&
+      isCurrentUserSuperAdmin();
+
+
+    if (
+      !isLeaderAccount &&
+      !isSuperAdmin
     ) {
       showToast(
         "파트장 또는 최고관리자만 업무일지를 결재할 수 있습니다."
@@ -57797,51 +57849,143 @@ completeCurrentDetailShiftLogApproval =
     }
 
 
-    if (
+    /* =====================================================
+      현재 업무일지 상태
+    ====================================================== */
+
+    const normalizedRole =
       normalizeMemberLogRole(
         targetLog.role
-      ) ===
-        "파트장"
-    ) {
-      showToast(
-        "파트장 업무일지는 결재 대상이 아닙니다."
       );
 
 
-      return null;
-    }
-
-
-    if (
+    const normalizedStatus =
       normalizeShiftLogApprovalStatus(
         targetLog.status
-      ) !==
-        "결재요청"
-    ) {
-      showToast(
-        "결재요청 상태의 업무일지만 결재할 수 있습니다."
       );
 
 
-      return null;
+    const isLeaderLog =
+      normalizedRole ===
+        "파트장";
+
+
+    /* =====================================================
+      파트장 업무일지
+
+      임시저장 또는 저장완료 상태에서
+      바로 결재완료할 수 있다.
+    ====================================================== */
+
+    if (
+      isLeaderLog
+    ) {
+      const canCompleteLeaderLog =
+        [
+          "임시저장",
+          "저장완료"
+        ].includes(
+          normalizedStatus
+        );
+
+
+      if (
+        !canCompleteLeaderLog
+      ) {
+        showToast(
+          normalizedStatus ===
+            "결재완료"
+            ? "이미 결재가 완료된 파트장 업무일지입니다."
+            : "임시저장된 파트장 업무일지만 결재완료할 수 있습니다."
+        );
+
+
+        return null;
+      }
+
+    } else {
+      /* ===================================================
+        일반 보직 업무일지
+
+        기존처럼 결재요청 상태에서만
+        파트장이 결재완료한다.
+      ==================================================== */
+
+      if (
+        normalizedStatus !==
+          "결재요청"
+      ) {
+        showToast(
+          normalizedStatus ===
+            "결재완료"
+            ? "이미 결재가 완료된 업무일지입니다."
+            : "결재요청 상태의 업무일지만 결재할 수 있습니다."
+        );
+
+
+        return null;
+      }
     }
+
+
+    /* =====================================================
+      결재완료 확인
+    ====================================================== */
+
+    const confirmTitle =
+      isLeaderLog
+        ? "파트장 업무일지 결재완료"
+        : "업무일지 결재완료";
+
+
+    const confirmMessage =
+      isLeaderLog
+        ? [
+            "파트장 업무일지를 결재완료 처리할까요?",
+            "",
+            `작성일: ${targetLog.date || "-"}`,
+            `근무: ${getShiftDisplayName(
+              targetLog.shift
+            )}`,
+            `작성자: ${targetLog.author || "-"}`
+          ].join(
+            "\n"
+          )
+        : [
+            "이 업무일지를 결재완료 처리할까요?",
+            "",
+            `작성일: ${targetLog.date || "-"}`,
+            `근무: ${getShiftDisplayName(
+              targetLog.shift
+            )}`,
+            `보직: ${targetLog.role || "-"}`,
+            `작성자: ${targetLog.author || "-"}`
+          ].join(
+            "\n"
+          );
 
 
     const shouldApprove =
-      window.confirm(
-        [
-          "이 업무일지를 결재완료 처리하시겠습니까?",
-          "",
-          `작성일: ${targetLog.date || "-"}`,
-          `근무: ${getShiftDisplayName(
-            targetLog.shift
-          )}`,
-          `보직: ${targetLog.role || "-"}`,
-          `작성자: ${targetLog.author || "-"}`
-        ].join(
-          "\n"
-        )
-      );
+      typeof showCompactConfirm ===
+        "function"
+        ? Boolean(
+            await showCompactConfirm({
+              title:
+                confirmTitle,
+
+              message:
+                confirmMessage,
+
+              confirmText:
+                "결재완료",
+
+              cancelText:
+                "취소"
+            })
+          )
+        : window.confirm(
+            confirmMessage
+          );
 
 
     if (
@@ -57851,7 +57995,43 @@ completeCurrentDetailShiftLogApproval =
     }
 
 
+    /* =====================================================
+      버튼 처리 중 표시
+    ====================================================== */
+
+    const approvalButton =
+      document.getElementById(
+        "approveFromDetailButton"
+      );
+
+
+    const originalButtonText =
+      String(
+        approvalButton?.textContent ||
+        "결재완료"
+      ).trim();
+
+
+    if (
+      approvalButton
+    ) {
+      approvalButton.disabled =
+        true;
+
+
+      approvalButton.textContent =
+        "처리 중...";
+    }
+
+
     try {
+      /* ===================================================
+        서버 결재완료
+
+        파트장 업무일지도 기존 작성창과 동일하게
+        approve 액션을 사용한다.
+      ==================================================== */
+
       const savedLog =
         await changeShiftLogApprovalOnServer(
           targetLog,
@@ -57859,19 +58039,53 @@ completeCurrentDetailShiftLogApproval =
         );
 
 
-      renderLogTable();
+      if (
+        !savedLog
+      ) {
+        throw new Error(
+          "결재완료된 업무일지를 확인할 수 없습니다."
+        );
+      }
 
 
-      updateShiftMemberCardStates();
+      /* ===================================================
+        목록과 근무자 상태 갱신
+      ==================================================== */
+
+      if (
+        typeof renderLogTable ===
+          "function"
+      ) {
+        renderLogTable();
+      }
 
 
-      openLogDetail(
-        savedLog
-      );
+      if (
+        typeof updateShiftMemberCardStates ===
+          "function"
+      ) {
+        updateShiftMemberCardStates();
+      }
+
+
+      /* ===================================================
+        상세창을 결재완료 상태로 다시 표시
+      ==================================================== */
+
+      if (
+        typeof openLogDetail ===
+          "function"
+      ) {
+        openLogDetail(
+          savedLog
+        );
+      }
 
 
       showToast(
-        "업무일지 결재가 완료되었습니다."
+        isLeaderLog
+          ? "파트장 업무일지 결재가 완료되었습니다."
+          : "업무일지 결재가 완료되었습니다."
       );
 
 
@@ -57881,15 +58095,21 @@ completeCurrentDetailShiftLogApproval =
       error
     ) {
       console.error(
-        "업무일지 결재 실패:",
+        isLeaderLog
+          ? "파트장 업무일지 결재완료 실패:"
+          : "업무일지 결재완료 실패:",
         error
       );
 
 
       if (
+        typeof ShiftLogApiError !==
+          "undefined" &&
         error instanceof
           ShiftLogApiError &&
-        error.isConflict
+        error.isConflict &&
+        typeof handleShiftLogConflict ===
+          "function"
       ) {
         handleShiftLogConflict(
           error
@@ -57897,16 +58117,55 @@ completeCurrentDetailShiftLogApproval =
 
       } else {
         showToast(
-          error.message ||
-          "업무일지를 결재하지 못했습니다."
+          error?.message ||
+          (
+            isLeaderLog
+              ? "파트장 업무일지를 결재완료하지 못했습니다."
+              : "업무일지를 결재완료하지 못했습니다."
+          )
         );
       }
 
 
       return null;
+
+    } finally {
+      const currentButton =
+        document.getElementById(
+          "approveFromDetailButton"
+        );
+
+
+      if (
+        currentButton
+      ) {
+        currentButton.disabled =
+          false;
+
+
+        currentButton.textContent =
+          originalButtonText;
+      }
+
+
+      const currentLog =
+        typeof getCurrentDetailShiftLog ===
+          "function"
+          ? getCurrentDetailShiftLog()
+          : null;
+
+
+      if (
+        currentLog &&
+        typeof updateShiftLogDetailActionButtons ===
+          "function"
+      ) {
+        updateShiftLogDetailActionButtons(
+          currentLog
+        );
+      }
     }
   };
-
 
 /* =========================================================
   기존 상세보기 결재 함수 연결
@@ -111232,125 +111491,311 @@ function canRequestApprovalFromDetail(
   }
 
 
-  /* =====================================================
-    상세보기 하단 버튼 최종 표시
+/* =========================================================
+  업무일지 상세보기 하단 버튼 최종 표시
 
-    기존:
-    - 결재완료
-    - 결재취소
-    - 수정
-    - 삭제
+  일반 보직 본인:
+  - 임시저장: 수정 | 결재요청 | 닫기
+  - 결재요청: 결재취소 | 닫기
+  - 결재완료: 상태 변경 버튼 없음
 
-    추가:
-    - 일반 보직 본인의 임시저장 상태에서 결재요청
-  ====================================================== */
+  파트장 업무일지:
+  - 임시저장·저장완료:
+    삭제 | 수정 | 결재완료 | 닫기
 
-  updateShiftLogDetailActionButtons =
-    function updateShiftLogDetailActionButtons(
-      log
-    ) {
-      updateDetailButtonsBeforeRequestApproval
-        ?.(
-          log
-        );
+  파트장·최고관리자:
+  - 일반 보직 결재요청:
+    결재완료 표시
 
+  버튼 위치:
+  - 수정과 닫기 사이
+========================================================= */
 
-      const approvalButton =
-        moveDetailApprovalButton();
+updateShiftLogDetailActionButtons =
+  function updateShiftLogDetailActionButtons(
+    log
+  ) {
+    /* =====================================================
+      기존 수정·삭제·결재취소 표시 규칙 실행
+    ====================================================== */
 
-
-      if (
-        !approvalButton
-      ) {
-        return;
-      }
-
-
-      const canRequest =
-        canRequestApprovalFromDetail(
-          log
-        );
-
-
-      /*
-        일반 보직 본인의 임시저장 업무일지
-      */
-      if (
-        canRequest
-      ) {
-        approvalButton.hidden =
-          false;
-
-
-        approvalButton.disabled =
-          false;
-
-
-        approvalButton.removeAttribute(
-          "hidden"
-        );
-
-
-        approvalButton.removeAttribute(
-          "aria-disabled"
-        );
-
-
-        approvalButton.setAttribute(
-          "aria-hidden",
-          "false"
-        );
-
-
-        approvalButton.textContent =
-          "결재요청";
-
-
-        approvalButton.dataset
-          .detailApprovalAction =
-          "request";
-
-
-        approvalButton.classList.add(
-          "is-request-approval"
-        );
-
-
-        return;
-      }
-
-
-      approvalButton.classList.remove(
-        "is-request-approval"
+    updateDetailButtonsBeforeRequestApproval
+      ?.(
+        log
       );
 
 
-      /*
-        기존 함수가 파트장용 결재 버튼을
-        표시한 상태라면 결재완료로 유지한다.
-      */
-      if (
-        approvalButton.hidden ===
-          false &&
-        approvalButton.disabled ===
-          false
-      ) {
-        approvalButton.textContent =
-          "결재완료";
+    /* =====================================================
+      결재 버튼을 수정과 닫기 사이로 이동
+    ====================================================== */
+
+    const approvalButton =
+      moveDetailApprovalButton();
 
 
-        approvalButton.dataset
-          .detailApprovalAction =
-          "approve";
+    if (
+      !approvalButton
+    ) {
+      return;
+    }
 
 
-        return;
-      }
+    /* =====================================================
+      우선 결재 버튼 초기화
+    ====================================================== */
+
+    approvalButton.hidden =
+      true;
 
 
-      delete approvalButton.dataset
-        .detailApprovalAction;
+    approvalButton.disabled =
+      true;
+
+
+    approvalButton.setAttribute(
+      "hidden",
+      ""
+    );
+
+
+    approvalButton.setAttribute(
+      "aria-disabled",
+      "true"
+    );
+
+
+    approvalButton.style.removeProperty(
+      "display"
+    );
+
+
+    approvalButton.textContent =
+      "결재완료";
+
+
+    approvalButton.title =
+      "";
+
+
+    approvalButton.dataset
+      .detailApprovalAction =
+      "";
+
+
+    if (
+      !log ||
+      typeof log !==
+        "object"
+    ) {
+      return;
+    }
+
+
+    /* =====================================================
+      과거 업무일지 제외
+    ====================================================== */
+
+    const isLegacyLog =
+      typeof isReadOnlyLegacyShiftLog ===
+        "function" &&
+      isReadOnlyLegacyShiftLog(
+        log
+      );
+
+
+    if (
+      isLegacyLog
+    ) {
+      return;
+    }
+
+
+    /* =====================================================
+      업무일지 상태·보직
+    ====================================================== */
+
+    const normalizedStatus =
+      normalizeShiftLogApprovalStatus(
+        log.status
+      );
+
+
+    const normalizedRole =
+      normalizeMemberLogRole(
+        log.role
+      );
+
+
+    const isLeaderLog =
+      normalizedRole ===
+        "파트장";
+
+
+    /* =====================================================
+      현재 사용자
+    ====================================================== */
+
+    const isLeaderAccount =
+      typeof isCurrentShiftLogLeader ===
+        "function" &&
+      isCurrentShiftLogLeader();
+
+
+    const isSuperAdmin =
+      typeof isCurrentUserSuperAdmin ===
+        "function" &&
+      isCurrentUserSuperAdmin();
+
+
+    const isLeaderOrSuperAdmin =
+      isLeaderAccount ||
+      isSuperAdmin;
+
+
+    /* =====================================================
+      버튼 표시 공통 함수
+    ====================================================== */
+
+    const showApprovalButton = ({
+      text,
+      title,
+      action
+    }) => {
+      approvalButton.hidden =
+        false;
+
+
+      approvalButton.disabled =
+        false;
+
+
+      approvalButton.removeAttribute(
+        "hidden"
+      );
+
+
+      approvalButton.removeAttribute(
+        "aria-disabled"
+      );
+
+
+      approvalButton.style.removeProperty(
+        "display"
+      );
+
+
+      approvalButton.textContent =
+        text;
+
+
+      approvalButton.title =
+        title;
+
+
+      approvalButton.dataset
+        .detailApprovalAction =
+        action;
     };
+
+
+    /* =====================================================
+      일반 보직 본인 임시저장
+
+      수정 | 결재요청 | 닫기
+    ====================================================== */
+
+    const canRequestApproval =
+      typeof canRequestApprovalFromDetail ===
+        "function" &&
+      canRequestApprovalFromDetail(
+        log
+      );
+
+
+    if (
+      canRequestApproval
+    ) {
+      showApprovalButton({
+        text:
+          "결재요청",
+
+        title:
+          "현재 업무일지를 결재요청합니다.",
+
+        action:
+          "request"
+      });
+
+
+      return;
+    }
+
+
+    /* =====================================================
+      파트장 업무일지
+
+      임시저장·저장완료:
+      수정 | 결재완료 | 닫기
+    ====================================================== */
+
+    const canCompleteLeaderLog =
+      isLeaderLog &&
+      isLeaderOrSuperAdmin &&
+      [
+        "임시저장",
+        "저장완료"
+      ].includes(
+        normalizedStatus
+      );
+
+
+    if (
+      canCompleteLeaderLog
+    ) {
+      showApprovalButton({
+        text:
+          "결재완료",
+
+        title:
+          "파트장 업무일지를 결재완료 처리합니다.",
+
+        action:
+          "approve-leader"
+      });
+
+
+      return;
+    }
+
+
+    /* =====================================================
+      일반 보직 결재요청
+
+      파트장·최고관리자에게 결재완료 표시
+    ====================================================== */
+
+    const canCompleteMemberLog =
+      !isLeaderLog &&
+      isLeaderOrSuperAdmin &&
+      normalizedStatus ===
+        "결재요청";
+
+
+    if (
+      canCompleteMemberLog
+    ) {
+      showApprovalButton({
+        text:
+          "결재완료",
+
+        title:
+          "결재요청된 업무일지를 결재완료 처리합니다.",
+
+        action:
+          "approve-member"
+      });
+    }
+  };
 
 
   /* =====================================================
