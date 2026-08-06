@@ -84436,3 +84436,433 @@ span {
       );
   }
 }
+
+/* =========================================================
+  석회석 기간별 저장 사용량
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-history-panel {
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid #cad8e7;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+
+/* =========================================================
+  제목
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-history-header {
+  display: flex;
+  min-height: 67px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 15px;
+  border-bottom: 1px solid #dce5ee;
+  background: #f8fafc;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-header
+> div
+> span {
+  display: block;
+  margin-bottom: 2px;
+  color: #1f5fae;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-header h4 {
+  margin: 0;
+  color: #263b54;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-header p {
+  margin: 3px 0 0;
+  color: #778597;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+
+/* =========================================================
+  기간 합계
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-history-summary {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(
+        0,
+        1fr
+      )
+    );
+  gap: 8px;
+  padding: 12px;
+  background: #f7f9fc;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-summary article {
+  position: relative;
+  min-height: 82px;
+  overflow: hidden;
+  padding: 11px 12px;
+  border: 1px solid #d9e3ed;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-summary article::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 4px;
+  background: #2f72bd;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-summary
+.is-unit-one::before {
+  background: #248766;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-summary
+.is-unit-two::before {
+  background: #7d54a7;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-summary
+.is-days::before {
+  background: #c28424;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-summary article > span {
+  display: block;
+  color: #758296;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-summary article > strong {
+  display: inline-block;
+  margin-top: 8px;
+  color: #243b56;
+  font-size: 19px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-summary article > small {
+  margin-left: 3px;
+  color: #7e8b9a;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+
+/* =========================================================
+  결과표
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-history-table-wrap {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table {
+  width: 100%;
+  min-width: 810px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table th,
+#efficiencyTeamModal
+.limestone-usage-history-table td {
+  padding: 10px 8px;
+  border-right: 1px solid #e1e8ef;
+  border-bottom: 1px solid #e1e8ef;
+  text-align: center;
+  vertical-align: middle;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table
+th:last-child,
+#efficiencyTeamModal
+.limestone-usage-history-table
+td:last-child {
+  border-right: 0;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table thead th {
+  background: #edf3f8;
+  color: #53667d;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table tbody th {
+  color: #354a62;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table tbody td {
+  color: #526278;
+  font-size: 10px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table td.is-unit-one {
+  color: #1b8058;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table td.is-unit-two {
+  color: #74419c;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table td.is-total {
+  color: #1f5fae;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table td small {
+  color: #8b96a5;
+  font-size: 8px;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table tbody tr:hover {
+  background: #f8fbff;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table tr.is-missing {
+  background: #fafbfc;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table tr.is-partial {
+  background: #fffaf0;
+}
+
+
+/* =========================================================
+  저장 상태
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-history-status {
+  display: inline-flex;
+  min-width: 60px;
+  min-height: 23px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid #ccd6e1;
+  border-radius: 999px;
+  background: #f2f5f8;
+  color: #68778a;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-status.is-complete {
+  border-color: #a9d9c0;
+  background: #eaf8f0;
+  color: #188451;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-status.is-partial {
+  border-color: #e5c47d;
+  background: #fff6e3;
+  color: #9b650f;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-status.is-missing {
+  border-color: #d4dbe3;
+  background: #f4f6f8;
+  color: #7a8796;
+}
+
+
+/* =========================================================
+  상세 버튼
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-history-detail-button {
+  min-width: 48px;
+  min-height: 27px;
+  padding: 0 8px;
+  border: 1px solid #b8cde5;
+  border-radius: 6px;
+  background: #eef5fc;
+  color: #1f5fae;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-detail-button:hover {
+  border-color: #79a3d1;
+  background: #e2eefb;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-no-detail {
+  color: #a0a9b5;
+}
+
+
+/* =========================================================
+  로딩·오류·빈 결과
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-history-loading,
+#efficiencyTeamModal
+.limestone-usage-history-error {
+  height: 76px;
+  color: #778597;
+  font-size: 10px;
+  font-weight: 750;
+  text-align: center;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-error {
+  color: #b34444;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-empty {
+  padding: 35px 15px;
+  color: #8591a0;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width:
+  760px
+) {
+  #efficiencyTeamModal
+  .limestone-usage-history-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-history-header button {
+    width: 100%;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-history-summary {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      );
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-history-summary article {
+    min-height: 72px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-history-summary article > strong {
+    font-size: 17px;
+  }
+}

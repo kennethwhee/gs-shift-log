@@ -149617,3 +149617,1391 @@ function bindEvents() {
     waitForLimestoneUsageBatchTarget();
   }
 })();
+
+/* =========================================================
+  석회석 기간별 저장 결과 조회
+
+  기능:
+  - 기간 계산 입력값과 조회 기간 연동
+  - 1호기 기간 합계
+  - 2호기 기간 합계
+  - 전체 기간 합계
+  - 날짜별 사용량 표
+  - 미저장 날짜 표시
+  - 날짜별 상세 화면 이동
+========================================================= */
+
+(function installLimestoneUsageHistoryFeature() {
+  if (
+    window
+      .__limestoneUsageHistoryFeatureInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__limestoneUsageHistoryFeatureInstalled =
+    true;
+
+
+  const LIMESTONE_USAGE_HISTORY_API_URL =
+    "/api/ois-data-requests";
+
+
+  let limestoneUsageHistoryInitialized =
+    false;
+
+
+  let limestoneUsageHistoryLoading =
+    false;
+
+
+  let limestoneUsageHistoryObserver =
+    null;
+
+
+  /* =====================================================
+    HTML 요소
+  ====================================================== */
+
+  function getLimestoneUsageHistoryElements() {
+    return {
+      batchPanel:
+        document.getElementById(
+          "limestoneUsageBatchPanel"
+        ),
+
+      batchStartDate:
+        document.getElementById(
+          "limestoneUsageBatchStartDate"
+        ),
+
+      batchEndDate:
+        document.getElementById(
+          "limestoneUsageBatchEndDate"
+        ),
+
+      batchPresetButtons: [
+        ...document.querySelectorAll(
+          "[data-limestone-usage-batch-preset]"
+        )
+      ],
+
+      batchProgress:
+        document.getElementById(
+          "limestoneUsageBatchProgress"
+        ),
+
+      panel:
+        document.getElementById(
+          "limestoneUsageHistoryPanel"
+        ),
+
+      refreshButton:
+        document.getElementById(
+          "refreshLimestoneUsageHistoryButton"
+        ),
+
+      rangeText:
+        document.getElementById(
+          "limestoneUsageHistoryRangeText"
+        ),
+
+      totalUsage:
+        document.getElementById(
+          "limestoneUsageHistoryTotal"
+        ),
+
+      unitOneTotal:
+        document.getElementById(
+          "limestoneUsageHistoryUnitOneTotal"
+        ),
+
+      unitTwoTotal:
+        document.getElementById(
+          "limestoneUsageHistoryUnitTwoTotal"
+        ),
+
+      savedDays:
+        document.getElementById(
+          "limestoneUsageHistorySavedDays"
+        ),
+
+      tableBody:
+        document.getElementById(
+          "limestoneUsageHistoryTableBody"
+        ),
+
+      emptyState:
+        document.getElementById(
+          "limestoneUsageHistoryEmpty"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    HTML 특수문자 처리
+  ====================================================== */
+
+  function escapeLimestoneUsageHistoryHtml(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replaceAll(
+        "&",
+        "&amp;"
+      )
+      .replaceAll(
+        "<",
+        "&lt;"
+      )
+      .replaceAll(
+        ">",
+        "&gt;"
+      )
+      .replaceAll(
+        '"',
+        "&quot;"
+      )
+      .replaceAll(
+        "'",
+        "&#039;"
+      );
+  }
+
+
+  /* =====================================================
+    숫자 표시
+
+    규칙:
+    - 반올림하지 않음
+    - 소수점 둘째 자리까지 절삭
+    - 항상 소수점 두 자리 표시
+  ====================================================== */
+
+  function formatLimestoneUsageHistoryNumber(
+    value
+  ) {
+    const numericValue =
+      Number(
+        value
+      );
+
+
+    if (
+      !Number.isFinite(
+        numericValue
+      )
+    ) {
+      return "-";
+    }
+
+
+    const correctedValue =
+      numericValue +
+      (
+        Math.sign(
+          numericValue
+        ) *
+        0.000000001
+      );
+
+
+    const truncatedValue =
+      Math.trunc(
+        correctedValue *
+        100
+      ) /
+      100;
+
+
+    return truncatedValue.toLocaleString(
+      "ko-KR",
+      {
+        minimumFractionDigits:
+          2,
+
+        maximumFractionDigits:
+          2
+      }
+    );
+  }
+
+
+  /* =====================================================
+    날짜 표시
+
+    2026-08-06 → 2026. 08. 06.
+  ====================================================== */
+
+  function formatLimestoneUsageHistoryDate(
+    value
+  ) {
+    const normalizedValue =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    const match =
+      normalizedValue.match(
+        /^(\d{4})-(\d{2})-(\d{2})$/
+      );
+
+
+    if (
+      !match
+    ) {
+      return normalizedValue ||
+        "-";
+    }
+
+
+    return [
+      match[1],
+      match[2],
+      match[3]
+    ].join(
+      ". "
+    ) +
+    ".";
+  }
+
+
+  /* =====================================================
+    수정시각 표시
+  ====================================================== */
+
+  function formatLimestoneUsageHistoryDateTime(
+    value
+  ) {
+    const normalizedValue =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    if (
+      !normalizedValue
+    ) {
+      return "-";
+    }
+
+
+    const parsedDate =
+      new Date(
+        normalizedValue
+      );
+
+
+    if (
+      Number.isNaN(
+        parsedDate.getTime()
+      )
+    ) {
+      return normalizedValue;
+    }
+
+
+    return new Intl.DateTimeFormat(
+      "ko-KR",
+      {
+        month:
+          "2-digit",
+
+        day:
+          "2-digit",
+
+        hour:
+          "2-digit",
+
+        minute:
+          "2-digit",
+
+        hour12:
+          false
+      }
+    ).format(
+      parsedDate
+    );
+  }
+
+
+  /* =====================================================
+    저장 상태 표시
+  ====================================================== */
+
+  function getLimestoneUsageHistoryStatus(
+    status
+  ) {
+    const normalizedStatus =
+      String(
+        status ||
+        ""
+      ).trim();
+
+
+    if (
+      normalizedStatus ===
+        "complete"
+    ) {
+      return {
+        label:
+          "저장 완료",
+
+        className:
+          "is-complete"
+      };
+    }
+
+
+    if (
+      normalizedStatus ===
+        "partial"
+    ) {
+      return {
+        label:
+          "일부 저장",
+
+        className:
+          "is-partial"
+      };
+    }
+
+
+    return {
+      label:
+        "미저장",
+
+      className:
+        "is-missing"
+    };
+  }
+
+
+  /* =====================================================
+    API 응답 읽기
+  ====================================================== */
+
+  async function readLimestoneUsageHistoryResponse(
+    response
+  ) {
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "기간별 사용량 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        `기간별 사용량 조회 실패 (HTTP ${response.status})`
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    기간 결과 출력
+  ====================================================== */
+
+  function renderLimestoneUsageHistory(
+    result
+  ) {
+    const {
+      rangeText,
+      totalUsage,
+      unitOneTotal,
+      unitTwoTotal,
+      savedDays,
+      tableBody,
+      emptyState
+    } =
+      getLimestoneUsageHistoryElements();
+
+
+    const range =
+      result?.range ||
+      {};
+
+
+    const summary =
+      result?.summary ||
+      {};
+
+
+    const items =
+      Array.isArray(
+        result?.items
+      )
+        ? result.items
+        : [];
+
+
+    if (
+      rangeText
+    ) {
+      rangeText.textContent =
+        range.startDate &&
+        range.endDate
+          ? `${range.startDate} ~ ${range.endDate}`
+          : "-";
+    }
+
+
+    if (
+      totalUsage
+    ) {
+      totalUsage.textContent =
+        formatLimestoneUsageHistoryNumber(
+          summary.totalUsage
+        );
+    }
+
+
+    if (
+      unitOneTotal
+    ) {
+      unitOneTotal.textContent =
+        formatLimestoneUsageHistoryNumber(
+          summary.unitOneTotal
+        );
+    }
+
+
+    if (
+      unitTwoTotal
+    ) {
+      unitTwoTotal.textContent =
+        formatLimestoneUsageHistoryNumber(
+          summary.unitTwoTotal
+        );
+    }
+
+
+    if (
+      savedDays
+    ) {
+      savedDays.textContent =
+        `${Number(
+          summary.savedDays ||
+          0
+        )} / ${Number(
+          range.dayCount ||
+          items.length ||
+          0
+        )}일`;
+    }
+
+
+    if (
+      emptyState
+    ) {
+      emptyState.hidden =
+        items.length >
+        0;
+    }
+
+
+    if (
+      !tableBody
+    ) {
+      return;
+    }
+
+
+    if (
+      items.length <
+        1
+    ) {
+      tableBody.innerHTML =
+        "";
+
+
+      return;
+    }
+
+
+    tableBody.innerHTML =
+      items
+        .map(
+          item => {
+            const status =
+              getLimestoneUsageHistoryStatus(
+                item.status
+              );
+
+
+            return `
+              <tr
+                class="${status.className}"
+                data-limestone-usage-history-date="${escapeLimestoneUsageHistoryHtml(
+                  item.usageDate
+                )}"
+              >
+
+                <th>
+                  ${escapeLimestoneUsageHistoryHtml(
+                    formatLimestoneUsageHistoryDate(
+                      item.usageDate
+                    )
+                  )}
+                </th>
+
+
+                <td class="is-unit-one">
+                  ${formatLimestoneUsageHistoryNumber(
+                    item.unitOneUsage
+                  )}
+                  <small>
+                    t
+                  </small>
+                </td>
+
+
+                <td class="is-unit-two">
+                  ${formatLimestoneUsageHistoryNumber(
+                    item.unitTwoUsage
+                  )}
+                  <small>
+                    t
+                  </small>
+                </td>
+
+
+                <td class="is-total">
+                  ${formatLimestoneUsageHistoryNumber(
+                    item.totalUsage
+                  )}
+                  <small>
+                    t
+                  </small>
+                </td>
+
+
+                <td>
+
+                  <span
+                    class="
+                      limestone-usage-history-status
+                      ${status.className}
+                    "
+                  >
+                    ${status.label}
+                  </span>
+
+                </td>
+
+
+                <td>
+                  ${escapeLimestoneUsageHistoryHtml(
+                    formatLimestoneUsageHistoryDateTime(
+                      item.updatedAt
+                    )
+                  )}
+                </td>
+
+
+                <td>
+
+                  ${
+                    item.status ===
+                      "missing"
+                      ? `
+                          <span class="limestone-usage-history-no-detail">
+                            -
+                          </span>
+                        `
+                      : `
+                          <button
+                            type="button"
+                            class="limestone-usage-history-detail-button"
+                            data-limestone-usage-history-open="${escapeLimestoneUsageHistoryHtml(
+                              item.usageDate
+                            )}"
+                          >
+                            상세
+                          </button>
+                        `
+                  }
+
+                </td>
+
+              </tr>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+  }
+
+
+  /* =====================================================
+    기간 저장 결과 조회
+  ====================================================== */
+
+  async function loadLimestoneUsageHistory() {
+    if (
+      limestoneUsageHistoryLoading
+    ) {
+      return;
+    }
+
+
+    const {
+      batchStartDate,
+      batchEndDate,
+      refreshButton,
+      tableBody
+    } =
+      getLimestoneUsageHistoryElements();
+
+
+    const startDate =
+      String(
+        batchStartDate?.value ||
+        ""
+      ).trim();
+
+
+    const endDate =
+      String(
+        batchEndDate?.value ||
+        ""
+      ).trim();
+
+
+    if (
+      !startDate ||
+      !endDate
+    ) {
+      return;
+    }
+
+
+    limestoneUsageHistoryLoading =
+      true;
+
+
+    if (
+      refreshButton
+    ) {
+      refreshButton.disabled =
+        true;
+
+
+      refreshButton.textContent =
+        "조회 중...";
+    }
+
+
+    if (
+      tableBody
+    ) {
+      tableBody.innerHTML = `
+        <tr>
+
+          <td
+            colspan="7"
+            class="limestone-usage-history-loading"
+          >
+            저장된 기간별 사용량을 불러오고 있습니다.
+          </td>
+
+        </tr>
+      `;
+    }
+
+
+    try {
+      const requestUrl =
+        new URL(
+          LIMESTONE_USAGE_HISTORY_API_URL,
+          window.location.origin
+        );
+
+
+      requestUrl.searchParams.set(
+        "action",
+        "usage_history"
+      );
+
+
+      requestUrl.searchParams.set(
+        "startDate",
+        startDate
+      );
+
+
+      requestUrl.searchParams.set(
+        "endDate",
+        endDate
+      );
+
+
+      requestUrl.searchParams.set(
+        "_",
+        String(
+          Date.now()
+        )
+      );
+
+
+      const response =
+        await fetch(
+          requestUrl.toString(),
+          {
+            method:
+              "GET",
+
+            headers:
+              typeof getShiftLogAuthHeaders ===
+                "function"
+                ? getShiftLogAuthHeaders()
+                : {
+                    Accept:
+                      "application/json"
+                  },
+
+            cache:
+              "no-store"
+          }
+        );
+
+
+      const result =
+        await readLimestoneUsageHistoryResponse(
+          response
+        );
+
+
+      renderLimestoneUsageHistory(
+        result
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "석회석 기간별 사용량 조회 실패:",
+        error
+      );
+
+
+      if (
+        tableBody
+      ) {
+        tableBody.innerHTML = `
+          <tr>
+
+            <td
+              colspan="7"
+              class="limestone-usage-history-error"
+            >
+              ${escapeLimestoneUsageHistoryHtml(
+                error?.message ||
+                "저장된 사용량을 불러오지 못했습니다."
+              )}
+            </td>
+
+          </tr>
+        `;
+      }
+
+    } finally {
+      limestoneUsageHistoryLoading =
+        false;
+
+
+      if (
+        refreshButton
+      ) {
+        refreshButton.disabled =
+          false;
+
+
+        refreshButton.textContent =
+          "저장 결과 조회";
+      }
+    }
+  }
+
+
+  /* =====================================================
+    날짜별 상세 화면 열기
+  ====================================================== */
+
+  function openLimestoneUsageHistoryDate(
+    usageDate
+  ) {
+    const dateInput =
+      document.getElementById(
+        "limestoneUsageDate"
+      );
+
+
+    if (
+      !dateInput
+    ) {
+      return;
+    }
+
+
+    dateInput.value =
+      usageDate;
+
+
+    dateInput.dispatchEvent(
+      new Event(
+        "change",
+        {
+          bubbles:
+            true
+        }
+      )
+    );
+
+
+    document.querySelector(
+      `
+        #limestoneUsageCalculatorView
+        .limestone-usage-date-card
+      `
+    )
+      ?.scrollIntoView({
+        behavior:
+          "smooth",
+
+        block:
+          "start"
+      });
+  }
+
+
+  /* =====================================================
+    화면 생성
+  ====================================================== */
+
+  function createLimestoneUsageHistoryHtml() {
+    const {
+      batchPanel
+    } =
+      getLimestoneUsageHistoryElements();
+
+
+    if (
+      !batchPanel
+    ) {
+      return false;
+    }
+
+
+    if (
+      document.getElementById(
+        "limestoneUsageHistoryPanel"
+      )
+    ) {
+      return true;
+    }
+
+
+    batchPanel.insertAdjacentHTML(
+      "afterend",
+
+      `
+        <section
+          class="limestone-usage-history-panel"
+          id="limestoneUsageHistoryPanel"
+        >
+
+          <header class="limestone-usage-history-header">
+
+            <div>
+
+              <span>
+                SAVED CONSUMPTION
+              </span>
+
+              <h4>
+                기간별 저장 사용량
+              </h4>
+
+              <p id="limestoneUsageHistoryRangeText">
+                -
+              </p>
+
+            </div>
+
+
+            <button
+              type="button"
+              class="secondary-button"
+              id="refreshLimestoneUsageHistoryButton"
+            >
+              저장 결과 조회
+            </button>
+
+          </header>
+
+
+          <section class="limestone-usage-history-summary">
+
+            <article class="is-total">
+
+              <span>
+                기간 전체 사용량
+              </span>
+
+              <strong id="limestoneUsageHistoryTotal">
+                -
+              </strong>
+
+              <small>
+                ton
+              </small>
+
+            </article>
+
+
+            <article class="is-unit-one">
+
+              <span>
+                1호기 합계
+              </span>
+
+              <strong id="limestoneUsageHistoryUnitOneTotal">
+                -
+              </strong>
+
+              <small>
+                ton
+              </small>
+
+            </article>
+
+
+            <article class="is-unit-two">
+
+              <span>
+                2호기 합계
+              </span>
+
+              <strong id="limestoneUsageHistoryUnitTwoTotal">
+                -
+              </strong>
+
+              <small>
+                ton
+              </small>
+
+            </article>
+
+
+            <article class="is-days">
+
+              <span>
+                저장 날짜
+              </span>
+
+              <strong id="limestoneUsageHistorySavedDays">
+                0일
+              </strong>
+
+            </article>
+
+          </section>
+
+
+          <div class="limestone-usage-history-table-wrap">
+
+            <table class="limestone-usage-history-table">
+
+              <thead>
+
+                <tr>
+
+                  <th>
+                    날짜
+                  </th>
+
+                  <th>
+                    1호기 사용량
+                  </th>
+
+                  <th>
+                    2호기 사용량
+                  </th>
+
+                  <th>
+                    전체 사용량
+                  </th>
+
+                  <th>
+                    저장 상태
+                  </th>
+
+                  <th>
+                    최근 저장
+                  </th>
+
+                  <th>
+                    상세
+                  </th>
+
+                </tr>
+
+              </thead>
+
+
+              <tbody id="limestoneUsageHistoryTableBody">
+              </tbody>
+
+            </table>
+
+
+            <div
+              class="limestone-usage-history-empty"
+              id="limestoneUsageHistoryEmpty"
+              hidden
+            >
+              선택한 기간의 저장 결과가 없습니다.
+            </div>
+
+          </div>
+
+        </section>
+      `
+    );
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function bindLimestoneUsageHistoryEvents() {
+    const {
+      panel,
+      refreshButton,
+      batchPresetButtons,
+      batchStartDate,
+      batchEndDate,
+      tableBody
+    } =
+      getLimestoneUsageHistoryElements();
+
+
+    if (
+      !panel ||
+      panel.dataset
+        .limestoneUsageHistoryBound ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    refreshButton?.addEventListener(
+      "click",
+      loadLimestoneUsageHistory
+    );
+
+
+    /*
+      빠른 기간 버튼 선택 후 자동 조회
+    */
+    batchPresetButtons.forEach(
+      button => {
+        button.addEventListener(
+          "click",
+          () => {
+            window.setTimeout(
+              loadLimestoneUsageHistory,
+              0
+            );
+          }
+        );
+      }
+    );
+
+
+    /*
+      날짜를 직접 변경하면 조회 버튼으로 갱신한다.
+    */
+    [
+      batchStartDate,
+      batchEndDate
+    ]
+      .filter(
+        Boolean
+      )
+      .forEach(
+        input => {
+          input.addEventListener(
+            "change",
+            () => {
+              const {
+                rangeText
+              } =
+                getLimestoneUsageHistoryElements();
+
+
+              if (
+                rangeText
+              ) {
+                rangeText.textContent =
+                  `${batchStartDate?.value || "-"} ~ ${batchEndDate?.value || "-"}`;
+              }
+            }
+          );
+        }
+      );
+
+
+    tableBody?.addEventListener(
+      "click",
+      event => {
+        const button =
+          event.target instanceof
+            Element
+            ? event.target.closest(
+                "[data-limestone-usage-history-open]"
+              )
+            : null;
+
+
+        if (
+          !button
+        ) {
+          return;
+        }
+
+
+        openLimestoneUsageHistoryDate(
+          button.dataset
+            .limestoneUsageHistoryOpen
+        );
+      }
+    );
+
+
+    panel.dataset
+      .limestoneUsageHistoryBound =
+      "true";
+  }
+
+
+  /* =====================================================
+    기간 계산 완료 후 결과 자동 갱신
+  ====================================================== */
+
+  function observeLimestoneUsageBatchCompletion() {
+    const {
+      batchProgress
+    } =
+      getLimestoneUsageHistoryElements();
+
+
+    if (
+      !batchProgress ||
+      limestoneUsageHistoryObserver
+    ) {
+      return;
+    }
+
+
+    limestoneUsageHistoryObserver =
+      new MutationObserver(
+        mutationList => {
+          const hasStatusChange =
+            mutationList.some(
+              mutation => {
+                return (
+                  mutation.type ===
+                    "attributes" &&
+                  mutation.attributeName ===
+                    "data-status"
+                );
+              }
+            );
+
+
+          if (
+            !hasStatusChange
+          ) {
+            return;
+          }
+
+
+          const status =
+            String(
+              batchProgress.dataset
+                .status ||
+              ""
+            );
+
+
+          if (
+            [
+              "complete",
+              "partial_failed",
+              "failed"
+            ].includes(
+              status
+            )
+          ) {
+            loadLimestoneUsageHistory();
+          }
+        }
+      );
+
+
+    limestoneUsageHistoryObserver.observe(
+      batchProgress,
+      {
+        attributes:
+          true,
+
+        attributeFilter: [
+          "data-status"
+        ]
+      }
+    );
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initializeLimestoneUsageHistoryFeature() {
+    if (
+      limestoneUsageHistoryInitialized
+    ) {
+      return;
+    }
+
+
+    const created =
+      createLimestoneUsageHistoryHtml();
+
+
+    if (
+      !created
+    ) {
+      return;
+    }
+
+
+    limestoneUsageHistoryInitialized =
+      true;
+
+
+    bindLimestoneUsageHistoryEvents();
+
+
+    observeLimestoneUsageBatchCompletion();
+
+
+    loadLimestoneUsageHistory()
+      .catch(
+        error => {
+          console.warn(
+            "석회석 저장 사용량 최초 조회 실패:",
+            error
+          );
+        }
+      );
+  }
+
+
+  function waitForLimestoneUsageHistoryTarget() {
+    let attemptCount =
+      0;
+
+
+    const waitTimer =
+      window.setInterval(
+        () => {
+          attemptCount +=
+            1;
+
+
+          initializeLimestoneUsageHistoryFeature();
+
+
+          if (
+            limestoneUsageHistoryInitialized ||
+            attemptCount >=
+              50
+          ) {
+            window.clearInterval(
+              waitTimer
+            );
+          }
+        },
+        200
+      );
+  }
+
+
+  window
+    .loadLimestoneUsageHistory =
+    loadLimestoneUsageHistory;
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      waitForLimestoneUsageHistoryTarget,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    waitForLimestoneUsageHistoryTarget();
+  }
+})();

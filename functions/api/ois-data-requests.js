@@ -2442,6 +2442,477 @@ async function handleLimestoneUsageBatchGet(
 }
 
 /* =========================================================
+  석회석 사용량 숫자 확인
+========================================================= */
+
+function normalizeLimestoneUsageHistoryNumber(
+  value
+) {
+  const numericValue =
+    Number(
+      value
+    );
+
+
+  return Number.isFinite(
+    numericValue
+  )
+    ? numericValue
+    : null;
+}
+
+
+/* =========================================================
+  저장된 석회석 사용량 기간 조회
+
+  GET:
+  /api/ois-data-requests
+    ?action=usage_history
+    &startDate=2026-08-01
+    &endDate=2026-08-31
+
+  반환:
+  - 날짜별 1호기 사용량
+  - 날짜별 2호기 사용량
+  - 날짜별 전체 사용량
+  - 기간 합계
+  - 미저장 날짜
+========================================================= */
+
+async function handleLimestoneUsageHistoryGet(
+  context,
+  requestUrl
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const startDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "startDate"
+      )
+    );
+
+
+  const endDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "endDate"
+      )
+    );
+
+
+  if (
+    !isValidIsoDate(
+      startDate
+    ) ||
+    !isValidIsoDate(
+      endDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "사용량 조회 시작일과 종료일을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const dayCount =
+    getLimestoneUsageBatchDayCount(
+      startDate,
+      endDate
+    );
+
+
+  if (
+    dayCount <
+      1
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "사용량 조회 시작일은 종료일보다 늦을 수 없습니다."
+      },
+      400
+    );
+  }
+
+
+  if (
+    dayCount >
+      366
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "석회석 사용량은 한 번에 최대 366일까지 조회할 수 있습니다."
+      },
+      400
+    );
+  }
+
+
+  const queryResult =
+    await context.env.DB
+      .prepare(`
+        SELECT
+          *
+
+        FROM limestone_usage_records
+
+        WHERE
+          usage_date >= ?
+          AND usage_date <= ?
+
+        ORDER BY
+          usage_date ASC,
+          unit_no ASC
+      `)
+      .bind(
+        startDate,
+        endDate
+      )
+      .all();
+
+
+  const savedRecords =
+    (
+      Array.isArray(
+        queryResult.results
+      )
+        ? queryResult.results
+        : []
+    )
+      .map(
+        convertLimestoneUsageRow
+      )
+      .filter(
+        Boolean
+      );
+
+
+  /*
+    날짜별 기록 묶음
+  */
+  const dailyMap =
+    new Map();
+
+
+  createLimestoneUsageBatchDates(
+    startDate,
+    endDate
+  ).forEach(
+    usageDate => {
+      dailyMap.set(
+        usageDate,
+        {
+          usageDate,
+
+          unitOne:
+            null,
+
+          unitTwo:
+            null
+        }
+      );
+    }
+  );
+
+
+  savedRecords.forEach(
+    record => {
+      const usageDate =
+        normalizeText(
+          record.usageDate
+        );
+
+
+      const unitNo =
+        Number(
+          record.unitNo
+        );
+
+
+      if (
+        !dailyMap.has(
+          usageDate
+        )
+      ) {
+        return;
+      }
+
+
+      const dailyItem =
+        dailyMap.get(
+          usageDate
+        );
+
+
+      if (
+        unitNo ===
+          1
+      ) {
+        dailyItem.unitOne =
+          record;
+
+      } else if (
+        unitNo ===
+          2
+      ) {
+        dailyItem.unitTwo =
+          record;
+      }
+    }
+  );
+
+
+  let unitOneTotal =
+    0;
+
+
+  let unitTwoTotal =
+    0;
+
+
+  let completeDays =
+    0;
+
+
+  let partialDays =
+    0;
+
+
+  let missingDays =
+    0;
+
+
+  const dailyItems = [
+    ...dailyMap.values()
+  ]
+    .map(
+      dailyItem => {
+        const unitOneUsage =
+          normalizeLimestoneUsageHistoryNumber(
+            dailyItem
+              .unitOne
+              ?.usageQuantity
+          );
+
+
+        const unitTwoUsage =
+          normalizeLimestoneUsageHistoryNumber(
+            dailyItem
+              .unitTwo
+              ?.usageQuantity
+          );
+
+
+        const hasUnitOne =
+          unitOneUsage !==
+            null;
+
+
+        const hasUnitTwo =
+          unitTwoUsage !==
+            null;
+
+
+        let status =
+          "missing";
+
+
+        if (
+          hasUnitOne &&
+          hasUnitTwo
+        ) {
+          status =
+            "complete";
+
+
+          completeDays +=
+            1;
+
+        } else if (
+          hasUnitOne ||
+          hasUnitTwo
+        ) {
+          status =
+            "partial";
+
+
+          partialDays +=
+            1;
+
+        } else {
+          missingDays +=
+            1;
+        }
+
+
+        if (
+          hasUnitOne
+        ) {
+          unitOneTotal +=
+            unitOneUsage;
+        }
+
+
+        if (
+          hasUnitTwo
+        ) {
+          unitTwoTotal +=
+            unitTwoUsage;
+        }
+
+
+        const availableUsages = [
+          unitOneUsage,
+          unitTwoUsage
+        ].filter(
+          value => {
+            return value !==
+              null;
+          }
+        );
+
+
+        const totalUsage =
+          availableUsages.length >
+            0
+            ? availableUsages.reduce(
+                (
+                  total,
+                  value
+                ) => {
+                  return total +
+                    value;
+                },
+                0
+              )
+            : null;
+
+
+        const updatedAtCandidates = [
+          normalizeText(
+            dailyItem
+              .unitOne
+              ?.updatedAt
+          ),
+
+          normalizeText(
+            dailyItem
+              .unitTwo
+              ?.updatedAt
+          )
+        ]
+          .filter(
+            Boolean
+          )
+          .sort();
+
+
+        return {
+          usageDate:
+            dailyItem.usageDate,
+
+          status,
+
+          unitOne:
+            dailyItem.unitOne,
+
+          unitTwo:
+            dailyItem.unitTwo,
+
+          unitOneUsage,
+
+          unitTwoUsage,
+
+          totalUsage,
+
+          updatedAt:
+            updatedAtCandidates[
+              updatedAtCandidates.length -
+              1
+            ] ||
+            ""
+        };
+      }
+    )
+    /*
+      화면에서는 최신 날짜가 위로 오도록 정렬한다.
+    */
+    .sort(
+      (
+        firstItem,
+        secondItem
+      ) => {
+        return secondItem
+          .usageDate
+          .localeCompare(
+            firstItem.usageDate
+          );
+      }
+    );
+
+
+  return jsonResponse({
+    ok:
+      true,
+
+    range: {
+      startDate,
+      endDate,
+      dayCount
+    },
+
+    summary: {
+      unitOneTotal,
+
+      unitTwoTotal,
+
+      totalUsage:
+        unitOneTotal +
+        unitTwoTotal,
+
+      completeDays,
+
+      partialDays,
+
+      missingDays,
+
+      savedDays:
+        completeDays +
+        partialDays
+    },
+
+    items:
+      dailyItems
+  });
+}
+
+/* =========================================================
   업무일지 사용자 상태 조회
 
   GET /api/ois-data-requests?id=...
@@ -2741,6 +3212,18 @@ export async function onRequestGet(
       );
     }
 
+/*
+  기간별 저장 사용량 조회
+*/
+if (
+  action ===
+    "usage_history"
+) {
+  return await handleLimestoneUsageHistoryGet(
+    context,
+    requestUrl
+  );
+}    
 
     /*
       기간 계산 진행률
