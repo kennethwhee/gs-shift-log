@@ -87462,3 +87462,78 @@ strong {
   }
 
 }
+
+/* =========================================================
+  파트장 수정창 보직 색상 최종 구분
+
+  상위 / 하위 연결
+  TGO  → TO
+  BCO1 → BO1
+  BCO2 → BO2
+
+  하위 보직은 같은 계열을 사용하되
+  조금 더 연하게 표시
+========================================================= */
+
+
+/* =========================================================
+  TGO - 파랑
+========================================================= */
+
+#logEntryListPanel
+.log-entry-role-divider__badge.is-tgo {
+  border-color: #a9c9ec !important;
+  background: #eaf3ff !important;
+  color: #1763c5 !important;
+}
+
+
+/* TO - TGO보다 연한 파랑 */
+#logEntryListPanel
+.log-entry-role-divider__badge.is-to {
+  border-color: #cedff2 !important;
+  background: #f4f8fd !important;
+  color: #5d83ad !important;
+}
+
+
+/* =========================================================
+  BCO1 - 초록
+========================================================= */
+
+#logEntryListPanel
+.log-entry-role-divider__badge.is-bco1 {
+  border-color: #acd8c1 !important;
+  background: #ebf8f1 !important;
+  color: #188451 !important;
+}
+
+
+/* BO1 - BCO1보다 연한 초록 */
+#logEntryListPanel
+.log-entry-role-divider__badge.is-bo1 {
+  border-color: #cde6d8 !important;
+  background: #f4fbf7 !important;
+  color: #5b8e72 !important;
+}
+
+
+/* =========================================================
+  BCO2 - 보라
+========================================================= */
+
+#logEntryListPanel
+.log-entry-role-divider__badge.is-bco2 {
+  border-color: #d2bee8 !important;
+  background: #f5effb !important;
+  color: #74419c !important;
+}
+
+
+/* BO2 - BCO2보다 연한 보라 */
+#logEntryListPanel
+.log-entry-role-divider__badge.is-bo2 {
+  border-color: #e1d4ed !important;
+  background: #faf6fd !important;
+  color: #9271aa !important;
+}

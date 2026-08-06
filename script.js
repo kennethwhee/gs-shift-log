@@ -161036,7 +161036,10 @@ window
   const LEADER_ROLE_QUICK_ADD_ROLES = [
     "TGO",
     "BCO1",
-    "BCO2"
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
   ];
 
 
