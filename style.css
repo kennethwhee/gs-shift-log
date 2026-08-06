@@ -74027,3 +74027,1183 @@ textarea.efficiency-daily-work-line-source[
 
   line-height: inherit !important;
 }
+
+/* =========================================================
+  모바일 점검일지 메뉴·보직별 오늘 점검 팝업 컴팩트화
+========================================================= */
+
+@media (max-width: 768px) {
+
+  /* =====================================================
+    1. 상단 점검일지 메뉴
+
+    제거:
+    - 파란색 네모 배경
+    - 테두리
+    - 그림자
+
+    유지:
+    - 파란색 글씨
+    - 미완료 숫자 배지
+  ====================================================== */
+
+  #nightPatrolButton,
+  #nightPatrolButton:hover,
+  #nightPatrolButton:active,
+  #nightPatrolButton:focus,
+  #nightPatrolButton:focus-visible,
+  #nightPatrolButton.has-inspection-alerts,
+  #nightPatrolButton.has-overdue-inspections {
+    min-width: auto !important;
+    min-height: auto !important;
+
+    margin: 0 !important;
+    padding: 5px 2px !important;
+
+    border: 0 !important;
+    border-radius: 0 !important;
+
+    background: transparent !important;
+    box-shadow: none !important;
+
+    color: #2470b7 !important;
+  }
+
+
+  #nightPatrolButton
+  .night-patrol-header-button__label {
+    color: #2470b7 !important;
+
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /*
+    점검 건수 배지는 그대로 유지
+  */
+
+  #nightPatrolButton
+  .night-patrol-header-button__badge {
+    flex: 0 0 auto !important;
+  }
+
+
+  /* =====================================================
+    2. 보직별 오늘 점검 팝업 전체
+
+    모바일 전체 화면 안에서 사용하되
+    상단·하단을 줄이고 본문만 스크롤한다.
+  ====================================================== */
+
+  .role-inspection-modal,
+  .shift-member-inspection-modal,
+  .inspection-role-modal {
+    padding: 0 !important;
+  }
+
+
+  .role-inspection-panel,
+  .shift-member-inspection-panel,
+  .inspection-role-panel {
+    width: 100vw !important;
+    max-width: none !important;
+
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+
+    border-radius: 0 !important;
+
+    overflow: hidden !important;
+  }
+
+
+  /* =====================================================
+    팝업 상단
+  ====================================================== */
+
+  .role-inspection-modal__header,
+  .shift-member-inspection-modal__header,
+  .inspection-role-modal__header {
+    min-height: 78px !important;
+
+    padding:
+      max(12px, env(safe-area-inset-top))
+      14px
+      10px !important;
+  }
+
+
+  .role-inspection-modal__header
+  .modal-header__eyebrow,
+  .shift-member-inspection-modal__header
+  .modal-header__eyebrow,
+  .inspection-role-modal__header
+  .modal-header__eyebrow {
+    margin-bottom: 3px !important;
+
+    font-size: 9px !important;
+  }
+
+
+  .role-inspection-modal__header
+  .modal-header__title,
+  .shift-member-inspection-modal__header
+  .modal-header__title,
+  .inspection-role-modal__header
+  .modal-header__title {
+    font-size: 20px !important;
+    line-height: 1.2 !important;
+  }
+
+
+  /* =====================================================
+    집계 영역
+
+    전체 · 완료 · 미완료를 한 줄에 작게 표시
+  ====================================================== */
+
+  .role-inspection-summary,
+  .shift-member-inspection-summary,
+  .inspection-role-summary {
+    gap: 6px !important;
+
+    padding: 9px 10px !important;
+  }
+
+
+  .role-inspection-summary > *,
+  .shift-member-inspection-summary > *,
+  .inspection-role-summary > * {
+    min-height: 42px !important;
+
+    padding: 6px 4px !important;
+
+    border-radius: 8px !important;
+
+    font-size: 11px !important;
+  }
+
+
+  /* =====================================================
+    팝업 본문 목록
+
+    기존 flex 확장 때문에 카드가 화면 높이를
+    나눠 가지는 현상을 제거한다.
+  ====================================================== */
+
+  .role-inspection-modal__body,
+  .shift-member-inspection-modal__body,
+  .inspection-role-modal__body {
+    display: block !important;
+
+    min-height: 0 !important;
+
+    padding: 10px !important;
+
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+  }
+
+
+  .role-inspection-list,
+  .shift-member-inspection-list,
+  .inspection-role-list {
+    display: grid !important;
+
+    grid-template-columns: 1fr !important;
+    grid-auto-rows: auto !important;
+    align-content: start !important;
+
+    gap: 8px !important;
+
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+
+  /* =====================================================
+    점검 카드
+
+    큰 빈 공간 제거
+  ====================================================== */
+
+  .role-inspection-item,
+  .shift-member-inspection-item,
+  .inspection-role-item {
+    display: grid !important;
+
+    grid-template-columns:
+      36px
+      minmax(0, 1fr) !important;
+
+    align-items: center !important;
+
+    flex: 0 0 auto !important;
+
+    width: 100% !important;
+
+    height: auto !important;
+    min-height: 82px !important;
+    max-height: none !important;
+
+    gap: 10px !important;
+
+    margin: 0 !important;
+    padding: 11px 12px !important;
+
+    border-radius: 11px !important;
+  }
+
+
+  .role-inspection-item__icon,
+  .shift-member-inspection-item__icon,
+  .inspection-role-item__icon {
+    width: 34px !important;
+    height: 34px !important;
+
+    font-size: 15px !important;
+  }
+
+
+  .role-inspection-item__content,
+  .shift-member-inspection-item__content,
+  .inspection-role-item__content {
+    display: grid !important;
+
+    min-width: 0 !important;
+
+    gap: 3px !important;
+  }
+
+
+  .role-inspection-item__badges,
+  .shift-member-inspection-item__badges,
+  .inspection-role-item__badges {
+    gap: 3px !important;
+  }
+
+
+  .role-inspection-item__content strong,
+  .shift-member-inspection-item__content strong,
+  .inspection-role-item__content strong {
+    font-size: 13px !important;
+    line-height: 1.35 !important;
+  }
+
+
+  .role-inspection-item__meta,
+  .shift-member-inspection-item__meta,
+  .inspection-role-item__meta {
+    font-size: 10px !important;
+    line-height: 1.35 !important;
+  }
+
+
+  .role-inspection-item__note,
+  .shift-member-inspection-item__note,
+  .inspection-role-item__note {
+    margin-top: 1px !important;
+
+    font-size: 10px !important;
+    line-height: 1.4 !important;
+  }
+
+
+  /* =====================================================
+    팝업 하단 버튼
+  ====================================================== */
+
+  .role-inspection-modal__footer,
+  .shift-member-inspection-modal__footer,
+  .inspection-role-modal__footer {
+    min-height: 60px !important;
+
+    padding:
+      8px
+      10px
+      max(8px, env(safe-area-inset-bottom)) !important;
+  }
+
+
+  .role-inspection-modal__footer button,
+  .shift-member-inspection-modal__footer button,
+  .inspection-role-modal__footer button {
+    min-height: 42px !important;
+
+    padding: 0 10px !important;
+
+    font-size: 11px !important;
+
+    border-radius: 8px !important;
+  }
+}
+
+/* =========================================================
+  2026-08-06 효율팀 모바일 컴팩트 2차 보정
+
+  수정:
+  1. 모바일 상단 새로고침·최신화·입고기록 숨김
+  2. ARM ROLL 조회 기간 정렬
+  3. ARM ROLL 그래프·날짜별 이력·교체 이력 표시 복구
+  4. 석회석 날짜 이동·기간조회 정렬
+
+  PC 화면에는 적용하지 않는다.
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  /* =====================================================
+    ARM ROLL · SCRAP BOX
+    상단 불필요 버튼 제거
+  ====================================================== */
+
+  #efficiencyArmRollView
+  .arm-roll-box-heading-actions {
+    display: none !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-view-heading {
+    display: flex !important;
+
+    flex: 0 0 auto !important;
+
+    min-height: 42px !important;
+
+    align-items: center !important;
+    justify-content: flex-start !important;
+
+    margin: 0 !important;
+    padding: 7px 10px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-view-heading h3 {
+    margin: 0 !important;
+
+    font-size: 17px !important;
+    line-height: 1.25 !important;
+    letter-spacing: -0.03em !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-view-description,
+
+  #efficiencyArmRollView
+  .arm-roll-box-view-heading
+  > div
+  > span {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    ARM ROLL 전체 스크롤 복구
+
+    그래프·날짜별 이력·교체 이력까지
+    아래로 스크롤해서 모두 볼 수 있게 한다.
+  ====================================================== */
+
+  #efficiencyArmRollView {
+    min-height: 0 !important;
+
+    overflow: hidden !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-dashboard {
+    box-sizing: border-box !important;
+
+    display: flex !important;
+
+    flex: 1 1 auto !important;
+
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+
+    flex-direction: column !important;
+
+    gap: 6px !important;
+
+    margin: 0 !important;
+    padding:
+      0
+      0
+      14px !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+
+    scroll-snap-type: none !important;
+
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+
+  /* =====================================================
+    ARM ROLL 조회 조건 정렬
+  ====================================================== */
+
+  #efficiencyArmRollView
+  .arm-roll-box-query-card {
+    box-sizing: border-box !important;
+
+    display: flex !important;
+
+    flex: 0 0 auto !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+
+    flex-direction: column !important;
+
+    gap: 5px !important;
+
+    margin: 0 !important;
+    padding: 6px !important;
+
+    border-radius: 9px !important;
+
+    overflow: visible !important;
+  }
+
+
+  /* 최근 7일·30일·90일 */
+
+  #efficiencyArmRollView
+  .arm-roll-box-quick-range {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      ) !important;
+
+    gap: 4px !important;
+
+    margin: 0 !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-range-button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 30px !important;
+
+    margin: 0 !important;
+    padding:
+      0
+      4px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 10px !important;
+    line-height: 1 !important;
+  }
+
+
+  /* 시작일·종료일 */
+
+  #efficiencyArmRollView
+  .arm-roll-box-search-form {
+    box-sizing: border-box !important;
+
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      ) !important;
+
+    align-items: end !important;
+
+    gap: 4px !important;
+
+    margin: 0 !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-search-form
+  .form-field {
+    min-width: 0 !important;
+
+    gap: 3px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-search-form
+  .form-field__label {
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-search-form input {
+    box-sizing: border-box !important;
+
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 32px !important;
+    min-height: 32px !important;
+
+    margin: 0 !important;
+    padding:
+      0
+      6px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 11px !important;
+    line-height: 32px !important;
+  }
+
+
+  /* 조회 버튼은 날짜 아래 한 줄 */
+
+  #efficiencyArmRollView
+  .arm-roll-box-search-button {
+    grid-column:
+      1 /
+      -1 !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 31px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border-radius: 7px !important;
+
+    font-size: 10px !important;
+    line-height: 1 !important;
+  }
+
+
+  /* 실제 조회 기간 */
+
+  #efficiencyArmRollView
+  .arm-roll-box-active-range {
+    box-sizing: border-box !important;
+
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 27px !important;
+
+    grid-template-columns:
+      auto
+      minmax(0, 1fr)
+      auto !important;
+
+    align-items: center !important;
+
+    gap: 5px !important;
+
+    margin: 0 !important;
+    padding:
+      5px
+      3px
+      0 !important;
+
+    border-top:
+      1px solid
+      #dce4ed !important;
+
+    border-left: 0 !important;
+
+    overflow: hidden !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-active-range span {
+    color: #76859a !important;
+
+    font-size: 8px !important;
+    font-weight: 800 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-active-range strong {
+    min-width: 0 !important;
+
+    font-size: 9px !important;
+    line-height: 1.25 !important;
+
+    text-align: left !important;
+
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-active-range small {
+    font-size: 8px !important;
+    font-weight: 800 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    ARM ROLL 하단 구역 표시 복구
+
+    앞 단계의 max-height·overflow 설정을 해제한다.
+  ====================================================== */
+
+  #efficiencyArmRollView
+  .arm-roll-box-section-card {
+    box-sizing: border-box !important;
+
+    display: flex !important;
+
+    flex: 0 0 auto !important;
+
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    flex-direction: column !important;
+
+    margin: 0 !important;
+
+    border-radius: 9px !important;
+
+    overflow: hidden !important;
+
+    scroll-snap-align: none !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-section-header {
+    display: flex !important;
+
+    flex: 0 0 auto !important;
+
+    width: 100% !important;
+    min-height: 40px !important;
+
+    align-items: center !important;
+    justify-content: space-between !important;
+
+    gap: 6px !important;
+
+    margin: 0 !important;
+    padding:
+      7px
+      9px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-section-header h4 {
+    margin: 0 !important;
+
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+  }
+
+
+  /* =====================================================
+    BOX 레벨 증가 추이 그래프
+  ====================================================== */
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-card {
+    min-height: 260px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-card
+  .arm-roll-box-section-header {
+    align-items: flex-start !important;
+
+    flex-direction: column !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend {
+    display: flex !important;
+
+    width: 100% !important;
+
+    align-items: center !important;
+    flex-wrap: wrap !important;
+
+    gap:
+      3px
+      7px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend span {
+    font-size: 8px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-trend-chart {
+    box-sizing: border-box !important;
+
+    display: block !important;
+
+    flex: 0 0 auto !important;
+
+    width: 100% !important;
+    height: 220px !important;
+    min-height: 220px !important;
+    max-height: none !important;
+
+    padding: 7px !important;
+
+    overflow: hidden !important;
+
+    visibility: visible !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-trend-chart
+  > svg,
+
+  #efficiencyArmRollView
+  .arm-roll-box-trend-chart
+  > canvas {
+    display: block !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+
+    visibility: visible !important;
+  }
+
+
+  /* =====================================================
+    날짜별 BOX 레벨·교체 이력 표
+  ====================================================== */
+
+  #efficiencyArmRollView
+  .arm-roll-box-daily-history-card,
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-history-card {
+    min-height: 250px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-table-wrap {
+    box-sizing: border-box !important;
+
+    display: block !important;
+
+    flex: 0 0 auto !important;
+
+    width: 100% !important;
+    height: 220px !important;
+    min-height: 220px !important;
+    max-height: 220px !important;
+
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+
+    visibility: visible !important;
+
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-daily-table {
+    min-width: 590px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-replacement-table {
+    min-width: 720px !important;
+  }
+
+
+  /* =====================================================
+    석회석 모바일 불필요 버튼 및 패널 제거
+  ====================================================== */
+
+  #efficiencyLimestoneView
+  .limestone-heading-actions,
+
+  #efficiencyLimestoneView
+  .limestone-import-panel,
+
+  #efficiencyLimestoneView
+  .limestone-editor-panel {
+    display: none !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-view-heading {
+    display: flex !important;
+
+    flex: 0 0 auto !important;
+
+    min-height: 42px !important;
+
+    align-items: center !important;
+    justify-content: flex-start !important;
+
+    margin: 0 !important;
+    padding:
+      7px
+      10px !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-view-heading h3 {
+    margin: 0 !important;
+
+    font-size: 18px !important;
+    line-height: 1.25 !important;
+    letter-spacing: -0.03em !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-view-description,
+
+  #efficiencyLimestoneView
+  .limestone-view-heading
+  > div
+  > span {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    석회석 전체 스크롤
+  ====================================================== */
+
+  #efficiencyLimestoneView {
+    min-height: 0 !important;
+
+    overflow: hidden !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-dashboard {
+    box-sizing: border-box !important;
+
+    display: flex !important;
+
+    flex: 1 1 auto !important;
+
+    width: 100% !important;
+    min-height: 0 !important;
+
+    flex-direction: column !important;
+
+    gap: 6px !important;
+
+    margin: 0 !important;
+    padding:
+      0
+      0
+      12px !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+
+  /* =====================================================
+    석회석 날짜 이동 한 줄 정렬
+
+    [‹] [오늘 날짜] [›] [기간 조회]
+  ====================================================== */
+
+  #efficiencyLimestoneView
+  .limestone-day-query-card {
+    box-sizing: border-box !important;
+
+    flex: 0 0 auto !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+
+    margin: 0 !important;
+    padding: 6px !important;
+
+    border-radius: 9px !important;
+
+    overflow: visible !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-day-navigation {
+    box-sizing: border-box !important;
+
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      30px
+      minmax(0, 1fr)
+      30px
+      68px !important;
+
+    align-items: center !important;
+
+    gap: 4px !important;
+
+    margin: 0 !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-day-arrow-button {
+    box-sizing: border-box !important;
+
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border-radius: 7px !important;
+
+    font-size: 19px !important;
+    line-height: 1 !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-current-day-button {
+    box-sizing: border-box !important;
+
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 32px !important;
+    min-height: 32px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    gap: 5px !important;
+
+    margin: 0 !important;
+    padding:
+      0
+      5px !important;
+
+    border-radius: 7px !important;
+
+    overflow: hidden !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-current-day-button strong {
+    min-width: 0 !important;
+
+    font-size: 13px !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-today-badge {
+    flex: 0 0 auto !important;
+
+    min-height: 20px !important;
+
+    padding:
+      0
+      5px !important;
+
+    font-size: 8px !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-open-period-button {
+    box-sizing: border-box !important;
+
+    grid-column: auto !important;
+
+    width: 68px !important;
+    min-width: 68px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border-radius: 7px !important;
+
+    font-size: 9px !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* 석회석 기간 조회 결과 */
+
+  #efficiencyLimestoneView
+  .limestone-active-range-information:not([hidden]) {
+    box-sizing: border-box !important;
+
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      auto
+      minmax(0, 1fr)
+      auto !important;
+
+    align-items: center !important;
+
+    gap: 5px !important;
+
+    margin:
+      5px
+      0
+      0 !important;
+
+    padding:
+      5px
+      7px !important;
+
+    border-radius: 7px !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-active-range-information span,
+
+  #efficiencyLimestoneView
+  .limestone-active-range-information strong,
+
+  #efficiencyLimestoneView
+  .limestone-active-range-information small {
+    min-width: 0 !important;
+
+    margin: 0 !important;
+
+    font-size: 8px !important;
+    line-height: 1.3 !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-active-range-information strong {
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+
+}
+
+
+/* =========================================================
+  폭이 매우 좁은 모바일 추가 보정
+========================================================= */
+
+@media screen and (max-width: 390px) {
+
+  #efficiencyLimestoneView
+  .limestone-day-navigation {
+    grid-template-columns:
+      27px
+      minmax(0, 1fr)
+      27px
+      62px !important;
+
+    gap: 3px !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-day-arrow-button {
+    width: 27px !important;
+    min-width: 27px !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-open-period-button {
+    width: 62px !important;
+    min-width: 62px !important;
+
+    font-size: 8px !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-current-day-button strong {
+    font-size: 12px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-search-form input {
+    padding:
+      0
+      4px !important;
+
+    font-size: 10px !important;
+  }
+
+}
