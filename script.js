@@ -125247,68 +125247,6 @@ function cleanMorningMeetingSectionRows(
   - 팀 자료가 B90을 넘어가면 안 됨
 ===================================================== */
 
-const TEAM_LAYOUT = {
-  safety: {
-    teamName:
-      "안전팀",
-
-    sectionNumber:
-      2,
-
-    startRow:
-      34,
-
-    endRow:
-      50
-  },
-
-
-  environment: {
-    teamName:
-      "환경팀",
-
-    sectionNumber:
-      3,
-
-    startRow:
-      51,
-
-    endRow:
-      61
-  },
-
-
-  mechanical: {
-    teamName:
-      "기계팀",
-
-    sectionNumber:
-      4,
-
-    startRow:
-      62,
-
-    endRow:
-      75
-  },
-
-
-  electrical: {
-    teamName:
-      "전기제어팀",
-
-    sectionNumber:
-      5,
-
-    startRow:
-      76,
-
-    endRow:
-      90
-  }
-};
-
-
   const TEAM_ORDER = [
     "safety",
     "environment",
@@ -125927,86 +125865,6 @@ function normalizeMorningMeetingOutputLine(
         Boolean
       );
   }
-
-
-  function buildMorningMeetingTeamBlock(
-    teamKey,
-    result,
-    previousDate,
-    scheduleDate
-  ) {
-    const layout =
-      TEAM_LAYOUT[
-        teamKey
-      ];
-
-
-    const previousLines =
-      splitMorningMeetingOutputLines(
-        result.previousText
-      );
-
-
-    const scheduleLines =
-      splitMorningMeetingOutputLines(
-        result.scheduleText
-      );
-
-
-    const rows = [
-      `${layout.sectionNumber}. ${layout.teamName}`,
-
-      "",
-
-      `◇ 전일 특이사항(${formatMorningMeetingShortDate(
-        previousDate
-      )})`,
-
-      ...previousLines,
-
-      "",
-
-      `◇ 예정사항(${formatMorningMeetingShortDate(
-        scheduleDate
-      )})`,
-
-      ...scheduleLines
-    ];
-
-
-    const availableRowCount =
-      layout.endRow -
-      layout.startRow +
-      1;
-
-
-    if (
-      rows.length >
-      availableRowCount
-    ) {
-      throw new Error(
-        `${layout.teamName} 내용이 ${
-          rows.length
-        }행으로, 기준 양식의 ${
-          availableRowCount
-        }행을 초과했습니다. 미리보기에서 내용을 줄여주세요.`
-      );
-    }
-
-
-    while (
-      rows.length <
-      availableRowCount
-    ) {
-      rows.push(
-        ""
-      );
-    }
-
-
-    return rows;
-  }
-
 
   /* =====================================================
     XML 문자열 처리
@@ -126719,347 +126577,2285 @@ function replaceMorningMeetingCellText(
     );
   }
 
+/* =========================================================
+  오전회의 취합 - 팀별 행 자동 재배치
 
-  /* =====================================================
-    최종 엑셀 생성
-  ====================================================== */
+  - 안전팀~전기제어팀 내용 수에 맞춰 행 자동 증감
+  - TM 사항 및 아래 행 자동 이동
+  - 환경팀 끝으로 수동 페이지 나누기 이동
+  - 인쇄 영역 자동 확장/축소
+========================================================= */
 
-  async function createMorningMeetingWorkbook() {
-    const elements =
-      getMorningMeetingWorkbookElements();
+const MORNING_MEETING_DYNAMIC_TEAM_CONFIG = [
+  {
+    key: "safety",
+    teamName: "안전팀",
+    sectionNumber: 2,
+    titlePattern: /^2\s*\.\s*안전팀$/i
+  },
+  {
+    key: "environment",
+    teamName: "환경팀",
+    sectionNumber: 3,
+    titlePattern: /^3\s*\.\s*환경팀$/i
+  },
+  {
+    key: "mechanical",
+    teamName: "기계팀",
+    sectionNumber: 4,
+    titlePattern: /^4\s*\.\s*기계팀$/i
+  },
+  {
+    key: "electrical",
+    teamName: "전기제어팀",
+    sectionNumber: 5,
+    titlePattern: /^5\s*\.\s*전기제어팀$/i
+  }
+];
 
 
-    const state =
-      getMorningMeetingWorkbookState();
-
-
-    hideMorningMeetingWorkbookError();
-
-    synchronizeMorningMeetingPreviewText();
-
-
-    if (
-      typeof JSZip ===
-      "undefined"
-    ) {
-      showMorningMeetingWorkbookError(
-        "JSZip 라이브러리를 불러오지 못했습니다. index.html 연결을 확인해 주세요."
+function getMorningMeetingDirectXmlChildren(
+  parent,
+  localName
+) {
+  return Array.from(
+    parent?.childNodes ||
+    []
+  ).filter(
+    node => {
+      return (
+        node.nodeType === 1 &&
+        node.localName === localName
       );
-
-
-      return;
     }
+  );
+}
 
 
-    if (
-      !state.templateFile
-    ) {
-      showMorningMeetingWorkbookError(
-        "현재 날짜의 기준 취합본을 먼저 첨부해 주세요."
-      );
+function getMorningMeetingRowNumber(
+  rowElement
+) {
+  return Number(
+    rowElement?.getAttribute(
+      "r"
+    ) ||
+    0
+  );
+}
 
 
-      return;
-    }
+function getMorningMeetingCellColumn(
+  cellReference
+) {
+  return String(
+    cellReference ||
+    ""
+  )
+    .replace(
+      /\d+/g,
+      ""
+    )
+    .toUpperCase();
+}
 
 
-    const analysisResults =
-      TEAM_ORDER.map(
-        teamKey => {
-          return state.analysis?.[
-            teamKey
-          ];
-        }
-      );
+function normalizeMorningMeetingTemplateText(
+  value
+) {
+  return String(
+    value ??
+    ""
+  )
+    .replace(
+      /\u00a0/g,
+      " "
+    )
+    .replace(
+      /\r\n?/g,
+      "\n"
+    )
+    .replace(
+      /[ \t]+/g,
+      " "
+    )
+    .trim();
+}
 
 
-    if (
-      analysisResults.some(
-        result => {
-          return !result;
-        }
+function parseMorningMeetingSharedStrings(
+  sharedStringsXmlText
+) {
+  if (
+    !sharedStringsXmlText
+  ) {
+    return [];
+  }
+
+
+  const documentObject =
+    parseMorningMeetingXml(
+      sharedStringsXmlText,
+      "공유 문자열"
+    );
+
+
+  return Array.from(
+    documentObject
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "si"
       )
-    ) {
-      showMorningMeetingWorkbookError(
-        "4개 팀 자료 분석을 먼저 완료해 주세요."
-      );
-
-
-      return;
-    }
-
-
-    const reportDates =
-      analysisResults
+  ).map(
+    sharedStringElement => {
+      return Array.from(
+        sharedStringElement
+          .getElementsByTagNameNS(
+            MAIN_XML_NAMESPACE,
+            "t"
+          )
+      )
         .map(
-          result => {
-            return String(
-              result.reportDate ||
+          textElement => {
+            return (
+              textElement.textContent ||
               ""
-            ).trim();
+            );
           }
         )
-        .filter(
-          Boolean
+        .join(
+          ""
+        );
+    }
+  );
+}
+
+
+function getMorningMeetingCellTextFromXml(
+  cellElement,
+  sharedStrings
+) {
+  if (
+    !cellElement
+  ) {
+    return "";
+  }
+
+
+  const cellType =
+    cellElement.getAttribute(
+      "t"
+    );
+
+
+  if (
+    cellType === "s"
+  ) {
+    const valueElement =
+      cellElement
+        .getElementsByTagNameNS(
+          MAIN_XML_NAMESPACE,
+          "v"
+        )[0];
+
+
+    return (
+      sharedStrings[
+        Number(
+          valueElement?.textContent ||
+          -1
+        )
+      ] ||
+      ""
+    );
+  }
+
+
+  if (
+    cellType === "inlineStr"
+  ) {
+    return Array.from(
+      cellElement
+        .getElementsByTagNameNS(
+          MAIN_XML_NAMESPACE,
+          "t"
+        )
+    )
+      .map(
+        textElement => {
+          return (
+            textElement.textContent ||
+            ""
+          );
+        }
+      )
+      .join(
+        ""
+      );
+  }
+
+
+  return (
+    cellElement
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "v"
+      )[0]
+      ?.textContent ||
+    ""
+  );
+}
+
+
+function getMorningMeetingRowColumnBText(
+  rowElement,
+  sharedStrings
+) {
+  const columnBCell =
+    getMorningMeetingDirectXmlChildren(
+      rowElement,
+      "c"
+    ).find(
+      cellElement => {
+        return (
+          getMorningMeetingCellColumn(
+            cellElement.getAttribute(
+              "r"
+            )
+          ) === "B"
+        );
+      }
+    );
+
+
+  return normalizeMorningMeetingTemplateText(
+    getMorningMeetingCellTextFromXml(
+      columnBCell,
+      sharedStrings
+    )
+  );
+}
+
+
+function findMorningMeetingRowRecord(
+  rowRecords,
+  pattern,
+  startRow = 1,
+  endRow = Number.MAX_SAFE_INTEGER
+) {
+  return (
+    rowRecords.find(
+      record => {
+        return (
+          record.rowNumber >= startRow &&
+          record.rowNumber <= endRow &&
+          pattern.test(
+            record.text
+          )
+        );
+      }
+    ) ||
+    null
+  );
+}
+
+
+function findMorningMeetingBlankRowRecord(
+  rowRecords,
+  startRow,
+  endRow,
+  fromEnd = false
+) {
+  const candidates =
+    rowRecords.filter(
+      record => {
+        return (
+          record.rowNumber >= startRow &&
+          record.rowNumber <= endRow &&
+          !record.text
+        );
+      }
+    );
+
+
+  if (
+    candidates.length === 0
+  ) {
+    return null;
+  }
+
+
+  return fromEnd
+    ? candidates[
+        candidates.length - 1
+      ]
+    : candidates[0];
+}
+
+
+function findMorningMeetingContentRowRecord(
+  rowRecords,
+  startRow,
+  endRow
+) {
+  return (
+    rowRecords.find(
+      record => {
+        return (
+          record.rowNumber >= startRow &&
+          record.rowNumber <= endRow &&
+          Boolean(
+            record.text
+          ) &&
+          !/^◇\s*(전일\s*특이사항|예정사항)/i.test(
+            record.text
+          )
+        );
+      }
+    ) ||
+    null
+  );
+}
+
+
+/* =====================================================
+  기준 취합본에서 팀별 현재 위치와 서식 탐색
+===================================================== */
+
+function inspectMorningMeetingDynamicLayout(
+  worksheetDocument,
+  sharedStrings
+) {
+  const sheetData =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "sheetData"
+      )[0];
+
+
+  if (
+    !sheetData
+  ) {
+    throw new Error(
+      "기준 취합본의 시트 행 정보를 찾지 못했습니다."
+    );
+  }
+
+
+  const rowRecords =
+    getMorningMeetingDirectXmlChildren(
+      sheetData,
+      "row"
+    )
+      .map(
+        rowElement => {
+          return {
+            element:
+              rowElement,
+
+            rowNumber:
+              getMorningMeetingRowNumber(
+                rowElement
+              ),
+
+            text:
+              getMorningMeetingRowColumnBText(
+                rowElement,
+                sharedStrings
+              )
+          };
+        }
+      )
+      .sort(
+        (
+          first,
+          second
+        ) => {
+          return (
+            first.rowNumber -
+            second.rowNumber
+          );
+        }
+      );
+
+
+  const teamStartRecords =
+    {};
+
+
+  MORNING_MEETING_DYNAMIC_TEAM_CONFIG.forEach(
+    config => {
+      const record =
+        findMorningMeetingRowRecord(
+          rowRecords,
+          config.titlePattern
         );
 
 
-    const uniqueReportDates =
-      Array.from(
-        new Set(
-          reportDates
-        )
-      );
+      if (
+        !record
+      ) {
+        throw new Error(
+          `기준 취합본에서 '${config.sectionNumber}. ${config.teamName}' 구역을 찾지 못했습니다.`
+        );
+      }
 
 
+      teamStartRecords[
+        config.key
+      ] =
+        record;
+    }
+  );
+
+
+  const tmStartRecord =
+    findMorningMeetingRowRecord(
+      rowRecords,
+      /^6\s*\.\s*TM\s*사항$/i
+    );
+
+
+  if (
+    !tmStartRecord
+  ) {
+    throw new Error(
+      "기준 취합본에서 '6. TM 사항' 구역을 찾지 못했습니다."
+    );
+  }
+
+
+  const orderedRows = [
+    ...MORNING_MEETING_DYNAMIC_TEAM_CONFIG.map(
+      config => {
+        return teamStartRecords[
+          config.key
+        ].rowNumber;
+      }
+    ),
+
+    tmStartRecord.rowNumber
+  ];
+
+
+  for (
+    let index = 1;
+    index < orderedRows.length;
+    index += 1
+  ) {
     if (
-      uniqueReportDates.length >
+      orderedRows[index] <=
+      orderedRows[index - 1]
+    ) {
+      throw new Error(
+        "기준 취합본의 팀 구역 순서가 올바르지 않습니다."
+      );
+    }
+  }
+
+
+  const teams =
+    {};
+
+
+  MORNING_MEETING_DYNAMIC_TEAM_CONFIG.forEach(
+    (
+      config,
+      configIndex
+    ) => {
+      const startRecord =
+        teamStartRecords[
+          config.key
+        ];
+
+
+      const nextStartRow =
+        configIndex <
+        MORNING_MEETING_DYNAMIC_TEAM_CONFIG.length -
+          1
+          ? teamStartRecords[
+              MORNING_MEETING_DYNAMIC_TEAM_CONFIG[
+                configIndex +
+                1
+              ].key
+            ].rowNumber
+          : tmStartRecord.rowNumber;
+
+
+      const sectionEndRow =
+        nextStartRow -
+        1;
+
+
+      const previousHeadingRecord =
+        findMorningMeetingRowRecord(
+          rowRecords,
+          /^◇\s*전일\s*특이사항/i,
+          startRecord.rowNumber +
+            1,
+          sectionEndRow
+        );
+
+
+      const scheduleHeadingRecord =
+        findMorningMeetingRowRecord(
+          rowRecords,
+          /^◇\s*예정사항/i,
+          startRecord.rowNumber +
+            1,
+          sectionEndRow
+        );
+
+
+      if (
+        !previousHeadingRecord ||
+        !scheduleHeadingRecord
+      ) {
+        throw new Error(
+          `${config.teamName} 구역에서 전일 특이사항 또는 예정사항 제목을 찾지 못했습니다.`
+        );
+      }
+
+
+      const blankAfterTitleRecord =
+        findMorningMeetingBlankRowRecord(
+          rowRecords,
+          startRecord.rowNumber +
+            1,
+          previousHeadingRecord.rowNumber -
+            1
+        ) ||
+        rowRecords.find(
+          record => {
+            return (
+              record.rowNumber ===
+              startRecord.rowNumber +
+                1
+            );
+          }
+        );
+
+
+      const previousContentRecord =
+        findMorningMeetingContentRowRecord(
+          rowRecords,
+          previousHeadingRecord.rowNumber +
+            1,
+          scheduleHeadingRecord.rowNumber -
+            1
+        );
+
+
+      const separatorBlankRecord =
+        findMorningMeetingBlankRowRecord(
+          rowRecords,
+          previousHeadingRecord.rowNumber +
+            1,
+          scheduleHeadingRecord.rowNumber -
+            1,
+          true
+        ) ||
+        blankAfterTitleRecord;
+
+
+      const scheduleContentRecord =
+        findMorningMeetingContentRowRecord(
+          rowRecords,
+          scheduleHeadingRecord.rowNumber +
+            1,
+          sectionEndRow
+        );
+
+
+      const finalBlankRecord =
+        findMorningMeetingBlankRowRecord(
+          rowRecords,
+          scheduleHeadingRecord.rowNumber +
+            1,
+          sectionEndRow,
+          true
+        ) ||
+        blankAfterTitleRecord;
+
+
+      const requiredTemplates = {
+        title:
+          startRecord,
+
+        blankAfterTitle:
+          blankAfterTitleRecord,
+
+        previousHeading:
+          previousHeadingRecord,
+
+        previousContent:
+          previousContentRecord,
+
+        separatorBlank:
+          separatorBlankRecord,
+
+        scheduleHeading:
+          scheduleHeadingRecord,
+
+        scheduleContent:
+          scheduleContentRecord,
+
+        finalBlank:
+          finalBlankRecord
+      };
+
+
+      const missingRole =
+        Object.entries(
+          requiredTemplates
+        ).find(
+          ([
+            ,
+            record
+          ]) => {
+            return !record?.element;
+          }
+        );
+
+
+      if (
+        missingRole
+      ) {
+        throw new Error(
+          `${config.teamName} 구역의 행 서식 기준을 찾지 못했습니다: ${missingRole[0]}`
+        );
+      }
+
+
+      teams[
+        config.key
+      ] = {
+        config,
+
+        startRow:
+          startRecord.rowNumber,
+
+        endRow:
+          sectionEndRow,
+
+        templates:
+          Object.fromEntries(
+            Object.entries(
+              requiredTemplates
+            ).map(
+              ([
+                role,
+                record
+              ]) => {
+                return [
+                  role,
+                  record.element
+                ];
+              }
+            )
+          )
+      };
+    }
+  );
+
+
+  return {
+    sheetData,
+    rowRecords,
+    teams,
+
+    safetyStartRow:
+      teamStartRecords
+        .safety
+        .rowNumber,
+
+    tmStartRow:
+      tmStartRecord
+        .rowNumber,
+
+    tmRowElement:
+      tmStartRecord
+        .element,
+
+    oldEnvironmentEndRow:
+      teamStartRecords
+        .mechanical
+        .rowNumber -
       1
-    ) {
-      showMorningMeetingWorkbookError(
-        `팀별 자료 날짜가 서로 다릅니다: ${uniqueReportDates.join(
-          ", "
-        )}`
+  };
+}
+
+
+/* =====================================================
+  한글: 바탕
+  영문·숫자·기호: Times New Roman
+===================================================== */
+
+function isMorningMeetingDynamicHangulCharacter(
+  character
+) {
+  return /[\u1100-\u11ff\u3130-\u318f\uA960-\uA97F\uAC00-\uD7AF\uD7B0-\uD7FF]/.test(
+    String(
+      character ||
+      ""
+    )
+  );
+}
+
+
+function splitMorningMeetingDynamicFontRuns(
+  value
+) {
+  const text =
+    String(
+      value ??
+      ""
+    );
+
+
+  if (
+    !text
+  ) {
+    return [];
+  }
+
+
+  const runs =
+    [];
+
+
+  let currentText =
+    "";
+
+
+  let currentIsHangul =
+    null;
+
+
+  for (
+    const character
+    of text
+  ) {
+    const isHangul =
+      isMorningMeetingDynamicHangulCharacter(
+        character
       );
 
 
-      return;
+    if (
+      currentIsHangul ===
+      null
+    ) {
+      currentIsHangul =
+        isHangul;
+
+      currentText =
+        character;
+
+      continue;
     }
 
 
-    const previousDate =
-      parseMorningMeetingReportDate(
-        uniqueReportDates[
+    if (
+      currentIsHangul ===
+      isHangul
+    ) {
+      currentText +=
+        character;
+
+      continue;
+    }
+
+
+    runs.push({
+      text:
+        currentText,
+
+      isHangul:
+        currentIsHangul
+    });
+
+
+    currentText =
+      character;
+
+
+    currentIsHangul =
+      isHangul;
+  }
+
+
+  if (
+    currentText
+  ) {
+    runs.push({
+      text:
+        currentText,
+
+      isHangul:
+        currentIsHangul
+    });
+  }
+
+
+  return runs;
+}
+
+
+function setMorningMeetingDynamicCellText(
+  worksheetDocument,
+  cellElement,
+  value
+) {
+  while (
+    cellElement.firstChild
+  ) {
+    cellElement.removeChild(
+      cellElement.firstChild
+    );
+  }
+
+
+  const text =
+    String(
+      value ??
+      ""
+    );
+
+
+  if (
+    !text
+  ) {
+    cellElement.removeAttribute(
+      "t"
+    );
+
+    return;
+  }
+
+
+  cellElement.setAttribute(
+    "t",
+    "inlineStr"
+  );
+
+
+  const inlineStringElement =
+    worksheetDocument.createElementNS(
+      MAIN_XML_NAMESPACE,
+      "is"
+    );
+
+
+  splitMorningMeetingDynamicFontRuns(
+    text
+  ).forEach(
+    run => {
+      const runElement =
+        worksheetDocument.createElementNS(
+          MAIN_XML_NAMESPACE,
+          "r"
+        );
+
+
+      const runPropertiesElement =
+        worksheetDocument.createElementNS(
+          MAIN_XML_NAMESPACE,
+          "rPr"
+        );
+
+
+      const fontElement =
+        worksheetDocument.createElementNS(
+          MAIN_XML_NAMESPACE,
+          "rFont"
+        );
+
+
+      const charsetElement =
+        worksheetDocument.createElementNS(
+          MAIN_XML_NAMESPACE,
+          "charset"
+        );
+
+
+      const familyElement =
+        worksheetDocument.createElementNS(
+          MAIN_XML_NAMESPACE,
+          "family"
+        );
+
+
+      const textElement =
+        worksheetDocument.createElementNS(
+          MAIN_XML_NAMESPACE,
+          "t"
+        );
+
+
+      fontElement.setAttribute(
+        "val",
+
+        run.isHangul
+          ? "Batang"
+          : "Times New Roman"
+      );
+
+
+      charsetElement.setAttribute(
+        "val",
+
+        run.isHangul
+          ? "129"
+          : "0"
+      );
+
+
+      familyElement.setAttribute(
+        "val",
+        "1"
+      );
+
+
+      textElement.setAttributeNS(
+        "http://www.w3.org/XML/1998/namespace",
+        "xml:space",
+        "preserve"
+      );
+
+
+      textElement.textContent =
+        run.text;
+
+
+      runPropertiesElement.appendChild(
+        fontElement
+      );
+
+
+      runPropertiesElement.appendChild(
+        charsetElement
+      );
+
+
+      runPropertiesElement.appendChild(
+        familyElement
+      );
+
+
+      runElement.appendChild(
+        runPropertiesElement
+      );
+
+
+      runElement.appendChild(
+        textElement
+      );
+
+
+      inlineStringElement.appendChild(
+        runElement
+      );
+    }
+  );
+
+
+  cellElement.appendChild(
+    inlineStringElement
+  );
+}
+
+
+/* =====================================================
+  기존 팀 행의 서식을 복제해서 새 행 생성
+===================================================== */
+
+function cloneMorningMeetingDynamicRow(
+  worksheetDocument,
+  templateRowElement,
+  targetRowNumber,
+  text
+) {
+  const rowElement =
+    templateRowElement.cloneNode(
+      true
+    );
+
+
+  rowElement.setAttribute(
+    "r",
+    String(
+      targetRowNumber
+    )
+  );
+
+
+  const cellElements =
+    getMorningMeetingDirectXmlChildren(
+      rowElement,
+      "c"
+    );
+
+
+  cellElements.forEach(
+    cellElement => {
+      const columnName =
+        getMorningMeetingCellColumn(
+          cellElement.getAttribute(
+            "r"
+          )
+        );
+
+
+      if (
+        columnName
+      ) {
+        cellElement.setAttribute(
+          "r",
+          `${columnName}${targetRowNumber}`
+        );
+      }
+    }
+  );
+
+
+  const columnBCell =
+    cellElements.find(
+      cellElement => {
+        return (
+          getMorningMeetingCellColumn(
+            cellElement.getAttribute(
+              "r"
+            )
+          ) === "B"
+        );
+      }
+    );
+
+
+  if (
+    !columnBCell
+  ) {
+    throw new Error(
+      `행 ${targetRowNumber}의 B열 서식 기준을 찾지 못했습니다.`
+    );
+  }
+
+
+  setMorningMeetingDynamicCellText(
+    worksheetDocument,
+    columnBCell,
+    text
+  );
+
+
+  return rowElement;
+}
+
+
+/* =====================================================
+  네 팀 내용을 실제 줄 수만큼 생성
+===================================================== */
+
+function buildMorningMeetingDynamicRows(
+  layout,
+  analysis,
+  previousDate,
+  scheduleDate
+) {
+  const rows =
+    [];
+
+
+  const teamRanges =
+    {};
+
+
+  let nextRowNumber =
+    layout.safetyStartRow;
+
+
+  MORNING_MEETING_DYNAMIC_TEAM_CONFIG.forEach(
+    config => {
+      const teamLayout =
+        layout.teams[
+          config.key
+        ];
+
+
+      const result =
+        analysis[
+          config.key
+        ];
+
+
+      if (
+        !result
+      ) {
+        throw new Error(
+          `${config.teamName} 분석 결과가 없습니다.`
+        );
+      }
+
+
+      const previousLines =
+        splitMorningMeetingOutputLines(
+          result.previousText
+        );
+
+
+      const scheduleLines =
+        splitMorningMeetingOutputLines(
+          result.scheduleText
+        );
+
+
+      const teamStartRow =
+        nextRowNumber;
+
+
+      const rowDefinitions = [
+        {
+          template:
+            teamLayout
+              .templates
+              .title,
+
+          text:
+            `${config.sectionNumber}. ${config.teamName}`
+        },
+
+        {
+          template:
+            teamLayout
+              .templates
+              .blankAfterTitle,
+
+          text:
+            ""
+        },
+
+        {
+          template:
+            teamLayout
+              .templates
+              .previousHeading,
+
+          text:
+            `◇ 전일 특이사항(${formatMorningMeetingShortDate(
+              previousDate
+            )})`
+        },
+
+        ...previousLines.map(
+          line => {
+            return {
+              template:
+                teamLayout
+                  .templates
+                  .previousContent,
+
+              text:
+                line
+            };
+          }
+        ),
+
+        {
+          template:
+            teamLayout
+              .templates
+              .separatorBlank,
+
+          text:
+            ""
+        },
+
+        {
+          template:
+            teamLayout
+              .templates
+              .scheduleHeading,
+
+          text:
+            `◇ 예정사항(${formatMorningMeetingShortDate(
+              scheduleDate
+            )})`
+        },
+
+        ...scheduleLines.map(
+          line => {
+            return {
+              template:
+                teamLayout
+                  .templates
+                  .scheduleContent,
+
+              text:
+                line
+            };
+          }
+        ),
+
+        {
+          template:
+            teamLayout
+              .templates
+              .finalBlank,
+
+          text:
+            ""
+        }
+      ];
+
+
+      rowDefinitions.forEach(
+        definition => {
+          rows.push({
+            rowNumber:
+              nextRowNumber,
+
+            element:
+              cloneMorningMeetingDynamicRow(
+                layout
+                  .sheetData
+                  .ownerDocument,
+
+                definition.template,
+
+                nextRowNumber,
+
+                definition.text
+              )
+          });
+
+
+          nextRowNumber +=
+            1;
+        }
+      );
+
+
+      teamRanges[
+        config.key
+      ] = {
+        startRow:
+          teamStartRow,
+
+        endRow:
+          nextRowNumber -
+          1
+      };
+    }
+  );
+
+
+  return {
+    rows,
+    teamRanges,
+
+    newTmStartRow:
+      nextRowNumber
+  };
+}
+
+
+/* =====================================================
+  기존 TM 사항 이하 행 이동
+===================================================== */
+
+function shiftMorningMeetingExistingRow(
+  rowElement,
+  delta
+) {
+  if (
+    !delta
+  ) {
+    return;
+  }
+
+
+  const newRowNumber =
+    getMorningMeetingRowNumber(
+      rowElement
+    ) +
+    delta;
+
+
+  rowElement.setAttribute(
+    "r",
+    String(
+      newRowNumber
+    )
+  );
+
+
+  getMorningMeetingDirectXmlChildren(
+    rowElement,
+    "c"
+  ).forEach(
+    cellElement => {
+      const columnName =
+        getMorningMeetingCellColumn(
+          cellElement.getAttribute(
+            "r"
+          )
+        );
+
+
+      if (
+        columnName
+      ) {
+        cellElement.setAttribute(
+          "r",
+          `${columnName}${newRowNumber}`
+        );
+      }
+    }
+  );
+}
+
+
+/* =====================================================
+  병합 셀 이동 및 재구성
+===================================================== */
+
+function parseMorningMeetingMergeReference(
+  mergeReference
+) {
+  const match =
+    String(
+      mergeReference ||
+      ""
+    ).match(
+      /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/i
+    );
+
+
+  if (
+    !match
+  ) {
+    return null;
+  }
+
+
+  return {
+    startColumn:
+      match[1]
+        .toUpperCase(),
+
+    startRow:
+      Number(
+        match[2]
+      ),
+
+    endColumn:
+      match[3]
+        .toUpperCase(),
+
+    endRow:
+      Number(
+        match[4]
+      )
+  };
+}
+
+
+function formatMorningMeetingMergeReference(
+  mergeRange
+) {
+  return (
+    `${mergeRange.startColumn}${mergeRange.startRow}:` +
+    `${mergeRange.endColumn}${mergeRange.endRow}`
+  );
+}
+
+
+function updateMorningMeetingDynamicMerges(
+  worksheetDocument,
+  layout,
+  dynamicRows,
+  delta
+) {
+  const worksheetRoot =
+    worksheetDocument
+      .documentElement;
+
+
+  let mergeCellsElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !mergeCellsElement
+  ) {
+    mergeCellsElement =
+      worksheetDocument.createElementNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      );
+
+
+    const phoneticPr =
+      worksheetDocument
+        .getElementsByTagNameNS(
+          MAIN_XML_NAMESPACE,
+          "phoneticPr"
+        )[0];
+
+
+    worksheetRoot.insertBefore(
+      mergeCellsElement,
+      phoneticPr ||
+      null
+    );
+  }
+
+
+  getMorningMeetingDirectXmlChildren(
+    mergeCellsElement,
+    "mergeCell"
+  ).forEach(
+    mergeElement => {
+      const range =
+        parseMorningMeetingMergeReference(
+          mergeElement.getAttribute(
+            "ref"
+          )
+        );
+
+
+      if (
+        !range
+      ) {
+        return;
+      }
+
+
+      if (
+        range.endRow <
+        layout.safetyStartRow
+      ) {
+        return;
+      }
+
+
+      if (
+        range.startRow >=
+          layout.safetyStartRow &&
+        range.endRow <
+          layout.tmStartRow
+      ) {
+        mergeCellsElement.removeChild(
+          mergeElement
+        );
+
+        return;
+      }
+
+
+      if (
+        range.startRow >=
+        layout.tmStartRow
+      ) {
+        range.startRow +=
+          delta;
+
+
+        range.endRow +=
+          delta;
+
+
+        mergeElement.setAttribute(
+          "ref",
+
+          formatMorningMeetingMergeReference(
+            range
+          )
+        );
+
+
+        return;
+      }
+
+
+      throw new Error(
+        `병합 셀 ${mergeElement.getAttribute(
+          "ref"
+        )}이 팀 구역 경계를 가로지르고 있습니다.`
+      );
+    }
+  );
+
+
+  dynamicRows.forEach(
+    rowDefinition => {
+      const mergeElement =
+        worksheetDocument.createElementNS(
+          MAIN_XML_NAMESPACE,
+          "mergeCell"
+        );
+
+
+      mergeElement.setAttribute(
+        "ref",
+
+        `B${rowDefinition.rowNumber}:AD${rowDefinition.rowNumber}`
+      );
+
+
+      mergeCellsElement.appendChild(
+        mergeElement
+      );
+    }
+  );
+
+
+  mergeCellsElement.setAttribute(
+    "count",
+
+    String(
+      getMorningMeetingDirectXmlChildren(
+        mergeCellsElement,
+        "mergeCell"
+      ).length
+    )
+  );
+}
+
+
+/* =====================================================
+  시트 최대 행 번호 변경
+===================================================== */
+
+function updateMorningMeetingDynamicDimension(
+  worksheetDocument,
+  layout,
+  delta
+) {
+  if (
+    !delta
+  ) {
+    return;
+  }
+
+
+  const dimensionElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "dimension"
+      )[0];
+
+
+  if (
+    !dimensionElement
+  ) {
+    return;
+  }
+
+
+  const reference =
+    dimensionElement.getAttribute(
+      "ref"
+    ) ||
+    "";
+
+
+  dimensionElement.setAttribute(
+    "ref",
+
+    reference.replace(
+      /([A-Z]+)(\d+)$/i,
+
+      (
+        match,
+        columnName,
+        rowText
+      ) => {
+        const rowNumber =
+          Number(
+            rowText
+          );
+
+
+        return rowNumber >=
+          layout.tmStartRow
+          ? `${columnName}${rowNumber + delta}`
+          : match;
+      }
+    )
+  );
+}
+
+
+/* =====================================================
+  환경팀 종료 행으로 페이지 나누기 이동
+===================================================== */
+
+function updateMorningMeetingDynamicPageBreak(
+  worksheetDocument,
+  layout,
+  newEnvironmentEndRow,
+  delta
+) {
+  const rowBreaksElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "rowBreaks"
+      )[0];
+
+
+  if (
+    !rowBreaksElement
+  ) {
+    return;
+  }
+
+
+  getMorningMeetingDirectXmlChildren(
+    rowBreaksElement,
+    "brk"
+  ).forEach(
+    breakElement => {
+      const oldBreakRow =
+        Number(
+          breakElement.getAttribute(
+            "id"
+          ) ||
           0
-        ]
+        );
+
+
+      if (
+        oldBreakRow ===
+        layout.oldEnvironmentEndRow
+      ) {
+        breakElement.setAttribute(
+          "id",
+          String(
+            newEnvironmentEndRow
+          )
+        );
+      } else if (
+        oldBreakRow >=
+        layout.tmStartRow
+      ) {
+        breakElement.setAttribute(
+          "id",
+          String(
+            oldBreakRow +
+            delta
+          )
+        );
+      }
+    }
+  );
+}
+
+
+/* =====================================================
+  기존 고정 팀 구간을 새 동적 구간으로 교체
+===================================================== */
+
+function replaceMorningMeetingDynamicTeamArea(
+  worksheetDocument,
+  layout,
+  buildResult
+) {
+  const oldRowCount =
+    layout.tmStartRow -
+    layout.safetyStartRow;
+
+
+  const newRowCount =
+    buildResult.rows.length;
+
+
+  const delta =
+    newRowCount -
+    oldRowCount;
+
+
+  layout.rowRecords
+    .filter(
+      record => {
+        return (
+          record.rowNumber >=
+          layout.tmStartRow
+        );
+      }
+    )
+    .forEach(
+      record => {
+        shiftMorningMeetingExistingRow(
+          record.element,
+          delta
+        );
+      }
+    );
+
+
+  layout.rowRecords
+    .filter(
+      record => {
+        return (
+          record.rowNumber >=
+            layout.safetyStartRow &&
+          record.rowNumber <
+            layout.tmStartRow
+        );
+      }
+    )
+    .forEach(
+      record => {
+        layout.sheetData.removeChild(
+          record.element
+        );
+      }
+    );
+
+
+  buildResult.rows.forEach(
+    rowDefinition => {
+      layout.sheetData.insertBefore(
+        rowDefinition.element,
+        layout.tmRowElement
+      );
+    }
+  );
+
+
+  updateMorningMeetingDynamicMerges(
+    worksheetDocument,
+    layout,
+    buildResult.rows,
+    delta
+  );
+
+
+  updateMorningMeetingDynamicDimension(
+    worksheetDocument,
+    layout,
+    delta
+  );
+
+
+  updateMorningMeetingDynamicPageBreak(
+    worksheetDocument,
+    layout,
+    buildResult
+      .teamRanges
+      .environment
+      .endRow,
+    delta
+  );
+
+
+  return {
+    delta,
+
+    newTmStartRow:
+      buildResult.newTmStartRow
+  };
+}
+
+
+/* =====================================================
+  통합문서 인쇄 영역 확장·축소
+===================================================== */
+
+async function updateMorningMeetingWorkbookPrintArea(
+  zip,
+  delta
+) {
+  if (
+    !delta
+  ) {
+    return;
+  }
+
+
+  const workbookFile =
+    zip.file(
+      "xl/workbook.xml"
+    );
+
+
+  if (
+    !workbookFile
+  ) {
+    throw new Error(
+      "기준 취합본의 workbook.xml을 찾지 못했습니다."
+    );
+  }
+
+
+  const workbookDocument =
+    parseMorningMeetingXml(
+      await workbookFile.async(
+        "string"
+      ),
+
+      "통합문서"
+    );
+
+
+  const printAreaElement =
+    Array.from(
+      workbookDocument
+        .getElementsByTagNameNS(
+          MAIN_XML_NAMESPACE,
+          "definedName"
+        )
+    ).find(
+      element => {
+        return (
+          element.getAttribute(
+            "name"
+          ) ===
+            "_xlnm.Print_Area" &&
+
+          element.getAttribute(
+            "localSheetId"
+          ) ===
+            "0"
+        );
+      }
+    );
+
+
+  if (
+    printAreaElement
+  ) {
+    printAreaElement.textContent =
+      String(
+        printAreaElement.textContent ||
+        ""
+      ).replace(
+        /(:\$[A-Z]+\$)(\d+)\s*$/i,
+
+        (
+          match,
+          prefix,
+          rowText
+        ) => {
+          return (
+            `${prefix}` +
+            `${Number(
+              rowText
+            ) + delta}`
+          );
+        }
+      );
+  }
+
+
+  const calcPr =
+    workbookDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "calcPr"
+      )[0];
+
+
+  if (
+    calcPr
+  ) {
+    calcPr.setAttribute(
+      "fullCalcOnLoad",
+      "1"
+    );
+
+
+    calcPr.setAttribute(
+      "forceFullCalc",
+      "1"
+    );
+  }
+
+
+  zip.file(
+    "xl/workbook.xml",
+
+    new XMLSerializer()
+      .serializeToString(
+        workbookDocument
+      )
+  );
+}  
+
+/* =====================================================
+  최종 엑셀 생성 - 팀별 행 동적 재배치
+===================================================== */
+
+async function createMorningMeetingWorkbook() {
+  const elements =
+    getMorningMeetingWorkbookElements();
+
+
+  const state =
+    getMorningMeetingWorkbookState();
+
+
+  hideMorningMeetingWorkbookError();
+
+  synchronizeMorningMeetingPreviewText();
+
+
+  if (
+    typeof JSZip ===
+    "undefined"
+  ) {
+    showMorningMeetingWorkbookError(
+      "JSZip 라이브러리를 불러오지 못했습니다. index.html 연결을 확인해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  if (
+    !state.templateFile
+  ) {
+    showMorningMeetingWorkbookError(
+      "현재 날짜의 기준 취합본을 먼저 첨부해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  const analysisResults =
+    MORNING_MEETING_DYNAMIC_TEAM_CONFIG.map(
+      config => {
+        return state.analysis?.[
+          config.key
+        ];
+      }
+    );
+
+
+  if (
+    analysisResults.some(
+      result => {
+        return !result;
+      }
+    )
+  ) {
+    showMorningMeetingWorkbookError(
+      "4개 팀 자료 분석을 먼저 완료해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  const reportDates =
+    analysisResults
+      .map(
+        result => {
+          return String(
+            result.reportDate ||
+            ""
+          ).trim();
+        }
+      )
+      .filter(
+        Boolean
+      );
+
+
+  const uniqueReportDates =
+    Array.from(
+      new Set(
+        reportDates
+      )
+    );
+
+
+  if (
+    uniqueReportDates.length >
+    1
+  ) {
+    showMorningMeetingWorkbookError(
+      `팀별 자료 날짜가 서로 다릅니다: ${uniqueReportDates.join(
+        ", "
+      )}`
+    );
+
+
+    return;
+  }
+
+
+  const previousDate =
+    parseMorningMeetingReportDate(
+      uniqueReportDates[0]
+    );
+
+
+  if (
+    !previousDate
+  ) {
+    showMorningMeetingWorkbookError(
+      "팀별 자료에서 작성 날짜를 확인하지 못했습니다."
+    );
+
+
+    return;
+  }
+
+
+  const scheduleDate =
+    addMorningMeetingDateDays(
+      previousDate,
+      1
+    );
+
+
+  const originalButtonText =
+    elements.createButton
+      ?.textContent ||
+    "최종 엑셀 만들기";
+
+
+  if (
+    elements.createButton
+  ) {
+    elements.createButton.disabled =
+      true;
+
+
+    elements.createButton.textContent =
+      "엑셀 생성 중...";
+  }
+
+
+  if (
+    elements.message
+  ) {
+    elements.message.textContent =
+      "팀별 내용 수에 맞춰 행을 자동 재배치하고 있습니다.";
+  }
+
+
+  try {
+    const templateBuffer =
+      await state
+        .templateFile
+        .arrayBuffer();
+
+
+    const zip =
+      await JSZip.loadAsync(
+        templateBuffer
+      );
+
+
+    const worksheetPath =
+      await findMorningMeetingWorksheetPath(
+        zip
+      );
+
+
+    const worksheetFile =
+      zip.file(
+        worksheetPath
       );
 
 
     if (
-      !previousDate
+      !worksheetFile
     ) {
-      showMorningMeetingWorkbookError(
-        "팀별 자료에서 작성 날짜를 확인하지 못했습니다."
+      throw new Error(
+        "일일 발전운영현황 시트 파일을 열지 못했습니다."
       );
-
-
-      return;
     }
 
 
-    const scheduleDate =
-      addMorningMeetingDateDays(
+    const sharedStringsFile =
+      zip.file(
+        "xl/sharedStrings.xml"
+      );
+
+
+    const sharedStringsXmlText =
+      sharedStringsFile
+        ? await sharedStringsFile.async(
+            "string"
+          )
+        : "";
+
+
+    const sharedStrings =
+      parseMorningMeetingSharedStrings(
+        sharedStringsXmlText
+      );
+
+
+    const worksheetXmlText =
+      await worksheetFile.async(
+        "string"
+      );
+
+
+    const worksheetDocument =
+      parseMorningMeetingXml(
+        worksheetXmlText,
+        "일일 발전운영현황 시트"
+      );
+
+
+    /*
+      안전팀 제목 행부터
+      TM 사항 제목 행까지 자동 탐색
+    */
+
+    const layout =
+      inspectMorningMeetingDynamicLayout(
+        worksheetDocument,
+        sharedStrings
+      );
+
+
+    /*
+      각 팀 실제 내용 개수에 맞춰
+      새 행 목록 생성
+    */
+
+    const buildResult =
+      buildMorningMeetingDynamicRows(
+        layout,
+        state.analysis,
         previousDate,
-        1
+        scheduleDate
       );
 
 
-    const originalButtonText =
-      elements.createButton
-        ?.textContent ||
-      "최종 엑셀 만들기";
+    /*
+      기존 고정 팀 구간 제거 후
+      새 동적 구간 삽입
+    */
+
+    const dynamicResult =
+      replaceMorningMeetingDynamicTeamArea(
+        worksheetDocument,
+        layout,
+        buildResult
+      );
+
+
+    zip.file(
+      worksheetPath,
+
+      new XMLSerializer()
+        .serializeToString(
+          worksheetDocument
+        )
+    );
+
+
+    /*
+      팀 영역이 늘거나 줄어든 만큼
+      인쇄 영역 마지막 행도 이동
+    */
+
+    await updateMorningMeetingWorkbookPrintArea(
+      zip,
+      dynamicResult.delta
+    );
+
+
+    const resultBlob =
+      await zip.generateAsync({
+        type:
+          "blob",
+
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+
+        compression:
+          "DEFLATE",
+
+        compressionOptions: {
+          level:
+            6
+        }
+      });
+
+
+    const outputFileName =
+      `일일발전운전현황_${formatMorningMeetingFileDate(
+        scheduleDate
+      )}.xlsx`;
+
+
+    downloadMorningMeetingWorkbook(
+      resultBlob,
+      outputFileName
+    );
 
 
     if (
-      elements.createButton
+      elements.message
     ) {
-      elements.createButton.disabled =
-        true;
+      const movementText =
+        dynamicResult.delta ===
+          0
+          ? "행 이동 없음"
+          : dynamicResult.delta >
+              0
+            ? `${dynamicResult.delta}행 아래로 확장`
+            : `${Math.abs(
+                dynamicResult.delta
+              )}행 위로 축소`;
 
 
-      elements.createButton.textContent =
-        "엑셀 생성 중...";
+      elements.message.textContent =
+        `${outputFileName} 생성 완료 · ${movementText} · TM 사항 ${dynamicResult.newTmStartRow}행부터`;
     }
+  } catch (
+    error
+  ) {
+    console.error(
+      "오전회의 동적 최종 엑셀 생성 실패",
+      error
+    );
+
+
+    showMorningMeetingWorkbookError(
+      error?.message ||
+      "최종 엑셀 생성 중 오류가 발생했습니다."
+    );
 
 
     if (
       elements.message
     ) {
       elements.message.textContent =
-        "기준 취합본에 4개 팀 자료를 입력하고 있습니다.";
+        "최종 엑셀 생성에 실패했습니다.";
     }
-
-
-    try {
-      const templateBuffer =
-        await state
-          .templateFile
-          .arrayBuffer();
-
-
-      const zip =
-        await JSZip.loadAsync(
-          templateBuffer
-        );
-
-
-      const worksheetPath =
-        await findMorningMeetingWorksheetPath(
-          zip
-        );
-
-
-      const worksheetFile =
-        zip.file(
-          worksheetPath
-        );
-
-
-      if (
-        !worksheetFile
-      ) {
-        throw new Error(
-          "일일 발전운영현황 시트 파일을 열지 못했습니다."
-        );
-      }
-
-
-      let worksheetXml =
-        await worksheetFile.async(
-          "string"
-        );
-
-
-      TEAM_ORDER.forEach(
-        teamKey => {
-          const layout =
-            TEAM_LAYOUT[
-              teamKey
-            ];
-
-
-          const teamRows =
-            buildMorningMeetingTeamBlock(
-              teamKey,
-              state.analysis[
-                teamKey
-              ],
-              previousDate,
-              scheduleDate
-            );
-
-
-          for (
-            let rowNumber =
-              layout.startRow;
-
-            rowNumber <=
-              layout.endRow;
-
-            rowNumber +=
-              1
-          ) {
-            const rowIndex =
-              rowNumber -
-              layout.startRow;
-
-
-            worksheetXml =
-              replaceMorningMeetingCellText(
-                worksheetXml,
-                `B${rowNumber}`,
-                teamRows[
-                  rowIndex
-                ] ||
-                ""
-              );
-          }
-        }
-      );
-
-
-      /*
-        수정한 첫 번째 시트 XML만 교체한다.
-
-        나머지:
-        - 계산식
-        - 스타일
-        - 병합
-        - 인쇄 설정
-        - Sheet2
-        - 상단 운전 데이터
-
-        모두 기준 파일 그대로 유지된다.
-      */
-
-      zip.file(
-        worksheetPath,
-        worksheetXml
-      );
-
-
-      const resultBlob =
-        await zip.generateAsync(
-          {
-            type:
-              "blob",
-
-            mimeType:
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-
-            compression:
-              "DEFLATE",
-
-            compressionOptions: {
-              level:
-                6
-            }
-          }
-        );
-
-
-      const outputFileName =
-        `일일발전운전현황_${formatMorningMeetingFileDate(
-          scheduleDate
-        )}.xlsx`;
-
-
-      downloadMorningMeetingWorkbook(
-        resultBlob,
-        outputFileName
-      );
-
-
-      if (
-        elements.message
-      ) {
-        elements.message.textContent =
-          `${outputFileName} 생성이 완료되었습니다.`;
-      }
-    } catch (
-      error
+  } finally {
+    if (
+      elements.createButton
     ) {
-      console.error(
-        "오전회의 최종 엑셀 생성 실패",
-        error
-      );
-
-
-      showMorningMeetingWorkbookError(
-        error?.message ||
-        "최종 엑셀 생성 중 오류가 발생했습니다."
-      );
-
-
-      if (
-        elements.message
-      ) {
-        elements.message.textContent =
-          "최종 엑셀 생성에 실패했습니다.";
-      }
-    } finally {
-      if (
-        elements.createButton
-      ) {
-        elements.createButton.textContent =
-          originalButtonText;
-      }
-
-
-      updateMorningMeetingCreateButton();
+      elements.createButton.textContent =
+        originalButtonText;
     }
-  }
 
+
+    updateMorningMeetingCreateButton();
+  }
+}
 
   /* =====================================================
     기준 취합본 드래그 앤 드롭
