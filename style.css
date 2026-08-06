@@ -84866,3 +84866,1007 @@ td:last-child {
     font-size: 17px;
   }
 }
+
+/* =========================================================
+  석회석 사용량 화면 최종 디자인
+
+  중요도:
+  1. 선택일 사용량
+  2. 호기별 상세 계산
+  3. 기간 계산·저장
+========================================================= */
+
+
+/* =========================================================
+  선택일 사용량 강조
+========================================================= */
+
+#efficiencyTeamModal
+#limestoneUsageCalculatorView
+.limestone-usage-summary-grid {
+  order: 1;
+
+  margin:
+    12px
+    0
+    0 !important;
+
+  gap:
+    10px !important;
+}
+
+
+#efficiencyTeamModal
+#limestoneUsageCalculatorView
+.limestone-usage-summary-card {
+  min-height:
+    94px !important;
+
+  padding:
+    14px
+    16px !important;
+
+  border:
+    1px solid
+    #d2deea !important;
+
+  border-radius:
+    11px !important;
+
+  background:
+    linear-gradient(
+      145deg,
+      #ffffff,
+      #f8fbff
+    ) !important;
+
+  box-shadow:
+    0
+    4px
+    13px
+    rgba(
+      31,
+      72,
+      115,
+      0.06
+    ) !important;
+}
+
+
+#efficiencyTeamModal
+#limestoneUsageCalculatorView
+.limestone-usage-summary-card
+> span {
+  color:
+    #617188 !important;
+
+  font-size:
+    10px !important;
+
+  font-weight:
+    900 !important;
+}
+
+
+#efficiencyTeamModal
+#limestoneUsageCalculatorView
+.limestone-usage-summary-card
+> strong {
+  margin-top:
+    8px !important;
+
+  color:
+    #203a59 !important;
+
+  font-size:
+    24px !important;
+
+  font-weight:
+    900 !important;
+
+  line-height:
+    1.1 !important;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+#efficiencyTeamModal
+#limestoneUsageCalculatorView
+.limestone-usage-summary-card
+> small {
+  margin-left:
+    4px;
+
+  color:
+    #8290a1 !important;
+
+  font-size:
+    9px !important;
+
+  font-weight:
+    800 !important;
+}
+
+
+/* 전체 사용량 */
+
+#efficiencyTeamModal
+.limestone-usage-summary-card.is-total {
+  border-color:
+    #b8d0eb !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-summary-card.is-total::before {
+  background:
+    #2772c3 !important;
+}
+
+
+/* 1호기 */
+
+#efficiencyTeamModal
+.limestone-usage-summary-card.is-unit-one {
+  border-color:
+    #b9dcca !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-summary-card.is-unit-one::before {
+  background:
+    #218661 !important;
+}
+
+
+/* 2호기 */
+
+#efficiencyTeamModal
+.limestone-usage-summary-card.is-unit-two {
+  border-color:
+    #d4c4e4 !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-summary-card.is-unit-two::before {
+  background:
+    #76509d !important;
+}
+
+
+/* =========================================================
+  일일 호기별 상세 계산표
+========================================================= */
+
+#efficiencyTeamModal
+#limestoneUsageCalculatorView
+.limestone-usage-table-card {
+  margin-top:
+    11px !important;
+
+  border:
+    1px solid
+    #cfdae6 !important;
+
+  border-radius:
+    11px !important;
+
+  background:
+    #ffffff !important;
+
+  box-shadow:
+    0
+    4px
+    13px
+    rgba(
+      31,
+      72,
+      115,
+      0.045
+    ) !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-table-card__header {
+  min-height:
+    58px !important;
+
+  padding:
+    12px
+    15px !important;
+
+  border-bottom:
+    1px solid
+    #dbe4ed !important;
+
+  background:
+    #f7f9fc !important;
+}
+
+
+/* =========================================================
+  기간 기능 접기 카드
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-period-accordion {
+  margin-top:
+    13px;
+
+  overflow:
+    hidden;
+
+  border:
+    1px solid
+    #cbd8e6;
+
+  border-radius:
+    12px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0
+    4px
+    14px
+    rgba(
+      33,
+      59,
+      92,
+      0.055
+    );
+}
+
+
+/* =========================================================
+  기간 기능 접기 머리글
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-period-toggle {
+  display:
+    flex;
+
+  width:
+    100%;
+
+  min-height:
+    74px;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    18px;
+
+  padding:
+    13px
+    16px;
+
+  border:
+    0;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f8fafc,
+      #f1f6fb
+    );
+
+  color:
+    #26384f;
+
+  text-align:
+    left;
+
+  cursor:
+    pointer;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-period-toggle:hover {
+  background:
+    linear-gradient(
+      135deg,
+      #f3f7fb,
+      #eaf2fa
+    );
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-period-accordion.is-open
+.limestone-usage-period-toggle {
+  border-bottom:
+    1px solid
+    #d8e2ec;
+
+  background:
+    #f5f8fc;
+}
+
+
+/* 제목 */
+
+#efficiencyTeamModal
+.limestone-usage-period-toggle__title {
+  display:
+    flex;
+
+  min-width:
+    0;
+
+  flex-direction:
+    column;
+
+  gap:
+    2px;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-period-toggle__title
+> span {
+  color:
+    #1f5fae;
+
+  font-size:
+    9px;
+
+  font-weight:
+    900;
+
+  letter-spacing:
+    0.15em;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-period-toggle__title
+> strong {
+  color:
+    #263b54;
+
+  font-size:
+    16px;
+
+  font-weight:
+    900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-period-toggle__title
+> small {
+  color:
+    #738196;
+
+  font-size:
+    10px;
+
+  font-weight:
+    650;
+}
+
+
+/* 오른쪽 상태 */
+
+#efficiencyTeamModal
+.limestone-usage-period-toggle__actions {
+  display:
+    flex;
+
+  flex:
+    0 0 auto;
+
+  align-items:
+    center;
+
+  gap:
+    9px;
+
+  color:
+    #68788d;
+
+  font-size:
+    10px;
+
+  font-weight:
+    900;
+}
+
+
+#efficiencyTeamModal
+#limestoneUsagePeriodArrow {
+  display:
+    inline-flex;
+
+  width:
+    27px;
+
+  height:
+    27px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  border:
+    1px solid
+    #c7d3e0;
+
+  border-radius:
+    7px;
+
+  background:
+    #ffffff;
+
+  color:
+    #315d8d;
+
+  font-size:
+    16px;
+}
+
+
+/* =========================================================
+  기간 작업 상태 배지
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-period-status {
+  display:
+    inline-flex;
+
+  min-width:
+    58px;
+
+  min-height:
+    25px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0
+    9px;
+
+  border:
+    1px solid
+    #cbd5df;
+
+  border-radius:
+    999px;
+
+  background:
+    #f1f4f7;
+
+  color:
+    #657487;
+
+  font-size:
+    9px;
+
+  font-weight:
+    900;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-period-status[
+  data-status="processing"
+],
+#efficiencyTeamModal
+.limestone-usage-period-status[
+  data-status="pending"
+] {
+  border-color:
+    #e8c173;
+
+  background:
+    #fff5df;
+
+  color:
+    #98620f;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-period-status[
+  data-status="complete"
+] {
+  border-color:
+    #a5d7bc;
+
+  background:
+    #e9f8ef;
+
+  color:
+    #16804f;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-period-status[
+  data-status="partial_failed"
+],
+#efficiencyTeamModal
+.limestone-usage-period-status[
+  data-status="failed"
+] {
+  border-color:
+    #e1aaaa;
+
+  background:
+    #fdeeee;
+
+  color:
+    #af3d3d;
+}
+
+
+/* =========================================================
+  펼친 기간 내용
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-period-content {
+  padding:
+    13px;
+
+  background:
+    #f4f7fa;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-period-content[hidden] {
+  display:
+    none !important;
+}
+
+
+/* 기존 기간 계산 패널 */
+
+#efficiencyTeamModal
+.limestone-usage-batch-panel.is-inside-period-accordion {
+  margin:
+    0 !important;
+
+  border:
+    1px solid
+    #d1dce7 !important;
+
+  border-radius:
+    10px !important;
+
+  background:
+    #ffffff !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+/* =========================================================
+  기간별 저장 사용량 디자인 강제 적용
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-history-panel.is-inside-period-accordion {
+  display:
+    block !important;
+
+  margin:
+    11px
+    0
+    0 !important;
+
+  overflow:
+    hidden !important;
+
+  border:
+    1px solid
+    #d1dce7 !important;
+
+  border-radius:
+    10px !important;
+
+  background:
+    #ffffff !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+/* 제목 */
+
+#efficiencyTeamModal
+.limestone-usage-history-header {
+  display:
+    flex !important;
+
+  min-height:
+    64px !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    space-between !important;
+
+  gap:
+    14px !important;
+
+  padding:
+    12px
+    14px !important;
+
+  border-bottom:
+    1px solid
+    #dce5ee !important;
+
+  background:
+    #f8fafc !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-header
+> div
+> span {
+  display:
+    block !important;
+
+  margin-bottom:
+    2px !important;
+
+  color:
+    #1f5fae !important;
+
+  font-size:
+    9px !important;
+
+  font-weight:
+    900 !important;
+
+  letter-spacing:
+    0.14em !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-header
+h4 {
+  margin:
+    0 !important;
+
+  color:
+    #263b54 !important;
+
+  font-size:
+    15px !important;
+
+  font-weight:
+    900 !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-header
+p {
+  margin:
+    2px
+    0
+    0 !important;
+
+  color:
+    #748296 !important;
+
+  font-size:
+    9px !important;
+
+  font-weight:
+    700 !important;
+}
+
+
+/* 기간 합계 카드 */
+
+#efficiencyTeamModal
+.limestone-usage-history-summary {
+  display:
+    grid !important;
+
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(
+        0,
+        1fr
+      )
+    ) !important;
+
+  gap:
+    8px !important;
+
+  padding:
+    11px !important;
+
+  background:
+    #f7f9fc !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-summary
+article {
+  position:
+    relative !important;
+
+  min-height:
+    78px !important;
+
+  padding:
+    11px
+    12px !important;
+
+  overflow:
+    hidden !important;
+
+  border:
+    1px solid
+    #d8e2ec !important;
+
+  border-radius:
+    8px !important;
+
+  background:
+    #ffffff !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-summary
+article
+> span {
+  display:
+    block !important;
+
+  color:
+    #718095 !important;
+
+  font-size:
+    9px !important;
+
+  font-weight:
+    850 !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-summary
+article
+> strong {
+  display:
+    inline-block !important;
+
+  margin-top:
+    7px !important;
+
+  color:
+    #263b54 !important;
+
+  font-size:
+    18px !important;
+
+  font-weight:
+    900 !important;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+
+/* 저장 결과 표 */
+
+#efficiencyTeamModal
+.limestone-usage-history-table-wrap {
+  width:
+    100% !important;
+
+  overflow-x:
+    auto !important;
+
+  background:
+    #ffffff !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table {
+  width:
+    100% !important;
+
+  min-width:
+    780px !important;
+
+  border-collapse:
+    collapse !important;
+
+  table-layout:
+    fixed !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table
+th,
+#efficiencyTeamModal
+.limestone-usage-history-table
+td {
+  padding:
+    9px
+    8px !important;
+
+  border-right:
+    1px solid
+    #e1e8ef !important;
+
+  border-bottom:
+    1px solid
+    #e1e8ef !important;
+
+  color:
+    #4b5e76 !important;
+
+  font-size:
+    10px !important;
+
+  text-align:
+    center !important;
+
+  vertical-align:
+    middle !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table
+thead
+th {
+  background:
+    #edf3f8 !important;
+
+  color:
+    #53667d !important;
+
+  font-size:
+    9px !important;
+
+  font-weight:
+    900 !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table
+tbody
+th {
+  color:
+    #304860 !important;
+
+  font-weight:
+    900 !important;
+
+  white-space:
+    nowrap !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table
+td.is-unit-one {
+  color:
+    #188157 !important;
+
+  font-weight:
+    900 !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table
+td.is-unit-two {
+  color:
+    #75449d !important;
+
+  font-weight:
+    900 !important;
+}
+
+
+#efficiencyTeamModal
+.limestone-usage-history-table
+td.is-total {
+  color:
+    #1f5fae !important;
+
+  font-weight:
+    900 !important;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width:
+  760px
+) {
+  #efficiencyTeamModal
+  .limestone-usage-period-toggle {
+    min-height:
+      68px;
+
+    padding:
+      11px
+      12px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-period-toggle__actions
+  > span:not(
+    .limestone-usage-period-status
+  ) {
+    display:
+      none;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-period-content {
+    padding:
+      9px;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-history-summary {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-summary-card
+  > strong {
+    font-size:
+      20px !important;
+  }
+}

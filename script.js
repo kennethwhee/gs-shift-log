@@ -151005,3 +151005,619 @@ function bindEvents() {
     waitForLimestoneUsageHistoryTarget();
   }
 })();
+
+/* =========================================================
+  석회석 사용량 화면 최종 배치
+
+  화면 순서:
+  1. 선택 날짜
+  2. 선택일 사용량 요약
+  3. 호기별 상세 계산
+  4. 기간 계산·저장 내역
+
+  기간 기능:
+  - 기본 접힘
+  - 필요할 때만 펼침
+========================================================= */
+
+(function installLimestoneUsageFinalLayout() {
+  if (
+    window
+      .__limestoneUsageFinalLayoutInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__limestoneUsageFinalLayoutInstalled =
+    true;
+
+
+  let layoutObserver =
+    null;
+
+
+  /* =====================================================
+    기간 영역 머리글 상태 갱신
+  ====================================================== */
+
+  function updateLimestoneUsagePeriodHeader() {
+    const accordion =
+      document.getElementById(
+        "limestoneUsagePeriodAccordion"
+      );
+
+
+    const statusElement =
+      document.getElementById(
+        "limestoneUsagePeriodStatus"
+      );
+
+
+    const descriptionElement =
+      document.getElementById(
+        "limestoneUsagePeriodDescription"
+      );
+
+
+    const batchStatus =
+      document.getElementById(
+        "limestoneUsageBatchStatusBadge"
+      );
+
+
+    const startDate =
+      String(
+        document.getElementById(
+          "limestoneUsageBatchStartDate"
+        )?.value ||
+        ""
+      ).trim();
+
+
+    const endDate =
+      String(
+        document.getElementById(
+          "limestoneUsageBatchEndDate"
+        )?.value ||
+        ""
+      ).trim();
+
+
+    const status =
+      String(
+        batchStatus?.dataset
+          .status ||
+        "ready"
+      )
+        .trim()
+        .toLowerCase();
+
+
+    const statusLabels = {
+      ready:
+        "대기",
+
+      pending:
+        "대기",
+
+      processing:
+        "계산 중",
+
+      complete:
+        "완료",
+
+      partial_failed:
+        "일부 실패",
+
+      failed:
+        "실패"
+    };
+
+
+    if (
+      statusElement
+    ) {
+      statusElement.textContent =
+        statusLabels[
+          status
+        ] ||
+        "대기";
+
+
+      statusElement.dataset.status =
+        status;
+    }
+
+
+    if (
+      descriptionElement
+    ) {
+      descriptionElement.textContent =
+        startDate &&
+        endDate
+          ? `${startDate} ~ ${endDate} · 기간 계산 및 저장 결과`
+          : "필요할 때 펼쳐 기간 계산과 저장 내역을 확인합니다.";
+    }
+
+
+    if (
+      accordion
+    ) {
+      accordion.dataset.status =
+        status;
+    }
+  }
+
+
+  /* =====================================================
+    기간 영역 펼침·접힘
+  ====================================================== */
+
+  function setLimestoneUsagePeriodExpanded(
+    shouldExpand
+  ) {
+    const accordion =
+      document.getElementById(
+        "limestoneUsagePeriodAccordion"
+      );
+
+
+    const toggleButton =
+      document.getElementById(
+        "toggleLimestoneUsagePeriodButton"
+      );
+
+
+    const content =
+      document.getElementById(
+        "limestoneUsagePeriodContent"
+      );
+
+
+    const actionText =
+      document.getElementById(
+        "limestoneUsagePeriodActionText"
+      );
+
+
+    const arrow =
+      document.getElementById(
+        "limestoneUsagePeriodArrow"
+      );
+
+
+    if (
+      !accordion ||
+      !toggleButton ||
+      !content
+    ) {
+      return;
+    }
+
+
+    const isExpanded =
+      Boolean(
+        shouldExpand
+      );
+
+
+    accordion.classList.toggle(
+      "is-open",
+      isExpanded
+    );
+
+
+    toggleButton.setAttribute(
+      "aria-expanded",
+      String(
+        isExpanded
+      )
+    );
+
+
+    content.hidden =
+      !isExpanded;
+
+
+    if (
+      actionText
+    ) {
+      actionText.textContent =
+        isExpanded
+          ? "접기"
+          : "펼쳐보기";
+    }
+
+
+    if (
+      arrow
+    ) {
+      arrow.textContent =
+        isExpanded
+          ? "⌃"
+          : "⌄";
+    }
+  }
+
+
+  /* =====================================================
+    최종 레이아웃 구성
+  ====================================================== */
+
+  function applyLimestoneUsageFinalLayout() {
+    const usageView =
+      document.getElementById(
+        "limestoneUsageCalculatorView"
+      );
+
+
+    const dateCard =
+      usageView?.querySelector(
+        ".limestone-usage-date-card"
+      ) ||
+      null;
+
+
+    const dailySummary =
+      usageView?.querySelector(
+        ".limestone-usage-summary-grid"
+      ) ||
+      null;
+
+
+    const dailyTable =
+      usageView?.querySelector(
+        ".limestone-usage-table-card"
+      ) ||
+      null;
+
+
+    const batchPanel =
+      document.getElementById(
+        "limestoneUsageBatchPanel"
+      );
+
+
+    const historyPanel =
+      document.getElementById(
+        "limestoneUsageHistoryPanel"
+      );
+
+
+    if (
+      !usageView ||
+      !dateCard ||
+      !dailySummary ||
+      !dailyTable ||
+      !batchPanel ||
+      !historyPanel
+    ) {
+      return false;
+    }
+
+
+    /* ===================================================
+      일일 사용량을 날짜 바로 아래로 이동
+    ==================================================== */
+
+    dateCard.insertAdjacentElement(
+      "afterend",
+      dailySummary
+    );
+
+
+    dailySummary.insertAdjacentElement(
+      "afterend",
+      dailyTable
+    );
+
+
+    /* ===================================================
+      기간 기능 통합 접기 영역 생성
+    ==================================================== */
+
+    let accordion =
+      document.getElementById(
+        "limestoneUsagePeriodAccordion"
+      );
+
+
+    if (
+      !accordion
+    ) {
+      dailyTable.insertAdjacentHTML(
+        "afterend",
+
+        `
+          <section
+            class="limestone-usage-period-accordion"
+            id="limestoneUsagePeriodAccordion"
+            data-status="ready"
+          >
+
+            <button
+              type="button"
+              class="limestone-usage-period-toggle"
+              id="toggleLimestoneUsagePeriodButton"
+              aria-expanded="false"
+              aria-controls="limestoneUsagePeriodContent"
+            >
+
+              <div class="limestone-usage-period-toggle__title">
+
+                <span>
+                  PERIOD CALCULATION
+                </span>
+
+                <strong>
+                  기간 계산·저장 내역
+                </strong>
+
+                <small id="limestoneUsagePeriodDescription">
+                  필요할 때 펼쳐 기간 계산과 저장 내역을 확인합니다.
+                </small>
+
+              </div>
+
+
+              <div class="limestone-usage-period-toggle__actions">
+
+                <span
+                  class="limestone-usage-period-status"
+                  id="limestoneUsagePeriodStatus"
+                  data-status="ready"
+                >
+                  대기
+                </span>
+
+
+                <span id="limestoneUsagePeriodActionText">
+                  펼쳐보기
+                </span>
+
+
+                <strong id="limestoneUsagePeriodArrow">
+                  ⌄
+                </strong>
+
+              </div>
+
+            </button>
+
+
+            <div
+              class="limestone-usage-period-content"
+              id="limestoneUsagePeriodContent"
+              hidden
+            >
+            </div>
+
+          </section>
+        `
+      );
+
+
+      accordion =
+        document.getElementById(
+          "limestoneUsagePeriodAccordion"
+        );
+    }
+
+
+    const periodContent =
+      document.getElementById(
+        "limestoneUsagePeriodContent"
+      );
+
+
+    if (
+      !accordion ||
+      !periodContent
+    ) {
+      return false;
+    }
+
+
+    /* ===================================================
+      기존 기간 계산·저장 패널을 접기 영역 안으로 이동
+    ==================================================== */
+
+    periodContent.appendChild(
+      batchPanel
+    );
+
+
+    periodContent.appendChild(
+      historyPanel
+    );
+
+
+    batchPanel.classList.add(
+      "is-inside-period-accordion"
+    );
+
+
+    historyPanel.classList.add(
+      "is-inside-period-accordion"
+    );
+
+
+    /* ===================================================
+      기본 상태는 접힘
+    ==================================================== */
+
+    setLimestoneUsagePeriodExpanded(
+      false
+    );
+
+
+    const toggleButton =
+      document.getElementById(
+        "toggleLimestoneUsagePeriodButton"
+      );
+
+
+    if (
+      toggleButton &&
+      toggleButton.dataset
+        .limestonePeriodBound !==
+        "true"
+    ) {
+      toggleButton.addEventListener(
+        "click",
+        () => {
+          const isExpanded =
+            toggleButton.getAttribute(
+              "aria-expanded"
+            ) ===
+            "true";
+
+
+          setLimestoneUsagePeriodExpanded(
+            !isExpanded
+          );
+        }
+      );
+
+
+      toggleButton.dataset
+        .limestonePeriodBound =
+        "true";
+    }
+
+
+    /* ===================================================
+      기간 계산 상태가 바뀌면 머리글도 갱신
+    ==================================================== */
+
+    if (
+      !layoutObserver
+    ) {
+      layoutObserver =
+        new MutationObserver(
+          updateLimestoneUsagePeriodHeader
+        );
+
+
+      layoutObserver.observe(
+        periodContent,
+        {
+          subtree:
+            true,
+
+          childList:
+            true,
+
+          characterData:
+            true,
+
+          attributes:
+            true,
+
+          attributeFilter: [
+            "data-status",
+            "value"
+          ]
+        }
+      );
+    }
+
+
+    [
+      document.getElementById(
+        "limestoneUsageBatchStartDate"
+      ),
+
+      document.getElementById(
+        "limestoneUsageBatchEndDate"
+      )
+    ]
+      .filter(
+        Boolean
+      )
+      .forEach(
+        input => {
+          if (
+            input.dataset
+              .limestonePeriodHeaderBound ===
+              "true"
+          ) {
+            return;
+          }
+
+
+          input.addEventListener(
+            "change",
+            updateLimestoneUsagePeriodHeader
+          );
+
+
+          input.dataset
+            .limestonePeriodHeaderBound =
+            "true";
+        }
+      );
+
+
+    updateLimestoneUsagePeriodHeader();
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    동적으로 생성되는 기존 화면 대기
+  ====================================================== */
+
+  function waitForLimestoneUsageFinalLayout() {
+    let attemptCount =
+      0;
+
+
+    const timer =
+      window.setInterval(
+        () => {
+          attemptCount +=
+            1;
+
+
+          const completed =
+            applyLimestoneUsageFinalLayout();
+
+
+          if (
+            completed ||
+            attemptCount >=
+              100
+          ) {
+            window.clearInterval(
+              timer
+            );
+          }
+        },
+        200
+      );
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      waitForLimestoneUsageFinalLayout,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    waitForLimestoneUsageFinalLayout();
+  }
+})();
