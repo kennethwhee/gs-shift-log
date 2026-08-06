@@ -134,23 +134,90 @@
     <!-- ===================================================
     선택 날짜 점검
   ==================================================== -->
-    <section class="inspection-calendar-selected">
-     <header class="inspection-calendar-selected__header">
-      <div>
-       <strong id="inspectionCalendarSelectedTitle">
+
+<!-- ===================================================
+  선택 날짜 점검
+
+  월간 달력에서 날짜를 누르면
+  해당 날짜의 점검 일정이 간략 카드로 표시된다.
+==================================================== -->
+
+<section
+  class="inspection-calendar-selected"
+  id="inspectionCalendarSelectedSection"
+  aria-live="polite"
+>
+
+  <header class="inspection-calendar-selected__header">
+
+    <div class="inspection-calendar-selected__heading">
+
+      <p class="inspection-calendar-selected__eyebrow">
+        SELECTED DATE
+      </p>
+
+      <strong id="inspectionCalendarSelectedTitle">
         선택 날짜
-       </strong>
-       <span id="inspectionCalendarSelectedSummary">
-        점검 일정을 확인하고 있습니다.
-       </span>
-      </div>
-     </header>
-     <div class="inspection-calendar-selected-list" id="inspectionCalendarSelectedList">
-      <div class="inspection-calendar-empty">
-       선택한 날짜의 점검 일정을 불러오고 있습니다.
-      </div>
-     </div>
-    </section>
+      </strong>
+
+      <span id="inspectionCalendarSelectedSummary">
+        날짜를 선택하면 해당 날짜의 점검 일정이 표시됩니다.
+      </span>
+
+    </div>
+
+
+    <div
+      class="inspection-calendar-selected__counts"
+      aria-label="선택 날짜 점검 현황"
+    >
+
+      <span class="is-total">
+        전체
+
+        <b id="inspectionCalendarSelectedTotalCount">
+          0
+        </b>
+      </span>
+
+
+      <span class="is-pending">
+        미완료
+
+        <b id="inspectionCalendarSelectedPendingCount">
+          0
+        </b>
+      </span>
+
+
+      <span class="is-completed">
+        완료
+
+        <b id="inspectionCalendarSelectedCompletedCount">
+          0
+        </b>
+      </span>
+
+    </div>
+
+  </header>
+
+
+  <div
+    class="inspection-calendar-selected-list"
+    id="inspectionCalendarSelectedList"
+  >
+
+    <div class="inspection-calendar-empty">
+
+      날짜를 선택하면 해당 날짜에 수행할 점검이 표시됩니다.
+
+    </div>
+
+  </div>
+
+</section>
+
     <!-- ===================================================
     접이식 점검주기
   ==================================================== -->

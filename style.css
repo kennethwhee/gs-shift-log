@@ -71989,3 +71989,369 @@ textarea.efficiency-daily-work-line-source[
 .is-request {
   color: #a9640e;
 }
+
+/* =========================================================
+  효율팀 ARM ROLL · SCRAP BOX 날짜별 표 확대
+
+  적용 내용:
+  - 각 행 높이 확대
+  - 날짜를 연도 / 월-일 두 줄 표시
+  - 퍼센트 크게 표시
+  - 증가량 및 일평균 크게 표시
+  - 교체 문구 두 줄 확대
+========================================================= */
+
+
+/* ---------------------------------------------------------
+  표 전체
+--------------------------------------------------------- */
+
+.arm-roll-box-unit-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+
+/* 표 머리글 */
+
+.arm-roll-box-unit-table thead th {
+  height: 48px !important;
+  padding: 10px 8px !important;
+
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1.25 !important;
+
+  text-align: center !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+}
+
+
+/* ---------------------------------------------------------
+  각 날짜 행
+
+  글씨가 커지는 만큼 행 높이도 넉넉하게 확보
+--------------------------------------------------------- */
+
+.arm-roll-box-unit-data-row {
+  height: 92px !important;
+}
+
+.arm-roll-box-unit-data-row > td {
+  height: 92px !important;
+  min-height: 92px !important;
+  padding: 12px 8px !important;
+
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+
+/* ---------------------------------------------------------
+  일자 셀
+
+  표시:
+  2026
+  08-02
+--------------------------------------------------------- */
+
+.arm-roll-box-unit-date-cell {
+  width: 88px !important;
+  min-width: 88px !important;
+
+  padding: 10px 6px !important;
+
+  text-align: center !important;
+  vertical-align: middle !important;
+
+  white-space: normal !important;
+}
+
+
+/* 연도 */
+
+.arm-roll-box-unit-date-year {
+  display: block !important;
+
+  margin: 0 0 5px !important;
+  padding: 0 !important;
+
+  color: #53677f !important;
+
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+
+  letter-spacing: 0.2px !important;
+  white-space: nowrap !important;
+}
+
+
+/* 월-일 */
+
+.arm-roll-box-unit-date-month-day {
+  display: block !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #1f3557 !important;
+
+  font-size: 20px !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+
+  letter-spacing: 0.3px !important;
+  white-space: nowrap !important;
+}
+
+
+/* 기존 strong 설정이 날짜 셀을 방해하지 않게 보정 */
+
+.arm-roll-box-unit-date-cell > strong:not(
+  .arm-roll-box-unit-date-month-day
+) {
+  font-size: inherit !important;
+}
+
+
+/* ---------------------------------------------------------
+  ARM ROLL / SCRAP 수치 셀
+--------------------------------------------------------- */
+
+.arm-roll-box-unit-metric-cell {
+  min-width: 138px !important;
+  padding: 10px 8px !important;
+
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+
+/* 현재 퍼센트 */
+
+.arm-roll-box-unit-metric-cell > strong {
+  display: block !important;
+
+  margin: 0 0 6px !important;
+  padding: 0 !important;
+
+  font-size: 24px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+
+  letter-spacing: -0.4px !important;
+  white-space: nowrap !important;
+}
+
+
+/* 정상 퍼센트 */
+
+.arm-roll-box-unit-metric-cell.is-normal > strong {
+  color: #12813c !important;
+}
+
+
+/* 70% 이상 경고 퍼센트 */
+
+.arm-roll-box-unit-metric-cell.is-warning > strong {
+  color: #d61f1f !important;
+}
+
+
+/* 증가량 */
+
+.arm-roll-box-unit-metric-cell > small {
+  display: block !important;
+
+  margin: 0 0 3px !important;
+  padding: 0 !important;
+
+  color: #243b5a !important;
+
+  font-size: 14px !important;
+  font-weight: 850 !important;
+  line-height: 1.25 !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* 일평균 */
+
+.arm-roll-box-unit-metric-cell > em {
+  display: block !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #243b5a !important;
+
+  font-size: 14px !important;
+  font-style: normal !important;
+  font-weight: 850 !important;
+  line-height: 1.25 !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* 빈 기록 */
+
+.arm-roll-box-unit-metric-cell.is-empty > strong {
+  margin: 0 !important;
+
+  color: #71839a !important;
+
+  font-size: 20px !important;
+  font-weight: 800 !important;
+}
+
+
+/* ---------------------------------------------------------
+  교체 셀
+
+  표시:
+  ARM ROLL
+  교체
+--------------------------------------------------------- */
+
+.arm-roll-box-unit-event-cell {
+  width: 94px !important;
+  min-width: 94px !important;
+
+  padding: 8px 5px !important;
+
+  text-align: center !important;
+  vertical-align: middle !important;
+
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+
+  white-space: normal !important;
+  overflow-wrap: normal !important;
+  word-break: keep-all !important;
+}
+
+
+.arm-roll-box-unit-event-cell .is-replacement,
+.arm-roll-box-unit-event-cell .is-suspected {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: 100% !important;
+  min-height: 48px !important;
+
+  margin: 0 !important;
+  padding: 3px 1px !important;
+
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+
+  text-align: center !important;
+  white-space: normal !important;
+}
+
+
+/* ARM ROLL / SCRAP 첫 줄 */
+
+.arm-roll-box-unit-event-cell .is-replacement strong,
+.arm-roll-box-unit-event-cell .is-suspected strong {
+  display: block !important;
+
+  margin: 0 0 4px !important;
+
+  font-size: 13px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* 교체 두 번째 줄 */
+
+.arm-roll-box-unit-event-cell .is-replacement > span,
+.arm-roll-box-unit-event-cell .is-suspected > span {
+  display: block !important;
+
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+}
+
+
+/* 교체 확정 */
+
+.arm-roll-box-unit-event-cell .is-replacement {
+  color: #12813c !important;
+}
+
+
+/* 교체 의심 */
+
+.arm-roll-box-unit-event-cell .is-suspected {
+  color: #c46a00 !important;
+}
+
+
+/* ---------------------------------------------------------
+  70% 이상 경고 셀 배경
+--------------------------------------------------------- */
+
+.arm-roll-box-unit-metric-cell.is-warning {
+  background: #fff0f0 !important;
+}
+
+
+/* ---------------------------------------------------------
+  작은 화면
+
+  두 표를 유지하면서도 글씨가 다시 너무 작아지지 않게 함
+--------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  .arm-roll-box-unit-data-row,
+  .arm-roll-box-unit-data-row > td {
+    height: 88px !important;
+    min-height: 88px !important;
+  }
+
+
+  .arm-roll-box-unit-date-cell {
+    width: 78px !important;
+    min-width: 78px !important;
+  }
+
+
+  .arm-roll-box-unit-date-year {
+    font-size: 13px !important;
+  }
+
+
+  .arm-roll-box-unit-date-month-day {
+    font-size: 18px !important;
+  }
+
+
+  .arm-roll-box-unit-metric-cell > strong {
+    font-size: 22px !important;
+  }
+
+
+  .arm-roll-box-unit-metric-cell > small,
+  .arm-roll-box-unit-metric-cell > em {
+    font-size: 13px !important;
+  }
+
+
+  .arm-roll-box-unit-event-cell {
+    width: 88px !important;
+    min-width: 88px !important;
+  }
+}

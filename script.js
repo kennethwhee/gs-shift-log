@@ -107442,16 +107442,30 @@ return `
   `;
 }
 
+/* =========================================================
+  ARM ROLL · SCRAP BOX 호기별 날짜 목록 출력
+
+  날짜 표시:
+  2026
+  08-02
+
+  - 날짜를 연도와 월-일로 분리
+  - 날짜 글씨 확대용 요소 추가
+  - 기존 ARM ROLL / SCRAP / 교체 기능 유지
+========================================================= */
+
 function renderArmRollBoxUnitDailyRows(
   unit
 ) {
   const elements =
     getArmRollBoxElements();
 
+
   const body =
     unit === 1
       ? elements.dailyBodyUnit1
       : elements.dailyBodyUnit2;
+
 
   if (
     !body
@@ -107459,15 +107473,18 @@ function renderArmRollBoxUnitDailyRows(
     return;
   }
 
+
   const armRollKey =
     unit === 1
       ? "armRoll"
       : "armRollUnit2";
 
+
   const scrapKey =
     unit === 1
       ? "scrap"
       : "scrapUnit2";
+
 
   const rows =
     [
@@ -107487,6 +107504,7 @@ function renderArmRollBoxUnitDailyRows(
               ]
             );
 
+
           const hasEvent =
             state.replacementEvents.some(
               event => {
@@ -107499,6 +107517,7 @@ function renderArmRollBoxUnitDailyRows(
               }
             );
 
+
           return (
             hasRecord ||
             hasEvent
@@ -107506,6 +107525,7 @@ function renderArmRollBoxUnitDailyRows(
         }
       )
       .reverse();
+
 
   if (
     !rows.length
@@ -107517,24 +107537,84 @@ function renderArmRollBoxUnitDailyRows(
         </td>
       </tr>
     `;
+
     return;
   }
+
 
   body.innerHTML =
     rows
       .map(
         row => {
+          const fullDate =
+            String(
+              row?.date ||
+              ""
+            ).trim();
+
+
+          /*
+            YYYY-MM-DD 형식 분리
+
+            예:
+            2026-08-02
+
+            yearText:
+            2026
+
+            monthDayText:
+            08-02
+          */
+          const dateMatch =
+            fullDate.match(
+              /^(\d{4})-(\d{2}-\d{2})$/
+            );
+
+
+          const yearText =
+            dateMatch
+              ? dateMatch[1]
+              : fullDate;
+
+
+          const monthDayText =
+            dateMatch
+              ? dateMatch[2]
+              : "";
+
+
           return `
-            <tr>
+            <tr class="arm-roll-box-unit-data-row">
+
               <td
                 class="arm-roll-box-unit-date-cell"
+                title="${escapeArmRollBoxHtml(
+                  fullDate
+                )}"
               >
-                <strong>
+                <span
+                  class="arm-roll-box-unit-date-year"
+                >
                   ${escapeArmRollBoxHtml(
-                    row.date
+                    yearText
                   )}
-                </strong>
+                </span>
+
+                ${
+                  monthDayText
+                    ? `
+                      <strong
+                        class="arm-roll-box-unit-date-month-day"
+                      >
+                        ${escapeArmRollBoxHtml(
+                          monthDayText
+                        )}
+                      </strong>
+                    `
+                    : ""
+                }
               </td>
+
 
               ${createArmRollBoxUnitMetricCell(
                 row[
@@ -107542,16 +107622,19 @@ function renderArmRollBoxUnitDailyRows(
                 ]
               )}
 
+
               ${createArmRollBoxUnitMetricCell(
                 row[
                   scrapKey
                 ]
               )}
 
+
               ${createArmRollBoxUnitEventCell(
                 row,
                 unit
               )}
+
             </tr>
           `;
         }
