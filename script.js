@@ -43184,6 +43184,19 @@ function getStatusClass(
   return "is-writing";
 }
 
+/* =========================================================
+  업무일지 항목 시간 정렬
+
+  우선 적용 근무값:
+  1. 함수에 직접 전달된 근무값
+  2. 현재 상세보기로 연 업무일지의 실제 근무값
+  3. 작성창에서 선택한 근무값
+  4. 메인 화면에서 선택한 근무값
+
+  같은 시간이거나 시간이 없는 항목은
+  기존 등록 순서를 유지한다.
+========================================================= */
+
 function sortDetailEntriesByTime(
   entries,
   shiftValue = ""
@@ -43196,9 +43209,44 @@ function sortDetailEntriesByTime(
       : [];
 
 
+  /*
+    현재 상세보기로 열려 있는
+    업무일지 ID
+  */
+  const currentDetailLogId =
+    String(
+      appState?.currentDetailLogId ||
+      ""
+    ).trim();
+
+
+  /*
+    현재 상세보기 업무일지 찾기
+
+    조회 화면의 과거 업무일지는
+    appState.logs에 없을 수 있으므로
+    findSearchResultLogById()를 사용한다.
+  */
+  const currentDetailLog =
+    currentDetailLogId &&
+    typeof findSearchResultLogById ===
+      "function"
+      ? findSearchResultLogById(
+          currentDetailLogId
+        )
+      : null;
+
+
+  /*
+    정렬에 사용할 실제 근무값
+
+    상세보기에서는 현재 화면 선택값보다
+    실제로 열어본 업무일지의 근무값을 우선한다.
+  */
   const resolvedShift =
     String(
       shiftValue ||
+      currentDetailLog?.shift ||
       elements.logShift?.value ||
       appState.selectedShift ||
       ""
@@ -43241,7 +43289,8 @@ function sortDetailEntriesByTime(
 
 
         /*
-          같은 시간이거나 둘 다 시간 미기재면
+          같은 시간이거나
+          둘 다 시간 미기재인 경우에는
           기존 등록 순서를 유지한다.
         */
         return (
@@ -157541,6 +157590,121 @@ function bindEvents() {
     };
   }
 
+  /* =====================================================
+  BO1 · BO2 보일러 온도 상태
+
+  총 12개:
+  - 1호기 FBHE L / R
+  - 1호기 Wall A / B / C / D
+  - 2호기 FBHE L / R
+  - 2호기 Wall A / B / C / D
+
+  사용자가 직접 수정한 값도
+  state.boilerTemperatures에 저장되어 있으므로
+  동일하게 검사한다.
+===================================================== */
+
+function getBoilerData() {
+  const state =
+    getState();
+
+
+  const boilerTemperatures =
+    state.boilerTemperatures &&
+    typeof state.boilerTemperatures ===
+      "object"
+      ? state.boilerTemperatures
+      : null;
+
+
+  if (
+    !boilerTemperatures
+  ) {
+    return {
+      status:
+        "idle",
+
+      date:
+        "",
+
+      complete:
+        false,
+
+      missing:
+        []
+    };
+  }
+
+
+  const unitOne =
+    boilerTemperatures.unitOne;
+
+
+  const unitTwo =
+    boilerTemperatures.unitTwo;
+
+
+  const requiredValues = [
+    unitOne?.fbheLeft,
+    unitOne?.fbheRight,
+
+    unitOne?.wallScrew?.A,
+    unitOne?.wallScrew?.B,
+    unitOne?.wallScrew?.C,
+    unitOne?.wallScrew?.D,
+
+    unitTwo?.fbheLeft,
+    unitTwo?.fbheRight,
+
+    unitTwo?.wallScrew?.A,
+    unitTwo?.wallScrew?.B,
+    unitTwo?.wallScrew?.C,
+    unitTwo?.wallScrew?.D
+  ];
+
+
+  const complete =
+    requiredValues.length ===
+      12 &&
+    requiredValues.every(
+      value => {
+        return parseNumber(
+          value
+        ) !==
+          null;
+      }
+    );
+
+
+  const missing =
+    Array.isArray(
+      boilerTemperatures.missing
+    )
+      ? boilerTemperatures
+          .missing
+      : [];
+
+
+  return {
+    status:
+      complete
+        ? "complete"
+        : "error",
+
+    date:
+      normalizeText(
+        boilerTemperatures.reportDate
+      ),
+
+    complete,
+
+    missing,
+
+    userEdited:
+      boilerTemperatures.userEdited ===
+      true
+  };
+}
 
   /* =====================================================
     수처리 미리보기 출력
@@ -157970,117 +158134,197 @@ function bindEvents() {
     );
   }
 
+/* =====================================================
+  자동 수치 미리보기 전체 상태
 
-  /* =====================================================
-    전체 상태
-  ====================================================== */
+  확인 대상:
+  1. 수처리
+  2. 석회석
+  3. Gear Wheel / Pinion
+  4. BO1 · BO2 보일러 온도
+===================================================== */
 
-  function renderOverallStatus(
-    waterData,
-    limestoneData,
-    gearPinionData
+function renderOverallStatus(
+  waterData,
+  limestoneData,
+  gearPinionData,
+  boilerData
+) {
+  const {
+    preview,
+    overallStatus
+  } =
+    getElements();
+
+
+  if (
+    !overallStatus
   ) {
-    const {
-      preview,
-      overallStatus
-    } =
-      getElements();
+    return;
+  }
 
 
-    if (
-      !overallStatus
-    ) {
-      return;
-    }
+  const statuses = [
+    waterData.status,
+    limestoneData.status,
+    gearPinionData.status,
+    boilerData.status
+  ];
 
 
-    const statuses = [
-      waterData.status,
-      limestoneData.status,
-      gearPinionData.status
-    ];
+  let overallState =
+    "idle";
 
 
-    let overallState =
-      "idle";
+  let overallLabel =
+    "조회 대기";
 
 
-    let overallLabel =
-      "조회 대기";
+  /* ===================================================
+    하나라도 오류 또는 누락
+  ==================================================== */
+
+  if (
+    statuses.includes(
+      "error"
+    )
+  ) {
+    overallState =
+      "error";
+
+    overallLabel =
+      "확인 필요";
+  }
 
 
-    if (
-      statuses.includes(
-        "error"
-      )
-    ) {
-      overallState =
-        "error";
+  /* ===================================================
+    조회 중
+  ==================================================== */
 
-      overallLabel =
-        "확인 필요";
+  else if (
+    statuses.includes(
+      "loading"
+    )
+  ) {
+    overallState =
+      "loading";
 
-    } else if (
-      statuses.includes(
-        "loading"
-      )
-    ) {
-      overallState =
-        "loading";
-
-      overallLabel =
-        "자료 조회 중";
-
-    } else if (
-      statuses.every(
-        status => {
-          return status ===
-            "complete";
-        }
-      )
-    ) {
-      overallState =
-        "complete";
-
-      overallLabel =
-        "전체 완료";
-
-    } else if (
-      statuses.some(
-        status => {
-          return status ===
-            "complete";
-        }
-      )
-    ) {
-      overallState =
-        "partial";
-
-      overallLabel =
-        "일부 완료";
-    }
+    overallLabel =
+      "자료 조회 중";
+  }
 
 
-    setText(
-      overallStatus,
-      overallLabel
+  /* ===================================================
+    4개 모두 완료
+  ==================================================== */
+
+  else if (
+    statuses.every(
+      status => {
+        return status ===
+          "complete";
+      }
+    )
+  ) {
+    overallState =
+      "complete";
+
+    overallLabel =
+      "전체 완료";
+  }
+
+
+  /* ===================================================
+    일부만 완료
+  ==================================================== */
+
+  else if (
+    statuses.some(
+      status => {
+        return status ===
+          "complete";
+      }
+    )
+  ) {
+    overallState =
+      "partial";
+
+    overallLabel =
+      "일부 완료";
+  }
+
+
+  overallStatus.textContent =
+    overallLabel;
+
+
+  overallStatus.classList.remove(
+    "is-loading",
+    "is-complete",
+    "is-error"
+  );
+
+
+  if (
+    overallState ===
+      "loading"
+  ) {
+    overallStatus.classList.add(
+      "is-loading"
     );
 
+  } else if (
+    overallState ===
+      "complete"
+  ) {
+    overallStatus.classList.add(
+      "is-complete"
+    );
 
-    if (
-      preview
-    ) {
-      preview.dataset
-        .status =
-        overallState;
-    }
+  } else if (
+    overallState ===
+      "error"
+  ) {
+    overallStatus.classList.add(
+      "is-error"
+    );
   }
+
+
+  if (
+    preview
+  ) {
+    preview.dataset.status =
+      overallState;
+
+
+    preview.dataset.waterStatus =
+      waterData.status;
+
+
+    preview.dataset.limestoneStatus =
+      limestoneData.status;
+
+
+    preview.dataset.gearPinionStatus =
+      gearPinionData.status;
+
+
+    preview.dataset.boilerStatus =
+      boilerData.status;
+  }
+}
 
 /* =====================================================
   전체 자동 수치 미리보기 갱신
 
-  미리보기 갱신 후:
-  최종 엑셀 만들기 버튼 조건도 다시 검사한다.
+  대상:
+  - 수처리
+  - 석회석
+  - Gear Wheel / Pinion
+  - BO1 · BO2 보일러 온도
+
+  갱신 후 최종 엑셀 만들기 버튼도 재검사
 ===================================================== */
 
 function renderPreview() {
@@ -158109,6 +158353,14 @@ function renderPreview() {
     getGearPinionData();
 
 
+  const boilerData =
+    getBoilerData();
+
+
+  /* ===================================================
+    기존 카드 출력
+  ==================================================== */
+
   renderWaterPreview(
     waterData
   );
@@ -158124,16 +158376,38 @@ function renderPreview() {
   );
 
 
+  /* ===================================================
+    전체 상태
+
+    보일러 온도까지 포함
+  ==================================================== */
+
   renderOverallStatus(
     waterData,
     limestoneData,
-    gearPinionData
+    gearPinionData,
+    boilerData
   );
 
 
   /* ===================================================
-    자동자료 상태가 바뀔 때마다
-    최종 엑셀 버튼도 즉시 재판정
+    보일러 온도 카드 자체도 갱신
+
+    별도 온도 편집 IIFE에서 등록한 함수 사용
+  ==================================================== */
+
+  if (
+    typeof window
+      .renderEfficiencyMorningMeetingBoilerTemperatures ===
+      "function"
+  ) {
+    window
+      .renderEfficiencyMorningMeetingBoilerTemperatures();
+  }
+
+
+  /* ===================================================
+    최종 엑셀 버튼 상태 재판정
   ==================================================== */
 
   if (
