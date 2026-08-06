@@ -79210,3 +79210,600 @@ button:disabled {
     max-width: none !important;
   }
 }
+
+/* =========================================================
+  오전회의 취합 - 교대파트 업무 선택
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-panel {
+  margin-bottom: 14px;
+  padding: 18px;
+
+  border: 1px solid #d7e2ed;
+  border-radius: 12px;
+
+  background: #ffffff;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-panel__header {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 18px;
+
+  margin-bottom: 15px;
+  padding-bottom: 13px;
+
+  border-bottom: 1px solid #e1e9f1;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-panel__header
+> div:first-child
+> span {
+  display: block;
+
+  margin-bottom: 4px;
+
+  color: #3370bc;
+
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-panel__header h4 {
+  margin: 0;
+
+  color: #263d57;
+
+  font-size: 17px;
+  font-weight: 900;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-panel__header p {
+  margin: 6px 0 0;
+
+  color: #718196;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  line-height: 1.55;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-panel__tools {
+  display: flex;
+
+  flex: 0 0 auto;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingShiftDate {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-height: 34px;
+  padding: 0 11px;
+
+  border: 1px solid #c8d8e9;
+  border-radius: 8px;
+
+  background: #f3f8fd;
+
+  color: #365f8e;
+
+  font-size: 11px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyMorningMeetingView
+#loadEfficiencyMorningMeetingShiftLogsButton {
+  height: 34px;
+  padding: 0 12px;
+
+  border: 1px solid #9eb9d7;
+  border-radius: 7px;
+
+  background: #ffffff;
+
+  color: #35699f;
+
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+#efficiencyMorningMeetingView
+#loadEfficiencyMorningMeetingShiftLogsButton:disabled {
+  border-color: #d5dee8;
+
+  background: #edf1f5;
+
+  color: #9ba7b4;
+}
+
+
+/* =========================================================
+  D/S · N/S 두 칸
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap: 12px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-column {
+  min-width: 0;
+
+  border: 1px solid #d1deeb;
+  border-radius: 10px;
+
+  background: #f9fbfd;
+
+  overflow: hidden;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-column__header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  padding: 11px 12px;
+
+  border-bottom: 1px solid #dce5ee;
+
+  background: #f2f7fc;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-column__header
+> div {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 2px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-column__header span {
+  color: #68809b;
+
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-column__header strong {
+  color: #284767;
+
+  font-size: 14px;
+  font-weight: 900;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-column__header button {
+  height: 28px;
+  padding: 0 9px;
+
+  border: 1px solid #adc2d8;
+  border-radius: 6px;
+
+  background: #ffffff;
+
+  color: #496b8f;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-column__header button:disabled {
+  opacity: 0.45;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-list {
+  max-height: 330px;
+  padding: 10px;
+
+  overflow-y: auto;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-role {
+  margin-bottom: 10px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-role:last-child {
+  margin-bottom: 0;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-role__header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 8px;
+
+  margin-bottom: 6px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-role__header strong {
+  color: #2f5f94;
+
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-role__header span {
+  color: #7a8b9e;
+
+  font-size: 9px;
+  font-weight: 700;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-item {
+  display: grid;
+
+  grid-template-columns:
+    20px
+    minmax(
+      0,
+      1fr
+    );
+
+  gap: 7px;
+
+  margin-bottom: 5px;
+  padding: 8px;
+
+  border: 1px solid #d7e2ec;
+  border-radius: 7px;
+
+  background: #ffffff;
+
+  cursor: pointer;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-item:last-child {
+  margin-bottom: 0;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-item:has(input:checked) {
+  border-color: #4c91d2;
+
+  background: #eef7ff;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-item input {
+  width: 15px;
+  height: 15px;
+  margin: 2px 0 0;
+
+  accent-color: #2e75bd;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-item__content {
+  min-width: 0;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-item__meta {
+  display: flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+  margin-bottom: 3px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-item__meta span {
+  color: #5c7490;
+
+  font-size: 9px;
+  font-weight: 800;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-item__content p {
+  margin: 0;
+
+  color: #283d54;
+
+  font-size: 11px;
+  font-weight: 650;
+
+  line-height: 1.5;
+
+  overflow-wrap: anywhere;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-empty {
+  margin: 0;
+  padding: 26px 10px;
+
+  color: #8997a7;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  text-align: center;
+}
+
+
+/* =========================================================
+  선택 결과
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-result {
+  margin-top: 12px;
+  padding: 13px;
+
+  border: 1px solid #d3dfeb;
+  border-radius: 9px;
+
+  background: #fbfdff;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-result
+> header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-bottom: 8px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-result
+> header
+> div:first-child {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 2px;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-result
+> header
+> div:first-child
+> span {
+  color: #4776aa;
+
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-result
+> header
+> div:first-child
+> strong {
+  color: #2a435e;
+
+  font-size: 13px;
+  font-weight: 900;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-result__tools {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingShiftSelectedCount {
+  color: #55718e;
+
+  font-size: 10px;
+  font-weight: 900;
+}
+
+
+#efficiencyMorningMeetingView
+#clearEfficiencyMorningMeetingShiftSelectionButton {
+  height: 27px;
+  padding: 0 8px;
+
+  border: 1px solid #bdcad8;
+  border-radius: 6px;
+
+  background: #ffffff;
+
+  color: #5d7084;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingShiftText {
+  display: block;
+
+  width: 100%;
+  min-height: 118px;
+  padding: 10px;
+
+  resize: vertical;
+
+  border: 1px solid #cbd8e5;
+  border-radius: 8px;
+
+  background: #ffffff;
+
+  color: #263d56;
+
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 650;
+
+  line-height: 1.65;
+}
+
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingShiftText:focus {
+  border-color: #4c88ce;
+
+  outline: none;
+
+  box-shadow:
+    0 0 0 3px rgba(
+      76,
+      136,
+      206,
+      0.13
+    );
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-shift-error {
+  margin: 9px 0 0;
+
+  color: #c33e3e;
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+
+@media (max-width: 900px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-shift-panel__header {
+    flex-direction: column;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-shift-panel__tools {
+    width: 100%;
+
+    justify-content: space-between;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-shift-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+@media (max-width: 760px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-shift-panel {
+    padding: 12px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-shift-list {
+    max-height: 280px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-shift-result
+  > header {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+}

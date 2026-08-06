@@ -123419,6 +123419,8 @@ if (
     scheduleIssueAggregateTitleUpdate;
 })();
 
+
+
 /* =========================================================
   효율팀 오전회의 취합
   팀별 엑셀 파일 선택·드래그 앤 드롭
@@ -125971,63 +125973,117 @@ function cleanMorningMeetingSectionRows(
     updateMorningMeetingCreateButton();
   }
 
+/* =====================================================
+  최종 엑셀 만들기 버튼 활성화 조건
+
+  조건:
+  1. 기준 취합본 첨부
+  2. 안전·환경·기계·전기제어팀 분석 완료
+  3. 교대파트 업무내용 선택 또는 직접 입력
+===================================================== */
+
+function updateMorningMeetingCreateButton() {
+  const elements =
+    getMorningMeetingWorkbookElements();
+
+
+  const state =
+    getMorningMeetingWorkbookState();
+
+
+  const analyzedTeamCount =
+    TEAM_ORDER.filter(
+      teamKey => {
+        return Boolean(
+          state.analysis?.[
+            teamKey
+          ]
+        );
+      }
+    ).length;
+
+
+  const shiftPartText =
+    String(
+      state.shiftPart?.text ||
+      ""
+    ).trim();
+
+
+  const hasTemplateFile =
+    Boolean(
+      state.templateFile
+    );
+
+
+  const hasAllTeamAnalysis =
+    analyzedTeamCount ===
+    TEAM_ORDER.length;
+
+
+  const hasShiftPartText =
+    Boolean(
+      shiftPartText
+    );
+
+
+  const canCreate =
+    hasTemplateFile &&
+    hasAllTeamAnalysis &&
+    hasShiftPartText;
+
 
   /* =====================================================
-    최종 엑셀 버튼 활성화 조건
-
-    조건:
-    - 기준 취합본 첨부
-    - 네 팀 분석 완료
+    최종 엑셀 만들기 버튼 상태
   ====================================================== */
 
-  function updateMorningMeetingCreateButton() {
-    const elements =
-      getMorningMeetingWorkbookElements();
-
-
-    const state =
-      getMorningMeetingWorkbookState();
-
-
-    const analyzedTeamCount =
-      TEAM_ORDER.filter(
-        teamKey => {
-          return Boolean(
-            state.analysis?.[
-              teamKey
-            ]
-          );
-        }
-      ).length;
-
-
-    const canCreate =
-      Boolean(
-        state.templateFile
-      ) &&
-      analyzedTeamCount ===
-        TEAM_ORDER.length;
-
-
-    if (
-      elements.createButton
-    ) {
-      elements.createButton.disabled =
-        !canCreate;
-    }
-
-
-    if (
-      elements.message &&
-      analyzedTeamCount ===
-        TEAM_ORDER.length &&
-      !state.templateFile
-    ) {
-      elements.message.textContent =
-        "자료 분석이 완료되었습니다. 기준 취합본을 첨부해 주세요.";
-    }
+  if (
+    elements.createButton
+  ) {
+    elements.createButton.disabled =
+      !canCreate;
   }
 
+
+  /* =====================================================
+    단계별 안내 문구
+
+    팀 자료 분석 전에는 기존 첨부 안내 문구를 유지한다.
+  ====================================================== */
+
+  if (
+    !elements.message ||
+    !hasAllTeamAnalysis
+  ) {
+    return;
+  }
+
+
+  if (
+    !hasTemplateFile
+  ) {
+    elements.message.textContent =
+      "자료 분석이 완료되었습니다. 기준 취합본을 첨부해 주세요.";
+
+
+    return;
+  }
+
+
+  if (
+    !hasShiftPartText
+  ) {
+    elements.message.textContent =
+      "교대파트 업무일지에서 오전회의에 넣을 내용을 선택해 주세요.";
+
+
+    return;
+  }
+
+
+  elements.message.textContent =
+    "모든 자료가 준비되었습니다. 최종 엑셀 만들기를 눌러주세요.";
+}
 
   window.updateEfficiencyMorningMeetingCreateButton =
     updateMorningMeetingCreateButton;
@@ -129609,8 +129665,803 @@ async function updateMorningMeetingWorkbookPrintArea(
   );
 }
 
+/* =========================================================
+  오전회의 취합 - 교대파트 행 자동 재배치
+
+  기준:
+  - 기존 "◇ 교대 파트" 행 자동 탐색
+  - 기존 "◇ 연료 설비" 행 자동 탐색
+  - 선택한 업무 수만큼 교대파트 행 생성
+  - 연료 설비 및 이후 모든 구역 자동 이동
+========================================================= */
+
+function getMorningMeetingColumnNumber(
+  columnName
+) {
+  const normalizedColumnName =
+    String(
+      columnName ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  let columnNumber =
+    0;
+
+
+  for (
+    const character
+    of normalizedColumnName
+  ) {
+    columnNumber =
+      columnNumber *
+        26 +
+      (
+        character.charCodeAt(
+          0
+        ) -
+        64
+      );
+  }
+
+
+  return columnNumber;
+}
+
+
 /* =====================================================
-  최종 엑셀 생성 - 팀별 행 동적 재배치
+  교대파트 기존 위치와 행 서식 탐색
+===================================================== */
+
+function inspectMorningMeetingShiftPartLayout(
+  worksheetDocument,
+  sharedStrings
+) {
+  const sheetData =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "sheetData"
+      )[0];
+
+
+  if (
+    !sheetData
+  ) {
+    throw new Error(
+      "기준 취합본의 시트 행 정보를 찾지 못했습니다."
+    );
+  }
+
+
+  const rowRecords =
+    getMorningMeetingDirectXmlChildren(
+      sheetData,
+      "row"
+    )
+      .map(
+        rowElement => {
+          return {
+            element:
+              rowElement,
+
+            rowNumber:
+              getMorningMeetingRowNumber(
+                rowElement
+              ),
+
+            text:
+              getMorningMeetingRowColumnBText(
+                rowElement,
+                sharedStrings
+              )
+          };
+        }
+      )
+      .sort(
+        (
+          first,
+          second
+        ) => {
+          return (
+            first.rowNumber -
+            second.rowNumber
+          );
+        }
+      );
+
+
+  const shiftHeadingRecord =
+    findMorningMeetingRowRecord(
+      rowRecords,
+      /^◇\s*교대\s*파트$/i
+    );
+
+
+  if (
+    !shiftHeadingRecord
+  ) {
+    throw new Error(
+      "기준 취합본에서 '◇ 교대 파트' 구역을 찾지 못했습니다."
+    );
+  }
+
+
+  const fuelHeadingRecord =
+    findMorningMeetingRowRecord(
+      rowRecords,
+      /^◇\s*연료\s*설비$/i,
+      shiftHeadingRecord.rowNumber +
+        1
+    );
+
+
+  if (
+    !fuelHeadingRecord
+  ) {
+    throw new Error(
+      "기준 취합본에서 '◇ 연료 설비' 구역을 찾지 못했습니다."
+    );
+  }
+
+
+  const shiftAreaRecords =
+    rowRecords.filter(
+      record => {
+        return (
+          record.rowNumber >=
+            shiftHeadingRecord.rowNumber &&
+
+          record.rowNumber <
+            fuelHeadingRecord.rowNumber
+        );
+      }
+    );
+
+
+  /*
+    기존 교대파트 업무내용 행 중
+    첫 번째 내용 행을 서식 기준으로 사용한다.
+  */
+
+  const contentTemplateRecord =
+    shiftAreaRecords.find(
+      record => {
+        return (
+          record.rowNumber >
+            shiftHeadingRecord.rowNumber &&
+
+          Boolean(
+            record.text
+          )
+        );
+      }
+    );
+
+
+  /*
+    연료 설비 바로 앞쪽의 빈 행을
+    교대파트 마지막 여백으로 사용한다.
+  */
+
+  const blankTemplateRecord =
+    [
+      ...shiftAreaRecords
+    ]
+      .reverse()
+      .find(
+        record => {
+          return !record.text;
+        }
+      );
+
+
+  if (
+    !contentTemplateRecord
+  ) {
+    throw new Error(
+      "교대파트 업무내용 행의 서식 기준을 찾지 못했습니다."
+    );
+  }
+
+
+  if (
+    !blankTemplateRecord
+  ) {
+    throw new Error(
+      "교대파트 마지막 빈 행의 서식 기준을 찾지 못했습니다."
+    );
+  }
+
+
+  return {
+    sheetData,
+    rowRecords,
+
+    shiftStartRow:
+      shiftHeadingRecord
+        .rowNumber,
+
+    fuelStartRow:
+      fuelHeadingRecord
+        .rowNumber,
+
+    fuelHeadingRowElement:
+      fuelHeadingRecord
+        .element,
+
+    templates: {
+      heading:
+        shiftHeadingRecord
+          .element,
+
+      content:
+        contentTemplateRecord
+          .element,
+
+      blank:
+        blankTemplateRecord
+          .element
+    }
+  };
+}
+
+
+/* =====================================================
+  교대파트 내용 행 생성
+===================================================== */
+
+function buildMorningMeetingShiftPartRows(
+  layout,
+  shiftPartText
+) {
+  const selectedLines =
+    splitMorningMeetingOutputLines(
+      shiftPartText
+    );
+
+
+  if (
+    selectedLines.length ===
+      0
+  ) {
+    throw new Error(
+      "교대파트 업무내용을 한 건 이상 선택하거나 직접 입력해 주세요."
+    );
+  }
+
+
+  const rowDefinitions = [
+    {
+      template:
+        layout.templates
+          .heading,
+
+      text:
+        " ◇ 교대 파트"
+    },
+
+    ...selectedLines.map(
+      line => {
+        return {
+          template:
+            layout.templates
+              .content,
+
+          text:
+            line
+        };
+      }
+    ),
+
+    {
+      template:
+        layout.templates
+          .blank,
+
+      text:
+        ""
+    }
+  ];
+
+
+  return rowDefinitions.map(
+    (
+      definition,
+      rowIndex
+    ) => {
+      const rowNumber =
+        layout.shiftStartRow +
+        rowIndex;
+
+
+      return {
+        rowNumber,
+
+        element:
+          cloneMorningMeetingDynamicRow(
+            layout
+              .sheetData
+              .ownerDocument,
+
+            definition.template,
+
+            rowNumber,
+
+            definition.text
+          )
+      };
+    }
+  );
+}
+
+
+/* =====================================================
+  교대파트 병합 셀 수정
+
+  - B:AD 교대파트 병합 제거 후 재생성
+  - 연료 설비 아래 병합 행은 delta만큼 이동
+===================================================== */
+
+function updateMorningMeetingShiftPartMerges(
+  worksheetDocument,
+  layout,
+  newRows,
+  delta
+) {
+  const mergeCellsElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !mergeCellsElement
+  ) {
+    throw new Error(
+      "기준 취합본의 병합 셀 정보를 찾지 못했습니다."
+    );
+  }
+
+
+  const primaryStartColumn =
+    getMorningMeetingColumnNumber(
+      "B"
+    );
+
+
+  const primaryEndColumn =
+    getMorningMeetingColumnNumber(
+      "AD"
+    );
+
+
+  getMorningMeetingDirectXmlChildren(
+    mergeCellsElement,
+    "mergeCell"
+  ).forEach(
+    mergeElement => {
+      const mergeRange =
+        parseMorningMeetingMergeReference(
+          mergeElement.getAttribute(
+            "ref"
+          )
+        );
+
+
+      if (
+        !mergeRange
+      ) {
+        return;
+      }
+
+
+      const startColumnNumber =
+        getMorningMeetingColumnNumber(
+          mergeRange.startColumn
+        );
+
+
+      const endColumnNumber =
+        getMorningMeetingColumnNumber(
+          mergeRange.endColumn
+        );
+
+
+      const overlapsPrimaryColumns =
+        startColumnNumber <=
+          primaryEndColumn &&
+
+        endColumnNumber >=
+          primaryStartColumn;
+
+
+      /*
+        교대파트 기존 B:AD 병합 제거
+      */
+
+      if (
+        mergeRange.startRow >=
+          layout.shiftStartRow &&
+
+        mergeRange.endRow <
+          layout.fuelStartRow
+      ) {
+        if (
+          overlapsPrimaryColumns
+        ) {
+          mergeCellsElement.removeChild(
+            mergeElement
+          );
+        }
+
+
+        return;
+      }
+
+
+      /*
+        연료 설비 이후 병합 행 이동
+      */
+
+      if (
+        mergeRange.startRow >=
+        layout.fuelStartRow
+      ) {
+        mergeRange.startRow +=
+          delta;
+
+
+        mergeRange.endRow +=
+          delta;
+
+
+        mergeElement.setAttribute(
+          "ref",
+
+          formatMorningMeetingMergeReference(
+            mergeRange
+          )
+        );
+      }
+    }
+  );
+
+
+  /*
+    새로 생성된 교대파트 모든 행은
+    B열부터 AD열까지 병합한다.
+  */
+
+  newRows.forEach(
+    rowDefinition => {
+      const mergeElement =
+        worksheetDocument.createElementNS(
+          MAIN_XML_NAMESPACE,
+          "mergeCell"
+        );
+
+
+      mergeElement.setAttribute(
+        "ref",
+
+        `B${rowDefinition.rowNumber}:AD${rowDefinition.rowNumber}`
+      );
+
+
+      mergeCellsElement.appendChild(
+        mergeElement
+      );
+    }
+  );
+
+
+  mergeCellsElement.setAttribute(
+    "count",
+
+    String(
+      getMorningMeetingDirectXmlChildren(
+        mergeCellsElement,
+        "mergeCell"
+      ).length
+    )
+  );
+}
+
+
+/* =====================================================
+  시트 마지막 행 번호 이동
+===================================================== */
+
+function updateMorningMeetingRowsDimensionAfter(
+  worksheetDocument,
+  boundaryRow,
+  delta
+) {
+  if (
+    !delta
+  ) {
+    return;
+  }
+
+
+  const dimensionElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "dimension"
+      )[0];
+
+
+  if (
+    !dimensionElement
+  ) {
+    return;
+  }
+
+
+  const dimensionReference =
+    dimensionElement.getAttribute(
+      "ref"
+    ) ||
+    "";
+
+
+  dimensionElement.setAttribute(
+    "ref",
+
+    dimensionReference.replace(
+      /([A-Z]+)(\d+)$/i,
+
+      (
+        match,
+        columnName,
+        rowText
+      ) => {
+        const rowNumber =
+          Number(
+            rowText
+          );
+
+
+        return rowNumber >=
+          boundaryRow
+          ? `${columnName}${rowNumber + delta}`
+          : match;
+      }
+    )
+  );
+}
+
+
+/* =====================================================
+  수동 페이지 나누기 행 이동
+===================================================== */
+
+function updateMorningMeetingRowBreaksAfter(
+  worksheetDocument,
+  boundaryRow,
+  delta
+) {
+  if (
+    !delta
+  ) {
+    return;
+  }
+
+
+  const rowBreaksElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "rowBreaks"
+      )[0];
+
+
+  if (
+    !rowBreaksElement
+  ) {
+    return;
+  }
+
+
+  getMorningMeetingDirectXmlChildren(
+    rowBreaksElement,
+    "brk"
+  ).forEach(
+    breakElement => {
+      const rowNumber =
+        Number(
+          breakElement.getAttribute(
+            "id"
+          ) ||
+          0
+        );
+
+
+      if (
+        rowNumber >=
+        boundaryRow
+      ) {
+        breakElement.setAttribute(
+          "id",
+
+          String(
+            rowNumber +
+            delta
+          )
+        );
+      }
+    }
+  );
+}
+
+
+/* =====================================================
+  교대파트 영역 교체
+
+  기존:
+  ◇ 교대 파트
+  업무내용
+  업무내용
+  빈 행
+  ◇ 연료 설비
+
+  변경:
+  ◇ 교대 파트
+  선택한 업무 실제 줄 수
+  빈 행
+  ◇ 연료 설비
+===================================================== */
+
+function replaceMorningMeetingShiftPartArea(
+  worksheetDocument,
+  sharedStrings,
+  shiftPartText
+) {
+  const layout =
+    inspectMorningMeetingShiftPartLayout(
+      worksheetDocument,
+      sharedStrings
+    );
+
+
+  const newRows =
+    buildMorningMeetingShiftPartRows(
+      layout,
+      shiftPartText
+    );
+
+
+  const oldRowCount =
+    layout.fuelStartRow -
+    layout.shiftStartRow;
+
+
+  const newRowCount =
+    newRows.length;
+
+
+  const delta =
+    newRowCount -
+    oldRowCount;
+
+
+  /*
+    연료 설비부터 아래 모든 행 이동
+  */
+
+  layout.rowRecords
+    .filter(
+      record => {
+        return (
+          record.rowNumber >=
+          layout.fuelStartRow
+        );
+      }
+    )
+    .forEach(
+      record => {
+        shiftMorningMeetingExistingRow(
+          record.element,
+          delta
+        );
+      }
+    );
+
+
+  /*
+    기존 교대파트 행 제거
+  */
+
+  layout.rowRecords
+    .filter(
+      record => {
+        return (
+          record.rowNumber >=
+            layout.shiftStartRow &&
+
+          record.rowNumber <
+            layout.fuelStartRow
+        );
+      }
+    )
+    .forEach(
+      record => {
+        layout.sheetData.removeChild(
+          record.element
+        );
+      }
+    );
+
+
+  /*
+    새 교대파트 행을
+    연료 설비 행 바로 앞에 삽입
+  */
+
+  newRows.forEach(
+    rowDefinition => {
+      layout.sheetData.insertBefore(
+        rowDefinition.element,
+        layout.fuelHeadingRowElement
+      );
+    }
+  );
+
+
+  updateMorningMeetingShiftPartMerges(
+    worksheetDocument,
+    layout,
+    newRows,
+    delta
+  );
+
+
+  updateMorningMeetingRowsDimensionAfter(
+    worksheetDocument,
+    layout.fuelStartRow,
+    delta
+  );
+
+
+  updateMorningMeetingRowBreaksAfter(
+    worksheetDocument,
+    layout.fuelStartRow,
+    delta
+  );
+
+
+  return {
+    delta,
+
+    selectedCount:
+      newRows.length -
+      2,
+
+    newFuelStartRow:
+      layout.fuelStartRow +
+      delta
+  };
+}
+
+/* =====================================================
+  최종 엑셀 생성
+
+  처리 순서:
+  1. 기준 취합본 확인
+  2. 4개 팀 분석 결과 확인
+  3. 교대파트 선택 내용 확인
+  4. 교대파트 내용 반영
+  5. 연료설비 이하 행 자동 이동
+  6. 안전팀~전기제어팀 내용 수에 맞춰 재배치
+  7. TM 사항 및 인쇄 영역 이동
+  8. sharedStrings.xml 저장
+  9. 최종 XLSX 다운로드
 ===================================================== */
 
 async function createMorningMeetingWorkbook() {
@@ -129624,8 +130475,42 @@ async function createMorningMeetingWorkbook() {
 
   hideMorningMeetingWorkbookError();
 
+
+  /*
+    미리보기 textarea에서 직접 수정한
+    안전·환경·기계·전기제어팀 내용을
+    최종 상태에 반영한다.
+  */
+
   synchronizeMorningMeetingPreviewText();
 
+
+  /* =====================================================
+    교대파트 선택 내용 확인
+  ====================================================== */
+
+  const shiftPartText =
+    String(
+      state.shiftPart?.text ||
+      ""
+    ).trim();
+
+
+  if (
+    !shiftPartText
+  ) {
+    showMorningMeetingWorkbookError(
+      "교대파트 업무일지에서 오전회의에 넣을 내용을 먼저 선택해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  /* =====================================================
+    필수 라이브러리 확인
+  ====================================================== */
 
   if (
     typeof JSZip ===
@@ -129640,6 +130525,10 @@ async function createMorningMeetingWorkbook() {
   }
 
 
+  /* =====================================================
+    기준 취합본 확인
+  ====================================================== */
+
   if (
     !state.templateFile
   ) {
@@ -129651,6 +130540,10 @@ async function createMorningMeetingWorkbook() {
     return;
   }
 
+
+  /* =====================================================
+    4개 팀 분석 결과 확인
+  ====================================================== */
 
   const analysisResults =
     MORNING_MEETING_DYNAMIC_TEAM_CONFIG.map(
@@ -129670,13 +130563,17 @@ async function createMorningMeetingWorkbook() {
     )
   ) {
     showMorningMeetingWorkbookError(
-      "4개 팀 자료 분석을 먼저 완료해 주세요."
+      "안전팀·환경팀·기계팀·전기제어팀 자료 분석을 먼저 완료해 주세요."
     );
 
 
     return;
   }
 
+
+  /* =====================================================
+    팀별 자료 작성 날짜 확인
+  ====================================================== */
 
   const reportDates =
     analysisResults
@@ -129718,7 +130615,9 @@ async function createMorningMeetingWorkbook() {
 
   const previousDate =
     parseMorningMeetingReportDate(
-      uniqueReportDates[0]
+      uniqueReportDates[
+        0
+      ]
     );
 
 
@@ -129734,12 +130633,21 @@ async function createMorningMeetingWorkbook() {
   }
 
 
+  /*
+    팀별 원본 자료의 작성일이 전일이므로
+    오전회의 취합본 날짜는 다음 날로 사용한다.
+  */
+
   const scheduleDate =
     addMorningMeetingDateDays(
       previousDate,
       1
     );
 
+
+  /* =====================================================
+    버튼과 진행 안내
+  ====================================================== */
 
   const originalButtonText =
     elements.createButton
@@ -129763,11 +130671,15 @@ async function createMorningMeetingWorkbook() {
     elements.message
   ) {
     elements.message.textContent =
-      "팀별 내용 수에 맞춰 행을 자동 재배치하고 있습니다.";
+      "교대파트와 팀별 자료를 기준 취합본에 입력하고 있습니다.";
   }
 
 
   try {
+    /* ===================================================
+      기준 XLSX 압축 파일 열기
+    ==================================================== */
+
     const templateBuffer =
       await state
         .templateFile
@@ -129779,6 +130691,10 @@ async function createMorningMeetingWorkbook() {
         templateBuffer
       );
 
+
+    /* ===================================================
+      일일 발전운영현황 시트 찾기
+    ==================================================== */
 
     const worksheetPath =
       await findMorningMeetingWorksheetPath(
@@ -129801,18 +130717,32 @@ async function createMorningMeetingWorkbook() {
     }
 
 
+    /* ===================================================
+      원본 공유 문자열 읽기
+
+      새로 입력되는 내용도 원본과 동일하게
+      sharedStrings.xml 방식으로 저장한다.
+    ==================================================== */
+
     const sharedStringsFile =
       zip.file(
         "xl/sharedStrings.xml"
       );
 
 
+    if (
+      !sharedStringsFile
+    ) {
+      throw new Error(
+        "기준 취합본에서 sharedStrings.xml을 찾지 못했습니다."
+      );
+    }
+
+
     const sharedStringsXmlText =
-      sharedStringsFile
-        ? await sharedStringsFile.async(
-            "string"
-          )
-        : "";
+      await sharedStringsFile.async(
+        "string"
+      );
 
 
     const sharedStrings =
@@ -129820,6 +130750,10 @@ async function createMorningMeetingWorkbook() {
         sharedStringsXmlText
       );
 
+
+    /* ===================================================
+      워크시트 XML 읽기
+    ==================================================== */
 
     const worksheetXmlText =
       await worksheetFile.async(
@@ -129834,10 +130768,30 @@ async function createMorningMeetingWorkbook() {
       );
 
 
-    /*
-      안전팀 제목 행부터
-      TM 사항 제목 행까지 자동 탐색
-    */
+    /* ===================================================
+      1차: 교대파트 내용 반영
+
+      선택한 TGO·BCO1·BCO2 업무를
+      기존 '◇ 교대 파트' 아래에 입력한다.
+
+      선택 건수가 기존 내용보다 많거나 적으면
+      연료 설비부터 아래 구역을 자동 이동한다.
+    ==================================================== */
+
+    const shiftPartResult =
+      replaceMorningMeetingShiftPartArea(
+        worksheetDocument,
+        sharedStrings,
+        shiftPartText
+      );
+
+
+    /* ===================================================
+      2차: 안전팀~전기제어팀 현재 위치 재탐색
+
+      교대파트 행 이동이 먼저 적용되었으므로
+      이동된 시트에서 팀별 위치를 다시 찾는다.
+    ==================================================== */
 
     const layout =
       inspectMorningMeetingDynamicLayout(
@@ -129846,10 +130800,10 @@ async function createMorningMeetingWorkbook() {
       );
 
 
-    /*
-      각 팀 실제 내용 개수에 맞춰
+    /* ===================================================
+      안전팀~전기제어팀 실제 내용 수에 맞춰
       새 행 목록 생성
-    */
+    ==================================================== */
 
     const buildResult =
       buildMorningMeetingDynamicRows(
@@ -129860,10 +130814,13 @@ async function createMorningMeetingWorkbook() {
       );
 
 
-    /*
-      기존 고정 팀 구간 제거 후
-      새 동적 구간 삽입
-    */
+    /* ===================================================
+      기존 고정 팀 구간을 제거하고
+      새 동적 팀 구간 삽입
+
+      전기제어팀 다음의 TM 사항도
+      자동으로 아래 또는 위로 이동한다.
+    ==================================================== */
 
     const dynamicResult =
       replaceMorningMeetingDynamicTeamArea(
@@ -129872,6 +130829,10 @@ async function createMorningMeetingWorkbook() {
         buildResult
       );
 
+
+    /* ===================================================
+      수정된 워크시트 XML 저장
+    ==================================================== */
 
     zip.file(
       worksheetPath,
@@ -129883,33 +130844,54 @@ async function createMorningMeetingWorkbook() {
     );
 
 
+    /* ===================================================
+      전체 행 이동량 계산
+
+      교대파트 이동량
+      +
+      안전·환경·기계·전기제어팀 이동량
+    ==================================================== */
+
+    const totalRowDelta =
+      shiftPartResult.delta +
+      dynamicResult.delta;
+
+
     /*
-      팀 영역이 늘거나 줄어든 만큼
-      인쇄 영역 마지막 행도 이동
+      sharedStrings.xml 저장 및
+      인쇄 영역 마지막 행 이동
+
+      행 이동량이 0이어도 새 공유 문자열은 저장된다.
     */
 
     await updateMorningMeetingWorkbookPrintArea(
       zip,
-      dynamicResult.delta
+      totalRowDelta
     );
 
 
+    /* ===================================================
+      최종 XLSX 생성
+    ==================================================== */
+
     const resultBlob =
-      await zip.generateAsync({
-        type:
-          "blob",
+      await zip.generateAsync(
+        {
+          type:
+            "blob",
 
-        mimeType:
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 
-        compression:
-          "DEFLATE",
+          compression:
+            "DEFLATE",
 
-        compressionOptions: {
-          level:
-            6
+          compressionOptions: {
+            level:
+              6
+          }
         }
-      });
+      );
 
 
     const outputFileName =
@@ -129924,29 +130906,34 @@ async function createMorningMeetingWorkbook() {
     );
 
 
+    /* ===================================================
+      생성 완료 안내
+    ==================================================== */
+
     if (
       elements.message
     ) {
       const movementText =
-        dynamicResult.delta ===
+        totalRowDelta ===
           0
           ? "행 이동 없음"
-          : dynamicResult.delta >
+          : totalRowDelta >
               0
-            ? `${dynamicResult.delta}행 아래로 확장`
+            ? `${totalRowDelta}행 아래로 확장`
             : `${Math.abs(
-                dynamicResult.delta
+                totalRowDelta
               )}행 위로 축소`;
 
 
       elements.message.textContent =
-        `${outputFileName} 생성 완료 · ${movementText} · TM 사항 ${dynamicResult.newTmStartRow}행부터`;
+        `${outputFileName} 생성 완료 · 교대파트 ${shiftPartResult.selectedCount}건 · ${movementText}`;
     }
+
   } catch (
     error
   ) {
     console.error(
-      "오전회의 동적 최종 엑셀 생성 실패",
+      "오전회의 최종 엑셀 생성 실패",
       error
     );
 
@@ -129963,7 +130950,12 @@ async function createMorningMeetingWorkbook() {
       elements.message.textContent =
         "최종 엑셀 생성에 실패했습니다.";
     }
+
   } finally {
+    /* ===================================================
+      버튼 원상 복구
+    ==================================================== */
+
     if (
       elements.createButton
     ) {
@@ -130293,6 +131285,1756 @@ async function createMorningMeetingWorkbook() {
           true
       }
     );
+  } else {
+    initialize();
+  }
+})();
+
+/* =========================================================
+  효율팀 오전회의 취합
+  교대파트 업무일지 선택
+
+  조회 기준:
+  - 팀별 자료 분석 날짜
+  - 같은 날짜 D/S
+  - 같은 날짜 N/S
+
+  조회 보직:
+  - TGO
+  - BCO1
+  - BCO2
+
+  선택 결과:
+  - 오전회의 교대파트 업무내용으로 저장
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingShiftSelector() {
+  "use strict";
+
+
+  const TARGET_ROLES = [
+    "TGO",
+    "BCO1",
+    "BCO2"
+  ];
+
+
+  const SHIFT_ORDER = {
+    DS:
+      1,
+
+    NS:
+      2
+  };
+
+
+  const ROLE_ORDER = {
+    TGO:
+      1,
+
+    BCO1:
+      2,
+
+    BCO2:
+      3
+  };
+
+
+  function normalizeText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    ).trim();
+  }
+
+
+  function normalizeShift(
+    value
+  ) {
+    const shift =
+      normalizeText(
+        value
+      )
+        .toUpperCase()
+        .replace(
+          /[^A-Z]/g,
+          ""
+        );
+
+
+    return [
+      "DS",
+      "NS"
+    ].includes(
+      shift
+    )
+      ? shift
+      : "";
+  }
+
+
+  function normalizeRole(
+    value
+  ) {
+    const role =
+      normalizeText(
+        value
+      )
+        .replace(
+          /\s+/g,
+          ""
+        )
+        .toUpperCase();
+
+
+    return TARGET_ROLES.includes(
+      role
+    )
+      ? role
+      : "";
+  }
+
+
+  function escapeHtml(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replace(
+        /&/g,
+        "&amp;"
+      )
+      .replace(
+        /</g,
+        "&lt;"
+      )
+      .replace(
+        />/g,
+        "&gt;"
+      )
+      .replace(
+        /"/g,
+        "&quot;"
+      )
+      .replace(
+        /'/g,
+        "&#039;"
+      );
+  }
+
+
+  function normalizeReportDate(
+    value
+  ) {
+    const match =
+      normalizeText(
+        value
+      ).match(
+        /(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})/
+      );
+
+
+    if (
+      !match
+    ) {
+      return "";
+    }
+
+
+    return [
+      match[
+        1
+      ],
+
+      String(
+        match[
+          2
+        ]
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        match[
+          3
+        ]
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    );
+  }
+
+
+  function getState() {
+    if (
+      !window.efficiencyMorningMeetingUploadState
+    ) {
+      window.efficiencyMorningMeetingUploadState = {
+        files: {},
+        analysis: {}
+      };
+    }
+
+
+    const state =
+      window
+        .efficiencyMorningMeetingUploadState;
+
+
+    if (
+      !state.shiftPart
+    ) {
+      state.shiftPart = {
+        reportDate:
+          "",
+
+        loadedDate:
+          "",
+
+        items:
+          [],
+
+        selectedIds:
+          new Set(),
+
+        text:
+          ""
+      };
+    }
+
+
+    if (
+      !(state.shiftPart.selectedIds instanceof Set)
+    ) {
+      state.shiftPart.selectedIds =
+        new Set(
+          Array.isArray(
+            state.shiftPart.selectedIds
+          )
+            ? state.shiftPart.selectedIds
+            : []
+        );
+    }
+
+
+    return state;
+  }
+
+
+  function getElements() {
+    return {
+      panel:
+        document.getElementById(
+          "efficiencyMorningMeetingShiftPanel"
+        ),
+
+      date:
+        document.getElementById(
+          "efficiencyMorningMeetingShiftDate"
+        ),
+
+      loadButton:
+        document.getElementById(
+          "loadEfficiencyMorningMeetingShiftLogsButton"
+        ),
+
+      dayList:
+        document.getElementById(
+          "efficiencyMorningMeetingDayShiftList"
+        ),
+
+      nightList:
+        document.getElementById(
+          "efficiencyMorningMeetingNightShiftList"
+        ),
+
+      selectedCount:
+        document.getElementById(
+          "efficiencyMorningMeetingShiftSelectedCount"
+        ),
+
+      clearButton:
+        document.getElementById(
+          "clearEfficiencyMorningMeetingShiftSelectionButton"
+        ),
+
+      textarea:
+        document.getElementById(
+          "efficiencyMorningMeetingShiftText"
+        ),
+
+      error:
+        document.getElementById(
+          "efficiencyMorningMeetingShiftError"
+        ),
+
+      previewList:
+        document.getElementById(
+          "efficiencyMorningMeetingPreviewList"
+        ),
+
+      resetButton:
+        document.getElementById(
+          "resetEfficiencyMorningMeetingButton"
+        )
+    };
+  }
+
+
+  function showError(
+    message
+  ) {
+    const {
+      error
+    } =
+      getElements();
+
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+
+    error.textContent =
+      normalizeText(
+        message
+      );
+
+
+    error.hidden =
+      false;
+  }
+
+
+  function hideError() {
+    const {
+      error
+    } =
+      getElements();
+
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+
+    error.textContent =
+      "";
+
+
+    error.hidden =
+      true;
+  }
+
+
+  function getAnalyzedReportDate() {
+    const state =
+      getState();
+
+
+    const results =
+      Object.values(
+        state.analysis ||
+        {}
+      );
+
+
+    for (
+      const result
+      of results
+    ) {
+      const date =
+        normalizeReportDate(
+          result?.reportDate
+        );
+
+
+      if (
+        date
+      ) {
+        return date;
+      }
+    }
+
+
+    return "";
+  }
+
+
+  async function requestShiftLogs(
+    date,
+    shift
+  ) {
+    const requestUrl =
+      new URL(
+        "/api/shift-logs",
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "date",
+      date
+    );
+
+
+    requestUrl.searchParams.set(
+      "shift",
+      shift
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const headers =
+      typeof getShiftLogAuthHeaders ===
+        "function"
+        ? getShiftLogAuthHeaders()
+        : {
+            Accept:
+              "application/json"
+          };
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers,
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    let payload =
+      {};
+
+
+    try {
+      payload =
+        await response.json();
+
+    } catch {
+      throw new Error(
+        `${shift} 업무일지 응답을 읽을 수 없습니다.`
+      );
+    }
+
+
+    if (
+      !response.ok ||
+      payload.ok !==
+        true
+    ) {
+      throw new Error(
+        payload.message ||
+        `${shift} 업무일지를 불러오지 못했습니다.`
+      );
+    }
+
+
+    return Array.isArray(
+      payload.logs
+    )
+      ? payload.logs
+      : [];
+  }
+
+
+  function collectLogEntries(
+    log,
+    shift
+  ) {
+    const role =
+      normalizeRole(
+        log?.role
+      );
+
+
+    if (
+      !role
+    ) {
+      return [];
+    }
+
+
+    const sources = [
+      {
+        name:
+          "entries",
+
+        items:
+          log?.entries
+      },
+
+      {
+        name:
+          "tmEntries",
+
+        items:
+          log?.tmEntries
+      }
+    ];
+
+
+    const uniqueItems =
+      new Map();
+
+
+    sources.forEach(
+      source => {
+        (
+          Array.isArray(
+            source.items
+          )
+            ? source.items
+            : []
+        )
+          .forEach(
+            (
+              rawEntry,
+              entryIndex
+            ) => {
+              const entry =
+                rawEntry &&
+                typeof rawEntry ===
+                  "object" &&
+                !Array.isArray(
+                  rawEntry
+                )
+                  ? rawEntry
+                  : {
+                      content:
+                        String(
+                          rawEntry ||
+                          ""
+                        )
+                    };
+
+
+              const content =
+                normalizeText(
+                  entry.content ||
+                  entry.text
+                );
+
+
+              if (
+                !content
+              ) {
+                return;
+              }
+
+
+              const category =
+                normalizeText(
+                  entry.category
+                );
+
+
+              /*
+                인계사항과 비고는
+                교대파트 업무 선택에서 제외한다.
+              */
+
+              if (
+                /인계|비고/.test(
+                  category
+                )
+              ) {
+                return;
+              }
+
+
+              const time =
+                normalizeText(
+                  entry.time
+                );
+
+
+              const duplicateKey = [
+                time,
+                category,
+                content.replace(
+                  /\s+/g,
+                  " "
+                )
+              ].join(
+                "||"
+              );
+
+
+              if (
+                uniqueItems.has(
+                  duplicateKey
+                )
+              ) {
+                return;
+              }
+
+
+              uniqueItems.set(
+                duplicateKey,
+                {
+                  shift,
+                  role,
+
+                  author:
+                    normalizeText(
+                      log?.author
+                    ),
+
+                  status:
+                    normalizeText(
+                      log?.status
+                    ),
+
+                  time,
+                  category,
+                  content,
+
+                  sourceLogId:
+                    normalizeText(
+                      log?.id
+                    ),
+
+                  sourceEntryId:
+                    normalizeText(
+                      entry?.id
+                    ),
+
+                  sourceCollection:
+                    source.name,
+
+                  sourceIndex:
+                    entryIndex
+                }
+              );
+            }
+          );
+      }
+    );
+
+
+    return [
+      ...uniqueItems.values()
+    ];
+  }
+
+
+  function buildSelectableItems(
+    dayLogs,
+    nightLogs
+  ) {
+    const allItems =
+      [];
+
+
+    [
+      [
+        "DS",
+        dayLogs
+      ],
+
+      [
+        "NS",
+        nightLogs
+      ]
+    ].forEach(
+      ([
+        shift,
+        logs
+      ]) => {
+        (
+          Array.isArray(
+            logs
+          )
+            ? logs
+            : []
+        )
+          .filter(
+            log => {
+              return TARGET_ROLES.includes(
+                normalizeRole(
+                  log?.role
+                )
+              );
+            }
+          )
+          .forEach(
+            log => {
+              allItems.push(
+                ...collectLogEntries(
+                  log,
+                  shift
+                )
+              );
+            }
+          );
+      }
+    );
+
+
+    allItems.sort(
+      (
+        first,
+        second
+      ) => {
+        const shiftDifference =
+          (
+            SHIFT_ORDER[
+              first.shift
+            ] ||
+            99
+          ) -
+          (
+            SHIFT_ORDER[
+              second.shift
+            ] ||
+            99
+          );
+
+
+        if (
+          shiftDifference !==
+          0
+        ) {
+          return shiftDifference;
+        }
+
+
+        const roleDifference =
+          (
+            ROLE_ORDER[
+              first.role
+            ] ||
+            99
+          ) -
+          (
+            ROLE_ORDER[
+              second.role
+            ] ||
+            99
+          );
+
+
+        if (
+          roleDifference !==
+          0
+        ) {
+          return roleDifference;
+        }
+
+
+        return String(
+          first.time ||
+          ""
+        ).localeCompare(
+          String(
+            second.time ||
+            ""
+          )
+        );
+      }
+    );
+
+
+    return allItems.map(
+      (
+        item,
+        itemIndex
+      ) => {
+        return {
+          ...item,
+
+          id:
+            `morning-shift-item-${itemIndex}`
+        };
+      }
+    );
+  }
+
+
+  function renderShiftList(
+    shift,
+    listElement
+  ) {
+    if (
+      !listElement
+    ) {
+      return;
+    }
+
+
+    const state =
+      getState();
+
+
+    const shiftItems =
+      state.shiftPart.items.filter(
+        item => {
+          return item.shift ===
+            shift;
+        }
+      );
+
+
+    if (
+      shiftItems.length ===
+        0
+    ) {
+      listElement.innerHTML = `
+        <p class="efficiency-morning-meeting-shift-empty">
+          ${
+            shift ===
+              "DS"
+              ? "전날 D/S"
+              : "현재 N/S"
+          }의 TGO·BCO1·BCO2 업무내용이 없습니다.
+        </p>
+      `;
+
+
+      return;
+    }
+
+
+    listElement.innerHTML =
+      TARGET_ROLES
+        .map(
+          role => {
+            const roleItems =
+              shiftItems.filter(
+                item => {
+                  return item.role ===
+                    role;
+                }
+              );
+
+
+            if (
+              roleItems.length ===
+                0
+            ) {
+              return `
+                <section
+                  class="efficiency-morning-meeting-shift-role"
+                >
+
+                  <header
+                    class="efficiency-morning-meeting-shift-role__header"
+                  >
+                    <strong>${role}</strong>
+                    <span>업무내용 없음</span>
+                  </header>
+
+                </section>
+              `;
+            }
+
+
+            const author =
+              roleItems[
+                0
+              ]?.author ||
+              "";
+
+
+            return `
+              <section
+                class="efficiency-morning-meeting-shift-role"
+              >
+
+                <header
+                  class="efficiency-morning-meeting-shift-role__header"
+                >
+                  <strong>${role}</strong>
+
+                  <span>
+                    ${escapeHtml(
+                      author
+                    )}
+                    ·
+                    ${roleItems.length}건
+                  </span>
+                </header>
+
+
+                ${roleItems
+                  .map(
+                    item => {
+                      const checked =
+                        state.shiftPart
+                          .selectedIds
+                          .has(
+                            item.id
+                          );
+
+
+                      return `
+                        <label
+                          class="efficiency-morning-meeting-shift-item"
+                        >
+
+                          <input
+                            type="checkbox"
+                            data-morning-meeting-shift-item="${escapeHtml(
+                              item.id
+                            )}"
+                            ${
+                              checked
+                                ? "checked"
+                                : ""
+                            }
+                          />
+
+
+                          <span
+                            class="efficiency-morning-meeting-shift-item__content"
+                          >
+
+                            <span
+                              class="efficiency-morning-meeting-shift-item__meta"
+                            >
+
+                              ${
+                                item.time
+                                  ? `
+                                    <span>
+                                      ${escapeHtml(
+                                        item.time
+                                      )}
+                                    </span>
+                                  `
+                                  : ""
+                              }
+
+                              ${
+                                item.category
+                                  ? `
+                                    <span>
+                                      ${escapeHtml(
+                                        item.category
+                                      )}
+                                    </span>
+                                  `
+                                  : ""
+                              }
+
+                            </span>
+
+
+                            <p>
+                              ${escapeHtml(
+                                item.content
+                              )}
+                            </p>
+
+                          </span>
+
+                        </label>
+                      `;
+                    }
+                  )
+                  .join(
+                    ""
+                  )}
+
+              </section>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+  }
+
+/* =====================================================
+  교대파트 선택 내용 갱신
+
+  동작:
+  - 선택한 업무를 순서대로 정리
+  - 1) 2) 3) 번호 자동 부여
+  - 시간이 있으면 내용 앞에 시간 표시
+  - 선택 건수 표시
+  - 선택 초기화 버튼 상태 변경
+  - 최종 엑셀 만들기 버튼 상태 즉시 갱신
+
+  overwriteText:
+  - true  : 선택 항목 기준으로 textarea 다시 작성
+  - false : textarea 내용은 유지하고 상태만 갱신
+===================================================== */
+
+function updateSelectedText(
+  overwriteText =
+    true
+) {
+  const elements =
+    getElements();
+
+
+  const state =
+    getState();
+
+
+  const selectedItems =
+    state.shiftPart.items.filter(
+      item => {
+        return state.shiftPart
+          .selectedIds
+          .has(
+            item.id
+          );
+      }
+    );
+
+
+  /* =====================================================
+    선택된 항목으로 교대파트 업무내용 생성
+  ====================================================== */
+
+  if (
+    overwriteText
+  ) {
+    state.shiftPart.text =
+      selectedItems
+        .map(
+          (
+            item,
+            itemIndex
+          ) => {
+            const time =
+              String(
+                item.time ||
+                ""
+              ).trim();
+
+
+            const content =
+              String(
+                item.content ||
+                ""
+              ).trim();
+
+
+            const timePrefix =
+              time
+                ? `${time} `
+                : "";
+
+
+            return (
+              `${itemIndex + 1}) ` +
+              `${timePrefix}` +
+              `${content}`
+            );
+          }
+        )
+        .filter(
+          Boolean
+        )
+        .join(
+          "\n"
+        );
+
+
+    if (
+      elements.textarea
+    ) {
+      elements.textarea.value =
+        state.shiftPart.text;
+    }
+  }
+
+
+  /* =====================================================
+    선택 건수 표시
+  ====================================================== */
+
+  if (
+    elements.selectedCount
+  ) {
+    elements.selectedCount.textContent =
+      `${selectedItems.length}건 선택`;
+  }
+
+
+  /* =====================================================
+    선택 초기화 버튼 상태
+  ====================================================== */
+
+  if (
+    elements.clearButton
+  ) {
+    elements.clearButton.disabled =
+      selectedItems.length ===
+      0;
+  }
+
+
+  /* =====================================================
+    최종 엑셀 만들기 버튼 활성화 여부 재검사
+
+    조건:
+    - 기준 취합본 첨부
+    - 4개 팀 분석 완료
+    - 교대파트 업무내용 존재
+  ====================================================== */
+
+  if (
+    typeof window
+      .updateEfficiencyMorningMeetingCreateButton ===
+      "function"
+  ) {
+    window
+      .updateEfficiencyMorningMeetingCreateButton();
+  }
+}
+
+  function renderAllLists() {
+    const elements =
+      getElements();
+
+
+    renderShiftList(
+      "DS",
+      elements.dayList
+    );
+
+
+    renderShiftList(
+      "NS",
+      elements.nightList
+    );
+
+
+    document
+      .querySelectorAll(
+        "[data-morning-meeting-select-shift]"
+      )
+      .forEach(
+        button => {
+          const shift =
+            normalizeShift(
+              button.dataset
+                .morningMeetingSelectShift
+            );
+
+
+          button.disabled =
+            !getState()
+              .shiftPart
+              .items
+              .some(
+                item => {
+                  return item.shift ===
+                    shift;
+                }
+              );
+        }
+      );
+
+
+    updateSelectedText(
+      false
+    );
+  }
+
+
+  async function loadShiftPartLogs() {
+    const elements =
+      getElements();
+
+
+    const state =
+      getState();
+
+
+    const reportDate =
+      state.shiftPart.reportDate ||
+      getAnalyzedReportDate();
+
+
+    hideError();
+
+
+    if (
+      !reportDate
+    ) {
+      showError(
+        "팀별 자료를 먼저 분석하여 기준 날짜를 확인해 주세요."
+      );
+
+
+      return;
+    }
+
+
+    state.shiftPart.reportDate =
+      reportDate;
+
+
+    if (
+      elements.loadButton
+    ) {
+      elements.loadButton.disabled =
+        true;
+
+
+      elements.loadButton.textContent =
+        "불러오는 중...";
+    }
+
+
+    if (
+      elements.dayList
+    ) {
+      elements.dayList.innerHTML = `
+        <p class="efficiency-morning-meeting-shift-empty">
+          D/S 업무일지를 불러오고 있습니다.
+        </p>
+      `;
+    }
+
+
+    if (
+      elements.nightList
+    ) {
+      elements.nightList.innerHTML = `
+        <p class="efficiency-morning-meeting-shift-empty">
+          N/S 업무일지를 불러오고 있습니다.
+        </p>
+      `;
+    }
+
+
+    try {
+      const [
+        dayLogs,
+        nightLogs
+      ] =
+        await Promise.all([
+          requestShiftLogs(
+            reportDate,
+            "DS"
+          ),
+
+          requestShiftLogs(
+            reportDate,
+            "NS"
+          )
+        ]);
+
+
+      state.shiftPart.items =
+        buildSelectableItems(
+          dayLogs,
+          nightLogs
+        );
+
+
+      state.shiftPart.selectedIds =
+        new Set();
+
+
+      state.shiftPart.text =
+        "";
+
+
+      state.shiftPart.loadedDate =
+        reportDate;
+
+
+      if (
+        elements.textarea
+      ) {
+        elements.textarea.value =
+          "";
+      }
+
+
+      renderAllLists();
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "오전회의 교대파트 업무일지 조회 실패",
+        error
+      );
+
+
+      state.shiftPart.items =
+        [];
+
+
+      showError(
+        error?.message ||
+        "교대파트 업무일지를 불러오지 못했습니다."
+      );
+
+
+      renderAllLists();
+
+    } finally {
+      if (
+        elements.loadButton
+      ) {
+        elements.loadButton.disabled =
+          false;
+
+
+        elements.loadButton.textContent =
+          "업무일지 불러오기";
+      }
+    }
+  }
+
+
+  function refreshReportDate() {
+    const elements =
+      getElements();
+
+
+    const state =
+      getState();
+
+
+    const reportDate =
+      getAnalyzedReportDate();
+
+
+    state.shiftPart.reportDate =
+      reportDate;
+
+
+    if (
+      elements.date
+    ) {
+      elements.date.textContent =
+        reportDate
+          ? `${reportDate} · D/S + N/S`
+          : "기준 일자 확인 전";
+    }
+
+
+    if (
+      elements.loadButton
+    ) {
+      elements.loadButton.disabled =
+        !reportDate;
+    }
+
+
+    if (
+      reportDate &&
+      state.shiftPart.loadedDate !==
+        reportDate
+    ) {
+      loadShiftPartLogs();
+    }
+  }
+
+
+  function clearSelection() {
+    const state =
+      getState();
+
+
+    state.shiftPart.selectedIds =
+      new Set();
+
+
+    state.shiftPart.text =
+      "";
+
+
+    const {
+      textarea
+    } =
+      getElements();
+
+
+    if (
+      textarea
+    ) {
+      textarea.value =
+        "";
+    }
+
+
+    renderAllLists();
+
+    updateSelectedText();
+  }
+
+
+  function resetShiftPart() {
+    const state =
+      getState();
+
+
+    state.shiftPart = {
+      reportDate:
+        "",
+
+      loadedDate:
+        "",
+
+      items:
+        [],
+
+      selectedIds:
+        new Set(),
+
+      text:
+        ""
+    };
+
+
+    const elements =
+      getElements();
+
+
+    if (
+      elements.date
+    ) {
+      elements.date.textContent =
+        "기준 일자 확인 전";
+    }
+
+
+    if (
+      elements.loadButton
+    ) {
+      elements.loadButton.disabled =
+        true;
+    }
+
+
+    if (
+      elements.dayList
+    ) {
+      elements.dayList.innerHTML = `
+        <p class="efficiency-morning-meeting-shift-empty">
+          팀 자료를 분석하면 업무일지를 자동으로 불러옵니다.
+        </p>
+      `;
+    }
+
+
+    if (
+      elements.nightList
+    ) {
+      elements.nightList.innerHTML = `
+        <p class="efficiency-morning-meeting-shift-empty">
+          팀 자료를 분석하면 업무일지를 자동으로 불러옵니다.
+        </p>
+      `;
+    }
+
+
+    if (
+      elements.textarea
+    ) {
+      elements.textarea.value =
+        "";
+    }
+
+
+    updateSelectedText(
+      false
+    );
+
+    hideError();
+  }
+
+
+  function bindEvents() {
+    const elements =
+      getElements();
+
+
+    elements.loadButton
+      ?.addEventListener(
+        "click",
+        loadShiftPartLogs
+      );
+
+
+    elements.clearButton
+      ?.addEventListener(
+        "click",
+        clearSelection
+      );
+
+
+    elements.textarea
+      ?.addEventListener(
+        "input",
+
+        () => {
+          getState()
+            .shiftPart
+            .text =
+            elements.textarea.value;
+        }
+      );
+
+
+    elements.panel
+      ?.addEventListener(
+        "change",
+
+        event => {
+          const checkbox =
+            event.target.closest(
+              "[data-morning-meeting-shift-item]"
+            );
+
+
+          if (
+            !checkbox
+          ) {
+            return;
+          }
+
+
+          const itemId =
+            checkbox.dataset
+              .morningMeetingShiftItem;
+
+
+          const selectedIds =
+            getState()
+              .shiftPart
+              .selectedIds;
+
+
+          if (
+            checkbox.checked
+          ) {
+            selectedIds.add(
+              itemId
+            );
+
+          } else {
+            selectedIds.delete(
+              itemId
+            );
+          }
+
+
+          updateSelectedText();
+        }
+      );
+
+
+    elements.panel
+      ?.addEventListener(
+        "click",
+
+        event => {
+          const selectButton =
+            event.target.closest(
+              "[data-morning-meeting-select-shift]"
+            );
+
+
+          if (
+            !selectButton
+          ) {
+            return;
+          }
+
+
+          const shift =
+            normalizeShift(
+              selectButton.dataset
+                .morningMeetingSelectShift
+            );
+
+
+          const state =
+            getState();
+
+
+          const shiftItems =
+            state.shiftPart.items.filter(
+              item => {
+                return item.shift ===
+                  shift;
+              }
+            );
+
+
+          const areAllSelected =
+            shiftItems.length >
+              0 &&
+            shiftItems.every(
+              item => {
+                return state.shiftPart
+                  .selectedIds
+                  .has(
+                    item.id
+                  );
+              }
+            );
+
+
+          shiftItems.forEach(
+            item => {
+              if (
+                areAllSelected
+              ) {
+                state.shiftPart
+                  .selectedIds
+                  .delete(
+                    item.id
+                  );
+
+              } else {
+                state.shiftPart
+                  .selectedIds
+                  .add(
+                    item.id
+                  );
+              }
+            }
+          );
+
+
+          selectButton.textContent =
+            areAllSelected
+              ? "전체 선택"
+              : "전체 해제";
+
+
+          renderAllLists();
+
+          updateSelectedText();
+        }
+      );
+
+
+    elements.resetButton
+      ?.addEventListener(
+        "click",
+
+        () => {
+          window.setTimeout(
+            resetShiftPart,
+            0
+          );
+        }
+      );
+  }
+
+
+  function observeAnalysis() {
+    const {
+      previewList
+    } =
+      getElements();
+
+
+    if (
+      !previewList
+    ) {
+      return;
+    }
+
+
+    const observer =
+      new MutationObserver(
+        () => {
+          window.setTimeout(
+            refreshReportDate,
+            0
+          );
+        }
+      );
+
+
+    observer.observe(
+      previewList,
+      {
+        childList:
+          true,
+
+        subtree:
+          true
+      }
+    );
+  }
+
+
+  function initialize() {
+    const {
+      panel
+    } =
+      getElements();
+
+
+    if (
+      !panel ||
+      panel.dataset
+        .shiftSelectorInitialized ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    panel.dataset
+      .shiftSelectorInitialized =
+      "true";
+
+
+    bindEvents();
+
+    observeAnalysis();
+
+    refreshReportDate();
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
   } else {
     initialize();
   }

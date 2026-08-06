@@ -4689,6 +4689,243 @@
 
   </header>
 
+<!-- =================================================
+  교대파트 업무 선택
+
+  기준:
+  - 팀 자료의 작성 날짜
+  - 같은 날짜 D/S
+  - 같은 날짜 N/S
+  - TGO / BCO1 / BCO2 업무내용
+================================================== -->
+
+<section
+  class="efficiency-morning-meeting-shift-panel"
+  id="efficiencyMorningMeetingShiftPanel"
+>
+
+  <header
+    class="efficiency-morning-meeting-shift-panel__header"
+  >
+
+    <div>
+
+      <span>
+        SHIFT LOG SELECTION
+      </span>
+
+      <h4>
+        교대파트 업무 선택
+      </h4>
+
+      <p>
+        전날 D/S와 현재 N/S의
+        TGO·BCO1·BCO2 업무내용 중
+        오전회의 자료에 넣을 항목을 선택하세요.
+      </p>
+
+    </div>
+
+
+    <div
+      class="efficiency-morning-meeting-shift-panel__tools"
+    >
+
+      <strong
+        id="efficiencyMorningMeetingShiftDate"
+      >
+        기준 일자 확인 전
+      </strong>
+
+
+      <button
+        type="button"
+        class="secondary-button"
+        id="loadEfficiencyMorningMeetingShiftLogsButton"
+        disabled
+      >
+        업무일지 불러오기
+      </button>
+
+    </div>
+
+  </header>
+
+
+  <!-- D/S · N/S 업무 목록 -->
+
+  <div
+    class="efficiency-morning-meeting-shift-grid"
+  >
+
+    <!-- 전날 D/S -->
+
+    <section
+      class="
+        efficiency-morning-meeting-shift-column
+        is-day-shift
+      "
+    >
+
+      <header
+        class="efficiency-morning-meeting-shift-column__header"
+      >
+
+        <div>
+
+          <span>
+            PREVIOUS DAY
+          </span>
+
+          <strong>
+            전날 D/S
+          </strong>
+
+        </div>
+
+
+        <button
+          type="button"
+          data-morning-meeting-select-shift="DS"
+          disabled
+        >
+          전체 선택
+        </button>
+
+      </header>
+
+
+      <div
+        class="efficiency-morning-meeting-shift-list"
+        id="efficiencyMorningMeetingDayShiftList"
+      >
+
+        <p class="efficiency-morning-meeting-shift-empty">
+          팀 자료를 분석하면 업무일지를 자동으로 불러옵니다.
+        </p>
+
+      </div>
+
+    </section>
+
+
+    <!-- 현재 N/S -->
+
+    <section
+      class="
+        efficiency-morning-meeting-shift-column
+        is-night-shift
+      "
+    >
+
+      <header
+        class="efficiency-morning-meeting-shift-column__header"
+      >
+
+        <div>
+
+          <span>
+            CURRENT SHIFT
+          </span>
+
+          <strong>
+            현재 N/S
+          </strong>
+
+        </div>
+
+
+        <button
+          type="button"
+          data-morning-meeting-select-shift="NS"
+          disabled
+        >
+          전체 선택
+        </button>
+
+      </header>
+
+
+      <div
+        class="efficiency-morning-meeting-shift-list"
+        id="efficiencyMorningMeetingNightShiftList"
+      >
+
+        <p class="efficiency-morning-meeting-shift-empty">
+          팀 자료를 분석하면 업무일지를 자동으로 불러옵니다.
+        </p>
+
+      </div>
+
+    </section>
+
+  </div>
+
+
+  <!-- 선택 결과 -->
+
+  <section
+    class="efficiency-morning-meeting-shift-result"
+  >
+
+    <header>
+
+      <div>
+
+        <span>
+          SELECTED ITEMS
+        </span>
+
+        <strong>
+          교대파트 업무내용
+        </strong>
+
+      </div>
+
+
+      <div
+        class="efficiency-morning-meeting-shift-result__tools"
+      >
+
+        <span
+          id="efficiencyMorningMeetingShiftSelectedCount"
+        >
+          0건 선택
+        </span>
+
+
+        <button
+          type="button"
+          id="clearEfficiencyMorningMeetingShiftSelectionButton"
+          disabled
+        >
+          선택 초기화
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <textarea
+      id="efficiencyMorningMeetingShiftText"
+      rows="6"
+      spellcheck="false"
+      placeholder="D/S와 N/S 업무내용을 선택하면 이곳에 자동으로 정리됩니다. 선택 후 내용을 직접 수정할 수도 있습니다."
+    ></textarea>
+
+  </section>
+
+
+  <p
+    class="efficiency-morning-meeting-shift-error"
+    id="efficiencyMorningMeetingShiftError"
+    role="alert"
+    hidden
+  >
+  </p>
+
+</section>  
 
   <!-- =================================================
     팀별 자료 첨부
