@@ -1182,19 +1182,41 @@ function formatLimestoneUsageNumber(
     renderLimestoneUsageCalculation();
 
 
-    if (
-      load
-    ) {
-      await loadLimestoneUsageReceiptQuantities();
+if (
+  load
+) {
+  /*
+    1. 해당 날짜 입고량을 먼저 최신화
+  */
+  await loadLimestoneUsageReceiptQuantities();
 
-    } else {
-      setLimestoneUsageStatus(
-        "idle",
-        "조회 준비",
-        `${normalizedDate} 입고량과 재고량을 확인해 주세요.`
+
+  /*
+    2. D1에 저장된 계산 결과가 있으면
+       시작·종료 재고와 사용량 자동 복원
+  */
+  if (
+    typeof window
+      .loadSavedLimestoneUsageRecords ===
+      "function"
+  ) {
+    await window
+      .loadSavedLimestoneUsageRecords(
+        normalizedDate,
+        {
+          silentWhenMissing:
+            true
+        }
       );
-    }
   }
+
+} else {
+  setLimestoneUsageStatus(
+    "idle",
+    "조회 준비",
+    `${normalizedDate} 입고량과 재고량을 확인해 주세요.`
+  );
+}
 
 
   /* =====================================================
@@ -142329,6 +142351,294 @@ function refreshReportDate() {
     );
   }
 
+ /* =========================================================
+  D1에 저장된 석회석 사용량 자동 복원
+
+  복원:
+  - 1호기 시작·종료 재고
+  - 2호기 시작·종료 재고
+  - 입고량은 기존 입고기록 조회값 사용
+  - 입력 이벤트를 발생시켜 사용량 다시 계산
+========================================================= */
+
+async function loadSavedLimestoneUsageRecords(
+  targetDate,
+  options = {}
+) {
+  const {
+    silentWhenMissing =
+      false
+  } =
+    options;
+
+
+  if (
+    !isValidLimestoneOisDate(
+      targetDate
+    )
+  ) {
+    return false;
+  }
+
+
+  const requestUrl =
+    new URL(
+      OIS_REQUEST_API_URL,
+      window.location.origin
+    );
+
+
+  requestUrl.searchParams.set(
+    "action",
+    "usage_records"
+  );
+
+
+  requestUrl.searchParams.set(
+    "targetDate",
+    targetDate
+  );
+
+
+  requestUrl.searchParams.set(
+    "_",
+    String(
+      Date.now()
+    )
+  );
+
+
+  const response =
+    await fetch(
+      requestUrl.toString(),
+      {
+        method:
+          "GET",
+
+        headers:
+          typeof getShiftLogAuthHeaders ===
+            "function"
+            ? getShiftLogAuthHeaders()
+            : {
+                Accept:
+                  "application/json"
+              },
+
+        cache:
+          "no-store"
+      }
+    );
+
+
+  const result =
+    await readLimestoneOisApiResponse(
+      response,
+      "저장된 석회석 사용량을 불러오지 못했습니다."
+    );
+
+
+  const items =
+    Array.isArray(
+      result.items
+    )
+      ? result.items
+      : [];
+
+
+  const unitOne =
+    items.find(
+      item => {
+        return Number(
+          item?.unitNo ??
+          item?.unit_no
+        ) ===
+          1;
+      }
+    ) ||
+    null;
+
+
+  const unitTwo =
+    items.find(
+      item => {
+        return Number(
+          item?.unitNo ??
+          item?.unit_no
+        ) ===
+          2;
+      }
+    ) ||
+    null;
+
+
+  if (
+    !unitOne ||
+    !unitTwo
+  ) {
+    if (
+      !silentWhenMissing
+    ) {
+      setLimestoneOisRequestStatus(
+        "idle",
+        "저장된 사용량 없음",
+        `${targetDate}은 아직 계산·저장된 사용량이 없습니다.`
+      );
+    }
+
+
+    return false;
+  }
+
+
+  const {
+    usageView,
+    loadButton,
+    unitOneStartStock,
+    unitOneEndStock,
+    unitTwoStartStock,
+    unitTwoEndStock
+  } =
+    getLimestoneOisRequestElements();
+
+
+  applyLimestoneOisNumberToInput(
+    unitOneStartStock,
+    unitOne.startStock ??
+    unitOne.start_stock
+  );
+
+
+  applyLimestoneOisNumberToInput(
+    unitOneEndStock,
+    unitOne.endStock ??
+    unitOne.end_stock
+  );
+
+
+  applyLimestoneOisNumberToInput(
+    unitTwoStartStock,
+    unitTwo.startStock ??
+    unitTwo.start_stock
+  );
+
+
+  applyLimestoneOisNumberToInput(
+    unitTwoEndStock,
+    unitTwo.endStock ??
+    unitTwo.end_stock
+  );
+
+
+  if (
+    usageView
+  ) {
+    usageView.dataset
+      .savedUsageDate =
+      targetDate;
+
+
+    usageView.dataset
+      .savedUsageUpdatedAt =
+      String(
+        unitOne.updatedAt ||
+        unitOne.updated_at ||
+        unitTwo.updatedAt ||
+        unitTwo.updated_at ||
+        ""
+      );
+  }
+
+
+  if (
+    loadButton
+  ) {
+    loadButton.textContent =
+      "OIS 재고 다시 불러오기";
+  }
+
+
+  const unitOneUsage =
+    Number(
+      unitOne.usageQuantity ??
+      unitOne.usage_quantity
+    );
+
+
+  const unitTwoUsage =
+    Number(
+      unitTwo.usageQuantity ??
+      unitTwo.usage_quantity
+    );
+
+
+  const formatSavedUsage = (
+    value
+  ) => {
+    if (
+      !Number.isFinite(
+        value
+      )
+    ) {
+      return "-";
+    }
+
+
+    /*
+      반올림하지 않고
+      소수점 둘째 자리까지 절삭
+    */
+    const correctedValue =
+      value +
+      (
+        Math.sign(
+          value
+        ) *
+        0.000000001
+      );
+
+
+    const truncatedValue =
+      Math.trunc(
+        correctedValue *
+        100
+      ) /
+      100;
+
+
+    return truncatedValue.toLocaleString(
+      "ko-KR",
+      {
+        minimumFractionDigits:
+          2,
+
+        maximumFractionDigits:
+          2
+      }
+    );
+  };
+
+
+  setLimestoneOisRequestStatus(
+    "complete",
+    "저장된 사용량 불러오기 완료",
+    [
+      `1호기 ${formatSavedUsage(
+        unitOneUsage
+      )} t`,
+
+      `2호기 ${formatSavedUsage(
+        unitTwoUsage
+      )} t`,
+
+      "D1 저장 기록"
+    ].join(
+      " · "
+    )
+  );
+
+
+  return true;
+} 
 
   /* =====================================================
     요청 생성
@@ -142694,7 +143004,7 @@ function refreshReportDate() {
 
     setLimestoneOisRequestStatus(
       "complete",
-      "OIS 재고 불러오기 완료",
+      "OIS 조회·사용량 자동 저장 완료",
       [
         `1호기 ${formatLimestoneOisNumber(
           normalizedResult
@@ -143219,6 +143529,10 @@ function refreshReportDate() {
   window
     .loadLimestoneOisStock =
     loadLimestoneOisStock;
+
+  window
+  .loadSavedLimestoneUsageRecords =
+  loadSavedLimestoneUsageRecords;  
 
 
   if (

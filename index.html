@@ -5385,6 +5385,357 @@
 
 </section>  
 
+<!-- =================================================
+  4. OIS 수처리 현황
+
+  조회 기준:
+  - 오전회의 취합 대상일의 전일
+  - OIS 일일 운전일지(환경)
+  - 조회 후 재계산 실행
+
+  수집:
+  - 장자산단 원수 유입량
+  - 순수 생산량
+  - 순수 사용량
+  - 원수 TANK 저장량·저장율
+  - 여과수 TANK 저장량·저장율
+  - 순수 TANK 저장량·저장율
+================================================== -->
+
+<section
+  class="efficiency-morning-meeting-water-panel"
+  id="efficiencyMorningMeetingWaterPanel"
+  data-water-status="idle"
+>
+
+  <!-- =================================================
+    상단
+  ================================================== -->
+
+  <header
+    class="efficiency-morning-meeting-water-panel__header"
+  >
+
+    <div>
+
+      <span>
+        OIS WATER TREATMENT
+      </span>
+
+      <h4>
+        수처리 현황
+      </h4>
+
+      <p>
+        오전회의 대상일의 전일 OIS 환경일지에서
+        원수·순수 생산량과 저장조 현황을 불러옵니다.
+      </p>
+
+    </div>
+
+
+    <div
+      class="efficiency-morning-meeting-water-panel__tools"
+    >
+
+      <strong
+        id="efficiencyMorningMeetingWaterDate"
+      >
+        기준일 확인 전
+      </strong>
+
+
+      <span
+        id="efficiencyMorningMeetingWaterStatus"
+      >
+        OIS 조회 전
+      </span>
+
+
+      <button
+        type="button"
+        class="secondary-button"
+        id="loadEfficiencyMorningMeetingWaterButton"
+        disabled
+      >
+        OIS 수처리 불러오기
+      </button>
+
+    </div>
+
+  </header>
+
+
+  <!-- =================================================
+    수처리 값
+  ================================================== -->
+
+  <div
+    class="efficiency-morning-meeting-water-grid"
+  >
+
+    <!-- 장자산단 원수 유입량 -->
+
+    <article
+      class="efficiency-morning-meeting-water-card"
+    >
+
+      <span>
+        장자산단 원수 유입량
+      </span>
+
+      <strong
+        id="efficiencyMorningMeetingRawWaterInflow"
+      >
+        -
+      </strong>
+
+      <small>
+        m³/일
+      </small>
+
+    </article>
+
+
+    <!-- 순수 생산량 -->
+
+    <article
+      class="efficiency-morning-meeting-water-card"
+    >
+
+      <span>
+        순수 생산량
+      </span>
+
+      <strong
+        id="efficiencyMorningMeetingDemiProduction"
+      >
+        -
+      </strong>
+
+      <small>
+        m³
+      </small>
+
+    </article>
+
+
+    <!-- 순수 사용량 -->
+
+    <article
+      class="efficiency-morning-meeting-water-card"
+    >
+
+      <span>
+        순수 사용량
+      </span>
+
+      <strong
+        id="efficiencyMorningMeetingPureWaterUsage"
+      >
+        -
+      </strong>
+
+      <small>
+        m³
+      </small>
+
+    </article>
+
+
+    <!-- 원수 TANK -->
+
+    <article
+      class="
+        efficiency-morning-meeting-water-card
+        is-tank
+      "
+    >
+
+      <span>
+        원수 TANK
+      </span>
+
+      <div
+        class="efficiency-morning-meeting-water-card__tank-values"
+      >
+
+        <div>
+
+          <small>
+            저장량
+          </small>
+
+          <strong
+            id="efficiencyMorningMeetingRawWaterTankAmount"
+          >
+            -
+          </strong>
+
+          <em>
+            m³
+          </em>
+
+        </div>
+
+
+        <div>
+
+          <small>
+            저장율
+          </small>
+
+          <strong
+            id="efficiencyMorningMeetingRawWaterTankRate"
+          >
+            -
+          </strong>
+
+          <em>
+            %
+          </em>
+
+        </div>
+
+      </div>
+
+    </article>
+
+
+    <!-- 여과수 TANK -->
+
+    <article
+      class="
+        efficiency-morning-meeting-water-card
+        is-tank
+      "
+    >
+
+      <span>
+        여과수 TANK
+      </span>
+
+      <div
+        class="efficiency-morning-meeting-water-card__tank-values"
+      >
+
+        <div>
+
+          <small>
+            저장량
+          </small>
+
+          <strong
+            id="efficiencyMorningMeetingFilteredWaterTankAmount"
+          >
+            -
+          </strong>
+
+          <em>
+            m³
+          </em>
+
+        </div>
+
+
+        <div>
+
+          <small>
+            저장율
+          </small>
+
+          <strong
+            id="efficiencyMorningMeetingFilteredWaterTankRate"
+          >
+            -
+          </strong>
+
+          <em>
+            %
+          </em>
+
+        </div>
+
+      </div>
+
+    </article>
+
+
+    <!-- 순수 TANK -->
+
+    <article
+      class="
+        efficiency-morning-meeting-water-card
+        is-tank
+      "
+    >
+
+      <span>
+        순수 TANK
+      </span>
+
+      <div
+        class="efficiency-morning-meeting-water-card__tank-values"
+      >
+
+        <div>
+
+          <small>
+            저장량
+          </small>
+
+          <strong
+            id="efficiencyMorningMeetingDemiWaterTankAmount"
+          >
+            -
+          </strong>
+
+          <em>
+            m³
+          </em>
+
+        </div>
+
+
+        <div>
+
+          <small>
+            저장율
+          </small>
+
+          <strong
+            id="efficiencyMorningMeetingDemiWaterTankRate"
+          >
+            -
+          </strong>
+
+          <em>
+            %
+          </em>
+
+        </div>
+
+      </div>
+
+    </article>
+
+  </div>
+
+
+  <!-- =================================================
+    오류
+  ================================================== -->
+
+  <p
+    class="efficiency-morning-meeting-water-error"
+    id="efficiencyMorningMeetingWaterError"
+    role="alert"
+    hidden
+  >
+  </p>
+
+</section>
+
   <!-- =================================================
     5. 처리 결과 및 버튼
   ================================================== -->

@@ -1592,6 +1592,151 @@ async function expireOldRequests(
     .run();
 }
 
+/* =========================================================
+  저장된 석회석 사용량 조회
+
+  GET:
+  /api/ois-data-requests
+    ?action=usage_records
+    &targetDate=2026-08-06
+========================================================= */
+
+async function handleLimestoneUsageRecordsGet(
+  context,
+  requestUrl
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const targetDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "targetDate"
+      ) ||
+      requestUrl.searchParams.get(
+        "date"
+      )
+    );
+
+
+  if (
+    !isValidIsoDate(
+      targetDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "불러올 석회석 사용량 날짜를 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const items =
+    await findLimestoneUsageRecordsByDate(
+      context.env.DB,
+      targetDate
+    );
+
+
+  const unitOne =
+    items.find(
+      item => {
+        return Number(
+          item.unitNo
+        ) ===
+          1;
+      }
+    ) ||
+    null;
+
+
+  const unitTwo =
+    items.find(
+      item => {
+        return Number(
+          item.unitNo
+        ) ===
+          2;
+      }
+    ) ||
+    null;
+
+
+  const unitOneUsage =
+    Number(
+      unitOne?.usageQuantity
+    );
+
+
+  const unitTwoUsage =
+    Number(
+      unitTwo?.usageQuantity
+    );
+
+
+  const hasCompleteResult =
+    Boolean(
+      unitOne &&
+      unitTwo &&
+      Number.isFinite(
+        unitOneUsage
+      ) &&
+      Number.isFinite(
+        unitTwoUsage
+      )
+    );
+
+
+  return jsonResponse({
+    ok:
+      true,
+
+    targetDate,
+
+    hasSavedResult:
+      hasCompleteResult,
+
+    items,
+
+    summary: {
+      unitOneUsage:
+        Number.isFinite(
+          unitOneUsage
+        )
+          ? unitOneUsage
+          : null,
+
+      unitTwoUsage:
+        Number.isFinite(
+          unitTwoUsage
+        )
+          ? unitTwoUsage
+          : null,
+
+      totalUsage:
+        hasCompleteResult
+          ? unitOneUsage +
+            unitTwoUsage
+          : null
+    }
+  });
+}
 
 /* =========================================================
   업무일지 사용자 상태 조회
@@ -1879,6 +2024,15 @@ export async function onRequestGet(
           "_"
         );
 
+    if (
+  action ===
+    "usage_records"
+) {
+  return await handleLimestoneUsageRecordsGet(
+    context,
+    requestUrl
+  );
+}    
 
     if (
       action ===
