@@ -76704,31 +76704,51 @@ span:last-child {
   text-align: center !important;
 }
 
+/* =========================================================
+  BOX 이름
 
-/* BOX 이름 */
+  표시:
+  1호기 ARM ROLL
+  2호기 ARM ROLL
+  1호기 SCRAP
+========================================================= */
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-row__identity span {
-  margin-bottom: 2px !important;
+.arm-roll-box-replacement-row__identity {
+  display: flex !important;
 
-  color: #75869a !important;
+  min-width: 0 !important;
 
-  font-size: 9px !important;
-  font-weight: 900 !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  padding:
+    9px
+    8px !important;
+
+  text-align: center !important;
 }
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-row__identity strong {
-  max-width: 100% !important;
+.arm-roll-box-replacement-row__identity
+strong {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
 
   overflow: hidden !important;
 
   color: #286ca6 !important;
 
-  font-size: 14px !important;
+  font-size: 13px !important;
   font-weight: 900 !important;
-  line-height: 1.2 !important;
+  line-height: 1.25 !important;
+
+  letter-spacing: -0.02em !important;
+
+  text-align: center !important;
 
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
@@ -76737,24 +76757,61 @@ span:last-child {
 
 #efficiencyArmRollView
 .arm-roll-box-replacement-row.is-scrap
-.arm-roll-box-replacement-row__identity strong {
+.arm-roll-box-replacement-row__identity
+strong {
   color: #7650a0 !important;
 }
 
 
-/* 교체일 */
+/* =========================================================
+  교체일
+
+  기존:
+  교체 확정
+  26.08.04
+
+  변경:
+  교체 26.08.04
+========================================================= */
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-row__date small {
+.arm-roll-box-replacement-row__date {
+  display: flex !important;
+
+  min-width: 0 !important;
+
+  flex-direction: row !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  gap: 5px !important;
+
+  padding:
+    9px
+    6px !important;
+
+  text-align: center !important;
+
+  white-space: nowrap !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-replacement-row__status {
   display: inline-flex !important;
+
+  flex: 0 0 auto !important;
 
   min-height: 20px !important;
 
   align-items: center !important;
   justify-content: center !important;
 
-  margin-bottom: 4px !important;
-  padding: 0 7px !important;
+  margin: 0 !important;
+  padding:
+    0
+    6px !important;
 
   border: 1px solid #9bd1b4 !important;
   border-radius: 999px !important;
@@ -76772,7 +76829,7 @@ span:last-child {
 
 #efficiencyArmRollView
 .arm-roll-box-replacement-row.is-suspected
-.arm-roll-box-replacement-row__date small {
+.arm-roll-box-replacement-row__status {
   border-color: #e6c77f !important;
 
   background: #fff4d9 !important;
@@ -76781,17 +76838,22 @@ span:last-child {
 
 
 #efficiencyArmRollView
-.arm-roll-box-replacement-row__date time {
+.arm-roll-box-replacement-row__date
+time {
+  display: inline-block !important;
+
+  margin: 0 !important;
+
   color: #334b65 !important;
 
   font-size: 11px !important;
   font-weight: 900 !important;
+  line-height: 1 !important;
 
   font-variant-numeric: tabular-nums !important;
 
   white-space: nowrap !important;
 }
-
 
 /* 이전 교체일과 사용기간 */
 
@@ -77100,9 +77162,35 @@ span:last-child {
 }
 
 /* =========================================================
-  BOX 레벨 통합 그래프
+  BOX 레벨 통합 그래프 범례 최종본
 
-  하나의 그래프에 네 개 추이선을 표시한다.
+  색상:
+  - 파랑: 1호기 ARM ROLL
+  - 보라: 1호기 SCRAP
+  - 초록: 2호기 ARM ROLL
+  - 분홍: 2호기 SCRAP
+  - 주황 점선: 50% 요청선
+  - 빨강 점선: 70% 경보선
+  - 초록 원: 교체일
+========================================================= */
+
+
+/* =========================================================
+  그래프 상단
+========================================================= */
+
+#efficiencyArmRollView
+.arm-roll-box-chart-card
+.arm-roll-box-section-header {
+  align-items: flex-start !important;
+
+  gap:
+    14px !important;
+}
+
+
+/* =========================================================
+  범례 전체
 ========================================================= */
 
 #efficiencyArmRollView
@@ -77110,52 +77198,121 @@ span:last-child {
   display: flex !important;
 
   width: auto !important;
+  max-width: calc(
+    100% -
+    175px
+  ) !important;
 
   align-items: center !important;
   justify-content: flex-end !important;
+
   flex-direction: row !important;
   flex-wrap: wrap !important;
 
-  gap: 6px 12px !important;
+  gap:
+    7px
+    8px !important;
+
+  margin:
+    0 !important;
+  padding:
+    0 !important;
 }
 
 
+/* =========================================================
+  범례 한 항목
+========================================================= */
+
 #efficiencyArmRollView
 .arm-roll-box-chart-legend
-span {
+> span {
   position: relative !important;
 
   display: inline-flex !important;
 
+  min-height: 29px !important;
+
   align-items: center !important;
+  justify-content: center !important;
 
-  gap: 4px !important;
+  gap:
+    6px !important;
 
-  padding-left: 16px !important;
+  margin:
+    0 !important;
 
-  color: #52657b !important;
+  padding:
+    0
+    9px
+    0
+    36px !important;
 
-  font-size: 9px !important;
-  font-weight: 800 !important;
+  border:
+    1px solid
+    #d6e0e9 !important;
 
-  white-space: nowrap !important;
+  border-radius:
+    7px !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #31475f !important;
+
+  font-size:
+    11px !important;
+
+  font-weight:
+    850 !important;
+
+  line-height:
+    1 !important;
+
+  white-space:
+    nowrap !important;
+
+  box-shadow:
+    0
+    1px
+    3px
+    rgba(
+      30,
+      54,
+      78,
+      0.04
+    ) !important;
 }
 
 
+/* =========================================================
+  범례 색상 선
+========================================================= */
+
 #efficiencyArmRollView
 .arm-roll-box-chart-legend
-span::before {
-  content: "" !important;
+> span::before {
+  content:
+    "" !important;
 
-  position: absolute !important;
+  position:
+    absolute !important;
 
-  top: 50% !important;
-  left: 0 !important;
+  top:
+    50% !important;
 
-  width: 11px !important;
-  height: 3px !important;
+  left:
+    9px !important;
 
-  border-radius: 999px !important;
+  width:
+    19px !important;
+
+  height:
+    4px !important;
+
+  border-radius:
+    999px !important;
 
   background:
     var(
@@ -77170,91 +77327,413 @@ span::before {
 }
 
 
+/* 실선 */
+
 #efficiencyArmRollView
 .arm-roll-box-chart-legend
-span strong {
-  color: #203750 !important;
+> span.is-solid::before {
+  background:
+    var(
+      --arm-roll-legend-color,
+      #8795a5
+    ) !important;
+}
 
-  font-size: inherit !important;
-  font-weight: 900 !important;
+
+/* 점선 */
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend
+> span.is-dashed::before {
+  background:
+    repeating-linear-gradient(
+      to right,
+
+      var(
+        --arm-roll-legend-color,
+        #8795a5
+      )
+      0,
+
+      var(
+        --arm-roll-legend-color,
+        #8795a5
+      )
+      5px,
+
+      transparent
+      5px,
+
+      transparent
+      8px
+    ) !important;
+}
+
+
+/* =========================================================
+  이름
+========================================================= */
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend
+> span
+> b {
+  display: inline-block !important;
+
+  margin:
+    0 !important;
+  padding:
+    0 !important;
+
+  color:
+    #2d425a !important;
+
+  font-size:
+    11px !important;
+
+  font-weight:
+    900 !important;
+
+  line-height:
+    1 !important;
+
+  white-space:
+    nowrap !important;
+}
+
+
+/* =========================================================
+  현재 레벨
+========================================================= */
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend
+> span
+> strong {
+  display: inline-flex !important;
+
+  min-height:
+    19px !important;
+
+  align-items:
+    center !important;
+  justify-content:
+    center !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0
+    6px !important;
+
+  border-radius:
+    999px !important;
+
+  background:
+    #eef3f7 !important;
+
+  color:
+    var(
+      --arm-roll-legend-color,
+      #263d57
+    ) !important;
+
+  font-size:
+    10px !important;
+
+  font-weight:
+    900 !important;
+
+  line-height:
+    1 !important;
+
+  white-space:
+    nowrap !important;
+}
+
+
+/* =========================================================
+  50% 요청선
+========================================================= */
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend
+> .is-request {
+  border-color:
+    #e7c793 !important;
+
+  background:
+    #fffaf0 !important;
 }
 
 
 #efficiencyArmRollView
+.arm-roll-box-chart-legend
+> .is-request
+> b {
+  color:
+    #a7630d !important;
+}
+
+
+/* =========================================================
+  70% 경보선
+========================================================= */
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend
+> .is-warning {
+  border-color:
+    #e6b1b1 !important;
+
+  background:
+    #fff6f6 !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend
+> .is-warning
+> b {
+  color:
+    #b53a3a !important;
+}
+
+
+/* =========================================================
+  교체일 표시
+
+  그래프의 초록색 원과 동일
+========================================================= */
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend
+> .is-replacement-marker {
+  padding-left:
+    29px !important;
+
+  border-color:
+    #afd7c3 !important;
+
+  background:
+    #f3fbf7 !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend
+> .is-replacement-marker::before {
+  left:
+    10px !important;
+
+  width:
+    10px !important;
+
+  height:
+    10px !important;
+
+  border-radius:
+    50% !important;
+
+  background:
+    #22865f !important;
+
+  box-shadow:
+    0
+    0
+    0
+    3px
+    rgba(
+      34,
+      134,
+      95,
+      0.13
+    ) !important;
+}
+
+
+#efficiencyArmRollView
+.arm-roll-box-chart-legend
+> .is-replacement-marker
+> b {
+  color:
+    #217650 !important;
+}
+
+
+/* =========================================================
+  그래프
+========================================================= */
+
+#efficiencyArmRollView
 .arm-roll-box-trend-chart {
-  display: block !important;
+  display:
+    block !important;
 
-  width: 100% !important;
-  min-height: 300px !important;
-  height: auto !important;
-  max-height: none !important;
+  width:
+    100% !important;
 
-  padding: 12px !important;
+  min-height:
+    300px !important;
 
-  overflow: hidden !important;
+  height:
+    auto !important;
 
-  background: #ffffff !important;
+  max-height:
+    none !important;
+
+  padding:
+    12px !important;
+
+  overflow:
+    hidden !important;
+
+  background:
+    #ffffff !important;
 }
 
 
 #efficiencyArmRollView
 .arm-roll-box-combined-chart {
-  display: block !important;
+  display:
+    block !important;
 
-  width: 100% !important;
-  height: 275px !important;
+  width:
+    100% !important;
 
-  overflow: visible !important;
+  height:
+    275px !important;
+
+  overflow:
+    visible !important;
 }
 
+
+/* =========================================================
+  모바일
+========================================================= */
 
 @media (max-width: 760px) {
 
   #efficiencyArmRollView
   .arm-roll-box-chart-card
   .arm-roll-box-section-header {
-    align-items: flex-start !important;
+    align-items:
+      flex-start !important;
 
-    flex-direction: column !important;
+    flex-direction:
+      column !important;
 
-    gap: 6px !important;
+    gap:
+      7px !important;
   }
 
 
   #efficiencyArmRollView
   .arm-roll-box-chart-legend {
-    justify-content: flex-start !important;
+    width:
+      100% !important;
 
-    gap: 4px 8px !important;
+    max-width:
+      none !important;
+
+    justify-content:
+      flex-start !important;
+
+    gap:
+      5px !important;
   }
 
 
   #efficiencyArmRollView
   .arm-roll-box-chart-legend
-  span {
-    padding-left: 12px !important;
+  > span {
+    min-height:
+      25px !important;
 
-    font-size: 7px !important;
+    padding:
+      0
+      7px
+      0
+      31px !important;
+
+    font-size:
+      9px !important;
   }
 
 
   #efficiencyArmRollView
   .arm-roll-box-chart-legend
-  span::before {
-    width: 8px !important;
+  > span::before {
+    left:
+      7px !important;
+
+    width:
+      17px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > span
+  > b {
+    font-size:
+      9px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > span
+  > strong {
+    min-height:
+      17px !important;
+
+    padding:
+      0
+      4px !important;
+
+    font-size:
+      8px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > .is-replacement-marker {
+    padding-left:
+      27px !important;
+  }
+
+
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > .is-replacement-marker::before {
+    left:
+      8px !important;
+
+    width:
+      9px !important;
+
+    height:
+      9px !important;
   }
 
 
   #efficiencyArmRollView
   .arm-roll-box-trend-chart {
-    min-height: 230px !important;
+    min-height:
+      230px !important;
 
-    padding: 6px !important;
+    padding:
+      6px !important;
   }
 
 
   #efficiencyArmRollView
   .arm-roll-box-combined-chart {
-    height: 220px !important;
+    height:
+      220px !important;
   }
 }
