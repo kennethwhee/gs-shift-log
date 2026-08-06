@@ -139921,3 +139921,1341 @@ function refreshReportDate() {
     initialize();
   }
 })();
+
+/* =========================================================
+  석회석 사용량 계산
+  OIS 재고 조회 요청 연결 최종본
+
+  화면 동작:
+  1. 계산 기준일 확인
+  2. POST /api/ois-data-requests 요청 생성
+  3. 회사 PC OIS 연동 프로그램 처리 대기
+  4. 처리 완료 결과 조회
+  5. 1·2호기 시작·종료 재고 자동 입력
+  6. 기존 입고량과 합산하여 사용량 자동 계산
+
+  중요:
+  - OIS_AGENT_KEY는 브라우저에서 사용하지 않는다.
+  - 브라우저는 업무일지 로그인 토큰만 사용한다.
+  - OIS_AGENT_KEY는 회사 PC 연동 프로그램에서만 사용한다.
+========================================================= */
+
+(function installLimestoneOisRequestClient() {
+  if (
+    window
+      .__limestoneOisRequestClientInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__limestoneOisRequestClientInstalled =
+    true;
+
+
+  const OIS_REQUEST_API_URL =
+    "/api/ois-data-requests";
+
+
+  /*
+    회사 PC 연동 프로그램 요청 확인 주기
+  */
+  const OIS_REQUEST_POLL_INTERVAL =
+    1500;
+
+
+  /*
+    API 요청의 만료시간과 동일하게 10분 동안 확인한다.
+
+    로그인 시간이 아니라
+    회사 PC OIS 연동 프로그램의 응답 대기시간이다.
+  */
+  const OIS_REQUEST_MAX_WAIT =
+    10 *
+    60 *
+    1000;
+
+
+  let activeRequestId =
+    "";
+
+
+  let activeRunToken =
+    0;
+
+
+  let initializationAttempt =
+    0;
+
+
+  /* =====================================================
+    요소 가져오기
+  ====================================================== */
+
+  function getLimestoneOisRequestElements() {
+    return {
+      usageView:
+        document.getElementById(
+          "limestoneUsageCalculatorView"
+        ),
+
+      dateInput:
+        document.getElementById(
+          "limestoneUsageDate"
+        ),
+
+      loadButton:
+        document.getElementById(
+          "loadLimestoneUsageOisButton"
+        ),
+
+      statusTitle:
+        document.getElementById(
+          "limestoneUsageStatusTitle"
+        ),
+
+      statusDescription:
+        document.getElementById(
+          "limestoneUsageStatusDescription"
+        ),
+
+      unitOneStartStock:
+        document.getElementById(
+          "limestoneUsageUnitOneStartStock"
+        ),
+
+      unitOneEndStock:
+        document.getElementById(
+          "limestoneUsageUnitOneEndStock"
+        ),
+
+      unitTwoStartStock:
+        document.getElementById(
+          "limestoneUsageUnitTwoStartStock"
+        ),
+
+      unitTwoEndStock:
+        document.getElementById(
+          "limestoneUsageUnitTwoEndStock"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    날짜 검사
+  ====================================================== */
+
+  function isValidLimestoneOisDate(
+    value
+  ) {
+    const normalizedValue =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        normalizedValue
+      )
+    ) {
+      return false;
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${normalizedValue}T00:00:00`
+      );
+
+
+    if (
+      Number.isNaN(
+        parsedDate.getTime()
+      )
+    ) {
+      return false;
+    }
+
+
+    return [
+      parsedDate.getFullYear(),
+
+      String(
+        parsedDate.getMonth() +
+        1
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        parsedDate.getDate()
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    ) ===
+      normalizedValue;
+  }
+
+
+  /* =====================================================
+    잠시 대기
+  ====================================================== */
+
+  function waitLimestoneOisRequest(
+    milliseconds
+  ) {
+    return new Promise(
+      resolve => {
+        window.setTimeout(
+          resolve,
+          milliseconds
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    상태 표시
+  ====================================================== */
+
+  function setLimestoneOisRequestStatus(
+    status,
+    title,
+    description
+  ) {
+    const {
+      usageView,
+      statusTitle,
+      statusDescription
+    } =
+      getLimestoneOisRequestElements();
+
+
+    if (
+      usageView
+    ) {
+      usageView.dataset
+        .limestoneUsageStatus =
+        String(
+          status ||
+          "idle"
+        );
+    }
+
+
+    if (
+      statusTitle
+    ) {
+      statusTitle.textContent =
+        String(
+          title ||
+          ""
+        );
+    }
+
+
+    if (
+      statusDescription
+    ) {
+      statusDescription.textContent =
+        String(
+          description ||
+          ""
+        );
+    }
+  }
+
+
+  /* =====================================================
+    API 응답 읽기
+  ====================================================== */
+
+  async function readLimestoneOisApiResponse(
+    response,
+    fallbackMessage
+  ) {
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "OIS 요청 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        fallbackMessage ||
+        `OIS 요청에 실패했습니다. (HTTP ${response.status})`
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    숫자 정리
+  ====================================================== */
+
+  function normalizeLimestoneOisNumber(
+    value
+  ) {
+    const numericValue =
+      Number(
+        value
+      );
+
+
+    if (
+      !Number.isFinite(
+        numericValue
+      )
+    ) {
+      return null;
+    }
+
+
+    return (
+      Math.round(
+        numericValue *
+        1000
+      ) /
+      1000
+    );
+  }
+
+
+  function formatLimestoneOisNumber(
+    value
+  ) {
+    const numericValue =
+      normalizeLimestoneOisNumber(
+        value
+      );
+
+
+    if (
+      numericValue ===
+        null
+    ) {
+      return "-";
+    }
+
+
+    return numericValue.toLocaleString(
+      "ko-KR",
+      {
+        minimumFractionDigits:
+          3,
+
+        maximumFractionDigits:
+          3
+      }
+    );
+  }
+
+
+  /* =====================================================
+    입력칸에 숫자 적용
+
+    기존 사용량 계산 기능이 연결한
+    input·change 이벤트를 모두 발생시킨다.
+  ====================================================== */
+
+  function applyLimestoneOisNumberToInput(
+    input,
+    value
+  ) {
+    if (
+      !input
+    ) {
+      return;
+    }
+
+
+    const numericValue =
+      normalizeLimestoneOisNumber(
+        value
+      );
+
+
+    if (
+      numericValue ===
+        null
+    ) {
+      throw new Error(
+        "OIS 재고값에 올바르지 않은 숫자가 포함되어 있습니다."
+      );
+    }
+
+
+    input.value =
+      String(
+        numericValue
+      );
+
+
+    input.dispatchEvent(
+      new Event(
+        "input",
+        {
+          bubbles:
+            true
+        }
+      )
+    );
+
+
+    input.dispatchEvent(
+      new Event(
+        "change",
+        {
+          bubbles:
+            true
+        }
+      )
+    );
+  }
+
+
+  /* =====================================================
+    요청 생성
+
+    forceRefresh:
+    - 같은 날짜의 과거 저장값을 사용하지 않고
+      OIS에서 새로 조회하도록 요청한다.
+  ====================================================== */
+
+  async function createLimestoneOisRequest(
+    targetDate
+  ) {
+    const response =
+      await fetch(
+        OIS_REQUEST_API_URL,
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              requestType:
+                "limestone_stock",
+
+              targetDate,
+
+              forceRefresh:
+                true
+            })
+        }
+      );
+
+
+    return await readLimestoneOisApiResponse(
+      response,
+      "OIS 재고 조회 요청을 만들지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    요청 상태 조회
+  ====================================================== */
+
+  async function getLimestoneOisRequest(
+    requestId
+  ) {
+    const requestUrl =
+      new URL(
+        OIS_REQUEST_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "id",
+      requestId
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    return await readLimestoneOisApiResponse(
+      response,
+      "OIS 조회 상태를 확인하지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    완료 결과 검증
+  ====================================================== */
+
+  function normalizeLimestoneOisResult(
+    requestItem
+  ) {
+    const result =
+      requestItem?.result;
+
+
+    if (
+      !result ||
+      typeof result !==
+        "object"
+    ) {
+      throw new Error(
+        "OIS 조회 결과가 비어 있습니다."
+      );
+    }
+
+
+    const unitOneStartStock =
+      normalizeLimestoneOisNumber(
+        result
+          ?.unitOne
+          ?.startStock
+      );
+
+
+    const unitOneEndStock =
+      normalizeLimestoneOisNumber(
+        result
+          ?.unitOne
+          ?.endStock
+      );
+
+
+    const unitTwoStartStock =
+      normalizeLimestoneOisNumber(
+        result
+          ?.unitTwo
+          ?.startStock
+      );
+
+
+    const unitTwoEndStock =
+      normalizeLimestoneOisNumber(
+        result
+          ?.unitTwo
+          ?.endStock
+      );
+
+
+    if (
+      unitOneStartStock ===
+        null ||
+      unitOneEndStock ===
+        null ||
+      unitTwoStartStock ===
+        null ||
+      unitTwoEndStock ===
+        null
+    ) {
+      throw new Error(
+        "1호기와 2호기의 시작·종료 재고값이 모두 필요합니다."
+      );
+    }
+
+
+    return {
+      targetDate:
+        String(
+          result.targetDate ||
+          requestItem.targetDate ||
+          ""
+        ).trim(),
+
+      nextDate:
+        String(
+          result.nextDate ||
+          ""
+        ).trim(),
+
+      collectedAt:
+        String(
+          result.collectedAt ||
+          requestItem.completedAt ||
+          ""
+        ).trim(),
+
+      agentId:
+        String(
+          requestItem.agentId ||
+          ""
+        ).trim(),
+
+      unitOne: {
+        tag:
+          String(
+            result
+              ?.unitOne
+              ?.tag ||
+            "103HRJ01CW201XQ01"
+          ).trim(),
+
+        startStock:
+          unitOneStartStock,
+
+        endStock:
+          unitOneEndStock
+      },
+
+      unitTwo: {
+        tag:
+          String(
+            result
+              ?.unitTwo
+              ?.tag ||
+            "203HRJ01CW201XQ01"
+          ).trim(),
+
+        startStock:
+          unitTwoStartStock,
+
+        endStock:
+          unitTwoEndStock
+      }
+    };
+  }
+
+
+  /* =====================================================
+    OIS 완료 결과 화면 반영
+  ====================================================== */
+
+  async function applyLimestoneOisResult(
+    requestItem,
+    expectedDate
+  ) {
+    const normalizedResult =
+      normalizeLimestoneOisResult(
+        requestItem
+      );
+
+
+    if (
+      normalizedResult.targetDate &&
+      normalizedResult.targetDate !==
+        expectedDate
+    ) {
+      throw new Error(
+        [
+          "OIS 조회 날짜가 현재 계산일과 다릅니다.",
+          `계산일: ${expectedDate}`,
+          `OIS 결과: ${normalizedResult.targetDate}`
+        ].join(
+          " "
+        )
+      );
+    }
+
+
+    const {
+      usageView,
+      unitOneStartStock,
+      unitOneEndStock,
+      unitTwoStartStock,
+      unitTwoEndStock
+    } =
+      getLimestoneOisRequestElements();
+
+
+    /*
+      재고를 반영하기 전에
+      당일 석회석 입고량도 한 번 더 최신화한다.
+    */
+    if (
+      typeof window
+        .loadLimestoneUsageReceiptQuantities ===
+        "function"
+    ) {
+      await window
+        .loadLimestoneUsageReceiptQuantities();
+    }
+
+
+    applyLimestoneOisNumberToInput(
+      unitOneStartStock,
+      normalizedResult
+        .unitOne
+        .startStock
+    );
+
+
+    applyLimestoneOisNumberToInput(
+      unitOneEndStock,
+      normalizedResult
+        .unitOne
+        .endStock
+    );
+
+
+    applyLimestoneOisNumberToInput(
+      unitTwoStartStock,
+      normalizedResult
+        .unitTwo
+        .startStock
+    );
+
+
+    applyLimestoneOisNumberToInput(
+      unitTwoEndStock,
+      normalizedResult
+        .unitTwo
+        .endStock
+    );
+
+
+    if (
+      usageView
+    ) {
+      usageView.dataset
+        .oisRequestId =
+        String(
+          requestItem.id ||
+          ""
+        );
+
+
+      usageView.dataset
+        .oisTargetDate =
+        expectedDate;
+
+
+      usageView.dataset
+        .oisCollectedAt =
+        normalizedResult
+          .collectedAt;
+
+
+      usageView.dataset
+        .oisAgentId =
+        normalizedResult
+          .agentId;
+    }
+
+
+    setLimestoneOisRequestStatus(
+      "complete",
+      "OIS 재고 불러오기 완료",
+      [
+        `1호기 ${formatLimestoneOisNumber(
+          normalizedResult
+            .unitOne
+            .startStock
+        )} → ${formatLimestoneOisNumber(
+          normalizedResult
+            .unitOne
+            .endStock
+        )} t`,
+
+        `2호기 ${formatLimestoneOisNumber(
+          normalizedResult
+            .unitTwo
+            .startStock
+        )} → ${formatLimestoneOisNumber(
+          normalizedResult
+            .unitTwo
+            .endStock
+        )} t`
+      ].join(
+        " · "
+      )
+    );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        `${expectedDate} OIS 석회석 재고를 불러왔습니다.`
+      );
+    }
+  }
+
+
+  /* =====================================================
+    회사 PC 처리 결과 대기
+  ====================================================== */
+
+  async function waitForLimestoneOisCompletion(
+    requestId,
+    targetDate,
+    runToken
+  ) {
+    const startedAt =
+      Date.now();
+
+
+    while (
+      Date.now() -
+        startedAt <
+      OIS_REQUEST_MAX_WAIT
+    ) {
+      /*
+        다른 날짜로 이동하거나
+        새 요청을 시작한 경우 기존 대기를 중단한다.
+      */
+      if (
+        runToken !==
+          activeRunToken
+      ) {
+        return null;
+      }
+
+
+      const responseResult =
+        await getLimestoneOisRequest(
+          requestId
+        );
+
+
+      const requestItem =
+        responseResult.item;
+
+
+      if (
+        !requestItem
+      ) {
+        throw new Error(
+          "OIS 요청 정보를 찾을 수 없습니다."
+        );
+      }
+
+
+      const requestStatus =
+        String(
+          requestItem.status ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+
+      if (
+        requestStatus ===
+          "complete"
+      ) {
+        return requestItem;
+      }
+
+
+      if (
+        requestStatus ===
+          "failed"
+      ) {
+        throw new Error(
+          requestItem.errorMessage ||
+          "회사 PC에서 OIS 자료를 조회하지 못했습니다."
+        );
+      }
+
+
+      if (
+        requestStatus ===
+          "processing"
+      ) {
+        setLimestoneOisRequestStatus(
+          "loading",
+          "OIS 자료 조회 중",
+          [
+            `${targetDate}와 다음 날의 석회석 재고를 확인하고 있습니다.`,
+
+            requestItem.agentId
+              ? `처리 PC: ${requestItem.agentId}`
+              : ""
+          ]
+            .filter(
+              Boolean
+            )
+            .join(
+              " · "
+            )
+        );
+
+      } else {
+        setLimestoneOisRequestStatus(
+          "loading",
+          "회사 PC 연결 대기 중",
+          `${targetDate} OIS 조회 요청을 회사 PC 프로그램이 가져가기를 기다리고 있습니다.`
+        );
+      }
+
+
+      await waitLimestoneOisRequest(
+        OIS_REQUEST_POLL_INTERVAL
+      );
+    }
+
+
+    throw new Error(
+      "OIS 연동 프로그램의 응답 시간이 초과되었습니다."
+    );
+  }
+
+
+  /* =====================================================
+    OIS 재고 불러오기 버튼
+  ====================================================== */
+
+  async function loadLimestoneOisStock() {
+    const {
+      dateInput,
+      loadButton
+    } =
+      getLimestoneOisRequestElements();
+
+
+    const targetDate =
+      String(
+        dateInput?.value ||
+        ""
+      ).trim();
+
+
+    if (
+      !isValidLimestoneOisDate(
+        targetDate
+      )
+    ) {
+      setLimestoneOisRequestStatus(
+        "error",
+        "날짜 확인 필요",
+        "석회석 사용량을 계산할 날짜를 선택해 주세요."
+      );
+
+
+      dateInput?.focus();
+
+
+      return;
+    }
+
+
+    const runToken =
+      activeRunToken +
+      1;
+
+
+    activeRunToken =
+      runToken;
+
+
+    activeRequestId =
+      "";
+
+
+    if (
+      loadButton
+    ) {
+      loadButton.disabled =
+        true;
+
+
+      loadButton.textContent =
+        "OIS 조회 요청 중...";
+    }
+
+
+    setLimestoneOisRequestStatus(
+      "loading",
+      "OIS 조회 요청 중",
+      `${targetDate} 석회석 시작·종료 재고 조회를 요청하고 있습니다.`
+    );
+
+
+    try {
+      const createResult =
+        await createLimestoneOisRequest(
+          targetDate
+        );
+
+
+      const requestItem =
+        createResult.item;
+
+
+      if (
+        !requestItem?.id
+      ) {
+        throw new Error(
+          "생성된 OIS 요청 ID를 확인할 수 없습니다."
+        );
+      }
+
+
+      activeRequestId =
+        String(
+          requestItem.id
+        );
+
+
+      if (
+        loadButton
+      ) {
+        loadButton.textContent =
+          "OIS 조회 중...";
+      }
+
+
+      let completedItem =
+        requestItem;
+
+
+      if (
+        String(
+          requestItem.status ||
+          ""
+        )
+          .trim()
+          .toLowerCase() !==
+          "complete"
+      ) {
+        completedItem =
+          await waitForLimestoneOisCompletion(
+            activeRequestId,
+            targetDate,
+            runToken
+          );
+      }
+
+
+      if (
+        !completedItem ||
+        runToken !==
+          activeRunToken
+      ) {
+        return;
+      }
+
+
+      await applyLimestoneOisResult(
+        completedItem,
+        targetDate
+      );
+
+
+      if (
+        loadButton
+      ) {
+        loadButton.textContent =
+          "OIS 재고 다시 불러오기";
+      }
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "석회석 OIS 재고 불러오기 실패:",
+        error
+      );
+
+
+      if (
+        runToken !==
+          activeRunToken
+      ) {
+        return;
+      }
+
+
+      setLimestoneOisRequestStatus(
+        "error",
+        "OIS 재고를 불러오지 못했습니다.",
+        error?.message ||
+        "OIS 조회 중 오류가 발생했습니다."
+      );
+
+
+      if (
+        typeof showToast ===
+          "function"
+      ) {
+        showToast(
+          error?.message ||
+          "OIS 석회석 재고 조회에 실패했습니다."
+        );
+      }
+
+
+      if (
+        loadButton
+      ) {
+        loadButton.textContent =
+          "OIS 재고 불러오기";
+      }
+
+    } finally {
+      if (
+        runToken ===
+          activeRunToken &&
+        loadButton
+      ) {
+        loadButton.disabled =
+          false;
+      }
+    }
+  }
+
+
+  /* =====================================================
+    날짜 변경 시 기존 요청 화면 연결 해제
+
+    서버 요청을 삭제하지는 않는다.
+    화면에서 이전 날짜 결과가 잘못 들어오는 것만 방지한다.
+  ====================================================== */
+
+  function handleLimestoneOisDateChange() {
+    const {
+      dateInput,
+      loadButton,
+      usageView
+    } =
+      getLimestoneOisRequestElements();
+
+
+    activeRunToken +=
+      1;
+
+
+    activeRequestId =
+      "";
+
+
+    if (
+      loadButton
+    ) {
+      loadButton.disabled =
+        false;
+
+
+      loadButton.removeAttribute(
+        "disabled"
+      );
+
+
+      loadButton.textContent =
+        "OIS 재고 불러오기";
+    }
+
+
+    if (
+      usageView
+    ) {
+      delete usageView.dataset
+        .oisRequestId;
+
+
+      delete usageView.dataset
+        .oisTargetDate;
+
+
+      delete usageView.dataset
+        .oisCollectedAt;
+
+
+      delete usageView.dataset
+        .oisAgentId;
+    }
+
+
+    const selectedDate =
+      String(
+        dateInput?.value ||
+        ""
+      ).trim();
+
+
+    setLimestoneOisRequestStatus(
+      "idle",
+      "OIS 재고 조회 준비",
+      selectedDate
+        ? `${selectedDate}와 다음 날의 00:00 재고를 조회할 수 있습니다.`
+        : "계산 기준일을 선택해 주세요."
+    );
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initializeLimestoneOisRequestClient() {
+    const {
+      loadButton,
+      dateInput
+    } =
+      getLimestoneOisRequestElements();
+
+
+    /*
+      사용량 계산 화면은 앞 단계 JavaScript에서
+      동적으로 생성되므로 잠시 기다린다.
+    */
+    if (
+      !loadButton ||
+      !dateInput
+    ) {
+      initializationAttempt +=
+        1;
+
+
+      if (
+        initializationAttempt <
+        40
+      ) {
+        window.setTimeout(
+          initializeLimestoneOisRequestClient,
+          250
+        );
+      }
+
+
+      return;
+    }
+
+
+    if (
+      loadButton.dataset
+        .oisRequestBound ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    loadButton.disabled =
+      false;
+
+
+    loadButton.removeAttribute(
+      "disabled"
+    );
+
+
+    loadButton.title =
+      "선택일과 다음 날의 OIS 석회석 재고를 불러옵니다.";
+
+
+    loadButton.addEventListener(
+      "click",
+      loadLimestoneOisStock
+    );
+
+
+    dateInput.addEventListener(
+      "change",
+      handleLimestoneOisDateChange
+    );
+
+
+    loadButton.dataset
+      .oisRequestBound =
+      "true";
+
+
+    handleLimestoneOisDateChange();
+  }
+
+
+  window
+    .loadLimestoneOisStock =
+    loadLimestoneOisStock;
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeLimestoneOisRequestClient,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeLimestoneOisRequestClient();
+  }
+})();
