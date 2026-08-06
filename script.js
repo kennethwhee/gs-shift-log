@@ -122098,3 +122098,293 @@ if (
     }
   );
 })();
+
+/* =========================================================
+  발행 내역 통합 제목 최종 보정
+
+  적용:
+  - PC 업무일지 미리보기
+  - 모바일 업무일지 미리보기
+  - 조회 결과 미리보기
+  - 모바일 조회 결과
+  - 업무일지 상세보기
+
+  변경:
+  TM 발행
+  TM 발행 내역
+  TM/BM/CM 발행 내역
+  → 발행 내역
+
+  유지:
+  [TM발행]
+  [BM발행]
+  [CM발행]
+========================================================= */
+
+(function installIssueAggregateTitleFinalFix() {
+  if (
+    window
+      .__issueAggregateTitleFinalFixInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__issueAggregateTitleFinalFixInstalled =
+      true;
+
+
+  const titleSelector = [
+    /*
+      PC 메인 미리보기
+    */
+    "#logTableBody .log-preview__title",
+
+
+    /*
+      PC 조회 결과
+    */
+    "#searchResultBody .log-preview__title",
+
+
+    /*
+      모바일 메인 미리보기
+    */
+    (
+      "#statusView " +
+      ".mobile-log-card-list " +
+      ".mobile-log-preview-section__header strong"
+    ),
+
+
+    /*
+      모바일 조회 결과
+    */
+    (
+      "#mobileSearchCardList " +
+      ".mobile-log-preview-section__header strong"
+    ),
+
+
+    /*
+      상세보기 최신 구조
+    */
+    (
+      "#logDetailModal " +
+      ".shift-log-detail-section__header h3"
+    ),
+
+
+    /*
+      상세보기 이전 구조 호환
+    */
+    (
+      "#logDetailModal " +
+      ".detail-document-section__header h3"
+    ),
+
+
+    (
+      "#logDetailModal " +
+      ".log-report-section__header h3"
+    ),
+
+
+    (
+      "#logDetailModal " +
+      ".detail-section__title"
+    ),
+
+
+    (
+      "#logDetailModal " +
+      ".detail-work-group__title"
+    )
+  ].join(
+    ","
+  );
+
+
+  const replaceTargetLabels =
+    new Set([
+      "TM발행",
+      "TM발행내역",
+      "TM/BM/CM발행내역"
+    ]);
+
+
+  let renderRequestId =
+    0;
+
+
+  /* =====================================================
+    비교용 문구 정리
+  ====================================================== */
+
+  function normalizeIssueAggregateTitle(
+    value
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .normalize(
+        "NFKC"
+      )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+  }
+
+
+  /* =====================================================
+    제목 변경 실행
+  ====================================================== */
+
+  function updateIssueAggregateTitles(
+    root =
+      document
+  ) {
+    if (
+      !root ||
+      typeof root.querySelectorAll !==
+        "function"
+    ) {
+      return;
+    }
+
+
+    const titleElements = [
+      ...root.querySelectorAll(
+        titleSelector
+      )
+    ];
+
+
+    titleElements.forEach(
+      titleElement => {
+        /*
+          개별 [TM발행] 배지는 대상이 아니다.
+        */
+        if (
+          titleElement.classList.contains(
+            "log-entry-kind-badge"
+          )
+        ) {
+          return;
+        }
+
+
+        const normalizedTitle =
+          normalizeIssueAggregateTitle(
+            titleElement.textContent
+          );
+
+
+        if (
+          !replaceTargetLabels.has(
+            normalizedTitle
+          )
+        ) {
+          return;
+        }
+
+
+        titleElement.textContent =
+          "발행 내역";
+      }
+    );
+  }
+
+
+  /* =====================================================
+    여러 DOM 변경을 한 번에 처리
+  ====================================================== */
+
+  function scheduleIssueAggregateTitleUpdate() {
+    if (
+      renderRequestId
+    ) {
+      return;
+    }
+
+
+    renderRequestId =
+      window.requestAnimationFrame(
+        () => {
+          renderRequestId =
+            0;
+
+
+          updateIssueAggregateTitles(
+            document
+          );
+        }
+      );
+  }
+
+
+  /* =====================================================
+    최초 실행
+  ====================================================== */
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+
+      scheduleIssueAggregateTitleUpdate,
+
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    scheduleIssueAggregateTitleUpdate();
+  }
+
+
+  /* =====================================================
+    업무일지가 동적으로 다시 출력될 때 재적용
+  ====================================================== */
+
+  const observer =
+    new MutationObserver(
+      () => {
+        scheduleIssueAggregateTitleUpdate();
+      }
+    );
+
+
+  observer.observe(
+    document.documentElement,
+
+    {
+      childList:
+        true,
+
+      subtree:
+        true,
+
+      characterData:
+        true
+    }
+  );
+
+
+  /*
+    필요할 경우 다른 함수에서 수동 실행할 수 있게 공개
+  */
+  window
+    .updateIssueAggregateDisplayTitles =
+    scheduleIssueAggregateTitleUpdate;
+})();
