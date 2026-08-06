@@ -755,22 +755,21 @@ async function attachShiftLogAttachments(
   }
 
 
-  const logIds =
-    [
-      ...new Set(
-        safeLogs
-          .map(
-            log => {
-              return normalizeText(
-                log.id
-              );
-            }
-          )
-          .filter(
-            Boolean
-          )
-      )
-    ];
+  const logIds = [
+    ...new Set(
+      safeLogs
+        .map(
+          log => {
+            return normalizeText(
+              log.id
+            );
+          }
+        )
+        .filter(
+          Boolean
+        )
+    )
+  ];
 
 
   if (
@@ -782,179 +781,181 @@ async function attachShiftLogAttachments(
 
 
   const attachmentMap =
-    new Map();
+    new Map(
+      logIds.map(
+        logId => {
+          return [
+            logId,
+            []
+          ];
+        }
+      )
+    );
 
 
-  logIds.forEach(
-    logId => {
-      attachmentMap.set(
-        logId,
-        []
-      );
-    }
-  );
+  try {
+    /*
+      D1 바인딩 개수를 줄이기 위해
+      작은 묶음으로 나누어 조회한다.
+    */
+    const chunkSize =
+      80;
 
 
-  /*
-    D1 바인딩 개수가 지나치게 커지지 않도록
-    400개씩 나누어 조회한다.
-  */
-  const chunkSize =
-    400;
-
-
-  for (
-    let startIndex = 0;
-    startIndex <
-      logIds.length;
-    startIndex +=
-      chunkSize
-  ) {
-    const currentLogIds =
-      logIds.slice(
-        startIndex,
-        startIndex +
-          chunkSize
-      );
-
-
-    const placeholders =
-      currentLogIds
-        .map(
-          () => "?"
-        )
-        .join(
-          ", "
+    for (
+      let startIndex = 0;
+      startIndex <
+        logIds.length;
+      startIndex +=
+        chunkSize
+    ) {
+      const currentLogIds =
+        logIds.slice(
+          startIndex,
+          startIndex +
+            chunkSize
         );
 
 
-    const result =
-      await database
-        .prepare(`
-          SELECT
-            id,
-            log_id,
+      const placeholders =
+        currentLogIds
+          .map(
+            () => "?"
+          )
+          .join(
+            ", "
+          );
 
-            r2_key,
 
-            original_name,
-            stored_name,
+      /*
+        특정 열 이름을 직접 나열하지 않는다.
 
-            content_type,
-            file_size,
+        배포된 D1 첨부파일 테이블의
+        열 구성이 조금 달라도 전체 업무일지 조회가
+        함께 실패하지 않도록 한다.
+      */
+      const result =
+        await database
+          .prepare(`
+            SELECT
+              *
 
-            uploaded_by_id,
-            uploaded_by_name,
+            FROM shift_log_attachments
 
-            created_at,
-            updated_at
+            WHERE
+              log_id IN (
+                ${placeholders}
+              )
+          `)
+          .bind(
+            ...currentLogIds
+          )
+          .all();
 
-          FROM shift_log_attachments
 
-          WHERE
-            log_id IN (
-              ${placeholders}
-            )
-
-          ORDER BY
-            created_at ASC,
-            original_name ASC
-        `)
-        .bind(
-          ...currentLogIds
+      const rows =
+        Array.isArray(
+          result.results
         )
-        .all();
+          ? result.results
+          : [];
 
 
-    const rows =
-      Array.isArray(
-        result.results
-      )
-        ? result.results
-        : [];
+      rows.forEach(
+        row => {
+          const logId =
+            normalizeText(
+              row.log_id
+            );
 
 
-    rows.forEach(
-      row => {
-        const logId =
-          normalizeText(
-            row.log_id
-          );
+          const attachment =
+            convertShiftLogAttachmentRow(
+              row
+            );
 
 
-        if (
-          !logId
-        ) {
-          return;
+          if (
+            !logId ||
+            !attachment
+          ) {
+            return;
+          }
+
+
+          if (
+            !attachmentMap.has(
+              logId
+            )
+          ) {
+            attachmentMap.set(
+              logId,
+              []
+            );
+          }
+
+
+          attachmentMap
+            .get(
+              logId
+            )
+            .push(
+              attachment
+            );
         }
+      );
+    }
+
+  } catch (
+    error
+  ) {
+    /*
+      shift_log_attachments 테이블이 아직 없거나
+      테이블 열 구성이 다른 경우에도
+      업무일지 본문은 정상적으로 반환한다.
+
+      첨부파일 오류 때문에 홈페이지 전체가
+      먹통이 되는 것을 막는 안전장치다.
+    */
+    console.warn(
+      "업무일지 첨부파일 조회를 건너뜁니다:",
+      error
+    );
 
 
-        const attachment =
-          convertShiftLogAttachmentRow(
-            row
-          );
+    return safeLogs.map(
+      log => {
+        return {
+          ...log,
 
-
-        if (
-          !attachment
-        ) {
-          return;
-        }
-
-
-        if (
-          !attachmentMap.has(
-            logId
-          )
-        ) {
-          attachmentMap.set(
-            logId,
-            []
-          );
-        }
-
-
-        attachmentMap
-          .get(
-            logId
-          )
-          .push(
-            attachment
-          );
+          attachments:
+            Array.isArray(
+              log.attachments
+            )
+              ? log.attachments
+              : []
+        };
       }
     );
   }
 
 
-  /*
-    shift_log_attachments를
-    신규 업무일지 첨부파일의 최종 기준으로 사용한다.
-
-    예전 log_json에 파일명 문자열만 남아 있더라도
-    실제 R2 파일이 없으면 열 수 없는 첨부파일이므로
-    화면 attachments에는 넣지 않는다.
-  */
   return safeLogs.map(
     log => {
-      const logId =
-        normalizeText(
-          log.id
-        );
-
-
       return {
         ...log,
 
         attachments:
           attachmentMap.get(
-            logId
+            normalizeText(
+              log.id
+            )
           ) ||
           []
       };
     }
   );
 }
-
 
 /* =========================================================
   업무일지 1건 첨부파일 연결
