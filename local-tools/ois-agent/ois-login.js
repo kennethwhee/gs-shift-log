@@ -2077,15 +2077,290 @@ async function findOisLogSheetFrame(
   return null;
 }
 
+/* =========================================================
+  OIS 왼쪽 메뉴 프레임 찾기
+
+  메뉴 프레임 확인 문구:
+  - 메가메뉴선택
+  - 운영정보
+========================================================= */
+
+async function findOisNavigationFrame(
+  page,
+  timeoutMilliseconds =
+    OIS_QUERY_TIMEOUT
+) {
+  const startedAt =
+    Date.now();
+
+
+  while (
+    Date.now() -
+      startedAt <
+    timeoutMilliseconds
+  ) {
+    for (
+      const frame of
+      page.frames()
+    ) {
+      const bodyText =
+        normalizeOisAgentText(
+          await frame
+            .locator(
+              "body"
+            )
+            .innerText()
+            .catch(
+              () => ""
+            )
+        );
+
+
+      const isNavigationFrame =
+        bodyText.includes(
+          "운영정보"
+        ) &&
+        (
+          bodyText.includes(
+            "메가메뉴선택"
+          ) ||
+          bodyText.includes(
+            "기준정보"
+          ) ||
+          bodyText.includes(
+            "LOG SHEET"
+          )
+        );
+
+
+      if (
+        isNavigationFrame
+      ) {
+        return frame;
+      }
+    }
+
+
+    await page.waitForTimeout(
+      250
+    );
+  }
+
+
+  return null;
+}
+
 
 /* =========================================================
-  LOG SHEET 조회 메뉴 클릭
+  왼쪽 메뉴에서 정확한 글자 찾기
+========================================================= */
+
+async function findVisibleOisNavigationItem(
+  frame,
+  menuTexts,
+  timeoutMilliseconds =
+    7000
+) {
+  const textCandidates =
+    Array.isArray(
+      menuTexts
+    )
+      ? menuTexts
+      : [
+          menuTexts
+        ];
+
+
+  const startedAt =
+    Date.now();
+
+
+  while (
+    Date.now() -
+      startedAt <
+    timeoutMilliseconds
+  ) {
+    for (
+      const menuText of
+      textCandidates
+    ) {
+      const exactLocator =
+        frame.getByText(
+          menuText,
+          {
+            exact:
+              true
+          }
+        );
+
+
+      const exactCount =
+        await exactLocator
+          .count()
+          .catch(
+            () => 0
+          );
+
+
+      for (
+        let index = 0;
+        index <
+          exactCount;
+        index +=
+          1
+      ) {
+        const target =
+          exactLocator.nth(
+            index
+          );
+
+
+        const isVisible =
+          await target
+            .isVisible()
+            .catch(
+              () => false
+            );
+
+
+        if (
+          isVisible
+        ) {
+          return target;
+        }
+      }
+    }
+
+
+    await frame.page()
+      .waitForTimeout(
+        250
+      );
+  }
+
+
+  return null;
+}
+
+
+/* =========================================================
+  OIS 왼쪽 메뉴 클릭
+
+  일반 클릭 실패 시:
+  - onclick 요소
+  - 링크
+  - 버튼
+  - 메뉴 행
+
+  순서로 실제 클릭 대상을 찾아 클릭한다.
+========================================================= */
+
+async function clickOisNavigationItem(
+  frame,
+  menuTexts,
+  menuName
+) {
+  const target =
+    await findVisibleOisNavigationItem(
+      frame,
+      menuTexts,
+      7000
+    );
+
+
+  if (
+    !target
+  ) {
+    return false;
+  }
+
+
+  await target
+    .scrollIntoViewIfNeeded()
+    .catch(
+      () => null
+    );
+
+
+  try {
+    await target.click({
+      timeout:
+        5000,
+
+      force:
+        true
+    });
+
+  } catch (
+    error
+  ) {
+    await target.evaluate(
+      element => {
+        const clickableElement =
+          element.closest(
+            `
+              [onclick],
+              a,
+              button,
+              [role="button"],
+              li,
+              td
+            `
+          ) ||
+          element;
+
+
+        clickableElement.dispatchEvent(
+          new MouseEvent(
+            "click",
+            {
+              bubbles:
+                true,
+
+              cancelable:
+                true,
+
+              view:
+                window
+            }
+          )
+        );
+      }
+    );
+  }
+
+
+  console.log(
+    `${menuName} 메뉴를 클릭했습니다.`
+  );
+
+
+  await frame.page()
+    .waitForTimeout(
+      700
+    );
+
+
+  return true;
+}
+
+/* =========================================================
+  OIS LOG SHEET 조회 화면 열기 최종본
+
+  실제 탐색 순서:
+  1. 운영정보
+  2. LOG SHEET
+  3. LOG SHEET조회
 ========================================================= */
 
 async function openOisLogSheetLookup(
   page
 ) {
-  const existingFrame =
+  /* =====================================================
+    이미 LOG SHEET 조회 화면이 열려 있다면 재사용
+  ====================================================== */
+
+  const existingLogSheetFrame =
     await findOisLogSheetFrame(
       page,
       1500
@@ -2093,96 +2368,222 @@ async function openOisLogSheetLookup(
 
 
   if (
-    existingFrame
+    existingLogSheetFrame
   ) {
-    return existingFrame;
+    return existingLogSheetFrame;
   }
 
 
-  let clicked =
-    false;
+  /* =====================================================
+    왼쪽 메뉴 프레임 찾기
+  ====================================================== */
 
-
-  for (
-    const frame of
-    page.frames()
-  ) {
-    const menuLocator =
-      frame.getByText(
-        /LOG\s*SHEET\s*조회/i
-      );
-
-
-    const count =
-      await menuLocator
-        .count()
-        .catch(
-          () => 0
-        );
-
-
-    for (
-      let index = 0;
-      index <
-        count;
-      index +=
-        1
-    ) {
-      const menuItem =
-        menuLocator.nth(
-          index
-        );
-
-
-      const isVisible =
-        await menuItem
-          .isVisible()
-          .catch(
-            () => false
-          );
-
-
-      if (
-        !isVisible
-      ) {
-        continue;
-      }
-
-
-      await menuItem.click({
-        timeout:
-          10000
-      });
-
-
-      clicked =
-        true;
-
-
-      break;
-    }
-
-
-    if (
-      clicked
-    ) {
-      break;
-    }
-  }
+  let menuFrame =
+    await findOisNavigationFrame(
+      page,
+      OIS_QUERY_TIMEOUT
+    );
 
 
   if (
-    !clicked
+    !menuFrame
   ) {
     throw new Error(
-      "OIS의 LOG SHEET 조회 메뉴를 찾지 못했습니다."
+      "OIS 왼쪽 메뉴 영역을 찾지 못했습니다."
     );
   }
 
 
+  /* =====================================================
+    1. LOG SHEET조회 메뉴가 이미 보이는지 확인
+  ====================================================== */
+
+  let lookupMenu =
+    await findVisibleOisNavigationItem(
+      menuFrame,
+      [
+        "LOG SHEET조회",
+        "LOG SHEET 조회"
+      ],
+      1000
+    );
+
+
+  if (
+    !lookupMenu
+  ) {
+    /* ===================================================
+      2. LOG SHEET 상위 메뉴 확인
+    ==================================================== */
+
+    let logSheetMenu =
+      await findVisibleOisNavigationItem(
+        menuFrame,
+        "LOG SHEET",
+        1000
+      );
+
+
+    /* ===================================================
+      3. LOG SHEET이 안 보이면 운영정보부터 클릭
+    ==================================================== */
+
+    if (
+      !logSheetMenu
+    ) {
+      const operationMenuClicked =
+        await clickOisNavigationItem(
+          menuFrame,
+          "운영정보",
+          "운영정보"
+        );
+
+
+      if (
+        !operationMenuClicked
+      ) {
+        throw new Error(
+          "OIS의 운영정보 메뉴를 찾지 못했습니다."
+        );
+      }
+
+
+      /*
+        운영정보 클릭으로 메뉴 프레임 내부가
+        다시 그려질 수 있으므로 프레임을 다시 찾는다.
+      */
+      menuFrame =
+        await findOisNavigationFrame(
+          page,
+          OIS_QUERY_TIMEOUT
+        );
+
+
+      if (
+        !menuFrame
+      ) {
+        throw new Error(
+          "운영정보 메뉴를 연 뒤 왼쪽 메뉴를 다시 찾지 못했습니다."
+        );
+      }
+
+
+      logSheetMenu =
+        await findVisibleOisNavigationItem(
+          menuFrame,
+          "LOG SHEET",
+          10000
+        );
+    }
+
+
+    if (
+      !logSheetMenu
+    ) {
+      throw new Error(
+        "OIS의 LOG SHEET 상위 메뉴를 찾지 못했습니다."
+      );
+    }
+
+
+    /* ===================================================
+      4. LOG SHEET 상위 메뉴 클릭
+    ==================================================== */
+
+    const logSheetMenuClicked =
+      await clickOisNavigationItem(
+        menuFrame,
+        "LOG SHEET",
+        "LOG SHEET"
+      );
+
+
+    if (
+      !logSheetMenuClicked
+    ) {
+      throw new Error(
+        "OIS의 LOG SHEET 상위 메뉴를 열지 못했습니다."
+      );
+    }
+
+
+    /*
+      LOG SHEET 클릭 후 하위 메뉴가 다시 그려질 수 있으므로
+      메뉴 프레임을 다시 찾는다.
+    */
+    menuFrame =
+      await findOisNavigationFrame(
+        page,
+        OIS_QUERY_TIMEOUT
+      );
+
+
+    if (
+      !menuFrame
+    ) {
+      throw new Error(
+        "LOG SHEET 메뉴를 연 뒤 왼쪽 메뉴를 다시 찾지 못했습니다."
+      );
+    }
+
+
+    lookupMenu =
+      await findVisibleOisNavigationItem(
+        menuFrame,
+        [
+          "LOG SHEET조회",
+          "LOG SHEET 조회"
+        ],
+        10000
+      );
+  }
+
+
+  if (
+    !lookupMenu
+  ) {
+    throw new Error(
+      "OIS의 LOG SHEET조회 하위 메뉴를 찾지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    5. LOG SHEET조회 메뉴 클릭
+  ====================================================== */
+
+  const lookupMenuClicked =
+    await clickOisNavigationItem(
+      menuFrame,
+      [
+        "LOG SHEET조회",
+        "LOG SHEET 조회"
+      ],
+      "LOG SHEET조회"
+    );
+
+
+  if (
+    !lookupMenuClicked
+  ) {
+    throw new Error(
+      "OIS의 LOG SHEET조회 메뉴를 클릭하지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    6. 조회 화면 로딩 대기
+
+    확인 기준:
+    SHEET 선택항목 안에
+    BOARD LOGSHEET (BCO1)이 존재하는지 확인
+  ====================================================== */
+
   const logSheetFrame =
     await findOisLogSheetFrame(
-      page
+      page,
+      OIS_QUERY_TIMEOUT
     );
 
 
@@ -2195,9 +2596,13 @@ async function openOisLogSheetLookup(
   }
 
 
+  console.log(
+    "OIS LOG SHEET 조회 화면을 열었습니다."
+  );
+
+
   return logSheetFrame;
 }
-
 
 /* =========================================================
   특정 옵션이 있는 select 선택
@@ -2675,464 +3080,782 @@ async function clickOisLogSheetSearchButton(
   );
 }
 
-
 /* =========================================================
-  TAG 행의 전일값 읽기
+  OIS 석회석 행의 전일·24시 재고 읽기
 
-  HTML 표의 rowspan·colspan을 계산하여
-  전일 열과 TAG 행의 교차값을 읽는다.
+  기준:
+  - TAG 행을 화면에서 찾는다.
+  - 상단 헤더의 "전일"과 "24" 위치를 찾는다.
+  - TAG 행과 같은 높이의 값을 각각 읽는다.
 
-  표 구조가 달라졌을 때는 TAG 뒤에서
-  첫 번째 순수 숫자를 찾는 방식으로 재시도한다.
+  반환:
+  {
+    startStock: 전일 재고,
+    endStock: 24시 재고
+  }
 ========================================================= */
 
-async function readOisPreviousStockValue(
+async function readOisLimestoneDayStocks(
   frame,
   targetTag
 ) {
   const rawResult =
     await frame.evaluate(
       tagValue => {
-        const normalizeText =
-          value => {
-            return String(
-              value ??
+        const normalizeText = (
+          value
+        ) => {
+          return String(
+            value ??
+            ""
+          )
+            .replace(
+              /\u00a0/g,
+              " "
+            )
+            .replace(
+              /\s+/g,
+              " "
+            )
+            .trim();
+        };
+
+
+        const normalizeKey = (
+          value
+        ) => {
+          return normalizeText(
+            value
+          )
+            .replace(
+              /\s+/g,
               ""
             )
+            .toUpperCase();
+        };
+
+
+        const parsePureNumber = (
+          value
+        ) => {
+          const normalizedValue =
+            normalizeText(
+              value
+            )
               .replace(
-                /\u00a0/g,
-                " "
-              )
-              .replace(
-                /\s+/g,
-                " "
-              )
-              .trim();
-          };
-
-
-        const parseNumber =
-          value => {
-            const normalizedValue =
-              normalizeText(
-                value
-              )
-                .replace(
-                  /,/g,
-                  ""
-                );
-
-
-            if (
-              !/^-?\d+(?:\.\d+)?$/.test(
-                normalizedValue
-              )
-            ) {
-              return null;
-            }
-
-
-            const numericValue =
-              Number(
-                normalizedValue
+                /,/g,
+                ""
               );
 
 
-            return Number.isFinite(
-              numericValue
+          if (
+            !/^-?\d+(?:\.\d+)?$/.test(
+              normalizedValue
             )
-              ? numericValue
-              : null;
+          ) {
+            return null;
+          }
+
+
+          const numericValue =
+            Number(
+              normalizedValue
+            );
+
+
+          return Number.isFinite(
+            numericValue
+          )
+            ? numericValue
+            : null;
+        };
+
+
+        const getElementValue = (
+          element
+        ) => {
+          if (
+            !(element instanceof Element)
+          ) {
+            return "";
+          }
+
+
+          if (
+            element instanceof
+              HTMLInputElement ||
+            element instanceof
+              HTMLTextAreaElement
+          ) {
+            return normalizeText(
+              element.value
+            );
+          }
+
+
+          if (
+            element instanceof
+              HTMLSelectElement
+          ) {
+            return normalizeText(
+              element
+                .selectedOptions?.[0]
+                ?.textContent ||
+              element.value
+            );
+          }
+
+
+          const directText =
+            normalizeText(
+              [
+                ...element.childNodes
+              ]
+                .filter(
+                  node => {
+                    return (
+                      node.nodeType ===
+                      Node.TEXT_NODE
+                    );
+                  }
+                )
+                .map(
+                  node => {
+                    return node.textContent;
+                  }
+                )
+                .join(
+                  " "
+                )
+            );
+
+
+          if (
+            directText
+          ) {
+            return directText;
+          }
+
+
+          const attributeValues = [
+            element.getAttribute(
+              "data-text"
+            ),
+
+            element.getAttribute(
+              "data-value"
+            ),
+
+            element.getAttribute(
+              "aria-label"
+            ),
+
+            element.getAttribute(
+              "title"
+            )
+          ]
+            .map(
+              normalizeText
+            )
+            .filter(
+              Boolean
+            );
+
+
+          if (
+            attributeValues.length >
+              0
+          ) {
+            return attributeValues[0];
+          }
+
+
+          if (
+            element.children.length ===
+              0
+          ) {
+            return normalizeText(
+              element.textContent
+            );
+          }
+
+
+          return "";
+        };
+
+
+        const getVisibleRectangle = (
+          element
+        ) => {
+          if (
+            !(element instanceof Element)
+          ) {
+            return null;
+          }
+
+
+          const rectangle =
+            element.getBoundingClientRect();
+
+
+          if (
+            rectangle.width <=
+              0 ||
+            rectangle.height <=
+              0
+          ) {
+            return null;
+          }
+
+
+          const style =
+            window.getComputedStyle(
+              element
+            );
+
+
+          if (
+            style.display ===
+              "none" ||
+            style.visibility ===
+              "hidden" ||
+            Number(
+              style.opacity
+            ) ===
+              0
+          ) {
+            return null;
+          }
+
+
+          return {
+            left:
+              rectangle.left,
+
+            right:
+              rectangle.right,
+
+            top:
+              rectangle.top,
+
+            bottom:
+              rectangle.bottom,
+
+            width:
+              rectangle.width,
+
+            height:
+              rectangle.height,
+
+            centerX:
+              rectangle.left +
+              rectangle.width /
+              2,
+
+            centerY:
+              rectangle.top +
+              rectangle.height /
+              2
           };
+        };
 
 
-        const tables = [
+        const allElements = [
           ...document.querySelectorAll(
-            "table"
+            "body *"
           )
         ];
 
 
-        for (
-          const table of
-          tables
-        ) {
-          const rows = [
-            ...table.rows
-          ];
-
-
-          if (
-            rows.length ===
-              0
-          ) {
-            continue;
-          }
-
-
-          const grid = [];
-
-
-          rows.forEach(
-            (
-              row,
-              rowIndex
-            ) => {
-              grid[
-                rowIndex
-              ] =
-                grid[
-                  rowIndex
-                ] ||
-                [];
-
-
-              let columnIndex =
-                0;
-
-
-              [
-                ...row.cells
-              ].forEach(
-                cell => {
-                  while (
-                    grid[
-                      rowIndex
-                    ][
-                      columnIndex
-                    ]
-                  ) {
-                    columnIndex +=
-                      1;
-                  }
-
-
-                  const rowSpan =
-                    Math.max(
-                      1,
-                      Number(
-                        cell.rowSpan ||
-                        1
-                      )
-                    );
-
-
-                  const columnSpan =
-                    Math.max(
-                      1,
-                      Number(
-                        cell.colSpan ||
-                        1
-                      )
-                    );
-
-
-                  const cellInformation = {
-                    text:
-                      normalizeText(
-                        cell.innerText ||
-                        cell.textContent
-                      )
-                  };
-
-
-                  for (
-                    let rowOffset =
-                      0;
-                    rowOffset <
-                      rowSpan;
-                    rowOffset +=
-                      1
-                  ) {
-                    const targetRowIndex =
-                      rowIndex +
-                      rowOffset;
-
-
-                    grid[
-                      targetRowIndex
-                    ] =
-                      grid[
-                        targetRowIndex
-                      ] ||
-                      [];
-
-
-                    for (
-                      let columnOffset =
-                        0;
-                      columnOffset <
-                        columnSpan;
-                      columnOffset +=
-                        1
-                    ) {
-                      const targetColumnIndex =
-                        columnIndex +
-                        columnOffset;
-
-
-                      if (
-                        !grid[
-                          targetRowIndex
-                        ][
-                          targetColumnIndex
-                        ]
-                      ) {
-                        grid[
-                          targetRowIndex
-                        ][
-                          targetColumnIndex
-                        ] =
-                          cellInformation;
-                      }
-                    }
-                  }
-
-
-                  columnIndex +=
-                    columnSpan;
-                }
-              );
-            }
+        const targetTagKey =
+          normalizeKey(
+            tagValue
           );
 
 
-          let tagRowIndex =
-            -1;
+        /* =================================================
+          TAG 셀
+        ================================================= */
+
+        const tagCandidates =
+          allElements
+            .map(
+              element => {
+                const text =
+                  getElementValue(
+                    element
+                  );
 
 
-          let tagColumnIndex =
-            -1;
+                const rectangle =
+                  getVisibleRectangle(
+                    element
+                  );
 
 
-          grid.forEach(
-            (
-              row,
-              rowIndex
-            ) => {
-              row.forEach(
-                (
-                  cell,
-                  columnIndex
-                ) => {
-                  if (
-                    normalizeText(
-                      cell?.text
-                    ) ===
-                    tagValue
-                  ) {
-                    tagRowIndex =
-                      rowIndex;
-
-
-                    tagColumnIndex =
-                      columnIndex;
-                  }
+                if (
+                  !text ||
+                  !rectangle
+                ) {
+                  return null;
                 }
-              );
-            }
-          );
 
 
-          if (
-            tagRowIndex <
-              0
-          ) {
-            continue;
-          }
+                const textKey =
+                  normalizeKey(
+                    text
+                  );
 
 
-          let previousColumnIndex =
-            -1;
-
-
-          grid.forEach(
-            row => {
-              row.forEach(
-                (
-                  cell,
-                  columnIndex
-                ) => {
-                  if (
-                    previousColumnIndex >=
-                      0
-                  ) {
-                    return;
-                  }
-
-
-                  const cellText =
-                    normalizeText(
-                      cell?.text
-                    );
-
-
-                  if (
-                    cellText ===
-                      "전일" ||
-                    cellText ===
-                      "전일값"
-                  ) {
-                    previousColumnIndex =
-                      columnIndex;
-                  }
+                if (
+                  textKey !==
+                    targetTagKey &&
+                  !textKey.includes(
+                    targetTagKey
+                  )
+                ) {
+                  return null;
                 }
-              );
-            }
-          );
 
 
-          if (
-            previousColumnIndex >=
-              0
-          ) {
-            const previousCellText =
-              normalizeText(
-                grid[
-                  tagRowIndex
-                ]?.[
-                  previousColumnIndex
-                ]?.text
-              );
+                return {
+                  text,
+                  rectangle,
+
+                  exact:
+                    textKey ===
+                    targetTagKey,
+
+                  area:
+                    rectangle.width *
+                    rectangle.height
+                };
+              }
+            )
+            .filter(
+              Boolean
+            )
+            .sort(
+              (
+                first,
+                second
+              ) => {
+                if (
+                  first.exact !==
+                  second.exact
+                ) {
+                  return first.exact
+                    ? -1
+                    : 1;
+                }
 
 
-            const previousValue =
-              parseNumber(
-                previousCellText
-              );
-
-
-            if (
-              previousValue !==
-                null
-            ) {
-              return {
-                value:
-                  previousValue,
-
-                rawText:
-                  previousCellText,
-
-                method:
-                  "header-column"
-              };
-            }
-          }
-
-
-          /*
-            전일 헤더 탐색 실패 시
-            TAG 이후의 첫 번째 순수 숫자를 사용한다.
-
-            석회석 행은:
-            TAG → TON → 0~650 → 빈 칸 → 빈 칸 → 전일값
-
-            순서이므로 0~650은 숫자로 인식되지 않고
-            전일값이 첫 번째 순수 숫자가 된다.
-          */
-          const targetRow =
-            rows[
-              tagRowIndex
-            ];
-
-
-          const rowCells = [
-            ...targetRow.cells
-          ];
-
-
-          let tagCellIndex =
-            rowCells.findIndex(
-              cell => {
                 return (
-                  normalizeText(
-                    cell.innerText ||
-                    cell.textContent
-                  ) ===
-                  tagValue
+                  first.area -
+                  second.area
                 );
               }
             );
 
 
-          if (
-            tagCellIndex <
-              0
-          ) {
-            tagCellIndex =
-              Math.max(
-                0,
-                tagColumnIndex
-              );
-          }
+        const tagCell =
+          tagCandidates[0] ||
+          null;
 
 
-          for (
-            let index =
-              tagCellIndex +
-              1;
-            index <
-              rowCells.length;
-            index +=
-              1
-          ) {
-            const cellText =
-              normalizeText(
-                rowCells[
-                  index
-                ].innerText ||
-                rowCells[
-                  index
-                ].textContent
-              );
+        if (
+          !tagCell
+        ) {
+          return {
+            startStock:
+              null,
 
+            endStock:
+              null,
 
-            const numericValue =
-              parseNumber(
-                cellText
-              );
-
-
-            if (
-              numericValue !==
-                null
-            ) {
-              return {
-                value:
-                  numericValue,
-
-                rawText:
-                  cellText,
-
-                method:
-                  "first-number-after-tag"
-              };
-            }
-          }
+            reason:
+              "tag-not-found"
+          };
         }
 
 
-        return null;
+        /* =================================================
+          헤더 위치 찾기
+
+          전일:
+          화면 왼쪽에 있는 첫 번째 시간 데이터 열
+
+          24:
+          화면 오른쪽 스크롤 후 표시되는 24 열
+        ================================================= */
+
+        const findHeader = (
+          headerText
+        ) => {
+          const candidates =
+            allElements
+              .map(
+                element => {
+                  const text =
+                    getElementValue(
+                      element
+                    );
+
+
+                  const rectangle =
+                    getVisibleRectangle(
+                      element
+                    );
+
+
+                  if (
+                    !rectangle ||
+                    normalizeText(
+                      text
+                    ) !==
+                      headerText
+                  ) {
+                    return null;
+                  }
+
+
+                  /*
+                    TAG 행보다 위에 있는 헤더만 허용한다.
+                  */
+                  if (
+                    rectangle.centerY >=
+                    tagCell
+                      .rectangle
+                      .centerY
+                  ) {
+                    return null;
+                  }
+
+
+                  return {
+                    text,
+                    rectangle,
+
+                    verticalDistance:
+                      tagCell
+                        .rectangle
+                        .top -
+                      rectangle.bottom,
+
+                    area:
+                      rectangle.width *
+                      rectangle.height
+                  };
+                }
+              )
+              .filter(
+                Boolean
+              )
+              .sort(
+                (
+                  first,
+                  second
+                ) => {
+                  const distanceCompare =
+                    first.verticalDistance -
+                    second.verticalDistance;
+
+
+                  if (
+                    Math.abs(
+                      distanceCompare
+                    ) >
+                    2
+                  ) {
+                    return distanceCompare;
+                  }
+
+
+                  return (
+                    first.area -
+                    second.area
+                  );
+                }
+              );
+
+
+          return candidates[0] ||
+            null;
+        };
+
+
+        const previousHeader =
+          findHeader(
+            "전일"
+          );
+
+
+        const hour24Header =
+          findHeader(
+            "24"
+          );
+
+
+        /* =================================================
+          특정 헤더 아래, TAG와 같은 행의 숫자 찾기
+        ================================================= */
+
+        const findValueUnderHeader = (
+          header
+        ) => {
+          if (
+            !header
+          ) {
+            return null;
+          }
+
+
+          const candidates =
+            allElements
+              .map(
+                element => {
+                  const text =
+                    getElementValue(
+                      element
+                    );
+
+
+                  const value =
+                    parsePureNumber(
+                      text
+                    );
+
+
+                  const rectangle =
+                    getVisibleRectangle(
+                      element
+                    );
+
+
+                  if (
+                    value ===
+                      null ||
+                    !rectangle
+                  ) {
+                    return null;
+                  }
+
+
+                  const horizontalDifference =
+                    Math.abs(
+                      rectangle.centerX -
+                      header
+                        .rectangle
+                        .centerX
+                    );
+
+
+                  const verticalDifference =
+                    Math.abs(
+                      rectangle.centerY -
+                      tagCell
+                        .rectangle
+                        .centerY
+                    );
+
+
+                  const allowedHorizontalDifference =
+                    Math.max(
+                      8,
+                      header
+                        .rectangle
+                        .width *
+                        0.65
+                    );
+
+
+                  const allowedVerticalDifference =
+                    Math.max(
+                      10,
+                      tagCell
+                        .rectangle
+                        .height *
+                        0.8
+                    );
+
+
+                  if (
+                    horizontalDifference >
+                      allowedHorizontalDifference ||
+                    verticalDifference >
+                      allowedVerticalDifference
+                  ) {
+                    return null;
+                  }
+
+
+                  return {
+                    value,
+                    text,
+                    rectangle,
+                    horizontalDifference,
+                    verticalDifference,
+                    area:
+                      rectangle.width *
+                      rectangle.height
+                  };
+                }
+              )
+              .filter(
+                Boolean
+              )
+              .sort(
+                (
+                  first,
+                  second
+                ) => {
+                  const horizontalCompare =
+                    first.horizontalDifference -
+                    second.horizontalDifference;
+
+
+                  if (
+                    Math.abs(
+                      horizontalCompare
+                    ) >
+                    1
+                  ) {
+                    return horizontalCompare;
+                  }
+
+
+                  const verticalCompare =
+                    first.verticalDifference -
+                    second.verticalDifference;
+
+
+                  if (
+                    Math.abs(
+                      verticalCompare
+                    ) >
+                    1
+                  ) {
+                    return verticalCompare;
+                  }
+
+
+                  return (
+                    first.area -
+                    second.area
+                  );
+                }
+              );
+
+
+          return candidates[0] ||
+            null;
+        };
+
+
+        const startValue =
+          findValueUnderHeader(
+            previousHeader
+          );
+
+
+        const endValue =
+          findValueUnderHeader(
+            hour24Header
+          );
+
+
+        return {
+          startStock:
+            startValue?.value ??
+            null,
+
+          endStock:
+            endValue?.value ??
+            null,
+
+          startRawText:
+            startValue?.text ||
+            "",
+
+          endRawText:
+            endValue?.text ||
+            "",
+
+          hasPreviousHeader:
+            Boolean(
+              previousHeader
+            ),
+
+          hasHour24Header:
+            Boolean(
+              hour24Header
+            ),
+
+          tagRectangle:
+            tagCell.rectangle,
+
+          previousHeaderRectangle:
+            previousHeader?.rectangle ||
+            null,
+
+          hour24HeaderRectangle:
+            hour24Header?.rectangle ||
+            null
+        };
       },
       targetTag
     );
 
 
-  const numericValue =
+  const startStock =
     parseOisAgentNumber(
-      rawResult?.value
+      rawResult?.startStock
     );
 
 
-  return numericValue;
+  const endStock =
+    parseOisAgentNumber(
+      rawResult?.endStock
+    );
+
+
+  console.log(
+    "OIS 석회석 재고 읽기 결과:",
+    {
+      tag:
+        targetTag,
+
+      startStock,
+
+      endStock,
+
+      diagnosis:
+        rawResult
+    }
+  );
+
+
+  if (
+    startStock ===
+      null ||
+    endStock ===
+      null
+  ) {
+    return null;
+  }
+
+
+  return {
+    startStock,
+    endStock
+  };
 }
 
-
 /* =========================================================
-  TAG 값이 나타날 때까지 대기
+  OIS 전일·24시 재고값 대기
 ========================================================= */
 
-async function waitForOisPreviousStockValue(
+async function waitForOisLimestoneDayStocks(
   frame,
   targetTag
 ) {
@@ -3140,42 +3863,81 @@ async function waitForOisPreviousStockValue(
     Date.now();
 
 
+  let attemptCount =
+    0;
+
+
   while (
     Date.now() -
       startedAt <
     OIS_QUERY_TIMEOUT
   ) {
-    const value =
-      await readOisPreviousStockValue(
+    attemptCount +=
+      1;
+
+
+    const stocks =
+      await readOisLimestoneDayStocks(
         frame,
         targetTag
       ).catch(
-        () => null
+        error => {
+          console.warn(
+            `OIS 석회석 재고 확인 ${attemptCount}회차 오류:`,
+            error
+          );
+
+
+          return null;
+        }
       );
 
 
     if (
-      value !==
+      stocks &&
+      stocks.startStock !==
+        null &&
+      stocks.endStock !==
         null
     ) {
-      return value;
+      console.log(
+        [
+          targetTag,
+          `전일 ${stocks.startStock} t`,
+          `24시 ${stocks.endStock} t`
+        ].join(
+          " · "
+        )
+      );
+
+
+      return stocks;
     }
 
 
     await waitOisAgent(
-      400
+      500
     );
   }
 
 
   throw new Error(
-    `${targetTag}의 전일 재고값을 읽지 못했습니다.`
+    `${targetTag}의 전일·24시 재고값을 읽지 못했습니다.`
   );
 }
 
-
 /* =========================================================
   호기·날짜별 석회석 전일 재고 조회
+========================================================= */
+
+/* =========================================================
+  호기별 선택일 석회석 재고 조회
+
+  한 번의 날짜 조회에서:
+  - 전일 재고
+  - 24시 재고
+
+  두 값을 모두 읽는다.
 ========================================================= */
 
 async function queryOisLimestonePreviousStock(
@@ -3189,10 +3951,6 @@ async function queryOisLimestonePreviousStock(
     );
 
 
-  /*
-    부서 선택항목이 있으면 설비운영팀을 선택한다.
-    이미 선택된 경우에도 동일하게 유지된다.
-  */
   await selectOisOptionByLabel(
     frame,
     "설비운영팀",
@@ -3215,9 +3973,6 @@ async function queryOisLimestonePreviousStock(
   );
 
 
-  /*
-    SHEET 변경 후 화면 내부 데이터가 갱신될 시간을 준다.
-  */
   await page.waitForTimeout(
     500
   );
@@ -3242,10 +3997,10 @@ async function queryOisLimestonePreviousStock(
 
 
   /*
-    TossPlatform 그리드 갱신 대기
+    그리드 전체 로딩
   */
   await page.waitForTimeout(
-    1500
+    1600
   );
 
 
@@ -3256,8 +4011,65 @@ async function queryOisLimestonePreviousStock(
     frame;
 
 
-  const stockValue =
-    await waitForOisPreviousStockValue(
+  /*
+    24시 열은 오른쪽에 있으므로
+    그리드 가로 스크롤을 마지막까지 이동한다.
+  */
+  await frame.evaluate(
+    () => {
+      const scrollCandidates = [
+        ...document.querySelectorAll(
+          "*"
+        )
+      ]
+        .filter(
+          element => {
+            return (
+              element.scrollWidth >
+                element.clientWidth +
+                50 &&
+              element.clientWidth >
+                300 &&
+              element.clientHeight >
+                100
+            );
+          }
+        )
+        .sort(
+          (
+            first,
+            second
+          ) => {
+            return (
+              second.scrollWidth -
+              first.scrollWidth
+            );
+          }
+        );
+
+
+      const gridScroller =
+        scrollCandidates[0] ||
+        null;
+
+
+      if (
+        gridScroller
+      ) {
+        gridScroller.scrollLeft =
+          gridScroller.scrollWidth;
+      }
+    }
+  );
+
+
+  await page.waitForTimeout(
+    500
+  );
+
+
+  const stocks =
+    await waitForOisLimestoneDayStocks(
       frame,
       unitDefinition.tag
     );
@@ -3267,20 +4079,29 @@ async function queryOisLimestonePreviousStock(
     [
       `${unitDefinition.unit}호기`,
       targetDate,
-      "전일 재고",
-      `${stockValue} ton`
+      `전일 ${stocks.startStock} ton`,
+      `24시 ${stocks.endStock} ton`
     ].join(
       " · "
     )
   );
 
 
-  return stockValue;
+  return stocks;
 }
 
-
 /* =========================================================
-  선택일·다음 날의 1·2호기 석회석 재고 수집
+  선택일의 1·2호기 석회석 재고 수집
+
+  기존:
+  - 선택일 전일
+  - 다음 날 전일
+
+  변경:
+  - 선택일 전일
+  - 선택일 24시
+
+  날짜 조회는 호기별 한 번만 실행한다.
 ========================================================= */
 
 async function collectOisLimestoneStocks(
@@ -3305,23 +4126,24 @@ async function collectOisLimestoneStocks(
   );
 
 
-  const nextDate =
-    addOisAgentDateDays(
-      targetDate,
-      1
-    );
-
-
   const collectedResult = {
     targetDate,
 
-    nextDate,
+    /*
+      API 기존 구조와의 호환을 위해
+      다음 날짜 정보는 유지한다.
+      재고값 자체는 선택일 24시 값이다.
+    */
+    nextDate:
+      addOisAgentDateDays(
+        targetDate,
+        1
+      ),
 
     unitOne: {
       tag:
-        OIS_UNIT_DEFINITIONS[
-          0
-        ].tag,
+        OIS_UNIT_DEFINITIONS[0]
+          .tag,
 
       startStock:
         null,
@@ -3332,9 +4154,8 @@ async function collectOisLimestoneStocks(
 
     unitTwo: {
       tag:
-        OIS_UNIT_DEFINITIONS[
-          1
-        ].tag,
+        OIS_UNIT_DEFINITIONS[1]
+          .tag,
 
       startStock:
         null,
@@ -3352,19 +4173,11 @@ async function collectOisLimestoneStocks(
     const unitDefinition of
     OIS_UNIT_DEFINITIONS
   ) {
-    const startStock =
+    const stocks =
       await queryOisLimestonePreviousStock(
         page,
         unitDefinition,
         targetDate
-      );
-
-
-    const endStock =
-      await queryOisLimestonePreviousStock(
-        page,
-        unitDefinition,
-        nextDate
       );
 
 
@@ -3378,13 +4191,13 @@ async function collectOisLimestoneStocks(
     collectedResult[
       resultKey
     ].startStock =
-      startStock;
+      stocks.startStock;
 
 
     collectedResult[
       resultKey
     ].endStock =
-      endStock;
+      stocks.endStock;
   }
 
 
@@ -3395,7 +4208,6 @@ async function collectOisLimestoneStocks(
 
   return collectedResult;
 }
-
 
 /* =========================================================
   요청 처리 중 오류 화면 저장
