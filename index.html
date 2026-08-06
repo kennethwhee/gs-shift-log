@@ -5778,13 +5778,12 @@
 <!-- =================================================
   5. 자동 수치 미리보기
 
-  오전회의 최종 엑셀에 자동 반영되는 값:
+  오전회의 최종 엑셀 자동 반영값:
 
-  1. 수처리 현황
-  2. 석회석 재고 · 입고 · 사용량
+  1. 수처리
+  2. 석회석
   3. Gear Wheel / Pinion
-
-  실제 값은 script.js에서 자동 연결한다.
+  4. BO1 · BO2 보일러 온도
 ================================================== -->
 
 <section
@@ -5796,7 +5795,9 @@
     상단
   ================================================== -->
 
-  <header class="efficiency-morning-meeting-auto-preview__header">
+  <header
+    class="efficiency-morning-meeting-auto-preview__header"
+  >
 
     <div>
 
@@ -5827,10 +5828,18 @@
 
 
   <!-- =================================================
-    카드 3개
+    자동자료 카드
+
+    PC:
+    수처리 | 석회석 | Gear / Pinion
+
+    아래:
+    BO1 · BO2 온도 전체 폭
   ================================================== -->
 
-  <div class="efficiency-morning-meeting-auto-preview__grid">
+  <div
+    class="efficiency-morning-meeting-auto-preview__grid"
+  >
 
 
     <!-- =================================================
@@ -5844,7 +5853,9 @@
       "
     >
 
-      <header class="efficiency-morning-meeting-auto-card__header">
+      <header
+        class="efficiency-morning-meeting-auto-card__header"
+      >
 
         <div>
 
@@ -5859,79 +5870,43 @@
         </div>
 
 
-<div class="efficiency-morning-meeting-auto-card__meta">
+        <!-- =============================================
+          수처리 날짜 · 상태
 
-  <!-- =============================================
-    기존 석회석 사용량 기능 날짜 조작
-  ============================================== -->
+          중요:
+          석회석 ID를 사용하지 않는다.
+        ============================================== -->
 
-  <div
-    class="efficiency-morning-meeting-limestone-date-nav"
-  >
+        <div
+          class="efficiency-morning-meeting-auto-card__meta"
+        >
 
-    <button
-      type="button"
-      class="efficiency-morning-meeting-limestone-date-button"
-      id="efficiencyMorningMeetingLimestonePreviousButton"
-      title="전날 석회석 사용량"
-    >
-      ‹ 전날
-    </button>
+          <small
+            id="efficiencyMorningMeetingAutoWaterDate"
+          >
+            -
+          </small>
 
 
-    <button
-      type="button"
-      class="
-        efficiency-morning-meeting-limestone-date-button
-        is-today
-      "
-      id="efficiencyMorningMeetingLimestoneTodayButton"
-      title="오늘 석회석 사용량"
-    >
-      오늘
-    </button>
+          <span
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoWaterStatus"
+          >
+            조회 대기
+          </span>
 
-
-    <button
-      type="button"
-      class="efficiency-morning-meeting-limestone-date-button"
-      id="efficiencyMorningMeetingLimestoneNextButton"
-      title="다음날 석회석 사용량"
-    >
-      다음날 ›
-    </button>
-
-  </div>
-
-
-  <div
-    class="efficiency-morning-meeting-limestone-date-state"
-  >
-
-    <small
-      id="efficiencyMorningMeetingAutoLimestoneDate"
-    >
-      -
-    </small>
-
-
-    <span
-      class="efficiency-morning-meeting-auto-card__badge"
-      id="efficiencyMorningMeetingAutoLimestoneStatus"
-    >
-      조회 대기
-    </span>
-
-  </div>
-
-</div>
+        </div>
 
       </header>
 
 
-      <div class="efficiency-morning-meeting-auto-card__body">
+      <div
+        class="efficiency-morning-meeting-auto-card__body"
+      >
 
-        <div class="efficiency-morning-meeting-auto-row">
+        <div
+          class="efficiency-morning-meeting-auto-row"
+        >
 
           <span>
             원수 유입
@@ -5946,7 +5921,9 @@
         </div>
 
 
-        <div class="efficiency-morning-meeting-auto-row">
+        <div
+          class="efficiency-morning-meeting-auto-row"
+        >
 
           <span>
             순수 생산 / 사용
@@ -5961,7 +5938,9 @@
         </div>
 
 
-        <div class="efficiency-morning-meeting-auto-row">
+        <div
+          class="efficiency-morning-meeting-auto-row"
+        >
 
           <span>
             원수 TANK
@@ -5976,7 +5955,9 @@
         </div>
 
 
-        <div class="efficiency-morning-meeting-auto-row">
+        <div
+          class="efficiency-morning-meeting-auto-row"
+        >
 
           <span>
             여과수 TANK
@@ -5991,7 +5972,9 @@
         </div>
 
 
-        <div class="efficiency-morning-meeting-auto-row">
+        <div
+          class="efficiency-morning-meeting-auto-row"
+        >
 
           <span>
             순수 TANK
@@ -6012,6 +5995,12 @@
 
     <!-- =================================================
       2. 석회석
+
+      날짜 이동:
+      기존 석회석 → 사용량 계산 기능을 그대로 사용
+
+      [전날] [오늘] [다음날]
+      버튼을 석회석 카드 상단에 배치
     ================================================== -->
 
     <article
@@ -6021,12 +6010,23 @@
       "
     >
 
-      <header class="efficiency-morning-meeting-auto-card__header">
+      <header
+        class="efficiency-morning-meeting-auto-card__header"
+      >
 
         <div>
 
           <span>
-            LIMESTONE
+            LIM        efficiency-morning-meeting-auto-card
+        is-limestone
+      "
+    >
+
+      <header
+        class="efficiency-morning-meeting-auto-card__header"
+      >
+
+        <ESTONE
           </span>
 
           <strong>
@@ -6036,29 +6036,91 @@
         </div>
 
 
-        <div class="efficiency-morning-meeting-auto-card__meta">
+        <div
+          class="efficiency-morning-meeting-auto-card__meta"
+        >
 
-          <small
-            id="efficiencyMorningMeetingAutoLimestoneDate"
-          >
-            -
-          </small>
+          <!-- ===========================================
+            석회석 날짜 이동
 
-          <span
-            class="efficiency-morning-meeting-auto-card__badge"
-            id="efficiencyMorningMeetingAutoLimestoneStatus"
+            기존 석회석 사용량 계산 기능과 연결됨
+          ============================================ -->
+
+          <div
+            class="efficiency-morning-meeting-limestone-date-nav"
           >
-            조회 대기
-          </span>
+
+            <button
+              type="button"
+              class="efficiency-morning-meeting-limestone-date-button"
+              id="efficiencyMorningMeetingLimestonePreviousButton"
+              title="전날 석회석 사용량"
+            >
+              ‹ 전날
+            </button>
+
+
+            <button
+              type="button"
+              class="
+                efficiency-morning-meeting-limestone-date-button
+                is-today
+              "
+              id="efficiencyMorningMeetingLimestoneTodayButton"
+              title="오늘 석회석 사용량"
+            >
+              오늘
+            </button>
+
+
+            <button
+              type="button"
+              class="efficiency-morning-meeting-limestone-date-button"
+              id="efficiencyMorningMeetingLimestoneNextButton"
+              title="다음날 석회석 사용량"
+            >
+              다음날 ›
+            </button>
+
+          </div>
+
+
+          <!-- ===========================================
+            석회석 날짜 · 상태
+          ============================================ -->
+
+          <div
+            class="efficiency-morning-meeting-limestone-date-state"
+          >
+
+            <small
+              id="efficiencyMorningMeetingAutoLimestoneDate"
+            >
+              -
+            </small>
+
+
+            <span
+              class="efficiency-morning-meeting-auto-card__badge"
+              id="efficiencyMorningMeetingAutoLimestoneStatus"
+            >
+              조회 대기
+            </span>
+
+          </div>
 
         </div>
 
       </header>
 
 
-      <div class="efficiency-morning-meeting-auto-card__body">
+      <div
+        class="efficiency-morning-meeting-auto-card__body"
+      >
 
-        <div class="efficiency-morning-meeting-auto-row">
+        <div
+          class="efficiency-morning-meeting-auto-row"
+        >
 
           <span>
             1호기 재고
@@ -6073,7 +6135,9 @@
         </div>
 
 
-        <div class="efficiency-morning-meeting-auto-row">
+        <div
+          class="efficiency-morning-meeting-auto-row"
+        >
 
           <span>
             2호기 재고
@@ -6088,7 +6152,9 @@
         </div>
 
 
-        <div class="efficiency-morning-meeting-auto-row">
+        <div
+          class="efficiency-morning-meeting-auto-row"
+        >
 
           <span>
             입고량 1 / 2호기
@@ -6103,7 +6169,9 @@
         </div>
 
 
-        <div class="efficiency-morning-meeting-auto-row">
+        <div
+          class="efficiency-morning-meeting-auto-row"
+        >
 
           <span>
             사용량 1 / 2호기
@@ -6133,7 +6201,9 @@
       "
     >
 
-      <header class="efficiency-morning-meeting-auto-card__header">
+      <header
+        class="efficiency-morning-meeting-auto-card__header"
+      >
 
         <div>
 
@@ -6148,13 +6218,16 @@
         </div>
 
 
-        <div class="efficiency-morning-meeting-auto-card__meta">
+        <div
+          class="efficiency-morning-meeting-auto-card__meta"
+        >
 
           <small
             id="efficiencyMorningMeetingAutoGearPinionDate"
           >
             -
           </small>
+
 
           <span
             class="efficiency-morning-meeting-auto-card__badge"
@@ -6168,9 +6241,13 @@
       </header>
 
 
-      <div class="efficiency-morning-meeting-auto-card__body">
+      <div
+        class="efficiency-morning-meeting-auto-card__body"
+      >
 
-        <div class="efficiency-morning-meeting-auto-row">
+        <div
+          class="efficiency-morning-meeting-auto-row"
+        >
 
           <span>
             Gear Wheel
@@ -6185,7 +6262,9 @@
         </div>
 
 
-        <div class="efficiency-morning-meeting-auto-row">
+        <div
+          class="efficiency-morning-meeting-auto-row"
+        >
 
           <span>
             Pinion
@@ -6223,412 +6302,417 @@
 
     </article>
 
-<!-- =================================================
-  4. BO1 · BO2 보일러 온도
-
-  자동:
-  - 현재 N/S BO1 → 1호기
-  - 현재 N/S BO2 → 2호기
-
-  수정:
-  - 사용자가 직접 숫자를 수정할 수 있음
-  - 수정값은 최종 엑셀에 반영
-================================================== -->
-
-<article
-  class="
-    efficiency-morning-meeting-auto-card
-    efficiency-morning-meeting-boiler-card
-    is-boiler
-  "
->
-
-  <!-- =================================================
-    헤더
-  ================================================== -->
-
-  <header class="efficiency-morning-meeting-auto-card__header">
-
-    <div>
-
-      <span>
-        BOILER TEMPERATURE
-      </span>
-
-      <strong>
-        1·2호기 온도
-      </strong>
-
-    </div>
-
-
-    <div class="efficiency-morning-meeting-auto-card__meta">
-
-      <small
-        id="efficiencyMorningMeetingAutoBoilerDate"
-      >
-        -
-      </small>
-
-      <span
-        class="efficiency-morning-meeting-auto-card__badge"
-        id="efficiencyMorningMeetingAutoBoilerStatus"
-      >
-        조회 대기
-      </span>
-
-    </div>
-
-  </header>
-
-
-  <!-- =================================================
-    온도 표
-  ================================================== -->
-
-  <div class="efficiency-morning-meeting-boiler-table">
-
-    <!-- 헤더 -->
-
-    <div
-      class="
-        efficiency-morning-meeting-boiler-row
-        is-header
-      "
-    >
-
-      <span>
-        구분
-      </span>
-
-      <span>
-        FBHE L
-      </span>
-
-      <span>
-        FBHE R
-      </span>
-
-      <span>
-        Wall A
-      </span>
-
-      <span>
-        Wall B
-      </span>
-
-      <span>
-        Wall C
-      </span>
-
-      <span>
-        Wall D
-      </span>
-
-    </div>
-
 
     <!-- =================================================
-      1호기
+      4. BO1 · BO2 보일러 온도
+
+      자동:
+      현재 N/S BO1 → 1호기
+      현재 N/S BO2 → 2호기
+
+      직접 수정:
+      수정한 숫자가 최종 엑셀에 반영됨
     ================================================== -->
 
-    <div
+    <article
       class="
-        efficiency-morning-meeting-boiler-row
-        is-unit
+        efficiency-morning-meeting-auto-card
+        efficiency-morning-meeting-boiler-card
+        is-boiler
       "
     >
 
-      <strong>
-        1호기
-      </strong>
+      <header
+        class="efficiency-morning-meeting-auto-card__header"
+      >
+
+        <div>
+
+          <span>
+            BOILER TEMPERATURE
+          </span>
+
+          <strong>
+            1·2호기 온도
+          </strong>
+
+        </div>
 
 
-      <label>
-
-        <input
-          type="number"
-          step="0.1"
-          id="efficiencyMorningMeetingBoiler1FbheLeft"
-          data-boiler-temperature-input
-          data-unit="1"
-          data-temperature-key="fbheLeft"
-          inputmode="decimal"
-          aria-label="1호기 FBHE Left 온도"
+        <div
+          class="efficiency-morning-meeting-auto-card__meta"
         >
 
-        <small>
-          ℃
-        </small>
+          <small
+            id="efficiencyMorningMeetingAutoBoilerDate"
+          >
+            -
+          </small>
 
-      </label>
+
+          <span
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoBoilerStatus"
+          >
+            조회 대기
+          </span>
+
+        </div>
+
+      </header>
 
 
-      <label>
+      <!-- =================================================
+        온도표
+      ================================================== -->
 
-        <input
-          type="number"
-          step="0.1"
-          id="efficiencyMorningMeetingBoiler1FbheRight"
-          data-boiler-temperature-input
-          data-unit="1"
-          data-temperature-key="fbheRight"
-          inputmode="decimal"
-          aria-label="1호기 FBHE Right 온도"
+      <div
+        class="efficiency-morning-meeting-boiler-table"
+      >
+
+        <!-- ===============================================
+          제목
+        ================================================ -->
+
+        <div
+          class="
+            efficiency-morning-meeting-boiler-row
+            is-header
+          "
         >
 
-        <small>
-          ℃
-        </small>
+          <span>
+            구분
+          </span>
 
-      </label>
+          <span>
+            FBHE L
+          </span>
+
+          <span>
+            FBHE R
+          </span>
+
+          <span>
+            Wall A
+          </span>
+
+          <span>
+            Wall B
+          </span>
+
+          <span>
+            Wall C
+          </span>
+
+          <span>
+            Wall D
+          </span>
+
+        </div>
 
 
-      <label>
+        <!-- ===============================================
+          1호기
+        ================================================ -->
 
-        <input
-          type="number"
-          step="0.1"
-          id="efficiencyMorningMeetingBoiler1WallA"
-          data-boiler-temperature-input
-          data-unit="1"
-          data-temperature-key="wallScrew.A"
-          inputmode="decimal"
-          aria-label="1호기 Wall Screw A 온도"
+        <div
+          class="
+            efficiency-morning-meeting-boiler-row
+            is-unit
+          "
         >
 
-        <small>
-          ℃
-        </small>
-
-      </label>
+          <strong>
+            1호기
+          </strong>
 
 
-      <label>
+          <label>
 
-        <input
-          type="number"
-          step="0.1"
-          id="efficiencyMorningMeetingBoiler1WallB"
-          data-boiler-temperature-input
-          data-unit="1"
-          data-temperature-key="wallScrew.B"
-          inputmode="decimal"
-          aria-label="1호기 Wall Screw B 온도"
+            <input
+              type="number"
+              step="0.1"
+              id="efficiencyMorningMeetingBoiler1FbheLeft"
+              data-boiler-temperature-input
+              data-unit="1"
+              data-temperature-key="fbheLeft"
+              inputmode="decimal"
+              aria-label="1호기 FBHE Left 온도"
+            >
+
+            <small>
+              ℃
+            </small>
+
+          </label>
+
+
+          <label>
+
+            <input
+              type="number"
+              step="0.1"
+              id="efficiencyMorningMeetingBoiler1FbheRight"
+              data-boiler-temperature-input
+              data-unit="1"
+              data-temperature-key="fbheRight"
+              inputmode="decimal"
+              aria-label="1호기 FBHE Right 온도"
+            >
+
+            <small>
+              ℃
+            </small>
+
+          </label>
+
+
+          <label>
+
+            <input
+              type="number"
+              step="0.1"
+              id="efficiencyMorningMeetingBoiler1WallA"
+              data-boiler-temperature-input
+              data-unit="1"
+              data-temperature-key="wallScrew.A"
+              inputmode="decimal"
+              aria-label="1호기 Wall Screw A 온도"
+            >
+
+            <small>
+              ℃
+            </small>
+
+          </label>
+
+
+          <label>
+
+            <input
+              type="number"
+              step="0.1"
+              id="efficiencyMorningMeetingBoiler1WallB"
+              data-boiler-temperature-input
+              data-unit="1"
+              data-temperature-key="wallScrew.B"
+              inputmode="decimal"
+              aria-label="1호기 Wall Screw B 온도"
+            >
+
+            <small>
+              ℃
+            </small>
+
+          </label>
+
+
+          <label>
+
+            <input
+              type="number"
+              step="0.1"
+              id="efficiencyMorningMeetingBoiler1WallC"
+              data-boiler-temperature-input
+              data-unit="1"
+              data-temperature-key="wallScrew.C"
+              inputmode="decimal"
+              aria-label="1호기 Wall Screw C 온도"
+            >
+
+            <small>
+              ℃
+            </small>
+
+          </label>
+
+
+          <label>
+
+            <input
+              type="number"
+              step="0.1"
+              id="efficiencyMorningMeetingBoiler1WallD"
+              data-boiler-temperature-input
+              data-unit="1"
+              data-temperature-key="wallScrew.D"
+              inputmode="decimal"
+              aria-label="1호기 Wall Screw D 온도"
+            >
+
+            <small>
+              ℃
+            </small>
+
+          </label>
+
+        </div>
+
+
+        <!-- ===============================================
+          2호기
+        ================================================ -->
+
+        <div
+          class="
+            efficiency-morning-meeting-boiler-row
+            is-unit
+          "
         >
 
-        <small>
-          ℃
-        </small>
-
-      </label>
+          <strong>
+            2호기
+          </strong>
 
 
-      <label>
+          <label>
 
-        <input
-          type="number"
-          step="0.1"
-          id="efficiencyMorningMeetingBoiler1WallC"
-          data-boiler-temperature-input
-          data-unit="1"
-          data-temperature-key="wallScrew.C"
-          inputmode="decimal"
-          aria-label="1호기 Wall Screw C 온도"
-        >
+            <input
+              type="number"
+              step="0.1"
+              id="efficiencyMorningMeetingBoiler2FbheLeft"
+              data-boiler-temperature-input
+              data-unit="2"
+              data-temperature-key="fbheLeft"
+              inputmode="decimal"
+              aria-label="2호기 FBHE Left 온도"
+            >
 
-        <small>
-          ℃
-        </small>
+            <small>
+              ℃
+            </small>
 
-      </label>
-
-
-      <label>
-
-        <input
-          type="number"
-          step="0.1"
-          id="efficiencyMorningMeetingBoiler1WallD"
-          data-boiler-temperature-input
-          data-unit="1"
-          data-temperature-key="wallScrew.D"
-          inputmode="decimal"
-          aria-label="1호기 Wall Screw D 온도"
-        >
-
-        <small>
-          ℃
-        </small>
-
-      </label>
-
-    </div>
+          </label>
 
 
-    <!-- =================================================
-      2호기
-    ================================================== -->
+          <label>
 
-    <div
-      class="
-        efficiency-morning-meeting-boiler-row
-        is-unit
-      "
-    >
+            <input
+              type="number"
+              step="0.1"
+              id="efficiencyMorningMeetingBoiler2FbheRight"
+              data-boiler-temperature-input
+              data-unit="2"
+              data-temperature-key="fbheRight"
+              inputmode="decimal"
+              aria-label="2호기 FBHE Right 온도"
+            >
 
-      <strong>
-        2호기
-      </strong>
+            <small>
+              ℃
+            </small>
 
-
-      <label>
-
-        <input
-          type="number"
-          step="0.1"
-          id="efficiencyMorningMeetingBoiler2FbheLeft"
-          data-boiler-temperature-input
-          data-unit="2"
-          data-temperature-key="fbheLeft"
-          inputmode="decimal"
-          aria-label="2호기 FBHE Left 온도"
-        >
-
-        <small>
-          ℃
-        </small>
-
-      </label>
+          </label>
 
 
-      <label>
+          <label>
 
-        <input
-          type="number"
-          step="0.1"
-          id="efficiencyMorningMeetingBoiler2FbheRight"
-          data-boiler-temperature-input
-          data-unit="2"
-          data-temperature-key="fbheRight"
-          inputmode="decimal"
-          aria-label="2호기 FBHE Right 온도"
-        >
+            <input
+              type="number"
+              step="0.1"
+              id="efficiencyMorningMeetingBoiler2WallA"
+              data-boiler-temperature-input
+              data-unit="2"
+              data-temperature-key="wallScrew.A"
+              inputmode="decimal"
+              aria-label="2호기 Wall Screw A 온도"
+            >
 
-        <small>
-          ℃
-        </small>
+            <small>
+              ℃
+            </small>
 
-      </label>
-
-
-      <label>
-
-        <input
-          type="number"
-          step="0.1"
-          id="efficiencyMorningMeetingBoiler2WallA"
-          data-boiler-temperature-input
-          data-unit="2"
-          data-temperature-key="wallScrew.A"
-          inputmode="decimal"
-          aria-label="2호기 Wall Screw A 온도"
-        >
-
-        <small>
-          ℃
-        </small>
-
-      </label>
+          </label>
 
 
-      <label>
+          <label>
 
-        <input
-          type="number"
-          step="0.1"
-          id="efficiencyMorningMeetingBoiler2WallB"
-          data-boiler-temperature-input
-          data-unit="2"
-          data-temperature-key="wallScrew.B"
-          inputmode="decimal"
-          aria-label="2호기 Wall Screw B 온도"
-        >
+            <input
+              type="number"
+              step="0.1"
+              id="efficiencyMorningMeetingBoiler2WallB"
+              data-boiler-temperature-input
+              data-unit="2"
+              data-temperature-key="wallScrew.B"
+              inputmode="decimal"
+              aria-label="2호기 Wall Screw B 온도"
+            >
 
-        <small>
-          ℃
-        </small>
+            <small>
+              ℃
+            </small>
 
-      </label>
-
-
-      <label>
-
-        <input
-          type="number"
-          step="0.1"
-          id="efficiencyMorningMeetingBoiler2WallC"
-          data-boiler-temperature-input
-          data-unit="2"
-          data-temperature-key="wallScrew.C"
-          inputmode="decimal"
-          aria-label="2호기 Wall Screw C 온도"
-        >
-
-        <small>
-          ℃
-        </small>
-
-      </label>
+          </label>
 
 
-      <label>
+          <label>
 
-        <input
-          type="number"
-          step="0.1"
-          id="efficiencyMorningMeetingBoiler2WallD"
-          data-boiler-temperature-input
-          data-unit="2"
-          data-temperature-key="wallScrew.D"
-          inputmode="decimal"
-          aria-label="2호기 Wall Screw D 온도"
-        >
+            <input
+              type="number"
+              step="0.1"
+              id="efficiencyMorningMeetingBoiler2WallC"
+              data-boiler-temperature-input
+              data-unit="2"
+              data-temperature-key="wallScrew.C"
+              inputmode="decimal"
+              aria-label="2호기 Wall Screw C 온도"
+            >
 
-        <small>
-          ℃
-        </small>
+            <small>
+              ℃
+            </small>
 
-      </label>
-
-    </div>
-
-  </div>
+          </label>
 
 
-  <!-- =================================================
-    안내
-  ================================================== -->
+          <label>
 
-  <div class="efficiency-morning-meeting-boiler-card__footer">
+            <input
+              type="number"
+              step="0.1"
+              id="efficiencyMorningMeetingBoiler2WallD"
+              data-boiler-temperature-input
+              data-unit="2"
+              data-temperature-key="wallScrew.D"
+              inputmode="decimal"
+              aria-label="2호기 Wall Screw D 온도"
+            >
 
-    <span>
-      현재 N/S BO1·BO2 운전현황에서 자동 입력
-    </span>
+            <small>
+              ℃
+            </small>
 
-    <strong>
-      숫자를 직접 수정하면 최종 엑셀에도 수정값이 반영됩니다.
-    </strong>
+          </label>
 
-  </div>
+        </div>
 
-</article>
+      </div>
+
+
+      <!-- =================================================
+        안내
+      ================================================== -->
+
+      <div
+        class="efficiency-morning-meeting-boiler-card__footer"
+      >
+
+        <span>
+          현재 N/S BO1·BO2 운전현황에서 자동 입력
+        </span>
+
+        <strong>
+          숫자를 직접 수정하면 최종 엑셀에도 수정값이 반영됩니다.
+        </strong>
+
+      </div>
+
+    </article>
 
   </div>
 
 </section>
-
-
 
   <!-- =================================================
     5. 처리 결과 및 버튼

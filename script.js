@@ -161801,38 +161801,45 @@ window
       attachmentName:
         "",
 
+/*
+  파트장이 어느 보직의 + 버튼으로 추가했는지
+  명확하게 고정한다.
 
-      /*
-        화면에서는 해당 보직 아래에 표시한다.
-      */
-      importedFromRole:
-        role,
-
-
-      /*
-        작성자는 파트장
-      */
-      importedFromAuthor:
-        author,
+  TGO +  → TGO
+  BCO1 + → BCO1
+  BCO2 + → BCO2
+*/
+role:
+  role,
 
 
-      /*
-        팀원 업무일지 원본에서 가져온 것이 아니므로
-        원본 업무일지 ID는 절대 넣지 않는다.
-      */
-      importedFromLogId:
-        "",
-
-      importedFromEntryIndex:
-        null,
+leaderTargetRole:
+  role,
 
 
-      /*
-        이 값으로 최신화/일괄취합에서
-        파트장 직접 추가 업무임을 구분한다.
-      */
-      source:
-        LEADER_ROLE_MANUAL_SOURCE
+importedFromRole:
+  role,
+
+
+importedFromAuthor:
+  author,
+
+
+/*
+  팀원 원본에서 가져온 항목이 아니므로
+  원본 업무일지 정보는 비워 둔다.
+*/
+importedFromLogId:
+  "",
+
+
+importedFromEntryIndex:
+  null,
+
+
+source:
+  LEADER_ROLE_MANUAL_SOURCE
+
     };
 
 
@@ -161923,29 +161930,50 @@ window
         event.preventDefault();
         event.stopPropagation();
 
+/*
+  + 버튼 자체에 저장된 값을 쓰지 않고
+  실제로 클릭한 보직 행의 data-role-group을 사용한다.
 
-        const role =
-          quickAddButton.dataset
-            .leaderRoleQuickAdd;
-
-
-        const roleRow =
-          quickAddButton.closest(
-            ".log-entry-role-divider-row"
-          );
-
-
-        if (
-          roleRow
-        ) {
-          openLeaderRoleQuickAddEditor(
-            role,
-            roleRow
-          );
-        }
+  예:
+  TGO 업무일지 + 클릭
+  → 무조건 TGO
+*/
+const roleRow =
+  quickAddButton.closest(
+    ".log-entry-role-divider-row[data-role-group]"
+  );
 
 
-        return;
+const role =
+  normalizeLeaderQuickAddRole(
+    roleRow?.dataset
+      .roleGroup ||
+    ""
+  );
+
+
+if (
+  !roleRow ||
+  !LEADER_ROLE_QUICK_ADD_ROLES.includes(
+    role
+  )
+) {
+  showToast(
+    "추가할 보직을 확인할 수 없습니다."
+  );
+
+  return;
+}
+
+
+openLeaderRoleQuickAddEditor(
+  role,
+  roleRow
+);
+
+
+return;
+
       }
 
 
@@ -162179,6 +162207,109 @@ window
       protectedRemoveFunction;
   }
 
+/* =====================================================
+  파트장 보직별 직접추가 항목
+  자동 보직 재판정 방지
+
+  중요:
+  TGO + 로 추가했다면 이후 어떤 렌더링에서도 TGO
+  BCO1 + 로 추가했다면 이후 어떤 렌더링에서도 BCO1
+  BCO2 + 로 추가했다면 이후 어떤 렌더링에서도 BCO2
+===================================================== */
+
+if (
+  typeof resolveDetailEntrySourceRole ===
+    "function" &&
+  resolveDetailEntrySourceRole
+    .__leaderRoleManualProtected !==
+    true
+) {
+  const originalResolveDetailEntrySourceRole =
+    resolveDetailEntrySourceRole;
+
+
+  const protectedResolveDetailEntrySourceRole =
+    function (
+      entry,
+      detailLog
+    ) {
+      const source =
+        String(
+          entry?.source ||
+          ""
+        ).trim();
+
+
+      /*
+        파트장이 보직별 + 버튼으로 직접 추가한 항목은
+        기존 자동 출처 판정을 절대 사용하지 않는다.
+      */
+      if (
+        source ===
+          LEADER_ROLE_MANUAL_SOURCE
+      ) {
+        const manualRole =
+          normalizeLeaderQuickAddRole(
+            entry?.leaderTargetRole ||
+            entry?.role ||
+            entry?.importedFromRole ||
+            ""
+          );
+
+
+        if (
+          LEADER_ROLE_QUICK_ADD_ROLES.includes(
+            manualRole
+          )
+        ) {
+          /*
+            혹시 이전 처리에서 값이 바뀌었더라도
+            파트장이 선택한 원래 보직으로 다시 고정
+          */
+          entry.role =
+            manualRole;
+
+
+          entry.leaderTargetRole =
+            manualRole;
+
+
+          entry.importedFromRole =
+            manualRole;
+
+
+          entry.importedFromLogId =
+            "";
+
+
+          entry.importedFromEntryIndex =
+            null;
+
+
+          return manualRole;
+        }
+      }
+
+
+      /*
+        일반 취합 항목은 기존 자동판정 그대로 사용
+      */
+      return originalResolveDetailEntrySourceRole.call(
+        this,
+        entry,
+        detailLog
+      );
+    };
+
+
+  protectedResolveDetailEntrySourceRole
+    .__leaderRoleManualProtected =
+    true;
+
+
+  resolveDetailEntrySourceRole =
+    protectedResolveDetailEntrySourceRole;
+}
 
   /* =====================================================
     일괄취합 보호
