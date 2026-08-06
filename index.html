@@ -4957,54 +4957,72 @@
 
 
 <!-- =================================================
-  운탄일지 내용 선택
+  운탄일지 · TM 사항 선택
 
-  추출 대상:
-  1. N/S 주요작업
-  2. D/S 정비 사항
-  3. D/S 특이 사항
-  4. 연료분진팀 금일 작업
+  왼쪽:
+  - N/S 주요작업
+  - D/S 특이 사항
+  - D/S 정비 사항
+  - 연료분진팀 금일 작업
 
-  선택한 항목:
-  - 최종 취합본의 연료 설비 구역에 반영
+  오른쪽:
+  - 교대파트 TM 발행사항
+  - 운탄일지 TM 발행사항
 
-  수치 자료:
-  - 운탄일지 분석 시 자동 추출
+  운탄일지 자동 추출 수치:
+  - 이 화면에는 표시하지 않음
+  - 취합 내용 미리보기에서만 표시
 ================================================== -->
 
 <section
-  class="efficiency-morning-meeting-coal-panel"
+  class="
+    efficiency-morning-meeting-shift-panel
+    efficiency-morning-meeting-coal-selection-panel
+  "
   id="efficiencyMorningMeetingCoalSelectionPanel"
 >
 
   <!-- =================================================
-    상단
+    상단 제목·선택 상태
   ================================================== -->
 
-  <header class="efficiency-morning-meeting-coal-panel__header">
+  <header
+    class="efficiency-morning-meeting-shift-panel__header"
+  >
 
     <div>
 
       <span>
-        COAL LOG SELECTION
+        COAL LOG · TM SELECTION
       </span>
 
       <h4>
-        운탄일지 내용 선택
+        운탄일지 · TM 사항 선택
       </h4>
 
       <p>
-        운탄일지의 N/S·D/S 주요사항과
-        연료분진팀 작업 중 오전회의에 넣을 항목을 선택하세요.
+        운탄일지 업무와 교대파트·운탄일지의
+        TM 발행사항 중 오전회의 자료에 넣을 항목을 선택하세요.
       </p>
 
     </div>
 
 
-    <div class="efficiency-morning-meeting-coal-panel__tools">
+    <div
+      class="efficiency-morning-meeting-shift-panel__tools"
+    >
 
-      <span id="efficiencyMorningMeetingCoalSelectedCount">
-        0건 선택
+      <strong
+        id="efficiencyMorningMeetingCoalSelectionStatus"
+      >
+        운탄일지 분석 전
+      </strong>
+
+
+      <span
+        id="efficiencyMorningMeetingCoalSelectedCount"
+      >
+        연료 0건 · TM 0건
       </span>
 
 
@@ -5022,135 +5040,157 @@
 
 
   <!-- =================================================
-    운탄일지 수치 자동 추출
+    운탄일지 업무 · TM 사항 2열
   ================================================== -->
 
-  <section class="efficiency-morning-meeting-coal-summary">
+  <div
+    class="efficiency-morning-meeting-shift-grid"
+  >
 
-    <header class="efficiency-morning-meeting-coal-summary__header">
+    <!-- =================================================
+      왼쪽: 운탄일지 업무 선택
+    ================================================== -->
 
-      <div>
+    <section
+      class="
+        efficiency-morning-meeting-shift-column
+        efficiency-morning-meeting-coal-work-column
+      "
+    >
 
-        <span>
-          AUTO VALUES
-        </span>
+      <header
+        class="efficiency-morning-meeting-shift-column__header"
+      >
 
-        <strong>
-          운탄일지 수치 자동 추출
-        </strong>
+        <div>
+
+          <span>
+            COAL LOG WORK
+          </span>
+
+          <strong>
+            운탄일지 업무 선택
+          </strong>
+
+        </div>
+
+
+        <button
+          type="button"
+          data-morning-meeting-coal-select-column="work"
+          disabled
+        >
+          전체 선택
+        </button>
+
+      </header>
+
+
+      <!--
+        JavaScript 출력 순서:
+
+        1. N/S 주요작업
+        2. D/S 특이 사항
+        3. D/S 정비 사항
+        4. 연료분진팀 금일 작업
+      -->
+
+      <div
+        class="efficiency-morning-meeting-shift-list"
+        id="efficiencyMorningMeetingCoalWorkList"
+      >
+
+        <p class="efficiency-morning-meeting-shift-empty">
+          운탄일지를 분석하면 선택할 업무가 표시됩니다.
+        </p>
 
       </div>
 
-
-      <span id="efficiencyMorningMeetingCoalValueStatus">
-        운탄일지 분석 전
-      </span>
-
-    </header>
+    </section>
 
 
-    <div class="efficiency-morning-meeting-coal-summary-grid">
+    <!-- =================================================
+      오른쪽: TM 사항 선택
+    ================================================== -->
 
-      <!-- 유연탄 Silo A -->
-      <article class="efficiency-morning-meeting-coal-summary-card">
+    <section
+      class="
+        efficiency-morning-meeting-shift-column
+        efficiency-morning-meeting-coal-tm-column
+      "
+    >
 
-        <span>
-          유연탄 Silo A
-        </span>
+      <header
+        class="efficiency-morning-meeting-shift-column__header"
+      >
 
-        <strong id="efficiencyMorningMeetingCoalSiloA">
-          -
-        </strong>
+        <div>
 
-      </article>
+          <span>
+            TM ITEMS
+          </span>
 
+          <strong>
+            TM 사항
+          </strong>
 
-      <!-- 유연탄 Silo B -->
-      <article class="efficiency-morning-meeting-coal-summary-card">
-
-        <span>
-          유연탄 Silo B
-        </span>
-
-        <strong id="efficiencyMorningMeetingCoalSiloB">
-          -
-        </strong>
-
-      </article>
+        </div>
 
 
-      <!-- 유연탄 재고 합계 -->
-      <article class="efficiency-morning-meeting-coal-summary-card">
+        <button
+          type="button"
+          data-morning-meeting-coal-select-column="tm"
+          disabled
+        >
+          전체 선택
+        </button>
 
-        <span>
-          유연탄 재고 합계
-        </span>
-
-        <strong id="efficiencyMorningMeetingCoalInventoryTotal">
-          -
-        </strong>
-
-      </article>
+      </header>
 
 
-      <!-- 유연탄 입고 -->
-      <article class="efficiency-morning-meeting-coal-summary-card">
+      <!--
+        JavaScript 출력 구분:
 
-        <span>
-          유연탄 입고
-        </span>
+        1. 교대파트 TM 발행사항
+           - 전날 D/S
+           - 현재 N/S
+           - TGO / BCO1 / BCO2
 
-        <strong id="efficiencyMorningMeetingCoalReceipt">
-          -
-        </strong>
+        2. 운탄일지 TM 발행사항
+           - TM 및 RED TAG 발행 구역
+           - 업무내용 중 TM 발행 문구가 있는 항목
+      -->
 
-      </article>
+      <div
+        class="efficiency-morning-meeting-shift-list"
+        id="efficiencyMorningMeetingCoalTmList"
+      >
 
+        <p class="efficiency-morning-meeting-shift-empty">
+          운탄일지와 교대파트 업무일지를 분석하면
+          TM 발행사항이 표시됩니다.
+        </p>
 
-      <!-- Bio-SRF 재고 -->
-      <article class="efficiency-morning-meeting-coal-summary-card">
+      </div>
 
-        <span>
-          Bio-SRF 재고
-        </span>
+    </section>
 
-        <strong id="efficiencyMorningMeetingBioInventory">
-          -
-        </strong>
-
-      </article>
-
-
-      <!-- Bio-SRF 입고 -->
-      <article class="efficiency-morning-meeting-coal-summary-card">
-
-        <span>
-          Bio-SRF 입고
-        </span>
-
-        <strong id="efficiencyMorningMeetingBioReceipt">
-          -
-        </strong>
-
-      </article>
+  </div>
 
 
-      <!-- Fly Ash 반출 -->
-      <article class="efficiency-morning-meeting-coal-summary-card">
+  <!-- =================================================
+    오류 표시
+  ================================================== -->
 
-        <span>
-          Fly Ash 반출
-        </span>
+  <p
+    class="efficiency-morning-meeting-shift-error"
+    id="efficiencyMorningMeetingCoalError"
+    role="alert"
+    hidden
+  >
+  </p>
 
-        <strong id="efficiencyMorningMeetingFlyAshDispatch">
-          -
-        </strong>
-
-      </article>
-
-    </div>
-
-  </section>
+</section>
 
 
   <!-- =================================================
@@ -5180,10 +5220,128 @@
 
         </div>
 
+<!-- =================================================
+  운탄일지 · TM 사항 선택
+
+  왼쪽:
+  - N/S 주요작업
+  - D/S 특이 사항
+  - D/S 정비 사항
+  - 연료분진팀 금일 작업
+
+  오른쪽:
+  - 교대파트 TM 발행사항
+  - 운탄일지 TM 발행사항
+
+  운탄일지 자동 추출 수치:
+  - 이 화면에는 표시하지 않음
+  - 취합 내용 미리보기에서만 표시
+================================================== -->
+
+<section
+  class="
+    efficiency-morning-meeting-shift-panel
+    efficiency-morning-meeting-coal-selection-panel
+  "
+  id="efficiencyMorningMeetingCoalSelectionPanel"
+>
+
+  <!-- =================================================
+    상단 제목·선택 상태
+  ================================================== -->
+
+  <header
+    class="efficiency-morning-meeting-shift-panel__header"
+  >
+
+    <div>
+
+      <span>
+        COAL LOG · TM SELECTION
+      </span>
+
+      <h4>
+        운탄일지 · TM 사항 선택
+      </h4>
+
+      <p>
+        운탄일지 업무와 교대파트·운탄일지의
+        TM 발행사항 중 오전회의 자료에 넣을 항목을 선택하세요.
+      </p>
+
+    </div>
+
+
+    <div
+      class="efficiency-morning-meeting-shift-panel__tools"
+    >
+
+      <strong
+        id="efficiencyMorningMeetingCoalSelectionStatus"
+      >
+        운탄일지 분석 전
+      </strong>
+
+
+      <span
+        id="efficiencyMorningMeetingCoalSelectedCount"
+      >
+        연료 0건 · TM 0건
+      </span>
+
+
+      <button
+        type="button"
+        id="clearEfficiencyMorningMeetingCoalSelectionButton"
+        disabled
+      >
+        선택 초기화
+      </button>
+
+    </div>
+
+  </header>
+
+
+  <!-- =================================================
+    운탄일지 업무 · TM 사항 2열
+  ================================================== -->
+
+  <div
+    class="efficiency-morning-meeting-shift-grid"
+  >
+
+    <!-- =================================================
+      왼쪽: 운탄일지 업무 선택
+    ================================================== -->
+
+    <section
+      class="
+        efficiency-morning-meeting-shift-column
+        efficiency-morning-meeting-coal-work-column
+      "
+    >
+
+      <header
+        class="efficiency-morning-meeting-shift-column__header"
+      >
+
+        <div>
+
+          <span>
+            COAL LOG WORK
+          </span>
+
+          <strong>
+            운탄일지 업무 선택
+          </strong>
+
+        </div>
+
 
         <button
           type="button"
-          data-morning-meeting-coal-select-group="night"
+          data-morning-meeting-coal-select-column="work"
           disabled
         >
           전체 선택
@@ -5192,12 +5350,21 @@
       </header>
 
 
+      <!--
+        JavaScript 출력 순서:
+
+        1. N/S 주요작업
+        2. D/S 특이 사항
+        3. D/S 정비 사항
+        4. 연료분진팀 금일 작업
+      -->
+
       <div
-        class="efficiency-morning-meeting-coal-list"
-        id="efficiencyMorningMeetingCoalNightList"
+        class="efficiency-morning-meeting-shift-list"
+        id="efficiencyMorningMeetingCoalWorkList"
       >
 
-        <p class="efficiency-morning-meeting-coal-empty">
+        <p class="efficiency-morning-meeting-shift-empty">
           운탄일지를 분석하면 선택할 업무가 표시됩니다.
         </p>
 
@@ -5207,21 +5374,28 @@
 
 
     <!-- =================================================
-      D/S 정비 사항
+      오른쪽: TM 사항 선택
     ================================================== -->
 
-    <section class="efficiency-morning-meeting-coal-column">
+    <section
+      class="
+        efficiency-morning-meeting-shift-column
+        efficiency-morning-meeting-coal-tm-column
+      "
+    >
 
-      <header class="efficiency-morning-meeting-coal-column__header">
+      <header
+        class="efficiency-morning-meeting-shift-column__header"
+      >
 
         <div>
 
           <span>
-            DAY SHIFT MAINTENANCE
+            TM ITEMS
           </span>
 
           <strong>
-            D/S 정비 사항
+            TM 사항
           </strong>
 
         </div>
@@ -5229,7 +5403,7 @@
 
         <button
           type="button"
-          data-morning-meeting-coal-select-group="maintenance"
+          data-morning-meeting-coal-select-column="tm"
           disabled
         >
           전체 선택
@@ -5238,105 +5412,27 @@
       </header>
 
 
-      <div
-        class="efficiency-morning-meeting-coal-list"
-        id="efficiencyMorningMeetingCoalMaintenanceList"
-      >
+      <!--
+        JavaScript 출력 구분:
 
-        <p class="efficiency-morning-meeting-coal-empty">
-          운탄일지를 분석하면 선택할 업무가 표시됩니다.
-        </p>
+        1. 교대파트 TM 발행사항
+           - 전날 D/S
+           - 현재 N/S
+           - TGO / BCO1 / BCO2
 
-      </div>
-
-    </section>
-
-
-    <!-- =================================================
-      D/S 특이 사항
-    ================================================== -->
-
-    <section class="efficiency-morning-meeting-coal-column">
-
-      <header class="efficiency-morning-meeting-coal-column__header">
-
-        <div>
-
-          <span>
-            DAY SHIFT ISSUE
-          </span>
-
-          <strong>
-            D/S 특이 사항
-          </strong>
-
-        </div>
-
-
-        <button
-          type="button"
-          data-morning-meeting-coal-select-group="issue"
-          disabled
-        >
-          전체 선택
-        </button>
-
-      </header>
-
+        2. 운탄일지 TM 발행사항
+           - TM 및 RED TAG 발행 구역
+           - 업무내용 중 TM 발행 문구가 있는 항목
+      -->
 
       <div
-        class="efficiency-morning-meeting-coal-list"
-        id="efficiencyMorningMeetingCoalIssueList"
+        class="efficiency-morning-meeting-shift-list"
+        id="efficiencyMorningMeetingCoalTmList"
       >
 
-        <p class="efficiency-morning-meeting-coal-empty">
-          운탄일지를 분석하면 선택할 업무가 표시됩니다.
-        </p>
-
-      </div>
-
-    </section>
-
-
-    <!-- =================================================
-      연료분진팀 금일 작업
-    ================================================== -->
-
-    <section class="efficiency-morning-meeting-coal-column">
-
-      <header class="efficiency-morning-meeting-coal-column__header">
-
-        <div>
-
-          <span>
-            FUEL DUST TEAM
-          </span>
-
-          <strong>
-            연료분진팀 금일 작업
-          </strong>
-
-        </div>
-
-
-        <button
-          type="button"
-          data-morning-meeting-coal-select-group="fuel-dust"
-          disabled
-        >
-          전체 선택
-        </button>
-
-      </header>
-
-
-      <div
-        class="efficiency-morning-meeting-coal-list"
-        id="efficiencyMorningMeetingCoalFuelDustList"
-      >
-
-        <p class="efficiency-morning-meeting-coal-empty">
-          운탄일지를 분석하면 선택할 업무가 표시됩니다.
+        <p class="efficiency-morning-meeting-shift-empty">
+          운탄일지와 교대파트 업무일지를 분석하면
+          TM 발행사항이 표시됩니다.
         </p>
 
       </div>
@@ -5346,8 +5442,12 @@
   </div>
 
 
+  <!-- =================================================
+    오류 표시
+  ================================================== -->
+
   <p
-    class="efficiency-morning-meeting-coal-error"
+    class="efficiency-morning-meeting-shift-error"
     id="efficiencyMorningMeetingCoalError"
     role="alert"
     hidden
