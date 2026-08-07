@@ -653,7 +653,12 @@
   </button>
 
 
-  <!-- 현재 날짜·근무 -->
+<!-- =====================================================
+  현재 근무 + 해당 Shift 이전일지 동기화
+====================================================== -->
+
+<div class="shift-heading-right">
+
   <div class="shift-summary">
 
     <span class="shift-summary__label">
@@ -668,6 +673,26 @@
     </strong>
 
   </div>
+
+
+  <!--
+    최고관리자에게만 표시
+
+    현재 화면에 선택된
+    날짜 + Shift 한 건만 이전일지에서 동기화
+  -->
+  <button
+    type="button"
+    class="current-shift-sync-button"
+    id="syncCurrentLegacyShiftButton"
+    aria-label="현재 날짜와 근무의 이전 업무일지 동기화"
+    title="현재 날짜와 근무만 이전일지에서 동기화합니다."
+    hidden
+  >
+    동기화
+  </button>
+
+</div>
 
 </div>
 

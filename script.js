@@ -3269,6 +3269,17 @@ function isCurrentUserTeamManager() {
   );
 }
 
+/* =====================================================
+  현재 Shift 이전일지 동기화 버튼 권한 갱신
+====================================================== */
+
+if (
+  typeof updateCurrentShiftLegacySyncButtonVisibility ===
+    "function"
+) {
+  updateCurrentShiftLegacySyncButtonVisibility();
+}
+
 /* =========================================================
   로그인 완료 후 앱 열기 최종본
 
@@ -7368,6 +7379,533 @@ async function retryLegacySyncFailures() {
     }
   }
 }
+
+/* =========================================================
+  현재 선택 날짜 + 현재 Shift 이전일지 단일 동기화
+
+  예:
+  2026-08-07 N/S
+  → 20260807 + NIGHT
+
+  2026-08-06 D/S
+  → 20260806 + DAY
+
+  중요:
+  - 기간 동기화 아님
+  - DAY/NIGHT 전체 동기화 아님
+  - 화면에서 선택한 Shift 1개만 처리
+  - 최고관리자만 실행 가능
+========================================================= */
+
+let currentShiftLegacySyncRunning =
+  false;
+
+
+/* =========================================================
+  현재 화면 날짜·근무 → legacy API 요청값
+========================================================= */
+
+function getCurrentShiftLegacySyncContext() {
+  const workDate =
+    formatInputDate(
+      appState.selectedDate
+    );
+
+
+  const currentShift =
+    String(
+      appState.selectedShift ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      workDate
+    )
+  ) {
+    return null;
+  }
+
+
+  if (
+    ![
+      "DS",
+      "NS"
+    ].includes(
+      currentShift
+    )
+  ) {
+    return null;
+  }
+
+
+  return {
+    workDate,
+
+    legacyDate:
+      convertLegacySyncDateToApiFormat(
+        workDate
+      ),
+
+    currentShift,
+
+    legacyShift:
+      currentShift ===
+        "DS"
+        ? "DAY"
+        : "NIGHT",
+
+    shiftLabel:
+      currentShift ===
+        "DS"
+        ? "D/S"
+        : "N/S"
+  };
+}
+
+
+/* =========================================================
+  동기화 버튼 표시 상태
+
+  관리자 메뉴에서 사용하던 기능이므로
+  최고관리자에게만 버튼을 표시한다.
+========================================================= */
+
+function updateCurrentShiftLegacySyncButtonVisibility() {
+  const button =
+    document.getElementById(
+      "syncCurrentLegacyShiftButton"
+    );
+
+
+  if (
+    !button
+  ) {
+    return;
+  }
+
+
+  const canUse =
+    typeof isCurrentUserSuperAdmin ===
+      "function" &&
+    isCurrentUserSuperAdmin();
+
+
+  button.hidden =
+    !canUse;
+
+
+  button.disabled =
+    !canUse ||
+    currentShiftLegacySyncRunning;
+
+
+  if (
+    !canUse
+  ) {
+    return;
+  }
+
+
+  const context =
+    getCurrentShiftLegacySyncContext();
+
+
+  if (
+    context
+  ) {
+    button.title =
+      `${context.workDate} ${context.shiftLabel} 이전일지만 동기화`;
+  } else {
+    button.title =
+      "현재 날짜와 근무만 이전일지에서 동기화";
+  }
+}
+
+
+/* =========================================================
+  현재 선택 Shift 1개 동기화 실행
+========================================================= */
+
+async function runCurrentShiftLegacySync() {
+  if (
+    currentShiftLegacySyncRunning
+  ) {
+    return;
+  }
+
+
+  /* =====================================================
+    권한 확인
+  ====================================================== */
+
+  if (
+    typeof isCurrentUserSuperAdmin !==
+      "function" ||
+    !isCurrentUserSuperAdmin()
+  ) {
+    showToast(
+      "최고관리자만 이전일지 동기화를 실행할 수 있습니다."
+    );
+
+
+    return;
+  }
+
+
+  const context =
+    getCurrentShiftLegacySyncContext();
+
+
+  if (
+    !context
+  ) {
+    showToast(
+      "현재 업무일지 기준일과 근무를 확인할 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  /* =====================================================
+    실행 확인
+  ====================================================== */
+
+  const shouldRun =
+    window.confirm(
+      [
+        `${context.workDate} ${context.shiftLabel} 이전일지를 동기화하시겠습니까?`,
+        "",
+        "현재 화면의 날짜와 근무만 가져옵니다.",
+        "",
+        "다른 날짜 및 다른 Shift는 처리하지 않습니다."
+      ].join(
+        "\n"
+      )
+    );
+
+
+  if (
+    !shouldRun
+  ) {
+    return;
+  }
+
+
+  const button =
+    document.getElementById(
+      "syncCurrentLegacyShiftButton"
+    );
+
+
+  currentShiftLegacySyncRunning =
+    true;
+
+
+  if (
+    button
+  ) {
+    button.disabled =
+      true;
+
+
+    button.textContent =
+      "...";
+  }
+
+
+  try {
+    /* ===================================================
+      기존 관리자 legacy-import API 그대로 사용
+
+      DS → DAY
+      NS → NIGHT
+    ==================================================== */
+
+    const response =
+      await fetch(
+        "/api/legacy-import",
+        {
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            Accept:
+              "application/json"
+          },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              date:
+                context.legacyDate,
+
+              shift:
+                context.legacyShift
+            })
+        }
+      );
+
+
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    try {
+      result =
+        responseText
+          ? JSON.parse(
+              responseText
+            )
+          : {};
+
+    } catch {
+      throw new Error(
+        "이전일지 동기화 서버 응답을 확인할 수 없습니다."
+      );
+    }
+
+
+    if (
+      !response.ok ||
+      !result.success
+    ) {
+      throw new Error(
+        result.message ||
+        `${context.workDate} ${context.shiftLabel} 동기화에 실패했습니다.`
+      );
+    }
+
+
+    /* ===================================================
+      API 내부에서 해당 Shift 처리 실패가 있었는지 확인
+
+      legacy-import는 일부 실패가 있어도
+      전체 응답 success가 true일 수 있으므로
+      실패 목록도 확인한다.
+    ==================================================== */
+
+    const failures =
+      typeof collectLegacySyncFailures ===
+        "function"
+        ? collectLegacySyncFailures(
+            result
+          )
+        : [];
+
+
+    if (
+      failures.length >
+      0
+    ) {
+      throw new Error(
+        failures[0]?.message ||
+        `${context.workDate} ${context.shiftLabel} 동기화 중 오류가 발생했습니다.`
+      );
+    }
+
+
+    /* ===================================================
+      현재 선택 날짜 업무일지 다시 로딩
+
+      기존 관리자 동기화 완료 처리와 동일
+    ==================================================== */
+
+    if (
+      typeof loadLegacyLogsForSelectedDate ===
+        "function"
+    ) {
+      await loadLegacyLogsForSelectedDate();
+    }
+
+
+    if (
+      typeof renderLogTable ===
+        "function"
+    ) {
+      renderLogTable();
+    }
+
+
+    if (
+      typeof updateShiftMemberCardStates ===
+        "function"
+    ) {
+      updateShiftMemberCardStates();
+    }
+
+
+    /* ===================================================
+      결과 안내
+    ==================================================== */
+
+    const fetchedCount =
+      Number(
+        result.fetchedCount ||
+        0
+      );
+
+
+    const createdCount =
+      Number(
+        result.createdCount ||
+        0
+      );
+
+
+    const updatedCount =
+      Number(
+        result.updatedCount ||
+        0
+      );
+
+
+    if (
+      fetchedCount ===
+        0
+    ) {
+      showToast(
+        `${context.workDate} ${context.shiftLabel} 이전일지 자료가 없습니다.`
+      );
+
+    } else {
+      showToast(
+        [
+          `${context.workDate} ${context.shiftLabel} 동기화 완료`,
+          `조회 ${fetchedCount}건`,
+          `신규 ${createdCount}건`,
+          `갱신 ${updatedCount}건`
+        ].join(
+          " · "
+        )
+      );
+    }
+
+
+    console.log(
+      "현재 Shift 이전일지 동기화 완료:",
+      {
+        workDate:
+          context.workDate,
+
+        shift:
+          context.shiftLabel,
+
+        legacyDate:
+          context.legacyDate,
+
+        legacyShift:
+          context.legacyShift,
+
+        fetchedCount,
+        createdCount,
+        updatedCount
+      }
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "현재 Shift 이전일지 동기화 실패:",
+      error
+    );
+
+
+    showToast(
+      error?.message ||
+      "현재 Shift 이전일지 동기화에 실패했습니다."
+    );
+
+  } finally {
+    currentShiftLegacySyncRunning =
+      false;
+
+
+    if (
+      button
+    ) {
+      button.textContent =
+        "동기화";
+    }
+
+
+    updateCurrentShiftLegacySyncButtonVisibility();
+  }
+}
+
+
+/* =========================================================
+  현재 Shift 동기화 버튼 초기화
+========================================================= */
+
+function initializeCurrentShiftLegacySyncButton() {
+  const button =
+    document.getElementById(
+      "syncCurrentLegacyShiftButton"
+    );
+
+
+  if (
+    !button
+  ) {
+    return;
+  }
+
+
+  if (
+    button.dataset
+      .currentShiftLegacySyncBound ===
+      "true"
+  ) {
+    updateCurrentShiftLegacySyncButtonVisibility();
+
+
+    return;
+  }
+
+
+  button.addEventListener(
+    "click",
+    runCurrentShiftLegacySync
+  );
+
+
+  button.dataset
+    .currentShiftLegacySyncBound =
+    "true";
+
+
+  updateCurrentShiftLegacySyncButtonVisibility();
+}
+
+
+/*
+  로그인 완료 후에도
+  버튼 표시 상태를 다시 갱신할 수 있게 공개
+*/
+
+window.updateCurrentShiftLegacySyncButtonVisibility =
+  updateCurrentShiftLegacySyncButtonVisibility;
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  initializeCurrentShiftLegacySyncButton
+);
 
 /* =========================================================
   과거 업무일지 동기화 초기화
@@ -29784,6 +30322,22 @@ async function moveSelectedDateToToday() {
   renderLogTable();
   updateShiftMemberCardStates();
 }
+
+  /* =====================================================
+    현재 Shift 동기화 버튼 상태 갱신
+
+    날짜 이동 / D/S·N/S 전환 시
+    현재 화면 기준으로 버튼 설명을 다시 맞춘다.
+  ====================================================== */
+
+  if (
+    typeof window
+      .updateCurrentShiftLegacySyncButtonVisibility ===
+      "function"
+  ) {
+    window
+      .updateCurrentShiftLegacySyncButtonVisibility();
+  }
 
 /* =========================================================
   현재 선택 날짜·근무 표시
@@ -171600,4 +172154,1251 @@ function renderTeamApprovalCard(
   } else {
     initializeOisLegacyLogPreviewClient();
   }
+})();
+
+/* =========================================================
+  OIS 과거 LOG SHEET → 업무일지 조회 연동
+
+  3교대: DAY / AFTER / NIGHT → D / A / N
+  2교대: DAY / NIGHT → D/S / N/S
+  OIS 과거자료는 조회 전용
+========================================================= */
+(function installOisLegacySearchIntegration() {
+  if (window.__oisLegacySearchIntegrationInstalled === true) return;
+  window.__oisLegacySearchIntegrationInstalled = true;
+
+  const OIS_LEGACY_LOGS_API_URL = "/api/ois-legacy-logs";
+
+  /*
+    정확한 2교대 전환일을 찾으면
+    나중에 "YYYY-MM-DD" 형식으로 넣으면 된다.
+
+    지금은 비워둔다.
+
+    빈 상태에서는:
+    AFTER 내용 있음
+    → 3교대
+
+    AFTER 없음 + DAY/NIGHT 내용 있음
+    → 2교대
+
+    로 판정한다.
+  */
+  const OIS_TWO_SHIFT_START_DATE = "";
+
+  const ROLE_ORDER = {
+    파트장: 1,
+    TGO: 2,
+    BCO1: 3,
+    BCO2: 4,
+    TO: 5,
+    BO1: 6,
+    BO2: 7
+  };
+
+  const SHIFT_ORDER = {
+    DS: 1,
+    D: 1,
+    A: 2,
+    NS: 3,
+    N: 3
+  };
+
+
+  /* =====================================================
+    날짜별 3교대 / 2교대 판정
+  ====================================================== */
+
+  function createOisLegacyWorkSystemMap(result) {
+    const map =
+      new Map();
+
+    const transitionDate =
+      String(
+        OIS_TWO_SHIFT_START_DATE ||
+        ""
+      ).trim();
+
+    const hasTransitionDate =
+      /^\d{4}-\d{2}-\d{2}$/.test(
+        transitionDate
+      );
+
+    const summaries =
+      Array.isArray(
+        result?.dateSummaries
+      )
+        ? result.dateSummaries
+        : [];
+
+
+    summaries.forEach(
+      summary => {
+        const workDate =
+          String(
+            summary?.workDate ||
+            ""
+          ).trim();
+
+
+        if (
+          !workDate
+        ) {
+          return;
+        }
+
+
+        /*
+          정확한 2교대 전환일이 입력되면
+          그 날짜를 최우선으로 사용한다.
+        */
+        if (
+          hasTransitionDate
+        ) {
+          map.set(
+            workDate,
+
+            workDate >=
+              transitionDate
+              ? "TWO_SHIFT"
+              : "THREE_SHIFT"
+          );
+
+
+          return;
+        }
+
+
+        /*
+          전환일을 아직 모르는 동안은
+          OIS 실제 작성 흔적으로 판단한다.
+        */
+        const dayCount =
+          Number(
+            summary?.dayContentCount ||
+            0
+          );
+
+
+        const afterCount =
+          Number(
+            summary?.afterContentCount ||
+            0
+          );
+
+
+        const nightCount =
+          Number(
+            summary?.nightContentCount ||
+            0
+          );
+
+
+        if (
+          afterCount >
+          0
+        ) {
+          map.set(
+            workDate,
+            "THREE_SHIFT"
+          );
+
+
+          return;
+        }
+
+
+        if (
+          dayCount >
+            0 &&
+          nightCount >
+            0
+        ) {
+          map.set(
+            workDate,
+            "TWO_SHIFT"
+          );
+
+
+          return;
+        }
+
+
+        const hint =
+          String(
+            summary?.workSystemHint ||
+            ""
+          )
+            .trim()
+            .toUpperCase();
+
+
+        map.set(
+          workDate,
+
+          [
+            "THREE_SHIFT",
+            "TWO_SHIFT"
+          ].includes(
+            hint
+          )
+            ? hint
+            : "UNKNOWN"
+        );
+      }
+    );
+
+
+    return map;
+  }
+
+
+  /* =====================================================
+    OIS 원본 근무 → 현재 화면 근무
+  ====================================================== */
+
+  function convertOisLegacyShift(
+    originalShift,
+    workSystem
+  ) {
+    const shift =
+      String(
+        originalShift ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    /*
+      2교대
+    */
+    if (
+      workSystem ===
+      "TWO_SHIFT"
+    ) {
+      if (
+        shift ===
+        "DAY"
+      ) {
+        return "DS";
+      }
+
+
+      if (
+        shift ===
+        "NIGHT"
+      ) {
+        return "NS";
+      }
+
+
+      /*
+        2교대 시기의 AFTER 행은
+        D1 원본에는 남기지만
+        현재 업무일지 조회에는 표시하지 않는다.
+      */
+      return "";
+    }
+
+
+    /*
+      3교대 및 판정 보류
+    */
+    return {
+      DAY:
+        "D",
+
+      AFTER:
+        "A",
+
+      NIGHT:
+        "N"
+    }[
+      shift
+    ] ||
+    "";
+  }
+
+
+  /* =====================================================
+    OIS rmk → 현재 업무일지 entries
+
+    기존 과거 업무일지 파서를 그대로 사용한다.
+
+    OIS rmk 자체에는
+    TM/BM/CM 구조 필드가 없으므로
+    임의로 분류하지 않고 전부 "인계사항"으로 넣는다.
+  ====================================================== */
+
+  function convertOisContentToEntries(
+    content,
+    sourceId,
+    role,
+    worker,
+    logId
+  ) {
+    const parsedLines =
+      typeof parseLegacyDiaryContentLines ===
+        "function"
+        ? parseLegacyDiaryContentLines(
+            content
+          )
+        : [
+            {
+              time:
+                "",
+
+              content
+            }
+          ];
+
+
+    return parsedLines
+      .map(
+        (
+          parsedLine,
+          lineIndex
+        ) => {
+          const parsedContent =
+            typeof extractLegacyTagFromContent ===
+              "function"
+              ? extractLegacyTagFromContent(
+                  parsedLine?.content ||
+                  ""
+                )
+              : {
+                  tag:
+                    "",
+
+                  content:
+                    String(
+                      parsedLine?.content ||
+                      ""
+                    ).trim()
+                };
+
+
+          const entryContent =
+            String(
+              parsedContent?.content ||
+              ""
+            ).trim();
+
+
+          if (
+            !entryContent
+          ) {
+            return null;
+          }
+
+
+          return {
+            id:
+              `ois-legacy-entry-${sourceId}-${lineIndex}`,
+
+            category:
+              "인계사항",
+
+            time:
+              String(
+                parsedLine?.time ||
+                ""
+              ).trim(),
+
+            tag:
+              String(
+                parsedContent?.tag ||
+                ""
+              )
+                .trim()
+                .toUpperCase(),
+
+            content:
+              entryContent,
+
+            attachmentName:
+              "",
+
+            importedFromRole:
+              role,
+
+            importedFromAuthor:
+              worker,
+
+            importedFromLogId:
+              logId,
+
+            importedFromEntryIndex:
+              lineIndex,
+
+            source:
+              "ois-legacy"
+          };
+        }
+      )
+      .filter(
+        Boolean
+      );
+  }
+
+
+  /* =====================================================
+    OIS D1 한 행 → 현재 업무일지 한 건
+  ====================================================== */
+
+  function convertOisLegacyItemToLog(
+    item,
+    itemIndex,
+    workSystem
+  ) {
+    if (
+      !item ||
+      typeof item !==
+        "object"
+    ) {
+      return null;
+    }
+
+
+    const workDate =
+      String(
+        item.workDate ||
+        item.work_date ||
+        ""
+      ).trim();
+
+
+    const role =
+      normalizeMemberLogRole(
+        item.role ||
+        ""
+      );
+
+
+    const originalShift =
+      String(
+        item.originalShift ||
+        item.original_shift ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    const content =
+      String(
+        item.content ||
+        ""
+      )
+        .replace(
+          /\r\n/g,
+          "\n"
+        )
+        .replace(
+          /\r/g,
+          "\n"
+        )
+        .trim();
+
+
+    /*
+      내용 없는 원본 행은
+      교대판정을 위해 D1에는 남겨두되
+      실제 조회 목록에서는 표시하지 않는다.
+    */
+    if (
+      !workDate ||
+      !role ||
+      !originalShift ||
+      !content
+    ) {
+      return null;
+    }
+
+
+    const shift =
+      convertOisLegacyShift(
+        originalShift,
+        workSystem
+      );
+
+
+    if (
+      !shift
+    ) {
+      return null;
+    }
+
+
+    const sourceId =
+      String(
+        item.id ||
+        `${workDate}-${role}-${originalShift}-${itemIndex}`
+      ).trim();
+
+
+    const logId =
+      `ois-legacy-${sourceId}`;
+
+
+    const worker =
+      String(
+        item.worker ||
+        ""
+      ).trim();
+
+
+    const entries =
+      convertOisContentToEntries(
+        content,
+        sourceId,
+        role,
+        worker,
+        logId
+      );
+
+
+    if (
+      !entries.length
+    ) {
+      return null;
+    }
+
+
+    const workerApproval =
+      String(
+        item.workerApproval ||
+        item.worker_approval ||
+        ""
+      ).trim();
+
+
+    const partApproval =
+      String(
+        item.partApproval ||
+        item.part_approval ||
+        ""
+      ).trim();
+
+
+    let status =
+      "작성중";
+
+
+    if (
+      partApproval.includes(
+        "완료"
+      )
+    ) {
+      status =
+        "결재완료";
+
+    } else if (
+      workerApproval.includes(
+        "완료"
+      )
+    ) {
+      status =
+        "작성완료";
+    }
+
+
+    const team =
+      workSystem ===
+        "THREE_SHIFT"
+        ? "구 3교대"
+        : workSystem ===
+            "TWO_SHIFT"
+          ? "2교대"
+          : "OIS 과거자료";
+
+
+    const createdAt =
+      String(
+        item.createdAt ||
+        item.created_at ||
+        item.collectedAt ||
+        item.collected_at ||
+        `${workDate}T00:00:00`
+      ).trim();
+
+
+    const updatedAt =
+      String(
+        item.updatedAt ||
+        item.updated_at ||
+        item.collectedAt ||
+        item.collected_at ||
+        createdAt
+      ).trim();
+
+
+    return {
+      id:
+        logId,
+
+      date:
+        workDate,
+
+      shift,
+
+      role,
+
+      author:
+        worker ||
+        "OIS 과거 업무일지",
+
+      writerId:
+        "",
+
+      authorId:
+        "",
+
+      team,
+
+      /*
+        OIS 결재 비고에는
+        운전현황 구조가 별도로 없으므로 빈 값
+      */
+      operationStatus:
+        "",
+
+      operationStatusItems:
+        [],
+
+
+      /*
+        기존 업무일지 상세보기와
+        미리보기에서 사용할 업무 항목
+      */
+      entries,
+
+      tmEntries:
+        [],
+
+      handoverEntries:
+        entries,
+
+      remarkEntries:
+        [],
+
+      note:
+        "",
+
+
+      status,
+
+      attachments:
+        [],
+
+      legacyAttachmentCount:
+        0,
+
+      isSubstitute:
+        false,
+
+
+      /*
+        OIS 과거자료 식별
+      */
+      source:
+        "ois-legacy",
+
+      isOisLegacy:
+        true,
+
+      workSystem,
+
+      originalShift,
+
+      originalRmk:
+        content,
+
+      workerApproval,
+
+      partApproval,
+
+      approvalState:
+        String(
+          item.approvalState ||
+          item.approval_state ||
+          ""
+        ).trim(),
+
+      oisState:
+        String(
+          item.oisState ||
+          item.ois_state ||
+          ""
+        ).trim(),
+
+      sheetCode:
+        String(
+          item.sheetCode ||
+          item.sheet_code ||
+          ""
+        ).trim(),
+
+      oisRequestId:
+        String(
+          item.oisRequestId ||
+          item.ois_request_id ||
+          ""
+        ).trim(),
+
+      original:
+        item.original &&
+        typeof item.original ===
+          "object"
+          ? item.original
+          : {},
+
+      createdAt,
+
+      updatedAt
+    };
+  }
+
+
+  /* =====================================================
+    OIS 과거 업무일지 기간 조회
+  ====================================================== */
+
+  async function loadOisLegacyLogsForSearchRange(
+    startDate,
+    endDate
+  ) {
+    const requestUrl =
+      new URL(
+        OIS_LEGACY_LOGS_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "startDate",
+      startDate
+    );
+
+
+    requestUrl.searchParams.set(
+      "endDate",
+      endDate
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "OIS 과거 업무일지 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.success ===
+        false ||
+      result.ok ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        `OIS 과거 업무일지 조회 실패 (HTTP ${response.status})`
+      );
+    }
+
+
+    const items =
+      Array.isArray(
+        result.items
+      )
+        ? result.items
+        : [];
+
+
+    const workSystemMap =
+      createOisLegacyWorkSystemMap(
+        result
+      );
+
+
+    const convertedLogs =
+      items
+        .map(
+          (
+            item,
+            itemIndex
+          ) => {
+            const workDate =
+              String(
+                item?.workDate ||
+                item?.work_date ||
+                ""
+              ).trim();
+
+
+            const workSystem =
+              workSystemMap.get(
+                workDate
+              ) ||
+              "UNKNOWN";
+
+
+            return convertOisLegacyItemToLog(
+              item,
+              itemIndex,
+              workSystem
+            );
+          }
+        )
+        .filter(
+          Boolean
+        );
+
+
+    console.log(
+      `OIS 과거 업무일지 ${convertedLogs.length}건을 조회 화면에 연결했습니다.`
+    );
+
+
+    return convertedLogs;
+  }
+
+
+  /* =====================================================
+    기존 과거 업무일지 조회 + OIS 과거 업무일지
+
+    기존 runSearch()는 수정하지 않는다.
+  ====================================================== */
+
+  const loadLegacyLogsForSearchRangeBeforeOis =
+    loadLegacyLogsForSearchRange;
+
+
+  loadLegacyLogsForSearchRange =
+    async function (
+      startDate,
+      endDate
+    ) {
+      const legacyLogs =
+        await loadLegacyLogsForSearchRangeBeforeOis(
+          startDate,
+          endDate
+        );
+
+
+      let oisLogs =
+        [];
+
+
+      try {
+        oisLogs =
+          await loadOisLegacyLogsForSearchRange(
+            startDate,
+            endDate
+          );
+
+      } catch (
+        error
+      ) {
+        /*
+          OIS 과거자료 API에 문제가 있어도
+          현재 업무일지와 기존 legacy 조회는
+          계속 정상 동작해야 한다.
+        */
+        console.error(
+          "OIS 과거 업무일지 조회 실패:",
+          error
+        );
+      }
+
+
+      return [
+        ...(
+          Array.isArray(
+            legacyLogs
+          )
+            ? legacyLogs
+            : []
+        ),
+
+        ...oisLogs
+      ];
+    };
+
+
+  /* =====================================================
+    구 3교대 근무명 표시
+
+    기존:
+    DS → D/S
+    나머지 → N/S
+
+    따라서 D/A/N을 별도로 처리해야 한다.
+  ====================================================== */
+
+  const getShiftDisplayNameBeforeOis =
+    getShiftDisplayName;
+
+
+  getShiftDisplayName =
+    function (
+      shift
+    ) {
+      const normalizedShift =
+        String(
+          shift ||
+          ""
+        )
+          .trim()
+          .toUpperCase()
+          .replace(
+            /\s+/g,
+            ""
+          )
+          .replaceAll(
+            "/",
+            ""
+          );
+
+
+      const oldShiftMap = {
+        D:
+          "D",
+
+        DAY:
+          "D",
+
+        A:
+          "A",
+
+        AFTER:
+          "A",
+
+        N:
+          "N",
+
+        NIGHT:
+          "N"
+      };
+
+
+      return Object.prototype
+        .hasOwnProperty
+        .call(
+          oldShiftMap,
+          normalizedShift
+        )
+          ? oldShiftMap[
+              normalizedShift
+            ]
+          : getShiftDisplayNameBeforeOis(
+              shift
+            );
+    };
+
+
+  /* =====================================================
+    OIS 과거자료는 수정·결재 불가
+  ====================================================== */
+
+  const isReadOnlyLegacyShiftLogBeforeOis =
+    isReadOnlyLegacyShiftLog;
+
+
+  isReadOnlyLegacyShiftLog =
+    function (
+      log
+    ) {
+      const source =
+        String(
+          log?.source ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+
+      if (
+        source ===
+          "ois-legacy" ||
+        source.startsWith(
+          "ois-legacy-"
+        )
+      ) {
+        return true;
+      }
+
+
+      return isReadOnlyLegacyShiftLogBeforeOis(
+        log
+      );
+    };
+
+
+  /* =====================================================
+    조회 결과 정렬
+
+    2교대:
+    DS → NS
+
+    3교대:
+    D → A → N
+  ====================================================== */
+
+  const renderSearchResultsBeforeOis =
+    renderSearchResults;
+
+
+  renderSearchResults =
+    function (
+      results
+    ) {
+      const sortedResults =
+        Array.isArray(
+          results
+        )
+          ? [
+              ...results
+            ]
+          : [];
+
+
+      sortedResults.sort(
+        (
+          firstLog,
+          secondLog
+        ) => {
+          const dateDifference =
+            String(
+              secondLog?.date ||
+              ""
+            ).localeCompare(
+              String(
+                firstLog?.date ||
+                ""
+              )
+            );
+
+
+          if (
+            dateDifference !==
+            0
+          ) {
+            return dateDifference;
+          }
+
+
+          const shiftDifference =
+            (
+              SHIFT_ORDER[
+                String(
+                  firstLog?.shift ||
+                  ""
+                ).toUpperCase()
+              ] ||
+              99
+            ) -
+            (
+              SHIFT_ORDER[
+                String(
+                  secondLog?.shift ||
+                  ""
+                ).toUpperCase()
+              ] ||
+              99
+            );
+
+
+          if (
+            shiftDifference !==
+            0
+          ) {
+            return shiftDifference;
+          }
+
+
+          return (
+            (
+              ROLE_ORDER[
+                normalizeMemberLogRole(
+                  firstLog?.role
+                )
+              ] ||
+              99
+            ) -
+            (
+              ROLE_ORDER[
+                normalizeMemberLogRole(
+                  secondLog?.role
+                )
+              ] ||
+              99
+            )
+          );
+        }
+      );
+
+
+      return renderSearchResultsBeforeOis(
+        sortedResults
+      );
+    };
+
+
+  /* =====================================================
+    업무일지 조회 근무구분에
+    구 3교대 D / A / N 추가
+
+    HTML은 이번 단계에서 수정하지 않는다.
+  ====================================================== */
+
+  function initializeOisLegacyShiftOptions() {
+    const shiftSelect =
+      document.getElementById(
+        "searchShift"
+      );
+
+
+    if (
+      !shiftSelect ||
+      shiftSelect.querySelector(
+        'option[value="A"]'
+      )
+    ) {
+      return;
+    }
+
+
+    const group =
+      document.createElement(
+        "optgroup"
+      );
+
+
+    group.label =
+      "구 3교대";
+
+
+    [
+      [
+        "D",
+        "D (주간)"
+      ],
+
+      [
+        "A",
+        "A (오후)"
+      ],
+
+      [
+        "N",
+        "N (야간)"
+      ]
+    ].forEach(
+      (
+        [
+          value,
+          label
+        ]
+      ) => {
+        const option =
+          document.createElement(
+            "option"
+          );
+
+
+        option.value =
+          value;
+
+
+        option.textContent =
+          label;
+
+
+        group.appendChild(
+          option
+        );
+      }
+    );
+
+
+    shiftSelect.appendChild(
+      group
+    );
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeOisLegacyShiftOptions,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeOisLegacyShiftOptions();
+  }
+
+
+  /*
+    F12 테스트용
+  */
+  window.loadOisLegacyLogsForSearchRange =
+    loadOisLegacyLogsForSearchRange;
 })();

@@ -53,6 +53,25 @@ const MAXIMUM_LIMESTONE_USAGE_BATCH_DAYS =
 const LIMESTONE_USAGE_BATCH_QUEUE_HOURS =
   48;  
 
+/* =========================================================
+  OIS 과거 업무일지 기간 가져오기
+
+  한 번 요청:
+  최대 62일
+
+  대기열 보존:
+  최대 72시간
+
+  긴 과거 기간은 홈페이지에서
+  62일씩 자동으로 나누어 등록한다.
+========================================================= */
+
+const MAXIMUM_OIS_LEGACY_BATCH_DAYS =
+  62;
+
+
+const OIS_LEGACY_BATCH_QUEUE_HOURS =
+  72;  
 
 /* =========================================================
   공통 응답
@@ -1539,6 +1558,540 @@ function normalizeLimestoneStockResult(
   };
 }
 
+/* =========================================================
+  OIS 과거 LOG SHEET 업무일지 결과 정규화
+
+  중요:
+  - DAY / AFTER / NIGHT 원본을 그대로 보존
+  - 이 단계에서는 DS / NS 변환하지 않음
+  - 내용 없는 AFTER 행도 저장하여
+    향후 2교대 전환시점 확인에 사용
+========================================================= */
+
+function normalizeOisLegacyApprovalResult(
+  rawResult,
+  targetDate
+) {
+  const result =
+    rawResult &&
+    typeof rawResult ===
+      "object" &&
+    !Array.isArray(
+      rawResult
+    )
+      ? rawResult
+      : {};
+
+
+  const allowedRoles =
+    new Set([
+      "TGO",
+      "BCO1",
+      "BCO2",
+      "TO",
+      "BO1",
+      "BO2"
+    ]);
+
+
+  const allowedShifts =
+    new Set([
+      "DAY",
+      "AFTER",
+      "NIGHT"
+    ]);
+
+
+  const rawRecords =
+    Array.isArray(
+      result.records
+    )
+      ? result.records
+      : [];
+
+
+  const records =
+    rawRecords
+      .map(
+        (
+          rawRecord,
+          recordIndex
+        ) => {
+          const source =
+            rawRecord &&
+            typeof rawRecord ===
+              "object"
+              ? rawRecord
+              : {};
+
+
+          const original =
+            source.original &&
+            typeof source.original ===
+              "object"
+              ? source.original
+              : {};
+
+
+          const role =
+            normalizeText(
+              source.role ||
+              original.sheet_alias ||
+              original.sheetAlias
+            )
+              .toUpperCase();
+
+
+          const originalShift =
+            normalizeText(
+              source.originalShift ||
+              source.original_shift ||
+              original.time ||
+              original.work_time
+            )
+              .toUpperCase();
+
+
+          if (
+            !allowedRoles.has(
+              role
+            ) ||
+            !allowedShifts.has(
+              originalShift
+            )
+          ) {
+            return null;
+          }
+
+
+          /*
+            업무내용은 줄바꿈을 보존한다.
+          */
+
+          const content =
+            String(
+              source.content ??
+              original.rmk ??
+              ""
+            )
+              .replace(
+                /\r\n?/g,
+                "\n"
+              )
+              .trim();
+
+
+          return {
+            workDate:
+              targetDate,
+
+            role,
+
+            originalShift,
+
+            worker:
+              normalizeText(
+                source.worker ||
+                original.worker
+              ),
+
+            content,
+
+            hasContent:
+              Boolean(
+                content
+              ),
+
+            workerApproval:
+              normalizeText(
+                source.workerApproval ||
+                source.worker_approval ||
+                original.work_state
+              ),
+
+            partApproval:
+              normalizeText(
+                source.partApproval ||
+                source.part_approval ||
+                original.part_state
+              ),
+
+            approvalState:
+              normalizeText(
+                source.approvalState ||
+                source.approval_state ||
+                original.aprv_state
+              ),
+
+            oisState:
+              normalizeText(
+                source.state ||
+                original.state
+              ),
+
+            sheetCode:
+              normalizeText(
+                source.sheetCode ||
+                source.sheet_code ||
+                original.sheet_code ||
+                original.sheet ||
+                original.pos_info_code
+              ),
+
+            sourceRowIndex:
+              Number(
+                source.sourceRowIndex ??
+                recordIndex
+              ),
+
+            original:
+              Object.keys(
+                original
+              ).length
+                ? original
+                : source
+          };
+        }
+      )
+      .filter(
+        Boolean
+      );
+
+
+  return {
+    result: {
+      ...result,
+
+      targetDate,
+
+      records
+    }
+  };
+}
+
+
+/* =========================================================
+  OIS 과거 LOG SHEET 업무일지 D1 저장
+
+  고유 기준:
+  날짜 + 보직 + 원본 근무
+
+  예:
+  2022-09-22 + BCO1 + NIGHT
+
+  같은 자료를 다시 가져오면
+  신규 행을 만들지 않고 최신값으로 갱신한다.
+========================================================= */
+
+async function saveOisLegacyApprovalRecords(
+  database,
+  options
+) {
+  const requestItem =
+    options?.requestItem ||
+    {};
+
+
+  const normalizedResult =
+    options?.normalizedResult ||
+    {};
+
+
+  const agentId =
+    normalizeText(
+      options?.agentId
+    );
+
+
+  const targetDate =
+    normalizeText(
+      normalizedResult.targetDate ||
+      requestItem.targetDate
+    );
+
+
+  if (
+    !isValidIsoDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "OIS 과거 업무일지 저장 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  const records =
+    Array.isArray(
+      normalizedResult.records
+    )
+      ? normalizedResult.records
+      : [];
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  const requestId =
+    normalizeText(
+      requestItem.id
+    );
+
+
+  const collectedAt =
+    normalizeText(
+      normalizedResult.collectedAt
+    ) ||
+    now;
+
+
+  let createdCount =
+    0;
+
+
+  let updatedCount =
+    0;
+
+
+  for (
+    const record of
+    records
+  ) {
+    const role =
+      normalizeText(
+        record.role
+      )
+        .toUpperCase();
+
+
+    const originalShift =
+      normalizeText(
+        record.originalShift
+      )
+        .toUpperCase();
+
+
+    if (
+      !role ||
+      !originalShift
+    ) {
+      continue;
+    }
+
+
+    const existingRow =
+      await database
+        .prepare(`
+          SELECT
+            id
+
+          FROM ois_legacy_logs
+
+          WHERE
+            work_date = ?
+            AND role = ?
+            AND original_shift = ?
+
+          LIMIT 1
+        `)
+        .bind(
+          targetDate,
+          role,
+          originalShift
+        )
+        .first();
+
+
+    const recordId =
+      normalizeText(
+        existingRow?.id
+      ) ||
+      crypto.randomUUID();
+
+
+    await database
+      .prepare(`
+        INSERT INTO ois_legacy_logs (
+          id,
+
+          work_date,
+          role,
+          original_shift,
+
+          worker,
+          content,
+          has_content,
+
+          worker_approval,
+          part_approval,
+          approval_state,
+          ois_state,
+
+          sheet_code,
+
+          ois_request_id,
+          collected_at,
+
+          original_json,
+
+          created_at,
+          updated_at
+        )
+        VALUES (
+          ?,
+
+          ?,
+          ?,
+          ?,
+
+          ?,
+          ?,
+          ?,
+
+          ?,
+          ?,
+          ?,
+          ?,
+
+          ?,
+
+          ?,
+          ?,
+
+          ?,
+
+          ?,
+          ?
+        )
+
+        ON CONFLICT (
+          work_date,
+          role,
+          original_shift
+        )
+        DO UPDATE SET
+          worker =
+            excluded.worker,
+
+          content =
+            excluded.content,
+
+          has_content =
+            excluded.has_content,
+
+          worker_approval =
+            excluded.worker_approval,
+
+          part_approval =
+            excluded.part_approval,
+
+          approval_state =
+            excluded.approval_state,
+
+          ois_state =
+            excluded.ois_state,
+
+          sheet_code =
+            excluded.sheet_code,
+
+          ois_request_id =
+            excluded.ois_request_id,
+
+          collected_at =
+            excluded.collected_at,
+
+          original_json =
+            excluded.original_json,
+
+          updated_at =
+            excluded.updated_at
+      `)
+      .bind(
+        recordId,
+
+        targetDate,
+        role,
+        originalShift,
+
+        normalizeText(
+          record.worker
+        ),
+
+        String(
+          record.content ||
+          ""
+        ),
+
+        record.hasContent
+          ? 1
+          : 0,
+
+        normalizeText(
+          record.workerApproval
+        ),
+
+        normalizeText(
+          record.partApproval
+        ),
+
+        normalizeText(
+          record.approvalState
+        ),
+
+        normalizeText(
+          record.oisState
+        ),
+
+        normalizeText(
+          record.sheetCode
+        ),
+
+        requestId,
+
+        collectedAt,
+
+        JSON.stringify(
+          record.original ||
+          {}
+        ),
+
+        existingRow
+          ? now
+          : now,
+
+        now
+      )
+      .run();
+
+
+    if (
+      existingRow
+    ) {
+      updatedCount +=
+        1;
+
+    } else {
+      createdCount +=
+        1;
+    }
+  }
+
+
+  return {
+    targetDate,
+
+    totalCount:
+      records.length,
+
+    createdCount,
+
+    updatedCount,
+
+    agentId
+  };
+}
 
 /* =========================================================
   DB 행 → 응답
@@ -3706,6 +4259,523 @@ async function createLimestoneUsageBatchRequest(
 }
 
 /* =========================================================
+  OIS 과거 LOG SHEET 기간 요청 생성
+
+  POST:
+  {
+    action: "create_logsheet_batch",
+    startDate: "2022-09-01",
+    endDate: "2022-10-31",
+    forceRefresh: false
+  }
+
+  처리:
+  - 날짜별 logsheet_approval 요청 생성
+  - 이미 처리 중인 날짜는 기존 요청 재사용
+  - forceRefresh=false:
+      완료된 날짜도 기존 결과 재사용
+  - forceRefresh=true:
+      완료된 자료는 새로 조회
+  - 최대 62일
+========================================================= */
+
+async function createOisLegacyLogBatchRequest(
+  context,
+  body
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const user =
+    authentication.user;
+
+
+  const startDate =
+    normalizeText(
+      body.startDate ||
+      body.start_date
+    );
+
+
+  const endDate =
+    normalizeText(
+      body.endDate ||
+      body.end_date
+    );
+
+
+  const forceRefresh =
+    body.forceRefresh ===
+      true;
+
+
+  /* =====================================================
+    날짜 검사
+  ====================================================== */
+
+  if (
+    !isValidIsoDate(
+      startDate
+    ) ||
+    !isValidIsoDate(
+      endDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "OIS 과거 업무일지 시작일과 종료일을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  /*
+    기존 날짜 배열 생성 함수를 그대로 사용한다.
+
+    함수 이름에는 Limestone이 들어 있지만
+    실제 동작은 단순 YYYY-MM-DD 날짜 배열 생성이다.
+  */
+
+  const dates =
+    createLimestoneUsageBatchDates(
+      startDate,
+      endDate
+    );
+
+
+  if (
+    dates.length <
+      1
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "시작일은 종료일보다 늦을 수 없습니다."
+      },
+      400
+    );
+  }
+
+
+  if (
+    dates.length >
+      MAXIMUM_OIS_LEGACY_BATCH_DAYS
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          `OIS 과거 업무일지는 한 번에 최대 ${MAXIMUM_OIS_LEGACY_BATCH_DAYS}일까지 요청할 수 있습니다.`
+      },
+      400
+    );
+  }
+
+
+  await expireOldRequests(
+    context.env.DB
+  );
+
+
+  const items = [];
+
+
+  let createdCount =
+    0;
+
+
+  let reusedActiveCount =
+    0;
+
+
+  let reusedCompleteCount =
+    0;
+
+
+  const baseTime =
+    Date.now();
+
+
+  /* =====================================================
+    날짜별 요청 생성
+  ====================================================== */
+
+  for (
+    let dateIndex = 0;
+    dateIndex <
+      dates.length;
+    dateIndex +=
+      1
+  ) {
+    const targetDate =
+      dates[
+        dateIndex
+      ];
+
+
+    /* ===================================================
+      1. 이미 pending / processing 상태가 있는지 확인
+
+      forceRefresh 여부와 관계없이
+      처리 중인 요청은 중복 생성하지 않는다.
+    ==================================================== */
+
+    const activeRow =
+      await context.env.DB
+        .prepare(`
+          SELECT
+            *
+
+          FROM ois_data_requests
+
+          WHERE
+            request_type =
+              'logsheet_approval'
+
+            AND target_date = ?
+
+            AND status IN (
+              'pending',
+              'processing'
+            )
+
+          ORDER BY
+            requested_at DESC
+
+          LIMIT 1
+        `)
+        .bind(
+          targetDate
+        )
+        .first();
+
+
+    if (
+      activeRow
+    ) {
+      items.push({
+        ...convertRequestRow(
+          activeRow
+        ),
+
+        batchDisposition:
+          "reused_active"
+      });
+
+
+      reusedActiveCount +=
+        1;
+
+
+      continue;
+    }
+
+
+    /* ===================================================
+      2. 저장된 완료자료 재사용
+
+      forceRefresh=true이면 건너뛰고
+      새 요청을 생성한다.
+    ==================================================== */
+
+    if (
+      !forceRefresh
+    ) {
+      const completedRow =
+        await context.env.DB
+          .prepare(`
+            SELECT
+              *
+
+            FROM ois_data_requests
+
+            WHERE
+              request_type =
+                'logsheet_approval'
+
+              AND target_date = ?
+
+              AND status =
+                'complete'
+
+            ORDER BY
+              completed_at DESC,
+              requested_at DESC
+
+            LIMIT 1
+          `)
+          .bind(
+            targetDate
+          )
+          .first();
+
+
+      if (
+        completedRow
+      ) {
+        items.push({
+          ...convertRequestRow(
+            completedRow
+          ),
+
+          batchDisposition:
+            "reused_complete"
+        });
+
+
+        reusedCompleteCount +=
+          1;
+
+
+        continue;
+      }
+    }
+
+
+    /* ===================================================
+      3. 신규 요청 생성
+    ==================================================== */
+
+    const requestId =
+      crypto.randomUUID();
+
+
+    /*
+      날짜순으로 처리되게 요청시각을
+      1ms씩 증가시킨다.
+    */
+
+    const requestedAt =
+      new Date(
+        baseTime +
+        dateIndex
+      );
+
+
+    const requestedAtText =
+      requestedAt
+        .toISOString();
+
+
+    /*
+      과거자료는 여러 날짜가 대기할 수 있으므로
+      일반 10분 제한을 사용하지 않는다.
+
+      최대 72시간 동안 대기 가능.
+    */
+
+    const expiresAt =
+      new Date(
+        requestedAt.getTime() +
+        (
+          OIS_LEGACY_BATCH_QUEUE_HOURS *
+          60 *
+          60 *
+          1000
+        )
+      );
+
+
+    const expiresAtText =
+      expiresAt
+        .toISOString();
+
+
+    await context.env.DB
+      .prepare(`
+        INSERT INTO ois_data_requests (
+          id,
+
+          request_type,
+          target_date,
+          status,
+
+          requested_by_id,
+          requested_by_name,
+
+          requested_at,
+          started_at,
+          completed_at,
+
+          agent_id,
+
+          result_json,
+          error_message,
+
+          expires_at,
+          updated_at
+        )
+        VALUES (
+          ?,
+
+          'logsheet_approval',
+          ?,
+          'pending',
+
+          ?,
+          ?,
+
+          ?,
+          NULL,
+          NULL,
+
+          '',
+
+          NULL,
+          '',
+
+          ?,
+          ?
+        )
+      `)
+      .bind(
+        requestId,
+
+        targetDate,
+
+        user.employeeNo,
+        user.name,
+
+        requestedAtText,
+
+        expiresAtText,
+        requestedAtText
+      )
+      .run();
+
+
+    items.push({
+      id:
+        requestId,
+
+      requestType:
+        "logsheet_approval",
+
+      targetDate,
+
+      status:
+        "pending",
+
+      requestedById:
+        user.employeeNo,
+
+      requestedByName:
+        user.name,
+
+      requestedAt:
+        requestedAtText,
+
+      startedAt:
+        "",
+
+      completedAt:
+        "",
+
+      agentId:
+        "",
+
+      result:
+        null,
+
+      errorMessage:
+        "",
+
+      expiresAt:
+        expiresAtText,
+
+      updatedAt:
+        requestedAtText,
+
+      batchDisposition:
+        "created"
+    });
+
+
+    createdCount +=
+      1;
+  }
+
+
+  /* =====================================================
+    결과
+  ====================================================== */
+
+  return jsonResponse(
+    {
+      ok:
+        true,
+
+      requestType:
+        "logsheet_approval",
+
+      range: {
+        startDate,
+
+        endDate,
+
+        totalDays:
+          dates.length
+      },
+
+      createdCount,
+
+      reusedActiveCount,
+
+      reusedCompleteCount,
+
+      reusedCount:
+        reusedActiveCount +
+        reusedCompleteCount,
+
+      totalCount:
+        items.length,
+
+      forceRefresh,
+
+      items,
+
+      message:
+        [
+          `OIS 과거 업무일지 ${dates.length}일을 확인했습니다.`,
+
+          `신규 요청 ${createdCount}일`,
+
+          `진행 중 재사용 ${reusedActiveCount}일`,
+
+          `완료자료 재사용 ${reusedCompleteCount}일`
+        ].join(
+          " "
+        )
+    },
+
+    createdCount >
+      0
+      ? 201
+      : 200
+  );
+}
+
+/* =========================================================
   업무일지에서 새 OIS 요청 생성
 ========================================================= */
 
@@ -4100,6 +5170,9 @@ async function completeAgentRequest(
 
   let limestoneUsageRecords = [];
 
+  let oisLegacySaveResult =
+  null;
+
 
   if (
     existingRequest.requestType ===
@@ -4170,15 +5243,50 @@ limestoneUsageRecords =
     }
   );      
 
-  } else {
-    normalizedResult =
-      body.result &&
-      typeof body.result ===
-        "object"
-        ? body.result
-        : {};
-  }
+} else if (
+  existingRequest.requestType ===
+    "logsheet_approval"
+) {
+  const validation =
+    normalizeOisLegacyApprovalResult(
+      body.result,
+      existingRequest.targetDate
+    );
 
+
+  normalizedResult =
+    validation.result;
+
+
+  /*
+    요청을 complete 처리하기 전에
+    과거 업무일지 원본을 D1에 먼저 저장한다.
+
+    저장에 실패하면 요청도 complete가 되지 않는다.
+  */
+
+  oisLegacySaveResult =
+    await saveOisLegacyApprovalRecords(
+      context.env.DB,
+      {
+        requestItem:
+          existingRequest,
+
+        normalizedResult,
+
+        agentId:
+          authentication.agentId
+      }
+    );
+
+} else {
+  normalizedResult =
+    body.result &&
+    typeof body.result ===
+      "object"
+      ? body.result
+      : {};
+}
 
   const now =
     new Date()
@@ -4243,26 +5351,33 @@ limestoneUsageRecords =
     );
 
 
-  return jsonResponse({
-    ok:
-      true,
+return jsonResponse({
+  ok:
+    true,
 
-    item: {
-      ...completedRequest,
-
-      usageRecords:
-        limestoneUsageRecords
-    },
+  item: {
+    ...completedRequest,
 
     usageRecords:
       limestoneUsageRecords,
 
-    message:
-      existingRequest.requestType ===
-        "limestone_stock"
-        ? "OIS 조회 결과와 석회석 사용량을 저장했습니다."
+    oisLegacySaveResult
+  },
+
+  usageRecords:
+    limestoneUsageRecords,
+
+  oisLegacySaveResult,
+
+  message:
+    existingRequest.requestType ===
+      "limestone_stock"
+      ? "OIS 조회 결과와 석회석 사용량을 저장했습니다."
+      : existingRequest.requestType ===
+          "logsheet_approval"
+        ? "OIS 과거 업무일지를 D1에 저장했습니다."
         : "OIS 조회 결과를 저장했습니다."
-  });
+});
 }
 
 /* =========================================================
@@ -4461,24 +5576,39 @@ export async function onRequestPost(
     /*
       기간 전체 사용량 계산
     */
-    if (
-      action ===
-        "create_usage_batch"
-    ) {
-      return await createLimestoneUsageBatchRequest(
-        context,
-        body
-      );
-    }
+if (
+  action ===
+    "create_usage_batch"
+) {
+  return await createLimestoneUsageBatchRequest(
+    context,
+    body
+  );
+}
 
 
-    /*
-      단일 날짜 OIS 조회
-    */
-    return await createUserRequest(
-      context,
-      body
-    );
+/* =====================================================
+  OIS 과거 LOG SHEET 기간 가져오기
+===================================================== */
+
+if (
+  action ===
+    "create_logsheet_batch"
+) {
+  return await createOisLegacyLogBatchRequest(
+    context,
+    body
+  );
+}
+
+
+/*
+  단일 날짜 OIS 조회
+*/
+return await createUserRequest(
+  context,
+  body
+);
 
   } catch (
     error

@@ -88319,3 +88319,161 @@ a.shift-log-editor-attachment__name:hover {
 .shift-member-card__status.is-team-approved::before {
   background: #1764b0;
 }
+
+/* =========================================================
+  현재 Shift 이전일지 동기화 버튼
+
+  위치:
+  근무자 현황 상단 우측 맨 끝
+
+  목적:
+  현재 선택 날짜 + 현재 Shift 한 건만 동기화
+========================================================= */
+
+#statusView
+.shift-status-section
+.shift-heading-right {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+
+  min-width: 0;
+
+  margin-left: auto;
+
+  gap: 7px;
+}
+
+
+/* =====================================================
+  아주 작은 동기화 버튼
+====================================================== */
+
+#statusView
+.shift-status-section
+.current-shift-sync-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  flex: 0 0 auto;
+
+  width: auto;
+  min-width: 42px;
+  height: 21px;
+
+  padding: 0 6px;
+
+  border: 1px solid #c8d5e4;
+  border-radius: 5px;
+
+  background: #ffffff;
+
+  color: #66788d;
+
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+
+  letter-spacing: -0.02em;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+
+#statusView
+.shift-status-section
+.current-shift-sync-button:hover {
+  border-color: #8eb5e3;
+
+  background: #f4f8fd;
+
+  color: #2464aa;
+}
+
+
+#statusView
+.shift-status-section
+.current-shift-sync-button:disabled {
+  cursor: wait;
+
+  opacity: 0.55;
+}
+
+
+/*
+  hidden 속성이 다른 스타일보다
+  항상 우선하도록 한다.
+*/
+
+#statusView
+.shift-status-section
+.current-shift-sync-button[hidden] {
+  display: none !important;
+}
+
+
+/* =====================================================
+  모바일
+
+  기존:
+  제목 | 현재근무
+
+  변경:
+  제목 | 현재근무 + 아주 작은 동기화 버튼
+====================================================== */
+
+@media (max-width: 768px) {
+
+  #statusView
+  .shift-status-section
+  .shift-heading-right {
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto !important;
+
+    align-items: center !important;
+
+    min-width: 0 !important;
+
+    margin-left: 0 !important;
+
+    gap: 4px !important;
+  }
+
+
+  /*
+    기존 모바일 CSS의
+    width: 100%를 여기서 다시 정리
+  */
+
+  #statusView
+  .shift-status-section
+  .shift-heading-right
+  .shift-summary {
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+
+  #statusView
+  .shift-status-section
+  .current-shift-sync-button {
+    min-width: 37px !important;
+    height: 19px !important;
+
+    padding: 0 5px !important;
+
+    border-radius: 4px !important;
+
+    font-size: 8px !important;
+  }
+
+}
