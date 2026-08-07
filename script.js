@@ -134920,7 +134920,6 @@ function formatMorningMeetingMergeReference(
   );
 }
 
-
 function updateMorningMeetingDynamicMerges(
   worksheetDocument,
   layout,
@@ -134944,10 +134943,11 @@ function updateMorningMeetingDynamicMerges(
     !mergeCellsElement
   ) {
     mergeCellsElement =
-      worksheetDocument.createElementNS(
-        MAIN_XML_NAMESPACE,
-        "mergeCells"
-      );
+      worksheetDocument
+        .createElementNS(
+          MAIN_XML_NAMESPACE,
+          "mergeCells"
+        );
 
 
     const phoneticPr =
@@ -134988,11 +134988,15 @@ function updateMorningMeetingDynamicMerges(
 
       if (
         range.endRow <
-        layout.safetyStartRow
+          layout.safetyStartRow
       ) {
         return;
       }
 
+
+      /*
+        기존 안전팀 ~ 전기제어팀 병합 제거
+      */
 
       if (
         range.startRow >=
@@ -135000,17 +135004,19 @@ function updateMorningMeetingDynamicMerges(
         range.endRow <
           layout.tmStartRow
       ) {
-        mergeCellsElement.removeChild(
-          mergeElement
-        );
+        mergeElement.remove();
 
         return;
       }
 
 
+      /*
+        TM 영역은 아래로 이동
+      */
+
       if (
         range.startRow >=
-        layout.tmStartRow
+          layout.tmStartRow
       ) {
         range.startRow +=
           delta;
@@ -135022,7 +135028,6 @@ function updateMorningMeetingDynamicMerges(
 
         mergeElement.setAttribute(
           "ref",
-
           formatMorningMeetingMergeReference(
             range
           )
@@ -135042,19 +135047,24 @@ function updateMorningMeetingDynamicMerges(
   );
 
 
+  /*
+    새로 생성한 4개 팀 행도
+    모두 B ~ AO 전체 병합
+  */
+
   dynamicRows.forEach(
     rowDefinition => {
       const mergeElement =
-        worksheetDocument.createElementNS(
-          MAIN_XML_NAMESPACE,
-          "mergeCell"
-        );
+        worksheetDocument
+          .createElementNS(
+            MAIN_XML_NAMESPACE,
+            "mergeCell"
+          );
 
 
       mergeElement.setAttribute(
         "ref",
-
-        `B${rowDefinition.rowNumber}:AD${rowDefinition.rowNumber}`
+        `B${rowDefinition.rowNumber}:AO${rowDefinition.rowNumber}`
       );
 
 
@@ -135067,7 +135077,6 @@ function updateMorningMeetingDynamicMerges(
 
   mergeCellsElement.setAttribute(
     "count",
-
     String(
       getMorningMeetingDirectXmlChildren(
         mergeCellsElement,
@@ -135823,6 +135832,16 @@ function updateMorningMeetingShiftPartMerges(
   }
 
 
+  /*
+    평일 기본 전체 폭
+
+    기존:
+    B:AD
+
+    변경:
+    B:AO
+  */
+
   const primaryStartColumn =
     getMorningMeetingColumnNumber(
       "B"
@@ -135831,7 +135850,7 @@ function updateMorningMeetingShiftPartMerges(
 
   const primaryEndColumn =
     getMorningMeetingColumnNumber(
-      "AD"
+      "AO"
     );
 
 
@@ -135870,28 +135889,25 @@ function updateMorningMeetingShiftPartMerges(
       const overlapsPrimaryColumns =
         startColumnNumber <=
           primaryEndColumn &&
-
         endColumnNumber >=
           primaryStartColumn;
 
 
       /*
-        교대파트 기존 B:AD 병합 제거
+        기존 교대파트 영역의 병합은
+        오른쪽 주말표 병합까지 전부 제거
       */
 
       if (
         mergeRange.startRow >=
           layout.shiftStartRow &&
-
         mergeRange.endRow <
           layout.fuelStartRow
       ) {
         if (
           overlapsPrimaryColumns
         ) {
-          mergeCellsElement.removeChild(
-            mergeElement
-          );
+          mergeElement.remove();
         }
 
 
@@ -135900,12 +135916,12 @@ function updateMorningMeetingShiftPartMerges(
 
 
       /*
-        연료 설비 이후 병합 행 이동
+        연료설비 이하 기존 병합 이동
       */
 
       if (
         mergeRange.startRow >=
-        layout.fuelStartRow
+          layout.fuelStartRow
       ) {
         mergeRange.startRow +=
           delta;
@@ -135917,7 +135933,6 @@ function updateMorningMeetingShiftPartMerges(
 
         mergeElement.setAttribute(
           "ref",
-
           formatMorningMeetingMergeReference(
             mergeRange
           )
@@ -135928,23 +135943,23 @@ function updateMorningMeetingShiftPartMerges(
 
 
   /*
-    새로 생성된 교대파트 모든 행은
-    B열부터 AD열까지 병합한다.
+    새 교대파트 행은 전부
+    B ~ AO 전체 병합
   */
 
   newRows.forEach(
     rowDefinition => {
       const mergeElement =
-        worksheetDocument.createElementNS(
-          MAIN_XML_NAMESPACE,
-          "mergeCell"
-        );
+        worksheetDocument
+          .createElementNS(
+            MAIN_XML_NAMESPACE,
+            "mergeCell"
+          );
 
 
       mergeElement.setAttribute(
         "ref",
-
-        `B${rowDefinition.rowNumber}:AD${rowDefinition.rowNumber}`
+        `B${rowDefinition.rowNumber}:AO${rowDefinition.rowNumber}`
       );
 
 
@@ -135957,7 +135972,6 @@ function updateMorningMeetingShiftPartMerges(
 
   mergeCellsElement.setAttribute(
     "count",
-
     String(
       getMorningMeetingDirectXmlChildren(
         mergeCellsElement,
@@ -141749,6 +141763,337 @@ function normalizeMorningMeetingTemplateToWeekdayLayout(
 }
 
 /* =========================================================
+  오전회의 최종 업무영역 평일 기본형 정리
+
+  모든 동적 행 생성이 끝난 후 실행한다.
+
+  범위:
+  1. 설비 운영팀
+  ~
+  2. 안전팀 바로 전
+
+  처리:
+  - 주말 Bio 표 잔재 삭제
+  - 전일 전력단가 표 잔재 삭제
+  - 오른쪽 셀 값 전부 제거
+  - 모든 행 B:AO 병합
+
+  이후 ☑ 주말이면
+  주말표를 새로 생성한다.
+========================================================= */
+
+function finalizeMorningMeetingWeekdayOperationArea(
+  worksheetDocument,
+  sharedStrings
+) {
+  const sheetData =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "sheetData"
+      )[0];
+
+
+  const mergeCellsElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !sheetData ||
+    !mergeCellsElement
+  ) {
+    return {
+      normalized:
+        false
+    };
+  }
+
+
+  const rowRecords =
+    getMorningMeetingDirectXmlChildren(
+      sheetData,
+      "row"
+    )
+      .map(
+        rowElement => {
+          return {
+            element:
+              rowElement,
+
+            rowNumber:
+              getMorningMeetingRowNumber(
+                rowElement
+              ),
+
+            text:
+              getMorningMeetingRowColumnBText(
+                rowElement,
+                sharedStrings
+              )
+          };
+        }
+      )
+      .sort(
+        (
+          first,
+          second
+        ) => {
+          return (
+            first.rowNumber -
+            second.rowNumber
+          );
+        }
+      );
+
+
+  const operationStart =
+    findMorningMeetingRowRecord(
+      rowRecords,
+      /^1\s*[.)]\s*설비\s*운영팀$/i
+    );
+
+
+  const safetyStart =
+    operationStart
+      ? findMorningMeetingRowRecord(
+          rowRecords,
+          /^2\s*[.)]\s*안전팀$/i,
+          operationStart.rowNumber +
+            1
+        )
+      : null;
+
+
+  if (
+    !operationStart ||
+    !safetyStart
+  ) {
+    return {
+      normalized:
+        false
+    };
+  }
+
+
+  const columnBNumber =
+    getMorningMeetingColumnNumber(
+      "B"
+    );
+
+
+  const columnAoNumber =
+    getMorningMeetingColumnNumber(
+      "AO"
+    );
+
+
+  /* =====================================================
+    셀 값 삭제
+  ====================================================== */
+
+  const clearCellValue =
+    cellElement => {
+      if (
+        !cellElement
+      ) {
+        return;
+      }
+
+
+      [
+        "f",
+        "v",
+        "is"
+      ].forEach(
+        childName => {
+          getMorningMeetingDirectXmlChildren(
+            cellElement,
+            childName
+          ).forEach(
+            childElement => {
+              childElement.remove();
+            }
+          );
+        }
+      );
+
+
+      cellElement.removeAttribute(
+        "t"
+      );
+    };
+
+
+  /* =====================================================
+    설비운영 ~ 연료설비 영역 전체 정리
+  ====================================================== */
+
+  rowRecords
+    .filter(
+      record => {
+        return (
+          record.rowNumber >=
+            operationStart.rowNumber &&
+          record.rowNumber <
+            safetyStart.rowNumber
+        );
+      }
+    )
+    .forEach(
+      record => {
+        /* ===============================================
+          이 행의 기존 병합 제거
+
+          B:U
+          W:AD
+          AG:AO
+          B:AD
+          B:AO
+
+          전부 제거 후 하나로 다시 만든다.
+        =============================================== */
+
+        getMorningMeetingDirectXmlChildren(
+          mergeCellsElement,
+          "mergeCell"
+        ).forEach(
+          mergeElement => {
+            const range =
+              parseMorningMeetingMergeReference(
+                mergeElement.getAttribute(
+                  "ref"
+                )
+              );
+
+
+            if (
+              !range ||
+              range.startRow !==
+                record.rowNumber ||
+              range.endRow !==
+                record.rowNumber
+            ) {
+              return;
+            }
+
+
+            const startColumn =
+              getMorningMeetingColumnNumber(
+                range.startColumn
+              );
+
+
+            const endColumn =
+              getMorningMeetingColumnNumber(
+                range.endColumn
+              );
+
+
+            if (
+              startColumn <=
+                columnAoNumber &&
+              endColumn >=
+                columnBNumber
+            ) {
+              mergeElement.remove();
+            }
+          }
+        );
+
+
+        /* ===============================================
+          B 내용만 유지
+
+          C ~ AO의 과거 주말표 값은 전부 삭제
+        =============================================== */
+
+        getMorningMeetingDirectXmlChildren(
+          record.element,
+          "c"
+        ).forEach(
+          cellElement => {
+            const columnName =
+              getMorningMeetingCellColumn(
+                cellElement.getAttribute(
+                  "r"
+                )
+              );
+
+
+            const columnNumber =
+              getMorningMeetingColumnNumber(
+                columnName
+              );
+
+
+            if (
+              columnNumber >
+                columnBNumber &&
+              columnNumber <=
+                columnAoNumber
+            ) {
+              clearCellValue(
+                cellElement
+              );
+            }
+          }
+        );
+
+
+        /* ===============================================
+          B ~ AO 한 칸으로 다시 병합
+        =============================================== */
+
+        const mergeElement =
+          worksheetDocument
+            .createElementNS(
+              MAIN_XML_NAMESPACE,
+              "mergeCell"
+            );
+
+
+        mergeElement.setAttribute(
+          "ref",
+          `B${record.rowNumber}:AO${record.rowNumber}`
+        );
+
+
+        mergeCellsElement.appendChild(
+          mergeElement
+        );
+      }
+    );
+
+
+  mergeCellsElement.setAttribute(
+    "count",
+    String(
+      getMorningMeetingDirectXmlChildren(
+        mergeCellsElement,
+        "mergeCell"
+      ).length
+    )
+  );
+
+
+  return {
+    normalized:
+      true,
+
+    startRow:
+      operationStart.rowNumber,
+
+    endRow:
+      safetyStart.rowNumber -
+      1
+  };
+}
+
+/* =========================================================
   오전회의 주말/공휴일 우측 보조표 자동 생성
 
   - 주말 체크 시에만 호출
@@ -143970,6 +144315,23 @@ const tmResult =
       : []
   );
 
+
+/* ===================================================
+  모든 업무행 생성 완료 후
+  평일 기본 형태로 최종 정리
+==================================================== */
+
+const weekdayOperationResult =
+  finalizeMorningMeetingWeekdayOperationArea(
+    worksheetDocument,
+    sharedStrings
+  );
+
+
+console.log(
+  "오전회의 평일 업무영역 최종 정리:",
+  weekdayOperationResult
+);  
 
 /* ===================================================
   6차: 주말 / 공휴일 전용 우측 보조표
