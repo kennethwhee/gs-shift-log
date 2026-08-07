@@ -131338,26 +131338,29 @@ function updateMorningMeetingCreateButton() {
       expectedMeetingDate;
 
 
-  /* ===================================================
-    최종 활성화 조건
+/* ===================================================
+  최종 활성화 조건
 
-    운탄·교대파트·BO1·BO2는
-    필수조건에서 제외
-  ==================================================== */
+  필수:
+  - 일일발전현황 기준 취합본
+  - 자료 분석 완료
+  - 오전회의 기준일
 
-  const canCreate =
-    hasTemplateFile &&
-    hasAllTeamAnalysis &&
-    hasExpectedPreviousDate &&
+  선택:
+  - 수처리
+  - 석회석
+  - Gear Wheel / Pinion
+  - BO1·BO2 온도
 
-    hasWaterTreatment &&
-    hasCorrectWaterDate &&
+  자동수치가 없으면
+  최종 엑셀에서 빈칸으로 생성하여
+  사용자가 직접 입력할 수 있게 한다.
+=================================================== */
 
-    hasLimestoneData &&
-    hasCorrectLimestoneDate &&
-
-    hasGearPinion &&
-    hasCorrectGearPinionDate;
+const canCreate =
+  hasTemplateFile &&
+  hasAllTeamAnalysis &&
+  hasExpectedPreviousDate;
 
 
   if (
@@ -131410,104 +131413,47 @@ function updateMorningMeetingCreateButton() {
 
 
   /* ===================================================
-    수처리
-  ==================================================== */
-
-  if (
-    !hasWaterTreatment
-  ) {
-    elements.message.textContent =
-      "수처리 자료가 준비되지 않았습니다. OIS 자동자료 다시 조회를 눌러주세요.";
-
-    return;
-  }
-
-
-  if (
-    !hasCorrectWaterDate
-  ) {
-    elements.message.textContent =
-      `수처리 조회일을 확인해 주세요. 필요일: ${expectedPreviousDate}`;
-
-    return;
-  }
-
-
-  /* ===================================================
-    석회석
-  ==================================================== */
-
-  if (
-    limestoneIsBusy
-  ) {
-    elements.message.textContent =
-      "석회석 재고·입고량을 불러오는 중입니다.";
-
-    return;
-  }
-
-
-  if (
-    limestoneHasError
-  ) {
-    elements.message.textContent =
-      "석회석 자료 조회에 실패했습니다. 석회석 사용량 자료를 다시 확인해 주세요.";
-
-    return;
-  }
-
-
-  if (
-    !hasLimestoneData
-  ) {
-    elements.message.textContent =
-      "석회석 재고·입고량·사용량이 준비되지 않았습니다.";
-
-    return;
-  }
-
-
-  if (
-    !hasCorrectLimestoneDate
-  ) {
-    elements.message.textContent =
-      `석회석 계산 기준일을 확인해 주세요. 필요일: ${expectedPreviousDate}`;
-
-    return;
-  }
-
-
-  /* ===================================================
-    Gear Wheel / Pinion
-  ==================================================== */
-
-  if (
-    !hasGearPinion
-  ) {
-    elements.message.textContent =
-      "Gear Wheel / Pinion 자료가 준비되지 않았습니다. OIS 자동자료 다시 조회를 눌러주세요.";
-
-    return;
-  }
-
-
-  if (
-    !hasCorrectGearPinionDate
-  ) {
-    elements.message.textContent =
-      `Gear Wheel / Pinion 조회일을 확인해 주세요. 필요일: ${expectedMeetingDate}`;
-
-    return;
-  }
-
-
-  /* ===================================================
     빈칸 처리 예정 자료
   ==================================================== */
 
   const blankSections =
     [];
 
+/* ===================================================
+  자동수치 누락
+
+  누락되어도 생성은 허용한다.
+  최종 엑셀에서는 빈칸 처리한다.
+=================================================== */
+
+if (
+  !hasWaterTreatment ||
+  !hasCorrectWaterDate
+) {
+  blankSections.push(
+    "수처리"
+  );
+}
+
+
+if (
+  !hasLimestoneData ||
+  !hasCorrectLimestoneDate
+) {
+  blankSections.push(
+    "석회석"
+  );
+}
+
+
+if (
+  !hasGearPinion ||
+  !hasCorrectGearPinionDate
+) {
+  blankSections.push(
+    "Gear/Pinion"
+  );
+}    
 
   if (
     !hasShiftPartText
@@ -136691,43 +136637,105 @@ function applyMorningMeetingGearPinionValues(
   worksheetDocument,
   gearPinion
 ) {
-  if (
-    !gearPinion ||
-    typeof gearPinion !==
+  const source =
+    gearPinion &&
+    typeof gearPinion ===
       "object"
-  ) {
-    throw new Error(
-      "Gear Wheel / Pinion OIS 자료가 없습니다."
-    );
-  }
+      ? gearPinion
+      : {};
+
+
+  /* =====================================================
+    값이 있으면 숫자로 변환
+    없으면 null
+
+    자료가 없다고 오류를 발생시키지 않는다.
+  ====================================================== */
+
+  const toOptionalNumber =
+    value => {
+      const normalized =
+        String(
+          value ??
+          ""
+        )
+          .replaceAll(
+            ",",
+            ""
+          )
+          .trim();
+
+
+      if (
+        !normalized
+      ) {
+        return null;
+      }
+
+
+      const numericValue =
+        Number(
+          normalized
+        );
+
+
+      return Number.isFinite(
+        numericValue
+      )
+        ? numericValue
+        : null;
+    };
 
 
   const gearWheel =
-    normalizeMorningMeetingGearPinionNumber(
-      gearPinion.gearWheel,
-      "Gear Wheel"
+    toOptionalNumber(
+      source.gearWheel
     );
 
 
   const pinion =
-    normalizeMorningMeetingGearPinionNumber(
-      gearPinion.pinion,
-      "Pinion"
+    toOptionalNumber(
+      source.pinion
     );
 
 
-  const displayValue = [
-    gearWheel.toFixed(
-      2
-    ),
+  const gearText =
+    gearWheel !==
+      null
+      ? gearWheel.toFixed(
+          2
+        )
+      : "";
 
-    pinion.toFixed(
-      2
-    )
-  ].join(
-    " / "
-  );
 
+  const pinionText =
+    pinion !==
+      null
+      ? pinion.toFixed(
+          2
+        )
+      : "";
+
+
+  let displayValue =
+    "";
+
+
+  if (
+    gearText ||
+    pinionText
+  ) {
+    displayValue =
+      `${gearText} / ${pinionText}`;
+  }
+
+
+  /*
+    둘 다 없으면 AL23을 빈칸으로 만든다.
+
+    기존 템플릿에 들어 있던
+    오래된 Gear/Pinion 값이 남으면 안 된다.
+  */
 
   const writeResult =
     setMorningMeetingInlineStringCellValue(
@@ -136737,22 +136745,39 @@ function applyMorningMeetingGearPinionValues(
     );
 
 
+  /*
+    값이 없는 것은 정상.
+
+    셀 자체가 없는 경우만
+    잘못된 템플릿으로 판단한다.
+  */
+
   if (
-    !writeResult.found ||
-    !writeResult.written
+    !writeResult.found
   ) {
     throw new Error(
-      "Gear Wheel / Pinion 셀 AL23에 값을 입력하지 못했습니다."
+      "Gear Wheel / Pinion 셀 AL23을 찾지 못했습니다."
     );
   }
 
 
   return {
     appliedCount:
-      1,
+      [
+        gearWheel,
+        pinion
+      ].filter(
+        value => {
+          return value !==
+            null;
+        }
+      ).length,
 
     totalCount:
-      1,
+      2,
+
+    blank:
+      !displayValue,
 
     gearWheel,
 
@@ -136921,48 +136946,90 @@ function applyMorningMeetingLimestoneValues(
   worksheetDocument,
   limestoneValues
 ) {
-  if (
-    !limestoneValues ||
-    typeof limestoneValues !==
+  const source =
+    limestoneValues &&
+    typeof limestoneValues ===
       "object"
-  ) {
-    throw new Error(
-      "석회석 자료가 없습니다."
-    );
-  }
+      ? limestoneValues
+      : {};
+
+
+  /* =====================================================
+    석회석 값 선택 처리
+
+    값 없음:
+    null
+
+    값 있음:
+    숫자
+  ====================================================== */
+
+  const toOptionalNumber =
+    value => {
+      if (
+        value ===
+          null ||
+        value ===
+          undefined ||
+        String(
+          value
+        ).trim() ===
+          ""
+      ) {
+        return null;
+      }
+
+
+      const numericValue =
+        Number(
+          String(
+            value
+          )
+            .replaceAll(
+              ",",
+              ""
+            )
+            .trim()
+        );
+
+
+      return Number.isFinite(
+        numericValue
+      )
+        ? numericValue
+        : null;
+    };
 
 
   const unitOneReceipt =
-    parseMorningMeetingLimestoneWorkbookNumber(
-      limestoneValues.unitOneReceipt,
-      "1호기 입고량"
+    toOptionalNumber(
+      source.unitOneReceipt
     );
 
 
   const unitTwoReceipt =
-    parseMorningMeetingLimestoneWorkbookNumber(
-      limestoneValues.unitTwoReceipt,
-      "2호기 입고량"
+    toOptionalNumber(
+      source.unitTwoReceipt
     );
 
 
   const unitOneUsage =
-    parseMorningMeetingLimestoneWorkbookNumber(
-      limestoneValues.unitOneUsage,
-      "1호기 사용량"
+    toOptionalNumber(
+      source.unitOneUsage
     );
 
 
   const unitTwoUsage =
-    parseMorningMeetingLimestoneWorkbookNumber(
-      limestoneValues.unitTwoUsage,
-      "2호기 사용량"
+    toOptionalNumber(
+      source.unitTwoUsage
     );
 
 
-  /* ===================================================
+  /* =====================================================
     1호기 사용량
-  ==================================================== */
+
+    값 없음 → AE15 빈칸
+  ====================================================== */
 
   const unitOneResult =
     setMorningMeetingNumericCellValue(
@@ -136973,18 +137040,19 @@ function applyMorningMeetingLimestoneValues(
 
 
   if (
-    !unitOneResult.found ||
-    !unitOneResult.written
+    !unitOneResult.found
   ) {
     throw new Error(
-      "석회석 1호기 사용량을 AE15에 입력하지 못했습니다."
+      "석회석 1호기 사용량 셀 AE15를 찾지 못했습니다."
     );
   }
 
 
-  /* ===================================================
+  /* =====================================================
     2호기 사용량
-  ==================================================== */
+
+    값 없음 → AE16 빈칸
+  ====================================================== */
 
   const unitTwoResult =
     setMorningMeetingNumericCellValue(
@@ -136995,32 +137063,55 @@ function applyMorningMeetingLimestoneValues(
 
 
   if (
-    !unitTwoResult.found ||
-    !unitTwoResult.written
+    !unitTwoResult.found
   ) {
     throw new Error(
-      "석회석 2호기 사용량을 AE16에 입력하지 못했습니다."
+      "석회석 2호기 사용량 셀 AE16을 찾지 못했습니다."
     );
   }
 
 
-  /* ===================================================
+  /* =====================================================
     입고량 표시
 
-    기존 큰 제목 칸에 두 번째 줄로 표시한다.
-  ==================================================== */
+    입고량이 없으면:
+    Lime Stone 사용량
 
-  const receiptText = [
-    "Lime Stone 사용량",
+    제목만 남기고
+    기존 오래된 입고량 문구는 제거한다.
+  ====================================================== */
 
-    `입고 1호기 ${unitOneReceipt.toFixed(
-      2
-    )}t · 2호기 ${unitTwoReceipt.toFixed(
-      2
-    )}t`
-  ].join(
-    "\n"
-  );
+  const hasReceiptValue =
+    unitOneReceipt !==
+      null ||
+    unitTwoReceipt !==
+      null;
+
+
+  const receiptText =
+    hasReceiptValue
+      ? [
+          "Lime Stone 사용량",
+
+          `입고 1호기 ${
+            unitOneReceipt !==
+              null
+              ? unitOneReceipt.toFixed(
+                  2
+                )
+              : ""
+          }t · 2호기 ${
+            unitTwoReceipt !==
+              null
+              ? unitTwoReceipt.toFixed(
+                  2
+                )
+              : ""
+          }t`
+        ].join(
+          "\n"
+        )
+      : "Lime Stone 사용량";
 
 
   const receiptResult =
@@ -137032,42 +137123,116 @@ function applyMorningMeetingLimestoneValues(
 
 
   if (
-    !receiptResult.found ||
-    !receiptResult.written
+    !receiptResult.found
   ) {
     throw new Error(
-      "석회석 입고량 문구를 X15에 입력하지 못했습니다."
+      "석회석 표시 셀 X15를 찾지 못했습니다."
     );
   }
 
 
-  /*
-    AJ16은 기존 엑셀 수식
+  /* =====================================================
+    합계 AJ16
 
+    기존:
     =AE15+AE16
 
-    그대로 유지한다.
-  */
+    변경:
+    둘 다 빈칸이면 합계도 빈칸
+
+    사용자가 나중에 AE15 / AE16을
+    직접 입력하면 합계가 자동 계산된다.
+  ====================================================== */
+
+  const totalCell =
+    findMorningMeetingWorksheetCellByAddress(
+      worksheetDocument,
+      "AJ16"
+    );
+
+
+  if (
+    !totalCell
+  ) {
+    throw new Error(
+      "석회석 합계 셀 AJ16을 찾지 못했습니다."
+    );
+  }
+
+
+  totalCell.removeAttribute(
+    "t"
+  );
+
+
+  [
+    "f",
+    "v"
+  ].forEach(
+    childName => {
+      getMorningMeetingDirectXmlChildren(
+        totalCell,
+        childName
+      ).forEach(
+        childElement => {
+          childElement.remove();
+        }
+      );
+    }
+  );
+
+
+  const formulaElement =
+    worksheetDocument
+      .createElementNS(
+        MAIN_XML_NAMESPACE,
+        "f"
+      );
+
+
+  formulaElement.textContent =
+    'IF(COUNT(AE15:AE16)=0,"",SUM(AE15:AE16))';
+
+
+  totalCell.appendChild(
+    formulaElement
+  );
 
 
   return {
     appliedCount:
-      3,
+      [
+        unitOneReceipt,
+        unitTwoReceipt,
+        unitOneUsage,
+        unitTwoUsage
+      ].filter(
+        value => {
+          return value !==
+            null;
+        }
+      ).length,
 
     totalCount:
-      3,
+      4,
+
+    blank:
+      [
+        unitOneReceipt,
+        unitTwoReceipt,
+        unitOneUsage,
+        unitTwoUsage
+      ].every(
+        value => {
+          return value ===
+            null;
+        }
+      ),
 
     unitOneReceipt,
-
     unitTwoReceipt,
-
     unitOneUsage,
-
-    unitTwoUsage,
-
-    totalUsage:
-      unitOneUsage +
-      unitTwoUsage
+    unitTwoUsage
   };
 }
 
@@ -137204,83 +137369,112 @@ function applyMorningMeetingWaterTreatmentValues(
   worksheetDocument,
   waterTreatment
 ) {
-  if (
-    !waterTreatment ||
-    typeof waterTreatment !==
+  const source =
+    waterTreatment &&
+    typeof waterTreatment ===
       "object"
-  ) {
-    throw new Error(
-      "OIS 수처리 현황을 먼저 불러와 주세요."
-    );
-  }
+      ? waterTreatment
+      : {};
 
 
-  /* ===================================================
-    새 OIS 수처리 9개 값 검사
-  ==================================================== */
+  /* =====================================================
+    수처리 값 선택 처리
+
+    정상 숫자:
+    그대로 사용
+
+    조회 실패 / 값 없음:
+    null → 엑셀 빈칸
+  ====================================================== */
+
+  const toOptionalNumber =
+    value => {
+      const normalized =
+        String(
+          value ??
+          ""
+        )
+          .replaceAll(
+            ",",
+            ""
+          )
+          .trim();
+
+
+      if (
+        !normalized
+      ) {
+        return null;
+      }
+
+
+      const numericValue =
+        Number(
+          normalized
+        );
+
+
+      return Number.isFinite(
+        numericValue
+      )
+        ? numericValue
+        : null;
+    };
+
 
   const normalizedValues = {
     rawWaterInflow:
-      normalizeMorningMeetingRequiredNumber(
-        waterTreatment.rawWaterInflow,
-        "장자산단 원수 유입량"
+      toOptionalNumber(
+        source.rawWaterInflow
       ),
 
     demiProduction:
-      normalizeMorningMeetingRequiredNumber(
-        waterTreatment.demiProduction,
-        "순수 생산량"
+      toOptionalNumber(
+        source.demiProduction
       ),
 
     pureWaterUsage:
-      normalizeMorningMeetingRequiredNumber(
-        waterTreatment.pureWaterUsage,
-        "순수 사용량"
+      toOptionalNumber(
+        source.pureWaterUsage
       ),
 
     rawWaterTankAmount:
-      normalizeMorningMeetingRequiredNumber(
-        waterTreatment.rawWaterTankAmount,
-        "원수 TANK 저장량"
+      toOptionalNumber(
+        source.rawWaterTankAmount
       ),
 
     rawWaterTankRate:
-      normalizeMorningMeetingRequiredNumber(
-        waterTreatment.rawWaterTankRate,
-        "원수 TANK 저장율"
+      toOptionalNumber(
+        source.rawWaterTankRate
       ),
 
     filteredWaterTankAmount:
-      normalizeMorningMeetingRequiredNumber(
-        waterTreatment.filteredWaterTankAmount,
-        "여과수 TANK 저장량"
+      toOptionalNumber(
+        source.filteredWaterTankAmount
       ),
 
     filteredWaterTankRate:
-      normalizeMorningMeetingRequiredNumber(
-        waterTreatment.filteredWaterTankRate,
-        "여과수 TANK 저장율"
+      toOptionalNumber(
+        source.filteredWaterTankRate
       ),
 
     demiWaterTankAmount:
-      normalizeMorningMeetingRequiredNumber(
-        waterTreatment.demiWaterTankAmount,
-        "순수 TANK 저장량"
+      toOptionalNumber(
+        source.demiWaterTankAmount
       ),
 
     demiWaterTankRate:
-      normalizeMorningMeetingRequiredNumber(
-        waterTreatment.demiWaterTankRate,
-        "순수 TANK 저장율"
+      toOptionalNumber(
+        source.demiWaterTankRate
       )
   };
 
 
-  /* ===================================================
-    템플릿의 기존 전일 값 읽기
+  /* =====================================================
+    템플릿에 들어 있던 기존 전일값
 
-    새 값을 쓰기 전에 먼저 읽어야 한다.
-  ==================================================== */
+    새 보고서에서는 전전일 값이 된다.
+  ====================================================== */
 
   const previousCurrentValues = {
     rawWaterInflow:
@@ -137315,41 +137509,12 @@ function applyMorningMeetingWaterTreatmentValues(
   };
 
 
-  const missingTemplateValues =
-    Object.entries(
-      previousCurrentValues
-    )
-      .filter(
-        ([
-          ,
-          value
-        ]) => {
-          return !Number.isFinite(
-            value
-          );
-        }
-      );
-
-
-  if (
-    missingTemplateValues.length >
-    0
-  ) {
-    throw new Error(
-      "기준 일일발전현황에서 기존 수처리 전일 값을 읽지 못했습니다."
-    );
-  }
-
-
-  /* ===================================================
+  /* =====================================================
     기존 전일 → 전전일 이동
-  ==================================================== */
+  ====================================================== */
 
   const moveMappings = [
     {
-      from:
-        "AJ18",
-
       to:
         "AH18",
 
@@ -137359,9 +137524,6 @@ function applyMorningMeetingWaterTreatmentValues(
     },
 
     {
-      from:
-        "AJ19",
-
       to:
         "AH19",
 
@@ -137371,9 +137533,6 @@ function applyMorningMeetingWaterTreatmentValues(
     },
 
     {
-      from:
-        "AJ20",
-
       to:
         "AH20",
 
@@ -137383,9 +137542,6 @@ function applyMorningMeetingWaterTreatmentValues(
     },
 
     {
-      from:
-        "AJ21",
-
       to:
         "AH21",
 
@@ -137395,9 +137551,6 @@ function applyMorningMeetingWaterTreatmentValues(
     },
 
     {
-      from:
-        "AJ22",
-
       to:
         "AH22",
 
@@ -137418,21 +137571,28 @@ function applyMorningMeetingWaterTreatmentValues(
         );
 
 
+      /*
+        값이 없는 것은 정상.
+
+        셀 자체가 없는 경우만 오류
+      */
+
       if (
-        !writeResult.found ||
-        !writeResult.written
+        !writeResult.found
       ) {
         throw new Error(
-          `수처리 전전일 셀 ${mapping.to}에 값을 입력하지 못했습니다.`
+          `수처리 전전일 셀 ${mapping.to}를 찾지 못했습니다.`
         );
       }
     }
   );
 
 
-  /* ===================================================
-    새 OIS 값 → 전일 입력
-  ==================================================== */
+  /* =====================================================
+    새 전일 값 입력
+
+    OIS 값이 없으면 해당 셀을 빈칸으로 만든다.
+  ====================================================== */
 
   const currentMappings = [
     {
@@ -137529,11 +137689,10 @@ function applyMorningMeetingWaterTreatmentValues(
 
 
       if (
-        !writeResult.found ||
-        !writeResult.written
+        !writeResult.found
       ) {
         throw new Error(
-          `수처리 전일 셀 ${mapping.address}에 값을 입력하지 못했습니다.`
+          `수처리 전일 셀 ${mapping.address}를 찾지 못했습니다.`
         );
       }
     }
@@ -137542,16 +137701,36 @@ function applyMorningMeetingWaterTreatmentValues(
 
   return {
     movedCount:
-      moveMappings.length,
+      moveMappings.filter(
+        mapping => {
+          return Number.isFinite(
+            mapping.value
+          );
+        }
+      ).length,
 
     appliedCount:
-      currentMappings.length,
+      currentMappings.filter(
+        mapping => {
+          return Number.isFinite(
+            mapping.value
+          );
+        }
+      ).length,
 
     totalCount:
-      currentMappings.length
+      currentMappings.length,
+
+    blankCount:
+      currentMappings.filter(
+        mapping => {
+          return !Number.isFinite(
+            mapping.value
+          );
+        }
+      ).length
   };
 }
-
 
 /* =====================================================
   오전회의 BO1·BO2 온도 필수값 검사
@@ -141686,16 +141865,20 @@ try {
 } catch (
   error
 ) {
-  showMorningMeetingWorkbookError(
-    error instanceof
-      Error
-      ? error.message
-      : "석회석 자료를 확인하지 못했습니다."
+  /*
+    석회석 자료가 없어도
+    최종 엑셀 생성을 중단하지 않는다.
+  */
+
+  console.warn(
+    "석회석 자료 확인 실패 · 최종 엑셀에서는 빈칸 처리:",
+    error
   );
 
 
-  return;
-}    
+  limestoneValues =
+    null;
+}
 
 /* =====================================================
   필수 기능 확인
@@ -141733,38 +141916,6 @@ if (
 ) {
   showMorningMeetingWorkbookError(
     "일일발전현황 기준 취합본을 먼저 첨부해 주세요."
-  );
-
-  return;
-}
-
-
-/*
-  자동 수치:
-  수처리는 현재 필수 유지
-*/
-
-if (
-  !waterTreatment
-) {
-  showMorningMeetingWorkbookError(
-    "OIS 수처리 현황을 먼저 불러와 주세요."
-  );
-
-  return;
-}
-
-
-/*
-  Gear Wheel / Pinion도
-  현재는 자동수치 필수 유지
-*/
-
-if (
-  !gearPinion
-) {
-  showMorningMeetingWorkbookError(
-    "Gear Wheel / Pinion OIS 자료가 없습니다. OIS 자동자료 다시 조회를 실행해 주세요."
   );
 
   return;
@@ -142112,64 +142263,61 @@ const expectedWaterSourceDate =
     );
 
 
-/* ===================================================
-  석회석 기준일 검사
 
-  오전회의 대상일의 전일과 같아야 한다.
+/* ===================================================
+  자동수치 최종 반영 대상 결정
+
+  원칙:
+  - 정확한 날짜 자료만 자동 반영
+  - 자료 없음 → 빈칸
+  - 날짜 불일치 → 빈칸
+  - 최종 엑셀 생성은 계속 진행
+=================================================== */
+
+
+/* ===================================================
+  석회석
 =================================================== */
 
 const limestoneDate =
   String(
-    limestoneValues.date ||
+    limestoneValues
+      ?.date ||
     ""
   ).trim();
 
 
-if (
-  !limestoneDate ||
-  limestoneDate !==
+const limestoneValuesForWorkbook =
+  limestoneDate ===
     expectedWaterSourceDate
-) {
-  showMorningMeetingWorkbookError(
-    [
-      "석회석 사용량 계산 날짜가 오전회의 자료 날짜와 다릅니다.",
-      `필요일: ${expectedWaterSourceDate}`,
-      `계산일: ${limestoneDate || "-"}`
-    ].join(
-      " "
-    )
-  );
+    ? limestoneValues
+    : null;
 
 
-  return;
-}    
+/* ===================================================
+  수처리
+=================================================== */
 
 const waterSourceDate =
   String(
-    waterTreatment.sourceDate ||
-    waterTreatment.targetDate ||
+    waterTreatment
+      ?.sourceDate ||
+    waterTreatment
+      ?.targetDate ||
     ""
   ).trim();
 
 
-if (
-  waterSourceDate &&
-  waterSourceDate !==
+const waterTreatmentForWorkbook =
+  waterSourceDate ===
     expectedWaterSourceDate
-) {
-  showMorningMeetingWorkbookError(
-    [
-      "OIS 수처리 조회 날짜가 오전회의 자료 날짜와 다릅니다.",
-      `필요일: ${expectedWaterSourceDate}`,
-      `조회일: ${waterSourceDate}`
-    ].join(
-      " "
-    )
-  );
+    ? waterTreatment
+    : null;
 
 
-  return;
-}
+/* ===================================================
+  BO1 · BO2 온도
+=================================================== */
 
 const boilerReportDate =
   String(
@@ -142179,27 +142327,15 @@ const boilerReportDate =
   ).trim();
 
 
-/* ===================================================
-  BO1·BO2 온도는 선택 자료
-
-  정확한 날짜의 자료:
-  → 있는 값 사용
-
-  자료 없음 / 날짜 다름:
-  → 최종 엑셀에서는 빈칸 처리
-=================================================== */
-
 const boilerTemperaturesForWorkbook =
   boilerReportDate ===
     expectedWaterSourceDate
     ? boilerTemperatures
     : null;
 
-/* ===================================================
-  Gear Wheel / Pinion 조회일 검사
 
-  수처리·BO1·BO2:
-  오전회의 대상일 전일
+/* ===================================================
+  Gear Wheel / Pinion
 
   Gear / Pinion:
   오전회의 대상일 당일 LOG SHEET의 전일 열
@@ -142216,30 +142352,19 @@ const expectedGearPinionDate =
 
 const gearPinionDate =
   String(
-    gearPinion.targetDate ||
-    gearPinion.sourceDate ||
+    gearPinion
+      ?.targetDate ||
+    gearPinion
+      ?.sourceDate ||
     ""
   ).trim();
 
 
-if (
-  gearPinionDate &&
-  gearPinionDate !==
+const gearPinionForWorkbook =
+  gearPinionDate ===
     expectedGearPinionDate
-) {
-  showMorningMeetingWorkbookError(
-    [
-      "Gear Wheel / Pinion 조회 날짜가 오전회의 대상일과 다릅니다.",
-      `필요일: ${expectedGearPinionDate}`,
-      `조회일: ${gearPinionDate}`
-    ].join(
-      " "
-    )
-  );
-
-
-  return;
-}  
+    ? gearPinion
+    : null;
 
 
   /* =====================================================
@@ -142377,7 +142502,7 @@ if (
 const waterResult =
   applyMorningMeetingWaterTreatmentValues(
     worksheetDocument,
-    waterTreatment
+    waterTreatmentForWorkbook
   );
 
 /* ===================================================
@@ -142403,7 +142528,7 @@ const boilerTemperatureResult =
 const gearPinionResult =
   applyMorningMeetingGearPinionValues(
     worksheetDocument,
-    gearPinion
+    gearPinionForWorkbook
   );
 
 /* ===================================================
@@ -142413,7 +142538,7 @@ const gearPinionResult =
 const limestoneResult =
   applyMorningMeetingLimestoneValues(
     worksheetDocument,
-    limestoneValues
+    limestoneValuesForWorkbook
   );
 
     /* ===================================================
