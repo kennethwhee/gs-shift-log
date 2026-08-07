@@ -168467,49 +168467,124 @@ window.setTimeout(
       );
 
 
-    /* ===================================================
-      교대파트 업무일지 기준일이 확정되면
-      공용 기준일도 동일 날짜로 동기화
+/* ===================================================
+  교대파트 업무일지 기준일 → 자동수치 기준일 동기화
 
-      이 경우 OIS 3종 자동조회까지는 하지 않는다.
-      날짜만 맞춘다.
-    ==================================================== */
+  평일:
+  - 기존 동작 그대로
+  - 교대파트 기준일과 자동수치 기준일을 맞춘다.
 
-    document.addEventListener(
-      "efficiencyMorningMeetingShiftLogsLoaded",
-      () => {
-        const state =
-          getState();
+  주말:
+  - 교대파트 기간 조회와 자동수치는 완전히 분리
+  - 주말 업무일지를 불러와도
+    수처리·석회석·Gear/Pinion·BO 온도 날짜는
+    절대로 변경하지 않는다.
+=================================================== */
+
+document.addEventListener(
+  "efficiencyMorningMeetingShiftLogsLoaded",
+
+  event => {
+    const state =
+      getState();
 
 
-        const reportDate =
-          String(
-            state.shiftPart
-              ?.reportDate ||
-            state.shiftPart
-              ?.loadedDate ||
-            ""
-          ).trim();
+    /* =================================================
+      주말 모드 확인
+
+      주말 기간 조회 이벤트 자체에도
+      detail.weekend = true가 들어온다.
+    ================================================= */
+
+    let isWeekendMode =
+      event?.detail?.weekend ===
+        true;
+
+
+    /*
+      주말 체크박스의 실제 현재 상태도 확인한다.
+    */
+    if (
+      typeof window
+        .getEfficiencyMorningMeetingWeekendMode ===
+        "function"
+    ) {
+      try {
+        const weekendMode =
+          window
+            .getEfficiencyMorningMeetingWeekendMode();
 
 
         if (
-          !isValidDate(
-            reportDate
-          )
+          weekendMode?.enabled ===
+            true
         ) {
-          return;
+          isWeekendMode =
+            true;
         }
 
-
-        applyCommonBaseDate(
-          reportDate,
-          {
-            load:
-              false
-          }
+      } catch (
+        error
+      ) {
+        console.warn(
+          "오전회의 주말 모드 확인 실패:",
+          error
         );
       }
+    }
+
+
+    /* =================================================
+      주말 체크 상태
+
+      자동수치 날짜와 교대파트 기간을
+      서로 연결하지 않는다.
+    ================================================= */
+
+    if (
+      isWeekendMode
+    ) {
+      console.log(
+        "오전회의 주말 취합 → 자동수치 기준일 동기화 생략"
+      );
+
+
+      return;
+    }
+
+
+    /* =================================================
+      평일 기존 동작
+    ================================================= */
+
+    const reportDate =
+      String(
+        state.shiftPart
+          ?.reportDate ||
+        state.shiftPart
+          ?.loadedDate ||
+        ""
+      ).trim();
+
+
+    if (
+      !isValidDate(
+        reportDate
+      )
+    ) {
+      return;
+    }
+
+
+    applyCommonBaseDate(
+      reportDate,
+      {
+        load:
+          false
+      }
     );
+  }
+);
 
 
     elements.previousButton.dataset
