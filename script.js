@@ -162009,22 +162009,111 @@ if (
     );
   }
 
+/* ===================================================
+  석회석
 
-  /* ===================================================
-    석회석 OIS
+  처리 순서:
+  1. 기존 석회석 D1 저장값 확인
+  2. 저장값이 있으면 그대로 복원
+  3. 저장값이 없을 때만 OIS 신규 조회
 
-    D1 복원이 먼저 진행될 시간을 준 뒤
-    최신 재고 조회를 실행한다.
+  오전회의와 석회석 메뉴가
+  동일한 D1 저장자료를 공유한다.
+=================================================== */
 
-    조회 결과가 나오면 기존 석회석 기능이 다시 저장한다.
-  ==================================================== */
+window.setTimeout(
+  async () => {
+    try {
+      let limestoneRestored =
+        false;
 
-  runIndependentLookup(
-    "석회석",
-    window
-      .loadLimestoneOisStock,
-    500
-  );
+
+      /* ===============================================
+        1. D1 저장값 먼저 확인
+      ================================================ */
+
+      if (
+        typeof window
+          .loadSavedLimestoneUsageRecords ===
+          "function"
+      ) {
+        limestoneRestored =
+          await window
+            .loadSavedLimestoneUsageRecords(
+              normalizedDate,
+              {
+                silentWhenMissing:
+                  true
+              }
+            );
+      }
+
+
+      /* ===============================================
+        2. 저장값이 있으면 OIS 조회하지 않음
+      ================================================ */
+
+      if (
+        limestoneRestored
+      ) {
+        console.log(
+          `오전회의 석회석 ${normalizedDate} D1 저장값 복원`
+        );
+
+
+        if (
+          typeof window
+            .renderEfficiencyMorningMeetingAutoPreview ===
+            "function"
+        ) {
+          window
+            .renderEfficiencyMorningMeetingAutoPreview();
+        }
+
+
+        if (
+          typeof window
+            .updateEfficiencyMorningMeetingCreateButton ===
+            "function"
+        ) {
+          window
+            .updateEfficiencyMorningMeetingCreateButton();
+        }
+
+
+        return;
+      }
+
+
+      /* ===============================================
+        3. 저장값이 없을 때만 OIS 신규 조회
+      ================================================ */
+
+      console.log(
+        `오전회의 석회석 ${normalizedDate} 저장값 없음 → OIS 신규 조회`
+      );
+
+
+      if (
+        typeof window
+          .loadLimestoneOisStock ===
+          "function"
+      ) {
+        await window
+          .loadLimestoneOisStock();
+      }
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "오전회의 석회석 저장값 확인/자동 조회 실패:",
+        error
+      );
+    }
+  },
+  500
+);
 }
 
   /* =====================================================
