@@ -680,6 +680,277 @@ async function findShiftLogRow(
     .first();
 }
 
+/* =========================================================
+  첨부파일 테이블 자동 생성·보완
+
+  처리:
+  - 테이블이 없으면 자동 생성
+  - 기존 테이블에 필요한 열이 빠졌으면 자동 추가
+  - 조회용 인덱스 자동 생성
+========================================================= */
+
+async function ensureShiftLogAttachmentsTable(
+  database
+) {
+  if (
+    !database
+  ) {
+    throw new Error(
+      "D1 바인딩 DB를 확인할 수 없습니다."
+    );
+  }
+
+
+  /* =====================================================
+    기본 테이블 생성
+  ====================================================== */
+
+  await database
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS
+        shift_log_attachments
+      (
+        id TEXT PRIMARY KEY,
+
+        log_id TEXT NOT NULL DEFAULT '',
+        r2_key TEXT NOT NULL DEFAULT '',
+
+        original_name TEXT NOT NULL DEFAULT '',
+        stored_name TEXT NOT NULL DEFAULT '',
+
+        content_type TEXT NOT NULL DEFAULT
+          'application/octet-stream',
+
+        file_size INTEGER NOT NULL DEFAULT 0,
+
+        uploaded_by_id TEXT NOT NULL DEFAULT '',
+        uploaded_by_name TEXT NOT NULL DEFAULT '',
+
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT ''
+      )
+    `)
+    .run();
+
+
+  /* =====================================================
+    현재 테이블 열 확인
+  ====================================================== */
+
+  const tableInfoResult =
+    await database
+      .prepare(`
+        PRAGMA table_info(
+          shift_log_attachments
+        )
+      `)
+      .all();
+
+
+  const existingColumns =
+    new Set(
+      (
+        Array.isArray(
+          tableInfoResult.results
+        )
+          ? tableInfoResult.results
+          : []
+      )
+        .map(
+          column => {
+            return String(
+              column?.name ||
+              ""
+            ).trim();
+          }
+        )
+        .filter(Boolean)
+    );
+
+
+  /*
+    id는 첨부파일 기본 식별자이므로
+    반드시 존재해야 한다.
+  */
+  if (
+    !existingColumns.has(
+      "id"
+    )
+  ) {
+    throw new Error(
+      "shift_log_attachments 테이블의 id 열이 없습니다. 기존 테이블 구조를 확인해 주세요."
+    );
+  }
+
+
+  /* =====================================================
+    기존 테이블에 빠질 수 있는 열
+  ====================================================== */
+
+  const requiredColumns = [
+    {
+      name:
+        "log_id",
+
+      definition:
+        "TEXT NOT NULL DEFAULT ''"
+    },
+
+    {
+      name:
+        "r2_key",
+
+      definition:
+        "TEXT NOT NULL DEFAULT ''"
+    },
+
+    {
+      name:
+        "original_name",
+
+      definition:
+        "TEXT NOT NULL DEFAULT ''"
+    },
+
+    {
+      name:
+        "stored_name",
+
+      definition:
+        "TEXT NOT NULL DEFAULT ''"
+    },
+
+    {
+      name:
+        "content_type",
+
+      definition:
+        "TEXT NOT NULL DEFAULT 'application/octet-stream'"
+    },
+
+    {
+      name:
+        "file_size",
+
+      definition:
+        "INTEGER NOT NULL DEFAULT 0"
+    },
+
+    {
+      name:
+        "uploaded_by_id",
+
+      definition:
+        "TEXT NOT NULL DEFAULT ''"
+    },
+
+    {
+      name:
+        "uploaded_by_name",
+
+      definition:
+        "TEXT NOT NULL DEFAULT ''"
+    },
+
+    {
+      name:
+        "created_at",
+
+      definition:
+        "TEXT NOT NULL DEFAULT ''"
+    },
+
+    {
+      name:
+        "updated_at",
+
+      definition:
+        "TEXT NOT NULL DEFAULT ''"
+    }
+  ];
+
+
+  /* =====================================================
+    빠진 열 자동 추가
+  ====================================================== */
+
+  for (
+    const column
+    of requiredColumns
+  ) {
+    if (
+      existingColumns.has(
+        column.name
+      )
+    ) {
+      continue;
+    }
+
+
+    try {
+      await database
+        .prepare(`
+          ALTER TABLE
+            shift_log_attachments
+
+          ADD COLUMN
+            ${column.name}
+            ${column.definition}
+        `)
+        .run();
+
+    } catch (
+      error
+    ) {
+      const message =
+        String(
+          error?.message ||
+          error ||
+          ""
+        ).toLowerCase();
+
+
+      /*
+        동시에 실행된 다른 요청에서
+        같은 열을 먼저 추가한 경우는 정상 처리한다.
+      */
+      if (
+        !message.includes(
+          "duplicate column"
+        )
+      ) {
+        throw error;
+      }
+    }
+  }
+
+
+  /* =====================================================
+    조회 인덱스
+  ====================================================== */
+
+  await database.batch([
+    database.prepare(`
+      CREATE INDEX IF NOT EXISTS
+        idx_shift_log_attachments_log_id
+
+      ON shift_log_attachments (
+        log_id,
+        created_at
+      )
+    `),
+
+    database.prepare(`
+      CREATE INDEX IF NOT EXISTS
+        idx_shift_log_attachments_r2_key
+
+      ON shift_log_attachments (
+        r2_key
+      )
+    `)
+  ]);
+}
+
 
 /* =========================================================
   첨부 수정 가능 여부
@@ -849,6 +1120,15 @@ async function findAttachmentRow(
   database,
   attachmentId
 ) {
+  /*
+    실제 파일 조회나 삭제 전에
+    첨부파일 테이블을 먼저 확인한다.
+  */
+  await ensureShiftLogAttachmentsTable(
+    database
+  );
+
+
   return database
     .prepare(`
       SELECT
@@ -877,7 +1157,6 @@ async function findAttachmentRow(
     .first();
 }
 
-
 /* =========================================================
   첨부목록 조회
 ========================================================= */
@@ -886,6 +1165,18 @@ async function getAttachmentRowsByLogId(
   database,
   logId
 ) {
+  /*
+    첫 첨부파일 업로드 시에도
+    테이블이 자동 생성되도록 한다.
+
+    POST 업로드 과정에서도 이 함수가
+    INSERT보다 먼저 실행된다.
+  */
+  await ensureShiftLogAttachmentsTable(
+    database
+  );
+
+
   const result =
     await database
       .prepare(`
@@ -912,7 +1203,6 @@ async function getAttachmentRowsByLogId(
     ? result.results
     : [];
 }
-
 
 /* =========================================================
   브라우저용 첨부정보 변환

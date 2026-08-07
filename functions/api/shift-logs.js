@@ -3306,17 +3306,195 @@ function hasInspectionAutoCompletionExecutionText(
   );
 }
 
+/* =========================================================
+  등록 별칭 유연 비교
+
+  기존:
+  - 별칭 문장이 업무내용에 연속으로 들어 있어야 일치
+
+  개선:
+  - 별칭의 핵심 단어 순서가 유지되면 일치
+  - 상부·하부·호기·번호처럼
+    중간 설명 단어 최대 3개 허용
+
+  예:
+  SDA HOPPER ASH
+  → SDA 하부 HOPPER ASH 배출
+========================================================= */
+
+function isInspectionAutoCompletionAliasSequenceMatch(
+  normalizedSourceText,
+  normalizedAlias
+) {
+  const sourceText =
+    normalizeInspectionAutoCompletionText(
+      normalizedSourceText
+    );
+
+
+  const aliasText =
+    normalizeInspectionAutoCompletionText(
+      normalizedAlias
+    );
+
+
+  if (
+    !sourceText ||
+    !aliasText
+  ) {
+    return false;
+  }
+
+
+  /*
+    완전한 연속 문구는 즉시 인정한다.
+  */
+  if (
+    sourceText.includes(
+      aliasText
+    )
+  ) {
+    return true;
+  }
+
+
+  const sourceTokens =
+    sourceText
+      .split(
+        " "
+      )
+      .filter(
+        Boolean
+      );
+
+
+  const aliasTokens =
+    aliasText
+      .split(
+        " "
+      )
+      .filter(
+        Boolean
+      );
+
+
+  /*
+    한 단어 별칭은 기존의 연속 포함 방식만 사용한다.
+    너무 짧은 별칭의 과잉 인식을 방지한다.
+  */
+  if (
+    aliasTokens.length <
+      2
+  ) {
+    return false;
+  }
+
+
+  let searchStartIndex =
+    0;
+
+
+  let firstMatchedIndex =
+    -1;
+
+
+  let lastMatchedIndex =
+    -1;
+
+
+  for (
+    const aliasToken of
+    aliasTokens
+  ) {
+    const foundIndex =
+      sourceTokens.indexOf(
+        aliasToken,
+        searchStartIndex
+      );
+
+
+    if (
+      foundIndex <
+        0
+    ) {
+      return false;
+    }
+
+
+    if (
+      firstMatchedIndex <
+        0
+    ) {
+      firstMatchedIndex =
+        foundIndex;
+    }
+
+
+    lastMatchedIndex =
+      foundIndex;
+
+
+    searchStartIndex =
+      foundIndex +
+      1;
+  }
+
+
+  const matchedSpanLength =
+    lastMatchedIndex -
+    firstMatchedIndex +
+    1;
+
+
+  const extraTokenCount =
+    matchedSpanLength -
+    aliasTokens.length;
+
+
+  /*
+    핵심 단어 사이의 보조 설명은
+    최대 3단어까지 허용한다.
+
+    예:
+    SDA / 하부 / HOPPER / ASH
+
+    등록 별칭:
+    SDA / HOPPER / ASH
+
+    추가 단어:
+    하부 1개
+  */
+  return (
+    extraTokenCount >=
+      0 &&
+    extraTokenCount <=
+      3
+  );
+}
+
 
 /* =========================================================
   업무내용 1건과 점검 일정 비교
 
   우선순위:
-  1. 등록된 별칭
-  2. 일정의 titleKeyword
+  1. 등록 별칭의 완전 일치
+  2. 등록 별칭 핵심 단어의 순서 일치
   3. 사용자 추가 일정은 점검명 주요 토큰 비교
 
-  기본 일정은 유사한 설비끼리 오인식하지 않도록
-  별칭이 등록된 경우 토큰 비교로 넘어가지 않는다.
+  수행 단어:
+  - 배출
+  - 점검
+  - 청소
+  - 측정
+  - 시험
+  - 운전 등
+
+  제외 단어:
+  - 예정
+  - 필요
+  - 요청
+  - 미실시
+  - 불가 등
 ========================================================= */
 
 function findInspectionAutoCompletionTextMatch(
@@ -3360,7 +3538,8 @@ function findInspectionAutoCompletionTextMatch(
   const matchedAlias =
     aliases.find(
       alias => {
-        return normalizedText.includes(
+        return isInspectionAutoCompletionAliasSequenceMatch(
+          normalizedText,
           alias
         );
       }
@@ -3371,22 +3550,33 @@ function findInspectionAutoCompletionTextMatch(
   if (
     matchedAlias
   ) {
+    const exactMatch =
+      normalizedText.includes(
+        matchedAlias
+      );
+
+
     return {
       matchType:
-        "alias",
+        exactMatch
+          ? "alias"
+          : "alias-sequence",
 
       matchedKeyword:
         matchedAlias,
 
       score:
-        100
+        exactMatch
+          ? 100
+          : 96
     };
   }
 
 
   /*
-    기본 일정의 별칭이 존재하지만
-    별칭이 맞지 않으면 다른 일정으로 판단한다.
+    기본 일정에 별칭이 등록돼 있는데
+    별칭 핵심 단어도 맞지 않으면
+    다른 점검으로 판단한다.
   */
   if (
     aliases.length >
@@ -3489,7 +3679,6 @@ function findInspectionAutoCompletionTextMatch(
       )
   };
 }
-
 
 /* =========================================================
   업무일지에서 자동완료 검사 대상 내용 수집
