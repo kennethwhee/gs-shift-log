@@ -7165,6 +7165,324 @@ async function saveOisAgentErrorScreenshot(
 }
 
 /* =========================================================
+  OIS 브라우저 세션 자동 복구
+
+  목적:
+  - Edge 창이 닫힘
+  - Playwright page/context/browser 종료
+  - OIS 브라우저 연결 끊김
+
+  위 상황이 발생해도 Node 에이전트 자체는 유지하고
+  새 Edge 세션을 만들어 자동 로그인한다.
+========================================================= */
+
+function isOisAgentBrowserClosedError(
+  error
+) {
+  const message =
+    String(
+      error?.message ||
+      error ||
+      ""
+    )
+      .toLowerCase();
+
+
+  return [
+    "target page, context or browser has been closed",
+    "target page has been closed",
+    "page has been closed",
+    "context has been closed",
+    "browser has been closed",
+    "target closed",
+    "browser closed",
+    "context closed",
+    "page closed"
+  ].some(
+    keyword => {
+      return message.includes(
+        keyword
+      );
+    }
+  );
+}
+
+
+function isOisAgentBrowserSessionUsable(
+  session
+) {
+  if (
+    !session?.browser ||
+    !session?.context ||
+    !session?.page
+  ) {
+    return false;
+  }
+
+
+  try {
+    return (
+      session.browser.isConnected() ===
+        true &&
+
+      session.page.isClosed() !==
+        true
+    );
+
+  } catch {
+    return false;
+  }
+}
+
+
+async function closeOisAgentBrowserSession(
+  session,
+  saveState =
+    true
+) {
+  if (
+    !session
+  ) {
+    return;
+  }
+
+
+  if (
+    saveState &&
+    session.context
+  ) {
+    await session.context
+      .storageState({
+        path:
+          OIS_SESSION_FILE_PATH
+      })
+      .catch(
+        () => null
+      );
+  }
+
+
+  if (
+    session.context
+  ) {
+    await session.context
+      .close()
+      .catch(
+        () => null
+      );
+  }
+
+
+  if (
+    session.browser
+  ) {
+    await session.browser
+      .close()
+      .catch(
+        () => null
+      );
+  }
+}
+
+
+async function createOisAgentBrowserSession(
+  config
+) {
+  console.log(
+    "OIS Edge 브라우저 세션을 시작합니다."
+  );
+
+
+  const browser =
+    await chromium.launch({
+      channel:
+        "msedge",
+
+      headless:
+        false,
+
+      slowMo:
+        60
+    });
+
+
+  const storedSessionExists =
+    fs.existsSync(
+      OIS_SESSION_FILE_PATH
+    );
+
+
+  let context;
+
+
+  try {
+    context =
+      await browser.newContext(
+        storedSessionExists
+          ? {
+              storageState:
+                OIS_SESSION_FILE_PATH
+            }
+          : {}
+      );
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "저장된 OIS 세션을 재사용하지 못했습니다. 새 세션으로 시작합니다.",
+      error instanceof Error
+        ? error.message
+        : error
+    );
+
+
+    context =
+      await browser.newContext();
+  }
+
+
+  const page =
+    context.pages()[0] ||
+    await context.newPage();
+
+
+  const session = {
+    browser,
+    context,
+    page
+  };
+
+
+  browser.on(
+    "disconnected",
+    () => {
+      console.warn(
+        "OIS Edge 브라우저 연결이 종료되었습니다. 자동 복구를 대기합니다."
+      );
+    }
+  );
+
+
+  page.on(
+    "close",
+    () => {
+      console.warn(
+        "OIS 자동화 페이지가 닫혔습니다. 자동 복구를 대기합니다."
+      );
+    }
+  );
+
+
+  try {
+    await ensureOisAgentLoggedIn(
+      page,
+      config
+    );
+
+
+    await context
+      .storageState({
+        path:
+          OIS_SESSION_FILE_PATH
+      })
+      .catch(
+        () => null
+      );
+
+
+    console.log(
+      "OIS Edge 브라우저 세션이 준비되었습니다."
+    );
+
+
+    return session;
+
+  } catch (
+    error
+  ) {
+    await closeOisAgentBrowserSession(
+      session,
+      false
+    );
+
+
+    throw error;
+  }
+}
+
+
+async function ensureOisAgentBrowserSession(
+  session,
+  config,
+  reason =
+    ""
+) {
+  if (
+    isOisAgentBrowserSessionUsable(
+      session
+    )
+  ) {
+    try {
+      await ensureOisAgentLoggedIn(
+        session.page,
+        config
+      );
+
+
+      return session;
+
+    } catch (
+      error
+    ) {
+      if (
+        !isOisAgentBrowserClosedError(
+          error
+        ) &&
+        isOisAgentBrowserSessionUsable(
+          session
+        )
+      ) {
+        throw error;
+      }
+    }
+  }
+
+
+  console.warn(
+    [
+      "OIS 브라우저 세션을 자동 복구합니다.",
+
+      reason
+        ? `사유: ${reason}`
+        : ""
+    ]
+      .filter(
+        Boolean
+      )
+      .join(
+        " "
+      )
+  );
+
+
+  await closeOisAgentBrowserSession(
+    session,
+    false
+  );
+
+
+  await waitOisAgent(
+    1000
+  );
+
+
+  return await createOisAgentBrowserSession(
+    config
+  );
+}
+
+/* =========================================================
   OIS 상시 연동 에이전트
 
   지원 요청:
@@ -7217,42 +7535,400 @@ async function loginOis() {
   );
 
 
-  const browser =
-    await chromium.launch({
-      channel:
-        "msedge",
-
-      headless:
-        false,
-
-      slowMo:
-        60
-    });
-
-
-  const contextOptions =
-    fs.existsSync(
-      OIS_SESSION_FILE_PATH
-    )
-      ? {
-          storageState:
-            OIS_SESSION_FILE_PATH
-        }
-      : {};
-
-
-  const context =
-    await browser.newContext(
-      contextOptions
-    );
-
-
-  const page =
-    await context.newPage();
+  let browserSession =
+    null;
 
 
   let isShuttingDown =
     false;
+
+
+  let recoveryCount =
+    0;
+
+
+  function isBrowserClosedError(
+    error
+  ) {
+    const message =
+      String(
+        error?.message ||
+        error ||
+        ""
+      )
+        .toLowerCase();
+
+
+    return [
+      "target page, context or browser has been closed",
+      "target page has been closed",
+      "page has been closed",
+      "context has been closed",
+      "browser has been closed",
+      "target closed"
+    ].some(
+      keyword => {
+        return message.includes(
+          keyword
+        );
+      }
+    );
+  }
+
+
+  function getLivePage(
+    session
+  ) {
+    if (
+      !session?.browser ||
+      !session?.context
+    ) {
+      return null;
+    }
+
+
+    try {
+      if (
+        session.browser.isConnected() !==
+          true
+      ) {
+        return null;
+      }
+
+
+      if (
+        session.page &&
+        session.page.isClosed() !==
+          true
+      ) {
+        return session.page;
+      }
+
+
+      const replacementPage =
+        session.context
+          .pages()
+          .find(
+            page => {
+              return page.isClosed() !==
+                true;
+            }
+          ) ||
+        null;
+
+
+      if (
+        replacementPage
+      ) {
+        session.page =
+          replacementPage;
+      }
+
+
+      return replacementPage;
+
+    } catch {
+      return null;
+    }
+  }
+
+
+  function isBrowserSessionUsable(
+    session
+  ) {
+    return Boolean(
+      getLivePage(
+        session
+      )
+    );
+  }
+
+
+  async function closeBrowserSession(
+    session,
+    saveState =
+      true
+  ) {
+    if (
+      !session
+    ) {
+      return;
+    }
+
+
+    if (
+      saveState &&
+      session.context
+    ) {
+      await session.context
+        .storageState({
+          path:
+            OIS_SESSION_FILE_PATH
+        })
+        .catch(
+          () => null
+        );
+    }
+
+
+    if (
+      session.context
+    ) {
+      await session.context
+        .close()
+        .catch(
+          () => null
+        );
+    }
+
+
+    if (
+      session.browser
+    ) {
+      await session.browser
+        .close()
+        .catch(
+          () => null
+        );
+    }
+  }
+
+
+  async function createBrowserSession() {
+    console.log(
+      "OIS Edge 브라우저 세션을 시작합니다."
+    );
+
+
+    const browser =
+      await chromium.launch({
+        channel:
+          "msedge",
+
+        headless:
+          false,
+
+        slowMo:
+          60
+      });
+
+
+    const contextOptions =
+      fs.existsSync(
+        OIS_SESSION_FILE_PATH
+      )
+        ? {
+            storageState:
+              OIS_SESSION_FILE_PATH
+          }
+        : {};
+
+
+    let context;
+
+
+    try {
+      context =
+        await browser.newContext(
+          contextOptions
+        );
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "저장된 OIS 세션을 재사용하지 못했습니다. 새 세션으로 시작합니다.",
+        error instanceof
+          Error
+          ? error.message
+          : error
+      );
+
+
+      context =
+        await browser.newContext();
+    }
+
+
+    const page =
+      context.pages()[0] ||
+      await context.newPage();
+
+
+    const session = {
+      browser,
+      context,
+      page
+    };
+
+
+    browser.on(
+      "disconnected",
+      () => {
+        console.warn(
+          "OIS Edge 브라우저 연결이 종료되었습니다."
+        );
+      }
+    );
+
+
+    try {
+      await ensureOisAgentLoggedIn(
+        session.page,
+        config
+      );
+
+
+      /*
+        로그인 직후 기존 페이지가 닫히고
+        같은 context에 새 페이지가 만들어지는 경우도
+        살아 있는 페이지로 다시 연결한다.
+      */
+      await waitOisAgent(
+        300
+      );
+
+
+      const livePage =
+        getLivePage(
+          session
+        );
+
+
+      if (
+        !livePage
+      ) {
+        throw new Error(
+          "OIS 로그인 후 사용할 브라우저 페이지가 닫혔습니다."
+        );
+      }
+
+
+      session.page =
+        livePage;
+
+
+      await session.context
+        .storageState({
+          path:
+            OIS_SESSION_FILE_PATH
+        })
+        .catch(
+          () => null
+        );
+
+
+      console.log(
+        "OIS Edge 브라우저 세션이 준비되었습니다."
+      );
+
+
+      return session;
+
+    } catch (
+      error
+    ) {
+      await closeBrowserSession(
+        session,
+        false
+      );
+
+
+      throw error;
+    }
+  }
+
+
+  async function ensureBrowserSession(
+    reason =
+      ""
+  ) {
+    const currentPage =
+      getLivePage(
+        browserSession
+      );
+
+
+    if (
+      currentPage
+    ) {
+      browserSession.page =
+        currentPage;
+
+
+      try {
+        await ensureOisAgentLoggedIn(
+          browserSession.page,
+          config
+        );
+
+
+        return browserSession;
+
+      } catch (
+        error
+      ) {
+        if (
+          !isBrowserClosedError(
+            error
+          ) &&
+          isBrowserSessionUsable(
+            browserSession
+          )
+        ) {
+          throw error;
+        }
+      }
+    }
+
+
+    console.warn(
+      [
+        "OIS 브라우저 세션을 자동 복구합니다.",
+
+        reason
+          ? `사유: ${reason}`
+          : ""
+      ]
+        .filter(
+          Boolean
+        )
+        .join(
+          " "
+        )
+    );
+
+
+    await closeBrowserSession(
+      browserSession,
+      false
+    );
+
+
+    browserSession =
+      null;
+
+
+    await waitOisAgent(
+      1000
+    );
+
+
+    browserSession =
+      await createBrowserSession();
+
+
+    recoveryCount +=
+      1;
+
+
+    console.log(
+      `OIS 브라우저 자동 복구 완료 (${recoveryCount}회)`
+    );
+
+
+    return browserSession;
+  }
 
 
   const closeAgent =
@@ -7278,21 +7954,10 @@ async function loginOis() {
       );
 
 
-      await context
-        .storageState({
-          path:
-            OIS_SESSION_FILE_PATH
-        })
-        .catch(
-          () => null
-        );
-
-
-      await browser
-        .close()
-        .catch(
-          () => null
-        );
+      await closeBrowserSession(
+        browserSession,
+        true
+      );
 
 
       process.exit(
@@ -7314,10 +7979,8 @@ async function loginOis() {
 
 
   try {
-    await ensureOisAgentLoggedIn(
-      page,
-      config
-    );
+    browserSession =
+      await createBrowserSession();
 
 
     console.log(
@@ -7343,7 +8006,10 @@ async function loginOis() {
       ) {
         console.error(
           "업무일지 요청 확인 실패:",
-          error.message
+          error instanceof
+            Error
+            ? error.message
+            : error
         );
 
 
@@ -7356,9 +8022,42 @@ async function loginOis() {
       }
 
 
+      /*
+        요청이 없더라도 Edge가 닫혀 있으면
+        다음 요청 전에 자동으로 복구한다.
+      */
       if (
         !requestItem
       ) {
+        if (
+          !isBrowserSessionUsable(
+            browserSession
+          )
+        ) {
+          try {
+            await ensureBrowserSession(
+              "대기 중 브라우저 종료 감지"
+            );
+
+          } catch (
+            recoveryError
+          ) {
+            console.error(
+              "OIS 브라우저 자동 복구 실패:",
+              recoveryError
+            );
+
+
+            await waitOisAgent(
+              OIS_AGENT_ERROR_RETRY_INTERVAL
+            );
+
+
+            continue;
+          }
+        }
+
+
         await waitOisAgent(
           OIS_AGENT_POLL_INTERVAL
         );
@@ -7432,12 +8131,68 @@ async function loginOis() {
 
 
       try {
-        const result =
-          await collectOisAgentRequestResult(
-            page,
-            config,
-            requestItem
+        await ensureBrowserSession(
+          `${requestLabel} 요청 처리 전`
+        );
+
+
+        let result;
+
+
+        try {
+          result =
+            await collectOisAgentRequestResult(
+              browserSession.page,
+              config,
+              requestItem
+            );
+
+        } catch (
+          firstError
+        ) {
+          /*
+            브라우저 종료 오류인 경우
+            Edge를 새로 열고 같은 요청을 한 번 재시도한다.
+          */
+          if (
+            !isBrowserClosedError(
+              firstError
+            ) &&
+            isBrowserSessionUsable(
+              browserSession
+            )
+          ) {
+            throw firstError;
+          }
+
+
+          console.warn(
+            `OIS ${requestLabel} 처리 중 브라우저 종료를 감지했습니다. 자동 복구 후 1회 재시도합니다.`
           );
+
+
+          await closeBrowserSession(
+            browserSession,
+            false
+          );
+
+
+          browserSession =
+            null;
+
+
+          await ensureBrowserSession(
+            `${requestLabel} 처리 중 브라우저 종료`
+          );
+
+
+          result =
+            await collectOisAgentRequestResult(
+              browserSession.page,
+              config,
+              requestItem
+            );
+        }
 
 
         await completeOisAgentRequest(
@@ -7447,10 +8202,20 @@ async function loginOis() {
         );
 
 
-        await context.storageState({
-          path:
-            OIS_SESSION_FILE_PATH
-        });
+        if (
+          isBrowserSessionUsable(
+            browserSession
+          )
+        ) {
+          await browserSession.context
+            .storageState({
+              path:
+                OIS_SESSION_FILE_PATH
+            })
+            .catch(
+              () => null
+            );
+        }
 
 
         console.log(
@@ -7472,17 +8237,64 @@ async function loginOis() {
         );
 
 
-        const screenshotPath =
-          await saveOisAgentErrorScreenshot(
-            page,
-            requestId
+        /*
+          실패했는데 브라우저가 죽은 상태라면
+          다음 요청 전에 바로 복구한다.
+        */
+        if (
+          isBrowserClosedError(
+            error
+          ) ||
+          !isBrowserSessionUsable(
+            browserSession
+          )
+        ) {
+          try {
+            await ensureBrowserSession(
+              `${requestLabel} 실패 후 복구`
+            );
+
+          } catch (
+            recoveryError
+          ) {
+            console.error(
+              "OIS 브라우저 자동 복구 실패:",
+              recoveryError
+            );
+          }
+        }
+
+
+        let screenshotPath =
+          "";
+
+
+        if (
+          isBrowserSessionUsable(
+            browserSession
+          )
+        ) {
+          screenshotPath =
+            await saveOisAgentErrorScreenshot(
+              browserSession.page,
+              requestId
+            );
+        }
+
+
+        if (
+          screenshotPath
+        ) {
+          console.error(
+            "오류 화면 저장:",
+            screenshotPath
           );
 
-
-        console.error(
-          "오류 화면 저장:",
-          screenshotPath
-        );
+        } else {
+          console.error(
+            "오류 화면 저장 생략: 사용할 수 있는 OIS 페이지가 없습니다."
+          );
+        }
 
 
         await failOisAgentRequest(
@@ -7509,7 +8321,10 @@ async function loginOis() {
     if (
       !isShuttingDown
     ) {
-      await browser.close();
+      await closeBrowserSession(
+        browserSession,
+        true
+      );
     }
   }
 }
