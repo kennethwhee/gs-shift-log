@@ -137510,31 +137510,48 @@ function applyMorningMeetingLimestoneValues(
     );
 
 
-  /* =====================================================
-    제목
+/* =====================================================
+  석회석 제목
 
-    중요:
-    입고량 문구는 절대 넣지 않는다.
+  중요:
+  inlineStr 사용 금지
 
-    X15:
-    Limestone 사용량
-  ====================================================== */
+  이유:
+  "Limestone 사용량"처럼
+  영문 + 한글 혼합 문자열은 일부 Excel에서
+  마지막 Run만 표시되는 문제가 있다.
 
-  const titleResult =
-  setMorningMeetingRichInlineStringCellValue(
+  기존 오전회의 취합과 동일하게
+  sharedStrings 방식을 사용한다.
+
+  영문:
+  Times New Roman
+
+  한글:
+  바탕
+====================================================== */
+
+const titleCell =
+  findMorningMeetingWorksheetCellByAddress(
     worksheetDocument,
-    "X15",
-    "Limestone 사용량"
+    "X15"
   );
 
 
-  if (
-    !titleResult.found
-  ) {
-    throw new Error(
-      "석회석 제목 셀 X15를 찾지 못했습니다."
-    );
-  }
+if (
+  !titleCell
+) {
+  throw new Error(
+    "석회석 제목 셀 X15를 찾지 못했습니다."
+  );
+}
+
+
+setMorningMeetingDynamicCellText(
+  worksheetDocument,
+  titleCell,
+  "Limestone 사용량"
+);
 
 
   /* =====================================================
