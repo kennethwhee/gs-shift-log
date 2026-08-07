@@ -68,25 +68,61 @@ function normalizeText(value) {
    권한값 정리
 ========================= */
 
-function normalizeRole(value) {
+function normalizeRole(
+  value
+) {
   const role =
-    normalizeText(value)
+    normalizeText(
+      value
+    )
       .toLowerCase()
-      .replace(/\s+/g, "_");
+      .replace(
+        /[\s-]+/g,
+        "_"
+      );
+
 
   if (
-    role === "admin" ||
-    role === "leader" ||
-    role === "super_admin"
+    [
+      "super_admin",
+      "superadmin",
+      "최고관리자"
+    ].includes(
+      role
+    )
   ) {
-    return role === "admin"
-      ? "leader"
-      : role;
+    return "super_admin";
   }
+
+
+  if (
+    [
+      "team_manager",
+      "teammanager",
+      "팀장"
+    ].includes(
+      role
+    )
+  ) {
+    return "team_manager";
+  }
+
+
+  if (
+    [
+      "admin",
+      "leader",
+      "파트장"
+    ].includes(
+      role
+    )
+  ) {
+    return "leader";
+  }
+
 
   return "user";
 }
-
 
 /* =========================
    가입 허용값 정리
@@ -246,7 +282,9 @@ function validateEmployee(
       : "";
 
 
-  if (!employee.employeeNo) {
+  if (
+    !employee.employeeNo
+  ) {
     return (
       rowText +
       "사번이 없습니다."
@@ -266,7 +304,9 @@ function validateEmployee(
   }
 
 
-  if (!employee.name) {
+  if (
+    !employee.name
+  ) {
     return (
       rowText +
       "직원 이름이 없습니다."
@@ -275,7 +315,8 @@ function validateEmployee(
 
 
   if (
-    employee.name.length > 30
+    employee.name.length >
+      30
   ) {
     return (
       rowText +
@@ -287,6 +328,7 @@ function validateEmployee(
   const validRoles = [
     "user",
     "leader",
+    "team_manager",
     "super_admin"
   ];
 
@@ -330,7 +372,6 @@ function validateEmployee(
   return "";
 }
 
-
 /* ==================================================
    GET /api/employees
 ================================================== */
@@ -357,13 +398,16 @@ export async function onRequestGet(
     /* ==================================================
       가입 완료 로그인 계정 조회
 
-      users 계정 정보와
-      employees 보직 정보를 함께 반환한다.
+      실제 화면 권한 우선순위:
+      1. users.role 최고관리자
+      2. employees.default_role 팀장
+      3. users.role 파트장
+      4. 일반
     ================================================== */
 
     if (
       requestType ===
-      "users"
+        "users"
     ) {
       const userQueryResult =
         await context.env.DB
@@ -378,14 +422,23 @@ export async function onRequestGet(
               u.approved_by,
               u.last_login_at,
               u.created_at,
+
+              COALESCE(
+                e.default_role,
+                ''
+              ) AS default_role,
+
               COALESCE(
                 e.position,
                 ''
               ) AS position
+
             FROM users AS u
+
             LEFT JOIN employees AS e
               ON e.employee_no =
                  u.employee_no
+
             ORDER BY
               u.name COLLATE NOCASE ASC,
               u.employee_no ASC
@@ -404,6 +457,60 @@ export async function onRequestGet(
       const approvedUsers =
         users.map(
           user => {
+            const accountRole =
+              String(
+                user.role ||
+                "user"
+              )
+                .trim()
+                .toLowerCase()
+                .replace(
+                  /[\s-]+/g,
+                  "_"
+                );
+
+
+            const employeeRole =
+              normalizeRole(
+                user.default_role
+              );
+
+
+            let effectiveRole =
+              "user";
+
+
+            if (
+              [
+                "super_admin",
+                "superadmin"
+              ].includes(
+                accountRole
+              )
+            ) {
+              effectiveRole =
+                "super_admin";
+
+            } else if (
+              employeeRole ===
+                "team_manager"
+            ) {
+              effectiveRole =
+                "team_manager";
+
+            } else if (
+              accountRole ===
+                "admin" ||
+              accountRole ===
+                "leader" ||
+              employeeRole ===
+                "leader"
+            ) {
+              effectiveRole =
+                "admin";
+            }
+
+
             return {
               id:
                 Number(
@@ -423,10 +530,10 @@ export async function onRequestGet(
                 ),
 
               role:
-                String(
-                  user.role ||
-                  "user"
-                ),
+                effectiveRole,
+
+              defaultRole:
+                employeeRole,
 
               position:
                 String(
@@ -493,7 +600,9 @@ export async function onRequestGet(
             default_role,
             position,
             is_allowed
+
           FROM employees
+
           ORDER BY
             name COLLATE NOCASE ASC,
             employee_no ASC
@@ -526,7 +635,7 @@ export async function onRequestGet(
               ),
 
             defaultRole:
-              String(
+              normalizeRole(
                 employee.default_role ||
                 "user"
               ),
@@ -563,7 +672,9 @@ export async function onRequestGet(
         normalizedEmployees.length
     });
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "직원 및 계정 목록 조회 오류:",
       error
@@ -581,12 +692,16 @@ export async function onRequestGet(
         message:
           error instanceof Error
             ? error.message
-            : String(error),
+            : String(
+                error
+              ),
 
         error:
           error instanceof Error
             ? error.message
-            : String(error)
+            : String(
+                error
+              )
       },
       500
     );
@@ -708,34 +823,37 @@ function convertEmployeeRoleToUserRole(
   defaultRole
 ) {
   const role =
-    normalizeText(
+    normalizeRole(
       defaultRole
-    )
-      .toLowerCase()
-      .replace(
-        /\s+/g,
-        "_"
-      );
+    );
+
 
   if (
     role ===
-    "super_admin"
+      "super_admin"
   ) {
     return "super_admin";
   }
 
+
   if (
     role ===
-    "leader" ||
-    role ===
-    "admin"
+      "leader"
   ) {
     return "admin";
   }
 
+
+  /*
+    팀장 권한은 employees.default_role에
+    team_manager로 구분 저장한다.
+
+    users.role은 기존 D1 허용값을 유지하기 위해
+    user로 저장하고, 로그인·업무일지 API에서
+    employees.default_role을 함께 확인한다.
+  */
   return "user";
 }
-
 
 /* ==================================================
    신규 로그인 계정 생성

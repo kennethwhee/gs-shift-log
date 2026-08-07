@@ -167272,3 +167272,1325 @@ function loadCache() {
   );
 
 })();
+
+/* =========================================================
+  보직별 오늘 점검 팝업 - 수동 완료 버튼
+
+  현재 임시 운영 기준:
+  - 로그인한 직원은 보직과 관계없이 완료 가능
+  - 미완료 점검에만 완료 처리 버튼 표시
+  - 완료 처리 전 확인창 표시
+  - 호기별 완료 ID 유지
+========================================================= */
+
+(function installRoleInspectionManualCompletion() {
+  if (
+    window.__roleInspectionManualCompletionInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__roleInspectionManualCompletionInstalled =
+    true;
+
+
+  const STATUS_API =
+    "/api/inspection-schedule-status";
+
+
+  const SUMMARY_MESSAGE =
+    "gs-shift-log:inspection-role-today-summary";
+
+
+  const MODAL_SELECTOR = [
+    ".role-inspection-modal",
+    ".shift-member-inspection-modal",
+    ".inspection-role-modal"
+  ].join(
+    ","
+  );
+
+
+  const LIST_SELECTOR = [
+    ".role-inspection-list",
+    ".shift-member-inspection-list",
+    ".inspection-role-list"
+  ].join(
+    ","
+  );
+
+
+  const ITEM_SELECTOR = [
+    ".role-inspection-item",
+    ".shift-member-inspection-item",
+    ".inspection-role-item"
+  ].join(
+    ","
+  );
+
+
+  const CONTENT_SELECTOR = [
+    ".role-inspection-item__content",
+    ".shift-member-inspection-item__content",
+    ".inspection-role-item__content"
+  ].join(
+    ","
+  );
+
+
+  const ROLE_PATTERN =
+    /(파트장|TGO|BCO1|BCO2|TO|BO1|BO2)\s*오늘\s*점검/i;
+
+
+  let latestSummary =
+    null;
+
+
+  let renderFrameId =
+    0;
+
+
+  const processingKeys =
+    new Set();
+
+
+  /* =====================================================
+    문자열 정리
+  ====================================================== */
+
+  function normalizeRoleInspectionManualText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+  }
+
+
+  /* =====================================================
+    근무값 정리
+  ====================================================== */
+
+  function normalizeRoleInspectionManualShift(
+    value
+  ) {
+    const shift =
+      normalizeRoleInspectionManualText(
+        value
+      )
+        .toUpperCase()
+        .replaceAll(
+          "/",
+          ""
+        );
+
+
+    if (
+      [
+        "D",
+        "DS"
+      ].includes(
+        shift
+      )
+    ) {
+      return "DS";
+    }
+
+
+    if (
+      [
+        "N",
+        "NS"
+      ].includes(
+        shift
+      )
+    ) {
+      return "NS";
+    }
+
+
+    return "";
+  }
+
+
+  function getRoleInspectionManualShiftLabel(
+    value
+  ) {
+    const shift =
+      normalizeRoleInspectionManualShift(
+        value
+      );
+
+
+    if (
+      shift ===
+        "DS"
+    ) {
+      return "D/S";
+    }
+
+
+    if (
+      shift ===
+        "NS"
+    ) {
+      return "N/S";
+    }
+
+
+    return "근무 공통";
+  }
+
+
+  /* =====================================================
+    점검명 비교용 정리
+
+    화면에 1호기·2호기가 앞에 붙어 있어도
+    원래 점검명과 비교할 수 있도록 제거한다.
+  ====================================================== */
+
+  function normalizeRoleInspectionManualTitle(
+    value
+  ) {
+    return normalizeRoleInspectionManualText(
+      value
+    ).replace(
+      /^[12]\s*호기\s*/i,
+      ""
+    );
+  }
+
+
+  /* =====================================================
+    실제 열려 있는 팝업 확인
+  ====================================================== */
+
+  function isRoleInspectionManualModalVisible(
+    element
+  ) {
+    if (
+      !element ||
+      element.hidden ||
+      element.getAttribute(
+        "aria-hidden"
+      ) ===
+        "true"
+    ) {
+      return false;
+    }
+
+
+    const style =
+      window.getComputedStyle(
+        element
+      );
+
+
+    return (
+      style.display !==
+        "none" &&
+
+      style.visibility !==
+        "hidden" &&
+
+      element
+        .getClientRects()
+        .length >
+        0
+    );
+  }
+
+
+  function getOpenRoleInspectionManualModal() {
+    return (
+      [
+        ...document.querySelectorAll(
+          MODAL_SELECTOR
+        )
+      ].find(
+        isRoleInspectionManualModalVisible
+      ) ||
+      null
+    );
+  }
+
+
+  /* =====================================================
+    팝업 제목에서 현재 보직 확인
+
+    예:
+    BCO2 오늘 점검
+  ====================================================== */
+
+  function getRoleInspectionManualModalRole(
+    modal
+  ) {
+    const title =
+      normalizeRoleInspectionManualText(
+        modal
+          ?.querySelector(
+            ".modal-header__title, h2, h3"
+          )
+          ?.textContent
+      );
+
+
+    return (
+      title.match(
+        ROLE_PATTERN
+      )?.[1] ||
+      ""
+    );
+  }
+
+
+  /* =====================================================
+    완료 기록 식별키
+
+    일정 ID + 날짜 + 근무
+  ====================================================== */
+
+  function getRoleInspectionManualItemKey(
+    item
+  ) {
+    return [
+      normalizeRoleInspectionManualText(
+        item?.completionScheduleId ||
+        item?.scheduleId
+      ),
+
+      normalizeRoleInspectionManualText(
+        item?.dueDate
+      ),
+
+      normalizeRoleInspectionManualShift(
+        item?.shift
+      )
+    ].join(
+      "||"
+    );
+  }
+
+
+  /* =====================================================
+    화면 카드의 점검명 확인
+  ====================================================== */
+
+  function getRoleInspectionManualCardTitle(
+    card
+  ) {
+    const content =
+      card.querySelector(
+        CONTENT_SELECTOR
+      ) ||
+      card;
+
+
+    const titleElement =
+      content.querySelector(
+        ":scope > strong"
+      ) ||
+      content.querySelector(
+        "strong"
+      );
+
+
+    return normalizeRoleInspectionManualTitle(
+      titleElement
+        ?.textContent
+    );
+  }
+
+
+  /* =====================================================
+    화면 카드와 캘린더 점검자료 연결
+  ====================================================== */
+
+  function findRoleInspectionManualCardItem(
+    card,
+    cardIndex,
+    roleItems,
+    usedKeys
+  ) {
+    const cardTitle =
+      getRoleInspectionManualCardTitle(
+        card
+      );
+
+
+    /*
+      점검명이 정확히 같은 항목 우선
+    */
+    const titleMatchedItem =
+      roleItems.find(
+        item => {
+          const key =
+            getRoleInspectionManualItemKey(
+              item
+            );
+
+
+          return (
+            !usedKeys.has(
+              key
+            ) &&
+
+            normalizeRoleInspectionManualTitle(
+              item?.title
+            ) ===
+              cardTitle
+          );
+        }
+      );
+
+
+    /*
+      점검명으로 찾지 못한 경우
+      아직 연결하지 않은 순서상의 항목 사용
+    */
+    const fallbackItem =
+      roleItems.find(
+        item => {
+          return !usedKeys.has(
+            getRoleInspectionManualItemKey(
+              item
+            )
+          );
+        }
+      );
+
+
+    return (
+      titleMatchedItem ||
+      fallbackItem ||
+      roleItems[
+        cardIndex
+      ] ||
+      null
+    );
+  }
+
+
+  /* =====================================================
+    완료 처리 버튼 생성
+  ====================================================== */
+
+  function createRoleInspectionManualButtonArea(
+    item
+  ) {
+    const area =
+      document.createElement(
+        "div"
+      );
+
+
+    area.className =
+      "role-inspection-item__manual-action";
+
+
+    const button =
+      document.createElement(
+        "button"
+      );
+
+
+    button.type =
+      "button";
+
+
+    button.className =
+      "role-inspection-manual-complete-button";
+
+
+    button.dataset
+      .roleInspectionManualComplete =
+      "true";
+
+
+    button.dataset.itemKey =
+      getRoleInspectionManualItemKey(
+        item
+      );
+
+
+    /*
+      중요:
+
+      일반 일정:
+      weekly-lng-system
+
+      1호기:
+      weekly-sda-hopper-ash::unit1
+
+      2호기:
+      weekly-sda-hopper-ash::unit2
+    */
+    button.dataset.scheduleId =
+      normalizeRoleInspectionManualText(
+        item?.completionScheduleId ||
+        item?.scheduleId
+      );
+
+
+    button.dataset.dueDate =
+      normalizeRoleInspectionManualText(
+        item?.dueDate
+      );
+
+
+    button.dataset.shift =
+      normalizeRoleInspectionManualShift(
+        item?.shift
+      );
+
+
+    button.dataset.unitNo =
+      String(
+        Number(
+          item?.unitNo ||
+          0
+        )
+      );
+
+
+    button.dataset.scheduleTitle =
+      normalizeRoleInspectionManualText(
+        item?.title ||
+        "점검 일정"
+      );
+
+
+    button.textContent =
+      "완료 처리";
+
+
+    area.appendChild(
+      button
+    );
+
+
+    return area;
+  }
+
+
+  /* =====================================================
+    미완료 카드에 버튼 표시
+  ====================================================== */
+
+  function renderRoleInspectionManualButtons() {
+    const modal =
+      getOpenRoleInspectionManualModal();
+
+
+    if (
+      !modal ||
+      !latestSummary ||
+      latestSummary.loading ===
+        true
+    ) {
+      return;
+    }
+
+
+    const role =
+      getRoleInspectionManualModalRole(
+        modal
+      );
+
+
+    const roleSummary =
+      (
+        Array.isArray(
+          latestSummary.roles
+        )
+          ? latestSummary.roles
+          : []
+      ).find(
+        item => {
+          return (
+            normalizeRoleInspectionManualText(
+              item?.role
+            ) ===
+            role
+          );
+        }
+      );
+
+
+    const list =
+      modal.querySelector(
+        LIST_SELECTOR
+      );
+
+
+    if (
+      !roleSummary ||
+      !list
+    ) {
+      return;
+    }
+
+
+    const roleItems =
+      Array.isArray(
+        roleSummary.items
+      )
+        ? roleSummary.items
+        : [];
+
+
+    const usedKeys =
+      new Set();
+
+
+    [
+      ...list.querySelectorAll(
+        ITEM_SELECTOR
+      )
+    ].forEach(
+      (
+        card,
+        cardIndex
+      ) => {
+        const item =
+          findRoleInspectionManualCardItem(
+            card,
+            cardIndex,
+            roleItems,
+            usedKeys
+          );
+
+
+        const existingArea =
+          card.querySelector(
+            ".role-inspection-item__manual-action"
+          );
+
+
+        /*
+          완료된 항목에는 버튼을 표시하지 않는다.
+        */
+        if (
+          !item ||
+          item.completed ===
+            true
+        ) {
+          existingArea
+            ?.remove();
+
+
+          return;
+        }
+
+
+        const itemKey =
+          getRoleInspectionManualItemKey(
+            item
+          );
+
+
+        usedKeys.add(
+          itemKey
+        );
+
+
+        const existingButton =
+          existingArea
+            ?.querySelector(
+              "[data-role-inspection-manual-complete]"
+            );
+
+
+        /*
+          이미 같은 버튼이 있으면 중복 생성하지 않는다.
+        */
+        if (
+          existingButton
+            ?.dataset
+            .itemKey ===
+          itemKey
+        ) {
+          return;
+        }
+
+
+        existingArea
+          ?.remove();
+
+
+        const content =
+          card.querySelector(
+            CONTENT_SELECTOR
+          ) ||
+          card;
+
+
+        content.appendChild(
+          createRoleInspectionManualButtonArea(
+            item
+          )
+        );
+      }
+    );
+  }
+
+
+  function scheduleRoleInspectionManualRender() {
+    if (
+      renderFrameId
+    ) {
+      return;
+    }
+
+
+    renderFrameId =
+      window.requestAnimationFrame(
+        () => {
+          renderFrameId =
+            0;
+
+
+          renderRoleInspectionManualButtons();
+        }
+      );
+  }
+
+
+  /* =====================================================
+    로그인 인증 헤더
+  ====================================================== */
+
+  function getRoleInspectionManualRequestHeaders() {
+    if (
+      typeof getShiftLogAuthHeaders ===
+        "function"
+    ) {
+      return getShiftLogAuthHeaders({
+        "Content-Type":
+          "application/json; charset=utf-8",
+
+        "Cache-Control":
+          "no-store"
+      });
+    }
+
+
+    let currentUser =
+      null;
+
+
+    try {
+      currentUser =
+        JSON.parse(
+          localStorage.getItem(
+            "gsShiftLog.currentUser"
+          ) ||
+          "null"
+        );
+
+    } catch {
+      currentUser =
+        null;
+    }
+
+
+    const token =
+      normalizeRoleInspectionManualText(
+        currentUser?.sessionToken ||
+        currentUser?.session_token
+      );
+
+
+    return {
+      Accept:
+        "application/json",
+
+      "Content-Type":
+        "application/json; charset=utf-8",
+
+      "Cache-Control":
+        "no-store",
+
+      ...(
+        token
+          ? {
+              Authorization:
+                `Bearer ${token}`
+            }
+          : {}
+      )
+    };
+  }
+
+
+  /* =====================================================
+    API 응답 읽기
+  ====================================================== */
+
+  async function readRoleInspectionManualApiResponse(
+    response
+  ) {
+    const text =
+      await response.text();
+
+
+    let result =
+      {};
+
+
+    if (
+      text.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            text
+          );
+
+      } catch {
+        throw new Error(
+          "점검 완료 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        `점검 완료 처리에 실패했습니다. (HTTP ${response.status})`
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    완료 후 점검 캘린더와 보직 팝업 갱신
+  ====================================================== */
+
+  function refreshRoleInspectionManualStatus(
+    workDate,
+    shift
+  ) {
+    if (
+      typeof refreshInspectionScheduleAfterShiftLogChange ===
+        "function"
+    ) {
+      refreshInspectionScheduleAfterShiftLogChange(
+        {
+          ok:
+            true,
+
+          workDate,
+
+          shift
+        },
+
+        {
+          workDate,
+
+          shift
+        }
+      );
+
+
+      return;
+    }
+
+
+    const message = {
+      type:
+        "gs-shift-log:refresh-inspection-schedule",
+
+      reason:
+        "manual-completion",
+
+      workDate,
+
+      shift,
+
+      timestamp:
+        Date.now()
+    };
+
+
+    document
+      .querySelectorAll(
+        "iframe"
+      )
+      .forEach(
+        frame => {
+          frame.contentWindow
+            ?.postMessage(
+              message,
+              window.location.origin
+            );
+        }
+      );
+  }
+
+
+  /* =====================================================
+    수동 완료 처리
+  ====================================================== */
+
+  async function completeRoleInspectionManualItem(
+    button
+  ) {
+    const scheduleId =
+      normalizeRoleInspectionManualText(
+        button.dataset
+          .scheduleId
+      );
+
+
+    const dueDate =
+      normalizeRoleInspectionManualText(
+        button.dataset
+          .dueDate
+      );
+
+
+    const shift =
+      normalizeRoleInspectionManualShift(
+        button.dataset
+          .shift
+      );
+
+
+    const unitNo =
+      Number(
+        button.dataset
+          .unitNo ||
+        0
+      );
+
+
+    const baseTitle =
+      normalizeRoleInspectionManualText(
+        button.dataset
+          .scheduleTitle ||
+        "점검 일정"
+      );
+
+
+    const hasUnitPrefix =
+      new RegExp(
+        `^${unitNo}\\s*호기\\s*`,
+        "i"
+      ).test(
+        baseTitle
+      );
+
+
+    const scheduleTitle =
+      [
+        1,
+        2
+      ].includes(
+        unitNo
+      ) &&
+      !hasUnitPrefix
+        ? `${unitNo}호기 ${baseTitle}`
+        : baseTitle;
+
+
+    const key = [
+      scheduleId,
+      dueDate,
+      shift
+    ].join(
+      "||"
+    );
+
+
+    if (
+      !scheduleId ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        dueDate
+      ) ||
+      processingKeys.has(
+        key
+      )
+    ) {
+      return;
+    }
+
+
+    const confirmed =
+      window.confirm(
+        [
+          "점검을 완료 처리하시겠습니까?",
+          "",
+          scheduleTitle,
+          `점검일: ${dueDate}`,
+          `근무: ${getRoleInspectionManualShiftLabel(
+            shift
+          )}`
+        ].join(
+          "\n"
+        )
+      );
+
+
+    if (
+      !confirmed
+    ) {
+      return;
+    }
+
+
+    processingKeys.add(
+      key
+    );
+
+
+    const originalText =
+      button.textContent;
+
+
+    button.disabled =
+      true;
+
+
+    button.textContent =
+      "처리 중...";
+
+
+    try {
+      const response =
+        await fetch(
+          STATUS_API,
+          {
+            method:
+              "POST",
+
+            headers:
+              getRoleInspectionManualRequestHeaders(),
+
+            cache:
+              "no-store",
+
+            body:
+              JSON.stringify({
+                scheduleId,
+
+                dueDate,
+
+                shift,
+
+                scheduleTitle,
+
+                note:
+                  "오늘 점검 팝업 수동 완료"
+              })
+          }
+        );
+
+
+      const result =
+        await readRoleInspectionManualApiResponse(
+          response
+        );
+
+
+      button.textContent =
+        "완료됨";
+
+
+      button.classList.add(
+        "is-completed"
+      );
+
+
+      refreshRoleInspectionManualStatus(
+        dueDate,
+        shift
+      );
+
+
+      const message =
+        result.message ||
+        "점검을 완료 처리했습니다.";
+
+
+      if (
+        typeof showToast ===
+          "function"
+      ) {
+        showToast(
+          message
+        );
+
+      } else {
+        window.alert(
+          message
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "오늘 점검 팝업 수동 완료 실패:",
+        error
+      );
+
+
+      button.disabled =
+        false;
+
+
+      button.textContent =
+        originalText;
+
+
+      window.alert(
+        error instanceof
+          Error
+          ? error.message
+          : "점검을 완료 처리하지 못했습니다."
+      );
+
+    } finally {
+      processingKeys.delete(
+        key
+      );
+    }
+  }
+
+
+  /* =====================================================
+    점검 캘린더 요약 수신
+  ====================================================== */
+
+  window.addEventListener(
+    "message",
+    event => {
+      if (
+        event.origin !==
+          window.location.origin ||
+
+        normalizeRoleInspectionManualText(
+          event.data?.type
+        ) !==
+          SUMMARY_MESSAGE
+      ) {
+        return;
+      }
+
+
+      latestSummary =
+        event.data;
+
+
+      scheduleRoleInspectionManualRender();
+    }
+  );
+
+
+  /* =====================================================
+    완료 버튼 클릭
+  ====================================================== */
+
+  document.addEventListener(
+    "click",
+    event => {
+      const target =
+        event.target instanceof
+          Element
+          ? event.target
+          : null;
+
+
+      const button =
+        target?.closest(
+          "[data-role-inspection-manual-complete]"
+        );
+
+
+      if (
+        !button
+      ) {
+        return;
+      }
+
+
+      event.preventDefault();
+
+      event.stopPropagation();
+
+
+      void completeRoleInspectionManualItem(
+        button
+      );
+    },
+
+    true
+  );
+
+
+  /* =====================================================
+    팝업이 새로 열리거나 다시 출력될 때 버튼 재생성
+  ====================================================== */
+
+  const observer =
+    new MutationObserver(
+      scheduleRoleInspectionManualRender
+    );
+
+
+  function startRoleInspectionManualObserver() {
+    if (
+      !document.body
+    ) {
+      return;
+    }
+
+
+    observer.observe(
+      document.body,
+      {
+        childList:
+          true,
+
+        subtree:
+          true,
+
+        attributes:
+          true,
+
+        attributeFilter: [
+          "hidden",
+          "aria-hidden",
+          "class"
+        ]
+      }
+    );
+
+
+    scheduleRoleInspectionManualRender();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      startRoleInspectionManualObserver,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    startRoleInspectionManualObserver();
+  }
+})();
+
+/* =========================================================
+  보직별 오늘 점검 팝업 - 수동 완료 버튼
+========================================================= */
+
+.role-inspection-item__manual-action {
+  display: flex;
+
+  width: 100%;
+
+  justify-content: flex-end;
+
+  margin-top: 6px;
+}
+
+
+.role-inspection-manual-complete-button {
+  display: inline-flex;
+
+  min-width: 82px;
+  min-height: 30px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 12px;
+
+  border: 1px solid #78b892;
+  border-radius: 7px;
+
+  background: #eaf7ef;
+
+  color: #176f4b;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+
+.role-inspection-manual-complete-button:hover {
+  border-color: #4e9d70;
+
+  background: #dff3e7;
+}
+
+
+.role-inspection-manual-complete-button:disabled {
+  opacity: 0.62;
+
+  cursor: wait;
+}
+
+
+.role-inspection-manual-complete-button.is-completed {
+  border-color: #4e9d70;
+
+  background: #dff3e7;
+
+  color: #12623f;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+
+  .role-inspection-item__manual-action {
+    justify-content: stretch;
+  }
+
+
+  .role-inspection-manual-complete-button {
+    width: 100%;
+
+    min-height: 36px;
+  }
+
+}
