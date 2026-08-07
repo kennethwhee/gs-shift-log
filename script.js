@@ -153152,13 +153152,22 @@ function resetShiftPart() {
     updateSelectedState();
   }
 
-
 /* =====================================================
-  운탄일지 내부 날짜 확인
+  운탄일지 날짜값 정규화
 
-  우선순위:
-  1. 연료설비 운전일지 상단 셀
-  2. 파일명 안의 YYYY-MM-DD / YYYYMMDD
+  지원:
+  2026-08-06
+  2026.08.06
+  2026/08/06
+
+  2026. 8. 6.
+  2026년 8월 6일
+
+  20260806
+
+  26.08.06
+  26-08-06
+  26/08/06
 ====================================================== */
 
 function normalizeCoalLogWorkDate(
@@ -153167,7 +153176,15 @@ function normalizeCoalLogWorkDate(
   const text =
     normalizeText(
       value
-    );
+    )
+      .normalize(
+        "NFKC"
+      )
+      .replace(
+        /\u00a0/g,
+        " "
+      )
+      .trim();
 
 
   if (
@@ -153177,144 +153194,262 @@ function normalizeCoalLogWorkDate(
   }
 
 
-  const separatedMatch =
-    text.match(
-      /\b(20\d{2})[.\/-](\d{1,2})[.\/-](\d{1,2})\b/
-    );
+  const patterns = [
+    /* 2026년 8월 6일 */
+    {
+      regex:
+        /(20\d{2})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/u,
+
+      shortYear:
+        false
+    },
 
 
-  const compactMatch =
-    text.match(
-      /\b(20\d{2})(\d{2})(\d{2})\b/
-    );
+    /* 2026-08-06 / 2026. 8. 6. */
+    {
+      regex:
+        /(20\d{2})\s*[.\/-]\s*(\d{1,2})\s*[.\/-]\s*(\d{1,2})/u,
+
+      shortYear:
+        false
+    },
 
 
-  const match =
-    separatedMatch ||
-    compactMatch;
+    /* 20260806 */
+    {
+      regex:
+        /(?:^|[^\d])(20\d{2})(\d{2})(\d{2})(?:[^\d]|$)/u,
+
+      shortYear:
+        false
+    },
 
 
-  if (
-    !match
+    /* 26.08.06 */
+    {
+      regex:
+        /(?:^|[^\d])(\d{2})\s*[.\/-]\s*(\d{1,2})\s*[.\/-]\s*(\d{1,2})(?:[^\d]|$)/u,
+
+      shortYear:
+        true
+    }
+  ];
+
+
+  for (
+    const pattern
+    of patterns
   ) {
-    return "";
-  }
+    const match =
+      text.match(
+        pattern.regex
+      );
 
 
-  const year =
-    Number(
-      match[1]
-    );
+    if (
+      !match
+    ) {
+      continue;
+    }
 
 
-  const month =
-    Number(
-      match[2]
-    );
+    let year =
+      Number(
+        match[1]
+      );
 
 
-  const day =
-    Number(
-      match[3]
-    );
+    const month =
+      Number(
+        match[2]
+      );
 
 
-  const parsedDate =
-    new Date(
-      Date.UTC(
-        year,
-        month - 1,
+    const day =
+      Number(
+        match[3]
+      );
+
+
+    if (
+      pattern.shortYear
+    ) {
+      year +=
+        2000;
+    }
+
+
+    const parsedDate =
+      new Date(
+        Date.UTC(
+          year,
+          month - 1,
+          day
+        )
+      );
+
+
+    if (
+      Number.isNaN(
+        parsedDate.getTime()
+      ) ||
+
+      parsedDate.getUTCFullYear() !==
+        year ||
+
+      parsedDate.getUTCMonth() !==
+        month - 1 ||
+
+      parsedDate.getUTCDate() !==
         day
+    ) {
+      continue;
+    }
+
+
+    return [
+      String(
+        year
+      ).padStart(
+        4,
+        "0"
+      ),
+
+      String(
+        month
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        day
+      ).padStart(
+        2,
+        "0"
       )
+    ].join(
+      "-"
     );
-
-
-  if (
-    Number.isNaN(
-      parsedDate.getTime()
-    ) ||
-    parsedDate.getUTCFullYear() !==
-      year ||
-    parsedDate.getUTCMonth() !==
-      month - 1 ||
-    parsedDate.getUTCDate() !==
-      day
-  ) {
-    return "";
   }
 
 
-  return [
-    String(
-      year
-    ).padStart(
-      4,
-      "0"
-    ),
-
-    String(
-      month
-    ).padStart(
-      2,
-      "0"
-    ),
-
-    String(
-      day
-    ).padStart(
-      2,
-      "0"
-    )
-  ].join(
-    "-"
-  );
+  return "";
 }
-
 
 /* =====================================================
   운탄일지 날짜 추출
+
+  우선순위:
+  1. 상단의 날짜·일자 관련 셀
+  2. 상단 40행의 모든 날짜
+  3. 파일명
+
+  날짜를 못 찾으면 빈 값 반환.
+  잘못 추측해서 다른 날짜를 넣지는 않는다.
 ====================================================== */
 
 function extractCoalLogWorkDate(
   worksheet,
   file
 ) {
-  const topEntries =
+  const entries =
     getCellEntries(
       worksheet
-    )
-      .filter(
-        entry => {
-          const rowMatch =
-            String(
-              entry.address ||
-              ""
-            ).match(
-              /(\d+)$/
-            );
+    );
 
 
-          const rowNumber =
-            Number(
-              rowMatch?.[1] ||
-              999
-            );
+  /* ===================================================
+    운탄일지 상단 영역
 
+    기존 20행 → 40행까지 확대
+  ==================================================== */
 
-          return (
-            Number.isFinite(
-              rowNumber
-            ) &&
-            rowNumber <=
-              20
+  const topEntries =
+    entries.filter(
+      entry => {
+        const rowMatch =
+          String(
+            entry.address ||
+            ""
+          ).match(
+            /(\d+)$/
           );
-        }
-      );
+
+
+        const rowNumber =
+          Number(
+            rowMatch?.[1] ||
+            999
+          );
+
+
+        return (
+          Number.isFinite(
+            rowNumber
+          ) &&
+          rowNumber <=
+            40
+        );
+      }
+    );
+
+
+  /* ===================================================
+    날짜와 관련 있어 보이는 셀을 먼저 검사
+  ==================================================== */
+
+  const priorityEntries =
+    topEntries.filter(
+      entry => {
+        const text =
+          normalizeText(
+            entry.text
+          )
+            .replace(
+              /\s+/g,
+              ""
+            )
+            .toLowerCase();
+
+
+        return (
+          text.includes(
+            "일자"
+          ) ||
+
+          text.includes(
+            "날짜"
+          ) ||
+
+          text.includes(
+            "date"
+          ) ||
+
+          text.includes(
+            "운전일지"
+          )
+        );
+      }
+    );
+
+
+  const orderedEntries = [
+    ...priorityEntries,
+
+    ...topEntries.filter(
+      entry => {
+        return !priorityEntries.includes(
+          entry
+        );
+      }
+    )
+  ];
 
 
   for (
     const entry
-    of topEntries
+    of orderedEntries
   ) {
     const matchedDate =
       normalizeCoalLogWorkDate(
@@ -153330,16 +153465,37 @@ function extractCoalLogWorkDate(
   }
 
 
-  /*
-    시트에서 날짜를 못 찾은 경우
-    파일명에서 한 번 더 찾는다.
-  */
+  /* ===================================================
+    시트에서 못 찾으면 파일명 확인
+  ==================================================== */
 
-  return normalizeCoalLogWorkDate(
-    file?.name
+  const fileDate =
+    normalizeCoalLogWorkDate(
+      file?.name
+    );
+
+
+  if (
+    fileDate
+  ) {
+    return fileDate;
+  }
+
+
+  console.warn(
+    "운탄일지 날짜를 확인하지 못했습니다.",
+    {
+      fileName:
+        String(
+          file?.name ||
+          ""
+        )
+    }
   );
-}
 
+
+  return "";
+}
 
 /* =====================================================
   운탄일지 파일 1개 분석
@@ -157953,9 +158109,17 @@ function updateSelectionState() {
   }
 
 
-  /* =====================================================
-    자료 분석 후 TM 영역 추가 분석
-  ====================================================== */
+/* =====================================================
+  자료 분석 후 운탄 TM 전체 분석
+
+  평일:
+  - 운탄일지 1개
+
+  주말:
+  - 첨부한 모든 운탄일지의 TM 분석
+  - 각 항목에 날짜·파일명 보존
+  - 날짜순으로 출력
+====================================================== */
 
 async function refreshAfterAnalysis() {
   hideError();
@@ -157990,16 +158154,18 @@ async function refreshAfterAnalysis() {
 
 
     /* ===================================================
-      운탄일지 없음
-
-      - TM 분석하지 않음
-      - 연료설비 업무 없음
-      - 운탄 TM 없음
-      - 교대파트 TM은 기존대로 유지
+      운탄일지 미첨부
     ==================================================== */
 
     if (
-      !state.coalLogFile
+      !state.coalLogFile &&
+      (
+        !Array.isArray(
+          state.coalLogFiles
+        ) ||
+        state.coalLogFiles.length ===
+          0
+      )
     ) {
       selection.coalTmItems =
         [];
@@ -158042,14 +158208,246 @@ async function refreshAfterAnalysis() {
 
 
     /* ===================================================
-      운탄일지가 있는 경우만 실제 TM 분석
+      앞 단계에서 분석한 운탄일지 전체 결과
+
+      각 결과:
+      file
+      fileName
+      fileIndex
+      workDate
+      items
     ==================================================== */
 
-    selection.coalTmItems =
-      await extractCoalTmItems(
-        state.coalLogFile
-      );
+    let analysisResults =
+      Array.isArray(
+        state.coalAnalysisResults
+      )
+        ? state.coalAnalysisResults
+            .filter(
+              result => {
+                return Boolean(
+                  result?.file
+                );
+              }
+            )
+        : [];
 
+
+    /* ===================================================
+      기존 단일 파일 호환
+    ==================================================== */
+
+    if (
+      analysisResults.length ===
+        0 &&
+      state.coalLogFile
+    ) {
+      analysisResults = [
+        {
+          file:
+            state.coalLogFile,
+
+          fileIndex:
+            0,
+
+          fileName:
+            String(
+              state.coalLogFile.name ||
+              ""
+            ),
+
+          workDate:
+            normalizeCoalLogWorkDate(
+              state.coalLogFile.name
+            )
+        }
+      ];
+    }
+
+
+    const combinedCoalTmItems =
+      [];
+
+
+    /* ===================================================
+      첨부된 모든 운탄일지의 TM 분석
+    ==================================================== */
+
+    for (
+      const analysisResult
+      of analysisResults
+    ) {
+      const sourceFile =
+        analysisResult.file;
+
+
+      if (
+        !sourceFile
+      ) {
+        continue;
+      }
+
+
+      const extractedItems =
+        await extractCoalTmItems(
+          sourceFile
+        );
+
+
+      const workDate =
+        normalizeText(
+          analysisResult.workDate
+        );
+
+
+      const fileName =
+        normalizeText(
+          analysisResult.fileName ||
+          sourceFile.name
+        );
+
+
+      const fileIndex =
+        Number.isInteger(
+          Number(
+            analysisResult.fileIndex
+          )
+        )
+          ? Number(
+              analysisResult.fileIndex
+            )
+          : 0;
+
+
+      const dateKey =
+        String(
+          workDate ||
+          `file-${fileIndex}`
+        )
+          .replace(
+            /[^0-9a-z]/gi,
+            ""
+          );
+
+
+      extractedItems.forEach(
+        (
+          item,
+          itemIndex
+        ) => {
+          combinedCoalTmItems.push({
+            ...item,
+
+
+            /* ===========================================
+              파일별 ID 중복 방지
+            ============================================ */
+
+            id:
+              `coal-tm-${dateKey}-${fileIndex}-${itemIndex}`,
+
+
+            /* ===========================================
+              출처 날짜 보존
+            ============================================ */
+
+            workDate,
+
+            fileName,
+
+            fileIndex,
+
+
+            sourceType:
+              "coal",
+
+            sourceLabel:
+              "운탄일지 TM 발행사항"
+          });
+        }
+      );
+    }
+
+
+    /* ===================================================
+      날짜 순 정렬
+
+      날짜가 없는 파일은 마지막
+    ==================================================== */
+
+    combinedCoalTmItems.sort(
+      (
+        firstItem,
+        secondItem
+      ) => {
+        const firstDate =
+          normalizeText(
+            firstItem.workDate
+          );
+
+
+        const secondDate =
+          normalizeText(
+            secondItem.workDate
+          );
+
+
+        if (
+          firstDate &&
+          secondDate
+        ) {
+          const dateCompare =
+            firstDate.localeCompare(
+              secondDate
+            );
+
+
+          if (
+            dateCompare !==
+              0
+          ) {
+            return dateCompare;
+          }
+        }
+
+
+        if (
+          firstDate &&
+          !secondDate
+        ) {
+          return -1;
+        }
+
+
+        if (
+          !firstDate &&
+          secondDate
+        ) {
+          return 1;
+        }
+
+
+        return (
+          Number(
+            firstItem.fileIndex ||
+            0
+          ) -
+          Number(
+            secondItem.fileIndex ||
+            0
+          )
+        );
+      }
+    );
+
+
+    selection.coalTmItems =
+      combinedCoalTmItems;
+
+
+    /* ===================================================
+      새 분석이므로 선택상태 초기화
+    ==================================================== */
 
     selection.selectedWorkIds =
       new Set();
@@ -158068,6 +158466,25 @@ async function refreshAfterAnalysis() {
 
 
     renderAll();
+
+
+    console.log(
+      "운탄일지 복수 TM 분석 완료:",
+      combinedCoalTmItems.map(
+        item => {
+          return {
+            workDate:
+              item.workDate,
+
+            fileName:
+              item.fileName,
+
+            text:
+              item.text
+          };
+        }
+      )
+    );
 
   } catch (
     error
