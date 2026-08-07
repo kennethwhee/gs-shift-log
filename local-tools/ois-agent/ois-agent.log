@@ -937,3 +937,203 @@ OIS 석회석 재고 조회가 완료되었습니다.
 │ 2호기 시작 재고 │ 320.269 │
 │ 2호기 종료 재고 │ 346.552 │
 └─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 54fad4ac-b2f9-4ffe-99c1-7468cd4516c2
+조회일: 2026-08-06
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 353.743,
+  endStock: 374.819,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-06 · 전일 353.743 ton · 24시 374.819 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 320.269,
+  endStock: 346.552,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-06 · 전일 320.269 ton · 24시 346.552 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 353.743 │
+│ 1호기 종료 재고 │ 374.819 │
+│ 2호기 시작 재고 │ 320.269 │
+│ 2호기 종료 재고 │ 346.552 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: 363f111e-9284-4236-8925-52de40133c7d
+조회일: 2026-08-06
+------------------------------------------
+OIS TGO 전일 자료 확인: {
+  label: 'Gear Wheel',
+  tag: 'MAD11FG905-ZE01_V2',
+  itemName: 'HP TBN ROTOR AXIAL POSITION',
+  value: 0.769,
+  field: 'decimal_pnt'
+}
+OIS TGO 전일 자료 확인: {
+  label: 'Pinion',
+  tag: 'MAD41FY905-ZE01_V2',
+  itemName: 'CASINLG PINL T-SIDE VIB',
+  value: 1.938,
+  field: 'decimal_pnt'
+}
+OIS TGO 조회 완료 · 2026-08-06 · Gear Wheel 0.769 · Pinion 1.938
+OIS Gear Wheel / Pinion 조회가 완료되었습니다.
+┌────────────────┬──────────────────────┐
+│ (index)        │ Values               │
+├────────────────┼──────────────────────┤
+│ 조회일         │ '2026-08-06'         │
+│ 조회 열        │ '전일'               │
+│ Gear Wheel     │ 0.769                │
+│ Pinion         │ 1.938                │
+│ Gear Wheel TAG │ 'MAD11FG905-ZE01_V2' │
+│ Pinion TAG     │ 'MAD41FY905-ZE01_V2' │
+└────────────────┴──────────────────────┘
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: a375f546-18be-48f1-b613-32d8842e4804
+조회일: 2026-08-05
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/05로 변경합니다.
+2026년 08월 05일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '7,880.000', '저장율(%)', '72.098', '90.733', '95.331' ]
+OIS "저장량" 행 셀: [
+  '동두천',    '0.000',
+  '7,880.000', '1,677.000',
+  '6,301.800', '저장량(m3)',
+  '2,883.911', '9,980.650',
+  '5,719.866'
+]
+OIS "저장율" 행 셀: [ '장자산단', '7,880.000', '저장율(%)', '72.098', '90.733', '95.331' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '86.000',
+  '47.00',     '48.750',
+  '96.66',     '총량',
+  '1,332.000', '순수사용량',
+  '총합',      '0',
+  '0',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-07T13:01:43.805Z',
+  rawWaterInflow: 7880,
+  demiProduction: 1332,
+  pureWaterUsage: 1350,
+  rawWaterTankAmount: 2883.911,
+  rawWaterTankRate: 72.098,
+  filteredWaterTankAmount: 9980.65,
+  filteredWaterTankRate: 90.733,
+  demiWaterTankAmount: 5719.866,
+  demiWaterTankRate: 95.331
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 7880     │
+│ 원수 TANK 저장량     │ 2883.911 │
+│ 원수 TANK 저장율     │ 72.098   │
+│ 여과수 TANK 저장량   │ 9980.65  │
+│ 여과수 TANK 저장율   │ 90.733   │
+│ 순수 TANK 저장량     │ 5719.866 │
+│ 순수 TANK 저장율     │ 95.331   │
+│ 순수 생산량          │ 1332     │
+│ 순수 사용량          │ 1350     │
+└──────────────────────┴──────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 64f3248e-8a83-4bab-86f5-0443b4f78da8
+조회일: 2026-08-05
+------------------------------------------
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 331.179,
+  endStock: 353.743,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-05 · 전일 331.179 ton · 24시 353.743 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 311.591,
+  endStock: 320.269,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-05 · 전일 311.591 ton · 24시 320.269 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 331.179 │
+│ 1호기 종료 재고 │ 353.743 │
+│ 2호기 시작 재고 │ 311.591 │
+│ 2호기 종료 재고 │ 320.269 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 1ad78ff0-d275-4016-913b-eb8f15400362
+조회일: 2026-08-06
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 353.743,
+  endStock: 374.819,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-06 · 전일 353.743 ton · 24시 374.819 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 320.269,
+  endStock: 346.552,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-06 · 전일 320.269 ton · 24시 346.552 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 353.743 │
+│ 1호기 종료 재고 │ 374.819 │
+│ 2호기 시작 재고 │ 320.269 │
+│ 2호기 종료 재고 │ 346.552 │
+└─────────────────┴─────────┘

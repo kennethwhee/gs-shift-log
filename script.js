@@ -2935,14 +2935,9 @@ function saveCurrentUser(
 
   const isForcedSuperAdmin =
     employeeNo ===
-    FORCED_SUPER_ADMIN_EMPLOYEE_NO;
+      FORCED_SUPER_ADMIN_EMPLOYEE_NO;
 
 
-  /*
-    role이 user이고 default_role이 super_admin처럼
-    권한 필드가 여러 개 내려오는 경우에도
-    최고관리자 권한을 우선 적용한다.
-  */
   const accountRole =
     isForcedSuperAdmin
       ? "super_admin"
@@ -2956,6 +2951,11 @@ function saveCurrentUser(
       "super_admin";
 
 
+  const isTeamManager =
+    accountRole ===
+      "team_manager";
+
+
   const isAdmin =
     isSuperAdmin ||
     accountRole ===
@@ -2967,42 +2967,39 @@ function saveCurrentUser(
 
     employeeNo,
 
+    employee_no:
+      employeeNo,
+
     role:
-      accountRole ||
-      (
-        isForcedSuperAdmin
-          ? "super_admin"
-          : String(
-              user.role ||
-              user.userRole ||
-              user.user_role ||
-              ""
-            ).trim()
-      ),
+      accountRole,
 
     isAdmin,
 
     isSuperAdmin,
 
+    isTeamManager,
+
+    is_team_manager:
+      isTeamManager,
+
     adminLevel:
       isSuperAdmin
         ? 2
-        : Number(
-            user.adminLevel ??
-            user.admin_level ??
-            0
-          )
+        : accountRole ===
+            "admin"
+          ? 1
+          : 0
   };
 
 
   localStorage.setItem(
     AUTH_STORAGE_KEY,
+
     JSON.stringify(
       normalizedUser
     )
   );
 }
-
 
 function loadCurrentUser() {
   const savedUser =
@@ -3078,15 +3075,17 @@ function getShiftLogUserAccountRole(
   }
 
 
-  /*
-    서버에서 boolean 형태로
-    최고관리자 여부를 보내는 경우
-  */
+  /* =====================================================
+    최고관리자 boolean
+  ====================================================== */
+
   const hasSuperAdminFlag =
     user.isSuperAdmin ===
       true ||
+
     user.is_super_admin ===
       true ||
+
     Number(
       user.isSuperAdmin ??
       user.is_super_admin ??
@@ -3102,11 +3101,29 @@ function getShiftLogUserAccountRole(
   }
 
 
-  /*
-    로그인 API 또는 직원 API마다
-    권한 필드명이 다를 수 있으므로
-    모든 후보값을 확인한다.
-  */
+  /* =====================================================
+    팀장 boolean
+  ====================================================== */
+
+  const hasTeamManagerFlag =
+    user.isTeamManager ===
+      true ||
+
+    user.is_team_manager ===
+      true ||
+
+    Number(
+      user.isTeamManager ??
+      user.is_team_manager ??
+      0
+    ) ===
+      1;
+
+
+  /* =====================================================
+    모든 권한 후보값
+  ====================================================== */
+
   const roleCandidates = [
     user.role,
     user.userRole,
@@ -3135,11 +3152,10 @@ function getShiftLogUserAccountRole(
     .filter(Boolean);
 
 
-  /*
-    후보 중 하나라도 최고관리자이면
-    다른 필드가 user로 되어 있어도
-    최고관리자를 우선 적용한다.
-  */
+  /* =====================================================
+    1. 최고관리자
+  ====================================================== */
+
   if (
     roleCandidates.some(
       role => {
@@ -3157,9 +3173,38 @@ function getShiftLogUserAccountRole(
   }
 
 
-  /*
-    파트장 권한
-  */
+  /* =====================================================
+    2. 팀장
+
+    중요:
+    users.role이 user로 저장되어 있더라도
+    employees.default_role이 team_manager면
+    팀장을 우선한다.
+  ====================================================== */
+
+  if (
+    hasTeamManagerFlag ||
+
+    roleCandidates.some(
+      role => {
+        return [
+          "team_manager",
+          "teammanager",
+          "팀장"
+        ].includes(
+          role
+        );
+      }
+    )
+  ) {
+    return "team_manager";
+  }
+
+
+  /* =====================================================
+    3. 파트장
+  ====================================================== */
+
   if (
     roleCandidates.some(
       role => {
@@ -3177,21 +3222,12 @@ function getShiftLogUserAccountRole(
   }
 
 
-  if (
-    roleCandidates.includes(
-      "user"
-    )
-  ) {
-    return "user";
-  }
+  /* =====================================================
+    4. 일반
+  ====================================================== */
 
-
-  return (
-    roleCandidates[0] ||
-    ""
-  );
+  return "user";
 }
-
 
 function isShiftLogSuperAdminUser(
   user
@@ -3201,6 +3237,35 @@ function isShiftLogSuperAdminUser(
       user
     ) ===
     "super_admin"
+  );
+}
+
+/* =========================================================
+  현재 로그인 사용자 팀장 판정
+========================================================= */
+
+function isCurrentUserTeamManager() {
+  const currentUser =
+    typeof loadCurrentUser ===
+      "function"
+      ? loadCurrentUser()
+      : null;
+
+
+  if (
+    !currentUser ||
+    typeof currentUser !==
+      "object"
+  ) {
+    return false;
+  }
+
+
+  return (
+    getShiftLogUserAccountRole(
+      currentUser
+    ) ===
+    "team_manager"
   );
 }
 
@@ -3265,56 +3330,46 @@ function openShiftLogApp(
   }
 
 
-  const rawRole =
-    String(
-      user?.role ||
-      user?.userRole ||
-      user?.user_role ||
-      user?.defaultRole ||
-      user?.default_role ||
-      user?.permission ||
-      user?.authority ||
-      user?.accessRole ||
-      ""
-    )
-      .trim()
-      .toLowerCase()
-      .replace(
-        /[\s-]+/g,
-        "_"
-      );
+  /* =====================================================
+    실제 최종 로그인 권한
 
+    중요:
+    role 하나만 보지 않고
+    defaultRole / isTeamManager까지 함께 확인한다.
+  ====================================================== */
 
-  const isForcedSuperAdmin =
+  const effectiveRole =
     employeeNo ===
-    FORCED_SUPER_ADMIN_EMPLOYEE_NO;
-
-
-  const isRoleSuperAdmin =
-    [
-      "super_admin",
-      "superadmin",
-      "최고관리자"
-    ].includes(
-      rawRole
-    );
+      FORCED_SUPER_ADMIN_EMPLOYEE_NO
+      ? "super_admin"
+      : getShiftLogUserAccountRole(
+          user
+        );
 
 
   const isSuperAdmin =
-    isForcedSuperAdmin ||
-    isRoleSuperAdmin;
+    effectiveRole ===
+      "super_admin";
 
 
-  /*
-    현재 로그인 정보를 최고관리자 상태로 다시 저장한다.
+  const isTeamManager =
+    effectiveRole ===
+      "team_manager";
 
-    다른 함수가 나중에 localStorage를 읽더라도
-    2014081은 계속 super_admin으로 판정된다.
-  */
+
+  const isAdmin =
+    isSuperAdmin ||
+    effectiveRole ===
+      "admin";
+
+
   const normalizedUser = {
     ...user,
 
     employeeNo,
+
+    employee_no:
+      employeeNo,
 
     name:
       employeeName ||
@@ -3322,30 +3377,40 @@ function openShiftLogApp(
       "",
 
     role:
-      isSuperAdmin
-        ? "super_admin"
-        : rawRole,
+      effectiveRole,
 
-    isAdmin:
-      isSuperAdmin,
+    isAdmin,
 
     isSuperAdmin,
+
+    isTeamManager,
+
+    is_team_manager:
+      isTeamManager,
 
     adminLevel:
       isSuperAdmin
         ? 2
-        : Number(
-            user?.adminLevel ||
-            user?.admin_level ||
-            0
-          )
+        : effectiveRole ===
+            "admin"
+          ? 1
+          : 0
   };
 
 
+  /*
+    최종 권한을 localStorage에도 다시 저장
+  */
   saveCurrentUser(
     normalizedUser
   );
 
+
+  /* =====================================================
+    시스템 관리 버튼
+
+    최고관리자만 표시
+  ====================================================== */
 
   if (
     adminButton
@@ -3353,10 +3418,6 @@ function openShiftLogApp(
     if (
       isSuperAdmin
     ) {
-      /*
-        hidden 속성, disabled, 인라인 display를
-        전부 해제하여 다시 숨지 않게 한다.
-      */
       adminButton.hidden =
         false;
 
@@ -3399,10 +3460,30 @@ function openShiftLogApp(
     {
       employeeNo,
       employeeName,
-      rawRole,
-      isForcedSuperAdmin,
+      effectiveRole,
+      isTeamManager,
+      isAdmin,
       isSuperAdmin
     }
+  );
+
+
+  /*
+    이미 근무자 카드가 표시된 상태라면
+    팀장 결재확인 버튼을 즉시 갱신한다.
+  */
+  window.setTimeout(
+    () => {
+      if (
+        typeof window
+          .renderTeamManagerApprovalCards ===
+          "function"
+      ) {
+        window
+          .renderTeamManagerApprovalCards();
+      }
+    },
+    0
   );
 }
 
@@ -168788,69 +168869,39 @@ function loadCache() {
     현재 로그인 사용자가 팀장인지 확인
   ====================================================== */
 
-  function isCurrentTeamManager() {
-    const currentUser =
-      typeof loadCurrentUser ===
-        "function"
-        ? loadCurrentUser()
-        : null;
-
-
-    if (
-      !currentUser ||
-      typeof currentUser !==
-        "object"
-    ) {
-      return false;
-    }
-
-
-    if (
-      currentUser.isTeamManager ===
-        true ||
-      currentUser.is_team_manager ===
-        true
-    ) {
-      return true;
-    }
-
-
-    const roleCandidates = [
-      currentUser.role,
-      currentUser.defaultRole,
-      currentUser.default_role,
-      currentUser.userRole,
-      currentUser.user_role
-    ]
-      .map(
-        value => {
-          return String(
-            value ||
-            ""
-          )
-            .trim()
-            .toLowerCase()
-            .replace(
-              /[\s-]+/g,
-              "_"
-            );
-        }
-      )
-      .filter(Boolean);
-
-
-    return roleCandidates.some(
-      role => {
-        return [
-          "team_manager",
-          "teammanager",
-          "팀장"
-        ].includes(
-          role
-        );
-      }
-    );
+function isCurrentTeamManager() {
+  if (
+    typeof isCurrentUserTeamManager ===
+      "function"
+  ) {
+    return isCurrentUserTeamManager();
   }
+
+
+  const currentUser =
+    typeof loadCurrentUser ===
+      "function"
+      ? loadCurrentUser()
+      : null;
+
+
+  if (
+    !currentUser
+  ) {
+    return false;
+  }
+
+
+  return (
+    String(
+      currentUser.role ||
+      ""
+    )
+      .trim()
+      .toLowerCase() ===
+    "team_manager"
+  );
+}
 
 
   /* =====================================================
@@ -169553,48 +169604,6 @@ function loadCache() {
         return result;
       };
   }
-
-
-  /* =====================================================
-    카드 이벤트 충돌 방지
-
-    기존 카드 자체 클릭:
-    → 상세보기
-
-    팀장 결재확인 버튼 클릭:
-    → 결재확인만 실행
-  ====================================================== */
-
-  document.addEventListener(
-    "click",
-    event => {
-      const target =
-        event.target instanceof
-          Element
-          ? event.target
-          : null;
-
-
-      const button =
-        target?.closest(
-          ".team-manager-approval-button"
-        );
-
-
-      if (
-        !button
-      ) {
-        return;
-      }
-
-
-      event.preventDefault();
-
-      event.stopPropagation();
-    },
-    true
-  );
-
 
   /* =====================================================
     최초 실행
