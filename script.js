@@ -173402,3 +173402,2119 @@ function renderTeamApprovalCard(
   window.loadOisLegacyLogsForSearchRange =
     loadOisLegacyLogsForSearchRange;
 })();
+
+/* =========================================================
+  OIS 과거 업무일지 기간 가져오기 관리자 화면
+
+  기능:
+  - 시작일 ~ 종료일 선택
+  - 62일 단위 자동 분할
+  - logsheet_approval 날짜별 요청 등록
+  - 완료된 날짜 건너뛰기
+  - 회사 PC OIS 에이전트 처리 상태 확인
+  - 화면을 닫아도 서버 대기열은 계속 처리
+========================================================= */
+
+(function installOisLegacyBatchImportManager() {
+  if (
+    window.__oisLegacyBatchImportManagerInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__oisLegacyBatchImportManagerInstalled =
+    true;
+
+
+  const API_URL =
+    "/api/ois-data-requests";
+
+
+  const MAXIMUM_DAYS_PER_BATCH =
+    62;
+
+
+  /*
+    진행상태 확인 주기
+  */
+  const POLL_INTERVAL_MS =
+    2500;
+
+
+  /*
+    수백 날짜를 동시에 조회하지 않고
+    한 번에 최대 12건씩만 상태를 확인한다.
+  */
+  const POLL_BATCH_SIZE =
+    12;
+
+
+  const state = {
+    itemsByDate:
+      new Map(),
+
+    isRegistering:
+      false,
+
+    pollTimer:
+      null,
+
+    pollCursor:
+      0,
+
+    runToken:
+      0,
+
+    startDate:
+      "",
+
+    endDate:
+      ""
+  };
+
+
+  /* =====================================================
+    HTML 특수문자
+  ====================================================== */
+
+  function escapeOisBatchHtml(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replaceAll(
+        "&",
+        "&amp;"
+      )
+      .replaceAll(
+        "<",
+        "&lt;"
+      )
+      .replaceAll(
+        ">",
+        "&gt;"
+      )
+      .replaceAll(
+        '"',
+        "&quot;"
+      )
+      .replaceAll(
+        "'",
+        "&#039;"
+      );
+  }
+
+
+  /* =====================================================
+    날짜 검사
+  ====================================================== */
+
+  function isValidOisBatchDate(
+    value
+  ) {
+    const normalizedDate =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        normalizedDate
+      )
+    ) {
+      return false;
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${normalizedDate}T00:00:00.000Z`
+      );
+
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        normalizedDate
+    );
+  }
+
+
+  function addOisBatchDays(
+    dateValue,
+    dayCount
+  ) {
+    const date =
+      new Date(
+        `${dateValue}T00:00:00.000Z`
+      );
+
+
+    date.setUTCDate(
+      date.getUTCDate() +
+      Number(
+        dayCount ||
+        0
+      )
+    );
+
+
+    return date
+      .toISOString()
+      .slice(
+        0,
+        10
+      );
+  }
+
+
+  function getOisBatchDayCount(
+    startDate,
+    endDate
+  ) {
+    if (
+      !isValidOisBatchDate(
+        startDate
+      ) ||
+
+      !isValidOisBatchDate(
+        endDate
+      )
+    ) {
+      return 0;
+    }
+
+
+    const startTime =
+      new Date(
+        `${startDate}T00:00:00.000Z`
+      ).getTime();
+
+
+    const endTime =
+      new Date(
+        `${endDate}T00:00:00.000Z`
+      ).getTime();
+
+
+    if (
+      startTime >
+      endTime
+    ) {
+      return 0;
+    }
+
+
+    return (
+      Math.floor(
+        (
+          endTime -
+          startTime
+        ) /
+        86400000
+      ) +
+      1
+    );
+  }
+
+
+  /* =====================================================
+    긴 기간을 62일씩 나누기
+  ====================================================== */
+
+  function createOisBatchChunks(
+    startDate,
+    endDate
+  ) {
+    const totalDays =
+      getOisBatchDayCount(
+        startDate,
+        endDate
+      );
+
+
+    if (
+      totalDays <
+      1
+    ) {
+      return [];
+    }
+
+
+    const chunks = [];
+
+
+    let currentStart =
+      startDate;
+
+
+    while (
+      currentStart <=
+      endDate
+    ) {
+      let currentEnd =
+        addOisBatchDays(
+          currentStart,
+          MAXIMUM_DAYS_PER_BATCH -
+            1
+        );
+
+
+      if (
+        currentEnd >
+        endDate
+      ) {
+        currentEnd =
+          endDate;
+      }
+
+
+      chunks.push({
+        startDate:
+          currentStart,
+
+        endDate:
+          currentEnd,
+
+        dayCount:
+          getOisBatchDayCount(
+            currentStart,
+            currentEnd
+          )
+      });
+
+
+      currentStart =
+        addOisBatchDays(
+          currentEnd,
+          1
+        );
+    }
+
+
+    return chunks;
+  }
+
+
+  /* =====================================================
+    요소
+  ====================================================== */
+
+  function getOisBatchElements() {
+    return {
+      panel:
+        document.getElementById(
+          "oisLegacyBatchImportPanel"
+        ),
+
+      startDate:
+        document.getElementById(
+          "oisLegacyBatchStartDate"
+        ),
+
+      endDate:
+        document.getElementById(
+          "oisLegacyBatchEndDate"
+        ),
+
+      skipCompleted:
+        document.getElementById(
+          "oisLegacyBatchSkipCompleted"
+        ),
+
+      runButton:
+        document.getElementById(
+          "runOisLegacyBatchImportButton"
+        ),
+
+      refreshButton:
+        document.getElementById(
+          "refreshOisLegacyBatchStatusButton"
+        ),
+
+      status:
+        document.getElementById(
+          "oisLegacyBatchStatus"
+        ),
+
+      summary:
+        document.getElementById(
+          "oisLegacyBatchSummary"
+        ),
+
+      progressBar:
+        document.getElementById(
+          "oisLegacyBatchProgressBar"
+        ),
+
+      progressText:
+        document.getElementById(
+          "oisLegacyBatchProgressText"
+        ),
+
+      failureList:
+        document.getElementById(
+          "oisLegacyBatchFailureList"
+        )
+    };
+  }
+
+
+  function setOisBatchStatus(
+    message,
+    type =
+      "info"
+  ) {
+    const {
+      status
+    } =
+      getOisBatchElements();
+
+
+    if (
+      !status
+    ) {
+      return;
+    }
+
+
+    status.textContent =
+      String(
+        message ||
+        ""
+      );
+
+
+    status.dataset.type =
+      type;
+  }
+
+
+  /* =====================================================
+    API 응답
+  ====================================================== */
+
+  async function readOisBatchApiResponse(
+    response,
+    fallbackMessage
+  ) {
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "OIS 과거 업무일지 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+
+      result.ok ===
+        false ||
+
+      result.success ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        fallbackMessage ||
+        `OIS 요청 실패 (HTTP ${response.status})`
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    요청 데이터 정리
+  ====================================================== */
+
+  function normalizeOisBatchRequestItem(
+    item
+  ) {
+    const source =
+      item &&
+      typeof item ===
+        "object"
+        ? item
+        : {};
+
+
+    return {
+      id:
+        String(
+          source.id ||
+          ""
+        ).trim(),
+
+      requestType:
+        String(
+          source.requestType ||
+          source.request_type ||
+          ""
+        )
+          .trim()
+          .toLowerCase(),
+
+      targetDate:
+        String(
+          source.targetDate ||
+          source.target_date ||
+          ""
+        ).trim(),
+
+      status:
+        String(
+          source.status ||
+          ""
+        )
+          .trim()
+          .toLowerCase(),
+
+      errorMessage:
+        String(
+          source.errorMessage ||
+          source.error_message ||
+          ""
+        ).trim(),
+
+      requestedAt:
+        String(
+          source.requestedAt ||
+          source.requested_at ||
+          ""
+        ).trim(),
+
+      startedAt:
+        String(
+          source.startedAt ||
+          source.started_at ||
+          ""
+        ).trim(),
+
+      completedAt:
+        String(
+          source.completedAt ||
+          source.completed_at ||
+          ""
+        ).trim(),
+
+      batchDisposition:
+        String(
+          source.batchDisposition ||
+          source.batch_disposition ||
+          ""
+        ).trim()
+    };
+  }
+
+
+  function mergeOisBatchItems(
+    items
+  ) {
+    (
+      Array.isArray(
+        items
+      )
+        ? items
+        : []
+    )
+      .map(
+        normalizeOisBatchRequestItem
+      )
+      .forEach(
+        item => {
+          if (
+            !item.targetDate ||
+            !item.id
+          ) {
+            return;
+          }
+
+
+          state.itemsByDate.set(
+            item.targetDate,
+            item
+          );
+        }
+      );
+  }
+
+
+  /* =====================================================
+    상태 집계
+  ====================================================== */
+
+  function getOisBatchSummary() {
+    const items = [
+      ...state.itemsByDate.values()
+    ];
+
+
+    const counts = {
+      total:
+        items.length,
+
+      created:
+        0,
+
+      reused:
+        0,
+
+      pending:
+        0,
+
+      processing:
+        0,
+
+      complete:
+        0,
+
+      failed:
+        0,
+
+      unknown:
+        0
+    };
+
+
+    items.forEach(
+      item => {
+        if (
+          item.batchDisposition ===
+          "created"
+        ) {
+          counts.created +=
+            1;
+
+        } else if (
+          item.batchDisposition
+            .startsWith(
+              "reused"
+            )
+        ) {
+          counts.reused +=
+            1;
+        }
+
+
+        if (
+          Object.prototype
+            .hasOwnProperty
+            .call(
+              counts,
+              item.status
+            )
+        ) {
+          counts[
+            item.status
+          ] +=
+            1;
+
+        } else {
+          counts.unknown +=
+            1;
+        }
+      }
+    );
+
+
+    counts.finished =
+      counts.complete +
+      counts.failed;
+
+
+    counts.remaining =
+      counts.pending +
+      counts.processing +
+      counts.unknown;
+
+
+    counts.percent =
+      counts.total >
+        0
+        ? Math.round(
+            (
+              counts.finished /
+              counts.total
+            ) *
+            100
+          )
+        : 0;
+
+
+    return counts;
+  }
+
+
+  /* =====================================================
+    진행상태 출력
+  ====================================================== */
+
+  function renderOisBatchProgress() {
+    const {
+      summary,
+      progressBar,
+      progressText,
+      failureList,
+      refreshButton
+    } =
+      getOisBatchElements();
+
+
+    const counts =
+      getOisBatchSummary();
+
+
+    if (
+      summary
+    ) {
+      summary.innerHTML = [
+        [
+          "전체",
+          counts.total
+        ],
+
+        [
+          "신규 등록",
+          counts.created
+        ],
+
+        [
+          "기존 재사용",
+          counts.reused
+        ],
+
+        [
+          "완료",
+          counts.complete
+        ],
+
+        [
+          "처리 중",
+          counts.processing
+        ],
+
+        [
+          "대기",
+          counts.pending
+        ],
+
+        [
+          "실패",
+          counts.failed
+        ]
+      ]
+        .map(
+          ([
+            label,
+            value
+          ]) => {
+            return `
+              <span class="ois-legacy-batch-stat">
+
+                <small>
+                  ${escapeOisBatchHtml(
+                    label
+                  )}
+                </small>
+
+                <strong>
+                  ${Number(
+                    value ||
+                    0
+                  )}
+                </strong>
+
+              </span>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+    }
+
+
+    if (
+      progressBar
+    ) {
+      progressBar.style.width =
+        `${counts.percent}%`;
+    }
+
+
+    if (
+      progressText
+    ) {
+      progressText.textContent =
+        counts.total >
+          0
+          ? `${counts.finished}/${counts.total}일 처리 · ${counts.percent}%`
+          : "등록된 기간 작업이 없습니다.";
+    }
+
+
+    if (
+      refreshButton
+    ) {
+      refreshButton.disabled =
+        counts.total <
+        1;
+    }
+
+
+    if (
+      failureList
+    ) {
+      const failedItems = [
+        ...state.itemsByDate.values()
+      ]
+        .filter(
+          item => {
+            return (
+              item.status ===
+              "failed"
+            );
+          }
+        )
+        .sort(
+          (
+            firstItem,
+            secondItem
+          ) => {
+            return firstItem
+              .targetDate
+              .localeCompare(
+                secondItem.targetDate
+              );
+          }
+        );
+
+
+      if (
+        failedItems.length <
+        1
+      ) {
+        failureList.hidden =
+          true;
+
+
+        failureList.innerHTML =
+          "";
+
+      } else {
+        failureList.hidden =
+          false;
+
+
+        failureList.innerHTML =
+          failedItems
+            .map(
+              item => {
+                return `
+                  <div class="ois-legacy-batch-failure">
+
+                    <strong>
+                      ${escapeOisBatchHtml(
+                        item.targetDate
+                      )}
+                    </strong>
+
+                    <span>
+                      ${escapeOisBatchHtml(
+                        item.errorMessage ||
+                        "실패 사유를 확인할 수 없습니다."
+                      )}
+                    </span>
+
+                  </div>
+                `;
+              }
+            )
+            .join(
+              ""
+            );
+      }
+    }
+
+
+    return counts;
+  }
+
+
+  /* =====================================================
+    62일 이하 한 묶음 등록
+  ====================================================== */
+
+  async function createOisBatchChunk(
+    chunk,
+    forceRefresh
+  ) {
+    const response =
+      await fetch(
+        API_URL,
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              action:
+                "create_logsheet_batch",
+
+              startDate:
+                chunk.startDate,
+
+              endDate:
+                chunk.endDate,
+
+              forceRefresh
+            })
+        }
+      );
+
+
+    return await readOisBatchApiResponse(
+      response,
+      `${chunk.startDate} ~ ${chunk.endDate} OIS 요청 등록에 실패했습니다.`
+    );
+  }
+
+
+  /* =====================================================
+    요청 한 건 최신상태 확인
+  ====================================================== */
+
+  async function refreshOisBatchRequestItem(
+    item
+  ) {
+    if (
+      !item?.id
+    ) {
+      return item;
+    }
+
+
+    const requestUrl =
+      new URL(
+        API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "id",
+      item.id
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    const result =
+      await readOisBatchApiResponse(
+        response,
+        `${item.targetDate} OIS 상태를 확인하지 못했습니다.`
+      );
+
+
+    const refreshedItem =
+      normalizeOisBatchRequestItem(
+        result.item
+      );
+
+
+    if (
+      !refreshedItem.id
+    ) {
+      return item;
+    }
+
+
+    return {
+      ...item,
+      ...refreshedItem,
+
+      batchDisposition:
+        item.batchDisposition ||
+        refreshedItem.batchDisposition
+    };
+  }
+
+
+  /* =====================================================
+    대기·처리중 요청 일부만 확인
+
+    수백 건의 요청이 있어도
+    한 번에 최대 12건만 상태 확인
+  ====================================================== */
+
+  async function refreshOisBatchStatusSlice() {
+    const pendingItems = [
+      ...state.itemsByDate.values()
+    ]
+      .filter(
+        item => {
+          return [
+            "pending",
+            "processing",
+            ""
+          ].includes(
+            item.status
+          );
+        }
+      )
+      .sort(
+        (
+          firstItem,
+          secondItem
+        ) => {
+          return firstItem
+            .targetDate
+            .localeCompare(
+              secondItem.targetDate
+            );
+        }
+      );
+
+
+    if (
+      pendingItems.length <
+      1
+    ) {
+      renderOisBatchProgress();
+
+      return;
+    }
+
+
+    const startIndex =
+      state.pollCursor %
+      pendingItems.length;
+
+
+    const selectedItems = [];
+
+
+    for (
+      let offset = 0;
+      offset <
+        Math.min(
+          POLL_BATCH_SIZE,
+          pendingItems.length
+        );
+      offset +=
+        1
+    ) {
+      selectedItems.push(
+        pendingItems[
+          (
+            startIndex +
+            offset
+          ) %
+          pendingItems.length
+        ]
+      );
+    }
+
+
+    state.pollCursor =
+      (
+        startIndex +
+        selectedItems.length
+      ) %
+      Math.max(
+        pendingItems.length,
+        1
+      );
+
+
+    const refreshResults =
+      await Promise.allSettled(
+        selectedItems.map(
+          item => {
+            return refreshOisBatchRequestItem(
+              item
+            );
+          }
+        )
+      );
+
+
+    refreshResults.forEach(
+      (
+        result,
+        resultIndex
+      ) => {
+        const previousItem =
+          selectedItems[
+            resultIndex
+          ];
+
+
+        if (
+          result.status ===
+          "fulfilled"
+        ) {
+          const refreshedItem =
+            result.value;
+
+
+          if (
+            refreshedItem?.targetDate
+          ) {
+            state.itemsByDate.set(
+              refreshedItem.targetDate,
+              refreshedItem
+            );
+          }
+
+
+          return;
+        }
+
+
+        console.warn(
+          `${previousItem?.targetDate || "OIS"} 상태 확인 실패:`,
+          result.reason
+        );
+      }
+    );
+
+
+    renderOisBatchProgress();
+  }
+
+
+  /* =====================================================
+    자동 상태확인
+  ====================================================== */
+
+  function stopOisBatchPolling() {
+    if (
+      state.pollTimer
+    ) {
+      window.clearTimeout(
+        state.pollTimer
+      );
+
+
+      state.pollTimer =
+        null;
+    }
+  }
+
+
+  function startOisBatchPolling(
+    runToken
+  ) {
+    stopOisBatchPolling();
+
+
+    const tick =
+      async () => {
+        if (
+          runToken !==
+          state.runToken
+        ) {
+          return;
+        }
+
+
+        try {
+          await refreshOisBatchStatusSlice();
+
+        } catch (
+          error
+        ) {
+          console.warn(
+            "OIS 과거 업무일지 상태 확인 실패:",
+            error
+          );
+        }
+
+
+        const counts =
+          renderOisBatchProgress();
+
+
+        if (
+          counts.remaining <
+          1
+        ) {
+          if (
+            counts.failed >
+            0
+          ) {
+            setOisBatchStatus(
+              `처리가 끝났습니다. 완료 ${counts.complete}일 · 실패 ${counts.failed}일`,
+              "warning"
+            );
+
+          } else if (
+            counts.total >
+            0
+          ) {
+            setOisBatchStatus(
+              `OIS 과거 업무일지 ${counts.complete}일을 모두 D1에 저장했습니다.`,
+              "success"
+            );
+          }
+
+
+          stopOisBatchPolling();
+
+
+          return;
+        }
+
+
+        state.pollTimer =
+          window.setTimeout(
+            tick,
+            POLL_INTERVAL_MS
+          );
+      };
+
+
+    state.pollTimer =
+      window.setTimeout(
+        tick,
+        500
+      );
+  }
+
+
+  /* =====================================================
+    기간 가져오기 실행
+  ====================================================== */
+
+  async function runOisLegacyBatchImport() {
+    if (
+      state.isRegistering
+    ) {
+      return;
+    }
+
+
+    if (
+      typeof isCurrentUserSuperAdmin ===
+        "function" &&
+
+      !isCurrentUserSuperAdmin()
+    ) {
+      setOisBatchStatus(
+        "최고관리자만 OIS 과거 업무일지를 가져올 수 있습니다.",
+        "error"
+      );
+
+
+      return;
+    }
+
+
+    const {
+      startDate,
+      endDate,
+      skipCompleted,
+      runButton
+    } =
+      getOisBatchElements();
+
+
+    const startDateValue =
+      String(
+        startDate?.value ||
+        ""
+      ).trim();
+
+
+    const endDateValue =
+      String(
+        endDate?.value ||
+        ""
+      ).trim();
+
+
+    const chunks =
+      createOisBatchChunks(
+        startDateValue,
+        endDateValue
+      );
+
+
+    if (
+      chunks.length <
+      1
+    ) {
+      setOisBatchStatus(
+        "시작일과 종료일을 확인해 주세요.",
+        "error"
+      );
+
+
+      return;
+    }
+
+
+    const totalDays =
+      getOisBatchDayCount(
+        startDateValue,
+        endDateValue
+      );
+
+
+    const skipCompletedValue =
+      skipCompleted?.checked !==
+      false;
+
+
+    /*
+      체크되어 있으면:
+      완료자료 재사용
+
+      체크 해제하면:
+      완료자료도 OIS에서 다시 조회
+    */
+    const forceRefresh =
+      !skipCompletedValue;
+
+
+    const shouldRun =
+      window.confirm(
+        [
+          "OIS 과거 업무일지를 가져오시겠습니까?",
+          "",
+          `${startDateValue} ~ ${endDateValue}`,
+          `총 ${totalDays}일`,
+          `서버 요청 ${chunks.length}묶음`,
+          "",
+          skipCompletedValue
+            ? "이미 저장 완료된 날짜는 다시 조회하지 않습니다."
+            : "저장된 날짜도 OIS에서 다시 조회하여 갱신합니다.",
+          "",
+          "등록 후 화면을 닫아도 회사 PC OIS 에이전트가 계속 처리합니다."
+        ].join(
+          "\n"
+        )
+      );
+
+
+    if (
+      !shouldRun
+    ) {
+      return;
+    }
+
+
+    const runToken =
+      state.runToken +
+      1;
+
+
+    state.runToken =
+      runToken;
+
+
+    stopOisBatchPolling();
+
+
+    state.itemsByDate.clear();
+
+
+    state.pollCursor =
+      0;
+
+
+    state.startDate =
+      startDateValue;
+
+
+    state.endDate =
+      endDateValue;
+
+
+    state.isRegistering =
+      true;
+
+
+    if (
+      runButton
+    ) {
+      runButton.disabled =
+        true;
+
+
+      runButton.textContent =
+        "요청 등록 중...";
+    }
+
+
+    renderOisBatchProgress();
+
+
+    try {
+      for (
+        let chunkIndex = 0;
+        chunkIndex <
+          chunks.length;
+        chunkIndex +=
+          1
+      ) {
+        const chunk =
+          chunks[
+            chunkIndex
+          ];
+
+
+        setOisBatchStatus(
+          [
+            `요청 ${chunkIndex + 1}/${chunks.length}`,
+            `${chunk.startDate} ~ ${chunk.endDate}`,
+            "대기열 등록 중..."
+          ].join(
+            " · "
+          ),
+          "loading"
+        );
+
+
+        const result =
+          await createOisBatchChunk(
+            chunk,
+            forceRefresh
+          );
+
+
+        mergeOisBatchItems(
+          result.items
+        );
+
+
+        renderOisBatchProgress();
+      }
+
+
+      const counts =
+        renderOisBatchProgress();
+
+
+      setOisBatchStatus(
+        [
+          `기간 ${totalDays}일 등록 완료`,
+          `신규 ${counts.created}일`,
+          `기존 재사용 ${counts.reused}일`,
+          "회사 PC OIS 에이전트가 순서대로 처리합니다."
+        ].join(
+          " · "
+        ),
+        counts.remaining >
+          0
+          ? "loading"
+          : "success"
+      );
+
+
+      startOisBatchPolling(
+        runToken
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "OIS 과거 업무일지 기간 요청 등록 실패:",
+        error
+      );
+
+
+      setOisBatchStatus(
+        error instanceof Error
+          ? error.message
+          : "OIS 과거 업무일지 기간 요청을 등록하지 못했습니다.",
+        "error"
+      );
+
+    } finally {
+      state.isRegistering =
+        false;
+
+
+      if (
+        runButton
+      ) {
+        runButton.disabled =
+          false;
+
+
+        runButton.textContent =
+          "과거 업무일지 가져오기";
+      }
+    }
+  }
+
+
+  /* =====================================================
+    상태 새로고침
+  ====================================================== */
+
+  async function refreshOisLegacyBatchStatusManually() {
+    const {
+      refreshButton
+    } =
+      getOisBatchElements();
+
+
+    if (
+      state.itemsByDate.size <
+      1
+    ) {
+      setOisBatchStatus(
+        "현재 화면에서 등록한 기간 작업이 없습니다.",
+        "info"
+      );
+
+
+      return;
+    }
+
+
+    if (
+      refreshButton
+    ) {
+      refreshButton.disabled =
+        true;
+
+
+      refreshButton.textContent =
+        "확인 중...";
+    }
+
+
+    try {
+      await refreshOisBatchStatusSlice();
+
+
+      const counts =
+        renderOisBatchProgress();
+
+
+      setOisBatchStatus(
+        `완료 ${counts.complete}일 · 처리 중 ${counts.processing}일 · 대기 ${counts.pending}일 · 실패 ${counts.failed}일`,
+        counts.failed >
+          0
+          ? "warning"
+          : "info"
+      );
+
+    } catch (
+      error
+    ) {
+      setOisBatchStatus(
+        error instanceof Error
+          ? error.message
+          : "OIS 상태를 확인하지 못했습니다.",
+        "error"
+      );
+
+    } finally {
+      if (
+        refreshButton
+      ) {
+        refreshButton.disabled =
+          false;
+
+
+        refreshButton.textContent =
+          "상태 새로고침";
+      }
+    }
+  }
+
+
+  /* =====================================================
+    스타일 자동 삽입
+  ====================================================== */
+
+  function installOisBatchStyles() {
+    if (
+      document.getElementById(
+        "oisLegacyBatchImportStyle"
+      )
+    ) {
+      return;
+    }
+
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+
+    style.id =
+      "oisLegacyBatchImportStyle";
+
+
+    style.textContent = `
+      #oisLegacyBatchImportPanel {
+        margin-top: 20px;
+        padding: 18px;
+        border: 1px solid #d6dee8;
+        border-radius: 12px;
+        background: #fff;
+      }
+
+      .ois-legacy-batch-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .ois-legacy-batch-header h4 {
+        margin: 0 0 5px;
+        font-size: 17px;
+      }
+
+      .ois-legacy-batch-header p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #647184;
+      }
+
+      .ois-legacy-batch-fields {
+        margin-top: 16px;
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .ois-legacy-batch-field {
+        display: grid;
+        gap: 5px;
+        font-size: 12px;
+      }
+
+      .ois-legacy-batch-field input[type="date"] {
+        min-height: 39px;
+      }
+
+      .ois-legacy-batch-skip {
+        min-height: 39px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 0 10px;
+        border: 1px solid #d6dee8;
+        border-radius: 8px;
+        background: #f8fafc;
+        font-size: 13px;
+      }
+
+      #oisLegacyBatchStatus {
+        margin-top: 14px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: #f3f6fa;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      #oisLegacyBatchSummary {
+        margin-top: 12px;
+        display: grid;
+        grid-template-columns:
+          repeat(
+            auto-fit,
+            minmax(92px, 1fr)
+          );
+        gap: 8px;
+      }
+
+      .ois-legacy-batch-stat {
+        padding: 9px 10px;
+        border: 1px solid #e0e6ed;
+        border-radius: 9px;
+        background: #f9fbfd;
+        display: grid;
+        gap: 2px;
+      }
+
+      .ois-legacy-batch-stat small {
+        font-size: 11px;
+        color: #6c7888;
+      }
+
+      .ois-legacy-batch-stat strong {
+        font-size: 16px;
+      }
+
+      .ois-legacy-batch-progress {
+        margin-top: 12px;
+      }
+
+      .ois-legacy-batch-progress__track {
+        height: 8px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #e9edf2;
+      }
+
+      #oisLegacyBatchProgressBar {
+        width: 0;
+        height: 100%;
+        background: currentColor;
+        transition: width .2s ease;
+      }
+
+      #oisLegacyBatchProgressText {
+        display: block;
+        margin-top: 5px;
+        font-size: 12px;
+        color: #667385;
+      }
+
+      #oisLegacyBatchFailureList {
+        margin-top: 12px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .ois-legacy-batch-failure {
+        padding: 9px 10px;
+        border: 1px solid #ead2d2;
+        border-radius: 8px;
+        display: grid;
+        gap: 3px;
+        font-size: 12px;
+      }
+
+      @media (max-width: 768px) {
+        .ois-legacy-batch-fields {
+          align-items: stretch;
+        }
+
+        .ois-legacy-batch-field,
+        .ois-legacy-batch-skip,
+        #runOisLegacyBatchImportButton,
+        #refreshOisLegacyBatchStatusButton {
+          width: 100%;
+        }
+      }
+    `;
+
+
+    document.head.appendChild(
+      style
+    );
+  }
+
+
+  /* =====================================================
+    관리자 화면 생성
+  ====================================================== */
+
+  function createOisLegacyBatchImportPanel() {
+    if (
+      document.getElementById(
+        "oisLegacyBatchImportPanel"
+      )
+    ) {
+      return true;
+    }
+
+
+    const employeeView =
+      document.getElementById(
+        "employeeManagementView"
+      );
+
+
+    if (
+      !employeeView
+    ) {
+      return false;
+    }
+
+
+    const panel =
+      document.createElement(
+        "section"
+      );
+
+
+    panel.id =
+      "oisLegacyBatchImportPanel";
+
+
+    panel.innerHTML = `
+      <div class="ois-legacy-batch-header">
+
+        <div>
+
+          <h4>
+            OIS 과거 업무일지 가져오기
+          </h4>
+
+          <p>
+            TGO·BCO1·BCO2·TO·BO1·BO2 LOG SHEET를
+            날짜별로 OIS에서 조회하여 D1에 저장합니다.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div class="ois-legacy-batch-fields">
+
+        <label class="ois-legacy-batch-field">
+
+          <span>
+            시작일
+          </span>
+
+          <input
+            type="date"
+            id="oisLegacyBatchStartDate"
+            value="2022-09-22"
+          />
+
+        </label>
+
+
+        <label class="ois-legacy-batch-field">
+
+          <span>
+            종료일
+          </span>
+
+          <input
+            type="date"
+            id="oisLegacyBatchEndDate"
+            value="2022-09-22"
+          />
+
+        </label>
+
+
+        <label class="ois-legacy-batch-skip">
+
+          <input
+            type="checkbox"
+            id="oisLegacyBatchSkipCompleted"
+            checked
+          />
+
+          <span>
+            저장 완료된 날짜 건너뛰기
+          </span>
+
+        </label>
+
+
+        <button
+          type="button"
+          class="primary-button"
+          id="runOisLegacyBatchImportButton"
+        >
+          과거 업무일지 가져오기
+        </button>
+
+
+        <button
+          type="button"
+          class="secondary-button"
+          id="refreshOisLegacyBatchStatusButton"
+          disabled
+        >
+          상태 새로고침
+        </button>
+
+      </div>
+
+
+      <div
+        id="oisLegacyBatchStatus"
+        data-type="info"
+      >
+        먼저 하루 정도로 테스트한 뒤 실제 기간을 선택해 주세요.
+      </div>
+
+
+      <div
+        id="oisLegacyBatchSummary"
+      ></div>
+
+
+      <div class="ois-legacy-batch-progress">
+
+        <div
+          class="ois-legacy-batch-progress__track"
+        >
+
+          <div
+            id="oisLegacyBatchProgressBar"
+          ></div>
+
+        </div>
+
+        <small
+          id="oisLegacyBatchProgressText"
+        >
+          등록된 기간 작업이 없습니다.
+        </small>
+
+      </div>
+
+
+      <div
+        id="oisLegacyBatchFailureList"
+        hidden
+      ></div>
+    `;
+
+
+    /*
+      기존 OIS 1일 테스트 패널이 있으면
+      그 바로 아래에 기간 가져오기 화면을 배치한다.
+    */
+
+    const previewPanel =
+      document.getElementById(
+        "oisLegacyLogPreviewPanel"
+      );
+
+
+    if (
+      previewPanel &&
+      previewPanel.parentElement ===
+        employeeView
+    ) {
+      previewPanel.insertAdjacentElement(
+        "afterend",
+        panel
+      );
+
+    } else {
+      employeeView.appendChild(
+        panel
+      );
+    }
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    이벤트
+  ====================================================== */
+
+  function bindOisLegacyBatchImportEvents() {
+    const {
+      panel,
+      startDate,
+      endDate,
+      runButton,
+      refreshButton
+    } =
+      getOisBatchElements();
+
+
+    if (
+      !panel ||
+
+      panel.dataset.oisBatchBound ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    runButton?.addEventListener(
+      "click",
+      runOisLegacyBatchImport
+    );
+
+
+    refreshButton?.addEventListener(
+      "click",
+      refreshOisLegacyBatchStatusManually
+    );
+
+
+    startDate?.addEventListener(
+      "change",
+      () => {
+        if (
+          endDate &&
+          endDate.value <
+            startDate.value
+        ) {
+          endDate.value =
+            startDate.value;
+        }
+
+
+        if (
+          endDate
+        ) {
+          endDate.min =
+            startDate.value;
+        }
+      }
+    );
+
+
+    if (
+      startDate &&
+      endDate
+    ) {
+      endDate.min =
+        startDate.value;
+    }
+
+
+    panel.dataset.oisBatchBound =
+      "true";
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initializeOisLegacyBatchImportManager() {
+    installOisBatchStyles();
+
+
+    const created =
+      createOisLegacyBatchImportPanel();
+
+
+    if (
+      !created
+    ) {
+      return;
+    }
+
+
+    bindOisLegacyBatchImportEvents();
+
+
+    renderOisBatchProgress();
+  }
+
+
+  /*
+    F12 테스트용
+  */
+
+  window.runOisLegacyBatchImport =
+    runOisLegacyBatchImport;
+
+
+  window.refreshOisLegacyBatchStatus =
+    refreshOisLegacyBatchStatusManually;
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeOisLegacyBatchImportManager,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeOisLegacyBatchImportManager();
+  }
+})();
