@@ -134920,6 +134920,255 @@ function formatMorningMeetingMergeReference(
   );
 }
 
+/* =====================================================
+  오전회의 상단 I9:K9 / I10:K10 보정
+
+  최종:
+  - I9:K9 병합 + "-"
+  - I10:K10 병합 + "-"
+
+  기존 셀 스타일은 유지한다.
+===================================================== */
+
+function applyMorningMeetingIJKDashMerges(
+  worksheetDocument
+) {
+  const mergeCellsElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !mergeCellsElement
+  ) {
+    throw new Error(
+      "기준 취합본의 병합 셀 정보를 찾지 못했습니다."
+    );
+  }
+
+
+  const targetRows = [
+    9,
+    10
+  ];
+
+
+  const targetStartColumnNumber =
+    getMorningMeetingColumnNumber(
+      "I"
+    );
+
+
+  const targetEndColumnNumber =
+    getMorningMeetingColumnNumber(
+      "K"
+    );
+
+
+  /* ===================================================
+    I:K 범위와 겹치는 기존 병합 제거
+  ==================================================== */
+
+  getMorningMeetingDirectXmlChildren(
+    mergeCellsElement,
+    "mergeCell"
+  ).forEach(
+    mergeElement => {
+      const mergeRange =
+        parseMorningMeetingMergeReference(
+          mergeElement.getAttribute(
+            "ref"
+          )
+        );
+
+
+      if (
+        !mergeRange
+      ) {
+        return;
+      }
+
+
+      const startColumnNumber =
+        getMorningMeetingColumnNumber(
+          mergeRange.startColumn
+        );
+
+
+      const endColumnNumber =
+        getMorningMeetingColumnNumber(
+          mergeRange.endColumn
+        );
+
+
+      const overlapsColumns =
+        startColumnNumber <=
+          targetEndColumnNumber &&
+        endColumnNumber >=
+          targetStartColumnNumber;
+
+
+      const overlapsTargetRow =
+        targetRows.some(
+          rowNumber => {
+            return (
+              rowNumber >=
+                mergeRange.startRow &&
+              rowNumber <=
+                mergeRange.endRow
+            );
+          }
+        );
+
+
+      if (
+        overlapsColumns &&
+        overlapsTargetRow
+      ) {
+        mergeElement.remove();
+      }
+    }
+  );
+
+
+  /* ===================================================
+    J/K의 기존 내용만 제거
+
+    스타일은 그대로 유지
+  ==================================================== */
+
+  [
+    "J9",
+    "K9",
+    "J10",
+    "K10"
+  ].forEach(
+    address => {
+      const cellElement =
+        findMorningMeetingWorksheetCellByAddress(
+          worksheetDocument,
+          address
+        );
+
+
+      if (
+        !cellElement
+      ) {
+        return;
+      }
+
+
+      [
+        "f",
+        "v",
+        "is"
+      ].forEach(
+        childName => {
+          getMorningMeetingDirectXmlChildren(
+            cellElement,
+            childName
+          ).forEach(
+            childElement => {
+              childElement.remove();
+            }
+          );
+        }
+      );
+
+
+      cellElement.removeAttribute(
+        "t"
+      );
+    }
+  );
+
+
+  /* ===================================================
+    정확한 병합 생성
+  ==================================================== */
+
+  [
+    "I9:K9",
+    "I10:K10"
+  ].forEach(
+    mergeReference => {
+      const mergeElement =
+        worksheetDocument
+          .createElementNS(
+            MAIN_XML_NAMESPACE,
+            "mergeCell"
+          );
+
+
+      mergeElement.setAttribute(
+        "ref",
+        mergeReference
+      );
+
+
+      mergeCellsElement.appendChild(
+        mergeElement
+      );
+    }
+  );
+
+
+  mergeCellsElement.setAttribute(
+    "count",
+
+    String(
+      getMorningMeetingDirectXmlChildren(
+        mergeCellsElement,
+        "mergeCell"
+      ).length
+    )
+  );
+
+
+  /* ===================================================
+    병합 셀 좌측 상단에 "-" 입력
+  ==================================================== */
+
+  const rowNineResult =
+    setMorningMeetingInlineStringCellValue(
+      worksheetDocument,
+      "I9",
+      "-"
+    );
+
+
+  const rowTenResult =
+    setMorningMeetingInlineStringCellValue(
+      worksheetDocument,
+      "I10",
+      "-"
+    );
+
+
+  if (
+    !rowNineResult.found ||
+    !rowTenResult.found
+  ) {
+    throw new Error(
+      "I9:K9 또는 I10:K10 셀을 찾지 못했습니다."
+    );
+  }
+
+
+  return {
+    applied:
+      true,
+
+    ranges: [
+      "I9:K9",
+      "I10:K10"
+    ]
+  };
+}
+
 function updateMorningMeetingDynamicMerges(
   worksheetDocument,
   layout,
@@ -137276,11 +137525,11 @@ function applyMorningMeetingLimestoneValues(
   ====================================================== */
 
   const titleResult =
-    setMorningMeetingInlineStringCellValue(
-      worksheetDocument,
-      "X15",
-      "Limestone 사용량"
-    );
+  setMorningMeetingRichInlineStringCellValue(
+    worksheetDocument,
+    "X15",
+    "Limestone 사용량"
+  );
 
 
   if (
@@ -139992,15 +140241,6 @@ function formatMorningMeetingTmItemText(
     ).trim();
 
 
-  const shift =
-    String(
-      item?.shift ||
-      ""
-    )
-      .trim()
-      .toUpperCase();
-
-
   const time =
     String(
       item?.time ||
@@ -140046,38 +140286,20 @@ function formatMorningMeetingTmItemText(
 
 
   /* =====================================================
-    날짜 표시
+    날짜만 표시
 
-    교대파트:
+    기존:
     [2026-08-07 D/S]
+    [2026-08-07 N/S]
 
-    운탄일지:
+    변경:
     [2026-08-07]
   ====================================================== */
 
-  let dateText =
-    "";
-
-
-  if (
+  const dateText =
     workDate
-  ) {
-    if (
-      shift
-    ) {
-      dateText =
-        `[${workDate} ${
-          shift ===
-            "DS"
-            ? "D/S"
-            : "N/S"
-        }]`;
-
-    } else {
-      dateText =
-        `[${workDate}]`;
-    }
-  }
+      ? `[${workDate}]`
+      : "";
 
 
   const firstLine = [
@@ -140109,7 +140331,6 @@ function formatMorningMeetingTmItemText(
     "\n"
   );
 }
-
 
 /* =====================================================
   TM 사항 새 행 생성
@@ -144716,6 +144937,24 @@ if (
   );
 }      
 
+/* ===================================================
+  I9:K9 / I10:K10 병합 및 "-" 보정
+
+  기준 양식을 평일 형태로 정규화한 뒤
+  최종 병합을 다시 확정한다.
+=================================================== */
+
+const ijkDashResult =
+  applyMorningMeetingIJKDashMerges(
+    worksheetDocument
+  );
+
+
+console.log(
+  "오전회의 I9:K9 / I10:K10 보정:",
+  ijkDashResult
+);
+
     /* ===================================================
       1차: 운탄일지 수치 반영
 
@@ -147776,15 +148015,10 @@ function updateSelectedText(
             */
 
             const weekendPrefix =
-              weekendMode.enabled &&
-              item.workDate
-                ? `[${item.workDate} ${
-                    item.shift ===
-                      "DS"
-                      ? "D/S"
-                      : "N/S"
-                  }] `
-                : "";
+  weekendMode.enabled &&
+  item.workDate
+    ? `[${item.workDate}] `
+    : "";
 
 
             return (
