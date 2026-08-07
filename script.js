@@ -169742,46 +169742,39 @@ function renderCommonDates(
     );
 
 
-  if (
-    elements.previousButton
-  ) {
-    elements.previousButton.textContent =
-      `‹ 전날 ${formatMorningMeetingShortDate(
-        previousDate
-      )}`;
+if (
+  elements.previousButton
+) {
+  elements.previousButton.textContent =
+    "‹ 전날";
+
+  elements.previousButton.title =
+    `${previousDate} 자료 조회`;
+}
 
 
-    elements.previousButton.title =
-      `${previousDate} 자료 조회`;
-  }
+if (
+  elements.todayButton
+) {
+  elements.todayButton.textContent =
+    `오늘 ${formatMorningMeetingShortDate(
+      todayDate
+    )}`;
+
+  elements.todayButton.title =
+    `${todayDate} 오늘 자료 조회`;
+}
 
 
-  if (
-    elements.todayButton
-  ) {
-    elements.todayButton.textContent =
-      `오늘 ${formatMorningMeetingShortDate(
-        todayDate
-      )}`;
+if (
+  elements.nextButton
+) {
+  elements.nextButton.textContent =
+    "다음날 ›";
 
-
-    elements.todayButton.title =
-      `${todayDate} 오늘 자료 조회`;
-  }
-
-
-  if (
-    elements.nextButton
-  ) {
-    elements.nextButton.textContent =
-      `다음날 ${formatMorningMeetingShortDate(
-        nextDate
-      )} ›`;
-
-
-    elements.nextButton.title =
-      `${nextDate} 자료 조회`;
-  }
+  elements.nextButton.title =
+    `${nextDate} 자료 조회`;
+}
 }
 
 
