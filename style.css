@@ -88106,3 +88106,189 @@ a.shift-log-editor-attachment__name:hover {
   }
 
 }
+
+/* =========================================================
+  팀장 2차 결재확인 - 근무자 카드
+
+  기존:
+  초록색 상태 = 파트장 결재완료
+
+  추가:
+  파란색 카드 = 팀장 결재확인 완료
+========================================================= */
+
+
+/* =========================================================
+  버튼 공간 확보
+========================================================= */
+
+#shiftMemberGrid
+.shift-member-card {
+  position: relative;
+}
+
+
+/* =========================================================
+  팀장 결재확인 버튼
+========================================================= */
+
+#shiftMemberGrid
+.team-manager-approval-button {
+  position: absolute;
+
+  top: 7px;
+  right: 8px;
+
+  z-index: 3;
+
+  display: inline-flex;
+
+  min-width: 60px;
+  height: 23px;
+  min-height: 23px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 7px;
+
+  border: 1px solid #8eb8e7;
+  border-radius: 6px;
+
+  background: #edf5ff;
+  color: #1762ad;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+
+  box-shadow:
+    0 1px 3px
+    rgba(37, 99, 235, 0.08);
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
+}
+
+
+#shiftMemberGrid
+.team-manager-approval-button:hover:not(:disabled) {
+  border-color: #3b82f6;
+
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+
+#shiftMemberGrid
+.team-manager-approval-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+
+/* =========================================================
+  팀장 확인 완료 버튼
+========================================================= */
+
+#shiftMemberGrid
+.team-manager-approval-button.is-approved {
+  border-color: #5b9bea;
+
+  background: #dbeafe;
+  color: #1557a0;
+
+  cursor: default;
+
+  opacity: 1;
+}
+
+
+#shiftMemberGrid
+.team-manager-approval-button.is-approved:disabled {
+  opacity: 1;
+}
+
+
+/* =========================================================
+  팀장 확인 완료 카드
+
+  기존 초록색 결재완료 배지는 유지하고
+  카드 전체만 파란색으로 구분한다.
+========================================================= */
+
+#shiftMemberGrid
+.shift-member-card.is-team-manager-approved {
+  border-color: #4f94df;
+
+  background:
+    linear-gradient(
+      135deg,
+      #f1f7ff 0%,
+      #ffffff 72%
+    );
+
+  box-shadow:
+    0 0 0 1px
+    rgba(59, 130, 246, 0.12),
+    0 5px 14px
+    rgba(37, 99, 235, 0.10);
+}
+
+
+/* 왼쪽 파란 표시선 */
+#shiftMemberGrid
+.shift-member-card.is-team-manager-approved::after {
+  content: "";
+
+  position: absolute;
+
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+
+  width: 3px;
+
+  border-radius:
+    0
+    3px
+    3px
+    0;
+
+  background: #3b82f6;
+}
+
+
+/* 이름 영역도 아주 연하게 파란색 */
+#shiftMemberGrid
+.shift-member-card.is-team-manager-approved
+.shift-member-card__body {
+  background: #eef6ff;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 768px) {
+  #shiftMemberGrid
+  .team-manager-approval-button {
+    top: 5px;
+    right: 5px;
+
+    min-width: 53px;
+    height: 21px;
+    min-height: 21px;
+
+    padding: 0 5px;
+
+    font-size: 8px;
+  }
+}

@@ -168665,3 +168665,875 @@ function loadCache() {
   }
 })();
 
+/* =========================================================
+  팀장 2차 결재확인 - 근무자 카드 최종본
+
+  동작:
+  - 파트장 결재완료 상태만 대상
+  - 팀장 계정에서만 [결재확인] 버튼 표시
+  - 확인 완료 후 teamApprovedAt 존재
+  - 카드 전체를 파란색으로 표시
+  - 기존 업무일지 상태는 "결재완료" 유지
+========================================================= */
+
+(function initializeTeamManagerCardApproval() {
+  if (
+    window
+      .__teamManagerCardApprovalInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__teamManagerCardApprovalInstalled =
+    true;
+
+
+  let teamApprovalWorking =
+    false;
+
+
+  /* =====================================================
+    현재 로그인 사용자가 팀장인지 확인
+  ====================================================== */
+
+  function isCurrentTeamManager() {
+    const currentUser =
+      typeof loadCurrentUser ===
+        "function"
+        ? loadCurrentUser()
+        : null;
+
+
+    if (
+      !currentUser ||
+      typeof currentUser !==
+        "object"
+    ) {
+      return false;
+    }
+
+
+    if (
+      currentUser.isTeamManager ===
+        true ||
+      currentUser.is_team_manager ===
+        true
+    ) {
+      return true;
+    }
+
+
+    const roleCandidates = [
+      currentUser.role,
+      currentUser.defaultRole,
+      currentUser.default_role,
+      currentUser.userRole,
+      currentUser.user_role
+    ]
+      .map(
+        value => {
+          return String(
+            value ||
+            ""
+          )
+            .trim()
+            .toLowerCase()
+            .replace(
+              /[\s-]+/g,
+              "_"
+            );
+        }
+      )
+      .filter(Boolean);
+
+
+    return roleCandidates.some(
+      role => {
+        return [
+          "team_manager",
+          "teammanager",
+          "팀장"
+        ].includes(
+          role
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    메인 카드에 해당하는 현재 업무일지 찾기
+
+    기준:
+    - 현재 선택 날짜
+    - 현재 선택 근무
+    - 해당 보직
+    - 가장 최근 자료
+  ====================================================== */
+
+  function findTeamApprovalCardLog(
+    requestedRole
+  ) {
+    if (
+      !Array.isArray(
+        appState?.logs
+      )
+    ) {
+      return null;
+    }
+
+
+    const role =
+      typeof normalizeMemberLogRole ===
+        "function"
+        ? normalizeMemberLogRole(
+            requestedRole
+          )
+        : String(
+            requestedRole ||
+            ""
+          ).trim();
+
+
+    const selectedDate =
+      typeof formatInputDate ===
+        "function"
+        ? formatInputDate(
+            appState.selectedDate
+          )
+        : "";
+
+
+    const selectedShift =
+      String(
+        appState.selectedShift ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    const matchedLogs =
+      appState.logs
+        .filter(
+          log => {
+            if (
+              !log ||
+              typeof log !==
+                "object"
+            ) {
+              return false;
+            }
+
+
+            if (
+              typeof isReadOnlyLegacyShiftLog ===
+                "function" &&
+              isReadOnlyLegacyShiftLog(
+                log
+              )
+            ) {
+              return false;
+            }
+
+
+            const logRole =
+              typeof normalizeMemberLogRole ===
+                "function"
+                ? normalizeMemberLogRole(
+                    log.role
+                  )
+                : String(
+                    log.role ||
+                    ""
+                  ).trim();
+
+
+            return (
+              String(
+                log.date ||
+                ""
+              ).trim() ===
+                selectedDate &&
+
+              String(
+                log.shift ||
+                ""
+              )
+                .trim()
+                .toUpperCase() ===
+                selectedShift &&
+
+              logRole ===
+                role
+            );
+          }
+        )
+        .sort(
+          (
+            firstLog,
+            secondLog
+          ) => {
+            const revisionDifference =
+              Number(
+                secondLog.serverRevision ||
+                0
+              ) -
+              Number(
+                firstLog.serverRevision ||
+                0
+              );
+
+
+            if (
+              revisionDifference !==
+                0
+            ) {
+              return revisionDifference;
+            }
+
+
+            const firstTime =
+              new Date(
+                firstLog.updatedAt ||
+                firstLog.createdAt ||
+                0
+              ).getTime();
+
+
+            const secondTime =
+              new Date(
+                secondLog.updatedAt ||
+                secondLog.createdAt ||
+                0
+              ).getTime();
+
+
+            return (
+              secondTime -
+              firstTime
+            );
+          }
+        );
+
+
+    return (
+      matchedLogs[0] ||
+      null
+    );
+  }
+
+
+  /* =====================================================
+    팀장 확인 완료 여부
+  ====================================================== */
+
+  function hasTeamManagerApproval(
+    log
+  ) {
+    return Boolean(
+      String(
+        log?.teamApprovedAt ||
+        log?.team_approved_at ||
+        ""
+      ).trim()
+    );
+  }
+
+
+  /* =====================================================
+    카드 안 팀장 결재 버튼 생성
+  ====================================================== */
+
+  function ensureTeamApprovalButton(
+    card
+  ) {
+    if (
+      !card
+    ) {
+      return null;
+    }
+
+
+    let button =
+      card.querySelector(
+        ".team-manager-approval-button"
+      );
+
+
+    if (
+      button
+    ) {
+      return button;
+    }
+
+
+    button =
+      document.createElement(
+        "button"
+      );
+
+
+    button.type =
+      "button";
+
+
+    button.className =
+      "team-manager-approval-button";
+
+
+    button.hidden =
+      true;
+
+
+    button.setAttribute(
+      "aria-label",
+      "팀장 결재확인"
+    );
+
+
+    card.appendChild(
+      button
+    );
+
+
+    return button;
+  }
+
+
+  /* =====================================================
+    확인창
+  ====================================================== */
+
+  async function confirmTeamApproval() {
+    if (
+      typeof showCompactConfirm ===
+        "function"
+    ) {
+      return Boolean(
+        await showCompactConfirm({
+          title:
+            "팀장 결재확인",
+
+          message:
+            "파트장 결재가 완료된 업무일지를 팀장 확인 처리할까요?",
+
+          confirmText:
+            "결재확인",
+
+          cancelText:
+            "취소"
+        })
+      );
+    }
+
+
+    return window.confirm(
+      "이 업무일지를 팀장 결재확인 처리할까요?"
+    );
+  }
+
+
+  /* =====================================================
+    팀장 결재확인 실행
+  ====================================================== */
+
+  async function approveTeamManagerLog(
+    log,
+    button
+  ) {
+    if (
+      !log ||
+      teamApprovalWorking
+    ) {
+      return;
+    }
+
+
+    if (
+      !isCurrentTeamManager()
+    ) {
+      showToast(
+        "팀장 권한만 결재확인할 수 있습니다."
+      );
+
+
+      return;
+    }
+
+
+    const normalizedStatus =
+      typeof normalizeShiftLogApprovalStatus ===
+        "function"
+        ? normalizeShiftLogApprovalStatus(
+            log.status
+          )
+        : String(
+            log.status ||
+            ""
+          ).trim();
+
+
+    if (
+      normalizedStatus !==
+        "결재완료"
+    ) {
+      showToast(
+        "파트장 결재완료 후 팀장 결재확인할 수 있습니다."
+      );
+
+
+      return;
+    }
+
+
+    if (
+      hasTeamManagerApproval(
+        log
+      )
+    ) {
+      showToast(
+        "이미 팀장 결재확인이 완료되었습니다."
+      );
+
+
+      return;
+    }
+
+
+    const shouldApprove =
+      await confirmTeamApproval();
+
+
+    if (
+      !shouldApprove
+    ) {
+      return;
+    }
+
+
+    teamApprovalWorking =
+      true;
+
+
+    const originalText =
+      button?.textContent ||
+      "결재확인";
+
+
+    if (
+      button
+    ) {
+      button.disabled =
+        true;
+
+
+      button.textContent =
+        "확인 중...";
+    }
+
+
+    try {
+      const savedLog =
+        await changeShiftLogApprovalOnServer(
+          log,
+          "team_approve"
+        );
+
+
+      if (
+        !savedLog
+      ) {
+        throw new Error(
+          "팀장 결재확인 결과를 확인할 수 없습니다."
+        );
+      }
+
+
+      if (
+        typeof renderLogTable ===
+          "function"
+      ) {
+        renderLogTable();
+      }
+
+
+      if (
+        typeof updateShiftMemberCardStates ===
+          "function"
+      ) {
+        updateShiftMemberCardStates();
+      }
+
+
+      showToast(
+        "팀장 결재확인이 완료되었습니다."
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "팀장 결재확인 실패:",
+        error
+      );
+
+
+      if (
+        error?.isConflict ===
+          true &&
+        typeof handleShiftLogConflict ===
+          "function"
+      ) {
+        handleShiftLogConflict(
+          error
+        );
+
+      } else {
+        showToast(
+          error?.message ||
+          "팀장 결재확인을 처리하지 못했습니다."
+        );
+      }
+
+
+      if (
+        button
+      ) {
+        button.disabled =
+          false;
+
+
+        button.textContent =
+          originalText;
+      }
+
+    } finally {
+      teamApprovalWorking =
+        false;
+    }
+  }
+
+
+  /* =====================================================
+    카드 1개 팀장 확인 상태 출력
+  ====================================================== */
+
+  function renderTeamApprovalCard(
+    card
+  ) {
+    if (
+      !card
+    ) {
+      return;
+    }
+
+
+    const role =
+      String(
+        card.dataset.role ||
+        ""
+      ).trim();
+
+
+    const log =
+      findTeamApprovalCardLog(
+        role
+      );
+
+
+    const button =
+      ensureTeamApprovalButton(
+        card
+      );
+
+
+    const normalizedStatus =
+      log
+        ? (
+            typeof normalizeShiftLogApprovalStatus ===
+              "function"
+              ? normalizeShiftLogApprovalStatus(
+                  log.status
+                )
+              : String(
+                  log.status ||
+                  ""
+                ).trim()
+          )
+        : "";
+
+
+    const teamApproved =
+      hasTeamManagerApproval(
+        log
+      );
+
+
+    /* ===================================================
+      모든 사용자에게 팀장 확인 완료 시 파란 카드 표시
+    ==================================================== */
+
+    card.classList.toggle(
+      "is-team-manager-approved",
+      teamApproved
+    );
+
+
+    card.dataset.teamApprovalStatus =
+      teamApproved
+        ? "approved"
+        : (
+            normalizedStatus ===
+              "결재완료"
+              ? "pending"
+              : "unavailable"
+          );
+
+
+    if (
+      !button
+    ) {
+      return;
+    }
+
+
+    /* ===================================================
+      결재확인 버튼은 팀장 로그인 시에만 표시
+    ==================================================== */
+
+    const canShowButton =
+      isCurrentTeamManager() &&
+      Boolean(
+        log
+      ) &&
+      normalizedStatus ===
+        "결재완료";
+
+
+    button.hidden =
+      !canShowButton;
+
+
+    if (
+      !canShowButton
+    ) {
+      button.disabled =
+        true;
+
+
+      button.textContent =
+        "";
+
+
+      button.classList.remove(
+        "is-approved"
+      );
+
+
+      return;
+    }
+
+
+    /* ===================================================
+      팀장 확인 완료
+    ==================================================== */
+
+    if (
+      teamApproved
+    ) {
+      button.textContent =
+        "팀장 확인 ✓";
+
+
+      button.disabled =
+        true;
+
+
+      button.classList.add(
+        "is-approved"
+      );
+
+
+      button.title =
+        [
+          "팀장 결재확인 완료",
+          log.teamApprovedBy
+            ? `확인자: ${log.teamApprovedBy}`
+            : "",
+          log.teamApprovedAt
+            ? `확인일시: ${log.teamApprovedAt}`
+            : ""
+        ]
+          .filter(Boolean)
+          .join(
+            "\n"
+          );
+
+
+      return;
+    }
+
+
+    /* ===================================================
+      팀장 확인 대기
+    ==================================================== */
+
+    button.textContent =
+      "결재확인";
+
+
+    button.disabled =
+      false;
+
+
+    button.classList.remove(
+      "is-approved"
+    );
+
+
+    button.title =
+      "팀장 결재확인이 필요합니다.";
+
+
+    button.onclick =
+      event => {
+        event.preventDefault();
+
+        event.stopPropagation();
+
+
+        void approveTeamManagerLog(
+          log,
+          button
+        );
+      };
+  }
+
+
+  /* =====================================================
+    전체 카드 출력
+  ====================================================== */
+
+  function renderAllTeamApprovalCards() {
+    const cards = [
+      ...document.querySelectorAll(
+        "#shiftMemberGrid .shift-member-card"
+      )
+    ];
+
+
+    cards.forEach(
+      renderTeamApprovalCard
+    );
+  }
+
+
+  /* =====================================================
+    기존 카드 갱신 함수 뒤에 팀장 상태 출력 연결
+  ====================================================== */
+
+  const updateShiftMemberCardStatesBeforeTeamApproval =
+    typeof updateShiftMemberCardStates ===
+      "function"
+      ? updateShiftMemberCardStates
+      : null;
+
+
+  if (
+    updateShiftMemberCardStatesBeforeTeamApproval
+  ) {
+    updateShiftMemberCardStates =
+      function updateShiftMemberCardStates(
+        ...args
+      ) {
+        const result =
+          updateShiftMemberCardStatesBeforeTeamApproval
+            .apply(
+              this,
+              args
+            );
+
+
+        renderAllTeamApprovalCards();
+
+
+        return result;
+      };
+  }
+
+
+  /* =====================================================
+    카드 이벤트 충돌 방지
+
+    기존 카드 자체 클릭:
+    → 상세보기
+
+    팀장 결재확인 버튼 클릭:
+    → 결재확인만 실행
+  ====================================================== */
+
+  document.addEventListener(
+    "click",
+    event => {
+      const target =
+        event.target instanceof
+          Element
+          ? event.target
+          : null;
+
+
+      const button =
+        target?.closest(
+          ".team-manager-approval-button"
+        );
+
+
+      if (
+        !button
+      ) {
+        return;
+      }
+
+
+      event.preventDefault();
+
+      event.stopPropagation();
+    },
+    true
+  );
+
+
+  /* =====================================================
+    최초 실행
+  ====================================================== */
+
+  function initializeTeamApprovalCards() {
+    renderAllTeamApprovalCards();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeTeamApprovalCards,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeTeamApprovalCards();
+  }
+
+
+  window.renderTeamManagerApprovalCards =
+    renderAllTeamApprovalCards;
+})();

@@ -97,10 +97,12 @@ function normalizeAccountRole(
         "_"
       );
 
+
   if (
     [
       "super_admin",
-      "superadmin"
+      "superadmin",
+      "최고관리자"
     ].includes(
       role
     )
@@ -108,10 +110,25 @@ function normalizeAccountRole(
     return "super_admin";
   }
 
+
+  if (
+    [
+      "team_manager",
+      "teammanager",
+      "팀장"
+    ].includes(
+      role
+    )
+  ) {
+    return "team_manager";
+  }
+
+
   if (
     [
       "admin",
-      "leader"
+      "leader",
+      "파트장"
     ].includes(
       role
     )
@@ -119,9 +136,9 @@ function normalizeAccountRole(
     return "admin";
   }
 
+
   return "user";
 }
-
 
 function normalizeLogRole(
   value
@@ -330,7 +347,6 @@ async function hashSessionToken(
   );
 }
 
-
 async function getAuthenticatedUser(
   context
 ) {
@@ -343,6 +359,7 @@ async function getAuthenticatedUser(
           {
             ok:
               false,
+
             message:
               "D1 바인딩 DB가 등록되지 않았습니다."
           },
@@ -351,10 +368,12 @@ async function getAuthenticatedUser(
     };
   }
 
+
   const token =
     getBearerToken(
       context.request
     );
+
 
   if (
     !token
@@ -365,6 +384,7 @@ async function getAuthenticatedUser(
           {
             ok:
               false,
+
             message:
               "로그인이 필요합니다."
           },
@@ -373,10 +393,12 @@ async function getAuthenticatedUser(
     };
   }
 
+
   const tokenHash =
     await hashSessionToken(
       token
     );
+
 
   const session =
     await context.env.DB
@@ -384,14 +406,39 @@ async function getAuthenticatedUser(
         SELECT
           session.employee_no,
           session.expires_at,
+
           user.name,
           user.role,
-          user.is_active
-        FROM shift_log_sessions AS session
-        INNER JOIN users AS user
+          user.is_active,
+
+          COALESCE(
+            employee.default_role,
+            ''
+          ) AS default_role,
+
+          COALESCE(
+            employee.position,
+            ''
+          ) AS position
+
+        FROM shift_log_sessions
+          AS session
+
+        INNER JOIN users
+          AS user
+
           ON user.employee_no =
              session.employee_no
-        WHERE session.token_hash = ?
+
+        LEFT JOIN employees
+          AS employee
+
+          ON employee.employee_no =
+             session.employee_no
+
+        WHERE
+          session.token_hash = ?
+
         LIMIT 1
       `)
       .bind(
@@ -399,8 +446,10 @@ async function getAuthenticatedUser(
       )
       .first();
 
+
   const now =
     new Date();
+
 
   const expiresAt =
     new Date(
@@ -408,27 +457,35 @@ async function getAuthenticatedUser(
       0
     );
 
+
   if (
     !session ||
+
     Number(
       session.is_active
     ) !==
       1 ||
+
     Number.isNaN(
       expiresAt.getTime()
     ) ||
+
     expiresAt <=
       now
   ) {
     await context.env.DB
       .prepare(`
-        DELETE FROM shift_log_sessions
-        WHERE token_hash = ?
+        DELETE FROM
+          shift_log_sessions
+
+        WHERE
+          token_hash = ?
       `)
       .bind(
         tokenHash
       )
       .run();
+
 
     return {
       error:
@@ -436,6 +493,7 @@ async function getAuthenticatedUser(
           {
             ok:
               false,
+
             message:
               "로그인 세션이 만료되었습니다. 다시 로그인해 주세요."
           },
@@ -444,12 +502,14 @@ async function getAuthenticatedUser(
     };
   }
 
+
   const employeeNo =
     normalizeEmployeeNo(
       session.employee_no
     );
 
-  const role =
+
+  const accountRole =
     employeeNo ===
       FORCED_SUPER_ADMIN_EMPLOYEE_NO
         ? "super_admin"
@@ -457,11 +517,59 @@ async function getAuthenticatedUser(
             session.role
           );
 
+
+  const employeeRole =
+    employeeNo ===
+      FORCED_SUPER_ADMIN_EMPLOYEE_NO
+        ? "super_admin"
+        : normalizeAccountRole(
+            session.default_role
+          );
+
+
+  let role =
+    "user";
+
+
+  if (
+    accountRole ===
+      "super_admin" ||
+    employeeRole ===
+      "super_admin"
+  ) {
+    role =
+      "super_admin";
+
+  } else if (
+    accountRole ===
+      "team_manager" ||
+    employeeRole ===
+      "team_manager"
+  ) {
+    role =
+      "team_manager";
+
+  } else if (
+    accountRole ===
+      "admin" ||
+    employeeRole ===
+      "admin"
+  ) {
+    role =
+      "admin";
+  }
+
+
   await context.env.DB
     .prepare(`
-      UPDATE shift_log_sessions
-      SET last_used_at = ?
-      WHERE token_hash = ?
+      UPDATE
+        shift_log_sessions
+
+      SET
+        last_used_at = ?
+
+      WHERE
+        token_hash = ?
     `)
     .bind(
       now.toISOString(),
@@ -469,26 +577,39 @@ async function getAuthenticatedUser(
     )
     .run();
 
+
   return {
     user: {
       employeeNo,
+
       name:
         normalizeText(
           session.name
         ),
+
       role,
+
+      position:
+        normalizeText(
+          session.position
+        ),
+
       isAdmin:
         role ===
           "admin" ||
         role ===
           "super_admin",
+
+      isTeamManager:
+        role ===
+          "team_manager",
+
       isSuperAdmin:
         role ===
           "super_admin"
     }
   };
 }
-
 
 function parseJsonObject(
   value
@@ -11543,6 +11664,11 @@ function applyApprovalAction(
     user.isSuperAdmin;
 
 
+  const isTeamManager =
+    user.role ===
+      "team_manager";
+
+
   const isAuthor =
     normalizeEmployeeNo(
       existingLog.authorId
@@ -11574,16 +11700,13 @@ function applyApprovalAction(
 
 
   /* =====================================================
-    결재완료
+    파트장 결재완료
   ====================================================== */
 
   if (
     action ===
       "approve"
   ) {
-    /*
-      파트원 업무일지 결재
-    */
     const canApproveMemberLog =
       isMemberLog &&
 
@@ -11593,11 +11716,6 @@ function applyApprovalAction(
       isLeaderOrSuperAdmin;
 
 
-    /*
-      파트장 본인 업무일지 결재완료
-
-      저장완료는 기존 자료 호환용이다.
-    */
     const canCompleteLeaderLog =
       isLeaderLog &&
 
@@ -11658,6 +11776,19 @@ function applyApprovalAction(
       user.role;
 
 
+    /*
+      파트장 결재가 다시 이루어진 경우
+      기존 팀장 확인은 초기화한다.
+    */
+    delete log.teamApprovedAt;
+
+    delete log.teamApprovedBy;
+
+    delete log.teamApprovedById;
+
+    delete log.teamApprovedByRole;
+
+
     appendApprovalHistory(
       log,
       "결재완료",
@@ -11669,16 +11800,132 @@ function applyApprovalAction(
 
 
   /* =====================================================
-    결재취소
+    팀장 결재확인
+  ====================================================== */
+
+  } else if (
+    action ===
+      "team_approve"
+  ) {
+    const canTeamApprove =
+      isTeamManager &&
+
+      previousStatus ===
+        "결재완료";
+
+
+    if (
+      !canTeamApprove
+    ) {
+      const error =
+        new Error(
+          isTeamManager
+            ? "파트장 결재가 완료된 업무일지만 팀장 결재확인할 수 있습니다."
+            : "팀장 권한만 결재확인할 수 있습니다."
+        );
+
+
+      error.status =
+        isTeamManager
+          ? 400
+          : 403;
+
+
+      throw error;
+    }
+
+
+    log.teamApprovedAt =
+      now;
+
+
+    log.teamApprovedBy =
+      user.name;
+
+
+    log.teamApprovedById =
+      user.employeeNo;
+
+
+    log.teamApprovedByRole =
+      "team_manager";
+
+
+    appendApprovalHistory(
+      log,
+      "팀장 결재확인",
+      user,
+      previousStatus,
+      previousStatus,
+      now
+    );
+
+
+  /* =====================================================
+    팀장 결재확인 취소
+  ====================================================== */
+
+  } else if (
+    action ===
+      "team_cancel"
+  ) {
+    const canTeamCancel =
+      isTeamManager &&
+
+      previousStatus ===
+        "결재완료" &&
+
+      Boolean(
+        existingLog.teamApprovedAt
+      );
+
+
+    if (
+      !canTeamCancel
+    ) {
+      const error =
+        new Error(
+          "취소할 팀장 결재확인 내역이 없습니다."
+        );
+
+
+      error.status =
+        isTeamManager
+          ? 400
+          : 403;
+
+
+      throw error;
+    }
+
+
+    delete log.teamApprovedAt;
+
+    delete log.teamApprovedBy;
+
+    delete log.teamApprovedById;
+
+    delete log.teamApprovedByRole;
+
+
+    appendApprovalHistory(
+      log,
+      "팀장 결재확인 취소",
+      user,
+      previousStatus,
+      previousStatus,
+      now
+    );
+
+
+  /* =====================================================
+    기존 결재취소
   ====================================================== */
 
   } else if (
     action ===
       "cancel"
   ) {
-    /*
-      파트원 본인의 결재요청 취소
-    */
     const canAuthorCancelRequest =
       isMemberLog &&
 
@@ -11688,10 +11935,6 @@ function applyApprovalAction(
       isAuthor;
 
 
-    /*
-      파트장 또는 최고관리자의
-      파트원 결재완료 취소
-    */
     const canLeaderCancelCompletedMember =
       isMemberLog &&
 
@@ -11701,9 +11944,6 @@ function applyApprovalAction(
       isLeaderOrSuperAdmin;
 
 
-    /*
-      파트장 본인 일지 결재취소
-    */
     const canCancelCompletedLeaderLog =
       isLeaderLog &&
 
@@ -11740,9 +11980,6 @@ function applyApprovalAction(
     }
 
 
-    /*
-      결재취소 후 다시 임시저장으로 되돌린다.
-    */
     log.status =
       "임시저장";
 
@@ -11754,6 +11991,19 @@ function applyApprovalAction(
     delete log.approvedById;
 
     delete log.approvedByRole;
+
+
+    /*
+      파트장 결재가 취소되면
+      팀장 확인도 함께 무효화한다.
+    */
+    delete log.teamApprovedAt;
+
+    delete log.teamApprovedBy;
+
+    delete log.teamApprovedById;
+
+    delete log.teamApprovedByRole;
 
 
     log.approvalCancelledAt =
@@ -11797,10 +12047,6 @@ function applyApprovalAction(
   }
 
 
-  /* =====================================================
-    최종 수정 정보
-  ====================================================== */
-
   log.lastModifiedBy =
     user.name;
 
@@ -11819,7 +12065,6 @@ function applyApprovalAction(
 
   return log;
 }
-
 
 async function insertLog(
   database,
@@ -12354,7 +12599,9 @@ if (
     "save",
     "migrate",
     "approve",
-    "cancel"
+    "cancel",
+    "team_approve",
+    "team_cancel"
   ].includes(
     action
   )
@@ -12453,7 +12700,9 @@ if (
       if (
         [
           "approve",
-          "cancel"
+          "cancel",
+          "team_approve",
+          "team_cancel"
         ].includes(
           action
         )
