@@ -7534,7 +7534,15 @@ function updateCurrentShiftLegacySyncButtonVisibility() {
 
 
 /* =========================================================
-  현재 선택 Shift 1개 동기화 실행
+  현재 선택 Shift 1개 수동 동기화
+
+  규칙:
+  - 현재 선택 날짜 + 현재 Shift만 조회
+  - 이전일지 원본을 legacy_logs에 최신화
+  - 이번에 실제 조회된 legacyDiaryId만 삭제차단 해제
+  - 삭제돼 있던 업무일지는 다시 D1으로 복원
+  - 기존에 살아 있는 현재 업무일지는 강제로 덮어쓰지 않음
+  - N/S BO1·BO2가 복원되면 오전회의 온도도 다시 조회
 ========================================================= */
 
 async function runCurrentShiftLegacySync() {
@@ -7546,7 +7554,7 @@ async function runCurrentShiftLegacySync() {
 
 
   /* =====================================================
-    권한 확인
+    최고관리자 확인
   ====================================================== */
 
   if (
@@ -7590,6 +7598,8 @@ async function runCurrentShiftLegacySync() {
         "",
         "현재 화면의 날짜와 근무만 가져옵니다.",
         "",
+        "이전에 삭제한 동기화 자료가 원본에 존재하면 다시 복원됩니다.",
+        "",
         "다른 날짜 및 다른 Shift는 처리하지 않습니다."
       ].join(
         "\n"
@@ -7628,7 +7638,7 @@ async function runCurrentShiftLegacySync() {
 
   try {
     /* ===================================================
-      기존 관리자 legacy-import API 그대로 사용
+      1. 이전 시스템 → legacy_logs 동기화
 
       DS → DAY
       NS → NIGHT
@@ -7698,11 +7708,7 @@ async function runCurrentShiftLegacySync() {
 
 
     /* ===================================================
-      API 내부에서 해당 Shift 처리 실패가 있었는지 확인
-
-      legacy-import는 일부 실패가 있어도
-      전체 응답 success가 true일 수 있으므로
-      실패 목록도 확인한다.
+      2. 해당 Shift 처리 실패 확인
     ==================================================== */
 
     const failures =
@@ -7716,7 +7722,7 @@ async function runCurrentShiftLegacySync() {
 
     if (
       failures.length >
-      0
+        0
     ) {
       throw new Error(
         failures[0]?.message ||
@@ -7726,9 +7732,263 @@ async function runCurrentShiftLegacySync() {
 
 
     /* ===================================================
-      현재 선택 날짜 업무일지 다시 로딩
+      3. 이번 동기화에서 실제 조회된 일지 추출
 
-      기존 관리자 동기화 완료 처리와 동일
+      API 구조:
+
+      dateResults
+        └ shiftResults
+            └ savedLogs
+                ├ legacyDiaryId
+                ├ workDate
+                ├ shift
+                └ role
+    ==================================================== */
+
+    const syncedLogs =
+      [];
+
+
+    const dateResults =
+      Array.isArray(
+        result.dateResults
+      )
+        ? result.dateResults
+        : [];
+
+
+    dateResults.forEach(
+      dateResult => {
+        const resultWorkDate =
+          String(
+            dateResult?.workDate ||
+            ""
+          ).trim();
+
+
+        const resultLegacyDate =
+          String(
+            dateResult?.date ||
+            ""
+          ).trim();
+
+
+        /*
+          다른 날짜 결과는 제외
+        */
+        if (
+          resultWorkDate !==
+            context.workDate &&
+          resultLegacyDate !==
+            context.legacyDate
+        ) {
+          return;
+        }
+
+
+        const shiftResults =
+          Array.isArray(
+            dateResult?.shiftResults
+          )
+            ? dateResult.shiftResults
+            : [];
+
+
+        shiftResults.forEach(
+          shiftResult => {
+            const resultCurrentShift =
+              String(
+                shiftResult
+                  ?.currentShift ||
+                ""
+              )
+                .trim()
+                .toUpperCase();
+
+
+            const resultLegacyShift =
+              String(
+                shiftResult
+                  ?.legacyShift ||
+                ""
+              )
+                .trim()
+                .toUpperCase();
+
+
+            /*
+              다른 근무 결과는 제외
+            */
+            if (
+              resultCurrentShift !==
+                context.currentShift &&
+              resultLegacyShift !==
+                context.legacyShift
+            ) {
+              return;
+            }
+
+
+            const savedLogs =
+              Array.isArray(
+                shiftResult?.savedLogs
+              )
+                ? shiftResult.savedLogs
+                : [];
+
+
+            syncedLogs.push(
+              ...savedLogs
+            );
+          }
+        );
+      }
+    );
+
+
+    /* ===================================================
+      4. 실제 동기화된 legacyDiaryId 목록
+
+      중복 제거
+    ==================================================== */
+
+    const legacyDiaryIds =
+      Array.from(
+        new Set(
+          syncedLogs
+            .map(
+              log => {
+                return String(
+                  log?.legacyDiaryId ||
+                  log?.legacy_diary_id ||
+                  ""
+                ).trim();
+              }
+            )
+            .filter(
+              Boolean
+            )
+        )
+      );
+
+
+    /* ===================================================
+      안전장치
+
+      조회 건수가 있는데 ID를 하나도 찾지 못했다면
+      삭제차단을 무작정 풀지 않는다.
+    ==================================================== */
+
+    const fetchedCount =
+      Number(
+        result.fetchedCount ||
+        0
+      );
+
+
+    if (
+      fetchedCount >
+        0 &&
+      legacyDiaryIds.length ===
+        0
+    ) {
+      throw new Error(
+        "이전일지는 조회했지만 복원할 일지 ID를 확인하지 못했습니다."
+      );
+    }
+
+
+    /* ===================================================
+      5. 수동 동기화한 실제 ID만
+         삭제차단 해제
+
+      이전 단계에서 만든
+      restore-legacy-suppression 사용
+    ==================================================== */
+
+    let suppressionRestoreResult = {
+      restoredSuppressionCount:
+        0
+    };
+
+
+    if (
+      legacyDiaryIds.length >
+        0
+    ) {
+      suppressionRestoreResult =
+        await requestShiftLogApi(
+          "",
+          {
+            method:
+              "POST",
+
+            body: {
+              action:
+                "restore-legacy-suppression",
+
+              workDate:
+                context.workDate,
+
+              shift:
+                context.currentShift,
+
+              legacyDiaryIds
+            }
+          }
+        );
+    }
+
+
+    const restoredSuppressionCount =
+      Number(
+        suppressionRestoreResult
+          ?.restoredSuppressionCount ||
+        0
+      );
+
+
+    console.log(
+      "현재 Shift 수동 동기화 삭제차단 해제:",
+      {
+        workDate:
+          context.workDate,
+
+        shift:
+          context.shiftLabel,
+
+        legacyDiaryIds,
+
+        restoredSuppressionCount
+      }
+    );
+
+
+    /* ===================================================
+      6. 현재 shared D1 자료 먼저 최신화
+
+      기존에 살아 있는 업무일지는 유지
+    ==================================================== */
+
+    if (
+      typeof refreshSharedShiftLogsInState ===
+        "function"
+    ) {
+      await refreshSharedShiftLogsInState();
+    }
+
+
+    /* ===================================================
+      7. suppression 해제된 legacy 다시 조회
+
+      중요:
+      현재 loadLegacyLogsForSelectedDate()에는
+      migrateEditableLegacyLogsForSelectedDate()가
+      이미 연결돼 있다.
+
+      따라서:
+      삭제되어 shift_logs에 없는 보직
+      → 자동으로 다시 D1 업무일지 생성
     ==================================================== */
 
     if (
@@ -7738,6 +7998,22 @@ async function runCurrentShiftLegacySync() {
       await loadLegacyLogsForSelectedDate();
     }
 
+
+    /* ===================================================
+      8. migration 결과를 서버에서 한 번 더 최신화
+    ==================================================== */
+
+    if (
+      typeof refreshSharedShiftLogsInState ===
+        "function"
+    ) {
+      await refreshSharedShiftLogsInState();
+    }
+
+
+    /* ===================================================
+      9. 메인 화면 갱신
+    ==================================================== */
 
     if (
       typeof renderLogTable ===
@@ -7756,15 +8032,73 @@ async function runCurrentShiftLegacySync() {
 
 
     /* ===================================================
-      결과 안내
+      10. N/S BO1·BO2가 동기화된 경우
+          오전회의 온도 캐시도 다시 검사
+
+      삭제 당시 비워졌던 온도가
+      업무일지 복원과 함께 다시 들어오게 한다.
     ==================================================== */
 
-    const fetchedCount =
-      Number(
-        result.fetchedCount ||
-        0
+    const hasBoilerRole =
+      context.currentShift ===
+        "NS" &&
+      syncedLogs.some(
+        log => {
+          const role =
+            String(
+              log?.role ||
+              ""
+            )
+              .trim()
+              .toUpperCase();
+
+
+          return [
+            "BO1",
+            "BO2"
+          ].includes(
+            role
+          );
+        }
       );
 
+
+    if (
+      hasBoilerRole &&
+      typeof window
+        .invalidateEfficiencyMorningMeetingBoilerCache ===
+        "function"
+    ) {
+      try {
+        await window
+          .invalidateEfficiencyMorningMeetingBoilerCache(
+            context.workDate,
+            {
+              reload:
+                true
+            }
+          );
+
+      } catch (
+        error
+      ) {
+        /*
+          업무일지 복원은 이미 성공했으므로
+          오전회의 캐시 오류 때문에
+          전체 동기화를 실패시키지 않는다.
+        */
+
+        console.error(
+          "수동 동기화 후 오전회의 BO1·BO2 온도 갱신 실패:",
+          error
+        );
+      }
+    }
+
+
+    /* ===================================================
+      11. 결과 안내
+    ==================================================== */
 
     const createdCount =
       Number(
@@ -7789,13 +8123,29 @@ async function runCurrentShiftLegacySync() {
       );
 
     } else {
+      const resultParts = [
+        `${context.workDate} ${context.shiftLabel} 동기화 완료`,
+
+        `조회 ${fetchedCount}건`,
+
+        `신규 ${createdCount}건`,
+
+        `갱신 ${updatedCount}건`
+      ];
+
+
+      if (
+        restoredSuppressionCount >
+          0
+      ) {
+        resultParts.push(
+          `삭제자료 복원 ${restoredSuppressionCount}건`
+        );
+      }
+
+
       showToast(
-        [
-          `${context.workDate} ${context.shiftLabel} 동기화 완료`,
-          `조회 ${fetchedCount}건`,
-          `신규 ${createdCount}건`,
-          `갱신 ${updatedCount}건`
-        ].join(
+        resultParts.join(
           " · "
         )
       );
@@ -7818,8 +8168,14 @@ async function runCurrentShiftLegacySync() {
           context.legacyShift,
 
         fetchedCount,
+
         createdCount,
-        updatedCount
+
+        updatedCount,
+
+        restoredSuppressionCount,
+
+        syncedLogs
       }
     );
 

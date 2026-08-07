@@ -12589,6 +12589,238 @@ if (
   );
 }
 
+/* =====================================================
+  수동 이전일지 동기화
+  → 삭제 차단 해제
+
+  목적:
+  업무일지에서 삭제한 과거자료는
+  평소에는 다시 살아나지 않는다.
+
+  단,
+  최고관리자가 화면의 [동기화] 버튼을 직접 눌렀다면
+  이번에 실제 조회된 이전일지만 다시 복원 가능하게 한다.
+====================================================== */
+
+if (
+  action ===
+    "restore-legacy-suppression"
+) {
+  /* ===================================================
+    최고관리자만 허용
+  ==================================================== */
+
+  if (
+    !user.isSuperAdmin
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "최고관리자만 삭제된 이전일지를 다시 동기화할 수 있습니다."
+      },
+      403
+    );
+  }
+
+
+  const workDate =
+    normalizeText(
+      body.workDate ||
+      body.work_date
+    );
+
+
+  const shift =
+    normalizeShift(
+      body.shift
+    );
+
+
+  const legacyDiaryIds =
+    Array.isArray(
+      body.legacyDiaryIds
+    )
+      ? Array.from(
+          new Set(
+            body.legacyDiaryIds
+              .map(
+                legacyDiaryId => {
+                  return normalizeText(
+                    legacyDiaryId
+                  );
+                }
+              )
+              .filter(
+                Boolean
+              )
+          )
+        )
+      : [];
+
+
+  /* ===================================================
+    날짜 확인
+  ==================================================== */
+
+  if (
+    !isValidIsoDate(
+      workDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "복원할 이전일지 날짜를 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  /* ===================================================
+    근무 확인
+  ==================================================== */
+
+  if (
+    !VALID_SHIFTS.has(
+      shift
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "복원할 이전일지 근무를 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  /*
+    실제 동기화된 이전일지가 없으면
+    아무것도 해제하지 않는다.
+  */
+
+  if (
+    legacyDiaryIds.length ===
+      0
+  ) {
+    return jsonResponse({
+      ok:
+        true,
+
+      workDate,
+
+      shift,
+
+      requestedCount:
+        0,
+
+      restoredSuppressionCount:
+        0
+    });
+  }
+
+
+  /* ===================================================
+    삭제 차단 테이블 준비
+
+    이전 단계에서 추가했던 기존 함수 재사용
+  ==================================================== */
+
+  await ensureLegacyLogSuppressionTable(
+    context.env.DB
+  );
+
+
+  let restoredSuppressionCount =
+    0;
+
+
+  /* ===================================================
+    이번 동기화에서 실제 조회된 ID만 차단 해제
+
+    중요:
+    해당 날짜 전체 suppression을 지우지 않는다.
+
+    실제 원본 서버에서 이번에 조회된 자료만
+    다시 살려야 오래된 잘못된 자료가 부활하지 않는다.
+  ==================================================== */
+
+  for (
+    const legacyDiaryId of
+      legacyDiaryIds
+  ) {
+    const deleteResult =
+      await context.env.DB
+        .prepare(`
+          DELETE FROM
+            legacy_log_suppressions
+
+          WHERE
+            legacy_diary_id = ?
+
+            AND work_date = ?
+
+            AND shift = ?
+        `)
+        .bind(
+          legacyDiaryId,
+          workDate,
+          shift
+        )
+        .run();
+
+
+    restoredSuppressionCount +=
+      Number(
+        deleteResult
+          ?.meta
+          ?.changes ||
+        0
+      );
+  }
+
+
+  console.log(
+    "수동 이전일지 삭제 차단 해제:",
+    {
+      workDate,
+      shift,
+
+      requestedCount:
+        legacyDiaryIds.length,
+
+      restoredSuppressionCount,
+
+      legacyDiaryIds
+    }
+  );
+
+
+  return jsonResponse({
+    ok:
+      true,
+
+    workDate,
+
+    shift,
+
+    requestedCount:
+      legacyDiaryIds.length,
+
+    restoredSuppressionCount
+  });
+}
 
 /* =====================================================
   일반 업무일지 저장·결재 작업

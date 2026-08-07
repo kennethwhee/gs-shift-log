@@ -1,7 +1,7 @@
 {
   "source": "OIS 일일 운전일지(환경)",
-  "sourceDate": "2026-08-08",
-  "collectedAt": "2026-08-07T17:55:05.438Z",
+  "sourceDate": "2026-08-10",
+  "collectedAt": "2026-08-07T19:47:17.301Z",
   "rawWaterInflow": 0,
   "demiProduction": 0,
   "pureWaterUsage": 0,
@@ -11,5 +11,5 @@
   "filteredWaterTankRate": 0,
   "demiWaterTankAmount": 0,
   "demiWaterTankRate": 0,
-  "targetDate": "2026-08-08"
+  "targetDate": "2026-08-10"
 }
