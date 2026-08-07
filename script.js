@@ -136955,26 +136955,28 @@ function applyMorningMeetingLimestoneValues(
 
 
   /* =====================================================
-    석회석 값 선택 처리
+    값이 없으면 null
 
-    값 없음:
-    null
-
-    값 있음:
-    숫자
+    OIS/석회석 자료가 없어도
+    최종 엑셀은 생성할 수 있게 한다.
   ====================================================== */
 
   const toOptionalNumber =
     value => {
-      if (
-        value ===
-          null ||
-        value ===
-          undefined ||
+      const normalized =
         String(
-          value
-        ).trim() ===
+          value ??
           ""
+        )
+          .replaceAll(
+            ",",
+            ""
+          )
+          .trim();
+
+
+      if (
+        !normalized
       ) {
         return null;
       }
@@ -136982,14 +136984,7 @@ function applyMorningMeetingLimestoneValues(
 
       const numericValue =
         Number(
-          String(
-            value
-          )
-            .replaceAll(
-              ",",
-              ""
-            )
-            .trim()
+          normalized
         );
 
 
@@ -136999,18 +136994,6 @@ function applyMorningMeetingLimestoneValues(
         ? numericValue
         : null;
     };
-
-
-  const unitOneReceipt =
-    toOptionalNumber(
-      source.unitOneReceipt
-    );
-
-
-  const unitTwoReceipt =
-    toOptionalNumber(
-      source.unitTwoReceipt
-    );
 
 
   const unitOneUsage =
@@ -137026,9 +137009,36 @@ function applyMorningMeetingLimestoneValues(
 
 
   /* =====================================================
+    제목
+
+    중요:
+    입고량 문구는 절대 넣지 않는다.
+
+    X15:
+    Lime Stone 사용량
+  ====================================================== */
+
+  const titleResult =
+    setMorningMeetingInlineStringCellValue(
+      worksheetDocument,
+      "X15",
+      "Lime Stone 사용량"
+    );
+
+
+  if (
+    !titleResult.found
+  ) {
+    throw new Error(
+      "석회석 제목 셀 X15를 찾지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
     1호기 사용량
 
-    값 없음 → AE15 빈칸
+    AE15
   ====================================================== */
 
   const unitOneResult =
@@ -137051,7 +137061,7 @@ function applyMorningMeetingLimestoneValues(
   /* =====================================================
     2호기 사용량
 
-    값 없음 → AE16 빈칸
+    AE16
   ====================================================== */
 
   const unitTwoResult =
@@ -137072,76 +137082,15 @@ function applyMorningMeetingLimestoneValues(
 
 
   /* =====================================================
-    입고량 표시
+    합계
 
-    입고량이 없으면:
-    Lime Stone 사용량
+    AJ16
 
-    제목만 남기고
-    기존 오래된 입고량 문구는 제거한다.
-  ====================================================== */
+    둘 다 빈칸:
+    → 합계도 빈칸
 
-  const hasReceiptValue =
-    unitOneReceipt !==
-      null ||
-    unitTwoReceipt !==
-      null;
-
-
-  const receiptText =
-    hasReceiptValue
-      ? [
-          "Lime Stone 사용량",
-
-          `입고 1호기 ${
-            unitOneReceipt !==
-              null
-              ? unitOneReceipt.toFixed(
-                  2
-                )
-              : ""
-          }t · 2호기 ${
-            unitTwoReceipt !==
-              null
-              ? unitTwoReceipt.toFixed(
-                  2
-                )
-              : ""
-          }t`
-        ].join(
-          "\n"
-        )
-      : "Lime Stone 사용량";
-
-
-  const receiptResult =
-    setMorningMeetingInlineStringCellValue(
-      worksheetDocument,
-      "X15",
-      receiptText
-    );
-
-
-  if (
-    !receiptResult.found
-  ) {
-    throw new Error(
-      "석회석 표시 셀 X15를 찾지 못했습니다."
-    );
-  }
-
-
-  /* =====================================================
-    합계 AJ16
-
-    기존:
-    =AE15+AE16
-
-    변경:
-    둘 다 빈칸이면 합계도 빈칸
-
-    사용자가 나중에 AE15 / AE16을
-    직접 입력하면 합계가 자동 계산된다.
+    나중에 사용자가 엑셀에서 직접 입력:
+    → 자동으로 합계 계산
   ====================================================== */
 
   const totalCell =
@@ -137202,8 +137151,6 @@ function applyMorningMeetingLimestoneValues(
   return {
     appliedCount:
       [
-        unitOneReceipt,
-        unitTwoReceipt,
         unitOneUsage,
         unitTwoUsage
       ].filter(
@@ -137214,24 +137161,16 @@ function applyMorningMeetingLimestoneValues(
       ).length,
 
     totalCount:
-      4,
+      2,
 
     blank:
-      [
-        unitOneReceipt,
-        unitTwoReceipt,
-        unitOneUsage,
-        unitTwoUsage
-      ].every(
-        value => {
-          return value ===
-            null;
-        }
-      ),
+      unitOneUsage ===
+        null &&
+      unitTwoUsage ===
+        null,
 
-    unitOneReceipt,
-    unitTwoReceipt,
     unitOneUsage,
+
     unitTwoUsage
   };
 }
@@ -147570,84 +147509,106 @@ if (
   → FBHE / Wall Screw 온도 다시 추출
 ===================================================== */
 
-window
-  .loadEfficiencyMorningMeetingShiftLogsForDate =
-  async function loadEfficiencyMorningMeetingShiftLogsForDate(
-    requestedDate
-  ) {
-    const normalizedDate =
-      normalizeReportDate(
-        requestedDate
-      );
+/* ===================================================
+  교대파트 업무일지 기준일 → 자동수치 기준일 동기화
 
+  평일:
+  - 기존 동작 그대로 유지
+
+  주말:
+  - 자동수치 날짜와 완전히 독립
+  - 주말 업무기간을 조회해도
+    수처리/석회석/Gear/BO 날짜를 변경하지 않음
+=================================================== */
+
+document.addEventListener(
+  "efficiencyMorningMeetingShiftLogsLoaded",
+
+  event => {
+    const state =
+      getState();
+
+
+    /* =================================================
+      주말 모드 확인
+    ================================================= */
+
+    let weekendEnabled =
+      event?.detail?.weekend ===
+        true;
+
+
+    try {
+      if (
+        typeof window
+          .getEfficiencyMorningMeetingWeekendMode ===
+          "function"
+      ) {
+        weekendEnabled =
+          weekendEnabled ||
+
+          window
+            .getEfficiencyMorningMeetingWeekendMode()
+            ?.enabled ===
+            true;
+      }
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "오전회의 주말 모드 확인 실패:",
+        error
+      );
+    }
+
+
+    /* =================================================
+      주말 체크 상태에서는
+
+      교대파트 기간 조회와
+      자동수치 기준일을 서로 연결하지 않는다.
+    ================================================= */
 
     if (
-      !normalizedDate
+      weekendEnabled
     ) {
       return;
     }
 
 
-    const state =
-      getState();
+    /* =================================================
+      평일은 기존 동작 그대로
+    ================================================= */
 
-
-    const elements =
-      getElements();
-
-
-    /* ===================================================
-      새 날짜로 전환
-    ==================================================== */
-
-    state.shiftPart.reportDate =
-      normalizedDate;
-
-
-    /*
-      이전 날짜의 BO1·BO2 온도가
-      새 날짜 값처럼 잠깐 보이지 않도록 제거한다.
-    */
-    delete state
-      .boilerTemperatures;
+    const reportDate =
+      String(
+        state.shiftPart
+          ?.reportDate ||
+        state.shiftPart
+          ?.loadedDate ||
+        ""
+      ).trim();
 
 
     if (
-      typeof window
-        .renderEfficiencyMorningMeetingBoilerTemperatures ===
-        "function"
+      !isValidDate(
+        reportDate
+      )
     ) {
-      window
-        .renderEfficiencyMorningMeetingBoilerTemperatures();
+      return;
     }
 
 
-    /* ===================================================
-      교대파트 날짜 표시도 동일하게 변경
-    ==================================================== */
-
-    if (
-      elements.date
-    ) {
-      elements.date.textContent =
-        `${normalizedDate} · D/S + N/S`;
-    }
-
-
-    /* ===================================================
-      해당 날짜 업무일지 실제 조회
-
-      여기서:
-      - D/S 업무
-      - N/S 업무
-      - BO1 온도
-      - BO2 온도
-
-      전부 다시 만들어진다.
-    ==================================================== */
-
-    await loadShiftPartLogs();
-  };
+    applyCommonBaseDate(
+      reportDate,
+      {
+        load:
+          false
+      }
+    );
+  }
+);
 
 /* =====================================================
   교대파트 기준 날짜 갱신 및 자동 조회
