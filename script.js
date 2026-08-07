@@ -145040,114 +145040,7 @@ async function loadShiftPartLogs() {
   }
 }
 
-/* ===================================================
-  조회한 업무일지 원본 보관
 
-  BO1·BO2 온도 추출과 이후 자동 수치 반영에 사용
-==================================================== */
-
-
-
-state.shiftPart.dayLogs =
-  Array.isArray(
-    dayLogs
-  )
-    ? dayLogs
-    : [];
-
-
-state.shiftPart.nightLogs =
-  Array.isArray(
-    nightLogs
-  )
-    ? nightLogs
-    : [];
-
-
-/* ===================================================
-  현재 N/S BO1·BO2 온도 추출
-==================================================== */
-
-state.boilerTemperatures =
-  extractMorningMeetingBoilerTemperatures(
-    state.shiftPart.nightLogs,
-    reportDate
-  );
-
-
-console.log(
-  "오전회의 BO1·BO2 온도 추출 결과:",
-  state.boilerTemperatures
-);
-
-
-/* ===================================================
-  기존 교대파트 선택목록 생성
-==================================================== */
-
-state.shiftPart.items =
-  buildSelectableItems(
-    dayLogs,
-    nightLogs
-  );
-
-
-      state.shiftPart.selectedIds =
-        new Set();
-
-
-      state.shiftPart.text =
-        "";
-
-
-      state.shiftPart.loadedDate =
-        reportDate;
-
-
-      if (
-        elements.textarea
-      ) {
-        elements.textarea.value =
-          "";
-      }
-
-
-      renderAllLists();
-
-    } catch (
-      error
-    ) {
-      console.error(
-        "오전회의 교대파트 업무일지 조회 실패",
-        error
-      );
-
-
-      state.shiftPart.items =
-        [];
-
-
-      showError(
-        error?.message ||
-        "교대파트 업무일지를 불러오지 못했습니다."
-      );
-
-
-      renderAllLists();
-
-    } finally {
-      if (
-        elements.loadButton
-      ) {
-        elements.loadButton.disabled =
-          false;
-
-
-        elements.loadButton.textContent =
-          "업무일지 불러오기";
-      }
-    }
-  }
 
 /* =====================================================
   오전회의 공용 기준일
@@ -151626,18 +151519,6 @@ function buildCheckboxHtml(
         <span
           class="efficiency-morning-meeting-shift-item__meta"
         >
-
-        ${
-  item.workDate
-    ? `
-      <span>
-        ${escapeHtml(
-          item.workDate
-        )}
-      </span>
-    `
-    : ""
-}
 
           ${metaValues
             .map(
