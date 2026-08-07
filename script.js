@@ -56129,8 +56129,17 @@ function applyShiftMemberCardLogStatus(
       "empty";
 
 
+    card.dataset.teamApprovalStatus =
+      "unavailable";
+
+
     card.dataset.mobileStatus =
       "없음";
+
+
+    card.classList.remove(
+      "is-team-manager-approved"
+    );
 
 
     statusElement.textContent =
@@ -56166,6 +56175,120 @@ function applyShiftMemberCardLogStatus(
     normalizeShiftLogApprovalStatus(
       log.status
     );
+
+
+  /* =====================================================
+    팀장 결재확인 여부
+
+    서버 저장값:
+    teamApprovedAt
+  ====================================================== */
+
+  const teamApprovedAt =
+    String(
+      log.teamApprovedAt ||
+      log.team_approved_at ||
+      ""
+    ).trim();
+
+
+  const teamApprovedBy =
+    String(
+      log.teamApprovedBy ||
+      log.team_approved_by ||
+      ""
+    ).trim();
+
+
+  const isTeamApproved =
+    Boolean(
+      teamApprovedAt
+    );
+
+
+  /* =====================================================
+    팀장 결재확인 완료
+
+    중요:
+    기존 status가 결재완료여도
+    화면에서는 "결재확인"을 최우선 표시한다.
+  ====================================================== */
+
+  if (
+    isTeamApproved &&
+    normalizedStatus ===
+      "결재완료"
+  ) {
+    card.dataset.logState =
+      "existing";
+
+
+    card.dataset.approvalStatus =
+      "결재완료";
+
+
+    card.dataset.teamApprovalStatus =
+      "approved";
+
+
+    card.dataset.mobileStatus =
+      "확인";
+
+
+    /*
+      카드 전체 파란색 표시
+    */
+    card.classList.add(
+      "is-team-manager-approved"
+    );
+
+
+    /*
+      초록 결재완료 → 파랑 결재확인
+    */
+    statusElement.textContent =
+      "결재확인";
+
+
+    statusElement.dataset.mobileStatus =
+      "확인";
+
+
+    statusElement.title =
+      teamApprovedBy
+        ? `팀장 결재확인 완료 · ${teamApprovedBy}`
+        : "팀장 결재확인 완료";
+
+
+    statusElement.className =
+      [
+        "shift-member-card__status",
+        "is-team-approved"
+      ].join(
+        " "
+      );
+
+
+    return;
+  }
+
+
+  /* =====================================================
+    팀장 결재확인 전
+
+    기존 업무일지 상태 표시
+  ====================================================== */
+
+  card.classList.remove(
+    "is-team-manager-approved"
+  );
+
+
+  card.dataset.teamApprovalStatus =
+    normalizedStatus ===
+      "결재완료"
+      ? "pending"
+      : "unavailable";
 
 
   const desktopStatusText =
@@ -56236,10 +56359,6 @@ function applyShiftMemberCardLogStatus(
     "저장";
 
 
-  /* =====================================================
-    카드 상태값
-  ====================================================== */
-
   card.dataset.logState =
     "existing";
 
@@ -56251,16 +56370,6 @@ function applyShiftMemberCardLogStatus(
   card.dataset.mobileStatus =
     mobileStatusText;
 
-
-  /* =====================================================
-    상태 표시
-
-    PC:
-    textContent 사용
-
-    모바일:
-    CSS에서 data-mobile-status 사용
-  ====================================================== */
 
   statusElement.textContent =
     desktopStatusText;
@@ -126931,6 +127040,10 @@ function updateMorningMeetingUploadSummary() {
     uploadState;
 
 
+  /* =====================================================
+    안전·환경·기계·전기제어팀 첨부 수
+  ====================================================== */
+
   const teamUploadedCount =
     Object.keys(
       TEAM_CONFIG
@@ -126973,15 +127086,24 @@ function updateMorningMeetingUploadSummary() {
     );
 
 
-  const hasAllSixFiles =
-    teamUploadedCount ===
-      4 &&
-    hasTemplateFile &&
+  /*
+    자료 분석 버튼은 이제
+    6개 파일 전부를 요구하지 않는다.
+
+    분석할 팀 파일 또는 운탄일지 중
+    하나라도 있으면 분석 가능하다.
+  */
+
+  const hasAnalyzableFile =
+    teamUploadedCount >
+      0 ||
     hasCoalLogFile;
 
 
   /* =====================================================
-    첨부 개수
+    첨부 개수 표시
+
+    기존 0 / 6 형식은 그대로 유지한다.
   ====================================================== */
 
   if (
@@ -126995,21 +127117,29 @@ function updateMorningMeetingUploadSummary() {
   /* =====================================================
     자료 분석 버튼
 
-    여섯 파일을 모두 첨부해야 활성화한다.
+    변경 전:
+    6개 전부 필요
+
+    변경 후:
+    일부 자료만 있어도 분석 가능
   ====================================================== */
 
   if (
     analyzeButton
   ) {
     analyzeButton.disabled =
-      !hasAllSixFiles;
+      !hasAnalyzableFile;
   }
 
 
   /*
-    첨부파일이 바뀌면 기존 분석 결과를
-    다시 확인해야 하므로 최종 생성 버튼은
-    우선 비활성화한다.
+    첨부파일이 변경된 직후에는
+    기존 분석 결과를 다시 확인해야 하므로
+    최종 생성 버튼은 우선 비활성화한다.
+
+    최종 활성화 여부는
+    updateMorningMeetingCreateButton()에서
+    다시 판정한다.
   */
 
   if (
@@ -127021,7 +127151,34 @@ function updateMorningMeetingUploadSummary() {
 
 
   /* =====================================================
-    단계별 안내 문구
+    누락된 팀 확인
+  ====================================================== */
+
+  const missingTeamNames =
+    Object.entries(
+      TEAM_CONFIG
+    )
+      .filter(
+        ([
+          teamKey
+        ]) => {
+          return !state.files?.[
+            teamKey
+          ];
+        }
+      )
+      .map(
+        ([
+          ,
+          config
+        ]) => {
+          return config.name;
+        }
+      );
+
+
+  /* =====================================================
+    안내 문구
   ====================================================== */
 
   if (
@@ -127032,37 +127189,59 @@ function updateMorningMeetingUploadSummary() {
         0
     ) {
       message.textContent =
-        "일일발전현황·운탄일지와 4개 팀 자료를 첨부해 주세요.";
+        "사용 가능한 오전회의 자료를 첨부해 주세요. 없는 팀 자료는 빈칸으로 처리할 수 있습니다.";
 
-    } else if (
-      teamUploadedCount <
-        4
+
+      return;
+    }
+
+
+    const statusParts = [
+      `첨부 ${totalUploadedCount} / 6`
+    ];
+
+
+    if (
+      hasAnalyzableFile
     ) {
-      message.textContent =
-        `4개 팀 자료 중 ${teamUploadedCount}개 첨부 완료 · ${
-          4 -
-          teamUploadedCount
-        }개 팀 자료가 더 필요합니다.`;
+      statusParts.push(
+        "자료 분석 가능"
+      );
+    }
 
-    } else if (
-      !hasTemplateFile
+
+    if (
+      missingTeamNames.length >
+        0
     ) {
-      message.textContent =
-        "4개 팀 자료 첨부 완료 · 일일발전현황을 첨부해 주세요.";
+      statusParts.push(
+        `미첨부: ${missingTeamNames.join(
+          ", "
+        )}`
+      );
+    }
 
-    } else if (
+
+    if (
       !hasCoalLogFile
     ) {
-      message.textContent =
-        "일일발전현황과 4개 팀 자료 첨부 완료 · 운탄일지를 첨부해 주세요.";
-
-    } else {
-      message.textContent =
-        "6개 파일 첨부가 완료되었습니다. 자료 분석을 눌러주세요.";
+      statusParts.push(
+        "운탄일지 미첨부"
+      );
     }
+
+
+    statusParts.push(
+      "없는 자료는 빈칸 처리"
+    );
+
+
+    message.textContent =
+      statusParts.join(
+        " · "
+      );
   }
 }
-
 
 /*
   다른 오전회의 기능에서도
@@ -128814,226 +128993,346 @@ function bindMorningMeetingPreviewEditing() {
     4개 팀 전체 분석
   ====================================================== */
 
-  async function analyzeAllMorningMeetingFiles() {
-    const elements =
-      getMorningMeetingAnalyzerElements();
+async function analyzeAllMorningMeetingFiles() {
+  const elements =
+    getMorningMeetingAnalyzerElements();
 
 
-    const uploadState =
-      getMorningMeetingUploadState();
+  const uploadState =
+    getMorningMeetingUploadState();
 
 
-    hideMorningMeetingAnalysisError();
+  hideMorningMeetingAnalysisError();
 
 
-    if (
-      typeof XLSX ===
+  /* =====================================================
+    XLSX 라이브러리 확인
+  ====================================================== */
+
+  if (
+    typeof XLSX ===
       "undefined"
-    ) {
-      showMorningMeetingAnalysisError(
-        "엑셀 분석 라이브러리를 불러오지 못했습니다. xlsx.full.min.js 연결을 확인해 주세요."
-      );
+  ) {
+    showMorningMeetingAnalysisError(
+      "엑셀 분석 라이브러리를 불러오지 못했습니다. xlsx.full.min.js 연결을 확인해 주세요."
+    );
 
 
-      return;
-    }
+    return;
+  }
 
 
-    const missingTeams =
-      Object.entries(
+  const originalButtonText =
+    elements.analyzeButton
+      ?.textContent ||
+    "자료 분석";
+
+
+  if (
+    elements.analyzeButton
+  ) {
+    elements.analyzeButton.disabled =
+      true;
+
+
+    elements.analyzeButton.textContent =
+      "분석 중...";
+  }
+
+
+  if (
+    elements.createButton
+  ) {
+    elements.createButton.disabled =
+      true;
+  }
+
+
+  if (
+    elements.message
+  ) {
+    elements.message.textContent =
+      "첨부된 팀 자료를 분석하고 있습니다. 없는 팀 자료는 빈칸으로 처리합니다.";
+  }
+
+
+  try {
+    const analysisResults =
+      [];
+
+
+    /* ===================================================
+      안전·환경·기계·전기제어
+
+      파일 있음:
+      실제 분석
+
+      파일 없음:
+      빈 분석 결과 생성
+
+      중요한 점:
+      네 팀 모두 항상 analysis 객체는 생성한다.
+    ==================================================== */
+
+    for (
+      const [
+        teamKey,
+        config
+      ]
+      of Object.entries(
         TEAM_CONFIG
       )
-        .filter(
-          ([
-            teamKey
-          ]) => {
-            return !uploadState.files[
-              teamKey
-            ];
-          }
-        )
-        .map(
-          ([
-            ,
-            config
-          ]) => {
-            return config.name;
-          }
+    ) {
+      const file =
+        uploadState.files?.[
+          teamKey
+        ] ||
+        null;
+
+
+      /* =================================================
+        해당 팀 파일 없음
+
+        오류를 발생시키지 않는다.
+        대신 빈 자료를 생성한다.
+      ================================================== */
+
+      if (
+        !file
+      ) {
+        analysisResults.push({
+          teamKey,
+
+          teamName:
+            config.name,
+
+          fileName:
+            "미첨부 · 빈칸 처리",
+
+          sheetName:
+            "",
+
+          reportDate:
+            "",
+
+          previousText:
+            "",
+
+          scheduleText:
+            "",
+
+          previousCount:
+            0,
+
+          scheduleCount:
+            0,
+
+          missing:
+            true
+        });
+
+
+        continue;
+      }
+
+
+      /* =================================================
+        첨부된 팀만 실제 분석
+      ================================================== */
+
+      const result =
+        await analyzeMorningMeetingTeamFile(
+          teamKey,
+          file
         );
 
 
-    if (
-      missingTeams.length >
-      0
-    ) {
-      showMorningMeetingAnalysisError(
-        `${missingTeams.join(
-          ", "
-        )} 파일이 첨부되지 않았습니다.`
+      analysisResults.push({
+        ...result,
+
+        missing:
+          false
+      });
+    }
+
+
+    /* ===================================================
+      분석 결과 저장
+
+      누락된 팀도 빈 객체가 들어가기 때문에
+      이후 엑셀 생성부에서 안전하게 사용할 수 있다.
+    ==================================================== */
+
+    uploadState.analysis =
+      Object.fromEntries(
+        analysisResults.map(
+          result => {
+            return [
+              result.teamKey,
+              result
+            ];
+          }
+        )
       );
 
 
-      return;
-    }
+    /* ===================================================
+      미리보기 출력
+    ==================================================== */
+
+    renderMorningMeetingAnalysisPreview(
+      analysisResults
+    );
 
 
-    const originalButtonText =
-      elements.analyzeButton
-        ?.textContent ||
-      "자료 분석";
+    const availableResults =
+      analysisResults.filter(
+        result => {
+          return result.missing !==
+            true;
+        }
+      );
 
+
+    const missingResults =
+      analysisResults.filter(
+        result => {
+          return result.missing ===
+            true;
+        }
+      );
+
+
+    const totalPreviousCount =
+      availableResults.reduce(
+        (
+          total,
+          result
+        ) => {
+          return (
+            total +
+            Number(
+              result.previousCount ||
+              0
+            )
+          );
+        },
+        0
+      );
+
+
+    const totalScheduleCount =
+      availableResults.reduce(
+        (
+          total,
+          result
+        ) => {
+          return (
+            total +
+            Number(
+              result.scheduleCount ||
+              0
+            )
+          );
+        },
+        0
+      );
+
+
+    /* ===================================================
+      완료 안내
+    ==================================================== */
 
     if (
-      elements.analyzeButton
+      elements.message
     ) {
-      elements.analyzeButton.disabled =
-        true;
+      const missingText =
+        missingResults.length >
+          0
+          ? (
+              ` · 빈칸 처리: ` +
+              missingResults
+                .map(
+                  result => {
+                    return result.teamName;
+                  }
+                )
+                .join(
+                  ", "
+                )
+            )
+          : "";
 
 
-      elements.analyzeButton.textContent =
-        "분석 중...";
+      elements.message.textContent =
+        (
+          `자료 분석 완료` +
+          ` · 전일 특이사항 ${totalPreviousCount}건` +
+          ` · 예정사항 ${totalScheduleCount}건` +
+          missingText
+        );
     }
 
+
+    /* ===================================================
+      최종 엑셀 버튼 상태 다시 확인
+    ==================================================== */
 
     if (
-      elements.createButton
+      typeof window
+        .updateEfficiencyMorningMeetingCreateButton ===
+        "function"
     ) {
-      elements.createButton.disabled =
-        true;
+      window
+        .updateEfficiencyMorningMeetingCreateButton();
     }
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "오전회의 취합 자료 분석 실패",
+      error
+    );
+
+
+    showMorningMeetingAnalysisError(
+      error?.message ||
+      "엑셀 파일 분석 중 오류가 발생했습니다."
+    );
 
 
     if (
       elements.message
     ) {
       elements.message.textContent =
-        "4개 팀 엑셀 파일을 분석하고 있습니다.";
+        "자료 분석에 실패했습니다.";
+    }
+
+  } finally {
+    if (
+      elements.analyzeButton
+    ) {
+      elements.analyzeButton.textContent =
+        originalButtonText;
     }
 
 
-    try {
-      const analysisResults =
-        [];
+    /*
+      현재 첨부 상태를 기준으로
+      분석 버튼만 다시 판정한다.
+    */
 
-
-      for (
-        const teamKey
-        of Object.keys(
-          TEAM_CONFIG
-        )
-      ) {
-        const result =
-          await analyzeMorningMeetingTeamFile(
-            teamKey,
-            uploadState.files[
-              teamKey
-            ]
-          );
-
-
-        analysisResults.push(
-          result
-        );
-      }
-
-
-      uploadState.analysis =
-        Object.fromEntries(
-          analysisResults.map(
-            result => {
-              return [
-                result.teamKey,
-                result
-              ];
-            }
-          )
-        );
-
-
-      renderMorningMeetingAnalysisPreview(
-        analysisResults
-      );
-
-
-      if (
-        elements.createButton
-      ) {
-        elements.createButton.disabled =
-          false;
-      }
-
-
-      if (
-        elements.message
-      ) {
-        const totalPreviousCount =
-          analysisResults.reduce(
-            (
-              total,
-              result
-            ) => {
-              return (
-                total +
-                result.previousCount
-              );
-            },
-            0
-          );
-
-
-        const totalScheduleCount =
-          analysisResults.reduce(
-            (
-              total,
-              result
-            ) => {
-              return (
-                total +
-                result.scheduleCount
-              );
-            },
-            0
-          );
-
-
-        elements.message.textContent =
-          `자료 분석 완료 · 전일 특이사항 ${totalPreviousCount}건 · 예정사항 ${totalScheduleCount}건`;
-      }
-    } catch (
-      error
+    if (
+      typeof window
+        .updateEfficiencyMorningMeetingUploadSummary ===
+        "function"
     ) {
-      console.error(
-        "오전회의 취합 자료 분석 실패",
-        error
-      );
-
-
-      showMorningMeetingAnalysisError(
-        error?.message ||
-        "엑셀 파일 분석 중 오류가 발생했습니다."
-      );
-
-
-      if (
-        elements.message
-      ) {
-        elements.message.textContent =
-          "자료 분석에 실패했습니다.";
-      }
-    } finally {
-      if (
-        elements.analyzeButton
-      ) {
-        elements.analyzeButton.disabled =
-          false;
-
-
-        elements.analyzeButton.textContent =
-          originalButtonText;
-      }
+      window
+        .updateEfficiencyMorningMeetingUploadSummary();
     }
   }
-
+}
 
   /* =====================================================
     초기화
@@ -134431,14 +134730,15 @@ function buildMorningMeetingShiftPartRows(
     );
 
 
-  if (
-    selectedLines.length ===
-      0
-  ) {
-    throw new Error(
-      "교대파트 업무내용을 한 건 이상 선택하거나 직접 입력해 주세요."
-    );
-  }
+  /*
+    중요 변경
+
+    기존:
+    0건 → 오류
+
+    변경:
+    0건 → 교대파트 제목과 빈 행만 생성
+  */
 
 
   const rowDefinitions = [
@@ -134450,6 +134750,7 @@ function buildMorningMeetingShiftPartRows(
       text:
         " ◇ 교대 파트"
     },
+
 
     ...selectedLines.map(
       line => {
@@ -134463,6 +134764,11 @@ function buildMorningMeetingShiftPartRows(
         };
       }
     ),
+
+
+    /*
+      마지막 여백용 빈 행
+    */
 
     {
       template:
@@ -134504,7 +134810,6 @@ function buildMorningMeetingShiftPartRows(
     }
   );
 }
-
 
 /* =====================================================
   교대파트 병합 셀 수정
@@ -137086,14 +137391,18 @@ function buildMorningMeetingFuelAreaRows(
       : [];
 
 
-  if (
-    selectedItems.length ===
-      0
-  ) {
-    throw new Error(
-      "운탄일지에서 연료설비 업무내용을 한 건 이상 선택해 주세요."
-    );
-  }
+  /*
+    중요 변경
+
+    기존:
+    선택 항목 0건 → 오류
+
+    변경:
+    선택 항목 0건 → 제목 + 빈 행 생성
+
+    따라서 원본 엑셀에 남아 있던
+    과거 연료설비 문구도 제거된다.
+  */
 
 
   const rowDefinitions = [
@@ -137111,6 +137420,7 @@ function buildMorningMeetingFuelAreaRows(
       text:
         " ◇ 연료 설비"
     },
+
 
     ...selectedItems.map(
       (
@@ -137178,6 +137488,12 @@ function buildMorningMeetingFuelAreaRows(
       }
     ),
 
+
+    /*
+      내용이 있든 없든
+      마지막 빈 행은 항상 유지한다.
+    */
+
     {
       template:
         layout.templates
@@ -137234,10 +137550,13 @@ function buildMorningMeetingFuelAreaRows(
     rows,
 
     selectedCount:
-      selectedItems.length
+      selectedItems.length,
+
+    missing:
+      selectedItems.length ===
+      0
   };
 }
-
 
 /* =====================================================
   연료설비 병합 셀 재배치
@@ -146072,18 +146391,84 @@ function resetShiftPart() {
       return null;
     }
 
+if (
+  !state.coalLogFile
+) {
+  /*
+    운탄일지가 없는 경우에도
+    오류로 중단하지 않는다.
 
-    if (
-      !state.coalLogFile
-    ) {
-      showError(
-        "운탄일지 파일을 먼저 첨부해 주세요."
+    빈 분석 결과를 만들어
+    이후 오전회의 취합을 계속 진행한다.
+  */
+
+  const emptySelection =
+    createEmptySelection();
+
+
+  emptySelection.analyzed =
+    true;
+
+
+  emptySelection.missing =
+    true;
+
+
+  state.coalSelection =
+    emptySelection;
+
+
+  /*
+    운탄 수치 화면도 모두 빈 값으로 표시
+  */
+
+  renderValues(
+    emptySelection.values
+  );
+
+
+  renderSelection();
+
+
+  if (
+    elements.valueStatus
+  ) {
+    elements.valueStatus.textContent =
+      "운탄일지 미첨부 · 빈칸 처리";
+
+
+    elements.valueStatus
+      .classList
+      .remove(
+        "is-error"
       );
 
 
-      return null;
-    }
+    elements.valueStatus
+      .classList
+      .add(
+        "is-complete"
+      );
+  }
 
+
+  if (
+    typeof window
+      .updateEfficiencyMorningMeetingCreateButton ===
+      "function"
+  ) {
+    window
+      .updateEfficiencyMorningMeetingCreateButton();
+  }
+
+
+  console.log(
+    "운탄일지 미첨부 → 빈 자료로 분석 처리"
+  );
+
+
+  return state.coalSelection;
+}
 
     if (
       elements.valueStatus
@@ -149910,39 +150295,52 @@ function buildCheckboxHtml(
     자료 분석 후 TM 영역 추가 분석
   ====================================================== */
 
-  async function refreshAfterAnalysis() {
-    hideError();
+async function refreshAfterAnalysis() {
+  hideError();
 
 
-    const completed =
-      await waitForCoalAnalysis();
+  const completed =
+    await waitForCoalAnalysis();
 
+
+  if (
+    !completed
+  ) {
+    showError(
+      "운탄일지 분석 결과를 확인하지 못했습니다."
+    );
+
+
+    renderAll();
+
+
+    return;
+  }
+
+
+  try {
+    const state =
+      getState();
+
+
+    const selection =
+      getSelection();
+
+
+    /* ===================================================
+      운탄일지 없음
+
+      - TM 분석하지 않음
+      - 연료설비 업무 없음
+      - 운탄 TM 없음
+      - 교대파트 TM은 기존대로 유지
+    ==================================================== */
 
     if (
-      !completed
+      !state.coalLogFile
     ) {
-      showError(
-        "운탄일지 분석 결과를 확인하지 못했습니다."
-      );
-
-
-      renderAll();
-
-
-      return;
-    }
-
-
-    try {
-      const selection =
-        getSelection();
-
-
       selection.coalTmItems =
-        await extractCoalTmItems(
-          getState()
-            .coalLogFile
-        );
+        [];
 
 
       selection.selectedWorkIds =
@@ -149957,26 +150355,76 @@ function buildCheckboxHtml(
         selection.selectedWorkIds;
 
 
-      renderAll();
-
-    } catch (
-      error
-    ) {
-      console.error(
-        "운탄일지 TM 분석 실패",
-        error
-      );
+      selection.selectedItems =
+        [];
 
 
-      showError(
-        error?.message ||
-        "운탄일지 TM 발행사항을 분석하지 못했습니다."
-      );
+      selection.selectedTmItems =
+        [];
+
+
+      selection.missing =
+        true;
 
 
       renderAll();
+
+
+      console.log(
+        "운탄일지 미첨부 → 운탄 업무/TM 빈칸 처리"
+      );
+
+
+      return;
     }
+
+
+    /* ===================================================
+      운탄일지가 있는 경우만 실제 TM 분석
+    ==================================================== */
+
+    selection.coalTmItems =
+      await extractCoalTmItems(
+        state.coalLogFile
+      );
+
+
+    selection.selectedWorkIds =
+      new Set();
+
+
+    selection.selectedTmIds =
+      new Set();
+
+
+    selection.selectedIds =
+      selection.selectedWorkIds;
+
+
+    selection.missing =
+      false;
+
+
+    renderAll();
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "운탄일지 TM 분석 실패",
+      error
+    );
+
+
+    showError(
+      error?.message ||
+      "운탄일지 TM 발행사항을 분석하지 못했습니다."
+    );
+
+
+    renderAll();
   }
+}
 
 
   function scheduleRender() {
@@ -169362,172 +169810,161 @@ function isCurrentTeamManager() {
     카드 1개 팀장 확인 상태 출력
   ====================================================== */
 
-  function renderTeamApprovalCard(
-    card
+function renderTeamApprovalCard(
+  card
+) {
+  if (
+    !card
   ) {
-    if (
-      !card
-    ) {
-      return;
-    }
+    return;
+  }
 
 
-    const role =
-      String(
-        card.dataset.role ||
-        ""
-      ).trim();
+  const role =
+    String(
+      card.dataset.role ||
+      ""
+    ).trim();
 
 
-    const log =
-      findTeamApprovalCardLog(
-        role
-      );
-
-
-    const button =
-      ensureTeamApprovalButton(
-        card
-      );
-
-
-    const normalizedStatus =
-      log
-        ? (
-            typeof normalizeShiftLogApprovalStatus ===
-              "function"
-              ? normalizeShiftLogApprovalStatus(
-                  log.status
-                )
-              : String(
-                  log.status ||
-                  ""
-                ).trim()
-          )
-        : "";
-
-
-    const teamApproved =
-      hasTeamManagerApproval(
-        log
-      );
-
-
-    /* ===================================================
-      모든 사용자에게 팀장 확인 완료 시 파란 카드 표시
-    ==================================================== */
-
-    card.classList.toggle(
-      "is-team-manager-approved",
-      teamApproved
+  const log =
+    findTeamApprovalCardLog(
+      role
     );
 
 
-    card.dataset.teamApprovalStatus =
+  const button =
+    ensureTeamApprovalButton(
+      card
+    );
+
+
+  /*
+    기존 초록색
+    결재완료 배지
+  */
+  const statusBadge =
+    card.querySelector(
+      ".shift-member-card__status"
+    );
+
+
+  const normalizedStatus =
+    log
+      ? (
+          typeof normalizeShiftLogApprovalStatus ===
+            "function"
+            ? normalizeShiftLogApprovalStatus(
+                log.status
+              )
+            : String(
+                log.status ||
+                ""
+              ).trim()
+        )
+      : "";
+
+
+  const teamApproved =
+    hasTeamManagerApproval(
+      log
+    );
+
+
+  /* ===================================================
+    팀장 결재확인 완료 카드 표시
+  ==================================================== */
+
+  card.classList.toggle(
+    "is-team-manager-approved",
+    teamApproved
+  );
+
+
+  card.dataset.teamApprovalStatus =
+    teamApproved
+      ? "approved"
+      : (
+          normalizedStatus ===
+            "결재완료"
+            ? "pending"
+            : "unavailable"
+        );
+
+
+  /* ===================================================
+    상태 배지
+
+    파트장까지만:
+    초록색 결재완료
+
+    팀장 확인 완료:
+    파란색 결재확인
+  ==================================================== */
+
+  if (
+    statusBadge
+  ) {
+    statusBadge.classList.remove(
+      "is-team-approved"
+    );
+
+
+    if (
       teamApproved
-        ? "approved"
-        : (
-            normalizedStatus ===
-              "결재완료"
-              ? "pending"
-              : "unavailable"
-          );
-
-
-    if (
-      !button
     ) {
-      return;
-    }
+      statusBadge.textContent =
+        "결재확인";
 
 
-    /* ===================================================
-      결재확인 버튼은 팀장 로그인 시에만 표시
-    ==================================================== */
-
-    const canShowButton =
-      isCurrentTeamManager() &&
-      Boolean(
-        log
-      ) &&
-      normalizedStatus ===
-        "결재완료";
-
-
-    button.hidden =
-      !canShowButton;
-
-
-    if (
-      !canShowButton
-    ) {
-      button.disabled =
-        true;
-
-
-      button.textContent =
-        "";
-
-
-      button.classList.remove(
-        "is-approved"
+      statusBadge.classList.remove(
+        "is-complete",
+        "is-writing",
+        "is-empty"
       );
 
 
-      return;
-    }
-
-
-    /* ===================================================
-      팀장 확인 완료
-    ==================================================== */
-
-    if (
-      teamApproved
-    ) {
-      button.textContent =
-        "팀장 확인 ✓";
-
-
-      button.disabled =
-        true;
-
-
-      button.classList.add(
-        "is-approved"
+      statusBadge.classList.add(
+        "is-team-approved"
       );
-
-
-      button.title =
-        [
-          "팀장 결재확인 완료",
-          log.teamApprovedBy
-            ? `확인자: ${log.teamApprovedBy}`
-            : "",
-          log.teamApprovedAt
-            ? `확인일시: ${log.teamApprovedAt}`
-            : ""
-        ]
-          .filter(Boolean)
-          .join(
-            "\n"
-          );
-
-
-      return;
     }
+  }
 
 
-    /* ===================================================
-      팀장 확인 대기
-    ==================================================== */
+  if (
+    !button
+  ) {
+    return;
+  }
+
+
+  /* ===================================================
+    결재확인 버튼은
+    팀장 로그인 시에만 표시
+  ==================================================== */
+
+  const canShowButton =
+    isCurrentTeamManager() &&
+    Boolean(
+      log
+    ) &&
+    normalizedStatus ===
+      "결재완료";
+
+
+  button.hidden =
+    !canShowButton;
+
+
+  if (
+    !canShowButton
+  ) {
+    button.disabled =
+      true;
+
 
     button.textContent =
-      "결재확인";
-
-
-    button.disabled =
-      false;
+      "";
 
 
     button.classList.remove(
@@ -169535,24 +169972,80 @@ function isCurrentTeamManager() {
     );
 
 
-    button.title =
-      "팀장 결재확인이 필요합니다.";
-
-
-    button.onclick =
-      event => {
-        event.preventDefault();
-
-        event.stopPropagation();
-
-
-        void approveTeamManagerLog(
-          log,
-          button
-        );
-      };
+    return;
   }
 
+
+  /* ===================================================
+    이미 팀장 확인 완료
+
+    아래 상태 배지가
+    "결재확인"으로 표시되므로
+    상단 버튼은 더 이상 표시하지 않는다.
+  ==================================================== */
+
+  if (
+    teamApproved
+  ) {
+    button.hidden =
+      true;
+
+
+    button.disabled =
+      true;
+
+
+    button.textContent =
+      "";
+
+
+    button.classList.add(
+      "is-approved"
+    );
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    팀장 확인 대기
+  ==================================================== */
+
+  button.hidden =
+    false;
+
+
+  button.textContent =
+    "결재확인";
+
+
+  button.disabled =
+    false;
+
+
+  button.classList.remove(
+    "is-approved"
+  );
+
+
+  button.title =
+    "팀장 결재확인이 필요합니다.";
+
+
+  button.onclick =
+    event => {
+      event.preventDefault();
+
+      event.stopPropagation();
+
+
+      void approveTeamManagerLog(
+        log,
+        button
+      );
+    };
+}
 
   /* =====================================================
     전체 카드 출력

@@ -88292,3 +88292,30 @@ a.shift-log-editor-attachment__name:hover {
     font-size: 8px;
   }
 }
+
+/* =========================================================
+  팀장 결재확인 완료 상태 배지
+
+  파트장 결재완료:
+  초록색
+
+  팀장 결재확인:
+  파란색
+========================================================= */
+
+.shift-member-card__status.is-team-approved {
+  border-color: #8bb8ec;
+
+  background: #e8f2ff;
+
+  color: #1764b0;
+}
+
+
+/*
+  기존 상태 배지와 동일하게
+  왼쪽 점도 파란색으로 표시
+*/
+.shift-member-card__status.is-team-approved::before {
+  background: #1764b0;
+}
