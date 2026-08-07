@@ -169127,31 +169127,47 @@ function saveBoilerTemperatures() {
 
 
   const hasCompleteValues =
-    temperatureValues.every(
-      value => {
-        const numericValue =
-          Number(
-            String(
-              value ??
-              ""
-            )
-              .replaceAll(
-                ",",
-                ""
-              )
-              .replace(
-                /℃|°C/gi,
-                ""
-              )
-              .trim()
-          );
+  temperatureValues.every(
+    value => {
+      const normalizedValue =
+        String(
+          value ??
+          ""
+        )
+          .replaceAll(
+            ",",
+            ""
+          )
+          .replace(
+            /℃|°C/gi,
+            ""
+          )
+          .trim();
 
 
-        return Number.isFinite(
-          numericValue
-        );
+      /*
+        빈 값은 절대로 정상 온도로 인정하지 않는다.
+      */
+      if (
+        !normalizedValue ||
+        normalizedValue ===
+          "-"
+      ) {
+        return false;
       }
-    );
+
+
+      const numericValue =
+        Number(
+          normalizedValue
+        );
+
+
+      return Number.isFinite(
+        numericValue
+      );
+    }
+  );
 
 
   if (
