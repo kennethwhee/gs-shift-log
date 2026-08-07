@@ -77878,6 +77878,12 @@ function setMemberEditorRequestLock(
   }
 
 
+  const isSuperAdmin =
+    typeof isCurrentUserSuperAdmin ===
+      "function" &&
+    isCurrentUserSuperAdmin();
+
+
   const lockExemptIds =
     new Set([
       "requestApprovalButton",
@@ -77895,49 +77901,48 @@ function setMemberEditorRequestLock(
 
   controls.forEach(
     control => {
-      const isLockExempt =
-        lockExemptIds.has(
-          control.id
-        ) ||
-        control.dataset
-          .memberRequestLockExempt ===
-          "true";
-
-
+      /*
+        잠금 해제 시에는 예외 여부와 관계없이
+        모든 입력요소를 잠금 전 상태로 복원한다.
+      */
       if (
-        isLockExempt
+        !locked
       ) {
-        return;
-      }
+        const previousDisabled =
+          control.dataset
+            .memberRequestPreviousDisabled;
 
 
-      if (
-        locked
-      ) {
-        /*
-          잠금 전의 disabled 상태를 기억한다.
-        */
         if (
-          control.dataset
-            .memberRequestPreviousDisabled ===
-            undefined
+          previousDisabled ===
+          undefined
         ) {
-          control.dataset
-            .memberRequestPreviousDisabled =
-            control.disabled
-              ? "1"
-              : "0";
+          return;
         }
 
 
         control.disabled =
-          true;
+          previousDisabled ===
+          "1";
 
 
-        control.setAttribute(
-          "aria-disabled",
-          "true"
-        );
+        if (
+          control.disabled
+        ) {
+          control.setAttribute(
+            "aria-disabled",
+            "true"
+          );
+
+        } else {
+          control.removeAttribute(
+            "aria-disabled"
+          );
+        }
+
+
+        delete control.dataset
+          .memberRequestPreviousDisabled;
 
 
         return;
@@ -77945,47 +77950,81 @@ function setMemberEditorRequestLock(
 
 
       /*
-        결재요청 취소 후 원래 disabled 상태로 복원한다.
+        최고관리자는 서버에서도
+        모든 상태의 첨부파일 수정이 가능하다.
+
+        결재요청·결재완료 상태에서도
+        파일 선택 input만 잠금에서 제외한다.
       */
-      if (
+      const isSuperAdminAttachment =
+        isSuperAdmin &&
+        control.id ===
+          "logAttachments";
+
+
+      const isLockExempt =
+        lockExemptIds.has(
+          control.id
+        ) ||
         control.dataset
-          .memberRequestPreviousDisabled ===
-          undefined
+          .memberRequestLockExempt ===
+          "true" ||
+        isSuperAdminAttachment;
+
+
+      if (
+        isLockExempt
       ) {
+        if (
+          isSuperAdminAttachment
+        ) {
+          control.disabled =
+            false;
+
+
+          control.removeAttribute(
+            "aria-disabled"
+          );
+        }
+
+
         return;
       }
 
 
-      control.disabled =
+      /*
+        잠금 전의 disabled 상태를 기억한다.
+      */
+      if (
         control.dataset
           .memberRequestPreviousDisabled ===
-        "1";
-
-
-      if (
-        control.disabled
+        undefined
       ) {
-        control.setAttribute(
-          "aria-disabled",
-          "true"
-        );
-
-      } else {
-        control.removeAttribute(
-          "aria-disabled"
-        );
+        control.dataset
+          .memberRequestPreviousDisabled =
+          control.disabled
+            ? "1"
+            : "0";
       }
 
 
-      delete control.dataset
-        .memberRequestPreviousDisabled;
+      control.disabled =
+        true;
+
+
+      control.setAttribute(
+        "aria-disabled",
+        "true"
+      );
     }
   );
 
 
   form.classList.toggle(
     "is-approval-requested",
-    locked
+    Boolean(
+      locked
+    )
   );
 }
 
