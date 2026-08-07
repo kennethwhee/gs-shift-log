@@ -161333,6 +161333,65 @@ function applyCommonBaseDate(
     normalizedDate
   );
 
+/* ===================================================
+  BO1 · BO2 온도 저장값 즉시 복원
+
+  저장된 날짜라면 먼저 화면에 즉시 보여주고,
+  아래쪽의 업무일지 재조회가 실행되면
+  최신 값으로 다시 갱신된다.
+=================================================== */
+
+const boilerRestored =
+  typeof window
+    .restoreEfficiencyMorningMeetingBoilerCache ===
+    "function"
+    ? window
+        .restoreEfficiencyMorningMeetingBoilerCache(
+          normalizedDate
+        )
+    : false;
+
+
+/*
+  저장값이 없는 날짜인데 이전 날짜 온도가 남아 있으면
+  새 날짜 자료처럼 보이지 않도록 바로 제거한다.
+*/
+
+if (
+  !boilerRestored
+) {
+  const state =
+    getState();
+
+
+  const currentBoilerDate =
+    String(
+      state.boilerTemperatures
+        ?.reportDate ||
+      ""
+    ).trim();
+
+
+  if (
+    currentBoilerDate &&
+    currentBoilerDate !==
+      normalizedDate
+  ) {
+    delete state
+      .boilerTemperatures;
+
+
+    if (
+      typeof window
+        .renderEfficiencyMorningMeetingBoilerTemperatures ===
+        "function"
+    ) {
+      window
+        .renderEfficiencyMorningMeetingBoilerTemperatures();
+    }
+  }
+}  
+
 
   /* ===================================================
     석회석
@@ -161398,24 +161457,35 @@ function applyCommonBaseDate(
   }
 
 /* ===================================================
-  BO1 · BO2 업무일지 / 온도
+  BO1 · BO2 온도
 
-  공용 기준일과 같은 날짜의
-  N/S BO1 · BO2 운전현황을 다시 조회한다.
+  저장된 값이 있으면:
+  - 저장값 그대로 사용
+  - 날짜 이동만으로 자동값 재조회하지 않음
+  - 사용자가 수정한 값도 유지
+
+  저장된 값이 없으면:
+  - 해당 날짜 N/S BO1·BO2 업무일지 조회
+  - FBHE / Wall Screw 자동 추출
+  - 조회 완료 즉시 날짜별 저장
 =================================================== */
 
-runIndependentLookup(
-  "BO1·BO2 온도",
+if (
+  !boilerRestored
+) {
+  runIndependentLookup(
+    "BO1·BO2 온도",
 
-  () => {
-    return window
-      .loadEfficiencyMorningMeetingShiftLogsForDate?.(
-        normalizedDate
-      );
-  },
+    () => {
+      return window
+        .loadEfficiencyMorningMeetingShiftLogsForDate?.(
+          normalizedDate
+        );
+    },
 
-  0
-);  
+    0
+  );
+}
 
   /* ===================================================
     저장된 수처리가 없을 때만 OIS 조회
@@ -165121,6 +165191,1702 @@ if (
 
   console.log(
     "신규 업무일지 실제 첨부파일 R2 업로드 연결 완료"
+  );
+
+})();
+
+/* =========================================================
+  오전회의 BO1 · BO2 온도
+  날짜별 즉시 저장 · 복원
+
+  저장 시점:
+  1. BO1·BO2 업무일지 조회 완료
+  2. 사용자가 FBHE / Wall Screw 값을 직접 수정
+
+  저장 위치:
+  기존 오전회의 자동자료 localStorage에
+  boiler 항목을 추가한다.
+========================================================= */
+
+(function initializeMorningMeetingBoilerTemperatureCache() {
+  "use strict";
+
+
+  if (
+    window
+      .__morningMeetingBoilerTemperatureCacheInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__morningMeetingBoilerTemperatureCacheInstalled =
+    true;
+
+
+  const STORAGE_KEY =
+    "gsShiftLog.morningMeetingAutoDataCache.v1";
+
+
+  /* =====================================================
+    상태
+  ====================================================== */
+
+  function getState() {
+    if (
+      !window
+        .efficiencyMorningMeetingUploadState
+    ) {
+      window.efficiencyMorningMeetingUploadState = {
+        files: {},
+        analysis: {}
+      };
+    }
+
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  /* =====================================================
+    날짜 검사
+  ====================================================== */
+
+  function normalizeDate(
+    value
+  ) {
+    const date =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    return /^\d{4}-\d{2}-\d{2}$/.test(
+      date
+    )
+      ? date
+      : "";
+  }
+
+
+  /* =====================================================
+    객체 복사
+  ====================================================== */
+
+  function cloneValue(
+    value
+  ) {
+    try {
+      return JSON.parse(
+        JSON.stringify(
+          value
+        )
+      );
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "보일러 온도 저장값 복사 실패:",
+        error
+      );
+
+
+      return null;
+    }
+  }
+
+
+  /* =====================================================
+    전체 자동자료 저장소 읽기
+  ====================================================== */
+
+  function loadCache() {
+    const rawValue =
+      localStorage.getItem(
+        STORAGE_KEY
+      );
+
+
+    if (
+      !rawValue
+    ) {
+      return {
+        water: {},
+        gearPinion: {},
+        boiler: {}
+      };
+    }
+
+
+    try {
+      const parsed =
+        JSON.parse(
+          rawValue
+        );
+
+
+      return (
+        parsed &&
+        typeof parsed ===
+          "object"
+          ? parsed
+          : {}
+      );
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "오전회의 자동자료 저장값 읽기 실패:",
+        error
+      );
+
+
+      return {};
+    }
+  }
+
+
+  /* =====================================================
+    전체 자동자료 저장소 쓰기
+  ====================================================== */
+
+  function saveCache(
+    cache
+  ) {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(
+          cache
+        )
+      );
+
+
+      return true;
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "오전회의 보일러 온도 저장 실패:",
+        error
+      );
+
+
+      return false;
+    }
+  }
+
+
+  /* =====================================================
+    현재 BO1·BO2 온도 즉시 저장
+  ====================================================== */
+
+  function saveBoilerTemperatures() {
+    const state =
+      getState();
+
+
+    const boilerTemperatures =
+      state.boilerTemperatures;
+
+
+    if (
+      !boilerTemperatures ||
+      typeof boilerTemperatures !==
+        "object"
+    ) {
+      return false;
+    }
+
+
+    const reportDate =
+      normalizeDate(
+        boilerTemperatures.reportDate ||
+        state.shiftPart?.reportDate ||
+        state.shiftPart?.loadedDate
+      );
+
+
+    if (
+      !reportDate
+    ) {
+      return false;
+    }
+
+
+    const savedValue =
+      cloneValue({
+        ...boilerTemperatures,
+
+        reportDate,
+
+        cachedAt:
+          new Date()
+            .toISOString()
+      });
+
+
+    if (
+      !savedValue
+    ) {
+      return false;
+    }
+
+
+    const cache =
+      loadCache();
+
+
+    if (
+      !cache.boiler ||
+      typeof cache.boiler !==
+        "object"
+    ) {
+      cache.boiler =
+        {};
+    }
+
+
+    cache.boiler[
+      reportDate
+    ] =
+      savedValue;
+
+
+    const saved =
+      saveCache(
+        cache
+      );
+
+
+    if (
+      saved
+    ) {
+      console.log(
+        `오전회의 BO1·BO2 온도 ${reportDate} 저장 완료`
+      );
+    }
+
+
+    return saved;
+  }
+
+
+  /* =====================================================
+    지정 날짜 BO1·BO2 온도 즉시 복원
+  ====================================================== */
+
+  function restoreBoilerTemperatures(
+    requestedDate
+  ) {
+    const reportDate =
+      normalizeDate(
+        requestedDate
+      );
+
+
+    if (
+      !reportDate
+    ) {
+      return false;
+    }
+
+
+    const cache =
+      loadCache();
+
+
+    const savedValue =
+      cache.boiler?.[
+        reportDate
+      ];
+
+
+    if (
+      !savedValue ||
+      typeof savedValue !==
+        "object"
+    ) {
+      return false;
+    }
+
+
+    const restoredValue =
+      cloneValue(
+        savedValue
+      );
+
+
+    if (
+      !restoredValue
+    ) {
+      return false;
+    }
+
+
+    const state =
+      getState();
+
+
+    restoredValue.reportDate =
+      reportDate;
+
+
+    state.boilerTemperatures =
+      restoredValue;
+
+
+    /* ===================================================
+      보일러 입력칸 즉시 갱신
+    ==================================================== */
+
+    if (
+      typeof window
+        .renderEfficiencyMorningMeetingBoilerTemperatures ===
+        "function"
+    ) {
+      window
+        .renderEfficiencyMorningMeetingBoilerTemperatures();
+    }
+
+
+    /* ===================================================
+      자동 수치 미리보기 전체 갱신
+    ==================================================== */
+
+    if (
+      typeof window
+        .renderEfficiencyMorningMeetingAutoPreview ===
+        "function"
+    ) {
+      window
+        .renderEfficiencyMorningMeetingAutoPreview();
+    }
+
+
+    /* ===================================================
+      최종 엑셀 버튼 재판정
+    ==================================================== */
+
+    if (
+      typeof window
+        .updateEfficiencyMorningMeetingCreateButton ===
+        "function"
+    ) {
+      window
+        .updateEfficiencyMorningMeetingCreateButton();
+    }
+
+
+    console.log(
+      `오전회의 BO1·BO2 온도 ${reportDate} 저장값 복원`
+    );
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    비동기 처리 직후 저장
+
+    이벤트 발생 시점과 state 반영 시점 차이를
+    조금 보정한다.
+  ====================================================== */
+
+  function scheduleSave() {
+    window.setTimeout(
+      saveBoilerTemperatures,
+      0
+    );
+
+
+    window.setTimeout(
+      saveBoilerTemperatures,
+      100
+    );
+  }
+
+
+  /* =====================================================
+    업무일지에서 자동 추출 완료
+  ====================================================== */
+
+  document.addEventListener(
+    "efficiencyMorningMeetingShiftLogsLoaded",
+    scheduleSave
+  );
+
+
+  /* =====================================================
+    사용자가 온도 직접 수정
+  ====================================================== */
+
+  document.addEventListener(
+    "efficiencyMorningMeetingBoilerTemperaturesChanged",
+    scheduleSave
+  );
+
+
+  /* =====================================================
+    외부 공개
+  ====================================================== */
+
+  window
+    .saveEfficiencyMorningMeetingBoilerCache =
+    saveBoilerTemperatures;
+
+
+  window
+    .restoreEfficiencyMorningMeetingBoilerCache =
+    restoreBoilerTemperatures;
+})();
+
+/* =========================================================
+  업무일지 첨부파일 편집창 통합 관리 최종본
+
+  기능:
+  1. 기존 R2 저장 첨부파일 유지
+  2. 새로 선택한 파일을 기존 파일 옆에 추가 표시
+  3. 새 파일 저장 전 개별 제거
+  4. 저장된 R2 파일 개별 삭제
+  5. 삭제 즉시 R2 + D1에서 제거
+  6. 파일 선택 시 기존 첨부파일이 사라지지 않음
+========================================================= */
+
+(function installShiftLogAttachmentEditorManagement() {
+  if (
+    window
+      .__shiftLogAttachmentEditorManagementInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__shiftLogAttachmentEditorManagementInstalled =
+    true;
+
+
+  const SHIFT_LOG_FILE_API =
+    "/api/shift-log-files";
+
+
+  /* =====================================================
+    수정창에 현재 저장되어 있는 첨부파일
+
+    실제 원본은:
+    D1 shift_log_attachments
+    +
+    R2 ATTACHMENTS
+  ====================================================== */
+
+  if (
+    !Array.isArray(
+      appState.editorSavedAttachments
+    )
+  ) {
+    appState.editorSavedAttachments =
+      [];
+  }
+
+
+  /* =====================================================
+    첨부파일 ID
+  ====================================================== */
+
+  function getEditorAttachmentId(
+    attachment
+  ) {
+    if (
+      !attachment ||
+      typeof attachment !==
+        "object"
+    ) {
+      return "";
+    }
+
+
+    return String(
+      attachment.id ||
+      attachment.attachmentId ||
+      attachment.attachment_id ||
+      ""
+    ).trim();
+  }
+
+
+  /* =====================================================
+    첨부파일 이름
+  ====================================================== */
+
+  function getEditorAttachmentName(
+    attachment,
+    fallback =
+      "첨부파일"
+  ) {
+    if (
+      typeof attachment ===
+        "string"
+    ) {
+      return (
+        attachment.trim() ||
+        fallback
+      );
+    }
+
+
+    return (
+      String(
+        attachment?.fileName ||
+        attachment?.file_name ||
+        attachment?.name ||
+        attachment?.originalName ||
+        attachment?.original_name ||
+        ""
+      ).trim() ||
+      fallback
+    );
+  }
+
+
+  /* =====================================================
+    첨부파일 URL
+  ====================================================== */
+
+  function getEditorAttachmentUrl(
+    attachment
+  ) {
+    if (
+      !attachment ||
+      typeof attachment !==
+        "object"
+    ) {
+      return "";
+    }
+
+
+    const directUrl =
+      String(
+        attachment.previewUrl ||
+        attachment.preview_url ||
+        attachment.url ||
+        attachment.downloadUrl ||
+        attachment.download_url ||
+        ""
+      ).trim();
+
+
+    if (
+      directUrl
+    ) {
+      return directUrl;
+    }
+
+
+    const attachmentId =
+      getEditorAttachmentId(
+        attachment
+      );
+
+
+    if (
+      !attachmentId
+    ) {
+      return "";
+    }
+
+
+    /*
+      UUID = 신규 업무일지 R2 첨부파일
+
+      숫자 ID = 기존 과거 업무일지 첨부파일
+    */
+    if (
+      !/^\d+$/.test(
+        attachmentId
+      )
+    ) {
+      return (
+        `${SHIFT_LOG_FILE_API}` +
+        `?id=${encodeURIComponent(
+          attachmentId
+        )}`
+      );
+    }
+
+
+    return (
+      `/api/legacy-attachment?id=` +
+      encodeURIComponent(
+        attachmentId
+      )
+    );
+  }
+
+
+  /* =====================================================
+    신규 업무일지 R2 첨부파일인지 확인
+
+    이 파일만 수정창에서 실제 삭제 가능
+  ====================================================== */
+
+  function isEditableShiftLogR2Attachment(
+    attachment
+  ) {
+    if (
+      !attachment ||
+      typeof attachment !==
+        "object"
+    ) {
+      return false;
+    }
+
+
+    const attachmentId =
+      getEditorAttachmentId(
+        attachment
+      );
+
+
+    if (
+      !attachmentId
+    ) {
+      return false;
+    }
+
+
+    const attachmentUrl =
+      getEditorAttachmentUrl(
+        attachment
+      );
+
+
+    const storageType =
+      String(
+        attachment.storageType ||
+        attachment.storage_type ||
+        ""
+      ).trim();
+
+
+    return (
+      storageType ===
+        "shift-log-r2" ||
+
+      attachmentUrl.includes(
+        "/api/shift-log-files"
+      ) ||
+
+      !/^\d+$/.test(
+        attachmentId
+      )
+    );
+  }
+
+
+  /* =====================================================
+    새로 선택된 로컬 파일
+  ====================================================== */
+
+  function getEditorPendingFiles() {
+    const input =
+      elements.logAttachments ||
+      document.getElementById(
+        "logAttachments"
+      );
+
+
+    if (
+      !input?.files
+    ) {
+      return [];
+    }
+
+
+    return [
+      ...input.files
+    ].filter(
+      file => {
+        return (
+          file instanceof
+            File &&
+          Number(
+            file.size ||
+            0
+          ) >
+            0
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    기존 저장 첨부파일 화면 HTML
+  ====================================================== */
+
+  function createSavedAttachmentChipHtml(
+    attachment,
+    index
+  ) {
+    const fileName =
+      getEditorAttachmentName(
+        attachment,
+        `첨부파일 ${index + 1}`
+      );
+
+
+    const attachmentId =
+      getEditorAttachmentId(
+        attachment
+      );
+
+
+    const attachmentUrl =
+      getEditorAttachmentUrl(
+        attachment
+      );
+
+
+    const canDelete =
+      isEditableShiftLogR2Attachment(
+        attachment
+      );
+
+
+    const fileNameHtml =
+      attachmentUrl
+        ? `
+          <a
+            class="shift-log-editor-attachment__name"
+            href="${escapeHtml(
+              attachmentUrl
+            )}"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="${escapeHtml(
+              fileName
+            )}"
+          >
+            ${escapeHtml(
+              fileName
+            )}
+          </a>
+        `
+        : `
+          <span
+            class="shift-log-editor-attachment__name"
+            title="${escapeHtml(
+              fileName
+            )}"
+          >
+            ${escapeHtml(
+              fileName
+            )}
+          </span>
+        `;
+
+
+    return `
+      <span
+        class="
+          attachment-chip
+          shift-log-editor-attachment
+          is-saved
+        "
+        data-attachment-file-name="${escapeHtml(
+          fileName
+        )}"
+      >
+
+        ${fileNameHtml}
+
+
+        ${
+          canDelete
+            ? `
+              <button
+                type="button"
+                class="
+                  shift-log-editor-attachment__remove
+                  is-saved
+                "
+                data-delete-shift-log-attachment="${escapeHtml(
+                  attachmentId
+                )}"
+                aria-label="${escapeHtml(
+                  fileName
+                )} 삭제"
+                title="저장된 첨부파일 삭제"
+              >
+              </button>
+            `
+            : ""
+        }
+
+      </span>
+    `;
+  }
+
+
+  /* =====================================================
+    새 파일 화면 HTML
+
+    중요:
+    삭제 버튼 안에는 실제 텍스트를 넣지 않는다.
+
+    이유:
+    기존 collectEditorData()가
+    .attachment-chip의 textContent를 사용하기 때문.
+
+    × 모양은 CSS ::before로 표시한다.
+  ====================================================== */
+
+  function createPendingAttachmentChipHtml(
+    file,
+    index
+  ) {
+    const fileName =
+      String(
+        file?.name ||
+        `새 첨부파일 ${index + 1}`
+      ).trim();
+
+
+    return `
+      <span
+        class="
+          attachment-chip
+          shift-log-editor-attachment
+          is-pending
+        "
+        data-attachment-file-name="${escapeHtml(
+          fileName
+        )}"
+        title="아직 저장되지 않은 첨부파일"
+      >
+
+        <span
+          class="shift-log-editor-attachment__name"
+        >
+          ${escapeHtml(
+            fileName
+          )}
+        </span>
+
+
+        <button
+          type="button"
+          class="
+            shift-log-editor-attachment__remove
+            is-pending
+          "
+          data-remove-pending-attachment="${index}"
+          aria-label="${escapeHtml(
+            fileName
+          )} 선택 취소"
+          title="선택한 파일 제거"
+        >
+        </button>
+
+      </span>
+    `;
+  }
+
+
+  /* =====================================================
+    기존 + 신규 파일 통합 렌더링
+  ====================================================== */
+
+  function renderShiftLogEditorAttachments() {
+    const container =
+      elements.attachmentList ||
+      document.getElementById(
+        "attachmentList"
+      );
+
+
+    if (
+      !container
+    ) {
+      return;
+    }
+
+
+    const savedAttachments =
+      Array.isArray(
+        appState.editorSavedAttachments
+      )
+        ? appState.editorSavedAttachments
+            .filter(
+              Boolean
+            )
+        : [];
+
+
+    const pendingFiles =
+      getEditorPendingFiles();
+
+
+    if (
+      savedAttachments.length ===
+        0 &&
+      pendingFiles.length ===
+        0
+    ) {
+      container.innerHTML =
+        "";
+
+      return;
+    }
+
+
+    const savedHtml =
+      savedAttachments
+        .map(
+          (
+            attachment,
+            index
+          ) => {
+            return createSavedAttachmentChipHtml(
+              attachment,
+              index
+            );
+          }
+        )
+        .join(
+          ""
+        );
+
+
+    const pendingHtml =
+      pendingFiles
+        .map(
+          (
+            file,
+            index
+          ) => {
+            return createPendingAttachmentChipHtml(
+              file,
+              index
+            );
+          }
+        )
+        .join(
+          ""
+        );
+
+
+    container.innerHTML =
+      savedHtml +
+      pendingHtml;
+  }
+
+
+  /* =====================================================
+    기존 renderSavedAttachments 교체
+
+    기존 업무일지를 수정창에서 열었을 때
+    실제 저장 첨부파일을 상태에 기억한다.
+  ====================================================== */
+
+  renderSavedAttachments =
+    function renderSavedAttachmentsWithR2Management(
+      attachments
+    ) {
+      appState.editorSavedAttachments =
+        Array.isArray(
+          attachments
+        )
+          ? attachments
+              .filter(
+                Boolean
+              )
+              .map(
+                attachment => {
+                  /*
+                    객체는 복사해서 관리한다.
+                  */
+                  if (
+                    attachment &&
+                    typeof attachment ===
+                      "object"
+                  ) {
+                    return {
+                      ...attachment
+                    };
+                  }
+
+
+                  return attachment;
+                }
+              )
+          : [];
+
+
+      renderShiftLogEditorAttachments();
+    };
+
+
+  /* =====================================================
+    기존 renderAttachmentList 교체
+
+    핵심:
+    새 파일 선택 시 기존 저장 파일을 지우지 않는다.
+  ====================================================== */
+
+  renderAttachmentList =
+    function renderAttachmentListWithSavedFiles() {
+      renderShiftLogEditorAttachments();
+    };
+
+
+  /* =====================================================
+    resetLogEditor 보호
+
+    새로운 업무일지를 열 때
+    이전 일지의 저장 첨부파일이 남지 않도록 한다.
+  ====================================================== */
+
+  if (
+    typeof resetLogEditor ===
+      "function" &&
+    resetLogEditor
+      .__shiftLogAttachmentStateProtected !==
+      true
+  ) {
+    const originalResetLogEditor =
+      resetLogEditor;
+
+
+    const protectedResetLogEditor =
+      function resetLogEditorWithAttachmentReset(
+        ...args
+      ) {
+        appState.editorSavedAttachments =
+          [];
+
+
+        const result =
+          originalResetLogEditor.apply(
+            this,
+            args
+          );
+
+
+        renderShiftLogEditorAttachments();
+
+
+        return result;
+      };
+
+
+    protectedResetLogEditor
+      .__shiftLogAttachmentStateProtected =
+      true;
+
+
+    resetLogEditor =
+      protectedResetLogEditor;
+  }
+
+
+  /* =====================================================
+    저장 전 새 파일 1개 제거
+
+    input.files는 직접 splice할 수 없으므로
+    DataTransfer로 새로운 FileList를 만든다.
+  ====================================================== */
+
+  function removePendingShiftLogAttachment(
+    fileIndex
+  ) {
+    const input =
+      elements.logAttachments ||
+      document.getElementById(
+        "logAttachments"
+      );
+
+
+    if (
+      !input?.files
+    ) {
+      return;
+    }
+
+
+    const currentFiles = [
+      ...input.files
+    ];
+
+
+    const normalizedIndex =
+      Number(
+        fileIndex
+      );
+
+
+    if (
+      !Number.isInteger(
+        normalizedIndex
+      ) ||
+      normalizedIndex <
+        0 ||
+      normalizedIndex >=
+        currentFiles.length
+    ) {
+      return;
+    }
+
+
+    if (
+      typeof DataTransfer !==
+        "function"
+    ) {
+      showToast(
+        "현재 브라우저에서는 개별 파일 제거를 지원하지 않습니다. 파일을 다시 선택해 주세요."
+      );
+
+      return;
+    }
+
+
+    const transfer =
+      new DataTransfer();
+
+
+    currentFiles.forEach(
+      (
+        file,
+        index
+      ) => {
+        if (
+          index ===
+            normalizedIndex
+        ) {
+          return;
+        }
+
+
+        transfer.items.add(
+          file
+        );
+      }
+    );
+
+
+    input.files =
+      transfer.files;
+
+
+    renderShiftLogEditorAttachments();
+  }
+
+
+  /* =====================================================
+    현재 수정 중인 업무일지 ID
+  ====================================================== */
+
+  function getCurrentEditingShiftLogId() {
+    return String(
+      elements.logEditorForm
+        ?.dataset
+        ?.editingId ||
+      document.getElementById(
+        "logEditorForm"
+      )
+        ?.dataset
+        ?.editingId ||
+      ""
+    ).trim();
+  }
+
+
+  /* =====================================================
+    메모리에 있는 업무일지 첨부정보도 갱신
+  ====================================================== */
+
+  function syncSavedAttachmentsToLogState() {
+    const logId =
+      getCurrentEditingShiftLogId();
+
+
+    if (
+      !logId
+    ) {
+      return;
+    }
+
+
+    const nextAttachments =
+      Array.isArray(
+        appState.editorSavedAttachments
+      )
+        ? appState
+            .editorSavedAttachments
+            .map(
+              attachment => {
+                return (
+                  attachment &&
+                  typeof attachment ===
+                    "object"
+                    ? {
+                        ...attachment
+                      }
+                    : attachment
+                );
+              }
+            )
+        : [];
+
+
+    if (
+      Array.isArray(
+        appState.logs
+      )
+    ) {
+      appState.logs =
+        appState.logs.map(
+          log => {
+            if (
+              String(
+                log?.id ||
+                ""
+              ).trim() !==
+                logId
+            ) {
+              return log;
+            }
+
+
+            return {
+              ...log,
+
+              attachments:
+                nextAttachments
+            };
+          }
+        );
+    }
+
+
+    /*
+      조회 탭에서 현재 검색 결과가 열려 있는 경우도
+      함께 맞춰준다.
+    */
+    if (
+      typeof currentSearchResultLogs !==
+        "undefined" &&
+      Array.isArray(
+        currentSearchResultLogs
+      )
+    ) {
+      currentSearchResultLogs =
+        currentSearchResultLogs.map(
+          log => {
+            if (
+              String(
+                log?.id ||
+                ""
+              ).trim() !==
+                logId
+            ) {
+              return log;
+            }
+
+
+            return {
+              ...log,
+
+              attachments:
+                nextAttachments
+            };
+          }
+        );
+    }
+  }
+
+
+  /* =====================================================
+    실제 저장된 R2 첨부파일 삭제
+  ====================================================== */
+
+  async function deleteSavedShiftLogAttachment(
+    attachmentId,
+    clickedButton = null
+  ) {
+    const normalizedId =
+      String(
+        attachmentId ||
+        ""
+      ).trim();
+
+
+    if (
+      !normalizedId
+    ) {
+      return;
+    }
+
+
+    const targetAttachment =
+      (
+        Array.isArray(
+          appState.editorSavedAttachments
+        )
+          ? appState.editorSavedAttachments
+          : []
+      ).find(
+        attachment => {
+          return (
+            getEditorAttachmentId(
+              attachment
+            ) ===
+            normalizedId
+          );
+        }
+      );
+
+
+    if (
+      !targetAttachment
+    ) {
+      showToast(
+        "삭제할 첨부파일을 찾을 수 없습니다."
+      );
+
+      return;
+    }
+
+
+    const fileName =
+      getEditorAttachmentName(
+        targetAttachment
+      );
+
+
+    /*
+      첨부파일 삭제 전부터
+      다른 미저장 수정사항이 있었는지 기억한다.
+
+      파일 삭제 후 전체 편집 내용을
+      무조건 저장 완료 상태로 만들어버리면 안 된다.
+    */
+    const hadUnsavedChanges =
+      typeof hasUnsavedLogEditorChanges ===
+        "function"
+        ? hasUnsavedLogEditorChanges()
+        : true;
+
+
+    let shouldDelete =
+      false;
+
+
+    if (
+      typeof showCompactConfirm ===
+        "function"
+    ) {
+      shouldDelete =
+        await showCompactConfirm({
+          title:
+            "첨부파일 삭제",
+
+          message:
+            `${fileName} 파일을 삭제하시겠습니까?`,
+
+          confirmText:
+            "삭제",
+
+          cancelText:
+            "취소"
+        });
+
+    } else {
+      shouldDelete =
+        window.confirm(
+          `${fileName} 파일을 삭제하시겠습니까?`
+        );
+    }
+
+
+    if (
+      !shouldDelete
+    ) {
+      return;
+    }
+
+
+    if (
+      clickedButton
+    ) {
+      clickedButton.disabled =
+        true;
+
+      clickedButton.classList.add(
+        "is-working"
+      );
+    }
+
+
+    try {
+      const response =
+        await fetch(
+          `${SHIFT_LOG_FILE_API}?id=${encodeURIComponent(
+            normalizedId
+          )}`,
+          {
+            method:
+              "DELETE",
+
+            headers:
+              typeof getShiftLogAuthHeaders ===
+                "function"
+                ? getShiftLogAuthHeaders()
+                : {
+                    Accept:
+                      "application/json"
+                  },
+
+            cache:
+              "no-store"
+          }
+        );
+
+
+      const responseText =
+        await response.text();
+
+
+      let result = {};
+
+
+      if (
+        responseText.trim()
+      ) {
+        try {
+          result =
+            JSON.parse(
+              responseText
+            );
+
+        } catch {
+          throw new Error(
+            "첨부파일 삭제 서버 응답을 확인할 수 없습니다."
+          );
+        }
+      }
+
+
+      if (
+        !response.ok ||
+        result.ok ===
+          false
+      ) {
+        throw new Error(
+          result.message ||
+          result.error ||
+          `첨부파일 삭제 실패 (HTTP ${response.status})`
+        );
+      }
+
+
+      /*
+        서버 삭제 성공 후에만
+        화면 목록에서 제거한다.
+      */
+      appState.editorSavedAttachments =
+        (
+          Array.isArray(
+            appState.editorSavedAttachments
+          )
+            ? appState.editorSavedAttachments
+            : []
+        ).filter(
+          attachment => {
+            return (
+              getEditorAttachmentId(
+                attachment
+              ) !==
+              normalizedId
+            );
+          }
+        );
+
+
+      syncSavedAttachmentsToLogState();
+
+
+      renderShiftLogEditorAttachments();
+
+
+      if (
+        typeof renderLogTable ===
+          "function"
+      ) {
+        renderLogTable();
+      }
+
+
+      if (
+        typeof updateShiftMemberCardStates ===
+          "function"
+      ) {
+        updateShiftMemberCardStates();
+      }
+
+
+      /*
+        삭제 전에 다른 미저장 변경사항이 없었다면
+        파일 삭제 자체는 이미 서버에 저장되었으므로
+        현재 상태를 저장 기준으로 다시 기록한다.
+      */
+      if (
+        !hadUnsavedChanges &&
+        typeof markLogEditorAsSaved ===
+          "function"
+      ) {
+        markLogEditorAsSaved();
+      }
+
+
+      showToast(
+        `${fileName} 첨부파일을 삭제했습니다.`
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "업무일지 첨부파일 삭제 실패:",
+        error
+      );
+
+
+      showToast(
+        error?.message ||
+        "첨부파일을 삭제하지 못했습니다."
+      );
+
+
+      if (
+        clickedButton
+      ) {
+        clickedButton.disabled =
+          false;
+
+        clickedButton.classList.remove(
+          "is-working"
+        );
+      }
+    }
+  }
+
+
+  /* =====================================================
+    첨부파일 삭제 버튼 이벤트
+  ====================================================== */
+
+  document.addEventListener(
+    "click",
+    event => {
+      const target =
+        event.target instanceof
+          Element
+          ? event.target
+          : null;
+
+
+      if (
+        !target
+      ) {
+        return;
+      }
+
+
+      /* -----------------------------------------------
+        새로 선택한 파일 제거
+      ------------------------------------------------ */
+
+      const pendingRemoveButton =
+        target.closest(
+          "[data-remove-pending-attachment]"
+        );
+
+
+      if (
+        pendingRemoveButton
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        removePendingShiftLogAttachment(
+          pendingRemoveButton.dataset
+            .removePendingAttachment
+        );
+
+
+        return;
+      }
+
+
+      /* -----------------------------------------------
+        이미 저장된 R2 파일 삭제
+      ------------------------------------------------ */
+
+      const savedDeleteButton =
+        target.closest(
+          "[data-delete-shift-log-attachment]"
+        );
+
+
+      if (
+        savedDeleteButton
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        deleteSavedShiftLogAttachment(
+          savedDeleteButton.dataset
+            .deleteShiftLogAttachment,
+          savedDeleteButton
+        );
+      }
+    },
+    true
+  );
+
+
+  /*
+    이전 단계의 실제 업로드가 성공해서
+
+    renderSavedAttachments(
+      attachments
+    );
+
+    가 실행되면 이 함수가 자동으로
+    editorSavedAttachments를 최신 상태로 바꾼다.
+  */
+
+
+  window
+    .renderShiftLogEditorAttachments =
+    renderShiftLogEditorAttachments;
+
+
+  console.log(
+    "업무일지 첨부파일 편집창 통합 관리 연결 완료"
   );
 
 })();

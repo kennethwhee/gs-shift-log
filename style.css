@@ -87716,3 +87716,304 @@ strong {
     font-size: 8px;
   }
 }
+
+/* =========================================================
+  업무일지 첨부파일 편집 목록
+
+  저장됨:
+  파란 계열
+
+  새 파일 / 저장 대기:
+  초록 계열 + 점선
+========================================================= */
+
+#attachmentList {
+  display: flex;
+  flex-wrap: wrap;
+
+  align-items: center;
+
+  gap: 7px;
+}
+
+
+/* =========================================================
+  공통 첨부파일 CHIP
+========================================================= */
+
+#attachmentList
+.shift-log-editor-attachment {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 5px;
+
+  max-width: 100%;
+
+  min-height: 30px;
+
+  padding:
+    4px
+    5px
+    4px
+    10px;
+
+  border-radius: 7px;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  line-height: 1.2;
+}
+
+
+/* =========================================================
+  이미 저장된 첨부파일
+========================================================= */
+
+#attachmentList
+.shift-log-editor-attachment.is-saved {
+  border:
+    1px solid
+    #bfd3e8;
+
+  background:
+    #f1f7fd;
+
+  color:
+    #315f8c;
+}
+
+
+/* =========================================================
+  새로 선택한 파일
+========================================================= */
+
+#attachmentList
+.shift-log-editor-attachment.is-pending {
+  border:
+    1px dashed
+    #9acdad;
+
+  background:
+    #f2faf5;
+
+  color:
+    #347354;
+}
+
+
+/*
+  저장 전 파일 표시
+
+  CSS의 content는 textContent에 포함되지 않으므로
+  기존 collectEditorData()의 파일명 수집에도 영향 없음
+*/
+#attachmentList
+.shift-log-editor-attachment.is-pending::before {
+  content:
+    "대기";
+
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  height:
+    17px;
+
+  padding:
+    0 5px;
+
+  border-radius:
+    4px;
+
+  background:
+    #dcefe3;
+
+  color:
+    #347354;
+
+  font-size:
+    8px;
+
+  font-weight:
+    900;
+}
+
+
+/* =========================================================
+  파일명
+========================================================= */
+
+#attachmentList
+.shift-log-editor-attachment__name {
+  display:
+    inline-block;
+
+  overflow:
+    hidden;
+
+  max-width:
+    260px;
+
+  color:
+    inherit;
+
+  text-decoration:
+    none;
+
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
+}
+
+
+#attachmentList
+a.shift-log-editor-attachment__name:hover {
+  text-decoration:
+    underline;
+}
+
+
+/* =========================================================
+  삭제 X 버튼
+
+  실제 HTML 안에 X 문자를 넣지 않고
+  CSS로만 표시한다.
+========================================================= */
+
+#attachmentList
+.shift-log-editor-attachment__remove {
+  display:
+    inline-flex;
+
+  flex:
+    0 0 21px;
+
+  width:
+    21px;
+
+  height:
+    21px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0;
+
+  border:
+    0;
+
+  border-radius:
+    5px;
+
+  background:
+    transparent;
+
+  cursor:
+    pointer;
+}
+
+
+/* X 표시 */
+#attachmentList
+.shift-log-editor-attachment__remove::before {
+  content:
+    "×";
+
+  font-size:
+    15px;
+
+  font-weight:
+    900;
+
+  line-height:
+    1;
+}
+
+
+/* 저장된 파일 삭제 */
+#attachmentList
+.shift-log-editor-attachment__remove.is-saved {
+  color:
+    #a74d4d;
+}
+
+
+#attachmentList
+.shift-log-editor-attachment__remove.is-saved:hover {
+  background:
+    #fdeaea;
+
+  color:
+    #c63535;
+}
+
+
+/* 아직 저장 안 된 파일 제거 */
+#attachmentList
+.shift-log-editor-attachment__remove.is-pending {
+  color:
+    #56866a;
+}
+
+
+#attachmentList
+.shift-log-editor-attachment__remove.is-pending:hover {
+  background:
+    #dcefe3;
+
+  color:
+    #2e6746;
+}
+
+
+/* 삭제 처리 중 */
+#attachmentList
+.shift-log-editor-attachment__remove.is-working {
+  opacity:
+    0.45;
+
+  cursor:
+    wait;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (max-width: 700px) {
+
+  #attachmentList
+  .shift-log-editor-attachment {
+    max-width:
+      100%;
+
+    min-height:
+      32px;
+  }
+
+
+  #attachmentList
+  .shift-log-editor-attachment__name {
+    max-width:
+      min(
+        230px,
+        60vw
+      );
+  }
+
+}

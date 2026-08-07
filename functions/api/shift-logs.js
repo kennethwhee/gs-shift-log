@@ -3725,6 +3725,214 @@ function collectInspectionAutoCompletionSourceEntries(
   return result;
 }
 
+/* =========================================================
+  점검 자동완료 호기 구분
+
+  기본 원칙:
+  - BCO1 / BO1 = 1호기
+  - BCO2 / BO2 = 2호기
+
+  업무내용에 호기가 직접 적혀 있으면
+  문구의 호기를 우선한다.
+
+  반환:
+  - 1
+  - 2
+  - 0 : 호기 구분 없음
+========================================================= */
+
+function getInspectionAutoCompletionUnitFromRole(
+  role
+) {
+  const normalizedRole =
+    normalizeLogRole(
+      role
+    );
+
+
+  if (
+    [
+      "BCO1",
+      "BO1"
+    ].includes(
+      normalizedRole
+    )
+  ) {
+    return 1;
+  }
+
+
+  if (
+    [
+      "BCO2",
+      "BO2"
+    ].includes(
+      normalizedRole
+    )
+  ) {
+    return 2;
+  }
+
+
+  return 0;
+}
+
+
+function getInspectionAutoCompletionUnitFromText(
+  value
+) {
+  const text =
+    normalizeInspectionAutoCompletionText(
+      value
+    );
+
+
+  if (
+    !text
+  ) {
+    return 0;
+  }
+
+
+  /*
+    1호기 표현
+  */
+  if (
+    /(?:^|\s)(?:1\s*호기|#\s*1|UNIT\s*1|1\s*UNIT)(?:\s|$)/i.test(
+      text
+    )
+  ) {
+    return 1;
+  }
+
+
+  /*
+    2호기 표현
+  */
+  if (
+    /(?:^|\s)(?:2\s*호기|#\s*2|UNIT\s*2|2\s*UNIT)(?:\s|$)/i.test(
+      text
+    )
+  ) {
+    return 2;
+  }
+
+
+  return 0;
+}
+
+
+/* =========================================================
+  점검 자동완료 호기 일치 검사
+
+  현재 GS Shift Log 운전 보직 기준:
+
+  BCO1 / BO1
+  → 1호기
+
+  BCO2 / BO2
+  → 2호기
+
+  TGO / TO / 파트장
+  → 호기 공통
+
+  중요:
+  SDA Hopper Ash처럼 호기별로 각각 수행하는 업무는
+  1호기 업무가 2호기 완료 근거가 되면 안 된다.
+========================================================= */
+
+function isInspectionAutoCompletionUnitCompatible(
+  scheduleItem,
+  sourceEntry
+) {
+  const scheduleId =
+    normalizeText(
+      scheduleItem?.id
+    );
+
+
+  /*
+    현재 반드시 1·2호기를 분리해야 하는 점검.
+
+    이후 호기별 점검이 추가되면
+    이 Set에 일정 ID만 추가하면 된다.
+  */
+  const unitSeparatedScheduleIds =
+    new Set([
+      "weekly-sda-hopper-ash"
+    ]);
+
+
+  /*
+    호기 분리가 필요 없는 점검은
+    기존 방식 그대로 허용한다.
+  */
+  if (
+    !unitSeparatedScheduleIds.has(
+      scheduleId
+    )
+  ) {
+    return true;
+  }
+
+
+  const sourceTextUnit =
+    getInspectionAutoCompletionUnitFromText(
+      sourceEntry?.sourceText
+    );
+
+
+  const sourceRoleUnit =
+    getInspectionAutoCompletionUnitFromRole(
+      sourceEntry?.sourceRole
+    );
+
+
+  /*
+    문구에 호기가 직접 적혀 있으면
+    그 값을 최우선으로 사용한다.
+
+    예:
+    BCO1 업무일지에
+    "2호기 SDA Hopper Ash 배출"
+    이라고 적은 경우 → 2호기 수행으로 본다.
+  */
+  const sourceUnit =
+    sourceTextUnit ||
+    sourceRoleUnit;
+
+
+  /*
+    BCO1 / BO1 / BCO2 / BO2가 아닌 경우에는
+    기존과 동일하게 허용한다.
+
+    예:
+    파트장 직접 입력 등
+  */
+  if (
+    sourceUnit ===
+      0
+  ) {
+    return true;
+  }
+
+
+  /*
+    현재 SDA Hopper Ash 일정 자체는
+    하나의 schedule ID를 사용하고 있으므로,
+
+    후보를 만드는 단계에서
+    출처 보직의 호기를 반드시 유지해야 한다.
+
+    여기서는 잘못된 반대 호기 전파를 막는다.
+  */
+  return (
+    sourceUnit ===
+      sourceRoleUnit ||
+    sourceRoleUnit ===
+      0
+  );
+}
 
 /* =========================================================
   같은 날짜·근무 전체 업무일지에서 자동완료 후보 생성
