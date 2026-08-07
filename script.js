@@ -127086,18 +127086,22 @@ function updateMorningMeetingUploadSummary() {
     );
 
 
-  /*
-    자료 분석 버튼은 이제
-    6개 파일 전부를 요구하지 않는다.
+/*
+  자료 분석 가능 조건
 
-    분석할 팀 파일 또는 운탄일지 중
-    하나라도 있으면 분석 가능하다.
-  */
+  - 일일발전현황만 있어도 분석 가능
+  - 운탄일지만 있어도 분석 가능
+  - 팀 자료 하나만 있어도 분석 가능
 
-  const hasAnalyzableFile =
-    teamUploadedCount >
-      0 ||
-    hasCoalLogFile;
+  첨부되지 않은 자료는
+  분석 단계에서 빈칸 결과로 생성한다.
+*/
+
+const hasAnalyzableFile =
+  hasTemplateFile ||
+  teamUploadedCount >
+    0 ||
+  hasCoalLogFile;
 
 
   /* =====================================================
@@ -129713,25 +129717,23 @@ function applyMorningMeetingTemplateFile(
 /* =====================================================
   최종 엑셀 만들기 버튼 활성화 조건
 
-  기존 필수:
-  1. 일일발전현황 첨부
-  2. 운탄일지 첨부
-  3. 안전·환경·기계·전기제어팀 분석 완료
-  4. 운탄일지 분석 완료
-  5. 운탄일지 내용 선택
-  6. 교대파트 업무 선택
+  빈칸 처리 가능:
+  - 운탄일지
+  - 연료설비 선택내용
+  - 교대파트 선택내용
+  - BO1·BO2 온도
+  - 안전팀
+  - 환경팀
+  - 기계팀
+  - 전기제어팀
 
-  자동자료 필수:
-  7. 수처리 9개 값
-  8. BO1·BO2 보일러 온도 12개
-  9. 석회석 재고·입고·사용량
-  10. Gear Wheel / Pinion
-
-  날짜:
-  - 수처리      = 오전회의 대상일 전일
-  - BO1·BO2     = 오전회의 대상일 전일 N/S
-  - 석회석      = 오전회의 대상일 전일
-  - Gear/Pinion = 오전회의 대상일 당일
+  현재 필수:
+  - 일일발전현황 기준 취합본
+  - 자료 분석 실행
+  - 오전회의 기준일
+  - 수처리
+  - 석회석
+  - Gear Wheel / Pinion
 ===================================================== */
 
 function updateMorningMeetingCreateButton() {
@@ -129745,13 +129747,6 @@ function updateMorningMeetingCreateButton() {
 
   /* ===================================================
     숫자값 검사
-
-    허용:
-    0
-    0.000
-    1,234.567
-    84.558 %
-    38.70 t
   ==================================================== */
 
   const parseRequiredNumber =
@@ -129968,18 +129963,18 @@ function updateMorningMeetingCreateButton() {
 
   const hasAllTeamAnalysis =
     analyzedTeamCount ===
-    TEAM_ORDER.length;
+      TEAM_ORDER.length;
 
 
   const hasCoalAnalysis =
     state.coalSelection
       ?.analyzed ===
-    true;
+      true;
 
 
   const hasCoalSelection =
     coalSelectedItems.length >
-    0;
+      0;
 
 
   const hasShiftPartText =
@@ -129991,7 +129986,9 @@ function updateMorningMeetingCreateButton() {
   /* ===================================================
     오전회의 전일 기준일
 
-    교대파트 업무일지 날짜를 최우선으로 사용한다.
+    우선순위:
+    1. 교대파트 업무일지 날짜
+    2. 수처리 조회 날짜
   ==================================================== */
 
   const expectedPreviousDate =
@@ -130034,32 +130031,18 @@ function updateMorningMeetingCreateButton() {
   const waterRequiredValues =
     waterTreatment
       ? [
-          waterTreatment
-            .rawWaterInflow,
+          waterTreatment.rawWaterInflow,
+          waterTreatment.demiProduction,
+          waterTreatment.pureWaterUsage,
 
-          waterTreatment
-            .demiProduction,
+          waterTreatment.rawWaterTankAmount,
+          waterTreatment.rawWaterTankRate,
 
-          waterTreatment
-            .pureWaterUsage,
+          waterTreatment.filteredWaterTankAmount,
+          waterTreatment.filteredWaterTankRate,
 
-          waterTreatment
-            .rawWaterTankAmount,
-
-          waterTreatment
-            .rawWaterTankRate,
-
-          waterTreatment
-            .filteredWaterTankAmount,
-
-          waterTreatment
-            .filteredWaterTankRate,
-
-          waterTreatment
-            .demiWaterTankAmount,
-
-          waterTreatment
-            .demiWaterTankRate
+          waterTreatment.demiWaterTankAmount,
+          waterTreatment.demiWaterTankRate
         ]
       : [];
 
@@ -130101,6 +130084,9 @@ function updateMorningMeetingCreateButton() {
 
   /* ===================================================
     2. BO1·BO2 온도
+
+    선택 자료:
+    없어도 최종 엑셀 생성 가능
   ==================================================== */
 
   const boilerTemperatures =
@@ -130111,13 +130097,64 @@ function updateMorningMeetingCreateButton() {
       : null;
 
 
+  const boilerRequiredValues =
+    boilerTemperatures
+      ? [
+          boilerTemperatures
+            .unitOne?.fbheLeft,
+
+          boilerTemperatures
+            .unitOne?.fbheRight,
+
+          boilerTemperatures
+            .unitOne?.wallScrew?.A,
+
+          boilerTemperatures
+            .unitOne?.wallScrew?.B,
+
+          boilerTemperatures
+            .unitOne?.wallScrew?.C,
+
+          boilerTemperatures
+            .unitOne?.wallScrew?.D,
+
+          boilerTemperatures
+            .unitTwo?.fbheLeft,
+
+          boilerTemperatures
+            .unitTwo?.fbheRight,
+
+          boilerTemperatures
+            .unitTwo?.wallScrew?.A,
+
+          boilerTemperatures
+            .unitTwo?.wallScrew?.B,
+
+          boilerTemperatures
+            .unitTwo?.wallScrew?.C,
+
+          boilerTemperatures
+            .unitTwo?.wallScrew?.D
+        ]
+      : [];
+
+
   const hasBoilerTemperatures =
     Boolean(
       boilerTemperatures
     ) &&
-    boilerTemperatures
-      .complete ===
-      true;
+    boilerRequiredValues.length ===
+      12 &&
+    boilerRequiredValues.every(
+      value => {
+        return (
+          parseRequiredNumber(
+            value
+          ) !==
+          null
+        );
+      }
+    );
 
 
   const boilerDate =
@@ -130139,9 +130176,6 @@ function updateMorningMeetingCreateButton() {
 
   /* ===================================================
     3. 석회석
-
-    기존 석회석 사용량 계산 화면의
-    실제 값을 그대로 검사한다.
   ==================================================== */
 
   const limestoneView =
@@ -130226,12 +130260,12 @@ function updateMorningMeetingCreateButton() {
 
   const limestoneIsBusy =
     limestoneStatus ===
-    "loading";
+      "loading";
 
 
   const limestoneHasError =
     limestoneStatus ===
-    "error";
+      "error";
 
 
   const hasLimestoneData =
@@ -130306,22 +130340,18 @@ function updateMorningMeetingCreateButton() {
 
   /* ===================================================
     최종 활성화 조건
+
+    운탄·교대파트·BO1·BO2는
+    필수조건에서 제외
   ==================================================== */
 
   const canCreate =
     hasTemplateFile &&
-    hasCoalLogFile &&
     hasAllTeamAnalysis &&
-    hasCoalAnalysis &&
-    hasCoalSelection &&
-    hasShiftPartText &&
     hasExpectedPreviousDate &&
 
     hasWaterTreatment &&
     hasCorrectWaterDate &&
-
-    hasBoilerTemperatures &&
-    hasCorrectBoilerDate &&
 
     hasLimestoneData &&
     hasCorrectLimestoneDate &&
@@ -130340,14 +130370,21 @@ function updateMorningMeetingCreateButton() {
 
   /* ===================================================
     안내 문구
-
-    기존 자료 → 자동자료 순서로 확인한다.
   ==================================================== */
 
   if (
-    !elements.message ||
+    !elements.message
+  ) {
+    return;
+  }
+
+
+  if (
     !hasAllTeamAnalysis
   ) {
+    elements.message.textContent =
+      "자료 분석을 먼저 실행해 주세요. 첨부되지 않은 팀 자료는 빈칸으로 처리됩니다.";
+
     return;
   }
 
@@ -130356,52 +130393,7 @@ function updateMorningMeetingCreateButton() {
     !hasTemplateFile
   ) {
     elements.message.textContent =
-      "자료 분석이 완료되었습니다. 일일발전현황을 첨부해 주세요.";
-
-
-    return;
-  }
-
-
-  if (
-    !hasCoalLogFile
-  ) {
-    elements.message.textContent =
-      "자료 분석이 완료되었습니다. 운탄일지를 첨부해 주세요.";
-
-
-    return;
-  }
-
-
-  if (
-    !hasCoalAnalysis
-  ) {
-    elements.message.textContent =
-      "운탄일지 분석이 완료되지 않았습니다. 자료 분석을 다시 눌러주세요.";
-
-
-    return;
-  }
-
-
-  if (
-    !hasCoalSelection
-  ) {
-    elements.message.textContent =
-      "운탄일지에서 연료설비에 넣을 내용을 선택해 주세요.";
-
-
-    return;
-  }
-
-
-  if (
-    !hasShiftPartText
-  ) {
-    elements.message.textContent =
-      "교대파트 업무일지에서 오전회의에 넣을 내용을 선택해 주세요.";
-
+      "일일발전현황 기준 취합본을 첨부해 주세요.";
 
     return;
   }
@@ -130411,8 +130403,7 @@ function updateMorningMeetingCreateButton() {
     !hasExpectedPreviousDate
   ) {
     elements.message.textContent =
-      "오전회의 기준일을 확인할 수 없습니다. 업무일지를 다시 불러와 주세요.";
-
+      "오전회의 기준일을 확인할 수 없습니다.";
 
     return;
   }
@@ -130428,7 +130419,6 @@ function updateMorningMeetingCreateButton() {
     elements.message.textContent =
       "수처리 자료가 준비되지 않았습니다. OIS 자동자료 다시 조회를 눌러주세요.";
 
-
     return;
   }
 
@@ -130438,45 +130428,6 @@ function updateMorningMeetingCreateButton() {
   ) {
     elements.message.textContent =
       `수처리 조회일을 확인해 주세요. 필요일: ${expectedPreviousDate}`;
-
-
-    return;
-  }
-
-
-  /* ===================================================
-    BO1·BO2 온도
-  ==================================================== */
-
-  if (
-    !hasBoilerTemperatures
-  ) {
-    const missingLabels =
-      Array.isArray(
-        boilerTemperatures
-          ?.missing
-      )
-        ? boilerTemperatures
-            .missing
-        : [];
-
-
-    elements.message.textContent =
-      missingLabels.length
-        ? `BO1·BO2 온도 누락: ${missingLabels.join(", ")}`
-        : "BO1·BO2의 FBHE·Wall Screw 온도를 확인하지 못했습니다. 업무일지를 다시 불러와 주세요.";
-
-
-    return;
-  }
-
-
-  if (
-    !hasCorrectBoilerDate
-  ) {
-    elements.message.textContent =
-      `BO1·BO2 온도 업무일지 날짜를 확인해 주세요. 필요일: ${expectedPreviousDate}`;
-
 
     return;
   }
@@ -130492,7 +130443,6 @@ function updateMorningMeetingCreateButton() {
     elements.message.textContent =
       "석회석 재고·입고량을 불러오는 중입니다.";
 
-
     return;
   }
 
@@ -130502,7 +130452,6 @@ function updateMorningMeetingCreateButton() {
   ) {
     elements.message.textContent =
       "석회석 자료 조회에 실패했습니다. 석회석 사용량 자료를 다시 확인해 주세요.";
-
 
     return;
   }
@@ -130514,7 +130463,6 @@ function updateMorningMeetingCreateButton() {
     elements.message.textContent =
       "석회석 재고·입고량·사용량이 준비되지 않았습니다.";
 
-
     return;
   }
 
@@ -130524,7 +130472,6 @@ function updateMorningMeetingCreateButton() {
   ) {
     elements.message.textContent =
       `석회석 계산 기준일을 확인해 주세요. 필요일: ${expectedPreviousDate}`;
-
 
     return;
   }
@@ -130540,7 +130487,6 @@ function updateMorningMeetingCreateButton() {
     elements.message.textContent =
       "Gear Wheel / Pinion 자료가 준비되지 않았습니다. OIS 자동자료 다시 조회를 눌러주세요.";
 
-
     return;
   }
 
@@ -130551,22 +130497,112 @@ function updateMorningMeetingCreateButton() {
     elements.message.textContent =
       `Gear Wheel / Pinion 조회일을 확인해 주세요. 필요일: ${expectedMeetingDate}`;
 
-
     return;
   }
 
 
   /* ===================================================
-    모두 완료
+    빈칸 처리 예정 자료
   ==================================================== */
+
+  const blankSections =
+    [];
+
+
+  if (
+    !hasShiftPartText
+  ) {
+    blankSections.push(
+      "교대파트"
+    );
+  }
+
+
+  if (
+    !hasCoalLogFile ||
+    !hasCoalAnalysis
+  ) {
+    blankSections.push(
+      "운탄일지"
+    );
+
+  } else if (
+    !hasCoalSelection
+  ) {
+    blankSections.push(
+      "연료설비"
+    );
+  }
+
+
+  const teamNameMap = {
+    safety:
+      "안전팀",
+
+    environment:
+      "환경팀",
+
+    mechanical:
+      "기계팀",
+
+    electrical:
+      "전기제어팀"
+  };
+
+
+  TEAM_ORDER.forEach(
+    teamKey => {
+      if (
+        state.analysis?.[
+          teamKey
+        ]?.missing ===
+          true
+      ) {
+        blankSections.push(
+          teamNameMap[
+            teamKey
+          ] ||
+          teamKey
+        );
+      }
+    }
+  );
+
+
+  if (
+    !hasBoilerTemperatures ||
+    !hasCorrectBoilerDate
+  ) {
+    blankSections.push(
+      "BO1·BO2 온도"
+    );
+  }
+
+
+  /* ===================================================
+    최종 안내
+  ==================================================== */
+
+  if (
+    blankSections.length >
+      0
+  ) {
+    elements.message.textContent =
+      `최종 엑셀 생성 가능 · 빈칸 처리: ${blankSections.join(
+        " · "
+      )}`;
+
+    return;
+  }
+
 
   elements.message.textContent =
     "모든 자료와 자동 수치가 준비되었습니다. 최종 엑셀 만들기를 눌러주세요.";
 }
 
+
 window.updateEfficiencyMorningMeetingCreateButton =
   updateMorningMeetingCreateButton;
-
 
   /* =====================================================
     날짜 처리
@@ -136587,45 +136623,78 @@ function applyMorningMeetingBoilerTemperatureValues(
   worksheetDocument,
   boilerTemperatures
 ) {
-  if (
-    !boilerTemperatures ||
-    typeof boilerTemperatures !==
-      "object"
-  ) {
-    throw new Error(
-      "BO1·BO2 온도 자료가 없습니다. 업무일지를 다시 불러와 주세요."
-    );
-  }
+  /* ===================================================
+    선택 온도값 변환
+
+    값 있음:
+    → 숫자로 입력
+
+    값 없음:
+    → null
+    → 해당 엑셀 셀 비우기
+  ==================================================== */
+
+  const parseOptionalTemperature =
+    value => {
+      const normalizedValue =
+        String(
+          value ??
+          ""
+        )
+          .replaceAll(
+            ",",
+            ""
+          )
+          .replace(
+            /℃|°C/gi,
+            ""
+          )
+          .trim();
+
+
+      if (
+        !normalizedValue ||
+        normalizedValue ===
+          "-"
+      ) {
+        return null;
+      }
+
+
+      const numericValue =
+        Number(
+          normalizedValue
+        );
+
+
+      return Number.isFinite(
+        numericValue
+      )
+        ? numericValue
+        : null;
+    };
 
 
   const unitOne =
-    boilerTemperatures.unitOne;
+    boilerTemperatures &&
+    typeof boilerTemperatures ===
+      "object"
+      ? boilerTemperatures
+          .unitOne
+      : null;
 
 
   const unitTwo =
-    boilerTemperatures.unitTwo;
-
-
-  if (
-    !unitOne
-  ) {
-    throw new Error(
-      "현재 N/S의 BO1 운전현황을 찾지 못했습니다."
-    );
-  }
-
-
-  if (
-    !unitTwo
-  ) {
-    throw new Error(
-      "현재 N/S의 BO2 운전현황을 찾지 못했습니다."
-    );
-  }
+    boilerTemperatures &&
+    typeof boilerTemperatures ===
+      "object"
+      ? boilerTemperatures
+          .unitTwo
+      : null;
 
 
   /* ===================================================
-    온도 12개 검사 및 셀 연결
+    최종 엑셀 BO1·BO2 온도 셀
   ==================================================== */
 
   const mappings = [
@@ -136633,146 +136702,141 @@ function applyMorningMeetingBoilerTemperatureValues(
       address:
         "J15",
 
-      label:
-        "1호기 FBHE Left",
-
       value:
-        unitOne.fbheLeft
+        unitOne
+          ?.fbheLeft
     },
 
     {
       address:
         "S15",
 
-      label:
-        "1호기 FBHE Right",
-
       value:
-        unitOne.fbheRight
+        unitOne
+          ?.fbheRight
     },
 
     {
       address:
         "J16",
 
-      label:
-        "2호기 FBHE Left",
-
       value:
-        unitTwo.fbheLeft
+        unitTwo
+          ?.fbheLeft
     },
 
     {
       address:
         "S16",
 
-      label:
-        "2호기 FBHE Right",
-
       value:
-        unitTwo.fbheRight
+        unitTwo
+          ?.fbheRight
     },
 
     {
       address:
         "F21",
 
-      label:
-        "1호기 Wall Screw A",
-
       value:
-        unitOne.wallScrew?.A
+        unitOne
+          ?.wallScrew
+          ?.A
     },
 
     {
       address:
         "J21",
 
-      label:
-        "1호기 Wall Screw B",
-
       value:
-        unitOne.wallScrew?.B
+        unitOne
+          ?.wallScrew
+          ?.B
     },
 
     {
       address:
         "M21",
 
-      label:
-        "1호기 Wall Screw C",
-
       value:
-        unitOne.wallScrew?.C
+        unitOne
+          ?.wallScrew
+          ?.C
     },
 
     {
       address:
         "T21",
 
-      label:
-        "1호기 Wall Screw D",
-
       value:
-        unitOne.wallScrew?.D
+        unitOne
+          ?.wallScrew
+          ?.D
     },
 
     {
       address:
         "F22",
 
-      label:
-        "2호기 Wall Screw A",
-
       value:
-        unitTwo.wallScrew?.A
+        unitTwo
+          ?.wallScrew
+          ?.A
     },
 
     {
       address:
         "J22",
 
-      label:
-        "2호기 Wall Screw B",
-
       value:
-        unitTwo.wallScrew?.B
+        unitTwo
+          ?.wallScrew
+          ?.B
     },
 
     {
       address:
         "M22",
 
-      label:
-        "2호기 Wall Screw C",
-
       value:
-        unitTwo.wallScrew?.C
+        unitTwo
+          ?.wallScrew
+          ?.C
     },
 
     {
       address:
         "T22",
 
-      label:
-        "2호기 Wall Screw D",
-
       value:
-        unitTwo.wallScrew?.D
+        unitTwo
+          ?.wallScrew
+          ?.D
     }
   ];
+
+
+  let appliedCount =
+    0;
+
+
+  let clearedCount =
+    0;
+
+
+  const missingAddresses =
+    [];
 
 
   mappings.forEach(
     mapping => {
       const numericValue =
-        normalizeMorningMeetingBoilerTemperatureNumber(
-          mapping.value,
-          mapping.label
+        parseOptionalTemperature(
+          mapping.value
         );
 
 
-      const writeResult =
+      const result =
         setMorningMeetingNumericCellValue(
           worksheetDocument,
           mapping.address,
@@ -136780,27 +136844,64 @@ function applyMorningMeetingBoilerTemperatureValues(
         );
 
 
+      /*
+        셀 자체를 못 찾은 경우만
+        기준 엑셀 구조 오류다.
+      */
+
       if (
-        !writeResult.found ||
-        !writeResult.written
+        !result.found
       ) {
-        throw new Error(
-          `${mapping.label} 셀 ${mapping.address}에 온도를 입력하지 못했습니다.`
+        missingAddresses.push(
+          mapping.address
         );
+
+        return;
+      }
+
+
+      if (
+        result.written
+      ) {
+        appliedCount +=
+          1;
+      }
+
+
+      if (
+        result.cleared
+      ) {
+        clearedCount +=
+          1;
       }
     }
   );
 
 
+  if (
+    missingAddresses.length >
+      0
+  ) {
+    throw new Error(
+      `기준 취합본에서 BO1·BO2 온도 셀을 찾지 못했습니다: ${missingAddresses.join(
+        ", "
+      )}`
+    );
+  }
+
+
   return {
-    appliedCount:
-      mappings.length,
+    appliedCount,
+    clearedCount,
 
     totalCount:
+      mappings.length,
+
+    complete:
+      appliedCount ===
       mappings.length
   };
 }
-
 
 /* =====================================================
   운탄일지 수치 → 일일발전운전현황 상단 반영
@@ -139204,241 +139305,218 @@ try {
   return;
 }    
 
-  /* =====================================================
-    필수 기능 확인
-  ====================================================== */
+/* =====================================================
+  필수 기능 확인
 
-  if (
-    typeof JSZip ===
+  중요:
+  운탄일지·교대파트·BO1·BO2는
+  없어도 최종 엑셀을 생성한다.
+
+  안전·환경·기계·전기제어팀도
+  이전 분석 단계에서 미첨부 시
+  빈 분석 객체가 생성되어 있어야 한다.
+====================================================== */
+
+if (
+  typeof JSZip ===
     "undefined"
-  ) {
-    showMorningMeetingWorkbookError(
-      "JSZip 라이브러리를 불러오지 못했습니다."
-    );
+) {
+  showMorningMeetingWorkbookError(
+    "JSZip 라이브러리를 불러오지 못했습니다."
+  );
+
+  return;
+}
 
 
-    return;
-  }
+/*
+  기준 XLSX는 현재 구조상 필수.
+
+  이 파일 자체를 열어서
+  서식·수식·인쇄영역을 수정하는 방식이다.
+*/
+
+if (
+  !state.templateFile
+) {
+  showMorningMeetingWorkbookError(
+    "일일발전현황 기준 취합본을 먼저 첨부해 주세요."
+  );
+
+  return;
+}
 
 
-  if (
-    !state.templateFile
-  ) {
-    showMorningMeetingWorkbookError(
-      "일일발전현황 기준 취합본을 먼저 첨부해 주세요."
-    );
+/*
+  자동 수치:
+  수처리는 현재 필수 유지
+*/
 
-
-    return;
-  }
-
-
-  if (
-    !state.coalLogFile
-  ) {
-    showMorningMeetingWorkbookError(
-      "운탄일지를 먼저 첨부해 주세요."
-    );
-
-
-    return;
-  }
-
-
-  if (
-    coalSelection.analyzed !==
-    true
-  ) {
-    showMorningMeetingWorkbookError(
-      "운탄일지 자료 분석을 먼저 완료해 주세요."
-    );
-
-
-    return;
-  }
-
-
-  if (
-    coalSelectedItems.length ===
-    0
-  ) {
-    showMorningMeetingWorkbookError(
-      "운탄일지에서 연료설비에 넣을 내용을 한 건 이상 선택해 주세요."
-    );
-
-
-    return;
-  }
-
-
-  if (
-    !shiftPartText
-  ) {
-    showMorningMeetingWorkbookError(
-      "교대파트 업무일지에서 오전회의에 넣을 내용을 선택해 주세요."
-    );
-
-
-    return;
-  }
-
-  if (
+if (
   !waterTreatment
 ) {
   showMorningMeetingWorkbookError(
     "OIS 수처리 현황을 먼저 불러와 주세요."
   );
 
-
-  return;
-}
-
-if (
-  !boilerTemperatures
-) {
-  showMorningMeetingWorkbookError(
-    "BO1·BO2 온도 자료가 없습니다. 업무일지 불러오기를 다시 실행해 주세요."
-  );
-
-
   return;
 }
 
 
-if (
-  boilerTemperatures.complete !==
-    true
-) {
-  const missingLabels =
-    Array.isArray(
-      boilerTemperatures.missing
-    )
-      ? boilerTemperatures
-          .missing
-      : [];
-
-
-  showMorningMeetingWorkbookError(
-    missingLabels.length
-      ? `BO1·BO2 온도 누락: ${missingLabels.join(", ")}`
-      : "BO1·BO2의 FBHE·Wall Screw 온도를 모두 확인하지 못했습니다."
-  );
-
-
-  return;
-}
+/*
+  Gear Wheel / Pinion도
+  현재는 자동수치 필수 유지
+*/
 
 if (
   !gearPinion
 ) {
   showMorningMeetingWorkbookError(
-    "Gear Wheel / Pinion OIS 자료가 없습니다. OIS 수처리 불러오기를 다시 실행해 주세요."
+    "Gear Wheel / Pinion OIS 자료가 없습니다. OIS 자동자료 다시 조회를 실행해 주세요."
   );
-
 
   return;
 }
 
 
-  /* =====================================================
-    4개 팀 분석 결과 확인
-  ====================================================== */
+/* =====================================================
+  4개 팀 분석 결과 확인
 
-  const analysisResults =
-    MORNING_MEETING_DYNAMIC_TEAM_CONFIG.map(
-      config => {
-        return state.analysis?.[
-          config.key
-        ];
-      }
-    );
+  파일이 없는 팀도
+  이전 단계에서 빈 분석 결과가 생성되어야 한다.
+====================================================== */
+
+const analysisResults =
+  MORNING_MEETING_DYNAMIC_TEAM_CONFIG.map(
+    config => {
+      return state.analysis?.[
+        config.key
+      ];
+    }
+  );
 
 
-  if (
-    analysisResults.some(
+if (
+  analysisResults.some(
+    result => {
+      return !result;
+    }
+  )
+) {
+  showMorningMeetingWorkbookError(
+    "자료 분석을 먼저 실행해 주세요. 첨부되지 않은 팀은 빈칸 분석 결과가 생성되어야 합니다."
+  );
+
+  return;
+}
+
+/* =====================================================
+  오전회의 기준일 결정
+
+  우선순위:
+  1. 실제 첨부된 팀 자료 날짜
+  2. 교대파트 업무일지 기준일
+  3. 수처리 기준일
+  4. 석회석 계산 기준일
+
+  미첨부 팀의 reportDate는
+  빈 문자열이므로 날짜 비교에서 제외한다.
+====================================================== */
+
+const reportDates =
+  analysisResults
+    .map(
       result => {
-        return !result;
+        return String(
+          result?.reportDate ||
+          ""
+        ).trim();
       }
     )
-  ) {
-    showMorningMeetingWorkbookError(
-      "안전팀·환경팀·기계팀·전기제어팀 자료 분석을 먼저 완료해 주세요."
+    .filter(
+      Boolean
     );
 
 
-    return;
-  }
+const uniqueReportDates =
+  Array.from(
+    new Set(
+      reportDates
+    )
+  );
 
 
-  /* =====================================================
-    팀별 자료 날짜 확인
-  ====================================================== */
+/*
+  실제로 첨부된 팀 자료끼리
+  날짜가 다른 경우만 오류로 처리한다.
+*/
 
-  const reportDates =
-    analysisResults
-      .map(
-        result => {
-          return String(
-            result.reportDate ||
-            ""
-          ).trim();
-        }
-      )
-      .filter(
-        Boolean
-      );
-
-
-  const uniqueReportDates =
-    Array.from(
-      new Set(
-        reportDates
-      )
-    );
-
-
-  if (
-    uniqueReportDates.length >
+if (
+  uniqueReportDates.length >
     1
-  ) {
-    showMorningMeetingWorkbookError(
-      `팀별 자료 날짜가 서로 다릅니다: ${uniqueReportDates.join(
-        ", "
-      )}`
-    );
+) {
+  showMorningMeetingWorkbookError(
+    `첨부된 팀별 자료 날짜가 서로 다릅니다: ${uniqueReportDates.join(
+      ", "
+    )}`
+  );
+
+  return;
+}
 
 
-    return;
-  }
+/*
+  팀 자료에서 날짜를 얻지 못하면
+  기존 오전회의 공용 날짜를 사용한다.
+*/
+
+const fallbackPreviousDateText =
+  uniqueReportDates[0] ||
+  String(
+    state.shiftPart
+      ?.reportDate ||
+
+    state.shiftPart
+      ?.loadedDate ||
+
+    waterTreatment
+      ?.sourceDate ||
+
+    waterTreatment
+      ?.targetDate ||
+
+    limestoneValues
+      ?.date ||
+
+    ""
+  ).trim();
 
 
-  const previousDate =
-    parseMorningMeetingReportDate(
-      uniqueReportDates[
-        0
-      ]
-    );
+const previousDate =
+  parseMorningMeetingReportDate(
+    fallbackPreviousDateText
+  );
 
 
-  if (
-    !previousDate
-  ) {
-    showMorningMeetingWorkbookError(
-      "팀별 자료에서 작성 날짜를 확인하지 못했습니다."
-    );
+if (
+  !previousDate
+) {
+  showMorningMeetingWorkbookError(
+    "오전회의 기준일을 확인하지 못했습니다. 자동자료 또는 업무일지 기준일을 확인해 주세요."
+  );
+
+  return;
+}
 
 
-    return;
-  }
+const scheduleDate =
+  addMorningMeetingDateDays(
+    previousDate,
+    1
+  );
 
 
-  const scheduleDate =
-    addMorningMeetingDateDays(
-      previousDate,
-      1
-    );
-
-    const expectedWaterSourceDate =
+const expectedWaterSourceDate =
   previousDate
     .toISOString()
     .slice(
@@ -139507,9 +139585,27 @@ if (
 
 const boilerReportDate =
   String(
-    boilerTemperatures.reportDate ||
+    boilerTemperatures
+      ?.reportDate ||
     ""
   ).trim();
+
+
+/* ===================================================
+  BO1·BO2 온도는 선택 자료
+
+  정확한 날짜의 자료:
+  → 있는 값 사용
+
+  자료 없음 / 날짜 다름:
+  → 최종 엑셀에서는 빈칸 처리
+=================================================== */
+
+const boilerTemperaturesForWorkbook =
+  boilerReportDate ===
+    expectedWaterSourceDate
+    ? boilerTemperatures
+    : null;
 
 /* ===================================================
   Gear Wheel / Pinion 조회일 검사
@@ -139556,25 +139652,6 @@ if (
 
   return;
 }  
-
-if (
-  boilerReportDate &&
-  boilerReportDate !==
-    expectedWaterSourceDate
-) {
-  showMorningMeetingWorkbookError(
-    [
-      "BO1·BO2 온도 업무일지 날짜가 오전회의 자료 날짜와 다릅니다.",
-      `필요일: ${expectedWaterSourceDate}`,
-      `업무일지: ${boilerReportDate}`
-    ].join(
-      " "
-    )
-  );
-
-
-  return;
-}
 
 
   /* =====================================================
@@ -139725,8 +139802,8 @@ const waterResult =
 const boilerTemperatureResult =
   applyMorningMeetingBoilerTemperatureValues(
     worksheetDocument,
-    boilerTemperatures
-  );  
+    boilerTemperaturesForWorkbook
+  ); 
 
 /* ===================================================
   OIS Gear Wheel / Pinion 반영
@@ -170127,4 +170204,1400 @@ function renderTeamApprovalCard(
 
   window.renderTeamManagerApprovalCards =
     renderAllTeamApprovalCards;
+})();
+
+/* =========================================================
+  OIS 과거 LOG SHEET 업무일지 1일 미리보기
+
+  목적:
+  - OIS 로그시트 결재 조회 자료가 홈페이지까지
+    정상적으로 도착하는지 확인
+  - 아직 실제 업무일지 DB에는 저장하지 않음
+  - DAY / AFTER / NIGHT 원본 근무를 그대로 표시
+
+  요청:
+  POST /api/ois-data-requests
+  requestType: logsheet_approval
+========================================================= */
+
+(function installOisLegacyLogPreviewClient() {
+  if (
+    window.__oisLegacyLogPreviewClientInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window.__oisLegacyLogPreviewClientInstalled =
+    true;
+
+
+  const OIS_REQUEST_API_URL =
+    "/api/ois-data-requests";
+
+
+  const REQUEST_TYPE =
+    "logsheet_approval";
+
+
+  const POLL_INTERVAL =
+    1500;
+
+
+  const MAXIMUM_WAIT =
+    10 *
+    60 *
+    1000;
+
+
+  const ROLE_ORDER = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
+
+
+  const SHIFT_ORDER = [
+    "DAY",
+    "AFTER",
+    "NIGHT"
+  ];
+
+
+  let activeRunToken =
+    0;
+
+
+  /* =====================================================
+    HTML 특수문자
+  ====================================================== */
+
+  function escapeOisLegacyPreviewHtml(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replaceAll(
+        "&",
+        "&amp;"
+      )
+      .replaceAll(
+        "<",
+        "&lt;"
+      )
+      .replaceAll(
+        ">",
+        "&gt;"
+      )
+      .replaceAll(
+        '"',
+        "&quot;"
+      )
+      .replaceAll(
+        "'",
+        "&#039;"
+      );
+  }
+
+
+  /* =====================================================
+    날짜 검사
+  ====================================================== */
+
+  function isValidOisLegacyPreviewDate(
+    value
+  ) {
+    const normalizedValue =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        normalizedValue
+      )
+    ) {
+      return false;
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${normalizedValue}T00:00:00`
+      );
+
+
+    return !Number.isNaN(
+      parsedDate.getTime()
+    );
+  }
+
+
+  /* =====================================================
+    잠시 대기
+  ====================================================== */
+
+  function waitOisLegacyPreview(
+    milliseconds
+  ) {
+    return new Promise(
+      resolve => {
+        window.setTimeout(
+          resolve,
+          milliseconds
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    화면 요소
+  ====================================================== */
+
+  function getOisLegacyPreviewElements() {
+    return {
+      panel:
+        document.getElementById(
+          "oisLegacyLogPreviewPanel"
+        ),
+
+      dateInput:
+        document.getElementById(
+          "oisLegacyLogPreviewDate"
+        ),
+
+      loadButton:
+        document.getElementById(
+          "loadOisLegacyLogPreviewButton"
+        ),
+
+      status:
+        document.getElementById(
+          "oisLegacyLogPreviewStatus"
+        ),
+
+      summary:
+        document.getElementById(
+          "oisLegacyLogPreviewSummary"
+        ),
+
+      result:
+        document.getElementById(
+          "oisLegacyLogPreviewResult"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    상태 표시
+  ====================================================== */
+
+  function setOisLegacyPreviewStatus(
+    message,
+    type = "info"
+  ) {
+    const {
+      status
+    } =
+      getOisLegacyPreviewElements();
+
+
+    if (
+      !status
+    ) {
+      return;
+    }
+
+
+    status.textContent =
+      String(
+        message ||
+        ""
+      );
+
+
+    status.dataset.type =
+      type;
+  }
+
+
+  /* =====================================================
+    API 응답 읽기
+  ====================================================== */
+
+  async function readOisLegacyPreviewApiResponse(
+    response,
+    fallbackMessage
+  ) {
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "OIS 과거 업무일지 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false ||
+      result.success ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        fallbackMessage ||
+        `OIS 요청 실패 (HTTP ${response.status})`
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    OIS 과거 업무일지 요청 생성
+  ====================================================== */
+
+  async function createOisLegacyPreviewRequest(
+    targetDate
+  ) {
+    const response =
+      await fetch(
+        OIS_REQUEST_API_URL,
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              requestType:
+                REQUEST_TYPE,
+
+              targetDate,
+
+              forceRefresh:
+                true
+            })
+        }
+      );
+
+
+    const result =
+      await readOisLegacyPreviewApiResponse(
+        response,
+        "OIS 과거 업무일지 조회 요청을 만들지 못했습니다."
+      );
+
+
+    /*
+      가장 중요한 안전장치.
+
+      Cloudflare API에 logsheet_approval 지원이
+      반영되지 않은 경우 limestone_stock으로
+      잘못 변환될 수 있다.
+
+      그 상태에서는 즉시 중단한다.
+    */
+
+    const returnedRequestType =
+      String(
+        result?.item?.requestType ||
+        result?.item?.request_type ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    if (
+      returnedRequestType &&
+      returnedRequestType !==
+        REQUEST_TYPE
+    ) {
+      throw new Error(
+        [
+          `요청 유형이 ${returnedRequestType}(으)로 저장되었습니다.`,
+
+          "functions/api/ois-data-requests.js의 normalizeRequestType()에 logsheet_approval이 포함되어 있는지 확인해 주세요."
+        ].join(
+          " "
+        )
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    요청 상태 조회
+  ====================================================== */
+
+  async function getOisLegacyPreviewRequest(
+    requestId
+  ) {
+    const requestUrl =
+      new URL(
+        OIS_REQUEST_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "id",
+      requestId
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    return await readOisLegacyPreviewApiResponse(
+      response,
+      "OIS 과거 업무일지 조회 상태를 확인하지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    결과 행 정규화
+  ====================================================== */
+
+  function normalizeOisLegacyPreviewRecord(
+    record,
+    recordIndex
+  ) {
+    const sourceRecord =
+      record &&
+      typeof record ===
+        "object"
+        ? record
+        : {};
+
+
+    const role =
+      String(
+        sourceRecord.role ||
+        sourceRecord.sheet_alias ||
+        sourceRecord.sheetAlias ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    const originalShift =
+      String(
+        sourceRecord.originalShift ||
+        sourceRecord.original_shift ||
+        sourceRecord.time ||
+        sourceRecord.work_time ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    const content =
+      String(
+        sourceRecord.content ??
+        sourceRecord.rmk ??
+        ""
+      )
+        .replace(
+          /\r\n?/g,
+          "\n"
+        )
+        .trim();
+
+
+    return {
+      index:
+        recordIndex,
+
+      role,
+
+      originalShift,
+
+      worker:
+        String(
+          sourceRecord.worker ||
+          sourceRecord.author ||
+          ""
+        ).trim(),
+
+      content,
+
+      hasContent:
+        sourceRecord.hasContent ===
+          true ||
+        Boolean(
+          content
+        ),
+
+      workerApproval:
+        String(
+          sourceRecord.workerApproval ||
+          sourceRecord.work_state ||
+          ""
+        ).trim(),
+
+      partApproval:
+        String(
+          sourceRecord.partApproval ||
+          sourceRecord.part_state ||
+          ""
+        ).trim()
+    };
+  }
+
+
+  /* =====================================================
+    결과 화면 표시
+  ====================================================== */
+
+  function renderOisLegacyPreviewResult(
+    requestItem
+  ) {
+    const {
+      summary,
+      result
+    } =
+      getOisLegacyPreviewElements();
+
+
+    const payload =
+      requestItem?.result &&
+      typeof requestItem.result ===
+        "object"
+        ? requestItem.result
+        : {};
+
+
+    const rawRecords =
+      Array.isArray(
+        payload.records
+      )
+        ? payload.records
+        : Array.isArray(
+            payload.items
+          )
+          ? payload.items
+          : Array.isArray(
+              payload.result
+            )
+            ? payload.result
+            : [];
+
+
+    const records =
+      rawRecords
+        .map(
+          normalizeOisLegacyPreviewRecord
+        )
+        .filter(
+          record => {
+            return ROLE_ORDER.includes(
+              record.role
+            );
+          }
+        )
+        .sort(
+          (
+            firstRecord,
+            secondRecord
+          ) => {
+            const roleDifference =
+              ROLE_ORDER.indexOf(
+                firstRecord.role
+              ) -
+              ROLE_ORDER.indexOf(
+                secondRecord.role
+              );
+
+
+            if (
+              roleDifference !==
+              0
+            ) {
+              return roleDifference;
+            }
+
+
+            return (
+              SHIFT_ORDER.indexOf(
+                firstRecord.originalShift
+              ) -
+              SHIFT_ORDER.indexOf(
+                secondRecord.originalShift
+              )
+            );
+          }
+        );
+
+
+    const contentRecords =
+      records.filter(
+        record => {
+          return record.hasContent;
+        }
+      );
+
+
+    const dayContentCount =
+      contentRecords.filter(
+        record => {
+          return (
+            record.originalShift ===
+            "DAY"
+          );
+        }
+      ).length;
+
+
+    const afterContentCount =
+      contentRecords.filter(
+        record => {
+          return (
+            record.originalShift ===
+            "AFTER"
+          );
+        }
+      ).length;
+
+
+    const nightContentCount =
+      contentRecords.filter(
+        record => {
+          return (
+            record.originalShift ===
+            "NIGHT"
+          );
+        }
+      ).length;
+
+
+    /*
+      아직 자동 확정은 하지 않는다.
+
+      AFTER 작성 유무만
+      교대변경 시점을 찾는 참고값으로 보여준다.
+    */
+
+    const workSystemHint =
+      afterContentCount >
+        0
+        ? "AFTER 업무내용 있음 → 3교대 시기 가능성이 높음"
+        : (
+            dayContentCount >
+              0 &&
+            nightContentCount >
+              0
+              ? "DAY/NIGHT만 업무내용 있음 → 2교대 시기 가능성이 높음"
+              : "교대형태 판정 보류"
+          );
+
+
+    if (
+      summary
+    ) {
+      summary.innerHTML = `
+        <strong>
+          ${escapeOisLegacyPreviewHtml(
+            requestItem?.targetDate ||
+            payload.targetDate ||
+            ""
+          )}
+        </strong>
+
+        <span>
+          대상 ${records.length}건 · 내용 있음 ${contentRecords.length}건
+        </span>
+
+        <span>
+          DAY ${dayContentCount}
+          · AFTER ${afterContentCount}
+          · NIGHT ${nightContentCount}
+        </span>
+
+        <span>
+          ${escapeOisLegacyPreviewHtml(
+            workSystemHint
+          )}
+        </span>
+      `;
+    }
+
+
+    if (
+      !result
+    ) {
+      return;
+    }
+
+
+    if (
+      !records.length
+    ) {
+      result.innerHTML = `
+        <div
+          style="
+            padding:16px;
+            border:1px solid #d9e0e8;
+            border-radius:10px;
+          "
+        >
+          이 날짜에는 표시할 OIS 업무일지 자료가 없습니다.
+        </div>
+      `;
+
+
+      return;
+    }
+
+
+    result.innerHTML =
+      records
+        .map(
+          record => {
+            const contentLabel =
+              record.hasContent
+                ? "내용 있음"
+                : "내용 없음";
+
+
+            return `
+              <details
+                style="
+                  border:1px solid #d9e0e8;
+                  border-radius:10px;
+                  padding:10px 12px;
+                  background:#fff;
+                "
+              >
+
+                <summary
+                  style="
+                    cursor:pointer;
+                    font-weight:700;
+                  "
+                >
+                  ${escapeOisLegacyPreviewHtml(
+                    record.role
+                  )}
+
+                  ·
+
+                  ${escapeOisLegacyPreviewHtml(
+                    record.originalShift ||
+                    "근무 미확인"
+                  )}
+
+                  ·
+
+                  ${escapeOisLegacyPreviewHtml(
+                    record.worker ||
+                    "근무자 미확인"
+                  )}
+
+                  ·
+
+                  ${contentLabel}
+                </summary>
+
+
+                <div
+                  style="
+                    margin-top:10px;
+                    display:grid;
+                    gap:8px;
+                  "
+                >
+
+                  <div>
+                    근무자 결재:
+                    ${escapeOisLegacyPreviewHtml(
+                      record.workerApproval ||
+                      "-"
+                    )}
+
+                    /
+
+                    PART장 결재:
+                    ${escapeOisLegacyPreviewHtml(
+                      record.partApproval ||
+                      "-"
+                    )}
+                  </div>
+
+
+                  <pre
+                    style="
+                      margin:0;
+                      padding:12px;
+                      white-space:pre-wrap;
+                      word-break:break-word;
+                      background:#f6f8fb;
+                      border-radius:8px;
+                      font-family:inherit;
+                      line-height:1.55;
+                    "
+                  >${escapeOisLegacyPreviewHtml(
+                    record.content ||
+                    "업무내용 없음"
+                  )}</pre>
+
+                </div>
+
+              </details>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+  }
+
+
+  /* =====================================================
+    회사 PC 완료까지 대기
+  ====================================================== */
+
+  async function waitForOisLegacyPreviewCompletion(
+    requestId,
+    runToken
+  ) {
+    const startedAt =
+      Date.now();
+
+
+    while (
+      Date.now() -
+        startedAt <
+      MAXIMUM_WAIT
+    ) {
+      if (
+        runToken !==
+        activeRunToken
+      ) {
+        return null;
+      }
+
+
+      const stateResult =
+        await getOisLegacyPreviewRequest(
+          requestId
+        );
+
+
+      const requestItem =
+        stateResult?.item ||
+        null;
+
+
+      if (
+        !requestItem
+      ) {
+        throw new Error(
+          "OIS 과거 업무일지 요청 정보를 찾지 못했습니다."
+        );
+      }
+
+
+      /*
+        여기서도 요청 유형을 다시 검사한다.
+      */
+
+      const requestType =
+        String(
+          requestItem.requestType ||
+          requestItem.request_type ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+
+      if (
+        requestType &&
+        requestType !==
+          REQUEST_TYPE
+      ) {
+        throw new Error(
+          `OIS 요청 유형이 ${requestType}(으)로 처리되었습니다. logsheet_approval 설정을 확인해 주세요.`
+        );
+      }
+
+
+      const status =
+        String(
+          requestItem.status ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+
+      if (
+        status ===
+        "complete"
+      ) {
+        return requestItem;
+      }
+
+
+      if (
+        status ===
+        "failed"
+      ) {
+        throw new Error(
+          requestItem.errorMessage ||
+          requestItem.error_message ||
+          "회사 PC OIS 연동 프로그램에서 과거 업무일지 조회에 실패했습니다."
+        );
+      }
+
+
+      setOisLegacyPreviewStatus(
+        status ===
+          "processing"
+          ? "회사 PC에서 OIS 과거 업무일지를 조회하고 있습니다..."
+          : "회사 PC OIS 연동 프로그램의 처리를 기다리고 있습니다...",
+        "loading"
+      );
+
+
+      await waitOisLegacyPreview(
+        POLL_INTERVAL
+      );
+    }
+
+
+    throw new Error(
+      "OIS 과거 업무일지 조회 대기시간이 초과되었습니다."
+    );
+  }
+
+
+  /* =====================================================
+    OIS 업무일지 불러오기
+  ====================================================== */
+
+  async function loadOisLegacyLogPreview() {
+    const {
+      dateInput,
+      loadButton,
+      summary,
+      result
+    } =
+      getOisLegacyPreviewElements();
+
+
+    const targetDate =
+      String(
+        dateInput?.value ||
+        ""
+      ).trim();
+
+
+    if (
+      !isValidOisLegacyPreviewDate(
+        targetDate
+      )
+    ) {
+      setOisLegacyPreviewStatus(
+        "조회할 날짜를 확인해 주세요.",
+        "error"
+      );
+
+
+      dateInput?.focus();
+
+
+      return;
+    }
+
+
+    /*
+      테스트 기능은 최고관리자에게만 허용한다.
+    */
+
+    if (
+      typeof isCurrentUserSuperAdmin ===
+        "function" &&
+      !isCurrentUserSuperAdmin()
+    ) {
+      setOisLegacyPreviewStatus(
+        "최고관리자만 OIS 과거자료 테스트를 실행할 수 있습니다.",
+        "error"
+      );
+
+
+      return;
+    }
+
+
+    const runToken =
+      activeRunToken +
+      1;
+
+
+    activeRunToken =
+      runToken;
+
+
+    if (
+      loadButton
+    ) {
+      loadButton.disabled =
+        true;
+
+
+      loadButton.textContent =
+        "OIS 조회 중...";
+    }
+
+
+    if (
+      summary
+    ) {
+      summary.innerHTML =
+        "";
+    }
+
+
+    if (
+      result
+    ) {
+      result.innerHTML =
+        "";
+    }
+
+
+    setOisLegacyPreviewStatus(
+      `${targetDate} OIS 과거 업무일지를 요청하고 있습니다...`,
+      "loading"
+    );
+
+
+    try {
+      const createResult =
+        await createOisLegacyPreviewRequest(
+          targetDate
+        );
+
+
+      const requestItem =
+        createResult?.item ||
+        null;
+
+
+      const requestId =
+        String(
+          requestItem?.id ||
+          ""
+        ).trim();
+
+
+      if (
+        !requestId
+      ) {
+        throw new Error(
+          "생성된 OIS 요청 ID를 확인할 수 없습니다."
+        );
+      }
+
+
+      let completedItem =
+        null;
+
+
+      /*
+        저장된 완료자료가 바로 반환된 경우
+      */
+
+      if (
+        String(
+          requestItem.status ||
+          ""
+        )
+          .trim()
+          .toLowerCase() ===
+        "complete"
+      ) {
+        completedItem =
+          requestItem;
+
+      } else {
+        completedItem =
+          await waitForOisLegacyPreviewCompletion(
+            requestId,
+            runToken
+          );
+      }
+
+
+      if (
+        !completedItem ||
+        runToken !==
+          activeRunToken
+      ) {
+        return;
+      }
+
+
+      renderOisLegacyPreviewResult(
+        completedItem
+      );
+
+
+      setOisLegacyPreviewStatus(
+        "OIS 과거 업무일지를 정상적으로 받아왔습니다. 아직 실제 업무일지 DB에는 저장하지 않았습니다.",
+        "success"
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "OIS 과거 업무일지 미리보기 실패:",
+        error
+      );
+
+
+      setOisLegacyPreviewStatus(
+        error instanceof Error
+          ? error.message
+          : String(
+              error ||
+              "OIS 과거 업무일지를 불러오지 못했습니다."
+            ),
+        "error"
+      );
+
+    } finally {
+      if (
+        runToken ===
+          activeRunToken &&
+        loadButton
+      ) {
+        loadButton.disabled =
+          false;
+
+
+        loadButton.textContent =
+          "OIS 업무일지 불러오기";
+      }
+    }
+  }
+
+
+  /* =====================================================
+    시스템 관리 안에 테스트 패널 자동 생성
+
+    HTML 파일은 이번 단계에서 수정하지 않는다.
+  ====================================================== */
+
+  function createOisLegacyPreviewPanel() {
+    if (
+      document.getElementById(
+        "oisLegacyLogPreviewPanel"
+      )
+    ) {
+      return true;
+    }
+
+
+    const employeeView =
+      document.getElementById(
+        "employeeManagementView"
+      );
+
+
+    if (
+      !employeeView
+    ) {
+      return false;
+    }
+
+
+    employeeView.insertAdjacentHTML(
+      "beforeend",
+
+      `
+        <section
+          id="oisLegacyLogPreviewPanel"
+          style="
+            margin-top:20px;
+            padding:18px;
+            border:1px solid #d6dee8;
+            border-radius:12px;
+            background:#f8fafc;
+          "
+        >
+
+          <div
+            style="
+              display:flex;
+              align-items:flex-start;
+              justify-content:space-between;
+              gap:16px;
+              flex-wrap:wrap;
+            "
+          >
+
+            <div>
+
+              <strong
+                style="
+                  display:block;
+                  font-size:16px;
+                  margin-bottom:4px;
+                "
+              >
+                OIS 과거 업무일지 테스트
+              </strong>
+
+              <span
+                style="
+                  font-size:13px;
+                  color:#5f6b7a;
+                "
+              >
+                TGO·BCO1·BCO2·TO·BO1·BO2의
+                DAY·AFTER·NIGHT 원본을 확인합니다.
+              </span>
+
+            </div>
+
+
+            <div
+              style="
+                display:flex;
+                gap:8px;
+                align-items:end;
+                flex-wrap:wrap;
+              "
+            >
+
+              <label
+                style="
+                  display:grid;
+                  gap:4px;
+                  font-size:12px;
+                "
+              >
+
+                <span>
+                  조회일
+                </span>
+
+                <input
+                  type="date"
+                  id="oisLegacyLogPreviewDate"
+                  value="2022-09-22"
+                  style="min-height:38px;"
+                />
+
+              </label>
+
+
+              <button
+                type="button"
+                id="loadOisLegacyLogPreviewButton"
+                class="secondary-button"
+              >
+                OIS 업무일지 불러오기
+              </button>
+
+            </div>
+
+          </div>
+
+
+          <div
+            id="oisLegacyLogPreviewStatus"
+            data-type="info"
+            style="
+              margin-top:12px;
+              font-size:13px;
+            "
+          >
+            날짜를 선택하고 불러오기를 눌러 주세요.
+          </div>
+
+
+          <div
+            id="oisLegacyLogPreviewSummary"
+            style="
+              margin-top:12px;
+              display:flex;
+              gap:8px 16px;
+              flex-wrap:wrap;
+              font-size:13px;
+            "
+          ></div>
+
+
+          <div
+            id="oisLegacyLogPreviewResult"
+            style="
+              margin-top:12px;
+              display:grid;
+              gap:8px;
+              max-height:420px;
+              overflow:auto;
+            "
+          ></div>
+
+        </section>
+      `
+    );
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initializeOisLegacyLogPreviewClient() {
+    const created =
+      createOisLegacyPreviewPanel();
+
+
+    if (
+      !created
+    ) {
+      return;
+    }
+
+
+    const {
+      loadButton
+    } =
+      getOisLegacyPreviewElements();
+
+
+    if (
+      !loadButton ||
+      loadButton.dataset.oisLegacyBound ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    loadButton.addEventListener(
+      "click",
+      loadOisLegacyLogPreview
+    );
+
+
+    loadButton.dataset.oisLegacyBound =
+      "true";
+  }
+
+
+  /*
+    F12 콘솔에서도 실행 가능
+  */
+
+  window.loadOisLegacyLogPreview =
+    loadOisLegacyLogPreview;
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeOisLegacyLogPreviewClient,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeOisLegacyLogPreviewClient();
+  }
 })();

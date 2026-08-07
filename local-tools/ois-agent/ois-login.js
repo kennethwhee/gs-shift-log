@@ -346,6 +346,84 @@ const OIS_TURBINE_GEAR_PINION_DEFINITION = {
 };
 
 /* =========================================================
+  OIS 과거 LOG SHEET 업무일지 조회 정의
+
+  로그시트 결재 조회:
+  oi.LogSheetService.listApprovalInfo
+
+  설비운영팀:
+  dept_code = 5030
+
+  전체 근무:
+  s_time = S
+
+  대상 보직:
+  TGO / BCO1 / BCO2 / TO / BO1 / BO2
+========================================================= */
+
+const OIS_LEGACY_LOG_DEFINITION = {
+  command:
+    "oi.LogSheetService.listApprovalInfo",
+
+  plantCode:
+    "8000",
+
+  departmentCode:
+    "5030",
+
+  allShiftCode:
+    "S",
+
+  rowStatus:
+    "C",
+
+  roles: [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ]
+};
+
+
+/* =========================================================
+  OIS 여러 줄 원문 정리
+
+  중요:
+  업무일지 rmk의 줄바꿈은 그대로 보존한다.
+========================================================= */
+
+function normalizeOisMultilineText(
+  value
+) {
+  return String(
+    value ??
+    ""
+  )
+    .replace(
+      /\r\n?/g,
+      "\n"
+    )
+    .split(
+      "\n"
+    )
+    .map(
+      line => {
+        return line.replace(
+          /[ \t]+$/g,
+          ""
+        );
+      }
+    )
+    .join(
+      "\n"
+    )
+    .trim();
+}
+
+/* =========================================================
   OIS 문자열 정리
 ========================================================= */
 
@@ -3478,14 +3556,494 @@ async function requestOisAgentApi(
 }
 
 /* =========================================================
+  로그인된 OIS 브라우저에서
+  /ajax/data 직접 요청
+
+  OIS는 application/x-www-form-urlencoded 형식으로:
+
+  tossdata=...
+  cmd=...
+
+  두 값을 전송한다.
+========================================================= */
+
+async function requestOisInternalAjaxData(
+  page,
+  command,
+  selectItem
+) {
+  const requestResult =
+    await page.evaluate(
+      async (
+        {
+          command,
+          selectItem
+        }
+      ) => {
+        const parameters =
+          new URLSearchParams();
+
+
+        parameters.set(
+          "tossdata",
+          JSON.stringify({
+            select: [
+              selectItem
+            ]
+          })
+        );
+
+
+        parameters.set(
+          "cmd",
+          command
+        );
+
+
+        const response =
+          await fetch(
+            "/ajax/data",
+            {
+              method:
+                "POST",
+
+              headers: {
+                Accept:
+                  "application/json, text/javascript, */*; q=0.01",
+
+                "Content-Type":
+                  "application/x-www-form-urlencoded; charset=UTF-8",
+
+                "X-Requested-With":
+                  "XMLHttpRequest"
+              },
+
+              credentials:
+                "same-origin",
+
+              cache:
+                "no-store",
+
+              body:
+                parameters.toString()
+            }
+          );
+
+
+        const responseText =
+          await response.text();
+
+
+        return {
+          ok:
+            response.ok,
+
+          status:
+            response.status,
+
+          responseText
+        };
+      },
+
+      {
+        command,
+        selectItem
+      }
+    );
+
+
+  if (
+    !requestResult?.ok
+  ) {
+    throw new Error(
+      `OIS 내부 API 요청 실패 (HTTP ${requestResult?.status || 0})`
+    );
+  }
+
+
+  const responseText =
+    String(
+      requestResult.responseText ||
+      ""
+    ).trim();
+
+
+  if (
+    !responseText
+  ) {
+    return {};
+  }
+
+
+  let responseData = {};
+
+
+  try {
+    responseData =
+      JSON.parse(
+        responseText
+      );
+
+  } catch {
+    throw new Error(
+      "OIS 과거 업무일지 응답이 JSON 형식이 아닙니다."
+    );
+  }
+
+
+  return responseData;
+}
+
+
+/* =========================================================
+  선택일 OIS 과거 LOG SHEET 업무일지 수집
+
+  조회:
+  - 설비운영팀
+  - 선택일
+  - All 근무
+
+  대상:
+  - TGO
+  - BCO1
+  - BCO2
+  - TO
+  - BO1
+  - BO2
+
+  원본 근무:
+  - DAY
+  - AFTER
+  - NIGHT
+
+  중요:
+  이 단계에서는 2교대/3교대를 변환하지 않는다.
+  OIS 원본을 그대로 반환한다.
+========================================================= */
+
+async function collectOisLegacyLogApprovalValues(
+  page,
+  config,
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "OIS 과거 업무일지 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  await ensureOisAgentLoggedIn(
+    page,
+    config
+  );
+
+
+  const compactDate =
+    targetDate.replace(
+      /-/g,
+      ""
+    );
+
+
+  const responseData =
+    await requestOisInternalAjaxData(
+      page,
+
+      OIS_LEGACY_LOG_DEFINITION
+        .command,
+
+      {
+        schepow_stat_code:
+          OIS_LEGACY_LOG_DEFINITION
+            .plantCode,
+
+        dept_code:
+          OIS_LEGACY_LOG_DEFINITION
+            .departmentCode,
+
+        schbase_date:
+          compactDate,
+
+        s_time:
+          OIS_LEGACY_LOG_DEFINITION
+            .allShiftCode,
+
+        rowstatus:
+          OIS_LEGACY_LOG_DEFINITION
+            .rowStatus
+      }
+    );
+
+
+  const rawRows =
+    Array.isArray(
+      responseData?.result
+    )
+      ? responseData.result
+      : [];
+
+
+  const allowedRoles =
+    new Set(
+      OIS_LEGACY_LOG_DEFINITION
+        .roles
+    );
+
+
+  const records =
+    rawRows
+      .map(
+        (
+          row,
+          sourceRowIndex
+        ) => {
+          const role =
+            normalizeOisAgentText(
+              row?.sheet_alias ||
+              row?.sheetAlias ||
+              ""
+            )
+              .toUpperCase();
+
+
+          if (
+            !allowedRoles.has(
+              role
+            )
+          ) {
+            return null;
+          }
+
+
+          const originalShift =
+            normalizeOisAgentText(
+              row?.time ||
+              row?.work_time ||
+              ""
+            )
+              .toUpperCase();
+
+
+          const content =
+            normalizeOisMultilineText(
+              row?.rmk ||
+              ""
+            );
+
+
+          return {
+            date:
+              targetDate,
+
+            role,
+
+            /*
+              OIS 원래 근무형태
+
+              DAY
+              AFTER
+              NIGHT
+            */
+            originalShift,
+
+            worker:
+              normalizeOisAgentText(
+                row?.worker ||
+                ""
+              ),
+
+            /*
+              실제 과거 업무일지 내용
+              줄바꿈을 그대로 보존한다.
+            */
+            content,
+
+            hasContent:
+              Boolean(
+                content
+              ),
+
+            workerApproval:
+              normalizeOisAgentText(
+                row?.work_state ||
+                ""
+              ),
+
+            partApproval:
+              normalizeOisAgentText(
+                row?.part_state ||
+                ""
+              ),
+
+            approvalState:
+              normalizeOisAgentText(
+                row?.aprv_state ||
+                ""
+              ),
+
+            state:
+              normalizeOisAgentText(
+                row?.state ||
+                ""
+              ),
+
+            sheetCode:
+              normalizeOisAgentText(
+                row?.sheet ||
+                row?.sheet_code ||
+                row?.pos_info_code ||
+                ""
+              ),
+
+            sourceRowIndex,
+
+            /*
+              향후 변환 오류가 있어도
+              OIS 원본을 복구할 수 있도록
+              전체 행을 그대로 보관한다.
+            */
+            original:
+              row
+          };
+        }
+      )
+      .filter(
+        Boolean
+      );
+
+
+  const countContentRows = (
+    shiftName
+  ) => {
+    return records.filter(
+      record => {
+        return (
+          record.originalShift ===
+            shiftName &&
+          record.hasContent
+        );
+      }
+    ).length;
+  };
+
+
+  const dayContentCount =
+    countContentRows(
+      "DAY"
+    );
+
+
+  const afterContentCount =
+    countContentRows(
+      "AFTER"
+    );
+
+
+  const nightContentCount =
+    countContentRows(
+      "NIGHT"
+    );
+
+
+  const contentRowCount =
+    records.filter(
+      record => {
+        return record.hasContent;
+      }
+    ).length;
+
+
+  const result = {
+    source:
+      "OIS 로그시트 결재 조회",
+
+    command:
+      OIS_LEGACY_LOG_DEFINITION
+        .command,
+
+    targetDate,
+
+    departmentCode:
+      OIS_LEGACY_LOG_DEFINITION
+        .departmentCode,
+
+    rawRowCount:
+      rawRows.length,
+
+    targetRoleRowCount:
+      records.length,
+
+    contentRowCount,
+
+    /*
+      교대체계 판단 참고자료
+
+      여기서는 자동으로
+      2교대/3교대라고 확정하지 않는다.
+    */
+    shiftEvidence: {
+      dayContentCount,
+
+      afterContentCount,
+
+      nightContentCount,
+
+      hasAfterContent:
+        afterContentCount >
+        0,
+
+      onlyDayNightHaveContent:
+        afterContentCount ===
+          0 &&
+        (
+          dayContentCount >
+            0 ||
+          nightContentCount >
+            0
+        )
+    },
+
+    records,
+
+    collectedAt:
+      new Date()
+        .toISOString()
+  };
+
+
+  console.log(
+    [
+      "OIS 과거 업무일지 조회 완료",
+      targetDate,
+      `대상 ${records.length}건`,
+      `내용 있음 ${contentRowCount}건`,
+      `DAY ${dayContentCount}건`,
+      `AFTER ${afterContentCount}건`,
+      `NIGHT ${nightContentCount}건`
+    ].join(
+      " · "
+    )
+  );
+
+
+  return result;
+}
+
+/* =========================================================
   다음 대기 요청 가져오기
 
   지원:
   - water_environment
   - limestone_stock
   - turbine_gear_pinion
+  - logsheet_approval
 
-  세 요청 유형을 번갈아 확인한다.
+  네 요청 유형을 번갈아 확인한다.
 ========================================================= */
 
 async function getNextOisAgentRequest(
@@ -3494,7 +4052,8 @@ async function getNextOisAgentRequest(
   const requestTypes = [
     "water_environment",
     "limestone_stock",
-    "turbine_gear_pinion"
+    "turbine_gear_pinion",
+    "logsheet_approval"
   ];
 
 
@@ -3633,6 +4192,14 @@ function getOisAgentRequestLabel(
   }
 
 
+  if (
+    requestType ===
+      "logsheet_approval"
+  ) {
+    return "과거 LOG SHEET 업무일지";
+  }
+
+
   return requestType;
 }
 
@@ -3687,6 +4254,18 @@ async function collectOisAgentRequestResult(
       "turbine_gear_pinion"
   ) {
     return await collectOisTurbineGearPinionValues(
+      page,
+      config,
+      targetDate
+    );
+  }
+
+
+  if (
+    requestType ===
+      "logsheet_approval"
+  ) {
+    return await collectOisLegacyLogApprovalValues(
       page,
       config,
       targetDate
@@ -3799,6 +4378,82 @@ function printOisAgentRequestResult(
       "Pinion TAG":
         result.pinionTag
     });
+
+
+    return;
+  }
+
+
+  if (
+    requestType ===
+      "logsheet_approval"
+  ) {
+    console.log(
+      [
+        `조회일 ${result.targetDate}`,
+        `대상 ${result.targetRoleRowCount}건`,
+        `내용 있음 ${result.contentRowCount}건`,
+        `DAY ${result.shiftEvidence?.dayContentCount || 0}건`,
+        `AFTER ${result.shiftEvidence?.afterContentCount || 0}건`,
+        `NIGHT ${result.shiftEvidence?.nightContentCount || 0}건`
+      ].join(
+        " · "
+      )
+    );
+
+
+    console.table(
+      (
+        Array.isArray(
+          result.records
+        )
+          ? result.records
+          : []
+      )
+        .filter(
+          record => {
+            return record.hasContent;
+          }
+        )
+        .map(
+          record => {
+            const preview =
+              String(
+                record.content ||
+                ""
+              )
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .slice(
+                  0,
+                  80
+                );
+
+
+            return {
+              보직:
+                record.role,
+
+              근무:
+                record.originalShift,
+
+              근무자:
+                record.worker,
+
+              내용:
+                preview,
+
+              근무자결재:
+                record.workerApproval,
+
+              파트장결재:
+                record.partApproval
+            };
+          }
+        )
+    );
   }
 }
 

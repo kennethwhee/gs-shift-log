@@ -716,6 +716,7 @@ async function authenticateOisAgent(
   - limestone_stock
   - water_environment
   - turbine_gear_pinion
+  - logsheet_approval
 ========================================================= */
 
 function normalizeRequestType(
@@ -735,7 +736,8 @@ function normalizeRequestType(
   return [
     "limestone_stock",
     "water_environment",
-    "turbine_gear_pinion"
+    "turbine_gear_pinion",
+    "logsheet_approval"
   ].includes(
     requestType
   )
