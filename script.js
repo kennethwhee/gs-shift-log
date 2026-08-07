@@ -158467,9 +158467,24 @@ function updateSelectionState() {
   }
 
 
-  /* =====================================================
+/* =====================================================
     자료 분석 후 TM 영역 추가 분석
-  ====================================================== */
+====================================================== */
+
+/* =====================================================
+  자료 분석 후 운탄일지 TM 복수 파일 분석
+
+  평일:
+  - 운탄일지 1개 분석
+
+  주말:
+  - 첨부한 운탄일지 전체 분석
+
+  결과:
+  - 각 파일의 실제 날짜를 workDate로 유지
+  - TM 목록을 날짜별로 구분
+  - TM이 없는 날짜는 0건으로 처리
+====================================================== */
 
 async function refreshAfterAnalysis() {
   hideError();
@@ -158504,16 +158519,112 @@ async function refreshAfterAnalysis() {
 
 
     /* ===================================================
-      운탄일지 없음
+      1. 앞 단계에서 이미 분석한
+         운탄일지 전체 결과 사용
 
-      - TM 분석하지 않음
-      - 연료설비 업무 없음
-      - 운탄 TM 없음
-      - 교대파트 TM은 기존대로 유지
+      각 항목에는:
+      - file
+      - fileName
+      - fileIndex
+      - workDate
+
+      가 들어 있다.
+    ==================================================== */
+
+    let analysisResults =
+      Array.isArray(
+        state.coalAnalysisResults
+      )
+        ? state.coalAnalysisResults
+            .filter(
+              result => {
+                return Boolean(
+                  result?.file
+                );
+              }
+            )
+        : [];
+
+
+    /* ===================================================
+      2. 기존 단일 파일 / 예외 상황 호환
     ==================================================== */
 
     if (
-      !state.coalLogFile
+      analysisResults.length ===
+        0
+    ) {
+      let fallbackFiles =
+        [];
+
+
+      if (
+        typeof window
+          .getEfficiencyMorningMeetingCoalLogFiles ===
+          "function"
+      ) {
+        fallbackFiles =
+          window
+            .getEfficiencyMorningMeetingCoalLogFiles();
+      }
+
+
+      if (
+        !Array.isArray(
+          fallbackFiles
+        ) ||
+        fallbackFiles.length ===
+          0
+      ) {
+        fallbackFiles =
+          Array.isArray(
+            state.coalLogFiles
+          ) &&
+          state.coalLogFiles.length >
+            0
+            ? [
+                ...state.coalLogFiles
+              ]
+            : state.coalLogFile
+              ? [
+                  state.coalLogFile
+                ]
+              : [];
+      }
+
+
+      analysisResults =
+        fallbackFiles.map(
+          (
+            file,
+            fileIndex
+          ) => {
+            return {
+              file,
+
+              fileIndex,
+
+              fileName:
+                String(
+                  file?.name ||
+                  ""
+                ),
+
+              workDate:
+                ""
+            };
+          }
+        );
+    }
+
+
+    /* ===================================================
+      운탄일지 자체가 없음
+    ==================================================== */
+
+    if (
+      analysisResults.length ===
+        0
     ) {
       selection.coalTmItems =
         [];
@@ -158531,10 +158642,6 @@ async function refreshAfterAnalysis() {
         selection.selectedWorkIds;
 
 
-      selection.selectedItems =
-        [];
-
-
       selection.selectedTmItems =
         [];
 
@@ -158547,7 +158654,7 @@ async function refreshAfterAnalysis() {
 
 
       console.log(
-        "운탄일지 미첨부 → 운탄 업무/TM 빈칸 처리"
+        "운탄일지 TM 분석 대상 없음"
       );
 
 
@@ -158556,14 +158663,248 @@ async function refreshAfterAnalysis() {
 
 
     /* ===================================================
-      운탄일지가 있는 경우만 실제 TM 분석
+      3. 모든 운탄일지 TM 분석
+    ==================================================== */
+
+    const combinedCoalTmItems =
+      [];
+
+
+    for (
+      let resultIndex =
+        0;
+
+      resultIndex <
+        analysisResults.length;
+
+      resultIndex +=
+        1
+    ) {
+      const analysisResult =
+        analysisResults[
+          resultIndex
+        ];
+
+
+      const sourceFile =
+        analysisResult?.file;
+
+
+      if (
+        !sourceFile
+      ) {
+        continue;
+      }
+
+
+      const extractedItems =
+        await extractCoalTmItems(
+          sourceFile
+        );
+
+
+      const workDate =
+        String(
+          analysisResult
+            ?.workDate ||
+          ""
+        ).trim();
+
+
+      const fileName =
+        String(
+          analysisResult
+            ?.fileName ||
+          sourceFile.name ||
+          ""
+        ).trim();
+
+
+      const parsedFileIndex =
+        Number(
+          analysisResult
+            ?.fileIndex
+        );
+
+
+      const fileIndex =
+        Number.isInteger(
+          parsedFileIndex
+        )
+          ? parsedFileIndex
+          : resultIndex;
+
+
+      const dateKey =
+        String(
+          workDate ||
+          `file${fileIndex + 1}`
+        )
+          .replace(
+            /[^0-9a-z]/gi,
+            ""
+          );
+
+
+      /* =================================================
+        파일별 TM 결과에 날짜 부여
+
+        기존 parseNumberedItems()가 만드는
+        content / subLines 등은 그대로 보존한다.
+      ================================================= */
+
+      extractedItems.forEach(
+        (
+          item,
+          itemIndex
+        ) => {
+          combinedCoalTmItems.push({
+            ...item,
+
+
+            /*
+              서로 다른 파일의
+              TM #1이 같은 ID가 되지 않게 한다.
+            */
+
+            id:
+              `coal-tm-${dateKey}-${fileIndex}-${itemIndex}`,
+
+
+            workDate,
+
+            fileName,
+
+            fileIndex,
+
+            sourceType:
+              "coal",
+
+            sourceLabel:
+              "운탄일지 TM 발행사항"
+          });
+        }
+      );
+
+
+      console.log(
+        "운탄일지 TM 파일별 분석:",
+        {
+          workDate,
+
+          fileName,
+
+          tmCount:
+            extractedItems.length,
+
+          items:
+            extractedItems
+        }
+      );
+    }
+
+
+    /* ===================================================
+      4. 날짜순 정렬
+
+      예:
+      2026-08-05
+      2026-08-06
+      2026-08-07
+    ==================================================== */
+
+    combinedCoalTmItems.sort(
+      (
+        firstItem,
+        secondItem
+      ) => {
+        const firstDate =
+          String(
+            firstItem.workDate ||
+            ""
+          ).trim();
+
+
+        const secondDate =
+          String(
+            secondItem.workDate ||
+            ""
+          ).trim();
+
+
+        if (
+          firstDate &&
+          secondDate &&
+          firstDate !==
+            secondDate
+        ) {
+          return firstDate.localeCompare(
+            secondDate
+          );
+        }
+
+
+        if (
+          firstDate &&
+          !secondDate
+        ) {
+          return -1;
+        }
+
+
+        if (
+          !firstDate &&
+          secondDate
+        ) {
+          return 1;
+        }
+
+
+        const fileCompare =
+          Number(
+            firstItem.fileIndex ||
+            0
+          ) -
+          Number(
+            secondItem.fileIndex ||
+            0
+          );
+
+
+        if (
+          fileCompare !==
+            0
+        ) {
+          return fileCompare;
+        }
+
+
+        return (
+          Number(
+            firstItem.number ||
+            0
+          ) -
+          Number(
+            secondItem.number ||
+            0
+          )
+        );
+      }
+    );
+
+
+    /* ===================================================
+      5. 최종 TM 목록 저장
     ==================================================== */
 
     selection.coalTmItems =
-      await extractCoalTmItems(
-        state.coalLogFile
-      );
+      combinedCoalTmItems;
 
+
+    /*
+      자료를 다시 분석했으므로
+      기존 선택 체크는 초기화
+    */
 
     selection.selectedWorkIds =
       new Set();
@@ -158577,11 +158918,41 @@ async function refreshAfterAnalysis() {
       selection.selectedWorkIds;
 
 
+    selection.selectedTmItems =
+      [];
+
+
     selection.missing =
       false;
 
 
+    /* ===================================================
+      6. 화면 갱신
+    ==================================================== */
+
     renderAll();
+
+
+    console.log(
+      "운탄일지 복수 TM 분석 완료:",
+      combinedCoalTmItems.map(
+        item => {
+          return {
+            workDate:
+              item.workDate,
+
+            fileName:
+              item.fileName,
+
+            number:
+              item.number,
+
+            content:
+              item.content
+          };
+        }
+      )
+    );
 
   } catch (
     error
@@ -158601,6 +158972,7 @@ async function refreshAfterAnalysis() {
     renderAll();
   }
 }
+
 
 
   function scheduleRender() {
