@@ -736,14 +736,15 @@ function canModifyShiftLogAttachments(
     );
 
 
-  return [
-    "임시저장",
-    "결재요청",
-    "작성중",
-    "작성완료"
-  ].includes(
-    status
-  );
+return [
+  "임시저장",
+  "결재요청",
+  "저장완료",
+  "작성중",
+  "작성완료"
+].includes(
+  status
+);
 }
 
 
@@ -1040,31 +1041,37 @@ function buildContentDisposition(
   );
 }
 
-
 /* =========================================================
   GET
 
   id:
-  실제 파일
+  실제 파일 조회
+  - UUID를 알아야만 접근 가능
+  - 이미지 <img src> / 파일 링크에서 사용하므로
+    Authorization 헤더 없이 조회 허용
 
   logId:
-  첨부목록
+  첨부파일 목록 조회
+  - 로그인 인증 필요
 ========================================================= */
 
 export async function onRequestGet(
   context
 ) {
   try {
-    const authentication =
-      await getAuthenticatedUser(
-        context
-      );
-
-
     if (
-      authentication.error
+      !context.env.DB
     ) {
-      return authentication.error;
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            "D1 바인딩 DB가 등록되지 않았습니다."
+        },
+        500
+      );
     }
 
 
@@ -1092,6 +1099,14 @@ export async function onRequestGet(
 
     /* =====================================================
       실제 파일 조회
+
+      중요:
+      <img src="/api/shift-log-files?id=...">
+      형태로 브라우저가 직접 요청하므로
+      여기서는 Authorization을 요구하지 않는다.
+
+      단,
+      랜덤 UUID 첨부파일 ID를 정확히 알아야 조회 가능하다.
     ====================================================== */
 
     if (
@@ -1295,12 +1310,27 @@ export async function onRequestGet(
 
 
     /* =====================================================
-      업무일지 첨부목록 조회
+      업무일지별 첨부목록 조회
+
+      목록 자체는 로그인 사용자만 조회
     ====================================================== */
 
     if (
       logId
     ) {
+      const authentication =
+        await getAuthenticatedUser(
+          context
+        );
+
+
+      if (
+        authentication.error
+      ) {
+        return authentication.error;
+      }
+
+
       const logRow =
         await findShiftLogRow(
           context.env.DB,
@@ -1386,7 +1416,6 @@ export async function onRequestGet(
     );
   }
 }
-
 
 /* =========================================================
   POST

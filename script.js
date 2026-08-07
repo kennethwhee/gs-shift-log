@@ -142381,6 +142381,8 @@ function extractMorningMeetingBoilerTemperatures(
   BO1·BO2 온도 추출과 이후 자동 수치 반영에 사용
 ==================================================== */
 
+
+
 state.shiftPart.dayLogs =
   Array.isArray(
     dayLogs
@@ -142481,6 +142483,97 @@ state.shiftPart.items =
       }
     }
   }
+
+/* =====================================================
+  오전회의 공용 기준일
+  BO1 · BO2 업무일지 날짜별 재조회
+
+  공용 날짜 이동에서 호출한다.
+
+  예:
+  기준일 2026-08-06
+  → 2026-08-06 N/S BO1 · BO2 조회
+  → FBHE / Wall Screw 온도 다시 추출
+===================================================== */
+
+window
+  .loadEfficiencyMorningMeetingShiftLogsForDate =
+  async function loadEfficiencyMorningMeetingShiftLogsForDate(
+    requestedDate
+  ) {
+    const normalizedDate =
+      normalizeReportDate(
+        requestedDate
+      );
+
+
+    if (
+      !normalizedDate
+    ) {
+      return;
+    }
+
+
+    const state =
+      getState();
+
+
+    const elements =
+      getElements();
+
+
+    /* ===================================================
+      새 날짜로 전환
+    ==================================================== */
+
+    state.shiftPart.reportDate =
+      normalizedDate;
+
+
+    /*
+      이전 날짜의 BO1·BO2 온도가
+      새 날짜 값처럼 잠깐 보이지 않도록 제거한다.
+    */
+    delete state
+      .boilerTemperatures;
+
+
+    if (
+      typeof window
+        .renderEfficiencyMorningMeetingBoilerTemperatures ===
+        "function"
+    ) {
+      window
+        .renderEfficiencyMorningMeetingBoilerTemperatures();
+    }
+
+
+    /* ===================================================
+      교대파트 날짜 표시도 동일하게 변경
+    ==================================================== */
+
+    if (
+      elements.date
+    ) {
+      elements.date.textContent =
+        `${normalizedDate} · D/S + N/S`;
+    }
+
+
+    /* ===================================================
+      해당 날짜 업무일지 실제 조회
+
+      여기서:
+      - D/S 업무
+      - N/S 업무
+      - BO1 온도
+      - BO2 온도
+
+      전부 다시 만들어진다.
+    ==================================================== */
+
+    await loadShiftPartLogs();
+  };
 
 /* =====================================================
   교대파트 기준 날짜 갱신 및 자동 조회
@@ -160986,54 +161079,84 @@ window
     +1일
   ====================================================== */
 
-  function renderCommonDates(
-    baseDate
+function renderCommonDates(
+  baseDate
+) {
+  if (
+    !isValidDate(
+      baseDate
+    )
   ) {
-    if (
-      !isValidDate(
-        baseDate
-      )
-    ) {
-      return;
-    }
-
-
-    const elements =
-      getElements();
-
-
-    const gearDate =
-      addDateDays(
-        baseDate,
-        1
-      );
-
-
-    if (
-      elements.waterDate
-    ) {
-      elements.waterDate.textContent =
-        baseDate;
-    }
-
-
-    if (
-      elements.limestoneDate
-    ) {
-      elements.limestoneDate.textContent =
-        baseDate;
-    }
-
-
-    if (
-      elements.gearPinionDate
-    ) {
-      elements.gearPinionDate.textContent =
-        gearDate ||
-        "-";
-    }
+    return;
   }
 
+
+  const elements =
+    getElements();
+
+
+  const gearDate =
+    addDateDays(
+      baseDate,
+      1
+    );
+
+
+  /* 수처리 */
+
+  if (
+    elements.waterDate
+  ) {
+    elements.waterDate.textContent =
+      baseDate;
+  }
+
+
+  /* 석회석 */
+
+  if (
+    elements.limestoneDate
+  ) {
+    elements.limestoneDate.textContent =
+      baseDate;
+  }
+
+
+  /* ===================================================
+    BO1 · BO2 보일러 온도
+
+    수처리·석회석과 같은 기준일
+  ==================================================== */
+
+  const boilerDate =
+    document.getElementById(
+      "efficiencyMorningMeetingAutoBoilerDate"
+    );
+
+
+  if (
+    boilerDate
+  ) {
+    boilerDate.textContent =
+      baseDate;
+  }
+
+
+  /* ===================================================
+    Gear / Pinion
+
+    BOARD LOGSHEET의 전일 값을 사용하므로
+    조회일은 기준일 + 1일
+  ==================================================== */
+
+  if (
+    elements.gearPinionDate
+  ) {
+    elements.gearPinionDate.textContent =
+      gearDate ||
+      "-";
+  }
+}
 
   /* =====================================================
     자동 미리보기 재갱신
@@ -161274,6 +161397,25 @@ function applyCommonBaseDate(
     return;
   }
 
+/* ===================================================
+  BO1 · BO2 업무일지 / 온도
+
+  공용 기준일과 같은 날짜의
+  N/S BO1 · BO2 운전현황을 다시 조회한다.
+=================================================== */
+
+runIndependentLookup(
+  "BO1·BO2 온도",
+
+  () => {
+    return window
+      .loadEfficiencyMorningMeetingShiftLogsForDate?.(
+        normalizedDate
+      );
+  },
+
+  0
+);  
 
   /* ===================================================
     저장된 수처리가 없을 때만 OIS 조회
@@ -164207,4 +164349,778 @@ if (
   window
     .saveEfficiencyMorningMeetingGearPinionCache =
     saveGearPinionResult;
+})();
+
+/* =========================================================
+  신규 업무일지 실제 첨부파일 R2 업로드 최종 연결
+
+  저장 순서:
+  1. 업무일지 D1 저장
+  2. 저장된 업무일지 ID 확보
+  3. 선택한 실제 파일 R2 업로드
+  4. shift_log_attachments D1 등록
+  5. 화면 첨부파일 객체 최신화
+
+  중요:
+  - 기존 업무일지 저장 기능 유지
+  - 기존 과거 업무일지 첨부파일 유지
+  - 업로드 실패 시 작성창을 닫지 않음
+========================================================= */
+
+(function installShiftLogRealAttachmentUpload() {
+
+  if (
+    window
+      .__shiftLogRealAttachmentUploadInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__shiftLogRealAttachmentUploadInstalled =
+    true;
+
+
+  const SHIFT_LOG_FILE_API_URL =
+    "/api/shift-log-files";
+
+
+  /* =====================================================
+    첨부파일 API 응답 읽기
+  ====================================================== */
+
+  async function readShiftLogFileApiResponse(
+    response,
+    fallbackMessage
+  ) {
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "첨부파일 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        fallbackMessage ||
+        `첨부파일 요청 실패 (HTTP ${response.status})`
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    신규 첨부파일 객체 정규화
+
+    상세보기에서 바로 사용할 수 있도록
+    url / previewUrl / downloadUrl을 모두 만든다.
+  ====================================================== */
+
+  function normalizeShiftLogRealAttachment(
+    attachment
+  ) {
+    if (
+      !attachment ||
+      typeof attachment !==
+        "object"
+    ) {
+      return null;
+    }
+
+
+    const attachmentId =
+      String(
+        attachment.id ||
+        attachment.attachmentId ||
+        attachment.attachment_id ||
+        ""
+      ).trim();
+
+
+    if (
+      !attachmentId
+    ) {
+      return null;
+    }
+
+
+    const fileName =
+      String(
+        attachment.name ||
+        attachment.fileName ||
+        attachment.file_name ||
+        attachment.originalName ||
+        attachment.original_name ||
+        "첨부파일"
+      ).trim();
+
+
+    const previewUrl =
+      String(
+        attachment.previewUrl ||
+        attachment.preview_url ||
+        attachment.url ||
+        ""
+      ).trim() ||
+      (
+        `${SHIFT_LOG_FILE_API_URL}` +
+        `?id=${encodeURIComponent(
+          attachmentId
+        )}`
+      );
+
+
+    const downloadUrl =
+      String(
+        attachment.downloadUrl ||
+        attachment.download_url ||
+        ""
+      ).trim() ||
+      (
+        `${SHIFT_LOG_FILE_API_URL}` +
+        `?id=${encodeURIComponent(
+          attachmentId
+        )}` +
+        `&download=1`
+      );
+
+
+    return {
+      ...attachment,
+
+
+      id:
+        attachmentId,
+
+
+      attachmentId:
+        attachmentId,
+
+
+      name:
+        fileName,
+
+
+      fileName:
+        fileName,
+
+
+      mimeType:
+        String(
+          attachment.mimeType ||
+          attachment.mime_type ||
+          attachment.contentType ||
+          attachment.content_type ||
+          ""
+        ).trim(),
+
+
+      fileSize:
+        Number(
+          attachment.fileSize ??
+          attachment.file_size ??
+          0
+        ) ||
+        0,
+
+
+      /*
+        상세보기에서 사용하는 주소
+      */
+      url:
+        previewUrl,
+
+
+      previewUrl:
+        previewUrl,
+
+
+      downloadUrl:
+        downloadUrl,
+
+
+      /*
+        과거 첨부파일과 구분하기 위한 값
+      */
+      storageType:
+        "shift-log-r2"
+    };
+  }
+
+
+  /* =====================================================
+    실제 파일 R2 업로드
+
+    POST /api/shift-log-files
+
+    FormData:
+    - logId
+    - files
+  ====================================================== */
+
+  async function uploadShiftLogRealAttachments(
+    logId,
+    files
+  ) {
+    const normalizedLogId =
+      String(
+        logId ||
+        ""
+      ).trim();
+
+
+    if (
+      !normalizedLogId
+    ) {
+      throw new Error(
+        "첨부파일을 연결할 업무일지 ID가 없습니다."
+      );
+    }
+
+
+    const uploadFiles =
+      (
+        Array.isArray(
+          files
+        )
+          ? files
+          : []
+      )
+        .filter(
+          file => {
+            return (
+              file instanceof
+                File &&
+              Number(
+                file.size ||
+                0
+              ) >
+                0
+            );
+          }
+        );
+
+
+    if (
+      uploadFiles.length ===
+        0
+    ) {
+      return [];
+    }
+
+
+    const formData =
+      new FormData();
+
+
+    formData.append(
+      "logId",
+      normalizedLogId
+    );
+
+
+    uploadFiles.forEach(
+      file => {
+        formData.append(
+          "files",
+          file,
+          file.name
+        );
+      }
+    );
+
+
+    /*
+      중요:
+
+      FormData 사용 시
+      Content-Type을 직접 지정하면 안 된다.
+
+      브라우저가 multipart boundary를
+      자동으로 생성해야 한다.
+    */
+
+    const response =
+      await fetch(
+        SHIFT_LOG_FILE_API_URL,
+        {
+          method:
+            "POST",
+
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+
+          body:
+            formData,
+
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    const result =
+      await readShiftLogFileApiResponse(
+        response,
+        "첨부파일을 업로드하지 못했습니다."
+      );
+
+
+    const attachments =
+      Array.isArray(
+        result.attachments
+      )
+        ? result.attachments
+        : [];
+
+
+    return attachments
+      .map(
+        normalizeShiftLogRealAttachment
+      )
+      .filter(
+        Boolean
+      );
+  }
+
+
+  /* =====================================================
+    기존 업무일지 저장 함수 보존
+  ====================================================== */
+
+  const saveCurrentLogBeforeRealAttachmentUpload =
+    saveCurrentLog;
+
+
+  /* =====================================================
+    업무일지 저장 + 실제 첨부파일 업로드
+
+    파일이 없으면:
+    기존 saveCurrentLog 그대로 실행
+
+    파일이 있으면:
+    업무일지를 먼저 저장한 뒤
+    저장된 log.id를 사용해 R2에 업로드
+  ====================================================== */
+
+  saveCurrentLog =
+    async function saveCurrentLogWithRealAttachments(
+      requestedStatus,
+      options = {}
+    ) {
+      /*
+        저장 버튼을 누르는 바로 그 순간의
+        File 객체를 보관한다.
+      */
+
+      const pendingFiles =
+        elements.logAttachments
+          ? [
+              ...elements
+                .logAttachments
+                .files
+            ]
+              .filter(
+                file => {
+                  return (
+                    file instanceof
+                      File &&
+                    Number(
+                      file.size ||
+                      0
+                    ) >
+                      0
+                  );
+                }
+              )
+          : [];
+
+
+      /*
+        새 파일이 없으면
+        기존 저장 기능을 그대로 사용한다.
+      */
+
+      if (
+        pendingFiles.length ===
+          0
+      ) {
+        return await
+          saveCurrentLogBeforeRealAttachmentUpload
+            .call(
+              this,
+              requestedStatus,
+              options
+            );
+      }
+
+
+      const shouldCloseAfterSave =
+        options.closeAfterSave !==
+          false;
+
+
+      /*
+        첨부파일 업로드가 끝나기 전에
+        수정창이 닫히면 File 객체를 잃을 수 있다.
+
+        따라서 업무일지만 먼저 저장하고
+        창은 잠시 유지한다.
+      */
+
+      const savedLog =
+        await
+          saveCurrentLogBeforeRealAttachmentUpload
+            .call(
+              this,
+              requestedStatus,
+              {
+                ...options,
+
+                closeAfterSave:
+                  false
+              }
+            );
+
+
+      if (
+        !savedLog
+      ) {
+        return null;
+      }
+
+
+      /*
+        업무일지 저장은 성공했다.
+
+        이제 savedLog.id를 이용하여
+        실제 파일을 업로드한다.
+      */
+
+      if (
+        typeof setShiftLogSavingState ===
+          "function"
+      ) {
+        setShiftLogSavingState(
+          true
+        );
+      }
+
+
+      try {
+        const attachments =
+          await uploadShiftLogRealAttachments(
+            savedLog.id,
+            pendingFiles
+          );
+
+
+        /*
+          API는 해당 업무일지의
+          전체 첨부파일 목록을 반환한다.
+
+          기존 파일 + 새 파일을
+          모두 최신 객체로 교체한다.
+        */
+
+        const updatedLog = {
+          ...savedLog,
+
+          attachments:
+            attachments
+        };
+
+
+        if (
+          typeof replaceSharedShiftLogInState ===
+            "function"
+        ) {
+          replaceSharedShiftLogInState(
+            updatedLog
+          );
+        }
+
+
+        /*
+          업로드 성공 후에만
+          파일 선택창을 초기화한다.
+        */
+
+        if (
+          elements.logAttachments
+        ) {
+          elements.logAttachments.value =
+            "";
+        }
+
+
+        /*
+          수정창이 열려 있으면
+          실제 저장된 첨부파일 목록으로 변경한다.
+        */
+
+        if (
+          typeof renderSavedAttachments ===
+            "function"
+        ) {
+          renderSavedAttachments(
+            attachments
+          );
+        }
+
+
+        if (
+          typeof renderLogTable ===
+            "function"
+        ) {
+          renderLogTable();
+        }
+
+
+        if (
+          typeof updateShiftMemberCardStates ===
+            "function"
+        ) {
+          updateShiftMemberCardStates();
+        }
+
+
+        /*
+          원래 저장 동작이
+          창을 닫는 방식이었다면
+          파일 업로드까지 끝난 뒤 닫는다.
+        */
+
+        if (
+          shouldCloseAfterSave &&
+          typeof closeLogEditor ===
+            "function"
+        ) {
+          closeLogEditor();
+        }
+
+
+        showToast(
+          `업무일지와 첨부파일 ${pendingFiles.length}개를 저장했습니다.`
+        );
+
+
+        return updatedLog;
+
+      } catch (
+        error
+      ) {
+        console.error(
+          "업무일지 실제 첨부파일 업로드 실패:",
+          error
+        );
+
+
+        /*
+          업무일지 자체는 이미 D1에 저장되었다.
+
+          파일 업로드만 실패했으므로
+          수정창과 선택 파일은 그대로 남겨서
+          다시 저장할 수 있게 한다.
+        */
+
+        showToast(
+          [
+            "업무일지는 저장됐지만",
+            "첨부파일 업로드에 실패했습니다.",
+            error?.message ||
+              "파일을 다시 저장해 주세요."
+          ].join(
+            " "
+          )
+        );
+
+
+        return savedLog;
+
+      } finally {
+        if (
+          typeof setShiftLogSavingState ===
+            "function"
+        ) {
+          setShiftLogSavingState(
+            false
+          );
+        }
+      }
+    };
+
+
+  /* =====================================================
+    신규 첨부파일 미리보기 주소 최종 처리
+
+    기존 문제:
+    attachment.id가 있으면 무조건
+    /api/legacy-attachment로 보내고 있었다.
+
+    신규 업무일지 UUID 첨부파일은
+    /api/shift-log-files로 보내야 한다.
+  ====================================================== */
+
+  getAttachmentSelectorPreviewUrl =
+    function getAttachmentSelectorPreviewUrlWithShiftLogFiles(
+      attachment
+    ) {
+      if (
+        !attachment
+      ) {
+        return "";
+      }
+
+
+      /*
+        1순위:
+        객체에 이미 실제 URL이 있으면
+        그대로 사용한다.
+      */
+
+      const directUrl =
+        String(
+          attachment.previewUrl ||
+          attachment.preview_url ||
+          attachment.url ||
+          attachment.downloadUrl ||
+          attachment.download_url ||
+          attachment.originalUrl ||
+          attachment.original_url ||
+          ""
+        ).trim();
+
+
+      if (
+        directUrl
+      ) {
+        return directUrl;
+      }
+
+
+      /*
+        문자열 자체가 URL인 경우
+      */
+
+      if (
+        typeof attachment ===
+          "string" &&
+        (
+          attachment.startsWith(
+            "http://"
+          ) ||
+          attachment.startsWith(
+            "https://"
+          ) ||
+          attachment.startsWith(
+            "/"
+          )
+        )
+      ) {
+        return attachment;
+      }
+
+
+      const attachmentId =
+        String(
+          attachment.id ||
+          attachment.attachmentId ||
+          attachment.attachment_id ||
+          ""
+        ).trim();
+
+
+      if (
+        !attachmentId
+      ) {
+        return "";
+      }
+
+
+      const storageType =
+        String(
+          attachment.storageType ||
+          attachment.storage_type ||
+          ""
+        ).trim();
+
+
+      /*
+        신규 업무일지 첨부파일
+
+        UUID이거나 storageType이
+        shift-log-r2이면 신규 API 사용
+      */
+
+      if (
+        storageType ===
+          "shift-log-r2" ||
+        !/^\d+$/.test(
+          attachmentId
+        )
+      ) {
+        return (
+          `${SHIFT_LOG_FILE_API_URL}` +
+          `?id=${encodeURIComponent(
+            attachmentId
+          )}`
+        );
+      }
+
+
+      /*
+        숫자 ID는 기존 과거 업무일지 첨부파일
+      */
+
+      return (
+        `/api/legacy-attachment?id=` +
+        encodeURIComponent(
+          attachmentId
+        )
+      );
+    };
+
+
+  console.log(
+    "신규 업무일지 실제 첨부파일 R2 업로드 연결 완료"
+  );
+
 })();
