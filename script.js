@@ -4030,28 +4030,55 @@ function getEmployeeManagementRoleLabel(
 ) {
   const normalizedRole =
     String(
-      role || ""
+      role ||
+      ""
     )
       .trim()
-      .toLowerCase();
+      .toLowerCase()
+      .replace(
+        /[\s-]+/g,
+        "_"
+      );
+
 
   if (
-    normalizedRole ===
-      "super_admin" ||
-    normalizedRole ===
-      "superadmin"
+    [
+      "super_admin",
+      "superadmin",
+      "최고관리자"
+    ].includes(
+      normalizedRole
+    )
   ) {
     return "최고관리자";
   }
 
+
   if (
-    normalizedRole ===
-      "admin" ||
-    normalizedRole ===
-      "leader"
+    [
+      "team_manager",
+      "teammanager",
+      "팀장"
+    ].includes(
+      normalizedRole
+    )
+  ) {
+    return "팀장";
+  }
+
+
+  if (
+    [
+      "admin",
+      "leader",
+      "파트장"
+    ].includes(
+      normalizedRole
+    )
   ) {
     return "파트장";
   }
+
 
   return "일반";
 }
@@ -4269,23 +4296,48 @@ function normalizeEmployeeEditRole(
         "_"
       );
 
+
   if (
-    role === "super_admin" ||
-    role === "superadmin"
+    [
+      "super_admin",
+      "superadmin",
+      "최고관리자"
+    ].includes(
+      role
+    )
   ) {
     return "super_admin";
   }
 
+
   if (
-    role === "admin" ||
-    role === "leader"
+    [
+      "team_manager",
+      "teammanager",
+      "팀장"
+    ].includes(
+      role
+    )
+  ) {
+    return "team_manager";
+  }
+
+
+  if (
+    [
+      "admin",
+      "leader",
+      "파트장"
+    ].includes(
+      role
+    )
   ) {
     return "admin";
   }
 
+
   return "user";
 }
-
 
 /* =========================================================
   직원 수정 모달 열기
@@ -4551,12 +4603,10 @@ async function saveEmployeeEdit() {
     ).trim();
 
   const selectedRole =
-    String(
+    normalizeEmployeeEditRole(
       roleSelect?.value ||
       "user"
-    )
-      .trim()
-      .toLowerCase();
+    );
 
   const position =
     String(
@@ -4566,11 +4616,15 @@ async function saveEmployeeEdit() {
 
 
   /* ==================================================
-     입력값 검사
+    입력값 검사
   ================================================== */
 
-  if (!employeeNo) {
-    if (message) {
+  if (
+    !employeeNo
+  ) {
+    if (
+      message
+    ) {
       message.textContent =
         "직원 사번을 확인할 수 없습니다.";
 
@@ -4582,8 +4636,12 @@ async function saveEmployeeEdit() {
   }
 
 
-  if (!name) {
-    if (message) {
+  if (
+    !name
+  ) {
+    if (
+      message
+    ) {
       message.textContent =
         "직원 이름을 입력해 주세요.";
 
@@ -4601,7 +4659,9 @@ async function saveEmployeeEdit() {
     name.length < 2 ||
     name.length > 30
   ) {
-    if (message) {
+    if (
+      message
+    ) {
       message.textContent =
         "직원 이름은 2~30자로 입력해 주세요.";
 
@@ -4615,40 +4675,71 @@ async function saveEmployeeEdit() {
   }
 
 
-  /* ==================================================
-     화면 권한 → employees.default_role 변환
-
-     화면:
-     user
-     admin
-     super_admin
-
-     employees:
-     user
-     leader
-     super_admin
-  ================================================== */
-
-  let defaultRole =
-    "user";
+  const validRoles = [
+    "user",
+    "admin",
+    "team_manager",
+    "super_admin"
+  ];
 
 
   if (
-    selectedRole ===
-    "super_admin"
+    !validRoles.includes(
+      selectedRole
+    )
   ) {
-    defaultRole =
-      "super_admin";
+    if (
+      message
+    ) {
+      message.textContent =
+        "선택한 권한을 확인해 주세요.";
 
-  } else if (
-    selectedRole ===
-      "admin" ||
-    selectedRole ===
-      "leader"
-  ) {
-    defaultRole =
-      "leader";
+      message.hidden =
+        false;
+    }
+
+    roleSelect?.focus();
+
+    return;
   }
+
+
+  /* ==================================================
+    화면 권한 → employees.default_role 변환
+
+    화면:
+    user
+    admin
+    team_manager
+    super_admin
+
+    employees:
+    user
+    leader
+    team_manager
+    super_admin
+  ================================================== */
+
+  const defaultRoleMap = {
+    user:
+      "user",
+
+    admin:
+      "leader",
+
+    team_manager:
+      "team_manager",
+
+    super_admin:
+      "super_admin"
+  };
+
+
+  const defaultRole =
+    defaultRoleMap[
+      selectedRole
+    ] ||
+    "user";
 
 
   const validPositions = [
@@ -4668,7 +4759,9 @@ async function saveEmployeeEdit() {
       position
     )
   ) {
-    if (message) {
+    if (
+      message
+    ) {
       message.textContent =
         "선택한 보직을 확인해 주세요.";
 
@@ -4680,7 +4773,9 @@ async function saveEmployeeEdit() {
   }
 
 
-  if (message) {
+  if (
+    message
+  ) {
     message.textContent =
       "직원 정보를 저장하고 있습니다.";
 
@@ -4689,7 +4784,9 @@ async function saveEmployeeEdit() {
   }
 
 
-  if (saveButton) {
+  if (
+    saveButton
+  ) {
     saveButton.disabled =
       true;
 
@@ -4706,13 +4803,20 @@ async function saveEmployeeEdit() {
           method:
             "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json",
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  "Content-Type":
+                    "application/json",
 
-            Accept:
-              "application/json"
-          },
+                  Accept:
+                    "application/json"
+                },
 
           cache:
             "no-store",
@@ -4799,14 +4903,18 @@ async function saveEmployeeEdit() {
       `${name} 직원 정보가 저장되었습니다.`
     );
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "직원 정보 저장 오류:",
       error
     );
 
 
-    if (message) {
+    if (
+      message
+    ) {
       message.textContent =
         error.message ||
         "직원 정보를 저장하지 못했습니다.";
@@ -4822,7 +4930,9 @@ async function saveEmployeeEdit() {
     );
 
   } finally {
-    if (saveButton) {
+    if (
+      saveButton
+    ) {
       saveButton.disabled =
         false;
 
@@ -4830,7 +4940,7 @@ async function saveEmployeeEdit() {
         "저장";
     }
   }
-} 
+}
 
 /* =========================================================
   직원 수정 모달 바깥 영역 클릭 닫기

@@ -57,7 +57,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260807-inspection-manual2"
+  src="script.js?v=20260807-team-manager-ui1"
   defer
 ></script>
 
@@ -11242,7 +11242,7 @@
 
 
             <small>
-              일반·파트장·최고관리자 계정 관리
+              일반·파트장·팀장·최고관리자 계정 관리
             </small>
 
           </div>
@@ -11906,21 +11906,25 @@
           권한
         </span>
 
-        <select id="employeeEditRole">
+<select id="employeeEditRole">
 
-          <option value="user">
-            일반
-          </option>
+  <option value="user">
+    일반
+  </option>
 
-          <option value="admin">
-            파트장
-          </option>
+  <option value="admin">
+    파트장
+  </option>
 
-          <option value="super_admin">
-            최고관리자
-          </option>
+  <option value="team_manager">
+    팀장
+  </option>
 
-        </select>
+  <option value="super_admin">
+    최고관리자
+  </option>
+
+</select>
 
       </label>
 
