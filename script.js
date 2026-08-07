@@ -136594,6 +136594,249 @@ function setMorningMeetingInlineStringCellValue(
 }
 
 /* =====================================================
+  오전회의 엑셀 혼합 글꼴 문자열 입력
+
+  한글:
+  Batang
+
+  영문 · 숫자 · 기호:
+  Times New Roman
+
+  기존 셀의:
+  - style 번호
+  - 테두리
+  - 배경
+  - 정렬
+  - 병합
+
+  은 그대로 유지한다.
+====================================================== */
+
+function setMorningMeetingRichInlineStringCellValue(
+  worksheetDocument,
+  address,
+  value
+) {
+  const cellElement =
+    findMorningMeetingWorksheetCellByAddress(
+      worksheetDocument,
+      address
+    );
+
+
+  if (
+    !cellElement
+  ) {
+    return {
+      found:
+        false,
+
+      written:
+        false,
+
+      address
+    };
+  }
+
+
+  const stringValue =
+    String(
+      value ??
+      ""
+    );
+
+
+  /* ===================================================
+    기존 값 제거
+  ==================================================== */
+
+  [
+    "f",
+    "v",
+    "is"
+  ].forEach(
+    childName => {
+      getMorningMeetingDirectXmlChildren(
+        cellElement,
+        childName
+      )
+        .forEach(
+          childElement => {
+            childElement.remove();
+          }
+        );
+    }
+  );
+
+
+  cellElement.setAttribute(
+    "t",
+    "inlineStr"
+  );
+
+
+  const spreadsheetNamespace =
+    cellElement.namespaceURI ||
+    MAIN_XML_NAMESPACE;
+
+
+  const inlineStringElement =
+    worksheetDocument
+      .createElementNS(
+        spreadsheetNamespace,
+        "is"
+      );
+
+
+  /* ===================================================
+    기존 오전회의 공용 글꼴 분리 함수 사용
+  ==================================================== */
+
+  const runs =
+    splitMorningMeetingFontRuns(
+      stringValue
+    );
+
+
+  runs.forEach(
+    run => {
+      const runElement =
+        worksheetDocument
+          .createElementNS(
+            spreadsheetNamespace,
+            "r"
+          );
+
+
+      const runProperties =
+        worksheetDocument
+          .createElementNS(
+            spreadsheetNamespace,
+            "rPr"
+          );
+
+
+      const fontElement =
+        worksheetDocument
+          .createElementNS(
+            spreadsheetNamespace,
+            "rFont"
+          );
+
+
+      fontElement.setAttribute(
+        "val",
+        run.isHangul
+          ? "Batang"
+          : "Times New Roman"
+      );
+
+
+      runProperties.appendChild(
+        fontElement
+      );
+
+
+      const charsetElement =
+        worksheetDocument
+          .createElementNS(
+            spreadsheetNamespace,
+            "charset"
+          );
+
+
+      charsetElement.setAttribute(
+        "val",
+        run.isHangul
+          ? "129"
+          : "0"
+      );
+
+
+      runProperties.appendChild(
+        charsetElement
+      );
+
+
+      const familyElement =
+        worksheetDocument
+          .createElementNS(
+            spreadsheetNamespace,
+            "family"
+          );
+
+
+      familyElement.setAttribute(
+        "val",
+        "1"
+      );
+
+
+      runProperties.appendChild(
+        familyElement
+      );
+
+
+      const textElement =
+        worksheetDocument
+          .createElementNS(
+            spreadsheetNamespace,
+            "t"
+          );
+
+
+      /*
+        공백과 줄바꿈 보존
+      */
+
+      textElement.setAttributeNS(
+        "http://www.w3.org/XML/1998/namespace",
+        "xml:space",
+        "preserve"
+      );
+
+
+      textElement.textContent =
+        run.text;
+
+
+      runElement.appendChild(
+        runProperties
+      );
+
+
+      runElement.appendChild(
+        textElement
+      );
+
+
+      inlineStringElement.appendChild(
+        runElement
+      );
+    }
+  );
+
+
+  cellElement.appendChild(
+    inlineStringElement
+  );
+
+
+  return {
+    found:
+      true,
+
+    written:
+      true,
+
+    address,
+
+    value:
+      stringValue
+  };
+}
+
+/* =====================================================
   Gear Wheel / Pinion 필수 숫자 검사
 ===================================================== */
 
@@ -137029,14 +137272,14 @@ function applyMorningMeetingLimestoneValues(
     입고량 문구는 절대 넣지 않는다.
 
     X15:
-    Lime Stone 사용량
+    Limestone 사용량
   ====================================================== */
 
   const titleResult =
     setMorningMeetingInlineStringCellValue(
       worksheetDocument,
       "X15",
-      "Lime Stone 사용량"
+      "Limestone 사용량"
     );
 
 
