@@ -169043,211 +169043,419 @@ function loadCache() {
     현재 BO1·BO2 온도 즉시 저장
   ====================================================== */
 
-  function saveBoilerTemperatures() {
-    const state =
-      getState();
+function saveBoilerTemperatures() {
+  const state =
+    getState();
 
 
-    const boilerTemperatures =
-      state.boilerTemperatures;
+  const boilerTemperatures =
+    state.boilerTemperatures;
 
 
-    if (
-      !boilerTemperatures ||
-      typeof boilerTemperatures !==
-        "object"
-    ) {
-      return false;
-    }
-
-
-    const reportDate =
-      normalizeDate(
-        boilerTemperatures.reportDate ||
-        state.shiftPart?.reportDate ||
-        state.shiftPart?.loadedDate
-      );
-
-
-    if (
-      !reportDate
-    ) {
-      return false;
-    }
-
-
-    const savedValue =
-      cloneValue({
-        ...boilerTemperatures,
-
-        reportDate,
-
-        cachedAt:
-          new Date()
-            .toISOString()
-      });
-
-
-    if (
-      !savedValue
-    ) {
-      return false;
-    }
-
-
-    const cache =
-      loadCache();
-
-
-    if (
-      !cache.boiler ||
-      typeof cache.boiler !==
-        "object"
-    ) {
-      cache.boiler =
-        {};
-    }
-
-
-    cache.boiler[
-      reportDate
-    ] =
-      savedValue;
-
-
-    const saved =
-      saveCache(
-        cache
-      );
-
-
-    if (
-      saved
-    ) {
-      console.log(
-        `오전회의 BO1·BO2 온도 ${reportDate} 저장 완료`
-      );
-    }
-
-
-    return saved;
+  if (
+    !boilerTemperatures ||
+    typeof boilerTemperatures !==
+      "object"
+  ) {
+    return false;
   }
 
+
+  const reportDate =
+    normalizeDate(
+      boilerTemperatures.reportDate ||
+      state.shiftPart?.reportDate ||
+      state.shiftPart?.loadedDate
+    );
+
+
+  if (
+    !reportDate
+  ) {
+    return false;
+  }
+
+
+  /* =====================================================
+    BO1·BO2 12개 온도값 확인
+
+    불완전한 온도값은 캐시에 저장하지 않는다.
+
+    이유:
+    예전처럼 추출 실패 상태가 저장되면
+    다음 실행에서 저장값으로 잘못 복원될 수 있다.
+  ====================================================== */
+
+  const temperatureValues = [
+    boilerTemperatures
+      .unitOne?.fbheLeft,
+
+    boilerTemperatures
+      .unitOne?.fbheRight,
+
+    boilerTemperatures
+      .unitOne?.wallScrew?.A,
+
+    boilerTemperatures
+      .unitOne?.wallScrew?.B,
+
+    boilerTemperatures
+      .unitOne?.wallScrew?.C,
+
+    boilerTemperatures
+      .unitOne?.wallScrew?.D,
+
+
+    boilerTemperatures
+      .unitTwo?.fbheLeft,
+
+    boilerTemperatures
+      .unitTwo?.fbheRight,
+
+    boilerTemperatures
+      .unitTwo?.wallScrew?.A,
+
+    boilerTemperatures
+      .unitTwo?.wallScrew?.B,
+
+    boilerTemperatures
+      .unitTwo?.wallScrew?.C,
+
+    boilerTemperatures
+      .unitTwo?.wallScrew?.D
+  ];
+
+
+  const hasCompleteValues =
+    temperatureValues.every(
+      value => {
+        const numericValue =
+          Number(
+            String(
+              value ??
+              ""
+            )
+              .replaceAll(
+                ",",
+                ""
+              )
+              .replace(
+                /℃|°C/gi,
+                ""
+              )
+              .trim()
+          );
+
+
+        return Number.isFinite(
+          numericValue
+        );
+      }
+    );
+
+
+  if (
+    !hasCompleteValues
+  ) {
+    console.log(
+      `오전회의 BO1·BO2 온도 ${reportDate} 미완성 → 캐시 저장 보류`
+    );
+
+
+    return false;
+  }
+
+
+  const savedValue =
+    cloneValue({
+      ...boilerTemperatures,
+
+      reportDate,
+
+      missing:
+        [],
+
+      complete:
+        true,
+
+      cachedAt:
+        new Date()
+          .toISOString()
+    });
+
+
+  if (
+    !savedValue
+  ) {
+    return false;
+  }
+
+
+  const cache =
+    loadCache();
+
+
+  if (
+    !cache.boiler ||
+    typeof cache.boiler !==
+      "object"
+  ) {
+    cache.boiler =
+      {};
+  }
+
+
+  cache.boiler[
+    reportDate
+  ] =
+    savedValue;
+
+
+  const saved =
+    saveCache(
+      cache
+    );
+
+
+  if (
+    saved
+  ) {
+    console.log(
+      `오전회의 BO1·BO2 온도 ${reportDate} 저장 완료`
+    );
+  }
+
+
+  return saved;
+}
 
   /* =====================================================
     지정 날짜 BO1·BO2 온도 즉시 복원
   ====================================================== */
 
-  function restoreBoilerTemperatures(
-    requestedDate
-  ) {
-    const reportDate =
-      normalizeDate(
-        requestedDate
-      );
-
-
-    if (
-      !reportDate
-    ) {
-      return false;
-    }
-
-
-    const cache =
-      loadCache();
-
-
-    const savedValue =
-      cache.boiler?.[
-        reportDate
-      ];
-
-
-    if (
-      !savedValue ||
-      typeof savedValue !==
-        "object"
-    ) {
-      return false;
-    }
-
-
-    const restoredValue =
-      cloneValue(
-        savedValue
-      );
-
-
-    if (
-      !restoredValue
-    ) {
-      return false;
-    }
-
-
-    const state =
-      getState();
-
-
-    restoredValue.reportDate =
-      reportDate;
-
-
-    state.boilerTemperatures =
-      restoredValue;
-
-
-    /* ===================================================
-      보일러 입력칸 즉시 갱신
-    ==================================================== */
-
-    if (
-      typeof window
-        .renderEfficiencyMorningMeetingBoilerTemperatures ===
-        "function"
-    ) {
-      window
-        .renderEfficiencyMorningMeetingBoilerTemperatures();
-    }
-
-
-    /* ===================================================
-      자동 수치 미리보기 전체 갱신
-    ==================================================== */
-
-    if (
-      typeof window
-        .renderEfficiencyMorningMeetingAutoPreview ===
-        "function"
-    ) {
-      window
-        .renderEfficiencyMorningMeetingAutoPreview();
-    }
-
-
-    /* ===================================================
-      최종 엑셀 버튼 재판정
-    ==================================================== */
-
-    if (
-      typeof window
-        .updateEfficiencyMorningMeetingCreateButton ===
-        "function"
-    ) {
-      window
-        .updateEfficiencyMorningMeetingCreateButton();
-    }
-
-
-    console.log(
-      `오전회의 BO1·BO2 온도 ${reportDate} 저장값 복원`
+function restoreBoilerTemperatures(
+  requestedDate
+) {
+  const reportDate =
+    normalizeDate(
+      requestedDate
     );
 
 
-    return true;
+  if (
+    !reportDate
+  ) {
+    return false;
   }
 
+
+  const cache =
+    loadCache();
+
+
+  const savedValue =
+    cache.boiler?.[
+      reportDate
+    ];
+
+
+  if (
+    !savedValue ||
+    typeof savedValue !==
+      "object"
+  ) {
+    return false;
+  }
+
+
+  /* =====================================================
+    저장된 BO1·BO2 12개 값 검증
+
+    정상:
+    → 즉시 복원
+
+    불완전:
+    → 해당 캐시 자동 삭제
+    → false 반환
+    → applyCommonBaseDate()가 업무일지를 다시 조회
+  ====================================================== */
+
+  const temperatureValues = [
+    savedValue
+      .unitOne?.fbheLeft,
+
+    savedValue
+      .unitOne?.fbheRight,
+
+    savedValue
+      .unitOne?.wallScrew?.A,
+
+    savedValue
+      .unitOne?.wallScrew?.B,
+
+    savedValue
+      .unitOne?.wallScrew?.C,
+
+    savedValue
+      .unitOne?.wallScrew?.D,
+
+
+    savedValue
+      .unitTwo?.fbheLeft,
+
+    savedValue
+      .unitTwo?.fbheRight,
+
+    savedValue
+      .unitTwo?.wallScrew?.A,
+
+    savedValue
+      .unitTwo?.wallScrew?.B,
+
+    savedValue
+      .unitTwo?.wallScrew?.C,
+
+    savedValue
+      .unitTwo?.wallScrew?.D
+  ];
+
+
+  const hasCompleteValues =
+    temperatureValues.every(
+      value => {
+        const numericValue =
+          Number(
+            String(
+              value ??
+              ""
+            )
+              .replaceAll(
+                ",",
+                ""
+              )
+              .replace(
+                /℃|°C/gi,
+                ""
+              )
+              .trim()
+          );
+
+
+        return Number.isFinite(
+          numericValue
+        );
+      }
+    );
+
+
+  /* =====================================================
+    잘못 저장된 빈 캐시 자동 폐기
+  ====================================================== */
+
+  if (
+    !hasCompleteValues
+  ) {
+    delete cache.boiler[
+      reportDate
+    ];
+
+
+    saveCache(
+      cache
+    );
+
+
+    console.warn(
+      `오전회의 BO1·BO2 온도 ${reportDate} 불완전한 저장값 삭제 → 업무일지 재조회`
+    );
+
+
+    return false;
+  }
+
+
+  const restoredValue =
+    cloneValue(
+      savedValue
+    );
+
+
+  if (
+    !restoredValue
+  ) {
+    return false;
+  }
+
+
+  const state =
+    getState();
+
+
+  restoredValue.reportDate =
+    reportDate;
+
+
+  restoredValue.missing =
+    [];
+
+
+  restoredValue.complete =
+    true;
+
+
+  state.boilerTemperatures =
+    restoredValue;
+
+
+  /* =====================================================
+    보일러 입력칸 즉시 갱신
+  ====================================================== */
+
+  if (
+    typeof window
+      .renderEfficiencyMorningMeetingBoilerTemperatures ===
+      "function"
+  ) {
+    window
+      .renderEfficiencyMorningMeetingBoilerTemperatures();
+  }
+
+
+  /* =====================================================
+    자동 수치 미리보기 갱신
+  ====================================================== */
+
+  if (
+    typeof window
+      .renderEfficiencyMorningMeetingAutoPreview ===
+      "function"
+  ) {
+    window
+      .renderEfficiencyMorningMeetingAutoPreview();
+  }
+
+
+  /* =====================================================
+    최종 엑셀 버튼 재판정
+  ====================================================== */
+
+  if (
+    typeof window
+      .updateEfficiencyMorningMeetingCreateButton ===
+      "function"
+  ) {
+    window
+      .updateEfficiencyMorningMeetingCreateButton();
+  }
+
+
+  console.log(
+    `오전회의 BO1·BO2 온도 ${reportDate} 저장값 복원`
+  );
+
+
+  return true;
+}
 
   /* =====================================================
     비동기 처리 직후 저장
