@@ -88710,3 +88710,227 @@ input:checked
   }
 
 }
+
+/* =========================================================
+  오전회의 취합
+  주말 체크박스 최종 표시 보정
+
+  목적:
+  - 기존 오전회의 헤더 CSS와 충돌 방지
+  - 오른쪽 상단에 항상 표시
+  - 작은 기본 체크박스로 확실하게 표시
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-heading {
+  position: relative !important;
+
+  padding-right: 215px !important;
+}
+
+
+/* =========================================================
+  오른쪽 주말 모드 영역
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-heading
+>
+.efficiency-morning-meeting-mode {
+  position: absolute !important;
+
+  top: 50% !important;
+  right: 20px !important;
+
+  transform: translateY(-50%) !important;
+
+  display: flex !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+
+  align-items: center !important;
+  justify-content: flex-end !important;
+
+  gap: 8px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+/* =========================================================
+  주말 선택 버튼
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-weekend-check {
+  display: inline-flex !important;
+
+  min-height: 32px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  gap: 6px !important;
+
+  margin: 0 !important;
+  padding: 0 10px !important;
+
+  border: 1px solid #c8d5e3 !important;
+  border-radius: 7px !important;
+
+  background: #ffffff !important;
+  color: #43566d !important;
+
+  cursor: pointer !important;
+  user-select: none !important;
+}
+
+
+/* =========================================================
+  실제 체크박스
+
+  기존 코드에서는 1px로 숨겨져 있었지만
+  이번에는 작은 기본 체크박스를 직접 보여준다.
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-weekend-check
+>
+input {
+  position: static !important;
+
+  display: block !important;
+
+  width: 14px !important;
+  height: 14px !important;
+
+  margin: 0 !important;
+
+  opacity: 1 !important;
+
+  pointer-events: auto !important;
+
+  accent-color: #1f5fae !important;
+
+  cursor: pointer !important;
+}
+
+
+/* 기존 가짜 체크박스는 사용하지 않음 */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-weekend-check__box {
+  display: none !important;
+}
+
+
+/* =========================================================
+  "주말" 글씨
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-weekend-check__text {
+  display: inline-block !important;
+
+  width: auto !important;
+
+  margin: 0 !important;
+
+  color: #43566d !important;
+
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+
+  letter-spacing: 0 !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* =========================================================
+  평일 취합 / 주말 취합
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-weekend-status {
+  display: inline-block !important;
+
+  width: auto !important;
+
+  margin: 0 !important;
+
+  color: #7a899a !important;
+
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+
+  letter-spacing: 0 !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* =========================================================
+  체크된 상태
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-weekend-check:has(
+  input:checked
+) {
+  border-color: #7fa7d2 !important;
+
+  background: #edf5fd !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-weekend-check:has(
+  input:checked
+)
+.efficiency-morning-meeting-weekend-check__text {
+  color: #1f5fae !important;
+}
+
+
+/* =========================================================
+  작은 화면
+========================================================= */
+
+@media (max-width: 900px) {
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading {
+    padding-right: 14px !important;
+    padding-bottom: 58px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading
+  >
+  .efficiency-morning-meeting-mode {
+    top: auto !important;
+    right: 14px !important;
+    bottom: 14px !important;
+
+    transform: none !important;
+  }
+
+}
