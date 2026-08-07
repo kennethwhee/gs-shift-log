@@ -144002,11 +144002,41 @@ const weekendEndDateText =
   ).trim();
 
 
-const teamReportDateText =
+/* =====================================================
+  4개 팀 자료 날짜
+
+  팀 파일 날짜 형식:
+  2026-08-07
+  2026.08.07
+  2026/08/07
+
+  모두 YYYY-MM-DD로 정규화한다.
+====================================================== */
+
+const rawTeamReportDateText =
   String(
     uniqueReportDates[0] ||
     ""
   ).trim();
+
+
+const parsedTeamReportDate =
+  rawTeamReportDateText
+    ? parseMorningMeetingReportDate(
+        rawTeamReportDateText
+      )
+    : null;
+
+
+const teamReportDateText =
+  parsedTeamReportDate
+    ? parsedTeamReportDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        )
+    : "";
 
 
 /* =====================================================
@@ -144028,24 +144058,37 @@ if (
 }
 
 
-/*
-  주말에는 4개 팀 자료가
-  주말 시작일(보통 금요일) 자료인지 확인한다.
+/* =====================================================
+  주말 4개 팀 자료 날짜 검사
 
-  팀 자료가 미첨부라 날짜가 없으면
-  이 검사는 건너뛴다.
-*/
+  기존:
+  팀 자료 날짜 === 주말 시작일
+
+  변경:
+  주말 시작일 <= 팀 자료 날짜 <= 주말 종료일
+
+  예:
+  주말 기간 2026-08-06 ~ 2026-08-08
+  팀 자료   2026-08-07
+
+  → 정상 사용
+====================================================== */
 
 if (
   isWeekendMode &&
   teamReportDateText &&
-  teamReportDateText !==
-    weekendStartDateText
+  (
+    teamReportDateText <
+      weekendStartDateText ||
+
+    teamReportDateText >
+      weekendEndDateText
+  )
 ) {
   showMorningMeetingWorkbookError(
     [
-      "주말 취합의 4개 팀 자료 날짜가 시작일과 다릅니다.",
-      `주말 시작일: ${weekendStartDateText}`,
+      "주말 취합의 4개 팀 자료 날짜가 선택 기간 밖입니다.",
+      `선택 기간: ${weekendStartDateText} ~ ${weekendEndDateText}`,
       `팀 자료: ${teamReportDateText}`
     ].join(
       " "
@@ -144054,7 +144097,6 @@ if (
 
   return;
 }
-
 
 /* =====================================================
   자동수치 기준일
