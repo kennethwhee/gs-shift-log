@@ -13123,6 +13123,405 @@ if (
   }
 }
 
+/* =========================================================
+  삭제한 과거 업무일지 재생성 차단
+
+  목적:
+  legacy_logs 원본을 직접 삭제하지 않고
+  사용자가 현재 업무일지에서 삭제한 과거 자료만
+  별도의 차단 기록으로 기억한다.
+
+  이유:
+  legacy_logs 원본을 삭제해도
+  나중에 과거 업무일지 동기화를 다시 실행하면
+  원본 서버에서 다시 생성될 수 있다.
+
+  따라서:
+  legacy_logs       = 원본 보존
+  shift_logs        = 현재 사용본
+  suppression table = 사용자가 삭제한 원본 기억
+========================================================= */
+
+
+/* =========================================================
+  삭제 차단 테이블 생성
+========================================================= */
+
+async function ensureLegacyLogSuppressionTable(
+  database
+) {
+  if (
+    !database
+  ) {
+    return;
+  }
+
+
+  await database
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS
+        legacy_log_suppressions
+      (
+        legacy_diary_id TEXT NOT NULL,
+
+        work_date TEXT NOT NULL,
+
+        shift TEXT NOT NULL,
+
+        role TEXT NOT NULL,
+
+        source_log_id TEXT NOT NULL DEFAULT '',
+
+
+        deleted_by_id TEXT NOT NULL DEFAULT '',
+
+        deleted_by_name TEXT NOT NULL DEFAULT '',
+
+        deleted_at TEXT NOT NULL,
+
+
+        reason TEXT NOT NULL DEFAULT 'user-delete',
+
+
+        PRIMARY KEY (
+          legacy_diary_id,
+          work_date,
+          shift,
+          role
+        )
+      )
+    `)
+    .run();
+
+
+  /*
+    날짜별 조회를 빠르게 하기 위한 인덱스
+  */
+
+  await database
+    .prepare(`
+      CREATE INDEX IF NOT EXISTS
+        idx_legacy_log_suppressions_date
+
+      ON legacy_log_suppressions (
+        work_date,
+        shift,
+        role
+      )
+    `)
+    .run();
+}
+
+
+/* =========================================================
+  현재 shift_log에서 원래 legacy_diary_id 확인
+
+  우선순위:
+  1. log.legacyDiaryId
+  2. log.legacy_diary_id
+  3. ID가 legacy-... 형식이면 뒷부분
+
+  신규 업무일지는 legacyDiaryId가 없으므로
+  삭제 차단 대상이 아니다.
+========================================================= */
+
+function getLegacyDiaryIdFromShiftLog(
+  log
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    return "";
+  }
+
+
+  const directLegacyDiaryId =
+    normalizeText(
+      log.legacyDiaryId ||
+      log.legacy_diary_id
+    );
+
+
+  if (
+    directLegacyDiaryId
+  ) {
+    return directLegacyDiaryId;
+  }
+
+
+  const logId =
+    normalizeText(
+      log.id
+    );
+
+
+  if (
+    logId.startsWith(
+      "legacy-"
+    )
+  ) {
+    return normalizeText(
+      logId.slice(
+        "legacy-".length
+      )
+    );
+  }
+
+
+  return "";
+}
+
+
+/* =========================================================
+  삭제한 과거 업무일지 차단 기록 저장
+
+  반환:
+  {
+    suppressed: true/false,
+    legacyDiaryId: "..."
+  }
+
+  신규 작성 업무일지:
+  legacyDiaryId 없음
+  → suppressed: false
+
+  과거 동기화 업무일지:
+  legacyDiaryId 있음
+  → 차단 테이블에 UPSERT
+========================================================= */
+
+async function suppressDeletedLegacyLog(
+  database,
+  log,
+  user
+) {
+  if (
+    !database ||
+    !log
+  ) {
+    return {
+      suppressed:
+        false,
+
+      legacyDiaryId:
+        ""
+    };
+  }
+
+
+  const legacyDiaryId =
+    getLegacyDiaryIdFromShiftLog(
+      log
+    );
+
+
+  /*
+    일반 신규 업무일지는
+    과거 자료 재생성 차단 대상이 아니다.
+  */
+
+  if (
+    !legacyDiaryId
+  ) {
+    return {
+      suppressed:
+        false,
+
+      legacyDiaryId:
+        ""
+    };
+  }
+
+
+  const workDate =
+    normalizeText(
+      log.date
+    );
+
+
+  const shift =
+    normalizeShift(
+      log.shift
+    );
+
+
+  const role =
+    normalizeLogRole(
+      log.role
+    );
+
+
+  if (
+    !isValidIsoDate(
+      workDate
+    ) ||
+    !VALID_SHIFTS.has(
+      shift
+    ) ||
+    !VALID_ROLES.has(
+      role
+    )
+  ) {
+    console.warn(
+      "과거 업무일지 삭제 차단정보가 올바르지 않습니다.",
+      {
+        legacyDiaryId,
+        workDate,
+        shift,
+        role
+      }
+    );
+
+
+    return {
+      suppressed:
+        false,
+
+      legacyDiaryId
+    };
+  }
+
+
+  await ensureLegacyLogSuppressionTable(
+    database
+  );
+
+
+  const timestamp =
+    new Date()
+      .toISOString();
+
+
+  const deletedById =
+    normalizeEmployeeNo(
+      user?.employeeNo
+    );
+
+
+  const deletedByName =
+    normalizeText(
+      user?.name
+    );
+
+
+  const sourceLogId =
+    normalizeText(
+      log.id
+    );
+
+
+  /* =====================================================
+    같은 과거 업무일지를 다시 삭제해도
+    중복 레코드를 만들지 않고 최신 삭제정보로 갱신
+  ====================================================== */
+
+  await database
+    .prepare(`
+      INSERT INTO legacy_log_suppressions
+      (
+        legacy_diary_id,
+
+        work_date,
+
+        shift,
+
+        role,
+
+        source_log_id,
+
+        deleted_by_id,
+
+        deleted_by_name,
+
+        deleted_at,
+
+        reason
+      )
+      VALUES (
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        'user-delete'
+      )
+
+      ON CONFLICT (
+        legacy_diary_id,
+        work_date,
+        shift,
+        role
+      )
+      DO UPDATE SET
+
+        source_log_id =
+          excluded.source_log_id,
+
+        deleted_by_id =
+          excluded.deleted_by_id,
+
+        deleted_by_name =
+          excluded.deleted_by_name,
+
+        deleted_at =
+          excluded.deleted_at,
+
+        reason =
+          excluded.reason
+    `)
+    .bind(
+      legacyDiaryId,
+
+      workDate,
+
+      shift,
+
+      role,
+
+      sourceLogId,
+
+      deletedById,
+
+      deletedByName,
+
+      timestamp
+    )
+    .run();
+
+
+  console.log(
+    "과거 업무일지 삭제 차단 저장:",
+    {
+      legacyDiaryId,
+      workDate,
+      shift,
+      role,
+      sourceLogId,
+      deletedById,
+      deletedByName
+    }
+  );
+
+
+  return {
+    suppressed:
+      true,
+
+    legacyDiaryId,
+
+    workDate,
+
+    shift,
+
+    role
+  };
+}
+
 
 /* =========================================================
   업무일지 삭제 최종본
@@ -13348,6 +13747,36 @@ export async function onRequestDelete(
       );
     }
 
+/* =====================================================
+  동기화 과거자료 삭제 차단 기록
+
+  legacyDiaryId가 있는 업무일지만 기록된다.
+
+  일반 신규 업무일지:
+  → 아무것도 하지 않음
+
+  이전일지에서 동기화된 업무일지:
+  → legacy_log_suppressions에 삭제 기록 저장
+  → 이후 원본이 다시 동기화되어도 복원 차단
+====================================================== */
+
+const legacySuppression =
+  await suppressDeletedLegacyLog(
+    context.env.DB,
+    existingLog,
+    user
+  );
+
+
+if (
+  legacySuppression.suppressed
+) {
+  console.log(
+    "동기화 업무일지 삭제 차단 등록 완료:",
+    legacySuppression
+  );
+}
+
 
     /* =====================================================
       업무일지 실제 삭제
@@ -13368,25 +13797,76 @@ export async function onRequestDelete(
         )
         .run();
 
+if (
+  Number(
+    deleteResult?.meta?.changes ||
+    0
+  ) !==
+    1
+) {
+  /*
+    revision 경쟁 등으로 실제 삭제가 실패했다면
+    방금 만든 삭제 차단 기록도 제거한다.
 
-    if (
-      Number(
-        deleteResult?.meta?.changes ||
-        0
-      ) !==
-        1
+    실제 업무일지는 살아 있는데
+    legacy 원본만 차단되는 상황을 방지한다.
+  */
+
+  if (
+    legacySuppression
+      ?.suppressed ===
+        true
+  ) {
+    try {
+      await context.env.DB
+        .prepare(`
+          DELETE FROM
+            legacy_log_suppressions
+
+          WHERE
+            legacy_diary_id = ?
+            AND work_date = ?
+            AND shift = ?
+            AND role = ?
+        `)
+        .bind(
+          legacySuppression
+            .legacyDiaryId,
+
+          legacySuppression
+            .workDate,
+
+          legacySuppression
+            .shift,
+
+          legacySuppression
+            .role
+        )
+        .run();
+
+    } catch (
+      rollbackError
     ) {
-      const currentLog =
-        await findLogById(
-          context.env.DB,
-          id
-        );
-
-
-      return createConflictResponse(
-        currentLog
+      console.error(
+        "과거 업무일지 삭제 차단 원복 실패:",
+        rollbackError
       );
     }
+  }
+
+
+  const currentLog =
+    await findLogById(
+      context.env.DB,
+      id
+    );
+
+
+  return createConflictResponse(
+    currentLog
+  );
+}
+
 
 
     const deletedAt =
@@ -13520,19 +14000,25 @@ export async function onRequestDelete(
       );
     }
 
-    return jsonResponse({
-      ok:
-        true,
+return jsonResponse({
+  ok:
+    true,
 
-      deletedId:
-        id,
+  deletedId:
+    id,
 
-      limestoneSync,
+  /*
+    동기화된 과거 업무일지를 삭제한 경우
+    true가 반환된다.
+  */
+  legacySuppression,
 
-      inspectionScheduleSync,
+  limestoneSync,
 
-      inspectionAutoCompletionSync
-    });
+  inspectionScheduleSync,
+
+  inspectionAutoCompletionSync
+});
 
   } catch (
     error

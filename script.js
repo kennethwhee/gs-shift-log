@@ -138045,26 +138045,13 @@ function buildMorningMeetingFuelAreaRows(
               return Boolean(
                 String(
                   item?.text ||
+                  item?.content ||
                   ""
                 ).trim()
               );
             }
           )
       : [];
-
-
-  /*
-    중요 변경
-
-    기존:
-    선택 항목 0건 → 오류
-
-    변경:
-    선택 항목 0건 → 제목 + 빈 행 생성
-
-    따라서 원본 엑셀에 남아 있던
-    과거 연료설비 문구도 제거된다.
-  */
 
 
   const rowDefinitions = [
@@ -138089,9 +138076,17 @@ function buildMorningMeetingFuelAreaRows(
         item,
         itemIndex
       ) => {
+        const workDate =
+          String(
+            item.workDate ||
+            ""
+          ).trim();
+
+
         const mainText =
           String(
             item.text ||
+            item.content ||
             ""
           ).trim();
 
@@ -138120,8 +138115,14 @@ function buildMorningMeetingFuelAreaRows(
             : [];
 
 
+        const datePrefix =
+          workDate
+            ? `[${workDate}] `
+            : "";
+
+
         const outputText = [
-          `${itemIndex + 1}) ${mainText}`,
+          `${itemIndex + 1}) ${datePrefix}${mainText}`,
 
           ...subLines.map(
             line => {
@@ -138150,11 +138151,6 @@ function buildMorningMeetingFuelAreaRows(
       }
     ),
 
-
-    /*
-      내용이 있든 없든
-      마지막 빈 행은 항상 유지한다.
-    */
 
     {
       template:
@@ -138212,11 +138208,7 @@ function buildMorningMeetingFuelAreaRows(
     rows,
 
     selectedCount:
-      selectedItems.length,
-
-    missing:
-      selectedItems.length ===
-      0
+      selectedItems.length
   };
 }
 
@@ -139179,6 +139171,22 @@ function formatMorningMeetingTmItemText(
   item,
   itemIndex
 ) {
+  const workDate =
+    String(
+      item?.workDate ||
+      ""
+    ).trim();
+
+
+  const shift =
+    String(
+      item?.shift ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
   const time =
     String(
       item?.time ||
@@ -139223,8 +139231,45 @@ function formatMorningMeetingTmItemText(
       : [];
 
 
+  /* =====================================================
+    날짜 표시
+
+    교대파트:
+    [2026-08-07 D/S]
+
+    운탄일지:
+    [2026-08-07]
+  ====================================================== */
+
+  let dateText =
+    "";
+
+
+  if (
+    workDate
+  ) {
+    if (
+      shift
+    ) {
+      dateText =
+        `[${workDate} ${
+          shift ===
+            "DS"
+            ? "D/S"
+            : "N/S"
+        }]`;
+
+    } else {
+      dateText =
+        `[${workDate}]`;
+    }
+  }
+
+
   const firstLine = [
     `${itemIndex + 1})`,
+
+    dateText,
 
     time,
 
@@ -139764,6 +139809,1353 @@ function replaceMorningMeetingTmArea(
   };
 }
 
+/* =========================================================
+  오전회의 주말/공휴일 우측 보조표 자동 생성
+
+  - 주말 체크 시에만 호출
+  - 시작일은 제외
+  - 시작일 다음날 ~ 종료일까지 생성
+
+  생성:
+  1. Bio / 유기성 고형연료 혼소율(%)
+  2. 전일 전력 단가 [원/KWh]
+
+  실제 수치값:
+  - 모두 빈칸
+========================================================= */
+
+function applyMorningMeetingWeekendSupplementTables(
+  worksheetDocument,
+  startDateText,
+  endDateText
+) {
+  /* =====================================================
+    열 번호 → 열 이름
+
+    33 → AG
+    41 → AO
+  ====================================================== */
+
+  const colName = (
+    number
+  ) => {
+    let n =
+      Number(
+        number
+      );
+
+
+    let result =
+      "";
+
+
+    while (
+      n >
+      0
+    ) {
+      const rest =
+        (
+          n -
+          1
+        ) %
+        26;
+
+
+      result =
+        String.fromCharCode(
+          65 +
+          rest
+        ) +
+        result;
+
+
+      n =
+        Math.floor(
+          (
+            n -
+            1
+          ) /
+          26
+        );
+    }
+
+
+    return result;
+  };
+
+
+  /* =====================================================
+    날짜 확인
+  ====================================================== */
+
+  const startDate =
+    parseMorningMeetingReportDate(
+      startDateText
+    );
+
+
+  const endDate =
+    parseMorningMeetingReportDate(
+      endDateText
+    );
+
+
+  if (
+    !startDate ||
+    !endDate ||
+    startDate >=
+      endDate
+  ) {
+    throw new Error(
+      "주말 취합 시작일과 종료일을 확인해 주세요."
+    );
+  }
+
+
+  /* =====================================================
+    주말/공휴일 날짜
+
+    시작일은 제외한다.
+
+    예:
+    08-07 ~ 08-09
+
+    결과:
+    08-08
+    08-09
+  ====================================================== */
+
+  const holidayDates =
+    [];
+
+
+  for (
+    let date =
+      addMorningMeetingDateDays(
+        startDate,
+        1
+      );
+
+    date <=
+      endDate;
+
+    date =
+      addMorningMeetingDateDays(
+        date,
+        1
+      )
+  ) {
+    holidayDates.push(
+      new Date(
+        date.getTime()
+      )
+    );
+  }
+
+
+  /*
+    현재 요청 기준:
+    일반 주말부터 최대 4일 연휴까지 지원
+  */
+
+  if (
+    holidayDates.length <
+      1 ||
+    holidayDates.length >
+      4
+  ) {
+    throw new Error(
+      "주말/공휴일 보조표는 1~4일 범위로 생성할 수 있습니다."
+    );
+  }
+
+
+  /* =====================================================
+    시트 구조
+  ====================================================== */
+
+  const sheetData =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "sheetData"
+      )[0];
+
+
+  const mergeCells =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !sheetData ||
+    !mergeCells
+  ) {
+    throw new Error(
+      "기준 취합본의 행 또는 병합 셀 정보를 찾지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    평일 엑셀의 기존 스타일을 재사용
+
+    스타일 번호를 직접 고정하지 않고
+    실제 기준 엑셀의 셀에서 가져온다.
+  ====================================================== */
+
+  const getStyle = (
+    address
+  ) => {
+    return String(
+      findMorningMeetingWorksheetCellByAddress(
+        worksheetDocument,
+        address
+      )?.getAttribute(
+        "s"
+      ) ||
+      ""
+    ).trim();
+  };
+
+
+  const styles = {
+    titleLeft:
+      getStyle(
+        "B19"
+      ),
+
+    titleMiddle:
+      getStyle(
+        "C19"
+      ),
+
+    titleRight:
+      getStyle(
+        "AD19"
+      ),
+
+
+    headerLeft:
+      getStyle(
+        "X20"
+      ),
+
+    headerMiddle:
+      getStyle(
+        "Y20"
+      ),
+
+    headerGroupEnd:
+      getStyle(
+        "AA20"
+      ),
+
+    headerRight:
+      getStyle(
+        "AD20"
+      ),
+
+
+    bodyLeft:
+      getStyle(
+        "B20"
+      ),
+
+    bodyMiddle:
+      getStyle(
+        "C20"
+      ),
+
+    bodyGroupEnd:
+      getStyle(
+        "E20"
+      ),
+
+    bodyRight:
+      getStyle(
+        "W20"
+      ),
+
+
+    bottomLeft:
+      getStyle(
+        "B22"
+      ),
+
+    bottomMiddle:
+      getStyle(
+        "C22"
+      ),
+
+    bottomGroupEnd:
+      getStyle(
+        "E22"
+      ),
+
+    bottomRight:
+      getStyle(
+        "W22"
+      )
+  };
+
+
+  /* =====================================================
+    행 확인 / 생성
+  ====================================================== */
+
+  const ensureRow = (
+    rowNumber
+  ) => {
+    let row =
+      getMorningMeetingDirectXmlChildren(
+        sheetData,
+        "row"
+      ).find(
+        rowElement => {
+          return (
+            getMorningMeetingRowNumber(
+              rowElement
+            ) ===
+            rowNumber
+          );
+        }
+      );
+
+
+    if (
+      row
+    ) {
+      return row;
+    }
+
+
+    row =
+      worksheetDocument
+        .createElementNS(
+          MAIN_XML_NAMESPACE,
+          "row"
+        );
+
+
+    row.setAttribute(
+      "r",
+      String(
+        rowNumber
+      )
+    );
+
+
+    row.setAttribute(
+      "ht",
+      "20.1"
+    );
+
+
+    row.setAttribute(
+      "customHeight",
+      "1"
+    );
+
+
+    const nextRow =
+      getMorningMeetingDirectXmlChildren(
+        sheetData,
+        "row"
+      ).find(
+        rowElement => {
+          return (
+            getMorningMeetingRowNumber(
+              rowElement
+            ) >
+            rowNumber
+          );
+        }
+      ) ||
+      null;
+
+
+    sheetData.insertBefore(
+      row,
+      nextRow
+    );
+
+
+    return row;
+  };
+
+
+  /* =====================================================
+    셀 확인 / 생성
+  ====================================================== */
+
+  const ensureCell = (
+    rowNumber,
+    columnNumber
+  ) => {
+    const row =
+      ensureRow(
+        rowNumber
+      );
+
+
+    const address =
+      `${colName(
+        columnNumber
+      )}${rowNumber}`;
+
+
+    let cell =
+      getMorningMeetingDirectXmlChildren(
+        row,
+        "c"
+      ).find(
+        cellElement => {
+          return (
+            String(
+              cellElement.getAttribute(
+                "r"
+              ) ||
+              ""
+            ).toUpperCase() ===
+            address
+          );
+        }
+      );
+
+
+    if (
+      cell
+    ) {
+      return cell;
+    }
+
+
+    cell =
+      worksheetDocument
+        .createElementNS(
+          MAIN_XML_NAMESPACE,
+          "c"
+        );
+
+
+    cell.setAttribute(
+      "r",
+      address
+    );
+
+
+    const nextCell =
+      getMorningMeetingDirectXmlChildren(
+        row,
+        "c"
+      ).find(
+        cellElement => {
+          const nextColumn =
+            getMorningMeetingColumnNumber(
+              getMorningMeetingCellColumn(
+                cellElement.getAttribute(
+                  "r"
+                )
+              )
+            );
+
+
+          return (
+            Number.isFinite(
+              nextColumn
+            ) &&
+            nextColumn >
+            columnNumber
+          );
+        }
+      ) ||
+      null;
+
+
+    row.insertBefore(
+      cell,
+      nextCell
+    );
+
+
+    return cell;
+  };
+
+
+  /* =====================================================
+    병합 추가
+  ====================================================== */
+
+  const addMerge = (
+    startColumn,
+    endColumn,
+    rowNumber
+  ) => {
+    const merge =
+      worksheetDocument
+        .createElementNS(
+          MAIN_XML_NAMESPACE,
+          "mergeCell"
+        );
+
+
+    merge.setAttribute(
+      "ref",
+      `${colName(
+        startColumn
+      )}${rowNumber}:${colName(
+        endColumn
+      )}${rowNumber}`
+    );
+
+
+    mergeCells.appendChild(
+      merge
+    );
+  };
+
+
+  /* =====================================================
+    셀 위치별 스타일 결정
+  ====================================================== */
+
+  const getStyleForCell = (
+    rowType,
+    columnNumber,
+    startColumn,
+    endColumn,
+    groupEndColumns
+  ) => {
+    if (
+      rowType ===
+      "title"
+    ) {
+      if (
+        columnNumber ===
+        startColumn
+      ) {
+        return styles
+          .titleLeft;
+      }
+
+
+      if (
+        columnNumber ===
+        endColumn
+      ) {
+        return styles
+          .titleRight;
+      }
+
+
+      return styles
+        .titleMiddle;
+    }
+
+
+    const first =
+      columnNumber ===
+      startColumn;
+
+
+    const last =
+      columnNumber ===
+      endColumn;
+
+
+    const groupEnd =
+      groupEndColumns.includes(
+        columnNumber
+      );
+
+
+    if (
+      rowType ===
+      "header"
+    ) {
+      if (
+        first
+      ) {
+        return styles
+          .headerLeft;
+      }
+
+
+      if (
+        last
+      ) {
+        return styles
+          .headerRight;
+      }
+
+
+      if (
+        groupEnd
+      ) {
+        return styles
+          .headerGroupEnd;
+      }
+
+
+      return styles
+        .headerMiddle;
+    }
+
+
+    if (
+      rowType ===
+      "bottom"
+    ) {
+      if (
+        first
+      ) {
+        return styles
+          .bottomLeft;
+      }
+
+
+      if (
+        last
+      ) {
+        return styles
+          .bottomRight;
+      }
+
+
+      if (
+        groupEnd
+      ) {
+        return styles
+          .bottomGroupEnd;
+      }
+
+
+      return styles
+        .bottomMiddle;
+    }
+
+
+    if (
+      first
+    ) {
+      return styles
+        .bodyLeft;
+    }
+
+
+    if (
+      last
+    ) {
+      return styles
+        .bodyRight;
+    }
+
+
+    if (
+      groupEnd
+    ) {
+      return styles
+        .bodyGroupEnd;
+    }
+
+
+    return styles
+      .bodyMiddle;
+  };
+
+
+  /* =====================================================
+    표 한 줄 생성
+  ====================================================== */
+
+  const writeRow = (
+    rowNumber,
+    startColumn,
+    endColumn,
+    rowType,
+    groupEndColumns,
+    textByColumn = {}
+  ) => {
+    const row =
+      ensureRow(
+        rowNumber
+      );
+
+
+    const currentHeight =
+      Number(
+        row.getAttribute(
+          "ht"
+        ) ||
+        0
+      );
+
+
+    /*
+      왼쪽 업무내용 때문에 이미 높아진 행은
+      절대로 다시 줄이지 않는다.
+    */
+
+    if (
+      !Number.isFinite(
+        currentHeight
+      ) ||
+      currentHeight <
+      20.1
+    ) {
+      row.setAttribute(
+        "ht",
+        "20.1"
+      );
+
+
+      row.setAttribute(
+        "customHeight",
+        "1"
+      );
+    }
+
+
+    for (
+      let column =
+        startColumn;
+
+      column <=
+      endColumn;
+
+      column +=
+      1
+    ) {
+      const cell =
+        ensureCell(
+          rowNumber,
+          column
+        );
+
+
+      const style =
+        getStyleForCell(
+          rowType,
+          column,
+          startColumn,
+          endColumn,
+          groupEndColumns
+        );
+
+
+      if (
+        style
+      ) {
+        cell.setAttribute(
+          "s",
+          style
+        );
+      }
+
+
+      setMorningMeetingDynamicCellText(
+        worksheetDocument,
+        cell,
+
+        Object.prototype
+          .hasOwnProperty
+          .call(
+            textByColumn,
+            column
+          )
+          ? textByColumn[
+              column
+            ]
+          : ""
+      );
+    }
+  };
+
+
+  /* =====================================================
+    주말표 폭
+
+    휴일 2일:
+    AG ~ AO
+
+    휴일 3일:
+    AD ~ AO
+
+    휴일 4일:
+    AA ~ AO
+  ====================================================== */
+
+  const endColumn =
+    getMorningMeetingColumnNumber(
+      "AO"
+    );
+
+
+  const groupWidth =
+    3;
+
+
+  const startColumn =
+    endColumn -
+    groupWidth *
+    (
+      holidayDates.length +
+      1
+    ) +
+    1;
+
+
+  const leftEndColumn =
+    startColumn -
+    1;
+
+
+  /* =====================================================
+    고정 행 위치
+  ====================================================== */
+
+  const bioTitleRow =
+    24;
+
+  const bioDateRow =
+    25;
+
+  const bioFirstBodyRow =
+    26;
+
+  const bioLastBodyRow =
+    29;
+
+
+  const powerTitleRow =
+    30;
+
+  const powerHeaderRow =
+    31;
+
+  const powerFirstBodyRow =
+    32;
+
+  const powerLastBodyRow =
+    powerFirstBodyRow +
+    holidayDates.length -
+    1;
+
+
+  const bottomRow =
+    Math.max(
+      bioLastBodyRow,
+      powerLastBodyRow
+    );
+
+
+  /* =====================================================
+    기존 평일 병합 정리
+
+    예:
+    휴일 2일
+    B:AO → B:AF
+
+    휴일 3일
+    B:AO → B:AC
+
+    휴일 4일
+    B:AO → B:Z
+  ====================================================== */
+
+  getMorningMeetingDirectXmlChildren(
+    mergeCells,
+    "mergeCell"
+  ).forEach(
+    mergeElement => {
+      const range =
+        parseMorningMeetingMergeReference(
+          mergeElement.getAttribute(
+            "ref"
+          )
+        );
+
+
+      if (
+        !range ||
+        range.startRow >
+        bottomRow ||
+        range.endRow <
+        bioTitleRow
+      ) {
+        return;
+      }
+
+
+      const mergeStartColumn =
+        getMorningMeetingColumnNumber(
+          range.startColumn
+        );
+
+
+      const mergeEndColumn =
+        getMorningMeetingColumnNumber(
+          range.endColumn
+        );
+
+
+      /*
+        새 오른쪽 표 안에 있는 기존 병합 제거
+      */
+
+      if (
+        mergeStartColumn >=
+        startColumn
+      ) {
+        mergeCells.removeChild(
+          mergeElement
+        );
+
+
+        return;
+      }
+
+
+      /*
+        왼쪽 업무내용은
+        새 표 바로 왼쪽까지만 사용
+      */
+
+      if (
+        range.startColumn ===
+        "B" ||
+        mergeEndColumn >=
+        startColumn
+      ) {
+        range.endColumn =
+          colName(
+            leftEndColumn
+          );
+
+
+        mergeElement.setAttribute(
+          "ref",
+          formatMorningMeetingMergeReference(
+            range
+          )
+        );
+      }
+    }
+  );
+
+
+  /* =====================================================
+    1. Bio 혼소율 표 제목
+  ====================================================== */
+
+  writeRow(
+    bioTitleRow,
+    startColumn,
+    endColumn,
+    "title",
+    [],
+    {
+      [startColumn]:
+        "Bio / 유기성 고형연료 혼소율(%)"
+    }
+  );
+
+
+  addMerge(
+    startColumn,
+    endColumn,
+    bioTitleRow
+  );
+
+
+  /* =====================================================
+    Bio 날짜 행
+  ====================================================== */
+
+  const labelEndColumn =
+    startColumn +
+    groupWidth -
+    1;
+
+
+  const bioGroupEnds = [
+    labelEndColumn
+  ];
+
+
+  const bioDateTexts =
+    {};
+
+
+  addMerge(
+    startColumn,
+    labelEndColumn,
+    bioDateRow
+  );
+
+
+  holidayDates.forEach(
+    (
+      holidayDate,
+      dateIndex
+    ) => {
+      const dateStart =
+        startColumn +
+        groupWidth *
+        (
+          dateIndex +
+          1
+        );
+
+
+      const dateEnd =
+        dateStart +
+        groupWidth -
+        1;
+
+
+      bioGroupEnds.push(
+        dateEnd
+      );
+
+
+      bioDateTexts[
+        dateStart
+      ] =
+        `${String(
+          holidayDate
+            .getUTCMonth() +
+          1
+        ).padStart(
+          2,
+          "0"
+        )}월 ${String(
+          holidayDate
+            .getUTCDate()
+        ).padStart(
+          2,
+          "0"
+        )}일`;
+
+
+      addMerge(
+        dateStart,
+        dateEnd,
+        bioDateRow
+      );
+    }
+  );
+
+
+  writeRow(
+    bioDateRow,
+    startColumn,
+    endColumn,
+    "header",
+    bioGroupEnds,
+    bioDateTexts
+  );
+
+
+  /* =====================================================
+    Bio 값 행
+
+    값은 의도적으로 빈칸
+  ====================================================== */
+
+  [
+    "#1 BLR",
+    "#2 BLR",
+    "Average",
+    "Total"
+  ].forEach(
+    (
+      label,
+      index
+    ) => {
+      const rowNumber =
+        bioFirstBodyRow +
+        index;
+
+
+      writeRow(
+        rowNumber,
+        startColumn,
+        endColumn,
+
+        rowNumber ===
+        bioLastBodyRow
+          ? "bottom"
+          : "body",
+
+        bioGroupEnds,
+
+        {
+          [startColumn]:
+            label
+        }
+      );
+
+
+      addMerge(
+        startColumn,
+        labelEndColumn,
+        rowNumber
+      );
+
+
+      holidayDates.forEach(
+        (
+          holidayDate,
+          dateIndex
+        ) => {
+          const dateStart =
+            startColumn +
+            groupWidth *
+            (
+              dateIndex +
+              1
+            );
+
+
+          addMerge(
+            dateStart,
+            dateStart +
+            groupWidth -
+            1,
+            rowNumber
+          );
+        }
+      );
+    }
+  );
+
+
+  /* =====================================================
+    2. 전일 전력 단가 제목
+  ====================================================== */
+
+  writeRow(
+    powerTitleRow,
+    startColumn,
+    endColumn,
+    "title",
+    [],
+    {
+      [startColumn]:
+        "전일 전력 단가 [원/KWh]"
+    }
+  );
+
+
+  addMerge(
+    startColumn,
+    endColumn,
+    powerTitleRow
+  );
+
+
+  /* =====================================================
+    전력 단가 열
+
+    요일 | 최대 | 최소 | 평균
+  ====================================================== */
+
+  const metricWidth =
+    holidayDates.length;
+
+
+  const maxStart =
+    labelEndColumn +
+    1;
+
+
+  const maxEnd =
+    maxStart +
+    metricWidth -
+    1;
+
+
+  const minStart =
+    maxEnd +
+    1;
+
+
+  const minEnd =
+    minStart +
+    metricWidth -
+    1;
+
+
+  const averageStart =
+    minEnd +
+    1;
+
+
+  const powerGroups = [
+    [
+      startColumn,
+      labelEndColumn
+    ],
+
+    [
+      maxStart,
+      maxEnd
+    ],
+
+    [
+      minStart,
+      minEnd
+    ],
+
+    [
+      averageStart,
+      endColumn
+    ]
+  ];
+
+
+  const powerGroupEnds =
+    powerGroups.map(
+      group => {
+        return group[
+          1
+        ];
+      }
+    );
+
+
+  writeRow(
+    powerHeaderRow,
+    startColumn,
+    endColumn,
+    "header",
+    powerGroupEnds,
+    {
+      [maxStart]:
+        "최대",
+
+      [minStart]:
+        "최소",
+
+      [averageStart]:
+        "평균"
+    }
+  );
+
+
+  powerGroups.forEach(
+    group => {
+      addMerge(
+        group[0],
+        group[1],
+        powerHeaderRow
+      );
+    }
+  );
+
+
+  /* =====================================================
+    전력 단가 날짜별 행
+
+    값은 모두 빈칸
+  ====================================================== */
+
+  const dayLabels = [
+    "일",
+    "월",
+    "화",
+    "수",
+    "목",
+    "금",
+    "토"
+  ];
+
+
+  holidayDates.forEach(
+    (
+      holidayDate,
+      dateIndex
+    ) => {
+      const rowNumber =
+        powerFirstBodyRow +
+        dateIndex;
+
+
+      writeRow(
+        rowNumber,
+        startColumn,
+        endColumn,
+
+        rowNumber ===
+        powerLastBodyRow
+          ? "bottom"
+          : "body",
+
+        powerGroupEnds,
+
+        {
+          [startColumn]:
+            dayLabels[
+              holidayDate
+                .getUTCDay()
+            ]
+        }
+      );
+
+
+      powerGroups.forEach(
+        group => {
+          addMerge(
+            group[0],
+            group[1],
+            rowNumber
+          );
+        }
+      );
+    }
+  );
+
+
+  /* =====================================================
+    mergeCells count 갱신
+  ====================================================== */
+
+  mergeCells.setAttribute(
+    "count",
+
+    String(
+      getMorningMeetingDirectXmlChildren(
+        mergeCells,
+        "mergeCell"
+      ).length
+    )
+  );
+
+
+  return {
+    enabled:
+      true,
+
+    holidayCount:
+      holidayDates.length,
+
+    tableStartColumn:
+      colName(
+        startColumn
+      ),
+
+    leftEndColumn:
+      colName(
+        leftEndColumn
+      )
+  };
+}
+
 /* =====================================================
   최종 엑셀 생성
 
@@ -139971,17 +141363,21 @@ if (
   return;
 }
 
+
 /* =====================================================
-  오전회의 기준일 결정
+  오전회의 날짜 기준 분리
 
-  우선순위:
-  1. 실제 첨부된 팀 자료 날짜
-  2. 교대파트 업무일지 기준일
-  3. 수처리 기준일
-  4. 석회석 계산 기준일
+  평일:
+  - 자동수치 기준일 = 팀 자료 날짜
+  - 팀 전일 날짜 = 같은 날짜
+  - 예정일 = 다음 날
 
-  미첨부 팀의 reportDate는
-  빈 문자열이므로 날짜 비교에서 제외한다.
+  주말:
+  예) 08-07 ~ 08-09
+
+  - 안전/환경/기계/전기제어 = 08-07 금요일 자료
+  - 자동수치 = 08-09 일요일
+  - 최종 회의일 = 08-10 월요일
 ====================================================== */
 
 const reportDates =
@@ -140008,8 +141404,7 @@ const uniqueReportDates =
 
 
 /*
-  실제로 첨부된 팀 자료끼리
-  날짜가 다른 경우만 오류로 처리한다.
+  4개 팀끼리는 날짜가 같아야 한다.
 */
 
 if (
@@ -140026,36 +141421,165 @@ if (
 }
 
 
-/*
-  팀 자료에서 날짜를 얻지 못하면
-  기존 오전회의 공용 날짜를 사용한다.
-*/
+/* =====================================================
+  주말 모드 확인
+====================================================== */
 
-const fallbackPreviousDateText =
-  uniqueReportDates[0] ||
+let weekendMode =
+  null;
+
+
+try {
+  if (
+    typeof window
+      .getEfficiencyMorningMeetingWeekendMode ===
+      "function"
+  ) {
+    weekendMode =
+      window
+        .getEfficiencyMorningMeetingWeekendMode();
+  }
+
+} catch (
+  error
+) {
+  console.warn(
+    "오전회의 주말 설정 확인 실패:",
+    error
+  );
+}
+
+
+if (
+  !weekendMode ||
+  typeof weekendMode !==
+    "object"
+) {
+  weekendMode =
+    state.weekendMode &&
+    typeof state.weekendMode ===
+      "object"
+      ? state.weekendMode
+      : {};
+}
+
+
+const isWeekendMode =
+  weekendMode.enabled ===
+    true;
+
+
+const weekendStartDateText =
   String(
-    state.shiftPart
-      ?.reportDate ||
-
-    state.shiftPart
-      ?.loadedDate ||
-
-    waterTreatment
-      ?.sourceDate ||
-
-    waterTreatment
-      ?.targetDate ||
-
-    limestoneValues
-      ?.date ||
-
+    weekendMode.startDate ||
     ""
   ).trim();
 
 
+const weekendEndDateText =
+  String(
+    weekendMode.endDate ||
+    ""
+  ).trim();
+
+
+const teamReportDateText =
+  String(
+    uniqueReportDates[0] ||
+    ""
+  ).trim();
+
+
+/* =====================================================
+  주말 기간 확인
+====================================================== */
+
+if (
+  isWeekendMode &&
+  (
+    !weekendStartDateText ||
+    !weekendEndDateText
+  )
+) {
+  showMorningMeetingWorkbookError(
+    "주말 취합 시작일과 종료일을 확인해 주세요."
+  );
+
+  return;
+}
+
+
+/*
+  주말에는 4개 팀 자료가
+  주말 시작일(보통 금요일) 자료인지 확인한다.
+
+  팀 자료가 미첨부라 날짜가 없으면
+  이 검사는 건너뛴다.
+*/
+
+if (
+  isWeekendMode &&
+  teamReportDateText &&
+  teamReportDateText !==
+    weekendStartDateText
+) {
+  showMorningMeetingWorkbookError(
+    [
+      "주말 취합의 4개 팀 자료 날짜가 시작일과 다릅니다.",
+      `주말 시작일: ${weekendStartDateText}`,
+      `팀 자료: ${teamReportDateText}`
+    ].join(
+      " "
+    )
+  );
+
+  return;
+}
+
+
+/* =====================================================
+  자동수치 기준일
+
+  평일:
+  기존 방식
+
+  주말:
+  종료일 사용
+
+  예:
+  08-07 ~ 08-09
+  → 수처리/석회석/온도 기준 08-09
+====================================================== */
+
+const automaticPreviousDateText =
+  isWeekendMode
+    ? weekendEndDateText
+    : (
+        teamReportDateText ||
+        String(
+          state.shiftPart
+            ?.reportDate ||
+
+          state.shiftPart
+            ?.loadedDate ||
+
+          waterTreatment
+            ?.sourceDate ||
+
+          waterTreatment
+            ?.targetDate ||
+
+          limestoneValues
+            ?.date ||
+
+          ""
+        ).trim()
+      );
+
+
 const previousDate =
   parseMorningMeetingReportDate(
-    fallbackPreviousDateText
+    automaticPreviousDateText
   );
 
 
@@ -140063,12 +141587,26 @@ if (
   !previousDate
 ) {
   showMorningMeetingWorkbookError(
-    "오전회의 기준일을 확인하지 못했습니다. 자동자료 또는 업무일지 기준일을 확인해 주세요."
+    "오전회의 자동수치 기준일을 확인하지 못했습니다."
   );
 
   return;
 }
 
+
+/* =====================================================
+  실제 오전회의 날짜
+
+  평일:
+  전일 + 1
+
+  주말:
+  주말 종료일 + 1
+
+  예:
+  08-09 일요일
+  → 08-10 월요일
+====================================================== */
 
 const scheduleDate =
   addMorningMeetingDateDays(
@@ -140077,6 +141615,55 @@ const scheduleDate =
   );
 
 
+/* =====================================================
+  4개 팀 표시 날짜
+
+  평일:
+  기존 previousDate 사용
+
+  주말:
+  시작일(금요일) 사용
+====================================================== */
+
+const teamPreviousDate =
+  isWeekendMode
+    ? parseMorningMeetingReportDate(
+        teamReportDateText ||
+        weekendStartDateText
+      )
+    : previousDate;
+
+
+if (
+  !teamPreviousDate
+) {
+  showMorningMeetingWorkbookError(
+    "안전·환경·기계·전기제어팀 자료 날짜를 확인하지 못했습니다."
+  );
+
+  return;
+}
+
+
+/*
+  예정사항 날짜는 실제 회의일 사용
+
+  주말 예:
+  전일 특이사항 → 금요일 08-07
+  예정사항       → 월요일 08-10
+*/
+
+const teamScheduleDate =
+  scheduleDate;
+
+
+/* =====================================================
+  자동수치 검사용 날짜
+
+  주말:
+  08-09
+====================================================== */
+
 const expectedWaterSourceDate =
   previousDate
     .toISOString()
@@ -140084,6 +141671,7 @@ const expectedWaterSourceDate =
       0,
       10
     );
+
 
 /* ===================================================
   석회석 기준일 검사
@@ -140431,8 +142019,8 @@ const limestoneResult =
       buildMorningMeetingDynamicRows(
         layout,
         state.analysis,
-        previousDate,
-        scheduleDate
+        teamPreviousDate,
+        teamScheduleDate
       );
 
 
@@ -140471,6 +142059,41 @@ const tmResult =
       : []
   );
 
+
+/* ===================================================
+  6차: 주말 / 공휴일 전용 우측 보조표
+
+  □ 주말:
+  - 아무 작업도 하지 않음
+  - 기존 평일 엑셀 그대로
+
+  ☑ 주말:
+  - Bio / 유기성 고형연료 혼소율(%) 자동 생성
+  - 전일 전력 단가 [원/KWh] 자동 생성
+  - 주말/공휴일 일수에 맞게 칸 자동 확장
+  - 실제 값은 빈칸
+==================================================== */
+
+let weekendSupplementResult =
+  null;
+
+
+if (
+  isWeekendMode
+) {
+  weekendSupplementResult =
+    applyMorningMeetingWeekendSupplementTables(
+      worksheetDocument,
+      weekendStartDateText,
+      weekendEndDateText
+    );
+
+
+  console.log(
+    "오전회의 주말 보조표 생성 완료:",
+    weekendSupplementResult
+  );
+}  
 
 /* ===================================================
   수정된 워크시트 저장
@@ -141329,8 +142952,88 @@ function getAnalyzedReportDate() {
 
 
   /* =====================================================
+    주말 취합
+
+    주말 모드에서는 종료일이
+    자동수치의 "전일 기준일"이다.
+
+    예:
+    금 08-07
+    토 08-08
+    일 08-09
+
+    월요일 회의:
+    자동수치 기준일 = 08-09
+
+    따라서:
+    수처리      → 08-09
+    석회석      → 08-09
+    BO1·BO2 온도 → 08-09 N/S
+    Gear/Pinion → 08-10 조회
+  ====================================================== */
+
+  let weekendMode =
+    null;
+
+
+  try {
+    if (
+      typeof window
+        .getEfficiencyMorningMeetingWeekendMode ===
+        "function"
+    ) {
+      weekendMode =
+        window
+          .getEfficiencyMorningMeetingWeekendMode();
+    }
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "오전회의 주말 설정 확인 실패:",
+      error
+    );
+  }
+
+
+  if (
+    !weekendMode ||
+    typeof weekendMode !==
+      "object"
+  ) {
+    weekendMode =
+      state.weekendMode &&
+      typeof state.weekendMode ===
+        "object"
+        ? state.weekendMode
+        : {};
+  }
+
+
+  if (
+    weekendMode.enabled ===
+      true
+  ) {
+    const weekendEndDate =
+      normalizeReportDate(
+        weekendMode.endDate
+      );
+
+
+    if (
+      weekendEndDate
+    ) {
+      return weekendEndDate;
+    }
+  }
+
+
+  /* =====================================================
+    평일 기존 방식
+
     1순위:
-    팀별 엑셀 분석 결과의 날짜
+    팀별 엑셀 분석 결과 날짜
   ====================================================== */
 
   const analysisResults =
@@ -141360,7 +143063,7 @@ function getAnalyzedReportDate() {
 
   /* =====================================================
     2순위:
-    메인 업무일지에서 현재 선택한 날짜
+    메인 업무일지 선택 날짜
   ====================================================== */
 
   if (
@@ -141437,7 +143140,7 @@ function getAnalyzedReportDate() {
 
         String(
           contextDate.getDate()
-        ).padStart(
+      ).padStart(
           2,
           "0"
         )
@@ -141449,21 +143152,16 @@ function getAnalyzedReportDate() {
 
 
   /* =====================================================
-    최종 대체값
+    마지막 대체값
   ====================================================== */
 
   const now =
     new Date();
 
 
-  /*
-    00:00 ~ 06:59는
-    전날 N/S 근무일자로 처리한다.
-  */
-
   if (
     now.getHours() <
-    7
+      7
   ) {
     now.setDate(
       now.getDate() -
@@ -144739,29 +146437,32 @@ async function loadShiftPartLogs() {
     기존 자동수치 조회에 계속 사용한다.
   */
 
-  const reportDate =
-    state.shiftPart.reportDate ||
-    getAnalyzedReportDate();
+const weekendMode =
+  getMorningMeetingWeekendShiftContext();
 
 
-  const weekendMode =
-    getMorningMeetingWeekendShiftContext();
+const reportDate =
+  weekendMode.enabled &&
+  weekendMode.endDate
+    ? weekendMode.endDate
+    : (
+        state.shiftPart.reportDate ||
+        getAnalyzedReportDate()
+      );
 
 
-  hideError();
+hideError();
 
 
-  if (
-    !reportDate
-  ) {
-    showError(
-      "팀별 자료를 먼저 분석하여 기준 날짜를 확인해 주세요."
-    );
+if (
+  !reportDate
+) {
+  showError(
+    "팀별 자료를 먼저 분석하여 기준 날짜를 확인해 주세요."
+  );
 
-
-    return;
-  }
-
+  return;
+}
 
   /* ===================================================
     주말 모드 날짜 검사
@@ -148748,269 +150449,846 @@ function resetShiftPart() {
   }
 
 
-  /* =====================================================
-    운탄일지 실제 분석
-  ====================================================== */
+/* =====================================================
+  운탄일지 내부 날짜 확인
 
-  async function analyzeCoalLogFile() {
-    const state =
-      getState();
+  우선순위:
+  1. 연료설비 운전일지 상단 셀
+  2. 파일명 안의 YYYY-MM-DD / YYYYMMDD
+====================================================== */
 
-
-    const elements =
-      getElements();
-
-
-    hideError();
-
-
-    if (
-      typeof XLSX ===
-        "undefined"
-    ) {
-      showError(
-        "엑셀 분석 라이브러리를 불러오지 못했습니다."
-      );
-
-
-      return null;
-    }
-
-if (
-  !state.coalLogFile
+function normalizeCoalLogWorkDate(
+  value
 ) {
-  /*
-    운탄일지가 없는 경우에도
-    오류로 중단하지 않는다.
-
-    빈 분석 결과를 만들어
-    이후 오전회의 취합을 계속 진행한다.
-  */
-
-  const emptySelection =
-    createEmptySelection();
-
-
-  emptySelection.analyzed =
-    true;
-
-
-  emptySelection.missing =
-    true;
-
-
-  state.coalSelection =
-    emptySelection;
-
-
-  /*
-    운탄 수치 화면도 모두 빈 값으로 표시
-  */
-
-  renderValues(
-    emptySelection.values
-  );
-
-
-  renderSelection();
+  const text =
+    normalizeText(
+      value
+    );
 
 
   if (
-    elements.valueStatus
+    !text
   ) {
-    elements.valueStatus.textContent =
-      "운탄일지 미첨부 · 빈칸 처리";
-
-
-    elements.valueStatus
-      .classList
-      .remove(
-        "is-error"
-      );
-
-
-    elements.valueStatus
-      .classList
-      .add(
-        "is-complete"
-      );
+    return "";
   }
+
+
+  const separatedMatch =
+    text.match(
+      /\b(20\d{2})[.\/-](\d{1,2})[.\/-](\d{1,2})\b/
+    );
+
+
+  const compactMatch =
+    text.match(
+      /\b(20\d{2})(\d{2})(\d{2})\b/
+    );
+
+
+  const match =
+    separatedMatch ||
+    compactMatch;
+
+
+  if (
+    !match
+  ) {
+    return "";
+  }
+
+
+  const year =
+    Number(
+      match[1]
+    );
+
+
+  const month =
+    Number(
+      match[2]
+    );
+
+
+  const day =
+    Number(
+      match[3]
+    );
+
+
+  const parsedDate =
+    new Date(
+      Date.UTC(
+        year,
+        month - 1,
+        day
+      )
+    );
+
+
+  if (
+    Number.isNaN(
+      parsedDate.getTime()
+    ) ||
+    parsedDate.getUTCFullYear() !==
+      year ||
+    parsedDate.getUTCMonth() !==
+      month - 1 ||
+    parsedDate.getUTCDate() !==
+      day
+  ) {
+    return "";
+  }
+
+
+  return [
+    String(
+      year
+    ).padStart(
+      4,
+      "0"
+    ),
+
+    String(
+      month
+    ).padStart(
+      2,
+      "0"
+    ),
+
+    String(
+      day
+    ).padStart(
+      2,
+      "0"
+    )
+  ].join(
+    "-"
+  );
+}
+
+
+/* =====================================================
+  운탄일지 날짜 추출
+====================================================== */
+
+function extractCoalLogWorkDate(
+  worksheet,
+  file
+) {
+  const topEntries =
+    getCellEntries(
+      worksheet
+    )
+      .filter(
+        entry => {
+          const rowMatch =
+            String(
+              entry.address ||
+              ""
+            ).match(
+              /(\d+)$/
+            );
+
+
+          const rowNumber =
+            Number(
+              rowMatch?.[1] ||
+              999
+            );
+
+
+          return (
+            Number.isFinite(
+              rowNumber
+            ) &&
+            rowNumber <=
+              20
+          );
+        }
+      );
+
+
+  for (
+    const entry
+    of topEntries
+  ) {
+    const matchedDate =
+      normalizeCoalLogWorkDate(
+        entry.text
+      );
+
+
+    if (
+      matchedDate
+    ) {
+      return matchedDate;
+    }
+  }
+
+
+  /*
+    시트에서 날짜를 못 찾은 경우
+    파일명에서 한 번 더 찾는다.
+  */
+
+  return normalizeCoalLogWorkDate(
+    file?.name
+  );
+}
+
+
+/* =====================================================
+  운탄일지 파일 1개 분석
+====================================================== */
+
+async function analyzeSingleCoalLogFile(
+  file,
+  fileIndex
+) {
+  const arrayBuffer =
+    await file.arrayBuffer();
+
+
+  const workbook =
+    XLSX.read(
+      arrayBuffer,
+
+      {
+        type:
+          "array",
+
+        cellFormula:
+          true,
+
+        cellText:
+          true,
+
+        cellDates:
+          false
+      }
+    );
+
+
+  const {
+    sheetName,
+    worksheet
+  } =
+    findCoalWorksheet(
+      workbook
+    );
+
+
+  const workDate =
+    extractCoalLogWorkDate(
+      worksheet,
+      file
+    );
+
+
+  const workResult =
+    extractWorkItems(
+      worksheet
+    );
+
+
+  const values =
+    extractNumericValues(
+      worksheet
+    );
+
+
+  const dateKey =
+    String(
+      workDate ||
+      `file${fileIndex + 1}`
+    ).replace(
+      /[^0-9a-z]/gi,
+      ""
+    );
+
+
+  /*
+    파일마다 같은 1번, 2번 업무가 있어도
+    ID가 겹치지 않도록 다시 만든다.
+  */
+
+  const items =
+    workResult.items.map(
+      (
+        item,
+        itemIndex
+      ) => {
+        return {
+          ...item,
+
+          id:
+            `coal-${dateKey}-${fileIndex}-${itemIndex}`,
+
+          workDate,
+
+          fileName:
+            String(
+              file.name ||
+              ""
+            )
+        };
+      }
+    );
+
+
+  return {
+    file,
+
+    fileIndex,
+
+    fileName:
+      String(
+        file.name ||
+        ""
+      ),
+
+    sheetName,
+
+    workDate,
+
+    items,
+
+    values
+  };
+}  
+
+
+async function analyzeCoalLogFile() {
+  const state =
+    getState();
+
+
+  const elements =
+    getElements();
+
+
+  hideError();
+
+
+  if (
+    typeof XLSX ===
+      "undefined"
+  ) {
+    showError(
+      "엑셀 분석 라이브러리를 불러오지 못했습니다."
+    );
+
+
+    return null;
+  }
+
+
+  /* =====================================================
+    첨부된 운탄일지 전체 확인
+
+    신규:
+    coalLogFiles[]
+
+    기존 호환:
+    coalLogFile
+  ====================================================== */
+
+  let files =
+    [];
 
 
   if (
     typeof window
-      .updateEfficiencyMorningMeetingCreateButton ===
+      .getEfficiencyMorningMeetingCoalLogFiles ===
       "function"
   ) {
-    window
-      .updateEfficiencyMorningMeetingCreateButton();
+    files =
+      window
+        .getEfficiencyMorningMeetingCoalLogFiles();
   }
 
 
-  console.log(
-    "운탄일지 미첨부 → 빈 자료로 분석 처리"
-  );
+  if (
+    !Array.isArray(
+      files
+    ) ||
+    files.length ===
+      0
+  ) {
+    files =
+      Array.isArray(
+        state.coalLogFiles
+      ) &&
+      state.coalLogFiles.length >
+        0
+        ? [
+            ...state.coalLogFiles
+          ]
+        : state.coalLogFile
+          ? [
+              state.coalLogFile
+            ]
+          : [];
+  }
 
 
-  return state.coalSelection;
-}
+  /* =====================================================
+    운탄일지 미첨부
+
+    기존 빈칸 처리 유지
+  ====================================================== */
+
+  if (
+    files.length ===
+      0
+  ) {
+    const emptySelection =
+      createEmptySelection();
+
+
+    emptySelection.analyzed =
+      true;
+
+
+    emptySelection.missing =
+      true;
+
+
+    state.coalAnalysisResults =
+      [];
+
+
+    state.coalSelection =
+      emptySelection;
+
+
+    renderValues(
+      emptySelection.values
+    );
+
+
+    renderSelection();
+
 
     if (
       elements.valueStatus
     ) {
       elements.valueStatus.textContent =
-        "운탄일지 분석 중...";
+        "운탄일지 미첨부 · 빈칸 처리";
 
 
       elements.valueStatus
         .classList
         .remove(
-          "is-complete",
+          "is-error"
+        );
+
+
+      elements.valueStatus
+        .classList
+        .add(
+          "is-complete"
+        );
+    }
+
+
+    if (
+      typeof window
+        .updateEfficiencyMorningMeetingCreateButton ===
+        "function"
+    ) {
+      window
+        .updateEfficiencyMorningMeetingCreateButton();
+    }
+
+
+    return state.coalSelection;
+  }
+
+
+  /* =====================================================
+    분석 중
+  ====================================================== */
+
+  if (
+    elements.valueStatus
+  ) {
+    elements.valueStatus.textContent =
+      files.length >
+        1
+        ? `운탄일지 ${files.length}개 분석 중...`
+        : "운탄일지 분석 중...";
+
+
+    elements.valueStatus
+      .classList
+      .remove(
+        "is-complete",
+        "is-error"
+      );
+  }
+
+
+  try {
+    const analysisResults =
+      [];
+
+
+    /* ===================================================
+      모든 운탄일지 순서대로 분석
+    ==================================================== */
+
+    for (
+      let fileIndex =
+        0;
+
+      fileIndex <
+        files.length;
+
+      fileIndex +=
+        1
+    ) {
+      const file =
+        files[
+          fileIndex
+        ];
+
+
+      try {
+        const result =
+          await analyzeSingleCoalLogFile(
+            file,
+            fileIndex
+          );
+
+
+        analysisResults.push(
+          result
+        );
+
+      } catch (
+        error
+      ) {
+        throw new Error(
+          `${
+            file?.name ||
+            `${fileIndex + 1}번째 운탄일지`
+          } 분석 실패: ${
+            error?.message ||
+            "파일 내용을 확인해 주세요."
+          }`
+        );
+      }
+    }
+
+
+    /* ===================================================
+      날짜순 정렬
+
+      08-07 → 08-08 → 08-09
+    ==================================================== */
+
+    analysisResults.sort(
+      (
+        first,
+        second
+      ) => {
+        const firstDate =
+          String(
+            first.workDate ||
+            ""
+          );
+
+
+        const secondDate =
+          String(
+            second.workDate ||
+            ""
+          );
+
+
+        if (
+          firstDate &&
+          secondDate &&
+          firstDate !==
+            secondDate
+        ) {
+          return firstDate.localeCompare(
+            secondDate
+          );
+        }
+
+
+        if (
+          firstDate &&
+          !secondDate
+        ) {
+          return -1;
+        }
+
+
+        if (
+          !firstDate &&
+          secondDate
+        ) {
+          return 1;
+        }
+
+
+        return (
+          first.fileIndex -
+          second.fileIndex
+        );
+      }
+    );
+
+
+    /* ===================================================
+      업무내용 전부 합치기
+
+      결과:
+      7일 업무
+      → 8일 업무
+      → 9일 업무
+    ==================================================== */
+
+    const combinedItems =
+      analysisResults.flatMap(
+        result => {
+          return result.items;
+        }
+      );
+
+
+    /* ===================================================
+      자동 수치에 사용할 파일
+
+      주말이라고 유연탄/BIO 수치를 합산하지 않는다.
+
+      날짜가 있는 파일 중
+      가장 최근 날짜의 운탄일지 값만 사용한다.
+
+      예:
+      7일 + 8일 + 9일 업로드
+      → 수치는 9일 파일 사용
+    ==================================================== */
+
+    const datedResults =
+      analysisResults.filter(
+        result => {
+          return Boolean(
+            result.workDate
+          );
+        }
+      );
+
+
+    const numericResult =
+      datedResults.length >
+        0
+        ? datedResults[
+            datedResults.length -
+            1
+          ]
+        : analysisResults[
+            analysisResults.length -
+            1
+          ];
+
+
+    /* ===================================================
+      분석 원본 저장
+
+      TM 복수 분석에서 다시 사용한다.
+    ==================================================== */
+
+    state.coalAnalysisResults =
+      analysisResults;
+
+
+    /* ===================================================
+      기존 coalSelection 구조 유지하면서
+      업무는 전체 파일 결과로 변경
+    ==================================================== */
+
+    state.coalSelection = {
+      analyzed:
+        true,
+
+      missing:
+        false,
+
+      fileName:
+        analysisResults.length ===
+          1
+          ? analysisResults[0]
+              .fileName
+          : `${analysisResults.length}개 운탄일지`,
+
+      fileNames:
+        analysisResults.map(
+          result => {
+            return result.fileName;
+          }
+        ),
+
+      sheetName:
+        numericResult?.sheetName ||
+        "",
+
+      items:
+        combinedItems,
+
+      selectedIds:
+        new Set(),
+
+      selectedItems:
+        [],
+
+      selectedText:
+        "",
+
+      /*
+        수치는 최신 날짜 파일 1개만 사용
+      */
+
+      values:
+        numericResult?.values ||
+        createEmptySelection()
+          .values,
+
+      numericWorkDate:
+        numericResult?.workDate ||
+        "",
+
+      /*
+        확인용 파일별 분석 결과
+      */
+
+      analyzedFiles:
+        analysisResults.map(
+          result => {
+            return {
+              fileName:
+                result.fileName,
+
+              workDate:
+                result.workDate,
+
+              sheetName:
+                result.sheetName,
+
+              itemCount:
+                result.items.length
+            };
+          }
+        )
+    };
+
+
+    /* ===================================================
+      최신 날짜 수치 출력
+    ==================================================== */
+
+    renderValues(
+      state.coalSelection.values
+    );
+
+
+    /* ===================================================
+      업무 목록 출력
+    ==================================================== */
+
+    renderSelection();
+
+
+    /* ===================================================
+      분석 완료 표시
+    ==================================================== */
+
+    if (
+      elements.valueStatus
+    ) {
+      const numericDateText =
+        state.coalSelection
+          .numericWorkDate
+          ? ` · 수치 기준 ${state.coalSelection.numericWorkDate}`
+          : "";
+
+
+      elements.valueStatus.textContent =
+        analysisResults.length >
+          1
+          ? `${analysisResults.length}개 운탄일지 분석 완료${numericDateText}`
+          : `운탄일지 분석 완료${numericDateText}`;
+
+
+      elements.valueStatus
+        .classList
+        .remove(
+          "is-error"
+        );
+
+
+      elements.valueStatus
+        .classList
+        .add(
+          "is-complete"
+        );
+    }
+
+
+    console.log(
+      "운탄일지 복수 분석 완료",
+      state.coalSelection
+        .analyzedFiles
+    );
+
+
+    return state.coalSelection;
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "운탄일지 복수 분석 실패",
+      error
+    );
+
+
+    resetSelection();
+
+
+    state.coalAnalysisResults =
+      [];
+
+
+    showError(
+      error?.message ||
+      "운탄일지를 분석하지 못했습니다."
+    );
+
+
+    if (
+      elements.valueStatus
+    ) {
+      elements.valueStatus.textContent =
+        "운탄일지 분석 실패";
+
+
+      elements.valueStatus
+        .classList
+        .add(
           "is-error"
         );
     }
 
 
-    try {
-      const arrayBuffer =
-        await state
-          .coalLogFile
-          .arrayBuffer();
-
-
-      const workbook =
-        XLSX.read(
-          arrayBuffer,
-
-          {
-            type:
-              "array",
-
-            cellFormula:
-              true,
-
-            cellText:
-              true,
-
-            cellDates:
-              false
-          }
-        );
-
-
-      const {
-        sheetName,
-        worksheet
-      } =
-        findCoalWorksheet(
-          workbook
-        );
-
-
-      const workResult =
-        extractWorkItems(
-          worksheet
-        );
-
-
-      const values =
-        extractNumericValues(
-          worksheet
-        );
-
-
-      state.coalSelection = {
-        analyzed:
-          true,
-
-        fileName:
-          String(
-            state.coalLogFile.name ||
-            ""
-          ),
-
-        sheetName,
-
-        items:
-          workResult.items,
-
-        selectedIds:
-          new Set(),
-
-        selectedItems:
-          [],
-
-        selectedText:
-          "",
-
-        values
-      };
-
-
-      renderValues(
-        values
-      );
-
-
-      renderSelection();
-
-
-      console.log(
-        "운탄일지 분석 완료",
-        {
-          fileName:
-            state.coalLogFile.name,
-
-          sheetName,
-
-          itemCount:
-            workResult.items.length,
-
-          values
-        }
-      );
-
-
-      return state.coalSelection;
-
-    } catch (
-      error
-    ) {
-      console.error(
-        "운탄일지 분석 실패",
-        error
-      );
-
-
-      resetSelection();
-
-
-      showError(
-        error?.message ||
-        "운탄일지를 분석하지 못했습니다."
-      );
-
-
-      if (
-        elements.valueStatus
-      ) {
-        elements.valueStatus.textContent =
-          "운탄일지 분석 실패";
-
-
-        elements.valueStatus
-          .classList
-          .add(
-            "is-error"
-          );
-      }
-
-
-      return null;
-    }
+    return null;
   }
+}
 
-
+ 
   /* =====================================================
     개별 체크박스
   ====================================================== */
@@ -152198,40 +154476,74 @@ function buildCheckboxHtml(
     왼쪽 운탄일지 업무 목록
   ====================================================== */
 
-  function renderWorkList() {
-    const {
-      workList
-    } =
-      getElements();
+function renderWorkList() {
+  const {
+    workList
+  } =
+    getElements();
 
 
-    if (
-      !workList
-    ) {
-      return;
-    }
+  if (
+    !workList
+  ) {
+    return;
+  }
 
 
-    const workItems =
-      getWorkItems();
+  const workItems =
+    getWorkItems();
 
 
-    if (
-      !workItems.length
-    ) {
-      workList.innerHTML = `
-        <p
-          class="efficiency-morning-meeting-shift-empty"
-        >
-          운탄일지를 분석하면 선택할 업무가 표시됩니다.
-        </p>
-      `;
+  if (
+    !workItems.length
+  ) {
+    workList.innerHTML = `
+      <p
+        class="efficiency-morning-meeting-shift-empty"
+      >
+        운탄일지를 분석하면 선택할 업무가 표시됩니다.
+      </p>
+    `;
 
 
-      return;
-    }
+    return;
+  }
 
 
+  /* =====================================================
+    날짜가 들어 있는 항목 확인
+
+    주말 복수 운탄일지:
+    workDate 있음
+
+    기존 평일 운탄일지:
+    workDate가 없을 수도 있음
+  ====================================================== */
+
+  const datedItems =
+    workItems.filter(
+      item => {
+        return Boolean(
+          String(
+            item.workDate ||
+            ""
+          ).trim()
+        );
+      }
+    );
+
+
+  /* =====================================================
+    기존 평일 방식
+
+    날짜 정보가 없으면
+    기존 그룹별 화면 그대로 유지
+  ====================================================== */
+
+  if (
+    datedItems.length ===
+      0
+  ) {
     workList.innerHTML =
       WORK_GROUPS
         .map(
@@ -152239,8 +154551,10 @@ function buildCheckboxHtml(
             const items =
               workItems.filter(
                 item => {
-                  return item.groupKey ===
-                    group.key;
+                  return (
+                    item.groupKey ===
+                    group.key
+                  );
                 }
               );
 
@@ -152255,71 +154569,262 @@ function buildCheckboxHtml(
         .join(
           ""
         );
+
+
+    return;
   }
 
+
+  /* =====================================================
+    주말 방식
+
+    날짜를 먼저 나누고
+    날짜 안에서 업무종류를 순서대로 표시
+
+    예:
+    2026-08-07
+      N/S 주요작업
+      D/S 특이 사항
+      D/S 정비 사항
+      연료분진팀 금일 작업
+
+    2026-08-08
+      ...
+  ====================================================== */
+
+  const workDates = [
+    ...new Set(
+      datedItems
+        .map(
+          item => {
+            return String(
+              item.workDate ||
+              ""
+            ).trim();
+          }
+        )
+        .filter(
+          Boolean
+        )
+    )
+  ].sort();
+
+
+  workList.innerHTML =
+    workDates
+      .map(
+        workDate => {
+          const dateItems =
+            workItems.filter(
+              item => {
+                return (
+                  String(
+                    item.workDate ||
+                    ""
+                  ).trim() ===
+                  workDate
+                );
+              }
+            );
+
+
+          return WORK_GROUPS
+            .map(
+              group => {
+                const groupItems =
+                  dateItems.filter(
+                    item => {
+                      return (
+                        item.groupKey ===
+                        group.key
+                      );
+                    }
+                  );
+
+
+                /*
+                  내용이 없는 그룹은
+                  굳이 화면에 빈칸으로 만들지 않는다.
+                */
+
+                if (
+                  groupItems.length ===
+                    0
+                ) {
+                  return "";
+                }
+
+
+                return renderSection(
+                  `${workDate} · ${group.label}`,
+                  groupItems,
+                  "work"
+                );
+              }
+            )
+            .join(
+              ""
+            );
+        }
+      )
+      .join(
+        ""
+      );
+}
 
   /* =====================================================
     오른쪽 TM 목록
   ====================================================== */
 
-  function renderTmList() {
-    const {
-      tmList
-    } =
-      getElements();
+function renderTmList() {
+  const {
+    tmList
+  } =
+    getElements();
 
 
-    if (
-      !tmList
-    ) {
-      return;
-    }
-
-
-    const shiftItems =
-      getShiftTmItems();
-
-
-    const coalItems =
-      getSelection()
-        .coalTmItems;
-
-
-    if (
-      !shiftItems.length &&
-      !coalItems.length
-    ) {
-      tmList.innerHTML = `
-        <p
-          class="efficiency-morning-meeting-shift-empty"
-        >
-          교대파트 업무일지를 불러오고 운탄일지를 분석하면
-          TM 발행사항이 표시됩니다.
-        </p>
-      `;
-
-
-      return;
-    }
-
-
-    tmList.innerHTML = [
-      renderSection(
-        "업무일지 발행내역",
-        shiftItems,
-        "tm"
-      ),
-
-      renderSection(
-        "운탄일지 TM 발행사항",
-        coalItems,
-        "tm"
-      )
-    ].join(
-      ""
-    );
+  if (
+    !tmList
+  ) {
+    return;
   }
 
+
+  const shiftItems =
+    getShiftTmItems();
+
+
+  const coalItems =
+    getSelection()
+      .coalTmItems;
+
+
+  if (
+    !shiftItems.length &&
+    !coalItems.length
+  ) {
+    tmList.innerHTML = `
+      <p
+        class="efficiency-morning-meeting-shift-empty"
+      >
+        교대파트 업무일지를 불러오고 운탄일지를 분석하면
+        TM 발행사항이 표시됩니다.
+      </p>
+    `;
+
+
+    return;
+  }
+
+
+  /* =====================================================
+    출처별 날짜 구분 출력
+  ====================================================== */
+
+  const renderTmSource =
+    (
+      title,
+      sourceItems
+    ) => {
+      const items =
+        Array.isArray(
+          sourceItems
+        )
+          ? sourceItems
+          : [];
+
+
+      if (
+        items.length ===
+          0
+      ) {
+        return renderSection(
+          title,
+          [],
+          "tm"
+        );
+      }
+
+
+      const dates = [
+        ...new Set(
+          items
+            .map(
+              item => {
+                return String(
+                  item.workDate ||
+                  ""
+                ).trim();
+              }
+            )
+            .filter(
+              Boolean
+            )
+        )
+      ].sort();
+
+
+      /*
+        평일 기존 자료처럼
+        workDate가 없으면 기존 방식
+      */
+
+      if (
+        dates.length ===
+          0
+      ) {
+        return renderSection(
+          title,
+          items,
+          "tm"
+        );
+      }
+
+
+      return dates
+        .map(
+          workDate => {
+            const dateItems =
+              items.filter(
+                item => {
+                  return (
+                    String(
+                      item.workDate ||
+                      ""
+                    ).trim() ===
+                    workDate
+                  );
+                }
+              );
+
+
+            return renderSection(
+              `${title} · ${workDate}`,
+              dateItems,
+              "tm"
+            );
+          }
+        )
+        .join(
+          ""
+        );
+    };
+
+
+  tmList.innerHTML = [
+    renderTmSource(
+      "업무일지 발행내역",
+      shiftItems
+    ),
+
+    renderTmSource(
+      "운탄일지 TM 발행사항",
+      coalItems
+    )
+  ].join(
+    ""
+  );
+}
 
   /* =====================================================
     전체 선택 버튼
@@ -152401,213 +154906,281 @@ function buildCheckboxHtml(
     - 6. TM 사항 > ◇ 연료 설비에 사용
   ====================================================== */
 
-  function updateSelectionState() {
-    const selection =
-      getSelection();
+function updateSelectionState() {
+  const selection =
+    getSelection();
 
 
-    const workItems =
-      getWorkItems();
+  const workItems =
+    getWorkItems();
 
 
-    const tmItems =
-      getAllTmItems();
+  const tmItems =
+    getAllTmItems();
 
 
-    selection.selectedItems =
-      workItems.filter(
-        item => {
-          return selection
-            .selectedWorkIds
-            .has(
-              item.id
+  selection.selectedItems =
+    workItems.filter(
+      item => {
+        return selection
+          .selectedWorkIds
+          .has(
+            item.id
+          );
+      }
+    );
+
+
+  selection.selectedTmItems =
+    tmItems.filter(
+      item => {
+        return selection
+          .selectedTmIds
+          .has(
+            item.id
+          );
+      }
+    );
+
+
+  /* =====================================================
+    운탄 업무 선택 문구
+
+    주말:
+    1) [2026-08-07] 내용
+    2) [2026-08-08] 내용
+
+    평일:
+    기존과 동일
+  ====================================================== */
+
+  selection.selectedText =
+    selection.selectedItems
+      .map(
+        (
+          item,
+          index
+        ) => {
+          const workDate =
+            normalizeText(
+              item.workDate
             );
+
+
+          const mainText =
+            normalizeText(
+              item.text ||
+              item.content
+            );
+
+
+          const subLines =
+            Array.isArray(
+              item.subLines
+            )
+              ? item.subLines
+                  .map(
+                    normalizeText
+                  )
+                  .filter(
+                    Boolean
+                  )
+              : [];
+
+
+          const datePrefix =
+            workDate
+              ? `[${workDate}] `
+              : "";
+
+
+          return [
+            `${index + 1}) ${datePrefix}${mainText}`,
+
+            ...subLines.map(
+              line => {
+                return `   - ${line}`;
+              }
+            )
+          ].join(
+            "\n"
+          );
         }
+      )
+      .join(
+        "\n"
       );
 
 
-    selection.selectedTmItems =
-      tmItems.filter(
-        item => {
-          return selection
-            .selectedTmIds
-            .has(
-              item.id
+  /* =====================================================
+    TM 선택 문구
+
+    교대파트:
+    [2026-08-07 D/S]
+
+    운탄:
+    [2026-08-07]
+  ====================================================== */
+
+  selection.selectedTmText =
+    selection.selectedTmItems
+      .map(
+        (
+          item,
+          index
+        ) => {
+          const workDate =
+            normalizeText(
+              item.workDate
             );
+
+
+          const time =
+            normalizeText(
+              item.time
+            );
+
+
+          const content =
+            normalizeText(
+              item.content ||
+              item.text
+            );
+
+
+          const subLines =
+            Array.isArray(
+              item.subLines
+            )
+              ? item.subLines
+                  .map(
+                    normalizeText
+                  )
+                  .filter(
+                    Boolean
+                  )
+              : [];
+
+
+          let datePrefix =
+            "";
+
+
+          if (
+            workDate
+          ) {
+            if (
+              item.shift
+            ) {
+              datePrefix =
+                `[${workDate} ${
+                  item.shift ===
+                    "DS"
+                    ? "D/S"
+                    : "N/S"
+                }] `;
+
+            } else {
+              datePrefix =
+                `[${workDate}] `;
+            }
+          }
+
+
+          return [
+            `${index + 1}) ${datePrefix}${
+              time
+                ? `${time} `
+                : ""
+            }${content}`,
+
+            ...subLines.map(
+              line => {
+                return `   - ${line}`;
+              }
+            )
+          ].join(
+            "\n"
+          );
         }
+      )
+      .join(
+        "\n"
       );
 
 
-    selection.selectedText =
-      selection.selectedItems
-        .map(
-          (
-            item,
-            index
-          ) => {
-            const subLines =
-              Array.isArray(
-                item.subLines
-              )
-                ? item.subLines
-                    .map(
-                      normalizeText
-                    )
-                    .filter(
-                      Boolean
-                    )
-                : [];
+  /* =====================================================
+    기존 최종 엑셀 기능 호환
+  ====================================================== */
+
+  selection.selectedIds =
+    selection.selectedWorkIds;
 
 
-            return [
-              `${index + 1}) ${normalizeText(
-                item.text ||
-                item.content
-              )}`,
-
-              ...subLines.map(
-                line => {
-                  return `   - ${line}`;
-                }
-              )
-            ].join(
-              "\n"
-            );
-          }
-        )
-        .join(
-          "\n"
-        );
+  const {
+    count,
+    clearButton,
+    status
+  } =
+    getElements();
 
 
-    selection.selectedTmText =
-      selection.selectedTmItems
-        .map(
-          (
-            item,
-            index
-          ) => {
-            const time =
-              normalizeText(
-                item.time
-              );
-
-
-            const content =
-              normalizeText(
-                item.content ||
-                item.text
-              );
-
-
-            const subLines =
-              Array.isArray(
-                item.subLines
-              )
-                ? item.subLines
-                    .map(
-                      normalizeText
-                    )
-                    .filter(
-                      Boolean
-                    )
-                : [];
-
-
-            return [
-              `${index + 1}) ${
-                time
-                  ? `${time} `
-                  : ""
-              }${content}`,
-
-              ...subLines.map(
-                line => {
-                  return `   - ${line}`;
-                }
-              )
-            ].join(
-              "\n"
-            );
-          }
-        )
-        .join(
-          "\n"
-        );
-
-
-    /*
-      기존 최종 엑셀 기능 호환
-    */
-
-    selection.selectedIds =
-      selection.selectedWorkIds;
-
-
-    const {
-      count,
-      clearButton,
-      status
-    } =
-      getElements();
-
-
-    if (
-      count
-    ) {
-      count.textContent =
-        `연료 ${selection.selectedItems.length}건 · ` +
-        `TM ${selection.selectedTmItems.length}건`;
-    }
-
-
-    if (
-      clearButton
-    ) {
-      clearButton.disabled =
-        selection.selectedItems.length ===
-          0 &&
-        selection.selectedTmItems.length ===
-          0;
-    }
-
-
-    if (
-      status
-    ) {
-      const totalTmCount =
-        tmItems.length;
-
-
-      status.textContent =
-        selection.analyzed
-          ? `운탄 ${workItems.length}건 · TM ${totalTmCount}건`
-          : `운탄일지 분석 전 · 교대 TM ${getShiftTmItems().length}건`;
-    }
-
-
-    updateColumnButtons();
-
-
-    if (
-      typeof window
-        .updateEfficiencyMorningMeetingCreateButton ===
-        "function"
-    ) {
-      window
-        .updateEfficiencyMorningMeetingCreateButton();
-    }
-
-
-    if (
-      typeof window
-        .refreshEfficiencyMorningMeetingCombinedPreview ===
-        "function"
-    ) {
-      window
-        .refreshEfficiencyMorningMeetingCombinedPreview();
-    }
+  if (
+    count
+  ) {
+    count.textContent =
+      `연료 ${selection.selectedItems.length}건 · ` +
+      `TM ${selection.selectedTmItems.length}건`;
   }
+
+
+  if (
+    clearButton
+  ) {
+    clearButton.disabled =
+      selection.selectedItems.length ===
+        0 &&
+      selection.selectedTmItems.length ===
+        0;
+  }
+
+
+  if (
+    status
+  ) {
+    const totalTmCount =
+      tmItems.length;
+
+
+    status.textContent =
+      selection.analyzed
+        ? `운탄 ${workItems.length}건 · TM ${totalTmCount}건`
+        : `운탄일지 분석 전 · 교대 TM ${getShiftTmItems().length}건`;
+  }
+
+
+  updateColumnButtons();
+
+
+  if (
+    typeof window
+      .updateEfficiencyMorningMeetingCreateButton ===
+      "function"
+  ) {
+    window
+      .updateEfficiencyMorningMeetingCreateButton();
+  }
+
+
+  if (
+    typeof window
+      .refreshEfficiencyMorningMeetingCombinedPreview ===
+      "function"
+  ) {
+    window
+      .refreshEfficiencyMorningMeetingCombinedPreview();
+  }
+}
 
 
   function renderAll() {
