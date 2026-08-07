@@ -181689,45 +181689,109 @@ function renderTeamApprovalCard(
     요소
   ====================================================== */
 
-  function getElements() {
-    return {
-      view:
-        document.getElementById(
-          "efficiencyMorningMeetingView"
-        ),
+function getElements() {
+  return {
+    view:
+      document.getElementById(
+        "efficiencyMorningMeetingView"
+      ),
 
-      checkbox:
-        document.getElementById(
-          "efficiencyMorningMeetingWeekendMode"
-        ),
+    checkbox:
+      document.getElementById(
+        "efficiencyMorningMeetingWeekendMode"
+      ),
 
-      status:
-        document.getElementById(
-          "efficiencyMorningMeetingWeekendStatus"
-        ),
+    status:
+      document.getElementById(
+        "efficiencyMorningMeetingWeekendStatus"
+      ),
 
-      range:
-        document.getElementById(
-          "efficiencyMorningMeetingWeekendRange"
-        ),
+    range:
+      document.getElementById(
+        "efficiencyMorningMeetingWeekendRange"
+      ),
 
-      startDate:
-        document.getElementById(
-          "efficiencyMorningMeetingWeekendStartDate"
-        ),
+    startDate:
+      document.getElementById(
+        "efficiencyMorningMeetingWeekendStartDate"
+      ),
 
-      endDate:
-        document.getElementById(
-          "efficiencyMorningMeetingWeekendEndDate"
-        ),
+    endDate:
+      document.getElementById(
+        "efficiencyMorningMeetingWeekendEndDate"
+      ),
 
-      shiftDate:
-        document.getElementById(
-          "efficiencyMorningMeetingShiftDate"
-        )
-    };
-  }
+    shiftDate:
+      document.getElementById(
+        "efficiencyMorningMeetingShiftDate"
+      ),
 
+
+    /* ===================================================
+      교대파트 설명
+    ==================================================== */
+
+    shiftDescription:
+      document.querySelector(
+        `
+          #efficiencyMorningMeetingShiftPanel
+          > .efficiency-morning-meeting-shift-panel__header
+          > div:first-child
+          > p
+        `
+      ),
+
+
+    /* ===================================================
+      왼쪽 D/S 제목
+    ==================================================== */
+
+    dayEyebrow:
+      document.querySelector(
+        `
+          #efficiencyMorningMeetingShiftPanel
+          .is-day-shift
+          .efficiency-morning-meeting-shift-column__header
+          span
+        `
+      ),
+
+    dayTitle:
+      document.querySelector(
+        `
+          #efficiencyMorningMeetingShiftPanel
+          .is-day-shift
+          .efficiency-morning-meeting-shift-column__header
+          strong
+        `
+      ),
+
+
+    /* ===================================================
+      오른쪽 N/S 제목
+    ==================================================== */
+
+    nightEyebrow:
+      document.querySelector(
+        `
+          #efficiencyMorningMeetingShiftPanel
+          .is-night-shift
+          .efficiency-morning-meeting-shift-column__header
+          span
+        `
+      ),
+
+    nightTitle:
+      document.querySelector(
+        `
+          #efficiencyMorningMeetingShiftPanel
+          .is-night-shift
+          .efficiency-morning-meeting-shift-column__header
+          strong
+        `
+      )
+  };
+}
 
   /* =====================================================
     YYYY-MM-DD 검사
@@ -181751,106 +181815,194 @@ function renderTeamApprovalCard(
   }
 
 
-  /* =====================================================
-    화면 갱신
-  ====================================================== */
+/* =====================================================
+  화면 갱신
 
-  function render() {
-    const state =
-      getState();
+  평일:
+  - 전날 D/S
+  - 현재 N/S
 
+  주말:
+  - D/S 업무
+  - N/S 업무
+====================================================== */
 
-    const elements =
-      getElements();
-
-
-    const weekendMode =
-      state.weekendMode;
-
-
-    const isEnabled =
-      weekendMode.enabled ===
-        true;
+function render() {
+  const state =
+    getState();
 
 
-    if (
-      elements.checkbox
-    ) {
-      elements.checkbox.checked =
-        isEnabled;
-    }
+  const elements =
+    getElements();
 
 
-    if (
-      elements.range
-    ) {
-      elements.range.hidden =
-        !isEnabled;
-    }
+  const weekendMode =
+    state.weekendMode;
 
 
-    elements.view?.classList.toggle(
-      "is-weekend-mode",
-      isEnabled
-    );
+  const isEnabled =
+    weekendMode.enabled ===
+      true;
 
 
-    if (
-      elements.status
-    ) {
-      elements.status.textContent =
-        isEnabled
-          ? "주말 취합"
-          : "평일 취합";
-    }
+  /* ===================================================
+    체크박스
+  ==================================================== */
 
-
-    if (
-      elements.startDate &&
-      elements.startDate.value !==
-        weekendMode.startDate
-    ) {
-      elements.startDate.value =
-        weekendMode.startDate;
-    }
-
-
-    if (
-      elements.endDate &&
-      elements.endDate.value !==
-        weekendMode.endDate
-    ) {
-      elements.endDate.value =
-        weekendMode.endDate;
-    }
-
-
-    /*
-      주말 모드에서 기간이 확정되면
-      교대파트 상단에도 현재 기간을 표시한다.
-
-      평일 모드에서는 기존 JavaScript가
-      표시하는 기준 날짜를 건드리지 않는다.
-    */
-
-    if (
-      isEnabled &&
-      elements.shiftDate
-    ) {
-      if (
-        weekendMode.startDate &&
-        weekendMode.endDate
-      ) {
-        elements.shiftDate.textContent =
-          `${weekendMode.startDate} ~ ${weekendMode.endDate} · D/S + N/S`;
-
-      } else {
-        elements.shiftDate.textContent =
-          "주말 업무기간을 선택하세요.";
-      }
-    }
+  if (
+    elements.checkbox
+  ) {
+    elements.checkbox.checked =
+      isEnabled;
   }
 
+
+  /* ===================================================
+    기간 선택창
+  ==================================================== */
+
+  if (
+    elements.range
+  ) {
+    elements.range.hidden =
+      !isEnabled;
+  }
+
+
+  elements.view?.classList.toggle(
+    "is-weekend-mode",
+    isEnabled
+  );
+
+
+  /* ===================================================
+    평일 / 주말 상태
+  ==================================================== */
+
+  if (
+    elements.status
+  ) {
+    elements.status.textContent =
+      isEnabled
+        ? "주말 취합"
+        : "평일 취합";
+  }
+
+
+  /* ===================================================
+    시작일 / 종료일
+  ==================================================== */
+
+  if (
+    elements.startDate &&
+    elements.startDate.value !==
+      weekendMode.startDate
+  ) {
+    elements.startDate.value =
+      weekendMode.startDate;
+  }
+
+
+  if (
+    elements.endDate &&
+    elements.endDate.value !==
+      weekendMode.endDate
+  ) {
+    elements.endDate.value =
+      weekendMode.endDate;
+  }
+
+
+  /* ===================================================
+    교대파트 제목 전환
+
+    평일:
+    PREVIOUS DAY  / 전날 D/S
+    CURRENT SHIFT / 현재 N/S
+
+    주말:
+    DAY SHIFT     / D/S 업무
+    NIGHT SHIFT   / N/S 업무
+  ==================================================== */
+
+  if (
+    elements.dayEyebrow
+  ) {
+    elements.dayEyebrow.textContent =
+      isEnabled
+        ? "DAY SHIFT"
+        : "PREVIOUS DAY";
+  }
+
+
+  if (
+    elements.dayTitle
+  ) {
+    elements.dayTitle.textContent =
+      isEnabled
+        ? "D/S 업무"
+        : "전날 D/S";
+  }
+
+
+  if (
+    elements.nightEyebrow
+  ) {
+    elements.nightEyebrow.textContent =
+      isEnabled
+        ? "NIGHT SHIFT"
+        : "CURRENT SHIFT";
+  }
+
+
+  if (
+    elements.nightTitle
+  ) {
+    elements.nightTitle.textContent =
+      isEnabled
+        ? "N/S 업무"
+        : "현재 N/S";
+  }
+
+
+  /* ===================================================
+    교대파트 안내문 전환
+  ==================================================== */
+
+  if (
+    elements.shiftDescription
+  ) {
+    elements.shiftDescription.textContent =
+      isEnabled
+        ? "선택한 기간의 D/S·N/S TGO·BCO1·BCO2 업무내용 중 오전회의 자료에 넣을 항목을 선택하세요."
+        : "전날 D/S와 현재 N/S의 TGO·BCO1·BCO2 업무내용 중 오전회의 자료에 넣을 항목을 선택하세요.";
+  }
+
+
+  /* ===================================================
+    주말 모드 기간 표시
+
+    평일 모드에서는 기존 교대파트 코드가
+    기준 날짜를 표시한다.
+  ==================================================== */
+
+  if (
+    isEnabled &&
+    elements.shiftDate
+  ) {
+    if (
+      weekendMode.startDate &&
+      weekendMode.endDate
+    ) {
+      elements.shiftDate.textContent =
+        `${weekendMode.startDate} ~ ${weekendMode.endDate} · D/S + N/S`;
+
+    } else {
+      elements.shiftDate.textContent =
+        "주말 업무기간을 선택하세요.";
+    }
+  }
+}
 
   /* =====================================================
     주말 모드 변경
