@@ -159305,57 +159305,73 @@ function resolveWaterTargetDate() {
   }
 
 
-  /* =====================================================
-    수처리 요청 생성
-  ====================================================== */
+/* =====================================================
+  수처리 요청 생성
 
-  async function createWaterRequest(
-    targetDate
-  ) {
-    const response =
-      await fetch(
-        OIS_REQUEST_API_URL,
-        {
-          method:
-            "POST",
+  기본:
+  forceRefresh = false
+  → D1에 완료자료가 있으면 재사용
 
-          headers:
-            typeof getShiftLogAuthHeaders ===
-              "function"
-              ? getShiftLogAuthHeaders({
-                  "Content-Type":
-                    "application/json"
-                })
-              : {
-                  Accept:
-                    "application/json",
+  수동 다시 조회:
+  forceRefresh = true
+  → 회사 OIS에서 신규 조회
+====================================================== */
 
-                  "Content-Type":
-                    "application/json"
-                },
-
-          cache:
-            "no-store",
-
-          body:
-            JSON.stringify({
-              requestType:
-                "water_environment",
-
-              targetDate,
-
-              forceRefresh:
-                true
-            })
-        }
-      );
+async function createWaterRequest(
+  targetDate,
+  options = {}
+) {
+  const {
+    forceRefresh =
+      false
+  } = options;
 
 
-    return await readApiResponse(
-      response,
-      "OIS 수처리 조회 요청을 만들지 못했습니다."
+  const response =
+    await fetch(
+      OIS_REQUEST_API_URL,
+      {
+        method:
+          "POST",
+
+        headers:
+          typeof getShiftLogAuthHeaders ===
+            "function"
+            ? getShiftLogAuthHeaders({
+                "Content-Type":
+                  "application/json"
+              })
+            : {
+                Accept:
+                  "application/json",
+
+                "Content-Type":
+                  "application/json"
+              },
+
+        cache:
+          "no-store",
+
+        body:
+          JSON.stringify({
+            requestType:
+              "water_environment",
+
+            targetDate,
+
+            forceRefresh:
+              forceRefresh ===
+              true
+          })
+      }
     );
-  }
+
+
+  return await readApiResponse(
+    response,
+    "OIS 수처리 조회 요청을 만들지 못했습니다."
+  );
+}
 
 
   /* =====================================================
@@ -159881,7 +159897,13 @@ function applyWaterResult(
     OIS 수처리 불러오기
   ====================================================== */
 
-  async function loadWaterTreatment() {
+  async function loadWaterTreatment(
+  options = {}
+) {
+  const {
+    forceRefresh =
+      false
+  } = options;
     const targetDate =
       synchronizeTargetDate();
 
@@ -159941,7 +159963,10 @@ function applyWaterResult(
     try {
       const createResult =
         await createWaterRequest(
-          targetDate
+          targetDate,
+          {
+            forceRefresh
+          }
         );
 
 
@@ -160088,10 +160113,15 @@ function applyWaterResult(
 
 
     elements.loadButton
-      ?.addEventListener(
-        "click",
-        loadWaterTreatment
-      );
+  ?.addEventListener(
+    "click",
+    () => {
+      void loadWaterTreatment({
+        forceRefresh:
+          true
+      });
+    }
+  );
 
 
     elements.analyzeButton
@@ -160637,57 +160667,73 @@ function resolveWaterSourceDate() {
   }
 
 
-  /* =====================================================
-    Gear / Pinion 요청 생성
-  ====================================================== */
+/* =====================================================
+  Gear Wheel / Pinion 요청 생성
 
-  async function createGearPinionRequest(
-    targetDate
-  ) {
-    const response =
-      await fetch(
-        OIS_REQUEST_API_URL,
-        {
-          method:
-            "POST",
+  기본:
+  forceRefresh = false
+  → D1 완료자료 우선
 
-          headers:
-            typeof getShiftLogAuthHeaders ===
-              "function"
-              ? getShiftLogAuthHeaders({
-                  "Content-Type":
-                    "application/json"
-                })
-              : {
-                  Accept:
-                    "application/json",
+  수동 다시 조회:
+  forceRefresh = true
+  → 회사 OIS 신규 조회
+====================================================== */
 
-                  "Content-Type":
-                    "application/json"
-                },
-
-          cache:
-            "no-store",
-
-          body:
-            JSON.stringify({
-              requestType:
-                "turbine_gear_pinion",
-
-              targetDate,
-
-              forceRefresh:
-                true
-            })
-        }
-      );
+async function createGearPinionRequest(
+  targetDate,
+  options = {}
+) {
+  const {
+    forceRefresh =
+      false
+  } = options;
 
 
-    return await readApiResponse(
-      response,
-      "Gear Wheel / Pinion OIS 조회 요청을 만들지 못했습니다."
+  const response =
+    await fetch(
+      OIS_REQUEST_API_URL,
+      {
+        method:
+          "POST",
+
+        headers:
+          typeof getShiftLogAuthHeaders ===
+            "function"
+            ? getShiftLogAuthHeaders({
+                "Content-Type":
+                  "application/json"
+              })
+            : {
+                Accept:
+                  "application/json",
+
+                "Content-Type":
+                  "application/json"
+              },
+
+        cache:
+          "no-store",
+
+        body:
+          JSON.stringify({
+            requestType:
+              "turbine_gear_pinion",
+
+            targetDate,
+
+            forceRefresh:
+              forceRefresh ===
+              true
+          })
+      }
     );
-  }
+
+
+  return await readApiResponse(
+    response,
+    "Gear Wheel / Pinion OIS 조회 요청을 만들지 못했습니다."
+  );
+}
 
 
   /* =====================================================
@@ -161148,9 +161194,17 @@ function resolveWaterSourceDate() {
     Gear / Pinion OIS 불러오기
   ====================================================== */
 
-  async function loadGearPinion() {
-    const targetDate =
-      synchronizeTargetDate();
+  async function loadGearPinion(
+  options = {}
+) {
+  const {
+    forceRefresh =
+      false
+  } = options;
+
+
+  const targetDate =
+    synchronizeTargetDate();
 
 
     if (
@@ -161504,11 +161558,14 @@ function resolveWaterSourceDate() {
     */
 
     elements.loadButton.addEventListener(
-      "click",
-      () => {
-        void loadGearPinion();
-      }
-    );
+  "click",
+  () => {
+    void loadGearPinion({
+      forceRefresh:
+        true
+    });
+  }
+);
 
 
     elements.analyzeButton
