@@ -7299,7 +7299,7 @@ async function createOisAgentBrowserSession(
         "msedge",
 
       headless:
-        false,
+        true,
 
       slowMo:
         60
@@ -7706,7 +7706,7 @@ async function loginOis() {
           "msedge",
 
         headless:
-          false,
+          true,
 
         slowMo:
           60

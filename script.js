@@ -151387,155 +151387,202 @@ function resolveWaterTargetDate() {
     수처리 결과 화면 반영
   ====================================================== */
 
-  function applyWaterResult(
-    requestItem,
-    expectedDate
-  ) {
-    const result =
-      normalizeWaterResult(
-        requestItem,
-        expectedDate
-      );
+function applyWaterResult(
+  requestItem,
+  expectedDate
+) {
+  const result =
+    normalizeWaterResult(
+      requestItem,
+      expectedDate
+    );
 
 
-    const elements =
-      getElements();
+  const elements =
+    getElements();
 
 
-    const valueMappings = [
-      [
-        elements.rawWaterInflow,
-        result.rawWaterInflow
-      ],
+  const valueMappings = [
+    [
+      elements.rawWaterInflow,
+      result.rawWaterInflow
+    ],
 
-      [
-        elements.demiProduction,
-        result.demiProduction
-      ],
+    [
+      elements.demiProduction,
+      result.demiProduction
+    ],
 
-      [
-        elements.pureWaterUsage,
-        result.pureWaterUsage
-      ],
+    [
+      elements.pureWaterUsage,
+      result.pureWaterUsage
+    ],
 
-      [
-        elements.rawWaterTankAmount,
-        result.rawWaterTankAmount
-      ],
+    [
+      elements.rawWaterTankAmount,
+      result.rawWaterTankAmount
+    ],
 
-      [
-        elements.rawWaterTankRate,
-        result.rawWaterTankRate
-      ],
+    [
+      elements.rawWaterTankRate,
+      result.rawWaterTankRate
+    ],
 
-      [
-        elements.filteredWaterTankAmount,
-        result.filteredWaterTankAmount
-      ],
+    [
+      elements.filteredWaterTankAmount,
+      result.filteredWaterTankAmount
+    ],
 
-      [
-        elements.filteredWaterTankRate,
-        result.filteredWaterTankRate
-      ],
+    [
+      elements.filteredWaterTankRate,
+      result.filteredWaterTankRate
+    ],
 
-      [
-        elements.demiWaterTankAmount,
-        result.demiWaterTankAmount
-      ],
+    [
+      elements.demiWaterTankAmount,
+      result.demiWaterTankAmount
+    ],
 
-      [
-        elements.demiWaterTankRate,
-        result.demiWaterTankRate
-      ]
-    ];
+    [
+      elements.demiWaterTankRate,
+      result.demiWaterTankRate
+    ]
+  ];
 
 
-    valueMappings.forEach(
-      ([
-        element,
-        value
-      ]) => {
-        if (
-          element
-        ) {
-          element.textContent =
-            formatNumber(
-              value
-            );
-        }
+  valueMappings.forEach(
+    ([
+      element,
+      value
+    ]) => {
+      if (
+        element
+      ) {
+        element.textContent =
+          formatNumber(
+            value
+          );
       }
-    );
-
-
-    const state =
-      getState();
-
-
-    state.waterTreatment = {
-      ...result,
-
-      requestId:
-        normalizeText(
-          requestItem.id
-        )
-    };
-
-
-    if (
-      elements.panel
-    ) {
-      elements.panel.dataset
-        .oisRequestId =
-        normalizeText(
-          requestItem.id
-        );
-
-
-      elements.panel.dataset
-        .oisCollectedAt =
-        result.collectedAt;
-
-
-      elements.panel.dataset
-        .oisAgentId =
-        result.agentId;
     }
+  );
 
 
-    setStatus(
-      "complete",
-      "수처리 9개 값 조회 완료"
-    );
+  const state =
+    getState();
 
 
-    if (
-      elements.loadButton
-    ) {
-      elements.loadButton.textContent =
-        "OIS 수처리 다시 불러오기";
-    }
+  /* =====================================================
+    오전회의 공용 상태에 수처리 결과 저장
+  ====================================================== */
+
+  state.waterTreatment = {
+    ...result,
+
+    requestId:
+      normalizeText(
+        requestItem.id
+      )
+  };
 
 
-    if (
-      typeof window
-        .updateEfficiencyMorningMeetingCreateButton ===
-        "function"
-    ) {
-      window
-        .updateEfficiencyMorningMeetingCreateButton();
-    }
+  /* =====================================================
+    수처리 패널 조회 정보 저장
+  ====================================================== */
 
-
-    if (
-      typeof showToast ===
-        "function"
-    ) {
-      showToast(
-        `${expectedDate} OIS 수처리 현황을 불러왔습니다.`
+  if (
+    elements.panel
+  ) {
+    elements.panel.dataset
+      .oisRequestId =
+      normalizeText(
+        requestItem.id
       );
-    }
+
+
+    elements.panel.dataset
+      .oisCollectedAt =
+      result.collectedAt;
+
+
+    elements.panel.dataset
+      .oisAgentId =
+      result.agentId;
   }
 
+
+  setStatus(
+    "complete",
+    "수처리 9개 값 조회 완료"
+  );
+
+
+  if (
+    elements.loadButton
+  ) {
+    elements.loadButton.textContent =
+      "OIS 수처리 다시 불러오기";
+  }
+
+
+  /* =====================================================
+    최종 엑셀 버튼 상태 재판정
+  ====================================================== */
+
+  if (
+    typeof window
+      .updateEfficiencyMorningMeetingCreateButton ===
+      "function"
+  ) {
+    window
+      .updateEfficiencyMorningMeetingCreateButton();
+  }
+
+
+  /* =====================================================
+    중요:
+    수처리 조회 완료 이벤트 발생
+
+    이 이벤트를 받으면:
+    1. 수처리 날짜별 캐시 자동 저장
+    2. 자동 수치 미리보기 갱신
+
+    Gear / Pinion과 동일한 방식으로 동작
+  ====================================================== */
+
+  document.dispatchEvent(
+    new CustomEvent(
+      "efficiencyMorningMeetingWaterLoaded",
+
+      {
+        detail: {
+          targetDate:
+            expectedDate,
+
+          sourceDate:
+            result.sourceDate,
+
+          requestId:
+            normalizeText(
+              requestItem.id
+            ),
+
+          collectedAt:
+            result.collectedAt
+        }
+      }
+    )
+  );
+
+
+  if (
+    typeof showToast ===
+      "function"
+  ) {
+    showToast(
+      `${expectedDate} OIS 수처리 현황을 불러왔습니다.`
+    );
+  }
+}
 
   /* =====================================================
     회사 PC 처리 완료 대기
