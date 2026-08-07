@@ -59912,10 +59912,9 @@ async function saveShiftLogToServer(
   D1 공용 업무일지 삭제
 
   삭제 후:
-  - 같은 날짜·근무의 모든 업무일지 재검사
-  - 근거가 없어진 자동완료 해제
-  - 다른 업무일지 근거가 있으면 완료 유지
-  - 점검 화면 즉시 갱신
+  - 같은 날짜·근무 점검 자동완료 재검사
+  - BO1·BO2 N/S 삭제 시 오전회의 온도 캐시 무효화
+  - 오전회의가 열려 있으면 최신 업무일지 즉시 재조회
 ========================================================= */
 
 async function deleteShiftLogFromServer(
@@ -59967,6 +59966,36 @@ async function deleteShiftLogFromServer(
   }
 
 
+  const workDate =
+    String(
+      log.date ||
+      ""
+    ).trim();
+
+
+  const shift =
+    String(
+      log.shift ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  const role =
+    typeof normalizeMemberLogRole ===
+      "function"
+      ? normalizeMemberLogRole(
+          log.role
+        )
+      : String(
+          log.role ||
+          ""
+        )
+          .trim()
+          .toUpperCase();
+
+
   const searchParams =
     new URLSearchParams({
       id:
@@ -59980,17 +60009,9 @@ async function deleteShiftLogFromServer(
 
 
   const requestBody = {
-    workDate:
-      String(
-        log.date ||
-        ""
-      ).trim(),
+    workDate,
 
-    shift:
-      String(
-        log.shift ||
-        ""
-      ).trim()
+    shift
   };
 
 
@@ -60010,6 +60031,10 @@ async function deleteShiftLogFromServer(
   }
 
 
+  /* =====================================================
+    서버에서 실제 업무일지 삭제
+  ====================================================== */
+
   const result =
     await requestShiftLogApi(
       `?${searchParams.toString()}`,
@@ -60023,16 +60048,74 @@ async function deleteShiftLogFromServer(
     );
 
 
+  /* =====================================================
+    점검일지 재판정
+  ====================================================== */
+
   refreshInspectionScheduleAfterShiftLogChange(
     result.inspectionScheduleSync,
     {
-      workDate:
-        log.date,
+      workDate,
 
-      shift:
-        log.shift
+      shift
     }
   );
+
+
+  /* =====================================================
+    오전회의 BO1·BO2 온도 캐시 무효화
+
+    오전회의 온도는 현재 N/S의
+    BO1·BO2 운전현황을 사용한다.
+
+    따라서:
+    D/S 삭제 → 영향 없음
+    N/S BO1 삭제 → 온도 재검사
+    N/S BO2 삭제 → 온도 재검사
+  ====================================================== */
+
+  const affectsMorningMeetingBoiler =
+    shift ===
+      "NS" &&
+    [
+      "BO1",
+      "BO2"
+    ].includes(
+      role
+    );
+
+
+  if (
+    affectsMorningMeetingBoiler &&
+    typeof window
+      .invalidateEfficiencyMorningMeetingBoilerCache ===
+      "function"
+  ) {
+    try {
+      await window
+        .invalidateEfficiencyMorningMeetingBoilerCache(
+          workDate,
+          {
+            reload:
+              true
+          }
+        );
+
+    } catch (
+      error
+    ) {
+      /*
+        업무일지 삭제 자체는 이미 성공했으므로
+        오전회의 캐시 갱신 오류 때문에
+        삭제 성공을 실패로 바꾸지는 않는다.
+      */
+
+      console.error(
+        "업무일지 삭제 후 오전회의 BO1·BO2 온도 갱신 실패:",
+        error
+      );
+    }
+  }
 
 
   return String(
@@ -144872,6 +144955,137 @@ function renderShiftList(
       );
 }
 
+/* =====================================================
+  교대파트 선택 내용 갱신
+===================================================== */
+
+function updateSelectedText(
+  overwriteText =
+    true
+) {
+  const elements =
+    getElements();
+
+
+  const state =
+    getState();
+
+
+  const weekendMode =
+    getMorningMeetingWeekendShiftContext();
+
+
+  const selectedItems =
+    state.shiftPart.items.filter(
+      item => {
+        return state.shiftPart
+          .selectedIds
+          .has(
+            item.id
+          );
+      }
+    );
+
+
+  if (
+    overwriteText
+  ) {
+    state.shiftPart.text =
+      selectedItems
+        .map(
+          (
+            item,
+            itemIndex
+          ) => {
+            const time =
+              String(
+                item.time ||
+                ""
+              ).trim();
+
+
+            const content =
+              String(
+                item.content ||
+                ""
+              ).trim();
+
+
+            const timePrefix =
+              time
+                ? `${time} `
+                : "";
+
+
+            /*
+              주말 모드에서만
+              날짜 + D/S·N/S 표시
+            */
+
+            const weekendPrefix =
+              weekendMode.enabled &&
+              item.workDate
+                ? `[${item.workDate} ${
+                    item.shift ===
+                      "DS"
+                      ? "D/S"
+                      : "N/S"
+                  }] `
+                : "";
+
+
+            return (
+              `${itemIndex + 1}) ` +
+              `${weekendPrefix}` +
+              `${timePrefix}` +
+              `${content}`
+            );
+          }
+        )
+        .filter(
+          Boolean
+        )
+        .join(
+          "\n"
+        );
+
+
+    if (
+      elements.textarea
+    ) {
+      elements.textarea.value =
+        state.shiftPart.text;
+    }
+  }
+
+
+  if (
+    elements.selectedCount
+  ) {
+    elements.selectedCount.textContent =
+      `${selectedItems.length}건 선택`;
+  }
+
+
+  if (
+    elements.clearButton
+  ) {
+    elements.clearButton.disabled =
+      selectedItems.length ===
+      0;
+  }
+
+
+  if (
+    typeof window
+      .updateEfficiencyMorningMeetingCreateButton ===
+      "function"
+  ) {
+    window
+      .updateEfficiencyMorningMeetingCreateButton();
+  }
+}
+
   function renderAllLists() {
     const elements =
       getElements();
@@ -170629,7 +170843,6 @@ function loadCache() {
     saveGearPinionResult
   );
 
-
   /* =====================================================
     외부 공개
   ====================================================== */
@@ -171818,9 +172031,9 @@ function saveBoilerTemperatures() {
   return saved;
 }
 
-  /* =====================================================
-    지정 날짜 BO1·BO2 온도 즉시 복원
-  ====================================================== */
+/* =====================================================
+  지정 날짜 BO1·BO2 온도 즉시 복원
+====================================================== */
 
 function restoreBoilerTemperatures(
   requestedDate
@@ -171858,15 +172071,7 @@ function restoreBoilerTemperatures(
 
 
   /* =====================================================
-    저장된 BO1·BO2 12개 값 검증
-
-    정상:
-    → 즉시 복원
-
-    불완전:
-    → 해당 캐시 자동 삭제
-    → false 반환
-    → applyCommonBaseDate()가 업무일지를 다시 조회
+    저장된 BO1·BO2 12개 온도 확인
   ====================================================== */
 
   const temperatureValues = [
@@ -171912,21 +172117,37 @@ function restoreBoilerTemperatures(
   const hasCompleteValues =
     temperatureValues.every(
       value => {
-        const numericValue =
-          Number(
-            String(
-              value ??
+        const normalizedValue =
+          String(
+            value ??
+            ""
+          )
+            .replaceAll(
+              ",",
               ""
             )
-              .replaceAll(
-                ",",
-                ""
-              )
-              .replace(
-                /℃|°C/gi,
-                ""
-              )
-              .trim()
+            .replace(
+              /℃|°C/gi,
+              ""
+            )
+            .trim();
+
+
+        /*
+          빈 값은 정상 온도로 인정하지 않는다.
+        */
+        if (
+          !normalizedValue ||
+          normalizedValue ===
+            "-"
+        ) {
+          return false;
+        }
+
+
+        const numericValue =
+          Number(
+            normalizedValue
           );
 
 
@@ -171938,7 +172159,9 @@ function restoreBoilerTemperatures(
 
 
   /* =====================================================
-    잘못 저장된 빈 캐시 자동 폐기
+    불완전한 저장값 자동 삭제
+
+    이후 실제 업무일지를 다시 조회하게 한다.
   ====================================================== */
 
   if (
@@ -171997,7 +172220,7 @@ function restoreBoilerTemperatures(
 
 
   /* =====================================================
-    보일러 입력칸 즉시 갱신
+    화면 즉시 반영
   ====================================================== */
 
   if (
@@ -172010,10 +172233,6 @@ function restoreBoilerTemperatures(
   }
 
 
-  /* =====================================================
-    자동 수치 미리보기 갱신
-  ====================================================== */
-
   if (
     typeof window
       .renderEfficiencyMorningMeetingAutoPreview ===
@@ -172023,10 +172242,6 @@ function restoreBoilerTemperatures(
       .renderEfficiencyMorningMeetingAutoPreview();
   }
 
-
-  /* =====================================================
-    최종 엑셀 버튼 재판정
-  ====================================================== */
 
   if (
     typeof window
@@ -172046,59 +172261,251 @@ function restoreBoilerTemperatures(
   return true;
 }
 
-  /* =====================================================
-    비동기 처리 직후 저장
 
-    이벤트 발생 시점과 state 반영 시점 차이를
-    조금 보정한다.
-  ====================================================== */
+/* =====================================================
+  지정 날짜 BO1·BO2 온도 캐시 무효화
 
-  function scheduleSave() {
-    window.setTimeout(
-      saveBoilerTemperatures,
-      0
+  N/S BO1 또는 BO2 업무일지를 삭제했을 때 사용한다.
+
+  처리:
+  1. localStorage 온도 캐시 삭제
+  2. 현재 메모리 온도 삭제
+  3. 화면 즉시 비우기
+  4. 오전회의 화면이 해당 날짜를 보고 있으면
+     최신 업무일지를 다시 조회
+====================================================== */
+
+async function invalidateBoilerTemperatures(
+  requestedDate,
+  options = {}
+) {
+  const {
+    reload =
+      true
+  } = options;
+
+
+  const reportDate =
+    normalizeDate(
+      requestedDate
     );
 
 
-    window.setTimeout(
-      saveBoilerTemperatures,
-      100
-    );
+  if (
+    !reportDate
+  ) {
+    return false;
   }
 
 
   /* =====================================================
-    업무일지에서 자동 추출 완료
+    1. localStorage 캐시 삭제
   ====================================================== */
 
-  document.addEventListener(
-    "efficiencyMorningMeetingShiftLogsLoaded",
-    scheduleSave
+  const cache =
+    loadCache();
+
+
+  let cacheRemoved =
+    false;
+
+
+  if (
+    cache.boiler &&
+    typeof cache.boiler ===
+      "object" &&
+    Object.prototype.hasOwnProperty.call(
+      cache.boiler,
+      reportDate
+    )
+  ) {
+    delete cache.boiler[
+      reportDate
+    ];
+
+
+    saveCache(
+      cache
+    );
+
+
+    cacheRemoved =
+      true;
+  }
+
+
+  /* =====================================================
+    2. 현재 메모리 온도 삭제
+  ====================================================== */
+
+  const state =
+    getState();
+
+
+  const currentBoilerDate =
+    normalizeDate(
+      state.boilerTemperatures
+        ?.reportDate
+    );
+
+
+  if (
+    currentBoilerDate ===
+      reportDate
+  ) {
+    delete state
+      .boilerTemperatures;
+  }
+
+
+  /* =====================================================
+    3. 화면 갱신
+  ====================================================== */
+
+  if (
+    typeof window
+      .renderEfficiencyMorningMeetingBoilerTemperatures ===
+      "function"
+  ) {
+    window
+      .renderEfficiencyMorningMeetingBoilerTemperatures();
+  }
+
+
+  if (
+    typeof window
+      .renderEfficiencyMorningMeetingAutoPreview ===
+      "function"
+  ) {
+    window
+      .renderEfficiencyMorningMeetingAutoPreview();
+  }
+
+
+  if (
+    typeof window
+      .updateEfficiencyMorningMeetingCreateButton ===
+      "function"
+  ) {
+    window
+      .updateEfficiencyMorningMeetingCreateButton();
+  }
+
+
+  console.log(
+    `오전회의 BO1·BO2 온도 ${reportDate} 캐시 무효화`,
+    {
+      cacheRemoved
+    }
   );
 
 
   /* =====================================================
-    사용자가 온도 직접 수정
+    4. 현재 오전회의가 이 날짜를 보고 있으면
+       실제 업무일지를 다시 조회
   ====================================================== */
 
-  document.addEventListener(
-    "efficiencyMorningMeetingBoilerTemperaturesChanged",
-    scheduleSave
+  const morningMeetingView =
+    document.getElementById(
+      "efficiencyMorningMeetingView"
+    );
+
+
+  const currentReportDate =
+    normalizeDate(
+      state.shiftPart
+        ?.reportDate ||
+      state.shiftPart
+        ?.loadedDate
+    );
+
+
+  const shouldReloadNow =
+    reload &&
+    morningMeetingView &&
+    !morningMeetingView.hidden &&
+    currentReportDate ===
+      reportDate &&
+    typeof window
+      .loadEfficiencyMorningMeetingShiftLogsForDate ===
+      "function";
+
+
+  if (
+    shouldReloadNow
+  ) {
+    console.log(
+      `오전회의 BO1·BO2 온도 ${reportDate} 업무일지 재조회`
+    );
+
+
+    await window
+      .loadEfficiencyMorningMeetingShiftLogsForDate(
+        reportDate
+      );
+  }
+
+
+  return true;
+}
+
+
+/* =====================================================
+  비동기 처리 직후 저장
+====================================================== */
+
+function scheduleSave() {
+  window.setTimeout(
+    saveBoilerTemperatures,
+    0
   );
 
 
-  /* =====================================================
-    외부 공개
-  ====================================================== */
-
-  window
-    .saveEfficiencyMorningMeetingBoilerCache =
-    saveBoilerTemperatures;
+  window.setTimeout(
+    saveBoilerTemperatures,
+    100
+  );
+}
 
 
-  window
-    .restoreEfficiencyMorningMeetingBoilerCache =
-    restoreBoilerTemperatures;
+/* =====================================================
+  업무일지에서 자동 추출 완료
+====================================================== */
+
+document.addEventListener(
+  "efficiencyMorningMeetingShiftLogsLoaded",
+  scheduleSave
+);
+
+
+/* =====================================================
+  사용자가 온도 직접 수정
+====================================================== */
+
+document.addEventListener(
+  "efficiencyMorningMeetingBoilerTemperaturesChanged",
+  scheduleSave
+);
+
+
+/* =====================================================
+  외부 공개
+====================================================== */
+
+window
+  .saveEfficiencyMorningMeetingBoilerCache =
+  saveBoilerTemperatures;
+
+
+window
+  .restoreEfficiencyMorningMeetingBoilerCache =
+  restoreBoilerTemperatures;
+
+
+window
+  .invalidateEfficiencyMorningMeetingBoilerCache =
+  invalidateBoilerTemperatures;
+
 })();
 
 /* =========================================================
