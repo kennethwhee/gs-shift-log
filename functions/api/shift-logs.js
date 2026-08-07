@@ -3935,13 +3935,441 @@ function isInspectionAutoCompletionUnitCompatible(
 }
 
 /* =========================================================
+  점검주기 자동완료 담당 보직 규칙
+
+  원칙:
+  - TGO / TO : 터빈·공통 설비
+  - BCO1 / BO1 : 보일러 1호기
+  - BCO2 / BO2 : 보일러 2호기
+  - 파트장 취합 항목은 collect 단계에서
+    importedFromRole을 유지하므로 원 작성 보직으로 판정
+
+  주간 점검표 기준 담당 보직을 우선 적용한다.
+========================================================= */
+
+function getInspectionAutoCompletionAllowedRoles(
+  scheduleItem
+) {
+  const scheduleId =
+    normalizeText(
+      scheduleItem?.id
+    );
+
+
+  const roleMap = {
+    /*
+      =====================================================
+      일일
+      =====================================================
+    */
+
+    "daily-night-patrol": [
+      "TO",
+      "BO1",
+      "BO2"
+    ],
+
+    "daily-freeze-prevention": [
+      "TO",
+      "BO1",
+      "BO2"
+    ],
+
+    "daily-fbhe-vbelt": [
+      "BO1",
+      "BO2"
+    ],
+
+    "daily-suction-filter": [
+      "TGO",
+      "TO",
+      "BCO1",
+      "BCO2",
+      "BO1",
+      "BO2"
+    ],
+
+    "daily-pump-strainer-dp": [
+      "TGO",
+      "TO"
+    ],
+
+    "daily-silo-co": [
+      "BCO1",
+      "BCO2",
+      "BO1",
+      "BO2"
+    ],
+
+    "daily-air-pollution-dp": [
+      "BCO1",
+      "BCO2"
+    ],
+
+    "daily-bio-hopper": [
+      "BO1",
+      "BO2"
+    ],
+
+    "daily-bed-ash-discharge": [
+      "BCO1",
+      "BCO2",
+      "BO1",
+      "BO2"
+    ],
+
+    "daily-boiler-air-comp": [
+      "BO1",
+      "BO2"
+    ],
+
+
+    /*
+      =====================================================
+      주간
+      =====================================================
+    */
+
+    "weekly-lng-system": [
+      "TO"
+    ],
+
+    "weekly-high-pressure-gas": [
+      "TO"
+    ],
+
+    "weekly-soot-blower": [
+      "BO1",
+      "BO2"
+    ],
+
+    "weekly-aux-air-comp": [
+      "TO"
+    ],
+
+    "weekly-bed-ash-screen": [
+      "BO1",
+      "BO2"
+    ],
+
+    "weekly-lime-slurry-flushing": [
+      "BO1",
+      "BO2"
+    ],
+
+    "weekly-bed-ash-be": [
+      "BO1",
+      "BO2"
+    ],
+
+    "weekly-bag-filter-offline": [
+      "BCO1",
+      "BCO2"
+    ],
+
+    "weekly-fly-ash-sampling": [
+      "BO1",
+      "BO2"
+    ],
+
+    "weekly-sda-hopper-ash": [
+      "BCO1",
+      "BCO2",
+      "BO1",
+      "BO2"
+    ],
+
+    "weekly-sda-return-line": [
+      "BO1",
+      "BO2"
+    ],
+
+    "weekly-silo-vent-velocity": [
+      "BO1",
+      "BO2"
+    ],
+
+    "weekly-cooling-tower-damper": [
+      "TGO"
+    ]
+  };
+
+
+  /*
+    관리자 수정 일정에 담당보직 정보가
+    저장되어 있다면 그것을 가장 우선한다.
+
+    지원 필드:
+    assignedRoles
+    roles
+    positions
+  */
+
+  const configuredRoles =
+    [
+      ...(
+        Array.isArray(
+          scheduleItem?.assignedRoles
+        )
+          ? scheduleItem.assignedRoles
+          : []
+      ),
+
+      ...(
+        Array.isArray(
+          scheduleItem?.roles
+        )
+          ? scheduleItem.roles
+          : []
+      ),
+
+      ...(
+        Array.isArray(
+          scheduleItem?.positions
+        )
+          ? scheduleItem.positions
+          : []
+      )
+    ]
+      .map(
+        normalizeLogRole
+      )
+      .filter(
+        Boolean
+      );
+
+
+  if (
+    configuredRoles.length >
+      0
+  ) {
+    return [
+      ...new Set(
+        configuredRoles
+      )
+    ];
+  }
+
+
+  return (
+    Array.isArray(
+      roleMap[
+        scheduleId
+      ]
+    )
+      ? roleMap[
+          scheduleId
+        ]
+      : []
+  );
+}
+
+
+/* =========================================================
+  보일러 호기 번호
+
+  1호기:
+  - BCO1
+  - BO1
+
+  2호기:
+  - BCO2
+  - BO2
+
+  터빈/공통:
+  - TGO
+  - TO
+
+  반환:
+  - 1
+  - 2
+  - 0
+========================================================= */
+
+function getInspectionAutoCompletionUnitByRole(
+  role
+) {
+  const normalizedRole =
+    normalizeLogRole(
+      role
+    );
+
+
+  if (
+    [
+      "BCO1",
+      "BO1"
+    ].includes(
+      normalizedRole
+    )
+  ) {
+    return 1;
+  }
+
+
+  if (
+    [
+      "BCO2",
+      "BO2"
+    ].includes(
+      normalizedRole
+    )
+  ) {
+    return 2;
+  }
+
+
+  return 0;
+}
+
+
+/* =========================================================
+  해당 일정이 1·2호기 분리가 필요한지 확인
+
+  담당 목록에
+  1호기 보직 + 2호기 보직이 함께 있으면
+  호기별 독립 점검으로 판단한다.
+========================================================= */
+
+function isInspectionAutoCompletionUnitSeparated(
+  scheduleItem
+) {
+  const allowedRoles =
+    getInspectionAutoCompletionAllowedRoles(
+      scheduleItem
+    );
+
+
+  const hasUnit1 =
+    allowedRoles.some(
+      role => {
+        return (
+          getInspectionAutoCompletionUnitByRole(
+            role
+          ) ===
+          1
+        );
+      }
+    );
+
+
+  const hasUnit2 =
+    allowedRoles.some(
+      role => {
+        return (
+          getInspectionAutoCompletionUnitByRole(
+            role
+          ) ===
+          2
+        );
+      }
+    );
+
+
+  return (
+    hasUnit1 &&
+    hasUnit2
+  );
+}
+
+
+/* =========================================================
+  일정과 업무일지 보직 일치 확인
+========================================================= */
+
+function isInspectionAutoCompletionRoleAllowed(
+  scheduleItem,
+  sourceEntry,
+  targetUnit = 0
+) {
+  const sourceRole =
+    normalizeLogRole(
+      sourceEntry?.sourceRole
+    );
+
+
+  if (
+    !sourceRole
+  ) {
+    return false;
+  }
+
+
+  const allowedRoles =
+    getInspectionAutoCompletionAllowedRoles(
+      scheduleItem
+    );
+
+
+  /*
+    담당보직 설정이 없는 기존 일정은
+    이전 방식 그대로 허용한다.
+  */
+  if (
+    allowedRoles.length ===
+      0
+  ) {
+    return true;
+  }
+
+
+  if (
+    !allowedRoles.includes(
+      sourceRole
+    )
+  ) {
+    return false;
+  }
+
+
+  /*
+    호기 분리 일정이면
+    대상 호기와 작성 보직 호기가 같아야 한다.
+  */
+  if (
+    targetUnit ===
+      1 ||
+    targetUnit ===
+      2
+  ) {
+    return (
+      getInspectionAutoCompletionUnitByRole(
+        sourceRole
+      ) ===
+      targetUnit
+    );
+  }
+
+
+  return true;
+}
+
+/* =========================================================
   같은 날짜·근무 전체 업무일지에서 자동완료 후보 생성
 
-  어떤 보직의 업무일지든 한 건이라도 일치하면
-  해당 점검을 완료 후보로 만든다.
+  핵심 규칙:
 
-  같은 점검이 여러 업무일지에 있으면
-  가장 최근에 저장된 업무일지를 출처로 사용한다.
+  터빈/공통:
+  - 담당 보직 업무만 검사
+  - 예: TGO / TO
+
+  보일러:
+  - 1호기와 2호기를 완전히 분리
+  - BCO1 / BO1 → 1호기
+  - BCO2 / BO2 → 2호기
+
+  문구:
+  - "점검 완료"처럼 완료라는 단어를 강제하지 않는다.
+  - 배출, 점검, 청소, 측정, TEST 등
+    실제 수행 의미가 있으면 기존 매칭 규칙으로 인정한다.
+
+  부정 문구:
+  - 예정
+  - 필요
+  - 요청
+  - 미실시
+  - 불가
+  등은 기존 실행 판정에서 제외한다.
 ========================================================= */
 
 function buildInspectionAutoCompletionCandidates(
@@ -3993,6 +4421,185 @@ function buildInspectionAutoCompletionCandidates(
 
   dueSchedules.forEach(
     scheduleItem => {
+      const unitSeparated =
+        isInspectionAutoCompletionUnitSeparated(
+          scheduleItem
+        );
+
+
+      /*
+        =====================================================
+        1·2호기 독립 점검
+        =====================================================
+      */
+
+      if (
+        unitSeparated
+      ) {
+        [
+          1,
+          2
+        ].forEach(
+          unitNo => {
+            let selectedMatch =
+              null;
+
+
+            for (
+              const sourceEntry of
+              sourceEntries
+            ) {
+              /*
+                담당 보직 + 호기 검사
+
+                1호기:
+                BCO1 / BO1만
+
+                2호기:
+                BCO2 / BO2만
+              */
+              if (
+                !isInspectionAutoCompletionRoleAllowed(
+                  scheduleItem,
+                  sourceEntry,
+                  unitNo
+                )
+              ) {
+                continue;
+              }
+
+
+              const match =
+                findInspectionAutoCompletionTextMatch(
+                  scheduleItem,
+                  sourceEntry.sourceText
+                );
+
+
+              if (
+                !match
+              ) {
+                continue;
+              }
+
+
+              selectedMatch = {
+                ...sourceEntry,
+                ...match,
+
+                unitNo
+              };
+
+
+              break;
+            }
+
+
+            if (
+              !selectedMatch
+            ) {
+              return;
+            }
+
+
+            /*
+              중요
+
+              D1의 현재 UNIQUE 키는
+              schedule_id + due_date + shift 이다.
+
+              따라서 동일 일정의 1·2호기를
+              독립 저장하기 위해 내부 완료 ID만
+              호기별로 나눈다.
+
+              원래 점검 ID:
+              weekly-sda-hopper-ash
+
+              내부 완료 ID:
+              weekly-sda-hopper-ash::unit1
+              weekly-sda-hopper-ash::unit2
+            */
+
+            const unitScheduleId =
+              `${normalizeText(
+                scheduleItem.id
+              )}::unit${unitNo}`;
+
+
+            const baseTitle =
+              normalizeText(
+                scheduleItem.title
+              );
+
+
+            candidates.push({
+              scheduleId:
+                unitScheduleId,
+
+              baseScheduleId:
+                normalizeText(
+                  scheduleItem.id
+                ),
+
+              unitNo,
+
+              scheduleTitle:
+                `${unitNo}호기 ${baseTitle}`,
+
+              dueDate:
+                normalizeText(
+                  workDate
+                ),
+
+              shift:
+                scheduleItem.dueShift,
+
+              sourceLogId:
+                selectedMatch.sourceLogId,
+
+              sourceEntryKey:
+                selectedMatch.sourceEntryKey,
+
+              sourceRole:
+                selectedMatch.sourceRole,
+
+              sourceAuthorId:
+                selectedMatch.sourceAuthorId,
+
+              sourceAuthor:
+                selectedMatch.sourceAuthor,
+
+              sourceText:
+                selectedMatch.sourceText,
+
+              sourceUpdatedAt:
+                selectedMatch.sourceUpdatedAt,
+
+              matchType:
+                selectedMatch.matchType,
+
+              matchedKeyword:
+                selectedMatch.matchedKeyword,
+
+              matchScore:
+                selectedMatch.score
+            });
+          }
+        );
+
+
+        return;
+      }
+
+
+      /*
+        =====================================================
+        호기 구분이 없는 점검
+
+        TGO / TO 등의 담당 보직 규칙은 그대로 적용한다.
+        =====================================================
+      */
+
       let selectedMatch =
         null;
 
@@ -4001,6 +4608,17 @@ function buildInspectionAutoCompletionCandidates(
         const sourceEntry of
         sourceEntries
       ) {
+        if (
+          !isInspectionAutoCompletionRoleAllowed(
+            scheduleItem,
+            sourceEntry,
+            0
+          )
+        ) {
+          continue;
+        }
+
+
         const match =
           findInspectionAutoCompletionTextMatch(
             scheduleItem,
@@ -4037,6 +4655,14 @@ function buildInspectionAutoCompletionCandidates(
           normalizeText(
             scheduleItem.id
           ),
+
+        baseScheduleId:
+          normalizeText(
+            scheduleItem.id
+          ),
+
+        unitNo:
+          0,
 
         scheduleTitle:
           normalizeText(
