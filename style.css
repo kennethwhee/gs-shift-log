@@ -88477,3 +88477,236 @@ a.shift-log-editor-attachment__name:hover {
   }
 
 }
+
+/* =========================================================
+  오전회의 취합
+  평일 / 주말 취합 모드
+========================================================= */
+
+
+/* =========================================================
+  오전회의 제목 우측 모드
+========================================================= */
+
+.efficiency-morning-meeting-mode {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+}
+
+
+/* =========================================================
+  주말 체크박스
+========================================================= */
+
+.efficiency-morning-meeting-weekend-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  min-height: 31px;
+  padding: 0 10px;
+
+  border: 1px solid #cfd9e5;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #526177;
+
+  cursor: pointer;
+  user-select: none;
+
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+
+.efficiency-morning-meeting-weekend-check:hover {
+  border-color: #9eb9d7;
+  background: #f6f9fc;
+}
+
+
+.efficiency-morning-meeting-weekend-check input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+/* 작은 네모 체크박스 */
+
+.efficiency-morning-meeting-weekend-check__box {
+  display: inline-flex;
+
+  width: 15px;
+  height: 15px;
+
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #aebbc9;
+  border-radius: 3px;
+
+  background: #ffffff;
+  color: transparent;
+
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+
+.efficiency-morning-meeting-weekend-check__text {
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+
+/* 체크된 상태 */
+
+.efficiency-morning-meeting-weekend-check:has(
+  input:checked
+) {
+  border-color: #7fa7d2;
+  background: #edf5fd;
+  color: #1f5fae;
+}
+
+
+.efficiency-morning-meeting-weekend-check
+input:checked
++
+.efficiency-morning-meeting-weekend-check__box {
+  border-color: #1f5fae;
+  background: #1f5fae;
+  color: #ffffff;
+}
+
+
+/* 평일 / 주말 취합 표시 */
+
+.efficiency-morning-meeting-weekend-status {
+  color: #8490a0;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+
+/* =========================================================
+  교대파트 주말 기간
+========================================================= */
+
+.efficiency-morning-meeting-weekend-range {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+
+  margin-right: 4px;
+  padding: 6px 8px;
+
+  border: 1px solid #cbd9e8;
+  border-radius: 8px;
+
+  background: #f5f9fd;
+}
+
+
+.efficiency-morning-meeting-weekend-range[hidden] {
+  display: none !important;
+}
+
+
+.efficiency-morning-meeting-weekend-range label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+
+.efficiency-morning-meeting-weekend-range label span {
+  color: #6d7b8e;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+
+.efficiency-morning-meeting-weekend-range input {
+  width: 132px;
+  height: 30px;
+
+  padding: 0 7px;
+
+  border: 1px solid #bfcddd;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #25364d;
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+
+.efficiency-morning-meeting-weekend-range__separator {
+  padding-bottom: 7px;
+
+  color: #8290a2;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+
+/* =========================================================
+  주말 모드 활성 표시
+========================================================= */
+
+#efficiencyMorningMeetingView.is-weekend-mode
+.efficiency-morning-meeting-shift-panel {
+  border-color: #a9c7e6;
+}
+
+
+/* =========================================================
+  좁은 화면
+========================================================= */
+
+@media (max-width: 900px) {
+
+  .efficiency-morning-meeting-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+
+  .efficiency-morning-meeting-mode {
+    align-self: flex-end;
+  }
+
+
+  .efficiency-morning-meeting-weekend-range {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+
+  .efficiency-morning-meeting-weekend-range label {
+    flex: 1 1 140px;
+  }
+
+
+  .efficiency-morning-meeting-weekend-range input {
+    width: 100%;
+  }
+
+}

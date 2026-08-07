@@ -4687,35 +4687,89 @@
   hidden
 >
 
+<!-- =================================================
+  1. 오전회의 취합 상단
+
+  평일:
+  - 기존 오전회의 취합 방식
+
+  주말:
+  - 교대파트 기간 조회
+  - 운탄일지 복수 파일 취합
+  - TM 발행 내역 기간 취합
+
+  수치자료와 4개 지원팀 자료는
+  기존 기준을 그대로 유지한다.
+================================================== -->
+
+<header
+  class="
+    efficiency-team-view__heading
+    efficiency-morning-meeting-heading
+  "
+>
+
+  <div>
+
+    <span>
+      MORNING MEETING REPORT
+    </span>
+
+    <h3>
+      오전회의 취합
+    </h3>
+
+    <p class="efficiency-morning-meeting-description">
+      일일발전현황·운탄일지와 4개 팀의 자료를 첨부하여
+      오전회의 자료를 자동으로 만듭니다.
+    </p>
+
+  </div>
+
+
   <!-- =================================================
-    1. 오전회의 취합 상단
+    주말 취합 모드
   ================================================== -->
 
-  <header
-    class="
-      efficiency-team-view__heading
-      efficiency-morning-meeting-heading
-    "
-  >
+  <div class="efficiency-morning-meeting-mode">
 
-    <div>
+    <label
+      class="efficiency-morning-meeting-weekend-check"
+      for="efficiencyMorningMeetingWeekendMode"
+      title="금·토·일 또는 연휴 기간의 업무를 함께 취합합니다."
+    >
 
-      <span>
-        MORNING MEETING REPORT
+      <input
+        type="checkbox"
+        id="efficiencyMorningMeetingWeekendMode"
+      />
+
+
+      <span
+        class="efficiency-morning-meeting-weekend-check__box"
+        aria-hidden="true"
+      >
+        ✓
       </span>
 
-      <h3>
-        오전회의 취합
-      </h3>
 
-      <p class="efficiency-morning-meeting-description">
-        일일발전현황·운탄일지와 4개 팀의 자료를 첨부하여
-        오전회의 자료를 자동으로 만듭니다.
-      </p>
+      <span class="efficiency-morning-meeting-weekend-check__text">
+        주말
+      </span>
 
-    </div>
+    </label>
 
-  </header>
+
+    <small
+      class="efficiency-morning-meeting-weekend-status"
+      id="efficiencyMorningMeetingWeekendStatus"
+    >
+      평일 취합
+    </small>
+
+  </div>
+
+</header>
 
 
   <!-- =================================================
@@ -5244,6 +5298,60 @@
 
 
       <div class="efficiency-morning-meeting-shift-panel__tools">
+
+        <!-- =================================================
+  주말 취합 기간
+
+  주말 체크 시에만 표시된다.
+
+  주의:
+  이 날짜는 교대파트 업무/TM 취합용이다.
+
+  수처리·석회석·온도·Gear/Pinion 등의
+  자동 수치 기준일과는 별개이다.
+================================================== -->
+
+<div
+  class="efficiency-morning-meeting-weekend-range"
+  id="efficiencyMorningMeetingWeekendRange"
+  hidden
+>
+
+  <label>
+
+    <span>
+      시작일
+    </span>
+
+    <input
+      type="date"
+      id="efficiencyMorningMeetingWeekendStartDate"
+      autocomplete="off"
+    />
+
+  </label>
+
+
+  <span class="efficiency-morning-meeting-weekend-range__separator">
+    ~
+  </span>
+
+
+  <label>
+
+    <span>
+      종료일
+    </span>
+
+    <input
+      type="date"
+      id="efficiencyMorningMeetingWeekendEndDate"
+      autocomplete="off"
+    />
+
+  </label>
+
+</div>
 
         <strong id="efficiencyMorningMeetingShiftDate">
           기준 일자 확인 전

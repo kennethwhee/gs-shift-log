@@ -142935,6 +142935,10 @@ function updateSelectedText(
     getState();
 
 
+  const weekendMode =
+    getMorningMeetingWeekendShiftContext();
+
+
   const selectedItems =
     state.shiftPart.items.filter(
       item => {
@@ -142946,10 +142950,6 @@ function updateSelectedText(
       }
     );
 
-
-  /* =====================================================
-    선택된 항목으로 교대파트 업무내용 생성
-  ====================================================== */
 
   if (
     overwriteText
@@ -142981,8 +142981,30 @@ function updateSelectedText(
                 : "";
 
 
+            /*
+              주말일 때만 날짜 + 근무 표시
+
+              예:
+              [2026-08-07 D/S]
+            */
+
+            const weekendPrefix =
+              weekendMode.enabled &&
+              item.workDate
+                ? (
+                    `[${item.workDate} ${
+                      item.shift ===
+                        "DS"
+                        ? "D/S"
+                        : "N/S"
+                    }] `
+                  )
+                : "";
+
+
             return (
               `${itemIndex + 1}) ` +
+              `${weekendPrefix}` +
               `${timePrefix}` +
               `${content}`
             );
@@ -143005,10 +143027,6 @@ function updateSelectedText(
   }
 
 
-  /* =====================================================
-    선택 건수 표시
-  ====================================================== */
-
   if (
     elements.selectedCount
   ) {
@@ -143016,10 +143034,6 @@ function updateSelectedText(
       `${selectedItems.length}건 선택`;
   }
 
-
-  /* =====================================================
-    선택 초기화 버튼 상태
-  ====================================================== */
 
   if (
     elements.clearButton
@@ -143029,15 +143043,6 @@ function updateSelectedText(
       0;
   }
 
-
-  /* =====================================================
-    최종 엑셀 만들기 버튼 활성화 여부 재검사
-
-    조건:
-    - 기준 취합본 첨부
-    - 4개 팀 분석 완료
-    - 교대파트 업무내용 존재
-  ====================================================== */
 
   if (
     typeof window
@@ -143622,6 +143627,221 @@ function extractMorningMeetingBoilerTemperatures(
   ];
 
 
+  /* =====================================================
+    업무일지 한 건의 실제 운전현황 원문 만들기
+
+    중요:
+    operationStatusItems는
+
+    name:
+      "① FBHE 격벽 Temp L"
+
+    content:
+      "233℃ / R : 217℃"
+
+    처럼 이름과 값이 분리되어 저장될 수 있다.
+
+    따라서 반드시
+    name + content를 합쳐서 분석한다.
+  ====================================================== */
+
+  const buildBoilerTemperatureSourceText =
+    sourceLog => {
+      if (
+        !sourceLog ||
+        typeof sourceLog !==
+          "object"
+      ) {
+        return "";
+      }
+
+
+      const sourceParts =
+        [];
+
+
+      const appendPart =
+        value => {
+          const normalizedValue =
+            String(
+              value ??
+              ""
+            )
+              .replace(
+                /<br\s*\/?>/gi,
+                "\n"
+              )
+              .replace(
+                /\\n/g,
+                "\n"
+              )
+              .replace(
+                /\r\n?/g,
+                "\n"
+              )
+              .trim();
+
+
+          if (
+            normalizedValue
+          ) {
+            sourceParts.push(
+              normalizedValue
+            );
+          }
+        };
+
+
+      /* =================================================
+        기존 문자열 운전현황도 함께 사용
+      ================================================== */
+
+      [
+        sourceLog.operationStatus,
+
+        sourceLog.operation_status,
+
+        sourceLog.operationStatusContent,
+
+        sourceLog.operation_status_content,
+
+        sourceLog.operationStatusSnapshot,
+
+        sourceLog.operation_status_snapshot
+      ].forEach(
+        appendPart
+      );
+
+
+      /* =================================================
+        설비별 배열
+
+        operationStatusItems
+        operationItems
+        items
+
+        전부 확인한다.
+      ================================================== */
+
+      const itemArrays = [
+        sourceLog.operationStatusItems,
+        sourceLog.operationItems,
+        sourceLog.items
+      ];
+
+
+      itemArrays.forEach(
+        items => {
+          if (
+            !Array.isArray(
+              items
+            )
+          ) {
+            return;
+          }
+
+
+          items.forEach(
+            item => {
+              /*
+                문자열 형태의 과거 자료
+              */
+              if (
+                typeof item ===
+                  "string"
+              ) {
+                appendPart(
+                  item
+                );
+
+                return;
+              }
+
+
+              if (
+                !item ||
+                typeof item !==
+                  "object"
+              ) {
+                return;
+              }
+
+
+              const itemName =
+                String(
+                  item.name ||
+                  item.equipmentName ||
+                  item.equipment_name ||
+                  item.title ||
+                  ""
+                ).trim();
+
+
+              const itemContent =
+                String(
+                  item.content ||
+                  item.text ||
+                  item.description ||
+                  ""
+                ).trim();
+
+
+              /*
+                핵심
+
+                name:
+                "① FBHE 격벽 Temp L"
+
+                content:
+                "233℃ / R : 217℃"
+
+                ↓
+
+                "① FBHE 격벽 Temp L : 233℃ / R : 217℃"
+              */
+
+              if (
+                itemName &&
+                itemContent
+              ) {
+                appendPart(
+                  `${itemName} : ${itemContent}`
+                );
+
+                return;
+              }
+
+
+              appendPart(
+                itemName ||
+                itemContent
+              );
+            }
+          );
+        }
+      );
+
+
+      /*
+        동일 문자열 중복 제거
+      */
+
+      return Array.from(
+        new Set(
+          sourceParts
+        )
+      )
+        .join(
+          "\n"
+        )
+        .trim();
+    };
+
+
+  /* =====================================================
+    BO1 / BO2 각각 추출
+  ====================================================== */
+
   definitions.forEach(
     definition => {
       const sourceLog =
@@ -143631,11 +143851,24 @@ function extractMorningMeetingBoilerTemperatures(
         );
 
 
+      /*
+        이번에는 기존
+        getMorningMeetingBoilerOperationText()
+        결과에 의존하지 않는다.
+
+        실제 operationStatusItems의
+        name + content를 직접 조합한다.
+      */
+
+      const sourceText =
+        buildBoilerTemperatureSourceText(
+          sourceLog
+        );
+
+
       const parsed =
         parseMorningMeetingBoilerTemperatureText(
-          getMorningMeetingBoilerOperationText(
-            sourceLog
-          )
+          sourceText
         );
 
 
@@ -143698,6 +143931,10 @@ function extractMorningMeetingBoilerTemperatures(
         unitResult;
 
 
+      /* =================================================
+        누락값 검사
+      ================================================== */
+
       const valueChecks = [
         [
           `${definition.label} FBHE Left`,
@@ -143747,40 +143984,678 @@ function extractMorningMeetingBoilerTemperatures(
           }
         }
       );
+
+
+      /* =================================================
+        진단 로그
+
+        나중에 문제가 생겨도
+        실제 파서가 읽은 문자열을 바로 확인할 수 있다.
+      ================================================== */
+
+      console.log(
+        `오전회의 ${definition.role} 온도 원문:`,
+        sourceText
+      );
+
+
+      console.log(
+        `오전회의 ${definition.role} 온도 결과:`,
+        unitResult
+      );
     }
   );
 
 
   result.complete =
     result.missing.length ===
-    0;
+      0;
 
 
   return result;
 }
 
-  async function loadShiftPartLogs() {
-    const elements =
-      getElements();
+/* =====================================================
+  오전회의 주말 취합 설정 확인
+
+  주말 범위는:
+  - 설비운영팀 업무
+  - 업무일지 TM 발행내역
+
+  에만 사용한다.
+
+  BO1·BO2 온도 등 자동 수치 기준일에는 사용하지 않는다.
+===================================================== */
+
+function getMorningMeetingWeekendShiftContext() {
+  const state =
+    getState();
 
 
-    const state =
-      getState();
+  let externalMode =
+    null;
 
 
-    const reportDate =
-      state.shiftPart.reportDate ||
-      getAnalyzedReportDate();
+  try {
+    if (
+      typeof window
+        .getEfficiencyMorningMeetingWeekendMode ===
+        "function"
+    ) {
+      externalMode =
+        window
+          .getEfficiencyMorningMeetingWeekendMode();
+    }
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "오전회의 주말 설정 확인 실패",
+      error
+    );
+  }
 
 
-    hideError();
+  const source =
+    externalMode &&
+    typeof externalMode ===
+      "object"
+      ? externalMode
+      : (
+          state.weekendMode &&
+          typeof state.weekendMode ===
+            "object"
+            ? state.weekendMode
+            : {}
+        );
 
+
+  const normalizeDate =
+    value => {
+      const normalized =
+        String(
+          value ||
+          ""
+        ).trim();
+
+
+      return /^\d{4}-\d{2}-\d{2}$/.test(
+        normalized
+      )
+        ? normalized
+        : "";
+    };
+
+
+  return {
+    enabled:
+      source.enabled ===
+        true,
+
+    startDate:
+      normalizeDate(
+        source.startDate
+      ),
+
+    endDate:
+      normalizeDate(
+        source.endDate
+      )
+  };
+}
+
+
+/* =====================================================
+  시작일 ~ 종료일 날짜 배열 생성
+
+  예:
+  2026-08-07 ~ 2026-08-09
+
+  결과:
+  [
+    "2026-08-07",
+    "2026-08-08",
+    "2026-08-09"
+  ]
+===================================================== */
+
+function buildMorningMeetingWeekendDateRange(
+  startDate,
+  endDate
+) {
+  if (
+    !startDate ||
+    !endDate
+  ) {
+    return [];
+  }
+
+
+  if (
+    startDate >
+      endDate
+  ) {
+    return [];
+  }
+
+
+  const start =
+    new Date(
+      `${startDate}T00:00:00`
+    );
+
+
+  const end =
+    new Date(
+      `${endDate}T00:00:00`
+    );
+
+
+  if (
+    Number.isNaN(
+      start.getTime()
+    ) ||
+    Number.isNaN(
+      end.getTime()
+    )
+  ) {
+    return [];
+  }
+
+
+  const result =
+    [];
+
+
+  const cursor =
+    new Date(
+      start
+    );
+
+
+  while (
+    cursor <=
+      end
+  ) {
+    const year =
+      cursor.getFullYear();
+
+
+    const month =
+      String(
+        cursor.getMonth() +
+        1
+      ).padStart(
+        2,
+        "0"
+      );
+
+
+    const day =
+      String(
+        cursor.getDate()
+      ).padStart(
+        2,
+        "0"
+      );
+
+
+    result.push(
+      `${year}-${month}-${day}`
+    );
+
+
+    /*
+      실수로 지나치게 긴 기간을 선택했을 때
+      과도한 API 호출 방지
+    */
 
     if (
-      !reportDate
+      result.length >
+        31
+    ) {
+      throw new Error(
+        "주말 취합 기간은 최대 31일까지 선택할 수 있습니다."
+      );
+    }
+
+
+    cursor.setDate(
+      cursor.getDate() +
+      1
+    );
+  }
+
+
+  return result;
+}
+
+
+/* =====================================================
+  주말 기간 업무일지 조회
+
+  날짜별:
+  D/S + N/S
+
+  예:
+  08-07 D/S
+  08-07 N/S
+  08-08 D/S
+  08-08 N/S
+  08-09 D/S
+  08-09 N/S
+===================================================== */
+
+async function loadMorningMeetingWeekendShiftBundles(
+  startDate,
+  endDate
+) {
+  const dates =
+    buildMorningMeetingWeekendDateRange(
+      startDate,
+      endDate
+    );
+
+
+  if (
+    dates.length ===
+      0
+  ) {
+    throw new Error(
+      "주말 취합 시작일과 종료일을 확인해 주세요."
+    );
+  }
+
+
+  return Promise.all(
+    dates.map(
+      async workDate => {
+        const [
+          dayLogs,
+          nightLogs
+        ] =
+          await Promise.all([
+            requestShiftLogs(
+              workDate,
+              "DS"
+            ),
+
+            requestShiftLogs(
+              workDate,
+              "NS"
+            )
+          ]);
+
+
+        return {
+          workDate,
+
+          dayLogs:
+            Array.isArray(
+              dayLogs
+            )
+              ? dayLogs
+              : [],
+
+          nightLogs:
+            Array.isArray(
+              nightLogs
+            )
+              ? nightLogs
+              : []
+        };
+      }
+    )
+  );
+}
+
+
+/* =====================================================
+  주말 여러 날짜를 하나의 선택 목록으로 합치기
+
+  중요:
+  기존 buildSelectableItems()를 날짜별로 각각 실행한다.
+
+  이유:
+  TM 중복 제거도 날짜별로 따로 수행해야
+  금요일과 토요일에 같은 문구가 있어도
+  서로 다른 날짜의 기록이 사라지지 않는다.
+===================================================== */
+
+function buildMorningMeetingWeekendSelectableItems(
+  bundles
+) {
+  const state =
+    getState();
+
+
+  const allWorkItems =
+    [];
+
+
+  const allTmItems =
+    [];
+
+
+  (
+    Array.isArray(
+      bundles
+    )
+      ? bundles
+      : []
+  ).forEach(
+    bundle => {
+      const workDate =
+        String(
+          bundle?.workDate ||
+          ""
+        ).trim();
+
+
+      /*
+        기존 하루치 처리기를 그대로 사용한다.
+
+        따라서:
+        - TGO
+        - BCO1
+        - BCO2
+        업무 추출 규칙
+
+        그리고
+        TM·BM·CM 발행내역 필터 규칙을
+        그대로 유지한다.
+      */
+
+      const dateWorkItems =
+        buildSelectableItems(
+          bundle?.dayLogs ||
+            [],
+          bundle?.nightLogs ||
+            []
+        );
+
+
+      const dateTmItems =
+        Array.isArray(
+          state.shiftPart
+            .tmItems
+        )
+          ? [
+              ...state.shiftPart
+                .tmItems
+            ]
+          : [];
+
+
+      dateWorkItems.forEach(
+        item => {
+          allWorkItems.push({
+            ...item,
+
+            workDate
+          });
+        }
+      );
+
+
+      dateTmItems.forEach(
+        item => {
+          allTmItems.push({
+            ...item,
+
+            workDate
+          });
+        }
+      );
+    }
+  );
+
+
+  /* ===================================================
+    날짜 → 근무 → 보직 → 시간 순서
+  ==================================================== */
+
+  const sortItems =
+    (
+      first,
+      second
+    ) => {
+      const dateDifference =
+        String(
+          first.workDate ||
+          ""
+        ).localeCompare(
+          String(
+            second.workDate ||
+            ""
+          )
+        );
+
+
+      if (
+        dateDifference !==
+          0
+      ) {
+        return dateDifference;
+      }
+
+
+      const shiftDifference =
+        (
+          SHIFT_ORDER[
+            first.shift
+          ] ||
+          99
+        ) -
+        (
+          SHIFT_ORDER[
+            second.shift
+          ] ||
+          99
+        );
+
+
+      if (
+        shiftDifference !==
+          0
+      ) {
+        return shiftDifference;
+      }
+
+
+      const roleDifference =
+        (
+          ROLE_ORDER[
+            first.role
+          ] ||
+          99
+        ) -
+        (
+          ROLE_ORDER[
+            second.role
+          ] ||
+          99
+        );
+
+
+      if (
+        roleDifference !==
+          0
+      ) {
+        return roleDifference;
+      }
+
+
+      return String(
+        first.time ||
+        ""
+      ).localeCompare(
+        String(
+          second.time ||
+          ""
+        )
+      );
+    };
+
+
+  allWorkItems.sort(
+    sortItems
+  );
+
+
+  allTmItems.sort(
+    sortItems
+  );
+
+
+  /* ===================================================
+    TM ID 재부여
+
+    날짜가 달라도 절대로 같은 ID가 되지 않게 한다.
+  ==================================================== */
+
+  state.shiftPart.tmItems =
+    allTmItems.map(
+      (
+        item,
+        index
+      ) => {
+        const dateKey =
+          String(
+            item.workDate ||
+            ""
+          ).replaceAll(
+            "-",
+            ""
+          );
+
+
+        return {
+          ...item,
+
+          id:
+            `morning-published-item-${dateKey}-${item.shift || "X"}-${index}`
+        };
+      }
+    );
+
+
+  /* ===================================================
+    오른쪽 TM 발행내역 화면 갱신
+  ==================================================== */
+
+  window.setTimeout(
+    () => {
+      document.dispatchEvent(
+        new CustomEvent(
+          "efficiencyMorningMeetingShiftLogsLoaded",
+
+          {
+            detail: {
+              workCount:
+                allWorkItems.length,
+
+              tmCount:
+                state.shiftPart
+                  .tmItems
+                  .length,
+
+              weekend:
+                true
+            }
+          }
+        )
+      );
+    },
+    0
+  );
+
+
+  /* ===================================================
+    업무 ID 재부여
+  ==================================================== */
+
+  return allWorkItems.map(
+    (
+      item,
+      index
+    ) => {
+      const dateKey =
+        String(
+          item.workDate ||
+          ""
+        ).replaceAll(
+          "-",
+          ""
+        );
+
+
+      return {
+        ...item,
+
+        id:
+          `morning-shift-item-${dateKey}-${item.shift || "X"}-${index}`
+      };
+    }
+  );
+}
+
+
+async function loadShiftPartLogs() {
+  const elements =
+    getElements();
+
+
+  const state =
+    getState();
+
+
+  /*
+    기존 오전회의 기준일.
+
+    중요:
+    이 날짜는 BO1·BO2 온도 등
+    기존 자동수치 조회에 계속 사용한다.
+  */
+
+  const reportDate =
+    state.shiftPart.reportDate ||
+    getAnalyzedReportDate();
+
+
+  const weekendMode =
+    getMorningMeetingWeekendShiftContext();
+
+
+  hideError();
+
+
+  if (
+    !reportDate
+  ) {
+    showError(
+      "팀별 자료를 먼저 분석하여 기준 날짜를 확인해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    주말 모드 날짜 검사
+  ==================================================== */
+
+  if (
+    weekendMode.enabled
+  ) {
+    if (
+      !weekendMode.startDate ||
+      !weekendMode.endDate
     ) {
       showError(
-        "팀별 자료를 먼저 분석하여 기준 날짜를 확인해 주세요."
+        "주말 취합 시작일과 종료일을 선택해 주세요."
       );
 
 
@@ -143788,61 +144663,382 @@ function extractMorningMeetingBoilerTemperatures(
     }
 
 
-    state.shiftPart.reportDate =
-      reportDate;
+    if (
+      weekendMode.startDate >
+        weekendMode.endDate
+    ) {
+      showError(
+        "주말 취합 종료일은 시작일보다 빠를 수 없습니다."
+      );
+
+
+      return;
+    }
+  }
+
+
+  state.shiftPart.reportDate =
+    reportDate;
+
+
+  const originalButtonText =
+    elements.loadButton
+      ?.textContent ||
+    "업무일지 불러오기";
+
+
+  if (
+    elements.loadButton
+  ) {
+    elements.loadButton.disabled =
+      true;
+
+
+    elements.loadButton.textContent =
+      weekendMode.enabled
+        ? "주말 업무 불러오는 중..."
+        : "불러오는 중...";
+  }
+
+
+  if (
+    elements.dayList
+  ) {
+    elements.dayList.innerHTML = `
+      <p class="efficiency-morning-meeting-shift-empty">
+        ${
+          weekendMode.enabled
+            ? "선택 기간의 D/S 업무일지를 불러오고 있습니다."
+            : "D/S 업무일지를 불러오고 있습니다."
+        }
+      </p>
+    `;
+  }
+
+
+  if (
+    elements.nightList
+  ) {
+    elements.nightList.innerHTML = `
+      <p class="efficiency-morning-meeting-shift-empty">
+        ${
+          weekendMode.enabled
+            ? "선택 기간의 N/S 업무일지를 불러오고 있습니다."
+            : "N/S 업무일지를 불러오고 있습니다."
+        }
+      </p>
+    `;
+  }
+
+
+  try {
+
+    /* =================================================
+      기존 기준일 자료
+
+      이 조회는 주말 모드에서도 반드시 유지한다.
+
+      이유:
+      BO1·BO2 온도 등 자동수치는 기존 기준일을
+      계속 사용해야 하기 때문이다.
+    ================================================= */
+
+    const baselinePromise =
+      Promise.all([
+        requestShiftLogs(
+          reportDate,
+          "DS"
+        ),
+
+        requestShiftLogs(
+          reportDate,
+          "NS"
+        )
+      ]);
 
 
     if (
-      elements.loadButton
+      weekendMode.enabled
     ) {
-      elements.loadButton.disabled =
-        true;
+
+      /* ===============================================
+        주말 모드
+
+        1. 기존 기준일 자료 → 자동수치용
+        2. 선택 기간 자료 → 업무/TM 취합용
+      =============================================== */
+
+      const [
+        baselineLogs,
+        weekendBundles
+      ] =
+        await Promise.all([
+          baselinePromise,
+
+          loadMorningMeetingWeekendShiftBundles(
+            weekendMode.startDate,
+            weekendMode.endDate
+          )
+        ]);
 
 
-      elements.loadButton.textContent =
-        "불러오는 중...";
-    }
+      const [
+        baselineDayLogs,
+        baselineNightLogs
+      ] =
+        baselineLogs;
 
 
-    if (
-      elements.dayList
-    ) {
-      elements.dayList.innerHTML = `
-        <p class="efficiency-morning-meeting-shift-empty">
-          D/S 업무일지를 불러오고 있습니다.
-        </p>
-      `;
-    }
+      /* ===============================================
+        기존 기준일 원본 유지
+      =============================================== */
+
+      state.shiftPart.dayLogs =
+        Array.isArray(
+          baselineDayLogs
+        )
+          ? baselineDayLogs
+          : [];
 
 
-    if (
-      elements.nightList
-    ) {
-      elements.nightList.innerHTML = `
-        <p class="efficiency-morning-meeting-shift-empty">
-          N/S 업무일지를 불러오고 있습니다.
-        </p>
-      `;
-    }
+      state.shiftPart.nightLogs =
+        Array.isArray(
+          baselineNightLogs
+        )
+          ? baselineNightLogs
+          : [];
 
 
-    try {
+      /* ===============================================
+        BO1·BO2 온도
+
+        반드시 기존 reportDate N/S만 사용한다.
+
+        주말 시작일/종료일과 무관하다.
+      =============================================== */
+
+      state.boilerTemperatures =
+        extractMorningMeetingBoilerTemperatures(
+          state.shiftPart
+            .nightLogs,
+          reportDate
+        );
+
+
+      console.log(
+        "오전회의 BO1·BO2 온도 추출 결과:",
+        state.boilerTemperatures
+      );
+
+
+      /* ===============================================
+        주말 기간 원본 보관
+      =============================================== */
+
+      state.shiftPart.weekendBundles =
+        weekendBundles;
+
+
+      /* ===============================================
+        금·토·일 업무 + TM 생성
+      =============================================== */
+
+      state.shiftPart.items =
+        buildMorningMeetingWeekendSelectableItems(
+          weekendBundles
+        );
+
+
+      if (
+        elements.date
+      ) {
+        elements.date.textContent =
+          `${weekendMode.startDate} ~ ${weekendMode.endDate} · D/S + N/S`;
+      }
+
+
+    } else {
+
+      /* ===============================================
+        기존 평일 모드
+
+        기존 동작을 그대로 유지한다.
+      =============================================== */
+
       const [
         dayLogs,
         nightLogs
       ] =
-        await Promise.all([
-          requestShiftLogs(
-            reportDate,
-            "DS"
-          ),
+        await baselinePromise;
 
-          requestShiftLogs(
-            reportDate,
-            "NS"
+
+      state.shiftPart.dayLogs =
+        Array.isArray(
+          dayLogs
+        )
+          ? dayLogs
+          : [];
+
+
+      state.shiftPart.nightLogs =
+        Array.isArray(
+          nightLogs
+        )
+          ? nightLogs
+          : [];
+
+
+      state.boilerTemperatures =
+        extractMorningMeetingBoilerTemperatures(
+          state.shiftPart
+            .nightLogs,
+          reportDate
+        );
+
+
+      console.log(
+        "오전회의 BO1·BO2 온도 추출 결과:",
+        state.boilerTemperatures
+      );
+
+
+      state.shiftPart.weekendBundles =
+        [];
+
+
+      state.shiftPart.items =
+        buildSelectableItems(
+          dayLogs,
+          nightLogs
+        );
+
+
+      if (
+        elements.date
+      ) {
+        elements.date.textContent =
+          `${reportDate} · D/S + N/S`;
+      }
+    }
+
+
+    /* =================================================
+      새 조회이므로 선택 항목 초기화
+    ================================================= */
+
+    state.shiftPart.selectedIds =
+      new Set();
+
+
+    state.shiftPart.text =
+      "";
+
+
+    state.shiftPart.loadedDate =
+      reportDate;
+
+
+    if (
+      elements.textarea
+    ) {
+      elements.textarea.value =
+        "";
+    }
+
+
+    renderAllLists();
+
+
+    updateSelectedText(
+      false
+    );
+
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "오전회의 교대파트 업무일지 조회 실패",
+      error
+    );
+
+
+    state.shiftPart.items =
+      [];
+
+
+    state.shiftPart.tmItems =
+      [];
+
+
+    state.shiftPart.weekendBundles =
+      [];
+
+
+    state.shiftPart.selectedIds =
+      new Set();
+
+
+    state.shiftPart.text =
+      "";
+
+
+    if (
+      elements.textarea
+    ) {
+      elements.textarea.value =
+        "";
+    }
+
+
+    showError(
+      error?.message ||
+      "교대파트 업무일지를 불러오지 못했습니다."
+    );
+
+
+    renderAllLists();
+
+
+    /*
+      오른쪽 TM 목록도 비운다.
+    */
+
+    window.setTimeout(
+      () => {
+        document.dispatchEvent(
+          new CustomEvent(
+            "efficiencyMorningMeetingShiftLogsLoaded",
+
+            {
+              detail: {
+                workCount:
+                  0,
+
+                tmCount:
+                  0
+              }
+            }
           )
-        ]);
+        );
+      },
+      0
+    );
 
+
+  } finally {
+    if (
+      elements.loadButton
+    ) {
+      elements.loadButton.disabled =
+        false;
+
+
+      elements.loadButton.textContent =
+        originalButtonText;
+    }
+  }
+}
 
 /* ===================================================
   조회한 업무일지 원본 보관
@@ -150430,6 +151626,18 @@ function buildCheckboxHtml(
         <span
           class="efficiency-morning-meeting-shift-item__meta"
         >
+
+        ${
+  item.workDate
+    ? `
+      <span>
+        ${escapeHtml(
+          item.workDate
+        )}
+      </span>
+    `
+    : ""
+}
 
           ${metaValues
             .map(
@@ -176284,4 +177492,486 @@ function renderTeamApprovalCard(
   } else {
     initializeOisLegacyBatchImportManager();
   }
+})();
+
+/* =========================================================
+  오전회의 취합
+  평일 / 주말 취합 모드
+
+  이번 단계:
+  - 주말 체크 상태 관리
+  - 교대파트 기간 선택 UI 관리
+
+  다음 단계:
+  - 기간별 D/S + N/S 업무일지 실제 조회
+  - 기간별 TM 발행내역 조회
+  - 운탄일지 복수 파일 분석
+
+  중요:
+  수처리 / Limestone / Gear-Pinion / BO1·BO2 온도 등
+  기존 자동수치 기준일은 변경하지 않는다.
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingWeekendMode() {
+  "use strict";
+
+
+  if (
+    window
+      .__efficiencyMorningMeetingWeekendModeInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyMorningMeetingWeekendModeInstalled =
+    true;
+
+
+  /* =====================================================
+    공용 상태
+  ====================================================== */
+
+  function getState() {
+    if (
+      !window
+        .efficiencyMorningMeetingUploadState
+    ) {
+      window
+        .efficiencyMorningMeetingUploadState = {
+          files: {},
+          analysis: {}
+        };
+    }
+
+
+    const state =
+      window
+        .efficiencyMorningMeetingUploadState;
+
+
+    if (
+      !state.weekendMode ||
+      typeof state.weekendMode !==
+        "object"
+    ) {
+      state.weekendMode = {
+        enabled:
+          false,
+
+        startDate:
+          "",
+
+        endDate:
+          ""
+      };
+    }
+
+
+    return state;
+  }
+
+
+  /* =====================================================
+    요소
+  ====================================================== */
+
+  function getElements() {
+    return {
+      view:
+        document.getElementById(
+          "efficiencyMorningMeetingView"
+        ),
+
+      checkbox:
+        document.getElementById(
+          "efficiencyMorningMeetingWeekendMode"
+        ),
+
+      status:
+        document.getElementById(
+          "efficiencyMorningMeetingWeekendStatus"
+        ),
+
+      range:
+        document.getElementById(
+          "efficiencyMorningMeetingWeekendRange"
+        ),
+
+      startDate:
+        document.getElementById(
+          "efficiencyMorningMeetingWeekendStartDate"
+        ),
+
+      endDate:
+        document.getElementById(
+          "efficiencyMorningMeetingWeekendEndDate"
+        ),
+
+      shiftDate:
+        document.getElementById(
+          "efficiencyMorningMeetingShiftDate"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    YYYY-MM-DD 검사
+  ====================================================== */
+
+  function normalizeDate(
+    value
+  ) {
+    const normalized =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    return /^\d{4}-\d{2}-\d{2}$/.test(
+      normalized
+    )
+      ? normalized
+      : "";
+  }
+
+
+  /* =====================================================
+    화면 갱신
+  ====================================================== */
+
+  function render() {
+    const state =
+      getState();
+
+
+    const elements =
+      getElements();
+
+
+    const weekendMode =
+      state.weekendMode;
+
+
+    const isEnabled =
+      weekendMode.enabled ===
+        true;
+
+
+    if (
+      elements.checkbox
+    ) {
+      elements.checkbox.checked =
+        isEnabled;
+    }
+
+
+    if (
+      elements.range
+    ) {
+      elements.range.hidden =
+        !isEnabled;
+    }
+
+
+    elements.view?.classList.toggle(
+      "is-weekend-mode",
+      isEnabled
+    );
+
+
+    if (
+      elements.status
+    ) {
+      elements.status.textContent =
+        isEnabled
+          ? "주말 취합"
+          : "평일 취합";
+    }
+
+
+    if (
+      elements.startDate &&
+      elements.startDate.value !==
+        weekendMode.startDate
+    ) {
+      elements.startDate.value =
+        weekendMode.startDate;
+    }
+
+
+    if (
+      elements.endDate &&
+      elements.endDate.value !==
+        weekendMode.endDate
+    ) {
+      elements.endDate.value =
+        weekendMode.endDate;
+    }
+
+
+    /*
+      주말 모드에서 기간이 확정되면
+      교대파트 상단에도 현재 기간을 표시한다.
+
+      평일 모드에서는 기존 JavaScript가
+      표시하는 기준 날짜를 건드리지 않는다.
+    */
+
+    if (
+      isEnabled &&
+      elements.shiftDate
+    ) {
+      if (
+        weekendMode.startDate &&
+        weekendMode.endDate
+      ) {
+        elements.shiftDate.textContent =
+          `${weekendMode.startDate} ~ ${weekendMode.endDate} · D/S + N/S`;
+
+      } else {
+        elements.shiftDate.textContent =
+          "주말 업무기간을 선택하세요.";
+      }
+    }
+  }
+
+
+  /* =====================================================
+    주말 모드 변경
+  ====================================================== */
+
+  function handleModeChange() {
+    const state =
+      getState();
+
+
+    const elements =
+      getElements();
+
+
+    state.weekendMode.enabled =
+      Boolean(
+        elements.checkbox?.checked
+      );
+
+
+    /*
+      체크 해제 시 날짜값 자체는 유지한다.
+
+      다시 주말을 체크했을 때
+      사용자가 직전에 선택했던 기간을
+      다시 사용할 수 있게 하기 위함이다.
+    */
+
+    render();
+
+
+    /*
+      평일 모드로 돌아오면
+      기존 교대파트 날짜 표시 함수에게
+      다시 화면을 맡긴다.
+    */
+
+    if (
+      !state.weekendMode.enabled &&
+      typeof window
+        .refreshEfficiencyMorningMeetingShiftPart ===
+        "function"
+    ) {
+      window
+        .refreshEfficiencyMorningMeetingShiftPart();
+    }
+  }
+
+
+  /* =====================================================
+    시작일 변경
+  ====================================================== */
+
+  function handleStartDateChange() {
+    const state =
+      getState();
+
+
+    const elements =
+      getElements();
+
+
+    state.weekendMode.startDate =
+      normalizeDate(
+        elements.startDate?.value
+      );
+
+
+    /*
+      시작일이 종료일보다 뒤이면
+      종료일을 시작일과 같게 맞춘다.
+    */
+
+    if (
+      state.weekendMode.startDate &&
+      state.weekendMode.endDate &&
+      state.weekendMode.startDate >
+        state.weekendMode.endDate
+    ) {
+      state.weekendMode.endDate =
+        state.weekendMode.startDate;
+    }
+
+
+    render();
+  }
+
+
+  /* =====================================================
+    종료일 변경
+  ====================================================== */
+
+  function handleEndDateChange() {
+    const state =
+      getState();
+
+
+    const elements =
+      getElements();
+
+
+    state.weekendMode.endDate =
+      normalizeDate(
+        elements.endDate?.value
+      );
+
+
+    /*
+      종료일이 시작일보다 앞이면
+      시작일을 종료일과 같게 맞춘다.
+    */
+
+    if (
+      state.weekendMode.startDate &&
+      state.weekendMode.endDate &&
+      state.weekendMode.endDate <
+        state.weekendMode.startDate
+    ) {
+      state.weekendMode.startDate =
+        state.weekendMode.endDate;
+    }
+
+
+    render();
+  }
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function bindEvents() {
+    const elements =
+      getElements();
+
+
+    if (
+      !elements.checkbox ||
+      elements.checkbox.dataset
+        .weekendModeBound ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    elements.checkbox.addEventListener(
+      "change",
+      handleModeChange
+    );
+
+
+    elements.startDate?.addEventListener(
+      "change",
+      handleStartDateChange
+    );
+
+
+    elements.endDate?.addEventListener(
+      "change",
+      handleEndDateChange
+    );
+
+
+    elements.checkbox.dataset
+      .weekendModeBound =
+      "true";
+  }
+
+
+  /* =====================================================
+    외부에서 현재 주말 설정 확인용
+  ====================================================== */
+
+  window.getEfficiencyMorningMeetingWeekendMode =
+    function getEfficiencyMorningMeetingWeekendMode() {
+      const state =
+        getState();
+
+
+      return {
+        enabled:
+          state.weekendMode.enabled ===
+            true,
+
+        startDate:
+          state.weekendMode.startDate,
+
+        endDate:
+          state.weekendMode.endDate
+      };
+    };
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initialize() {
+    const elements =
+      getElements();
+
+
+    if (
+      !elements.view ||
+      !elements.checkbox
+    ) {
+      return;
+    }
+
+
+    bindEvents();
+
+    render();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+
 })();
