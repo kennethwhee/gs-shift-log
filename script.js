@@ -142923,12 +142923,15 @@ function buildSelectableItems(
   - false : textarea 내용은 유지하고 상태만 갱신
 ===================================================== */
 
-function updateSelectedText(
-  overwriteText =
-    true
+function renderShiftList(
+  shift,
+  listElement
 ) {
-  const elements =
-    getElements();
+  if (
+    !listElement
+  ) {
+    return;
+  }
 
 
   const state =
@@ -142939,119 +142942,236 @@ function updateSelectedText(
     getMorningMeetingWeekendShiftContext();
 
 
-  const selectedItems =
+  const shiftItems =
     state.shiftPart.items.filter(
       item => {
-        return state.shiftPart
-          .selectedIds
-          .has(
-            item.id
-          );
+        return (
+          item.shift ===
+          shift
+        );
       }
     );
 
 
+  /* =====================================================
+    조회 결과 없음
+  ====================================================== */
+
   if (
-    overwriteText
+    shiftItems.length ===
+      0
   ) {
-    state.shiftPart.text =
-      selectedItems
-        .map(
-          (
-            item,
-            itemIndex
-          ) => {
-            const time =
-              String(
-                item.time ||
-                ""
-              ).trim();
-
-
-            const content =
-              String(
-                item.content ||
-                ""
-              ).trim();
-
-
-            const timePrefix =
-              time
-                ? `${time} `
-                : "";
-
-
-            /*
-              주말일 때만 날짜 + 근무 표시
-
-              예:
-              [2026-08-07 D/S]
-            */
-
-            const weekendPrefix =
-              weekendMode.enabled &&
-              item.workDate
-                ? (
-                    `[${item.workDate} ${
-                      item.shift ===
-                        "DS"
-                        ? "D/S"
-                        : "N/S"
-                    }] `
-                  )
-                : "";
-
-
-            return (
-              `${itemIndex + 1}) ` +
-              `${weekendPrefix}` +
-              `${timePrefix}` +
-              `${content}`
-            );
-          }
-        )
-        .filter(
-          Boolean
-        )
-        .join(
-          "\n"
-        );
+    let emptyLabel = "";
 
 
     if (
-      elements.textarea
+      weekendMode.enabled
     ) {
-      elements.textarea.value =
-        state.shiftPart.text;
+      emptyLabel =
+        shift ===
+          "DS"
+          ? "선택 기간 D/S"
+          : "선택 기간 N/S";
+
+    } else {
+      emptyLabel =
+        shift ===
+          "DS"
+          ? "전날 D/S"
+          : "현재 N/S";
     }
+
+
+    listElement.innerHTML = `
+      <p class="efficiency-morning-meeting-shift-empty">
+        ${emptyLabel}의 TGO·BCO1·BCO2 업무내용이 없습니다.
+      </p>
+    `;
+
+
+    return;
   }
 
 
-  if (
-    elements.selectedCount
-  ) {
-    elements.selectedCount.textContent =
-      `${selectedItems.length}건 선택`;
-  }
+  /* =====================================================
+    보직별 표시
+  ====================================================== */
+
+  listElement.innerHTML =
+    TARGET_ROLES
+      .map(
+        role => {
+          const roleItems =
+            shiftItems.filter(
+              item => {
+                return (
+                  item.role ===
+                  role
+                );
+              }
+            );
 
 
-  if (
-    elements.clearButton
-  ) {
-    elements.clearButton.disabled =
-      selectedItems.length ===
-      0;
-  }
+          if (
+            roleItems.length ===
+              0
+          ) {
+            return `
+              <section
+                class="efficiency-morning-meeting-shift-role"
+              >
+
+                <header
+                  class="efficiency-morning-meeting-shift-role__header"
+                >
+                  <strong>
+                    ${escapeHtml(
+                      role
+                    )}
+                  </strong>
+
+                  <span>
+                    업무내용 없음
+                  </span>
+                </header>
+
+              </section>
+            `;
+          }
 
 
-  if (
-    typeof window
-      .updateEfficiencyMorningMeetingCreateButton ===
-      "function"
-  ) {
-    window
-      .updateEfficiencyMorningMeetingCreateButton();
-  }
+          return `
+            <section
+              class="efficiency-morning-meeting-shift-role"
+            >
+
+              <header
+                class="efficiency-morning-meeting-shift-role__header"
+              >
+                <strong>
+                  ${escapeHtml(
+                    role
+                  )}
+                </strong>
+
+                <span>
+                  ${roleItems.length}건
+                </span>
+              </header>
+
+
+              ${roleItems
+                .map(
+                  item => {
+                    const checked =
+                      state.shiftPart
+                        .selectedIds
+                        .has(
+                          item.id
+                        );
+
+
+                    /*
+                      주말 모드에서는 workDate가 존재한다.
+
+                      평일 데이터에는 workDate가 없으므로
+                      기존 화면에는 날짜가 추가되지 않는다.
+                    */
+
+                    const workDateHtml =
+                      item.workDate
+                        ? `
+                          <span>
+                            ${escapeHtml(
+                              item.workDate
+                            )}
+                          </span>
+                        `
+                        : "";
+
+
+                    const timeHtml =
+                      item.time
+                        ? `
+                          <span>
+                            ${escapeHtml(
+                              item.time
+                            )}
+                          </span>
+                        `
+                        : "";
+
+
+                    const categoryHtml =
+                      item.category
+                        ? `
+                          <span>
+                            ${escapeHtml(
+                              item.category
+                            )}
+                          </span>
+                        `
+                        : "";
+
+
+                    return `
+                      <label
+                        class="efficiency-morning-meeting-shift-item"
+                      >
+
+                        <input
+                          type="checkbox"
+                          data-morning-meeting-shift-item="${escapeHtml(
+                            item.id
+                          )}"
+                          ${
+                            checked
+                              ? "checked"
+                              : ""
+                          }
+                        />
+
+
+                        <span
+                          class="efficiency-morning-meeting-shift-item__content"
+                        >
+
+                          <span
+                            class="efficiency-morning-meeting-shift-item__meta"
+                          >
+
+                            ${workDateHtml}
+
+                            ${timeHtml}
+
+                            ${categoryHtml}
+
+                          </span>
+
+
+                          <p>
+                            ${escapeHtml(
+                              item.content
+                            )}
+                          </p>
+
+                        </span>
+
+                      </label>
+                    `;
+                  }
+                )
+                .join(
+                  ""
+                )}
+
+            </section>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
 }
 
   function renderAllLists() {
@@ -145726,26 +145846,41 @@ function resetShiftPart() {
 })();
 
 /* =========================================================
-  오전회의 취합 - 운탄일지 첨부
+  오전회의 취합 - 운탄일지 복수 첨부 최종본
 
-  지원:
-  - 카드 클릭 후 파일 선택
-  - 카드 위로 파일 드래그 앤 드롭
-  - 첨부 파일명 표시
-  - 전체 초기화
+  평일:
+  - 운탄일지 1개 첨부 가능
+
+  주말:
+  - 운탄일지 여러 개 첨부 가능
+
+  예:
+  - 08/07 운탄일지
+  - 08/08 운탄일지
+  - 08/09 운탄일지
 
   저장:
-  - 브라우저 메모리만 사용
-  - D1 및 R2 전송 없음
+  state.coalLogFiles = 전체 파일 배열
+
+  기존 코드 호환:
+  state.coalLogFile = 마지막 첨부 파일
+
+  주의:
+  복수 파일 실제 분석은 다음 단계에서 연결한다.
 ========================================================= */
 
 (function initializeEfficiencyMorningMeetingCoalLogUpload() {
   "use strict";
 
 
+  /* =====================================================
+    상태
+  ====================================================== */
+
   function getState() {
     if (
-      !window.efficiencyMorningMeetingUploadState
+      !window
+        .efficiencyMorningMeetingUploadState
     ) {
       window.efficiencyMorningMeetingUploadState = {
         files:
@@ -145758,15 +145893,47 @@ function resetShiftPart() {
           null,
 
         coalLogFile:
-          null
+          null,
+
+        coalLogFiles:
+          []
       };
     }
 
 
-    return window
-      .efficiencyMorningMeetingUploadState;
+    const state =
+      window
+        .efficiencyMorningMeetingUploadState;
+
+
+    /*
+      기존 단일 파일 구조 호환
+
+      기존 coalLogFile이 이미 있다면
+      coalLogFiles 배열에도 넣어준다.
+    */
+
+    if (
+      !Array.isArray(
+        state.coalLogFiles
+      )
+    ) {
+      state.coalLogFiles =
+        state.coalLogFile
+          ? [
+              state.coalLogFile
+            ]
+          : [];
+    }
+
+
+    return state;
   }
 
+
+  /* =====================================================
+    화면 요소
+  ====================================================== */
 
   function getElements() {
     return {
@@ -145803,6 +145970,10 @@ function resetShiftPart() {
   }
 
 
+  /* =====================================================
+    XLSX 확인
+  ====================================================== */
+
   function isXlsxFile(
     file
   ) {
@@ -145825,6 +145996,10 @@ function resetShiftPart() {
   }
 
 
+  /* =====================================================
+    오류
+  ====================================================== */
+
   function hideError() {
     const {
       error
@@ -145841,7 +146016,6 @@ function resetShiftPart() {
 
     error.textContent =
       "";
-
 
     error.hidden =
       true;
@@ -145876,13 +146050,102 @@ function resetShiftPart() {
   }
 
 
-  function setInputFile(
-    input,
+  /* =====================================================
+    FileList → 일반 배열
+  ====================================================== */
+
+  function normalizeCoalLogFiles(
+    sourceFiles
+  ) {
+    return Array.from(
+      sourceFiles ||
+      []
+    ).filter(
+      Boolean
+    );
+  }
+
+
+  /* =====================================================
+    같은 파일 판정
+
+    같은 파일을 두 번 선택해도
+    중복으로 추가하지 않는다.
+  ====================================================== */
+
+  function createCoalLogFileKey(
     file
   ) {
+    return [
+      String(
+        file?.name ||
+        ""
+      ),
+
+      Number(
+        file?.size ||
+        0
+      ),
+
+      Number(
+        file?.lastModified ||
+        0
+      )
+    ].join(
+      "||"
+    );
+  }
+
+
+  /* =====================================================
+    기존 파일 + 새 파일 합치기
+  ====================================================== */
+
+  function mergeCoalLogFiles(
+    existingFiles,
+    newFiles
+  ) {
+    const fileMap =
+      new Map();
+
+
+    [
+      ...normalizeCoalLogFiles(
+        existingFiles
+      ),
+
+      ...normalizeCoalLogFiles(
+        newFiles
+      )
+    ].forEach(
+      file => {
+        fileMap.set(
+          createCoalLogFileKey(
+            file
+          ),
+
+          file
+        );
+      }
+    );
+
+
+    return [
+      ...fileMap.values()
+    ];
+  }
+
+
+  /* =====================================================
+    input.files에도 전체 파일 넣기
+  ====================================================== */
+
+  function setInputFiles(
+    input,
+    files
+  ) {
     if (
-      !input ||
-      !file
+      !input
     ) {
       return;
     }
@@ -145893,8 +146156,14 @@ function resetShiftPart() {
         new DataTransfer();
 
 
-      transfer.items.add(
-        file
+      normalizeCoalLogFiles(
+        files
+      ).forEach(
+        file => {
+          transfer.items.add(
+            file
+          );
+        }
       );
 
 
@@ -145905,15 +146174,41 @@ function resetShiftPart() {
       error
     ) {
       /*
-        일부 브라우저는 input.files 설정을
-        허용하지 않을 수 있다.
-
-        실제 파일은 state.coalLogFile에
-        별도로 저장하므로 취합에는 문제가 없다.
+        브라우저에서 input.files 변경을 막아도
+        실제 파일은 state.coalLogFiles에 있으므로
+        분석에는 문제가 없다.
       */
+
+      console.warn(
+        "운탄일지 input FileList 동기화 실패:",
+        error
+      );
     }
   }
 
+
+  /* =====================================================
+    기존 분석 결과 무효화
+
+    파일이 바뀌었으므로
+    이전 운탄 분석 결과를 그대로 사용하면 안 된다.
+  ====================================================== */
+
+  function resetCoalAnalysisState(
+    state
+  ) {
+    state.coalSelection =
+      null;
+
+
+    state.coalAnalysisResults =
+      [];
+  }
+
+
+  /* =====================================================
+    전체 오전회의 상태 갱신
+  ====================================================== */
 
   function refreshMorningMeetingState() {
     if (
@@ -145937,9 +146232,11 @@ function resetShiftPart() {
   }
 
 
-  function applyCoalLogFile(
-    file
-  ) {
+  /* =====================================================
+    첨부 상태 화면
+  ====================================================== */
+
+  function renderCoalLogUploadState() {
     const elements =
       getElements();
 
@@ -145948,31 +146245,52 @@ function resetShiftPart() {
       getState();
 
 
-    hideError();
+    const files =
+      normalizeCoalLogFiles(
+        state.coalLogFiles
+      );
+
+
+    const fileCount =
+      files.length;
 
 
     if (
-      !isXlsxFile(
-        file
-      )
+      fileCount ===
+        0
     ) {
-      showError(
-        "운탄일지는 XLSX 엑셀 파일만 첨부할 수 있습니다."
-      );
+      elements.card
+        ?.classList
+        .remove(
+          "is-selected",
+          "is-complete",
+          "is-dragover"
+        );
+
+
+      if (
+        elements.status
+      ) {
+        elements.status.textContent =
+          "운탄일지를 선택하세요.";
+
+
+        elements.status.removeAttribute(
+          "title"
+        );
+      }
+
+
+      if (
+        elements.action
+      ) {
+        elements.action.textContent =
+          "선택 · 드롭";
+      }
 
 
       return;
     }
-
-
-    state.coalLogFile =
-      file;
-
-
-    setInputFile(
-      elements.input,
-      file
-    );
 
 
     elements.card
@@ -145990,15 +146308,34 @@ function resetShiftPart() {
       );
 
 
+    /*
+      파일 1개:
+      파일명 그대로 표시
+
+      파일 여러 개:
+      3개 파일 첨부
+    */
+
     if (
       elements.status
     ) {
       elements.status.textContent =
-        file.name;
+        fileCount ===
+          1
+          ? files[0].name
+          : `${fileCount}개 운탄일지 첨부`;
 
 
       elements.status.title =
-        file.name;
+        files
+          .map(
+            file => {
+              return file.name;
+            }
+          )
+          .join(
+            "\n"
+          );
     }
 
 
@@ -146006,15 +146343,21 @@ function resetShiftPart() {
       elements.action
     ) {
       elements.action.textContent =
-        "첨부 완료";
+        fileCount ===
+          1
+          ? "첨부 완료"
+          : `${fileCount}개 첨부`;
     }
-
-
-    refreshMorningMeetingState();
   }
 
 
-  function resetCoalLogFile() {
+  /* =====================================================
+    운탄일지 여러 개 적용
+  ====================================================== */
+
+  function applyCoalLogFiles(
+    sourceFiles
+  ) {
     const elements =
       getElements();
 
@@ -146023,8 +146366,159 @@ function resetShiftPart() {
       getState();
 
 
+    hideError();
+
+
+    const incomingFiles =
+      normalizeCoalLogFiles(
+        sourceFiles
+      );
+
+
+    if (
+      incomingFiles.length ===
+        0
+    ) {
+      return;
+    }
+
+
+    /*
+      XLSX 이외의 파일이 하나라도 있으면
+      전체 추가를 취소한다.
+    */
+
+    const invalidFile =
+      incomingFiles.find(
+        file => {
+          return !isXlsxFile(
+            file
+          );
+        }
+      );
+
+
+    if (
+      invalidFile
+    ) {
+      showError(
+        `${invalidFile.name} 파일은 사용할 수 없습니다. 운탄일지는 XLSX 파일만 첨부해 주세요.`
+      );
+
+
+      return;
+    }
+
+
+    /*
+      기존 파일에 새 파일 추가
+
+      따라서:
+      처음 2개 선택
+      → 다시 1개 선택
+
+      하면 최종 3개가 된다.
+    */
+
+    const mergedFiles =
+      mergeCoalLogFiles(
+        state.coalLogFiles,
+        incomingFiles
+      );
+
+
+    state.coalLogFiles =
+      mergedFiles;
+
+
+    /*
+      기존 단일 파일 분석기 호환
+
+      다음 단계에서 복수 분석으로 교체하기 전까지
+      기존 코드는 이 마지막 파일을 보게 된다.
+    */
+
+    state.coalLogFile =
+      mergedFiles[
+        mergedFiles.length -
+        1
+      ] ||
+      null;
+
+
+    resetCoalAnalysisState(
+      state
+    );
+
+
+    setInputFiles(
+      elements.input,
+      mergedFiles
+    );
+
+
+    renderCoalLogUploadState();
+
+
+    refreshMorningMeetingState();
+
+
+    /*
+      다음 단계 복수 분석기에서 사용할 이벤트
+    */
+
+    document.dispatchEvent(
+      new CustomEvent(
+        "efficiencyMorningMeetingCoalFilesChanged",
+
+        {
+          detail: {
+            count:
+              mergedFiles.length,
+
+            files:
+              mergedFiles
+          }
+        }
+      )
+    );
+
+
+    console.log(
+      "오전회의 운탄일지 첨부:",
+      mergedFiles.map(
+        file => {
+          return file.name;
+        }
+      )
+    );
+  }
+
+
+  /* =====================================================
+    운탄일지 전체 초기화
+  ====================================================== */
+
+  function resetCoalLogFiles() {
+    const elements =
+      getElements();
+
+
+    const state =
+      getState();
+
+
+    state.coalLogFiles =
+      [];
+
+
     state.coalLogFile =
       null;
+
+
+    resetCoalAnalysisState(
+      state
+    );
 
 
     if (
@@ -146035,39 +146529,33 @@ function resetShiftPart() {
     }
 
 
-    elements.card
-      ?.classList
-      .remove(
-        "is-selected",
-        "is-complete",
-        "is-dragover"
-      );
-
-
-    if (
-      elements.status
-    ) {
-      elements.status.textContent =
-        "운탄일지를 선택하세요.";
-
-
-      elements.status.removeAttribute(
-        "title"
-      );
-    }
-
-
-    if (
-      elements.action
-    ) {
-      elements.action.textContent =
-        "선택 · 드롭";
-    }
+    renderCoalLogUploadState();
 
 
     refreshMorningMeetingState();
+
+
+    document.dispatchEvent(
+      new CustomEvent(
+        "efficiencyMorningMeetingCoalFilesChanged",
+
+        {
+          detail: {
+            count:
+              0,
+
+            files:
+              []
+          }
+        }
+      )
+    );
   }
 
+
+  /* =====================================================
+    파일 선택 / 드래그 연결
+  ====================================================== */
 
   function bindCoalLogUpload() {
     const elements =
@@ -146082,35 +146570,51 @@ function resetShiftPart() {
     }
 
 
+    /*
+      HTML을 따로 수정하지 않아도
+      여러 파일 선택이 가능하게 한다.
+    */
+
+    elements.input.multiple =
+      true;
+
+
+    elements.input.accept =
+      ".xlsx";
+
+
     let dragEnterCount =
       0;
 
 
-    /* 파일 선택 */
+    /* ===================================================
+      파일 선택
+    ==================================================== */
 
     elements.input.addEventListener(
       "change",
 
       () => {
-        const file =
-          elements.input
-            .files?.[
-              0
-            ];
+        const selectedFiles =
+          normalizeCoalLogFiles(
+            elements.input.files
+          );
 
 
         if (
-          file
+          selectedFiles.length
         ) {
-          applyCoalLogFile(
-            file
+          applyCoalLogFiles(
+            selectedFiles
           );
         }
       }
     );
 
 
-    /* 드래그 진입 */
+    /* ===================================================
+      드래그 진입
+    ==================================================== */
 
     elements.card.addEventListener(
       "dragenter",
@@ -146131,7 +146635,9 @@ function resetShiftPart() {
     );
 
 
-    /* 드래그 중 */
+    /* ===================================================
+      드래그 중
+    ==================================================== */
 
     elements.card.addEventListener(
       "dragover",
@@ -146156,7 +146662,9 @@ function resetShiftPart() {
     );
 
 
-    /* 드래그 이탈 */
+    /* ===================================================
+      드래그 이탈
+    ==================================================== */
 
     elements.card.addEventListener(
       "dragleave",
@@ -146169,7 +146677,6 @@ function resetShiftPart() {
         dragEnterCount =
           Math.max(
             0,
-
             dragEnterCount -
             1
           );
@@ -146187,7 +146694,9 @@ function resetShiftPart() {
     );
 
 
-    /* 파일 놓기 */
+    /* ===================================================
+      여러 파일 드롭
+    ==================================================== */
 
     elements.card.addEventListener(
       "drop",
@@ -146206,16 +146715,16 @@ function resetShiftPart() {
         );
 
 
-        const file =
-          event
-            .dataTransfer
-            ?.files?.[
-              0
-            ];
+        const droppedFiles =
+          normalizeCoalLogFiles(
+            event.dataTransfer
+              ?.files
+          );
 
 
         if (
-          !file
+          droppedFiles.length ===
+            0
         ) {
           showError(
             "운탄일지 카드에 XLSX 파일을 놓아주세요."
@@ -146226,32 +146735,55 @@ function resetShiftPart() {
         }
 
 
-        applyCoalLogFile(
-          file
+        applyCoalLogFiles(
+          droppedFiles
         );
       }
     );
 
 
-    /* 전체 초기화 */
+    /* ===================================================
+      전체 초기화
+    ==================================================== */
 
     elements.resetButton
       ?.addEventListener(
         "click",
-        resetCoalLogFile
+        resetCoalLogFiles
       );
   }
 
 
+  /* =====================================================
+    외부 접근용
+
+    다음 단계 복수 분석기에서 사용한다.
+  ====================================================== */
+
+  window.getEfficiencyMorningMeetingCoalLogFiles =
+    function getEfficiencyMorningMeetingCoalLogFiles() {
+      return [
+        ...getState()
+          .coalLogFiles
+      ];
+    };
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
   function initialize() {
     const {
-      card
+      card,
+      input
     } =
       getElements();
 
 
     if (
       !card ||
+      !input ||
       card.dataset
         .coalLogUploadInitialized ===
         "true"
@@ -146265,7 +146797,19 @@ function resetShiftPart() {
       "true";
 
 
+    /*
+      기존 단일 파일이 남아 있으면
+      배열 구조로 자동 이전한다.
+    */
+
+    getState();
+
+
     bindCoalLogUpload();
+
+
+    renderCoalLogUploadState();
+
 
     refreshMorningMeetingState();
   }
@@ -146287,6 +146831,7 @@ function resetShiftPart() {
   } else {
     initialize();
   }
+
 })();
 
 /* =========================================================
