@@ -170010,7 +170010,7 @@ function renderCommonDates(
     );
 
 
-  const todayDate =
+  const actualTodayDate =
     getTodayDate();
 
 
@@ -170035,13 +170035,30 @@ if (
 if (
   elements.todayButton
 ) {
+  const isActualToday =
+    baseDate ===
+      actualTodayDate;
+
+
   elements.todayButton.textContent =
-    `오늘 ${formatMorningMeetingShortDate(
-      todayDate
-    )}`;
+    isActualToday
+      ? `오늘 ${formatMorningMeetingShortDate(
+          baseDate
+        )}`
+      : `기준일 ${formatMorningMeetingShortDate(
+          baseDate
+        )}`;
+
+
+  /*
+    가운데 버튼 기능 자체는 그대로:
+    클릭하면 실제 오늘로 이동
+  */
 
   elements.todayButton.title =
-    `${todayDate} 오늘 자료 조회`;
+    isActualToday
+      ? `${baseDate} 오늘 자료`
+      : `현재 기준일 ${baseDate} · 클릭하면 오늘 ${actualTodayDate}로 이동`;
 }
 
 
