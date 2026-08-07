@@ -169135,6 +169135,47 @@ window
     );
   }
 
+/* =====================================================
+  오전회의 날짜 버튼용 짧은 날짜
+
+  2026-08-08
+  → 26.08.08
+====================================================== */
+
+function formatMorningMeetingShortDate(
+  dateValue
+) {
+  if (
+    !isValidDate(
+      dateValue
+    )
+  ) {
+    return "";
+  }
+
+
+  const [
+    year,
+    month,
+    day
+  ] =
+    String(
+      dateValue
+    ).split(
+      "-"
+    );
+
+
+  return [
+    year.slice(
+      -2
+    ),
+    month,
+    day
+  ].join(
+    "."
+  );
+}
 
   /* =====================================================
     현재 공용 기준일
@@ -169222,15 +169263,21 @@ function resolveCommonBaseDate() {
   );
 }
 
-  /* =====================================================
-    카드 날짜 즉시 표시
 
-    수처리 / 석회석:
-    같은 날짜
+/* =====================================================
+  자동수치 카드 날짜 + 날짜 이동 버튼 표시
 
-    Gear / Pinion:
-    +1일
-  ====================================================== */
+  기준일:
+  수처리       = baseDate
+  석회석       = baseDate
+  BO1·BO2      = baseDate
+  Gear/Pinion  = baseDate + 1일
+
+  버튼:
+  전날   = 현재 기준일 - 1일
+  오늘   = 실제 오늘 날짜
+  다음날 = 현재 기준일 + 1일
+====================================================== */
 
 function renderCommonDates(
   baseDate
@@ -169255,7 +169302,9 @@ function renderCommonDates(
     );
 
 
-  /* 수처리 */
+  /* ===================================================
+    카드 날짜
+  ==================================================== */
 
   if (
     elements.waterDate
@@ -169264,8 +169313,6 @@ function renderCommonDates(
       baseDate;
   }
 
-
-  /* 석회석 */
 
   if (
     elements.limestoneDate
@@ -169276,9 +169323,7 @@ function renderCommonDates(
 
 
   /* ===================================================
-    BO1 · BO2 보일러 온도
-
-    수처리·석회석과 같은 기준일
+    BO1 · BO2 온도
   ==================================================== */
 
   const boilerDate =
@@ -169297,9 +169342,6 @@ function renderCommonDates(
 
   /* ===================================================
     Gear / Pinion
-
-    BOARD LOGSHEET의 전일 값을 사용하므로
-    조회일은 기준일 + 1일
   ==================================================== */
 
   if (
@@ -169309,7 +169351,77 @@ function renderCommonDates(
       gearDate ||
       "-";
   }
+
+
+  /* ===================================================
+    날짜 이동 버튼 날짜 표시
+
+    예:
+    ‹ 전날 26.08.07
+    오늘 26.08.08
+    다음날 26.08.09 ›
+  ==================================================== */
+
+  const previousDate =
+    addDateDays(
+      baseDate,
+      -1
+    );
+
+
+  const todayDate =
+    getTodayDate();
+
+
+  const nextDate =
+    addDateDays(
+      baseDate,
+      1
+    );
+
+
+  if (
+    elements.previousButton
+  ) {
+    elements.previousButton.textContent =
+      `‹ 전날 ${formatMorningMeetingShortDate(
+        previousDate
+      )}`;
+
+
+    elements.previousButton.title =
+      `${previousDate} 자료 조회`;
+  }
+
+
+  if (
+    elements.todayButton
+  ) {
+    elements.todayButton.textContent =
+      `오늘 ${formatMorningMeetingShortDate(
+        todayDate
+      )}`;
+
+
+    elements.todayButton.title =
+      `${todayDate} 오늘 자료 조회`;
+  }
+
+
+  if (
+    elements.nextButton
+  ) {
+    elements.nextButton.textContent =
+      `다음날 ${formatMorningMeetingShortDate(
+        nextDate
+      )} ›`;
+
+
+    elements.nextButton.title =
+      `${nextDate} 자료 조회`;
+  }
 }
+
 
   /* =====================================================
     자동 미리보기 재갱신

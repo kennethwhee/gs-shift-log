@@ -88934,3 +88934,72 @@ input {
   }
 
 }
+
+/* =========================================================
+  오전회의 자동 수치 날짜 이동 버튼 확대
+
+  표시 예:
+  ‹ 전날 26.08.07
+  오늘 26.08.08
+  다음날 26.08.09 ›
+========================================================= */
+
+#efficiencyMorningMeetingLimestonePreviousButton,
+#efficiencyMorningMeetingLimestoneTodayButton,
+#efficiencyMorningMeetingLimestoneNextButton {
+  min-width: 118px !important;
+  height: 36px !important;
+
+  padding: 0 13px !important;
+
+  border-radius: 8px !important;
+
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+
+  letter-spacing: -0.02em !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* =====================================================
+  오늘 버튼은 조금 더 강조
+====================================================== */
+
+#efficiencyMorningMeetingLimestoneTodayButton {
+  min-width: 124px !important;
+
+  font-size: 15px !important;
+  font-weight: 900 !important;
+}
+
+
+/* =====================================================
+  모바일
+
+  날짜는 유지하면서 PC보다 살짝 축소
+====================================================== */
+
+@media (max-width: 768px) {
+
+  #efficiencyMorningMeetingLimestonePreviousButton,
+  #efficiencyMorningMeetingLimestoneTodayButton,
+  #efficiencyMorningMeetingLimestoneNextButton {
+    min-width: 100px !important;
+    height: 34px !important;
+
+    padding: 0 9px !important;
+
+    font-size: 12px !important;
+  }
+
+
+  #efficiencyMorningMeetingLimestoneTodayButton {
+    min-width: 106px !important;
+
+    font-size: 13px !important;
+  }
+
+}
