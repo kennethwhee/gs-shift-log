@@ -143179,90 +143179,194 @@ function getMorningMeetingBoilerLogTime(
 function getMorningMeetingBoilerOperationText(
   log
 ) {
-  const directText =
-    [
-      log?.operationStatus,
-      log?.operation_status,
-      log?.operationStatusContent,
-      log?.operation_status_content
-    ]
-      .map(
-        value => {
-          return String(
-            value ??
-            ""
-          ).trim();
-        }
-      )
-      .find(
-        Boolean
-      ) ||
-      "";
-
-
   if (
-    directText
+    !log ||
+    typeof log !==
+      "object"
   ) {
-    return directText
-      .replace(
-        /<br\s*\/?>/gi,
-        "\n"
-      )
-      .replace(
-        /\\n/g,
-        "\n"
-      )
-      .replace(
-        /\r\n?/g,
-        "\n"
-      )
-      .trim();
+    return "";
   }
 
 
-  const operationItems =
-    [
-      log?.operationStatusItems,
-      log?.operationItems,
-      log?.items
-    ].find(
-      items => {
-        return (
-          Array.isArray(
-            items
-          ) &&
-          items.length >
-            0
-        );
-      }
-    ) ||
+  const textParts =
     [];
 
 
-  return operationItems
-    .map(
-      item => {
-        if (
-          typeof item ===
-            "string"
-        ) {
-          return item;
-        }
+  /* =====================================================
+    문자열 추가
 
+    같은 내용은 마지막에 중복 제거한다.
+  ====================================================== */
 
-        return String(
-          item?.content ||
-          item?.text ||
+  const appendText =
+    value => {
+      const text =
+        String(
+          value ??
           ""
-        ).trim();
+        )
+          .replace(
+            /<br\s*\/?>/gi,
+            "\n"
+          )
+          .replace(
+            /\\n/g,
+            "\n"
+          )
+          .replace(
+            /\r\n?/g,
+            "\n"
+          )
+          .trim();
+
+
+      if (
+        text
+      ) {
+        textParts.push(
+          text
+        );
       }
-    )
-    .filter(
-      Boolean
-    )
+    };
+
+
+  /* =====================================================
+    1. 기존 직접 저장 문자열
+
+    여기서 끝내지 않고
+    아래 설비별 배열도 반드시 같이 읽는다.
+  ====================================================== */
+
+  [
+    log.operationStatus,
+    log.operation_status,
+
+    log.operationStatusContent,
+    log.operation_status_content,
+
+    log.operationStatusSnapshot,
+    log.operation_status_snapshot
+  ].forEach(
+    appendText
+  );
+
+
+  /* =====================================================
+    2. 설비별 운전현황 배열
+
+    업무일지 상세 화면에 보이는 내용이
+    이 배열에 들어 있는 경우까지 모두 지원한다.
+  ====================================================== */
+
+  const operationArrays = [
+    log.operationStatusItems,
+    log.operationItems,
+    log.items
+  ];
+
+
+  operationArrays.forEach(
+    items => {
+      if (
+        !Array.isArray(
+          items
+        )
+      ) {
+        return;
+      }
+
+
+      items.forEach(
+        item => {
+          if (
+            typeof item ===
+              "string"
+          ) {
+            appendText(
+              item
+            );
+
+
+            return;
+          }
+
+
+          if (
+            !item ||
+            typeof item !==
+              "object"
+          ) {
+            return;
+          }
+
+
+          const equipmentName =
+            String(
+              item.name ||
+              item.equipmentName ||
+              item.equipment_name ||
+              item.title ||
+              ""
+            ).trim();
+
+
+          const content =
+            String(
+              item.content ||
+              item.text ||
+              item.description ||
+              ""
+            ).trim();
+
+
+          /*
+            설비명 + 내용을 같이 넣는다.
+
+            예:
+            설비 1 : 주요 개소 Temp 측정
+            ① FBHE 격벽 Temp ...
+          */
+
+          if (
+            equipmentName &&
+            content
+          ) {
+            appendText(
+              `${equipmentName} : ${content}`
+            );
+
+
+            return;
+          }
+
+
+          appendText(
+            content ||
+            equipmentName
+          );
+        }
+      );
+    }
+  );
+
+
+  /* =====================================================
+    중복 제거 후 하나의 원문으로 반환
+  ====================================================== */
+
+  const uniqueTexts =
+    Array.from(
+      new Set(
+        textParts
+      )
+    );
+
+
+  return uniqueTexts
     .join(
       "\n"
-    );
+    )
+    .trim();
 }
 
 
@@ -143386,15 +143490,25 @@ function parseMorningMeetingBoilerTemperatureText(
     );
 
 
+  /* =====================================================
+    온도 단위
+
+    지원:
+    233
+    233C
+    233°C
+    233 ℃
+  ====================================================== */
+
   const fbheMatch =
     sourceText.match(
-      /FBHE\s*(?:격벽|PARTITION)\s*TEMP(?:ERATURE)?\s*L\s*[:：]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*R\s*[:：]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?/i
+      /FBHE\s*(?:격벽|PARTITION)\s*TEMP(?:ERATURE)?[\s\S]{0,20}?L\s*[:：=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*R\s*[:：=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?/i
     );
 
 
   const wallScrewMatch =
     sourceText.match(
-      /(?:COAL\s*)?WALL\s*SCREW(?:\s*FEEDER)?\s*TEMP(?:ERATURE)?\s*A\s*[:：]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*B\s*[:：]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*C\s*[:：]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*D\s*[:：]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?/i
+      /(?:COAL\s*)?WALL\s*SCREW(?:\s*FEEDER)?\s*TEMP(?:ERATURE)?[\s\S]{0,20}?A\s*[:：=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*B\s*[:：=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*C\s*[:：=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*D\s*[:：=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?/i
     );
 
 
@@ -143450,7 +143564,6 @@ function parseMorningMeetingBoilerTemperatureText(
     sourceText
   };
 }
-
 
 /* =====================================================
   BO1·BO2 온도 전체 추출
@@ -173521,6 +173634,540 @@ function renderTeamApprovalCard(
   */
   window.loadOisLegacyLogsForSearchRange =
     loadOisLegacyLogsForSearchRange;
+})();
+
+/* =========================================================
+  OIS 과거 업무일지 → 메인 현황 화면 연결
+
+  목적:
+  - ois_legacy_logs 자료를 메인 업무일지에도 표시
+  - 3교대 날짜 자동 감지
+  - DAY / AFTER / NIGHT → D / A / N 유지
+  - 3교대 날짜에 현행 4파트 계산을 적용하지 않음
+
+  이번 단계:
+  - 메인 화면 자료 표시
+  - 3교대 제목 표시
+  - 기존 DS / NS 선택값을 D / N으로 자동 보정
+
+  다음 단계:
+  - 날짜 이동을 D → A → N 순서로 변경
+========================================================= */
+
+(function installOisLegacyMainStatusBridge() {
+  if (
+    window
+      .__oisLegacyMainStatusBridgeInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__oisLegacyMainStatusBridgeInstalled =
+    true;
+
+
+  /* =====================================================
+    날짜별 교대형태 보관
+
+    THREE_SHIFT:
+    D / A / N
+
+    TWO_SHIFT:
+    D/S / N/S
+  ====================================================== */
+
+  const workSystemByDate =
+    new Map();
+
+
+  /* =====================================================
+    현재 선택 날짜
+  ====================================================== */
+
+  function getOisMainSelectedDate() {
+    return formatInputDate(
+      appState.selectedDate
+    );
+  }
+
+
+  /* =====================================================
+    선택 날짜 교대형태
+  ====================================================== */
+
+  function getOisMainWorkSystem(
+    dateValue =
+      getOisMainSelectedDate()
+  ) {
+    return (
+      workSystemByDate.get(
+        String(
+          dateValue ||
+          ""
+        ).trim()
+      ) ||
+      ""
+    );
+  }
+
+
+  /* =====================================================
+    교대형태에 맞게 현재 Shift 보정
+
+    3교대 날짜로 들어갈 때:
+
+    기존 D/S → D
+    기존 N/S → N
+
+    따라서 사용자가 N/S 상태에서
+    2022-09-22로 이동하면
+    2022-09-22 N으로 자연스럽게 연결된다.
+  ====================================================== */
+
+  function normalizeOisMainSelectedShift(
+    workSystem
+  ) {
+    const currentShift =
+      String(
+        appState.selectedShift ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    /* ===================================================
+      구 3교대
+    ==================================================== */
+
+    if (
+      workSystem ===
+        "THREE_SHIFT"
+    ) {
+      if (
+        currentShift ===
+          "DS"
+      ) {
+        return "D";
+      }
+
+
+      if (
+        currentShift ===
+          "NS"
+      ) {
+        return "N";
+      }
+
+
+      if (
+        [
+          "D",
+          "A",
+          "N"
+        ].includes(
+          currentShift
+        )
+      ) {
+        return currentShift;
+      }
+
+
+      return "D";
+    }
+
+
+    /* ===================================================
+      현행 2교대
+
+      3교대 날짜에서 다시 2교대 날짜로
+      돌아오는 경우도 보정한다.
+    ==================================================== */
+
+    if (
+      workSystem ===
+        "TWO_SHIFT"
+    ) {
+      if (
+        currentShift ===
+          "D"
+      ) {
+        return "DS";
+      }
+
+
+      if (
+        currentShift ===
+          "N"
+      ) {
+        return "NS";
+      }
+
+
+      if (
+        currentShift ===
+          "A"
+      ) {
+        return "DS";
+      }
+
+
+      if (
+        [
+          "DS",
+          "NS"
+        ].includes(
+          currentShift
+        )
+      ) {
+        return currentShift;
+      }
+
+
+      return "DS";
+    }
+
+
+    return currentShift;
+  }
+
+
+  /* =====================================================
+    기존 선택일 과거자료 로더 보존
+  ====================================================== */
+
+  const loadLegacyLogsForSelectedDateBeforeOisMain =
+    loadLegacyLogsForSelectedDate;
+
+
+  /* =====================================================
+    선택 날짜:
+
+    1. 기존 legacy_logs 조회
+    2. OIS ois_legacy_logs 조회
+    3. 메인 appState.logs에 합침
+    4. 3교대/2교대 판정
+    5. Shift 자동 보정
+  ====================================================== */
+
+  loadLegacyLogsForSelectedDate =
+    async function loadLegacyLogsForSelectedDate() {
+      const selectedDate =
+        getOisMainSelectedDate();
+
+
+      /* =================================================
+        기존 과거자료 먼저 유지
+      ================================================== */
+
+      const legacyResult =
+        await loadLegacyLogsForSelectedDateBeforeOisMain();
+
+
+      /* =================================================
+        기존 메모리의 같은 날짜 OIS 자료 제거
+
+        다시 조회할 때 중복되지 않게 한다.
+      ================================================== */
+
+      appState.logs =
+        appState.logs.filter(
+          log => {
+            const logDate =
+              String(
+                log?.date ||
+                ""
+              ).trim();
+
+
+            const source =
+              String(
+                log?.source ||
+                ""
+              )
+                .trim()
+                .toLowerCase();
+
+
+            const isSameDate =
+              logDate ===
+                selectedDate;
+
+
+            const isOisLegacy =
+              source ===
+                "ois-legacy" ||
+              source.startsWith(
+                "ois-legacy-"
+              );
+
+
+            return !(
+              isSameDate &&
+              isOisLegacy
+            );
+          }
+        );
+
+
+      let oisLogs =
+        [];
+
+
+      /* =================================================
+        OIS D1 저장자료 조회
+      ================================================== */
+
+      if (
+        typeof window
+          .loadOisLegacyLogsForSearchRange ===
+          "function"
+      ) {
+        try {
+          const loadedLogs =
+            await window
+              .loadOisLegacyLogsForSearchRange(
+                selectedDate,
+                selectedDate
+              );
+
+
+          oisLogs =
+            Array.isArray(
+              loadedLogs
+            )
+              ? loadedLogs
+              : [];
+
+        } catch (
+          error
+        ) {
+          /*
+            OIS 과거자료 조회 실패가
+            현재 신규 업무일지 화면까지
+            막으면 안 된다.
+          */
+
+          console.error(
+            `${selectedDate} OIS 과거 업무일지 메인 화면 연결 실패:`,
+            error
+          );
+        }
+      }
+
+
+      /* =================================================
+        OIS 자료를 메인 상태에 추가
+      ================================================== */
+
+      if (
+        oisLogs.length >
+          0
+      ) {
+        appState.logs.push(
+          ...oisLogs
+        );
+      }
+
+
+      /* =================================================
+        교대형태 확인
+      ================================================== */
+
+      const hasThreeShift =
+        oisLogs.some(
+          log => {
+            return (
+              String(
+                log?.workSystem ||
+                ""
+              )
+                .trim()
+                .toUpperCase() ===
+              "THREE_SHIFT"
+            );
+          }
+        );
+
+
+      const hasTwoShift =
+        oisLogs.some(
+          log => {
+            return (
+              String(
+                log?.workSystem ||
+                ""
+              )
+                .trim()
+                .toUpperCase() ===
+              "TWO_SHIFT"
+            );
+          }
+        );
+
+
+      let workSystem =
+        "";
+
+
+      /*
+        AFTER 자료가 존재하는 THREE_SHIFT를
+        최우선으로 사용한다.
+      */
+
+      if (
+        hasThreeShift
+      ) {
+        workSystem =
+          "THREE_SHIFT";
+
+      } else if (
+        hasTwoShift
+      ) {
+        workSystem =
+          "TWO_SHIFT";
+      }
+
+
+      if (
+        workSystem
+      ) {
+        workSystemByDate.set(
+          selectedDate,
+          workSystem
+        );
+
+      } else {
+        workSystemByDate.delete(
+          selectedDate
+        );
+      }
+
+
+      /* =================================================
+        현재 Shift 자동 보정
+      ================================================== */
+
+      if (
+        workSystem
+      ) {
+        const nextShift =
+          normalizeOisMainSelectedShift(
+            workSystem
+          );
+
+
+        if (
+          nextShift &&
+          nextShift !==
+            appState.selectedShift
+        ) {
+          appState.selectedShift =
+            nextShift;
+        }
+      }
+
+
+      /*
+        Shift가 NS → N처럼 변경될 수 있으므로
+        날짜·근무 표시도 여기에서 다시 그린다.
+      */
+
+      if (
+        typeof renderSelectedDate ===
+          "function"
+      ) {
+        renderSelectedDate();
+      }
+
+
+      console.log(
+        "OIS 과거자료 메인 화면 연결:",
+        {
+          selectedDate,
+
+          workSystem:
+            workSystem ||
+            "미확인",
+
+          selectedShift:
+            appState.selectedShift,
+
+          oisLogCount:
+            oisLogs.length
+        }
+      );
+
+
+      return legacyResult;
+    };
+
+
+  /* =====================================================
+    기존 날짜 표시 함수 보존
+  ====================================================== */
+
+  const renderSelectedDateBeforeOisMain =
+    renderSelectedDate;
+
+
+  /* =====================================================
+    3교대 날짜 화면 제목 보정
+
+    잘못된:
+    근무자 현황 · 1파트
+
+    변경:
+    근무자 현황 · 구 3교대
+  ====================================================== */
+
+  renderSelectedDate =
+    function renderSelectedDate() {
+      const result =
+        renderSelectedDateBeforeOisMain
+          .apply(
+            this,
+            arguments
+          );
+
+
+      const selectedDate =
+        getOisMainSelectedDate();
+
+
+      const workSystem =
+        getOisMainWorkSystem(
+          selectedDate
+        );
+
+
+      if (
+        workSystem ===
+          "THREE_SHIFT"
+      ) {
+        if (
+          elements.currentShiftTitle
+        ) {
+          elements.currentShiftTitle.textContent =
+            "근무자 현황 · 구 3교대";
+        }
+      }
+
+
+      return result;
+    };
+
+
+  /* =====================================================
+    외부 진단용
+  ====================================================== */
+
+  window.getOisMainWorkSystem =
+    getOisMainWorkSystem;
+
 })();
 
 /* =========================================================
