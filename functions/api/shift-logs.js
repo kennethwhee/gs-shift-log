@@ -8308,9 +8308,28 @@ async function postInspectionAutoStatusSync(
   return responseData;
 }
 
-
 /* =========================================================
-  같은 날짜·근무 전체 재검사
+  점검주기표 업무일지 자동완료 통합 실행
+
+  중요:
+  기존에는 자동완료 엔진이 2개 실행되어
+  서로 완료 기록을 생성·삭제하는 충돌이 있었다.
+
+  이제는 서버의 실제 점검주기표와
+  담당 보직·호기 분리 규칙을 사용하는
+
+  synchronizeInspectionScheduleAutoCompletionsForWorkDate()
+
+  함수 하나만 최종 기준으로 사용한다.
+
+  적용:
+  - 관리자 수정 일정 반영
+  - D/S·N/S 날짜 전체 재검사
+  - TGO·TO 터빈 계통 분리
+  - BCO1·BO1 1호기
+  - BCO2·BO2 2호기
+  - 업무일지 수정·삭제 시 자동 재계산
+  - "배출 완료"뿐 아니라 "배출" 자체도 수행으로 인정
 ========================================================= */
 
 async function synchronizeInspectionSchedulesForShiftContext(
@@ -8318,12 +8337,15 @@ async function synchronizeInspectionSchedulesForShiftContext(
   options = {}
 ) {
   const database =
-    context?.env?.DB;
+    context
+      ?.env
+      ?.DB;
 
 
   const workDate =
     normalizeText(
-      options.workDate
+      options.workDate ||
+      options.work_date
     );
 
 
@@ -8333,33 +8355,20 @@ async function synchronizeInspectionSchedulesForShiftContext(
     );
 
 
-  const occurrences =
-    normalizeInspectionAutoOccurrences(
-      options.scheduleOccurrences,
-      workDate,
-      shift
-    );
-
-
   /*
-    null은 캘린더 목록을 아직 전달받지 못한 상태다.
+    날짜·근무 또는 D1 연결이 없는 경우
 
-    이때 기존 자동완료를 삭제하면 안 되므로
-    동기화를 건너뛴다.
+    업무일지 저장 자체는 실패시키지 않고
+    점검 자동완료만 건너뛴다.
   */
   if (
     !database ||
-
     !isValidIsoDate(
       workDate
     ) ||
-
     !VALID_SHIFTS.has(
       shift
-    ) ||
-
-    occurrences ===
-      null
+    )
   ) {
     return {
       ok:
@@ -8369,104 +8378,41 @@ async function synchronizeInspectionSchedulesForShiftContext(
         true,
 
       reason:
-        occurrences ===
-          null
-          ? "schedule-not-ready"
-          : "invalid-context",
+        "invalid-context",
 
       workDate,
 
-      shift
+      shift,
+
+      message:
+        "점검 자동완료 날짜·근무 또는 D1 연결을 확인할 수 없어 동기화를 건너뛰었습니다."
     };
   }
 
 
   try {
-    const logResult =
-      await database
-        .prepare(`
-          SELECT
-            *
+    /*
+      서버 기준 자동완료만 실행한다.
 
-          FROM shift_logs
+      이 함수 내부에서:
+      - 실제 점검 일정 조회
+      - 관리자 변경사항 반영
+      - 전체 보직 업무일지 조회
+      - 담당 보직 확인
+      - 1호기·2호기 분리
+      - 자동완료 생성·수정·삭제
 
-          WHERE
-            work_date = ?
-            AND shift = ?
-        `)
-        .bind(
-          workDate,
-          shift
-        )
-        .all();
-
-
-    const logs =
-      (
-        Array.isArray(
-          logResult.results
-        )
-          ? logResult.results
-          : []
-      ).map(
-        convertRowToLog
-      );
-
-
-    const currentSourceLogIds =
-      logs
-        .map(
-          log => {
-            return normalizeText(
-              log?.id
-            );
-          }
-        )
-        .filter(
-          Boolean
-        );
-
-
-    const removedSourceLogIds =
-      (
-        Array.isArray(
-          options.removedSourceLogIds
-        )
-          ? options.removedSourceLogIds
-          : []
-      )
-        .map(
-          normalizeText
-        )
-        .filter(
-          Boolean
-        );
-
-
-    const matches =
-      buildInspectionAutoMatches(
-        occurrences,
-        logs
-      );
-
-
+      를 모두 처리한다.
+    */
     const syncResult =
-      await postInspectionAutoStatusSync(
+      await synchronizeInspectionScheduleAutoCompletionsForWorkDate(
         context,
         {
-          action:
-            "sync-shift-log",
-
           workDate,
 
-          shift,
-
-          matches,
-
-          managedSourceLogIds:
-            currentSourceLogIds,
-
-          removedSourceLogIds
+          user:
+            options.user ||
+            null
         }
       );
 
@@ -8478,21 +8424,25 @@ async function synchronizeInspectionSchedulesForShiftContext(
 
       shift,
 
-      scheduleCount:
-        occurrences.length,
+      /*
+        화면에서 기존 inspectionScheduleSync 결과를
+        계속 사용할 수 있도록 근무값을 함께 전달한다.
+      */
+      scheduleSource:
+        "server-effective-schedules",
 
-      logCount:
-        logs.length,
+      unitSeparated:
+        true,
 
-      detectedCount:
-        matches.length
+      legacyOccurrenceSyncDisabled:
+        true
     };
 
   } catch (
     error
   ) {
     console.error(
-      "점검주기표 업무일지 자동완료 실패:",
+      "통합 점검 자동완료 실행 실패:",
       error
     );
 
@@ -8508,11 +8458,17 @@ async function synchronizeInspectionSchedulesForShiftContext(
 
       shift,
 
+      scheduleSource:
+        "server-effective-schedules",
+
+      unitSeparated:
+        true,
+
       message:
         error instanceof
           Error
           ? error.message
-          : "점검주기표 자동완료 처리 중 오류가 발생했습니다."
+          : "점검 자동완료를 다시 계산하지 못했습니다."
     };
   }
 }
@@ -11105,6 +11061,27 @@ function applySaveRules(
 
 
   /*
+    이전 버전에서 일반 보직 업무일지가 저장완료로 남은 경우:
+    최고관리자의 명시적인 결재요청만 허용한다.
+  */
+  const isStoredMemberApprovalRequest =
+    isMemberLog &&
+
+    existingStatus ===
+      "저장완료" &&
+
+    requestedStatus ===
+      "결재요청" &&
+
+    user.isSuperAdmin;
+
+
+  const canChangeMemberStatus =
+    isEditableMemberDraft ||
+    isStoredMemberApprovalRequest;
+
+
+  /*
     다른 파트장이 수정할 수 있는
     파트장 임시저장·저장완료 자료
 
@@ -11288,11 +11265,12 @@ function applySaveRules(
       existingStatus;
 
   } else if (
-    isEditableMemberDraft
+    canChangeMemberStatus
   ) {
     /*
-      일반 보직 임시저장은
-      임시저장 또는 결재요청으로 전환 가능
+      일반 보직 임시저장 또는
+      최고관리자의 저장완료 복구 요청은
+      결재요청으로 전환 가능
     */
     log.status =
       [

@@ -56783,18 +56783,6 @@ function getEditingShiftLogBeforeSave() {
 const collectEditorDataBeforeApprovalHistory =
   collectEditorData;
 
-
-/* =========================================================
-  결재 이력이 적용된 최종 데이터 수집 함수
-
-  신규 작성:
-  첫 저장 행동을 기록한다.
-
-  기존 수정:
-  이전 이력을 그대로 유지하고,
-  상태가 변경된 경우에만 새 이력을 추가한다.
-========================================================= */
-
 collectEditorData =
   function collectEditorData(
     requestedStatus
@@ -56824,6 +56812,89 @@ collectEditorData =
             previousLog.status
           )
         : "";
+
+
+    const requestedResolvedStatus =
+      normalizeShiftLogApprovalStatus(
+        typeof resolveShiftLogSaveStatus ===
+          "function"
+          ? resolveShiftLogSaveStatus(
+              requestedStatus
+            )
+          : requestedStatus
+      );
+
+
+    /* =====================================================
+      최고관리자 일반 보직 저장완료 → 결재요청 복구
+
+      이전 버전에서 일반 보직 일지가 저장완료로 남은 경우:
+      - 현재 업무일지가 일반 보직
+      - 최고관리자가 결재요청 버튼을 누름
+      - 원 작성자 정보는 유지
+      - 상태만 결재요청으로 변경
+    ====================================================== */
+
+    const isStoredMemberApprovalRequest =
+      Boolean(
+        previousLog
+      ) &&
+      typeof isCurrentUserSuperAdmin ===
+        "function" &&
+      isCurrentUserSuperAdmin() &&
+      [
+        "TGO",
+        "BCO1",
+        "BCO2",
+        "TO",
+        "BO1",
+        "BO2"
+      ].includes(
+        normalizeMemberLogRole(
+          previousLog.role
+        )
+      ) &&
+      previousStatus ===
+        "저장완료" &&
+      requestedResolvedStatus ===
+        "결재요청";
+
+
+    if (
+      isStoredMemberApprovalRequest
+    ) {
+      collectedLog.status =
+        "결재요청";
+
+
+      collectedLog.author =
+        String(
+          previousLog.author ||
+          collectedLog.author ||
+          ""
+        ).trim();
+
+
+      collectedLog.authorId =
+        String(
+          previousLog.authorId ||
+          collectedLog.authorId ||
+          ""
+        ).trim();
+
+
+      collectedLog.authorRole =
+        String(
+          previousLog.authorRole ||
+          collectedLog.authorRole ||
+          ""
+        ).trim();
+
+
+      collectedLog.createdAt =
+        previousLog.createdAt ||
+        collectedLog.createdAt;
+    }
 
 
     const nextStatus =
@@ -56893,7 +56964,6 @@ collectEditorData =
     */
     return collectedLog;
   };
-
 
 /* =========================================================
   파트장 결재완료 함수 보존
@@ -77424,19 +77494,23 @@ function getCurrentEditorStoredLog() {
     작성완료 → 결재요청
   ====================================================== */
 
-  function normalizeMemberEditorLogStatus(
-    status
+function normalizeMemberEditorLogStatus(
+  status
+) {
+  let normalizedStatus =
+    "";
+
+
+  if (
+    typeof normalizeShiftLogApprovalStatus ===
+      "function"
   ) {
-    if (
-      typeof normalizeShiftLogApprovalStatus ===
-        "function"
-    ) {
-      return normalizeShiftLogApprovalStatus(
+    normalizedStatus =
+      normalizeShiftLogApprovalStatus(
         status
       );
-    }
 
-
+  } else {
     const statusMap = {
       작성중:
         "임시저장",
@@ -77458,17 +77532,37 @@ function getCurrentEditorStoredLog() {
     };
 
 
-    return (
+    normalizedStatus =
       statusMap[
         String(
           status ||
           ""
         ).trim()
       ] ||
-      ""
-    );
+      "";
   }
 
+
+  /*
+    이전 버전에서 일반 보직 업무일지가
+    저장완료로 남아 있는 경우:
+
+    최고관리자 작성창에서는 결재요청이 가능한
+    임시저장 단계로 취급한다.
+  */
+  if (
+    normalizedStatus ===
+      "저장완료" &&
+    typeof isCurrentUserSuperAdmin ===
+      "function" &&
+    isCurrentUserSuperAdmin()
+  ) {
+    return "임시저장";
+  }
+
+
+  return normalizedStatus;
+}
 
   /* =====================================================
     현재 작성 중인 보직
@@ -81923,30 +82017,105 @@ function refreshMemberFooterButtons() {
   }
 
 
-  /* =====================================================
-    기존 버튼 갱신 후 왼쪽 버튼 상태 적용
-  ====================================================== */
+updateLogEditorActionButtons =
+  function updateLogEditorActionButtons(
+    ...args
+  ) {
+    const previousResult =
+      updateLogEditorActionButtonsBeforeLeftActions
+        ?.apply(
+          this,
+          args
+        );
 
-  updateLogEditorActionButtons =
-    function updateLogEditorActionButtons(
-      ...args
+
+    bindMemberFooterButtons();
+
+
+    refreshMemberFooterButtons();
+
+
+    /* ===================================================
+      최고관리자 일반 보직 저장완료 복구
+
+      이전 버전에서 저장완료로 남은 일반 보직 일지는
+      결재요청 버튼을 다시 활성화한다.
+    ==================================================== */
+
+    const currentLog =
+      getMemberFooterCurrentLog();
+
+
+    const currentStatus =
+      normalizeMemberFooterStatus(
+        currentLog?.status
+      );
+
+
+    const canRestoreStoredMemberLog =
+      isMemberFooterEditor() &&
+      Boolean(
+        currentLog
+      ) &&
+      currentStatus ===
+        "저장완료" &&
+      typeof isCurrentUserSuperAdmin ===
+        "function" &&
+      isCurrentUserSuperAdmin() &&
+      !isMemberFooterActionWorking;
+
+
+    if (
+      canRestoreStoredMemberLog
     ) {
-      const previousResult =
-        updateLogEditorActionButtonsBeforeLeftActions
-          ?.apply(
-            this,
-            args
-          );
-
-      bindMemberFooterButtons();
-
-      refreshMemberFooterButtons();
-
-      return previousResult;
-    };
+      const buttons =
+        ensureMemberFooterButtons();
 
 
-  function scheduleMemberFooterRefresh() {
+      setMemberFooterButtonState(
+        buttons?.requestButton,
+        {
+          visible:
+            true,
+
+          enabled:
+            true,
+
+          title:
+            "저장완료로 남은 일반 보직 업무일지를 결재요청 상태로 전환합니다."
+        }
+      );
+
+
+      if (
+        buttons?.requestButton
+      ) {
+        buttons.requestButton.textContent =
+          "결재요청";
+
+
+        buttons.requestButton.classList.remove(
+          "is-cancel-request"
+        );
+
+
+        buttons.requestButton.dataset
+          .memberApprovalAction =
+          "request";
+
+
+        buttons.requestButton.setAttribute(
+          "aria-label",
+          "업무일지 결재요청"
+        );
+      }
+    }
+
+
+    return previousResult;
+  };
+
+function scheduleMemberFooterRefresh() {
     [
       0,
       60,
@@ -157741,36 +157910,136 @@ function resolveWaterSourceDate() {
   }
 
 
-  /* =====================================================
-    오전회의 전일 기준일
+/* =====================================================
+  오전회의 자동자료 기준일
 
-    우선순위:
-    1. 수처리 조회 날짜
-    2. 교대파트 reportDate
-    3. 교대파트 loadedDate
-  ====================================================== */
+  우선순위:
+  1. 공용 날짜 이동 버튼의 기준일
+  2. 현재 석회석 계산 날짜
+  3. 현재 수처리 요청 날짜
+  4. 완료된 수처리 저장값
+  5. 교대파트 기준일
 
-  function getExpectedPreviousDate() {
-    const state =
-      getState();
+  중요:
+  이미 조회된 과거 수처리 날짜가
+  새 공용 날짜보다 먼저 선택되지 않도록 한다.
+===================================================== */
 
-
-    const water =
-      state.waterTreatment &&
-      typeof state.waterTreatment ===
-        "object"
-        ? state.waterTreatment
-        : null;
+function getExpectedPreviousDate() {
+  const state =
+    getState();
 
 
-    return normalizeText(
+  const commonPanel =
+    document.getElementById(
+      "efficiencyMorningMeetingWaterPanel"
+    );
+
+
+  /* ===================================================
+    1. 공용 자료 기준일
+
+    [전날] [오늘] [다음날]에서 설정한 날짜
+  ==================================================== */
+
+  const commonBaseDate =
+    normalizeText(
+      commonPanel?.dataset
+        .morningMeetingAutoBaseDate
+    );
+
+
+  if (
+    /^\d{4}-\d{2}-\d{2}$/.test(
+      commonBaseDate
+    )
+  ) {
+    return commonBaseDate;
+  }
+
+
+  /* ===================================================
+    2. 현재 석회석 계산 날짜
+  ==================================================== */
+
+  const limestoneDate =
+    normalizeText(
+      document.getElementById(
+        "limestoneUsageDate"
+      )?.value
+    );
+
+
+  if (
+    /^\d{4}-\d{2}-\d{2}$/.test(
+      limestoneDate
+    )
+  ) {
+    return limestoneDate;
+  }
+
+
+  /* ===================================================
+    3. 현재 수처리 요청 날짜
+
+    완료된 과거 state 값보다 먼저 확인한다.
+  ==================================================== */
+
+  const waterTargetDate =
+    normalizeText(
+      commonPanel?.dataset
+        .waterTargetDate
+    );
+
+
+  if (
+    /^\d{4}-\d{2}-\d{2}$/.test(
+      waterTargetDate
+    )
+  ) {
+    return waterTargetDate;
+  }
+
+
+  /* ===================================================
+    4. 완료된 수처리 결과
+  ==================================================== */
+
+
+  const water =
+    state.waterTreatment &&
+    typeof state.waterTreatment ===
+      "object"
+      ? state.waterTreatment
+      : null;
+
+
+  const savedWaterDate =
+    normalizeText(
       water?.sourceDate ||
       water?.targetDate ||
-      state.shiftPart?.reportDate ||
-      state.shiftPart?.loadedDate ||
       ""
     );
+
+
+  if (
+    /^\d{4}-\d{2}-\d{2}$/.test(
+      savedWaterDate
+    )
+  ) {
+    return savedWaterDate;
   }
+
+  /* ===================================================
+    5. 교대파트 기준일
+  ==================================================== */
+
+  return normalizeText(
+    state.shiftPart?.reportDate ||
+    state.shiftPart?.loadedDate ||
+    ""
+  );
+}
 
 
   /* =====================================================
@@ -161018,56 +161287,80 @@ window
     5. 오늘
   ====================================================== */
 
-  function resolveCommonBaseDate() {
-    const elements =
-      getElements();
+function resolveCommonBaseDate() {
+  const elements =
+    getElements();
 
 
-    const state =
-      getState();
+  const state =
+    getState();
 
 
-    const candidates = [
-      elements.commonPanel
-        ?.dataset
-        .morningMeetingAutoBaseDate,
-
-      state.shiftPart
-        ?.reportDate,
-
-      state.shiftPart
-        ?.loadedDate,
-
-      state.waterTreatment
-        ?.sourceDate,
-
-      state.waterTreatment
-        ?.targetDate,
-
-      elements.limestoneDateInput
-        ?.value,
-
-      getTodayDate()
-    ];
+  const candidates = [
+    /*
+      1. 사용자가 전날·오늘·다음날 버튼으로
+      직접 이동한 공용 기준일
+    */
+    elements.commonPanel
+      ?.dataset
+      .morningMeetingAutoBaseDate,
 
 
-    return (
-      candidates
-        .map(
-          value => {
-            return String(
-              value ||
-              ""
-            ).trim();
-          }
-        )
-        .find(
-          isValidDate
-        ) ||
-      ""
-    );
-  }
+    /*
+      2. 교대파트 업무일지 기준일
+    */
+    state.shiftPart
+      ?.reportDate,
 
+
+    /*
+      3. 교대파트 업무일지 불러온 날짜
+    */
+    state.shiftPart
+      ?.loadedDate,
+
+
+    /*
+      4. 완료된 수처리 조회 결과
+    */
+    state.waterTreatment
+      ?.sourceDate,
+
+
+    state.waterTreatment
+      ?.targetDate,
+
+
+    /*
+      5. 현재 석회석 사용량 계산일
+    */
+    elements.limestoneDateInput
+      ?.value,
+
+
+    /*
+      6. 위 날짜가 전부 없을 때 오늘
+    */
+    getTodayDate()
+  ];
+
+
+  return (
+    candidates
+      .map(
+        value => {
+          return String(
+            value ||
+            ""
+          ).trim();
+        }
+      )
+      .find(
+        isValidDate
+      ) ||
+    ""
+  );
+}
 
   /* =====================================================
     카드 날짜 즉시 표시
@@ -163906,78 +164199,128 @@ if (
       );
   }
 
+/* =====================================================
+  캐시 읽기
 
-  /* =====================================================
-    캐시 읽기
-  ====================================================== */
+  같은 저장소를 사용하는 모든 자동자료를 보존한다.
 
-  function loadCache() {
-    const rawValue =
-      localStorage.getItem(
-        STORAGE_KEY
-      );
+  현재:
+  - water
+  - gearPinion
+  - boiler
+
+  이후 다른 자동자료 키가 추가되어도
+  기존 키를 삭제하지 않는다.
+===================================================== */
+
+function loadCache() {
+  const rawValue =
+    localStorage.getItem(
+      STORAGE_KEY
+    );
 
 
-    if (
-      !rawValue
-    ) {
+  const createEmptyCache =
+    () => {
       return {
         water:
           {},
 
         gearPinion:
-          {}
-      };
-    }
-
-
-    try {
-      const parsedValue =
-        JSON.parse(
-          rawValue
-        );
-
-
-      return {
-        water:
-          parsedValue?.water &&
-          typeof parsedValue.water ===
-            "object"
-            ? parsedValue.water
-            : {},
-
-        gearPinion:
-          parsedValue?.gearPinion &&
-          typeof parsedValue.gearPinion ===
-            "object"
-            ? parsedValue.gearPinion
-            : {}
-      };
-
-    } catch (
-      error
-    ) {
-      console.warn(
-        "오전회의 자동자료 저장값을 읽지 못했습니다.",
-        error
-      );
-
-
-      localStorage.removeItem(
-        STORAGE_KEY
-      );
-
-
-      return {
-        water:
           {},
 
-        gearPinion:
+        boiler:
           {}
       };
-    }
+    };
+
+
+  if (
+    !rawValue
+  ) {
+    return createEmptyCache();
   }
 
+
+  try {
+    const parsedValue =
+      JSON.parse(
+        rawValue
+      );
+
+
+    const savedCache =
+      parsedValue &&
+      typeof parsedValue ===
+        "object" &&
+      !Array.isArray(
+        parsedValue
+      )
+        ? parsedValue
+        : {};
+
+
+    /*
+      ...savedCache를 먼저 넣는 이유:
+
+      향후 다른 자동자료를 먼저 넣는가 추가되어도
+      이 함수에서 모르는 키를 삭제하지 않는다.
+    */
+
+    return {
+      ...savedCache,
+
+
+      water:
+        savedCache.water &&
+        typeof savedCache.water ===
+          "object" &&
+        !Array.isArray(
+          savedCache.water
+        )
+          ? savedCache.water
+          : {},
+
+
+      gearPinion:
+        savedCache.gearPinion &&
+        typeof savedCache.gearPinion ===
+          "object" &&
+        !Array.isArray(
+          savedCache.gearPinion
+        )
+          ? savedCache.gearPinion
+          : {},
+
+
+      boiler:
+        savedCache.boiler &&
+        typeof savedCache.boiler ===
+          "object" &&
+        !Array.isArray(
+          savedCache.boiler
+        )
+          ? savedCache.boiler
+          : {}
+    };
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "오전회의 자동자료 저장값을 읽지 못했습니다.",
+      error
+    );
+
+
+    localStorage.removeItem(
+      STORAGE_KEY
+    );
+
+
+    return createEmptyCache();
+  }
+}
 
   /* =====================================================
     캐시 저장

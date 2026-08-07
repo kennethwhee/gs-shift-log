@@ -358,27 +358,227 @@ let roleSummaryContextOverride =
     ].join("||");
   }
 
-  function getCompletion(occurrence) {
-    return statusMap.get(
-      createStatusKey(
-        occurrence.scheduleItem.id,
-        occurrence.dueDate,
-        occurrence.shift
-      )
-    ) || null;
+/* =========================================================
+  달력 점검항목의 실제 완료 ID
+
+  일반 일정:
+  weekly-lng-system
+
+  1호기 일정:
+  weekly-sda-hopper-ash::unit1
+
+  2호기 일정:
+  weekly-sda-hopper-ash::unit2
+========================================================= */
+
+function getInspectionCalendarOccurrenceScheduleId(
+  occurrence
+) {
+  const explicitScheduleId =
+    String(
+      occurrence?.completionScheduleId ||
+      ""
+    ).trim();
+
+
+  if (
+    explicitScheduleId
+  ) {
+    return explicitScheduleId;
   }
 
-  function expandOccurrences(scheduleItem, dueDate) {
-    const shifts = Array.isArray(scheduleItem?.shifts)
-      ? [...new Set(scheduleItem.shifts.map(normalizeShift).filter(Boolean))]
+
+  const baseScheduleId =
+    String(
+      occurrence?.scheduleItem?.id ||
+      ""
+    ).trim();
+
+
+  if (
+    !baseScheduleId
+  ) {
+    return "";
+  }
+
+
+  /*
+    이미 호기 ID가 붙어 있으면
+    중복으로 다시 붙이지 않는다.
+  */
+  if (
+    /::unit[12]$/i.test(
+      baseScheduleId
+    )
+  ) {
+    return baseScheduleId;
+  }
+
+
+  const unitNo =
+    Number(
+      occurrence?.unitNo ||
+      0
+    );
+
+
+  return [
+    1,
+    2
+  ].includes(
+    unitNo
+  )
+    ? `${baseScheduleId}::unit${unitNo}`
+    : baseScheduleId;
+}
+
+
+/* =========================================================
+  점검 완료 기록 조회
+
+  occurrence에 호기가 있으면
+  해당 호기 완료 기록만 조회한다.
+
+  중요:
+  호기 분리 일정에서 기존 기본 ID를
+  대체 완료값으로 인정하지 않는다.
+========================================================= */
+
+function getCompletion(
+  occurrence
+) {
+  const completionScheduleId =
+    getInspectionCalendarOccurrenceScheduleId(
+      occurrence
+    );
+
+
+  if (
+    !completionScheduleId
+  ) {
+    return null;
+  }
+
+
+  return (
+    statusMap.get(
+      createStatusKey(
+        completionScheduleId,
+        occurrence?.dueDate,
+        occurrence?.shift
+      )
+    ) ||
+    null
+  );
+}
+
+/* =========================================================
+  일정 항목을 근무·호기별로 분리
+
+  일반 일정:
+  - D/S 또는 N/S 한 건
+
+  보일러 호기 분리 일정:
+  - 1호기 한 건
+  - 2호기 한 건
+
+  예:
+  SDA Hopper Ash D/S
+
+  결과:
+  - weekly-sda-hopper-ash::unit1
+  - weekly-sda-hopper-ash::unit2
+========================================================= */
+
+function expandOccurrences(
+  scheduleItem,
+  dueDate
+) {
+  const shifts =
+    Array.isArray(
+      scheduleItem?.shifts
+    )
+      ? [
+          ...new Set(
+            scheduleItem.shifts
+              .map(
+                normalizeShift
+              )
+              .filter(
+                Boolean
+              )
+          )
+        ]
       : [];
 
-    return (shifts.length ? shifts : [""]).map(shift => ({
-      scheduleItem,
-      dueDate,
-      shift
-    }));
-  }
+
+  const effectiveShifts =
+    shifts.length
+      ? shifts
+      : [
+          ""
+        ];
+
+
+  /*
+    BCO1·BO1과 BCO2·BO2 담당이 함께 있는
+    보일러 일정은 두 호기로 펼친다.
+  */
+  const unitNumbers =
+    isInspectionCalendarUnitSeparatedSchedule(
+      scheduleItem
+    )
+      ? [
+          1,
+          2
+        ]
+      : [
+          0
+        ];
+
+
+  const baseScheduleId =
+    String(
+      scheduleItem?.id ||
+      ""
+    ).trim();
+
+
+  return effectiveShifts.flatMap(
+    shift => {
+      return unitNumbers.map(
+        unitNo => {
+          return {
+            scheduleItem,
+
+            dueDate,
+
+            shift,
+
+            unitNo,
+
+            unitLabel:
+              unitNo ===
+                1
+                ? "1호기"
+                : unitNo ===
+                    2
+                  ? "2호기"
+                  : "",
+
+            completionScheduleId:
+              unitNo ===
+                1 ||
+              unitNo ===
+                2
+                ? `${baseScheduleId}::unit${unitNo}`
+                : baseScheduleId
+          };
+        }
+      );
+    }
+  );
+}
 
   function getDateData(dateValue) {
     const result = getInspectionSchedulesForDate(dateValue);
@@ -447,6 +647,195 @@ let roleSummaryContextOverride =
 
     return roleOrder.filter(role => assignedRoleSet.has(role));
   }
+
+/* =========================================================
+  보직별 담당 호기
+
+  1호기:
+  - BCO1
+  - BO1
+
+  2호기:
+  - BCO2
+  - BO2
+
+  터빈·공통:
+  - TGO
+  - TO
+  - 파트장
+
+  반환:
+  - 1
+  - 2
+  - 0
+========================================================= */
+
+function getInspectionCalendarRoleUnit(
+  role
+) {
+  const normalizedRole =
+    normalizeAssignedRole(
+      role
+    );
+
+
+  if (
+    [
+      "BCO1",
+      "BO1"
+    ].includes(
+      normalizedRole
+    )
+  ) {
+    return 1;
+  }
+
+
+  if (
+    [
+      "BCO2",
+      "BO2"
+    ].includes(
+      normalizedRole
+    )
+  ) {
+    return 2;
+  }
+
+
+  return 0;
+}
+
+
+/* =========================================================
+  1·2호기 분리 일정인지 확인
+
+  담당 보직에 아래가 함께 존재하면
+  호기별 독립 일정으로 판단한다.
+
+  - 1호기 보직: BCO1 또는 BO1
+  - 2호기 보직: BCO2 또는 BO2
+========================================================= */
+
+function isInspectionCalendarUnitSeparatedSchedule(
+  scheduleItem
+) {
+  const assignedRoles =
+    getAssignedRoles(
+      scheduleItem
+    );
+
+
+  const assignedUnits =
+    new Set(
+      assignedRoles
+        .map(
+          getInspectionCalendarRoleUnit
+        )
+        .filter(
+          unitNo => {
+            return (
+              unitNo ===
+                1 ||
+              unitNo ===
+                2
+            );
+          }
+        )
+    );
+
+
+  return (
+    assignedUnits.has(
+      1
+    ) &&
+    assignedUnits.has(
+      2
+    )
+  );
+}
+
+
+/* =========================================================
+  보직별 실제 완료 기록 ID
+
+  예:
+
+  SDA Hopper Ash 일정
+  weekly-sda-hopper-ash
+
+  BCO1 / BO1:
+  weekly-sda-hopper-ash::unit1
+
+  BCO2 / BO2:
+  weekly-sda-hopper-ash::unit2
+
+  TGO / TO:
+  원래 일정 ID 그대로 사용
+========================================================= */
+
+function getInspectionCalendarCompletionScheduleId(
+  scheduleItem,
+  role
+) {
+  const baseScheduleId =
+    String(
+      scheduleItem?.id ||
+      ""
+    ).trim();
+
+
+  if (
+    !baseScheduleId
+  ) {
+    return "";
+  }
+
+
+  /*
+    일정 ID가 이미 호기별 ID라면
+    중복으로 ::unit1을 붙이지 않는다.
+  */
+  if (
+    /::unit[12]$/i.test(
+      baseScheduleId
+    )
+  ) {
+    return baseScheduleId;
+  }
+
+
+  /*
+    호기 분리 대상이 아니면
+    기존 일정 ID를 그대로 사용한다.
+  */
+  if (
+    !isInspectionCalendarUnitSeparatedSchedule(
+      scheduleItem
+    )
+  ) {
+    return baseScheduleId;
+  }
+
+
+  const unitNo =
+    getInspectionCalendarRoleUnit(
+      role
+    );
+
+
+  if (
+    unitNo !==
+      1 &&
+    unitNo !==
+      2
+  ) {
+    return baseScheduleId;
+  }
+
+
+  return `${baseScheduleId}::unit${unitNo}`;
+}  
 
 /* =====================================================
   보직별 점검 기준 날짜·근무
@@ -722,15 +1111,28 @@ async function applyRoleInspectionContext(
   }
 
 /* =========================================================
-  선택 날짜·근무 점검 현황 전달
+  보직별 오늘 점검 현황 전달
 
-  전달 내용:
-  - 보직별 오늘 점검
-  - 업무일지 자동완료 판정용 전체 점검 목록
+  완료 조회 규칙:
 
-  전체 점검 목록은 담당 보직과 관계없이 전달한다.
-  어떤 보직의 업무일지에서든 점검 수행 문구를
-  인식할 수 있도록 하기 위함이다.
+  TGO / TO:
+  - 원래 일정 ID 사용
+
+  BCO1 / BO1:
+  - 1호기 완료 ID 사용
+  - scheduleId::unit1
+
+  BCO2 / BO2:
+  - 2호기 완료 ID 사용
+  - scheduleId::unit2
+
+  중요:
+  호기 분리 일정에서는 기존 기본 scheduleId를
+  대체 완료값으로 사용하지 않는다.
+
+  기존 ID를 대신 인정하면
+  다시 1호기 수행으로 2호기까지 완료되는 문제가
+  발생하기 때문이다.
 ========================================================= */
 
 async function publishRoleTodaySummary() {
@@ -747,24 +1149,31 @@ async function publishRoleTodaySummary() {
     getRoleTodayShiftContext();
 
 
-  let scheduleOccurrences =
-    [];
-
-
   try {
+    /*
+      서버에서 실제 완료 기록을 불러온다.
+
+      Map에는 다음 ID가 그대로 저장된다.
+
+      일반 일정:
+      weekly-lng-system
+
+      호기별 일정:
+      weekly-sda-hopper-ash::unit1
+      weekly-sda-hopper-ash::unit2
+    */
+    const completionMap =
+      await loadRoleTodayCompletionMap(
+        context.workDate
+      );
+
+
     const scheduleResult =
       getInspectionSchedulesForDate(
         context.workDate
       );
 
 
-    /*
-      타부서 참고 일정은 자동완료 대상에서 제외한다.
-
-      포함:
-      - 날짜가 확정된 점검
-      - 조건부 점검
-    */
     const todayScheduleItems = [
       ...scheduleResult.dueItems.filter(
         item => {
@@ -787,11 +1196,7 @@ async function publishRoleTodaySummary() {
 
 
     /*
-      일정에 D/S·N/S가 모두 지정된 경우
-      현재 선택 근무에 해당하는 일정만 남긴다.
-
-      근무가 비어 있는 일정은
-      D/S·N/S 공통 일정으로 유지한다.
+      오늘 날짜·현재 근무의 실제 점검 일정
     */
     const occurrences =
       todayScheduleItems
@@ -821,7 +1226,7 @@ async function publishRoleTodaySummary() {
 
 
     /*
-      일정 ID + 날짜 + 근무 기준 중복 제거
+      같은 일정·날짜·근무 중복 제거
     */
     const uniqueOccurrences = [
       ...new Map(
@@ -850,13 +1255,12 @@ async function publishRoleTodaySummary() {
 
 
     /*
-      업무일지 자동완료 서버에 전달할
-      최종 점검 목록
+      기존 업무일지 재검사용 일정 목록
 
-      assignedRoles는 화면 표시용 정보이며,
-      자동완료 판정에서는 보직 제한을 걸지 않는다.
+      여기에는 원래 일정 ID를 전달한다.
+      서버 내부에서 담당 보직과 1·2호기를 다시 나눈다.
     */
-    scheduleOccurrences =
+    const scheduleOccurrences =
       uniqueOccurrences.map(
         occurrence => {
           const scheduleItem =
@@ -885,69 +1289,24 @@ async function publishRoleTodaySummary() {
             shift:
               normalizeShift(
                 occurrence.shift
-              ),
-
-            category:
-              String(
-                scheduleItem.category ||
-                "other"
-              ).trim(),
-
-            scheduleLabel:
-              String(
-                scheduleItem.scheduleLabel ||
-                ""
-              ).trim(),
-
-            position:
-              String(
-                scheduleItem.position ||
-                ""
-              ).trim(),
-
-            note:
-              String(
-                scheduleItem.note ||
-                ""
-              ).trim(),
-
-            conditional:
-              scheduleItem.conditional ===
-                true,
-
-            assignedRoles:
-              getAssignedRoles(
-                scheduleItem
               )
           };
-        }
-      )
-      .filter(
-        occurrence => {
-          return Boolean(
-            occurrence.scheduleId &&
-            occurrence.scheduleTitle &&
-            occurrence.dueDate
-          );
         }
       );
 
 
     /*
-      완료 상태 조회
-
-      이 조회가 실패해도 위에서 만든
-      scheduleOccurrences는 메인 화면에 전달한다.
+      보직별 점검 목록 및 완료 상태
     */
-    const completionMap =
-      await loadRoleTodayCompletionMap(
-        context.workDate
-      );
-
-
     const roles =
       roleOrder.map(
         role => {
+          const roleUnitNo =
+            getInspectionCalendarRoleUnit(
+              role
+            );
+
+
           const roleItems =
             uniqueOccurrences
               .filter(
@@ -965,10 +1324,48 @@ async function publishRoleTodaySummary() {
                     occurrence.scheduleItem;
 
 
+                  const baseScheduleId =
+                    String(
+                      scheduleItem.id ||
+                      ""
+                    ).trim();
+
+
+                  const unitSeparated =
+                    isInspectionCalendarUnitSeparatedSchedule(
+                      scheduleItem
+                    );
+
+
+                  /*
+                    현재 보직이 조회해야 하는
+                    실제 D1 완료 기록 ID
+                  */
+                  const completionScheduleId =
+                    getInspectionCalendarCompletionScheduleId(
+                      scheduleItem,
+                      role
+                    );
+
+
+                  /*
+                    중요:
+
+                    호기 분리 일정은 해당 호기 ID만 조회한다.
+
+                    BCO1 / BO1:
+                    ::unit1
+
+                    BCO2 / BO2:
+                    ::unit2
+
+                    기본 일정 ID로 다시 조회하는
+                    fallback은 사용하지 않는다.
+                  */
                   const completion =
                     completionMap.get(
                       createStatusKey(
-                        scheduleItem.id,
+                        completionScheduleId,
                         occurrence.dueDate,
                         occurrence.shift
                       )
@@ -976,12 +1373,36 @@ async function publishRoleTodaySummary() {
                     null;
 
 
+                  const unitNo =
+                    unitSeparated
+                      ? roleUnitNo
+                      : 0;
+
+
                   return {
+                    /*
+                      화면과 재검사에서 사용하는
+                      원래 일정 ID
+                    */
                     scheduleId:
-                      String(
-                        scheduleItem.id ||
-                        ""
-                      ),
+                      baseScheduleId,
+
+
+                    /*
+                      실제 완료 기록 조회에 사용한 ID
+                    */
+                    completionScheduleId,
+
+
+                    unitSeparated,
+
+                    unitNo,
+
+                    unitLabel:
+                      unitNo
+                        ? `${unitNo}호기`
+                        : "",
+
 
                     title:
                       String(
@@ -1028,8 +1449,12 @@ async function publishRoleTodaySummary() {
 
                     conditional:
                       scheduleItem.conditional ===
-                        true,
+                      true,
 
+
+                    /*
+                      완료 상태
+                    */
                     completed:
                       Boolean(
                         completion
@@ -1048,6 +1473,33 @@ async function publishRoleTodaySummary() {
                           ?.completedAt ||
                         ""
                       ),
+
+                    completionSource:
+                      String(
+                        completion
+                          ?.completionSource ||
+                        ""
+                      ),
+
+                    isAutomatic:
+                      completion
+                        ?.isAutomatic ===
+                      true,
+
+                    sourceRole:
+                      String(
+                        completion
+                          ?.sourceRole ||
+                        ""
+                      ),
+
+                    sourceText:
+                      String(
+                        completion
+                          ?.sourceText ||
+                        ""
+                      ),
+
 
                     canOpenLog:
                       Boolean(
@@ -1075,11 +1527,13 @@ async function publishRoleTodaySummary() {
                         secondItem.category
                       ] ||
                       99
-                    )
-                  ) ||
-                  firstItem.title.localeCompare(
-                    secondItem.title,
-                    "ko"
+                    ) ||
+
+                    firstItem.title
+                      .localeCompare(
+                        secondItem.title,
+                        "ko"
+                      )
                   );
                 }
               );
@@ -1088,13 +1542,19 @@ async function publishRoleTodaySummary() {
           const completedCount =
             roleItems.filter(
               item => {
-                return item.completed;
+                return (
+                  item.completed ===
+                  true
+                );
               }
             ).length;
 
 
           return {
             role,
+
+            unitNo:
+              roleUnitNo,
 
             totalCount:
               roleItems.length,
@@ -1129,12 +1589,12 @@ async function publishRoleTodaySummary() {
         shiftLabel:
           context.shiftLabel,
 
-        roles,
-
         /*
-          업무일지 자동완료용 전체 점검 목록
+          메인 script.js의 기존 업무일지 재검사에도 사용
         */
-        scheduleOccurrences
+        scheduleOccurrences,
+
+        roles
       },
 
       window.location.origin
@@ -1149,10 +1609,6 @@ async function publishRoleTodaySummary() {
     );
 
 
-    /*
-      완료 상태 조회가 실패해도
-      계산에 성공한 점검 목록은 전달한다.
-    */
     window.parent.postMessage(
       {
         type:
@@ -1176,10 +1632,11 @@ async function publishRoleTodaySummary() {
             ? error.message
             : "오늘 점검 현황을 불러오지 못했습니다.",
 
-        roles:
+        scheduleOccurrences:
           [],
 
-        scheduleOccurrences
+        roles:
+          []
       },
 
       window.location.origin
@@ -2233,9 +2690,18 @@ function createInspectionCalendarCompletionHtml(
   `;
 }
 
-
 /* =========================================================
-  완료·완료취소 버튼 출력
+  완료·완료취소 버튼
+
+  일반 일정:
+  기본 일정 ID 사용
+
+  보일러 일정:
+  ::unit1 또는 ::unit2 사용
+
+  업무일지 자동완료:
+  원본 업무일지를 수정해야 해제되므로
+  달력에 완료취소 버튼을 표시하지 않는다.
 ========================================================= */
 
 function createStatusActionHtml(
@@ -2252,9 +2718,26 @@ function createStatusActionHtml(
     occurrence.scheduleItem;
 
 
-  /*
-    타부서 참고 일정
-  */
+  const completionScheduleId =
+    getInspectionCalendarOccurrenceScheduleId(
+      occurrence
+    );
+
+
+  const baseScheduleId =
+    String(
+      scheduleItem?.id ||
+      ""
+    ).trim();
+
+
+  const unitNo =
+    Number(
+      occurrence?.unitNo ||
+      0
+    );
+
+
   if (
     scheduleItem.referenceOnly ===
       true
@@ -2267,22 +2750,106 @@ function createStatusActionHtml(
   }
 
 
-  /*
-    완료된 일정
-  */
   if (
     completion
   ) {
-    return createInspectionCalendarCompletionHtml(
-      occurrence,
-      completion
-    );
+    const completedDate =
+      new Date(
+        completion.completedAt ||
+        0
+      );
+
+
+    const completedAt =
+      Number.isNaN(
+        completedDate.getTime()
+      )
+        ? ""
+        : new Intl.DateTimeFormat(
+            "ko-KR",
+            {
+              month:
+                "2-digit",
+
+              day:
+                "2-digit",
+
+              hour:
+                "2-digit",
+
+              minute:
+                "2-digit",
+
+              hour12:
+                false
+            }
+          ).format(
+            completedDate
+          );
+
+
+    const isAutomatic =
+      completion.isAutomatic ===
+        true ||
+
+      String(
+        completion.completionSource ||
+        ""
+      ).toLowerCase() ===
+        "shift_log";
+
+
+    return `
+      <span class="inspection-calendar-completion-info">
+        ${escapeHtml(
+          completion.completedByName ||
+          "완료자 확인 불가"
+        )}
+
+        ${
+          completedAt
+            ? ` · ${escapeHtml(
+                completedAt
+              )}`
+            : ""
+        }
+      </span>
+
+      ${
+        isAutomatic
+          ? `
+              <span class="inspection-calendar-reference">
+                업무일지 자동완료
+              </span>
+            `
+          : `
+              <button
+                type="button"
+                class="inspection-calendar-cancel-button"
+                data-calendar-cancel="${escapeHtml(
+                  completionScheduleId
+                )}"
+                data-base-schedule-id="${escapeHtml(
+                  baseScheduleId
+                )}"
+                data-unit-no="${escapeHtml(
+                  unitNo
+                )}"
+                data-due-date="${escapeHtml(
+                  occurrence.dueDate
+                )}"
+                data-shift="${escapeHtml(
+                  occurrence.shift
+                )}"
+              >
+                완료 취소
+              </button>
+            `
+      }
+    `;
   }
 
 
-  /*
-    미완료 일정
-  */
   const label =
     options.conditional
       ? "해당 시 완료"
@@ -2296,7 +2863,13 @@ function createStatusActionHtml(
       type="button"
       class="inspection-calendar-complete-button"
       data-calendar-complete="${escapeHtml(
-        scheduleItem.id
+        completionScheduleId
+      )}"
+      data-base-schedule-id="${escapeHtml(
+        baseScheduleId
+      )}"
+      data-unit-no="${escapeHtml(
+        unitNo
       )}"
       data-due-date="${escapeHtml(
         occurrence.dueDate
@@ -2312,17 +2885,11 @@ function createStatusActionHtml(
   `;
 }
 
-
 /* =========================================================
-  선택 날짜 점검 카드 출력
+  선택 날짜 점검항목 출력
 
-  구성:
-  - 구분·상태 배지
-  - 점검명
-  - 근무·위치·주기
-  - 참고사항
-  - 완료 상태 또는 자동완료 근거
-  - 점검일지 열기
+  보일러 일정은
+  1호기와 2호기를 별도 행으로 표시한다.
 ========================================================= */
 
 function createSelectedItemHtml(
@@ -2331,12 +2898,6 @@ function createSelectedItemHtml(
 ) {
   const scheduleItem =
     occurrence.scheduleItem;
-
-
-  const completion =
-    getCompletion(
-      occurrence
-    );
 
 
   const state =
@@ -2367,23 +2928,17 @@ function createSelectedItemHtml(
   };
 
 
+  const unitLabel =
+    String(
+      occurrence?.unitLabel ||
+      ""
+    ).trim();
+
+
   const linkedCard =
     getLinkedCard(
       scheduleItem
     );
-
-
-  const isAutomatic =
-    completion?.isAutomatic ===
-      true ||
-
-    String(
-      completion?.completionSource ||
-      ""
-    )
-      .trim()
-      .toLowerCase() ===
-        "shift_log";
 
 
   return `
@@ -2393,15 +2948,10 @@ function createSelectedItemHtml(
         is-${escapeHtml(
           state
         )}
-        ${
-          isAutomatic
-            ? "is-automatic-completion"
-            : ""
-        }
       "
     >
 
-      <div class="inspection-calendar-selected-item__body">
+      <div class="inspection-calendar-selected-item__content">
 
         <div class="inspection-calendar-selected-item__badges">
 
@@ -2420,6 +2970,19 @@ function createSelectedItemHtml(
               "기타"
             )}
           </span>
+
+
+          ${
+            unitLabel
+              ? `
+                  <span class="inspection-calendar-state is-today">
+                    ${escapeHtml(
+                      unitLabel
+                    )}
+                  </span>
+                `
+              : ""
+          }
 
 
           <span
@@ -2441,86 +3004,52 @@ function createSelectedItemHtml(
         </div>
 
 
-        <strong class="inspection-calendar-selected-item__title">
+        <strong>
           ${escapeHtml(
             scheduleItem.title
           )}
         </strong>
 
 
-        <div class="inspection-calendar-selected-item__meta">
+        <span class="inspection-calendar-selected-item__meta">
+          ${escapeHtml(
+            getShiftLabel(
+              occurrence.shift
+            )
+          )}
 
-          <span>
-            <b>근무</b>
+          · ${escapeHtml(
+            scheduleItem.position ||
+            "위치 미지정"
+          )}
 
-            ${escapeHtml(
-              getShiftLabel(
-                occurrence.shift
-              )
-            )}
-          </span>
-
-
-          <span>
-            <b>위치</b>
-
-            ${escapeHtml(
-              scheduleItem.position ||
-              "위치 미지정"
-            )}
-          </span>
-
-
-          <span>
-            <b>주기</b>
-
-            ${escapeHtml(
-              scheduleItem.scheduleLabel ||
-              "주기 미지정"
-            )}
-          </span>
-
-        </div>
+          · ${escapeHtml(
+            scheduleItem.scheduleLabel ||
+            "주기 미지정"
+          )}
+        </span>
 
 
         ${
           scheduleItem.note
             ? `
-              <p class="inspection-calendar-selected-item__note">
-                ${escapeHtml(
-                  scheduleItem.note
-                )}
-              </p>
-            `
+                <small>
+                  ${escapeHtml(
+                    scheduleItem.note
+                  )}
+                </small>
+              `
             : ""
         }
 
       </div>
 
 
-      <div class="inspection-calendar-selected-item__footer">
-
-        <div class="inspection-calendar-selected-item__result">
-
-          ${createStatusActionHtml(
-            occurrence,
-            {
-              ...options,
-
-              overdue:
-                state ===
-                "overdue"
-            }
-          )}
-
-        </div>
-
+      <div class="inspection-calendar-selected-item__actions">
 
         ${
           linkedCard
             ? `
-              <div class="inspection-calendar-selected-item__actions">
-
                 <button
                   type="button"
                   class="inspection-calendar-log-button"
@@ -2530,18 +3059,27 @@ function createSelectedItemHtml(
                 >
                   점검일지 열기
                 </button>
-
-              </div>
-            `
+              `
             : ""
         }
+
+
+        ${createStatusActionHtml(
+          occurrence,
+          {
+            ...options,
+
+            overdue:
+              state ===
+              "overdue"
+          }
+        )}
 
       </div>
 
     </article>
   `;
 }
-
 
 /* =========================================================
   선택 날짜 구역으로 이동
@@ -3096,107 +3634,451 @@ async function refreshStatus() {
   }
 }
 
-  async function completeSchedule(button) {
-    const scheduleId = String(button.dataset.calendarComplete || "").trim();
-    const dueDate = String(button.dataset.dueDate || "").trim();
-    const shift = normalizeShift(button.dataset.shift);
-    const scheduleItem = INSPECTION_SCHEDULE_MASTER.find(item => item.id === scheduleId);
+/* =========================================================
+  달력 수동 완료 처리
 
-    if (!scheduleItem || !dueDate) {
-      window.alert("완료 처리할 점검 정보를 확인할 수 없습니다.");
-      return;
-    }
+  보일러 호기 일정:
+  - ::unit1
+  - ::unit2
 
-    const confirmed = window.confirm([
-      "점검을 완료 처리하시겠습니까?",
-      "",
-      scheduleItem.title,
-      `예정일: ${dueDate}`,
-      `근무: ${getShiftLabel(shift)}`
-    ].join("\n"));
+  를 각각 독립 저장한다.
+========================================================= */
 
-    if (!confirmed) {
-      return;
-    }
+async function completeSchedule(
+  button
+) {
+  const completionScheduleId =
+    String(
+      button.dataset.calendarComplete ||
+      ""
+    ).trim();
 
-    const originalText = button.textContent;
-    button.disabled = true;
-    button.textContent = "처리 중...";
 
-    try {
-      const response = await fetch(STATUS_API, {
-        method: "POST",
-        headers: getAuthHeaders({ "Content-Type": "application/json" }),
-        cache: "no-store",
-        body: JSON.stringify({
-          scheduleId,
-          dueDate,
-          shift,
-          scheduleTitle: scheduleItem.title,
-          note: ""
-        })
-      });
+  const baseScheduleId =
+    String(
+      button.dataset.baseScheduleId ||
 
-      const result = await readApiResponse(response);
-      window.alert(result.message || "점검을 완료 처리했습니다.");
-      await refreshStatus();
-    } catch (error) {
-      console.error("달력 점검 완료 처리 실패:", error);
-      window.alert(error instanceof Error ? error.message : "점검을 완료 처리하지 못했습니다.");
-      button.disabled = false;
-      button.textContent = originalText;
-    }
+      completionScheduleId.replace(
+        /::unit[12]$/i,
+        ""
+      )
+    ).trim();
+
+
+  const dueDate =
+    String(
+      button.dataset.dueDate ||
+      ""
+    ).trim();
+
+
+  const shift =
+    normalizeShift(
+      button.dataset.shift
+    );
+
+
+  const unitMatch =
+    completionScheduleId.match(
+      /::unit([12])$/i
+    );
+
+
+  const datasetUnitNo =
+    Number(
+      button.dataset.unitNo ||
+      0
+    );
+
+
+  const unitNo =
+    [
+      1,
+      2
+    ].includes(
+      datasetUnitNo
+    )
+      ? datasetUnitNo
+      : Number(
+          unitMatch?.[1] ||
+          0
+        );
+
+
+  /*
+    화면 일정은 기본 일정 ID로 찾는다.
+  */
+  const scheduleItem =
+    INSPECTION_SCHEDULE_MASTER.find(
+      item => {
+        return (
+          item.id ===
+          baseScheduleId
+        );
+      }
+    );
+
+
+  if (
+    !completionScheduleId ||
+    !scheduleItem ||
+    !dueDate
+  ) {
+    window.alert(
+      "완료 처리할 점검 정보를 확인할 수 없습니다."
+    );
+
+
+    return;
   }
 
-  async function cancelCompletion(button) {
-    const scheduleId = String(button.dataset.calendarCancel || "").trim();
-    const dueDate = String(button.dataset.dueDate || "").trim();
-    const shift = normalizeShift(button.dataset.shift);
-    const scheduleItem = INSPECTION_SCHEDULE_MASTER.find(item => item.id === scheduleId);
 
-    if (!scheduleItem || !dueDate) {
-      window.alert("완료 취소할 점검 정보를 확인할 수 없습니다.");
-      return;
-    }
+  const scheduleTitle =
+    unitNo ===
+      1 ||
+    unitNo ===
+      2
+      ? `${unitNo}호기 ${scheduleItem.title}`
+      : scheduleItem.title;
 
-    const confirmed = window.confirm([
-      "점검 완료를 취소하시겠습니까?",
-      "",
-      scheduleItem.title,
-      `예정일: ${dueDate}`,
-      `근무: ${getShiftLabel(shift)}`
-    ].join("\n"));
 
-    if (!confirmed) {
-      return;
-    }
+  const confirmed =
+    window.confirm(
+      [
+        "점검을 완료 처리하시겠습니까?",
+        "",
+        scheduleTitle,
+        `예정일: ${dueDate}`,
+        `근무: ${getShiftLabel(
+          shift
+        )}`
+      ].join(
+        "\n"
+      )
+    );
 
-    const originalText = button.textContent;
-    button.disabled = true;
-    button.textContent = "취소 중...";
 
-    try {
-      const url = new URL(STATUS_API, window.location.origin);
-      url.searchParams.set("scheduleId", scheduleId);
-      url.searchParams.set("dueDate", dueDate);
-      url.searchParams.set("shift", shift);
-
-      const response = await fetch(url.toString(), {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-        cache: "no-store"
-      });
-
-      const result = await readApiResponse(response);
-      window.alert(result.message || "점검 완료를 취소했습니다.");
-      await refreshStatus();
-    } catch (error) {
-      console.error("달력 점검 완료 취소 실패:", error);
-      window.alert(error instanceof Error ? error.message : "점검 완료를 취소하지 못했습니다.");
-      button.disabled = false;
-      button.textContent = originalText;
-    }
+  if (
+    !confirmed
+  ) {
+    return;
   }
+
+
+  const originalText =
+    button.textContent;
+
+
+  button.disabled =
+    true;
+
+
+  button.textContent =
+    "처리 중...";
+
+
+  try {
+    const response =
+      await fetch(
+        STATUS_API,
+        {
+          method:
+            "POST",
+
+          headers:
+            getAuthHeaders({
+              "Content-Type":
+                "application/json"
+            }),
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              /*
+                실제 저장 ID
+
+                일반:
+                weekly-lng-system
+
+                호기:
+                weekly-sda-hopper-ash::unit1
+              */
+              scheduleId:
+                completionScheduleId,
+
+              dueDate,
+
+              shift,
+
+              scheduleTitle,
+
+              note:
+                ""
+            })
+        }
+      );
+
+
+    const result =
+      await readApiResponse(
+        response
+      );
+
+
+    window.alert(
+      result.message ||
+      "점검을 완료 처리했습니다."
+    );
+
+
+    await refreshStatus();
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "달력 점검 완료 처리 실패:",
+      error
+    );
+
+
+    window.alert(
+      error instanceof
+        Error
+        ? error.message
+        : "점검을 완료 처리하지 못했습니다."
+    );
+
+
+    button.disabled =
+      false;
+
+
+    button.textContent =
+      originalText;
+  }
+}
+
+/* =========================================================
+  달력 수동 완료 취소
+
+  호기별 완료 ID를 그대로 전달하여
+  선택한 호기만 완료 취소한다.
+========================================================= */
+
+async function cancelCompletion(
+  button
+) {
+  const completionScheduleId =
+    String(
+      button.dataset.calendarCancel ||
+      ""
+    ).trim();
+
+
+  const baseScheduleId =
+    String(
+      button.dataset.baseScheduleId ||
+
+      completionScheduleId.replace(
+        /::unit[12]$/i,
+        ""
+      )
+    ).trim();
+
+
+  const dueDate =
+    String(
+      button.dataset.dueDate ||
+      ""
+    ).trim();
+
+
+  const shift =
+    normalizeShift(
+      button.dataset.shift
+    );
+
+
+  const unitMatch =
+    completionScheduleId.match(
+      /::unit([12])$/i
+    );
+
+
+  const datasetUnitNo =
+    Number(
+      button.dataset.unitNo ||
+      0
+    );
+
+
+  const unitNo =
+    [
+      1,
+      2
+    ].includes(
+      datasetUnitNo
+    )
+      ? datasetUnitNo
+      : Number(
+          unitMatch?.[1] ||
+          0
+        );
+
+
+  const scheduleItem =
+    INSPECTION_SCHEDULE_MASTER.find(
+      item => {
+        return (
+          item.id ===
+          baseScheduleId
+        );
+      }
+    );
+
+
+  if (
+    !completionScheduleId ||
+    !scheduleItem ||
+    !dueDate
+  ) {
+    window.alert(
+      "완료 취소할 점검 정보를 확인할 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  const scheduleTitle =
+    unitNo ===
+      1 ||
+    unitNo ===
+      2
+      ? `${unitNo}호기 ${scheduleItem.title}`
+      : scheduleItem.title;
+
+
+  const confirmed =
+    window.confirm(
+      [
+        "점검 완료를 취소하시겠습니까?",
+        "",
+        scheduleTitle,
+        `예정일: ${dueDate}`,
+        `근무: ${getShiftLabel(
+          shift
+        )}`
+      ].join(
+        "\n"
+      )
+    );
+
+
+  if (
+    !confirmed
+  ) {
+    return;
+  }
+
+
+  const originalText =
+    button.textContent;
+
+
+  button.disabled =
+    true;
+
+
+  button.textContent =
+    "취소 중...";
+
+
+  try {
+    const url =
+      new URL(
+        STATUS_API,
+        window.location.origin
+      );
+
+
+    url.searchParams.set(
+      "scheduleId",
+      completionScheduleId
+    );
+
+
+    url.searchParams.set(
+      "dueDate",
+      dueDate
+    );
+
+
+    url.searchParams.set(
+      "shift",
+      shift
+    );
+
+
+    const response =
+      await fetch(
+        url.toString(),
+        {
+          method:
+            "DELETE",
+
+          headers:
+            getAuthHeaders(),
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    const result =
+      await readApiResponse(
+        response
+      );
+
+
+    window.alert(
+      result.message ||
+      "점검 완료를 취소했습니다."
+    );
+
+
+    await refreshStatus();
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "달력 점검 완료 취소 실패:",
+      error
+    );
+
+
+    window.alert(
+      error instanceof
+        Error
+        ? error.message
+        : "점검 완료를 취소하지 못했습니다."
+    );
+
+
+    button.disabled =
+      false;
+
+
+    button.textContent =
+      originalText;
+  }
+}
 
 /* =========================================================
   점검 일정 버튼 처리
