@@ -155908,120 +155908,220 @@ function resolveWaterSourceDate() {
     진행 상태 반복 조회
   ====================================================== */
 
-  async function pollLimestoneUsageBatch() {
+async function pollLimestoneUsageBatch(
+  options = {}
+) {
+  const suppressFinishedToast =
+    options
+      .suppressFinishedToast ===
+      true;
+
+
+  if (
+    !limestoneUsageActiveBatchId
+  ) {
+    return;
+  }
+
+
+  stopLimestoneUsageBatchPolling();
+
+
+  try {
+    const result =
+      await getLimestoneUsageBatch(
+        limestoneUsageActiveBatchId
+      );
+
+
+    const rendered =
+      renderLimestoneUsageBatchProgress(
+        result
+      );
+
+
+    /* ===================================================
+      작업 완료
+    ==================================================== */
+
     if (
-      !limestoneUsageActiveBatchId
+      rendered.isFinished
     ) {
+      stopLimestoneUsageBatchPolling();
+
+
+      /*
+        현재 완료된 작업 ID를 먼저 보관한다.
+
+        아래에서 activeBatchId를 비우기 때문에
+        완료 알림과 localStorage 정리에 사용한다.
+      */
+      const finishedBatchId =
+        limestoneUsageActiveBatchId;
+
+
+      const storageKey =
+        getLimestoneUsageBatchStorageKey();
+
+
+      const savedBatchId =
+        String(
+          localStorage.getItem(
+            storageKey
+          ) ||
+          ""
+        ).trim();
+
+
+      /* =================================================
+        완료 작업은 더 이상 복원할 필요가 없다.
+
+        현재 완료된 작업과
+        localStorage에 저장된 작업이 같은 경우에만 삭제한다.
+      ================================================== */
+
+      if (
+        savedBatchId ===
+          finishedBatchId
+      ) {
+        localStorage.removeItem(
+          storageKey
+        );
+      }
+
+
+      /*
+        현재 진행 작업도 해제한다.
+      */
+      limestoneUsageActiveBatchId =
+        "";
+
+
+      /*
+        현재 선택 날짜의 사용량 화면은
+        최신 저장 결과로 다시 갱신한다.
+      */
+      await refreshCurrentLimestoneUsageAfterBatch();
+
+
+      /* =================================================
+        완료 알림
+
+        새로 시작했거나 실제 진행 중이던 작업:
+        → 완료 알림 표시
+
+        로그인 시 이미 완료돼 있던 과거 작업:
+        → 알림 생략
+      ================================================== */
+
+      if (
+        !suppressFinishedToast &&
+
+        limestoneUsageLastNotifiedBatchId !==
+          finishedBatchId
+      ) {
+        limestoneUsageLastNotifiedBatchId =
+          finishedBatchId;
+
+
+        if (
+          typeof showToast ===
+            "function"
+        ) {
+          if (
+            rendered.status ===
+              "complete"
+          ) {
+            showToast(
+              "기간 전체 석회석 사용량 계산과 저장이 완료되었습니다."
+            );
+
+          } else {
+            showToast(
+              "기간 계산이 완료되었습니다. 실패 날짜를 확인해 주세요."
+            );
+          }
+        }
+      }
+
+
       return;
     }
 
 
-    stopLimestoneUsageBatchPolling();
+    /* ===================================================
+      아직 진행 중
 
+      로그인 시 복원한 작업이라도
+      지금 실제로 진행 중인 것을 확인했으므로,
+      이후 완료 시에는 정상적으로 알림을 표시한다.
+    ==================================================== */
 
-    try {
-      const result =
-        await getLimestoneUsageBatch(
-          limestoneUsageActiveBatchId
-        );
+    limestoneUsageBatchPollTimer =
+      window.setTimeout(
+        () => {
+          void pollLimestoneUsageBatch({
+            suppressFinishedToast:
+              false
+          });
+        },
 
-
-      const rendered =
-        renderLimestoneUsageBatchProgress(
-          result
-        );
-
-
-      if (
-        rendered.isFinished
-      ) {
-        stopLimestoneUsageBatchPolling();
-
-
-        await refreshCurrentLimestoneUsageAfterBatch();
-
-
-        if (
-          limestoneUsageLastNotifiedBatchId !==
-            limestoneUsageActiveBatchId
-        ) {
-          limestoneUsageLastNotifiedBatchId =
-            limestoneUsageActiveBatchId;
-
-
-          if (
-            typeof showToast ===
-              "function"
-          ) {
-            if (
-              rendered.status ===
-                "complete"
-            ) {
-              showToast(
-                "기간 전체 석회석 사용량 계산과 저장이 완료되었습니다."
-              );
-
-            } else {
-              showToast(
-                "기간 계산이 완료되었습니다. 실패 날짜를 확인해 주세요."
-              );
-            }
-          }
-        }
-
-
-        return;
-      }
-
-
-      limestoneUsageBatchPollTimer =
-        window.setTimeout(
-          pollLimestoneUsageBatch,
-          LIMESTONE_USAGE_BATCH_POLL_INTERVAL
-        );
-
-    } catch (
-      error
-    ) {
-      console.error(
-        "석회석 기간 계산 상태 조회 실패:",
-        error
+        LIMESTONE_USAGE_BATCH_POLL_INTERVAL
       );
 
-
-      const {
-        progressTitle,
-        progressDescription
-      } =
-        getLimestoneUsageBatchElements();
-
-
-      if (
-        progressTitle
-      ) {
-        progressTitle.textContent =
-          "진행 상태 재확인 중";
-      }
+  } catch (
+    error
+  ) {
+    console.error(
+      "석회석 기간 계산 상태 조회 실패:",
+      error
+    );
 
 
-      if (
-        progressDescription
-      ) {
-        progressDescription.textContent =
-          error?.message ||
-          "기간 계산 상태를 잠시 후 다시 확인합니다.";
-      }
+    const {
+      progressTitle,
+      progressDescription
+    } =
+      getLimestoneUsageBatchElements();
 
 
-      limestoneUsageBatchPollTimer =
-        window.setTimeout(
-          pollLimestoneUsageBatch,
-          LIMESTONE_USAGE_BATCH_POLL_INTERVAL *
-          2
-        );
+    if (
+      progressTitle
+    ) {
+      progressTitle.textContent =
+        "진행 상태 재확인 중";
     }
-  }
 
+
+    if (
+      progressDescription
+    ) {
+      progressDescription.textContent =
+        error?.message ||
+        "기간 계산 상태를 잠시 후 다시 확인합니다.";
+    }
+
+
+    /*
+      최초 복원 조회 자체가 실패한 경우에는
+      아직 완료인지 진행 중인지 알 수 없다.
+
+      따라서 suppressFinishedToast 상태를 그대로 유지한 채
+      다시 확인한다.
+    */
+    limestoneUsageBatchPollTimer =
+      window.setTimeout(
+        () => {
+          void pollLimestoneUsageBatch({
+            suppressFinishedToast
+          });
+        },
+
+        LIMESTONE_USAGE_BATCH_POLL_INTERVAL *
+        2
+      );
+  }
+}
 
   /* =====================================================
     기간 전체 계산 시작
@@ -156649,30 +156749,43 @@ function resolveWaterSourceDate() {
     새로고침 후 기존 진행 작업 복원
   ====================================================== */
 
-  async function restoreLimestoneUsageBatch() {
-    const savedBatchId =
-      String(
-        localStorage.getItem(
-          getLimestoneUsageBatchStorageKey()
-        ) ||
-        ""
-      ).trim();
+async function restoreLimestoneUsageBatch() {
+  const savedBatchId =
+    String(
+      localStorage.getItem(
+        getLimestoneUsageBatchStorageKey()
+      ) ||
+      ""
+    ).trim();
 
 
-    if (
-      !savedBatchId
-    ) {
-      return;
-    }
-
-
-    limestoneUsageActiveBatchId =
-      savedBatchId;
-
-
-    await pollLimestoneUsageBatch();
+  if (
+    !savedBatchId
+  ) {
+    return;
   }
 
+
+  limestoneUsageActiveBatchId =
+    savedBatchId;
+
+
+  /*
+    로그인·새로고침 직후 첫 조회에서는:
+
+    이미 예전에 완료된 작업이라면
+    완료 알림을 다시 띄우지 않는다.
+
+    단,
+    실제로 아직 진행 중인 작업이라면
+    pollLimestoneUsageBatch 내부에서 다음 조회부터
+    정상 알림 모드로 자동 전환된다.
+  */
+  await pollLimestoneUsageBatch({
+    suppressFinishedToast:
+      true
+  });
+}
 
   /* =====================================================
     초기화
