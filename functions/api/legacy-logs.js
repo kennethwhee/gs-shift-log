@@ -562,7 +562,86 @@ async function loadLegacyAttachmentsByDiaryIds(
 }
 
 /* =========================================================
+  삭제한 과거 업무일지 차단 테이블 확인
+
+  shift-logs.js에서도 동일 테이블을 사용한다.
+
+  여기에서도 CREATE TABLE IF NOT EXISTS를 실행하는 이유:
+  아직 한 번도 삭제가 발생하지 않은 서버에서도
+  legacy-logs 조회가 오류 없이 동작하게 하기 위함이다.
+========================================================= */
+
+async function ensureLegacyLogSuppressionTable(
+  database
+) {
+  if (
+    !database
+  ) {
+    return;
+  }
+
+
+  await database
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS
+        legacy_log_suppressions
+      (
+        legacy_diary_id TEXT NOT NULL,
+
+        work_date TEXT NOT NULL,
+
+        shift TEXT NOT NULL,
+
+        role TEXT NOT NULL,
+
+        source_log_id TEXT NOT NULL DEFAULT '',
+
+        deleted_by_id TEXT NOT NULL DEFAULT '',
+
+        deleted_by_name TEXT NOT NULL DEFAULT '',
+
+        deleted_at TEXT NOT NULL,
+
+        reason TEXT NOT NULL DEFAULT 'user-delete',
+
+        PRIMARY KEY (
+          legacy_diary_id,
+          work_date,
+          shift,
+          role
+        )
+      )
+    `)
+    .run();
+
+
+  await database
+    .prepare(`
+      CREATE INDEX IF NOT EXISTS
+        idx_legacy_log_suppressions_date
+
+      ON legacy_log_suppressions (
+        work_date,
+        shift,
+        role
+      )
+    `)
+    .run();
+}
+
+/* =========================================================
   GET /api/legacy-logs
+
+  삭제 차단 적용 최종본
+
+  처리:
+  1. 날짜/근무 기준 legacy_logs 조회
+  2. legacy_log_suppressions에 등록된 자료 제외
+  3. 남은 자료의 첨부파일만 조회
+  4. script.js에 반환
+
+  따라서 사용자가 삭제한 동기화 업무일지는
+  원본이 legacy_logs에 남아 있어도 다시 반환되지 않는다.
 ========================================================= */
 
 export async function onRequestGet(
@@ -576,6 +655,15 @@ export async function onRequestGet(
         "D1 바인딩 DB가 등록되지 않았습니다."
       );
     }
+
+
+    /* =====================================================
+      삭제 차단 테이블 준비
+    ====================================================== */
+
+    await ensureLegacyLogSuppressionTable(
+      context.env.DB
+    );
 
 
     const requestUrl =
@@ -599,6 +687,10 @@ export async function onRequestGet(
         )
       );
 
+
+    /* =====================================================
+      날짜 검사
+    ====================================================== */
 
     if (
       !date
@@ -637,26 +729,63 @@ export async function onRequestGet(
     }
 
 
+    /* =====================================================
+      과거 업무일지 조회
+
+      중요:
+      legacy_log_suppressions에 동일한
+
+      legacy_diary_id
+      + 날짜
+      + 근무
+      + 보직
+
+      조합이 있으면 조회에서 제외한다.
+    ====================================================== */
+
     let queryText = `
       SELECT
-        id,
-        legacy_diary_id,
-        work_date,
-        shift,
-        role,
-        author,
-        writer_id,
-        status,
-        operation_status,
-        entries_json,
-        original_json,
-        legacy_position,
-        legacy_version,
-        source_updated_at,
-        imported_at,
-        updated_at
-      FROM legacy_logs
-      WHERE work_date = ?1
+        legacy.id,
+        legacy.legacy_diary_id,
+        legacy.work_date,
+        legacy.shift,
+        legacy.role,
+        legacy.author,
+        legacy.writer_id,
+        legacy.status,
+        legacy.operation_status,
+        legacy.entries_json,
+        legacy.original_json,
+        legacy.legacy_position,
+        legacy.legacy_version,
+        legacy.source_updated_at,
+        legacy.imported_at,
+        legacy.updated_at
+
+      FROM legacy_logs AS legacy
+
+      WHERE
+        legacy.work_date = ?1
+
+        AND NOT EXISTS (
+          SELECT
+            1
+
+          FROM legacy_log_suppressions AS suppressed
+
+          WHERE
+            suppressed.legacy_diary_id =
+              legacy.legacy_diary_id
+
+            AND suppressed.work_date =
+              legacy.work_date
+
+            AND suppressed.shift =
+              legacy.shift
+
+            AND suppressed.role =
+              legacy.role
+        )
     `;
 
 
@@ -665,11 +794,15 @@ export async function onRequestGet(
     ];
 
 
+    /* =====================================================
+      특정 근무만 조회
+    ====================================================== */
+
     if (
       shift
     ) {
       queryText += `
-        AND shift = ?2
+        AND legacy.shift = ?2
       `;
 
 
@@ -679,9 +812,13 @@ export async function onRequestGet(
     }
 
 
+    /* =====================================================
+      보직 순서
+    ====================================================== */
+
     queryText += `
       ORDER BY
-        CASE role
+        CASE legacy.role
           WHEN '파트장' THEN 1
           WHEN 'TGO' THEN 2
           WHEN 'BCO1' THEN 3
@@ -691,7 +828,8 @@ export async function onRequestGet(
           WHEN 'BO2' THEN 7
           ELSE 99
         END,
-        id ASC
+
+        legacy.id ASC
     `;
 
 
@@ -706,59 +844,93 @@ export async function onRequestGet(
         .all();
 
 
-const rows =
-  Array.isArray(
-    queryResult.results
-  )
-    ? queryResult.results
-    : [];
-
-/*
-  조회된 업무일지 ID 목록
-*/
-const legacyDiaryIds =
-  rows
-    .map(row =>
-      normalizeText(
-        row.legacy_diary_id
+    const rows =
+      Array.isArray(
+        queryResult.results
       )
-    )
-    .filter(Boolean);
+        ? queryResult.results
+        : [];
 
-/*
-  첨부파일 조회
-*/
-const attachmentMap =
-  await loadLegacyAttachmentsByDiaryIds(
-    context.env.DB,
-    legacyDiaryIds
-    );
 
-/*
-  업무일지 + 첨부파일 결합
-*/
-const items =
-  rows.map(row => {
-    const legacyDiaryId =
-      normalizeText(
-        row.legacy_diary_id
+    /* =====================================================
+      조회된 업무일지 ID 목록
+
+      suppression에서 제외된 자료는
+      여기에도 들어오지 않는다.
+    ====================================================== */
+
+    const legacyDiaryIds =
+      rows
+        .map(
+          row => {
+            return normalizeText(
+              row.legacy_diary_id
+            );
+          }
+        )
+        .filter(
+          Boolean
+        );
+
+
+    /* =====================================================
+      남아 있는 업무일지의 첨부파일만 조회
+    ====================================================== */
+
+    const attachmentMap =
+      await loadLegacyAttachmentsByDiaryIds(
+        context.env.DB,
+        legacyDiaryIds
       );
 
-    return convertRowToLegacyLog(
-      row,
-      attachmentMap[
-        legacyDiaryId
-      ] || []
-    );
-  });
 
-const attachmentCount =
-  items.reduce(
-    (total, item) =>
-      total +
-      (item.attachments?.length || 0),
-    0
-  );
+    /* =====================================================
+      업무일지 + 첨부파일 결합
+    ====================================================== */
+
+    const items =
+      rows.map(
+        row => {
+          const legacyDiaryId =
+            normalizeText(
+              row.legacy_diary_id
+            );
+
+
+          return convertRowToLegacyLog(
+            row,
+            attachmentMap[
+              legacyDiaryId
+            ] ||
+            []
+          );
+        }
+      );
+
+
+    const attachmentCount =
+      items.reduce(
+        (
+          total,
+          item
+        ) => {
+          return (
+            total +
+            (
+              item.attachments
+                ?.length ||
+              0
+            )
+          );
+        },
+        0
+      );
+
+
+    /* =====================================================
+      응답
+    ====================================================== */
+
     return createJsonResponse({
       success:
         true,
@@ -777,7 +949,9 @@ const attachmentCount =
       items
     });
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "저장된 과거 업무일지 조회 오류:",
       error
@@ -790,20 +964,25 @@ const attachmentCount =
           false,
 
         message:
-          error instanceof Error
+          error instanceof
+            Error
             ? error.message
-            : String(error),
+            : String(
+                error
+              ),
 
         error:
-          error instanceof Error
+          error instanceof
+            Error
             ? error.message
-            : String(error)
+            : String(
+                error
+              )
       },
       500
     );
   }
 }
-
 
 /* =========================================================
   지원하지 않는 요청
