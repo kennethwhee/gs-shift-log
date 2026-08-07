@@ -142094,6 +142094,269 @@ function finalizeMorningMeetingWeekdayOperationArea(
 }
 
 /* =========================================================
+  오전회의 최종 엑셀
+  AO 오른쪽 잔여 셀 / 병합 최종 청소
+
+  적용 범위:
+  - 23행 이후 보고서 본문
+
+  유지:
+  - 상단 AP/AQ의 Coal / Bio 계산용 보조값
+
+  제거:
+  - AQ24:BK24 같은 주말 양식 잔재
+  - AO 오른쪽에 복제된 빈 셀 서식
+  - AO 오른쪽 병합 셀
+========================================================= */
+
+function cleanupMorningMeetingOutOfPrintResidue(
+  worksheetDocument
+) {
+  const sheetData =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "sheetData"
+      )[0];
+
+
+  const mergeCellsElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !sheetData
+  ) {
+    return {
+      removedCells:
+        0,
+
+      removedMerges:
+        0
+    };
+  }
+
+
+  const maximumColumnNumber =
+    getMorningMeetingColumnNumber(
+      "AO"
+    );
+
+
+  /*
+    1~22행의 AP/AQ에는
+    Coal / Bio 계산용 보조자료가 있을 수 있으므로
+    절대로 건드리지 않는다.
+  */
+
+  const cleanupStartRow =
+    23;
+
+
+  let removedCells =
+    0;
+
+
+  let removedMerges =
+    0;
+
+
+  /* =====================================================
+    AO 오른쪽 셀 자체 제거
+
+    값만 지우는 것이 아니라
+    <c> 요소 자체를 삭제한다.
+
+    그래야 테두리 / 스타일도 같이 사라진다.
+  ====================================================== */
+
+  getMorningMeetingDirectXmlChildren(
+    sheetData,
+    "row"
+  ).forEach(
+    rowElement => {
+      const rowNumber =
+        getMorningMeetingRowNumber(
+          rowElement
+        );
+
+
+      if (
+        rowNumber <
+          cleanupStartRow
+      ) {
+        return;
+      }
+
+
+      [
+        ...getMorningMeetingDirectXmlChildren(
+          rowElement,
+          "c"
+        )
+      ].forEach(
+        cellElement => {
+          const address =
+            String(
+              cellElement.getAttribute(
+                "r"
+              ) ||
+              ""
+            );
+
+
+          const columnName =
+            getMorningMeetingCellColumn(
+              address
+            );
+
+
+          const columnNumber =
+            getMorningMeetingColumnNumber(
+              columnName
+            );
+
+
+          if (
+            !Number.isFinite(
+              columnNumber
+            ) ||
+            columnNumber <=
+              maximumColumnNumber
+          ) {
+            return;
+          }
+
+
+          rowElement.removeChild(
+            cellElement
+          );
+
+
+          removedCells +=
+            1;
+        }
+      );
+    }
+  );
+
+
+  /* =====================================================
+    AO 오른쪽 병합 제거
+
+    예:
+    AQ24:BK24
+    AQ25:BK25
+  ====================================================== */
+
+  if (
+    mergeCellsElement
+  ) {
+    [
+      ...getMorningMeetingDirectXmlChildren(
+        mergeCellsElement,
+        "mergeCell"
+      )
+    ].forEach(
+      mergeElement => {
+        const range =
+          parseMorningMeetingMergeReference(
+            mergeElement.getAttribute(
+              "ref"
+            )
+          );
+
+
+        if (
+          !range ||
+          range.startRow <
+            cleanupStartRow
+        ) {
+          return;
+        }
+
+
+        const startColumnNumber =
+          getMorningMeetingColumnNumber(
+            range.startColumn
+          );
+
+
+        const endColumnNumber =
+          getMorningMeetingColumnNumber(
+            range.endColumn
+          );
+
+
+        /*
+          병합이 완전히 AO 오른쪽에 있으면 삭제
+        */
+
+        if (
+          startColumnNumber >
+            maximumColumnNumber
+        ) {
+          mergeCellsElement.removeChild(
+            mergeElement
+          );
+
+
+          removedMerges +=
+            1;
+
+
+          return;
+        }
+
+
+        /*
+          B:BK처럼 AO를 넘어가는 병합이라면
+          AO까지만 잘라낸다.
+        */
+
+        if (
+          endColumnNumber >
+            maximumColumnNumber
+        ) {
+          range.endColumn =
+            "AO";
+
+
+          mergeElement.setAttribute(
+            "ref",
+            formatMorningMeetingMergeReference(
+              range
+            )
+          );
+        }
+      }
+    );
+
+
+    mergeCellsElement.setAttribute(
+      "count",
+
+      String(
+        getMorningMeetingDirectXmlChildren(
+          mergeCellsElement,
+          "mergeCell"
+        ).length
+      )
+    );
+  }
+
+
+  return {
+    removedCells,
+    removedMerges
+  };
+}
+
+/* =========================================================
   오전회의 주말/공휴일 우측 보조표 자동 생성
 
   - 주말 체크 시에만 호출
@@ -144332,6 +144595,21 @@ console.log(
   "오전회의 평일 업무영역 최종 정리:",
   weekdayOperationResult
 );  
+
+/* ===================================================
+  AO 오른쪽에 남은 주말 양식 잔재 최종 제거
+==================================================== */
+
+const outOfPrintCleanupResult =
+  cleanupMorningMeetingOutOfPrintResidue(
+    worksheetDocument
+  );
+
+
+console.log(
+  "오전회의 AO 오른쪽 잔재 제거:",
+  outOfPrintCleanupResult
+);
 
 /* ===================================================
   6차: 주말 / 공휴일 전용 우측 보조표
