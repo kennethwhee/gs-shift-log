@@ -12367,40 +12367,17 @@ if (
           );
         }
 
-                /* =================================================
-          점검주기표 업무일지 자동완료
+        /* =================================================
+          점검주기표 업무일지 자동완료 통합 실행
 
-          어떤 보직이든 점검 수행 문구가 있으면
-          해당 날짜의 점검을 즉시 완료 처리한다.
-        ================================================= */
+          서버 기준 자동완료 엔진을 한 번만 실행한다.
 
-        const inspectionAutoCompletionSync =
-          await synchronizeInspectionScheduleAutoCompletionsForWorkDate(
-            context,
-            {
-              workDate:
-                savedLog.date,
-
-              user
-            }
-          );
-
-
-        if (
-          inspectionAutoCompletionSync.ok !==
-            true
-        ) {
-          console.error(
-            "신규 업무일지 점검 자동완료 실패:",
-            inspectionAutoCompletionSync
-          );
-        }
-
-                /* =================================================
-          점검주기표 자동완료
-
-          같은 날짜·근무의 모든 보직 업무일지를
-          다시 검사한다.
+          적용:
+          - 담당 보직 구분
+          - TGO·TO 터빈 계통
+          - BCO1·BO1 1호기
+          - BCO2·BO2 2호기
+          - 업무일지 수행 문구 자동인식
         ================================================= */
 
         const inspectionScheduleSync =
@@ -12413,10 +12390,20 @@ if (
               shift:
                 savedLog.shift,
 
-              scheduleOccurrences:
-                body.inspectionScheduleOccurrences
+              user
             }
           );
+
+
+        /*
+          기존 응답 구조 호환
+
+          두 응답 이름 모두 같은
+          최종 자동완료 결과를 사용한다.
+        */
+
+        const inspectionAutoCompletionSync =
+          inspectionScheduleSync;
 
 
         if (
@@ -12607,37 +12594,8 @@ if (
       );
     }
 
-        /* =====================================================
-      점검주기표 업무일지 자동완료
-
-      임시저장·수정·결재요청·결재완료·결재취소
-      모든 저장 작업 직후 날짜 전체를 재검사한다.
-    ====================================================== */
-
-    const inspectionAutoCompletionSync =
-      await synchronizeInspectionScheduleAutoCompletionsForWorkDate(
-        context,
-        {
-          workDate:
-            savedLog.date,
-
-          user
-        }
-      );
-
-
-    if (
-      inspectionAutoCompletionSync.ok !==
-        true
-    ) {
-      console.error(
-        "업무일지 점검 자동완료 실패:",
-        inspectionAutoCompletionSync
-      );
-    }
-
-        /* =====================================================
-      점검주기표 자동완료 재검사
+    /* =====================================================
+      업무일지 저장 후 점검 자동완료 통합 실행
 
       적용:
       - 임시저장
@@ -12645,6 +12603,9 @@ if (
       - 결재요청
       - 결재완료
       - 결재취소
+
+      같은 날짜의 업무일지를 다시 조회하여
+      담당 보직·호기별 상태를 한 번만 계산한다.
     ====================================================== */
 
     const inspectionScheduleSync =
@@ -12657,10 +12618,17 @@ if (
           shift:
             savedLog.shift,
 
-          scheduleOccurrences:
-            body.inspectionScheduleOccurrences
+          user
         }
       );
+
+
+    /*
+      기존 응답 구조 호환
+    */
+
+    const inspectionAutoCompletionSync =
+      inspectionScheduleSync;
 
 
     if (
@@ -13059,49 +13027,22 @@ export async function onRequestDelete(
         }
       );
 
-          /* =====================================================
-      업무일지 삭제 후 점검 자동완료 재계산
+    /* =====================================================
+      업무일지 삭제 후 점검 자동완료 통합 재계산
 
-      삭제한 일지가 유일한 완료 근거였다면:
-      - 자동 완료 삭제
+      삭제한 업무일지가 유일한 근거였다면:
+      - 해당 자동완료 삭제
 
-      다른 보직 업무일지에 같은 점검 근거가 남아 있다면:
-      - 자동 완료 유지
-      - 남아 있는 업무일지를 새 출처로 적용
+      다른 업무일지에 근거가 남아 있다면:
+      - 자동완료 유지
+      - 남은 업무일지를 새 출처로 적용
 
       수동 완료:
       - 항상 유지
-    ====================================================== */
 
-    const inspectionAutoCompletionSync =
-      await synchronizeInspectionScheduleAutoCompletionsForWorkDate(
-        context,
-        {
-          workDate:
-            existingLog.date,
-
-          user
-        }
-      );
-
-
-    if (
-      inspectionAutoCompletionSync.ok !==
-        true
-    ) {
-      console.error(
-        "업무일지 삭제 후 점검 자동완료 재계산 실패:",
-        inspectionAutoCompletionSync
-      );
-    }
-
-          /* =====================================================
-      삭제 후 점검주기표 자동완료 재검사
-
-      삭제된 업무일지의 문구로 자동완료된 기록은
-      같은 날짜·근무의 다른 업무일지 근거를 다시 찾는다.
-
-      다른 근거가 없으면 자동완료를 해제한다.
+      호기 구분:
+      - BCO1 / BO1 → 1호기
+      - BCO2 / BO2 → 2호기
     ====================================================== */
 
     const inspectionScheduleSync =
@@ -13114,8 +13055,7 @@ export async function onRequestDelete(
           shift:
             existingLog.shift,
 
-          scheduleOccurrences:
-            deleteBody.inspectionScheduleOccurrences,
+          user,
 
           removedSourceLogIds: [
             existingLog.id
@@ -13124,12 +13064,20 @@ export async function onRequestDelete(
       );
 
 
+    /*
+      기존 응답 구조 호환
+    */
+
+    const inspectionAutoCompletionSync =
+      inspectionScheduleSync;
+
+
     if (
       inspectionScheduleSync.ok !==
         true
     ) {
       console.error(
-        "업무일지 삭제 후 점검 자동완료 실패:",
+        "업무일지 삭제 후 점검 자동완료 재계산 실패:",
         inspectionScheduleSync
       );
     }
