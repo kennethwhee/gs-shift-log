@@ -1,15 +1,15 @@
 {
   "source": "OIS 일일 운전일지(환경)",
-  "sourceDate": "2026-08-05",
-  "collectedAt": "2026-08-07T13:01:43.805Z",
-  "rawWaterInflow": 7880,
-  "demiProduction": 1332,
-  "pureWaterUsage": 1350,
-  "rawWaterTankAmount": 2883.911,
-  "rawWaterTankRate": 72.098,
-  "filteredWaterTankAmount": 9980.65,
-  "filteredWaterTankRate": 90.733,
-  "demiWaterTankAmount": 5719.866,
-  "demiWaterTankRate": 95.331,
-  "targetDate": "2026-08-05"
+  "sourceDate": "2026-08-03",
+  "collectedAt": "2026-08-07T16:37:26.178Z",
+  "rawWaterInflow": 8702,
+  "demiProduction": 1265,
+  "pureWaterUsage": 1316,
+  "rawWaterTankAmount": 3415.442,
+  "rawWaterTankRate": 85.386,
+  "filteredWaterTankAmount": 9528.48,
+  "filteredWaterTankRate": 86.623,
+  "demiWaterTankAmount": 5706.923,
+  "demiWaterTankRate": 95.115,
+  "targetDate": "2026-08-03"
 }

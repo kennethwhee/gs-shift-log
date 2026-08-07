@@ -1137,3 +1137,442 @@ OIS 석회석 재고 조회가 완료되었습니다.
 │ 2호기 시작 재고 │ 320.269 │
 │ 2호기 종료 재고 │ 346.552 │
 └─────────────────┴─────────┘
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: 05598872-e602-47a4-a1e7-8a974b075ea4
+조회일: 2026-08-05
+------------------------------------------
+OIS Gear Wheel / Pinion 요청 처리 실패: response.text: Protocol error (Network.getResponseBody): No resource with given identifier found
+Response body is not available for a response that was navigated away from. Read response.body() before triggering any navigation.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6446:30) {
+  log: [],
+  name: 'Error'
+}
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-05598872-e602-47a4-a1e7-8a974b075ea4.png
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 1831fad6-3a94-453e-aabd-6e2f6af24838
+조회일: 2026-08-04
+------------------------------------------
+OIS 로그인이 완료되었습니다.
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/04로 변경합니다.
+OIS 수처리 현황 요청 처리 실패: Error: 2026년 08월 04일 조회 결과가 화면에 표시되지 않았습니다.
+    at setOisEnvironmentDate (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:2722:9)
+    at async collectOisWaterTreatmentValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:3023:3)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:3665:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:8144:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-1831fad6-3a94-453e-aabd-6e2f6af24838.png
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA
+==========================================
+GS Shift Log OIS 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+OIS 요청 확인 주기: 5초
+지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion
+OIS Edge 브라우저 세션을 시작합니다.
+OIS 로그인이 완료되었습니다.
+OIS Edge 브라우저 세션이 준비되었습니다.
+업무일지의 OIS 요청을 기다립니다.
+
+------------------------------------------
+과거 LOG SHEET 업무일지 조회 요청을 받았습니다.
+요청 유형: logsheet_approval
+요청 ID: c9af7ce1-1e90-4f9c-9145-6e9aae4f79ac
+조회일: 2022-09-22
+------------------------------------------
+OIS 과거 업무일지 조회 완료 · 2022-09-22 · 대상 18건 · 내용 있음 18건 · DAY 6건 · AFTER 6건 · NIGHT 6건
+OIS 과거 LOG SHEET 업무일지 조회가 완료되었습니다.
+조회일 2022-09-22 · 대상 18건 · 내용 있음 18건 · DAY 6건 · AFTER 6건 · NIGHT 6건
+┌─────────┬────────┬─────────┬──────────┬──────────────────────────────────────────────────────────────────────────────────────────────────┬────────────┬────────────┐
+│ (index) │ 보직   │ 근무    │ 근무자   │ 내용                                                                                             │ 근무자결재 │ 파트장결재 │
+├─────────┼────────┼─────────┼──────────┼──────────────────────────────────────────────────────────────────────────────────────────────────┼────────────┼────────────┤
+│ 0       │ 'TGO'  │ 'AFTER' │ '정재훈' │ '1. 20:34 #6 HTR Emer. LCV 26% -> 22% 개도조정'                                                  │ '결재완료' │ '결재완료' │
+│ 1       │ 'TGO'  │ 'DAY'   │ '박문수' │ '1. TM_ C/T Fan #4 High Speed 기동시 Oil Level Low Switch 작동 - 현장 Oil Level 변동 없음 - '    │ '결재완료' │ '결재완료' │
+│ 2       │ 'TGO'  │ 'NIGHT' │ '김형준' │ '1. 23:05 Cooling Tower- #1 Low Speed 전환 2. 05:20 Cooling Tower Dry Damper- #1~#6'             │ '결재완료' │ '결재완료' │
+│ 3       │ 'BCO1' │ 'AFTER' │ '조용환' │ '1.15:00 Bed Ash 배출 2.15:30 Spiess Valve 동작 Test 3.18:00 Sootblower 시행'                    │ '결재완료' │ '결재완료' │
+│ 4       │ 'BCO1' │ 'DAY'   │ '이성진' │ '1. Bed Ash 배출(7:58, 11:05) 2. 08:28 Limestone Unloading line air booster close(A'             │ '결재완료' │ '결재완료' │
+│ 5       │ 'BCO1' │ 'NIGHT' │ '형준영' │ '1. 23:06, 05:00 Bed Ash 배출 2. 23:20~23:28 Bio Reclaimer Slewing Device Fault - 현'            │ '결재완료' │ '결재완료' │
+│ 6       │ 'BCO2' │ 'AFTER' │ '권훈'   │ '1. 15:29 Bed Ash 배출 2. Soot Blower #24 정비 완료하여 차단기 On 및 기동 Test 3. 21:02 Spiess ' │ '결재완료' │ '결재완료' │
+│ 7       │ 'BCO2' │ 'DAY'   │ '최혜민' │ '1. 07:56 Bed Ash 배출 2. 11:47 Soot Blower진행 3. 12:10 Spiess Valve 동작 Test 4. [203'         │ '결재완료' │ '결재완료' │
+│ 8       │ 'BCO2' │ 'NIGHT' │ '서동인' │ '1. 23:41 Bed Ash 배출 2. 00:43 Spiess Valve 동작 Test 3. 03:19 Soot Blower 진행 4. [20'         │ '결재완료' │ '결재완료' │
+│ 9       │ 'TO'   │ 'AFTER' │ ''       │ '1. TBN동 거미줄 제거 실시'                                                                      │ '결재완료' │ '결재완료' │
+│ 10      │ 'TO'   │ 'DAY'   │ '김현상' │ '1. Exiter 브러쉬 점검 - 명일 브러쉬 4EA 교체 예정 2. Cooling Tower Fan #4 Oil Level Low Switch' │ '결재완료' │ '결재완료' │
+│ 11      │ 'TO'   │ 'NIGHT' │ '양영균' │ '1. BLR 현장 업무 지원'                                                                          │ '결재완료' │ '결재완료' │
+│ 12      │ 'BO1'  │ 'AFTER' │ '고석훈' │ '1. FBHE 격벽온도 → L : 248 ℃ / R : 283 ℃ 2. Coal Wall Screw Feeder 온도 → A : 132 ℃ / '         │ '결재완료' │ '결재완료' │
+│ 13      │ 'BO1'  │ 'DAY'   │ '김지우' │ '1. FBHE 격벽온도 → L : 245℃ / R : 284℃ 2. Coal Wall Screw Feeder 온도 → A : 143℃ / B :'         │ '결재완료' │ '결재완료' │
+│ 14      │ 'BO1'  │ 'NIGHT' │ '이휘근' │ '1. FBHE 격벽온도 → L : 238℃ / R : 281℃ 2. Coal Wall Screw Feeder 온도 → A : 134℃ / B :'         │ '결재완료' │ '결재완료' │
+│ 15      │ 'BO2'  │ 'AFTER' │ '한동혁' │ '1. CO2 Tank Level : 62.7% 2. FBHE 격벽온도 L : 233℃ / R :261 ℃ 3. Coal Wall Screw Fe'           │ '결재완료' │ '결재완료' │
+│ 16      │ 'BO2'  │ 'DAY'   │ '서철민' │ '1. CO2 Tank Level : 62.5% 2. FBHE 격벽온도 L : 225℃ / R :255 ℃ 3. Coal Wall Screw Fe'           │ '결재완료' │ '결재완료' │
+│ 17      │ 'BO2'  │ 'NIGHT' │ '송관석' │ '1. CO2 Tank Level : 63.0% 2. FBHE 격벽온도 L : 229℃ / R :241 ℃ 3. Coal Wall Screw Fe'           │ '결재완료' │ '결재완료' │
+└─────────┴────────┴─────────┴──────────┴──────────────────────────────────────────────────────────────────────────────────────────────────┴────────────┴────────────┘
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 744a224c-ce63-466c-b0c3-2d2a8ece7d06
+조회일: 2026-08-04
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/04로 변경합니다.
+2026년 08월 04일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '8,327.000', '저장율(%)', '71.353', '91.902', '95.633' ]
+OIS "저장량" 행 셀: [
+  '동두천',    '0.000',
+  '8,327.000', '1,648.000',
+  '6,659.600', '저장량(m3)',
+  '2,854.106', '10,109.210',
+  '5,737.962'
+]
+OIS "저장율" 행 셀: [ '장자산단', '8,327.000', '저장율(%)', '71.353', '91.902', '95.633' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '83.000',
+  '47.00',     '49.070',
+  '96.62',     '총량',
+  '1,326.000', '순수사용량',
+  '총합',      '0',
+  '0',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-07T16:24:59.835Z',
+  rawWaterInflow: 8327,
+  demiProduction: 1326,
+  pureWaterUsage: 1295,
+  rawWaterTankAmount: 2854.106,
+  rawWaterTankRate: 71.353,
+  filteredWaterTankAmount: 10109.21,
+  filteredWaterTankRate: 91.902,
+  demiWaterTankAmount: 5737.962,
+  demiWaterTankRate: 95.633
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 8327     │
+│ 원수 TANK 저장량     │ 2854.106 │
+│ 원수 TANK 저장율     │ 71.353   │
+│ 여과수 TANK 저장량   │ 10109.21 │
+│ 여과수 TANK 저장율   │ 91.902   │
+│ 순수 TANK 저장량     │ 5737.962 │
+│ 순수 TANK 저장율     │ 95.633   │
+│ 순수 생산량          │ 1326     │
+│ 순수 사용량          │ 1295     │
+└──────────────────────┴──────────┘
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: cd247f26-0c1d-41cb-b319-9cfc30602180
+조회일: 2026-08-05
+------------------------------------------
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS TGO 전일 자료 확인: {
+  label: 'Gear Wheel',
+  tag: 'MAD11FG905-ZE01_V2',
+  itemName: 'HP TBN ROTOR AXIAL POSITION',
+  value: 0.771,
+  field: 'decimal_pnt'
+}
+OIS TGO 전일 자료 확인: {
+  label: 'Pinion',
+  tag: 'MAD41FY905-ZE01_V2',
+  itemName: 'CASINLG PINL T-SIDE VIB',
+  value: 1.938,
+  field: 'decimal_pnt'
+}
+OIS TGO 조회 완료 · 2026-08-05 · Gear Wheel 0.771 · Pinion 1.938
+OIS Gear Wheel / Pinion 조회가 완료되었습니다.
+┌────────────────┬──────────────────────┐
+│ (index)        │ Values               │
+├────────────────┼──────────────────────┤
+│ 조회일         │ '2026-08-05'         │
+│ 조회 열        │ '전일'               │
+│ Gear Wheel     │ 0.771                │
+│ Pinion         │ 1.938                │
+│ Gear Wheel TAG │ 'MAD11FG905-ZE01_V2' │
+│ Pinion TAG     │ 'MAD41FY905-ZE01_V2' │
+└────────────────┴──────────────────────┘
+
+------------------------------------------
+과거 LOG SHEET 업무일지 조회 요청을 받았습니다.
+요청 유형: logsheet_approval
+요청 ID: 615efb82-e950-406f-a33e-78b65fa8c142
+조회일: 2022-09-22
+------------------------------------------
+OIS 과거 업무일지 조회 완료 · 2022-09-22 · 대상 18건 · 내용 있음 18건 · DAY 6건 · AFTER 6건 · NIGHT 6건
+OIS 과거 LOG SHEET 업무일지 조회가 완료되었습니다.
+조회일 2022-09-22 · 대상 18건 · 내용 있음 18건 · DAY 6건 · AFTER 6건 · NIGHT 6건
+┌─────────┬────────┬─────────┬──────────┬──────────────────────────────────────────────────────────────────────────────────────────────────┬────────────┬────────────┐
+│ (index) │ 보직   │ 근무    │ 근무자   │ 내용                                                                                             │ 근무자결재 │ 파트장결재 │
+├─────────┼────────┼─────────┼──────────┼──────────────────────────────────────────────────────────────────────────────────────────────────┼────────────┼────────────┤
+│ 0       │ 'TGO'  │ 'AFTER' │ '정재훈' │ '1. 20:34 #6 HTR Emer. LCV 26% -> 22% 개도조정'                                                  │ '결재완료' │ '결재완료' │
+│ 1       │ 'TGO'  │ 'DAY'   │ '박문수' │ '1. TM_ C/T Fan #4 High Speed 기동시 Oil Level Low Switch 작동 - 현장 Oil Level 변동 없음 - '    │ '결재완료' │ '결재완료' │
+│ 2       │ 'TGO'  │ 'NIGHT' │ '김형준' │ '1. 23:05 Cooling Tower- #1 Low Speed 전환 2. 05:20 Cooling Tower Dry Damper- #1~#6'             │ '결재완료' │ '결재완료' │
+│ 3       │ 'BCO1' │ 'AFTER' │ '조용환' │ '1.15:00 Bed Ash 배출 2.15:30 Spiess Valve 동작 Test 3.18:00 Sootblower 시행'                    │ '결재완료' │ '결재완료' │
+│ 4       │ 'BCO1' │ 'DAY'   │ '이성진' │ '1. Bed Ash 배출(7:58, 11:05) 2. 08:28 Limestone Unloading line air booster close(A'             │ '결재완료' │ '결재완료' │
+│ 5       │ 'BCO1' │ 'NIGHT' │ '형준영' │ '1. 23:06, 05:00 Bed Ash 배출 2. 23:20~23:28 Bio Reclaimer Slewing Device Fault - 현'            │ '결재완료' │ '결재완료' │
+│ 6       │ 'BCO2' │ 'AFTER' │ '권훈'   │ '1. 15:29 Bed Ash 배출 2. Soot Blower #24 정비 완료하여 차단기 On 및 기동 Test 3. 21:02 Spiess ' │ '결재완료' │ '결재완료' │
+│ 7       │ 'BCO2' │ 'DAY'   │ '최혜민' │ '1. 07:56 Bed Ash 배출 2. 11:47 Soot Blower진행 3. 12:10 Spiess Valve 동작 Test 4. [203'         │ '결재완료' │ '결재완료' │
+│ 8       │ 'BCO2' │ 'NIGHT' │ '서동인' │ '1. 23:41 Bed Ash 배출 2. 00:43 Spiess Valve 동작 Test 3. 03:19 Soot Blower 진행 4. [20'         │ '결재완료' │ '결재완료' │
+│ 9       │ 'TO'   │ 'AFTER' │ ''       │ '1. TBN동 거미줄 제거 실시'                                                                      │ '결재완료' │ '결재완료' │
+│ 10      │ 'TO'   │ 'DAY'   │ '김현상' │ '1. Exiter 브러쉬 점검 - 명일 브러쉬 4EA 교체 예정 2. Cooling Tower Fan #4 Oil Level Low Switch' │ '결재완료' │ '결재완료' │
+│ 11      │ 'TO'   │ 'NIGHT' │ '양영균' │ '1. BLR 현장 업무 지원'                                                                          │ '결재완료' │ '결재완료' │
+│ 12      │ 'BO1'  │ 'AFTER' │ '고석훈' │ '1. FBHE 격벽온도 → L : 248 ℃ / R : 283 ℃ 2. Coal Wall Screw Feeder 온도 → A : 132 ℃ / '         │ '결재완료' │ '결재완료' │
+│ 13      │ 'BO1'  │ 'DAY'   │ '김지우' │ '1. FBHE 격벽온도 → L : 245℃ / R : 284℃ 2. Coal Wall Screw Feeder 온도 → A : 143℃ / B :'         │ '결재완료' │ '결재완료' │
+│ 14      │ 'BO1'  │ 'NIGHT' │ '이휘근' │ '1. FBHE 격벽온도 → L : 238℃ / R : 281℃ 2. Coal Wall Screw Feeder 온도 → A : 134℃ / B :'         │ '결재완료' │ '결재완료' │
+│ 15      │ 'BO2'  │ 'AFTER' │ '한동혁' │ '1. CO2 Tank Level : 62.7% 2. FBHE 격벽온도 L : 233℃ / R :261 ℃ 3. Coal Wall Screw Fe'           │ '결재완료' │ '결재완료' │
+│ 16      │ 'BO2'  │ 'DAY'   │ '서철민' │ '1. CO2 Tank Level : 62.5% 2. FBHE 격벽온도 L : 225℃ / R :255 ℃ 3. Coal Wall Screw Fe'           │ '결재완료' │ '결재완료' │
+│ 17      │ 'BO2'  │ 'NIGHT' │ '송관석' │ '1. CO2 Tank Level : 63.0% 2. FBHE 격벽온도 L : 229℃ / R :241 ℃ 3. Coal Wall Screw Fe'           │ '결재완료' │ '결재완료' │
+└─────────┴────────┴─────────┴──────────┴──────────────────────────────────────────────────────────────────────────────────────────────────┴────────────┴────────────┘
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 8bb20a49-b27e-4e74-b693-918fd175a248
+조회일: 2026-08-07
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/07로 변경합니다.
+2026년 08월 07일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '8,317.000', '저장율(%)', '67.627', '92.305', '96.342' ]
+OIS "저장량" 행 셀: [
+  '동두천',    '0.000',
+  '8,317.000', '2,238.000',
+  '6,055.800', '저장량(m3)',
+  '2,705.078', '10,153.540',
+  '5,780.531'
+]
+OIS "저장율" 행 셀: [ '장자산단', '8,317.000', '저장율(%)', '67.627', '92.305', '96.342' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '94.000',
+  '47.00',     '50.000',
+  '95.99',     '총량',
+  '1,719.000', '순수사용량',
+  '총합',      '0',
+  '0',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-07T16:29:00.449Z',
+  rawWaterInflow: 8317,
+  demiProduction: 1719,
+  pureWaterUsage: 1570,
+  rawWaterTankAmount: 2705.078,
+  rawWaterTankRate: 67.627,
+  filteredWaterTankAmount: 10153.54,
+  filteredWaterTankRate: 92.305,
+  demiWaterTankAmount: 5780.531,
+  demiWaterTankRate: 96.342
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 8317     │
+│ 원수 TANK 저장량     │ 2705.078 │
+│ 원수 TANK 저장율     │ 67.627   │
+│ 여과수 TANK 저장량   │ 10153.54 │
+│ 여과수 TANK 저장율   │ 92.305   │
+│ 순수 TANK 저장량     │ 5780.531 │
+│ 순수 TANK 저장율     │ 96.342   │
+│ 순수 생산량          │ 1719     │
+│ 순수 사용량          │ 1570     │
+└──────────────────────┴──────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: cf3503ec-6df0-40fb-8dc8-ef9d70272a14
+조회일: 2026-08-07
+------------------------------------------
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 374.819,
+  endStock: 335.89,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-07 · 전일 374.819 ton · 24시 335.89 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 346.552,
+  endStock: 361.43,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-07 · 전일 346.552 ton · 24시 361.43 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 374.819 │
+│ 1호기 종료 재고 │ 335.89  │
+│ 2호기 시작 재고 │ 346.552 │
+│ 2호기 종료 재고 │ 361.43  │
+└─────────────────┴─────────┘
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: c71632a0-d185-4574-aae7-fbcbec2d9ac2
+조회일: 2026-08-08
+------------------------------------------
+OIS TGO 전일 자료 확인: {
+  label: 'Gear Wheel',
+  tag: 'MAD11FG905-ZE01_V2',
+  itemName: 'HP TBN ROTOR AXIAL POSITION',
+  value: 0.771,
+  field: 'decimal_pnt'
+}
+OIS TGO 전일 자료 확인: {
+  label: 'Pinion',
+  tag: 'MAD41FY905-ZE01_V2',
+  itemName: 'CASINLG PINL T-SIDE VIB',
+  value: 1.957,
+  field: 'decimal_pnt'
+}
+OIS TGO 조회 완료 · 2026-08-08 · Gear Wheel 0.771 · Pinion 1.957
+OIS Gear Wheel / Pinion 조회가 완료되었습니다.
+┌────────────────┬──────────────────────┐
+│ (index)        │ Values               │
+├────────────────┼──────────────────────┤
+│ 조회일         │ '2026-08-08'         │
+│ 조회 열        │ '전일'               │
+│ Gear Wheel     │ 0.771                │
+│ Pinion         │ 1.957                │
+│ Gear Wheel TAG │ 'MAD11FG905-ZE01_V2' │
+│ Pinion TAG     │ 'MAD41FY905-ZE01_V2' │
+└────────────────┴──────────────────────┘
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 97257ac4-6713-4623-b7f9-522afeff3512
+조회일: 2026-08-03
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/03로 변경합니다.
+2026년 08월 03일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '8,702.000', '저장율(%)', '85.386', '86.623', '95.115' ]
+OIS "저장량" 행 셀: [
+  '동두천',    '0.000',
+  '8,702.000', '1,628.000',
+  '6,433.800', '저장량(m3)',
+  '3,415.442', '9,528.480',
+  '5,706.923'
+]
+OIS "저장율" 행 셀: [ '장자산단', '8,702.000', '저장율(%)', '85.386', '86.623', '95.115' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '87.000',
+  '47.00',     '47.500',
+  '95.93',     '총량',
+  '1,265.000', '순수사용량',
+  '총합',      '0',
+  '0',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-07T16:37:26.178Z',
+  rawWaterInflow: 8702,
+  demiProduction: 1265,
+  pureWaterUsage: 1316,
+  rawWaterTankAmount: 3415.442,
+  rawWaterTankRate: 85.386,
+  filteredWaterTankAmount: 9528.48,
+  filteredWaterTankRate: 86.623,
+  demiWaterTankAmount: 5706.923,
+  demiWaterTankRate: 95.115
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 8702     │
+│ 원수 TANK 저장량     │ 3415.442 │
+│ 원수 TANK 저장율     │ 85.386   │
+│ 여과수 TANK 저장량   │ 9528.48  │
+│ 여과수 TANK 저장율   │ 86.623   │
+│ 순수 TANK 저장량     │ 5706.923 │
+│ 순수 TANK 저장율     │ 95.115   │
+│ 순수 생산량          │ 1265     │
+│ 순수 사용량          │ 1316     │
+└──────────────────────┴──────────┘
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: 04cd9e91-cf95-4199-ac14-39de6de75eb1
+조회일: 2026-08-04
+------------------------------------------
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS TGO 전일 자료 확인: {
+  label: 'Gear Wheel',
+  tag: 'MAD11FG905-ZE01_V2',
+  itemName: 'HP TBN ROTOR AXIAL POSITION',
+  value: 0.769,
+  field: 'decimal_pnt'
+}
+OIS TGO 전일 자료 확인: {
+  label: 'Pinion',
+  tag: 'MAD41FY905-ZE01_V2',
+  itemName: 'CASINLG PINL T-SIDE VIB',
+  value: 1.938,
+  field: 'decimal_pnt'
+}
+OIS TGO 조회 완료 · 2026-08-04 · Gear Wheel 0.769 · Pinion 1.938
+OIS Gear Wheel / Pinion 조회가 완료되었습니다.
+┌────────────────┬──────────────────────┐
+│ (index)        │ Values               │
+├────────────────┼──────────────────────┤
+│ 조회일         │ '2026-08-04'         │
+│ 조회 열        │ '전일'               │
+│ Gear Wheel     │ 0.769                │
+│ Pinion         │ 1.938                │
+│ Gear Wheel TAG │ 'MAD11FG905-ZE01_V2' │
+│ Pinion TAG     │ 'MAD41FY905-ZE01_V2' │
+└────────────────┴──────────────────────┘
