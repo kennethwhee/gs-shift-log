@@ -3269,23 +3269,15 @@ function isCurrentUserTeamManager() {
   );
 }
 
-/* =====================================================
-  현재 Shift 이전일지 동기화 버튼 권한 갱신
-====================================================== */
-
-if (
-  typeof updateCurrentShiftLegacySyncButtonVisibility ===
-    "function"
-) {
-  updateCurrentShiftLegacySyncButtonVisibility();
-}
-
 /* =========================================================
   로그인 완료 후 앱 열기 최종본
 
   사번 2014081:
   - 관리자 메뉴 무조건 표시
   - 서버 role 검사 결과로 다시 숨기지 않음
+
+  추가:
+  - 로그인 완료 후 현재 Shift 동기화 버튼 권한 갱신
 ========================================================= */
 
 function openShiftLogApp(
@@ -3343,10 +3335,6 @@ function openShiftLogApp(
 
   /* =====================================================
     실제 최종 로그인 권한
-
-    중요:
-    role 하나만 보지 않고
-    defaultRole / isTeamManager까지 함께 확인한다.
   ====================================================== */
 
   const effectiveRole =
@@ -3480,11 +3468,16 @@ function openShiftLogApp(
 
 
   /*
-    이미 근무자 카드가 표시된 상태라면
-    팀장 결재확인 버튼을 즉시 갱신한다.
+    로그인 완료 후 각 권한 UI를 갱신한다.
+
+    이 시점에는 script.js 전체 실행이 끝나고
+    appState도 생성되어 있으므로 안전하다.
   */
   window.setTimeout(
     () => {
+      /*
+        팀장 결재확인 버튼
+      */
       if (
         typeof window
           .renderTeamManagerApprovalCards ===
@@ -3492,6 +3485,20 @@ function openShiftLogApp(
       ) {
         window
           .renderTeamManagerApprovalCards();
+      }
+
+
+      /*
+        최고관리자 현재 Shift
+        이전일지 동기화 버튼
+      */
+      if (
+        typeof window
+          .updateCurrentShiftLegacySyncButtonVisibility ===
+          "function"
+      ) {
+        window
+          .updateCurrentShiftLegacySyncButtonVisibility();
       }
     },
     0
