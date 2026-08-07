@@ -131420,15 +131420,14 @@ const canCreate =
     [];
 
 /* ===================================================
-  자동수치 누락
+  자동 수치 미리보기 기준
 
-  누락되어도 생성은 허용한다.
-  최종 엑셀에서는 빈칸 처리한다.
+  화면에 실제 값이 있으면
+  날짜 비교와 관계없이 최종 엑셀에 사용한다.
 =================================================== */
 
 if (
-  !hasWaterTreatment ||
-  !hasCorrectWaterDate
+  !hasWaterTreatment
 ) {
   blankSections.push(
     "수처리"
@@ -131437,8 +131436,7 @@ if (
 
 
 if (
-  !hasLimestoneData ||
-  !hasCorrectLimestoneDate
+  !hasLimestoneData
 ) {
   blankSections.push(
     "석회석"
@@ -131447,13 +131445,12 @@ if (
 
 
 if (
-  !hasGearPinion ||
-  !hasCorrectGearPinionDate
+  !hasGearPinion
 ) {
   blankSections.push(
     "Gear/Pinion"
   );
-}    
+}
 
   if (
     !hasShiftPartText
@@ -131515,14 +131512,13 @@ if (
   );
 
 
-  if (
-    !hasBoilerTemperatures ||
-    !hasCorrectBoilerDate
-  ) {
-    blankSections.push(
-      "BO1·BO2 온도"
-    );
-  }
+if (
+  !hasBoilerTemperatures
+) {
+  blankSections.push(
+    "BO1·BO2 온도"
+  );
+}
 
 
   /* ===================================================
@@ -144722,85 +144718,66 @@ const limestoneDate =
   ).trim();
 
 
+/* ===================================================
+  자동수치 최종 엑셀 반영값
+
+  중요:
+  최종 엑셀은 현재 화면의
+  "자동 수치 미리보기"에 표시된 값을 그대로 사용한다.
+
+  날짜 이동:
+  - 전날
+  - 기준일
+  - 다음날
+
+  어떤 날짜를 선택했든
+  현재 미리보기에서 확인한 값이 최종값이다.
+
+  따라서 최종 엑셀 생성 단계에서는
+  회의일·팀 자료 날짜와 다시 비교하여
+  값을 버리지 않는다.
+=================================================== */
+
+
+/* ===================================================
+  석회석
+
+  현재 석회석 미리보기에 표시된 값
+=================================================== */
+
 const limestoneValuesForWorkbook =
-  limestoneDate ===
-    expectedWaterSourceDate
-    ? limestoneValues
-    : null;
+  limestoneValues;
 
 
 /* ===================================================
   수처리
+
+  현재 수처리 미리보기에 표시된 값
 =================================================== */
 
-const waterSourceDate =
-  String(
-    waterTreatment
-      ?.sourceDate ||
-    waterTreatment
-      ?.targetDate ||
-    ""
-  ).trim();
-
-
 const waterTreatmentForWorkbook =
-  waterSourceDate ===
-    expectedWaterSourceDate
-    ? waterTreatment
-    : null;
+  waterTreatment;
 
 
 /* ===================================================
   BO1 · BO2 온도
+
+  현재 온도 미리보기에 표시된 값
+  사용자가 직접 수정한 값도 포함
 =================================================== */
 
-const boilerReportDate =
-  String(
-    boilerTemperatures
-      ?.reportDate ||
-    ""
-  ).trim();
-
-
 const boilerTemperaturesForWorkbook =
-  boilerReportDate ===
-    expectedWaterSourceDate
-    ? boilerTemperatures
-    : null;
+  boilerTemperatures;
 
 
 /* ===================================================
   Gear Wheel / Pinion
 
-  Gear / Pinion:
-  오전회의 대상일 당일 LOG SHEET의 전일 열
+  현재 Gear / Pinion 미리보기에 표시된 값
 =================================================== */
 
-const expectedGearPinionDate =
-  scheduleDate
-    .toISOString()
-    .slice(
-      0,
-      10
-    );
-
-
-const gearPinionDate =
-  String(
-    gearPinion
-      ?.targetDate ||
-    gearPinion
-      ?.sourceDate ||
-    ""
-  ).trim();
-
-
 const gearPinionForWorkbook =
-  gearPinionDate ===
-    expectedGearPinionDate
-    ? gearPinion
-    : null;
-
+  gearPinion;
 
   /* =====================================================
     버튼 진행 상태
