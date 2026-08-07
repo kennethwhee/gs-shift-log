@@ -78,6 +78,9 @@ function normalizeRole(
   value,
   employeeNo = ""
 ) {
+  /*
+    고정 최고관리자 계정
+  */
   if (
     normalizeEmployeeNo(
       employeeNo
@@ -94,23 +97,153 @@ function normalizeRole(
       ""
     )
       .trim()
-      .toLowerCase();
+      .toLowerCase()
+      .replace(
+        /[\s-]+/g,
+        "_"
+      );
 
 
+  /*
+    최고관리자
+  */
   if (
-    role ===
-      "super_admin" ||
-    role ===
-      "super-admin" ||
-    role ===
-      "superadmin"
+    [
+      "super_admin",
+      "superadmin",
+      "최고관리자"
+    ].includes(
+      role
+    )
   ) {
     return "super_admin";
   }
 
 
+  /*
+    팀장
+  */
   if (
-    role ===
+    [
+      "team_manager",
+      "teammanager",
+      "팀장"
+    ].includes(
+      role
+    )
+  ) {
+    return "team_manager";
+  }
+
+
+  /*
+    파트장
+  */
+  if (
+    [
+      "admin",
+      "leader",
+      "파트장"
+    ].includes(
+      role
+    )
+  ) {
+    return "admin";
+  }
+
+
+  return "user";
+}
+
+
+/* =========================================================
+  로그인 최종 권한 결정
+
+  우선순위:
+  1. 최고관리자
+  2. 팀장
+  3. 파트장
+  4. 일반
+
+  users.role:
+  - 기존 로그인 계정 권한
+
+  employees.default_role:
+  - 직원관리에서 선택한 실제 권한
+========================================================= */
+
+function resolveLoginRole(
+  user
+) {
+  const source =
+    user &&
+    typeof user ===
+      "object"
+      ? user
+      : {};
+
+
+  const employeeNo =
+    normalizeEmployeeNo(
+      source.employee_no ||
+      source.employeeNo
+    );
+
+
+  /*
+    users 테이블에 저장된 계정 권한
+  */
+  const accountRole =
+    normalizeRole(
+      source.role,
+      employeeNo
+    );
+
+
+  /*
+    employees 테이블에 저장된 직원 권한
+  */
+  const employeeRole =
+    normalizeRole(
+      source.default_role ??
+      source.defaultRole,
+      employeeNo
+    );
+
+
+  /*
+    최고관리자는 항상 가장 높은 우선순위
+  */
+  if (
+    accountRole ===
+      "super_admin" ||
+    employeeRole ===
+      "super_admin"
+  ) {
+    return "super_admin";
+  }
+
+
+  /*
+    직원관리에서 팀장으로 지정된 경우
+  */
+  if (
+    accountRole ===
+      "team_manager" ||
+    employeeRole ===
+      "team_manager"
+  ) {
+    return "team_manager";
+  }
+
+
+  /*
+    파트장 계정
+  */
+  if (
+    accountRole ===
+      "admin" ||
+    employeeRole ===
       "admin"
   ) {
     return "admin";
@@ -140,6 +273,12 @@ function getAdminLevel(
   }
 
 
+  /*
+    팀장은 시스템 관리자가 아니다.
+
+    업무일지 결재 권한은
+    shift-logs.js에서 별도로 부여한다.
+  */
   return 0;
 }
 
@@ -637,16 +776,15 @@ export async function onRequestPost(
       );
     }
 
-
-
 /* =========================
-  로그인 계정 + 실제 보직 조회
+  로그인 계정 + 직원 권한·보직 조회
 
   users:
   - 로그인 계정
-  - 권한
+  - 기존 계정 권한
 
   employees:
+  - 팀장 포함 실제 권한 default_role
   - 실제 보직 position
 ========================= */
 
@@ -665,7 +803,15 @@ const user =
         account.last_login_at,
         account.created_at,
 
-        employee.position AS position
+        COALESCE(
+          employee.default_role,
+          ''
+        ) AS default_role,
+
+        COALESCE(
+          employee.position,
+          ''
+        ) AS position
 
       FROM users AS account
 
@@ -681,6 +827,8 @@ const user =
       employeeNo
     )
     .first();
+
+
 
 
     if (
@@ -738,17 +886,41 @@ const user =
     }
 
 
+    /*
+      users.role과 employees.default_role을 함께 확인하여
+      실제 로그인 권한을 결정한다.
+    */
     const role =
+      resolveLoginRole(
+        user
+      );
+
+
+    /*
+      직원 명단에 저장된 원래 권한
+    */
+    const employeeDefaultRole =
       normalizeRole(
-        user.role,
+        user.default_role,
         user.employee_no
       );
 
 
+    /*
+      기존 관리자 단계와 호환
+    */
     const adminLevel =
       getAdminLevel(
         role
       );
+
+
+    /*
+      팀장 전용 판정값
+    */
+    const isTeamManager =
+      role ===
+        "team_manager";
 
 
     const sessionToken =
@@ -842,6 +1014,25 @@ const position =
     ""
   ).trim();
 
+/* =========================
+  프런트에 전달할 로그인 사용자
+
+  role:
+  - user
+  - admin
+  - team_manager
+  - super_admin
+
+  position:
+  - 실제 근무 보직
+========================= */
+
+const position =
+  String(
+    user.position ||
+    ""
+  ).trim();
+
 
 const responseUser = {
   id:
@@ -867,7 +1058,19 @@ const responseUser = {
       ""
     ).trim(),
 
+  /*
+    실제 로그인 권한
+  */
   role,
+
+  /*
+    직원 명단에 저장된 원래 권한
+  */
+  defaultRole:
+    employeeDefaultRole,
+
+  default_role:
+    employeeDefaultRole,
 
   /*
     실제 근무 보직
@@ -875,7 +1078,7 @@ const responseUser = {
   position,
 
   /*
-    기존 JavaScript와의 호환용 필드
+    기존 JavaScript와의 호환용 보직 필드
   */
   jobPosition:
     position,
@@ -883,15 +1086,42 @@ const responseUser = {
   job_position:
     position,
 
+  /*
+    기존 관리자 단계
+
+    최고관리자: 2
+    파트장:     1
+    팀장:       0
+    일반:       0
+  */
   adminLevel,
 
-  isAdmin:
-    adminLevel >=
-    1,
+  /*
+    파트장 또는 최고관리자 여부
 
+    팀장은 직원·브랜드 관리자가 아니므로
+    false로 유지한다.
+  */
+  isAdmin:
+    role ===
+      "admin" ||
+    role ===
+      "super_admin",
+
+  /*
+    팀장 전용 판정값
+  */
+  isTeamManager,
+
+  is_team_manager:
+    isTeamManager,
+
+  /*
+    최고관리자 전용 판정값
+  */
   isSuperAdmin:
-    adminLevel ===
-    2,
+    role ===
+      "super_admin",
 
   lastLoginAt:
     currentTimeText,
@@ -901,7 +1131,6 @@ const responseUser = {
   sessionExpiresAt:
     expiresAt
 };
-
 
     return jsonResponse({
       ok: true,

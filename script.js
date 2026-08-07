@@ -167273,6 +167273,7 @@ function loadCache() {
 
 })();
 
+
 /* =========================================================
   보직별 오늘 점검 팝업 - 수동 완료 버튼
 
@@ -168507,90 +168508,3 @@ function loadCache() {
   }
 })();
 
-/* =========================================================
-  보직별 오늘 점검 팝업 - 수동 완료 버튼
-========================================================= */
-
-.role-inspection-item__manual-action {
-  display: flex;
-
-  width: 100%;
-
-  justify-content: flex-end;
-
-  margin-top: 6px;
-}
-
-
-.role-inspection-manual-complete-button {
-  display: inline-flex;
-
-  min-width: 82px;
-  min-height: 30px;
-
-  align-items: center;
-  justify-content: center;
-
-  padding: 0 12px;
-
-  border: 1px solid #78b892;
-  border-radius: 7px;
-
-  background: #eaf7ef;
-
-  color: #176f4b;
-
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 1;
-
-  cursor: pointer;
-
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    color 0.15s ease;
-}
-
-
-.role-inspection-manual-complete-button:hover {
-  border-color: #4e9d70;
-
-  background: #dff3e7;
-}
-
-
-.role-inspection-manual-complete-button:disabled {
-  opacity: 0.62;
-
-  cursor: wait;
-}
-
-
-.role-inspection-manual-complete-button.is-completed {
-  border-color: #4e9d70;
-
-  background: #dff3e7;
-
-  color: #12623f;
-}
-
-
-/* =========================================================
-  모바일
-========================================================= */
-
-@media (max-width: 768px) {
-
-  .role-inspection-item__manual-action {
-    justify-content: stretch;
-  }
-
-
-  .role-inspection-manual-complete-button {
-    width: 100%;
-
-    min-height: 36px;
-  }
-
-}
