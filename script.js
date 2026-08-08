@@ -170895,35 +170895,65 @@ function renderPreview() {
     자동 미리보기 맨 마지막에 표시된다.
   ====================================================== */
 
-  function ensureSiloPreviewCard() {
-    const existingCard =
-      document.getElementById(
-        "efficiencyMorningMeetingAutoSiloCard"
+function ensureSiloPreviewCard() {
+  const grid =
+    document.querySelector(
+      "#efficiencyMorningMeetingAutoPreview " +
+      ".efficiency-morning-meeting-auto-preview__grid"
+    );
+
+
+  if (!grid) {
+    return null;
+  }
+
+
+  /*
+    자동수치 미리보기 하단 2열
+
+    왼쪽: Silo Level
+    오른쪽: 증기 현황
+  */
+
+  let bottomGrid =
+    document.getElementById(
+      "efficiencyMorningMeetingAutoBottomGrid"
+    );
+
+
+  if (!bottomGrid) {
+    bottomGrid =
+      document.createElement(
+        "div"
       );
 
 
-    if (
-      existingCard
-    ) {
-      return existingCard;
-    }
+    bottomGrid.id =
+      "efficiencyMorningMeetingAutoBottomGrid";
 
 
-    const grid =
-      document.querySelector(
-        "#efficiencyMorningMeetingAutoPreview " +
-        ".efficiency-morning-meeting-auto-preview__grid"
-      );
+    bottomGrid.className =
+      "efficiency-morning-meeting-auto-bottom-grid";
 
 
-    if (
-      !grid
-    ) {
-      return null;
-    }
+    grid.appendChild(
+      bottomGrid
+    );
+  }
 
 
-    const card =
+  /*
+    왼쪽 Silo Level 카드
+  */
+
+  let card =
+    document.getElementById(
+      "efficiencyMorningMeetingAutoSiloCard"
+    );
+
+
+  if (!card) {
+    card =
       document.createElement(
         "article"
       );
@@ -170936,20 +170966,7 @@ function renderPreview() {
     card.className = [
       "efficiency-morning-meeting-auto-card",
       "is-silo-level"
-    ].join(
-      " "
-    );
-
-
-    /*
-      PC에서도 한 줄 전체 폭 사용
-
-      기존 카드 뒤에 append되므로
-      항상 자동 미리보기 맨 아래에 배치된다.
-    */
-
-    card.style.gridColumn =
-      "1 / -1";
+    ].join(" ");
 
 
     card.innerHTML = `
@@ -170958,9 +170975,7 @@ function renderPreview() {
           efficiency-morning-meeting-auto-card__header
         "
       >
-
         <div>
-
           <span>
             SILO LEVEL
           </span>
@@ -170968,7 +170983,6 @@ function renderPreview() {
           <strong>
             Silo Level
           </strong>
-
         </div>
 
 
@@ -170977,13 +170991,11 @@ function renderPreview() {
             efficiency-morning-meeting-auto-card__meta
           "
         >
-
           <small
             id="efficiencyMorningMeetingAutoSiloDate"
           >
             -
           </small>
-
 
           <span
             class="
@@ -170993,9 +171005,7 @@ function renderPreview() {
           >
             조회 대기
           </span>
-
         </div>
-
       </header>
 
 
@@ -171004,48 +171014,34 @@ function renderPreview() {
           efficiency-morning-meeting-auto-card__body
         "
       >
-
-        <!-- ===========================================
-          Fly Ash
-        ============================================ -->
-
         <div
           class="
             efficiency-morning-meeting-auto-row
           "
         >
-
           <span>
-
             Fly Ash Silo Level
 
             <small
               style="
-                display:block;
-                margin-top:2px;
-                font-size:9px;
-                font-weight:700;
-                opacity:0.68;
+                display: block;
+                margin-top: 2px;
+                font-size: 9px;
+                font-weight: 700;
+                opacity: 0.68;
               "
             >
               003ETH01CW201XQ01
             </small>
-
           </span>
-
 
           <strong
             id="efficiencyMorningMeetingAutoFlyAshSiloLevel"
           >
             -
           </strong>
-
         </div>
 
-
-        <!-- ===========================================
-          Bio Storage
-        ============================================ -->
 
         <div
           class="
@@ -171053,46 +171049,207 @@ function renderPreview() {
             is-emphasis
           "
         >
-
           <span>
-
             Bio Storage Silo Level
 
             <small
               style="
-                display:block;
-                margin-top:2px;
-                font-size:9px;
-                font-weight:700;
-                opacity:0.68;
+                display: block;
+                margin-top: 2px;
+                font-size: 9px;
+                font-weight: 700;
+                opacity: 0.68;
               "
             >
               EBF20CW201
             </small>
-
           </span>
-
 
           <strong
             id="efficiencyMorningMeetingAutoBioStorageSiloLevel"
           >
             -
           </strong>
-
         </div>
-
       </div>
-
     `;
 
 
-    grid.appendChild(
+    bottomGrid.appendChild(
       card
     );
 
-
-    return card;
+  } else if (
+    card.parentElement !==
+      bottomGrid
+  ) {
+    bottomGrid.appendChild(
+      card
+    );
   }
+
+
+  /*
+    오른쪽 증기 현황 카드
+
+    실제 값은 다음 단계에서 연결한다.
+  */
+
+  let steamCard =
+    document.getElementById(
+      "efficiencyMorningMeetingAutoSteamCard"
+    );
+
+
+  if (!steamCard) {
+    steamCard =
+      document.createElement(
+        "article"
+      );
+
+
+    steamCard.id =
+      "efficiencyMorningMeetingAutoSteamCard";
+
+
+    steamCard.className = [
+      "efficiency-morning-meeting-auto-card",
+      "is-steam-status"
+    ].join(" ");
+
+
+    steamCard.innerHTML = `
+      <header
+        class="
+          efficiency-morning-meeting-auto-card__header
+        "
+      >
+        <div>
+          <span>
+            STEAM STATUS
+          </span>
+
+          <strong>
+            증기 현황
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-card__meta
+          "
+        >
+          <small
+            id="efficiencyMorningMeetingAutoSteamDate"
+          >
+            -
+          </small>
+
+          <span
+            class="
+              efficiency-morning-meeting-auto-card__badge
+            "
+            id="efficiencyMorningMeetingAutoSteamStatus"
+          >
+            연동 대기
+          </span>
+        </div>
+      </header>
+
+
+      <div
+        class="
+          efficiency-morning-meeting-auto-card__body
+        "
+      >
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+          "
+        >
+          <span>
+            증기 판매량
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSteamSales"
+          >
+            -
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+          "
+        >
+          <span>
+            생산량 1 / 2호기
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSteamProductionUnits"
+          >
+            - / -
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+            is-emphasis
+          "
+        >
+          <span>
+            총 증기생산량
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSteamProductionTotal"
+          >
+            -
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+          "
+        >
+          <span>
+            판매율
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSteamSalesRate"
+          >
+            -
+          </strong>
+        </div>
+      </div>
+    `;
+
+
+    bottomGrid.appendChild(
+      steamCard
+    );
+
+  } else if (
+    steamCard.parentElement !==
+      bottomGrid
+  ) {
+    bottomGrid.appendChild(
+      steamCard
+    );
+  }
+
+
+  return card;
+}
 
 
   /* =====================================================
@@ -173300,16 +173457,27 @@ function formatMorningMeetingShortDate(
   );
 }
 
-  /* =====================================================
-    현재 공용 기준일
+/* =====================================================
+  현재 공용 기준일
 
-    우선순위:
-    1. 사용자가 이동한 공용 기준일
-    2. 교대파트 업무일지 기준일
-    3. 기존 수처리 조회일
-    4. 석회석 계산일
-    5. 오늘
-  ====================================================== */
+  오전회의 자료 기준일 = 회의일 전날
+
+  예:
+  오늘 2026-08-08 오전회의
+  → 자료 기준일 2026-08-07
+
+  우선순위:
+  1. 사용자가 전날/다음날 버튼으로 직접 선택한 날짜
+  2. 교대파트 업무일지 기준일
+  3. 교대파트 실제 불러온 날짜
+  4. 기존 수처리 조회일
+  5. 아무 자료도 없으면 어제
+
+  중요:
+  석회석 사용량 화면의 날짜는 사용하지 않는다.
+  해당 화면은 기본값이 오늘이므로
+  오전회의 날짜를 오늘로 잘못 바꿀 수 있다.
+===================================================== */
 
 function resolveCommonBaseDate() {
   const elements =
@@ -173320,11 +173488,27 @@ function resolveCommonBaseDate() {
     getState();
 
 
+  /* ===================================================
+    오늘의 전날
+
+    예:
+    오늘 2026-08-08
+    → 2026-08-07
+  ==================================================== */
+
+  const yesterday =
+    addDateDays(
+      getTodayDate(),
+      -1
+    );
+
+
   const candidates = [
     /*
-      1. 사용자가 전날·오늘·다음날 버튼으로
-      직접 이동한 공용 기준일
+      1. 오전회의 화면에서 사용자가
+         전날 / 다음날 버튼으로 직접 이동한 날짜
     */
+
     elements.commonPanel
       ?.dataset
       .morningMeetingAutoBaseDate,
@@ -173332,21 +173516,28 @@ function resolveCommonBaseDate() {
 
     /*
       2. 교대파트 업무일지 기준일
+
+      오전회의 대상일의 전날
     */
+
     state.shiftPart
       ?.reportDate,
 
 
     /*
-      3. 교대파트 업무일지 불러온 날짜
+      3. 실제 불러온 교대파트 날짜
     */
+
     state.shiftPart
       ?.loadedDate,
 
 
     /*
       4. 완료된 수처리 조회 결과
+
+      수처리 역시 오전회의 전날 자료
     */
+
     state.waterTreatment
       ?.sourceDate,
 
@@ -173356,16 +173547,16 @@ function resolveCommonBaseDate() {
 
 
     /*
-      5. 현재 석회석 사용량 계산일
-    */
-    elements.limestoneDateInput
-      ?.value,
+      5. 아무 오전회의 자료도 없는 경우
 
+      기존:
+      오늘
 
-    /*
-      6. 위 날짜가 전부 없을 때 오늘
+      변경:
+      어제
     */
-    getTodayDate()
+
+    yesterday
   ];
 
 
@@ -173382,10 +173573,9 @@ function resolveCommonBaseDate() {
       .find(
         isValidDate
       ) ||
-    ""
+    yesterday
   );
 }
-
 
 /* =====================================================
   자동수치 카드 날짜 + 날짜 이동 버튼 표시

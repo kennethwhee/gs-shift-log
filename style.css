@@ -89013,3 +89013,63 @@ input {
   }
 
 }
+
+/* =========================================================
+  오전회의 자동수치 하단 2열
+
+  왼쪽: Silo Level
+  오른쪽: 증기 현황
+========================================================= */
+
+.efficiency-morning-meeting-auto-bottom-grid {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+
+  grid-column: 1 / -1;
+
+  gap: 9px;
+
+  min-width: 0;
+}
+
+
+.efficiency-morning-meeting-auto-bottom-grid
+  > .efficiency-morning-meeting-auto-card {
+  min-width: 0;
+}
+
+
+.efficiency-morning-meeting-auto-card.is-silo-level::before {
+  background: #5d8fc8;
+}
+
+
+.efficiency-morning-meeting-auto-card.is-silo-level
+  .efficiency-morning-meeting-auto-card__body {
+  background: #fbfdff;
+}
+
+
+.efficiency-morning-meeting-auto-card.is-steam-status::before {
+  background: #7a68c7;
+}
+
+
+.efficiency-morning-meeting-auto-card.is-steam-status
+  .efficiency-morning-meeting-auto-card__body {
+  background: #fcfbff;
+}
+
+
+/* 모바일에서는 위아래로 표시 */
+
+@media (max-width: 700px) {
+  .efficiency-morning-meeting-auto-bottom-grid {
+    grid-template-columns: 1fr;
+
+    gap: 7px;
+  }
+}
