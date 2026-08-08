@@ -7473,12 +7473,17 @@ function getCurrentShiftLegacySyncContext() {
   };
 }
 
-
 /* =========================================================
-  동기화 버튼 표시 상태
+  현재 Shift 동기화 버튼 표시 상태
 
-  관리자 메뉴에서 사용하던 기능이므로
-  최고관리자에게만 버튼을 표시한다.
+  모든 로그인 사용자 사용 가능
+
+  - 일반 직원
+  - 파트장
+  - 팀장
+  - 최고관리자
+
+  동기화 실행 중일 때만 버튼 비활성화
 ========================================================= */
 
 function updateCurrentShiftLegacySyncButtonVisibility() {
@@ -7495,26 +7500,26 @@ function updateCurrentShiftLegacySyncButtonVisibility() {
   }
 
 
-  const canUse =
-    typeof isCurrentUserSuperAdmin ===
-      "function" &&
-    isCurrentUserSuperAdmin();
-
+  /*
+    모든 로그인 사용자에게 표시
+  */
 
   button.hidden =
-    !canUse;
+    false;
 
+
+  button.removeAttribute(
+    "hidden"
+  );
+
+
+  /*
+    실제 동기화 작업 중에만
+    중복 클릭 방지를 위해 비활성화
+  */
 
   button.disabled =
-    !canUse ||
     currentShiftLegacySyncRunning;
-
-
-  if (
-    !canUse
-  ) {
-    return;
-  }
 
 
   const context =
@@ -7526,6 +7531,7 @@ function updateCurrentShiftLegacySyncButtonVisibility() {
   ) {
     button.title =
       `${context.workDate} ${context.shiftLabel} 이전일지만 동기화`;
+
   } else {
     button.title =
       "현재 날짜와 근무만 이전일지에서 동기화";
@@ -7554,21 +7560,11 @@ async function runCurrentShiftLegacySync() {
 
 
   /* =====================================================
-    최고관리자 확인
+    모든 로그인 사용자 실행 가능
+
+    별도 관리자 권한 검사는 하지 않는다.
+    현재 화면에서 선택한 날짜 + Shift만 동기화한다.
   ====================================================== */
-
-  if (
-    typeof isCurrentUserSuperAdmin !==
-      "function" ||
-    !isCurrentUserSuperAdmin()
-  ) {
-    showToast(
-      "최고관리자만 이전일지 동기화를 실행할 수 있습니다."
-    );
-
-
-    return;
-  }
 
 
   const context =
@@ -86492,6 +86488,364 @@ function renderAuxiliaryMaterialHistory() {
   }
 }
 
+/* =========================================================
+  부재료 평균 - 1호기 · 2호기 · 통합 표시
+========================================================= */
+
+(function installAuxiliaryMaterialUnitAverageSummary() {
+
+  function getValidAverageValues(
+    propertyName,
+    unitNo = null
+  ) {
+    const normalizedUnitNo =
+      Number(unitNo);
+
+    const shouldFilterByUnit =
+      Number.isInteger(
+        normalizedUnitNo
+      ) &&
+      normalizedUnitNo > 0;
+
+    return (
+      Array.isArray(
+        auxiliaryMaterialHistoryState
+          ?.items
+      )
+        ? auxiliaryMaterialHistoryState
+            .items
+        : []
+    )
+      .filter(item => {
+        if (
+          shouldFilterByUnit &&
+          Number(item?.unitNo) !==
+            normalizedUnitNo
+        ) {
+          return false;
+        }
+
+        const value =
+          item?.[propertyName];
+
+        return (
+          value !== null &&
+          value !== undefined &&
+          String(value).trim() !== "" &&
+          Number.isFinite(
+            Number(value)
+          )
+        );
+      })
+      .map(item =>
+        Number(
+          item?.[propertyName]
+        )
+      );
+  }
+
+
+  function calculateUnitAverage(
+    propertyName,
+    unitNo = null
+  ) {
+    const values =
+      getValidAverageValues(
+        propertyName,
+        unitNo
+      );
+
+    if (values.length < 1) {
+      return null;
+    }
+
+    return (
+      values.reduce(
+        (total, value) =>
+          total + value,
+        0
+      ) /
+      values.length
+    );
+  }
+
+
+  function upgradeAverageCard({
+    combinedId,
+    unitOneId,
+    unitTwoId,
+    title,
+    unit
+  }) {
+    const combinedElement =
+      document.getElementById(
+        combinedId
+      );
+
+    const card =
+      combinedElement?.closest(
+        "article"
+      );
+
+    if (
+      !card ||
+      card.dataset
+        .unitAverageReady ===
+        "true"
+    ) {
+      return;
+    }
+
+    card.classList.add(
+      "auxiliary-material-average-card"
+    );
+
+    card.innerHTML = `
+      <div class="auxiliary-material-average-title">
+        <span>${title} 평균</span>
+        <small>${unit}</small>
+      </div>
+
+      <div class="auxiliary-material-average-values">
+        <div class="auxiliary-material-average-value">
+          <span>1호기</span>
+          <strong id="${unitOneId}">-</strong>
+        </div>
+
+        <div class="auxiliary-material-average-value">
+          <span>2호기</span>
+          <strong id="${unitTwoId}">-</strong>
+        </div>
+
+        <div class="auxiliary-material-average-value is-combined">
+          <span>통합</span>
+          <strong id="${combinedId}">-</strong>
+        </div>
+      </div>
+    `;
+
+    card.dataset.unitAverageReady =
+      "true";
+  }
+
+
+  function upgradeAverageSummaryMarkup() {
+    const savedDaysElement =
+      document.getElementById(
+        "auxiliaryMaterialSavedDays"
+      );
+
+    savedDaysElement
+      ?.closest("article")
+      ?.classList.add(
+        "auxiliary-material-saved-card"
+      );
+
+    [
+      {
+        combinedId:
+          "auxiliaryMaterialLimestoneAverage",
+
+        unitOneId:
+          "auxiliaryMaterialLimestoneUnitOneAverage",
+
+        unitTwoId:
+          "auxiliaryMaterialLimestoneUnitTwoAverage",
+
+        title:
+          "Limestone",
+
+        unit:
+          "t/d"
+      },
+
+      {
+        combinedId:
+          "auxiliaryMaterialLimePowderAverage",
+
+        unitOneId:
+          "auxiliaryMaterialLimePowderUnitOneAverage",
+
+        unitTwoId:
+          "auxiliaryMaterialLimePowderUnitTwoAverage",
+
+        title:
+          "Lime Powder",
+
+        unit:
+          "t/d"
+      },
+
+      {
+        combinedId:
+          "auxiliaryMaterialAmmoniaAverage",
+
+        unitOneId:
+          "auxiliaryMaterialAmmoniaUnitOneAverage",
+
+        unitTwoId:
+          "auxiliaryMaterialAmmoniaUnitTwoAverage",
+
+        title:
+          "Ammonia",
+
+        unit:
+          "m³/d"
+      }
+    ].forEach(
+      upgradeAverageCard
+    );
+  }
+
+
+  function setAverageText(
+    elementId,
+    value,
+    decimalPlaces
+  ) {
+    const element =
+      document.getElementById(
+        elementId
+      );
+
+    if (!element) return;
+
+    element.textContent =
+      formatAuxiliaryMaterialDisplayNumber(
+        value,
+        decimalPlaces
+      );
+  }
+
+
+  function renderUnitAverageSummary() {
+    [
+      {
+        propertyName:
+          "limestoneUsageTpd",
+
+        decimalPlaces:
+          2,
+
+        combinedId:
+          "auxiliaryMaterialLimestoneAverage",
+
+        unitOneId:
+          "auxiliaryMaterialLimestoneUnitOneAverage",
+
+        unitTwoId:
+          "auxiliaryMaterialLimestoneUnitTwoAverage"
+      },
+
+      {
+        propertyName:
+          "limePowderTpd",
+
+        decimalPlaces:
+          2,
+
+        combinedId:
+          "auxiliaryMaterialLimePowderAverage",
+
+        unitOneId:
+          "auxiliaryMaterialLimePowderUnitOneAverage",
+
+        unitTwoId:
+          "auxiliaryMaterialLimePowderUnitTwoAverage"
+      },
+
+      {
+        propertyName:
+          "ammoniaM3d",
+
+        decimalPlaces:
+          3,
+
+        combinedId:
+          "auxiliaryMaterialAmmoniaAverage",
+
+        unitOneId:
+          "auxiliaryMaterialAmmoniaUnitOneAverage",
+
+        unitTwoId:
+          "auxiliaryMaterialAmmoniaUnitTwoAverage"
+      }
+    ].forEach(config => {
+
+      setAverageText(
+        config.unitOneId,
+
+        calculateUnitAverage(
+          config.propertyName,
+          1
+        ),
+
+        config.decimalPlaces
+      );
+
+      setAverageText(
+        config.unitTwoId,
+
+        calculateUnitAverage(
+          config.propertyName,
+          2
+        ),
+
+        config.decimalPlaces
+      );
+
+      setAverageText(
+        config.combinedId,
+
+        calculateUnitAverage(
+          config.propertyName
+        ),
+
+        config.decimalPlaces
+      );
+    });
+  }
+
+
+  const originalRenderAuxiliaryMaterialHistory =
+    renderAuxiliaryMaterialHistory;
+
+
+  renderAuxiliaryMaterialHistory =
+    function renderAuxiliaryMaterialHistoryWithUnitAverages() {
+
+      upgradeAverageSummaryMarkup();
+
+      originalRenderAuxiliaryMaterialHistory();
+
+      renderUnitAverageSummary();
+    };
+
+
+  function initializeUnitAverageSummary() {
+    upgradeAverageSummaryMarkup();
+
+    renderUnitAverageSummary();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeUnitAverageSummary,
+      {
+        once: true
+      }
+    );
+
+  } else {
+    initializeUnitAverageSummary();
+  }
+
+})();
 
 /* =====================================================
   부재료 API 응답 확인
