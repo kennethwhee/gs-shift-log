@@ -315,6 +315,29 @@ const OIS_UNIT_DEFINITIONS = [
 ];
 
 /* =========================================================
+  오전회의 증기생산량 조회 정의
+
+  - 1호기: BOARD LOGSHEET (BCO1)
+  - 2호기: BOARD LOGSHEET (BCO2)
+  - MAIN STM FLOW 01~24시 합산
+========================================================= */
+
+const OIS_STEAM_PRODUCTION_DEFINITIONS = [
+  {
+    unit: 1,
+    resultKey: "unitOne",
+    sheetLabel: "BOARD LOGSHEET (BCO1)",
+    tag: "106LBA01CF901-CAL"
+  },
+  {
+    unit: 2,
+    resultKey: "unitTwo",
+    sheetLabel: "BOARD LOGSHEET (BCO2)",
+    tag: "206LBA01CF901-CAL"
+  }
+];
+
+/* =========================================================
   터빈 Gear Wheel / Pinion 조회 정의
 
   BOARD LOGSHEET (TGO)의 전일 값:
@@ -5507,9 +5530,10 @@ async function collectOisLegacyLogApprovalValues(
   - limestone_stock
   - turbine_gear_pinion
   - silo_level
+  - steam_status
   - logsheet_approval
 
-  다섯 요청 유형을 번갈아 확인한다.
+  여섯 요청 유형을 번갈아 확인한다.
 ========================================================= */
 
 async function getNextOisAgentRequest(
@@ -5520,6 +5544,7 @@ async function getNextOisAgentRequest(
     "limestone_stock",
     "turbine_gear_pinion",
     "silo_level",
+    "steam_status",
     "logsheet_approval"
   ];
 
@@ -5669,6 +5694,14 @@ function getOisAgentRequestLabel(
 
   if (
     requestType ===
+      "steam_status"
+  ) {
+    return "증기 현황";
+  }
+
+
+  if (
+    requestType ===
       "logsheet_approval"
   ) {
     return "과거 LOG SHEET 업무일지";
@@ -5676,6 +5709,1397 @@ function getOisAgentRequestLabel(
 
 
   return requestType;
+}
+
+/* =========================================================
+  LOG SHEET API 응답에서
+  호기별 MAIN STM FLOW 01~24시 값 수집
+========================================================= */
+
+async function captureOisSteamProductionFromApi(
+  page,
+  unitDefinition,
+  triggerSearch
+) {
+  const normalizedTargetTag = normalizeOisAgentText(
+    unitDefinition.tag
+  ).toUpperCase();
+
+  return await new Promise((resolve, reject) => {
+    let isSettled = false;
+    let timeoutId = null;
+
+    const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+
+      page.off("response", handleResponse);
+    };
+
+    const finishResolve = value => {
+      if (isSettled) return;
+
+      isSettled = true;
+      cleanup();
+      resolve(value);
+    };
+
+    const finishReject = error => {
+      if (isSettled) return;
+
+      isSettled = true;
+      cleanup();
+      reject(error);
+    };
+
+    const handleResponse = async response => {
+      try {
+        const responseUrl = String(response.url() || "");
+        const request = response.request();
+
+        const requestMethod = String(
+          request.method() || ""
+        ).toUpperCase();
+
+        const requestBody = String(
+          request.postData() || ""
+        );
+
+        if (
+          !responseUrl.includes("/ajax/data") ||
+          requestMethod !== "POST" ||
+          !requestBody.includes(
+            "oi.LogSheetService.listLogSheetSearch"
+          )
+        ) {
+          return;
+        }
+
+        const responseText = await response.text();
+
+        if (!responseText.trim()) {
+          return;
+        }
+
+        let responseData = {};
+
+        try {
+          responseData = JSON.parse(responseText);
+        } catch {
+          return;
+        }
+
+        const resultRows = Array.isArray(
+          responseData.result
+        )
+          ? responseData.result
+          : [];
+
+        /*
+          1차:
+          정확한 TAG로 찾는다.
+        */
+
+        let targetRow =
+          resultRows.find(row => {
+            const rowTag = normalizeOisAgentText(
+              row?.tag_no
+            ).toUpperCase();
+
+            return rowTag === normalizedTargetTag;
+          }) || null;
+
+        /*
+          2차:
+          TAG가 달라도 호기와 STM FLOW 항목명으로 찾는다.
+        */
+
+        if (!targetRow) {
+          targetRow =
+            resultRows.find(row => {
+              const itemName = normalizeOisAgentText(
+                row?.mid_name
+              ).toUpperCase();
+
+              return (
+                itemName.includes("STM FLOW") &&
+                (
+                  itemName.includes(
+                    `#${unitDefinition.unit}UNIT`
+                  ) ||
+                  itemName.includes(
+                    `${unitDefinition.unit}UNIT`
+                  )
+                )
+              );
+            }) || null;
+        }
+
+        if (!targetRow) {
+          return;
+        }
+
+        const hourlyValues = [];
+        const missingHours = [];
+
+        /*
+          01시부터 24시까지 전부 읽는다.
+
+          정상 필드:
+          hd_01 ~ hd_24
+
+          OIS 응답 차이를 고려해
+          다른 필드명도 보조로 확인한다.
+        */
+
+        for (
+          let hour = 1;
+          hour <= 24;
+          hour += 1
+        ) {
+          const paddedHour = String(
+            hour
+          ).padStart(2, "0");
+
+          const fieldCandidates = [
+            `hd_${paddedHour}`,
+            `hd_${hour}`,
+            `h_${paddedHour}`,
+            `h_${hour}`,
+            `hour_${paddedHour}`,
+            `hour_${hour}`
+          ];
+
+          let capturedValue = null;
+          let capturedField = "";
+
+          for (const fieldName of fieldCandidates) {
+            const parsedValue = parseOisAgentNumber(
+              targetRow[fieldName]
+            );
+
+            if (parsedValue !== null) {
+              capturedValue = parsedValue;
+              capturedField = fieldName;
+              break;
+            }
+          }
+
+          if (capturedValue === null) {
+            missingHours.push(paddedHour);
+            continue;
+          }
+
+          hourlyValues.push({
+            hour: paddedHour,
+            field: capturedField,
+            value: capturedValue
+          });
+        }
+
+        /*
+          한 시간이라도 누락되면
+          0으로 처리하지 않고 조회 실패 처리한다.
+        */
+
+        if (missingHours.length > 0) {
+          finishReject(
+            new Error(
+              [
+                `${unitDefinition.unit}호기 MAIN STM FLOW 24시간 자료가 완전하지 않습니다.`,
+                `누락: ${missingHours.join(", ")}시`
+              ].join(" ")
+            )
+          );
+
+          return;
+        }
+
+        const productionTotal =
+          Math.round(
+            hourlyValues.reduce(
+              (sum, item) => {
+                return sum + item.value;
+              },
+              0
+            ) * 1000
+          ) / 1000;
+
+        const capturedResult = {
+          unit: unitDefinition.unit,
+
+          sheetLabel:
+            unitDefinition.sheetLabel,
+
+          tag:
+            normalizeOisAgentText(
+              targetRow.tag_no
+            ) ||
+            unitDefinition.tag,
+
+          itemName:
+            normalizeOisAgentText(
+              targetRow.mid_name
+            ),
+
+          unitCode:
+            normalizeOisAgentText(
+              targetRow.unit_code
+            ),
+
+          hourCount:
+            hourlyValues.length,
+
+          hourlyValues,
+
+          productionTotal
+        };
+
+        console.log(
+          "OIS MAIN STM FLOW 24시간 합산 완료:",
+          {
+            unit:
+              capturedResult.unit,
+
+            tag:
+              capturedResult.tag,
+
+            hourCount:
+              capturedResult.hourCount,
+
+            productionTotal:
+              capturedResult.productionTotal
+          }
+        );
+
+        finishResolve(
+          capturedResult
+        );
+
+      } catch (error) {
+        finishReject(error);
+      }
+    };
+
+    /*
+      조회 버튼을 누르기 전에
+      API 응답 감시를 시작한다.
+    */
+
+    page.on(
+      "response",
+      handleResponse
+    );
+
+    timeoutId = setTimeout(() => {
+      finishReject(
+        new Error(
+          `${unitDefinition.unit}호기 MAIN STM FLOW 응답을 받지 못했습니다.`
+        )
+      );
+    }, OIS_QUERY_TIMEOUT);
+
+    Promise.resolve()
+      .then(triggerSearch)
+      .catch(finishReject);
+  });
+}
+
+/* =========================================================
+  OIS 일별 증기 판매량 화면 열기
+
+  경로:
+  운영정보 → LOG SHEET → 일별 증기 판매량
+========================================================= */
+
+async function openOisSteamDailySales(
+  page
+) {
+  const findSalesFrame =
+    async (
+      timeoutMilliseconds =
+        OIS_QUERY_TIMEOUT
+    ) => {
+      const startedAt =
+        Date.now();
+
+
+      while (
+        Date.now() -
+          startedAt <
+        timeoutMilliseconds
+      ) {
+        for (
+          const frame of
+          page.frames()
+        ) {
+          const bodyText =
+            normalizeOisAgentText(
+              await frame
+                .locator("body")
+                .innerText()
+                .catch(() => "")
+            );
+
+
+          if (
+            bodyText.includes(
+              "일별 증기 판매량"
+            ) &&
+            bodyText.includes(
+              "증기구분"
+            ) &&
+            bodyText.includes(
+              "증기사용량"
+            )
+          ) {
+            return frame;
+          }
+        }
+
+
+        await page.waitForTimeout(
+          250
+        );
+      }
+
+
+      return null;
+    };
+
+
+  const existingFrame =
+    await findSalesFrame(
+      1500
+    );
+
+
+  if (
+    existingFrame
+  ) {
+    return existingFrame;
+  }
+
+
+  let menuFrame =
+    await findOisNavigationFrame(
+      page,
+      OIS_QUERY_TIMEOUT
+    );
+
+
+  if (
+    !menuFrame
+  ) {
+    throw new Error(
+      "OIS 왼쪽 메뉴 영역을 찾지 못했습니다."
+    );
+  }
+
+
+  const menuNames = [
+    "일별 증기 판매량",
+    "일별증기판매량"
+  ];
+
+
+  let salesMenu =
+    await findVisibleOisNavigationItem(
+      menuFrame,
+      menuNames,
+      1000
+    );
+
+
+  /*
+    메뉴가 안 보이면 운영정보를 먼저 연다.
+  */
+
+  if (
+    !salesMenu
+  ) {
+    const operationMenu =
+      await findVisibleOisNavigationItem(
+        menuFrame,
+        "운영정보",
+        1500
+      );
+
+
+    if (
+      operationMenu
+    ) {
+      await clickOisNavigationItem(
+        menuFrame,
+        "운영정보",
+        "운영정보"
+      );
+
+
+      menuFrame =
+        await findOisNavigationFrame(
+          page,
+          OIS_QUERY_TIMEOUT
+        );
+    }
+  }
+
+
+  if (
+    !menuFrame
+  ) {
+    throw new Error(
+      "운영정보 메뉴를 연 뒤 왼쪽 메뉴를 찾지 못했습니다."
+    );
+  }
+
+
+  salesMenu =
+    await findVisibleOisNavigationItem(
+      menuFrame,
+      menuNames,
+      1000
+    );
+
+
+  /*
+    그래도 안 보이면 LOG SHEET을 연다.
+  */
+
+  if (
+    !salesMenu
+  ) {
+    const logSheetMenu =
+      await findVisibleOisNavigationItem(
+        menuFrame,
+        "LOG SHEET",
+        3000
+      );
+
+
+    if (
+      logSheetMenu
+    ) {
+      await clickOisNavigationItem(
+        menuFrame,
+        "LOG SHEET",
+        "LOG SHEET"
+      );
+
+
+      menuFrame =
+        await findOisNavigationFrame(
+          page,
+          OIS_QUERY_TIMEOUT
+        );
+    }
+  }
+
+
+  if (
+    !menuFrame
+  ) {
+    throw new Error(
+      "LOG SHEET 메뉴를 연 뒤 왼쪽 메뉴를 찾지 못했습니다."
+    );
+  }
+
+
+  salesMenu =
+    await findVisibleOisNavigationItem(
+      menuFrame,
+      menuNames,
+      10000
+    );
+
+
+  if (
+    !salesMenu
+  ) {
+    throw new Error(
+      "OIS의 일별 증기 판매량 메뉴를 찾지 못했습니다."
+    );
+  }
+
+
+  const clicked =
+    await clickOisNavigationItem(
+      menuFrame,
+      menuNames,
+      "일별 증기 판매량"
+    );
+
+
+  if (
+    !clicked
+  ) {
+    throw new Error(
+      "OIS의 일별 증기 판매량 메뉴를 클릭하지 못했습니다."
+    );
+  }
+
+
+  const salesFrame =
+    await findSalesFrame(
+      OIS_QUERY_TIMEOUT
+    );
+
+
+  if (
+    !salesFrame
+  ) {
+    throw new Error(
+      "OIS 일별 증기 판매량 화면이 열리지 않았습니다."
+    );
+  }
+
+
+  console.log(
+    "OIS 일별 증기 판매량 화면을 열었습니다."
+  );
+
+
+  return salesFrame;
+}
+
+
+/* =========================================================
+  선택일의 증기사용량 TON 소계 읽기
+
+  예:
+  2026/08/07
+  → 소계
+  → 증기사용량 TON
+  → 589.43
+========================================================= */
+
+async function readOisSteamDailySalesTotal(
+  frame,
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "증기 판매량 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  const targetSlashDate =
+    targetDate.replace(
+      /-/g,
+      "/"
+    );
+
+
+  const startedAt =
+    Date.now();
+
+
+  while (
+    Date.now() -
+      startedAt <
+    OIS_QUERY_TIMEOUT
+  ) {
+    const captured =
+      await frame.evaluate(
+        targetDateText => {
+          const normalizeText =
+            value => {
+              return String(
+                value ?? ""
+              )
+                .replace(
+                  /\u00a0/g,
+                  " "
+                )
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .trim();
+            };
+
+
+          const normalizeDateText =
+            value => {
+              return normalizeText(
+                value
+              )
+                .replace(
+                  /[.-]/g,
+                  "/"
+                )
+                .replace(
+                  /\s+/g,
+                  ""
+                );
+            };
+
+
+          const parseNumber =
+            value => {
+              const normalizedValue =
+                normalizeText(
+                  value
+                ).replace(
+                  /,/g,
+                  ""
+                );
+
+
+              if (
+                !/^-?\d+(?:\.\d+)?$/.test(
+                  normalizedValue
+                )
+              ) {
+                return null;
+              }
+
+
+              const numericValue =
+                Number(
+                  normalizedValue
+                );
+
+
+              return Number.isFinite(
+                numericValue
+              )
+                ? numericValue
+                : null;
+            };
+
+
+          const isVisible =
+            element => {
+              const rectangle =
+                element
+                  .getBoundingClientRect();
+
+
+              const style =
+                window.getComputedStyle(
+                  element
+                );
+
+
+              return (
+                rectangle.width > 0 &&
+                rectangle.height > 0 &&
+                style.display !==
+                  "none" &&
+                style.visibility !==
+                  "hidden"
+              );
+            };
+
+
+          const getCellText =
+            cell => {
+              const values = [
+                cell.innerText,
+                cell.getAttribute(
+                  "data-value"
+                ),
+                cell.getAttribute(
+                  "data-text"
+                )
+              ];
+
+
+              for (
+                const input of
+                cell.querySelectorAll(
+                  "input, textarea, select"
+                )
+              ) {
+                values.push(
+                  input.value
+                );
+              }
+
+
+              return normalizeText(
+                values
+                  .filter(Boolean)
+                  .join(" ")
+              );
+            };
+
+
+          const allVisibleCells = [
+            ...document.querySelectorAll(
+              "th, td"
+            )
+          ].filter(
+            isVisible
+          );
+
+
+          /*
+            증기사용량 영역 안의 TON 열 위치를 찾는다.
+          */
+
+          const usageHeaders =
+            allVisibleCells.filter(
+              cell => {
+                return getCellText(
+                  cell
+                ) ===
+                  "증기사용량";
+              }
+            );
+
+
+          let usageTonCenterX =
+            null;
+
+
+          for (
+            const usageHeader of
+            usageHeaders
+          ) {
+            const usageRectangle =
+              usageHeader
+                .getBoundingClientRect();
+
+
+            const tonHeaders =
+              allVisibleCells.filter(
+                cell => {
+                  if (
+                    getCellText(
+                      cell
+                    ) !==
+                      "TON"
+                  ) {
+                    return false;
+                  }
+
+
+                  const rectangle =
+                    cell
+                      .getBoundingClientRect();
+
+
+                  const centerX =
+                    rectangle.left +
+                    rectangle.width /
+                      2;
+
+
+                  return (
+                    centerX >=
+                      usageRectangle.left -
+                        2 &&
+                    centerX <=
+                      usageRectangle.right +
+                        2
+                  );
+                }
+              );
+
+
+            if (
+              tonHeaders.length >
+                0
+            ) {
+              const rectangle =
+                tonHeaders[0]
+                  .getBoundingClientRect();
+
+
+              usageTonCenterX =
+                rectangle.left +
+                rectangle.width /
+                  2;
+
+
+              break;
+            }
+
+
+            usageTonCenterX =
+              usageRectangle.left +
+              usageRectangle.width /
+                4;
+          }
+
+
+          /*
+            날짜 셀이 8bar·34bar·소계 행에 걸쳐
+            병합되어 있으므로 날짜를 이어서 기억한다.
+          */
+
+          for (
+            const table of
+            document.querySelectorAll(
+              "table"
+            )
+          ) {
+            if (
+              !isVisible(
+                table
+              )
+            ) {
+              continue;
+            }
+
+
+            let activeDate =
+              "";
+
+
+            const rows = [
+              ...table.querySelectorAll(
+                "tr"
+              )
+            ];
+
+
+            for (
+              const row of
+              rows
+            ) {
+              if (
+                !isVisible(
+                  row
+                )
+              ) {
+                continue;
+              }
+
+
+              const cells = [
+                ...row.children
+              ].filter(
+                element => {
+                  return (
+                    element.tagName ===
+                      "TH" ||
+                    element.tagName ===
+                      "TD"
+                  );
+                }
+              );
+
+
+              const cellItems =
+                cells.map(
+                  cell => {
+                    const rectangle =
+                      cell
+                        .getBoundingClientRect();
+
+
+                    const text =
+                      getCellText(
+                        cell
+                      );
+
+
+                    return {
+                      text,
+
+                      value:
+                        parseNumber(
+                          text
+                        ),
+
+                      centerX:
+                        rectangle.left +
+                        rectangle.width /
+                          2
+                    };
+                  }
+                );
+
+
+              const rowDate =
+                cellItems
+                  .map(
+                    item => {
+                      return normalizeDateText(
+                        item.text
+                      );
+                    }
+                  )
+                  .find(
+                    text => {
+                      return /^\d{4}\/\d{2}\/\d{2}$/.test(
+                        text
+                      );
+                    }
+                  );
+
+
+              if (
+                rowDate
+              ) {
+                activeDate =
+                  rowDate;
+              }
+
+
+              if (
+                activeDate !==
+                  targetDateText
+              ) {
+                continue;
+              }
+
+
+              const isSubtotalRow =
+                cellItems.some(
+                  item => {
+                    return item.text ===
+                      "소계";
+                  }
+                );
+
+
+              if (
+                !isSubtotalRow
+              ) {
+                continue;
+              }
+
+
+              const numericItems =
+                cellItems.filter(
+                  item => {
+                    return item.value !==
+                      null;
+                  }
+                );
+
+
+              if (
+                numericItems.length ===
+                  0
+              ) {
+                return {
+                  error:
+                    `${targetDateText} 소계 행에 숫자가 없습니다.`
+                };
+              }
+
+
+              let targetItem =
+                null;
+
+
+              /*
+                증기사용량 TON 열과 가로 위치가
+                가장 가까운 숫자를 선택한다.
+              */
+
+              if (
+                usageTonCenterX !==
+                  null
+              ) {
+                targetItem =
+                  numericItems
+                    .slice()
+                    .sort(
+                      (
+                        left,
+                        right
+                      ) => {
+                        return (
+                          Math.abs(
+                            left.centerX -
+                              usageTonCenterX
+                          ) -
+                          Math.abs(
+                            right.centerX -
+                              usageTonCenterX
+                          )
+                        );
+                      }
+                    )[0] ||
+                  null;
+              }
+
+
+              /*
+                열 위치를 확인하지 못한 경우에는
+                소계 행의 가장 오른쪽 숫자를 사용한다.
+              */
+
+              if (
+                !targetItem
+              ) {
+                targetItem =
+                  numericItems[
+                    numericItems.length -
+                      1
+                  ];
+              }
+
+
+              return {
+                value:
+                  targetItem.value,
+
+                subtotalCells:
+                  cellItems.map(
+                    item => {
+                      return item.text;
+                    }
+                  )
+              };
+            }
+          }
+
+
+          return null;
+        },
+
+        targetSlashDate
+      );
+
+
+    if (
+      captured?.error
+    ) {
+      throw new Error(
+        captured.error
+      );
+    }
+
+
+    if (
+      captured &&
+      captured.value !==
+        null &&
+      Number.isFinite(
+        Number(
+          captured.value
+        )
+      )
+    ) {
+      const salesTotal =
+        Math.round(
+          Number(
+            captured.value
+          ) *
+            1000
+        ) /
+        1000;
+
+
+      console.log(
+        "OIS 일별 증기 판매량 소계 확인:",
+        {
+          targetDate,
+
+          salesTotal,
+
+          subtotalCells:
+            captured.subtotalCells
+        }
+      );
+
+
+      return salesTotal;
+    }
+
+
+    await frame.page()
+      .waitForTimeout(
+        300
+      );
+  }
+
+
+  throw new Error(
+    `${targetSlashDate} 일별 증기 판매량 소계를 찾지 못했습니다.`
+  );
+}
+
+/* =========================================================
+  오전회의 증기 현황 수집
+
+  생산량:
+  - BCO1 MAIN STM FLOW 01~24시
+  - BCO2 MAIN STM FLOW 01~24시
+
+  판매량:
+  - 일별 증기 판매량
+  - 선택일 소계
+  - 증기사용량 TON
+
+  판매율:
+  - 증기 판매량 ÷ 총 증기생산량 × 100
+========================================================= */
+
+async function collectOisSteamStatusValues(
+  page,
+  config,
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "증기 현황 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  await ensureOisAgentLoggedIn(
+    page,
+    config
+  );
+
+
+  const capturedUnits = {};
+
+
+  /*
+    1·2호기 증기생산량 조회
+  */
+
+  for (
+    const unitDefinition of
+    OIS_STEAM_PRODUCTION_DEFINITIONS
+  ) {
+    let frame =
+      await openOisLogSheetLookup(
+        page
+      );
+
+
+    await selectOisOptionByLabel(
+      frame,
+      "설비운영팀",
+      false
+    );
+
+
+    frame =
+      await findOisLogSheetFrame(
+        page
+      ) ||
+      frame;
+
+
+    await selectOisOptionByLabel(
+      frame,
+      unitDefinition.sheetLabel,
+      true
+    );
+
+
+    await page.waitForTimeout(
+      500
+    );
+
+
+    frame =
+      await findOisLogSheetFrame(
+        page
+      ) ||
+      frame;
+
+
+    await selectOisOptionByLabel(
+      frame,
+      "1시간",
+      false
+    );
+
+
+    await setOisLogSheetDate(
+      frame,
+      targetDate
+    );
+
+
+    await page.waitForTimeout(
+      200
+    );
+
+
+    capturedUnits[
+      unitDefinition.resultKey
+    ] =
+      await captureOisSteamProductionFromApi(
+        page,
+        unitDefinition,
+        async () => {
+          await clickOisLogSheetSearchButton(
+            frame
+          );
+        }
+      );
+  }
+
+
+  const unitOne =
+    capturedUnits.unitOne;
+
+
+  const unitTwo =
+    capturedUnits.unitTwo;
+
+
+  if (
+    !unitOne ||
+    !unitTwo
+  ) {
+    throw new Error(
+      "1·2호기 증기생산량을 모두 확인하지 못했습니다."
+    );
+  }
+
+
+  const totalProduction =
+    Math.round(
+      (
+        unitOne.productionTotal +
+        unitTwo.productionTotal
+      ) *
+        1000
+    ) /
+    1000;
+
+
+  /*
+    일별 증기 판매량 조회
+  */
+
+  const salesFrame =
+    await openOisSteamDailySales(
+      page
+    );
+
+
+  /*
+    증기구분은 전체로 선택한다.
+  */
+
+  await selectOisOptionByLabel(
+    salesFrame,
+    "전체",
+    false
+  );
+
+
+  await page.waitForTimeout(
+    700
+  );
+
+
+  const steamSales =
+    await readOisSteamDailySalesTotal(
+      salesFrame,
+      targetDate
+    );
+
+
+  if (
+    totalProduction <=
+      0
+  ) {
+    throw new Error(
+      "총 증기생산량이 0 이하이므로 판매율을 계산할 수 없습니다."
+    );
+  }
+
+
+  const salesRate =
+    Math.round(
+      (
+        steamSales /
+        totalProduction *
+        100
+      ) *
+        1000
+    ) /
+    1000;
+
+
+  const result = {
+    source:
+      "OIS BOARD LOGSHEET / 일별 증기 판매량",
+
+    targetDate,
+
+    sourceDate:
+      targetDate,
+
+    outputInterval:
+      "1시간",
+
+    hourRange:
+      "01~24",
+
+    hourCount:
+      24,
+
+    unit:
+      "ton",
+
+    salesUnit:
+      "TON",
+
+    steamSales,
+
+    unitOneProduction:
+      unitOne.productionTotal,
+
+    unitTwoProduction:
+      unitTwo.productionTotal,
+
+    totalProduction,
+
+    salesRate,
+
+    productionComplete:
+      true,
+
+    salesComplete:
+      true,
+
+    complete:
+      true,
+
+    unitOne,
+
+    unitTwo,
+
+    collectedAt:
+      new Date()
+        .toISOString()
+  };
+
+
+  console.log(
+    [
+      "OIS 증기 현황 조회 완료",
+      targetDate,
+      `판매 ${result.steamSales} ton`,
+      `1호기 ${result.unitOneProduction} ton`,
+      `2호기 ${result.unitTwoProduction} ton`,
+      `총생산 ${result.totalProduction} ton`,
+      `판매율 ${result.salesRate}%`
+    ].join(
+      " · "
+    )
+  );
+
+
+  return result;
 }
 
 /* =========================================================
@@ -5741,6 +7165,18 @@ async function collectOisAgentRequestResult(
       "silo_level"
   ) {
     return await collectOisSiloLevelValues(
+      page,
+      config,
+      targetDate
+    );
+  }
+
+
+  if (
+    requestType ===
+      "steam_status"
+  ) {
+    return await collectOisSteamStatusValues(
       page,
       config,
       targetDate

@@ -84803,11 +84803,12 @@ function scheduleMemberFooterRefresh() {
   - daily-work
   - morning-meeting
   - limestone
+  - auxiliary-materials
   - arm-roll
 
   동작:
   - 메뉴 미선택 시 안내 문구 표시
-  - 메뉴 선택 시 해당 화면 표시
+  - 메뉴 선택 시 해당 화면만 표시
 ===================================================== */
 
 function switchEfficiencyTeamView(
@@ -84831,6 +84832,7 @@ function switchEfficiencyTeamView(
       "daily-work",
       "morning-meeting",
       "limestone",
+      "auxiliary-materials",
       "arm-roll"
     ]);
 
@@ -85209,6 +85211,2415 @@ function openEfficiencyTeamModal() {
     bindEfficiencyTeamEvents();
   }
 })();
+
+/* =========================================================
+  효율팀 - 부재료 월별 관리
+
+  1단계:
+  - 화면 요소 연결
+  - 현재 월 초기화
+  - 이전 달·다음 달 이동
+  - 월 선택 시 시작일·종료일 자동 설정
+
+  기존 석회석 기능과는 별도로 작동한다.
+========================================================= */
+
+
+/* =====================================================
+  부재료 화면 요소 조회
+===================================================== */
+
+function getAuxiliaryMaterialElements() {
+  return {
+    view:
+      document.getElementById(
+        "efficiencyAuxiliaryMaterialsView"
+      ),
+
+    tab:
+      document.getElementById(
+        "efficiencyAuxiliaryMaterialsTab"
+      ),
+
+    monthInput:
+      document.getElementById(
+        "auxiliaryMaterialMonth"
+      ),
+
+    previousMonthButton:
+      document.getElementById(
+        "auxiliaryMaterialPreviousMonth"
+      ),
+
+    nextMonthButton:
+      document.getElementById(
+        "auxiliaryMaterialNextMonth"
+      ),
+
+    startDateInput:
+      document.getElementById(
+        "auxiliaryMaterialStartDate"
+      ),
+
+    endDateInput:
+      document.getElementById(
+        "auxiliaryMaterialEndDate"
+      ),
+
+    loadButton:
+      document.getElementById(
+        "loadAuxiliaryMaterialHistoryButton"
+      ),
+
+    queryButton:
+      document.getElementById(
+        "queryAuxiliaryMaterialOisButton"
+      ),
+
+    forceRefreshInput:
+      document.getElementById(
+        "auxiliaryMaterialForceRefresh"
+      ),
+
+    status:
+      document.getElementById(
+        "auxiliaryMaterialStatus"
+      ),
+
+    savedDays:
+      document.getElementById(
+        "auxiliaryMaterialSavedDays"
+      ),
+
+    limestoneAverage:
+      document.getElementById(
+        "auxiliaryMaterialLimestoneAverage"
+      ),
+
+    limePowderAverage:
+      document.getElementById(
+        "auxiliaryMaterialLimePowderAverage"
+      ),
+
+    ammoniaAverage:
+      document.getElementById(
+        "auxiliaryMaterialAmmoniaAverage"
+      ),
+
+    tableBody:
+      document.getElementById(
+        "auxiliaryMaterialTableBody"
+      ),
+
+    emptyState:
+      document.getElementById(
+        "auxiliaryMaterialEmptyState"
+      ),
+
+    rowCount:
+      document.getElementById(
+        "auxiliaryMaterialRowCount"
+      )
+  };
+}
+
+
+/* =====================================================
+  날짜 숫자 두 자리 처리
+===================================================== */
+
+function padAuxiliaryMaterialDateNumber(
+  value
+) {
+  return String(
+    value
+  ).padStart(
+    2,
+    "0"
+  );
+}
+
+
+/* =====================================================
+  Date 객체를 YYYY-MM-DD 형식으로 변환
+
+  UTC가 아닌 현재 PC의 로컬 날짜를 사용한다.
+===================================================== */
+
+function formatAuxiliaryMaterialIsoDate(
+  date
+) {
+  if (
+    !(
+      date instanceof
+        Date
+    ) ||
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "";
+  }
+
+
+  return [
+    date.getFullYear(),
+
+    padAuxiliaryMaterialDateNumber(
+      date.getMonth() +
+      1
+    ),
+
+    padAuxiliaryMaterialDateNumber(
+      date.getDate()
+    )
+  ].join(
+    "-"
+  );
+}
+
+
+/* =====================================================
+  현재 월 반환
+
+  형식:
+  YYYY-MM
+===================================================== */
+
+function getCurrentAuxiliaryMaterialMonthValue() {
+  const today =
+    new Date();
+
+
+  return (
+    `${today.getFullYear()}-` +
+    `${padAuxiliaryMaterialDateNumber(
+      today.getMonth() +
+      1
+    )}`
+  );
+}
+
+
+/* =====================================================
+  선택한 월의 시작일·종료일 계산
+
+  과거 월:
+  해당 월 1일 ~ 말일
+
+  현재 월:
+  해당 월 1일 ~ 오늘
+
+  미래 월:
+  조회하지 않음
+===================================================== */
+
+function getAuxiliaryMaterialMonthRange(
+  monthValue
+) {
+  const match =
+    String(
+      monthValue ||
+      ""
+    ).match(
+      /^(\d{4})-(\d{2})$/
+    );
+
+
+  if (
+    !match
+  ) {
+    return null;
+  }
+
+
+  const year =
+    Number(
+      match[1]
+    );
+
+
+  const month =
+    Number(
+      match[2]
+    );
+
+
+  if (
+    !Number.isInteger(
+      year
+    ) ||
+    month <
+      1 ||
+    month >
+      12
+  ) {
+    return null;
+  }
+
+
+  const firstDate =
+    new Date(
+      year,
+      month -
+        1,
+      1
+    );
+
+
+  const lastDate =
+    new Date(
+      year,
+      month,
+      0
+    );
+
+
+  const today =
+    new Date();
+
+
+  today.setHours(
+    0,
+    0,
+    0,
+    0
+  );
+
+
+  /*
+    미래 월은 조회하지 않는다.
+  */
+  if (
+    firstDate >
+      today
+  ) {
+    return null;
+  }
+
+
+  const endDate =
+    lastDate >
+      today
+      ? today
+      : lastDate;
+
+
+  return {
+    startDate:
+      formatAuxiliaryMaterialIsoDate(
+        firstDate
+      ),
+
+    endDate:
+      formatAuxiliaryMaterialIsoDate(
+        endDate
+      )
+  };
+}
+
+
+/* =====================================================
+  부재료 조회 상태 문구 표시
+===================================================== */
+
+function setAuxiliaryMaterialStatus(
+  message,
+  status =
+    "idle"
+) {
+  const {
+    status:
+      statusElement
+  } =
+    getAuxiliaryMaterialElements();
+
+
+  if (
+    !statusElement
+  ) {
+    return;
+  }
+
+
+  statusElement.textContent =
+    String(
+      message ||
+      ""
+    );
+
+
+  statusElement.dataset.status =
+    status;
+}
+
+
+/* =====================================================
+  선택 월을 시작일·종료일에 반영
+===================================================== */
+
+function applyAuxiliaryMaterialMonthRange(
+  monthValue
+) {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  const currentMonthValue =
+    getCurrentAuxiliaryMaterialMonthValue();
+
+
+  const normalizedMonthValue =
+    String(
+      monthValue ||
+      ""
+    ).trim();
+
+
+  /*
+    미래 월이 선택되면 현재 월로 되돌린다.
+  */
+  const selectedMonthValue =
+    normalizedMonthValue &&
+    normalizedMonthValue <=
+      currentMonthValue
+      ? normalizedMonthValue
+      : currentMonthValue;
+
+
+  const range =
+    getAuxiliaryMaterialMonthRange(
+      selectedMonthValue
+    );
+
+
+  if (
+    !range
+  ) {
+    return false;
+  }
+
+
+  if (
+    elements.monthInput
+  ) {
+    elements.monthInput.value =
+      selectedMonthValue;
+  }
+
+
+  if (
+    elements.startDateInput
+  ) {
+    elements.startDateInput.value =
+      range.startDate;
+  }
+
+
+  if (
+    elements.endDateInput
+  ) {
+    elements.endDateInput.value =
+      range.endDate;
+  }
+
+
+  /*
+    현재 월에서는 다음 달 버튼을 비활성화한다.
+  */
+  if (
+    elements.nextMonthButton
+  ) {
+    elements.nextMonthButton.disabled =
+      selectedMonthValue >=
+      currentMonthValue;
+  }
+
+
+  setAuxiliaryMaterialStatus(
+    `${range.startDate} ~ ${range.endDate} 기간이 선택되었습니다.`,
+    "idle"
+  );
+
+
+  return true;
+}
+
+
+/* =====================================================
+  이전 달·다음 달 이동
+===================================================== */
+
+function moveAuxiliaryMaterialMonth(
+  amount
+) {
+  const {
+    monthInput
+  } =
+    getAuxiliaryMaterialElements();
+
+
+  if (
+    !monthInput
+  ) {
+    return;
+  }
+
+
+  const currentMonthValue =
+    getCurrentAuxiliaryMaterialMonthValue();
+
+
+  const baseMonthValue =
+    monthInput.value ||
+    currentMonthValue;
+
+
+  const match =
+    baseMonthValue.match(
+      /^(\d{4})-(\d{2})$/
+    );
+
+
+  if (
+    !match
+  ) {
+    applyAuxiliaryMaterialMonthRange(
+      currentMonthValue
+    );
+
+
+    return;
+  }
+
+
+  const date =
+    new Date(
+      Number(
+        match[1]
+      ),
+
+      Number(
+        match[2]
+      ) -
+        1 +
+        Number(
+          amount ||
+          0
+        ),
+
+      1
+    );
+
+
+  const movedMonthValue =
+    (
+      `${date.getFullYear()}-` +
+      `${padAuxiliaryMaterialDateNumber(
+        date.getMonth() +
+        1
+      )}`
+    );
+
+
+  /*
+    미래 월로 넘어가는 것을 막는다.
+  */
+  applyAuxiliaryMaterialMonthRange(
+    movedMonthValue >
+      currentMonthValue
+      ? currentMonthValue
+      : movedMonthValue
+  );
+}
+
+
+/* =====================================================
+  부재료 날짜 제어 초기화
+===================================================== */
+
+function initializeAuxiliaryMaterialDateControls() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  if (
+    !elements.view ||
+    !elements.monthInput ||
+    !elements.startDateInput ||
+    !elements.endDateInput
+  ) {
+    return;
+  }
+
+
+  /*
+    이벤트 중복 연결 방지
+  */
+  if (
+    elements
+      .monthInput
+      .dataset
+      .auxiliaryMaterialDateBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  const currentMonthValue =
+    getCurrentAuxiliaryMaterialMonthValue();
+
+
+  /*
+    월 선택창에서 미래 월 선택 방지
+  */
+  elements.monthInput.max =
+    currentMonthValue;
+
+
+  /*
+    최초 실행 시 현재 월 적용
+  */
+  applyAuxiliaryMaterialMonthRange(
+    elements.monthInput.value ||
+    currentMonthValue
+  );
+
+
+  /*
+    월 선택창 변경
+  */
+  elements.monthInput.addEventListener(
+    "change",
+    () => {
+      applyAuxiliaryMaterialMonthRange(
+        elements.monthInput.value
+      );
+    }
+  );
+
+
+  /*
+    이전 달 이동
+  */
+  elements
+    .previousMonthButton
+    ?.addEventListener(
+      "click",
+      () => {
+        moveAuxiliaryMaterialMonth(
+          -1
+        );
+      }
+    );
+
+
+  /*
+    다음 달 이동
+  */
+  elements
+    .nextMonthButton
+    ?.addEventListener(
+      "click",
+      () => {
+        moveAuxiliaryMaterialMonth(
+          1
+        );
+      }
+    );
+
+
+  elements
+    .monthInput
+    .dataset
+    .auxiliaryMaterialDateBound =
+    "true";
+}
+
+
+/* =====================================================
+  초기 실행
+===================================================== */
+
+if (
+  document.readyState ===
+    "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeAuxiliaryMaterialDateControls,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeAuxiliaryMaterialDateControls();
+}
+
+/* =========================================================
+  효율팀 - 부재료 D1 저장자료 조회
+
+  기능:
+  - 기간 입력값 검사
+  - D1 저장자료 조회
+  - 날짜별 1·2호기 표 표시
+  - 저장일수 및 기간 평균 표시
+========================================================= */
+
+
+/* =====================================================
+  부재료 저장자료 화면 상태
+===================================================== */
+
+const auxiliaryMaterialHistoryState = {
+  items: [],
+
+  summary: {}
+};
+
+
+/* =====================================================
+  부재료 숫자 표시
+
+  값이 없으면 "-"
+===================================================== */
+
+function formatAuxiliaryMaterialDisplayNumber(
+  value,
+  decimalPlaces =
+    2
+) {
+  if (
+    value ===
+      null ||
+    value ===
+      undefined ||
+    String(
+      value
+    ).trim() ===
+      ""
+  ) {
+    return "-";
+  }
+
+
+  const numericValue =
+    Number(
+      value
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return "-";
+  }
+
+
+  return numericValue.toLocaleString(
+    "ko-KR",
+    {
+      minimumFractionDigits:
+        decimalPlaces,
+
+      maximumFractionDigits:
+        decimalPlaces
+    }
+  );
+}
+
+
+/* =====================================================
+  HTML 특수문자 변환
+===================================================== */
+
+function escapeAuxiliaryMaterialHtml(
+  value
+) {
+  return String(
+    value ??
+    ""
+  ).replace(
+    /[&<>"']/g,
+    character => {
+      const entities = {
+        "&":
+          "&amp;",
+
+        "<":
+          "&lt;",
+
+        ">":
+          "&gt;",
+
+        "\"":
+          "&quot;",
+
+        "'":
+          "&#039;"
+      };
+
+
+      return entities[
+        character
+      ];
+    }
+  );
+}
+
+
+/* =====================================================
+  부재료 항목 평균 계산
+===================================================== */
+
+function calculateAuxiliaryMaterialAverage(
+  propertyName
+) {
+  const values =
+    auxiliaryMaterialHistoryState
+      .items
+      .filter(
+        item => {
+          const value =
+            item?.[
+              propertyName
+            ];
+
+
+          return (
+            value !==
+              null &&
+            value !==
+              undefined &&
+            String(
+              value
+            ).trim() !==
+              ""
+          );
+        }
+      )
+      .map(
+        item => Number(
+          item?.[
+            propertyName
+          ]
+        )
+      )
+      .filter(
+        Number.isFinite
+      );
+
+
+  if (
+    values.length <
+      1
+  ) {
+    return null;
+  }
+
+
+  return (
+    values.reduce(
+      (
+        total,
+        value
+      ) => total +
+        value,
+      0
+    ) /
+    values.length
+  );
+}
+
+
+/* =====================================================
+  실제 존재하는 날짜인지 확인
+===================================================== */
+
+function isValidAuxiliaryMaterialIsoDate(
+  value
+) {
+  const match =
+    String(
+      value ||
+      ""
+    ).match(
+      /^(\d{4})-(\d{2})-(\d{2})$/
+    );
+
+
+  if (
+    !match
+  ) {
+    return false;
+  }
+
+
+  const year =
+    Number(
+      match[1]
+    );
+
+
+  const month =
+    Number(
+      match[2]
+    );
+
+
+  const day =
+    Number(
+      match[3]
+    );
+
+
+  const date =
+    new Date(
+      year,
+      month -
+        1,
+      day
+    );
+
+
+  return (
+    date.getFullYear() ===
+      year &&
+    date.getMonth() ===
+      month -
+        1 &&
+    date.getDate() ===
+      day
+  );
+}
+
+
+/* =====================================================
+  부재료 조회 기간 확인
+===================================================== */
+
+function readAuxiliaryMaterialDateRange() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  const startDate =
+    String(
+      elements
+        .startDateInput
+        ?.value ||
+      ""
+    ).trim();
+
+
+  const endDate =
+    String(
+      elements
+        .endDateInput
+        ?.value ||
+      ""
+    ).trim();
+
+
+  if (
+    !isValidAuxiliaryMaterialIsoDate(
+      startDate
+    ) ||
+    !isValidAuxiliaryMaterialIsoDate(
+      endDate
+    )
+  ) {
+    throw new Error(
+      "부재료 조회 시작일과 종료일을 확인해 주세요."
+    );
+  }
+
+
+  if (
+    startDate >
+      endDate
+  ) {
+    throw new Error(
+      "시작일은 종료일보다 늦을 수 없습니다."
+    );
+  }
+
+
+  const today =
+    formatAuxiliaryMaterialIsoDate(
+      new Date()
+    );
+
+
+  if (
+    endDate >
+      today
+  ) {
+    throw new Error(
+      "종료일은 오늘보다 늦을 수 없습니다."
+    );
+  }
+
+
+  const startTime =
+    new Date(
+      `${startDate}T00:00:00`
+    ).getTime();
+
+
+  const endTime =
+    new Date(
+      `${endDate}T00:00:00`
+    ).getTime();
+
+
+  const dayCount =
+    Math.floor(
+      (
+        endTime -
+        startTime
+      ) /
+      86400000
+    ) +
+    1;
+
+
+  if (
+    dayCount <
+      1 ||
+    dayCount >
+      366
+  ) {
+    throw new Error(
+      "저장자료 조회 기간은 1일 이상 366일 이하로 선택해 주세요."
+    );
+  }
+
+
+  return {
+    startDate,
+    endDate,
+    dayCount
+  };
+}
+
+
+/* =====================================================
+  부재료 표와 요약 표시
+===================================================== */
+
+function renderAuxiliaryMaterialHistory() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  if (
+    !elements.tableBody
+  ) {
+    return;
+  }
+
+
+  /*
+    최신 날짜부터 표시하고
+    같은 날짜는 1호기 → 2호기 순서로 표시한다.
+  */
+  const sortedItems =
+    [
+      ...auxiliaryMaterialHistoryState
+        .items
+    ].sort(
+      (
+        first,
+        second
+      ) => {
+        const dateCompare =
+          String(
+            second.recordDate ||
+            ""
+          ).localeCompare(
+            String(
+              first.recordDate ||
+              ""
+            )
+          );
+
+
+        if (
+          dateCompare !==
+            0
+        ) {
+          return dateCompare;
+        }
+
+
+        return (
+          Number(
+            first.unitNo
+          ) -
+          Number(
+            second.unitNo
+          )
+        );
+      }
+    );
+
+
+  elements.tableBody.innerHTML =
+    sortedItems
+      .map(
+        item => {
+          const unitNo =
+            Number(
+              item.unitNo
+            );
+
+
+          const unitLabel =
+            Number.isInteger(
+              unitNo
+            ) &&
+            unitNo >
+              0
+              ? `${unitNo}호기`
+              : "-";
+
+
+          const sampleCount =
+            Math.max(
+              0,
+              Number(
+                item.sampleCount
+              ) ||
+              0
+            );
+
+
+          const completenessClass =
+            item.isComplete ===
+              true
+              ? "is-complete"
+              : "is-partial";
+
+
+          const completenessText =
+            item.isComplete ===
+              true
+              ? "24/24"
+              : `${sampleCount}/24`;
+
+
+          return `
+            <tr>
+              <td>
+                ${escapeAuxiliaryMaterialHtml(
+                  item.recordDate ||
+                  "-"
+                )}
+              </td>
+
+              <td>
+                <strong>
+                  ${escapeAuxiliaryMaterialHtml(
+                    unitLabel
+                  )}
+                </strong>
+              </td>
+
+              <td>
+                ${formatAuxiliaryMaterialDisplayNumber(
+                  item.limestoneUsageTpd,
+                  2
+                )}
+              </td>
+
+              <td>
+                ${formatAuxiliaryMaterialDisplayNumber(
+                  item.limeSlurryFlowM3h,
+                  3
+                )}
+              </td>
+
+              <td>
+                ${formatAuxiliaryMaterialDisplayNumber(
+                  item.limeSlurryDensityKgm3,
+                  1
+                )}
+              </td>
+
+              <td>
+                ${formatAuxiliaryMaterialDisplayNumber(
+                  item.limePowderTpd,
+                  2
+                )}
+              </td>
+
+              <td>
+                ${formatAuxiliaryMaterialDisplayNumber(
+                  item.ammoniaM3d,
+                  3
+                )}
+              </td>
+
+              <td>
+                ${formatAuxiliaryMaterialDisplayNumber(
+                  item.soxPpm,
+                  2
+                )}
+              </td>
+
+              <td>
+                ${formatAuxiliaryMaterialDisplayNumber(
+                  item.noxPpm,
+                  2
+                )}
+              </td>
+
+              <td>
+                <span
+                  class="
+                    auxiliary-material-completeness
+                    ${completenessClass}
+                  "
+                >
+                  ${escapeAuxiliaryMaterialHtml(
+                    completenessText
+                  )}
+                </span>
+              </td>
+            </tr>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+
+
+  if (
+    elements.emptyState
+  ) {
+    elements.emptyState.hidden =
+      sortedItems.length >
+      0;
+  }
+
+
+  if (
+    elements.rowCount
+  ) {
+    elements.rowCount.textContent =
+      `${sortedItems.length}건`;
+  }
+
+
+  const summarySavedDateCount =
+    Number(
+      auxiliaryMaterialHistoryState
+        .summary
+        ?.savedDateCount
+    );
+
+
+  const savedDateCount =
+    Number.isFinite(
+      summarySavedDateCount
+    )
+      ? summarySavedDateCount
+      : new Set(
+          sortedItems.map(
+            item =>
+              item.recordDate
+          )
+        ).size;
+
+
+  if (
+    elements.savedDays
+  ) {
+    elements.savedDays.textContent =
+      `${savedDateCount}일`;
+  }
+
+
+  if (
+    elements.limestoneAverage
+  ) {
+    elements
+      .limestoneAverage
+      .textContent =
+      formatAuxiliaryMaterialDisplayNumber(
+        calculateAuxiliaryMaterialAverage(
+          "limestoneUsageTpd"
+        ),
+        2
+      );
+  }
+
+
+  if (
+    elements.limePowderAverage
+  ) {
+    elements
+      .limePowderAverage
+      .textContent =
+      formatAuxiliaryMaterialDisplayNumber(
+        calculateAuxiliaryMaterialAverage(
+          "limePowderTpd"
+        ),
+        2
+      );
+  }
+
+
+  if (
+    elements.ammoniaAverage
+  ) {
+    elements
+      .ammoniaAverage
+      .textContent =
+      formatAuxiliaryMaterialDisplayNumber(
+        calculateAuxiliaryMaterialAverage(
+          "ammoniaM3d"
+        ),
+        3
+      );
+  }
+}
+
+
+/* =====================================================
+  부재료 API 응답 확인
+===================================================== */
+
+async function readAuxiliaryMaterialJsonResponse(
+  response
+) {
+  const result =
+    await response
+      .json()
+      .catch(
+        () => ({})
+      );
+
+
+  if (
+    !response.ok ||
+    result.ok ===
+      false
+  ) {
+    throw new Error(
+      result.message ||
+      (
+        "부재료 저장자료를 불러오지 못했습니다. " +
+        `(HTTP ${response.status})`
+      )
+    );
+  }
+
+
+  return result;
+}
+
+
+/* =====================================================
+  D1 부재료 저장자료 불러오기
+===================================================== */
+
+async function loadAuxiliaryMaterialHistory(
+  options =
+    {}
+) {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  const isSilent =
+    options.silent ===
+      true;
+
+
+  const range =
+    readAuxiliaryMaterialDateRange();
+
+
+  if (
+    elements.loadButton &&
+    !isSilent
+  ) {
+    elements.loadButton.disabled =
+      true;
+  }
+
+
+  if (
+    !isSilent
+  ) {
+    setAuxiliaryMaterialStatus(
+      (
+        `${range.startDate} ~ ${range.endDate} ` +
+        "저장자료를 불러오고 있습니다."
+      ),
+      "loading"
+    );
+  }
+
+
+  try {
+    const query =
+      new URLSearchParams({
+        action:
+          "materials_history",
+
+        startDate:
+          range.startDate,
+
+        endDate:
+          range.endDate,
+
+        _:
+          String(
+            Date.now()
+          )
+      });
+
+
+    const headers =
+      typeof getShiftLogAuthHeaders ===
+        "function"
+        ? getShiftLogAuthHeaders()
+        : {
+            Accept:
+              "application/json"
+          };
+
+
+    const response =
+      await fetch(
+        (
+          "/api/ois-data-requests?" +
+          query.toString()
+        ),
+        {
+          method:
+            "GET",
+
+          headers,
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    const result =
+      await readAuxiliaryMaterialJsonResponse(
+        response
+      );
+
+
+    auxiliaryMaterialHistoryState.items =
+      Array.isArray(
+        result.items
+      )
+        ? result.items
+        : [];
+
+
+    auxiliaryMaterialHistoryState.summary =
+      result.summary &&
+      typeof result.summary ===
+        "object"
+        ? result.summary
+        : {};
+
+
+    renderAuxiliaryMaterialHistory();
+
+
+    if (
+      !isSilent
+    ) {
+      setAuxiliaryMaterialStatus(
+        (
+          `${result.range?.startDate || range.startDate}` +
+          " ~ " +
+          `${result.range?.endDate || range.endDate}` +
+          " · " +
+          `${Number(
+            result.summary
+              ?.savedDateCount ||
+            0
+          )}일 저장`
+        ),
+        "complete"
+      );
+    }
+
+
+    return result;
+
+  } catch (
+    error
+  ) {
+    const message =
+      error instanceof
+        Error
+        ? error.message
+        : "부재료 저장자료를 불러오지 못했습니다.";
+
+
+    if (
+      !isSilent
+    ) {
+      setAuxiliaryMaterialStatus(
+        message,
+        "error"
+      );
+
+
+      if (
+        typeof showToast ===
+          "function"
+      ) {
+        showToast(
+          message
+        );
+      }
+    }
+
+
+    throw error;
+
+  } finally {
+    if (
+      elements.loadButton &&
+      !isSilent
+    ) {
+      elements.loadButton.disabled =
+        false;
+    }
+  }
+}
+
+
+/* =====================================================
+  부재료 저장자료 조회 이벤트 연결
+===================================================== */
+
+function initializeAuxiliaryMaterialHistoryControls() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  if (
+    !elements.view ||
+    !elements.loadButton
+  ) {
+    return;
+  }
+
+
+  /*
+    이벤트 중복 연결 방지
+  */
+  if (
+    elements
+      .loadButton
+      .dataset
+      .auxiliaryMaterialHistoryBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  const today =
+    formatAuxiliaryMaterialIsoDate(
+      new Date()
+    );
+
+
+  if (
+    elements.startDateInput
+  ) {
+    elements.startDateInput.max =
+      today;
+  }
+
+
+  if (
+    elements.endDateInput
+  ) {
+    elements.endDateInput.max =
+      today;
+  }
+
+
+  /*
+    저장 자료 보기 버튼
+  */
+  elements.loadButton.addEventListener(
+    "click",
+    () => {
+      loadAuxiliaryMaterialHistory()
+        .catch(
+          () => {
+            /*
+              오류 문구는 함수 내부에서 표시한다.
+            */
+          }
+        );
+    }
+  );
+
+
+  /*
+    부재료 메뉴를 열면
+    선택 기간의 저장자료를 바로 불러온다.
+  */
+  elements.tab?.addEventListener(
+    "click",
+    () => {
+      loadAuxiliaryMaterialHistory()
+        .catch(
+          () => {
+            /*
+              오류 문구는 함수 내부에서 표시한다.
+            */
+          }
+        );
+    }
+  );
+
+
+  elements
+    .loadButton
+    .dataset
+    .auxiliaryMaterialHistoryBound =
+    "true";
+}
+
+
+/* =====================================================
+  초기 실행
+===================================================== */
+
+if (
+  document.readyState ===
+    "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeAuxiliaryMaterialHistoryControls,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeAuxiliaryMaterialHistoryControls();
+}
+
+/* =========================================================
+  효율팀 - 부재료 OIS 조회 · D1 저장
+
+  - create_materials_batch 요청
+  - 날짜별 요청 상태를 2초마다 확인
+  - 완료된 날짜의 D1 자료를 표에 즉시 반영
+  - 최대 90회 진행 상태 확인
+========================================================= */
+
+const auxiliaryMaterialOisQueryState = {
+  timer: null,
+  pollCount: 0,
+  pollCursor: 0,
+  maxPollCount: 90,
+  startDate: "",
+  endDate: "",
+  expectedDayCount: 0,
+  requestItems: [],
+  isRunning: false
+};
+
+
+function setAuxiliaryMaterialOisQueryButtonState(isRunning) {
+  const { queryButton } =
+    getAuxiliaryMaterialElements();
+
+  if (!queryButton) return;
+
+  queryButton.disabled = isRunning;
+  queryButton.textContent = isRunning
+    ? "OIS 조회 · D1 저장 중..."
+    : "OIS 조회 · D1 저장";
+}
+
+
+function stopAuxiliaryMaterialOisPolling() {
+  if (auxiliaryMaterialOisQueryState.timer) {
+    window.clearTimeout(
+      auxiliaryMaterialOisQueryState.timer
+    );
+
+    auxiliaryMaterialOisQueryState.timer = null;
+  }
+
+  auxiliaryMaterialOisQueryState.isRunning = false;
+
+  setAuxiliaryMaterialOisQueryButtonState(false);
+}
+
+
+async function readAuxiliaryMaterialOisJsonResponse(response) {
+  const result =
+    await response
+      .json()
+      .catch(() => ({}));
+
+  if (
+    !response.ok ||
+    result.ok === false
+  ) {
+    throw new Error(
+      result.message ||
+      result.error ||
+      (
+        "부재료 OIS 요청을 처리하지 못했습니다. " +
+        `(HTTP ${response.status})`
+      )
+    );
+  }
+
+  return result;
+}
+
+
+function normalizeAuxiliaryMaterialOisRequestItem(item) {
+  const disposition =
+    String(
+      item?.disposition ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+  const status =
+    disposition === "saved"
+      ? "complete"
+      : String(
+          item?.status ||
+          "pending"
+        )
+          .trim()
+          .toLowerCase();
+
+  return {
+    ...item,
+
+    id:
+      String(
+        item?.id ||
+        ""
+      ).trim(),
+
+    targetDate:
+      String(
+        item?.targetDate ||
+        item?.target_date ||
+        ""
+      ).trim(),
+
+    disposition,
+    status
+  };
+}
+
+
+function getAuxiliaryMaterialOisProgressCounts() {
+  const counts = {
+    total:
+      Math.max(
+        0,
+        Number(
+          auxiliaryMaterialOisQueryState
+            .expectedDayCount
+        ) ||
+        auxiliaryMaterialOisQueryState
+          .requestItems
+          .length
+      ),
+
+    complete: 0,
+    processing: 0,
+    pending: 0,
+    failed: 0,
+    unknown: 0
+  };
+
+  auxiliaryMaterialOisQueryState
+    .requestItems
+    .forEach(item => {
+      if (
+        Object.prototype
+          .hasOwnProperty
+          .call(
+            counts,
+            item.status
+          )
+      ) {
+        counts[item.status] += 1;
+
+      } else {
+        counts.unknown += 1;
+      }
+    });
+
+  const countedTotal =
+    counts.complete +
+    counts.processing +
+    counts.pending +
+    counts.failed +
+    counts.unknown;
+
+  if (
+    countedTotal <
+    counts.total
+  ) {
+    counts.unknown +=
+      counts.total -
+      countedTotal;
+  }
+
+  counts.finished =
+    counts.complete +
+    counts.failed;
+
+  counts.remaining =
+    Math.max(
+      0,
+      counts.total -
+      counts.finished
+    );
+
+  return counts;
+}
+
+
+async function getAuxiliaryMaterialOisRequestStatus(
+  requestId
+) {
+  const query =
+    new URLSearchParams({
+      id:
+        requestId,
+
+      _:
+        String(
+          Date.now()
+        )
+    });
+
+  const response =
+    await fetch(
+      (
+        "/api/ois-data-requests?" +
+        query.toString()
+      ),
+      {
+        method:
+          "GET",
+
+        headers:
+          typeof getShiftLogAuthHeaders ===
+            "function"
+            ? getShiftLogAuthHeaders()
+            : {
+                Accept:
+                  "application/json"
+              },
+
+        cache:
+          "no-store"
+      }
+    );
+
+  return await readAuxiliaryMaterialOisJsonResponse(
+    response
+  );
+}
+
+
+async function refreshAuxiliaryMaterialOisStatusSlice() {
+  const pendingItems =
+    auxiliaryMaterialOisQueryState
+      .requestItems
+      .filter(item => {
+        return (
+          Boolean(item.id) &&
+          [
+            "pending",
+            "processing"
+          ].includes(
+            item.status
+          )
+        );
+      });
+
+  if (
+    pendingItems.length <
+    1
+  ) {
+    return;
+  }
+
+  const startIndex =
+    auxiliaryMaterialOisQueryState
+      .pollCursor %
+    pendingItems.length;
+
+  const selectedItems = [];
+
+  for (
+    let offset = 0;
+    offset <
+      Math.min(
+        12,
+        pendingItems.length
+      );
+    offset += 1
+  ) {
+    selectedItems.push(
+      pendingItems[
+        (
+          startIndex +
+          offset
+        ) %
+        pendingItems.length
+      ]
+    );
+  }
+
+  auxiliaryMaterialOisQueryState.pollCursor =
+    (
+      startIndex +
+      selectedItems.length
+    ) %
+    Math.max(
+      pendingItems.length,
+      1
+    );
+
+  const results =
+    await Promise.allSettled(
+      selectedItems.map(item =>
+        getAuxiliaryMaterialOisRequestStatus(
+          item.id
+        )
+      )
+    );
+
+  results.forEach(
+    (
+      result,
+      resultIndex
+    ) => {
+      if (
+        result.status !== "fulfilled" ||
+        !result.value?.item
+      ) {
+        return;
+      }
+
+      const selectedItem =
+        selectedItems[
+          resultIndex
+        ];
+
+      const refreshedItem =
+        normalizeAuxiliaryMaterialOisRequestItem({
+          ...selectedItem,
+          ...result.value.item,
+
+          disposition:
+            selectedItem.disposition
+        });
+
+      const stateIndex =
+        auxiliaryMaterialOisQueryState
+          .requestItems
+          .findIndex(
+            item =>
+              item.id ===
+              selectedItem.id
+          );
+
+      if (
+        stateIndex >= 0
+      ) {
+        auxiliaryMaterialOisQueryState
+          .requestItems[
+            stateIndex
+          ] =
+          refreshedItem;
+      }
+    }
+  );
+}
+
+
+function isAuxiliaryMaterialOisRangeStillSelected() {
+  try {
+    const range =
+      readAuxiliaryMaterialDateRange();
+
+    return (
+      range.startDate ===
+        auxiliaryMaterialOisQueryState
+          .startDate &&
+      range.endDate ===
+        auxiliaryMaterialOisQueryState
+          .endDate
+    );
+
+  } catch {
+    return false;
+  }
+}
+
+
+function scheduleAuxiliaryMaterialOisPolling() {
+  if (
+    !auxiliaryMaterialOisQueryState
+      .isRunning
+  ) {
+    return;
+  }
+
+  auxiliaryMaterialOisQueryState.timer =
+    window.setTimeout(
+      pollAuxiliaryMaterialOisProgress,
+      2000
+    );
+}
+
+
+async function pollAuxiliaryMaterialOisProgress() {
+  if (
+    !auxiliaryMaterialOisQueryState
+      .isRunning
+  ) {
+    return;
+  }
+
+  auxiliaryMaterialOisQueryState.pollCount += 1;
+
+  if (
+    !isAuxiliaryMaterialOisRangeStillSelected()
+  ) {
+    stopAuxiliaryMaterialOisPolling();
+
+    setAuxiliaryMaterialStatus(
+      "조회 기간이 변경되었습니다. 새 기간은 OIS 조회 버튼을 다시 눌러 주세요.",
+      "idle"
+    );
+
+    return;
+  }
+
+  try {
+    await refreshAuxiliaryMaterialOisStatusSlice();
+
+    let historyResult = null;
+
+    try {
+      historyResult =
+        await loadAuxiliaryMaterialHistory({
+          silent: true
+        });
+
+    } catch (historyError) {
+      console.warn(
+        "부재료 OIS 진행 중 저장자료 갱신 실패:",
+        historyError
+      );
+    }
+
+    const counts =
+      getAuxiliaryMaterialOisProgressCounts();
+
+    const savedDateCount =
+      Number(
+        historyResult?.summary
+          ?.savedDateCount ||
+        0
+      );
+
+    if (
+      historyResult &&
+      counts.finished >=
+        counts.total &&
+      counts.total > 0
+    ) {
+      stopAuxiliaryMaterialOisPolling();
+
+      if (
+        counts.failed > 0
+      ) {
+        setAuxiliaryMaterialStatus(
+          (
+            "부재료 조회가 일부 완료되었습니다. " +
+            `저장 ${savedDateCount}/${counts.total}일 · ` +
+            `실패 ${counts.failed}일`
+          ),
+          "error"
+        );
+
+      } else {
+        setAuxiliaryMaterialStatus(
+          (
+            "부재료 조회와 D1 저장이 완료되었습니다. " +
+            `${savedDateCount}일 저장`
+          ),
+          "complete"
+        );
+
+        if (
+          typeof showToast ===
+          "function"
+        ) {
+          showToast(
+            "부재료 OIS 조회와 D1 저장이 완료되었습니다."
+          );
+        }
+      }
+
+      return;
+    }
+
+    if (
+      auxiliaryMaterialOisQueryState
+        .pollCount >=
+      auxiliaryMaterialOisQueryState
+        .maxPollCount
+    ) {
+      stopAuxiliaryMaterialOisPolling();
+
+      setAuxiliaryMaterialStatus(
+        (
+          `현재 ${savedDateCount}/${counts.total}일이 저장되었습니다. ` +
+          "나머지 날짜도 계속 조회 중입니다."
+        ),
+        "loading"
+      );
+
+      return;
+    }
+
+    setAuxiliaryMaterialStatus(
+      (
+        "OIS 조회 · D1 저장 중 " +
+        `(${counts.complete}/${counts.total}일 완료` +
+        `${
+          counts.processing > 0
+            ? ` · ${counts.processing}일 처리 중`
+            : ""
+        }` +
+        `${
+          counts.failed > 0
+            ? ` · ${counts.failed}일 실패`
+            : ""
+        })`
+      ),
+      "loading"
+    );
+
+  } catch (error) {
+    console.warn(
+      "부재료 OIS 진행 상태 확인 실패:",
+      error
+    );
+
+    if (
+      auxiliaryMaterialOisQueryState
+        .pollCount >=
+      auxiliaryMaterialOisQueryState
+        .maxPollCount
+    ) {
+      stopAuxiliaryMaterialOisPolling();
+
+      setAuxiliaryMaterialStatus(
+        "부재료 자료는 계속 조회 중입니다. 잠시 후 저장 자료 보기를 눌러 확인해 주세요.",
+        "loading"
+      );
+
+      return;
+    }
+
+    setAuxiliaryMaterialStatus(
+      "OIS 조회 · D1 저장 진행 상황을 확인하고 있습니다.",
+      "loading"
+    );
+  }
+
+  scheduleAuxiliaryMaterialOisPolling();
+}
+
+
+async function createAuxiliaryMaterialOisQuery() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+  try {
+    const range =
+      readAuxiliaryMaterialDateRange();
+
+    if (
+      range.dayCount > 62
+    ) {
+      throw new Error(
+        "부재료 OIS 조회 기간은 한 번에 62일 이하로 선택해 주세요."
+      );
+    }
+
+    stopAuxiliaryMaterialOisPolling();
+
+    Object.assign(
+      auxiliaryMaterialOisQueryState,
+      {
+        pollCount: 0,
+        pollCursor: 0,
+
+        startDate:
+          range.startDate,
+
+        endDate:
+          range.endDate,
+
+        expectedDayCount:
+          range.dayCount,
+
+        requestItems: [],
+        isRunning: true
+      }
+    );
+
+    setAuxiliaryMaterialOisQueryButtonState(
+      true
+    );
+
+    setAuxiliaryMaterialStatus(
+      `${range.startDate} ~ ${range.endDate} OIS 조회를 등록하고 있습니다.`,
+      "loading"
+    );
+
+    const response =
+      await fetch(
+        "/api/ois-data-requests",
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              action:
+                "create_materials_batch",
+
+              startDate:
+                range.startDate,
+
+              endDate:
+                range.endDate,
+
+              forceRefresh:
+                elements
+                  .forceRefreshInput
+                  ?.checked ===
+                true
+            })
+        }
+      );
+
+    const result =
+      await readAuxiliaryMaterialOisJsonResponse(
+        response
+      );
+
+    auxiliaryMaterialOisQueryState
+      .expectedDayCount =
+      Number(
+        result.range
+          ?.dayCount ||
+        range.dayCount
+      );
+
+    auxiliaryMaterialOisQueryState
+      .requestItems =
+      (
+        Array.isArray(
+          result.items
+        )
+          ? result.items
+          : []
+      ).map(
+        normalizeAuxiliaryMaterialOisRequestItem
+      );
+
+    let historyResult = null;
+
+    try {
+      historyResult =
+        await loadAuxiliaryMaterialHistory({
+          silent: true
+        });
+
+    } catch (historyError) {
+      console.warn(
+        "부재료 OIS 등록 후 저장자료 첫 조회 실패:",
+        historyError
+      );
+    }
+
+    const counts =
+      getAuxiliaryMaterialOisProgressCounts();
+
+    const savedDateCount =
+      Number(
+        historyResult?.summary
+          ?.savedDateCount ||
+        0
+      );
+
+    if (
+      historyResult &&
+      counts.finished >=
+        counts.total &&
+      counts.total > 0
+    ) {
+      stopAuxiliaryMaterialOisPolling();
+
+      setAuxiliaryMaterialStatus(
+        (
+          "선택 기간의 부재료 자료가 이미 저장되어 있습니다. " +
+          `${savedDateCount}일`
+        ),
+        "complete"
+      );
+
+      return;
+    }
+
+    setAuxiliaryMaterialStatus(
+      (
+        `${
+          result.message ||
+          "부재료 OIS 조회를 등록했습니다."
+        } ` +
+        "완료되는 날짜부터 표에 바로 표시됩니다."
+      ),
+      "loading"
+    );
+
+    scheduleAuxiliaryMaterialOisPolling();
+
+  } catch (error) {
+    stopAuxiliaryMaterialOisPolling();
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "부재료 OIS 조회를 등록하지 못했습니다.";
+
+    setAuxiliaryMaterialStatus(
+      message,
+      "error"
+    );
+
+    if (
+      typeof showToast ===
+      "function"
+    ) {
+      showToast(
+        message
+      );
+    }
+  }
+}
+
+
+function initializeAuxiliaryMaterialOisQueryControls() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+  if (
+    !elements.view ||
+    !elements.queryButton
+  ) {
+    return;
+  }
+
+  if (
+    elements
+      .queryButton
+      .dataset
+      .auxiliaryMaterialOisBound ===
+    "true"
+  ) {
+    return;
+  }
+
+  elements.queryButton.addEventListener(
+    "click",
+    createAuxiliaryMaterialOisQuery
+  );
+
+  elements
+    .queryButton
+    .dataset
+    .auxiliaryMaterialOisBound =
+    "true";
+}
+
+
+if (
+  document.readyState ===
+  "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeAuxiliaryMaterialOisQueryControls,
+    {
+      once: true
+    }
+  );
+
+} else {
+  initializeAuxiliaryMaterialOisQueryControls();
+}
 
 /* =========================================================
   효율팀 - 일일업무현황
@@ -160703,105 +163114,209 @@ function applyWaterResult(
   }
 }
 
-  /* =====================================================
-    회사 PC 처리 완료 대기
-  ====================================================== */
+/* =====================================================
+  회사 PC 조회 완료 대기
 
-  async function waitForCompletion(
-    requestId,
-    targetDate,
-    runToken
+  상태 표시:
+  pending
+  → 회사 PC 대기
+
+  processing
+  → OIS 조회 중
+
+  complete
+  → 결과 반영
+
+  failed
+  → 조회 실패
+===================================================== */
+
+async function waitForCompletion(
+  requestId,
+  targetDate,
+  runToken
+) {
+  const startedAt =
+    Date.now();
+
+
+  while (
+    Date.now() -
+      startedAt <
+    MAXIMUM_WAIT
   ) {
-    const startedAt =
-      Date.now();
-
-
-    while (
-      Date.now() -
-        startedAt <
-      MAXIMUM_WAIT
+    if (
+      runToken !==
+        activeRunToken
     ) {
-      if (
-        runToken !==
-          activeRunToken
-      ) {
-        return null;
-      }
+      return null;
+    }
 
 
-      const responseResult =
-        await getWaterRequest(
-          requestId
-        );
+    const requestResult =
+      await getSiloRequest(
+        requestId
+      );
 
 
-      const requestItem =
-        responseResult.item;
+    const requestItem =
+      requestResult.item;
 
 
-      if (
-        !requestItem
-      ) {
-        throw new Error(
-          "OIS 수처리 요청 정보를 찾을 수 없습니다."
-        );
-      }
-
-
-      const requestStatus =
-        normalizeText(
-          requestItem.status
-        ).toLowerCase();
-
-
-      if (
-        requestStatus ===
-          "complete"
-      ) {
-        return requestItem;
-      }
-
-
-      if (
-        requestStatus ===
-          "failed"
-      ) {
-        throw new Error(
-          requestItem.errorMessage ||
-          "회사 PC에서 수처리 자료를 조회하지 못했습니다."
-        );
-      }
-
-
-      if (
-        requestStatus ===
-          "processing"
-      ) {
-        setStatus(
-          "loading",
-          requestItem.agentId
-            ? `OIS 환경일지 조회 중 · ${requestItem.agentId}`
-            : "OIS 환경일지 조회 중"
-        );
-
-      } else {
-        setStatus(
-          "loading",
-          "회사 PC 연결 대기 중"
-        );
-      }
-
-
-      await wait(
-        POLL_INTERVAL
+    if (
+      !requestItem
+    ) {
+      throw new Error(
+        "Silo Level OIS 요청을 찾을 수 없습니다."
       );
     }
 
 
-    throw new Error(
-      "OIS 수처리 자료의 응답 시간이 초과되었습니다."
+    const requestStatus =
+      normalizeText(
+        requestItem.status
+      ).toLowerCase();
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    /* =================================================
+      현재 서버 상태를 화면 상태에도 계속 반영
+    ================================================== */
+
+    if (
+      panel
+    ) {
+      panel.dataset
+        .siloLevelStatus =
+        requestStatus ||
+        "pending";
+
+
+      panel.dataset
+        .siloLevelRequestId =
+        normalizeText(
+          requestItem.id
+        ) ||
+        requestId;
+
+
+      panel.dataset
+        .siloLevelTargetDate =
+        targetDate;
+
+
+      if (
+        requestItem.agentId
+      ) {
+        panel.dataset
+          .siloLevelAgentId =
+          normalizeText(
+            requestItem.agentId
+          );
+
+      } else {
+        delete panel.dataset
+          .siloLevelAgentId;
+      }
+    }
+
+
+    /*
+      상태가 바뀔 때마다
+      Silo 카드를 즉시 다시 그린다.
+    */
+
+    if (
+      typeof window
+        .renderEfficiencyMorningMeetingSiloLevelPreview ===
+        "function"
+    ) {
+      window
+        .renderEfficiencyMorningMeetingSiloLevelPreview();
+    }
+
+
+    /* =================================================
+      완료
+    ================================================== */
+
+    if (
+      requestStatus ===
+        "complete"
+    ) {
+      return requestItem;
+    }
+
+
+    /* =================================================
+      실패
+    ================================================== */
+
+    if (
+      requestStatus ===
+        "failed"
+    ) {
+      throw new Error(
+        normalizeText(
+          requestItem.errorMessage
+        ) ||
+        `${targetDate} Silo Level OIS 조회에 실패했습니다.`
+      );
+    }
+
+
+    /* =================================================
+      진행 상태 로그
+
+      pending:
+      회사 PC가 요청을 가져가기 전
+
+      processing:
+      회사 PC가 요청을 가져가 OIS 조회 중
+    ================================================== */
+
+    if (
+      requestStatus ===
+        "processing"
+    ) {
+      console.log(
+        [
+          `${targetDate} Silo Level OIS 조회 중`,
+
+          requestItem.agentId
+            ? `처리 PC: ${requestItem.agentId}`
+            : ""
+        ]
+          .filter(
+            Boolean
+          )
+          .join(
+            " · "
+          )
+      );
+
+    } else {
+      console.log(
+        `${targetDate} Silo Level 회사 PC 처리 대기 중`
+      );
+    }
+
+
+    await wait(
+      POLL_INTERVAL
     );
   }
+
+
+  throw new Error(
+    `${targetDate} Silo Level OIS 조회 응답 시간이 초과되었습니다.`
+  );
+}
 
 
   /* =====================================================
@@ -170981,7 +173496,7 @@ function ensureSiloPreviewCard() {
           </span>
 
           <strong>
-            Silo Level
+            Silo Level(준비중)
           </strong>
         </div>
 
@@ -171130,7 +173645,7 @@ function ensureSiloPreviewCard() {
           </span>
 
           <strong>
-            증기 현황
+            증기 현황(준비중)
           </strong>
         </div>
 
@@ -171333,234 +173848,250 @@ function ensureSiloPreviewCard() {
     );
   }
 
+/* =====================================================
+  실제 Silo Level 미리보기 출력
 
-  /* =====================================================
-    실제 미리보기 출력
-  ====================================================== */
+  화면 표시:
+  idle                         → 조회 대기
+  loading / pending / processing → 조회중
+  complete                     → 조회 완료
+  failed / error               → 조회 실패
 
-  function renderSiloPreview() {
-    const card =
-      ensureSiloPreviewCard();
+  내부 상태값은 그대로 유지하고
+  사용자 화면에서만 단순하게 표시한다.
+===================================================== */
 
-
-    if (
-      !card
-    ) {
-      return;
-    }
-
-
-    const state =
-      getState();
+function renderSiloPreview() {
+  const card =
+    ensureSiloPreviewCard();
 
 
-    const siloLevel =
-      state.siloLevel &&
-      typeof state.siloLevel ===
-        "object"
-        ? state.siloLevel
-        : null;
-
-
-    const panel =
-      document.getElementById(
-        "efficiencyMorningMeetingWaterPanel"
-      );
-
-
-    const currentBaseDate =
-      getCommonBaseDate();
-
-
-    const siloDate =
-      normalizeText(
-        siloLevel?.sourceDate ||
-        siloLevel?.targetDate ||
-        panel?.dataset
-          .siloLevelTargetDate ||
-        currentBaseDate
-      );
-
-
-    const status =
-      normalizeText(
-        panel?.dataset
-          .siloLevelStatus
-      )
-        .toLowerCase();
-
-
-    const flyAshValue =
-      parseNumber(
-        siloLevel
-          ?.flyAshSiloLevel
-      );
-
-
-    const bioStorageValue =
-      parseNumber(
-        siloLevel
-          ?.bioStorageSiloLevel
-      );
-
-
-    const hasBothValues =
-      flyAshValue !==
-        null &&
-      bioStorageValue !==
-        null;
-
-
-    /*
-      현재 선택된 공용 기준일과
-      조회 완료된 Silo 날짜가 다른 경우
-
-      이전 날짜 값이 새 날짜 값처럼
-      보이지 않도록 값을 숨긴다.
-    */
-
-    const hasDateMismatch =
-      Boolean(
-        currentBaseDate &&
-        siloDate &&
-        currentBaseDate !==
-          siloDate
-      );
-
-
-    /* ===================================================
-      날짜
-
-      항상 24시 기준임을 같이 표시
-    ==================================================== */
-
-    const dateElement =
-      document.getElementById(
-        "efficiencyMorningMeetingAutoSiloDate"
-      );
-
-
-    if (
-      dateElement
-    ) {
-      dateElement.textContent =
-        siloDate
-          ? `${siloDate} · 24시`
-          : "-";
-    }
-
-
-    /* ===================================================
-      상태
-    ==================================================== */
-
-    if (
-      hasDateMismatch
-    ) {
-      setStatusBadge(
-        "error",
-        "날짜 확인"
-      );
-
-    } else if (
-      status ===
-        "loading"
-    ) {
-      setStatusBadge(
-        "loading",
-        "조회 중"
-      );
-
-    } else if (
-      status ===
-        "error" ||
-      state.siloLevelError
-    ) {
-      setStatusBadge(
-        "error",
-        "조회 실패"
-      );
-
-    } else if (
-      hasBothValues
-    ) {
-      setStatusBadge(
-        "complete",
-        "조회 완료"
-      );
-
-    } else {
-      setStatusBadge(
-        "idle",
-        "조회 대기"
-      );
-    }
-
-
-    /* ===================================================
-      값
-
-      날짜가 틀리면 이전 값 표시 금지
-    ==================================================== */
-
-    const flyAshElement =
-      document.getElementById(
-        "efficiencyMorningMeetingAutoFlyAshSiloLevel"
-      );
-
-
-    const bioStorageElement =
-      document.getElementById(
-        "efficiencyMorningMeetingAutoBioStorageSiloLevel"
-      );
-
-
-    if (
-      flyAshElement
-    ) {
-      flyAshElement.textContent =
-        hasDateMismatch
-          ? "-"
-          : formatSiloValue(
-              flyAshValue,
-              siloLevel
-                ?.flyAshUnit
-            );
-    }
-
-
-    if (
-      bioStorageElement
-    ) {
-      bioStorageElement.textContent =
-        hasDateMismatch
-          ? "-"
-          : formatSiloValue(
-              bioStorageValue,
-              siloLevel
-                ?.bioStorageUnit
-            );
-    }
-
-
-    /*
-      오류 원인은 마우스를 올리면 확인 가능
-    */
-
-    const errorMessage =
-      normalizeText(
-        state.siloLevelError
-      );
-
-
-    card.title =
-      errorMessage ||
-      (
-        siloDate
-          ? `${siloDate} 24시 OIS Silo Level`
-          : "OIS Silo Level"
-      );
+  if (
+    !card
+  ) {
+    return;
   }
+
+
+  const state =
+    getState();
+
+
+  const siloLevel =
+    state.siloLevel &&
+    typeof state.siloLevel ===
+      "object"
+      ? state.siloLevel
+      : null;
+
+
+  const panel =
+    document.getElementById(
+      "efficiencyMorningMeetingWaterPanel"
+    );
+
+
+  const currentBaseDate =
+    getCommonBaseDate();
+
+
+  const siloDate =
+    normalizeText(
+      siloLevel?.sourceDate ||
+      siloLevel?.targetDate ||
+      panel?.dataset
+        .siloLevelTargetDate ||
+      currentBaseDate
+    );
+
+
+  const status =
+    normalizeText(
+      panel?.dataset
+        .siloLevelStatus
+    )
+      .toLowerCase();
+
+
+  const flyAshValue =
+    parseNumber(
+      siloLevel
+        ?.flyAshSiloLevel
+    );
+
+
+  const bioStorageValue =
+    parseNumber(
+      siloLevel
+        ?.bioStorageSiloLevel
+    );
+
+
+  const hasBothValues =
+    flyAshValue !==
+      null &&
+    bioStorageValue !==
+      null;
+
+
+  /* ===================================================
+    날짜 불일치 확인
+
+    이전 날짜 결과가 새 날짜에
+    표시되지 않도록 막는다.
+  ==================================================== */
+
+  const hasDateMismatch =
+    Boolean(
+      currentBaseDate &&
+      siloDate &&
+      currentBaseDate !==
+        siloDate
+    );
+
+
+  /* ===================================================
+    날짜 표시
+  ==================================================== */
+
+  const dateElement =
+    document.getElementById(
+      "efficiencyMorningMeetingAutoSiloDate"
+    );
+
+
+  if (
+    dateElement
+  ) {
+    dateElement.textContent =
+      siloDate
+        ? `${siloDate} · 24시`
+        : "-";
+  }
+
+
+  /* ===================================================
+    상태 표시
+
+    pending / processing 등의 세부 상태는
+    사용자 화면에서는 모두 "조회중"으로 표시
+  ==================================================== */
+
+  if (
+    hasDateMismatch
+  ) {
+    setStatusBadge(
+      "error",
+      "날짜 확인"
+    );
+
+  } else if (
+    [
+      "loading",
+      "pending",
+      "processing"
+    ].includes(
+      status
+    )
+  ) {
+    setStatusBadge(
+      "loading",
+      "조회중"
+    );
+
+  } else if (
+    status ===
+      "failed" ||
+    status ===
+      "error" ||
+    state.siloLevelError
+  ) {
+    setStatusBadge(
+      "error",
+      "조회 실패"
+    );
+
+  } else if (
+    status ===
+      "complete" ||
+    hasBothValues
+  ) {
+    setStatusBadge(
+      "complete",
+      "조회 완료"
+    );
+
+  } else {
+    setStatusBadge(
+      "idle",
+      "조회 대기"
+    );
+  }
+
+
+  /* ===================================================
+    값 표시
+  ==================================================== */
+
+  const flyAshElement =
+    document.getElementById(
+      "efficiencyMorningMeetingAutoFlyAshSiloLevel"
+    );
+
+
+  const bioStorageElement =
+    document.getElementById(
+      "efficiencyMorningMeetingAutoBioStorageSiloLevel"
+    );
+
+
+  if (
+    flyAshElement
+  ) {
+    flyAshElement.textContent =
+      hasDateMismatch
+        ? "-"
+        : formatSiloValue(
+            flyAshValue,
+            siloLevel
+              ?.flyAshUnit
+          );
+  }
+
+
+  if (
+    bioStorageElement
+  ) {
+    bioStorageElement.textContent =
+      hasDateMismatch
+        ? "-"
+        : formatSiloValue(
+            bioStorageValue,
+            siloLevel
+              ?.bioStorageUnit
+          );
+  }
+
+
+  /* ===================================================
+    오류가 있으면 마우스 오버 시
+    실제 오류 내용만 확인 가능
+  ==================================================== */
+
+  const errorMessage =
+    normalizeText(
+      state.siloLevelError
+    );
+
+
+  card.title =
+    errorMessage ||
+    (
+      siloDate
+        ? `${siloDate} 24시 OIS Silo Level`
+        : "OIS Silo Level"
+    );
+}
 
 
   /* =====================================================
@@ -188406,4 +190937,2282 @@ function render() {
     initialize();
   }
 
+})();
+
+/* =========================================================
+  오전회의 취합
+  증기 현황 OIS 요청·복원·미리보기
+
+  요청:
+  - requestType: steam_status
+  - 기준일: 공용 기준일 그대로
+
+  표시:
+  - 증기 판매량
+  - 1호기 증기생산량
+  - 2호기 증기생산량
+  - 총 증기생산량
+  - 판매율
+========================================================= */
+
+(function installEfficiencyMorningMeetingSteamStatusClient() {
+  "use strict";
+
+
+  if (
+    window
+      .__efficiencyMorningMeetingSteamStatusClientInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyMorningMeetingSteamStatusClientInstalled =
+    true;
+
+
+  const OIS_REQUEST_API_URL =
+    "/api/ois-data-requests";
+
+
+  const REQUEST_TYPE =
+    "steam_status";
+
+
+  const POLL_INTERVAL =
+    1500;
+
+
+  const MAXIMUM_WAIT =
+    10 *
+    60 *
+    1000;
+
+
+  let activeRunToken =
+    0;
+
+
+  let initializationAttempt =
+    0;
+
+
+  let autoLoadTimerId =
+    null;
+
+
+  /* =====================================================
+    오전회의 공용 상태
+  ====================================================== */
+
+  function getState() {
+    if (
+      !window
+        .efficiencyMorningMeetingUploadState
+    ) {
+      window.efficiencyMorningMeetingUploadState = {
+        files:
+          {},
+
+        analysis:
+          {}
+      };
+    }
+
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  /* =====================================================
+    화면 요소
+  ====================================================== */
+
+  function getElements() {
+    return {
+      panel:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterPanel"
+        ),
+
+      loadButton:
+        document.getElementById(
+          "loadEfficiencyMorningMeetingWaterButton"
+        ),
+
+      resetButton:
+        document.getElementById(
+          "resetEfficiencyMorningMeetingButton"
+        ),
+
+      previousButton:
+        document.getElementById(
+          "efficiencyMorningMeetingLimestonePreviousButton"
+        ),
+
+      todayButton:
+        document.getElementById(
+          "efficiencyMorningMeetingLimestoneTodayButton"
+        ),
+
+      nextButton:
+        document.getElementById(
+          "efficiencyMorningMeetingLimestoneNextButton"
+        ),
+
+      shiftDate:
+        document.getElementById(
+          "efficiencyMorningMeetingShiftDate"
+        ),
+
+      waterDate:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterDate"
+        ),
+
+      card:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamCard"
+        ),
+
+      date:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamDate"
+        ),
+
+      status:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamStatus"
+        ),
+
+      sales:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamSales"
+        ),
+
+      unitProduction:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamProductionUnits"
+        ),
+
+      totalProduction:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamProductionTotal"
+        ),
+
+      salesRate:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamSalesRate"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    문자열·숫자·날짜
+  ====================================================== */
+
+  function normalizeText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    ).trim();
+  }
+
+
+  function normalizeNumber(
+    value
+  ) {
+    const normalizedValue =
+      String(
+        value ??
+        ""
+      )
+        .replaceAll(
+          ",",
+          ""
+        )
+        .trim();
+
+
+    if (
+      normalizedValue ===
+      ""
+    ) {
+      return null;
+    }
+
+
+    const numericValue =
+      Number(
+        normalizedValue
+      );
+
+
+    return Number.isFinite(
+      numericValue
+    )
+      ? Math.round(
+          numericValue *
+          1000
+        ) /
+        1000
+      : null;
+  }
+
+
+  function isValidDate(
+    value
+  ) {
+    const normalizedDate =
+      normalizeText(
+        value
+      );
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        normalizedDate
+      )
+    ) {
+      return false;
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${normalizedDate}T00:00:00.000Z`
+      );
+
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        normalizedDate
+    );
+  }
+
+
+  function extractDateFromText(
+    value
+  ) {
+    const matchedDate =
+      normalizeText(
+        value
+      ).match(
+        /\d{4}-\d{2}-\d{2}/
+      )?.[0] ||
+      "";
+
+
+    return isValidDate(
+      matchedDate
+    )
+      ? matchedDate
+      : "";
+  }
+
+
+  /* =====================================================
+    증기 현황 조회 기준일
+
+    공용 기준일과 동일하다.
+
+    예:
+    8월 8일 오전회의
+    → 공용 기준일 8월 7일
+    → 증기 현황 조회일 8월 7일
+  ====================================================== */
+
+  function resolveTargetDate() {
+    const state =
+      getState();
+
+
+    const elements =
+      getElements();
+
+
+    const candidates = [
+      elements.panel
+        ?.dataset
+        .morningMeetingAutoBaseDate,
+
+      state.shiftPart
+        ?.reportDate,
+
+      state.shiftPart
+        ?.loadedDate,
+
+      state.waterTreatment
+        ?.sourceDate,
+
+      state.waterTreatment
+        ?.targetDate,
+
+      elements.panel
+        ?.dataset
+        .waterTargetDate,
+
+      extractDateFromText(
+        elements.waterDate
+          ?.textContent
+      ),
+
+      extractDateFromText(
+        elements.shiftDate
+          ?.textContent
+      )
+    ];
+
+
+    return (
+      candidates
+        .map(
+          normalizeText
+        )
+        .find(
+          isValidDate
+        ) ||
+      ""
+    );
+  }
+
+
+  /* =====================================================
+    화면 숫자 표시
+  ====================================================== */
+
+  function formatAmount(
+    value,
+    unit =
+      "ton"
+  ) {
+    const numericValue =
+      normalizeNumber(
+        value
+      );
+
+
+    if (
+      numericValue ===
+      null
+    ) {
+      return "-";
+    }
+
+
+    const formattedValue =
+      numericValue.toLocaleString(
+        "ko-KR",
+        {
+          minimumFractionDigits:
+            0,
+
+          maximumFractionDigits:
+            3
+        }
+      );
+
+
+    return unit
+      ? `${formattedValue} ${unit}`
+      : formattedValue;
+  }
+
+
+  function formatRate(
+    value
+  ) {
+    const numericValue =
+      normalizeNumber(
+        value
+      );
+
+
+    if (
+      numericValue ===
+      null
+    ) {
+      return "-";
+    }
+
+
+    return `${
+      numericValue.toLocaleString(
+        "ko-KR",
+        {
+          minimumFractionDigits:
+            0,
+
+          maximumFractionDigits:
+            3
+        }
+      )
+    }%`;
+  }
+
+
+  /* =====================================================
+    상태 배지
+  ====================================================== */
+
+  function setStatusBadge(
+    status,
+    label
+  ) {
+    const statusElement =
+      getElements()
+        .status;
+
+
+    if (
+      !statusElement
+    ) {
+      return;
+    }
+
+
+    statusElement.classList.remove(
+      "is-loading",
+      "is-complete",
+      "is-error"
+    );
+
+
+    if (
+      status ===
+      "loading"
+    ) {
+      statusElement.classList.add(
+        "is-loading"
+      );
+
+    } else if (
+      status ===
+      "complete"
+    ) {
+      statusElement.classList.add(
+        "is-complete"
+      );
+
+    } else if (
+      status ===
+      "error"
+    ) {
+      statusElement.classList.add(
+        "is-error"
+      );
+    }
+
+
+    statusElement.textContent =
+      label;
+  }
+
+
+  /* =====================================================
+    증기 현황 미리보기 출력
+  ====================================================== */
+
+  function renderSteamStatus() {
+    const elements =
+      getElements();
+
+
+    if (
+      !elements.card
+    ) {
+      return;
+    }
+
+
+    const state =
+      getState();
+
+
+    const result =
+      state.steamStatus &&
+      typeof state.steamStatus ===
+        "object"
+        ? state.steamStatus
+        : null;
+
+
+    const currentTargetDate =
+      resolveTargetDate();
+
+
+    const resultDate =
+      normalizeText(
+        result?.sourceDate ||
+        result?.targetDate ||
+        elements.panel
+          ?.dataset
+          .steamStatusTargetDate ||
+        currentTargetDate
+      );
+
+
+    const requestStatus =
+      normalizeText(
+        elements.panel
+          ?.dataset
+          .steamStatusStatus
+      ).toLowerCase();
+
+
+    const steamSales =
+      normalizeNumber(
+        result?.steamSales
+      );
+
+
+    const unitOneProduction =
+      normalizeNumber(
+        result?.unitOneProduction
+      );
+
+
+    const unitTwoProduction =
+      normalizeNumber(
+        result?.unitTwoProduction
+      );
+
+
+    const totalProduction =
+      normalizeNumber(
+        result?.totalProduction
+      );
+
+
+    const salesRate =
+      normalizeNumber(
+        result?.salesRate
+      );
+
+
+    const hasCompleteValues = [
+      steamSales,
+      unitOneProduction,
+      unitTwoProduction,
+      totalProduction,
+      salesRate
+    ].every(
+      value => {
+        return value !==
+          null;
+      }
+    );
+
+
+    const hasDateMismatch =
+      Boolean(
+        currentTargetDate &&
+        resultDate &&
+        currentTargetDate !==
+          resultDate
+      );
+
+
+    /* ===================================================
+      날짜
+    ==================================================== */
+
+    if (
+      elements.date
+    ) {
+      elements.date.textContent =
+        resultDate
+          ? `${resultDate} · 01~24시`
+          : "-";
+    }
+
+
+    /* ===================================================
+      상태
+    ==================================================== */
+
+    if (
+      hasDateMismatch
+    ) {
+      setStatusBadge(
+        "error",
+        "날짜 확인"
+      );
+
+    } else if (
+      [
+        "loading",
+        "pending",
+        "processing"
+      ].includes(
+        requestStatus
+      )
+    ) {
+      setStatusBadge(
+        "loading",
+        "조회 중"
+      );
+
+    } else if (
+      requestStatus ===
+        "error" ||
+      state.steamStatusError
+    ) {
+      setStatusBadge(
+        "error",
+        "조회 실패"
+      );
+
+    } else if (
+      hasCompleteValues
+    ) {
+      setStatusBadge(
+        "complete",
+        "조회 완료"
+      );
+
+    } else {
+      setStatusBadge(
+        "idle",
+        "조회 대기"
+      );
+    }
+
+
+    const hideValues =
+      hasDateMismatch ||
+      !hasCompleteValues;
+
+
+    /* ===================================================
+      증기 판매량
+    ==================================================== */
+
+    if (
+      elements.sales
+    ) {
+      elements.sales.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              steamSales,
+              "ton"
+            );
+    }
+
+
+    /* ===================================================
+      1·2호기 생산량
+    ==================================================== */
+
+    if (
+      elements.unitProduction
+    ) {
+      elements.unitProduction.textContent =
+        hideValues
+          ? "- / -"
+          : [
+              formatAmount(
+                unitOneProduction,
+                ""
+              ),
+
+              formatAmount(
+                unitTwoProduction,
+                "ton"
+              )
+            ].join(
+              " / "
+            );
+    }
+
+
+    /* ===================================================
+      총생산량
+    ==================================================== */
+
+    if (
+      elements.totalProduction
+    ) {
+      elements.totalProduction.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              totalProduction,
+              "ton"
+            );
+    }
+
+
+    /* ===================================================
+      판매율
+    ==================================================== */
+
+    if (
+      elements.salesRate
+    ) {
+      elements.salesRate.textContent =
+        hideValues
+          ? "-"
+          : formatRate(
+              salesRate
+            );
+    }
+
+
+    /*
+      조회 실패 원인은 카드에 마우스를 올리면
+      확인할 수 있다.
+    */
+
+    const errorMessage =
+      normalizeText(
+        state.steamStatusError
+      );
+
+
+    elements.card.title =
+      errorMessage ||
+      (
+        resultDate
+          ? `${resultDate} OIS 증기 현황`
+          : "OIS 증기 현황"
+      );
+  }
+
+
+  /* =====================================================
+    즉시·지연 미리보기 갱신
+  ====================================================== */
+
+  function scheduleRender() {
+    [
+      0,
+      200,
+      500,
+      1000,
+      2000
+    ].forEach(
+      delay => {
+        window.setTimeout(
+          renderSteamStatus,
+          delay
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    API 응답 읽기
+  ====================================================== */
+
+  async function readApiResponse(
+    response,
+    fallbackMessage
+  ) {
+    const responseText =
+      await response.text();
+
+
+    let result =
+      {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "증기 현황 OIS 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        fallbackMessage ||
+        `증기 현황 OIS 요청에 실패했습니다. (HTTP ${response.status})`
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    증기 현황 요청 생성
+
+    forceRefresh false:
+    - D1에 완료자료가 있으면 즉시 재사용
+    - 없으면 OIS 신규 요청
+
+    forceRefresh true:
+    - 저장자료를 사용하지 않고 다시 조회
+  ====================================================== */
+
+  async function createSteamStatusRequest(
+    targetDate,
+    options =
+      {}
+  ) {
+    const {
+      forceRefresh =
+        false
+    } =
+      options;
+
+
+    const response =
+      await fetch(
+        OIS_REQUEST_API_URL,
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              requestType:
+                REQUEST_TYPE,
+
+              targetDate,
+
+              forceRefresh:
+                forceRefresh ===
+                true
+            })
+        }
+      );
+
+
+    const result =
+      await readApiResponse(
+        response,
+        "증기 현황 OIS 조회 요청을 만들지 못했습니다."
+      );
+
+
+    /*
+      서버에 steam_status가 누락된 경우
+      limestone_stock으로 변환되는 문제를 막는다.
+    */
+
+    const returnedRequestType =
+      normalizeText(
+        result?.item
+          ?.requestType ||
+        result?.item
+          ?.request_type
+      )
+        .toLowerCase()
+        .replace(
+          /[\s-]+/g,
+          "_"
+        );
+
+
+    if (
+      returnedRequestType &&
+      returnedRequestType !==
+        REQUEST_TYPE
+    ) {
+      throw new Error(
+        [
+          `증기 현황 요청이 ${returnedRequestType}(으)로 잘못 저장되었습니다.`,
+
+          "ois-data-requests.js의 normalizeRequestType()에 steam_status 적용 여부를 확인해 주세요."
+        ].join(
+          " "
+        )
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    증기 현황 요청 상태 확인
+  ====================================================== */
+
+  async function getSteamStatusRequest(
+    requestId
+  ) {
+    const requestUrl =
+      new URL(
+        OIS_REQUEST_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "id",
+      requestId
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    return await readApiResponse(
+      response,
+      "증기 현황 OIS 요청 상태를 확인하지 못했습니다."
+    );
+  }
+
+
+  function wait(
+    milliseconds
+  ) {
+    return new Promise(
+      resolve => {
+        window.setTimeout(
+          resolve,
+          milliseconds
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    OIS 회사 PC 처리 완료 대기
+  ====================================================== */
+
+  async function waitForCompletion(
+    requestId,
+    targetDate,
+    runToken
+  ) {
+    const startedAt =
+      Date.now();
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    while (
+      Date.now() -
+        startedAt <
+      MAXIMUM_WAIT
+    ) {
+      if (
+        runToken !==
+        activeRunToken
+      ) {
+        return null;
+      }
+
+
+      const requestResult =
+        await getSteamStatusRequest(
+          requestId
+        );
+
+
+      const requestItem =
+        requestResult.item;
+
+
+      if (
+        !requestItem
+      ) {
+        throw new Error(
+          "증기 현황 OIS 요청을 찾을 수 없습니다."
+        );
+      }
+
+
+      const status =
+        normalizeText(
+          requestItem.status
+        ).toLowerCase();
+
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .steamStatusStatus =
+          status ||
+          "loading";
+
+
+        if (
+          requestItem.agentId
+        ) {
+          panel.dataset
+            .steamStatusAgentId =
+            normalizeText(
+              requestItem.agentId
+            );
+        }
+      }
+
+
+      renderSteamStatus();
+
+
+      if (
+        status ===
+        "complete"
+      ) {
+        return requestItem;
+      }
+
+
+      if (
+        status ===
+        "failed"
+      ) {
+        throw new Error(
+          normalizeText(
+            requestItem.errorMessage ||
+            requestItem.error_message
+          ) ||
+          `${targetDate} 증기 현황 OIS 조회에 실패했습니다.`
+        );
+      }
+
+
+      await wait(
+        POLL_INTERVAL
+      );
+    }
+
+
+    throw new Error(
+      `${targetDate} 증기 현황 OIS 조회 응답 시간이 초과되었습니다.`
+    );
+  }
+
+
+  /* =====================================================
+    증기 현황 결과 검증
+  ====================================================== */
+
+  function normalizeSteamStatusResult(
+    requestItem,
+    expectedDate
+  ) {
+    const result =
+      requestItem?.result &&
+      typeof requestItem.result ===
+        "object" &&
+      !Array.isArray(
+        requestItem.result
+      )
+        ? requestItem.result
+        : {};
+
+
+    const steamSales =
+      normalizeNumber(
+        result.steamSales ??
+        result.steam_sales
+      );
+
+
+    const unitOneProduction =
+      normalizeNumber(
+        result.unitOneProduction ??
+        result.unit_one_production
+      );
+
+
+    const unitTwoProduction =
+      normalizeNumber(
+        result.unitTwoProduction ??
+        result.unit_two_production
+      );
+
+
+    const totalProduction =
+      normalizeNumber(
+        result.totalProduction ??
+        result.total_production
+      );
+
+
+    const salesRate =
+      normalizeNumber(
+        result.salesRate ??
+        result.sales_rate
+      );
+
+
+    if (
+      [
+        steamSales,
+        unitOneProduction,
+        unitTwoProduction,
+        totalProduction,
+        salesRate
+      ].some(
+        value => {
+          return value ===
+            null;
+        }
+      )
+    ) {
+      throw new Error(
+        "증기 판매량·1호기 생산량·2호기 생산량·총생산량·판매율 중 일부를 확인하지 못했습니다."
+      );
+    }
+
+
+    const sourceDate =
+      normalizeText(
+        result.sourceDate ||
+        result.targetDate ||
+        requestItem.targetDate
+      );
+
+
+    if (
+      sourceDate &&
+      sourceDate !==
+        expectedDate
+    ) {
+      throw new Error(
+        [
+          "증기 현황 조회 날짜가 다릅니다.",
+
+          `요청일: ${expectedDate}`,
+
+          `조회 결과: ${sourceDate}`
+        ].join(
+          " "
+        )
+      );
+    }
+
+
+    /*
+      1·2호기 생산량 합계 검증
+    */
+
+    const calculatedTotal =
+      Math.round(
+        (
+          unitOneProduction +
+          unitTwoProduction
+        ) *
+        1000
+      ) /
+      1000;
+
+
+    if (
+      Math.abs(
+        calculatedTotal -
+        totalProduction
+      ) >
+      0.001
+    ) {
+      throw new Error(
+        "1·2호기 증기생산량 합계가 총 증기생산량과 일치하지 않습니다."
+      );
+    }
+
+
+    /*
+      판매율 계산 검증
+    */
+
+    const calculatedSalesRate =
+      totalProduction >
+        0
+        ? Math.round(
+            (
+              steamSales /
+              totalProduction *
+              100
+            ) *
+            1000
+          ) /
+          1000
+        : null;
+
+
+    if (
+      calculatedSalesRate ===
+        null ||
+      Math.abs(
+        calculatedSalesRate -
+        salesRate
+      ) >
+      0.001
+    ) {
+      throw new Error(
+        "증기 판매율 계산값이 OIS 조회 결과와 일치하지 않습니다."
+      );
+    }
+
+
+    return {
+      source:
+        normalizeText(
+          result.source
+        ) ||
+        "OIS BOARD LOGSHEET / 일별 증기 판매량",
+
+      targetDate:
+        expectedDate,
+
+      sourceDate:
+        sourceDate ||
+        expectedDate,
+
+      outputInterval:
+        normalizeText(
+          result.outputInterval
+        ) ||
+        "1시간",
+
+      hourRange:
+        normalizeText(
+          result.hourRange
+        ) ||
+        "01~24",
+
+      hourCount:
+        normalizeNumber(
+          result.hourCount
+        ) ??
+        24,
+
+      unit:
+        normalizeText(
+          result.unit
+        ) ||
+        "ton",
+
+      salesUnit:
+        normalizeText(
+          result.salesUnit
+        ) ||
+        "TON",
+
+      steamSales,
+
+      unitOneProduction,
+
+      unitTwoProduction,
+
+      totalProduction,
+
+      salesRate,
+
+      collectedAt:
+        normalizeText(
+          result.collectedAt ||
+          requestItem.completedAt
+        ),
+
+      agentId:
+        normalizeText(
+          requestItem.agentId
+        ),
+
+      unitOne:
+        result.unitOne ||
+        null,
+
+      unitTwo:
+        result.unitTwo ||
+        null
+    };
+  }
+
+
+  /* =====================================================
+    완료 결과를 공용 상태와 화면에 반영
+  ====================================================== */
+
+  function applySteamStatusResult(
+    requestItem,
+    expectedDate
+  ) {
+    const result =
+      normalizeSteamStatusResult(
+        requestItem,
+        expectedDate
+      );
+
+
+    const state =
+      getState();
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    state.steamStatus = {
+      ...result,
+
+      requestId:
+        normalizeText(
+          requestItem.id
+        )
+    };
+
+
+    delete state
+      .steamStatusError;
+
+
+    if (
+      panel
+    ) {
+      panel.dataset
+        .steamStatusStatus =
+        "complete";
+
+
+      panel.dataset
+        .steamStatusTargetDate =
+        expectedDate;
+
+
+      panel.dataset
+        .steamStatusRequestId =
+        normalizeText(
+          requestItem.id
+        );
+
+
+      panel.dataset
+        .steamStatusCollectedAt =
+        result.collectedAt;
+
+
+      panel.dataset
+        .steamStatusAgentId =
+        result.agentId;
+    }
+
+
+    console.log(
+      "오전회의 증기 현황 조회 완료:",
+      state.steamStatus
+    );
+
+
+    document.dispatchEvent(
+      new CustomEvent(
+        "efficiencyMorningMeetingSteamStatusLoaded",
+        {
+          detail: {
+            targetDate:
+              expectedDate,
+
+            steamSales:
+              result.steamSales,
+
+            unitOneProduction:
+              result.unitOneProduction,
+
+            unitTwoProduction:
+              result.unitTwoProduction,
+
+            totalProduction:
+              result.totalProduction,
+
+            salesRate:
+              result.salesRate
+          }
+        }
+      )
+    );
+
+
+    renderSteamStatus();
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    증기 현황 초기화
+  ====================================================== */
+
+  function resetSteamStatus(
+    options =
+      {}
+  ) {
+    const {
+      keepTargetDate =
+        false
+    } =
+      options;
+
+
+    activeRunToken +=
+      1;
+
+
+    const state =
+      getState();
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    delete state
+      .steamStatus;
+
+
+    delete state
+      .steamStatusError;
+
+
+    if (
+      panel
+    ) {
+      delete panel.dataset
+        .steamStatusStatus;
+
+
+      delete panel.dataset
+        .steamStatusRequestId;
+
+
+      delete panel.dataset
+        .steamStatusCollectedAt;
+
+
+      delete panel.dataset
+        .steamStatusAgentId;
+
+
+      if (
+        !keepTargetDate
+      ) {
+        delete panel.dataset
+          .steamStatusTargetDate;
+      }
+    }
+
+
+    renderSteamStatus();
+  }
+
+
+  /* =====================================================
+    공용 기준일과 증기 조회일 동기화
+  ====================================================== */
+
+  function synchronizeTargetDate() {
+    const targetDate =
+      resolveTargetDate();
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    const state =
+      getState();
+
+
+    const previousDate =
+      normalizeText(
+        state.steamStatus
+          ?.sourceDate ||
+        state.steamStatus
+          ?.targetDate ||
+        panel?.dataset
+          .steamStatusTargetDate
+      );
+
+
+    if (
+      previousDate &&
+      targetDate &&
+      previousDate !==
+        targetDate
+    ) {
+      resetSteamStatus({
+        keepTargetDate:
+          true
+      });
+    }
+
+
+    if (
+      panel
+    ) {
+      if (
+        targetDate
+      ) {
+        panel.dataset
+          .steamStatusTargetDate =
+          targetDate;
+
+      } else {
+        delete panel.dataset
+          .steamStatusTargetDate;
+      }
+    }
+
+
+    renderSteamStatus();
+
+
+    return targetDate;
+  }
+
+
+  /* =====================================================
+    증기 현황 실제 조회
+
+    forceRefresh false:
+    저장된 D1 완료 요청을 우선 복원
+
+    forceRefresh true:
+    사용자가 버튼을 눌러 OIS 신규 조회
+  ====================================================== */
+
+  async function loadSteamStatus(
+    options =
+      {}
+  ) {
+    const {
+      forceRefresh =
+        false
+    } =
+      options;
+
+
+    const targetDate =
+      synchronizeTargetDate();
+
+
+    if (
+      !targetDate
+    ) {
+      console.warn(
+        "증기 현황 조회 기준일을 확인하지 못했습니다."
+      );
+
+
+      return null;
+    }
+
+
+    const state =
+      getState();
+
+
+    const existingDate =
+      normalizeText(
+        state.steamStatus
+          ?.sourceDate ||
+        state.steamStatus
+          ?.targetDate
+      );
+
+
+    const hasExistingValues = [
+      state.steamStatus
+        ?.steamSales,
+
+      state.steamStatus
+        ?.unitOneProduction,
+
+      state.steamStatus
+        ?.unitTwoProduction,
+
+      state.steamStatus
+        ?.totalProduction,
+
+      state.steamStatus
+        ?.salesRate
+    ].every(
+      value => {
+        return normalizeNumber(
+          value
+        ) !==
+          null;
+      }
+    );
+
+
+    /*
+      현재 날짜의 정상 값이 이미 있으면
+      중복 요청하지 않는다.
+    */
+
+    if (
+      forceRefresh !==
+        true &&
+      existingDate ===
+        targetDate &&
+      hasExistingValues
+    ) {
+      renderSteamStatus();
+
+
+      return state
+        .steamStatus;
+    }
+
+
+    const runToken =
+      activeRunToken +
+      1;
+
+
+    activeRunToken =
+      runToken;
+
+
+    delete state
+      .steamStatus;
+
+
+    delete state
+      .steamStatusError;
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    if (
+      panel
+    ) {
+      panel.dataset
+        .steamStatusStatus =
+        "loading";
+
+
+      panel.dataset
+        .steamStatusTargetDate =
+        targetDate;
+
+
+      delete panel.dataset
+        .steamStatusRequestId;
+
+
+      delete panel.dataset
+        .steamStatusCollectedAt;
+
+
+      delete panel.dataset
+        .steamStatusAgentId;
+    }
+
+
+    renderSteamStatus();
+
+
+    try {
+      /*
+        1. 요청 생성
+      */
+
+      const createResult =
+        await createSteamStatusRequest(
+          targetDate,
+          {
+            forceRefresh
+          }
+        );
+
+
+      const requestItem =
+        createResult.item;
+
+
+      if (
+        !requestItem?.id
+      ) {
+        throw new Error(
+          "생성된 증기 현황 OIS 요청 ID를 확인할 수 없습니다."
+        );
+      }
+
+
+      if (
+        runToken !==
+        activeRunToken
+      ) {
+        return null;
+      }
+
+
+      /*
+        2. 요청 ID와 현재 상태 저장
+      */
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .steamStatusRequestId =
+          normalizeText(
+            requestItem.id
+          );
+
+
+        panel.dataset
+          .steamStatusTargetDate =
+          targetDate;
+
+
+        panel.dataset
+          .steamStatusStatus =
+          normalizeText(
+            requestItem.status
+          ).toLowerCase() ||
+          "loading";
+
+
+        if (
+          requestItem.agentId
+        ) {
+          panel.dataset
+            .steamStatusAgentId =
+            normalizeText(
+              requestItem.agentId
+            );
+        }
+      }
+
+
+      renderSteamStatus();
+
+
+      /*
+        3. 저장된 완료 요청이면 바로 사용
+      */
+
+      let completedItem =
+        requestItem;
+
+
+      if (
+        normalizeText(
+          requestItem.status
+        ).toLowerCase() !==
+        "complete"
+      ) {
+        /*
+          4. 미완료 상태면 회사 PC 처리 대기
+        */
+
+        completedItem =
+          await waitForCompletion(
+            normalizeText(
+              requestItem.id
+            ),
+            targetDate,
+            runToken
+          );
+      }
+
+
+      if (
+        !completedItem ||
+        runToken !==
+          activeRunToken
+      ) {
+        return null;
+      }
+
+
+      /*
+        5. 완료 결과 반영
+      */
+
+      return applySteamStatusResult(
+        completedItem,
+        targetDate
+      );
+
+    } catch (
+      error
+    ) {
+      if (
+        runToken !==
+        activeRunToken
+      ) {
+        return null;
+      }
+
+
+      const errorMessage =
+        error instanceof
+          Error
+          ? error.message
+          : "증기 현황 OIS 자료를 불러오지 못했습니다.";
+
+
+      state.steamStatusError =
+        errorMessage;
+
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .steamStatusStatus =
+          "error";
+      }
+
+
+      console.error(
+        "오전회의 증기 현황 조회 실패:",
+        error
+      );
+
+
+      renderSteamStatus();
+
+
+      /*
+        증기 자동수치 실패는
+        오전회의 엑셀 생성을 막지 않는다.
+      */
+
+      return null;
+    }
+  }
+
+
+  /* =====================================================
+    공용 날짜 이동 후 저장값 복원·신규 조회
+
+    전날·오늘·다음날 버튼을 눌렀을 때만 실행한다.
+
+    페이지를 처음 열거나 교대파트를 불러왔다는
+    이유만으로 OIS 신규 요청을 만들지는 않는다.
+  ====================================================== */
+
+  function scheduleAutomaticLoad() {
+    if (
+      autoLoadTimerId !==
+      null
+    ) {
+      window.clearTimeout(
+        autoLoadTimerId
+      );
+    }
+
+
+    autoLoadTimerId =
+      window.setTimeout(
+        () => {
+          autoLoadTimerId =
+            null;
+
+
+          const targetDate =
+            synchronizeTargetDate();
+
+
+          if (
+            !targetDate
+          ) {
+            return;
+          }
+
+
+          const state =
+            getState();
+
+
+          const {
+            panel
+          } =
+            getElements();
+
+
+          const resultDate =
+            normalizeText(
+              state.steamStatus
+                ?.sourceDate ||
+              state.steamStatus
+                ?.targetDate
+            );
+
+
+          const requestDate =
+            normalizeText(
+              panel?.dataset
+                .steamStatusTargetDate
+            );
+
+
+          const requestStatus =
+            normalizeText(
+              panel?.dataset
+                .steamStatusStatus
+            ).toLowerCase();
+
+
+          const hasCompleteValues = [
+            state.steamStatus
+              ?.steamSales,
+
+            state.steamStatus
+              ?.unitOneProduction,
+
+            state.steamStatus
+              ?.unitTwoProduction,
+
+            state.steamStatus
+              ?.totalProduction,
+
+            state.steamStatus
+              ?.salesRate
+          ].every(
+            value => {
+              return normalizeNumber(
+                value
+              ) !==
+                null;
+            }
+          );
+
+
+          if (
+            resultDate ===
+              targetDate &&
+            hasCompleteValues
+          ) {
+            renderSteamStatus();
+
+
+            return;
+          }
+
+
+          if (
+            requestDate ===
+              targetDate &&
+            [
+              "loading",
+              "pending",
+              "processing"
+            ].includes(
+              requestStatus
+            )
+          ) {
+            return;
+          }
+
+
+          void loadSteamStatus({
+            forceRefresh:
+              false
+          });
+        },
+        300
+      );
+  }
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function bindEvents() {
+    const elements =
+      getElements();
+
+
+    if (
+      !elements.panel ||
+      !elements.loadButton ||
+      !elements.card ||
+      elements.loadButton
+        .dataset
+        .steamStatusOisBound ===
+        "true"
+    ) {
+      return false;
+    }
+
+
+    /*
+      자동 수치 불러오기 버튼
+
+      사용자가 직접 누른 경우에는
+      OIS에서 새로 조회한다.
+    */
+
+    elements.loadButton.addEventListener(
+      "click",
+      () => {
+        void loadSteamStatus({
+          forceRefresh:
+            true
+        });
+      }
+    );
+
+
+    /*
+      전체 초기화
+    */
+
+    elements.resetButton
+      ?.addEventListener(
+        "click",
+        () => {
+          resetSteamStatus();
+        }
+      );
+
+
+    /*
+      전날·오늘·다음날 이동 시
+      D1 저장값을 먼저 확인한다.
+    */
+
+    [
+      elements.previousButton,
+      elements.todayButton,
+      elements.nextButton
+    ]
+      .filter(
+        Boolean
+      )
+      .forEach(
+        button => {
+          button.addEventListener(
+            "click",
+            () => {
+              window.setTimeout(
+                scheduleAutomaticLoad,
+                0
+              );
+            }
+          );
+        }
+      );
+
+
+    document.addEventListener(
+      "efficiencyMorningMeetingSteamStatusLoaded",
+      scheduleRender
+    );
+
+
+    /*
+      공용 기준일 변경 감지
+
+      날짜만 동기화하며,
+      여기서는 OIS 요청을 자동 생성하지 않는다.
+    */
+
+    const panelObserver =
+      new MutationObserver(
+        mutations => {
+          const baseDateChanged =
+            mutations.some(
+              mutation => {
+                return (
+                  mutation.type ===
+                    "attributes" &&
+                  mutation.attributeName ===
+                    "data-morning-meeting-auto-base-date"
+                );
+              }
+            );
+
+
+          if (
+            baseDateChanged
+          ) {
+            synchronizeTargetDate();
+
+            scheduleRender();
+          }
+        }
+      );
+
+
+    panelObserver.observe(
+      elements.panel,
+      {
+        attributes:
+          true,
+
+        attributeFilter: [
+          "data-morning-meeting-auto-base-date"
+        ]
+      }
+    );
+
+
+    elements.loadButton.dataset
+      .steamStatusOisBound =
+      "true";
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initialize() {
+    if (
+      !bindEvents()
+    ) {
+      initializationAttempt +=
+        1;
+
+
+      if (
+        initializationAttempt <
+        80
+      ) {
+        window.setTimeout(
+          initialize,
+          250
+        );
+      }
+
+
+      return;
+    }
+
+
+    synchronizeTargetDate();
+
+    scheduleRender();
+  }
+
+
+  /* =====================================================
+    외부 사용
+  ====================================================== */
+
+  window
+    .loadEfficiencyMorningMeetingSteamStatus =
+    loadSteamStatus;
+
+
+  window
+    .resetEfficiencyMorningMeetingSteamStatus =
+    resetSteamStatus;
+
+
+  window
+    .renderEfficiencyMorningMeetingSteamStatus =
+    renderSteamStatus;
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
 })();

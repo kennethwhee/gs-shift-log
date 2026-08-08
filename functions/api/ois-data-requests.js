@@ -736,6 +736,7 @@ async function authenticateOisAgent(
   - water_environment
   - turbine_gear_pinion
   - silo_level
+  - steam_status
   - logsheet_approval
 ========================================================= */
 
@@ -758,6 +759,7 @@ function normalizeRequestType(
     "water_environment",
     "turbine_gear_pinion",
     "silo_level",
+    "steam_status",
     "logsheet_approval"
   ].includes(
     requestType

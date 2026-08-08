@@ -3981,7 +3981,7 @@
   aria-controls="efficiencyDailyWorkView"
   tabindex="0"
 >
-  일일업무현황
+  일일업무현황(준비중)
 </button>
 
 <!-- ===================================================
@@ -3996,7 +3996,7 @@
   aria-selected="false"
   aria-controls="efficiencyMorningMeetingView"
 >
-  오전회의 취합
+  오전회의 취합(개선중)
 </button>
 
   <!-- 석회석 -->
@@ -4012,6 +4012,18 @@
     석회석
   </button>
 
+<!-- 부재료 -->
+<button
+  type="button"
+  class="efficiency-team-tab"
+  id="efficiencyAuxiliaryMaterialsTab"
+  data-efficiency-tab="auxiliary-materials"
+  role="tab"
+  aria-selected="false"
+  aria-controls="efficiencyAuxiliaryMaterialsView"
+>
+  부재료
+</button>  
 
 <!-- ARM ROLL BOX -->
 <button
@@ -8361,6 +8373,377 @@
 </section>
 
   </div>
+
+</article>
+
+<!-- =================================================
+  부재료 월별 관리
+
+  저장 항목:
+  - Limestone
+  - Lime Slurry
+  - Density
+  - Lime Powder
+  - Ammonia
+  - SOx
+  - NOx
+================================================== -->
+<article
+  class="
+    efficiency-team-view
+    auxiliary-material-management-view
+  "
+  id="efficiencyAuxiliaryMaterialsView"
+  data-efficiency-view="auxiliary-materials"
+  role="tabpanel"
+  aria-labelledby="efficiencyAuxiliaryMaterialsTab"
+  hidden
+>
+
+  <!-- =================================================
+    상단 제목
+  ================================================== -->
+  <header
+    class="
+      efficiency-team-view__heading
+      auxiliary-material-heading
+    "
+  >
+
+    <div>
+
+      <span>
+        AUXILIARY MATERIALS
+      </span>
+
+      <h3>
+        부재료 월별 관리
+      </h3>
+
+      <p>
+        Limestone · Lime Powder · Ammonia · SOx · NOx를
+        날짜별로 조회하고 저장된 자료를 확인합니다.
+      </p>
+
+    </div>
+
+  </header>
+
+
+  <!-- =================================================
+    조회 조건
+  ================================================== -->
+  <section class="auxiliary-material-query-card">
+
+    <!-- 조회 월 이동 -->
+    <div class="auxiliary-material-month-navigation">
+
+      <button
+        type="button"
+        id="auxiliaryMaterialPreviousMonth"
+        aria-label="이전 달"
+        title="이전 달"
+      >
+        ‹
+      </button>
+
+
+      <label>
+
+        <span>
+          조회 월
+        </span>
+
+        <input
+          type="month"
+          id="auxiliaryMaterialMonth"
+        />
+
+      </label>
+
+
+      <button
+        type="button"
+        id="auxiliaryMaterialNextMonth"
+        aria-label="다음 달"
+        title="다음 달"
+      >
+        ›
+      </button>
+
+    </div>
+
+
+    <!-- 기간 직접 선택 -->
+    <div class="auxiliary-material-period-fields">
+
+      <label>
+
+        <span>
+          시작일
+        </span>
+
+        <input
+          type="date"
+          id="auxiliaryMaterialStartDate"
+        />
+
+      </label>
+
+
+      <label>
+
+        <span>
+          종료일
+        </span>
+
+        <input
+          type="date"
+          id="auxiliaryMaterialEndDate"
+        />
+
+      </label>
+
+
+      <button
+        type="button"
+        class="is-secondary"
+        id="loadAuxiliaryMaterialHistoryButton"
+      >
+        저장 자료 보기
+      </button>
+
+
+      <button
+        type="button"
+        class="is-primary"
+        id="queryAuxiliaryMaterialOisButton"
+      >
+        OIS 조회 · D1 저장
+      </button>
+
+    </div>
+
+
+    <!-- 기존 저장자료 재조회 -->
+    <label class="auxiliary-material-force-refresh">
+
+      <input
+        type="checkbox"
+        id="auxiliaryMaterialForceRefresh"
+      />
+
+      <span>
+        저장된 날짜도 다시 조회하여 갱신
+      </span>
+
+    </label>
+
+
+    <!-- 조회 상태 -->
+    <p
+      class="auxiliary-material-status"
+      id="auxiliaryMaterialStatus"
+    >
+      조회할 기간을 선택하세요.
+    </p>
+
+  </section>
+
+
+  <!-- =================================================
+    조회 결과 요약
+  ================================================== -->
+  <section class="auxiliary-material-summary-grid">
+
+    <article>
+
+      <span>
+        저장 완료
+      </span>
+
+      <strong id="auxiliaryMaterialSavedDays">
+        0일
+      </strong>
+
+    </article>
+
+
+    <article>
+
+      <span>
+        Limestone 평균
+      </span>
+
+      <strong id="auxiliaryMaterialLimestoneAverage">
+        -
+      </strong>
+
+      <small>
+        t/d
+      </small>
+
+    </article>
+
+
+    <article>
+
+      <span>
+        Lime Powder 평균
+      </span>
+
+      <strong id="auxiliaryMaterialLimePowderAverage">
+        -
+      </strong>
+
+      <small>
+        t/d
+      </small>
+
+    </article>
+
+
+    <article>
+
+      <span>
+        Ammonia 평균
+      </span>
+
+      <strong id="auxiliaryMaterialAmmoniaAverage">
+        -
+      </strong>
+
+      <small>
+        m³/d
+      </small>
+
+    </article>
+
+  </section>
+
+
+  <!-- =================================================
+    날짜별 부재료 자료
+  ================================================== -->
+  <section class="auxiliary-material-table-card">
+
+    <header>
+
+      <div>
+
+        <span>
+          DAILY DATA
+        </span>
+
+        <h4>
+          날짜별 1·2호기 부재료
+        </h4>
+
+      </div>
+
+
+      <strong id="auxiliaryMaterialRowCount">
+        0건
+      </strong>
+
+    </header>
+
+
+    <div class="auxiliary-material-table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+
+            <th>
+              일자
+            </th>
+
+            <th>
+              호기
+            </th>
+
+            <th>
+              Limestone
+              <br />
+              <small>t/d</small>
+            </th>
+
+            <th>
+              Lime Slurry
+              <br />
+              <small>m³/h</small>
+            </th>
+
+            <th>
+              Density
+              <br />
+              <small>kg/m³</small>
+            </th>
+
+            <th>
+              Lime Powder
+              <br />
+              <small>t/d</small>
+            </th>
+
+            <th>
+              Ammonia
+              <br />
+              <small>m³/d</small>
+            </th>
+
+            <th>
+              SOx
+              <br />
+              <small>ppm</small>
+            </th>
+
+            <th>
+              NOx
+              <br />
+              <small>ppm</small>
+            </th>
+
+            <th>
+              자료
+            </th>
+
+          </tr>
+
+        </thead>
+
+
+        <tbody id="auxiliaryMaterialTableBody">
+        </tbody>
+
+      </table>
+
+
+      <p
+        class="auxiliary-material-empty-state"
+        id="auxiliaryMaterialEmptyState"
+      >
+        선택한 기간에 저장된 부재료 자료가 없습니다.
+      </p>
+
+    </div>
+
+  </section>
+
+
+  <!-- =================================================
+    계산식 안내
+  ================================================== -->
+  <p class="auxiliary-material-formula-note">
+
+    Lime Powder(t/d) =
+    (SDA L/S A+B+C 평균유량) × 밀도 ×
+    (밀도-1000) ÷ (1102-1000) × 15% × 24 ÷ 1000
+
+  </p>
 
 </article>
 
