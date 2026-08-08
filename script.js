@@ -163630,82 +163630,171 @@ async function createGearPinionRequest(
     return result;
   }
 
+/* =====================================================
+  Silo Level 실제 OIS 조회
 
-  /* =====================================================
-    Silo Level 실제 OIS 조회
-  ====================================================== */
+  기준:
+  - 공용 기준일 그대로 조회
+  - 회의자료 08-08
+    → 기준일 08-07
+    → 08-07 24시 값
 
-  async function loadSiloLevel(
-    options = {}
+  중요:
+  - 요청 생성 즉시 requestId 저장
+  - pending / processing 상태를 화면에서 추적 가능
+===================================================== */
+
+async function loadSiloLevel(
+  options = {}
+) {
+  const {
+    forceRefresh =
+      false
+  } =
+    options;
+
+
+  const targetDate =
+    synchronizeTargetDate();
+
+
+  if (
+    !targetDate
   ) {
-    const {
-      forceRefresh =
-        false
-    } =
-      options;
+    console.warn(
+      "Silo Level 조회 기준일을 확인하지 못했습니다."
+    );
 
 
-    /*
-      여기서 반환되는 날짜는
-      오전회의 대상일의 전날이다.
-
-      08-08 회의
-      → 08-07
-    */
-
-    const targetDate =
-      synchronizeTargetDate();
+    return null;
+  }
 
 
-    if (
-      !targetDate
-    ) {
-      console.warn(
-        "Silo Level 조회 기준일을 확인하지 못했습니다."
-      );
-
-
-      return null;
-    }
-
-
-    const runToken =
-      activeRunToken +
+  const runToken =
+    activeRunToken +
       1;
 
 
-    activeRunToken =
-      runToken;
+  activeRunToken =
+    runToken;
 
+
+  activeRequestId =
+    "";
+
+
+  const state =
+    getState();
+
+
+  delete state
+    .siloLevel;
+
+
+  delete state
+    .siloLevelError;
+
+
+  const {
+    panel
+  } =
+    getElements();
+
+
+  /* ===================================================
+    조회 시작 상태
+  ==================================================== */
+
+  if (
+    panel
+  ) {
+    panel.dataset
+      .siloLevelStatus =
+      "loading";
+
+
+    panel.dataset
+      .siloLevelTargetDate =
+      targetDate;
+
+
+    /*
+      새 요청이 시작되므로
+      이전 요청 ID 제거
+    */
+
+    delete panel.dataset
+      .siloLevelRequestId;
+
+
+    delete panel.dataset
+      .siloLevelCollectedAt;
+
+
+    delete panel.dataset
+      .siloLevelAgentId;
+  }
+
+
+  console.log(
+    [
+      `${targetDate} Silo Level OIS 조회 요청 중`,
+      "24시 값 사용"
+    ].join(
+      " · "
+    )
+  );
+
+
+  try {
+    /* =================================================
+      1. 서버에 Silo 요청 등록
+    ================================================== */
+
+    const createResult =
+      await createSiloRequest(
+        targetDate,
+        {
+          forceRefresh
+        }
+      );
+
+
+    const requestItem =
+      createResult.item;
+
+
+    if (
+      !requestItem?.id
+    ) {
+      throw new Error(
+        "생성된 Silo Level OIS 요청 ID를 확인할 수 없습니다."
+      );
+    }
+
+
+    /* =================================================
+      2. 요청 ID 즉시 저장
+
+      중요:
+      완료될 때까지 기다리지 않는다.
+
+      pending / processing 상태에서도
+      F12에서 현재 요청을 확인할 수 있다.
+    ================================================== */
 
     activeRequestId =
-      "";
-
-
-    const state =
-      getState();
-
-
-    delete state
-      .siloLevel;
-
-
-    delete state
-      .siloLevelError;
-
-
-    const {
-      panel
-    } =
-      getElements();
+      normalizeText(
+        requestItem.id
+      );
 
 
     if (
       panel
     ) {
       panel.dataset
-        .siloLevelStatus =
-        "loading";
+        .siloLevelRequestId =
+        activeRequestId;
 
 
       panel.dataset
@@ -163713,133 +163802,151 @@ async function createGearPinionRequest(
         targetDate;
 
 
-      delete panel.dataset
-        .siloLevelRequestId;
+      panel.dataset
+        .siloLevelStatus =
+        normalizeText(
+          requestItem.status
+        ).toLowerCase() ||
+        "loading";
 
 
-      delete panel.dataset
-        .siloLevelCollectedAt;
-
-
-      delete panel.dataset
-        .siloLevelAgentId;
+      if (
+        requestItem.agentId
+      ) {
+        panel.dataset
+          .siloLevelAgentId =
+          normalizeText(
+            requestItem.agentId
+          );
+      }
     }
 
 
     console.log(
-      [
-        `${targetDate} Silo Level OIS 조회 요청 중`,
+      "Silo Level OIS 요청 생성:",
+      {
+        requestId:
+          activeRequestId,
 
-        "24시 값 사용"
-      ].join(
-        " · "
-      )
+        requestType:
+          requestItem.requestType,
+
+        targetDate:
+          requestItem.targetDate,
+
+        status:
+          requestItem.status,
+
+        reused:
+          createResult.reused ===
+            true,
+
+        agentId:
+          requestItem.agentId ||
+          ""
+      }
     );
 
 
-    try {
-      const createResult =
-        await createSiloRequest(
-          targetDate,
-          {
-            forceRefresh
-          }
-        );
+    /* =================================================
+      3. 이미 완료된 저장자료면 바로 사용
+    ================================================== */
+
+    let completedItem =
+      requestItem;
 
 
-      const requestItem =
-        createResult.item;
-
-
-      if (
-        !requestItem?.id
-      ) {
-        throw new Error(
-          "생성된 Silo Level OIS 요청 ID를 확인할 수 없습니다."
-        );
-      }
-
-
-      activeRequestId =
-        normalizeText(
-          requestItem.id
-        );
-
-
-      let completedItem =
-        requestItem;
-
-
-      if (
-        normalizeText(
-          requestItem.status
-        ).toLowerCase() !==
-          "complete"
-      ) {
-        completedItem =
-          await waitForCompletion(
-            activeRequestId,
-            targetDate,
-            runToken
-          );
-      }
-
-
-      if (
-        !completedItem ||
-        runToken !==
-          activeRunToken
-      ) {
-        return null;
-      }
-
-
-      return applySiloResult(
-        completedItem,
-        targetDate
-      );
-
-    } catch (
-      error
+    if (
+      normalizeText(
+        requestItem.status
+      ).toLowerCase() !==
+        "complete"
     ) {
-      const errorMessage =
-        error instanceof
-          Error
-          ? error.message
-          : "Silo Level OIS 자료를 불러오지 못했습니다.";
+      /* ===============================================
+        4. 회사 PC 처리 완료 대기
+      ================================================ */
+
+      completedItem =
+        await waitForCompletion(
+          activeRequestId,
+          targetDate,
+          runToken
+        );
+    }
 
 
-      console.error(
-        "오전회의 Silo Level 조회 실패:",
-        error
-      );
-
-
-      if (
-        runToken !==
-          activeRunToken
-      ) {
-        return null;
-      }
-
-
-      state.siloLevelError =
-        errorMessage;
-
-
-      if (
-        panel
-      ) {
-        panel.dataset
-          .siloLevelStatus =
-          "error";
-      }
-
-
+    if (
+      !completedItem ||
+      runToken !==
+        activeRunToken
+    ) {
       return null;
     }
-  }
 
+
+    /* =================================================
+      5. 완료 결과 반영
+    ================================================== */
+
+    return applySiloResult(
+      completedItem,
+      targetDate
+    );
+
+  } catch (
+    error
+  ) {
+    const errorMessage =
+      error instanceof
+        Error
+        ? error.message
+        : "Silo Level OIS 자료를 불러오지 못했습니다.";
+
+
+    console.error(
+      "오전회의 Silo Level 조회 실패:",
+      error
+    );
+
+
+    if (
+      runToken !==
+        activeRunToken
+    ) {
+      return null;
+    }
+
+
+    state.siloLevelError =
+      errorMessage;
+
+
+    if (
+      panel
+    ) {
+      panel.dataset
+        .siloLevelStatus =
+        "error";
+    }
+
+
+    /*
+      미리보기 즉시 갱신
+    */
+
+    if (
+      typeof window
+        .renderEfficiencyMorningMeetingSiloLevelPreview ===
+        "function"
+    ) {
+      window
+        .renderEfficiencyMorningMeetingSiloLevelPreview();
+    }
+
+
+    return null;
+  }
+}
 
   /* =====================================================
     Silo 결과 초기화
