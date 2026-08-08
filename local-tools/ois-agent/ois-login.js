@@ -346,6 +346,1471 @@ const OIS_TURBINE_GEAR_PINION_DEFINITION = {
 };
 
 /* =========================================================
+  오전회의 Silo Level 조회 정의
+
+  회의자료 기준:
+  예) 2026-08-08 회의자료
+      → targetDate = 2026-08-07
+      → 2026-08-07 24시 값 사용
+
+  조회 화면:
+  운영정보
+  → LOG SHEET
+  → TAG별 LOG 조회
+
+  대상:
+  - Fly Ash Silo Level
+    003ETH01CW201XQ01
+
+  - Bio Storage Silo Level
+    EBF20CW201
+========================================================= */
+
+const OIS_SILO_LEVEL_DEFINITIONS = [
+  {
+    resultKey:
+      "flyAsh",
+
+    label:
+      "Fly Ash Silo Level",
+
+    tag:
+      "003ETH01CW201XQ01"
+  },
+
+  {
+    resultKey:
+      "bioStorage",
+
+    label:
+      "Bio Storage Silo Level",
+
+    tag:
+      "EBF20CW201"
+  }
+];
+
+
+/* =========================================================
+  TAG별 LOG 조회 화면 프레임 찾기
+
+  화면 확인 기준:
+  - TAG NO
+  - 출력시간
+  - 조회
+========================================================= */
+
+async function findOisTagLogFrame(
+  page,
+  timeoutMilliseconds =
+    OIS_QUERY_TIMEOUT
+) {
+  const startedAt =
+    Date.now();
+
+
+  while (
+    Date.now() -
+      startedAt <
+    timeoutMilliseconds
+  ) {
+    for (
+      const frame of
+      page.frames()
+    ) {
+      const bodyText =
+        normalizeOisAgentText(
+          await frame
+            .locator(
+              "body"
+            )
+            .innerText()
+            .catch(
+              () => ""
+            )
+        );
+
+
+      const hasTagNo =
+        /TAG\s*NO/i.test(
+          bodyText
+        );
+
+
+      const hasOutputTime =
+        bodyText.includes(
+          "출력시간"
+        );
+
+
+      const hasSearch =
+        bodyText.includes(
+          "조회"
+        );
+
+
+      if (
+        hasTagNo &&
+        hasOutputTime &&
+        hasSearch
+      ) {
+        return frame;
+      }
+    }
+
+
+    await page.waitForTimeout(
+      250
+    );
+  }
+
+
+  return null;
+}
+
+
+/* =========================================================
+  OIS TAG별 LOG 조회 화면 열기
+
+  탐색:
+  운영정보
+  → LOG SHEET
+  → TAG별 LOG 조회
+========================================================= */
+
+async function openOisTagLogLookup(
+  page
+) {
+  /*
+    이미 화면이 열려 있으면 그대로 사용한다.
+  */
+
+  const existingFrame =
+    await findOisTagLogFrame(
+      page,
+      1500
+    );
+
+
+  if (
+    existingFrame
+  ) {
+    return existingFrame;
+  }
+
+
+  let menuFrame =
+    await findOisNavigationFrame(
+      page,
+      OIS_QUERY_TIMEOUT
+    );
+
+
+  if (
+    !menuFrame
+  ) {
+    throw new Error(
+      "OIS 왼쪽 메뉴 영역을 찾지 못했습니다."
+    );
+  }
+
+
+  const tagLogMenuNames = [
+    "TAG별 LOG 조회",
+    "TAG별 LOG조회",
+    "TAG 별 LOG 조회"
+  ];
+
+
+  /*
+    현재 바로 보이는지 확인
+  */
+
+  let tagLogMenu =
+    await findVisibleOisNavigationItem(
+      menuFrame,
+      tagLogMenuNames,
+      1000
+    );
+
+
+  /*
+    안 보이면 운영정보부터 연다.
+  */
+
+  if (
+    !tagLogMenu
+  ) {
+    const operationMenu =
+      await findVisibleOisNavigationItem(
+        menuFrame,
+        "운영정보",
+        1500
+      );
+
+
+    if (
+      operationMenu
+    ) {
+      await clickOisNavigationItem(
+        menuFrame,
+        "운영정보",
+        "운영정보"
+      );
+
+
+      menuFrame =
+        await findOisNavigationFrame(
+          page,
+          OIS_QUERY_TIMEOUT
+        );
+    }
+  }
+
+
+  if (
+    !menuFrame
+  ) {
+    throw new Error(
+      "운영정보 메뉴를 연 뒤 왼쪽 메뉴를 찾지 못했습니다."
+    );
+  }
+
+
+  /*
+    운영정보를 연 뒤 바로 보이는지 재확인
+  */
+
+  tagLogMenu =
+    await findVisibleOisNavigationItem(
+      menuFrame,
+      tagLogMenuNames,
+      1000
+    );
+
+
+  /*
+    그래도 안 보이면 LOG SHEET을 연다.
+  */
+
+  if (
+    !tagLogMenu
+  ) {
+    const logSheetMenu =
+      await findVisibleOisNavigationItem(
+        menuFrame,
+        "LOG SHEET",
+        3000
+      );
+
+
+    if (
+      logSheetMenu
+    ) {
+      await clickOisNavigationItem(
+        menuFrame,
+        "LOG SHEET",
+        "LOG SHEET"
+      );
+
+
+      menuFrame =
+        await findOisNavigationFrame(
+          page,
+          OIS_QUERY_TIMEOUT
+        );
+    }
+  }
+
+
+  if (
+    !menuFrame
+  ) {
+    throw new Error(
+      "LOG SHEET 메뉴를 연 뒤 왼쪽 메뉴를 찾지 못했습니다."
+    );
+  }
+
+
+  tagLogMenu =
+    await findVisibleOisNavigationItem(
+      menuFrame,
+      tagLogMenuNames,
+      10000
+    );
+
+
+  if (
+    !tagLogMenu
+  ) {
+    throw new Error(
+      "OIS의 TAG별 LOG 조회 메뉴를 찾지 못했습니다."
+    );
+  }
+
+
+  const clicked =
+    await clickOisNavigationItem(
+      menuFrame,
+      tagLogMenuNames,
+      "TAG별 LOG 조회"
+    );
+
+
+  if (
+    !clicked
+  ) {
+    throw new Error(
+      "OIS의 TAG별 LOG 조회 메뉴를 클릭하지 못했습니다."
+    );
+  }
+
+
+  const tagLogFrame =
+    await findOisTagLogFrame(
+      page,
+      OIS_QUERY_TIMEOUT
+    );
+
+
+  if (
+    !tagLogFrame
+  ) {
+    throw new Error(
+      "OIS TAG별 LOG 조회 화면이 열리지 않았습니다."
+    );
+  }
+
+
+  console.log(
+    "OIS TAG별 LOG 조회 화면을 열었습니다."
+  );
+
+
+  return tagLogFrame;
+}
+
+
+/* =========================================================
+  TAG별 LOG 조회 조건 입력
+
+  입력:
+  - TAG NO
+  - 시작일
+  - 종료일
+
+  Silo는 하루만 조회하므로:
+  시작일 = 종료일 = targetDate
+========================================================= */
+
+async function setOisTagLogSearchConditions(
+  frame,
+  targetTag,
+  targetDate
+) {
+  const normalizedTag =
+    normalizeOisAgentText(
+      targetTag
+    );
+
+
+  if (
+    !normalizedTag
+  ) {
+    throw new Error(
+      "OIS TAG NO가 비어 있습니다."
+    );
+  }
+
+
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "OIS TAG별 LOG 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  const slashDate =
+    targetDate.replace(
+      /-/g,
+      "/"
+    );
+
+
+  const inputs =
+    frame.locator(
+      "input"
+    );
+
+
+  const inputCount =
+    await inputs.count();
+
+
+  let tagInput =
+    null;
+
+
+  let bestTagScore =
+    -1;
+
+
+  const dateInputs =
+    [];
+
+
+  for (
+    let index = 0;
+    index <
+      inputCount;
+    index +=
+      1
+  ) {
+    const input =
+      inputs.nth(
+        index
+      );
+
+
+    const isVisible =
+      await input
+        .isVisible()
+        .catch(
+          () => false
+        );
+
+
+    if (
+      !isVisible
+    ) {
+      continue;
+    }
+
+
+    const information =
+      await input.evaluate(
+        element => {
+          const normalizeText = (
+            value
+          ) => {
+            return String(
+              value ??
+              ""
+            )
+              .replace(
+                /\u00a0/g,
+                " "
+              )
+              .replace(
+                /\s+/g,
+                " "
+              )
+              .trim();
+          };
+
+
+          return {
+            type:
+              String(
+                element.type ||
+                ""
+              ).toLowerCase(),
+
+            value:
+              String(
+                element.value ||
+                ""
+              ),
+
+            directIdentity:
+              [
+                element.id,
+                element.name,
+                element.title,
+                element.placeholder,
+                element.getAttribute(
+                  "aria-label"
+                )
+              ]
+                .filter(
+                  Boolean
+                )
+                .join(
+                  " "
+                ),
+
+            parentText:
+              normalizeText(
+                element
+                  .parentElement
+                  ?.innerText ||
+                element
+                  .parentElement
+                  ?.textContent ||
+                ""
+              )
+          };
+        }
+      );
+
+
+    if (
+      [
+        "hidden",
+        "button",
+        "submit",
+        "checkbox",
+        "radio"
+      ].includes(
+        information.type
+      )
+    ) {
+      continue;
+    }
+
+
+    const directIdentity =
+      String(
+        information
+          .directIdentity ||
+        ""
+      );
+
+
+    const parentText =
+      String(
+        information
+          .parentText ||
+        ""
+      );
+
+
+    const combinedIdentity = [
+      directIdentity,
+      parentText
+    ].join(
+      " "
+    );
+
+
+    let tagScore =
+      0;
+
+
+    if (
+      /TAG\s*NO/i.test(
+        combinedIdentity
+      )
+    ) {
+      tagScore +=
+        40;
+    }
+
+
+    if (
+      /tag/i.test(
+        directIdentity
+      )
+    ) {
+      tagScore +=
+        20;
+    }
+
+
+    if (
+      /tag.*no|no.*tag/i.test(
+        directIdentity
+      )
+    ) {
+      tagScore +=
+        15;
+    }
+
+
+    if (
+      tagScore >
+      bestTagScore
+    ) {
+      tagInput =
+        input;
+
+
+      bestTagScore =
+        tagScore;
+    }
+
+
+    const currentValue =
+      String(
+        information.value ||
+        ""
+      ).trim();
+
+
+    const isDateInput =
+      information.type ===
+        "date" ||
+
+      /^\d{4}[/-]\d{2}[/-]\d{2}$/.test(
+        currentValue
+      ) ||
+
+      /일자|날짜|date/i.test(
+        directIdentity
+      );
+
+
+    if (
+      isDateInput
+    ) {
+      dateInputs.push({
+        input,
+
+        type:
+          information.type
+      });
+    }
+  }
+
+
+  if (
+    !tagInput ||
+    bestTagScore <=
+      0
+  ) {
+    throw new Error(
+      "OIS TAG별 LOG 조회의 TAG NO 입력칸을 찾지 못했습니다."
+    );
+  }
+
+
+  /*
+    TAG 입력
+  */
+
+  await tagInput.evaluate(
+    (
+      element,
+      value
+    ) => {
+      const valueSetter =
+        Object
+          .getOwnPropertyDescriptor(
+            HTMLInputElement.prototype,
+            "value"
+          )
+          ?.set;
+
+
+      if (
+        valueSetter
+      ) {
+        valueSetter.call(
+          element,
+          value
+        );
+
+      } else {
+        element.value =
+          value;
+      }
+
+
+      element.dispatchEvent(
+        new Event(
+          "input",
+          {
+            bubbles:
+              true
+          }
+        )
+      );
+
+
+      element.dispatchEvent(
+        new Event(
+          "change",
+          {
+            bubbles:
+              true
+          }
+        )
+      );
+
+
+      element.dispatchEvent(
+        new Event(
+          "blur",
+          {
+            bubbles:
+              true
+          }
+        )
+      );
+    },
+
+    normalizedTag
+  );
+
+
+  if (
+    dateInputs.length <
+      1
+  ) {
+    throw new Error(
+      "OIS TAG별 LOG 조회의 날짜 입력칸을 찾지 못했습니다."
+    );
+  }
+
+
+  /*
+    시작일·종료일 모두 같은 날짜
+
+    화면에 날짜가 하나뿐인 버전도
+    정상 처리한다.
+  */
+
+  const targetDateInputs =
+    dateInputs.slice(
+      0,
+      2
+    );
+
+
+  for (
+    const dateInput of
+    targetDateInputs
+  ) {
+    const inputValue =
+      dateInput.type ===
+        "date"
+        ? targetDate
+        : slashDate;
+
+
+    await dateInput
+      .input
+      .evaluate(
+        (
+          element,
+          value
+        ) => {
+          const valueSetter =
+            Object
+              .getOwnPropertyDescriptor(
+                HTMLInputElement.prototype,
+                "value"
+              )
+              ?.set;
+
+
+          if (
+            valueSetter
+          ) {
+            valueSetter.call(
+              element,
+              value
+            );
+
+          } else {
+            element.value =
+              value;
+          }
+
+
+          element.dispatchEvent(
+            new Event(
+              "input",
+              {
+                bubbles:
+                  true
+              }
+            )
+          );
+
+
+          element.dispatchEvent(
+            new Event(
+              "change",
+              {
+                bubbles:
+                  true
+              }
+            )
+          );
+
+
+          element.dispatchEvent(
+            new Event(
+              "blur",
+              {
+                bubbles:
+                  true
+              }
+            )
+          );
+        },
+
+        inputValue
+      );
+  }
+
+
+  console.log(
+    [
+      "OIS TAG별 LOG 조회조건",
+      targetTag,
+      targetDate
+    ].join(
+      " · "
+    )
+  );
+}
+
+
+/* =========================================================
+  TAG별 LOG 조회 응답에서 24시 값 읽기
+
+  중요:
+  - 요청일과 같은 날짜만 사용
+  - TAG가 같은 자료만 사용
+  - hd_24 우선
+  - hb_24는 사용하지 않음
+
+  이유:
+  hb_24는 전일 계열 값일 수 있으므로
+  회의 기준일을 틀리지 않게 명시적으로 제외한다.
+========================================================= */
+
+async function captureOisTagLog24HourValueFromApi(
+  page,
+  targetTag,
+  targetDate,
+  triggerSearch
+) {
+  const normalizedTargetTag =
+    normalizeOisAgentText(
+      targetTag
+    ).toUpperCase();
+
+
+  const compactTargetDate =
+    targetDate.replace(
+      /-/g,
+      ""
+    );
+
+
+  return await new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+      let isSettled =
+        false;
+
+
+      let timeoutId =
+        null;
+
+
+      const cleanup = () => {
+        if (
+          timeoutId
+        ) {
+          clearTimeout(
+            timeoutId
+          );
+
+
+          timeoutId =
+            null;
+        }
+
+
+        page.off(
+          "response",
+          handleResponse
+        );
+      };
+
+
+      const finishResolve = (
+        value
+      ) => {
+        if (
+          isSettled
+        ) {
+          return;
+        }
+
+
+        isSettled =
+          true;
+
+
+        cleanup();
+
+
+        resolve(
+          value
+        );
+      };
+
+
+      const finishReject = (
+        error
+      ) => {
+        if (
+          isSettled
+        ) {
+          return;
+        }
+
+
+        isSettled =
+          true;
+
+
+        cleanup();
+
+
+        reject(
+          error
+        );
+      };
+
+
+      const handleResponse =
+        async response => {
+          try {
+            const responseUrl =
+              String(
+                response.url() ||
+                ""
+              );
+
+
+            const request =
+              response.request();
+
+
+            const requestMethod =
+              String(
+                request.method() ||
+                ""
+              ).toUpperCase();
+
+
+            if (
+              !responseUrl.includes(
+                "/ajax/data"
+              ) ||
+              requestMethod !==
+                "POST"
+            ) {
+              return;
+            }
+
+
+            const requestBody =
+              String(
+                request.postData() ||
+                ""
+              ).toUpperCase();
+
+
+            const responseText =
+              await response.text();
+
+
+            if (
+              !responseText.trim()
+            ) {
+              return;
+            }
+
+
+            let responseData = {};
+
+
+            try {
+              responseData =
+                JSON.parse(
+                  responseText
+                );
+
+            } catch {
+              return;
+            }
+
+
+            const rows =
+              Array.isArray(
+                responseData.result
+              )
+                ? responseData.result
+                : [];
+
+
+            for (
+              const row of
+              rows
+            ) {
+              const rowTag =
+                normalizeOisAgentText(
+                  row?.tag_no ||
+                  row?.tag ||
+                  row?.tagno ||
+                  ""
+                ).toUpperCase();
+
+
+              const rowDate =
+                String(
+                  row?.base_date ||
+                  row?.schbase_date ||
+                  row?.date ||
+                  row?.work_date ||
+                  ""
+                )
+                  .replace(
+                    /[^0-9]/g,
+                    ""
+                  )
+                  .slice(
+                    0,
+                    8
+                  );
+
+
+              /*
+                TAG가 명시된 행이면 정확히 같은 TAG만 허용
+              */
+
+              if (
+                rowTag &&
+                rowTag !==
+                  normalizedTargetTag
+              ) {
+                continue;
+              }
+
+
+              /*
+                TAG 필드가 없는 응답은
+                요청 또는 응답 자체에 TAG가 포함된 경우만 허용
+              */
+
+              if (
+                !rowTag &&
+                !requestBody.includes(
+                  normalizedTargetTag
+                ) &&
+                !responseText
+                  .toUpperCase()
+                  .includes(
+                    normalizedTargetTag
+                  )
+              ) {
+                continue;
+              }
+
+
+              /*
+                날짜가 들어 있는 경우
+                반드시 요청일과 같아야 한다.
+              */
+
+              if (
+                rowDate &&
+                rowDate !==
+                  compactTargetDate
+              ) {
+                continue;
+              }
+
+
+              /*
+                24시 값 후보
+
+                hb_24는 고의로 제외한다.
+              */
+
+              const valueCandidates = [
+                [
+                  "hd_24",
+                  row?.hd_24
+                ],
+
+                [
+                  "h_24",
+                  row?.h_24
+                ],
+
+                [
+                  "hour_24",
+                  row?.hour_24
+                ],
+
+                [
+                  "hour24",
+                  row?.hour24
+                ],
+
+                [
+                  "value_24",
+                  row?.value_24
+                ],
+
+                [
+                  "value24",
+                  row?.value24
+                ],
+
+                [
+                  "24",
+                  row?.["24"]
+                ]
+              ];
+
+
+              let capturedValue =
+                null;
+
+
+              let capturedField =
+                "";
+
+
+              for (
+                const [
+                  fieldName,
+                  rawValue
+                ] of
+                valueCandidates
+              ) {
+                const numericValue =
+                  parseOisAgentNumber(
+                    rawValue
+                  );
+
+
+                if (
+                  numericValue ===
+                    null
+                ) {
+                  continue;
+                }
+
+
+                capturedValue =
+                  numericValue;
+
+
+                capturedField =
+                  fieldName;
+
+
+                break;
+              }
+
+
+              if (
+                capturedValue ===
+                  null
+              ) {
+                continue;
+              }
+
+
+              const result = {
+                value:
+                  capturedValue,
+
+                valueField:
+                  capturedField,
+
+                tag:
+                  rowTag ||
+                  normalizedTargetTag,
+
+                sourceDate:
+                  rowDate ||
+                  compactTargetDate,
+
+                itemName:
+                  normalizeOisAgentText(
+                    row?.tag_name ||
+                    row?.tag_name_kor ||
+                    row?.mid_name ||
+                    ""
+                  ),
+
+                unit:
+                  normalizeOisAgentText(
+                    row?.unit_code ||
+                    row?.unit ||
+                    ""
+                  )
+              };
+
+
+              console.log(
+                "OIS TAG별 LOG 24시 자료 확인:",
+                {
+                  targetDate,
+
+                  targetTag,
+
+                  ...result
+                }
+              );
+
+
+              finishResolve(
+                result
+              );
+
+
+              return;
+            }
+
+          } catch (
+            error
+          ) {
+            finishReject(
+              error
+            );
+          }
+        };
+
+
+      /*
+        조회 버튼 클릭 전에
+        응답 감시부터 시작
+      */
+
+      page.on(
+        "response",
+        handleResponse
+      );
+
+
+      timeoutId =
+        setTimeout(
+          () => {
+            finishReject(
+              new Error(
+                `${targetTag}의 ${targetDate} 24시 값을 읽지 못했습니다.`
+              )
+            );
+          },
+
+          OIS_QUERY_TIMEOUT
+        );
+
+
+      Promise.resolve()
+        .then(
+          triggerSearch
+        )
+        .catch(
+          finishReject
+        );
+    }
+  );
+}
+
+
+/* =========================================================
+  오전회의 Silo Level 실제 조회
+
+  targetDate:
+  회의일 전날
+
+  예:
+  회의일 2026-08-08
+  → targetDate 2026-08-07
+
+  결과:
+  2026-08-07 24시
+========================================================= */
+
+async function collectOisSiloLevelValues(
+  page,
+  config,
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "Silo Level 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  await ensureOisAgentLoggedIn(
+    page,
+    config
+  );
+
+
+  const capturedValues = {};
+
+
+  for (
+    const definition of
+    OIS_SILO_LEVEL_DEFINITIONS
+  ) {
+    let frame =
+      await openOisTagLogLookup(
+        page
+      );
+
+
+    await setOisTagLogSearchConditions(
+      frame,
+      definition.tag,
+      targetDate
+    );
+
+
+    await page.waitForTimeout(
+      200
+    );
+
+
+    frame =
+      await findOisTagLogFrame(
+        page,
+        3000
+      ) ||
+      frame;
+
+
+    const capturedValue =
+      await captureOisTagLog24HourValueFromApi(
+        page,
+        definition.tag,
+        targetDate,
+
+        async () => {
+          /*
+            기존 조회버튼 함수는
+            화면 안의 "조회" 버튼을 찾아 클릭하므로
+            TAG별 LOG 화면에서도 재사용한다.
+          */
+
+          await clickOisLogSheetSearchButton(
+            frame
+          );
+        }
+      );
+
+
+    capturedValues[
+      definition.resultKey
+    ] = {
+      ...capturedValue,
+
+      label:
+        definition.label
+    };
+  }
+
+
+  const result = {
+    source:
+      "OIS TAG별 LOG 조회",
+
+    targetDate,
+
+    valueColumn:
+      "24시",
+
+    flyAshSiloLevel:
+      capturedValues
+        .flyAsh
+        .value,
+
+    bioStorageSiloLevel:
+      capturedValues
+        .bioStorage
+        .value,
+
+    flyAshTag:
+      capturedValues
+        .flyAsh
+        .tag,
+
+    bioStorageTag:
+      capturedValues
+        .bioStorage
+        .tag,
+
+    flyAshItemName:
+      capturedValues
+        .flyAsh
+        .itemName,
+
+    bioStorageItemName:
+      capturedValues
+        .bioStorage
+        .itemName,
+
+    flyAshUnit:
+      capturedValues
+        .flyAsh
+        .unit,
+
+    bioStorageUnit:
+      capturedValues
+        .bioStorage
+        .unit,
+
+    flyAshValueField:
+      capturedValues
+        .flyAsh
+        .valueField,
+
+    bioStorageValueField:
+      capturedValues
+        .bioStorage
+        .valueField,
+
+    collectedAt:
+      new Date()
+        .toISOString()
+  };
+
+
+  console.log(
+    [
+      "OIS Silo Level 조회 완료",
+
+      targetDate,
+
+      `Fly Ash ${result.flyAshSiloLevel}${result.flyAshUnit || ""}`,
+
+      `Bio Storage ${result.bioStorageSiloLevel}${result.bioStorageUnit || ""}`
+    ].join(
+      " · "
+    )
+  );
+
+
+  return result;
+}
+
+/* =========================================================
   OIS 과거 LOG SHEET 업무일지 조회 정의
 
   로그시트 결재 조회:
@@ -4041,9 +5506,10 @@ async function collectOisLegacyLogApprovalValues(
   - water_environment
   - limestone_stock
   - turbine_gear_pinion
+  - silo_level
   - logsheet_approval
 
-  네 요청 유형을 번갈아 확인한다.
+  다섯 요청 유형을 번갈아 확인한다.
 ========================================================= */
 
 async function getNextOisAgentRequest(
@@ -4053,6 +5519,7 @@ async function getNextOisAgentRequest(
     "water_environment",
     "limestone_stock",
     "turbine_gear_pinion",
+    "silo_level",
     "logsheet_approval"
   ];
 
@@ -4194,6 +5661,14 @@ function getOisAgentRequestLabel(
 
   if (
     requestType ===
+      "silo_level"
+  ) {
+    return "Silo Level";
+  }
+
+
+  if (
+    requestType ===
       "logsheet_approval"
   ) {
     return "과거 LOG SHEET 업무일지";
@@ -4254,6 +5729,18 @@ async function collectOisAgentRequestResult(
       "turbine_gear_pinion"
   ) {
     return await collectOisTurbineGearPinionValues(
+      page,
+      config,
+      targetDate
+    );
+  }
+
+
+  if (
+    requestType ===
+      "silo_level"
+  ) {
+    return await collectOisSiloLevelValues(
       page,
       config,
       targetDate
@@ -4377,6 +5864,41 @@ function printOisAgentRequestResult(
 
       "Pinion TAG":
         result.pinionTag
+    });
+
+
+    return;
+  }
+
+
+  if (
+    requestType ===
+      "silo_level"
+  ) {
+    console.table({
+      "조회일":
+        result.targetDate,
+
+      "조회 기준":
+        result.valueColumn,
+
+      "Fly Ash Silo Level":
+        result.flyAshSiloLevel,
+
+      "Bio Storage Silo Level":
+        result.bioStorageSiloLevel,
+
+      "Fly Ash TAG":
+        result.flyAshTag,
+
+      "Bio Storage TAG":
+        result.bioStorageTag,
+
+      "Fly Ash 단위":
+        result.flyAshUnit,
+
+      "Bio Storage 단위":
+        result.bioStorageUnit
     });
 
 

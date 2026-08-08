@@ -735,6 +735,7 @@ async function authenticateOisAgent(
   - limestone_stock
   - water_environment
   - turbine_gear_pinion
+  - silo_level
   - logsheet_approval
 ========================================================= */
 
@@ -756,6 +757,7 @@ function normalizeRequestType(
     "limestone_stock",
     "water_environment",
     "turbine_gear_pinion",
+    "silo_level",
     "logsheet_approval"
   ].includes(
     requestType

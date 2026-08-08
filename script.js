@@ -153987,6 +153987,32 @@ async function analyzeCoalLogFile() {
 
   hideError();
 
+    /* =====================================================
+    새 운탄일지 분석 시작
+
+    중요:
+    이전 분석의 analyzed = true가 남아 있으면
+    TM 복수 분석기가 새 분석이 끝나기 전에
+    완료된 것으로 오인할 수 있다.
+
+    따라서 매 분석 시작마다 반드시 false로 변경한다.
+  ====================================================== */
+
+  if (
+    state.coalSelection &&
+    typeof state.coalSelection ===
+      "object"
+  ) {
+    state.coalSelection.analyzed =
+      false;
+
+    state.coalSelection.coalTmItems =
+      [];
+  }
+
+
+  state.coalAnalysisResults =
+    [];
 
   if (
     typeof XLSX ===
@@ -162573,6 +162599,1566 @@ async function createGearPinionRequest(
 })();
 
 /* =========================================================
+  오전회의 취합
+  OIS Silo Level 요청 클라이언트
+
+  실행:
+  - OIS 수처리 불러오기 버튼을 누를 때 함께 조회
+
+  날짜:
+  - 오전회의 자동수치 공용 기준일 그대로 사용
+  - 회의일 2026-08-08
+    → 조회일 2026-08-07
+    → 2026-08-07 24시 값
+
+  대상:
+  - 003ETH01CW201XQ01
+    Fly Ash Silo Level
+
+  - EBF20CW201
+    Bio Storage Silo Level
+
+  저장:
+  window.efficiencyMorningMeetingUploadState.siloLevel
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingSiloLevelOisClient() {
+  "use strict";
+
+
+  if (
+    window
+      .__efficiencyMorningMeetingSiloLevelOisClientInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyMorningMeetingSiloLevelOisClientInstalled =
+    true;
+
+
+  const OIS_REQUEST_API_URL =
+    "/api/ois-data-requests";
+
+
+  const REQUEST_TYPE =
+    "silo_level";
+
+
+  const POLL_INTERVAL =
+    1500;
+
+
+  const MAXIMUM_WAIT =
+    10 *
+    60 *
+    1000;
+
+
+  let activeRequestId =
+    "";
+
+
+  let activeRunToken =
+    0;
+
+
+  let initializationAttempt =
+    0;
+
+
+  /* =====================================================
+    오전회의 공용 상태
+  ====================================================== */
+
+  function getState() {
+    if (
+      !window
+        .efficiencyMorningMeetingUploadState
+    ) {
+      window.efficiencyMorningMeetingUploadState = {
+        files:
+          {},
+
+        analysis:
+          {}
+      };
+    }
+
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  /* =====================================================
+    화면 요소
+  ====================================================== */
+
+  function getElements() {
+    return {
+      panel:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterPanel"
+        ),
+
+      waterDate:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterDate"
+        ),
+
+      loadButton:
+        document.getElementById(
+          "loadEfficiencyMorningMeetingWaterButton"
+        ),
+
+      analyzeButton:
+        document.getElementById(
+          "analyzeEfficiencyMorningMeetingButton"
+        ),
+
+      loadShiftButton:
+        document.getElementById(
+          "loadEfficiencyMorningMeetingShiftLogsButton"
+        ),
+
+      shiftDate:
+        document.getElementById(
+          "efficiencyMorningMeetingShiftDate"
+        ),
+
+      resetButton:
+        document.getElementById(
+          "resetEfficiencyMorningMeetingButton"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    문자열
+  ====================================================== */
+
+  function normalizeText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    ).trim();
+  }
+
+
+  /* =====================================================
+    날짜 검사
+  ====================================================== */
+
+  function isValidDate(
+    value
+  ) {
+    const normalizedDate =
+      normalizeText(
+        value
+      );
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        normalizedDate
+      )
+    ) {
+      return false;
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${normalizedDate}T00:00:00.000Z`
+      );
+
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        normalizedDate
+    );
+  }
+
+
+  /* =====================================================
+    화면 문구에서 날짜 추출
+  ====================================================== */
+
+  function extractDateFromText(
+    value
+  ) {
+    const match =
+      normalizeText(
+        value
+      ).match(
+        /\d{4}-\d{2}-\d{2}/
+      );
+
+
+    return isValidDate(
+      match?.[0]
+    )
+      ? match[0]
+      : "";
+  }
+
+
+  /* =====================================================
+    Silo Level 조회 기준일
+
+    중요:
+    Gear / Pinion과 다르게 +1일 하지 않는다.
+
+    공용 기준일:
+    - 수처리 = 기준일
+    - 석회석 = 기준일
+    - Silo    = 기준일
+    - Gear    = 기준일 + 1일
+
+    예:
+    오전회의 08-08
+    공용 기준일 08-07
+    Silo 조회   08-07 24시
+  ====================================================== */
+
+  function resolveSiloTargetDate() {
+    const state =
+      getState();
+
+
+    const {
+      panel,
+      waterDate,
+      shiftDate
+    } =
+      getElements();
+
+
+    /* ===================================================
+      0. 공용 자동수치 기준일
+
+      날짜 이동 버튼으로 바뀐 날짜가
+      가장 높은 우선순위다.
+    ==================================================== */
+
+    const commonBaseDate =
+      normalizeText(
+        panel?.dataset
+          .morningMeetingAutoBaseDate
+      );
+
+
+    if (
+      isValidDate(
+        commonBaseDate
+      )
+    ) {
+      return commonBaseDate;
+    }
+
+
+    /* ===================================================
+      1. 교대파트 기준일
+
+      오전회의 대상일의 전날
+    ==================================================== */
+
+    const shiftReportDate =
+      normalizeText(
+        state.shiftPart
+          ?.reportDate
+      );
+
+
+    if (
+      isValidDate(
+        shiftReportDate
+      )
+    ) {
+      return shiftReportDate;
+    }
+
+
+    const shiftLoadedDate =
+      normalizeText(
+        state.shiftPart
+          ?.loadedDate
+      );
+
+
+    if (
+      isValidDate(
+        shiftLoadedDate
+      )
+    ) {
+      return shiftLoadedDate;
+    }
+
+
+    /* ===================================================
+      2. 현재 수처리 결과 날짜
+
+      수처리도 오전회의 전날 기준이므로
+      Silo와 동일 날짜다.
+    ==================================================== */
+
+    const waterSourceDate =
+      normalizeText(
+        state.waterTreatment
+          ?.sourceDate
+      );
+
+
+    if (
+      isValidDate(
+        waterSourceDate
+      )
+    ) {
+      return waterSourceDate;
+    }
+
+
+    const waterTargetDate =
+      normalizeText(
+        state.waterTreatment
+          ?.targetDate
+      );
+
+
+    if (
+      isValidDate(
+        waterTargetDate
+      )
+    ) {
+      return waterTargetDate;
+    }
+
+
+    /* ===================================================
+      3. 수처리 패널 저장 날짜
+    ==================================================== */
+
+    const panelWaterDate =
+      normalizeText(
+        panel?.dataset
+          .waterTargetDate
+      );
+
+
+    if (
+      isValidDate(
+        panelWaterDate
+      )
+    ) {
+      return panelWaterDate;
+    }
+
+
+    /* ===================================================
+      4. 화면 표시 날짜
+    ==================================================== */
+
+    const displayedWaterDate =
+      extractDateFromText(
+        waterDate?.textContent
+      );
+
+
+    if (
+      isValidDate(
+        displayedWaterDate
+      )
+    ) {
+      return displayedWaterDate;
+    }
+
+
+    const displayedShiftDate =
+      extractDateFromText(
+        shiftDate?.textContent
+      );
+
+
+    if (
+      isValidDate(
+        displayedShiftDate
+      )
+    ) {
+      return displayedShiftDate;
+    }
+
+
+    return "";
+  }
+
+
+  /* =====================================================
+    API 응답 읽기
+  ====================================================== */
+
+  async function readApiResponse(
+    response,
+    fallbackMessage
+  ) {
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "Silo Level OIS 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        fallbackMessage ||
+        `Silo Level OIS 요청에 실패했습니다. (HTTP ${response.status})`
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    Silo Level 요청 생성
+
+    forceRefresh false:
+    저장된 완료자료가 있으면 재사용
+
+    forceRefresh true:
+    회사 OIS에서 다시 조회
+  ====================================================== */
+
+  async function createSiloRequest(
+    targetDate,
+    options = {}
+  ) {
+    const {
+      forceRefresh =
+        false
+    } =
+      options;
+
+
+    const response =
+      await fetch(
+        OIS_REQUEST_API_URL,
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              requestType:
+                REQUEST_TYPE,
+
+              /*
+                중요:
+
+                8일 회의자료라면
+                여기에는 7일이 들어간다.
+              */
+              targetDate,
+
+              forceRefresh:
+                forceRefresh ===
+                true
+            })
+        }
+      );
+
+
+    const result =
+      await readApiResponse(
+        response,
+        "Silo Level OIS 조회 요청을 만들지 못했습니다."
+      );
+
+
+    /* ===================================================
+      요청 유형 안전장치
+
+      서버에 silo_level 코드가 배포되지 않았다면
+      limestone_stock으로 잘못 변환되는 것을 방지한다.
+    ==================================================== */
+
+    const returnedRequestType =
+      normalizeText(
+        result?.item
+          ?.requestType ||
+        result?.item
+          ?.request_type
+      )
+        .toLowerCase();
+
+
+    if (
+      returnedRequestType &&
+      returnedRequestType !==
+        REQUEST_TYPE
+    ) {
+      throw new Error(
+        [
+          `Silo 요청이 ${returnedRequestType}(으)로 잘못 저장되었습니다.`,
+
+          "ois-data-requests.js의 normalizeRequestType()에 silo_level 적용 여부를 확인해 주세요."
+        ].join(
+          " "
+        )
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    Silo 요청 상태 조회
+  ====================================================== */
+
+  async function getSiloRequest(
+    requestId
+  ) {
+    const requestUrl =
+      new URL(
+        OIS_REQUEST_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "id",
+      requestId
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    return await readApiResponse(
+      response,
+      "Silo Level OIS 요청 상태를 확인하지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    잠시 대기
+  ====================================================== */
+
+  function wait(
+    milliseconds
+  ) {
+    return new Promise(
+      resolve => {
+        window.setTimeout(
+          resolve,
+          milliseconds
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    회사 PC 조회 완료 대기
+  ====================================================== */
+
+  async function waitForCompletion(
+    requestId,
+    targetDate,
+    runToken
+  ) {
+    const startedAt =
+      Date.now();
+
+
+    while (
+      Date.now() -
+        startedAt <
+      MAXIMUM_WAIT
+    ) {
+      if (
+        runToken !==
+          activeRunToken
+      ) {
+        return null;
+      }
+
+
+      const requestResult =
+        await getSiloRequest(
+          requestId
+        );
+
+
+      const requestItem =
+        requestResult.item;
+
+
+      if (
+        !requestItem
+      ) {
+        throw new Error(
+          "Silo Level OIS 요청을 찾을 수 없습니다."
+        );
+      }
+
+
+      const status =
+        normalizeText(
+          requestItem.status
+        ).toLowerCase();
+
+
+      if (
+        status ===
+          "complete"
+      ) {
+        return requestItem;
+      }
+
+
+      if (
+        status ===
+          "failed"
+      ) {
+        throw new Error(
+          normalizeText(
+            requestItem.errorMessage
+          ) ||
+          `${targetDate} Silo Level OIS 조회에 실패했습니다.`
+        );
+      }
+
+
+      await wait(
+        POLL_INTERVAL
+      );
+    }
+
+
+    throw new Error(
+      `${targetDate} Silo Level OIS 조회 응답 시간이 초과되었습니다.`
+    );
+  }
+
+
+  /* =====================================================
+    숫자 정리
+  ====================================================== */
+
+  function normalizeNumber(
+    value
+  ) {
+    const normalizedValue =
+      String(
+        value ??
+        ""
+      )
+        .replaceAll(
+          ",",
+          ""
+        )
+        .trim();
+
+
+    if (
+      normalizedValue ===
+        ""
+    ) {
+      return null;
+    }
+
+
+    const numericValue =
+      Number(
+        normalizedValue
+      );
+
+
+    return Number.isFinite(
+      numericValue
+    )
+      ? numericValue
+      : null;
+  }
+
+
+  /* =====================================================
+    Silo 결과 검증
+  ====================================================== */
+
+  function normalizeSiloResult(
+    requestItem,
+    expectedDate
+  ) {
+    const result =
+      requestItem?.result &&
+      typeof requestItem.result ===
+        "object"
+        ? requestItem.result
+        : {};
+
+
+    const flyAshSiloLevel =
+      normalizeNumber(
+        result.flyAshSiloLevel ??
+        result.flyAsh ??
+        result.fly_ash_silo_level
+      );
+
+
+    const bioStorageSiloLevel =
+      normalizeNumber(
+        result.bioStorageSiloLevel ??
+        result.bioStorage ??
+        result.bio_storage_silo_level
+      );
+
+
+    if (
+      flyAshSiloLevel ===
+        null
+    ) {
+      throw new Error(
+        "Fly Ash Silo Level 24시 값을 확인하지 못했습니다."
+      );
+    }
+
+
+    if (
+      bioStorageSiloLevel ===
+        null
+    ) {
+      throw new Error(
+        "Bio Storage Silo Level 24시 값을 확인하지 못했습니다."
+      );
+    }
+
+
+    const sourceDate =
+      normalizeText(
+        result.sourceDate ||
+        result.targetDate ||
+        requestItem.targetDate
+      );
+
+
+    if (
+      sourceDate &&
+      sourceDate !==
+        expectedDate
+    ) {
+      throw new Error(
+        [
+          "Silo Level 조회 날짜가 다릅니다.",
+
+          `요청일: ${expectedDate}`,
+
+          `조회 결과: ${sourceDate}`
+        ].join(
+          " "
+        )
+      );
+    }
+
+
+    return {
+      source:
+        normalizeText(
+          result.source
+        ) ||
+        "OIS TAG별 LOG 조회",
+
+      targetDate:
+        expectedDate,
+
+      sourceDate:
+        sourceDate ||
+        expectedDate,
+
+      valueColumn:
+        normalizeText(
+          result.valueColumn
+        ) ||
+        "24시",
+
+      flyAshSiloLevel,
+
+      bioStorageSiloLevel,
+
+      flyAshTag:
+        normalizeText(
+          result.flyAshTag
+        ) ||
+        "003ETH01CW201XQ01",
+
+      bioStorageTag:
+        normalizeText(
+          result.bioStorageTag
+        ) ||
+        "EBF20CW201",
+
+      flyAshItemName:
+        normalizeText(
+          result.flyAshItemName
+        ) ||
+        "Fly Ash Silo Level",
+
+      bioStorageItemName:
+        normalizeText(
+          result.bioStorageItemName
+        ) ||
+        "Bio Storage Silo Level",
+
+      flyAshUnit:
+        normalizeText(
+          result.flyAshUnit
+        ),
+
+      bioStorageUnit:
+        normalizeText(
+          result.bioStorageUnit
+        ),
+
+      flyAshValueField:
+        normalizeText(
+          result.flyAshValueField
+        ) ||
+        "hd_24",
+
+      bioStorageValueField:
+        normalizeText(
+          result.bioStorageValueField
+        ) ||
+        "hd_24",
+
+      collectedAt:
+        normalizeText(
+          result.collectedAt
+        ),
+
+      agentId:
+        normalizeText(
+          requestItem.agentId
+        )
+    };
+  }
+
+
+  /* =====================================================
+    결과를 오전회의 상태에 저장
+  ====================================================== */
+
+  function applySiloResult(
+    requestItem,
+    expectedDate
+  ) {
+    const result =
+      normalizeSiloResult(
+        requestItem,
+        expectedDate
+      );
+
+
+    const state =
+      getState();
+
+
+    state.siloLevel = {
+      ...result,
+
+      requestId:
+        normalizeText(
+          requestItem.id
+        )
+    };
+
+
+    delete state
+      .siloLevelError;
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    if (
+      panel
+    ) {
+      panel.dataset
+        .siloLevelStatus =
+        "complete";
+
+
+      panel.dataset
+        .siloLevelTargetDate =
+        expectedDate;
+
+
+      panel.dataset
+        .siloLevelRequestId =
+        normalizeText(
+          requestItem.id
+        );
+
+
+      panel.dataset
+        .siloLevelCollectedAt =
+        result.collectedAt;
+
+
+      panel.dataset
+        .siloLevelAgentId =
+        result.agentId;
+    }
+
+
+    console.log(
+      "오전회의 Silo Level 조회 완료:",
+      state.siloLevel
+    );
+
+
+    document.dispatchEvent(
+      new CustomEvent(
+        "efficiencyMorningMeetingSiloLevelLoaded",
+
+        {
+          detail: {
+            targetDate:
+              expectedDate,
+
+            flyAshSiloLevel:
+              result.flyAshSiloLevel,
+
+            bioStorageSiloLevel:
+              result.bioStorageSiloLevel
+          }
+        }
+      )
+    );
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    Silo Level 실제 OIS 조회
+  ====================================================== */
+
+  async function loadSiloLevel(
+    options = {}
+  ) {
+    const {
+      forceRefresh =
+        false
+    } =
+      options;
+
+
+    /*
+      여기서 반환되는 날짜는
+      오전회의 대상일의 전날이다.
+
+      08-08 회의
+      → 08-07
+    */
+
+    const targetDate =
+      synchronizeTargetDate();
+
+
+    if (
+      !targetDate
+    ) {
+      console.warn(
+        "Silo Level 조회 기준일을 확인하지 못했습니다."
+      );
+
+
+      return null;
+    }
+
+
+    const runToken =
+      activeRunToken +
+      1;
+
+
+    activeRunToken =
+      runToken;
+
+
+    activeRequestId =
+      "";
+
+
+    const state =
+      getState();
+
+
+    delete state
+      .siloLevel;
+
+
+    delete state
+      .siloLevelError;
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    if (
+      panel
+    ) {
+      panel.dataset
+        .siloLevelStatus =
+        "loading";
+
+
+      panel.dataset
+        .siloLevelTargetDate =
+        targetDate;
+
+
+      delete panel.dataset
+        .siloLevelRequestId;
+
+
+      delete panel.dataset
+        .siloLevelCollectedAt;
+
+
+      delete panel.dataset
+        .siloLevelAgentId;
+    }
+
+
+    console.log(
+      [
+        `${targetDate} Silo Level OIS 조회 요청 중`,
+
+        "24시 값 사용"
+      ].join(
+        " · "
+      )
+    );
+
+
+    try {
+      const createResult =
+        await createSiloRequest(
+          targetDate,
+          {
+            forceRefresh
+          }
+        );
+
+
+      const requestItem =
+        createResult.item;
+
+
+      if (
+        !requestItem?.id
+      ) {
+        throw new Error(
+          "생성된 Silo Level OIS 요청 ID를 확인할 수 없습니다."
+        );
+      }
+
+
+      activeRequestId =
+        normalizeText(
+          requestItem.id
+        );
+
+
+      let completedItem =
+        requestItem;
+
+
+      if (
+        normalizeText(
+          requestItem.status
+        ).toLowerCase() !==
+          "complete"
+      ) {
+        completedItem =
+          await waitForCompletion(
+            activeRequestId,
+            targetDate,
+            runToken
+          );
+      }
+
+
+      if (
+        !completedItem ||
+        runToken !==
+          activeRunToken
+      ) {
+        return null;
+      }
+
+
+      return applySiloResult(
+        completedItem,
+        targetDate
+      );
+
+    } catch (
+      error
+    ) {
+      const errorMessage =
+        error instanceof
+          Error
+          ? error.message
+          : "Silo Level OIS 자료를 불러오지 못했습니다.";
+
+
+      console.error(
+        "오전회의 Silo Level 조회 실패:",
+        error
+      );
+
+
+      if (
+        runToken !==
+          activeRunToken
+      ) {
+        return null;
+      }
+
+
+      state.siloLevelError =
+        errorMessage;
+
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .siloLevelStatus =
+          "error";
+      }
+
+
+      return null;
+    }
+  }
+
+
+  /* =====================================================
+    Silo 결과 초기화
+  ====================================================== */
+
+  function resetSiloResult(
+    options = {}
+  ) {
+    const {
+      keepTargetDate =
+        false
+    } =
+      options;
+
+
+    activeRunToken +=
+      1;
+
+
+    activeRequestId =
+      "";
+
+
+    const state =
+      getState();
+
+
+    delete state
+      .siloLevel;
+
+
+    delete state
+      .siloLevelError;
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    if (
+      panel
+    ) {
+      delete panel.dataset
+        .siloLevelStatus;
+
+
+      delete panel.dataset
+        .siloLevelRequestId;
+
+
+      delete panel.dataset
+        .siloLevelCollectedAt;
+
+
+      delete panel.dataset
+        .siloLevelAgentId;
+
+
+      if (
+        !keepTargetDate
+      ) {
+        delete panel.dataset
+          .siloLevelTargetDate;
+      }
+    }
+  }
+
+
+  /* =====================================================
+    기준일 동기화
+
+    날짜가 변경되면
+    이전 날짜 Silo 결과를 제거한다.
+  ====================================================== */
+
+  function synchronizeTargetDate() {
+    const targetDate =
+      resolveSiloTargetDate();
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    const previousTargetDate =
+      normalizeText(
+        panel?.dataset
+          .siloLevelTargetDate
+      );
+
+
+    if (
+      previousTargetDate &&
+      targetDate &&
+      previousTargetDate !==
+        targetDate
+    ) {
+      resetSiloResult();
+    }
+
+
+    if (
+      panel
+    ) {
+      if (
+        targetDate
+      ) {
+        panel.dataset
+          .siloLevelTargetDate =
+          targetDate;
+
+      } else {
+        delete panel.dataset
+          .siloLevelTargetDate;
+      }
+    }
+
+
+    return targetDate;
+  }
+
+
+  /* =====================================================
+    날짜 변경 확인 예약
+  ====================================================== */
+
+  function scheduleTargetDateSync() {
+    window.setTimeout(
+      synchronizeTargetDate,
+      0
+    );
+
+
+    window.setTimeout(
+      synchronizeTargetDate,
+      500
+    );
+
+
+    window.setTimeout(
+      synchronizeTargetDate,
+      1500
+    );
+  }
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function bindEvents() {
+    const elements =
+      getElements();
+
+
+    if (
+      !elements.loadButton ||
+      elements.loadButton.dataset
+        .siloLevelOisBound ===
+        "true"
+    ) {
+      return false;
+    }
+
+
+    /*
+      기존 OIS 수처리 불러오기 버튼에
+      Silo 조회를 추가한다.
+
+      기존:
+      - 수처리
+      - Gear / Pinion
+
+      추가:
+      - Silo Level
+
+      세 요청은 각각 별도 OIS 요청 ID로
+      독립 처리된다.
+    */
+
+    elements.loadButton.addEventListener(
+      "click",
+      () => {
+        void loadSiloLevel({
+          forceRefresh:
+            true
+        });
+      }
+    );
+
+
+    elements.analyzeButton
+      ?.addEventListener(
+        "click",
+        scheduleTargetDateSync
+      );
+
+
+    elements.loadShiftButton
+      ?.addEventListener(
+        "click",
+        scheduleTargetDateSync
+      );
+
+
+    elements.resetButton
+      ?.addEventListener(
+        "click",
+        () => {
+          resetSiloResult();
+
+          scheduleTargetDateSync();
+        }
+      );
+
+
+    if (
+      elements.shiftDate
+    ) {
+      const observer =
+        new MutationObserver(
+          synchronizeTargetDate
+        );
+
+
+      observer.observe(
+        elements.shiftDate,
+        {
+          childList:
+            true,
+
+          subtree:
+            true,
+
+          characterData:
+            true
+        }
+      );
+    }
+
+
+    elements.loadButton.dataset
+      .siloLevelOisBound =
+      "true";
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initialize() {
+    if (
+      !bindEvents()
+    ) {
+      initializationAttempt +=
+        1;
+
+
+      if (
+        initializationAttempt <
+          40
+      ) {
+        window.setTimeout(
+          initialize,
+          250
+        );
+      }
+
+
+      return;
+    }
+
+
+    synchronizeTargetDate();
+  }
+
+
+  /* =====================================================
+    외부 사용
+  ====================================================== */
+
+  window
+    .loadEfficiencyMorningMeetingSiloLevel =
+    loadSiloLevel;
+
+
+  window
+    .resetEfficiencyMorningMeetingSiloLevel =
+    resetSiloResult;
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
+
+/* =========================================================
   석회석 기간 전체 계산·저장 화면
 
   기능:
@@ -169005,6 +170591,853 @@ function renderPreview() {
   window
     .renderEfficiencyMorningMeetingAutoPreview =
     renderPreview;
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
+
+/* =========================================================
+  오전회의 취합
+  Silo Level 자동 수치 미리보기
+
+  표시 위치:
+  자동 수치 미리보기 맨 아래
+
+  기준:
+  회의일 전날 24시
+
+  예:
+  2026-08-08 회의
+  → 2026-08-07 24시
+
+  대상:
+  003ETH01CW201XQ01
+  Fly Ash Silo Level
+
+  EBF20CW201
+  Bio Storage Silo Level
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingSiloLevelPreview() {
+  "use strict";
+
+
+  if (
+    window
+      .__efficiencyMorningMeetingSiloLevelPreviewInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyMorningMeetingSiloLevelPreviewInstalled =
+    true;
+
+
+  let initializationAttempt =
+    0;
+
+
+  let refreshIntervalId =
+    null;
+
+
+  /* =====================================================
+    공용 상태
+  ====================================================== */
+
+  function getState() {
+    return (
+      window
+        .efficiencyMorningMeetingUploadState ||
+      {}
+    );
+  }
+
+
+  /* =====================================================
+    문자열 정리
+  ====================================================== */
+
+  function normalizeText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    ).trim();
+  }
+
+
+  /* =====================================================
+    숫자 변환
+  ====================================================== */
+
+  function parseNumber(
+    value
+  ) {
+    const normalizedValue =
+      normalizeText(
+        value
+      )
+        .replaceAll(
+          ",",
+          ""
+        );
+
+
+    if (
+      normalizedValue ===
+      ""
+    ) {
+      return null;
+    }
+
+
+    const numericValue =
+      Number(
+        normalizedValue
+      );
+
+
+    return Number.isFinite(
+      numericValue
+    )
+      ? numericValue
+      : null;
+  }
+
+
+  /* =====================================================
+    Silo 숫자 표시
+
+    OIS 표시와 맞춰
+    소수점 3자리로 보여준다.
+
+    단위는 OIS에서 받은 값이 있을 때만 표시한다.
+    임의로 %를 붙이지 않는다.
+  ====================================================== */
+
+  function formatSiloValue(
+    value,
+    unit
+  ) {
+    const numericValue =
+      parseNumber(
+        value
+      );
+
+
+    if (
+      numericValue ===
+        null
+    ) {
+      return "-";
+    }
+
+
+    const formattedValue =
+      numericValue.toLocaleString(
+        "ko-KR",
+        {
+          minimumFractionDigits:
+            3,
+
+          maximumFractionDigits:
+            3
+        }
+      );
+
+
+    const normalizedUnit =
+      normalizeText(
+        unit
+      );
+
+
+    return normalizedUnit
+      ? `${formattedValue} ${normalizedUnit}`
+      : formattedValue;
+  }
+
+
+  /* =====================================================
+    Silo 카드 생성
+
+    기존 자동수치 카드 스타일을 그대로 사용한다.
+
+    grid의 마지막에 append하므로
+    BO1·BO2 온도 아래,
+    자동 미리보기 맨 마지막에 표시된다.
+  ====================================================== */
+
+  function ensureSiloPreviewCard() {
+    const existingCard =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSiloCard"
+      );
+
+
+    if (
+      existingCard
+    ) {
+      return existingCard;
+    }
+
+
+    const grid =
+      document.querySelector(
+        "#efficiencyMorningMeetingAutoPreview " +
+        ".efficiency-morning-meeting-auto-preview__grid"
+      );
+
+
+    if (
+      !grid
+    ) {
+      return null;
+    }
+
+
+    const card =
+      document.createElement(
+        "article"
+      );
+
+
+    card.id =
+      "efficiencyMorningMeetingAutoSiloCard";
+
+
+    card.className = [
+      "efficiency-morning-meeting-auto-card",
+      "is-silo-level"
+    ].join(
+      " "
+    );
+
+
+    /*
+      PC에서도 한 줄 전체 폭 사용
+
+      기존 카드 뒤에 append되므로
+      항상 자동 미리보기 맨 아래에 배치된다.
+    */
+
+    card.style.gridColumn =
+      "1 / -1";
+
+
+    card.innerHTML = `
+      <header
+        class="
+          efficiency-morning-meeting-auto-card__header
+        "
+      >
+
+        <div>
+
+          <span>
+            SILO LEVEL
+          </span>
+
+          <strong>
+            Silo Level
+          </strong>
+
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-card__meta
+          "
+        >
+
+          <small
+            id="efficiencyMorningMeetingAutoSiloDate"
+          >
+            -
+          </small>
+
+
+          <span
+            class="
+              efficiency-morning-meeting-auto-card__badge
+            "
+            id="efficiencyMorningMeetingAutoSiloStatus"
+          >
+            조회 대기
+          </span>
+
+        </div>
+
+      </header>
+
+
+      <div
+        class="
+          efficiency-morning-meeting-auto-card__body
+        "
+      >
+
+        <!-- ===========================================
+          Fly Ash
+        ============================================ -->
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+          "
+        >
+
+          <span>
+
+            Fly Ash Silo Level
+
+            <small
+              style="
+                display:block;
+                margin-top:2px;
+                font-size:9px;
+                font-weight:700;
+                opacity:0.68;
+              "
+            >
+              003ETH01CW201XQ01
+            </small>
+
+          </span>
+
+
+          <strong
+            id="efficiencyMorningMeetingAutoFlyAshSiloLevel"
+          >
+            -
+          </strong>
+
+        </div>
+
+
+        <!-- ===========================================
+          Bio Storage
+        ============================================ -->
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+            is-emphasis
+          "
+        >
+
+          <span>
+
+            Bio Storage Silo Level
+
+            <small
+              style="
+                display:block;
+                margin-top:2px;
+                font-size:9px;
+                font-weight:700;
+                opacity:0.68;
+              "
+            >
+              EBF20CW201
+            </small>
+
+          </span>
+
+
+          <strong
+            id="efficiencyMorningMeetingAutoBioStorageSiloLevel"
+          >
+            -
+          </strong>
+
+        </div>
+
+      </div>
+
+    `;
+
+
+    grid.appendChild(
+      card
+    );
+
+
+    return card;
+  }
+
+
+  /* =====================================================
+    상태 배지
+  ====================================================== */
+
+  function setStatusBadge(
+    status,
+    label
+  ) {
+    const statusElement =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSiloStatus"
+      );
+
+
+    if (
+      !statusElement
+    ) {
+      return;
+    }
+
+
+    statusElement.classList.remove(
+      "is-loading",
+      "is-complete",
+      "is-error"
+    );
+
+
+    if (
+      status ===
+        "loading"
+    ) {
+      statusElement.classList.add(
+        "is-loading"
+      );
+
+    } else if (
+      status ===
+        "complete"
+    ) {
+      statusElement.classList.add(
+        "is-complete"
+      );
+
+    } else if (
+      status ===
+        "error"
+    ) {
+      statusElement.classList.add(
+        "is-error"
+      );
+    }
+
+
+    statusElement.textContent =
+      label;
+  }
+
+
+  /* =====================================================
+    현재 자동수치 공용 기준일
+
+    Silo:
+    공용 기준일과 동일
+
+    Gear처럼 +1일 하지 않는다.
+  ====================================================== */
+
+  function getCommonBaseDate() {
+    const panel =
+      document.getElementById(
+        "efficiencyMorningMeetingWaterPanel"
+      );
+
+
+    return normalizeText(
+      panel?.dataset
+        .morningMeetingAutoBaseDate
+    );
+  }
+
+
+  /* =====================================================
+    실제 미리보기 출력
+  ====================================================== */
+
+  function renderSiloPreview() {
+    const card =
+      ensureSiloPreviewCard();
+
+
+    if (
+      !card
+    ) {
+      return;
+    }
+
+
+    const state =
+      getState();
+
+
+    const siloLevel =
+      state.siloLevel &&
+      typeof state.siloLevel ===
+        "object"
+        ? state.siloLevel
+        : null;
+
+
+    const panel =
+      document.getElementById(
+        "efficiencyMorningMeetingWaterPanel"
+      );
+
+
+    const currentBaseDate =
+      getCommonBaseDate();
+
+
+    const siloDate =
+      normalizeText(
+        siloLevel?.sourceDate ||
+        siloLevel?.targetDate ||
+        panel?.dataset
+          .siloLevelTargetDate ||
+        currentBaseDate
+      );
+
+
+    const status =
+      normalizeText(
+        panel?.dataset
+          .siloLevelStatus
+      )
+        .toLowerCase();
+
+
+    const flyAshValue =
+      parseNumber(
+        siloLevel
+          ?.flyAshSiloLevel
+      );
+
+
+    const bioStorageValue =
+      parseNumber(
+        siloLevel
+          ?.bioStorageSiloLevel
+      );
+
+
+    const hasBothValues =
+      flyAshValue !==
+        null &&
+      bioStorageValue !==
+        null;
+
+
+    /*
+      현재 선택된 공용 기준일과
+      조회 완료된 Silo 날짜가 다른 경우
+
+      이전 날짜 값이 새 날짜 값처럼
+      보이지 않도록 값을 숨긴다.
+    */
+
+    const hasDateMismatch =
+      Boolean(
+        currentBaseDate &&
+        siloDate &&
+        currentBaseDate !==
+          siloDate
+      );
+
+
+    /* ===================================================
+      날짜
+
+      항상 24시 기준임을 같이 표시
+    ==================================================== */
+
+    const dateElement =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSiloDate"
+      );
+
+
+    if (
+      dateElement
+    ) {
+      dateElement.textContent =
+        siloDate
+          ? `${siloDate} · 24시`
+          : "-";
+    }
+
+
+    /* ===================================================
+      상태
+    ==================================================== */
+
+    if (
+      hasDateMismatch
+    ) {
+      setStatusBadge(
+        "error",
+        "날짜 확인"
+      );
+
+    } else if (
+      status ===
+        "loading"
+    ) {
+      setStatusBadge(
+        "loading",
+        "조회 중"
+      );
+
+    } else if (
+      status ===
+        "error" ||
+      state.siloLevelError
+    ) {
+      setStatusBadge(
+        "error",
+        "조회 실패"
+      );
+
+    } else if (
+      hasBothValues
+    ) {
+      setStatusBadge(
+        "complete",
+        "조회 완료"
+      );
+
+    } else {
+      setStatusBadge(
+        "idle",
+        "조회 대기"
+      );
+    }
+
+
+    /* ===================================================
+      값
+
+      날짜가 틀리면 이전 값 표시 금지
+    ==================================================== */
+
+    const flyAshElement =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoFlyAshSiloLevel"
+      );
+
+
+    const bioStorageElement =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoBioStorageSiloLevel"
+      );
+
+
+    if (
+      flyAshElement
+    ) {
+      flyAshElement.textContent =
+        hasDateMismatch
+          ? "-"
+          : formatSiloValue(
+              flyAshValue,
+              siloLevel
+                ?.flyAshUnit
+            );
+    }
+
+
+    if (
+      bioStorageElement
+    ) {
+      bioStorageElement.textContent =
+        hasDateMismatch
+          ? "-"
+          : formatSiloValue(
+              bioStorageValue,
+              siloLevel
+                ?.bioStorageUnit
+            );
+    }
+
+
+    /*
+      오류 원인은 마우스를 올리면 확인 가능
+    */
+
+    const errorMessage =
+      normalizeText(
+        state.siloLevelError
+      );
+
+
+    card.title =
+      errorMessage ||
+      (
+        siloDate
+          ? `${siloDate} 24시 OIS Silo Level`
+          : "OIS Silo Level"
+      );
+  }
+
+
+  /* =====================================================
+    즉시 + 지연 갱신
+
+    OIS 요청이 비동기이므로
+    완료 직후에도 확실히 화면 반영
+  ====================================================== */
+
+  function scheduleRender() {
+    [
+      0,
+      200,
+      500,
+      1000,
+      2000
+    ].forEach(
+      delay => {
+        window.setTimeout(
+          renderSiloPreview,
+          delay
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    이벤트
+  ====================================================== */
+
+  function bindEvents() {
+    document.addEventListener(
+      "efficiencyMorningMeetingSiloLevelLoaded",
+      scheduleRender
+    );
+
+
+    document.addEventListener(
+      "click",
+      event => {
+        const target =
+          event.target instanceof
+            Element
+            ? event.target
+            : null;
+
+
+        if (
+          !target
+        ) {
+          return;
+        }
+
+
+        const relevantButton =
+          target.closest(
+            [
+              "#loadEfficiencyMorningMeetingWaterButton",
+              "#efficiencyMorningMeetingLimestonePreviousButton",
+              "#efficiencyMorningMeetingLimestoneTodayButton",
+              "#efficiencyMorningMeetingLimestoneNextButton",
+              "#resetEfficiencyMorningMeetingButton"
+            ].join(
+              ","
+            )
+          );
+
+
+        if (
+          relevantButton
+        ) {
+          scheduleRender();
+        }
+      }
+    );
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initialize() {
+    const card =
+      ensureSiloPreviewCard();
+
+
+    if (
+      !card
+    ) {
+      initializationAttempt +=
+        1;
+
+
+      if (
+        initializationAttempt <
+          40
+      ) {
+        window.setTimeout(
+          initialize,
+          250
+        );
+      }
+
+
+      return;
+    }
+
+
+    bindEvents();
+
+
+    renderSiloPreview();
+
+
+    /*
+      기존 자동수치 미리보기와 동일하게
+      비동기 상태를 계속 확인한다.
+    */
+
+    if (
+      refreshIntervalId ===
+        null
+    ) {
+      refreshIntervalId =
+        window.setInterval(
+          renderSiloPreview,
+          1000
+        );
+    }
+  }
+
+
+  /* =====================================================
+    외부에서도 갱신 가능
+  ====================================================== */
+
+  window
+    .renderEfficiencyMorningMeetingSiloLevelPreview =
+    renderSiloPreview;
 
 
   if (
