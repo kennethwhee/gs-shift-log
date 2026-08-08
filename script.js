@@ -173562,6 +173562,282 @@ if (
 
 
 /* =====================================================
+  오전회의 공용 기준일
+  Silo Level 날짜 동기화
+
+  규칙:
+  공용 기준일 = Silo 조회일
+
+  예:
+  회의자료 2026-08-08
+  → 공용 기준일 2026-08-07
+  → Silo 2026-08-07 24시
+
+  날짜 이동 시:
+  - 이전 날짜 Silo 요청 취소
+  - 이전 결과 제거
+  - 화면 날짜 즉시 변경
+  - 저장된 완료 요청이 있으면 재사용
+  - 없으면 OIS 신규 조회
+===================================================== */
+
+function syncMorningMeetingSiloToCommonDate(
+  baseDate,
+  options = {}
+) {
+  const {
+    load =
+      true
+  } = options;
+
+
+  const normalizedDate =
+    String(
+      baseDate ||
+      ""
+    ).trim();
+
+
+  if (
+    !isValidDate(
+      normalizedDate
+    )
+  ) {
+    return;
+  }
+
+
+  const state =
+    getState();
+
+
+  const panel =
+    document.getElementById(
+      "efficiencyMorningMeetingWaterPanel"
+    );
+
+
+  /* ===================================================
+    현재 Silo가 어느 날짜 자료인지 확인
+  ==================================================== */
+
+  const currentSiloDate =
+    String(
+      state.siloLevel
+        ?.sourceDate ||
+
+      state.siloLevel
+        ?.targetDate ||
+
+      panel?.dataset
+        .siloLevelTargetDate ||
+
+      ""
+    ).trim();
+
+
+  const hasFlyAshValue =
+    state.siloLevel
+      ?.flyAshSiloLevel !==
+        null &&
+
+    state.siloLevel
+      ?.flyAshSiloLevel !==
+        undefined &&
+
+    String(
+      state.siloLevel
+        ?.flyAshSiloLevel ??
+      ""
+    ).trim() !==
+      "" &&
+
+    Number.isFinite(
+      Number(
+        state.siloLevel
+          ?.flyAshSiloLevel
+      )
+    );
+
+
+  const hasBioStorageValue =
+    state.siloLevel
+      ?.bioStorageSiloLevel !==
+        null &&
+
+    state.siloLevel
+      ?.bioStorageSiloLevel !==
+        undefined &&
+
+    String(
+      state.siloLevel
+        ?.bioStorageSiloLevel ??
+      ""
+    ).trim() !==
+      "" &&
+
+    Number.isFinite(
+      Number(
+        state.siloLevel
+          ?.bioStorageSiloLevel
+      )
+    );
+
+
+  const hasCorrectSiloResult =
+    currentSiloDate ===
+      normalizedDate &&
+
+    hasFlyAshValue &&
+    hasBioStorageValue;
+
+
+  const isSiloLoading =
+    String(
+      panel?.dataset
+        .siloLevelStatus ||
+      ""
+    )
+      .trim()
+      .toLowerCase() ===
+      "loading";
+
+
+  /* ===================================================
+    날짜가 바뀌었다면 이전 Silo 결과 제거
+
+    이것이 중요하다.
+
+    예:
+    기존 08-08
+    새 기준 08-07
+
+    → 08-08 응답이 늦게 도착해도
+      새 화면을 덮지 못하게 한다.
+  ==================================================== */
+
+  if (
+    currentSiloDate &&
+    currentSiloDate !==
+      normalizedDate
+  ) {
+    if (
+      typeof window
+        .resetEfficiencyMorningMeetingSiloLevel ===
+        "function"
+    ) {
+      window
+        .resetEfficiencyMorningMeetingSiloLevel();
+    }
+  }
+
+
+  /* ===================================================
+    새 공용 기준일을 Silo에도 즉시 적용
+  ==================================================== */
+
+  if (
+    panel
+  ) {
+    panel.dataset
+      .siloLevelTargetDate =
+      normalizedDate;
+  }
+
+
+  const siloDateElement =
+    document.getElementById(
+      "efficiencyMorningMeetingAutoSiloDate"
+    );
+
+
+  if (
+    siloDateElement
+  ) {
+    siloDateElement.textContent =
+      `${normalizedDate} · 24시`;
+  }
+
+
+  /*
+    Silo 미리보기 즉시 다시 그림
+  */
+
+  if (
+    typeof window
+      .renderEfficiencyMorningMeetingSiloLevelPreview ===
+      "function"
+  ) {
+    window
+      .renderEfficiencyMorningMeetingSiloLevelPreview();
+  }
+
+
+  /* ===================================================
+    날짜 표시만 바꾸는 호출이면 여기서 종료
+  ==================================================== */
+
+  if (
+    !load
+  ) {
+    return;
+  }
+
+
+  /* ===================================================
+    이미 정확한 날짜의 값이 있으면 재조회하지 않음
+  ==================================================== */
+
+  if (
+    hasCorrectSiloResult
+  ) {
+    console.log(
+      `오전회의 Silo Level ${normalizedDate} 기존값 사용`
+    );
+
+
+    return;
+  }
+
+
+  /*
+    같은 날짜가 이미 조회 중이면
+    중복 요청하지 않는다.
+  */
+
+  if (
+    isSiloLoading &&
+    currentSiloDate ===
+      normalizedDate
+  ) {
+    return;
+  }
+
+
+  /* ===================================================
+    새 날짜 Silo 조회
+
+    forceRefresh false:
+    서버에 완료된 자료가 있으면 그대로 재사용하고,
+    없을 때만 회사 PC OIS에서 조회한다.
+  ==================================================== */
+
+  runIndependentLookup(
+    "Silo Level",
+
+    () => {
+      return window
+        .loadEfficiencyMorningMeetingSiloLevel?.({
+          forceRefresh:
+            false
+        });
+    },
+
+    0
+  );
+}
+
+/* =====================================================
   공용 기준일 적용
 
   순서:
@@ -173623,6 +173899,20 @@ function applyCommonBaseDate(
   renderCommonDates(
     normalizedDate
   );
+
+/* ===================================================
+  Silo Level도 공용 기준일에 동기화
+
+  수처리 / 석회석 / BO와 동일 날짜 사용
+  Gear처럼 +1일 하지 않음
+=================================================== */
+
+syncMorningMeetingSiloToCommonDate(
+  normalizedDate,
+  {
+    load
+  }
+);
 
 /* ===================================================
   BO1 · BO2 온도 저장값 즉시 복원
