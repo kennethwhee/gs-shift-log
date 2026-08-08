@@ -115185,157 +115185,132 @@ function renderArmRollBoxChart() {
   ];
 
 
-  /* =====================================================
-    범례 출력
+/* =====================================================
+  범례 출력
 
-    중요:
-    별도 i 태그를 만들지 않는다.
+  표시:
+  - 선 색상
+  - BOX 이름
 
-    기존 CSS의 span::before 한 개만 사용해서
-    그래프 선과 범례 색상이 정확히 일치하게 한다.
-  ====================================================== */
+  제외:
+  - 현재 25%
+  - 현재 50%
+  - 현재 20%
+  - 현재 -
 
-  const legend =
-    document.querySelector(
-      `
-        #efficiencyArmRollView
-        .arm-roll-box-chart-legend
-      `
-    );
+  현재 수치는 위쪽 현황 카드에서 이미 표시하므로
+  그래프 범례에는 표시하지 않는다.
 
+  중요:
+  별도 i 태그를 만들지 않는다.
 
-  if (
-    legend
-  ) {
-    const seriesLegendHtml =
-      seriesDefinitions
-        .map(
-          series => {
-            const latestRow =
-              [
-                ...rows
-              ]
-                .reverse()
-                .find(
-                  row => {
-                    return hasArmRollBoxNumericValue(
-                      row?.[
-                        series.key
-                      ]?.level
-                    );
-                  }
-                );
+  기존 CSS의 span::before 한 개만 사용해서
+  그래프 선과 범례 색상이 정확히 일치하게 한다.
+====================================================== */
+
+const legend =
+  document.querySelector(
+    `
+      #efficiencyArmRollView
+      .arm-roll-box-chart-legend
+    `
+  );
 
 
-            const latestLevel =
-              latestRow?.[
-                series.key
-              ]?.level;
+if (
+  legend
+) {
+  const seriesLegendHtml =
+    seriesDefinitions
+      .map(
+        series => {
+          const lineClass =
+            series.dash
+              ? "is-dashed"
+              : "is-solid";
 
 
-            const latestLevelText =
-              hasArmRollBoxNumericValue(
-                latestLevel
-              )
-                ? `${formatArmRollBoxNumber(
-                    latestLevel
-                  )}%`
-                : "-";
+          return `
+            <span
+              class="
+                arm-roll-box-combined-legend-item
+                ${lineClass}
+              "
+              style="
+                --arm-roll-legend-color:
+                ${series.color};
+              "
+            >
+              <b>
+                ${escapeArmRollBoxHtml(
+                  series.label
+                )}
+              </b>
+            </span>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
 
 
-            const lineClass =
-              series.dash
-                ? "is-dashed"
-                : "is-solid";
+  legend.innerHTML = `
+    ${seriesLegendHtml}
 
 
-            return `
-              <span
-                class="
-                  arm-roll-box-combined-legend-item
-                  ${lineClass}
-                "
-                style="
-                  --arm-roll-legend-color:
-                  ${series.color};
-                "
-              >
-                <b>
-                  ${escapeArmRollBoxHtml(
-                    series.label
-                  )}
-                </b>
-
-                <strong>
-                  현재 ${escapeArmRollBoxHtml(
-                    latestLevelText
-                  )}
-                </strong>
-              </span>
-            `;
-          }
-        )
-        .join(
-          ""
-        );
+    <span
+      class="
+        arm-roll-box-combined-legend-line
+        is-reference-line
+        is-request
+        is-dashed
+      "
+      style="
+        --arm-roll-legend-color:
+        #d68a23;
+      "
+    >
+      <b>
+        50% 요청선
+      </b>
+    </span>
 
 
-    legend.innerHTML = `
-      ${seriesLegendHtml}
+    <span
+      class="
+        arm-roll-box-combined-legend-line
+        is-reference-line
+        is-warning
+        is-dashed
+      "
+      style="
+        --arm-roll-legend-color:
+        #d34b4b;
+      "
+    >
+      <b>
+        70% 경보선
+      </b>
+    </span>
 
 
-      <span
-        class="
-          arm-roll-box-combined-legend-line
-          is-reference-line
-          is-request
-          is-dashed
-        "
-        style="
-          --arm-roll-legend-color:
-          #d68a23;
-        "
-      >
-        <b>
-          50% 요청선
-        </b>
-      </span>
-
-
-      <span
-        class="
-          arm-roll-box-combined-legend-line
-          is-reference-line
-          is-warning
-          is-dashed
-        "
-        style="
-          --arm-roll-legend-color:
-          #d34b4b;
-        "
-      >
-        <b>
-          70% 경보선
-        </b>
-      </span>
-
-
-      <span
-        class="
-          arm-roll-box-combined-legend-marker
-          is-replacement-marker
-        "
-        style="
-          --arm-roll-legend-color:
-          #249064;
-        "
-      >
-        <b>
-          교체일
-        </b>
-      </span>
-    `;
-  }
+    <span
+      class="
+        arm-roll-box-combined-legend-marker
+        is-replacement-marker
+      "
+      style="
+        --arm-roll-legend-color:
+        #249064;
+      "
+    >
+      <b>
+        교체일
+      </b>
+    </span>
+  `;
+}
 
 
   /* =====================================================

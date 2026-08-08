@@ -73787,6 +73787,7 @@ textarea.efficiency-daily-work-line-source[
 
     -webkit-box-orient: vertical !important;
     -webkit-line-clamp: 1 !important;
+    line-clamp: 1 !important;
   }
 
 
@@ -79197,6 +79198,7 @@ button:disabled {
 
   -webkit-box-orient: vertical !important;
   -webkit-line-clamp: 2 !important;
+  line-clamp: 2 !important;
 }
 
 
@@ -80042,6 +80044,7 @@ small {
 
   -webkit-box-orient: vertical !important;
   -webkit-line-clamp: 2 !important;
+  line-clamp: 2 !important;
 }
 
 
@@ -86763,6 +86766,7 @@ td.is-total {
 
 .efficiency-morning-meeting-boiler-row
   input[type="number"] {
+  appearance: textfield;
   -moz-appearance: textfield;
 }
 
@@ -89072,4 +89076,618 @@ input {
 
     gap: 7px;
   }
+}
+
+/* =========================================================
+  효율팀 - 부재료 월별 관리
+========================================================= */
+
+.efficiency-auxiliary-material-view,
+.auxiliary-material-view {
+  min-width: 0;
+  color: #1f2a3d;
+}
+
+
+/* =====================================================
+  화면 제목
+===================================================== */
+
+.auxiliary-material-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.auxiliary-material-heading span,
+.auxiliary-material-table-card > header span {
+  display: block;
+  margin-bottom: 5px;
+  color: #1677ff;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.auxiliary-material-heading h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 25px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.auxiliary-material-heading p {
+  margin: 8px 0 0;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+
+/* =====================================================
+  조회 조건 카드
+===================================================== */
+
+.auxiliary-material-query-card {
+  display: grid;
+  grid-template-columns:
+    minmax(270px, 0.7fr)
+    minmax(570px, 1.3fr);
+  align-items: end;
+  gap: 14px 18px;
+
+  margin-bottom: 16px;
+  padding: 18px;
+
+  border: 1px solid #d9e4f2;
+  border-radius: 16px;
+
+  background:
+    linear-gradient(
+      145deg,
+      #ffffff 0%,
+      #f7faff 100%
+    );
+
+  box-shadow:
+    0 8px 24px
+    rgba(31, 54, 88, 0.07);
+}
+
+
+/* 조회 월 */
+
+.auxiliary-material-month-navigation {
+  display: grid;
+  grid-template-columns:
+    42px
+    minmax(170px, 1fr)
+    42px;
+  align-items: end;
+  gap: 9px;
+}
+
+.auxiliary-material-month-navigation > button {
+  width: 42px;
+  height: 44px;
+  padding: 0;
+
+  border: 1px solid #c9d7e9;
+  border-radius: 10px;
+
+  background: #f5f9ff;
+  color: #245184;
+
+  font: inherit;
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.auxiliary-material-month-navigation > button:hover {
+  border-color: #78aaf0;
+  background: #eaf3ff;
+  color: #116bd8;
+}
+
+
+/* 날짜와 버튼 */
+
+.auxiliary-material-period-fields {
+  display: grid;
+  grid-template-columns:
+    minmax(145px, 1fr)
+    minmax(145px, 1fr)
+    auto
+    auto;
+  align-items: end;
+  gap: 9px;
+  min-width: 0;
+}
+
+.auxiliary-material-query-card label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.auxiliary-material-query-card label > span {
+  color: #526179;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.auxiliary-material-query-card input[type="month"],
+.auxiliary-material-query-card input[type="date"] {
+  width: 100%;
+  height: 44px;
+  box-sizing: border-box;
+  padding: 0 11px;
+
+  border: 1px solid #c9d7e9;
+  border-radius: 10px;
+
+  background: #ffffff;
+  color: #1f2f46;
+
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.auxiliary-material-query-card input:focus {
+  border-color: #448ee9;
+  outline: 3px solid rgba(22, 119, 255, 0.12);
+}
+
+
+/* 조회 버튼 */
+
+.auxiliary-material-period-fields button {
+  min-height: 44px;
+  padding: 0 16px;
+
+  border-radius: 10px;
+
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+
+  cursor: pointer;
+}
+
+.auxiliary-material-period-fields button.is-secondary {
+  border: 1px solid #b9c8dc;
+  background: #ffffff;
+  color: #324762;
+}
+
+.auxiliary-material-period-fields button.is-secondary:hover {
+  border-color: #7e9bbe;
+  background: #f4f7fb;
+}
+
+.auxiliary-material-period-fields button.is-primary {
+  border: 1px solid #146ee8;
+  background: #1677ff;
+  color: #ffffff;
+
+  box-shadow:
+    0 6px 16px
+    rgba(22, 119, 255, 0.22);
+}
+
+.auxiliary-material-period-fields button.is-primary:hover {
+  background: #0969da;
+}
+
+.auxiliary-material-period-fields button:disabled {
+  opacity: 0.58;
+  cursor: wait;
+}
+
+
+/* 강제 갱신 */
+
+.auxiliary-material-force-refresh {
+  grid-column: 1;
+  display: flex !important;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px !important;
+
+  min-height: 38px;
+  color: #56657a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.auxiliary-material-force-refresh input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #1677ff;
+}
+
+
+/* 조회 상태 */
+
+.auxiliary-material-status {
+  grid-column: 2;
+  min-height: 38px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 10px 13px;
+
+  border: 1px solid #dce6f3;
+  border-radius: 10px;
+
+  background: #f6f8fb;
+  color: #526179;
+
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.auxiliary-material-status[data-status="loading"] {
+  border-color: #bed8fb;
+  background: #edf5ff;
+  color: #1267cf;
+}
+
+.auxiliary-material-status[data-status="complete"] {
+  border-color: #bce5ce;
+  background: #ecf9f1;
+  color: #16824a;
+}
+
+.auxiliary-material-status[data-status="partial"] {
+  border-color: #f1d394;
+  background: #fff8e7;
+  color: #946100;
+}
+
+.auxiliary-material-status[data-status="error"] {
+  border-color: #f0c3bf;
+  background: #fff1f0;
+  color: #c83b32;
+}
+
+
+/* =====================================================
+  상단 요약 카드
+===================================================== */
+
+.auxiliary-material-summary-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.auxiliary-material-summary-grid article {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 92px;
+  box-sizing: border-box;
+  padding: 18px 18px 15px;
+
+  border: 1px solid #dce7f5;
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      145deg,
+      #ffffff,
+      #f5f9ff
+    );
+}
+
+.auxiliary-material-summary-grid article::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+
+  height: 4px;
+  background: #3d8bfd;
+
+  content: "";
+}
+
+.auxiliary-material-summary-grid article:nth-child(2)::before {
+  background: #25a66a;
+}
+
+.auxiliary-material-summary-grid article:nth-child(3)::before {
+  background: #f2a51a;
+}
+
+.auxiliary-material-summary-grid article:nth-child(4)::before {
+  background: #8067d5;
+}
+
+.auxiliary-material-summary-grid span {
+  display: block;
+  color: #617087;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.auxiliary-material-summary-grid strong {
+  display: inline-block;
+  margin-top: 11px;
+
+  color: #172033;
+  font-size: 27px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.auxiliary-material-summary-grid small {
+  margin-left: 5px;
+  color: #8491a5;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+
+/* =====================================================
+  날짜별 자료 표
+===================================================== */
+
+.auxiliary-material-table-card {
+  min-width: 0;
+  overflow: hidden;
+
+  border: 1px solid #d9e4f2;
+  border-radius: 16px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 8px 24px
+    rgba(31, 54, 88, 0.07);
+}
+
+.auxiliary-material-table-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 17px 19px;
+
+  border-bottom: 1px solid #e2eaf5;
+  background: #fbfcfe;
+}
+
+.auxiliary-material-table-card h4 {
+  margin: 0;
+  color: #172033;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.auxiliary-material-table-card > header > strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 48px;
+  min-height: 28px;
+  padding: 0 10px;
+
+  border-radius: 999px;
+  background: #eaf3ff;
+  color: #176bd5;
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.auxiliary-material-table-wrap {
+  position: relative;
+  overflow: auto;
+  max-height: min(52vh, 560px);
+}
+
+.auxiliary-material-table-wrap table {
+  width: 100%;
+  min-width: 1000px;
+
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.auxiliary-material-table-wrap th,
+.auxiliary-material-table-wrap td {
+  padding: 12px 9px;
+
+  border-right: 1px solid #e5ebf4;
+  border-bottom: 1px solid #e5ebf4;
+
+  text-align: center;
+  white-space: nowrap;
+}
+
+.auxiliary-material-table-wrap th:last-child,
+.auxiliary-material-table-wrap td:last-child {
+  border-right: 0;
+}
+
+.auxiliary-material-table-wrap thead th {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+
+  background: #eaf2fc;
+  color: #2e4563;
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+.auxiliary-material-table-wrap thead small {
+  color: #718198;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.auxiliary-material-table-wrap tbody td {
+  background: #ffffff;
+  color: #2b3b52;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.auxiliary-material-table-wrap tbody tr:nth-child(4n + 3) td,
+.auxiliary-material-table-wrap tbody tr:nth-child(4n + 4) td {
+  background: #f8fbff;
+}
+
+.auxiliary-material-table-wrap tbody tr:hover td {
+  background: #edf5ff;
+}
+
+
+/* 자료 완성도 */
+
+.auxiliary-material-completeness {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 53px;
+  padding: 5px 8px;
+
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.auxiliary-material-completeness.is-complete {
+  background: #e8f7ef;
+  color: #16824a;
+}
+
+.auxiliary-material-completeness.is-partial {
+  background: #fff3da;
+  color: #9a6300;
+}
+
+
+/* 빈 자료 안내 */
+
+.auxiliary-material-empty-state {
+  margin: 0;
+  padding: 54px 20px;
+
+  background: #ffffff;
+  color: #7b889a;
+
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+
+/* 계산식 안내 */
+
+.auxiliary-material-formula-note {
+  margin: 12px 3px 0;
+  padding: 10px 12px;
+
+  border-radius: 9px;
+  background: #f5f7fa;
+  color: #718096;
+
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+
+/* =====================================================
+  화면 폭이 좁을 때
+===================================================== */
+
+@media (max-width: 1050px) {
+
+  .auxiliary-material-query-card {
+    grid-template-columns: 1fr;
+  }
+
+  .auxiliary-material-force-refresh,
+  .auxiliary-material-status {
+    grid-column: 1;
+  }
+
+}
+
+
+@media (max-width: 700px) {
+
+  .auxiliary-material-heading h3 {
+    font-size: 21px;
+  }
+
+  .auxiliary-material-heading p {
+    font-size: 13px;
+  }
+
+  .auxiliary-material-query-card {
+    gap: 13px;
+    padding: 14px;
+    border-radius: 13px;
+  }
+
+  .auxiliary-material-month-navigation {
+    grid-template-columns:
+      42px
+      minmax(0, 1fr)
+      42px;
+  }
+
+  .auxiliary-material-period-fields {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .auxiliary-material-period-fields label,
+  .auxiliary-material-period-fields input,
+  .auxiliary-material-period-fields button {
+    width: 100%;
+  }
+
+  .auxiliary-material-summary-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .auxiliary-material-summary-grid article {
+    min-height: 84px;
+    padding: 15px 13px;
+  }
+
+  .auxiliary-material-summary-grid strong {
+    font-size: 21px;
+  }
+
+  .auxiliary-material-table-card > header {
+    padding: 14px;
+  }
+
 }
