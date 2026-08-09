@@ -202035,3 +202035,1499 @@ function ensureStyle() {
     initialize();
   }
 })();
+
+(function installMorningMeetingTodayDateSplit() {
+  "use strict";
+
+  if (window.__morningMeetingTodayDateSplitInstalled) return;
+  window.__morningMeetingTodayDateSplitInstalled = true;
+
+  const byId = id => document.getElementById(id);
+  let observer = null;
+  let retryTimer = null;
+  let syncQueued = false;
+
+  function getTodayDate() {
+    const now = new Date();
+
+    return [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0")
+    ].join("-");
+  }
+
+  function formatShortDate(value) {
+    const date = String(value || "").trim();
+
+    return /^\d{4}-\d{2}-\d{2}$/.test(date)
+      ? date.slice(2).replace(/-/g, ".")
+      : "-";
+  }
+
+  function ensureStyle() {
+    let style = byId(
+      "morningMeetingTodayDateSplitStyle"
+    );
+
+    if (!style) {
+      style = document.createElement("style");
+      style.id =
+        "morningMeetingTodayDateSplitStyle";
+    }
+
+    style.textContent = `
+      #efficiencyMorningMeetingLimestonePreviousButton {
+        order: 0 !important;
+      }
+
+      #efficiencyMorningMeetingLimestoneTodayButton {
+        order: 1 !important;
+        min-width: 50px !important;
+        padding: 0 9px !important;
+        border-right: 0 !important;
+      }
+
+      #efficiencyMorningMeetingAutoDateStepGroup::after {
+        content: "ㅣ" attr(data-current-date);
+        order: 2 !important;
+        box-sizing: border-box !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        align-self: stretch !important;
+        flex: 0 0 auto !important;
+        min-width: 76px !important;
+        margin: 0 !important;
+        padding: 0 9px 0 3px !important;
+        border: 1px solid #c9d6e3 !important;
+        border-left: 0 !important;
+        background: #edf5fc !important;
+        color: #236497 !important;
+        font-size: 12px !important;
+        font-weight: 900 !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+        cursor: default !important;
+        user-select: none !important;
+      }
+
+      #efficiencyMorningMeetingLimestoneNextButton {
+        order: 3 !important;
+      }
+
+      @media (max-width: 390px) {
+        #efficiencyMorningMeetingLimestoneTodayButton {
+          min-width: 42px !important;
+          padding: 0 5px !important;
+        }
+
+        #efficiencyMorningMeetingAutoDateStepGroup::after {
+          min-width: 62px !important;
+          padding: 0 4px 0 1px !important;
+          font-size: 11px !important;
+        }
+      }
+    `;
+
+    document.head.appendChild(style);
+  }
+
+  function scheduleSync() {
+    if (syncQueued) return;
+
+    syncQueued = true;
+
+    window.queueMicrotask(() => {
+      syncQueued = false;
+      sync();
+    });
+  }
+
+  function sync() {
+    const todayButton = byId(
+      "efficiencyMorningMeetingLimestoneTodayButton"
+    );
+
+    const stepGroup = byId(
+      "efficiencyMorningMeetingAutoDateStepGroup"
+    );
+
+    const commonPanel = byId(
+      "efficiencyMorningMeetingWaterPanel"
+    );
+
+    const datePicker = byId(
+      "efficiencyMorningMeetingAutoDatePicker"
+    );
+
+    if (
+      !todayButton ||
+      !stepGroup ||
+      !commonPanel
+    ) {
+      window.clearTimeout(retryTimer);
+
+      retryTimer =
+        window.setTimeout(sync, 100);
+
+      return;
+    }
+
+    window.clearTimeout(retryTimer);
+    ensureStyle();
+
+    const baseDate = String(
+      commonPanel.dataset
+        .morningMeetingAutoBaseDate ||
+      datePicker?.value ||
+      ""
+    ).trim();
+
+    const actualToday =
+      getTodayDate();
+
+    stepGroup.dataset.currentDate =
+      formatShortDate(baseDate);
+
+    if (
+      todayButton.textContent.trim() !==
+      "오늘"
+    ) {
+      todayButton.textContent =
+        "오늘";
+    }
+
+    todayButton.title =
+      baseDate === actualToday
+        ? `${actualToday} 오늘 자료`
+        : `오늘 ${actualToday} 자료로 이동`;
+
+    if (!observer) {
+      observer =
+        new MutationObserver(scheduleSync);
+
+      observer.observe(todayButton, {
+        childList: true,
+        characterData: true,
+        subtree: true
+      });
+
+      observer.observe(commonPanel, {
+        attributes: true,
+        attributeFilter: [
+          "data-morning-meeting-auto-base-date"
+        ]
+      });
+    }
+  }
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      sync,
+      { once: true }
+    );
+  } else {
+    sync();
+  }
+})();
+
+(function installEfficiencyMorningMeetingSmpManualEditor() {
+  "use strict";
+
+  if (window.__efficiencyMorningMeetingSmpManualEditorInstalled === true) return;
+  window.__efficiencyMorningMeetingSmpManualEditorInstalled = true;
+
+  const STORAGE_KEY =
+    "gs-shift-log:morning-meeting:smp-manual-overrides:v1";
+  const CARD_ID = "efficiencyMorningMeetingAutoSmpCard";
+  const TABLE_ID = "efficiencyMorningMeetingAutoSmpTable";
+  const EDIT_BUTTON_ID = "efficiencyMorningMeetingAutoSmpEditButton";
+  const CANCEL_BUTTON_ID = "efficiencyMorningMeetingAutoSmpCancelButton";
+  const REFRESH_BUTTON_ID = "efficiencyMorningMeetingAutoSmpRefreshButton";
+  const FIELD_NAMES = ["maximum", "minimum", "weightedAverage"];
+
+  let editing = false;
+  let refreshFrame = 0;
+
+  const clean = value => String(value ?? "").trim();
+
+  function isIsoDate(value) {
+    const dateText = clean(value);
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) {
+      return false;
+    }
+
+    const parsedDate =
+      new Date(
+        `${dateText}T00:00:00.000Z`
+      );
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      parsedDate
+        .toISOString()
+        .slice(0, 10) ===
+        dateText
+    );
+  }
+
+
+  function numberOrNull(value) {
+    const valueText =
+      clean(value).replace(
+        /,/g,
+        ""
+      );
+
+    if (!valueText) {
+      return null;
+    }
+
+    const numericValue =
+      Number(valueText);
+
+    return Number.isFinite(
+      numericValue
+    )
+      ? numericValue
+      : null;
+  }
+
+
+  function getState() {
+    if (
+      !window.efficiencyMorningMeetingUploadState ||
+      typeof window.efficiencyMorningMeetingUploadState !==
+        "object"
+    ) {
+      window.efficiencyMorningMeetingUploadState =
+        {};
+    }
+
+    const state =
+      window.efficiencyMorningMeetingUploadState;
+
+    [
+      "smpPriceByDate",
+      "smpPriceStatusByDate",
+      "smpPriceErrorByDate"
+    ].forEach(
+      key => {
+        if (
+          !state[key] ||
+          typeof state[key] !==
+            "object"
+        ) {
+          state[key] =
+            {};
+        }
+      }
+    );
+
+    return state;
+  }
+
+
+  function readOverrides() {
+    try {
+      const value =
+        JSON.parse(
+          localStorage.getItem(
+            STORAGE_KEY
+          ) ||
+          "{}"
+        );
+
+      return (
+        value &&
+        typeof value ===
+          "object" &&
+        !Array.isArray(value)
+      )
+        ? value
+        : {};
+
+    } catch {
+      return {};
+    }
+  }
+
+
+  function writeOverrides(value) {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(value)
+      );
+
+      return true;
+
+    } catch (error) {
+      console.error(
+        "오전회의 SMP 수동 수정값 저장 실패:",
+        error
+      );
+
+      return false;
+    }
+  }
+
+
+  function normalizeOverride(
+    targetDate,
+    value
+  ) {
+    if (
+      !isIsoDate(targetDate) ||
+      !value ||
+      typeof value !==
+        "object"
+    ) {
+      return null;
+    }
+
+    const maximum =
+      numberOrNull(
+        value.maximum
+      );
+
+    const minimum =
+      numberOrNull(
+        value.minimum
+      );
+
+    const weightedAverage =
+      numberOrNull(
+        value.weightedAverage
+      );
+
+    if (
+      maximum === null ||
+      minimum === null ||
+      weightedAverage === null
+    ) {
+      return null;
+    }
+
+    return {
+      ...value,
+
+      sourceDate:
+        targetDate,
+
+      targetDate,
+
+      region:
+        "land",
+
+      regionLabel:
+        "육지",
+
+      maximum,
+      minimum,
+      weightedAverage,
+
+      unit:
+        "원/kWh",
+
+      source:
+        "수동 수정",
+
+      isManual:
+        true
+    };
+  }
+
+
+  function applyOverride(
+    targetDate,
+    value
+  ) {
+    const item =
+      normalizeOverride(
+        targetDate,
+        value
+      );
+
+    if (!item) {
+      return false;
+    }
+
+    const state =
+      getState();
+
+    state.smpPriceByDate[
+      targetDate
+    ] =
+      item;
+
+    state.smpPriceStatusByDate[
+      targetDate
+    ] =
+      "complete";
+
+    state.smpPriceErrorByDate[
+      targetDate
+    ] =
+      "";
+
+    return true;
+  }
+
+
+  function applyStoredOverrides() {
+    Object.entries(
+      readOverrides()
+    ).forEach(
+      ([
+        targetDate,
+        value
+      ]) => {
+        applyOverride(
+          targetDate,
+          value
+        );
+      }
+    );
+  }
+
+
+  function showMessage(message) {
+    if (
+      typeof window.showToast ===
+        "function"
+    ) {
+      window.showToast(
+        message
+      );
+
+    } else {
+      window.alert(
+        message
+      );
+    }
+  }
+
+
+  function ensureStyle() {
+    if (
+      document.getElementById(
+        "efficiencyMorningMeetingSmpEditorStyle"
+      )
+    ) {
+      return;
+    }
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+    style.id =
+      "efficiencyMorningMeetingSmpEditorStyle";
+
+    style.textContent = `
+      #${EDIT_BUTTON_ID},
+      #${CANCEL_BUTTON_ID} {
+        appearance: none;
+        -webkit-appearance: none;
+        min-width: 38px;
+        height: 20px;
+        padding: 0 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #9fb8d4;
+        border-radius: 6px;
+        background: #ffffff;
+        color: #376b9c;
+        font: inherit;
+        font-size: 9px;
+        font-weight: 800;
+        line-height: 1;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+
+      #${EDIT_BUTTON_ID}:hover,
+      #${CANCEL_BUTTON_ID}:hover {
+        border-color: #6f9ac3;
+        background: #f3f8fd;
+      }
+
+      #${EDIT_BUTTON_ID}.is-saving {
+        border-color: #0f766e;
+        background: #0f766e;
+        color: #ffffff;
+      }
+
+      #${CANCEL_BUTTON_ID}[hidden] {
+        display: none;
+      }
+
+      #${CARD_ID}.is-smp-editing
+      #${REFRESH_BUTTON_ID} {
+        opacity: 0.48;
+        pointer-events: none;
+      }
+
+      #${TABLE_ID}
+      .smp-preview-value.is-manual-value {
+        box-shadow:
+          inset 0 -2px 0 #f59e0b;
+      }
+
+      #${TABLE_ID}
+      .smp-manual-input {
+        width: calc(100% - 8px);
+        min-width: 0;
+        height: 23px;
+        margin: 0 4px;
+        padding: 2px 3px;
+        border: 1px solid #7aa7d1;
+        border-radius: 5px;
+        outline: none;
+        background: #ffffff;
+        color: #0f1f34;
+        font: inherit;
+        font-size: 9px;
+        font-weight: 800;
+        line-height: 1;
+        text-align: center;
+      }
+
+      #${TABLE_ID}
+      .smp-manual-input:focus {
+        border-color: #2563eb;
+        box-shadow:
+          0 0 0 2px
+          rgba(37, 99, 235, 0.14);
+      }
+
+      #${TABLE_ID}
+      .smp-manual-input::placeholder {
+        color: #a0aabd;
+        font-weight: 700;
+      }
+    `;
+
+    document.head.appendChild(
+      style
+    );
+  }
+
+
+  function ensureButtons() {
+    const refreshButton =
+      document.getElementById(
+        REFRESH_BUTTON_ID
+      );
+
+    const container =
+      refreshButton?.parentElement;
+
+    if (
+      !refreshButton ||
+      !container
+    ) {
+      return false;
+    }
+
+    let editButton =
+      document.getElementById(
+        EDIT_BUTTON_ID
+      );
+
+    if (!editButton) {
+      editButton =
+        document.createElement(
+          "button"
+        );
+
+      editButton.type =
+        "button";
+
+      editButton.id =
+        EDIT_BUTTON_ID;
+
+      editButton.textContent =
+        "수정";
+
+      editButton.title =
+        "표시된 SMP 단가를 직접 수정";
+
+      container.insertBefore(
+        editButton,
+        refreshButton
+      );
+    }
+
+    let cancelButton =
+      document.getElementById(
+        CANCEL_BUTTON_ID
+      );
+
+    if (!cancelButton) {
+      cancelButton =
+        document.createElement(
+          "button"
+        );
+
+      cancelButton.type =
+        "button";
+
+      cancelButton.id =
+        CANCEL_BUTTON_ID;
+
+      cancelButton.textContent =
+        "취소";
+
+      cancelButton.title =
+        "SMP 수정 취소";
+
+      cancelButton.hidden =
+        true;
+
+      container.insertBefore(
+        cancelButton,
+        refreshButton
+      );
+    }
+
+    container.style.gap =
+      "4px";
+
+    return true;
+  }
+
+
+  function getDisplayedDates() {
+    return [
+      ...document.querySelectorAll(
+        `#${TABLE_ID} [data-smp-date]`
+      )
+    ]
+      .map(
+        element =>
+          clean(
+            element.dataset
+              .smpDate
+          )
+      )
+      .filter(
+        isIsoDate
+      )
+      .filter(
+        (
+          value,
+          index,
+          array
+        ) =>
+          array.indexOf(
+            value
+          ) ===
+          index
+      );
+  }
+
+
+  function markManualCells() {
+    const state =
+      getState();
+
+    document
+      .querySelectorAll(
+        `#${TABLE_ID} [data-smp-date][data-smp-field]`
+      )
+      .forEach(
+        cell => {
+          const targetDate =
+            clean(
+              cell.dataset
+                .smpDate
+            );
+
+          const isManual =
+            state.smpPriceByDate[
+              targetDate
+            ]?.isManual ===
+              true;
+
+          cell.classList.toggle(
+            "is-manual-value",
+            isManual
+          );
+
+          if (isManual) {
+            cell.title =
+              `${targetDate} 수동 수정값`;
+          }
+        }
+      );
+  }
+
+
+  function renderInputs() {
+    if (!editing) {
+      return;
+    }
+
+    const state =
+      getState();
+
+    document
+      .querySelectorAll(
+        `#${TABLE_ID} [data-smp-date][data-smp-field]`
+      )
+      .forEach(
+        cell => {
+          if (
+            cell.querySelector(
+              ".smp-manual-input"
+            )
+          ) {
+            return;
+          }
+
+          const targetDate =
+            clean(
+              cell.dataset
+                .smpDate
+            );
+
+          const fieldName =
+            clean(
+              cell.dataset
+                .smpField
+            );
+
+          if (
+            !isIsoDate(targetDate) ||
+            !FIELD_NAMES.includes(
+              fieldName
+            )
+          ) {
+            return;
+          }
+
+          const numericValue =
+            numberOrNull(
+              state.smpPriceByDate[
+                targetDate
+              ]?.[
+                fieldName
+              ]
+            );
+
+          const inputValue =
+            numericValue ===
+              null
+              ? ""
+              : numericValue.toFixed(
+                  2
+                );
+
+          const input =
+            document.createElement(
+              "input"
+            );
+
+          input.type =
+            "text";
+
+          input.inputMode =
+            "decimal";
+
+          input.className =
+            "smp-manual-input";
+
+          input.dataset.smpDate =
+            targetDate;
+
+          input.dataset.smpField =
+            fieldName;
+
+          input.dataset.originalValue =
+            inputValue;
+
+          input.value =
+            inputValue;
+
+          input.placeholder =
+            "직접 입력";
+
+          input.setAttribute(
+            "aria-label",
+            `${targetDate} ${fieldName} SMP 단가`
+          );
+
+          cell.replaceChildren(
+            input
+          );
+        }
+      );
+  }
+
+
+  function refreshEditorUi() {
+    refreshFrame =
+      0;
+
+    ensureStyle();
+    ensureButtons();
+
+    const card =
+      document.getElementById(
+        CARD_ID
+      );
+
+    const editButton =
+      document.getElementById(
+        EDIT_BUTTON_ID
+      );
+
+    const cancelButton =
+      document.getElementById(
+        CANCEL_BUTTON_ID
+      );
+
+    card?.classList.toggle(
+      "is-smp-editing",
+      editing
+    );
+
+    if (editButton) {
+      const nextText =
+        editing
+          ? "저장"
+          : "수정";
+
+      const nextTitle =
+        editing
+          ? "입력한 SMP 단가 저장"
+          : "표시된 SMP 단가를 직접 수정";
+
+      if (
+        editButton.textContent !==
+          nextText
+      ) {
+        editButton.textContent =
+          nextText;
+      }
+
+      if (
+        editButton.title !==
+          nextTitle
+      ) {
+        editButton.title =
+          nextTitle;
+      }
+
+      editButton.classList.toggle(
+        "is-saving",
+        editing
+      );
+    }
+
+    if (cancelButton) {
+      cancelButton.hidden =
+        !editing;
+    }
+
+    if (editing) {
+      renderInputs();
+
+    } else {
+      markManualCells();
+    }
+  }
+
+
+  function scheduleEditorRefresh() {
+    if (refreshFrame) {
+      return;
+    }
+
+    refreshFrame =
+      requestAnimationFrame(
+        refreshEditorUi
+      );
+  }
+
+
+  function enterEditMode() {
+    if (
+      getDisplayedDates().length ===
+        0
+    ) {
+      showMessage(
+        "수정할 SMP 날짜가 없습니다."
+      );
+
+      return;
+    }
+
+    editing =
+      true;
+
+    refreshEditorUi();
+
+    document
+      .querySelector(
+        `#${TABLE_ID} .smp-manual-input`
+      )
+      ?.focus();
+  }
+
+
+  function leaveEditMode() {
+    editing =
+      false;
+
+    window
+      .renderEfficiencyMorningMeetingSmpPrice
+      ?.();
+
+    scheduleEditorRefresh();
+  }
+
+
+  function collectChangedValues() {
+    const grouped =
+      {};
+
+    document
+      .querySelectorAll(
+        `#${TABLE_ID} .smp-manual-input[data-smp-date][data-smp-field]`
+      )
+      .forEach(
+        input => {
+          const targetDate =
+            clean(
+              input.dataset
+                .smpDate
+            );
+
+          const fieldName =
+            clean(
+              input.dataset
+                .smpField
+            );
+
+          if (
+            !isIsoDate(targetDate) ||
+            !FIELD_NAMES.includes(
+              fieldName
+            )
+          ) {
+            return;
+          }
+
+          if (
+            !grouped[
+              targetDate
+            ]
+          ) {
+            grouped[
+              targetDate
+            ] = {
+              changed:
+                false
+            };
+          }
+
+          grouped[
+            targetDate
+          ][
+            fieldName
+          ] =
+            clean(
+              input.value
+            );
+
+          if (
+            clean(
+              input.value
+            ) !==
+            clean(
+              input.dataset
+                .originalValue
+            )
+          ) {
+            grouped[
+              targetDate
+            ].changed =
+              true;
+          }
+        }
+      );
+
+    return grouped;
+  }
+
+
+  function validateChangedValues(
+    grouped
+  ) {
+    const result =
+      [];
+
+    Object.entries(
+      grouped
+    ).forEach(
+      ([
+        targetDate,
+        fields
+      ]) => {
+        if (
+          fields.changed !==
+            true
+        ) {
+          return;
+        }
+
+        const rawValues =
+          FIELD_NAMES.map(
+            fieldName =>
+              clean(
+                fields[
+                  fieldName
+                ]
+              )
+          );
+
+        if (
+          rawValues.every(
+            value =>
+              !value
+          )
+        ) {
+          return;
+        }
+
+        if (
+          rawValues.some(
+            value =>
+              !value
+          )
+        ) {
+          throw new Error(
+            `${targetDate}의 최대·최소·가중평균을 모두 입력해 주세요.`
+          );
+        }
+
+        const maximum =
+          numberOrNull(
+            fields.maximum
+          );
+
+        const minimum =
+          numberOrNull(
+            fields.minimum
+          );
+
+        const weightedAverage =
+          numberOrNull(
+            fields.weightedAverage
+          );
+
+        if (
+          maximum ===
+            null ||
+          minimum ===
+            null ||
+          weightedAverage ===
+            null ||
+          maximum <
+            0 ||
+          minimum <
+            0 ||
+          weightedAverage <
+            0
+        ) {
+          throw new Error(
+            `${targetDate} SMP 단가를 0 이상의 숫자로 입력해 주세요.`
+          );
+        }
+
+        if (
+          maximum <
+            minimum
+        ) {
+          throw new Error(
+            `${targetDate} 최대 단가는 최소 단가보다 작을 수 없습니다.`
+          );
+        }
+
+        if (
+          weightedAverage <
+            minimum ||
+          weightedAverage >
+            maximum
+        ) {
+          throw new Error(
+            `${targetDate} 가중평균은 최소와 최대 사이여야 합니다.`
+          );
+        }
+
+        result.push({
+          targetDate,
+          maximum,
+          minimum,
+          weightedAverage
+        });
+      }
+    );
+
+    return result;
+  }
+
+
+  function saveEditedValues() {
+    let items;
+
+    try {
+      items =
+        validateChangedValues(
+          collectChangedValues()
+        );
+
+    } catch (error) {
+      showMessage(
+        error?.message ||
+        "SMP 수정값을 확인해 주세요."
+      );
+
+      return;
+    }
+
+    if (
+      items.length ===
+        0
+    ) {
+      showMessage(
+        "저장할 SMP 단가를 입력해 주세요."
+      );
+
+      return;
+    }
+
+    const state =
+      getState();
+
+    const overrides =
+      readOverrides();
+
+    const editedAt =
+      new Date()
+        .toISOString();
+
+    items.forEach(
+      item => {
+        const manualItem = {
+          ...(
+            state.smpPriceByDate[
+              item.targetDate
+            ] ||
+            {}
+          ),
+
+          sourceDate:
+            item.targetDate,
+
+          targetDate:
+            item.targetDate,
+
+          region:
+            "land",
+
+          regionLabel:
+            "육지",
+
+          maximum:
+            item.maximum,
+
+          minimum:
+            item.minimum,
+
+          weightedAverage:
+            item.weightedAverage,
+
+          unit:
+            "원/kWh",
+
+          source:
+            "수동 수정",
+
+          isManual:
+            true,
+
+          manualEditedAt:
+            editedAt
+        };
+
+        state.smpPriceByDate[
+          item.targetDate
+        ] =
+          manualItem;
+
+        state.smpPriceStatusByDate[
+          item.targetDate
+        ] =
+          "complete";
+
+        state.smpPriceErrorByDate[
+          item.targetDate
+        ] =
+          "";
+
+        overrides[
+          item.targetDate
+        ] =
+          manualItem;
+      }
+    );
+
+    const stored =
+      writeOverrides(
+        overrides
+      );
+
+    leaveEditMode();
+
+    items.forEach(
+      item => {
+        document.dispatchEvent(
+          new CustomEvent(
+            "efficiencyMorningMeetingSmpPriceLoaded",
+            {
+              detail:
+                state.smpPriceByDate[
+                  item.targetDate
+                ]
+            }
+          )
+        );
+      }
+    );
+
+    showMessage(
+      stored
+        ? `${items.length}일의 SMP 단가를 수정했습니다.`
+        : "현재 화면에는 반영했지만 새로고침용 저장은 실패했습니다."
+    );
+  }
+
+
+  function removeDisplayedOverrides() {
+    const displayedDates =
+      getDisplayedDates();
+
+    if (
+      displayedDates.length ===
+        0
+    ) {
+      return;
+    }
+
+    const state =
+      getState();
+
+    const overrides =
+      readOverrides();
+
+    displayedDates.forEach(
+      targetDate => {
+        delete overrides[
+          targetDate
+        ];
+
+        delete state.smpPriceByDate[
+          targetDate
+        ];
+
+        delete state.smpPriceStatusByDate[
+          targetDate
+        ];
+
+        delete state.smpPriceErrorByDate[
+          targetDate
+        ];
+      }
+    );
+
+    writeOverrides(
+      overrides
+    );
+  }
+
+
+  function bindEvents() {
+    document.addEventListener(
+      "click",
+      event => {
+        const target =
+          event.target instanceof
+            Element
+            ? event.target
+            : null;
+
+        if (
+          target?.closest(
+            `#${EDIT_BUTTON_ID}`
+          )
+        ) {
+          if (editing) {
+            saveEditedValues();
+
+          } else {
+            enterEditMode();
+          }
+
+          return;
+        }
+
+        if (
+          target?.closest(
+            `#${CANCEL_BUTTON_ID}`
+          )
+        ) {
+          leaveEditMode();
+        }
+      }
+    );
+
+    document.addEventListener(
+      "keydown",
+      event => {
+        if (
+          editing &&
+          event.key ===
+            "Escape"
+        ) {
+          event.preventDefault();
+          leaveEditMode();
+        }
+      }
+    );
+
+    /*
+      다시 조회를 누르면
+      표시된 날짜의 수동 수정값을 해제한다.
+    */
+
+    document.addEventListener(
+      "click",
+      event => {
+        const target =
+          event.target instanceof
+            Element
+            ? event.target
+            : null;
+
+        if (
+          target?.closest(
+            `#${REFRESH_BUTTON_ID}`
+          )
+        ) {
+          removeDisplayedOverrides();
+        }
+      },
+      true
+    );
+
+    /*
+      자동 조회가 끝나도 저장된 수동값이 있으면
+      수동 수정값을 우선 반영한다.
+    */
+
+    document.addEventListener(
+      "efficiencyMorningMeetingSmpPriceLoaded",
+      event => {
+        const targetDate =
+          clean(
+            event.detail?.sourceDate ||
+            event.detail?.targetDate
+          );
+
+        const storedItem =
+          readOverrides()[
+            targetDate
+          ];
+
+        if (
+          applyOverride(
+            targetDate,
+            storedItem
+          )
+        ) {
+          setTimeout(
+            () => {
+              window
+                .renderEfficiencyMorningMeetingSmpPrice
+                ?.();
+            },
+            0
+          );
+        }
+
+        scheduleEditorRefresh();
+      }
+    );
+  }
+
+
+  function initialize() {
+    applyStoredOverrides();
+    ensureStyle();
+    bindEvents();
+
+    const observer =
+      new MutationObserver(
+        scheduleEditorRefresh
+      );
+
+    observer.observe(
+      document.body,
+      {
+        childList:
+          true,
+
+        subtree:
+          true
+      }
+    );
+
+    window
+      .renderEfficiencyMorningMeetingSmpPrice
+      ?.();
+
+    scheduleEditorRefresh();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
