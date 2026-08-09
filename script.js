@@ -142629,19 +142629,24 @@ function buildMorningMeetingFuelAreaRows(
         item,
         itemIndex
       ) => {
-        const workDate =
-          String(
-            item.workDate ||
-            ""
-          ).trim();
-
+        /*
+          화면 미리보기용 원본 데이터는 건드리지 않고,
+          최종 엑셀에 입력할 문구만 정리한다.
+        */
 
         const mainText =
-          String(
-            item.text ||
-            item.content ||
-            ""
-          ).trim();
+          removeMorningMeetingCoalDateTime(
+            String(
+              item.text ||
+              item.content ||
+              ""
+            ).trim()
+          )
+            .replace(
+              /^\s*\d+\s*[.)]\s*/,
+              ""
+            )
+            .trim();
 
 
         const subLines =
@@ -142651,15 +142656,21 @@ function buildMorningMeetingFuelAreaRows(
             ? item.subLines
                 .map(
                   line => {
-                    return String(
-                      line ||
-                      ""
-                    )
-                      .replace(
-                        /^[-–—•]\s*/,
+                    const normalizedLine =
+                      String(
+                        line ||
                         ""
                       )
-                      .trim();
+                        .replace(
+                          /^[-–—•]\s*/,
+                          ""
+                        )
+                        .trim();
+
+
+                    return removeMorningMeetingCoalDateTime(
+                      normalizedLine
+                    );
                   }
                 )
                 .filter(
@@ -142668,14 +142679,21 @@ function buildMorningMeetingFuelAreaRows(
             : [];
 
 
-        const datePrefix =
-          workDate
-            ? `[${workDate}] `
-            : "";
+        /*
+          최종 엑셀에는 다음 정보만 입력한다.
 
+          포함:
+          - 번호
+          - 업무내용
+          - 하위 문장
+
+          제외:
+          - 업무 날짜
+          - 업무 시간
+        */
 
         const outputText = [
-          `${itemIndex + 1}) ${datePrefix}${mainText}`,
+          `${itemIndex + 1}) ${mainText}`,
 
           ...subLines.map(
             line => {

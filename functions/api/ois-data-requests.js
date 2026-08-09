@@ -35,8 +35,20 @@ const DEFAULT_REQUEST_TYPE =
   "limestone_stock";
 
 
+/*
+  에이전트가 요청을 가져가기 전
+  대기열에서 기다릴 수 있는 시간
+*/
 const REQUEST_TIMEOUT_MINUTES =
-  10;
+  60;
+
+
+/*
+  에이전트가 요청을 가져간 뒤
+  실제 OIS 조회를 완료할 수 있는 시간
+*/
+const REQUEST_PROCESSING_TIMEOUT_MINUTES =
+  30;
 
 /*
   기간 일괄 계산:
@@ -3650,8 +3662,27 @@ async function handleAgentNextRequest(
       );
 
 
-    const now =
-      new Date()
+    /*
+      요청을 실제로 가져온 시점부터
+      처리 제한시간을 새로 계산한다.
+    */
+    const processingStartedAt =
+      new Date();
+
+
+    const processingStartedAtText =
+      processingStartedAt.toISOString();
+
+
+    const processingExpiresAtText =
+      new Date(
+        processingStartedAt.getTime() +
+        (
+          REQUEST_PROCESSING_TIMEOUT_MINUTES *
+          60 *
+          1000
+        )
+      )
         .toISOString();
 
 
@@ -3664,6 +3695,7 @@ async function handleAgentNextRequest(
             status = 'processing',
             started_at = ?,
             agent_id = ?,
+            expires_at = ?,
             updated_at = ?
 
           WHERE
@@ -3671,9 +3703,10 @@ async function handleAgentNextRequest(
             AND status = 'pending'
         `)
         .bind(
-          now,
+          processingStartedAtText,
           authentication.agentId,
-          now,
+          processingExpiresAtText,
+          processingStartedAtText,
           requestId
         )
         .run();
@@ -3717,7 +3750,6 @@ async function handleAgentNextRequest(
       "다른 OIS 연동 프로그램이 요청을 먼저 처리했습니다."
   });
 }
-
 
 /* =========================================================
   GET 분기
