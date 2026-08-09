@@ -150832,94 +150832,312 @@ function getAnalyzedReportDate() {
   );
 }
 
+
+
   async function requestShiftLogs(
     date,
     shift
   ) {
-    const requestUrl =
-      new URL(
-        "/api/shift-logs",
-        window.location.origin
+    const normalizedDate =
+      normalizeText(
+        date
       );
 
 
-    requestUrl.searchParams.set(
-      "date",
-      date
-    );
-
-
-    requestUrl.searchParams.set(
-      "shift",
-      shift
-    );
-
-
-    requestUrl.searchParams.set(
-      "_",
-      String(
-        Date.now()
-      )
-    );
-
-
-    const headers =
-      typeof getShiftLogAuthHeaders ===
-        "function"
-        ? getShiftLogAuthHeaders()
-        : {
-            Accept:
-              "application/json"
-          };
-
-
-    const response =
-      await fetch(
-        requestUrl.toString(),
-        {
-          method:
-            "GET",
-
-          headers,
-
-          cache:
-            "no-store"
-        }
+    const normalizedShift =
+      normalizeShift(
+        shift
       );
 
 
-    let payload =
-      {};
-
-
-    try {
-      payload =
-        await response.json();
-
-    } catch {
+    if (
+      !normalizedDate ||
+      !normalizedShift
+    ) {
       throw new Error(
-        `${shift} 업무일지 응답을 읽을 수 없습니다.`
+        "업무일지 조회 날짜와 근무를 확인해 주세요."
       );
+    }
+
+
+    /* =================================================
+      신규 D1 업무일지
+      /api/shift-logs
+    ================================================== */
+
+    const requestCurrentShiftLogs =
+      async () => {
+        const requestUrl =
+          new URL(
+            "/api/shift-logs",
+            window.location.origin
+          );
+
+
+        requestUrl.searchParams.set(
+          "date",
+          normalizedDate
+        );
+
+
+        requestUrl.searchParams.set(
+          "shift",
+          normalizedShift
+        );
+
+
+        requestUrl.searchParams.set(
+          "_",
+          String(
+            Date.now()
+          )
+        );
+
+
+        const headers =
+          typeof getShiftLogAuthHeaders ===
+            "function"
+            ? getShiftLogAuthHeaders()
+            : {
+                Accept:
+                  "application/json"
+              };
+
+
+        const response =
+          await fetch(
+            requestUrl.toString(),
+            {
+              method:
+                "GET",
+
+              headers,
+
+              cache:
+                "no-store"
+            }
+          );
+
+
+        let payload =
+          {};
+
+
+        try {
+          payload =
+            await response.json();
+
+        } catch {
+          throw new Error(
+            `${normalizedShift} 신규 업무일지 응답을 읽을 수 없습니다.`
+          );
+        }
+
+
+        if (
+          !response.ok ||
+          payload.ok !==
+            true
+        ) {
+          throw new Error(
+            payload.message ||
+            `${normalizedShift} 신규 업무일지를 불러오지 못했습니다.`
+          );
+        }
+
+
+        return Array.isArray(
+          payload.logs
+        )
+          ? payload.logs
+          : [];
+      };
+
+
+    /* =================================================
+      신규 업무일지 + 기존 D1 과거 업무일지
+
+      loadLegacyLogsForSearchDate()에서
+      과거 body[0] 운전현황을 operationStatus로
+      변환해서 반환한다.
+    ================================================== */
+
+    const [
+      currentResult,
+      legacyResult
+    ] =
+      await Promise.allSettled([
+        requestCurrentShiftLogs(),
+
+        typeof loadLegacyLogsForSearchDate ===
+          "function"
+          ? loadLegacyLogsForSearchDate(
+              normalizedDate
+            )
+          : Promise.resolve([])
+      ]);
+
+
+    const currentLogs =
+      currentResult.status ===
+        "fulfilled" &&
+      Array.isArray(
+        currentResult.value
+      )
+        ? currentResult.value
+        : [];
+
+
+    const legacyLogs =
+      legacyResult.status ===
+        "fulfilled" &&
+      Array.isArray(
+        legacyResult.value
+      )
+        ? legacyResult.value
+        : [];
+
+
+    /*
+      과거자료 API는 D/S·N/S를 함께 반환하므로
+      현재 요청한 날짜와 근무만 남긴다.
+    */
+
+    const matchesRequestedContext =
+      log => {
+        if (
+          !log ||
+          typeof log !==
+            "object"
+        ) {
+          return false;
+        }
+
+
+        const logDate =
+          normalizeText(
+            log.date ||
+            log.workDate ||
+            log.work_date
+          );
+
+
+        const logShift =
+          normalizeShift(
+            log.shift ||
+            log.workShift ||
+            log.work_shift
+          );
+
+
+        return (
+          (
+            !logDate ||
+            logDate ===
+              normalizedDate
+          ) &&
+          logShift ===
+            normalizedShift
+        );
+      };
+
+
+    const matchingCurrentLogs =
+      currentLogs.filter(
+        matchesRequestedContext
+      );
+
+
+    const matchingLegacyLogs =
+      legacyLogs.filter(
+        matchesRequestedContext
+      );
+
+
+    /*
+      한쪽 저장소가 실패해도
+      다른 저장소에서 자료를 찾았다면 계속 사용한다.
+    */
+
+    if (
+      currentResult.status ===
+        "rejected"
+    ) {
+      console.error(
+        `${normalizedDate} ${normalizedShift} 신규 업무일지 조회 실패:`,
+        currentResult.reason
+      );
+
+
+      if (
+        matchingLegacyLogs.length ===
+          0
+      ) {
+        throw currentResult.reason instanceof
+          Error
+          ? currentResult.reason
+          : new Error(
+              `${normalizedShift} 신규 업무일지를 불러오지 못했습니다.`
+            );
+      }
     }
 
 
     if (
-      !response.ok ||
-      payload.ok !==
-        true
+      legacyResult.status ===
+        "rejected"
     ) {
-      throw new Error(
-        payload.message ||
-        `${shift} 업무일지를 불러오지 못했습니다.`
+      console.error(
+        `${normalizedDate} 기존 과거 업무일지 조회 실패:`,
+        legacyResult.reason
       );
+
+
+      if (
+        matchingCurrentLogs.length ===
+          0
+      ) {
+        throw legacyResult.reason instanceof
+          Error
+          ? legacyResult.reason
+          : new Error(
+              `${normalizedDate} 기존 과거 업무일지를 불러오지 못했습니다.`
+            );
+      }
     }
 
 
-    return Array.isArray(
-      payload.logs
-    )
-      ? payload.logs
-      : [];
+    const combinedLogs = [
+      ...matchingCurrentLogs,
+      ...matchingLegacyLogs
+    ];
+
+
+    const uniqueLogs =
+      typeof removeDuplicateSearchLogs ===
+        "function"
+        ? removeDuplicateSearchLogs(
+            combinedLogs
+          )
+        : combinedLogs;
+
+
+    console.log(
+      `오전회의 ${normalizedDate} ${normalizedShift} 업무일지 조회:`,
+      {
+        current:
+          matchingCurrentLogs.length,
+
+        legacy:
+          matchingLegacyLogs.length,
+
+        combined:
+          uniqueLogs.length
+      }
+    );
+
+
+    return uniqueLogs;
   }
 
 /* =====================================================
