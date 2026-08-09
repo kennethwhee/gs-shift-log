@@ -142145,6 +142145,19 @@ function applyMorningMeetingCoalNumericValues(
           ?.quantity
     },
 
+    /*
+      운탄일지 K51
+      → 최종 취합 엑셀 AB21
+    */
+
+    {
+      address:
+        "AB21",
+
+      value:
+        values.flyAshSiloLevel
+    },
+
     {
       address:
         "X21",
@@ -142193,7 +142206,6 @@ function applyMorningMeetingCoalNumericValues(
         missingAddresses.push(
           mapping.address
         );
-
 
         return;
       }
@@ -142607,6 +142619,70 @@ function buildMorningMeetingFuelAreaRows(
       : [];
 
 
+  /* =====================================================
+    주말 취합 여부
+
+    체크됨:
+    운탄 업무 앞에 날짜 표시
+
+    체크 안 됨:
+    날짜 없이 내용만 표시
+  ====================================================== */
+
+  let weekendMode =
+    null;
+
+
+  try {
+    if (
+      typeof window
+        .getEfficiencyMorningMeetingWeekendMode ===
+        "function"
+    ) {
+      weekendMode =
+        window
+          .getEfficiencyMorningMeetingWeekendMode();
+    }
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "운탄일지 엑셀 주말 설정 확인 실패:",
+      error
+    );
+  }
+
+
+  if (
+    !weekendMode ||
+    typeof weekendMode !==
+      "object"
+  ) {
+    const state =
+      window
+        .efficiencyMorningMeetingUploadState ||
+      {};
+
+
+    weekendMode =
+      state.weekendMode &&
+      typeof state.weekendMode ===
+        "object"
+        ? state.weekendMode
+        : {};
+  }
+
+
+  const isWeekendMode =
+    weekendMode.enabled ===
+      true;
+
+
+  /* =====================================================
+    연료설비 행
+  ====================================================== */
+
   const rowDefinitions = [
     {
       template:
@@ -142629,24 +142705,19 @@ function buildMorningMeetingFuelAreaRows(
         item,
         itemIndex
       ) => {
-        /*
-          화면 미리보기용 원본 데이터는 건드리지 않고,
-          최종 엑셀에 입력할 문구만 정리한다.
-        */
+        const workDate =
+          String(
+            item.workDate ||
+            ""
+          ).trim();
+
 
         const mainText =
-          removeMorningMeetingCoalDateTime(
-            String(
-              item.text ||
-              item.content ||
-              ""
-            ).trim()
-          )
-            .replace(
-              /^\s*\d+\s*[.)]\s*/,
-              ""
-            )
-            .trim();
+          String(
+            item.text ||
+            item.content ||
+            ""
+          ).trim();
 
 
         const subLines =
@@ -142656,21 +142727,15 @@ function buildMorningMeetingFuelAreaRows(
             ? item.subLines
                 .map(
                   line => {
-                    const normalizedLine =
-                      String(
-                        line ||
+                    return String(
+                      line ||
+                      ""
+                    )
+                      .replace(
+                        /^[-–—•]\s*/,
                         ""
                       )
-                        .replace(
-                          /^[-–—•]\s*/,
-                          ""
-                        )
-                        .trim();
-
-
-                    return removeMorningMeetingCoalDateTime(
-                      normalizedLine
-                    );
+                      .trim();
                   }
                 )
                 .filter(
@@ -142680,29 +142745,76 @@ function buildMorningMeetingFuelAreaRows(
 
 
         /*
-          최종 엑셀에는 다음 정보만 입력한다.
+          핵심:
 
-          포함:
-          - 번호
-          - 업무내용
-          - 하위 문장
+          주말 체크:
+          [2026-08-05] 내용
 
-          제외:
-          - 업무 날짜
-          - 업무 시간
+          평일:
+          내용
         */
 
-        const outputText = [
-          `${itemIndex + 1}) ${mainText}`,
+/* =====================================================
+  운탄일지 최종 엑셀 문구
 
-          ...subLines.map(
-            line => {
-              return `   - ${line}`;
-            }
-          )
-        ].join(
-          "\n"
-        );
+  주말:
+  2026-08-05
+  → 8/5 내용
+
+  평일:
+  → 내용만
+
+  공통:
+  - 앞 번호 없음
+  - 대괄호 없음
+===================================================== */
+
+let shortDate =
+  "";
+
+
+if (
+  /^\d{4}-\d{2}-\d{2}$/.test(
+    workDate
+  )
+) {
+  const [
+    ,
+    monthText,
+    dayText
+  ] =
+    workDate.split(
+      "-"
+    );
+
+
+  shortDate =
+    `${Number(
+      monthText
+    )}/${Number(
+      dayText
+    )}`;
+}
+
+
+const firstLine =
+  isWeekendMode &&
+  shortDate
+    ? `${shortDate} ${mainText}`
+    : mainText;
+
+
+const outputText = [
+  firstLine,
+
+  ...subLines.map(
+    line => {
+      return `   - ${line}`;
+    }
+  )
+].join(
+  "\n"
+);
 
 
         return {
@@ -143729,13 +143841,27 @@ function classifyMorningMeetingTmItems(
   };
 }
 
-
 /* =====================================================
-  TM 항목을 최종 엑셀 문구로 변환
+  TM 사항 최종 엑셀 문구
 
-  예:
-  1) 08:30 BC-102A Belt 점검 요청
-     - 추가 손상 진행 중
+  대상:
+  - 교대파트 TM → ◇ 설비 운영
+  - 운탄일지 TM → ◇ 연료 설비
+
+  ☑ 주말
+  8/6 08:30 TM 내용
+
+  □ 평일
+  08:30 TM 내용
+
+  제거:
+  - 자동 번호
+  - [2026-08-06] 형식
+
+  유지:
+  - 실제 시간
+  - 내용
+  - 하위 설명
 ===================================================== */
 
 function formatMorningMeetingTmItemText(
@@ -143794,29 +143920,96 @@ function formatMorningMeetingTmItemText(
 
 
   /* =====================================================
-    날짜만 표시
-
-    기존:
-    [2026-08-07 D/S]
-    [2026-08-07 N/S]
-
-    변경:
-    [2026-08-07]
+    현재 주말 체크 상태
   ====================================================== */
 
+  let isWeekendMode =
+    false;
+
+
+  try {
+    if (
+      typeof window
+        .getEfficiencyMorningMeetingWeekendMode ===
+        "function"
+    ) {
+      isWeekendMode =
+        window
+          .getEfficiencyMorningMeetingWeekendMode()
+          ?.enabled ===
+        true;
+    }
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "TM 사항 주말 설정 확인 실패:",
+      error
+    );
+  }
+
+
+  /* =====================================================
+    YYYY-MM-DD → M/D
+  ====================================================== */
+
+  let shortDate =
+    "";
+
+
+  if (
+    /^\d{4}-\d{2}-\d{2}$/.test(
+      workDate
+    )
+  ) {
+    const [
+      ,
+      monthText,
+      dayText
+    ] =
+      workDate.split(
+        "-"
+      );
+
+
+    shortDate =
+      `${Number(
+        monthText
+      )}/${Number(
+        dayText
+      )}`;
+  }
+
+
+  /*
+    주말일 때만 날짜 사용
+  */
+
   const dateText =
-    workDate
-      ? `[${workDate}]`
+    isWeekendMode &&
+    shortDate
+      ? shortDate
+      : "";
+
+
+  /*
+    내용이 이미 시간으로 시작하면
+    시간 중복 방지
+  */
+
+  const timeText =
+    time &&
+    !mainText.startsWith(
+      time
+    )
+      ? time
       : "";
 
 
   const firstLine = [
-    `${itemIndex + 1})`,
-
     dateText,
-
-    time,
-
+    timeText,
     mainText
   ]
     .filter(
@@ -152321,6 +152514,26 @@ function renderShiftList(
 
 /* =====================================================
   교대파트 선택 내용 갱신
+
+  최종 엑셀 출력 규칙:
+
+  ☑ 주말
+  8/6 06:40 업무내용
+  8/7 14:00 업무내용
+
+  □ 평일
+  06:40 업무내용
+  14:00 업무내용
+
+  제거:
+  - 1) 2) 자동 번호
+  - [2026-08-06] 긴 날짜
+  - 내용 자체에 이미 들어간 앞 번호
+
+  유지:
+  - 실제 업무 시간
+  - 업무내용
+  - 여러 줄 내용
 ===================================================== */
 
 function updateSelectedText(
@@ -152357,10 +152570,7 @@ function updateSelectedText(
     state.shiftPart.text =
       selectedItems
         .map(
-          (
-            item,
-            itemIndex
-          ) => {
+          item => {
             const time =
               String(
                 item.time ||
@@ -152368,37 +152578,104 @@ function updateSelectedText(
               ).trim();
 
 
+            /*
+              기존 내용 앞에 저장된
+
+              1.
+              1)
+              2.
+
+              등의 번호도 제거한다.
+            */
+
             const content =
               String(
                 item.content ||
                 ""
+              )
+                .replace(
+                  /^\s*\d+\s*[.)]\s*/,
+                  ""
+                )
+                .trim();
+
+
+            const workDate =
+              String(
+                item.workDate ||
+                ""
               ).trim();
 
 
-            const timePrefix =
-              time
-                ? `${time} `
+            /* ===========================================
+              YYYY-MM-DD → M/D
+
+              2026-08-06
+              → 8/6
+            ============================================ */
+
+            let shortDate =
+              "";
+
+
+            if (
+              /^\d{4}-\d{2}-\d{2}$/.test(
+                workDate
+              )
+            ) {
+              const [
+                ,
+                monthText,
+                dayText
+              ] =
+                workDate.split(
+                  "-"
+                );
+
+
+              shortDate =
+                `${Number(
+                  monthText
+                )}/${Number(
+                  dayText
+                )}`;
+            }
+
+
+            /* ===========================================
+              주말에만 날짜 추가
+            ============================================ */
+
+            const datePrefix =
+              weekendMode.enabled &&
+              shortDate
+                ? `${shortDate} `
                 : "";
 
 
             /*
-              주말 모드에서만
-              날짜 + D/S·N/S 표시
+              내용 자체가 이미
+              06:40으로 시작한다면
+
+              06:40 06:40 ...
+
+              처럼 중복되지 않게 한다.
             */
 
-            const weekendPrefix =
-  weekendMode.enabled &&
-  item.workDate
-    ? `[${item.workDate}] `
-    : "";
+            const timePrefix =
+              time &&
+              !content.startsWith(
+                time
+              )
+                ? `${time} `
+                : "";
 
 
             return (
-              `${itemIndex + 1}) ` +
-              `${weekendPrefix}` +
+              `${datePrefix}` +
               `${timePrefix}` +
               `${content}`
-            );
+            ).trim();
           }
         )
         .filter(
@@ -154516,120 +154793,263 @@ if (
   }
 }
 
-
-
 /* =====================================================
-  오전회의 공용 기준일
-  BO1 · BO2 업무일지 날짜별 재조회
+  오전회의 BO1 · BO2 N/S 업무일지 전용 재조회
 
-  공용 날짜 이동에서 호출한다.
-
-  예:
-  기준일 2026-08-06
-  → 2026-08-06 N/S BO1 · BO2 조회
-  → FBHE / Wall Screw 온도 다시 추출
+  처리:
+  - 지정 날짜 N/S 업무일지만 서버에서 다시 조회
+  - BO1·BO2 온도만 새로 추출
+  - 기존 교대파트 업무 선택은 유지
 ===================================================== */
 
-/* ===================================================
-  교대파트 업무일지 기준일 → 자동수치 기준일 동기화
-
-  평일:
-  - 기존 동작 그대로 유지
-
-  주말:
-  - 자동수치 날짜와 완전히 독립
-  - 주말 업무기간을 조회해도
-    수처리/석회석/Gear/BO 날짜를 변경하지 않음
-=================================================== */
-
-document.addEventListener(
-  "efficiencyMorningMeetingShiftLogsLoaded",
-
-  event => {
-    const state =
-      getState();
+let morningMeetingBoilerReloadSequence =
+  0;
 
 
-    /* =================================================
-      주말 모드 확인
-    ================================================= */
+window
+  .loadEfficiencyMorningMeetingShiftLogsForDate =
+  async function (
+    requestedDate
+  ) {
+    const normalizedDate =
+      normalizeReportDate(
+        requestedDate
+      );
 
-    let weekendEnabled =
-      event?.detail?.weekend ===
-        true;
 
-
-    try {
-      if (
-        typeof window
-          .getEfficiencyMorningMeetingWeekendMode ===
-          "function"
-      ) {
-        weekendEnabled =
-          weekendEnabled ||
-
-          window
-            .getEfficiencyMorningMeetingWeekendMode()
-            ?.enabled ===
-            true;
-      }
-
-    } catch (
-      error
+    if (
+      !normalizedDate
     ) {
-      console.warn(
-        "오전회의 주말 모드 확인 실패:",
-        error
+      throw new Error(
+        "BO1·BO2 업무일지 조회 날짜를 확인해 주세요."
       );
     }
 
 
-    /* =================================================
-      주말 체크 상태에서는
-
-      교대파트 기간 조회와
-      자동수치 기준일을 서로 연결하지 않는다.
-    ================================================= */
-
-    if (
-      weekendEnabled
-    ) {
-      return;
-    }
+    const state =
+      getState();
 
 
-    /* =================================================
-      평일은 기존 동작 그대로
-    ================================================= */
+    const requestSequence =
+      ++morningMeetingBoilerReloadSequence;
 
-    const reportDate =
-      String(
-        state.shiftPart
-          ?.reportDate ||
-        state.shiftPart
-          ?.loadedDate ||
-        ""
-      ).trim();
+
+    const boilerDateElement =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoBoilerDate"
+      );
+
+
+    const boilerStatusElement =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoBoilerStatus"
+      );
 
 
     if (
-      !isValidDate(
-        reportDate
-      )
+      boilerDateElement
     ) {
-      return;
+      boilerDateElement.textContent =
+        normalizedDate;
     }
 
 
-    applyCommonBaseDate(
-      reportDate,
-      {
-        load:
-          false
+    if (
+      boilerStatusElement
+    ) {
+      boilerStatusElement.classList.remove(
+        "is-complete",
+        "is-error"
+      );
+
+
+      boilerStatusElement.classList.add(
+        "is-loading"
+      );
+
+
+      boilerStatusElement.textContent =
+        "업무일지 조회 중";
+    }
+
+
+    try {
+      const nightLogs =
+        await requestShiftLogs(
+          normalizedDate,
+          "NS"
+        );
+
+
+      /*
+        날짜를 빠르게 연속 이동한 경우
+        먼저 시작된 이전 요청 결과는 사용하지 않는다.
+      */
+
+      if (
+        requestSequence !==
+          morningMeetingBoilerReloadSequence
+      ) {
+        return null;
       }
-    );
-  }
-);
+
+
+      const normalizedNightLogs =
+        Array.isArray(
+          nightLogs
+        )
+          ? nightLogs
+          : [];
+
+
+      /*
+        온도 재조회용 원본만 별도로 저장한다.
+
+        기존 교대파트의:
+        - D/S·N/S 선택 목록
+        - 선택 ID
+        - 취합 문구
+
+        는 변경하지 않는다.
+      */
+
+      state.shiftPart.boilerLoadedDate =
+        normalizedDate;
+
+
+      state.shiftPart.boilerNightLogs =
+        normalizedNightLogs;
+
+
+      state.boilerTemperatures =
+        extractMorningMeetingBoilerTemperatures(
+          normalizedNightLogs,
+          normalizedDate
+        );
+
+
+      console.log(
+        `오전회의 BO1·BO2 ${normalizedDate} N/S 재조회 완료:`,
+        {
+          logCount:
+            normalizedNightLogs.length,
+
+          result:
+            state.boilerTemperatures
+        }
+      );
+
+
+      if (
+        typeof window
+          .renderEfficiencyMorningMeetingBoilerTemperatures ===
+          "function"
+      ) {
+        window
+          .renderEfficiencyMorningMeetingBoilerTemperatures();
+      }
+
+
+      if (
+        typeof window
+          .renderEfficiencyMorningMeetingAutoPreview ===
+          "function"
+      ) {
+        window
+          .renderEfficiencyMorningMeetingAutoPreview();
+      }
+
+
+      if (
+        typeof window
+          .updateEfficiencyMorningMeetingCreateButton ===
+          "function"
+      ) {
+        window
+          .updateEfficiencyMorningMeetingCreateButton();
+      }
+
+
+      /*
+        기존 온도 입력창과 날짜별 저장 기능에도
+        새 자동 추출 완료 사실을 전달한다.
+      */
+
+      document.dispatchEvent(
+        new CustomEvent(
+          "efficiencyMorningMeetingShiftLogsLoaded",
+
+          {
+            detail: {
+              temperatureOnly:
+                true,
+
+              preserveSelection:
+                true,
+
+              reportDate:
+                normalizedDate,
+
+              nightLogCount:
+                normalizedNightLogs.length
+            }
+          }
+        )
+      );
+
+
+      return state
+        .boilerTemperatures;
+
+    } catch (
+      error
+    ) {
+      if (
+        requestSequence !==
+          morningMeetingBoilerReloadSequence
+      ) {
+        return null;
+      }
+
+
+      console.error(
+        `오전회의 BO1·BO2 ${normalizedDate} N/S 재조회 실패:`,
+        error
+      );
+
+
+      if (
+        typeof window
+          .renderEfficiencyMorningMeetingBoilerTemperatures ===
+          "function"
+      ) {
+        window
+          .renderEfficiencyMorningMeetingBoilerTemperatures();
+      }
+
+
+      if (
+        boilerStatusElement
+      ) {
+        boilerStatusElement.classList.remove(
+          "is-loading",
+          "is-complete"
+        );
+
+
+        boilerStatusElement.classList.add(
+          "is-error"
+        );
+
+
+        boilerStatusElement.textContent =
+          "업무일지 조회 실패";
+      }
+
+
+      throw error;
+    }
+  };
 
 /* =====================================================
   교대파트 기준 날짜 갱신 및 자동 조회
@@ -157314,176 +157734,191 @@ function resetShiftPart() {
     K46 / K48 : Fly Ash 차량 / kg
   ====================================================== */
 
-  function extractNumericValues(
-    worksheet
-  ) {
-    const coalAInventory =
-      getCellNumber(
-        worksheet,
-        "O19"
-      );
+function extractNumericValues(
+  worksheet
+) {
+  const coalAInventory =
+    getCellNumber(
+      worksheet,
+      "O19"
+    );
 
 
-    const coalAHeight =
-      getCellNumber(
-        worksheet,
-        "Q19"
-      );
+  const coalAHeight =
+    getCellNumber(
+      worksheet,
+      "Q19"
+    );
 
 
-    const coalBInventory =
-      getCellNumber(
-        worksheet,
-        "S19"
-      );
+  const coalBInventory =
+    getCellNumber(
+      worksheet,
+      "S19"
+    );
 
 
-    const coalBHeight =
-      getCellNumber(
-        worksheet,
-        "U19"
-      );
+  const coalBHeight =
+    getCellNumber(
+      worksheet,
+      "U19"
+    );
 
 
-    const directVehicles =
-      getCellNumber(
-        worksheet,
-        "P32"
-      );
+  const directVehicles =
+    getCellNumber(
+      worksheet,
+      "P32"
+    );
 
 
-    const vehicleA =
-      getCellNumber(
-        worksheet,
-        "N31"
-      );
+  const vehicleA =
+    getCellNumber(
+      worksheet,
+      "N31"
+    );
 
 
-    const vehicleB =
-      getCellNumber(
-        worksheet,
-        "N32"
-      );
+  const vehicleB =
+    getCellNumber(
+      worksheet,
+      "N32"
+    );
 
 
-    const coalVehicles =
-      Number.isFinite(
-        directVehicles
-      )
-        ? directVehicles
-        : (
-            Number.isFinite(
-              vehicleA
-            ) &&
-            Number.isFinite(
-              vehicleB
-            )
-              ? vehicleA +
-                vehicleB
-              : null
-          );
-
-
-    const flyAshKg =
-      getCellNumber(
-        worksheet,
-        "K48"
-      );
-
-
-    return {
-      coalSiloA: {
-        height:
-          coalAHeight,
-
-        inventory:
-          coalAInventory
-      },
-
-
-      coalSiloB: {
-        height:
-          coalBHeight,
-
-        inventory:
-          coalBInventory
-      },
-
-
-      coalInventoryTotal:
-        Number.isFinite(
-          coalAInventory
-        ) &&
-        Number.isFinite(
-          coalBInventory
-        )
-          ? coalAInventory +
-            coalBInventory
-          : null,
-
-
-      coalReceipt: {
-        vehicles:
-          coalVehicles,
-
-        quantity:
-          getCellNumber(
-            worksheet,
-            "P31"
-          )
-      },
-
-
-      bioInventory: {
-        height:
-          getCellNumber(
-            worksheet,
-            "I38"
-          ),
-
-        inventory:
-          getCellNumber(
-            worksheet,
-            "G38"
-          )
-      },
-
-
-      bioReceipt: {
-        vehicles:
-          getCellNumber(
-            worksheet,
-            "M44"
-          ),
-
-        quantity:
-          getCellNumber(
-            worksheet,
-            "K44"
-          )
-      },
-
-
-      flyAshDispatch: {
-        vehicles:
-          getCellNumber(
-            worksheet,
-            "K46"
-          ),
-
-        quantityKg:
-          flyAshKg,
-
-        quantityTon:
+  const coalVehicles =
+    Number.isFinite(
+      directVehicles
+    )
+      ? directVehicles
+      : (
           Number.isFinite(
-            flyAshKg
+            vehicleA
+          ) &&
+          Number.isFinite(
+            vehicleB
           )
-            ? flyAshKg /
-              1000
+            ? vehicleA +
+              vehicleB
             : null
-      }
-    };
-  }
+        );
+
+
+  const flyAshKg =
+    getCellNumber(
+      worksheet,
+      "K48"
+    );
+
+
+  /*
+    운탄일지 Ash 현황의
+    Fly Ash 금일 Level / ton
+  */
+
+  const flyAshSiloLevel =
+    getCellNumber(
+      worksheet,
+      "K51"
+    );
+
+
+  return {
+    coalSiloA: {
+      height:
+        coalAHeight,
+
+      inventory:
+        coalAInventory
+    },
+
+
+    coalSiloB: {
+      height:
+        coalBHeight,
+
+      inventory:
+        coalBInventory
+    },
+
+
+    coalInventoryTotal:
+      Number.isFinite(
+        coalAInventory
+      ) &&
+      Number.isFinite(
+        coalBInventory
+      )
+        ? coalAInventory +
+          coalBInventory
+        : null,
+
+
+    coalReceipt: {
+      vehicles:
+        coalVehicles,
+
+      quantity:
+        getCellNumber(
+          worksheet,
+          "P31"
+        )
+    },
+
+
+    bioInventory: {
+      height:
+        getCellNumber(
+          worksheet,
+          "I38"
+        ),
+
+      inventory:
+        getCellNumber(
+          worksheet,
+          "G38"
+        )
+    },
+
+
+    bioReceipt: {
+      vehicles:
+        getCellNumber(
+          worksheet,
+          "M44"
+        ),
+
+      quantity:
+        getCellNumber(
+          worksheet,
+          "K44"
+        )
+    },
+
+
+    flyAshSiloLevel,
+
+
+    flyAshDispatch: {
+      vehicles:
+        getCellNumber(
+          worksheet,
+          "K46"
+        ),
+
+      quantityKg:
+        flyAshKg,
+
+      quantityTon:
+        Number.isFinite(
+          flyAshKg
+        )
+          ? flyAshKg /
+            1000
+          : null
+    }
+  };
+}
 
 
   function formatNumber(
@@ -158125,14 +158560,14 @@ function resetShiftPart() {
     updateSelectedState();
   }
 
-  
-
 /* =====================================================
-  운탄일지 내부 날짜 확인
+  운탄일지 날짜 정규화
 
-  우선순위:
-  1. 연료설비 운전일지 상단 셀
-  2. 파일명 안의 YYYY-MM-DD / YYYYMMDD
+  지원:
+  - 2026-08-05
+  - 2026.08.05
+  - 2026/08/05
+  - 20260805
 ====================================================== */
 
 function normalizeCoalLogWorkDate(
@@ -158153,7 +158588,7 @@ function normalizeCoalLogWorkDate(
 
   const separatedMatch =
     text.match(
-      /\b(20\d{2})[.\/-](\d{1,2})[.\/-](\d{1,2})\b/
+      /\b(20\d{2})[.\/_-](\d{1,2})[.\/_-](\d{1,2})\b/
     );
 
 
@@ -158246,7 +158681,238 @@ function normalizeCoalLogWorkDate(
 
 
 /* =====================================================
+  파일명에 연도가 없을 때 사용할 기준 연도
+
+  예:
+  업무일지 08.05(2).xlsx
+
+  오전회의 기준이 2026년이면
+  → 2026-08-05
+====================================================== */
+
+function getCoalLogFileNameFallbackYear() {
+  const state =
+    getState();
+
+
+  const dateCandidates =
+    [];
+
+
+  let weekendMode =
+    null;
+
+
+  try {
+    if (
+      typeof window
+        .getEfficiencyMorningMeetingWeekendMode ===
+        "function"
+    ) {
+      weekendMode =
+        window
+          .getEfficiencyMorningMeetingWeekendMode();
+    }
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "운탄일지 기준 연도 확인 실패:",
+      error
+    );
+  }
+
+
+  if (
+    weekendMode &&
+    typeof weekendMode ===
+      "object"
+  ) {
+    dateCandidates.push(
+      weekendMode.endDate,
+      weekendMode.startDate
+    );
+  }
+
+
+  dateCandidates.push(
+    state.weekendMode
+      ?.endDate,
+
+    state.weekendMode
+      ?.startDate,
+
+    state.shiftPart
+      ?.reportDate
+  );
+
+
+  Object.values(
+    state.analysis ||
+    {}
+  ).forEach(
+    result => {
+      dateCandidates.push(
+        result?.reportDate
+      );
+    }
+  );
+
+
+  for (
+    const dateValue
+    of dateCandidates
+  ) {
+    const yearMatch =
+      String(
+        dateValue ||
+        ""
+      ).match(
+        /\b(20\d{2})\b/
+      );
+
+
+    if (
+      yearMatch
+    ) {
+      return Number(
+        yearMatch[1]
+      );
+    }
+  }
+
+
+  if (
+    typeof appState !==
+      "undefined" &&
+    appState?.selectedDate instanceof
+      Date &&
+    !Number.isNaN(
+      appState.selectedDate
+        .getTime()
+    )
+  ) {
+    return appState
+      .selectedDate
+      .getFullYear();
+  }
+
+
+  return new Date()
+    .getFullYear();
+}
+
+
+/* =====================================================
+  운탄일지 파일명 날짜 인식
+
+  추가 지원:
+  - 업무일지 08.05.xlsx
+  - 업무일지(08-05).xlsx
+  - 업무일지_08_05.xlsx
+  - 업무일지 08월05일.xlsx
+  - 업무일지 0805.xlsx
+
+  연도가 없으면 오전회의 기준 연도를 사용한다.
+====================================================== */
+
+function normalizeCoalLogFileNameWorkDate(
+  value
+) {
+  const text =
+    normalizeText(
+      value
+    );
+
+
+  if (
+    !text
+  ) {
+    return "";
+  }
+
+
+  /*
+    파일명에 연도까지 있으면
+    기존 날짜 인식을 우선한다.
+  */
+
+  const fullDate =
+    normalizeCoalLogWorkDate(
+      text
+    );
+
+
+  if (
+    fullDate
+  ) {
+    return fullDate;
+  }
+
+
+  const separatedMatch =
+    text.match(
+      /(?:^|[^0-9])(\d{1,2})[.\/_-](\d{1,2})(?=[^0-9]|$)/
+    );
+
+
+  const koreanMatch =
+    text.match(
+      /(?:^|[^0-9])(\d{1,2})\s*월\s*(\d{1,2})\s*일(?=[^0-9]|$)/
+    );
+
+
+  const compactMatch =
+    text.match(
+      /(?:^|[^0-9])([01]\d)([0-3]\d)(?=[^0-9]|$)/
+    );
+
+
+  const match =
+    separatedMatch ||
+    koreanMatch ||
+    compactMatch;
+
+
+  if (
+    !match
+  ) {
+    return "";
+  }
+
+
+  const year =
+    getCoalLogFileNameFallbackYear();
+
+
+  const month =
+    Number(
+      match[1]
+    );
+
+
+  const day =
+    Number(
+      match[2]
+    );
+
+
+  return normalizeCoalLogWorkDate(
+    `${year}-${month}-${day}`
+  );
+}
+
+
+/* =====================================================
   운탄일지 날짜 추출
+
+  우선순위:
+  1. 운탄일지 엑셀 상단에 연도 포함 날짜가 있으면 사용
+  2. 없으면 파일명의 날짜 사용
+
+  파일명:
+  08.05 형식처럼 연도가 없어도 인식
 ====================================================== */
 
 function extractCoalLogWorkDate(
@@ -158286,6 +158952,13 @@ function extractCoalLogWorkDate(
       );
 
 
+  /*
+    엑셀 내부는 연도 포함 날짜만 인정한다.
+
+    08.05 같은 일반 숫자를
+    날짜로 잘못 인식하지 않게 한다.
+  */
+
   for (
     const entry
     of topEntries
@@ -158305,14 +158978,14 @@ function extractCoalLogWorkDate(
 
 
   /*
-    시트에서 날짜를 못 찾은 경우
-    파일명에서 한 번 더 찾는다.
+    엑셀 내부에서 못 찾으면
+    파일명의 날짜를 사용한다.
   */
 
-  return normalizeCoalLogWorkDate(
+  return normalizeCoalLogFileNameWorkDate(
     file?.name
   );
-}
+}  
 
 
 /* =====================================================
@@ -161908,42 +162581,19 @@ function buildCheckboxHtml(
       : "data-morning-meeting-coal-tm-item";
 
 
-  /*
-    원본 내용은 변경하지 않고
-    화면 표시용 문구만 별도로 만든다.
-  */
-
-  const rawMainText =
-    normalizeText(
-      item.content ||
-      item.text
-    );
-
-
-  const rawSubLines =
-    Array.isArray(
-      item.subLines
-    )
-      ? item.subLines
-          .map(
-            line => {
-              return normalizeText(
-                line
-              )
-                .replace(
-                  /^[-–—•]\s*/,
-                  ""
-                );
-            }
-          )
-          .filter(
-            Boolean
-          )
-      : [];
-
-
   /* =====================================================
     상단 메타정보
+
+    운탄 업무:
+    - 파일 기준 날짜
+    - 업무
+    - 시간 표시하지 않음
+
+    TM 사항:
+    - D/S 또는 N/S
+    - 보직
+    - 시간
+    - TM·BM·CM 발행
   ====================================================== */
 
   const metaValues =
@@ -161953,39 +162603,29 @@ function buildCheckboxHtml(
   if (
     isWork
   ) {
-    const previewDate =
-      formatMorningMeetingCoalPreviewDate(
+    /*
+      운탄 업무는 시간이 없는 자료이므로
+      item.time은 사용하지 않는다.
+    */
+
+    metaValues.push(
+      normalizeText(
         item.workDate
-      );
-
-
-    const workTime =
-      extractMorningMeetingCoalWorkTime(
-        [
-          item.time,
-          rawMainText,
-          ...rawSubLines
-        ]
-          .filter(
-            Boolean
-          )
-          .join(
-            " "
-          )
-      );
+      ) ||
+      "날짜 미확인"
+    );
 
 
     metaValues.push(
-      previewDate ||
-        "날짜 미확인",
-
-      workTime ||
-        "시간 미기재",
-
       "업무"
     );
 
   } else {
+
+    /*
+      TM 발행사항은 기존 시간 표시 유지
+    */
+
     if (
       item.shift
     ) {
@@ -162030,7 +162670,7 @@ function buildCheckboxHtml(
 
 
   /* =====================================================
-    번호
+    번호와 본문
   ====================================================== */
 
   const rawNumber =
@@ -162048,41 +162688,37 @@ function buildCheckboxHtml(
       : "";
 
 
-  /*
-    운탄 업무의 날짜·시간은
-    미리보기 상단에 표시하므로
-    본문에서는 중복 표기를 제거한다.
-
-    item 원본은 수정하지 않는다.
-  */
-
   const mainText =
-    isWork
-      ? removeMorningMeetingCoalDateTime(
-          rawMainText
-        )
-      : rawMainText;
+    normalizeText(
+      item.content ||
+      item.text
+    );
 
 
   const subLines =
-    rawSubLines
-      .map(
-        line => {
-          return isWork
-            ? removeMorningMeetingCoalDateTime(
+    Array.isArray(
+      item.subLines
+    )
+      ? item.subLines
+          .map(
+            line => {
+              return normalizeText(
                 line
               )
-            : line;
-        }
-      )
-      .filter(
-        Boolean
-      );
+                .replace(
+                  /^[-–—•]\s*/,
+                  ""
+                );
+            }
+          )
+          .filter(
+            Boolean
+          )
+      : [];
 
 
   const contentLines = [
-    `${numberPrefix}${mainText}`
-      .trim(),
+    `${numberPrefix}${mainText}`,
 
     ...subLines.map(
       line => {
@@ -179197,16 +179833,29 @@ document.addEventListener(
   "efficiencyMorningMeetingShiftLogsLoaded",
 
   event => {
+    /*
+      BO1·BO2 온도만 다시 조회한 이벤트는
+      교대파트 기준일을 변경하지 않는다.
+    */
+
+    if (
+      event?.detail?.temperatureOnly ===
+        true
+    ) {
+      return;
+    }
+
+
     const state =
       getState();
 
 
-    /* =================================================
-      주말 모드 확인
+/* =================================================
+  주말 모드 확인
 
-      주말 기간 조회 이벤트 자체에도
-      detail.weekend = true가 들어온다.
-    ================================================= */
+  주말 기간 조회 이벤트 자체에도
+  detail.weekend = true가 들어온다.
+================================================= */
 
     let isWeekendMode =
       event?.detail?.weekend ===
