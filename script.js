@@ -199237,150 +199237,99 @@ function render() {
   );
 }
 
-
 function normalizeResult(
   result,
-  meetingDate
+  expectedDate
 ) {
-  const targetTime =
-    `${meetingDate}T${FORECAST_HOUR}`;
+  const item =
+    result?.item &&
+    typeof result.item ===
+      "object"
+      ? result.item
+      : {};
 
-  const hourly =
-    result?.hourly;
-
-  const hourlyTimes =
-    Array.isArray(
-      hourly?.time
-    )
-      ? hourly.time
-      : [];
-
-  const hourlyIndex =
-    hourlyTimes.findIndex(
-      value =>
-        clean(
-          value
-        ) ===
-        targetTime
+  const sourceDate =
+    text(
+      result?.date ||
+      item.sourceDate ||
+      item.targetDate
     );
 
-  const temperature =
-    hourlyIndex >= 0
-      ? numberOrNull(
-          hourly
-            ?.temperature_2m
-            ?.[hourlyIndex]
-        )
-      : null;
-
-  const humidity =
-    hourlyIndex >= 0
-      ? numberOrNull(
-          hourly
-            ?.relative_humidity_2m
-            ?.[hourlyIndex]
-        )
-      : null;
-
-  const weatherCode =
-    hourlyIndex >= 0
-      ? numberOrNull(
-          hourly
-            ?.weather_code
-            ?.[hourlyIndex]
-        )
-      : null;
-
-
-  const daily =
-    result?.daily;
-
-  const dailyTimes =
-    Array.isArray(
-      daily?.time
-    )
-      ? daily.time
-      : [];
-
-  const dailyIndex =
-    dailyTimes.findIndex(
-      value =>
-        clean(
-          value
-        ) ===
-        meetingDate
+  const maximum =
+    numberOrNull(
+      result?.max ??
+      item.maximum
     );
 
-  const minimumTemperature =
-    dailyIndex >= 0
-      ? numberOrNull(
-          daily
-            ?.temperature_2m_min
-            ?.[dailyIndex]
-        )
-      : null;
+  const minimum =
+    numberOrNull(
+      result?.min ??
+      item.minimum
+    );
 
-  const maximumTemperature =
-    dailyIndex >= 0
-      ? numberOrNull(
-          daily
-            ?.temperature_2m_max
-            ?.[dailyIndex]
-        )
-      : null;
-
+  const weightedAverage =
+    numberOrNull(
+      result?.avg ??
+      item.weightedAverage
+    );
 
   if (
-    hourlyIndex < 0 ||
-    dailyIndex < 0 ||
-    temperature === null ||
-    humidity === null ||
-    weatherCode === null ||
-    minimumTemperature === null ||
-    maximumTemperature === null
+    result?.ok !==
+      true ||
+    sourceDate !==
+      expectedDate ||
+    maximum ===
+      null ||
+    minimum ===
+      null ||
+    weightedAverage ===
+      null
   ) {
     throw new Error(
-      `${meetingDate} 날씨 자료를 확인하지 못했습니다.`
+      result?.message ||
+      `${expectedDate} 육지 SMP 응답을 확인하지 못했습니다.`
     );
   }
 
-
   return {
-    sourceDate:
-      meetingDate,
+    sourceDate,
 
-    forecastTime:
-      targetTime,
+    targetDate:
+      sourceDate,
 
-    location:
-      "경기 포천시 신북면",
+    region:
+      "land",
 
-    latitude:
-      LATITUDE,
+    regionLabel:
+      "육지",
 
-    longitude:
-      LONGITUDE,
+    maximum,
+    minimum,
+    weightedAverage,
 
-    weatherCode,
-
-    condition:
-      getWeatherCondition(
-        weatherCode
-      ),
-
-    temperature,
-    minimumTemperature,
-    maximumTemperature,
-    humidity,
+    unit:
+      "원/kWh",
 
     source:
-      "Open-Meteo",
+      text(
+        item.source
+      ) ||
+      "한국전력거래소 EPSIS",
+
+    sourceUrl:
+      text(
+        item.sourceUrl
+      ),
 
     collectedAt:
+      text(
+        item.collectedAt
+      ) ||
       new Date()
         .toISOString()
   };
 }
+
 
 
   async function loadDate(
