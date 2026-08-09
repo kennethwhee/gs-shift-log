@@ -148710,6 +148710,740 @@ function applyMorningMeetingWeekendSupplementTables(
   };
 }
 
+/* =========================================================
+  오전회의 최종 엑셀 직접 입력 셀 바탕색
+========================================================= */
+
+async function applyMorningMeetingManualInputCellFills(
+  zip,
+  worksheetDocument,
+  options = {}
+) {
+  const stylesFile =
+    zip.file(
+      "xl/styles.xml"
+    );
+
+
+  if (
+    !stylesFile
+  ) {
+    throw new Error(
+      "기준 취합본에서 styles.xml을 찾지 못했습니다."
+    );
+  }
+
+
+  const stylesDocument =
+    parseMorningMeetingXml(
+      await stylesFile.async(
+        "string"
+      ),
+      "엑셀 셀 스타일"
+    );
+
+
+  const fillsElement =
+    stylesDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "fills"
+      )[0];
+
+
+  const cellXfsElement =
+    stylesDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "cellXfs"
+      )[0];
+
+
+  if (
+    !fillsElement ||
+    !cellXfsElement
+  ) {
+    throw new Error(
+      "기준 취합본의 채우기 또는 셀 스타일 정보를 찾지 못했습니다."
+    );
+  }
+
+
+  const directChildren = (
+    parent,
+    name
+  ) => {
+    return getMorningMeetingDirectXmlChildren(
+      parent,
+      name
+    );
+  };
+
+
+  const inputFillRgb =
+    "FFFFFFC0";
+
+
+  const fillElements =
+    directChildren(
+      fillsElement,
+      "fill"
+    );
+
+
+  let inputFillId =
+    fillElements.findIndex(
+      fillElement => {
+        const patternFill =
+          directChildren(
+            fillElement,
+            "patternFill"
+          )[0];
+
+
+        const foregroundColor =
+          patternFill
+            ? directChildren(
+                patternFill,
+                "fgColor"
+              )[0]
+            : null;
+
+
+        const rgb =
+          String(
+            foregroundColor
+              ?.getAttribute(
+                "rgb"
+              ) ||
+            ""
+          ).toUpperCase();
+
+
+        return (
+          patternFill
+            ?.getAttribute(
+              "patternType"
+            ) ===
+              "solid" &&
+          (
+            rgb ===
+              inputFillRgb ||
+            rgb ===
+              "FFFFC0"
+          )
+        );
+      }
+    );
+
+
+  if (
+    inputFillId <
+      0
+  ) {
+    const fillElement =
+      stylesDocument
+        .createElementNS(
+          MAIN_XML_NAMESPACE,
+          "fill"
+        );
+
+
+    const patternFill =
+      stylesDocument
+        .createElementNS(
+          MAIN_XML_NAMESPACE,
+          "patternFill"
+        );
+
+
+    const foregroundColor =
+      stylesDocument
+        .createElementNS(
+          MAIN_XML_NAMESPACE,
+          "fgColor"
+        );
+
+
+    const backgroundColor =
+      stylesDocument
+        .createElementNS(
+          MAIN_XML_NAMESPACE,
+          "bgColor"
+        );
+
+
+    patternFill.setAttribute(
+      "patternType",
+      "solid"
+    );
+
+
+    foregroundColor.setAttribute(
+      "rgb",
+      inputFillRgb
+    );
+
+
+    backgroundColor.setAttribute(
+      "indexed",
+      "64"
+    );
+
+
+    patternFill.appendChild(
+      foregroundColor
+    );
+
+
+    patternFill.appendChild(
+      backgroundColor
+    );
+
+
+    fillElement.appendChild(
+      patternFill
+    );
+
+
+    fillsElement.appendChild(
+      fillElement
+    );
+
+
+    inputFillId =
+      fillElements.length;
+  }
+
+
+  fillsElement.setAttribute(
+    "count",
+    String(
+      directChildren(
+        fillsElement,
+        "fill"
+      ).length
+    )
+  );
+
+
+  const getColumnName =
+    columnNumber => {
+      let number =
+        Number(
+          columnNumber
+        );
+
+
+      let result =
+        "";
+
+
+      while (
+        number >
+          0
+      ) {
+        const remainder =
+          (
+            number -
+            1
+          ) %
+          26;
+
+
+        result =
+          String.fromCharCode(
+            65 +
+            remainder
+          ) +
+          result;
+
+
+        number =
+          Math.floor(
+            (
+              number -
+              1
+            ) /
+            26
+          );
+      }
+
+
+      return result;
+    };
+
+
+  const parseRange =
+    rangeReference => {
+      const match =
+        String(
+          rangeReference ||
+          ""
+        )
+          .replaceAll(
+            " ",
+            ""
+          )
+          .toUpperCase()
+          .match(
+            /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/
+          );
+
+
+      if (
+        !match
+      ) {
+        throw new Error(
+          `직접 입력 셀 범위 ${rangeReference}을 확인해 주세요.`
+        );
+      }
+
+
+      return {
+        startColumn:
+          getMorningMeetingColumnNumber(
+            match[1]
+          ),
+
+        startRow:
+          Number(
+            match[2]
+          ),
+
+        endColumn:
+          getMorningMeetingColumnNumber(
+            match[3] ||
+            match[1]
+          ),
+
+        endRow:
+          Number(
+            match[4] ||
+            match[2]
+          )
+      };
+    };
+
+
+  /*
+    기존 글꼴·테두리·정렬·숫자 형식은 유지하고
+    Fill 속성만 바꾼 새 스타일을 만든다.
+  */
+
+  const styleIndexCache =
+    new Map();
+
+
+  const getStyleIndexWithFill = (
+    baseStyleIndex,
+    fillId
+  ) => {
+    const normalizedBaseStyleIndex =
+      Number.isInteger(
+        baseStyleIndex
+      ) &&
+      baseStyleIndex >=
+        0
+        ? baseStyleIndex
+        : 0;
+
+
+    const cacheKey =
+      `${normalizedBaseStyleIndex}:${fillId}`;
+
+
+    if (
+      styleIndexCache.has(
+        cacheKey
+      )
+    ) {
+      return styleIndexCache.get(
+        cacheKey
+      );
+    }
+
+
+    const styleElements =
+      directChildren(
+        cellXfsElement,
+        "xf"
+      );
+
+
+    const baseStyle =
+      styleElements[
+        normalizedBaseStyleIndex
+      ] ||
+      styleElements[0];
+
+
+    if (
+      !baseStyle
+    ) {
+      throw new Error(
+        "기준 취합본의 기본 셀 스타일을 찾지 못했습니다."
+      );
+    }
+
+
+    if (
+      Number(
+        baseStyle.getAttribute(
+          "fillId"
+        ) ||
+        0
+      ) ===
+        fillId
+    ) {
+      styleIndexCache.set(
+        cacheKey,
+        normalizedBaseStyleIndex
+      );
+
+
+      return normalizedBaseStyleIndex;
+    }
+
+
+    const clonedStyle =
+      baseStyle.cloneNode(
+        true
+      );
+
+
+    clonedStyle.setAttribute(
+      "fillId",
+      String(
+        fillId
+      )
+    );
+
+
+    if (
+      fillId ===
+        0
+    ) {
+      clonedStyle.removeAttribute(
+        "applyFill"
+      );
+
+    } else {
+      clonedStyle.setAttribute(
+        "applyFill",
+        "1"
+      );
+    }
+
+
+    const newStyleIndex =
+      styleElements.length;
+
+
+    cellXfsElement.appendChild(
+      clonedStyle
+    );
+
+
+    styleIndexCache.set(
+      cacheKey,
+      newStyleIndex
+    );
+
+
+    return newStyleIndex;
+  };
+
+
+  let appliedCellCount =
+    0;
+
+
+  const applyFillToRange = (
+    rangeReference,
+    fillId
+  ) => {
+    const range =
+      parseRange(
+        rangeReference
+      );
+
+
+    for (
+      let rowNumber =
+        range.startRow;
+
+      rowNumber <=
+        range.endRow;
+
+      rowNumber +=
+        1
+    ) {
+      for (
+        let columnNumber =
+          range.startColumn;
+
+        columnNumber <=
+          range.endColumn;
+
+        columnNumber +=
+          1
+      ) {
+        const address =
+          `${getColumnName(
+            columnNumber
+          )}${rowNumber}`;
+
+
+        const cellElement =
+          findMorningMeetingWorksheetCellByAddress(
+            worksheetDocument,
+            address
+          );
+
+
+        if (
+          !cellElement
+        ) {
+          throw new Error(
+            `직접 입력 셀 ${address}을 찾지 못했습니다.`
+          );
+        }
+
+
+        const baseStyleIndex =
+          Number(
+            cellElement.getAttribute(
+              "s"
+            ) ||
+            0
+          );
+
+
+        const newStyleIndex =
+          getStyleIndexWithFill(
+            baseStyleIndex,
+            fillId
+          );
+
+
+        cellElement.setAttribute(
+          "s",
+          String(
+            newStyleIndex
+          )
+        );
+
+
+        appliedCellCount +=
+          1;
+      }
+    }
+  };
+
+
+  /*
+    평일·주말 공통 직접 입력 셀
+
+    I열 구간은 I7:K8까지만 노란색이다.
+    I9:K9, I10:K10은 포함하지 않는다.
+  */
+
+  const yellowRanges = [
+    "E7:F8",
+    "I7:K8",
+    "N7:T8",
+    "X7:Y9",
+    "Z7:AB8",
+    "AE7:AF9",
+    "AK7:AM9",
+
+    "AD11:AF11",
+    "AJ11:AL11",
+
+    "AE13:AG13",
+    "AH13:AH14",
+
+    "N14:Q14",
+    "X14",
+    "Z14:AA14",
+    "AC14",
+
+    "H18:L18",
+    "M18:U18",
+    "V18:Y18",
+
+    "AB21:AC22"
+  ];
+
+
+  const weekendSupplementResult =
+    options.weekendSupplementResult &&
+    typeof options.weekendSupplementResult ===
+      "object"
+      ? options.weekendSupplementResult
+      : {};
+
+
+  /*
+    주말 Bio 날짜별 값 입력칸
+
+    전력단가 칸은 추가하지 않는다.
+  */
+
+  if (
+    options.isWeekendMode ===
+      true
+  ) {
+    const holidayCount =
+      Number(
+        weekendSupplementResult
+          .holidayCount ||
+        0
+      );
+
+
+    if (
+      holidayCount <
+        1 ||
+      holidayCount >
+        4
+    ) {
+      throw new Error(
+        "주말 직접 입력 셀의 날짜 수를 확인하지 못했습니다."
+      );
+    }
+
+
+    /*
+      첨부한 기존 2일 주말 양식을 복원한 경우
+    */
+
+    if (
+      weekendSupplementResult
+        .restored ===
+        true &&
+      holidayCount ===
+        2
+    ) {
+      yellowRanges.push(
+        "AI26:AO29"
+      );
+
+    } else {
+      /*
+        자동 생성한 1~4일 주말표
+
+        표의 첫 3열:
+        #1 BLR / #2 BLR / Average / Total
+
+        그다음 열부터 날짜별 직접 입력칸이다.
+      */
+
+      const tableStartColumnNumber =
+        getMorningMeetingColumnNumber(
+          String(
+            weekendSupplementResult
+              .tableStartColumn ||
+            ""
+          )
+            .trim()
+            .toUpperCase()
+        );
+
+
+      if (
+        !tableStartColumnNumber
+      ) {
+        throw new Error(
+          "주말 Bio 보조표의 시작 열을 확인하지 못했습니다."
+        );
+      }
+
+
+      const firstInputColumn =
+        getColumnName(
+          tableStartColumnNumber +
+          3
+        );
+
+
+      yellowRanges.push(
+        `${firstInputColumn}26:AO29`
+      );
+    }
+  }
+
+
+  yellowRanges.forEach(
+    rangeReference => {
+      applyFillToRange(
+        rangeReference,
+        inputFillId
+      );
+    }
+  );
+
+
+  /*
+    명시적 예외
+
+    어떤 기준 엑셀을 올려도
+    I9:K9, I10:K10은 바탕색 없음으로 확정한다.
+  */
+
+  const noFillRanges = [
+    "I9:K9",
+    "I10:K10"
+  ];
+
+
+  noFillRanges.forEach(
+    rangeReference => {
+      applyFillToRange(
+        rangeReference,
+        0
+      );
+    }
+  );
+
+
+  cellXfsElement.setAttribute(
+    "count",
+    String(
+      directChildren(
+        cellXfsElement,
+        "xf"
+      ).length
+    )
+  );
+
+
+  zip.file(
+    "xl/styles.xml",
+
+    new XMLSerializer()
+      .serializeToString(
+        stylesDocument
+      )
+  );
+
+
+  return {
+    applied:
+      true,
+
+    color:
+      "#FFFFC0",
+
+    appliedCellCount,
+
+    yellowRanges,
+
+    noFillRanges
+  };
+}
+
 /* =====================================================
   최종 엑셀 생성
 
@@ -149734,6 +150468,37 @@ if (
     weekendSupplementResult
   );
 }
+
+/* ===================================================
+  직접 입력 셀 연한 노란색 표시
+
+  평일:
+  - 상단 직접 입력 셀만 표시
+
+  주말:
+  - 상단 직접 입력 셀
+  - Bio 날짜별 입력칸 표시
+
+  전력단가 및 I9:K10:
+  - 바탕색 없음
+==================================================== */
+
+const manualInputFillResult =
+  await applyMorningMeetingManualInputCellFills(
+    zip,
+    worksheetDocument,
+    {
+      isWeekendMode,
+
+      weekendSupplementResult
+    }
+  );
+
+
+console.log(
+  "오전회의 직접 입력 셀 표시 완료:",
+  manualInputFillResult
+);
 
 /* ===================================================
   수정된 워크시트 저장
@@ -197182,43 +197947,24 @@ function render() {
 (function initializeEfficiencyMorningMeetingSmpPrice() {
   "use strict";
 
-  if (
-    window.__efficiencyMorningMeetingSmpPriceInstalled ===
-    true
-  ) {
-    return;
-  }
+  if (window.__efficiencyMorningMeetingSmpPriceInstalled === true) return;
+  window.__efficiencyMorningMeetingSmpPriceInstalled = true;
 
-  window.__efficiencyMorningMeetingSmpPriceInstalled =
-    true;
+  const API_URL = "/api/smp-price";
+  const DATE_ATTRIBUTE = "data-morning-meeting-auto-base-date";
+  const LAYOUT_VERSION = "dual-date-v1";
 
-  const API_URL =
-    "/api/smp-price";
+  let dateObserver = null;
+  let initializationAttempt = 0;
+  let scheduledLoadTimer = null;
+  let requestSequence = 0;
+  let activeControllers = [];
 
-  const DATE_ATTRIBUTE =
-    "data-morning-meeting-auto-base-date";
+  const byId = id =>
+    document.getElementById(id);
 
-  let activeController =
-    null;
-
-  let requestSequence =
-    0;
-
-  let dateObserver =
-    null;
-
-  let initializationAttempt =
-    0;
-
-
-  function text(
-    value
-  ) {
-    return String(
-      value ??
-      ""
-    ).trim();
-  }
+  const text = value =>
+    String(value ?? "").trim();
 
 
   function getState() {
@@ -197231,8 +197977,27 @@ function render() {
         {};
     }
 
-    return window
-      .efficiencyMorningMeetingUploadState;
+    const state =
+      window.efficiencyMorningMeetingUploadState;
+
+    [
+      "smpPriceByDate",
+      "smpPriceStatusByDate",
+      "smpPriceErrorByDate"
+    ].forEach(
+      key => {
+        if (
+          !state[key] ||
+          typeof state[key] !==
+            "object"
+        ) {
+          state[key] =
+            {};
+        }
+      }
+    );
+
+    return state;
   }
 
 
@@ -197240,9 +198005,7 @@ function render() {
     value
   ) {
     const dateText =
-      text(
-        value
-      );
+      text(value);
 
     if (
       !/^\d{4}-\d{2}-\d{2}$/.test(
@@ -197273,6 +198036,62 @@ function render() {
   }
 
 
+  function addDays(
+    value,
+    dayCount
+  ) {
+    if (
+      !isIsoDate(
+        value
+      )
+    ) {
+      return "";
+    }
+
+    const parsedDate =
+      new Date(
+        `${value}T00:00:00.000Z`
+      );
+
+    parsedDate.setUTCDate(
+      parsedDate.getUTCDate() +
+      dayCount
+    );
+
+    return parsedDate
+      .toISOString()
+      .slice(
+        0,
+        10
+      );
+  }
+
+
+  function shortDate(
+    value
+  ) {
+    if (
+      !isIsoDate(
+        value
+      )
+    ) {
+      return "-";
+    }
+
+    const [
+      ,
+      month,
+      day
+    ] =
+      value.split("-");
+
+    return (
+      `${Number(month)}/` +
+      `${Number(day)}`
+    );
+  }
+
+
   function numberOrNull(
     value
   ) {
@@ -197281,9 +198100,7 @@ function render() {
         null ||
       value ===
         undefined ||
-      text(
-        value
-      ) ===
+      text(value) ===
         ""
     ) {
       return null;
@@ -197291,9 +198108,7 @@ function render() {
 
     const numericValue =
       Number(
-        text(
-          value
-        ).replace(
+        text(value).replace(
           /,/g,
           ""
         )
@@ -197308,16 +198123,16 @@ function render() {
 
 
   /*
-    SMP 조회일 =
-    상단 자료 기준일 그대로 사용
+    자료 기준일:
+    전날 업무자료 날짜
 
-    Gear/Pinion처럼
-    하루를 더하지 않는다.
+    회의일:
+    자료 기준일 + 1일
   */
 
   function getBaseDate() {
     const panel =
-      document.getElementById(
+      byId(
         "efficiencyMorningMeetingWaterPanel"
       );
 
@@ -197325,31 +198140,43 @@ function render() {
       panel?.dataset
         .morningMeetingAutoBaseDate,
 
-      document.getElementById(
+      byId(
         "efficiencyMorningMeetingAutoDatePicker"
       )?.value,
 
-      document.getElementById(
+      byId(
         "efficiencyMorningMeetingAutoWaterDate"
       )?.textContent
     ];
 
     return (
       candidates
-        .map(
-          text
-        )
-        .find(
-          isIsoDate
-        ) ||
+        .map(text)
+        .find(isIsoDate) ||
       ""
     );
   }
 
 
+  function getTargetDates() {
+    const previousDate =
+      getBaseDate();
+
+    return {
+      previousDate,
+
+      meetingDate:
+        addDays(
+          previousDate,
+          1
+        )
+    };
+  }
+
+
   function ensureCard() {
     const bottomGrid =
-      document.getElementById(
+      byId(
         "efficiencyMorningMeetingAutoBottomGrid"
       );
 
@@ -197360,9 +198187,20 @@ function render() {
     }
 
     let card =
-      document.getElementById(
+      byId(
         "efficiencyMorningMeetingAutoSmpCard"
       );
+
+    if (
+      card &&
+      card.dataset
+        .smpLayoutVersion !==
+        LAYOUT_VERSION
+    ) {
+      card.remove();
+      card =
+        null;
+    }
 
     if (
       card
@@ -197381,49 +198219,157 @@ function render() {
     card.className =
       "efficiency-morning-meeting-auto-card is-smp-price";
 
+    card.dataset.smpLayoutVersion =
+      LAYOUT_VERSION;
+
     card.innerHTML = `
       <header class="efficiency-morning-meeting-auto-card__header">
         <div>
-          <span>POWER MARKET</span>
-          <strong>SMP 단가</strong>
+          <span>
+            POWER MARKET
+          </span>
+
+          <strong>
+            SMP 단가
+            <small>
+              (원/kWh)
+            </small>
+          </strong>
         </div>
 
         <div class="efficiency-morning-meeting-auto-card__meta">
-          <small id="efficiencyMorningMeetingAutoSmpDate">
+          <small id="efficiencyMorningMeetingAutoSmpDates">
             -
           </small>
 
-          <span
+          <button
+            type="button"
             class="efficiency-morning-meeting-auto-card__badge"
-            id="efficiencyMorningMeetingAutoSmpStatus"
-            title="클릭하여 SMP 단가 다시 조회"
+            id="efficiencyMorningMeetingAutoSmpRefreshButton"
+            title="전날과 회의일 SMP를 EPSIS에서 다시 조회"
+            style="
+              appearance: none;
+              -webkit-appearance: none;
+              cursor: pointer;
+              font: inherit;
+            "
           >
-            조회 대기
-          </span>
+            다시 조회
+          </button>
         </div>
       </header>
 
       <div class="efficiency-morning-meeting-auto-card__body">
-        <div class="efficiency-morning-meeting-auto-row">
-          <span>최대</span>
+        <div
+          class="efficiency-morning-meeting-auto-row"
+          style="
+            display: grid;
+            grid-template-columns:
+              64px
+              minmax(0, 1fr)
+              minmax(0, 1fr);
+            gap: 8px;
+          "
+        >
+          <span>
+            최대
+          </span>
 
-          <strong id="efficiencyMorningMeetingAutoSmpMaximum">
+          <strong
+            id="efficiencyMorningMeetingAutoSmpPreviousMaximum"
+            style="
+              text-align: right;
+              white-space: nowrap;
+            "
+          >
+            -
+          </strong>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSmpMeetingMaximum"
+            style="
+              text-align: right;
+              white-space: nowrap;
+              padding-left: 8px;
+              border-left: 1px solid #dbe5f3;
+            "
+          >
             -
           </strong>
         </div>
 
-        <div class="efficiency-morning-meeting-auto-row">
-          <span>최소</span>
+        <div
+          class="efficiency-morning-meeting-auto-row"
+          style="
+            display: grid;
+            grid-template-columns:
+              64px
+              minmax(0, 1fr)
+              minmax(0, 1fr);
+            gap: 8px;
+          "
+        >
+          <span>
+            최소
+          </span>
 
-          <strong id="efficiencyMorningMeetingAutoSmpMinimum">
+          <strong
+            id="efficiencyMorningMeetingAutoSmpPreviousMinimum"
+            style="
+              text-align: right;
+              white-space: nowrap;
+            "
+          >
+            -
+          </strong>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSmpMeetingMinimum"
+            style="
+              text-align: right;
+              white-space: nowrap;
+              padding-left: 8px;
+              border-left: 1px solid #dbe5f3;
+            "
+          >
             -
           </strong>
         </div>
 
-        <div class="efficiency-morning-meeting-auto-row is-emphasis">
-          <span>가중평균</span>
+        <div
+          class="efficiency-morning-meeting-auto-row is-emphasis"
+          style="
+            display: grid;
+            grid-template-columns:
+              64px
+              minmax(0, 1fr)
+              minmax(0, 1fr);
+            gap: 8px;
+          "
+        >
+          <span>
+            가중평균
+          </span>
 
-          <strong id="efficiencyMorningMeetingAutoSmpAverage">
+          <strong
+            id="efficiencyMorningMeetingAutoSmpPreviousAverage"
+            style="
+              text-align: right;
+              white-space: nowrap;
+            "
+          >
+            -
+          </strong>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSmpMeetingAverage"
+            style="
+              text-align: right;
+              white-space: nowrap;
+              padding-left: 8px;
+              border-left: 1px solid #cbd8ee;
+            "
+          >
             -
           </strong>
         </div>
@@ -197438,84 +198384,29 @@ function render() {
   }
 
 
-  function getElements() {
-    return {
-      card:
-        ensureCard(),
-
-      date:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSmpDate"
-        ),
-
-      status:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSmpStatus"
-        ),
-
+  const CELL_MAP = {
+    previous: {
       maximum:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSmpMaximum"
-        ),
+        "efficiencyMorningMeetingAutoSmpPreviousMaximum",
 
       minimum:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSmpMinimum"
-        ),
+        "efficiencyMorningMeetingAutoSmpPreviousMinimum",
 
-      average:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSmpAverage"
-        )
-    };
-  }
+      weightedAverage:
+        "efficiencyMorningMeetingAutoSmpPreviousAverage"
+    },
 
+    meeting: {
+      maximum:
+        "efficiencyMorningMeetingAutoSmpMeetingMaximum",
 
-  function setBadge(
-    element,
-    status,
-    label
-  ) {
-    if (
-      !element
-    ) {
-      return;
+      minimum:
+        "efficiencyMorningMeetingAutoSmpMeetingMinimum",
+
+      weightedAverage:
+        "efficiencyMorningMeetingAutoSmpMeetingAverage"
     }
-
-    element.classList.remove(
-      "is-loading",
-      "is-complete",
-      "is-error"
-    );
-
-    if (
-      status ===
-      "loading"
-    ) {
-      element.classList.add(
-        "is-loading"
-      );
-
-    } else if (
-      status ===
-      "complete"
-    ) {
-      element.classList.add(
-        "is-complete"
-      );
-
-    } else if (
-      status ===
-      "error"
-    ) {
-      element.classList.add(
-        "is-error"
-      );
-    }
-
-    element.textContent =
-      label;
-  }
+  };
 
 
   function formatPrice(
@@ -197533,140 +198424,352 @@ function render() {
       return "-";
     }
 
-    return (
-      numericValue.toLocaleString(
-        "ko-KR",
-        {
-          minimumFractionDigits:
-            2,
+    return numericValue.toLocaleString(
+      "ko-KR",
+      {
+        minimumFractionDigits:
+          2,
 
-          maximumFractionDigits:
-            2
-        }
-      ) +
-      " 원/kWh"
+        maximumFractionDigits:
+          2
+      }
     );
   }
 
 
-  function render() {
-    const elements =
-      getElements();
+  function getDateResult(
+    targetDate
+  ) {
+    const state =
+      getState();
 
+    return {
+      item:
+        state.smpPriceByDate[
+          targetDate
+        ] ||
+        null,
+
+      status:
+        text(
+          state.smpPriceStatusByDate[
+            targetDate
+          ]
+        ) ||
+        "idle",
+
+      error:
+        text(
+          state.smpPriceErrorByDate[
+            targetDate
+          ]
+        )
+    };
+  }
+
+
+  function renderCell(
+    element,
+    targetDate,
+    fieldName
+  ) {
     if (
-      !elements.card
+      !element
     ) {
       return;
     }
 
+    const {
+      item,
+      status,
+      error
+    } =
+      getDateResult(
+        targetDate
+      );
+
+    const numericValue =
+      numberOrNull(
+        item?.[
+          fieldName
+        ]
+      );
+
+    element.style.color =
+      "";
+
+    if (
+      numericValue !==
+      null
+    ) {
+      element.textContent =
+        formatPrice(
+          numericValue
+        );
+
+      element.title =
+        `${targetDate} ` +
+        `${formatPrice(numericValue)} 원/kWh`;
+
+      return;
+    }
+
+    if (
+      status ===
+      "loading"
+    ) {
+      element.textContent =
+        "조회 중";
+
+      element.style.color =
+        "#64748b";
+
+      element.title =
+        `${targetDate} SMP 조회 중`;
+
+      return;
+    }
+
+    if (
+      status ===
+      "unavailable"
+    ) {
+      element.textContent =
+        "조회 안됨";
+
+      element.style.color =
+        "#7c8799";
+
+      element.title =
+        error ||
+        `${targetDate} SMP 자료가 아직 없습니다.`;
+
+      return;
+    }
+
+    if (
+      status ===
+      "error"
+    ) {
+      element.textContent =
+        "조회 실패";
+
+      element.style.color =
+        "#b45309";
+
+      element.title =
+        error ||
+        `${targetDate} SMP 조회 실패`;
+
+      return;
+    }
+
+    element.textContent =
+      "조회 대기";
+
+    element.style.color =
+      "#7c8799";
+
+    element.title =
+      `${targetDate} SMP 조회 대기`;
+  }
+
+
+  /*
+    전날 자료는 미리보기용이다.
+
+    실제 엑셀 반영 대상으로 사용할
+    기존 state.smpPrice에는
+    반드시 회의일 값을 저장한다.
+
+    회의일 자료가 없으면 null로 유지하여
+    전날 값이 잘못 들어가지 않게 한다.
+  */
+
+  function syncMeetingDateState(
+    previousDate,
+    meetingDate
+  ) {
     const state =
       getState();
 
-    const targetDate =
-      getBaseDate();
-
-    const resultDate =
+    const meetingStatus =
       text(
-        state.smpPrice
-          ?.sourceDate ||
-        state.smpPrice
-          ?.targetDate
+        state.smpPriceStatusByDate[
+          meetingDate
+        ]
       );
 
-    const item =
-      resultDate ===
-      targetDate
-        ? state.smpPrice
-        : null;
-
-    const loading =
+    const meetingError =
       text(
-        state.smpPriceLoadingDate
-      ) ===
-      targetDate;
+        state.smpPriceErrorByDate[
+          meetingDate
+        ]
+      );
 
-    const errorMessage =
-      text(
-        state.smpPriceErrorDate
-      ) ===
-      targetDate
-        ? text(
-            state.smpPriceError
-          )
+    state.smpPricePreviousDate =
+      previousDate;
+
+    state.smpPricePrevious =
+      state.smpPriceByDate[
+        previousDate
+      ] ||
+      null;
+
+    state.smpPriceMeetingDate =
+      meetingDate;
+
+    state.smpPriceMeeting =
+      state.smpPriceByDate[
+        meetingDate
+      ] ||
+      null;
+
+    state.smpPrice =
+      state.smpPriceMeeting;
+
+    state.smpPriceLoadingDate =
+      meetingStatus ===
+      "loading"
+        ? meetingDate
         : "";
 
-    elements.date.textContent =
-      targetDate
-        ? `${targetDate} · 육지`
-        : "-";
+    state.smpPriceError =
+      meetingError;
 
-    elements.maximum.textContent =
-      item
-        ? formatPrice(
-            item.maximum
-          )
-        : "-";
+    state.smpPriceErrorDate =
+      meetingError
+        ? meetingDate
+        : "";
+  }
 
-    elements.minimum.textContent =
-      item
-        ? formatPrice(
-            item.minimum
-          )
-        : "-";
 
-    elements.average.textContent =
-      item
-        ? formatPrice(
-            item.weightedAverage
-          )
-        : "-";
+  function render() {
+    const card =
+      ensureCard();
 
     if (
-      loading
+      !card
     ) {
-      setBadge(
-        elements.status,
-        "loading",
-        "조회 중"
+      return;
+    }
+
+    const {
+      previousDate,
+      meetingDate
+    } =
+      getTargetDates();
+
+    if (
+      !isIsoDate(
+        previousDate
+      ) ||
+      !isIsoDate(
+        meetingDate
+      )
+    ) {
+      return;
+    }
+
+    byId(
+      "efficiencyMorningMeetingAutoSmpDates"
+    ).textContent =
+      `전날 ${shortDate(previousDate)} · ` +
+      `회의일 ${shortDate(meetingDate)}`;
+
+    Object.entries(
+      CELL_MAP.previous
+    ).forEach(
+      ([
+        fieldName,
+        id
+      ]) => {
+        renderCell(
+          byId(id),
+          previousDate,
+          fieldName
+        );
+      }
+    );
+
+    Object.entries(
+      CELL_MAP.meeting
+    ).forEach(
+      ([
+        fieldName,
+        id
+      ]) => {
+        renderCell(
+          byId(id),
+          meetingDate,
+          fieldName
+        );
+      }
+    );
+
+    const previousResult =
+      getDateResult(
+        previousDate
       );
 
-      elements.card.title =
-        `${targetDate} 육지 SMP 조회 중`;
+    const meetingResult =
+      getDateResult(
+        meetingDate
+      );
+
+    const isLoading =
+      previousResult.status ===
+        "loading" ||
+      meetingResult.status ===
+        "loading";
+
+    const refreshButton =
+      byId(
+        "efficiencyMorningMeetingAutoSmpRefreshButton"
+      );
+
+    refreshButton.disabled =
+      isLoading;
+
+    refreshButton.textContent =
+      isLoading
+        ? "조회 중"
+        : "다시 조회";
+
+    refreshButton.style.cursor =
+      isLoading
+        ? "wait"
+        : "pointer";
+
+    refreshButton.style.opacity =
+      isLoading
+        ? "0.7"
+        : "1";
+
+    if (
+      meetingResult.status ===
+      "unavailable"
+    ) {
+      card.title =
+        `${meetingDate} 회의일 SMP 자료가 아직 없습니다.`;
 
     } else if (
-      item
+      meetingResult.status ===
+      "error"
     ) {
-      setBadge(
-        elements.status,
-        "complete",
-        "조회 완료"
-      );
-
-      elements.card.title =
-        `${targetDate} 한국전력거래소 EPSIS 육지 SMP`;
-
-    } else if (
-      errorMessage
-    ) {
-      setBadge(
-        elements.status,
-        "error",
-        "조회 실패"
-      );
-
-      elements.card.title =
-        errorMessage;
+      card.title =
+        meetingResult.error;
 
     } else {
-      setBadge(
-        elements.status,
-        "idle",
-        "조회 대기"
-      );
-
-      elements.card.title =
-        "한국전력거래소 EPSIS 육지 SMP";
+      card.title =
+        `${previousDate} 전날 / ` +
+        `${meetingDate} 회의일 육지 SMP`;
     }
+
+    syncMeetingDateState(
+      previousDate,
+      meetingDate
+    );
   }
 
 
@@ -197709,16 +198812,12 @@ function render() {
     if (
       result?.ok !==
         true ||
-
       sourceDate !==
         expectedDate ||
-
       maximum ===
         null ||
-
       minimum ===
         null ||
-
       weightedAverage ===
         null
     ) {
@@ -197768,113 +198867,55 @@ function render() {
   }
 
 
-  async function load(
-    options = {}
+  async function loadDate(
+    targetDate,
+    forceRefresh,
+    sequence
   ) {
-    const forceRefresh =
-      options.forceRefresh ===
-      true;
-
-    const targetDate =
-      isIsoDate(
-        options.date
-      )
-        ? text(
-            options.date
-          )
-        : getBaseDate();
-
-    if (
-      !isIsoDate(
-        targetDate
-      )
-    ) {
-      render();
-
-      return null;
-    }
-
     const state =
       getState();
-
-    if (
-      !state.smpPriceByDate ||
-      typeof state.smpPriceByDate !==
-        "object"
-    ) {
-      state.smpPriceByDate =
-        {};
-    }
 
     const cachedItem =
       state.smpPriceByDate[
         targetDate
-      ];
+      ] ||
+      null;
 
     if (
       !forceRefresh &&
       cachedItem
     ) {
-      state.smpPrice =
-        cachedItem;
+      state.smpPriceStatusByDate[
+        targetDate
+      ] =
+        "complete";
 
-      state.smpPriceLoadingDate =
+      state.smpPriceErrorByDate[
+        targetDate
+      ] =
         "";
-
-      state.smpPriceError =
-        "";
-
-      state.smpPriceErrorDate =
-        "";
-
-      render();
 
       return cachedItem;
     }
 
-    if (
-      !forceRefresh &&
-
-      text(
-        state.smpPriceLoadingDate
-      ) ===
-        targetDate
-    ) {
-      return null;
-    }
-
-    activeController
-      ?.abort();
-
-    activeController =
-      new AbortController();
-
-    const currentSequence =
-      ++requestSequence;
-
-    state.smpPriceLoadingDate =
-      targetDate;
-
-    state.smpPriceError =
-      "";
-
-    state.smpPriceErrorDate =
-      "";
-
-    if (
-      text(
-        state.smpPrice
-          ?.sourceDate ||
-        state.smpPrice
-          ?.targetDate
-      ) !==
+    state.smpPriceStatusByDate[
       targetDate
-    ) {
-      state.smpPrice =
-        null;
-    }
+    ] =
+      "loading";
+
+    state.smpPriceErrorByDate[
+      targetDate
+    ] =
+      "";
 
     render();
+
+    const controller =
+      new AbortController();
+
+    activeControllers.push(
+      controller
+    );
 
     try {
       const requestUrl =
@@ -197904,20 +198945,56 @@ function render() {
               "no-store",
 
             signal:
-              activeController.signal
+              controller.signal
           }
         );
 
-      let result;
+      let result =
+        null;
 
       try {
         result =
           await response.json();
 
       } catch {
-        throw new Error(
-          "SMP 서버 응답 형식이 올바르지 않습니다."
-        );
+        result =
+          null;
+      }
+
+      if (
+        sequence !==
+        requestSequence
+      ) {
+        return null;
+      }
+
+      /*
+        해당 날짜 자료가 아직 없는 경우
+
+        서버의 404 응답은 오류가 아니라
+        조회 안됨 상태로 표시한다.
+      */
+
+      if (
+        response.status ===
+        404
+      ) {
+        state.smpPriceStatusByDate[
+          targetDate
+        ] =
+          cachedItem
+            ? "complete"
+            : "unavailable";
+
+        state.smpPriceErrorByDate[
+          targetDate
+        ] =
+          text(
+            result?.message
+          ) ||
+          `${targetDate} 육지 SMP 자료가 아직 없습니다.`;
+
+        return cachedItem;
       }
 
       if (
@@ -197940,22 +199017,15 @@ function render() {
       ] =
         normalizedItem;
 
-      if (
-        currentSequence ===
-          requestSequence &&
+      state.smpPriceStatusByDate[
+        targetDate
+      ] =
+        "complete";
 
-        getBaseDate() ===
-          targetDate
-      ) {
-        state.smpPrice =
-          normalizedItem;
-
-        state.smpPriceError =
-          "";
-
-        state.smpPriceErrorDate =
-          "";
-      }
+      state.smpPriceErrorByDate[
+        targetDate
+      ] =
+        "";
 
       document.dispatchEvent(
         new CustomEvent(
@@ -197974,78 +199044,169 @@ function render() {
     ) {
       if (
         error?.name ===
-        "AbortError"
+          "AbortError" ||
+        sequence !==
+          requestSequence
       ) {
         return null;
       }
 
-      const errorMessage =
+      state.smpPriceStatusByDate[
+        targetDate
+      ] =
+        cachedItem
+          ? "complete"
+          : "error";
+
+      state.smpPriceErrorByDate[
+        targetDate
+      ] =
         error instanceof
         Error
           ? error.message
           : "SMP 단가를 불러오지 못했습니다.";
 
-      if (
-        currentSequence ===
-          requestSequence &&
-
-        getBaseDate() ===
-          targetDate
-      ) {
-        state.smpPrice =
-          null;
-
-        state.smpPriceError =
-          errorMessage;
-
-        state.smpPriceErrorDate =
-          targetDate;
-      }
-
       console.error(
-        "오전회의 SMP 단가 조회 실패:",
+        `오전회의 ${targetDate} SMP 조회 실패:`,
         error
       );
 
-      return null;
+      return cachedItem;
 
     } finally {
+      activeControllers =
+        activeControllers.filter(
+          item =>
+            item !==
+            controller
+        );
+
       if (
-        currentSequence ===
+        sequence ===
         requestSequence
       ) {
-        state.smpPriceLoadingDate =
-          "";
-
-        activeController =
-          null;
+        render();
       }
-
-      render();
     }
+  }
+
+
+  async function load(
+    options = {}
+  ) {
+    const forceRefresh =
+      options.forceRefresh ===
+      true;
+
+    const {
+      previousDate,
+      meetingDate
+    } =
+      getTargetDates();
+
+    if (
+      !isIsoDate(
+        previousDate
+      ) ||
+      !isIsoDate(
+        meetingDate
+      )
+    ) {
+      render();
+      return null;
+    }
+
+    /*
+      날짜를 이동하거나 다시 조회하면
+      기존 진행 중 요청을 중단한다.
+    */
+
+    activeControllers.forEach(
+      controller =>
+        controller.abort()
+    );
+
+    activeControllers =
+      [];
+
+    const sequence =
+      ++requestSequence;
+
+    const [
+      previousItem,
+      meetingItem
+    ] =
+      await Promise.all(
+        [
+          loadDate(
+            previousDate,
+            forceRefresh,
+            sequence
+          ),
+
+          loadDate(
+            meetingDate,
+            forceRefresh,
+            sequence
+          )
+        ]
+      );
+
+    if (
+      sequence !==
+      requestSequence
+    ) {
+      return null;
+    }
+
+    render();
+
+    const pair = {
+      previousDate,
+      meetingDate,
+      previousItem,
+      meetingItem
+    };
+
+    document.dispatchEvent(
+      new CustomEvent(
+        "efficiencyMorningMeetingSmpPricePairLoaded",
+        {
+          detail:
+            pair
+        }
+      )
+    );
+
+    return pair;
   }
 
 
   function scheduleLoad(
     forceRefresh = false
   ) {
-    window.setTimeout(
-      () => {
-        ensureCard();
-        render();
-
-        load({
-          forceRefresh
-        });
-      },
-      0
+    window.clearTimeout(
+      scheduledLoadTimer
     );
+
+    scheduledLoadTimer =
+      window.setTimeout(
+        () => {
+          ensureCard();
+          render();
+
+          load({
+            forceRefresh
+          });
+        },
+        0
+      );
   }
 
 
   function observeBaseDate() {
     const panel =
-      document.getElementById(
+      byId(
         "efficiencyMorningMeetingWaterPanel"
       );
 
@@ -198061,7 +199222,7 @@ function render() {
     dateObserver =
       new MutationObserver(
         mutations => {
-          if (
+          const dateChanged =
             mutations.some(
               mutation => {
                 return (
@@ -198072,7 +199233,10 @@ function render() {
                     DATE_ATTRIBUTE
                 );
               }
-            )
+            );
+
+          if (
+            dateChanged
           ) {
             scheduleLoad(
               false
@@ -198123,12 +199287,19 @@ function render() {
 
         if (
           target?.closest(
-            "#efficiencyMorningMeetingAutoSmpStatus"
+            "#efficiencyMorningMeetingAutoSmpRefreshButton"
           )
         ) {
+          /*
+            캐시된 화면값을 쓰지 않고
+            두 날짜를 EPSIS에서 다시 조회
+          */
+
           scheduleLoad(
             true
           );
+
+          return;
         }
 
         if (
@@ -198159,6 +199330,12 @@ function render() {
   }
 
 
+  /*
+    기본 반환값은 회의일 SMP다.
+
+    날짜를 직접 넣으면 해당 날짜 자료를 반환한다.
+  */
+
   window.loadEfficiencyMorningMeetingSmpPrice =
     load;
 
@@ -198167,6 +199344,11 @@ function render() {
 
   window.getEfficiencyMorningMeetingSmpPrice =
     dateValue => {
+      const {
+        meetingDate
+      } =
+        getTargetDates();
+
       const targetDate =
         isIsoDate(
           dateValue
@@ -198174,14 +199356,44 @@ function render() {
           ? text(
               dateValue
             )
-          : getBaseDate();
+          : meetingDate;
 
       return (
         getState()
-          .smpPriceByDate
-          ?.[targetDate] ||
+          .smpPriceByDate[
+            targetDate
+          ] ||
         null
       );
+    };
+
+  window.getEfficiencyMorningMeetingSmpPricePair =
+    () => {
+      const {
+        previousDate,
+        meetingDate
+      } =
+        getTargetDates();
+
+      const state =
+        getState();
+
+      return {
+        previousDate,
+        meetingDate,
+
+        previousItem:
+          state.smpPriceByDate[
+            previousDate
+          ] ||
+          null,
+
+        meetingItem:
+          state.smpPriceByDate[
+            meetingDate
+          ] ||
+          null
+      };
     };
 
 
