@@ -197178,3 +197178,1061 @@ function render() {
     initialize();
   }
 })();
+
+(function initializeEfficiencyMorningMeetingSmpPrice() {
+  "use strict";
+
+  if (
+    window.__efficiencyMorningMeetingSmpPriceInstalled ===
+    true
+  ) {
+    return;
+  }
+
+  window.__efficiencyMorningMeetingSmpPriceInstalled =
+    true;
+
+  const API_URL =
+    "/api/smp-price";
+
+  const DATE_ATTRIBUTE =
+    "data-morning-meeting-auto-base-date";
+
+  let activeController =
+    null;
+
+  let requestSequence =
+    0;
+
+  let dateObserver =
+    null;
+
+  let initializationAttempt =
+    0;
+
+
+  function text(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    ).trim();
+  }
+
+
+  function getState() {
+    if (
+      !window.efficiencyMorningMeetingUploadState ||
+      typeof window.efficiencyMorningMeetingUploadState !==
+        "object"
+    ) {
+      window.efficiencyMorningMeetingUploadState =
+        {};
+    }
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  function isIsoDate(
+    value
+  ) {
+    const dateText =
+      text(
+        value
+      );
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        dateText
+      )
+    ) {
+      return false;
+    }
+
+    const parsedDate =
+      new Date(
+        `${dateText}T00:00:00.000Z`
+      );
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        dateText
+    );
+  }
+
+
+  function numberOrNull(
+    value
+  ) {
+    if (
+      value ===
+        null ||
+      value ===
+        undefined ||
+      text(
+        value
+      ) ===
+        ""
+    ) {
+      return null;
+    }
+
+    const numericValue =
+      Number(
+        text(
+          value
+        ).replace(
+          /,/g,
+          ""
+        )
+      );
+
+    return Number.isFinite(
+      numericValue
+    )
+      ? numericValue
+      : null;
+  }
+
+
+  /*
+    SMP 조회일 =
+    상단 자료 기준일 그대로 사용
+
+    Gear/Pinion처럼
+    하루를 더하지 않는다.
+  */
+
+  function getBaseDate() {
+    const panel =
+      document.getElementById(
+        "efficiencyMorningMeetingWaterPanel"
+      );
+
+    const candidates = [
+      panel?.dataset
+        .morningMeetingAutoBaseDate,
+
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDatePicker"
+      )?.value,
+
+      document.getElementById(
+        "efficiencyMorningMeetingAutoWaterDate"
+      )?.textContent
+    ];
+
+    return (
+      candidates
+        .map(
+          text
+        )
+        .find(
+          isIsoDate
+        ) ||
+      ""
+    );
+  }
+
+
+  function ensureCard() {
+    const bottomGrid =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoBottomGrid"
+      );
+
+    if (
+      !bottomGrid
+    ) {
+      return null;
+    }
+
+    let card =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSmpCard"
+      );
+
+    if (
+      card
+    ) {
+      return card;
+    }
+
+    card =
+      document.createElement(
+        "article"
+      );
+
+    card.id =
+      "efficiencyMorningMeetingAutoSmpCard";
+
+    card.className =
+      "efficiency-morning-meeting-auto-card is-smp-price";
+
+    card.innerHTML = `
+      <header class="efficiency-morning-meeting-auto-card__header">
+        <div>
+          <span>POWER MARKET</span>
+          <strong>SMP 단가</strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-card__meta">
+          <small id="efficiencyMorningMeetingAutoSmpDate">
+            -
+          </small>
+
+          <span
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoSmpStatus"
+            title="클릭하여 SMP 단가 다시 조회"
+          >
+            조회 대기
+          </span>
+        </div>
+      </header>
+
+      <div class="efficiency-morning-meeting-auto-card__body">
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>최대</span>
+
+          <strong id="efficiencyMorningMeetingAutoSmpMaximum">
+            -
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>최소</span>
+
+          <strong id="efficiencyMorningMeetingAutoSmpMinimum">
+            -
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row is-emphasis">
+          <span>가중평균</span>
+
+          <strong id="efficiencyMorningMeetingAutoSmpAverage">
+            -
+          </strong>
+        </div>
+      </div>
+    `;
+
+    bottomGrid.appendChild(
+      card
+    );
+
+    return card;
+  }
+
+
+  function getElements() {
+    return {
+      card:
+        ensureCard(),
+
+      date:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSmpDate"
+        ),
+
+      status:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSmpStatus"
+        ),
+
+      maximum:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSmpMaximum"
+        ),
+
+      minimum:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSmpMinimum"
+        ),
+
+      average:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSmpAverage"
+        )
+    };
+  }
+
+
+  function setBadge(
+    element,
+    status,
+    label
+  ) {
+    if (
+      !element
+    ) {
+      return;
+    }
+
+    element.classList.remove(
+      "is-loading",
+      "is-complete",
+      "is-error"
+    );
+
+    if (
+      status ===
+      "loading"
+    ) {
+      element.classList.add(
+        "is-loading"
+      );
+
+    } else if (
+      status ===
+      "complete"
+    ) {
+      element.classList.add(
+        "is-complete"
+      );
+
+    } else if (
+      status ===
+      "error"
+    ) {
+      element.classList.add(
+        "is-error"
+      );
+    }
+
+    element.textContent =
+      label;
+  }
+
+
+  function formatPrice(
+    value
+  ) {
+    const numericValue =
+      numberOrNull(
+        value
+      );
+
+    if (
+      numericValue ===
+      null
+    ) {
+      return "-";
+    }
+
+    return (
+      numericValue.toLocaleString(
+        "ko-KR",
+        {
+          minimumFractionDigits:
+            2,
+
+          maximumFractionDigits:
+            2
+        }
+      ) +
+      " 원/kWh"
+    );
+  }
+
+
+  function render() {
+    const elements =
+      getElements();
+
+    if (
+      !elements.card
+    ) {
+      return;
+    }
+
+    const state =
+      getState();
+
+    const targetDate =
+      getBaseDate();
+
+    const resultDate =
+      text(
+        state.smpPrice
+          ?.sourceDate ||
+        state.smpPrice
+          ?.targetDate
+      );
+
+    const item =
+      resultDate ===
+      targetDate
+        ? state.smpPrice
+        : null;
+
+    const loading =
+      text(
+        state.smpPriceLoadingDate
+      ) ===
+      targetDate;
+
+    const errorMessage =
+      text(
+        state.smpPriceErrorDate
+      ) ===
+      targetDate
+        ? text(
+            state.smpPriceError
+          )
+        : "";
+
+    elements.date.textContent =
+      targetDate
+        ? `${targetDate} · 육지`
+        : "-";
+
+    elements.maximum.textContent =
+      item
+        ? formatPrice(
+            item.maximum
+          )
+        : "-";
+
+    elements.minimum.textContent =
+      item
+        ? formatPrice(
+            item.minimum
+          )
+        : "-";
+
+    elements.average.textContent =
+      item
+        ? formatPrice(
+            item.weightedAverage
+          )
+        : "-";
+
+    if (
+      loading
+    ) {
+      setBadge(
+        elements.status,
+        "loading",
+        "조회 중"
+      );
+
+      elements.card.title =
+        `${targetDate} 육지 SMP 조회 중`;
+
+    } else if (
+      item
+    ) {
+      setBadge(
+        elements.status,
+        "complete",
+        "조회 완료"
+      );
+
+      elements.card.title =
+        `${targetDate} 한국전력거래소 EPSIS 육지 SMP`;
+
+    } else if (
+      errorMessage
+    ) {
+      setBadge(
+        elements.status,
+        "error",
+        "조회 실패"
+      );
+
+      elements.card.title =
+        errorMessage;
+
+    } else {
+      setBadge(
+        elements.status,
+        "idle",
+        "조회 대기"
+      );
+
+      elements.card.title =
+        "한국전력거래소 EPSIS 육지 SMP";
+    }
+  }
+
+
+  function normalizeResult(
+    result,
+    expectedDate
+  ) {
+    const item =
+      result?.item &&
+      typeof result.item ===
+        "object"
+        ? result.item
+        : {};
+
+    const sourceDate =
+      text(
+        result?.date ||
+        item.sourceDate ||
+        item.targetDate
+      );
+
+    const maximum =
+      numberOrNull(
+        result?.max ??
+        item.maximum
+      );
+
+    const minimum =
+      numberOrNull(
+        result?.min ??
+        item.minimum
+      );
+
+    const weightedAverage =
+      numberOrNull(
+        result?.avg ??
+        item.weightedAverage
+      );
+
+    if (
+      result?.ok !==
+        true ||
+
+      sourceDate !==
+        expectedDate ||
+
+      maximum ===
+        null ||
+
+      minimum ===
+        null ||
+
+      weightedAverage ===
+        null
+    ) {
+      throw new Error(
+        result?.message ||
+        `${expectedDate} 육지 SMP 응답을 확인하지 못했습니다.`
+      );
+    }
+
+    return {
+      sourceDate,
+
+      targetDate:
+        sourceDate,
+
+      region:
+        "land",
+
+      regionLabel:
+        "육지",
+
+      maximum,
+      minimum,
+      weightedAverage,
+
+      unit:
+        "원/kWh",
+
+      source:
+        text(
+          item.source
+        ) ||
+        "한국전력거래소 EPSIS",
+
+      sourceUrl:
+        text(
+          item.sourceUrl
+        ),
+
+      collectedAt:
+        text(
+          item.collectedAt
+        ) ||
+        new Date()
+          .toISOString()
+    };
+  }
+
+
+  async function load(
+    options = {}
+  ) {
+    const forceRefresh =
+      options.forceRefresh ===
+      true;
+
+    const targetDate =
+      isIsoDate(
+        options.date
+      )
+        ? text(
+            options.date
+          )
+        : getBaseDate();
+
+    if (
+      !isIsoDate(
+        targetDate
+      )
+    ) {
+      render();
+
+      return null;
+    }
+
+    const state =
+      getState();
+
+    if (
+      !state.smpPriceByDate ||
+      typeof state.smpPriceByDate !==
+        "object"
+    ) {
+      state.smpPriceByDate =
+        {};
+    }
+
+    const cachedItem =
+      state.smpPriceByDate[
+        targetDate
+      ];
+
+    if (
+      !forceRefresh &&
+      cachedItem
+    ) {
+      state.smpPrice =
+        cachedItem;
+
+      state.smpPriceLoadingDate =
+        "";
+
+      state.smpPriceError =
+        "";
+
+      state.smpPriceErrorDate =
+        "";
+
+      render();
+
+      return cachedItem;
+    }
+
+    if (
+      !forceRefresh &&
+
+      text(
+        state.smpPriceLoadingDate
+      ) ===
+        targetDate
+    ) {
+      return null;
+    }
+
+    activeController
+      ?.abort();
+
+    activeController =
+      new AbortController();
+
+    const currentSequence =
+      ++requestSequence;
+
+    state.smpPriceLoadingDate =
+      targetDate;
+
+    state.smpPriceError =
+      "";
+
+    state.smpPriceErrorDate =
+      "";
+
+    if (
+      text(
+        state.smpPrice
+          ?.sourceDate ||
+        state.smpPrice
+          ?.targetDate
+      ) !==
+      targetDate
+    ) {
+      state.smpPrice =
+        null;
+    }
+
+    render();
+
+    try {
+      const requestUrl =
+        new URL(
+          API_URL,
+          window.location.origin
+        );
+
+      requestUrl.searchParams.set(
+        "date",
+        targetDate
+      );
+
+      const response =
+        await fetch(
+          requestUrl.toString(),
+          {
+            method:
+              "GET",
+
+            headers: {
+              Accept:
+                "application/json"
+            },
+
+            cache:
+              "no-store",
+
+            signal:
+              activeController.signal
+          }
+        );
+
+      let result;
+
+      try {
+        result =
+          await response.json();
+
+      } catch {
+        throw new Error(
+          "SMP 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          result?.message ||
+          `SMP 조회에 실패했습니다. (HTTP ${response.status})`
+        );
+      }
+
+      const normalizedItem =
+        normalizeResult(
+          result,
+          targetDate
+        );
+
+      state.smpPriceByDate[
+        targetDate
+      ] =
+        normalizedItem;
+
+      if (
+        currentSequence ===
+          requestSequence &&
+
+        getBaseDate() ===
+          targetDate
+      ) {
+        state.smpPrice =
+          normalizedItem;
+
+        state.smpPriceError =
+          "";
+
+        state.smpPriceErrorDate =
+          "";
+      }
+
+      document.dispatchEvent(
+        new CustomEvent(
+          "efficiencyMorningMeetingSmpPriceLoaded",
+          {
+            detail:
+              normalizedItem
+          }
+        )
+      );
+
+      return normalizedItem;
+
+    } catch (
+      error
+    ) {
+      if (
+        error?.name ===
+        "AbortError"
+      ) {
+        return null;
+      }
+
+      const errorMessage =
+        error instanceof
+        Error
+          ? error.message
+          : "SMP 단가를 불러오지 못했습니다.";
+
+      if (
+        currentSequence ===
+          requestSequence &&
+
+        getBaseDate() ===
+          targetDate
+      ) {
+        state.smpPrice =
+          null;
+
+        state.smpPriceError =
+          errorMessage;
+
+        state.smpPriceErrorDate =
+          targetDate;
+      }
+
+      console.error(
+        "오전회의 SMP 단가 조회 실패:",
+        error
+      );
+
+      return null;
+
+    } finally {
+      if (
+        currentSequence ===
+        requestSequence
+      ) {
+        state.smpPriceLoadingDate =
+          "";
+
+        activeController =
+          null;
+      }
+
+      render();
+    }
+  }
+
+
+  function scheduleLoad(
+    forceRefresh = false
+  ) {
+    window.setTimeout(
+      () => {
+        ensureCard();
+        render();
+
+        load({
+          forceRefresh
+        });
+      },
+      0
+    );
+  }
+
+
+  function observeBaseDate() {
+    const panel =
+      document.getElementById(
+        "efficiencyMorningMeetingWaterPanel"
+      );
+
+    if (
+      !panel
+    ) {
+      return false;
+    }
+
+    dateObserver
+      ?.disconnect();
+
+    dateObserver =
+      new MutationObserver(
+        mutations => {
+          if (
+            mutations.some(
+              mutation => {
+                return (
+                  mutation.type ===
+                    "attributes" &&
+
+                  mutation.attributeName ===
+                    DATE_ATTRIBUTE
+                );
+              }
+            )
+          ) {
+            scheduleLoad(
+              false
+            );
+          }
+        }
+      );
+
+    dateObserver.observe(
+      panel,
+      {
+        attributes:
+          true,
+
+        attributeFilter: [
+          DATE_ATTRIBUTE
+        ]
+      }
+    );
+
+    return true;
+  }
+
+
+  function bindEvents() {
+    if (
+      document.documentElement
+        .dataset
+        .morningMeetingSmpBound ===
+      "true"
+    ) {
+      return;
+    }
+
+    document.documentElement
+      .dataset
+      .morningMeetingSmpBound =
+        "true";
+
+    document.addEventListener(
+      "click",
+      event => {
+        const target =
+          event.target instanceof
+          Element
+            ? event.target
+            : null;
+
+        if (
+          target?.closest(
+            "#efficiencyMorningMeetingAutoSmpStatus"
+          )
+        ) {
+          scheduleLoad(
+            true
+          );
+        }
+
+        if (
+          target?.closest(
+            "#resetEfficiencyMorningMeetingButton"
+          )
+        ) {
+          window.setTimeout(
+            () => {
+              scheduleLoad(
+                false
+              );
+            },
+            50
+          );
+        }
+      }
+    );
+
+    document.addEventListener(
+      "efficiencyMorningMeetingShiftLogsLoaded",
+      () => {
+        scheduleLoad(
+          false
+        );
+      }
+    );
+  }
+
+
+  window.loadEfficiencyMorningMeetingSmpPrice =
+    load;
+
+  window.renderEfficiencyMorningMeetingSmpPrice =
+    render;
+
+  window.getEfficiencyMorningMeetingSmpPrice =
+    dateValue => {
+      const targetDate =
+        isIsoDate(
+          dateValue
+        )
+          ? text(
+              dateValue
+            )
+          : getBaseDate();
+
+      return (
+        getState()
+          .smpPriceByDate
+          ?.[targetDate] ||
+        null
+      );
+    };
+
+
+  function initialize() {
+    const card =
+      ensureCard();
+
+    const observing =
+      observeBaseDate();
+
+    if (
+      !card ||
+      !observing ||
+      !getBaseDate()
+    ) {
+      initializationAttempt +=
+        1;
+
+      if (
+        initializationAttempt <
+        80
+      ) {
+        window.setTimeout(
+          initialize,
+          250
+        );
+      }
+
+      return;
+    }
+
+    bindEvents();
+    render();
+    load();
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
