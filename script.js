@@ -202702,8 +202702,15 @@ function ensureStyle() {
       );
     }
 
-    container.style.gap =
-      "4px";
+container.style.display = "flex";
+container.style.flexDirection = "row";
+container.style.flexWrap = "nowrap";
+container.style.alignItems = "center";
+container.style.justifyContent = "flex-end";
+container.style.gap = "4px";
+container.style.width = "max-content";
+container.style.minWidth = "max-content";
+container.style.flexShrink = "0";
 
     return true;
   }
