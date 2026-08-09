@@ -149444,6 +149444,342 @@ async function applyMorningMeetingManualInputCellFills(
   };
 }
 
+/* =====================================================
+  오전회의 상단 날짜·날씨 병합 구조
+
+  최종 형태:
+  B4:F4   회의일
+  G4:H4   날씨
+  I4:M4   빈 공간
+  N4:R4   대기온도
+  S4:W4   현재기온 (최저/최고)
+===================================================== */
+
+function applyMorningMeetingHeaderDateWeatherLayout(
+  worksheetDocument
+) {
+  const mergeCellsElement =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !mergeCellsElement
+  ) {
+    throw new Error(
+      "기준 취합본의 상단 병합 셀 정보를 찾지 못했습니다."
+    );
+  }
+
+
+  const targetMerges = [
+    {
+      reference: "G4:H4",
+      startColumn: "G",
+      endColumn: "H"
+    },
+
+    {
+      reference: "N4:R4",
+      startColumn: "N",
+      endColumn: "R"
+    },
+
+    {
+      reference: "S4:W4",
+      startColumn: "S",
+      endColumn: "W"
+    }
+  ];
+
+
+  /*
+    목표 범위와 겹치는 기존 병합 제거
+
+    특히 잘못된 S4:V4 병합을 제거한다.
+  */
+
+  getMorningMeetingDirectXmlChildren(
+    mergeCellsElement,
+    "mergeCell"
+  ).forEach(
+    mergeElement => {
+      const mergeRange =
+        parseMorningMeetingMergeReference(
+          mergeElement.getAttribute(
+            "ref"
+          )
+        );
+
+
+      if (
+        !mergeRange ||
+        mergeRange.startRow >
+          4 ||
+        mergeRange.endRow <
+          4
+      ) {
+        return;
+      }
+
+
+      const existingStartColumn =
+        getMorningMeetingColumnNumber(
+          mergeRange.startColumn
+        );
+
+
+      const existingEndColumn =
+        getMorningMeetingColumnNumber(
+          mergeRange.endColumn
+        );
+
+
+      const overlapsTarget =
+        targetMerges.some(
+          target => {
+            const targetStartColumn =
+              getMorningMeetingColumnNumber(
+                target.startColumn
+              );
+
+
+            const targetEndColumn =
+              getMorningMeetingColumnNumber(
+                target.endColumn
+              );
+
+
+            return (
+              existingStartColumn <=
+                targetEndColumn &&
+              existingEndColumn >=
+                targetStartColumn
+            );
+          }
+        );
+
+
+      if (
+        overlapsTarget
+      ) {
+        mergeElement.remove();
+      }
+    }
+  );
+
+
+  /*
+    (6)과 같은 병합 생성
+  */
+
+  targetMerges.forEach(
+    target => {
+      const mergeElement =
+        worksheetDocument
+          .createElementNS(
+            MAIN_XML_NAMESPACE,
+            "mergeCell"
+          );
+
+
+      mergeElement.setAttribute(
+        "ref",
+        target.reference
+      );
+
+
+      mergeCellsElement.appendChild(
+        mergeElement
+      );
+    }
+  );
+
+
+  mergeCellsElement.setAttribute(
+    "count",
+
+    String(
+      getMorningMeetingDirectXmlChildren(
+        mergeCellsElement,
+        "mergeCell"
+      ).length
+    )
+  );
+
+
+  /*
+    병합되는 나머지 셀의 기존 값만 제거
+  */
+
+  [
+    "H4",
+
+    "O4",
+    "P4",
+    "Q4",
+    "R4",
+
+    "T4",
+    "U4",
+    "V4",
+    "W4"
+  ].forEach(
+    address => {
+      const cellElement =
+        findMorningMeetingWorksheetCellByAddress(
+          worksheetDocument,
+          address
+        );
+
+
+      if (
+        !cellElement
+      ) {
+        throw new Error(
+          `오전회의 상단 셀 ${address}을 찾지 못했습니다.`
+        );
+      }
+
+
+      [
+        "f",
+        "v",
+        "is"
+      ].forEach(
+        childName => {
+          getMorningMeetingDirectXmlChildren(
+            cellElement,
+            childName
+          ).forEach(
+            childElement => {
+              childElement.remove();
+            }
+          );
+        }
+      );
+
+
+      cellElement.removeAttribute(
+        "t"
+      );
+    }
+  );
+
+
+  /*
+    I4의 기존 중앙정렬 스타일을
+    날씨·대기온도 제목에 그대로 복사
+  */
+
+  const centeredStyleIndex =
+    findMorningMeetingWorksheetCellByAddress(
+      worksheetDocument,
+      "I4"
+    )?.getAttribute(
+      "s"
+    ) ||
+    "";
+
+
+  if (
+    !centeredStyleIndex
+  ) {
+    throw new Error(
+      "오전회의 상단 중앙정렬 기준 스타일을 찾지 못했습니다."
+    );
+  }
+
+
+  [
+    "G4",
+    "H4",
+
+    "N4",
+    "O4",
+    "P4",
+    "Q4",
+    "R4"
+  ].forEach(
+    address => {
+      const cellElement =
+        findMorningMeetingWorksheetCellByAddress(
+          worksheetDocument,
+          address
+        );
+
+
+      if (
+        !cellElement
+      ) {
+        throw new Error(
+          `오전회의 상단 셀 ${address}을 찾지 못했습니다.`
+        );
+      }
+
+
+      cellElement.setAttribute(
+        "s",
+        centeredStyleIndex
+      );
+    }
+  );
+
+
+  /*
+    S4의 온도 스타일을
+    병합 끝 W4까지 연결
+  */
+
+  const temperatureStyleIndex =
+    findMorningMeetingWorksheetCellByAddress(
+      worksheetDocument,
+      "S4"
+    )?.getAttribute(
+      "s"
+    ) ||
+    "";
+
+
+  if (
+    !temperatureStyleIndex
+  ) {
+    throw new Error(
+      "오전회의 상단 대기온도 스타일을 찾지 못했습니다."
+    );
+  }
+
+
+  [
+    "T4",
+    "U4",
+    "V4",
+    "W4"
+  ].forEach(
+    address => {
+      findMorningMeetingWorksheetCellByAddress(
+        worksheetDocument,
+        address
+      ).setAttribute(
+        "s",
+        temperatureStyleIndex
+      );
+    }
+  );
+
+
+  return {
+    mergedRanges: [
+      "G4:H4",
+      "N4:R4",
+      "S4:W4"
+    ]
+  };
+}
+
 /* =========================================================
   오전회의 미리보기 자동값 → 최종 엑셀
 
@@ -150009,46 +150345,53 @@ function applyMorningMeetingPreviewAutoValues(
 
 
 /* =====================================================
-  회의일 날짜
+  회의일 상단 날짜·날씨
 
-  B4:F4 병합 셀의 시작 셀 B4에
-  실제 회의일을 입력한다.
-====================================================== */
+  (6) 파일 기준:
+  B4:F4   2026-08-10 (월)
+  G4:H4   날씨: 흐림
+  N4:R4   대기온도:
+  S4:W4   26℃  (22/32℃)
 
-const meetingDateSerial =
-  Math.floor(
-    Date.UTC(
-      scheduleDate.getUTCFullYear(),
-      scheduleDate.getUTCMonth(),
-      scheduleDate.getUTCDate()
-    ) /
-    86400000
-  ) +
-  25569;
+  습도는 최종 엑셀에서 제외한다.
+===================================================== */
+
+const headerLayoutResult =
+  applyMorningMeetingHeaderDateWeatherLayout(
+    worksheetDocument
+  );
+
+
+const weekdayLabels = [
+  "일",
+  "월",
+  "화",
+  "수",
+  "목",
+  "금",
+  "토"
+];
+
+
+const meetingDateText =
+  `${meetingDate} (` +
+  `${weekdayLabels[
+    scheduleDate
+      .getUTCDay()
+  ]})`;
 
 
 const meetingDateResult =
-  setMorningMeetingNumericCellValue(
+  setMorningMeetingRichInlineStringCellValue(
     worksheetDocument,
     "B4",
-    meetingDateSerial
+    meetingDateText
   );
 
 
 /* =====================================================
   회의일 날씨
-
-  G4:
-  날씨 : 맑음
-
-  N4:
-  대기온도 :
-
-  S4:
-  24℃ (10/32℃)
-
-  습도는 최종 회의자료에서 제외한다.
-====================================================== */
+===================================================== */
 
 const weather =
   state.morningWeather &&
@@ -150121,8 +150464,8 @@ const weatherValid =
 
 const weatherText =
   weatherValid
-    ? `날씨 : ${condition}`
-    : "날씨 :";
+    ? `날씨: ${condition}`
+    : "날씨:";
 
 
 const temperatureText =
@@ -150130,9 +150473,9 @@ const temperatureText =
     ? (
         `${Math.round(
           temperature
-        )}℃` +
+        )}℃  ` +
 
-        ` (${Math.round(
+        `(${Math.round(
           minimumTemperature
         )}/${Math.round(
           maximumTemperature
@@ -150140,10 +150483,6 @@ const temperatureText =
       )
     : "";
 
-
-/*
-  기존 양식과 같은 위치로 각각 입력한다.
-*/
 
 const weatherResult =
   setMorningMeetingRichInlineStringCellValue(
@@ -150157,7 +150496,7 @@ const temperatureLabelResult =
   setMorningMeetingRichInlineStringCellValue(
     worksheetDocument,
     "N4",
-    "대기온도 :"
+    "대기온도:"
   );
 
 
@@ -150184,6 +150523,8 @@ if (
 return {
   meetingDate,
 
+  meetingDateText,
+
   meetingDateApplied:
     meetingDateResult.written,
 
@@ -150194,9 +150535,12 @@ return {
     weekendDates.length,
 
   weatherApplied:
-    weatherValid
+    weatherValid,
+
+  headerLayoutResult
 };
 }
+
 /* =====================================================
   최종 엑셀 생성
 
