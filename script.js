@@ -197952,7 +197952,7 @@ function render() {
 
   const API_URL = "/api/smp-price";
   const DATE_ATTRIBUTE = "data-morning-meeting-auto-base-date";
-  const LAYOUT_VERSION = "dual-date-v2";
+  const LAYOUT_VERSION = "adaptive-range-v3";
 
   let dateObserver = null;
   let initializationAttempt = 0;
@@ -198158,21 +198158,201 @@ function render() {
   }
 
 
-  function getTargetDates() {
-    const previousDate =
-      getBaseDate();
+function getTargetDates() {
+  const baseDate =
+    getBaseDate();
+
+  const state =
+    getState();
+
+  let weekendMode =
+    null;
+
+  try {
+    if (
+      typeof window
+        .getEfficiencyMorningMeetingWeekendMode ===
+      "function"
+    ) {
+      weekendMode =
+        window
+          .getEfficiencyMorningMeetingWeekendMode();
+    }
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "오전회의 SMP 주말 설정 확인 실패:",
+      error
+    );
+  }
+
+  const source =
+    weekendMode &&
+    typeof weekendMode ===
+      "object"
+      ? weekendMode
+      : (
+          state.weekendMode &&
+          typeof state.weekendMode ===
+            "object"
+            ? state.weekendMode
+            : {}
+        );
+
+  const enabled =
+    source.enabled ===
+    true;
+
+  const startDate =
+    isIsoDate(
+      source.startDate
+    )
+      ? text(
+          source.startDate
+        )
+      : "";
+
+  const endDate =
+    isIsoDate(
+      source.endDate
+    )
+      ? text(
+          source.endDate
+        )
+      : "";
+
+  if (
+    enabled
+  ) {
+    if (
+      !startDate ||
+      !endDate ||
+      startDate >
+        endDate
+    ) {
+      return {
+        mode:
+          "weekend",
+
+        sourceStartDate:
+          startDate,
+
+        sourceEndDate:
+          endDate,
+
+        previousDate:
+          "",
+
+        meetingDate:
+          "",
+
+        dates:
+          []
+      };
+    }
+
+    /*
+      주말 SMP 표시 범위:
+
+      선택 시작일 + 1일부터
+      선택 종료일 + 1일(회의일)까지
+    */
+
+    const firstPreviewDate =
+      addDays(
+        startDate,
+        1
+      );
+
+    const meetingDate =
+      addDays(
+        endDate,
+        1
+      );
+
+    const dates =
+      [];
+
+    let cursor =
+      firstPreviewDate;
+
+    while (
+      isIsoDate(
+        cursor
+      ) &&
+      cursor <=
+        meetingDate &&
+      dates.length <
+        31
+    ) {
+      dates.push(
+        cursor
+      );
+
+      cursor =
+        addDays(
+          cursor,
+          1
+        );
+    }
 
     return {
-      previousDate,
+      mode:
+        "weekend",
 
-      meetingDate:
-        addDays(
-          previousDate,
-          1
-        )
+      sourceStartDate:
+        startDate,
+
+      sourceEndDate:
+        endDate,
+
+      previousDate:
+        dates[0] ||
+        "",
+
+      meetingDate,
+
+      dates
     };
   }
 
+  /*
+    평일은 기존 규칙 유지
+  */
+
+  const meetingDate =
+    addDays(
+      baseDate,
+      1
+    );
+
+  const dates = [
+    baseDate,
+    meetingDate
+  ].filter(
+    isIsoDate
+  );
+
+  return {
+    mode:
+      "weekday",
+
+    sourceStartDate:
+      "",
+
+    sourceEndDate:
+      "",
+
+    previousDate:
+      baseDate,
+
+    meetingDate,
+
+    dates
+  };
+}
 
 function ensureCard() {
   const bottomGrid =
@@ -198186,22 +198366,34 @@ function ensureCard() {
     return null;
   }
 
-  /*
-    SMP 카드 전용 디자인
-  */
+  let style =
+    byId(
+      "efficiencyMorningMeetingSmpCardStyle"
+    );
 
   if (
-    !byId(
-      "efficiencyMorningMeetingSmpCardStyle"
-    )
+    !style
   ) {
-    const style =
+    style =
       document.createElement(
         "style"
       );
 
     style.id =
       "efficiencyMorningMeetingSmpCardStyle";
+
+    document.head.appendChild(
+      style
+    );
+  }
+
+  if (
+    style.dataset
+      .smpLayoutVersion !==
+    LAYOUT_VERSION
+  ) {
+    style.dataset.smpLayoutVersion =
+      LAYOUT_VERSION;
 
     style.textContent = `
       #efficiencyMorningMeetingAutoSmpRefreshButton {
@@ -198221,89 +198413,149 @@ function ensureCard() {
           #2563eb 100%
         );
         color: #ffffff;
-        font-family: inherit;
+        font: inherit;
         font-size: 9px;
         font-weight: 800;
         line-height: 1;
-        letter-spacing: -0.02em;
         white-space: nowrap;
         box-shadow:
-          0 1px 2px rgba(30, 64, 175, 0.24),
-          inset 0 1px 0 rgba(255, 255, 255, 0.24);
+          0 1px 2px
+          rgba(30, 64, 175, 0.24);
         cursor: pointer;
-        transition:
-          background 0.15s ease,
-          border-color 0.15s ease,
-          box-shadow 0.15s ease,
-          transform 0.08s ease;
       }
 
       #efficiencyMorningMeetingAutoSmpRefreshButton:hover:not(:disabled) {
-        border-color: #1d4ed8;
         background: linear-gradient(
           180deg,
           #2563eb 0%,
           #1d4ed8 100%
         );
-        box-shadow:
-          0 2px 4px rgba(30, 64, 175, 0.28),
-          inset 0 1px 0 rgba(255, 255, 255, 0.2);
       }
 
       #efficiencyMorningMeetingAutoSmpRefreshButton:active:not(:disabled) {
         transform: translateY(1px);
-        box-shadow:
-          0 1px 1px rgba(30, 64, 175, 0.2),
-          inset 0 1px 2px rgba(15, 23, 42, 0.12);
-      }
-
-      #efficiencyMorningMeetingAutoSmpRefreshButton:focus-visible {
-        outline: 2px solid rgba(37, 99, 235, 0.32);
-        outline-offset: 2px;
       }
 
       #efficiencyMorningMeetingAutoSmpRefreshButton:disabled {
         opacity: 0.62;
         cursor: wait;
-        box-shadow: none;
       }
 
-      #efficiencyMorningMeetingAutoSmpCard
-      .efficiency-morning-meeting-auto-smp-column-head {
+      #efficiencyMorningMeetingAutoSmpTable {
+        width: 100%;
+        overflow-x: auto;
+        scrollbar-width: thin;
+      }
+
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-grid {
+        width: 100%;
+      }
+
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-row {
         display: grid;
-        grid-template-columns:
-          64px
-          minmax(0, 1fr)
-          minmax(0, 1fr);
-        gap: 8px;
-        align-items: center;
-        min-height: 20px;
-        padding: 3px 10px 2px;
-        border-bottom: 1px solid #e4eaf3;
-        background: #f8fbff;
+        align-items: stretch;
       }
 
-      #efficiencyMorningMeetingAutoSmpCard
-      .efficiency-morning-meeting-auto-smp-column-date {
-        color: #475569;
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-row +
+      .smp-preview-row {
+        border-top:
+          1px solid #e4eaf3;
+      }
+
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-label,
+
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-date,
+
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-value {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 7px 4px;
+      }
+
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-label {
+        justify-content: flex-start;
+        padding-left: 8px;
+        color: #526174;
         font-size: 10px;
-        font-weight: 800;
-        line-height: 1.2;
-        text-align: right;
+        font-weight: 700;
         white-space: nowrap;
       }
 
-      #efficiencyMorningMeetingAutoSmpCard
-      .efficiency-morning-meeting-auto-smp-column-date.is-meeting-date {
-        padding-left: 8px;
-        border-left: 1px solid #dbe5f3;
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-date,
+
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-value {
+        border-left:
+          1px solid #e2e8f0;
+        text-align: center;
+        white-space: nowrap;
+      }
+
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-date {
+        min-height: 30px;
+        padding: 4px;
+        flex-direction: column;
+        gap: 1px;
+        background: #f8fbff;
+        color: #475569;
+        font-size: 10px;
+        font-weight: 800;
+        line-height: 1.05;
+      }
+
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-date small {
+        color: #64748b;
+        font-size: 8px;
+        font-weight: 800;
+      }
+
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-value {
+        color: #0f1f34;
+        font-size: 9px;
+        font-weight: 800;
+      }
+
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-row.is-emphasis {
+        background: #f8fbff;
+      }
+
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-row.is-emphasis
+      .smp-preview-value {
+        color: #0f766e;
+      }
+
+      #efficiencyMorningMeetingAutoSmpTable
+      .is-meeting-column {
+        background: #eef5ff;
         color: #1d4ed8;
       }
-    `;
 
-    document.head.appendChild(
-      style
-    );
+      #efficiencyMorningMeetingAutoSmpTable
+      .smp-preview-empty {
+        min-height: 108px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #7c8799;
+        font-size: 10px;
+        font-weight: 700;
+      }
+    `;
   }
 
   let card =
@@ -198345,6 +198597,7 @@ function ensureCard() {
 
   card.innerHTML = `
     <header class="efficiency-morning-meeting-auto-card__header">
+
       <div>
         <span>
           POWER MARKET
@@ -198359,148 +198612,24 @@ function ensureCard() {
       </div>
 
       <div class="efficiency-morning-meeting-auto-card__meta">
+
         <button
           type="button"
           id="efficiencyMorningMeetingAutoSmpRefreshButton"
-          title="전날과 회의일 SMP를 EPSIS에서 다시 조회"
+          title="표시된 모든 날짜의 SMP를 다시 조회"
         >
           다시 조회
         </button>
+
       </div>
+
     </header>
 
     <div class="efficiency-morning-meeting-auto-card__body">
-      <div class="efficiency-morning-meeting-auto-smp-column-head">
-        <span aria-hidden="true"></span>
 
-        <strong
-          class="efficiency-morning-meeting-auto-smp-column-date"
-          id="efficiencyMorningMeetingAutoSmpPreviousDateLabel"
-        >
-          - (전날)
-        </strong>
-
-        <strong
-          class="efficiency-morning-meeting-auto-smp-column-date is-meeting-date"
-          id="efficiencyMorningMeetingAutoSmpMeetingDateLabel"
-        >
-          - (회의일)
-        </strong>
+      <div id="efficiencyMorningMeetingAutoSmpTable">
       </div>
 
-      <div
-        class="efficiency-morning-meeting-auto-row"
-        style="
-          display: grid;
-          grid-template-columns:
-            64px
-            minmax(0, 1fr)
-            minmax(0, 1fr);
-          gap: 8px;
-        "
-      >
-        <span>
-          최대
-        </span>
-
-        <strong
-          id="efficiencyMorningMeetingAutoSmpPreviousMaximum"
-          style="
-            text-align: right;
-            white-space: nowrap;
-          "
-        >
-          -
-        </strong>
-
-        <strong
-          id="efficiencyMorningMeetingAutoSmpMeetingMaximum"
-          style="
-            text-align: right;
-            white-space: nowrap;
-            padding-left: 8px;
-            border-left: 1px solid #dbe5f3;
-          "
-        >
-          -
-        </strong>
-      </div>
-
-      <div
-        class="efficiency-morning-meeting-auto-row"
-        style="
-          display: grid;
-          grid-template-columns:
-            64px
-            minmax(0, 1fr)
-            minmax(0, 1fr);
-          gap: 8px;
-        "
-      >
-        <span>
-          최소
-        </span>
-
-        <strong
-          id="efficiencyMorningMeetingAutoSmpPreviousMinimum"
-          style="
-            text-align: right;
-            white-space: nowrap;
-          "
-        >
-          -
-        </strong>
-
-        <strong
-          id="efficiencyMorningMeetingAutoSmpMeetingMinimum"
-          style="
-            text-align: right;
-            white-space: nowrap;
-            padding-left: 8px;
-            border-left: 1px solid #dbe5f3;
-          "
-        >
-          -
-        </strong>
-      </div>
-
-      <div
-        class="efficiency-morning-meeting-auto-row is-emphasis"
-        style="
-          display: grid;
-          grid-template-columns:
-            64px
-            minmax(0, 1fr)
-            minmax(0, 1fr);
-          gap: 8px;
-        "
-      >
-        <span>
-          가중평균
-        </span>
-
-        <strong
-          id="efficiencyMorningMeetingAutoSmpPreviousAverage"
-          style="
-            text-align: right;
-            white-space: nowrap;
-          "
-        >
-          -
-        </strong>
-
-        <strong
-          id="efficiencyMorningMeetingAutoSmpMeetingAverage"
-          style="
-            text-align: right;
-            white-space: nowrap;
-            padding-left: 8px;
-            border-left: 1px solid #cbd8ee;
-          "
-        >
-          -
-        </strong>
-      </div>
     </div>
   `;
 
@@ -198781,98 +198910,229 @@ function render() {
     return;
   }
 
-  const {
-    previousDate,
-    meetingDate
-  } =
+  const target =
     getTargetDates();
 
-  if (
-    !isIsoDate(
-      previousDate
-    ) ||
-    !isIsoDate(
-      meetingDate
-    )
-  ) {
-    return;
-  }
-
-  const previousDateLabel =
+  const table =
     byId(
-      "efficiencyMorningMeetingAutoSmpPreviousDateLabel"
+      "efficiencyMorningMeetingAutoSmpTable"
     );
 
-  const meetingDateLabel =
-    byId(
-      "efficiencyMorningMeetingAutoSmpMeetingDateLabel"
-    );
+  const dates =
+    target.dates;
 
   if (
-    previousDateLabel
+    table
   ) {
-    previousDateLabel.textContent =
-      `${shortDate(previousDate)} (전날)`;
+    if (
+      dates.length ===
+      0
+    ) {
+      table.innerHTML = `
+        <div class="smp-preview-empty">
+          ${
+            target.mode ===
+              "weekend"
+              ? "주말 시작일과 종료일을 선택하세요."
+              : "SMP 기준 날짜를 확인하고 있습니다."
+          }
+        </div>
+      `;
 
-    previousDateLabel.title =
-      `${previousDate} 전날 SMP`;
+    } else {
+      const columnTemplate =
+        `64px repeat(${dates.length}, minmax(58px, 1fr))`;
+
+      const minimumWidth =
+        64 +
+        dates.length *
+        58;
+
+      const dateHeaders =
+        dates
+          .map(
+            dateValue => {
+              const isMeeting =
+                dateValue ===
+                target.meetingDate;
+
+              const subLabel =
+                isMeeting
+                  ? "회의일"
+                  : (
+                      target.mode ===
+                        "weekday" &&
+                      dateValue ===
+                        target.previousDate
+                        ? "전날"
+                        : ""
+                    );
+
+              return `
+                <strong
+                  class="smp-preview-date${
+                    isMeeting
+                      ? " is-meeting-column"
+                      : ""
+                  }"
+                >
+                  <span>
+                    ${shortDate(dateValue)}
+                  </span>
+
+                  ${
+                    subLabel
+                      ? `<small>${subLabel}</small>`
+                      : ""
+                  }
+                </strong>
+              `;
+            }
+          )
+          .join(
+            ""
+          );
+
+      const fields = [
+        [
+          "maximum",
+          "최대",
+          false
+        ],
+
+        [
+          "minimum",
+          "최소",
+          false
+        ],
+
+        [
+          "weightedAverage",
+          "가중평균",
+          true
+        ]
+      ];
+
+      const valueRows =
+        fields
+          .map(
+            ([
+              fieldName,
+              label,
+              emphasis
+            ]) => {
+              const cells =
+                dates
+                  .map(
+                    dateValue => {
+                      const isMeeting =
+                        dateValue ===
+                        target.meetingDate;
+
+                      return `
+                        <strong
+                          class="smp-preview-value${
+                            isMeeting
+                              ? " is-meeting-column"
+                              : ""
+                          }"
+                          data-smp-date="${dateValue}"
+                          data-smp-field="${fieldName}"
+                        >
+                          -
+                        </strong>
+                      `;
+                    }
+                  )
+                  .join(
+                    ""
+                  );
+
+              return `
+                <div
+                  class="smp-preview-row${
+                    emphasis
+                      ? " is-emphasis"
+                      : ""
+                  }"
+                  style="
+                    grid-template-columns:
+                    ${columnTemplate};
+                  "
+                >
+                  <span class="smp-preview-label">
+                    ${label}
+                  </span>
+
+                  ${cells}
+                </div>
+              `;
+            }
+          )
+          .join(
+            ""
+          );
+
+      table.innerHTML = `
+        <div
+          class="smp-preview-grid"
+          style="
+            min-width:
+            ${minimumWidth}px;
+          "
+        >
+
+          <div
+            class="smp-preview-row"
+            style="
+              grid-template-columns:
+              ${columnTemplate};
+            "
+          >
+            <span class="smp-preview-label">
+              날짜
+            </span>
+
+            ${dateHeaders}
+          </div>
+
+          ${valueRows}
+
+        </div>
+      `;
+
+      table
+        .querySelectorAll(
+          "[data-smp-date][data-smp-field]"
+        )
+        .forEach(
+          element => {
+            renderCell(
+              element,
+              element.dataset
+                .smpDate,
+              element.dataset
+                .smpField
+            );
+          }
+        );
+    }
   }
 
-  if (
-    meetingDateLabel
-  ) {
-    meetingDateLabel.textContent =
-      `${shortDate(meetingDate)} (회의일)`;
-
-    meetingDateLabel.title =
-      `${meetingDate} 회의일 SMP`;
-  }
-
-  Object.entries(
-    CELL_MAP.previous
-  ).forEach(
-    ([
-      fieldName,
-      id
-    ]) => {
-      renderCell(
-        byId(id),
-        previousDate,
-        fieldName
-      );
-    }
-  );
-
-  Object.entries(
-    CELL_MAP.meeting
-  ).forEach(
-    ([
-      fieldName,
-      id
-    ]) => {
-      renderCell(
-        byId(id),
-        meetingDate,
-        fieldName
-      );
-    }
-  );
-
-  const previousResult =
-    getDateResult(
-      previousDate
-    );
-
-  const meetingResult =
-    getDateResult(
-      meetingDate
+  const results =
+    dates.map(
+      dateValue =>
+        getDateResult(
+          dateValue
+        )
     );
 
   const isLoading =
-    previousResult.status ===
-      "loading" ||
-    meetingResult.status ===
-      "loading";
+    results.some(
+      result =>
+        result.status ===
+        "loading"
+    );
 
   const refreshButton =
     byId(
@@ -198883,7 +199143,9 @@ function render() {
     refreshButton
   ) {
     refreshButton.disabled =
-      isLoading;
+      isLoading ||
+      dates.length ===
+        0;
 
     refreshButton.textContent =
       isLoading
@@ -198898,17 +199160,35 @@ function render() {
     );
 
     refreshButton.title =
-      isLoading
-        ? "전날과 회의일 SMP를 조회하고 있습니다."
-        : "전날과 회의일 SMP를 EPSIS에서 다시 조회";
+      dates.length ===
+        0
+        ? "주말 시작일과 종료일을 먼저 선택하세요."
+        : (
+            isLoading
+              ? "표시된 SMP를 조회하고 있습니다."
+              : "표시된 모든 날짜의 SMP를 EPSIS에서 다시 조회"
+          );
   }
+
+  const meetingResult =
+    target.meetingDate
+      ? getDateResult(
+          target.meetingDate
+        )
+      : {
+          status:
+            "idle",
+
+          error:
+            ""
+        };
 
   if (
     meetingResult.status ===
     "unavailable"
   ) {
     card.title =
-      `${meetingDate} 회의일 SMP 자료가 아직 없습니다.`;
+      `${target.meetingDate} 회의일 SMP 자료가 아직 없습니다.`;
 
   } else if (
     meetingResult.status ===
@@ -198917,15 +199197,43 @@ function render() {
     card.title =
       meetingResult.error;
 
-  } else {
+  } else if (
+    target.mode ===
+      "weekend" &&
+    dates.length >
+      0
+  ) {
     card.title =
-      `${previousDate} 전날 / ` +
-      `${meetingDate} 회의일 육지 SMP`;
+      `${dates[0]} ~ ${target.meetingDate} 육지 SMP · 마지막 날짜는 회의일`;
+
+  } else if (
+    dates.length >
+    0
+  ) {
+    card.title =
+      `${target.previousDate} 전날 / ` +
+      `${target.meetingDate} 회의일 육지 SMP`;
   }
 
+  /*
+    날짜별 값은 모두 보관한다.
+    대표 SMP는 syncMeetingDateState()가
+    마지막 회의일 값으로 유지한다.
+  */
+
+  const state =
+    getState();
+
+  state.smpPricePreviewMode =
+    target.mode;
+
+  state.smpPricePreviewDates = [
+    ...dates
+  ];
+
   syncMeetingDateState(
-    previousDate,
-    meetingDate
+    target.previousDate,
+    target.meetingDate
   );
 }
 
@@ -199299,96 +199607,107 @@ function normalizeResult(
   }
 
 
-  async function load(
-    options = {}
+async function load(
+  options = {}
+) {
+  const forceRefresh =
+    options.forceRefresh ===
+    true;
+
+  const target =
+    getTargetDates();
+
+  const dates =
+    target.dates;
+
+  activeControllers.forEach(
+    controller =>
+      controller.abort()
+  );
+
+  activeControllers =
+    [];
+
+  const sequence =
+    ++requestSequence;
+
+  if (
+    dates.length ===
+    0
   ) {
-    const forceRefresh =
-      options.forceRefresh ===
-      true;
-
-    const {
-      previousDate,
-      meetingDate
-    } =
-      getTargetDates();
-
-    if (
-      !isIsoDate(
-        previousDate
-      ) ||
-      !isIsoDate(
-        meetingDate
-      )
-    ) {
-      render();
-      return null;
-    }
-
-    /*
-      날짜를 이동하거나 다시 조회하면
-      기존 진행 중 요청을 중단한다.
-    */
-
-    activeControllers.forEach(
-      controller =>
-        controller.abort()
-    );
-
-    activeControllers =
-      [];
-
-    const sequence =
-      ++requestSequence;
-
-    const [
-      previousItem,
-      meetingItem
-    ] =
-      await Promise.all(
-        [
-          loadDate(
-            previousDate,
-            forceRefresh,
-            sequence
-          ),
-
-          loadDate(
-            meetingDate,
-            forceRefresh,
-            sequence
-          )
-        ]
-      );
-
-    if (
-      sequence !==
-      requestSequence
-    ) {
-      return null;
-    }
-
     render();
 
-    const pair = {
-      previousDate,
-      meetingDate,
-      previousItem,
-      meetingItem
-    };
+    return null;
+  }
 
-    document.dispatchEvent(
-      new CustomEvent(
-        "efficiencyMorningMeetingSmpPricePairLoaded",
-        {
-          detail:
-            pair
+  const items =
+    await Promise.all(
+      dates.map(
+        dateValue => {
+          return loadDate(
+            dateValue,
+            forceRefresh,
+            sequence
+          );
         }
       )
     );
 
-    return pair;
+  if (
+    sequence !==
+    requestSequence
+  ) {
+    return null;
   }
 
+  render();
+
+  const result = {
+    mode:
+      target.mode,
+
+    sourceStartDate:
+      target.sourceStartDate,
+
+    sourceEndDate:
+      target.sourceEndDate,
+
+    previousDate:
+      target.previousDate,
+
+    previousItem:
+      items[0] ||
+      null,
+
+    meetingDate:
+      target.meetingDate,
+
+    meetingItem:
+      items[
+        items.length -
+        1
+      ] ||
+      null,
+
+    previewDates: [
+      ...dates
+    ],
+
+    items
+  };
+
+  document.dispatchEvent(
+    new CustomEvent(
+      "efficiencyMorningMeetingSmpPricePairLoaded",
+      {
+        detail:
+          result
+      }
+    )
+  );
+
+  return result;
+}
 
   function scheduleLoad(
     forceRefresh = false
@@ -199469,73 +199788,105 @@ function normalizeResult(
   }
 
 
-  function bindEvents() {
-    if (
-      document.documentElement
-        .dataset
-        .morningMeetingSmpBound ===
-      "true"
-    ) {
-      return;
-    }
-
+function bindEvents() {
+  if (
     document.documentElement
       .dataset
-      .morningMeetingSmpBound =
-        "true";
+      .morningMeetingSmpBound ===
+    "true"
+  ) {
+    return;
+  }
 
-    document.addEventListener(
-      "click",
-      event => {
-        const target =
-          event.target instanceof
-          Element
-            ? event.target
-            : null;
+  document.documentElement
+    .dataset
+    .morningMeetingSmpBound =
+      "true";
 
-        if (
-          target?.closest(
-            "#efficiencyMorningMeetingAutoSmpRefreshButton"
-          )
-        ) {
-          /*
-            캐시된 화면값을 쓰지 않고
-            두 날짜를 EPSIS에서 다시 조회
-          */
+  document.addEventListener(
+    "click",
+    event => {
+      const target =
+        event.target instanceof
+        Element
+          ? event.target
+          : null;
 
-          scheduleLoad(
-            true
-          );
-
-          return;
-        }
-
-        if (
-          target?.closest(
-            "#resetEfficiencyMorningMeetingButton"
-          )
-        ) {
-          window.setTimeout(
-            () => {
-              scheduleLoad(
-                false
-              );
-            },
-            50
-          );
-        }
-      }
-    );
-
-    document.addEventListener(
-      "efficiencyMorningMeetingShiftLogsLoaded",
-      () => {
+      if (
+        target?.closest(
+          "#efficiencyMorningMeetingAutoSmpRefreshButton"
+        )
+      ) {
         scheduleLoad(
-          false
+          true
+        );
+
+        return;
+      }
+
+      if (
+        target?.closest(
+          "#resetEfficiencyMorningMeetingButton"
+        )
+      ) {
+        window.setTimeout(
+          () => {
+            scheduleLoad(
+              false
+            );
+          },
+          50
         );
       }
-    );
-  }
+    }
+  );
+
+  /*
+    주말 체크 및 기간 변경 시
+    SMP 표시 날짜도 즉시 다시 계산한다.
+  */
+
+  document.addEventListener(
+    "change",
+    event => {
+      const target =
+        event.target instanceof
+        Element
+          ? event.target
+          : null;
+
+      if (
+        target?.matches(
+          [
+            "#efficiencyMorningMeetingWeekendMode",
+            "#efficiencyMorningMeetingWeekendStartDate",
+            "#efficiencyMorningMeetingWeekendEndDate"
+          ].join(
+            ","
+          )
+        )
+      ) {
+        window.setTimeout(
+          () => {
+            scheduleLoad(
+              false
+            );
+          },
+          0
+        );
+      }
+    }
+  );
+
+  document.addEventListener(
+    "efficiencyMorningMeetingShiftLogsLoaded",
+    () => {
+      scheduleLoad(
+        false
+      );
+    }
+  );
+}
 
 
   /*
