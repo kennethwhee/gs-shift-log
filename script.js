@@ -198511,7 +198511,7 @@ function ensureCard() {
         color: #475569;
         font-size: 10px;
         font-weight: 800;
-        line-height: 1.05;
+        line-height: 1.1;
       }
 
       #efficiencyMorningMeetingAutoSmpTable
@@ -198956,18 +198956,6 @@ function render() {
                 dateValue ===
                 target.meetingDate;
 
-              const subLabel =
-                isMeeting
-                  ? "회의일"
-                  : (
-                      target.mode ===
-                        "weekday" &&
-                      dateValue ===
-                        target.previousDate
-                        ? "전날"
-                        : ""
-                    );
-
               return `
                 <strong
                   class="smp-preview-date${
@@ -198980,11 +198968,6 @@ function render() {
                     ${shortDate(dateValue)}
                   </span>
 
-                  ${
-                    subLabel
-                      ? `<small>${subLabel}</small>`
-                      : ""
-                  }
                 </strong>
               `;
             }
