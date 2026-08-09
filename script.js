@@ -163207,7 +163207,7 @@ function renderTmList() {
 
   tmList.innerHTML = [
     renderTmSource(
-      "교대파트 업무일지 발행내역",
+      "교대파트 TM 발행내역",
       shiftItems
     ),
 
