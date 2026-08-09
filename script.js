@@ -164914,7 +164914,7 @@ async function waitForCompletion(
 
 
     const requestResult =
-      await getSiloRequest(
+      await getWaterRequest(
         requestId
       );
 
@@ -164927,7 +164927,7 @@ async function waitForCompletion(
       !requestItem
     ) {
       throw new Error(
-        "Silo Level OIS 요청을 찾을 수 없습니다."
+        "수처리 OIS 요청을 찾을 수 없습니다."
       );
     }
 
@@ -164938,71 +164938,8 @@ async function waitForCompletion(
       ).toLowerCase();
 
 
-    const {
-      panel
-    } =
-      getElements();
-
-
     /* =================================================
-      현재 서버 상태를 화면 상태에도 계속 반영
-    ================================================== */
-
-    if (
-      panel
-    ) {
-      panel.dataset
-        .siloLevelStatus =
-        requestStatus ||
-        "pending";
-
-
-      panel.dataset
-        .siloLevelRequestId =
-        normalizeText(
-          requestItem.id
-        ) ||
-        requestId;
-
-
-      panel.dataset
-        .siloLevelTargetDate =
-        targetDate;
-
-
-      if (
-        requestItem.agentId
-      ) {
-        panel.dataset
-          .siloLevelAgentId =
-          normalizeText(
-            requestItem.agentId
-          );
-
-      } else {
-        delete panel.dataset
-          .siloLevelAgentId;
-      }
-    }
-
-
-    /*
-      상태가 바뀔 때마다
-      Silo 카드를 즉시 다시 그린다.
-    */
-
-    if (
-      typeof window
-        .renderEfficiencyMorningMeetingSiloLevelPreview ===
-        "function"
-    ) {
-      window
-        .renderEfficiencyMorningMeetingSiloLevelPreview();
-    }
-
-
-    /* =================================================
-      완료
+      조회 완료
     ================================================== */
 
     if (
@@ -165014,7 +164951,7 @@ async function waitForCompletion(
 
 
     /* =================================================
-      실패
+      실제 조회 실패
     ================================================== */
 
     if (
@@ -165023,33 +164960,36 @@ async function waitForCompletion(
     ) {
       throw new Error(
         normalizeText(
-          requestItem.errorMessage
+          requestItem.errorMessage ||
+          requestItem.error_message
         ) ||
-        `${targetDate} Silo Level OIS 조회에 실패했습니다.`
+        `${targetDate} 수처리 OIS 조회에 실패했습니다.`
       );
     }
 
 
     /* =================================================
-      진행 상태 로그
-
-      pending:
-      회사 PC가 요청을 가져가기 전
-
-      processing:
-      회사 PC가 요청을 가져가 OIS 조회 중
+      현재 진행 상태 표시
     ================================================== */
 
     if (
       requestStatus ===
         "processing"
     ) {
-      console.log(
-        [
-          `${targetDate} Silo Level OIS 조회 중`,
-
+      const agentId =
+        normalizeText(
           requestItem.agentId
-            ? `처리 PC: ${requestItem.agentId}`
+        );
+
+
+      setStatus(
+        "loading",
+
+        [
+          `${targetDate} OIS 수처리 조회 중`,
+
+          agentId
+            ? `처리 PC: ${agentId}`
             : ""
         ]
           .filter(
@@ -165061,8 +165001,9 @@ async function waitForCompletion(
       );
 
     } else {
-      console.log(
-        `${targetDate} Silo Level 회사 PC 처리 대기 중`
+      setStatus(
+        "loading",
+        `${targetDate} 회사 PC 처리 대기 중`
       );
     }
 
@@ -165074,7 +165015,7 @@ async function waitForCompletion(
 
 
   throw new Error(
-    `${targetDate} Silo Level OIS 조회 응답 시간이 초과되었습니다.`
+    `${targetDate} 수처리 OIS 조회 응답 시간이 초과되었습니다.`
   );
 }
 
