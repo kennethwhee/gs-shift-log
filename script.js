@@ -150008,173 +150008,195 @@ function applyMorningMeetingPreviewAutoValues(
   }
 
 
-  /* =====================================================
-    회의일 날씨
-  ====================================================== */
+/* =====================================================
+  회의일 날짜
 
-  const weather =
-    state.morningWeather &&
-    typeof state.morningWeather ===
-      "object"
-      ? state.morningWeather
-      : null;
+  B4:F4 병합 셀의 시작 셀 B4에
+  실제 회의일을 입력한다.
+====================================================== */
 
-
-  const weatherDate =
-    isoDate(
-      state.morningWeatherDate
-    );
-
-
-  const weatherSourceDate =
-    isoDate(
-      weather?.sourceDate ||
-      weather?.targetDate
-    );
+const meetingDateSerial =
+  Math.floor(
+    Date.UTC(
+      scheduleDate.getUTCFullYear(),
+      scheduleDate.getUTCMonth(),
+      scheduleDate.getUTCDate()
+    ) /
+    86400000
+  ) +
+  25569;
 
 
-  const condition =
-    String(
-      weather?.condition ??
-      ""
-    ).trim();
+const meetingDateResult =
+  setMorningMeetingNumericCellValue(
+    worksheetDocument,
+    "B4",
+    meetingDateSerial
+  );
 
 
-  const temperature =
-    numberOrNull(
-      weather?.temperature
-    );
+/* =====================================================
+  회의일 날씨
+
+  G4:
+  날씨 : 맑음
+
+  N4:
+  대기온도 :
+
+  S4:
+  24℃ (10/32℃)
+
+  습도는 최종 회의자료에서 제외한다.
+====================================================== */
+
+const weather =
+  state.morningWeather &&
+  typeof state.morningWeather ===
+    "object"
+    ? state.morningWeather
+    : null;
 
 
-  const minimumTemperature =
-    numberOrNull(
-      weather
-        ?.minimumTemperature
-    );
+const weatherDate =
+  isoDate(
+    state.morningWeatherDate
+  );
 
 
-  const maximumTemperature =
-    numberOrNull(
-      weather
-        ?.maximumTemperature
-    );
+const weatherSourceDate =
+  isoDate(
+    weather?.sourceDate ||
+    weather?.targetDate
+  );
 
 
-  const humidity =
-    numberOrNull(
-      weather?.humidity
-    );
+const condition =
+  String(
+    weather?.condition ??
+    ""
+  ).trim();
 
 
-  const weatherValid =
-    Boolean(
-      weather &&
-
-      weatherDate ===
-        meetingDate &&
-
-      weatherSourceDate ===
-        meetingDate &&
-
-      condition &&
-
-      temperature !==
-        null &&
-
-      minimumTemperature !==
-        null &&
-
-      maximumTemperature !==
-        null &&
-
-      humidity !==
-        null
-    );
+const temperature =
+  numberOrNull(
+    weather?.temperature
+  );
 
 
-  const weatherText =
-    weatherValid
-      ? (
-          `날씨 : ${condition}` +
-          ` / 습도 : ${Math.round(
-            humidity
-          )}%`
-        )
-      : "날씨 :";
+const minimumTemperature =
+  numberOrNull(
+    weather?.minimumTemperature
+  );
 
 
-  const temperatureText =
-    weatherValid
-      ? (
-          `대기온도 : ${Math.round(
-            temperature
-          )}℃` +
-
-          ` (최저 ${Math.round(
-            minimumTemperature
-          )}℃` +
-
-          ` / 최고 ${Math.round(
-            maximumTemperature
-          )}℃)`
-        )
-      : "대기온도 :";
+const maximumTemperature =
+  numberOrNull(
+    weather?.maximumTemperature
+  );
 
 
-  const weatherResult =
-    setMorningMeetingRichInlineStringCellValue(
-      worksheetDocument,
-      "G4",
-      weatherText
-    );
+const weatherValid =
+  Boolean(
+    weather &&
 
+    weatherDate ===
+      meetingDate &&
 
-  const temperatureResult =
-    setMorningMeetingRichInlineStringCellValue(
-      worksheetDocument,
-      "N4",
-      temperatureText
-    );
+    weatherSourceDate ===
+      meetingDate &&
 
+    condition &&
 
-  /*
-    기존 템플릿 S4의
-    오래된 기온 숫자를 제거한다.
-  */
+    temperature !==
+      null &&
 
-  const oldTemperatureResult =
-    setMorningMeetingNumericCellValue(
-      worksheetDocument,
-      "S4",
+    minimumTemperature !==
+      null &&
+
+    maximumTemperature !==
       null
-    );
+  );
 
 
-  if (
-    !weatherResult.found ||
-    !temperatureResult.found ||
-    !oldTemperatureResult.found
-  ) {
-    throw new Error(
-      "오전회의 상단 날씨 셀 G4/N4/S4를 찾지 못했습니다."
-    );
-  }
+const weatherText =
+  weatherValid
+    ? `날씨 : ${condition}`
+    : "날씨 :";
 
 
-  return {
-    meetingDate,
+const temperatureText =
+  weatherValid
+    ? (
+        `${Math.round(
+          temperature
+        )}℃` +
 
-    smpAppliedCount,
-    smpTotalCount,
+        ` (${Math.round(
+          minimumTemperature
+        )}/${Math.round(
+          maximumTemperature
+        )}℃)`
+      )
+    : "";
 
-    weekendSmpDateCount:
-      weekendDates.length,
 
-    weatherApplied:
-      weatherValid
-  };
+/*
+  기존 양식과 같은 위치로 각각 입력한다.
+*/
+
+const weatherResult =
+  setMorningMeetingRichInlineStringCellValue(
+    worksheetDocument,
+    "G4",
+    weatherText
+  );
+
+
+const temperatureLabelResult =
+  setMorningMeetingRichInlineStringCellValue(
+    worksheetDocument,
+    "N4",
+    "대기온도 :"
+  );
+
+
+const temperatureValueResult =
+  setMorningMeetingRichInlineStringCellValue(
+    worksheetDocument,
+    "S4",
+    temperatureText
+  );
+
+
+if (
+  !meetingDateResult.found ||
+  !weatherResult.found ||
+  !temperatureLabelResult.found ||
+  !temperatureValueResult.found
+) {
+  throw new Error(
+    "오전회의 상단 날짜·날씨 셀 B4/G4/N4/S4를 찾지 못했습니다."
+  );
 }
 
+
+return {
+  meetingDate,
+
+  meetingDateApplied:
+    meetingDateResult.written,
+
+  smpAppliedCount,
+  smpTotalCount,
+
+  weekendSmpDateCount:
+    weekendDates.length,
+
+  weatherApplied:
+    weatherValid
+};
+}
 /* =====================================================
   최종 엑셀 생성
 
