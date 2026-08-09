@@ -179021,9 +179021,15 @@ function getElements() {
   );
 
   const dateNavigation =
-    previousButton?.parentElement ||
-    todayButton?.parentElement ||
-    nextButton?.parentElement ||
+    previousButton?.closest(
+      ".efficiency-morning-meeting-limestone-date-nav"
+    ) ||
+    todayButton?.closest(
+      ".efficiency-morning-meeting-limestone-date-nav"
+    ) ||
+    nextButton?.closest(
+      ".efficiency-morning-meeting-limestone-date-nav"
+    ) ||
     null;
 
   let datePicker = byId(
@@ -179036,7 +179042,7 @@ function getElements() {
 
 
   /* ===================================================
-    HTML 수정 없이 달력 날짜 버튼 생성
+    HTML 수정 없이 다른 날짜 버튼 생성
   ==================================================== */
 
   if (
@@ -179053,23 +179059,23 @@ function getElements() {
       "efficiencyMorningMeetingAutoDatePickerWrap"
     )?.remove();
 
-    const wrap =
+    const newPickerWrap =
       document.createElement(
         "label"
       );
 
-    wrap.id =
+    newPickerWrap.id =
       "efficiencyMorningMeetingAutoDatePickerWrap";
 
-    wrap.className =
+    newPickerWrap.className =
       "efficiency-morning-meeting-limestone-date-button " +
       "efficiency-morning-meeting-auto-date-picker";
 
-    wrap.htmlFor =
+    newPickerWrap.htmlFor =
       "efficiencyMorningMeetingAutoDatePicker";
 
-    wrap.title =
-      "달력에서 자동자료 기준일 선택";
+    newPickerWrap.title =
+      "달력에서 다른 날짜 선택";
 
 
     datePickerText =
@@ -179081,7 +179087,7 @@ function getElements() {
       "efficiencyMorningMeetingAutoDatePickerText";
 
     datePickerText.textContent =
-      "📅 날짜 선택";
+      "다른 날짜";
 
     datePickerText.setAttribute(
       "aria-hidden",
@@ -179108,18 +179114,17 @@ function getElements() {
 
     datePicker.setAttribute(
       "aria-label",
-      "자동자료 기준일 선택"
+      "자동자료 다른 날짜 선택"
     );
 
 
-    wrap.append(
+    newPickerWrap.append(
       datePickerText,
       datePicker
     );
 
-    dateNavigation.insertBefore(
-      wrap,
-      nextButton
+    dateNavigation.append(
+      newPickerWrap
     );
   }
 
@@ -179135,18 +179140,67 @@ function getElements() {
 
 
   /* ===================================================
-    순서: 전날 → 달력 → 다음날 → 오늘
+    배치
+
+    [전날 | 오늘 날짜 | 다음날] [다른 날짜]
   ==================================================== */
 
   if (
-    nextButton &&
+    dateNavigation &&
+    previousButton &&
     todayButton &&
-    nextButton.nextElementSibling !==
-      todayButton
+    nextButton &&
+    pickerWrap
   ) {
-    nextButton.insertAdjacentElement(
-      "afterend",
-      todayButton
+    pickerWrap.id =
+      "efficiencyMorningMeetingAutoDatePickerWrap";
+
+    pickerWrap.setAttribute(
+      "role",
+      "button"
+    );
+
+    pickerWrap.setAttribute(
+      "tabindex",
+      "0"
+    );
+
+
+    let stepGroup =
+      byId(
+        "efficiencyMorningMeetingAutoDateStepGroup"
+      );
+
+
+    if (
+      !stepGroup
+    ) {
+      stepGroup =
+        document.createElement(
+          "div"
+        );
+
+      stepGroup.id =
+        "efficiencyMorningMeetingAutoDateStepGroup";
+
+      stepGroup.className =
+        "efficiency-morning-meeting-auto-date-step-group";
+
+      dateNavigation.prepend(
+        stepGroup
+      );
+    }
+
+
+    stepGroup.append(
+      previousButton,
+      todayButton,
+      nextButton
+    );
+
+
+    dateNavigation.append(
+      pickerWrap
     );
   }
 
@@ -179157,14 +179211,14 @@ function getElements() {
 
 
   /* ===================================================
-    Edge / Chrome 달력 강제 실행
+    Edge / Chrome 달력 열기
   ==================================================== */
 
   if (
     pickerWrap &&
     datePicker &&
     pickerWrap.dataset
-      .autoDatePickerOpenBound !==
+      .morningMeetingPickerOpenBound !==
       "true"
   ) {
     const openDatePicker =
@@ -179181,13 +179235,7 @@ function getElements() {
         }
 
 
-        if (
-          typeof datePicker
-            .showPicker !==
-            "function"
-        ) {
-          return;
-        }
+        event.preventDefault();
 
 
         try {
@@ -179196,9 +179244,19 @@ function getElements() {
               true
           });
 
-          datePicker.showPicker();
 
-          event.preventDefault();
+          if (
+            typeof datePicker
+              .showPicker ===
+              "function"
+          ) {
+            datePicker.showPicker();
+
+            return;
+          }
+
+
+          datePicker.click();
 
         } catch (
           error
@@ -179222,21 +179280,72 @@ function getElements() {
     );
 
     pickerWrap.dataset
-      .autoDatePickerOpenBound =
+      .morningMeetingPickerOpenBound =
       "true";
   }
 
 
   /* ===================================================
-    CSS 파일을 수정하지 않고 클릭 영역 확장
+    달력에서 선택한 날짜 적용
   ==================================================== */
 
   if (
-    !byId(
-      "efficiencyMorningMeetingAutoDatePickerStyle"
-    )
+    datePicker &&
+    datePicker.dataset
+      .morningMeetingDirectDateBound !==
+      "true"
   ) {
-    const style =
+    datePicker.addEventListener(
+      "change",
+      event => {
+        event.stopImmediatePropagation();
+
+        const selectedDate =
+          String(
+            event.currentTarget?.value ||
+            ""
+          ).trim();
+
+
+        if (
+          !isValidDate(
+            selectedDate
+          )
+        ) {
+          event.currentTarget.value =
+            resolveCommonBaseDate();
+
+          return;
+        }
+
+
+        applyCommonBaseDate(
+          selectedDate
+        );
+      }
+    );
+
+
+    datePicker.dataset
+      .morningMeetingDirectDateBound =
+      "true";
+  }
+
+
+  /* ===================================================
+    날짜 버튼 전용 디자인
+  ==================================================== */
+
+  let style =
+    byId(
+      "efficiencyMorningMeetingAutoDatePickerStyle"
+    );
+
+
+  if (
+    !style
+  ) {
+    style =
       document.createElement(
         "style"
       );
@@ -179244,117 +179353,414 @@ function getElements() {
     style.id =
       "efficiencyMorningMeetingAutoDatePickerStyle";
 
+    document.head.appendChild(
+      style
+    );
+  }
+
+
+  if (
+    style.dataset
+      .compactDateDesign !==
+      "20260809-1"
+  ) {
+    style.dataset
+      .compactDateDesign =
+      "20260809-1";
+
     style.textContent = `
-      .efficiency-morning-meeting-auto-date-picker {
+      .efficiency-morning-meeting-auto-common-date__label {
+        display: none !important;
+      }
+
+      .efficiency-morning-meeting-auto-common-date__center {
+        gap: 0 !important;
+      }
+
+      .efficiency-morning-meeting-auto-common-date
+      .efficiency-morning-meeting-limestone-date-nav {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 10px !important;
+        flex-wrap: nowrap !important;
+        min-width: 0 !important;
+      }
+
+      .efficiency-morning-meeting-auto-date-step-group {
+        display: inline-flex !important;
+        align-items: stretch !important;
+        flex: 0 0 auto !important;
+        gap: 0 !important;
+      }
+
+      #efficiencyMorningMeetingLimestonePreviousButton,
+      #efficiencyMorningMeetingLimestoneTodayButton,
+      #efficiencyMorningMeetingLimestoneNextButton {
+        box-sizing: border-box !important;
+        height: 34px !important;
+        min-height: 34px !important;
+        margin: 0 !important;
+        padding: 0 13px !important;
+        border: 1px solid #c9d6e3 !important;
+        border-radius: 0 !important;
+        background: #ffffff !important;
+        color: #526a80 !important;
+        font-size: 12px !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+        box-shadow: none !important;
+        transform: none !important;
+      }
+
+      #efficiencyMorningMeetingLimestonePreviousButton {
+        min-width: 72px !important;
+        border-radius: 8px 0 0 8px !important;
+      }
+
+      #efficiencyMorningMeetingLimestoneTodayButton {
         position: relative !important;
+        z-index: 1 !important;
+        min-width: 126px !important;
+        margin-left: -1px !important;
+        background: #edf5fc !important;
+        color: #236497 !important;
+        font-size: 13px !important;
+        font-weight: 900 !important;
+      }
+
+      #efficiencyMorningMeetingLimestoneNextButton {
+        min-width: 72px !important;
+        margin-left: -1px !important;
+        border-radius: 0 8px 8px 0 !important;
+      }
+
+      #efficiencyMorningMeetingLimestonePreviousButton:hover,
+      #efficiencyMorningMeetingLimestoneNextButton:hover {
+        position: relative !important;
+        z-index: 2 !important;
+        border-color: #91b2d0 !important;
+        background: #f5f9fd !important;
+        color: #245f90 !important;
+      }
+
+      #efficiencyMorningMeetingLimestoneTodayButton:hover {
+        z-index: 3 !important;
+        border-color: #73a5cf !important;
+        background: #e2f0fc !important;
+        color: #175a90 !important;
+      }
+
+      #efficiencyMorningMeetingLimestoneTodayButton.is-current-date {
+        z-index: 2 !important;
+        border-color: #72a6d1 !important;
+        background: #dfefff !important;
+        color: #15588f !important;
+      }
+
+      #efficiencyMorningMeetingAutoDatePickerWrap {
+        position: relative !important;
+        box-sizing: border-box !important;
         display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
-        min-width: 112px !important;
+        flex: 0 0 auto !important;
+        min-width: 98px !important;
+        height: 34px !important;
+        min-height: 34px !important;
+        margin: 0 !important;
+        padding: 0 13px !important;
         overflow: hidden !important;
-        color: #315d89 !important;
-        cursor: pointer !important;
+        border: 1px solid #9ebbd5 !important;
+        border-radius: 8px !important;
+        outline: none !important;
+        background: #ffffff !important;
+        color: #2b6596 !important;
+        font-size: 12px !important;
+        font-weight: 850 !important;
+        line-height: 1 !important;
         white-space: nowrap !important;
+        cursor: pointer !important;
+        box-shadow:
+          0 1px 2px
+          rgba(30, 70, 105, 0.05) !important;
       }
 
-      .efficiency-morning-meeting-auto-date-picker:focus-within {
-        border-color: #7ca8d2 !important;
+      #efficiencyMorningMeetingAutoDatePickerWrap:hover {
+        border-color: #6f9fc8 !important;
+        background: #f5faff !important;
+        color: #185a90 !important;
         box-shadow:
-          0 0 0 2px
-          rgba(49, 105, 159, 0.14) !important;
+          0 2px 5px
+          rgba(35, 91, 137, 0.10) !important;
+      }
+
+      #efficiencyMorningMeetingAutoDatePickerWrap:focus-visible,
+      #efficiencyMorningMeetingAutoDatePickerWrap:focus-within {
+        border-color: #5794c7 !important;
+        box-shadow:
+          0 0 0 3px
+          rgba(61, 132, 190, 0.15) !important;
       }
 
       #efficiencyMorningMeetingAutoDatePickerText {
         position: relative !important;
         z-index: 1 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 6px !important;
         pointer-events: none !important;
+      }
+
+      #efficiencyMorningMeetingAutoDatePickerText::before {
+        content: "";
+        box-sizing: border-box;
+        display: inline-block;
+        width: 13px;
+        height: 12px;
+        border: 1.5px solid currentColor;
+        border-radius: 2px;
+        background:
+          linear-gradient(
+            to bottom,
+            currentColor 0 2.5px,
+            transparent 2.5px
+          );
+        opacity: 0.82;
       }
 
       .efficiency-morning-meeting-auto-date-picker__input {
         position: absolute !important;
-        inset: 0 !important;
-        z-index: 2 !important;
-        width: 100% !important;
-        height: 100% !important;
+        left: 50% !important;
+        bottom: 1px !important;
+        width: 1px !important;
+        height: 1px !important;
         margin: 0 !important;
         padding: 0 !important;
         border: 0 !important;
         opacity: 0 !important;
-        cursor: pointer !important;
-      }
-
-      .efficiency-morning-meeting-auto-date-picker__input::-webkit-calendar-picker-indicator {
-        position: absolute !important;
-        inset: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        opacity: 0 !important;
-        cursor: pointer !important;
-      }
-
-      #efficiencyMorningMeetingLimestoneTodayButton {
-        min-width: 54px !important;
-        font-size: 12px !important;
-        white-space: nowrap !important;
+        pointer-events: none !important;
       }
 
       @media (max-width: 700px) {
-        .efficiency-morning-meeting-auto-common-date__label {
-          display: none !important;
-        }
-
         .efficiency-morning-meeting-auto-common-date
         .efficiency-morning-meeting-limestone-date-nav {
-          gap: 4px !important;
-          flex-wrap: nowrap !important;
+          width: 100% !important;
+          gap: 7px !important;
         }
 
-        .efficiency-morning-meeting-auto-date-picker {
-          min-width: 104px !important;
+        #efficiencyMorningMeetingLimestonePreviousButton,
+        #efficiencyMorningMeetingLimestoneTodayButton,
+        #efficiencyMorningMeetingLimestoneNextButton,
+        #efficiencyMorningMeetingAutoDatePickerWrap {
+          height: 32px !important;
+          min-height: 32px !important;
         }
 
         #efficiencyMorningMeetingLimestonePreviousButton,
         #efficiencyMorningMeetingLimestoneNextButton {
-          min-width: 70px !important;
-          padding-left: 7px !important;
-          padding-right: 7px !important;
+          min-width: 62px !important;
+          padding: 0 8px !important;
+          font-size: 11px !important;
+        }
+
+        #efficiencyMorningMeetingLimestoneTodayButton {
+          min-width: 112px !important;
+          padding: 0 9px !important;
+          font-size: 12px !important;
+        }
+
+        #efficiencyMorningMeetingAutoDatePickerWrap {
+          min-width: 88px !important;
+          padding: 0 10px !important;
+          font-size: 11px !important;
         }
       }
 
       @media (max-width: 390px) {
         .efficiency-morning-meeting-auto-common-date
         .efficiency-morning-meeting-limestone-date-nav {
-          gap: 2px !important;
-        }
-
-        .efficiency-morning-meeting-auto-date-picker {
-          min-width: 94px !important;
-          padding-left: 4px !important;
-          padding-right: 4px !important;
-          font-size: 10px !important;
+          gap: 6px !important;
         }
 
         #efficiencyMorningMeetingLimestonePreviousButton,
         #efficiencyMorningMeetingLimestoneNextButton {
-          min-width: 62px !important;
-          padding-left: 4px !important;
-          padding-right: 4px !important;
+          min-width: 52px !important;
+          padding: 0 5px !important;
           font-size: 10px !important;
         }
 
         #efficiencyMorningMeetingLimestoneTodayButton {
-          min-width: 44px !important;
-          padding-left: 4px !important;
-          padding-right: 4px !important;
+          min-width: 96px !important;
+          padding: 0 6px !important;
+          font-size: 11px !important;
+        }
+
+        #efficiencyMorningMeetingAutoDatePickerWrap {
+          min-width: 78px !important;
+          padding: 0 7px !important;
           font-size: 10px !important;
+        }
+
+        #efficiencyMorningMeetingAutoDatePickerText {
+          gap: 4px !important;
+        }
+
+        #efficiencyMorningMeetingAutoDatePickerText::before {
+          width: 11px;
+          height: 10px;
         }
       }
     `;
+  }
 
-    document.head.appendChild(
-      style
+
+  const limestoneDateInput =
+    byId(
+      "limestoneUsageDate"
+    );
+
+  const commonPanel =
+    byId(
+      "efficiencyMorningMeetingWaterPanel"
+    );
+
+  const waterDate =
+    byId(
+      "efficiencyMorningMeetingAutoWaterDate"
+    );
+
+  const limestoneDate =
+    byId(
+      "efficiencyMorningMeetingAutoLimestoneDate"
+    );
+
+  const gearPinionDate =
+    byId(
+      "efficiencyMorningMeetingAutoGearPinionDate"
+    );
+
+
+  /* ===================================================
+    날짜 문구 최종 표시
+  ==================================================== */
+
+  if (
+    dateNavigation &&
+    dateNavigation.dataset
+      .morningMeetingDateRenderQueued !==
+      "true"
+  ) {
+    dateNavigation.dataset
+      .morningMeetingDateRenderQueued =
+      "true";
+
+
+    window.queueMicrotask(
+      () => {
+        delete dateNavigation.dataset
+          .morningMeetingDateRenderQueued;
+
+
+        const actualTodayDate =
+          getTodayDate();
+
+        const compactTodayDate =
+          actualTodayDate
+            .slice(
+              2
+            )
+            .replace(
+              /-/g,
+              "."
+            );
+
+
+        if (
+          datePickerText
+        ) {
+          datePickerText.textContent =
+            "다른 날짜";
+        }
+
+
+        if (
+          todayButton
+        ) {
+          todayButton.textContent =
+            `오늘 ${compactTodayDate}`;
+
+          todayButton.title =
+            `${actualTodayDate} 오늘 자료로 이동`;
+        }
+
+
+        const baseDate =
+          String(
+            commonPanel?.dataset
+              .morningMeetingAutoBaseDate ||
+            datePicker?.value ||
+            ""
+          ).trim();
+
+
+        if (
+          !isValidDate(
+            baseDate
+          )
+        ) {
+          todayButton?.classList.remove(
+            "is-current-date"
+          );
+
+          return;
+        }
+
+
+        if (
+          datePicker
+        ) {
+          datePicker.value =
+            baseDate;
+        }
+
+
+        if (
+          previousButton
+        ) {
+          previousButton.textContent =
+            "‹ 전날";
+        }
+
+
+        if (
+          nextButton
+        ) {
+          nextButton.textContent =
+            "다음날 ›";
+        }
+
+
+        todayButton?.classList.toggle(
+          "is-current-date",
+          baseDate ===
+            actualTodayDate
+        );
+
+
+        if (
+          pickerWrap
+        ) {
+          pickerWrap.title =
+            `다른 날짜 선택 · 현재 기준일 ${baseDate}`;
+
+          pickerWrap.setAttribute(
+            "aria-label",
+            `다른 날짜 선택, 현재 기준일 ${baseDate}`
+          );
+        }
+      }
     );
   }
 
@@ -179365,31 +179771,11 @@ function getElements() {
     nextButton,
     datePicker,
     datePickerText,
-
-    limestoneDateInput:
-      byId(
-        "limestoneUsageDate"
-      ),
-
-    commonPanel:
-      byId(
-        "efficiencyMorningMeetingWaterPanel"
-      ),
-
-    waterDate:
-      byId(
-        "efficiencyMorningMeetingAutoWaterDate"
-      ),
-
-    limestoneDate:
-      byId(
-        "efficiencyMorningMeetingAutoLimestoneDate"
-      ),
-
-    gearPinionDate:
-      byId(
-        "efficiencyMorningMeetingAutoGearPinionDate"
-      )
+    limestoneDateInput,
+    commonPanel,
+    waterDate,
+    limestoneDate,
+    gearPinionDate
   };
 }
 
