@@ -4,6 +4,9 @@
 /* =========================================================
   기상청 날씨누리 · 신북면 오전회의 날씨 API
 
+  실제 배치 경로:
+  functions/api/weather-forecast.js
+
   호출:
   GET /api/weather-forecast?date=2026-08-10
 
@@ -38,6 +41,10 @@ const FORECAST_TIME =
 
 const UPSTREAM_TIMEOUT_MS =
   15000;
+
+
+const D1_TABLE_NAME =
+  "morning_meeting_weather_forecasts";
 
 
 /* =========================================================
@@ -467,11 +474,6 @@ function extractHumidity(
 }
 
 
-/*
-  화면에는 사용자가 요청한
-  비 / 흐림 / 맑음 세 종류로 정리한다.
-*/
-
 function normalizeWeatherCondition(
   sourceCondition
 ) {
@@ -654,6 +656,468 @@ function parseWeatherForecast(
 
 
 /* =========================================================
+  D1 저장 테이블
+
+  저장 규칙:
+  - 조회에 성공한 날짜만 저장
+  - 일반 조회는 D1 저장값 우선
+  - 다시 조회는 날씨누리 재조회 후 같은 날짜 갱신
+  - 과거 자료 자동 소급조회 없음
+========================================================= */
+
+async function ensureWeatherForecastTable(
+  database
+) {
+  await database
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS ${D1_TABLE_NAME} (
+        forecast_date TEXT NOT NULL,
+        forecast_hour TEXT NOT NULL,
+        location_code TEXT NOT NULL,
+
+        forecast_time TEXT NOT NULL DEFAULT '',
+        location TEXT NOT NULL DEFAULT '',
+        place_name TEXT NOT NULL DEFAULT '',
+        latitude REAL,
+        longitude REAL,
+
+        condition TEXT NOT NULL,
+        source_condition TEXT NOT NULL DEFAULT '',
+        temperature REAL NOT NULL,
+        minimum_temperature REAL NOT NULL,
+        maximum_temperature REAL NOT NULL,
+        humidity REAL NOT NULL,
+
+        unit_json TEXT NOT NULL DEFAULT '{}',
+        source TEXT NOT NULL DEFAULT '',
+        source_url TEXT NOT NULL DEFAULT '',
+        collected_at TEXT NOT NULL,
+        raw_item_json TEXT NOT NULL DEFAULT '{}',
+
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        revision INTEGER NOT NULL DEFAULT 1,
+
+        PRIMARY KEY (
+          forecast_date,
+          forecast_hour,
+          location_code
+        )
+      )
+    `)
+    .run();
+
+
+  await database
+    .prepare(`
+      CREATE INDEX IF NOT EXISTS
+        idx_morning_weather_forecast_date
+
+      ON ${D1_TABLE_NAME} (
+        forecast_date,
+        forecast_hour
+      )
+    `)
+    .run();
+}
+
+
+function parseJsonObject(
+  value,
+  fallbackValue =
+    {}
+) {
+  try {
+    const parsedValue =
+      JSON.parse(
+        normalizeText(
+          value
+        ) ||
+        "{}"
+      );
+
+
+    return (
+      parsedValue &&
+      typeof parsedValue ===
+        "object" &&
+      !Array.isArray(
+        parsedValue
+      )
+    )
+      ? parsedValue
+      : fallbackValue;
+
+  } catch {
+    return fallbackValue;
+  }
+}
+
+
+function normalizeStoredWeatherForecast(
+  row
+) {
+  if (
+    !row
+  ) {
+    return null;
+  }
+
+
+  const sourceDate =
+    normalizeText(
+      row.forecast_date
+    );
+
+
+  const condition =
+    normalizeText(
+      row.condition
+    );
+
+
+  const temperature =
+    numberOrNull(
+      row.temperature
+    );
+
+
+  const minimumTemperature =
+    numberOrNull(
+      row.minimum_temperature
+    );
+
+
+  const maximumTemperature =
+    numberOrNull(
+      row.maximum_temperature
+    );
+
+
+  const humidity =
+    numberOrNull(
+      row.humidity
+    );
+
+
+  if (
+    !isValidIsoDate(
+      sourceDate
+    ) ||
+    !condition ||
+    temperature ===
+      null ||
+    minimumTemperature ===
+      null ||
+    maximumTemperature ===
+      null ||
+    humidity ===
+      null
+  ) {
+    return null;
+  }
+
+
+  const rawItem =
+    parseJsonObject(
+      row.raw_item_json
+    );
+
+
+  return {
+    ...rawItem,
+
+    sourceDate,
+    targetDate:
+      sourceDate,
+
+    forecastTime:
+      normalizeText(
+        row.forecast_time
+      ) ||
+      `${sourceDate}T${FORECAST_TIME}:00+09:00`,
+
+    forecastHour:
+      normalizeText(
+        row.forecast_hour
+      ) ||
+      FORECAST_TIME,
+
+    locationCode:
+      normalizeText(
+        row.location_code
+      ) ||
+      LOCATION_CODE,
+
+    location:
+      normalizeText(
+        row.location
+      ) ||
+      "경기 포천시 신북면",
+
+    placeName:
+      normalizeText(
+        row.place_name
+      ) ||
+      "포천아트밸리",
+
+    latitude:
+      numberOrNull(
+        row.latitude
+      ) ??
+      Number(
+        LATITUDE
+      ),
+
+    longitude:
+      numberOrNull(
+        row.longitude
+      ) ??
+      Number(
+        LONGITUDE
+      ),
+
+    condition,
+
+    sourceCondition:
+      normalizeText(
+        row.source_condition
+      ) ||
+      condition,
+
+    temperature,
+    minimumTemperature,
+    maximumTemperature,
+    humidity,
+
+    unit:
+      parseJsonObject(
+        row.unit_json,
+        {
+          temperature:
+            "℃",
+
+          humidity:
+            "%"
+        }
+      ),
+
+    source:
+      normalizeText(
+        row.source
+      ) ||
+      "기상청 날씨누리",
+
+    sourceUrl:
+      normalizeText(
+        row.source_url
+      ) ||
+      WEATHER_NURI_SOURCE_URL,
+
+    collectedAt:
+      normalizeText(
+        row.collected_at
+      ),
+
+    storedAt:
+      normalizeText(
+        row.updated_at
+      ),
+
+    revision:
+      Number(
+        row.revision ||
+        1
+      )
+  };
+}
+
+
+async function getStoredWeatherForecast(
+  database,
+  targetDate
+) {
+  const row =
+    await database
+      .prepare(`
+        SELECT
+          *
+
+        FROM ${D1_TABLE_NAME}
+
+        WHERE forecast_date = ?
+          AND forecast_hour = ?
+          AND location_code = ?
+
+        LIMIT 1
+      `)
+      .bind(
+        targetDate,
+        FORECAST_TIME,
+        LOCATION_CODE
+      )
+      .first();
+
+
+  return normalizeStoredWeatherForecast(
+    row
+  );
+}
+
+
+async function saveWeatherForecast(
+  database,
+  item
+) {
+  const nowIso =
+    new Date()
+      .toISOString();
+
+
+  const rawItemJson =
+    JSON.stringify(
+      item
+    );
+
+
+  const unitJson =
+    JSON.stringify(
+      item.unit &&
+      typeof item.unit ===
+        "object"
+        ? item.unit
+        : {
+            temperature:
+              "℃",
+
+            humidity:
+              "%"
+          }
+    );
+
+
+  await database
+    .prepare(`
+      INSERT INTO ${D1_TABLE_NAME} (
+        forecast_date,
+        forecast_hour,
+        location_code,
+        forecast_time,
+        location,
+        place_name,
+        latitude,
+        longitude,
+        condition,
+        source_condition,
+        temperature,
+        minimum_temperature,
+        maximum_temperature,
+        humidity,
+        unit_json,
+        source,
+        source_url,
+        collected_at,
+        raw_item_json,
+        created_at,
+        updated_at,
+        revision
+      ) VALUES (
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, 1
+      )
+
+      ON CONFLICT (
+        forecast_date,
+        forecast_hour,
+        location_code
+      )
+
+      DO UPDATE SET
+        forecast_time =
+          excluded.forecast_time,
+        location =
+          excluded.location,
+        place_name =
+          excluded.place_name,
+        latitude =
+          excluded.latitude,
+        longitude =
+          excluded.longitude,
+        condition =
+          excluded.condition,
+        source_condition =
+          excluded.source_condition,
+        temperature =
+          excluded.temperature,
+        minimum_temperature =
+          excluded.minimum_temperature,
+        maximum_temperature =
+          excluded.maximum_temperature,
+        humidity =
+          excluded.humidity,
+        unit_json =
+          excluded.unit_json,
+        source =
+          excluded.source,
+        source_url =
+          excluded.source_url,
+        collected_at =
+          excluded.collected_at,
+        raw_item_json =
+          excluded.raw_item_json,
+        updated_at =
+          excluded.updated_at,
+        revision =
+          ${D1_TABLE_NAME}.revision + 1
+    `)
+    .bind(
+      item.sourceDate,
+      item.forecastHour ||
+        FORECAST_TIME,
+      item.locationCode ||
+        LOCATION_CODE,
+      item.forecastTime ||
+        `${item.sourceDate}T${FORECAST_TIME}:00+09:00`,
+      item.location ||
+        "경기 포천시 신북면",
+      item.placeName ||
+        "포천아트밸리",
+      numberOrNull(
+        item.latitude
+      ),
+      numberOrNull(
+        item.longitude
+      ),
+      item.condition,
+      item.sourceCondition ||
+        item.condition,
+      item.temperature,
+      item.minimumTemperature,
+      item.maximumTemperature,
+      item.humidity,
+      unitJson,
+      item.source ||
+        "기상청 날씨누리",
+      item.sourceUrl ||
+        WEATHER_NURI_SOURCE_URL,
+      item.collectedAt ||
+        nowIso,
+      rawItemJson,
+      nowIso,
+      nowIso
+    )
+    .run();
+
+
+  return await getStoredWeatherForecast(
+    database,
+    item.sourceDate
+  );
+}
+
+
+/* =========================================================
   날씨누리 단일 날짜 조회
 ========================================================= */
 
@@ -784,6 +1248,35 @@ export async function onRequestGet(
     );
 
 
+  const refreshValue =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "refresh"
+      )
+    ).toLowerCase();
+
+
+  /*
+    기존 화면의 다시 조회 버튼은
+    캐시 방지용 _ 값을 함께 보낸다.
+
+    refresh=1 또는 _가 있으면
+    D1 값을 반환하지 않고 날씨누리를 새로 조회한다.
+  */
+
+  const forceRefresh =
+    [
+      "1",
+      "true",
+      "yes"
+    ].includes(
+      refreshValue
+    ) ||
+    requestUrl.searchParams.has(
+      "_"
+    );
+
+
   if (
     !isValidIsoDate(
       targetDate
@@ -802,15 +1295,118 @@ export async function onRequestGet(
   }
 
 
+  if (
+    !context.env.DB
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "날씨 저장용 D1 바인딩 DB가 등록되지 않았습니다."
+      },
+      500
+    );
+  }
+
+
   try {
-    const item =
+    await ensureWeatherForecastTable(
+      context.env.DB
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "신북 날씨 D1 테이블 준비 실패:",
+      error
+    );
+
+
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "신북 날씨 D1 저장소를 준비하지 못했습니다."
+      },
+      500
+    );
+  }
+
+
+  let storedItem =
+    null;
+
+
+  try {
+    storedItem =
+      await getStoredWeatherForecast(
+        context.env.DB,
+        targetDate
+      );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "신북 날씨 D1 조회 실패:",
+      error
+    );
+
+
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "신북 날씨 D1 저장자료를 불러오지 못했습니다."
+      },
+      500
+    );
+  }
+
+
+  if (
+    storedItem &&
+    !forceRefresh
+  ) {
+    return jsonResponse({
+      ok:
+        true,
+
+      item:
+        storedItem,
+
+      storage:
+        "d1",
+
+      persisted:
+        true,
+
+      refreshed:
+        false
+    });
+  }
+
+
+  let fetchedItem =
+    null;
+
+
+  try {
+    fetchedItem =
       await fetchWeatherNuriForecast(
         targetDate
       );
 
 
     if (
-      !item
+      !fetchedItem
     ) {
       return jsonResponse(
         {
@@ -823,18 +1419,6 @@ export async function onRequestGet(
         404
       );
     }
-
-
-    return jsonResponse(
-      {
-        ok:
-          true,
-
-        item
-      },
-      200,
-      "public, max-age=300, s-maxage=900"
-    );
 
   } catch (
     error
@@ -861,6 +1445,62 @@ export async function onRequestGet(
             : "기상청 날씨누리 자료를 불러오지 못했습니다. 잠시 후 다시 조회해 주세요."
       },
       502
+    );
+  }
+
+
+  try {
+    const savedItem =
+      await saveWeatherForecast(
+        context.env.DB,
+        fetchedItem
+      );
+
+
+    if (
+      !savedItem
+    ) {
+      throw new Error(
+        "저장 후 날씨 자료를 다시 확인하지 못했습니다."
+      );
+    }
+
+
+    return jsonResponse({
+      ok:
+        true,
+
+      item:
+        savedItem,
+
+      storage:
+        "weather_nuri",
+
+      persisted:
+        true,
+
+      refreshed:
+        forceRefresh
+    });
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "신북 날씨 D1 저장 실패:",
+      error
+    );
+
+
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "날씨는 조회했지만 D1에 저장하지 못했습니다. 잠시 후 다시 조회해 주세요."
+      },
+      500
     );
   }
 }
