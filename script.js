@@ -199941,12 +199941,7 @@ function bindEvents() {
 })();
 
 /* =========================================================
-  오전회의 취합 · 회의일 09:00 신북 날씨
-
-  공용 기준일 2026-08-09
-  → 회의일 2026-08-10 09:00 조회
-
-  표시: 날씨 상태 / 기온 / 습도
+  오전회의 · 기상청 날씨누리 신북면 날씨
 ========================================================= */
 
 (function initializeEfficiencyMorningMeetingWeather() {
@@ -199954,7 +199949,7 @@ function bindEvents() {
 
   if (
     window.__efficiencyMorningMeetingWeatherInstalled ===
-      true
+    true
   ) {
     return;
   }
@@ -199962,20 +199957,16 @@ function bindEvents() {
   window.__efficiencyMorningMeetingWeatherInstalled =
     true;
 
+
   const API_URL =
-    "https://api.open-meteo.com/v1/forecast";
+    "/api/weather-forecast";
 
-  const LATITUDE =
-    37.9586;
-
-  const LONGITUDE =
-    127.2307;
+  const DATE_ATTRIBUTE =
+    "data-morning-meeting-auto-base-date";
 
   const FORECAST_HOUR =
     "09:00";
 
-  const DATE_ATTRIBUTE =
-    "data-morning-meeting-auto-base-date";
 
   const weatherByDate =
     new Map();
@@ -199986,11 +199977,12 @@ function bindEvents() {
   const errorByDate =
     new Map();
 
+
   let dateObserver =
     null;
 
-  let activeController =
-    null;
+  let initializeAttempt =
+    0;
 
   let scheduledTimer =
     null;
@@ -199998,18 +199990,25 @@ function bindEvents() {
   let requestSequence =
     0;
 
-  let initializeAttempt =
-    0;
+  let activeController =
+    null;
 
-  const byId = id =>
-    document.getElementById(
-      id
-    );
 
-  const clean = value =>
-    String(
-      value ?? ""
+  const byId =
+    id =>
+      document.getElementById(
+        id
+      );
+
+
+  function clean(
+    value
+  ) {
+    return String(
+      value ??
+      ""
     ).trim();
+  }
 
 
   function getState() {
@@ -200043,17 +200042,17 @@ function bindEvents() {
       return false;
     }
 
-    const parsed =
+    const parsedDate =
       new Date(
         `${dateText}T00:00:00.000Z`
       );
 
     return (
       !Number.isNaN(
-        parsed.getTime()
+        parsedDate.getTime()
       ) &&
 
-      parsed
+      parsedDate
         .toISOString()
         .slice(
           0,
@@ -200066,7 +200065,7 @@ function bindEvents() {
 
   function addDays(
     value,
-    days
+    dayCount
   ) {
     if (
       !isIsoDate(
@@ -200076,58 +200075,22 @@ function bindEvents() {
       return "";
     }
 
-    const parsed =
+    const parsedDate =
       new Date(
         `${value}T00:00:00.000Z`
       );
 
-    parsed.setUTCDate(
-      parsed.getUTCDate() +
-      days
+    parsedDate.setUTCDate(
+      parsedDate.getUTCDate() +
+      dayCount
     );
 
-    return parsed
+    return parsedDate
       .toISOString()
       .slice(
         0,
         10
       );
-  }
-
-
-  function getBaseDate() {
-    const panel =
-      byId(
-        "efficiencyMorningMeetingWaterPanel"
-      );
-
-    return [
-      panel?.dataset
-        .morningMeetingAutoBaseDate,
-
-      byId(
-        "efficiencyMorningMeetingAutoDatePicker"
-      )?.value,
-
-      byId(
-        "efficiencyMorningMeetingAutoWaterDate"
-      )?.textContent
-    ]
-      .map(
-        clean
-      )
-      .find(
-        isIsoDate
-      ) ||
-      "";
-  }
-
-
-  function getMeetingDate() {
-    return addDays(
-      getBaseDate(),
-      1
-    );
   }
 
 
@@ -200174,68 +200137,66 @@ function bindEvents() {
       return null;
     }
 
-    const numeric =
+    const numericValue =
       Number(
-        value
+        clean(
+          value
+        ).replace(
+          /,/g,
+          ""
+        )
       );
 
     return Number.isFinite(
-      numeric
+      numericValue
     )
-      ? numeric
+      ? numericValue
       : null;
   }
 
 
-  function getWeatherCondition(
-    weatherCode
-  ) {
-    const code =
-      numberOrNull(
-        weatherCode
+  /*
+    자료 기준일 + 1일
+    = 오전회의일
+  */
+
+  function getBaseDate() {
+    const panel =
+      byId(
+        "efficiencyMorningMeetingWaterPanel"
       );
 
-    if (
-      code ===
-        0 ||
-      code ===
-        1
-    ) {
-      return "맑음";
-    }
+    const candidates = [
+      panel?.dataset
+        .morningMeetingAutoBaseDate,
 
-    if (
-      [
-        2,
-        3,
-        45,
-        48
-      ].includes(
-        code
-      )
-    ) {
-      return "흐림";
-    }
+      byId(
+        "efficiencyMorningMeetingAutoDatePicker"
+      )?.value,
 
-    if (
-      [
-        71,
-        73,
-        75,
-        77,
-        85,
-        86
-      ].includes(
-        code
-      )
-    ) {
-      return "눈";
-    }
+      byId(
+        "efficiencyMorningMeetingAutoWaterDate"
+      )?.textContent
+    ];
 
-    return code ===
-      null
-        ? "-"
-        : "비";
+    return (
+      candidates
+        .map(
+          clean
+        )
+        .find(
+          isIsoDate
+        ) ||
+      ""
+    );
+  }
+
+
+  function getMeetingDate() {
+    return addDays(
+      getBaseDate(),
+      1
+    );
   }
 
 
@@ -200340,7 +200301,7 @@ function bindEvents() {
               type="button"
               class="efficiency-morning-meeting-auto-card__badge"
               id="efficiencyMorningMeetingAutoWeatherRefreshButton"
-              title="회의일 오전 9시 날씨 다시 조회"
+              title="기상청 날씨누리의 회의일 오전 9시 날씨 다시 조회"
             >
               다시 조회
             </button>
@@ -200385,8 +200346,9 @@ function bindEvents() {
       );
     }
 
+
     /*
-      SMP 카드 바로 다음에 배치한다.
+      SMP 카드 바로 다음에 배치
     */
 
     const smpCard =
@@ -200491,7 +200453,7 @@ function bindEvents() {
         isIsoDate(
           meetingDate
         )
-          ? `${shortDate(meetingDate)} · 09:00`
+          ? `${shortDate(meetingDate)} · ${FORECAST_HOUR}`
           : "-";
     }
 
@@ -200500,6 +200462,26 @@ function bindEvents() {
         meetingDate
       )
     ) {
+      setValue(
+        "efficiencyMorningMeetingAutoWeatherCondition",
+        "조회 대기"
+      );
+
+      setValue(
+        "efficiencyMorningMeetingAutoWeatherTemperature",
+        "-"
+      );
+
+      setValue(
+        "efficiencyMorningMeetingAutoWeatherHumidity",
+        "-"
+      );
+
+      syncState(
+        "",
+        null
+      );
+
       return;
     }
 
@@ -200521,14 +200503,14 @@ function bindEvents() {
       ) ||
       "";
 
+    const loading =
+      status ===
+      "loading";
+
     const refreshButton =
       byId(
         "efficiencyMorningMeetingAutoWeatherRefreshButton"
       );
-
-    const loading =
-      status ===
-      "loading";
 
     if (
       refreshButton
@@ -200542,75 +200524,77 @@ function bindEvents() {
           : "다시 조회";
     }
 
-if (
-  item &&
-  status ===
-    "complete"
-) {
-  const meetingTemperature =
-    Math.round(
-      item.temperature
-    );
 
-  const minimumTemperature =
-    Math.round(
-      item.minimumTemperature
-    );
+    if (
+      item &&
+      status ===
+        "complete"
+    ) {
+      const meetingTemperature =
+        Math.round(
+          item.temperature
+        );
 
-  const maximumTemperature =
-    Math.round(
-      item.maximumTemperature
-    );
+      const minimumTemperature =
+        Math.round(
+          item.minimumTemperature
+        );
 
-  const temperatureText =
-    `${meetingTemperature} ` +
-    `(${minimumTemperature}/${maximumTemperature}℃)`;
+      const maximumTemperature =
+        Math.round(
+          item.maximumTemperature
+        );
 
-  const temperatureTitle =
-    `${meetingDate} 09:00 기온 ` +
-    `${meetingTemperature}℃ · ` +
-    `최저 ${minimumTemperature}℃ · ` +
-    `최고 ${maximumTemperature}℃`;
+      const temperatureText =
+        `${meetingTemperature} ` +
+        `(${minimumTemperature}/${maximumTemperature}℃)`;
 
-  const humidityText =
-    `${Math.round(
-      item.humidity
-    )} %`;
+      const temperatureTitle =
+        `${meetingDate} ${FORECAST_HOUR} 기온 ` +
+        `${meetingTemperature}℃ · ` +
+        `최저 ${minimumTemperature}℃ · ` +
+        `최고 ${maximumTemperature}℃`;
 
-
-  setValue(
-    "efficiencyMorningMeetingAutoWeatherCondition",
-    item.condition,
-    `${meetingDate} 09:00 ${item.condition}`
-  );
-
-  setValue(
-    "efficiencyMorningMeetingAutoWeatherTemperature",
-    temperatureText,
-    temperatureTitle
-  );
-
-  setValue(
-    "efficiencyMorningMeetingAutoWeatherHumidity",
-    humidityText,
-    `${meetingDate} 09:00 습도 ${humidityText}`
-  );
+      const humidityText =
+        `${Math.round(
+          item.humidity
+        )} %`;
 
 
-  card.title =
-    `${meetingDate} 09:00 신북 날씨 · ` +
-    `${item.condition} · ` +
-    `${temperatureTitle} · ` +
-    `습도 ${humidityText}`;
+      setValue(
+        "efficiencyMorningMeetingAutoWeatherCondition",
+        item.condition,
+        `${meetingDate} ${FORECAST_HOUR} ` +
+        `${item.sourceCondition || item.condition}`
+      );
 
+      setValue(
+        "efficiencyMorningMeetingAutoWeatherTemperature",
+        temperatureText,
+        temperatureTitle
+      );
 
-  syncState(
-    meetingDate,
-    item
-  );
+      setValue(
+        "efficiencyMorningMeetingAutoWeatherHumidity",
+        humidityText,
+        `${meetingDate} ${FORECAST_HOUR} 습도 ${humidityText}`
+      );
 
-  return;
-}
+      card.title =
+        `기상청 날씨누리 · ` +
+        `${meetingDate} ${FORECAST_HOUR} · ` +
+        `${item.condition} · ` +
+        `${temperatureText} · ` +
+        `습도 ${humidityText}`;
+
+      syncState(
+        meetingDate,
+        item
+      );
+
+      return;
+    }
+
 
     if (
       loading
@@ -200618,7 +200602,7 @@ if (
       setValue(
         "efficiencyMorningMeetingAutoWeatherCondition",
         "조회 중",
-        `${meetingDate} 09:00 날씨 조회 중`,
+        `${meetingDate} ${FORECAST_HOUR} 날씨누리 조회 중`,
         "#64748b"
       );
 
@@ -200637,7 +200621,8 @@ if (
       );
 
       card.title =
-        `${meetingDate} 09:00 신북 날씨 조회 중`;
+        `${meetingDate} ${FORECAST_HOUR} ` +
+        "신북면 날씨누리 조회 중";
 
       syncState(
         meetingDate,
@@ -200647,9 +200632,10 @@ if (
       return;
     }
 
+
     if (
       status ===
-      "error"
+        "error"
     ) {
       setValue(
         "efficiencyMorningMeetingAutoWeatherCondition",
@@ -200672,7 +200658,7 @@ if (
 
       card.title =
         errorMessage ||
-        `${meetingDate} 날씨 조회 실패`;
+        `${meetingDate} 날씨누리 조회 실패`;
 
       syncState(
         meetingDate,
@@ -200683,10 +200669,11 @@ if (
       return;
     }
 
+
     setValue(
       "efficiencyMorningMeetingAutoWeatherCondition",
       "조회 대기",
-      `${meetingDate} 09:00 날씨 조회 대기`,
+      `${meetingDate} ${FORECAST_HOUR} 날씨누리 조회 대기`,
       "#7c8799"
     );
 
@@ -200701,7 +200688,8 @@ if (
     );
 
     card.title =
-      `${meetingDate} 09:00 신북 날씨 조회 대기`;
+      `${meetingDate} ${FORECAST_HOUR} ` +
+      "신북면 날씨누리 조회 대기";
 
     syncState(
       meetingDate,
@@ -200710,109 +200698,80 @@ if (
   }
 
 
-  function normalizeResult(
-    result,
+  function normalizeApiItem(
+    sourceItem,
     meetingDate
   ) {
-    const targetTime =
-      `${meetingDate}T${FORECAST_HOUR}`;
+    const sourceDate =
+      clean(
+        sourceItem?.sourceDate ||
+        sourceItem?.targetDate
+      );
 
-    const hourly =
-      result?.hourly;
-
-    const times =
-      Array.isArray(
-        hourly?.time
-      )
-        ? hourly.time
-        : [];
-
-    const index =
-      times.findIndex(
-        value =>
-          clean(
-            value
-          ) ===
-          targetTime
+    const condition =
+      clean(
+        sourceItem?.condition
       );
 
     const temperature =
-      index >=
-        0
-        ? numberOrNull(
-            hourly
-              ?.temperature_2m
-              ?.[index]
-          )
-        : null;
+      numberOrNull(
+        sourceItem?.temperature
+      );
+
+    const minimumTemperature =
+      numberOrNull(
+        sourceItem?.minimumTemperature
+      );
+
+    const maximumTemperature =
+      numberOrNull(
+        sourceItem?.maximumTemperature
+      );
 
     const humidity =
-      index >=
-        0
-        ? numberOrNull(
-            hourly
-              ?.relative_humidity_2m
-              ?.[index]
-          )
-        : null;
-
-    const weatherCode =
-      index >=
-        0
-        ? numberOrNull(
-            hourly
-              ?.weather_code
-              ?.[index]
-          )
-        : null;
+      numberOrNull(
+        sourceItem?.humidity
+      );
 
     if (
-      index <
-        0 ||
+      sourceDate !==
+        meetingDate ||
+      !condition ||
       temperature ===
         null ||
-      humidity ===
+      minimumTemperature ===
         null ||
-      weatherCode ===
+      maximumTemperature ===
+        null ||
+      humidity ===
         null
     ) {
       throw new Error(
-        `${meetingDate} 09:00 날씨 자료를 확인하지 못했습니다.`
+        `${meetingDate} ${FORECAST_HOUR} ` +
+        "신북면 날씨 자료가 올바르지 않습니다."
       );
     }
 
     return {
+      ...sourceItem,
+
       sourceDate:
         meetingDate,
 
-      forecastTime:
-        targetTime,
+      targetDate:
+        meetingDate,
 
-      location:
-        "경기 포천시 신북면",
-
-      latitude:
-        LATITUDE,
-
-      longitude:
-        LONGITUDE,
-
-      weatherCode,
-
-      condition:
-        getWeatherCondition(
-          weatherCode
-        ),
-
+      condition,
       temperature,
+      minimumTemperature,
+      maximumTemperature,
       humidity,
 
       source:
-        "Open-Meteo",
-
-      collectedAt:
-        new Date()
-          .toISOString()
+        clean(
+          sourceItem?.source
+        ) ||
+        "기상청 날씨누리"
     };
   }
 
@@ -200826,6 +200785,21 @@ if (
 
     const meetingDate =
       getMeetingDate();
+
+
+    /*
+      이전 날짜 요청이 남아 있으면 중단
+    */
+
+    activeController
+      ?.abort();
+
+    activeController =
+      null;
+
+    const sequence =
+      ++requestSequence;
+
 
     if (
       !isIsoDate(
@@ -200861,14 +200835,9 @@ if (
       return cachedItem;
     }
 
-    activeController
-      ?.abort();
 
     const controller =
       new AbortController();
-
-    const sequence =
-      ++requestSequence;
 
     activeController =
       controller;
@@ -200885,61 +200854,29 @@ if (
 
     render();
 
+
     try {
       const requestUrl =
         new URL(
-          API_URL
+          API_URL,
+          window.location.origin
         );
 
       requestUrl.searchParams.set(
-        "latitude",
-        String(
-          LATITUDE
-        )
-      );
-
-      requestUrl.searchParams.set(
-        "longitude",
-        String(
-          LONGITUDE
-        )
-      );
-
-requestUrl.searchParams.set(
-  "hourly",
-  [
-    "temperature_2m",
-    "relative_humidity_2m",
-    "weather_code"
-  ].join(
-    ","
-  )
-);
-
-requestUrl.searchParams.set(
-  "daily",
-  [
-    "temperature_2m_min",
-    "temperature_2m_max"
-  ].join(
-    ","
-  )
-);
-
-      requestUrl.searchParams.set(
-        "timezone",
-        "Asia/Seoul"
-      );
-
-      requestUrl.searchParams.set(
-        "start_date",
+        "date",
         meetingDate
       );
 
-      requestUrl.searchParams.set(
-        "end_date",
-        meetingDate
-      );
+      if (
+        forceRefresh
+      ) {
+        requestUrl.searchParams.set(
+          "_",
+          String(
+            Date.now()
+          )
+        );
+      }
 
       const response =
         await fetch(
@@ -200975,26 +200912,28 @@ requestUrl.searchParams.set(
 
       if (
         sequence !==
-        requestSequence
+          requestSequence
       ) {
         return null;
       }
 
       if (
-        !response.ok
+        !response.ok ||
+        result?.ok !==
+          true
       ) {
         throw new Error(
           clean(
-            result?.reason ||
             result?.message
           ) ||
-          `날씨 조회에 실패했습니다. (HTTP ${response.status})`
+          `날씨누리 조회에 실패했습니다. ` +
+          `(HTTP ${response.status})`
         );
       }
 
       const item =
-        normalizeResult(
-          result,
+        normalizeApiItem(
+          result.item,
           meetingDate
         );
 
@@ -201041,7 +200980,7 @@ requestUrl.searchParams.set(
         error instanceof
           Error
           ? error.message
-          : "회의일 날씨를 불러오지 못했습니다.";
+          : "기상청 날씨누리 자료를 불러오지 못했습니다.";
 
       statusByDate.set(
         meetingDate,
@@ -201056,7 +200995,8 @@ requestUrl.searchParams.set(
       );
 
       console.error(
-        `오전회의 ${meetingDate} 09:00 날씨 조회 실패:`,
+        `오전회의 ${meetingDate} ` +
+        `${FORECAST_HOUR} 날씨누리 조회 실패:`,
         error
       );
 
@@ -201065,7 +201005,7 @@ requestUrl.searchParams.set(
     } finally {
       if (
         activeController ===
-        controller
+          controller
       ) {
         activeController =
           null;
@@ -201073,7 +201013,7 @@ requestUrl.searchParams.set(
 
       if (
         sequence ===
-        requestSequence
+          requestSequence
       ) {
         render();
       }
@@ -201094,7 +201034,7 @@ requestUrl.searchParams.set(
           ensureCard();
           render();
 
-          load({
+          void load({
             forceRefresh
           });
         },
@@ -201278,13 +201218,14 @@ requestUrl.searchParams.set(
 
     bindEvents();
     render();
-    load();
+
+    void load();
   }
 
 
   if (
     document.readyState ===
-    "loading"
+      "loading"
   ) {
     document.addEventListener(
       "DOMContentLoaded",
