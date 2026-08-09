@@ -143598,6 +143598,848 @@ function replaceMorningMeetingTmArea(
 }
 
 /* =========================================================
+  첨부 주말 기준표 원본 서식 저장
+
+  기준 범위:
+  - Bio 혼소율: AG24:AO29
+  - 전일 전력 단가: AG30:AO33
+========================================================= */
+
+function captureMorningMeetingWeekendReferenceLayout(
+  worksheetDocument,
+  sharedStrings
+) {
+  const bioTitleCell =
+    findMorningMeetingWorksheetCellByAddress(
+      worksheetDocument,
+      "AG24"
+    );
+
+
+  const powerTitleCell =
+    findMorningMeetingWorksheetCellByAddress(
+      worksheetDocument,
+      "AG30"
+    );
+
+
+  const bioTitleText =
+    normalizeMorningMeetingTemplateText(
+      getMorningMeetingCellTextFromXml(
+        bioTitleCell,
+        sharedStrings
+      )
+    );
+
+
+  const powerTitleText =
+    normalizeMorningMeetingTemplateText(
+      getMorningMeetingCellTextFromXml(
+        powerTitleCell,
+        sharedStrings
+      )
+    );
+
+
+  /*
+    첨부 파일이 주말 기준표인지 확인한다.
+  */
+
+  if (
+    !/Bio\s*\/\s*유기성\s*고형연료\s*혼소율/i.test(
+      bioTitleText
+    ) ||
+    !/전일\s*전력\s*단가/i.test(
+      powerTitleText
+    )
+  ) {
+    return null;
+  }
+
+
+  const startColumnNumber =
+    getMorningMeetingColumnNumber(
+      "AG"
+    );
+
+
+  const endColumnNumber =
+    getMorningMeetingColumnNumber(
+      "AO"
+    );
+
+
+  const startRow =
+    24;
+
+
+  const endRow =
+    33;
+
+
+  /*
+    AG24:AO33 안의 모든 셀을
+    내용·스타일·테두리까지 복제한다.
+  */
+
+  const cells =
+    Array.from(
+      worksheetDocument
+        .getElementsByTagNameNS(
+          MAIN_XML_NAMESPACE,
+          "c"
+        )
+    )
+      .filter(
+        cellElement => {
+          const address =
+            String(
+              cellElement.getAttribute(
+                "r"
+              ) ||
+              ""
+            );
+
+
+          const columnNumber =
+            getMorningMeetingColumnNumber(
+              getMorningMeetingCellColumn(
+                address
+              )
+            );
+
+
+          const rowNumber =
+            Number(
+              address.match(
+                /\d+$/
+              )?.[0] ||
+              0
+            );
+
+
+          return (
+            columnNumber >=
+              startColumnNumber &&
+            columnNumber <=
+              endColumnNumber &&
+            rowNumber >=
+              startRow &&
+            rowNumber <=
+              endRow
+          );
+        }
+      )
+      .map(
+        cellElement => {
+          return cellElement.cloneNode(
+            true
+          );
+        }
+      );
+
+
+  const mergeCells =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !mergeCells
+  ) {
+    return null;
+  }
+
+
+  /*
+    AG24:AO33 안의 병합 구조도 저장한다.
+
+    예:
+    AG24:AO24
+    AG25:AH25
+    AI25:AL25
+    AM25:AO25
+  */
+
+  const mergeReferences =
+    getMorningMeetingDirectXmlChildren(
+      mergeCells,
+      "mergeCell"
+    )
+      .map(
+        mergeElement => {
+          return parseMorningMeetingMergeReference(
+            mergeElement.getAttribute(
+              "ref"
+            )
+          );
+        }
+      )
+      .filter(
+        range => {
+          if (
+            !range
+          ) {
+            return false;
+          }
+
+
+          const mergeStartColumn =
+            getMorningMeetingColumnNumber(
+              range.startColumn
+            );
+
+
+          const mergeEndColumn =
+            getMorningMeetingColumnNumber(
+              range.endColumn
+            );
+
+
+          return (
+            mergeStartColumn >=
+              startColumnNumber &&
+            mergeEndColumn <=
+              endColumnNumber &&
+            range.startRow >=
+              startRow &&
+            range.endRow <=
+              endRow
+          );
+        }
+      )
+      .map(
+        range => {
+          return formatMorningMeetingMergeReference(
+            range
+          );
+        }
+      );
+
+
+  return {
+    cells,
+
+    mergeReferences,
+
+    startColumnNumber,
+
+    endColumnNumber,
+
+    startRow,
+
+    endRow
+  };
+}
+
+/* =========================================================
+  첨부 주말 기준표 원본 서식 복원
+
+  복원 범위:
+  - Bio 혼소율: AG24:AO29
+  - 전일 전력 단가: AG30:AO33
+
+  일반 주말 2일 기준일 때만 첨부 원본을 복원한다.
+========================================================= */
+
+function restoreMorningMeetingWeekendReferenceLayout(
+  worksheetDocument,
+  referenceLayout,
+  startDateText,
+  endDateText
+) {
+  if (
+    !referenceLayout
+  ) {
+    return {
+      restored:
+        false,
+
+      reason:
+        "reference-layout-missing"
+    };
+  }
+
+
+  const startDate =
+    parseMorningMeetingReportDate(
+      startDateText
+    );
+
+
+  const endDate =
+    parseMorningMeetingReportDate(
+      endDateText
+    );
+
+
+  const weekendDates =
+    [];
+
+
+  if (
+    startDate &&
+    endDate &&
+    startDate <
+      endDate
+  ) {
+    for (
+      let date =
+        addMorningMeetingDateDays(
+          startDate,
+          1
+        );
+
+      date <=
+        endDate;
+
+      date =
+        addMorningMeetingDateDays(
+          date,
+          1
+        )
+    ) {
+      weekendDates.push(
+        new Date(
+          date.getTime()
+        )
+      );
+    }
+  }
+
+
+  /*
+    첨부된 원본 주말표는
+    토요일·일요일 2일 구조이므로
+    2일 취합에서만 그대로 복원한다.
+
+    3~4일 연휴는 기존 자동 생성표를 사용한다.
+  */
+
+  if (
+    weekendDates.length !==
+      2
+  ) {
+    return {
+      restored:
+        false,
+
+      reason:
+        "not-two-day-weekend",
+
+      holidayCount:
+        weekendDates.length
+    };
+  }
+
+
+  const sheetData =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "sheetData"
+      )[0];
+
+
+  const mergeCells =
+    worksheetDocument
+      .getElementsByTagNameNS(
+        MAIN_XML_NAMESPACE,
+        "mergeCells"
+      )[0];
+
+
+  if (
+    !sheetData ||
+    !mergeCells
+  ) {
+    throw new Error(
+      "첨부 주말 기준표를 복원할 시트 구조를 찾지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    필요한 행 확인 및 생성
+  ====================================================== */
+
+  function ensureRow(
+    rowNumber
+  ) {
+    let rowElement =
+      getMorningMeetingDirectXmlChildren(
+        sheetData,
+        "row"
+      ).find(
+        row => {
+          return (
+            getMorningMeetingRowNumber(
+              row
+            ) ===
+            rowNumber
+          );
+        }
+      );
+
+
+    if (
+      rowElement
+    ) {
+      return rowElement;
+    }
+
+
+    rowElement =
+      worksheetDocument
+        .createElementNS(
+          MAIN_XML_NAMESPACE,
+          "row"
+        );
+
+
+    rowElement.setAttribute(
+      "r",
+      String(
+        rowNumber
+      )
+    );
+
+
+    const nextRow =
+      getMorningMeetingDirectXmlChildren(
+        sheetData,
+        "row"
+      ).find(
+        row => {
+          return (
+            getMorningMeetingRowNumber(
+              row
+            ) >
+            rowNumber
+          );
+        }
+      ) ||
+      null;
+
+
+    sheetData.insertBefore(
+      rowElement,
+      nextRow
+    );
+
+
+    return rowElement;
+  }
+
+
+  /* =====================================================
+    자동 생성된 AG24:AO33 셀 제거
+  ====================================================== */
+
+  for (
+    let rowNumber =
+      referenceLayout.startRow;
+
+    rowNumber <=
+      referenceLayout.endRow;
+
+    rowNumber +=
+      1
+  ) {
+    const rowElement =
+      ensureRow(
+        rowNumber
+      );
+
+
+    getMorningMeetingDirectXmlChildren(
+      rowElement,
+      "c"
+    ).forEach(
+      cellElement => {
+        const columnNumber =
+          getMorningMeetingColumnNumber(
+            getMorningMeetingCellColumn(
+              cellElement.getAttribute(
+                "r"
+              )
+            )
+          );
+
+
+        if (
+          columnNumber >=
+            referenceLayout
+              .startColumnNumber &&
+          columnNumber <=
+            referenceLayout
+              .endColumnNumber
+        ) {
+          rowElement.removeChild(
+            cellElement
+          );
+        }
+      }
+    );
+  }
+
+
+  /* =====================================================
+    첨부 원본 셀 복원
+
+    셀 내용뿐 아니라:
+    - 스타일
+    - 테두리
+    - 글꼴
+    - 정렬
+    - 표시 형식
+
+    원본 XML 속성을 그대로 복원한다.
+  ====================================================== */
+
+  referenceLayout.cells.forEach(
+    sourceCell => {
+      const clonedCell =
+        sourceCell.cloneNode(
+          true
+        );
+
+
+      const address =
+        String(
+          clonedCell.getAttribute(
+            "r"
+          ) ||
+          ""
+        );
+
+
+      const rowNumber =
+        Number(
+          address.match(
+            /\d+$/
+          )?.[0] ||
+          0
+        );
+
+
+      const columnNumber =
+        getMorningMeetingColumnNumber(
+          getMorningMeetingCellColumn(
+            address
+          )
+        );
+
+
+      const rowElement =
+        ensureRow(
+          rowNumber
+        );
+
+
+      const nextCell =
+        getMorningMeetingDirectXmlChildren(
+          rowElement,
+          "c"
+        ).find(
+          cellElement => {
+            return (
+              getMorningMeetingColumnNumber(
+                getMorningMeetingCellColumn(
+                  cellElement.getAttribute(
+                    "r"
+                  )
+                )
+              ) >
+              columnNumber
+            );
+          }
+        ) ||
+        null;
+
+
+      rowElement.insertBefore(
+        clonedCell,
+        nextCell
+      );
+    }
+  );
+
+
+  /* =====================================================
+    AG24:AO33과 겹치는 자동 생성 병합 제거
+  ====================================================== */
+
+  getMorningMeetingDirectXmlChildren(
+    mergeCells,
+    "mergeCell"
+  ).forEach(
+    mergeElement => {
+      const range =
+        parseMorningMeetingMergeReference(
+          mergeElement.getAttribute(
+            "ref"
+          )
+        );
+
+
+      if (
+        !range
+      ) {
+        return;
+      }
+
+
+      const mergeStartColumn =
+        getMorningMeetingColumnNumber(
+          range.startColumn
+        );
+
+
+      const mergeEndColumn =
+        getMorningMeetingColumnNumber(
+          range.endColumn
+        );
+
+
+      const overlapsColumns =
+        mergeStartColumn <=
+          referenceLayout
+            .endColumnNumber &&
+        mergeEndColumn >=
+          referenceLayout
+            .startColumnNumber;
+
+
+      const overlapsRows =
+        range.startRow <=
+          referenceLayout.endRow &&
+        range.endRow >=
+          referenceLayout.startRow;
+
+
+      if (
+        overlapsColumns &&
+        overlapsRows
+      ) {
+        mergeCells.removeChild(
+          mergeElement
+        );
+      }
+    }
+  );
+
+
+  /* =====================================================
+    첨부 원본 병합 구조 복원
+  ====================================================== */
+
+  referenceLayout
+    .mergeReferences
+    .forEach(
+      mergeReference => {
+        const mergeElement =
+          worksheetDocument
+            .createElementNS(
+              MAIN_XML_NAMESPACE,
+              "mergeCell"
+            );
+
+
+        mergeElement.setAttribute(
+          "ref",
+          mergeReference
+        );
+
+
+        mergeCells.appendChild(
+          mergeElement
+        );
+      }
+    );
+
+
+  mergeCells.setAttribute(
+    "count",
+    String(
+      getMorningMeetingDirectXmlChildren(
+        mergeCells,
+        "mergeCell"
+      ).length
+    )
+  );
+
+
+  /* =====================================================
+    복원된 셀에 새 내용 입력
+  ====================================================== */
+
+  function setText(
+    address,
+    value
+  ) {
+    const cellElement =
+      findMorningMeetingWorksheetCellByAddress(
+        worksheetDocument,
+        address
+      );
+
+
+    if (
+      !cellElement
+    ) {
+      throw new Error(
+        `첨부 주말 기준표 셀 ${address}을 찾지 못했습니다.`
+      );
+    }
+
+
+    setMorningMeetingDynamicCellText(
+      worksheetDocument,
+      cellElement,
+      value
+    );
+  }
+
+
+  const formatDate =
+    date => {
+      return (
+        `${String(
+          date.getUTCMonth() +
+            1
+        ).padStart(
+          2,
+          "0"
+        )}월 ` +
+        `${String(
+          date.getUTCDate()
+        ).padStart(
+          2,
+          "0"
+        )}일`
+      );
+    };
+
+
+  /* =====================================================
+    Bio 혼소율 날짜 교체
+
+    AI25: 첫 번째 주말 날짜
+    AM25: 두 번째 주말 날짜
+  ====================================================== */
+
+  setText(
+    "AI25",
+    formatDate(
+      weekendDates[0]
+    )
+  );
+
+
+  setText(
+    "AM25",
+    formatDate(
+      weekendDates[1]
+    )
+  );
+
+
+  /*
+    기존 템플릿 수치는 남기지 않는다.
+  */
+
+  [
+    26,
+    27,
+    28,
+    29
+  ].forEach(
+    rowNumber => {
+      setText(
+        `AI${rowNumber}`,
+        ""
+      );
+
+
+      setText(
+        `AM${rowNumber}`,
+        ""
+      );
+    }
+  );
+
+
+  /* =====================================================
+    전일 전력 단가 요일·값 초기화
+  ====================================================== */
+
+  const dayLabels = [
+    "일",
+    "월",
+    "화",
+    "수",
+    "목",
+    "금",
+    "토"
+  ];
+
+
+  [
+    32,
+    33
+  ].forEach(
+    (
+      rowNumber,
+      index
+    ) => {
+      setText(
+        `AG${rowNumber}`,
+        dayLabels[
+          weekendDates[
+            index
+          ].getUTCDay()
+        ]
+      );
+
+
+      /*
+        SMP · REC · 계통한계가격 값은
+        기존 템플릿 수치가 남지 않도록 비운다.
+      */
+
+      [
+        "AI",
+        "AL",
+        "AN"
+      ].forEach(
+        columnName => {
+          setText(
+            `${columnName}${rowNumber}`,
+            ""
+          );
+        }
+      );
+    }
+  );
+
+
+  return {
+    restored:
+      true,
+
+    holidayCount:
+      2,
+
+    range:
+      "AG24:AO33"
+  };
+}
+
+/* =========================================================
   오전회의 기준 취합본
   기존 주말/공휴일 양식 → 평일 기본 양식 정규화
 
@@ -147654,6 +148496,18 @@ const gearPinionForWorkbook =
   ☑ 주말이면 새 주말표를 다시 생성한다.
 ==================================================== */
 
+/*
+  첨부한 엑셀이 기존 주말 양식이면
+  평일형으로 정규화하기 전에 원본 서식을 저장한다.
+*/
+
+const uploadedWeekendReferenceLayout =
+  captureMorningMeetingWeekendReferenceLayout(
+    worksheetDocument,
+    sharedStrings
+  );
+
+
 const weekdayLayoutResult =
   normalizeMorningMeetingTemplateToWeekdayLayout(
     worksheetDocument,
@@ -147890,7 +148744,15 @@ let weekendSupplementResult =
 if (
   isWeekendMode
 ) {
-  weekendSupplementResult =
+  /*
+    먼저 기존 방식으로 주말표를 생성한다.
+
+    첨부 파일이 평일 양식이거나
+    3일 이상의 연휴인 경우에는
+    이 자동 생성 결과를 그대로 사용한다.
+  */
+
+  const generatedWeekendSupplementResult =
     applyMorningMeetingWeekendSupplementTables(
       worksheetDocument,
       weekendStartDateText,
@@ -147898,11 +148760,32 @@ if (
     );
 
 
+  /*
+    첨부 파일이 원래 주말 양식이고
+    토요일·일요일 2일 취합이면
+    저장한 원본 셀과 병합 구조를 다시 복원한다.
+  */
+
+  const restoredWeekendReferenceResult =
+    restoreMorningMeetingWeekendReferenceLayout(
+      worksheetDocument,
+      uploadedWeekendReferenceLayout,
+      weekendStartDateText,
+      weekendEndDateText
+    );
+
+
+  weekendSupplementResult = {
+    ...generatedWeekendSupplementResult,
+    ...restoredWeekendReferenceResult
+  };
+
+
   console.log(
     "오전회의 주말 보조표 생성 완료:",
     weekendSupplementResult
   );
-}  
+}
 
 /* ===================================================
   수정된 워크시트 저장
