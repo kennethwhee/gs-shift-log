@@ -178398,6 +178398,328 @@ window
 })();
 
 /* =========================================================
+  오전회의 BO1 · BO2 업무일지 수동 재조회 버튼
+
+  처리:
+  1. 현재 온도 기준일 확인
+  2. 해당 날짜의 기존 온도 캐시 삭제
+  3. N/S BO1·BO2 업무일지 강제 재조회
+  4. 온도 12개 다시 추출
+  5. 새 정상값 자동 저장
+
+  교대파트 업무 선택 내용은 변경하지 않는다.
+========================================================= */
+
+(function installMorningMeetingBoilerReloadButton() {
+  "use strict";
+
+
+  if (
+    window
+      .__morningMeetingBoilerReloadButtonInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__morningMeetingBoilerReloadButtonInstalled =
+    true;
+
+
+  function normalizeDate(
+    value
+  ) {
+    const normalizedValue =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    return /^\d{4}-\d{2}-\d{2}$/.test(
+      normalizedValue
+    )
+      ? normalizedValue
+      : "";
+  }
+
+
+  function resolveBoilerReportDate() {
+    const state =
+      window
+        .efficiencyMorningMeetingUploadState ||
+      {};
+
+
+    const candidates = [
+      document
+        .getElementById(
+          "efficiencyMorningMeetingAutoBoilerDate"
+        )
+        ?.textContent,
+
+      state.boilerTemperatures
+        ?.reportDate,
+
+      state.shiftPart
+        ?.reportDate,
+
+      state.shiftPart
+        ?.loadedDate
+    ];
+
+
+    return candidates
+      .map(
+        normalizeDate
+      )
+      .find(
+        Boolean
+      ) ||
+      "";
+  }
+
+
+  async function reloadBoilerLogs() {
+    const button =
+      document.getElementById(
+        "reloadEfficiencyMorningMeetingBoilerLogsButton"
+      );
+
+
+    if (
+      !button ||
+      button.disabled
+    ) {
+      return;
+    }
+
+
+    const reportDate =
+      resolveBoilerReportDate();
+
+
+    if (
+      !reportDate
+    ) {
+      if (
+        typeof showToast ===
+          "function"
+      ) {
+        showToast(
+          "BO1·BO2 온도 조회 날짜를 먼저 확인해 주세요."
+        );
+      }
+
+
+      return;
+    }
+
+
+    const originalText =
+      button.textContent;
+
+
+    const statusElement =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoBoilerStatus"
+      );
+
+
+    button.disabled =
+      true;
+
+
+    button.textContent =
+      "일지 조회 중...";
+
+
+    if (
+      statusElement
+    ) {
+      statusElement.classList.remove(
+        "is-complete",
+        "is-error"
+      );
+
+
+      statusElement.classList.add(
+        "is-loading"
+      );
+
+
+      statusElement.textContent =
+        "업무일지 조회 중";
+    }
+
+
+    try {
+      if (
+        typeof window
+          .invalidateEfficiencyMorningMeetingBoilerCache !==
+          "function"
+      ) {
+        throw new Error(
+          "BO1·BO2 온도 캐시 초기화 기능을 찾을 수 없습니다."
+        );
+      }
+
+
+      if (
+        typeof window
+          .loadEfficiencyMorningMeetingShiftLogsForDate !==
+          "function"
+      ) {
+        throw new Error(
+          "BO1·BO2 업무일지 재조회 기능을 찾을 수 없습니다."
+        );
+      }
+
+
+      /*
+        캐시만 삭제한다.
+
+        여기서 자동 재조회는 실행하지 않고,
+        바로 아래의 전용 함수가 한 번만 조회한다.
+      */
+
+      await window
+        .invalidateEfficiencyMorningMeetingBoilerCache(
+          reportDate,
+          {
+            reload:
+              false
+          }
+        );
+
+
+      const result =
+        await window
+          .loadEfficiencyMorningMeetingShiftLogsForDate(
+            reportDate
+          );
+
+
+      if (
+        !result
+      ) {
+        throw new Error(
+          "날짜가 변경되어 BO1·BO2 일지 조회가 취소되었습니다."
+        );
+      }
+
+
+      if (
+        typeof showToast ===
+          "function"
+      ) {
+        showToast(
+          result.complete ===
+            true
+            ? `${reportDate} BO1·BO2 온도를 다시 가져왔습니다.`
+            : `${reportDate} 일지는 조회했지만 일부 온도를 찾지 못했습니다.`
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "오전회의 BO1·BO2 일지 수동 재조회 실패:",
+        error
+      );
+
+
+      if (
+        statusElement
+      ) {
+        statusElement.classList.remove(
+          "is-loading",
+          "is-complete"
+        );
+
+
+        statusElement.classList.add(
+          "is-error"
+        );
+
+
+        statusElement.textContent =
+          "업무일지 조회 실패";
+      }
+
+
+      if (
+        typeof showToast ===
+          "function"
+      ) {
+        showToast(
+          error?.message ||
+          "BO1·BO2 업무일지를 다시 조회하지 못했습니다."
+        );
+      }
+
+    } finally {
+      button.disabled =
+        false;
+
+
+      button.textContent =
+        originalText;
+    }
+  }
+
+
+  function initialize() {
+    const button =
+      document.getElementById(
+        "reloadEfficiencyMorningMeetingBoilerLogsButton"
+      );
+
+
+    if (
+      !button ||
+      button.dataset
+        .boilerReloadBound ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    button.addEventListener(
+      "click",
+      reloadBoilerLogs
+    );
+
+
+    button.dataset
+      .boilerReloadBound =
+      "true";
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
+
+/* =========================================================
   오전회의 취합
   자동 수치 공용 날짜 이동 최종본
 

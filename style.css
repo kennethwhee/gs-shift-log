@@ -89857,3 +89857,53 @@ input {
   }
 
 }
+
+/* =========================================================
+  오전회의 BO1 · BO2 업무일지 다시 조회 버튼
+========================================================= */
+
+.efficiency-morning-meeting-boiler-card__footer {
+  flex-wrap: wrap;
+}
+
+
+.efficiency-morning-meeting-boiler-reload-button {
+  flex: 0 0 auto;
+
+  min-height: 31px;
+  margin-left: auto;
+  padding: 0 11px;
+
+  border-color: #b9cce0;
+  border-radius: 7px;
+
+  color: #376b9c;
+
+  font-size: 10px;
+  font-weight: 850;
+}
+
+
+.efficiency-morning-meeting-boiler-reload-button:hover {
+  border-color: #83a9cd;
+
+  background: #f3f8fd;
+}
+
+
+.efficiency-morning-meeting-boiler-reload-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+
+@media (
+  max-width: 700px
+) {
+  .efficiency-morning-meeting-boiler-reload-button {
+    width: 100%;
+    min-height: 35px;
+    margin-top: 7px;
+    margin-left: 0;
+  }
+}
