@@ -179036,8 +179036,7 @@ function getElements() {
 
 
   /* ===================================================
-    HTML을 수정하지 않고
-    기존 날짜 이동 줄에 달력 버튼 생성
+    HTML 수정 없이 달력 날짜 버튼 생성
   ==================================================== */
 
   if (
@@ -179054,22 +179053,22 @@ function getElements() {
       "efficiencyMorningMeetingAutoDatePickerWrap"
     )?.remove();
 
-    const pickerWrap =
+    const wrap =
       document.createElement(
         "label"
       );
 
-    pickerWrap.id =
+    wrap.id =
       "efficiencyMorningMeetingAutoDatePickerWrap";
 
-    pickerWrap.className =
+    wrap.className =
       "efficiency-morning-meeting-limestone-date-button " +
       "efficiency-morning-meeting-auto-date-picker";
 
-    pickerWrap.htmlFor =
+    wrap.htmlFor =
       "efficiencyMorningMeetingAutoDatePicker";
 
-    pickerWrap.title =
+    wrap.title =
       "달력에서 자동자료 기준일 선택";
 
 
@@ -179113,26 +179112,33 @@ function getElements() {
     );
 
 
-    pickerWrap.append(
+    wrap.append(
       datePickerText,
       datePicker
     );
 
     dateNavigation.insertBefore(
-      pickerWrap,
+      wrap,
       nextButton
     );
   }
 
 
-  /* ===================================================
-    표시 순서
+  const pickerWrap =
+    byId(
+      "efficiencyMorningMeetingAutoDatePickerWrap"
+    ) ||
+    datePicker?.closest(
+      ".efficiency-morning-meeting-auto-date-picker"
+    ) ||
+    null;
 
-    전날 → 달력 → 다음날 → 오늘
+
+  /* ===================================================
+    순서: 전날 → 달력 → 다음날 → 오늘
   ==================================================== */
 
   if (
-    dateNavigation &&
     nextButton &&
     todayButton &&
     nextButton.nextElementSibling !==
@@ -179151,61 +179157,78 @@ function getElements() {
 
 
   /* ===================================================
-    달력에서 선택한 날짜를
-    기존 공용 날짜 적용 함수에 연결
+    Edge / Chrome 달력 강제 실행
   ==================================================== */
 
   if (
+    pickerWrap &&
     datePicker &&
-    datePicker.dataset
-      .morningMeetingDirectDateBound !==
+    pickerWrap.dataset
+      .autoDatePickerOpenBound !==
       "true"
   ) {
-    datePicker.addEventListener(
-      "change",
+    const openDatePicker =
       event => {
-        /*
-          이전 수정본의 이벤트가 있어도
-          조회가 두 번 실행되지 않게 한다.
-        */
-
-        event.stopImmediatePropagation();
-
-        const selectedDate =
-          String(
-            event.currentTarget?.value ||
-            ""
-          ).trim();
-
-
         if (
-          !isValidDate(
-            selectedDate
-          )
+          event.type ===
+            "keydown" &&
+          event.key !==
+            "Enter" &&
+          event.key !==
+            " "
         ) {
-          event.currentTarget.value =
-            resolveCommonBaseDate();
-
           return;
         }
 
 
-        applyCommonBaseDate(
-          selectedDate
-        );
-      }
+        if (
+          typeof datePicker
+            .showPicker !==
+            "function"
+        ) {
+          return;
+        }
+
+
+        try {
+          datePicker.focus({
+            preventScroll:
+              true
+          });
+
+          datePicker.showPicker();
+
+          event.preventDefault();
+
+        } catch (
+          error
+        ) {
+          console.warn(
+            "자동 기준일 달력 열기 실패:",
+            error
+          );
+        }
+      };
+
+
+    pickerWrap.addEventListener(
+      "click",
+      openDatePicker
     );
 
+    pickerWrap.addEventListener(
+      "keydown",
+      openDatePicker
+    );
 
-    datePicker.dataset
-      .morningMeetingDirectDateBound =
+    pickerWrap.dataset
+      .autoDatePickerOpenBound =
       "true";
   }
 
 
   /* ===================================================
-    CSS 파일을 수정하지 않고
-    필요한 달력 버튼 모양 자동 추가
+    CSS 파일을 수정하지 않고 클릭 영역 확장
   ==================================================== */
 
   if (
@@ -179242,19 +179265,33 @@ function getElements() {
       }
 
       #efficiencyMorningMeetingAutoDatePickerText {
-        pointer-events: none;
+        position: relative !important;
+        z-index: 1 !important;
+        pointer-events: none !important;
       }
 
       .efficiency-morning-meeting-auto-date-picker__input {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        padding: 0;
-        border: 0;
-        opacity: 0;
-        cursor: pointer;
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 2 !important;
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        opacity: 0 !important;
+        cursor: pointer !important;
+      }
+
+      .efficiency-morning-meeting-auto-date-picker__input::-webkit-calendar-picker-indicator {
+        position: absolute !important;
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        opacity: 0 !important;
+        cursor: pointer !important;
       }
 
       #efficiencyMorningMeetingLimestoneTodayButton {
@@ -179322,129 +179359,37 @@ function getElements() {
   }
 
 
-  const limestoneDateInput =
-    byId(
-      "limestoneUsageDate"
-    );
-
-  const commonPanel =
-    byId(
-      "efficiencyMorningMeetingWaterPanel"
-    );
-
-  const waterDate =
-    byId(
-      "efficiencyMorningMeetingAutoWaterDate"
-    );
-
-  const limestoneDate =
-    byId(
-      "efficiencyMorningMeetingAutoLimestoneDate"
-    );
-
-  const gearPinionDate =
-    byId(
-      "efficiencyMorningMeetingAutoGearPinionDate"
-    );
-
-
-  /* ===================================================
-    기존 renderCommonDates() 실행 직후
-    달력 날짜와 버튼 문구 최종 정리
-  ==================================================== */
-
-  if (
-    dateNavigation &&
-    dateNavigation.dataset
-      .morningMeetingDateRenderQueued !==
-      "true"
-  ) {
-    dateNavigation.dataset
-      .morningMeetingDateRenderQueued =
-      "true";
-
-
-    window.queueMicrotask(
-      () => {
-        delete dateNavigation.dataset
-          .morningMeetingDateRenderQueued;
-
-
-        const baseDate =
-          String(
-            commonPanel?.dataset
-              .morningMeetingAutoBaseDate ||
-            datePicker?.value ||
-            ""
-          ).trim();
-
-
-        if (
-          !isValidDate(
-            baseDate
-          )
-        ) {
-          return;
-        }
-
-
-        if (
-          datePicker
-        ) {
-          datePicker.value =
-            baseDate;
-        }
-
-
-        if (
-          datePickerText
-        ) {
-          datePickerText.textContent =
-            `📅 ${baseDate.replace(
-              /-/g,
-              "."
-            )}`;
-        }
-
-
-        if (
-          previousButton
-        ) {
-          previousButton.textContent =
-            "‹ 전날";
-        }
-
-
-        if (
-          nextButton
-        ) {
-          nextButton.textContent =
-            "다음날 ›";
-        }
-
-
-        if (
-          todayButton
-        ) {
-          todayButton.textContent =
-            "오늘";
-        }
-      }
-    );
-  }
-
-
   return {
     previousButton,
     todayButton,
     nextButton,
     datePicker,
     datePickerText,
-    limestoneDateInput,
-    commonPanel,
-    waterDate,
-    limestoneDate,
-    gearPinionDate
+
+    limestoneDateInput:
+      byId(
+        "limestoneUsageDate"
+      ),
+
+    commonPanel:
+      byId(
+        "efficiencyMorningMeetingWaterPanel"
+      ),
+
+    waterDate:
+      byId(
+        "efficiencyMorningMeetingAutoWaterDate"
+      ),
+
+    limestoneDate:
+      byId(
+        "efficiencyMorningMeetingAutoLimestoneDate"
+      ),
+
+    gearPinionDate:
+      byId(
+        "efficiencyMorningMeetingAutoGearPinionDate"
+      )
   };
 }
 
