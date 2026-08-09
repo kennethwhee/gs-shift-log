@@ -133680,6 +133680,195 @@ async function analyzeAllMorningMeetingFiles() {
 })();
 
 /* =========================================================
+  운탄일지 업무 날짜·시간 표시 보조 함수
+
+  화면 미리보기:
+  - 날짜·시간을 메타정보로 표시
+
+  최종 엑셀:
+  - 날짜·시간 표기를 제거하고 업무내용만 사용
+========================================================= */
+
+function formatMorningMeetingCoalPreviewDate(
+  value
+) {
+  const match =
+    String(
+      value ||
+      ""
+    ).match(
+      /^(20\d{2})-(\d{2})-(\d{2})$/
+    );
+
+
+  if (
+    !match
+  ) {
+    return "";
+  }
+
+
+  return `${match[2]}월 ${match[3]}일`;
+}
+
+
+function extractMorningMeetingCoalWorkTime(
+  value
+) {
+  const text =
+    String(
+      value ||
+      ""
+    );
+
+
+  const clockMatch =
+    text.match(
+      /(?:^|[\s[(])((?:[01]?\d|2[0-3])\s*:\s*[0-5]\d)(?:\s*[~～–-]\s*((?:[01]?\d|2[0-3])\s*:\s*[0-5]\d))?(?=$|[\s)\]])/
+    );
+
+
+  const normalizeClock =
+    clockValue => {
+      const parts =
+        String(
+          clockValue ||
+          ""
+        )
+          .replace(
+            /\s+/g,
+            ""
+          )
+          .split(
+            ":"
+          );
+
+
+      if (
+        parts.length !==
+          2
+      ) {
+        return "";
+      }
+
+
+      return `${String(
+        Number(
+          parts[0]
+        )
+      ).padStart(
+        2,
+        "0"
+      )}:${parts[1]}`;
+    };
+
+
+  if (
+    clockMatch
+  ) {
+    const startTime =
+      normalizeClock(
+        clockMatch[1]
+      );
+
+
+    const endTime =
+      normalizeClock(
+        clockMatch[2]
+      );
+
+
+    return endTime
+      ? `${startTime}~${endTime}`
+      : startTime;
+  }
+
+
+  const koreanMatch =
+    text.match(
+      /(?:^|[\s[(])((?:[01]?\d|2[0-3]))\s*시(?:\s*([0-5]?\d)\s*분)?(?=$|[\s)\]])/
+    );
+
+
+  if (
+    koreanMatch
+  ) {
+    return `${String(
+      Number(
+        koreanMatch[1]
+      )
+    ).padStart(
+      2,
+      "0"
+    )}:${String(
+      Number(
+        koreanMatch[2] ||
+        0
+      )
+    ).padStart(
+      2,
+      "0"
+    )}`;
+  }
+
+
+  const compactMatch =
+    text.match(
+      /(?:^|[\s[(])((?:[01]\d|2[0-3])[0-5]\d)(?=$|[\s)\]])/
+    );
+
+
+  if (
+    compactMatch
+  ) {
+    return `${compactMatch[1].slice(
+      0,
+      2
+    )}:${compactMatch[1].slice(
+      2
+    )}`;
+  }
+
+
+  return "";
+}
+
+
+function removeMorningMeetingCoalDateTime(
+  value
+) {
+  return String(
+    value ||
+    ""
+  )
+    .replace(
+      /\s*[[(]?\s*20\d{2}[.\/-]\d{1,2}[.\/-]\d{1,2}\s*[)\]]?\s*/g,
+      " "
+    )
+    .replace(
+      /\s*[[(]?\s*(?:[01]?\d|2[0-3])\s*:\s*[0-5]\d(?:\s*[~～–-]\s*(?:[01]?\d|2[0-3])\s*:\s*[0-5]\d)?\s*[)\]]?\s*/g,
+      " "
+    )
+    .replace(
+      /\s*[[(]?\s*(?:[01]?\d|2[0-3])\s*시(?:\s*[0-5]?\d\s*분)?\s*[)\]]?\s*/g,
+      " "
+    )
+    .replace(
+      /\s*[[(]\s*(?:[01]\d|2[0-3])[0-5]\d\s*[)\]]\s*/g,
+      " "
+    )
+    .replace(
+      /[ \t]{2,}/g,
+      " "
+    )
+    .replace(
+      /\s+([,.;])/g,
+      "$1"
+    )
+    .trim();
+}
+
+/* =========================================================
   효율팀 오전회의 취합
   기준 취합본 첨부 및 최종 XLSX 생성
 
@@ -152680,24 +152869,106 @@ function parseMorningMeetingBoilerTemperatureText(
 
 
   /* =====================================================
-    온도 단위
+    온도 숫자와 단위
 
     지원:
     233
     233C
     233°C
     233 ℃
+    233도
+  ====================================================== */
+
+  const numberPattern =
+    "(-?\\d+(?:\\.\\d+)?)";
+
+  const temperatureUnitPattern =
+    "(?:\\s*(?:°\\s*C|C|도))?";
+
+
+  /* =====================================================
+    FBHE 격벽 온도
+
+    지원 예:
+    FBHE 격벽 Temp L : 238℃ / R : 281℃
+    FBHE 격벽 Temperature L : 238 / R : 281
+    FBHE 격벽온도 → L : 238℃ / R : 281℃
+    FBHE Partition Temp Left : 238 / Right : 281
+
+    Seal Pot To FBHE Temp는 인식하지 않음
   ====================================================== */
 
   const fbheMatch =
     sourceText.match(
-      /FBHE\s*(?:격벽|PARTITION)\s*TEMP(?:ERATURE)?[\s\S]{0,20}?L\s*[:：=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*R\s*[:：=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?/i
+      new RegExp(
+        "FBHE\\s*" +
+        "(?:격벽|PARTITION)\\s*" +
+        "(?:TEMP(?:ERATURE)?\\.?|온도)" +
+
+        "[\\s\\S]{0,30}?" +
+
+        "(?:LEFT|L)\\s*" +
+        "[:：=]?\\s*" +
+
+        numberPattern +
+        temperatureUnitPattern +
+
+        "[\\s\\S]{0,24}?" +
+
+        "(?:RIGHT|R)\\s*" +
+        "[:：=]?\\s*" +
+
+        numberPattern +
+        temperatureUnitPattern,
+
+        "i"
+      )
     );
 
 
+  /* =====================================================
+    Coal Wall Screw Feeder 온도
+
+    지원 예:
+    Coal Wall Screw Feeder Temp A : 91 / B : 92...
+    Coal Wall Screw Feeder 온도 → A : 91℃ / B : 92℃...
+    Wall Screw Temperature A=91, B=92, C=93, D=94
+  ====================================================== */
+
   const wallScrewMatch =
     sourceText.match(
-      /(?:COAL\s*)?WALL\s*SCREW(?:\s*FEEDER)?\s*TEMP(?:ERATURE)?[\s\S]{0,20}?A\s*[:：=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*B\s*[:：=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*C\s*[:：=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?\s*(?:\/|\||,)\s*D\s*[:：=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*C)?/i
+      new RegExp(
+        "(?:COAL\\s*)?" +
+        "WALL\\s*SCREW" +
+        "(?:\\s*FEEDER)?\\s*" +
+        "(?:TEMP(?:ERATURE)?\\.?|온도)" +
+
+        "[\\s\\S]{0,30}?" +
+
+        "A\\s*[:：=]?\\s*" +
+        numberPattern +
+        temperatureUnitPattern +
+
+        "[\\s\\S]{0,24}?" +
+
+        "B\\s*[:：=]?\\s*" +
+        numberPattern +
+        temperatureUnitPattern +
+
+        "[\\s\\S]{0,24}?" +
+
+        "C\\s*[:：=]?\\s*" +
+        numberPattern +
+        temperatureUnitPattern +
+
+        "[\\s\\S]{0,24}?" +
+
+        "D\\s*[:：=]?\\s*" +
+        numberPattern +
+        temperatureUnitPattern,
+
+        "i"
+      )
     );
 
 
@@ -161619,17 +161890,42 @@ function buildCheckboxHtml(
       : "data-morning-meeting-coal-tm-item";
 
 
+  /*
+    원본 내용은 변경하지 않고
+    화면 표시용 문구만 별도로 만든다.
+  */
+
+  const rawMainText =
+    normalizeText(
+      item.content ||
+      item.text
+    );
+
+
+  const rawSubLines =
+    Array.isArray(
+      item.subLines
+    )
+      ? item.subLines
+          .map(
+            line => {
+              return normalizeText(
+                line
+              )
+                .replace(
+                  /^[-–—•]\s*/,
+                  ""
+                );
+            }
+          )
+          .filter(
+            Boolean
+          )
+      : [];
+
+
   /* =====================================================
     상단 메타정보
-
-    운탄일지 업무:
-    - 업무
-
-    TM 사항:
-    - D/S 또는 N/S
-    - 보직
-    - 시간
-    - TM·BM·CM 발행
   ====================================================== */
 
   const metaValues =
@@ -161639,7 +161935,35 @@ function buildCheckboxHtml(
   if (
     isWork
   ) {
+    const previewDate =
+      formatMorningMeetingCoalPreviewDate(
+        item.workDate
+      );
+
+
+    const workTime =
+      extractMorningMeetingCoalWorkTime(
+        [
+          item.time,
+          rawMainText,
+          ...rawSubLines
+        ]
+          .filter(
+            Boolean
+          )
+          .join(
+            " "
+          )
+      );
+
+
     metaValues.push(
+      previewDate ||
+        "날짜 미확인",
+
+      workTime ||
+        "시간 미기재",
+
       "업무"
     );
 
@@ -161688,10 +162012,7 @@ function buildCheckboxHtml(
 
 
   /* =====================================================
-    번호와 본문
-
-    예:
-    1. N2 System 교체기동
+    번호
   ====================================================== */
 
   const rawNumber =
@@ -161709,37 +162030,41 @@ function buildCheckboxHtml(
       : "";
 
 
+  /*
+    운탄 업무의 날짜·시간은
+    미리보기 상단에 표시하므로
+    본문에서는 중복 표기를 제거한다.
+
+    item 원본은 수정하지 않는다.
+  */
+
   const mainText =
-    normalizeText(
-      item.content ||
-      item.text
-    );
+    isWork
+      ? removeMorningMeetingCoalDateTime(
+          rawMainText
+        )
+      : rawMainText;
 
 
   const subLines =
-    Array.isArray(
-      item.subLines
-    )
-      ? item.subLines
-          .map(
-            line => {
-              return normalizeText(
+    rawSubLines
+      .map(
+        line => {
+          return isWork
+            ? removeMorningMeetingCoalDateTime(
                 line
               )
-                .replace(
-                  /^[-–—•]\s*/,
-                  ""
-                );
-            }
-          )
-          .filter(
-            Boolean
-          )
-      : [];
+            : line;
+        }
+      )
+      .filter(
+        Boolean
+      );
 
 
   const contentLines = [
-    `${numberPrefix}${mainText}`,
+    `${numberPrefix}${mainText}`
+      .trim(),
 
     ...subLines.map(
       line => {
