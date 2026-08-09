@@ -7388,6 +7388,499 @@ async function retryLegacySyncFailures() {
 }
 
 /* =========================================================
+  현재 Shift 수동 legacy → D1 이전
+
+  사용:
+  상단 [동기화] 버튼을 직접 눌렀을 때만 실행
+
+  규칙:
+  - 현재 선택 날짜만
+  - 현재 선택 Shift만
+  - 이번 legacy-import에서 실제 조회된 legacyDiaryId만
+  - 일반 직원도 실행 가능
+  - 기존 원 작성자 유지
+  - 이미 D1에 존재하는 보직은 덮어쓰지 않음
+
+  일반 날짜 이동 시 실행되는
+  migrateEditableLegacyLogsForSelectedDate()와는 별개다.
+========================================================= */
+
+async function migrateCurrentShiftLegacyLogsManually(
+  options = {}
+) {
+  const workDate =
+    String(
+      options.workDate ||
+      ""
+    ).trim();
+
+
+  const shift =
+    String(
+      options.shift ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  const legacyDiaryIdSet =
+    new Set(
+      (
+        Array.isArray(
+          options.legacyDiaryIds
+        )
+          ? options.legacyDiaryIds
+          : []
+      )
+        .map(
+          legacyDiaryId => {
+            return String(
+              legacyDiaryId ||
+              ""
+            ).trim();
+          }
+        )
+        .filter(
+          Boolean
+        )
+    );
+
+
+  /* =====================================================
+    입력값 검사
+  ====================================================== */
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      workDate
+    ) ||
+    ![
+      "DS",
+      "NS"
+    ].includes(
+      shift
+    ) ||
+    legacyDiaryIdSet.size ===
+      0
+  ) {
+    return [];
+  }
+
+
+  /*
+    2026-07-21까지는 기존 확정 과거자료이므로
+    조회 전용 상태를 유지한다.
+  */
+
+  if (
+    workDate <=
+      "2026-07-21"
+  ) {
+    return [];
+  }
+
+
+  if (
+    !getShiftLogSessionToken()
+  ) {
+    throw new Error(
+      "로그인 세션을 확인할 수 없습니다."
+    );
+  }
+
+
+  /* =====================================================
+    legacyDiaryId 추출
+  ====================================================== */
+
+  const getLegacyDiaryId = (
+    log
+  ) => {
+    const directId =
+      String(
+        log?.legacyDiaryId ||
+        log?.legacy_diary_id ||
+        ""
+      ).trim();
+
+
+    if (
+      directId
+    ) {
+      return directId;
+    }
+
+
+    const logId =
+      String(
+        log?.id ||
+        ""
+      ).trim();
+
+
+    if (
+      logId.startsWith(
+        "legacy-"
+      )
+    ) {
+      return logId.slice(
+        "legacy-".length
+      );
+    }
+
+
+    return "";
+  };
+
+
+  /* =====================================================
+    이번 수동 동기화 대상만 선별
+
+    반드시:
+    - 날짜 일치
+    - Shift 일치
+    - read-only legacy
+    - 실제 조회된 legacyDiaryId 일치
+  ====================================================== */
+
+  const targetLegacyLogs =
+    appState.logs.filter(
+      log => {
+        const logDate =
+          String(
+            log?.date ||
+            ""
+          ).trim();
+
+
+        const logShift =
+          String(
+            log?.shift ||
+            ""
+          )
+            .trim()
+            .toUpperCase();
+
+
+        const legacyDiaryId =
+          getLegacyDiaryId(
+            log
+          );
+
+
+        return (
+          logDate ===
+            workDate &&
+
+          logShift ===
+            shift &&
+
+          isReadOnlyLegacyShiftLog(
+            log
+          ) &&
+
+          legacyDiaryIdSet.has(
+            legacyDiaryId
+          )
+        );
+      }
+    );
+
+
+  if (
+    targetLegacyLogs.length ===
+      0
+  ) {
+    return [];
+  }
+
+
+  /* =====================================================
+    이미 D1에 존재하는 날짜·근무·보직 확인
+  ====================================================== */
+
+  const sharedGroupKeys =
+    new Set(
+      appState.logs
+        .filter(
+          isSharedD1ShiftLog
+        )
+        .map(
+          getShiftLogGroupKey
+        )
+    );
+
+
+  const migratedLogs =
+    [];
+
+
+  /* =====================================================
+    대상별 manual_migrate
+  ====================================================== */
+
+  for (
+    const legacyLog of
+      targetLegacyLogs
+  ) {
+    const groupKey =
+      getShiftLogGroupKey(
+        legacyLog
+      );
+
+
+    /*
+      이미 D1에 같은 날짜·근무·보직이 있으면
+      기존 D1 자료를 유지한다.
+    */
+
+    if (
+      sharedGroupKeys.has(
+        groupKey
+      )
+    ) {
+      continue;
+    }
+
+
+    const migrationLog = {
+      ...legacyLog,
+
+      /*
+        과거 원 작성자 유지
+      */
+
+      author:
+        String(
+          legacyLog.author ||
+          ""
+        ).trim(),
+
+      authorId:
+        String(
+          legacyLog.authorId ||
+          legacyLog.writerId ||
+          legacyLog.writer_id ||
+          ""
+        ).trim(),
+
+      authorRole:
+        String(
+          legacyLog.authorRole ||
+          legacyLog.writerRole ||
+          legacyLog.writer_role ||
+          ""
+        ).trim(),
+
+      status:
+        normalizeShiftLogApprovalStatus(
+          legacyLog.status
+        )
+    };
+
+
+    try {
+      const migratedLog =
+        await saveShiftLogToServer(
+          migrationLog,
+          {
+            /*
+              이번에 서버에 추가한
+              수동 동기화 전용 action
+            */
+
+            action:
+              "manual_migrate",
+
+            expectedRevision:
+              0
+          }
+        );
+
+
+      if (
+        !migratedLog
+      ) {
+        continue;
+      }
+
+
+      replaceSharedShiftLogInState(
+        migratedLog
+      );
+
+
+      sharedGroupKeys.add(
+        groupKey
+      );
+
+
+      migratedLogs.push(
+        migratedLog
+      );
+
+    } catch (
+      error
+    ) {
+      /* =================================================
+        다른 PC가 먼저 같은 자료를 D1에 만든 경우
+
+        실패로 처리하지 않고
+        서버의 최신 자료를 사용한다.
+      ================================================== */
+
+      if (
+        typeof ShiftLogApiError !==
+          "undefined" &&
+
+        error instanceof
+          ShiftLogApiError &&
+
+        error.isConflict &&
+
+        error.currentLog
+      ) {
+        const currentLog =
+          normalizeSharedShiftLog(
+            error.currentLog
+          );
+
+
+        if (
+          currentLog
+        ) {
+          replaceSharedShiftLogInState(
+            currentLog
+          );
+
+
+          sharedGroupKeys.add(
+            groupKey
+          );
+
+
+          migratedLogs.push(
+            currentLog
+          );
+        }
+
+
+        continue;
+      }
+
+
+      console.error(
+        "현재 Shift 수동 legacy D1 이전 실패:",
+        {
+          workDate,
+
+          shift,
+
+          legacyDiaryId:
+            getLegacyDiaryId(
+              legacyLog
+            ),
+
+          role:
+            legacyLog?.role,
+
+          error
+        }
+      );
+
+
+      throw error;
+    }
+  }
+
+
+  /* =====================================================
+    D1으로 전환된 legacy 중복 행 제거
+  ====================================================== */
+
+  if (
+    migratedLogs.length >
+      0
+  ) {
+    appState.logs =
+      appState.logs.filter(
+        log => {
+          if (
+            !isReadOnlyLegacyShiftLog(
+              log
+            )
+          ) {
+            return true;
+          }
+
+
+          const logDate =
+            String(
+              log?.date ||
+              ""
+            ).trim();
+
+
+          const logShift =
+            String(
+              log?.shift ||
+              ""
+            )
+              .trim()
+              .toUpperCase();
+
+
+          if (
+            logDate !==
+              workDate ||
+            logShift !==
+              shift
+          ) {
+            return true;
+          }
+
+
+          return !sharedGroupKeys.has(
+            getShiftLogGroupKey(
+              log
+            )
+          );
+        }
+      );
+  }
+
+
+  console.log(
+    "현재 Shift 수동 D1 이전 완료:",
+    {
+      workDate,
+
+      shift,
+
+      requestedLegacyCount:
+        legacyDiaryIdSet.size,
+
+      matchedLegacyCount:
+        targetLegacyLogs.length,
+
+      migratedCount:
+        migratedLogs.length,
+
+      migratedRoles:
+        migratedLogs.map(
+          log => {
+            return log.role;
+          }
+        )
+    }
+  );
+
+
+  return migratedLogs;
+}
+
+/* =========================================================
   현재 선택 날짜 + 현재 Shift 이전일지 단일 동기화
 
   예:
@@ -7974,25 +8467,80 @@ async function runCurrentShiftLegacySync() {
     }
 
 
-    /* ===================================================
-      7. suppression 해제된 legacy 다시 조회
+/* ===================================================
+  7. 이번 Shift의 legacy 원본 다시 불러오기
 
-      중요:
-      현재 loadLegacyLogsForSelectedDate()에는
-      migrateEditableLegacyLogsForSelectedDate()가
-      이미 연결돼 있다.
+  중요:
+  일반 loadLegacyLogsForSelectedDate()를 실행하면
+  기존 자동 migrate 규칙이 먼저 동작한다.
 
-      따라서:
-      삭제되어 shift_logs에 없는 보직
-      → 자동으로 다시 D1 업무일지 생성
-    ==================================================== */
+  이번 수동 동기화에서는
+  raw legacy를 먼저 불러온 뒤
 
-    if (
-      typeof loadLegacyLogsForSelectedDate ===
-        "function"
-    ) {
-      await loadLegacyLogsForSelectedDate();
-    }
+  실제 조회된 legacyDiaryId만
+  manual_migrate로 D1에 넣는다.
+=================================================== */
+
+if (
+  typeof loadLegacyLogsForSelectedDateBeforeEditableMigration ===
+    "function"
+) {
+  await loadLegacyLogsForSelectedDateBeforeEditableMigration();
+
+} else if (
+  typeof loadLegacyLogsForSelectedDate ===
+    "function"
+) {
+  /*
+    이전 버전 호환
+  */
+
+  await loadLegacyLogsForSelectedDate();
+}
+
+
+/* ===================================================
+  7-1. 수동 동기화 대상만 D1 이전
+
+  날짜:
+  현재 화면 날짜
+
+  근무:
+  현재 화면 Shift
+
+  대상:
+  이번 legacy-import에서 실제 확인된 ID만
+=================================================== */
+
+const manuallyMigratedLogs =
+  await migrateCurrentShiftLegacyLogsManually({
+    workDate:
+      context.workDate,
+
+    shift:
+      context.currentShift,
+
+    legacyDiaryIds
+  });
+
+
+console.log(
+  "현재 Shift 수동 동기화 D1 반영:",
+  {
+    requestedCount:
+      legacyDiaryIds.length,
+
+    migratedCount:
+      manuallyMigratedLogs.length,
+
+    roles:
+      manuallyMigratedLogs.map(
+        log => {
+          return log.role;
+        }
+      )
+  }
+);
 
 
     /* ===================================================

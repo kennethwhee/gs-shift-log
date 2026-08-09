@@ -11067,7 +11067,14 @@ async function getTrustedLegacyMigrationStatus(
   - 파트원: 임시저장 또는 결재요청
 
   과거 업무일지 이전:
-  - legacy_logs에 저장된 기존 상태 유지
+  - migrate
+    → 기존 자동 이전
+    → 원 작성자 또는 최고관리자
+
+  - manual_migrate
+    → 화면의 현재 Shift [동기화] 버튼
+    → 모든 로그인 사용자 허용
+    → 기존 작성자·기존 결재상태 유지
 ========================================================= */
 
 async function applyCreateRules(
@@ -11077,15 +11084,26 @@ async function applyCreateRules(
   action,
   now
 ) {
-  const isMigration =
+  const isAutomaticMigration =
     action ===
       "migrate";
+
+
+  const isManualMigration =
+    action ===
+      "manual_migrate";
+
+
+  const isMigration =
+    isAutomaticMigration ||
+    isManualMigration;
 
 
   /*
     과거 업무일지인 경우
     서버의 legacy_logs에서 원래 상태를 확인한다.
   */
+
   const trustedMigrationStatus =
     isMigration
       ? await getTrustedLegacyMigrationStatus(
@@ -11115,7 +11133,19 @@ async function applyCreateRules(
       );
 
 
+    /* ===================================================
+      일반 자동 이전(migrate)
+
+      기존 규칙 그대로 유지:
+      - 최고관리자
+      - 또는 과거 업무일지 원 작성자
+
+      다른 사람 자료를 페이지 이동만으로
+      자동 이전시키지 않는다.
+    ==================================================== */
+
     if (
+      isAutomaticMigration &&
       !user.isSuperAdmin &&
       (
         (
@@ -11145,9 +11175,23 @@ async function applyCreateRules(
     }
 
 
+    /* ===================================================
+      수동 현재 Shift 동기화(manual_migrate)
+
+      로그인 사용자가 [동기화] 버튼을
+      직접 눌러 실행한 경우에는
+      원 작성자와 로그인 사용자가 달라도 허용한다.
+
+      단:
+      작성자를 현재 로그인 사용자로 바꾸지 않고
+      과거 원 작성자를 그대로 보존한다.
+    ==================================================== */
+
+
     /*
       과거 원 작성자를 유지한다.
     */
+
     log.author =
       suppliedAuthor ||
       user.name;
@@ -11168,6 +11212,7 @@ async function applyCreateRules(
     /*
       새 업무일지는 현재 로그인 사용자가 작성자다.
     */
+
     log.author =
       user.name;
 
@@ -11189,9 +11234,13 @@ async function applyCreateRules(
     isMigration
   ) {
     /*
-      과거 자료는 서버에서 확인한 기존 상태를 유지한다.
-      확인되지 않는 경우 임시저장으로 처리한다.
+      자동/수동 이전 모두
+      legacy_logs에서 확인한 기존 결재상태를 유지한다.
+
+      상태 확인이 불가능한 예외자료만
+      임시저장으로 처리한다.
     */
+
     log.status =
       trustedMigrationStatus ||
       "임시저장";
@@ -11225,6 +11274,7 @@ async function applyCreateRules(
       파트장 신규 업무일지도
       먼저 임시저장 상태로 생성한다.
     */
+
     log.status =
       "임시저장";
 
@@ -11259,6 +11309,13 @@ async function applyCreateRules(
   log.updatedAt =
     now;
 
+
+  /*
+    실제 동기화를 누른 사람은
+    lastModifiedBy에 기록한다.
+
+    원 작성자는 author에 그대로 유지된다.
+  */
 
   log.lastModifiedBy =
     user.name;
@@ -12824,6 +12881,7 @@ if (
   ![
     "save",
     "migrate",
+    "manual_migrate",
     "approve",
     "cancel",
     "team_approve",
@@ -12900,10 +12958,14 @@ if (
 
 
     if (
-      existingLog &&
-      action ===
-        "migrate"
-    ) {
+  existingLog &&
+  [
+    "migrate",
+    "manual_migrate"
+  ].includes(
+    action
+  )
+) {
       return createConflictResponse(
         existingLog,
         "이미 서버에 같은 날짜·근무·보직의 업무일지가 있습니다."
@@ -12980,10 +13042,14 @@ if (
           savedLog,
           {
             trigger:
-              action ===
-                "migrate"
-                  ? "migration-create"
-                  : "realtime-create",
+  [
+    "migrate",
+    "manual_migrate"
+  ].includes(
+    action
+  )
+    ? "migration-create"
+    : "realtime-create",
 
             containerRevision:
               savedLog.serverRevision,
