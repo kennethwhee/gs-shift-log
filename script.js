@@ -198930,98 +198930,149 @@ function render() {
 }
 
 
-  function normalizeResult(
-    result,
-    expectedDate
+function normalizeResult(
+  result,
+  meetingDate
+) {
+  const targetTime =
+    `${meetingDate}T${FORECAST_HOUR}`;
+
+  const hourly =
+    result?.hourly;
+
+  const hourlyTimes =
+    Array.isArray(
+      hourly?.time
+    )
+      ? hourly.time
+      : [];
+
+  const hourlyIndex =
+    hourlyTimes.findIndex(
+      value =>
+        clean(
+          value
+        ) ===
+        targetTime
+    );
+
+  const temperature =
+    hourlyIndex >= 0
+      ? numberOrNull(
+          hourly
+            ?.temperature_2m
+            ?.[hourlyIndex]
+        )
+      : null;
+
+  const humidity =
+    hourlyIndex >= 0
+      ? numberOrNull(
+          hourly
+            ?.relative_humidity_2m
+            ?.[hourlyIndex]
+        )
+      : null;
+
+  const weatherCode =
+    hourlyIndex >= 0
+      ? numberOrNull(
+          hourly
+            ?.weather_code
+            ?.[hourlyIndex]
+        )
+      : null;
+
+
+  const daily =
+    result?.daily;
+
+  const dailyTimes =
+    Array.isArray(
+      daily?.time
+    )
+      ? daily.time
+      : [];
+
+  const dailyIndex =
+    dailyTimes.findIndex(
+      value =>
+        clean(
+          value
+        ) ===
+        meetingDate
+    );
+
+  const minimumTemperature =
+    dailyIndex >= 0
+      ? numberOrNull(
+          daily
+            ?.temperature_2m_min
+            ?.[dailyIndex]
+        )
+      : null;
+
+  const maximumTemperature =
+    dailyIndex >= 0
+      ? numberOrNull(
+          daily
+            ?.temperature_2m_max
+            ?.[dailyIndex]
+        )
+      : null;
+
+
+  if (
+    hourlyIndex < 0 ||
+    dailyIndex < 0 ||
+    temperature === null ||
+    humidity === null ||
+    weatherCode === null ||
+    minimumTemperature === null ||
+    maximumTemperature === null
   ) {
-    const item =
-      result?.item &&
-      typeof result.item ===
-        "object"
-        ? result.item
-        : {};
-
-    const sourceDate =
-      text(
-        result?.date ||
-        item.sourceDate ||
-        item.targetDate
-      );
-
-    const maximum =
-      numberOrNull(
-        result?.max ??
-        item.maximum
-      );
-
-    const minimum =
-      numberOrNull(
-        result?.min ??
-        item.minimum
-      );
-
-    const weightedAverage =
-      numberOrNull(
-        result?.avg ??
-        item.weightedAverage
-      );
-
-    if (
-      result?.ok !==
-        true ||
-      sourceDate !==
-        expectedDate ||
-      maximum ===
-        null ||
-      minimum ===
-        null ||
-      weightedAverage ===
-        null
-    ) {
-      throw new Error(
-        result?.message ||
-        `${expectedDate} 육지 SMP 응답을 확인하지 못했습니다.`
-      );
-    }
-
-    return {
-      sourceDate,
-
-      targetDate:
-        sourceDate,
-
-      region:
-        "land",
-
-      regionLabel:
-        "육지",
-
-      maximum,
-      minimum,
-      weightedAverage,
-
-      unit:
-        "원/kWh",
-
-      source:
-        text(
-          item.source
-        ) ||
-        "한국전력거래소 EPSIS",
-
-      sourceUrl:
-        text(
-          item.sourceUrl
-        ),
-
-      collectedAt:
-        text(
-          item.collectedAt
-        ) ||
-        new Date()
-          .toISOString()
-    };
+    throw new Error(
+      `${meetingDate} 날씨 자료를 확인하지 못했습니다.`
+    );
   }
+
+
+  return {
+    sourceDate:
+      meetingDate,
+
+    forecastTime:
+      targetTime,
+
+    location:
+      "경기 포천시 신북면",
+
+    latitude:
+      LATITUDE,
+
+    longitude:
+      LONGITUDE,
+
+    weatherCode,
+
+    condition:
+      getWeatherCondition(
+        weatherCode
+      ),
+
+    temperature,
+    minimumTemperature,
+    maximumTemperature,
+    humidity,
+
+    source:
+      "Open-Meteo",
+
+    collectedAt:
+      new Date()
+        .toISOString()
+  };
+}
 
 
   async function loadDate(
@@ -199571,6 +199622,1366 @@ function render() {
 
       if (
         initializationAttempt <
+        80
+      ) {
+        window.setTimeout(
+          initialize,
+          250
+        );
+      }
+
+      return;
+    }
+
+    bindEvents();
+    render();
+    load();
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
+
+/* =========================================================
+  오전회의 취합 · 회의일 09:00 신북 날씨
+
+  공용 기준일 2026-08-09
+  → 회의일 2026-08-10 09:00 조회
+
+  표시: 날씨 상태 / 기온 / 습도
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingWeather() {
+  "use strict";
+
+  if (
+    window.__efficiencyMorningMeetingWeatherInstalled ===
+      true
+  ) {
+    return;
+  }
+
+  window.__efficiencyMorningMeetingWeatherInstalled =
+    true;
+
+  const API_URL =
+    "https://api.open-meteo.com/v1/forecast";
+
+  const LATITUDE =
+    37.9586;
+
+  const LONGITUDE =
+    127.2307;
+
+  const FORECAST_HOUR =
+    "09:00";
+
+  const DATE_ATTRIBUTE =
+    "data-morning-meeting-auto-base-date";
+
+  const weatherByDate =
+    new Map();
+
+  const statusByDate =
+    new Map();
+
+  const errorByDate =
+    new Map();
+
+  let dateObserver =
+    null;
+
+  let activeController =
+    null;
+
+  let scheduledTimer =
+    null;
+
+  let requestSequence =
+    0;
+
+  let initializeAttempt =
+    0;
+
+  const byId = id =>
+    document.getElementById(
+      id
+    );
+
+  const clean = value =>
+    String(
+      value ?? ""
+    ).trim();
+
+
+  function getState() {
+    if (
+      !window.efficiencyMorningMeetingUploadState ||
+      typeof window.efficiencyMorningMeetingUploadState !==
+        "object"
+    ) {
+      window.efficiencyMorningMeetingUploadState =
+        {};
+    }
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  function isIsoDate(
+    value
+  ) {
+    const dateText =
+      clean(
+        value
+      );
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        dateText
+      )
+    ) {
+      return false;
+    }
+
+    const parsed =
+      new Date(
+        `${dateText}T00:00:00.000Z`
+      );
+
+    return (
+      !Number.isNaN(
+        parsed.getTime()
+      ) &&
+
+      parsed
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        dateText
+    );
+  }
+
+
+  function addDays(
+    value,
+    days
+  ) {
+    if (
+      !isIsoDate(
+        value
+      )
+    ) {
+      return "";
+    }
+
+    const parsed =
+      new Date(
+        `${value}T00:00:00.000Z`
+      );
+
+    parsed.setUTCDate(
+      parsed.getUTCDate() +
+      days
+    );
+
+    return parsed
+      .toISOString()
+      .slice(
+        0,
+        10
+      );
+  }
+
+
+  function getBaseDate() {
+    const panel =
+      byId(
+        "efficiencyMorningMeetingWaterPanel"
+      );
+
+    return [
+      panel?.dataset
+        .morningMeetingAutoBaseDate,
+
+      byId(
+        "efficiencyMorningMeetingAutoDatePicker"
+      )?.value,
+
+      byId(
+        "efficiencyMorningMeetingAutoWaterDate"
+      )?.textContent
+    ]
+      .map(
+        clean
+      )
+      .find(
+        isIsoDate
+      ) ||
+      "";
+  }
+
+
+  function getMeetingDate() {
+    return addDays(
+      getBaseDate(),
+      1
+    );
+  }
+
+
+  function shortDate(
+    value
+  ) {
+    if (
+      !isIsoDate(
+        value
+      )
+    ) {
+      return "-";
+    }
+
+    const [
+      ,
+      month,
+      day
+    ] =
+      value.split(
+        "-"
+      );
+
+    return (
+      `${Number(month)}/` +
+      `${Number(day)}`
+    );
+  }
+
+
+  function numberOrNull(
+    value
+  ) {
+    if (
+      value ===
+        null ||
+      value ===
+        undefined ||
+      clean(
+        value
+      ) ===
+        ""
+    ) {
+      return null;
+    }
+
+    const numeric =
+      Number(
+        value
+      );
+
+    return Number.isFinite(
+      numeric
+    )
+      ? numeric
+      : null;
+  }
+
+
+  function getWeatherCondition(
+    weatherCode
+  ) {
+    const code =
+      numberOrNull(
+        weatherCode
+      );
+
+    if (
+      code ===
+        0 ||
+      code ===
+        1
+    ) {
+      return "맑음";
+    }
+
+    if (
+      [
+        2,
+        3,
+        45,
+        48
+      ].includes(
+        code
+      )
+    ) {
+      return "흐림";
+    }
+
+    if (
+      [
+        71,
+        73,
+        75,
+        77,
+        85,
+        86
+      ].includes(
+        code
+      )
+    ) {
+      return "눈";
+    }
+
+    return code ===
+      null
+        ? "-"
+        : "비";
+  }
+
+
+  function ensureStyle() {
+    if (
+      byId(
+        "efficiencyMorningMeetingWeatherStyle"
+      )
+    ) {
+      return;
+    }
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+    style.id =
+      "efficiencyMorningMeetingWeatherStyle";
+
+    style.textContent = `
+      .efficiency-morning-meeting-auto-card.is-meeting-weather::before {
+        background: #3f9b78;
+      }
+
+      .efficiency-morning-meeting-auto-card.is-meeting-weather
+      .efficiency-morning-meeting-auto-card__body {
+        background: #f9fdfb;
+      }
+
+      #efficiencyMorningMeetingAutoWeatherRefreshButton {
+        appearance: none;
+        -webkit-appearance: none;
+        cursor: pointer;
+        font: inherit;
+      }
+
+      #efficiencyMorningMeetingAutoWeatherRefreshButton:disabled {
+        cursor: wait;
+        opacity: 0.7;
+      }
+    `;
+
+    document.head.appendChild(
+      style
+    );
+  }
+
+
+  function ensureCard() {
+    const bottomGrid =
+      byId(
+        "efficiencyMorningMeetingAutoBottomGrid"
+      );
+
+    if (
+      !bottomGrid
+    ) {
+      return null;
+    }
+
+    ensureStyle();
+
+    let card =
+      byId(
+        "efficiencyMorningMeetingAutoWeatherCard"
+      );
+
+    if (
+      !card
+    ) {
+      card =
+        document.createElement(
+          "article"
+        );
+
+      card.id =
+        "efficiencyMorningMeetingAutoWeatherCard";
+
+      card.className =
+        "efficiency-morning-meeting-auto-card " +
+        "is-meeting-weather";
+
+      card.innerHTML = `
+        <header class="efficiency-morning-meeting-auto-card__header">
+          <div>
+            <span>
+              WEATHER · SINBUK
+            </span>
+
+            <strong>
+              신북 날씨
+            </strong>
+          </div>
+
+          <div class="efficiency-morning-meeting-auto-card__meta">
+            <small id="efficiencyMorningMeetingAutoWeatherDate">
+              -
+            </small>
+
+            <button
+              type="button"
+              class="efficiency-morning-meeting-auto-card__badge"
+              id="efficiencyMorningMeetingAutoWeatherRefreshButton"
+              title="회의일 오전 9시 날씨 다시 조회"
+            >
+              다시 조회
+            </button>
+          </div>
+        </header>
+
+        <div class="efficiency-morning-meeting-auto-card__body">
+          <div class="efficiency-morning-meeting-auto-row">
+            <span>
+              날씨 상태
+            </span>
+
+            <strong id="efficiencyMorningMeetingAutoWeatherCondition">
+              조회 대기
+            </strong>
+          </div>
+
+          <div class="efficiency-morning-meeting-auto-row">
+            <span>
+              기온
+            </span>
+
+            <strong id="efficiencyMorningMeetingAutoWeatherTemperature">
+              -
+            </strong>
+          </div>
+
+          <div class="efficiency-morning-meeting-auto-row is-emphasis">
+            <span>
+              습도
+            </span>
+
+            <strong id="efficiencyMorningMeetingAutoWeatherHumidity">
+              -
+            </strong>
+          </div>
+        </div>
+      `;
+
+      bottomGrid.appendChild(
+        card
+      );
+    }
+
+    /*
+      SMP 카드 바로 다음에 배치한다.
+    */
+
+    const smpCard =
+      byId(
+        "efficiencyMorningMeetingAutoSmpCard"
+      );
+
+    if (
+      smpCard?.parentElement ===
+        bottomGrid &&
+      smpCard.nextElementSibling !==
+        card
+    ) {
+      smpCard.insertAdjacentElement(
+        "afterend",
+        card
+      );
+
+    } else if (
+      card.parentElement !==
+        bottomGrid
+    ) {
+      bottomGrid.appendChild(
+        card
+      );
+    }
+
+    return card;
+  }
+
+
+  function setValue(
+    id,
+    value,
+    title = "",
+    color = ""
+  ) {
+    const element =
+      byId(
+        id
+      );
+
+    if (
+      !element
+    ) {
+      return;
+    }
+
+    element.textContent =
+      value;
+
+    element.title =
+      title;
+
+    element.style.color =
+      color;
+  }
+
+
+  function syncState(
+    meetingDate,
+    item,
+    errorMessage = ""
+  ) {
+    const state =
+      getState();
+
+    state.morningWeatherDate =
+      meetingDate;
+
+    state.morningWeather =
+      item ||
+      null;
+
+    state.morningWeatherError =
+      errorMessage;
+  }
+
+
+  function render() {
+    const card =
+      ensureCard();
+
+    if (
+      !card
+    ) {
+      return;
+    }
+
+    const meetingDate =
+      getMeetingDate();
+
+    const dateElement =
+      byId(
+        "efficiencyMorningMeetingAutoWeatherDate"
+      );
+
+    if (
+      dateElement
+    ) {
+      dateElement.textContent =
+        isIsoDate(
+          meetingDate
+        )
+          ? `${shortDate(meetingDate)} · 09:00`
+          : "-";
+    }
+
+    if (
+      !isIsoDate(
+        meetingDate
+      )
+    ) {
+      return;
+    }
+
+    const item =
+      weatherByDate.get(
+        meetingDate
+      ) ||
+      null;
+
+    const status =
+      statusByDate.get(
+        meetingDate
+      ) ||
+      "idle";
+
+    const errorMessage =
+      errorByDate.get(
+        meetingDate
+      ) ||
+      "";
+
+    const refreshButton =
+      byId(
+        "efficiencyMorningMeetingAutoWeatherRefreshButton"
+      );
+
+    const loading =
+      status ===
+      "loading";
+
+    if (
+      refreshButton
+    ) {
+      refreshButton.disabled =
+        loading;
+
+      refreshButton.textContent =
+        loading
+          ? "조회 중"
+          : "다시 조회";
+    }
+
+if (
+  item &&
+  status ===
+    "complete"
+) {
+  const meetingTemperature =
+    Math.round(
+      item.temperature
+    );
+
+  const minimumTemperature =
+    Math.round(
+      item.minimumTemperature
+    );
+
+  const maximumTemperature =
+    Math.round(
+      item.maximumTemperature
+    );
+
+  const temperatureText =
+    `${meetingTemperature} ` +
+    `(${minimumTemperature}/${maximumTemperature}℃)`;
+
+  const temperatureTitle =
+    `${meetingDate} 09:00 기온 ` +
+    `${meetingTemperature}℃ · ` +
+    `최저 ${minimumTemperature}℃ · ` +
+    `최고 ${maximumTemperature}℃`;
+
+  const humidityText =
+    `${Math.round(
+      item.humidity
+    )} %`;
+
+
+  setValue(
+    "efficiencyMorningMeetingAutoWeatherCondition",
+    item.condition,
+    `${meetingDate} 09:00 ${item.condition}`
+  );
+
+  setValue(
+    "efficiencyMorningMeetingAutoWeatherTemperature",
+    temperatureText,
+    temperatureTitle
+  );
+
+  setValue(
+    "efficiencyMorningMeetingAutoWeatherHumidity",
+    humidityText,
+    `${meetingDate} 09:00 습도 ${humidityText}`
+  );
+
+
+  card.title =
+    `${meetingDate} 09:00 신북 날씨 · ` +
+    `${item.condition} · ` +
+    `${temperatureTitle} · ` +
+    `습도 ${humidityText}`;
+
+
+  syncState(
+    meetingDate,
+    item
+  );
+
+  return;
+}
+
+    if (
+      loading
+    ) {
+      setValue(
+        "efficiencyMorningMeetingAutoWeatherCondition",
+        "조회 중",
+        `${meetingDate} 09:00 날씨 조회 중`,
+        "#64748b"
+      );
+
+      setValue(
+        "efficiencyMorningMeetingAutoWeatherTemperature",
+        "조회 중",
+        "",
+        "#64748b"
+      );
+
+      setValue(
+        "efficiencyMorningMeetingAutoWeatherHumidity",
+        "조회 중",
+        "",
+        "#64748b"
+      );
+
+      card.title =
+        `${meetingDate} 09:00 신북 날씨 조회 중`;
+
+      syncState(
+        meetingDate,
+        null
+      );
+
+      return;
+    }
+
+    if (
+      status ===
+      "error"
+    ) {
+      setValue(
+        "efficiencyMorningMeetingAutoWeatherCondition",
+        "조회 실패",
+        errorMessage,
+        "#b45309"
+      );
+
+      setValue(
+        "efficiencyMorningMeetingAutoWeatherTemperature",
+        "-",
+        errorMessage
+      );
+
+      setValue(
+        "efficiencyMorningMeetingAutoWeatherHumidity",
+        "-",
+        errorMessage
+      );
+
+      card.title =
+        errorMessage ||
+        `${meetingDate} 날씨 조회 실패`;
+
+      syncState(
+        meetingDate,
+        null,
+        errorMessage
+      );
+
+      return;
+    }
+
+    setValue(
+      "efficiencyMorningMeetingAutoWeatherCondition",
+      "조회 대기",
+      `${meetingDate} 09:00 날씨 조회 대기`,
+      "#7c8799"
+    );
+
+    setValue(
+      "efficiencyMorningMeetingAutoWeatherTemperature",
+      "-"
+    );
+
+    setValue(
+      "efficiencyMorningMeetingAutoWeatherHumidity",
+      "-"
+    );
+
+    card.title =
+      `${meetingDate} 09:00 신북 날씨 조회 대기`;
+
+    syncState(
+      meetingDate,
+      null
+    );
+  }
+
+
+  function normalizeResult(
+    result,
+    meetingDate
+  ) {
+    const targetTime =
+      `${meetingDate}T${FORECAST_HOUR}`;
+
+    const hourly =
+      result?.hourly;
+
+    const times =
+      Array.isArray(
+        hourly?.time
+      )
+        ? hourly.time
+        : [];
+
+    const index =
+      times.findIndex(
+        value =>
+          clean(
+            value
+          ) ===
+          targetTime
+      );
+
+    const temperature =
+      index >=
+        0
+        ? numberOrNull(
+            hourly
+              ?.temperature_2m
+              ?.[index]
+          )
+        : null;
+
+    const humidity =
+      index >=
+        0
+        ? numberOrNull(
+            hourly
+              ?.relative_humidity_2m
+              ?.[index]
+          )
+        : null;
+
+    const weatherCode =
+      index >=
+        0
+        ? numberOrNull(
+            hourly
+              ?.weather_code
+              ?.[index]
+          )
+        : null;
+
+    if (
+      index <
+        0 ||
+      temperature ===
+        null ||
+      humidity ===
+        null ||
+      weatherCode ===
+        null
+    ) {
+      throw new Error(
+        `${meetingDate} 09:00 날씨 자료를 확인하지 못했습니다.`
+      );
+    }
+
+    return {
+      sourceDate:
+        meetingDate,
+
+      forecastTime:
+        targetTime,
+
+      location:
+        "경기 포천시 신북면",
+
+      latitude:
+        LATITUDE,
+
+      longitude:
+        LONGITUDE,
+
+      weatherCode,
+
+      condition:
+        getWeatherCondition(
+          weatherCode
+        ),
+
+      temperature,
+      humidity,
+
+      source:
+        "Open-Meteo",
+
+      collectedAt:
+        new Date()
+          .toISOString()
+    };
+  }
+
+
+  async function load(
+    options = {}
+  ) {
+    const forceRefresh =
+      options.forceRefresh ===
+      true;
+
+    const meetingDate =
+      getMeetingDate();
+
+    if (
+      !isIsoDate(
+        meetingDate
+      )
+    ) {
+      render();
+      return null;
+    }
+
+    const cachedItem =
+      weatherByDate.get(
+        meetingDate
+      ) ||
+      null;
+
+    if (
+      !forceRefresh &&
+      cachedItem
+    ) {
+      statusByDate.set(
+        meetingDate,
+        "complete"
+      );
+
+      errorByDate.set(
+        meetingDate,
+        ""
+      );
+
+      render();
+
+      return cachedItem;
+    }
+
+    activeController
+      ?.abort();
+
+    const controller =
+      new AbortController();
+
+    const sequence =
+      ++requestSequence;
+
+    activeController =
+      controller;
+
+    statusByDate.set(
+      meetingDate,
+      "loading"
+    );
+
+    errorByDate.set(
+      meetingDate,
+      ""
+    );
+
+    render();
+
+    try {
+      const requestUrl =
+        new URL(
+          API_URL
+        );
+
+      requestUrl.searchParams.set(
+        "latitude",
+        String(
+          LATITUDE
+        )
+      );
+
+      requestUrl.searchParams.set(
+        "longitude",
+        String(
+          LONGITUDE
+        )
+      );
+
+requestUrl.searchParams.set(
+  "hourly",
+  [
+    "temperature_2m",
+    "relative_humidity_2m",
+    "weather_code"
+  ].join(
+    ","
+  )
+);
+
+requestUrl.searchParams.set(
+  "daily",
+  [
+    "temperature_2m_min",
+    "temperature_2m_max"
+  ].join(
+    ","
+  )
+);
+
+      requestUrl.searchParams.set(
+        "timezone",
+        "Asia/Seoul"
+      );
+
+      requestUrl.searchParams.set(
+        "start_date",
+        meetingDate
+      );
+
+      requestUrl.searchParams.set(
+        "end_date",
+        meetingDate
+      );
+
+      const response =
+        await fetch(
+          requestUrl.toString(),
+          {
+            method:
+              "GET",
+
+            headers: {
+              Accept:
+                "application/json"
+            },
+
+            cache:
+              "no-store",
+
+            signal:
+              controller.signal
+          }
+        );
+
+      let result =
+        null;
+
+      try {
+        result =
+          await response.json();
+
+      } catch {
+        result =
+          null;
+      }
+
+      if (
+        sequence !==
+        requestSequence
+      ) {
+        return null;
+      }
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          clean(
+            result?.reason ||
+            result?.message
+          ) ||
+          `날씨 조회에 실패했습니다. (HTTP ${response.status})`
+        );
+      }
+
+      const item =
+        normalizeResult(
+          result,
+          meetingDate
+        );
+
+      weatherByDate.set(
+        meetingDate,
+        item
+      );
+
+      statusByDate.set(
+        meetingDate,
+        "complete"
+      );
+
+      errorByDate.set(
+        meetingDate,
+        ""
+      );
+
+      document.dispatchEvent(
+        new CustomEvent(
+          "efficiencyMorningMeetingWeatherLoaded",
+          {
+            detail:
+              item
+          }
+        )
+      );
+
+      return item;
+
+    } catch (
+      error
+    ) {
+      if (
+        error?.name ===
+          "AbortError" ||
+        sequence !==
+          requestSequence
+      ) {
+        return null;
+      }
+
+      const message =
+        error instanceof
+          Error
+          ? error.message
+          : "회의일 날씨를 불러오지 못했습니다.";
+
+      statusByDate.set(
+        meetingDate,
+        cachedItem
+          ? "complete"
+          : "error"
+      );
+
+      errorByDate.set(
+        meetingDate,
+        message
+      );
+
+      console.error(
+        `오전회의 ${meetingDate} 09:00 날씨 조회 실패:`,
+        error
+      );
+
+      return cachedItem;
+
+    } finally {
+      if (
+        activeController ===
+        controller
+      ) {
+        activeController =
+          null;
+      }
+
+      if (
+        sequence ===
+        requestSequence
+      ) {
+        render();
+      }
+    }
+  }
+
+
+  function scheduleLoad(
+    forceRefresh = false
+  ) {
+    window.clearTimeout(
+      scheduledTimer
+    );
+
+    scheduledTimer =
+      window.setTimeout(
+        () => {
+          ensureCard();
+          render();
+
+          load({
+            forceRefresh
+          });
+        },
+        0
+      );
+  }
+
+
+  function observeBaseDate() {
+    const panel =
+      byId(
+        "efficiencyMorningMeetingWaterPanel"
+      );
+
+    if (
+      !panel
+    ) {
+      return false;
+    }
+
+    dateObserver
+      ?.disconnect();
+
+    dateObserver =
+      new MutationObserver(
+        mutations => {
+          const changed =
+            mutations.some(
+              mutation => {
+                return (
+                  mutation.type ===
+                    "attributes" &&
+
+                  mutation.attributeName ===
+                    DATE_ATTRIBUTE
+                );
+              }
+            );
+
+          if (
+            changed
+          ) {
+            scheduleLoad(
+              false
+            );
+          }
+        }
+      );
+
+    dateObserver.observe(
+      panel,
+      {
+        attributes:
+          true,
+
+        attributeFilter: [
+          DATE_ATTRIBUTE
+        ]
+      }
+    );
+
+    return true;
+  }
+
+
+  function bindEvents() {
+    if (
+      document.documentElement
+        .dataset
+        .morningMeetingWeatherBound ===
+      "true"
+    ) {
+      return;
+    }
+
+    document.documentElement
+      .dataset
+      .morningMeetingWeatherBound =
+        "true";
+
+    document.addEventListener(
+      "click",
+      event => {
+        const target =
+          event.target instanceof
+            Element
+            ? event.target
+            : null;
+
+        if (
+          target?.closest(
+            "#efficiencyMorningMeetingAutoWeatherRefreshButton"
+          )
+        ) {
+          scheduleLoad(
+            true
+          );
+
+          return;
+        }
+
+        if (
+          target?.closest(
+            "#resetEfficiencyMorningMeetingButton"
+          )
+        ) {
+          window.setTimeout(
+            () =>
+              scheduleLoad(
+                false
+              ),
+            50
+          );
+        }
+      }
+    );
+
+    document.addEventListener(
+      "efficiencyMorningMeetingShiftLogsLoaded",
+      () =>
+        scheduleLoad(
+          false
+        )
+    );
+  }
+
+
+  window.loadEfficiencyMorningMeetingWeather =
+    load;
+
+  window.renderEfficiencyMorningMeetingWeather =
+    render;
+
+  window.getEfficiencyMorningMeetingWeather =
+    dateValue => {
+      const targetDate =
+        isIsoDate(
+          dateValue
+        )
+          ? clean(
+              dateValue
+            )
+          : getMeetingDate();
+
+      return (
+        weatherByDate.get(
+          targetDate
+        ) ||
+        null
+      );
+    };
+
+
+  function initialize() {
+    const card =
+      ensureCard();
+
+    const observing =
+      observeBaseDate();
+
+    if (
+      !card ||
+      !observing ||
+      !getBaseDate()
+    ) {
+      initializeAttempt +=
+        1;
+
+      if (
+        initializeAttempt <
         80
       ) {
         window.setTimeout(
