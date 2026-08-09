@@ -732,121 +732,89 @@ async function setOisTagLogSearchConditions(
   targetDate
 ) {
   const normalizedTag =
-    normalizeOisAgentText(
-      targetTag
-    );
+    normalizeOisAgentText(targetTag);
 
-
-  if (
-    !normalizedTag
-  ) {
+  if (!normalizedTag) {
     throw new Error(
       "OIS TAG NO가 비어 있습니다."
     );
   }
 
-
-  if (
-    !isValidOisAgentDate(
-      targetDate
-    )
-  ) {
+  if (!isValidOisAgentDate(targetDate)) {
     throw new Error(
       "OIS TAG별 LOG 조회 날짜가 올바르지 않습니다."
     );
   }
 
-
   const slashDate =
-    targetDate.replace(
-      /-/g,
-      "/"
-    );
-
+    targetDate.replace(/-/g, "/");
 
   const inputs =
-    frame.locator(
-      "input"
-    );
-
+    frame.locator("input");
 
   const inputCount =
     await inputs.count();
 
-
-  let tagInput =
-    null;
-
-
-  let bestTagScore =
-    -1;
-
-
-  const dateInputs =
-    [];
-
+  const tagCandidates = [];
+  const dateInputs = [];
 
   for (
     let index = 0;
-    index <
-      inputCount;
-    index +=
-      1
+    index < inputCount;
+    index += 1
   ) {
     const input =
-      inputs.nth(
-        index
-      );
-
+      inputs.nth(index);
 
     const isVisible =
       await input
         .isVisible()
-        .catch(
-          () => false
-        );
+        .catch(() => false);
 
-
-    if (
-      !isVisible
-    ) {
+    if (!isVisible) {
       continue;
     }
 
-
     const information =
-      await input.evaluate(
-        element => {
-          const normalizeText = (
-            value
-          ) => {
-            return String(
-              value ??
-              ""
-            )
-              .replace(
-                /\u00a0/g,
-                " "
-              )
-              .replace(
-                /\s+/g,
-                " "
-              )
+      await input
+        .evaluate(element => {
+          const normalizeText = value => {
+            return String(value ?? "")
+              .replace(/\u00a0/g, " ")
+              .replace(/\s+/g, " ")
               .trim();
           };
 
+          const rectangle =
+            element.getBoundingClientRect();
+
+          const labelText =
+            Array.from(
+              element.labels || []
+            )
+              .map(label => {
+                return normalizeText(
+                  label.innerText ||
+                  label.textContent ||
+                  ""
+                );
+              })
+              .join(" ");
+
+          const nearbyContainer =
+            element.closest(
+              "tr, li, .form-row, .search-row, .input-row"
+            );
 
           return {
             type:
               String(
-                element.type ||
-                ""
+                element.type || ""
               ).toLowerCase(),
 
             value:
               String(
-                element.value ||
-                ""
+                element.value || ""
               ),
 
             directIdentity:
@@ -859,268 +827,201 @@ async function setOisTagLogSearchConditions(
                   "aria-label"
                 )
               ]
-                .filter(
-                  Boolean
-                )
-                .join(
-                  " "
-                ),
+                .filter(Boolean)
+                .join(" "),
 
-            parentText:
+            nearbyText:
               normalizeText(
-                element
-                  .parentElement
-                  ?.innerText ||
-                element
-                  .parentElement
-                  ?.textContent ||
-                ""
-              )
-          };
-        }
-      );
+                [
+                  labelText,
+                  element
+                    .parentElement
+                    ?.innerText ||
+                    "",
+                  nearbyContainer
+                    ?.innerText ||
+                    ""
+                ].join(" ")
+              ),
 
+            top:
+              rectangle.top,
+
+            left:
+              rectangle.left
+          };
+        })
+        .catch(() => null);
+
+    if (!information) {
+      continue;
+    }
 
     if (
       [
         "hidden",
         "button",
         "submit",
+        "reset",
+        "image",
         "checkbox",
-        "radio"
-      ].includes(
-        information.type
-      )
+        "radio",
+        "file"
+      ].includes(information.type)
     ) {
       continue;
     }
 
+    const currentValue =
+      String(
+        information.value || ""
+      ).trim();
 
     const directIdentity =
       String(
-        information
-          .directIdentity ||
-        ""
+        information.directIdentity || ""
       );
 
-
-    const parentText =
+    const nearbyText =
       String(
-        information
-          .parentText ||
-        ""
+        information.nearbyText || ""
       );
 
+    const isDateInput =
+      information.type === "date" ||
+      /^\d{4}[/-]\d{2}[/-]\d{2}$/.test(
+        currentValue
+      ) ||
+      /일자|날짜|date/i.test(
+        directIdentity
+      );
 
-    const combinedIdentity = [
-      directIdentity,
-      parentText
-    ].join(
-      " "
-    );
+    if (isDateInput) {
+      dateInputs.push({
+        input,
+        type:
+          information.type,
+        top:
+          information.top,
+        left:
+          information.left,
+        index
+      });
 
+      continue;
+    }
 
-    let tagScore =
-      0;
-
+    let score = 0;
 
     if (
       /TAG\s*NO/i.test(
-        combinedIdentity
-      )
-    ) {
-      tagScore +=
-        40;
-    }
-
-
-    if (
-      /tag/i.test(
         directIdentity
       )
     ) {
-      tagScore +=
-        20;
+      score += 100;
     }
-
 
     if (
       /tag.*no|no.*tag/i.test(
         directIdentity
       )
     ) {
-      tagScore +=
-        15;
+      score += 80;
     }
-
 
     if (
-      tagScore >
-      bestTagScore
-    ) {
-      tagInput =
-        input;
-
-
-      bestTagScore =
-        tagScore;
-    }
-
-
-    const currentValue =
-      String(
-        information.value ||
-        ""
-      ).trim();
-
-
-    const isDateInput =
-      information.type ===
-        "date" ||
-
-      /^\d{4}[/-]\d{2}[/-]\d{2}$/.test(
-        currentValue
-      ) ||
-
-      /일자|날짜|date/i.test(
+      /tag/i.test(
         directIdentity
-      );
-
+      )
+    ) {
+      score += 50;
+    }
 
     if (
-      isDateInput
+      /TAG\s*NO/i.test(
+        nearbyText
+      )
     ) {
-      dateInputs.push({
-        input,
-
-        type:
-          information.type
-      });
+      score += 40;
     }
+
+    if (
+      [
+        "",
+        "text",
+        "search",
+        "tel"
+      ].includes(
+        information.type
+      )
+    ) {
+      score += 10;
+    }
+
+    if (!currentValue) {
+      score += 5;
+    }
+
+    tagCandidates.push({
+      input,
+      score,
+      top:
+        information.top,
+      left:
+        information.left,
+      index
+    });
   }
 
+  tagCandidates.sort(
+    (left, right) => {
+      if (
+        right.score !==
+        left.score
+      ) {
+        return (
+          right.score -
+          left.score
+        );
+      }
 
-  if (
-    !tagInput ||
-    bestTagScore <=
-      0
-  ) {
+      if (
+        left.top !==
+        right.top
+      ) {
+        return (
+          left.top -
+          right.top
+        );
+      }
+
+      return (
+        left.left -
+        right.left
+      );
+    }
+  );
+
+  const tagInput =
+    tagCandidates[0]
+      ?.input ||
+    null;
+
+  if (!tagInput) {
     throw new Error(
       "OIS TAG별 LOG 조회의 TAG NO 입력칸을 찾지 못했습니다."
     );
   }
 
-
-  /*
-    TAG 입력
-  */
-
-  await tagInput.evaluate(
-    (
-      element,
+  const setInputValue =
+    async (
+      input,
       value
     ) => {
-      const valueSetter =
-        Object
-          .getOwnPropertyDescriptor(
-            HTMLInputElement.prototype,
-            "value"
-          )
-          ?.set;
-
-
-      if (
-        valueSetter
-      ) {
-        valueSetter.call(
-          element,
-          value
-        );
-
-      } else {
-        element.value =
-          value;
-      }
-
-
-      element.dispatchEvent(
-        new Event(
-          "input",
-          {
-            bubbles:
-              true
-          }
-        )
-      );
-
-
-      element.dispatchEvent(
-        new Event(
-          "change",
-          {
-            bubbles:
-              true
-          }
-        )
-      );
-
-
-      element.dispatchEvent(
-        new Event(
-          "blur",
-          {
-            bubbles:
-              true
-          }
-        )
-      );
-    },
-
-    normalizedTag
-  );
-
-
-  if (
-    dateInputs.length <
-      1
-  ) {
-    throw new Error(
-      "OIS TAG별 LOG 조회의 날짜 입력칸을 찾지 못했습니다."
-    );
-  }
-
-
-  /*
-    시작일·종료일 모두 같은 날짜
-
-    화면에 날짜가 하나뿐인 버전도
-    정상 처리한다.
-  */
-
-  const targetDateInputs =
-    dateInputs.slice(
-      0,
-      2
-    );
-
-
-  for (
-    const dateInput of
-    targetDateInputs
-  ) {
-    const inputValue =
-      dateInput.type ===
-        "date"
-        ? targetDate
-        : slashDate;
-
-
-    await dateInput
-      .input
-      .evaluate(
+      await input.evaluate(
         (
           element,
-          value
+          nextValue
         ) => {
           const valueSetter =
             Object
@@ -1130,67 +1031,122 @@ async function setOisTagLogSearchConditions(
               )
               ?.set;
 
-
-          if (
-            valueSetter
-          ) {
+          if (valueSetter) {
             valueSetter.call(
               element,
-              value
+              nextValue
             );
-
           } else {
             element.value =
-              value;
+              nextValue;
           }
-
 
           element.dispatchEvent(
             new Event(
               "input",
               {
-                bubbles:
-                  true
+                bubbles: true
               }
             )
           );
-
 
           element.dispatchEvent(
             new Event(
               "change",
               {
-                bubbles:
-                  true
+                bubbles: true
               }
             )
           );
-
 
           element.dispatchEvent(
             new Event(
               "blur",
               {
-                bubbles:
-                  true
+                bubbles: true
               }
             )
           );
         },
 
-        inputValue
+        value
       );
+    };
+
+  await setInputValue(
+    tagInput,
+    normalizedTag
+  );
+
+  const enteredTag =
+    normalizeOisAgentText(
+      await tagInput
+        .inputValue()
+        .catch(() => "")
+    );
+
+  if (
+    enteredTag.toUpperCase() !==
+    normalizedTag.toUpperCase()
+  ) {
+    throw new Error(
+      "OIS TAG NO 입력값이 정상적으로 반영되지 않았습니다."
+    );
   }
 
+  if (
+    dateInputs.length < 1
+  ) {
+    throw new Error(
+      "OIS TAG별 LOG 조회의 날짜 입력칸을 찾지 못했습니다."
+    );
+  }
+
+  dateInputs.sort(
+    (left, right) => {
+      if (
+        Math.abs(
+          left.top -
+          right.top
+        ) > 5
+      ) {
+        return (
+          left.top -
+          right.top
+        );
+      }
+
+      return (
+        left.left -
+        right.left
+      );
+    }
+  );
+
+  const targetDateInputs =
+    dateInputs.slice(0, 2);
+
+  for (
+    const dateInput of
+    targetDateInputs
+  ) {
+    const inputValue =
+      dateInput.type === "date"
+        ? targetDate
+        : slashDate;
+
+    await setInputValue(
+      dateInput.input,
+      inputValue
+    );
+  }
 
   console.log(
     [
       "OIS TAG별 LOG 조회조건",
-      targetTag,
+      normalizedTag,
       targetDate
-    ].join(
-      " · "
-    )
+    ].join(" · ")
   );
 }
 

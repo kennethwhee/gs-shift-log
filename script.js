@@ -19740,6 +19740,22 @@ function parseLegacyDiaryContentLines(
     String(
       rawContent || ""
     )
+      /*
+        이전 시스템의 여러 줄바꿈 형식을
+        실제 줄바꿈으로 통일한다.
+      */
+      .replace(
+        /<br\s*\/?>/gi,
+        "\n"
+      )
+      .replace(
+        /\\n/g,
+        "\n"
+      )
+      .replace(
+        /&nbsp;/gi,
+        " "
+      )
       .replace(
         /\r\n/g,
         "\n"
@@ -19763,14 +19779,7 @@ function parseLegacyDiaryContentLines(
   sourceLines.forEach(
     sourceLine => {
       /*
-        과거 시스템의 유첨 안내문을
-        줄 전체뿐 아니라 문장 끝에서도 제거한다.
-
-        제거 예:
-        유첨 : 제목
-        ※ 유첨 : scaled_1
-        업무내용 ※ 유첨 : scaled_2
-        유첨 : scaled_2 [0000GH1A0A002]
+        과거 시스템의 유첨 안내문 제거
       */
       const originalLine =
         String(
@@ -19791,10 +19800,6 @@ function parseLegacyDiaryContentLines(
           .trim();
 
 
-      /*
-        유첨 안내문을 제거한 뒤
-        내용이 남지 않으면 제외한다.
-      */
       if (
         !originalLine
       ) {
@@ -19809,7 +19814,7 @@ function parseLegacyDiaryContentLines(
 
 
       /*
-        번호가 있는 줄
+        번호가 있는 줄은 새로운 항목
       */
       if (
         numberedMatch
@@ -19871,8 +19876,69 @@ function parseLegacyDiaryContentLines(
 
 
       /*
-        번호가 없는 줄은
-        바로 위 항목의 후속 내용으로 연결한다.
+        번호가 없어도 유효한 시간으로 시작하면
+        새로운 업무 항목으로 분리한다.
+
+        예:
+        17:30 Limestone입고(29.95)
+        09:00 Lime Slurry Solution Tank 관통실시
+      */
+      const parsedTimeExpression =
+        parseLeadingLogTimeExpression(
+          originalLine
+        );
+
+
+      const textAfterTime =
+        originalLine.slice(
+          String(
+            parsedTimeExpression
+              .matchedText ||
+            ""
+          ).length
+        );
+
+
+      /*
+        2026-08-09 또는 1500rpm 같은 문장을
+        시간 항목으로 잘못 분리하지 않도록
+        시간 뒤에 공백 또는 콜론이 있는지 확인한다.
+      */
+      const startsWithStandaloneTime =
+        Boolean(
+          parsedTimeExpression.timeText &&
+          parsedTimeExpression.content &&
+          /^(?:\s+|[:：]\s*)/.test(
+            textAfterTime
+          )
+        );
+
+
+      if (
+        startsWithStandaloneTime
+      ) {
+        parsedEntries.push({
+          time:
+            String(
+              parsedTimeExpression.timeText ||
+              ""
+            ).trim(),
+
+          content:
+            String(
+              parsedTimeExpression.content ||
+              ""
+            ).trim()
+        });
+
+
+        return;
+      }
+
+
+      /*
+        시간으로 시작하지 않는 번호 없는 줄은
+        바로 위 항목의 추가 설명으로 연결한다.
       */
       if (
         parsedEntries.length >
@@ -19901,37 +19967,8 @@ function parseLegacyDiaryContentLines(
 
 
       /*
-        첫 줄부터 번호가 없는 자료
+        첫 줄부터 번호와 시간이 없는 자료
       */
-      const parsedTimeExpression =
-        parseLeadingLogTimeExpression(
-          originalLine
-        );
-
-
-      if (
-        parsedTimeExpression.timeText &&
-        parsedTimeExpression.content
-      ) {
-        parsedEntries.push({
-          time:
-            String(
-              parsedTimeExpression.timeText ||
-              ""
-            ).trim(),
-
-          content:
-            String(
-              parsedTimeExpression.content ||
-              ""
-            ).trim()
-        });
-
-
-        return;
-      }
-
-
       parsedEntries.push({
         time:
           "",
@@ -19954,6 +19991,7 @@ function parseLegacyDiaryContentLines(
     }
   );
 }
+
 /* =========================================================
   기존 body index 내용 가져오기
 ========================================================= */
