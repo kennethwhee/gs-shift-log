@@ -166776,7 +166776,7 @@ function applyWaterResult(
     elements.loadButton
   ) {
     elements.loadButton.textContent =
-      "OIS 수처리 다시 불러오기";
+      "OIS 자료 다시 불러오기";
   }
 
 
