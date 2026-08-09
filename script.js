@@ -149444,6 +149444,737 @@ async function applyMorningMeetingManualInputCellFills(
   };
 }
 
+/* =========================================================
+  오전회의 미리보기 자동값 → 최종 엑셀
+
+  전력단가:
+  - 평일·주말 공통 상단에는 회의일 값
+  - 주말 하단에는 시작일+1일 ~ 종료일 값
+
+  날씨:
+  - 회의일의 상태·현재/최저/최고기온·습도
+  - 조회 실패·날짜 불일치 시 기존 템플릿 값 제거
+========================================================= */
+
+function applyMorningMeetingPreviewAutoValues(
+  worksheetDocument,
+  options = {}
+) {
+  const state =
+    options.state &&
+    typeof options.state ===
+      "object"
+      ? options.state
+      : {};
+
+
+  const numberOrNull =
+    value => {
+      if (
+        value ===
+          null ||
+        value ===
+          undefined ||
+        String(
+          value
+        ).trim() ===
+          ""
+      ) {
+        return null;
+      }
+
+
+      const numericValue =
+        Number(
+          String(
+            value
+          )
+            .replaceAll(
+              ",",
+              ""
+            )
+            .trim()
+        );
+
+
+      return Number.isFinite(
+        numericValue
+      )
+        ? numericValue
+        : null;
+    };
+
+
+  const isoDate =
+    value => {
+      const text =
+        String(
+          value ??
+          ""
+        ).trim();
+
+
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(
+          text
+        )
+      ) {
+        return "";
+      }
+
+
+      const parsedDate =
+        new Date(
+          `${text}T00:00:00.000Z`
+        );
+
+
+      return (
+        !Number.isNaN(
+          parsedDate.getTime()
+        ) &&
+
+        parsedDate
+          .toISOString()
+          .slice(
+            0,
+            10
+          ) ===
+          text
+      )
+        ? text
+        : "";
+    };
+
+
+  const getSmpItem =
+    targetDate => {
+      const normalizedDate =
+        isoDate(
+          targetDate
+        );
+
+
+      const item =
+        state
+          .smpPriceByDate?.[
+            normalizedDate
+          ] ||
+        null;
+
+
+      if (
+        !normalizedDate ||
+        !item
+      ) {
+        return null;
+      }
+
+
+      const itemDate =
+        isoDate(
+          item.sourceDate ||
+          item.targetDate ||
+          item.date
+        );
+
+
+      const status =
+        String(
+          state
+            .smpPriceStatusByDate?.[
+              normalizedDate
+            ] ??
+          ""
+        ).trim();
+
+
+      const maximum =
+        numberOrNull(
+          item.maximum
+        );
+
+
+      const minimum =
+        numberOrNull(
+          item.minimum
+        );
+
+
+      const weightedAverage =
+        numberOrNull(
+          item.weightedAverage
+        );
+
+
+      if (
+        itemDate !==
+          normalizedDate ||
+
+        (
+          status &&
+          status !==
+            "complete"
+        ) ||
+
+        maximum ===
+          null ||
+
+        minimum ===
+          null ||
+
+        weightedAverage ===
+          null
+      ) {
+        return null;
+      }
+
+
+      return {
+        maximum,
+        minimum,
+        weightedAverage
+      };
+    };
+
+
+  let smpAppliedCount =
+    0;
+
+
+  let smpTotalCount =
+    0;
+
+
+  const writeSmp = (
+    item,
+    maximumAddress,
+    minimumAddress,
+    averageAddress
+  ) => {
+    [
+      [
+        maximumAddress,
+        item?.maximum ??
+          null
+      ],
+
+      [
+        minimumAddress,
+        item?.minimum ??
+          null
+      ],
+
+      [
+        averageAddress,
+        item?.weightedAverage ??
+          null
+      ]
+    ].forEach(
+      ([
+        address,
+        value
+      ]) => {
+        const result =
+          setMorningMeetingNumericCellValue(
+            worksheetDocument,
+            address,
+            value
+          );
+
+
+        if (
+          !result.found
+        ) {
+          throw new Error(
+            `전력단가 셀 ${address}을 찾지 못했습니다.`
+          );
+        }
+
+
+        smpTotalCount +=
+          1;
+
+
+        if (
+          result.written
+        ) {
+          smpAppliedCount +=
+            1;
+        }
+      }
+    );
+  };
+
+
+  const columnName =
+    columnNumber => {
+      let number =
+        Number(
+          columnNumber
+        );
+
+
+      let result =
+        "";
+
+
+      while (
+        number >
+          0
+      ) {
+        number -=
+          1;
+
+
+        result =
+          String.fromCharCode(
+            65 +
+            number %
+              26
+          ) +
+          result;
+
+
+        number =
+          Math.floor(
+            number /
+            26
+          );
+      }
+
+
+      return result;
+    };
+
+
+  const scheduleDate =
+    options.scheduleDate instanceof
+      Date &&
+
+    !Number.isNaN(
+      options.scheduleDate
+        .getTime()
+    )
+      ? options.scheduleDate
+      : null;
+
+
+  if (
+    !scheduleDate
+  ) {
+    throw new Error(
+      "오전회의 날짜를 확인하지 못했습니다."
+    );
+  }
+
+
+  const meetingDate =
+    scheduleDate
+      .toISOString()
+      .slice(
+        0,
+        10
+      );
+
+
+  /* =====================================================
+    평일·주말 공통
+    회의일 SMP
+  ====================================================== */
+
+  writeSmp(
+    getSmpItem(
+      meetingDate
+    ),
+    "AK14",
+    "AM14",
+    "AO14"
+  );
+
+
+  /* =====================================================
+    주말
+    시작일+1일 ~ 종료일 SMP
+  ====================================================== */
+
+  const weekendDates =
+    [];
+
+
+  if (
+    options.isWeekendMode ===
+      true
+  ) {
+    const startDate =
+      parseMorningMeetingReportDate(
+        options
+          .weekendStartDateText
+      );
+
+
+    const endDate =
+      parseMorningMeetingReportDate(
+        options
+          .weekendEndDateText
+      );
+
+
+    if (
+      !startDate ||
+      !endDate ||
+      startDate >=
+        endDate
+    ) {
+      throw new Error(
+        "주말 전력단가 날짜 범위를 확인하지 못했습니다."
+      );
+    }
+
+
+    for (
+      let date =
+        addMorningMeetingDateDays(
+          startDate,
+          1
+        );
+
+      date <=
+        endDate;
+
+      date =
+        addMorningMeetingDateDays(
+          date,
+          1
+        )
+    ) {
+      weekendDates.push(
+        date
+          .toISOString()
+          .slice(
+            0,
+            10
+          )
+      );
+    }
+
+
+    if (
+      weekendDates.length <
+        1 ||
+      weekendDates.length >
+        4
+    ) {
+      throw new Error(
+        "주말 전력단가는 1~4일 범위만 반영할 수 있습니다."
+      );
+    }
+
+
+    const supplement =
+      options
+        .weekendSupplementResult &&
+
+      typeof options
+        .weekendSupplementResult ===
+        "object"
+        ? options
+            .weekendSupplementResult
+        : {};
+
+
+    if (
+      Number(
+        supplement
+          .holidayCount
+      ) !==
+        weekendDates.length
+    ) {
+      throw new Error(
+        "주말 보조표와 전력단가 날짜 수가 일치하지 않습니다."
+      );
+    }
+
+
+    let maximumColumn =
+      "";
+
+
+    let minimumColumn =
+      "";
+
+
+    let averageColumn =
+      "";
+
+
+    if (
+      supplement.restored ===
+        true &&
+
+      weekendDates.length ===
+        2
+    ) {
+      /*
+        첨부한 기존 2일 주말 양식
+      */
+
+      maximumColumn =
+        "AI";
+
+
+      minimumColumn =
+        "AL";
+
+
+      averageColumn =
+        "AN";
+
+    } else {
+      /*
+        자동 생성한 1~4일 주말 양식
+      */
+
+      const tableStartColumnNumber =
+        getMorningMeetingColumnNumber(
+          supplement
+            .tableStartColumn
+        );
+
+
+      if (
+        !tableStartColumnNumber
+      ) {
+        throw new Error(
+          "주말 전력단가 표의 시작 열을 확인하지 못했습니다."
+        );
+      }
+
+
+      const maximumColumnNumber =
+        tableStartColumnNumber +
+        3;
+
+
+      const minimumColumnNumber =
+        maximumColumnNumber +
+        weekendDates.length;
+
+
+      const averageColumnNumber =
+        minimumColumnNumber +
+        weekendDates.length;
+
+
+      maximumColumn =
+        columnName(
+          maximumColumnNumber
+        );
+
+
+      minimumColumn =
+        columnName(
+          minimumColumnNumber
+        );
+
+
+      averageColumn =
+        columnName(
+          averageColumnNumber
+        );
+    }
+
+
+    weekendDates.forEach(
+      (
+        targetDate,
+        index
+      ) => {
+        const rowNumber =
+          32 +
+          index;
+
+
+        writeSmp(
+          getSmpItem(
+            targetDate
+          ),
+          `${maximumColumn}${rowNumber}`,
+          `${minimumColumn}${rowNumber}`,
+          `${averageColumn}${rowNumber}`
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    회의일 날씨
+  ====================================================== */
+
+  const weather =
+    state.morningWeather &&
+    typeof state.morningWeather ===
+      "object"
+      ? state.morningWeather
+      : null;
+
+
+  const weatherDate =
+    isoDate(
+      state.morningWeatherDate
+    );
+
+
+  const weatherSourceDate =
+    isoDate(
+      weather?.sourceDate ||
+      weather?.targetDate
+    );
+
+
+  const condition =
+    String(
+      weather?.condition ??
+      ""
+    ).trim();
+
+
+  const temperature =
+    numberOrNull(
+      weather?.temperature
+    );
+
+
+  const minimumTemperature =
+    numberOrNull(
+      weather
+        ?.minimumTemperature
+    );
+
+
+  const maximumTemperature =
+    numberOrNull(
+      weather
+        ?.maximumTemperature
+    );
+
+
+  const humidity =
+    numberOrNull(
+      weather?.humidity
+    );
+
+
+  const weatherValid =
+    Boolean(
+      weather &&
+
+      weatherDate ===
+        meetingDate &&
+
+      weatherSourceDate ===
+        meetingDate &&
+
+      condition &&
+
+      temperature !==
+        null &&
+
+      minimumTemperature !==
+        null &&
+
+      maximumTemperature !==
+        null &&
+
+      humidity !==
+        null
+    );
+
+
+  const weatherText =
+    weatherValid
+      ? (
+          `날씨 : ${condition}` +
+          ` / 습도 : ${Math.round(
+            humidity
+          )}%`
+        )
+      : "날씨 :";
+
+
+  const temperatureText =
+    weatherValid
+      ? (
+          `대기온도 : ${Math.round(
+            temperature
+          )}℃` +
+
+          ` (최저 ${Math.round(
+            minimumTemperature
+          )}℃` +
+
+          ` / 최고 ${Math.round(
+            maximumTemperature
+          )}℃)`
+        )
+      : "대기온도 :";
+
+
+  const weatherResult =
+    setMorningMeetingRichInlineStringCellValue(
+      worksheetDocument,
+      "G4",
+      weatherText
+    );
+
+
+  const temperatureResult =
+    setMorningMeetingRichInlineStringCellValue(
+      worksheetDocument,
+      "N4",
+      temperatureText
+    );
+
+
+  /*
+    기존 템플릿 S4의
+    오래된 기온 숫자를 제거한다.
+  */
+
+  const oldTemperatureResult =
+    setMorningMeetingNumericCellValue(
+      worksheetDocument,
+      "S4",
+      null
+    );
+
+
+  if (
+    !weatherResult.found ||
+    !temperatureResult.found ||
+    !oldTemperatureResult.found
+  ) {
+    throw new Error(
+      "오전회의 상단 날씨 셀 G4/N4/S4를 찾지 못했습니다."
+    );
+  }
+
+
+  return {
+    meetingDate,
+
+    smpAppliedCount,
+    smpTotalCount,
+
+    weekendSmpDateCount:
+      weekendDates.length,
+
+    weatherApplied:
+      weatherValid
+  };
+}
+
 /* =====================================================
   최종 엑셀 생성
 
@@ -150468,6 +151199,38 @@ if (
     weekendSupplementResult
   );
 }
+
+/* ===================================================
+  SMP 단가 · 회의일 날씨 자동 반영
+
+  SMP:
+  - 상단 회의일
+  - 주말 하단 날짜별
+
+  날씨:
+  - 상태
+  - 현재/최저/최고기온
+  - 습도
+=================================================== */
+
+const previewAutoValueResult =
+  applyMorningMeetingPreviewAutoValues(
+    worksheetDocument,
+    {
+      state,
+      scheduleDate,
+      isWeekendMode,
+      weekendStartDateText,
+      weekendEndDateText,
+      weekendSupplementResult
+    }
+  );
+
+
+console.log(
+  "오전회의 SMP·날씨 최종 엑셀 반영:",
+  previewAutoValueResult
+);
 
 /* ===================================================
   직접 입력 셀 연한 노란색 표시
