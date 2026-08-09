@@ -4,39 +4,51 @@
 /* =========================================================
   한국전력거래소 EPSIS 육지 SMP 단가 API
 
-  경로:
-  functions/api/smp-price.js
-
-  호출:
   GET /api/smp-price?date=2026-08-07
 
-  EPSIS 원본 필드:
-  c25 = 최대
-  c26 = 최소
-  c27 = 가중평균
+  EPSIS 원본 필드
+  c25 = 최대 / c26 = 최소 / c27 = 가중평균
 ========================================================= */
+
+const EPSIS_CHART_URL =
+  "https://epsis.kpx.or.kr/epsisnew/selectEkmaSmpShdChart.do?menuId=040202";
+
 
 const EPSIS_DATA_URL =
   "https://epsis.kpx.or.kr/epsisnew/selectEkmaSmpShd.ajax";
-
-
-const EPSIS_SOURCE_URL =
-  "https://epsis.kpx.or.kr/epsisnew/selectEkmaSmpShdChart.do?menuId=040202";
 
 
 const UPSTREAM_TIMEOUT_MS =
   15000;
 
 
+const SUCCESS_CACHE_CONTROL =
+  "public, max-age=600, s-maxage=600";
+
+
+const FAILURE_CACHE_CONTROL =
+  "no-store, no-cache, must-revalidate";
+
+
+const BROWSER_HEADERS = {
+  "Accept-Language":
+    "ko-KR,ko;q=0.9,en;q=0.8",
+
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+    "AppleWebKit/537.36 Chrome/150.0.0.0 Safari/537.36"
+};
+
+
 /* =========================================================
-  JSON 응답
+  공통 처리
 ========================================================= */
 
 function jsonResponse(
   data,
   status = 200,
   cacheControl =
-    "no-store, no-cache, must-revalidate"
+    FAILURE_CACHE_CONTROL
 ) {
   return Response.json(
     data,
@@ -54,10 +66,6 @@ function jsonResponse(
   );
 }
 
-
-/* =========================================================
-  날짜 확인
-========================================================= */
 
 function normalizeText(
   value
@@ -109,13 +117,143 @@ function isValidIsoDate(
 }
 
 
-/* =========================================================
-  EPSIS 응답 숫자 추출
+async function fetchWithTimeout(
+  url,
+  options = {}
+) {
+  const controller =
+    new AbortController();
 
-  실제 응답:
-  c25 = textFormmat("183.55",count);
-  c26 = textFormmat("110.92",count);
-  c27 = textFormmat("155.79",count);
+
+  const timeoutId =
+    setTimeout(
+      () => {
+        controller.abort();
+      },
+      UPSTREAM_TIMEOUT_MS
+    );
+
+
+  try {
+    return await fetch(
+      url,
+      {
+        ...options,
+
+        signal:
+          controller.signal
+      }
+    );
+
+  } finally {
+    clearTimeout(
+      timeoutId
+    );
+  }
+}
+
+
+/* =========================================================
+  EPSIS 세션 쿠키
+========================================================= */
+
+function getEpsisCookieHeader(
+  response
+) {
+  let setCookieValues =
+    [];
+
+
+  if (
+    typeof response.headers
+      .getSetCookie ===
+      "function"
+  ) {
+    setCookieValues =
+      response.headers
+        .getSetCookie();
+
+  } else {
+    const setCookieValue =
+      response.headers.get(
+        "set-cookie"
+      );
+
+
+    if (
+      setCookieValue
+    ) {
+      setCookieValues = [
+        setCookieValue
+      ];
+    }
+  }
+
+
+  return setCookieValues
+    .map(
+      value => {
+        return normalizeText(
+          value
+        ).split(
+          ";"
+        )[0];
+      }
+    )
+    .filter(
+      Boolean
+    )
+    .join(
+      "; "
+    );
+}
+
+
+async function createEpsisSession() {
+  const response =
+    await fetchWithTimeout(
+      EPSIS_CHART_URL,
+      {
+        method:
+          "GET",
+
+        redirect:
+          "follow",
+
+        headers: {
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+
+          ...BROWSER_HEADERS
+        }
+      }
+    );
+
+
+  if (
+    !response.ok
+  ) {
+    throw new Error(
+      `EPSIS 화면 응답 오류 (${response.status})`
+    );
+  }
+
+
+  const cookieHeader =
+    getEpsisCookieHeader(
+      response
+    );
+
+
+  await response.text();
+
+
+  return cookieHeader;
+}
+
+
+/* =========================================================
+  EPSIS 응답 추출
 ========================================================= */
 
 function extractEpsisNumber(
@@ -131,12 +269,8 @@ function extractEpsisNumber(
 
   const pattern =
     new RegExp(
-      `\\b${escapedFieldName}` +
-      "\\s*=\\s*" +
-      "textFormmat\\(" +
-      "\\s*[\"']" +
-      "([^\"']*)" +
-      "[\"']\\s*,",
+      `\\b${escapedFieldName}\\s*=\\s*` +
+      `textFormmat\\(\\s*["']([^"']*)["']\\s*,`,
 
       "i"
     );
@@ -198,12 +332,17 @@ function extractEpsisSourceDate(
     match[1],
     match[2],
     match[3]
-  ].join("-");
+  ].join(
+    "-"
+  );
 }
 
 
 /* =========================================================
   EPSIS 단일 날짜 조회
+
+  실제 EPSIS 화면과 동일하게
+  POST + form 방식으로 조회
 ========================================================= */
 
 async function fetchEpsisSmpPrice(
@@ -216,169 +355,167 @@ async function fetchEpsisSmpPrice(
     );
 
 
-  const requestUrl =
-    new URL(
-      EPSIS_DATA_URL
+  const cookieHeader =
+    await createEpsisSession();
+
+
+  const requestBody =
+    new URLSearchParams(
+      {
+        beginDate:
+          compactDate,
+
+        endDate:
+          compactDate,
+
+        selYear:
+          "",
+
+        selMonth:
+          "",
+
+        selKind:
+          "land",
+
+        locale:
+          ""
+      }
+    ).toString();
+
+
+  const requestHeaders = {
+    Accept:
+      "text/plain, text/javascript, */*; q=0.01",
+
+    "Content-Type":
+      "application/x-www-form-urlencoded; charset=UTF-8",
+
+    Origin:
+      "https://epsis.kpx.or.kr",
+
+    Referer:
+      EPSIS_CHART_URL,
+
+    "X-Requested-With":
+      "XMLHttpRequest",
+
+    ...BROWSER_HEADERS
+  };
+
+
+  if (
+    cookieHeader
+  ) {
+    requestHeaders.Cookie =
+      cookieHeader;
+  }
+
+
+  const response =
+    await fetchWithTimeout(
+      EPSIS_DATA_URL,
+      {
+        method:
+          "POST",
+
+        redirect:
+          "follow",
+
+        headers:
+          requestHeaders,
+
+        body:
+          requestBody
+      }
     );
 
 
-  requestUrl.searchParams.set(
-    "beginDate",
-    compactDate
-  );
-
-
-  requestUrl.searchParams.set(
-    "endDate",
-    compactDate
-  );
-
-
-  requestUrl.searchParams.set(
-    "selYear",
-    ""
-  );
-
-
-  requestUrl.searchParams.set(
-    "selMonth",
-    ""
-  );
-
-
-  requestUrl.searchParams.set(
-    "selKind",
-    "land"
-  );
-
-
-  requestUrl.searchParams.set(
-    "locale",
-    ""
-  );
-
-
-  const controller =
-    new AbortController();
-
-
-  const timeoutId =
-    setTimeout(
-      () => {
-        controller.abort();
-      },
-      UPSTREAM_TIMEOUT_MS
-    );
-
-
-  try {
-    const response =
-      await fetch(
-        requestUrl.toString(),
-        {
-          method:
-            "GET",
-
-          headers: {
-            Accept:
-              "text/plain, text/javascript, */*; q=0.01"
-          },
-
-          signal:
-            controller.signal
-        }
-      );
-
-
-    if (
-      !response.ok
-    ) {
-      throw new Error(
-        `EPSIS 응답 오류 (${response.status})`
-      );
-    }
-
-
-    const sourceText =
-      await response.text();
-
-
-    const sourceDate =
-      extractEpsisSourceDate(
-        sourceText
-      );
-
-
-    const maximum =
-      extractEpsisNumber(
-        sourceText,
-        "c25"
-      );
-
-
-    const minimum =
-      extractEpsisNumber(
-        sourceText,
-        "c26"
-      );
-
-
-    const weightedAverage =
-      extractEpsisNumber(
-        sourceText,
-        "c27"
-      );
-
-
-    if (
-      sourceDate !==
-        targetDate ||
-      maximum ===
-        null ||
-      minimum ===
-        null ||
-      weightedAverage ===
-        null
-    ) {
-      return null;
-    }
-
-
-    return {
-      sourceDate,
-
-      targetDate:
-        sourceDate,
-
-      region:
-        "land",
-
-      regionLabel:
-        "육지",
-
-      maximum,
-      minimum,
-      weightedAverage,
-
-      unit:
-        "원/kWh",
-
-      source:
-        "한국전력거래소 EPSIS",
-
-      sourceUrl:
-        EPSIS_SOURCE_URL,
-
-      collectedAt:
-        new Date()
-          .toISOString()
-    };
-
-  } finally {
-    clearTimeout(
-      timeoutId
+  if (
+    !response.ok
+  ) {
+    throw new Error(
+      `EPSIS 자료 응답 오류 (${response.status})`
     );
   }
+
+
+  const sourceText =
+    await response.text();
+
+
+  const sourceDate =
+    extractEpsisSourceDate(
+      sourceText
+    );
+
+
+  const maximum =
+    extractEpsisNumber(
+      sourceText,
+      "c25"
+    );
+
+
+  const minimum =
+    extractEpsisNumber(
+      sourceText,
+      "c26"
+    );
+
+
+  const weightedAverage =
+    extractEpsisNumber(
+      sourceText,
+      "c27"
+    );
+
+
+  if (
+    sourceDate !==
+      targetDate ||
+
+    maximum ===
+      null ||
+
+    minimum ===
+      null ||
+
+    weightedAverage ===
+      null
+  ) {
+    return null;
+  }
+
+
+  return {
+    sourceDate,
+
+    targetDate:
+      sourceDate,
+
+    region:
+      "land",
+
+    regionLabel:
+      "육지",
+
+    maximum,
+    minimum,
+    weightedAverage,
+
+    unit:
+      "원/kWh",
+
+    source:
+      "한국전력거래소 EPSIS",
+
+    sourceUrl:
+      EPSIS_CHART_URL,
+
+    collectedAt:
+      new Date()
+        .toISOString()
+  };
 }
 
 
@@ -449,10 +586,25 @@ export async function onRequestGet(
         ok:
           true,
 
+        date:
+          item.targetDate,
+
+        land:
+          item.regionLabel,
+
+        max:
+          item.maximum,
+
+        min:
+          item.minimum,
+
+        avg:
+          item.weightedAverage,
+
         item
       },
       200,
-      "public, max-age=300, s-maxage=3600"
+      SUCCESS_CACHE_CONTROL
     );
 
   } catch (
