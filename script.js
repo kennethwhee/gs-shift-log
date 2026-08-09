@@ -200200,51 +200200,83 @@ function bindEvents() {
   }
 
 
-  function ensureStyle() {
-    if (
-      byId(
-        "efficiencyMorningMeetingWeatherStyle"
-      )
-    ) {
-      return;
-    }
-
-    const style =
-      document.createElement(
-        "style"
-      );
-
-    style.id =
-      "efficiencyMorningMeetingWeatherStyle";
-
-    style.textContent = `
-      .efficiency-morning-meeting-auto-card.is-meeting-weather::before {
-        background: #3f9b78;
-      }
-
-      .efficiency-morning-meeting-auto-card.is-meeting-weather
-      .efficiency-morning-meeting-auto-card__body {
-        background: #f9fdfb;
-      }
-
-      #efficiencyMorningMeetingAutoWeatherRefreshButton {
-        appearance: none;
-        -webkit-appearance: none;
-        cursor: pointer;
-        font: inherit;
-      }
-
-      #efficiencyMorningMeetingAutoWeatherRefreshButton:disabled {
-        cursor: wait;
-        opacity: 0.7;
-      }
-    `;
-
-    document.head.appendChild(
-      style
-    );
+function ensureStyle() {
+  if (
+    byId(
+      "efficiencyMorningMeetingWeatherStyle"
+    )
+  ) {
+    return;
   }
 
+  const style =
+    document.createElement(
+      "style"
+    );
+
+  style.id =
+    "efficiencyMorningMeetingWeatherStyle";
+
+  style.textContent = `
+    .efficiency-morning-meeting-auto-card.is-meeting-weather::before {
+      background: #3f9b78;
+    }
+
+    .efficiency-morning-meeting-auto-card.is-meeting-weather
+    .efficiency-morning-meeting-auto-card__body {
+      background: #f9fdfb;
+    }
+
+    #efficiencyMorningMeetingAutoWeatherRefreshButton {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 52px;
+      height: 20px;
+      padding: 0 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #2563eb;
+      border-radius: 6px;
+      background: linear-gradient(
+        180deg,
+        #3b82f6 0%,
+        #2563eb 100%
+      );
+      color: #ffffff;
+      font: inherit;
+      font-size: 9px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+      box-shadow:
+        0 1px 2px
+        rgba(30, 64, 175, 0.24);
+      cursor: pointer;
+    }
+
+    #efficiencyMorningMeetingAutoWeatherRefreshButton:hover:not(:disabled) {
+      background: linear-gradient(
+        180deg,
+        #2563eb 0%,
+        #1d4ed8 100%
+      );
+    }
+
+    #efficiencyMorningMeetingAutoWeatherRefreshButton:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    #efficiencyMorningMeetingAutoWeatherRefreshButton:disabled {
+      opacity: 0.62;
+      cursor: wait;
+    }
+  `;
+
+  document.head.appendChild(
+    style
+  );
+}
 
   function ensureCard() {
     const bottomGrid =
