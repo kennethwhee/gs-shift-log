@@ -178502,7 +178502,7 @@ function ensureSiloPreviewCard() {
 
 
   /*
-    오른쪽 증기 판매량 카드
+    오른쪽 증기 현황 카드
   */
 
   let steamCard =
@@ -178576,7 +178576,6 @@ function ensureSiloPreviewCard() {
         <div
           class="
             efficiency-morning-meeting-auto-row
-            is-emphasis
           "
         >
           <span>
@@ -178585,6 +178584,58 @@ function ensureSiloPreviewCard() {
 
           <strong
             id="efficiencyMorningMeetingAutoSteamSales"
+          >
+            -
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+          "
+        >
+          <span>
+            생산량 1 / 2호기
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSteamProductionUnits"
+          >
+            - / -
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+            is-emphasis
+          "
+        >
+          <span>
+            총 증기생산량
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSteamProductionTotal"
+          >
+            -
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+          "
+        >
+          <span>
+            판매율
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSteamSalesRate"
           >
             -
           </strong>
@@ -178605,7 +178656,6 @@ function ensureSiloPreviewCard() {
       steamCard
     );
   }
-
 
   return card;
 }
@@ -196995,6 +197045,21 @@ function render() {
       sales:
         document.getElementById(
           "efficiencyMorningMeetingAutoSteamSales"
+        ),
+
+      unitProduction:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamProductionUnits"
+        ),
+
+      totalProduction:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamProductionTotal"
+        ),
+
+      salesRate:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamSalesRate"
         )
     };
   }

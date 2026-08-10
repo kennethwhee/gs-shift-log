@@ -89443,9 +89443,17 @@ input {
 
 /* =====================================================
   날짜별 자료 표
+
+  PC:
+  - 약 7~8행 표시
+  - 표 내부 스크롤
+
+  모바일:
+  - 약 5행 표시
 ===================================================== */
 
 .auxiliary-material-table-card {
+  flex: 0 0 auto;
   min-width: 0;
   overflow: hidden;
 
@@ -89497,8 +89505,14 @@ input {
 
 .auxiliary-material-table-wrap {
   position: relative;
-  overflow: auto;
-  max-height: min(52vh, 560px);
+
+  max-height: min(48dvh, 420px);
+
+  overflow-x: auto;
+  overflow-y: auto;
+
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .auxiliary-material-table-wrap table {
@@ -89559,6 +89573,12 @@ input {
 
 .auxiliary-material-table-wrap tbody tr:hover td {
   background: #edf5ff;
+}
+
+@media (max-width: 700px) {
+  .auxiliary-material-table-wrap {
+    max-height: min(44dvh, 300px);
+  }
 }
 
 

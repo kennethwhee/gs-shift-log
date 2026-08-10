@@ -8078,3 +8078,882 @@ OIS Silo Level 요청 처리 실패: Error: OIS TAG별 LOG 조회의 TAG NO 입�
     at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:7167:12)
     at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:11757:13)
 오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-a8ab2cd2-67ab-4d95-af7d-63d2d876f233.png
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA
+==========================================
+GS Shift Log OIS 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+OIS 요청 확인 주기: 5초
+지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion
+OIS Edge 브라우저 세션을 시작합니다.
+OIS 로그인이 완료되었습니다.
+OIS Edge 브라우저 세션이 준비되었습니다.
+업무일지의 OIS 요청을 기다립니다.
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA
+==========================================
+GS Shift Log OIS 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+OIS 요청 확인 주기: 5초
+지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion
+OIS Edge 브라우저 세션을 시작합니다.
+OIS 로그인이 완료되었습니다.
+OIS Edge 브라우저 세션이 준비되었습니다.
+업무일지의 OIS 요청을 기다립니다.
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 85d31738-2843-4a60-b328-93f2b9a149e9
+조회일: 2026-08-10
+------------------------------------------
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS 석회석 재고 요청 처리 실패: Error: 103HRJ01CW201XQ01의 전일 또는 24시 재고값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9348:17)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-85d31738-2843-4a60-b328-93f2b9a149e9.png
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: 2c38e533-21db-4750-80e1-e58b3f803fbb
+조회일: 2026-08-11
+------------------------------------------
+OIS Gear Wheel / Pinion 요청 처리 실패: Error: Gear Wheel의 전일 값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9728:19)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-2c38e533-21db-4750-80e1-e58b3f803fbb.png
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: ca9202fa-a34e-4252-88ae-3eef0f47d607
+조회일: 2026-08-10
+------------------------------------------
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-10
+OIS Silo Level 요청 처리 실패: Error: 003ETH01CW201XQ01의 2026-08-10 24시 값을 읽지 못했습니다.
+    at Timeout.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:1644:15)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-ca9202fa-a34e-4252-88ae-3eef0f47d607.png
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 3d334a55-6a4e-41a1-8492-d807a6e54aeb
+조회일: 2026-08-09
+------------------------------------------
+일별 증기 판매량 메뉴를 클릭했습니다.
+OIS 증기 현황 요청 처리 실패: Error: OIS 일별 증기 판매량 화면이 열리지 않았습니다.
+    at openOisSteamDailySales (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:5982:11)
+    at async collectOisSteamStatusValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6594:5)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6754:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12034:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-3d334a55-6a4e-41a1-8492-d807a6e54aeb.png
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 7ae6d51c-af1f-4fb9-847a-a97cb350ec5b
+조회일: 2026-08-10
+------------------------------------------
+일별 증기 판매량 메뉴를 클릭했습니다.
+OIS 증기 현황 요청 처리 실패: Error: OIS 일별 증기 판매량 화면이 열리지 않았습니다.
+    at openOisSteamDailySales (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:5982:11)
+    at async collectOisSteamStatusValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6594:5)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6754:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12034:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-7ae6d51c-af1f-4fb9-847a-a97cb350ec5b.png
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 34a1f699-07e7-43b4-b3d2-29b05452d156
+조회일: 2026-08-10
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/10로 변경합니다.
+OIS 수처리 현황 요청 처리 실패: Error: 2026년 08월 10일 조회 결과가 화면에 표시되지 않았습니다.
+    at setOisEnvironmentDate (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:4301:9)
+    at async collectOisWaterTreatmentValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:4602:3)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6693:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12034:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-34a1f699-07e7-43b4-b3d2-29b05452d156.png
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: 68858b71-83d1-4c36-b347-a4625597774e
+조회일: 2026-08-11
+------------------------------------------
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS Gear Wheel / Pinion 요청 처리 실패: Error: Gear Wheel의 전일 값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9728:19)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-68858b71-83d1-4c36-b347-a4625597774e.png
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: d8e945bd-19d4-4229-b211-85c06ddb9ec2
+조회일: 2026-08-10
+------------------------------------------
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-10
+OIS Silo Level 요청 처리 실패: Error: 003ETH01CW201XQ01의 2026-08-10 24시 값을 읽지 못했습니다.
+    at Timeout.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:1644:15)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-d8e945bd-19d4-4229-b211-85c06ddb9ec2.png
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 4c173d25-a934-473a-8441-51549d9ce2bb
+조회일: 2026-08-10
+------------------------------------------
+일별 증기 판매량 메뉴를 클릭했습니다.
+OIS 증기 현황 요청 처리 실패: Error: OIS 일별 증기 판매량 화면이 열리지 않았습니다.
+    at openOisSteamDailySales (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:5982:11)
+    at async collectOisSteamStatusValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6594:5)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6754:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12034:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-4c173d25-a934-473a-8441-51549d9ce2bb.png
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 63b64cf6-ffc8-4198-81d0-448b1060ed8a
+조회일: 2026-08-09
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/09로 변경합니다.
+2026년 08월 09일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '10,550.000', '저장율(%)', '89.940', '80.094', '93.986' ]
+OIS "저장량" 행 셀: [
+  '동두천',     '0.000',
+  '10,550.000', '2,694.000',
+  '9,048.600',  '저장량(m3)',
+  '3,597.586',  '8,810.310',
+  '5,639.158'
+]
+OIS "저장율" 행 셀: [ '장자산단', '10,550.000', '저장율(%)', '89.940', '80.094', '93.986' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '62.000',
+  '47.00',     '49.990',
+  '94.80',     '총량',
+  '2,267.000', '순수사용량',
+  '총합',      '0',
+  '0',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-10T01:55:53.542Z',
+  rawWaterInflow: 10550,
+  demiProduction: 2267,
+  pureWaterUsage: 1092,
+  rawWaterTankAmount: 3597.586,
+  rawWaterTankRate: 89.94,
+  filteredWaterTankAmount: 8810.31,
+  filteredWaterTankRate: 80.094,
+  demiWaterTankAmount: 5639.158,
+  demiWaterTankRate: 93.986
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 10550    │
+│ 원수 TANK 저장량     │ 3597.586 │
+│ 원수 TANK 저장율     │ 89.94    │
+│ 여과수 TANK 저장량   │ 8810.31  │
+│ 여과수 TANK 저장율   │ 80.094   │
+│ 순수 TANK 저장량     │ 5639.158 │
+│ 순수 TANK 저장율     │ 93.986   │
+│ 순수 생산량          │ 2267     │
+│ 순수 사용량          │ 1092     │
+└──────────────────────┴──────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 422507c9-356b-4730-9fd2-297ee42b55f7
+조회일: 2026-08-10
+------------------------------------------
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS 석회석 재고 요청 처리 실패: Error: 103HRJ01CW201XQ01의 전일 또는 24시 재고값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9348:17)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-422507c9-356b-4730-9fd2-297ee42b55f7.png
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: 2addd859-f1c1-46e2-b0a3-c21c87c41f97
+조회일: 2026-08-11
+------------------------------------------
+OIS Gear Wheel / Pinion 요청 처리 실패: Error: Gear Wheel의 전일 값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9728:19)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-2addd859-f1c1-46e2-b0a3-c21c87c41f97.png
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: cb840e07-4035-4cca-aa0d-0f67a0d25662
+조회일: 2026-08-09
+------------------------------------------
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-09
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-09',
+  targetTag: '003ETH01CW201XQ01',
+  value: 677.859,
+  valueField: 'hd_24',
+  tag: '003ETH01CW201XQ01',
+  sourceDate: '20260809',
+  itemName: 'FLY ASH SILO MICRO CELL WEIGHT',
+  unit: ''
+}
+OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-08-09
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-09',
+  targetTag: 'EBF20CW201',
+  value: 17,
+  valueField: 'hd_24',
+  tag: 'EBF20CW201',
+  sourceDate: '20260809',
+  itemName: 'FHS BIO STOR SILO WEIGHT',
+  unit: ''
+}
+OIS Silo Level 조회 완료 · 2026-08-09 · Fly Ash 677.859 · Bio Storage 17
+OIS Silo Level 조회가 완료되었습니다.
+┌────────────────────────┬─────────────────────┐
+│ (index)                │ Values              │
+├────────────────────────┼─────────────────────┤
+│ 조회일                 │ '2026-08-09'        │
+│ 조회 기준              │ '24시'              │
+│ Fly Ash Silo Level     │ 677.859             │
+│ Bio Storage Silo Level │ 17                  │
+│ Fly Ash TAG            │ '003ETH01CW201XQ01' │
+│ Bio Storage TAG        │ 'EBF20CW201'        │
+│ Fly Ash 단위           │ ''                  │
+│ Bio Storage 단위       │ ''                  │
+└────────────────────────┴─────────────────────┘
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: a4d9235d-389a-46a1-abf5-89e350bad1c3
+조회일: 2026-08-09
+------------------------------------------
+일별 증기 판매량 메뉴를 클릭했습니다.
+OIS 증기 현황 요청 처리 실패: Error: OIS 일별 증기 판매량 화면이 열리지 않았습니다.
+    at openOisSteamDailySales (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:5982:11)
+    at async collectOisSteamStatusValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6594:5)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6754:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12034:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-a4d9235d-389a-46a1-abf5-89e350bad1c3.png
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 406bce61-dc0b-448e-94f9-3a5dd9b9c03f
+조회일: 2026-08-09
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/09로 변경합니다.
+2026년 08월 09일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '10,550.000', '저장율(%)', '89.940', '80.094', '93.986' ]
+OIS "저장량" 행 셀: [
+  '동두천',     '0.000',
+  '10,550.000', '2,694.000',
+  '9,048.600',  '저장량(m3)',
+  '3,597.586',  '8,810.310',
+  '5,639.158'
+]
+OIS "저장율" 행 셀: [ '장자산단', '10,550.000', '저장율(%)', '89.940', '80.094', '93.986' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '62.000',
+  '47.00',     '49.990',
+  '94.80',     '총량',
+  '2,267.000', '순수사용량',
+  '총합',      '0',
+  '0',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-10T01:56:57.500Z',
+  rawWaterInflow: 10550,
+  demiProduction: 2267,
+  pureWaterUsage: 1092,
+  rawWaterTankAmount: 3597.586,
+  rawWaterTankRate: 89.94,
+  filteredWaterTankAmount: 8810.31,
+  filteredWaterTankRate: 80.094,
+  demiWaterTankAmount: 5639.158,
+  demiWaterTankRate: 93.986
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 10550    │
+│ 원수 TANK 저장량     │ 3597.586 │
+│ 원수 TANK 저장율     │ 89.94    │
+│ 여과수 TANK 저장량   │ 8810.31  │
+│ 여과수 TANK 저장율   │ 80.094   │
+│ 순수 TANK 저장량     │ 5639.158 │
+│ 순수 TANK 저장율     │ 93.986   │
+│ 순수 생산량          │ 2267     │
+│ 순수 사용량          │ 1092     │
+└──────────────────────┴──────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 8efe4240-ed8c-408b-a109-15ec2fcb6c08
+조회일: 2026-08-10
+------------------------------------------
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS 석회석 재고 요청 처리 실패: Error: 103HRJ01CW201XQ01의 전일 또는 24시 재고값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9348:17)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-8efe4240-ed8c-408b-a109-15ec2fcb6c08.png
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: e957bd06-d1f4-4dcc-8119-a2a50d5b40a0
+조회일: 2026-08-11
+------------------------------------------
+OIS Gear Wheel / Pinion 요청 처리 실패: Error: Gear Wheel의 전일 값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9728:19)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-e957bd06-d1f4-4dcc-8119-a2a50d5b40a0.png
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: 19f0c19e-0964-4c91-821c-f087db8f000a
+조회일: 2026-08-10
+------------------------------------------
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-10
+OIS Silo Level 요청 처리 실패: Error: 003ETH01CW201XQ01의 2026-08-10 24시 값을 읽지 못했습니다.
+    at Timeout.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:1644:15)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-19f0c19e-0964-4c91-821c-f087db8f000a.png
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 3ff5e6ed-ff14-4542-8cb9-5612fe634cae
+조회일: 2026-08-10
+------------------------------------------
+일별 증기 판매량 메뉴를 클릭했습니다.
+OIS 증기 현황 요청 처리 실패: Error: OIS 일별 증기 판매량 화면이 열리지 않았습니다.
+    at openOisSteamDailySales (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:5982:11)
+    at async collectOisSteamStatusValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6594:5)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6754:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12034:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-3ff5e6ed-ff14-4542-8cb9-5612fe634cae.png
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: f1a9d741-aeb7-4677-952b-14040f21edb1
+조회일: 2026-08-10
+------------------------------------------
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS 석회석 재고 요청 처리 실패: Error: 103HRJ01CW201XQ01의 전일 또는 24시 재고값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9348:17)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-f1a9d741-aeb7-4677-952b-14040f21edb1.png
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 856024e6-5839-48c6-874a-19b6c9c3fa5a
+조회일: 2026-08-11
+------------------------------------------
+OIS 석회석 재고 요청 처리 실패: Error: 103HRJ01CW201XQ01의 전일 또는 24시 재고값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9348:17)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-856024e6-5839-48c6-874a-19b6c9c3fa5a.png
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: e771e30d-8de6-46e4-ae16-d1df34c42824
+조회일: 2026-08-11
+------------------------------------------
+OIS Gear Wheel / Pinion 요청 처리 실패: Error: Gear Wheel의 전일 값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9728:19)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-e771e30d-8de6-46e4-ae16-d1df34c42824.png
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: b037f2f2-76d2-4a82-9a7a-81edb7bfe933
+조회일: 2026-08-08
+------------------------------------------
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-08
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-08',
+  targetTag: '003ETH01CW201XQ01',
+  value: 630.19,
+  valueField: 'hd_24',
+  tag: '003ETH01CW201XQ01',
+  sourceDate: '20260808',
+  itemName: 'FLY ASH SILO MICRO CELL WEIGHT',
+  unit: ''
+}
+OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-08-08
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-08',
+  targetTag: 'EBF20CW201',
+  value: 371,
+  valueField: 'hd_24',
+  tag: 'EBF20CW201',
+  sourceDate: '20260808',
+  itemName: 'FHS BIO STOR SILO WEIGHT',
+  unit: ''
+}
+OIS Silo Level 조회 완료 · 2026-08-08 · Fly Ash 630.19 · Bio Storage 371
+OIS Silo Level 조회가 완료되었습니다.
+┌────────────────────────┬─────────────────────┐
+│ (index)                │ Values              │
+├────────────────────────┼─────────────────────┤
+│ 조회일                 │ '2026-08-08'        │
+│ 조회 기준              │ '24시'              │
+│ Fly Ash Silo Level     │ 630.19              │
+│ Bio Storage Silo Level │ 371                 │
+│ Fly Ash TAG            │ '003ETH01CW201XQ01' │
+│ Bio Storage TAG        │ 'EBF20CW201'        │
+│ Fly Ash 단위           │ ''                  │
+│ Bio Storage 단위       │ ''                  │
+└────────────────────────┴─────────────────────┘
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 9df5e1b1-5be7-4d31-9996-09104b17d740
+조회일: 2026-08-09
+------------------------------------------
+일별 증기 판매량 메뉴를 클릭했습니다.
+OIS 증기 현황 요청 처리 실패: Error: OIS 일별 증기 판매량 화면이 열리지 않았습니다.
+    at openOisSteamDailySales (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:5982:11)
+    at async collectOisSteamStatusValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6594:5)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6754:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12034:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-9df5e1b1-5be7-4d31-9996-09104b17d740.png
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: 2fcb159c-44b3-47d3-8142-bbc4f8d319d9
+조회일: 2026-08-12
+------------------------------------------
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS Gear Wheel / Pinion 요청 처리 실패: Error: Gear Wheel의 전일 값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9728:19)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-2fcb159c-44b3-47d3-8142-bbc4f8d319d9.png
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: 261ca24b-7b60-4577-8efc-60c322b72613
+조회일: 2026-08-11
+------------------------------------------
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-11
+OIS Silo Level 요청 처리 실패: Error: 003ETH01CW201XQ01의 2026-08-11 24시 값을 읽지 못했습니다.
+    at Timeout.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:1644:15)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-261ca24b-7b60-4577-8efc-60c322b72613.png
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 8c190e93-ee41-48b5-8adf-68be79b081c4
+조회일: 2026-08-08
+------------------------------------------
+일별 증기 판매량 메뉴를 클릭했습니다.
+OIS 증기 현황 요청 처리 실패: Error: OIS 일별 증기 판매량 화면이 열리지 않았습니다.
+    at openOisSteamDailySales (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:5982:11)
+    at async collectOisSteamStatusValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6594:5)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6754:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12034:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-8c190e93-ee41-48b5-8adf-68be79b081c4.png
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 7b632bcb-567c-496c-9585-4f0cd9798708
+조회일: 2026-08-11
+------------------------------------------
+일별 증기 판매량 메뉴를 클릭했습니다.
+OIS 증기 현황 요청 처리 실패: Error: OIS 일별 증기 판매량 화면이 열리지 않았습니다.
+    at openOisSteamDailySales (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:5982:11)
+    at async collectOisSteamStatusValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6594:5)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6754:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12034:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-7b632bcb-567c-496c-9585-4f0cd9798708.png
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA
+==========================================
+GS Shift Log OIS 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+OIS 요청 확인 주기: 5초
+지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion
+OIS Edge 브라우저 세션을 시작합니다.
+OIS 로그인이 완료되었습니다.
+OIS Edge 브라우저 세션이 준비되었습니다.
+업무일지의 OIS 요청을 기다립니다.
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 5bb1e347-6582-4460-b3f5-2560c543083c
+조회일: 2026-08-09
+------------------------------------------
+OIS 증기 현황 요청 처리 실패: ReferenceError: OIS_STEAM_PRODUCTION_DEFINITIONS is not defined
+    at collectOisSteamStatusValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6878:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:7196:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12476:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-5bb1e347-6582-4460-b3f5-2560c543083c.png
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: b03469a4-35df-42e7-8624-6e621ca6a795
+조회일: 2026-08-09
+------------------------------------------
+OIS 증기 현황 요청 처리 실패: ReferenceError: OIS_STEAM_PRODUCTION_DEFINITIONS is not defined
+    at collectOisSteamStatusValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6878:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:7196:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12476:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-b03469a4-35df-42e7-8624-6e621ca6a795.png
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA
+==========================================
+GS Shift Log OIS 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+OIS 요청 확인 주기: 5초
+지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion
+OIS Edge 브라우저 세션을 시작합니다.
+OIS 로그인이 완료되었습니다.
+OIS Edge 브라우저 세션이 준비되었습니다.
+업무일지의 OIS 요청을 기다립니다.
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 07c2ff20-dd14-4ed5-a95e-0afbcf9276f7
+조회일: 2026-08-09
+------------------------------------------
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS MAIN STM FLOW 24시간 합산 완료: {
+  unit: 1,
+  tag: '106LBA01CF901-CAL',
+  hourCount: 24,
+  productionTotal: 6230.183
+}
+OIS MAIN STM FLOW 24시간 합산 완료: {
+  unit: 2,
+  tag: '206LBA01CF901-CAL',
+  hourCount: 24,
+  productionTotal: 6228.725
+}
+일별 증기 판매량 메뉴를 클릭했습니다.
+OIS 증기 현황 요청 처리 실패: Error: OIS 일별 증기 판매량 화면이 열리지 않았습니다.
+    at openOisSteamDailySales (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6289:11)
+    at async collectOisSteamStatusValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:7009:5)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:7219:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12499:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-07c2ff20-dd14-4ed5-a95e-0afbcf9276f7.png
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 19e1a43c-c32b-4606-9552-7c57b2e7a82c
+조회일: 2026-08-08
+------------------------------------------
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS MAIN STM FLOW 24시간 합산 완료: {
+  unit: 1,
+  tag: '106LBA01CF901-CAL',
+  hourCount: 24,
+  productionTotal: 6310.145
+}
+OIS MAIN STM FLOW 24시간 합산 완료: {
+  unit: 2,
+  tag: '206LBA01CF901-CAL',
+  hourCount: 24,
+  productionTotal: 6350.432
+}
+일별 증기 판매량 메뉴를 클릭했습니다.
+OIS 증기 현황 요청 처리 실패: Error: OIS 일별 증기 판매량 화면이 열리지 않았습니다.
+    at openOisSteamDailySales (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6289:11)
+    at async collectOisSteamStatusValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:7009:5)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:7219:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12499:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-19e1a43c-c32b-4606-9552-7c57b2e7a82c.png
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: 53b5cef8-85f2-4536-b467-5b32f41058fc
+조회일: 2026-08-01
+------------------------------------------
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: ed5ad6d0-da11-4107-b623-5c42cd9793b4
+조회일: 2026-08-02
+------------------------------------------
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: a62b85d0-be0e-437f-b3bf-220d772705fc
+조회일: 2026-08-03
+------------------------------------------
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: 7c274cb5-ad67-4791-b231-07b51b8e1d32
+조회일: 2026-08-04
+------------------------------------------
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: aa3bbdc4-c5e5-497f-963e-c5856e10f782
+조회일: 2026-08-05
+------------------------------------------
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: 154781e7-60df-4c19-885c-3928d97935c5
+조회일: 2026-08-06
+------------------------------------------
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: ee0db9d6-e4fa-40eb-807b-1c8e964cb4d3
+조회일: 2026-08-07
+------------------------------------------
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: ff79aa14-116d-45d5-ab2d-e19e9c6c0ad1
+조회일: 2026-08-08
+------------------------------------------
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: ecef5dc4-d481-4946-a270-915251be6295
+조회일: 2026-08-09
+------------------------------------------
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: 2f1cb872-7bd0-43cc-8a44-4cd10d29f286
+조회일: 2026-08-10
+------------------------------------------
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+업무일지 요청 확인 실패: fetch failed
