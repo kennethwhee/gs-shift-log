@@ -11726,13 +11726,42 @@ function applyApprovalAction(
       "team_manager";
 
 
-  const isAuthor =
+  const existingAuthorId =
     normalizeEmployeeNo(
       existingLog.authorId
-    ) ===
-      normalizeEmployeeNo(
-        user.employeeNo
-      );
+    );
+
+
+  const currentEmployeeNo =
+    normalizeEmployeeNo(
+      user.employeeNo
+    );
+
+
+  /*
+    authorId가 있는 신규 자료는 사번으로 확인하고,
+    authorId가 없던 초기 D1 자료만 이름으로 보조 확인한다.
+  */
+  const isAuthor =
+    existingAuthorId
+      ? (
+          existingAuthorId ===
+          currentEmployeeNo
+        )
+      : (
+          Boolean(
+            normalizeText(
+              existingLog.author
+            )
+          ) &&
+
+          normalizeText(
+            existingLog.author
+          ) ===
+            normalizeText(
+              user.name
+            )
+        );
 
 
   const memberRoles = [
@@ -11757,10 +11786,123 @@ function applyApprovalAction(
 
 
   /* =====================================================
-    파트장 결재완료
+    파트원 결재요청
+
+    중요:
+    - 결재요청과 결재완료 작업을 완전히 분리한다.
+    - 로그인 세션의 작성자 본인 여부를 서버에서 확인한다.
+    - 일반 직원의 결재요청에는 파트장 권한을 요구하지 않는다.
   ====================================================== */
 
   if (
+    action ===
+      "request"
+  ) {
+    const canRequestMemberLog =
+      isMemberLog &&
+
+      (
+        previousStatus ===
+          "임시저장" ||
+
+        (
+          previousStatus ===
+            "저장완료" &&
+
+          user.isSuperAdmin
+        )
+      ) &&
+
+      (
+        isAuthor ||
+        user.isSuperAdmin
+      );
+
+
+    if (
+      !canRequestMemberLog
+    ) {
+      let message =
+        "임시저장 상태의 파트원 업무일지만 결재요청할 수 있습니다.";
+
+
+      if (
+        isLeaderLog
+      ) {
+        message =
+          "파트장 업무일지는 결재요청 없이 결재완료 처리합니다.";
+
+      } else if (
+        isMemberLog &&
+        previousStatus ===
+          "임시저장" &&
+        !isAuthor &&
+        !user.isSuperAdmin
+      ) {
+        message =
+          "업무일지 작성자 본인만 결재요청할 수 있습니다.";
+      }
+
+
+      const error =
+        new Error(
+          message
+        );
+
+
+      error.status =
+        isMemberLog &&
+        previousStatus ===
+          "임시저장" &&
+        !isAuthor &&
+        !user.isSuperAdmin
+          ? 403
+          : 400;
+
+
+      throw error;
+    }
+
+
+    log.status =
+      "결재요청";
+
+
+    /*
+      이전의 잘못된 결재 정보가 남아 있지 않게 정리한다.
+    */
+    delete log.approvedAt;
+
+    delete log.approvedBy;
+
+    delete log.approvedById;
+
+    delete log.approvedByRole;
+
+    delete log.teamApprovedAt;
+
+    delete log.teamApprovedBy;
+
+    delete log.teamApprovedById;
+
+    delete log.teamApprovedByRole;
+
+
+    appendApprovalHistory(
+      log,
+      "결재요청",
+      user,
+      previousStatus,
+      log.status,
+      now
+    );
+
+
+  /* =====================================================
+    파트장 결재완료
+  ====================================================== */
+
+  } else if (
     action ===
       "approve"
   ) {
@@ -12122,6 +12264,7 @@ function applyApprovalAction(
 
   return log;
 }
+
 
 async function insertLog(
   database,
@@ -12882,6 +13025,7 @@ if (
     "save",
     "migrate",
     "manual_migrate",
+    "request",
     "approve",
     "cancel",
     "team_approve",
@@ -12987,6 +13131,7 @@ if (
     ) {
       if (
         [
+          "request",
           "approve",
           "cancel",
           "team_approve",

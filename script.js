@@ -59476,6 +59476,16 @@ async function requestShiftLogApi(
     ).toUpperCase();
 
 
+  /*
+    이 요청을 시작할 때 사용한 세션을 기억한다.
+
+    이전 세션의 느린 401 응답이 새 로그인까지
+    지우는 현상을 막기 위한 비교 기준이다.
+  */
+  const requestSessionToken =
+    getShiftLogSessionToken();
+
+
   const requestOptions = {
     method,
 
@@ -59528,17 +59538,45 @@ async function requestShiftLogApi(
 
 
   /*
-    세션이 만료되었으면
-    로그인 화면으로 이동한다.
+    현재 로그인 세션의 401 응답일 때만
+    사용자 정보를 지우고 로그인 화면으로 이동한다.
+
+    새로 로그인한 뒤 도착한 이전 세션의 401은
+    현재 로그인 상태에 영향을 주지 않는다.
   */
   if (
     response.status ===
       401
   ) {
-    clearCurrentUser();
+    const currentSessionToken =
+      getShiftLogSessionToken();
 
 
-    openLoginScreen();
+    const isCurrentSessionResponse =
+      !currentSessionToken ||
+      (
+        Boolean(
+          requestSessionToken
+        ) &&
+
+        currentSessionToken ===
+          requestSessionToken
+      );
+
+
+    if (
+      isCurrentSessionResponse
+    ) {
+      clearCurrentUser();
+
+
+      openLoginScreen();
+
+    } else {
+      console.warn(
+        "이전 로그인 세션의 401 응답을 무시했습니다."
+      );
+    }
   }
 
 
@@ -59570,7 +59608,6 @@ async function requestShiftLogApi(
 
   return result;
 }
-
 
 /* =========================================================
   날짜·근무·보직 기준 업무일지 고유 그룹 키
@@ -119517,8 +119554,265 @@ updateShiftLogDetailActionButtons =
     상태와 결재이력만 갱신한다.
   ====================================================== */
 
-  async function requestCurrentDetailShiftLogApproval() {
-    const targetLog =
+async function requestCurrentDetailShiftLogApproval() {
+  const targetLog =
+    typeof getCurrentDetailShiftLog ===
+      "function"
+      ? getCurrentDetailShiftLog()
+      : null;
+
+
+  if (
+    !targetLog
+  ) {
+    showToast(
+      "결재요청할 업무일지를 찾을 수 없습니다."
+    );
+
+
+    return null;
+  }
+
+
+  const currentStatus =
+    normalizeShiftLogApprovalStatus(
+      targetLog.status
+    );
+
+
+  const normalizedRole =
+    normalizeMemberLogRole(
+      targetLog.role
+    );
+
+
+  const isSuperAdmin =
+    typeof isCurrentUserSuperAdmin ===
+      "function" &&
+    isCurrentUserSuperAdmin();
+
+
+  /*
+    클릭 순간에는 화면의 작성자 판정을 다시 사용하지 않는다.
+
+    버튼을 표시할 때 작성자 여부를 이미 확인했으며,
+    실제 작성자 권한은 아래 request 작업에서 서버가
+    로그인 세션 기준으로 최종 확인한다.
+  */
+  const isRequestableStatus =
+    currentStatus ===
+      "임시저장" ||
+    (
+      currentStatus ===
+        "저장완료" &&
+      isSuperAdmin
+    );
+
+
+  if (
+    normalizedRole ===
+      "파트장" ||
+    !isRequestableStatus
+  ) {
+    if (
+      currentStatus ===
+        "결재요청"
+    ) {
+      showToast(
+        "이미 결재요청된 업무일지입니다."
+      );
+
+    } else if (
+      currentStatus ===
+        "결재완료"
+    ) {
+      showToast(
+        "이미 결재가 완료된 업무일지입니다."
+      );
+
+    } else {
+      showToast(
+        "현재 상태에서는 결재요청할 수 없습니다."
+      );
+    }
+
+
+    return null;
+  }
+
+
+  const shouldRequest =
+    window.confirm(
+      [
+        "이 업무일지를 결재요청하시겠습니까?",
+        "",
+        `작성일: ${targetLog.date || "-"}`,
+        `근무: ${getShiftDisplayName(
+          targetLog.shift
+        )}`,
+        `보직: ${targetLog.role || "-"}`,
+        `작성자: ${targetLog.author || "-"}`
+      ].join(
+        "\n"
+      )
+    );
+
+
+  if (
+    !shouldRequest
+  ) {
+    return null;
+  }
+
+
+  const requestButton =
+    document.getElementById(
+      "approveFromDetailButton"
+    );
+
+
+  const originalButtonText =
+    String(
+      requestButton?.textContent ||
+      "결재요청"
+    ).trim();
+
+
+  if (
+    requestButton
+  ) {
+    requestButton.disabled =
+      true;
+
+
+    requestButton.textContent =
+      "요청 중...";
+  }
+
+
+  try {
+    /*
+      결재요청 전용 request 작업을 사용한다.
+
+      서버가 로그인 세션과 작성자를 다시 확인하므로
+      일반 직원의 요청이 결재완료 권한 검사로
+      잘못 연결되지 않는다.
+    */
+    const savedLog =
+      await saveShiftLogToServer(
+        targetLog,
+        {
+          action:
+            "request",
+
+
+          expectedRevision:
+            Number(
+              targetLog.serverRevision
+            ) ||
+            0
+        }
+      );
+
+
+    if (
+      !savedLog
+    ) {
+      throw new Error(
+        "결재요청된 업무일지를 확인할 수 없습니다."
+      );
+    }
+
+
+    replaceSharedShiftLogInState(
+      savedLog
+    );
+
+
+    if (
+      typeof renderLogTable ===
+        "function"
+    ) {
+      renderLogTable();
+    }
+
+
+    if (
+      typeof updateShiftMemberCardStates ===
+        "function"
+    ) {
+      updateShiftMemberCardStates();
+    }
+
+
+    /*
+      상세창은 닫지 않고
+      결재요청 상태로 다시 표시한다.
+    */
+    openLogDetail(
+      savedLog
+    );
+
+
+    showToast(
+      "업무일지를 결재요청했습니다."
+    );
+
+
+    return savedLog;
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "상세보기 업무일지 결재요청 실패:",
+      error
+    );
+
+
+    if (
+      typeof ShiftLogApiError !==
+        "undefined" &&
+      error instanceof
+        ShiftLogApiError &&
+      error.isConflict &&
+      typeof handleShiftLogConflict ===
+        "function"
+    ) {
+      handleShiftLogConflict(
+        error
+      );
+
+    } else {
+      showToast(
+        error?.message ||
+        "업무일지를 결재요청하지 못했습니다."
+      );
+    }
+
+
+    return null;
+
+  } finally {
+    const currentButton =
+      document.getElementById(
+        "approveFromDetailButton"
+      );
+
+
+    if (
+      currentButton
+    ) {
+      currentButton.disabled =
+        false;
+
+
+      currentButton.textContent =
+        originalButtonText;
+    }
+
+
+    const currentLog =
       typeof getCurrentDetailShiftLog ===
         "function"
         ? getCurrentDetailShiftLog()
@@ -119526,300 +119820,14 @@ updateShiftLogDetailActionButtons =
 
 
     if (
-      !targetLog
+      currentLog
     ) {
-      showToast(
-        "결재요청할 업무일지를 찾을 수 없습니다."
-      );
-
-
-      return null;
-    }
-
-
-    if (
-      !canRequestApprovalFromDetail(
-        targetLog
-      )
-    ) {
-      const currentStatus =
-        normalizeShiftLogApprovalStatus(
-          targetLog.status
-        );
-
-
-      if (
-        currentStatus ===
-          "결재요청"
-      ) {
-        showToast(
-          "이미 결재요청된 업무일지입니다."
-        );
-
-      } else if (
-        currentStatus ===
-          "결재완료"
-      ) {
-        showToast(
-          "이미 결재가 완료된 업무일지입니다."
-        );
-
-      } else {
-        showToast(
-          "현재 상태에서는 결재요청할 수 없습니다."
-        );
-      }
-
-
-      return null;
-    }
-
-
-    const shouldRequest =
-      window.confirm(
-        [
-          "이 업무일지를 결재요청하시겠습니까?",
-          "",
-          `작성일: ${targetLog.date || "-"}`,
-          `근무: ${getShiftDisplayName(
-            targetLog.shift
-          )}`,
-          `보직: ${targetLog.role || "-"}`,
-          `작성자: ${targetLog.author || "-"}`
-        ].join(
-          "\n"
-        )
-      );
-
-
-    if (
-      !shouldRequest
-    ) {
-      return null;
-    }
-
-
-    const requestButton =
-      document.getElementById(
-        "approveFromDetailButton"
-      );
-
-
-    const originalButtonText =
-      String(
-        requestButton?.textContent ||
-        "결재요청"
-      ).trim();
-
-
-    if (
-      requestButton
-    ) {
-      requestButton.disabled =
-        true;
-
-
-      requestButton.textContent =
-        "요청 중...";
-    }
-
-
-    const previousStatus =
-      normalizeShiftLogApprovalStatus(
-        targetLog.status
-      );
-
-
-    const requestLog = {
-      ...targetLog,
-
-
-      status:
-        "결재요청",
-
-
-      updatedAt:
-        new Date()
-          .toISOString(),
-
-
-      /*
-        기존 결재이력 배열을 복제하여
-        원본 업무일지를 직접 변경하지 않는다.
-      */
-      approvalHistory:
-        Array.isArray(
-          targetLog.approvalHistory
-        )
-          ? targetLog.approvalHistory.map(
-              historyItem => {
-                return {
-                  ...historyItem
-                };
-              }
-            )
-          : []
-    };
-
-
-    /*
-      기존 결재이력 함수가 있으면
-      상세보기 결재요청도 이력에 남긴다.
-    */
-    if (
-      typeof appendShiftLogApprovalHistory ===
-        "function"
-    ) {
-      appendShiftLogApprovalHistory(
-        requestLog,
-        "결재요청",
-        {
-          previousStatus,
-
-          nextStatus:
-            "결재요청"
-        }
-      );
-    }
-
-
-    try {
-      /*
-        작성창의 결재요청과 동일하게
-        action은 save를 사용하고,
-        status를 결재요청으로 전달한다.
-      */
-      const savedLog =
-        await saveShiftLogToServer(
-          requestLog,
-          {
-            action:
-              "save",
-
-
-            expectedRevision:
-              Number(
-                targetLog.serverRevision
-              ) ||
-              0
-          }
-        );
-
-
-      if (
-        !savedLog
-      ) {
-        throw new Error(
-          "결재요청된 업무일지를 확인할 수 없습니다."
-        );
-      }
-
-
-      replaceSharedShiftLogInState(
-        savedLog
-      );
-
-
-      if (
-        typeof renderLogTable ===
-          "function"
-      ) {
-        renderLogTable();
-      }
-
-
-      if (
-        typeof updateShiftMemberCardStates ===
-          "function"
-      ) {
-        updateShiftMemberCardStates();
-      }
-
-
-      /*
-        상세창은 닫지 않고
-        결재요청 상태로 다시 표시한다.
-      */
-      openLogDetail(
-        savedLog
-      );
-
-
-      showToast(
-        "업무일지를 결재요청했습니다."
-      );
-
-
-      return savedLog;
-
-    } catch (
-      error
-    ) {
-      console.error(
-        "상세보기 업무일지 결재요청 실패:",
-        error
-      );
-
-
-      if (
-        typeof ShiftLogApiError !==
-          "undefined" &&
-        error instanceof
-          ShiftLogApiError &&
-        error.isConflict &&
-        typeof handleShiftLogConflict ===
-          "function"
-      ) {
-        handleShiftLogConflict(
-          error
-        );
-
-      } else {
-        showToast(
-          error?.message ||
-          "업무일지를 결재요청하지 못했습니다."
-        );
-      }
-
-
-      return null;
-
-    } finally {
-      const currentButton =
-        document.getElementById(
-          "approveFromDetailButton"
-        );
-
-
-      if (
-        currentButton
-      ) {
-        currentButton.disabled =
-          false;
-
-
-        currentButton.textContent =
-          originalButtonText;
-      }
-
-
-      const currentLog =
-        typeof getCurrentDetailShiftLog ===
-          "function"
-          ? getCurrentDetailShiftLog()
-          : null;
-
-
-      if (
+      updateShiftLogDetailActionButtons(
         currentLog
-      ) {
-        updateShiftLogDetailActionButtons(
-          currentLog
-        );
-      }
+      );
     }
   }
-
+}
 
   /* =====================================================
     상세보기 공용 결재 버튼 클릭
@@ -119831,34 +119839,89 @@ updateShiftLogDetailActionButtons =
     - 결재완료
   ====================================================== */
 
-  function handleDetailApprovalPrimaryAction() {
-    const targetLog =
-      typeof getCurrentDetailShiftLog ===
-        "function"
-        ? getCurrentDetailShiftLog()
-        : null;
+function handleDetailApprovalPrimaryAction(
+  event
+) {
+  event?.preventDefault();
+
+  event?.stopPropagation();
 
 
-    if (
-      canRequestApprovalFromDetail(
-        targetLog
-      )
-    ) {
-      requestCurrentDetailShiftLogApproval();
+  const action =
+    String(
+      event?.currentTarget
+        ?.dataset
+        ?.detailApprovalAction ||
+      ""
+    ).trim();
 
 
-      return;
-    }
+  const targetLog =
+    typeof getCurrentDetailShiftLog ===
+      "function"
+      ? getCurrentDetailShiftLog()
+      : null;
 
 
-    if (
-      typeof completeCurrentDetailShiftLogApproval ===
-        "function"
-    ) {
-      completeCurrentDetailShiftLogApproval();
-    }
+  /*
+    화면에 표시할 때 확정한 작업을 그대로 실행한다.
+
+    기존처럼 조건을 다시 계산한 뒤 false이면
+    무조건 결재완료 함수로 보내지 않는다.
+  */
+  if (
+    action ===
+      "request"
+  ) {
+    void requestCurrentDetailShiftLogApproval();
+
+
+    return;
   }
 
+
+  if (
+    [
+      "approve-member",
+      "approve-leader"
+    ].includes(
+      action
+    ) &&
+
+    typeof completeCurrentDetailShiftLogApproval ===
+      "function"
+  ) {
+    void completeCurrentDetailShiftLogApproval();
+
+
+    return;
+  }
+
+
+  console.warn(
+    "상세보기 결재 버튼 작업을 확인할 수 없습니다.",
+    {
+      action,
+
+      logId:
+        targetLog?.id ||
+        "",
+
+      status:
+        targetLog?.status ||
+        "",
+
+      role:
+        targetLog?.role ||
+        ""
+    }
+  );
+
+
+  showToast(
+    "업무일지 상태가 변경되었습니다. 상세보기를 다시 열어 주세요."
+  );
+}
 
   /* =====================================================
     기존 중복 이벤트 제거 후 최종 이벤트 연결
@@ -178439,9 +178502,7 @@ function ensureSiloPreviewCard() {
 
 
   /*
-    오른쪽 증기 현황 카드
-
-    실제 값은 다음 단계에서 연결한다.
+    오른쪽 증기 판매량 카드
   */
 
   let steamCard =
@@ -178479,7 +178540,7 @@ function ensureSiloPreviewCard() {
           </span>
 
           <strong>
-            증기 현황(준비중)
+            증기 현황
           </strong>
         </div>
 
@@ -178501,7 +178562,7 @@ function ensureSiloPreviewCard() {
             "
             id="efficiencyMorningMeetingAutoSteamStatus"
           >
-            연동 대기
+            조회 대기
           </span>
         </div>
       </header>
@@ -178515,6 +178576,7 @@ function ensureSiloPreviewCard() {
         <div
           class="
             efficiency-morning-meeting-auto-row
+            is-emphasis
           "
         >
           <span>
@@ -178523,58 +178585,6 @@ function ensureSiloPreviewCard() {
 
           <strong
             id="efficiencyMorningMeetingAutoSteamSales"
-          >
-            -
-          </strong>
-        </div>
-
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-          "
-        >
-          <span>
-            생산량 1 / 2호기
-          </span>
-
-          <strong
-            id="efficiencyMorningMeetingAutoSteamProductionUnits"
-          >
-            - / -
-          </strong>
-        </div>
-
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-            is-emphasis
-          "
-        >
-          <span>
-            총 증기생산량
-          </span>
-
-          <strong
-            id="efficiencyMorningMeetingAutoSteamProductionTotal"
-          >
-            -
-          </strong>
-        </div>
-
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-          "
-        >
-          <span>
-            판매율
-          </span>
-
-          <strong
-            id="efficiencyMorningMeetingAutoSteamSalesRate"
           >
             -
           </strong>
@@ -197374,42 +197384,9 @@ function render() {
       );
 
 
-    const unitOneProduction =
-      normalizeNumber(
-        result?.unitOneProduction
-      );
-
-
-    const unitTwoProduction =
-      normalizeNumber(
-        result?.unitTwoProduction
-      );
-
-
-    const totalProduction =
-      normalizeNumber(
-        result?.totalProduction
-      );
-
-
-    const salesRate =
-      normalizeNumber(
-        result?.salesRate
-      );
-
-
-    const hasCompleteValues = [
-      steamSales,
-      unitOneProduction,
-      unitTwoProduction,
-      totalProduction,
-      salesRate
-    ].every(
-      value => {
-        return value !==
-          null;
-      }
-    );
+    const hasCompleteValue =
+      steamSales !==
+        null;
 
 
     const hasDateMismatch =
@@ -197430,7 +197407,7 @@ function render() {
     ) {
       elements.date.textContent =
         resultDate
-          ? `${resultDate} · 01~24시`
+          ? resultDate
           : "-";
     }
 
@@ -197472,7 +197449,7 @@ function render() {
       );
 
     } else if (
-      hasCompleteValues
+      hasCompleteValue
     ) {
       setStatusBadge(
         "complete",
@@ -197489,7 +197466,7 @@ function render() {
 
     const hideValues =
       hasDateMismatch ||
-      !hasCompleteValues;
+      !hasCompleteValue;
 
 
     /* ===================================================
@@ -197504,66 +197481,10 @@ function render() {
           ? "-"
           : formatAmount(
               steamSales,
-              "ton"
-            );
-    }
-
-
-    /* ===================================================
-      1·2호기 생산량
-    ==================================================== */
-
-    if (
-      elements.unitProduction
-    ) {
-      elements.unitProduction.textContent =
-        hideValues
-          ? "- / -"
-          : [
-              formatAmount(
-                unitOneProduction,
-                ""
-              ),
-
-              formatAmount(
-                unitTwoProduction,
-                "ton"
-              )
-            ].join(
-              " / "
-            );
-    }
-
-
-    /* ===================================================
-      총생산량
-    ==================================================== */
-
-    if (
-      elements.totalProduction
-    ) {
-      elements.totalProduction.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              totalProduction,
-              "ton"
-            );
-    }
-
-
-    /* ===================================================
-      판매율
-    ==================================================== */
-
-    if (
-      elements.salesRate
-    ) {
-      elements.salesRate.textContent =
-        hideValues
-          ? "-"
-          : formatRate(
-              salesRate
+              normalizeText(
+                result?.salesUnit
+              ) ||
+                "TON"
             );
     }
 
@@ -197583,11 +197504,10 @@ function render() {
       errorMessage ||
       (
         resultDate
-          ? `${resultDate} OIS 증기 현황`
-          : "OIS 증기 현황"
+          ? `${resultDate} OIS 일별 증기 판매량`
+          : "OIS 일별 증기 판매량"
       );
   }
-
 
   /* =====================================================
     즉시·지연 미리보기 갱신
@@ -197984,50 +197904,12 @@ function render() {
       );
 
 
-    const unitOneProduction =
-      normalizeNumber(
-        result.unitOneProduction ??
-        result.unit_one_production
-      );
-
-
-    const unitTwoProduction =
-      normalizeNumber(
-        result.unitTwoProduction ??
-        result.unit_two_production
-      );
-
-
-    const totalProduction =
-      normalizeNumber(
-        result.totalProduction ??
-        result.total_production
-      );
-
-
-    const salesRate =
-      normalizeNumber(
-        result.salesRate ??
-        result.sales_rate
-      );
-
-
     if (
-      [
-        steamSales,
-        unitOneProduction,
-        unitTwoProduction,
-        totalProduction,
-        salesRate
-      ].some(
-        value => {
-          return value ===
-            null;
-        }
-      )
+      steamSales ===
+        null
     ) {
       throw new Error(
-        "증기 판매량·1호기 생산량·2호기 생산량·총생산량·판매율 중 일부를 확인하지 못했습니다."
+        "증기 판매량을 확인하지 못했습니다."
       );
     }
 
@@ -198059,68 +197941,6 @@ function render() {
     }
 
 
-    /*
-      1·2호기 생산량 합계 검증
-    */
-
-    const calculatedTotal =
-      Math.round(
-        (
-          unitOneProduction +
-          unitTwoProduction
-        ) *
-        1000
-      ) /
-      1000;
-
-
-    if (
-      Math.abs(
-        calculatedTotal -
-        totalProduction
-      ) >
-      0.001
-    ) {
-      throw new Error(
-        "1·2호기 증기생산량 합계가 총 증기생산량과 일치하지 않습니다."
-      );
-    }
-
-
-    /*
-      판매율 계산 검증
-    */
-
-    const calculatedSalesRate =
-      totalProduction >
-        0
-        ? Math.round(
-            (
-              steamSales /
-              totalProduction *
-              100
-            ) *
-            1000
-          ) /
-          1000
-        : null;
-
-
-    if (
-      calculatedSalesRate ===
-        null ||
-      Math.abs(
-        calculatedSalesRate -
-        salesRate
-      ) >
-      0.001
-    ) {
-      throw new Error(
-        "증기 판매율 계산값이 OIS 조회 결과와 일치하지 않습니다."
-      );
-    }
-
-
     return {
       source:
         normalizeText(
@@ -198135,45 +197955,15 @@ function render() {
         sourceDate ||
         expectedDate,
 
-      outputInterval:
-        normalizeText(
-          result.outputInterval
-        ) ||
-        "1시간",
-
-      hourRange:
-        normalizeText(
-          result.hourRange
-        ) ||
-        "01~24",
-
-      hourCount:
-        normalizeNumber(
-          result.hourCount
-        ) ??
-        24,
-
-      unit:
-        normalizeText(
-          result.unit
-        ) ||
-        "ton",
-
       salesUnit:
         normalizeText(
-          result.salesUnit
+          result.salesUnit ??
+          result.sales_unit ??
+          result.unit
         ) ||
         "TON",
 
       steamSales,
-
-      unitOneProduction,
-
-      unitTwoProduction,
-
-      totalProduction,
-
-      salesRate,
 
       collectedAt:
         normalizeText(
@@ -198184,18 +197974,9 @@ function render() {
       agentId:
         normalizeText(
           requestItem.agentId
-        ),
-
-      unitOne:
-        result.unitOne ||
-        null,
-
-      unitTwo:
-        result.unitTwo ||
-        null
+        )
     };
   }
-
 
   /* =====================================================
     완료 결과를 공용 상태와 화면에 반영
@@ -198268,7 +198049,7 @@ function render() {
 
 
     console.log(
-      "오전회의 증기 현황 조회 완료:",
+      "오전회의 증기 판매량 조회 완료:",
       state.steamStatus
     );
 
@@ -198282,19 +198063,7 @@ function render() {
               expectedDate,
 
             steamSales:
-              result.steamSales,
-
-            unitOneProduction:
-              result.unitOneProduction,
-
-            unitTwoProduction:
-              result.unitTwoProduction,
-
-            totalProduction:
-              result.totalProduction,
-
-            salesRate:
-              result.salesRate
+              result.steamSales
           }
         }
       )
@@ -198306,7 +198075,6 @@ function render() {
 
     return result;
   }
-
 
   /* =====================================================
     증기 현황 초기화
@@ -198494,33 +198262,16 @@ function render() {
       );
 
 
-    const hasExistingValues = [
-      state.steamStatus
-        ?.steamSales,
-
-      state.steamStatus
-        ?.unitOneProduction,
-
-      state.steamStatus
-        ?.unitTwoProduction,
-
-      state.steamStatus
-        ?.totalProduction,
-
-      state.steamStatus
-        ?.salesRate
-    ].every(
-      value => {
-        return normalizeNumber(
-          value
-        ) !==
-          null;
-      }
-    );
+    const hasExistingValue =
+      normalizeNumber(
+        state.steamStatus
+          ?.steamSales
+      ) !==
+        null;
 
 
     /*
-      현재 날짜의 정상 값이 이미 있으면
+      현재 날짜의 증기 판매량이 이미 있으면
       중복 요청하지 않는다.
     */
 
@@ -198529,7 +198280,7 @@ function render() {
         true &&
       existingDate ===
         targetDate &&
-      hasExistingValues
+      hasExistingValue
     ) {
       renderSteamStatus();
 
@@ -198730,7 +198481,7 @@ function render() {
         error instanceof
           Error
           ? error.message
-          : "증기 현황 OIS 자료를 불러오지 못했습니다.";
+          : "증기 판매량 OIS 자료를 불러오지 못했습니다.";
 
 
       state.steamStatusError =
@@ -198747,7 +198498,7 @@ function render() {
 
 
       console.error(
-        "오전회의 증기 현황 조회 실패:",
+        "오전회의 증기 판매량 조회 실패:",
         error
       );
 
@@ -198756,14 +198507,13 @@ function render() {
 
 
       /*
-        증기 자동수치 실패는
+        증기 판매량 조회 실패는
         오전회의 엑셀 생성을 막지 않는다.
       */
 
       return null;
     }
   }
-
 
   /* =====================================================
     공용 날짜 이동 후 저장값 복원·신규 조회
@@ -203941,4 +203691,342 @@ container.style.flexShrink = "0";
   } else {
     initialize();
   }
+})();
+
+/* =========================================================
+  파트장 취합 항목 수정본 우선 복원 최종본
+
+  - 저장한 파트장 수정본을 원본보다 우선한다.
+  - 다시 취합할 때만 팀원 원본을 반영한다.
+  - 파트장이 삭제한 취합 항목도 자동 복구하지 않는다.
+========================================================= */
+
+(function installLeaderEditedEntrySnapshot() {
+  if (window.__leaderEditedEntrySnapshotInstalled === true) {
+    return;
+  }
+
+  window.__leaderEditedEntrySnapshotInstalled = true;
+
+  const SNAPSHOT_VERSION = 1;
+  const MEMBER_ROLES = ["TGO", "BCO1", "BCO2", "TO", "BO1", "BO2"];
+  const ISSUE_ONLY_ROLES = ["TO", "BO1", "BO2"];
+
+  const normalizeRole = (value) => {
+    return typeof normalizeMemberLogRole === "function"
+      ? normalizeMemberLogRole(value)
+      : String(value || "").trim();
+  };
+
+  const normalizeCategory = (value, fallback) => {
+    const category = String(
+      value ||
+      fallback ||
+      "인계사항"
+    ).trim();
+
+    return typeof normalizeLogEntryCategory === "function"
+      ? normalizeLogEntryCategory(category)
+      : category;
+  };
+
+  const isIssueCategory = (value) => {
+    if (typeof isIssueLogEntryCategory === "function") {
+      return isIssueLogEntryCategory(value);
+    }
+
+    return [
+      "TM 발행",
+      "BM 발행",
+      "CM 발행"
+    ].includes(
+      normalizeCategory(
+        value,
+        "인계사항"
+      )
+    );
+  };
+
+  function collectSavedLeaderEntries(log) {
+    const separatedEntries = [];
+
+    const appendEntries = (
+      entries,
+      fallbackCategory
+    ) => {
+      (
+        Array.isArray(entries)
+          ? entries
+          : []
+      ).forEach((rawEntry) => {
+        separatedEntries.push({
+          rawEntry,
+          fallbackCategory
+        });
+      });
+    };
+
+    appendEntries(
+      log?.tmEntries,
+      "TM 발행"
+    );
+
+    appendEntries(
+      log?.handoverEntries,
+      "인계사항"
+    );
+
+    appendEntries(
+      log?.remarkEntries,
+      "비고"
+    );
+
+    const sourceEntries =
+      separatedEntries.length
+        ? separatedEntries
+        : (
+            Array.isArray(log?.entries)
+              ? log.entries
+              : []
+          ).map((rawEntry) => ({
+            rawEntry,
+            fallbackCategory:
+              "인계사항"
+          }));
+
+    const usedKeys =
+      new Set();
+
+    return sourceEntries
+      .map(
+        (
+          {
+            rawEntry,
+            fallbackCategory
+          },
+          entryIndex
+        ) => {
+          let entry =
+            rawEntry &&
+            typeof rawEntry === "object" &&
+            !Array.isArray(rawEntry)
+              ? {
+                  ...rawEntry
+                }
+              : {
+                  content:
+                    String(
+                      rawEntry ||
+                      ""
+                    ).trim()
+                };
+
+          entry.category =
+            normalizeCategory(
+              entry.category,
+              fallbackCategory
+            );
+
+          if (
+            typeof normalizeExistingLogEntryTime ===
+              "function"
+          ) {
+            entry =
+              normalizeExistingLogEntryTime(
+                entry
+              ) ||
+              entry;
+          }
+
+          entry.content =
+            String(
+              entry.content ||
+              ""
+            ).trim();
+
+          if (!entry.content) {
+            return null;
+          }
+
+          entry.time =
+            entry.category === "비고"
+              ? ""
+              : String(
+                  entry.time ||
+                  ""
+                ).trim();
+
+          entry.tag =
+            entry.category === "비고"
+              ? ""
+              : String(
+                  entry.tag ||
+                  ""
+                )
+                  .trim()
+                  .toUpperCase();
+
+          const sourceRole =
+            normalizeRole(
+              entry.importedFromRole ||
+              entry.leaderTargetRole ||
+              entry.role ||
+              "파트장"
+            ) ||
+            "파트장";
+
+          if (
+            ISSUE_ONLY_ROLES.includes(
+              sourceRole
+            ) &&
+            !isIssueCategory(
+              entry.category
+            )
+          ) {
+            return null;
+          }
+
+          entry.importedFromRole =
+            sourceRole;
+
+          const entryId =
+            String(
+              entry.id ||
+              ""
+            ).trim();
+
+          const uniqueKey =
+            entryId
+              ? `ID||${entryId}`
+              : [
+                  sourceRole,
+
+                  String(
+                    entry.importedFromLogId ||
+                    ""
+                  ).trim(),
+
+                  String(
+                    entry.importedFromEntryIndex ??
+                    entryIndex
+                  ),
+
+                  entry.category,
+                  entry.time,
+                  entry.tag,
+
+                  entry.content.replace(
+                    /\s+/g,
+                    " "
+                  )
+                ].join("||");
+
+          if (
+            usedKeys.has(
+              uniqueKey
+            )
+          ) {
+            return null;
+          }
+
+          usedKeys.add(
+            uniqueKey
+          );
+
+          return entry;
+        }
+      )
+      .filter(Boolean);
+  }
+
+  /* =====================================================
+    저장할 때 파트장 수정본임을 기록
+  ====================================================== */
+
+  const collectEditorDataBeforeLeaderSnapshot =
+    collectEditorData;
+
+  collectEditorData =
+    function collectEditorDataWithLeaderSnapshot(
+      ...args
+    ) {
+      const log =
+        collectEditorDataBeforeLeaderSnapshot.apply(
+          this,
+          args
+        );
+
+      if (
+        log &&
+        normalizeRole(
+          log.role
+        ) === "파트장"
+      ) {
+        log.leaderEntrySnapshotVersion =
+          SNAPSHOT_VERSION;
+      }
+
+      return log;
+    };
+
+  /* =====================================================
+    다시 열 때 저장된 파트장 수정본 우선
+  ====================================================== */
+
+  const collectLogEntriesBeforeLeaderSnapshot =
+    collectLogEntriesForDisplay;
+
+  collectLogEntriesForDisplay =
+    function collectLogEntriesWithLeaderSnapshot(
+      log
+    ) {
+      if (
+        normalizeRole(
+          log?.role ||
+          ""
+        ) !== "파트장"
+      ) {
+        return collectLogEntriesBeforeLeaderSnapshot.call(
+          this,
+          log
+        );
+      }
+
+      const savedEntries =
+        collectSavedLeaderEntries(
+          log
+        );
+
+      const hasSnapshot =
+        Number(
+          log?.leaderEntrySnapshotVersion ||
+          0
+        ) >= SNAPSHOT_VERSION ||
+
+        savedEntries.some((entry) => {
+          return (
+            MEMBER_ROLES.includes(
+              normalizeRole(
+                entry.importedFromRole
+              )
+            ) ||
+
+            Boolean(
+              String(
+                entry.importedFromLogId ||
+                ""
+              ).trim()
+            )
+          );
+        });
+
+      if (!hasSnapshot) {
+        return collectLogEntriesBeforeLeaderSnapshot.call(
+          this,
+          log
+        );
+      }
+
+      return savedEntries;
+    };
 })();
