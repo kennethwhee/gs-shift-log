@@ -87354,31 +87354,41 @@ function renderAuxiliaryMaterialHistory() {
   const elements =
     getAuxiliaryMaterialElements();
 
-
   if (
     !elements.tableBody
   ) {
     return;
   }
 
+  const table =
+    elements.tableBody.closest(
+      ".auxiliary-material-sheet-table"
+    );
+
+  const isExpanded =
+    document.body.classList.contains(
+      "is-auxiliary-material-expanded"
+    );
+
+  table?.classList.toggle(
+    "is-split-layout",
+    !isExpanded
+  );
+
+  table?.classList.toggle(
+    "is-combined-layout",
+    isExpanded
+  );
 
   const items =
     Array.isArray(
-      auxiliaryMaterialHistoryState
-        .items
+      auxiliaryMaterialHistoryState.items
     )
-      ? auxiliaryMaterialHistoryState
-          .items
+      ? auxiliaryMaterialHistoryState.items
       : [];
 
-
-  /*
-    같은 날짜의 1호기·2호기를
-    한 행으로 묶는다.
-  */
   const rowsByDate =
     new Map();
-
 
   items.forEach(
     item => {
@@ -87388,27 +87398,22 @@ function renderAuxiliaryMaterialHistory() {
           ""
         ).trim();
 
-
       const unitNo =
         Number(
           item?.unitNo
         );
-
 
       if (
         !isValidAuxiliaryMaterialIsoDate(
           recordDate
         ) ||
         (
-          unitNo !==
-            1 &&
-          unitNo !==
-            2
+          unitNo !== 1 &&
+          unitNo !== 2
         )
       ) {
         return;
       }
-
 
       if (
         !rowsByDate.has(
@@ -87419,22 +87424,21 @@ function renderAuxiliaryMaterialHistory() {
           recordDate,
           {
             recordDate,
-            unitOne: null,
-            unitTwo: null
+            unitOne:
+              null,
+            unitTwo:
+              null
           }
         );
       }
-
 
       const row =
         rowsByDate.get(
           recordDate
         );
 
-
       if (
-        unitNo ===
-          1
+        unitNo === 1
       ) {
         row.unitOne =
           item;
@@ -87446,10 +87450,6 @@ function renderAuxiliaryMaterialHistory() {
     }
   );
 
-
-  /*
-    최신 날짜부터 표시한다.
-  */
   const rows =
     Array.from(
       rowsByDate.values()
@@ -87463,10 +87463,56 @@ function renderAuxiliaryMaterialHistory() {
         )
     );
 
+  const splitColumns = [
+    [
+      "is-sox",
+      "SOx",
+      "ppm"
+    ],
 
-  /*
-    한 호기의 B:I 또는 J:Q 셀 생성
-  */
+    [
+      "is-limestone-usage",
+      "Limestone<br />사용량",
+      "t/d"
+    ],
+
+    [
+      "is-limestone-receipt",
+      "Limestone<br />입고량",
+      "t"
+    ],
+
+    [
+      "is-slurry-flow",
+      "Lime Slurry<br />유량",
+      "m³/h"
+    ],
+
+    [
+      "is-density",
+      "Slurry 밀도",
+      "kg/m³"
+    ],
+
+    [
+      "is-lime-powder",
+      "Lime Powder",
+      "t/d"
+    ],
+
+    [
+      "is-nox",
+      "NOx",
+      "ppm"
+    ],
+
+    [
+      "is-ammonia",
+      "Ammonia<br />일사용량",
+      "m³/d"
+    ]
+  ];
+
   function renderUnitCells(
     item,
     unitClass,
@@ -87489,14 +87535,7 @@ function renderAuxiliaryMaterialHistory() {
       );
   }
 
-
-  /*
-    날짜별 비고 정리
-
-    일반적으로 두 호기의 비고는 동일하다.
-    서로 다르면 호기별로 구분해 표시한다.
-  */
-  function getRowRemarks(
+  function getCombinedRemarks(
     row
   ) {
     const unitOneRemarks =
@@ -87505,13 +87544,11 @@ function renderAuxiliaryMaterialHistory() {
         ""
       ).trim();
 
-
     const unitTwoRemarks =
       String(
         row.unitTwo?.remarks ??
         ""
       ).trim();
-
 
     if (
       unitOneRemarks &&
@@ -87525,23 +87562,158 @@ function renderAuxiliaryMaterialHistory() {
       );
     }
 
-
     return (
       unitOneRemarks ||
       unitTwoRemarks
     );
   }
 
+  function renderSplitColumnHeading(
+    unitClass
+  ) {
+    const valueHeadings =
+      splitColumns
+        .map(
+          (
+            [
+              cssClass,
+              label,
+              unit
+            ]
+          ) => `
+            <th class="${cssClass}">
+              <span>
+                ${label}
+              </span>
 
-  elements.tableBody.innerHTML =
-    rows
+              <small>
+                ${unit}
+              </small>
+            </th>
+          `
+        )
+        .join(
+          ""
+        );
+
+    return `
+      <tr
+        class="auxiliary-material-split-column-heading ${unitClass}"
+      >
+        <th class="is-date">
+          일자
+        </th>
+
+        ${valueHeadings}
+
+        <th class="is-remarks">
+          비고
+        </th>
+      </tr>
+    `;
+  }
+
+  function renderSplitUnitSection(
+    unitNo,
+    unitClass
+  ) {
+    const itemKey =
+      unitNo === 1
+        ? "unitOne"
+        : "unitTwo";
+
+    const unitRows =
+      rows
+        .map(
+          row => {
+            const item =
+              row[
+                itemKey
+              ];
+
+            const remarks =
+              String(
+                item?.remarks ??
+                ""
+              ).trim();
+
+            return `
+              <tr
+                class="auxiliary-material-split-data-row ${unitClass} ${auxiliaryMaterialValueEditState.isEditing
+                  ? "is-value-editing"
+                  : ""}"
+                data-record-date="${escapeAuxiliaryMaterialHtml(
+                  row.recordDate
+                )}"
+                data-unit-no="${unitNo}"
+              >
+                <td class="is-date">
+                  <strong>
+                    ${escapeAuxiliaryMaterialHtml(
+                      row.recordDate
+                    )}
+                  </strong>
+                </td>
+
+                ${renderUnitCells(
+                  item,
+                  unitClass,
+                  row.recordDate,
+                  unitNo
+                )}
+
+                <td class="is-remarks">
+                  ${remarks
+                    ? escapeAuxiliaryMaterialHtml(
+                        remarks
+                      )
+                    : "-"}
+                </td>
+              </tr>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+
+    return `
+      <tr
+        class="auxiliary-material-split-unit-heading ${unitClass}"
+      >
+        <th colspan="${splitColumns.length + 2}">
+          <span class="auxiliary-material-split-unit-title">
+            <strong>
+              ${unitNo}호기
+            </strong>
+
+            <span>
+              날짜별 부재료 수치
+            </span>
+          </span>
+
+          <span class="auxiliary-material-split-unit-count">
+            ${rows.length}일 · 최신순
+          </span>
+        </th>
+      </tr>
+
+      ${renderSplitColumnHeading(
+        unitClass
+      )}
+
+      ${unitRows}
+    `;
+  }
+
+  function renderCombinedRows() {
+    return rows
       .map(
         row => {
           const remarks =
-            getRowRemarks(
+            getCombinedRemarks(
               row
             );
-
 
           return `
             <tr
@@ -87588,28 +87760,37 @@ function renderAuxiliaryMaterialHistory() {
       .join(
         ""
       );
+  }
 
+  elements.tableBody.innerHTML =
+    rows.length < 1
+      ? ""
+      : isExpanded
+        ? renderCombinedRows()
+        : (
+            renderSplitUnitSection(
+              1,
+              "is-unit-one"
+            ) +
+            renderSplitUnitSection(
+              2,
+              "is-unit-two"
+            )
+          );
 
   if (
     elements.emptyState
   ) {
     elements.emptyState.hidden =
-      rows.length >
-      0;
+      rows.length > 0;
   }
 
-
-  /*
-    이제 한 날짜가 한 행이므로
-    건수와 저장일수가 동일하다.
-  */
   if (
     elements.rowCount
   ) {
     elements.rowCount.textContent =
       `${rows.length}건`;
   }
-
 
   if (
     elements.savedDays
@@ -145768,6 +145949,23 @@ function applyMorningMeetingCoalNumericValues(
       : {};
 
 
+  /*
+    현재 Silo Level 미리보기에 표시된
+    회의자료 기준일 전날 24시 OIS 값
+  */
+
+  const state =
+    getMorningMeetingWorkbookState();
+
+
+  const siloLevel =
+    state.siloLevel &&
+    typeof state.siloLevel ===
+      "object"
+      ? state.siloLevel
+      : {};
+
+
   const mappings = [
     {
       address:
@@ -145823,13 +146021,22 @@ function applyMorningMeetingCoalNumericValues(
           ?.quantity
     },
 
+    /*
+      Bio Storage Silo Level
+
+      OIS TAG:
+      EBF20CW201
+
+      회의자료 기준일 전날 24시 값
+    */
+
     {
       address:
         "N13",
 
       value:
-        values.bioInventory
-          ?.height
+        siloLevel
+          .bioStorageSiloLevel
     },
 
     {
@@ -145859,19 +146066,6 @@ function applyMorningMeetingCoalNumericValues(
           ?.quantity
     },
 
-    /*
-      운탄일지 K51
-      → 최종 취합 엑셀 AB21
-    */
-
-    {
-      address:
-        "AB21",
-
-      value:
-        values.flyAshSiloLevel
-    },
-
     {
       address:
         "X21",
@@ -145888,6 +146082,24 @@ function applyMorningMeetingCoalNumericValues(
       value:
         values.flyAshDispatch
           ?.quantityTon
+    },
+
+    /*
+      Fly Ash Silo Level
+
+      OIS TAG:
+      003ETH01CW201XQ01
+
+      회의자료 기준일 전날 24시 값
+    */
+
+    {
+      address:
+        "AB21",
+
+      value:
+        siloLevel
+          .flyAshSiloLevel
     }
   ];
 
@@ -145945,10 +146157,10 @@ function applyMorningMeetingCoalNumericValues(
 
   if (
     missingAddresses.length >
-    0
+      0
   ) {
     throw new Error(
-      `기준 취합본에서 운탄일지 수치 입력 셀을 찾지 못했습니다: ${missingAddresses.join(
+      `기준 취합본에서 운탄일지·Silo Level 수치 입력 셀을 찾지 못했습니다: ${missingAddresses.join(
         ", "
       )}`
     );
@@ -145963,7 +146175,6 @@ function applyMorningMeetingCoalNumericValues(
       mappings.length
   };
 }
-
 
 /* =====================================================
   특정 행에서 B열 병합의 마지막 열 확인
