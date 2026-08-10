@@ -4022,7 +4022,7 @@
   aria-selected="false"
   aria-controls="efficiencyAuxiliaryMaterialsView" 
 >
-  부재료(개발중)
+  부재료
 </button>  
 
 <!-- ARM ROLL BOX -->
@@ -6986,47 +6986,227 @@
     </div>
 
 
-    <div class="limestone-heading-actions">
+<div class="limestone-heading-actions">
 
   <button
     type="button"
-    class="
-      secondary-button
-      limestone-refresh-button
-    "
+    class="secondary-button limestone-refresh-button"
     id="refreshLimestoneReceiptsButton"
   >
     새로고침
   </button>
 
-
   <button
     type="button"
-    class="
-      secondary-button
-      limestone-import-button
-    "
+    class="secondary-button limestone-import-button"
     id="importLimestoneFromShiftLogsButton"
   >
     업무일지 최신화
   </button>
 
+  <button
+    type="button"
+    class="primary-button limestone-slip-capture-button"
+    id="openLimestoneSlipCaptureButton"
+  >
+    📷 전표 촬영
+  </button>
 
   <button
     type="button"
-    class="
-      primary-button
-      limestone-add-button
-    "
+    class="primary-button limestone-add-button"
     id="openLimestoneReceiptEditorButton"
   >
-    ＋ 입고 기록
+    <span class="limestone-add-label-desktop">
+      ＋ 입고 기록
+    </span>
+
+    <span class="limestone-add-label-mobile">
+      ＋ 수동 입력
+    </span>
   </button>
+
+  <input
+    type="file"
+    id="limestoneSlipCameraInput"
+    accept="image/*"
+    capture="environment"
+    hidden
+  />
 
 </div>
 
+<!-- =================================================
+  석회석 전표 촬영 · OCR 확인창
+================================================== -->
+<section
+  class="limestone-slip-capture-panel"
+  id="limestoneSlipCapturePanel"
+  aria-live="polite"
+  aria-busy="false"
+  hidden
+>
+
+  <header class="limestone-slip-capture-header">
+
+    <div>
+
+      <span>
+        LIMESTONE SLIP
+      </span>
+
+      <h4>
+        전표 실중량 확인
+      </h4>
+
+    </div>
+
+
+    <button
+      type="button"
+      class="limestone-slip-close-button"
+      id="closeLimestoneSlipCapturePanelButton"
+      aria-label="전표 촬영 취소"
+    >
+      ×
+    </button>
+
+  </header>
+
+
+  <div class="limestone-slip-capture-body">
+
+    <!-- 촬영 사진 미리보기 -->
+    <div class="limestone-slip-preview">
+
+      <img
+        id="limestoneSlipPreviewImage"
+        alt="촬영한 석회석 전표사진"
+        hidden
+      />
+
+
+      <div
+        class="limestone-slip-preview-placeholder"
+        id="limestoneSlipPreviewPlaceholder"
+      >
+        전표사진을 준비하고 있습니다.
+      </div>
+
+    </div>
+
+
+    <!-- OCR 결과 -->
+    <div class="limestone-slip-result">
+
+      <p
+        class="limestone-slip-status-message"
+        id="limestoneSlipStatusMessage"
+      >
+        촬영한 전표의 실중량을 분석합니다.
+      </p>
+
+
+      <label class="limestone-slip-quantity-field">
+
+        <span>
+          인식된 실중량
+        </span>
+
+
+        <div class="limestone-slip-quantity-input-wrap">
+
+          <input
+            type="number"
+            id="limestoneSlipQuantityTonInput"
+            min="0.01"
+            max="999.99"
+            step="0.01"
+            inputmode="decimal"
+            placeholder="0.00"
+            disabled
+          />
+
+          <strong>
+            ton
+          </strong>
+
+        </div>
+
+      </label>
+
+
+      <small
+        class="limestone-slip-kilogram-value"
+        id="limestoneSlipKilogramValue"
+      >
+        실중량을 인식하면 kg 값도 표시됩니다.
+      </small>
+
+
+      <p class="limestone-slip-verification-message">
+        전표의 실중량과 인식값이 같은지 확인한 후
+        호기를 선택해주세요. 잘못 인식된 경우에는
+        값을 직접 수정할 수 있습니다.
+      </p>
+
+    </div>
+
   </div>
 
+
+  <div class="limestone-slip-capture-actions">
+
+    <button
+      type="button"
+      class="
+        secondary-button
+        limestone-slip-retake-button
+      "
+      id="retakeLimestoneSlipButton"
+    >
+      재촬영
+    </button>
+
+
+    <button
+      type="button"
+      class="
+        primary-button
+        limestone-slip-unit-button
+        limestone-slip-unit-one-button
+      "
+      id="registerLimestoneSlipUnitOneButton"
+      data-limestone-slip-unit="1"
+      disabled
+    >
+      1호기 등록
+    </button>
+
+
+    <button
+      type="button"
+      class="
+        primary-button
+        limestone-slip-unit-button
+        limestone-slip-unit-two-button
+      "
+      id="registerLimestoneSlipUnitTwoButton"
+      data-limestone-slip-unit="2"
+      disabled
+    >
+      2호기 등록
+    </button>
+
+  </div>
+
+
+  <p class="limestone-slip-retention-notice">
+    등록된 전표사진은 비공개로 약 24시간 보관된 후
+    자동 폐기됩니다.
+  </p>
+
+</section>
 
   <!-- =================================================
     석회석 관리 본문
@@ -8390,14 +8570,11 @@
 <!-- =================================================
   부재료 월별 관리
 
-  저장 항목:
-  - Limestone
-  - Lime Slurry
-  - Density
-  - Lime Powder
-  - Ammonia
-  - SOx
-  - NOx
+  기존 엑셀 A:R 양식:
+  - A: 일자
+  - B:I: 1호기
+  - J:Q: 2호기
+  - R: 비고
 ================================================== -->
 <article
   class="
@@ -8432,8 +8609,8 @@
       </h3>
 
       <p>
-        Limestone · Lime Powder · Ammonia · SOx · NOx를
-        날짜별로 조회하고 저장된 자료를 확인합니다.
+        기존 부재료 엑셀과 동일한 열 순서로
+        날짜별 1·2호기 자료를 확인합니다.
       </p>
 
     </div>
@@ -8446,7 +8623,6 @@
   ================================================== -->
   <section class="auxiliary-material-query-card">
 
-    <!-- 조회 월 이동 -->
     <div class="auxiliary-material-month-navigation">
 
       <button
@@ -8485,7 +8661,6 @@
     </div>
 
 
-    <!-- 기간 직접 선택 -->
     <div class="auxiliary-material-period-fields">
 
       <label>
@@ -8536,7 +8711,6 @@
     </div>
 
 
-    <!-- 기존 저장자료 재조회 -->
     <label class="auxiliary-material-force-refresh">
 
       <input
@@ -8551,7 +8725,6 @@
     </label>
 
 
-    <!-- 조회 상태 -->
     <p
       class="auxiliary-material-status"
       id="auxiliaryMaterialStatus"
@@ -8563,72 +8736,52 @@
 
 
   <!-- =================================================
-    조회 결과 요약
+    기존 엑셀 업로드
   ================================================== -->
-  <section class="auxiliary-material-summary-grid">
+  <section class="auxiliary-material-excel-import">
 
-    <article>
-
-      <span>
-        저장 완료
-      </span>
-
-      <strong id="auxiliaryMaterialSavedDays">
-        0일
-      </strong>
-
-    </article>
-
-
-    <article>
+    <div class="auxiliary-material-excel-import__description">
 
       <span>
-        Limestone 평균
+        EXCEL IMPORT
       </span>
 
-      <strong id="auxiliaryMaterialLimestoneAverage">
-        -
+      <strong>
+        기존 부재료 엑셀 자료 등록
       </strong>
 
-      <small>
-        t/d
-      </small>
+      <p>
+        기존 A:R 양식의 월별 시트를 읽어
+        2026-08-09까지의 계산 결과값만 저장합니다.
+      </p>
 
-    </article>
+    </div>
 
 
-    <article>
+    <div class="auxiliary-material-excel-import__actions">
 
-      <span>
-        Lime Powder 평균
+      <input
+        type="file"
+        id="auxiliaryMaterialExcelFileInput"
+        accept=".xlsx,.xls"
+        hidden
+      />
+
+
+      <button
+        type="button"
+        class="is-excel"
+        id="importAuxiliaryMaterialExcelButton"
+      >
+        엑셀 업로드
+      </button>
+
+
+      <span id="auxiliaryMaterialExcelFileName">
+        선택된 파일 없음
       </span>
 
-      <strong id="auxiliaryMaterialLimePowderAverage">
-        -
-      </strong>
-
-      <small>
-        t/d
-      </small>
-
-    </article>
-
-
-    <article>
-
-      <span>
-        Ammonia 평균
-      </span>
-
-      <strong id="auxiliaryMaterialAmmoniaAverage">
-        -
-      </strong>
-
-      <small>
-        m³/d
-      </small>
-
-    </article>
+    </div>
 
   </section>
 
@@ -8643,83 +8796,219 @@
       <div>
 
         <span>
-          DAILY DATA
+          DAILY MATERIAL DATA
         </span>
 
         <h4>
-          날짜별 1·2호기 부재료
+          날짜별 1·2호기 부재료 현황
         </h4>
 
       </div>
 
 
-      <strong id="auxiliaryMaterialRowCount">
-        0건
-      </strong>
+      <div class="auxiliary-material-table-counts">
+
+        <article class="auxiliary-material-sheet-count">
+
+          <span>
+            저장일수
+          </span>
+
+          <strong id="auxiliaryMaterialSavedDays">
+            0일
+          </strong>
+
+        </article>
+
+
+        <strong id="auxiliaryMaterialRowCount">
+          0건
+        </strong>
+
+      </div>
 
     </header>
 
 
     <div class="auxiliary-material-table-wrap">
 
-      <table>
+      <table
+        class="auxiliary-material-sheet-table"
+        aria-label="날짜별 1호기와 2호기 부재료 현황"
+      >
+
+        <colgroup>
+
+          <col class="is-date" />
+
+          <col class="is-sox" />
+          <col class="is-limestone-usage" />
+          <col class="is-limestone-receipt" />
+          <col class="is-slurry-flow" />
+          <col class="is-density" />
+          <col class="is-lime-powder" />
+          <col class="is-nox" />
+          <col class="is-ammonia" />
+
+          <col class="is-sox" />
+          <col class="is-limestone-usage" />
+          <col class="is-limestone-receipt" />
+          <col class="is-slurry-flow" />
+          <col class="is-density" />
+          <col class="is-lime-powder" />
+          <col class="is-nox" />
+          <col class="is-ammonia" />
+
+          <col class="is-remarks" />
+
+        </colgroup>
+
 
         <thead>
 
-          <tr>
+          <tr class="auxiliary-material-unit-heading">
 
-            <th>
+            <th
+              rowspan="2"
+              class="is-date"
+            >
               일자
             </th>
 
-            <th>
-              호기
+
+            <th
+              colspan="8"
+              class="is-unit-one"
+            >
+              1호기
             </th>
 
-            <th>
+
+            <th
+              colspan="8"
+              class="is-unit-two"
+            >
+              2호기
+            </th>
+
+
+            <th
+              rowspan="2"
+              class="is-remarks"
+            >
+              비고
+            </th>
+
+          </tr>
+
+
+          <tr class="auxiliary-material-column-heading">
+
+            <!-- 1호기 B:I -->
+            <th class="is-sox">
+              SOx
+              <small>ppm</small>
+            </th>
+
+            <th class="is-limestone-usage">
               Limestone
               <br />
+              사용량
               <small>t/d</small>
             </th>
 
-            <th>
+            <th class="is-limestone-receipt">
+              Limestone
+              <br />
+              입고량
+              <small>t</small>
+            </th>
+
+            <th class="is-slurry-flow">
               Lime Slurry
               <br />
+              유량
               <small>m³/h</small>
             </th>
 
-            <th>
-              Density
+            <th class="is-density">
+              Slurry
               <br />
+              밀도
               <small>kg/m³</small>
             </th>
 
-            <th>
-              Lime Powder
+            <th class="is-lime-powder">
+              Lime
               <br />
+              Powder
               <small>t/d</small>
             </th>
 
-            <th>
+            <th class="is-nox">
+              NOx
+              <small>ppm</small>
+            </th>
+
+            <th class="is-ammonia">
               Ammonia
               <br />
+              일사용량
               <small>m³/d</small>
             </th>
 
-            <th>
+
+            <!-- 2호기 J:Q -->
+            <th class="is-sox">
               SOx
-              <br />
               <small>ppm</small>
             </th>
 
-            <th>
+            <th class="is-limestone-usage">
+              Limestone
+              <br />
+              사용량
+              <small>t/d</small>
+            </th>
+
+            <th class="is-limestone-receipt">
+              Limestone
+              <br />
+              입고량
+              <small>t</small>
+            </th>
+
+            <th class="is-slurry-flow">
+              Lime Slurry
+              <br />
+              유량
+              <small>m³/h</small>
+            </th>
+
+            <th class="is-density">
+              Slurry
+              <br />
+              밀도
+              <small>kg/m³</small>
+            </th>
+
+            <th class="is-lime-powder">
+              Lime
+              <br />
+              Powder
+              <small>t/d</small>
+            </th>
+
+            <th class="is-nox">
               NOx
-              <br />
               <small>ppm</small>
             </th>
 
-            <th>
-              자료
+            <th class="is-ammonia">
+              Ammonia
+              <br />
+              일사용량
+              <small>m³/d</small>
             </th>
 
           </tr>
@@ -8743,18 +9032,6 @@
     </div>
 
   </section>
-
-
-  <!-- =================================================
-    계산식 안내
-  ================================================== -->
-  <p class="auxiliary-material-formula-note">
-
-    Lime Powder(t/d) =
-    (SDA L/S A+B+C 평균유량) × 밀도 ×
-    (밀도-1000) ÷ (1102-1000) × 15% × 24 ÷ 1000
-
-  </p>
 
 </article>
 

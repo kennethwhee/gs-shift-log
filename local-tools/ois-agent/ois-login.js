@@ -6,6 +6,14 @@ const fs =
     "node:fs"
   );
 
+const {
+  spawn
+} =
+  require(
+    "node:child_process"
+  );
+
+
 
 const path =
   require(
@@ -493,6 +501,58 @@ const OIS_SILO_LEVEL_DEFINITIONS = [
   }
 ];
 
+/* =========================================================
+  오전회의 증기 생산량 DataPARC 조회 정의
+
+  대상일의 일 생산량:
+  다음 날 00:00 누적값 - 대상일 00:00 누적값
+
+  Silo Level과 증기 판매량은 기존 OIS 조회를 유지한다.
+========================================================= */
+
+const DATAPARC_STEAM_PRODUCTION_DEFINITIONS = [
+  {
+    unit:
+      1,
+
+    resultKey:
+      "unitOne",
+
+    tag:
+      "GSPOGE.ABB_DCS.106LBA01CF901-TOTAL/PLOT"
+  },
+
+  {
+    unit:
+      2,
+
+    resultKey:
+      "unitTwo",
+
+    tag:
+      "GSPOGE.ABB_DCS.206LBA01CF901-TOTAL/PLOT"
+  }
+];
+
+
+const DATAPARC_ADDIN_PATH =
+  process.env.DATAPARC_ADDIN_PATH ||
+  path.join(
+    process.env["ProgramFiles(x86)"] ||
+      "C:\\Program Files (x86)",
+
+    "Capstone",
+    "PARCView",
+    "DataPARC_AddIn.xla"
+  );
+
+
+const DATAPARC_STEAM_RESULT_MARKER =
+  "__DATAPARC_STEAM_RESULT__";
+
+
+const DATAPARC_STEAM_PROCESS_TIMEOUT =
+  120000;
 
 /* =========================================================
   TAG별 LOG 조회 화면 프레임 찾기
@@ -5757,304 +5817,788 @@ if (
   return requestType;
 }
 
-
-
 /* =========================================================
-  OIS 일별 증기 판매량 화면 열기
+  DataPARC 증기 생산량 자동 조회
 
-  경로:
-  운영정보 → LOG SHEET → 일별 증기 판매량
+  PowerShell → 숨김 Excel → DataPARC_AddIn.xla 순서로 실행한다.
+  추가 기능 통합문서는 직접 닫지 않고 Excel 인스턴스만 종료하여,
+  사용자가 평소 실행하는 Excel의 dataPARC 등록 상태를 건드리지 않는다.
 ========================================================= */
 
-async function captureOisSteamProductionFromApi(
-  page,
-  unitDefinition,
-  triggerSearch
-) {
-  const normalizedTargetTag = normalizeOisAgentText(
-    unitDefinition.tag
-  ).toUpperCase();
+const DATAPARC_STEAM_POWERSHELL_SCRIPT =
+  String.raw`
+$ErrorActionPreference = "Stop"
 
-  return await new Promise((resolve, reject) => {
-    let isSettled = false;
-    let timeoutId = null;
+[Console]::OutputEncoding =
+  [Text.Encoding]::UTF8
 
-    const cleanup = () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
+$OutputEncoding =
+  [Text.Encoding]::UTF8
+
+$excel = $null
+$dataParcAddIn = $null
+$workbook = $null
+$worksheet = $null
+$cells = @()
+
+try {
+  $addInPath = $env:GS_DATAPARC_ADDIN_PATH
+  $targetDate = $env:GS_STEAM_TARGET_DATE
+  $nextDate = $env:GS_STEAM_NEXT_DATE
+  $unitOneTag = $env:GS_STEAM_UNIT_ONE_TAG
+  $unitTwoTag = $env:GS_STEAM_UNIT_TWO_TAG
+  $resultMarker = $env:GS_STEAM_RESULT_MARKER
+
+  if (-not [IO.File]::Exists($addInPath)) {
+    throw "DataPARC_AddIn.xla not found: $addInPath"
+  }
+
+  foreach ($dateValue in @($targetDate, $nextDate)) {
+    if ($dateValue -notmatch '^\d{4}-\d{2}-\d{2}$') {
+      throw "Invalid DataPARC query date: $dateValue"
+    }
+  }
+
+  if (
+    [string]::IsNullOrWhiteSpace($unitOneTag) -or
+    [string]::IsNullOrWhiteSpace($unitTwoTag)
+  ) {
+    throw "DataPARC steam production tag is empty."
+  }
+
+  $excel =
+    New-Object -ComObject Excel.Application
+
+  $excel.Visible = $false
+  $excel.DisplayAlerts = $false
+  $excel.ScreenUpdating = $false
+  $excel.AskToUpdateLinks = $false
+
+  $dataParcAddIn =
+    $excel.Workbooks.Open(
+      $addInPath,
+      0,
+      $true
+    )
+
+  $dataParcAddIn.RunAutoMacros(1)
+
+  Start-Sleep -Seconds 8
+
+  $workbook = $excel.Workbooks.Add()
+  $worksheet = $workbook.Worksheets.Item(1)
+
+  $cells = @(
+    $worksheet.Range("A1"),
+    $worksheet.Range("B1"),
+    $worksheet.Range("A2"),
+    $worksheet.Range("B2")
+  )
+
+  $formulas = @(
+    '=fnAtTimeArray("' + $unitOneTag + '","' + $targetDate + ' 00:00:00","State","Value")',
+    '=fnAtTimeArray("' + $unitOneTag + '","' + $nextDate + ' 00:00:00","State","Value")',
+    '=fnAtTimeArray("' + $unitTwoTag + '","' + $targetDate + ' 00:00:00","State","Value")',
+    '=fnAtTimeArray("' + $unitTwoTag + '","' + $nextDate + ' 00:00:00","State","Value")'
+  )
+
+  for ($index = 0; $index -lt $cells.Count; $index += 1) {
+    $cells[$index].Formula = $formulas[$index]
+  }
+
+  $deadline = (Get-Date).AddSeconds(60)
+  $values = $null
+
+  do {
+    foreach ($cell in $cells) {
+      $cell.Calculate()
+    }
+
+    $excel.Calculate()
+
+    Start-Sleep -Milliseconds 500
+
+    $candidateValues = @()
+    $allValuesReady = $true
+
+    foreach ($cell in $cells) {
+      $displayText = [string]$cell.Text
+      $rawValue = $cell.Value2
+
+      if (
+        $null -eq $rawValue -or
+        [string]::IsNullOrWhiteSpace($displayText) -or
+        $displayText.StartsWith("#")
+      ) {
+        $allValuesReady = $false
+        break
       }
 
-      page.off("response", handleResponse);
-    };
-
-    const finishResolve = value => {
-      if (isSettled) return;
-
-      isSettled = true;
-      cleanup();
-      resolve(value);
-    };
-
-    const finishReject = error => {
-      if (isSettled) return;
-
-      isSettled = true;
-      cleanup();
-      reject(error);
-    };
-
-    const handleResponse = async response => {
       try {
-        const responseUrl = String(response.url() || "");
-        const request = response.request();
+        $numericValue =
+          [Convert]::ToDouble(
+            $rawValue,
+            [Globalization.CultureInfo]::InvariantCulture
+          )
+      }
+      catch {
+        $allValuesReady = $false
+        break
+      }
 
-        const requestMethod = String(
-          request.method() || ""
-        ).toUpperCase();
+      if (
+        [double]::IsNaN($numericValue) -or
+        [double]::IsInfinity($numericValue)
+      ) {
+        $allValuesReady = $false
+        break
+      }
 
-        const requestBody = String(
-          request.postData() || ""
+      $candidateValues += $numericValue
+    }
+
+    if ($allValuesReady -and $candidateValues.Count -eq 4) {
+      $values = $candidateValues
+    }
+  } while (
+    $null -eq $values -and
+    (Get-Date) -lt $deadline
+  )
+
+  if ($null -eq $values) {
+    $cellStates =
+      for ($index = 0; $index -lt $cells.Count; $index += 1) {
+        "{0}={1}" -f $cells[$index].Address($false, $false), [string]$cells[$index].Text
+      }
+
+    throw (
+      "DataPARC values were not returned within 60 seconds. " +
+      ($cellStates -join ", ")
+    )
+  }
+
+  $result = [ordered]@{
+    targetDate = $targetDate
+    nextDate = $nextDate
+    dataParcAddIn = [string]$dataParcAddIn.Name
+    dataParcHost = [bool](
+      Get-Process -Name "CTCExcelAddIn.PARCviewHost" -ErrorAction SilentlyContinue
+    )
+    unitOneStartValue = $values[0]
+    unitOneEndValue = $values[1]
+    unitTwoStartValue = $values[2]
+    unitTwoEndValue = $values[3]
+  }
+
+  [Console]::WriteLine(
+    $resultMarker +
+    ($result | ConvertTo-Json -Compress -Depth 4)
+  )
+}
+finally {
+  if ($workbook) {
+    try {
+      $workbook.Close($false)
+    }
+    catch {
+    }
+  }
+
+  if ($excel) {
+    try {
+      $excel.Quit()
+    }
+    catch {
+    }
+  }
+
+  foreach ($comObject in @(
+    $cells[3],
+    $cells[2],
+    $cells[1],
+    $cells[0],
+    $worksheet,
+    $workbook,
+    $dataParcAddIn,
+    $excel
+  )) {
+    if ($null -ne $comObject) {
+      try {
+        [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject(
+          $comObject
+        )
+      }
+      catch {
+      }
+    }
+  }
+
+  [GC]::Collect()
+  [GC]::WaitForPendingFinalizers()
+}
+`;
+
+function runDataParcSteamPowerShell(
+  environment
+) {
+  return new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+      const systemRoot =
+        process.env.SystemRoot ||
+        "C:\\Windows";
+
+
+      const powerShellPath =
+        path.join(
+          systemRoot,
+          "System32",
+          "WindowsPowerShell",
+          "v1.0",
+          "powershell.exe"
         );
 
-        if (
-          !responseUrl.includes("/ajax/data") ||
-          requestMethod !== "POST" ||
-          !requestBody.includes(
-            "oi.LogSheetService.listLogSheetSearch"
+
+      /*
+        PowerShell 스크립트 전체를 UTF-16LE Base64로 변환하여
+        하나의 명령으로 전달한다.
+      */
+
+      const encodedCommand =
+        Buffer
+          .from(
+            DATAPARC_STEAM_POWERSHELL_SCRIPT,
+            "utf16le"
           )
-        ) {
-          return;
-        }
-
-        const responseText = await response.text();
-
-        if (!responseText.trim()) {
-          return;
-        }
-
-        let responseData = {};
-
-        try {
-          responseData = JSON.parse(responseText);
-        } catch {
-          return;
-        }
-
-        const resultRows = Array.isArray(
-          responseData.result
-        )
-          ? responseData.result
-          : [];
-
-        /*
-          1차:
-          정확한 TAG로 찾는다.
-        */
-
-        let targetRow =
-          resultRows.find(row => {
-            const rowTag = normalizeOisAgentText(
-              row?.tag_no
-            ).toUpperCase();
-
-            return rowTag === normalizedTargetTag;
-          }) || null;
-
-        /*
-          2차:
-          TAG가 달라도 호기와 STM FLOW 항목명으로 찾는다.
-        */
-
-        if (!targetRow) {
-          targetRow =
-            resultRows.find(row => {
-              const itemName = normalizeOisAgentText(
-                row?.mid_name
-              ).toUpperCase();
-
-              return (
-                itemName.includes("STM FLOW") &&
-                (
-                  itemName.includes(
-                    `#${unitDefinition.unit}UNIT`
-                  ) ||
-                  itemName.includes(
-                    `${unitDefinition.unit}UNIT`
-                  )
-                )
-              );
-            }) || null;
-        }
-
-        if (!targetRow) {
-          return;
-        }
-
-        const hourlyValues = [];
-        const missingHours = [];
-
-        /*
-          01시부터 24시까지 전부 읽는다.
-
-          정상 필드:
-          hd_01 ~ hd_24
-
-          OIS 응답 차이를 고려해
-          다른 필드명도 보조로 확인한다.
-        */
-
-        for (
-          let hour = 1;
-          hour <= 24;
-          hour += 1
-        ) {
-          const paddedHour = String(
-            hour
-          ).padStart(2, "0");
-
-          const fieldCandidates = [
-            `hd_${paddedHour}`,
-            `hd_${hour}`,
-            `h_${paddedHour}`,
-            `h_${hour}`,
-            `hour_${paddedHour}`,
-            `hour_${hour}`
-          ];
-
-          let capturedValue = null;
-          let capturedField = "";
-
-          for (const fieldName of fieldCandidates) {
-            const parsedValue = parseOisAgentNumber(
-              targetRow[fieldName]
-            );
-
-            if (parsedValue !== null) {
-              capturedValue = parsedValue;
-              capturedField = fieldName;
-              break;
-            }
-          }
-
-          if (capturedValue === null) {
-            missingHours.push(paddedHour);
-            continue;
-          }
-
-          hourlyValues.push({
-            hour: paddedHour,
-            field: capturedField,
-            value: capturedValue
-          });
-        }
-
-        /*
-          한 시간이라도 누락되면
-          0으로 처리하지 않고 조회 실패 처리한다.
-        */
-
-        if (missingHours.length > 0) {
-          finishReject(
-            new Error(
-              [
-                `${unitDefinition.unit}호기 MAIN STM FLOW 24시간 자료가 완전하지 않습니다.`,
-                `누락: ${missingHours.join(", ")}시`
-              ].join(" ")
-            )
+          .toString(
+            "base64"
           );
 
-          return;
-        }
 
-        const productionTotal =
-          Math.round(
-            hourlyValues.reduce(
-              (sum, item) => {
-                return sum + item.value;
-              },
-              0
-            ) * 1000
-          ) / 1000;
+      const childProcess =
+        spawn(
+          powerShellPath,
 
-        const capturedResult = {
-          unit: unitDefinition.unit,
+          [
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-STA",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-EncodedCommand",
+            encodedCommand
+          ],
 
-          sheetLabel:
-            unitDefinition.sheetLabel,
-
-          tag:
-            normalizeOisAgentText(
-              targetRow.tag_no
-            ) ||
-            unitDefinition.tag,
-
-          itemName:
-            normalizeOisAgentText(
-              targetRow.mid_name
-            ),
-
-          unitCode:
-            normalizeOisAgentText(
-              targetRow.unit_code
-            ),
-
-          hourCount:
-            hourlyValues.length,
-
-          hourlyValues,
-
-          productionTotal
-        };
-
-        console.log(
-          "OIS MAIN STM FLOW 24시간 합산 완료:",
           {
-            unit:
-              capturedResult.unit,
+            windowsHide:
+              true,
 
-            tag:
-              capturedResult.tag,
+            stdio: [
+              "ignore",
+              "pipe",
+              "pipe"
+            ],
 
-            hourCount:
-              capturedResult.hourCount,
-
-            productionTotal:
-              capturedResult.productionTotal
+            env: {
+              ...process.env,
+              ...environment
+            }
           }
         );
 
-        finishResolve(
-          capturedResult
+
+      let standardOutput =
+        "";
+
+
+      let standardError =
+        "";
+
+
+      let isSettled =
+        false;
+
+
+      const finish = (
+        error,
+        value
+      ) => {
+        if (
+          isSettled
+        ) {
+          return;
+        }
+
+
+        isSettled =
+          true;
+
+
+        clearTimeout(
+          timeoutId
         );
 
-      } catch (error) {
-        finishReject(error);
-      }
-    };
 
-    /*
-      조회 버튼을 누르기 전에
-      API 응답 감시를 시작한다.
-    */
+        if (
+          error
+        ) {
+          reject(
+            error
+          );
 
-    page.on(
-      "response",
-      handleResponse
+
+          return;
+        }
+
+
+        resolve(
+          value
+        );
+      };
+
+
+      const timeoutId =
+        setTimeout(
+          () => {
+            childProcess.kill();
+
+
+            finish(
+              new Error(
+                "DataPARC 증기생산량 조회 프로그램의 응답 시간이 초과되었습니다."
+              )
+            );
+          },
+
+          DATAPARC_STEAM_PROCESS_TIMEOUT
+        );
+
+
+      childProcess.stdout
+        .setEncoding(
+          "utf8"
+        );
+
+
+      childProcess.stderr
+        .setEncoding(
+          "utf8"
+        );
+
+
+      childProcess.stdout.on(
+        "data",
+        chunk => {
+          standardOutput +=
+            chunk;
+        }
+      );
+
+
+      childProcess.stderr.on(
+        "data",
+        chunk => {
+          standardError +=
+            chunk;
+        }
+      );
+
+
+      childProcess.on(
+        "error",
+        error => {
+          finish(
+            new Error(
+              `Windows PowerShell을 실행하지 못했습니다: ${error.message}`
+            )
+          );
+        }
+      );
+
+
+      childProcess.on(
+        "close",
+        exitCode => {
+          const errorText =
+            normalizeOisAgentText(
+              standardError
+            );
+
+
+          const outputText =
+            normalizeOisAgentText(
+              standardOutput
+            );
+
+
+          const resultMarker =
+            normalizeOisAgentText(
+              environment
+                .GS_STEAM_RESULT_MARKER
+            );
+
+
+          const hasResultMarker =
+            Boolean(
+              resultMarker
+            ) &&
+            standardOutput
+              .split(
+                /\r?\n/
+              )
+              .some(
+                line => {
+                  return line
+                    .trim()
+                    .startsWith(
+                      resultMarker
+                    );
+                }
+              );
+
+
+          if (
+            exitCode !==
+              0 ||
+            !hasResultMarker
+          ) {
+            const detailText =
+              errorText ||
+              outputText;
+
+
+            finish(
+              new Error(
+                detailText ||
+                [
+                  "DataPARC 조회 결과가 출력되지 않았습니다.",
+                  `종료 코드: ${exitCode}`
+                ].join(
+                  " "
+                )
+              )
+            );
+
+
+            return;
+          }
+
+
+          finish(
+            null,
+            standardOutput
+          );
+        }
+      );
+    }
+  );
+}
+
+
+function parseDataParcSteamNumber(
+  value,
+  label
+) {
+  if (
+    value ===
+      null ||
+    value ===
+      undefined ||
+    normalizeOisAgentText(
+      value
+    ) ===
+      ""
+  ) {
+    throw new Error(
+      `${label}이 비어 있습니다.`
+    );
+  }
+
+
+  const numericValue =
+    Number(
+      value
     );
 
-    timeoutId = setTimeout(() => {
-      finishReject(
-        new Error(
-          `${unitDefinition.unit}호기 MAIN STM FLOW 응답을 받지 못했습니다.`
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    throw new Error(
+      `${label}이 올바른 숫자가 아닙니다.`
+    );
+  }
+
+
+  return numericValue;
+}
+
+
+async function collectDataParcSteamProductionValues(
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "DataPARC 증기생산량 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  const nextDate =
+    addOisAgentDateDays(
+      targetDate,
+      1
+    );
+
+
+  if (
+    !isValidOisAgentDate(
+      nextDate
+    )
+  ) {
+    throw new Error(
+      "DataPARC 증기생산량 종료 날짜를 계산하지 못했습니다."
+    );
+  }
+
+
+  console.log(
+    [
+      "DataPARC 증기생산량 조회 시작",
+      `${targetDate} 00:00`,
+      `${nextDate} 00:00`
+    ].join(
+      " · "
+    )
+  );
+
+
+  const standardOutput =
+    await runDataParcSteamPowerShell({
+      GS_DATAPARC_ADDIN_PATH:
+        DATAPARC_ADDIN_PATH,
+
+      GS_STEAM_TARGET_DATE:
+        targetDate,
+
+      GS_STEAM_NEXT_DATE:
+        nextDate,
+
+      GS_STEAM_UNIT_ONE_TAG:
+        DATAPARC_STEAM_PRODUCTION_DEFINITIONS[0]
+          .tag,
+
+      GS_STEAM_UNIT_TWO_TAG:
+        DATAPARC_STEAM_PRODUCTION_DEFINITIONS[1]
+          .tag,
+
+      GS_STEAM_RESULT_MARKER:
+        DATAPARC_STEAM_RESULT_MARKER
+    });
+
+
+  const resultLine =
+    standardOutput
+      .split(
+        /\r?\n/
+      )
+      .map(
+        line => {
+          return line.trim();
+        }
+      )
+      .reverse()
+      .find(
+        line => {
+          return line.startsWith(
+            DATAPARC_STEAM_RESULT_MARKER
+          );
+        }
+      );
+
+
+  if (
+    !resultLine
+  ) {
+    throw new Error(
+      "DataPARC 증기생산량 결과 JSON을 확인하지 못했습니다."
+    );
+  }
+
+
+  let capturedResult;
+
+
+  try {
+    capturedResult =
+      JSON.parse(
+        resultLine.slice(
+          DATAPARC_STEAM_RESULT_MARKER.length
         )
       );
-    }, OIS_QUERY_TIMEOUT);
 
-    Promise.resolve()
-      .then(triggerSearch)
-      .catch(finishReject);
-  });
+  } catch (
+    error
+  ) {
+    throw new Error(
+      `DataPARC 증기생산량 결과를 해석하지 못했습니다: ${error.message}`
+    );
+  }
+
+
+  if (
+    capturedResult.targetDate !==
+      targetDate ||
+    capturedResult.nextDate !==
+      nextDate
+  ) {
+    throw new Error(
+      "DataPARC 증기생산량 조회 날짜와 결과 날짜가 일치하지 않습니다."
+    );
+  }
+
+
+  const capturedUnits = {};
+
+
+  for (
+    const definition of
+    DATAPARC_STEAM_PRODUCTION_DEFINITIONS
+  ) {
+    const startValue =
+      parseDataParcSteamNumber(
+        capturedResult[
+          `${definition.resultKey}StartValue`
+        ],
+
+        `${definition.unit}호기 시작 누적값`
+      );
+
+
+    const endValue =
+      parseDataParcSteamNumber(
+        capturedResult[
+          `${definition.resultKey}EndValue`
+        ],
+
+        `${definition.unit}호기 종료 누적값`
+      );
+
+
+    if (
+      endValue <
+        startValue
+    ) {
+      throw new Error(
+        `${definition.unit}호기 증기 누적값이 감소했습니다. 시작 ${startValue}, 종료 ${endValue}`
+      );
+    }
+
+
+    const productionTotal =
+      Math.round(
+        (
+          endValue -
+          startValue
+        ) *
+          1000
+      ) /
+      1000;
+
+
+    capturedUnits[
+      definition.resultKey
+    ] = {
+      source:
+        "DataPARC",
+
+      unit:
+        definition.unit,
+
+      tag:
+        definition.tag,
+
+      startTime:
+        `${targetDate} 00:00:00`,
+
+      endTime:
+        `${nextDate} 00:00:00`,
+
+      startValue,
+
+      endValue,
+
+      calculation:
+        "endValue - startValue",
+
+      productionTotal
+    };
+  }
+
+
+  const totalProduction =
+    Math.round(
+      (
+        capturedUnits.unitOne
+          .productionTotal +
+        capturedUnits.unitTwo
+          .productionTotal
+      ) *
+        1000
+    ) /
+    1000;
+
+
+  const result = {
+    source:
+      "DataPARC",
+
+    targetDate,
+
+    nextDate,
+
+    dataParcAddIn:
+      normalizeOisAgentText(
+        capturedResult.dataParcAddIn
+      ),
+
+    dataParcHost:
+      capturedResult.dataParcHost ===
+        true,
+
+    unitOne:
+      capturedUnits.unitOne,
+
+    unitTwo:
+      capturedUnits.unitTwo,
+
+    totalProduction
+  };
+
+
+  console.log(
+    [
+      "DataPARC 증기생산량 조회 완료",
+      targetDate,
+      `1호기 ${result.unitOne.productionTotal} ton`,
+      `2호기 ${result.unitTwo.productionTotal} ton`,
+      `합계 ${result.totalProduction} ton`
+    ].join(
+      " · "
+    )
+  );
+
+
+  return result;
 }
 
 /* =========================================================
@@ -6857,13 +7401,14 @@ async function readOisSteamDailySalesTotal(
   );
 }
 
-
-
 /* =========================================================
-  오전회의 증기 판매량 수집
+  오전회의 증기 현황 수집
 
-  - OIS 일별 증기 판매량
-  - 선택일 소계
+  생산량:
+  - DataPARC 1·2호기 누적값 차이
+
+  판매량:
+  - OIS 일별 증기 판매량 선택일 소계
   - 증기사용량 TON
 ========================================================= */
 
@@ -6889,95 +7434,24 @@ async function collectOisSteamStatusValues(
   );
 
 
-  const capturedUnits = {};
-
-
   /*
-    1·2호기 증기생산량 조회
+    1·2호기 증기생산량은 DataPARC에서 조회한다.
+
+    다음 날 00:00 누적값 - 대상일 00:00 누적값
   */
 
-  for (
-    const unitDefinition of
-    OIS_STEAM_PRODUCTION_DEFINITIONS
-  ) {
-    let frame =
-      await openOisLogSheetLookup(
-        page
-      );
-
-
-    await selectOisOptionByLabel(
-      frame,
-      "설비운영팀",
-      false
-    );
-
-
-    frame =
-      await findOisLogSheetFrame(
-        page
-      ) ||
-      frame;
-
-
-    await selectOisOptionByLabel(
-      frame,
-      unitDefinition.sheetLabel,
-      true
-    );
-
-
-    await page.waitForTimeout(
-      500
-    );
-
-
-    frame =
-      await findOisLogSheetFrame(
-        page
-      ) ||
-      frame;
-
-
-    await selectOisOptionByLabel(
-      frame,
-      "1시간",
-      false
-    );
-
-
-    await setOisLogSheetDate(
-      frame,
+  const productionResult =
+    await collectDataParcSteamProductionValues(
       targetDate
     );
 
 
-    await page.waitForTimeout(
-      200
-    );
-
-
-    capturedUnits[
-      unitDefinition.resultKey
-    ] =
-      await captureOisSteamProductionFromApi(
-        page,
-        unitDefinition,
-        async () => {
-          await clickOisLogSheetSearchButton(
-            frame
-          );
-        }
-      );
-  }
-
-
   const unitOne =
-    capturedUnits.unitOne;
+    productionResult.unitOne;
 
 
   const unitTwo =
-    capturedUnits.unitTwo;
+    productionResult.unitTwo;
 
 
   if (
@@ -7058,7 +7532,13 @@ async function collectOisSteamStatusValues(
 
   const result = {
     source:
-      "OIS BOARD LOGSHEET / 일별 증기 판매량",
+      "DataPARC / OIS 일별 증기 판매량",
+
+    productionSource:
+      "DataPARC",
+
+    salesSource:
+      "OIS 일별 증기 판매량",
 
     targetDate,
 
@@ -7066,10 +7546,10 @@ async function collectOisSteamStatusValues(
       targetDate,
 
     outputInterval:
-      "1시간",
+      "일 누적값 차이",
 
     hourRange:
-      "01~24",
+      "00:00~다음날 00:00",
 
     hourCount:
       24,
@@ -7105,6 +7585,9 @@ async function collectOisSteamStatusValues(
 
     unitTwo,
 
+    productionNextDate:
+      productionResult.nextDate,
+
     collectedAt:
       new Date()
         .toISOString()
@@ -7113,7 +7596,7 @@ async function collectOisSteamStatusValues(
 
   console.log(
     [
-      "OIS 증기 현황 조회 완료",
+      "증기 현황 조회 완료",
       targetDate,
       `판매 ${result.steamSales} ton`,
       `1호기 ${result.unitOneProduction} ton`,
@@ -7380,6 +7863,52 @@ function printOisAgentRequestResult(
 
     return;
   }
+
+
+  if (
+    requestType ===
+      "steam_status"
+  ) {
+    console.table({
+      "조회일":
+        result.targetDate,
+
+      "증기 판매량(OIS)":
+        result.steamSales,
+
+      "1호기 생산량(DataPARC)":
+        result.unitOneProduction,
+
+      "2호기 생산량(DataPARC)":
+        result.unitTwoProduction,
+
+      "총 생산량":
+        result.totalProduction,
+
+      "판매율":
+        result.salesRate,
+
+      "1호기 시작 누적값":
+        result.unitOne
+          ?.startValue,
+
+      "1호기 종료 누적값":
+        result.unitOne
+          ?.endValue,
+
+      "2호기 시작 누적값":
+        result.unitTwo
+          ?.startValue,
+
+      "2호기 종료 누적값":
+        result.unitTwo
+          ?.endValue
+    });
+
+
+    return;
+  }
+
 
 
   if (

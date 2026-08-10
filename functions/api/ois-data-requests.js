@@ -3490,6 +3490,103 @@ async function handleLimestoneUsageHistoryGet(
 }
 
 /* =========================================================
+  부재료 자료 적용 기준
+
+  - 2026-08-09까지: 기존 엑셀 업로드 자료
+  - 2026-08-10부터: OIS 자동수집 자료
+========================================================= */
+
+const AUXILIARY_MATERIAL_EXCEL_END_DATE =
+  "2026-08-09";
+
+
+const AUXILIARY_MATERIAL_OIS_START_DATE =
+  "2026-08-10";
+
+
+const MAXIMUM_AUXILIARY_MATERIAL_IMPORT_DAYS =
+  40;
+
+
+/* =========================================================
+  기존 D1 테이블에 새 열을 안전하게 추가
+========================================================= */
+
+async function ensureAuxiliaryMaterialDailyColumn(
+  database,
+  columnName,
+  columnDefinition
+) {
+  const tableInfo =
+    await database
+      .prepare(`
+        PRAGMA table_info(
+          auxiliary_material_daily
+        )
+      `)
+      .all();
+
+
+  const hasColumn =
+    (
+      Array.isArray(
+        tableInfo.results
+      )
+        ? tableInfo.results
+        : []
+    ).some(
+      column =>
+        normalizeText(
+          column.name
+        ) ===
+        columnName
+    );
+
+
+  if (
+    hasColumn
+  ) {
+    return;
+  }
+
+
+  try {
+    await database
+      .prepare(`
+        ALTER TABLE
+          auxiliary_material_daily
+        ADD COLUMN
+          ${columnDefinition}
+      `)
+      .run();
+
+  } catch (
+    error
+  ) {
+    const message =
+      normalizeText(
+        error instanceof Error
+          ? error.message
+          : error
+      );
+
+
+    /*
+      동시에 최초 접근한 요청이 먼저 열을 추가한 경우는
+      정상 완료로 처리한다.
+    */
+    if (
+      !/duplicate column name/i.test(
+        message
+      )
+    ) {
+      throw error;
+    }
+  }
+}
+
+
+/* =========================================================
   부재료 일별 자료 D1 테이블
 
   한 행:
@@ -3501,6 +3598,8 @@ async function handleLimestoneUsageHistoryGet(
   - Lime Slurry 합산 유량·밀도·Lime Powder
   - Ammonia
   - SOx / NOx
+  - 비고
+  - 자료 출처
 ========================================================= */
 
 async function ensureAuxiliaryMaterialDailyTable(
@@ -3528,6 +3627,9 @@ async function ensureAuxiliaryMaterialDailyTable(
         sox_ppm REAL,
         nox_ppm REAL,
 
+        remarks TEXT NOT NULL DEFAULT '',
+        data_source TEXT NOT NULL DEFAULT 'ois',
+
         sample_count INTEGER NOT NULL DEFAULT 0,
         is_complete INTEGER NOT NULL DEFAULT 0,
 
@@ -3551,6 +3653,24 @@ async function ensureAuxiliaryMaterialDailyTable(
       )
     `)
     .run();
+
+
+  /*
+    이미 만들어진 운영 D1 테이블에도
+    비고와 자료 출처 열을 추가한다.
+  */
+  await ensureAuxiliaryMaterialDailyColumn(
+    database,
+    "remarks",
+    "remarks TEXT NOT NULL DEFAULT ''"
+  );
+
+
+  await ensureAuxiliaryMaterialDailyColumn(
+    database,
+    "data_source",
+    "data_source TEXT NOT NULL DEFAULT 'ois'"
+  );
 
 
   await database
@@ -4336,6 +4456,551 @@ async function handleAuxiliaryMaterialHistoryGet(
   });
 }
 
+/* =========================================================
+  기존 부재료 엑셀 A:R 값 정리
+
+  - 숫자와 쉼표 포함 숫자 허용
+  - 빈칸, -, — 는 빈 값으로 저장
+  - 수식 문자열·오류값은 저장 차단
+========================================================= */
+
+function normalizeAuxiliaryMaterialExcelNumber(value, label) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const normalizedValue =
+    typeof value === "string"
+      ? normalizeText(value).replace(/,/g, "")
+      : value;
+
+  if (
+    normalizedValue === "" ||
+    normalizedValue === "-" ||
+    normalizedValue === "—"
+  ) {
+    return null;
+  }
+
+  const numericValue = Number(normalizedValue);
+
+  if (!Number.isFinite(numericValue)) {
+    throw new Error(`${label} 값이 숫자가 아닙니다.`);
+  }
+
+  return normalizeAuxiliaryMaterialNumber(numericValue);
+}
+
+
+function normalizeAuxiliaryMaterialExcelUnit(
+  rawUnit,
+  recordDate,
+  unitNo
+) {
+  if (
+    !rawUnit ||
+    typeof rawUnit !== "object" ||
+    Array.isArray(rawUnit)
+  ) {
+    throw new Error(`${recordDate} ${unitNo}호기 자료가 없습니다.`);
+  }
+
+  const prefix = `${recordDate} ${unitNo}호기`;
+
+  return {
+    soxPpm:
+      normalizeAuxiliaryMaterialExcelNumber(
+        rawUnit.soxPpm,
+        `${prefix} SOx`
+      ),
+
+    limestoneUsageTpd:
+      normalizeAuxiliaryMaterialExcelNumber(
+        rawUnit.limestoneUsageTpd,
+        `${prefix} Limestone 사용량`
+      ),
+
+    limestoneReceiptTon:
+      normalizeAuxiliaryMaterialExcelNumber(
+        rawUnit.limestoneReceiptTon,
+        `${prefix} Limestone 입고량`
+      ),
+
+    limeSlurryFlowM3h:
+      normalizeAuxiliaryMaterialExcelNumber(
+        rawUnit.limeSlurryFlowM3h,
+        `${prefix} Lime Slurry 유량`
+      ),
+
+    limeSlurryDensityKgm3:
+      normalizeAuxiliaryMaterialExcelNumber(
+        rawUnit.limeSlurryDensityKgm3,
+        `${prefix} Slurry 밀도`
+      ),
+
+    limePowderTpd:
+      normalizeAuxiliaryMaterialExcelNumber(
+        rawUnit.limePowderTpd,
+        `${prefix} Lime Powder`
+      ),
+
+    noxPpm:
+      normalizeAuxiliaryMaterialExcelNumber(
+        rawUnit.noxPpm,
+        `${prefix} NOx`
+      ),
+
+    ammoniaM3d:
+      normalizeAuxiliaryMaterialExcelNumber(
+        rawUnit.ammoniaM3d,
+        `${prefix} Ammonia 일사용량`
+      )
+  };
+}
+
+
+/* =========================================================
+  기존 부재료 엑셀 40일 단위 D1 저장
+
+  한 날짜:
+  - unitOne: B:I
+  - unitTwo: J:Q
+  - remarks: R
+
+  보호 규칙:
+  - 관리자만 등록
+  - 한 번에 최대 40일
+  - 2026-08-09까지만 엑셀 자료로 저장
+  - 2026-08-10 이후는 자동 제외
+  - 같은 날짜·호기는 엑셀 값으로 교체
+========================================================= */
+
+async function importAuxiliaryMaterialExcelBatch(context, body) {
+  const authentication = await getAuthenticatedUser(context);
+
+  if (authentication.error) {
+    return authentication.error;
+  }
+
+  const user = authentication.user;
+
+  if (user.role !== "admin" && user.role !== "super_admin") {
+    return jsonResponse(
+      {
+        ok: false,
+        message: "부재료 기존 엑셀 자료는 관리자만 등록할 수 있습니다."
+      },
+      403
+    );
+  }
+
+  const rawItems = Array.isArray(body.items) ? body.items : [];
+
+  if (
+    rawItems.length < 1 ||
+    rawItems.length > MAXIMUM_AUXILIARY_MATERIAL_IMPORT_DAYS
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          `부재료 엑셀 자료는 한 번에 1일 이상 ` +
+          `${MAXIMUM_AUXILIARY_MATERIAL_IMPORT_DAYS}일 이하로 등록해 주세요.`
+      },
+      400
+    );
+  }
+
+  const fileName =
+    normalizeText(body.fileName).slice(0, 200) ||
+    "부재료 기존자료.xlsx";
+
+  const importId = crypto.randomUUID();
+  const normalizedItems = [];
+  const excludedDates = [];
+  const receivedDates = new Set();
+
+  try {
+    for (let itemIndex = 0; itemIndex < rawItems.length; itemIndex += 1) {
+      const rawItem = rawItems[itemIndex];
+
+      if (
+        !rawItem ||
+        typeof rawItem !== "object" ||
+        Array.isArray(rawItem)
+      ) {
+        throw new Error(
+          `${itemIndex + 1}번째 엑셀 자료 형식이 올바르지 않습니다.`
+        );
+      }
+
+      const recordDate = normalizeText(rawItem.recordDate);
+
+      if (!isValidIsoDate(recordDate)) {
+        throw new Error(
+          `${itemIndex + 1}번째 엑셀 날짜가 올바르지 않습니다.`
+        );
+      }
+
+      if (receivedDates.has(recordDate)) {
+        throw new Error(
+          `${recordDate} 자료가 한 요청에 두 번 포함되어 있습니다.`
+        );
+      }
+
+      receivedDates.add(recordDate);
+
+      if (
+        recordDate > AUXILIARY_MATERIAL_EXCEL_END_DATE ||
+        recordDate >= AUXILIARY_MATERIAL_OIS_START_DATE
+      ) {
+        excludedDates.push(recordDate);
+        continue;
+      }
+
+      const remarks = normalizeText(rawItem.remarks);
+
+      if (remarks.length > 1000) {
+        throw new Error(
+          `${recordDate} 비고는 1,000자 이하로 입력해 주세요.`
+        );
+      }
+
+      normalizedItems.push({
+        recordDate,
+        sheetName: normalizeText(rawItem.sheetName).slice(0, 100),
+        remarks,
+
+        unitOne:
+          normalizeAuxiliaryMaterialExcelUnit(
+            rawItem.unitOne,
+            recordDate,
+            1
+          ),
+
+        unitTwo:
+          normalizeAuxiliaryMaterialExcelUnit(
+            rawItem.unitTwo,
+            recordDate,
+            2
+          )
+      });
+    }
+
+  } catch (error) {
+    return jsonResponse(
+      {
+        ok: false,
+
+        message:
+          error instanceof Error
+            ? error.message
+            : "부재료 엑셀 자료를 확인하지 못했습니다."
+      },
+      400
+    );
+  }
+
+  if (normalizedItems.length < 1) {
+    return jsonResponse({
+      ok: true,
+      importId,
+      fileName,
+
+      summary: {
+        receivedDateCount: rawItems.length,
+        savedDateCount: 0,
+        savedRecordCount: 0,
+        newRecordCount: 0,
+        replacedRecordCount: 0,
+        excludedDateCount: excludedDates.length
+      },
+
+      excludedDates,
+
+      message:
+        "2026-08-10 이후 자료는 OIS 자동자료 보호를 위해 저장하지 않았습니다."
+    });
+  }
+
+  const database = context.env.DB;
+
+  await ensureAuxiliaryMaterialDailyTable(database);
+
+  normalizedItems.sort((left, right) =>
+    left.recordDate.localeCompare(right.recordDate)
+  );
+
+  const firstDate = normalizedItems[0].recordDate;
+
+  const lastDate =
+    normalizedItems[
+      normalizedItems.length - 1
+    ].recordDate;
+
+  const targetDateSet =
+    new Set(
+      normalizedItems.map(
+        item => item.recordDate
+      )
+    );
+
+  const existingResult =
+    await database
+      .prepare(`
+        SELECT record_date, unit_no
+        FROM auxiliary_material_daily
+        WHERE record_date >= ?
+          AND record_date <= ?
+      `)
+      .bind(
+        firstDate,
+        lastDate
+      )
+      .all();
+
+  const existingKeys =
+    new Set(
+      (
+        Array.isArray(existingResult.results)
+          ? existingResult.results
+          : []
+      )
+        .filter(
+          row =>
+            targetDateSet.has(
+              normalizeText(row.record_date)
+            )
+        )
+        .map(
+          row =>
+            `${normalizeText(row.record_date)}:${Number(row.unit_no)}`
+        )
+    );
+
+  const upsertSql = `
+    INSERT INTO auxiliary_material_daily (
+      id,
+      record_date,
+      unit_no,
+
+      limestone_start_stock,
+      limestone_receipt_ton,
+      limestone_end_stock,
+      limestone_usage_tpd,
+
+      lime_slurry_flow_m3h,
+      lime_slurry_density_kgm3,
+      lime_powder_tpd,
+
+      ammonia_flow_m3h,
+      ammonia_m3d,
+
+      sox_ppm,
+      nox_ppm,
+
+      remarks,
+      data_source,
+
+      sample_count,
+      is_complete,
+
+      source_tags_json,
+      raw_result_json,
+
+      ois_request_id,
+      ois_collected_at,
+      agent_id,
+
+      created_by_id,
+      created_by_name,
+      updated_by_id,
+      updated_by_name,
+
+      created_at,
+      updated_at,
+      revision
+    )
+
+    VALUES (
+      ?, ?, ?,
+      NULL, ?, NULL, ?,
+      ?, ?, ?,
+      NULL, ?,
+      ?, ?,
+      ?, 'excel',
+      24, 1,
+      ?, ?,
+      '', '', '',
+      ?, ?, ?, ?,
+      ?, ?, 1
+    )
+
+    ON CONFLICT (
+      record_date,
+      unit_no
+    )
+
+    DO UPDATE SET
+      limestone_start_stock = NULL,
+      limestone_receipt_ton = excluded.limestone_receipt_ton,
+      limestone_end_stock = NULL,
+      limestone_usage_tpd = excluded.limestone_usage_tpd,
+
+      lime_slurry_flow_m3h = excluded.lime_slurry_flow_m3h,
+      lime_slurry_density_kgm3 = excluded.lime_slurry_density_kgm3,
+      lime_powder_tpd = excluded.lime_powder_tpd,
+
+      ammonia_flow_m3h = NULL,
+      ammonia_m3d = excluded.ammonia_m3d,
+
+      sox_ppm = excluded.sox_ppm,
+      nox_ppm = excluded.nox_ppm,
+
+      remarks = excluded.remarks,
+      data_source = 'excel',
+
+      sample_count = 24,
+      is_complete = 1,
+
+      source_tags_json = excluded.source_tags_json,
+      raw_result_json = excluded.raw_result_json,
+
+      ois_request_id = '',
+      ois_collected_at = '',
+      agent_id = '',
+
+      updated_by_id = excluded.updated_by_id,
+      updated_by_name = excluded.updated_by_name,
+      updated_at = excluded.updated_at,
+
+      revision = auxiliary_material_daily.revision + 1
+  `;
+
+  const now =
+    new Date()
+      .toISOString();
+
+  const statements = [];
+
+  for (const item of normalizedItems) {
+    const units = [
+      {
+        unitNo: 1,
+        values: item.unitOne
+      },
+      {
+        unitNo: 2,
+        values: item.unitTwo
+      }
+    ];
+
+    for (const unit of units) {
+      const sourceInformation = {
+        source: "excel",
+        importId,
+        fileName,
+        sheetName: item.sheetName,
+        recordDate: item.recordDate,
+        unitNo: unit.unitNo
+      };
+
+      const rawImportRecord = {
+        ...sourceInformation,
+        values: unit.values,
+        remarks: item.remarks
+      };
+
+      statements.push(
+        database
+          .prepare(upsertSql)
+          .bind(
+            crypto.randomUUID(),
+            item.recordDate,
+            unit.unitNo,
+
+            unit.values.limestoneReceiptTon,
+            unit.values.limestoneUsageTpd,
+
+            unit.values.limeSlurryFlowM3h,
+            unit.values.limeSlurryDensityKgm3,
+            unit.values.limePowderTpd,
+
+            unit.values.ammoniaM3d,
+
+            unit.values.soxPpm,
+            unit.values.noxPpm,
+
+            item.remarks,
+
+            JSON.stringify(
+              sourceInformation
+            ),
+
+            JSON.stringify(
+              rawImportRecord
+            ),
+
+            user.employeeNo,
+            user.name,
+            user.employeeNo,
+            user.name,
+
+            now,
+            now
+          )
+      );
+    }
+  }
+
+  await database.batch(
+    statements
+  );
+
+  const savedRecordCount =
+    normalizedItems.length * 2;
+
+  const replacedRecordCount =
+    existingKeys.size;
+
+  const newRecordCount =
+    Math.max(
+      0,
+      savedRecordCount - replacedRecordCount
+    );
+
+  const excludedMessage =
+    excludedDates.length > 0
+      ? `, ${excludedDates.length}일 제외`
+      : "";
+
+  return jsonResponse({
+    ok: true,
+    importId,
+    fileName,
+
+    range: {
+      startDate: firstDate,
+      endDate: lastDate
+    },
+
+    summary: {
+      receivedDateCount: rawItems.length,
+      savedDateCount: normalizedItems.length,
+      savedRecordCount,
+      newRecordCount,
+      replacedRecordCount,
+      excludedDateCount: excludedDates.length
+    },
+
+    excludedDates,
+
+    message:
+      `${normalizedItems.length}일의 부재료 엑셀 자료를 저장했습니다. ` +
+      `(신규 ${newRecordCount}건, 교체 ${replacedRecordCount}건` +
+      `${excludedMessage})`
+  });
+}
 
 async function createAuxiliaryMaterialBatchRequest(
   context,
@@ -6761,9 +7426,7 @@ export async function onRequestPost(
     ) {
       return jsonResponse(
         {
-          ok:
-            false,
-
+          ok: false,
           message:
             "D1 바인딩 DB가 등록되지 않았습니다."
         },
@@ -6816,56 +7479,70 @@ export async function onRequestPost(
       );
     }
 
-/*
-  부재료 기간 OIS 조회
-*/
-if (
-  action ===
-    "create_materials_batch"
-) {
-  return await createAuxiliaryMaterialBatchRequest(
-    context,
-    body
-  );
-}
+
+    /*
+      기존 부재료 엑셀 자료 등록
+    */
+    if (
+      action ===
+        "import_auxiliary_material_excel"
+    ) {
+      return await importAuxiliaryMaterialExcelBatch(
+        context,
+        body
+      );
+    }
+
+
+    /*
+      부재료 기간 OIS 조회
+    */
+    if (
+      action ===
+        "create_materials_batch"
+    ) {
+      return await createAuxiliaryMaterialBatchRequest(
+        context,
+        body
+      );
+    }
 
 
     /*
       기간 전체 사용량 계산
     */
-if (
-  action ===
-    "create_usage_batch"
-) {
-  return await createLimestoneUsageBatchRequest(
-    context,
-    body
-  );
-}
+    if (
+      action ===
+        "create_usage_batch"
+    ) {
+      return await createLimestoneUsageBatchRequest(
+        context,
+        body
+      );
+    }
 
 
-/* =====================================================
-  OIS 과거 LOG SHEET 기간 가져오기
-===================================================== */
+    /*
+      OIS 과거 LOG SHEET 기간 가져오기
+    */
+    if (
+      action ===
+        "create_logsheet_batch"
+    ) {
+      return await createOisLegacyLogBatchRequest(
+        context,
+        body
+      );
+    }
 
-if (
-  action ===
-    "create_logsheet_batch"
-) {
-  return await createOisLegacyLogBatchRequest(
-    context,
-    body
-  );
-}
 
-
-/*
-  단일 날짜 OIS 조회
-*/
-return await createUserRequest(
-  context,
-  body
-);
+    /*
+      단일 날짜 OIS 조회
+    */
+    return await createUserRequest(
+      context,
+      body
+    );
 
   } catch (
     error
@@ -6878,12 +7555,10 @@ return await createUserRequest(
 
     return jsonResponse(
       {
-        ok:
-          false,
+        ok: false,
 
         message:
-          error instanceof
-            Error
+          error instanceof Error
             ? error.message
             : "OIS 요청을 저장하지 못했습니다."
       },

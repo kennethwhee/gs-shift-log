@@ -89080,10 +89080,15 @@ input {
 
 /* =========================================================
   효율팀 - 부재료 월별 관리
+
+  기존 엑셀 A:R 구조:
+  - A: 일자
+  - B:I: 1호기
+  - J:Q: 2호기
+  - R: 비고
 ========================================================= */
 
-.efficiency-auxiliary-material-view,
-.auxiliary-material-view {
+#efficiencyAuxiliaryMaterialsView {
   min-width: 0;
   color: #1f2a3d;
 }
@@ -89093,6 +89098,7 @@ input {
   화면 제목
 ===================================================== */
 
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-heading {
   display: flex;
   align-items: flex-start;
@@ -89101,27 +89107,43 @@ input {
   margin-bottom: 18px;
 }
 
+
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-heading span,
-.auxiliary-material-table-card > header span {
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-table-card
+> header
+> div:first-child
+> span {
   display: block;
   margin-bottom: 5px;
+
   color: #1677ff;
+
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.1em;
 }
 
+
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-heading h3 {
   margin: 0;
+
   color: #172033;
+
   font-size: 25px;
   font-weight: 900;
   line-height: 1.25;
 }
 
+
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-heading p {
   margin: 8px 0 0;
+
   color: #667085;
+
   font-size: 14px;
   line-height: 1.55;
 }
@@ -89131,15 +89153,18 @@ input {
   조회 조건 카드
 ===================================================== */
 
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-query-card {
   display: grid;
+
   grid-template-columns:
     minmax(270px, 0.7fr)
     minmax(570px, 1.3fr);
+
   align-items: end;
   gap: 14px 18px;
 
-  margin-bottom: 16px;
+  margin-bottom: 14px;
   padding: 18px;
 
   border: 1px solid #d9e4f2;
@@ -89160,17 +89185,23 @@ input {
 
 /* 조회 월 */
 
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-month-navigation {
   display: grid;
+
   grid-template-columns:
     42px
     minmax(170px, 1fr)
     42px;
+
   align-items: end;
   gap: 9px;
 }
 
-.auxiliary-material-month-navigation > button {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-month-navigation
+> button {
   width: 42px;
   height: 44px;
   padding: 0;
@@ -89189,41 +89220,60 @@ input {
   cursor: pointer;
 }
 
-.auxiliary-material-month-navigation > button:hover {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-month-navigation
+> button:hover {
   border-color: #78aaf0;
+
   background: #eaf3ff;
   color: #116bd8;
 }
 
 
-/* 날짜와 버튼 */
+/* 날짜와 조회 버튼 */
 
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-period-fields {
   display: grid;
+
   grid-template-columns:
     minmax(145px, 1fr)
     minmax(145px, 1fr)
     auto
     auto;
+
   align-items: end;
   gap: 9px;
   min-width: 0;
 }
 
+
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-query-card label {
   display: grid;
   gap: 6px;
   min-width: 0;
 }
 
-.auxiliary-material-query-card label > span {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-query-card
+label
+> span {
   color: #526179;
+
   font-size: 12px;
   font-weight: 800;
 }
 
-.auxiliary-material-query-card input[type="month"],
-.auxiliary-material-query-card input[type="date"] {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-query-card
+input[type="month"],
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-query-card
+input[type="date"] {
   width: 100%;
   height: 44px;
   box-sizing: border-box;
@@ -89240,15 +89290,18 @@ input {
   font-weight: 700;
 }
 
-.auxiliary-material-query-card input:focus {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-query-card
+input:focus {
   border-color: #448ee9;
   outline: 3px solid rgba(22, 119, 255, 0.12);
 }
 
 
-/* 조회 버튼 */
-
-.auxiliary-material-period-fields button {
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-period-fields
+button {
   min-height: 44px;
   padding: 0 16px;
 
@@ -89262,19 +89315,30 @@ input {
   cursor: pointer;
 }
 
-.auxiliary-material-period-fields button.is-secondary {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-period-fields
+button.is-secondary {
   border: 1px solid #b9c8dc;
+
   background: #ffffff;
   color: #324762;
 }
 
-.auxiliary-material-period-fields button.is-secondary:hover {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-period-fields
+button.is-secondary:hover {
   border-color: #7e9bbe;
   background: #f4f7fb;
 }
 
-.auxiliary-material-period-fields button.is-primary {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-period-fields
+button.is-primary {
   border: 1px solid #146ee8;
+
   background: #1677ff;
   color: #ffffff;
 
@@ -89283,43 +89347,58 @@ input {
     rgba(22, 119, 255, 0.22);
 }
 
-.auxiliary-material-period-fields button.is-primary:hover {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-period-fields
+button.is-primary:hover {
   background: #0969da;
 }
 
-.auxiliary-material-period-fields button:disabled {
-  opacity: 0.58;
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-period-fields
+button:disabled {
   cursor: wait;
+  opacity: 0.58;
 }
 
 
 /* 강제 갱신 */
 
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-force-refresh {
   grid-column: 1;
+
   display: flex !important;
-  grid-template-columns: auto 1fr;
   align-items: center;
   gap: 8px !important;
 
   min-height: 38px;
+
   color: #56657a;
+
   font-size: 12px;
   font-weight: 700;
 }
 
-.auxiliary-material-force-refresh input {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-force-refresh
+input {
   width: 18px;
   height: 18px;
   margin: 0;
+
   accent-color: #1677ff;
 }
 
 
 /* 조회 상태 */
 
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-status {
   grid-column: 2;
+
   min-height: 38px;
   box-sizing: border-box;
   margin: 0;
@@ -89336,124 +89415,190 @@ input {
   line-height: 1.4;
 }
 
+
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-status[data-status="loading"] {
   border-color: #bed8fb;
+
   background: #edf5ff;
   color: #1267cf;
 }
 
+
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-status[data-status="complete"] {
   border-color: #bce5ce;
+
   background: #ecf9f1;
   color: #16824a;
 }
 
+
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-status[data-status="partial"] {
   border-color: #f1d394;
+
   background: #fff8e7;
   color: #946100;
 }
 
+
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-status[data-status="error"] {
   border-color: #f0c3bf;
+
   background: #fff1f0;
   color: #c83b32;
 }
 
 
 /* =====================================================
-  상단 요약 카드
+  기존 엑셀 업로드
 ===================================================== */
 
-.auxiliary-material-summary-grid {
-  display: grid;
-  grid-template-columns:
-    repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-excel-import {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
 
-.auxiliary-material-summary-grid article {
-  position: relative;
-  overflow: hidden;
-  min-width: 0;
-  min-height: 92px;
-  box-sizing: border-box;
-  padding: 18px 18px 15px;
+  margin-bottom: 14px;
+  padding: 15px 18px;
 
-  border: 1px solid #dce7f5;
+  border: 1px solid #cfe4d7;
   border-radius: 14px;
 
   background:
     linear-gradient(
       145deg,
-      #ffffff,
-      #f5f9ff
+      #ffffff 0%,
+      #f4fbf6 100%
     );
+
+  box-shadow:
+    0 6px 18px
+    rgba(31, 88, 52, 0.06);
 }
 
-.auxiliary-material-summary-grid article::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
 
-  height: 4px;
-  background: #3d8bfd;
-
-  content: "";
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-excel-import__description {
+  min-width: 0;
 }
 
-.auxiliary-material-summary-grid article:nth-child(2)::before {
-  background: #25a66a;
-}
 
-.auxiliary-material-summary-grid article:nth-child(3)::before {
-  background: #f2a51a;
-}
-
-.auxiliary-material-summary-grid article:nth-child(4)::before {
-  background: #8067d5;
-}
-
-.auxiliary-material-summary-grid span {
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-excel-import__description
+> span {
   display: block;
-  color: #617087;
+  margin-bottom: 4px;
+
+  color: #278451;
+
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-excel-import__description
+> strong {
+  display: block;
+
+  color: #1c4730;
+
+  font-size: 15px;
+  font-weight: 900;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-excel-import__description
+> p {
+  margin: 5px 0 0;
+
+  color: #64766b;
+
   font-size: 12px;
-  font-weight: 900;
+  line-height: 1.45;
 }
 
-.auxiliary-material-summary-grid strong {
-  display: inline-block;
-  margin-top: 11px;
 
-  color: #172033;
-  font-size: 27px;
-  font-weight: 900;
-  line-height: 1;
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-excel-import__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+
+  min-width: 0;
 }
 
-.auxiliary-material-summary-grid small {
-  margin-left: 5px;
-  color: #8491a5;
+
+#efficiencyAuxiliaryMaterialsView
+#importAuxiliaryMaterialExcelButton {
+  flex: 0 0 auto;
+
+  min-height: 42px;
+  padding: 0 17px;
+
+  border: 1px solid #23824d;
+  border-radius: 10px;
+
+  background: #2e9d5d;
+  color: #ffffff;
+
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+
+  box-shadow:
+    0 5px 14px
+    rgba(46, 157, 93, 0.2);
+
+  cursor: pointer;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+#importAuxiliaryMaterialExcelButton:hover {
+  background: #278b52;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+#importAuxiliaryMaterialExcelButton:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+#auxiliaryMaterialExcelFileName {
+  display: block;
+  overflow: hidden;
+
+  max-width: 250px;
+
+  color: #68776d;
+
   font-size: 12px;
   font-weight: 700;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 
 /* =====================================================
-  날짜별 자료 표
-
-  PC:
-  - 약 7~8행 표시
-  - 표 내부 스크롤
-
-  모바일:
-  - 약 5행 표시
+  날짜별 A:R 자료 표
 ===================================================== */
 
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-table-card {
-  flex: 0 0 auto;
   min-width: 0;
   overflow: hidden;
 
@@ -89467,35 +89612,100 @@ input {
     rgba(31, 54, 88, 0.07);
 }
 
-.auxiliary-material-table-card > header {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-table-card
+> header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
 
-  padding: 17px 19px;
+  padding: 16px 18px;
 
   border-bottom: 1px solid #e2eaf5;
   background: #fbfcfe;
 }
 
+
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-table-card h4 {
   margin: 0;
+
   color: #172033;
+
   font-size: 18px;
   font-weight: 900;
 }
 
-.auxiliary-material-table-card > header > strong {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-table-counts {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-count {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  min-height: 30px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 10px;
+
+  border: 1px solid #d7e4f4;
+  border-radius: 999px;
+
+  background: #f3f7fc;
+
+  box-shadow: none;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-count
+> span {
+  margin: 0;
+
+  color: #6a788b;
+
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-count
+> strong {
+  margin: 0;
+
+  color: #2d4f79;
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+#auxiliaryMaterialRowCount {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 
-  min-width: 48px;
-  min-height: 28px;
+  min-width: 50px;
+  min-height: 30px;
+  box-sizing: border-box;
   padding: 0 10px;
 
   border-radius: 999px;
+
   background: #eaf3ff;
   color: #176bd5;
 
@@ -89503,117 +89713,454 @@ input {
   font-weight: 900;
 }
 
+
+/* =====================================================
+  표 스크롤 영역
+===================================================== */
+
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-table-wrap {
   position: relative;
+  isolation: isolate;
 
-  max-height: min(48dvh, 420px);
+  max-height: min(56dvh, 520px);
 
   overflow-x: auto;
   overflow-y: auto;
 
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
-.auxiliary-material-table-wrap table {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-table-wrap::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-table-wrap::-webkit-scrollbar-track {
+  background: #f1f4f8;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-table-wrap::-webkit-scrollbar-thumb {
+  border: 2px solid #f1f4f8;
+  border-radius: 999px;
+
+  background: #aebfd3;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table {
   width: 100%;
-  min-width: 1000px;
+  min-width: 1928px;
 
   border-collapse: separate;
   border-spacing: 0;
+
   table-layout: fixed;
 }
 
-.auxiliary-material-table-wrap th,
-.auxiliary-material-table-wrap td {
-  padding: 12px 9px;
 
-  border-right: 1px solid #e5ebf4;
-  border-bottom: 1px solid #e5ebf4;
+/* 열 너비 */
 
-  text-align: center;
-  white-space: nowrap;
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+col.is-date {
+  width: 104px;
 }
 
-.auxiliary-material-table-wrap th:last-child,
-.auxiliary-material-table-wrap td:last-child {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+col.is-sox,
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+col.is-nox {
+  width: 78px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+col.is-limestone-usage {
+  width: 116px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+col.is-limestone-receipt {
+  width: 108px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+col.is-slurry-flow {
+  width: 110px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+col.is-density {
+  width: 100px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+col.is-lime-powder {
+  width: 100px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+col.is-ammonia {
+  width: 112px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+col.is-remarks {
+  width: 220px;
+}
+
+
+/* 전체 셀 */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table th,
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table td {
+  box-sizing: border-box;
+  padding: 10px 8px;
+
+  border-right: 1px solid #e2e9f2;
+  border-bottom: 1px solid #e2e9f2;
+
+  text-align: center;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+th:last-child,
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+td:last-child {
   border-right: 0;
 }
 
-.auxiliary-material-table-wrap thead th {
-  position: sticky;
-  z-index: 2;
-  top: 0;
 
-  background: #eaf2fc;
+/* =====================================================
+  표 머리글
+===================================================== */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+thead th {
+  position: sticky;
+
   color: #2e4563;
 
   font-size: 12px;
   font-weight: 900;
-  line-height: 1.4;
+  line-height: 1.35;
+
+  white-space: nowrap;
 }
 
-.auxiliary-material-table-wrap thead small {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-unit-heading
+th {
+  z-index: 5;
+  top: 0;
+
+  height: 42px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+
+  background: #eaf2fc;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-unit-heading
+th.is-unit-one {
+  border-right: 2px solid #aac5e4;
+
+  background: #e7f1ff;
+  color: #1b62af;
+
+  font-size: 14px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-unit-heading
+th.is-unit-two {
+  border-right: 2px solid #abcdbb;
+
+  background: #eaf8f0;
+  color: #27754c;
+
+  font-size: 14px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-unit-heading
+th.is-date,
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-unit-heading
+th.is-remarks {
+  z-index: 7;
+  top: 0;
+
+  background: #e1eaf5;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-unit-heading
+th.is-date {
+  left: 0;
+
+  border-right: 2px solid #9fb4cc;
+
+  box-shadow:
+    4px 0 8px
+    rgba(42, 67, 96, 0.08);
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-column-heading
+th {
+  z-index: 4;
+  top: 42px;
+
+  height: 68px;
+
+  background: #f0f5fc;
+
+  white-space: normal;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-column-heading
+th:nth-child(-n + 8) {
+  background: #f0f6ff;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-column-heading
+th:nth-child(n + 9) {
+  background: #f1faf5;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-column-heading
+th:nth-child(8),
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-column-heading
+th:nth-child(16) {
+  border-right-width: 2px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-column-heading
+th:nth-child(8) {
+  border-right-color: #aac5e4;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-column-heading
+th:nth-child(16) {
+  border-right-color: #abcdbb;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+thead small {
+  display: block;
+  margin-top: 3px;
+
   color: #718198;
+
   font-size: 10px;
   font-weight: 800;
+  line-height: 1.15;
 }
 
-.auxiliary-material-table-wrap tbody td {
+
+/* =====================================================
+  표 본문
+===================================================== */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody td {
+  height: 43px;
+
   background: #ffffff;
   color: #2b3b52;
+
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+
+  white-space: nowrap;
 }
 
-.auxiliary-material-table-wrap tbody tr:nth-child(4n + 3) td,
-.auxiliary-material-table-wrap tbody tr:nth-child(4n + 4) td {
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody td.is-unit-two {
+  background: #fbfefc;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody tr:nth-child(even)
+td {
   background: #f8fbff;
 }
 
-.auxiliary-material-table-wrap tbody tr:hover td {
-  background: #edf5ff;
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody tr:nth-child(even)
+td.is-unit-two {
+  background: #f7fcf9;
 }
 
-@media (max-width: 700px) {
-  .auxiliary-material-table-wrap {
-    max-height: min(44dvh, 300px);
-  }
+
+/* 1호기와 2호기 구분선 */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody td:nth-child(9) {
+  border-right: 2px solid #aac5e4;
 }
 
 
-/* 자료 완성도 */
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody td:nth-child(17) {
+  border-right: 2px solid #abcdbb;
+}
 
-.auxiliary-material-completeness {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 
-  min-width: 53px;
-  padding: 5px 8px;
+/* 날짜 열 고정 */
 
-  border-radius: 999px;
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody td.is-date {
+  position: sticky;
+  z-index: 3;
+  left: 0;
 
-  font-size: 11px;
+  border-right: 2px solid #9fb4cc;
+
+  background: #f2f6fb;
+
+  box-shadow:
+    4px 0 8px
+    rgba(42, 67, 96, 0.07);
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody tr:nth-child(even)
+td.is-date {
+  background: #eaf1f9;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody td.is-date
+strong {
+  color: #294d77;
+
+  font-size: 12px;
   font-weight: 900;
 }
 
-.auxiliary-material-completeness.is-complete {
-  background: #e8f7ef;
-  color: #16824a;
+
+/* 비고 */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody td.is-remarks {
+  padding-right: 11px;
+  padding-left: 11px;
+
+  color: #5e6b7d;
+
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: left;
+
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
-.auxiliary-material-completeness.is-partial {
-  background: #fff3da;
-  color: #9a6300;
+
+/* 행 마우스 강조 */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody tr:hover
+td {
+  background: #edf5ff;
 }
 
 
-/* 빈 자료 안내 */
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody tr:hover
+td.is-unit-two {
+  background: #eaf8f0;
+}
 
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody tr:hover
+td.is-date {
+  background: #ddeaf8;
+}
+
+
+/* 빈 자료 */
+
+#efficiencyAuxiliaryMaterialsView
 .auxiliary-material-empty-state {
   margin: 0;
   padding: 54px 20px;
+
+  border-top: 1px solid #e3eaf3;
 
   background: #ffffff;
   color: #7b889a;
@@ -89624,32 +90171,27 @@ input {
 }
 
 
-/* 계산식 안내 */
-
-.auxiliary-material-formula-note {
-  margin: 12px 3px 0;
-  padding: 10px 12px;
-
-  border-radius: 9px;
-  background: #f5f7fa;
-  color: #718096;
-
-  font-size: 11px;
-  line-height: 1.5;
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-empty-state[hidden] {
+  display: none !important;
 }
 
 
 /* =====================================================
-  화면 폭이 좁을 때
+  중간 화면
 ===================================================== */
 
-@media (max-width: 1050px) {
+@media (max-width: 1180px) {
 
+  #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-query-card {
     grid-template-columns: 1fr;
   }
 
+
+  #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-force-refresh,
+  #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-status {
     grid-column: 1;
   }
@@ -89657,22 +90199,72 @@ input {
 }
 
 
+@media (max-width: 900px) {
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-period-fields {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-period-fields
+  label,
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-period-fields
+  input,
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-period-fields
+  button {
+    width: 100%;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-excel-import {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-excel-import__actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+}
+
+
+/* =====================================================
+  모바일
+===================================================== */
+
 @media (max-width: 700px) {
 
+  #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-heading h3 {
     font-size: 21px;
   }
 
+
+  #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-heading p {
     font-size: 13px;
   }
 
+
+  #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-query-card {
     gap: 13px;
     padding: 14px;
+
     border-radius: 13px;
   }
 
+
+  #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-month-navigation {
     grid-template-columns:
       42px
@@ -89680,200 +90272,98 @@ input {
       42px;
   }
 
+
+  #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-period-fields {
     grid-template-columns:
       repeat(2, minmax(0, 1fr));
   }
 
-  .auxiliary-material-period-fields label,
-  .auxiliary-material-period-fields input,
-  .auxiliary-material-period-fields button {
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-force-refresh {
+    align-items: flex-start;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-status {
+    font-size: 12px;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-excel-import {
+    padding: 14px;
+
+    border-radius: 13px;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-excel-import__actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  #importAuxiliaryMaterialExcelButton {
     width: 100%;
   }
 
-  .auxiliary-material-summary-grid {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-    gap: 9px;
+
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialExcelFileName {
+    max-width: 100%;
+
+    text-align: center;
   }
 
-  .auxiliary-material-summary-grid article {
-    min-height: 84px;
-    padding: 15px 13px;
-  }
 
-  .auxiliary-material-summary-grid strong {
-    font-size: 21px;
-  }
-
-  .auxiliary-material-table-card > header {
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-card
+  > header {
+    align-items: flex-start;
+    flex-direction: column;
     padding: 14px;
   }
 
-}
 
-/* =========================================================
-  부재료 평균 요약 - 호기별 · 통합 컴팩트 표시
-========================================================= */
-
-.auxiliary-material-summary-grid {
-  grid-template-columns:
-    minmax(135px, 0.62fr)
-    repeat(3, minmax(0, 1.15fr));
-  gap: 10px;
-}
-
-
-.auxiliary-material-summary-grid article {
-  min-height: 88px;
-  box-sizing: border-box;
-  padding: 13px 14px 12px;
-}
-
-
-.auxiliary-material-saved-card {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-
-.auxiliary-material-saved-card > span {
-  margin: 0 0 8px;
-}
-
-
-.auxiliary-material-saved-card > strong {
-  margin: 0;
-  font-size: 25px;
-}
-
-
-/* 재료명과 단위 */
-
-.auxiliary-material-average-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  margin-bottom: 10px;
-}
-
-
-.auxiliary-material-summary-grid
-.auxiliary-material-average-title > span {
-  overflow: hidden;
-  margin: 0;
-  color: #526179;
-  font-size: 11px;
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-
-.auxiliary-material-summary-grid
-.auxiliary-material-average-title > small {
-  flex: 0 0 auto;
-  margin: 0;
-  color: #8491a5;
-  font-size: 10px;
-  font-weight: 800;
-}
-
-
-/* 1호기 · 2호기 · 통합 */
-
-.auxiliary-material-average-values {
-  display: grid;
-  grid-template-columns:
-    repeat(3, minmax(0, 1fr));
-  align-items: center;
-  min-width: 0;
-}
-
-
-.auxiliary-material-average-value {
-  min-width: 0;
-  padding: 0 8px;
-  text-align: center;
-}
-
-
-.auxiliary-material-average-value + 
-.auxiliary-material-average-value {
-  border-left: 1px solid #dce5f1;
-}
-
-
-.auxiliary-material-summary-grid
-.auxiliary-material-average-value > span {
-  display: block;
-  margin: 0 0 5px;
-  color: #7a8799;
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 1;
-}
-
-
-.auxiliary-material-summary-grid
-.auxiliary-material-average-value > strong {
-  display: block;
-  overflow: hidden;
-  margin: 0;
-  color: #172033;
-  font-size: 18px;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.05;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-
-.auxiliary-material-summary-grid
-.auxiliary-material-average-value.is-combined {
-  border-radius: 7px;
-  background: rgba(22, 119, 255, 0.07);
-}
-
-
-.auxiliary-material-summary-grid
-.auxiliary-material-average-value.is-combined > span,
-.auxiliary-material-summary-grid
-.auxiliary-material-average-value.is-combined > strong {
-  color: #146bd3;
-}
-
-
-/* 중간 폭 */
-
-@media (max-width: 980px) {
-
-  .auxiliary-material-summary-grid {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-counts {
+    justify-content: space-between;
+    width: 100%;
   }
 
-}
 
-
-/* 모바일 */
-
-@media (max-width: 640px) {
-
-  .auxiliary-material-summary-grid {
-    grid-template-columns: 1fr;
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-wrap {
+    max-height: min(58dvh, 520px);
   }
 
-  .auxiliary-material-summary-grid article {
-    min-height: 84px;
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table
+  col.is-date {
+    width: 92px;
   }
 
-  .auxiliary-material-average-value > strong {
-    font-size: 17px;
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table th,
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table td {
+    padding-right: 7px;
+    padding-left: 7px;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table
+  tbody td {
+    font-size: 12px;
   }
 
 }
@@ -89926,4 +90416,711 @@ input {
     margin-top: 7px;
     margin-left: 0;
   }
+}
+
+/* =========================================================
+  석회석 전표 촬영 모바일 버튼 최종 보정
+
+  PC:
+  - 기존 화면 유지
+  - 전표 촬영 버튼 숨김
+
+  모바일:
+  - 업무일지 최신화 숨김
+  - 전표 촬영 표시
+  - 수동 입력 표시
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-slip-capture-button {
+  display: none !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-add-label-mobile {
+  display: none;
+}
+
+
+@media screen and (max-width: 768px) {
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-heading {
+    align-items: stretch !important;
+
+    gap: 6px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-heading-actions {
+    display: grid !important;
+
+    width: 100% !important;
+
+    grid-template-columns:
+      0.8fr
+      1.25fr
+      1.1fr !important;
+
+    align-items: stretch !important;
+
+    gap: 4px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-heading-actions button {
+    display: inline-flex;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 32px !important;
+
+    align-items: center;
+    justify-content: center;
+
+    padding:
+      0
+      4px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 9px !important;
+    font-weight: 800;
+
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+  }
+
+
+  /* 모바일에서는 업무일지 최신화 제거 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-import-button,
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-import-panel {
+    display: none !important;
+  }
+
+
+  /* 모바일 전표 촬영 버튼 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-button {
+    display: inline-flex !important;
+
+    border-color: #1f5fae;
+
+    background: #1f5fae;
+    color: #ffffff;
+  }
+
+
+  /* 수동 입력 버튼 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-add-button {
+    display: inline-flex !important;
+
+    grid-column: auto !important;
+
+    border-color: #b9cce3;
+
+    background: #eef5fc;
+    color: #1f5fae;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-add-label-desktop {
+    display: none;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-add-label-mobile {
+    display: inline;
+  }
+
+
+  /* 기존 CSS에서 숨긴 수동 입력창 복원 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-editor-panel:not([hidden]) {
+    display: block !important;
+  }
+
+}
+
+/* =========================================================
+  석회석 전표 촬영 · OCR 확인창
+
+  - 모바일 전용 전체화면 확인창
+  - 촬영사진 미리보기
+  - 인식된 실중량 수정
+  - 1호기·2호기 등록
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-slip-capture-panel[hidden] {
+  display: none !important;
+}
+
+
+/* PC에서는 사용하지 않음 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-slip-capture-panel:not([hidden]) {
+  display: none !important;
+}
+
+
+@media screen and (max-width: 768px) {
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView {
+    position: relative !important;
+  }
+
+
+  /* 확인창 전체 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-panel:not([hidden]) {
+    box-sizing: border-box;
+
+    display: flex !important;
+
+    position: absolute;
+
+    inset: 0;
+
+    z-index: 40;
+
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+
+    flex-direction: column;
+
+    gap: 8px;
+
+    padding: 9px;
+
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    border: 0;
+    border-radius: 0;
+
+    background: #f4f7fa;
+
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+
+  /* 상단 제목 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-header {
+    box-sizing: border-box;
+
+    display: flex;
+
+    flex: 0 0 auto;
+
+    min-height: 54px;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 10px;
+
+    padding:
+      8px
+      10px;
+
+    border-radius: 10px;
+
+    background: #173f6d;
+    color: #ffffff;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-header span {
+    display: block;
+
+    margin-bottom: 2px;
+
+    color: #cfe2f6;
+
+    font-size: 8px;
+    font-weight: 900;
+
+    letter-spacing: 0.08em;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-header h4 {
+    margin: 0;
+
+    color: #ffffff;
+
+    font-size: 16px;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-close-button {
+    display: inline-flex;
+
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+
+    border:
+      1px solid
+      rgba(255, 255, 255, 0.35);
+
+    border-radius: 8px;
+
+    background:
+      rgba(255, 255, 255, 0.12);
+
+    color: #ffffff;
+
+    font-size: 25px;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+
+  /* 사진과 OCR 결과 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-body {
+    display: flex;
+
+    flex: 0 0 auto;
+
+    flex-direction: column;
+
+    gap: 8px;
+  }
+
+
+  /* 촬영사진 미리보기 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-preview {
+    box-sizing: border-box;
+
+    display: grid;
+
+    width: 100%;
+    height: clamp(
+      170px,
+      31dvh,
+      280px
+    );
+
+    place-items: center;
+
+    overflow: hidden;
+
+    border: 1px solid #c8d5e2;
+    border-radius: 10px;
+
+    background: #e8eef4;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-preview img {
+    display: block;
+
+    width: 100%;
+    height: 100%;
+
+    object-fit: contain;
+
+    background: #edf2f7;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-preview-placeholder {
+    padding: 20px;
+
+    color: #66768a;
+
+    font-size: 11px;
+    font-weight: 800;
+
+    text-align: center;
+  }
+
+
+  /* OCR 결과 카드 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-result {
+    box-sizing: border-box;
+
+    padding:
+      10px
+      11px;
+
+    border: 1px solid #d3dde7;
+    border-radius: 10px;
+
+    background: #ffffff;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-status-message {
+    margin:
+      0
+      0
+      8px;
+
+    color: #315f91;
+
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1.4;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-status-message.is-error {
+    color: #bd2d2d;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-status-message.is-success {
+    color: #16764f;
+  }
+
+
+  /* 실중량 입력 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-quantity-field {
+    display: block;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-quantity-field
+  > span {
+    display: block;
+
+    margin-bottom: 5px;
+
+    color: #526174;
+
+    font-size: 10px;
+    font-weight: 900;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-quantity-input-wrap {
+    display: grid;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      52px;
+
+    align-items: stretch;
+
+    overflow: hidden;
+
+    border: 2px solid #88add3;
+    border-radius: 9px;
+
+    background: #ffffff;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSlipQuantityTonInput {
+    box-sizing: border-box;
+
+    width: 100%;
+    min-width: 0;
+    height: 48px;
+
+    padding:
+      0
+      12px;
+
+    border: 0;
+    outline: 0;
+
+    background: #ffffff;
+    color: #153f68;
+
+    font-size: 24px;
+    font-weight: 950;
+
+    text-align: right;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSlipQuantityTonInput:disabled {
+    background: #edf1f5;
+    color: #8290a0;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-quantity-input-wrap strong {
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    background: #e8f1fa;
+    color: #245f9d;
+
+    font-size: 13px;
+    font-weight: 950;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-kilogram-value {
+    display: block;
+
+    margin-top: 5px;
+
+    color: #607086;
+
+    font-size: 9px;
+    font-weight: 750;
+
+    text-align: right;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-verification-message {
+    margin:
+      8px
+      0
+      0;
+
+    padding:
+      7px
+      8px;
+
+    border-radius: 7px;
+
+    background: #fff8e7;
+    color: #7a6434;
+
+    font-size: 9px;
+    font-weight: 750;
+    line-height: 1.45;
+  }
+
+
+  /* 하단 버튼 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-actions {
+    display: grid;
+
+    flex: 0 0 auto;
+
+    grid-template-columns:
+      0.8fr
+      1fr
+      1fr;
+
+    gap: 5px;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-actions button {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+
+    padding:
+      0
+      5px;
+
+    border-radius: 8px;
+
+    font-size: 11px;
+    font-weight: 900;
+
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-retake-button {
+    border-color: #b7c5d3;
+
+    background: #ffffff;
+    color: #526174;
+  }
+
+
+  /* 기존 석회석 호기 색상과 통일 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-unit-one-button:not(:disabled) {
+    border-color: #17865f;
+
+    background: #17865f;
+    color: #ffffff;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-unit-two-button:not(:disabled) {
+    border-color: #7a4aa2;
+
+    background: #7a4aa2;
+    color: #ffffff;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-unit-button:disabled {
+    border-color: #cbd4dd;
+
+    background: #dfe5eb;
+    color: #8b97a4;
+
+    opacity: 1;
+  }
+
+
+  /* 사진 보관 안내 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-retention-notice {
+    flex: 0 0 auto;
+
+    margin: 0;
+
+    padding-bottom:
+      max(
+        2px,
+        env(safe-area-inset-bottom)
+      );
+
+    color: #798696;
+
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1.4;
+
+    text-align: center;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-panel[aria-busy="true"] {
+    cursor: progress;
+  }
+
+}
+
+
+/* 화면 높이가 작은 휴대폰 */
+
+@media screen and (max-width: 768px)
+  and (max-height: 700px) {
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-preview {
+    height: 145px;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-result {
+    padding:
+      8px
+      9px;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-verification-message {
+    margin-top: 6px;
+    padding: 5px 7px;
+  }
+
 }
