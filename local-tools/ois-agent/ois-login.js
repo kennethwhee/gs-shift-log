@@ -555,6 +555,1331 @@ const DATAPARC_STEAM_PROCESS_TIMEOUT =
   120000;
 
 /* =========================================================
+  DataPARC Tag Browser 통신 진단
+
+  실행 방법:
+  $env:DATAPARC_TAG_BROWSER_TRACE = "1"
+  node --use-system-ca ".\\local-tools\\ois-agent\\ois-login.js"
+
+  진단 목적:
+  - Excel / DataPARC 추가 기능을 사용하지 않는다.
+  - 보이는 Edge에서 Tag Browser 조회를 사용자가 한 번 실행한다.
+  - 그때 발생한 HTTP 요청·응답과 WebSocket 프레임을 JSONL로 기록한다.
+  - Cookie, Authorization, 비밀번호, 토큰 등 민감정보는 기록 전에 제거한다.
+
+  주의:
+  - 진단 모드에서는 기존 OIS 요청 폴링을 시작하지 않는다.
+  - Cloudflare 또는 업무일지 코드는 변경하지 않는다.
+========================================================= */
+
+const DATAPARC_TAG_BROWSER_TRACE_ENV =
+  "DATAPARC_TAG_BROWSER_TRACE";
+
+
+const DATAPARC_TAG_BROWSER_URL =
+  process.env.DATAPARC_TAG_BROWSER_URL ||
+  "http://dp.gspoge.com";
+
+
+const DATAPARC_TRACE_BODY_LIMIT =
+  512 *
+  1024;
+
+
+const DATAPARC_TRACE_SENSITIVE_KEY_PATTERN =
+  /(?:authorization|proxy-authorization|cookie|set-cookie|pass(?:word)?|passwd|pwd|secret|token|jwt|credential|client[_-]?secret|session(?:id)?|jsessionid|ticket|sso)/i;
+
+
+function isDataParcTagBrowserTraceEnabled() {
+  return [
+    "1",
+    "true",
+    "yes",
+    "on"
+  ].includes(
+    String(
+      process.env[
+        DATAPARC_TAG_BROWSER_TRACE_ENV
+      ] ||
+      ""
+    )
+      .trim()
+      .toLowerCase()
+  );
+}
+
+
+function isDataParcTraceSensitiveKey(
+  key
+) {
+  return DATAPARC_TRACE_SENSITIVE_KEY_PATTERN.test(
+    String(
+      key ||
+      ""
+    )
+  );
+}
+
+
+function sanitizeDataParcTraceValue(
+  value,
+  key =
+    "",
+  depth =
+    0
+) {
+  if (
+    isDataParcTraceSensitiveKey(
+      key
+    )
+  ) {
+    return "[REDACTED]";
+  }
+
+
+  if (
+    depth >
+      12
+  ) {
+    return "[MAX_DEPTH]";
+  }
+
+
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+    return value.map(
+      item => {
+        return sanitizeDataParcTraceValue(
+          item,
+          "",
+          depth +
+            1
+        );
+      }
+    );
+  }
+
+
+  if (
+    value &&
+    typeof value ===
+      "object"
+  ) {
+    return Object.fromEntries(
+      Object.entries(
+        value
+      ).map(
+        ([
+          childKey,
+          childValue
+        ]) => {
+          return [
+            childKey,
+            sanitizeDataParcTraceValue(
+              childValue,
+              childKey,
+              depth +
+                1
+            )
+          ];
+        }
+      )
+    );
+  }
+
+
+  if (
+    typeof value ===
+      "string"
+  ) {
+    return sanitizeDataParcTraceText(
+      value
+    );
+  }
+
+
+  return value;
+}
+
+
+function sanitizeDataParcTraceText(
+  value
+) {
+  return String(
+    value ??
+    ""
+  )
+    .replace(
+      /((?:authorization|proxy-authorization|cookie|set-cookie|pass(?:word)?|passwd|pwd|secret|token|jwt|credential|client[_-]?secret|session(?:id)?|jsessionid|ticket|sso)\s*["']?\s*[:=]\s*["']?)([^&\s,"'<>}]+)/gi,
+      "$1[REDACTED]"
+    );
+}
+
+
+function sanitizeDataParcTraceUrl(
+  rawUrl
+) {
+  const value =
+    String(
+      rawUrl ||
+      ""
+    );
+
+
+  try {
+    const parsedUrl =
+      new URL(
+        value
+      );
+
+
+    if (
+      parsedUrl.username
+    ) {
+      parsedUrl.username =
+        "[REDACTED]";
+    }
+
+
+    if (
+      parsedUrl.password
+    ) {
+      parsedUrl.password =
+        "[REDACTED]";
+    }
+
+
+    parsedUrl.pathname =
+      parsedUrl.pathname.replace(
+        /((?:;|\/)(?:jsessionid|sessionid|access[_-]?token|auth[_-]?token)=)[^/;]+/gi,
+        "$1[REDACTED]"
+      );
+
+
+    for (
+      const key of
+      Array.from(
+        parsedUrl.searchParams.keys()
+      )
+    ) {
+      if (
+        isDataParcTraceSensitiveKey(
+          key
+        )
+      ) {
+        parsedUrl.searchParams.set(
+          key,
+          "[REDACTED]"
+        );
+      }
+    }
+
+
+    return parsedUrl.toString();
+
+  } catch {
+    return sanitizeDataParcTraceText(
+      value
+    );
+  }
+}
+
+
+function sanitizeDataParcTraceHeaders(
+  headers
+) {
+  return Object.fromEntries(
+    Object.entries(
+      headers ||
+      {}
+    ).map(
+      ([
+        key,
+        value
+      ]) => {
+        return [
+          key,
+          isDataParcTraceSensitiveKey(
+            key
+          )
+            ? "[REDACTED]"
+            : sanitizeDataParcTraceText(
+                value
+              )
+        ];
+      }
+    )
+  );
+}
+
+
+function sanitizeDataParcTraceBodyText(
+  rawText,
+  contentType =
+    ""
+) {
+  const value =
+    String(
+      rawText ??
+      ""
+    );
+
+
+  if (
+    !value
+  ) {
+    return "";
+  }
+
+
+  try {
+    return JSON.stringify(
+      sanitizeDataParcTraceValue(
+        JSON.parse(
+          value
+        )
+      )
+    );
+
+  } catch {
+    // JSON이 아닌 요청 본문은 아래 방식으로 계속 확인한다.
+  }
+
+
+  if (
+    /x-www-form-urlencoded/i.test(
+      String(
+        contentType ||
+        ""
+      )
+    )
+  ) {
+    try {
+      const formData =
+        new URLSearchParams(
+          value
+        );
+
+
+      let fieldCount =
+        0;
+
+
+      for (
+        const [
+          key
+        ] of
+        formData.entries()
+      ) {
+        fieldCount +=
+          1;
+
+
+        if (
+          isDataParcTraceSensitiveKey(
+            key
+          )
+        ) {
+          formData.set(
+            key,
+            "[REDACTED]"
+          );
+        }
+      }
+
+
+      if (
+        fieldCount >
+          0
+      ) {
+        return formData.toString();
+      }
+
+    } catch {
+      // 일반 문자열로 처리한다.
+    }
+  }
+
+
+  return sanitizeDataParcTraceText(
+    value
+  );
+}
+
+
+function buildDataParcTraceBody(
+  rawBuffer,
+  contentType =
+    ""
+) {
+  if (
+    !rawBuffer ||
+    rawBuffer.length ===
+      0
+  ) {
+    return null;
+  }
+
+
+  const truncated =
+    rawBuffer.length >
+      DATAPARC_TRACE_BODY_LIMIT;
+
+
+  const limitedBuffer =
+    rawBuffer.subarray(
+      0,
+      DATAPARC_TRACE_BODY_LIMIT
+    );
+
+
+  const isText =
+    /(?:json|text|xml|html|javascript|x-www-form-urlencoded|graphql)/i.test(
+      String(
+        contentType ||
+        ""
+      )
+    );
+
+
+  if (
+    isText
+  ) {
+    return {
+      encoding:
+        "utf8",
+
+      value:
+        sanitizeDataParcTraceBodyText(
+          limitedBuffer.toString(
+            "utf8"
+          ),
+          contentType
+        ),
+
+      byteLength:
+        rawBuffer.length,
+
+      truncated
+    };
+  }
+
+
+  return {
+    encoding:
+      "base64",
+
+    value:
+      limitedBuffer.toString(
+        "base64"
+      ),
+
+    byteLength:
+      rawBuffer.length,
+
+    truncated
+  };
+}
+
+
+function buildDataParcTracePostData(
+  request
+) {
+  const rawBuffer =
+    request.postDataBuffer();
+
+
+  if (
+    rawBuffer ===
+      null
+  ) {
+    return null;
+  }
+
+
+  const headers =
+    request.headers();
+
+
+  return buildDataParcTraceBody(
+    rawBuffer,
+    headers[
+      "content-type"
+    ] ||
+      "text/plain"
+  );
+}
+
+
+function readDataParcTraceResponseBody(
+  response,
+  timeoutMilliseconds =
+    10000
+) {
+  return new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+      const timeoutId =
+        setTimeout(
+          () => {
+            reject(
+              new Error(
+                `응답 본문 대기 시간이 ${timeoutMilliseconds}ms를 초과했습니다.`
+              )
+            );
+          },
+          timeoutMilliseconds
+        );
+
+
+      response
+        .body()
+        .then(
+          body => {
+            clearTimeout(
+              timeoutId
+            );
+
+
+            resolve(
+              body
+            );
+          },
+          error => {
+            clearTimeout(
+              timeoutId
+            );
+
+
+            reject(
+              error
+            );
+          }
+        );
+    }
+  );
+}
+
+
+function shouldCaptureDataParcTraceRequest(
+  request
+) {
+  return ![
+    "image",
+    "font",
+    "media",
+    "stylesheet"
+  ].includes(
+    request.resourceType()
+  );
+}
+
+
+function waitForDataParcTraceEnter(
+  message
+) {
+  console.log(
+    ""
+  );
+
+
+  console.log(
+    message
+  );
+
+
+  return new Promise(
+    resolve => {
+      process.stdin.resume();
+
+
+      process.stdin.once(
+        "data",
+        () => {
+          process.stdin.pause();
+
+
+          resolve();
+        }
+      );
+    }
+  );
+}
+
+
+function getDataParcTraceTimestampForFile() {
+  const now =
+    new Date();
+
+
+  const pad =
+    value => {
+      return String(
+        value
+      ).padStart(
+        2,
+        "0"
+      );
+    };
+
+
+  return [
+    now.getFullYear(),
+    pad(
+      now.getMonth() +
+        1
+    ),
+    pad(
+      now.getDate()
+    ),
+    "-",
+    pad(
+      now.getHours()
+    ),
+    pad(
+      now.getMinutes()
+    ),
+    pad(
+      now.getSeconds()
+    )
+  ].join(
+    ""
+  );
+}
+
+
+async function runDataParcTagBrowserTrace() {
+  const traceFilePath =
+    path.join(
+      __dirname,
+      `dataparc-tag-browser-trace-${getDataParcTraceTimestampForFile()}.jsonl`
+    );
+
+
+  let browser =
+    null;
+
+
+  let context =
+    null;
+
+
+  let recording =
+    false;
+
+
+  let captureStartedAt =
+    0;
+
+
+  let traceEntryCount =
+    0;
+
+
+  const pendingTasks =
+    new Set();
+
+
+  const attachedPages =
+    new WeakSet();
+
+
+  const writeTrace =
+    (
+      eventType,
+      data =
+        {}
+    ) => {
+      traceEntryCount +=
+        1;
+
+
+      const record = {
+        sequence:
+          traceEntryCount,
+
+        capturedAt:
+          new Date()
+            .toISOString(),
+
+        elapsedMilliseconds:
+          captureStartedAt
+            ? Date.now() -
+              captureStartedAt
+            : 0,
+
+        eventType,
+
+        ...data
+      };
+
+
+      fs.appendFileSync(
+        traceFilePath,
+        `${JSON.stringify(record)}\r\n`,
+        "utf8"
+      );
+    };
+
+
+  const trackTask =
+    promise => {
+      pendingTasks.add(
+        promise
+      );
+
+
+      promise.then(
+        () => {
+          pendingTasks.delete(
+            promise
+          );
+        },
+        () => {
+          pendingTasks.delete(
+            promise
+          );
+        }
+      );
+    };
+
+
+  const attachPageListeners =
+    page => {
+      if (
+        attachedPages.has(
+          page
+        )
+      ) {
+        return;
+      }
+
+
+      attachedPages.add(
+        page
+      );
+
+
+      page.on(
+        "websocket",
+        webSocket => {
+          const webSocketUrl =
+            sanitizeDataParcTraceUrl(
+              webSocket.url()
+            );
+
+
+          if (
+            recording
+          ) {
+            writeTrace(
+              "websocket-open",
+              {
+                url:
+                  webSocketUrl,
+
+                pageUrl:
+                  sanitizeDataParcTraceUrl(
+                    page.url()
+                  )
+              }
+            );
+
+
+            console.log(
+              "[DP TRACE] WebSocket 연결:",
+              webSocketUrl
+            );
+          }
+
+
+          const writeFrame =
+            (
+              direction,
+              frame
+            ) => {
+              if (
+                !recording
+              ) {
+                return;
+              }
+
+
+              const payload =
+                frame?.payload;
+
+
+              const isBuffer =
+                Buffer.isBuffer(
+                  payload
+                );
+
+
+              writeTrace(
+                direction,
+                {
+                  url:
+                    webSocketUrl,
+
+                  payload: {
+                    encoding:
+                      isBuffer
+                        ? "base64"
+                        : "utf8",
+
+                    value:
+                      isBuffer
+                        ? payload
+                            .subarray(
+                              0,
+                              DATAPARC_TRACE_BODY_LIMIT
+                            )
+                            .toString(
+                              "base64"
+                            )
+                        : sanitizeDataParcTraceBodyText(
+                            String(
+                              payload ??
+                              ""
+                            ).slice(
+                              0,
+                              DATAPARC_TRACE_BODY_LIMIT
+                            )
+                          ),
+
+                    truncated:
+                      isBuffer
+                        ? payload.length >
+                          DATAPARC_TRACE_BODY_LIMIT
+                        : String(
+                            payload ??
+                            ""
+                          ).length >
+                          DATAPARC_TRACE_BODY_LIMIT
+                  }
+                }
+              );
+            };
+
+
+          webSocket.on(
+            "framesent",
+            frame => {
+              writeFrame(
+                "websocket-frame-sent",
+                frame
+              );
+            }
+          );
+
+
+          webSocket.on(
+            "framereceived",
+            frame => {
+              writeFrame(
+                "websocket-frame-received",
+                frame
+              );
+            }
+          );
+
+
+          webSocket.on(
+            "socketerror",
+            error => {
+              if (
+                recording
+              ) {
+                writeTrace(
+                  "websocket-error",
+                  {
+                    url:
+                      webSocketUrl,
+
+                    error:
+                      sanitizeDataParcTraceText(
+                        error
+                      )
+                  }
+                );
+              }
+            }
+          );
+
+
+          webSocket.on(
+            "close",
+            () => {
+              if (
+                recording
+              ) {
+                writeTrace(
+                  "websocket-close",
+                  {
+                    url:
+                      webSocketUrl
+                  }
+                );
+              }
+            }
+          );
+        }
+      );
+    };
+
+
+  try {
+    console.log(
+      "=========================================="
+    );
+
+
+    console.log(
+      "DataPARC Tag Browser 통신 진단"
+    );
+
+
+    console.log(
+      "=========================================="
+    );
+
+
+    console.log(
+      "Excel과 DataPARC 추가 기능은 사용하지 않습니다."
+    );
+
+
+    console.log(
+      "진단 주소:",
+      DATAPARC_TAG_BROWSER_URL
+    );
+
+
+    browser =
+      await chromium.launch({
+        channel:
+          "msedge",
+
+        headless:
+          false,
+
+        slowMo:
+          40
+      });
+
+
+    context =
+      await browser.newContext({
+        ignoreHTTPSErrors:
+          true,
+
+        viewport:
+          null
+      });
+
+
+    context.on(
+      "page",
+      page => {
+        attachPageListeners(
+          page
+        );
+      }
+    );
+
+
+    context.on(
+      "request",
+      request => {
+        if (
+          !recording ||
+          !shouldCaptureDataParcTraceRequest(
+            request
+          )
+        ) {
+          return;
+        }
+
+
+        let frameUrl =
+          "";
+
+
+        try {
+          frameUrl =
+            request.frame()
+              .url();
+
+        } catch {
+          frameUrl =
+            "";
+        }
+
+
+        const record = {
+          method:
+            request.method(),
+
+          resourceType:
+            request.resourceType(),
+
+          url:
+            sanitizeDataParcTraceUrl(
+              request.url()
+            ),
+
+          frameUrl:
+            sanitizeDataParcTraceUrl(
+              frameUrl
+            ),
+
+          headers:
+            sanitizeDataParcTraceHeaders(
+              request.headers()
+            ),
+
+          postData:
+            buildDataParcTracePostData(
+              request
+            )
+        };
+
+
+        writeTrace(
+          "http-request",
+          record
+        );
+
+
+        if (
+          [
+            "xhr",
+            "fetch",
+            "document",
+            "eventsource"
+          ].includes(
+            record.resourceType
+          )
+        ) {
+          console.log(
+            `[DP TRACE] ${record.method} ${record.resourceType}:`,
+            record.url
+          );
+        }
+      }
+    );
+
+
+    context.on(
+      "response",
+      response => {
+        if (
+          !recording ||
+          !shouldCaptureDataParcTraceRequest(
+            response.request()
+          )
+        ) {
+          return;
+        }
+
+
+        const task =
+          (
+            async () => {
+              const request =
+                response.request();
+
+
+              const headers =
+                await response
+                  .allHeaders()
+                  .catch(
+                    () => response.headers()
+                  );
+
+
+              const contentType =
+                headers[
+                  "content-type"
+                ] ||
+                "";
+
+
+              let body =
+                null;
+
+
+              let bodyError =
+                "";
+
+
+              if (
+                [
+                  "xhr",
+                  "fetch",
+                  "document",
+                  "script",
+                  "eventsource"
+                ].includes(
+                  request.resourceType()
+                ) ||
+                /(?:json|text|xml|javascript|octet-stream)/i.test(
+                  contentType
+                )
+              ) {
+                try {
+                  body =
+                    buildDataParcTraceBody(
+                      await readDataParcTraceResponseBody(
+                        response
+                      ),
+                      contentType
+                    );
+
+                } catch (
+                  error
+                ) {
+                  bodyError =
+                    String(
+                      error?.message ||
+                      error ||
+                      ""
+                    );
+                }
+              }
+
+
+              writeTrace(
+                "http-response",
+                {
+                  status:
+                    response.status(),
+
+                  statusText:
+                    response.statusText(),
+
+                  resourceType:
+                    request.resourceType(),
+
+                  url:
+                    sanitizeDataParcTraceUrl(
+                      response.url()
+                    ),
+
+                  headers:
+                    sanitizeDataParcTraceHeaders(
+                      headers
+                    ),
+
+                  body,
+
+                  bodyError:
+                    sanitizeDataParcTraceText(
+                      bodyError
+                    )
+                }
+              );
+            }
+          )();
+
+
+        trackTask(
+          task
+        );
+      }
+    );
+
+
+    const page =
+      await context.newPage();
+
+
+    attachPageListeners(
+      page
+    );
+
+
+    await page
+      .goto(
+        DATAPARC_TAG_BROWSER_URL,
+        {
+          waitUntil:
+            "domcontentloaded",
+
+          timeout:
+            30000
+        }
+      )
+      .catch(
+        error => {
+          console.warn(
+            "DataPARC 첫 화면 자동 열기 실패. 열린 Edge 주소창에서 직접 접속하세요:",
+            error instanceof Error
+              ? error.message
+              : error
+          );
+        }
+      );
+
+
+    await waitForDataParcTraceEnter(
+      [
+        "1) 열린 Edge에서 dp.gspoge.com에 접속합니다.",
+        "2) Tag Browser 화면까지만 엽니다.",
+        "3) 아직 태그 선택·날짜 입력·조회는 하지 않습니다.",
+        "4) 준비가 끝나면 이 PowerShell로 돌아와 Enter를 누르세요."
+      ].join(
+        "\n"
+      )
+    );
+
+
+    fs.writeFileSync(
+      traceFilePath,
+      "",
+      "utf8"
+    );
+
+
+    captureStartedAt =
+      Date.now();
+
+
+    recording =
+      true;
+
+
+    writeTrace(
+      "capture-start",
+      {
+        startPageUrls:
+          context.pages()
+            .map(
+              currentPage => {
+                return sanitizeDataParcTraceUrl(
+                  currentPage.url()
+                );
+              }
+            )
+      }
+    );
+
+
+    console.log(
+      ""
+    );
+
+
+    console.log(
+      "통신 기록을 시작했습니다. 이제 Edge에서 태그 선택부터 결과 조회까지 한 번만 진행하세요."
+    );
+
+
+    await waitForDataParcTraceEnter(
+      [
+        "Tag Browser 결과가 화면에 완전히 표시될 때까지 기다리세요.",
+        "결과가 표시되면 이 PowerShell로 돌아와 Enter를 누르세요."
+      ].join(
+        "\n"
+      )
+    );
+
+
+    await new Promise(
+      resolve => {
+        setTimeout(
+          resolve,
+          1500
+        );
+      }
+    );
+
+
+    recording =
+      false;
+
+
+    await Promise.allSettled(
+      Array.from(
+        pendingTasks
+      )
+    );
+
+
+    writeTrace(
+      "capture-stop",
+      {
+        finalPageUrls:
+          context.pages()
+            .map(
+              currentPage => {
+                return sanitizeDataParcTraceUrl(
+                  currentPage.url()
+                );
+              }
+            ),
+
+        entryCountBeforeStop:
+          traceEntryCount
+      }
+    );
+
+
+    console.log(
+      ""
+    );
+
+
+    console.log(
+      "DataPARC Tag Browser 통신 진단이 완료되었습니다."
+    );
+
+
+    console.log(
+      "기록 건수:",
+      traceEntryCount
+    );
+
+
+    console.log(
+      "진단 파일:",
+      traceFilePath
+    );
+
+  } finally {
+    recording =
+      false;
+
+
+    if (
+      context
+    ) {
+      await context
+        .close()
+        .catch(
+          () => null
+        );
+    }
+
+
+    if (
+      browser
+    ) {
+      await browser
+        .close()
+        .catch(
+          () => null
+        );
+    }
+  }
+}
+
+/* =========================================================
   TAG별 LOG 조회 화면 프레임 찾기
 
   화면 확인 기준:
@@ -13244,9 +14569,21 @@ async function loginOis() {
 
 /* =========================================================
   OIS 연동 프로그램 실행
+
+  DATAPARC_TAG_BROWSER_TRACE=1:
+  - OIS 폴링 대신 Tag Browser 통신 진단만 실행한다.
+
+  그 외:
+  - 기존 OIS 상시 연동 에이전트를 그대로 실행한다.
 ========================================================= */
 
-loginOis()
+const oisAgentStartPromise =
+  isDataParcTagBrowserTraceEnabled()
+    ? runDataParcTagBrowserTrace()
+    : loginOis();
+
+
+oisAgentStartPromise
   .catch(
     error => {
       console.error(
@@ -13255,7 +14592,9 @@ loginOis()
 
 
       console.error(
-        "OIS 연동 프로그램 실행 실패:"
+        isDataParcTagBrowserTraceEnabled()
+          ? "DataPARC Tag Browser 통신 진단 실패:"
+          : "OIS 연동 프로그램 실행 실패:"
       );
 
 

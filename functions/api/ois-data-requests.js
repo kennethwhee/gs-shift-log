@@ -4112,6 +4112,33 @@ async function saveAuxiliaryMaterialDailyRecords(
   }
 
 
+  /*
+    해당 날짜에 적용되는
+    1·2호기 Slurry 고정 밀도
+  */
+  const fixedDensitySettings =
+    await loadAuxiliaryMaterialDensitySettings(
+      database
+    );
+
+
+  const fixedDensityByUnit =
+    new Map(
+      fixedDensitySettings
+        .filter(
+          setting =>
+            recordDate >=
+            setting.effectiveFrom
+        )
+        .map(
+          setting => [
+            setting.unitNo,
+            setting.densityKgm3
+          ]
+        )
+    );
+
+
   const receiptByUnit =
     await loadLimestoneReceiptQuantitiesByUnit(
       database,
@@ -4229,12 +4256,45 @@ async function saveAuxiliaryMaterialDailyRecords(
       );
 
 
-    const density =
+    /*
+      OIS에서 조회한 원래 밀도
+    */
+    const oisDensity =
       normalizeAuxiliaryMaterialNumber(
         result.limeSlurryDensityKgm3
       );
 
 
+    /*
+      적용 시작일 이후에는
+      저장된 호기별 고정 밀도를 우선 사용한다.
+
+      적용되는 고정값이 없으면
+      OIS 조회 밀도를 그대로 사용한다.
+    */
+    const fixedDensity =
+      normalizeAuxiliaryMaterialNumber(
+        fixedDensityByUnit.has(
+          unitNo
+        )
+          ? fixedDensityByUnit.get(
+              unitNo
+            )
+          : null
+      );
+
+
+    const density =
+      fixedDensity !==
+        null
+        ? fixedDensity
+        : oisDensity;
+
+
+    /*
+      최종 적용된 밀도로
+      Lime Powder를 다시 계산한다.
+    */
     const limePowder =
       calculateLimePowderTonPerDay(
         totalSlurryFlow,
@@ -4841,6 +4901,606 @@ function normalizeAuxiliaryMaterialManualRecord(
         )
     }
   };
+}
+
+/* =========================================================
+  날짜·호기별 부재료 수치 수동 수정
+========================================================= */
+
+async function updateAuxiliaryMaterialManualRecords(
+  context,
+  body
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const rawItems =
+    Array.isArray(
+      body.items
+    )
+      ? body.items
+      : [];
+
+
+  if (
+    rawItems.length <
+      1 ||
+    rawItems.length >
+      732
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "부재료 수정자료는 한 번에 1건 이상 732건 이하로 저장해 주세요."
+      },
+      400
+    );
+  }
+
+
+  let items;
+
+
+  try {
+    items =
+      rawItems.map(
+        normalizeAuxiliaryMaterialManualRecord
+      );
+
+  } catch (
+    error
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          error instanceof Error
+            ? error.message
+            : "부재료 수정값을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const targetKeys =
+    new Set();
+
+
+  for (
+    const item of
+    items
+  ) {
+    const key =
+      `${item.recordDate}:${item.unitNo}`;
+
+
+    if (
+      targetKeys.has(
+        key
+      )
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            `${item.recordDate} ${item.unitNo}호기 수정자료가 중복되었습니다.`
+        },
+        400
+      );
+    }
+
+
+    targetKeys.add(
+      key
+    );
+  }
+
+
+  const database =
+    context.env.DB;
+
+
+  await ensureAuxiliaryMaterialDailyTable(
+    database
+  );
+
+
+  const dates =
+    items
+      .map(
+        item => item.recordDate
+      )
+      .sort();
+
+
+  const existingResult =
+    await database
+      .prepare(`
+        SELECT *
+        FROM auxiliary_material_daily
+        WHERE record_date >= ?
+          AND record_date <= ?
+      `)
+      .bind(
+        dates[0],
+        dates[
+          dates.length -
+          1
+        ]
+      )
+      .all();
+
+
+  const existingByKey =
+    new Map(
+      (
+        Array.isArray(
+          existingResult.results
+        )
+          ? existingResult.results
+          : []
+      ).map(
+        row => [
+          `${normalizeText(row.record_date)}:${Number(row.unit_no)}`,
+          row
+        ]
+      )
+    );
+
+
+  for (
+    const item of
+    items
+  ) {
+    const existing =
+      existingByKey.get(
+        `${item.recordDate}:${item.unitNo}`
+      );
+
+
+    if (
+      !existing
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            `${item.recordDate} ${item.unitNo}호기 저장자료가 없어 수정할 수 없습니다.`
+        },
+        404
+      );
+    }
+
+
+    if (
+      item.expectedRevision >
+        0 &&
+      Number(
+        existing.revision
+      ) !==
+        item.expectedRevision
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            `${item.recordDate} ${item.unitNo}호기 자료가 다른 사용자에 의해 변경되었습니다. 다시 조회한 뒤 수정해 주세요.`
+        },
+        409
+      );
+    }
+  }
+
+
+  const user =
+    authentication.user;
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  const statements =
+    items.map(
+      item => {
+        const values =
+          item.values;
+
+
+        const ammoniaFlowM3h =
+          values.ammoniaM3d ===
+            null
+            ? null
+            : normalizeAuxiliaryMaterialNumber(
+                values.ammoniaM3d /
+                24
+              );
+
+
+        const isComplete =
+          values.limestoneUsageTpd !==
+            null &&
+          values.limePowderTpd !==
+            null &&
+          values.ammoniaM3d !==
+            null &&
+          values.soxPpm !==
+            null &&
+          values.noxPpm !==
+            null;
+
+
+        return database
+          .prepare(`
+            UPDATE auxiliary_material_daily
+            SET
+              limestone_receipt_ton = ?,
+              limestone_usage_tpd = ?,
+
+              lime_slurry_flow_m3h = ?,
+              lime_slurry_density_kgm3 = ?,
+              lime_powder_tpd = ?,
+
+              ammonia_flow_m3h = ?,
+              ammonia_m3d = ?,
+
+              sox_ppm = ?,
+              nox_ppm = ?,
+
+              is_complete = ?,
+
+              updated_by_id = ?,
+              updated_by_name = ?,
+              updated_at = ?,
+              revision = revision + 1
+
+            WHERE record_date = ?
+              AND unit_no = ?
+          `)
+          .bind(
+            values.limestoneReceiptTon,
+            values.limestoneUsageTpd,
+
+            values.limeSlurryFlowM3h,
+            values.limeSlurryDensityKgm3,
+            values.limePowderTpd,
+
+            ammoniaFlowM3h,
+            values.ammoniaM3d,
+
+            values.soxPpm,
+            values.noxPpm,
+
+            isComplete
+              ? 1
+              : 0,
+
+            user.employeeNo,
+            user.name,
+            now,
+
+            item.recordDate,
+            item.unitNo
+          );
+      }
+    );
+
+
+  await database.batch(
+    statements
+  );
+
+
+  const updatedResult =
+    await database
+      .prepare(`
+        SELECT *
+        FROM auxiliary_material_daily
+        WHERE record_date >= ?
+          AND record_date <= ?
+        ORDER BY record_date DESC,
+                 unit_no ASC
+      `)
+      .bind(
+        dates[0],
+        dates[
+          dates.length -
+          1
+        ]
+      )
+      .all();
+
+
+  const updatedItems =
+    (
+      Array.isArray(
+        updatedResult.results
+      )
+        ? updatedResult.results
+        : []
+    )
+      .filter(
+        row => targetKeys.has(
+          `${normalizeText(row.record_date)}:${Number(row.unit_no)}`
+        )
+      )
+      .map(
+        convertAuxiliaryMaterialRow
+      )
+      .filter(
+        Boolean
+      );
+
+
+  return jsonResponse({
+    ok:
+      true,
+
+    items:
+      updatedItems,
+
+    updatedRecordCount:
+      updatedItems.length,
+
+    message:
+      `${updatedItems.length}건의 부재료 수치를 수정했습니다.`
+  });
+}
+
+/* =========================================================
+  Slurry 밀도 고정값 저장
+========================================================= */
+
+async function saveAuxiliaryMaterialDensitySettings(
+  context,
+  body
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const effectiveFrom =
+    normalizeText(
+      body.effectiveFrom
+    );
+
+
+  if (
+    !isValidIsoDate(
+      effectiveFrom
+    ) ||
+    effectiveFrom <
+      "2026-08-10"
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "Slurry 밀도 적용 시작일을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  let unitOneDensityKgm3;
+  let unitTwoDensityKgm3;
+
+
+  try {
+    unitOneDensityKgm3 =
+      normalizeAuxiliaryMaterialManualValue(
+        body.unitOneDensityKgm3,
+        "1호기 Slurry 밀도",
+        {
+          minimum:
+            1000,
+
+          minimumExclusive:
+            true,
+
+          maximum:
+            2000
+        }
+      );
+
+
+    unitTwoDensityKgm3 =
+      normalizeAuxiliaryMaterialManualValue(
+        body.unitTwoDensityKgm3,
+        "2호기 Slurry 밀도",
+        {
+          minimum:
+            1000,
+
+          minimumExclusive:
+            true,
+
+          maximum:
+            2000
+        }
+      );
+
+
+    if (
+      unitOneDensityKgm3 ===
+        null ||
+      unitTwoDensityKgm3 ===
+        null
+    ) {
+      throw new Error(
+        "1호기와 2호기 Slurry 밀도를 모두 입력해 주세요."
+      );
+    }
+
+  } catch (
+    error
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          error instanceof Error
+            ? error.message
+            : "Slurry 밀도 고정값을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const database =
+    context.env.DB;
+
+
+  await ensureAuxiliaryMaterialDensitySettingsTable(
+    database
+  );
+
+
+  const user =
+    authentication.user;
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  const settings = [
+    {
+      unitNo:
+        1,
+
+      densityKgm3:
+        unitOneDensityKgm3
+    },
+
+    {
+      unitNo:
+        2,
+
+      densityKgm3:
+        unitTwoDensityKgm3
+    }
+  ];
+
+
+  const statements =
+    settings.map(
+      setting =>
+        database
+          .prepare(`
+            INSERT INTO auxiliary_material_density_settings (
+              unit_no,
+              density_kgm3,
+              effective_from,
+
+              created_by_id,
+              created_by_name,
+              updated_by_id,
+              updated_by_name,
+
+              created_at,
+              updated_at,
+              revision
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+
+            ON CONFLICT(unit_no)
+            DO UPDATE SET
+              density_kgm3 =
+                excluded.density_kgm3,
+
+              effective_from =
+                excluded.effective_from,
+
+              updated_by_id =
+                excluded.updated_by_id,
+
+              updated_by_name =
+                excluded.updated_by_name,
+
+              updated_at =
+                excluded.updated_at,
+
+              revision =
+                auxiliary_material_density_settings.revision + 1
+          `)
+          .bind(
+            setting.unitNo,
+            setting.densityKgm3,
+            effectiveFrom,
+
+            user.employeeNo,
+            user.name,
+            user.employeeNo,
+            user.name,
+
+            now,
+            now
+          )
+    );
+
+
+  await database.batch(
+    statements
+  );
+
+
+  const fixedDensitySettings =
+    await loadAuxiliaryMaterialDensitySettings(
+      database
+    );
+
+
+  return jsonResponse({
+    ok:
+      true,
+
+    effectiveFrom,
+
+    fixedDensitySettings,
+
+    message:
+      `${effectiveFrom}부터 1·2호기 Slurry 밀도 고정값을 저장했습니다.`
+  });
 }
 
 /* =========================================================
@@ -7866,6 +8526,32 @@ export async function onRequestPost(
       );
     }
 
+/*
+  부재료 날짜·호기별 수치 수정
+*/
+if (
+  action ===
+    "update_auxiliary_material_rows"
+) {
+  return await updateAuxiliaryMaterialManualRecords(
+    context,
+    body
+  );
+}
+
+
+/*
+  Slurry 밀도 고정값 저장
+*/
+if (
+  action ===
+    "save_auxiliary_material_density_settings"
+) {
+  return await saveAuxiliaryMaterialDensitySettings(
+    context,
+    body
+  );
+}    
 
     /*
       기존 부재료 엑셀 자료 등록
