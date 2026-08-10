@@ -89221,6 +89221,442 @@ if (
   initializeAuxiliaryMaterialExcelImportControls();
 }
 
+/* =====================================================
+  부재료 표 보기 전환
+
+  - 컴팩트 보기
+  - 화면 크게 보기
+  - Esc 키로 크게 보기 종료
+  - 전환 전 스크롤 위치 유지
+===================================================== */
+
+const auxiliaryMaterialTableViewState = {
+  isCompact:
+    false,
+
+  isExpanded:
+    false
+};
+
+
+function getAuxiliaryMaterialTableViewElements() {
+  const view =
+    document.getElementById(
+      "efficiencyAuxiliaryMaterialsView"
+    );
+
+  const card =
+    document.getElementById(
+      "auxiliaryMaterialTableCard"
+    );
+
+  return {
+    view,
+
+    card,
+
+    tableWrap:
+      card?.querySelector(
+        ".auxiliary-material-table-wrap"
+      ) ||
+      null,
+
+    compactButton:
+      document.getElementById(
+        "toggleAuxiliaryMaterialCompactButton"
+      ),
+
+    expandedButton:
+      document.getElementById(
+        "toggleAuxiliaryMaterialExpandedButton"
+      )
+  };
+}
+
+
+/* =====================================================
+  표 스크롤 위치 복원
+===================================================== */
+
+function restoreAuxiliaryMaterialTableScroll(
+  tableWrap,
+  scrollLeft,
+  scrollTop
+) {
+  if (
+    !tableWrap
+  ) {
+    return;
+  }
+
+
+  window.requestAnimationFrame(
+    () => {
+      tableWrap.scrollLeft =
+        scrollLeft;
+
+      tableWrap.scrollTop =
+        scrollTop;
+    }
+  );
+}
+
+
+/* =====================================================
+  컴팩트 보기 전환
+===================================================== */
+
+function setAuxiliaryMaterialCompactView(
+  isCompact
+) {
+  const {
+    view,
+    tableWrap,
+    compactButton
+  } =
+    getAuxiliaryMaterialTableViewElements();
+
+
+  if (
+    !view ||
+    !compactButton
+  ) {
+    return;
+  }
+
+
+  const nextState =
+    Boolean(
+      isCompact
+    );
+
+
+  const scrollLeft =
+    tableWrap?.scrollLeft ||
+    0;
+
+  const scrollTop =
+    tableWrap?.scrollTop ||
+    0;
+
+
+  auxiliaryMaterialTableViewState
+    .isCompact =
+    nextState;
+
+
+  view.classList.toggle(
+    "is-compact-view",
+    nextState
+  );
+
+
+  compactButton.setAttribute(
+    "aria-pressed",
+    String(
+      nextState
+    )
+  );
+
+
+  compactButton.textContent =
+    nextState
+      ? "기본 보기"
+      : "컴팩트 보기";
+
+
+  compactButton.title =
+    nextState
+      ? "기본 크기와 간격으로 돌아가기"
+      : "열과 행 간격을 줄여 더 많은 자료 보기";
+
+
+  restoreAuxiliaryMaterialTableScroll(
+    tableWrap,
+    scrollLeft,
+    scrollTop
+  );
+}
+
+
+/* =====================================================
+  크게 보기 버튼 문구
+===================================================== */
+
+function updateAuxiliaryMaterialExpandedButton(
+  button,
+  isExpanded
+) {
+  if (
+    !button
+  ) {
+    return;
+  }
+
+
+  const icon =
+    document.createElement(
+      "span"
+    );
+
+
+  icon.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+
+  icon.textContent =
+    isExpanded
+      ? "↙"
+      : "⛶";
+
+
+  button.replaceChildren(
+    icon,
+
+    document.createTextNode(
+      isExpanded
+        ? " 축소하기"
+        : " 크게 보기"
+    )
+  );
+
+
+  button.setAttribute(
+    "aria-pressed",
+    String(
+      isExpanded
+    )
+  );
+
+
+  button.title =
+    isExpanded
+      ? "원래 화면 크기로 돌아가기"
+      : "부재료 표를 화면 전체로 보기";
+}
+
+
+/* =====================================================
+  크게 보기 전환
+===================================================== */
+
+function setAuxiliaryMaterialExpandedView(
+  isExpanded,
+  options = {}
+) {
+  const {
+    card,
+    tableWrap,
+    expandedButton
+  } =
+    getAuxiliaryMaterialTableViewElements();
+
+
+  if (
+    !card ||
+    !expandedButton
+  ) {
+    return;
+  }
+
+
+  const nextState =
+    Boolean(
+      isExpanded
+    );
+
+
+  const scrollLeft =
+    tableWrap?.scrollLeft ||
+    0;
+
+  const scrollTop =
+    tableWrap?.scrollTop ||
+    0;
+
+
+  auxiliaryMaterialTableViewState
+    .isExpanded =
+    nextState;
+
+
+  card.classList.toggle(
+    "is-expanded-view",
+    nextState
+  );
+
+
+  document.body.classList.toggle(
+    "is-auxiliary-material-expanded",
+    nextState
+  );
+
+
+  updateAuxiliaryMaterialExpandedButton(
+    expandedButton,
+    nextState
+  );
+
+
+  restoreAuxiliaryMaterialTableScroll(
+    tableWrap,
+    scrollLeft,
+    scrollTop
+  );
+
+
+  if (
+    !nextState &&
+    options.focusButton ===
+      true
+  ) {
+    window.requestAnimationFrame(
+      () => {
+        expandedButton.focus({
+          preventScroll:
+            true
+        });
+      }
+    );
+  }
+}
+
+
+/* =====================================================
+  크게 보기 상태에서 Esc 처리
+
+  다른 모달의 Esc 동작보다 먼저 처리한다.
+===================================================== */
+
+function handleAuxiliaryMaterialExpandedEscape(
+  event
+) {
+  if (
+    event.key !==
+      "Escape" ||
+    !auxiliaryMaterialTableViewState
+      .isExpanded
+  ) {
+    return;
+  }
+
+
+  event.preventDefault();
+
+  event.stopImmediatePropagation();
+
+
+  setAuxiliaryMaterialExpandedView(
+    false,
+    {
+      focusButton:
+        true
+    }
+  );
+}
+
+
+/* =====================================================
+  부재료 표 보기 버튼 초기화
+===================================================== */
+
+function initializeAuxiliaryMaterialTableViewControls() {
+  const {
+    view,
+    card,
+    compactButton,
+    expandedButton
+  } =
+    getAuxiliaryMaterialTableViewElements();
+
+
+  if (
+    !view ||
+    !card ||
+    !compactButton ||
+    !expandedButton
+  ) {
+    return;
+  }
+
+
+  if (
+    card.dataset
+      .auxiliaryMaterialViewBound ===
+    "true"
+  ) {
+    return;
+  }
+
+
+  setAuxiliaryMaterialCompactView(
+    false
+  );
+
+
+  setAuxiliaryMaterialExpandedView(
+    false
+  );
+
+
+  compactButton.addEventListener(
+    "click",
+    () => {
+      setAuxiliaryMaterialCompactView(
+        !auxiliaryMaterialTableViewState
+          .isCompact
+      );
+    }
+  );
+
+
+  expandedButton.addEventListener(
+    "click",
+    () => {
+      setAuxiliaryMaterialExpandedView(
+        !auxiliaryMaterialTableViewState
+          .isExpanded
+      );
+    }
+  );
+
+
+  document.addEventListener(
+    "keydown",
+    handleAuxiliaryMaterialExpandedEscape,
+    true
+  );
+
+
+  card.dataset
+    .auxiliaryMaterialViewBound =
+    "true";
+}
+
+
+/* =====================================================
+  부재료 표 보기 버튼 초기 실행
+===================================================== */
+
+if (
+  document.readyState ===
+    "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeAuxiliaryMaterialTableViewControls,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeAuxiliaryMaterialTableViewControls();
+}
+
 /* =========================================================
   효율팀 - 부재료 OIS 조회 · D1 저장
 

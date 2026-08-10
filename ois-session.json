@@ -1,0 +1,25 @@
+{
+  "cookies": [
+    {
+      "name": "JSESSIONID",
+      "value": "2EC356068987C304EF06A207546CA6BA",
+      "domain": "ois.gspoge.com",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "tossSaveId",
+      "value": "wheekeun.lee",
+      "domain": "ois.gspoge.com",
+      "path": "/",
+      "expires": 1786947728,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}

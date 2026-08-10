@@ -5820,14 +5820,15 @@ if (
 /* =========================================================
   DataPARC 증기 생산량 자동 조회
 
-  PowerShell → 숨김 Excel → DataPARC_AddIn.xla 순서로 실행한다.
-  추가 기능 통합문서는 직접 닫지 않고 Excel 인스턴스만 종료하여,
-  사용자가 평소 실행하는 Excel의 dataPARC 등록 상태를 건드리지 않는다.
+  현재 사용 중인 Excel의 DataPARC 연결을 재사용한다.
+  조회용 임시 통합문서만 만들고 닫으며,
+  사용자가 연 Excel은 종료하지 않는다.
 ========================================================= */
 
 const DATAPARC_STEAM_POWERSHELL_SCRIPT =
   String.raw`
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
 
 [Console]::OutputEncoding =
   [Text.Encoding]::UTF8
@@ -5836,22 +5837,17 @@ $OutputEncoding =
   [Text.Encoding]::UTF8
 
 $excel = $null
-$dataParcAddIn = $null
+$originalWorkbook = $null
 $workbook = $null
 $worksheet = $null
 $cells = @()
 
 try {
-  $addInPath = $env:GS_DATAPARC_ADDIN_PATH
   $targetDate = $env:GS_STEAM_TARGET_DATE
   $nextDate = $env:GS_STEAM_NEXT_DATE
   $unitOneTag = $env:GS_STEAM_UNIT_ONE_TAG
   $unitTwoTag = $env:GS_STEAM_UNIT_TWO_TAG
   $resultMarker = $env:GS_STEAM_RESULT_MARKER
-
-  if (-not [IO.File]::Exists($addInPath)) {
-    throw "DataPARC_AddIn.xla not found: $addInPath"
-  }
 
   foreach ($dateValue in @($targetDate, $nextDate)) {
     if ($dateValue -notmatch '^\d{4}-\d{2}-\d{2}$') {
@@ -5866,27 +5862,31 @@ try {
     throw "DataPARC steam production tag is empty."
   }
 
-  $excel =
-    New-Object -ComObject Excel.Application
-
-  $excel.Visible = $false
-  $excel.DisplayAlerts = $false
-  $excel.ScreenUpdating = $false
-  $excel.AskToUpdateLinks = $false
-
-  $dataParcAddIn =
-    $excel.Workbooks.Open(
-      $addInPath,
-      0,
-      $true
+  try {
+    $excel =
+      [Runtime.InteropServices.Marshal]::GetActiveObject(
+        "Excel.Application"
+      )
+  }
+  catch {
+    throw (
+      "Active Excel session was not found. " +
+      "Open Excel with the DataPARC add-in and retry."
     )
+  }
 
-  $dataParcAddIn.RunAutoMacros(1)
+  if ($null -eq $excel) {
+    throw "Active Excel session was not returned."
+  }
 
-  Start-Sleep -Seconds 8
+  $originalWorkbook =
+    $excel.ActiveWorkbook
 
-  $workbook = $excel.Workbooks.Add()
-  $worksheet = $workbook.Worksheets.Item(1)
+  $workbook =
+    $excel.Workbooks.Add()
+
+  $worksheet =
+    $workbook.Worksheets.Item(1)
 
   $cells = @(
     $worksheet.Range("A1"),
@@ -5902,12 +5902,20 @@ try {
     '=fnAtTimeArray("' + $unitTwoTag + '","' + $nextDate + ' 00:00:00","State","Value")'
   )
 
-  for ($index = 0; $index -lt $cells.Count; $index += 1) {
-    $cells[$index].Formula = $formulas[$index]
+  for (
+    $index = 0;
+    $index -lt $cells.Count;
+    $index += 1
+  ) {
+    $cells[$index].Formula =
+      $formulas[$index]
   }
 
-  $deadline = (Get-Date).AddSeconds(60)
-  $values = $null
+  $deadline =
+    (Get-Date).AddSeconds(60)
+
+  $values =
+    $null
 
   do {
     foreach ($cell in $cells) {
@@ -5922,11 +5930,15 @@ try {
     $allValuesReady = $true
 
     foreach ($cell in $cells) {
-      $displayText = [string]$cell.Text
-      $rawValue = $cell.Value2
+      $displayText =
+        [string]$cell.Text
+
+      $rawValue =
+        $cell.Value2
 
       if (
         $null -eq $rawValue -or
+        $rawValue -is [bool] -or
         [string]::IsNullOrWhiteSpace($displayText) -or
         $displayText.StartsWith("#")
       ) {
@@ -5954,21 +5966,36 @@ try {
         break
       }
 
-      $candidateValues += $numericValue
+      $candidateValues +=
+        $numericValue
     }
 
-    if ($allValuesReady -and $candidateValues.Count -eq 4) {
-      $values = $candidateValues
+    if (
+      $allValuesReady -and
+      $candidateValues.Count -eq 4
+    ) {
+      $values =
+        $candidateValues
     }
-  } while (
+  }
+  while (
     $null -eq $values -and
     (Get-Date) -lt $deadline
   )
 
   if ($null -eq $values) {
     $cellStates =
-      for ($index = 0; $index -lt $cells.Count; $index += 1) {
-        "{0}={1}" -f $cells[$index].Address($false, $false), [string]$cells[$index].Text
+      for (
+        $index = 0;
+        $index -lt $cells.Count;
+        $index += 1
+      ) {
+        "{0}={1}" -f
+          $cells[$index].Address(
+            $false,
+            $false
+          ),
+          [string]$cells[$index].Text
       }
 
     throw (
@@ -5980,7 +6007,7 @@ try {
   $result = [ordered]@{
     targetDate = $targetDate
     nextDate = $nextDate
-    dataParcAddIn = [string]$dataParcAddIn.Name
+    dataParcAddIn = "active Excel session"
     dataParcHost = [bool](
       Get-Process -Name "CTCExcelAddIn.PARCviewHost" -ErrorAction SilentlyContinue
     )
@@ -5998,15 +6025,17 @@ try {
 finally {
   if ($workbook) {
     try {
-      $workbook.Close($false)
+      $workbook.Close(
+        $false
+      )
     }
     catch {
     }
   }
 
-  if ($excel) {
+  if ($originalWorkbook) {
     try {
-      $excel.Quit()
+      $originalWorkbook.Activate()
     }
     catch {
     }
@@ -6019,7 +6048,7 @@ finally {
     $cells[0],
     $worksheet,
     $workbook,
-    $dataParcAddIn,
+    $originalWorkbook,
     $excel
   )) {
     if ($null -ne $comObject) {

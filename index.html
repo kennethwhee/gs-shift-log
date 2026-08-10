@@ -8789,7 +8789,12 @@
   <!-- =================================================
     날짜별 부재료 자료
   ================================================== -->
-  <section class="auxiliary-material-table-card">
+
+
+  <section
+    class="auxiliary-material-table-card"
+    id="auxiliaryMaterialTableCard"
+  >
 
     <header>
 
@@ -8806,28 +8811,66 @@
       </div>
 
 
-      <div class="auxiliary-material-table-counts">
+      <div class="auxiliary-material-table-toolbar">
 
-        <article class="auxiliary-material-sheet-count">
+        <div class="auxiliary-material-table-counts">
 
-          <span>
-            저장일수
-          </span>
+          <article class="auxiliary-material-sheet-count">
 
-          <strong id="auxiliaryMaterialSavedDays">
-            0일
+            <span>
+              저장일수
+            </span>
+
+            <strong id="auxiliaryMaterialSavedDays">
+              0일
+            </strong>
+
+          </article>
+
+
+          <strong id="auxiliaryMaterialRowCount">
+            0건
           </strong>
 
-        </article>
+        </div>
 
 
-        <strong id="auxiliaryMaterialRowCount">
-          0건
-        </strong>
+        <div
+          class="auxiliary-material-table-view-actions"
+          role="group"
+          aria-label="부재료 표 보기 방식"
+        >
+
+          <button
+            type="button"
+            id="toggleAuxiliaryMaterialCompactButton"
+            aria-pressed="false"
+            title="열과 행 간격을 줄여 더 많은 자료 보기"
+          >
+            컴팩트 보기
+          </button>
+
+
+          <button
+            type="button"
+            class="is-expand"
+            id="toggleAuxiliaryMaterialExpandedButton"
+            aria-controls="auxiliaryMaterialTableCard"
+            aria-pressed="false"
+            title="부재료 표를 화면 전체로 보기"
+          >
+            <span aria-hidden="true">
+              ⛶
+            </span>
+
+            크게 보기
+          </button>
+
+        </div>
 
       </div>
 
-    </header>
+    </header>  
 
 
     <div class="auxiliary-material-table-wrap">
