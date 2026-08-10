@@ -87620,6 +87620,1193 @@ function renderAuxiliaryMaterialHistory() {
 }
 
 /* =========================================================
+  Slurry 밀도 고정값 화면 표시
+========================================================= */
+
+function setAuxiliaryMaterialFixedDensityStatus(
+  message,
+  status =
+    "idle"
+) {
+  const {
+    fixedDensityStatus
+  } =
+    getAuxiliaryMaterialElements();
+
+
+  if (
+    !fixedDensityStatus
+  ) {
+    return;
+  }
+
+
+  fixedDensityStatus.textContent =
+    String(
+      message ||
+      ""
+    );
+
+
+  fixedDensityStatus.dataset.status =
+    String(
+      status ||
+      "idle"
+    );
+}
+
+
+function getLatestAuxiliaryMaterialDensity(
+  unitNo
+) {
+  const item =
+    (
+      Array.isArray(
+        auxiliaryMaterialHistoryState
+          .items
+      )
+        ? auxiliaryMaterialHistoryState
+            .items
+        : []
+    )
+      .filter(
+        candidate =>
+          Number(
+            candidate?.unitNo
+          ) ===
+            Number(
+              unitNo
+            ) &&
+          Number.isFinite(
+            Number(
+              candidate?.limeSlurryDensityKgm3
+            )
+          )
+      )
+      .sort(
+        (
+          first,
+          second
+        ) =>
+          String(
+            second?.recordDate ||
+            ""
+          ).localeCompare(
+            String(
+              first?.recordDate ||
+              ""
+            )
+          )
+      )[0];
+
+
+  return item
+    ? Number(
+        item.limeSlurryDensityKgm3
+      )
+    : null;
+}
+
+
+function renderAuxiliaryMaterialFixedDensitySettings() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  const today =
+    formatAuxiliaryMaterialIsoDate(
+      new Date()
+    );
+
+
+  const settings =
+    Array.isArray(
+      auxiliaryMaterialHistoryState
+        .fixedDensitySettings
+    )
+      ? auxiliaryMaterialHistoryState
+          .fixedDensitySettings
+      : [];
+
+
+  const unitOneSetting =
+    getAuxiliaryMaterialFixedDensitySetting(
+      1
+    );
+
+
+  const unitTwoSetting =
+    getAuxiliaryMaterialFixedDensitySetting(
+      2
+    );
+
+
+  const effectiveFrom =
+    unitOneSetting?.effectiveFrom ||
+    unitTwoSetting?.effectiveFrom ||
+    today;
+
+
+  if (
+    elements.densityEffectiveDateInput
+  ) {
+    elements.densityEffectiveDateInput.min =
+      "2026-08-10";
+
+    elements.densityEffectiveDateInput.max =
+      today;
+
+
+    if (
+      document.activeElement !==
+        elements.densityEffectiveDateInput
+    ) {
+      elements.densityEffectiveDateInput.value =
+        effectiveFrom;
+    }
+  }
+
+
+  [
+    {
+      input:
+        elements.unitOneFixedDensityInput,
+
+      setting:
+        unitOneSetting,
+
+      fallback:
+        getLatestAuxiliaryMaterialDensity(
+          1
+        )
+    },
+
+    {
+      input:
+        elements.unitTwoFixedDensityInput,
+
+      setting:
+        unitTwoSetting,
+
+      fallback:
+        getLatestAuxiliaryMaterialDensity(
+          2
+        )
+    }
+  ].forEach(
+    definition => {
+      if (
+        !definition.input ||
+        document.activeElement ===
+          definition.input
+      ) {
+        return;
+      }
+
+
+      const value =
+        definition.setting?.densityKgm3 ??
+        definition.fallback;
+
+
+      definition.input.value =
+        Number.isFinite(
+          Number(
+            value
+          )
+        )
+          ? Number(
+              value
+            ).toFixed(
+              1
+            )
+          : "";
+    }
+  );
+
+
+  if (
+    settings.length >=
+      2
+  ) {
+    setAuxiliaryMaterialFixedDensityStatus(
+      (
+        `${effectiveFrom}부터 고정 · ` +
+        `1호기 ${Number(unitOneSetting.densityKgm3).toFixed(1)} / ` +
+        `2호기 ${Number(unitTwoSetting.densityKgm3).toFixed(1)} kg/m³`
+      ),
+      "complete"
+    );
+
+  } else {
+    setAuxiliaryMaterialFixedDensityStatus(
+      "고정값 미설정 · 최근 저장 밀도를 입력칸에 표시했습니다.",
+      "idle"
+    );
+  }
+}
+
+/* =========================================================
+  부재료 수치 수정값 읽기
+========================================================= */
+
+function parseAuxiliaryMaterialEditNumber(
+  value,
+  field,
+  label
+) {
+  const normalizedValue =
+    String(
+      value ??
+      ""
+    )
+      .trim()
+      .replace(
+        /,/g,
+        ""
+      );
+
+
+  if (
+    !normalizedValue ||
+    normalizedValue ===
+      "-" ||
+    normalizedValue ===
+      "—"
+  ) {
+    return null;
+  }
+
+
+  const numericValue =
+    Number(
+      normalizedValue
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    throw new Error(
+      `${label} 값을 숫자로 입력해 주세요.`
+    );
+  }
+
+
+  const minimum =
+    Number.isFinite(
+      Number(
+        field.minimum
+      )
+    )
+      ? Number(
+          field.minimum
+        )
+      : 0;
+
+
+  const maximum =
+    Number.isFinite(
+      Number(
+        field.maximum
+      )
+    )
+      ? Number(
+          field.maximum
+        )
+      : 1000000;
+
+
+  if (
+    (
+      field.minimumExclusive ===
+        true
+        ? numericValue <=
+          minimum
+        : numericValue <
+          minimum
+    ) ||
+    numericValue >
+      maximum
+  ) {
+    throw new Error(
+      `${label} 값의 범위를 확인해 주세요.`
+    );
+  }
+
+
+  return numericValue;
+}
+
+
+function areAuxiliaryMaterialEditNumbersEqual(
+  first,
+  second
+) {
+  if (
+    first ===
+      null ||
+    second ===
+      null
+  ) {
+    return first ===
+      second;
+  }
+
+
+  return Math.abs(
+    first -
+    second
+  ) <
+    0.0000001;
+}
+
+
+function collectAuxiliaryMaterialChangedRecords() {
+  const grouped =
+    new Map();
+
+
+  document
+    .querySelectorAll(
+      "#auxiliaryMaterialTableBody .auxiliary-material-value-input"
+    )
+    .forEach(
+      input => {
+        const recordDate =
+          String(
+            input.dataset
+              .recordDate ||
+            ""
+          );
+
+
+        const unitNo =
+          Number(
+            input.dataset
+              .unitNo
+          );
+
+
+        const fieldKey =
+          String(
+            input.dataset
+              .field ||
+            ""
+          );
+
+
+        const field =
+          AUXILIARY_MATERIAL_EDIT_FIELDS.find(
+            definition =>
+              definition.key ===
+                fieldKey
+          );
+
+
+        if (
+          !field ||
+          !isValidAuxiliaryMaterialIsoDate(
+            recordDate
+          ) ||
+          !(
+            unitNo ===
+              1 ||
+            unitNo ===
+              2
+          )
+        ) {
+          return;
+        }
+
+
+        const label =
+          `${recordDate} ${unitNo}호기 ${field.label}`;
+
+
+        const value =
+          parseAuxiliaryMaterialEditNumber(
+            input.value,
+            field,
+            label
+          );
+
+
+        const originalValue =
+          parseAuxiliaryMaterialEditNumber(
+            input.dataset
+              .originalValue,
+            field,
+            label
+          );
+
+
+        const key =
+          `${recordDate}:${unitNo}`;
+
+
+        if (
+          !grouped.has(
+            key
+          )
+        ) {
+          const originalItem =
+            auxiliaryMaterialHistoryState
+              .items
+              .find(
+                item =>
+                  item.recordDate ===
+                    recordDate &&
+                  Number(
+                    item.unitNo
+                  ) ===
+                    unitNo
+              );
+
+
+          grouped.set(
+            key,
+            {
+              recordDate,
+              unitNo,
+
+              revision:
+                Number(
+                  originalItem?.revision
+                ) ||
+                0,
+
+              values: {},
+
+              changed:
+                false
+            }
+          );
+        }
+
+
+        const group =
+          grouped.get(
+            key
+          );
+
+
+        group.values[
+          fieldKey
+        ] =
+          value;
+
+
+        if (
+          !areAuxiliaryMaterialEditNumbersEqual(
+            value,
+            originalValue
+          )
+        ) {
+          group.changed =
+            true;
+        }
+      }
+    );
+
+
+  return Array.from(
+    grouped.values()
+  ).filter(
+    item =>
+      item.changed ===
+        true
+  );
+}
+
+/* =========================================================
+  부재료 수치 수정 모드
+========================================================= */
+
+function updateAuxiliaryMaterialValueEditButtons() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  elements.view?.classList.toggle(
+    "is-value-editing",
+    auxiliaryMaterialValueEditState
+      .isEditing
+  );
+
+
+  if (
+    elements.editValuesButton
+  ) {
+    elements.editValuesButton.disabled =
+      auxiliaryMaterialValueEditState
+        .isSaving;
+
+    elements.editValuesButton.textContent =
+      auxiliaryMaterialValueEditState
+        .isSaving
+        ? "저장 중..."
+        : auxiliaryMaterialValueEditState
+            .isEditing
+          ? "수정 저장"
+          : "수치 수정";
+
+    elements.editValuesButton.setAttribute(
+      "aria-pressed",
+      String(
+        auxiliaryMaterialValueEditState
+          .isEditing
+      )
+    );
+  }
+
+
+  if (
+    elements.cancelEditButton
+  ) {
+    elements.cancelEditButton.hidden =
+      !auxiliaryMaterialValueEditState
+        .isEditing;
+
+    elements.cancelEditButton.disabled =
+      auxiliaryMaterialValueEditState
+        .isSaving;
+  }
+}
+
+
+function setAuxiliaryMaterialValueEditMode(
+  isEditing
+) {
+  const nextState =
+    Boolean(
+      isEditing
+    );
+
+
+  if (
+    nextState &&
+    auxiliaryMaterialHistoryState
+      .items.length <
+      1
+  ) {
+    const message =
+      "수정할 부재료 저장자료가 없습니다.";
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+    }
+
+
+    return;
+  }
+
+
+  auxiliaryMaterialValueEditState.isEditing =
+    nextState;
+
+  auxiliaryMaterialValueEditState.isSaving =
+    false;
+
+
+  updateAuxiliaryMaterialValueEditButtons();
+
+  renderAuxiliaryMaterialHistory();
+
+
+  if (
+    nextState
+  ) {
+    window.requestAnimationFrame(
+      () => {
+        document
+          .querySelector(
+            "#auxiliaryMaterialTableBody .auxiliary-material-value-input"
+          )
+          ?.focus();
+      }
+    );
+  }
+}
+
+
+async function saveAuxiliaryMaterialEditedValues() {
+  let items;
+
+
+  try {
+    items =
+      collectAuxiliaryMaterialChangedRecords();
+
+  } catch (
+    error
+  ) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "부재료 수정값을 확인해 주세요.";
+
+
+    setAuxiliaryMaterialStatus(
+      message,
+      "error"
+    );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+    }
+
+
+    return;
+  }
+
+
+  if (
+    items.length <
+      1
+  ) {
+    const message =
+      "변경된 부재료 수치가 없습니다.";
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+    }
+
+
+    return;
+  }
+
+
+  auxiliaryMaterialValueEditState.isSaving =
+    true;
+
+
+  updateAuxiliaryMaterialValueEditButtons();
+
+
+  try {
+    const headers = {
+      ...(
+        typeof getShiftLogAuthHeaders ===
+          "function"
+          ? getShiftLogAuthHeaders()
+          : {}
+      ),
+
+      "Content-Type":
+        "application/json",
+
+      Accept:
+        "application/json"
+    };
+
+
+    const response =
+      await fetch(
+        "/api/ois-data-requests",
+        {
+          method:
+            "POST",
+
+          headers,
+
+          body:
+            JSON.stringify({
+              action:
+                "update_auxiliary_material_rows",
+
+              items
+            })
+        }
+      );
+
+
+    const result =
+      await readAuxiliaryMaterialJsonResponse(
+        response
+      );
+
+
+    auxiliaryMaterialValueEditState.isEditing =
+      false;
+
+
+    await loadAuxiliaryMaterialHistory({
+      silent:
+        true
+    });
+
+
+    const message =
+      result.message ||
+      `${items.length}건의 부재료 수치를 수정했습니다.`;
+
+
+    setAuxiliaryMaterialStatus(
+      message,
+      "complete"
+    );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+    }
+
+  } catch (
+    error
+  ) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "부재료 수치를 저장하지 못했습니다.";
+
+
+    setAuxiliaryMaterialStatus(
+      message,
+      "error"
+    );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+    }
+
+
+  } finally {
+    auxiliaryMaterialValueEditState.isSaving =
+      false;
+
+
+    updateAuxiliaryMaterialValueEditButtons();
+  }
+}
+
+/* =========================================================
+  유량·밀도 수정 시 Lime Powder 자동 계산
+
+  사용자가 Powder 칸을 직접 수정한 경우에는 그 값을 유지한다.
+========================================================= */
+
+function handleAuxiliaryMaterialValueInput(
+  event
+) {
+  const input =
+    event.target instanceof
+      HTMLInputElement &&
+    event.target.classList.contains(
+      "auxiliary-material-value-input"
+    )
+      ? event.target
+      : null;
+
+
+  if (
+    !input
+  ) {
+    return;
+  }
+
+
+  const fieldKey =
+    String(
+      input.dataset
+        .field ||
+      ""
+    );
+
+
+  if (
+    fieldKey ===
+      "limePowderTpd"
+  ) {
+    input.dataset.userEdited =
+      "true";
+
+
+    return;
+  }
+
+
+  if (
+    fieldKey !==
+      "limeSlurryFlowM3h" &&
+    fieldKey !==
+      "limeSlurryDensityKgm3"
+  ) {
+    return;
+  }
+
+
+  const tableBody =
+    input.closest(
+      "#auxiliaryMaterialTableBody"
+    );
+
+
+  if (
+    !tableBody
+  ) {
+    return;
+  }
+
+
+  const inputs =
+    [
+      ...tableBody.querySelectorAll(
+        ".auxiliary-material-value-input"
+      )
+    ].filter(
+      candidate =>
+        candidate.dataset.recordDate ===
+          input.dataset.recordDate &&
+        candidate.dataset.unitNo ===
+          input.dataset.unitNo
+    );
+
+
+  const getInput =
+    targetField =>
+      inputs.find(
+        candidate =>
+          candidate.dataset.field ===
+            targetField
+      ) ||
+      null;
+
+
+  const flowInput =
+    getInput(
+      "limeSlurryFlowM3h"
+    );
+
+
+  const densityInput =
+    getInput(
+      "limeSlurryDensityKgm3"
+    );
+
+
+  const powderInput =
+    getInput(
+      "limePowderTpd"
+    );
+
+
+  if (
+    !flowInput ||
+    !densityInput ||
+    !powderInput ||
+    powderInput.dataset
+      .userEdited ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  const calculatedValue =
+    calculateAuxiliaryMaterialLimePowder(
+      String(
+        flowInput.value
+      ).replace(
+        /,/g,
+        ""
+      ),
+
+      String(
+        densityInput.value
+      ).replace(
+        /,/g,
+        ""
+      )
+    );
+
+
+  powderInput.value =
+    calculatedValue ===
+      null
+      ? ""
+      : calculatedValue.toFixed(
+          2
+        );
+}
+
+/* =========================================================
+  Slurry 밀도 고정값 D1 저장
+========================================================= */
+
+async function saveAuxiliaryMaterialFixedDensity() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  const effectiveFrom =
+    String(
+      elements.densityEffectiveDateInput
+        ?.value ||
+      ""
+    ).trim();
+
+
+  const densityField =
+    AUXILIARY_MATERIAL_EDIT_FIELDS.find(
+      field =>
+        field.key ===
+          "limeSlurryDensityKgm3"
+    );
+
+
+  let unitOneDensity;
+  let unitTwoDensity;
+
+
+  try {
+    if (
+      !isValidAuxiliaryMaterialIsoDate(
+        effectiveFrom
+      ) ||
+      effectiveFrom <
+        "2026-08-10"
+    ) {
+      throw new Error(
+        "Slurry 밀도 적용 시작일을 확인해 주세요."
+      );
+    }
+
+
+    unitOneDensity =
+      parseAuxiliaryMaterialEditNumber(
+        elements.unitOneFixedDensityInput
+          ?.value,
+        densityField,
+        "1호기 Slurry 밀도"
+      );
+
+
+    unitTwoDensity =
+      parseAuxiliaryMaterialEditNumber(
+        elements.unitTwoFixedDensityInput
+          ?.value,
+        densityField,
+        "2호기 Slurry 밀도"
+      );
+
+
+    if (
+      unitOneDensity ===
+        null ||
+      unitTwoDensity ===
+        null
+    ) {
+      throw new Error(
+        "1호기와 2호기 Slurry 밀도를 모두 입력해 주세요."
+      );
+    }
+
+  } catch (
+    error
+  ) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Slurry 밀도 고정값을 확인해 주세요.";
+
+
+    setAuxiliaryMaterialFixedDensityStatus(
+      message,
+      "error"
+    );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+    }
+
+
+    return;
+  }
+
+
+  if (
+    elements.fixedDensitySaveButton
+  ) {
+    elements.fixedDensitySaveButton.disabled =
+      true;
+
+    elements.fixedDensitySaveButton.textContent =
+      "저장 중...";
+  }
+
+
+  setAuxiliaryMaterialFixedDensityStatus(
+    "Slurry 밀도 고정값을 저장하고 있습니다.",
+    "loading"
+  );
+
+
+  try {
+    const headers = {
+      ...(
+        typeof getShiftLogAuthHeaders ===
+          "function"
+          ? getShiftLogAuthHeaders()
+          : {}
+      ),
+
+      "Content-Type":
+        "application/json",
+
+      Accept:
+        "application/json"
+    };
+
+
+    const response =
+      await fetch(
+        "/api/ois-data-requests",
+        {
+          method:
+            "POST",
+
+          headers,
+
+          body:
+            JSON.stringify({
+              action:
+                "save_auxiliary_material_density_settings",
+
+              effectiveFrom,
+
+              unitOneDensityKgm3:
+                unitOneDensity,
+
+              unitTwoDensityKgm3:
+                unitTwoDensity
+            })
+        }
+      );
+
+
+    const result =
+      await readAuxiliaryMaterialJsonResponse(
+        response
+      );
+
+
+    auxiliaryMaterialHistoryState.fixedDensitySettings =
+      Array.isArray(
+        result.fixedDensitySettings
+      )
+        ? result.fixedDensitySettings
+        : [];
+
+
+    await loadAuxiliaryMaterialHistory({
+      silent:
+        true
+    });
+
+
+    const message =
+      result.message ||
+      `${effectiveFrom}부터 Slurry 밀도 고정값을 저장했습니다.`;
+
+
+    setAuxiliaryMaterialFixedDensityStatus(
+      message,
+      "complete"
+    );
+
+
+    setAuxiliaryMaterialStatus(
+      message,
+      "complete"
+    );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+    }
+
+  } catch (
+    error
+  ) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Slurry 밀도 고정값을 저장하지 못했습니다.";
+
+
+    setAuxiliaryMaterialFixedDensityStatus(
+      message,
+      "error"
+    );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+    }
+
+
+  } finally {
+    if (
+      elements.fixedDensitySaveButton
+    ) {
+      elements.fixedDensitySaveButton.disabled =
+        false;
+
+      elements.fixedDensitySaveButton.textContent =
+        "고정값 저장";
+    }
+  }
+}
+
+/* =========================================================
   부재료 평균 - 1호기 · 2호기 · 통합 표시
 ========================================================= */
 
