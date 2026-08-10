@@ -91669,3 +91669,260 @@ td.is-date {
     font-size: 8px !important;
   }
 }
+
+/* =========================================================
+  부재료 표 컴팩트 보기 · 크게 보기
+========================================================= */
+
+
+/* 상단 버튼 정렬 */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-table-toolbar {
+  display: flex;
+  min-width: 0;
+
+  flex-direction: column;
+  align-items: flex-end;
+
+  gap: 7px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-table-view-actions {
+  display: flex;
+
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 6px;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-table-view-actions button {
+  display: inline-flex;
+
+  min-height: 32px;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 5px;
+
+  padding: 0 11px;
+
+  border: 1px solid #c3d2e3;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #315273;
+
+  cursor: pointer;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-table-view-actions
+button:hover {
+  border-color: #7fa9d6;
+
+  background: #edf5ff;
+  color: #165fae;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-table-view-actions
+button[aria-pressed="true"] {
+  border-color: #176bc4;
+
+  background: #176bc4;
+  color: #ffffff;
+}
+
+
+/* =====================================================
+  컴팩트 보기
+===================================================== */
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table {
+  min-width: 1440px !important;
+}
+
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table
+col.is-date {
+  width: 88px !important;
+}
+
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table
+col:not(.is-date):not(.is-remarks) {
+  width: 75px !important;
+}
+
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table
+col.is-remarks {
+  width: 150px !important;
+}
+
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table th,
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table td {
+  padding: 5px 4px !important;
+}
+
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-unit-heading th {
+  height: 34px !important;
+
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-column-heading th {
+  top: 34px !important;
+
+  height: 52px !important;
+
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+}
+
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table thead small {
+  margin-top: 2px !important;
+
+  font-size: 8px !important;
+}
+
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table tbody td {
+  height: 34px !important;
+
+  font-size: 11px !important;
+}
+
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table
+tbody td.is-date strong,
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table
+tbody td.is-remarks {
+  font-size: 10px !important;
+}
+
+
+/* =====================================================
+  크게 보기
+===================================================== */
+
+body.is-auxiliary-material-expanded {
+  overflow: hidden !important;
+}
+
+
+body.is-auxiliary-material-expanded
+#auxiliaryMaterialTableCard.is-expanded-view {
+  position: fixed !important;
+
+  inset: 8px !important;
+  z-index: 9999 !important;
+
+  display: flex !important;
+
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+
+  flex-direction: column !important;
+
+  overflow: hidden !important;
+
+  border-radius: 12px !important;
+
+  background: #ffffff !important;
+
+  box-shadow:
+    0 20px 70px
+    rgba(15, 31, 50, 0.35) !important;
+}
+
+
+body.is-auxiliary-material-expanded
+#auxiliaryMaterialTableCard.is-expanded-view
+> header {
+  flex: 0 0 auto !important;
+
+  padding: 10px 14px !important;
+}
+
+
+body.is-auxiliary-material-expanded
+#auxiliaryMaterialTableCard.is-expanded-view
+.auxiliary-material-table-wrap {
+  min-height: 0 !important;
+  max-height: none !important;
+
+  flex: 1 1 auto !important;
+}
+
+
+/* 모바일 버튼 정렬 */
+
+@media screen and (max-width: 700px) {
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-toolbar {
+    width: 100%;
+
+    align-items: stretch;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-view-actions {
+    width: 100%;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-view-actions button {
+    min-width: 0;
+
+    flex: 1 1 0;
+  }
+
+
+  body.is-auxiliary-material-expanded
+  #auxiliaryMaterialTableCard.is-expanded-view {
+    inset: 0 !important;
+
+    border-radius: 0 !important;
+  }
+}
