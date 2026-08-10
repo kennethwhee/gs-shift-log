@@ -85900,6 +85900,21 @@ function getAuxiliaryMaterialElements() {
         "auxiliaryMaterialForceRefresh"
       ),
 
+    excelFileInput:
+      document.getElementById(
+        "auxiliaryMaterialExcelFileInput"
+      ),
+
+    excelImportButton:
+      document.getElementById(
+        "importAuxiliaryMaterialExcelButton"
+      ),
+
+    excelFileName:
+      document.getElementById(
+        "auxiliaryMaterialExcelFileName"
+      ),
+
     status:
       document.getElementById(
         "auxiliaryMaterialStatus"
@@ -85941,7 +85956,6 @@ function getAuxiliaryMaterialElements() {
       )
   };
 }
-
 
 /* =====================================================
   날짜 숫자 두 자리 처리
@@ -86830,6 +86844,12 @@ function readAuxiliaryMaterialDateRange() {
 
 /* =====================================================
   부재료 표와 요약 표시
+
+  한 날짜:
+  - A: 일자
+  - B:I: 1호기
+  - J:Q: 2호기
+  - R: 비고
 ===================================================== */
 
 function renderAuxiliaryMaterialHistory() {
@@ -86844,172 +86864,258 @@ function renderAuxiliaryMaterialHistory() {
   }
 
 
-  /*
-    최신 날짜부터 표시하고
-    같은 날짜는 1호기 → 2호기 순서로 표시한다.
-  */
-  const sortedItems =
-    [
-      ...auxiliaryMaterialHistoryState
+  const items =
+    Array.isArray(
+      auxiliaryMaterialHistoryState
         .items
-    ].sort(
+    )
+      ? auxiliaryMaterialHistoryState
+          .items
+      : [];
+
+
+  /*
+    같은 날짜의 1호기·2호기를
+    한 행으로 묶는다.
+  */
+  const rowsByDate =
+    new Map();
+
+
+  items.forEach(
+    item => {
+      const recordDate =
+        String(
+          item?.recordDate ||
+          ""
+        ).trim();
+
+
+      const unitNo =
+        Number(
+          item?.unitNo
+        );
+
+
+      if (
+        !isValidAuxiliaryMaterialIsoDate(
+          recordDate
+        ) ||
+        (
+          unitNo !==
+            1 &&
+          unitNo !==
+            2
+        )
+      ) {
+        return;
+      }
+
+
+      if (
+        !rowsByDate.has(
+          recordDate
+        )
+      ) {
+        rowsByDate.set(
+          recordDate,
+          {
+            recordDate,
+            unitOne: null,
+            unitTwo: null
+          }
+        );
+      }
+
+
+      const row =
+        rowsByDate.get(
+          recordDate
+        );
+
+
+      if (
+        unitNo ===
+          1
+      ) {
+        row.unitOne =
+          item;
+
+      } else {
+        row.unitTwo =
+          item;
+      }
+    }
+  );
+
+
+  /*
+    최신 날짜부터 표시한다.
+  */
+  const rows =
+    Array.from(
+      rowsByDate.values()
+    ).sort(
       (
         first,
         second
-      ) => {
-        const dateCompare =
-          String(
-            second.recordDate ||
-            ""
-          ).localeCompare(
-            String(
-              first.recordDate ||
-              ""
-            )
-          );
-
-
-        if (
-          dateCompare !==
-            0
-        ) {
-          return dateCompare;
-        }
-
-
-        return (
-          Number(
-            first.unitNo
-          ) -
-          Number(
-            second.unitNo
-          )
-        );
-      }
+      ) =>
+        second.recordDate.localeCompare(
+          first.recordDate
+        )
     );
 
 
+  /*
+    한 호기의 B:I 또는 J:Q 셀 생성
+  */
+  function renderUnitCells(
+    item,
+    unitClass
+  ) {
+    return `
+      <td class="is-sox ${unitClass}">
+        ${formatAuxiliaryMaterialDisplayNumber(
+          item?.soxPpm,
+          2
+        )}
+      </td>
+
+      <td class="is-limestone-usage ${unitClass}">
+        ${formatAuxiliaryMaterialDisplayNumber(
+          item?.limestoneUsageTpd,
+          2
+        )}
+      </td>
+
+      <td class="is-limestone-receipt ${unitClass}">
+        ${formatAuxiliaryMaterialDisplayNumber(
+          item?.limestoneReceiptTon,
+          2
+        )}
+      </td>
+
+      <td class="is-slurry-flow ${unitClass}">
+        ${formatAuxiliaryMaterialDisplayNumber(
+          item?.limeSlurryFlowM3h,
+          3
+        )}
+      </td>
+
+      <td class="is-density ${unitClass}">
+        ${formatAuxiliaryMaterialDisplayNumber(
+          item?.limeSlurryDensityKgm3,
+          1
+        )}
+      </td>
+
+      <td class="is-lime-powder ${unitClass}">
+        ${formatAuxiliaryMaterialDisplayNumber(
+          item?.limePowderTpd,
+          2
+        )}
+      </td>
+
+      <td class="is-nox ${unitClass}">
+        ${formatAuxiliaryMaterialDisplayNumber(
+          item?.noxPpm,
+          2
+        )}
+      </td>
+
+      <td class="is-ammonia ${unitClass}">
+        ${formatAuxiliaryMaterialDisplayNumber(
+          item?.ammoniaM3d,
+          3
+        )}
+      </td>
+    `;
+  }
+
+
+  /*
+    날짜별 비고 정리
+
+    일반적으로 두 호기의 비고는 동일하다.
+    서로 다르면 호기별로 구분해 표시한다.
+  */
+  function getRowRemarks(
+    row
+  ) {
+    const unitOneRemarks =
+      String(
+        row.unitOne?.remarks ??
+        ""
+      ).trim();
+
+
+    const unitTwoRemarks =
+      String(
+        row.unitTwo?.remarks ??
+        ""
+      ).trim();
+
+
+    if (
+      unitOneRemarks &&
+      unitTwoRemarks &&
+      unitOneRemarks !==
+        unitTwoRemarks
+    ) {
+      return (
+        `1호기: ${unitOneRemarks} / ` +
+        `2호기: ${unitTwoRemarks}`
+      );
+    }
+
+
+    return (
+      unitOneRemarks ||
+      unitTwoRemarks
+    );
+  }
+
+
   elements.tableBody.innerHTML =
-    sortedItems
+    rows
       .map(
-        item => {
-          const unitNo =
-            Number(
-              item.unitNo
+        row => {
+          const remarks =
+            getRowRemarks(
+              row
             );
-
-
-          const unitLabel =
-            Number.isInteger(
-              unitNo
-            ) &&
-            unitNo >
-              0
-              ? `${unitNo}호기`
-              : "-";
-
-
-          const sampleCount =
-            Math.max(
-              0,
-              Number(
-                item.sampleCount
-              ) ||
-              0
-            );
-
-
-          const completenessClass =
-            item.isComplete ===
-              true
-              ? "is-complete"
-              : "is-partial";
-
-
-          const completenessText =
-            item.isComplete ===
-              true
-              ? "24/24"
-              : `${sampleCount}/24`;
 
 
           return `
-            <tr>
-              <td>
-                ${escapeAuxiliaryMaterialHtml(
-                  item.recordDate ||
-                  "-"
-                )}
-              </td>
-
-              <td>
+            <tr
+              data-record-date="${escapeAuxiliaryMaterialHtml(
+                row.recordDate
+              )}"
+            >
+              <td class="is-date">
                 <strong>
                   ${escapeAuxiliaryMaterialHtml(
-                    unitLabel
+                    row.recordDate
                   )}
                 </strong>
               </td>
 
-              <td>
-                ${formatAuxiliaryMaterialDisplayNumber(
-                  item.limestoneUsageTpd,
-                  2
-                )}
-              </td>
+              ${renderUnitCells(
+                row.unitOne,
+                "is-unit-one"
+              )}
 
-              <td>
-                ${formatAuxiliaryMaterialDisplayNumber(
-                  item.limeSlurryFlowM3h,
-                  3
-                )}
-              </td>
+              ${renderUnitCells(
+                row.unitTwo,
+                "is-unit-two"
+              )}
 
-              <td>
-                ${formatAuxiliaryMaterialDisplayNumber(
-                  item.limeSlurryDensityKgm3,
-                  1
-                )}
-              </td>
-
-              <td>
-                ${formatAuxiliaryMaterialDisplayNumber(
-                  item.limePowderTpd,
-                  2
-                )}
-              </td>
-
-              <td>
-                ${formatAuxiliaryMaterialDisplayNumber(
-                  item.ammoniaM3d,
-                  3
-                )}
-              </td>
-
-              <td>
-                ${formatAuxiliaryMaterialDisplayNumber(
-                  item.soxPpm,
-                  2
-                )}
-              </td>
-
-              <td>
-                ${formatAuxiliaryMaterialDisplayNumber(
-                  item.noxPpm,
-                  2
-                )}
-              </td>
-
-              <td>
-                <span
-                  class="
-                    auxiliary-material-completeness
-                    ${completenessClass}
-                  "
-                >
-                  ${escapeAuxiliaryMaterialHtml(
-                    completenessText
-                  )}
-                </span>
+              <td class="is-remarks">
+                ${remarks
+                  ? escapeAuxiliaryMaterialHtml(
+                      remarks
+                    )
+                  : "-"}
               </td>
             </tr>
           `;
@@ -87024,90 +87130,28 @@ function renderAuxiliaryMaterialHistory() {
     elements.emptyState
   ) {
     elements.emptyState.hidden =
-      sortedItems.length >
+      rows.length >
       0;
   }
 
 
+  /*
+    이제 한 날짜가 한 행이므로
+    건수와 저장일수가 동일하다.
+  */
   if (
     elements.rowCount
   ) {
     elements.rowCount.textContent =
-      `${sortedItems.length}건`;
+      `${rows.length}건`;
   }
-
-
-  const summarySavedDateCount =
-    Number(
-      auxiliaryMaterialHistoryState
-        .summary
-        ?.savedDateCount
-    );
-
-
-  const savedDateCount =
-    Number.isFinite(
-      summarySavedDateCount
-    )
-      ? summarySavedDateCount
-      : new Set(
-          sortedItems.map(
-            item =>
-              item.recordDate
-          )
-        ).size;
 
 
   if (
     elements.savedDays
   ) {
     elements.savedDays.textContent =
-      `${savedDateCount}일`;
-  }
-
-
-  if (
-    elements.limestoneAverage
-  ) {
-    elements
-      .limestoneAverage
-      .textContent =
-      formatAuxiliaryMaterialDisplayNumber(
-        calculateAuxiliaryMaterialAverage(
-          "limestoneUsageTpd"
-        ),
-        2
-      );
-  }
-
-
-  if (
-    elements.limePowderAverage
-  ) {
-    elements
-      .limePowderAverage
-      .textContent =
-      formatAuxiliaryMaterialDisplayNumber(
-        calculateAuxiliaryMaterialAverage(
-          "limePowderTpd"
-        ),
-        2
-      );
-  }
-
-
-  if (
-    elements.ammoniaAverage
-  ) {
-    elements
-      .ammoniaAverage
-      .textContent =
-      formatAuxiliaryMaterialDisplayNumber(
-        calculateAuxiliaryMaterialAverage(
-          "ammoniaM3d"
-        ),
-        3
-      );
+      `${rows.length}일`;
   }
 }
 
@@ -87802,6 +87846,1379 @@ if (
 
 } else {
   initializeAuxiliaryMaterialHistoryControls();
+}
+
+/* =========================================================
+  기존 부재료 엑셀 A:R 업로드
+
+  - 월별 시트명: 2026.08 형식
+  - A: 날짜
+  - B:I: 1호기
+  - J:Q: 2호기
+  - R: 비고
+  - 2026-08-09까지만 저장
+  - 한 요청당 최대 40일
+========================================================= */
+
+const AUXILIARY_MATERIAL_EXCEL_IMPORT_END_DATE =
+  "2026-08-09";
+
+const AUXILIARY_MATERIAL_EXCEL_IMPORT_BATCH_SIZE =
+  40;
+
+
+const auxiliaryMaterialExcelImportState = {
+  isRunning:
+    false
+};
+
+
+/* =====================================================
+  엑셀 업로드 버튼 상태
+===================================================== */
+
+function setAuxiliaryMaterialExcelImportButtonState(
+  isRunning
+) {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  auxiliaryMaterialExcelImportState.isRunning =
+    isRunning ===
+      true;
+
+
+  if (
+    elements.excelImportButton
+  ) {
+    elements.excelImportButton.disabled =
+      auxiliaryMaterialExcelImportState
+        .isRunning;
+
+
+    elements.excelImportButton.textContent =
+      auxiliaryMaterialExcelImportState
+        .isRunning
+        ? "엑셀 저장 중..."
+        : "엑셀 업로드";
+  }
+
+
+  if (
+    elements.excelFileInput
+  ) {
+    elements.excelFileInput.disabled =
+      auxiliaryMaterialExcelImportState
+        .isRunning;
+  }
+}
+
+
+/* =====================================================
+  월별 시트명 확인
+
+  허용 예:
+  - 2026.08
+  - 2026-08
+===================================================== */
+
+function parseAuxiliaryMaterialExcelSheetPeriod(
+  sheetName
+) {
+  const match =
+    String(
+      sheetName ||
+      ""
+    )
+      .trim()
+      .match(
+        /^(\d{4})[.\-_/](\d{1,2})$/
+      );
+
+
+  if (
+    !match
+  ) {
+    return null;
+  }
+
+
+  const year =
+    Number(
+      match[1]
+    );
+
+
+  const month =
+    Number(
+      match[2]
+    );
+
+
+  if (
+    !Number.isInteger(
+      year
+    ) ||
+    month <
+      1 ||
+    month >
+      12
+  ) {
+    return null;
+  }
+
+
+  return {
+    year,
+    month,
+
+    monthKey:
+      `${year}-` +
+      `${padAuxiliaryMaterialDateNumber(
+        month
+      )}`
+  };
+}
+
+
+/* =====================================================
+  엑셀 날짜 → YYYY-MM-DD
+===================================================== */
+
+function createAuxiliaryMaterialExcelIsoDate(
+  year,
+  month,
+  day
+) {
+  const isoDate =
+    `${Number(
+      year
+    )}-` +
+    `${padAuxiliaryMaterialDateNumber(
+      month
+    )}-` +
+    `${padAuxiliaryMaterialDateNumber(
+      day
+    )}`;
+
+
+  return isValidAuxiliaryMaterialIsoDate(
+    isoDate
+  )
+    ? isoDate
+    : "";
+}
+
+
+/* =====================================================
+  엑셀 A열 날짜 읽기
+===================================================== */
+
+function readAuxiliaryMaterialExcelDateCell(
+  worksheet,
+  rowNumber
+) {
+  const cellAddress =
+    XLSX.utils.encode_cell({
+      r:
+        rowNumber -
+        1,
+
+      c:
+        0
+    });
+
+
+  const cell =
+    worksheet[
+      cellAddress
+    ];
+
+
+  if (
+    !cell ||
+    cell.t ===
+      "e"
+  ) {
+    return "";
+  }
+
+
+  const value =
+    cell.v;
+
+
+  /*
+    SheetJS가 날짜 객체로 읽은 경우
+  */
+  if (
+    value instanceof
+      Date &&
+    !Number.isNaN(
+      value.getTime()
+    )
+  ) {
+    return createAuxiliaryMaterialExcelIsoDate(
+      value.getFullYear(),
+      value.getMonth() +
+        1,
+      value.getDate()
+    );
+  }
+
+
+  /*
+    Excel 날짜 일련번호인 경우
+  */
+  if (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value
+    )
+  ) {
+    const parsedDate =
+      XLSX.SSF
+        ?.parse_date_code
+        ? XLSX.SSF.parse_date_code(
+            value
+          )
+        : null;
+
+
+    if (
+      parsedDate
+    ) {
+      return createAuxiliaryMaterialExcelIsoDate(
+        parsedDate.y,
+        parsedDate.m,
+        parsedDate.d
+      );
+    }
+  }
+
+
+  /*
+    문자 날짜인 경우
+  */
+  const text =
+    String(
+      value ??
+      ""
+    ).trim();
+
+
+  const match =
+    text.match(
+      /^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})/
+    );
+
+
+  if (
+    !match
+  ) {
+    return "";
+  }
+
+
+  return createAuxiliaryMaterialExcelIsoDate(
+    Number(
+      match[1]
+    ),
+    Number(
+      match[2]
+    ),
+    Number(
+      match[3]
+    )
+  );
+}
+
+
+/* =====================================================
+  엑셀 숫자 셀 읽기
+
+  수식 자체가 아니라
+  엑셀에 저장된 계산 결과값을 읽는다.
+===================================================== */
+
+function readAuxiliaryMaterialExcelNumberCell(
+  worksheet,
+  rowNumber,
+  columnIndex,
+  sheetName
+) {
+  const cellAddress =
+    XLSX.utils.encode_cell({
+      r:
+        rowNumber -
+        1,
+
+      c:
+        columnIndex
+    });
+
+
+  const cell =
+    worksheet[
+      cellAddress
+    ];
+
+
+  if (
+    !cell ||
+    cell.v ===
+      null ||
+    cell.v ===
+      undefined
+  ) {
+    return null;
+  }
+
+
+  if (
+    cell.t ===
+      "e"
+  ) {
+    throw new Error(
+      `${sheetName} 시트 ${cellAddress} 셀에 엑셀 오류값이 있습니다.`
+    );
+  }
+
+
+  const normalizedValue =
+    typeof cell.v ===
+      "string"
+      ? cell.v
+          .trim()
+          .replace(
+            /,/g,
+            ""
+          )
+      : cell.v;
+
+
+  if (
+    normalizedValue ===
+      "" ||
+    normalizedValue ===
+      "-" ||
+    normalizedValue ===
+      "—"
+  ) {
+    return null;
+  }
+
+
+  const numericValue =
+    Number(
+      normalizedValue
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    throw new Error(
+      `${sheetName} 시트 ${cellAddress} 셀의 계산 결과가 숫자가 아닙니다.`
+    );
+  }
+
+
+  return numericValue;
+}
+
+
+/* =====================================================
+  엑셀 비고 셀 읽기
+===================================================== */
+
+function readAuxiliaryMaterialExcelTextCell(
+  worksheet,
+  rowNumber,
+  columnIndex,
+  sheetName
+) {
+  const cellAddress =
+    XLSX.utils.encode_cell({
+      r:
+        rowNumber -
+        1,
+
+      c:
+        columnIndex
+    });
+
+
+  const cell =
+    worksheet[
+      cellAddress
+    ];
+
+
+  if (
+    !cell ||
+    cell.v ===
+      null ||
+    cell.v ===
+      undefined
+  ) {
+    return "";
+  }
+
+
+  if (
+    cell.t ===
+      "e"
+  ) {
+    throw new Error(
+      `${sheetName} 시트 ${cellAddress} 셀에 엑셀 오류값이 있습니다.`
+    );
+  }
+
+
+  const text =
+    String(
+      cell.v
+    ).trim();
+
+
+  if (
+    text.length >
+      1000
+  ) {
+    throw new Error(
+      `${sheetName} 시트 ${cellAddress} 비고는 1,000자 이하로 입력해 주세요.`
+    );
+  }
+
+
+  return text;
+}
+
+
+/* =====================================================
+  기존 A:R 양식 확인
+===================================================== */
+
+function isAuxiliaryMaterialExcelSheetLayout(
+  worksheet
+) {
+  function readHeader(
+    cellAddress
+  ) {
+    return String(
+      worksheet[
+        cellAddress
+      ]?.v ??
+      ""
+    )
+      .replace(
+        /\s+/g,
+        ""
+      )
+      .toLowerCase();
+  }
+
+
+  return (
+    readHeader(
+      "A2"
+    ) ===
+      "일자" &&
+
+    readHeader(
+      "B2"
+    ).includes(
+      "1호기"
+    ) &&
+
+    readHeader(
+      "J2"
+    ).includes(
+      "2호기"
+    ) &&
+
+    readHeader(
+      "B3"
+    ).includes(
+      "sox"
+    ) &&
+
+    readHeader(
+      "J3"
+    ).includes(
+      "sox"
+    )
+  );
+}
+
+
+/* =====================================================
+  엑셀 한 날짜를 서버 전송 형식으로 변환
+===================================================== */
+
+function createAuxiliaryMaterialExcelItem(
+  worksheet,
+  sheetName,
+  rowNumber,
+  recordDate
+) {
+  const readNumber =
+    columnIndex =>
+      readAuxiliaryMaterialExcelNumberCell(
+        worksheet,
+        rowNumber,
+        columnIndex,
+        sheetName
+      );
+
+
+  return {
+    recordDate,
+    sheetName,
+
+
+    /*
+      B:I
+    */
+    unitOne: {
+      soxPpm:
+        readNumber(
+          1
+        ),
+
+      limestoneUsageTpd:
+        readNumber(
+          2
+        ),
+
+      limestoneReceiptTon:
+        readNumber(
+          3
+        ),
+
+      limeSlurryFlowM3h:
+        readNumber(
+          4
+        ),
+
+      limeSlurryDensityKgm3:
+        readNumber(
+          5
+        ),
+
+      limePowderTpd:
+        readNumber(
+          6
+        ),
+
+      noxPpm:
+        readNumber(
+          7
+        ),
+
+      ammoniaM3d:
+        readNumber(
+          8
+        )
+    },
+
+
+    /*
+      J:Q
+    */
+    unitTwo: {
+      soxPpm:
+        readNumber(
+          9
+        ),
+
+      limestoneUsageTpd:
+        readNumber(
+          10
+        ),
+
+      limestoneReceiptTon:
+        readNumber(
+          11
+        ),
+
+      limeSlurryFlowM3h:
+        readNumber(
+          12
+        ),
+
+      limeSlurryDensityKgm3:
+        readNumber(
+          13
+        ),
+
+      limePowderTpd:
+        readNumber(
+          14
+        ),
+
+      noxPpm:
+        readNumber(
+          15
+        ),
+
+      ammoniaM3d:
+        readNumber(
+          16
+        )
+    },
+
+
+    /*
+      R
+    */
+    remarks:
+      readAuxiliaryMaterialExcelTextCell(
+        worksheet,
+        rowNumber,
+        17,
+        sheetName
+      )
+  };
+}
+
+
+/* =====================================================
+  월별 시트 전체 해석
+
+  각 시트에 다음 달 1일 행이 포함될 수 있으므로
+  시트명과 같은 연월만 가져온다.
+===================================================== */
+
+function parseAuxiliaryMaterialExcelWorkbook(
+  workbook
+) {
+  if (
+    !workbook ||
+    !Array.isArray(
+      workbook.SheetNames
+    )
+  ) {
+    throw new Error(
+      "엑셀 시트 목록을 확인할 수 없습니다."
+    );
+  }
+
+
+  const itemsByDate =
+    new Map();
+
+
+  const excludedDates =
+    new Set();
+
+
+  let sourceSheetCount =
+    0;
+
+
+  workbook.SheetNames.forEach(
+    sheetName => {
+      const period =
+        parseAuxiliaryMaterialExcelSheetPeriod(
+          sheetName
+        );
+
+
+      /*
+        Sheet2 등 월별 시트가 아닌 시트는 제외
+      */
+      if (
+        !period
+      ) {
+        return;
+      }
+
+
+      const worksheet =
+        workbook.Sheets?.[
+          sheetName
+        ];
+
+
+      if (
+        !worksheet
+      ) {
+        return;
+      }
+
+
+      if (
+        !isAuxiliaryMaterialExcelSheetLayout(
+          worksheet
+        )
+      ) {
+        throw new Error(
+          `${sheetName} 시트의 A:R 열 구성이 기존 부재료 양식과 다릅니다.`
+        );
+      }
+
+
+      sourceSheetCount +=
+        1;
+
+
+      /*
+        실제 표는 위쪽에 있으므로
+        최초 100행까지만 확인한다.
+      */
+      for (
+        let rowNumber =
+          1;
+        rowNumber <=
+          100;
+        rowNumber +=
+          1
+      ) {
+        const recordDate =
+          readAuxiliaryMaterialExcelDateCell(
+            worksheet,
+            rowNumber
+          );
+
+
+        if (
+          !recordDate ||
+          recordDate.slice(
+            0,
+            7
+          ) !==
+            period.monthKey
+        ) {
+          continue;
+        }
+
+
+        /*
+          2026-08-10 이후는 OIS 자료 보호
+        */
+        if (
+          recordDate >
+            AUXILIARY_MATERIAL_EXCEL_IMPORT_END_DATE
+        ) {
+          excludedDates.add(
+            recordDate
+          );
+
+          continue;
+        }
+
+
+        if (
+          itemsByDate.has(
+            recordDate
+          )
+        ) {
+          throw new Error(
+            `${recordDate} 자료가 엑셀에 두 번 포함되어 있습니다.`
+          );
+        }
+
+
+        itemsByDate.set(
+          recordDate,
+
+          createAuxiliaryMaterialExcelItem(
+            worksheet,
+            sheetName,
+            rowNumber,
+            recordDate
+          )
+        );
+      }
+    }
+  );
+
+
+  if (
+    sourceSheetCount <
+      1
+  ) {
+    throw new Error(
+      "2026.08 형식의 월별 부재료 시트를 찾을 수 없습니다."
+    );
+  }
+
+
+  const items =
+    Array.from(
+      itemsByDate.values()
+    ).sort(
+      (
+        left,
+        right
+      ) =>
+        left.recordDate.localeCompare(
+          right.recordDate
+        )
+    );
+
+
+  if (
+    items.length <
+      1
+  ) {
+    throw new Error(
+      "2026-08-09까지 저장할 부재료 자료가 없습니다."
+    );
+  }
+
+
+  return {
+    items,
+    sourceSheetCount,
+
+    excludedDates:
+      Array.from(
+        excludedDates
+      ).sort()
+  };
+}
+
+
+/* =====================================================
+  엑셀 한 묶음 서버 저장
+===================================================== */
+
+async function postAuxiliaryMaterialExcelBatch(
+  fileName,
+  items
+) {
+  const headers =
+    typeof getShiftLogAuthHeaders ===
+      "function"
+      ? getShiftLogAuthHeaders({
+          "Content-Type":
+            "application/json"
+        })
+      : {
+          Accept:
+            "application/json",
+
+          "Content-Type":
+            "application/json"
+        };
+
+
+  const response =
+    await fetch(
+      "/api/ois-data-requests",
+      {
+        method:
+          "POST",
+
+        headers,
+
+        cache:
+          "no-store",
+
+        body:
+          JSON.stringify({
+            action:
+              "import_auxiliary_material_excel",
+
+            fileName,
+
+            items
+          })
+      }
+    );
+
+
+  return await readAuxiliaryMaterialJsonResponse(
+    response
+  );
+}
+
+
+/* =====================================================
+  최대 40일씩 순차 저장
+===================================================== */
+
+async function saveAuxiliaryMaterialExcelItems(
+  fileName,
+  items
+) {
+  const batchCount =
+    Math.ceil(
+      items.length /
+      AUXILIARY_MATERIAL_EXCEL_IMPORT_BATCH_SIZE
+    );
+
+
+  const totals = {
+    savedDateCount:
+      0,
+
+    savedRecordCount:
+      0,
+
+    newRecordCount:
+      0,
+
+    replacedRecordCount:
+      0
+  };
+
+
+  for (
+    let batchIndex =
+      0;
+    batchIndex <
+      batchCount;
+    batchIndex +=
+      1
+  ) {
+    const startIndex =
+      batchIndex *
+      AUXILIARY_MATERIAL_EXCEL_IMPORT_BATCH_SIZE;
+
+
+    const batchItems =
+      items.slice(
+        startIndex,
+
+        startIndex +
+          AUXILIARY_MATERIAL_EXCEL_IMPORT_BATCH_SIZE
+      );
+
+
+    setAuxiliaryMaterialStatus(
+      (
+        `엑셀 저장 중 · ${batchIndex + 1}/${batchCount} · ` +
+        `${startIndex + batchItems.length}/${items.length}일`
+      ),
+      "loading"
+    );
+
+
+    let result;
+
+
+    try {
+      result =
+        await postAuxiliaryMaterialExcelBatch(
+          fileName,
+          batchItems
+        );
+
+    } catch (
+      error
+    ) {
+      const message =
+        error instanceof
+          Error
+          ? error.message
+          : "엑셀 자료 저장에 실패했습니다.";
+
+
+      throw new Error(
+        startIndex >
+          0
+          ? (
+              `${startIndex}일 저장 후 중단되었습니다. ` +
+              message
+            )
+          : message
+      );
+    }
+
+
+    totals.savedDateCount +=
+      Number(
+        result.summary
+          ?.savedDateCount ||
+        0
+      );
+
+
+    totals.savedRecordCount +=
+      Number(
+        result.summary
+          ?.savedRecordCount ||
+        0
+      );
+
+
+    totals.newRecordCount +=
+      Number(
+        result.summary
+          ?.newRecordCount ||
+        0
+      );
+
+
+    totals.replacedRecordCount +=
+      Number(
+        result.summary
+          ?.replacedRecordCount ||
+        0
+      );
+  }
+
+
+  return totals;
+}
+
+
+/* =====================================================
+  엑셀 파일 선택 처리
+===================================================== */
+
+async function handleAuxiliaryMaterialExcelFileSelection(
+  event
+) {
+  const file =
+    event.target.files?.[
+      0
+    ];
+
+
+  if (
+    !file ||
+    auxiliaryMaterialExcelImportState
+      .isRunning
+  ) {
+    return;
+  }
+
+
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  if (
+    elements.excelFileName
+  ) {
+    elements.excelFileName.textContent =
+      file.name;
+  }
+
+
+  setAuxiliaryMaterialExcelImportButtonState(
+    true
+  );
+
+
+  try {
+    if (
+      !/\.(xlsx|xls)$/i.test(
+        file.name
+      )
+    ) {
+      throw new Error(
+        "기존 부재료 엑셀 파일(.xlsx 또는 .xls)을 선택해 주세요."
+      );
+    }
+
+
+    if (
+      typeof XLSX ===
+        "undefined"
+    ) {
+      throw new Error(
+        "엑셀 라이브러리를 불러오지 못했습니다."
+      );
+    }
+
+
+    setAuxiliaryMaterialStatus(
+      "기존 부재료 엑셀 파일을 확인하고 있습니다.",
+      "loading"
+    );
+
+
+    /*
+      sheetRows 100:
+      실제 A:R 표만 읽어 큰 엑셀도 빠르게 처리한다.
+    */
+    const workbook =
+      XLSX.read(
+        await file.arrayBuffer(),
+        {
+          type:
+            "array",
+
+          cellDates:
+            true,
+
+          sheetRows:
+            100
+        }
+      );
+
+
+    const parsed =
+      parseAuxiliaryMaterialExcelWorkbook(
+        workbook
+      );
+
+
+    const firstDate =
+      parsed.items[
+        0
+      ].recordDate;
+
+
+    const lastDate =
+      parsed.items[
+        parsed.items.length -
+        1
+      ].recordDate;
+
+
+    const batchCount =
+      Math.ceil(
+        parsed.items.length /
+        AUXILIARY_MATERIAL_EXCEL_IMPORT_BATCH_SIZE
+      );
+
+
+    const shouldSave =
+      window.confirm(
+        [
+          (
+            `기존 부재료 엑셀 ${parsed.items.length}일 ` +
+            "자료를 저장하시겠습니까?"
+          ),
+
+          "",
+
+          `기간: ${firstDate} ~ ${lastDate}`,
+
+          `월별 시트: ${parsed.sourceSheetCount}개`,
+
+          (
+            `저장 요청: ${batchCount}회 ` +
+            "(한 번에 최대 40일)"
+          ),
+
+          "",
+
+          "2026-08-10 이후 자료는 저장하지 않습니다.",
+
+          "같은 날짜의 기존 자료는 엑셀 값으로 교체됩니다."
+        ].join(
+          "\n"
+        )
+      );
+
+
+    if (
+      !shouldSave
+    ) {
+      setAuxiliaryMaterialStatus(
+        "부재료 엑셀 자료 등록을 취소했습니다."
+      );
+
+      return;
+    }
+
+
+    const totals =
+      await saveAuxiliaryMaterialExcelItems(
+        file.name,
+        parsed.items
+      );
+
+
+    /*
+      저장한 전체 기간을 바로 표에 표시
+    */
+    if (
+      elements.startDateInput
+    ) {
+      elements.startDateInput.value =
+        firstDate;
+    }
+
+
+    if (
+      elements.endDateInput
+    ) {
+      elements.endDateInput.value =
+        lastDate;
+    }
+
+
+    if (
+      elements.monthInput
+    ) {
+      elements.monthInput.value =
+        lastDate.slice(
+          0,
+          7
+        );
+    }
+
+
+    await loadAuxiliaryMaterialHistory({
+      silent:
+        true
+    });
+
+
+    const message =
+      (
+        `${totals.savedDateCount}일 저장 완료 · ` +
+        `신규 ${totals.newRecordCount}건 · ` +
+        `교체 ${totals.replacedRecordCount}건`
+      );
+
+
+    setAuxiliaryMaterialStatus(
+      message,
+      "complete"
+    );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+    }
+
+  } catch (
+    error
+  ) {
+    const message =
+      error instanceof
+        Error
+        ? error.message
+        : "부재료 엑셀 파일을 처리하지 못했습니다.";
+
+
+    console.error(
+      "부재료 엑셀 업로드 오류:",
+      error
+    );
+
+
+    setAuxiliaryMaterialStatus(
+      message,
+      "error"
+    );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+    }
+
+  } finally {
+    setAuxiliaryMaterialExcelImportButtonState(
+      false
+    );
+
+
+    /*
+      같은 파일을 다시 선택할 수 있도록 초기화
+    */
+    event.target.value =
+      "";
+  }
+}
+
+
+/* =====================================================
+  엑셀 업로드 이벤트 연결
+===================================================== */
+
+function initializeAuxiliaryMaterialExcelImportControls() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  if (
+    !elements.view ||
+    !elements.excelImportButton ||
+    !elements.excelFileInput
+  ) {
+    return;
+  }
+
+
+  if (
+    elements
+      .excelImportButton
+      .dataset
+      .auxiliaryMaterialExcelImportBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  elements.excelImportButton.addEventListener(
+    "click",
+    () => {
+      if (
+        auxiliaryMaterialExcelImportState
+          .isRunning
+      ) {
+        return;
+      }
+
+
+      elements.excelFileInput.value =
+        "";
+
+
+      elements.excelFileInput.click();
+    }
+  );
+
+
+  elements.excelFileInput.addEventListener(
+    "change",
+    handleAuxiliaryMaterialExcelFileSelection
+  );
+
+
+  elements
+    .excelImportButton
+    .dataset
+    .auxiliaryMaterialExcelImportBound =
+    "true";
+}
+
+
+/* =====================================================
+  초기 실행
+===================================================== */
+
+if (
+  document.readyState ===
+    "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeAuxiliaryMaterialExcelImportControls,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeAuxiliaryMaterialExcelImportControls();
 }
 
 /* =========================================================
@@ -197285,6 +198702,36 @@ function render() {
       : formattedValue;
   }
 
+  function formatRate(
+    value
+  ) {
+    const numericValue =
+      normalizeNumber(
+        value
+      );
+
+
+    if (
+      numericValue ===
+      null
+    ) {
+      return "-";
+    }
+
+
+    return `${
+      numericValue.toLocaleString(
+        "ko-KR",
+        {
+          minimumFractionDigits:
+            0,
+
+          maximumFractionDigits:
+            3
+        }
+      )
+    }%`;
+  }  
 
   /* =====================================================
     상태 배지
@@ -197401,9 +198848,42 @@ function render() {
       );
 
 
-    const hasCompleteValue =
-      steamSales !==
-        null;
+    const unitOneProduction =
+      normalizeNumber(
+        result?.unitOneProduction
+      );
+
+
+    const unitTwoProduction =
+      normalizeNumber(
+        result?.unitTwoProduction
+      );
+
+
+    const totalProduction =
+      normalizeNumber(
+        result?.totalProduction
+      );
+
+
+    const salesRate =
+      normalizeNumber(
+        result?.salesRate
+      );
+
+
+    const hasCompleteValues = [
+      steamSales,
+      unitOneProduction,
+      unitTwoProduction,
+      totalProduction,
+      salesRate
+    ].every(
+      value => {
+        return value !==
+          null;
+      }
+    );
 
 
     const hasDateMismatch =
@@ -197424,7 +198904,7 @@ function render() {
     ) {
       elements.date.textContent =
         resultDate
-          ? resultDate
+          ? `${resultDate} · 01~24시`
           : "-";
     }
 
@@ -197466,7 +198946,7 @@ function render() {
       );
 
     } else if (
-      hasCompleteValue
+      hasCompleteValues
     ) {
       setStatusBadge(
         "complete",
@@ -197483,7 +198963,7 @@ function render() {
 
     const hideValues =
       hasDateMismatch ||
-      !hasCompleteValue;
+      !hasCompleteValues;
 
 
     /* ===================================================
@@ -197498,10 +198978,66 @@ function render() {
           ? "-"
           : formatAmount(
               steamSales,
-              normalizeText(
-                result?.salesUnit
-              ) ||
-                "TON"
+              "ton"
+            );
+    }
+
+
+    /* ===================================================
+      1·2호기 생산량
+    ==================================================== */
+
+    if (
+      elements.unitProduction
+    ) {
+      elements.unitProduction.textContent =
+        hideValues
+          ? "- / -"
+          : [
+              formatAmount(
+                unitOneProduction,
+                ""
+              ),
+
+              formatAmount(
+                unitTwoProduction,
+                "ton"
+              )
+            ].join(
+              " / "
+            );
+    }
+
+
+    /* ===================================================
+      총생산량
+    ==================================================== */
+
+    if (
+      elements.totalProduction
+    ) {
+      elements.totalProduction.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              totalProduction,
+              "ton"
+            );
+    }
+
+
+    /* ===================================================
+      판매율
+    ==================================================== */
+
+    if (
+      elements.salesRate
+    ) {
+      elements.salesRate.textContent =
+        hideValues
+          ? "-"
+          : formatRate(
+              salesRate
             );
     }
 
@@ -197521,8 +199057,8 @@ function render() {
       errorMessage ||
       (
         resultDate
-          ? `${resultDate} OIS 일별 증기 판매량`
-          : "OIS 일별 증기 판매량"
+          ? `${resultDate} OIS 판매량 · DataPARC 생산량`
+          : "OIS 판매량 · DataPARC 생산량"
       );
   }
 
@@ -197921,12 +199457,50 @@ function render() {
       );
 
 
+    const unitOneProduction =
+      normalizeNumber(
+        result.unitOneProduction ??
+        result.unit_one_production
+      );
+
+
+    const unitTwoProduction =
+      normalizeNumber(
+        result.unitTwoProduction ??
+        result.unit_two_production
+      );
+
+
+    const totalProduction =
+      normalizeNumber(
+        result.totalProduction ??
+        result.total_production
+      );
+
+
+    const salesRate =
+      normalizeNumber(
+        result.salesRate ??
+        result.sales_rate
+      );
+
+
     if (
-      steamSales ===
-        null
+      [
+        steamSales,
+        unitOneProduction,
+        unitTwoProduction,
+        totalProduction,
+        salesRate
+      ].some(
+        value => {
+          return value ===
+            null;
+        }
+      )
     ) {
       throw new Error(
-        "증기 판매량을 확인하지 못했습니다."
+        "증기 판매량·1호기 생산량·2호기 생산량·총생산량·판매율 중 일부를 확인하지 못했습니다."
       );
     }
 
@@ -197958,12 +199532,74 @@ function render() {
     }
 
 
+    /*
+      1·2호기 생산량 합계 검증
+    */
+
+    const calculatedTotal =
+      Math.round(
+        (
+          unitOneProduction +
+          unitTwoProduction
+        ) *
+          1000
+      ) /
+        1000;
+
+
+    if (
+      Math.abs(
+        calculatedTotal -
+        totalProduction
+      ) >
+        0.001
+    ) {
+      throw new Error(
+        "1·2호기 증기생산량 합계가 총 증기생산량과 일치하지 않습니다."
+      );
+    }
+
+
+    /*
+      판매율 계산 검증
+    */
+
+    const calculatedSalesRate =
+      totalProduction >
+        0
+        ? Math.round(
+            (
+              steamSales /
+              totalProduction *
+              100
+            ) *
+              1000
+          ) /
+            1000
+        : null;
+
+
+    if (
+      calculatedSalesRate ===
+        null ||
+      Math.abs(
+        calculatedSalesRate -
+        salesRate
+      ) >
+        0.001
+    ) {
+      throw new Error(
+        "증기 판매율 계산값이 조회 결과와 일치하지 않습니다."
+      );
+    }
+
+
     return {
       source:
         normalizeText(
           result.source
         ) ||
-        "OIS BOARD LOGSHEET / 일별 증기 판매량",
+        "DataPARC / OIS 일별 증기 판매량",
 
       targetDate:
         expectedDate,
@@ -197972,15 +199608,46 @@ function render() {
         sourceDate ||
         expectedDate,
 
+      outputInterval:
+        normalizeText(
+          result.outputInterval
+        ) ||
+        "일 누적값 차이",
+
+      hourRange:
+        normalizeText(
+          result.hourRange
+        ) ||
+        "00:00~다음날 00:00",
+
+      hourCount:
+        normalizeNumber(
+          result.hourCount
+        ) ??
+        24,
+
+      unit:
+        normalizeText(
+          result.unit
+        ) ||
+        "ton",
+
       salesUnit:
         normalizeText(
           result.salesUnit ??
-          result.sales_unit ??
-          result.unit
+          result.sales_unit
         ) ||
         "TON",
 
       steamSales,
+
+      unitOneProduction,
+
+      unitTwoProduction,
+
+      totalProduction,
+
+      salesRate,
 
       collectedAt:
         normalizeText(
@@ -197991,7 +199658,15 @@ function render() {
       agentId:
         normalizeText(
           requestItem.agentId
-        )
+        ),
+
+      unitOne:
+        result.unitOne ||
+        null,
+
+      unitTwo:
+        result.unitTwo ||
+        null
     };
   }
 
@@ -198066,7 +199741,7 @@ function render() {
 
 
     console.log(
-      "오전회의 증기 판매량 조회 완료:",
+      "오전회의 증기 현황 조회 완료:",
       state.steamStatus
     );
 
@@ -198080,7 +199755,19 @@ function render() {
               expectedDate,
 
             steamSales:
-              result.steamSales
+              result.steamSales,
+
+            unitOneProduction:
+              result.unitOneProduction,
+
+            unitTwoProduction:
+              result.unitTwoProduction,
+
+            totalProduction:
+              result.totalProduction,
+
+            salesRate:
+              result.salesRate
           }
         }
       )
@@ -198279,16 +199966,33 @@ function render() {
       );
 
 
-    const hasExistingValue =
-      normalizeNumber(
-        state.steamStatus
-          ?.steamSales
-      ) !==
-        null;
+    const hasExistingValues = [
+      state.steamStatus
+        ?.steamSales,
+
+      state.steamStatus
+        ?.unitOneProduction,
+
+      state.steamStatus
+        ?.unitTwoProduction,
+
+      state.steamStatus
+        ?.totalProduction,
+
+      state.steamStatus
+        ?.salesRate
+    ].every(
+      value => {
+        return normalizeNumber(
+          value
+        ) !==
+          null;
+      }
+    );
 
 
     /*
-      현재 날짜의 증기 판매량이 이미 있으면
+      현재 날짜의 정상 값이 이미 있으면
       중복 요청하지 않는다.
     */
 
@@ -198297,7 +200001,7 @@ function render() {
         true &&
       existingDate ===
         targetDate &&
-      hasExistingValue
+      hasExistingValues
     ) {
       renderSteamStatus();
 
@@ -198603,23 +200307,40 @@ function render() {
             ).toLowerCase();
 
 
-          const hasCompleteValue =
-            normalizeNumber(
-              state.steamStatus
-                ?.steamSales
-            ) !==
-              null;
+          const hasCompleteValues = [
+            state.steamStatus
+              ?.steamSales,
+
+            state.steamStatus
+              ?.unitOneProduction,
+
+            state.steamStatus
+              ?.unitTwoProduction,
+
+            state.steamStatus
+              ?.totalProduction,
+
+            state.steamStatus
+              ?.salesRate
+          ].every(
+            value => {
+              return normalizeNumber(
+                value
+              ) !==
+                null;
+            }
+          );
 
 
           /*
-            선택한 날짜와 동일한 증기 판매량이
-            이미 복원되어 있으면 신규 요청하지 않는다.
+            선택한 날짜와 동일한 증기 현황 다섯 값이
+            모두 복원되어 있으면 신규 요청하지 않는다.
           */
 
           if (
             resultDate ===
               targetDate &&
-            hasCompleteValue
+            hasCompleteValues
           ) {
             renderSteamStatus();
 
@@ -204038,4 +205759,1422 @@ container.style.flexShrink = "0";
 
       return savedEntries;
     };
+})();
+
+/* =========================================================
+  석회석 전표사진 모바일 카메라 · 미리보기
+
+  현재 단계:
+  - 모바일 후면 카메라 실행
+  - 촬영사진 확인창 표시
+  - 닫기 및 재촬영
+  - OCR 입력칸 초기화
+
+  다음 단계:
+  - 사진 축소 및 방향 보정
+  - OCR API 전송
+========================================================= */
+
+(function installLimestoneSlipCameraPicker() {
+  "use strict";
+
+
+  if (
+    window
+      .__limestoneSlipCameraPickerInstalled ===
+        true
+  ) {
+    return;
+  }
+
+
+  window
+    .__limestoneSlipCameraPickerInstalled =
+    true;
+
+
+let limestoneSlipPreviewObjectUrl =
+  "";
+
+let limestoneSlipPreparedImageBlob =
+  null;
+
+let limestoneSlipImagePreparationSequence =
+  0;
+
+let limestoneSlipOcrAbortController =
+  null;
+
+let limestoneSlipOcrResult =
+  null;  
+
+
+
+  /* =====================================================
+    화면 요소
+  ====================================================== */
+
+  function getLimestoneSlipCaptureElements() {
+    return {
+      captureButton:
+        document.getElementById(
+          "openLimestoneSlipCaptureButton"
+        ),
+
+      cameraInput:
+        document.getElementById(
+          "limestoneSlipCameraInput"
+        ),
+
+      panel:
+        document.getElementById(
+          "limestoneSlipCapturePanel"
+        ),
+
+      closeButton:
+        document.getElementById(
+          "closeLimestoneSlipCapturePanelButton"
+        ),
+
+      retakeButton:
+        document.getElementById(
+          "retakeLimestoneSlipButton"
+        ),
+
+      previewImage:
+        document.getElementById(
+          "limestoneSlipPreviewImage"
+        ),
+
+      previewPlaceholder:
+        document.getElementById(
+          "limestoneSlipPreviewPlaceholder"
+        ),
+
+      statusMessage:
+        document.getElementById(
+          "limestoneSlipStatusMessage"
+        ),
+
+      quantityInput:
+        document.getElementById(
+          "limestoneSlipQuantityTonInput"
+        ),
+
+      kilogramValue:
+        document.getElementById(
+          "limestoneSlipKilogramValue"
+        ),
+
+      unitOneButton:
+        document.getElementById(
+          "registerLimestoneSlipUnitOneButton"
+        ),
+
+      unitTwoButton:
+        document.getElementById(
+          "registerLimestoneSlipUnitTwoButton"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    안내 메시지
+  ====================================================== */
+
+  function showLimestoneSlipCameraMessage(
+    message
+  ) {
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message,
+        2000
+      );
+
+      return;
+    }
+
+
+    window.alert(
+      message
+    );
+  }
+
+
+  /* =====================================================
+    모바일 화면 확인
+  ====================================================== */
+
+  function isLimestoneSlipMobileScreen() {
+    return window
+      .matchMedia(
+        "(max-width: 768px)"
+      )
+      .matches;
+  }
+
+
+  /* =====================================================
+    사진 미리보기 주소 해제
+  ====================================================== */
+
+  function releaseLimestoneSlipPreviewUrl() {
+    if (
+      !limestoneSlipPreviewObjectUrl
+    ) {
+      return;
+    }
+
+
+    URL.revokeObjectURL(
+      limestoneSlipPreviewObjectUrl
+    );
+
+
+    limestoneSlipPreviewObjectUrl =
+      "";
+  }
+
+/* =====================================================
+  사진 디코딩
+====================================================== */
+
+async function decodeLimestoneSlipImage(
+  imageFile
+) {
+  if (
+    typeof createImageBitmap ===
+      "function"
+  ) {
+    let imageBitmap =
+      null;
+
+
+    try {
+      imageBitmap =
+        await createImageBitmap(
+          imageFile,
+          {
+            imageOrientation:
+              "from-image"
+          }
+        );
+
+    } catch {
+      try {
+        imageBitmap =
+          await createImageBitmap(
+            imageFile
+          );
+
+      } catch {
+        imageBitmap =
+          null;
+      }
+    }
+
+
+    if (
+      imageBitmap
+    ) {
+      return {
+        source:
+          imageBitmap,
+
+        width:
+          imageBitmap.width,
+
+        height:
+          imageBitmap.height,
+
+        release() {
+          if (
+            typeof imageBitmap.close ===
+              "function"
+          ) {
+            imageBitmap.close();
+          }
+        }
+      };
+    }
+  }
+
+
+  return new Promise(
+    function loadLimestoneSlipImage(
+      resolve,
+      reject
+    ) {
+      const objectUrl =
+        URL.createObjectURL(
+          imageFile
+        );
+
+
+      const image =
+        new Image();
+
+
+      image.decoding =
+        "async";
+
+
+      image.onload =
+        function handleImageLoaded() {
+          resolve({
+            source:
+              image,
+
+            width:
+              image.naturalWidth,
+
+            height:
+              image.naturalHeight,
+
+            release() {
+              URL.revokeObjectURL(
+                objectUrl
+              );
+            }
+          });
+        };
+
+
+      image.onerror =
+        function handleImageLoadError() {
+          URL.revokeObjectURL(
+            objectUrl
+          );
+
+
+          reject(
+            new Error(
+              "전표사진을 해석하지 못했습니다."
+            )
+          );
+        };
+
+
+      image.src =
+        objectUrl;
+    }
+  );
+}
+
+
+/* =====================================================
+  Canvas → JPEG Blob
+====================================================== */
+
+function createLimestoneSlipJpegBlob(
+  canvas
+) {
+  return new Promise(
+    function convertLimestoneSlipCanvas(
+      resolve,
+      reject
+    ) {
+      canvas.toBlob(
+        function handleConvertedBlob(
+          imageBlob
+        ) {
+          if (
+            !imageBlob
+          ) {
+            reject(
+              new Error(
+                "전표사진을 JPEG로 변환하지 못했습니다."
+              )
+            );
+
+            return;
+          }
+
+
+          resolve(
+            imageBlob
+          );
+        },
+
+        "image/jpeg",
+        0.86
+      );
+    }
+  );
+}
+
+
+/* =====================================================
+  OCR용 사진 축소 · 방향 보정
+
+  - 긴 변 최대 1,600px
+  - JPEG 품질 86%
+  - 투명 배경은 흰색으로 처리
+====================================================== */
+
+async function prepareLimestoneSlipImage(
+  imageFile
+) {
+  const maximumImageSide =
+    1600;
+
+
+  let decodedImage =
+    null;
+
+
+  try {
+    decodedImage =
+      await decodeLimestoneSlipImage(
+        imageFile
+      );
+
+
+    const originalWidth =
+      Number(
+        decodedImage.width
+      );
+
+
+    const originalHeight =
+      Number(
+        decodedImage.height
+      );
+
+
+    if (
+      !Number.isFinite(
+        originalWidth
+      ) ||
+      !Number.isFinite(
+        originalHeight
+      ) ||
+      originalWidth <=
+        0 ||
+      originalHeight <=
+        0
+    ) {
+      throw new Error(
+        "전표사진 크기를 확인하지 못했습니다."
+      );
+    }
+
+
+    const resizeRatio =
+      Math.min(
+        1,
+        maximumImageSide /
+          Math.max(
+            originalWidth,
+            originalHeight
+          )
+      );
+
+
+    const targetWidth =
+      Math.max(
+        1,
+        Math.round(
+          originalWidth *
+            resizeRatio
+        )
+      );
+
+
+    const targetHeight =
+      Math.max(
+        1,
+        Math.round(
+          originalHeight *
+            resizeRatio
+        )
+      );
+
+
+    const canvas =
+      document.createElement(
+        "canvas"
+      );
+
+
+    canvas.width =
+      targetWidth;
+
+    canvas.height =
+      targetHeight;
+
+
+    const drawingContext =
+      canvas.getContext(
+        "2d",
+        {
+          alpha:
+            false
+        }
+      );
+
+
+    if (
+      !drawingContext
+    ) {
+      throw new Error(
+        "전표사진 보정 화면을 만들지 못했습니다."
+      );
+    }
+
+
+    drawingContext.fillStyle =
+      "#ffffff";
+
+
+    drawingContext.fillRect(
+      0,
+      0,
+      targetWidth,
+      targetHeight
+    );
+
+
+    drawingContext.imageSmoothingEnabled =
+      true;
+
+
+    drawingContext.imageSmoothingQuality =
+      "high";
+
+
+    drawingContext.drawImage(
+      decodedImage.source,
+      0,
+      0,
+      targetWidth,
+      targetHeight
+    );
+
+
+    return await createLimestoneSlipJpegBlob(
+      canvas
+    );
+
+  } finally {
+    if (
+      decodedImage &&
+      typeof decodedImage.release ===
+        "function"
+    ) {
+      decodedImage.release();
+    }
+  }
+}
+
+
+/* =====================================================
+  보정된 사진 미리보기
+====================================================== */
+
+function showLimestoneSlipPreparedPreview(
+  elements,
+  preparedImageBlob
+) {
+  elements.previewImage.onload =
+    function handlePreparedPreviewLoaded() {
+      elements.previewImage.hidden =
+        false;
+
+      elements.previewPlaceholder.hidden =
+        true;
+    };
+
+
+  elements.previewImage.onerror =
+    function handlePreparedPreviewError() {
+      elements.previewImage.hidden =
+        true;
+
+      elements.previewPlaceholder.hidden =
+        false;
+
+      elements.previewPlaceholder.textContent =
+        "보정된 전표사진을 표시하지 못했습니다.";
+
+
+      setLimestoneSlipStatus(
+        elements.statusMessage,
+        "전표사진 미리보기를 표시하지 못했습니다. 다시 촬영해주세요.",
+        "is-error"
+      );
+    };
+
+
+  elements.previewImage.removeAttribute(
+    "src"
+  );
+
+
+  releaseLimestoneSlipPreviewUrl();
+
+
+  limestoneSlipPreviewObjectUrl =
+    URL.createObjectURL(
+      preparedImageBlob
+    );
+
+
+  elements.previewImage.src =
+    limestoneSlipPreviewObjectUrl;
+}
+
+  /* =====================================================
+    상태 문구
+  ====================================================== */
+
+  function setLimestoneSlipStatus(
+    statusElement,
+    message,
+    stateClass = ""
+  ) {
+    if (
+      !statusElement
+    ) {
+      return;
+    }
+
+
+    statusElement.textContent =
+      message;
+
+
+    statusElement.classList.remove(
+      "is-error",
+      "is-success"
+    );
+
+
+    if (
+      stateClass
+    ) {
+      statusElement.classList.add(
+        stateClass
+      );
+    }
+  }
+
+
+  /* =====================================================
+    OCR 결과 초기화
+  ====================================================== */
+
+  function resetLimestoneSlipRecognitionFields(
+    elements
+  ) {
+    if (
+      elements.quantityInput
+    ) {
+      elements.quantityInput.value =
+        "";
+
+      elements.quantityInput.disabled =
+        true;
+    }
+
+
+    if (
+      elements.kilogramValue
+    ) {
+      elements.kilogramValue.textContent =
+        "실중량을 인식하면 kg 값도 표시됩니다.";
+    }
+
+
+    if (
+      elements.unitOneButton
+    ) {
+      elements.unitOneButton.disabled =
+        true;
+    }
+
+
+    if (
+      elements.unitTwoButton
+    ) {
+      elements.unitTwoButton.disabled =
+        true;
+    }
+  }
+
+
+  /* =====================================================
+    확인창 닫기
+  ====================================================== */
+
+function closeLimestoneSlipCapturePanel() {
+  const elements =
+    getLimestoneSlipCaptureElements();
+
+
+  /*
+    진행 중인 사진 처리를 무효화한다.
+  */
+
+limestoneSlipImagePreparationSequence +=
+  1;
+
+
+cancelLimestoneSlipOcrRequest();
+
+
+limestoneSlipOcrResult =
+  null;
+
+
+limestoneSlipPreparedImageBlob =
+  null;
+
+
+  if (
+    elements.panel
+  ) {
+    elements.panel.hidden =
+      true;
+
+    elements.panel.setAttribute(
+      "aria-busy",
+      "false"
+    );
+  }
+
+
+  if (
+    elements.previewImage
+  ) {
+    elements.previewImage.onload =
+      null;
+
+    elements.previewImage.onerror =
+      null;
+
+    elements.previewImage.removeAttribute(
+      "src"
+    );
+
+    elements.previewImage.hidden =
+      true;
+  }
+
+
+  releaseLimestoneSlipPreviewUrl();
+
+
+  if (
+    elements.previewPlaceholder
+  ) {
+    elements.previewPlaceholder.hidden =
+      false;
+
+    elements.previewPlaceholder.textContent =
+      "전표사진을 준비하고 있습니다.";
+  }
+
+
+  setLimestoneSlipStatus(
+    elements.statusMessage,
+    "촬영한 전표의 실중량을 분석합니다."
+  );
+
+
+  resetLimestoneSlipRecognitionFields(
+    elements
+  );
+
+
+  if (
+    elements.cameraInput
+  ) {
+    elements.cameraInput.value =
+      "";
+  }
+}
+
+
+  /* =====================================================
+    카메라 실행
+  ====================================================== */
+
+  function openLimestoneSlipCamera() {
+    const elements =
+      getLimestoneSlipCaptureElements();
+
+
+    if (
+      !isLimestoneSlipMobileScreen()
+    ) {
+      showLimestoneSlipCameraMessage(
+        "전표 촬영은 모바일에서만 사용할 수 있습니다."
+      );
+
+      return;
+    }
+
+
+    if (
+      !elements.cameraInput
+    ) {
+      showLimestoneSlipCameraMessage(
+        "전표 촬영 입력창을 찾을 수 없습니다."
+      );
+
+      return;
+    }
+
+
+    /*
+      동일한 사진을 다시 선택해도
+      change 이벤트가 실행되도록 초기화한다.
+    */
+
+    elements.cameraInput.value =
+      "";
+
+
+    elements.cameraInput.click();
+  }
+
+/* =====================================================
+  진행 중인 OCR 요청 취소
+====================================================== */
+
+function cancelLimestoneSlipOcrRequest() {
+  if (
+    limestoneSlipOcrAbortController
+  ) {
+    limestoneSlipOcrAbortController.abort();
+
+    limestoneSlipOcrAbortController =
+      null;
+  }
+}
+
+
+/* =====================================================
+  보정된 전표사진 → OCR API
+====================================================== */
+
+async function requestLimestoneSlipOcr(
+  elements,
+  preparedImageBlob,
+  preparationSequence
+) {
+  const sessionToken =
+    getShiftLogSessionToken();
+
+
+  if (
+    !sessionToken
+  ) {
+    setLimestoneSlipStatus(
+      elements.statusMessage,
+      "로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요.",
+      "is-error"
+    );
+
+    return null;
+  }
+
+
+  cancelLimestoneSlipOcrRequest();
+
+
+  const requestController =
+    new AbortController();
+
+
+  limestoneSlipOcrAbortController =
+    requestController;
+
+
+  const formData =
+    new FormData();
+
+
+  formData.append(
+    "image",
+    preparedImageBlob,
+    "limestone-slip.jpg"
+  );
+
+
+  const preparedKilobytes =
+    Math.max(
+      1,
+      Math.round(
+        preparedImageBlob.size /
+          1024
+      )
+    );
+
+
+  elements.panel.setAttribute(
+    "aria-busy",
+    "true"
+  );
+
+
+  setLimestoneSlipStatus(
+    elements.statusMessage,
+    `사진 준비 완료 (${preparedKilobytes.toLocaleString("ko-KR")} KB) · 실중량을 분석하고 있습니다.`
+  );
+
+
+  try {
+    const response =
+      await fetch(
+        "/api/limestone-slip-ocr",
+        {
+          method:
+            "POST",
+
+          headers:
+            getShiftLogAuthHeaders(),
+
+          body:
+            formData,
+
+          cache:
+            "no-store",
+
+          signal:
+            requestController.signal
+        }
+      );
+
+
+    const responseText =
+      await response.text();
+
+
+    let result = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "OCR 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    /*
+      닫기 또는 재촬영으로
+      이전 요청이 무효화된 경우
+    */
+
+    if (
+      requestController.signal.aborted ||
+      preparationSequence !==
+        limestoneSlipImagePreparationSequence
+    ) {
+      return null;
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok !==
+        true
+    ) {
+      throw new Error(
+        String(
+          result.message ||
+          "전표 실중량을 분석하지 못했습니다."
+        ).trim()
+      );
+    }
+
+
+    const quantityKg =
+      Number(
+        result.quantityKg
+      );
+
+
+    /*
+      OCR이 실중량을 확정하지 못한 경우
+    */
+
+    if (
+      result.recognized !==
+        true ||
+      !Number.isFinite(
+        quantityKg
+      )
+    ) {
+      limestoneSlipOcrResult = {
+        recognized:
+          false,
+
+        slipImageKey:
+          String(
+            result.slipImageKey ||
+            ""
+          ).trim()
+      };
+
+
+      setLimestoneSlipStatus(
+        elements.statusMessage,
+        String(
+          result.message ||
+          "실중량을 정확히 인식하지 못했습니다. 다시 촬영해 주세요."
+        ).trim()
+      );
+
+
+      return result;
+    }
+
+
+    const quantityTon =
+      Number(
+        (
+          quantityKg /
+          1000
+        ).toFixed(
+          2
+        )
+      );
+
+
+    limestoneSlipOcrResult = {
+      recognized:
+        true,
+
+      quantityKg,
+
+      quantityTon,
+
+      printedValue:
+        String(
+          result.printedValue ||
+          ""
+        ).trim(),
+
+      confidence:
+        String(
+          result.confidence ||
+          "unknown"
+        ).trim(),
+
+      slipImageKey:
+        String(
+          result.slipImageKey ||
+          ""
+        ).trim()
+    };
+
+
+    setLimestoneSlipStatus(
+      elements.statusMessage,
+      `실중량 ${Math.round(quantityKg).toLocaleString("ko-KR")} kg (${quantityTon.toFixed(2)} t)을 인식했습니다.`,
+      "is-success"
+    );
+
+
+    return result;
+
+  } catch (
+    error
+  ) {
+    if (
+      requestController.signal.aborted ||
+      preparationSequence !==
+        limestoneSlipImagePreparationSequence
+    ) {
+      return null;
+    }
+
+
+    limestoneSlipOcrResult =
+      null;
+
+
+    setLimestoneSlipStatus(
+      elements.statusMessage,
+      String(
+        error?.message ||
+        "전표 실중량을 분석하는 중 오류가 발생했습니다."
+      ).trim(),
+      "is-error"
+    );
+
+
+    console.error(
+      "[Limestone Slip] OCR request failed:",
+      error
+    );
+
+
+    return null;
+
+  } finally {
+    if (
+      limestoneSlipOcrAbortController ===
+        requestController
+    ) {
+      limestoneSlipOcrAbortController =
+        null;
+    }
+
+
+    if (
+      preparationSequence ===
+        limestoneSlipImagePreparationSequence &&
+      elements.panel
+    ) {
+      elements.panel.setAttribute(
+        "aria-busy",
+        "false"
+      );
+    }
+  }
+}
+
+  /* =====================================================
+    사진 선택 완료
+  ====================================================== */
+
+async function handleLimestoneSlipImageSelected(
+  event
+) {
+  const cameraInput =
+    event.currentTarget;
+
+
+  const imageFile =
+    cameraInput
+      .files?.[0] ||
+    null;
+
+
+  if (
+    !imageFile
+  ) {
+    return;
+  }
+
+
+  if (
+    imageFile.type &&
+    !imageFile.type.startsWith(
+      "image/"
+    )
+  ) {
+    cameraInput.value =
+      "";
+
+
+    showLimestoneSlipCameraMessage(
+      "전표사진 이미지 파일만 사용할 수 있습니다."
+    );
+
+
+    return;
+  }
+
+
+  if (
+    imageFile.size <=
+      0
+  ) {
+    cameraInput.value =
+      "";
+
+
+    showLimestoneSlipCameraMessage(
+      "전표사진을 불러오지 못했습니다. 다시 촬영해주세요."
+    );
+
+
+    return;
+  }
+
+
+  const elements =
+    getLimestoneSlipCaptureElements();
+
+
+  if (
+    !elements.panel ||
+    !elements.previewImage ||
+    !elements.previewPlaceholder
+  ) {
+    cameraInput.value =
+      "";
+
+
+    showLimestoneSlipCameraMessage(
+      "전표사진 확인창을 찾을 수 없습니다."
+    );
+
+
+    return;
+  }
+
+cancelLimestoneSlipOcrRequest();
+
+
+limestoneSlipOcrResult =
+  null;
+
+
+  const preparationSequence =
+    ++limestoneSlipImagePreparationSequence;
+
+
+  limestoneSlipPreparedImageBlob =
+    null;
+
+
+  resetLimestoneSlipRecognitionFields(
+    elements
+  );
+
+
+  elements.panel.hidden =
+    false;
+
+
+  elements.panel.setAttribute(
+    "aria-busy",
+    "true"
+  );
+
+
+  elements.previewImage.onload =
+    null;
+
+  elements.previewImage.onerror =
+    null;
+
+  elements.previewImage.removeAttribute(
+    "src"
+  );
+
+  elements.previewImage.hidden =
+    true;
+
+
+  releaseLimestoneSlipPreviewUrl();
+
+
+  elements.previewPlaceholder.hidden =
+    false;
+
+  elements.previewPlaceholder.textContent =
+    "전표사진의 크기와 방향을 보정하고 있습니다.";
+
+
+  setLimestoneSlipStatus(
+    elements.statusMessage,
+    "OCR 전송용 사진을 준비하고 있습니다."
+  );
+
+
+  window.requestAnimationFrame(
+    function moveLimestoneSlipPanelToTop() {
+      elements.panel.scrollTop =
+        0;
+    }
+  );
+
+
+  try {
+    const preparedImageBlob =
+      await prepareLimestoneSlipImage(
+        imageFile
+      );
+
+
+    /*
+      닫기 또는 재촬영으로
+      이전 처리가 무효화된 경우
+    */
+
+    if (
+      preparationSequence !==
+        limestoneSlipImagePreparationSequence
+    ) {
+      return;
+    }
+
+
+    limestoneSlipPreparedImageBlob =
+      preparedImageBlob;
+
+
+    showLimestoneSlipPreparedPreview(
+      elements,
+      preparedImageBlob
+    );
+
+
+await requestLimestoneSlipOcr(
+  elements,
+  preparedImageBlob,
+  preparationSequence
+);
+
+  } catch (
+    error
+  ) {
+    if (
+      preparationSequence !==
+        limestoneSlipImagePreparationSequence
+    ) {
+      return;
+    }
+
+
+    limestoneSlipPreparedImageBlob =
+      null;
+
+
+    elements.panel.setAttribute(
+      "aria-busy",
+      "false"
+    );
+
+
+    elements.previewImage.hidden =
+      true;
+
+
+    elements.previewPlaceholder.hidden =
+      false;
+
+    elements.previewPlaceholder.textContent =
+      "전표사진을 보정하지 못했습니다.";
+
+
+    setLimestoneSlipStatus(
+      elements.statusMessage,
+      "전표사진을 처리하지 못했습니다. 다시 촬영해주세요.",
+      "is-error"
+    );
+
+
+    console.error(
+      "[Limestone Slip] Image preparation failed:",
+      error
+    );
+  }
+}
+
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function initializeLimestoneSlipCameraPicker() {
+    const elements =
+      getLimestoneSlipCaptureElements();
+
+
+    if (
+      !elements.captureButton ||
+      !elements.cameraInput
+    ) {
+      return;
+    }
+
+
+    if (
+      elements.captureButton.dataset
+        .limestoneSlipCameraBound ===
+          "true"
+    ) {
+      return;
+    }
+
+
+    elements.captureButton.addEventListener(
+      "click",
+      openLimestoneSlipCamera
+    );
+
+
+    elements.cameraInput.addEventListener(
+      "change",
+      handleLimestoneSlipImageSelected
+    );
+
+
+    if (
+      elements.closeButton
+    ) {
+      elements.closeButton.addEventListener(
+        "click",
+        closeLimestoneSlipCapturePanel
+      );
+    }
+
+
+    if (
+      elements.retakeButton
+    ) {
+      elements.retakeButton.addEventListener(
+        "click",
+        openLimestoneSlipCamera
+      );
+    }
+
+
+    elements.captureButton.dataset
+      .limestoneSlipCameraBound =
+      "true";
+
+
+    window.addEventListener(
+      "pagehide",
+      releaseLimestoneSlipPreviewUrl,
+      {
+        once:
+          true
+      }
+    );
+  }
+
+
+  /* =====================================================
+    최초 실행
+  ====================================================== */
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeLimestoneSlipCameraPicker,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeLimestoneSlipCameraPicker();
+  }
 })();
