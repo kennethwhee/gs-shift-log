@@ -91409,6 +91409,25 @@ function setAuxiliaryMaterialExpandedView(
     );
 
 
+  /*
+    수치 수정 중 화면을 전환하면
+    입력 중인 값이 사라질 수 있으므로 막는다.
+  */
+  if (
+    auxiliaryMaterialValueEditState
+      .isEditing &&
+    nextState !==
+      auxiliaryMaterialTableViewState
+        .isExpanded
+  ) {
+    showToast(
+      "수치 수정을 저장하거나 취소한 뒤 크게 보기를 전환해 주세요."
+    );
+
+    return;
+  }
+
+
   const scrollLeft =
     tableWrap?.scrollLeft ||
     0;
@@ -91439,6 +91458,16 @@ function setAuxiliaryMaterialExpandedView(
     expandedButton,
     nextState
   );
+
+
+  /*
+    기본 화면:
+    1호기 표와 2호기 표를 위아래로 표시
+
+    크게 보기:
+    기존 1·2호기 통합표 표시
+  */
+  renderAuxiliaryMaterialHistory();
 
 
   restoreAuxiliaryMaterialTableScroll(
@@ -145950,8 +145979,8 @@ function applyMorningMeetingCoalNumericValues(
 
 
   /*
-    현재 Silo Level 미리보기에 표시된
-    회의자료 기준일 전날 24시 OIS 값
+    회의자료 기준일 전날 24시
+    OIS Silo Level 조회값
   */
 
   const state =
@@ -146022,12 +146051,8 @@ function applyMorningMeetingCoalNumericValues(
     },
 
     /*
-      Bio Storage Silo Level
-
-      OIS TAG:
-      EBF20CW201
-
-      회의자료 기준일 전날 24시 값
+      기존 Bio Storage 높이(m) 칸은
+      값이 남지 않도록 비운다.
     */
 
     {
@@ -146035,17 +146060,23 @@ function applyMorningMeetingCoalNumericValues(
         "N13",
 
       value:
-        siloLevel
-          .bioStorageSiloLevel
+        null
     },
+
+    /*
+      Bio Storage Silo Level
+
+      N14:
+      Bio-SRF 재고량 ton 칸
+    */
 
     {
       address:
         "N14",
 
       value:
-        values.bioInventory
-          ?.inventory
+        siloLevel
+          .bioStorageSiloLevel
     },
 
     {
@@ -146087,10 +146118,8 @@ function applyMorningMeetingCoalNumericValues(
     /*
       Fly Ash Silo Level
 
-      OIS TAG:
-      003ETH01CW201XQ01
-
-      회의자료 기준일 전날 24시 값
+      AB21:
+      Silo Level 24시 ton 칸
     */
 
     {
@@ -153174,32 +153203,29 @@ async function applyMorningMeetingManualInputCellFills(
     I9:K9, I10:K10은 포함하지 않는다.
   */
 
-  const yellowRanges = [
-    "E7:F8",
-    "I7:K8",
-    "N7:T8",
-    "X7:Y9",
-    "Z7:AB8",
-    "AE7:AF9",
-    "AK7:AM9",
+const yellowRanges = [
+  "E7:F8",
+  "I7:K8",
+  "N7:T8",
+  "X7:Y9",
+  "Z7:AB8",
+  "AE7:AF9",
+  "AK7:AM9",
 
-    "AD11:AF11",
-    "AJ11:AL11",
+  "AD11:AF11",
+  "AJ11:AL11",
 
-    "AE13:AG13",
-    "AH13:AH14",
+  "AE13:AG13",
+  "AH13:AH14",
 
-    "N14:Q14",
-    "X14",
-    "Z14:AA14",
-    "AC14",
+  "X14",
+  "Z14:AA14",
+  "AC14",
 
-    "H18:L18",
-    "M18:U18",
-    "V18:Y18",
-
-    "AB21:AC22"
-  ];
+  "H18:L18",
+  "M18:U18",
+  "V18:Y18"
+];
 
 
   const weekendSupplementResult =
@@ -153317,11 +153343,13 @@ async function applyMorningMeetingManualInputCellFills(
     I9:K9, I10:K10은 바탕색 없음으로 확정한다.
   */
 
-  const noFillRanges = [
-    "I9:K9",
-    "I10:K10"
-  ];
+const noFillRanges = [
+  "I9:K9",
+  "I10:K10",
 
+  "N14:Q14",
+  "AB21:AC22"
+];
 
   noFillRanges.forEach(
     rangeReference => {

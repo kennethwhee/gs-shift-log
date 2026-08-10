@@ -1,0 +1,2 @@
+{"sequence":1,"capturedAt":"2026-08-10T09:33:28.237Z","elapsedMilliseconds":5,"eventType":"capture-start","startPageUrls":["http://dp.gspoge.com/"]}
+{"sequence":2,"capturedAt":"2026-08-10T09:33:29.930Z","elapsedMilliseconds":1693,"eventType":"capture-stop","finalPageUrls":["http://dp.gspoge.com/"],"entryCountBeforeStop":1}
