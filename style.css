@@ -92356,3 +92356,242 @@ body.is-auxiliary-material-expanded
   }
 
 }
+
+/* =========================================================
+  석회석 전표 촬영 모바일 전체화면 보정
+
+  - iPhone 좌우 잘림 방지
+  - 촬영 확인창 실제 전체화면 사용
+  - 사진 미리보기 하단 잘림 방지
+  - 상단·등록 버튼은 고정하고 본문만 스크롤
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  /* 효율팀 팝업 좌우 잘림 방지 */
+
+  #efficiencyTeamModal {
+    box-sizing: border-box !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+
+    overflow-x: hidden !important;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-panel {
+    box-sizing: border-box !important;
+
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+
+  /* 전표 확인창을 실제 휴대폰 전체화면으로 표시 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-panel:not([hidden]) {
+    box-sizing: border-box !important;
+
+    position: fixed !important;
+
+    inset: 0 !important;
+
+    z-index: 9999 !important;
+
+    display: grid !important;
+
+    width: auto !important;
+    max-width: none !important;
+
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    min-height: 0 !important;
+
+    grid-template-rows:
+      auto
+      minmax(0, 1fr)
+      auto
+      auto !important;
+
+    gap: 6px !important;
+
+    padding:
+      max(7px, env(safe-area-inset-top))
+      7px
+      max(7px, env(safe-area-inset-bottom)) !important;
+
+    overflow: hidden !important;
+
+    border: 0 !important;
+    border-radius: 0 !important;
+
+    background: #f4f7fa !important;
+  }
+
+
+  /* 제목 영역 축소 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-header {
+    min-height: 48px !important;
+
+    padding:
+      6px
+      9px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-close-button {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+  }
+
+
+  /* 사진·인식 결과 영역만 세로 스크롤 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-body {
+    display: flex !important;
+
+    min-height: 0 !important;
+
+    flex-direction: column !important;
+
+    gap: 6px !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+
+  /* 미리보기 크기 및 Safari 배치 보정 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-preview {
+    box-sizing: border-box !important;
+
+    position: relative !important;
+
+    display: flex !important;
+
+    width: 100% !important;
+    height: clamp(135px, 22dvh, 200px) !important;
+    min-height: 135px !important;
+    max-height: 200px !important;
+
+    flex: 0 0 auto !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    overflow: hidden !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-preview
+  img {
+    position: absolute !important;
+
+    inset: 0 !important;
+
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+
+    object-fit: contain !important;
+    object-position: center !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-preview-placeholder:not([hidden]) {
+    position: absolute !important;
+
+    inset: 0 !important;
+
+    display: flex !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+
+  /* 인식 결과 컴팩트화 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-result {
+    flex: 0 0 auto !important;
+
+    padding:
+      8px
+      9px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-status-message {
+    margin-bottom: 6px !important;
+
+    font-size: 10px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSlipQuantityTonInput {
+    height: 44px !important;
+
+    font-size: 22px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-verification-message {
+    margin-top: 6px !important;
+
+    padding:
+      6px
+      7px !important;
+  }
+
+
+  /* 등록 버튼은 항상 화면 아래에 표시 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-actions {
+    flex: 0 0 auto !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-capture-actions
+  button {
+    min-height: 40px !important;
+  }
+
+}
