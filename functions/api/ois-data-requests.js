@@ -3684,8 +3684,148 @@ async function ensureAuxiliaryMaterialDailyTable(
       )
     `)
     .run();
+
+
+  await ensureAuxiliaryMaterialDensitySettingsTable(
+    database
+  );
 }
 
+
+/* =========================================================
+  Slurry 밀도 고정값 D1 테이블
+
+  - 1호기·2호기별 한 행
+  - 적용 시작일 이후 OIS 저장자료에 고정값 우선 적용
+========================================================= */
+
+async function ensureAuxiliaryMaterialDensitySettingsTable(
+  database
+) {
+  await database
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS auxiliary_material_density_settings (
+        unit_no INTEGER PRIMARY KEY,
+        density_kgm3 REAL NOT NULL,
+        effective_from TEXT NOT NULL,
+
+        created_by_id TEXT NOT NULL DEFAULT '',
+        created_by_name TEXT NOT NULL DEFAULT '',
+        updated_by_id TEXT NOT NULL DEFAULT '',
+        updated_by_name TEXT NOT NULL DEFAULT '',
+
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        revision INTEGER NOT NULL DEFAULT 1,
+
+        CHECK (unit_no IN (1, 2))
+      )
+    `)
+    .run();
+}
+
+
+function convertAuxiliaryMaterialDensitySetting(
+  row
+) {
+  if (
+    !row
+  ) {
+    return null;
+  }
+
+
+  const unitNo =
+    Number(
+      row.unit_no
+    );
+
+
+  const densityKgm3 =
+    normalizeAuxiliaryMaterialNumber(
+      row.density_kgm3
+    );
+
+
+  const effectiveFrom =
+    normalizeText(
+      row.effective_from
+    );
+
+
+  if (
+    !(
+      unitNo ===
+        1 ||
+      unitNo ===
+        2
+    ) ||
+    densityKgm3 ===
+      null ||
+    !isValidIsoDate(
+      effectiveFrom
+    )
+  ) {
+    return null;
+  }
+
+
+  return {
+    unitNo,
+    densityKgm3,
+    effectiveFrom,
+
+    updatedByName:
+      normalizeText(
+        row.updated_by_name
+      ),
+
+    updatedAt:
+      normalizeText(
+        row.updated_at
+      ),
+
+    revision:
+      Number(
+        row.revision
+      ) ||
+      1
+  };
+}
+
+
+async function loadAuxiliaryMaterialDensitySettings(
+  database
+) {
+  await ensureAuxiliaryMaterialDensitySettingsTable(
+    database
+  );
+
+
+  const result =
+    await database
+      .prepare(`
+        SELECT *
+        FROM auxiliary_material_density_settings
+        ORDER BY unit_no ASC
+      `)
+      .all();
+
+
+  return (
+    Array.isArray(
+      result.results
+    )
+      ? result.results
+      : []
+  )
+    .map(
+      convertAuxiliaryMaterialDensitySetting
+    )
+    .filter(
+      Boolean
+    );
+}
 
 function normalizeAuxiliaryMaterialNumber(
   value,
@@ -4319,7 +4459,6 @@ async function saveAuxiliaryMaterialDailyRecords(
   );
 }
 
-
 async function handleAuxiliaryMaterialHistoryGet(
   context,
   requestUrl
@@ -4384,21 +4523,30 @@ async function handleAuxiliaryMaterialHistoryGet(
   );
 
 
-  const queryResult =
-    await context.env.DB
-      .prepare(`
-        SELECT *
-        FROM auxiliary_material_daily
-        WHERE record_date >= ?
-          AND record_date <= ?
-        ORDER BY record_date DESC,
-                 unit_no ASC
-      `)
-      .bind(
-        startDate,
-        endDate
+  const [
+    queryResult,
+    fixedDensitySettings
+  ] =
+    await Promise.all([
+      context.env.DB
+        .prepare(`
+          SELECT *
+          FROM auxiliary_material_daily
+          WHERE record_date >= ?
+            AND record_date <= ?
+          ORDER BY record_date DESC,
+                   unit_no ASC
+        `)
+        .bind(
+          startDate,
+          endDate
+        )
+        .all(),
+
+      loadAuxiliaryMaterialDensitySettings(
+        context.env.DB
       )
-      .all();
+    ]);
 
 
   const records =
@@ -4437,23 +4585,262 @@ async function handleAuxiliaryMaterialHistoryGet(
 
     summary: {
       savedDateCount,
+
       missingDateCount:
         Math.max(
           0,
           dayCount -
           savedDateCount
         ),
+
       completeRecordCount:
         records.filter(
           item => item.isComplete
         ).length,
+
       recordCount:
         records.length
     },
 
     items:
-      records
+      records,
+
+    fixedDensitySettings
   });
+}
+
+/* =========================================================
+  부재료 수동 수정값 확인
+========================================================= */
+
+function normalizeAuxiliaryMaterialManualValue(
+  value,
+  label,
+  options = {}
+) {
+  const normalizedText =
+    normalizeText(
+      value
+    );
+
+
+  if (
+    value ===
+      null ||
+    value ===
+      undefined ||
+    normalizedText ===
+      "" ||
+    normalizedText ===
+      "-" ||
+    normalizedText ===
+      "—"
+  ) {
+    return null;
+  }
+
+
+  const numericValue =
+    Number(
+      String(
+        value
+      ).replace(
+        /,/g,
+        ""
+      )
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    throw new Error(
+      `${label} 값을 숫자로 입력해 주세요.`
+    );
+  }
+
+
+  const minimum =
+    Number.isFinite(
+      Number(
+        options.minimum
+      )
+    )
+      ? Number(
+          options.minimum
+        )
+      : 0;
+
+
+  const maximum =
+    Number.isFinite(
+      Number(
+        options.maximum
+      )
+    )
+      ? Number(
+          options.maximum
+        )
+      : 1000000;
+
+
+  const isMinimumExclusive =
+    options.minimumExclusive ===
+      true;
+
+
+  if (
+    (
+      isMinimumExclusive
+        ? numericValue <=
+          minimum
+        : numericValue <
+          minimum
+    ) ||
+    numericValue >
+      maximum
+  ) {
+    const minimumText =
+      isMinimumExclusive
+        ? `${minimum} 초과`
+        : `${minimum} 이상`;
+
+
+    throw new Error(
+      `${label} 값은 ${minimumText} ${maximum} 이하로 입력해 주세요.`
+    );
+  }
+
+
+  return normalizeAuxiliaryMaterialNumber(
+    numericValue
+  );
+}
+
+
+function normalizeAuxiliaryMaterialManualRecord(
+  rawItem,
+  itemIndex
+) {
+  const recordDate =
+    normalizeText(
+      rawItem?.recordDate
+    );
+
+
+  const unitNo =
+    Number(
+      rawItem?.unitNo
+    );
+
+
+  if (
+    !isValidIsoDate(
+      recordDate
+    ) ||
+    !(
+      unitNo ===
+        1 ||
+      unitNo ===
+        2
+    )
+  ) {
+    throw new Error(
+      `${itemIndex + 1}번째 부재료 수정자료의 날짜·호기를 확인해 주세요.`
+    );
+  }
+
+
+  const prefix =
+    `${recordDate} ${unitNo}호기`;
+
+
+  const values =
+    rawItem?.values &&
+    typeof rawItem.values ===
+      "object" &&
+    !Array.isArray(
+      rawItem.values
+    )
+      ? rawItem.values
+      : {};
+
+
+  return {
+    recordDate,
+    unitNo,
+
+    expectedRevision:
+      Math.max(
+        0,
+        Number(
+          rawItem?.revision
+        ) ||
+        0
+      ),
+
+    values: {
+      soxPpm:
+        normalizeAuxiliaryMaterialManualValue(
+          values.soxPpm,
+          `${prefix} SOx`
+        ),
+
+      limestoneUsageTpd:
+        normalizeAuxiliaryMaterialManualValue(
+          values.limestoneUsageTpd,
+          `${prefix} Limestone 사용량`
+        ),
+
+      limestoneReceiptTon:
+        normalizeAuxiliaryMaterialManualValue(
+          values.limestoneReceiptTon,
+          `${prefix} Limestone 입고량`
+        ),
+
+      limeSlurryFlowM3h:
+        normalizeAuxiliaryMaterialManualValue(
+          values.limeSlurryFlowM3h,
+          `${prefix} Lime Slurry 유량`
+        ),
+
+      limeSlurryDensityKgm3:
+        normalizeAuxiliaryMaterialManualValue(
+          values.limeSlurryDensityKgm3,
+          `${prefix} Slurry 밀도`,
+          {
+            minimum:
+              1000,
+
+            minimumExclusive:
+              true,
+
+            maximum:
+              2000
+          }
+        ),
+
+      limePowderTpd:
+        normalizeAuxiliaryMaterialManualValue(
+          values.limePowderTpd,
+          `${prefix} Lime Powder`
+        ),
+
+      noxPpm:
+        normalizeAuxiliaryMaterialManualValue(
+          values.noxPpm,
+          `${prefix} NOx`
+        ),
+
+      ammoniaM3d:
+        normalizeAuxiliaryMaterialManualValue(
+          values.ammoniaM3d,
+          `${prefix} Ammonia 일사용량`
+        )
+    }
+  };
 }
 
 /* =========================================================

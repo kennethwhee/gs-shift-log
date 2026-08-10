@@ -88807,6 +88807,115 @@ async function saveAuxiliaryMaterialFixedDensity() {
 }
 
 /* =========================================================
+  부재료 수치 수정 · 밀도 고정 이벤트 연결
+========================================================= */
+
+function initializeAuxiliaryMaterialValueEditControls() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  if (
+    !elements.view ||
+    elements.view.dataset
+      .auxiliaryMaterialValueEditBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  elements.editValuesButton?.addEventListener(
+    "click",
+    () => {
+      if (
+        auxiliaryMaterialValueEditState
+          .isEditing
+      ) {
+        saveAuxiliaryMaterialEditedValues();
+
+      } else {
+        setAuxiliaryMaterialValueEditMode(
+          true
+        );
+      }
+    }
+  );
+
+
+  elements.cancelEditButton?.addEventListener(
+    "click",
+    () => {
+      setAuxiliaryMaterialValueEditMode(
+        false
+      );
+    }
+  );
+
+
+  elements.fixedDensitySaveButton?.addEventListener(
+    "click",
+    saveAuxiliaryMaterialFixedDensity
+  );
+
+
+  elements.tableBody?.addEventListener(
+    "input",
+    handleAuxiliaryMaterialValueInput
+  );
+
+
+  document.addEventListener(
+    "keydown",
+    event => {
+      if (
+        event.key ===
+          "Escape" &&
+        auxiliaryMaterialValueEditState
+          .isEditing &&
+        !auxiliaryMaterialValueEditState
+          .isSaving &&
+        !document.body.classList.contains(
+          "is-auxiliary-material-expanded"
+        )
+      ) {
+        setAuxiliaryMaterialValueEditMode(
+          false
+        );
+      }
+    }
+  );
+
+
+  elements.view.dataset
+    .auxiliaryMaterialValueEditBound =
+    "true";
+
+
+  updateAuxiliaryMaterialValueEditButtons();
+
+  renderAuxiliaryMaterialFixedDensitySettings();
+}
+
+
+if (
+  document.readyState ===
+    "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeAuxiliaryMaterialValueEditControls,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeAuxiliaryMaterialValueEditControls();
+}
+
+/* =========================================================
   부재료 평균 - 1호기 · 2호기 · 통합 표시
 ========================================================= */
 
