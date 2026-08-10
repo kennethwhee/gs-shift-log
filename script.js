@@ -85543,6 +85543,47 @@ function switchEfficiencyTeamView(
   );
 
 
+  /*
+    모바일 석회석 메뉴는 항상 입고 현황부터 연다.
+
+    PC에서 사용량 계산 화면을 보고 있던 상태는
+    그대로 유지하고, 모바일 진입만 안정화한다.
+  */
+  if (
+    selectedView ===
+      "limestone" &&
+    window.matchMedia(
+      "(max-width: 768px)"
+    ).matches &&
+    typeof window
+      .switchLimestoneSubview ===
+      "function"
+  ) {
+    window
+      .switchLimestoneSubview(
+        "receipt"
+      );
+  }
+
+
+  const selectedViewElement =
+    views.find(
+      view =>
+        view.dataset
+          .efficiencyView ===
+        selectedView
+    ) ||
+    null;
+
+
+  if (
+    selectedViewElement
+  ) {
+    selectedViewElement.scrollTop =
+      0;
+  }
+
+
   if (
     emptyState
   ) {
@@ -85953,6 +85994,41 @@ function getAuxiliaryMaterialElements() {
     rowCount:
       document.getElementById(
         "auxiliaryMaterialRowCount"
+      ),
+
+    densityEffectiveDateInput:
+      document.getElementById(
+        "auxiliaryMaterialDensityEffectiveDate"
+      ),
+
+    unitOneFixedDensityInput:
+      document.getElementById(
+        "auxiliaryMaterialUnitOneFixedDensity"
+      ),
+
+    unitTwoFixedDensityInput:
+      document.getElementById(
+        "auxiliaryMaterialUnitTwoFixedDensity"
+      ),
+
+    fixedDensitySaveButton:
+      document.getElementById(
+        "saveAuxiliaryMaterialFixedDensityButton"
+      ),
+
+    fixedDensityStatus:
+      document.getElementById(
+        "auxiliaryMaterialFixedDensityStatus"
+      ),
+
+    editValuesButton:
+      document.getElementById(
+        "editAuxiliaryMaterialValuesButton"
+      ),
+
+    cancelEditButton:
+      document.getElementById(
+        "cancelAuxiliaryMaterialValuesButton"
       )
   };
 }
@@ -86502,7 +86578,6 @@ if (
   - 저장일수 및 기간 평균 표시
 ========================================================= */
 
-
 /* =====================================================
   부재료 저장자료 화면 상태
 ===================================================== */
@@ -86510,8 +86585,167 @@ if (
 const auxiliaryMaterialHistoryState = {
   items: [],
 
-  summary: {}
+  summary: {},
+
+  fixedDensitySettings: []
 };
+
+
+const auxiliaryMaterialValueEditState = {
+  isEditing:
+    false,
+
+  isSaving:
+    false
+};
+
+
+const AUXILIARY_MATERIAL_EDIT_FIELDS = [
+  {
+    key:
+      "soxPpm",
+
+    cssClass:
+      "is-sox",
+
+    label:
+      "SOx",
+
+    decimalPlaces:
+      2,
+
+    step:
+      "0.01"
+  },
+
+  {
+    key:
+      "limestoneUsageTpd",
+
+    cssClass:
+      "is-limestone-usage",
+
+    label:
+      "Limestone 사용량",
+
+    decimalPlaces:
+      2,
+
+    step:
+      "0.01"
+  },
+
+  {
+    key:
+      "limestoneReceiptTon",
+
+    cssClass:
+      "is-limestone-receipt",
+
+    label:
+      "Limestone 입고량",
+
+    decimalPlaces:
+      2,
+
+    step:
+      "0.01"
+  },
+
+  {
+    key:
+      "limeSlurryFlowM3h",
+
+    cssClass:
+      "is-slurry-flow",
+
+    label:
+      "Lime Slurry 유량",
+
+    decimalPlaces:
+      3,
+
+    step:
+      "0.001"
+  },
+
+  {
+    key:
+      "limeSlurryDensityKgm3",
+
+    cssClass:
+      "is-density",
+
+    label:
+      "Slurry 밀도",
+
+    decimalPlaces:
+      1,
+
+    step:
+      "0.1",
+
+    minimum:
+      1000,
+
+    minimumExclusive:
+      true,
+
+    maximum:
+      2000
+  },
+
+  {
+    key:
+      "limePowderTpd",
+
+    cssClass:
+      "is-lime-powder",
+
+    label:
+      "Lime Powder",
+
+    decimalPlaces:
+      2,
+
+    step:
+      "0.01"
+  },
+
+  {
+    key:
+      "noxPpm",
+
+    cssClass:
+      "is-nox",
+
+    label:
+      "NOx",
+
+    decimalPlaces:
+      2,
+
+    step:
+      "0.01"
+  },
+
+  {
+    key:
+      "ammoniaM3d",
+
+    cssClass:
+      "is-ammonia",
+
+    label:
+      "Ammonia 일사용량",
+
+    decimalPlaces:
+      3,
+
+    step:
+      "0.001"
+  }
+];
 
 
 /* =====================================================
@@ -86603,6 +86837,270 @@ function escapeAuxiliaryMaterialHtml(
       ];
     }
   );
+}
+
+
+/* =====================================================
+  부재료 수치 수정 입력값 표시
+===================================================== */
+
+function formatAuxiliaryMaterialEditInputValue(
+  value,
+  decimalPlaces
+) {
+  if (
+    value ===
+      null ||
+    value ===
+      undefined ||
+    String(
+      value
+    ).trim() ===
+      ""
+  ) {
+    return "";
+  }
+
+
+  const numericValue =
+    Number(
+      value
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return "";
+  }
+
+
+  return numericValue.toFixed(
+    decimalPlaces
+  );
+}
+
+
+/* =====================================================
+  호기별 Slurry 밀도 고정값 찾기
+===================================================== */
+
+function getAuxiliaryMaterialFixedDensitySetting(
+  unitNo
+) {
+  return (
+    Array.isArray(
+      auxiliaryMaterialHistoryState
+        .fixedDensitySettings
+    )
+      ? auxiliaryMaterialHistoryState
+          .fixedDensitySettings
+      : []
+  ).find(
+    setting => Number(
+      setting?.unitNo
+    ) ===
+      Number(
+        unitNo
+      )
+  ) ||
+  null;
+}
+
+
+/* =====================================================
+  해당 날짜의 고정 밀도 적용 여부
+===================================================== */
+
+function isAuxiliaryMaterialFixedDensityDate(
+  recordDate,
+  unitNo
+) {
+  const setting =
+    getAuxiliaryMaterialFixedDensitySetting(
+      unitNo
+    );
+
+
+  return Boolean(
+    setting &&
+    isValidAuxiliaryMaterialIsoDate(
+      setting.effectiveFrom
+    ) &&
+    recordDate >=
+      setting.effectiveFrom
+  );
+}
+
+
+/* =====================================================
+  Lime Powder 자동 계산
+===================================================== */
+
+function calculateAuxiliaryMaterialLimePowder(
+  flow,
+  density
+) {
+  const flowValue =
+    Number(
+      flow
+    );
+
+
+  const densityValue =
+    Number(
+      density
+    );
+
+
+  if (
+    !Number.isFinite(
+      flowValue
+    ) ||
+    !Number.isFinite(
+      densityValue
+    ) ||
+    flowValue <=
+      0 ||
+    densityValue <=
+      1000
+  ) {
+    return null;
+  }
+
+
+  return (
+    flowValue *
+    densityValue *
+    (
+      densityValue -
+      1000
+    ) /
+    (
+      1102 -
+      1000
+    ) *
+    0.15 *
+    24 /
+    1000
+  );
+}
+
+
+/* =====================================================
+  부재료 일반 셀 또는 수정 입력칸 생성
+===================================================== */
+
+function renderAuxiliaryMaterialValueCell(
+  item,
+  field,
+  unitClass,
+  recordDate,
+  unitNo
+) {
+  const isFixedDensity =
+    field.key ===
+      "limeSlurryDensityKgm3" &&
+    isAuxiliaryMaterialFixedDensityDate(
+      recordDate,
+      unitNo
+    );
+
+
+  const cellClasses = [
+    field.cssClass,
+    unitClass,
+    isFixedDensity
+      ? "is-fixed-density"
+      : ""
+  ]
+    .filter(
+      Boolean
+    )
+    .join(
+      " "
+    );
+
+
+  const fixedTitle =
+    isFixedDensity
+      ? `${unitNo}호기 Slurry 밀도 고정값 적용 중`
+      : "";
+
+
+  if (
+    !auxiliaryMaterialValueEditState
+      .isEditing ||
+    !item
+  ) {
+    return `
+      <td
+        class="${cellClasses}"
+        ${fixedTitle
+          ? `title="${escapeAuxiliaryMaterialHtml(
+              fixedTitle
+            )}"`
+          : ""}
+      >
+        ${formatAuxiliaryMaterialDisplayNumber(
+          item?.[
+            field.key
+          ],
+          field.decimalPlaces
+        )}
+      </td>
+    `;
+  }
+
+
+  const inputValue =
+    formatAuxiliaryMaterialEditInputValue(
+      item?.[
+        field.key
+      ],
+      field.decimalPlaces
+    );
+
+
+  return `
+    <td
+      class="${cellClasses} is-value-edit-cell"
+      ${fixedTitle
+        ? `title="${escapeAuxiliaryMaterialHtml(
+            fixedTitle
+          )}"`
+        : ""}
+    >
+      <input
+        type="text"
+        inputmode="decimal"
+        class="auxiliary-material-value-input"
+        data-record-date="${escapeAuxiliaryMaterialHtml(
+          recordDate
+        )}"
+        data-unit-no="${unitNo}"
+        data-field="${escapeAuxiliaryMaterialHtml(
+          field.key
+        )}"
+        data-original-value="${escapeAuxiliaryMaterialHtml(
+          inputValue
+        )}"
+        data-step="${escapeAuxiliaryMaterialHtml(
+          field.step
+        )}"
+        value="${escapeAuxiliaryMaterialHtml(
+          inputValue
+        )}"
+        placeholder="-"
+        autocomplete="off"
+        aria-label="${escapeAuxiliaryMaterialHtml(
+          `${recordDate} ${unitNo}호기 ${field.label}`
+        )}"
+      />
+    </td>
+  `;
 }
 
 
@@ -86971,65 +87469,24 @@ function renderAuxiliaryMaterialHistory() {
   */
   function renderUnitCells(
     item,
-    unitClass
+    unitClass,
+    recordDate,
+    unitNo
   ) {
-    return `
-      <td class="is-sox ${unitClass}">
-        ${formatAuxiliaryMaterialDisplayNumber(
-          item?.soxPpm,
-          2
-        )}
-      </td>
-
-      <td class="is-limestone-usage ${unitClass}">
-        ${formatAuxiliaryMaterialDisplayNumber(
-          item?.limestoneUsageTpd,
-          2
-        )}
-      </td>
-
-      <td class="is-limestone-receipt ${unitClass}">
-        ${formatAuxiliaryMaterialDisplayNumber(
-          item?.limestoneReceiptTon,
-          2
-        )}
-      </td>
-
-      <td class="is-slurry-flow ${unitClass}">
-        ${formatAuxiliaryMaterialDisplayNumber(
-          item?.limeSlurryFlowM3h,
-          3
-        )}
-      </td>
-
-      <td class="is-density ${unitClass}">
-        ${formatAuxiliaryMaterialDisplayNumber(
-          item?.limeSlurryDensityKgm3,
-          1
-        )}
-      </td>
-
-      <td class="is-lime-powder ${unitClass}">
-        ${formatAuxiliaryMaterialDisplayNumber(
-          item?.limePowderTpd,
-          2
-        )}
-      </td>
-
-      <td class="is-nox ${unitClass}">
-        ${formatAuxiliaryMaterialDisplayNumber(
-          item?.noxPpm,
-          2
-        )}
-      </td>
-
-      <td class="is-ammonia ${unitClass}">
-        ${formatAuxiliaryMaterialDisplayNumber(
-          item?.ammoniaM3d,
-          3
-        )}
-      </td>
-    `;
+    return AUXILIARY_MATERIAL_EDIT_FIELDS
+      .map(
+        field =>
+          renderAuxiliaryMaterialValueCell(
+            item,
+            field,
+            unitClass,
+            recordDate,
+            unitNo
+          )
+      )
+      .join(
+        ""
+      );
   }
 
 
@@ -87088,6 +87545,9 @@ function renderAuxiliaryMaterialHistory() {
 
           return `
             <tr
+              class="${auxiliaryMaterialValueEditState.isEditing
+                ? "is-value-editing"
+                : ""}"
               data-record-date="${escapeAuxiliaryMaterialHtml(
                 row.recordDate
               )}"
@@ -87102,12 +87562,16 @@ function renderAuxiliaryMaterialHistory() {
 
               ${renderUnitCells(
                 row.unitOne,
-                "is-unit-one"
+                "is-unit-one",
+                row.recordDate,
+                1
               )}
 
               ${renderUnitCells(
                 row.unitTwo,
-                "is-unit-two"
+                "is-unit-two",
+                row.recordDate,
+                2
               )}
 
               <td class="is-remarks">
@@ -206242,7 +206706,10 @@ let limestoneSlipOcrAbortController =
   null;
 
 let limestoneSlipOcrResult =
-  null;  
+  null;
+
+let limestoneSlipRegistrationPending =
+  false;
 
 
 
@@ -206800,52 +207267,284 @@ function showLimestoneSlipPreparedPreview(
   }
 
 
-  /* =====================================================
-    OCR 결과 초기화
-  ====================================================== */
+/* =====================================================
+  OCR 결과 초기화
+====================================================== */
 
-  function resetLimestoneSlipRecognitionFields(
-    elements
+function resetLimestoneSlipRecognitionFields(
+  elements
+) {
+  if (
+    elements.quantityInput
   ) {
-    if (
-      elements.quantityInput
-    ) {
-      elements.quantityInput.value =
-        "";
+    elements.quantityInput.value =
+      "";
 
-      elements.quantityInput.disabled =
-        true;
-    }
-
-
-    if (
-      elements.kilogramValue
-    ) {
-      elements.kilogramValue.textContent =
-        "실중량을 인식하면 kg 값도 표시됩니다.";
-    }
-
-
-    if (
-      elements.unitOneButton
-    ) {
-      elements.unitOneButton.disabled =
-        true;
-    }
-
-
-    if (
-      elements.unitTwoButton
-    ) {
-      elements.unitTwoButton.disabled =
-        true;
-    }
+    elements.quantityInput.disabled =
+      true;
   }
 
 
-  /* =====================================================
-    확인창 닫기
-  ====================================================== */
+  if (
+    elements.kilogramValue
+  ) {
+    elements.kilogramValue.textContent =
+      "실중량을 인식하면 kg 값도 표시됩니다.";
+  }
+
+
+  if (
+    elements.unitOneButton
+  ) {
+    elements.unitOneButton.disabled =
+      true;
+  }
+
+
+  if (
+    elements.unitTwoButton
+  ) {
+    elements.unitTwoButton.disabled =
+      true;
+  }
+}
+
+
+/* =====================================================
+  인식값 · 직접 입력값 동기화
+====================================================== */
+
+function parseLimestoneSlipQuantityTon(
+  value
+) {
+  const normalizedValue =
+    String(
+      value ??
+      ""
+    )
+      .replaceAll(
+        ",",
+        ""
+      )
+      .trim();
+
+
+  if (
+    !normalizedValue
+  ) {
+    return null;
+  }
+
+
+  const quantityTon =
+    Number(
+      normalizedValue
+    );
+
+
+  return (
+    Number.isFinite(
+      quantityTon
+    ) &&
+    quantityTon >=
+      0.01 &&
+    quantityTon <=
+      999.99
+  )
+    ? Number(
+        quantityTon.toFixed(
+          2
+        )
+      )
+    : null;
+}
+
+
+function parseLimestoneSlipQuantityKg(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
+
+  const normalizedValue =
+    String(
+      value
+    )
+      .replaceAll(
+        ",",
+        ""
+      )
+      .replace(
+        /[^\d.\-]/g,
+        ""
+      )
+      .trim();
+
+
+  if (
+    !normalizedValue
+  ) {
+    return null;
+  }
+
+
+  const quantityKg =
+    Number(
+      normalizedValue
+    );
+
+
+  return (
+    Number.isFinite(
+      quantityKg
+    ) &&
+    quantityKg >=
+      10 &&
+    quantityKg <=
+      999990
+  )
+    ? Math.round(
+        quantityKg
+      )
+    : null;
+}
+
+
+function syncLimestoneSlipQuantityState(
+  elements
+) {
+  const quantityTon =
+    parseLimestoneSlipQuantityTon(
+      elements.quantityInput
+        ?.value
+    );
+
+
+  if (
+    elements.kilogramValue
+  ) {
+    elements.kilogramValue.textContent =
+      quantityTon === null
+        ? "실중량을 ton 단위로 직접 입력해 주세요."
+        : `${Math.round(
+            quantityTon *
+              1000
+          ).toLocaleString(
+            "ko-KR"
+          )} kg`;
+  }
+
+
+  const shouldDisableUnitButtons =
+    quantityTon === null ||
+    limestoneSlipRegistrationPending;
+
+
+  if (
+    elements.unitOneButton
+  ) {
+    elements.unitOneButton.disabled =
+      shouldDisableUnitButtons;
+  }
+
+
+  if (
+    elements.unitTwoButton
+  ) {
+    elements.unitTwoButton.disabled =
+      shouldDisableUnitButtons;
+  }
+
+
+  return quantityTon;
+}
+
+
+function enableLimestoneSlipManualInput(
+  elements
+) {
+  if (
+    elements.quantityInput
+  ) {
+    elements.quantityInput.disabled =
+      false;
+  }
+
+
+  syncLimestoneSlipQuantityState(
+    elements
+  );
+}
+
+
+function applyLimestoneSlipRecognizedQuantity(
+  elements,
+  quantityKg
+) {
+  const normalizedQuantityKg =
+    parseLimestoneSlipQuantityKg(
+      quantityKg
+    );
+
+
+  if (
+    normalizedQuantityKg === null
+  ) {
+    enableLimestoneSlipManualInput(
+      elements
+    );
+
+    return null;
+  }
+
+
+  const quantityTon =
+    Number(
+      (
+        normalizedQuantityKg /
+        1000
+      ).toFixed(
+        2
+      )
+    );
+
+
+  if (
+    elements.quantityInput
+  ) {
+    elements.quantityInput.disabled =
+      false;
+
+    elements.quantityInput.value =
+      quantityTon.toFixed(
+        2
+      );
+  }
+
+
+  syncLimestoneSlipQuantityState(
+    elements
+  );
+
+
+  return {
+    quantityKg:
+      normalizedQuantityKg,
+
+    quantityTon
+  };
+}
+
+
+/* =====================================================
+  확인창 닫기
+====================================================== */
 
 function closeLimestoneSlipCapturePanel() {
   const elements =
@@ -206856,19 +207555,23 @@ function closeLimestoneSlipCapturePanel() {
     진행 중인 사진 처리를 무효화한다.
   */
 
-limestoneSlipImagePreparationSequence +=
-  1;
+  limestoneSlipImagePreparationSequence +=
+    1;
 
 
-cancelLimestoneSlipOcrRequest();
+  cancelLimestoneSlipOcrRequest();
 
 
-limestoneSlipOcrResult =
-  null;
+  limestoneSlipOcrResult =
+    null;
 
 
-limestoneSlipPreparedImageBlob =
-  null;
+  limestoneSlipPreparedImageBlob =
+    null;
+
+
+  limestoneSlipRegistrationPending =
+    false;
 
 
   if (
@@ -206934,7 +207637,6 @@ limestoneSlipPreparedImageBlob =
       "";
   }
 }
-
 
   /* =====================================================
     카메라 실행
@@ -207011,11 +207713,22 @@ async function requestLimestoneSlipOcr(
   if (
     !sessionToken
   ) {
+    if (
+      elements.panel
+    ) {
+      elements.panel.setAttribute(
+        "aria-busy",
+        "false"
+      );
+    }
+
+
     setLimestoneSlipStatus(
       elements.statusMessage,
       "로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요.",
       "is-error"
     );
+
 
     return null;
   }
@@ -207140,10 +207853,14 @@ async function requestLimestoneSlipOcr(
     }
 
 
-    const quantityKg =
-      Number(
-        result.quantityKg
-      );
+    const recognizedQuantity =
+      result.recognized ===
+        true
+        ? applyLimestoneSlipRecognizedQuantity(
+            elements,
+            result.quantityKg
+          )
+        : null;
 
 
     /*
@@ -207151,15 +207868,17 @@ async function requestLimestoneSlipOcr(
     */
 
     if (
-      result.recognized !==
-        true ||
-      !Number.isFinite(
-        quantityKg
-      )
+      !recognizedQuantity
     ) {
       limestoneSlipOcrResult = {
         recognized:
           false,
+
+        reasonCode:
+          String(
+            result.reasonCode ||
+            ""
+          ).trim(),
 
         slipImageKey:
           String(
@@ -207169,12 +207888,19 @@ async function requestLimestoneSlipOcr(
       };
 
 
+      enableLimestoneSlipManualInput(
+        elements
+      );
+
+
       setLimestoneSlipStatus(
         elements.statusMessage,
         String(
           result.message ||
-          "실중량을 정확히 인식하지 못했습니다. 다시 촬영해 주세요."
-        ).trim()
+          "실중량을 정확히 인식하지 못했습니다."
+        ).trim() +
+          " 아래 칸에 실중량을 직접 입력하거나 전표 전체를 다시 촬영해 주세요.",
+        "is-error"
       );
 
 
@@ -207182,15 +207908,11 @@ async function requestLimestoneSlipOcr(
     }
 
 
-    const quantityTon =
-      Number(
-        (
-          quantityKg /
-          1000
-        ).toFixed(
-          2
-        )
-      );
+    const {
+      quantityKg,
+      quantityTon
+    } =
+      recognizedQuantity;
 
 
     limestoneSlipOcrResult = {
@@ -207246,12 +207968,18 @@ async function requestLimestoneSlipOcr(
       null;
 
 
+    enableLimestoneSlipManualInput(
+      elements
+    );
+
+
     setLimestoneSlipStatus(
       elements.statusMessage,
       String(
         error?.message ||
         "전표 실중량을 분석하는 중 오류가 발생했습니다."
-      ).trim(),
+      ).trim() +
+        " 실중량을 직접 입력하거나 다시 촬영해 주세요.",
       "is-error"
     );
 
@@ -207282,6 +208010,358 @@ async function requestLimestoneSlipOcr(
       elements.panel.setAttribute(
         "aria-busy",
         "false"
+      );
+    }
+  }
+}
+
+/* =====================================================
+  확인된 실중량 → 석회석 입고기록 등록
+====================================================== */
+
+function getLimestoneSlipCurrentReceiptTime() {
+  const now =
+    new Date();
+
+
+  const padNumber =
+    value =>
+      String(
+        value
+      ).padStart(
+        2,
+        "0"
+      );
+
+
+  return {
+    receiptDate: [
+      now.getFullYear(),
+      padNumber(
+        now.getMonth() +
+          1
+      ),
+      padNumber(
+        now.getDate()
+      )
+    ].join(
+      "-"
+    ),
+
+    receiptTime: [
+      padNumber(
+        now.getHours()
+      ),
+      padNumber(
+        now.getMinutes()
+      )
+    ].join(
+      ":"
+    )
+  };
+}
+
+
+async function readLimestoneSlipReceiptResponse(
+  response
+) {
+  const responseText =
+    await response.text();
+
+
+  let result = {};
+
+
+  if (
+    responseText.trim()
+  ) {
+    try {
+      result =
+        JSON.parse(
+          responseText
+        );
+
+    } catch {
+      throw new Error(
+        `석회석 입고기록 서버 응답 형식이 올바르지 않습니다. HTTP ${response.status}`
+      );
+    }
+  }
+
+
+  if (
+    !response.ok ||
+    result.ok ===
+      false
+  ) {
+    throw new Error(
+      String(
+        result.message ||
+        result.error ||
+        `석회석 입고기록 등록 실패 (HTTP ${response.status})`
+      ).trim()
+    );
+  }
+
+
+  return result;
+}
+
+
+async function registerLimestoneSlipReceipt(
+  unitNo
+) {
+  const normalizedUnitNo =
+    Number(
+      unitNo
+    );
+
+
+  if (
+    ![
+      1,
+      2
+    ].includes(
+      normalizedUnitNo
+    ) ||
+    limestoneSlipRegistrationPending
+  ) {
+    return;
+  }
+
+
+  const elements =
+    getLimestoneSlipCaptureElements();
+
+
+  const quantityTon =
+    syncLimestoneSlipQuantityState(
+      elements
+    );
+
+
+  if (
+    quantityTon ===
+      null
+  ) {
+    setLimestoneSlipStatus(
+      elements.statusMessage,
+      "실중량을 0.01~999.99 ton 범위로 입력해 주세요.",
+      "is-error"
+    );
+
+
+    elements.quantityInput
+      ?.focus();
+
+
+    return;
+  }
+
+
+  if (
+    !getShiftLogSessionToken()
+  ) {
+    setLimestoneSlipStatus(
+      elements.statusMessage,
+      "로그인 세션이 만료되었습니다. 다시 로그인해 주세요.",
+      "is-error"
+    );
+
+
+    return;
+  }
+
+
+  const targetButton =
+    normalizedUnitNo ===
+      1
+      ? elements.unitOneButton
+      : elements.unitTwoButton;
+
+
+  const originalButtonText =
+    targetButton?.textContent ||
+    `${normalizedUnitNo}호기 등록`;
+
+
+  limestoneSlipRegistrationPending =
+    true;
+
+
+  elements.panel
+    ?.setAttribute(
+      "aria-busy",
+      "true"
+    );
+
+
+  syncLimestoneSlipQuantityState(
+    elements
+  );
+
+
+  if (
+    targetButton
+  ) {
+    targetButton.textContent =
+      "등록 중...";
+  }
+
+
+  setLimestoneSlipStatus(
+    elements.statusMessage,
+    `${normalizedUnitNo}호기 석회석 입고기록을 등록하고 있습니다.`
+  );
+
+
+  const receiptTime =
+    getLimestoneSlipCurrentReceiptTime();
+
+
+  const wasRecognized =
+    limestoneSlipOcrResult
+      ?.recognized ===
+    true;
+
+
+  const recognizedQuantityTon =
+    parseLimestoneSlipQuantityTon(
+      limestoneSlipOcrResult
+        ?.quantityTon
+    );
+
+
+  const wasManuallyCorrected =
+    wasRecognized &&
+    recognizedQuantityTon !==
+      null &&
+    Math.abs(
+      recognizedQuantityTon -
+      quantityTon
+    ) >=
+      0.005;
+
+
+  const note =
+    !wasRecognized
+      ? "모바일 전표 직접 입력"
+      : wasManuallyCorrected
+        ? "모바일 전표 OCR 확인 후 수정"
+        : "모바일 전표 OCR 등록";
+
+
+  try {
+    const response =
+      await fetch(
+        "/api/limestone-receipts",
+        {
+          method:
+            "POST",
+
+          headers:
+            getShiftLogAuthHeaders({
+              "Content-Type":
+                "application/json"
+            }),
+
+          body:
+            JSON.stringify({
+              ...receiptTime,
+
+              unitNo:
+                normalizedUnitNo,
+
+              quantityTon,
+
+              note
+            }),
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    const result =
+      await readLimestoneSlipReceiptResponse(
+        response
+      );
+
+
+    closeLimestoneSlipCapturePanel();
+
+
+    if (
+      typeof window
+        .switchLimestoneSubview ===
+        "function"
+    ) {
+      window
+        .switchLimestoneSubview(
+          "receipt"
+        );
+    }
+
+
+    if (
+      typeof window
+        .loadLimestoneReceipts ===
+        "function"
+    ) {
+      await window
+        .loadLimestoneReceipts();
+    }
+
+
+    showLimestoneSlipCameraMessage(
+      result.message ||
+      `${normalizedUnitNo}호기 석회석 입고기록을 등록했습니다.`
+    );
+
+  } catch (
+    error
+  ) {
+    setLimestoneSlipStatus(
+      elements.statusMessage,
+      String(
+        error?.message ||
+        "석회석 입고기록을 등록하지 못했습니다."
+      ).trim(),
+      "is-error"
+    );
+
+
+    console.error(
+      "[Limestone Slip] Receipt registration failed:",
+      error
+    );
+
+  } finally {
+    limestoneSlipRegistrationPending =
+      false;
+
+
+    if (
+      targetButton
+    ) {
+      targetButton.textContent =
+        originalButtonText;
+    }
+
+
+    if (
+      elements.panel &&
+      !elements.panel.hidden
+    ) {
+      elements.panel.setAttribute(
+        "aria-busy",
+        "false"
+      );
+
+
+      syncLimestoneSlipQuantityState(
+        elements
       );
     }
   }
@@ -207523,75 +208603,143 @@ await requestLimestoneSlipOcr(
     이벤트 연결
   ====================================================== */
 
-  function initializeLimestoneSlipCameraPicker() {
-    const elements =
-      getLimestoneSlipCaptureElements();
+function initializeLimestoneSlipCameraPicker() {
+  const elements =
+    getLimestoneSlipCaptureElements();
 
 
-    if (
-      !elements.captureButton ||
-      !elements.cameraInput
-    ) {
-      return;
-    }
+  if (
+    !elements.captureButton ||
+    !elements.cameraInput
+  ) {
+    return;
+  }
 
 
-    if (
-      elements.captureButton.dataset
-        .limestoneSlipCameraBound ===
-          "true"
-    ) {
-      return;
-    }
-
-
-    elements.captureButton.addEventListener(
-      "click",
-      openLimestoneSlipCamera
-    );
-
-
-    elements.cameraInput.addEventListener(
-      "change",
-      handleLimestoneSlipImageSelected
-    );
-
-
-    if (
-      elements.closeButton
-    ) {
-      elements.closeButton.addEventListener(
-        "click",
-        closeLimestoneSlipCapturePanel
-      );
-    }
-
-
-    if (
-      elements.retakeButton
-    ) {
-      elements.retakeButton.addEventListener(
-        "click",
-        openLimestoneSlipCamera
-      );
-    }
-
-
+  if (
     elements.captureButton.dataset
-      .limestoneSlipCameraBound =
-      "true";
+      .limestoneSlipCameraBound ===
+        "true"
+  ) {
+    return;
+  }
 
 
-    window.addEventListener(
-      "pagehide",
-      releaseLimestoneSlipPreviewUrl,
-      {
-        once:
-          true
-      }
+  /*
+    전표 촬영 버튼
+  */
+
+  elements.captureButton.addEventListener(
+    "click",
+    openLimestoneSlipCamera
+  );
+
+
+  /*
+    촬영한 사진 선택 완료
+  */
+
+  elements.cameraInput.addEventListener(
+    "change",
+    handleLimestoneSlipImageSelected
+  );
+
+
+  /*
+    확인창 닫기
+  */
+
+  if (
+    elements.closeButton
+  ) {
+    elements.closeButton.addEventListener(
+      "click",
+      closeLimestoneSlipCapturePanel
     );
   }
 
+
+  /*
+    전표 재촬영
+  */
+
+  if (
+    elements.retakeButton
+  ) {
+    elements.retakeButton.addEventListener(
+      "click",
+      openLimestoneSlipCamera
+    );
+  }
+
+
+  /*
+    OCR 인식값 또는 직접 입력값 변경
+  */
+
+  elements.quantityInput
+    ?.addEventListener(
+      "input",
+      () => {
+        syncLimestoneSlipQuantityState(
+          elements
+        );
+      }
+    );
+
+
+  /*
+    1호기 입고기록 등록
+  */
+
+  elements.unitOneButton
+    ?.addEventListener(
+      "click",
+      () => {
+        registerLimestoneSlipReceipt(
+          1
+        );
+      }
+    );
+
+
+  /*
+    2호기 입고기록 등록
+  */
+
+  elements.unitTwoButton
+    ?.addEventListener(
+      "click",
+      () => {
+        registerLimestoneSlipReceipt(
+          2
+        );
+      }
+    );
+
+
+  /*
+    중복 이벤트 연결 방지
+  */
+
+  elements.captureButton.dataset
+    .limestoneSlipCameraBound =
+      "true";
+
+
+  /*
+    페이지 종료 시 사진 미리보기 주소 해제
+  */
+
+  window.addEventListener(
+    "pagehide",
+    releaseLimestoneSlipPreviewUrl,
+    {
+      once:
+        true
+    }
+  );
+}
 
   /* =====================================================
     최초 실행

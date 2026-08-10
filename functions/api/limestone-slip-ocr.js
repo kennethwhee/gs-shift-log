@@ -32,6 +32,14 @@ const MAX_QUANTITY_KG =
   100000;
 
 
+/*
+  실중량과
+  총중량 - 공차중량의 허용 차이
+*/
+const WEIGHT_DIFFERENCE_TOLERANCE_KG =
+  100;
+
+
 /* =========================================================
   공통 응답
 ========================================================= */
@@ -337,96 +345,6 @@ function bytesToBase64(
   AI 응답 해석
 ========================================================= */
 
-function parseNumericValue(
-  value
-) {
-  if (
-    typeof value ===
-      "number"
-  ) {
-    return Number.isFinite(
-      value
-    )
-      ? value
-      : null;
-  }
-
-
-  const match =
-    normalizeText(
-      value
-    )
-      .replace(
-        /,/g,
-        ""
-      )
-      .replace(
-        /\s+/g,
-        ""
-      )
-      .match(
-        /-?\d+(?:\.\d+)?/
-      );
-
-
-  if (
-    !match
-  ) {
-    return null;
-  }
-
-
-  const number =
-    Number(
-      match[0]
-    );
-
-
-  return Number.isFinite(
-    number
-  )
-    ? number
-    : null;
-}
-
-
-function normalizeQuantityKg(
-  value
-) {
-  const number =
-    parseNumericValue(
-      value
-    );
-
-
-  if (
-    number ===
-      null
-  ) {
-    return null;
-  }
-
-
-  const quantityKg =
-    Math.round(
-      number
-    );
-
-
-  if (
-    quantityKg <
-      MIN_QUANTITY_KG ||
-    quantityKg >
-      MAX_QUANTITY_KG
-  ) {
-    return null;
-  }
-
-
-  return quantityKg;
-}
-
-
 function extractJsonObject(
   answerText
 ) {
@@ -480,83 +398,52 @@ function extractJsonObject(
 }
 
 
-function extractQuantityKg(
-  answerText,
-  answerObject
+function normalizeBoolean(
+  value
 ) {
-  let quantityKg =
-    normalizeQuantityKg(
-      answerObject?.quantityKg
-    );
-
-
   if (
-    quantityKg !==
-      null
+    value ===
+      true ||
+    value ===
+      false
   ) {
-    return quantityKg;
+    return value;
   }
 
 
-  const quantityFieldMatch =
+  const normalized =
     normalizeText(
-      answerText
-    ).match(
-      /["']?quantityKg["']?\s*[:=]\s*["']?([\d,.\s]+)/i
-    );
-
-
-  quantityKg =
-    normalizeQuantityKg(
-      quantityFieldMatch?.[1]
-    );
+      value
+    ).toLowerCase();
 
 
   if (
-    quantityKg !==
-      null
+    [
+      "true",
+      "yes",
+      "1"
+    ].includes(
+      normalized
+    )
   ) {
-    return quantityKg;
+    return true;
   }
-
-
-  const printedValue =
-    normalizeText(
-      answerObject?.printedValue
-    );
-
-
-  const printedMatch =
-    printedValue.match(
-      /([\d,.\s]+)\s*(?:kg|㎏)/i
-    );
-
-
-  quantityKg =
-    normalizeQuantityKg(
-      printedMatch?.[1]
-    );
 
 
   if (
-    quantityKg !==
-      null
+    [
+      "false",
+      "no",
+      "0"
+    ].includes(
+      normalized
+    )
   ) {
-    return quantityKg;
+    return false;
   }
 
 
-  const labeledMatch =
-    normalizeText(
-      answerText
-    ).match(
-      /실\s*중\s*량(?:\s*\(\s*kg\s*\))?[^\d]{0,20}([\d,.\s]+)\s*(?:kg|㎏)/i
-    );
-
-
-  return normalizeQuantityKg(
-    labeledMatch?.[1]
-  );
+  return null;
 }
 
 
@@ -581,6 +468,325 @@ function normalizeConfidence(
 }
 
 
+function getFirstObjectValue(
+  source,
+  propertyNames
+) {
+  if (
+    !source ||
+    typeof source !==
+      "object"
+  ) {
+    return undefined;
+  }
+
+
+  for (
+    const propertyName of propertyNames
+  ) {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        source,
+        propertyName
+      ) &&
+      source[
+        propertyName
+      ] !==
+        null &&
+      source[
+        propertyName
+      ] !==
+        undefined &&
+      normalizeText(
+        source[
+          propertyName
+        ]
+      ) !==
+        ""
+    ) {
+      return source[
+        propertyName
+      ];
+    }
+  }
+
+
+  return undefined;
+}
+
+
+function parseWeightNumber(
+  value
+) {
+  if (
+    typeof value ===
+      "number"
+  ) {
+    return Number.isFinite(
+      value
+    )
+      ? value
+      : null;
+  }
+
+
+  const sourceText =
+    normalizeText(
+      value
+    );
+
+
+  if (
+    !sourceText
+  ) {
+    return null;
+  }
+
+
+  const numericMatch =
+    sourceText.match(
+      /-?\d[\d\s,.]*/
+    );
+
+
+  if (
+    !numericMatch
+  ) {
+    return null;
+  }
+
+
+  let numericText =
+    numericMatch[0]
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  /*
+    30,920 또는 30.920처럼
+    세 자리 구분자로 보이는 경우
+  */
+  if (
+    /^-?\d{1,3}(?:[,.]\d{3})+$/.test(
+      numericText
+    )
+  ) {
+    numericText =
+      numericText.replace(
+        /[,.]/g,
+        ""
+      );
+
+  } else {
+    numericText =
+      numericText.replace(
+        /,/g,
+        ""
+      );
+  }
+
+
+  const numericValue =
+    Number(
+      numericText
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return null;
+  }
+
+
+  const isTonValue =
+    /(?:\b(?:t|ton)\b|톤)/i.test(
+      sourceText
+    ) &&
+    !/(?:kg|㎏)/i.test(
+      sourceText
+    );
+
+
+  return isTonValue
+    ? numericValue *
+        1000
+    : numericValue;
+}
+
+
+function normalizeWeightKg(
+  value
+) {
+  const numericValue =
+    parseWeightNumber(
+      value
+    );
+
+
+  if (
+    numericValue ===
+      null
+  ) {
+    return null;
+  }
+
+
+  const quantityKg =
+    Math.round(
+      numericValue
+    );
+
+
+  if (
+    quantityKg <
+      MIN_QUANTITY_KG ||
+    quantityKg >
+      MAX_QUANTITY_KG
+  ) {
+    return null;
+  }
+
+
+  return quantityKg;
+}
+
+
+function extractLabeledWeight(
+  answerText,
+  labelPattern
+) {
+  const match =
+    normalizeText(
+      answerText
+    ).match(
+      new RegExp(
+        `${labelPattern}(?:\\s*\\(\\s*(?:kg|㎏)\\s*\\))?[^\\d-]{0,30}(-?\\d[\\d\\s,.]{0,18})\\s*(kg|㎏|t|ton|톤)?`,
+        "i"
+      )
+    );
+
+
+  if (
+    !match
+  ) {
+    return null;
+  }
+
+
+  return normalizeWeightKg(
+    [
+      match[1],
+      match[2] ||
+        "kg"
+    ].join(
+      " "
+    )
+  );
+}
+
+
+function extractWeightField(
+  answerText,
+  answerObject,
+  propertyNames,
+  labelPattern,
+  visiblePropertyNames = []
+) {
+  const visibleValue =
+    getFirstObjectValue(
+      answerObject,
+      visiblePropertyNames
+    );
+
+
+  if (
+    normalizeBoolean(
+      visibleValue
+    ) ===
+      false
+  ) {
+    return null;
+  }
+
+
+  const objectValue =
+    getFirstObjectValue(
+      answerObject,
+      propertyNames
+    );
+
+
+  const objectWeight =
+    normalizeWeightKg(
+      objectValue
+    );
+
+
+  if (
+    objectWeight !==
+      null
+  ) {
+    return objectWeight;
+  }
+
+
+  return extractLabeledWeight(
+    answerText,
+    labelPattern
+  );
+}
+
+
+function getRecognitionMessage(
+  recognition
+) {
+  if (
+    recognition.recognized
+  ) {
+    if (
+      recognition.recognitionSource ===
+        "gross_minus_tare"
+    ) {
+      return "총중량과 공차중량의 차이로 실중량을 계산했습니다. 전표와 값이 같은지 확인해 주세요.";
+    }
+
+
+    return "전표의 실중량을 인식했습니다.";
+  }
+
+
+  switch (
+    recognition.reasonCode
+  ) {
+    case "weight_mismatch":
+      return "총중량·공차중량·실중량 값이 서로 맞지 않아 자동 확정하지 못했습니다. 전표를 확인해 직접 입력해 주세요.";
+
+    case "invalid_weight_order":
+      return "총중량과 공차중량의 순서를 정확히 읽지 못했습니다. 전표 전체를 다시 촬영하거나 직접 입력해 주세요.";
+
+    case "invalid_weight_range":
+      return "전표에서 읽은 중량이 정상 범위를 벗어났습니다. 전표를 확인해 직접 입력해 주세요.";
+
+    case "low_confidence":
+      return "전표 글자가 흐리거나 일부 가려져 실중량을 확정하지 못했습니다. 선명하게 다시 촬영하거나 직접 입력해 주세요.";
+
+    case "net_weight_not_visible":
+      return "사진에서 실중량 줄을 확인하지 못했습니다. 실중량까지 전표 전체가 나오도록 다시 촬영해 주세요.";
+
+    case "insufficient_weight_fields":
+      return "실중량 또는 총중량·공차중량을 모두 확인하지 못했습니다. 전표 전체를 다시 촬영하거나 직접 입력해 주세요.";
+
+    default:
+      return "실중량을 정확히 인식하지 못했습니다. 전표를 확인해 직접 입력해 주세요.";
+  }
+}
+
+
 function parseOcrAnswer(
   answerText
 ) {
@@ -590,14 +796,242 @@ function parseOcrAnswer(
     );
 
 
-  const quantityKg =
-    extractQuantityKg(
-      answerText,
-      answerObject
+  const confidence =
+    normalizeConfidence(
+      getFirstObjectValue(
+        answerObject,
+        [
+          "confidence",
+          "overallConfidence"
+        ]
+      )
     );
 
 
-  return {
+  const fullSlipVisible =
+    normalizeBoolean(
+      getFirstObjectValue(
+        answerObject,
+        [
+          "fullSlipVisible",
+          "documentVisible"
+        ]
+      )
+    );
+
+
+  const grossKg =
+    extractWeightField(
+      answerText,
+      answerObject,
+      [
+        "grossKg",
+        "grossWeightKg",
+        "totalWeightKg"
+      ],
+      "(?:총\\s*중\\s*량|gross(?:\\s*weight)?)",
+      [
+        "grossVisible",
+        "grossWeightVisible"
+      ]
+    );
+
+
+  const tareKg =
+    extractWeightField(
+      answerText,
+      answerObject,
+      [
+        "tareKg",
+        "tareWeightKg",
+        "emptyWeightKg"
+      ],
+      "(?:공\\s*차\\s*중\\s*량|차\\s*중\\s*량|tare(?:\\s*weight)?)",
+      [
+        "tareVisible",
+        "tareWeightVisible"
+      ]
+    );
+
+
+  const netKg =
+    extractWeightField(
+      answerText,
+      answerObject,
+      [
+        "netKg",
+        "quantityKg",
+        "netWeightKg"
+      ],
+      "(?:실\\s*중\\s*량|순\\s*중\\s*량|net(?:\\s*weight)?)",
+      [
+        "netVisible",
+        "netWeightVisible"
+      ]
+    );
+
+
+  const printedValue =
+    normalizeText(
+      getFirstObjectValue(
+        answerObject,
+        [
+          "printedValue",
+          "netPrintedValue"
+        ]
+      )
+    ).slice(
+      0,
+      80
+    );
+
+
+  const hasGrossAndTare =
+    grossKg !==
+      null &&
+    tareKg !==
+      null;
+
+
+  const differenceKg =
+    hasGrossAndTare
+      ? grossKg -
+          tareKg
+      : null;
+
+
+  const differenceIsValid =
+    differenceKg !==
+      null &&
+    differenceKg >=
+      MIN_QUANTITY_KG &&
+    differenceKg <=
+      MAX_QUANTITY_KG;
+
+
+  const confidenceIsUsable =
+    confidence ===
+      "high" ||
+    confidence ===
+      "medium";
+
+
+  let quantityKg =
+    null;
+
+
+  let recognitionSource =
+    null;
+
+
+  let reasonCode =
+    null;
+
+
+  if (
+    hasGrossAndTare &&
+    grossKg <=
+      tareKg
+  ) {
+    reasonCode =
+      "invalid_weight_order";
+
+  } else if (
+    netKg !==
+      null &&
+    hasGrossAndTare &&
+    Math.abs(
+      netKg -
+      differenceKg
+    ) >
+      WEIGHT_DIFFERENCE_TOLERANCE_KG
+  ) {
+    reasonCode =
+      "weight_mismatch";
+
+  } else if (
+    !confidenceIsUsable &&
+    (
+      netKg !==
+        null ||
+      hasGrossAndTare
+    )
+  ) {
+    reasonCode =
+      "low_confidence";
+
+  } else if (
+    netKg !==
+      null
+  ) {
+    quantityKg =
+      netKg;
+
+    recognitionSource =
+      "printed_net";
+
+  } else if (
+    hasGrossAndTare &&
+    differenceIsValid
+  ) {
+    quantityKg =
+      differenceKg;
+
+    recognitionSource =
+      "gross_minus_tare";
+
+  } else if (
+    hasGrossAndTare
+  ) {
+    reasonCode =
+      "invalid_weight_range";
+
+  } else if (
+    fullSlipVisible ===
+      false ||
+    (
+      netKg ===
+        null &&
+      grossKg ===
+        null &&
+      tareKg ===
+        null
+    )
+  ) {
+    reasonCode =
+      "net_weight_not_visible";
+
+  } else {
+    reasonCode =
+      "insufficient_weight_fields";
+  }
+
+
+  const recognized =
+    quantityKg !==
+      null;
+
+
+  const finalConfidence =
+    recognitionSource ===
+      "gross_minus_tare"
+        ? "medium"
+        : confidence;
+
+
+  const recognition = {
+    recognized,
+
+    grossKg,
+
+    tareKg,
+
+    /*
+      netKg는 전표에 직접 인쇄된 값이다.
+      quantityKg는 검증 후 사용할 최종값이다.
+    */
+    netKg,
+
     quantityKg,
 
     quantityTon:
@@ -613,17 +1047,28 @@ function parseOcrAnswer(
               )
             ),
 
-    printedValue:
-      normalizeText(
-        answerObject?.printedValue
-      ).slice(
-        0,
-        80
-      ),
+    printedValue,
 
     confidence:
-      normalizeConfidence(
-        answerObject?.confidence
+      finalConfidence,
+
+    fullSlipVisible,
+
+    recognitionSource,
+
+    reasonCode:
+      recognized
+        ? null
+        : reasonCode
+  };
+
+
+  return {
+    ...recognition,
+
+    message:
+      getRecognitionMessage(
+        recognition
       )
   };
 }
@@ -684,6 +1129,17 @@ export async function onRequestPost(
     }
 
 
+    /*
+      기존 배포 환경과 새 이름을 모두 지원한다.
+    */
+
+    const slipBucket =
+      context.env
+        .LIMESTONE_SLIP_BUCKET ||
+      context.env
+        .LIMESTONE_SLIPS;
+
+
     if (
       !context.env.AI
     ) {
@@ -701,8 +1157,7 @@ export async function onRequestPost(
 
 
     if (
-      !context.env
-        .LIMESTONE_SLIPS
+      !slipBucket
     ) {
       return jsonResponse(
         {
@@ -710,7 +1165,7 @@ export async function onRequestPost(
             false,
 
           message:
-            "전표사진 R2 바인딩 LIMESTONE_SLIPS이 등록되지 않았습니다."
+            "전표사진 R2 바인딩 LIMESTONE_SLIP_BUCKET 또는 LIMESTONE_SLIPS가 등록되지 않았습니다."
         },
         500
       );
@@ -876,17 +1331,25 @@ export async function onRequestPost(
             question: `
 이 이미지는 한국어 석회석 계근 전표입니다.
 
-오직 "실중량", "실 중 량" 또는 "실중량(kg)"이라고 표시된 값만 읽으세요.
-총중량, 공차중량, 차량번호, 전표번호, 날짜와 다른 모든 숫자는 무시하세요.
+전표에서 아래 세 항목을 각각 읽으세요.
+- 총중량 또는 총 중 량: grossKg
+- 공차중량, 공차 중량 또는 차중량: tareKg
+- 실중량, 실 중 량, 순중량 또는 NET WEIGHT: netKg
 
-실중량은 kg 단위의 정수로 반환하세요.
-쉼표는 제거하세요. 예: 30,920 kg는 30920입니다.
-값이나 라벨이 선명하지 않으면 추측하지 말고 quantityKg를 null로 반환하세요.
+각 값은 반드시 해당 라벨과 같은 행 또는 바로 인접한 칸에 인쇄된 중량만 사용하세요.
+날짜, 차량번호, 사업자번호, 전표번호 및 그 밖의 숫자는 절대 중량으로 사용하지 마세요.
+값은 kg 단위 정수로 반환하고 쉼표는 제거하세요. 예: 30,920 kg는 30920입니다.
+톤 단위로만 인쇄되어 있다면 kg으로 변환하세요.
 
-설명이나 Markdown 없이 반드시 다음 한 줄 JSON 형식만 반환하세요.
-{"quantityKg":30920,"printedValue":"30,920 kg","confidence":"high"}
+netKg가 보이지 않더라도 계산하거나 추측하지 마세요.
+총중량과 공차중량의 차이는 서버가 별도로 검증합니다.
 
-confidence는 high, medium, low 중 하나만 사용하세요.
+라벨 또는 값이 흐리거나 사진 밖에 있으면 해당 값은 null로 반환하세요.
+fullSlipVisible은 총중량·공차중량·실중량 영역이 사진 안에 보일 때만 true입니다.
+confidence는 세 중량 항목의 판독 신뢰도를 high, medium, low 중 하나로 반환하세요.
+
+설명이나 Markdown 없이 반드시 아래 키를 가진 JSON 한 줄만 반환하세요.
+{"grossKg":52340,"tareKg":21420,"netKg":30920,"printedValue":"30,920 kg","grossVisible":true,"tareVisible":true,"netVisible":true,"fullSlipVisible":true,"confidence":"high"}
             `.trim(),
 
             reasoning:
@@ -896,7 +1359,7 @@ confidence는 high, medium, low 중 하나만 사용하세요.
               0,
 
             max_tokens:
-              180,
+              260,
 
             stream:
               false
@@ -949,46 +1412,71 @@ confidence는 high, medium, low 중 하나만 사용하세요.
       );
 
 
-    await context.env
-      .LIMESTONE_SLIPS
-      .put(
-        objectKey,
-        imageBuffer,
-        {
-          httpMetadata: {
-            contentType:
-              "image/jpeg",
+    await slipBucket.put(
+      objectKey,
+      imageBuffer,
+      {
+        httpMetadata: {
+          contentType:
+            "image/jpeg",
 
-            cacheControl:
-              "private, no-store"
-          },
+          cacheControl:
+            "private, no-store"
+        },
 
-          customMetadata: {
-            employeeNo:
-              authentication.user
-                .employeeNo,
+        customMetadata: {
+          employeeNo:
+            authentication.user
+              .employeeNo,
 
-            uploadedAt:
-              uploadedAt.toISOString(),
+          uploadedAt:
+            uploadedAt.toISOString(),
 
-            quantityKg:
-              recognition.quantityKg ===
-                null
-                  ? ""
-                  : String(
-                      recognition.quantityKg
-                    ),
+          grossKg:
+            recognition.grossKg ===
+              null
+                ? ""
+                : String(
+                    recognition.grossKg
+                  ),
 
-            confidence:
-              recognition.confidence
-          }
+          tareKg:
+            recognition.tareKg ===
+              null
+                ? ""
+                : String(
+                    recognition.tareKg
+                  ),
+
+          netKg:
+            recognition.netKg ===
+              null
+                ? ""
+                : String(
+                    recognition.netKg
+                  ),
+
+          quantityKg:
+            recognition.quantityKg ===
+              null
+                ? ""
+                : String(
+                    recognition.quantityKg
+                  ),
+
+          confidence:
+            recognition.confidence,
+
+          recognitionSource:
+            recognition.recognitionSource ||
+            "",
+
+          reasonCode:
+            recognition.reasonCode ||
+            ""
         }
-      );
-
-
-    const recognized =
-      recognition.quantityKg !==
-        null;
+      }
+    );
 
 
     return jsonResponse(
@@ -996,7 +1484,17 @@ confidence는 high, medium, low 중 하나만 사용하세요.
         ok:
           true,
 
-        recognized,
+        recognized:
+          recognition.recognized,
+
+        grossKg:
+          recognition.grossKg,
+
+        tareKg:
+          recognition.tareKg,
+
+        netKg:
+          recognition.netKg,
 
         quantityKg:
           recognition.quantityKg,
@@ -1010,13 +1508,20 @@ confidence는 high, medium, low 중 하나만 사용하세요.
         confidence:
           recognition.confidence,
 
+        fullSlipVisible:
+          recognition.fullSlipVisible,
+
+        recognitionSource:
+          recognition.recognitionSource,
+
+        reasonCode:
+          recognition.reasonCode,
+
         slipImageKey:
           objectKey,
 
         message:
-          recognized
-            ? "전표의 실중량을 인식했습니다."
-            : "실중량을 정확히 인식하지 못했습니다. 전표를 확인해 직접 입력해 주세요."
+          recognition.message
       }
     );
 

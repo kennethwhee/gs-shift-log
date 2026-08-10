@@ -92208,3 +92208,151 @@ body.is-auxiliary-material-expanded
     flex: 1 1 auto;
   }
 }
+
+/* =========================================================
+  효율팀 모바일 최종 안정화
+
+  - 모바일 미사용 메뉴 2개는 삭제하지 않고 숨김
+  - 석회석 · 부재료 · ARM ROLL BOX만 표시
+  - 메뉴별 세로 스크롤 복구
+========================================================= */
+
+.limestone-slip-camera-guide {
+  display: none;
+}
+
+
+@media screen and (max-width: 768px) {
+
+  /* 모바일 미사용 메뉴 */
+
+  #efficiencyTeamModal
+  #efficiencyDailyWorkTab,
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingTab {
+    display: none !important;
+  }
+
+
+  /* 석회석 · 부재료 · ARM ROLL BOX 3개 */
+
+  #efficiencyTeamModal
+  .efficiency-team-tabs {
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      ) !important;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-tab {
+    min-height: 38px !important;
+
+    font-size: 11px !important;
+  }
+
+
+  /* 팝업 외부가 아닌 내부 화면만 스크롤 */
+
+  #efficiencyTeamModal
+  .efficiency-team-modal__body,
+
+  #efficiencyTeamModal
+  .efficiency-team-workspace {
+    min-height: 0 !important;
+
+    overflow: hidden !important;
+  }
+
+
+  /* 부재료 화면 전체를 하나의 세로 스크롤 영역으로 사용 */
+
+  #efficiencyTeamModal
+  #efficiencyAuxiliaryMaterialsView.is-active {
+    display: flex !important;
+
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+
+    flex-direction: column !important;
+
+    padding-bottom:
+      max(
+        12px,
+        env(safe-area-inset-bottom)
+      ) !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+
+
+  /* 석회석과 ARM ROLL은 각 대시보드가 스크롤 담당 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView.is-active,
+
+  #efficiencyTeamModal
+  #efficiencyArmRollView.is-active {
+    min-height: 0 !important;
+
+    overflow: hidden !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneDashboard,
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView,
+
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-dashboard {
+    min-height: 0 !important;
+
+    overflow-y: auto !important;
+
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+
+
+  /* 촬영 전에 실중량 행까지 보이도록 안내 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-camera-guide {
+    display: block !important;
+
+    grid-column:
+      1 /
+      -1;
+
+    margin-top: 1px;
+
+    padding:
+      5px
+      7px;
+
+    border-radius: 6px;
+
+    background: #fff7df;
+    color: #735d2d;
+
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1.35;
+    text-align: left;
+  }
+
+}
